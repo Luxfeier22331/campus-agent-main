@@ -1,14 +1,36 @@
+import { parse } from "smol-toml";
 import { describe, expect, it, vi } from "vitest";
 import rootPackageManifestRaw from "../../../package.json?raw";
 import sharedStagingPreflightSource from "../../../scripts/deploy/run-worker-staging-preflight.ts?raw";
 import appApiSmokeEntrypointSource from "../../../scripts/smoke/app-api.ts?raw";
 import packageManifestRaw from "../package.json?raw";
 import stagingPreflightSource from "../scripts/preflight-staging.ts?raw";
-import runWithStagingDbEnvSource from "../scripts/run-with-staging-db-env.ts?raw";
 import uploadStagingVersionSource from "../scripts/upload-staging-version.ts?raw";
 import { createWorkerRuntime } from "../src/index";
 import localSmokeWranglerConfig from "../wrangler.local-smoke.toml?raw";
 import wranglerConfig from "../wrangler.toml?raw";
+
+interface WranglerObservabilityConfig {
+	enabled?: boolean;
+	logs?: {
+		destinations?: string[];
+		enabled?: boolean;
+		head_sampling_rate?: number;
+		invocation_logs?: boolean;
+		persist?: boolean;
+	};
+	traces?: {
+		destinations?: string[];
+		enabled?: boolean;
+		head_sampling_rate?: number;
+		persist?: boolean;
+	};
+}
+
+const parsedWranglerConfig = parse(wranglerConfig) as {
+	env?: { staging?: { observability?: WranglerObservabilityConfig } };
+	observability?: WranglerObservabilityConfig;
+};
 
 const packageManifest = JSON.parse(packageManifestRaw) as {
 	scripts?: Record<string, string | undefined>;
@@ -76,8 +98,7 @@ const env = {
 	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 	EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 	APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
-	APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
-	APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
+	APP_API_PRODUCT_CALLBACK_SHARED_SECRET: "app-api-internal-secret",
 	APP_API_ENVIRONMENT: "test" as const,
 	APP_API_DB: {
 		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
@@ -101,8 +122,6 @@ function createRuntimeReadinessResult() {
 			authShellOrigin: "configured",
 			database: "ready",
 			executionRuntime: "not_required",
-			ingestionControl: "not_configured",
-			operatorSurface: "configured",
 			executionControl: "ready",
 		},
 		failed: {},
@@ -143,6 +162,38 @@ function createDocsReadinessResult() {
 }
 
 describe("app-api worker foundation", () => {
+	it("exports only application logs to the staging Axiom destination", () => {
+		expect(parsedWranglerConfig.observability).toEqual({
+			enabled: true,
+			logs: {
+				enabled: true,
+				head_sampling_rate: 1,
+				invocation_logs: false,
+				persist: false,
+			},
+			traces: {
+				enabled: false,
+				head_sampling_rate: 0,
+				persist: false,
+			},
+		});
+		expect(parsedWranglerConfig.env?.staging?.observability).toEqual({
+			enabled: true,
+			logs: {
+				destinations: ["axiom-staging-logs"],
+				enabled: true,
+				head_sampling_rate: 1,
+				invocation_logs: false,
+				persist: false,
+			},
+			traces: {
+				enabled: false,
+				head_sampling_rate: 0,
+				persist: false,
+			},
+		});
+	});
+
 	it("keeps traffic out of Wrangler and injects staging bindings at upload time", () => {
 		const localSecretsBlock = readTomlBlock(
 			wranglerConfig,
@@ -173,9 +224,6 @@ describe("app-api worker foundation", () => {
 		);
 		expect(stagingVarsBlock).toContain('APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "example.edu"');
 		expect(stagingVarsBlock).not.toContain("EXECUTION_CONTROL_BASE_URL");
-		expect(stagingVarsBlock).toContain(
-			'APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com,help_bot@outlook.com"',
-		);
 		expect(stagingVarsBlock).toContain('APP_API_END_USER_EMAIL_ALLOWLIST = "help_bot@outlook.com"');
 		expect(stagingVarsBlock).toContain(
 			'EXECUTION_CONTROL_PRIVATE_ORIGIN = "http://execution-control.campus-agent-staging.svc.cluster.local:8000"',
@@ -188,11 +236,12 @@ describe("app-api worker foundation", () => {
 		expect(stagingVarsBlock).not.toContain("CHATKIT_ADAPTER_BASE_URL");
 		expect(stagingVarsBlock).toContain('SENTRY_ENVIRONMENT = "staging"');
 		expect(stagingVarsBlock).not.toContain("SENTRY_RELEASE = ");
-		expect(stagingVarsBlock).toContain(
-			'APP_API_OTEL_INGEST_ENDPOINT = "https://otel-collector-staging.mucwiki-edge.link"',
-		);
+		expect(stagingVarsBlock).not.toContain("APP_API_OTEL_INGEST_");
 		expect(stagingVarsBlock).not.toContain("AXIOM_ENDPOINT");
 		expect(stagingVarsBlock).not.toContain("AXIOM_DATASET");
+		expect(wranglerConfig).toContain('destinations = ["axiom-staging-logs"]');
+		expect(wranglerConfig).toContain("invocation_logs = false");
+		expect(wranglerConfig).not.toContain("axiom-staging-traces");
 		expect(localSecretsBlock).not.toContain("INGESTION_CONTROL_APP_API_PROJECTION_TOKEN");
 		expect(stagingSecretsBlock).not.toContain("INGESTION_CONTROL_APP_API_PROJECTION_TOKEN");
 		expect(packageManifest.scripts?.dev).toContain("WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1");
@@ -205,6 +254,9 @@ describe("app-api worker foundation", () => {
 		expect(uploadStagingVersionSource).toContain("uploadStagingWorkerVersion");
 		expect(uploadStagingVersionSource).toContain("loadRepoStagingEnvFile");
 		expect(uploadStagingVersionSource).toContain("resolveStagingSentryRelease");
+		expect(uploadStagingVersionSource).toContain("SENTRY_APP_API_PROJECT_SLUG");
+		expect(uploadStagingVersionSource).toContain('wranglerOutdir: "dist/sentry/app-api-edge"');
+		expect(uploadStagingVersionSource).toContain("STAGING_APP_API_SENTRY_DSN");
 		expect(uploadStagingVersionSource).toContain("STAGING_EXECUTION_CONTROL_VPC_SERVICE_ID");
 		expect(uploadStagingVersionSource).toContain("STAGING_APP_API_DB_HYPERDRIVE_ID");
 		expect(uploadStagingVersionSource).toContain("STAGING_APP_API_DB_FRESH_HYPERDRIVE_ID");
@@ -226,14 +278,8 @@ describe("app-api worker foundation", () => {
 		expect(packageManifest.scripts?.["test:worker"]).toContain(
 			"WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1",
 		);
-		expect(runWithStagingDbEnvSource).toContain("loadRepoStagingEnvFile");
-		expect(runWithStagingDbEnvSource).not.toContain("loadRepoEnvFile");
-		expect(runWithStagingDbEnvSource).not.toContain("process.loadEnvFile");
-		expect(runWithStagingDbEnvSource).toContain("STAGING_APP_API_OPERATOR_DATABASE_URL");
-		expect(runWithStagingDbEnvSource).toContain("APP_API_OPERATOR_DATABASE_URL");
 		expect(appApiSmokeEntrypointSource).toContain("./scripts/deploy/run-with-staging-smoke-env.ts");
 		expect(appApiSmokeEntrypointSource).toContain("apps/app-api");
-		expect(runWithStagingDbEnvSource).toContain("https://campus-staging.mucwiki-edge.link");
 		expect(stagingPreflightSource).not.toContain(retiredExecutionControlPublicUrlKey);
 		expect(stagingPreflightSource).not.toContain(retiredExecutionControlAccessClientIdKey);
 		expect(stagingPreflightSource).not.toContain(retiredExecutionControlAccessClientSecretKey);
@@ -277,7 +323,7 @@ describe("app-api worker foundation", () => {
 		expect(wranglerConfig).toContain('"AUTH_RESET_EMAIL_FROM"');
 		expect(wranglerConfig).toContain('"AUTH_TURNSTILE_SECRET_KEY"');
 		expect(localSecretsBlock).not.toContain('"APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN"');
-		expect(localSecretsBlock).toContain('"APP_API_OTEL_INGEST_SHARED_SECRET"');
+		expect(localSecretsBlock).not.toContain("APP_API_OTEL_INGEST_");
 		expect(wranglerConfig).toContain("[env.staging.secrets]");
 		expect(stagingSecretsBlock).toContain('"BETTER_AUTH_SECRET"');
 		expect(stagingSecretsBlock).toContain('"AUTH_TURNSTILE_SECRET_KEY"');
@@ -290,11 +336,11 @@ describe("app-api worker foundation", () => {
 		expect(stagingSecretsBlock).not.toContain(
 			JSON.stringify(retiredExecutionControlAccessClientSecretKeyLocal),
 		);
-		expect(stagingSecretsBlock).toContain('"APP_API_INTERNAL_SHARED_SECRET"');
+		expect(stagingSecretsBlock).toContain('"APP_API_PRODUCT_CALLBACK_SHARED_SECRET"');
 		expect(stagingSecretsBlock).toContain('"APP_API_STAGING_SMOKE_AUTH_SECRET"');
 		expect(stagingSecretsBlock).not.toContain('"APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN"');
-		expect(stagingSecretsBlock).toContain('"SENTRY_DSN"');
-		expect(stagingSecretsBlock).toContain('"APP_API_OTEL_INGEST_SHARED_SECRET"');
+		expect(stagingSecretsBlock).not.toContain('"SENTRY_DSN"');
+		expect(stagingSecretsBlock).not.toContain("APP_API_OTEL_INGEST_");
 		expect(stagingSecretsBlock).not.toContain('"AXIOM_TOKEN"');
 	});
 
@@ -309,9 +355,7 @@ describe("app-api worker foundation", () => {
 			'EXECUTION_CONTROL_BASE_URL = "http://127.0.0.1:27051"',
 		);
 		expect(localSmokeWranglerConfig).not.toContain("CHATKIT_ADAPTER_BASE_URL");
-		expect(localSmokeWranglerConfig).toContain(
-			'APP_API_OTEL_INGEST_ENDPOINT = "http://127.0.0.1:4318"',
-		);
+		expect(localSmokeWranglerConfig).not.toContain("APP_API_OTEL_INGEST_");
 		expect(localSmokeWranglerConfig).not.toContain("127.0.0.1:8081");
 	});
 
@@ -323,14 +367,11 @@ describe("app-api worker foundation", () => {
 		expect(localSmokeSecretsBlock).toContain('"RESEND_API_KEY"');
 		expect(localSmokeSecretsBlock).toContain('"AUTH_RESET_EMAIL_FROM"');
 		expect(localSmokeSecretsBlock).toContain('"EXECUTION_CONTROL_SHARED_SECRET"');
-		expect(localSmokeSecretsBlock).toContain('"APP_API_INTERNAL_SHARED_SECRET"');
+		expect(localSmokeSecretsBlock).toContain('"APP_API_PRODUCT_CALLBACK_SHARED_SECRET"');
 		expect(localSmokeSecretsBlock).not.toContain('"EXECUTION_CONTROL_BASE_URL"');
 		expect(localSmokeWranglerConfig).toContain('APP_API_ENVIRONMENT = "development"');
 		expect(localSmokeWranglerConfig).toContain(
 			'APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "example.edu"',
-		);
-		expect(localSmokeWranglerConfig).toContain(
-			'APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com"',
 		);
 	});
 
@@ -362,8 +403,6 @@ describe("app-api worker foundation", () => {
 				authShellOrigin: "configured",
 				database: "ready",
 				executionRuntime: "not_required",
-				ingestionControl: "not_configured",
-				operatorSurface: "configured",
 				executionControl: "ready",
 			},
 			preflight: {
@@ -400,8 +439,6 @@ describe("app-api worker foundation", () => {
 					authShellOrigin: "configured",
 					database: "ready",
 					executionRuntime: "not_required",
-					ingestionControl: "not_configured",
-					operatorSurface: "configured",
 					executionControl: "not_ready",
 				},
 				failed: {
@@ -461,8 +498,7 @@ describe("app-api worker foundation", () => {
 						"EXECUTION_CONTROL_UPSTREAM",
 						"EXECUTION_CONTROL_SHARED_SECRET",
 						"APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST",
-						"APP_API_OPERATOR_EMAIL_ALLOWLIST",
-						"APP_API_INTERNAL_SHARED_SECRET",
+						"APP_API_PRODUCT_CALLBACK_SHARED_SECRET",
 					],
 				},
 			},
@@ -477,8 +513,6 @@ describe("app-api worker foundation", () => {
 					authShellOrigin: "configured",
 					database: "ready",
 					executionRuntime: "not_required",
-					ingestionControl: "not_configured",
-					operatorSurface: "configured",
 					executionControl: "not_ready",
 				},
 				failed: {
@@ -519,8 +553,6 @@ describe("app-api worker foundation", () => {
 					authShellOrigin: "configured",
 					database: "ready",
 					executionRuntime: "not_ready",
-					ingestionControl: "not_configured",
-					operatorSurface: "configured",
 					executionControl: "ready",
 				},
 				failed: {
@@ -583,8 +615,6 @@ describe("app-api worker foundation", () => {
 					authShellOrigin: "configured",
 					database: "ready",
 					executionRuntime: "not_required",
-					ingestionControl: "not_configured",
-					operatorSurface: "configured",
 					executionControl: "ready",
 				},
 				failed: {},

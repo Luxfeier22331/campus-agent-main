@@ -89,14 +89,6 @@
 			"notes": "Release-scoped app-api document reader projection materialized by jobs/docs-publish."
 		},
 		{
-			"id": "provider-config-projection.v2",
-			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/provider-config-projection.v2.schema.json",
-			"owner": "packages/contracts",
-			"status": "active",
-			"notes": "Secret-bearing active provider projection published by ops-web and consumed by execution-control."
-		},
-		{
 			"id": "knowledge-tool-contracts.v2",
 			"kind": "json_artifact",
 			"path": "packages/contracts/schemas/knowledge-tool-contracts.v2.schema.json",

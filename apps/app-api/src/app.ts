@@ -2,15 +2,17 @@ import { Hono } from "hono";
 import { defaultDocsReadinessProbe } from "./app/docs-readiness";
 import { defaultRuntimeReadinessProbe } from "./app/readiness";
 import { createRequestScopeFactory } from "./app/request-scope";
-import { resolveRequestSurface } from "./app/request-utils";
 import { registerAppRoutes } from "./app/routes";
 import type { AppDependencies } from "./app/types";
 import type { Env } from "./config";
 import { AppApiRouteError, errorEnvelope, jsonResponse, routeErrorResponse } from "./http";
 import { handleAuthRequest, resolveRequestPrincipal } from "./modules/auth";
 import { createAppTelemetry } from "./modules/telemetry";
+import { normalizeAppApiRoute } from "./modules/telemetry/sentry";
 
 export type { AppDependencies, AppRuntimeReadinessResult } from "./app/types";
+
+const APP_API_HTTP_SURFACE = "app_api";
 
 export function createApp(env: Env, dependencies: AppDependencies = {}) {
 	const app = new Hono<{ Bindings: Env }>();
@@ -31,7 +33,7 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 	app.use("*", async (c, next) => {
 		telemetry.configureHttpRequestScope({
 			route: c.req.path,
-			surface: resolveRequestSurface(c.req.raw),
+			surface: APP_API_HTTP_SURFACE,
 			traceId: c.req.header("x-trace-id"),
 		});
 
@@ -55,28 +57,18 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 			return routeErrorResponse(error);
 		}
 
-		console.error(
-			JSON.stringify({
-				error:
-					error instanceof Error
-						? {
-								message: error.message,
-								name: error.name,
-							}
-						: {
-								message: String(error),
-								name: "UnknownError",
-							},
-				route: c.req.path,
-				source: "app-api.onError",
-				surface: resolveRequestSurface(c.req.raw),
-			}),
-		);
+		console.error({
+			error_code: "unhandled_exception",
+			error_type: normalizeErrorType(error),
+			route: normalizeAppApiRoute(c.req.path, c.req.method),
+			source: "app-api.onError",
+			surface: APP_API_HTTP_SURFACE,
+		});
 
 		telemetry.captureException(error, {
 			route: c.req.path,
 			status: 500,
-			surface: resolveRequestSurface(c.req.raw),
+			surface: APP_API_HTTP_SURFACE,
 			traceId: c.req.header("x-trace-id"),
 		});
 
@@ -102,4 +94,9 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 	);
 
 	return app;
+}
+
+function normalizeErrorType(error: unknown): string {
+	const name = error instanceof Error ? error.name : "UnknownError";
+	return name.replace(/[^a-z0-9_.-]/giu, "_").slice(0, 64) || "UnknownError";
 }

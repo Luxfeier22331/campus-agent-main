@@ -62,15 +62,26 @@ CREATE TABLE IF NOT EXISTS "chat"."turn_dispatches" (
     "request_id" text PRIMARY KEY,
     "conversation_id" text NOT NULL REFERENCES "chat"."conversations" ("id") ON DELETE CASCADE,
     "user_message_id" text NOT NULL REFERENCES "chat"."messages" ("id") ON DELETE CASCADE,
+    "assistant_message_id" text NOT NULL,
     "turn_sequence" integer NOT NULL,
     "surface" text NOT NULL,
     "owner_user_id" text NOT NULL,
     "actor_user_id" text NOT NULL,
     "principal_snapshot_json" jsonb NOT NULL,
+    "memory_recall_enabled" boolean,
+    "memory_append_enabled" boolean,
+    "memory_owner_generation" bigint,
+    "memory_owner_sequence" bigint,
     "idempotency_key" text,
     "request_fingerprint_sha256" text,
     "trace_id" text NOT NULL,
     "run_id" text,
+    "admission_status" text DEFAULT 'pending_input' NOT NULL,
+    "workflow_id" text,
+    "workflow_input_json" jsonb,
+    "workflow_input_sha256" text,
+    "admitted_at" timestamp with time zone,
+    "finalization_fingerprint" text,
     "safety_identifier" text,
     "requested_tool" text,
     "resolved_targets_json" jsonb DEFAULT '[]'::jsonb NOT NULL,
@@ -81,6 +92,20 @@ CREATE TABLE IF NOT EXISTS "chat"."turn_dispatches" (
     "completed_at" timestamp with time zone,
     "updated_at" timestamp with time zone NOT NULL
 );
+
+ALTER TABLE "chat"."turn_dispatches" ADD COLUMN IF NOT EXISTS "assistant_message_id" text;
+UPDATE "chat"."turn_dispatches"
+SET "assistant_message_id" = "request_id" || ':assistant'
+WHERE "assistant_message_id" IS null;
+ALTER TABLE "chat"."turn_dispatches" ALTER COLUMN "assistant_message_id" SET NOT NULL;
+ALTER TABLE "chat"."turn_dispatches"
+ADD COLUMN IF NOT EXISTS "admission_status" text DEFAULT 'pending_input' NOT NULL;
+ALTER TABLE "chat"."turn_dispatches" ADD COLUMN IF NOT EXISTS "workflow_id" text;
+ALTER TABLE "chat"."turn_dispatches" ADD COLUMN IF NOT EXISTS "workflow_input_json" jsonb;
+ALTER TABLE "chat"."turn_dispatches" ADD COLUMN IF NOT EXISTS "workflow_input_sha256" text;
+ALTER TABLE "chat"."turn_dispatches"
+ADD COLUMN IF NOT EXISTS "admitted_at" timestamp with time zone;
+ALTER TABLE "chat"."turn_dispatches" ADD COLUMN IF NOT EXISTS "finalization_fingerprint" text;
 
 CREATE UNIQUE INDEX IF NOT EXISTS "chat_turn_dispatches_actor_idempotency_uidx"
 ON "chat"."turn_dispatches" USING btree ("actor_user_id", "idempotency_key");

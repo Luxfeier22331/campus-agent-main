@@ -5,8 +5,8 @@ function fail(message: string): never {
 	process.exit(1);
 }
 
-export function resolveGitSha(short = false): string {
-	const result = spawnSync("git", ["rev-parse", ...(short ? ["--short"] : []), "HEAD"], {
+export function resolveGitSha(): string {
+	const result = spawnSync("git", ["rev-parse", "HEAD"], {
 		encoding: "utf8",
 		stdio: ["ignore", "pipe", "inherit"],
 	});
@@ -23,18 +23,6 @@ export function resolveGitSha(short = false): string {
 	return commitSha;
 }
 
-export function resolveGitShortSha(): string {
-	return resolveGitSha(true);
-}
-
-export function resolveStagingSentryRelease(
-	appName: string,
-	override = process.env.STAGING_SENTRY_RELEASE,
-): string {
-	const trimmedOverride = override?.trim();
-	if (trimmedOverride) {
-		return trimmedOverride;
-	}
-
-	return `${appName}@staging-${resolveGitShortSha()}`;
+export function resolveStagingSentryRelease(appName: string): string {
+	return `${appName}@${resolveGitSha()}`;
 }

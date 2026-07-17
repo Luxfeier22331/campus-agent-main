@@ -11,14 +11,11 @@ const routesDir = join(__dirname, "../src/app/routes");
 const routeFiles = [
 	"auth.ts",
 	"campus-experience.ts",
-	"campus-services-ops.ts",
 	"chat.ts",
 	"chat-run-routes.ts",
 	"docs.ts",
 	"federation.ts",
-	"identity-platform.ts",
 	"internal.ts",
-	"operator.ts",
 	"profile-memory.ts",
 	"runtime.ts",
 ] as const;
@@ -63,14 +60,5 @@ describe("app-api route exposure inventory", () => {
 				route.path.startsWith("/api/internal/"),
 			).every((route) => route.callerClass === "machine-internal"),
 		).toBe(true);
-	});
-
-	it("keeps Dining operations out of app-api", () => {
-		const keys = new Set(
-			APP_API_ROUTE_EXPOSURE_INVENTORY.map((route) => `${route.method} ${route.path}`),
-		);
-
-		expect([...keys].some((key) => key.includes("/api/ops/dining"))).toBe(false);
-		expect(keys.has("GET /api/dining/publication")).toBe(true);
 	});
 });

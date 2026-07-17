@@ -44,17 +44,6 @@ export function internalAuthRequiredResponse() {
 	);
 }
 
-export function operatorAccessForbiddenResponse() {
-	return routeErrorResponse(
-		new AppApiRouteError({
-			code: "forbidden",
-			message: "Operator access is not available for this principal.",
-			retryable: false,
-			status: 403,
-		}),
-	);
-}
-
 export function routeErrorResponseWithRouteErrorCorrelation(
 	error: AppApiRouteError,
 	correlation: {

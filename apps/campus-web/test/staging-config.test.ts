@@ -1,21 +1,66 @@
 import { readFileSync } from "node:fs";
+import { parse } from "smol-toml";
 import { describe, expect, it } from "vitest";
 import stagingBrowserE2ESource from "../e2e/staging-browser.ts?raw";
+import stagingSentryCanarySource from "../e2e/staging-sentry-canary.ts?raw";
 import packageManifest from "../package.json";
 import stagingPreflightSource from "../scripts/preflight-staging.ts?raw";
 import uploadStagingVersionSource from "../scripts/upload-staging-version.ts?raw";
 import verifyStagingConfigSource from "../scripts/verify-staging-config.ts?raw";
+import viteConfigSource from "../vite.config.ts?raw";
 import wranglerConfig from "../wrangler.toml?raw";
 
 const packageScripts = packageManifest.scripts as Record<string, string | undefined>;
+const parsedWranglerConfig = parse(wranglerConfig) as {
+	env?: { staging?: { observability?: unknown } };
+	observability?: unknown;
+};
 
 describe("campus web staging config", () => {
+	it("exports only application logs to the staging Axiom destination", () => {
+		expect(parsedWranglerConfig.observability).toEqual({
+			enabled: true,
+			logs: {
+				enabled: true,
+				head_sampling_rate: 1,
+				invocation_logs: false,
+				persist: false,
+			},
+			traces: {
+				enabled: false,
+				head_sampling_rate: 0,
+				persist: false,
+			},
+		});
+		expect(parsedWranglerConfig.env?.staging?.observability).toEqual({
+			enabled: true,
+			logs: {
+				destinations: ["axiom-staging-logs"],
+				enabled: true,
+				head_sampling_rate: 1,
+				invocation_logs: false,
+				persist: false,
+			},
+			traces: {
+				enabled: false,
+				head_sampling_rate: 0,
+				persist: false,
+			},
+		});
+	});
+
 	it("keeps traffic ownership out of Wrangler and injects Turnstile at upload time", () => {
 		expect(wranglerConfig).not.toContain("[[env.staging.routes]]");
 		expect(wranglerConfig).toContain('CAMPUS_WEB_HOSTNAME = "campus-staging.mucwiki-edge.link"');
 		expect(wranglerConfig).not.toContain("AUTH_TURNSTILE_SITE_KEY");
 		expect(wranglerConfig).toContain('bucket_name = "campus-agent-derived-unconfigured"');
 		expect(wranglerConfig).not.toContain('bucket_name = "campus-agent-derived-staging"');
+		expect(wranglerConfig).not.toContain("[env.staging.secrets]");
+		expect(wranglerConfig).toContain("upload_source_maps = true");
+		expect(wranglerConfig).toContain("persist = false");
+		expect(wranglerConfig).toContain('destinations = ["axiom-staging-logs"]');
+		expect(wranglerConfig).toContain("invocation_logs = false");
+		expect(wranglerConfig).not.toContain("axiom-staging-traces");
 
 		expect(verifyStagingConfigSource).toContain("STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY");
 		expect(verifyStagingConfigSource).toContain("campus-staging.mucwiki-edge.link");
@@ -23,6 +68,10 @@ describe("campus web staging config", () => {
 		expect(verifyStagingConfigSource).toContain("DOCS_RELEASE_ID must be injected");
 
 		expect(uploadStagingVersionSource).toContain("STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY");
+		expect(uploadStagingVersionSource).toContain("STAGING_CAMPUS_WEB_BROWSER_SENTRY_DSN");
+		expect(uploadStagingVersionSource).toContain("STAGING_CAMPUS_WEB_EDGE_SENTRY_DSN");
+		expect(uploadStagingVersionSource).toContain("SENTRY_CAMPUS_WEB_PROJECT_SLUG");
+		expect(uploadStagingVersionSource).toContain('artifactDirectory: "dist/campus_web"');
 		expect(uploadStagingVersionSource).toContain("AUTH_TURNSTILE_SITE_KEY");
 		expect(uploadStagingVersionSource).toContain("STAGING_MAP_DATA_BUCKET_NAME");
 		expect(uploadStagingVersionSource).toContain("uploadStagingWorkerVersion");
@@ -57,6 +106,15 @@ describe("campus web staging config", () => {
 		expect(stagingPreflightSource).toContain("check-worker-secret-presence.ts");
 		expect(stagingPreflightSource).toContain("apps/campus-web/scripts/verify-staging-config.ts");
 		expect(stagingPreflightSource).toContain("apps/campus-web/dist/campus_web/wrangler.json");
+		expect(viteConfigSource).toContain("sentryVitePlugin");
+		expect(viteConfigSource).toContain('sourcemap: sentryUpload ? ("hidden" as const) : false');
+		expect(viteConfigSource).toContain('filesToDeleteAfterUpload: "./dist/client/**/*.map"');
+		expect(viteConfigSource).toContain("CAMPUS_WEB_SENTRY_SOURCE_MAP_UPLOAD");
+		expect(viteConfigSource).toContain("SENTRY_CAMPUS_WEB_PROJECT_SLUG");
+		expect(viteConfigSource).toContain("SENTRY_ORG_SLUG");
+		expect(viteConfigSource).toContain("SENTRY_ALLOW_FAILURE must be unset");
+		expect(viteConfigSource).toContain('url: "https://sentry.io"');
+		expect(viteConfigSource).not.toContain("process.env.SENTRY_PROJECT");
 	});
 
 	it("keeps staging browser e2e credentialed and evidence-producing", () => {
@@ -72,5 +130,20 @@ describe("campus web staging config", () => {
 		expect(stagingBrowserE2ESource).toContain("/docs/regulations/student_rules/");
 		expect(packageScripts["browser:e2e:staging"]).toBeUndefined();
 		expect(packageScripts["browser:smoke:staging"]).toBeUndefined();
+	});
+
+	it("injects the smoke credential only into the exact Sentry canary navigation", () => {
+		expect(stagingSentryCanarySource).toContain("page.route(");
+		expect(stagingSentryCanarySource).toContain("navigation.isNavigationRequest()");
+		expect(stagingSentryCanarySource).toContain('navigation.method() !== "POST"');
+		expect(stagingSentryCanarySource).toContain("url.pathname !== SENTRY_CANARY_ROUTE");
+		expect(stagingSentryCanarySource).toContain('"x-app-staging-smoke-auth"');
+		expect(stagingSentryCanarySource).toContain('"x-request-id": input.productRequestId');
+		expect(stagingSentryCanarySource).toContain('"x-trace-id": input.runtimeTraceId');
+		expect(stagingSentryCanarySource).toContain("route.continue");
+		expect(stagingSentryCanarySource).not.toContain("extraHTTPHeaders");
+		expect(stagingSentryCanarySource).not.toContain("searchParams.set");
+		expect(stagingSentryCanarySource).not.toContain("--smoke-auth-secret");
+		expect(packageScripts["sentry:canary:staging"]).toBeUndefined();
 	});
 });

@@ -30,9 +30,11 @@ workload 只以稳定 Kubernetes Secret 名与 key 作为合同。具体 secret 
 - 需要频繁人工轮换的短期凭据可以使用预创建的固定 Secret，由明确白名单内的集群操作更新；
   该例外必须限制到资源名，不得授予 Secret 创建、列举或删除权限，也不把 Git 变成凭据历史。
 
-Cloudflare Worker secret 留在 Cloudflare secret store，通过 deploy/preflight tooling 检查是否
-存在，不镜像到 Kubernetes。Kubernetes secret delivery 也不拥有 Docker local secret 或
-app-level operational config。
+Cloudflare Worker 独占的 secret 留在 Cloudflare secret store，通过部署前检查工具确认是否
+存在，不镜像到 Kubernetes。跨运行时认证凭据是例外：当 Kubernetes 调用方与 Cloudflare
+Worker 验证方必须校验同一个值时，运维人员在可信环境生成一次，分别投递到两个密钥存储，
+并将两端作为同一轮换单元；任一密钥存储都不充当另一个密钥存储的同步源。Kubernetes secret
+delivery 也不拥有 Docker 本地 secret 或应用级运维配置。
 
 ## 后果
 

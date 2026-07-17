@@ -1,613 +1,483 @@
-import type {
-	ProviderConfigConnectionSummary,
-	ProviderConfigKind,
-	ProviderConfigProfileSummary,
-} from "@campus-agent/provider-config";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, KeyRound, Pencil, Play, Plus, X } from "lucide-react";
-import { useState } from "react";
-import {
-	activateProviderProfile,
-	createProviderConnection,
-	createProviderProfile,
-	fetchProviderConfig,
-	updateProviderConnection,
-	updateProviderProfile,
-	validateProviderProfile,
-} from "./ops-api-client";
+import { CheckCircle2, KeyRound, RefreshCw, Rocket, ServerCog } from "lucide-react";
+import { cloneElement, useId, useState } from "react";
+import type { ProviderConfigStatus } from "../shared/ops-contract";
+import { commandProviderConfig, fetchProviderConfig } from "./ops-api-client";
+import { ErrorState, PageHeader } from "./ops-display";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { DataTable } from "./ui/data-table";
 
-const inputClass =
-	"min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-200";
-const labelClass = "grid gap-1.5 font-medium text-slate-700 text-sm";
+const inputClass = "min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm";
 
 export function ProviderConfigPage() {
 	const queryClient = useQueryClient();
-	const query = useQuery({
+	const status = useQuery({
 		queryFn: ({ signal }) => fetchProviderConfig({ signal }),
-		queryKey: ["provider-config"],
+		queryKey: ["ops", "provider-config"],
 	});
-	const [error, setError] = useState<string | null>(null);
-	const [editingConnectionId, setEditingConnectionId] = useState<string | null>(null);
-	const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
-	const visibleError = error ?? (query.error instanceof Error ? query.error.message : null);
-	const refresh = () => queryClient.invalidateQueries({ queryKey: ["provider-config"] });
-	const editingConnection = query.data?.connections.find(
-		(connection) => connection.connectionId === editingConnectionId,
-	);
-	const editingProfile = query.data?.profiles.find(
-		(profile) => profile.profileId === editingProfileId,
-	);
-	const activeConnectionIds = new Set(
-		(query.data?.profiles ?? [])
-			.filter((profile) => profile.active)
-			.map((profile) => profile.connectionId),
-	);
-	const action = useMutation({
-		mutationFn: async (input: { kind: "activate" | "validate"; profileId: string }) =>
-			input.kind === "activate"
-				? activateProviderProfile(input.profileId)
-				: validateProviderProfile(input.profileId),
-		onError: (value) => setError(value instanceof Error ? value.message : "操作失败。"),
+	const [commandError, setCommandError] = useState<unknown>(null);
+	const command = useMutation({
+		mutationFn: async (input: {
+			path: Parameters<typeof commandProviderConfig>[0];
+			payload: unknown;
+			idempotencyKey: string;
+		}) =>
+			commandProviderConfig(input.path, input.payload, { idempotencyKey: input.idempotencyKey }),
+		onError: setCommandError,
 		onSuccess: async () => {
-			setError(null);
-			await refresh();
-		},
-	});
-	const createConnection = useMutation({
-		mutationFn: createProviderConnection,
-		onError: (value) => setError(value instanceof Error ? value.message : "保存连接失败。"),
-		onSuccess: async () => {
-			setError(null);
-			await refresh();
-		},
-	});
-	const createProfile = useMutation({
-		mutationFn: createProviderProfile,
-		onError: (value) => setError(value instanceof Error ? value.message : "保存配置失败。"),
-		onSuccess: async () => {
-			setError(null);
-			await refresh();
-		},
-	});
-	const editConnection = useMutation({
-		mutationFn: (input: { connectionId: string; payload: Record<string, unknown> }) =>
-			updateProviderConnection(input.connectionId, input.payload),
-		onError: (value) => setError(value instanceof Error ? value.message : "更新连接失败。"),
-		onSuccess: async () => {
-			setEditingConnectionId(null);
-			setError(null);
-			await refresh();
-		},
-	});
-	const editProfile = useMutation({
-		mutationFn: (input: { payload: Record<string, unknown>; profileId: string }) =>
-			updateProviderProfile(input.profileId, input.payload),
-		onError: (value) => setError(value instanceof Error ? value.message : "更新配置失败。"),
-		onSuccess: async () => {
-			setEditingProfileId(null);
-			setError(null);
-			await refresh();
+			setCommandError(null);
+			await queryClient.invalidateQueries({ queryKey: ["ops", "provider-config"] });
 		},
 	});
 
+	if (status.isPending) {
+		return (
+			<section>
+				<PageHeader
+					description="管理 execution runtime 的模型连接和整包激活。"
+					title="Provider Config"
+				/>
+				<p className="text-slate-600 text-sm">正在读取配置...</p>
+			</section>
+		);
+	}
+	if (status.isError || !status.data) {
+		return (
+			<section>
+				<PageHeader
+					description="管理 execution runtime 的模型连接和整包激活。"
+					title="Provider Config"
+				/>
+				<ErrorState
+					error={status.error}
+					onRetry={() => void status.refetch()}
+					title="Provider Config 读取失败"
+				/>
+			</section>
+		);
+	}
+	const data = status.data;
 	return (
-		<div className="mx-auto grid max-w-7xl gap-5">
-			<header className="flex flex-wrap items-end justify-between gap-3">
-				<div>
-					<p className="font-semibold text-slate-500 text-xs">运行配置</p>
-					<h1 className="font-semibold text-2xl text-slate-950">模型服务配置</h1>
-					{query.data?.runtime.configured ? (
-						<p
-							className="mt-1 max-w-3xl truncate text-slate-500 text-xs"
-							title={query.data.runtime.publicationId ?? undefined}
-						>
-							{query.data.runtime.publicationId} · {query.data.runtime.publishedBy?.displayName} ·{" "}
-							{formatPublicationTime(query.data.runtime.publishedAt)}
-						</p>
-					) : null}
-				</div>
-				<Badge tone={query.data?.runtime.configured ? "success" : "warning"}>
-					{query.data?.runtime.configured ? "运行时已发布" : "运行时未配置"}
+		<section>
+			<PageHeader
+				actions={
+					<Button
+						aria-busy={status.isFetching}
+						disabled={status.isFetching}
+						onClick={() => void status.refetch()}
+						variant="outline"
+					>
+						<RefreshCw className="size-4" />
+						刷新
+					</Button>
+				}
+				description="连接和 Profile 均为不可变 revision；激活始终原子替换完整运行 bundle。"
+				title="Provider Config"
+			/>
+			<div className="mb-4 flex flex-wrap gap-2">
+				<Badge tone={data.activeRevision > 0 ? "success" : "warning"}>
+					Active revision {data.activeRevision}
 				</Badge>
-			</header>
-			{visibleError ? (
-				<div
-					className="rounded-md border border-red-200 bg-red-50 p-3 text-red-800 text-sm"
-					role="alert"
-				>
-					{visibleError}
+				{data.roles.map((role) => (
+					<Badge
+						className="max-w-full whitespace-normal break-all"
+						key={role.role}
+						tone={role.configured ? "success" : role.role === "rag_reranker" ? "muted" : "danger"}
+					>
+						{role.role}: {role.configured ? role.model : "未配置"}
+					</Badge>
+				))}
+			</div>
+			{commandError ? (
+				<div className="mb-4">
+					<ErrorState error={commandError} title="Provider Config 命令失败" />
 				</div>
 			) : null}
-			{query.data?.runtime.configured ? (
-				<section
-					aria-labelledby="active-provider-profiles"
-					className="overflow-hidden rounded-lg border border-slate-200 bg-white"
-				>
-					<div className="border-slate-200 border-b p-4 sm:p-5">
-						<h2 className="font-semibold text-base" id="active-provider-profiles">
-							当前生效配置
-						</h2>
-					</div>
-					<div className="grid gap-px bg-slate-100 sm:grid-cols-2 xl:grid-cols-3">
-						{Object.entries(query.data.runtime.profiles).map(([role, profile]) => (
-							<div className="bg-white p-4" key={role}>
-								<p className="font-medium text-slate-950 text-sm">{role}</p>
-								<p className="mt-1 truncate text-slate-600 text-sm" title={profile.model}>
-									{profile.model}
-								</p>
-								<p className="mt-1 text-slate-400 text-xs">
-									{profile.provider} · revision {profile.revision}
-								</p>
-							</div>
-						))}
-					</div>
-				</section>
+			{data.writeAllowed ? (
+				<ProviderWriteControls command={command.mutate} data={data} pending={command.isPending} />
 			) : null}
-			<div className="grid gap-5 xl:grid-cols-2">
+			<div className="mt-4 grid gap-4">
 				<Card>
 					<CardHeader>
-						<CardTitle>新增连接</CardTitle>
+						<CardTitle>Profiles</CardTitle>
 					</CardHeader>
 					<CardContent>
-						<ConnectionForm
-							pending={createConnection.isPending}
-							onSubmit={(payload) => createConnection.mutateAsync(payload)}
+						<DataTable
+							caption="Provider profiles"
+							data={data.profiles}
+							minWidth="820px"
+							rowKey={(row) => row.profileId}
+							columns={[
+								{
+									header: "Role",
+									cell: (row) => <span className="font-mono text-xs">{row.role}</span>,
+								},
+								{ header: "Model", cell: (row) => row.model },
+								{
+									header: "Connection",
+									cell: (row) => (
+										<span className="font-mono text-xs">
+											{row.connectionId}@{row.connectionRevision}
+										</span>
+									),
+								},
+								{ header: "Transport", cell: (row) => row.transport },
+								{
+									header: "Validation",
+									cell: (row) => (
+										<Badge
+											tone={
+												row.validationStatus === "passed"
+													? "success"
+													: row.validationStatus === "failed"
+														? "danger"
+														: "warning"
+											}
+										>
+											{row.validationStatus}
+										</Badge>
+									),
+								},
+								{
+									header: "Profile ID",
+									cell: (row) => <span className="font-mono text-xs">{row.profileId}</span>,
+								},
+							]}
 						/>
 					</CardContent>
 				</Card>
 				<Card>
 					<CardHeader>
-						<CardTitle>新增配置</CardTitle>
+						<CardTitle>Connections</CardTitle>
 					</CardHeader>
 					<CardContent>
-						<ProfileForm
-							connections={query.data?.connections ?? []}
-							pending={createProfile.isPending}
-							onSubmit={(payload) => createProfile.mutateAsync(payload)}
+						<DataTable
+							caption="Provider connections"
+							data={data.connections}
+							rowKey={(row) => `${row.connectionId}:${row.revision}`}
+							columns={[
+								{ header: "Provider", cell: (row) => row.provider },
+								{
+									header: "Connection",
+									cell: (row) => (
+										<span className="font-mono text-xs">
+											{row.connectionId}@{row.revision}
+										</span>
+									),
+								},
+								{
+									header: "Base URL",
+									cell: (row) => <span className="break-all text-xs">{row.baseUrl}</span>,
+								},
+								{ header: "Features", cell: (row) => row.features.join(", ") },
+								{
+									header: "Secret",
+									cell: (row) => <span className="font-mono text-xs">...{row.secretLast4}</span>,
+								},
+							]}
 						/>
 					</CardContent>
 				</Card>
 			</div>
-			{editingConnection ? (
-				<Card>
-					<CardHeader className="flex-row items-center justify-between space-y-0">
-						<CardTitle>编辑连接</CardTitle>
-						<Button
-							aria-label="取消编辑连接"
-							className="size-11 px-0"
-							onClick={() => setEditingConnectionId(null)}
-							title="取消"
-							variant="ghost"
-						>
-							<X className="size-4" />
+		</section>
+	);
+}
+
+function ProviderWriteControls({
+	command,
+	data,
+	pending,
+}: {
+	command: (input: {
+		path: Parameters<typeof commandProviderConfig>[0];
+		payload: unknown;
+		idempotencyKey: string;
+	}) => void;
+	data: ProviderConfigStatus;
+	pending: boolean;
+}) {
+	return (
+		<div className="grid gap-4 xl:grid-cols-3">
+			<Card>
+				<CardHeader>
+					<CardTitle className="flex items-center gap-2">
+						<KeyRound className="size-4" />
+						新建 Connection revision
+					</CardTitle>
+				</CardHeader>
+				<CardContent>
+					<form
+						className="grid gap-3"
+						onSubmit={(event) => {
+							event.preventDefault();
+							const form = new FormData(event.currentTarget);
+							command({
+								idempotencyKey: crypto.randomUUID(),
+								path: "connections",
+								payload: {
+									apiKey: form.get("apiKey"),
+									baseUrl: form.get("baseUrl"),
+									connectionId: form.get("connectionId"),
+									featureConfig: {},
+									features: form.getAll("features").map(String),
+									provider: form.get("provider"),
+								},
+							});
+							event.currentTarget.reset();
+						}}
+					>
+						<Field label="Connection ID">
+							<input className={inputClass} name="connectionId" placeholder="留空自动生成" />
+						</Field>
+						<Field label="Provider">
+							<input className={inputClass} name="provider" required />
+						</Field>
+						<Field label="Base URL">
+							<input className={inputClass} name="baseUrl" required type="url" />
+						</Field>
+						<fieldset className="grid gap-2">
+							<legend className="font-medium text-slate-600 text-sm">Features</legend>
+							<div className="flex flex-wrap gap-3">
+								{(["prompt", "embedding", "rerank"] as const).map((feature) => (
+									<label className="flex items-center gap-2 text-sm" key={feature}>
+										<input
+											defaultChecked={feature === "prompt"}
+											name="features"
+											type="checkbox"
+											value={feature}
+										/>
+										{feature}
+									</label>
+								))}
+							</div>
+						</fieldset>
+						<Field label="API key">
+							<input
+								autoComplete="new-password"
+								className={inputClass}
+								name="apiKey"
+								required
+								type="password"
+							/>
+						</Field>
+						<Button disabled={pending} type="submit">
+							<ServerCog className="size-4" />
+							创建 revision
 						</Button>
-					</CardHeader>
-					<CardContent>
-						<ConnectionForm
-							initial={editingConnection}
-							pending={editConnection.isPending}
-							onSubmit={(payload) =>
-								editConnection.mutateAsync({
-									connectionId: editingConnection.connectionId,
-									payload,
-								})
-							}
-						/>
-					</CardContent>
-				</Card>
-			) : null}
-			{editingProfile ? (
-				<Card>
-					<CardHeader className="flex-row items-center justify-between space-y-0">
-						<CardTitle>编辑配置</CardTitle>
-						<Button
-							aria-label="取消编辑配置"
-							className="size-11 px-0"
-							onClick={() => setEditingProfileId(null)}
-							title="取消"
-							variant="ghost"
-						>
-							<X className="size-4" />
+					</form>
+				</CardContent>
+			</Card>
+			<Card>
+				<CardHeader>
+					<CardTitle className="flex items-center gap-2">
+						<CheckCircle2 className="size-4" />
+						新建并验证 Profile
+					</CardTitle>
+				</CardHeader>
+				<CardContent>
+					<form
+						className="grid gap-3"
+						onSubmit={(event) => {
+							event.preventDefault();
+							const form = new FormData(event.currentTarget);
+							const role = String(form.get("role"));
+							const kind =
+								role === "primary_agent"
+									? "prompt"
+									: role === "rag_query_embedding"
+										? "embedding"
+										: "rerank";
+							const connection = parseConnectionSelection(form.get("connection"));
+							command({
+								idempotencyKey: crypto.randomUUID(),
+								path: "profiles",
+								payload: {
+									connectionId: connection.connectionId,
+									connectionRevision: connection.revision,
+									dimensions: kind === "embedding" ? Number(form.get("dimensions")) : 0,
+									kind,
+									model: form.get("model"),
+									role,
+									timeoutMs: Number(form.get("timeoutMs")),
+									transport: form.get("transport"),
+								},
+							});
+						}}
+					>
+						<Field label="Role">
+							<select className={inputClass} name="role">
+								<option value="primary_agent">primary_agent</option>
+								<option value="rag_query_embedding">rag_query_embedding</option>
+								<option value="rag_reranker">rag_reranker</option>
+							</select>
+						</Field>
+						<Field label="Connection">
+							<select className={inputClass} name="connection" required>
+								{data.connections.map((connection) => (
+									<option
+										key={`${connection.connectionId}:${connection.revision}`}
+										value={JSON.stringify([connection.connectionId, connection.revision])}
+									>
+										{connection.connectionId}@{connection.revision}
+									</option>
+								))}
+							</select>
+						</Field>
+						<Field label="Model">
+							<input className={inputClass} name="model" required />
+						</Field>
+						<Field label="Transport">
+							<input className={inputClass} name="transport" required defaultValue="responses" />
+						</Field>
+						<Field label="Dimensions">
+							<input
+								className={inputClass}
+								min="1"
+								name="dimensions"
+								type="number"
+								defaultValue="2560"
+							/>
+						</Field>
+						<Field label="Timeout (ms)">
+							<input
+								className={inputClass}
+								min="1"
+								name="timeoutMs"
+								required
+								type="number"
+								defaultValue="30000"
+							/>
+						</Field>
+						<Button disabled={pending || data.connections.length === 0} type="submit">
+							<ServerCog className="size-4" />
+							创建 Profile
 						</Button>
-					</CardHeader>
-					<CardContent>
-						<ProfileForm
-							connections={query.data?.connections ?? []}
-							initial={editingProfile}
-							pending={editProfile.isPending}
-							onSubmit={(payload) =>
-								editProfile.mutateAsync({ payload, profileId: editingProfile.profileId })
-							}
-						/>
-					</CardContent>
-				</Card>
-			) : null}
-			<section className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-				<div className="border-slate-200 border-b p-4 sm:p-5">
-					<h2 className="font-semibold text-base">服务连接</h2>
-				</div>
-				<div className="overflow-x-auto">
-					<table className="w-full text-left text-sm">
-						<thead className="bg-slate-50 text-slate-600">
-							<tr>
-								<th className="px-4 py-3">服务</th>
-								<th className="px-4 py-3">端点</th>
-								<th className="px-4 py-3">能力</th>
-								<th className="px-4 py-3">密钥</th>
-								<th className="px-4 py-3 text-right">操作</th>
-							</tr>
-						</thead>
-						<tbody className="divide-y divide-slate-100">
-							{(query.data?.connections ?? []).map((connection) => {
-								const active = activeConnectionIds.has(connection.connectionId);
-								return (
-									<tr key={connection.connectionId}>
-										<td className="px-4 py-3 font-medium">{connection.provider}</td>
-										<td className="max-w-xs truncate px-4 py-3" title={connection.baseUrl}>
-											{connection.baseUrl}
-										</td>
-										<td className="px-4 py-3">{connection.features.join(" / ")}</td>
-										<td className="px-4 py-3 font-mono text-xs">••••{connection.secretLast4}</td>
-										<td className="px-4 py-3 text-right">
-											<Button
-												aria-label="编辑连接"
-												disabled={active}
-												onClick={() => {
-													setEditingProfileId(null);
-													setEditingConnectionId(connection.connectionId);
-												}}
-												title={active ? "当前生效连接不可原地修改" : "编辑连接"}
-												variant="outline"
-											>
-												<Pencil className="size-4" />
-												编辑
-											</Button>
-										</td>
-									</tr>
-								);
-							})}
-						</tbody>
-					</table>
-				</div>
-				{query.data?.connections.length === 0 ? (
-					<p className="p-5 text-slate-500 text-sm">暂无服务连接</p>
-				) : null}
-			</section>
-			<section className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-				<div className="border-slate-200 border-b p-4 sm:p-5">
-					<h2 className="font-semibold text-base">配置档案</h2>
-				</div>
-				<div className="overflow-x-auto">
-					<table className="w-full text-left text-sm">
-						<thead className="bg-slate-50 text-slate-600">
-							<tr>
-								<th className="px-4 py-3">角色</th>
-								<th className="px-4 py-3">模型</th>
-								<th className="px-4 py-3">状态</th>
-								<th className="px-4 py-3">连接</th>
-								<th className="px-4 py-3 text-right">操作</th>
-							</tr>
-						</thead>
-						<tbody className="divide-y divide-slate-100">
-							{(query.data?.profiles ?? []).map((profile) => (
-								<tr key={profile.profileId}>
-									<td className="px-4 py-3 font-medium">{profile.role}</td>
-									<td className="px-4 py-3">{profile.model}</td>
-									<td className="px-4 py-3">
-										<Badge
-											tone={
-												profile.active
-													? "success"
-													: profile.status === "validation_failed"
-														? "danger"
-														: "default"
-											}
-										>
-											{profile.active ? "当前生效" : statusLabel(profile.status)}
-										</Badge>
-									</td>
-									<td className="px-4 py-3 font-mono text-xs">{profile.provider}</td>
-									<td className="px-4 py-3">
-										<div className="flex justify-end gap-2">
-											<Button
-												aria-label="编辑配置"
-												disabled={profile.active}
-												onClick={() => {
-													setEditingConnectionId(null);
-													setEditingProfileId(profile.profileId);
-												}}
-												title={profile.active ? "当前生效配置不可原地修改" : "编辑配置"}
-												variant="outline"
-											>
-												<Pencil className="size-4" />
-												编辑
-											</Button>
-											<Button
-												aria-label="验证配置"
-												disabled={action.isPending || profile.active}
-												onClick={() =>
-													action.mutate({ kind: "validate", profileId: profile.profileId })
-												}
-												variant="outline"
-											>
-												<CheckCircle2 className="size-4" />
-												验证
-											</Button>
-											<Button
-												aria-label="激活配置"
-												disabled={
-													action.isPending || profile.active || profile.status !== "validated"
-												}
-												onClick={() =>
-													action.mutate({ kind: "activate", profileId: profile.profileId })
-												}
-											>
-												<Play className="size-4" />
-												激活
-											</Button>
-										</div>
-									</td>
-								</tr>
-							))}
-						</tbody>
-					</table>
-				</div>
-				{query.isLoading ? <p className="p-5 text-slate-500 text-sm">正在读取...</p> : null}
-				{query.data?.profiles.length === 0 ? (
-					<p className="p-5 text-slate-500 text-sm">暂无配置档案</p>
-				) : null}
-			</section>
+						<div className="grid gap-2 border-slate-200 border-t pt-3">
+							{data.profiles
+								.filter((profile) => profile.validationStatus !== "passed")
+								.map((profile) => (
+									<Button
+										key={profile.profileId}
+										disabled={pending}
+										onClick={() =>
+											command({
+												idempotencyKey: crypto.randomUUID(),
+												path: `profiles/${profile.profileId}/validate`,
+												payload: {},
+											})
+										}
+										type="button"
+										variant="outline"
+									>
+										<CheckCircle2 className="size-4" />
+										验证 {profile.role}
+									</Button>
+								))}
+						</div>
+					</form>
+				</CardContent>
+			</Card>
+			<ActivationForm command={command} data={data} pending={pending} />
 		</div>
 	);
 }
 
-function ConnectionForm({
-	initial,
+function ActivationForm({
+	command,
+	data,
 	pending,
-	onSubmit,
 }: {
-	initial?: ProviderConfigConnectionSummary;
+	command: (input: { path: "activation"; payload: unknown; idempotencyKey: string }) => void;
+	data: ProviderConfigStatus;
 	pending: boolean;
-	onSubmit(payload: Record<string, unknown>): Promise<unknown>;
 }) {
+	const validated = (role: string) =>
+		data.profiles.filter(
+			(profile) => profile.role === role && profile.validationStatus === "passed",
+		);
 	return (
-		<form
-			aria-label={initial ? "编辑连接" : "新增连接"}
-			className="grid gap-3"
-			onSubmit={async (event) => {
-				event.preventDefault();
-				const form = event.currentTarget;
-				const data = new FormData(form);
-				const selected = data.get("features");
-				const apiKey = String(data.get("apiKey") ?? "").trim();
-				try {
-					const nextFeatures =
-						selected === "prompt_embedding" ? ["prompt", "embedding"] : [selected];
-					const payload: Record<string, unknown> = {
-						baseUrl: data.get("baseUrl"),
-						featureConfig:
-							initial && selected === connectionFeatureValue(initial.features)
-								? initial.featureConfig
-								: selected === "rerank"
-									? { rerank: { path: "/rerank" } }
-									: {},
-						features: nextFeatures,
-						provider: data.get("provider"),
-					};
-					if (apiKey) {
-						payload.apiKey = apiKey;
-					}
-					await onSubmit(payload);
-					form.reset();
-				} catch {
-					/* mutation state owns the visible error */
-				}
-			}}
-		>
-			<label className={labelClass}>
-				服务类型
-				<select className={inputClass} defaultValue={initial?.provider} name="provider">
-					<option value="openai-compatible">OpenAI-compatible</option>
-					<option value="openai">OpenAI</option>
-					<option value="gitee">Gitee AI</option>
-				</select>
-			</label>
-			<label className={labelClass}>
-				服务端点
-				<input
-					className={inputClass}
-					defaultValue={initial?.baseUrl}
-					name="baseUrl"
-					placeholder="https://api.example.com/v1"
-					required
-				/>
-			</label>
-			<label className={labelClass}>
-				支持能力
-				<select
-					className={inputClass}
-					defaultValue={initial ? connectionFeatureValue(initial.features) : "prompt_embedding"}
-					name="features"
+		<Card>
+			<CardHeader>
+				<CardTitle className="flex items-center gap-2">
+					<Rocket className="size-4" />
+					激活完整 bundle
+				</CardTitle>
+			</CardHeader>
+			<CardContent>
+				<form
+					className="grid gap-3"
+					onSubmit={(event) => {
+						event.preventDefault();
+						const form = new FormData(event.currentTarget);
+						const reranker = String(form.get("rag_reranker") ?? "");
+						command({
+							path: "activation",
+							idempotencyKey: crypto.randomUUID(),
+							payload: {
+								expectedRevision: data.activeRevision,
+								profiles: {
+									primary_agent: form.get("primary_agent"),
+									rag_query_embedding: form.get("rag_query_embedding"),
+									...(reranker ? { rag_reranker: reranker } : {}),
+								},
+							},
+						});
+					}}
 				>
-					<option value="prompt_embedding">文本与向量</option>
-					<option value="prompt">文本</option>
-					<option value="embedding">向量</option>
-					<option value="rerank">重排</option>
-				</select>
-			</label>
-			<label className={labelClass}>
-				API Key
-				<input
-					autoComplete="off"
-					className={inputClass}
-					name="apiKey"
-					placeholder={initial ? `留空则保留当前密钥（••••${initial.secretLast4}）` : undefined}
-					required={!initial}
-					type="password"
-				/>
-			</label>
-			<Button disabled={pending} type="submit">
-				{initial ? <Pencil className="size-4" /> : <Plus className="size-4" />}
-				{initial ? "保存连接修改" : "保存连接"}
-			</Button>
-		</form>
+					{(["primary_agent", "rag_query_embedding", "rag_reranker"] as const).map((role) => (
+						<Field key={role} label={role}>
+							<select className={inputClass} name={role} required={role !== "rag_reranker"}>
+								<option value="">{role === "rag_reranker" ? "不启用" : "请选择"}</option>
+								{validated(role).map((profile) => (
+									<option key={profile.profileId} value={profile.profileId}>
+										{profile.model} / {profile.profileId}
+									</option>
+								))}
+							</select>
+						</Field>
+					))}
+					<Button
+						disabled={
+							pending ||
+							validated("primary_agent").length === 0 ||
+							validated("rag_query_embedding").length === 0
+						}
+						type="submit"
+					>
+						<Rocket className="size-4" />
+						激活 revision {data.activeRevision + 1}
+					</Button>
+				</form>
+			</CardContent>
+		</Card>
 	);
 }
-function ProfileForm({
-	connections,
-	initial,
-	pending,
-	onSubmit,
+
+function Field({
+	children,
+	label,
 }: {
-	connections: Array<{ connectionId: string; provider: string }>;
-	initial?: ProviderConfigProfileSummary;
-	pending: boolean;
-	onSubmit(payload: Record<string, unknown>): Promise<unknown>;
+	children: React.ReactElement<{ id?: string }>;
+	label: string;
 }) {
-	const [kind, setKind] = useState<ProviderConfigKind>(initial?.kind ?? "prompt");
+	const generatedId = useId();
+	const controlId = children.props.id ?? generatedId;
 	return (
-		<form
-			aria-label={initial ? "编辑配置" : "新增配置"}
-			className="grid gap-3"
-			onSubmit={async (event) => {
-				event.preventDefault();
-				const form = event.currentTarget;
-				const data = new FormData(form);
-				try {
-					const payload: Record<string, unknown> = {
-						connectionId: data.get("connectionId"),
-						dimensions: kind === "embedding" ? Number(data.get("dimensions")) : undefined,
-						model: data.get("model"),
-						timeoutMs: Number(data.get("timeoutMs")),
-						transport: initial?.transport ?? data.get("transport"),
-					};
-					if (!initial) {
-						payload.kind = kind;
-						payload.role = data.get("role");
-					}
-					await onSubmit(payload);
-					form.reset();
-					if (!initial) {
-						setKind("prompt");
-					}
-				} catch {
-					/* mutation state owns the visible error */
-				}
-			}}
-		>
-			<label className={labelClass}>
-				连接
-				<select
-					className={inputClass}
-					defaultValue={initial?.connectionId ?? ""}
-					name="connectionId"
-					required
-				>
-					<option disabled value="">
-						请选择连接
-					</option>
-					{connections.map((item) => (
-						<option key={item.connectionId} value={item.connectionId}>
-							{item.provider} · {item.connectionId.slice(-8)}
-						</option>
-					))}
-				</select>
+		<div className="grid gap-1 text-sm">
+			<label className="font-medium text-slate-600" htmlFor={controlId}>
+				{label}
 			</label>
-			<label className={labelClass}>
-				类型
-				<select
-					className={inputClass}
-					disabled={Boolean(initial)}
-					onChange={(event) => setKind(event.target.value as ProviderConfigKind)}
-					value={kind}
-				>
-					<option value="prompt">文本生成</option>
-					<option value="embedding">向量</option>
-					<option value="rerank">重排</option>
-				</select>
-			</label>
-			<label className={labelClass}>
-				角色
-				<select className={inputClass} disabled={Boolean(initial)} name="role">
-					{(kind === "prompt"
-						? [
-								"primary_agent",
-								"rag_synthesis",
-								"hindsight_llm",
-								"eval_judge_llm",
-								"eval_ragas_llm",
-							]
-						: kind === "embedding"
-							? [
-									"rag_query_embedding",
-									"index_embedding",
-									"hindsight_embedding",
-									"eval_ragas_embedding",
-								]
-							: ["rag_reranker"]
-					).map((role) => (
-						<option key={role} value={role}>
-							{role}
-						</option>
-					))}
-				</select>
-			</label>
-			<label className={labelClass}>
-				模型
-				<input className={inputClass} defaultValue={initial?.model} name="model" required />
-			</label>
-			<input
-				name="transport"
-				type="hidden"
-				value={
-					kind === "prompt" ? "responses" : kind === "embedding" ? "embeddings" : "gitee_rerank"
-				}
-			/>
-			<label className={labelClass}>
-				超时（毫秒）
-				<input
-					className={inputClass}
-					defaultValue={initial?.timeoutMs ?? 30_000}
-					min="1"
-					name="timeoutMs"
-					type="number"
-				/>
-			</label>
-			{kind === "embedding" ? (
-				<label className={labelClass}>
-					向量维度
-					<input
-						className={inputClass}
-						defaultValue={initial?.dimensions ?? undefined}
-						min="1"
-						name="dimensions"
-						required
-						type="number"
-					/>
-				</label>
-			) : null}
-			<Button disabled={pending || connections.length === 0} type="submit">
-				{initial ? <Pencil className="size-4" /> : <KeyRound className="size-4" />}
-				{initial ? "保存配置修改" : "保存配置"}
-			</Button>
-		</form>
+			{cloneElement(children, { id: controlId })}
+		</div>
 	);
 }
-function connectionFeatureValue(features: ProviderConfigConnectionSummary["features"]) {
-	return features.includes("prompt") && features.includes("embedding")
-		? "prompt_embedding"
-		: (features[0] ?? "prompt_embedding");
-}
-function statusLabel(value: string) {
-	return value === "validated" ? "已验证" : value === "validation_failed" ? "验证失败" : "草稿";
-}
-function formatPublicationTime(value: string | null) {
-	return value
-		? new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(
-				new Date(value),
-			)
-		: "时间未知";
+
+function parseConnectionSelection(value: FormDataEntryValue | null) {
+	const parsed = JSON.parse(String(value)) as unknown;
+	if (!Array.isArray(parsed) || typeof parsed[0] !== "string" || !Number.isSafeInteger(parsed[1])) {
+		throw new Error("Connection revision selection is invalid.");
+	}
+	return { connectionId: parsed[0], revision: parsed[1] as number };
 }

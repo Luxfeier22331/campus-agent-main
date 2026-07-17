@@ -64,7 +64,6 @@ function createCampusPrincipal() {
 		},
 		permissions: {
 			chat: true,
-			operator: false,
 		},
 		principal: {
 			displayName: "Jane Doe",

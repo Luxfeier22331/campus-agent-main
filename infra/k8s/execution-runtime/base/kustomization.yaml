@@ -7,6 +7,7 @@ resources:
   - availability.yaml
   - agent-runtime.yaml
   - execution-control.yaml
+  - provider-config-admin.yaml
   - temporal-connection.yaml
   - workers.yaml
   - worker-resources.yaml

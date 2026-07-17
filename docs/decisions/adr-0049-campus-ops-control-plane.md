@@ -3,27 +3,23 @@ doc_type: decision
 owner_boundary: docs/decisions
 decision_id: ADR-0049
 status: superseded
-superseded_by: ADR-0079
+superseded_by: ADR-0080
 ---
-# ADR-0049 食堂候选发布
 
-## 背景
+# ADR-0049：食堂发布
 
-本决策曾要求食堂内容通过 app-api 管理候选版本、审批、排期、发布快照和最新指针。该模型隔离了
-来源观测与学生读取，但把领域写入面放进了公共应用中间层，并引入了当前产品不需要的审批状态。
+## 原决策
 
-## 历史决策
+本决策建立了食堂 candidate-first 发布模型：来源观测先进入草稿，经不可变候选、校验与批准后
+生成发布快照和 latest pointer。学生读取不得回退到草稿、来源观测或开发 seed。
 
-历史流程为 `draft -> candidate -> approve -> publish -> latest pointer`，Operator Console 通过
-app-api 运维接口管理该流程。
+## 取代与保留
 
-## 取代
+ADR-0080 取代了 app-api/Operator Console 作为食堂操作控制面的部分。当前同步、审核和发布由
+`jobs/dining-sync` 拥有，app-api 只提供学生公开读取接口。
 
-ADR-0079 已完整取代本决策。当前食堂运维由 Ops Web 直连专用 PostgreSQL 角色完成，流程收敛为
-`draft -> validate -> immutable release -> publication`；app-api 只读取公开投影。
+候选优先、发布快照、审计和禁止回退语义仍由 dining 领域文档与 owner tests 维护，不再由本
+历史 ADR 充当当前所有者。
 
-当前事实见：
-
-- `docs/decisions/adr-0079-dining.md`
-- `docs/architecture/domains/dining/architecture.md`
-- `docs/data/dining.md`
+当前边界见 `docs/architecture/domains/dining/architecture.md`、`docs/data/dining.md` 和
+`docs/runbooks/dining.md`。

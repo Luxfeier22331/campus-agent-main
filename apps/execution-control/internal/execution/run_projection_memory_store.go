@@ -20,6 +20,7 @@ var (
 	ErrInvalidStepAttempt              = errors.New("invalid step attempt projection")
 	ErrInvalidStepResult               = errors.New("invalid step result projection")
 	ErrInvalidDurableRunCancel         = errors.New("invalid durable run cancel")
+	ErrDurableRunFailureConflict       = errors.New("durable run failure projection conflict")
 )
 
 type RunProjectionStore interface {

@@ -56,3 +56,18 @@ func TestMemoryReflectActivityProjectsSanitizedReflection(t *testing.T) {
 		t.Fatalf("reflect projection leaked raw tool calls: %#v", payload)
 	}
 }
+
+func memoryStepResultPayloadForTest(t *testing.T, store *execution.InMemoryRunProjectionStore, runID string, stepID string) map[string]any {
+	t.Helper()
+	results, err := store.ListStepResults(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("list step results: %v", err)
+	}
+	for _, result := range results {
+		if result.StepID == stepID {
+			return result.SanitizedPayload
+		}
+	}
+	t.Fatalf("%s projection missing in run %s", stepID, runID)
+	return nil
+}

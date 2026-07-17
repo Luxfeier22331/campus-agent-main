@@ -5,5 +5,7 @@ const (
 	ActivityTaskQueueCore  = "campus-agent.activity.core"
 	ActivityTaskQueueAgent = "campus-agent.activity.agent"
 
-	ToolExecutionWorkflowType = "ToolExecutionWorkflow"
+	ToolExecutionWorkflowType          = "ToolExecutionWorkflow"
+	PersonalMemoryCommandWorkflowType  = "PersonalMemoryCommandWorkflow"
+	LangfuseTraceRetentionWorkflowType = "LangfuseTraceRetentionWorkflow"
 )

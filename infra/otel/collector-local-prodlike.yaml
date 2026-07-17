@@ -1,16 +1,14 @@
 receivers:
-  otlp:
+  otlp/orchestration:
     protocols:
-      grpc:
-        endpoint: 0.0.0.0:4317
       http:
         endpoint: 0.0.0.0:4318
         auth:
-          authenticator: bearertokenauth
+          authenticator: bearertokenauth/orchestration
 
 extensions:
-  bearertokenauth:
-    token: "${env:APP_API_OTEL_INGEST_SHARED_SECRET}"
+  bearertokenauth/orchestration:
+    token: "${env:OTEL_COLLECTOR_ORCHESTRATION_INGEST_TOKEN}"
   health_check:
     endpoint: 0.0.0.0:13133
 
@@ -28,40 +26,8 @@ processors:
         value: local
         action: upsert
       - key: telemetry.allowed_attributes_version
-        value: runtime-otel-attrs-v1
+        value: runtime-otel-attrs-v2
         action: upsert
-  attributes/drop_forbidden:
-    actions:
-      - key: raw.prompt
-        action: delete
-      - key: raw.query
-        action: delete
-      - key: raw.answer
-        action: delete
-      - key: raw.chat_transcript
-        action: delete
-      - key: raw.retrieved_snippet
-        action: delete
-      - key: chunk.body
-        action: delete
-      - key: canonical.body
-        action: delete
-      - key: ocr.raw_text
-        action: delete
-      - key: authorization
-        action: delete
-      - key: cookie
-        action: delete
-      - key: jwt
-        action: delete
-      - key: api.key
-        action: delete
-      - key: database.url
-        action: delete
-      - key: object_store.secret
-        action: delete
-      - key: provider.secret
-        action: delete
   filter/drop_marked:
     error_mode: ignore
     traces:
@@ -76,33 +42,32 @@ processors:
       log_record:
         - 'attributes["telemetry.drop"] == true'
         - 'attributes["telemetry.drop"] == "true"'
+  filter/orchestration_langfuse:
+    error_mode: propagate
+    traces:
+      span:
+        - 'not IsMatch(name, "^execution_control\\.")'
+  transform/orchestration_langfuse:
+    error_mode: propagate
+    trace_statements:
+      - 'set(span.status.message, "")'
+      - 'set(span.events, [])'
+      - 'set(span.links, [])'
+      - 'keep_keys(span.attributes, ["telemetry.allowed_attributes_version", "langfuse.trace.name", "langfuse.session.id", "langfuse.user.id", "langfuse.release", "langfuse.trace.tags", "langfuse.observation.type", "langfuse.observation.usage_details", "langfuse.observation.model.name", "langfuse.observation.metadata.step_id", "deployment.environment", "request_id", "trace_id", "run_id", "failure_kind", "activity_type", "task_queue", "activity_attempt", "workflow_id", "step_kind", "schedule_to_start_ms", "selected_tool", "step_id", "fail_close_reason", "status", "projection_ref", "duration_ms"])'
+      - 'keep_keys(resource.attributes, ["service.name", "service.namespace", "service.version", "deployment.environment"])'
+      - 'keep_keys(instrumentation_scope.attributes, [])'
   batch:
     timeout: 5s
     send_batch_size: 512
 
 exporters:
-  otlp_http/langfuse:
-    endpoint: "${env:OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT}"
+  otlphttp/langfuse_runtime:
+    endpoint: "${env:OTEL_COLLECTOR_LANGFUSE_RUNTIME_OTLP_ENDPOINT}"
     headers:
-      authorization: "${env:OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER}"
-      x-langfuse-ingestion-version: "${env:OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION}"
+      authorization: "${env:OTEL_COLLECTOR_LANGFUSE_RUNTIME_AUTH_HEADER}"
+      x-langfuse-ingestion-version: "4"
     compression: gzip
     encoding: proto
-    sending_queue:
-      enabled: true
-      num_consumers: 2
-      queue_size: 1024
-    retry_on_failure:
-      enabled: true
-      initial_interval: 1s
-      max_interval: 30s
-      max_elapsed_time: 300s
-  otlp_http/axiommetrics:
-    endpoint: "${env:OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT}"
-    compression: zstd
-    headers:
-      authorization: "${env:OTEL_COLLECTOR_AXIOM_AUTH_HEADER}"
-      x-axiom-dataset: "${env:OTEL_COLLECTOR_AXIOM_METRICS_DATASET}"
     sending_queue:
       enabled: true
       num_consumers: 2
@@ -117,41 +82,18 @@ exporters:
 
 service:
   extensions:
-    - bearertokenauth
+    - bearertokenauth/orchestration
     - health_check
   pipelines:
-    traces:
-      receivers:
-        - otlp
-      processors:
-        - memory_limiter
-        - resource/campus
-        - attributes/drop_forbidden
-        - filter/drop_marked
-        - batch
-      exporters:
-        - otlp_http/langfuse
-        - debug
-    metrics:
-      receivers:
-        - otlp
-      processors:
-        - memory_limiter
-        - resource/campus
-        - attributes/drop_forbidden
-        - filter/drop_marked
-        - batch
-      exporters:
-        - otlp_http/axiommetrics
-        - debug
-    logs:
-      receivers:
-        - otlp
-      processors:
-        - memory_limiter
-        - resource/campus
-        - attributes/drop_forbidden
-        - filter/drop_marked
-        - batch
-      exporters:
-        - debug
+    traces/orchestration:
+      receivers: [otlp/orchestration]
+      processors: [memory_limiter, resource/campus, filter/drop_marked, filter/orchestration_langfuse, transform/orchestration_langfuse, batch]
+      exporters: [otlphttp/langfuse_runtime, debug]
+    metrics/orchestration:
+      receivers: [otlp/orchestration]
+      processors: [memory_limiter, resource/campus, filter/drop_marked, batch]
+      exporters: [debug]
+    logs/orchestration:
+      receivers: [otlp/orchestration]
+      processors: [memory_limiter, resource/campus, filter/drop_marked, batch]
+      exporters: [debug]

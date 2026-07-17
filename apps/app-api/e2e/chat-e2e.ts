@@ -1,6 +1,6 @@
 import process from "node:process";
 import { Client, type ClientConfig } from "pg";
-import { buildOperatorDatabaseConfig } from "../src/db/runtime";
+import { buildSchemaDatabaseConfig } from "../src/db/runtime";
 import { type ChatE2eArgs, type ChatE2eProfile, parseChatE2eArgs } from "./support/chat-e2e.args";
 import { assertExpectedChatE2eResultKind } from "./support/chat-e2e.result-kind";
 import {
@@ -121,7 +121,7 @@ async function openSubmitStream(input: {
 }
 
 async function defaultReadModelExecutionState(requestId: string): Promise<string | null> {
-	const client = new Client(buildOperatorDatabaseConfig(process.env) as ClientConfig);
+	const client = new Client(buildSchemaDatabaseConfig(process.env) as ClientConfig);
 
 	await client.connect();
 	try {
@@ -427,7 +427,6 @@ export async function runChatE2e(
 	const meResult = await resolvedDeps.fetchJsonWithCookie<{
 		permissions: {
 			chat: boolean;
-			operator: boolean;
 		};
 		principal: {
 			email: string | null;

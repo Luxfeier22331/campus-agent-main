@@ -79,7 +79,7 @@ func (s *Server) checkProviderConfigCompatibility(
 	snapshot providerConfigSnapshot,
 ) providerConfigCompatibilityResult {
 	switch role {
-	case providerConfigRoleRAGQueryEmbedding, providerConfigRoleIndexEmbedding:
+	case providerConfigRoleRAGQueryEmbedding:
 		if err := s.checkKnowledgeSearchEmbeddingCompatibility(ctx, snapshot); err != nil {
 			return providerConfigCompatibilityResult{ok: false, reason: err.Error()}
 		}

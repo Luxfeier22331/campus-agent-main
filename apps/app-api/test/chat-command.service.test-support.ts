@@ -17,10 +17,13 @@ import type {
 import { parseExecutionFinalizationResponsePayload } from "../src/modules/integration/execution-control";
 import type {
 	AcceptRequestWrite,
+	ChatCommandService,
+	ChatCommandServiceDependencies,
 	ChatCommandStore,
 	ChatConversationStore,
 	FinalizeRequestWrite,
 } from "../src/modules/runtime-command";
+import { buildChatCommandService as buildProductionChatCommandService } from "../src/modules/runtime-command";
 import type { AppTelemetry } from "../src/modules/telemetry";
 
 export { createHmac } from "node:crypto";
@@ -35,7 +38,6 @@ export type {
 	FinalizeRequestWrite,
 } from "../src/modules/runtime-command";
 export {
-	buildChatCommandService,
 	DRAFT_CONVERSATION_TITLE,
 	deriveSafetyIdentifier,
 	ExecutionControlTransportError,
@@ -46,6 +48,33 @@ export const PUBLIC_NOTICE_URL_ALLOWLIST = ["www.example.edu"];
 export const CURRICULUM_PROGRAM_FAMILY_SLOT_NAME = "curriculum_program_family";
 export const CURRICULUM_PROGRAM_SLOT_NAME = "curriculum_program";
 export const CURRICULUM_SEMESTER_SLOT_NAME = "curriculum_semester";
+
+const pendingProductCallbacks = new Map<
+	string,
+	(response: ToolExecutionResponse, completedAt: string) => Promise<void>
+>();
+const finalizedConversations = new Map<string, ChatConversation>();
+const testServicesByStore = new WeakMap<ChatCommandStore, ChatCommandService>();
+const runtimeHandlesProductCallback = Symbol("runtimeHandlesProductCallback");
+
+export function buildChatCommandService(
+	dependencies: ChatCommandServiceDependencies,
+): ChatCommandService {
+	const service = buildProductionChatCommandService(dependencies);
+	testServicesByStore.set(dependencies.store, service);
+	const runtime = dependencies.executionRuntime as
+		| (ExecutionControlRuntimeClient & { [runtimeHandlesProductCallback]?: boolean })
+		| undefined;
+	if (runtime && !runtime[runtimeHandlesProductCallback]) {
+		const listRunEvents = runtime.listRunEvents.bind(runtime);
+		runtime.listRunEvents = vi.fn(async (input) => {
+			const events = await listRunEvents(input);
+			await applyTestProductCallback(input.runId, input.traceId, events);
+			return events;
+		});
+	}
+	return service;
+}
 
 function createAuthorization() {
 	return {
@@ -80,7 +109,6 @@ export function createPrincipal(): ResolvedAppPrincipal {
 		},
 		permissions: {
 			chat: true,
-			operator: false,
 		},
 		authorization: createAuthorization(),
 		actor: {
@@ -135,6 +163,10 @@ export function createConversationStore(input?: {
 		deleteMessageFeedbackByOwner: vi.fn(),
 		deleteTrailingMessagesFromMessageByOwner: vi.fn(),
 		getConversationByOwner: vi.fn(async (ownerUserId: string, conversationId: string) => {
+			const finalized = finalizedConversations.get(conversationId);
+			if (finalized?.ownerUserId === ownerUserId) {
+				return structuredClone(finalized);
+			}
 			if (ownerUserId !== conversation.ownerUserId || conversationId !== conversation.id) {
 				return null;
 			}
@@ -158,13 +190,43 @@ export function createConversationStore(input?: {
 	};
 }
 
-export function createCommandStore(input?: {
+export function createCommandStore(options?: {
 	conversation?: ReturnType<typeof createConversation>;
+	memorySnapshot?: {
+		appendEnabled: boolean;
+		ownerGeneration: number;
+		ownerSequence: number;
+		recallEnabled: boolean;
+	} | null;
 }) {
-	const conversation = input?.conversation ?? createConversation();
+	const conversation = options?.conversation ?? createConversation();
 	const acceptedWrites: AcceptRequestWrite[] = [];
 	const finalWrites: FinalizeRequestWrite[] = [];
-	const store: ChatCommandStore = {
+	finalizedConversations.delete(conversation.id);
+	let store: ChatCommandStore;
+	store = {
+		listPendingAdmissions: vi.fn(async () => []),
+		recordAdmissionInput: vi.fn(async (input) => {
+			const runId = typeof input.workflowInput.runId === "string" ? input.workflowInput.runId : "";
+			if (!runId) {
+				return false;
+			}
+			pendingProductCallbacks.set(runId, async (response, completedAt) => {
+				const service = testServicesByStore.get(store);
+				if (!service?.applyProductFinalization) {
+					throw new Error(`Missing product finalization callback for ${runId}.`);
+				}
+				await service.applyProductFinalization({
+					completedAt,
+					finalizationFingerprint: `test:${runId}`,
+					response,
+					runId,
+				});
+				finalizedConversations.set(conversation.id, structuredClone(conversation));
+			});
+			return true;
+		}),
+		markAdmitted: vi.fn(async () => true),
 		acceptRequest: vi.fn(async (input) => {
 			acceptedWrites.push(input);
 			if (input.conversationSeed) {
@@ -190,6 +252,7 @@ export function createCommandStore(input?: {
 				retryable: null,
 				structuredParts: [],
 			});
+			return { memorySnapshot: options?.memorySnapshot ?? null };
 		}),
 		finalizeRequest: vi.fn(async (input: FinalizeRequestWrite) => {
 			finalWrites.push(input);
@@ -229,7 +292,48 @@ export function createCommandStore(input?: {
 			shouldThrottle: false,
 			throttleReason: null,
 		})),
-		listAcceptedDurableRequestsForCloseout: vi.fn(async () => []),
+		listAcceptedDurableRequestsForCloseout: vi.fn(async (input) => {
+			const accepted = [...acceptedWrites]
+				.reverse()
+				.find(
+					(write) =>
+						write.turnDispatch.runId && (!input?.runId || write.turnDispatch.runId === input.runId),
+				);
+			if (!accepted?.turnDispatch.runId) {
+				return [];
+			}
+			const snapshot = accepted.turnDispatch.principalSnapshot;
+			const finalized = finalWrites.find(
+				(write) => write.turnDispatch.runId === accepted.turnDispatch.runId,
+			);
+			return [
+				{
+					acceptedAt: accepted.turnDispatch.createdAt,
+					assistantMessageId: accepted.turnDispatch.assistantMessageId,
+					conversation: structuredClone(conversation),
+					conversationTitle: accepted.conversationTitle,
+					finalizationFingerprint: finalized?.finalizationFingerprint ?? null,
+					idempotencyKey: accepted.turnDispatch.idempotencyKey,
+					principal: {
+						actor: snapshot.actor,
+						authorization: snapshot.authorization ?? undefined,
+						permissions: { chat: true },
+						principal: { ...snapshot.principal, email: null },
+						session: null,
+					},
+					questionPreview: accepted.userMessage.text,
+					requestFingerprintSha256: accepted.turnDispatch.requestFingerprintSha256,
+					requestId: accepted.turnDispatch.requestId,
+					requestedTool: accepted.turnDispatch.requestedTool,
+					runId: accepted.turnDispatch.runId,
+					safetyIdentifier: accepted.turnDispatch.safetyIdentifier ?? null,
+					surface: accepted.turnDispatch.surface,
+					traceId: accepted.turnDispatch.traceId,
+					turnSequence: accepted.turnDispatch.turnSequence,
+					userMessageId: accepted.turnDispatch.userMessageId,
+				},
+			];
+		}),
 		listPreviousToolResultRefs: vi.fn(async () => []),
 	};
 
@@ -251,11 +355,9 @@ export function createTelemetryMock(): AppTelemetry {
 			sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
 		}),
 		markHttpResponseStatus: vi.fn(),
-		recordIdentityEndpoint: vi.fn(),
 		recordRequestAccepted: vi.fn(),
 		recordRequestFinalized: vi.fn(),
 		recordRequestTransportError: vi.fn(),
-		recordWebPerformance: vi.fn(),
 	};
 }
 
@@ -272,6 +374,15 @@ export function expectNoInternalLocators(text: string) {
 
 export function createExecutionRuntimeFromToolClient(
 	client: ToolExecutionClient,
+	options: {
+		onProductFinalization?: (input: {
+			completedAt: string;
+			response: ToolExecutionResponse;
+			runId: string;
+			traceId: string;
+		}) => Promise<void>;
+		skipProductCallback?: boolean;
+	} = {},
 ): ExecutionControlRuntimeClient {
 	const eventsByRun = new Map<string, ExecutionControlRunEvent[]>();
 	const runsById = new Map<string, ExecutionControlRun>();
@@ -282,15 +393,33 @@ export function createExecutionRuntimeFromToolClient(
 		runsById.set(input.runId, run);
 		if (client.executeStream) {
 			const response = await client.executeStream(executionInput);
-			eventsByRun.set(input.runId, await durableEventsFromExecutionSse(input, response));
+			const events = await durableEventsFromExecutionSse(input, response);
+			if (!options.skipProductCallback) {
+				await applyTestProductCallback(
+					input.runId,
+					input.traceId ?? "",
+					events,
+					options.onProductFinalization,
+				);
+			}
+			eventsByRun.set(input.runId, events);
 			return run;
 		}
 		const response = await client.execute(executionInput);
-		eventsByRun.set(input.runId, [finalizationEventFromResponse(input, response, 1)]);
+		const events = [finalizationEventFromResponse(input, response, 1)];
+		if (!options.skipProductCallback) {
+			await applyTestProductCallback(
+				input.runId,
+				input.traceId ?? "",
+				events,
+				options.onProductFinalization,
+			);
+		}
+		eventsByRun.set(input.runId, events);
 		return run;
 	}
 
-	return {
+	const runtime: ExecutionControlRuntimeClient & { [runtimeHandlesProductCallback]?: boolean } = {
 		cancelRun: vi.fn(async (input) => {
 			const existing = runsById.get(input.runId);
 			if (!existing) {
@@ -324,6 +453,68 @@ export function createExecutionRuntimeFromToolClient(
 			steps: [],
 		})),
 	};
+	runtime[runtimeHandlesProductCallback] = true;
+	return runtime;
+}
+
+async function applyTestProductCallback(
+	runId: string,
+	traceId: string,
+	events: ExecutionControlRunEvent[],
+	directCallback?: (input: {
+		completedAt: string;
+		response: ToolExecutionResponse;
+		runId: string;
+		traceId: string;
+	}) => Promise<void>,
+): Promise<void> {
+	const callback = pendingProductCallbacks.get(runId);
+	if (!(callback || directCallback)) {
+		return;
+	}
+	const terminal = [...events]
+		.reverse()
+		.find(
+			(event) =>
+				event.eventType === "finalization.completed" ||
+				event.eventType === "run.failed" ||
+				event.eventType === "run.canceled",
+		);
+	if (!terminal) {
+		return;
+	}
+	let response: ToolExecutionResponse;
+	if (terminal.eventType === "finalization.completed") {
+		response = parseExecutionFinalizationResponsePayload(
+			getRecordOrThrow(terminal.payload.response, "finalization response"),
+		);
+	} else if (terminal.eventType === "run.failed") {
+		const error = getRecord(terminal.payload.error);
+		response = executionErrorResponse({
+			code: getString(error?.code) ?? "execution_failed",
+			message: getString(error?.message) ?? "Execution failed.",
+			retryable: typeof error?.retryable === "boolean" ? error.retryable : true,
+			traceId,
+		});
+	} else {
+		response = executionErrorResponse({
+			code: "execution_cancelled",
+			message: "The request was cancelled.",
+			retryable: false,
+			status: "cancelled",
+			traceId,
+		});
+	}
+	if (directCallback) {
+		await directCallback({
+			completedAt: terminal.occurredAt,
+			response,
+			runId,
+			traceId,
+		});
+		return;
+	}
+	await callback?.(response, terminal.occurredAt);
 }
 
 function toolExecutionInputFromRunCreate(
@@ -376,8 +567,18 @@ function internalContextFromWire(wire: Record<string, unknown>): ToolExecutionIn
 			},
 			visibilityScope: getString(authorizationWire.visibility_scope) ?? "",
 		},
-		...(typeof memoryWire?.enabled === "boolean"
-			? { memory: { enabled: memoryWire.enabled } }
+		...(typeof memoryWire?.recall_enabled === "boolean" &&
+		typeof memoryWire.append_enabled === "boolean" &&
+		typeof memoryWire.owner_generation === "number" &&
+		typeof memoryWire.owner_sequence === "number"
+			? {
+					memory: {
+						appendEnabled: memoryWire.append_enabled,
+						ownerGeneration: memoryWire.owner_generation,
+						ownerSequence: memoryWire.owner_sequence,
+						recallEnabled: memoryWire.recall_enabled,
+					},
+				}
 			: {}),
 		session: {
 			confirmedSlots: getRecordArray(sessionWire.confirmed_slots).map((slot) => ({
@@ -427,6 +628,7 @@ function durableRunFromCreateInput(input: ExecutionControlRunCreateInput): Execu
 		failCloseReason: "",
 		finalResponseRef: "",
 		ownerUserId: input.ownerUserId,
+		queuedAt: now,
 		requestId: input.requestId,
 		requestedTool: getString(payload.requested_tool) ?? "",
 		runId: input.runId,
@@ -677,6 +879,7 @@ function executionErrorResponse(input: {
 	code: string;
 	message: string;
 	retryable: boolean;
+	status?: "error" | "cancelled";
 	traceId: string;
 }): ToolExecutionResponse {
 	return {
@@ -691,7 +894,7 @@ function executionErrorResponse(input: {
 		result: null,
 		selectedTool: null,
 		sessionUpdate: null,
-		status: "error",
+		status: input.status ?? "error",
 		traceId: input.traceId,
 	};
 }
@@ -736,11 +939,7 @@ function getTraceId(payload: Record<string, unknown>): string | null {
 
 function authorizationProjectionSource(value: unknown): AuthorizationProjectionSource {
 	const normalized = getString(value);
-	if (
-		normalized === "campus_identity" ||
-		normalized === "operator_headers" ||
-		normalized === "service_auth"
-	) {
+	if (normalized === "campus_identity" || normalized === "service_auth") {
 		return normalized;
 	}
 	return "campus_identity";
@@ -753,7 +952,6 @@ function appPrincipalType(value: unknown): AppPrincipalType {
 		normalized === "staff" ||
 		normalized === "faculty" ||
 		normalized === "campus_member" ||
-		normalized === "operator" ||
 		normalized === "service"
 	) {
 		return normalized;

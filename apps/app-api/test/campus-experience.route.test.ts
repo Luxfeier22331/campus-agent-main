@@ -8,7 +8,6 @@ import { describe, expect, it, vi } from "vitest";
 import { createApp } from "../src/app";
 import type { CampusExperienceService } from "../src/modules/campus-experience";
 import { buildDiningPublicReadService } from "../src/modules/dining";
-import { createAppTelemetry } from "../src/modules/telemetry";
 
 const env = {
 	APP_API_NAME: "campus-agent-app-api",
@@ -273,78 +272,6 @@ describe("campus experience routes", () => {
 			contact: "student@example.edu",
 			routeContext: "/docs/student",
 		});
-	});
-
-	it("accepts only bounded anonymous browser performance telemetry", async () => {
-		const emit = vi.fn().mockResolvedValue(undefined);
-		const telemetry = createAppTelemetry(env, {
-			now: () => new Date("2026-07-12T12:00:00.000Z"),
-			runtimeEventSink: { emit },
-		});
-		const app = createApp(env, {
-			campusExperienceService: createService(),
-			telemetry,
-		});
-
-		const response = await app.fetch(
-			new Request("https://app-api.internal/api/telemetry/web-performance", {
-				body: JSON.stringify({
-					metricName: "LCP",
-					navigationType: "navigate",
-					rating: "good",
-					routeGroup: "dining",
-					schemaVersion: "web_performance.v1",
-					value: 1250,
-				}),
-				headers: { "content-type": "application/json" },
-				method: "POST",
-			}),
-		);
-
-		expect(response.status).toBe(202);
-		await expect(response.json()).resolves.toEqual({ accepted: true });
-		await vi.waitFor(() => expect(emit).toHaveBeenCalledTimes(1));
-		expect(emit).toHaveBeenCalledWith(
-			expect.objectContaining({
-				event_type: "web.performance",
-				metric_name: "LCP",
-				metric_value: 1250,
-				navigation_type: "navigate",
-				rating: "good",
-				route_group: "dining",
-				surface: "campus_web",
-			}),
-		);
-	});
-
-	it("rejects browser performance payloads containing unbounded fields", async () => {
-		const emit = vi.fn().mockResolvedValue(undefined);
-		const app = createApp(env, {
-			campusExperienceService: createService(),
-			telemetry: createAppTelemetry(env, { runtimeEventSink: { emit } }),
-		});
-
-		const response = await app.fetch(
-			new Request("https://app-api.internal/api/telemetry/web-performance", {
-				body: JSON.stringify({
-					metricName: "LCP",
-					navigationType: "navigate",
-					pathname: "/dining/private-fragment",
-					rating: "good",
-					routeGroup: "dining",
-					schemaVersion: "web_performance.v1",
-					value: 1250,
-				}),
-				headers: { "content-type": "application/json" },
-				method: "POST",
-			}),
-		);
-
-		expect(response.status).toBe(400);
-		await expect(response.json()).resolves.toMatchObject({
-			error: { code: "validation_failed" },
-		});
-		expect(emit).not.toHaveBeenCalled();
 	});
 
 	it("rejects invalid feedback category", async () => {

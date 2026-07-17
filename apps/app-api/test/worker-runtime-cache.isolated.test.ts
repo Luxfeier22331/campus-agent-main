@@ -44,8 +44,7 @@ import worker from "../src/index";
 const env = {
 	APP_API_NAME: "campus-agent-app-api",
 	APP_API_ENVIRONMENT: "test" as const,
-	APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
-	APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
+	APP_API_PRODUCT_CALLBACK_SHARED_SECRET: "app-api-internal-secret",
 	APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
 	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
@@ -90,8 +89,6 @@ describe("app-api worker runtime cache", () => {
 		const stagingEnv = {
 			...env,
 			APP_API_ENVIRONMENT: "staging" as never,
-			APP_API_OTEL_INGEST_ENDPOINT: "https://otel-collector.internal",
-			APP_API_OTEL_INGEST_SHARED_SECRET: "otel-collector-secret",
 		};
 
 		await worker.fetch(

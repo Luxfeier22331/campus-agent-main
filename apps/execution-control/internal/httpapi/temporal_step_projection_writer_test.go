@@ -135,6 +135,17 @@ func TestTemporalStepObservationEventLeavesMissingSelectedToolEmpty(t *testing.T
 	}
 }
 
+func TestTemporalPostFinalizationStepRejectsRetiredMemoryOperationStatus(t *testing.T) {
+	for _, stepID := range []string{"memory.append", "memory.reflect"} {
+		if !temporalPostFinalizationStepAllowed(stepID) {
+			t.Fatalf("step %q should remain allowed after finalization", stepID)
+		}
+	}
+	if temporalPostFinalizationStepAllowed("memory.operation_status") {
+		t.Fatal("retired memory.operation_status must not be allowed after finalization")
+	}
+}
+
 func TestProjectTemporalStepRecordsLateCompletionAfterTerminalStepProjection(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	server := newServerForTest()

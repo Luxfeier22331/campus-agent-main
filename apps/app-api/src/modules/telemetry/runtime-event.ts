@@ -1,3 +1,5 @@
+import { STAGE_TIMING_FIELDS } from "../integration/execution-finalization-contract";
+
 const FORBIDDEN_FIELD_NAMES = new Set([
 	"answer",
 	"auth_header",
@@ -5,11 +7,11 @@ const FORBIDDEN_FIELD_NAMES = new Set([
 	"canonical.body",
 	"chunk.body",
 	"cookie",
+	"email",
 	"jwt",
 	"memory",
 	"memory_text",
 	"ocr.raw_text",
-	"operator_email",
 	"prompt",
 	"provider_raw_response",
 	"raw_answer",
@@ -39,58 +41,32 @@ const RUNTIME_EVENT_BASE_ALLOWED_FIELDS = [
 	"trace_id",
 ] as const;
 
+const MAX_RUNTIME_EVENT_STRING_LENGTH = 128;
+const MAX_RUNTIME_EVENT_STRING_LENGTH_BY_FIELD = new Map<string, number>([
+	["error_code", 64],
+	["event_type", 64],
+	["principal_type", 64],
+	["requested_tool", 64],
+	["selected_tool", 64],
+	["status", 64],
+	["surface", 64],
+]);
+
 const RUNTIME_EVENT_ALLOWED_FIELDS_BY_EVENT_TYPE = new Map<string, ReadonlySet<string>>([
-	[
-		"request.accepted",
-		new Set([
-			...RUNTIME_EVENT_BASE_ALLOWED_FIELDS,
-			"actor_id_hash",
-			"conversation_id",
-			"safety_identifier",
-		]),
-	],
+	["request.accepted", new Set(RUNTIME_EVENT_BASE_ALLOWED_FIELDS)],
 	[
 		"request.finalized",
 		new Set([
 			...RUNTIME_EVENT_BASE_ALLOWED_FIELDS,
-			"conversation_id",
 			"duration_ms",
 			"resolved_targets_count",
-			"resolved_targets_summary",
 			"retryable",
-			"safety_identifier",
 			"source_doc_ids_count",
-			"source_doc_ids_summary",
+			"stage_timing_budget_state",
+			...STAGE_TIMING_FIELDS,
 		]),
 	],
-	[
-		"request.stage_timing",
-		new Set([...RUNTIME_EVENT_BASE_ALLOWED_FIELDS, "budget_state", "duration_ms", "stage_field"]),
-	],
-	[
-		"request.transport_error",
-		new Set([
-			...RUNTIME_EVENT_BASE_ALLOWED_FIELDS,
-			"conversation_id",
-			"retryable",
-			"safety_identifier",
-		]),
-	],
-	[
-		"identity.endpoint",
-		new Set([...RUNTIME_EVENT_BASE_ALLOWED_FIELDS, "correlation_id", "endpoint"]),
-	],
-	[
-		"web.performance",
-		new Set([
-			...RUNTIME_EVENT_BASE_ALLOWED_FIELDS,
-			"metric_name",
-			"metric_value",
-			"navigation_type",
-			"rating",
-			"route_group",
-		]),
-	],
+	["request.transport_error", new Set([...RUNTIME_EVENT_BASE_ALLOWED_FIELDS, "retryable"])],
 ]);
 
 export const RUNTIME_EVENT_ALLOWED_EVENT_TYPES = Array.from(
@@ -117,13 +93,19 @@ export function sanitizeRuntimeEventPayload(
 		if (!allowedFields.has(key) || FORBIDDEN_FIELD_NAMES.has(key) || value === undefined) {
 			continue;
 		}
-		if (
-			value === null ||
-			typeof value === "boolean" ||
-			typeof value === "number" ||
-			typeof value === "string"
-		) {
+		if (value === null || typeof value === "boolean") {
 			sanitized[key] = value;
+			continue;
+		}
+		if (typeof value === "number" && Number.isFinite(value)) {
+			sanitized[key] = value;
+			continue;
+		}
+		if (typeof value === "string") {
+			sanitized[key] = value.slice(
+				0,
+				MAX_RUNTIME_EVENT_STRING_LENGTH_BY_FIELD.get(key) ?? MAX_RUNTIME_EVENT_STRING_LENGTH,
+			);
 		}
 	}
 	return sanitized;

@@ -67,6 +67,9 @@ const AccountSecurityPage = lazy(() =>
 		default: () => <module.AccountSettingsPage view="security" />,
 	})),
 );
+const AccountMemoryPage = lazy(() =>
+	import("./routes/account-page").then((module) => ({ default: module.AccountMemoryPage })),
+);
 const FederationConsentPage = lazy(() =>
 	import("./routes/federation-pages").then((module) => ({ default: module.FederationConsentPage })),
 );
@@ -179,6 +182,12 @@ const accountSecurityRoute = createRoute({
 	path: "/account/settings/security",
 });
 
+const accountMemoryRoute = createRoute({
+	component: AccountMemoryPage,
+	getParentRoute: () => rootRoute,
+	path: "/account/settings/memory",
+});
+
 const accountFederationConsentRoute = createRoute({
 	component: FederationConsentPage,
 	getParentRoute: () => rootRoute,
@@ -218,13 +227,14 @@ const routeTree = rootRoute.addChildren([
 	accountSignOutRoute,
 	accountSettingsRoute,
 	accountSecurityRoute,
+	accountMemoryRoute,
 	accountFederationConsentRoute,
 	accountFederationErrorRoute,
 	legalTermsRoute,
 	legalPrivacyRoute,
 ]);
 
-const router = createRouter({
+export const campusRouter = createRouter({
 	defaultPendingComponent: RoutePending,
 	defaultPendingMinMs: 200,
 	defaultPendingMs: 100,
@@ -234,12 +244,12 @@ const router = createRouter({
 
 declare module "@tanstack/react-router" {
 	interface Register {
-		router: typeof router;
+		router: typeof campusRouter;
 	}
 }
 
 export function AppRouter() {
-	return <RouterProvider router={router} />;
+	return <RouterProvider router={campusRouter} />;
 }
 
 function optionalDiningSearchParam(value: unknown): string | undefined {

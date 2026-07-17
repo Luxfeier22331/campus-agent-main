@@ -32,12 +32,14 @@ status: active
 | `campus_services_publisher` | `jobs/transport-publisher` | `campus_services.*` 发布写入 |
 | `docs_publish` | `jobs/docs-publish` | `docs.*` release 投影发布写入 |
 | `ops_web` | `apps/ops-web` | 明确列的读取和 observability read-audit 写入 |
-| `ops_web_provider_config` | `apps/ops-web` | `provider_config.*` 候选和验证结果读写 |
+| `execution_provider_config_reader` | `apps/execution-control` | `execution_config.*` 已激活配置读取 |
+| `execution_provider_config_admin` | `apps/execution-control` | `execution_config.*` 不可变 revision、验证和整包激活读写 |
 | `ops_web_dining` | `apps/ops-web` | Dining 草稿、发布、回滚和评价治理 |
 | `dining_sync` | `jobs/dining-sync` | Dining 来源观测、评价同步和复检 |
 | `ops_audit_maintenance` | maintenance Job | 只执行审计清理函数 |
 
-Temporal、Hindsight 和 OpenObserve 使用各自数据库或登录角色，不共享产品运行时角色。
+Temporal、Hindsight 和 Langfuse 使用各自数据库或登录角色，不共享产品运行时角色。Axiom 与
+Sentry 是外部观测数据面，不消费产品 PostgreSQL 角色。
 CNPG `DatabaseRole` 和部署 Secret 管理角色密码；应用 schema 只负责表、函数和 grant。
 
 ## Schema 所有权
@@ -45,9 +47,10 @@ CNPG `DatabaseRole` 和部署 Secret 管理角色密码；应用 schema 只负�
 - `app_auth.*`、`chat.*`、`docs.*`、`identity.*`、`profile.*`、`campus_services_ops.*` 和
   `observability.*` 的 schema 合同由 `apps/app-api` 安装；`docs.*` 由 `jobs/docs-publish`
   写入，app-api 只读。
-- `provider_config.*` 的领域合同和运行写入由 `packages/domains/provider-config` 与
-  `apps/ops-web` 拥有。历史 App API journal 完成表交接并撤销 `app_api` 权限；后续字段变更不得
-  回到 app-api runtime 模块。
+- `execution_config.*` 的领域合同、加密存储和运行写入由
+  `apps/execution-control/internal/providerconfig` 拥有。Ops Web 只通过 execution-control admin
+  BFF 操作，不持有该 schema 的数据库权限；App API migration 删除历史 `provider_config.*`，
+  后续字段变更不得回到 app-api runtime 模块。
 - `dining.*` 的 schema 和 migration 由 `jobs/dining-sync` 拥有；Ops Web 拥有领域运维写入，
   app-api 只读取 `publication`、`releases` 和公开 `reviews`。
 - `app_auth.*` 与 `chat.*` 通过共享产品 SQL 基线安装，不属于 App API Drizzle journal；
@@ -73,11 +76,11 @@ projection、Temporal sampler projection 和 worker-autoscaler projection 不属
   app-api 和 execution-control 的最小权限；Ops Web 不读取该 schema。
 - App API schema installer 为 `docs_publish` 应用 `docs.*` 最小 DML grant，并撤销 app-api
   对该 schema 的写权限；`jobs/docs-publish` 不创建或迁移 schema。
-- App API schema installer 在交接 migration 后为 `ops_web_provider_config` 应用
-  `provider_config.*` 最小 DML grant，并撤销 `app_api` 的全部访问。
 - `jobs/dining-sync migrate` 使用独立 migration 凭据重建 `dining.*` 并为 `dining_sync`、
   `ops_web_dining` 和 `app_api` 配置最小权限；常驻运行时角色不得创建 schema。
-- execution-control 使用独立的 run-projection schema installer 和 journal。
+- execution-control 使用独立的 run-projection schema installer 和 journal；installer 同时安装
+  `execution_config.*`，并只向 `execution_provider_config_reader` 和
+  `execution_provider_config_admin` 应用所需权限。
 - installer 必须可重复执行；缺少角色、表、CA 或权限时失败，不自动做破坏性修复。
 - `0000_initial.sql` 和其 snapshot 是已发布 baseline，不得重写。后续变更使用新
   journal entry；migration integration 必须证明保留表中的现有行不会丢失。

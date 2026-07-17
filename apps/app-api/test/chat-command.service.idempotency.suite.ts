@@ -95,7 +95,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 		);
 	});
 
-	it("finalizes a handled execution error when the execution transport fails after accept", async () => {
+	it("keeps a retryable execution admission failure pending", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
@@ -117,46 +117,18 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			}),
 		});
 
-		const response = await service.submit({
-			payload: {
-				conversationId: "conv_01HQ",
-				prompt: "图书馆开放到几点？",
-			},
-			principal: createPrincipal(),
-		});
+		await expect(
+			service.submit({
+				payload: {
+					conversationId: "conv_01HQ",
+					prompt: "图书馆开放到几点？",
+				},
+				principal: createPrincipal(),
+			}),
+		).rejects.toMatchObject({ code: "admission_pending", retryable: true });
 
-		expect(finalWrites[0]).toMatchObject({
-			assistantMessage: {
-				kind: "error",
-				retryable: true,
-				text: "Execution timed out.",
-			},
-			turnDispatch: {
-				errorCode: "execution_timeout",
-				status: "error",
-			},
-		});
-		expect(response.answer.result).toEqual({
-			errorCode: "execution_timeout",
-			kind: "error",
-			message: "Execution timed out.",
-			requestId: "req_0001",
-			retryable: true,
-			traceId: "trace_0001",
-		});
-		expect(telemetry.recordRequestTransportError).toHaveBeenCalledWith(
-			expect.objectContaining({
-				errorCode: "execution_timeout",
-				requestId: "req_0001",
-				retryable: true,
-			}),
-		);
-		expect(telemetry.recordRequestFinalized).toHaveBeenCalledWith(
-			expect.objectContaining({
-				requestId: "req_0001",
-				status: "error",
-			}),
-		);
+		expect(finalWrites).toHaveLength(0);
+		expect(telemetry.recordRequestFinalized).not.toHaveBeenCalled();
 	});
 
 	it("finalizes unexpected execution exceptions as non-retryable internal errors", async () => {
@@ -186,7 +158,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			assistantMessage: {
 				kind: "error",
 				retryable: false,
-				text: "untyped execution failure",
+				text: "The request could not be completed.",
 			},
 			turnDispatch: {
 				errorCode: "internal_error",
@@ -196,7 +168,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 		expect(response.answer.result).toEqual({
 			errorCode: "internal_error",
 			kind: "error",
-			message: "untyped execution failure",
+			message: "The request could not be completed.",
 			requestId: "req_0001",
 			retryable: false,
 			traceId: "trace_0001",
@@ -330,7 +302,6 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 	it("creates a first-turn conversation with the caller-provided conversation id", async () => {
 		const { store, acceptedWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		conversationStore.getConversationByOwner = vi.fn().mockResolvedValue(null);
 		const executionClient: ToolExecutionClient = {
 			execute: vi.fn().mockResolvedValue({
 				answerText: "图书馆开放到 22:00。",
@@ -427,7 +398,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			principal: createPrincipal(),
 		});
 
-		expect(conversationStore.getConversationByOwner).not.toHaveBeenCalled();
+		expect(conversationStore.getConversationByOwner).toHaveBeenCalledWith("user_01HQ", "conv_0001");
 		expect(acceptedWrites[0]).toMatchObject({
 			conversationSeed: {
 				id: "conv_0001",

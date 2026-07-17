@@ -1,4 +1,6 @@
 import { readFile } from "node:fs/promises";
+import { parse } from "smol-toml";
+import { assertApplicationLogOnlyObservability } from "../../../scripts/deploy/worker-observability-config";
 
 function fail(message: string): never {
 	console.error(message);
@@ -20,6 +22,17 @@ function expectNotContains(source: string, needle: string, message: string): voi
 async function main(): Promise<void> {
 	const configPath = new URL("../wrangler.toml", import.meta.url);
 	const source = await readFile(configPath, "utf8");
+	const config = parse(source) as Record<string, unknown>;
+	const environments = config.env as Record<string, Record<string, unknown>> | undefined;
+
+	assertApplicationLogOnlyObservability(config.observability, {
+		destinations: [],
+		surface: "app-api default",
+	});
+	assertApplicationLogOnlyObservability(environments?.staging?.observability, {
+		destinations: ["axiom-staging-logs"],
+		surface: "app-api staging",
+	});
 
 	expectNotContains(
 		source,
@@ -33,11 +46,12 @@ async function main(): Promise<void> {
 	);
 	expectContains(source, 'APP_API_ENVIRONMENT = "staging"', "Missing APP_API_ENVIRONMENT=staging.");
 	expectContains(source, 'SENTRY_ENVIRONMENT = "staging"', "Missing SENTRY_ENVIRONMENT=staging.");
-	expectContains(
+	expectNotContains(
 		source,
-		'APP_API_OTEL_INGEST_ENDPOINT = "https://otel-collector-staging.mucwiki-edge.link"',
-		"Missing APP_API_OTEL_INGEST_ENDPOINT staging value.",
+		"axiom-staging-traces",
+		"Native Worker trace destination must stay disabled.",
 	);
+	expectNotContains(source, "APP_API_OTEL_INGEST_", "Retired app-api OTLP ingest config remains.");
 	expectContains(source, 'binding = "APP_API_DB"', "Missing APP_API_DB Hyperdrive binding.");
 	expectContains(
 		source,

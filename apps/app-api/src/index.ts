@@ -1,26 +1,20 @@
-import type { CloudflareOptions } from "@sentry/cloudflare";
 import * as Sentry from "@sentry/cloudflare";
 
 import { type AppDependencies, createApp } from "./app";
+import { type Env, isDeployedEnvironment, resolveEnvironment } from "./config";
 import {
-	type Env,
-	isDeployedEnvironment,
-	readPublicNoticeURLAllowlist,
-	resolveAppName,
-	resolveEnvironment,
-} from "./config";
-import { AppApiRouteError } from "./http";
-import { createPgChatConversationStore } from "./modules/chat";
-import {
+	createExecutionControlPersonalMemoryClient,
 	createExecutionControlRuntimeClient,
 	isExecutionControlRuntimeConfigured,
 } from "./modules/integration";
 import {
-	buildChatCommandService,
-	type ChatCommandService,
-	createPgChatCommandStore,
-} from "./modules/runtime-command";
+	buildProfileMemoryService,
+	createPgProfileMemoryStore,
+	type ProfileMemoryService,
+} from "./modules/profile-memory";
+import { createPgChatCommandStore, dispatchPendingChatAdmissions } from "./modules/runtime-command";
 import { createAppTelemetry } from "./modules/telemetry";
+import { createAppApiSentryOptions } from "./modules/telemetry/sentry";
 
 export type { Env } from "./config";
 
@@ -35,65 +29,6 @@ interface WorkerRuntime {
 	scheduled(): Promise<void>;
 }
 
-const SENSITIVE_EVENT_FIELDS = new Set([
-	"answer",
-	"authorization",
-	"cf-access-jwt-assertion",
-	"cookie",
-	"operator_email",
-	"prompt",
-	"transcript",
-	"x-app-internal-auth",
-	"x-app-operator-email",
-	"x-worker-origin-auth",
-]);
-
-function scrubSensitiveRecord(value: unknown): void {
-	if (!value || typeof value !== "object" || Array.isArray(value)) {
-		return;
-	}
-
-	for (const key of Object.keys(value as Record<string, unknown>)) {
-		if (SENSITIVE_EVENT_FIELDS.has(key.toLowerCase())) {
-			delete (value as Record<string, unknown>)[key];
-		}
-	}
-}
-
-function createSentryOptions(env: Env): CloudflareOptions | undefined {
-	const dsn = env.SENTRY_DSN?.trim();
-	if (!dsn) {
-		return;
-	}
-
-	return {
-		dsn,
-		environment: env.SENTRY_ENVIRONMENT?.trim() || undefined,
-		initialScope: {
-			tags: {
-				app: resolveAppName(env),
-				runtime: "cloudflare-worker",
-				surface: "app_api",
-			},
-		},
-		release: env.SENTRY_RELEASE?.trim() || undefined,
-		sendDefaultPii: false,
-		tracesSampleRate: 1,
-		beforeSend(event) {
-			scrubSensitiveRecord(event.request?.headers);
-			scrubSensitiveRecord(event.request?.data);
-			scrubSensitiveRecord(event.contexts?.trace);
-			scrubSensitiveRecord(event.extra);
-			if (event.user) {
-				delete event.user.email;
-				delete event.user.ip_address;
-				delete event.user.username;
-			}
-			return event;
-		},
-	};
-}
-
 function isExplicitlyEnabled(value: string | undefined): boolean {
 	return value?.trim().toLowerCase() === "true";
 }
@@ -103,39 +38,16 @@ export function createWorkerRuntime(
 	dependencies: WorkerRuntimeDependencies = {},
 ): WorkerRuntime {
 	const telemetry = dependencies.telemetry ?? createAppTelemetry(env);
-	let durableCloseoutService = dependencies.chatCommandService ?? null;
-	function resolveDurableCloseoutService(): ChatCommandService {
-		if (durableCloseoutService) {
-			return durableCloseoutService;
+	let profileMemoryService: ProfileMemoryService | null = null;
+	function resolveProfileMemoryService(): ProfileMemoryService {
+		if (profileMemoryService) {
+			return profileMemoryService;
 		}
-		if (resolveEnvironment(env) === "test") {
-			durableCloseoutService = {
-				async reconcileDurableCloseouts() {
-					return { failed: 0, finalized: 0, scanned: 0 };
-				},
-				async submit() {
-					throw new AppApiRouteError({
-						code: "dependency_not_ready",
-						message: "Chat command service is not configured.",
-						retryable: true,
-						status: 503,
-					});
-				},
-			};
-			return durableCloseoutService;
-		}
-		const executionRuntime = isExecutionControlRuntimeConfigured(env)
-			? createExecutionControlRuntimeClient(env)
-			: undefined;
-		durableCloseoutService = buildChatCommandService({
-			conversationStore: createPgChatConversationStore(env),
-			executionRuntime,
-			isExecutionRuntimeConfigured: Boolean(executionRuntime),
-			publicNoticeURLAllowlist: readPublicNoticeURLAllowlist(env),
-			store: createPgChatCommandStore(env),
-			telemetry,
+		profileMemoryService = buildProfileMemoryService({
+			commandAdmitter: createExecutionControlPersonalMemoryClient(env),
+			store: createPgProfileMemoryStore(env),
 		});
-		return durableCloseoutService;
+		return profileMemoryService;
 	}
 	const app = createApp(env, {
 		...dependencies,
@@ -147,36 +59,28 @@ export function createWorkerRuntime(
 			return app.fetch(request, env, executionCtx as ExecutionContext | undefined);
 		},
 		async scheduled(): Promise<void> {
-			const closeoutResult = isExplicitlyEnabled(env.APP_API_DURABLE_CLOSEOUT_SWEEPER_ENABLED)
-				? await Sentry.startSpan(
-						{
-							name: "app-api.durable-closeout.reconcile",
-							op: "cron",
-						},
-						() =>
-							resolveDurableCloseoutService().reconcileDurableCloseouts?.() ??
-							Promise.resolve(null),
-					)
-				: null;
-			if (closeoutResult && (closeoutResult.finalized > 0 || closeoutResult.failed > 0)) {
-				console.info(
-					JSON.stringify({
-						failed: closeoutResult.failed,
-						finalized: closeoutResult.finalized,
-						scanned: closeoutResult.scanned,
-						source: "app-api.durable-closeout-reconciler",
-					}),
-				);
+			if (isExecutionControlRuntimeConfigured(env)) {
+				const result = dependencies.chatCommandService?.dispatchPendingAdmissions
+					? await dependencies.chatCommandService.dispatchPendingAdmissions()
+					: await dispatchPendingChatAdmissions({
+							executionRuntime: createExecutionControlRuntimeClient(env),
+							store: createPgChatCommandStore(env),
+						});
+				if (result.processed > 0) {
+					console.info({ ...result, source: "app-api.chat-admission-dispatcher" });
+				}
 			}
-			if (closeoutResult && closeoutResult.failed > 0) {
-				console.error(
-					JSON.stringify({
-						failed: closeoutResult.failed,
-						finalized: closeoutResult.finalized,
-						scanned: closeoutResult.scanned,
-						source: "app-api.durable-closeout-reconciler",
-					}),
+			if (
+				isExplicitlyEnabled(env.APP_API_PROFILE_MEMORY_COMMAND_SWEEPER_ENABLED) &&
+				isExecutionControlRuntimeConfigured(env)
+			) {
+				const result = await Sentry.startSpan(
+					{ name: "app-api.profile-memory.dispatch", op: "cron" },
+					() => resolveProfileMemoryService().dispatchPending(),
 				);
+				if (result.processed > 0) {
+					console.info({ ...result, source: "app-api.profile-memory-dispatcher" });
+				}
 			}
 		},
 	};
@@ -213,4 +117,4 @@ const worker = {
 	},
 };
 
-export default Sentry.withSentry(createSentryOptions, worker);
+export default Sentry.withSentry(createAppApiSentryOptions, worker);

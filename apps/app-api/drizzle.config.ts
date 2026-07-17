@@ -10,7 +10,7 @@ export default defineConfig({
 	},
 	dbCredentials: {
 		url:
-			process.env.APP_API_OPERATOR_DATABASE_URL ??
+			process.env.APP_API_SCHEMA_DATABASE_URL ??
 			"postgres://postgres:postgres@127.0.0.1:5432/campus_agent",
 	},
 	strict: true,

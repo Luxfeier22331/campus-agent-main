@@ -14,11 +14,10 @@ status: active
 - 工具与知识：[tool-routing.md](./tool-routing.md)、[tool-runtime.md](./tool-runtime.md)、
   [retrieval-serving.md](./retrieval-serving.md)、
   [agentic-retrieval.md](./agentic-retrieval.md)、[data-plane.md](./data-plane.md)；
-- 身份与记忆：[identity-authz.md](./identity-authz.md)、
-  [identity-platform.md](./identity-platform.md)、[identity-browser.md](./identity-browser.md)、
+- 身份与记忆：[identity-authz.md](./identity-authz.md)、[identity-browser.md](./identity-browser.md)、
   [mucwiki-login.md](./mucwiki-login.md)、[memory-plane.md](./memory-plane.md)；
-- 运维与改进：[ops-observability.md](./ops-observability.md)、
-  [langfuse.md](./langfuse.md)、[learning-loop.md](./learning-loop.md)；
+- 运维与改进：[ops-observability.md](./ops-observability.md)、[langfuse.md](./langfuse.md)、
+  [learning-loop.md](./learning-loop.md)；
 - 代码边界：[code-organization.md](./code-organization.md)、
   [python-boundaries.md](./python-boundaries.md)。
 

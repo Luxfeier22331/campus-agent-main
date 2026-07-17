@@ -3,6 +3,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../src/app";
+import type { ProfileMemoryService } from "../src/modules/profile-memory";
 
 const env = {
 	APP_API_NAME: "campus-agent-app-api",
@@ -11,12 +12,10 @@ const env = {
 	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 	EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
-	APP_API_DB: {
-		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
-	},
+	APP_API_DB: { connectionString: "postgres://postgres:secret@example.com:5432/campus_agent" },
 };
 
-function createCampusPrincipal() {
+function principal() {
 	return {
 		actor: {
 			departments: [],
@@ -25,181 +24,112 @@ function createCampusPrincipal() {
 			roles: ["campus_member"],
 			userId: "user_01HQ",
 		},
-		authorization: {
-			approvalState: "",
-			entitlementGroups: [],
-			entitlementSnapshotId: "",
-			ownershipScopes: [],
-			principalId: "user_01HQ",
-			projectionSource: "campus_identity" as const,
-			retrievalFilter: {
-				entitlementGroups: [],
-				policyProjectionVersion: "phase1-authorization-projection-v1",
-				visibilityLevel: "public",
-				visibilityScope: null,
-			},
-			visibilityScope: null,
-		},
-		permissions: {
-			chat: true,
-			operator: false,
-		},
+		authorization: undefined,
+		permissions: { chat: true },
 		principal: {
 			displayName: "Jane Doe",
 			email: "jane@example.edu",
 			principalId: "user_01HQ",
 			type: "campus_member" as const,
 		},
-		session: {
-			expiresAt: "2026-03-29T07:00:00.000Z",
-			sessionId: "sess_01HQ",
-		},
+		session: { expiresAt: "2026-03-29T07:00:00.000Z", sessionId: "sess_01HQ" },
+	};
+}
+
+function service(): ProfileMemoryService {
+	const pending = { lifecycleState: "active" as const, syncStatus: "pending" as const };
+	return {
+		applyResult: vi.fn(async () => "applied" as const),
+		createItem: vi.fn(async () => ({
+			...pending,
+			item: {
+				itemId: "mem_01",
+				key: "answer_style",
+				revision: 1,
+				state: "saving" as const,
+				updatedAt: "2026-04-27T00:00:00.000Z",
+				value: "先给结论",
+			},
+		})),
+		deleteItem: vi.fn(async () => pending),
+		dispatchPending: vi.fn(async () => ({ admitted: 0, failed: 0, processed: 0 })),
+		erase: vi.fn(async () => ({
+			lifecycleState: "erasing" as const,
+			syncStatus: "pending" as const,
+		})),
+		list: vi.fn(async () => ({
+			itemCount: 0,
+			items: [],
+			lifecycleState: "active" as const,
+			syncStatus: "synced" as const,
+		})),
+		setLifecycle: vi.fn(async () => ({
+			lifecycleState: "paused" as const,
+			syncStatus: "pending" as const,
+		})),
+		updateItem: vi.fn(async () => ({
+			...pending,
+			item: {
+				itemId: "mem_01",
+				key: "answer_style",
+				revision: 2,
+				state: "saving" as const,
+				updatedAt: "2026-04-27T00:00:00.000Z",
+				value: "简洁回答",
+			},
+		})),
 	};
 }
 
 describe("profile memory routes", () => {
-	it("lets the signed-in user list and upsert visible profile memory", async () => {
-		const profileMemoryService = {
-			deleteItem: vi.fn(),
-			list: vi.fn().mockResolvedValue({
-				enabled: true,
-				items: [
-					{
-						confidence: "low",
-						itemId: "mem_01HQ",
-						key: "recent_goal",
-						lastVerifiedAt: "2026-04-27T00:00:00.000Z",
-						sourceType: "user_declared",
-						updatedAt: "2026-04-27T00:00:00.000Z",
-						value: "准备保研材料",
-						visibility: "user_visible",
-					},
-				],
-			}),
-			setEnabled: vi.fn(),
-			upsert: vi.fn().mockResolvedValue({
-				item: {
-					confidence: "low",
-					itemId: "mem_02HQ",
-					key: "answer_style",
-					lastVerifiedAt: "2026-04-27T00:01:00.000Z",
-					sourceType: "user_declared",
-					updatedAt: "2026-04-27T00:01:00.000Z",
-					value: "先给结论",
-					visibility: "user_visible",
-				},
-			}),
-		};
+	it("returns the canonical local projection", async () => {
 		const app = createApp(env, {
-			getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
-			profileMemoryService,
-		} as Parameters<typeof createApp>[1]);
-
-		const listResponse = await app.fetch(
-			new Request("https://app-api.internal/api/me/profile-memory"),
-		);
-		const upsertResponse = await app.fetch(
-			new Request("https://app-api.internal/api/me/profile-memory/items", {
-				body: JSON.stringify({
-					key: "answer_style",
-					value: "先给结论",
-				}),
-				headers: {
-					"content-type": "application/json",
-				},
-				method: "POST",
-			}),
-		);
-
-		expect(listResponse.status).toBe(200);
-		await expect(listResponse.json()).resolves.toEqual({
-			profileMemory: {
-				enabled: true,
-				items: [
-					{
-						confidence: "low",
-						itemId: "mem_01HQ",
-						key: "recent_goal",
-						lastVerifiedAt: "2026-04-27T00:00:00.000Z",
-						sourceType: "user_declared",
-						updatedAt: "2026-04-27T00:00:00.000Z",
-						value: "准备保研材料",
-						visibility: "user_visible",
-					},
-				],
-			},
+			getPrincipal: vi.fn().mockResolvedValue(principal()),
+			profileMemoryService: service(),
 		});
-		expect(upsertResponse.status).toBe(200);
-		await expect(upsertResponse.json()).resolves.toEqual({
-			item: {
-				confidence: "low",
-				itemId: "mem_02HQ",
-				key: "answer_style",
-				lastVerifiedAt: "2026-04-27T00:01:00.000Z",
-				sourceType: "user_declared",
-				updatedAt: "2026-04-27T00:01:00.000Z",
-				value: "先给结论",
-				visibility: "user_visible",
-			},
-		});
-		expect(profileMemoryService.list).toHaveBeenCalledWith({
-			principal: expect.objectContaining({
-				principal: expect.objectContaining({ principalId: "user_01HQ" }),
-			}),
-		});
-		expect(profileMemoryService.upsert).toHaveBeenCalledWith({
-			key: "answer_style",
-			principal: expect.objectContaining({
-				principal: expect.objectContaining({ principalId: "user_01HQ" }),
-			}),
-			value: "先给结论",
+		const response = await app.fetch(new Request("https://app-api.internal/api/me/profile-memory"));
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toEqual({
+			profileMemory: { itemCount: 0, items: [], lifecycleState: "active", syncStatus: "synced" },
 		});
 	});
 
-	it("lets the signed-in user disable memory projection and delete an item", async () => {
-		const profileMemoryService = {
-			deleteItem: vi.fn().mockResolvedValue({ deleted: true }),
-			list: vi.fn(),
-			setEnabled: vi.fn().mockResolvedValue({ enabled: false }),
-			upsert: vi.fn(),
-		};
+	it.each([
+		["POST", "/api/me/profile-memory/items", { key: "answer_style", value: "先给结论" }],
+		["PATCH", "/api/me/profile-memory/items/mem_01", { key: "answer_style", value: "简洁回答" }],
+		["PATCH", "/api/me/profile-memory/settings", { enabled: false }],
+		["DELETE", "/api/me/profile-memory/items/mem_01", undefined],
+		["DELETE", "/api/me/profile-memory", undefined],
+	] as const)("requires idempotency and returns 202 for %s %s", async (method, path, body) => {
+		const profileMemoryService = service();
 		const app = createApp(env, {
-			getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
+			getPrincipal: vi.fn().mockResolvedValue(principal()),
 			profileMemoryService,
-		} as Parameters<typeof createApp>[1]);
-
-		const disableResponse = await app.fetch(
-			new Request("https://app-api.internal/api/me/profile-memory/settings", {
-				body: JSON.stringify({ enabled: false }),
+		});
+		const response = await app.fetch(
+			new Request(`https://app-api.internal${path}`, {
+				...(body ? { body: JSON.stringify(body) } : {}),
 				headers: {
 					"content-type": "application/json",
+					"idempotency-key": `idem-${method.toLowerCase()}-0001`,
 				},
-				method: "PATCH",
+				method,
 			}),
 		);
-		const deleteResponse = await app.fetch(
-			new Request("https://app-api.internal/api/me/profile-memory/items/mem_01HQ", {
-				method: "DELETE",
-			}),
-		);
+		expect(response.status).toBe(202);
+	});
 
-		expect(disableResponse.status).toBe(200);
-		await expect(disableResponse.json()).resolves.toEqual({
-			profileMemory: { enabled: false },
+	it("rejects mutations without Idempotency-Key", async () => {
+		const app = createApp(env, {
+			getPrincipal: vi.fn().mockResolvedValue(principal()),
+			profileMemoryService: service(),
 		});
-		expect(deleteResponse.status).toBe(200);
-		await expect(deleteResponse.json()).resolves.toEqual({ deleted: true });
-		expect(profileMemoryService.setEnabled).toHaveBeenCalledWith({
-			enabled: false,
-			principal: expect.objectContaining({
-				principal: expect.objectContaining({ principalId: "user_01HQ" }),
-			}),
-		});
-		expect(profileMemoryService.deleteItem).toHaveBeenCalledWith({
-			itemId: "mem_01HQ",
-			principal: expect.objectContaining({
-				principal: expect.objectContaining({ principalId: "user_01HQ" }),
-			}),
+		const response = await app.fetch(
+			new Request("https://app-api.internal/api/me/profile-memory", { method: "DELETE" }),
+		);
+		expect(response.status).toBe(400);
+		await expect(response.json()).resolves.toMatchObject({
+			error: { code: "idempotency_key_required" },
 		});
 	});
 });

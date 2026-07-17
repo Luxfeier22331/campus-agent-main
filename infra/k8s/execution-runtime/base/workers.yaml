@@ -18,6 +18,7 @@ spec:
   template:
     metadata:
       labels:
+        app.kubernetes.io/component: execution-control
         app.kubernetes.io/name: execution-workflow
         app.kubernetes.io/part-of: campus-agent
     spec:
@@ -67,6 +68,7 @@ spec:
   template:
     metadata:
       labels:
+        app.kubernetes.io/component: execution-control
         app.kubernetes.io/name: execution-core
         app.kubernetes.io/part-of: campus-agent
     spec:
@@ -91,6 +93,8 @@ spec:
             - secretRef:
                 name: execution-memory-client-secrets
             - secretRef:
+                name: execution-langfuse-maintenance-secrets
+            - secretRef:
                 name: execution-control-internal-query-secrets
             - secretRef:
                 name: execution-tool-read-model-secrets
@@ -99,24 +103,17 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-          volumeMounts:
-            - name: provider-config-projection
-              mountPath: /run/campus-agent/provider-config
-              readOnly: true
+            - name: EXECUTION_CONTROL_PRODUCT_CALLBACK_SHARED_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: execution-app-api-internal-secrets
+                  key: APP_API_PRODUCT_CALLBACK_SHARED_SECRET
           resources:
             requests:
               cpu: 100m
               memory: 256Mi
             limits:
               memory: 1Gi
-      volumes:
-        - name: provider-config-projection
-          secret:
-            secretName: execution-runtime-provider-config
-            defaultMode: 0440
-            items:
-              - key: provider-config-projection.json
-                path: provider-config-projection.json
 ---
 apiVersion: temporal.io/v1alpha1
 kind: WorkerDeployment
@@ -138,6 +135,7 @@ spec:
   template:
     metadata:
       labels:
+        app.kubernetes.io/component: execution-control
         app.kubernetes.io/name: execution-agent
         app.kubernetes.io/part-of: campus-agent
     spec:
@@ -161,13 +159,15 @@ spec:
                 name: execution-run-projection-secrets
             - secretRef:
                 name: execution-agent-client-secrets
+            - secretRef:
+                name: execution-provider-config-runtime-secrets
           env:
             - name: EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
           volumeMounts:
-            - name: provider-config-projection
+            - name: provider-config-keyring
               mountPath: /run/campus-agent/provider-config
               readOnly: true
           resources:
@@ -177,10 +177,10 @@ spec:
             limits:
               memory: 1Gi
       volumes:
-        - name: provider-config-projection
+        - name: provider-config-keyring
           secret:
-            secretName: execution-runtime-provider-config
+            secretName: execution-provider-config-keyring
             defaultMode: 0440
             items:
-              - key: provider-config-projection.json
-                path: provider-config-projection.json
+              - key: keyring.json
+                path: keyring.json

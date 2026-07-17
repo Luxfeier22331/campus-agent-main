@@ -8,26 +8,27 @@ status: active
 
 ## 边界
 
-本文登记仓库支持的 provider family、所有者、secret 位置和常见任务的最小环境集合。console
+本文登记仓库支持的 provider family、所有者、secret 位置和常见任务的最小环境集合。界面
 操作和部署命令留在所属 runbook。
 
 基本规则：
 
 - `.env.example` 不是 staging/production secret inventory；
-- Ops Web 保存候选与验证结果，固定 Kubernetes Secret 或本地原子文件保存 active projection；
+- 在线 active bundle 由 execution-control Provider Config 所有；
 - server secret 只进入 app-local dev vars、平台 secret store 或运维 env；
 - browser 可见值必须明确标记为 public；
-- GitOps 只声明固定 Secret 元数据；Ops Web 发布的 v2 projection 是模型 active profile 真相。
+- ConfigMap、Secret、Helm value 和 Worker var/secret 只交付 bootstrap/secret，不能替代在线
+  active bundle、Hindsight 内部配置或 eval runtime 配置。
 
 ## 核心 Provider
 
 ### LLM
 
-- 所有者：Ops Web Provider Config；
-- 消费方：agent-runtime、Hindsight 和 eval runtime；
-- role：`primary_agent`、`rag_synthesis`、`hindsight_llm`、`eval_ragas_llm`、
-  `eval_judge_llm`；
-- runtime：`provider_config_projection.v2`；
+- 在线所有者：execution-control Provider Config；
+- 在线消费方：execution-control 在顶层 Agent Activity 开始时解析完整 active bundle，再把
+  固定快照交给 agent-runtime；
+- 在线 role：`primary_agent`；
+- Hindsight 与 eval 使用各自 runtime owner 管理的独立配置；
 - raw key 不返回浏览器。
 
 `primary_agent` 承担完整 Agents SDK run，包括 Knowledge Agent handoff；不存在独立 public-web
@@ -35,10 +36,11 @@ status: active
 
 ### 向量模型
 
-- 所有者：Ops Web Provider Config；
+- 在线所有者：execution-control Provider Config；
 - 当前基线：`Qwen3-Embedding-4B`、2560 维、OpenAI-compatible；
-- role：`rag_query_embedding`、`hindsight_embedding`、`eval_ragas_embedding`；
-- runtime 真相：provider projection 与 collection serving config。
+- 在线 role：`rag_query_embedding` 和可选 `rag_reranker`；
+- Hindsight embedding 与 eval embedding 由各自 runtime owner 管理；
+- 在线 runtime 真相：active bundle 与 collection serving config。
 
 ### 重排模型
 
@@ -62,7 +64,7 @@ status: active
 - 所有者：personal memory runtime；
 - execution-control 句柄：`PERSONAL_MEMORY_BASE_URL`、
   `PERSONAL_MEMORY_API_SECRET`、`PERSONAL_MEMORY_OWNER_SALT`；
-- provider role：`hindsight_llm`、`hindsight_embedding`；
+- Hindsight LLM 与 embedding 配置由 Hindsight 部署所有者管理；
 - Hindsight 内部 PostgreSQL、API secret 和 provider key 只属于部署 secret。
 
 ### PostgreSQL
@@ -128,8 +130,8 @@ Catalog observation 不自动发布；`apps/ops-web` 负责 rebase、validate、
 当前 Worker surface 为 app-api 和 campus-web。每个应用使用自己的 Worker
 secret store；数据面、对象存储和 execution runtime secret 不复制到 Worker。
 
-Worker vars/secrets 不拥有 `primary_agent`、`rag_query_embedding` 或 `hindsight_*` active
-profile。candidate upload 只产生不可变版本，流量由环境仓选择。
+Worker vars/secrets 不拥有 `primary_agent` 或 `rag_query_embedding` active bundle。candidate
+upload 只产生不可变版本，流量由环境仓选择。
 
 ### Kubernetes 与 GitOps
 
@@ -150,12 +152,12 @@ Collector endpoint、认证和 sink credential 属于观测 runtime 与部署 se
 ### 本地问答
 
 - root `.env`：共享 PostgreSQL 句柄；
-- Ops Web 本地 `.env`：Provider Config 数据库、加密密钥和 file publisher 路径；
-- active `primary_agent`、`rag_synthesis`、`rag_query_embedding` 和 `rag_reranker` profile；
-- Qdrant 和 runtime secret projection；
+- execution-control Provider Config reader/admin DSN、版本化 keyring 和已激活的
+  `primary_agent`、`rag_query_embedding` bundle；
+- Qdrant 和 runtime secret；
 - app-api `.env` / `.dev.vars`；
 - campus-web `.dev.vars`；
-- 本地 execution runtime 挂载同一 v2 projection 文件。
+- 需要修改在线配置时启动 Ops Web 与 execution-control admin。
 
 普通本地问答不要求 OCR、对象存储或独立 eval provider。
 
@@ -178,7 +180,9 @@ projection。
 ### Worker staging 候选版本
 
 增加 Cloudflare upload 权限、应用 Worker secret、环境 Terraform 同步的 public config，以及
-启用时的 Sentry/OTLP 配置。execution-control Kubernetes env 不复制到 Worker secret store。
+Sentry edge/browser DSN、release/source map CI 配置。Cloudflare Axiom application-log destination
+由环境 Terraform 选择，Worker 不持有 Axiom token；`invocation_logs=false` 且 native traces
+关闭。execution-control Kubernetes env 不复制到 Worker secret store。
 
 ## 当前不需要
 

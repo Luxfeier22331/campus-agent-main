@@ -84,7 +84,7 @@ branch/head。
 Ops Web 以 `chat.turn_dispatches` 为 request 列表起点，按 `run_id` 左连接
 `runtime.agent_runs`，按 `request_id` 左连接 `runtime.request_observability_fact`，并通过
 `user_message_id` 读取 `chat.messages` 的问题摘要。它不需要 app-api projector，也不通过
-Ops Web 读取。
+app-api 运维接口读取。
 
 ## 失败边界
 

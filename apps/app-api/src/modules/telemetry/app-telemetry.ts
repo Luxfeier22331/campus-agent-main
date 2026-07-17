@@ -2,36 +2,27 @@ import * as Sentry from "@sentry/cloudflare";
 
 import { type Env, resolveEnvironment } from "../../config";
 import { isStageTimingField, stageTimingBudgetState } from "../latency-budget";
+import { createConsoleRuntimeEventSink } from "./console";
 import {
 	hashIdentifier,
 	normalizeString,
 	readTelemetryTraceDataWithoutRequestFailure,
 	runTelemetryAsyncSideEffectWithoutRequestFailure,
 	runTelemetrySideEffectWithoutRequestFailure,
-	toSourceDocIdsSummary,
-	toTargetsSummary,
 } from "./helpers";
-import { createOtlpRuntimeEventSink } from "./otlp";
 import type { RuntimeEventSink } from "./runtime-event";
 import { buildRuntimeEventEnvelope } from "./runtime-event-envelope";
-import { applyRequestContext, applyRequestTags } from "./sentry-scope";
+import { normalizeAppApiRoute } from "./sentry";
+import { applyRequestTags } from "./sentry-scope";
 import { resolveTracePropagationHeaders, type TraceDataLike } from "./trace";
 import type { AppTelemetry } from "./types";
 
-async function emitStageTimingEvents(input: {
-	errorCode: string | null;
-	principalType?: string | null;
-	requestId: string;
-	requestedTool: string | null;
-	runtimeEventSink: RuntimeEventSink;
-	selectedTool: string | null;
-	stageTiming?: Record<string, unknown> | null;
-	status: string;
-	surface: string;
-	telemetryMetadata: Parameters<typeof buildRuntimeEventEnvelope>[1];
-	traceId: string;
-}): Promise<void> {
-	for (const [stageField, durationMs] of Object.entries(input.stageTiming ?? {})) {
+function projectStageTimingFields(
+	stageTiming: Record<string, unknown> | null | undefined,
+): Record<string, number | string> {
+	const output: Record<string, number | string> = {};
+	let worstBudgetState: "critical" | "warn" | "within_budget" = "within_budget";
+	for (const [stageField, durationMs] of Object.entries(stageTiming ?? {})) {
 		if (
 			!(
 				isStageTimingField(stageField) &&
@@ -42,45 +33,30 @@ async function emitStageTimingEvents(input: {
 		) {
 			continue;
 		}
-		await input.runtimeEventSink.emit({
-			duration_ms: durationMs,
-			stage_field: stageField,
-			budget_state: stageTimingBudgetState(stageField, durationMs),
-			...buildRuntimeEventEnvelope(
-				{
-					errorCode: input.errorCode,
-					eventType: "request.stage_timing",
-					principalType: input.principalType,
-					requestId: input.requestId,
-					requestedTool: input.requestedTool,
-					selectedTool: input.selectedTool,
-					status: input.status,
-					surface: input.surface,
-					traceId: input.traceId,
-				},
-				input.telemetryMetadata,
-			),
-		});
+		output[stageField] = durationMs;
+		const budgetState = stageTimingBudgetState(stageField, durationMs);
+		if (
+			budgetState === "critical" ||
+			(budgetState === "warn" && worstBudgetState === "within_budget")
+		) {
+			worstBudgetState = budgetState;
+		}
 	}
+	if (Object.keys(output).length > 0) {
+		output.stage_timing_budget_state = worstBudgetState;
+	}
+	return output;
 }
 
 export function createAppTelemetry(
-	env: Pick<
-		Env,
-		| "APP_API_ENVIRONMENT"
-		| "APP_API_NAME"
-		| "APP_API_OTEL_INGEST_ENDPOINT"
-		| "APP_API_OTEL_INGEST_SHARED_SECRET"
-		| "SENTRY_ENVIRONMENT"
-		| "SENTRY_RELEASE"
-	>,
+	env: Pick<Env, "APP_API_ENVIRONMENT" | "SENTRY_ENVIRONMENT" | "SENTRY_RELEASE">,
 	input: {
 		runtimeEventSink?: RuntimeEventSink;
 		now?: () => Date;
 		traceDataProvider?: () => TraceDataLike | null | undefined;
 	} = {},
 ): AppTelemetry {
-	const runtimeEventSink = input.runtimeEventSink ?? createOtlpRuntimeEventSink(env);
+	const runtimeEventSink = input.runtimeEventSink ?? createConsoleRuntimeEventSink();
 	const now = input.now ?? (() => new Date());
 	const traceDataProvider = input.traceDataProvider ?? (() => Sentry.getTraceData());
 	const telemetryMetadata = {
@@ -94,7 +70,7 @@ export function createAppTelemetry(
 			runTelemetrySideEffectWithoutRequestFailure(() => {
 				Sentry.withScope((scope) => {
 					if (detail?.route) {
-						scope.setTag("route", detail.route);
+						scope.setTag("route", normalizeAppApiRoute(detail.route));
 					}
 					if (detail?.status) {
 						scope.setTag("status", String(detail.status));
@@ -103,7 +79,7 @@ export function createAppTelemetry(
 						scope.setTag("surface", detail.surface);
 					}
 					if (detail?.traceId) {
-						scope.setTag("trace_id", detail.traceId);
+						scope.setTag("correlation_hash", hashIdentifier(detail.traceId));
 					}
 
 					Sentry.captureException(error);
@@ -119,15 +95,6 @@ export function createAppTelemetry(
 					status: "accepted",
 					surface: input.surface,
 					traceId: input.traceId,
-				});
-				applyRequestContext({
-					conversationId: input.conversationId,
-					requestId: input.requestId,
-					safetyIdentifier: input.safetyIdentifier,
-				});
-				Sentry.setContext("actor", {
-					actor_id_hash: hashIdentifier(input.actor.subject),
-					principal_type: input.actor.principalType,
 				});
 			});
 		},
@@ -155,26 +122,6 @@ export function createAppTelemetry(
 			});
 		},
 
-		async recordIdentityEndpoint(input) {
-			await runTelemetryAsyncSideEffectWithoutRequestFailure(() =>
-				runtimeEventSink.emit({
-					correlation_id: input.correlationId,
-					endpoint: input.endpoint,
-					...buildRuntimeEventEnvelope(
-						{
-							errorCode: input.errorCode,
-							eventType: "identity.endpoint",
-							principalType: input.principalType,
-							status: String(input.status),
-							surface: input.surface,
-							traceId: input.correlationId,
-						},
-						telemetryMetadata,
-					),
-				}),
-			);
-		},
-
 		async recordRequestAccepted(input) {
 			runTelemetrySideEffectWithoutRequestFailure(() => {
 				applyRequestTags({
@@ -184,18 +131,10 @@ export function createAppTelemetry(
 					surface: input.surface,
 					traceId: input.traceId,
 				});
-				applyRequestContext({
-					conversationId: input.conversationId,
-					requestId: input.requestId,
-					safetyIdentifier: input.safetyIdentifier,
-				});
 			});
 
 			await runTelemetryAsyncSideEffectWithoutRequestFailure(() =>
 				runtimeEventSink.emit({
-					actor_id_hash: hashIdentifier(input.actor.subject),
-					conversation_id: input.conversationId,
-					safety_identifier: input.safetyIdentifier ?? null,
 					...buildRuntimeEventEnvelope(
 						{
 							eventType: "request.accepted",
@@ -224,25 +163,15 @@ export function createAppTelemetry(
 					surface: input.surface,
 					traceId: input.traceId,
 				});
-				applyRequestContext({
-					conversationId: input.conversationId,
-					requestId: input.requestId,
-					resolvedTargets: input.resolvedTargets,
-					safetyIdentifier: input.safetyIdentifier,
-					selectedTool: input.selectedTool,
-				});
 			});
 
 			await runTelemetryAsyncSideEffectWithoutRequestFailure(() =>
 				runtimeEventSink.emit({
-					conversation_id: input.conversationId,
 					duration_ms: input.durationMs,
 					resolved_targets_count: input.resolvedTargets?.length ?? 0,
-					resolved_targets_summary: toTargetsSummary(input.resolvedTargets),
 					retryable: input.retryable,
-					safety_identifier: input.safetyIdentifier ?? null,
 					source_doc_ids_count: input.sourceDocIds.length,
-					source_doc_ids_summary: toSourceDocIdsSummary(input.sourceDocIds),
+					...projectStageTimingFields(input.stageTiming),
 					...buildRuntimeEventEnvelope(
 						{
 							errorCode: input.errorCode,
@@ -259,21 +188,6 @@ export function createAppTelemetry(
 					),
 				}),
 			);
-			await runTelemetryAsyncSideEffectWithoutRequestFailure(() =>
-				emitStageTimingEvents({
-					errorCode: input.errorCode,
-					principalType: input.principalType,
-					requestId: input.requestId,
-					requestedTool: input.requestedTool,
-					runtimeEventSink,
-					selectedTool: input.selectedTool,
-					stageTiming: input.stageTiming,
-					status: input.status,
-					surface: input.surface,
-					telemetryMetadata,
-					traceId: input.traceId,
-				}),
-			);
 		},
 
 		async recordRequestTransportError(input) {
@@ -286,18 +200,11 @@ export function createAppTelemetry(
 					surface: input.surface,
 					traceId: input.traceId,
 				});
-				applyRequestContext({
-					conversationId: input.conversationId,
-					requestId: input.requestId,
-					safetyIdentifier: input.safetyIdentifier,
-				});
 			});
 
 			await runTelemetryAsyncSideEffectWithoutRequestFailure(() =>
 				runtimeEventSink.emit({
-					conversation_id: input.conversationId,
 					retryable: input.retryable,
-					safety_identifier: input.safetyIdentifier ?? null,
 					...buildRuntimeEventEnvelope(
 						{
 							errorCode: input.errorCode,
@@ -308,26 +215,6 @@ export function createAppTelemetry(
 							status: "error",
 							surface: input.surface,
 							traceId: input.traceId,
-						},
-						telemetryMetadata,
-					),
-				}),
-			);
-		},
-
-		async recordWebPerformance(input) {
-			await runTelemetryAsyncSideEffectWithoutRequestFailure(() =>
-				runtimeEventSink.emit({
-					metric_name: input.metricName,
-					metric_value: input.value,
-					navigation_type: input.navigationType,
-					rating: input.rating,
-					route_group: input.routeGroup,
-					...buildRuntimeEventEnvelope(
-						{
-							eventType: "web.performance",
-							status: "observed",
-							surface: "campus_web",
 						},
 						telemetryMetadata,
 					),

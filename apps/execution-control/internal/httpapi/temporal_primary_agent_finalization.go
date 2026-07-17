@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -21,6 +22,14 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 	ctx context.Context,
 	input temporalruntime.WriteFinalizationActivityInput,
 ) (temporalruntime.WriteFinalizationActivityOutput, error) {
+	finalizedAt := input.FinalizedAt.UTC().Truncate(time.Microsecond)
+	if finalizedAt.IsZero() {
+		return temporalruntime.WriteFinalizationActivityOutput{}, sanitizedTemporalApplicationError(
+			"finalization_input_invalid",
+			errors.New("finalized_at is required"),
+			true,
+		)
+	}
 	run, err := s.temporalActivityRunAllowCompletedAgentFinalization(
 		ctx,
 		input.RunID,
@@ -31,12 +40,7 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
 	if run.Status == execution.DurableRunStatusCompleted {
-		return temporalruntime.WriteFinalizationActivityOutput{
-			CompletedAt:   run.CompletedAt,
-			ProjectionRef: temporalProjectionRef(run.RunID, "finalization/write"),
-			RunID:         run.RunID,
-			Status:        string(run.Status),
-		}, nil
+		return s.repairCompletedPrimaryAgentFinalization(ctx, run, input, finalizedAt)
 	}
 	agentResult, err := temporalAgentResultFromRun(run, input.AgentResultRef)
 	if err != nil {
@@ -72,20 +76,23 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 	}); err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
-	completedAt := time.Now().UTC()
+	completedAt := finalizedAt
 	finalizedResponse, err := s.primaryAgentFinalizedResponse(
 		ctx,
 		run,
 		agentResult,
-		stageTimingDuration{
-			field:    "finalization.write_ms",
-			duration: durationBetween(finalizationStartedAt, completedAt),
-		},
 	)
 	if err != nil {
 		return s.failFinalizationActivity(ctx, run, "", "agent_finalization_invalid", "", err)
 	}
-	if err := s.appendTemporalFinalizationCompletedEvents(ctx, run, time.Now().UTC(), finalizedResponse, map[string]any{
+	writeProductFinalization := s.productFinalizationWriter
+	if writeProductFinalization == nil {
+		writeProductFinalization = s.writeChatProductFinalization
+	}
+	if err := writeProductFinalization(ctx, run, completedAt, finalizedResponse); err != nil {
+		return temporalruntime.WriteFinalizationActivityOutput{}, err
+	}
+	if err := s.appendTemporalFinalizationCompletedEvents(ctx, run, completedAt, finalizedResponse, map[string]any{
 		"agent_result_ref": input.AgentResultRef,
 		"request_id":       run.RequestID,
 		"trace_id":         run.TraceID,
@@ -94,6 +101,21 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 	}
 	terminalReason := primaryAgentTerminalReason(agentResult)
 	selectedTool := primaryAgentSelectedTool(stringSliceFromAny(agentResult["selected_tools"]))
+	projectionCompletedAt := time.Now().UTC()
+	projectionRun := run
+	projectionRun.FinalResponseRef = finalizationRef
+	projectionRun.SelectedTool = selectedTool
+	projectionRun.TerminalReason = terminalReason
+	if err := s.projectPrimaryAgentFinalizationStep(
+		ctx,
+		projectionRun,
+		input,
+		finalizationStartedAt,
+		projectionCompletedAt,
+		finalizedResponse,
+	); err != nil {
+		return temporalruntime.WriteFinalizationActivityOutput{}, err
+	}
 	completedRun, err := s.runProjectionStore.CompleteRunProjection(
 		ctx,
 		execution.DurableRunCompleteRequest{
@@ -107,38 +129,7 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 	if err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
-	if err := s.appendTemporalRunEvent(ctx, execution.DurableRunEvent{
-		EventID:              run.RunID + ":run-completed",
-		RunID:                run.RunID,
-		ConversationID:       run.ConversationID,
-		EventType:            execution.DurableRunEventTypeRunCompleted,
-		OccurredAt:           completedAt,
-		Visibility:           execution.DurableRunEventVisibilityBrowser,
-		PayloadSchemaVersion: "run-event-v1",
-		Payload: map[string]any{
-			"projection_ref":  finalizationRef,
-			"status":          string(execution.DurableRunStatusCompleted),
-			"terminal_reason": string(terminalReason),
-		},
-	}); err != nil {
-		return temporalruntime.WriteFinalizationActivityOutput{}, err
-	}
-	if err := s.projectTemporalStep(ctx, temporalStepProjection{
-		Attempt:       1,
-		Tool:          "",
-		Run:           run,
-		Status:        "completed",
-		StepID:        "finalization.write",
-		StepKind:      "finalization",
-		TaskQueue:     temporalruntime.ActivityTaskQueueCore,
-		WorkerID:      s.config.TemporalWorkerIdentity,
-		StartedAt:     finalizationStartedAt,
-		CompletedAt:   completedAt,
-		UpdatedAt:     completedAt,
-		ResultKind:    "final_answer_projection",
-		ProjectionRef: finalizationRef,
-		Payload:       temporalFinalizationResultPayload(finalizedResponse, input, run),
-	}); err != nil {
+	if err := s.appendPrimaryAgentRunCompletedEvent(ctx, completedRun, completedAt); err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
 	return temporalruntime.WriteFinalizationActivityOutput{
@@ -147,6 +138,149 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 		RunID:         completedRun.RunID,
 		Status:        string(completedRun.Status),
 	}, nil
+}
+
+func (s *Server) projectPrimaryAgentFinalizationStep(
+	ctx context.Context,
+	run execution.DurableRun,
+	input temporalruntime.WriteFinalizationActivityInput,
+	startedAt time.Time,
+	completedAt time.Time,
+	finalizedResponse map[string]any,
+) error {
+	return s.projectTemporalStep(ctx, temporalStepProjection{
+		Attempt:       1,
+		Tool:          "",
+		Run:           run,
+		Status:        "completed",
+		StepID:        "finalization.write",
+		StepKind:      "finalization",
+		TaskQueue:     temporalruntime.ActivityTaskQueueCore,
+		WorkerID:      s.config.TemporalWorkerIdentity,
+		StartedAt:     startedAt,
+		CompletedAt:   completedAt,
+		UpdatedAt:     completedAt,
+		ResultKind:    "final_answer_projection",
+		ProjectionRef: run.FinalResponseRef,
+		Payload:       temporalFinalizationResultPayload(finalizedResponse, input, run),
+	})
+}
+
+func (s *Server) repairCompletedPrimaryAgentFinalization(
+	ctx context.Context,
+	run execution.DurableRun,
+	input temporalruntime.WriteFinalizationActivityInput,
+	finalizedAt time.Time,
+) (temporalruntime.WriteFinalizationActivityOutput, error) {
+	completedAt := run.CompletedAt.UTC().Truncate(time.Microsecond)
+	if completedAt.IsZero() || !completedAt.Equal(finalizedAt) {
+		return temporalruntime.WriteFinalizationActivityOutput{}, sanitizedTemporalApplicationError(
+			"finalization_replay_conflict",
+			fmt.Errorf(
+				"completed run finalized_at drift: stored=%s requested=%s",
+				completedAt.Format(time.RFC3339Nano),
+				finalizedAt.Format(time.RFC3339Nano),
+			),
+			true,
+		)
+	}
+	if err := s.repairPrimaryAgentFinalizationStep(ctx, run, input, completedAt); err != nil {
+		return temporalruntime.WriteFinalizationActivityOutput{}, err
+	}
+	if err := s.appendPrimaryAgentRunCompletedEvent(ctx, run, completedAt); err != nil {
+		return temporalruntime.WriteFinalizationActivityOutput{}, err
+	}
+	return temporalruntime.WriteFinalizationActivityOutput{
+		CompletedAt:   completedAt,
+		ProjectionRef: run.FinalResponseRef,
+		RunID:         run.RunID,
+		Status:        string(run.Status),
+	}, nil
+}
+
+func (s *Server) appendPrimaryAgentRunCompletedEvent(
+	ctx context.Context,
+	run execution.DurableRun,
+	completedAt time.Time,
+) error {
+	expected := execution.DurableRunEvent{
+		EventID:              run.RunID + ":run-completed",
+		RunID:                run.RunID,
+		ConversationID:       run.ConversationID,
+		EventType:            execution.DurableRunEventTypeRunCompleted,
+		OccurredAt:           completedAt,
+		Visibility:           execution.DurableRunEventVisibilityBrowser,
+		PayloadSchemaVersion: "run-event-v1",
+		Payload: map[string]any{
+			"projection_ref":  run.FinalResponseRef,
+			"status":          string(execution.DurableRunStatusCompleted),
+			"terminal_reason": string(run.TerminalReason),
+		},
+	}
+	if err := s.appendTemporalRunEvent(ctx, expected); err != nil {
+		return err
+	}
+	events, err := s.runProjectionStore.ListRunEvents(ctx, run.RunID)
+	if err != nil {
+		return err
+	}
+	for _, existing := range events {
+		if existing.EventID != expected.EventID {
+			continue
+		}
+		if existing.RunID == expected.RunID &&
+			existing.ConversationID == expected.ConversationID &&
+			existing.EventType == expected.EventType &&
+			existing.Visibility == expected.Visibility &&
+			existing.PayloadSchemaVersion == expected.PayloadSchemaVersion &&
+			existing.OccurredAt.UTC().Truncate(time.Microsecond).Equal(expected.OccurredAt) &&
+			temporalEventPayloadEquivalent(existing.Payload, expected.Payload) {
+			return nil
+		}
+		return sanitizedTemporalApplicationError(
+			"finalization_replay_conflict",
+			errors.New("run.completed event identity differs"),
+			true,
+		)
+	}
+	return errors.New("run.completed event is missing after append")
+}
+
+func (s *Server) repairPrimaryAgentFinalizationStep(
+	ctx context.Context,
+	run execution.DurableRun,
+	input temporalruntime.WriteFinalizationActivityInput,
+	completedAt time.Time,
+) error {
+	results, err := s.runProjectionStore.ListStepResults(ctx, run.RunID)
+	if err != nil {
+		return err
+	}
+	for _, result := range results {
+		if result.StepID == "finalization.write" && result.Status == "completed" {
+			return nil
+		}
+	}
+	events, err := s.runProjectionStore.ListRunEvents(ctx, run.RunID)
+	if err != nil {
+		return err
+	}
+	var finalizedResponse map[string]any
+	for _, event := range events {
+		if event.EventID != run.RunID+":finalization-completed-internal" {
+			continue
+		}
+		finalizedResponse = cloneAnyMapFromMetadata(event.Payload["response"])
+		break
+	}
+	if len(finalizedResponse) == 0 {
+		return sanitizedTemporalApplicationError(
+			"finalization_replay_incomplete",
+			errors.New("completed run finalization response projection is missing"),
+			true,
+		)
+	}
+	return s.projectPrimaryAgentFinalizationStep(ctx, run, input, completedAt, completedAt, finalizedResponse)
 }
 
 func validatePrimaryAgentResultSucceeded(agentResult map[string]any) (string, string, error) {

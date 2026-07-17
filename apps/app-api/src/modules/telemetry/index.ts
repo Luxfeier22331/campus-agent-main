@@ -1,5 +1,5 @@
 export { createAppTelemetry } from "./app-telemetry";
-export { createOtlpRuntimeEventSink } from "./otlp";
+export { createConsoleRuntimeEventSink } from "./console";
 export {
 	RUNTIME_EVENT_ALLOWED_EVENT_TYPES,
 	type RuntimeEventScalar,

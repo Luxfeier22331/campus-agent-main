@@ -29,7 +29,6 @@ function createCampusPrincipal() {
 		},
 		permissions: {
 			chat: true,
-			operator: false,
 		},
 		principal: {
 			displayName: "Jane Doe",
@@ -208,11 +207,7 @@ describe("chat durable run routes", () => {
 			runId: "run_01HQ",
 		});
 		expect(runtimeRunService.listEvents).not.toHaveBeenCalled();
-		expect(chatCommandService.reconcileDurableCloseouts).toHaveBeenCalledWith({
-			limit: 1,
-			runId: "run_01HQ",
-			startedBefore: expect.any(String),
-		});
+		expect(chatCommandService.reconcileDurableCloseouts).not.toHaveBeenCalled();
 		expect(chatCommandService.submit).not.toHaveBeenCalled();
 		expect(chatCommandService.submitStream).not.toHaveBeenCalled();
 	});

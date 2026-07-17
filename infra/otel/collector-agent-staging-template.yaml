@@ -1,0 +1,145 @@
+receivers:
+  filelog/first_party:
+    include:
+      - /var/log/pods/campus-agent-staging_*/*/*.log
+    exclude:
+      - /var/log/pods/campus-agent-staging_otel-collector-*_*/*/*.log
+      - /var/log/pods/campus-agent-staging_hindsight-*_*/*/*.log
+    include_file_name: false
+    include_file_path: true
+    start_at: end
+    storage: file_storage
+    retry_on_failure:
+      enabled: true
+    operators:
+      - type: container
+      - id: application_json
+        type: json_parser
+        if: 'body matches "^\\s*\\{"'
+        parse_from: body
+        parse_to: attributes
+        on_error: send_quiet
+  kubeletstats:
+    auth_type: serviceAccount
+    ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    collection_interval: 30s
+    endpoint: "${env:K8S_NODE_NAME}:10250"
+    insecure_skip_verify: false
+    metric_groups: [node, pod, container, volume]
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: ${env:OTEL_COLLECTOR_MEMORY_LIMIT_MIB}
+    spike_limit_mib: ${env:OTEL_COLLECTOR_MEMORY_SPIKE_LIMIT_MIB}
+  k8sattributes:
+    auth_type: serviceAccount
+    passthrough: false
+    filter:
+      node_from_env_var: K8S_NODE_NAME
+    extract:
+      metadata:
+        - k8s.namespace.name
+        - k8s.pod.name
+        - k8s.pod.uid
+        - k8s.container.name
+        - k8s.node.name
+      labels:
+        - tag_name: service.name
+          key: app.kubernetes.io/name
+          from: pod
+  resource/campus:
+    attributes:
+      - key: service.namespace
+        value: campus-agent
+        action: upsert
+      - key: deployment.environment
+        value: "${env:DEPLOYMENT_ENVIRONMENT}"
+        action: upsert
+      - key: telemetry.allowed_attributes_version
+        value: runtime-otel-attrs-v2
+        action: upsert
+  transform/axiom_safe:
+    error_mode: propagate
+    log_statements:
+      - 'delete_key(log.attributes, "event.name") where log.attributes["event.name"] != nil and not IsString(log.attributes["event.name"])'
+      - 'delete_key(log.attributes, "event_type") where log.attributes["event_type"] != nil and not IsString(log.attributes["event_type"])'
+      - 'delete_key(log.attributes, "request_id") where log.attributes["request_id"] != nil and not IsString(log.attributes["request_id"])'
+      - 'delete_key(log.attributes, "request.id") where log.attributes["request.id"] != nil and not IsString(log.attributes["request.id"])'
+      - 'delete_key(log.attributes, "trace_id") where log.attributes["trace_id"] != nil and not IsString(log.attributes["trace_id"])'
+      - 'delete_key(log.attributes, "span_id") where log.attributes["span_id"] != nil and not IsString(log.attributes["span_id"])'
+      - 'delete_key(log.attributes, "run_id") where log.attributes["run_id"] != nil and not IsString(log.attributes["run_id"])'
+      - 'delete_key(log.attributes, "workflow_id") where log.attributes["workflow_id"] != nil and not IsString(log.attributes["workflow_id"])'
+      - 'delete_key(log.attributes, "step_id") where log.attributes["step_id"] != nil and not IsString(log.attributes["step_id"])'
+      - 'delete_key(log.attributes, "status") where log.attributes["status"] != nil and not IsString(log.attributes["status"])'
+      - 'delete_key(log.attributes, "failure_kind") where log.attributes["failure_kind"] != nil and not IsString(log.attributes["failure_kind"])'
+      - 'delete_key(log.attributes, "error.type") where log.attributes["error.type"] != nil and not IsString(log.attributes["error.type"])'
+      - 'delete_key(log.attributes, "error.code") where log.attributes["error.code"] != nil and not IsString(log.attributes["error.code"])'
+      - 'delete_key(log.attributes, "error_code") where log.attributes["error_code"] != nil and not IsString(log.attributes["error_code"])'
+      - 'delete_key(log.attributes, "exception.type") where log.attributes["exception.type"] != nil and not IsString(log.attributes["exception.type"])'
+      - 'delete_key(log.attributes, "source") where log.attributes["source"] != nil and not IsString(log.attributes["source"])'
+      - 'delete_key(log.attributes, "telemetry.operation") where log.attributes["telemetry.operation"] != nil and not IsString(log.attributes["telemetry.operation"])'
+      - 'delete_key(log.attributes, "campus.surface") where log.attributes["campus.surface"] != nil and not IsString(log.attributes["campus.surface"])'
+      - 'delete_key(log.attributes, "duration_ms") where log.attributes["duration_ms"] != nil and not IsInt(log.attributes["duration_ms"]) and not IsDouble(log.attributes["duration_ms"])'
+      - 'set(log.attributes["event.name"], log.attributes["event_type"]) where log.attributes["event.name"] == nil and log.attributes["event_type"] != nil'
+      - 'set(log.attributes["request_id"], log.attributes["request.id"]) where log.attributes["request_id"] == nil and log.attributes["request.id"] != nil'
+      - 'set(log.attributes["error.code"], log.attributes["error_code"]) where log.attributes["error.code"] == nil and log.attributes["error_code"] != nil'
+      - 'set(log.body, "application.event")'
+      - 'keep_keys(log.attributes, ["event.name", "event_type", "request_id", "request.id", "trace_id", "span_id", "run_id", "workflow_id", "step_id", "status", "failure_kind", "error.type", "error.code", "error_code", "exception.type", "source", "duration_ms", "telemetry.operation", "campus.surface"])'
+      - 'truncate_all(log.attributes, 256)'
+      - 'keep_keys(resource.attributes, ["service.name", "service.namespace", "service.version", "deployment.environment", "k8s.namespace.name", "k8s.pod.name", "k8s.pod.uid", "k8s.container.name", "k8s.node.name", "k8s.volume.name"])'
+      - 'keep_keys(instrumentation_scope.attributes, [])'
+    metric_statements:
+      - 'keep_keys(datapoint.attributes, ["interface", "device", "direction", "state", "type"])'
+      - 'keep_keys(resource.attributes, ["service.name", "service.namespace", "service.version", "deployment.environment", "container.id", "k8s.namespace.name", "k8s.pod.name", "k8s.pod.uid", "k8s.container.name", "k8s.node.name", "k8s.node.system_container.name", "k8s.volume.name", "k8s.volume.type", "k8s.persistentvolumeclaim.name"])'
+      - 'keep_keys(instrumentation_scope.attributes, [])'
+  batch:
+    timeout: 5s
+    send_batch_size: 512
+
+exporters:
+  otlphttp/gateway:
+    endpoint: "${env:OTEL_COLLECTOR_GATEWAY_OTLP_ENDPOINT}"
+    headers:
+      authorization: "Bearer ${env:OTEL_COLLECTOR_AGENT_INGEST_TOKEN}"
+    compression: gzip
+    encoding: proto
+    sending_queue:
+      enabled: true
+      num_consumers: 2
+      queue_size: 2048
+      storage: file_storage
+    retry_on_failure:
+      enabled: true
+      initial_interval: 1s
+      max_interval: 30s
+      max_elapsed_time: 0s
+
+extensions:
+  file_storage:
+    directory: /var/lib/otelcol
+    create_directory: true
+    fsync: true
+    compaction:
+      on_start: true
+      on_rebound: true
+      rebound_needed_threshold_mib: 128
+      rebound_trigger_threshold_mib: 16
+  health_check:
+    endpoint: "${env:OTEL_COLLECTOR_HEALTH_CHECK_ENDPOINT}"
+
+service:
+  extensions: [file_storage, health_check]
+  telemetry:
+    logs:
+      encoding: json
+      level: info
+  pipelines:
+    logs/first_party:
+      receivers: [filelog/first_party]
+      processors: [memory_limiter, k8sattributes, resource/campus, transform/axiom_safe, batch]
+      exporters: [otlphttp/gateway]
+    metrics/kubelet:
+      receivers: [kubeletstats]
+      processors: [memory_limiter, k8sattributes, resource/campus, transform/axiom_safe, batch]
+      exporters: [otlphttp/gateway]

@@ -3,56 +3,67 @@ doc_type: runbook
 owner_boundary: docs/runbooks
 status: active
 ---
+
 # Worker 可观测性 Smoke
 
 ## 边界
 
-本文验证已部署 Worker 的 OTLP 信号能够经过受保护的 Collector 进入当前配置的观测平台。
-它不维护 Worker 清单、私有 hostname、dataset 名、release 快照、查询截图或 closeout 文件模板。
+本文验证已部署 app-api 与 campus-web Worker 的两条链路：producer 清理后的 application console
+logs 经 Cloudflare log destination 到 Axiom，以及 edge/browser SDK 到 Sentry。Worker 不使用
+仓库手写 OTLP exporter，Cloudflare log destination 也不经过 Kubernetes Collector。
 
-Collector pipeline、sink 和字段过滤见 `otel.md`；具体环境配置由环境
-仓库与 Cloudflare secret store 拥有。
+Cloudflare invocation logs 与 native traces 必须关闭，不能作为证据。后端请求 trace 通过 W3C
+context 进入 execution-control，再由 Collector 写入 Axiom/Langfuse。环境 destination、Worker
+version/traffic、Sentry DSN 和 CI source map credential 由环境仓与受保护 GitHub Environment
+拥有。
 
 ## 部署前检查
-
-检查本地 Worker observability 输入：
 
 ```bash
 pnpm exec tsx scripts/deploy/doctor-env.ts worker-observability-local --json
 pnpm ci:worker
 ```
 
-`doctor-env` 的 surface spec 是所需本地文件与 key 的事实来源。不要在 runbook 复制 key 清单，
-也不要从 root `.env` 自动分发 secret 到多个 app。
-
-这一步只证明配置形态和 Worker runtime test 通过，不证明外部观测平台已收到信号。
+另外确认 staging build 强制 source map upload。源码 `wrangler.toml` 镜像 staging 的
+application-log-only 契约，但发布使用 `wrangler versions upload`，不会应用非版本化的
+observability 设置；实际 destination、sampling、`persist=false`、`invocation_logs=false` 和
+`observability.traces.enabled=false` 由环境仓 `cloudflare_worker` 资源拥有。顶层配置、本地测试
+或 version upload 通过都不证明环境设置已生效。顶层无 destination 且 `persist=false` 是故意的
+fail-closed 默认，误用无环境的远程 deploy 不应产生无主 telemetry。
 
 ## 部署后检查
 
-1. 从一个已部署 public surface 发起可识别但不含敏感正文的请求；
-1. 记录 response 中的 trace/request correlation id 与 release；
-1. 在 Collector health/metric 中确认 receiver 与 exporter 无持续失败；
-1. 在当前配置的 trace sink 中按 correlation id 找到跨 surface/runtime 的相邻 span；
-1. 在 log/metric sink 中确认相应低基数 event 或 metric；
-1. 检查信号中没有 raw prompt、answer、transcript、retrieved body、cookie、authorization 或
-   credential。
-
-若当前环境未启用某个外部 sink，不把它当作必选通过项；以环境仓库声明的 Collector exporter
-为准。不得为通过 smoke 临时把 Worker 改为直连 vendor API。
+1. 确认 Cloudflare traffic 选中的 Worker version 带预期 release。
+2. 从 campus-web browser 与 app-api 各触发一次受控成功请求和一次受控错误。
+3. 在 Axiom log dataset 按时间、service 与关联标识查询 producer 允许的 Worker application log；
+   在 trace dataset 查询同一请求由 execution-control 经 Collector 写入的 runtime trace。
+4. 在 Sentry 分别确认 campus-web browser、campus-web edge 与 app-api error，release 正确且
+   stack frame 能映射到上传 source map。
+5. 确认 application log 的 `request_id`/`trace_id` 与 W3C context 传播后的 Collector trace 关联；
+   不要求或接受 Cloudflare native span 作为替代。
+6. 用合成值覆盖 OAuth/reset query、request header、body、用户标识、prompt、answer、memory
+   和 credential 位置，在 Axiom 与 Sentry 搜索所有哨兵。
 
 ## 通过标准
 
-- 请求本身成功，correlation id 能从入口关联到负责的 runtime；
-- Collector 未丢失必需信号，也未绕过字段过滤链；
-- 所有已启用 sink 至少能查询到本次请求对应的信号；
-- metric label 保持低基数，不包含 request/user/document id；
-- secret 与禁止正文未进入任一 sink。
+- Axiom 只收到 producer 允许的 Worker application logs，Cloudflare 本地持久化关闭；
+- `invocation_logs=false`、native traces 关闭，Axiom 中没有对应 invocation log/native trace；
+- application logs 与 Collector 输出中的 query/header/body/user/credential 哨兵为零匹配；
+- Sentry 不包含 Cookie、header、query、body、用户、breadcrumb、GenAI 输入输出或 replay；
+- browser 与 edge 使用不同 DSN，release/environment 正确，source map 可解析；
+- correlation 能通过 application log 和 Collector runtime trace 连接 Worker 与私有 runtime，但
+  产品请求状态仍来自 PostgreSQL；
+- Axiom、Sentry 或 Collector 故障没有改写请求终态。
 
 ## 失败处理
 
-- 无入口信号：检查 Worker OTLP endpoint、auth 与 trace propagation；
-- Collector 收到但 sink 缺失：检查 exporter credential、queue、retry 与 endpoint；
-- correlation 断裂：检查 W3C trace context 在 Worker 与 private runtime 间的传递；
-- 出现禁止字段：停止 fan-out，在 producer allowlist 与 Collector processor 两处修复后重测。
+- Axiom 无 Worker application log：检查 producer 是否实际发出允许事件、Worker version、staging
+  log destination reconciliation 和 token 权限，不从 Collector receiver 排查这条旁路。
+- Sentry 无错误或 stack 未映射：检查 runtime DSN、release 一致性和 source map upload job。
+- correlation 断裂：检查 application log 关联字段和 Worker 到 execution-control 的 W3C
+  `traceparent`/`baggage` 传播。
+- 任一禁止字段出现：立即关闭对应 log destination、producer 输出或 Sentry path；出现 invocation
+  log/native trace 时先修复配置漂移，再执行完整哨兵检查。
 
-验收结果记录在所属 release/incident 中，不提交 `.tmp` artifact 或外部平台导出正文。
+在该 smoke 与连续 24 小时 canary 完成前，不执行 OpenObserve 破坏性退役变更。验收结果记录在
+所属 release/incident 中，不提交外部平台导出正文。

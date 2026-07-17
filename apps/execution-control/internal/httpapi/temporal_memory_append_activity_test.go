@@ -58,8 +58,8 @@ func TestAppendConversationMemoryActivityAcceptsCompletedTurnForAsyncPersonalMem
 	if err != nil {
 		t.Fatalf("append conversation memory: %v", err)
 	}
-	if output.Status != "accepted" || output.AppendedMessageCount != 1 {
-		t.Fatalf("append output = %#v, want accepted append of user-only graph content", output)
+	if output.Status != "completed" || output.AppendedMessageCount != 1 {
+		t.Fatalf("append output = %#v, want completed user-message append", output)
 	}
 	if executor.seenAppend.UserID != "user-executor" {
 		t.Fatalf("user id = %q, want user-executor", executor.seenAppend.UserID)
@@ -73,11 +73,8 @@ func TestAppendConversationMemoryActivityAcceptsCompletedTurnForAsyncPersonalMem
 	if executor.seenAppend.UserMessage != "我之后主要关注保研材料" {
 		t.Fatalf("user message = %q", executor.seenAppend.UserMessage)
 	}
-	if executor.seenAppend.AssistantMessage != "好的，我会在后续回答中结合保研材料准备这个目标。" {
-		t.Fatalf("assistant message = %q", executor.seenAppend.AssistantMessage)
-	}
-	if !executor.seenAppend.IgnoreAssistantForGraph {
-		t.Fatal("assistant message must be ignored for graph ingestion while still stored in thread")
+	if executor.seenAppend.UserMessageID != "msg-run-memory-append-enabled" {
+		t.Fatalf("user message id = %q", executor.seenAppend.UserMessageID)
 	}
 	if executor.seenAppend.UserMessageCreatedAt != now.Format(time.RFC3339Nano) {
 		t.Fatalf("user_message_created_at = %q, want current user message created_at", executor.seenAppend.UserMessageCreatedAt)
@@ -105,8 +102,8 @@ func TestAppendConversationMemoryActivityPreservesTenantForScopedHindsightBank(t
 	if err != nil {
 		t.Fatalf("append conversation memory: %v", err)
 	}
-	if output.Status != "accepted" {
-		t.Fatalf("append output = %#v, want accepted", output)
+	if output.Status != "completed" {
+		t.Fatalf("append output = %#v, want completed", output)
 	}
 	if executor.seenAppend.TenantID != "tenant-main" {
 		t.Fatalf("tenant id = %q, want tenant-main", executor.seenAppend.TenantID)
@@ -134,8 +131,8 @@ func TestAppendConversationMemoryActivityProjectsFailureWhenHindsightAppendFails
 			TraceID:   memoryAppendTraceID("run-memory-append-failed"),
 		},
 	)
-	if err != nil {
-		t.Fatalf("append conversation memory should project failure without failing final answer side-effect: %v", err)
+	if err == nil {
+		t.Fatal("append conversation memory must return a retryable Temporal error")
 	}
 	if output.Status != "failed" || output.AppendedMessageCount != 0 {
 		t.Fatalf("append output = %#v, want failed status with no appended messages", output)
@@ -225,7 +222,7 @@ func TestAppendConversationMemoryActivityProjectionDoesNotStoreConversationText(
 	}
 }
 
-func TestAppendConversationMemoryActivityProjectsOperationRefs(t *testing.T) {
+func TestAppendConversationMemoryActivityProjectsCompletedResultWithoutProviderRefs(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	now := time.Date(2026, 6, 15, 12, 11, 0, 0, time.UTC)
 	createMemoryAppendRunForTest(t, store, "run-memory-append-operation", "我之后主要关注保研材料", ptrBool(true), now)
@@ -245,14 +242,8 @@ func TestAppendConversationMemoryActivityProjectsOperationRefs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("append conversation memory: %v", err)
 	}
-	if output.OperationID != "op-run-memory-append-operation" {
-		t.Fatalf("operation id = %q", output.OperationID)
-	}
-	if output.OperationStatusRef != "projection://runs/run-memory-append-operation/memory/operations/op-run-memory-append-operation" {
-		t.Fatalf("operation status ref = %q", output.OperationStatusRef)
-	}
-	if output.RuntimeDocumentRef != "projection://runs/run-memory-append-operation/memory/documents/conversation%3Arun-memory-append-operation%3Aturn" {
-		t.Fatalf("runtime document ref = %q", output.RuntimeDocumentRef)
+	if output.Status != "completed" || output.SchemaVersion != "memory_conversation_append_result_v2" {
+		t.Fatalf("output = %#v", output)
 	}
 
 	results, err := store.ListStepResults(context.Background(), "run-memory-append-operation")
@@ -268,10 +259,11 @@ func TestAppendConversationMemoryActivityProjectsOperationRefs(t *testing.T) {
 	if payload == nil {
 		t.Fatal("memory.append projection missing")
 	}
-	if payload["operation_id"] != output.OperationID ||
-		payload["operation_status_ref"] != output.OperationStatusRef ||
-		payload["runtime_document_ref"] != output.RuntimeDocumentRef {
-		t.Fatalf("payload = %#v, want operation projection refs", payload)
+	if _, ok := payload["operation_id"]; ok {
+		t.Fatalf("payload exposes provider operation id: %#v", payload)
+	}
+	if payload["status"] != "completed" || payload["schema_version"] != "memory_conversation_append_result_v2" {
+		t.Fatalf("payload = %#v", payload)
 	}
 }
 
@@ -287,13 +279,14 @@ func createMemoryAppendRunForTest(
 	contextProjection := map[string]any{
 		"actor": map[string]any{"user_id": "user-executor"},
 		"conversation": map[string]any{
+			"user_message_id": "msg-" + runID,
 			"current_user_message": map[string]any{
 				"created_at": now.Format(time.RFC3339),
 			},
 		},
 	}
 	if memoryEnabled != nil {
-		contextProjection["memory"] = map[string]any{"enabled": *memoryEnabled}
+		contextProjection["memory"] = map[string]any{"append_enabled": *memoryEnabled, "recall_enabled": *memoryEnabled, "owner_generation": 1, "owner_sequence": 0}
 	}
 	_, err := store.CreateRun(context.Background(), execution.DurableRun{
 		RunID:            runID,

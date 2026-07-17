@@ -28,6 +28,13 @@ func (f *fakeTemporalStarter) StartToolExecutionWorkflow(
 	return f.err
 }
 
+func (f *fakeTemporalStarter) StartPersonalMemoryCommandWorkflow(
+	context.Context,
+	temporalruntime.PersonalMemoryCommandWorkflowInput,
+) error {
+	return f.err
+}
+
 func (f *fakeTemporalStarter) CancelToolExecutionWorkflow(
 	_ context.Context,
 	input temporalruntime.ToolExecutionWorkflowCancelInput,
@@ -98,6 +105,9 @@ func attachRunProjectionStoreForHandlerTest(
 ) {
 	server.runProjectionStore = store
 	server.runProjectionStoreErr = nil
+	server.productFinalizationWriter = func(context.Context, execution.DurableRun, time.Time, map[string]any) error {
+		return nil
+	}
 }
 
 func durableRunCreateBodyForTest(runID string, conversationID string) string {

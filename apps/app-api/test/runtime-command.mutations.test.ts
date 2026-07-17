@@ -8,6 +8,7 @@ import type { TurnDispatchWrite } from "../src/modules/runtime-command/store-typ
 function turnDispatchWrite(overrides: Partial<TurnDispatchWrite> = {}): TurnDispatchWrite {
 	return {
 		actorUserId: "user_001",
+		assistantMessageId: "msg_assistant_001",
 		completedAt: null,
 		conversationId: "conv_001",
 		createdAt: "2026-06-04T01:02:03.000Z",
@@ -48,7 +49,7 @@ function turnDispatchWrite(overrides: Partial<TurnDispatchWrite> = {}): TurnDisp
 
 describe("runtime command mutations", () => {
 	it("persists the durable run id in chat turn dispatch truth", () => {
-		const values = buildAcceptTurnDispatchInsertValues(turnDispatchWrite());
+		const values = buildAcceptTurnDispatchInsertValues(turnDispatchWrite(), null);
 
 		expect(values).toMatchObject({
 			requestId: "req_001",

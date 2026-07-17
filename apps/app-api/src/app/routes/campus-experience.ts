@@ -3,39 +3,10 @@ import type { Hono } from "hono";
 import type { Env } from "../../config";
 import { AppApiRouteError, jsonResponse, routeErrorResponse } from "../../http";
 import { parseFeedbackCategory, type SubmitFeedbackInput } from "../../modules/campus-experience";
-import { readJsonRequestBody, resolveWaitUntil } from "../request-utils";
+import { readJsonRequestBody } from "../request-utils";
 import type { AppRequestScope } from "../types";
 
 const PUBLIC_DINING_CACHE_CONTROL = "public, max-age=60, s-maxage=300";
-const WEB_PERFORMANCE_FIELDS = new Set([
-	"metricName",
-	"navigationType",
-	"rating",
-	"routeGroup",
-	"schemaVersion",
-	"value",
-]);
-const WEB_PERFORMANCE_METRICS = new Set(["CLS", "FCP", "INP", "LCP", "TTFB"]);
-const WEB_PERFORMANCE_NAVIGATION_TYPES = new Set([
-	"back-forward",
-	"back-forward-cache",
-	"navigate",
-	"prerender",
-	"reload",
-	"restore",
-]);
-const WEB_PERFORMANCE_RATINGS = new Set(["good", "needs-improvement", "poor"]);
-const WEB_PERFORMANCE_ROUTE_GROUPS = new Set([
-	"account",
-	"dining",
-	"docs",
-	"feedback",
-	"map",
-	"other",
-	"qa",
-	"services",
-]);
-
 export function registerCampusExperienceRoutes(input: {
 	app: Hono<{ Bindings: Env }>;
 	createRequestScope: () => AppRequestScope;
@@ -174,14 +145,6 @@ export function registerCampusExperienceRoutes(input: {
 			{ status: 201 },
 		);
 	});
-
-	input.app.post("/api/telemetry/web-performance", async (c) => {
-		const scope = input.createRequestScope();
-		const metric = parseWebPerformanceRequestBody(await readJsonRequestBody(c.req.raw));
-		const telemetry = scope.telemetry.recordWebPerformance(metric);
-		resolveWaitUntil(c)?.(telemetry);
-		return jsonResponse({ accepted: true }, { status: 202 });
-	});
 }
 
 function publicDiningResponse(payload: unknown): Response {
@@ -206,69 +169,6 @@ function parseFeedbackRequestBody(body: unknown): SubmitFeedbackInput {
 		category: parseFeedbackCategory(record.category),
 		contact: optionalString(record.contact),
 		routeContext: requireString(record.routeContext, "routeContext"),
-	};
-}
-
-function parseWebPerformanceRequestBody(
-	body: Record<string, unknown>,
-): Parameters<AppRequestScope["telemetry"]["recordWebPerformance"]>[0] {
-	for (const field of Object.keys(body)) {
-		if (!WEB_PERFORMANCE_FIELDS.has(field)) {
-			throw validationError(`Unexpected web performance field: ${field}.`);
-		}
-	}
-	if (body.schemaVersion !== "web_performance.v1") {
-		throw validationError("schemaVersion must be web_performance.v1.");
-	}
-	if (!(typeof body.metricName === "string" && WEB_PERFORMANCE_METRICS.has(body.metricName))) {
-		throw validationError("metricName is not supported.");
-	}
-	if (
-		!(
-			typeof body.navigationType === "string" &&
-			WEB_PERFORMANCE_NAVIGATION_TYPES.has(body.navigationType)
-		)
-	) {
-		throw validationError("navigationType is not supported.");
-	}
-	if (!(typeof body.rating === "string" && WEB_PERFORMANCE_RATINGS.has(body.rating))) {
-		throw validationError("rating is not supported.");
-	}
-	if (!(typeof body.routeGroup === "string" && WEB_PERFORMANCE_ROUTE_GROUPS.has(body.routeGroup))) {
-		throw validationError("routeGroup is not supported.");
-	}
-	const maxValue = body.metricName === "CLS" ? 10 : 120_000;
-	if (
-		!(
-			typeof body.value === "number" &&
-			Number.isFinite(body.value) &&
-			body.value >= 0 &&
-			body.value <= maxValue
-		)
-	) {
-		throw validationError("value is outside the supported range.");
-	}
-
-	return {
-		metricName: body.metricName as "CLS" | "FCP" | "INP" | "LCP" | "TTFB",
-		navigationType: body.navigationType as
-			| "back-forward"
-			| "back-forward-cache"
-			| "navigate"
-			| "prerender"
-			| "reload"
-			| "restore",
-		rating: body.rating as "good" | "needs-improvement" | "poor",
-		routeGroup: body.routeGroup as
-			| "account"
-			| "dining"
-			| "docs"
-			| "feedback"
-			| "map"
-			| "other"
-			| "qa"
-			| "services",
-		value: body.value,
 	};
 }
 

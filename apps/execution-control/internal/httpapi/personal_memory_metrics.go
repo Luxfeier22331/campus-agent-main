@@ -1,6 +1,9 @@
 package httpapi
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 func (s *Server) recordPersonalMemoryOperation(
 	operation string,
@@ -10,15 +13,36 @@ func (s *Server) recordPersonalMemoryOperation(
 	selectedItems int,
 	selectedChars int,
 ) {
-	if s == nil || s.metrics == nil {
+	if s == nil {
 		return
 	}
-	s.metrics.RecordPersonalMemoryOperation(
-		operation,
-		outcome,
-		failureKind,
-		time.Since(startedAt),
-		selectedItems,
-		selectedChars,
-	)
+	duration := time.Since(startedAt)
+	if s.metrics != nil {
+		s.metrics.RecordPersonalMemoryOperation(
+			operation,
+			outcome,
+			failureKind,
+			duration,
+			selectedItems,
+			selectedChars,
+		)
+	}
+	if s.telemetry != nil {
+		s.telemetry.RecordPersonalMemoryOperation(
+			context.Background(),
+			operation,
+			outcome,
+			failureKind,
+			duration,
+			selectedItems,
+			selectedChars,
+		)
+	}
+}
+
+func (s *Server) recordPersonalMemoryReceipt(ctx context.Context, commandKind string, status string, outcome string) {
+	if s == nil || s.telemetry == nil {
+		return
+	}
+	s.telemetry.RecordPersonalMemoryReceipt(ctx, commandKind, status, outcome)
 }

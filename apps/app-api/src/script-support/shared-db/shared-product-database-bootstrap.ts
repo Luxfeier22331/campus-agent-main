@@ -92,9 +92,9 @@ function resolveSsl(
 export function readSharedProductBootstrapEnv(
 	env: NodeJS.ProcessEnv = process.env,
 ): SharedProductBootstrapEnv {
-	const databaseUrl = readRequiredEnv("APP_API_OPERATOR_DATABASE_URL", env);
+	const databaseUrl = readRequiredEnv("APP_API_SCHEMA_DATABASE_URL", env);
 	if (!POSTGRES_PREFIX.test(databaseUrl)) {
-		throw new Error("APP_API_OPERATOR_DATABASE_URL must be a PostgreSQL connection string.");
+		throw new Error("APP_API_SCHEMA_DATABASE_URL must be a PostgreSQL connection string.");
 	}
 	const normalizedDatabaseUrl = new URL(databaseUrl);
 	normalizedDatabaseUrl.searchParams.delete("sslmode");

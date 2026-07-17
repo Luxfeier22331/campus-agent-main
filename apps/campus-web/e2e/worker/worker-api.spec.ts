@@ -8,43 +8,58 @@ const WORKER_UNKNOWN_API_PAYLOAD = {
 };
 
 test.describe("campus web worker app-api boundary", () => {
-	test("routes admitted discovery and account API paths to app-api", async ({ request }) => {
+	test("routes admitted discovery and current account API paths to app-api", async ({
+		request,
+	}) => {
 		for (const path of [
 			"/.well-known/openid-configuration",
 			"/.well-known/oauth-authorization-server",
 			"/api/me",
-			"/api/me/overview",
-			"/api/me/identity",
-			"/api/me/access",
-			"/api/me/preferences",
 		]) {
 			const response = await request.get(path);
 
 			await expectNotWorkerUnknownApi(response);
 		}
 
-		await expectWorkerUnknownApi(await request.get("/api/me/admin"));
+		for (const path of [
+			"/api/me/overview",
+			"/api/me/identity",
+			"/api/me/access",
+			"/api/me/preferences",
+			"/api/me/admin",
+		]) {
+			await expectWorkerUnknownApi(await request.get(path));
+		}
 	});
 
-	test("routes admitted profile memory and account management paths to app-api", async ({
+	test("routes admitted profile memory paths and keeps retired account projections closed", async ({
 		request,
 	}) => {
 		for (const { method, path } of [
 			{ method: "GET", path: "/api/me/profile-memory" },
-			{ method: "GET", path: "/api/me/profile-memory/items" },
-			{ method: "GET", path: "/api/me/profile-memory/settings" },
+			{ method: "POST", path: "/api/me/profile-memory/items" },
+			{ method: "PATCH", path: "/api/me/profile-memory/items/mem_e2e" },
+			{ method: "PATCH", path: "/api/me/profile-memory/settings" },
 			{ method: "DELETE", path: "/api/me/profile-memory/items/mem_e2e" },
-			{ method: "GET", path: "/api/me/security/sessions" },
-			{ method: "DELETE", path: "/api/me/security/sessions/session_e2e" },
-			{ method: "GET", path: "/api/me/authorized-apps" },
-			{ method: "DELETE", path: "/api/me/authorized-apps/muc-wiki-e2e" },
+			{ method: "DELETE", path: "/api/me/profile-memory" },
 		]) {
-			const response = await request.fetch(path, { method });
+			const response = await request.fetch(path, {
+				data: method === "GET" ? undefined : {},
+				method,
+			});
 
 			await expectNotWorkerUnknownApi(response);
 		}
 
-		await expectWorkerUnknownApi(await request.get("/api/me/profile-memory/export"));
+		for (const path of [
+			"/api/me/security/sessions",
+			"/api/me/security/sessions/session_e2e",
+			"/api/me/authorized-apps",
+			"/api/me/authorized-apps/muc-wiki-e2e",
+			"/api/me/profile-memory/export",
+		]) {
+			await expectWorkerUnknownApi(await request.get(path));
+		}
 	});
 
 	test("routes admitted auth API paths to app-api and keeps unknown auth paths closed", async ({
@@ -52,6 +67,8 @@ test.describe("campus web worker app-api boundary", () => {
 	}) => {
 		for (const path of [
 			"/api/auth/get-session",
+			"/api/auth/list-accounts",
+			"/api/auth/list-sessions",
 			"/api/auth/sign-in/email",
 			"/api/auth/sign-up/email",
 			"/api/auth/sign-out",

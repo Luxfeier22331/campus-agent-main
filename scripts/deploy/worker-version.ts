@@ -1,7 +1,11 @@
+import { spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { runWranglerCommand } from "./run-wrangler-command.ts";
 import { resolveGitSha } from "./staging-release.ts";
+
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 interface WorkerVersionSummary {
 	id: string;
@@ -23,11 +27,20 @@ export interface UploadedWorkerVersion {
 	[key: string]: string | undefined;
 }
 
+interface SentrySourceMapUploadOptions {
+	artifactDirectory: string;
+	orgSlug: string;
+	projectSlug: string;
+	release: string;
+	wranglerOutdir?: string;
+}
+
 interface WorkerVersionUploadOptions {
 	appName: string;
 	buildIdentity?: string;
 	config?: string;
 	environment?: string;
+	sentrySourceMaps?: SentrySourceMapUploadOptions;
 	variables: Record<string, string>;
 }
 
@@ -83,6 +96,12 @@ export function buildWorkerVersionUploadArgs(
 	if (options.environment) {
 		args.push("--env", options.environment);
 	}
+	if (options.sentrySourceMaps) {
+		args.push("--upload-source-maps");
+		if (options.sentrySourceMaps.wranglerOutdir) {
+			args.push("--outdir", options.sentrySourceMaps.wranglerOutdir);
+		}
+	}
 	args.push(
 		"--tag",
 		resolveWorkerVersionTag(options.buildIdentity, sourceSha),
@@ -97,6 +116,66 @@ export function buildWorkerVersionUploadArgs(
 	return args;
 }
 
+export function buildSentrySourceMapUploadArgs(options: {
+	artifactDirectory: string;
+	orgSlug: string;
+	projectSlug: string;
+	release: string;
+}): string[] {
+	return [
+		"sourcemaps",
+		"upload",
+		"--org",
+		options.orgSlug,
+		"--project",
+		options.projectSlug,
+		"--release",
+		options.release,
+		"--strip-common-prefix",
+		"--strict",
+		"--validate",
+		"--wait-for",
+		"60",
+		options.artifactDirectory,
+	];
+}
+
+function uploadSentrySourceMaps(
+	cwd: string,
+	workerName: string,
+	options: SentrySourceMapUploadOptions,
+): void {
+	// biome-ignore lint/suspicious/noUndeclaredEnvVars: this direct release command is not a Turbo task.
+	const authToken = process.env.SENTRY_AUTH_TOKEN?.trim();
+	if (!authToken) {
+		fail(`SENTRY_AUTH_TOKEN is required to upload source maps for ${workerName}.`);
+	}
+
+	const sentryEnv = { ...process.env };
+	delete sentryEnv.SENTRY_ALLOW_FAILURE;
+	delete sentryEnv.SENTRY_ORG;
+	delete sentryEnv.SENTRY_PROJECT;
+	sentryEnv.SENTRY_AUTH_TOKEN = authToken;
+	sentryEnv.SENTRY_DISABLE_UPDATE_CHECK = "true";
+	sentryEnv.SENTRY_LOAD_DOTENV = "0";
+	sentryEnv.SENTRY_NO_PROGRESS_BAR = "1";
+	sentryEnv.SENTRY_URL = "https://sentry.io/";
+
+	const artifactDirectory = resolve(cwd, options.artifactDirectory);
+	const result = spawnSync(
+		"pnpm",
+		["exec", "sentry-cli", ...buildSentrySourceMapUploadArgs({ ...options, artifactDirectory })],
+		{
+			cwd: repoRoot,
+			env: sentryEnv,
+			stdio: "inherit",
+		},
+	);
+	if (result.status !== 0) {
+		fail(`Unable to upload Sentry source maps for ${workerName}.`);
+	}
+}
+
 export function uploadStagingWorkerVersion(options: {
 	appName: string;
 	buildIdentity?: string;
@@ -104,11 +183,20 @@ export function uploadStagingWorkerVersion(options: {
 	config?: string;
 	cwd: string;
 	environment?: string;
+	sentrySourceMaps?: SentrySourceMapUploadOptions;
 	variables: Record<string, string>;
 	workerName: string;
 }): UploadedWorkerVersion {
 	const sourceSha = resolveGitSha();
 	const tag = resolveWorkerVersionTag(options.buildIdentity, sourceSha);
+	if (
+		options.sentrySourceMaps &&
+		options.variables.SENTRY_RELEASE !== options.sentrySourceMaps.release
+	) {
+		return fail(
+			`Sentry source-map release for ${options.workerName} must match the Worker SENTRY_RELEASE variable.`,
+		);
+	}
 	const deploymentBefore = readCurrentDeploymentId(options.cwd, options.workerName);
 	const args = buildWorkerVersionUploadArgs(options, sourceSha);
 
@@ -137,6 +225,9 @@ export function uploadStagingWorkerVersion(options: {
 		return fail(
 			`Uploading ${options.workerName} changed deployment ${deploymentBefore} to ${deploymentAfter}.`,
 		);
+	}
+	if (options.sentrySourceMaps) {
+		uploadSentrySourceMaps(options.cwd, options.workerName, options.sentrySourceMaps);
 	}
 
 	const result = {

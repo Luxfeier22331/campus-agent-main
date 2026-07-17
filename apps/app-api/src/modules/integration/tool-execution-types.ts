@@ -50,7 +50,10 @@ export interface ToolExecutionSessionSummary {
 }
 
 export interface ToolExecutionMemorySummary {
-	enabled: boolean;
+	appendEnabled: boolean;
+	ownerGeneration?: number;
+	ownerSequence?: number;
+	recallEnabled: boolean;
 }
 
 export interface ToolExecutionConversationMessage {

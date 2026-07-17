@@ -20,6 +20,7 @@ function durableRun(overrides: Partial<ExecutionControlRun> = {}): ExecutionCont
 		finalResponseRef: "",
 		taskQueue: "campus-agent.workflow",
 		ownerUserId: "user_01HQ",
+		queuedAt: "2026-06-04T01:02:03.500Z",
 		requestId: "req_01HQ",
 		requestedTool: "knowledge_query",
 		runId: "run_01HQ",

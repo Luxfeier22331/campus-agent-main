@@ -78,3 +78,18 @@ func insertDurableRunEventInTx(
 	}
 	return err
 }
+
+func durableRunEventByIDInTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	eventID string,
+) (DurableRunEvent, error) {
+	return scanDurableRunEvent(tx.QueryRow(
+		ctx,
+		`select event_id, run_id, conversation_id, sequence, event_type, visibility,
+			payload_schema_version, payload_json, occurred_at
+		from runtime.agent_run_events
+		where event_id = $1`,
+		eventID,
+	))
+}

@@ -3,8 +3,10 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -92,6 +94,7 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentResult(t *testing.T) {
 		context.Background(),
 		temporalruntime.WriteFinalizationActivityInput{
 			AgentResultRef: agentResultRef,
+			FinalizedAt:    now.Add(4 * time.Second),
 			RunID:          "run-primary-agent-finalization",
 			TraceID:        "trace-executor-001",
 		},
@@ -156,8 +159,8 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentResult(t *testing.T) {
 	if stageTiming["agent.runtime_ms"] != float64(42) {
 		t.Fatalf("agent.runtime_ms = %#v, want 42", stageTiming["agent.runtime_ms"])
 	}
-	if _, ok := stageTiming["finalization.write_ms"]; !ok {
-		t.Fatalf("stage_timing missing finalization.write_ms: %#v", stageTiming)
+	if _, ok := stageTiming["finalization.write_ms"]; ok {
+		t.Fatalf("stage_timing must not contain an unmeasured finalization.write_ms placeholder: %#v", stageTiming)
 	}
 	workflowTrace, ok := finalizationResponse["workflow_trace_summary"].(map[string]any)
 	if !ok {
@@ -262,6 +265,7 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentClarification(t *testing.
 		context.Background(),
 		temporalruntime.WriteFinalizationActivityInput{
 			AgentResultRef: agentResultRef,
+			FinalizedAt:    now.Add(4 * time.Second),
 			RunID:          "run-primary-agent-clarification",
 			TraceID:        "trace-executor-001",
 		},
@@ -329,19 +333,18 @@ func TestWriteFinalizationActivityFailsClosedOnFailedAgentToolResult(t *testing.
 		context.Background(),
 		temporalruntime.WriteFinalizationActivityInput{
 			AgentResultRef: agentResultRef,
+			FinalizedAt:    now.Add(4 * time.Second),
 			RunID:          runID,
 			TraceID:        "trace-executor-001",
 		},
 	)
-	if err == nil || !strings.Contains(err.Error(), "fail_close_reason=tool_handler_failed") {
-		t.Fatalf("write finalization error = %v, want failed tool reason", err)
-	}
+	assertTemporalFailureSanitized(t, err, "agent_tool_result_failed", true)
 	failedRun, getErr := store.GetRun(context.Background(), runID)
 	if getErr != nil {
 		t.Fatalf("get failed run: %v", getErr)
 	}
-	if failedRun.Status != execution.DurableRunStatusFailed {
-		t.Fatalf("run status = %q, want failed", failedRun.Status)
+	if failedRun.Status != execution.DurableRunStatusRunning {
+		t.Fatalf("run status = %q, want workflow-owned active state", failedRun.Status)
 	}
 	results, listErr := store.ListStepResults(context.Background(), runID)
 	if listErr != nil {
@@ -362,6 +365,229 @@ func TestWriteFinalizationActivityFailsClosedOnFailedAgentToolResult(t *testing.
 		finalizationResult.SanitizedPayload["fail_close_reason"] != "tool_handler_failed" {
 		t.Fatalf("failed finalization result = %#v", finalizationResult)
 	}
+}
+
+func TestWriteFinalizationActivityRetryKeepsProductCallbackStable(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	now := time.Date(2026, 6, 12, 13, 0, 0, 0, time.UTC)
+	const runID = "run-primary-agent-finalization-retry"
+	createHTTPAPIQueuedDurableRunForTest(
+		t,
+		store,
+		runID,
+		"conv-primary-agent-finalization-retry",
+		now,
+		ragHandoffForDurableWorkerTest("今晚还有校车吗"),
+	)
+	server := NewServer(config.Config{TemporalWorkerIdentity: "test:finalization:retry"})
+	attachRunProjectionStoreForHandlerTest(server, store)
+	agentResultRef := temporalProjectionRef(runID, "agent/primary/result")
+	preparePrimaryAgentFinalizationRunForTest(t, server, store, runID, now, map[string]any{
+		"agent_result_ref":  agentResultRef,
+		"final_output":      "今晚 22:00 还有一班校车。",
+		"selected_tools":    []string{"transport_schedule_lookup"},
+		"status":            "completed",
+		"terminal_envelope": map[string]any{"kind": "answer", "answer_text": "今晚 22:00 还有一班校车。"},
+		"terminal_reason":   "answer_completed",
+		"tool_results":      []map[string]any{},
+	})
+	input := temporalruntime.WriteFinalizationActivityInput{
+		AgentResultRef: agentResultRef,
+		FinalizedAt:    now.Add(4 * time.Second),
+		RunID:          runID,
+		TraceID:        "trace-executor-001",
+	}
+	var callbackTimes []time.Time
+	var callbackResponses []map[string]any
+	server.productFinalizationWriter = func(
+		_ context.Context,
+		_ execution.DurableRun,
+		completedAt time.Time,
+		response map[string]any,
+	) error {
+		callbackTimes = append(callbackTimes, completedAt)
+		callbackResponses = append(callbackResponses, cloneAnyMapFromMetadata(response))
+		if len(callbackResponses) == 1 {
+			return errors.New("callback response acknowledgement was lost")
+		}
+		return nil
+	}
+	if _, err := server.WriteFinalizationActivity(context.Background(), input); err == nil {
+		t.Fatal("first finalization should report the lost callback acknowledgement")
+	}
+	upsertStageTimingAttempt(
+		t,
+		store,
+		runID,
+		99,
+		"finalization.write",
+		230,
+		nil,
+		now,
+	)
+	output, err := server.WriteFinalizationActivity(context.Background(), input)
+	if err != nil {
+		t.Fatalf("retry finalization: %v", err)
+	}
+	if output.Status != string(execution.DurableRunStatusCompleted) {
+		t.Fatalf("retry status = %q", output.Status)
+	}
+	if len(callbackResponses) != 2 || !reflect.DeepEqual(callbackResponses[0], callbackResponses[1]) {
+		t.Fatalf("callback response drifted across retry: %#v", callbackResponses)
+	}
+	if len(callbackTimes) != 2 || !callbackTimes[0].Equal(input.FinalizedAt) || !callbackTimes[1].Equal(input.FinalizedAt) {
+		t.Fatalf("callback completed_at drifted across retry: %#v", callbackTimes)
+	}
+}
+
+func TestWriteFinalizationActivityRepairsCompletedRunEventAndStep(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	now := time.Date(2026, 6, 12, 13, 30, 0, 0, time.UTC)
+	const runID = "run-primary-agent-finalization-repair"
+	createHTTPAPIQueuedDurableRunForTest(
+		t,
+		store,
+		runID,
+		"conv-primary-agent-finalization-repair",
+		now,
+		ragHandoffForDurableWorkerTest("今晚还有校车吗"),
+	)
+	server := NewServer(config.Config{TemporalWorkerIdentity: "test:finalization:repair"})
+	attachRunProjectionStoreForHandlerTest(server, store)
+	agentResultRef := temporalProjectionRef(runID, "agent/primary/result")
+	preparePrimaryAgentFinalizationRunForTest(t, server, store, runID, now, map[string]any{
+		"agent_result_ref":  agentResultRef,
+		"final_output":      "今晚 22:00 还有一班校车。",
+		"selected_tools":    []string{"transport_schedule_lookup"},
+		"status":            "completed",
+		"terminal_envelope": map[string]any{"kind": "answer", "answer_text": "今晚 22:00 还有一班校车。"},
+		"terminal_reason":   "answer_completed",
+		"tool_results":      []map[string]any{},
+	})
+	finalizedAt := now.Add(4 * time.Second)
+	run, err := store.GetRun(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("get run: %v", err)
+	}
+	finalizedResponse := map[string]any{"status": "completed", "trace_id": run.TraceID}
+	if err := server.appendTemporalFinalizationCompletedEvents(
+		context.Background(),
+		run,
+		finalizedAt,
+		finalizedResponse,
+		map[string]any{"agent_result_ref": agentResultRef, "request_id": run.RequestID, "trace_id": run.TraceID},
+	); err != nil {
+		t.Fatalf("append finalization events: %v", err)
+	}
+	completedRun, err := store.CompleteRunProjection(context.Background(), execution.DurableRunCompleteRequest{
+		FinalResponseRef: temporalProjectionRef(runID, "finalization/write"),
+		Now:              finalizedAt,
+		RunID:            runID,
+		SelectedTool:     "transport_schedule_lookup",
+		TerminalReason:   execution.DurableTerminalReasonAnswerCompleted,
+	})
+	if err != nil {
+		t.Fatalf("complete run without terminal event: %v", err)
+	}
+	output, err := server.WriteFinalizationActivity(context.Background(), temporalruntime.WriteFinalizationActivityInput{
+		AgentResultRef: agentResultRef,
+		FinalizedAt:    finalizedAt,
+		RunID:          runID,
+		TraceID:        run.TraceID,
+	})
+	if err != nil {
+		t.Fatalf("repair completed finalization: %v", err)
+	}
+	if output.ProjectionRef != completedRun.FinalResponseRef {
+		t.Fatalf("projection ref = %q, want %q", output.ProjectionRef, completedRun.FinalResponseRef)
+	}
+	events, err := store.ListRunEvents(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("list events: %v", err)
+	}
+	runCompletedFound := false
+	for _, event := range events {
+		if event.EventType == execution.DurableRunEventTypeRunCompleted {
+			runCompletedFound = true
+			break
+		}
+	}
+	if !runCompletedFound {
+		t.Fatalf("run.completed event was not repaired: %#v", events)
+	}
+	results, err := store.ListStepResults(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("list step results: %v", err)
+	}
+	if len(results) != 1 || results[0].StepID != "finalization.write" || results[0].Status != "completed" {
+		t.Fatalf("finalization step result was not repaired: %#v", results)
+	}
+}
+
+func TestWriteFinalizationActivityKeepsRunActiveWhenStepProjectionFails(t *testing.T) {
+	baseStore := execution.NewInMemoryRunProjectionStore()
+	now := time.Date(2026, 6, 12, 14, 0, 0, 0, time.UTC)
+	const runID = "run-primary-agent-finalization-step-failure"
+	createHTTPAPIQueuedDurableRunForTest(
+		t,
+		baseStore,
+		runID,
+		"conv-primary-agent-finalization-step-failure",
+		now,
+		ragHandoffForDurableWorkerTest("今晚还有校车吗"),
+	)
+	server := NewServer(config.Config{TemporalWorkerIdentity: "test:finalization:step-failure"})
+	store := &finalizationResultFailingStore{RunProjectionStore: baseStore}
+	attachRunProjectionStoreForHandlerTest(server, store)
+	agentResultRef := temporalProjectionRef(runID, "agent/primary/result")
+	preparePrimaryAgentFinalizationRunForTest(t, server, baseStore, runID, now, map[string]any{
+		"agent_result_ref":  agentResultRef,
+		"final_output":      "今晚 22:00 还有一班校车。",
+		"selected_tools":    []string{"transport_schedule_lookup"},
+		"status":            "completed",
+		"terminal_envelope": map[string]any{"kind": "answer", "answer_text": "今晚 22:00 还有一班校车。"},
+		"terminal_reason":   "answer_completed",
+		"tool_results":      []map[string]any{},
+	})
+	_, err := server.WriteFinalizationActivity(context.Background(), temporalruntime.WriteFinalizationActivityInput{
+		AgentResultRef: agentResultRef,
+		FinalizedAt:    now.Add(4 * time.Second),
+		RunID:          runID,
+		TraceID:        "trace-executor-001",
+	})
+	if err == nil || !strings.Contains(err.Error(), "finalization result storage unavailable") {
+		t.Fatalf("finalization error = %v, want step projection failure", err)
+	}
+	run, err := baseStore.GetRun(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("get run: %v", err)
+	}
+	if run.Status != execution.DurableRunStatusRunning {
+		t.Fatalf("run status = %q, want running until finalization projection succeeds", run.Status)
+	}
+	events, err := baseStore.ListRunEvents(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("list events: %v", err)
+	}
+	for _, event := range events {
+		if event.EventType == execution.DurableRunEventTypeRunCompleted {
+			t.Fatalf("run.completed became visible before finalization projection succeeded: %#v", events)
+		}
+	}
+}
+
+type finalizationResultFailingStore struct {
+	execution.RunProjectionStore
+}
+
+func (s *finalizationResultFailingStore) UpsertStepResult(
+	ctx context.Context,
+	result execution.StepResultProjection,
+) (execution.StepResultProjection, error) {
+	if result.StepID == "finalization.write" && result.Status == "completed" {
+		return execution.StepResultProjection{}, errors.New("finalization result storage unavailable")
+	}
+	return s.RunProjectionStore.UpsertStepResult(ctx, result)
 }
 
 func primaryAgentPromptTraceForFinalizationTest() map[string]any {

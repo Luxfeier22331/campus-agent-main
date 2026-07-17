@@ -22,16 +22,14 @@ describe("campus worker app-api proxy allowlist", () => {
 		expect(isAllowedCampusAppApiRequest("/api/me/profile-memory/items")).toBe(true);
 		expect(isAllowedCampusAppApiRequest("/api/me/profile-memory/settings")).toBe(true);
 		expect(isAllowedCampusAppApiRequest("/api/me/profile-memory/items/mem_01HQ")).toBe(true);
+		expect(isAllowedCampusAppApiRequest("/api/me/profile-memory/export")).toBe(false);
+		expect(isAllowedCampusAppApiRequest("/api/me/security/sessions")).toBe(false);
+		expect(isAllowedCampusAppApiRequest("/api/me/authorized-apps")).toBe(false);
 	});
 
 	it("allows the public campus services transport schedule projection", () => {
 		expect(isAllowedCampusAppApiRequest("/api/campus-services/transport-schedule/status")).toBe(
 			true,
 		);
-	});
-
-	it("allows only the bounded browser performance ingest route", () => {
-		expect(isAllowedCampusAppApiRequest("/api/telemetry/web-performance")).toBe(true);
-		expect(isAllowedCampusAppApiRequest("/api/telemetry/raw-performance")).toBe(false);
 	});
 });

@@ -1,9 +1,6 @@
 package httpapi
 
 import (
-	"encoding/json"
-	"fmt"
-	"net/url"
 	"sort"
 	"strings"
 
@@ -64,30 +61,6 @@ func hindsightReflectQuery(request memoryruntime.ReflectRequest) string {
 	return builder.String()
 }
 
-func encodeHindsightConversationTurn(request memoryruntime.AppendConversationTurnRequest) (string, error) {
-	turns := []hindsightConversationTurn{
-		{Content: strings.TrimSpace(request.UserMessage), Role: "user"},
-	}
-	if !request.IgnoreAssistantForGraph {
-		turns = append(turns, hindsightConversationTurn{
-			Content: strings.TrimSpace(request.AssistantMessage),
-			Role:    "assistant",
-		})
-	}
-	encoded, err := json.Marshal(turns)
-	if err != nil {
-		return "", err
-	}
-	return string(encoded), nil
-}
-
-func appendedHindsightConversationTurnCount(request memoryruntime.AppendConversationTurnRequest) int {
-	if request.IgnoreAssistantForGraph {
-		return 1
-	}
-	return 2
-}
-
 func hindsightContextItems(
 	results []hindsightRecallResult,
 	tool string,
@@ -104,14 +77,28 @@ func hindsightContextItems(
 		updatedAt := firstNonEmpty(result.OccurredEnd, result.OccurredStart, result.MentionedAt)
 		memoryType := defaultString(strings.TrimSpace(result.Type), "experience")
 		items = append(items, memoryruntime.ContextItem{
-			Tool:        tool,
-			CompactText: strings.TrimSpace(result.Text),
-			MemoryID:    strings.TrimSpace(result.ID),
-			MemoryType:  memoryType,
-			UpdatedAt:   updatedAt,
+			Tool:            tool,
+			CompactText:     truncateUTF8Bytes(strings.TrimSpace(result.Text), memoryruntime.MaxCompactTextBytes),
+			MemoryID:        strings.TrimSpace(result.ID),
+			MemoryType:      memoryType,
+			Score:           result.Score,
+			SourceFactCount: result.SourceFactCount,
+			UpdatedAt:       updatedAt,
 		})
 	}
 	return items
+}
+
+func truncateUTF8Bytes(value string, limit int) string {
+	if limit <= 0 || len([]byte(value)) <= limit {
+		return value
+	}
+	bytes := []byte(value)
+	end := limit
+	for end > 0 && end < len(bytes) && (bytes[end]&0xc0) == 0x80 {
+		end--
+	}
+	return string(bytes[:end])
 }
 
 func hindsightReflectContextItems(results []hindsightReflectFact) []memoryruntime.ContextItem {
@@ -179,15 +166,6 @@ func hindsightProfileDocumentID(memoryID string) string {
 	return "profile:" + strings.TrimSpace(memoryID)
 }
 
-func memoryOperationProjectionRef(runID string, operationID string) string {
-	return temporalProjectionRef(runID, "memory/operations/"+strings.TrimSpace(operationID))
-}
-
-func memoryDocumentProjectionRef(runID string, documentID string) string {
-	escaped := strings.ReplaceAll(url.QueryEscape(strings.TrimSpace(documentID)), "+", "%20")
-	return temporalProjectionRef(runID, "memory/documents/"+escaped)
-}
-
 func boolPointer(value bool) *bool {
 	return &value
 }
@@ -210,17 +188,6 @@ func copyAnyMap(input map[string]any) map[string]any {
 	output := make(map[string]any, len(input))
 	for key, value := range input {
 		output[key] = value
-	}
-	return output
-}
-
-func resultMetadataShape(input map[string]any) map[string]any {
-	if len(input) == 0 {
-		return nil
-	}
-	output := make(map[string]any, len(input))
-	for key, value := range input {
-		output[key] = fmt.Sprintf("%T", value)
 	}
 	return output
 }

@@ -25,3 +25,8 @@ reason = "paste is an unmaintained compile-time proc-macro dependency of the lat
 id = "GHSA-8988-4f7v-96qf"
 ignoreUntil = 2026-08-15
 reason = "The latest @arizeai/openinference-instrumentation-openai-agents 0.2.2 still pins OpenTelemetry core 1.x; agent-runtime configures baggage propagation through its direct fixed OpenTelemetry 2.9 dependency, and forcing an undeclared transitive major upgrade would be unsafe. Remove this exception when Arize publishes an OpenTelemetry 2.x-compatible release."
+
+[[IgnoredVulns]]
+id = "GO-2026-5932"
+ignoreUntil = 2026-10-16
+reason = "Testcontainers uses golang.org/x/crypto/ssh only in the explicitly tagged PostgreSQL test lane; campus-agent does not import the unmaintained openpgp package covered by this module-level advisory, and upstream provides no fixed version."

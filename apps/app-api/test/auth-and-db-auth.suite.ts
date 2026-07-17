@@ -128,8 +128,7 @@ export function registerAppApiAuthConfigSuite() {
 			expect(config.trustedOrigins).toEqual(["https://campus.muc.wiki"]);
 		});
 
-		it("materializes identity product state through better-auth user creation hooks", async () => {
-			const onIdentityUserCreated = vi.fn().mockResolvedValue(undefined);
+		it("keeps Better Auth as the only user and session persistence owner", () => {
 			const config = buildBetterAuthConfig({
 				appName: "campus-agent-app-api",
 				authShellOrigin: "https://campus.muc.wiki",
@@ -141,20 +140,8 @@ export function registerAppApiAuthConfigSuite() {
 				endUserEmailDomainAllowlist: ["example.edu"],
 				endUserEmailAllowlist: ["help_bot@outlook.com"],
 				database: {} as never,
-				onIdentityUserCreated,
 			} as never);
-
-			await config.databaseHooks?.user?.create?.after?.({
-				email: "jane@example.edu",
-				id: "user_01HQ",
-				name: "Jane Doe",
-			});
-
-			expect(onIdentityUserCreated).toHaveBeenCalledWith({
-				displayName: "Jane Doe",
-				email: "jane@example.edu",
-				userId: "user_01HQ",
-			});
+			expect(config).not.toHaveProperty("databaseHooks.user.create.after");
 		});
 
 		it("sends password reset and password-changed mail through Resend without exposing a repo-owned parallel auth path", async () => {
@@ -311,21 +298,18 @@ export function registerAppApiAuthConfigSuite() {
 					"oauthAccessToken",
 					"oauthConsent",
 					"jwks",
-					"identityAccounts",
-					"identityProfiles",
-					"identityAccessSnapshots",
-					"identityPreferenceSettings",
-					"identityFederationClients",
-					"identityFederationClaimsPolicies",
-					"identityFederationUserGrants",
 					"conversations",
 					"messageFeedback",
 					"messages",
 					"sessionSlots",
 					"turnDispatches",
 					"requestObservabilityFact",
+					"profileMemorySettings",
+					"profileMemoryItems",
+					"profileMemoryCommands",
 				]),
 			);
+			expect(Object.keys(appApiSchema).some((key) => key.startsWith("identity"))).toBe(false);
 		});
 
 		it("creates every table schema before baseline tables", () => {

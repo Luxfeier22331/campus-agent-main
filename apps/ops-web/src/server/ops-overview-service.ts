@@ -242,11 +242,11 @@ function unavailableSignalsSnapshot(): OpsRuntimeSignalsSnapshot {
 		})),
 		telemetry: {
 			dataState: "UNAVAILABLE",
-			reason: "OpenObserve 查询不可用。",
+			reason: "Axiom 查询不可用。",
 			signals: (["LOGS", "METRICS", "TRACES"] as const).map((kind) => ({
 				dataState: "UNAVAILABLE" as const,
 				kind,
-				reason: "OpenObserve 查询不可用。",
+				reason: "Axiom 查询不可用。",
 				recordCount: null,
 				status: "UNKNOWN" as const,
 				updatedAt: null,

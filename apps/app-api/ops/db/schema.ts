@@ -10,20 +10,24 @@ import {
 	readSharedProductBootstrapEnv,
 } from "../../src/script-support/shared-db/shared-product-database-bootstrap.ts";
 import { applyAppApiGrants } from "./app-api-grants.ts";
-import { applyOpsWebGrantStatements } from "./ops-web-database.ts";
 
 const migrationsFolder = fileURLToPath(new URL("../../drizzle", import.meta.url));
 const REQUIRED_TABLES = [
 	"app_auth.user",
 	"chat.turn_dispatches",
 	"docs.releases",
-	"observability.ops_observability_read_audit",
-	"provider_config.connections",
-	"provider_config.profiles",
 	"runtime.request_observability_fact",
 ] as const;
 const RETIRED_TABLES = ["runtime.projection_outbox", "runtime.request_execution"] as const;
-const RETIRED_SCHEMAS = ["official_web", "operator", "wechat_official_account"] as const;
+const RETIRED_SCHEMAS = [
+	"campus_services_ops",
+	"identity",
+	"observability",
+	"official_web",
+	"operator",
+	"provider_config",
+	"wechat_official_account",
+] as const;
 
 async function verifySchema(pool: ReturnType<typeof createSharedProductPool>): Promise<void> {
 	const required = await pool.query<{ qualified_name: string | null }>(
@@ -71,16 +75,12 @@ async function verifySchema(pool: ReturnType<typeof createSharedProductPool>): P
 		canWriteDocs: boolean;
 		canWriteObservability: boolean;
 		docsPublisherCanWrite: boolean;
-		appApiCanReadProviderConfig: boolean;
-		providerConfigOwnerCanWrite: boolean;
 	}>(
 		`select
 			has_table_privilege('app_api', 'chat.turn_dispatches', 'SELECT,INSERT,UPDATE,DELETE') as "canMutateDispatches",
 			has_table_privilege('app_api', 'docs.releases', 'SELECT') as "canReadDocs",
 			has_table_privilege('app_api', 'docs.releases', 'INSERT,UPDATE,DELETE') as "canWriteDocs",
 			has_table_privilege('docs_publish', 'docs.releases', 'SELECT,INSERT,UPDATE,DELETE') as "docsPublisherCanWrite",
-			has_table_privilege('app_api', 'provider_config.connections', 'SELECT') as "appApiCanReadProviderConfig",
-			has_table_privilege('ops_web_provider_config', 'provider_config.connections', 'SELECT,INSERT,UPDATE') as "providerConfigOwnerCanWrite",
 			case
 				when to_regclass('runtime.agent_runs') is null then false
 				else has_table_privilege('app_api', 'runtime.agent_runs', 'SELECT')
@@ -89,21 +89,17 @@ async function verifySchema(pool: ReturnType<typeof createSharedProductPool>): P
 	);
 	const privilege = privileges.rows[0];
 	if (
-		!(privilege?.canMutateDispatches && privilege.canReadDocs && privilege.canWriteObservability)
+		!(
+			privilege?.canMutateDispatches &&
+			privilege.canReadDocs &&
+			privilege.canWriteObservability &&
+			privilege.docsPublisherCanWrite
+		)
 	) {
 		throw new Error("app_api role is missing required table privileges.");
 	}
 	if (privilege.canWriteDocs) {
 		throw new Error("app_api role must not mutate docs release projections.");
-	}
-	if (!privilege.docsPublisherCanWrite) {
-		throw new Error("docs_publish role is missing required docs table privileges.");
-	}
-	if (privilege.appApiCanReadProviderConfig) {
-		throw new Error("app_api role must not read provider config.");
-	}
-	if (!privilege.providerConfigOwnerCanWrite) {
-		throw new Error("ops_web_provider_config role is missing required privileges.");
 	}
 	if (privilege.canReadAgentRuns) {
 		throw new Error("app_api role must not read execution-control run tables.");
@@ -131,7 +127,6 @@ export async function installAppApiSchema(envOverrides: NodeJS.ProcessEnv = proc
 		await pool.query("BEGIN");
 		try {
 			await applyAppApiGrants(pool);
-			await applyOpsWebGrantStatements(pool);
 			await pool.query("COMMIT");
 		} catch (error) {
 			await pool.query("ROLLBACK");

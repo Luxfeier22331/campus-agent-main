@@ -3,7 +3,6 @@ import type { OpsRequestDetailResponse } from "../shared/ops-contract";
 export interface OpsObservabilityLinkAllowlist {
 	axiom?: string;
 	langfuse?: string;
-	openobserve?: string;
 	sentry?: string;
 	temporal?: string;
 }

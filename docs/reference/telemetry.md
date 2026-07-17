@@ -24,17 +24,21 @@ status: active
 ### app-api
 
 `apps/app-api/src/modules/telemetry/runtime-event.ts` 负责字段白名单，
-`apps/app-api/src/modules/telemetry/otlp.ts` 将受控事件发送为 OTLP trace 和 log。
+`apps/app-api/src/modules/telemetry/console.ts` 将受控事件写为单行 JSON console log。Cloudflare
+环境选择的 OpenTelemetry log destination 消费该 application log；`invocation_logs=false`，
+app-api 也不维护手写 OTLP exporter。
 
-| 业务事件 | OTLP span/log 名称 | 用途 |
+| 业务事件 | console `event_type` | 用途 |
 | --- | --- | --- |
-| `request.accepted` | `runtime.request.accepted` | 产品请求已受理 |
-| `request.finalized` | `runtime.request.finalized` | 产品请求已进入终态 |
-| `request.stage_timing` | `runtime.request.stage_timing` | 受控阶段耗时 |
-| `request.transport_error` | `runtime.request.transport_error` | app-api 到内部执行服务的传输错误 |
-| `identity.endpoint` | `runtime.identity.endpoint` | 身份端点调用结果 |
+| `request.accepted` | `request.accepted` | 产品请求已受理 |
+| `request.finalized` | `request.finalized` | 产品请求已进入终态，并包含有界 stage timing 字段 |
+| `request.transport_error` | `request.transport_error` | app-api 到内部执行服务的传输错误 |
 
 未知 `event_type` 会在 producer 内被丢弃，不会透传成任意事件名。
+
+app-api 与 campus-web edge 使用 `@sentry/cloudflare`；campus-web browser 使用
+`@sentry/react`。Sentry SDK 数据不属于上述仓库事件 taxonomy，且在发送前清除 Cookie、header、
+query、正文、用户、breadcrumb 和未准入 span data。
 
 ### execution-control
 
@@ -74,7 +78,6 @@ taxonomy。
 
 | 指标 | 生产者 | 标签边界 |
 | --- | --- | --- |
-| `campus.app_api.stage_duration_ms` | app-api | `stage_field`、`budget_state`、`selected_tool`、`status`、`surface` |
 | `campus.execution_control.runtime_requests` | execution-control | task queue、step/activity、tool、status、failure kind |
 | `campus.execution_control.runtime_errors` | execution-control | 与 runtime request counter 相同的低基数标签 |
 | `campus.execution_control.activity_duration_ms` | execution-control | 与步骤观测相同的低基数标签 |
@@ -86,10 +89,10 @@ taxonomy。
 
 app-api 的允许字段由 `RUNTIME_EVENT_ALLOWED_FIELDS_BY_EVENT_TYPE` 唯一维护。主要类别包括：
 
-- 关联标识：`request_id`、`trace_id`、`conversation_id`、经过哈希的 actor 标识；
+- 关联标识：`request_id`、`trace_id`；
 - 产品边界：`surface`、`principal_type`、`requested_tool`、`selected_tool`；
-- 结果摘要：`status`、`error_code`、`retryable`、数量和受控摘要；
-- 性能：`duration_ms`、`stage_field`、`budget_state`；
+- 结果摘要：`status`、`error_code`、`retryable` 和有界数量；
+- 性能：`duration_ms`、固定 stage timing 字段和汇总 budget state；
 - 发布信息：`environment`、`release`、`occurred_at`。
 
 execution-control 的允许字段由 `telemetry.Event` 到 OTel attribute 的显式映射维护，主要包括：
@@ -117,23 +120,32 @@ secret。两类数据不能相互复制或混称。
 
 ## Collector 与下游
 
-运行时通过 OTLP 进入 Collector，不直接在业务代码中集成 Sentry、Axiom 或其他日志平台。
-Collector 配置拥有字段删除、批处理、重试、采样和 exporter 路由：
+Kubernetes 运行时通过四个分权 OTLP/HTTP 入口进入 Collector：通用信号进入 Axiom，
+execution-control 编排 trace 按白名单进入 Axiom/Langfuse，Agent 与 Hindsight 受信任 trace 只
+进入各自 Langfuse project。Collector 不向 Sentry 导出。
 
-- Sentry：trace；
-- Axiom：按环境配置接收 trace、log 和 metric；
-- Langfuse：受控 LLM trace；
-- 本地 debug exporter：开发诊断。
+Collector Agent 采集第一方容器日志与 kubelet 指标，排除 Collector 和 Hindsight stdout。
+应用单行 JSON 只提升 `event_type`、request/trace/run/workflow/step 关联标识和固定结果字段；
+这些字段只接受受限长度的标量值。`service.name` 来自 Pod 的 `app.kubernetes.io/name`，原始
+stdout 正文在导出前被替换。Agent 使用 node-local 持久 checkpoint 与发送队列。Gateway 负责
+字段白名单、批处理、持久队列、重试、采样和 project 路由。
 
-实际启用哪些 exporter 由环境仓和 Collector 配置决定，不能从本文推断。配置和操作见
-`../runbooks/otel.md`，仓库配置说明见 `../../infra/otel/README.md`。
+Cloudflare Worker 只把 producer 清理后的 application console logs 通过环境 log destination
+直接写入 Axiom，绕过 Collector 字段白名单；因此必须用 staging 哨兵验证实际 payload。
+`invocation_logs=false` 且 `observability.traces.enabled=false`，不能把 Cloudflare invocation log
+或 native trace 当作证据。后端请求 trace 通过 W3C context 进入 execution-control，再由
+Collector 写入 Axiom/Langfuse；Sentry 错误与受控性能数据由 browser/edge SDK 直接发送。
+
+实际启用哪些 destination/exporter 由环境仓决定。配置和操作见 `../runbooks/otel.md`，仓库配置
+说明见 `../../infra/otel/README.md`。
 
 ## 验证
 
 修改 producer、字段或指标时至少运行所属测试：
 
 ```bash
-pnpm --dir apps/app-api exec vitest run -c vitest.node-fast.config.mts test/telemetry.otlp.test.ts
+pnpm --dir apps/app-api exec vitest run -c vitest.node-fast.config.mts \
+  test/telemetry.console.test.ts test/telemetry.sentry.test.ts
 go -C apps/execution-control test ./internal/telemetry ./internal/httpapi
 ```
 

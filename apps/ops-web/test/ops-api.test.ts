@@ -2,6 +2,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { createOpsApp } from "../src/server/app";
+import { AxiomUnavailableError } from "../src/server/axiom-client";
 import type { InternalPortalAuthMaintenanceClient } from "../src/server/internal-portal-auth-maintenance-client";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission";
 import { createOpsOverviewService } from "../src/server/ops-overview-service";
@@ -19,6 +20,7 @@ function createTestApp(options?: {
 	auditWriteFails?: boolean;
 	credentialStatus?: { configured: boolean; updatedAt: string | null; updatedBy: string | null };
 	maintenanceStatus?: Awaited<ReturnType<InternalPortalAuthMaintenanceClient["getStatus"]>>;
+	queryFails?: boolean;
 	rawAllowed?: boolean;
 	resumeError?: Error;
 }) {
@@ -27,10 +29,12 @@ function createTestApp(options?: {
 		? vi.fn().mockRejectedValue(new OpsStatusStoreUnavailableError("AUDIT_WRITE_DENIED", "denied"))
 		: vi.fn(baseStore.writeObservabilityReadAudit);
 	const store = { ...baseStore, writeObservabilityReadAudit };
-	const queryRequest = vi.fn(async (input: { kind: "logs" | "trace" }) =>
-		input.kind === "logs" ? opsLogObservabilityFixture : opsTraceObservabilityFixture,
-	);
-	const openObserve = {
+	const queryRequest = options?.queryFails
+		? vi.fn().mockRejectedValue(new AxiomUnavailableError("partial result"))
+		: vi.fn(async (input: { kind: "logs" | "trace" }) =>
+				input.kind === "logs" ? opsLogObservabilityFixture : opsTraceObservabilityFixture,
+			);
+	const axiom = {
 		getTelemetrySnapshot: vi.fn().mockResolvedValue(opsOverviewFixture.telemetry),
 		queryRequest,
 	};
@@ -72,10 +76,13 @@ function createTestApp(options?: {
 		: vi.fn().mockResolvedValue(maintenanceStatus);
 	const app = createOpsApp({
 		admission: createAllowAllOpsAdmission({ email: "ops@example.test" }),
-		env: options?.rawAllowed
-			? { OPS_WEB_RAW_HUMAN_OPERATOR_EMAIL_ALLOWLIST: "ops@example.test" }
-			: {},
-		openObserve,
+		env: {
+			OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test",
+			...(options?.rawAllowed
+				? { OPS_WEB_RAW_HUMAN_OPERATOR_EMAIL_ALLOWLIST: "ops@example.test" }
+				: {}),
+		},
+		axiom,
 		overviewService,
 		internalPortalAuthStore: { getStatus, replaceCredential },
 		internalPortalMaintenanceClient: {
@@ -106,7 +113,7 @@ describe("ops API", () => {
 			expect(response.headers.get("referrer-policy")).toBe("no-referrer");
 			expect(response.headers.get("permissions-policy")).toContain("camera=()");
 			expect(response.headers.get("permissions-policy")).toContain("microphone=()");
-			expect(response.headers.get("strict-transport-security")).toBeNull();
+			expect(response.headers.get("strict-transport-security")).toContain("max-age=");
 		}
 	});
 
@@ -243,6 +250,53 @@ describe("ops API", () => {
 		expect(replaceCredential).not.toHaveBeenCalled();
 	});
 
+	it("uses the configured HTTPS public origin instead of proxy forwarding headers", async () => {
+		const { app, replaceCredential } = createTestApp();
+		const accepted = await app.request("http://ops-web:5178/api/ops/internal-portal-auth", {
+			body: JSON.stringify({ credential: "SSO_TGC=TGT-private-ticket" }),
+			headers: {
+				"content-type": "application/json",
+				origin: "https://ops.example.test",
+				"sec-fetch-site": "same-origin",
+				"x-forwarded-host": "attacker.example.test",
+				"x-forwarded-proto": "http",
+			},
+			method: "PUT",
+		});
+		const rejected = await app.request("http://ops-web:5178/api/ops/internal-portal-auth", {
+			body: JSON.stringify({ credential: "SSO_TGC=TGT-private-ticket" }),
+			headers: {
+				"content-type": "application/json",
+				host: "ops.example.test",
+				origin: "https://attacker.example.test",
+				"x-forwarded-host": "ops.example.test",
+				"x-forwarded-proto": "https",
+			},
+			method: "PUT",
+		});
+
+		expect(accepted.status).toBe(200);
+		expect(rejected.status).toBe(403);
+		expect(replaceCredential).toHaveBeenCalledOnce();
+	});
+
+	it("rejects browser writes when the configured public origin is not HTTPS", async () => {
+		const replaceCredential = vi.fn();
+		const app = createOpsApp({
+			admission: createAllowAllOpsAdmission({ email: "ops@example.test" }),
+			env: { OPS_WEB_PUBLIC_ORIGIN: "http://ops.example.test" },
+			internalPortalAuthStore: { getStatus: vi.fn(), replaceCredential },
+		});
+		const response = await app.request("http://ops-web:5178/api/ops/internal-portal-auth", {
+			body: JSON.stringify({ credential: "SSO_TGC=TGT-private-ticket" }),
+			headers: { "content-type": "application/json", origin: "http://ops.example.test" },
+			method: "PUT",
+		});
+
+		expect(response.status).toBe(403);
+		expect(replaceCredential).not.toHaveBeenCalled();
+	});
+
 	it("does not allow a service operator to manage the portal credential", async () => {
 		const replaceCredential = vi.fn();
 		const app = createOpsApp({
@@ -251,7 +305,7 @@ describe("ops API", () => {
 				getStatus: vi.fn(),
 				replaceCredential,
 			},
-			openObserve: {
+			axiom: {
 				getTelemetrySnapshot: vi.fn().mockResolvedValue(opsOverviewFixture.telemetry),
 				queryRequest: vi.fn(),
 			},
@@ -271,10 +325,10 @@ describe("ops API", () => {
 		expect(queryRequest).not.toHaveBeenCalled();
 	});
 
-	it("rejects browser-supplied trace ids and stream names", async () => {
+	it("rejects all browser-supplied APL, dataset, window, limit, and trace parameters", async () => {
 		const { app, queryRequest } = createTestApp({ rawAllowed: true });
 		const response = await app.request(
-			"/api/ops/requests/req_ops_001/observability?kind=logs&traceId=browser-trace&stream=x",
+			"/api/ops/requests/req_ops_001/observability?kind=logs&apl=x&dataset=x&from=0&limit=1000&to=1&traceId=browser-trace",
 		);
 
 		expect(response.status).toBe(400);
@@ -301,6 +355,24 @@ describe("ops API", () => {
 				traceId: "trace_ops_001",
 			}),
 		);
+		await expect(response.json()).resolves.toMatchObject({ source: "AXIOM" });
+	});
+
+	it("returns unavailable instead of partial Axiom records", async () => {
+		const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+		const { app, writeObservabilityReadAudit } = createTestApp({
+			queryFails: true,
+			rawAllowed: true,
+		});
+
+		const response = await app.request("/api/ops/requests/req_ops_001/observability?kind=logs");
+
+		expect(response.status).toBe(503);
+		await expect(response.json()).resolves.toMatchObject({
+			error: { code: "OPS_OBSERVABILITY_UNAVAILABLE" },
+		});
+		expect(writeObservabilityReadAudit).not.toHaveBeenCalled();
+		consoleError.mockRestore();
 	});
 
 	it("refuses raw records when the read audit cannot be written", async () => {

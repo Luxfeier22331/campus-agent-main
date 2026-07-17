@@ -30,6 +30,7 @@ RUN --mount=type=cache,id=go-modules,target=/go/pkg/mod \
   && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/workflow-worker ./cmd/workflow-worker \
   && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/activity-worker-core ./cmd/activity-worker-core \
   && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/activity-worker-agent ./cmd/activity-worker-agent \
+  && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/provider-config-admin ./cmd/provider-config-admin \
   && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/run-projection-schema ./cmd/run-projection-schema
 
 FROM debian:bookworm-slim
@@ -43,6 +44,7 @@ COPY --from=build /out/execution-control /usr/local/bin/execution-control
 COPY --from=build /out/workflow-worker /usr/local/bin/workflow-worker
 COPY --from=build /out/activity-worker-core /usr/local/bin/activity-worker-core
 COPY --from=build /out/activity-worker-agent /usr/local/bin/activity-worker-agent
+COPY --from=build /out/provider-config-admin /usr/local/bin/provider-config-admin
 COPY --from=build /out/run-projection-schema /usr/local/bin/run-projection-schema
 COPY configs/runtime/query-serving-targets.v1.json /etc/campus-agent/query-serving-targets.v1.json
 COPY configs/runtime/tool-function-schemas.v2.json /etc/campus-agent/tool-function-schemas.v2.json

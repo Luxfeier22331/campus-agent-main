@@ -5,14 +5,10 @@ import type { NormalizedColumnSpec, NormalizedIndexSpec } from "./shared-db-scri
 
 export const APP_API_KNOWN_SCHEMAS = [
 	"campus_services",
-	"campus_services_ops",
 	"chat",
 	"dining",
 	"docs",
-	"identity",
-	"observability",
 	"profile",
-	"provider_config",
 	"runtime",
 ];
 export const POSTGRES_IDENTIFIER_MAX_BYTES = 63;

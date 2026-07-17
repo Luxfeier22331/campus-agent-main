@@ -15,10 +15,10 @@ function resolveSslConfig(databaseSslMode: string) {
 			};
 }
 
-function resolveOperatorConnectionString(env: NodeJS.ProcessEnv): string {
-	const connectionString = env.APP_API_OPERATOR_DATABASE_URL?.trim();
+function resolveSchemaConnectionString(env: NodeJS.ProcessEnv): string {
+	const connectionString = env.APP_API_SCHEMA_DATABASE_URL?.trim();
 	if (!connectionString) {
-		throw new Error("APP_API_OPERATOR_DATABASE_URL is required.");
+		throw new Error("APP_API_SCHEMA_DATABASE_URL is required.");
 	}
 	const nextUrl = new URL(connectionString);
 	nextUrl.searchParams.delete("sslmode");
@@ -49,7 +49,7 @@ async function main() {
 			},
 			async executeSql(sql, params) {
 				const client = new Client({
-					connectionString: resolveOperatorConnectionString(process.env),
+					connectionString: resolveSchemaConnectionString(process.env),
 					ssl: resolveSslConfig(databaseSslMode),
 				});
 

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 	enumspb "go.temporal.io/api/enums/v1"
 	historypb "go.temporal.io/api/history/v1"
 	"go.temporal.io/sdk/client"
@@ -159,6 +160,86 @@ func TestTemporalDevServerRunsExplicitKnowledgeChoiceThroughLinearWorkflow(t *te
 		ExecutePrimaryAgentActivityName,
 		WriteFinalizationActivityName,
 		AppendConversationMemoryActivityName,
+	} {
+		if !historyContainsCompletedActivity(history, activityName) {
+			t.Fatalf("workflow history missing completed activity %s", activityName)
+		}
+	}
+}
+
+func TestTemporalDevServerRunsPersonalMemoryCommandFinalizers(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	server, err := testsuite.StartDevServer(ctx, testsuite.DevServerOptions{
+		ClientOptions: &client.Options{Namespace: "campus-agent-temporal-memory-command-e2e"},
+		LogLevel:      "error",
+	})
+	if err != nil {
+		t.Fatalf("start Temporal dev server: %v", err)
+	}
+	defer func() {
+		if err := server.Stop(); err != nil {
+			t.Fatalf("stop Temporal dev server: %v", err)
+		}
+	}()
+	temporalClient := server.Client()
+	activities := &Activities{}
+	workers := []worker.Worker{
+		NewWorkflowWorker(temporalClient, WorkflowTaskQueue),
+		NewCoreActivityWorkerWithOptions(
+			temporalClient,
+			ActivityTaskQueueCore,
+			activities,
+			activities,
+			worker.Options{},
+		),
+	}
+	for _, runtimeWorker := range workers {
+		if err := runtimeWorker.Start(); err != nil {
+			t.Fatalf("start worker: %v", err)
+		}
+		defer runtimeWorker.Stop()
+	}
+
+	command := memoryruntime.PersonalMemoryCommandRequest{
+		CommandID:         "command-temporal-devserver-e2e",
+		CommandKind:       "owner_transition",
+		LifecycleState:    "paused",
+		OwnerGeneration:   1,
+		OwnerSequence:     1,
+		SchemaVersion:     memoryruntime.PersonalMemoryCommandSchemaVersion,
+		SourceUpdatedAt:   "2026-07-16T00:00:00Z",
+		SupersessionScope: "owner:lifecycle",
+		TenantID:          "tenant-temporal-e2e",
+		UserID:            "user-temporal-e2e",
+	}
+	workflowID := "campus-agent.temporal-e2e." + command.CommandID
+	workflowRun, err := temporalClient.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
+		ID:        workflowID,
+		TaskQueue: WorkflowTaskQueue,
+	}, PersonalMemoryCommandWorkflow, PersonalMemoryCommandWorkflowInput{
+		Command:    command,
+		WorkflowID: workflowID,
+	})
+	if err != nil {
+		t.Fatalf("execute workflow: %v", err)
+	}
+	var result PersonalMemoryCommandWorkflowResult
+	if err := workflowRun.Get(ctx, &result); err != nil {
+		t.Fatalf("get workflow result: %v", err)
+	}
+	if result.CommandID != command.CommandID || result.Status != "succeeded" {
+		t.Fatalf("unexpected workflow result: %#v", result)
+	}
+
+	history, err := workflowHistory(ctx, temporalClient, workflowID, workflowRun.GetRunID())
+	if err != nil {
+		t.Fatalf("workflow history: %v", err)
+	}
+	for _, activityName := range []string{
+		ExecutePersonalMemoryCommandActivityName,
+		FinalizePersonalMemoryCommandReceiptActivityName,
+		WritePersonalMemoryCommandResultActivityName,
 	} {
 		if !historyContainsCompletedActivity(history, activityName) {
 			t.Fatalf("workflow history missing completed activity %s", activityName)

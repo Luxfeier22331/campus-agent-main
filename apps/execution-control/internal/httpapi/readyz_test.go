@@ -250,9 +250,9 @@ func TestRequiredTemporalTaskQueuesIncludeModelVisibleToolWorkers(t *testing.T) 
 }
 
 func TestReadyzPublishesProviderConfigGateReason(t *testing.T) {
-	server := newReadyServerForTest(t, func(cfg *config.Config) {
-		cfg.ProviderConfigSnapshotPath = ""
-	})
+	server := newReadyServerForTest(t)
+	server.providerConfigResolver = nil
+	server.providerConfigErr = errProviderConfigResolverNotConfigured
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
@@ -276,7 +276,7 @@ func TestReadyzPublishesProviderConfigGateReason(t *testing.T) {
 	}
 }
 
-func TestReadyzProviderConfigGateUsesLocalProjectionResolver(t *testing.T) {
+func TestReadyzProviderConfigGateUsesRuntimeResolver(t *testing.T) {
 	server := newReadyServerForTest(t)
 	response := httptest.NewRecorder()
 

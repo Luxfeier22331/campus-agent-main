@@ -1,5 +1,5 @@
 import type { OpsOverviewResponse, OpsOverviewWindow } from "../shared/ops-contract.ts";
-import type { OpenObserveClient } from "./openobserve-client.ts";
+import type { AxiomClient } from "./axiom-client.ts";
 import type { OpsRuntimeSignalsSnapshot, OpsRuntimeSignalsSource } from "./ops-overview-service.ts";
 
 const DEFAULT_HEALTH_TIMEOUT_MS = 1_500;
@@ -14,11 +14,11 @@ const SERVICE_DEFINITIONS = [
 export type OpsHealthServiceName = (typeof SERVICE_DEFINITIONS)[number][0];
 
 export function createOpsRuntimeSignalsSource(input: {
+	axiom: AxiomClient;
 	fetchFn?: typeof fetch;
 	healthTimeoutMs?: number;
 	healthUrls: Partial<Record<OpsHealthServiceName, string>>;
 	now?: () => Date;
-	openObserve: OpenObserveClient;
 }): OpsRuntimeSignalsSource {
 	const fetchFn = input.fetchFn ?? fetch;
 	const now = input.now ?? (() => new Date());
@@ -40,7 +40,7 @@ export function createOpsRuntimeSignalsSource(input: {
 						}),
 					),
 				),
-				readTelemetry(input.openObserve, window, checkedAt),
+				readTelemetry(input.axiom, window, checkedAt),
 			]);
 			return { services, telemetry } satisfies OpsRuntimeSignalsSnapshot;
 		},
@@ -93,20 +93,20 @@ async function checkService(input: {
 }
 
 async function readTelemetry(
-	openObserve: OpenObserveClient,
+	axiom: AxiomClient,
 	window: OpsOverviewWindow,
 	now: Date,
 ): Promise<OpsOverviewResponse["telemetry"]> {
 	try {
-		return await openObserve.getTelemetrySnapshot(window, now);
+		return await axiom.getTelemetrySnapshot(window, now);
 	} catch {
 		return {
 			dataState: "UNAVAILABLE",
-			reason: "OpenObserve 查询失败。",
+			reason: "Axiom 查询失败。",
 			signals: (["LOGS", "METRICS", "TRACES"] as const).map((kind) => ({
 				dataState: "UNAVAILABLE" as const,
 				kind,
-				reason: "OpenObserve 查询失败。",
+				reason: "Axiom 查询失败。",
 				recordCount: null,
 				status: "UNKNOWN" as const,
 				updatedAt: null,

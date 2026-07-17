@@ -22,6 +22,7 @@ import { UserButton } from "../src/components/auth/user/user-button";
 import userButtonSource from "../src/components/auth/user/user-button.tsx?raw";
 import DocsAccountEntry from "../src/components/docs/docs-account-entry";
 import mainSource from "../src/main.tsx?raw";
+import sentryBrowserLoaderSource from "../src/platform/telemetry/sentry-browser-loader.tsx?raw";
 
 const stylesSource = readFileSync("src/styles.css", "utf8");
 const authStylesSource = readFileSync("src/components/auth/auth-styles.css", "utf8");
@@ -346,6 +347,17 @@ describe("campus auth UI components", () => {
 		expect(browserAuthUIProviderSource).toContain("<ToastProvider");
 	});
 
+	it("loads browser Sentry outside the static app shell without duplicating caught error capture", () => {
+		expect(mainSource).toContain("initializeCampusBrowserSentry");
+		expect(mainSource).toContain('from "./platform/telemetry/sentry-browser-loader"');
+		expect(mainSource).not.toContain('from "./platform/telemetry/sentry-browser"');
+		expect(sentryBrowserLoaderSource).toContain('import("./sentry-browser")');
+		expect(mainSource).not.toContain("onCaughtError: campusReactErrorHandler()");
+		expect(mainSource).toContain("onRecoverableError: campusReactErrorHandler()");
+		expect(mainSource).toContain("onUncaughtError: campusReactErrorHandler()");
+		expect(mainSource).toContain("<CampusSentryErrorBoundary");
+	});
+
 	it("does not add a duplicate local auth mutation toast bridge", () => {
 		expect(authUIProviderSource).not.toContain("MutationCache");
 		expect(authUIProviderSource).not.toContain("matchMutation");
@@ -362,7 +374,6 @@ describe("campus auth UI components", () => {
 		);
 		expect(screen.getByLabelText("account-auth-layout")).toBeInTheDocument();
 		expect(container.innerHTML).not.toContain("rounded-lg");
-		expect(container.innerHTML).not.toContain("border-border");
 		expect(container.innerHTML).not.toContain("bg-card");
 		expect(container.innerHTML).not.toContain("shadow-");
 	});
@@ -428,7 +439,6 @@ describe("campus auth UI components", () => {
 		);
 		expect(screen.getByLabelText("account-settings-layout")).toBeInTheDocument();
 		expect(container.innerHTML).not.toContain("rounded-lg");
-		expect(container.innerHTML).not.toContain("border-border");
 		expect(container.innerHTML).not.toContain("bg-card");
 		expect(container.innerHTML).not.toContain("shadow-");
 	});

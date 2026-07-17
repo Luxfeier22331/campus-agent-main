@@ -114,7 +114,7 @@ func rejectRetiredPythonBridgeSettings() error {
 	}
 	for _, name := range retired {
 		if strings.TrimSpace(os.Getenv(name)) != "" {
-			return fmt.Errorf("%s is retired; use app-api provider config plus Go execution runtime", name)
+			return fmt.Errorf("%s is retired; use the Go execution runtime", name)
 		}
 	}
 	return nil

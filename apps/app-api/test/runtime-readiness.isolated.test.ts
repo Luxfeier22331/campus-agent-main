@@ -34,8 +34,7 @@ const env = {
 	RESEND_API_KEY: "resend_test_key",
 	AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
 	APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
-	APP_API_INTERNAL_SHARED_SECRET: "internal-shared-secret",
-	APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.edu",
+	APP_API_PRODUCT_CALLBACK_SHARED_SECRET: "internal-shared-secret",
 	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 	EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 	APP_API_DB: {
@@ -73,42 +72,6 @@ describe("runtime readiness", () => {
 				blockers: {},
 			},
 			executionRuntime,
-			runtimeHealth: {
-				asOf: "2026-03-29T08:17:33.000Z",
-				executionRuntime,
-				status: "ready",
-				runProjectionStore: {
-					configured: true,
-					healthy: true,
-					lastError: null,
-				},
-				temporalRuntime: null,
-			},
-		});
-	});
-
-	it("marks ingestion-control not_configured when task admission is disabled", async () => {
-		const readiness = await defaultRuntimeReadinessProbe(env);
-		expect(mockedProbeExecutionControlReady).toHaveBeenCalledTimes(1);
-		expect(readiness).toMatchObject({
-			dependencies: {
-				ingestionControl: "not_configured",
-			},
-			failed: {},
-		});
-	});
-
-	it("marks ingestion-control configured when projection base URL is configured", async () => {
-		await expect(
-			defaultRuntimeReadinessProbe({
-				...env,
-				INGESTION_CONTROL_BASE_URL: "https://ingestion-control.internal",
-			}),
-		).resolves.toMatchObject({
-			dependencies: {
-				ingestionControl: "configured",
-			},
-			failed: {},
 		});
 	});
 
@@ -136,17 +99,6 @@ describe("runtime readiness", () => {
 				},
 			},
 			executionRuntime,
-			runtimeHealth: {
-				asOf: "2026-07-13T08:00:00.000Z",
-				executionRuntime,
-				status: "ready",
-				runProjectionStore: {
-					configured: true,
-					healthy: true,
-					lastError: null,
-				},
-				temporalRuntime: null,
-			},
 		});
 
 		await expect(defaultRuntimeReadinessProbe(env)).resolves.toMatchObject({

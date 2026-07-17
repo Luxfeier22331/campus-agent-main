@@ -1,5 +1,4 @@
 import { DiningDomainError } from "@campus-agent/dining/domain";
-import { ProviderConfigError } from "@campus-agent/provider-config";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -15,6 +14,12 @@ import {
 	OpsRequestListResponseSchema,
 	OpsRequestWindowSchema,
 } from "../shared/ops-contract.ts";
+import {
+	type AxiomClient,
+	type AxiomEnv,
+	AxiomUnavailableError,
+	createAxiomClientFromEnv,
+} from "./axiom-client.ts";
 import {
 	createDiningStoreFromEnv,
 	createUnavailableDiningStore,
@@ -39,18 +44,13 @@ import {
 	parseInternalPortalCredential,
 } from "./internal-portal-auth-store.ts";
 import {
-	createOpenObserveClientFromEnv,
-	type OpenObserveClient,
-	type OpenObserveEnv,
-	OpenObserveUnavailableError,
-} from "./openobserve-client.ts";
-import {
 	createCloudflareAccessOpsAdmission,
 	getMissingAccessConfig,
 	type OpsAdmission,
 	type OpsAdmissionEnv,
 	type OpsOperatorContext,
 	operatorCanReadRawObservability,
+	operatorCanWriteProviderConfig,
 } from "./ops-admission.ts";
 import { createOpsOverviewService, type OpsOverviewService } from "./ops-overview-service.ts";
 import { createOpsRuntimeSignalsSource } from "./ops-runtime-signals.ts";
@@ -64,21 +64,11 @@ import {
 } from "./ops-status-store.ts";
 import { PostgresTlsConfigurationError } from "./postgres-tls.ts";
 import {
-	createProviderConfigCompatibilityClient,
-	type ProviderConfigCompatibilityEnv,
-} from "./provider-config-compatibility.ts";
-import {
-	createProviderConfigPublisherFromEnv,
-	type ProviderConfigPublisherEnv,
-} from "./provider-config-publisher.ts";
-import {
-	createProviderConfigService,
-	type ProviderConfigService,
-} from "./provider-config-service.ts";
-import {
-	createProviderConfigStoreFromEnv,
-	type ProviderConfigStoreEnv,
-} from "./provider-config-store.ts";
+	createProviderConfigAdminClient,
+	type ProviderConfigAdminEnv,
+	ProviderConfigAdminResponseError,
+	ProviderConfigAdminUnavailableError,
+} from "./provider-config-client.ts";
 
 interface OpsHealthEnv {
 	OPS_WEB_HEALTH_AGENT_RUNTIME_URL?: string;
@@ -86,31 +76,28 @@ interface OpsHealthEnv {
 	OPS_WEB_HEALTH_CAMPUS_WEB_URL?: string;
 	OPS_WEB_HEALTH_EXECUTION_CONTROL_URL?: string;
 	OPS_WEB_HEALTH_OPS_WEB_URL?: string;
+	OPS_WEB_PUBLIC_ORIGIN?: string;
 }
 
 type OpsAppEnv = OpsAdmissionEnv &
+	AxiomEnv &
 	DiningStoreEnv &
 	InternalPortalAuthMaintenanceEnv &
-	OpenObserveEnv &
 	OpsHealthEnv &
 	OpsStatusEnv &
-	ProviderConfigCompatibilityEnv &
-	ProviderConfigPublisherEnv &
-	ProviderConfigStoreEnv & {
-		OPS_WEB_PROVIDER_CONFIG_ENCRYPTION_KEY?: string;
-	};
+	ProviderConfigAdminEnv;
 
 interface OpsAppOptions {
 	admission?: OpsAdmission;
+	axiom?: AxiomClient;
 	env?: OpsAppEnv;
 	diningStore?: DiningStore;
 	internalPortalAuthStore?: InternalPortalAuthStore;
 	internalPortalMaintenanceClient?: InternalPortalAuthMaintenanceClient;
-	openObserve?: OpenObserveClient;
 	overviewService?: OpsOverviewService;
-	providerConfigService?: ProviderConfigService;
 	staticRoot?: string;
 	store?: OpsStatusStore;
+	providerConfigClient?: ReturnType<typeof createProviderConfigAdminClient>;
 }
 
 const RequestListQuerySchema = z
@@ -178,6 +165,7 @@ const OpsPathIdSchema = z
 export function createOpsApp(options: OpsAppOptions = {}) {
 	const app = new Hono();
 	const env = options.env ?? process.env;
+	const publicOrigin = resolveOpsPublicOrigin(env);
 	const diningStore = options.diningStore ?? createDefaultDiningStore(env);
 	const admission = options.admission ?? createCloudflareAccessOpsAdmission(env);
 	const internalPortalAuthStore =
@@ -187,7 +175,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		createInternalPortalAuthMaintenanceClientFromEnv(env);
 	const staticRoot = options.staticRoot ?? "dist";
 	const store = options.store ?? createDefaultOpsStatusStore(env);
-	const openObserve = options.openObserve ?? createDefaultOpenObserveClient(env);
+	const axiom = options.axiom ?? createDefaultAxiomClient(env);
 	const overviewService =
 		options.overviewService ??
 		createOpsOverviewService({
@@ -199,12 +187,11 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 					"execution-control": env.OPS_WEB_HEALTH_EXECUTION_CONTROL_URL,
 					"ops-web": env.OPS_WEB_HEALTH_OPS_WEB_URL,
 				},
-				openObserve,
+				axiom,
 			}),
 			store,
 		});
-	const providerConfigService =
-		options.providerConfigService ?? createDefaultProviderConfigService(env);
+	const providerConfigClient = options.providerConfigClient ?? createProviderConfigAdminClient(env);
 
 	app.use(
 		"*",
@@ -229,15 +216,20 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 				usb: [],
 			},
 			referrerPolicy: "no-referrer",
-			strictTransportSecurity: false,
 			xFrameOptions: "DENY",
 		}),
 	);
 
 	app.onError((error) => {
 		console.error("[ops-web] unhandled api error", error);
-		if (error instanceof OpenObserveUnavailableError) {
-			return jsonError("OPS_OBSERVABILITY_UNAVAILABLE", "OpenObserve 数据不可用。", 503);
+		if (error instanceof AxiomUnavailableError) {
+			return jsonError("OPS_OBSERVABILITY_UNAVAILABLE", "Axiom 数据不可用。", 503);
+		}
+		if (error instanceof ProviderConfigAdminUnavailableError) {
+			return jsonError("OPS_PROVIDER_CONFIG_UNAVAILABLE", "Provider Config 后端不可用。", 503);
+		}
+		if (error instanceof ProviderConfigAdminResponseError) {
+			return error.response;
 		}
 		if (error instanceof DiningStoreUnavailableError) {
 			return jsonError("OPS_DINING_STORE_UNAVAILABLE", "食堂管理数据库不可用。", 503);
@@ -258,14 +250,6 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 					: undefined,
 			);
 		}
-		if (error instanceof ProviderConfigError) {
-			return jsonError(
-				error.code,
-				error.message,
-				providerConfigHttpStatus(error.status),
-				error.details,
-			);
-		}
 		const storeUnavailableReasonCode = classifyStoreUnavailableError(error);
 		if (storeUnavailableReasonCode) {
 			return jsonError("OPS_STATUS_STORE_UNAVAILABLE", "请求状态数据库不可用。", 503, {
@@ -280,6 +264,9 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	app.get("/readyz", async (context) => {
 		try {
 			const missingAccessConfig = getMissingAccessConfig(env);
+			if (!publicOrigin) {
+				missingAccessConfig.push("OPS_WEB_PUBLIC_ORIGIN");
+			}
 			if (missingAccessConfig.length > 0) {
 				return context.json(
 					{
@@ -297,7 +284,6 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 			await store.verifyReadiness();
 			await store.verifyObservabilityReadAuditWrite();
 			await diningStore.verifyReadiness();
-			await providerConfigService.verifyReadiness();
 			return context.json({ ok: true, service: "ops-web" });
 		} catch (error) {
 			const reasonCode = classifyReadinessError(error);
@@ -359,7 +345,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 			if (operator.principalClass !== "human") {
 				return internalPortalAuthForbiddenResponse();
 			}
-			if (!requestHasSameOrigin(context.req.raw)) {
+			if (!requestHasConfiguredOrigin(context.req.raw, publicOrigin)) {
 				return jsonError("OPS_INTERNAL_PORTAL_AUTH_ORIGIN_INVALID", "凭据更新请求来源无效。", 403);
 			}
 
@@ -407,7 +393,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		if (operator.principalClass !== "human") {
 			return internalPortalAuthForbiddenResponse();
 		}
-		if (!requestHasSameOrigin(context.req.raw)) {
+		if (!requestHasConfiguredOrigin(context.req.raw, publicOrigin)) {
 			return jsonError("OPS_INTERNAL_PORTAL_AUTH_ORIGIN_INVALID", "恢复请求来源无效。", 403);
 		}
 		try {
@@ -445,102 +431,66 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		return context.json(response);
 	});
 
-	app.get("/api/ops/provider-config/connections", async (context) => {
+	app.get("/api/ops/provider-config", async (context) => {
 		const operator = await admitOpsApiRequest(admission, context.req.raw);
 		if (operator instanceof Response) {
 			return operator;
 		}
-		return context.json(await providerConfigService.listConnections());
+		return context.json({
+			...(await providerConfigClient.getStatus()),
+			writeAllowed: operatorCanWriteProviderConfig(operator, env),
+		});
 	});
-	app.post("/api/ops/provider-config/connections", async (context) => {
-		const operator = await admitProviderConfigWrite(admission, context.req.raw);
-		if (operator instanceof Response) {
-			return operator;
-		}
-		return context.json(
-			await providerConfigService.createConnection(
-				recordBody(await readBoundedJson(context.req.raw, 16 * 1024)),
-				toProviderActor(operator),
-			),
-			201,
-		);
-	});
-	app.patch("/api/ops/provider-config/connections/:connectionId", async (context) => {
-		const operator = await admitProviderConfigWrite(admission, context.req.raw);
-		if (operator instanceof Response) {
-			return operator;
-		}
-		return context.json(
-			await providerConfigService.updateConnection(
-				context.req.param("connectionId"),
-				recordBody(await readBoundedJson(context.req.raw, 16 * 1024)),
-				toProviderActor(operator),
-			),
-		);
-	});
-	app.get("/api/ops/provider-config/profiles", async (context) => {
+
+	app.post("/api/ops/provider-config/*", async (context) => {
 		const operator = await admitOpsApiRequest(admission, context.req.raw);
 		if (operator instanceof Response) {
 			return operator;
 		}
-		return context.json(await providerConfigService.listProfiles());
-	});
-	app.post("/api/ops/provider-config/profiles", async (context) => {
-		const operator = await admitProviderConfigWrite(admission, context.req.raw);
-		if (operator instanceof Response) {
-			return operator;
+		if (!operatorCanWriteProviderConfig(operator, env)) {
+			return jsonError(
+				"OPS_PROVIDER_CONFIG_WRITE_FORBIDDEN",
+				"当前操作者无权修改 Provider Config。",
+				403,
+			);
 		}
-		return context.json(
-			await providerConfigService.createProfile(
-				recordBody(await readBoundedJson(context.req.raw, 16 * 1024)),
-				toProviderActor(operator),
-			),
-			201,
+		if (!requestHasConfiguredOrigin(context.req.raw, publicOrigin)) {
+			return jsonError(
+				"OPS_PROVIDER_CONFIG_CSRF_REJECTED",
+				"Provider Config 写请求未通过同源校验。",
+				403,
+			);
+		}
+		if (!context.req.header("content-type")?.toLowerCase().startsWith("application/json")) {
+			return jsonError(
+				"OPS_PROVIDER_CONFIG_CONTENT_TYPE_REQUIRED",
+				"Content-Type 必须是 application/json。",
+				400,
+			);
+		}
+		const suffix = context.req.path.slice("/api/ops/provider-config".length);
+		if (!providerCommandPathAllowed(suffix)) {
+			return jsonError("OPS_API_ROUTE_NOT_FOUND", "未找到该运维接口。", 404);
+		}
+		const body = await context.req.json().catch(() => null);
+		if (body === null) {
+			return jsonError("OPS_INVALID_JSON", "请求体必须是有效 JSON。", 400);
+		}
+		const idempotencyKey = context.req.header("idempotency-key")?.trim();
+		if (!idempotencyKey || idempotencyKey.length > 200) {
+			return jsonError(
+				"OPS_PROVIDER_CONFIG_IDEMPOTENCY_REQUIRED",
+				"Provider Config 写请求必须提供有效的 Idempotency-Key。",
+				400,
+			);
+		}
+		const result = await providerConfigClient.command(
+			suffix,
+			body,
+			operator.operatorId,
+			idempotencyKey,
 		);
-	});
-	app.patch("/api/ops/provider-config/profiles/:profileId", async (context) => {
-		const operator = await admitProviderConfigWrite(admission, context.req.raw);
-		if (operator instanceof Response) {
-			return operator;
-		}
-		return context.json(
-			await providerConfigService.updateProfile(
-				context.req.param("profileId"),
-				recordBody(await readBoundedJson(context.req.raw, 16 * 1024)),
-				toProviderActor(operator),
-			),
-		);
-	});
-	app.post("/api/ops/provider-config/profiles/:profileId/validate", async (context) => {
-		const operator = await admitProviderConfigWrite(admission, context.req.raw);
-		if (operator instanceof Response) {
-			return operator;
-		}
-		return context.json(
-			await providerConfigService.validate(
-				context.req.param("profileId"),
-				toProviderActor(operator),
-			),
-		);
-	});
-	app.post("/api/ops/provider-config/profiles/:profileId/activate", async (context) => {
-		const operator = await admitProviderConfigWrite(admission, context.req.raw);
-		if (operator instanceof Response) {
-			return operator;
-		}
-		return context.json(
-			await providerConfigService.activate(
-				context.req.param("profileId"),
-				toProviderActor(operator),
-			),
-		);
-	});
-	app.get("/api/ops/provider-config/runtime", async (context) => {
-		const operator = await admitOpsApiRequest(admission, context.req.raw);
-		if (operator instanceof Response) {
-			return operator;
-		}
-		return context.json(await providerConfigService.runtimeStatus());
+		return context.json(result);
 	});
 
 	app.get("/api/ops/requests", async (context) => {
@@ -596,7 +546,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 			return jsonError("OPS_REQUEST_NOT_FOUND", "未找到该请求。");
 		}
 		const response = OpsObservabilityResponseSchema.parse(
-			await openObserve.queryRequest({
+			await axiom.queryRequest({
 				completedAt: detail.request.completedAt,
 				kind: parsedQuery.data.kind,
 				requestId: detail.request.requestId,
@@ -654,13 +604,13 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 			: context.json({ validation: await diningStore.validate() });
 	});
 	app.post("/api/ops/dining/catalog/draft/rebase", async (context) => {
-		const operator = await admitDiningWrite(admission, context.req.raw);
+		const operator = await admitDiningWrite(admission, context.req.raw, publicOrigin);
 		return operator instanceof Response
 			? operator
 			: context.json({ draft: await diningStore.rebase(toDiningActor(operator)) });
 	});
 	app.post("/api/ops/dining/catalog/draft/commands", async (context) => {
-		const operator = await admitDiningWrite(admission, context.req.raw);
+		const operator = await admitDiningWrite(admission, context.req.raw, publicOrigin);
 		if (operator instanceof Response) {
 			return operator;
 		}
@@ -674,7 +624,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 			: jsonError("OPS_DINING_COMMAND_INVALID", "食堂草稿操作无效。", 400);
 	});
 	app.post("/api/ops/dining/catalog/publish", async (context) => {
-		const operator = await admitDiningWrite(admission, context.req.raw);
+		const operator = await admitDiningWrite(admission, context.req.raw, publicOrigin);
 		if (operator instanceof Response) {
 			return operator;
 		}
@@ -700,7 +650,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 			: jsonError("OPS_DINING_NOT_FOUND", "未找到该食堂发布。", 404);
 	});
 	app.post("/api/ops/dining/releases/:releaseId/rollback", async (context) => {
-		const operator = await admitDiningWrite(admission, context.req.raw);
+		const operator = await admitDiningWrite(admission, context.req.raw, publicOrigin);
 		if (operator instanceof Response) {
 			return operator;
 		}
@@ -737,7 +687,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 			: jsonError("OPS_DINING_NOT_FOUND", "未找到该评价。", 404);
 	});
 	app.post("/api/ops/dining/reviews/:reviewId/commands", async (context) => {
-		const operator = await admitDiningWrite(admission, context.req.raw);
+		const operator = await admitDiningWrite(admission, context.req.raw, publicOrigin);
 		if (operator instanceof Response) {
 			return operator;
 		}
@@ -784,37 +734,6 @@ function createDefaultDiningStore(env: DiningStoreEnv): DiningStore {
 		return createDiningStoreFromEnv(env);
 	} catch (error) {
 		return createUnavailableDiningStore(error);
-	}
-}
-
-function createDefaultProviderConfigService(env: OpsAppEnv): ProviderConfigService {
-	try {
-		return createProviderConfigService({
-			compatibility: createProviderConfigCompatibilityClient(env),
-			encryptionKey: env.OPS_WEB_PROVIDER_CONFIG_ENCRYPTION_KEY,
-			publisher: createProviderConfigPublisherFromEnv(env),
-			store: createProviderConfigStoreFromEnv(env),
-		});
-	} catch (error) {
-		const unavailable = async (): Promise<never> => {
-			throw new ProviderConfigError(
-				"provider_config_unavailable",
-				error instanceof Error ? error.message : "模型服务配置不可用。",
-				503,
-			);
-		};
-		return {
-			activate: unavailable,
-			createConnection: unavailable,
-			createProfile: unavailable,
-			listConnections: unavailable,
-			listProfiles: unavailable,
-			runtimeStatus: unavailable,
-			updateConnection: unavailable,
-			updateProfile: unavailable,
-			validate: unavailable,
-			verifyReadiness: unavailable,
-		};
 	}
 }
 
@@ -892,14 +811,14 @@ function createDefaultOpsStatusStore(env: OpsStatusEnv): OpsStatusStore {
 	}
 }
 
-function createDefaultOpenObserveClient(env: OpenObserveEnv): OpenObserveClient {
+function createDefaultAxiomClient(env: AxiomEnv): AxiomClient {
 	try {
-		return createOpenObserveClientFromEnv(env);
+		return createAxiomClientFromEnv(env);
 	} catch (error) {
 		const unavailable = async (): Promise<never> => {
-			throw error instanceof OpenObserveUnavailableError
+			throw error instanceof AxiomUnavailableError
 				? error
-				: new OpenObserveUnavailableError("OpenObserve client is unavailable.", { cause: error });
+				: new AxiomUnavailableError("Axiom client is unavailable.", { cause: error });
 		};
 		return { getTelemetrySnapshot: unavailable, queryRequest: unavailable };
 	}
@@ -927,6 +846,7 @@ async function admitOpsApiRequest(
 async function admitDiningWrite(
 	admission: OpsAdmission,
 	request: Request,
+	publicOrigin: string | null,
 ): Promise<OpsOperatorContext | Response> {
 	const operator = await admitOpsApiRequest(admission, request);
 	if (operator instanceof Response) {
@@ -935,38 +855,10 @@ async function admitDiningWrite(
 	if (operator.principalClass !== "human") {
 		return jsonError("OPS_DINING_WRITE_FORBIDDEN", "服务身份不能修改食堂数据。", 403);
 	}
-	if (!requestHasSameOrigin(request)) {
+	if (!requestHasConfiguredOrigin(request, publicOrigin)) {
 		return jsonError("OPS_DINING_ORIGIN_INVALID", "食堂修改请求来源无效。", 403);
 	}
 	return operator;
-}
-
-async function admitProviderConfigWrite(admission: OpsAdmission, request: Request) {
-	const operator = await admitOpsApiRequest(admission, request);
-	if (operator instanceof Response) {
-		return operator;
-	}
-	if (operator.principalClass !== "human") {
-		return jsonError("OPS_PROVIDER_CONFIG_WRITE_FORBIDDEN", "服务身份不能修改模型服务配置。", 403);
-	}
-	if (!requestHasSameOrigin(request)) {
-		return jsonError("OPS_PROVIDER_CONFIG_ORIGIN_INVALID", "模型服务配置请求来源无效。", 403);
-	}
-	return operator;
-}
-
-function toProviderActor(operator: OpsOperatorContext) {
-	return {
-		displayName: operator.displayName ?? operator.email ?? operator.operatorId,
-		principalId: operator.operatorId,
-	};
-}
-
-function recordBody(value: unknown): Record<string, unknown> {
-	if (!value || typeof value !== "object" || Array.isArray(value)) {
-		throw new ProviderConfigError("validation_failed", "请求正文必须是对象。", 400);
-	}
-	return value as Record<string, unknown>;
 }
 
 function toDiningActor(operator: OpsOperatorContext) {
@@ -989,17 +881,6 @@ function jsonError(
 		},
 		status,
 	});
-}
-
-function providerConfigHttpStatus(status: number): 400 | 403 | 404 | 409 | 422 | 500 | 503 {
-	return status === 400 ||
-		status === 403 ||
-		status === 404 ||
-		status === 409 ||
-		status === 422 ||
-		status === 503
-		? status
-		: 500;
 }
 
 function internalPortalAuthForbiddenResponse(): Response {
@@ -1042,18 +923,47 @@ async function readBoundedJson(request: Request, maxBytes: number): Promise<unkn
 	}
 }
 
-function requestHasSameOrigin(request: Request): boolean {
-	const origin = request.headers.get("origin");
+function isStaticAssetPath(path: string) {
+	return /\.[A-Za-z0-9]+$/.test(path.split("/").at(-1) ?? "");
+}
+
+function requestHasConfiguredOrigin(request: Request, publicOrigin: string | null) {
+	if (!publicOrigin) {
+		return false;
+	}
+	const fetchSite = request.headers.get("sec-fetch-site");
+	if (fetchSite && fetchSite !== "same-origin") {
+		return false;
+	}
+	const origin = request.headers.get("origin")?.trim();
 	if (!origin) {
 		return false;
 	}
 	try {
-		return new URL(origin).origin === new URL(request.url).origin;
+		return new URL(origin).origin === origin && origin === publicOrigin;
 	} catch {
 		return false;
 	}
 }
 
-function isStaticAssetPath(path: string) {
-	return /\.[A-Za-z0-9]+$/.test(path.split("/").at(-1) ?? "");
+function resolveOpsPublicOrigin(env: OpsHealthEnv): string | null {
+	const configured = env.OPS_WEB_PUBLIC_ORIGIN?.trim();
+	if (!configured) {
+		return null;
+	}
+	try {
+		const parsed = new URL(configured);
+		return parsed.protocol === "https:" && parsed.origin === configured ? parsed.origin : null;
+	} catch {
+		return null;
+	}
+}
+
+function providerCommandPathAllowed(path: string) {
+	return (
+		path === "/connections" ||
+		path === "/profiles" ||
+		path === "/activation" ||
+		/^\/profiles\/[A-Za-z0-9._:-]+\/validate$/u.test(path)
+	);
 }

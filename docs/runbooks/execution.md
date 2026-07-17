@@ -38,8 +38,9 @@ execution-control image digest，安装并验证 run projection schema；长期�
 非敏感 runtime config 由环境仓 ConfigMap 提供，secret 由环境选择的 secret backend 注入。私有
 registry 的 pull secret 由环境 overlay 绑定到 first-party ServiceAccount。
 
-provider active profile 由 Ops Web Provider Config 管理；runtime 消费经过验证的 v2 projection
-artifact。缺少 Secret、ConfigMap 或 projection 都是部署阻塞项。
+在线 Provider Config 由 execution-control 管理。runtime 使用 reader DSN 与版本化 keyring，
+独立 admin 服务使用 admin DSN 和 read/command token；缺少 required role、数据库或可解密 key
+都是部署阻塞项。Hindsight 与 eval provider 配置不进入在线 bundle。
 
 ## 健康与排查
 

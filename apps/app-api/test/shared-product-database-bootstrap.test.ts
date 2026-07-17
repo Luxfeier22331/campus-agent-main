@@ -28,10 +28,10 @@ describe("app-api shared product database bootstrap", () => {
 		]);
 	});
 
-	it("reads bootstrap env from the app-api operator connection only", () => {
+	it("reads bootstrap env from the app-api schema-admin connection only", () => {
 		const env = readSharedProductBootstrapEnv({
 			APP_API_DATABASE_SSLMODE: "require",
-			APP_API_OPERATOR_DATABASE_URL: "postgresql://db.example/campus_agent",
+			APP_API_SCHEMA_DATABASE_URL: "postgresql://db.example/campus_agent",
 			AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 			BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
 		} as NodeJS.ProcessEnv);

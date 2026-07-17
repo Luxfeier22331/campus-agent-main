@@ -2,15 +2,9 @@ export const CAMPUS_ALLOWED_APP_API_PATHS = [
 	"/.well-known/openid-configuration",
 	"/.well-known/oauth-authorization-server",
 	"/api/me",
-	"/api/me/overview",
-	"/api/me/identity",
-	"/api/me/access",
-	"/api/me/preferences",
 	"/api/me/profile-memory",
 	"/api/me/profile-memory/items",
 	"/api/me/profile-memory/settings",
-	"/api/me/security/sessions",
-	"/api/me/authorized-apps",
 	"/api/auth/sign-in/email",
 	"/api/auth/sign-up/email",
 	"/api/auth/sign-out",
@@ -36,7 +30,6 @@ export const CAMPUS_ALLOWED_APP_API_PATHS = [
 	"/api/dining/publication",
 	"/api/dining/search",
 	"/api/feedback",
-	"/api/telemetry/web-performance",
 ] as const;
 
 const STATIC_ALLOWED_PATHS = new Set<string>(CAMPUS_ALLOWED_APP_API_PATHS);
@@ -57,8 +50,6 @@ export function isAllowedCampusAppApiRequest(pathname: string): boolean {
 		/^\/api\/chat\/runs\/[^/]+\/events\/stream$/.test(pathname) ||
 		/^\/api\/chat\/runs\/[^/]+\/cancel$/.test(pathname) ||
 		/^\/api\/me\/profile-memory\/items\/[^/]+$/.test(pathname) ||
-		/^\/api\/me\/security\/sessions\/[^/]+$/.test(pathname) ||
-		/^\/api\/me\/authorized-apps\/[^/]+$/.test(pathname) ||
 		/^\/api\/docs\/collections\/[^/]+\/[^/]+\/navigation$/.test(pathname) ||
 		/^\/api\/docs\/collections\/[^/]+\/[^/]+\/documents\/[^/]+$/.test(pathname) ||
 		/^\/api\/docs\/collections\/[^/]+\/[^/]+\/documents\/[^/]+\/resolve$/.test(pathname) ||

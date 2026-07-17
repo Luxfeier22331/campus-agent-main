@@ -37,9 +37,47 @@ func setStagingPersonalMemoryEnv(t *testing.T) {
 	t.Setenv("PERSONAL_MEMORY_OWNER_SALT", "staging-memory-salt")
 }
 
+func setStagingLangfuseMaintenanceEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("LANGFUSE_MAINTENANCE_BASE_URL", "http://langfuse-web:3000")
+	t.Setenv("LANGFUSE_RUNTIME_MAINTENANCE_PUBLIC_KEY", "pk-runtime")
+	t.Setenv("LANGFUSE_RUNTIME_MAINTENANCE_SECRET_KEY", "sk-runtime")
+	t.Setenv("LANGFUSE_HINDSIGHT_MAINTENANCE_PUBLIC_KEY", "pk-hindsight")
+	t.Setenv("LANGFUSE_HINDSIGHT_MAINTENANCE_SECRET_KEY", "sk-hindsight")
+}
+
 func setStagingTemporalWorkflowIDSalt(t *testing.T) {
 	t.Helper()
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT", "staging-workflow-id-salt")
+	t.Setenv("EXECUTION_CONTROL_PROVIDER_CONFIG_KEYRING_PATH", "/run/provider-config/keyring.json")
+	t.Setenv("EXECUTION_CONTROL_PROVIDER_CONFIG_READER_DATABASE_URL", "postgresql://provider-config-reader")
+	t.Setenv("EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL", "https://api.example.test")
+	t.Setenv("EXECUTION_CONTROL_PRODUCT_CALLBACK_SHARED_SECRET", "product-callback-secret")
+}
+
+func TestProviderConfigAdminRoleDoesNotRequireOnlineRuntimeDependencies(t *testing.T) {
+	t.Setenv("EXECUTION_CONTROL_RUNTIME_MODE", "staging")
+	t.Setenv("EXECUTION_CONTROL_PROVIDER_CONFIG_ADMIN_DATABASE_URL", "postgresql://provider-config-admin")
+	t.Setenv("EXECUTION_CONTROL_PROVIDER_CONFIG_KEYRING_PATH", "/run/provider-config/keyring.json")
+	t.Setenv("EXECUTION_CONTROL_PROVIDER_CONFIG_ADMIN_READ_TOKEN", "provider-read-token")
+	t.Setenv("EXECUTION_CONTROL_PROVIDER_CONFIG_ADMIN_COMMAND_TOKEN", "provider-command-token")
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "")
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "")
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "")
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT", "")
+	t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", "")
+	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "")
+	t.Setenv("PERSONAL_MEMORY_BASE_URL", "")
+	t.Setenv("PERSONAL_MEMORY_API_SECRET", "")
+	t.Setenv("PERSONAL_MEMORY_OWNER_SALT", "")
+
+	config, err := LoadFromEnvForRole("provider-config-admin")
+	if err != nil {
+		t.Fatalf("LoadFromEnvForRole(provider-config-admin) returned error: %v", err)
+	}
+	if config.ProviderConfigAdminDatabaseURL != "postgresql://provider-config-admin" {
+		t.Fatalf("provider config admin database URL = %q", config.ProviderConfigAdminDatabaseURL)
+	}
 }
 
 func TestFromEnvUsesExecutionDefaults(t *testing.T) {
@@ -239,11 +277,15 @@ func TestLoadFromEnvForRoleScopesPersonalMemoryRequirements(t *testing.T) {
 		t.Fatalf("agent worker must not require personal memory config: %v", err)
 	}
 	setStagingPersonalMemoryEnv(t)
+	if _, err := LoadFromEnvForRole("execution-control"); err != nil {
+		t.Fatalf("execution-control must not require Langfuse maintenance keys: %v", err)
+	}
+	if _, err := LoadFromEnvForRole("activity-core"); err == nil {
+		t.Fatal("core worker must require both Langfuse maintenance projects")
+	}
+	setStagingLangfuseMaintenanceEnv(t)
 	if _, err := LoadFromEnvForRole("activity-core"); err != nil {
 		t.Fatalf("core worker must accept personal memory config: %v", err)
-	}
-	if _, err := LoadFromEnvForRole("execution-control"); err != nil {
-		t.Fatalf("execution-control must accept personal memory config: %v", err)
 	}
 }
 
@@ -592,7 +634,7 @@ func TestLoadFromEnvIgnoresLegacyLLMAliases(t *testing.T) {
 		t.Fatalf("LoadFromEnv returned error: %v", err)
 	}
 
-	if cfg.ProviderConfigSnapshotPath != "" {
+	if cfg.ProviderConfigReaderDatabaseURL != "" || cfg.ProviderConfigAdminDatabaseURL != "" || cfg.ProviderConfigKeyringPath != "" {
 		t.Fatalf("provider-config resolver env was inferred from LLM_*: %#v", cfg)
 	}
 }
@@ -605,7 +647,7 @@ func TestLoadFromEnvDoesNotTreatAgentRuntimeProviderAsProviderConfigResolver(t *
 		t.Fatalf("LoadFromEnv returned error: %v", err)
 	}
 
-	if cfg.ProviderConfigSnapshotPath != "" {
+	if cfg.ProviderConfigReaderDatabaseURL != "" || cfg.ProviderConfigAdminDatabaseURL != "" || cfg.ProviderConfigKeyringPath != "" {
 		t.Fatalf("provider-config resolver env was inferred from agent runtime provider: %#v", cfg)
 	}
 }

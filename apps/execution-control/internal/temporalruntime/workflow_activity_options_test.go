@@ -29,8 +29,8 @@ func TestMemoryActivityOptionsUseRuntimeConfigTimeoutAndHeartbeat(t *testing.T) 
 	if options.TaskQueue != ActivityTaskQueueCore {
 		t.Fatalf("memory activity queue = %q, want %q", options.TaskQueue, ActivityTaskQueueCore)
 	}
-	if options.StartToCloseTimeout != 90*time.Second {
-		t.Fatalf("memory activity StartToCloseTimeout = %s, want 90s", options.StartToCloseTimeout)
+	if options.StartToCloseTimeout != 120*time.Second {
+		t.Fatalf("memory activity StartToCloseTimeout = %s, want 120s", options.StartToCloseTimeout)
 	}
 	if options.HeartbeatTimeout != 30*time.Second {
 		t.Fatalf("memory activity HeartbeatTimeout = %s, want 30s", options.HeartbeatTimeout)
@@ -47,7 +47,32 @@ func TestMemoryActivityOptionsDefaultToGovernedTimeout(t *testing.T) {
 	base := defaultActivityOptions()
 
 	options := memoryActivityOptions(base, 0)
-	if options.StartToCloseTimeout != 90*time.Second {
-		t.Fatalf("memory activity default StartToCloseTimeout = %s, want 90s", options.StartToCloseTimeout)
+	if options.StartToCloseTimeout != 120*time.Second {
+		t.Fatalf("memory activity default StartToCloseTimeout = %s, want 120s", options.StartToCloseTimeout)
+	}
+}
+
+func TestPersonalMemoryCommandRetryPolicySeparatesPrivacyDeletesFromUpserts(t *testing.T) {
+	for _, commandKind := range []string{"owner_erase", "item_delete", "conversation_prune", "conversation_delete"} {
+		options := personalMemoryCommandProviderActivityOptions(commandKind)
+		if options.RetryPolicy == nil || options.RetryPolicy.MaximumAttempts != 0 {
+			t.Fatalf("%s maximum attempts = %#v, want unlimited", commandKind, options.RetryPolicy)
+		}
+	}
+	for _, commandKind := range []string{"item_upsert", "owner_transition"} {
+		options := personalMemoryCommandProviderActivityOptions(commandKind)
+		if options.RetryPolicy == nil || options.RetryPolicy.MaximumAttempts != 5 {
+			t.Fatalf("%s maximum attempts = %#v, want 5", commandKind, options.RetryPolicy)
+		}
+	}
+}
+
+func TestFinalizerActivitiesRetryUntilDurableSideEffectsComplete(t *testing.T) {
+	options := unlimitedFinalizerActivityOptions(15 * time.Second)
+	if options.TaskQueue != ActivityTaskQueueCore {
+		t.Fatalf("finalizer queue = %q, want %q", options.TaskQueue, ActivityTaskQueueCore)
+	}
+	if options.RetryPolicy == nil || options.RetryPolicy.MaximumAttempts != 0 {
+		t.Fatalf("finalizer retry policy = %#v, want unlimited", options.RetryPolicy)
 	}
 }

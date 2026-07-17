@@ -11,7 +11,7 @@ import {
 const app = createOpsApp({
 	admission: createAllowAllOpsAdmission({ email: "ops@example.test" }),
 	env: { OPS_WEB_RAW_HUMAN_OPERATOR_EMAIL_ALLOWLIST: "ops@example.test" },
-	openObserve: {
+	axiom: {
 		getTelemetrySnapshot: async () => opsOverviewFixture.telemetry,
 		queryRequest: async ({ kind }) =>
 			kind === "logs" ? opsLogObservabilityFixture : opsTraceObservabilityFixture,

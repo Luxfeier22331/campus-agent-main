@@ -25,15 +25,10 @@ export type {
 	ExecutionActorContext,
 	ExecutionAuthorizationContext,
 	ExecutionAuthorizationRetrievalFilter,
-	InternalEvalPrincipalInput,
 	ResolvedAppPrincipal,
 } from "./principal";
 export {
 	buildExecutionAuthorizationContext,
-	buildInternalEvalPrincipal,
-	hasMatchingInternalSecret,
-	hasTrustedInternalRequest,
-	mapOperatorHeadersToPrincipal,
 	mapSessionToAppPrincipal,
 	mapSessionToCampusMemberPrincipal,
 	resolveRequestPrincipal,

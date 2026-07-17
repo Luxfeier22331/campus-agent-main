@@ -39,7 +39,7 @@ describe("muc-wiki federation client provision", () => {
 		expect(input.postLogoutRedirectUris).toEqual(["https://muc.wiki/wiki/Special:UserLogout"]);
 	});
 
-	it("seeds app-owned product truth and Better Auth runtime client state", async () => {
+	it("seeds only the Better Auth runtime client registry", async () => {
 		const executeSql = vi.fn().mockResolvedValue({ rowCount: 1, rows: [] });
 
 		const summary = await provisionMucWikiFederationClient(
@@ -54,15 +54,13 @@ describe("muc-wiki federation client provision", () => {
 
 		expect(summary).toEqual({
 			clientId: "muc-wiki",
-			claimsPolicyId: "muc-wiki-default",
 			redirectUris: ["https://muc.wiki/wiki/Special:PluggableAuthLogin"],
 			postLogoutRedirectUris: ["https://muc.wiki/wiki/Special:UserLogout"],
 		});
-		expect(executeSql).toHaveBeenCalledTimes(3);
+		expect(executeSql).toHaveBeenCalledTimes(1);
 		const sqlText = executeSql.mock.calls.map((call) => String(call[0])).join("\n");
-		expect(sqlText).toContain('"identity"."federation_clients"');
-		expect(sqlText).toContain('"identity"."federation_claims_policies"');
 		expect(sqlText).toContain('"app_auth"."oauthClient"');
+		expect(sqlText).not.toContain('"identity".');
 		expect(sqlText).not.toContain("client-secret");
 
 		const runtimeClientCall = executeSql.mock.calls.find((call) =>

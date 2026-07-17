@@ -26,7 +26,6 @@ function createPrincipal(input: Partial<ResolvedAppPrincipal> = {}): ResolvedApp
 		},
 		permissions: {
 			chat: true,
-			operator: false,
 			...input.permissions,
 		},
 		principal: {
@@ -87,13 +86,12 @@ describe("chat conversation service", () => {
 				principal: createPrincipal({
 					permissions: {
 						chat: false,
-						operator: true,
 					},
 					principal: {
-						displayName: "Ops Team",
-						email: "ops@example.com",
-						principalId: "ops@example.com",
-						type: "operator",
+						displayName: "Internal Service",
+						email: null,
+						principalId: "service:test",
+						type: "service",
 					},
 					session: null,
 				}),

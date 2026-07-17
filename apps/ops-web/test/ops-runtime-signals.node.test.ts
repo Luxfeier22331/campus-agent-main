@@ -20,7 +20,7 @@ describe("ops runtime signals", () => {
 				"ops-web": "http://127.0.0.1:5178/healthz",
 			},
 			now: () => new Date("2026-07-09T06:30:00.000Z"),
-			openObserve: {
+			axiom: {
 				getTelemetrySnapshot: vi.fn().mockResolvedValue(opsOverviewFixture.telemetry),
 				queryRequest: vi.fn(),
 			},
@@ -42,7 +42,7 @@ describe("ops runtime signals", () => {
 			fetchFn: vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 200 })),
 			healthUrls: {},
 			now: () => new Date("2026-07-09T06:30:00.000Z"),
-			openObserve: {
+			axiom: {
 				getTelemetrySnapshot: vi.fn().mockResolvedValue(opsOverviewFixture.telemetry),
 				queryRequest: vi.fn(),
 			},

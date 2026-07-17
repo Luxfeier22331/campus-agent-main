@@ -45,7 +45,9 @@ func TestStageTimingForRunProjectsCanonicalExecutionFields(t *testing.T) {
 	assertStageTimingField(t, timing, "tool.total_ms", 490)
 	assertStageTimingField(t, timing, "tool.transport_schedule_lookup_ms", 140)
 	assertStageTimingField(t, timing, "knowledge.search_ms", 350)
-	assertStageTimingField(t, timing, "finalization.write_ms", 230)
+	if _, ok := timing["finalization.write_ms"]; ok {
+		t.Fatalf("stage_timing callback projection must exclude self-referential finalization.write_ms: %#v", timing)
+	}
 }
 
 func TestStageTimingForRunDoesNotSynthesizeUnexecutedStages(t *testing.T) {

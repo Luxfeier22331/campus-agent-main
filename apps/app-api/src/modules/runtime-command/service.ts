@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { type ChatConversation, DRAFT_CONVERSATION_TITLE, toConversationResponse } from "../chat";
 import {
 	ExecutionControlTransportError,
@@ -7,12 +9,14 @@ import {
 import { DEFAULT_PERSONAL_MEMORY_TENANT_ID } from "../personalization/tenant";
 import { runtimeRunPhaseFromExecutionStatus } from "../runtime-run";
 import { ensureLangfuseTraceParent } from "../telemetry/trace";
-
+import {
+	dispatchPendingChatAdmissions,
+	executionRunAdmissionTimestamp,
+} from "./admission-dispatcher";
 import {
 	startDurableFinalizationCloseout,
 	waitForDurableFinalizationResponse,
 } from "./service/durable";
-import { reconcileDurableCloseouts } from "./service/durable-closeout";
 import { buildToolExecutionRunMetadata } from "./service/durable-metadata";
 import {
 	buildAbuseThrottleRejectedResponse,
@@ -26,9 +30,11 @@ import {
 	extractSourceDocIds,
 	resolveValidatedPayload,
 } from "./service/normalize";
+import { acceptedCloseoutContext } from "./service/product-finalization";
 import { toTerminalChatStreamEvent } from "./service/stream";
 import {
 	type AcceptedChatCommandContext,
+	type ChatCommandResponse,
 	type ChatCommandService,
 	type ChatCommandServiceDependencies,
 	type ChatCommandStreamEvent,
@@ -41,6 +47,7 @@ import {
 	buildFinalizedWrite,
 	buildToolExecutionContextProjection,
 } from "./service/writes";
+import { ChatFinalizationConflict } from "./store-types";
 
 export { deriveSafetyIdentifier } from "./service/normalize";
 export type {
@@ -149,6 +156,7 @@ export function buildChatCommandService(
 		const safetyIdentifier = deriveSafetyIdentifierForPrincipal(input.principal);
 		const acceptedAt = now().toISOString();
 		const userMessageId = generateId("msg");
+		const assistantMessageId = generateId("msg");
 		const branchId = conversation?.activeBranchId ?? "branch_active";
 
 		let conversationSeed:
@@ -190,6 +198,8 @@ export function buildChatCommandService(
 			Math.max(conversation.activeTurnSequence ?? 0, conversation.messages.length) + 1;
 		const conversationTitle = buildConversationTitle(conversation.title, validatedPayload.prompt);
 		const acceptedWrite = buildAcceptedWrite({
+			assistantMessageId,
+			captureMemorySnapshot: dependencies.profileMemoryStore !== undefined,
 			branchId,
 			conversation,
 			conversationSeed,
@@ -223,7 +233,7 @@ export function buildChatCommandService(
 			traceId,
 		});
 
-		await dependencies.store.acceptRequest(acceptedWrite);
+		const acceptedState = await dependencies.store.acceptRequest(acceptedWrite);
 
 		await telemetry?.recordRequestAccepted({
 			actor: {
@@ -243,11 +253,13 @@ export function buildChatCommandService(
 			kind: "accepted",
 			value: {
 				acceptedAt,
+				assistantMessageId,
 				branchId,
 				conversation,
 				conversationTitle,
 				idempotencyKey,
 				input,
+				memorySnapshot: acceptedState.memorySnapshot,
 				requestFingerprintSha256,
 				requestId,
 				runId,
@@ -266,18 +278,6 @@ export function buildChatCommandService(
 	async function buildExecutionInput(
 		context: AcceptedChatCommandContext,
 	): Promise<ToolExecutionInput> {
-		const profileMemorySummary = dependencies.profileMemoryStore
-			? await dependencies.profileMemoryStore
-					.loadSummary({ ownerUserId: context.input.principal.actor.userId })
-					.catch((error) => {
-						telemetry?.captureException(error, {
-							route: "/api/chat/requests",
-							surface: context.surface,
-							traceId: context.traceId,
-						});
-						return null;
-					})
-			: null;
 		const traceHeaders = ensureLangfuseTraceParent(
 			context.input.traceHeaders ?? telemetry?.getTraceHeaders(),
 			context.traceId,
@@ -296,7 +296,14 @@ export function buildChatCommandService(
 				currentUserMessageContent: context.validatedPayload.prompt,
 				currentUserMessageCreatedAt: context.acceptedAt,
 				currentUserMessageId: context.userMessageId,
-				memory: profileMemorySummary ? { enabled: profileMemorySummary.enabled } : null,
+				memory: context.memorySnapshot
+					? {
+							appendEnabled: context.memorySnapshot.appendEnabled,
+							ownerGeneration: context.memorySnapshot.ownerGeneration,
+							ownerSequence: context.memorySnapshot.ownerSequence,
+							recallEnabled: context.memorySnapshot.recallEnabled,
+						}
+					: null,
 				previousToolResults,
 				sessionSlots: context.conversation.sessionSlots,
 				turnCount: context.conversation.messages.length + 1,
@@ -314,11 +321,13 @@ export function buildChatCommandService(
 	}
 
 	async function createDurableRunForAcceptedCommand(context: AcceptedChatCommandContext): Promise<{
+		pendingAdmission: boolean;
 		response: ToolExecutionResponse | null;
 		transportError: { code: string; retryable: boolean } | null;
 	}> {
 		if (!dependencies.executionRuntime) {
 			return {
+				pendingAdmission: false,
 				response: null,
 				transportError: null,
 			};
@@ -335,7 +344,7 @@ export function buildChatCommandService(
 		const executionInput = await buildExecutionInput(context);
 		try {
 			const durableMetadata = buildToolExecutionRunMetadata(executionInput);
-			const run = await dependencies.executionRuntime.createRun({
+			const admissionInput = {
 				conversationId: context.conversation.id,
 				metadata: durableMetadata,
 				ownerUserId: context.input.principal.actor.userId,
@@ -348,19 +357,44 @@ export function buildChatCommandService(
 				traceHeaders: executionInput.traceHeaders,
 				traceId: context.traceId,
 				turnId: context.turnId,
+			};
+			const workflowId = `campus-agent.chat.${context.runId}`;
+			const workflowInputSha256 = createHash("sha256")
+				.update(JSON.stringify(admissionInput), "utf8")
+				.digest("hex");
+			const recorded = await dependencies.store.recordAdmissionInput({
+				requestId: context.requestId,
+				updatedAt: now().toISOString(),
+				workflowId,
+				workflowInput: admissionInput,
+				workflowInputSha256,
+			});
+			if (!recorded) {
+				throw new Error("Chat admission input could not be frozen from pending_input state.");
+			}
+			const run = await dependencies.executionRuntime.createRun(admissionInput);
+			await dependencies.store.markAdmitted({
+				admittedAt: executionRunAdmissionTimestamp(run),
+				requestId: context.requestId,
+				workflowId,
 			});
 			context.runPhase = runtimeRunPhaseFromExecutionStatus(run.status);
 			return {
+				pendingAdmission: false,
 				response: null,
 				transportError: null,
 			};
 		} catch (error) {
 			const handled = toHandledErrorTransportOutcome(error);
+			const pendingAdmission = error instanceof ExecutionControlTransportError && error.retryable;
 			return {
-				response: {
-					...handled,
-					traceId: context.traceId,
-				},
+				pendingAdmission,
+				response: pendingAdmission
+					? null
+					: {
+							...handled,
+							traceId: context.traceId,
+						},
 				transportError: {
 					code: handled.error.code,
 					retryable: handled.error.retryable,
@@ -425,10 +459,9 @@ export function buildChatCommandService(
 						new Date(input.executionFinalizationReceivedAt).valueOf(),
 				)
 			: null;
-		const assistantMessageId = generateId("msg");
 		const finalized = buildFinalizedWrite({
 			allowedPublicNoticeHosts: dependencies.publicNoticeURLAllowlist,
-			assistantMessageId,
+			assistantMessageId: context.assistantMessageId,
 			branchId: context.branchId,
 			completedAt,
 			conversation: context.conversation,
@@ -484,6 +517,63 @@ export function buildChatCommandService(
 		};
 	}
 
+	async function readProductFinalizedCommand(input: {
+		context: AcceptedChatCommandContext;
+		executionResponse: ToolExecutionResponse;
+	}): Promise<ChatCommandResponse> {
+		const { context } = input;
+		const completedAt = now().toISOString();
+		const finalized = buildFinalizedWrite({
+			allowedPublicNoticeHosts: dependencies.publicNoticeURLAllowlist,
+			assistantMessageId: context.assistantMessageId,
+			branchId: context.branchId,
+			completedAt,
+			conversation: context.conversation,
+			conversationTitle: context.conversationTitle,
+			durationMs: Math.max(
+				0,
+				new Date(completedAt).valueOf() - new Date(context.acceptedAt).valueOf(),
+			),
+			principal: context.input.principal,
+			requestId: context.requestId,
+			requestedTool: context.validatedPayload.requestedTool,
+			response: input.executionResponse,
+			runId: context.runId,
+			safetyIdentifier: context.safetyIdentifier,
+			surface: context.surface,
+			startedAt: context.acceptedAt,
+			traceId: context.traceId,
+			turnSequence: context.turnSequence,
+			userMessageId: context.userMessageId,
+		});
+		const conversation = await dependencies.conversationStore.getConversationByOwner(
+			context.input.principal.principal.principalId,
+			context.conversation.id,
+		);
+		if (
+			!conversation?.messages.some(
+				(message) =>
+					message.role === "assistant" &&
+					message.requestId === context.requestId &&
+					message.runId === context.runId,
+			)
+		) {
+			throw createPreAcceptError({
+				code: "product_finalization_missing",
+				message: "Finalized conversation projection is unavailable.",
+				retryable: true,
+				status: 503,
+			});
+		}
+		return {
+			...finalized.responseBody,
+			answer: {
+				conversation: toConversationResponse(conversation),
+				result: finalized.responseBody.answer.result,
+			},
+		};
+	}
+
 	function acceptedStreamEvent(context: AcceptedChatCommandContext): ChatCommandStreamEvent {
 		return {
 			data: {
@@ -512,6 +602,7 @@ export function buildChatCommandService(
 		executionRuntime: NonNullable<ChatCommandServiceDependencies["executionRuntime"]>;
 	}): Promise<{
 		response: ToolExecutionResponse;
+		terminalObserved: boolean;
 		transportError: { code: string; retryable: boolean } | null;
 	}> {
 		try {
@@ -534,6 +625,7 @@ export function buildChatCommandService(
 			const handled = toHandledErrorTransportOutcome(error);
 			return {
 				response: handled,
+				terminalObserved: false,
 				transportError: {
 					code: handled.error.code,
 					retryable: handled.error.retryable,
@@ -555,15 +647,85 @@ export function buildChatCommandService(
 	}
 
 	return {
-		async reconcileDurableCloseouts(input = {}) {
-			return reconcileDurableCloseouts({
-				dependencies,
-				finalizeAcceptedCommand,
-				now,
-				reconcileInput: input,
+		async dispatchPendingAdmissions() {
+			if (!dependencies.executionRuntime) {
+				return { admitted: 0, failed: 0, processed: 0 };
+			}
+			return dispatchPendingChatAdmissions({
+				executionRuntime: dependencies.executionRuntime,
+				store: dependencies.store,
 			});
 		},
-
+		async applyProductFinalization(input) {
+			const candidates = await dependencies.store.listAcceptedDurableRequestsForCloseout({
+				limit: 1,
+				runId: input.runId,
+				startedBefore: input.completedAt,
+			});
+			const candidate = candidates[0];
+			if (!candidate) {
+				throw createPreAcceptError({
+					code: "request_not_found",
+					message: "Accepted chat request was not found for product finalization.",
+					status: 404,
+				});
+			}
+			if (
+				candidate.finalizationFingerprint &&
+				candidate.finalizationFingerprint !== input.finalizationFingerprint
+			) {
+				throw new ChatFinalizationConflict();
+			}
+			if (input.response.traceId !== candidate.traceId) {
+				throw new ChatFinalizationConflict();
+			}
+			const replayed = candidate.finalizationFingerprint === input.finalizationFingerprint;
+			const context = acceptedCloseoutContext(candidate);
+			const durationMs = Math.max(
+				0,
+				new Date(input.completedAt).valueOf() - new Date(candidate.acceptedAt).valueOf(),
+			);
+			const finalized = buildFinalizedWrite({
+				allowedPublicNoticeHosts: dependencies.publicNoticeURLAllowlist,
+				assistantMessageId: candidate.assistantMessageId,
+				branchId: context.branchId,
+				completedAt: input.completedAt,
+				conversation: context.conversation,
+				conversationTitle: context.conversationTitle,
+				durationMs,
+				principal: context.input.principal,
+				requestId: context.requestId,
+				requestedTool: context.validatedPayload.requestedTool,
+				response: input.response,
+				runId: context.runId,
+				safetyIdentifier: context.safetyIdentifier,
+				surface: context.surface,
+				startedAt: context.acceptedAt,
+				traceId: context.traceId,
+				turnSequence: context.turnSequence,
+				userMessageId: context.userMessageId,
+			});
+			finalized.write.finalizationFingerprint = input.finalizationFingerprint;
+			await dependencies.store.finalizeRequest(finalized.write);
+			await telemetry?.recordRequestFinalized({
+				conversationId: context.conversation.id,
+				durationMs,
+				errorCode: finalized.write.turnDispatch.errorCode,
+				principalType: context.input.principal.principal.type,
+				requestId: context.requestId,
+				requestedTool: context.validatedPayload.requestedTool,
+				resolvedTargets: finalized.write.turnDispatch.resolvedTargets,
+				retryable: finalized.write.assistantMessage.retryable,
+				safetyIdentifier: context.safetyIdentifier,
+				selectedTool: finalized.write.turnDispatch.selectedTool,
+				sourceDocIds: extractSourceDocIds(input.response.result),
+				stageTiming: finalized.write.requestObservabilityFact.stageTiming,
+				status: finalized.write.turnDispatch.status,
+				surface: context.surface,
+				traceId: context.traceId,
+			});
+			return { outcome: replayed ? "replayed" : "applied" };
+		},
 		async submit(input) {
 			const accepted = await acceptCommand(input);
 			if (accepted.kind === "existing") {
@@ -578,6 +740,15 @@ export function buildChatCommandService(
 				});
 			}
 			const durableRunCreate = await createDurableRunForAcceptedCommand(accepted.value);
+			if (durableRunCreate.pendingAdmission) {
+				throw createPreAcceptError({
+					code: "admission_pending",
+					details: { requestId: accepted.value.requestId, runId: accepted.value.runId },
+					message: "The request was accepted and is waiting for execution admission.",
+					retryable: true,
+					status: 503,
+				});
+			}
 			if (durableRunCreate.response) {
 				return finalizeAcceptedCommand({
 					context: accepted.value,
@@ -591,10 +762,18 @@ export function buildChatCommandService(
 					context: accepted.value,
 					executionRuntime,
 				});
-				return finalizeAcceptedCommand({
+				if (!execution.terminalObserved) {
+					throw createPreAcceptError({
+						code: "execution_status_pending",
+						details: { requestId: accepted.value.requestId, runId: accepted.value.runId },
+						message: "The request is still running and can be resumed.",
+						retryable: true,
+						status: 504,
+					});
+				}
+				return readProductFinalizedCommand({
 					context: accepted.value,
 					executionResponse: execution.response,
-					transportError: execution.transportError,
 				});
 			}
 			throw createPreAcceptError({
@@ -629,6 +808,20 @@ export function buildChatCommandService(
 			const executionRuntime = dependencies.executionRuntime;
 			if (executionRuntime) {
 				const durableRunCreate = await createDurableRunForAcceptedCommand(context);
+				if (durableRunCreate.pendingAdmission) {
+					yield acceptedStreamEvent(context);
+					yield {
+						data: {
+							occurredAt: now().toISOString(),
+							requestId: context.requestId,
+							runId: context.runId,
+							status: "pending_admission",
+							traceId: context.traceId,
+						},
+						event: "execution.queued",
+					};
+					return;
+				}
 				if (durableRunCreate.response) {
 					const finalized = await finalizeAcceptedCommand({
 						context,
@@ -644,7 +837,8 @@ export function buildChatCommandService(
 
 				const closeout = startDurableFinalizationCloseout({
 					context,
-					finalizeAcceptedCommand,
+					finalizeAcceptedCommand: ({ context: closeoutContext, executionResponse }) =>
+						readProductFinalizedCommand({ context: closeoutContext, executionResponse }),
 					listRunEvents: (afterSequence, waitMs) =>
 						executionRuntime.listRunEvents({
 							afterSequence,

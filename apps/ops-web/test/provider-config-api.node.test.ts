@@ -1,88 +1,102 @@
 // @vitest-environment node
 
-import { ProviderConfigError } from "@campus-agent/provider-config";
 import { describe, expect, it, vi } from "vitest";
-import { createOpsApp } from "../src/server/app.ts";
-import { createAllowAllOpsAdmission } from "../src/server/ops-admission.ts";
-import type { ProviderConfigService } from "../src/server/provider-config-service.ts";
+import { createOpsApp } from "../src/server/app";
+import { createAllowAllOpsAdmission } from "../src/server/ops-admission";
+import { ProviderConfigAdminResponseError } from "../src/server/provider-config-client";
 
-describe("provider config API", () => {
-	it("allows service identities to read but never mutate provider config", async () => {
-		const service = providerService();
+const status = {
+	activeRevision: 0,
+	connections: [],
+	profiles: [],
+	roles: [
+		{ configured: false, role: "primary_agent" as const },
+		{ configured: false, role: "rag_query_embedding" as const },
+		{ configured: false, role: "rag_reranker" as const },
+	],
+	sampledAt: "2026-07-14T10:00:00.000Z",
+};
+
+describe("ops provider config BFF", () => {
+	it("keeps service principals read-only", async () => {
+		const command = vi.fn();
 		const app = createOpsApp({
-			admission: createAllowAllOpsAdmission({ principalClass: "service", serviceId: "ops-reader" }),
-			providerConfigService: service,
-		});
-
-		expect((await app.request("/api/ops/provider-config/connections")).status).toBe(200);
-		const write = await app.request(
-			"https://ops.example.test/api/ops/provider-config/connections",
-			{
-				body: "{}",
-				headers: { "content-type": "application/json", origin: "https://ops.example.test" },
-				method: "POST",
+			admission: createAllowAllOpsAdmission({ principalClass: "service", serviceId: "smoke" }),
+			env: {
+				OPS_WEB_PROVIDER_CONFIG_WRITE_HUMAN_EMAIL_ALLOWLIST: "ops@example.test",
+				OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test",
 			},
-		);
-
+			providerConfigClient: { command, getStatus: async () => status },
+		});
+		const read = await app.request("http://ops.test/api/ops/provider-config");
+		expect(read.status).toBe(200);
+		expect(await read.json()).toMatchObject({ writeAllowed: false });
+		const write = await app.request("http://ops.test/api/ops/provider-config/connections", {
+			body: "{}",
+			headers: { "content-type": "application/json", origin: "http://ops.test" },
+			method: "POST",
+		});
 		expect(write.status).toBe(403);
-		expect(service.createConnection).not.toHaveBeenCalled();
+		expect(command).not.toHaveBeenCalled();
 	});
 
-	it("projects the human actor and preserves 422 validation responses", async () => {
-		const service = providerService();
-		vi.mocked(service.createConnection).mockRejectedValueOnce(
-			new ProviderConfigError("validation_failed", "baseUrl 无效。", 422, { field: "baseUrl" }),
+	it("requires same-origin writes from an allowlisted human", async () => {
+		const command = vi.fn().mockResolvedValue({ connection: { connectionId: "connection_1" } });
+		const app = createOpsApp({
+			admission: createAllowAllOpsAdmission({ email: "ops@example.test", principalClass: "human" }),
+			env: {
+				OPS_WEB_PROVIDER_CONFIG_WRITE_HUMAN_EMAIL_ALLOWLIST: "ops@example.test",
+				OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test",
+			},
+			providerConfigClient: { command, getStatus: async () => status },
+		});
+		const rejected = await app.request("http://ops.test/api/ops/provider-config/connections", {
+			body: "{}",
+			headers: { "content-type": "application/json", origin: "http://attacker.test" },
+			method: "POST",
+		});
+		expect(rejected.status).toBe(403);
+		const accepted = await app.request("http://ops-web:5178/api/ops/provider-config/connections", {
+			body: JSON.stringify({ provider: "openai" }),
+			headers: {
+				"content-type": "application/json",
+				"idempotency-key": "cmd-1",
+				origin: "https://ops.example.test",
+				"sec-fetch-site": "same-origin",
+			},
+			method: "POST",
+		});
+		expect(accepted.status).toBe(200);
+		expect(command).toHaveBeenCalledWith(
+			"/connections",
+			{ provider: "openai" },
+			"ops@example.test",
+			"cmd-1",
+		);
+	});
+
+	it("preserves provider admin response status and body", async () => {
+		const upstream = new Response(
+			JSON.stringify({
+				error: { code: "provider_activation_conflict", message: "revision conflict" },
+			}),
+			{ headers: { "content-type": "application/json" }, status: 409 },
 		);
 		const app = createOpsApp({
-			admission: createAllowAllOpsAdmission({
-				displayName: "值班员",
-				operatorId: "operator-1",
-			}),
-			providerConfigService: service,
-		});
-
-		const response = await app.request(
-			"https://ops.example.test/api/ops/provider-config/connections",
-			{
-				body: JSON.stringify({ baseUrl: "invalid" }),
-				headers: { "content-type": "application/json", origin: "https://ops.example.test" },
-				method: "POST",
+			admission: createAllowAllOpsAdmission(),
+			providerConfigClient: {
+				command: vi.fn(),
+				getStatus: async () => {
+					throw new ProviderConfigAdminResponseError(upstream);
+				},
 			},
-		);
-
-		expect(response.status).toBe(422);
-		await expect(response.json()).resolves.toEqual({
-			error: { code: "validation_failed", field: "baseUrl", message: "baseUrl 无效。" },
 		});
-		expect(service.createConnection).toHaveBeenCalledWith(
-			{ baseUrl: "invalid" },
-			{ displayName: "值班员", principalId: "operator-1" },
-		);
+
+		const response = await app.request("http://ops.test/api/ops/provider-config");
+
+		expect(response.status).toBe(409);
+		expect(await response.json()).toEqual({
+			error: { code: "provider_activation_conflict", message: "revision conflict" },
+		});
 	});
 });
-
-function providerService(): ProviderConfigService {
-	return {
-		activate: vi.fn(),
-		createConnection: vi.fn(),
-		createProfile: vi.fn(),
-		listConnections: vi.fn(async () => ({ connections: [] })),
-		listProfiles: vi.fn(async () => ({ profiles: [], runtime: emptyRuntime() })),
-		runtimeStatus: vi.fn(async () => emptyRuntime()),
-		updateConnection: vi.fn(),
-		updateProfile: vi.fn(),
-		validate: vi.fn(),
-		verifyReadiness: vi.fn(async () => undefined),
-	};
-}
-
-function emptyRuntime() {
-	return {
-		configured: false,
-		digest: null,
-		profiles: {},
-		publicationId: null,
-		publishedAt: null,
-		publishedBy: null,
-	};
-}

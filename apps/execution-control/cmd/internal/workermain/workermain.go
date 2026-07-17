@@ -65,6 +65,9 @@ func run(role Role, logger *slog.Logger) error {
 		return fmt.Errorf("connect temporal client: %w", err)
 	}
 	defer temporalClient.Close()
+	if err := ensureRoleSchedules(ctx, role, cfg, temporalClient.ScheduleClient()); err != nil {
+		return fmt.Errorf("ensure temporal schedules: %w", err)
+	}
 	runtimeWorker, err := buildWorker(
 		role,
 		cfg,
@@ -88,6 +91,28 @@ func run(role Role, logger *slog.Logger) error {
 	}
 	logger.Info("campus execution worker stopped", "role", string(role))
 	return nil
+}
+
+func ensureRoleSchedules(
+	ctx context.Context,
+	role Role,
+	cfg config.Config,
+	schedules temporalruntime.ScheduleManager,
+) error {
+	if role != RoleWorkflow {
+		return nil
+	}
+	timeout := time.Duration(cfg.TemporalStartTimeoutMS) * time.Millisecond
+	if timeout <= 0 {
+		timeout = 5 * time.Second
+	}
+	ensureCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	return temporalruntime.EnsureLangfuseTraceRetentionSchedule(
+		ensureCtx,
+		schedules,
+		cfg.TemporalTaskQueue,
+	)
 }
 
 func buildWorker(

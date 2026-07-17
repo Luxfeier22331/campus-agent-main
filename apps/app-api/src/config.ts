@@ -1,7 +1,7 @@
 export type AppApiEnvironment = "development" | "test" | "staging" | "production";
 export type DatabaseSslMode = "disable" | "prefer" | "require";
 export const DEFAULT_EXECUTION_CONTROL_TIMEOUT_MS = 30_000;
-export const DEFAULT_EXECUTION_CONTROL_EVAL_TIMEOUT_MS = 30_000;
+export const DEFAULT_PROFILE_MEMORY_COMMAND_TIMEOUT_MS = 120_000;
 
 export interface HyperdriveBindingLike {
 	connectionString?: string;
@@ -21,24 +21,16 @@ export interface Env {
 	AUTH_RESET_EMAIL_FROM?: string;
 	AUTH_RESET_EMAIL_REPLY_TO?: string;
 	EXECUTION_CONTROL_BASE_URL?: string;
-	EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET?: string;
 	EXECUTION_CONTROL_PRIVATE?: WorkerFetchBindingLike;
 	EXECUTION_CONTROL_PRIVATE_ORIGIN?: string;
 	EXECUTION_CONTROL_SHARED_SECRET?: string;
 	EXECUTION_CONTROL_TIMEOUT_MS?: string;
-	EXECUTION_CONTROL_EVAL_TIMEOUT_MS?: string;
-	INGESTION_CONTROL_BASE_URL?: string;
-	INGESTION_CONTROL_APP_API_PROJECTION_TOKEN?: string;
-	APP_API_OPERATOR_DATABASE_URL?: string;
 	APP_API_DATABASE_SSLMODE?: DatabaseSslMode;
+	APP_API_SCHEMA_DATABASE_URL?: string;
 	APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST?: string;
 	APP_API_END_USER_EMAIL_ALLOWLIST?: string;
-	APP_API_OPERATOR_EMAIL_ALLOWLIST?: string;
 	APP_API_PUBLIC_NOTICE_URL_ALLOWLIST?: string;
-	APP_API_OPERATOR_SERVICE_ID_ALLOWLIST?: string;
-	APP_API_OPERATOR_ISSUE_LINK_TEMPLATE?: string;
-	APP_API_OPERATOR_TRACE_LINK_TEMPLATE?: string;
-	APP_API_INTERNAL_SHARED_SECRET?: string;
+	APP_API_PRODUCT_CALLBACK_SHARED_SECRET?: string;
 	APP_API_STAGING_SMOKE_AUTH_SECRET?: string;
 	APP_API_SAFETY_IDENTIFIER_HMAC_SECRET?: string;
 	OBJECT_STORE_ACCESS_KEY?: string;
@@ -49,9 +41,8 @@ export interface Env {
 	OBJECT_STORE_ENDPOINT?: string;
 	OBJECT_STORE_REGION?: string;
 	OBJECT_STORE_SECRET_KEY?: string;
-	APP_API_OTEL_INGEST_ENDPOINT?: string;
-	APP_API_OTEL_INGEST_SHARED_SECRET?: string;
-	APP_API_DURABLE_CLOSEOUT_SWEEPER_ENABLED?: string;
+	APP_API_PROFILE_MEMORY_COMMAND_SWEEPER_ENABLED?: string;
+	APP_API_PROFILE_MEMORY_COMMAND_TIMEOUT_MS?: string;
 	SENTRY_DSN?: string;
 	SENTRY_ENVIRONMENT?: string;
 	SENTRY_RELEASE?: string;
@@ -70,15 +61,12 @@ export interface AppApiConfig {
 	authResetEmailReplyTo?: string;
 	databaseConnectionString: string;
 	databaseSslMode: DatabaseSslMode;
-	operatorDatabaseUrl?: string;
-	internalSharedSecret: string;
+	productCallbackSharedSecret: string;
 	endUserEmailDomainAllowlist: string[];
 	endUserEmailAllowlist: string[];
-	operatorEmailAllowlist: string[];
 	executionControlBaseUrl: string;
 	executionControlSharedSecret: string;
 	executionControlTimeoutMs: number;
-	executionControlEvalTimeoutMs: number;
 }
 
 export interface AppAuthConfig {
@@ -104,8 +92,7 @@ const MISSING_CONFIG_KEYS = [
 	"EXECUTION_CONTROL_UPSTREAM",
 	"EXECUTION_CONTROL_SHARED_SECRET",
 	"APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST",
-	"APP_API_OPERATOR_EMAIL_ALLOWLIST",
-	"APP_API_INTERNAL_SHARED_SECRET",
+	"APP_API_PRODUCT_CALLBACK_SHARED_SECRET",
 ] as const;
 const MISSING_AUTH_CONFIG_KEYS = [
 	"BETTER_AUTH_SECRET",
@@ -206,11 +193,8 @@ export function getMissingRuntimeConfig(env: Env): string[] {
 	if (parseCsvList(env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST).length === 0) {
 		missing.push(MISSING_CONFIG_KEYS[7]);
 	}
-	if (parseCsvList(env.APP_API_OPERATOR_EMAIL_ALLOWLIST).length === 0) {
+	if (!env.APP_API_PRODUCT_CALLBACK_SHARED_SECRET?.trim()) {
 		missing.push(MISSING_CONFIG_KEYS[8]);
-	}
-	if (!env.APP_API_INTERNAL_SHARED_SECRET?.trim()) {
-		missing.push(MISSING_CONFIG_KEYS[9]);
 	}
 
 	return missing;
@@ -317,9 +301,9 @@ export function readAppApiConfig(env: Env): AppApiConfig {
 		env.APP_API_DB?.connectionString,
 		"APP_API_DB.connectionString",
 	);
-	const internalSharedSecret = readRequiredTrimmedValue(
-		env.APP_API_INTERNAL_SHARED_SECRET,
-		"APP_API_INTERNAL_SHARED_SECRET",
+	const productCallbackSharedSecret = readRequiredTrimmedValue(
+		env.APP_API_PRODUCT_CALLBACK_SHARED_SECRET,
+		"APP_API_PRODUCT_CALLBACK_SHARED_SECRET",
 	);
 	const environment = resolveEnvironment(env);
 	const executionControlBaseUrl = isDeployedEnvironment(environment)
@@ -336,17 +320,11 @@ export function readAppApiConfig(env: Env): AppApiConfig {
 		env.EXECUTION_CONTROL_TIMEOUT_MS,
 		DEFAULT_EXECUTION_CONTROL_TIMEOUT_MS,
 	);
-	const executionControlEvalTimeoutMs = parsePositiveInteger(
-		env.EXECUTION_CONTROL_EVAL_TIMEOUT_MS,
-		DEFAULT_EXECUTION_CONTROL_EVAL_TIMEOUT_MS,
-	);
-
 	return {
 		...authConfig,
 		databaseConnectionString,
 		databaseSslMode: resolveDatabaseSslMode(env),
-		internalSharedSecret,
-		operatorDatabaseUrl: env.APP_API_OPERATOR_DATABASE_URL?.trim() || undefined,
+		productCallbackSharedSecret,
 		endUserEmailDomainAllowlist: parseCsvList(env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST).map(
 			(item) => item.toLowerCase(),
 		),
@@ -356,9 +334,5 @@ export function readAppApiConfig(env: Env): AppApiConfig {
 		executionControlBaseUrl,
 		executionControlSharedSecret,
 		executionControlTimeoutMs,
-		executionControlEvalTimeoutMs,
-		operatorEmailAllowlist: parseCsvList(env.APP_API_OPERATOR_EMAIL_ALLOWLIST).map((item) =>
-			item.toLowerCase(),
-		),
 	};
 }

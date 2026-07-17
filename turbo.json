@@ -37,8 +37,10 @@
 			"outputs": []
 		},
 		"test:migration-integration": {
-			"cache": false,
-			"passThroughEnv": ["APP_API_MIGRATION_TEST_DATABASE_URL"]
+			"cache": false
+		},
+		"test:database-integration": {
+			"cache": false
 		},
 		"test:worker": {
 			"dependsOn": ["^test"],
@@ -83,7 +85,7 @@
 				"$TURBO_ROOT$/configs/runtime/latency-budgets.v1.json",
 				"$TURBO_ROOT$/configs/sources/official_web/muc_public/target-inventory.json",
 				"$TURBO_ROOT$/scripts/deploy/**",
-				"$TURBO_ROOT$/scripts/smoke/app-api.ts"
+				"$TURBO_ROOT$/scripts/smoke/**"
 			],
 			"outputLogs": "new-only"
 		},
@@ -99,7 +101,7 @@
 				"$TURBO_ROOT$/packages/contracts/fixtures/tool_execution_contract/**",
 				"$TURBO_ROOT$/packages/eval-langfuse/test/fixtures/langfuse_trace_id_vectors.json",
 				"$TURBO_ROOT$/scripts/deploy/**",
-				"$TURBO_ROOT$/scripts/smoke/app-api.ts"
+				"$TURBO_ROOT$/scripts/smoke/**"
 			],
 			"outputLogs": "new-only"
 		},
@@ -119,7 +121,7 @@
 				"$TURBO_ROOT$/configs/sources/official_web/muc_public/target-inventory.json",
 				"$TURBO_ROOT$/package.json",
 				"$TURBO_ROOT$/scripts/deploy/**",
-				"$TURBO_ROOT$/scripts/smoke/app-api.ts"
+				"$TURBO_ROOT$/scripts/smoke/**"
 			],
 			"outputLogs": "new-only"
 		},
@@ -155,7 +157,8 @@
 				"!README.md",
 				"!**/README.md",
 				"$TURBO_ROOT$/configs/branding/**",
-				"$TURBO_ROOT$/scripts/deploy/**"
+				"$TURBO_ROOT$/scripts/deploy/**",
+				"$TURBO_ROOT$/scripts/smoke/**"
 			],
 			"outputLogs": "new-only"
 		},
@@ -165,7 +168,8 @@
 				"$TURBO_DEFAULT$",
 				"!README.md",
 				"!**/README.md",
-				"$TURBO_ROOT$/scripts/deploy/**"
+				"$TURBO_ROOT$/scripts/deploy/**",
+				"$TURBO_ROOT$/scripts/smoke/**"
 			],
 			"outputLogs": "new-only"
 		},
@@ -360,7 +364,7 @@
 		},
 		"deploy": {
 			"cache": false,
-			"passThroughEnv": ["STAGING_SENTRY_RELEASE", "WORKER_SECRET_AUDIT_MAX_ATTEMPTS"]
+			"passThroughEnv": ["WORKER_SECRET_AUDIT_MAX_ATTEMPTS"]
 		}
 	}
 }

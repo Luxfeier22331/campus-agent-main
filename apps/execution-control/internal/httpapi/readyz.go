@@ -193,9 +193,10 @@ func (s *Server) personalMemoryRuntimeStatus(ctx context.Context) map[string]any
 		"owner_salt_configured":         personalMemoryOwnerSaltConfigured(s.config),
 		"recall_max_tokens":             s.config.PersonalMemoryRecallMaxTokens,
 		"thread_owner":                  "execution-control",
-		"raw_transcript_gate":           "sanitized_turn_append_only",
+		"retention_model":               "synchronous_user_message_documents",
 		"hindsight_base_url_configured": strings.TrimSpace(s.config.PersonalMemoryBaseURL) != "",
 		"hindsight_secret_configured":   strings.TrimSpace(s.config.PersonalMemoryAPISecret) != "",
+		"state_store_healthy":           false,
 	}
 	if s.personalMemoryErr != nil {
 		status["last_error"] = "personal memory executor could not be initialized"
@@ -205,8 +206,17 @@ func (s *Server) personalMemoryRuntimeStatus(ctx context.Context) map[string]any
 		status["last_error"] = "personal memory executor is not configured"
 		return status
 	}
+	if s.personalMemoryStateErr != nil || s.personalMemoryStateStore == nil {
+		status["last_error"] = "personal memory state store could not be initialized"
+		return status
+	}
 	checkCtx, cancel := context.WithTimeout(ctx, time.Duration(s.config.ToolReadModelTimeoutMS)*time.Millisecond)
 	defer cancel()
+	if err := s.personalMemoryStateStore.HealthCheck(checkCtx); err != nil {
+		status["last_error"] = "personal memory state store health check failed"
+		return status
+	}
+	status["state_store_healthy"] = true
 	if err := s.personalMemoryExecutor.HealthCheck(checkCtx); err != nil {
 		status["last_error"] = "personal memory health check failed"
 		return status
@@ -257,29 +267,29 @@ func (s *Server) evaluateProviderConfigGate() providerConfigGate {
 		return providerConfigGate{
 			Configured: false,
 			Reason:     reason,
-			Source:     "provider-config-projection",
+			Source:     "execution-config",
 		}
 	}
 	if s.providerConfigResolver == nil {
 		return providerConfigGate{
 			Configured: false,
 			Reason:     "provider_config_resolver_not_configured",
-			Source:     "provider-config-projection",
+			Source:     "execution-config",
 		}
 	}
 	for _, role := range providerConfigGateRequiredRoles() {
 		if _, err := s.providerConfigResolver.ResolveActiveProviderConfig(context.Background(), role); err != nil {
 			return providerConfigGate{
 				Configured: false,
-				Reason:     "provider_config_projection_invalid_for_" + string(role),
-				Source:     "provider-config-projection",
+				Reason:     "provider_config_invalid_for_" + string(role),
+				Source:     "execution-config",
 			}
 		}
 	}
 	return providerConfigGate{
 		Configured: true,
 		Reason:     "",
-		Source:     "provider-config-projection",
+		Source:     "execution-config",
 	}
 }
 

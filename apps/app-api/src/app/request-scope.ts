@@ -6,10 +6,6 @@ import {
 } from "../config";
 import { buildCampusExperienceService } from "../modules/campus-experience";
 import {
-	buildCampusServicesOpsService,
-	createPgCampusServicesOpsStore,
-} from "../modules/campus-services-ops";
-import {
 	buildCampusServicesTransportScheduleService,
 	createPgCampusServicesTransportScheduleStore,
 } from "../modules/campus-services-transport-schedule";
@@ -17,13 +13,8 @@ import { buildChatConversationService, createPgChatConversationStore } from "../
 import { buildDiningPublicReadService, createPgDiningPublicReadStore } from "../modules/dining";
 import { buildDocsService, createPgDocsReadModelStore } from "../modules/docs";
 import {
-	buildIdentityPlatformService,
-	createPgIdentityPlatformStore,
-} from "../modules/identity-platform";
-import {
 	createExecutionControlPersonalMemoryClient,
 	createExecutionControlRuntimeClient,
-	createIngestionTaskProjectionClient,
 	isExecutionControlRuntimeConfigured,
 } from "../modules/integration";
 import { buildProfileMemoryService, createPgProfileMemoryStore } from "../modules/profile-memory";
@@ -37,8 +28,7 @@ export function createRequestScopeFactory(input: {
 	env: Env;
 	telemetry: import("../modules/telemetry").AppTelemetry;
 }) {
-	const environment = resolveEnvironment(input.env);
-	const requireExecutionRuntime = isDeployedEnvironment(environment);
+	const requireExecutionRuntime = isDeployedEnvironment(resolveEnvironment(input.env));
 	const executionRuntimeConfigured = isExecutionControlRuntimeConfigured(input.env);
 	const executionRuntime = executionRuntimeConfigured
 		? createExecutionControlRuntimeClient(input.env)
@@ -46,174 +36,64 @@ export function createRequestScopeFactory(input: {
 	return {
 		createRequestScope(): AppRequestScope {
 			const runtime = createRequestRuntimeScope(input.env);
-			let campusExperienceService = input.dependencies.campusExperienceService ?? null;
-			let campusServicesOpsService = input.dependencies.campusServicesOpsService ?? null;
-			let campusServicesTransportScheduleService =
-				input.dependencies.campusServicesTransportScheduleService ?? null;
-			let chatConversationService = input.dependencies.chatConversationService ?? null;
-			let chatCommandService = input.dependencies.chatCommandService ?? null;
-			let diningPublicReadService = input.dependencies.diningPublicReadService ?? null;
-			let docsService = input.dependencies.docsService ?? null;
-			let identityPlatformService = input.dependencies.identityPlatformService ?? null;
-			let ingestionTaskProjectionClient = input.dependencies.ingestionTaskProjectionClient ?? null;
-			let profileMemoryService = input.dependencies.profileMemoryService ?? null;
-			let runtimeRunService = input.dependencies.runtimeRunService ?? null;
-
-			function resolveChatConversationService() {
-				if (chatConversationService) {
-					return chatConversationService;
-				}
-
-				chatConversationService = buildChatConversationService({
+			let campusExperience = input.dependencies.campusExperienceService ?? null;
+			let campusServices = input.dependencies.campusServicesTransportScheduleService ?? null;
+			let chat = input.dependencies.chatConversationService ?? null;
+			let command = input.dependencies.chatCommandService ?? null;
+			let dining = input.dependencies.diningPublicReadService ?? null;
+			let docs = input.dependencies.docsService ?? null;
+			let memory = input.dependencies.profileMemoryService ?? null;
+			let runtimeRuns = input.dependencies.runtimeRunService ?? null;
+			const resolveProfileMemoryService = () =>
+				(memory ??= buildProfileMemoryService({
+					commandAdmitter: createExecutionControlPersonalMemoryClient(input.env),
+					store: createPgProfileMemoryStore(input.env, { getDb: runtime.getFreshDb }),
+				}));
+			const resolveChatConversationService = () =>
+				(chat ??= buildChatConversationService({
 					detailStore: createPgChatConversationStore(input.env, { getDb: runtime.getFreshDb }),
+					dispatchMemoryCommands: () => resolveProfileMemoryService().dispatchPending(),
 					store: createPgChatConversationStore(input.env, { getDb: runtime.getDb }),
-				});
-				return chatConversationService;
-			}
-
-			function resolveCampusServicesOpsService() {
-				if (campusServicesOpsService) {
-					return campusServicesOpsService;
-				}
-
-				campusServicesOpsService = buildCampusServicesOpsService({
-					store: createPgCampusServicesOpsStore(input.env, { getDb: runtime.getDb }),
-				});
-				return campusServicesOpsService;
-			}
-
-			function resolveChatCommandService() {
-				if (chatCommandService) {
-					return chatCommandService;
-				}
-
-				const chatConversationStore = createPgChatConversationStore(input.env, {
-					getDb: runtime.getFreshDb,
-				});
-				chatCommandService = buildChatCommandService({
-					conversationStore: chatConversationStore,
-					publicNoticeURLAllowlist: readPublicNoticeURLAllowlist(input.env),
-					safetyIdentifierHmacSecret: input.env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET,
-					store: createPgChatCommandStore(input.env, { getDb: runtime.getDb }),
+				}));
+			const resolveChatCommandService = () =>
+				(command ??= buildChatCommandService({
+					conversationStore: createPgChatConversationStore(input.env, {
+						getDb: runtime.getFreshDb,
+					}),
 					executionRuntime,
 					isExecutionRuntimeConfigured: executionRuntimeConfigured,
-					profileMemoryStore: createPgProfileMemoryStore(input.env, {
-						getDb: runtime.getDb,
-					}),
+					profileMemoryStore: createPgProfileMemoryStore(input.env, { getDb: runtime.getDb }),
+					publicNoticeURLAllowlist: readPublicNoticeURLAllowlist(input.env),
 					requireExecutionRuntime,
+					safetyIdentifierHmacSecret: input.env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET,
+					store: createPgChatCommandStore(input.env, { getDb: runtime.getDb }),
 					telemetry: input.telemetry,
-				});
-				return chatCommandService;
-			}
-
-			function resolveCampusExperienceService() {
-				if (campusExperienceService) {
-					return campusExperienceService;
-				}
-
-				campusExperienceService = buildCampusExperienceService();
-				return campusExperienceService;
-			}
-
-			function resolveCampusServicesTransportScheduleService() {
-				if (campusServicesTransportScheduleService) {
-					return campusServicesTransportScheduleService;
-				}
-
-				campusServicesTransportScheduleService = buildCampusServicesTransportScheduleService({
-					store: createPgCampusServicesTransportScheduleStore(input.env, {
-						getDb: runtime.getDb,
-					}),
-				});
-				return campusServicesTransportScheduleService;
-			}
-
-			function resolveDiningPublicReadService() {
-				if (diningPublicReadService) {
-					return diningPublicReadService;
-				}
-
-				diningPublicReadService = buildDiningPublicReadService({
-					store: createPgDiningPublicReadStore(input.env, { getDb: runtime.getFreshDb }),
-				});
-				return diningPublicReadService;
-			}
-
-			function resolveDocsService() {
-				if (docsService) {
-					return docsService;
-				}
-
-				docsService = buildDocsService({
-					store: createPgDocsReadModelStore(input.env, { getDb: runtime.getDb }),
-				});
-				return docsService;
-			}
-
-			function resolveIdentityPlatformService() {
-				if (identityPlatformService) {
-					return identityPlatformService;
-				}
-
-				identityPlatformService = buildIdentityPlatformService({
-					identityStore: createPgIdentityPlatformStore(input.env, {
-						getDb: runtime.getDb,
-					}),
-					profileMemoryStore: createPgProfileMemoryStore(input.env, {
-						getDb: runtime.getDb,
-					}),
-				});
-				return identityPlatformService;
-			}
-
-			function resolveIngestionTaskProjectionClient() {
-				if (ingestionTaskProjectionClient) {
-					return ingestionTaskProjectionClient;
-				}
-
-				ingestionTaskProjectionClient = createIngestionTaskProjectionClient(input.env, {
-					fetchImplementation: input.dependencies.ingestionTaskProjectionFetch,
-				});
-				return ingestionTaskProjectionClient;
-			}
-
-			function resolveProfileMemoryService() {
-				if (profileMemoryService) {
-					return profileMemoryService;
-				}
-
-				profileMemoryService = buildProfileMemoryService({
-					memoryIndexer: createExecutionControlPersonalMemoryClient(input.env),
-					store: createPgProfileMemoryStore(input.env, { getDb: runtime.getDb }),
-				});
-				return profileMemoryService;
-			}
-
-			function resolveRuntimeRunService() {
-				if (runtimeRunService) {
-					return runtimeRunService;
-				}
-
-				runtimeRunService = buildRuntimeRunService({
-					executionRuntime: createExecutionControlRuntimeClient(input.env),
-					store: createPgRuntimeRunStore(input.env, { getDb: runtime.getDb }),
-				});
-				return runtimeRunService;
-			}
-
+				}));
 			return {
 				getAppAuth: input.dependencies.getAppAuth ?? runtime.getAppAuth,
-				resolveCampusExperienceService,
-				resolveCampusServicesOpsService,
-				resolveCampusServicesTransportScheduleService,
+				resolveCampusExperienceService: () => (campusExperience ??= buildCampusExperienceService()),
+				resolveCampusServicesTransportScheduleService: () =>
+					(campusServices ??= buildCampusServicesTransportScheduleService({
+						store: createPgCampusServicesTransportScheduleStore(input.env, {
+							getDb: runtime.getDb,
+						}),
+					})),
 				resolveChatCommandService,
 				resolveChatConversationService,
-				resolveDiningPublicReadService,
-				resolveDocsService,
-				resolveIdentityPlatformService,
-				resolveIngestionTaskProjectionClient,
+				resolveDiningPublicReadService: () =>
+					(dining ??= buildDiningPublicReadService({
+						store: createPgDiningPublicReadStore(input.env, { getDb: runtime.getFreshDb }),
+					})),
+				resolveDocsService: () =>
+					(docs ??= buildDocsService({
+						store: createPgDocsReadModelStore(input.env, { getDb: runtime.getDb }),
+					})),
 				resolveProfileMemoryService,
-				resolveRuntimeRunService,
+				resolveRuntimeRunService: () =>
+					(runtimeRuns ??= buildRuntimeRunService({
+						executionRuntime: createExecutionControlRuntimeClient(input.env),
+						store: createPgRuntimeRunStore(input.env, { getDb: runtime.getDb }),
+					})),
 				telemetry: input.telemetry,
 			};
 		},

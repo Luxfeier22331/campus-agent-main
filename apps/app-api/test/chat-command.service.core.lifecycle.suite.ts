@@ -172,10 +172,10 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 				status: "error",
 			},
 		});
-		expect(telemetry.recordRequestTransportError).toHaveBeenCalledWith(
+		expect(telemetry.recordRequestFinalized).toHaveBeenCalledWith(
 			expect.objectContaining({
 				errorCode: "execution_control_invalid_response",
-				retryable: true,
+				status: "error",
 			}),
 		);
 	});

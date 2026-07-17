@@ -83,7 +83,6 @@ export interface OpsStatusEnv {
 	OPS_WEB_EXECUTION_CONTROL_URL?: string;
 	OPS_WEB_FIXTURE_MODE?: string;
 	OPS_WEB_LANGFUSE_URL?: string;
-	OPS_WEB_OPENOBSERVE_URL?: string;
 	OPS_WEB_PRINCIPAL_HASH_SECRET?: string;
 	OPS_WEB_SENTRY_URL?: string;
 	OPS_WEB_TEMPORAL_URL?: string;
@@ -237,7 +236,6 @@ export function createOpsStatusStoreFromEnv(env: OpsStatusEnv = process.env): Op
 		observabilityLinks: {
 			axiom: env.OPS_WEB_AXIOM_URL ?? env.AXIOM_BASE_URL,
 			langfuse: env.OPS_WEB_LANGFUSE_URL ?? env.LANGFUSE_BASE_URL,
-			openobserve: env.OPS_WEB_OPENOBSERVE_URL,
 			sentry: env.OPS_WEB_SENTRY_URL ?? env.SENTRY_BASE_URL,
 			temporal: env.OPS_WEB_TEMPORAL_URL ?? env.TEMPORAL_BASE_URL,
 		},

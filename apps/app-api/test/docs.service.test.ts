@@ -227,7 +227,6 @@ function createStudentPrincipal(): ResolvedAppPrincipal {
 		},
 		permissions: {
 			chat: true,
-			operator: false,
 		},
 		principal: {
 			displayName: "学生用户",

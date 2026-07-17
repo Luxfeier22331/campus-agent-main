@@ -13,27 +13,30 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 	it("rejects finalized responses when execution omits the accepted traceId", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
+		const invalidResponse = {
+			answerText: "图书馆开放到 22:00。",
+			error: null,
+			followUpQuestion: "",
+			result: {
+				evidence: {
+					sources: [{ doc_id: "handbook:library-hours" }],
+				},
+			},
+			resolvedTargets: ["student_rules"],
+			selectedTool: "knowledge_query",
+			sessionUpdate: null,
+			status: "completed" as const,
+			traceId: "",
+		};
 		const service = buildChatCommandService({
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromToolClient({
-				execute: vi.fn().mockResolvedValue({
-					answerText: "图书馆开放到 22:00。",
-					error: null,
-					followUpQuestion: "",
-					result: {
-						evidence: {
-							sources: [{ doc_id: "handbook:library-hours" }],
-						},
-					},
-					resolvedTargets: ["student_rules"],
-					selectedTool: "knowledge_query",
-					status: "completed",
-					traceId: "",
-				}),
-			}),
+			executionRuntime: createExecutionRuntimeFromToolClient(
+				{ execute: vi.fn().mockResolvedValue(invalidResponse) },
+				{ skipProductCallback: true },
+			),
 		});
 
 		await expect(
@@ -45,11 +48,15 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 				principal: createPrincipal(),
 				requestKind: "internal_eval",
 			}),
-		).rejects.toMatchObject({
-			code: "validation_failed",
-			status: 422,
-			traceId: "trace_0001",
-		});
+		).rejects.toMatchObject({ code: "validation_failed", status: 422 });
+		await expect(
+			service.applyProductFinalization?.({
+				completedAt: "2026-03-28T08:00:02.000Z",
+				finalizationFingerprint: "trace-mismatch",
+				response: invalidResponse,
+				runId: "run_0001",
+			}),
+		).rejects.toMatchObject({ name: "ChatFinalizationConflict" });
 		expect(finalWrites).toHaveLength(0);
 	});
 

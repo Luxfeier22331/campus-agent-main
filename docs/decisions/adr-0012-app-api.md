@@ -2,31 +2,21 @@
 doc_type: decision
 owner_boundary: docs/decisions
 decision_id: ADR-0012
-status: accepted
+status: superseded
+superseded_by: ADR-0080
 ---
-# ADR-0012 共享 App API
 
-## 背景
+# ADR-0012：共享 App API
 
-Campus Web 需要统一的账户及产品数据。为每个学生产品界面分别提供后端会复制身份、产品写入
-和策略。
+## 原决策
 
-## 决策
+本决策曾把 Campus Web 与 Operator Console 的认证、产品数据、配置和业务操作统一放入
+app-api，以避免浏览器界面各自建设后端。
 
-`apps/app-api` 是 Campus Web 的产品后端：
+## 取代
 
-- `apps/campus-web` 拥有公开校园产品体验；
-- `apps/app-api` 拥有浏览器认证、身份、会话、产品 API 和产品持久化；
-- `apps/execution-control` 拥有持久 Agent 执行，不拥有浏览器或产品状态。
+ADR-0080 删除了 Operator Console 以及 app-api 的 operator/provider runtime。app-api 继续作为
+Campus Web 的产品后端，拥有浏览器认证、会话、聊天和个人记忆产品生命周期；在线 Provider
+Config、采集控制和运维诊断分别归 execution-control、ingestion-control 与 Ops Web。
 
-浏览器界面通过已开放的 Worker binding 或配置 origin 调用 app-api，不直接调用
-execution-control 或数据库。app-api 可以接纳和观测执行，但不运行第二套 Agent loop。
-
-自托管 Ops Web 不属于产品后端路径；它在 ADR-0080 下拥有独立数据角色和明确列出的运维操作。
-
-## 后果
-
-- 产品身份和写入只有一个后端所有者。
-- 新浏览器界面默认不会获得独立产品后端。
-- 执行与产品持久化可以独立部署。
-- API 和 schema 细节留在 app-api 合同与数据文档中。
+当前边界见 `docs/architecture/system/product-runtime.md`。

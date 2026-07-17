@@ -27,13 +27,15 @@ func TestHindsightRecallKeepsFactsWithoutTemporalFields(t *testing.T) {
 	}
 
 	result, err := executor.Recall(context.Background(), memoryruntime.RecallRequest{
-		QueryTimestamp: "2026-06-16T10:03:04Z",
-		RequestedTool:  "knowledge_query",
-		RunID:          "run-hindsight-recall-untimed",
-		TenantID:       "tenant-main",
-		ThreadID:       "conv-hindsight-recall-untimed",
-		UserGoal:       "我应该如何阅读培养方案？",
-		UserID:         "user-executor",
+		OwnerGeneration: 1,
+		OwnerSequence:   0,
+		QueryTimestamp:  "2026-06-16T10:03:04Z",
+		RequestedTool:   "knowledge_query",
+		RunID:           "run-hindsight-recall-untimed",
+		TenantID:        "tenant-main",
+		ThreadID:        "conv-hindsight-recall-untimed",
+		UserGoal:        "我应该如何阅读培养方案？",
+		UserID:          "user-executor",
 	})
 	if err != nil {
 		t.Fatalf("recall: %v", err)
@@ -45,6 +47,12 @@ func TestHindsightRecallKeepsFactsWithoutTemporalFields(t *testing.T) {
 	}
 	if !strings.Contains(result.ContextBlock, "用户偏好先看结论") {
 		t.Fatalf("context block = %q", result.ContextBlock)
+	}
+	if client.ensuredBankID == "" {
+		t.Fatal("recall did not ensure the scoped Hindsight bank")
+	}
+	if !client.ensuredBankConfig.EnableObservations || !client.ensuredBankConfig.EnableAutoConsolidation {
+		t.Fatalf("ensured bank config = %#v", client.ensuredBankConfig)
 	}
 }
 
@@ -67,12 +75,14 @@ func TestHindsightReflectKeepsBasedOnFactsWithoutTemporalFields(t *testing.T) {
 	}
 
 	result, err := executor.Reflect(context.Background(), memoryruntime.ReflectRequest{
-		IncludeBasedOn: true,
-		Query:          "总结用户引用偏好",
-		RunID:          "run-hindsight-reflect-untimed",
-		TenantID:       "tenant-main",
-		ThreadID:       "conv-hindsight-reflect-untimed",
-		UserID:         "user-executor",
+		OwnerGeneration: 1,
+		OwnerSequence:   0,
+		IncludeBasedOn:  true,
+		Query:           "总结用户引用偏好",
+		RunID:           "run-hindsight-reflect-untimed",
+		TenantID:        "tenant-main",
+		ThreadID:        "conv-hindsight-reflect-untimed",
+		UserID:          "user-executor",
 	})
 	if err != nil {
 		t.Fatalf("reflect: %v", err)

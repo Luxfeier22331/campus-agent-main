@@ -77,7 +77,10 @@ jobs:
       STAGING_ACCESS_TEAM_DOMAIN: ${{ vars.STAGING_ACCESS_TEAM_DOMAIN }}
       STAGING_APP_API_DB_FRESH_HYPERDRIVE_ID: ${{ vars.STAGING_APP_API_DB_FRESH_HYPERDRIVE_ID }}
       STAGING_APP_API_DB_HYPERDRIVE_ID: ${{ vars.STAGING_APP_API_DB_HYPERDRIVE_ID }}
+      STAGING_APP_API_SENTRY_DSN: ${{ vars.STAGING_APP_API_SENTRY_DSN }}
       STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY: ${{ vars.STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY }}
+      STAGING_CAMPUS_WEB_BROWSER_SENTRY_DSN: ${{ vars.STAGING_CAMPUS_WEB_BROWSER_SENTRY_DSN }}
+      STAGING_CAMPUS_WEB_EDGE_SENTRY_DSN: ${{ vars.STAGING_CAMPUS_WEB_EDGE_SENTRY_DSN }}
       STAGING_EXECUTION_CONTROL_VPC_SERVICE_ID: ${{ vars.STAGING_EXECUTION_CONTROL_VPC_SERVICE_ID }}
       STAGING_MAP_DATA_BUCKET_NAME: ${{ vars.STAGING_MAP_DATA_BUCKET_NAME }}
     steps:
@@ -184,21 +187,22 @@ jobs:
             k8s:
               - 'infra/k8s/**'
             app_api_worker:
+              - 'package.json'
+              - 'pnpm-workspace.yaml'
               - 'apps/app-api/**'
               - 'configs/runtime/**'
               - 'configs/sources/**'
               - 'packages/domains/dining/**'
               - 'packages/ingestion-contracts/**'
               - 'scripts/deploy/**'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
             campus_web_worker:
+              - 'package.json'
+              - 'pnpm-workspace.yaml'
               - 'apps/campus-web/**'
               - 'configs/branding/**'
               - 'packages/domains/dining/**'
               - 'scripts/deploy/**'
-              - 'package.json'
+            worker_lockfile:
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
 
@@ -246,6 +250,11 @@ jobs:
       - name: Select Workers
         id: workers
         shell: bash
+        env:
+          WORKER_APP_API_SURFACE: ${{ steps.release-filter.outputs.app_api_worker }}
+          WORKER_CAMPUS_WEB_SURFACE: ${{ steps.release-filter.outputs.campus_web_worker }}
+          WORKER_CHANGED_FILE_COUNT: ${{ steps.release-filter.outputs.worker_all_changes_count }}
+          WORKER_LOCKFILE_CHANGED: ${{ steps.release-filter.outputs.worker_lockfile }}
         run: |
           set -euo pipefail
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
@@ -464,18 +473,25 @@ jobs:
       - name: Upload app-api candidate
         if: steps.workers.outputs.app_api == 'true'
         env:
+          SENTRY_APP_API_PROJECT_SLUG: ${{ vars.SENTRY_APP_API_PROJECT_SLUG }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG_SLUG: ${{ vars.SENTRY_ORG_SLUG }}
           WORKER_VERSION_OUTPUT: ${{ github.workspace }}/worker-candidates/app-api-staging.json
         run: pnpm --dir apps/app-api upload:staging
 
       - name: Build and upload campus-web candidate
         if: steps.workers.outputs.campus_web == 'true'
         env:
+          CAMPUS_WEB_SENTRY_SOURCE_MAP_UPLOAD: required
           DOCS_RELEASE_ID: ${{ steps.docs-release.outputs.release_id }}
           OBJECT_STORE_BUCKET_DERIVED: ${{ vars.STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED }}
           OBJECT_STORE_DERIVED_ACCESS_KEY: ${{ secrets.STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY }}
           OBJECT_STORE_DERIVED_SECRET_KEY: ${{ secrets.STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY }}
           OBJECT_STORE_ENDPOINT: ${{ vars.STAGING_INGESTION_OBJECT_STORE_ENDPOINT }}
           OBJECT_STORE_REGION: ${{ vars.STAGING_INGESTION_OBJECT_STORE_REGION }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_CAMPUS_WEB_PROJECT_SLUG: ${{ vars.SENTRY_CAMPUS_WEB_PROJECT_SLUG }}
+          SENTRY_ORG_SLUG: ${{ vars.SENTRY_ORG_SLUG }}
           WORKER_VERSION_OUTPUT: ${{ github.workspace }}/worker-candidates/campus-web-staging.json
         run: |
           pnpm --dir apps/campus-web run build:staging \

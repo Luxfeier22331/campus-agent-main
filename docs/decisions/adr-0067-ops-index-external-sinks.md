@@ -12,7 +12,7 @@ status: accepted
 trace、dataset、score 和 review workflow。
 
 旧 operator observability 文档提出由 app-api 保存大范围 audit、quality、safety 和 cost
-read model。这会重复外部平台、扩大数据库范围，并把 Ops Web 变成自研观测产品。
+read model。这会重复外部平台、扩大数据库范围，并把产品后端变成自研观测产品。
 
 ## 决策
 
@@ -32,7 +32,7 @@ read model。这会重复外部平台、扩大数据库范围，并把 Ops Web �
 
 - broad operator quality、safety、cost、intent 和 standalone audit endpoint 不是目标架构。
 - 仍使用这些名称的 code/schema 是待删除或收窄的残留，不代表目标能力。
-- Ops Web 是产品运维界面，不嵌入 Sentry/Axiom/Langfuse viewer。
+- Ops Web 不嵌入 Sentry/Axiom/Langfuse viewer。
 - app-api 不成为 Langfuse score 或 trace database。
 - smoke 验证 sink 能收到并通过 request/trace id 关联数据，不验证 app-api 是否保存 dashboard
   正文。

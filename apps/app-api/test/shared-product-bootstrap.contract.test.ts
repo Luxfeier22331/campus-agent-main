@@ -13,22 +13,6 @@ function readAppFile(relativePath: string): string {
 	return readFileSync(join(appRoot, relativePath), "utf8");
 }
 
-function extractRequestScopeResolver(source: string, resolverName: string): string {
-	const start = source.indexOf(`function ${resolverName}()`);
-	if (start < 0) {
-		throw new Error(`${resolverName} must exist in request-scope.ts`);
-	}
-
-	const nextResolver = source.indexOf("\n\t\t\tfunction ", start + 1);
-	const returnBlock = source.indexOf("\n\t\t\treturn {", start + 1);
-	const candidates = [nextResolver, returnBlock].filter((candidate) => candidate > start);
-	if (candidates.length === 0) {
-		throw new Error(`${resolverName} must have a bounded source section`);
-	}
-
-	return source.slice(start, Math.min(...candidates));
-}
-
 describe("app-api shared product bootstrap contracts", () => {
 	it("keeps repeatable bootstrap artifacts while package scripts stay lifecycle-only", () => {
 		const packageJson = JSON.parse(readAppFile("package.json")) as {
@@ -81,7 +65,7 @@ describe("app-api shared product bootstrap contracts", () => {
 
 	it("keeps the current schema snapshot free of retired routing state", () => {
 		const chatSchema = readAppFile("db/shared-product-schema/chat_current.sql");
-		const snapshot = readAppFile("drizzle/meta/0000_snapshot.json");
+		const snapshot = readAppFile("drizzle/meta/0001_snapshot.json");
 
 		for (const retiredField of [
 			"intent_classifier_version",
@@ -118,7 +102,10 @@ describe("app-api shared product bootstrap contracts", () => {
 
 	it("keeps app-owned schema inventory aligned with the current schema baseline", () => {
 		expect(APP_API_KNOWN_SCHEMAS).toEqual(
-			expect.arrayContaining(["docs", "dining", "identity", "profile", "runtime"]),
+			expect.arrayContaining(["docs", "dining", "profile", "runtime"]),
+		);
+		expect(APP_API_KNOWN_SCHEMAS).not.toEqual(
+			expect.arrayContaining(["identity", "observability"]),
 		);
 	});
 
@@ -146,88 +133,32 @@ describe("app-api shared product bootstrap contracts", () => {
 		);
 	});
 
-	it("wires identity preference reads and writes through the default cached lane", () => {
-		const requestScopeSource = readAppFile("src/app/request-scope.ts");
-		const identityServiceStart = requestScopeSource.indexOf(
-			"identityPlatformService = buildIdentityPlatformService({",
-		);
-		const identityServiceEnd = requestScopeSource.indexOf(
-			"function resolveIngestionTaskProjectionClient()",
-			identityServiceStart,
-		);
-
-		expect(identityServiceStart).toBeGreaterThan(-1);
-		expect(identityServiceEnd).toBeGreaterThan(identityServiceStart);
-		expect(requestScopeSource.slice(identityServiceStart, identityServiceEnd)).toContain(
-			"profileMemoryStore: createPgProfileMemoryStore(input.env, {\n\t\t\t\t\t\tgetDb: runtime.getDb,",
-		);
-	});
-
 	it("keeps APP_API_DB_FRESH limited to explicit read-after-write paths", () => {
 		const requestScopeSource = readAppFile("src/app/request-scope.ts");
 		const freshDbReferences = requestScopeSource.match(/runtime\.getFreshDb/g) ?? [];
-		expect(freshDbReferences).toHaveLength(3);
+		expect(freshDbReferences).toHaveLength(4);
 
-		for (const resolverName of [
-			"resolveCampusServicesOpsService",
-			"resolveIdentityPlatformService",
-			"resolveProfileMemoryService",
-			"resolveRuntimeRunService",
-		]) {
-			const resolverSource = extractRequestScopeResolver(requestScopeSource, resolverName);
-			expect(resolverSource, `${resolverName} must not use APP_API_DB_FRESH`).not.toContain(
-				"runtime.getFreshDb",
-			);
-			expect(resolverSource, `${resolverName} must use APP_API_DB`).toContain("runtime.getDb");
-		}
-
-		for (const resolverName of ["resolveDiningPublicReadService"]) {
-			const resolverSource = extractRequestScopeResolver(requestScopeSource, resolverName);
-			expect(resolverSource, `${resolverName} must use APP_API_DB_FRESH`).toContain(
-				"runtime.getFreshDb",
-			);
-		}
-
-		const chatConversationResolver = extractRequestScopeResolver(
-			requestScopeSource,
-			"resolveChatConversationService",
+		expect(requestScopeSource).toContain(
+			"store: createPgRuntimeRunStore(input.env, { getDb: runtime.getDb })",
 		);
-		expect(chatConversationResolver).toContain(
+		expect(requestScopeSource).toContain(
+			"store: createPgProfileMemoryStore(input.env, { getDb: runtime.getFreshDb })",
+		);
+		expect(requestScopeSource).toContain(
+			"store: createPgDiningPublicReadStore(input.env, { getDb: runtime.getFreshDb })",
+		);
+		expect(requestScopeSource).toContain(
 			"detailStore: createPgChatConversationStore(input.env, { getDb: runtime.getFreshDb })",
 		);
-		expect(chatConversationResolver).toContain(
+		expect(requestScopeSource).toContain(
 			"store: createPgChatConversationStore(input.env, { getDb: runtime.getDb })",
 		);
-
-		const chatCommandResolver = extractRequestScopeResolver(
-			requestScopeSource,
-			"resolveChatCommandService",
+		expect(requestScopeSource).toContain(
+			"conversationStore: createPgChatConversationStore(input.env, {",
 		);
-		expect(chatCommandResolver).toContain("conversationStore: chatConversationStore");
-		expect(chatCommandResolver).toContain(
-			"createPgChatConversationStore(input.env, {\n\t\t\t\t\tgetDb: runtime.getFreshDb,",
-		);
-		expect(chatCommandResolver).toContain(
+		expect(requestScopeSource).toContain(
 			"store: createPgChatCommandStore(input.env, { getDb: runtime.getDb })",
 		);
-	});
-
-	it("wires Dining public reads through fresh shared PG storage", () => {
-		const requestScopeSource = readAppFile("src/app/request-scope.ts");
-		const diningServiceStart = requestScopeSource.indexOf(
-			"diningPublicReadService = buildDiningPublicReadService({",
-		);
-		const diningServiceEnd = requestScopeSource.indexOf(
-			"function resolveDocsService()",
-			diningServiceStart,
-		);
-
-		expect(diningServiceStart).toBeGreaterThan(-1);
-		expect(diningServiceEnd).toBeGreaterThan(diningServiceStart);
-		const diningScopeSource = requestScopeSource.slice(diningServiceStart, diningServiceEnd);
-		expect(diningScopeSource).toContain("createPgDiningPublicReadStore(input.env, {");
-		expect(diningScopeSource).toContain("getDb: runtime.getFreshDb");
-		expect(requestScopeSource).not.toContain("DiningOperations");
 	});
 
 	it("keeps dining dev seed import outside the app-api bootstrap", () => {
@@ -242,8 +173,9 @@ describe("app-api shared product bootstrap contracts", () => {
 
 		expect(appSource).toContain('from "./app/readiness"');
 		expect(appSource).toContain('from "./app/request-scope"');
-		expect(appSource).toContain('from "./app/request-utils"');
 		expect(appSource).toContain('from "./app/routes"');
+		expect(appSource).toContain('const APP_API_HTTP_SURFACE = "app_api"');
+		expect(appSource).not.toContain("resolveRequestSurface");
 		expect(appSource).not.toContain("function dependencyNotReadyResponse()");
 		expect(appSource).not.toContain("function buildInternalEvalPrincipalFromRequest(");
 		expect(appSource).not.toContain("async function defaultRuntimeReadinessProbe(");

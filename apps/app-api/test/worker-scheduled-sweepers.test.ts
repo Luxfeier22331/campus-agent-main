@@ -12,56 +12,46 @@ const env = {
 	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 	EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 	APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
-	APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
-	APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
+	APP_API_PRODUCT_CALLBACK_SHARED_SECRET: "product-callback-secret",
 	APP_API_ENVIRONMENT: "test" as const,
 	APP_API_DB: {
 		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 	},
 };
 
-function buildScheduledRuntime(input: { envOverrides?: Record<string, string> }) {
-	const chatCommandService = {
-		reconcileDurableCloseouts: vi.fn().mockResolvedValue({
+describe("app-api worker scheduled admission recovery", () => {
+	it("dispatches only frozen chat admissions through the product service", async () => {
+		const dispatchPendingAdmissions = vi.fn(async () => ({
+			admitted: 1,
 			failed: 0,
-			finalized: 0,
-			scanned: 0,
-		}),
-		submit: vi.fn(),
-	};
-	const runtime = createWorkerRuntime(
-		{
-			...env,
-			...input.envOverrides,
-		},
-		{
-			chatCommandService,
-		},
-	);
-	return {
-		chatCommandService,
-		runtime,
-	};
-}
-
-describe("app-api worker scheduled sweepers", () => {
-	it("does not reconcile durable closeouts unless explicitly enabled", async () => {
-		const { chatCommandService, runtime } = buildScheduledRuntime({});
-
-		await runtime.scheduled();
-
-		expect(chatCommandService.reconcileDurableCloseouts).not.toHaveBeenCalled();
-	});
-
-	it("reconciles durable closeouts when explicitly enabled", async () => {
-		const { chatCommandService, runtime } = buildScheduledRuntime({
-			envOverrides: {
-				APP_API_DURABLE_CLOSEOUT_SWEEPER_ENABLED: "true",
+			processed: 1,
+		}));
+		const runtime = createWorkerRuntime(env, {
+			chatCommandService: {
+				dispatchPendingAdmissions,
+				submit: vi.fn(),
 			},
 		});
 
 		await runtime.scheduled();
 
-		expect(chatCommandService.reconcileDurableCloseouts).toHaveBeenCalledTimes(1);
+		expect(dispatchPendingAdmissions).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not dispatch when execution-control admission is not configured", async () => {
+		const dispatchPendingAdmissions = vi.fn();
+		const runtime = createWorkerRuntime(
+			{ ...env, EXECUTION_CONTROL_SHARED_SECRET: "" },
+			{
+				chatCommandService: {
+					dispatchPendingAdmissions,
+					submit: vi.fn(),
+				},
+			},
+		);
+
+		await runtime.scheduled();
+
+		expect(dispatchPendingAdmissions).not.toHaveBeenCalled();
 	});
 });

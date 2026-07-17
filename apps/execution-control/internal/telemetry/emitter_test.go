@@ -451,6 +451,8 @@ func TestEmitterRecordsBoundedRuntimeMetrics(t *testing.T) {
 		StepKind:        "agent",
 		TaskQueue:       "campus-agent.activity.agent",
 	})
+	emitter.RecordPersonalMemoryOperation(context.Background(), "recall", "completed", "none", 12*time.Millisecond, 2, 320)
+	emitter.RecordPersonalMemoryReceipt(context.Background(), "owner_erase", "succeeded", "finalized")
 
 	var rm metricdata.ResourceMetrics
 	if err := reader.Collect(context.Background(), &rm); err != nil {
@@ -468,6 +470,11 @@ func TestEmitterRecordsBoundedRuntimeMetrics(t *testing.T) {
 		"campus.execution_control.runtime_requests",
 		"campus.execution_control.activity_duration_ms",
 		"campus.execution_control.schedule_to_start_ms",
+		"campus.execution_control.personal_memory.operations",
+		"campus.execution_control.personal_memory.duration_ms",
+		"campus.execution_control.personal_memory.selected_items",
+		"campus.execution_control.personal_memory.selected_chars",
+		"campus.execution_control.personal_memory.command_receipts",
 	} {
 		if !metricNames[name] {
 			t.Fatalf("metric %s missing from %#v", name, metricNames)
@@ -479,7 +486,9 @@ func assertMetricAttributesAreBounded(t *testing.T, metric metricdata.Metrics) {
 	t.Helper()
 	allowed := map[string]bool{
 		"activity_type": true,
+		"command_kind":  true,
 		"failure_kind":  true,
+		"operation":     true,
 		"outcome":       true,
 		"selected_tool": true,
 		"status":        true,
@@ -504,6 +513,12 @@ func metricAttributeSets(metric metricdata.Metrics) []attributeSet {
 		}
 		return output
 	case metricdata.Histogram[float64]:
+		output := make([]attributeSet, 0, len(data.DataPoints))
+		for _, point := range data.DataPoints {
+			output = append(output, &point.Attributes)
+		}
+		return output
+	case metricdata.Histogram[int64]:
 		output := make([]attributeSet, 0, len(data.DataPoints))
 		for _, point := range data.DataPoints {
 			output = append(output, &point.Attributes)

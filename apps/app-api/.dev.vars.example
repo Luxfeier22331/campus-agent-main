@@ -21,31 +21,17 @@ APP_API_PUBLIC_NOTICE_URL_ALLOWLIST=www.example.edu
 EXECUTION_CONTROL_BASE_URL=https://execution-control.internal
 EXECUTION_CONTROL_SHARED_SECRET=replace-with-execution-control-shared-secret
 EXECUTION_CONTROL_TIMEOUT_MS=8000
-EXECUTION_CONTROL_EVAL_TIMEOUT_MS=30000
-# Comma-separated exact operator emails allowed through the operator surface.
-APP_API_OPERATOR_EMAIL_ALLOWLIST=ops@example.com
-APP_API_OPERATOR_SERVICE_ID_ALLOWLIST=
 # Set this explicitly for local app-api scripts that need trusted internal
 # access. The repo no longer generates local runtime secrets.
-APP_API_INTERNAL_SHARED_SECRET=
+APP_API_PRODUCT_CALLBACK_SHARED_SECRET=
 APP_API_DATABASE_SSLMODE=prefer
-# Optional. Enables operator task projection reads from ingestion-control.
-INGESTION_CONTROL_BASE_URL=
-INGESTION_CONTROL_APP_API_PROJECTION_TOKEN=
 SENTRY_DSN=
 SENTRY_ENVIRONMENT=development
 SENTRY_RELEASE=app-api@dev-local
-APP_API_OTEL_INGEST_ENDPOINT=http://127.0.0.1:4318
-APP_API_OTEL_INGEST_SHARED_SECRET=
-# Optional panel deep-link templates. Placeholders are URL-encoded before use.
-# Supported placeholders: {requestId}, {traceId}, {errorCode}, {selectedTool}, {surface}, {status}.
-APP_API_OPERATOR_TRACE_LINK_TEMPLATE=
-APP_API_OPERATOR_ISSUE_LINK_TEMPLATE=
-
 # APP_API_DB is a Worker binding and is not configured in .dev.vars.
 # For local Wrangler / Drizzle commands, place the process-level database URLs in
 # `apps/app-api/.env` instead. `pnpm dev` and direct
 # `pnpm exec tsx ./scripts/run-with-local-env.ts ...` commands load that file before
 # invoking the underlying tool.
-# APP_API_OPERATOR_DATABASE_URL lives in `apps/app-api/.env` for schema generation
-# and repo-owned operator scripts.
+# APP_API_SCHEMA_DATABASE_URL lives in `apps/app-api/.env` for schema generation
+# and repo-owned schema administration scripts.

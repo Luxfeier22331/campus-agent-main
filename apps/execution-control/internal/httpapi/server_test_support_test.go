@@ -73,6 +73,13 @@ func publicRetrievalAccessProjectionForTest() retrievalruntime.RetrievalAccess {
 
 type readyPersonalMemoryExecutor struct{}
 
+func (readyPersonalMemoryExecutor) ExecuteCommand(
+	_ context.Context,
+	request memoryruntime.PersonalMemoryCommandRequest,
+) (memoryruntime.PersonalMemoryCommandResult, error) {
+	return memoryruntime.PersonalMemoryCommandResult{CommandID: request.CommandID, Status: "succeeded"}, nil
+}
+
 func (readyPersonalMemoryExecutor) HealthCheck(context.Context) error {
 	return nil
 }
@@ -86,64 +93,6 @@ func (readyPersonalMemoryExecutor) Recall(
 		RunID:         request.RunID,
 		SchemaVersion: "memory_recall_result_v1",
 		ThreadID:      request.ThreadID,
-	})
-}
-
-func (readyPersonalMemoryExecutor) OperationStatus(
-	_ context.Context,
-	request memoryruntime.OperationStatusRequest,
-) (memoryruntime.OperationStatusResult, error) {
-	return memoryruntime.FinalizeOperationStatusResult(memoryruntime.OperationStatusResult{
-		OperationID:   request.OperationID,
-		OperationRef:  "projection://runs/" + request.RunID + "/memory/operations/" + request.OperationID,
-		OperationType: "retain",
-		RunID:         request.RunID,
-		SchemaVersion: "memory_operation_status_result_v1",
-		Status:        "completed",
-		UserID:        request.UserID,
-	})
-}
-
-func (readyPersonalMemoryExecutor) ListOperations(
-	_ context.Context,
-	request memoryruntime.OperationListRequest,
-) (memoryruntime.OperationListResult, error) {
-	return memoryruntime.FinalizeOperationListResult(memoryruntime.OperationListResult{
-		RunID:         request.RunID,
-		SchemaVersion: "memory_operation_list_result_v1",
-		UserID:        request.UserID,
-	})
-}
-
-func (readyPersonalMemoryExecutor) CancelOperation(
-	_ context.Context,
-	request memoryruntime.OperationActionRequest,
-) (memoryruntime.OperationActionResult, error) {
-	return memoryruntime.FinalizeOperationActionResult(memoryruntime.OperationActionResult{
-		Action:        "cancel",
-		OperationID:   request.OperationID,
-		OperationRef:  "projection://runs/" + request.RunID + "/memory/operations/" + request.OperationID,
-		RunID:         request.RunID,
-		SchemaVersion: "memory_operation_action_result_v1",
-		Status:        "accepted",
-		Success:       true,
-		UserID:        request.UserID,
-	})
-}
-
-func (readyPersonalMemoryExecutor) RetryOperation(
-	_ context.Context,
-	request memoryruntime.OperationActionRequest,
-) (memoryruntime.OperationActionResult, error) {
-	return memoryruntime.FinalizeOperationActionResult(memoryruntime.OperationActionResult{
-		Action:        "retry",
-		OperationID:   request.OperationID,
-		OperationRef:  "projection://runs/" + request.RunID + "/memory/operations/" + request.OperationID,
-		RunID:         request.RunID,
-		SchemaVersion: "memory_operation_action_result_v1",
-		Status:        "accepted",
-		Success:       true,
-		UserID:        request.UserID,
 	})
 }
 
@@ -170,50 +119,10 @@ func (readyPersonalMemoryExecutor) AppendConversationTurn(
 	return memoryruntime.FinalizeAppendConversationTurnResult(memoryruntime.AppendConversationTurnResult{
 		AppendedMessageCount: 1,
 		RunID:                request.RunID,
-		SchemaVersion:        "memory_conversation_append_result_v1",
+		SchemaVersion:        "memory_conversation_append_result_v2",
 		Status:               "completed",
 		ThreadID:             request.ThreadID,
 		UserID:               request.UserID,
-	})
-}
-
-func (readyPersonalMemoryExecutor) UpsertProfileMemoryItem(
-	_ context.Context,
-	request memoryruntime.UpsertProfileMemoryItemRequest,
-) (memoryruntime.ProfileMemoryItemResult, error) {
-	return memoryruntime.FinalizeProfileMemoryItemResult(memoryruntime.ProfileMemoryItemResult{
-		EpisodeUUID:   "episode-" + request.MemoryID,
-		MemoryID:      request.MemoryID,
-		SchemaVersion: "memory_profile_item_result_v1",
-		Status:        "active",
-		UpdatedAt:     request.UpdatedAt,
-		UserID:        request.UserID,
-	})
-}
-
-func (readyPersonalMemoryExecutor) DeleteProfileMemoryItem(
-	_ context.Context,
-	request memoryruntime.DisableProfileMemoryItemRequest,
-) (memoryruntime.ProfileMemoryItemResult, error) {
-	return memoryruntime.FinalizeProfileMemoryItemResult(memoryruntime.ProfileMemoryItemResult{
-		EpisodeUUID:   request.EpisodeUUID,
-		MemoryID:      request.MemoryID,
-		SchemaVersion: "memory_profile_item_result_v1",
-		Status:        "disabled",
-		UpdatedAt:     request.UpdatedAt,
-		UserID:        request.UserID,
-	})
-}
-
-func (readyPersonalMemoryExecutor) DeleteProfileMemoryOwner(
-	_ context.Context,
-	request memoryruntime.DisableProfileMemoryOwnerRequest,
-) (memoryruntime.ProfileMemoryOwnerDisableResult, error) {
-	return memoryruntime.FinalizeProfileMemoryOwnerDisableResult(memoryruntime.ProfileMemoryOwnerDisableResult{
-		SchemaVersion: "memory_profile_owner_disable_result_v1",
-		Status:        "disabled",
-		UpdatedAt:     request.UpdatedAt,
-		UserID:        request.UserID,
 	})
 }
 
@@ -231,6 +140,13 @@ func (readyKnowledgeSearchExecutor) Search(
 func (readyTemporalStarter) StartToolExecutionWorkflow(
 	context.Context,
 	temporalruntime.ToolExecutionWorkflowInput,
+) error {
+	return nil
+}
+
+func (readyTemporalStarter) StartPersonalMemoryCommandWorkflow(
+	context.Context,
+	temporalruntime.PersonalMemoryCommandWorkflowInput,
 ) error {
 	return nil
 }
@@ -293,12 +209,11 @@ func readyServerConfigForTest(t *testing.T, mutators ...func(*config.Config)) co
 	}))
 	t.Cleanup(agentRuntime.Close)
 	cfg := config.Config{
-		AppName:                    "campus-agent",
-		AgentRuntimeBaseURL:        agentRuntime.URL,
-		AgentRuntimeSharedSecret:   "agent-runtime-secret",
-		MaxConcurrentAnswers:       8,
-		ProviderConfigSnapshotPath: writeProviderProjectionForTest(t),
-		RAGTopKMax:                 8,
+		AppName:                  "campus-agent",
+		AgentRuntimeBaseURL:      agentRuntime.URL,
+		AgentRuntimeSharedSecret: "agent-runtime-secret",
+		MaxConcurrentAnswers:     8,
+		RAGTopKMax:               8,
 	}
 	for _, mutate := range mutators {
 		mutate(&cfg)
@@ -309,6 +224,16 @@ func readyServerConfigForTest(t *testing.T, mutators ...func(*config.Config)) co
 func newReadyServerForTest(t *testing.T, mutators ...func(*config.Config)) *Server {
 	t.Helper()
 	server := NewServer(readyServerConfigForTest(t, mutators...))
+	server.providerConfigResolver = staticProviderConfigResolver{
+		"primary_agent": primaryAgentProviderConfigSnapshotForTest(),
+		"rag_query_embedding": embeddingProviderConfigSnapshotForTest(
+			providerConfigRoleRAGQueryEmbedding,
+			"https://embedding.example/v1",
+			"embedding-test",
+			2560,
+		),
+	}
+	server.providerConfigErr = nil
 	markTemporalReadyForTest(server)
 	markKnowledgeRuntimeReadyForTest(server)
 	useReadyTransportReadModelRuntimeFixture(t, server)

@@ -2,6 +2,7 @@ package execution
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -123,11 +124,31 @@ func (s *InMemoryRunProjectionStore) FailRunProjection(
 	if err := validateDurableRunFailRequest(request); err != nil {
 		return DurableRun{}, err
 	}
+	request = canonicalizeDurableRunFailRequest(request)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	run, exists := s.runs[request.RunID]
 	if !exists {
 		return DurableRun{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, request.RunID)
+	}
+	if err := validateDurableRunFailureEventForRun(run, request.TerminalEvent); err != nil {
+		return DurableRun{}, err
+	}
+	if run.Status == DurableRunStatusFailed {
+		for _, event := range s.runEvents[run.RunID] {
+			if event.EventID != request.TerminalEvent.EventID {
+				continue
+			}
+			if err := validateDurableRunFailureReplay(run, request, event); err != nil {
+				return DurableRun{}, err
+			}
+			return cloneDurableRun(run), nil
+		}
+		return DurableRun{}, fmt.Errorf(
+			"%w: terminal event %s is missing",
+			ErrDurableRunFailureConflict,
+			request.TerminalEvent.EventID,
+		)
 	}
 	if !durableRunTransitionAllowed(run.Status, DurableRunStatusFailed) {
 		return DurableRun{}, fmt.Errorf(
@@ -145,6 +166,12 @@ func (s *InMemoryRunProjectionStore) FailRunProjection(
 	run.UpdatedAt = request.Now
 	recordDurableRunStatusTimestamp(&run, DurableRunStatusFailed, request.Now)
 	if err := validateDurableRun(run); err != nil {
+		return DurableRun{}, err
+	}
+	if err := s.appendRunEventLocked(run, request.TerminalEvent); err != nil {
+		if errors.Is(err, ErrInvalidRunEvent) {
+			return DurableRun{}, fmt.Errorf("%w: %v", ErrDurableRunFailureConflict, err)
+		}
 		return DurableRun{}, err
 	}
 	s.runs[request.RunID] = cloneDurableRun(run)

@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { assertApplicationLogOnlyObservability } from "../../../scripts/deploy/worker-observability-config";
 
 const TURNSTILE_TEST_SITE_KEY = "1x00000000000000000000AA";
 
@@ -36,6 +37,10 @@ async function main(): Promise<void> {
 	const configPath = new URL("../dist/campus_web/wrangler.json", import.meta.url);
 	const rawConfig = await readFile(configPath, "utf8");
 	const config = JSON.parse(rawConfig);
+	assertApplicationLogOnlyObservability(config.observability, {
+		destinations: ["axiom-staging-logs"],
+		surface: "campus-web built staging",
+	});
 	const services = Array.isArray(config.services) ? config.services : [];
 	const r2Buckets = Array.isArray(config.r2_buckets) ? config.r2_buckets : [];
 	const vars: Record<string, unknown> =

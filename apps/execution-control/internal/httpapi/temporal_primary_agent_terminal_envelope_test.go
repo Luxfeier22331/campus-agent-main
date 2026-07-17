@@ -100,6 +100,7 @@ func TestWriteFinalizationActivityKeepsDirectPrimaryAgentToolNullableWithAgentPr
 		context.Background(),
 		temporalruntime.WriteFinalizationActivityInput{
 			AgentResultRef: agentResultRef,
+			FinalizedAt:    now.Add(4 * time.Second),
 			RunID:          "run-primary-agent-direct-finalization",
 			TraceID:        "trace-executor-001",
 		},
@@ -193,6 +194,7 @@ func TestWriteFinalizationActivityProjectsPrimaryAgentToolCallTrace(t *testing.T
 		context.Background(),
 		temporalruntime.WriteFinalizationActivityInput{
 			AgentResultRef: agentResultRef,
+			FinalizedAt:    now.Add(4 * time.Second),
 			RunID:          "run-primary-agent-tool-finalization",
 			TraceID:        "trace-executor-001",
 		},
@@ -287,6 +289,7 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentOutOfScopeAsRejected(t *t
 		context.Background(),
 		temporalruntime.WriteFinalizationActivityInput{
 			AgentResultRef: agentResultRef,
+			FinalizedAt:    now.Add(4 * time.Second),
 			RunID:          "run-primary-agent-out-of-scope",
 			TraceID:        "trace-executor-001",
 		},

@@ -16,42 +16,34 @@ const llmApiKeyPrecedence = ["EVAL_LLM_API_KEY", "LLM_API_KEY"] as const;
 const embeddingApiKeyPrecedence = ["EVAL_EMBEDDING_API_KEY", "EMBEDDING_API_KEY"] as const;
 
 const workerStagingSurfaceSpecs = {
-	"worker-staging": {
-		providers: {},
-		required_settings: {
-			staging_access_policy_aud: ["STAGING_ACCESS_POLICY_AUD"],
-			staging_access_team_domain: ["STAGING_ACCESS_TEAM_DOMAIN"],
-		},
-		optional_settings: {
-			staging_app_api_database_sslmode: ["STAGING_APP_API_DATABASE_SSLMODE"],
-			staging_app_api_operator_database_url: ["STAGING_APP_API_OPERATOR_DATABASE_URL"],
-			staging_sentry_release: ["STAGING_SENTRY_RELEASE"],
-		},
-		files: {},
-	},
 	"worker-staging-app-api": {
 		providers: {},
 		required_settings: {
+			sentry_app_api_project_slug: ["SENTRY_APP_API_PROJECT_SLUG"],
+			sentry_auth_token: ["SENTRY_AUTH_TOKEN"],
+			sentry_org_slug: ["SENTRY_ORG_SLUG"],
+			staging_app_api_sentry_dsn: ["STAGING_APP_API_SENTRY_DSN"],
 			staging_app_api_db_fresh_hyperdrive_id: ["STAGING_APP_API_DB_FRESH_HYPERDRIVE_ID"],
 			staging_app_api_db_hyperdrive_id: ["STAGING_APP_API_DB_HYPERDRIVE_ID"],
 			staging_execution_control_vpc_service_id: ["STAGING_EXECUTION_CONTROL_VPC_SERVICE_ID"],
 		},
 		optional_settings: {
 			staging_app_api_database_sslmode: ["STAGING_APP_API_DATABASE_SSLMODE"],
-			staging_app_api_operator_database_url: ["STAGING_APP_API_OPERATOR_DATABASE_URL"],
-			staging_sentry_release: ["STAGING_SENTRY_RELEASE"],
 		},
 		files: {},
 	},
 	"worker-staging-campus-web": {
 		providers: {},
 		required_settings: {
+			sentry_auth_token: ["SENTRY_AUTH_TOKEN"],
+			sentry_campus_web_project_slug: ["SENTRY_CAMPUS_WEB_PROJECT_SLUG"],
+			sentry_org_slug: ["SENTRY_ORG_SLUG"],
 			staging_campus_auth_turnstile_site_key: ["STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY"],
+			staging_campus_web_browser_sentry_dsn: ["STAGING_CAMPUS_WEB_BROWSER_SENTRY_DSN"],
+			staging_campus_web_edge_sentry_dsn: ["STAGING_CAMPUS_WEB_EDGE_SENTRY_DSN"],
 			staging_map_data_bucket_name: ["STAGING_MAP_DATA_BUCKET_NAME"],
 		},
-		optional_settings: {
-			staging_sentry_release: ["STAGING_SENTRY_RELEASE"],
-		},
+		optional_settings: {},
 		files: {},
 	},
 } satisfies Record<string, SurfaceSpec>;
@@ -69,16 +61,10 @@ const surfaceSpecDefinitions = {
 		optional_settings: {},
 		files: {
 			"apps/app-api/.dev.vars": {
-				required_keys: [
-					"SENTRY_DSN",
-					"SENTRY_ENVIRONMENT",
-					"SENTRY_RELEASE",
-					"APP_API_OTEL_INGEST_ENDPOINT",
-					"APP_API_OTEL_INGEST_SHARED_SECRET",
-				],
+				required_keys: ["SENTRY_DSN", "SENTRY_ENVIRONMENT", "SENTRY_RELEASE"],
 			},
 			"apps/campus-web/.dev.vars": {
-				required_keys: ["SENTRY_DSN", "SENTRY_ENVIRONMENT", "SENTRY_RELEASE"],
+				required_keys: ["SENTRY_BROWSER_DSN", "SENTRY_DSN", "SENTRY_ENVIRONMENT", "SENTRY_RELEASE"],
 			},
 		},
 	},
@@ -122,7 +108,7 @@ const surfaceSpecDefinitions = {
 			"apps/app-api/.env": {
 				required_keys: [
 					"CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB",
-					"APP_API_OPERATOR_DATABASE_URL",
+					"APP_API_SCHEMA_DATABASE_URL",
 				],
 				optional_keys: ["CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH"],
 			},
@@ -133,14 +119,9 @@ const surfaceSpecDefinitions = {
 					"EXECUTION_CONTROL_BASE_URL",
 					"EXECUTION_CONTROL_SHARED_SECRET",
 					"APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST",
-					"APP_API_OPERATOR_EMAIL_ALLOWLIST",
-					"APP_API_INTERNAL_SHARED_SECRET",
+					"APP_API_PRODUCT_CALLBACK_SHARED_SECRET",
 				],
-				optional_keys: [
-					"SENTRY_DSN",
-					"APP_API_OTEL_INGEST_ENDPOINT",
-					"APP_API_OTEL_INGEST_SHARED_SECRET",
-				],
+				optional_keys: ["SENTRY_DSN"],
 			},
 		},
 	},

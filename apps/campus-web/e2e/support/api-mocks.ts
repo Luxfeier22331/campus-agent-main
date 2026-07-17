@@ -651,11 +651,6 @@ function routeMocks(input: {
 						}),
 		},
 		{
-			method: "POST",
-			path: "/api/telemetry/web-performance",
-			response: (route) => route.fulfill({ json: { accepted: true }, status: 202 }),
-		},
-		{
 			method: "GET",
 			path: /^\/api\/dining\/halls\/[^/]+\/floors\/[^/]+$/,
 			response: (route) =>

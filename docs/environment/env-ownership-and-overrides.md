@@ -45,8 +45,9 @@ course-map`、`handbook service navigation` 等离线/领域链路只把必备 c
 base URL、reasoning effort、max output tokens、transport 等 tuning 走代码默认、CLI 参数或领域配置，
 不回流成 root env contract。
 
-Provider Config 不使用 seed command。Ops Web 本地运行读取自身 `.env`，验证后原子写入
-`OPS_WEB_PROVIDER_CONFIG_PROJECTION_PATH`；线上由同一应用发布固定 Kubernetes Secret。
+在线 Provider Config 不放在 root `.env.example`。execution-control 使用角色隔离的 reader/admin
+数据库连接和版本化 keyring；配置版本、验证和激活通过受保护的 admin API 与 Ops Web 完成。
+Hindsight 和 eval provider 环境由各自 runtime owner 管理，不从在线配置派生。
 
 ### 应用环境模板
 
@@ -79,35 +80,27 @@ closeout / rebuild / release command env 不再作为 tracked fallback surface�
   - `source-collector` official-web 来源配置和来源桶运行环境
 - [`apps/source-collector/adapters/wechat-official-account/.env.example`][source-collector-wechat-env]
   - `source-collector` wechat-official-account 适配器 FeedWe 凭据和来源桶运行环境
-- [`apps/ops-web/.env.example`](../../apps/ops-web/.env.example)
-  - Ops Web 本地数据库、Access 和 Provider Config file publisher 配置
 - [`infra/otel/collector.env.example`](../../infra/otel/collector.env.example)
   - 本地与 staging OTel Collector 进程环境变量
 
 ### 命令环境
 
 - [`env/commands/execution-control-runtime.env.example`](../../env/commands/execution-control-runtime.env.example)
-- [`env/commands/campus-docs-release.env.example`](../../env/commands/campus-docs-release.env.example)
-
-Campus Web staging 文档候选不使用 manifest key/SHA 环境变量。构建通过显式
-`docsReleaseId` 推导内容地址；常规构建读取 GitOps 已选 release，手动 promotion 使用 typed
-workflow input。derived bucket 只读凭据只注入 Campus Web 构建步骤，Worker runtime 只保存
-与该版本绑定的 `DOCS_RELEASE_ID`。
 
 ## 覆盖规则
 
 - env 只承载会随 deploy 或 runtime 变化的资源句柄、密钥、provider 配置、运行时 host/base URL
 - self-hosted Qdrant 的 URL 与 key 由 local/staging lifecycle 约定、生成并投影；
   root env 不维护 `QDRANT_*`
-- provider canonical env 优先于 sink / exporter 派生 env。典型例子是 Langfuse：
-  `LANGFUSE_BASE_URL`、`LANGFUSE_PUBLIC_KEY`、`LANGFUSE_SECRET_KEY` 与
-  `LANGFUSE_ENVIRONMENT` 是 staging closeout canonical config；
-  `OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT`、`OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER`
-  和 `OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION` 是 Collector deploy/render
-  输出或 closeout 脚本派生值，不应作为手工维护的第二份 truth
+- provider canonical env 优先于 sink / exporter 派生 env。Langfuse runtime 与 Hindsight 是两个
+  project：Agent/eval runtime 消费自己的 `LANGFUSE_*` 配置；Collector 分别消费
+  `OTEL_COLLECTOR_LANGFUSE_RUNTIME_{OTLP_ENDPOINT,AUTH_HEADER}` 与
+  `OTEL_COLLECTOR_LANGFUSE_HINDSIGHT_{OTLP_ENDPOINT,AUTH_HEADER}`；execution-control core
+  worker 只为 owner erase 与七天 retention 消费共享 `LANGFUSE_MAINTENANCE_BASE_URL` 与两组
+  `LANGFUSE_{RUNTIME,HINDSIGHT}_MAINTENANCE_*`。这些 credential 不得跨 project 或角色复用
 - 单次任务身份、源文档 identity、目标 scope 优先走 CLI args 或 typed request
 - repo-tracked truth 默认来自 config / manifest / source projection，而不是 env
-- K8s、Worker、Docker 和 Ops Web 各自使用成熟组件交付配置；
+- K8s / Worker / Docker 与各 runtime owner 使用成熟组件交付配置；
   repo 级 policy 只做跨 surface contract 与 static drift check，不承担运行时配置平台职责
 - `RAW_ASSET_ID`、`RAW_VERSION_ID`、`REPLAY_SOURCE_PDF`、`--corpus`、`--collection`
   等任务输入优先走 CLI args

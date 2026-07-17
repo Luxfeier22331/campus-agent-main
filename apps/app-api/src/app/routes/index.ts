@@ -9,13 +9,10 @@ import type {
 } from "../types";
 import { registerAuthRoutes } from "./auth";
 import { registerCampusExperienceRoutes } from "./campus-experience";
-import { registerCampusServicesOpsRoutes } from "./campus-services-ops";
 import { registerChatRoutes } from "./chat";
 import { registerDocsRoutes } from "./docs";
 import { registerFederationRoutes } from "./federation";
-import { registerIdentityPlatformRoutes } from "./identity-platform";
 import { registerInternalRoutes } from "./internal";
-import { registerOperatorRoutes } from "./operator";
 import { registerProfileMemoryRoutes } from "./profile-memory";
 import { registerRuntimeRoutes } from "./runtime";
 
@@ -46,12 +43,6 @@ export function registerAppRoutes(input: {
 		createRequestScope: input.createRequestScope,
 		env: input.env,
 	});
-	registerIdentityPlatformRoutes({
-		app: input.app,
-		createRequestScope: input.createRequestScope,
-		env: input.env,
-		getPrincipal: input.getPrincipal,
-	});
 	registerChatRoutes({
 		app: input.app,
 		createRequestScope: input.createRequestScope,
@@ -80,17 +71,5 @@ export function registerAppRoutes(input: {
 		app: input.app,
 		createRequestScope: input.createRequestScope,
 		env: input.env,
-	});
-	registerOperatorRoutes({
-		app: input.app,
-		createRequestScope: input.createRequestScope,
-		env: input.env,
-		getPrincipal: input.getPrincipal,
-	});
-	registerCampusServicesOpsRoutes({
-		app: input.app,
-		createRequestScope: input.createRequestScope,
-		env: input.env,
-		getPrincipal: input.getPrincipal,
 	});
 }

@@ -17,6 +17,26 @@ export interface OpsAdmissionEnv {
 	OPS_WEB_RAW_HUMAN_OPERATOR_EMAIL_ALLOWLIST?: string;
 	OPS_WEB_RAW_HUMAN_OPERATOR_GROUP_ALLOWLIST?: string;
 	OPS_WEB_RAW_SERVICE_TOKEN_OPERATOR_ALLOWLIST?: string;
+	OPS_WEB_PROVIDER_CONFIG_WRITE_HUMAN_EMAIL_ALLOWLIST?: string;
+	OPS_WEB_PROVIDER_CONFIG_WRITE_HUMAN_GROUP_ALLOWLIST?: string;
+}
+
+export function operatorCanWriteProviderConfig(
+	operator: OpsOperatorContext,
+	env: OpsAdmissionEnv = process.env,
+): boolean {
+	if (operator.principalClass !== "human") {
+		return false;
+	}
+	return humanOperatorAllowed(
+		{ email: operator.email ?? "", groups: operator.groups },
+		{
+			OPS_WEB_ACCESS_HUMAN_OPERATOR_EMAIL_ALLOWLIST:
+				env.OPS_WEB_PROVIDER_CONFIG_WRITE_HUMAN_EMAIL_ALLOWLIST,
+			OPS_WEB_ACCESS_HUMAN_OPERATOR_GROUP_ALLOWLIST:
+				env.OPS_WEB_PROVIDER_CONFIG_WRITE_HUMAN_GROUP_ALLOWLIST,
+		},
+	);
 }
 
 export interface OpsOperatorContext {

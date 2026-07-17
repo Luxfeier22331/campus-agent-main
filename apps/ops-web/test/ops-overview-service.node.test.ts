@@ -83,7 +83,7 @@ describe("ops overview service", () => {
 				services: opsOverviewFixture.services,
 				telemetry: opsOverviewFixture.telemetry,
 			})
-			.mockRejectedValueOnce(new Error("OpenObserve unavailable"));
+			.mockRejectedValueOnce(new Error("Axiom unavailable"));
 		const service = createOpsOverviewService({
 			now: () => current,
 			signals: { getSnapshot },
@@ -121,8 +121,8 @@ describe("ops overview service", () => {
 				services: opsOverviewFixture.services,
 				telemetry: opsOverviewFixture.telemetry,
 			})
-			.mockRejectedValueOnce(new Error("OpenObserve unavailable"))
-			.mockRejectedValueOnce(new Error("OpenObserve unavailable"));
+			.mockRejectedValueOnce(new Error("Axiom unavailable"))
+			.mockRejectedValueOnce(new Error("Axiom unavailable"));
 		const service = createOpsOverviewService({
 			now: () => current,
 			signals: { getSnapshot },

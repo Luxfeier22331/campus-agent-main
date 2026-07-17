@@ -364,8 +364,10 @@ func (s *Server) projectPrimaryAgentToolResults(
 		resultRef := primaryAgentSDKToolProjectionRef(run.RunID, toolName, callIndex)
 		argumentMetadata, err := validateSDKToolArguments(toolName, result.ArgumentsJSON)
 		if err != nil {
+			validationFailure := summarizeTemporalFailure("tool_argument_invalid", "", err)
 			payload := map[string]any{
-				"argument_validation":      err.Error(),
+				"argument_validation":      "Tool arguments did not match the admitted schema.",
+				"argument_validation_hash": validationFailure.Hash,
 				"arguments_json_sha256":    argumentMetadata.ArgumentsJSONSHA256,
 				"arguments_schema_sha256":  argumentMetadata.ArgumentsSchemaSHA256,
 				"arguments_schema_version": argumentMetadata.ArgumentsSchemaVersion,
@@ -607,9 +609,11 @@ func (s *Server) failPrimaryAgentActivity(
 	if errors.As(cause, &toolFailure) {
 		failCloseReason = toolFailure.FailCloseReason
 	}
+	summary := summarizeTemporalFailure(failureKind, "", cause)
 	payload := map[string]any{
-		"failure_kind": failureKind,
-		"message":      cause.Error(),
+		"failure_hash": summary.Hash,
+		"failure_kind": summary.Kind,
+		"message":      summary.Message,
 	}
 	if failCloseReason != "" {
 		payload["fail_close_reason"] = failCloseReason
@@ -620,13 +624,14 @@ func (s *Server) failPrimaryAgentActivity(
 	var runtimeHTTPError agentRuntimeHTTPError
 	if errors.As(cause, &runtimeHTTPError) {
 		payload["agent_runtime_http_status"] = runtimeHTTPError.StatusCode
-		if strings.TrimSpace(runtimeHTTPError.Code) != "" {
-			payload["agent_runtime_error_code"] = strings.TrimSpace(runtimeHTTPError.Code)
+		if stableCode := primaryAgentRuntimeFailureKind(runtimeHTTPError); stableCode == strings.TrimSpace(runtimeHTTPError.Code) {
+			payload["agent_runtime_error_code"] = stableCode
 		}
 	}
-	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+	err := s.projectTemporalFailureStep(ctx, run, temporalStepFailureProjection{
 		Tool:            "",
-		FailureKind:     failureKind,
+		FailureHash:     summary.Hash,
+		FailureKind:     summary.Kind,
 		ProjectionRef:   temporalProjectionRef(run.RunID, "agent/primary/result"),
 		ResultKind:      "activity_failure",
 		StepID:          "agent.primary",
@@ -636,7 +641,14 @@ func (s *Server) failPrimaryAgentActivity(
 		Payload:         payload,
 		TimeoutOutcome:  timeoutOutcome,
 	}, cause)
-	return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
+	if err != nil {
+		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, sanitizedTemporalApplicationError(
+			"activity_projection_failed",
+			err,
+			false,
+		)
+	}
+	return temporalruntime.ExecutePrimaryAgentActivityOutput{}, temporalApplicationError(summary, false)
 }
 
 type primaryAgentToolFailureError struct {

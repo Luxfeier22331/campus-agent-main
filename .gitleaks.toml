@@ -12,17 +12,6 @@ paths = [
 ]
 
 [[allowlists]]
-description = "Cloudflare resource identifiers that are not bearer secrets"
-paths = [
-  '''^apps/app-api/scripts/staging-runtime-db-proof\.ts$''',
-  '''^apps/operator-console-web/wrangler\.toml$''',
-]
-regexes = [
-  '''APP_API_DB_(FRESH_)?CONFIG_ID = "[a-f0-9]{32}"''',
-  '''OPERATOR_CONSOLE_ACCESS_SERVICE_TOKEN_OPERATOR_ALLOWLIST = "[a-f0-9]{32}"''',
-]
-
-[[allowlists]]
 description = "Tokenizer constant name includes token but value is not a credential"
 paths = [
   '''^packages/ingestion-core/src/campus_ingestion_core/chunking_tokenizers\.py$''',
@@ -33,6 +22,17 @@ regexes = [
 
 [[rules]]
 id = "generic-api-key"
+
+[[rules.allowlists]]
+description = "Ops Web portal credential tests use an explicit non-secret fixture"
+condition = "AND"
+regexTarget = "secret"
+paths = [
+  '''^apps/ops-web/test/ops-api\.test\.ts$''',
+]
+regexes = [
+  '''^SSO_TGC=TGT-private-ticket$''',
+]
 
 [[rules.allowlists]]
 description = "Bitnami SealedSecret encryptedData ciphertext"

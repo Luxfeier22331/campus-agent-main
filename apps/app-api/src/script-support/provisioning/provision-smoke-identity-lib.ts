@@ -8,7 +8,6 @@ const DEFAULT_APP_NAME = "campus-agent-app-api";
 const DEFAULT_AUTH_SHELL_ORIGIN = "https://campus-staging.mucwiki-edge.link";
 const DEFAULT_END_USER_EMAIL_DOMAIN_ALLOWLIST = "example.edu";
 const DEFAULT_END_USER_EMAIL_ALLOWLIST = "help_bot@outlook.com";
-const DEFAULT_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com";
 const DEFAULT_EXECUTION_CONTROL_BASE_URL = "https://execution-control.internal";
 const DEFAULT_EXECUTION_CONTROL_SHARED_SECRET = "smoke-identity-execution-secret";
 const DEFAULT_INTERNAL_SHARED_SECRET = "smoke-identity-internal-secret";
@@ -38,10 +37,9 @@ interface SmokeIdentityProvisionInput {
 	endUserEmailDomainAllowlist: string;
 	executionControlBaseUrl: string;
 	executionControlSharedSecret: string;
-	internalSharedSecret: string;
+	productCallbackSharedSecret: string;
 	name: string;
-	operatorDatabaseUrl: string;
-	operatorEmailAllowlist: string;
+	schemaDatabaseUrl: string;
 	password: string;
 	passwordEnvKey: string;
 	resendApiKey?: string;
@@ -49,8 +47,7 @@ interface SmokeIdentityProvisionInput {
 }
 
 interface SmokeIdentityProvisionRuntimeEnv {
-	APP_API_INTERNAL_SHARED_SECRET: string;
-	APP_API_OPERATOR_EMAIL_ALLOWLIST: string;
+	APP_API_PRODUCT_CALLBACK_SHARED_SECRET: string;
 	APP_API_DB: { connectionString: string };
 	APP_API_DB_FRESH: { connectionString: string };
 	[key: string]: unknown;
@@ -181,8 +178,8 @@ export function readSmokeIdentityProvisionInput(
 			`${email} is not admitted by the configured end-user auth allowlist. Refuse to provision a smoke identity that the deployed surface cannot sign in with.`,
 		);
 	}
-	const operatorDatabaseUrl = normalizePostgresConnectionStringForExplicitSsl(
-		env.APP_API_OPERATOR_DATABASE_URL,
+	const schemaDatabaseUrl = normalizePostgresConnectionStringForExplicitSsl(
+		env.APP_API_SCHEMA_DATABASE_URL,
 	);
 	const passwordEnvKey = readArgValue(argv, "--password-env") || DEFAULT_PASSWORD_ENV_KEY;
 	const password = requireValue(
@@ -200,12 +197,10 @@ export function readSmokeIdentityProvisionInput(
 		email,
 		endUserEmailAllowlist,
 		endUserEmailDomainAllowlist,
-		internalSharedSecret:
-			env.APP_API_INTERNAL_SHARED_SECRET?.trim() || DEFAULT_INTERNAL_SHARED_SECRET,
-		operatorDatabaseUrl,
+		productCallbackSharedSecret:
+			env.APP_API_PRODUCT_CALLBACK_SHARED_SECRET?.trim() || DEFAULT_INTERNAL_SHARED_SECRET,
+		schemaDatabaseUrl,
 		name,
-		operatorEmailAllowlist:
-			env.APP_API_OPERATOR_EMAIL_ALLOWLIST?.trim() || DEFAULT_OPERATOR_EMAIL_ALLOWLIST,
 		password,
 		passwordEnvKey,
 		authShellOrigin,
@@ -219,25 +214,24 @@ export function readSmokeIdentityProvisionInput(
 export function buildSmokeIdentityProvisionRuntimeEnv(
 	input: SmokeIdentityProvisionInput,
 ): SmokeIdentityProvisionRuntimeEnv {
-	const operatorDatabaseUrl = requireValue(
-		input.operatorDatabaseUrl,
-		"operatorDatabaseUrl is required for smoke identity provisioning.",
+	const schemaDatabaseUrl = requireValue(
+		input.schemaDatabaseUrl,
+		"schemaDatabaseUrl is required for smoke identity provisioning.",
 	);
 	return {
 		APP_API_NAME: input.appName,
 		APP_API_ENVIRONMENT: input.appApiEnvironment,
 		APP_API_DATABASE_SSLMODE: input.databaseSslMode,
 		APP_API_DB: {
-			connectionString: operatorDatabaseUrl,
+			connectionString: schemaDatabaseUrl,
 		},
 		APP_API_DB_FRESH: {
-			connectionString: operatorDatabaseUrl,
+			connectionString: schemaDatabaseUrl,
 		},
 		APP_API_END_USER_EMAIL_ALLOWLIST: input.endUserEmailAllowlist,
 		APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: input.endUserEmailDomainAllowlist,
-		APP_API_INTERNAL_SHARED_SECRET: input.internalSharedSecret,
-		APP_API_OPERATOR_DATABASE_URL: operatorDatabaseUrl,
-		APP_API_OPERATOR_EMAIL_ALLOWLIST: input.operatorEmailAllowlist,
+		APP_API_PRODUCT_CALLBACK_SHARED_SECRET: input.productCallbackSharedSecret,
+		APP_API_SCHEMA_DATABASE_URL: schemaDatabaseUrl,
 		AUTH_RESET_EMAIL_FROM: input.authResetEmailFrom || DEFAULT_AUTH_RESET_EMAIL_FROM,
 		AUTH_TURNSTILE_SECRET_KEY: input.authTurnstileSecretKey,
 		BETTER_AUTH_SECRET: input.betterAuthSecret,

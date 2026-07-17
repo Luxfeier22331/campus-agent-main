@@ -1,11 +1,13 @@
 // @vitest-environment node
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
 	type ChatMemoryE2eStagingDependencies,
+	openChatMemorySubmitStream,
 	runChatMemoryE2eStaging,
 } from "../e2e/chat-memory-staging";
+import { deriveLangfuseTraceId } from "../src/modules/telemetry/trace";
 
 function jsonResult<T>(
 	payload: T,
@@ -27,14 +29,34 @@ function sseResponse(blocks: string[]): Response {
 }
 
 describe("chat memory staging e2e runner", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
 	it("proves explicit memory write and Temporal memory recall through sanitized run steps", async () => {
-		const calls: Array<{ body?: unknown; method?: string; url: string }> = [];
+		const calls: Array<{
+			body?: unknown;
+			method?: string;
+			observabilityCanary?: unknown;
+			url: string;
+		}> = [];
+		let mintedName: string | undefined;
 		const result = await runChatMemoryE2eStaging(
 			[
 				"--chat-base-url",
 				"https://campus.example.com",
 				"--app-api-readyz-url",
 				"https://api.example.com/readyz",
+				"--memory-value",
+				"body-sentinel-0001",
+				"--name",
+				"user-sentinel-0001",
+				"--observability-canary-header-sentinel",
+				"header-sentinel-0001",
+				"--observability-canary-api-key-sentinel",
+				"credential-sentinel-0001",
+				"--prompt",
+				"query-sentinel-0001",
 			],
 			{
 				APP_API_STAGING_SMOKE_AUTH_SECRET: "smoke-secret",
@@ -57,7 +79,6 @@ describe("chat memory staging e2e runner", () => {
 						return jsonResult({
 							permissions: {
 								chat: true,
-								operator: false,
 							},
 							principal: {
 								email: "help_bot@outlook.com",
@@ -151,11 +172,17 @@ describe("chat memory staging e2e runner", () => {
 					}
 					throw new Error(`unexpected json request: ${input.url}`);
 				},
-				async mintSmokeSession() {
+				async mintSmokeSession(input) {
+					mintedName = input.name;
 					return "session=staging";
 				},
 				async openSubmitStream(input) {
-					calls.push({ body: input.body, method: "POST", url: input.url });
+					calls.push({
+						body: input.body,
+						method: "POST",
+						observabilityCanary: input.observabilityCanary,
+						url: input.url,
+					});
 					return sseResponse([
 						'event: request.accepted\ndata: {"occurredAt":"2026-06-04T00:00:00.000Z","requestId":"req_01HQ","runId":"run_01HQ","status":"accepted","traceId":"trace_01HQ"}\n\n',
 						'event: request.completed\ndata: {"occurredAt":"2026-06-04T00:00:02.000Z","requestId":"req_01HQ","status":"completed","traceId":"trace_01HQ","answer":{"conversation":{"id":"conv_01HQ"},"result":{"kind":"answer","requestId":"req_01HQ","traceId":"trace_01HQ"}}}\n\n',
@@ -171,8 +198,10 @@ describe("chat memory staging e2e runner", () => {
 			requestId: "req_01HQ",
 			resultKind: "answer",
 			runId: "run_01HQ",
+			runtimeTraceId: deriveLangfuseTraceId("trace_01HQ"),
 			traceId: "trace_01HQ",
 		});
+		expect(mintedName).toBe("user-sentinel-0001");
 		expect(result.recall).toEqual({
 			memoryRef: "projection://runs/run_01HQ/memory/recall",
 			selectedMemoryCount: 1,
@@ -184,13 +213,18 @@ describe("chat memory staging e2e runner", () => {
 				expect.objectContaining({
 					body: {
 						key: "smoke_memory_probe",
-						value: expect.stringContaining("smoke memory sentinel"),
+						value: "body-sentinel-0001",
 					},
 					method: "POST",
 					url: "https://campus.example.com/api/me/profile-memory/items",
 				}),
 				expect.objectContaining({
+					body: { prompt: "query-sentinel-0001" },
 					method: "POST",
+					observabilityCanary: {
+						apiKeySentinel: "credential-sentinel-0001",
+						headerSentinel: "header-sentinel-0001",
+					},
 					url: "https://campus.example.com/api/chat/requests/stream",
 				}),
 				{
@@ -203,5 +237,73 @@ describe("chat memory staging e2e runner", () => {
 				},
 			]),
 		);
+	});
+
+	it("adds only the two fixed observability canary headers when explicitly enabled", async () => {
+		const captured: { requestHeaders?: Headers } = {};
+		vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+			captured.requestHeaders = new Headers(init?.headers);
+			return sseResponse([]);
+		});
+
+		await openChatMemorySubmitStream({
+			body: { prompt: "query-sentinel-0001" },
+			cookieHeader: "session=staging",
+			observabilityCanary: {
+				apiKeySentinel: "credential-sentinel-0001",
+				headerSentinel: "header-sentinel-0001",
+			},
+			url: "https://campus.example.com/api/chat/requests/stream",
+		});
+
+		expect(captured.requestHeaders?.get("x-observability-canary")).toBe("header-sentinel-0001");
+		expect(captured.requestHeaders?.get("x-observability-canary-api-key")).toBe(
+			"credential-sentinel-0001",
+		);
+		expect([...(captured.requestHeaders?.keys() ?? [])].sort()).toEqual([
+			"accept",
+			"content-type",
+			"cookie",
+			"idempotency-key",
+			"x-observability-canary",
+			"x-observability-canary-api-key",
+		]);
+
+		await openChatMemorySubmitStream({
+			body: { prompt: "ordinary-smoke" },
+			cookieHeader: "session=staging",
+			observabilityCanary: null,
+			url: "https://campus.example.com/api/chat/requests/stream",
+		});
+		expect(captured.requestHeaders?.get("x-observability-canary")).toBeNull();
+		expect(captured.requestHeaders?.get("x-observability-canary-api-key")).toBeNull();
+	});
+
+	it("rejects partial, duplicate, invalid, or aliased canary header inputs before I/O", async () => {
+		const env = { APP_API_STAGING_SMOKE_AUTH_SECRET: "smoke-secret" } as NodeJS.ProcessEnv;
+		const run = (...args: string[]) => runChatMemoryE2eStaging(args, env);
+
+		await expect(
+			run("--observability-canary-header-sentinel", "header-sentinel-0001"),
+		).rejects.toThrow("must be provided together");
+		await expect(
+			run(
+				"--observability-canary-header-sentinel",
+				"header-sentinel-0001",
+				"--observability-canary-api-key-sentinel",
+				"credential-sentinel-0001",
+				"--observability-canary-header-sentinel",
+				"header-sentinel-0002",
+			),
+		).rejects.toThrow("may only be provided once");
+		await expect(
+			run(
+				"--observability-canary-header-sentinel",
+				"credential-sentinel-0001",
+				"--observability-canary-api-key-sentinel",
+				"header-sentinel-0001",
+			),
+		).rejects.toThrow("requires a valid synthetic sentinel");
+		await expect(run("--header", "x-any=value")).rejects.toThrow("Unknown argument: --header");
 	});
 });

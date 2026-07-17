@@ -59,6 +59,8 @@ if (!mapBinding) {
 mapBinding.bucket_name = mapBucketName;
 writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
 
+const sentryRelease = resolveStagingSentryRelease("campus-web");
+
 const preflight = spawnSync("pnpm", ["exec", "tsx", "./scripts/preflight-staging.ts"], {
 	cwd: appDir,
 	env: process.env,
@@ -75,11 +77,19 @@ uploadStagingWorkerVersion({
 	config: "dist/campus_web/wrangler.json",
 	cwd: appDir,
 	workerName: "campus-web-staging",
+	sentrySourceMaps: {
+		artifactDirectory: "dist/campus_web",
+		orgSlug: requiredEnv("SENTRY_ORG_SLUG"),
+		projectSlug: requiredEnv("SENTRY_CAMPUS_WEB_PROJECT_SLUG"),
+		release: sentryRelease,
+	},
 	variables: {
 		AUTH_TURNSTILE_APPEARANCE: TURNSTILE_APPEARANCE,
 		AUTH_TURNSTILE_EXECUTION: TURNSTILE_EXECUTION,
 		AUTH_TURNSTILE_SITE_KEY: turnstileSiteKey,
 		DOCS_RELEASE_ID: docsReleaseId,
-		SENTRY_RELEASE: resolveStagingSentryRelease("campus-web"),
+		SENTRY_BROWSER_DSN: requiredEnv("STAGING_CAMPUS_WEB_BROWSER_SENTRY_DSN"),
+		SENTRY_DSN: requiredEnv("STAGING_CAMPUS_WEB_EDGE_SENTRY_DSN"),
+		SENTRY_RELEASE: sentryRelease,
 	},
 });

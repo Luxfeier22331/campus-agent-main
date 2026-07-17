@@ -22,6 +22,13 @@
       "when": 1784214804738,
       "tag": "0002_provider_config_handoff",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1784283361598,
+      "tag": "0003_hindsight_productionization",
+      "breakpoints": true
     }
   ]
 }

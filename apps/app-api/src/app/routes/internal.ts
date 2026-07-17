@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 
 import { sql } from "drizzle-orm";
 import type { Hono } from "hono";
@@ -17,31 +17,57 @@ import {
 	hashAppPassword,
 	isEndUserEmailAllowedForAuth,
 } from "../../modules/auth";
+import {
+	parseExecutionFinalizationResponsePayload,
+	type ToolExecutionResponse,
+} from "../../modules/integration";
+import { ChatFinalizationConflict } from "../../modules/runtime-command/store-types";
+import {
+	captureAppApiSentryCanary,
+	parseSentryCanarySentinels,
+} from "../../modules/telemetry/sentry-canary";
 import { readJsonRequestBody } from "../request-utils";
 import type { AppRequestScope } from "../types";
+
+function authorized(request: Request, env: Env): boolean {
+	const expected = env.APP_API_PRODUCT_CALLBACK_SHARED_SECRET?.trim();
+	const provided = request.headers.get("x-app-product-callback-auth")?.trim();
+	if (!(expected && provided)) {
+		return false;
+	}
+	const expectedBytes = Buffer.from(expected);
+	const providedBytes = Buffer.from(provided);
+	return (
+		expectedBytes.length === providedBytes.length && timingSafeEqual(expectedBytes, providedBytes)
+	);
+}
+
+function requireObject(value: unknown): Record<string, unknown> | null {
+	return value && typeof value === "object" && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: null;
+}
+
+function sha256(value: string): string {
+	return createHash("sha256").update(value, "utf8").digest("hex");
+}
 
 function normalizeHeaderValue(value: string | null | undefined): string | null {
 	const normalized = value?.trim();
 	return normalized ? normalized : null;
 }
 
-function hasMatchingStagingSmokeAuthSecret(
-	request: Request,
-	env: Pick<Env, "APP_API_STAGING_SMOKE_AUTH_SECRET">,
-): boolean {
+function hasMatchingStagingSmokeAuthSecret(request: Request, env: Env): boolean {
 	const expected = normalizeHeaderValue(env.APP_API_STAGING_SMOKE_AUTH_SECRET);
 	const provided = normalizeHeaderValue(request.headers.get("x-app-staging-smoke-auth"));
 	if (!(expected && provided)) {
 		return false;
 	}
-
 	const expectedBytes = Buffer.from(expected);
 	const providedBytes = Buffer.from(provided);
-	if (expectedBytes.length !== providedBytes.length) {
-		return false;
-	}
-
-	return timingSafeEqual(expectedBytes, providedBytes);
+	return (
+		expectedBytes.length === providedBytes.length && timingSafeEqual(expectedBytes, providedBytes)
+	);
 }
 
 function readStringField(payload: Record<string, unknown>, fieldName: string): string | null {
@@ -49,8 +75,9 @@ function readStringField(payload: Record<string, unknown>, fieldName: string): s
 	return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function readBooleanField(payload: Record<string, unknown>, fieldName: string): boolean {
-	return payload[fieldName] === true;
+function readSyntheticCredential(request: Request): string | null {
+	const value = request.headers.get("authorization")?.trim();
+	return value?.startsWith("Synthetic ") ? value.slice("Synthetic ".length) : null;
 }
 
 function parseCsvList(value: string | null | undefined): string[] {
@@ -65,7 +92,7 @@ async function resetStagingSmokeIdentity(input: {
 	env: Env;
 	name: string;
 	password: string;
-}): Promise<{ userId: string }> {
+}): Promise<void> {
 	const policy = buildEndUserEmailAdmissionPolicy({
 		endUserEmailAllowlist: parseCsvList(input.env.APP_API_END_USER_EMAIL_ALLOWLIST),
 		endUserEmailDomainAllowlist: parseCsvList(input.env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST),
@@ -83,7 +110,6 @@ async function resetStagingSmokeIdentity(input: {
 	const accountRowId = crypto.randomUUID();
 	const passwordHash = await hashAppPassword(input.password);
 	const now = new Date();
-
 	await withRuntimeDatabase(input.env, async (db) => {
 		await db.execute(sql`
 			delete from "chat"."conversations"
@@ -105,8 +131,6 @@ async function resetStagingSmokeIdentity(input: {
 			values (${accountRowId}, ${userId}, 'credential', ${userId}, ${passwordHash}, ${now}, ${now})
 		`);
 	});
-
-	return { userId };
 }
 
 export function registerInternalRoutes(input: {
@@ -114,6 +138,133 @@ export function registerInternalRoutes(input: {
 	createRequestScope: () => AppRequestScope;
 	env: Env;
 }) {
+	input.app.post("/api/internal/staging-smoke/observability/sentry-canary", async (c) => {
+		if (resolveEnvironment(input.env) !== "staging") {
+			return routeErrorResponse(
+				new AppApiRouteError({
+					code: "not_found",
+					message: "Route not found.",
+					retryable: false,
+					status: 404,
+				}),
+			);
+		}
+		if (!input.env.APP_API_STAGING_SMOKE_AUTH_SECRET?.trim()) {
+			return jsonResponse(
+				errorEnvelope({
+					code: "staging_smoke_auth_not_configured",
+					message: "Staging smoke auth secret is not configured.",
+					retryable: false,
+				}),
+				{ status: 503 },
+			);
+		}
+		if (!hasMatchingStagingSmokeAuthSecret(c.req.raw, input.env)) {
+			return jsonResponse(
+				errorEnvelope({
+					code: "staging_smoke_auth_required",
+					message: "Staging smoke auth secret required.",
+					retryable: false,
+				}),
+				{ status: 401 },
+			);
+		}
+		const sentryRelease = input.env.SENTRY_RELEASE?.trim();
+		if (
+			!(
+				input.env.SENTRY_DSN?.trim() &&
+				sentryRelease &&
+				/^app-api@[0-9a-f]{40}$/u.test(sentryRelease)
+			)
+		) {
+			return jsonResponse(
+				errorEnvelope({
+					code: "sentry_canary_not_configured",
+					message: "Sentry canary is not configured for this release.",
+					retryable: false,
+				}),
+				{ status: 503 },
+			);
+		}
+
+		const contentType = c.req.raw.headers.get("content-type")?.split(";", 1)[0]?.trim();
+		if (contentType !== "application/x-www-form-urlencoded") {
+			return routeErrorResponse(
+				new AppApiRouteError({
+					code: "invalid_request",
+					message: "Sentry canary requires a form navigation request.",
+					retryable: false,
+					status: 400,
+				}),
+			);
+		}
+		const form = await c.req.raw.formData().catch(() => null);
+		const sentinels = parseSentryCanarySentinels({
+			body: form?.get("body"),
+			credential: readSyntheticCredential(c.req.raw),
+			header: c.req.raw.headers.get("x-observability-canary"),
+			query: form?.get("query"),
+			user: form?.get("user"),
+		});
+		if (!sentinels) {
+			return routeErrorResponse(
+				new AppApiRouteError({
+					code: "invalid_request",
+					message: "Sentry canary sentinels are invalid.",
+					retryable: false,
+					status: 400,
+				}),
+			);
+		}
+		const requestId = readObservabilityCanaryCorrelation(
+			c.req.raw.headers.get("x-request-id"),
+			/^[A-Za-z0-9._:-]{1,128}$/u,
+		);
+		const traceId = readObservabilityCanaryCorrelation(
+			c.req.raw.headers.get("x-trace-id"),
+			/^[0-9a-f]{32}$/u,
+		);
+		if (!(requestId && traceId)) {
+			return routeErrorResponse(
+				new AppApiRouteError({
+					code: "invalid_request",
+					message: "Sentry canary correlation is invalid.",
+					retryable: false,
+					status: 400,
+				}),
+			);
+		}
+
+		const result = await captureAppApiSentryCanary(sentinels);
+		if (!result) {
+			return jsonResponse(
+				errorEnvelope({
+					code: "sentry_canary_flush_failed",
+					message: "Sentry did not confirm canary delivery.",
+					retryable: true,
+				}),
+				{ status: 503 },
+			);
+		}
+		console.info({
+			event_type: "observability.canary",
+			request_id: requestId,
+			schema_version: "observability-canary-v1",
+			sentinel_sha256: result.sentinelSha256,
+			source: "app-api.staging-smoke",
+			surface: "app-api",
+			trace_id: traceId,
+		});
+
+		return withNoStore(
+			jsonResponse({
+				app_api_sentry_event_id: result.eventId,
+				release: sentryRelease,
+				sentinel_sha256: result.sentinelSha256,
+			}),
+		);
+	});
+
 	input.app.post("/api/internal/staging-smoke/auth/session", async (c) => {
 		if (resolveEnvironment(input.env) !== "staging") {
 			return routeErrorResponse(
@@ -161,22 +312,13 @@ export function registerInternalRoutes(input: {
 			);
 		}
 
-		if (readBooleanField(payload, "resetIdentity")) {
-			await resetStagingSmokeIdentity({
-				email,
-				env: input.env,
-				name,
-				password,
-			});
+		if (payload.resetIdentity === true) {
+			await resetStagingSmokeIdentity({ email, env: input.env, name, password });
 		}
 
 		const authShellOrigin = readAuthShellOrigin(input.env);
 		const signInRequest = new Request(new URL("/api/auth/sign-in/email", authShellOrigin), {
-			body: JSON.stringify({
-				email,
-				password,
-				rememberMe: true,
-			}),
+			body: JSON.stringify({ email, password, rememberMe: true }),
 			headers: {
 				"content-type": "application/json",
 				origin: authShellOrigin,
@@ -185,18 +327,168 @@ export function registerInternalRoutes(input: {
 			method: "POST",
 		});
 		const auth = await input.createRequestScope().getAppAuth();
-
 		return withNoStore(
 			await auth.api.signInEmail({
 				asResponse: true,
-				body: {
-					email,
-					password,
-					rememberMe: true,
-				},
+				body: { email, password, rememberMe: true },
 				headers: signInRequest.headers,
 				request: signInRequest,
 			}),
 		);
 	});
+
+	input.app.put("/api/internal/execution/runs/:runId/product-finalization", async (c) => {
+		if (!authorized(c.req.raw, input.env)) {
+			return jsonResponse(
+				errorEnvelope({
+					code: "internal_auth_required",
+					message: "Product callback credential required.",
+					retryable: false,
+				}),
+				{ status: 401 },
+			);
+		}
+		const body = requireObject(await c.req.json().catch(() => null));
+		const completedAt = body?.completed_at;
+		const finalizationFingerprint = body?.finalization_fingerprint;
+		const response = requireObject(body?.response);
+		const runId = c.req.param("runId").trim();
+		if (
+			typeof completedAt !== "string" ||
+			Number.isNaN(Date.parse(completedAt)) ||
+			typeof finalizationFingerprint !== "string" ||
+			!finalizationFingerprint.trim() ||
+			!response ||
+			!runId ||
+			finalizationFingerprint.trim() !== sha256(`${runId}\0${JSON.stringify(response)}`)
+		) {
+			return jsonResponse(
+				errorEnvelope({
+					code: "invalid_request",
+					message: "Chat product finalization is invalid.",
+					retryable: false,
+				}),
+				{ status: 400 },
+			);
+		}
+		let parsedResponse: ToolExecutionResponse;
+		try {
+			parsedResponse = parseExecutionFinalizationResponsePayload(response);
+		} catch {
+			return jsonResponse(
+				errorEnvelope({
+					code: "invalid_request",
+					message: "Chat product finalization response violates its contract.",
+					retryable: false,
+				}),
+				{ status: 400 },
+			);
+		}
+		const service = input.createRequestScope().resolveChatCommandService();
+		if (!service.applyProductFinalization) {
+			return jsonResponse(
+				errorEnvelope({
+					code: "dependency_not_ready",
+					message: "Chat product finalization is not configured.",
+					retryable: true,
+				}),
+				{ status: 503 },
+			);
+		}
+		try {
+			const result = await service.applyProductFinalization({
+				completedAt,
+				finalizationFingerprint: finalizationFingerprint.trim(),
+				response: parsedResponse,
+				runId,
+			});
+			return jsonResponse(result, { status: 200 });
+		} catch (error) {
+			if (error instanceof ChatFinalizationConflict) {
+				return jsonResponse(
+					errorEnvelope({
+						code: "finalization_conflict",
+						message: "Chat finalization conflicts with the recorded terminal result.",
+						retryable: false,
+					}),
+					{ status: 409 },
+				);
+			}
+			throw error;
+		}
+	});
+
+	input.app.put("/api/internal/profile-memory/commands/:commandId/result", async (c) => {
+		if (!authorized(c.req.raw, input.env)) {
+			return jsonResponse(
+				errorEnvelope({
+					code: "internal_auth_required",
+					message: "Product callback credential required.",
+					retryable: false,
+				}),
+				{ status: 401 },
+			);
+		}
+		const body = requireObject(await c.req.json().catch(() => null));
+		const status = body?.status;
+		const resultFingerprint = body?.result_fingerprint;
+		const errorCode = body?.error_code;
+		if (
+			(status !== "succeeded" && status !== "failed") ||
+			typeof resultFingerprint !== "string" ||
+			!/^[a-f0-9]{64}$/u.test(resultFingerprint.trim()) ||
+			(errorCode !== undefined && typeof errorCode !== "string") ||
+			(typeof errorCode === "string" && errorCode.trim().length > 64) ||
+			resultFingerprint.trim() !==
+				sha256(
+					`${c.req.param("commandId").trim()}\0${status}\0${typeof errorCode === "string" ? errorCode.trim() : ""}`,
+				)
+		) {
+			return jsonResponse(
+				errorEnvelope({
+					code: "invalid_request",
+					message: "Memory command result is invalid.",
+					retryable: false,
+				}),
+				{ status: 400 },
+			);
+		}
+		const outcome = await input
+			.createRequestScope()
+			.resolveProfileMemoryService()
+			.applyResult({
+				commandId: c.req.param("commandId"),
+				...(typeof errorCode === "string" && errorCode.trim()
+					? { errorCode: errorCode.trim() }
+					: {}),
+				resultFingerprint: resultFingerprint.trim(),
+				status,
+			});
+		if (outcome === "not_found") {
+			return jsonResponse(
+				errorEnvelope({
+					code: "command_not_found",
+					message: "Memory command was not found.",
+					retryable: false,
+				}),
+				{ status: 404 },
+			);
+		}
+		if (outcome === "conflict") {
+			return jsonResponse(
+				errorEnvelope({
+					code: "result_conflict",
+					message: "Memory command result conflicts with the recorded terminal result.",
+					retryable: false,
+				}),
+				{ status: 409 },
+			);
+		}
+		return jsonResponse({ outcome }, { status: 200 });
+	});
+}
+
+function readObservabilityCanaryCorrelation(value: string | null, pattern: RegExp): string | null {
+	const normalized = value?.trim() ?? "";
+	return pattern.test(normalized) ? normalized : null;
 }

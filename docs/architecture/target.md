@@ -118,7 +118,11 @@ status: active
 - 产品遥测只保存白名单字段，不包含 prompt、回答、检索正文、认证材料或 secret；
 - Langfuse 可以在受信任边界保存模型诊断所需 trace，并拥有 dataset、score、annotation 和
   experiment；
-- OpenTelemetry Collector 负责字段删除、采样、批处理和环境选择的 sink 转发；
+- OpenTelemetry Collector 负责 Kubernetes 通用信号的分权入口、字段删除、采样、批处理和
+  环境选择的 sink 转发；Sentry SDK 和 Cloudflare application log destination 是明确例外，后者
+  只允许 producer 清理后的 console logs，并必须以下游哨兵验证；
+- Cloudflare invocation logs 与 native traces 保持关闭；后端请求 trace 通过 W3C context 进入
+  execution-control 和 Collector，作为 Axiom/Langfuse 的请求关联证据；
 - Ops Web 提供跨系统常用摘要和关联入口，不复制 Temporal UI、Langfuse UI 或日志平台的全部能力；
 - runtime 合同测试拥有确定性不变量，Ragas/Langfuse score 用于质量评审，不替代合同测试或自动
   形成发布结论；

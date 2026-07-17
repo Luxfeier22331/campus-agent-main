@@ -22,7 +22,7 @@ status: active
 
 ```mermaid
 flowchart LR
-  Browser["campus-web"]
+  CampusWeb["campus-web browser / edge"]
   Ops["ops-web"]
   AppAPI["app-api"]
   Control["execution-control"]
@@ -36,8 +36,11 @@ flowchart LR
   PG["PostgreSQL"]
   ObjectStore["S3-compatible object storage"]
   OTel["OpenTelemetry Collector"]
+  Axiom["Axiom"]
+  Sentry["Sentry"]
+  Langfuse["Langfuse projects"]
 
-  Browser --> AppAPI
+  CampusWeb --> AppAPI
   AppAPI --> Control
   Control --> Temporal
   Temporal --> Workflow
@@ -49,8 +52,15 @@ flowchart LR
   AppAPI --> PG
   Control --> PG
   Control --> ObjectStore
-  AppAPI --> OTel
   Control --> OTel
+  Agent --> OTel
+  Memory --> OTel
+  OTel --> Axiom
+  OTel --> Langfuse
+  CampusWeb --> Sentry
+  AppAPI --> Sentry
+  CampusWeb -->|edge application logs| Axiom
+  AppAPI -->|application logs| Axiom
   Ops --> PG
   Ops --> Control
   Ops --> ProviderSecret["Provider Config Secret"]
@@ -60,8 +70,8 @@ flowchart LR
 
 - `campus-web` 提供学生问答、账号、文档、地图、食堂和校园状态页面；
 - `app-api` 拥有用户身份、会话、聊天持久化、产品 API 和请求终结；
-- `ops-web` 是唯一自托管运维产品，不通过 app-api 代理数据库和 Temporal 状态；运行诊断默认
-  只读，人员可以替换固定内部门户 TGC、管理食堂内容，并管理、验证和发布模型服务配置；
+- `ops-web` 是唯一运维浏览器面，不通过 app-api 代理数据库和 Temporal 状态；它默认只读，
+  仅允许人员维护在线 Provider Config、替换固定内部门户 TGC 并恢复固定认证维护 Schedule；
 - `execution-control` 拥有内部执行准入、Temporal 命令、受控查询和执行投影；
 - `agent-runtime` 在一个 Agent Activity 中完成 OpenAI Agents SDK agent/tool loop；
 - 浏览器不直连 execution-control、Temporal、Hindsight、Qdrant 或 PostgreSQL。
@@ -118,7 +128,14 @@ execution-control 提供已准入工具集合，但不在 SDK 前建立文本分
 - Qdrant 只承载机构知识检索，不保存个人记忆；
 - 对象存储保存 digest-pinned ingestion request、source artifact 和 result manifest；
 - Langfuse 保存受信任的模型 trace、dataset、score 和评测工作流；
-- OpenTelemetry Collector 接收受控 trace、log 和 metric，并按环境配置转发。
+- OpenTelemetry Collector 通过分权入口接收 Kubernetes 受控 trace、log 和 metric，并按数据
+  类别转发到 Axiom 与两个 Langfuse project；
+- Sentry 通过 browser/edge SDK 保存经过清理的应用错误、受控性能、release 和 source map；
+- app-api 与 campus-web edge 只把 producer 清理后的 application console logs 按环境 log
+  destination 直接写入 Axiom，不经过 Collector；Worker invocation logs 与 native traces 保持
+  关闭；
+- 后端请求 trace 通过 W3C context 进入 execution-control，再由 Collector 写入 Axiom 与
+  Langfuse，作为跨服务请求关联证据。
 
 各系统通过 `request_id`、`run_id`、`trace_id` 和 `conversation_id` 关联，不维护第二套
 operator request projector。
@@ -169,6 +186,8 @@ Campus Web 使用代码版本内的 floorplan manifest 渲染地图，不从 API
 ## 已退役边界
 
 - Python `apps/supervisor-agent-worker` 和 `apps/ingestion-worker` 不属于当前运行路径；
+- `apps/operator-console-web` 已完全退役，在线 Provider Config 由 execution-control 拥有并
+  通过 Ops Web 操作；
 - ChatKit 不再是问答入口依赖；
 - 不存在 bootstrap mega-agent、隐藏 fallback router 或按 specialist 拆分的 worker graph；
 - `runtime.request_execution`、projection outbox 和 operator request projector 已退役；

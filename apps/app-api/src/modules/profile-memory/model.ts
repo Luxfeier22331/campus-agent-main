@@ -1,26 +1,40 @@
-export type ProfileMemorySourceType = "user_declared" | "session_inferred" | "operator_curated";
+export type ProfileMemorySourceType = "user_declared" | "session_inferred";
 export type ProfileMemoryConfidence = "low" | "medium" | "high";
 export type ProfileMemoryVisibility = "user_visible" | "internal_only";
+export type ProfileMemoryLifecycleState = "active" | "paused" | "erasing" | "erased";
+export type ProfileMemorySyncStatus = "synced" | "pending" | "failed";
+export type ProfileMemoryItemState = "synced" | "saving" | "deleting" | "failed";
+export type ProfileMemoryCommandKind =
+	| "owner_transition"
+	| "owner_erase"
+	| "item_upsert"
+	| "item_delete"
+	| "conversation_delete"
+	| "conversation_prune";
 
 export interface ProfileMemoryItem {
-	confidence: ProfileMemoryConfidence;
 	itemId: string;
 	key: string;
-	lastVerifiedAt: string;
-	sourceType: ProfileMemorySourceType;
+	revision: number;
+	state: ProfileMemoryItemState;
 	updatedAt: string;
 	value: string;
-	visibility: ProfileMemoryVisibility;
 }
 
 export interface ProfileMemoryList {
-	enabled: boolean;
+	itemCount: number;
 	items: ProfileMemoryItem[];
+	lifecycleState: ProfileMemoryLifecycleState;
+	syncStatus: ProfileMemorySyncStatus;
 }
 
 export interface ProfileMemorySummary {
+	commandSequence?: number;
 	enabled: boolean;
+	generation?: number;
 	itemCount: number;
+	lifecycleState: ProfileMemoryLifecycleState;
+	syncStatus: ProfileMemorySyncStatus;
 }
 
 export interface ProfileMemoryProjectionItem {
@@ -31,6 +45,38 @@ export interface ProfileMemoryProjectionItem {
 	sourceType: ProfileMemorySourceType;
 	value: string;
 	visibility: ProfileMemoryVisibility;
+}
+
+export interface ProfileMemoryCommand {
+	commandId: string;
+	commandKind: ProfileMemoryCommandKind;
+	ownerGeneration: number;
+	ownerSequence: number;
+	ownerUserId: string;
+	status: "pending_admission" | "admitted" | "succeeded" | "failed" | "superseded";
+	subjectId: string | null;
+	subjectRevision: number | null;
+	sourceMessageIds: string[];
+	supersessionScope: string;
+}
+
+export interface ProfileMemoryMutationResult {
+	item?: ProfileMemoryItem;
+	lifecycleState: ProfileMemoryLifecycleState;
+	syncStatus: ProfileMemorySyncStatus;
+}
+
+export function profileMemoryItemState(input: {
+	desiredState: string;
+	syncStatus: string;
+}): ProfileMemoryItemState {
+	if (input.syncStatus === "failed") {
+		return "failed";
+	}
+	if (input.desiredState === "deleted") {
+		return "deleting";
+	}
+	return input.syncStatus === "synced" ? "synced" : "saving";
 }
 
 export function toIsoString(value: Date): string {

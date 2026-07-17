@@ -11,7 +11,6 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
-	"go.temporal.io/sdk/temporal"
 )
 
 func (s *Server) temporalActivityRun(
@@ -91,9 +90,11 @@ func (s *Server) failFinalizationActivity(
 	failCloseReason string,
 	cause error,
 ) (temporalruntime.WriteFinalizationActivityOutput, error) {
-	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+	summary := summarizeTemporalFailure(failureKind, "", cause)
+	err := s.projectTemporalFailureStep(ctx, run, temporalStepFailureProjection{
 		Tool:            tool,
-		FailureKind:     failureKind,
+		FailureHash:     summary.Hash,
+		FailureKind:     summary.Kind,
 		ProjectionRef:   temporalProjectionRef(run.RunID, "finalization/write"),
 		ResultKind:      "activity_failure",
 		StepID:          "finalization.write",
@@ -102,15 +103,22 @@ func (s *Server) failFinalizationActivity(
 		FailCloseReason: failCloseReason,
 		Payload: map[string]any{
 			"fail_close_reason": failCloseReason,
-			"failure_kind":      failureKind,
-			"message":           cause.Error(),
 		},
 	}, cause)
-	return temporalruntime.WriteFinalizationActivityOutput{}, err
+	if err != nil {
+		return temporalruntime.WriteFinalizationActivityOutput{}, sanitizedTemporalApplicationError(
+			"activity_projection_failed",
+			err,
+			false,
+		)
+	}
+	return temporalruntime.WriteFinalizationActivityOutput{}, temporalApplicationError(summary, true)
 }
 
 type temporalStepFailureProjection struct {
 	Tool            string
+	FailedAt        time.Time
+	FailureHash     string
 	FailureKind     string
 	CancelOutcome   execution.CancelOutcome
 	FailCloseReason string
@@ -123,20 +131,15 @@ type temporalStepFailureProjection struct {
 	TimeoutOutcome  execution.TimeoutOutcome
 }
 
-func (s *Server) failTemporalRunStep(
+func (s *Server) projectTemporalFailureStep(
 	ctx context.Context,
 	run execution.DurableRun,
 	projection temporalStepFailureProjection,
 	cause error,
-) (execution.DurableRun, error) {
+) error {
 	now := time.Now().UTC()
-	payload := projection.Payload
-	if payload == nil {
-		payload = map[string]any{
-			"failure_kind": projection.FailureKind,
-			"message":      cause.Error(),
-		}
-	}
+	projection.FailureKind = boundedTemporalFailureKind(projection.FailureKind)
+	payload := temporalFailurePayload(projection, cause)
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:         1,
 		Tool:            temporalFailureTool(projection),
@@ -156,9 +159,9 @@ func (s *Server) failTemporalRunStep(
 		TimeoutOutcome:  temporalFailureTimeoutOutcome(ctx, projection.TimeoutOutcome, cause),
 		Payload:         payload,
 	}); err != nil {
-		return execution.DurableRun{}, err
+		return err
 	}
-	return s.failTemporalRun(ctx, run, projection, cause)
+	return nil
 }
 
 func temporalFailureTool(projection temporalStepFailureProjection) string {
@@ -225,23 +228,50 @@ func (s *Server) failTemporalRun(
 	projection temporalStepFailureProjection,
 	cause error,
 ) (execution.DurableRun, error) {
-	failedAt := time.Now().UTC()
+	failedAt := projection.FailedAt
+	if failedAt.IsZero() {
+		failedAt = time.Now().UTC()
+	}
+	failedAt = failedAt.UTC()
 	failureKind := projection.FailureKind
-	terminalError := temporalRunFailureErrorPayload(failureKind, cause)
-	_, _ = s.runProjectionStore.AppendRunEvent(ctx, execution.DurableRunEvent{
-		EventID:              run.RunID + ":activity-failed:" + failureKind,
-		RunID:                run.RunID,
-		ConversationID:       run.ConversationID,
-		EventType:            execution.DurableRunEventTypeActivityFailed,
-		OccurredAt:           failedAt,
-		Visibility:           execution.DurableRunEventVisibilityInternal,
-		PayloadSchemaVersion: "run-event-v1",
-		Payload: map[string]any{
-			"failure_kind": failureKind,
-			"message":      cause.Error(),
-		},
-	})
+	summary := summarizeTemporalFailure(failureKind, projection.FailureHash, cause)
+	failureKind = summary.Kind
+	terminalError := temporalRunFailureErrorPayload(failureKind, projection.FailureHash, cause)
 	terminalReason := temporalFailureTerminalReason(projection, failureKind)
+	if run.Status != execution.DurableRunStatusFailed {
+		_, _ = s.runProjectionStore.AppendRunEvent(ctx, execution.DurableRunEvent{
+			EventID:              run.RunID + ":activity-failed:" + failureKind,
+			RunID:                run.RunID,
+			ConversationID:       run.ConversationID,
+			EventType:            execution.DurableRunEventTypeActivityFailed,
+			OccurredAt:           failedAt,
+			Visibility:           execution.DurableRunEventVisibilityInternal,
+			PayloadSchemaVersion: "run-event-v1",
+			Payload: map[string]any{
+				"failure_hash": summary.Hash,
+				"failure_kind": summary.Kind,
+				"message":      summary.Message,
+			},
+		})
+		writeProductFinalization := s.productFinalizationWriter
+		if writeProductFinalization == nil {
+			writeProductFinalization = s.writeChatProductFinalization
+		}
+		if err := writeProductFinalization(
+			ctx,
+			run,
+			failedAt,
+			productTerminalErrorResponse(
+				run,
+				"error",
+				stringValue(terminalError["code"]),
+				stringValue(terminalError["message"]),
+				false,
+			),
+		); err != nil {
+			return execution.DurableRun{}, err
+		}
+	}
 	failedRun, transitionErr := s.runProjectionStore.FailRunProjection(
 		ctx,
 		execution.DurableRunFailRequest{
@@ -249,29 +279,29 @@ func (s *Server) failTemporalRun(
 			RunID:          run.RunID,
 			SelectedTool:   temporalFailureTool(projection),
 			TerminalReason: terminalReason,
+			TerminalEvent: execution.DurableRunEvent{
+				EventID:              run.RunID + ":run-failed",
+				RunID:                run.RunID,
+				ConversationID:       run.ConversationID,
+				EventType:            execution.DurableRunEventTypeRunFailed,
+				OccurredAt:           failedAt,
+				Visibility:           execution.DurableRunEventVisibilityBrowser,
+				PayloadSchemaVersion: "run-event-v1",
+				Payload: map[string]any{
+					"failure_kind":    failureKind,
+					"request_id":      run.RequestID,
+					"status":          string(execution.DurableRunStatusFailed),
+					"terminal_reason": string(terminalReason),
+					"trace_id":        run.TraceID,
+					"error":           terminalError,
+				},
+			},
 		},
 	)
 	if transitionErr != nil {
 		return execution.DurableRun{}, transitionErr
 	}
-	_, _ = s.runProjectionStore.AppendRunEvent(ctx, execution.DurableRunEvent{
-		EventID:              run.RunID + ":run-failed",
-		RunID:                run.RunID,
-		ConversationID:       run.ConversationID,
-		EventType:            execution.DurableRunEventTypeRunFailed,
-		OccurredAt:           failedAt,
-		Visibility:           execution.DurableRunEventVisibilityBrowser,
-		PayloadSchemaVersion: "run-event-v1",
-		Payload: map[string]any{
-			"failure_kind":    failureKind,
-			"request_id":      run.RequestID,
-			"status":          string(execution.DurableRunStatusFailed),
-			"terminal_reason": string(terminalReason),
-			"trace_id":        run.TraceID,
-			"error":           terminalError,
-		},
-	})
-	return failedRun, nonRetryableTerminalProjectionError(failureKind, cause)
+	return failedRun, nil
 }
 
 func temporalFailureTerminalReason(
@@ -285,7 +315,7 @@ func temporalFailureTerminalReason(
 		return execution.DurableTerminalReasonRunTimeout
 	}
 	switch strings.TrimSpace(failureKind) {
-	case "agent_runtime_failed", "provider_profile_missing", "provider_unavailable":
+	case "agent_runtime_failed", "memory_recall_failed", "personal_memory_not_configured", "provider_profile_missing", "provider_unavailable":
 		return execution.DurableTerminalReasonProviderUnavailable
 	case "knowledge_search_failed", "retrieval_lookup_failed", "tool_execution_failed":
 		return execution.DurableTerminalReasonRetrievalUnavailable
@@ -294,34 +324,13 @@ func temporalFailureTerminalReason(
 	}
 }
 
-func nonRetryableTerminalProjectionError(failureKind string, cause error) error {
-	message := "execution run failed"
-	if cause != nil && strings.TrimSpace(cause.Error()) != "" {
-		message = cause.Error()
-	}
-	errorType := strings.TrimSpace(failureKind)
-	if errorType == "" {
-		errorType = "execution_failed"
-	}
-	return temporal.NewNonRetryableApplicationError(message, errorType, cause)
-}
-
-func temporalRunFailureErrorPayload(failureKind string, cause error) map[string]any {
-	code := strings.TrimSpace(failureKind)
-	if code == "" {
-		code = "execution_failed"
-	}
-	message := strings.TrimSpace(cause.Error())
-	if code == "agent_runtime_timeout" {
-		message = "Agent runtime request timed out."
-	}
-	if message == "" {
-		message = "Execution run failed."
-	}
+func temporalRunFailureErrorPayload(failureKind string, failureHash string, cause error) map[string]any {
+	summary := summarizeTemporalFailure(failureKind, failureHash, cause)
 	return map[string]any{
-		"code":      code,
-		"message":   message,
-		"retryable": false,
+		"code":         summary.Kind,
+		"failure_hash": summary.Hash,
+		"message":      summary.Message,
+		"retryable":    false,
 	}
 }
 

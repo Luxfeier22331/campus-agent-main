@@ -9,7 +9,6 @@ import {
 	createDeterministicIdGenerator,
 	createExecutionRuntimeFromToolClient,
 	createPrincipal,
-	createTelemetryMock,
 	type ToolExecutionClient,
 } from "./chat-command.service.test-support";
 
@@ -29,15 +28,16 @@ function createCompletedExecutionClient(): ToolExecutionClient {
 }
 
 describe("chat command service memory gate projection", () => {
-	it("projects only profile memory enabled summary for execution memory update gate", async () => {
-		const { store } = createCommandStore();
+	it("projects the immutable memory snapshot returned by accept", async () => {
+		const { store } = createCommandStore({
+			memorySnapshot: {
+				appendEnabled: true,
+				ownerGeneration: 3,
+				ownerSequence: 7,
+				recallEnabled: false,
+			},
+		});
 		const { store: conversationStore } = createConversationStore();
-		const profileMemoryStore = {
-			loadSummary: vi.fn().mockResolvedValue({
-				enabled: false,
-				itemCount: 3,
-			}),
-		};
 		const executionClient = createCompletedExecutionClient();
 
 		const service = buildChatCommandService({
@@ -46,7 +46,6 @@ describe("chat command service memory gate projection", () => {
 			conversationStore,
 			store,
 			executionRuntime: createExecutionRuntimeFromToolClient(executionClient),
-			profileMemoryStore,
 		});
 
 		await service.submit({
@@ -58,14 +57,14 @@ describe("chat command service memory gate projection", () => {
 			requestKind: "public_chat",
 		});
 
-		expect(profileMemoryStore.loadSummary).toHaveBeenCalledWith({
-			ownerUserId: "user_01HQ",
-		});
 		expect(executionClient.execute).toHaveBeenCalledWith(
 			expect.objectContaining({
 				context: expect.objectContaining({
 					memory: {
-						enabled: false,
+						appendEnabled: true,
+						ownerGeneration: 3,
+						ownerSequence: 7,
+						recallEnabled: false,
 					},
 				}),
 				tenantId: "tenant-main",
@@ -80,13 +79,9 @@ describe("chat command service memory gate projection", () => {
 		);
 	});
 
-	it("omits memory gate when profile memory summary cannot be loaded", async () => {
+	it("omits memory when accept returns no configured snapshot", async () => {
 		const { store } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const telemetry = createTelemetryMock();
-		const profileMemoryStore = {
-			loadSummary: vi.fn().mockRejectedValue(new Error("profile memory unavailable")),
-		};
 		const executionClient = createCompletedExecutionClient();
 
 		const service = buildChatCommandService({
@@ -95,8 +90,6 @@ describe("chat command service memory gate projection", () => {
 			conversationStore,
 			store,
 			executionRuntime: createExecutionRuntimeFromToolClient(executionClient),
-			profileMemoryStore,
-			telemetry,
 		});
 
 		await service.submit({
@@ -108,14 +101,6 @@ describe("chat command service memory gate projection", () => {
 			requestKind: "public_chat",
 		});
 
-		expect(telemetry.captureException).toHaveBeenCalledWith(
-			expect.any(Error),
-			expect.objectContaining({
-				route: "/api/chat/requests",
-				surface: "campus_web",
-				traceId: "trace_0001",
-			}),
-		);
 		expect(executionClient.execute).toHaveBeenCalledWith(
 			expect.objectContaining({
 				context: expect.not.objectContaining({

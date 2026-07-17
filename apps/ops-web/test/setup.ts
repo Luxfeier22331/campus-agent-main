@@ -13,8 +13,11 @@ import {
 beforeAll(() => {
 	const app = createOpsApp({
 		admission: createAllowAllOpsAdmission(),
-		env: { OPS_WEB_RAW_HUMAN_OPERATOR_EMAIL_ALLOWLIST: "ops@example.test" },
-		openObserve: {
+		env: {
+			OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test",
+			OPS_WEB_RAW_HUMAN_OPERATOR_EMAIL_ALLOWLIST: "ops@example.test",
+		},
+		axiom: {
 			getTelemetrySnapshot: vi.fn(),
 			queryRequest: vi.fn(async ({ kind }) =>
 				kind === "logs" ? opsLogObservabilityFixture : opsTraceObservabilityFixture,

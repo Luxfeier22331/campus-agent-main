@@ -1,8 +1,22 @@
+import { createHash, randomUUID } from "node:crypto";
+
 import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 
 import type { Env } from "../../config";
 import { type createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
-import { conversations, messageFeedback, messages, sessionSlots } from "../../db/schema";
+import {
+	conversations,
+	messageFeedback,
+	messages,
+	profileMemoryCommandSources,
+	profileMemoryCommands,
+	profileMemorySettings,
+	sessionSlots,
+} from "../../db/schema";
+import {
+	PROFILE_MEMORY_SUPERSESSION_SCOPE,
+	reconcileOwnerMemoryState,
+} from "../profile-memory/command-state";
 import {
 	type ChatConversation,
 	type ChatConversationSummary,
@@ -25,6 +39,7 @@ export interface ChatConversationDraftWrite {
 export type ChatConversationListView = "active" | "archived";
 
 export interface ChatConversationStore {
+	deleteConversationByOwner?(ownerUserId: string, conversationId: string): Promise<boolean>;
 	deleteMessageFeedbackByOwner(input: {
 		conversationId: string;
 		messageId: string;
@@ -41,7 +56,6 @@ export interface ChatConversationStore {
 		endingBeforeConversationId: string | null;
 	}): Promise<{ conversations: ChatConversationSummary[]; hasMore: boolean }>;
 	createConversationDraft(input: ChatConversationDraftWrite): Promise<ChatConversation>;
-	deleteConversationByOwner(ownerUserId: string, conversationId: string): Promise<boolean>;
 	deleteConversationsByOwner(ownerUserId: string): Promise<number>;
 	deleteTrailingMessagesFromMessageByOwner(input: {
 		ownerUserId: string;
@@ -100,6 +114,22 @@ export interface ChatConversationStore {
 
 function toIsoString(value: Date): string {
 	return value.toISOString();
+}
+
+function createMemorySourceCommandId(): string {
+	return `memcmd_${randomUUID().replaceAll("-", "")}`;
+}
+
+function sourceCommandHash(commandId: string): string {
+	return createHash("sha256").update(commandId, "utf8").digest("hex");
+}
+
+function chunkMemorySourceIds(sourceMessageIds: string[]): string[][] {
+	const chunks: string[][] = [];
+	for (let index = 0; index < sourceMessageIds.length; index += 50) {
+		chunks.push(sourceMessageIds.slice(index, index + 50));
+	}
+	return chunks;
 }
 
 function toChatFeedback(row: typeof messageFeedback.$inferSelect): ChatMessageFeedback {
@@ -382,91 +412,212 @@ export function createPgChatConversationStore(
 			return conversation;
 		},
 
-		async deleteConversationByOwner(ownerUserId, conversationId) {
-			const db = await getDb();
-			const now = new Date();
-			const rows = await db
-				.update(conversations)
-				.set({ deletedAt: now, updatedAt: now })
-				.where(
-					and(
-						eq(conversations.ownerUserId, ownerUserId),
-						eq(conversations.id, conversationId),
-						isNull(conversations.deletedAt),
-					),
-				)
-				.returning({ id: conversations.id });
-
-			return rows.length > 0;
-		},
-
 		async deleteConversationsByOwner(ownerUserId) {
 			const db = await getDb();
 			const now = new Date();
-			const deletedRows = await db
-				.update(conversations)
-				.set({ deletedAt: now, updatedAt: now })
-				.where(and(eq(conversations.ownerUserId, ownerUserId), isNull(conversations.deletedAt)))
-				.returning({ id: conversations.id });
-
-			return deletedRows.length;
+			return db.transaction(async (tx) => {
+				const activeRows = await tx
+					.select({ id: conversations.id })
+					.from(conversations)
+					.where(and(eq(conversations.ownerUserId, ownerUserId), isNull(conversations.deletedAt)))
+					.for("update");
+				if (activeRows.length === 0) {
+					return 0;
+				}
+				const sourceRows = await tx
+					.select({ conversationId: messages.conversationId, sourceMessageId: messages.id })
+					.from(messages)
+					.where(
+						and(
+							inArray(
+								messages.conversationId,
+								activeRows.map((row) => row.id),
+							),
+							eq(messages.role, "user"),
+						),
+					)
+					.orderBy(asc(messages.createdAt), asc(messages.id));
+				await tx
+					.update(conversations)
+					.set({ deletedAt: now, updatedAt: now })
+					.where(and(eq(conversations.ownerUserId, ownerUserId), isNull(conversations.deletedAt)));
+				await tx
+					.insert(profileMemorySettings)
+					.values({ ownerUserId, updatedAt: now })
+					.onConflictDoNothing({ target: profileMemorySettings.ownerUserId });
+				const settingsRows = await tx
+					.select()
+					.from(profileMemorySettings)
+					.where(eq(profileMemorySettings.ownerUserId, ownerUserId))
+					.limit(1)
+					.for("update");
+				const settings = settingsRows[0];
+				if (
+					settings &&
+					(settings.lifecycleState === "active" || settings.lifecycleState === "paused")
+				) {
+					let sequence = settings.commandSequence;
+					for (const row of activeRows) {
+						const sourceIds = sourceRows
+							.filter((source) => source.conversationId === row.id)
+							.map((source) => source.sourceMessageId);
+						for (const chunk of chunkMemorySourceIds(sourceIds)) {
+							sequence += 1;
+							const commandId = createMemorySourceCommandId();
+							const hash = sourceCommandHash(commandId);
+							await tx.insert(profileMemoryCommands).values({
+								acceptedLifecycleState: settings.lifecycleState,
+								commandId,
+								commandKind: "conversation_delete",
+								createdAt: now,
+								idempotencyKeyHash: hash,
+								ownerGeneration: settings.generation,
+								ownerSequence: sequence,
+								ownerUserId,
+								requestFingerprint: hash,
+								sourceUpdatedAt: now,
+								status: "pending_admission",
+								subjectId: row.id,
+								supersessionScope: PROFILE_MEMORY_SUPERSESSION_SCOPE.sourceBatch(commandId),
+								updatedAt: now,
+							});
+							await tx
+								.insert(profileMemoryCommandSources)
+								.values(chunk.map((sourceMessageId) => ({ commandId, sourceMessageId })));
+						}
+					}
+					await tx
+						.update(profileMemorySettings)
+						.set({ commandSequence: sequence, updatedAt: now })
+						.where(eq(profileMemorySettings.ownerUserId, ownerUserId));
+					await reconcileOwnerMemoryState(tx, {
+						generation: settings.generation,
+						now,
+						ownerUserId,
+					});
+				}
+				return activeRows.length;
+			});
 		},
 
 		async deleteTrailingMessagesFromMessageByOwner(input) {
 			const db = await getDb();
-			const conversationRows = await db
-				.select({ id: conversations.id })
-				.from(conversations)
-				.where(
-					and(
-						eq(conversations.ownerUserId, input.ownerUserId),
-						eq(conversations.id, input.conversationId),
-						isNull(conversations.deletedAt),
-					),
-				)
-				.limit(1);
-			if (!conversationRows[0]) {
-				return false;
-			}
-
-			const messageRows = await db
-				.select({
-					createdAt: messages.createdAt,
-					id: messages.id,
-				})
-				.from(messages)
-				.where(
-					and(eq(messages.id, input.messageId), eq(messages.conversationId, input.conversationId)),
-				)
-				.limit(1);
-			const messageRow = messageRows[0];
-			if (!messageRow) {
-				return false;
-			}
-
-			await db
-				.delete(messages)
-				.where(
-					and(
-						eq(messages.conversationId, input.conversationId),
-						gte(messages.createdAt, messageRow.createdAt),
-					),
-				);
-
-			await db
-				.update(conversations)
-				.set({
-					updatedAt: new Date(input.updatedAt),
-				})
-				.where(
-					and(
-						eq(conversations.ownerUserId, input.ownerUserId),
-						eq(conversations.id, input.conversationId),
-						isNull(conversations.deletedAt),
-					),
-				);
-
-			return true;
+			return db.transaction(async (tx) => {
+				const conversationRows = await tx
+					.select({ id: conversations.id })
+					.from(conversations)
+					.where(
+						and(
+							eq(conversations.ownerUserId, input.ownerUserId),
+							eq(conversations.id, input.conversationId),
+							isNull(conversations.deletedAt),
+						),
+					)
+					.limit(1)
+					.for("update");
+				if (!conversationRows[0]) {
+					return false;
+				}
+				const messageRows = await tx
+					.select({ createdAt: messages.createdAt, id: messages.id })
+					.from(messages)
+					.where(
+						and(
+							eq(messages.id, input.messageId),
+							eq(messages.conversationId, input.conversationId),
+						),
+					)
+					.limit(1);
+				const messageRow = messageRows[0];
+				if (!messageRow) {
+					return false;
+				}
+				const now = new Date(input.updatedAt);
+				const removedSourceRows = await tx
+					.select({ sourceMessageId: messages.id })
+					.from(messages)
+					.where(
+						and(
+							eq(messages.conversationId, input.conversationId),
+							eq(messages.role, "user"),
+							gte(messages.createdAt, messageRow.createdAt),
+						),
+					)
+					.orderBy(asc(messages.createdAt), asc(messages.id));
+				await tx
+					.delete(messages)
+					.where(
+						and(
+							eq(messages.conversationId, input.conversationId),
+							gte(messages.createdAt, messageRow.createdAt),
+						),
+					);
+				await tx
+					.update(conversations)
+					.set({ updatedAt: now })
+					.where(
+						and(
+							eq(conversations.ownerUserId, input.ownerUserId),
+							eq(conversations.id, input.conversationId),
+							isNull(conversations.deletedAt),
+						),
+					);
+				await tx
+					.insert(profileMemorySettings)
+					.values({ ownerUserId: input.ownerUserId, updatedAt: now })
+					.onConflictDoNothing({ target: profileMemorySettings.ownerUserId });
+				const settingsRows = await tx
+					.select()
+					.from(profileMemorySettings)
+					.where(eq(profileMemorySettings.ownerUserId, input.ownerUserId))
+					.limit(1)
+					.for("update");
+				const settings = settingsRows[0];
+				if (
+					settings &&
+					(settings.lifecycleState === "active" || settings.lifecycleState === "paused")
+				) {
+					let sequence = settings.commandSequence;
+					for (const chunk of chunkMemorySourceIds(
+						removedSourceRows.map((row) => row.sourceMessageId),
+					)) {
+						sequence += 1;
+						const commandId = createMemorySourceCommandId();
+						const hash = sourceCommandHash(commandId);
+						await tx.insert(profileMemoryCommands).values({
+							acceptedLifecycleState: settings.lifecycleState,
+							commandId,
+							commandKind: "conversation_prune",
+							createdAt: now,
+							idempotencyKeyHash: hash,
+							ownerGeneration: settings.generation,
+							ownerSequence: sequence,
+							ownerUserId: input.ownerUserId,
+							requestFingerprint: hash,
+							sourceUpdatedAt: now,
+							status: "pending_admission",
+							subjectId: input.conversationId,
+							supersessionScope: PROFILE_MEMORY_SUPERSESSION_SCOPE.sourceBatch(commandId),
+							updatedAt: now,
+						});
+						await tx
+							.insert(profileMemoryCommandSources)
+							.values(chunk.map((sourceMessageId) => ({ commandId, sourceMessageId })));
+					}
+					if (sequence !== settings.commandSequence) {
+						await tx
+							.update(profileMemorySettings)
+							.set({ commandSequence: sequence, updatedAt: now })
+							.where(eq(profileMemorySettings.ownerUserId, input.ownerUserId));
+						await reconcileOwnerMemoryState(tx, {
+							generation: settings.generation,
+							now,
+							ownerUserId: input.ownerUserId,
+						});
+					}
+				}
+				return true;
+			});
 		},
 
 		async getConversationDetailByOwner(ownerUserId, conversationId) {
@@ -499,22 +650,86 @@ export function createPgChatConversationStore(
 
 		async markConversationDeletedByOwner(input) {
 			const db = await getDb();
-			const rows = await db
-				.update(conversations)
-				.set({
-					deletedAt: new Date(input.deletedAt),
-					updatedAt: new Date(input.updatedAt),
-				})
-				.where(
-					and(
-						eq(conversations.ownerUserId, input.ownerUserId),
-						eq(conversations.id, input.conversationId),
-						isNull(conversations.deletedAt),
-					),
-				)
-				.returning({ id: conversations.id });
-
-			return rows.length > 0;
+			return db.transaction(async (tx) => {
+				const now = new Date(input.updatedAt);
+				const conversationRows = await tx
+					.select({ id: conversations.id })
+					.from(conversations)
+					.where(
+						and(
+							eq(conversations.ownerUserId, input.ownerUserId),
+							eq(conversations.id, input.conversationId),
+							isNull(conversations.deletedAt),
+						),
+					)
+					.limit(1)
+					.for("update");
+				if (!conversationRows[0]) {
+					return false;
+				}
+				const sourceRows = await tx
+					.select({ sourceMessageId: messages.id })
+					.from(messages)
+					.where(and(eq(messages.conversationId, input.conversationId), eq(messages.role, "user")))
+					.orderBy(asc(messages.createdAt), asc(messages.id));
+				await tx
+					.update(conversations)
+					.set({ deletedAt: new Date(input.deletedAt), updatedAt: now })
+					.where(eq(conversations.id, input.conversationId));
+				await tx
+					.insert(profileMemorySettings)
+					.values({ ownerUserId: input.ownerUserId, updatedAt: now })
+					.onConflictDoNothing({ target: profileMemorySettings.ownerUserId });
+				const settingsRows = await tx
+					.select()
+					.from(profileMemorySettings)
+					.where(eq(profileMemorySettings.ownerUserId, input.ownerUserId))
+					.limit(1)
+					.for("update");
+				const settings = settingsRows[0];
+				if (
+					settings &&
+					(settings.lifecycleState === "active" || settings.lifecycleState === "paused")
+				) {
+					let sequence = settings.commandSequence;
+					for (const chunk of chunkMemorySourceIds(sourceRows.map((row) => row.sourceMessageId))) {
+						sequence += 1;
+						const commandId = createMemorySourceCommandId();
+						const hash = sourceCommandHash(commandId);
+						await tx.insert(profileMemoryCommands).values({
+							acceptedLifecycleState: settings.lifecycleState,
+							commandId,
+							commandKind: "conversation_delete",
+							createdAt: now,
+							idempotencyKeyHash: hash,
+							ownerGeneration: settings.generation,
+							ownerSequence: sequence,
+							ownerUserId: input.ownerUserId,
+							requestFingerprint: hash,
+							sourceUpdatedAt: now,
+							status: "pending_admission",
+							subjectId: input.conversationId,
+							supersessionScope: PROFILE_MEMORY_SUPERSESSION_SCOPE.sourceBatch(commandId),
+							updatedAt: now,
+						});
+						await tx
+							.insert(profileMemoryCommandSources)
+							.values(chunk.map((sourceMessageId) => ({ commandId, sourceMessageId })));
+					}
+					if (sequence !== settings.commandSequence) {
+						await tx
+							.update(profileMemorySettings)
+							.set({ commandSequence: sequence, updatedAt: now })
+							.where(eq(profileMemorySettings.ownerUserId, input.ownerUserId));
+						await reconcileOwnerMemoryState(tx, {
+							generation: settings.generation,
+							now,
+							ownerUserId: input.ownerUserId,
+						});
+					}
+				}
+				return true;
+			});
 		},
 
 		async markConversationPinnedByOwner(input) {

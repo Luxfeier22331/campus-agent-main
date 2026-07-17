@@ -1,9 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { buildWorkerVersionUploadArgs } from "../../../scripts/deploy/worker-version";
+import { resolveStagingSentryRelease } from "../../../scripts/deploy/staging-release";
+import {
+	buildSentrySourceMapUploadArgs,
+	buildWorkerVersionUploadArgs,
+} from "../../../scripts/deploy/worker-version";
 
 const sourceSha = "0123456789abcdef0123456789abcdef01234567";
 
 describe("Worker version upload arguments", () => {
+	it("uses an app-scoped full source SHA for the Sentry release", () => {
+		expect(resolveStagingSentryRelease("app-api")).toMatch(/^app-api@[0-9a-f]{40}$/u);
+		expect(resolveStagingSentryRelease("campus-web")).toMatch(/^campus-web@[0-9a-f]{40}$/u);
+	});
 	it("does not select an environment for an already-resolved build config", () => {
 		const args = buildWorkerVersionUploadArgs(
 			{
@@ -24,12 +32,47 @@ describe("Worker version upload arguments", () => {
 				appName: "app-api",
 				config: "/tmp/app-api/wrangler.toml",
 				environment: "staging",
+				sentrySourceMaps: {
+					artifactDirectory: "dist/sentry/app-api-edge",
+					orgSlug: "muc-wiki",
+					projectSlug: "app-api",
+					release: "app-api@sha",
+					wranglerOutdir: "dist/sentry/app-api-edge",
+				},
 				variables: { SENTRY_RELEASE: "app-api@sha" },
 			},
 			sourceSha,
 		);
 
 		expect(args).toEqual(expect.arrayContaining(["--env", "staging", "--tag", `git-${sourceSha}`]));
+		expect(args).toEqual(
+			expect.arrayContaining(["--upload-source-maps", "--outdir", "dist/sentry/app-api-edge"]),
+		);
+	});
+
+	it("uploads Sentry artifacts fail-closed without putting credentials in arguments", () => {
+		const args = buildSentrySourceMapUploadArgs({
+			artifactDirectory: "/repo/apps/app-api/dist/sentry/app-api-edge",
+			orgSlug: "muc-wiki",
+			projectSlug: "app-api",
+			release: "app-api@sha",
+		});
+
+		expect(args).toEqual(
+			expect.arrayContaining([
+				"--org",
+				"muc-wiki",
+				"--project",
+				"app-api",
+				"--release",
+				"app-api@sha",
+				"--strict",
+				"--validate",
+				"--wait-for",
+				"60",
+			]),
+		);
+		expect(args.join(" ")).not.toContain("SENTRY_AUTH_TOKEN");
 	});
 
 	it("uses a content-addressed tag for a composite Worker build", () => {

@@ -87,6 +87,7 @@ export interface ChatConversationService {
 
 export interface ChatConversationServiceDependencies {
 	detailStore?: Pick<ChatConversationStore, "getConversationDetailByOwner">;
+	dispatchMemoryCommands?: () => Promise<unknown>;
 	generateId?: (prefix: string) => string;
 	now?: () => Date;
 	store: ChatConversationStore;
@@ -300,6 +301,9 @@ export function buildChatConversationService(
 		async deleteAll(input) {
 			const ownerUserId = assertChatPrincipal(input.principal);
 			const deletedCount = await dependencies.store.deleteConversationsByOwner(ownerUserId);
+			if (deletedCount > 0) {
+				await dependencies.dispatchMemoryCommands?.();
+			}
 
 			return { deletedCount };
 		},
@@ -320,6 +324,7 @@ export function buildChatConversationService(
 					status: 404,
 				});
 			}
+			await dependencies.dispatchMemoryCommands?.();
 
 			return { deleted: true as const };
 		},
@@ -339,6 +344,7 @@ export function buildChatConversationService(
 					status: 404,
 				});
 			}
+			await dependencies.dispatchMemoryCommands?.();
 
 			return { deleted: true as const };
 		},

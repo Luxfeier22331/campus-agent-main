@@ -1,78 +1,8 @@
 // @vitest-environment node
 
-import process from "node:process";
 import type { Env } from "../src/config";
-import { bootstrapSharedProductDatabase } from "../src/script-support/shared-db/shared-product-database-bootstrap.ts";
 
 const TURNSTILE_TEST_SECRET_KEY = "1x0000000000000000000000000000000AA";
-
-export function loadOptionalEnvFile(filePath: string): void {
-	try {
-		process.loadEnvFile(filePath);
-	} catch (error) {
-		if (!(error instanceof Error && "code" in error) || error.code !== "ENOENT") {
-			throw error;
-		}
-	}
-}
-
-export function readRequiredSharedDbEnv(key: string, contextLabel: string): string {
-	const value = process.env[key]?.trim();
-	if (!value) {
-		throw new Error(`${key} is required for ${contextLabel}.`);
-	}
-	return value;
-}
-
-export function resolveSharedDbSslConfig():
-	| false
-	| {
-			rejectUnauthorized: false;
-	  } {
-	return process.env.APP_API_DATABASE_SSLMODE?.trim() === "disable"
-		? false
-		: { rejectUnauthorized: false };
-}
-
-function resolveDatabaseSslMode(): NonNullable<Env["APP_API_DATABASE_SSLMODE"]> {
-	return process.env.APP_API_DATABASE_SSLMODE?.trim() === "disable"
-		? "disable"
-		: process.env.APP_API_DATABASE_SSLMODE?.trim() === "prefer"
-			? "prefer"
-			: "require";
-}
-
-export async function convergeSharedDbForAppApiIntegration(input: {
-	contextLabel: string;
-	devVarsFilePath: string;
-	envFilePath: string;
-}): Promise<{
-	managementConnectionString: string;
-	runtimeConnectionString: string;
-}> {
-	loadOptionalEnvFile(input.envFilePath);
-	loadOptionalEnvFile(input.devVarsFilePath);
-
-	const runtimeConnectionString = readRequiredSharedDbEnv(
-		"CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB",
-		input.contextLabel,
-	);
-	const managementConnectionString =
-		process.env.APP_API_OPERATOR_DATABASE_URL?.trim() || runtimeConnectionString;
-
-	await bootstrapSharedProductDatabase({
-		APP_API_DATABASE_SSLMODE: resolveDatabaseSslMode(),
-		APP_API_OPERATOR_DATABASE_URL: managementConnectionString,
-		BETTER_AUTH_SECRET:
-			process.env.BETTER_AUTH_SECRET?.trim() || "dev-secret-dev-secret-dev-secret",
-		AUTH_SHELL_ORIGIN: process.env.AUTH_SHELL_ORIGIN?.trim() || "https://campus.muc.wiki",
-	});
-
-	return {
-		managementConnectionString,
-		runtimeConnectionString,
-	};
-}
 
 export function buildSharedDbIntegrationEnv(input: {
 	managementConnectionString: string;
@@ -80,34 +10,25 @@ export function buildSharedDbIntegrationEnv(input: {
 	overrides?: Partial<Env>;
 }): Env {
 	const baseEnv: Env = {
-		APP_API_NAME: process.env.APP_API_NAME?.trim() || "campus-agent-app-api",
+		APP_API_NAME: "campus-agent-app-api",
 		APP_API_ENVIRONMENT: "test",
-		APP_API_DATABASE_SSLMODE: resolveDatabaseSslMode(),
+		APP_API_DATABASE_SSLMODE: "disable",
 		APP_API_DB: {
 			connectionString: input.runtimeConnectionString,
 		},
 		APP_API_DB_FRESH: {
 			connectionString: input.runtimeConnectionString,
 		},
-		AUTH_SHELL_ORIGIN: process.env.AUTH_SHELL_ORIGIN?.trim() || "https://campus.muc.wiki",
-		AUTH_RESET_EMAIL_FROM:
-			process.env.AUTH_RESET_EMAIL_FROM?.trim() || "Campus Agent <auth@example.com>",
-		AUTH_TURNSTILE_SECRET_KEY:
-			process.env.AUTH_TURNSTILE_SECRET_KEY?.trim() || TURNSTILE_TEST_SECRET_KEY,
-		APP_API_INTERNAL_SHARED_SECRET:
-			process.env.APP_API_INTERNAL_SHARED_SECRET?.trim() || "shared-db-integration-secret",
-		APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST:
-			process.env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST?.trim() || "example.edu",
-		APP_API_OPERATOR_DATABASE_URL: input.managementConnectionString,
-		APP_API_OPERATOR_EMAIL_ALLOWLIST:
-			process.env.APP_API_OPERATOR_EMAIL_ALLOWLIST?.trim() || "ops@example.com",
-		BETTER_AUTH_SECRET:
-			process.env.BETTER_AUTH_SECRET?.trim() || "dev-secret-dev-secret-dev-secret",
-		RESEND_API_KEY: process.env.RESEND_API_KEY?.trim() || "shared-db-integration-resend-key",
-		EXECUTION_CONTROL_BASE_URL:
-			process.env.EXECUTION_CONTROL_BASE_URL?.trim() || "https://execution-control.internal",
-		EXECUTION_CONTROL_SHARED_SECRET:
-			process.env.EXECUTION_CONTROL_SHARED_SECRET?.trim() || "shared-db-integration-secret",
+		AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
+		AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
+		AUTH_TURNSTILE_SECRET_KEY: TURNSTILE_TEST_SECRET_KEY,
+		APP_API_PRODUCT_CALLBACK_SHARED_SECRET: "shared-db-integration-secret",
+		APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
+		APP_API_SCHEMA_DATABASE_URL: input.managementConnectionString,
+		BETTER_AUTH_SECRET: "testcontainers-app-api-product-database-secret",
+		RESEND_API_KEY: "shared-db-integration-resend-key",
+		EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
+		EXECUTION_CONTROL_SHARED_SECRET: "shared-db-integration-secret",
 	};
 
 	return {

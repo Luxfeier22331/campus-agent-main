@@ -497,6 +497,7 @@ export async function waitForDurableFinalizationResponse<
 	polling?: DurableEventPollingPolicy;
 }): Promise<{
 	response: ToolExecutionResponse;
+	terminalObserved: boolean;
 	transportError: TransportErrorRecord | null;
 }> {
 	const polling = validatePollingPolicy(input.polling);
@@ -516,6 +517,7 @@ export async function waitForDurableFinalizationResponse<
 			if (terminalOutcome) {
 				return {
 					response: terminalOutcome.response,
+					terminalObserved: true,
 					transportError: terminalOutcome.transportError,
 				};
 			}
@@ -527,6 +529,7 @@ export async function waitForDurableFinalizationResponse<
 
 	return {
 		response: durableEventWaitTimeoutResponse(input.context),
+		terminalObserved: false,
 		transportError: {
 			code: "execution_timeout",
 			retryable: true,
@@ -662,7 +665,7 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 	completion: Promise<ChatCommandResponse>;
 	streamEvents(): AsyncIterable<ChatCommandStreamEvent>;
 } {
-	const { context, now } = input;
+	const { context } = input;
 	const polling = validatePollingPolicy(input.polling);
 	const queue = createDurableCloseoutQueue();
 
@@ -671,100 +674,64 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 		let emptyPollAttempts = 0;
 		let hasStreamedAnswerDelta = false;
 		let streamBrowserTtftMs: number | null = null;
-		try {
-			while (emptyPollAttempts < polling.maxAttempts) {
-				const runEvents = await input.listRunEvents(lastSequence, polling.waitMs);
-				if (runEvents.length === 0) {
-					emptyPollAttempts += 1;
-				} else {
-					emptyPollAttempts = 0;
-				}
-				for (const runEvent of runEvents) {
-					lastSequence = updateLastSequence(context, lastSequence, runEvent);
-					const lifecycleEvent = lifecycleEventFromDurableRunEvent(context, runEvent);
-					if (lifecycleEvent) {
-						queue.push({ event: lifecycleEvent, kind: "event" });
-						continue;
-					}
-					const answerDelta = answerDeltaEventFromDurableRunEvent(context, runEvent);
-					if (answerDelta) {
-						if (streamBrowserTtftMs === null) {
-							streamBrowserTtftMs = durationMsBetween(context.acceptedAt, runEvent.occurredAt);
-						}
-						hasStreamedAnswerDelta = true;
-						queue.push({ event: answerDelta, kind: "event" });
-						continue;
-					}
-					const terminalOutcome = durableTerminalOutcomeFromDurableRunEvent(context, runEvent);
-					if (!terminalOutcome) {
-						continue;
-					}
-					const finalized = await input.finalizeAcceptedCommand({
-						context,
-						executionResponse: terminalOutcome.response,
-						executionFinalizationReceivedAt: runEvent.occurredAt,
-						streamBrowserTtftMs,
-						transportError: terminalOutcome.transportError,
-					});
-					for (const event of chatStreamEventsForFinalized({
-						context,
-						finalized,
-						hasStreamedAnswerDelta,
-						occurredAt: runEvent.occurredAt,
-						sequence: runEvent.sequence,
-						sourceEvent: terminalOutcome.sourceEvent,
-					})) {
-						queue.push({ event, kind: "event" });
-					}
-					queue.push({ kind: "done" });
-					return finalized;
-				}
-				if (emptyPollAttempts < polling.maxAttempts && polling.pollIntervalMs > 0) {
-					await polling.sleep(polling.pollIntervalMs);
-				}
+		while (emptyPollAttempts < polling.maxAttempts) {
+			const runEvents = await input.listRunEvents(lastSequence, polling.waitMs);
+			if (runEvents.length === 0) {
+				emptyPollAttempts += 1;
+			} else {
+				emptyPollAttempts = 0;
 			}
-		} catch (error) {
-			const handled = toHandledErrorTransportOutcome(error);
-			const finalized = await input.finalizeAcceptedCommand({
-				context,
-				executionResponse: handled,
-				streamBrowserTtftMs,
-				transportError: {
-					code: handled.error.code,
-					retryable: handled.error.retryable,
-				},
-			});
-			for (const event of chatStreamEventsForFinalized({
-				context,
-				finalized,
-				hasStreamedAnswerDelta,
-				occurredAt: now().toISOString(),
-			})) {
-				queue.push({ event, kind: "event" });
+			for (const runEvent of runEvents) {
+				lastSequence = updateLastSequence(context, lastSequence, runEvent);
+				const lifecycleEvent = lifecycleEventFromDurableRunEvent(context, runEvent);
+				if (lifecycleEvent) {
+					queue.push({ event: lifecycleEvent, kind: "event" });
+					continue;
+				}
+				const answerDelta = answerDeltaEventFromDurableRunEvent(context, runEvent);
+				if (answerDelta) {
+					if (streamBrowserTtftMs === null) {
+						streamBrowserTtftMs = durationMsBetween(context.acceptedAt, runEvent.occurredAt);
+					}
+					hasStreamedAnswerDelta = true;
+					queue.push({ event: answerDelta, kind: "event" });
+					continue;
+				}
+				const terminalOutcome = durableTerminalOutcomeFromDurableRunEvent(context, runEvent);
+				if (!terminalOutcome) {
+					continue;
+				}
+				const finalized = await input.finalizeAcceptedCommand({
+					context,
+					executionResponse: terminalOutcome.response,
+					executionFinalizationReceivedAt: runEvent.occurredAt,
+					streamBrowserTtftMs,
+					transportError: terminalOutcome.transportError,
+				});
+				for (const event of chatStreamEventsForFinalized({
+					context,
+					finalized,
+					hasStreamedAnswerDelta,
+					occurredAt: runEvent.occurredAt,
+					sequence: runEvent.sequence,
+					sourceEvent: terminalOutcome.sourceEvent,
+				})) {
+					queue.push({ event, kind: "event" });
+				}
+				queue.push({ kind: "done" });
+				return finalized;
 			}
-			queue.push({ kind: "done" });
-			return finalized;
+			if (emptyPollAttempts < polling.maxAttempts && polling.pollIntervalMs > 0) {
+				await polling.sleep(polling.pollIntervalMs);
+			}
 		}
 
-		const finalized = await input.finalizeAcceptedCommand({
-			context,
-			executionResponse: durableEventWaitTimeoutResponse(context),
-			streamBrowserTtftMs,
-			transportError: {
-				code: "execution_timeout",
-				retryable: true,
-			},
+		throw new ExecutionControlTransportError({
+			code: "execution_status_pending",
+			message: "Durable run event polling ended before a product terminal event was available.",
+			retryable: true,
+			status: 504,
 		});
-		for (const event of chatStreamEventsForFinalized({
-			context,
-			finalized,
-			hasStreamedAnswerDelta,
-			occurredAt: now().toISOString(),
-		})) {
-			queue.push({ event, kind: "event" });
-		}
-		queue.push({ kind: "done" });
-		return finalized;
 	})().catch((error) => {
 		queue.push({ error, kind: "error" });
 		throw error;

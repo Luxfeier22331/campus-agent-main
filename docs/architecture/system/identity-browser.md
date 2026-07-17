@@ -9,7 +9,7 @@ status: active
 ## 边界
 
 campus-web 负责账号 route shell、组件组合、中文文案、Turnstile 配置和安全 return target；账号、
-身份、权限、偏好和联邦真相仍由 app-api Identity Platform 拥有。
+会话和联邦真相仍由 app-api 的 Better Auth 边界拥有。
 
 ## 当前页面
 
@@ -30,11 +30,9 @@ campus-web 负责账号 route shell、组件组合、中文文案、Turnstile �
 
 认证动作通过明确 allowlist 的 `/api/auth/*` seam 调用 app-api。产品页面读取：
 
-- `GET /api/me/overview`
-- `GET /api/me/identity`
-- `GET /api/me/access`
-- `GET|PATCH /api/me/preferences`
-- session 和 authorized-app command。
+- `GET /api/me`；
+- `GET|POST|PATCH|DELETE /api/me/profile-memory/*`；
+- Better Auth session 和 account command。
 
 浏览器不得从 raw Better Auth payload 推导 campus identity、entitlement 或 memory truth。
 
@@ -43,7 +41,7 @@ campus-web 负责账号 route shell、组件组合、中文文案、Turnstile �
 - 未登录用户看到 login/register；
 - 已登录用户看到账号摘要和允许的产品入口；
 - restricted/operator surface 不作为普通首页卡片暴露；
-- app availability 来自 app-api access projection，不在浏览器复制 policy。
+- app availability 由当前产品路由和认证状态决定，不在浏览器复制授权 policy。
 
 ## 所有权
 
@@ -65,6 +63,6 @@ Wiki session，并且在联邦合同与部署验证完成前不得把登录联�
 
 ## 相关文档
 
-- `identity-platform.md`
+- `identity-authz.md`
 - `mucwiki-login.md`
-- `../../contracts/app-api/identity.md`
+- `../../contracts/app-api/auth.md`

@@ -11,6 +11,52 @@ export const OpsRequestWindowSchema = z.enum(["1h", "6h", "24h", "7d"]);
 export const OpsHealthStatusSchema = z.enum(["HEALTHY", "DEGRADED", "OUTAGE", "UNKNOWN"]);
 export const OpsDataStateSchema = z.enum(["FRESH", "STALE", "NO_DATA", "UNAVAILABLE"]);
 
+export const ProviderRoleSchema = z.enum(["primary_agent", "rag_query_embedding", "rag_reranker"]);
+
+export const ProviderConfigStatusSchema = z.object({
+	activeRevision: z.number().int().nonnegative(),
+	connections: z.array(
+		z.object({
+			baseUrl: z.string().url(),
+			connectionId: z.string().min(1),
+			featureConfig: z.record(z.string(), z.unknown()),
+			features: z.array(z.enum(["prompt", "embedding", "rerank"])),
+			provider: z.string().min(1),
+			revision: z.number().int().positive(),
+			secretFingerprint: z.string().min(1),
+			secretLast4: z.string().max(4),
+		}),
+	),
+	profiles: z.array(
+		z.object({
+			connectionId: z.string().min(1),
+			connectionRevision: z.number().int().positive(),
+			dimensions: z.number().int().positive().optional(),
+			kind: z.enum(["prompt", "embedding", "rerank"]),
+			model: z.string().min(1),
+			profileId: z.string().min(1),
+			role: ProviderRoleSchema,
+			timeoutMs: z.number().int().positive(),
+			transport: z.string().min(1),
+			validationStatus: z.enum(["unvalidated", "passed", "failed"]),
+		}),
+	),
+	roles: z.array(
+		z.object({
+			configured: z.boolean(),
+			model: z.string().optional(),
+			profileId: z.string().optional(),
+			provider: z.string().optional(),
+			role: ProviderRoleSchema,
+			transport: z.string().optional(),
+		}),
+	),
+	sampledAt: IsoDateTimeSchema,
+	writeAllowed: z.boolean().optional(),
+});
+
+export type ProviderConfigStatus = z.infer<typeof ProviderConfigStatusSchema>;
+
 export const OpsInternalPortalCredentialStatusSchema = z.object({
 	configured: z.boolean(),
 	updatedAt: IsoDateTimeSchema.nullable(),
@@ -69,7 +115,7 @@ const ExternalLinkSchema = z.object({
 	href: HttpsUrlSchema.nullable(),
 	isAvailable: z.boolean(),
 	label: z.string().min(1),
-	source: z.enum(["LANGFUSE", "TEMPORAL", "SENTRY", "AXIOM", "OPENOBSERVE"]),
+	source: z.enum(["LANGFUSE", "TEMPORAL", "SENTRY", "AXIOM"]),
 });
 
 export const OpsCorrelationIdsSchema = z.object({
@@ -270,7 +316,7 @@ const ObservabilityBaseSchema = z.object({
 	queriedAt: IsoDateTimeSchema,
 	records: z.array(z.record(z.string(), z.json())),
 	requestId: z.string().min(1),
-	source: z.literal("OPENOBSERVE"),
+	source: z.literal("AXIOM"),
 	to: IsoDateTimeSchema,
 	traceId: z.string().min(1),
 	truncated: z.boolean(),

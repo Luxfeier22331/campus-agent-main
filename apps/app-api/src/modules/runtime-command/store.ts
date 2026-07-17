@@ -7,12 +7,13 @@ import { type createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runt
 import {
 	conversations,
 	messages,
+	profileMemorySettings,
 	requestObservabilityFact,
 	sessionSlots,
 	turnDispatches,
 } from "../../db/schema";
+import { ABUSE_THROTTLE_TEN_MINUTE_WINDOW_MS } from "../abuse-throttle-policy";
 import type { ChatConversation } from "../chat";
-import { ABUSE_THROTTLE_TEN_MINUTE_WINDOW_MS } from "../safety-ops-policy";
 import { createEmptyAbuseControlState, deriveAbuseControlState } from "./store-abuse";
 import { buildStoredIdempotentRequest, toChatConversation } from "./store-conversation";
 import {
@@ -25,7 +26,12 @@ import {
 	buildRequestObservabilityFactUpdateValues,
 	buildSessionSlotInsertValues,
 } from "./store-mutations";
-import type { AcceptedDurableRequestCloseout, ChatCommandStore } from "./store-types";
+import type {
+	AcceptedDurableRequestCloseout,
+	ChatCommandStore,
+	TurnDispatchMemorySnapshot,
+} from "./store-types";
+import { ChatFinalizationConflict } from "./store-types";
 
 type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
 
@@ -85,6 +91,81 @@ export function createPgChatCommandStore(
 	}
 
 	return {
+		async recordAdmissionInput(input) {
+			const db = await getDb();
+			const rows = await db
+				.update(turnDispatches)
+				.set({
+					admissionStatus: "pending_admission",
+					updatedAt: new Date(input.updatedAt),
+					workflowId: input.workflowId,
+					workflowInputJson: input.workflowInput,
+					workflowInputSha256: input.workflowInputSha256,
+				})
+				.where(
+					and(
+						eq(turnDispatches.requestId, input.requestId),
+						eq(turnDispatches.admissionStatus, "pending_input"),
+					),
+				)
+				.returning({ requestId: turnDispatches.requestId });
+			return rows.length === 1;
+		},
+
+		async markAdmitted(input) {
+			const db = await getDb();
+			const rows = await db
+				.update(turnDispatches)
+				.set({
+					admissionStatus: "admitted",
+					admittedAt: new Date(input.admittedAt),
+					workflowId: input.workflowId,
+				})
+				.where(
+					and(
+						eq(turnDispatches.requestId, input.requestId),
+						eq(turnDispatches.admissionStatus, "pending_admission"),
+						eq(turnDispatches.workflowId, input.workflowId),
+					),
+				)
+				.returning({ requestId: turnDispatches.requestId });
+			return rows.length === 1;
+		},
+		async listPendingAdmissions(input = {}) {
+			const db = await getDb();
+			const limit = Math.max(1, Math.min(input.limit ?? 25, 100));
+			const rows = await db
+				.select({
+					requestId: turnDispatches.requestId,
+					workflowId: turnDispatches.workflowId,
+					workflowInput: turnDispatches.workflowInputJson,
+					workflowInputSha256: turnDispatches.workflowInputSha256,
+				})
+				.from(turnDispatches)
+				.where(
+					and(
+						eq(turnDispatches.status, "accepted"),
+						eq(turnDispatches.admissionStatus, "pending_admission"),
+						isNotNull(turnDispatches.workflowId),
+						isNotNull(turnDispatches.workflowInputJson),
+						isNotNull(turnDispatches.workflowInputSha256),
+					),
+				)
+				.orderBy(asc(turnDispatches.updatedAt))
+				.limit(limit);
+			return rows.flatMap((row) =>
+				row.workflowId && row.workflowInput && row.workflowInputSha256
+					? [
+							{
+								requestId: row.requestId,
+								workflowId: row.workflowId,
+								workflowInput: row.workflowInput,
+								workflowInputSha256: row.workflowInputSha256,
+							},
+						]
+					: [],
+			);
+		},
 		async listPreviousToolResultRefs(input) {
 			const db = await getDb();
 			const limit = Math.max(1, Math.min(input.limit, 10));
@@ -150,7 +231,7 @@ export function createPgChatCommandStore(
 				.from(turnDispatches)
 				.where(
 					and(
-						eq(turnDispatches.status, "accepted"),
+						...(runId ? [] : [eq(turnDispatches.status, "accepted")]),
 						isNotNull(turnDispatches.runId),
 						lte(turnDispatches.createdAt, startedBefore),
 						...(runId ? [eq(turnDispatches.runId, runId)] : []),
@@ -176,6 +257,7 @@ export function createPgChatCommandStore(
 				const principalSnapshot = row.principalSnapshotJson;
 				candidates.push({
 					acceptedAt: row.createdAt.toISOString(),
+					assistantMessageId: row.assistantMessageId,
 					conversation,
 					conversationTitle: conversation.title,
 					idempotencyKey: row.idempotencyKey,
@@ -186,7 +268,6 @@ export function createPgChatCommandStore(
 							: {}),
 						permissions: {
 							chat: true,
-							operator: principalSnapshot.actor.roles.includes("operator"),
 						},
 						principal: {
 							displayName: principalSnapshot.principal.displayName,
@@ -206,6 +287,7 @@ export function createPgChatCommandStore(
 					traceId: row.traceId,
 					turnSequence: row.turnSequence,
 					userMessageId: row.userMessageId,
+					finalizationFingerprint: row.finalizationFingerprint,
 				});
 			}
 			return candidates;
@@ -281,11 +363,46 @@ export function createPgChatCommandStore(
 
 		async acceptRequest(input) {
 			const db = await getDb();
-			await db.transaction(async (tx) => {
+			return db.transaction(async (tx) => {
 				if (input.conversationSeed) {
 					await tx
 						.insert(conversations)
 						.values(buildConversationSeedInsertValues(input.conversationSeed));
+				}
+
+				const lockedConversations = await tx
+					.select({ id: conversations.id })
+					.from(conversations)
+					.where(
+						and(
+							eq(conversations.id, input.userMessage.conversationId),
+							eq(conversations.ownerUserId, input.ownerUserId),
+							isNull(conversations.deletedAt),
+						),
+					)
+					.limit(1)
+					.for("update");
+				if (!lockedConversations[0]) {
+					throw new Error("Cannot accept a request for a missing or deleted conversation.");
+				}
+
+				let memorySnapshot: TurnDispatchMemorySnapshot | null = null;
+				if (input.captureMemorySnapshot) {
+					const settingsRows = await tx
+						.select()
+						.from(profileMemorySettings)
+						.where(eq(profileMemorySettings.ownerUserId, input.ownerUserId))
+						.limit(1)
+						.for("update");
+					const settings = settingsRows[0];
+					const lifecycleState = settings?.lifecycleState ?? "active";
+					const syncStatus = settings?.syncStatus ?? "synced";
+					memorySnapshot = {
+						appendEnabled: lifecycleState === "active" && syncStatus === "synced",
+						ownerGeneration: settings?.generation ?? 1,
+						ownerSequence: settings?.commandSequence ?? 0,
+						recallEnabled: lifecycleState === "active" && syncStatus === "synced",
+					};
 				}
 
 				await tx
@@ -303,13 +420,13 @@ export function createPgChatCommandStore(
 
 				await tx
 					.insert(turnDispatches)
-					.values(buildAcceptTurnDispatchInsertValues(input.turnDispatch));
+					.values(buildAcceptTurnDispatchInsertValues(input.turnDispatch, memorySnapshot));
 
 				await tx
 					.insert(requestObservabilityFact)
 					.values(buildRequestObservabilityFactInsertValues(input.requestObservabilityFact));
 
-				await tx
+				const updatedConversations = await tx
 					.update(conversations)
 					.set({
 						...buildConversationTitleUpdateValues({
@@ -325,18 +442,45 @@ export function createPgChatCommandStore(
 						and(
 							eq(conversations.id, input.userMessage.conversationId),
 							eq(conversations.ownerUserId, input.ownerUserId),
+							isNull(conversations.deletedAt),
 						),
-					);
+					)
+					.returning({ id: conversations.id });
+				if (updatedConversations.length !== 1) {
+					throw new Error("Conversation changed while accepting the request.");
+				}
+				return { memorySnapshot };
 			});
 		},
 
 		async finalizeRequest(input) {
 			const db = await getDb();
 			let activeStateAdvanced = false;
+			let replayed = false;
 			await db.transaction(async (tx) => {
+				const existingRows = await tx
+					.select({
+						finalizationFingerprint: turnDispatches.finalizationFingerprint,
+						status: turnDispatches.status,
+					})
+					.from(turnDispatches)
+					.where(eq(turnDispatches.requestId, input.turnDispatch.requestId))
+					.limit(1)
+					.for("update");
+				const existing = existingRows[0];
+				if (input.finalizationFingerprint && existing?.finalizationFingerprint) {
+					if (existing.finalizationFingerprint !== input.finalizationFingerprint) {
+						throw new ChatFinalizationConflict();
+					}
+					replayed = true;
+					return;
+				}
 				const finalizedDispatchRows = await tx
 					.update(turnDispatches)
-					.set(buildFinalizeTurnDispatchUpdateValues(input.turnDispatch))
+					.set({
+						...buildFinalizeTurnDispatchUpdateValues(input.turnDispatch),
+						finalizationFingerprint: input.finalizationFingerprint ?? null,
+					})
 					.where(
 						and(
 							eq(turnDispatches.requestId, input.turnDispatch.requestId),
@@ -433,6 +577,7 @@ export function createPgChatCommandStore(
 				throw new Error("Conversation disappeared after finalize.");
 			}
 
+			void replayed;
 			return conversation;
 		},
 	};

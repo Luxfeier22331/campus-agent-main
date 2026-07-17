@@ -14,6 +14,9 @@ spec:
   podSelector:
     matchLabels:
       app.kubernetes.io/part-of: campus-agent
+    matchExpressions:
+      - key: campus-agent.muc.wiki/network-policy-profile
+        operator: DoesNotExist
   policyTypes: ["Ingress", "Egress"]
   ingress:
     - from:
@@ -34,6 +37,9 @@ spec:
   podSelector:
     matchLabels:
       app.kubernetes.io/part-of: campus-agent
+    matchExpressions:
+      - key: campus-agent.muc.wiki/network-policy-profile
+        operator: DoesNotExist
   policyTypes: ["Egress"]
   egress:
     - to:

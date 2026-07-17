@@ -33,9 +33,15 @@ func TestTemporalActivitySetsExposeOnlyTheirQueueMethods(t *testing.T) {
 	contextType := reflect.TypeOf(server.TemporalContextActivities())
 	for _, method := range []string{
 		"AppendConversationMemoryActivity",
-		"MemoryOperationStatusActivity",
+		"ExecutePersonalMemoryCommandActivity",
+		"FinalizePersonalMemoryCommandReceiptActivity",
 		"MemoryReflectActivity",
 		"MemoryRecallActivity",
+		"PurgeLangfuseTraceRetentionActivity",
+		"PurgePersonalMemoryTracesActivity",
+		"VerifyLangfuseTraceRetentionActivity",
+		"VerifyPersonalMemoryTracesActivity",
+		"WritePersonalMemoryCommandResultActivity",
 	} {
 		if _, ok := contextType.MethodByName(method); !ok {
 			t.Fatalf("context activities missing %s", method)
@@ -59,6 +65,9 @@ func TestTemporalActivitySetsExposeOnlyTheirQueueMethods(t *testing.T) {
 	finalizationType := reflect.TypeOf(server.TemporalFinalizationActivities())
 	if _, ok := finalizationType.MethodByName("WriteFinalizationActivity"); !ok {
 		t.Fatal("finalization activities missing WriteFinalizationActivity")
+	}
+	if _, ok := finalizationType.MethodByName("FinalizeExecutionFailureActivity"); !ok {
+		t.Fatal("finalization activities missing FinalizeExecutionFailureActivity")
 	}
 	for _, method := range []string{
 		"PlanRouteActivity",

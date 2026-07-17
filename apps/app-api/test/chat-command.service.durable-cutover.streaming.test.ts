@@ -25,7 +25,7 @@ import {
 const EXPECTED_LANGFUSE_TRACE_PARENT = `00-${deriveLangfuseTraceId("trace_0001")}-0000000000000001-01`;
 
 describe("chat command durable runtime cutover failure and streaming", () => {
-	it("finalizes accepted requests as errors when durable run creation fails", async () => {
+	it("keeps retryable durable admission failures pending for deterministic recovery", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const executionClient: ToolExecutionClient = {
@@ -54,13 +54,20 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			store,
 		});
 
-		const response = await service.submit({
-			payload: {
-				conversationId: "conv_01HQ",
-				prompt: "示例大学本科学生国家奖学金评审办法",
-			},
-			principal: createPrincipal(),
-			requestKind: "public_chat",
+		await expect(
+			service.submit({
+				payload: {
+					conversationId: "conv_01HQ",
+					prompt: "示例大学本科学生国家奖学金评审办法",
+				},
+				principal: createPrincipal(),
+				requestKind: "public_chat",
+			}),
+		).rejects.toMatchObject({
+			code: "admission_pending",
+			details: { requestId: "req_0001", runId: "run_0001" },
+			retryable: true,
+			status: 503,
 		});
 
 		expect(acceptedWrites[0]).toMatchObject({
@@ -71,21 +78,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			},
 		});
 		expect(executionClient.execute).not.toHaveBeenCalled();
-		expect(finalWrites[0]).toMatchObject({
-			turnDispatch: {
-				errorCode: "conversation_active_run",
-				requestId: "req_0001",
-				runId: "run_0001",
-				status: "error",
-			},
-		});
-		expect(response.answer.result).toMatchObject({
-			errorCode: "conversation_active_run",
-			kind: "error",
-			requestId: "req_0001",
-			retryable: true,
-			traceId: "trace_0001",
-		});
+		expect(finalWrites).toHaveLength(0);
 	});
 
 	it("does not expose a resumable accepted event when durable run creation fails", async () => {
@@ -135,7 +128,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			data: {
 				error: {
 					code: "invalid_request",
-					message: "metadata.execution_payload.trace.trace_id must match trace_id",
+					message: "The request could not be completed.",
 					retryable: false,
 				},
 				requestId: "req_0001",
@@ -164,7 +157,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 		expect(executionRuntime.listRunEvents).not.toHaveBeenCalled();
 	});
 
-	it("keeps execution-control transport details out of user-visible streaming errors", async () => {
+	it("emits resumable pending admission state without writing a false terminal error", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const executionRuntime: ExecutionControlRuntimeClient = {
@@ -202,40 +195,27 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			events.push(event);
 		}
 
-		expect(events).toHaveLength(1);
+		expect(events).toHaveLength(2);
 		expect(events[0]).toMatchObject({
 			data: {
-				answer: {
-					result: {
-						errorCode: "execution_control_unavailable",
-						kind: "error",
-						message: "问答服务暂时无法连接，请稍后再试。",
-						retryable: true,
-					},
-				},
-				error: {
-					code: "execution_control_unavailable",
-					message: "问答服务暂时无法连接，请稍后再试。",
-					retryable: true,
-				},
-				status: "error",
+				requestId: "req_0001",
+				runId: "run_0001",
+				status: "accepted",
 			},
-			event: "request.failed",
+			event: "request.accepted",
 		});
-		expect(events[0]?.data.answer?.conversation.messages.at(-1)).toMatchObject({
-			kind: "error",
-			role: "assistant",
-			text: "问答服务暂时无法连接，请稍后再试。",
-		});
-		expect(finalWrites[0]).toMatchObject({
-			turnDispatch: {
-				errorCode: "execution_control_unavailable",
-				status: "error",
+		expect(events[1]).toMatchObject({
+			data: {
+				requestId: "req_0001",
+				runId: "run_0001",
+				status: "pending_admission",
 			},
+			event: "execution.queued",
 		});
+		expect(finalWrites).toHaveLength(0);
 	});
 
-	it("finalizes blocking durable requests as execution timeouts when polling budget expires", async () => {
+	it("leaves blocking durable requests resumable when the polling budget expires", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const executionClient: ToolExecutionClient = {
@@ -252,6 +232,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				finalResponseRef: "",
 				taskQueue: "campus-agent.workflow",
 				ownerUserId: "user_01HQ",
+				queuedAt: "2026-06-04T01:02:03Z",
 				requestId: "req_0001",
 				requestedTool: "knowledge_query",
 				runId: "run_0001",
@@ -300,30 +281,24 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			store,
 		});
 
-		const response = await service.submit({
-			payload: {
-				conversationId: "conv_01HQ",
-				prompt: "示例大学本科学生国家奖学金评审办法",
-			},
-			principal: createPrincipal(),
-			requestKind: "public_chat",
+		await expect(
+			service.submit({
+				payload: {
+					conversationId: "conv_01HQ",
+					prompt: "示例大学本科学生国家奖学金评审办法",
+				},
+				principal: createPrincipal(),
+				requestKind: "public_chat",
+			}),
+		).rejects.toMatchObject({
+			code: "execution_status_pending",
+			details: { requestId: "req_0001", runId: "run_0001" },
+			retryable: true,
+			status: 504,
 		});
 
 		expect(executionClient.execute).not.toHaveBeenCalled();
-		expect(finalWrites[0]).toMatchObject({
-			turnDispatch: {
-				errorCode: "execution_timeout",
-				requestId: "req_0001",
-				runId: "run_0001",
-				status: "error",
-			},
-		});
-		expect(response.answer.result).toMatchObject({
-			errorCode: "execution_timeout",
-			kind: "error",
-			retryable: true,
-			traceId: "trace_0001",
-		});
+		expect(finalWrites).toHaveLength(0);
 	});
 
 	it("streams durable run events and finalizes from finalization completed event", async () => {
@@ -345,6 +320,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				finalResponseRef: "",
 				taskQueue: "campus-agent.workflow",
 				ownerUserId: "user_01HQ",
+				queuedAt: "2026-06-04T01:02:03Z",
 				requestId: "req_0001",
 				requestedTool: "knowledge_query",
 				runId: "run_0001",
@@ -503,6 +479,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				status: "accepted",
 			},
 		});
+		expect(finalWrites).toHaveLength(1);
 		expect(finalWrites[0]).toMatchObject({
 			turnDispatch: {
 				requestId: "req_0001",
@@ -529,6 +506,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				failCloseReason: "",
 				finalResponseRef: "",
 				ownerUserId: "user_01HQ",
+				queuedAt: "2026-06-04T01:02:03Z",
 				requestId: "req_0001",
 				requestedTool: "knowledge_query",
 				runId: "run_0001",
@@ -608,6 +586,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			{ event: "execution.queued", status: "queued" },
 			{ event: "request.cancelled", status: "cancelled" },
 		]);
+		expect(finalWrites).toHaveLength(1);
 		expect(finalWrites[0]).toMatchObject({
 			turnDispatch: {
 				errorCode: "execution_cancelled",

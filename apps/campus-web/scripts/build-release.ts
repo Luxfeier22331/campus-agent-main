@@ -50,6 +50,7 @@ function buildRelease(input: ReleaseBuildArgs): void {
 		input.releaseId,
 	]);
 	if (input.staging) {
+		process.env.CAMPUS_WEB_SENTRY_SOURCE_MAP_UPLOAD = "required";
 		run("pnpm", [
 			"exec",
 			"tsx",

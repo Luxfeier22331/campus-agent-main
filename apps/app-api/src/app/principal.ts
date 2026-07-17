@@ -1,11 +1,7 @@
 import type { Env } from "../config";
 import { AppApiRouteError, routeErrorResponse } from "../http";
 import type { ResolvedAppPrincipal } from "../modules/auth";
-import {
-	dependencyNotReadyResponse,
-	operatorAccessForbiddenResponse,
-	sessionRequiredResponse,
-} from "./responses";
+import { dependencyNotReadyResponse, sessionRequiredResponse } from "./responses";
 import type { AppRequestScope } from "./types";
 
 export async function resolvePrincipalForScope(input: {
@@ -60,34 +56,4 @@ export async function requireSessionPrincipal(input: {
 	} catch (error) {
 		return { response: principalResolutionErrorResponse(error) };
 	}
-}
-
-export async function requireOperatorPrincipal(input: {
-	env: Env;
-	getPrincipal: (
-		request: Request,
-		env: Env,
-		authInput: { getAppAuth: AppRequestScope["getAppAuth"] },
-	) => Promise<ResolvedAppPrincipal | null>;
-	request: Request;
-	scope: AppRequestScope;
-}): Promise<
-	| {
-			principal: ResolvedAppPrincipal;
-			response?: never;
-	  }
-	| {
-			principal?: never;
-			response: Response;
-	  }
-> {
-	const resolved = await requireSessionPrincipal(input);
-	if (resolved.response) {
-		return resolved;
-	}
-	if (!resolved.principal.permissions.operator) {
-		return { response: operatorAccessForbiddenResponse() };
-	}
-
-	return resolved;
 }

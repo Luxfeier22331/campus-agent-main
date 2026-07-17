@@ -5,7 +5,7 @@ import {
 	ABUSE_THROTTLE_REQUESTS_PER_TEN_MINUTES,
 	ABUSE_THROTTLE_TEN_MINUTE_WINDOW_MS,
 	type AbuseThrottleReason,
-} from "../safety-ops-policy";
+} from "../abuse-throttle-policy";
 import type { AbuseControlState } from "./store-types";
 
 export function createEmptyAbuseControlState(): AbuseControlState {

@@ -23,8 +23,6 @@ Kubernetes/GitOps 之外维护第二套 staging 生命周期。
 ```bash
 pnpm --dir apps/app-api test:worker -- --reporter=verbose
 pnpm --dir apps/campus-web test:worker -- --reporter=verbose
-pnpm --dir apps/ops-web test
-pnpm --dir apps/ops-web test:browser
 ```
 
 ## Campus Web 与文档阅读
@@ -41,9 +39,9 @@ pnpm dev
 
 ## Provider 配置
 
-准备 `apps/ops-web/.env` 后运行 `pnpm --dir apps/ops-web start`，再从“模型服务配置”创建、验证和
-激活 profile。file publisher 原子写入 `.env` 指定的 projection 路径；应用启动不执行 seed 或
-隐式同步。
+在线配置由 execution-control Provider Config 数据库和 keyring 持有。需要修改时启动本地
+execution-control admin 与 Ops Web，按 `provider-secrets.md` 创建、验证并激活完整 role bundle；
+应用启动不能静默 seed、激活或生成兼容投影。
 
 ## Chat 检查
 

@@ -14,6 +14,9 @@ spec:
   podSelector:
     matchLabels:
       app.kubernetes.io/part-of: campus-agent
+    matchExpressions:
+      - key: campus-agent.muc.wiki/network-policy-profile
+        operator: DoesNotExist
   policyTypes: ["Ingress", "Egress"]
   ingress:
     - from:
@@ -29,11 +32,71 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
+  name: execution-runtime-general-observability-egress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: campus-agent
+    matchExpressions:
+      - key: campus-agent.muc.wiki/network-policy-profile
+        operator: DoesNotExist
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: otel-collector
+      ports:
+        - protocol: TCP
+          port: 4318
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: execution-runtime-orchestration-observability-egress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: execution-control
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: otel-collector
+      ports:
+        - protocol: TCP
+          port: 4319
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: execution-runtime-agent-observability-egress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: agent-runtime
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: otel-collector
+      ports:
+        - protocol: TCP
+          port: 4320
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
   name: execution-runtime-platform-egress
 spec:
   podSelector:
     matchLabels:
       app.kubernetes.io/part-of: campus-agent
+    matchExpressions:
+      - key: campus-agent.muc.wiki/network-policy-profile
+        operator: DoesNotExist
   policyTypes: ["Egress"]
   egress:
     - to:
@@ -59,7 +122,5 @@ spec:
           port: 6333
         - protocol: TCP
           port: 7233
-        - protocol: TCP
-          port: 4318
         - protocol: TCP
           port: 8888

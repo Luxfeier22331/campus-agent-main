@@ -68,14 +68,48 @@ func (c hindsightHTTPClient) EnsureBank(ctx context.Context, bankID string, cfg 
 }
 
 func (c hindsightHTTPClient) HealthCheck(ctx context.Context) error {
-	_, response, err := c.client.MonitoringAPI.HealthEndpointHealthGet(ctx).Execute()
+	version, response, err := c.client.MonitoringAPI.GetVersion(ctx).Execute()
 	if err != nil {
 		return err
 	}
 	if response != nil && response.Body != nil {
 		defer func() { _ = response.Body.Close() }()
 	}
-	return requireHindsightSuccess(response, "health")
+	if err := requireHindsightSuccess(response, "version"); err != nil {
+		return err
+	}
+	if version == nil || strings.TrimSpace(version.GetApiVersion()) != "0.8.4" {
+		return fmt.Errorf("hindsight api_version=%q, want 0.8.4", version.GetApiVersion())
+	}
+	features := version.GetFeatures()
+	if !features.GetObservations() || !features.GetBankConfigApi() || features.GetMcp() || features.GetLlmTrace() || !features.GetStoreDocumentText() {
+		return fmt.Errorf(
+			"hindsight required features unavailable: observations=%t bank_config_api=%t mcp=%t llm_trace=%t store_document_text=%t",
+			features.GetObservations(),
+			features.GetBankConfigApi(),
+			features.GetMcp(),
+			features.GetLlmTrace(),
+			features.GetStoreDocumentText(),
+		)
+	}
+	return nil
+}
+
+func (c hindsightHTTPClient) BankExists(ctx context.Context, bankID string) (bool, error) {
+	_, response, err := c.client.BanksAPI.GetBankProfile(ctx, strings.TrimSpace(bankID)).Execute()
+	if response != nil && response.Body != nil {
+		defer func() { _ = response.Body.Close() }()
+	}
+	if response != nil && response.StatusCode == http.StatusNotFound {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if err := requireHindsightSuccess(response, "get bank profile"); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (c hindsightHTTPClient) RetainMemories(
@@ -84,9 +118,8 @@ func (c hindsightHTTPClient) RetainMemories(
 	request hindsightRetainRequest,
 ) (hindsightRetainResponse, error) {
 	payload := hindsight.RetainRequest{
-		Async:        request.Async,
-		DocumentTags: append([]string{}, request.DocumentTags...),
-		Items:        make([]hindsight.MemoryItem, 0, len(request.Items)),
+		Async: request.Async,
+		Items: make([]hindsight.MemoryItem, 0, len(request.Items)),
 	}
 	for _, item := range request.Items {
 		sdkItem, err := toHindsightSDKMemoryItem(item)
@@ -127,6 +160,15 @@ func (c hindsightHTTPClient) RecallMemories(
 	}
 	trace := request.Trace
 	payload.Trace = &trace
+	preferObservations := request.PreferObservations
+	payload.PreferObservations = &preferObservations
+	include := hindsight.NewIncludeOptions()
+	include.SetEntities(hindsight.EntityIncludeOptions{MaxTokens: int32Pointer(0)})
+	include.SetSourceFacts(hindsight.SourceFactsIncludeOptions{
+		MaxTokens:               int32Pointer(0),
+		MaxTokensPerObservation: int32Pointer(0),
+	})
+	payload.Include = include
 	payload.Tags = append([]string{}, request.Tags...)
 	if strings.TrimSpace(request.TagsMatch) != "" {
 		tagsMatch := strings.TrimSpace(request.TagsMatch)
@@ -194,131 +236,57 @@ func (c hindsightHTTPClient) Reflect(
 	return fromHindsightSDKReflectResponse(responseBody), nil
 }
 
-func (c hindsightHTTPClient) OperationStatus(
-	ctx context.Context,
-	bankID string,
-	operationID string,
-) (hindsightOperationStatusResponse, error) {
-	responseBody, response, err := c.client.OperationsAPI.
-		GetOperationStatus(ctx, strings.TrimSpace(bankID), strings.TrimSpace(operationID)).
-		IncludePayload(false).
-		Execute()
-	if err != nil {
-		return hindsightOperationStatusResponse{}, err
-	}
-	if response != nil && response.Body != nil {
-		defer func() { _ = response.Body.Close() }()
-	}
-	if err := requireHindsightSuccess(response, "get operation status"); err != nil {
-		return hindsightOperationStatusResponse{}, err
-	}
-	return fromHindsightSDKOperationStatusResponse(responseBody), nil
-}
-
-func (c hindsightHTTPClient) ListOperations(
-	ctx context.Context,
-	bankID string,
-	request hindsightOperationListRequest,
-) (hindsightOperationListResponse, error) {
-	query := c.client.OperationsAPI.ListOperations(ctx, strings.TrimSpace(bankID))
-	if strings.TrimSpace(request.Status) != "" {
-		query = query.Status(strings.TrimSpace(request.Status))
-	}
-	if strings.TrimSpace(request.OperationType) != "" {
-		query = query.Type_(strings.TrimSpace(request.OperationType))
-	}
-	if request.Limit > 0 {
-		query = query.Limit(int32(request.Limit))
-	}
-	if request.Offset > 0 {
-		query = query.Offset(int32(request.Offset))
-	}
-	query = query.ExcludeParents(request.ExcludeParents)
-	responseBody, response, err := query.Execute()
-	if err != nil {
-		return hindsightOperationListResponse{}, err
-	}
-	if response != nil && response.Body != nil {
-		defer func() { _ = response.Body.Close() }()
-	}
-	if err := requireHindsightSuccess(response, "list operations"); err != nil {
-		return hindsightOperationListResponse{}, err
-	}
-	return fromHindsightSDKOperationListResponse(responseBody), nil
-}
-
-func (c hindsightHTTPClient) CancelOperation(
-	ctx context.Context,
-	bankID string,
-	operationID string,
-) (hindsightOperationActionResponse, error) {
-	responseBody, response, err := c.client.OperationsAPI.
-		CancelOperation(ctx, strings.TrimSpace(bankID), strings.TrimSpace(operationID)).
-		Execute()
-	if err != nil {
-		return hindsightOperationActionResponse{}, err
-	}
-	if response != nil && response.Body != nil {
-		defer func() { _ = response.Body.Close() }()
-	}
-	if err := requireHindsightSuccess(response, "cancel operation"); err != nil {
-		return hindsightOperationActionResponse{}, err
-	}
-	return hindsightOperationActionResponse{
-		Message:     strings.TrimSpace(responseBody.GetMessage()),
-		OperationID: strings.TrimSpace(responseBody.GetOperationId()),
-		Success:     responseBody.GetSuccess(),
-	}, nil
-}
-
-func (c hindsightHTTPClient) RetryOperation(
-	ctx context.Context,
-	bankID string,
-	operationID string,
-) (hindsightOperationActionResponse, error) {
-	responseBody, response, err := c.client.OperationsAPI.
-		RetryOperation(ctx, strings.TrimSpace(bankID), strings.TrimSpace(operationID)).
-		Execute()
-	if err != nil {
-		return hindsightOperationActionResponse{}, err
-	}
-	if response != nil && response.Body != nil {
-		defer func() { _ = response.Body.Close() }()
-	}
-	if err := requireHindsightSuccess(response, "retry operation"); err != nil {
-		return hindsightOperationActionResponse{}, err
-	}
-	return hindsightOperationActionResponse{
-		Message:     strings.TrimSpace(responseBody.GetMessage()),
-		OperationID: strings.TrimSpace(responseBody.GetOperationId()),
-		Success:     responseBody.GetSuccess(),
-	}, nil
-}
-
 func (c hindsightHTTPClient) DeleteDocument(ctx context.Context, bankID string, documentID string) error {
-	_, response, err := c.client.DocumentsAPI.
+	responseBody, response, err := c.client.DocumentsAPI.
 		DeleteDocument(ctx, strings.TrimSpace(bankID), strings.TrimSpace(documentID)).
 		Execute()
+	if response != nil && response.StatusCode == http.StatusNotFound {
+		if response.Body != nil {
+			_ = response.Body.Close()
+		}
+		return nil
+	}
 	if err != nil {
 		return err
 	}
 	if response != nil && response.Body != nil {
 		defer func() { _ = response.Body.Close() }()
 	}
-	return requireHindsightSuccess(response, "delete document")
+	if err := requireHindsightSuccess(response, "delete document"); err != nil {
+		return err
+	}
+	if responseBody == nil || !responseBody.GetSuccess() {
+		return errors.New("hindsight delete document returned success=false")
+	}
+	if strings.TrimSpace(responseBody.GetDocumentId()) != strings.TrimSpace(documentID) {
+		return fmt.Errorf("hindsight delete document id=%q, want %q", responseBody.GetDocumentId(), documentID)
+	}
+	return nil
 }
 
 func (c hindsightHTTPClient) DeleteBank(ctx context.Context, bankID string) error {
-	_, response, err := c.client.BanksAPI.
+	responseBody, response, err := c.client.BanksAPI.
 		DeleteBank(ctx, strings.TrimSpace(bankID)).
 		Execute()
+	if response != nil && response.StatusCode == http.StatusNotFound {
+		if response.Body != nil {
+			_ = response.Body.Close()
+		}
+		return nil
+	}
 	if err != nil {
 		return err
 	}
 	if response != nil && response.Body != nil {
 		defer func() { _ = response.Body.Close() }()
 	}
-	return requireHindsightSuccess(response, "delete bank")
+	if err := requireHindsightSuccess(response, "delete bank"); err != nil {
+		return err
+	}
+	if responseBody == nil || !responseBody.GetSuccess() {
+		return errors.New("hindsight delete bank returned success=false")
+	}
+	return nil
 }
 
 func requireHindsightSuccess(response *http.Response, operation string) error {
@@ -340,6 +308,8 @@ func hindsightBankConfigUpdate(cfg hindsightBankConfig) map[string]interface{} {
 		})
 	}
 	return map[string]interface{}{
+		"enable_auto_consolidation": cfg.EnableAutoConsolidation,
+		"enable_observations":       cfg.EnableObservations,
 		"memory_defense": map[string]interface{}{
 			"enabled": cfg.MemoryDefense.Enabled,
 			"rules":   rules,
@@ -350,6 +320,15 @@ func hindsightBankConfigUpdate(cfg hindsightBankConfig) map[string]interface{} {
 func requireHindsightBankConfig(response *hindsight.BankConfigResponse, expected hindsightBankConfig) error {
 	if response == nil {
 		return errors.New("hindsight bank config returned no response")
+	}
+	for key, want := range map[string]bool{
+		"enable_auto_consolidation": expected.EnableAutoConsolidation,
+		"enable_observations":       expected.EnableObservations,
+	} {
+		got, ok := response.GetConfig()[key].(bool)
+		if !ok || got != want {
+			return fmt.Errorf("hindsight bank config %s=%v, want %v", key, response.GetConfig()[key], want)
+		}
 	}
 	defense, ok := response.GetConfig()["memory_defense"].(map[string]interface{})
 	if !ok {
@@ -384,6 +363,13 @@ func toHindsightSDKMemoryItem(item hindsightMemoryItem) (hindsight.MemoryItem, e
 		Content:  strings.TrimSpace(item.Content),
 		Metadata: copyStringMap(item.Metadata),
 		Tags:     append([]string{}, item.Tags...),
+	}
+	if len(item.ObservationScopes) > 0 {
+		scopes := make([][]string, len(item.ObservationScopes))
+		for index, scope := range item.ObservationScopes {
+			scopes[index] = append([]string{}, scope...)
+		}
+		output.SetObservationScopes(hindsight.ObservationScopes{ArrayOfArrayOfString: &scopes})
 	}
 	if strings.TrimSpace(item.Context) != "" {
 		output.SetContext(strings.TrimSpace(item.Context))
@@ -425,18 +411,32 @@ func fromHindsightSDKRecallResponse(response *hindsight.RecallResponse) hindsigh
 	results := make([]hindsightRecallResult, 0, len(response.Results))
 	for _, item := range response.Results {
 		results = append(results, hindsightRecallResult{
-			DocumentID:    item.GetDocumentId(),
-			ID:            strings.TrimSpace(item.Id),
-			MentionedAt:   item.GetMentionedAt(),
-			Metadata:      copyStringMap(item.Metadata),
-			OccurredEnd:   item.GetOccurredEnd(),
-			OccurredStart: item.GetOccurredStart(),
-			Tags:          append([]string{}, item.Tags...),
-			Text:          strings.TrimSpace(item.Text),
-			Type:          item.GetType(),
+			DocumentID:      item.GetDocumentId(),
+			ID:              strings.TrimSpace(item.Id),
+			MentionedAt:     item.GetMentionedAt(),
+			Metadata:        copyStringMap(item.Metadata),
+			OccurredEnd:     item.GetOccurredEnd(),
+			OccurredStart:   item.GetOccurredStart(),
+			Tags:            append([]string{}, item.Tags...),
+			Score:           hindsightFinalScore(item),
+			SourceFactCount: len(item.SourceFactIds),
+			Text:            strings.TrimSpace(item.Text),
+			Type:            item.GetType(),
 		})
 	}
 	return hindsightRecallResponse{Results: results}
+}
+
+func hindsightFinalScore(item hindsight.RecallResult) float64 {
+	if !item.HasScores() {
+		return 0
+	}
+	scores := item.GetScores()
+	return float64(scores.GetFinal())
+}
+
+func int32Pointer(value int32) *int32 {
+	return &value
 }
 
 func fromHindsightSDKReflectResponse(response *hindsight.ReflectResponse) hindsightReflectResponse {
@@ -471,50 +471,4 @@ func fromHindsightSDKReflectResponse(response *hindsight.ReflectResponse) hindsi
 		}
 	}
 	return reflectResponse
-}
-
-func fromHindsightSDKOperationStatusResponse(
-	response *hindsight.OperationStatusResponse,
-) hindsightOperationStatusResponse {
-	if response == nil {
-		return hindsightOperationStatusResponse{}
-	}
-	return hindsightOperationStatusResponse{
-		CompletedAt:    response.GetCompletedAt(),
-		CreatedAt:      response.GetCreatedAt(),
-		ErrorMessage:   response.GetErrorMessage(),
-		OperationID:    strings.TrimSpace(response.GetOperationId()),
-		OperationType:  strings.TrimSpace(response.GetOperationType()),
-		ResultMetadata: copyAnyMap(response.ResultMetadata),
-		RetryCount:     int(response.GetRetryCount()),
-		Status:         strings.TrimSpace(response.GetStatus()),
-		UpdatedAt:      response.GetUpdatedAt(),
-	}
-}
-
-func fromHindsightSDKOperationListResponse(
-	response *hindsight.OperationsListResponse,
-) hindsightOperationListResponse {
-	if response == nil {
-		return hindsightOperationListResponse{}
-	}
-	operations := make([]hindsightOperationItem, 0, len(response.Operations))
-	for _, operation := range response.Operations {
-		operations = append(operations, hindsightOperationItem{
-			CreatedAt:     operation.GetCreatedAt(),
-			ErrorMessage:  strings.TrimSpace(operation.GetErrorMessage()),
-			ItemsCount:    int(operation.GetItemsCount()),
-			OperationID:   strings.TrimSpace(operation.GetId()),
-			OperationType: strings.TrimSpace(operation.GetTaskType()),
-			RetryCount:    int(operation.GetRetryCount()),
-			Status:        strings.TrimSpace(operation.GetStatus()),
-			UpdatedAt:     operation.GetUpdatedAt(),
-		})
-	}
-	return hindsightOperationListResponse{
-		Limit:      int(response.GetLimit()),
-		Offset:     int(response.GetOffset()),
-		Operations: operations,
-		Total:      int(response.GetTotal()),
-	}
 }

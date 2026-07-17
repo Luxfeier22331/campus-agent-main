@@ -38,7 +38,6 @@ function createCampusPrincipal(): ResolvedAppPrincipal {
 		},
 		permissions: {
 			chat: true,
-			operator: false,
 		},
 		principal: {
 			displayName: "Jane Doe",

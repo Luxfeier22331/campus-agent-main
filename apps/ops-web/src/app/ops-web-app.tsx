@@ -8,7 +8,7 @@ import {
 	RouterProvider,
 	redirect,
 } from "@tanstack/react-router";
-import { Activity, ClipboardList, KeyRound, Settings, Utensils } from "lucide-react";
+import { Activity, ClipboardList, KeyRound, ServerCog, Utensils } from "lucide-react";
 import { useMemo } from "react";
 import type { OpsOverviewWindow } from "../shared/ops-contract";
 import { DiningPage } from "./dining-page";
@@ -97,6 +97,12 @@ const requestDetailRoute = createRoute({
 	component: RequestDetailRoute,
 });
 
+const providerConfigRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/providers",
+	component: ProviderConfigPage,
+});
+
 const internalPortalAuthRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/internal-portal-auth",
@@ -108,20 +114,15 @@ const diningRoute = createRoute({
 	path: "/dining",
 	component: DiningPage,
 });
-const providerConfigRoute = createRoute({
-	getParentRoute: () => rootRoute,
-	path: "/provider-config",
-	component: ProviderConfigPage,
-});
 
 const routeTree = rootRoute.addChildren([
 	indexRoute,
 	overviewRoute,
 	requestsRoute,
 	requestDetailRoute,
+	providerConfigRoute,
 	internalPortalAuthRoute,
 	diningRoute,
-	providerConfigRoute,
 ]);
 
 function createOpsRouter(initialPath?: string) {
@@ -150,9 +151,9 @@ function RootLayout() {
 			navItems={[
 				{ href: "/overview", icon: Activity, label: "运行概览" },
 				{ href: "/requests", icon: ClipboardList, label: "请求排查" },
+				{ href: "/providers", icon: ServerCog, label: "Provider Config" },
 				{ href: "/internal-portal-auth", icon: KeyRound, label: "门户认证" },
 				{ href: "/dining", icon: Utensils, label: "食堂内容" },
-				{ href: "/provider-config", icon: Settings, label: "模型服务配置" },
 			]}
 		>
 			<Outlet />

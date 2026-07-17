@@ -123,16 +123,11 @@ export function buildRuntimeDatabaseConfig(
 	};
 }
 
-function resolveOperatorConnectionString(env: Env): string | undefined {
-	return env.APP_API_OPERATOR_DATABASE_URL?.trim() || undefined;
-}
-
-export function buildOperatorDatabaseConfig(env: Env) {
-	const connectionString = resolveOperatorConnectionString(env);
+export function buildSchemaDatabaseConfig(env: Env) {
+	const connectionString = env.APP_API_SCHEMA_DATABASE_URL?.trim();
 	if (!connectionString) {
-		throw new Error("APP_API_OPERATOR_DATABASE_URL is required.");
+		throw new Error("APP_API_SCHEMA_DATABASE_URL is required.");
 	}
-
 	return {
 		connectionString: normalizePostgresConnectionStringForExplicitSsl(connectionString),
 		ssl: resolveSslConfig(resolveDatabaseSslMode(env)),
@@ -179,15 +174,11 @@ async function createPool(input: {
 		}),
 	);
 	pool.on("error", (error: Error) => {
-		console.error(
-			JSON.stringify({
-				error: {
-					message: error.message,
-					name: error.name,
-				},
-				source: "app-api.runtime-db.pool",
-			}),
-		);
+		console.error({
+			error_code: "idle_database_client_error",
+			error_type: error.name.replace(/[^a-z0-9_.-]/giu, "_").slice(0, 64) || "DatabaseClientError",
+			source: "app-api.runtime-db.pool",
+		});
 	});
 	return pool;
 }

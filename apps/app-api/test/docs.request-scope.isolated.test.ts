@@ -78,11 +78,9 @@ function createTelemetry(): AppTelemetry {
 		configureHttpRequestScope: vi.fn(),
 		getTraceHeaders: vi.fn(() => ({})),
 		markHttpResponseStatus: vi.fn(),
-		recordIdentityEndpoint: vi.fn(async () => undefined),
 		recordRequestAccepted: vi.fn(async () => undefined),
 		recordRequestFinalized: vi.fn(async () => undefined),
 		recordRequestTransportError: vi.fn(async () => undefined),
-		recordWebPerformance: vi.fn(async () => undefined),
 	};
 }
 

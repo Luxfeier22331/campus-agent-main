@@ -115,8 +115,9 @@ app-api 构造 context.conversation 来源载荷
   message、recent turns、previous evidence refs、previous tool result refs、session
   state 与 provenance。
 - Context 读取必须验证当前用户对 conversation 的访问权限。
-- `context.memory.enabled` 缺失或为 false 是合法 skipped case。
-- Gate 为 true 时，memory recall 所需字段缺失必须 fail closed。
+- `context.memory.recall_enabled` / `append_enabled` 来自 accepted turn 的不可变快照；
+  缺失或为 false 是对应 activity 的合法 skipped case。
+- Gate 为 true 时，owner generation/sequence 或 recall/append source 字段缺失必须 fail closed。
 - Envelope 不包含 Hindsight recall result；recall result 由 execution-control enrichment
   产生。
 
@@ -190,7 +191,7 @@ app-api 构造 context.conversation 来源载荷
 - Session slots 用于 conversation-scoped active state。
 - Previous evidence 用于上一轮 Knowledge Agent evidence continuity。
 - 长期记忆和 recent turns 冲突时，recent turns 优先。
-- `context.memory.enabled=false` 投影为 skipped；gate 为 true 但 recall 失败时当前
+- `context.memory.recall_enabled=false` 投影为 recall skipped；gate 为 true 但 recall 失败时当前
   workflow fail closed。
 
 ## 8. 验收标准
@@ -198,7 +199,7 @@ app-api 构造 context.conversation 来源载荷
 - 固定测试集中的“这个 / 那个 / 上一条 / 第二点”追问通过。
 - Golden run context envelope fixture 可由 app-api compiler 稳定生成。
 - app-api-generated `context.conversation` fixture 不包含 Hindsight recall result。
-- Valid skipped fixture 覆盖 `context.memory.enabled` 缺失 / false。
+- Valid skipped fixture 覆盖 `context.memory.recall_enabled` / `append_enabled` 缺失或 false。
 - Malformed fixture 覆盖 top-level `conversation_context` 被拒绝、缺 provenance、gate 为
   true 但 recall input 缺失，以及 Langfuse secret-bearing payload。
 - SDK/knowledge-search trajectory 可看到 handoff、query shape hash、target/history

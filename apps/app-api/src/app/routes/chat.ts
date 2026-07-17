@@ -2,19 +2,15 @@ import type { Hono } from "hono";
 
 import type { Env } from "../../config";
 import { AppApiRouteError, jsonResponse } from "../../http";
-import { hasMatchingInternalSecret, type ResolvedAppPrincipal } from "../../modules/auth";
+import type { ResolvedAppPrincipal } from "../../modules/auth";
 import { ExecutionControlTransportError } from "../../modules/integration";
 import { requireSessionPrincipal } from "../principal";
 import {
-	buildInternalEvalPrincipalFromRequest,
 	createRouteErrorCorrelation,
 	readJsonRequestBody,
 	resolveWaitUntil,
 } from "../request-utils";
-import {
-	routeErrorResponseWithRouteErrorCorrelation,
-	serviceCredentialRequiredResponse,
-} from "../responses";
+import { routeErrorResponseWithRouteErrorCorrelation } from "../responses";
 import type { AppRequestScope } from "../types";
 import { registerChatRunRoutes } from "./chat-run-routes";
 import { createChatSseResponse } from "./chat-stream-responses";
@@ -244,45 +240,6 @@ export function registerChatRoutes(input: {
 				first: first.value,
 				iterator,
 			});
-		} catch (error) {
-			const response = routeChatErrorResponse(error, routeErrorCorrelation);
-			if (response) {
-				return response;
-			}
-			throw error;
-		}
-	});
-
-	input.app.post("/api/internal/evals/chat/requests", async (c) => {
-		const scope = input.createRequestScope();
-		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
-			return serviceCredentialRequiredResponse();
-		}
-		const routeErrorCorrelation = createRouteErrorCorrelation();
-
-		try {
-			const response = await scope.resolveChatCommandService().submit({
-				idempotencyKey: c.req.header("idempotency-key") ?? null,
-				payload: await readJsonRequestBody(c.req.raw),
-				principal: buildInternalEvalPrincipalFromRequest(c.req.raw),
-				requestKind: "internal_eval",
-				traceHeaders: scope.telemetry.getTraceHeaders({ request: c.req.raw }),
-				waitUntil: resolveWaitUntil(c),
-			});
-
-			return jsonResponse(
-				{
-					answer: response.answer,
-					execution: response.execution ?? null,
-				},
-				{
-					headers: {
-						"x-request-id": response.requestId,
-						"x-trace-id": response.traceId,
-					},
-					status: 200,
-				},
-			);
 		} catch (error) {
 			const response = routeChatErrorResponse(error, routeErrorCorrelation);
 			if (response) {

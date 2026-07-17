@@ -1,6 +1,8 @@
 package execution
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"time"
 )
@@ -111,7 +113,97 @@ func validateDurableRunFailRequest(request DurableRunFailRequest) error {
 	if request.Now.IsZero() {
 		return fmt.Errorf("%w: now is required", ErrInvalidDurableRun)
 	}
+	event := request.TerminalEvent
+	if event.Sequence != 0 {
+		return fmt.Errorf("%w: terminal event sequence must be store-assigned", ErrInvalidDurableRun)
+	}
+	if event.EventID != request.RunID+":run-failed" {
+		return fmt.Errorf("%w: terminal event id must be <run_id>:run-failed", ErrInvalidDurableRun)
+	}
+	if event.RunID != request.RunID {
+		return fmt.Errorf("%w: terminal event run_id must match request run_id", ErrInvalidDurableRun)
+	}
+	if event.EventType != DurableRunEventTypeRunFailed {
+		return fmt.Errorf("%w: terminal event type must be run.failed", ErrInvalidDurableRun)
+	}
+	if event.Visibility != DurableRunEventVisibilityBrowser {
+		return fmt.Errorf("%w: terminal event visibility must be browser", ErrInvalidDurableRun)
+	}
+	if event.OccurredAt.IsZero() {
+		return fmt.Errorf("%w: terminal event occurred_at is required", ErrInvalidDurableRun)
+	}
+	if !event.OccurredAt.Equal(request.Now) {
+		return fmt.Errorf("%w: terminal event occurred_at must equal now", ErrInvalidDurableRun)
+	}
+	event.Sequence = 1
+	if err := validateDurableRunEventBase(event); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidDurableRun, err)
+	}
+	if _, err := durableRunEventPayloadFingerprint(event.Payload); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidDurableRun, err)
+	}
 	return nil
+}
+
+func canonicalizeDurableRunFailRequest(request DurableRunFailRequest) DurableRunFailRequest {
+	request.Now = request.Now.UTC().Truncate(time.Microsecond)
+	request.TerminalEvent.OccurredAt = request.TerminalEvent.OccurredAt.UTC().Truncate(time.Microsecond)
+	return request
+}
+
+func validateDurableRunFailureEventForRun(run DurableRun, event DurableRunEvent) error {
+	if event.RunID != run.RunID || event.ConversationID != run.ConversationID {
+		return fmt.Errorf(
+			"%w: terminal event identity does not match run",
+			ErrDurableRunFailureConflict,
+		)
+	}
+	return nil
+}
+
+func validateDurableRunFailureReplay(
+	run DurableRun,
+	request DurableRunFailRequest,
+	storedEvent DurableRunEvent,
+) error {
+	requestedEvent := request.TerminalEvent
+	expectedSelectedTool := run.SelectedTool
+	if request.SelectedTool != "" {
+		expectedSelectedTool = request.SelectedTool
+	}
+	if run.Status != DurableRunStatusFailed ||
+		run.TerminalReason != request.TerminalReason ||
+		run.SelectedTool != expectedSelectedTool ||
+		storedEvent.EventID != requestedEvent.EventID ||
+		storedEvent.RunID != requestedEvent.RunID ||
+		storedEvent.ConversationID != requestedEvent.ConversationID ||
+		storedEvent.EventType != requestedEvent.EventType ||
+		storedEvent.Visibility != requestedEvent.Visibility ||
+		storedEvent.PayloadSchemaVersion != requestedEvent.PayloadSchemaVersion ||
+		!storedEvent.OccurredAt.Equal(requestedEvent.OccurredAt) {
+		return fmt.Errorf("%w: terminal run or event identity differs", ErrDurableRunFailureConflict)
+	}
+	storedFingerprint, err := durableRunEventPayloadFingerprint(storedEvent.Payload)
+	if err != nil {
+		return fmt.Errorf("%w: stored terminal event payload is invalid: %v", ErrDurableRunFailureConflict, err)
+	}
+	requestedFingerprint, err := durableRunEventPayloadFingerprint(requestedEvent.Payload)
+	if err != nil {
+		return fmt.Errorf("%w: requested terminal event payload is invalid: %v", ErrDurableRunFailureConflict, err)
+	}
+	if storedFingerprint != requestedFingerprint {
+		return fmt.Errorf("%w: terminal event payload fingerprint differs", ErrDurableRunFailureConflict)
+	}
+	return nil
+}
+
+func durableRunEventPayloadFingerprint(payload map[string]any) (string, error) {
+	payloadJSON, err := jsonMapToBytes(payload)
+	if err != nil {
+		return "", fmt.Errorf("encode terminal event payload: %w", err)
+	}
+	sum := sha256.Sum256(payloadJSON)
+	return hex.EncodeToString(sum[:]), nil
 }
 
 func durableRunStatusValid(status DurableRunStatus) bool {

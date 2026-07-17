@@ -31,7 +31,7 @@ func (s *Server) MemoryRecallActivity(
 			errors.New("run metadata.execution_payload must be an object"),
 		)
 	}
-	enabled, known := memoryEnabledFromExecutionPayload(payload)
+	enabled, known := memoryRecallEnabledFromExecutionPayload(payload)
 	if !known {
 		output, err := s.projectSkippedMemoryRecall(ctx, run, input.RequestedTool, "memory_enabled_unknown", startedAt)
 		if err == nil {
@@ -46,7 +46,7 @@ func (s *Server) MemoryRecallActivity(
 		}
 		return output, err
 	}
-	request, err := memoryRecallRequestForRun(run, input.RequestedTool, startedAt)
+	request, err := memoryRecallRequestForRun(run, input.RequestedTool)
 	if err != nil {
 		s.recordPersonalMemoryOperation("recall", "failed", "memory_recall_request_invalid", startedAt, 0, 0)
 		return s.failMemoryRecallActivity(ctx, run, "memory_recall_request_invalid", err)

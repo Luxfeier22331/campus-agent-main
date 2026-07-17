@@ -165,6 +165,14 @@ function applySharedProductSchemaStatement(specs: TableSpecMap, statement: strin
 	if (/^CREATE SCHEMA(?: IF NOT EXISTS)? "[a-z_][a-z0-9_]*";?$/i.test(trimmed)) {
 		return;
 	}
+	if (
+		/^ALTER TABLE "chat"\."turn_dispatches" (?:ADD COLUMN IF NOT EXISTS|ALTER COLUMN) /iu.test(
+			trimmed,
+		) ||
+		/^UPDATE "chat"\."turn_dispatches"\s+SET /iu.test(trimmed)
+	) {
+		return;
+	}
 	throw new Error(`Unsupported shared-product schema baseline statement shape: ${trimmed}`);
 }
 

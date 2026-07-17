@@ -2,22 +2,15 @@
 
 import { describe, expect, it, vi } from "vitest";
 
+import type { AppApiRouteError } from "../src/http";
 import type { ResolvedAppPrincipal } from "../src/modules/auth";
 import {
 	buildProfileMemoryService,
-	type ProfileMemoryIndexer,
+	type ProfileMemoryCommandAdmitter,
 	type ProfileMemoryStore,
 } from "../src/modules/profile-memory";
 
-type OwnerAwareProfileMemoryIndexer = ProfileMemoryIndexer & {
-	disableOwnerMemory(input: {
-		tenantId?: string;
-		updatedAt: string;
-		userId: string;
-	}): Promise<{ status: string; userId: string }>;
-};
-
-function createPrincipal(input: { chat?: boolean } = {}): ResolvedAppPrincipal {
+function createPrincipal(chat = true): ResolvedAppPrincipal {
 	return {
 		actor: {
 			departments: [],
@@ -27,285 +20,194 @@ function createPrincipal(input: { chat?: boolean } = {}): ResolvedAppPrincipal {
 			userId: "user_01HQ",
 		},
 		authorization: undefined,
-		permissions: {
-			chat: input.chat ?? true,
-			operator: false,
-		},
+		permissions: { chat },
 		principal: {
 			displayName: "Jane Doe",
 			email: "jane@example.edu",
 			principalId: "user_01HQ",
 			type: "campus_member",
 		},
-		session: {
-			expiresAt: "2026-04-27T08:00:00.000Z",
-			sessionId: "sess_01HQ",
-		},
+		session: { expiresAt: "2026-04-27T08:00:00.000Z", sessionId: "sess_01HQ" },
+	};
+}
+
+function pendingResult(item = true) {
+	return {
+		...(item
+			? {
+					item: pendingItem(),
+				}
+			: {}),
+		lifecycleState: "active" as const,
+		syncStatus: "pending" as const,
+	};
+}
+
+function pendingItem() {
+	return {
+		itemId: "mem_01HQ",
+		key: "answer_style",
+		revision: 1,
+		state: "saving" as const,
+		updatedAt: "2026-04-27T08:00:00.000Z",
+		value: "先给结论",
 	};
 }
 
 function createStore(): ProfileMemoryStore {
 	return {
-		deleteItem: vi.fn(async () => true),
-		findItemIdByKey: vi.fn(async () => null),
-		getItemRuntimeRef: vi.fn(async () => ({
-			itemId: "mem_01HQ",
-			runtimeEpisodeUUID: "episode_mem_01HQ",
+		applyCommandResult: vi.fn(async () => "applied" as const),
+		createItem: vi.fn(async () => pendingResult()),
+		deleteItem: vi.fn(async () => ({
+			...pendingResult(),
+			item: { ...pendingItem(), state: "deleting" as const },
 		})),
-		listByOwner: vi.fn(async () => ({ enabled: true, items: [] })),
+		erase: vi.fn(async () => ({
+			lifecycleState: "erasing" as const,
+			syncStatus: "pending" as const,
+		})),
+		listPendingAdmissions: vi.fn(async () => []),
+		markCommandAdmitted: vi.fn(async () => true),
+		listByOwner: vi.fn(async () => ({
+			itemCount: 0,
+			items: [],
+			lifecycleState: "active" as const,
+			syncStatus: "synced" as const,
+		})),
 		listProjectionItems: vi.fn(async () => []),
-		loadSummary: vi.fn(async () => ({ enabled: true, itemCount: 0 })),
-		setEnabled: vi.fn(async (input) => input.enabled),
-		upsertUserDeclared: vi.fn(async (input) => ({
-			confidence: "low" as const,
-			itemId: input.itemId,
-			key: input.key,
-			lastVerifiedAt: input.updatedAt,
-			sourceType: "user_declared" as const,
-			updatedAt: input.updatedAt,
-			value: input.value,
-			visibility: "user_visible" as const,
+		loadSummary: vi.fn(async () => ({
+			enabled: true,
+			itemCount: 0,
+			lifecycleState: "active" as const,
+			syncStatus: "synced" as const,
 		})),
-	};
-}
-
-function createIndexer(): OwnerAwareProfileMemoryIndexer {
-	return {
-		disableOwnerMemory: vi.fn(async () => ({
-			status: "disabled",
-			userId: "user_01HQ",
+		setLifecycle: vi.fn(async (_input) => ({
+			lifecycleState: "paused" as const,
+			syncStatus: "pending" as const,
 		})),
-		disableExplicitMemory: vi.fn(async () => ({
-			episodeUUID: "episode_mem_01HQ",
-			memoryId: "mem_01HQ",
-			status: "disabled",
-		})),
-		upsertExplicitMemory: vi.fn(async () => ({
-			episodeUUID: "episode_mem_01HQ",
-			memoryId: "mem_01HQ",
-			status: "active",
+		updateItem: vi.fn(async () => ({
+			...pendingResult(),
+			item: { ...pendingItem(), revision: 2 },
 		})),
 	};
 }
 
 describe("profile memory service", () => {
-	it("normalizes and writes user-declared memory to Hindsight before PG projection upsert", async () => {
+	it("writes normalized desired state and a command without calling Hindsight inline", async () => {
 		const store = createStore();
-		const indexer = createIndexer();
 		const service = buildProfileMemoryService({
-			generateId: () => "mem_01HQ",
-			memoryIndexer: indexer,
+			generateId: (prefix) => (prefix === "mem" ? "mem_01HQ" : "memcmd_01HQ"),
 			now: () => new Date("2026-04-27T08:00:00.000Z"),
 			store,
 		});
 
-		const result = await service.upsert({
+		const result = await service.createItem({
+			idempotencyKey: "idem-create-0001",
 			key: " Answer_Style ",
 			principal: createPrincipal(),
 			value: " 先给   结论 ",
 		});
 
-		expect(indexer.upsertExplicitMemory).toHaveBeenCalledWith({
-			canonicalSubject: "answer_style",
-			compactText: "answer_style: 先给 结论",
-			memoryId: "mem_01HQ",
-			tenantId: "tenant-main",
-			updatedAt: "2026-04-27T08:00:00.000Z",
-			userId: "user_01HQ",
-		});
-		expect(store.upsertUserDeclared).toHaveBeenCalledWith({
-			itemId: "mem_01HQ",
-			key: "answer_style",
-			ownerUserId: "user_01HQ",
-			runtimeEpisodeUUID: "episode_mem_01HQ",
-			updatedAt: "2026-04-27T08:00:00.000Z",
-			value: "先给 结论",
-		});
-		expect(result.item).toMatchObject({
-			confidence: "low",
-			key: "answer_style",
-			sourceType: "user_declared",
-			value: "先给 结论",
-			visibility: "user_visible",
-		});
-	});
-
-	it("does not write PG projection when Hindsight explicit memory indexing fails", async () => {
-		const store = createStore();
-		const indexer = createIndexer();
-		vi.mocked(indexer.upsertExplicitMemory).mockRejectedValueOnce(
-			new Error("hindsight unavailable"),
-		);
-		const service = buildProfileMemoryService({
-			generateId: () => "mem_01HQ",
-			memoryIndexer: indexer,
-			store,
-		});
-
-		await expect(
-			service.upsert({
+		expect(store.createItem).toHaveBeenCalledWith(
+			expect.objectContaining({
+				commandId: "memcmd_01HQ",
+				itemId: "mem_01HQ",
 				key: "answer_style",
-				principal: createPrincipal(),
-				value: "先给结论",
+				ownerUserId: "user_01HQ",
+				updatedAt: "2026-04-27T08:00:00.000Z",
+				value: "先给 结论",
 			}),
-		).rejects.toThrow("hindsight unavailable");
-
-		expect(store.upsertUserDeclared).not.toHaveBeenCalled();
+		);
+		expect(result.syncStatus).toBe("pending");
 	});
 
-	it("reuses the existing PG memory id for repeated key upsert before indexing Hindsight", async () => {
+	it("models pause as an owner transition and preserves the generation in the store", async () => {
 		const store = createStore();
-		vi.mocked(store.findItemIdByKey).mockResolvedValueOnce("mem_existing");
-		const indexer = createIndexer();
+		const service = buildProfileMemoryService({ generateId: () => "memcmd_pause", store });
+		await service.setLifecycle({
+			idempotencyKey: "idem-pause-0001",
+			principal: createPrincipal(),
+			state: "paused",
+		});
+		expect(store.setLifecycle).toHaveBeenCalledWith(
+			expect.objectContaining({ lifecycleState: "paused", ownerUserId: "user_01HQ" }),
+		);
+		expect(store.erase).not.toHaveBeenCalled();
+	});
+
+	it("admits pending commands without executing or finalizing provider work", async () => {
+		const store = createStore();
+		vi.mocked(store.listPendingAdmissions).mockResolvedValueOnce([
+			{
+				commandId: "memcmd_01HQ",
+				commandKind: "item_upsert",
+				item: { key: "answer_style", value: "先给结论" },
+				lifecycleState: "active",
+				ownerGeneration: 1,
+				ownerSequence: 1,
+				ownerUserId: "user_01HQ",
+				schemaVersion: "personal_memory_command.v2",
+				sourceMessageIds: [],
+				sourceUpdatedAt: "2026-04-27T08:00:00.000Z",
+				status: "pending_admission",
+				subjectId: "mem_01HQ",
+				subjectRevision: 1,
+				supersessionScope: "item:mem_01HQ",
+			},
+		]);
+		const commandAdmitter: ProfileMemoryCommandAdmitter = {
+			admit: vi.fn(async () => ({ workflowId: "campus-agent.memory.command.memcmd_01HQ" })),
+		};
 		const service = buildProfileMemoryService({
-			generateId: () => "mem_new",
-			memoryIndexer: indexer,
+			commandAdmitter,
 			now: () => new Date("2026-04-27T08:00:00.000Z"),
 			store,
 		});
 
-		const result = await service.upsert({
-			key: "answer_style",
-			principal: createPrincipal(),
-			value: "先给结论",
+		await expect(service.dispatchPending()).resolves.toEqual({
+			admitted: 1,
+			failed: 0,
+			processed: 1,
 		});
-
-		expect(indexer.upsertExplicitMemory).toHaveBeenCalledWith({
-			canonicalSubject: "answer_style",
-			compactText: "answer_style: 先给结论",
-			memoryId: "mem_existing",
-			tenantId: "tenant-main",
-			updatedAt: "2026-04-27T08:00:00.000Z",
-			userId: "user_01HQ",
+		expect(store.listPendingAdmissions).toHaveBeenCalledWith({ limit: 20 });
+		expect(store.markCommandAdmitted).toHaveBeenCalledWith({
+			admittedAt: "2026-04-27T08:00:00.000Z",
+			commandId: "memcmd_01HQ",
+			workflowId: "campus-agent.memory.command.memcmd_01HQ",
 		});
-		expect(store.upsertUserDeclared).toHaveBeenCalledWith(
-			expect.objectContaining({ itemId: "mem_existing", runtimeEpisodeUUID: "episode_mem_01HQ" }),
-		);
-		expect(result.item.itemId).toBe("mem_existing");
 	});
 
-	it("deletes Hindsight document before deleting PG projection", async () => {
+	it("rejects a missing or weak idempotency key before writing", async () => {
 		const store = createStore();
-		const indexer = createIndexer();
-		const service = buildProfileMemoryService({
-			memoryIndexer: indexer,
-			now: () => new Date("2026-04-27T09:00:00.000Z"),
-			store,
-		});
-
-		const result = await service.deleteItem({
-			itemId: "mem_01HQ",
-			principal: createPrincipal(),
-		});
-
-		expect(indexer.disableExplicitMemory).toHaveBeenCalledWith({
-			episodeUUID: "episode_mem_01HQ",
-			memoryId: "mem_01HQ",
-			tenantId: "tenant-main",
-			updatedAt: "2026-04-27T09:00:00.000Z",
-			userId: "user_01HQ",
-		});
-		expect(store.deleteItem).toHaveBeenCalledWith({
-			itemId: "mem_01HQ",
-			ownerUserId: "user_01HQ",
-		});
-		expect(result).toEqual({ deleted: true });
-	});
-
-	it("does not delete PG projection when Hindsight memory disable fails", async () => {
-		const store = createStore();
-		const indexer = createIndexer();
-		vi.mocked(indexer.disableExplicitMemory).mockRejectedValueOnce(new Error("disable failed"));
-		const service = buildProfileMemoryService({ memoryIndexer: indexer, store });
-
+		const service = buildProfileMemoryService({ store });
 		await expect(
-			service.deleteItem({
-				itemId: "mem_01HQ",
-				principal: createPrincipal(),
-			}),
-		).rejects.toThrow("disable failed");
-
-		expect(store.deleteItem).not.toHaveBeenCalled();
-	});
-
-	it("deletes Hindsight runtime owner before disabling PG memory setting", async () => {
-		const store = createStore();
-		const indexer = createIndexer();
-		const service = buildProfileMemoryService({
-			memoryIndexer: indexer,
-			now: () => new Date("2026-04-27T10:00:00.000Z"),
-			store,
-		});
-
-		const result = await service.setEnabled({
-			enabled: false,
-			principal: createPrincipal(),
-		});
-
-		expect(indexer.disableOwnerMemory).toHaveBeenCalledWith({
-			tenantId: "tenant-main",
-			updatedAt: "2026-04-27T10:00:00.000Z",
-			userId: "user_01HQ",
-		});
-		expect(store.setEnabled).toHaveBeenCalledWith({
-			enabled: false,
-			ownerUserId: "user_01HQ",
-			updatedAt: "2026-04-27T10:00:00.000Z",
-		});
-		expect(result).toEqual({ enabled: false });
-	});
-
-	it("does not disable PG memory setting when Hindsight owner memory disable fails", async () => {
-		const store = createStore();
-		const indexer = createIndexer();
-		vi.mocked(indexer.disableOwnerMemory).mockRejectedValueOnce(new Error("owner disable failed"));
-		const service = buildProfileMemoryService({ memoryIndexer: indexer, store });
-
-		await expect(
-			service.setEnabled({
-				enabled: false,
-				principal: createPrincipal(),
-			}),
-		).rejects.toThrow("owner disable failed");
-
-		expect(store.setEnabled).not.toHaveBeenCalled();
-	});
-
-	it("does not call Hindsight owner disable when enabling memory setting", async () => {
-		const store = createStore();
-		const indexer = createIndexer();
-		const service = buildProfileMemoryService({ memoryIndexer: indexer, store });
-
-		await service.setEnabled({
-			enabled: true,
-			principal: createPrincipal(),
-		});
-
-		expect(indexer.disableOwnerMemory).not.toHaveBeenCalled();
-		expect(store.setEnabled).toHaveBeenCalledWith(
-			expect.objectContaining({
-				enabled: true,
-				ownerUserId: "user_01HQ",
-			}),
-		);
-	});
-
-	it("rejects memory keys that look like authorization state", async () => {
-		const store = createStore();
-		const indexer = createIndexer();
-		const service = buildProfileMemoryService({ memoryIndexer: indexer, store });
-
-		await expect(
-			service.upsert({
-				key: "permission_scope",
-				principal: createPrincipal(),
-				value: "students",
-			}),
+			service.erase({ idempotencyKey: "short", principal: createPrincipal() }),
 		).rejects.toMatchObject({
-			code: "invalid_profile_memory_item",
+			code: "invalid_idempotency_key",
 			status: 400,
+		} satisfies Partial<AppApiRouteError>);
+		expect(store.erase).not.toHaveBeenCalled();
+	});
+
+	it("maps untrusted callback errors to the bounded public failure kind", async () => {
+		const store = createStore();
+		const service = buildProfileMemoryService({ store });
+		await service.applyResult({
+			commandId: "memcmd_01HQ",
+			errorCode: "postgres://user:secret@internal-db/runtime",
+			resultFingerprint: "a".repeat(64),
+			status: "failed",
 		});
-		expect(indexer.upsertExplicitMemory).not.toHaveBeenCalled();
-		expect(store.upsertUserDeclared).not.toHaveBeenCalled();
+		expect(store.applyCommandResult).toHaveBeenCalledWith(
+			expect.objectContaining({ errorCode: "personal_memory_command_failed" }),
+		);
+	});
+
+	it("rejects principals without chat permission", async () => {
+		const service = buildProfileMemoryService({ store: createStore() });
+		await expect(service.list({ principal: createPrincipal(false) })).rejects.toMatchObject({
+			code: "forbidden",
+			status: 403,
+		} satisfies Partial<AppApiRouteError>);
 	});
 });

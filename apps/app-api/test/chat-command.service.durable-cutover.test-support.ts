@@ -14,6 +14,7 @@ export function durableRun(overrides: Partial<ExecutionControlRun> = {}): Execut
 		finalResponseRef: "",
 		taskQueue: "campus-agent.workflow",
 		ownerUserId: "user_01HQ",
+		queuedAt: "2026-06-04T01:02:04Z",
 		requestId: "req_0001",
 		requestedTool: "knowledge_query",
 		runId: "run_0001",

@@ -16,3 +16,7 @@ export function AccountSettingsPage({
 export function AccountPage() {
 	return <AccountSettingsPage view="account" />;
 }
+
+export function AccountMemoryPage() {
+	return <AccountSettingsPage view="memory" />;
+}

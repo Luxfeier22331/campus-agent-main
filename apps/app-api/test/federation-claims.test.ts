@@ -21,7 +21,7 @@ describe("federation OIDC claims", () => {
 				profileMemory: {
 					enabled: true,
 				},
-				role: "operator",
+				role: "internal_admin",
 				updatedAt: new Date("2026-06-03T12:00:00.000Z"),
 			},
 		});

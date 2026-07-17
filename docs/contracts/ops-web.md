@@ -14,21 +14,17 @@ status: active
 主要接口族为：
 
 - `GET /api/ops/overview`
+- `GET /api/ops/provider-config`
+- `POST /api/ops/provider-config/connections`
+- `POST /api/ops/provider-config/profiles`
+- `POST /api/ops/provider-config/profiles/:profileId/validate`
+- `POST /api/ops/provider-config/activation`
 - `GET /api/ops/requests`
 - `GET /api/ops/requests/:requestId`
 - `GET /api/ops/requests/:requestId/observability`
 - `GET /api/ops/internal-portal-auth`
 - `PUT /api/ops/internal-portal-auth`
 - `POST /api/ops/internal-portal-auth/maintenance/resume`
-- `GET /api/ops/provider-config/connections`
-- `POST /api/ops/provider-config/connections`
-- `PATCH /api/ops/provider-config/connections/:connectionId`
-- `GET /api/ops/provider-config/profiles`
-- `POST /api/ops/provider-config/profiles`
-- `PATCH /api/ops/provider-config/profiles/:profileId`
-- `POST /api/ops/provider-config/profiles/:profileId/validate`
-- `POST /api/ops/provider-config/profiles/:profileId/activate`
-- `GET /api/ops/provider-config/runtime`
 - `GET /api/ops/dining/overview`
 - `GET /api/ops/dining/source-runs`
 - `GET /api/ops/dining/observations`
@@ -55,10 +51,9 @@ status: active
 - `/api/ops/*` 验证 Cloudflare Access JWT 的签发方、受众和签名。
 - JWT 对应的人员邮箱或服务令牌 ID 必须进入基础操作者白名单。
 - 原始日志和调用链读取还必须进入独立的原始观测数据白名单。
-- 内部门户认证读写只允许基础白名单中的人员身份，服务令牌不能调用。
-- Dining 读取允许已准入操作者；Dining 写入只允许人员身份，并要求同源请求。
-- Provider Config 读取允许已准入操作者；写入只允许人员身份，并要求同源请求。
-- 浏览器不持有 PostgreSQL、OpenObserve 或外部平台凭据。
+- 内部门户认证接口只允许基础白名单中的人员身份，服务令牌不能调用。
+- Provider Config 读取允许已准入人员或服务身份；写入还要求独立人员邮箱/组白名单。
+- 浏览器不持有 PostgreSQL、Axiom、Provider Config admin 或外部平台凭据。
 
 ### 响应和错误
 
@@ -87,22 +82,21 @@ status: active
 | ---: | --- | --- |
 | 400 | `OPS_INVALID_QUERY` | 查询参数或游标无效 |
 | 400 | `OPS_INVALID_REQUEST_ID` | 请求 ID 格式无效 |
-| 400 | `OPS_INTERNAL_PORTAL_AUTH_INPUT_INVALID` | TGC/Cookie 正文无效或超过 8 KiB |
+| 400 | `OPS_INTERNAL_PORTAL_AUTH_INPUT_INVALID` | 凭据正文无效或超过 8 KiB |
+| 400 | `OPS_PROVIDER_CONFIG_CONTENT_TYPE_REQUIRED`、`OPS_PROVIDER_CONFIG_IDEMPOTENCY_REQUIRED` | Provider Config 写入合同无效 |
 | 401 | `OPS_ACCESS_JWT_MISSING`、`OPS_ACCESS_JWT_INVALID` | 未通过 Access 验证 |
 | 403 | `OPS_RAW_OBSERVABILITY_FORBIDDEN` | 无原始观测数据权限 |
-| 403 | `OPS_INTERNAL_PORTAL_AUTH_FORBIDDEN`、`OPS_INTERNAL_PORTAL_AUTH_ORIGIN_INVALID` | 无凭据轮换权限或请求不是同源 |
+| 403 | `OPS_INTERNAL_PORTAL_AUTH_FORBIDDEN`、`OPS_INTERNAL_PORTAL_AUTH_ORIGIN_INVALID` | 无人员权限或请求不同源 |
+| 403 | `OPS_PROVIDER_CONFIG_WRITE_FORBIDDEN`、`OPS_PROVIDER_CONFIG_CSRF_REJECTED` | 无配置写权限或请求不同源 |
 | 404 | `OPS_REQUEST_NOT_FOUND`、`OPS_API_ROUTE_NOT_FOUND` | 请求或接口不存在 |
 | 503 | `OPS_ADMISSION_NOT_CONFIGURED` | 访问控制未配置 |
 | 503 | `OPS_STATUS_STORE_UNAVAILABLE` | PostgreSQL 读取不可用 |
-| 503 | `OPS_OBSERVABILITY_UNAVAILABLE` | OpenObserve 查询不可用 |
+| 503 | `OPS_OBSERVABILITY_UNAVAILABLE` | Axiom 查询未配置、失败、超时或返回 partial/无效响应 |
+| 503 | `OPS_PROVIDER_CONFIG_UNAVAILABLE` | execution-control admin 未配置或不可用 |
 | 503 | `OPS_INTERNAL_PORTAL_AUTH_NOT_INITIALIZED`、`OPS_INTERNAL_PORTAL_AUTH_UNAVAILABLE` | 固定 Secret 未初始化或 Kubernetes API 不可用 |
 | 503 | `OPS_INTERNAL_PORTAL_AUTH_MAINTENANCE_UNAVAILABLE` | 固定 Temporal Schedule 查询或恢复不可用 |
 | 503 | `OPS_DINING_STORE_UNAVAILABLE` | Dining PostgreSQL 不可用 |
 | 409 | `OPS_DINING_CONFLICT` | 草稿、发布或评价操作违反领域校验 |
-| 409 | `provider_profile_not_validated`、`active_provider_profile_immutable`、`active_provider_connection_immutable` | 激活或修改违反 Provider Config 状态约束 |
-| 409 | `embedding_profile_incompatible` | 向量 profile 与当前索引不兼容 |
-| 422 | `validation_failed`、`provider_profile_connection_incompatible` | Provider Config 正文或连接能力不合法 |
-| 503 | `provider_config_unavailable` | Provider 数据库、加密密钥或固定 Secret 不可用 |
 | 500 | `OPS_API_INTERNAL_ERROR` | 未分类服务端错误 |
 
 ### 状态值
@@ -118,41 +112,23 @@ status: active
 
 请求状态为 `COMPLETED`、`FAILED`、`CANCELLED`、`RUNNING` 或 `PENDING`。
 
-## 模型服务配置
+## 在线 Provider Config
 
-Provider Config 接口由 Ops Web 直接访问 `provider_config.*` 并发布固定 Kubernetes Secret，
-不经过 app-api。连接保存 provider、HTTPS base URL、支持能力、feature config 和加密 API key；
-响应只包含不可逆指纹和末四位。
+`GET /api/ops/provider-config` 返回 active revision、connection revisions、profiles、三个在线
+role 的配置状态、采样时间和当前 principal 的 `writeAllowed`。role 只允许
+`primary_agent`、`rag_query_embedding` 和可选 `rag_reranker`。connection 只暴露 API key
+末四位和 fingerprint，不返回密钥或密文。
 
-profile kind、role 和 transport 固定为：
+四类 `POST` 命令分别创建不可变 connection revision、创建 profile、验证 profile 和激活完整
+bundle。每次命令必须满足：
 
-| kind | role | transport |
-| --- | --- | --- |
-| `prompt` | `primary_agent`、`rag_synthesis`、`hindsight_llm`、`eval_ragas_llm`、`eval_judge_llm` | `responses`、`chat_completions` |
-| `embedding` | `rag_query_embedding`、`index_embedding`、`hindsight_embedding`、`eval_ragas_embedding` | `embeddings`、`openai_embeddings` |
-| `rerank` | `rag_reranker` | `rerank`、`gitee_rerank` |
+- 当前 principal 是独立写白名单中的人员；
+- Origin 与 `OPS_WEB_PUBLIC_ORIGIN` 一致，正文为 JSON；
+- `Idempotency-Key` 非空且不超过 200 字符；
+- 激活提供当前 `expectedRevision`，包含 required role，并只引用验证通过的 profile。
 
-创建或更新 profile 后状态回到 `draft`，验证成功后为 `validated`，失败为
-`validation_failed`。当前 projection 引用的连接和 profile 不可原地修改。激活必须基于已验证
-profile，并把该 role 与其他当前 role 一起发布；projection 严格符合
-`provider-config-projection.v2.schema.json`。
-
-Kubernetes publisher 先读取固定 Secret，再以 `test /metadata/resourceVersion` 的 JSON Patch
-执行 CAS，写后重新读取并校验 canonical SHA-256。并发冲突返回错误，不静默覆盖。
-
-## 食堂管理
-
-Dining 接口由 `apps/ops-web` 直接使用 `OPS_WEB_DINING_DATABASE_URL` 访问 PostgreSQL，
-不经过 app-api。完整领域流程见 `../architecture/domains/dining/architecture.md`。
-
-Catalog 命令只有 `rename_stall`、`set_offering_price`、`assign_stall` 和
-`remove_assignment`。`rebase` 从 accepted、非 stale source observations 重建 draft 并重放
-operator overrides。`publish` 必须携带非空说明并通过 validation；`rollback` 生成新 release，
-不直接移动到旧 release。
-
-评价命令只有 `hide`、`restore`、`rebind` 和 `recheck`。restore 只允许 safe 且已精确绑定的评价；
-rebind 的 offering 必须存在于当前 draft，并同步更新 hall、stall、window、offering 四级 identity。
-submitted fields 不允许通过 Ops API 修改。
+Ops Web 将人员标识和幂等键转发给 execution-control admin。上游冲突、校验和失败状态原样保留，
+不转换为成功空数据；浏览器不能指定 admin URL、token、数据库角色或 keyring。
 
 ## 内部门户认证
 
@@ -211,6 +187,22 @@ Ops Web 的其他接口或 `/readyz`。Temporal 查询不可用时 `maintenance.
 `lowerBoundSeconds` 是当前凭据更新时间到最近一次成功 Service Ticket 签发的时间；首次确认
 过期后才产生 `upperBoundSeconds`。这是约 30 分钟精度的观测区间，不是 CAS 配置声明。
 
+## Axiom 查询配置
+
+Ops Web 服务端只在以下配置全部存在且有效时启用 Axiom 查询：
+
+- `OPS_WEB_AXIOM_EDGE_URL`：HTTPS Axiom Edge base URL、`/v1` URL 或精确的
+  `/v1/query/_apl?format=tabular`；不得带 credential、fragment 或额外 query。
+- `OPS_WEB_AXIOM_LOGS_DATASET`、`OPS_WEB_AXIOM_TRACES_DATASET`、
+  `OPS_WEB_AXIOM_METRICS_DATASET`：固定 dataset 名，只允许字母、数字、下划线和连字符。
+- `OPS_WEB_AXIOM_QUERY_TOKEN`：限定上述 dataset 的 query-only token；以 `xapt-` 开头的 personal
+  token 明确拒绝。
+- `OPS_WEB_AXIOM_QUERY_TIMEOUT_MS`：可选，默认 5000 毫秒，范围为 1 至 30000 毫秒。
+
+这些值只由服务端环境提供。浏览器不能覆盖 endpoint、token、dataset 或 timeout。Ops Web
+不得复用 Collector ingest token、Axiom Terraform token 或 Cloudflare application-log destination
+token。
+
 ## `GET /api/ops/overview`
 
 ### 概况查询参数
@@ -236,11 +228,15 @@ Ops Web 的其他接口或 `/readyz`。Temporal 查询不可用时 `maintenance.
 - `externalLinks[]`：已配置系统的 `source`、`label`、`href` 和 `isAvailable`。
 
 固定服务为 `campus-web`、`app-api`、`execution-control`、`agent-runtime` 和
-`ops-web`。外部系统类型为 `TEMPORAL`、`LANGFUSE`、`SENTRY`、`AXIOM` 和
-`OPENOBSERVE`。
+`ops-web`。外部系统类型为 `TEMPORAL`、`LANGFUSE`、`SENTRY` 和 `AXIOM`。
 
 服务端缓存概览 15 秒。PostgreSQL 和运行信号都失败且最近一次成功结果不超过五分钟时，
 返回 `STALE`；否则各失败来源标为 `UNAVAILABLE`，其他来源继续返回。
+
+三类 telemetry signal 分别对固定 Axiom dataset 执行只包含 `count()` 与最新 `_time` 的 APL。
+任一查询失败只将该 signal 标为 `UNAVAILABLE`；其他成功查询继续返回。日志或调用链为零条时
+返回 `NO_DATA` 且不自动判为故障，指标为零条时返回 `NO_DATA` 与 `DEGRADED`。Axiom 对所有
+dataset 均不可用时，telemetry 总体状态为 `UNAVAILABLE`/`UNKNOWN`。
 
 ## `GET /api/ops/requests`
 
@@ -310,7 +306,7 @@ Temporal Run ID、任务队列、执行进程、token、费用、记忆摘要或
 
 ## `GET /api/ops/requests/:requestId/observability`
 
-该接口读取与已保存请求关联的 OpenObserve 原始记录。
+该接口读取与已保存请求关联的 Axiom 脱敏记录。
 
 | 参数 | 必填 | 允许值 |
 | --- | --- | --- |
@@ -321,16 +317,26 @@ Temporal Run ID、任务队列、执行进程、token、费用、记忆摘要或
 1. 验证基础权限和原始观测数据权限。
 2. 按 URL 中的 `requestId` 读取请求详情。
 3. 从详情取得 `requestId`、`traceId`、开始时间和完成时间。
-4. 日志查询固定日志流，调用链查询固定调用链流。
-5. 查询窗口从请求开始前五分钟到完成后五分钟；未完成请求以当前时间为上限。
-6. 查询条件固定为保存的 `requestId`，按时间升序返回。
+4. 日志查询固定 log dataset，调用链查询固定 trace dataset。
+5. 查询窗口从请求开始前五分钟到完成后五分钟；未完成请求以当前时间为上限，并将实际
+   查询窗口限制在最多 30 分钟。
+6. 查询条件固定为保存的 `requestId`，字段投影固定并按时间升序返回。
 7. 成功返回前写入读取审计。
 
-浏览器不能提供 SQL、数据流、`traceId`、起止时间或记录上限。
+浏览器不能提供 APL、dataset、`traceId`、起止时间、字段投影或记录上限。
 
-响应包含 `source=OPENOBSERVE`、`kind`、`requestId`、`traceId`、`from`、`to`、
+响应包含 `source=AXIOM`、`kind`、`requestId`、`traceId`、`from`、`to`、
 `queriedAt`、`queryDurationMs`、`dataState`、`records[]`、`truncated` 和 `limit`。
 日志上限固定为 200，调用链上限固定为 500。
+
+日志记录只投影 `timestamp`、`service.name`、`severity_text`、`body`、`trace_id`、
+`span_id` 和 `request_id`。调用链记录只投影 `timestamp`、`service.name`、`name`、`kind`、
+`duration`、`status.code`、`error`、`trace_id`、`span_id`、`parent_span_id` 和
+`request_id`。服务端实际查询 `limit + 1` 条以判断截断，再裁剪到合同上限。
+
+Axiom 必须返回非 partial 的 tabular JSON。`status.isPartial` 不是 `false`、表结构无效、字段
+重复、列长度错位、超时或非成功 HTTP 时，接口返回
+`503 OPS_OBSERVABILITY_UNAVAILABLE`，不得把已解析的部分行返回给浏览器。
 
 每次成功读取前向 `observability.ops_observability_read_audit` 写入读取类型、操作者、
 操作者类型、读取时间、记录数、请求 ID、调用链 ID 和是否截断。`ops_web` 账号只能
@@ -358,8 +364,9 @@ Temporal Run ID、任务队列、执行进程、token、费用、记忆摘要或
 - `ops_web` 账号能在事务中插入审计测试记录并回滚。
 - `ops_web_dining` 账号能读取 `dining.publication`。
 
-失败返回 `503 OPS_WEB_NOT_READY` 及不含敏感信息的缺失项或 `reasonCode`。OpenObserve
-和被观测服务的故障不影响 Pod 就绪，因为值班人员仍需要打开页面查看其他信息。
+失败返回 `503 OPS_WEB_NOT_READY` 及不含敏感信息的缺失项或 `reasonCode`。Provider Config
+admin、Axiom、Kubernetes API、认证维护接口和被观测服务的故障不影响 Pod 就绪，因为
+值班人员仍需要打开页面查看其他信息。
 
 ## PostgreSQL 权限
 
@@ -386,15 +393,59 @@ release、override、review 和 bounded operation events，但不能创建 schem
 数据库角色和授权由以下命令收敛并验证：
 
 ```bash
-pnpm --dir apps/app-api exec tsx ./scripts/run-with-staging-db-env.ts \
-  pnpm exec tsx ./ops/db/ops-web-database.ts apply
+pnpm --dir apps/ops-web exec tsx ./ops/db/ops-web-database.ts apply
 ```
+
+## 网络出站合同
+
+Ops Web Pod 使用 `campus-agent.muc.wiki/network-policy-profile=ops-web`。execution-runtime 和
+ingestion-runtime 中以 `app.kubernetes.io/part-of=campus-agent` 选取 Pod 的宽策略必须同时用
+`DoesNotExist` 排除所有拥有专用网络 profile 的 Pod；NetworkPolicy 的允许规则会取并集，新增
+Ops Web 策略本身不能抵消其他策略已经允许的流量。
+
+源码 base 只允许以下集群内依赖：
+
+| 依赖 | 目标 | 端口 | 消费方 |
+| --- | --- | ---: | --- |
+| DNS | `kube-system` namespace | UDP/TCP 53 | Service、Axiom 与 Access 域名解析 |
+| PostgreSQL | `cnpg.io/cluster=campus-agent-postgres` | TCP 5432 | 请求摘要和读取审计 |
+| execution-control | `app.kubernetes.io/name=execution-control` | TCP 8000 | Temporal task queue 摘要 |
+| execution-control admin | `app.kubernetes.io/name=execution-control-admin` | TCP 8000 | Provider Config BFF |
+| ingestion-control | `app.kubernetes.io/name=ingestion-control` | TCP 8000 | 固定认证维护 Schedule 状态与恢复 |
+
+`automountServiceAccountToken=false` 不表示 Ops Web 无需 Kubernetes API。Deployment 显式投影
+短期 ServiceAccount token、CA 和 namespace，`@kubernetes/client-node` 用它对固定
+`source-collector-internal-portal-auth` Secret 执行 `get`/`patch`。因此环境 overlay 必须按该
+集群实际 Kubernetes API Service IP 单独允许 TCP 443，不得在 namespace-neutral base 写入环境
+地址。
+
+staging 还有两个实际公网 HTTPS 消费者：Axiom Edge 查询，以及 `jose` 从环境固定的
+`ACCESS_TEAM_DOMAIN/cdn-cgi/access/certs` 读取 Cloudflare Access JWKS。标准 Kubernetes
+NetworkPolicy 不能按 FQDN 约束目标；当前环境采用仓库既有的 `ipBlock` HTTPS 方式，并排除
+RFC 1918、loopback、link-local、CGNAT 和其他非公网地址。该规则仍允许任意公网 IPv4 的 TCP
+443，不是 Axiom 或 Cloudflare Access 域名级隔离。应用层只接受环境提供的 HTTPS endpoint，
+浏览器不能覆盖 URL；Axiom 凭据为 dataset 限定的 query-only token。若要求网络层域名隔离，
+必须先引入受支持且受测试的 FQDN 感知 CNI 策略或带目标白名单的 egress proxy，不能把启动时
+解析出的动态 IP 当作稳定合同。
+
+专用 profile 只把 Ops Web 从宽策略的目标 Pod 选择中排除，不改变其他服务 ingress 规则中的
+来源选择；Ops Web 仍保留 `app.kubernetes.io/part-of=campus-agent`，并通过上述精确 egress
+规则调用 PostgreSQL、execution-control 和 ingestion-control。Ops Web 自身 ingress 只由环境
+tunnel 策略开放。
+
+发布时必须把 GitOps 中 ops-web、execution-runtime 和 ingestion-runtime 三个 source ref 原子
+推进到同一包含本合同的 commit。只推进 Ops Web 会被旧宽策略重新放开，只推进宽策略排除则会
+在 Ops Web 专用 allowlist 尚未生效时阻断依赖。新增任何健康检查或服务端出站消费者时，必须先
+同步本合同和对应 NetworkPolicy。
 
 ## 明确禁止
 
-- 根据 OpenObserve、Temporal、Langfuse、Sentry 或 Axiom 数据改写请求状态。
-- 让浏览器控制任意 OpenObserve 查询。
+- 根据 Axiom、Temporal、Langfuse 或 Sentry 数据改写请求状态。
+- 让浏览器控制任意 APL、dataset、字段投影、时间窗口或返回上限。
 - 返回数据库地址、JWT、Cookie 或服务凭据。
-- 创建、列举、删除或更新 `source-collector-internal-portal-auth` 以外的 Secret。
+- 让浏览器持有 Provider Config token/keyring、直接写配置数据库或激活部分 role bundle。
+- 创建、列举、删除 Secret，或更新固定门户 Secret 以外的 Secret。
+- 选择任意 Schedule、立即触发认证维护工作流或发送其他 Temporal 命令。
 - 恢复外部正文同步表、供应商响应缓存或通用观测查询接口。
+- 恢复 OpenObserve 查询、凭据或兼容路由。
 - 为旧 `/runtime` 或 `/api/ops/evidence/*` 增加兼容路由。

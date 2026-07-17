@@ -8,12 +8,12 @@ status: active
 
 ## 边界
 
-本文说明主问答链中的 account/session、operator access、quota/abuse 和 user-scoped memory
-binding。校园身份平台模型见 `identity-platform.md`，个人记忆运行时见 `memory-plane.md`。
+本文说明主问答链中的 account/session、quota/abuse 和 user-scoped memory binding。账号浏览器
+边界见 `identity-browser.md`，个人记忆运行时见 `memory-plane.md`。
 
 ## 真相分层
 
-- app-api：account、session、principal mapping、operator access、quota/abuse 和 memory binding；
+- app-api：account、session、principal mapping、quota/abuse 和 memory binding；
 - identity source/policy：校园身份验证和 entitlement；
 - document/retrieval stack：机构知识、来源信任和 evidence；
 - execution-control：消费最小 actor/authz projection 并执行 runtime tool admission；
@@ -28,9 +28,8 @@ binding。校园身份平台模型见 `identity-platform.md`，个人记忆运�
 1. session 和 principal mapping；
 2. account 状态；
 3. quota/abuse posture；
-4. protected ops surface 的 operator permission；
-5. execution-control 的 tool/target admission；
-6. 所属工具和来源 readiness。
+4. execution-control 的 tool/target admission；
+5. 所属工具和来源 readiness。
 
 当前普通 chat 用户共享同一组已开放 read-only tool，不按学生、教职工或院系建立隐式 tool
 差异。未来若引入 restricted source 或 state-changing tool，必须增加明确产品和授权合同。
@@ -51,7 +50,7 @@ personal memory 可以影响：
 - 常用校区、地点、服务或别名消歧；
 - 查询表述。
 
-personal memory 不得决定 tool opening、source trust、fail-close、operator access、account/session
+personal memory 不得决定 tool opening、source trust、fail-close、Ops Web access、account/session
 或 entitlement。
 
 ## 人机验证
@@ -69,13 +68,12 @@ MediaWiki 是 sibling service。不得共享 `.muc.wiki` Cookie、导入 passwor
 
 - memory、偏好或聊天历史成为授权来源；
 - raw auth/session 进入 agent 或 retrieval；
-- Ops Web 绕过自身 Access admission 和应用 allowlist 解释权限；
+- Ops Web 身份被解释为 app-api 产品用户权限；
 - captcha/risk score 成为账号或工具真相；
 - MediaWiki 本地账号成为 app identity truth。
 
 ## 相关文档
 
-- `identity-platform.md`
 - `identity-browser.md`
 - `memory-plane.md`
 - `tool-routing.md`

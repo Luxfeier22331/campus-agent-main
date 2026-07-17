@@ -13,7 +13,7 @@ adapter。public contract 固定在 well-known 和 `/api/federation/*`；native 
 `/jwks` 只是内部映射。
 
 首期只允许 controlled/static client，不开放动态注册。Better Auth runtime state 位于
-`app_auth.*`，client/claim/grant policy 位于 `identity.federation_*`。
+`app_auth.*`，client/claim policy 由 app-api federation runtime 校验。
 
 ## 发现
 
@@ -100,5 +100,5 @@ secret 只进入部署 secret store。配置步骤见 `../../runbooks/federation
 ## 相关文档
 
 - `../../architecture/system/mucwiki-login.md`
-- `../../architecture/system/identity-platform.md`
-- `../../data/identity-platform.md`
+- `../../architecture/system/identity-authz.md`
+- `./auth.md`

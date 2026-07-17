@@ -46,8 +46,6 @@ func (s *Server) stageTimingForRun(
 			addStageTimingDuration(timing, "memory.recall_ms", duration)
 		case stepID == "agent.primary":
 			addStageTimingDuration(timing, "agent.primary_ms", duration)
-		case stepID == "finalization.write":
-			addStageTimingDuration(timing, "finalization.write_ms", duration)
 		}
 	}
 	for _, item := range additional {

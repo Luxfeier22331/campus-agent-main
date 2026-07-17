@@ -1,40 +1,35 @@
 package httpapi
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"os"
 	"strings"
-	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 )
 
 type providerConfigRole string
 
 const (
-	providerConfigRoleIndexEmbedding    providerConfigRole = "index_embedding"
 	providerConfigRolePrimaryAgent      providerConfigRole = "primary_agent"
 	providerConfigRoleRAGQueryEmbedding providerConfigRole = "rag_query_embedding"
 )
 
 type providerConfigSnapshot struct {
-	APIKey        string         `json:"api_key"`
-	BaseURL       string         `json:"base_url"`
-	FeatureConfig map[string]any `json:"feature_config,omitempty"`
-	Dimensions    int            `json:"dimensions,omitempty"`
-	Kind          string         `json:"kind"`
-	Model         string         `json:"model"`
-	ProfileID     string         `json:"profile_id"`
-	Provider      string         `json:"provider"`
-	Revision      int            `json:"revision"`
-	Role          string         `json:"role"`
-	TimeoutMS     int            `json:"timeout_ms"`
-	Transport     string         `json:"transport"`
+	APIKey     string         `json:"api_key"`
+	BaseURL    string         `json:"base_url"`
+	ToolConfig map[string]any `json:"tool_config,omitempty"`
+	Dimensions int            `json:"dimensions,omitempty"`
+	Kind       string         `json:"kind"`
+	Model      string         `json:"model"`
+	ProfileID  string         `json:"profile_id"`
+	Provider   string         `json:"provider"`
+	Revision   int            `json:"revision"`
+	Role       string         `json:"role"`
+	TimeoutMS  int            `json:"timeout_ms"`
+	Transport  string         `json:"transport"`
 }
 
 type providerConfigResolver interface {
@@ -46,18 +41,23 @@ type staticProviderConfigResolverForRole struct {
 	snapshot providerConfigSnapshot
 }
 
-type fileProviderConfigResolver struct {
-	path string
-}
+type postgresProviderConfigResolver struct{ store *providerconfig.Store }
 
 var errProviderConfigResolverNotConfigured = errors.New("provider config resolver is not configured")
 
 func newProviderConfigResolver(cfg config.Config) (providerConfigResolver, error) {
-	path := strings.TrimSpace(cfg.ProviderConfigSnapshotPath)
-	if path == "" {
+	if strings.TrimSpace(cfg.ProviderConfigReaderDatabaseURL) == "" || strings.TrimSpace(cfg.ProviderConfigKeyringPath) == "" {
 		return nil, errProviderConfigResolverNotConfigured
 	}
-	return fileProviderConfigResolver{path: path}, nil
+	keyring, err := providerconfig.LoadKeyring(cfg.ProviderConfigKeyringPath)
+	if err != nil {
+		return nil, err
+	}
+	store, err := providerconfig.NewStore(context.Background(), cfg.ProviderConfigReaderDatabaseURL, keyring)
+	if err != nil {
+		return nil, err
+	}
+	return postgresProviderConfigResolver{store: store}, nil
 }
 
 func (resolver staticProviderConfigResolverForRole) ResolveActiveProviderConfig(
@@ -73,81 +73,26 @@ func (resolver staticProviderConfigResolverForRole) ResolveActiveProviderConfig(
 	return resolver.snapshot, nil
 }
 
-func (resolver fileProviderConfigResolver) ResolveActiveProviderConfig(
+func (resolver postgresProviderConfigResolver) ResolveActiveProviderConfig(
 	ctx context.Context,
 	role providerConfigRole,
 ) (providerConfigSnapshot, error) {
-	_ = ctx
-	if strings.TrimSpace(resolver.path) == "" {
+	if resolver.store == nil {
 		return providerConfigSnapshot{}, errProviderConfigResolverNotConfigured
 	}
-	normalizedRole := strings.TrimSpace(string(role))
-	if normalizedRole == "" {
-		return providerConfigSnapshot{}, errors.New("provider config role is required")
-	}
-	if err := requireSecureProviderConfigProjectionFile(resolver.path); err != nil {
+	resolved, err := resolver.store.Resolve(ctx, providerconfig.Role(role))
+	if err != nil {
 		return providerConfigSnapshot{}, err
 	}
-	data, err := os.ReadFile(resolver.path)
-	if err != nil {
-		return providerConfigSnapshot{}, fmt.Errorf("read provider config projection: %w", err)
-	}
-	var payload struct {
-		SchemaVersion string `json:"schema_version"`
-		PublicationID string `json:"publication_id"`
-		PublishedAt   string `json:"published_at"`
-		PublishedBy   struct {
-			DisplayName string `json:"displayName"`
-			PrincipalID string `json:"principalId"`
-		} `json:"published_by"`
-		Profiles map[string]providerConfigSnapshot `json:"profiles"`
-	}
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&payload); err != nil {
-		return providerConfigSnapshot{}, fmt.Errorf("decode provider config projection: %w", err)
-	}
-	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		return providerConfigSnapshot{}, errors.New("provider config projection must contain one JSON value")
-	}
-	if payload.SchemaVersion != "provider_config_projection.v2" {
-		return providerConfigSnapshot{}, errors.New("provider config projection schema_version is unsupported")
-	}
-	if strings.TrimSpace(payload.PublicationID) == "" || strings.TrimSpace(payload.PublishedAt) == "" ||
-		strings.TrimSpace(payload.PublishedBy.DisplayName) == "" || strings.TrimSpace(payload.PublishedBy.PrincipalID) == "" {
-		return providerConfigSnapshot{}, errors.New("provider config projection publication identity is required")
-	}
-	if _, err := time.Parse(time.RFC3339, payload.PublishedAt); err != nil {
-		return providerConfigSnapshot{}, errors.New("provider config projection published_at is invalid")
-	}
-	snapshot, ok := payload.Profiles[normalizedRole]
-	if !ok {
-		return providerConfigSnapshot{}, fmt.Errorf("provider config projection missing active role %s", normalizedRole)
-	}
+	snapshot := providerConfigSnapshot{APIKey: resolved.APIKey, BaseURL: resolved.BaseURL, ToolConfig: resolved.ToolConfig, Dimensions: resolved.Dimensions, Kind: resolved.Kind, Model: resolved.Model, ProfileID: resolved.ProfileID, Provider: resolved.Provider, Revision: int(resolved.Revision), Role: resolved.Role, TimeoutMS: resolved.TimeoutMS, Transport: resolved.Transport}
 	if err := validateProviderConfigSnapshot(snapshot, role); err != nil {
 		return providerConfigSnapshot{}, err
 	}
 	return snapshot, nil
 }
 
-func requireSecureProviderConfigProjectionFile(path string) error {
-	return requireSecureSecretProjectionFile(path, "provider config projection")
-}
-
-func requireSecureSecretProjectionFile(path string, label string) error {
-	fileInfo, err := os.Stat(path)
-	if err != nil {
-		return fmt.Errorf("stat %s: %w", label, err)
-	}
-	if !fileInfo.Mode().IsRegular() {
-		return fmt.Errorf("%s path must be a regular file", label)
-	}
-	permissions := fileInfo.Mode().Perm()
-	if permissions != 0o600 && permissions != 0o440 {
-		return fmt.Errorf("%s file permissions must be 0600 or 0440", label)
-	}
-	return nil
-}
+func (resolver postgresProviderConfigResolver) Close()                       { resolver.store.Close() }
+func (resolver postgresProviderConfigResolver) Store() *providerconfig.Store { return resolver.store }
 
 func validateProviderConfigSnapshot(snapshot providerConfigSnapshot, role providerConfigRole) error {
 	required := []struct {
@@ -184,7 +129,7 @@ func validateProviderConfigSnapshot(snapshot providerConfigSnapshot, role provid
 
 func isEmbeddingProviderConfigRole(role providerConfigRole) bool {
 	switch role {
-	case providerConfigRoleIndexEmbedding, providerConfigRoleRAGQueryEmbedding:
+	case providerConfigRoleRAGQueryEmbedding:
 		return true
 	default:
 		return false

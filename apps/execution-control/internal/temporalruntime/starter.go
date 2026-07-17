@@ -6,7 +6,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 	enumspb "go.temporal.io/api/enums/v1"
+	"go.temporal.io/api/serviceerror"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
@@ -18,6 +20,7 @@ var ErrTemporalStarterNotConfigured = errors.New("temporal starter not configure
 type ChatWorkflowStarter interface {
 	CancelToolExecutionWorkflow(context.Context, ToolExecutionWorkflowCancelInput) error
 	CheckReadiness(context.Context) RuntimeReadiness
+	StartPersonalMemoryCommandWorkflow(context.Context, PersonalMemoryCommandWorkflowInput) error
 	StartToolExecutionWorkflow(context.Context, ToolExecutionWorkflowInput) error
 }
 
@@ -127,6 +130,33 @@ func (s *Starter) StartToolExecutionWorkflow(
 		ToolExecutionWorkflow,
 		input,
 	)
+	return err
+}
+
+func (s *Starter) StartPersonalMemoryCommandWorkflow(
+	ctx context.Context,
+	input PersonalMemoryCommandWorkflowInput,
+) error {
+	if s == nil || s.client == nil {
+		return ErrTemporalStarterNotConfigured
+	}
+	workflowID := strings.TrimSpace(input.WorkflowID)
+	if workflowID == "" {
+		workflowID = "campus-agent.memory.command." + strings.TrimSpace(input.Command.CommandID)
+	}
+	input.WorkflowID = workflowID
+	startCtx, cancel := context.WithTimeout(ctx, s.startTimeout)
+	defer cancel()
+	_, err := s.client.ExecuteWorkflow(
+		startCtx,
+		client.StartWorkflowOptions{ID: workflowID, TaskQueue: s.taskQueue},
+		PersonalMemoryCommandWorkflow,
+		input,
+	)
+	var alreadyStarted *serviceerror.WorkflowExecutionAlreadyStarted
+	if errors.As(err, &alreadyStarted) {
+		return nil
+	}
 	return err
 }
 
@@ -257,14 +287,38 @@ type ContextActivities interface {
 		context.Context,
 		AppendConversationMemoryActivityInput,
 	) (AppendConversationMemoryActivityOutput, error)
-	MemoryOperationStatusActivity(
-		context.Context,
-		MemoryOperationStatusActivityInput,
-	) (MemoryOperationStatusActivityOutput, error)
 	MemoryReflectActivity(
 		context.Context,
 		MemoryReflectActivityInput,
 	) (MemoryReflectActivityOutput, error)
+	ExecutePersonalMemoryCommandActivity(
+		context.Context,
+		memoryruntime.PersonalMemoryCommandRequest,
+	) (PersonalMemoryCommandActivityOutput, error)
+	PurgePersonalMemoryTracesActivity(
+		context.Context,
+		PersonalMemoryTraceMaintenanceActivityInput,
+	) (PersonalMemoryTraceMaintenanceActivityOutput, error)
+	VerifyPersonalMemoryTracesActivity(
+		context.Context,
+		PersonalMemoryTraceMaintenanceActivityInput,
+	) (PersonalMemoryTraceMaintenanceActivityOutput, error)
+	PurgeLangfuseTraceRetentionActivity(
+		context.Context,
+		LangfuseTraceRetentionActivityInput,
+	) (LangfuseTraceRetentionActivityOutput, error)
+	VerifyLangfuseTraceRetentionActivity(
+		context.Context,
+		LangfuseTraceRetentionActivityInput,
+	) (LangfuseTraceRetentionActivityOutput, error)
+	FinalizePersonalMemoryCommandReceiptActivity(
+		context.Context,
+		FinalizePersonalMemoryCommandReceiptActivityInput,
+	) (PersonalMemoryCommandActivityOutput, error)
+	WritePersonalMemoryCommandResultActivity(
+		context.Context,
+		PersonalMemoryCommandActivityOutput,
+	) error
 }
 
 type AgentActivities interface {
@@ -275,6 +329,10 @@ type AgentActivities interface {
 }
 
 type FinalizationActivities interface {
+	FinalizeExecutionFailureActivity(
+		context.Context,
+		FinalizeExecutionFailureActivityInput,
+	) (FinalizeExecutionFailureActivityOutput, error)
 	WriteFinalizationActivity(
 		context.Context,
 		WriteFinalizationActivityInput,
@@ -438,6 +496,12 @@ func NewWorkflowWorkerWithOptions(
 	workflowWorker.RegisterWorkflowWithOptions(ToolExecutionWorkflow, workflow.RegisterOptions{
 		Name: ToolExecutionWorkflowType,
 	})
+	workflowWorker.RegisterWorkflowWithOptions(PersonalMemoryCommandWorkflow, workflow.RegisterOptions{
+		Name: PersonalMemoryCommandWorkflowType,
+	})
+	workflowWorker.RegisterWorkflowWithOptions(LangfuseTraceRetentionWorkflow, workflow.RegisterOptions{
+		Name: LangfuseTraceRetentionWorkflowType,
+	})
 	return workflowWorker
 }
 
@@ -462,12 +526,40 @@ func NewCoreActivityWorkerWithOptions(
 		activityRegisterOptions(AppendConversationMemoryActivityName),
 	)
 	coreWorker.RegisterActivityWithOptions(
-		contextActivities.MemoryOperationStatusActivity,
-		activityRegisterOptions(MemoryOperationStatusActivityName),
-	)
-	coreWorker.RegisterActivityWithOptions(
 		contextActivities.MemoryReflectActivity,
 		activityRegisterOptions(MemoryReflectActivityName),
+	)
+	coreWorker.RegisterActivityWithOptions(
+		contextActivities.ExecutePersonalMemoryCommandActivity,
+		activityRegisterOptions(ExecutePersonalMemoryCommandActivityName),
+	)
+	coreWorker.RegisterActivityWithOptions(
+		contextActivities.PurgePersonalMemoryTracesActivity,
+		activityRegisterOptions(PurgePersonalMemoryTracesActivityName),
+	)
+	coreWorker.RegisterActivityWithOptions(
+		contextActivities.VerifyPersonalMemoryTracesActivity,
+		activityRegisterOptions(VerifyPersonalMemoryTracesActivityName),
+	)
+	coreWorker.RegisterActivityWithOptions(
+		contextActivities.PurgeLangfuseTraceRetentionActivity,
+		activityRegisterOptions(PurgeLangfuseTraceRetentionActivityName),
+	)
+	coreWorker.RegisterActivityWithOptions(
+		contextActivities.VerifyLangfuseTraceRetentionActivity,
+		activityRegisterOptions(VerifyLangfuseTraceRetentionActivityName),
+	)
+	coreWorker.RegisterActivityWithOptions(
+		contextActivities.FinalizePersonalMemoryCommandReceiptActivity,
+		activityRegisterOptions(FinalizePersonalMemoryCommandReceiptActivityName),
+	)
+	coreWorker.RegisterActivityWithOptions(
+		contextActivities.WritePersonalMemoryCommandResultActivity,
+		activityRegisterOptions(WritePersonalMemoryCommandResultActivityName),
+	)
+	coreWorker.RegisterActivityWithOptions(
+		finalizationActivities.FinalizeExecutionFailureActivity,
+		activityRegisterOptions(FinalizeExecutionFailureActivityName),
 	)
 	coreWorker.RegisterActivityWithOptions(
 		finalizationActivities.WriteFinalizationActivity,

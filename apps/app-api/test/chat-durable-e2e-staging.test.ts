@@ -73,7 +73,6 @@ describe("chat durable staging e2e runner", () => {
 						return jsonResult({
 							permissions: {
 								chat: true,
-								operator: false,
 							},
 							principal: {
 								email: "help_bot@outlook.com",
@@ -330,7 +329,7 @@ describe("chat durable staging e2e runner", () => {
 				) {
 					if (input.url.endsWith("/api/me")) {
 						return jsonResult({
-							permissions: { chat: true, operator: false },
+							permissions: { chat: true },
 							principal: { principalId: "user_staging" },
 							session: null,
 						} as T);
@@ -421,7 +420,7 @@ describe("chat durable staging e2e runner", () => {
 					) {
 						if (input.url.endsWith("/api/me")) {
 							return jsonResult({
-								permissions: { chat: true, operator: false },
+								permissions: { chat: true },
 								principal: { principalId: "user_staging" },
 								session: null,
 							} as T);
@@ -465,7 +464,7 @@ describe("chat durable staging e2e runner", () => {
 				) {
 					if (input.url.endsWith("/api/me")) {
 						return jsonResult({
-							permissions: { chat: true, operator: false },
+							permissions: { chat: true },
 							principal: { principalId: "user_staging" },
 							session: null,
 						} as T);
@@ -529,7 +528,7 @@ describe("chat durable staging e2e runner", () => {
 				) {
 					if (input.url.endsWith("/api/me")) {
 						return jsonResult({
-							permissions: { chat: true, operator: false },
+							permissions: { chat: true },
 							principal: { principalId: "user_staging" },
 							session: null,
 						} as T);
@@ -638,7 +637,7 @@ describe("chat durable staging e2e runner", () => {
 					) {
 						if (input.url.endsWith("/api/me")) {
 							return jsonResult({
-								permissions: { chat: true, operator: false },
+								permissions: { chat: true },
 								principal: {
 									email: "help_bot@outlook.com",
 									principalId: "user_staging",

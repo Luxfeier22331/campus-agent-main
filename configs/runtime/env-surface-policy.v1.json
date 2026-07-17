@@ -5,11 +5,9 @@
 		"apps/app-api/.dev.vars.example",
 		"apps/app-api/.env.example",
 		"apps/campus-web/.dev.vars.example",
-		"apps/ops-web/.env.example",
 		"apps/source-collector/adapters/internal-portal/.env.example",
 		"apps/source-collector/adapters/official-web/.env.example",
 		"apps/source-collector/adapters/wechat-official-account/.env.example",
-		"env/commands/campus-docs-reader-build.env.example",
 		"env/commands/execution-control-runtime.env.example",
 		"env/commands/ingestion-control-runtime.env.example",
 		"infra/otel/collector.env.example"
@@ -17,10 +15,8 @@
 	"template_key_limits": {
 		".env.example": 2,
 		"apps/source-collector/adapters/internal-portal/.env.example": 45,
-		"env/commands/campus-docs-reader-build.env.example": 8,
 		"env/commands/execution-control-runtime.env.example": 39,
-		"env/commands/ingestion-control-runtime.env.example": 19,
-		"apps/ops-web/.env.example": 8
+		"env/commands/ingestion-control-runtime.env.example": 19
 	},
 	"keys": {
 		"AGENT_PROMPT_MODEL": {
@@ -256,9 +252,10 @@
 			"secret": false
 		},
 		"APP_API_OTEL_INGEST_SHARED_SECRET": {
-			"owner": "runtime-observability",
-			"scopes": ["infra"],
-			"secret": true
+			"owner": "retired",
+			"scopes": [],
+			"secret": true,
+			"retired": true
 		},
 		"INGESTION_CONTROL_BASE_URL": {
 			"owner": "ingestion-control-task-admission",
@@ -348,7 +345,7 @@
 		"LANGFUSE_PUBLIC_KEY": {
 			"owner": "runtime-observability",
 			"scopes": ["staging-local"],
-			"secret": true
+			"secret": false
 		},
 		"LANGFUSE_SECRET_KEY": {
 			"owner": "runtime-observability",
@@ -359,6 +356,31 @@
 			"owner": "runtime-observability",
 			"scopes": ["staging-local"],
 			"secret": false
+		},
+		"LANGFUSE_MAINTENANCE_BASE_URL": {
+			"owner": "runtime-observability",
+			"scopes": ["infra"],
+			"secret": false
+		},
+		"LANGFUSE_RUNTIME_MAINTENANCE_PUBLIC_KEY": {
+			"owner": "runtime-observability",
+			"scopes": ["infra"],
+			"secret": false
+		},
+		"LANGFUSE_RUNTIME_MAINTENANCE_SECRET_KEY": {
+			"owner": "runtime-observability",
+			"scopes": ["infra"],
+			"secret": true
+		},
+		"LANGFUSE_HINDSIGHT_MAINTENANCE_PUBLIC_KEY": {
+			"owner": "memory-observability",
+			"scopes": ["infra"],
+			"secret": false
+		},
+		"LANGFUSE_HINDSIGHT_MAINTENANCE_SECRET_KEY": {
+			"owner": "memory-observability",
+			"scopes": ["infra"],
+			"secret": true
 		},
 		"LLM_BASE_URL": {
 			"owner": "local-provider-seed",
@@ -445,17 +467,62 @@
 			"scopes": ["app-api"],
 			"secret": true
 		},
-		"APP_API_INTERNAL_SHARED_SECRET": {
+		"APP_API_PRODUCT_CALLBACK_SHARED_SECRET": {
 			"owner": "worker-secret",
 			"scopes": ["app-api"],
 			"secret": true
 		},
 		"SENTRY_DSN": {
-			"owner": "worker-secret",
+			"owner": "worker-observability-config",
 			"scopes": ["app-api", "campus-web"],
+			"secret": false
+		},
+		"SENTRY_BROWSER_DSN": {
+			"owner": "worker-observability-config",
+			"scopes": ["campus-web"],
+			"secret": false
+		},
+		"SENTRY_AUTH_TOKEN": {
+			"owner": "sentry-source-map-ci",
+			"scopes": ["staging-local"],
 			"secret": true
 		},
-		"APP_API_OPERATOR_DATABASE_URL": {
+		"SENTRY_ORG_SLUG": {
+			"owner": "sentry-source-map-ci",
+			"scopes": ["staging-local"],
+			"secret": false
+		},
+		"SENTRY_APP_API_PROJECT_SLUG": {
+			"owner": "sentry-source-map-ci",
+			"scopes": ["staging-local"],
+			"secret": false
+		},
+		"SENTRY_CAMPUS_WEB_PROJECT_SLUG": {
+			"owner": "sentry-source-map-ci",
+			"scopes": ["staging-local"],
+			"secret": false
+		},
+		"CAMPUS_WEB_SENTRY_SOURCE_MAP_UPLOAD": {
+			"owner": "sentry-source-map-ci",
+			"scopes": ["campus-web"],
+			"secret": false
+		},
+		"STAGING_APP_API_SENTRY_DSN": {
+			"owner": "worker-observability-config",
+			"scopes": ["staging-local"],
+			"secret": false
+		},
+		"STAGING_CAMPUS_WEB_BROWSER_SENTRY_DSN": {
+			"owner": "worker-observability-config",
+			"scopes": ["staging-local"],
+			"secret": false
+		},
+		"STAGING_CAMPUS_WEB_EDGE_SENTRY_DSN": {
+			"owner": "worker-observability-config",
+			"scopes": ["staging-local"],
+			"secret": false
+		},
+		"APP_API_SCHEMA_DATABASE_URL": {
 			"owner": "app-api-process-secret",
 			"scopes": ["app-api", "command"],
 			"secret": true
@@ -576,19 +643,22 @@
 			"secret": true
 		},
 		"OTEL_COLLECTOR_SENTRY_AUTH_VALUE": {
-			"owner": "runtime-observability",
-			"scopes": ["infra"],
-			"secret": true
+			"owner": "retired",
+			"scopes": [],
+			"secret": true,
+			"retired": true
 		},
 		"OTEL_COLLECTOR_AXIOM_AUTH_HEADER": {
-			"owner": "runtime-observability",
-			"scopes": ["infra"],
-			"secret": true
+			"owner": "retired",
+			"scopes": [],
+			"secret": true,
+			"retired": true
 		},
 		"OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER": {
-			"owner": "runtime-observability",
-			"scopes": ["infra"],
-			"secret": true
+			"owner": "retired",
+			"scopes": [],
+			"secret": true,
+			"retired": true
 		},
 		"OTEL_EXPORTER_OTLP_ENDPOINT": {
 			"owner": "runtime-observability",
@@ -603,6 +673,11 @@
 		"OTEL_SERVICE_NAME": {
 			"owner": "runtime-observability",
 			"scopes": ["command", "infra"],
+			"secret": false
+		},
+		"OPS_WEB_PUBLIC_ORIGIN": {
+			"owner": "ops-web-runtime-config",
+			"scopes": ["ops-web"],
 			"secret": false
 		}
 	},

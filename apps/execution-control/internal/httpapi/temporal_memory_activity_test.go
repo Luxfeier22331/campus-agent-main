@@ -2,12 +2,34 @@ package httpapi
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
+
+func TestMemoryRecallRequestRejectsMissingFrozenAcceptedMessageTimestamp(t *testing.T) {
+	run := execution.DurableRun{
+		RunID:          "run-missing-accepted-at",
+		ConversationID: "conv-missing-accepted-at",
+		OwnerUserID:    "user-1",
+		CreatedAt:      time.Now().UTC(),
+		Metadata: map[string]any{"execution_payload": map[string]any{
+			"tenant_id": "tenant-main",
+			"user_goal": "hello",
+			"context": map[string]any{
+				"conversation": map[string]any{"current_user_message": map[string]any{}},
+				"memory":       map[string]any{"owner_generation": 1, "owner_sequence": 0},
+			},
+		}},
+	}
+	_, err := memoryRecallRequestForRun(run, "any")
+	if err == nil || !strings.Contains(err.Error(), "query_timestamp is required") {
+		t.Fatalf("error = %v, want frozen accepted-message timestamp failure", err)
+	}
+}
 
 func TestMemoryRecallActivityUsesAnyToolForNeutralPrimaryAgentRun(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
@@ -48,8 +70,8 @@ func TestMemoryRecallActivityUsesAnyToolForNeutralPrimaryAgentRun(t *testing.T) 
 			executor.seenRequest.RequestedTool,
 		)
 	}
-	if _, err := time.Parse(time.RFC3339Nano, executor.seenRequest.QueryTimestamp); err != nil {
-		t.Fatalf("query timestamp = %q, want RFC3339Nano: %v", executor.seenRequest.QueryTimestamp, err)
+	if executor.seenRequest.QueryTimestamp != now.UTC().Format(time.RFC3339) {
+		t.Fatalf("query timestamp = %q, want frozen accepted-message timestamp %q", executor.seenRequest.QueryTimestamp, now.UTC().Format(time.RFC3339))
 	}
 
 	steps, err := store.ListRunSteps(context.Background(), "run-memory-neutral")
@@ -135,7 +157,7 @@ func TestMemoryRecallActivitySkipsWhenMemoryDisabled(t *testing.T) {
 	}
 	payload := latest.Metadata["execution_payload"].(map[string]any)
 	contextProjection := payload["context"].(map[string]any)
-	contextProjection["memory"] = map[string]any{"enabled": false}
+	contextProjection["memory"] = map[string]any{"recall_enabled": false, "owner_generation": 1, "owner_sequence": 0}
 	if err := store.ReplaceRunMetadata(context.Background(), latest.RunID, latest.Metadata); err != nil {
 		t.Fatalf("replace metadata: %v", err)
 	}
@@ -175,7 +197,7 @@ func setRunMemoryEnabledForTest(
 	}
 	payload := latest.Metadata["execution_payload"].(map[string]any)
 	contextProjection := payload["context"].(map[string]any)
-	contextProjection["memory"] = map[string]any{"enabled": enabled}
+	contextProjection["memory"] = map[string]any{"recall_enabled": enabled, "owner_generation": 1, "owner_sequence": 0}
 	if err := store.ReplaceRunMetadata(context.Background(), latest.RunID, latest.Metadata); err != nil {
 		t.Fatalf("replace metadata: %v", err)
 	}

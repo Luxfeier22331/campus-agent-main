@@ -59,7 +59,6 @@ type DurableRunEventVisibility string
 
 const (
 	DurableRunEventVisibilityInternal DurableRunEventVisibility = "internal"
-	DurableRunEventVisibilityPanel    DurableRunEventVisibility = "panel"
 	DurableRunEventVisibilityBrowser  DurableRunEventVisibility = "browser"
 	DurableRunEventVisibilityEval     DurableRunEventVisibility = "eval"
 )
@@ -187,6 +186,7 @@ type DurableRunFailRequest struct {
 	TerminalReason DurableTerminalReason
 	SelectedTool   string
 	Now            time.Time
+	TerminalEvent  DurableRunEvent
 }
 
 type CancelOutcome string

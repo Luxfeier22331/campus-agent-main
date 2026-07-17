@@ -13,6 +13,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/lifecycle"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/observability"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/telemetry"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
@@ -20,25 +21,31 @@ import (
 )
 
 type Server struct {
-	config                   config.Config
-	admission                *admission.Controller
-	lifecycle                *lifecycle.Registry
-	logger                   *slog.Logger
-	metrics                  *observability.Metrics
-	telemetry                *telemetry.Emitter
-	toolReadModel            *toolreadmodel.Runtime
-	runProjectionStore       execution.RunProjectionStore
-	runProjectionStoreErr    error
-	personalMemoryExecutor   personalMemoryExecutor
-	personalMemoryErr        error
-	knowledgeSearchExecutor  knowledgeSearchExecutor
-	knowledgeSearchErr       error
-	providerConfigResolver   providerConfigResolver
-	providerConfigErr        error
-	temporalStarter          temporalruntime.ChatWorkflowStarter
-	temporalStarterErr       error
-	temporalTaskQueueSampler temporalTaskQueueSampler
-	temporalWorkersStarted   bool
+	config                    config.Config
+	admission                 *admission.Controller
+	lifecycle                 *lifecycle.Registry
+	logger                    *slog.Logger
+	metrics                   *observability.Metrics
+	telemetry                 *telemetry.Emitter
+	toolReadModel             *toolreadmodel.Runtime
+	runProjectionStore        execution.RunProjectionStore
+	runProjectionStoreErr     error
+	personalMemoryExecutor    personalMemoryExecutor
+	personalMemoryErr         error
+	personalMemoryStateStore  memoryruntime.StateStore
+	personalMemoryStateErr    error
+	personalMemoryTraceStore  langfuseTraceMaintenance
+	runtimeTraceStore         langfuseTraceMaintenance
+	langfuseTraceErr          error
+	knowledgeSearchExecutor   knowledgeSearchExecutor
+	knowledgeSearchErr        error
+	providerConfigResolver    providerConfigResolver
+	providerConfigErr         error
+	temporalStarter           temporalruntime.ChatWorkflowStarter
+	temporalStarterErr        error
+	temporalTaskQueueSampler  temporalTaskQueueSampler
+	temporalWorkersStarted    bool
+	productFinalizationWriter func(context.Context, execution.DurableRun, time.Time, map[string]any) error
 }
 
 type TemporalContextActivities struct {
@@ -63,18 +70,60 @@ func (a TemporalContextActivities) AppendConversationMemoryActivity(
 	return a.server.AppendConversationMemoryActivity(ctx, input)
 }
 
-func (a TemporalContextActivities) MemoryOperationStatusActivity(
-	ctx context.Context,
-	input temporalruntime.MemoryOperationStatusActivityInput,
-) (temporalruntime.MemoryOperationStatusActivityOutput, error) {
-	return a.server.MemoryOperationStatusActivity(ctx, input)
-}
-
 func (a TemporalContextActivities) MemoryReflectActivity(
 	ctx context.Context,
 	input temporalruntime.MemoryReflectActivityInput,
 ) (temporalruntime.MemoryReflectActivityOutput, error) {
 	return a.server.MemoryReflectActivity(ctx, input)
+}
+
+func (a TemporalContextActivities) ExecutePersonalMemoryCommandActivity(
+	ctx context.Context,
+	input memoryruntime.PersonalMemoryCommandRequest,
+) (temporalruntime.PersonalMemoryCommandActivityOutput, error) {
+	return a.server.ExecutePersonalMemoryCommandActivity(ctx, input)
+}
+
+func (a TemporalContextActivities) PurgePersonalMemoryTracesActivity(
+	ctx context.Context,
+	input temporalruntime.PersonalMemoryTraceMaintenanceActivityInput,
+) (temporalruntime.PersonalMemoryTraceMaintenanceActivityOutput, error) {
+	return a.server.PurgePersonalMemoryTracesActivity(ctx, input)
+}
+
+func (a TemporalContextActivities) VerifyPersonalMemoryTracesActivity(
+	ctx context.Context,
+	input temporalruntime.PersonalMemoryTraceMaintenanceActivityInput,
+) (temporalruntime.PersonalMemoryTraceMaintenanceActivityOutput, error) {
+	return a.server.VerifyPersonalMemoryTracesActivity(ctx, input)
+}
+
+func (a TemporalContextActivities) PurgeLangfuseTraceRetentionActivity(
+	ctx context.Context,
+	input temporalruntime.LangfuseTraceRetentionActivityInput,
+) (temporalruntime.LangfuseTraceRetentionActivityOutput, error) {
+	return a.server.PurgeLangfuseTraceRetentionActivity(ctx, input)
+}
+
+func (a TemporalContextActivities) VerifyLangfuseTraceRetentionActivity(
+	ctx context.Context,
+	input temporalruntime.LangfuseTraceRetentionActivityInput,
+) (temporalruntime.LangfuseTraceRetentionActivityOutput, error) {
+	return a.server.VerifyLangfuseTraceRetentionActivity(ctx, input)
+}
+
+func (a TemporalContextActivities) FinalizePersonalMemoryCommandReceiptActivity(
+	ctx context.Context,
+	input temporalruntime.FinalizePersonalMemoryCommandReceiptActivityInput,
+) (temporalruntime.PersonalMemoryCommandActivityOutput, error) {
+	return a.server.FinalizePersonalMemoryCommandReceiptActivity(ctx, input)
+}
+
+func (a TemporalContextActivities) WritePersonalMemoryCommandResultActivity(
+	ctx context.Context,
+	input temporalruntime.PersonalMemoryCommandActivityOutput,
+) error {
+	return a.server.WritePersonalMemoryCommandResultActivity(ctx, input)
 }
 
 type TemporalAgentActivities struct {
@@ -112,6 +161,13 @@ func (a TemporalFinalizationActivities) WriteFinalizationActivity(
 	input temporalruntime.WriteFinalizationActivityInput,
 ) (temporalruntime.WriteFinalizationActivityOutput, error) {
 	return a.server.WriteFinalizationActivity(ctx, input)
+}
+
+func (a TemporalFinalizationActivities) FinalizeExecutionFailureActivity(
+	ctx context.Context,
+	input temporalruntime.FinalizeExecutionFailureActivityInput,
+) (temporalruntime.FinalizeExecutionFailureActivityOutput, error) {
+	return a.server.FinalizeExecutionFailureActivity(ctx, input)
 }
 
 func (s *Server) MarkTemporalWorkersStarted(started bool) {
@@ -155,6 +211,11 @@ func NewServerWithDependencies(
 	runProjectionStore, runProjectionStoreErr := newRunProjectionStore(cfg)
 	providerConfigResolver, providerConfigErr := newProviderConfigResolver(cfg)
 	personalMemoryExecutor, personalMemoryErr := newPersonalMemoryExecutor(cfg, providerConfigResolver)
+	personalMemoryStateStore, personalMemoryStateErr := newPersonalMemoryStateStore(cfg)
+	runtimeTraceStore, personalMemoryTraceStore, langfuseTraceErr := newLangfuseTraceMaintenance(cfg)
+	if personalMemoryErr == nil && personalMemoryStateErr == nil {
+		personalMemoryExecutor = newFencedPersonalMemoryExecutor(personalMemoryExecutor, personalMemoryStateStore, cfg.PersonalMemoryOwnerSalt, cfg.PersonalMemoryTimeoutSeconds)
+	}
 	knowledgeSearchExecutor, knowledgeSearchErr := newKnowledgeSearchExecutor(cfg, providerConfigResolver)
 	temporalStarter, temporalStarterErr := newTemporalStarter(cfg)
 	taskQueueSampler := newTemporalTaskQueueSampler(cfg, temporalStarter)
@@ -171,6 +232,11 @@ func NewServerWithDependencies(
 		runProjectionStoreErr:    runProjectionStoreErr,
 		personalMemoryExecutor:   personalMemoryExecutor,
 		personalMemoryErr:        personalMemoryErr,
+		personalMemoryStateStore: personalMemoryStateStore,
+		personalMemoryStateErr:   personalMemoryStateErr,
+		personalMemoryTraceStore: personalMemoryTraceStore,
+		runtimeTraceStore:        runtimeTraceStore,
+		langfuseTraceErr:         langfuseTraceErr,
 		knowledgeSearchExecutor:  knowledgeSearchExecutor,
 		knowledgeSearchErr:       knowledgeSearchErr,
 		providerConfigResolver:   providerConfigResolver,
@@ -212,6 +278,17 @@ func NewTemporalActivityServer(
 		if err != nil {
 			closeRunProjectionStore()
 			return nil, fmt.Errorf("initialize personal memory runtime: %w", err)
+		}
+		server.personalMemoryStateStore, err = newPersonalMemoryStateStore(cfg)
+		if err != nil {
+			closeRunProjectionStore()
+			return nil, fmt.Errorf("initialize personal memory state store: %w", err)
+		}
+		server.personalMemoryExecutor = newFencedPersonalMemoryExecutor(server.personalMemoryExecutor, server.personalMemoryStateStore, cfg.PersonalMemoryOwnerSalt, cfg.PersonalMemoryTimeoutSeconds)
+		server.runtimeTraceStore, server.personalMemoryTraceStore, err = newLangfuseTraceMaintenance(cfg)
+		if err != nil {
+			closeRunProjectionStore()
+			return nil, fmt.Errorf("initialize Langfuse trace maintenance: %w", err)
 		}
 	case TemporalActivityRuntimeRoleAgent:
 		server.providerConfigResolver, err = newProviderConfigResolver(cfg)
@@ -290,6 +367,18 @@ func newRunProjectionStore(cfg config.Config) (execution.RunProjectionStore, err
 	return store, nil
 }
 
+func newPersonalMemoryStateStore(cfg config.Config) (memoryruntime.StateStore, error) {
+	if strings.TrimSpace(cfg.RunProjectionDatabaseURL) == "" {
+		return memoryruntime.NewInMemoryStateStore(), nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	return memoryruntime.NewPostgresStateStore(ctx, memoryruntime.PostgresStateStoreOptions{
+		AutoMigrate: cfg.RunProjectionAutoMigrate,
+		DatabaseURL: strings.TrimSpace(cfg.RunProjectionDatabaseURL),
+	})
+}
+
 func newAdmissionController(cfg config.Config) *admission.Controller {
 	return admission.NewController(admission.Config{
 		MaxConcurrent: cfg.MaxConcurrentAnswers,
@@ -318,6 +407,12 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		s.toolReadModel.Close()
 	}
 	if closer, ok := s.runProjectionStore.(interface{ Close() }); ok {
+		closer.Close()
+	}
+	if closer, ok := s.personalMemoryStateStore.(interface{ Close() }); ok {
+		closer.Close()
+	}
+	if closer, ok := s.providerConfigResolver.(interface{ Close() }); ok {
 		closer.Close()
 	}
 	if closer, ok := s.temporalStarter.(interface{ Close() }); ok {
@@ -386,26 +481,14 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		}
 	case request.Method == http.MethodPost && path == "/internal/provider-config/embedding:check-compatibility":
 		s.handleProviderConfigCompatibility(writer, request)
-	case request.Method == http.MethodPost && path == "/internal/memory/personal/items:upsert":
-		s.handleProfileMemoryUpsert(writer, request)
+	case request.Method == http.MethodPost && path == "/internal/memory/personal/commands":
+		s.handlePersonalMemoryCommand(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/memory/personal/turns:append":
 		s.handleProfileMemoryAppend(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/memory/personal/graph:recall":
 		s.handleProfileMemoryRecall(writer, request)
-	case request.Method == http.MethodPost && path == "/internal/memory/personal/operations:status":
-		s.handleProfileMemoryOperationStatus(writer, request)
-	case request.Method == http.MethodPost && path == "/internal/memory/personal/operations:list":
-		s.handleProfileMemoryOperationList(writer, request)
-	case request.Method == http.MethodPost && path == "/internal/memory/personal/operations:cancel":
-		s.handleProfileMemoryOperationCancel(writer, request)
-	case request.Method == http.MethodPost && path == "/internal/memory/personal/operations:retry":
-		s.handleProfileMemoryOperationRetry(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/memory/personal/graph:reflect":
 		s.handleProfileMemoryReflect(writer, request)
-	case request.Method == http.MethodPost && path == "/internal/memory/personal/items:disable":
-		s.handleProfileMemoryItemDisable(writer, request)
-	case request.Method == http.MethodPost && path == "/internal/memory/personal/owner:disable":
-		s.handleProfileMemoryOwnerDisable(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/query/campus-services/transport-schedule":
 		s.handleToolReadModel(writer, request, toolreadmodel.ToolTransportScheduleLookup)
 	case request.Method == http.MethodPost && path == "/internal/query/knowledge/search":

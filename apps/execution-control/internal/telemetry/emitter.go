@@ -76,15 +76,20 @@ type Emitter struct {
 	sampleRatio        float64
 	allowedVersion     string
 
-	tracerProvider          *sdktrace.TracerProvider
-	tracer                  trace.Tracer
-	meterProvider           *sdkmetric.MeterProvider
-	meter                   metric.Meter
-	requestCounter          metric.Int64Counter
-	errorCounter            metric.Int64Counter
-	activityDuration        metric.Float64Histogram
-	scheduleToStartDuration metric.Float64Histogram
-	logger                  *slog.Logger
+	tracerProvider                 *sdktrace.TracerProvider
+	tracer                         trace.Tracer
+	meterProvider                  *sdkmetric.MeterProvider
+	meter                          metric.Meter
+	requestCounter                 metric.Int64Counter
+	errorCounter                   metric.Int64Counter
+	activityDuration               metric.Float64Histogram
+	scheduleToStartDuration        metric.Float64Histogram
+	personalMemoryOperationCounter metric.Int64Counter
+	personalMemoryDuration         metric.Float64Histogram
+	personalMemorySelectedItems    metric.Int64Histogram
+	personalMemorySelectedChars    metric.Int64Histogram
+	personalMemoryReceiptCounter   metric.Int64Counter
+	logger                         *slog.Logger
 }
 
 var ErrTelemetryUnavailable = errors.New("telemetry unavailable")
@@ -309,6 +314,88 @@ func (e *Emitter) configureMetrics() {
 	if err == nil {
 		e.scheduleToStartDuration = scheduleToStartDuration
 	}
+	personalMemoryOperationCounter, err := e.meter.Int64Counter("campus.execution_control.personal_memory.operations")
+	if err == nil {
+		e.personalMemoryOperationCounter = personalMemoryOperationCounter
+	}
+	personalMemoryDuration, err := e.meter.Float64Histogram("campus.execution_control.personal_memory.duration_ms")
+	if err == nil {
+		e.personalMemoryDuration = personalMemoryDuration
+	}
+	personalMemorySelectedItems, err := e.meter.Int64Histogram("campus.execution_control.personal_memory.selected_items")
+	if err == nil {
+		e.personalMemorySelectedItems = personalMemorySelectedItems
+	}
+	personalMemorySelectedChars, err := e.meter.Int64Histogram("campus.execution_control.personal_memory.selected_chars")
+	if err == nil {
+		e.personalMemorySelectedChars = personalMemorySelectedChars
+	}
+	personalMemoryReceiptCounter, err := e.meter.Int64Counter("campus.execution_control.personal_memory.command_receipts")
+	if err == nil {
+		e.personalMemoryReceiptCounter = personalMemoryReceiptCounter
+	}
+}
+
+func (e *Emitter) RecordPersonalMemoryOperation(
+	ctx context.Context,
+	operation string,
+	outcome string,
+	failureKind string,
+	duration time.Duration,
+	selectedItems int,
+	selectedChars int,
+) {
+	if e == nil || e.meter == nil {
+		return
+	}
+	attrs := metric.WithAttributes(
+		attribute.String("operation", boundedMetricAttribute(operation, "unknown")),
+		attribute.String("outcome", boundedMetricAttribute(outcome, "unknown")),
+		attribute.String("failure_kind", boundedMetricAttribute(failureKind, "none")),
+	)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if e.personalMemoryOperationCounter != nil {
+		e.personalMemoryOperationCounter.Add(ctx, 1, attrs)
+	}
+	if e.personalMemoryDuration != nil && duration >= 0 {
+		e.personalMemoryDuration.Record(ctx, float64(duration)/float64(time.Millisecond), attrs)
+	}
+	if e.personalMemorySelectedItems != nil && selectedItems >= 0 {
+		e.personalMemorySelectedItems.Record(ctx, int64(selectedItems), attrs)
+	}
+	if e.personalMemorySelectedChars != nil && selectedChars >= 0 {
+		e.personalMemorySelectedChars.Record(ctx, int64(selectedChars), attrs)
+	}
+}
+
+func (e *Emitter) RecordPersonalMemoryReceipt(ctx context.Context, commandKind string, status string, outcome string) {
+	if e == nil || e.meter == nil || e.personalMemoryReceiptCounter == nil {
+		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	e.personalMemoryReceiptCounter.Add(ctx, 1, metric.WithAttributes(
+		attribute.String("command_kind", boundedMetricAttribute(commandKind, "unknown")),
+		attribute.String("status", boundedMetricAttribute(status, "unknown")),
+		attribute.String("outcome", boundedMetricAttribute(outcome, "unknown")),
+	))
+}
+
+func boundedMetricAttribute(value string, fallback string) string {
+	value = strings.TrimSpace(value)
+	if value == "" || len(value) > 64 {
+		return fallback
+	}
+	for _, char := range value {
+		if (char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || char == '_' || char == '-' || char == '.' {
+			continue
+		}
+		return fallback
+	}
+	return value
 }
 
 func (e *Emitter) recordMetric(event Event) {

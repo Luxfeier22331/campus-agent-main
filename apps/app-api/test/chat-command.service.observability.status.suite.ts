@@ -267,7 +267,9 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 		if (approval.answer.result.kind !== "error") {
 			throw new Error("expected error result");
 		}
-		expect(approval.answer.result.message).toContain("不能代你预约、提交、打电话或发邮件");
+		expect(approval.answer.result.message).toBe(
+			"The request requires approval before it can continue.",
+		);
 		expect(approvalStore.finalWrites[0]).toMatchObject({
 			turnDispatch: {
 				selectedTool: "transport_schedule_lookup",
@@ -279,7 +281,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 		if (rejected.answer.result.kind !== "error") {
 			throw new Error("expected error result");
 		}
-		expect(rejected.answer.result.message).toContain("不能代你预约、提交、打电话或发邮件");
+		expect(rejected.answer.result.message).toBe("The request was rejected by execution policy.");
 		expect(rejectedStore.finalWrites[0]).toMatchObject({
 			turnDispatch: {
 				errorCode: "request_rejected",
@@ -323,7 +325,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					answerText: "",
 					error: {
 						code: "request_rejected",
-						message: "request was rejected by execution policy",
+						message: "postgres://user:secret@internal-db/runtime",
 						retryable: false,
 					},
 					followUpQuestion: "",
@@ -355,7 +357,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 		expect(approvalRequired.answer.result).toEqual({
 			errorCode: "approval_required",
 			kind: "error",
-			message: "该请求涉及需要人工确认的操作，必须先经过审批。",
+			message: "The request requires approval before it can continue.",
 			requestId: "req_0001",
 			retryable: false,
 			traceId: "trace_0001",
@@ -376,7 +378,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 		expect(rejected.answer.result).toEqual({
 			errorCode: "request_rejected",
 			kind: "error",
-			message: "request was rejected by execution policy",
+			message: "The request was rejected by execution policy.",
 			requestId: "req_0001",
 			retryable: false,
 			traceId: "trace_0001",

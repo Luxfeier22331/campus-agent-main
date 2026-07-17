@@ -51,13 +51,13 @@ describe("ops-web contract fixtures", () => {
 		]);
 	});
 
-	it("validates bounded OpenObserve log and trace results", () => {
+	it("validates bounded Axiom log and trace results", () => {
 		const logs = OpsObservabilityResponseSchema.parse(opsLogObservabilityFixture);
 		const trace = OpsObservabilityResponseSchema.parse(opsTraceObservabilityFixture);
-		expect(logs).toMatchObject({ kind: "logs", limit: 200, source: "OPENOBSERVE" });
-		expect(trace).toMatchObject({ kind: "trace", limit: 500, source: "OPENOBSERVE" });
-		expect(logs.records[0]).toMatchObject({ message: "request completed" });
-		expect(trace.records[0]).toMatchObject({ span_name: "agent.primary" });
+		expect(logs).toMatchObject({ kind: "logs", limit: 200, source: "AXIOM" });
+		expect(trace).toMatchObject({ kind: "trace", limit: 500, source: "AXIOM" });
+		expect(logs.records[0]).toMatchObject({ body: "request completed" });
+		expect(trace.records[0]).toMatchObject({ name: "agent.primary" });
 	});
 
 	it("rejects non-HTTPS external links", () => {

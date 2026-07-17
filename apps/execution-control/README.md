@@ -43,7 +43,9 @@ RAG 图、独立合成模型或重规划循环。
 - 函数工具和 handoff 默认关闭，只有运行时注册表、严格 schema、产品与评测均准入后才能
   开放；
 - Hindsight 拥有个人记忆存储、提取和召回，execution-control 只消费有界召回结果并写脱敏
-  投影。
+  投影；
+- execution-control 拥有在线 Provider Config 的不可变 connection/profile、验证、完整 bundle
+  激活、reader/admin 数据库角色和版本化 keyring；Ops Web 只通过内部 admin API 操作。
 
 ## 相关文档
 
@@ -66,5 +68,5 @@ pnpm go:check
 pnpm repo:static
 ```
 
-运行变量、供应商投影、Hindsight、Qdrant、Temporal 和运行投影存储由上述 runbook 维护。
+运行变量、在线 Provider Config、Hindsight、Qdrant、Temporal 和运行投影存储由上述 runbook 维护。
 不得在本文加入未启用的兼容设置或本地 Secret 值。

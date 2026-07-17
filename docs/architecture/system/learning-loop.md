@@ -74,8 +74,8 @@ Langfuse 数据集 `online-answer/candidates`。
 | `packages/eval-langfuse` | Langfuse 数据集、评分和实验适配 |
 | Langfuse | 轨迹、标注、数据集、评分和实验 |
 
-Ops Web 显示排查请求所需的运行摘要并维护已准入配置，但不是
-质量复核和数据集管理界面。
+Ops Web 显示排查请求所需的运行摘要并维护在线 Provider Config；它不是质量复核和数据集
+管理界面。
 
 ## 不允许的形态
 

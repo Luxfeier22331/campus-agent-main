@@ -38,14 +38,6 @@ export interface AppTelemetry {
 	}): void;
 	getTraceHeaders(input?: { request?: Request | Headers | null }): TracePropagationHeaders;
 	markHttpResponseStatus(status: number): void;
-	recordIdentityEndpoint(input: {
-		correlationId: string;
-		endpoint: string;
-		errorCode: string | null;
-		principalType: string | null;
-		status: number;
-		surface: string;
-	}): Promise<void>;
 	recordRequestAccepted(
 		input: BaseRequestTelemetry & {
 			actor: ActorTelemetrySummary;
@@ -76,17 +68,4 @@ export interface AppTelemetry {
 			retryable: boolean;
 		},
 	): Promise<void>;
-	recordWebPerformance(input: {
-		metricName: "CLS" | "FCP" | "INP" | "LCP" | "TTFB";
-		navigationType:
-			| "back-forward"
-			| "back-forward-cache"
-			| "navigate"
-			| "prerender"
-			| "reload"
-			| "restore";
-		rating: "good" | "needs-improvement" | "poor";
-		routeGroup: "account" | "dining" | "docs" | "feedback" | "map" | "other" | "qa" | "services";
-		value: number;
-	}): Promise<void>;
 }

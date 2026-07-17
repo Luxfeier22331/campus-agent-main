@@ -247,9 +247,7 @@ func TestExecutePrimaryAgentActivityProjectsFailedSdkTypedToolResult(t *testing.
 	if err == nil {
 		t.Fatal("expected failed SDK tool to fail primary agent activity")
 	}
-	if !strings.Contains(err.Error(), "fail_close_reason=tool_handler_failed") {
-		t.Fatalf("primary agent error = %v, want concrete tool fail_close_reason", err)
-	}
+	assertTemporalFailureSanitized(t, err, "tool_execution_failed", false)
 	steps, listErr := store.ListRunSteps(context.Background(), "run-primary-agent-sdk-tool-failed")
 	if listErr != nil {
 		t.Fatalf("list run steps: %v", listErr)

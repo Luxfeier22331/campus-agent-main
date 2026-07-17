@@ -1,4 +1,5 @@
 import {
+	bigint,
 	boolean,
 	index,
 	integer,
@@ -97,6 +98,7 @@ export const turnDispatches = chat.table(
 		userMessageId: text("user_message_id")
 			.notNull()
 			.references(() => messages.id, { onDelete: "cascade" }),
+		assistantMessageId: text("assistant_message_id").notNull(),
 		turnSequence: integer("turn_sequence").notNull(),
 		surface: text("surface").notNull(),
 		ownerUserId: text("owner_user_id").notNull(),
@@ -104,10 +106,20 @@ export const turnDispatches = chat.table(
 		principalSnapshotJson: jsonb("principal_snapshot_json")
 			.$type<TurnDispatchPrincipalSnapshot>()
 			.notNull(),
+		memoryRecallEnabled: boolean("memory_recall_enabled"),
+		memoryAppendEnabled: boolean("memory_append_enabled"),
+		memoryOwnerGeneration: bigint("memory_owner_generation", { mode: "number" }),
+		memoryOwnerSequence: bigint("memory_owner_sequence", { mode: "number" }),
 		idempotencyKey: text("idempotency_key"),
 		requestFingerprintSha256: text("request_fingerprint_sha256"),
 		traceId: text("trace_id").notNull(),
 		runId: text("run_id"),
+		admissionStatus: text("admission_status").notNull().default("pending_input"),
+		workflowId: text("workflow_id"),
+		workflowInputJson: jsonb("workflow_input_json").$type<Record<string, unknown>>(),
+		workflowInputSha256: text("workflow_input_sha256"),
+		admittedAt: timestamp("admitted_at", { withTimezone: true }),
+		finalizationFingerprint: text("finalization_fingerprint"),
 		safetyIdentifier: text("safety_identifier"),
 		requestedTool: text("requested_tool"),
 		resolvedTargetsJson: jsonb("resolved_targets_json").$type<string[]>().notNull().default([]),

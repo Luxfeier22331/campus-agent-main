@@ -8,11 +8,11 @@ status: active
 `docs/data/` 保存逻辑数据结构、来源和读取模型所有权。
 
 - App API：[app-api/README.md](./app-api/README.md)；
-- 身份与执行：[identity-platform.md](./identity-platform.md)、
+- 身份与执行：[app-api/README.md](./app-api/README.md)、
   [durable-runtime.md](./durable-runtime.md)；
 - 文档内容：[document-reader.md](./document-reader.md)、
   [internal-portal.md](./internal-portal.md)、[wechat-official.md](./wechat-official.md)；
-- 校园服务：[transport-ops.md](./transport-ops.md)、[dining.md](./dining.md)；
+- 校园服务：[dining.md](./dining.md)；
 - 数据库所有权：[postgres-ownership.md](./postgres-ownership.md)。
 
 班车的人类可读事实由 [transport.md](../domains/transport.md) 维护；机器 schema 位于

@@ -15,7 +15,7 @@ concurrency:
 jobs:
   node:
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 60
+    timeout-minutes: 75
     env:
       TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
@@ -31,6 +31,18 @@ jobs:
 
       - name: Setup Python
         uses: ./.github/actions/setup-python-uv
+
+      - name: Setup Go
+        if: runner.environment == 'github-hosted'
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16  # v6
+        with:
+          go-version: "1.26.5"
+          cache: true
+          cache-dependency-path: apps/execution-control/go.mod
+
+      - name: Verify Go
+        if: runner.environment == 'self-hosted'
+        run: test "$(go version | awk '{print $3}')" = "go1.26.5"
 
       - name: Run full repository lane
         run: pnpm ci:repo
@@ -65,9 +77,21 @@ jobs:
         if: always()
         run: scripts/ci/turbo-summary.sh
 
+      - name: Verify Docker
+        run: docker info >/dev/null
+
+      - name: Run app-api migration integration
+        run: pnpm ci:app-api-migration
+
+      - name: Run app-api product database integration
+        run: pnpm ci:app-api-product-db
+
+      - name: Run ops-web database integration
+        run: pnpm ci:ops-web-postgres
+
   go:
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
@@ -99,6 +123,12 @@ jobs:
 
       - name: Run full Go lane
         run: scripts/ci/go-check.sh
+
+      - name: Verify Docker
+        run: docker info >/dev/null
+
+      - name: Run execution-control PostgreSQL integration
+        run: pnpm ci:execution-control-postgres
 
   rust:
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]

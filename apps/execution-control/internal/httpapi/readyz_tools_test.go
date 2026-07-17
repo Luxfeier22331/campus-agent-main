@@ -163,6 +163,11 @@ func TestReadyzKeepsTransportReadyWhenAllSlotsAreBusyButQueueCanAccept(t *testin
 	)
 	markTemporalReadyForTest(server)
 	markKnowledgeRuntimeReadyForTest(server)
+	server.providerConfigResolver = staticProviderConfigResolver{
+		"primary_agent":       primaryAgentProviderConfigSnapshotForTest(),
+		"rag_query_embedding": embeddingProviderConfigSnapshotForTest(providerConfigRoleRAGQueryEmbedding, "https://embedding.example/v1", "embedding-test", 2560),
+	}
+	server.providerConfigErr = nil
 	useReadyTransportReadModelRuntimeFixture(t, server)
 
 	response := httptest.NewRecorder()

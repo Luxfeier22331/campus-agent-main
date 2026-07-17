@@ -11,14 +11,11 @@ function formatRuntimeDependencyFailure(error: unknown): string {
 
 export async function defaultRuntimeReadinessProbe(env: Env): Promise<AppRuntimeReadinessResult> {
 	const requireExecutionRuntime = isDeployedEnvironment(resolveEnvironment(env));
-	const ingestionControlBaseUrl = env.INGESTION_CONTROL_BASE_URL?.trim();
 	const dependencies: AppRuntimeReadinessResult["dependencies"] = {
 		auth: "not_ready",
 		authShellOrigin: "configured",
 		database: "not_ready",
 		executionRuntime: requireExecutionRuntime ? "not_ready" : "not_required",
-		ingestionControl: ingestionControlBaseUrl ? "configured" : "not_configured",
-		operatorSurface: "configured",
 		executionControl: "not_ready",
 	};
 	const failed: AppRuntimeReadinessResult["failed"] = {};

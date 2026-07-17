@@ -45,13 +45,14 @@ describe("Ops Web Dining API", () => {
 		const app = createOpsApp({
 			admission: createAllowAllOpsAdmission(),
 			diningStore,
+			env: { OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test" },
 			store: createFixtureOpsStatusStore(),
 		});
 		const overview = await app.request("/api/ops/dining/overview");
 		const draft = await app.request("/api/ops/dining/catalog/draft");
 		const publish = await app.request("/api/ops/dining/catalog/publish", {
 			body: JSON.stringify({ notes: "发布食堂目录" }),
-			headers: { "content-type": "application/json", origin: "http://localhost" },
+			headers: { "content-type": "application/json", origin: "https://ops.example.test" },
 			method: "POST",
 		});
 		expect(overview.status).toBe(200);
@@ -61,6 +62,23 @@ describe("Ops Web Dining API", () => {
 			expect.objectContaining({ principalId: "ops@example.test" }),
 			"发布食堂目录",
 		);
+	});
+
+	it("rejects cross-origin Dining writes from human operators", async () => {
+		const diningStore = createDiningStore();
+		const app = createOpsApp({
+			admission: createAllowAllOpsAdmission(),
+			diningStore,
+			env: { OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test" },
+			store: createFixtureOpsStatusStore(),
+		});
+		const response = await app.request("/api/ops/dining/catalog/draft/rebase", {
+			headers: { origin: "https://attacker.example.test", "sec-fetch-site": "cross-site" },
+			method: "POST",
+		});
+
+		expect(response.status).toBe(403);
+		expect(diningStore.rebase).not.toHaveBeenCalled();
 	});
 
 	it("rejects Dining writes from service identities", async () => {

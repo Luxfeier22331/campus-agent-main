@@ -72,8 +72,7 @@ export const APP_API_TEST_ENV = {
 	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 	EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 	APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
-	APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
-	APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
+	APP_API_PRODUCT_CALLBACK_SHARED_SECRET: "app-api-internal-secret",
 	APP_API_DB: {
 		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 	},
@@ -84,7 +83,7 @@ export const APP_API_TEST_ENV = {
 
 export const createApp = appModule.createApp;
 export const resolveEnvironment = configModule.resolveEnvironment;
-export const buildOperatorDatabaseConfig = runtimeDbModule.buildOperatorDatabaseConfig;
+export const buildSchemaDatabaseConfig = runtimeDbModule.buildSchemaDatabaseConfig;
 export const buildRuntimeDatabaseConfig = runtimeDbModule.buildRuntimeDatabaseConfig;
 export const createRuntimePool = runtimeDbModule.createRuntimePool;
 export const probeRuntimeDatabase = runtimeDbModule.probeRuntimeDatabase;

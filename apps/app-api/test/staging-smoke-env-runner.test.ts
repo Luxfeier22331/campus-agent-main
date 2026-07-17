@@ -3,6 +3,7 @@ import rootPackageManifestRaw from "../../../package.json?raw";
 import loadRepoEnvSource from "../../../scripts/deploy/lib/repo-env.ts?raw";
 import rootRunWithStagingSmokeEnvSource from "../../../scripts/deploy/run-with-staging-smoke-env.ts?raw";
 import appApiSmokeEntrypointSource from "../../../scripts/smoke/app-api.ts?raw";
+import observabilitySmokeEntrypointSource from "../../../scripts/smoke/observability-staging.ts?raw";
 import packageManifestRaw from "../package.json?raw";
 
 const packageManifest = JSON.parse(packageManifestRaw) as { scripts: Record<string, string> };
@@ -32,6 +33,15 @@ describe("staging smoke env runner", () => {
 		expect(packageManifest.scripts["chat:durable:e2e:staging"]).toBeUndefined();
 		expect(packageManifest.scripts["chat:memory:e2e:staging"]).toBeUndefined();
 		expect(packageManifest.scripts["hindsight:memory:e2e:staging"]).toBeUndefined();
+	});
+
+	it("routes the cross-app observability smoke through one locked public entrypoint", () => {
+		expect(rootPackageManifest.scripts["smoke:observability:staging"]).toBe(
+			"pnpm exec tsx scripts/deploy/run-with-staging-smoke-env.ts pnpm exec tsx scripts/smoke/observability-staging.ts",
+		);
+		expect(observabilitySmokeEntrypointSource).toContain("runChatMemoryE2eStaging");
+		expect(observabilitySmokeEntrypointSource).toContain("runStagingSentryCanary");
+		expect(observabilitySmokeEntrypointSource).toContain("writeStagingObservabilityCanaryEvidence");
 	});
 
 	it("loads only explicit ops-owned staging runtime env for smoke scripts", () => {

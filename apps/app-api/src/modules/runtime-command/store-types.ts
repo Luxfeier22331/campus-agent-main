@@ -1,7 +1,7 @@
+import type { AbuseThrottleReason } from "../abuse-throttle-policy";
 import type { ResolvedAppPrincipal } from "../auth";
 import type { ChatMessage, ChatSessionSlot } from "../chat";
 import type { ToolExecutionWorkflowTraceSummary } from "../integration/tool-execution-types";
-import type { AbuseThrottleReason } from "../safety-ops-policy";
 import type { ObservedSourceTraceEntry } from "../source-trace";
 import type { ChatCommandResponse } from "./service";
 
@@ -32,7 +32,15 @@ export interface TurnDispatchPrincipalSnapshot {
 	principal: Pick<ResolvedAppPrincipal["principal"], "displayName" | "principalId" | "type">;
 }
 
+export interface TurnDispatchMemorySnapshot {
+	appendEnabled: boolean;
+	ownerGeneration: number;
+	ownerSequence: number;
+	recallEnabled: boolean;
+}
+
 export interface TurnDispatchWrite {
+	assistantMessageId: string;
 	requestId: string;
 	conversationId: string;
 	userMessageId: string;
@@ -56,19 +64,24 @@ export interface TurnDispatchWrite {
 	updatedAt: string;
 }
 
-export type FinalizeTurnDispatchWrite = Pick<
-	TurnDispatchWrite,
-	| "completedAt"
-	| "errorCode"
-	| "requestId"
-	| "resolvedTargets"
-	| "runId"
-	| "safetyIdentifier"
-	| "selectedTool"
-	| "status"
-	| "turnSequence"
-	| "updatedAt"
->;
+export type FinalizeTurnDispatchWrite = Omit<
+	Pick<
+		TurnDispatchWrite,
+		| "completedAt"
+		| "errorCode"
+		| "requestId"
+		| "resolvedTargets"
+		| "runId"
+		| "safetyIdentifier"
+		| "selectedTool"
+		| "status"
+		| "turnSequence"
+		| "updatedAt"
+	>,
+	"status"
+> & {
+	status: Exclude<TurnDispatchStatus, "accepted">;
+};
 
 export interface RequestObservabilityFactWrite {
 	requestId: string;
@@ -108,6 +121,7 @@ export interface RequestObservabilityFactWrite {
 }
 
 export interface AcceptRequestWrite {
+	captureMemorySnapshot: boolean;
 	conversationSeed?: {
 		id: string;
 		ownerUserId: string;
@@ -122,6 +136,10 @@ export interface AcceptRequestWrite {
 	userMessage: ChatMessage;
 }
 
+export interface AcceptRequestResult {
+	memorySnapshot: TurnDispatchMemorySnapshot | null;
+}
+
 export interface FinalizeRequestWrite {
 	assistantMessage: ChatMessage;
 	conversationTitle: string;
@@ -129,6 +147,7 @@ export interface FinalizeRequestWrite {
 	requestObservabilityFact: RequestObservabilityFactWrite;
 	turnDispatch: FinalizeTurnDispatchWrite;
 	sessionSlots: ChatSessionSlot[];
+	finalizationFingerprint?: string;
 }
 
 export interface StoredIdempotentRequest {
@@ -139,6 +158,7 @@ export interface StoredIdempotentRequest {
 
 export interface AcceptedDurableRequestCloseout {
 	acceptedAt: string;
+	assistantMessageId: string;
 	conversation: import("../chat").ChatConversation;
 	conversationTitle: string;
 	idempotencyKey: string | null;
@@ -153,6 +173,7 @@ export interface AcceptedDurableRequestCloseout {
 	traceId: string;
 	turnSequence: number;
 	userMessageId: string;
+	finalizationFingerprint: string | null;
 }
 
 export interface AbuseControlState {
@@ -163,7 +184,27 @@ export interface AbuseControlState {
 	throttleReason: AbuseThrottleReason;
 }
 
+export interface PendingChatAdmission {
+	requestId: string;
+	workflowId: string;
+	workflowInput: Record<string, unknown>;
+	workflowInputSha256: string;
+}
+
 export interface ChatCommandStore {
+	listPendingAdmissions(input?: { limit?: number }): Promise<PendingChatAdmission[]>;
+	recordAdmissionInput(input: {
+		requestId: string;
+		updatedAt: string;
+		workflowId: string;
+		workflowInput: Record<string, unknown>;
+		workflowInputSha256: string;
+	}): Promise<boolean>;
+	markAdmitted(input: {
+		admittedAt: string;
+		requestId: string;
+		workflowId: string;
+	}): Promise<boolean>;
 	findIdempotentRequest(input: {
 		actorUserId: string;
 		idempotencyKey: string;
@@ -173,7 +214,7 @@ export interface ChatCommandStore {
 		safetyIdentifier: string;
 		surface: string;
 	}): Promise<AbuseControlState>;
-	acceptRequest(input: AcceptRequestWrite): Promise<void>;
+	acceptRequest(input: AcceptRequestWrite): Promise<AcceptRequestResult>;
 	finalizeRequest(input: FinalizeRequestWrite): Promise<import("../chat").ChatConversation>;
 	listAcceptedDurableRequestsForCloseout(input?: {
 		limit?: number;
@@ -186,4 +227,11 @@ export interface ChatCommandStore {
 		limit: number;
 		ownerUserId: string;
 	}): Promise<PreviousToolResultRef[]>;
+}
+
+export class ChatFinalizationConflict extends Error {
+	constructor() {
+		super("chat finalization fingerprint conflict");
+		this.name = "ChatFinalizationConflict";
+	}
 }

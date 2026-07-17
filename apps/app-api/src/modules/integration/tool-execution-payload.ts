@@ -97,7 +97,16 @@ export function toToolExecutionContext(context: ToolExecutionContextProjection) 
 					},
 				}
 			: {}),
-		...(context.memory ? { memory: { enabled: context.memory.enabled } } : {}),
+		...(context.memory
+			? {
+					memory: {
+						append_enabled: context.memory.appendEnabled,
+						owner_generation: context.memory.ownerGeneration,
+						owner_sequence: context.memory.ownerSequence,
+						recall_enabled: context.memory.recallEnabled,
+					},
+				}
+			: {}),
 		session: {
 			confirmed_slots: context.session.confirmedSlots.map((slot) => ({
 				confirmed: slot.confirmed,

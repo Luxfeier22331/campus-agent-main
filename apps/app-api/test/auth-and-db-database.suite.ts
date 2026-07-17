@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
-	buildOperatorDatabaseConfig,
 	buildRuntimeDatabaseConfig,
+	buildSchemaDatabaseConfig,
 	createdPoolOptions,
 	createRuntimePool,
 	endedPoolOptions,
@@ -71,10 +71,10 @@ export function registerAppApiDatabaseConfigSuite() {
 			});
 		});
 
-		it("uses canonical operator connection for app-api schema management", () => {
-			const config = buildOperatorDatabaseConfig({
+		it("uses the canonical schema-admin connection for app-api schema management", () => {
+			const config = buildSchemaDatabaseConfig({
 				APP_API_DATABASE_SSLMODE: "require",
-				APP_API_OPERATOR_DATABASE_URL:
+				APP_API_SCHEMA_DATABASE_URL:
 					"postgres://schema-owner:secret@postgres.example.internal:5432/campus_agent?sslmode=require",
 			});
 
@@ -86,14 +86,14 @@ export function registerAppApiDatabaseConfigSuite() {
 			});
 		});
 
-		it("rejects the legacy management env key for operator config", () => {
+		it("rejects the legacy management env key for schema administration", () => {
 			expect(() =>
-				buildOperatorDatabaseConfig({
+				buildSchemaDatabaseConfig({
 					APP_API_DATABASE_SSLMODE: "require",
 					APP_API_MANAGEMENT_DATABASE_URL:
 						"postgres://postgres:secret@example.com:5432/campus_agent_admin",
 				} as never),
-			).toThrow("APP_API_OPERATOR_DATABASE_URL is required.");
+			).toThrow("APP_API_SCHEMA_DATABASE_URL is required.");
 		});
 
 		it("reuses one runtime pool for repeated calls under the same env", async () => {
@@ -206,8 +206,7 @@ export function registerAppApiDatabaseConfigSuite() {
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 				APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
-				APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
-				APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
+				APP_API_PRODUCT_CALLBACK_SHARED_SECRET: "app-api-internal-secret",
 				APP_API_DB: {
 					connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 				},
@@ -260,8 +259,7 @@ export function registerAppApiDatabaseConfigSuite() {
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 				APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
-				APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
-				APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
+				APP_API_PRODUCT_CALLBACK_SHARED_SECRET: "app-api-internal-secret",
 				APP_API_DB: {
 					connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 				},
@@ -290,8 +288,7 @@ export function registerAppApiDatabaseConfigSuite() {
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 				APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
-				APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
-				APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
+				APP_API_PRODUCT_CALLBACK_SHARED_SECRET: "app-api-internal-secret",
 				APP_API_DB: {
 					connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 				},
@@ -320,8 +317,7 @@ export function registerAppApiDatabaseConfigSuite() {
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 				APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
-				APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
-				APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
+				APP_API_PRODUCT_CALLBACK_SHARED_SECRET: "app-api-internal-secret",
 				APP_API_DB: {
 					connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 				},
@@ -376,8 +372,7 @@ export function registerAppApiDatabaseConfigSuite() {
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 				APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
-				APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
-				APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
+				APP_API_PRODUCT_CALLBACK_SHARED_SECRET: "app-api-internal-secret",
 				APP_API_DB: {
 					connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 				},

@@ -63,4 +63,4 @@ Ops Web 按 `request_id` 联合该表与 `chat.turn_dispatches`、`chat.messages
 - `apps/app-api/src/db/schema/runtime.ts`
 - `apps/app-api/src/db/schema/chat.ts`
 - `apps/execution-control/internal/execution/run_projection_postgres_store.go`
-- `apps/app-api/ops/db/ops-web-database.ts`
+- `apps/ops-web/ops/db/ops-web-database.ts`

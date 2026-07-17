@@ -332,6 +332,7 @@ func (s *PostgresRunProjectionStore) FailRunProjection(
 	if err := validateDurableRunFailRequest(request); err != nil {
 		return DurableRun{}, err
 	}
+	request = canonicalizeDurableRunFailRequest(request)
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return DurableRun{}, err
@@ -347,6 +348,26 @@ func (s *PostgresRunProjectionStore) FailRunProjection(
 			return DurableRun{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, request.RunID)
 		}
 		return DurableRun{}, err
+	}
+	if err := validateDurableRunFailureEventForRun(run, request.TerminalEvent); err != nil {
+		return DurableRun{}, err
+	}
+	if run.Status == DurableRunStatusFailed {
+		terminalEvent, eventErr := durableRunEventByIDInTx(ctx, tx, request.TerminalEvent.EventID)
+		if eventErr != nil {
+			if errors.Is(eventErr, pgx.ErrNoRows) {
+				return DurableRun{}, fmt.Errorf(
+					"%w: terminal event %s is missing",
+					ErrDurableRunFailureConflict,
+					request.TerminalEvent.EventID,
+				)
+			}
+			return DurableRun{}, eventErr
+		}
+		if err := validateDurableRunFailureReplay(run, request, terminalEvent); err != nil {
+			return DurableRun{}, err
+		}
+		return run, nil
 	}
 	if !durableRunTransitionAllowed(run.Status, DurableRunStatusFailed) {
 		return DurableRun{}, fmt.Errorf(
@@ -385,6 +406,20 @@ func (s *PostgresRunProjectionStore) FailRunProjection(
 		run.SelectedTool,
 	)
 	if err != nil {
+		return DurableRun{}, err
+	}
+	if _, err := tx.Exec(
+		ctx,
+		`delete from runtime.conversation_run_locks where conversation_id = $1 and run_id = $2`,
+		run.ConversationID,
+		run.RunID,
+	); err != nil {
+		return DurableRun{}, err
+	}
+	if err := insertDurableRunEventInTx(ctx, tx, run, request.TerminalEvent); err != nil {
+		if errors.Is(err, ErrInvalidRunEvent) {
+			return DurableRun{}, fmt.Errorf("%w: %v", ErrDurableRunFailureConflict, err)
+		}
 		return DurableRun{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {

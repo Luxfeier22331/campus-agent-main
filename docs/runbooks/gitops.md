@@ -67,17 +67,64 @@ gate 由环境仓库拥有。
 - workload 只依赖稳定 Secret 名与 key，不依赖某个加密工具的类型；
 - plaintext、controller key、certificate、kubeconfig 与 provider credential 不进入 git；
 - 使用 Sealed Secrets 时采用 strict scope，只在私有环境仓库存 ciphertext；
-- Cloudflare Worker secret 只进入 Cloudflare secret store，不镜像到 Kubernetes 或 Terraform
-  state；
+- Cloudflare Worker 独占的 secret 只进入 Cloudflare secret store，不镜像到 Kubernetes 或
+  Terraform state；
 - 验证时只检查 Secret type、key 是否存在和 workload admission，不打印 value。
+
+`APP_API_PRODUCT_CALLBACK_SHARED_SECRET` 是跨运行时认证凭据，不是 Worker 独占 secret。
+运维人员必须在可信环境生成一次，将同一个值分别投递为 Cloudflare app-api Worker secret 和
+Kubernetes `execution-app-api-internal-secrets/APP_API_PRODUCT_CALLBACK_SHARED_SECRET`，并将两端
+作为同一轮换单元。源码发布前置检查和 GitOps 只验证各自 key 存在；不得把任一端的值、
+解密结果或同步副本写入 Git、Terraform state 或 CI 输出。
 
 内部门户 TGC 是频繁人工轮换的短期例外：环境只预创建一次
 `source-collector-internal-portal-auth`，并为 Ops Web 绑定资源名级 `get`、`patch` 权限。日常
 轮换不提交新的 SealedSecret 或 Git 记录；其他凭据继续使用环境的常规投递方式。
 
-Ops Web 只有在 `openobserve-reader-secrets` 中存在专用读取凭据时才启用 OpenObserve 查询。
-该 Secret 缺失只使日志和调用链不可用，不阻塞 Ops Web readiness 或 PostgreSQL 摘要。
-不得使用 OpenObserve root 账号或占位凭据启用该能力。
+Ops Web 只有在独立 Secret 提供 `OPS_WEB_AXIOM_QUERY_TOKEN`，且 ConfigMap 完整提供 Axiom Edge
+URL、三个 dataset 和 timeout 时才启用观测查询。token 必须是限定 dataset 的 query-only token；
+不得使用 Axiom personal、ingest 或 Terraform 管理 token。该 Secret 缺失只使日志和调用链
+不可用，不阻塞 Ops Web readiness 或 PostgreSQL 摘要。
+
+Collector 的四个 receiver token、Axiom 三个 ingest token、Langfuse runtime/Hindsight project
+credential 必须彼此独立。workload 只消费自己端口或项目所需的 credential；不得恢复共享
+Collector ingest secret、Collector Sentry credential 或旧 OpenObserve key。
+
+execution-control `activity-core` 还必须消费一个 `LANGFUSE_MAINTENANCE_BASE_URL` 和 runtime、
+Hindsight 两组 maintenance public/secret key。base URL 属于非敏感部署配置，两组 key 属于独立
+project credential；它们同时服务 owner erase 与七天 Temporal retention。缺少任一项时 core
+worker 应在启动时失败，不能通过禁用删除来恢复 readiness。
+
+Cloudflare Axiom application-log destination token 只存在于受保护的 GitHub Environment，并由
+环境 workflow 写入 destination header；不得进入 Terraform variable、plan、state、Kubernetes
+Secret 或源码。
+campus-web browser source map upload credential 同样只存在于 CI Environment，不进入 Worker。
+
+## 可观测链路发布
+
+可观测性变更按以下顺序拆分：
+
+1. 先创建 Axiom dataset/retention、两个 Langfuse project、受限 token 和 Cloudflare
+   application-log destination。
+2. 在可信部署主机完成 strict-scope SealedSecret reseal；任何 `requires-reseal` 标记、空
+   `encryptedData` 或缺少 workload 引用 key 都必须使环境 CI 失败。
+3. 部署 Collector Gateway/Agent、Hindsight OTLP、execution-control、Ops Web 和 Worker log
+   destination；验证未认证和交叉 receiver token 都被拒绝，并确认 Worker
+   `invocation_logs=false`、native traces 关闭。
+4. 运行 chat、memory retain/recall/erase 和受控错误，确认 Axiom 三类信号、两个 Langfuse
+   project 与 Sentry release/source map 各自正确。
+5. 连续 24 小时确认 Collector 队列不增长、没有持续发送失败、dataset 新鲜且 trace 项目不交叉。
+6. 对 query、header、正文、用户标识、prompt、answer、memory 和 credential 哨兵做下游搜索；
+   Axiom 与 Sentry 必须为零匹配。
+
+Cloudflare application logs 绕过 Collector 白名单。上述哨兵失败时必须先关闭 log destination
+或对应 producer 输出；Axiom 出现 invocation log/native trace 时必须按配置漂移处理，不能继续
+退役门禁。请求关联证据来自 execution-control 经 Collector 写入的 runtime trace。
+
+OpenObserve 资源删除是单独的破坏性环境变更，不得与首次 rollout、Secret reseal 或 canary
+修复放在同一 pull request。只有 24 小时门禁和哨兵检查完成后才能先声明数据库 absent；数据库
+与会话确认清零后，再用后续 pull request 删除 role、Secret 和独占对象存储资源。回滚不恢复
+OpenObserve。
 
 ## 验证
 

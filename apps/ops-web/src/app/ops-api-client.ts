@@ -1,8 +1,4 @@
 import type {
-	ProviderConfigConnectionSummary,
-	ProviderConfigProfileSummary,
-} from "@campus-agent/provider-config";
-import type {
 	DiningCatalogCommand,
 	DiningDraft,
 	DiningOpsObservation,
@@ -25,6 +21,7 @@ import {
 	OpsOverviewResponseSchema,
 	OpsRequestDetailResponseSchema,
 	OpsRequestListResponseSchema,
+	ProviderConfigStatusSchema,
 } from "../shared/ops-contract";
 
 export interface OpsRequestListParams {
@@ -37,6 +34,27 @@ export interface OpsRequestListParams {
 	status?: OpsRequestSummary["status"];
 	traceId?: string;
 	window?: OpsRequestWindow;
+}
+
+export async function fetchProviderConfig(input: { signal?: AbortSignal } = {}) {
+	return ProviderConfigStatusSchema.parse(
+		await fetchJson("/api/ops/provider-config", { signal: input.signal }),
+	);
+}
+
+export async function commandProviderConfig(
+	path: "connections" | "profiles" | `profiles/${string}/validate` | "activation",
+	payload: unknown,
+	input: { idempotencyKey: string },
+) {
+	return fetchJson(`/api/ops/provider-config/${path}`, {
+		body: JSON.stringify(payload),
+		headers: {
+			"content-type": "application/json",
+			"idempotency-key": input.idempotencyKey,
+		},
+		method: "POST",
+	});
 }
 
 export class OpsApiError extends Error {
@@ -275,73 +293,4 @@ export async function applyDiningReviewCommand(reviewId: string, command: Dining
 		headers: { "content-type": "application/json" },
 		method: "POST",
 	}) as Promise<{ ok: true }>;
-}
-
-export async function fetchProviderConfig(input: { signal?: AbortSignal } = {}) {
-	const [connections, profiles] = await Promise.all([
-		fetchJson("/api/ops/provider-config/connections", { signal: input.signal }) as Promise<{
-			connections: ProviderConfigConnectionSummary[];
-		}>,
-		fetchJson("/api/ops/provider-config/profiles", { signal: input.signal }) as Promise<{
-			profiles: ProviderConfigProfileSummary[];
-			runtime: {
-				configured: boolean;
-				digest: string | null;
-				publicationId: string | null;
-				profiles: Record<
-					string,
-					{ model: string; profileId: string; provider: string; revision: number }
-				>;
-				publishedAt: string | null;
-				publishedBy: { displayName: string; principalId: string } | null;
-			};
-		}>,
-	]);
-	return {
-		connections: connections.connections,
-		profiles: profiles.profiles,
-		runtime: profiles.runtime,
-	};
-}
-
-export async function createProviderConnection(payload: Record<string, unknown>) {
-	return fetchJson("/api/ops/provider-config/connections", {
-		body: JSON.stringify(payload),
-		headers: { "content-type": "application/json" },
-		method: "POST",
-	});
-}
-export async function createProviderProfile(payload: Record<string, unknown>) {
-	return fetchJson("/api/ops/provider-config/profiles", {
-		body: JSON.stringify(payload),
-		headers: { "content-type": "application/json" },
-		method: "POST",
-	});
-}
-export async function updateProviderConnection(
-	connectionId: string,
-	payload: Record<string, unknown>,
-) {
-	return fetchJson(`/api/ops/provider-config/connections/${encodeURIComponent(connectionId)}`, {
-		body: JSON.stringify(payload),
-		headers: { "content-type": "application/json" },
-		method: "PATCH",
-	});
-}
-export async function updateProviderProfile(profileId: string, payload: Record<string, unknown>) {
-	return fetchJson(`/api/ops/provider-config/profiles/${encodeURIComponent(profileId)}`, {
-		body: JSON.stringify(payload),
-		headers: { "content-type": "application/json" },
-		method: "PATCH",
-	});
-}
-export async function validateProviderProfile(profileId: string) {
-	return fetchJson(`/api/ops/provider-config/profiles/${encodeURIComponent(profileId)}/validate`, {
-		method: "POST",
-	});
-}
-export async function activateProviderProfile(profileId: string) {
-	return fetchJson(`/api/ops/provider-config/profiles/${encodeURIComponent(profileId)}/activate`, {
-		method: "POST",
-	});
 }

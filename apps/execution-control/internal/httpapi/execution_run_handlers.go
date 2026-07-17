@@ -283,6 +283,32 @@ func (s *Server) handleExecutionRunCancel(
 		return
 	}
 	canceledAt := time.Now().UTC()
+	writeProductFinalization := s.productFinalizationWriter
+	if writeProductFinalization == nil {
+		writeProductFinalization = s.writeChatProductFinalization
+	}
+	if err := writeProductFinalization(
+		request.Context(),
+		run,
+		canceledAt,
+		productTerminalErrorResponse(
+			run,
+			"cancelled",
+			"execution_cancelled",
+			"Execution was cancelled before completion.",
+			false,
+		),
+	); err != nil {
+		setOutcome(response, "product_finalization_callback_failed")
+		writeError(
+			response,
+			http.StatusBadGateway,
+			"product_finalization_callback_failed",
+			"Product finalization callback failed.",
+			true,
+		)
+		return
+	}
 	canceled, err := s.runProjectionStore.CancelRunProjection(
 		request.Context(),
 		execution.DurableRunCancelRequest{

@@ -41,7 +41,6 @@ export function createPgOpsStatusStore(input: {
 	observabilityLinks?: {
 		axiom?: string;
 		langfuse?: string;
-		openobserve?: string;
 		sentry?: string;
 		temporal?: string;
 	};
@@ -344,7 +343,6 @@ function normalizeOverviewLinks(
 		["TEMPORAL", "Temporal", links?.temporal],
 		["SENTRY", "Sentry", links?.sentry],
 		["AXIOM", "Axiom", links?.axiom],
-		["OPENOBSERVE", "OpenObserve", links?.openobserve],
 	].map(([source, label, value]) => {
 		const href = normalizeHttpsUrl(value);
 		return {

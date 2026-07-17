@@ -526,7 +526,6 @@ export async function runChatDurableE2eStaging(
 	const meResult = await resolvedDeps.fetchJsonWithCookie<{
 		permissions: {
 			chat: boolean;
-			operator: boolean;
 		};
 		principal: unknown;
 		session: unknown | null;

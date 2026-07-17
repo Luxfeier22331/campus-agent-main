@@ -81,14 +81,10 @@ describe("campus worker boundary", () => {
 
 		const allowed = [
 			"/api/me",
-			"/api/me/overview",
-			"/api/me/identity",
-			"/api/me/access",
-			"/api/me/preferences",
-			"/api/me/security/sessions",
-			"/api/me/security/sessions/session_2",
-			"/api/me/authorized-apps",
-			"/api/me/authorized-apps/muc-wiki",
+			"/api/me/profile-memory",
+			"/api/me/profile-memory/items",
+			"/api/me/profile-memory/items/item_1",
+			"/api/me/profile-memory/settings",
 			"/api/auth/sign-in/email",
 			"/api/auth/sign-up/email",
 			"/api/auth/sign-out",
@@ -143,6 +139,11 @@ describe("campus worker boundary", () => {
 
 		const rejected = await worker.fetch(new Request("https://campus.muc.wiki/api/ops/dining"), env);
 		expect(rejected.status).toBe(404);
+		const rejectedIdentity = await worker.fetch(
+			new Request("https://campus.muc.wiki/api/me/identity"),
+			env,
+		);
+		expect(rejectedIdentity.status).toBe(404);
 		const rejectedDocsSearch = await worker.fetch(
 			new Request("https://campus.muc.wiki/api/docs/collections/regulations/student_rules/search"),
 			env,
@@ -183,6 +184,7 @@ describe("campus worker boundary", () => {
 			"/account/sign-out",
 			"/account/settings/account",
 			"/account/settings/security",
+			"/account/settings/memory",
 			"/account/federation/consent",
 			"/account/federation/error",
 			"/legal/terms",
@@ -826,11 +828,17 @@ describe("campus worker boundary", () => {
 	});
 
 	it("injects public runtime config from worker env into the shell", async () => {
+		const env = {
+			...createEnv(),
+			SENTRY_BROWSER_DSN: "https://public@example.ingest.sentry.io/1",
+			SENTRY_ENVIRONMENT: "staging",
+			SENTRY_RELEASE: "campus-web@0123456789abcdef0123456789abcdef01234567",
+		};
 		const response = await worker.fetch(
 			new Request("https://campus.muc.wiki/", {
 				headers: { accept: "text/html" },
 			}),
-			createEnv(),
+			env,
 		);
 
 		expect(response.status).toBe(200);
@@ -839,6 +847,8 @@ describe("campus worker boundary", () => {
 		expect(html).toContain("__CAMPUS_AUTH_CONFIG__");
 		expect(html).toContain("https://campus.muc.wiki/account");
 		expect(html).toContain("https://campus.muc.wiki/account/login");
+		expect(html).toContain("https://public@example.ingest.sentry.io/1");
+		expect(html).toContain("campus-web@0123456789abcdef0123456789abcdef01234567");
 		expect(html).not.toContain("loginReturnApp");
 	});
 });

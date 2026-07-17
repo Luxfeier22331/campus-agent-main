@@ -15,21 +15,6 @@ export function normalizeString(value: string | null | undefined): string | null
 	return trimmed ? trimmed : null;
 }
 
-export function toTargetsSummary(targets: readonly string[] | null | undefined): string | null {
-	if (!targets || targets.length === 0) {
-		return null;
-	}
-	return targets.join(",");
-}
-
-export function toSourceDocIdsSummary(sourceDocIds: string[]): string | null {
-	if (sourceDocIds.length === 0) {
-		return null;
-	}
-
-	return sourceDocIds.slice(0, 3).join(",");
-}
-
 export function runTelemetrySideEffectWithoutRequestFailure(operation: () => void): void {
 	try {
 		operation();

@@ -57,7 +57,7 @@ https://campus-staging.mucwiki-edge.link
 - `/account/federation/consent`
 - `/account/federation/error`
 
-`apps/app-api` 仍然拥有 auth/session/identity/federation provider truth。`campus-web`
+`apps/app-api` 仍然拥有 auth/session/federation provider truth。`campus-web`
 只拥有 browser composition、same-origin proxy seam、auth form UX 和 return-target validation。
 
 ### 决策 3：OAuth/OIDC issuer 跟随 campus product endpoint
@@ -116,7 +116,7 @@ deploy 依赖后删除 package。
 - `docs/architecture/current.md`
 - `docs/architecture/system/product-runtime.md`
 - `docs/architecture/system/identity-browser.md`
-- `docs/architecture/system/identity-platform.md`
+- `docs/architecture/system/identity-authz.md`
 - `docs/architecture/system/mucwiki-login.md`
 - `docs/contracts/app-api/federation.md`
-- `docs/contracts/app-api/identity.md`
+- `docs/contracts/app-api/auth.md`

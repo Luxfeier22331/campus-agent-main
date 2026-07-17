@@ -1,16 +1,14 @@
 receivers:
   otlp:
     protocols:
-      grpc:
-        endpoint: 0.0.0.0:4317
       http:
         endpoint: 0.0.0.0:4318
         auth:
-          authenticator: bearertokenauth
+          authenticator: bearertokenauth/orchestration
 
 extensions:
-  bearertokenauth:
-    token: "${env:APP_API_OTEL_INGEST_SHARED_SECRET}"
+  bearertokenauth/orchestration:
+    token: "${env:OTEL_COLLECTOR_ORCHESTRATION_INGEST_TOKEN}"
   health_check:
     endpoint: 0.0.0.0:13133
 
@@ -86,7 +84,7 @@ exporters:
 
 service:
   extensions:
-    - bearertokenauth
+    - bearertokenauth/orchestration
     - health_check
   pipelines:
     traces:

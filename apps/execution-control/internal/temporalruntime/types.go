@@ -1,6 +1,10 @@
 package temporalruntime
 
-import "time"
+import (
+	"time"
+
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
+)
 
 type ToolExecutionWorkflowInput struct {
 	ConversationID               string            `json:"conversation_id"`
@@ -55,40 +59,13 @@ type AppendConversationMemoryActivityInput struct {
 
 type AppendConversationMemoryActivityOutput struct {
 	AppendedMessageCount int      `json:"appended_message_count"`
-	OperationID          string   `json:"operation_id,omitempty"`
-	OperationStatusRef   string   `json:"operation_status_ref,omitempty"`
 	PayloadSHA256        string   `json:"payload_sha256"`
-	RuntimeDocumentRef   string   `json:"runtime_document_ref,omitempty"`
 	RunID                string   `json:"run_id"`
 	SchemaVersion        string   `json:"schema_version"`
 	SkipReasons          []string `json:"skip_reasons"`
 	SkippedCount         int      `json:"skipped_count"`
 	Status               string   `json:"status"`
 	ThreadID             string   `json:"thread_id,omitempty"`
-}
-
-type MemoryOperationStatusActivityInput struct {
-	OperationID string `json:"operation_id"`
-	RequestID   string `json:"request_id"`
-	RunID       string `json:"run_id"`
-	TraceID     string `json:"trace_id"`
-}
-
-type MemoryOperationStatusActivityOutput struct {
-	CompletedAt         string         `json:"completed_at,omitempty"`
-	CreatedAt           string         `json:"created_at,omitempty"`
-	ErrorKind           string         `json:"error_kind,omitempty"`
-	OperationID         string         `json:"operation_id"`
-	OperationRef        string         `json:"operation_ref,omitempty"`
-	OperationType       string         `json:"operation_type,omitempty"`
-	PayloadSHA256       string         `json:"payload_sha256"`
-	ResultMetadataHash  string         `json:"result_metadata_hash,omitempty"`
-	ResultMetadataShape map[string]any `json:"result_metadata_shape,omitempty"`
-	RetryCount          int            `json:"retry_count,omitempty"`
-	RunID               string         `json:"run_id"`
-	SchemaVersion       string         `json:"schema_version"`
-	Status              string         `json:"status"`
-	UpdatedAt           string         `json:"updated_at,omitempty"`
 }
 
 type MemoryReflectActivityInput struct {
@@ -195,9 +172,10 @@ type AgentUsageSummary struct {
 }
 
 type WriteFinalizationActivityInput struct {
-	AgentResultRef string `json:"agent_result_ref"`
-	RunID          string `json:"run_id"`
-	TraceID        string `json:"trace_id"`
+	AgentResultRef string    `json:"agent_result_ref"`
+	FinalizedAt    time.Time `json:"finalized_at"`
+	RunID          string    `json:"run_id"`
+	TraceID        string    `json:"trace_id"`
 }
 
 type WriteFinalizationActivityOutput struct {
@@ -212,3 +190,62 @@ type ToolExecutionWorkflowCancelInput struct {
 	RunID      string `json:"run_id"`
 	WorkflowID string `json:"workflow_id"`
 }
+
+type PersonalMemoryCommandWorkflowInput struct {
+	Command    memoryruntime.PersonalMemoryCommandRequest `json:"command"`
+	WorkflowID string                                     `json:"workflow_id"`
+}
+
+type PersonalMemoryCommandActivityOutput struct {
+	CommandID         string `json:"command_id"`
+	ErrorCode         string `json:"error_code,omitempty"`
+	ResultFingerprint string `json:"result_fingerprint"`
+	Status            string `json:"status"`
+}
+
+type FinalizePersonalMemoryCommandReceiptActivityInput struct {
+	Command memoryruntime.PersonalMemoryCommandRequest `json:"command"`
+	Result  PersonalMemoryCommandActivityOutput        `json:"result"`
+}
+
+type PersonalMemoryTraceMaintenanceActivityInput struct {
+	Command memoryruntime.PersonalMemoryCommandRequest `json:"command"`
+}
+
+type PersonalMemoryTraceMaintenanceActivityOutput struct {
+	DeletedTraceCount   int `json:"deleted_trace_count,omitempty"`
+	RemainingTraceCount int `json:"remaining_trace_count"`
+}
+
+type LangfuseTraceRetentionActivityInput struct {
+	Cutoff time.Time `json:"cutoff"`
+}
+
+type LangfuseTraceRetentionActivityOutput struct {
+	HindsightTraceCount int `json:"hindsight_trace_count"`
+	RuntimeTraceCount   int `json:"runtime_trace_count"`
+}
+
+type LangfuseTraceRetentionWorkflowResult struct {
+	Cutoff                     time.Time `json:"cutoff"`
+	DeletedHindsightTraceCount int       `json:"deleted_hindsight_trace_count"`
+	DeletedRuntimeTraceCount   int       `json:"deleted_runtime_trace_count"`
+	VerificationRounds         int       `json:"verification_rounds"`
+}
+
+type FinalizeExecutionFailureActivityInput struct {
+	FailureHash string    `json:"failure_hash"`
+	FailureKind string    `json:"failure_kind"`
+	FailedAt    time.Time `json:"failed_at"`
+	RunID       string    `json:"run_id"`
+	Stage       string    `json:"stage"`
+	TraceID     string    `json:"trace_id"`
+}
+
+type FinalizeExecutionFailureActivityOutput struct {
+	CompletedAt time.Time `json:"completed_at"`
+	RunID       string    `json:"run_id"`
+	Status      string    `json:"status"`
+}
+
+type PersonalMemoryCommandWorkflowResult = PersonalMemoryCommandActivityOutput

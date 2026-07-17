@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 )
 
 const (
@@ -97,13 +99,33 @@ func runSchemaCommand(ctx context.Context, options schemaOptions) (schemaReport,
 		return schemaReport{}, err
 	}
 	defer store.Close()
+	memoryStore, err := memoryruntime.NewPostgresStateStore(ctx, memoryruntime.PostgresStateStoreOptions{
+		DatabaseURL: options.DatabaseURL,
+		AutoMigrate: false,
+	})
+	if err != nil {
+		return schemaReport{}, err
+	}
+	defer memoryStore.Close()
 
 	if options.Mode == schemaModeInstall {
 		if err := store.EnsureSchema(ctx); err != nil {
 			return schemaReport{}, err
 		}
+		if err := memoryStore.EnsureSchema(ctx); err != nil {
+			return schemaReport{}, err
+		}
+		if err := providerconfig.EnsureDatabaseSchema(ctx, options.DatabaseURL); err != nil {
+			return schemaReport{}, err
+		}
 	}
 	if err := store.HealthCheck(ctx); err != nil {
+		return schemaReport{}, err
+	}
+	if err := memoryStore.HealthCheck(ctx); err != nil {
+		return schemaReport{}, err
+	}
+	if err := providerconfig.CheckDatabaseSchema(ctx, options.DatabaseURL); err != nil {
 		return schemaReport{}, err
 	}
 

@@ -488,6 +488,15 @@ func TestExecutePrimaryAgentActivityFailsClosedWhenRuntimeNotConfigured(t *testi
 	)
 	server := NewServer(config.Config{TemporalWorkerIdentity: "test:agent:001"})
 	attachRunProjectionStoreForHandlerTest(server, store)
+	server.productFinalizationWriter = func(
+		context.Context,
+		execution.DurableRun,
+		time.Time,
+		map[string]any,
+	) error {
+		t.Fatal("agent activity must not call the product finalization writer")
+		return nil
+	}
 
 	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
 		RunID:   "run-primary-agent-missing",
@@ -496,12 +505,13 @@ func TestExecutePrimaryAgentActivityFailsClosedWhenRuntimeNotConfigured(t *testi
 	if err == nil {
 		t.Fatal("expected missing agent runtime config to fail")
 	}
+	assertTemporalFailureSanitized(t, err, "agent_runtime_not_configured", false)
 	run, getErr := store.GetRun(context.Background(), "run-primary-agent-missing")
 	if getErr != nil {
 		t.Fatalf("get run: %v", getErr)
 	}
-	if run.Status != execution.DurableRunStatusFailed {
-		t.Fatalf("run status = %q, want failed", run.Status)
+	if run.Status != execution.DurableRunStatusRunning {
+		t.Fatalf("run status = %q, want workflow-owned active state", run.Status)
 	}
 }
 
@@ -536,12 +546,13 @@ func TestExecutePrimaryAgentActivityFailsClosedWhenProviderProfileMissing(t *tes
 	if err == nil {
 		t.Fatal("expected missing provider profile to fail")
 	}
+	assertTemporalFailureSanitized(t, err, "provider_profile_missing", false)
 	run, getErr := store.GetRun(context.Background(), "run-primary-agent-provider-missing")
 	if getErr != nil {
 		t.Fatalf("get run: %v", getErr)
 	}
-	if run.Status != execution.DurableRunStatusFailed {
-		t.Fatalf("run status = %q, want failed", run.Status)
+	if run.Status != execution.DurableRunStatusRunning {
+		t.Fatalf("run status = %q, want workflow-owned active state", run.Status)
 	}
 	steps, listErr := store.ListRunSteps(context.Background(), "run-primary-agent-provider-missing")
 	if listErr != nil {
@@ -599,9 +610,15 @@ func TestExecutePrimaryAgentActivityProjectsAgentRuntimeDiagnosticFailure(t *tes
 	if steps[0].SanitizedPayload["failure_kind"] != "agent_runtime_request_failed" {
 		t.Fatalf("agent failure payload = %#v", steps[0].SanitizedPayload)
 	}
-	if steps[0].SanitizedPayload["agent_runtime_error_code"] != "agent_runtime_failed" ||
-		steps[0].SanitizedPayload["message"] != "provider request aborted" {
+	if _, exposed := steps[0].SanitizedPayload["agent_runtime_error_code"]; exposed {
+		t.Fatalf("agent failure payload exposed unadmitted runtime error code: %#v", steps[0].SanitizedPayload)
+	}
+	if steps[0].SanitizedPayload["message"] != defaultExecutionFailureMessage ||
+		!validTemporalFailureHash(stringValue(steps[0].SanitizedPayload["failure_hash"])) {
 		t.Fatalf("agent failure payload missing runtime diagnostic: %#v", steps[0].SanitizedPayload)
+	}
+	if strings.Contains(stringValue(steps[0].SanitizedPayload["message"]), "provider request aborted") {
+		t.Fatalf("agent failure payload leaked provider error: %#v", steps[0].SanitizedPayload)
 	}
 }
 
@@ -624,7 +641,7 @@ func TestPrimaryAgentRuntimeFailureKindPreservesStableCodes(t *testing.T) {
 	}
 }
 
-func TestExecutePrimaryAgentActivityProjectsAgentRuntimeTimeoutTerminalEvent(t *testing.T) {
+func TestExecutePrimaryAgentActivityLeavesAgentRuntimeTimeoutTerminalStateToWorkflow(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	now := time.Date(2026, 6, 12, 10, 42, 0, 0, time.UTC)
 	createHTTPAPIQueuedDurableRunForTest(
@@ -656,6 +673,7 @@ func TestExecutePrimaryAgentActivityProjectsAgentRuntimeTimeoutTerminalEvent(t *
 	if err == nil {
 		t.Fatal("expected agent runtime timeout")
 	}
+	assertTemporalFailureSanitized(t, err, "agent_runtime_timeout", false)
 	steps, listErr := store.ListRunSteps(context.Background(), "run-primary-agent-runtime-timeout")
 	if listErr != nil {
 		t.Fatalf("list run steps: %v", listErr)
@@ -670,29 +688,13 @@ func TestExecutePrimaryAgentActivityProjectsAgentRuntimeTimeoutTerminalEvent(t *
 	if eventsErr != nil {
 		t.Fatalf("list run events: %v", eventsErr)
 	}
-	var failedEvent *execution.DurableRunEvent
-	for index := range events {
-		if events[index].EventType == execution.DurableRunEventTypeRunFailed {
-			failedEvent = &events[index]
-			break
+	for _, event := range events {
+		if event.EventType == execution.DurableRunEventTypeRunFailed {
+			t.Fatalf("agent activity emitted workflow-owned run.failed event: %#v", events)
 		}
 	}
-	if failedEvent == nil {
-		t.Fatalf("run.failed event not projected: %#v", events)
-		return
-	}
-	if failedEvent.Payload["request_id"] != "req-executor-001" ||
-		failedEvent.Payload["trace_id"] != "trace-executor-001" ||
-		failedEvent.Payload["failure_kind"] != "agent_runtime_timeout" {
-		t.Fatalf("run.failed payload missing correlation: %#v", failedEvent.Payload)
-	}
-	errorPayload, ok := failedEvent.Payload["error"].(map[string]any)
-	if !ok {
-		t.Fatalf("run.failed error payload missing: %#v", failedEvent.Payload)
-	}
-	if errorPayload["code"] != "agent_runtime_timeout" ||
-		errorPayload["message"] != "Agent runtime request timed out." ||
-		errorPayload["retryable"] != false {
-		t.Fatalf("run.failed error payload = %#v", errorPayload)
+	run, getErr := store.GetRun(context.Background(), "run-primary-agent-runtime-timeout")
+	if getErr != nil || run.Status != execution.DurableRunStatusRunning {
+		t.Fatalf("run after agent timeout = %#v err=%v, want active until finalizer", run, getErr)
 	}
 }

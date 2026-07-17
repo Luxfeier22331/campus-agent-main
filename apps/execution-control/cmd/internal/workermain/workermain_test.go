@@ -11,7 +11,24 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace/noop"
+	"go.temporal.io/sdk/client"
 )
+
+type testScheduleCreator struct {
+	options []client.ScheduleOptions
+}
+
+func (c *testScheduleCreator) Create(
+	_ context.Context,
+	options client.ScheduleOptions,
+) (client.ScheduleHandle, error) {
+	c.options = append(c.options, options)
+	return nil, nil
+}
+
+func (c *testScheduleCreator) GetHandle(context.Context, string) client.ScheduleHandle {
+	return nil
+}
 
 func TestTemporalClientOptionsApplyTracingInterceptors(t *testing.T) {
 	tracing := mustTracingInterceptors(t)
@@ -86,6 +103,23 @@ func TestWorkerOptionsForRoleAppliesTracingToUnprofiledWorkers(t *testing.T) {
 
 	if len(options.Interceptors) != 1 {
 		t.Fatalf("worker interceptors = %d, want 1", len(options.Interceptors))
+	}
+}
+
+func TestEnsureRoleSchedulesOnlyReconcilesFromWorkflowWorker(t *testing.T) {
+	creator := &testScheduleCreator{}
+	cfg := config.Config{TemporalTaskQueue: "custom.workflow", TemporalStartTimeoutMS: 1000}
+	if err := ensureRoleSchedules(context.Background(), RoleCore, cfg, creator); err != nil {
+		t.Fatal(err)
+	}
+	if len(creator.options) != 0 {
+		t.Fatalf("core worker created %d schedules", len(creator.options))
+	}
+	if err := ensureRoleSchedules(context.Background(), RoleWorkflow, cfg, creator); err != nil {
+		t.Fatal(err)
+	}
+	if len(creator.options) != 1 {
+		t.Fatalf("workflow worker create calls = %d, want 1", len(creator.options))
 	}
 }
 func TestNewWorkflowTelemetryInstallsProviderBeforeTracing(t *testing.T) {

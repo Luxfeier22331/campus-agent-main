@@ -4,6 +4,7 @@ import type { ExecutionControlRuntimeClient, ToolExecutionResponse } from "../..
 import type { ProfileMemoryStore } from "../../profile-memory";
 import type { RuntimeRunPhase } from "../../runtime-run";
 import type { AppTelemetry, TracePropagationHeaders } from "../../telemetry";
+import type { TurnDispatchMemorySnapshot } from "../store-types";
 
 export const NEW_CONVERSATION_FINGERPRINT_SCOPE = "__new__";
 
@@ -86,11 +87,13 @@ export interface ChatCommandSubmitInput {
 
 export interface AcceptedChatCommandContext {
 	acceptedAt: string;
+	assistantMessageId: string;
 	branchId: string;
 	conversation: ChatConversation;
 	conversationTitle: string;
 	idempotencyKey: string | null;
 	input: ChatCommandSubmitInput;
+	memorySnapshot: TurnDispatchMemorySnapshot | null;
 	requestFingerprintSha256: string | null;
 	requestId: string;
 	runId: string | null;
@@ -105,14 +108,16 @@ export interface AcceptedChatCommandContext {
 }
 
 export interface ChatCommandService {
-	reconcileDurableCloseouts?(input?: {
-		limit?: number;
-		runId?: string;
-		startedBefore?: string;
-	}): Promise<{
+	applyProductFinalization?(input: {
+		completedAt: string;
+		finalizationFingerprint: string;
+		response: ToolExecutionResponse;
+		runId: string;
+	}): Promise<{ outcome: "applied" | "replayed" }>;
+	dispatchPendingAdmissions?(): Promise<{
+		admitted: number;
 		failed: number;
-		finalized: number;
-		scanned: number;
+		processed: number;
 	}>;
 	submit(input: ChatCommandSubmitInput): Promise<ChatCommandResponse>;
 	submitStream?(input: ChatCommandSubmitInput): AsyncIterable<ChatCommandStreamEvent>;

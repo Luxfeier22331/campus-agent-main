@@ -152,7 +152,7 @@ describe("app telemetry", () => {
 		});
 	});
 
-	it("moves high-cardinality request identity into sentry context and emits canonical runtime event envelope", async () => {
+	it("keeps product identity out of Sentry while emitting the bounded runtime envelope", async () => {
 		const runtimeEventSink = { emit: vi.fn().mockResolvedValue(undefined) };
 		const telemetry = createAppTelemetry(
 			{
@@ -195,16 +195,9 @@ describe("app telemetry", () => {
 
 		expect(sentryMocks.setTag).not.toHaveBeenCalledWith("request_id", "req_01");
 		expect(sentryMocks.setTag).not.toHaveBeenCalledWith("safety_identifier", safetyIdentifier);
-		expect(sentryMocks.setTag).toHaveBeenCalledWith("principal_type", "campus_member");
-		expect(sentryMocks.setContext).toHaveBeenCalledWith(
-			"request",
-			expect.objectContaining({
-				conversation_id: "conv_01",
-				request_id: "req_01",
-				resolved_targets: [],
-				safety_identifier: safetyIdentifier,
-			}),
-		);
+		expect(sentryMocks.setTag).not.toHaveBeenCalledWith("principal_type", "campus_member");
+		expect(sentryMocks.setContext).not.toHaveBeenCalled();
+		expect(sentryMocks.setTag).toHaveBeenCalledWith("correlation_hash", expect.any(String));
 		expect(runtimeEventSink.emit).toHaveBeenCalledWith(
 			expect.objectContaining({
 				environment: "staging",
@@ -213,8 +206,10 @@ describe("app telemetry", () => {
 				principal_type: "campus_member",
 				request_id: "req_01",
 				release: "app-api@2026.04.20",
-				safety_identifier: safetyIdentifier,
 			}),
+		);
+		expect(runtimeEventSink.emit).not.toHaveBeenCalledWith(
+			expect.objectContaining({ safety_identifier: safetyIdentifier }),
 		);
 	});
 
@@ -247,7 +242,7 @@ describe("app telemetry", () => {
 		).resolves.toBeUndefined();
 	});
 
-	it("emits only canonical stage timing events from request finalization", async () => {
+	it("folds only canonical stage timing into the single finalization log", async () => {
 		const runtimeEventSink = { emit: vi.fn().mockResolvedValue(undefined) };
 		const telemetry = createAppTelemetry(
 			{
@@ -281,65 +276,17 @@ describe("app telemetry", () => {
 			traceId: "trace_01",
 		});
 
+		expect(runtimeEventSink.emit).toHaveBeenCalledTimes(1);
 		expect(runtimeEventSink.emit).toHaveBeenCalledWith(
 			expect.objectContaining({
-				budget_state: "critical",
 				duration_ms: 5500,
-				event_type: "request.stage_timing",
+				event_type: "request.finalized",
 				request_id: "req_01",
-				stage_field: "stream.browser_ttft_ms",
+				stage_timing_budget_state: "critical",
+				"stream.browser_ttft_ms": 5500,
 			}),
 		);
-		expect(runtimeEventSink.emit).not.toHaveBeenCalledWith(
-			expect.objectContaining({
-				stage_field: "provider.queue_ms",
-			}),
-		);
-	});
-
-	it("emits identity endpoint telemetry without auth-sensitive fields", async () => {
-		const runtimeEventSink = { emit: vi.fn().mockResolvedValue(undefined) };
-		const telemetry = createAppTelemetry(
-			{
-				APP_API_ENVIRONMENT: "staging",
-				SENTRY_RELEASE: "app-api@2026.06.02",
-			},
-			{
-				runtimeEventSink,
-				now: () => new Date("2026-06-02T12:30:00.000Z"),
-			},
-		);
-
-		await telemetry.recordIdentityEndpoint({
-			correlationId: "corr_01HQ",
-			endpoint: "/api/me/identity",
-			errorCode: null,
-			principalType: "student",
-			status: 200,
-			surface: "campus_web",
-		});
-
-		expect(runtimeEventSink.emit).toHaveBeenCalledWith(
-			expect.objectContaining({
-				correlation_id: "corr_01HQ",
-				endpoint: "/api/me/identity",
-				environment: "staging",
-				error_code: null,
-				event_type: "identity.endpoint",
-				occurred_at: "2026-06-02T12:30:00.000Z",
-				principal_type: "student",
-				release: "app-api@2026.06.02",
-				status: "200",
-				surface: "campus_web",
-			}),
-		);
-		expect(runtimeEventSink.emit).not.toHaveBeenCalledWith(
-			expect.objectContaining({
-				cookie: expect.anything(),
-				email: expect.anything(),
-				token: expect.anything(),
-			}),
-		);
+		expect(runtimeEventSink.emit.mock.calls[0]?.[0]).not.toHaveProperty("provider.queue_ms");
 	});
 
 	it("does not expose a direct Axiom REST ingest adapter from the telemetry module", () => {

@@ -218,7 +218,7 @@ func temporalStepSelectedTool(projection temporalStepProjection) string {
 
 func temporalPostFinalizationStepAllowed(stepID string) bool {
 	switch strings.TrimSpace(stepID) {
-	case "memory.append", "memory.operation_status", "memory.reflect":
+	case "memory.append", "memory.reflect":
 		return true
 	default:
 		return false
@@ -414,8 +414,6 @@ func temporalActivityTypeForStep(stepID string) string {
 		return temporalruntime.MemoryRecallActivityName
 	case "memory.append":
 		return temporalruntime.AppendConversationMemoryActivityName
-	case "memory.operation_status":
-		return temporalruntime.MemoryOperationStatusActivityName
 	case "memory.reflect":
 		return temporalruntime.MemoryReflectActivityName
 	case "agent.primary":

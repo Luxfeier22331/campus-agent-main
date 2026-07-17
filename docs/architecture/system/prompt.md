@@ -47,12 +47,13 @@ prompt 不得替代：
   trace normalization。
 - Knowledge Agent 只能调用 internal `knowledge_search`，并在同一 Agent Activity 内生成有
   evidence 支持的 structured answer。
-- `apps/app-api` 拥有当前 provider-config product contract 和 operator mutation API，不
-  组装产品路径 prompt。
+- `apps/execution-control` 拥有在线 Provider Config；每个顶层 Agent Activity 解析一次 active
+  bundle，并把固定模型快照交给 agent-runtime。app-api 不组装产品路径 prompt。
 
 固定约束：
 
-- online serving 消费显式 provider-config projection，不使用临时 provider env fallback；
+- online serving 消费 execution-control 已激活的完整 role bundle，不使用临时 provider env
+  fallback；
 - provider `refusal`、`incomplete`、schema failure 和 content-filter outcome 失败关闭；
 - `official_web` 不在 online target registry 中，Agent 没有 public-web 或 provider-native
   search tool。
@@ -151,8 +152,8 @@ template/rendered SHA-256、provider response id、terminal envelope kind、cita
 grounding/policy verdict。
 
 request tracing 启用时，受信任 self-hosted Langfuse 可以记录真实 Agent SDK model
-input/output、memory 和已授权 evidence。credential 和 secret 始终禁止。app-api、Ops Web
-和 Ops Web 只保留 prompt trace metadata、stage timing 和 correlation，不复制
+input/output、memory 和已授权 evidence。credential 和 secret 始终禁止。app-api 和 Ops Web
+只保留 prompt trace metadata、stage timing 和 correlation，不复制
 Langfuse observation body。
 
 ## 评测与发布要求

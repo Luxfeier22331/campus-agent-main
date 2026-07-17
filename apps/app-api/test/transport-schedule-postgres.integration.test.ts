@@ -2,7 +2,7 @@
 
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Client } from "pg";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 
 import type { Env } from "../src/config";
 import { appApiSchema } from "../src/db/schema";
@@ -11,13 +11,13 @@ import {
 	createPgCampusServicesTransportScheduleStore,
 } from "../src/modules/campus-services-transport-schedule";
 
-const databaseUrl = process.env.APP_API_TRANSPORT_SCHEDULE_TEST_DATABASE_URL?.trim();
+const postgres = inject("appApiPostgres");
 
-describe.skipIf(!databaseUrl)("transport schedule PostgreSQL integration", () => {
+describe("transport schedule PostgreSQL integration", () => {
 	let client: Client;
 
 	beforeAll(async () => {
-		client = new Client({ connectionString: databaseUrl, ssl: false });
+		client = new Client({ connectionString: postgres.runtimeConnectionString, ssl: false });
 		await client.connect();
 	});
 
@@ -55,5 +55,17 @@ describe.skipIf(!databaseUrl)("transport schedule PostgreSQL integration", () =>
 				}),
 			]),
 		);
+	});
+
+	it("keeps the app_api role read-only for campus services projections", async () => {
+		const role = await client.query<{ current_user: string }>("select current_user");
+		expect(role.rows[0]?.current_user).toBe("app_api");
+		await expect(
+			client.query(
+				`update "campus_services"."transport_current"
+				 set "updated_at" = "updated_at"
+				 where "pointer_key" = 'current'`,
+			),
+		).rejects.toMatchObject({ code: "42501" });
 	});
 });

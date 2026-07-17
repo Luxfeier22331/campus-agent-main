@@ -1,10 +1,18 @@
 package httpapi
 
 import (
+	"io"
+	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	hindsight "github.com/vectorize-io/hindsight/hindsight-clients/go"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 )
@@ -22,7 +30,9 @@ type hindsightClientOptions struct {
 }
 
 type hindsightBankConfig struct {
-	MemoryDefense hindsightMemoryDefenseConfig `json:"memory_defense"`
+	EnableAutoConsolidation bool                         `json:"enable_auto_consolidation"`
+	EnableObservations      bool                         `json:"enable_observations"`
+	MemoryDefense           hindsightMemoryDefenseConfig `json:"memory_defense"`
 }
 
 type hindsightMemoryDefenseConfig struct {
@@ -36,9 +46,8 @@ type hindsightMemoryDefenseRule struct {
 }
 
 type hindsightRetainRequest struct {
-	Async        *bool                 `json:"async,omitempty"`
-	DocumentTags []string              `json:"document_tags,omitempty"`
-	Items        []hindsightMemoryItem `json:"items"`
+	Async *bool                 `json:"async,omitempty"`
+	Items []hindsightMemoryItem `json:"items"`
 }
 
 type hindsightRetainResponse struct {
@@ -51,24 +60,26 @@ type hindsightRetainResponse struct {
 }
 
 type hindsightMemoryItem struct {
-	Content    string            `json:"content"`
-	Context    string            `json:"context,omitempty"`
-	DocumentID string            `json:"document_id,omitempty"`
-	Metadata   map[string]string `json:"metadata,omitempty"`
-	Tags       []string          `json:"tags,omitempty"`
-	Timestamp  string            `json:"timestamp,omitempty"`
-	UpdateMode string            `json:"update_mode,omitempty"`
+	Content           string            `json:"content"`
+	Context           string            `json:"context,omitempty"`
+	DocumentID        string            `json:"document_id,omitempty"`
+	Metadata          map[string]string `json:"metadata,omitempty"`
+	ObservationScopes [][]string        `json:"observation_scopes,omitempty"`
+	Tags              []string          `json:"tags,omitempty"`
+	Timestamp         string            `json:"timestamp,omitempty"`
+	UpdateMode        string            `json:"update_mode,omitempty"`
 }
 
 type hindsightRecallRequest struct {
-	Budget         string   `json:"budget,omitempty"`
-	MaxTokens      int      `json:"max_tokens,omitempty"`
-	Query          string   `json:"query"`
-	QueryTimestamp string   `json:"query_timestamp,omitempty"`
-	Tags           []string `json:"tags,omitempty"`
-	TagsMatch      string   `json:"tags_match,omitempty"`
-	Trace          bool     `json:"trace,omitempty"`
-	Types          []string `json:"types,omitempty"`
+	Budget             string   `json:"budget,omitempty"`
+	MaxTokens          int      `json:"max_tokens,omitempty"`
+	PreferObservations bool     `json:"prefer_observations,omitempty"`
+	Query              string   `json:"query"`
+	QueryTimestamp     string   `json:"query_timestamp,omitempty"`
+	Tags               []string `json:"tags,omitempty"`
+	TagsMatch          string   `json:"tags_match,omitempty"`
+	Trace              bool     `json:"trace,omitempty"`
+	Types              []string `json:"types,omitempty"`
 }
 
 type hindsightRecallResponse struct {
@@ -76,15 +87,17 @@ type hindsightRecallResponse struct {
 }
 
 type hindsightRecallResult struct {
-	DocumentID    string            `json:"document_id,omitempty"`
-	ID            string            `json:"id"`
-	MentionedAt   string            `json:"mentioned_at,omitempty"`
-	Metadata      map[string]string `json:"metadata,omitempty"`
-	OccurredEnd   string            `json:"occurred_end,omitempty"`
-	OccurredStart string            `json:"occurred_start,omitempty"`
-	Tags          []string          `json:"tags,omitempty"`
-	Text          string            `json:"text"`
-	Type          string            `json:"type,omitempty"`
+	DocumentID      string            `json:"document_id,omitempty"`
+	ID              string            `json:"id"`
+	MentionedAt     string            `json:"mentioned_at,omitempty"`
+	Metadata        map[string]string `json:"metadata,omitempty"`
+	OccurredEnd     string            `json:"occurred_end,omitempty"`
+	OccurredStart   string            `json:"occurred_start,omitempty"`
+	Tags            []string          `json:"tags,omitempty"`
+	Score           float64           `json:"score,omitempty"`
+	SourceFactCount int               `json:"source_fact_count,omitempty"`
+	Text            string            `json:"text"`
+	Type            string            `json:"type,omitempty"`
 }
 
 type hindsightConversationTurn struct {
@@ -119,50 +132,6 @@ type hindsightReflectFact struct {
 	Type          string `json:"type,omitempty"`
 }
 
-type hindsightOperationStatusResponse struct {
-	CompletedAt    string         `json:"completed_at,omitempty"`
-	CreatedAt      string         `json:"created_at,omitempty"`
-	ErrorMessage   string         `json:"error_message,omitempty"`
-	OperationID    string         `json:"operation_id"`
-	OperationType  string         `json:"operation_type,omitempty"`
-	ResultMetadata map[string]any `json:"result_metadata,omitempty"`
-	RetryCount     int            `json:"retry_count,omitempty"`
-	Status         string         `json:"status"`
-	UpdatedAt      string         `json:"updated_at,omitempty"`
-}
-
-type hindsightOperationListRequest struct {
-	ExcludeParents bool   `json:"exclude_parents,omitempty"`
-	Limit          int    `json:"limit,omitempty"`
-	Offset         int    `json:"offset,omitempty"`
-	OperationType  string `json:"operation_type,omitempty"`
-	Status         string `json:"status,omitempty"`
-}
-
-type hindsightOperationListResponse struct {
-	Limit      int                      `json:"limit"`
-	Offset     int                      `json:"offset"`
-	Operations []hindsightOperationItem `json:"operations"`
-	Total      int                      `json:"total"`
-}
-
-type hindsightOperationItem struct {
-	CreatedAt     string `json:"created_at,omitempty"`
-	ErrorMessage  string `json:"error_message,omitempty"`
-	ItemsCount    int    `json:"items_count,omitempty"`
-	OperationID   string `json:"operation_id"`
-	OperationType string `json:"operation_type,omitempty"`
-	RetryCount    int    `json:"retry_count,omitempty"`
-	Status        string `json:"status"`
-	UpdatedAt     string `json:"updated_at,omitempty"`
-}
-
-type hindsightOperationActionResponse struct {
-	Message     string `json:"message,omitempty"`
-	OperationID string `json:"operation_id"`
-	Success     bool   `json:"success"`
-}
-
 func newHindsightHTTPClient(options hindsightClientOptions) hindsightHTTPClient {
 	timeout := options.timeout
 	if timeout <= 0 {
@@ -170,11 +139,85 @@ func newHindsightHTTPClient(options hindsightClientOptions) hindsightHTTPClient 
 	}
 	baseURL := strings.TrimRight(strings.TrimSpace(options.baseURL), "/")
 	apiSecret := strings.TrimSpace(options.apiSecret)
+	clientConfig := hindsight.NewConfiguration()
+	clientConfig.UserAgent = hindsight.DefaultUserAgent
+	clientConfig.Servers = hindsight.ServerConfigurations{{URL: baseURL}}
+	clientConfig.AddDefaultHeader("Authorization", "Bearer "+apiSecret)
+	clientConfig.HTTPClient = &http.Client{
+		Timeout: timeout,
+		Transport: hindsightPropagationTransport{
+			base: http.DefaultTransport,
+		},
+	}
 	return hindsightHTTPClient{
 		apiSecret: apiSecret,
 		baseURL:   baseURL,
-		client:    hindsight.NewAPIClientWithTimeout(baseURL, apiSecret, timeout),
+		client:    hindsight.NewAPIClient(clientConfig),
 	}
+}
+
+type hindsightPropagationTransport struct {
+	base http.RoundTripper
+}
+
+func (t hindsightPropagationTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	ctx, span := otel.Tracer("campus-execution-control/hindsight").Start(
+		request.Context(),
+		"memory.call",
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			attribute.String("memory.provider", "hindsight"),
+			attribute.String("http.request.method", request.Method),
+		),
+	)
+	cloned := request.Clone(ctx)
+	cloned.Header = request.Header.Clone()
+	otel.GetTextMapPropagator().Inject(
+		cloned.Context(),
+		propagation.HeaderCarrier(cloned.Header),
+	)
+	base := t.base
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	response, err := base.RoundTrip(cloned)
+	if err != nil {
+		span.SetStatus(codes.Error, "memory provider transport failed")
+		span.End()
+		return nil, err
+	}
+	if response.StatusCode >= http.StatusBadRequest {
+		span.SetStatus(codes.Error, "memory provider request failed")
+	}
+	if response.Body == nil {
+		span.End()
+		return response, nil
+	}
+	response.Body = &spanEndingReadCloser{
+		ReadCloser: response.Body,
+		end:        func() { span.End() },
+	}
+	return response, nil
+}
+
+type spanEndingReadCloser struct {
+	io.ReadCloser
+	end  func()
+	once sync.Once
+}
+
+func (b *spanEndingReadCloser) Read(buffer []byte) (int, error) {
+	read, err := b.ReadCloser.Read(buffer)
+	if err == io.EOF {
+		b.once.Do(b.end)
+	}
+	return read, err
+}
+
+func (b *spanEndingReadCloser) Close() error {
+	err := b.ReadCloser.Close()
+	b.once.Do(b.end)
+	return err
 }
 
 var _ hindsightClient = hindsightHTTPClient{}

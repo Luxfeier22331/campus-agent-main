@@ -69,7 +69,7 @@ function selfTestQuerySurface(): void {
 			join(root, "apps/app-api/.env"),
 			`${[
 				"CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB=postgresql://app-api-local/postgres",
-				"APP_API_OPERATOR_DATABASE_URL=postgresql://app-api-operator/postgres",
+				"APP_API_SCHEMA_DATABASE_URL=postgresql://app-api-schema-admin/postgres",
 			].join("\n")}\n`,
 		);
 		writeText(
@@ -80,8 +80,7 @@ function selfTestQuerySurface(): void {
 				"EXECUTION_CONTROL_BASE_URL=https://execution-control.internal",
 				"EXECUTION_CONTROL_SHARED_SECRET=shared-secret",
 				"APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST=example.edu",
-				"APP_API_OPERATOR_EMAIL_ALLOWLIST=ops@example.com",
-				"APP_API_INTERNAL_SHARED_SECRET=internal-secret",
+				"APP_API_PRODUCT_CALLBACK_SHARED_SECRET=product-callback-secret",
 			].join("\n")}\n`,
 		);
 		const status = collectEnvDoctorStatus({ env: {}, root, surface: "query" });
@@ -98,13 +97,12 @@ function selfTestWorkerObservabilityLocalSurface(): void {
 				"SENTRY_DSN=https://shared.example",
 				"SENTRY_ENVIRONMENT=development",
 				"SENTRY_RELEASE=app-api@dev-local",
-				"APP_API_OTEL_INGEST_ENDPOINT=http://127.0.0.1:4318",
-				"APP_API_OTEL_INGEST_SHARED_SECRET=ingest-secret",
 			].join("\n")}\n`,
 		);
 		writeText(
 			join(root, "apps/campus-web/.dev.vars"),
 			`${[
+				"SENTRY_BROWSER_DSN=https://browser.example",
 				"SENTRY_DSN=https://shared.example",
 				"SENTRY_ENVIRONMENT=development",
 				"SENTRY_RELEASE=campus-web@dev-local",
@@ -135,10 +133,8 @@ function selfTestWorkerObservabilityLocalSurface(): void {
 			"missing worker observability env should not be ready",
 		);
 		expect(
-			String(status.files["apps/app-api/.dev.vars"]?.missing_keys).includes(
-				"APP_API_OTEL_INGEST_ENDPOINT",
-			),
-			"missing app-api OTEL endpoint was not reported",
+			String(status.files["apps/app-api/.dev.vars"]?.missing_keys).includes("SENTRY_ENVIRONMENT"),
+			"missing app-api Sentry environment was not reported",
 		);
 	});
 }
@@ -171,6 +167,10 @@ function selfTestWorkerStagingSurface(): void {
 	withFixture((root) => {
 		const status = collectEnvDoctorStatus({
 			env: {
+				SENTRY_APP_API_PROJECT_SLUG: "app-api",
+				SENTRY_AUTH_TOKEN: "sentry-token",
+				SENTRY_ORG_SLUG: "muc-wiki",
+				STAGING_APP_API_SENTRY_DSN: "https://public@example.ingest.sentry.io/1",
 				STAGING_APP_API_DB_FRESH_HYPERDRIVE_ID: "22222222-2222-4222-8222-222222222222",
 				STAGING_APP_API_DB_HYPERDRIVE_ID: "11111111-1111-4111-8111-111111111111",
 				STAGING_EXECUTION_CONTROL_VPC_SERVICE_ID: "33333333-3333-4333-8333-333333333333",
@@ -179,6 +179,37 @@ function selfTestWorkerStagingSurface(): void {
 			surface: "worker-staging-app-api",
 		});
 		expectEqual(status.overall_ready, true, "worker staging app-api surface should be ready");
+	});
+	withFixture((root) => {
+		const status = collectEnvDoctorStatus({
+			env: {
+				SENTRY_APP_API_PROJECT_SLUG: "app-api",
+				SENTRY_AUTH_TOKEN: "sentry-token",
+				STAGING_APP_API_SENTRY_DSN: "https://public@example.ingest.sentry.io/1",
+				STAGING_APP_API_DB_FRESH_HYPERDRIVE_ID: "22222222-2222-4222-8222-222222222222",
+				STAGING_APP_API_DB_HYPERDRIVE_ID: "11111111-1111-4111-8111-111111111111",
+				STAGING_EXECUTION_CONTROL_VPC_SERVICE_ID: "33333333-3333-4333-8333-333333333333",
+			},
+			root,
+			surface: "worker-staging-app-api",
+		});
+		expectEqual(status.overall_ready, false, "missing Sentry org slug should block app-api upload");
+	});
+	withFixture((root) => {
+		const status = collectEnvDoctorStatus({
+			env: {
+				SENTRY_AUTH_TOKEN: "sentry-token",
+				SENTRY_CAMPUS_WEB_PROJECT_SLUG: "campus-web",
+				SENTRY_ORG_SLUG: "muc-wiki",
+				STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY: "staging-turnstile-site-key",
+				STAGING_CAMPUS_WEB_BROWSER_SENTRY_DSN: "https://browser@example.ingest.sentry.io/1",
+				STAGING_CAMPUS_WEB_EDGE_SENTRY_DSN: "https://edge@example.ingest.sentry.io/1",
+				STAGING_MAP_DATA_BUCKET_NAME: "campus-agent-derived-staging",
+			},
+			root,
+			surface: "worker-staging-campus-web",
+		});
+		expectEqual(status.overall_ready, true, "worker staging campus-web surface should be ready");
 	});
 }
 

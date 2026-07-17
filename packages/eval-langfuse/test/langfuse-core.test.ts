@@ -871,25 +871,33 @@ describe("Langfuse collector contracts", () => {
 	it("checks derived collector env", () => {
 		expect(
 			checkCollectorConfig({
-				OTEL_COLLECTOR_AXIOM_AUTH_HEADER: "Bearer axiom",
-				OTEL_COLLECTOR_AXIOM_EVENTS_DATASET: "campus-agent-runtime-events",
-				OTEL_COLLECTOR_AXIOM_METRICS_DATASET: "campus-agent-runtime-metrics",
+				OTEL_COLLECTOR_AXIOM_LOGS_DATASET: "campus-agent-staging-logs",
+				OTEL_COLLECTOR_AXIOM_LOGS_TOKEN: "axiom-logs",
+				OTEL_COLLECTOR_AXIOM_METRICS_DATASET: "campus-agent-staging-metrics",
+				OTEL_COLLECTOR_AXIOM_METRICS_TOKEN: "axiom-metrics",
 				OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT: "https://us-east-1.aws.edge.axiom.co",
-				OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER: "Basic abc",
-				OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION: "4",
-				OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT: "https://langfuse.example/api/public/otel",
+				OTEL_COLLECTOR_AXIOM_TRACES_DATASET: "campus-agent-staging-traces",
+				OTEL_COLLECTOR_AXIOM_TRACES_TOKEN: "axiom-traces",
+				OTEL_COLLECTOR_LANGFUSE_HINDSIGHT_AUTH_HEADER: "Basic hindsight",
+				OTEL_COLLECTOR_LANGFUSE_HINDSIGHT_OTLP_ENDPOINT: "https://langfuse.example/api/public/otel",
+				OTEL_COLLECTOR_LANGFUSE_RUNTIME_AUTH_HEADER: "Basic runtime",
+				OTEL_COLLECTOR_LANGFUSE_RUNTIME_OTLP_ENDPOINT: "https://langfuse.example/api/public/otel",
 			}).passed,
 		).toBe(true);
 	});
 
 	it("requires Axiom metrics dataset for full fanout", () => {
 		const result = checkCollectorConfig({
-			OTEL_COLLECTOR_AXIOM_AUTH_HEADER: "Bearer axiom",
-			OTEL_COLLECTOR_AXIOM_EVENTS_DATASET: "campus-agent-runtime-events",
+			OTEL_COLLECTOR_AXIOM_LOGS_DATASET: "campus-agent-staging-logs",
+			OTEL_COLLECTOR_AXIOM_LOGS_TOKEN: "axiom-logs",
+			OTEL_COLLECTOR_AXIOM_METRICS_TOKEN: "axiom-metrics",
 			OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT: "https://us-east-1.aws.edge.axiom.co",
-			OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER: "Basic abc",
-			OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION: "4",
-			OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT: "https://langfuse.example/api/public/otel",
+			OTEL_COLLECTOR_AXIOM_TRACES_DATASET: "campus-agent-staging-traces",
+			OTEL_COLLECTOR_AXIOM_TRACES_TOKEN: "axiom-traces",
+			OTEL_COLLECTOR_LANGFUSE_HINDSIGHT_AUTH_HEADER: "Basic hindsight",
+			OTEL_COLLECTOR_LANGFUSE_HINDSIGHT_OTLP_ENDPOINT: "https://langfuse.example/api/public/otel",
+			OTEL_COLLECTOR_LANGFUSE_RUNTIME_AUTH_HEADER: "Basic runtime",
+			OTEL_COLLECTOR_LANGFUSE_RUNTIME_OTLP_ENDPOINT: "https://langfuse.example/api/public/otel",
 		});
 
 		expect(result.passed).toBe(false);

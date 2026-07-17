@@ -76,6 +76,14 @@ object-store、OTLP、provider HTTPS 和 private-service traffic。环境 overla
 并增加 private connector/VPC binding。浏览器不得直连 Temporal、worker、PostgreSQL 或
 object storage。
 
+共享 namespace 中的宽策略必须排除带 `campus-agent.muc.wiki/network-policy-profile` 的 Pod，
+由对应应用的专用策略完整声明其允许流量。Kubernetes NetworkPolicy 的允许规则取并集，专用
+策略不能覆盖另一条宽策略已经允许的流量。
+
+这些宽策略仍是现有共享 namespace 的兼容边界：没有专用 profile 的 Pod 会继续继承其允许
+集合。新增独立应用必须在首次部署时同时提供 profile、完整专用策略和宽策略排除，不能假定
+应用自己的 NetworkPolicy 会覆盖已有允许规则。
+
 database、object-store、provider、telemetry、memory 和 internal API Secret 必须分离。
 Worker Controller 注入的 version 变量是 runtime identity，不是用户管理 Secret。
 

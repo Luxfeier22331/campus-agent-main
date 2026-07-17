@@ -16,16 +16,16 @@ HTTP 字段由 contracts 定义，数据库表由 data 文档定义，部署状�
 | 组件 | 负责 | 不负责 |
 | --- | --- | --- |
 | `campus-web` | 学生问答、账号、文档、地图、食堂和 campus status 页面 | 运行排查、数据库或内部 runtime 访问 |
-| `app-api` | browser auth、chat admission/finalization、产品 API和状态 API | Temporal worker、RAG 内部、模型配置或通用运维数据 API |
-| `ops-web` | 请求排查、运行概况、观测入口、模型配置、食堂运维和固定门户凭据替换 | 产品写操作、任意工作流控制或通用 Secret 管理 |
-| `execution-control` | durable run admission、Temporal workflow、memory/RAG activities、run projection | browser auth、页面合同、operator config |
+| `app-api` | browser auth、chat admission/finalization、产品 API 和状态 API | Temporal worker、RAG 内部、Provider Config、通用运维数据 API |
+| `ops-web` | 自托管请求排查、运行概况、在线 Provider Config 和固定门户凭据替换 | 产品写操作、任意工作流控制或通用 Secret 管理 |
+| `execution-control` | durable run admission、Temporal workflow、memory/RAG activities、run projection 和在线 Provider Config | browser auth 和页面合同 |
 | `agent-runtime` | primary agent execution | durable orchestration 和产品数据持久化 |
 
 ## Browser 路径
 
 - `campus-web` 通过 Service Binding 或已配置的 app-api origin 调用 `app-api`。
 - 浏览器不直连 execution-control、Temporal、Hindsight、Qdrant、PostgreSQL 或
-  OpenObserve。
+  Axiom。
 - `ops-web` 是独立受保护的自托管站点；其浏览器只调用同一进程的 `/api/ops/*`。
 
 ## Chat 路径
@@ -64,7 +64,9 @@ events，最终以原子事务写 assistant message、terminal dispatch 和 obse
 - 工作流 run、event、step、tool 和 memory 投影：`apps/execution-control`；
 - 完整 Temporal history：Temporal；
 - 模型调用链与评测：Langfuse；
-- 日志、指标和调用链：OpenTelemetry、OpenObserve 及已启用平台；
+- 脱敏运行日志、调用链和指标：Axiom；
+- browser/edge 错误、受控性能、release 和 source map：Sentry；
+- 模型、工具和记忆受信任 trace：分项目的 Langfuse；
 - 个人记忆：Hindsight，仅由 execution-control Activity 调用。
 
 这些数据通过 `request_id`、`run_id`、`trace_id` 和 `conversation_id` 关联，不复制成
@@ -81,12 +83,13 @@ tool 也不通过 app-api。
 
 ## 配置与排查
 
-- `ops-web -> PostgreSQL/execution-control/OpenObserve` 提供排查；人员可以通过固定接口 patch
-  `source-collector-internal-portal-auth` 并恢复固定认证维护 Schedule。
-- Ops Web 使用专用 PostgreSQL role 保存 provider 候选和验证结果，并通过 Kubernetes CAS
-  发布固定 `execution-runtime-provider-config` Secret；app-api 不参与该链路。
-- Temporal UI、Langfuse UI 和 OpenObserve 保留各自完整能力；Ops Web 只提供跨系统关联和
-  常用摘要。
+- `ops-web -> execution-control` 通过同源 BFF 管理在线 Provider Config；浏览器不持有
+  execution-control credential。
+- `ops-web -> PostgreSQL/execution-control/Axiom` 提供受限排查；人员可以通过固定接口
+  patch `source-collector-internal-portal-auth` 并恢复固定认证维护 Schedule。
+- Provider Config 后端不可用不阻断 Ops Web 的请求诊断 readiness。
+- Temporal UI、Langfuse UI、Sentry 和 Axiom 保留各自完整能力；Ops Web 只提供跨系统关联、
+  固定 Axiom 查询和常用摘要。
 
 ## 部署
 
@@ -100,8 +103,9 @@ tool 也不通过 app-api。
 
 - 不恢复 supervisor、bootstrap mega-agent 或 flat retrieval tool。
 - 不恢复 `runtime.request_execution`、projection outbox 或 operator request projector。
-- 不恢复第二个运维前端、panel 域名或 app-api Provider Config 代理。
-- 不让 app-api 代理 Temporal、Langfuse、OpenObserve 或数据库通用查询。
+- 不恢复 Operator Console 或 app-api operator/provider 路由。
+- 不让 app-api 代理 Temporal、Langfuse、Axiom、Sentry 或数据库通用查询。
+- 不恢复 OpenObserve 或让观测平台改写产品请求状态。
 - 不把 ingestion/data-plane ownership 混入在线回答路径。
 - 不为单一页面消费面拆出无独立 owner 的后端服务。
 
@@ -110,6 +114,6 @@ tool 也不通过 app-api。
 - `docs/contracts/app-api/README.md`
 - `docs/contracts/app-api/request-lifecycle.md`
 - `docs/architecture/system/ops-observability.md`
-- `docs/decisions/adr-0080-ops-web.md`
+- `docs/contracts/ops-web.md`
 - `docs/data/postgres-ownership.md`
 - `docs/domains/transport.md`

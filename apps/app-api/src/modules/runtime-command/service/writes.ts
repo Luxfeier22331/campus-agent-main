@@ -36,7 +36,12 @@ export function buildToolExecutionContextProjection(input: {
 	currentUserMessageContent: string;
 	currentUserMessageCreatedAt: string;
 	currentUserMessageId: string;
-	memory?: { enabled: boolean } | null;
+	memory?: {
+		appendEnabled: boolean;
+		ownerGeneration: number;
+		ownerSequence: number;
+		recallEnabled: boolean;
+	} | null;
 	previousToolResults?: ToolExecutionPreviousToolResultRef[];
 	sessionSlots: ChatConversation["sessionSlots"];
 	turnCount: number;
@@ -56,7 +61,7 @@ export function buildToolExecutionContextProjection(input: {
 			previousToolResults: input.previousToolResults ?? [],
 			session,
 		}),
-		...(input.memory ? { memory: { enabled: input.memory.enabled } } : {}),
+		...(input.memory ? { memory: input.memory } : {}),
 		session,
 	};
 }
@@ -150,7 +155,111 @@ function readString(record: Record<string, unknown>, ...keys: string[]): string 
 	return;
 }
 
+const BOUNDED_EXECUTION_ERROR_CODE = /^[a-z0-9_-]{1,64}$/u;
+const PUBLIC_EXECUTION_ERROR_CODES = new Set([
+	"admission_pending",
+	"agent_deadline_exceeded",
+	"agent_runtime_failed",
+	"agent_runtime_timeout",
+	"approval_required",
+	"context_budget_exceeded",
+	"dependency_not_ready",
+	"execution_cancelled",
+	"execution_control_invalid_error_envelope",
+	"execution_control_invalid_response",
+	"execution_control_unavailable",
+	"execution_invalid_public_response",
+	"execution_runtime_required",
+	"execution_status_pending",
+	"execution_timeout",
+	"forbidden",
+	"idempotency_conflict",
+	"internal_error",
+	"invalid_request",
+	"knowledge_search_failed",
+	"max_turns_exceeded",
+	"memory_recall_failed",
+	"memory_recall_request_invalid",
+	"personal_memory_not_configured",
+	"product_finalization_missing",
+	"provider_profile_missing",
+	"provider_unavailable",
+	"rate_limit_exceeded",
+	"request_in_progress",
+	"request_not_found",
+	"request_rejected",
+	"retrieval_lookup_failed",
+	"run_failed",
+	"runtime_invariant_failed",
+	"tool_execution_failed",
+	"validation_failed",
+]);
+
+function boundedExecutionErrorCode(value: string | null | undefined): string {
+	const code = value?.trim() ?? "";
+	return BOUNDED_EXECUTION_ERROR_CODE.test(code) && PUBLIC_EXECUTION_ERROR_CODES.has(code)
+		? code
+		: "internal_error";
+}
+
+export function publicExecutionFailure(input: {
+	errorCode?: string | null;
+	status: ToolExecutionResponse["status"];
+}): { errorCode: string; message: string } {
+	const suppliedErrorCode = input.errorCode?.trim();
+	const errorCode = suppliedErrorCode
+		? boundedExecutionErrorCode(suppliedErrorCode)
+		: input.status === "approval_required"
+			? "approval_required"
+			: input.status === "rejected"
+				? "request_rejected"
+				: input.status === "cancelled"
+					? "execution_cancelled"
+					: "internal_error";
+	let message: string;
+	if (errorCode === "approval_required") {
+		message = "The request requires approval before it can continue.";
+	} else if (errorCode === "request_rejected") {
+		message = "The request was rejected by execution policy.";
+	} else if (errorCode === "execution_cancelled") {
+		message = "The request was cancelled.";
+	} else if (errorCode === "rate_limit_exceeded") {
+		message = "Too many requests. Please wait a few minutes and try again.";
+	} else if (
+		[
+			"memory_recall_failed",
+			"memory_recall_request_invalid",
+			"personal_memory_not_configured",
+		].includes(errorCode)
+	) {
+		message = "Personal memory could not be loaded for this request.";
+	} else if (
+		["agent_runtime_timeout", "agent_deadline_exceeded", "execution_timeout"].includes(errorCode)
+	) {
+		message = "The agent runtime did not complete before its deadline.";
+	} else if (
+		["agent_runtime_failed", "provider_profile_missing", "provider_unavailable"].includes(errorCode)
+	) {
+		message = "The answer provider is temporarily unavailable.";
+	} else if (
+		["knowledge_search_failed", "retrieval_lookup_failed", "tool_execution_failed"].includes(
+			errorCode,
+		)
+	) {
+		message = "Required campus information could not be retrieved.";
+	} else if (errorCode === "context_budget_exceeded") {
+		message = "The conversation is too large to process safely.";
+	} else if (errorCode === "max_turns_exceeded") {
+		message = "The request could not be completed within the allowed steps.";
+	} else {
+		message = "The request could not be completed.";
+	}
+	return { errorCode, message };
+}
+
 export function buildAcceptedWrite(input: {
+	assistantMessageId: string;
+	captureMemorySnapshot: boolean;
 	branchId: string;
 	conversation: ChatConversation;
 	conversationSeed?: {
@@ -194,11 +303,13 @@ export function buildAcceptedWrite(input: {
 	};
 
 	return {
+		captureMemorySnapshot: input.captureMemorySnapshot,
 		...(input.conversationSeed ? { conversationSeed: input.conversationSeed } : {}),
 		conversationTitle: input.conversationTitle,
 		ownerUserId: input.conversation.ownerUserId,
 		userMessage,
 		turnDispatch: {
+			assistantMessageId: input.assistantMessageId,
 			requestId: input.requestId,
 			conversationId: input.conversation.id,
 			userMessageId: input.userMessageId,
@@ -348,25 +459,12 @@ export function buildFinalizedWrite(input: {
 		input.response.status === "cancelled"
 	) {
 		assistantKind = "error";
-		assistantText =
-			input.response.error?.message ||
-			input.response.answerText ||
-			(input.response.status === "approval_required"
-				? "The request requires approval before it can continue."
-				: input.response.status === "rejected"
-					? "The request was rejected by execution policy."
-					: input.response.status === "cancelled"
-						? "The request was cancelled."
-						: "The request could not be completed.");
-		errorCode =
-			input.response.error?.code ??
-			(input.response.status === "approval_required"
-				? "approval_required"
-				: input.response.status === "rejected"
-					? "request_rejected"
-					: input.response.status === "cancelled"
-						? "execution_cancelled"
-						: "internal_error");
+		const publicFailure = publicExecutionFailure({
+			errorCode: input.response.error?.code,
+			status: input.response.status,
+		});
+		assistantText = publicFailure.message;
+		errorCode = publicFailure.errorCode;
 		retryable = input.response.error?.retryable ?? false;
 		result = {
 			kind: "error",

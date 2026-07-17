@@ -251,12 +251,20 @@ func TestInMemoryRunProjectionStoreFailsRunWithSelectedTool(t *testing.T) {
 		t.Fatalf("fail without terminal reason error = %v, want ErrInvalidDurableRun", err)
 	}
 
-	failed, err := store.FailRunProjection(ctx, DurableRunFailRequest{
+	failedAt := now.Add(3 * time.Second)
+	failureRequest := DurableRunFailRequest{
 		Now:            now.Add(3 * time.Second),
 		RunID:          "run-fail-selected-tool",
 		SelectedTool:   "knowledge_query",
 		TerminalReason: DurableTerminalReasonProviderUnavailable,
-	})
+		TerminalEvent: failedRunTerminalEventForTest(
+			"run-fail-selected-tool",
+			"conv-fail-selected-tool",
+			failedAt,
+			map[string]any{"failure_kind": "provider_unavailable", "status": "failed"},
+		),
+	}
+	failed, err := store.FailRunProjection(ctx, failureRequest)
 	if err != nil {
 		t.Fatalf("fail run projection: %v", err)
 	}
@@ -272,6 +280,24 @@ func TestInMemoryRunProjectionStoreFailsRunWithSelectedTool(t *testing.T) {
 	if failed.CompletedAt.IsZero() {
 		t.Fatal("failed run should record completed_at")
 	}
+	events, err := store.ListRunEvents(ctx, failed.RunID)
+	if err != nil || len(events) != 1 || events[0].EventType != DurableRunEventTypeRunFailed {
+		t.Fatalf("failed run events = %#v, error = %v", events, err)
+	}
+	replayed, err := store.FailRunProjection(ctx, failureRequest)
+	if err != nil || replayed.CompletedAt != failed.CompletedAt {
+		t.Fatalf("replay failure projection = %#v, error = %v", replayed, err)
+	}
+	conflictingRequest := failureRequest
+	conflictingRequest.TerminalEvent = failedRunTerminalEventForTest(
+		failureRequest.RunID,
+		"conv-fail-selected-tool",
+		failedAt,
+		map[string]any{"failure_kind": "retrieval_unavailable", "status": "failed"},
+	)
+	if _, err := store.FailRunProjection(ctx, conflictingRequest); !errors.Is(err, ErrDurableRunFailureConflict) {
+		t.Fatalf("conflicting failure replay error = %v, want ErrDurableRunFailureConflict", err)
+	}
 	if _, err := store.CreateRun(ctx, DurableRun{
 		RunID:          "run-after-failed-terminal",
 		ConversationID: "conv-fail-selected-tool",
@@ -283,6 +309,102 @@ func TestInMemoryRunProjectionStoreFailsRunWithSelectedTool(t *testing.T) {
 		CreatedAt:      now.Add(4 * time.Second),
 	}); err != nil {
 		t.Fatalf("create run after failed terminal active lock release: %v", err)
+	}
+}
+
+func TestDurableRunFailRequestRequiresCanonicalTerminalEvent(t *testing.T) {
+	now := time.Date(2026, 6, 4, 8, 9, 15, 0, time.UTC)
+	valid := DurableRunFailRequest{
+		RunID:          "run-failure-contract",
+		TerminalReason: DurableTerminalReasonProviderUnavailable,
+		Now:            now,
+		TerminalEvent: failedRunTerminalEventForTest(
+			"run-failure-contract",
+			"conv-failure-contract",
+			now,
+			map[string]any{"status": "failed"},
+		),
+	}
+	tests := map[string]func(*DurableRunFailRequest){
+		"event id": func(request *DurableRunFailRequest) {
+			request.TerminalEvent.EventID = "another-event"
+		},
+		"event time": func(request *DurableRunFailRequest) {
+			request.TerminalEvent.OccurredAt = now.Add(time.Second)
+		},
+		"event type": func(request *DurableRunFailRequest) {
+			request.TerminalEvent.EventType = DurableRunEventTypeActivityFailed
+		},
+		"event visibility": func(request *DurableRunFailRequest) {
+			request.TerminalEvent.Visibility = DurableRunEventVisibilityInternal
+		},
+		"event sequence": func(request *DurableRunFailRequest) {
+			request.TerminalEvent.Sequence = 1
+		},
+	}
+	for name, mutate := range tests {
+		t.Run(name, func(t *testing.T) {
+			request := valid
+			mutate(&request)
+			if err := validateDurableRunFailRequest(request); !errors.Is(err, ErrInvalidDurableRun) {
+				t.Fatalf("validation error = %v, want ErrInvalidDurableRun", err)
+			}
+		})
+	}
+}
+
+func TestInMemoryRunProjectionStoreRollsBackFailureWhenTerminalEventConflicts(t *testing.T) {
+	store := NewInMemoryRunProjectionStore()
+	ctx := context.Background()
+	now := time.Date(2026, 6, 4, 8, 9, 30, 0, time.UTC)
+	const runID = "run-fail-event-conflict"
+	const conversationID = "conv-fail-event-conflict"
+	createRunProjectionForTest(t, store, runID, conversationID, now)
+	if _, err := store.TransitionRun(ctx, runID, DurableRunStatusQueued, "", now.Add(time.Second)); err != nil {
+		t.Fatalf("queue run projection: %v", err)
+	}
+	if _, err := store.AppendRunEvent(ctx, DurableRunEvent{
+		EventID:              runID + ":run-failed",
+		RunID:                runID,
+		ConversationID:       conversationID,
+		EventType:            DurableRunEventTypeActivityFailed,
+		OccurredAt:           now.Add(2 * time.Second),
+		Visibility:           DurableRunEventVisibilityInternal,
+		PayloadSchemaVersion: "run-event-v1",
+		Payload:              map[string]any{"failure_kind": "earlier_failure"},
+	}); err != nil {
+		t.Fatalf("append conflicting event: %v", err)
+	}
+	failedAt := now.Add(3 * time.Second)
+	_, err := store.FailRunProjection(ctx, DurableRunFailRequest{
+		RunID:          runID,
+		TerminalReason: DurableTerminalReasonProviderUnavailable,
+		Now:            failedAt,
+		TerminalEvent: failedRunTerminalEventForTest(
+			runID,
+			conversationID,
+			failedAt,
+			map[string]any{"failure_kind": "provider_unavailable"},
+		),
+	})
+	if !errors.Is(err, ErrDurableRunFailureConflict) {
+		t.Fatalf("failure event collision error = %v, want ErrDurableRunFailureConflict", err)
+	}
+	stored, err := store.GetRun(ctx, runID)
+	if err != nil || stored.Status != DurableRunStatusQueued {
+		t.Fatalf("run after failure rollback = %#v, error = %v", stored, err)
+	}
+	if _, err := store.CreateRun(ctx, DurableRun{
+		RunID:          "run-after-failure-conflict",
+		ConversationID: conversationID,
+		TurnID:         "turn-after-failure-conflict",
+		RequestID:      "request-after-failure-conflict",
+		OwnerUserID:    "user-001",
+		Surface:        "campus-web",
+		TaskQueue:      "campus-agent.workflow",
+		CreatedAt:      now.Add(4 * time.Second),
+	}); !errors.Is(err, ErrConversationActiveRun) {
+		t.Fatalf("active lock after failure rollback error = %v, want ErrConversationActiveRun", err)
 	}
 }
 
@@ -617,5 +739,23 @@ func createRunProjectionForTest(
 		CreatedAt:      now,
 	}); err != nil {
 		t.Fatalf("create run projection %s: %v", runID, err)
+	}
+}
+
+func failedRunTerminalEventForTest(
+	runID string,
+	conversationID string,
+	now time.Time,
+	payload map[string]any,
+) DurableRunEvent {
+	return DurableRunEvent{
+		EventID:              runID + ":run-failed",
+		RunID:                runID,
+		ConversationID:       conversationID,
+		EventType:            DurableRunEventTypeRunFailed,
+		OccurredAt:           now,
+		Visibility:           DurableRunEventVisibilityBrowser,
+		PayloadSchemaVersion: "run-event-v1",
+		Payload:              payload,
 	}
 }

@@ -198,6 +198,13 @@ describe("pg chat command store", () => {
 	});
 
 	it("fails closed before inserting finalization rows when request is no longer accepted", async () => {
+		const forUpdate = vi
+			.fn()
+			.mockResolvedValue([{ finalizationFingerprint: null, status: "completed" }]);
+		const selectLimit = vi.fn(() => ({ for: forUpdate }));
+		const selectWhere = vi.fn(() => ({ limit: selectLimit }));
+		const selectFrom = vi.fn(() => ({ where: selectWhere }));
+		const select = vi.fn(() => ({ from: selectFrom }));
 		const returning = vi.fn().mockResolvedValue([]);
 		const updateWhere = vi.fn(() => ({ returning }));
 		const set = vi.fn(() => ({ where: updateWhere }));
@@ -206,6 +213,7 @@ describe("pg chat command store", () => {
 		const transaction = vi.fn(async (callback: (tx: unknown) => Promise<void>) =>
 			callback({
 				insert,
+				select,
 				update,
 			}),
 		);
@@ -225,6 +233,13 @@ describe("pg chat command store", () => {
 	});
 
 	it("keeps session slots and active branch state when a stale run finalizes after a newer turn", async () => {
+		const forUpdate = vi
+			.fn()
+			.mockResolvedValue([{ finalizationFingerprint: null, status: "accepted" }]);
+		const transactionSelectLimit = vi.fn(() => ({ for: forUpdate }));
+		const transactionSelectWhere = vi.fn(() => ({ limit: transactionSelectLimit }));
+		const transactionSelectFrom = vi.fn(() => ({ where: transactionSelectWhere }));
+		const transactionSelect = vi.fn(() => ({ from: transactionSelectFrom }));
 		const requestReturning = vi.fn().mockResolvedValueOnce([{ requestId: "req_01HQ" }]);
 		const conversationReturning = vi.fn().mockResolvedValueOnce([]);
 		const onConflictDoUpdate = vi.fn();
@@ -242,6 +257,7 @@ describe("pg chat command store", () => {
 			callback({
 				delete: deleteFn,
 				insert,
+				select: transactionSelect,
 				update,
 			}),
 		);

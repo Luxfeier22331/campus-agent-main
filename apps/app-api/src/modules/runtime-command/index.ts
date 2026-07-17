@@ -4,6 +4,7 @@ export {
 	DRAFT_CONVERSATION_TITLE,
 } from "../chat";
 export { ExecutionControlTransportError } from "../integration";
+export { dispatchPendingChatAdmissions } from "./admission-dispatcher";
 export {
 	buildChatCommandService,
 	type ChatCommandPayload,

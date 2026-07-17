@@ -1,4 +1,9 @@
-import { DEFAULT_EXECUTION_CONTROL_TIMEOUT_MS, type Env, parsePositiveInteger } from "../../config";
+import {
+	DEFAULT_EXECUTION_CONTROL_TIMEOUT_MS,
+	DEFAULT_PROFILE_MEMORY_COMMAND_TIMEOUT_MS,
+	type Env,
+	parsePositiveInteger,
+} from "../../config";
 import { DEFAULT_PERSONAL_MEMORY_TENANT_ID } from "../personalization/tenant";
 import type { TracePropagationHeaders } from "../telemetry/trace";
 import {
@@ -13,6 +18,7 @@ import {
 type ExecutionControlRuntimeEnv = Pick<
 	Env,
 	| "APP_API_ENVIRONMENT"
+	| "APP_API_PROFILE_MEMORY_COMMAND_TIMEOUT_MS"
 	| "EXECUTION_CONTROL_BASE_URL"
 	| "EXECUTION_CONTROL_PRIVATE"
 	| "EXECUTION_CONTROL_PRIVATE_ORIGIN"
@@ -56,43 +62,6 @@ export interface ExecutionControlRunCancelInput {
 	traceId?: string | null;
 }
 
-export interface ExecutionControlPersonalMemoryUpsertInput {
-	canonicalSubject: string;
-	compactText: string;
-	memoryId: string;
-	tenantId?: string | null;
-	traceHeaders?: TracePropagationHeaders;
-	traceId?: string | null;
-	updatedAt: string;
-	userId: string;
-}
-
-export interface ExecutionControlPersonalMemoryDisableInput {
-	episodeUUID: string;
-	memoryId: string;
-	tenantId?: string | null;
-	traceHeaders?: TracePropagationHeaders;
-	traceId?: string | null;
-	updatedAt: string;
-	userId: string;
-}
-
-export interface ExecutionControlPersonalMemoryDisableOwnerInput {
-	tenantId?: string | null;
-	traceHeaders?: TracePropagationHeaders;
-	traceId?: string | null;
-	updatedAt: string;
-	userId: string;
-}
-
-export interface ExecutionControlPersonalMemoryResult {
-	episodeUUID: string;
-	memoryId: string;
-	schemaVersion: string;
-	status: string;
-	updatedAt: string;
-}
-
 export interface ExecutionControlRun {
 	admittedAt: string;
 	completedAt: string;
@@ -101,6 +70,7 @@ export interface ExecutionControlRun {
 	failCloseReason: string;
 	finalResponseRef: string;
 	ownerUserId: string;
+	queuedAt: string;
 	requestId: string;
 	requestedTool: string;
 	runId: string;
@@ -209,15 +179,9 @@ export interface ExecutionControlRuntimeClient {
 }
 
 export interface ExecutionControlPersonalMemoryClient {
-	disableOwnerMemory(
-		input: ExecutionControlPersonalMemoryDisableOwnerInput,
-	): Promise<{ status: string; updatedAt: string; userId: string }>;
-	disableExplicitMemory(
-		input: ExecutionControlPersonalMemoryDisableInput,
-	): Promise<ExecutionControlPersonalMemoryResult>;
-	upsertExplicitMemory(
-		input: ExecutionControlPersonalMemoryUpsertInput,
-	): Promise<ExecutionControlPersonalMemoryResult>;
+	admit(
+		input: import("../profile-memory").ProfileMemoryCommandPayload,
+	): Promise<{ workflowId: string }>;
 }
 
 export function isExecutionControlRuntimeConfigured(env: ExecutionControlRuntimeEnv): boolean {
@@ -317,75 +281,37 @@ export function createExecutionControlPersonalMemoryClient(
 	});
 
 	return {
-		async disableOwnerMemory(
-			memoryInput: ExecutionControlPersonalMemoryDisableOwnerInput,
-		): Promise<{ status: string; updatedAt: string; userId: string }> {
-			const parsed = await requestExecutionControl("/internal/memory/personal/owner:disable", {
+		async admit(command) {
+			const parsed = await requestExecutionControl("/internal/memory/personal/commands", {
 				body: {
-					tenant_id: memoryInput.tenantId ?? DEFAULT_PERSONAL_MEMORY_TENANT_ID,
-					updated_at: memoryInput.updatedAt,
-					user_id: memoryInput.userId,
+					schema_version: command.schemaVersion,
+					command_id: command.commandId,
+					command_kind: command.commandKind,
+					item: command.item,
+					lifecycle_state: command.lifecycleState,
+					owner_generation: command.ownerGeneration,
+					owner_sequence: command.ownerSequence,
+					subject_id: command.subjectId,
+					subject_revision: command.subjectRevision,
+					supersession_scope: command.supersessionScope,
+					source_updated_at: command.sourceUpdatedAt,
+					source_message_ids: command.sourceMessageIds,
+					tenant_id: DEFAULT_PERSONAL_MEMORY_TENANT_ID,
+					user_id: command.ownerUserId,
 				},
 				expectedStatus: 202,
 				method: "POST",
-				traceHeaders: memoryInput.traceHeaders,
-				traceId: memoryInput.traceId,
+				timeoutMs: parsePositiveInteger(
+					env.APP_API_PROFILE_MEMORY_COMMAND_TIMEOUT_MS,
+					DEFAULT_PROFILE_MEMORY_COMMAND_TIMEOUT_MS,
+				),
 			});
-			return parsePersonalMemoryOwnerDisableResult(parsed);
-		},
-		async disableExplicitMemory(
-			memoryInput: ExecutionControlPersonalMemoryDisableInput,
-		): Promise<ExecutionControlPersonalMemoryResult> {
-			const parsed = await requestExecutionControl("/internal/memory/personal/items:disable", {
-				body: {
-					episode_uuid: memoryInput.episodeUUID,
-					memory_id: memoryInput.memoryId,
-					tenant_id: memoryInput.tenantId ?? DEFAULT_PERSONAL_MEMORY_TENANT_ID,
-					updated_at: memoryInput.updatedAt,
-					user_id: memoryInput.userId,
-				},
-				expectedStatus: 202,
-				method: "POST",
-				traceHeaders: memoryInput.traceHeaders,
-				traceId: memoryInput.traceId,
-			});
-			return parsePersonalMemoryResult(parsed);
-		},
-		async upsertExplicitMemory(
-			memoryInput: ExecutionControlPersonalMemoryUpsertInput,
-		): Promise<ExecutionControlPersonalMemoryResult> {
-			const parsed = await requestExecutionControl("/internal/memory/personal/items:upsert", {
-				body: {
-					canonical_subject: memoryInput.canonicalSubject.trim(),
-					compact_text: memoryInput.compactText,
-					memory_id: memoryInput.memoryId,
-					tenant_id: memoryInput.tenantId ?? DEFAULT_PERSONAL_MEMORY_TENANT_ID,
-					updated_at: memoryInput.updatedAt,
-					user_id: memoryInput.userId,
-				},
-				expectedStatus: 202,
-				method: "POST",
-				traceHeaders: memoryInput.traceHeaders,
-				traceId: memoryInput.traceId,
-			});
-			return parsePersonalMemoryResult(parsed);
+			return { workflowId: readRequiredString(parsed, "workflow_id") };
 		},
 	};
 }
 
 export const defaultRuntimeFetch: typeof fetch = (input, init) => globalThis.fetch(input, init);
-
-function parsePersonalMemoryOwnerDisableResult(value: JsonRecord): {
-	status: string;
-	updatedAt: string;
-	userId: string;
-} {
-	return {
-		status: readRequiredString(value, "status"),
-		updatedAt: readRequiredString(value, "updated_at"),
-		userId: readRequiredString(value, "user_id"),
-	};
-}
 
 export function createExecutionControlRequester(
 	env: ExecutionControlRuntimeEnv,
@@ -401,6 +327,7 @@ export function createExecutionControlRequester(
 		method: "GET" | "POST";
 		traceHeaders?: TracePropagationHeaders;
 		traceId?: string | null;
+		timeoutMs?: number;
 	},
 ) => Promise<JsonRecord> {
 	const traceDataProvider = input.traceDataProvider;
@@ -412,6 +339,7 @@ export function createExecutionControlRequester(
 			method: "GET" | "POST";
 			traceHeaders?: TracePropagationHeaders;
 			traceId?: string | null;
+			timeoutMs?: number;
 		},
 	): Promise<JsonRecord> {
 		const sharedSecret = env.EXECUTION_CONTROL_SHARED_SECRET?.trim();
@@ -430,10 +358,9 @@ export function createExecutionControlRequester(
 			input.fetchImplementation,
 		);
 
-		const timeoutMs = parsePositiveInteger(
-			env.EXECUTION_CONTROL_TIMEOUT_MS,
-			DEFAULT_EXECUTION_CONTROL_TIMEOUT_MS,
-		);
+		const timeoutMs =
+			options.timeoutMs ??
+			parsePositiveInteger(env.EXECUTION_CONTROL_TIMEOUT_MS, DEFAULT_EXECUTION_CONTROL_TIMEOUT_MS);
 		let response: Response;
 		try {
 			response = await new Promise<Response>((resolve, reject) => {
@@ -568,6 +495,7 @@ function parseDurableRun(payload: JsonRecord): ExecutionControlRun {
 		failCloseReason: readRequiredString(payload, "fail_close_reason"),
 		finalResponseRef: readRequiredString(payload, "final_response_ref"),
 		ownerUserId: readRequiredString(payload, "owner_user_id"),
+		queuedAt: readRequiredString(payload, "queued_at"),
 		requestId: readRequiredString(payload, "request_id"),
 		requestedTool: readRequiredString(payload, "requested_tool"),
 		runId: readRequiredString(payload, "run_id"),
@@ -618,16 +546,6 @@ function parseRunStepTrajectory(payload: JsonRecord): ExecutionControlRunStepTra
 		attempts: attempts.map((attempt, index) => parseStepAttempt(attempt, index)),
 		results: results.map((result, index) => parseStepResult(result, index)),
 		steps: steps.map((step, index) => parseRunStep(step, index)),
-	};
-}
-
-function parsePersonalMemoryResult(payload: JsonRecord): ExecutionControlPersonalMemoryResult {
-	return {
-		episodeUUID: readRequiredString(payload, "episode_uuid"),
-		memoryId: readRequiredString(payload, "memory_id"),
-		schemaVersion: readRequiredString(payload, "schema_version"),
-		status: readRequiredString(payload, "status"),
-		updatedAt: readRequiredString(payload, "updated_at"),
 	};
 }
 

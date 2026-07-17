@@ -53,7 +53,8 @@ route，不成为 provider owner 或 generic app-api proxy。
 - redirect/post-logout URI 精确 allowlist；
 - dynamic registration 关闭。
 
-client 由 app-api provision script 同时写入 app-owned policy 和 Better Auth runtime table，不由
+client 由 app-api provision script 写入 Better Auth OAuth table，并由 app-owned runtime policy
+约束，不由
 浏览器、MediaWiki 或 provider admin UI 创建。
 
 ## 身份声明
@@ -79,7 +80,7 @@ MediaWiki 判断；app-api 不导入 user、password hash、session、group 或 
 
 ## 相关文档
 
-- `identity-platform.md`
+- `identity-authz.md`
 - `../../contracts/app-api/federation.md`
-- `../../data/identity-platform.md`
+- `../../contracts/app-api/auth.md`
 - `../../runbooks/federation.md`

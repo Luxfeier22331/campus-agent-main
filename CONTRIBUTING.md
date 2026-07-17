@@ -56,8 +56,8 @@ pnpm web:test:worker
 补充说明：
 
 - `pnpm web:build` 是 full build lane；构建 campus-web docs surface 时需要已有 docs
-  read-model sync manifest，或可访问 app-api operator database 的
-  `APP_API_OPERATOR_DATABASE_URL` 等内部配置
+  read-model sync manifest，或可访问 app-api schema database 的
+  `APP_API_SCHEMA_DATABASE_URL` 等内部配置
 - `pnpm ci:typescript` 是 PR 阻塞用的 JS/TS affected typecheck + test lane；
   不包含 `pnpm web:build`
 - `pnpm web:test:integration` 只在触及 `app-api` shared DB / integration lane 时显式执行，并且需要

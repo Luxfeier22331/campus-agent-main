@@ -4,6 +4,7 @@ import type {
 	FinalizeRequestWrite,
 	FinalizeTurnDispatchWrite,
 	RequestObservabilityFactWrite,
+	TurnDispatchMemorySnapshot,
 	TurnDispatchWrite,
 } from "./store-types";
 
@@ -40,8 +41,12 @@ export function buildChatMessageInsertValues(
 	};
 }
 
-export function buildAcceptTurnDispatchInsertValues(input: TurnDispatchWrite) {
+export function buildAcceptTurnDispatchInsertValues(
+	input: TurnDispatchWrite,
+	memorySnapshot: TurnDispatchMemorySnapshot | null,
+) {
 	return {
+		assistantMessageId: input.assistantMessageId,
 		requestId: input.requestId,
 		conversationId: input.conversationId,
 		userMessageId: input.userMessageId,
@@ -50,6 +55,10 @@ export function buildAcceptTurnDispatchInsertValues(input: TurnDispatchWrite) {
 		ownerUserId: input.ownerUserId,
 		actorUserId: input.actorUserId,
 		principalSnapshotJson: input.principalSnapshot,
+		memoryRecallEnabled: memorySnapshot?.recallEnabled ?? null,
+		memoryAppendEnabled: memorySnapshot?.appendEnabled ?? null,
+		memoryOwnerGeneration: memorySnapshot?.ownerGeneration ?? null,
+		memoryOwnerSequence: memorySnapshot?.ownerSequence ?? null,
 		idempotencyKey: input.idempotencyKey,
 		requestFingerprintSha256: input.requestFingerprintSha256,
 		traceId: input.traceId,

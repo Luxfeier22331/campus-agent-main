@@ -2,6 +2,8 @@ package httpapi
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
@@ -10,7 +12,6 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
-	"go.temporal.io/sdk/temporal"
 )
 
 func (s *Server) AppendConversationMemoryActivity(
@@ -43,7 +44,7 @@ func (s *Server) AppendConversationMemoryActivity(
 	}
 	if s.personalMemoryErr != nil {
 		output, err := s.projectMemoryAppendFailure(ctx, run, "personal_memory_not_configured", s.personalMemoryErr)
-		if err == nil {
+		if output.Status == "failed" {
 			s.recordPersonalMemoryOperation("append", "failed", "personal_memory_not_configured", startedAt, 0, 0)
 		}
 		return output, err
@@ -55,53 +56,35 @@ func (s *Server) AppendConversationMemoryActivity(
 			"personal_memory_not_configured",
 			errors.New("personal memory executor is not configured"),
 		)
-		if err == nil {
+		if output.Status == "failed" {
 			s.recordPersonalMemoryOperation("append", "failed", "personal_memory_not_configured", startedAt, 0, 0)
 		}
 		return output, err
 	}
-	request, err := memoryAppendRequestForRun(ctx, s.runProjectionStore, run, payload)
+	request, err := memoryAppendRequestForRun(run, payload)
 	if err != nil {
 		output, projectErr := s.projectMemoryAppendFailure(ctx, run, "memory_append_request_invalid", err)
-		if projectErr == nil {
+		if output.Status == "failed" {
 			s.recordPersonalMemoryOperation("append", "failed", "memory_append_request_invalid", startedAt, 0, 0)
 		}
 		return output, projectErr
 	}
 	recordTemporalActivityHeartbeat(ctx, "memory.append.request_ready")
 	recordTemporalActivityHeartbeat(ctx, "memory.append.call_hindsight")
+	stopProviderHeartbeat := startPersonalMemoryHeartbeat(ctx, "memory.append.call_hindsight")
 	result, err := s.personalMemoryExecutor.AppendConversationTurn(ctx, request)
+	stopProviderHeartbeat()
 	if err != nil {
 		output, projectErr := s.projectMemoryAppendFailure(ctx, run, "hindsight_append_failed", err)
-		if projectErr == nil {
+		if output.Status == "failed" {
 			s.recordPersonalMemoryOperation("append", "failed", "hindsight_append_failed", startedAt, 0, 0)
 		}
 		return output, projectErr
 	}
 	recordTemporalActivityHeartbeat(ctx, "memory.append.project_result")
-	if err := s.replaceTemporalMemoryMetadata(ctx, run, func(metadata map[string]any) {
-		metadata["append_operation"] = map[string]any{
-			"operation_id":   result.HindsightOperationID,
-			"operation_ids":  append([]string{}, result.HindsightOperationIDs...),
-			"operation_type": "retain",
-			"payload_sha256": result.PayloadSHA256,
-			"run_id":         run.RunID,
-			"status":         result.Status,
-			"thread_id":      result.ThreadID,
-		}
-	}); err != nil {
-		output, projectErr := s.projectMemoryAppendFailure(ctx, run, "projection_failed", err)
-		if projectErr == nil {
-			s.recordPersonalMemoryOperation("append", "failed", "projection_failed", startedAt, 0, 0)
-		}
-		return output, projectErr
-	}
 	output, err := s.projectMemoryAppendResult(ctx, run, temporalruntime.AppendConversationMemoryActivityOutput{
 		AppendedMessageCount: result.AppendedMessageCount,
-		OperationID:          result.OperationID,
-		OperationStatusRef:   result.OperationStatusRef,
 		PayloadSHA256:        result.PayloadSHA256,
-		RuntimeDocumentRef:   result.RuntimeDocumentRef,
 		RunID:                run.RunID,
 		SchemaVersion:        result.SchemaVersion,
 		Status:               result.Status,
@@ -120,17 +103,19 @@ func (s *Server) projectMemoryAppendFailure(
 	failureKind string,
 	cause error,
 ) (temporalruntime.AppendConversationMemoryActivityOutput, error) {
+	summary := summarizeTemporalFailure(failureKind, "", cause)
 	output := temporalruntime.AppendConversationMemoryActivityOutput{
 		RunID:         run.RunID,
-		SchemaVersion: "memory_conversation_append_result_v1",
+		SchemaVersion: "memory_conversation_append_result_v2",
 		SkipReasons:   []string{failureKind},
 		Status:        "failed",
 	}
 	now := time.Now().UTC()
 	payload := map[string]any{
 		"appended_message_count": output.AppendedMessageCount,
-		"failure_kind":           failureKind,
-		"message":                cause.Error(),
+		"failure_kind":           summary.Kind,
+		"failure_hash":           summary.Hash,
+		"message":                summary.Message,
 		"payload_sha256":         output.PayloadSHA256,
 		"schema_version":         output.SchemaVersion,
 		"skip_reasons":           output.SkipReasons,
@@ -139,7 +124,7 @@ func (s *Server) projectMemoryAppendFailure(
 		"thread_id":              output.ThreadID,
 	}
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
-		Attempt:       1,
+		Attempt:       temporalActivityAttempt(ctx),
 		Tool:          "memory",
 		Run:           run,
 		Status:        "failed",
@@ -154,27 +139,19 @@ func (s *Server) projectMemoryAppendFailure(
 		ProjectionRef: temporalProjectionRef(run.RunID, "memory/append"),
 		Payload:       payload,
 	}); err != nil {
-		return temporalruntime.AppendConversationMemoryActivityOutput{}, err
-	}
-	if memoryFailureKindIsNonRetryable(failureKind) {
-		return temporalruntime.AppendConversationMemoryActivityOutput{}, temporal.NewNonRetryableApplicationError(
-			cause.Error(),
-			failureKind,
-			cause,
+		return temporalruntime.AppendConversationMemoryActivityOutput{}, sanitizedTemporalApplicationError(
+			"activity_projection_failed",
+			err,
+			false,
 		)
 	}
-	return output, nil
+	return output, temporalApplicationError(summary, memoryFailureKindIsNonRetryable(summary.Kind))
 }
 
 func memoryAppendRequestForRun(
-	ctx context.Context,
-	store execution.RunProjectionStore,
 	run execution.DurableRun,
 	payload map[string]any,
 ) (memoryruntime.AppendConversationTurnRequest, error) {
-	if store == nil {
-		return memoryruntime.AppendConversationTurnRequest{}, execution.ErrRunProjectionStoreNotConfigured
-	}
 	userMessage := strings.TrimSpace(optionalStringFromAny(payload["user_goal"]))
 	if userMessage == "" {
 		return memoryruntime.AppendConversationTurnRequest{}, fmt.Errorf("memory append user_goal is required")
@@ -182,25 +159,29 @@ func memoryAppendRequestForRun(
 	userMessageCreatedAt := strings.TrimSpace(optionalStringFromAny(
 		nestedAny(payload, "context", "conversation", "current_user_message", "created_at"),
 	))
-	assistantMessage, err := finalAnswerTextForRun(ctx, store, run)
-	if err != nil {
-		return memoryruntime.AppendConversationTurnRequest{}, err
-	}
+	userMessageID := strings.TrimSpace(optionalStringFromAny(
+		nestedAny(payload, "context", "conversation", "user_message_id"),
+	))
 	userID := firstNonEmptyText(
 		nestedAny(payload, "actor", "user_id"),
 		nestedAny(payload, "context", "actor", "user_id"),
 		run.OwnerUserID,
 	)
 	tenantID := firstNonEmptyText(payload["tenant_id"], nestedAny(payload, "context", "tenant_id"))
+	ownerGeneration, ownerSequence, err := memoryOwnerFenceFromPayload(payload)
+	if err != nil {
+		return memoryruntime.AppendConversationTurnRequest{}, err
+	}
 	request := memoryruntime.AppendConversationTurnRequest{
-		AssistantMessage:        assistantMessage,
-		IgnoreAssistantForGraph: true,
-		RunID:                   run.RunID,
-		TenantID:                tenantID,
-		ThreadID:                run.ConversationID,
-		UserID:                  userID,
-		UserMessage:             userMessage,
-		UserMessageCreatedAt:    userMessageCreatedAt,
+		OwnerGeneration:      ownerGeneration,
+		OwnerSequence:        ownerSequence,
+		RunID:                run.RunID,
+		TenantID:             tenantID,
+		ThreadID:             run.ConversationID,
+		UserID:               userID,
+		UserMessage:          userMessage,
+		UserMessageCreatedAt: userMessageCreatedAt,
+		UserMessageID:        userMessageID,
 	}
 	if err := memoryruntime.ValidateAppendConversationTurnRequest(request); err != nil {
 		return memoryruntime.AppendConversationTurnRequest{}, err
@@ -208,33 +189,14 @@ func memoryAppendRequestForRun(
 	return request, nil
 }
 
-func finalAnswerTextForRun(
-	ctx context.Context,
-	store execution.RunProjectionStore,
-	run execution.DurableRun,
-) (string, error) {
-	results, err := store.ListStepResults(ctx, run.RunID)
-	if err != nil {
-		return "", err
-	}
-	for _, result := range results {
-		if result.StepID != "finalization.write" {
-			continue
-		}
-		response, ok := result.SanitizedPayload["finalized_response"].(map[string]any)
-		if !ok {
-			continue
-		}
-		answer := strings.TrimSpace(optionalStringFromAny(response["answer_text"]))
-		if answer != "" {
-			return answer, nil
-		}
-	}
-	return "", fmt.Errorf("finalization answer_text is required for memory append")
+func memoryEnabledFromExecutionPayload(payload map[string]any) (bool, bool) {
+	value := nestedAny(payload, "context", "memory", "append_enabled")
+	enabled, ok := value.(bool)
+	return enabled, ok
 }
 
-func memoryEnabledFromExecutionPayload(payload map[string]any) (bool, bool) {
-	value := nestedAny(payload, "context", "memory", "enabled")
+func memoryRecallEnabledFromExecutionPayload(payload map[string]any) (bool, bool) {
+	value := nestedAny(payload, "context", "memory", "recall_enabled")
 	enabled, ok := value.(bool)
 	return enabled, ok
 }
@@ -245,7 +207,7 @@ func skippedMemoryAppendOutput(
 ) temporalruntime.AppendConversationMemoryActivityOutput {
 	return temporalruntime.AppendConversationMemoryActivityOutput{
 		RunID:         strings.TrimSpace(runID),
-		SchemaVersion: "memory_conversation_append_result_v1",
+		SchemaVersion: "memory_conversation_append_result_v2",
 		SkipReasons:   []string{reason},
 		SkippedCount:  1,
 		Status:        "skipped",
@@ -259,17 +221,14 @@ func (s *Server) projectMemoryAppendResult(
 ) (temporalruntime.AppendConversationMemoryActivityOutput, error) {
 	now := time.Now().UTC()
 	if strings.TrimSpace(output.SchemaVersion) == "" {
-		output.SchemaVersion = "memory_conversation_append_result_v1"
+		output.SchemaVersion = "memory_conversation_append_result_v2"
 	}
 	if strings.TrimSpace(output.Status) == "" {
-		output.Status = "accepted"
+		output.Status = "completed"
 	}
 	payload := map[string]any{
 		"appended_message_count": output.AppendedMessageCount,
-		"operation_id":           output.OperationID,
-		"operation_status_ref":   output.OperationStatusRef,
 		"payload_sha256":         output.PayloadSHA256,
-		"runtime_document_ref":   output.RuntimeDocumentRef,
 		"schema_version":         output.SchemaVersion,
 		"skip_reasons":           output.SkipReasons,
 		"skipped_count":          output.SkippedCount,
@@ -277,7 +236,7 @@ func (s *Server) projectMemoryAppendResult(
 		"thread_id":              output.ThreadID,
 	}
 	err := s.projectTemporalStep(ctx, temporalStepProjection{
-		Attempt:       1,
+		Attempt:       temporalActivityAttempt(ctx),
 		Tool:          "memory",
 		Run:           run,
 		Status:        output.Status,
@@ -318,4 +277,31 @@ func (s *Server) temporalActivityRunAllowTerminal(
 		)
 	}
 	return run, nil
+}
+
+func startPersonalMemoryHeartbeat(ctx context.Context, detail string) func() {
+	stop := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				recordTemporalActivityHeartbeat(ctx, detail)
+			case <-stop:
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	return func() { close(stop) }
+}
+
+func memoryFailureHash(cause error) string {
+	if cause == nil {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(cause.Error()))
+	return hex.EncodeToString(sum[:])
 }

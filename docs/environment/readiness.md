@@ -71,7 +71,7 @@ Worker 身份、运行投影数据库、内部查询认证和服务凭据。
 ### App API 产品就绪状态
 
 `app-api /readyz` 是 Worker staging 的产品侧就绪聚合点，可以展示 execution-control
-就绪摘要；学生产品从 `campus-web` 进入，运维产品从独立 Ops Web 进入。
+就绪摘要；学生产品仍必须从 `campus-web` 进入，运维人员从独立的 Ops Web 进入。
 
 固定解释：
 
@@ -112,9 +112,9 @@ pnpm exec tsx scripts/deploy/check-worker-secret-presence.ts --env staging --jso
 
 默认规则：
 
-- eval provider endpoint/key truth 来自 Ops Web 发布的
-  `provider_config_projection.v2` artifact。
-- eval runtime 不在热路径调用 Ops Web 或 app-api。
+- eval provider endpoint/key truth 来自 eval runtime owner 管理的本地
+  `provider_config_projection.v1` artifact，不从在线 execution-control bundle 派生。
+- eval runtime 不在热路径调用 app-api 或 execution-control Provider Config admin。
 - 必需角色：`eval_ragas_llm`、`eval_ragas_embedding`、`eval_judge_llm`。
 - `LLM_*`、`EMBEDDING_*`、`EVAL_LLM_*`、`EVAL_EMBEDDING_*` 不再是 eval
   provider fallback。

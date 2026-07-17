@@ -1,5 +1,6 @@
 import process from "node:process";
 
+import { deriveLangfuseTraceId } from "../src/modules/telemetry/trace";
 import {
 	DEFAULT_STAGING_CHAT_E2E_APP_API_READYZ_URL,
 	DEFAULT_STAGING_CHAT_E2E_CHAT_BASE_URL,
@@ -26,15 +27,23 @@ interface ChatMemoryE2eStagingArgs {
 	appApiReadyzUrl: string;
 	chatBaseUrl: string;
 	email: string;
+	memoryValue: string;
 	name: string;
+	observabilityCanary: ObservabilityCanarySubmitHeaders | null;
 	prompt: string;
 	smokeAuthSecret: string;
+}
+
+interface ObservabilityCanarySubmitHeaders {
+	apiKeySentinel: string;
+	headerSentinel: string;
 }
 
 interface SubmitIdentity {
 	requestId: string;
 	resultKind: string;
 	runId: string;
+	runtimeTraceId: string;
 	traceId: string;
 }
 
@@ -97,9 +106,13 @@ export interface ChatMemoryE2eStagingDependencies {
 	openSubmitStream?: (input: {
 		body: unknown;
 		cookieHeader: string;
+		observabilityCanary: ObservabilityCanarySubmitHeaders | null;
 		url: string;
 	}) => Promise<Response>;
 }
+
+const OBSERVABILITY_CANARY_HEADER_SENTINEL_PATTERN = /^header-[A-Za-z0-9._:-]{5,249}$/u;
+const OBSERVABILITY_CANARY_API_KEY_SENTINEL_PATTERN = /^credential-[A-Za-z0-9._:-]{1,245}$/u;
 
 function normalizeOptionalValue(value: string | undefined): string | null {
 	if (typeof value !== "string") {
@@ -114,7 +127,10 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): ChatMe
 	let appApiReadyzUrl = DEFAULT_STAGING_CHAT_E2E_APP_API_READYZ_URL;
 	let chatBaseUrl = DEFAULT_STAGING_CHAT_E2E_CHAT_BASE_URL;
 	let email = DEFAULT_SMOKE_EMAIL;
+	let memoryValue = `smoke memory sentinel ${Date.now()}`;
 	let name = DEFAULT_SMOKE_NAME;
+	let observabilityCanaryApiKeySentinel: string | null = null;
+	let observabilityCanaryHeaderSentinel: string | null = null;
 	let prompt = "请根据你记住的 smoke memory sentinel 回答我。";
 	let smokeAuthSecret =
 		normalizeOptionalValue(env.APP_API_STAGING_SMOKE_AUTH_SECRET) ??
@@ -162,6 +178,15 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): ChatMe
 			index += 1;
 			continue;
 		}
+		if (token === "--memory-value") {
+			const value = normalizeOptionalValue(argv[index + 1]);
+			if (!value) {
+				throw new Error("--memory-value requires a non-empty value.");
+			}
+			memoryValue = value;
+			index += 1;
+			continue;
+		}
 		if (token === "--prompt") {
 			const value = normalizeOptionalValue(argv[index + 1]);
 			if (!value) {
@@ -180,6 +205,32 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): ChatMe
 			index += 1;
 			continue;
 		}
+		if (
+			token === "--observability-canary-header-sentinel" ||
+			token === "--observability-canary-api-key-sentinel"
+		) {
+			const value = normalizeOptionalValue(argv[index + 1]);
+			const pattern =
+				token === "--observability-canary-header-sentinel"
+					? OBSERVABILITY_CANARY_HEADER_SENTINEL_PATTERN
+					: OBSERVABILITY_CANARY_API_KEY_SENTINEL_PATTERN;
+			if (!(value && pattern.test(value))) {
+				throw new Error(`${token} requires a valid synthetic sentinel.`);
+			}
+			if (token === "--observability-canary-header-sentinel") {
+				if (observabilityCanaryHeaderSentinel !== null) {
+					throw new Error(`${token} may only be provided once.`);
+				}
+				observabilityCanaryHeaderSentinel = value;
+			} else {
+				if (observabilityCanaryApiKeySentinel !== null) {
+					throw new Error(`${token} may only be provided once.`);
+				}
+				observabilityCanaryApiKeySentinel = value;
+			}
+			index += 1;
+			continue;
+		}
 
 		throw new Error(`Unknown argument: ${token}`);
 	}
@@ -189,30 +240,56 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): ChatMe
 			"APP_API_STAGING_SMOKE_AUTH_SECRET or STAGING_APP_API_SMOKE_AUTH_SECRET is required.",
 		);
 	}
+	if (
+		(observabilityCanaryHeaderSentinel === null) !==
+		(observabilityCanaryApiKeySentinel === null)
+	) {
+		throw new Error("Observability canary header and API-key sentinels must be provided together.");
+	}
+	if (
+		observabilityCanaryHeaderSentinel !== null &&
+		observabilityCanaryHeaderSentinel === observabilityCanaryApiKeySentinel
+	) {
+		throw new Error("Observability canary header and API-key sentinels must be distinct.");
+	}
 
 	return {
 		appApiReadyzUrl,
 		chatBaseUrl,
 		email,
+		memoryValue,
 		name,
+		observabilityCanary:
+			observabilityCanaryHeaderSentinel === null || observabilityCanaryApiKeySentinel === null
+				? null
+				: {
+						apiKeySentinel: observabilityCanaryApiKeySentinel,
+						headerSentinel: observabilityCanaryHeaderSentinel,
+					},
 		prompt,
 		smokeAuthSecret,
 	};
 }
 
-async function openSubmitStream(input: {
+export async function openChatMemorySubmitStream(input: {
 	body: unknown;
 	cookieHeader: string;
+	observabilityCanary: ObservabilityCanarySubmitHeaders | null;
 	url: string;
 }): Promise<Response> {
+	const headers = new Headers({
+		accept: "text/event-stream",
+		"content-type": "application/json",
+		cookie: input.cookieHeader,
+		"idempotency-key": `chat-memory-e2e-staging-${Date.now()}`,
+	});
+	if (input.observabilityCanary) {
+		headers.set("x-observability-canary", input.observabilityCanary.headerSentinel);
+		headers.set("x-observability-canary-api-key", input.observabilityCanary.apiKeySentinel);
+	}
 	const response = await fetch(input.url, {
 		body: JSON.stringify(input.body),
-		headers: {
-			accept: "text/event-stream",
-			"content-type": "application/json",
-			cookie: input.cookieHeader,
-			"idempotency-key": `chat-memory-e2e-staging-${Date.now()}`,
-		},
+		headers,
 		method: "POST",
 		signal: AbortSignal.timeout(180_000),
 	});
@@ -228,7 +305,10 @@ function requireStringField(value: Record<string, unknown>, field: string): stri
 	return raw;
 }
 
-function readSubmitIdentity(event: ProductStreamEvent, acceptedRunId: string): SubmitIdentity {
+function readSubmitIdentity(
+	event: ProductStreamEvent,
+	accepted: Pick<SubmitIdentity, "requestId" | "runId" | "traceId">,
+): SubmitIdentity {
 	const answer = event.data.answer;
 	if (!answer || typeof answer !== "object" || Array.isArray(answer)) {
 		throw new Error("request.completed must include answer payload.");
@@ -238,11 +318,17 @@ function readSubmitIdentity(event: ProductStreamEvent, acceptedRunId: string): S
 		throw new Error("request.completed answer must include result.");
 	}
 	const resultRecord = result as Record<string, unknown>;
+	const requestId = requireStringField(event.data, "requestId");
+	const traceId = requireStringField(event.data, "traceId");
+	if (requestId !== accepted.requestId || traceId !== accepted.traceId) {
+		throw new Error("request.completed identity does not match request.accepted.");
+	}
 	return {
-		requestId: requireStringField(event.data, "requestId"),
+		requestId,
 		resultKind: requireStringField(resultRecord, "kind"),
-		runId: acceptedRunId,
-		traceId: requireStringField(event.data, "traceId"),
+		runId: accepted.runId,
+		runtimeTraceId: deriveLangfuseTraceId(traceId),
+		traceId,
 	};
 }
 
@@ -250,19 +336,23 @@ async function submitStream(input: {
 	body: unknown;
 	cookieHeader: string;
 	openSubmitStream: NonNullable<ChatMemoryE2eStagingDependencies["openSubmitStream"]>;
+	observabilityCanary: ObservabilityCanarySubmitHeaders | null;
 	url: string;
 }): Promise<SubmitIdentity> {
 	const response = await input.openSubmitStream({
 		body: input.body,
 		cookieHeader: input.cookieHeader,
+		observabilityCanary: input.observabilityCanary,
 		url: input.url,
 	});
-	let acceptedRunId: string | null = null;
+	let accepted: Pick<SubmitIdentity, "requestId" | "runId" | "traceId"> | null = null;
 	for await (const event of parseSse(response)) {
 		if (event.event === "request.accepted") {
-			acceptedRunId = requireStringField(event.data, "runId");
-			requireStringField(event.data, "requestId");
-			requireStringField(event.data, "traceId");
+			accepted = {
+				requestId: requireStringField(event.data, "requestId"),
+				runId: requireStringField(event.data, "runId"),
+				traceId: requireStringField(event.data, "traceId"),
+			};
 			continue;
 		}
 		if (event.event === "request.failed" || event.event === "request.cancelled") {
@@ -274,10 +364,10 @@ async function submitStream(input: {
 			);
 		}
 		if (event.event === "request.completed") {
-			if (!acceptedRunId) {
+			if (!accepted) {
 				throw new Error("Memory chat stream completed before request.accepted.");
 			}
-			return readSubmitIdentity(event, acceptedRunId);
+			return readSubmitIdentity(event, accepted);
 		}
 	}
 	throw new Error("Memory chat submit stream ended before request.completed.");
@@ -336,7 +426,7 @@ export async function runChatMemoryE2eStaging(
 		fetchJsonWithCookie: deps.fetchJsonWithCookie ?? fetchJsonWithCookie,
 		fetchReadyz: deps.fetchReadyz ?? fetchReadyz,
 		mintSmokeSession: deps.mintSmokeSession ?? mintStagingSmokeSession,
-		openSubmitStream: deps.openSubmitStream ?? openSubmitStream,
+		openSubmitStream: deps.openSubmitStream ?? openChatMemorySubmitStream,
 	};
 	const result: ChatMemoryE2eStagingResult = {
 		identity: {
@@ -379,7 +469,6 @@ export async function runChatMemoryE2eStaging(
 	const meResult = await resolvedDeps.fetchJsonWithCookie<{
 		permissions: {
 			chat: boolean;
-			operator: boolean;
 		};
 		principal: unknown;
 		session: unknown | null;
@@ -400,7 +489,6 @@ export async function runChatMemoryE2eStaging(
 		url: new URL("/api/me/profile-memory", args.chatBaseUrl).toString(),
 	});
 
-	const memoryValue = `smoke memory sentinel ${Date.now()}`;
 	const upsertResult = await resolvedDeps.fetchJsonWithCookie<{
 		item: {
 			itemId: string;
@@ -410,7 +498,7 @@ export async function runChatMemoryE2eStaging(
 	}>({
 		body: {
 			key: result.memory.key,
-			value: memoryValue,
+			value: args.memoryValue,
 		},
 		cookieHeader,
 		expectedStatus: 200,
@@ -424,6 +512,7 @@ export async function runChatMemoryE2eStaging(
 				prompt: args.prompt,
 			},
 			cookieHeader,
+			observabilityCanary: args.observabilityCanary,
 			openSubmitStream: resolvedDeps.openSubmitStream,
 			url: new URL("/api/chat/requests/stream", args.chatBaseUrl).toString(),
 		});

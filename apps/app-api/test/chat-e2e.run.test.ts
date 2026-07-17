@@ -52,7 +52,6 @@ describe("chat e2e runner", () => {
 						return jsonResult({
 							permissions: {
 								chat: true,
-								operator: false,
 							},
 							principal: {
 								email: "help_bot@outlook.com",
@@ -164,7 +163,6 @@ describe("chat e2e runner", () => {
 						return jsonResult({
 							permissions: {
 								chat: true,
-								operator: false,
 							},
 							principal: {
 								email: "help_bot@outlook.com",
@@ -306,7 +304,6 @@ describe("chat e2e runner", () => {
 						return jsonResult({
 							permissions: {
 								chat: true,
-								operator: false,
 							},
 							principal: {
 								email: "help_bot@outlook.com",
@@ -403,7 +400,6 @@ describe("chat e2e runner", () => {
 						return jsonResult({
 							permissions: {
 								chat: true,
-								operator: false,
 							},
 							principal: {
 								email: "help_bot@outlook.com",
@@ -493,7 +489,6 @@ describe("chat e2e runner", () => {
 							return jsonResult({
 								permissions: {
 									chat: true,
-									operator: false,
 								},
 								principal: {
 									email: "help_bot@outlook.com",

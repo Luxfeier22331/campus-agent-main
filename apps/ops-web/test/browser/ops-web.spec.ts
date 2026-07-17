@@ -1,6 +1,9 @@
 import { expect, type Page, test } from "@playwright/test";
 
-import type { OpsInternalPortalAuthStatus } from "../../src/shared/ops-contract.ts";
+import type {
+	OpsInternalPortalAuthStatus,
+	ProviderConfigStatus,
+} from "../../src/shared/ops-contract.ts";
 
 function captureRuntimeErrors(page: Page): string[] {
 	const errors: string[] = [];
@@ -129,40 +132,46 @@ test("新凭据已写入但调度仍暂停时可以重试恢复", async ({ page 
 	await expectStableViewport(page, errors);
 });
 
-test("模型服务配置可以完成连接、配置、验证和激活", async ({ page }) => {
+test("Provider Config 可以创建不可变 revision、验证并激活完整 bundle", async ({ page }) => {
 	const errors = captureRuntimeErrors(page);
 	const provider = await mockProviderConfig(page);
-	await page.goto("/provider-config");
+	await page.goto("/providers");
 
-	await expect(page.getByRole("heading", { name: "模型服务配置" })).toBeVisible();
-	await page.getByLabel("服务端点").fill("https://provider.example/v1");
-	await page.getByLabel("API Key").fill("private-provider-key");
-	await page.getByRole("button", { name: "保存连接" }).click();
+	await expect(page.getByRole("heading", { name: "Provider Config" })).toBeVisible();
+	await page.getByLabel("Connection ID").fill("provider-connection");
+	await page.getByLabel("Provider", { exact: true }).fill("openai-compatible");
+	await page.getByLabel("Base URL").fill("https://provider.example/v1");
+	await page.getByLabel("API key").fill("private-provider-key");
+	await page.getByRole("button", { name: "创建 revision" }).click();
 	await expect(page.getByText("https://provider.example/v1", { exact: true })).toBeVisible();
-	await page.getByRole("button", { name: "编辑连接" }).click();
-	const editConnectionForm = page.getByRole("form", { name: "编辑连接" });
-	await editConnectionForm.getByLabel("服务端点").fill("https://provider.example/v2");
-	await editConnectionForm.getByRole("button", { name: "保存连接修改" }).click();
-	await expect(page.getByText("https://provider.example/v2", { exact: true })).toBeVisible();
-	const connection = page.getByRole("combobox", { name: "连接" });
-	await expect(connection.locator('option[value="provider-connection"]')).toHaveCount(1);
-	await connection.selectOption("provider-connection");
+	await expect(
+		page
+			.getByRole("table", { name: "Provider connections" })
+			.getByText("provider-connection@1", { exact: true }),
+	).toBeVisible();
 	await expect(page.getByText("private-provider-key")).toHaveCount(0);
 
-	await page.getByLabel("模型").fill("provider-model");
-	await page.getByRole("button", { name: "保存配置" }).click();
-	await expect(page.getByText("草稿")).toBeVisible();
-	await page.getByRole("button", { name: "编辑配置" }).click();
-	const editProfileForm = page.getByRole("form", { name: "编辑配置" });
-	await editProfileForm.getByLabel("模型").fill("provider-model-v2");
-	await editProfileForm.getByRole("button", { name: "保存配置修改" }).click();
-	await expect(page.getByText("provider-model-v2", { exact: true })).toBeVisible();
-	await page.getByRole("button", { name: "验证配置" }).click();
-	await expect(page.getByText("已验证")).toBeVisible();
-	await page.getByRole("button", { name: "激活配置" }).click();
+	await page.getByLabel("Model").fill("provider-chat-model");
+	await page.getByRole("button", { name: "创建 Profile" }).click();
+	await expect(page.getByText("provider-chat-model", { exact: true }).first()).toBeVisible();
+	await page.getByRole("button", { name: "验证 primary_agent" }).click();
 
-	await expect(page.getByText("当前生效", { exact: true })).toBeVisible();
-	await expect(page.getByText("运行时已发布")).toBeVisible();
+	await page.getByLabel("Role").selectOption("rag_query_embedding");
+	await page.getByLabel("Model").fill("provider-embedding-model");
+	await page.getByRole("button", { name: "创建 Profile" }).click();
+	await expect(page.getByText("provider-embedding-model", { exact: true }).first()).toBeVisible();
+	await page.getByRole("button", { name: "验证 rag_query_embedding" }).click();
+	await expect(page.getByText("passed", { exact: true })).toHaveCount(2);
+
+	await page.getByLabel("primary_agent").selectOption("primary_agent-profile");
+	await page.getByLabel("rag_query_embedding").selectOption("rag_query_embedding-profile");
+	await page.getByRole("button", { name: "激活 revision 1" }).click();
+
+	await expect(page.getByText("Active revision 1", { exact: true })).toBeVisible();
+	await expect(page.getByText("primary_agent: provider-chat-model", { exact: true })).toBeVisible();
+	await expect(
+		page.getByText("rag_query_embedding: provider-embedding-model", { exact: true }),
+	).toBeVisible();
 	expect(provider.receivedApiKeys).toEqual(["private-provider-key"]);
 	await expectStableViewport(page, errors);
 });
@@ -202,24 +211,24 @@ async function mockInternalPortalAuth(page: Page, initial: OpsInternalPortalAuth
 }
 
 async function mockProviderConfig(page: Page) {
-	const state = {
-		connections: [] as Record<string, unknown>[],
-		profiles: [] as Record<string, unknown>[],
-		receivedApiKeys: [] as string[],
-		runtime: {
-			configured: false,
-			digest: null as string | null,
-			profiles: {},
-			publicationId: null as string | null,
-			publishedAt: null as string | null,
-			publishedBy: null as { displayName: string; principalId: string } | null,
-		},
+	const state: ProviderConfigStatus & { receivedApiKeys: string[] } = {
+		activeRevision: 0,
+		connections: [],
+		profiles: [],
+		receivedApiKeys: [],
+		roles: [
+			{ configured: false, role: "primary_agent" },
+			{ configured: false, role: "rag_query_embedding" },
+			{ configured: false, role: "rag_reranker" },
+		],
+		sampledAt: "2026-07-16T00:00:00.000Z",
+		writeAllowed: true,
 	};
-	await page.route("**/api/ops/provider-config/**", async (route) => {
+	await page.route("**/api/ops/provider-config**", async (route) => {
 		const request = route.request();
 		const path = new URL(request.url()).pathname;
-		if (path.endsWith("/connections") && request.method() === "GET") {
-			await route.fulfill({ json: { connections: state.connections } });
+		if (path === "/api/ops/provider-config" && request.method() === "GET") {
+			await route.fulfill({ json: state });
 			return;
 		}
 		if (path.endsWith("/connections") && request.method() === "POST") {
@@ -227,102 +236,61 @@ async function mockProviderConfig(page: Page) {
 			state.receivedApiKeys.push(String(body.apiKey));
 			state.connections = [
 				{
-					baseUrl: body.baseUrl,
-					connectionId: "provider-connection",
-					createdAt: "2026-07-16T00:00:00.000Z",
+					baseUrl: String(body.baseUrl),
+					connectionId: String(body.connectionId),
 					featureConfig: {},
-					features: body.features,
-					provider: body.provider,
+					features: ["prompt", "embedding"],
+					provider: String(body.provider),
 					revision: 1,
-					secretConfigured: true,
 					secretFingerprint: "fingerprint",
 					secretLast4: "-key",
-					updatedAt: "2026-07-16T00:00:00.000Z",
 				},
 			];
-			await route.fulfill({ json: { connection: state.connections[0] }, status: 201 });
-			return;
-		}
-		if (path.endsWith("/connections/provider-connection") && request.method() === "PATCH") {
-			const body = request.postDataJSON() as Record<string, unknown>;
-			state.connections = [
-				{
-					...state.connections[0],
-					...body,
-					revision: 2,
-					updatedAt: "2026-07-16T00:01:00.000Z",
-				},
-			];
-			await route.fulfill({ json: { connection: state.connections[0] } });
-			return;
-		}
-		if (path.endsWith("/profiles") && request.method() === "GET") {
-			await route.fulfill({ json: { profiles: state.profiles, runtime: state.runtime } });
+			await route.fulfill({ json: { ok: true }, status: 201 });
 			return;
 		}
 		if (path.endsWith("/profiles") && request.method() === "POST") {
 			const body = request.postDataJSON() as Record<string, unknown>;
-			state.profiles = [
-				{
-					active: false,
-					baseUrl: "https://provider.example/v1",
-					connectionId: "provider-connection",
-					createdAt: "2026-07-16T00:00:00.000Z",
-					dimensions: null,
-					kind: body.kind,
-					model: body.model,
-					profileId: "provider-profile",
-					provider: "openai-compatible",
-					revision: 1,
-					role: body.role,
-					status: "draft",
-					timeoutMs: body.timeoutMs,
-					transport: body.transport,
-					updatedAt: "2026-07-16T00:00:00.000Z",
-					validation: null,
-				},
-			];
-			await route.fulfill({ json: { profile: state.profiles[0] }, status: 201 });
-			return;
-		}
-		if (path.endsWith("/profiles/provider-profile") && request.method() === "PATCH") {
-			const body = request.postDataJSON() as Record<string, unknown>;
-			state.profiles = [
-				{
-					...state.profiles[0],
-					...body,
-					revision: 2,
-					status: "draft",
-					updatedAt: "2026-07-16T00:02:00.000Z",
-					validation: null,
-				},
-			];
-			await route.fulfill({ json: { profile: state.profiles[0] } });
+			const role = body.role as "primary_agent" | "rag_query_embedding" | "rag_reranker";
+			state.profiles.push({
+				connectionId: String(body.connectionId),
+				connectionRevision: Number(body.connectionRevision),
+				...(role === "rag_query_embedding" ? { dimensions: Number(body.dimensions) } : {}),
+				kind: body.kind as "prompt" | "embedding" | "rerank",
+				model: String(body.model),
+				profileId: `${role}-profile`,
+				role,
+				timeoutMs: Number(body.timeoutMs),
+				transport: String(body.transport),
+				validationStatus: "unvalidated",
+			});
+			await route.fulfill({ json: { ok: true }, status: 201 });
 			return;
 		}
 		if (path.endsWith("/validate") && request.method() === "POST") {
-			state.profiles = [{ ...state.profiles[0], status: "validated" }];
-			await route.fulfill({ json: { profile: state.profiles[0] } });
+			const profileId = path.split("/").at(-2);
+			state.profiles = state.profiles.map((profile) =>
+				profile.profileId === profileId ? { ...profile, validationStatus: "passed" } : profile,
+			);
+			await route.fulfill({ json: { ok: true } });
 			return;
 		}
-		if (path.endsWith("/activate") && request.method() === "POST") {
-			state.profiles = [{ ...state.profiles[0], active: true }];
-			state.runtime = {
-				configured: true,
-				digest: "sha256:test",
-				profiles: {
-					primary_agent: {
-						model: String(state.profiles[0]?.model),
-						profileId: "provider-profile",
-						provider: "openai-compatible",
-						revision: Number(state.profiles[0]?.revision),
-					},
-				},
-				publicationId: "publication-1",
-				publishedAt: "2026-07-16T00:00:00.000Z",
-				publishedBy: { displayName: "Operator", principalId: "operator-1" },
-			};
-			await route.fulfill({ json: { profile: state.profiles[0], runtime: state.runtime } });
+		if (path.endsWith("/activation") && request.method() === "POST") {
+			state.activeRevision += 1;
+			state.roles = state.roles.map((role) => {
+				const profile = state.profiles.find((candidate) => candidate.role === role.role);
+				return profile
+					? {
+							configured: true,
+							model: profile.model,
+							profileId: profile.profileId,
+							provider: "openai-compatible",
+							role: role.role,
+							transport: profile.transport,
+						}
+					: role;
+			});
+			await route.fulfill({ json: { ok: true } });
 			return;
 		}
 		await route.fallback();

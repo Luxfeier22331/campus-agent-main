@@ -1,22 +1,12 @@
-import { timingSafeEqual } from "node:crypto";
-
-import { type Env, parseCsvList } from "../../config";
-import { AppApiRouteError } from "../../http";
+import type { Env } from "../../config";
 import { type AppAuthResolutionInput, getAppAuth } from "./auth";
 
-export type AppPrincipalType =
-	| "campus_member"
-	| "student"
-	| "staff"
-	| "faculty"
-	| "operator"
-	| "service";
+export type AppPrincipalType = "campus_member" | "student" | "staff" | "faculty" | "service";
 
-export type AuthorizationProjectionSource = "campus_identity" | "operator_headers" | "service_auth";
+export type AuthorizationProjectionSource = "campus_identity" | "service_auth";
 
 export interface AppPermissions {
 	chat: boolean;
-	operator: boolean;
 }
 
 export interface AppPrincipalPayload {
@@ -69,24 +59,6 @@ export interface ResolvedAppPrincipal {
 	authorization?: ExecutionAuthorizationContext;
 }
 
-export interface InternalEvalPrincipalInput {
-	email: string;
-	principalId?: string;
-	displayName?: string;
-	principalType?: Extract<AppPrincipalType, "campus_member" | "student" | "staff" | "faculty">;
-	actorRoles?: string[];
-	departments?: string[];
-	cohort?: string;
-	major?: string;
-	program?: string;
-	entitlementGroups?: string[];
-	entitlementSnapshotId?: string;
-	visibilityLevel?: string;
-	visibilityScope?: string | null;
-	applicabilityScope?: string;
-	ownershipScopes?: string[];
-}
-
 export type BetterAuthSessionPayload = {
 	session?: {
 		id?: string;
@@ -106,7 +78,7 @@ export interface CampusIdentityClaimsInput {
 	entitlementGroups?: string[];
 	entitlementSnapshotId?: string;
 	ownershipScopes?: string[];
-	principalType?: Exclude<AppPrincipalType, "operator" | "service">;
+	principalType?: Exclude<AppPrincipalType, "service">;
 	visibilityLevel?: string;
 	visibilityScope?: string | null;
 }
@@ -124,73 +96,12 @@ function normalizeHeaderValue(value: string | null): string | null {
 	return normalized ? normalized : null;
 }
 
-function normalizeEmail(value: string | null): string | null {
-	const normalized = normalizeHeaderValue(value);
-	return normalized ? normalized.toLowerCase() : null;
-}
-
-function decodeOptionalHeaderValue(value: string | null): string | null {
-	const normalized = normalizeHeaderValue(value);
-	if (!normalized) {
-		return null;
-	}
-
-	if (!normalized.toLowerCase().startsWith("b64:")) {
-		return normalized;
-	}
-
-	try {
-		const decoded = Buffer.from(normalized.slice(4), "base64").toString("utf8").trim();
-		return decoded || null;
-	} catch {
-		return null;
-	}
-}
-
-export function hasMatchingInternalSecret(
-	request: Request,
-	env: Pick<Env, "APP_API_INTERNAL_SHARED_SECRET">,
-): boolean {
-	const expected = normalizeHeaderValue(env.APP_API_INTERNAL_SHARED_SECRET ?? null);
-	const provided = normalizeHeaderValue(request.headers.get("x-app-internal-auth"));
-	if (!(expected && provided)) {
-		return false;
-	}
-
-	const expectedBytes = Buffer.from(expected);
-	const providedBytes = Buffer.from(provided);
-	if (expectedBytes.length !== providedBytes.length) {
-		return false;
-	}
-
-	return timingSafeEqual(expectedBytes, providedBytes);
-}
-
-export function hasTrustedInternalRequest(
-	request: Request,
-	env: Pick<Env, "APP_API_INTERNAL_SHARED_SECRET">,
-): boolean {
-	return hasMatchingInternalSecret(request, env);
-}
-
-function parseHeaderList(request: Request, headerName: string): string[] {
-	return parseCsvList(request.headers.get(headerName) ?? undefined)
-		.map((value) => decodeOptionalHeaderValue(value))
-		.filter((value): value is string => Boolean(value));
-}
-
 function normalizeStringList(values: readonly string[] | undefined): string[] {
 	if (!values) {
 		return [];
 	}
 
 	return values.map((value) => normalizeHeaderValue(value) ?? "").filter((value) => Boolean(value));
-}
-
-function isCampusEndUserPrincipalType(
-	value: string,
-): value is Exclude<AppPrincipalType, "operator" | "service"> {
-	return ALLOWED_END_USER_PRINCIPAL_TYPES.has(value as AppPrincipalType);
 }
 
 function toIsoString(value: string | Date | null | undefined): string | null {
@@ -211,8 +122,6 @@ function toAuthorizationProjectionSource(
 		case "staff":
 		case "faculty":
 			return "campus_identity";
-		case "operator":
-			return "operator_headers";
 		case "service":
 			return "service_auth";
 		default:
@@ -240,10 +149,6 @@ function mergeEntitlementGroups(
 	entitlementGroups: readonly string[],
 ): string[] {
 	return [...new Set([...defaultEntitlementGroups(principalType), ...entitlementGroups])];
-}
-
-function hasDefaultCampusAuthorization(principalType: AppPrincipalType): boolean {
-	return defaultEntitlementGroups(principalType).length > 0;
 }
 
 function buildDefaultEndUserRoles(principalType: AppPrincipalType): string[] {
@@ -313,72 +218,6 @@ function buildCampusAuthorizationContext(input: {
 	};
 }
 
-export function buildInternalEvalPrincipal(
-	input: InternalEvalPrincipalInput,
-): ResolvedAppPrincipal {
-	const principalType = input.principalType ?? "campus_member";
-	const normalizedEmail = normalizeEmail(input.email);
-	if (!normalizedEmail) {
-		throw new Error("internal eval principal email is required");
-	}
-
-	const principalId = normalizeHeaderValue(input.principalId ?? null) ?? normalizedEmail;
-	const displayName = normalizeHeaderValue(input.displayName ?? null) ?? normalizedEmail;
-	const roles = normalizeStringList(input.actorRoles);
-	const departments = normalizeStringList(input.departments);
-	const actor: ExecutionActorContext = {
-		userId: principalId,
-		principalId,
-		principalType,
-		roles: roles.length > 0 ? roles : buildDefaultEndUserRoles(principalType),
-		departments,
-		cohort: decodeOptionalHeaderValue(input.cohort ?? null) ?? undefined,
-		major: decodeOptionalHeaderValue(input.major ?? null) ?? undefined,
-		program: decodeOptionalHeaderValue(input.program ?? null) ?? undefined,
-	};
-
-	const entitlementGroups = normalizeStringList(input.entitlementGroups);
-	const entitlementSnapshotId = normalizeHeaderValue(input.entitlementSnapshotId ?? null) ?? "";
-	const visibilityScope = normalizeHeaderValue(input.visibilityScope ?? null);
-	const visibilityLevel = normalizeHeaderValue(input.visibilityLevel ?? null) ?? "public";
-	const applicabilityScope = normalizeHeaderValue(input.applicabilityScope ?? null) ?? undefined;
-	const ownershipScopes = normalizeStringList(input.ownershipScopes);
-
-	const authorization =
-		entitlementSnapshotId ||
-		entitlementGroups.length > 0 ||
-		visibilityScope !== null ||
-		applicabilityScope !== undefined ||
-		ownershipScopes.length > 0 ||
-		hasDefaultCampusAuthorization(principalType)
-			? buildCampusAuthorizationContext({
-					actor,
-					applicabilityScope,
-					entitlementGroups,
-					entitlementSnapshotId,
-					ownershipScopes,
-					visibilityLevel,
-					visibilityScope,
-				})
-			: buildExecutionAuthorizationContext(actor);
-
-	return {
-		principal: {
-			type: principalType,
-			principalId,
-			displayName,
-			email: normalizedEmail,
-		},
-		session: null,
-		permissions: {
-			chat: true,
-			operator: false,
-		},
-		actor,
-		authorization,
-	};
-}
-
 export function mapSessionToCampusMemberPrincipal(
 	session: BetterAuthSessionPayload,
 ): ResolvedAppPrincipal | null {
@@ -416,7 +255,6 @@ export function mapSessionToCampusMemberPrincipal(
 				: null,
 		permissions: {
 			chat: true,
-			operator: false,
 		},
 		actor,
 		authorization: buildExecutionAuthorizationContext(actor),
@@ -477,248 +315,15 @@ export function mapSessionToAppPrincipal(
 	};
 }
 
-function parseCampusIdentityClaims(
-	request: Request,
-	env: Pick<Env, "APP_API_INTERNAL_SHARED_SECRET">,
-): CampusIdentityClaimsInput | undefined {
-	if (!hasMatchingInternalSecret(request, env)) {
-		return;
-	}
-
-	const principalType = normalizeHeaderValue(request.headers.get("x-app-campus-principal-type"));
-	const entitlementSnapshotId = normalizeHeaderValue(
-		request.headers.get("x-app-campus-entitlement-snapshot-id"),
-	);
-	const visibilityScope = normalizeHeaderValue(
-		request.headers.get("x-app-campus-visibility-scope"),
-	);
-	const applicabilityScope = normalizeHeaderValue(
-		request.headers.get("x-app-campus-applicability-scope"),
-	);
-	const visibilityLevel = normalizeHeaderValue(
-		request.headers.get("x-app-campus-visibility-level"),
-	);
-
-	const claims: CampusIdentityClaimsInput = {
-		actorRoles: parseHeaderList(request, "x-app-campus-actor-roles"),
-		applicabilityScope: applicabilityScope ?? undefined,
-		departments: parseHeaderList(request, "x-app-campus-departments"),
-		entitlementGroups: parseHeaderList(request, "x-app-campus-entitlement-groups"),
-		entitlementSnapshotId: entitlementSnapshotId ?? undefined,
-		ownershipScopes: parseHeaderList(request, "x-app-campus-ownership-scopes"),
-		visibilityLevel: visibilityLevel ?? undefined,
-		visibilityScope,
-	};
-
-	if (principalType && isCampusEndUserPrincipalType(principalType)) {
-		claims.principalType = principalType;
-	}
-
-	const hasMaterialClaims = Boolean(
-		claims.principalType ||
-			claims.entitlementSnapshotId ||
-			claims.visibilityScope ||
-			claims.applicabilityScope ||
-			claims.visibilityLevel ||
-			(claims.actorRoles?.length ?? 0) > 0 ||
-			(claims.departments?.length ?? 0) > 0 ||
-			(claims.entitlementGroups?.length ?? 0) > 0 ||
-			(claims.ownershipScopes?.length ?? 0) > 0,
-	);
-
-	return hasMaterialClaims ? claims : undefined;
-}
-
-type OperatorHeadersAdmission =
-	| { kind: "absent" }
-	| { kind: "internal_auth_required" }
-	| { kind: "not_admitted" }
-	| { kind: "admitted"; principal: ResolvedAppPrincipal };
-
-function mapInternalCampusPrincipalHeaders(
-	request: Request,
-	env: Pick<Env, "APP_API_INTERNAL_SHARED_SECRET">,
-): ResolvedAppPrincipal | null {
-	if (!hasMatchingInternalSecret(request, env)) {
-		return null;
-	}
-
-	const principalId = normalizeHeaderValue(request.headers.get("x-app-campus-principal-id"));
-	const principalType = normalizeHeaderValue(request.headers.get("x-app-campus-principal-type"));
-	if (!(principalId && principalType && isCampusEndUserPrincipalType(principalType))) {
-		return null;
-	}
-
-	const displayName =
-		normalizeHeaderValue(request.headers.get("x-app-campus-display-name")) ?? principalId;
-	const email = normalizeHeaderValue(request.headers.get("x-app-campus-email"));
-	const roles = parseHeaderList(request, "x-app-campus-actor-roles");
-	const departments = parseHeaderList(request, "x-app-campus-departments");
-	const actor: ExecutionActorContext = {
-		userId: principalId,
-		principalId,
-		principalType,
-		roles: roles.length > 0 ? roles : buildDefaultEndUserRoles(principalType),
-		departments,
-		cohort: decodeOptionalHeaderValue(request.headers.get("x-app-campus-cohort")) ?? undefined,
-		major: decodeOptionalHeaderValue(request.headers.get("x-app-campus-major")) ?? undefined,
-		program: decodeOptionalHeaderValue(request.headers.get("x-app-campus-program")) ?? undefined,
-	};
-	const campusIdentity = parseCampusIdentityClaims(request, env);
-
-	return {
-		principal: {
-			type: principalType,
-			principalId,
-			displayName,
-			email,
-		},
-		session: null,
-		permissions: {
-			chat: true,
-			operator: false,
-		},
-		actor,
-		authorization: campusIdentity
-			? buildCampusAuthorizationContext({
-					actor,
-					applicabilityScope: campusIdentity.applicabilityScope,
-					entitlementGroups: campusIdentity.entitlementGroups ?? [],
-					entitlementSnapshotId: campusIdentity.entitlementSnapshotId ?? "",
-					ownershipScopes: campusIdentity.ownershipScopes ?? [],
-					visibilityLevel: campusIdentity.visibilityLevel ?? "public",
-					visibilityScope: campusIdentity.visibilityScope ?? null,
-				})
-			: buildExecutionAuthorizationContext(actor),
-	};
-}
-
-function isOperatorRouteRequest(request: Request): boolean {
-	const pathname = new URL(request.url).pathname;
-	return pathname.startsWith("/api/operator/");
-}
-
-function buildOperatorPrincipal(input: {
-	email: string | null;
-	identity: string;
-	request: Request;
-}): ResolvedAppPrincipal {
-	const principalId =
-		normalizeHeaderValue(input.request.headers.get("x-app-operator-id")) ?? input.identity;
-	const displayName =
-		normalizeHeaderValue(input.request.headers.get("x-app-operator-name")) ?? input.identity;
-	const roles = parseHeaderList(input.request, "x-app-operator-roles");
-	const departments = parseHeaderList(input.request, "x-app-operator-departments");
-
-	const actor: ExecutionActorContext = {
-		userId: principalId,
-		principalId,
-		principalType: "operator",
-		roles,
-		departments,
-	};
-
-	return {
-		principal: {
-			type: "operator",
-			principalId,
-			displayName,
-			email: input.email,
-		},
-		session: null,
-		permissions: {
-			chat: false,
-			operator: true,
-		},
-		actor,
-		authorization: buildExecutionAuthorizationContext(actor),
-	};
-}
-
-function resolveOperatorHeadersAdmission(request: Request, env: Env): OperatorHeadersAdmission {
-	const email = normalizeEmail(request.headers.get("x-app-operator-email"));
-	const serviceId = normalizeHeaderValue(request.headers.get("x-app-operator-service-id"));
-	if (!(email || serviceId)) {
-		return { kind: "absent" };
-	}
-	if (!hasMatchingInternalSecret(request, env)) {
-		return { kind: "internal_auth_required" };
-	}
-
-	if (serviceId) {
-		const serviceAllowlist = new Set(parseCsvList(env.APP_API_OPERATOR_SERVICE_ID_ALLOWLIST));
-		if (serviceAllowlist.has(serviceId)) {
-			return {
-				kind: "admitted",
-				principal: buildOperatorPrincipal({ email: null, identity: serviceId, request }),
-			};
-		}
-	}
-
-	if (!email) {
-		return { kind: "not_admitted" };
-	}
-
-	const allowlist = new Set(
-		parseCsvList(env.APP_API_OPERATOR_EMAIL_ALLOWLIST).map((item) => item.toLowerCase()),
-	);
-	if (allowlist.size === 0 || !allowlist.has(email)) {
-		return { kind: "not_admitted" };
-	}
-
-	return {
-		kind: "admitted",
-		principal: buildOperatorPrincipal({ email, identity: email, request }),
-	};
-}
-
-export function mapOperatorHeadersToPrincipal(
-	request: Request,
-	env: Env,
-): ResolvedAppPrincipal | null {
-	const operatorHeadersAdmission = resolveOperatorHeadersAdmission(request, env);
-	return operatorHeadersAdmission.kind === "admitted" ? operatorHeadersAdmission.principal : null;
-}
-
 export async function resolveRequestPrincipal(
 	request: Request,
 	env: Env,
 	input: AppAuthResolutionInput = {},
 ): Promise<ResolvedAppPrincipal | null> {
-	const internalCampusPrincipal = mapInternalCampusPrincipalHeaders(request, env);
-	if (internalCampusPrincipal) {
-		return internalCampusPrincipal;
-	}
-
-	const operatorHeadersAdmission = resolveOperatorHeadersAdmission(request, env);
-	if (operatorHeadersAdmission.kind === "admitted") {
-		return operatorHeadersAdmission.principal;
-	}
-
-	if (isOperatorRouteRequest(request)) {
-		if (operatorHeadersAdmission.kind === "internal_auth_required") {
-			throw new AppApiRouteError({
-				code: "internal_auth_required",
-				message: "Trusted internal shared secret required.",
-				retryable: false,
-				status: 401,
-			});
-		}
-
-		if (operatorHeadersAdmission.kind === "not_admitted") {
-			throw new AppApiRouteError({
-				code: "operator_identity_not_admitted",
-				message: "Operator identity is not admitted for panel access.",
-				retryable: false,
-				status: 403,
-			});
-		}
-	}
-
 	const auth = input.getAppAuth ? await input.getAppAuth() : await getAppAuth(env);
 	const session = await auth.api.getSession({
 		headers: request.headers,
 	});
 
-	return mapSessionToAppPrincipal(session, parseCampusIdentityClaims(request, env));
+	return mapSessionToAppPrincipal(session);
 }

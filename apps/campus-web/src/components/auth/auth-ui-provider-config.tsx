@@ -3,7 +3,7 @@ import { type CaptchaRenderProps, captchaPlugin } from "@better-auth-ui/react/pl
 import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
 import type { ComponentProps, ComponentType, ReactNode } from "react";
 import { useEffect, useRef } from "react";
-
+import { profileMemoryPlugin } from "@/features/profile-memory/auth-plugin";
 import { campusAuthClient } from "@/platform/auth/client";
 import { SIGNUP_LEGAL_CONSENT_FIELD_NAME } from "@/platform/auth/legal-consent";
 import { resolveAccountAuthReturnTarget } from "@/platform/auth/return-target";
@@ -148,8 +148,9 @@ export function createCampusAuthUIProviderProps({
 			},
 		},
 		navigate,
-		plugins:
-			enableCaptcha && turnstileRuntimeConfig.turnstileSiteKey
+		plugins: [
+			profileMemoryPlugin(),
+			...(enableCaptcha && turnstileRuntimeConfig.turnstileSiteKey
 				? [
 						captchaPlugin({
 							render: (props) => (
@@ -162,7 +163,8 @@ export function createCampusAuthUIProviderProps({
 							),
 						}),
 					]
-				: [],
+				: []),
+		],
 		redirectTo: redirectTo ?? resolveRedirectTo(),
 		viewPaths: {
 			auth: {
@@ -175,6 +177,7 @@ export function createCampusAuthUIProviderProps({
 			},
 			settings: {
 				account: "account",
+				memory: "memory",
 				security: "security",
 			},
 		},

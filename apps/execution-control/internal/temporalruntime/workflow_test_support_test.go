@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 	"go.temporal.io/sdk/activity"
 )
 
@@ -30,6 +31,97 @@ func registerWorkflowTestActivities(env workflowTestActivityRegistrar, activitie
 		activities.WriteFinalizationActivity,
 		activity.RegisterOptions{Name: WriteFinalizationActivityName},
 	)
+	env.RegisterActivityWithOptions(
+		activities.ExecutePersonalMemoryCommandActivity,
+		activity.RegisterOptions{Name: ExecutePersonalMemoryCommandActivityName},
+	)
+	env.RegisterActivityWithOptions(
+		activities.PurgePersonalMemoryTracesActivity,
+		activity.RegisterOptions{Name: PurgePersonalMemoryTracesActivityName},
+	)
+	env.RegisterActivityWithOptions(
+		activities.VerifyPersonalMemoryTracesActivity,
+		activity.RegisterOptions{Name: VerifyPersonalMemoryTracesActivityName},
+	)
+	env.RegisterActivityWithOptions(
+		activities.PurgeLangfuseTraceRetentionActivity,
+		activity.RegisterOptions{Name: PurgeLangfuseTraceRetentionActivityName},
+	)
+	env.RegisterActivityWithOptions(
+		activities.VerifyLangfuseTraceRetentionActivity,
+		activity.RegisterOptions{Name: VerifyLangfuseTraceRetentionActivityName},
+	)
+	env.RegisterActivityWithOptions(
+		activities.FinalizePersonalMemoryCommandReceiptActivity,
+		activity.RegisterOptions{Name: FinalizePersonalMemoryCommandReceiptActivityName},
+	)
+	env.RegisterActivityWithOptions(
+		activities.FinalizeExecutionFailureActivity,
+		activity.RegisterOptions{Name: FinalizeExecutionFailureActivityName},
+	)
+	env.RegisterActivityWithOptions(
+		activities.WritePersonalMemoryCommandResultActivity,
+		activity.RegisterOptions{Name: WritePersonalMemoryCommandResultActivityName},
+	)
+}
+
+func (Activities) FinalizePersonalMemoryCommandReceiptActivity(
+	_ context.Context,
+	input FinalizePersonalMemoryCommandReceiptActivityInput,
+) (PersonalMemoryCommandActivityOutput, error) {
+	return input.Result, nil
+}
+
+func (Activities) FinalizeExecutionFailureActivity(
+	context.Context,
+	FinalizeExecutionFailureActivityInput,
+) (FinalizeExecutionFailureActivityOutput, error) {
+	return FinalizeExecutionFailureActivityOutput{}, nil
+}
+
+func (Activities) ExecutePersonalMemoryCommandActivity(
+	_ context.Context,
+	input memoryruntime.PersonalMemoryCommandRequest,
+) (PersonalMemoryCommandActivityOutput, error) {
+	return PersonalMemoryCommandActivityOutput{
+		CommandID: input.CommandID,
+		Status:    "succeeded",
+	}, nil
+}
+
+func (Activities) PurgePersonalMemoryTracesActivity(
+	context.Context,
+	PersonalMemoryTraceMaintenanceActivityInput,
+) (PersonalMemoryTraceMaintenanceActivityOutput, error) {
+	return PersonalMemoryTraceMaintenanceActivityOutput{}, nil
+}
+
+func (Activities) VerifyPersonalMemoryTracesActivity(
+	context.Context,
+	PersonalMemoryTraceMaintenanceActivityInput,
+) (PersonalMemoryTraceMaintenanceActivityOutput, error) {
+	return PersonalMemoryTraceMaintenanceActivityOutput{}, nil
+}
+
+func (Activities) PurgeLangfuseTraceRetentionActivity(
+	context.Context,
+	LangfuseTraceRetentionActivityInput,
+) (LangfuseTraceRetentionActivityOutput, error) {
+	return LangfuseTraceRetentionActivityOutput{}, nil
+}
+
+func (Activities) VerifyLangfuseTraceRetentionActivity(
+	context.Context,
+	LangfuseTraceRetentionActivityInput,
+) (LangfuseTraceRetentionActivityOutput, error) {
+	return LangfuseTraceRetentionActivityOutput{}, nil
+}
+
+func (Activities) WritePersonalMemoryCommandResultActivity(
+	context.Context,
+	PersonalMemoryCommandActivityOutput,
+) error {
+	return nil
 }
 
 func (Activities) MemoryRecallActivity(
@@ -51,16 +143,9 @@ func (Activities) AppendConversationMemoryActivity(
 		AppendedMessageCount: 1,
 		PayloadSHA256:        "sha256:memory-append",
 		RunID:                input.RunID,
-		SchemaVersion:        "memory_conversation_append_result_v1",
+		SchemaVersion:        "memory_conversation_append_result_v2",
 		Status:               "completed",
 	}, nil
-}
-
-func (Activities) MemoryOperationStatusActivity(
-	_ context.Context,
-	_ MemoryOperationStatusActivityInput,
-) (MemoryOperationStatusActivityOutput, error) {
-	return MemoryOperationStatusActivityOutput{}, nil
 }
 
 func (Activities) MemoryReflectActivity(

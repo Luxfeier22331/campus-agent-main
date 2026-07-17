@@ -35,6 +35,7 @@ spec:
       labels:
         app.kubernetes.io/name: ops-web
         app.kubernetes.io/part-of: campus-agent
+        campus-agent.muc.wiki/network-policy-profile: ops-web
     spec:
       serviceAccountName: ops-web
       automountServiceAccountToken: false
@@ -77,33 +78,24 @@ spec:
                 secretKeyRef:
                   name: ops-web-dining-database-secrets
                   key: OPS_WEB_DINING_DATABASE_URL
-            - name: OPS_WEB_PROVIDER_CONFIG_DATABASE_URL
-              valueFrom:
-                secretKeyRef:
-                  name: ops-web-provider-config-secrets
-                  key: OPS_WEB_PROVIDER_CONFIG_DATABASE_URL
-            - name: OPS_WEB_PROVIDER_CONFIG_ENCRYPTION_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: ops-web-provider-config-secrets
-                  key: OPS_WEB_PROVIDER_CONFIG_ENCRYPTION_KEY
-            - name: OPS_WEB_PROVIDER_CONFIG_DATABASE_CA_CERT_PATH
-              value: /etc/campus-agent/postgres/ca.crt
-            - name: OPS_WEB_PROVIDER_CONFIG_DATABASE_SSLMODE
-              value: verify-full
-            - name: OPS_WEB_PROVIDER_CONFIG_PUBLISH_TARGET
-              value: kubernetes
             - name: OPS_WEB_DINING_DATABASE_CA_CERT_PATH
               value: /etc/campus-agent/postgres/ca.crt
             - name: OPS_WEB_DINING_DATABASE_SSLMODE
               value: verify-full
             - name: OPS_WEB_EXECUTION_CONTROL_URL
               value: http://execution-control:8000
-            - name: OPS_WEB_EXECUTION_CONTROL_WORKER_SHARED_SECRET
+            - name: OPS_WEB_EXECUTION_CONTROL_ADMIN_URL
+              value: http://execution-control-admin:8000
+            - name: OPS_WEB_EXECUTION_CONTROL_PROVIDER_READ_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: execution-control-secrets
-                  key: API_WORKER_SHARED_SECRET
+                  name: execution-provider-config-admin-secrets
+                  key: EXECUTION_CONTROL_PROVIDER_CONFIG_ADMIN_READ_TOKEN
+            - name: OPS_WEB_EXECUTION_CONTROL_PROVIDER_COMMAND_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: execution-provider-config-admin-secrets
+                  key: EXECUTION_CONTROL_PROVIDER_CONFIG_ADMIN_COMMAND_TOKEN
             - name: OPS_WEB_EXECUTION_CONTROL_METRICS_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -167,18 +159,23 @@ spec:
                   name: ops-web-access-secrets
                   key: OPS_WEB_RAW_SERVICE_TOKEN_OPERATOR_ALLOWLIST
                   optional: true
-            - name: OPENOBSERVE_USERNAME
+            - name: OPS_WEB_PROVIDER_CONFIG_WRITE_HUMAN_EMAIL_ALLOWLIST
               valueFrom:
                 secretKeyRef:
-                  name: openobserve-reader-secrets
-                  key: OPENOBSERVE_READER_USERNAME
+                  name: ops-web-access-secrets
+                  key: OPS_WEB_PROVIDER_CONFIG_WRITE_HUMAN_EMAIL_ALLOWLIST
                   optional: true
-            - name: OPENOBSERVE_PASSWORD
+            - name: OPS_WEB_PROVIDER_CONFIG_WRITE_HUMAN_GROUP_ALLOWLIST
               valueFrom:
                 secretKeyRef:
-                  name: openobserve-reader-secrets
-                  key: OPENOBSERVE_READER_TOKEN
+                  name: ops-web-access-secrets
+                  key: OPS_WEB_PROVIDER_CONFIG_WRITE_HUMAN_GROUP_ALLOWLIST
                   optional: true
+            - name: OPS_WEB_AXIOM_QUERY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ops-web-observability-secrets
+                  key: OPS_WEB_AXIOM_QUERY_TOKEN
           volumeMounts:
             - name: kubernetes-api-access
               mountPath: /var/run/secrets/kubernetes.io/serviceaccount

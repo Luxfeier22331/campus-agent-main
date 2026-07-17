@@ -69,7 +69,6 @@ function encodeSseComment(comment: string): Uint8Array {
 
 function createRunEventsSseResponse(input: {
 	events: AsyncIterable<RuntimeRunEventProjection>;
-	onTerminal?: ((event: ChatCommandStreamEvent) => Promise<void> | void) | undefined;
 	run: RuntimeRunSummary;
 }): Response {
 	const stream = new ReadableStream<Uint8Array>({
@@ -86,13 +85,6 @@ function createRunEventsSseResponse(input: {
 						run: input.run,
 					});
 					if (productEvent) {
-						if (
-							productEvent.event === "request.completed" ||
-							productEvent.event === "request.cancelled" ||
-							productEvent.event === "request.failed"
-						) {
-							await input.onTerminal?.(productEvent);
-						}
 						controller.enqueue(encodeSseMessage(productEvent));
 					}
 				}
@@ -359,13 +351,6 @@ export function registerChatRunRoutes(input: {
 			});
 			return createRunEventsSseResponse({
 				events,
-				onTerminal: async () => {
-					await scope.resolveChatCommandService().reconcileDurableCloseouts?.({
-						limit: 1,
-						runId: runStatus.run.runId,
-						startedBefore: new Date().toISOString(),
-					});
-				},
 				run: runStatus.run,
 			});
 		} catch (error) {

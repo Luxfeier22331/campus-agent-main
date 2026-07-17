@@ -25,6 +25,7 @@ function durableRunPayload(overrides: Record<string, unknown> = {}): Record<stri
 		fail_close_reason: "",
 		final_response_ref: "",
 		owner_user_id: "user_001",
+		queued_at: "2026-06-04T01:02:03Z",
 		request_id: "req_durable_001",
 		requested_tool: "knowledge_query",
 		run_id: "run_durable_001",
@@ -139,7 +140,7 @@ describe("execution control runtime adapter", () => {
 		).toBe(false);
 		expect(
 			isExecutionControlRuntimeConfigured({
-				APP_API_INTERNAL_SHARED_SECRET: "shared-secret",
+				APP_API_PRODUCT_CALLBACK_SHARED_SECRET: "shared-secret",
 			} as never),
 		).toBe(false);
 	});
@@ -217,6 +218,7 @@ describe("execution control runtime adapter", () => {
 			finalResponseRef: "",
 			taskQueue: "campus-agent.workflow",
 			ownerUserId: "user_001",
+			queuedAt: "2026-06-04T01:02:03Z",
 			requestId: "req_durable_001",
 			requestedTool: "knowledge_query",
 			runId: "run_durable_001",
@@ -489,47 +491,12 @@ describe("execution control runtime adapter", () => {
 		expect(run.status).toBe("canceled");
 	});
 
-	it("indexes explicit profile memory through execution-control personal memory command endpoints", async () => {
-		const fetchImplementation = vi
-			.fn()
-			.mockResolvedValueOnce(
-				new Response(
-					JSON.stringify({
-						episode_uuid: "episode_01HQ",
-						memory_id: "mem_01HQ",
-						payload_sha256: "hash-upsert",
-						schema_version: "memory_profile_item_result_v1",
-						status: "active",
-						updated_at: "2026-06-10T08:00:00.000Z",
-						user_id: "user_01HQ",
-					}),
-					{ status: 202 },
-				),
-			)
-			.mockResolvedValueOnce(
-				new Response(
-					JSON.stringify({
-						episode_uuid: "episode_01HQ",
-						memory_id: "mem_01HQ",
-						payload_sha256: "hash-disable",
-						schema_version: "memory_profile_item_result_v1",
-						status: "disabled",
-						updated_at: "2026-06-10T09:00:00.000Z",
-						user_id: "user_01HQ",
-					}),
-					{ status: 202 },
-				),
-			)
-			.mockResolvedValueOnce(
-				new Response(
-					JSON.stringify({
-						status: "disabled",
-						updated_at: "2026-06-10T10:00:00.000Z",
-						user_id: "user_01HQ",
-					}),
-					{ status: 202 },
-				),
-			);
+	it("sends source-document deletion commands through the command endpoint", async () => {
+		const fetchImplementation = vi.fn().mockResolvedValueOnce(
+			new Response(JSON.stringify({ workflow_id: "campus-agent.memory.command.memcmd_01HQ" }), {
+				status: 202,
+			}),
+		);
 		const client = createExecutionControlPersonalMemoryClient(
 			{
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
@@ -538,93 +505,48 @@ describe("execution control runtime adapter", () => {
 			{ fetchImplementation },
 		);
 
-		const upsert = await client.upsertExplicitMemory({
-			canonicalSubject: "answer_style",
-			compactText: "answer_style: 先给结论",
-			memoryId: "mem_01HQ",
-			traceId: "trace_memory_001",
-			updatedAt: "2026-06-10T08:00:00.000Z",
-			userId: "user_01HQ",
+		const result = await client.admit({
+			commandId: "memcmd_01HQ",
+			commandKind: "conversation_prune",
+			item: null,
+			lifecycleState: "active",
+			ownerGeneration: 2,
+			ownerSequence: 7,
+			ownerUserId: "user_01HQ",
+			schemaVersion: "personal_memory_command.v2",
+			sourceMessageIds: ["msg_user_01", "msg_user_02"],
+			sourceUpdatedAt: "2026-06-10T08:00:00.000Z",
+			status: "pending_admission",
+			subjectId: "conv_01HQ",
+			subjectRevision: null,
+			supersessionScope: "source_batch:memcmd_01HQ",
 		});
-		const disabled = await client.disableExplicitMemory({
-			episodeUUID: "episode_01HQ",
-			memoryId: "mem_01HQ",
-			traceId: "trace_memory_002",
-			updatedAt: "2026-06-10T09:00:00.000Z",
-			userId: "user_01HQ",
-		});
-		const ownerDisabled = await client.disableOwnerMemory({
-			traceId: "trace_memory_003",
-			updatedAt: "2026-06-10T10:00:00.000Z",
-			userId: "user_01HQ",
-		});
+		expect(result.workflowId).toBe("campus-agent.memory.command.memcmd_01HQ");
 
-		expect(fetchImplementation).toHaveBeenNthCalledWith(
-			1,
-			"https://execution-control.internal/internal/memory/personal/items:upsert",
+		expect(fetchImplementation).toHaveBeenCalledWith(
+			"https://execution-control.internal/internal/memory/personal/commands",
 			expect.objectContaining({
-				headers: expect.objectContaining({
-					"x-trace-id": "trace_memory_001",
-					"x-worker-origin-auth": "shared-secret",
-				}),
+				headers: expect.objectContaining({ "x-worker-origin-auth": "shared-secret" }),
 				method: "POST",
 			}),
 		);
 		expect(JSON.parse(readMockRequestBody(fetchImplementation, 0))).toEqual({
-			canonical_subject: "answer_style",
-			compact_text: "answer_style: 先给结论",
-			memory_id: "mem_01HQ",
+			command_id: "memcmd_01HQ",
+			command_kind: "conversation_prune",
+			item: null,
+			lifecycle_state: "active",
+			owner_generation: 2,
+			owner_sequence: 7,
+			schema_version: "personal_memory_command.v2",
+			source_message_ids: ["msg_user_01", "msg_user_02"],
+			source_updated_at: "2026-06-10T08:00:00.000Z",
+			subject_id: "conv_01HQ",
+			subject_revision: null,
+			supersession_scope: "source_batch:memcmd_01HQ",
 			tenant_id: "tenant-main",
-			updated_at: "2026-06-10T08:00:00.000Z",
 			user_id: "user_01HQ",
 		});
-		expect(fetchImplementation).toHaveBeenNthCalledWith(
-			2,
-			"https://execution-control.internal/internal/memory/personal/items:disable",
-			expect.objectContaining({
-				headers: expect.objectContaining({
-					"x-trace-id": "trace_memory_002",
-					"x-worker-origin-auth": "shared-secret",
-				}),
-				method: "POST",
-			}),
-		);
-		expect(JSON.parse(readMockRequestBody(fetchImplementation, 1))).toEqual({
-			episode_uuid: "episode_01HQ",
-			memory_id: "mem_01HQ",
-			tenant_id: "tenant-main",
-			updated_at: "2026-06-10T09:00:00.000Z",
-			user_id: "user_01HQ",
-		});
-		expect(fetchImplementation).toHaveBeenNthCalledWith(
-			3,
-			"https://execution-control.internal/internal/memory/personal/owner:disable",
-			expect.objectContaining({
-				headers: expect.objectContaining({
-					"x-trace-id": "trace_memory_003",
-					"x-worker-origin-auth": "shared-secret",
-				}),
-				method: "POST",
-			}),
-		);
-		expect(JSON.parse(readMockRequestBody(fetchImplementation, 2))).toEqual({
-			tenant_id: "tenant-main",
-			updated_at: "2026-06-10T10:00:00.000Z",
-			user_id: "user_01HQ",
-		});
-		expect(upsert).toEqual({
-			episodeUUID: "episode_01HQ",
-			memoryId: "mem_01HQ",
-			schemaVersion: "memory_profile_item_result_v1",
-			status: "active",
-			updatedAt: "2026-06-10T08:00:00.000Z",
-		});
-		expect(disabled.status).toBe("disabled");
-		expect(ownerDisabled).toEqual({
-			status: "disabled",
-			updatedAt: "2026-06-10T10:00:00.000Z",
-			userId: "user_01HQ",
-		});
+		expect(result).toEqual({ workflowId: "campus-agent.memory.command.memcmd_01HQ" });
 	});
 
 	it("fails closed when durable runtime configuration is missing", async () => {

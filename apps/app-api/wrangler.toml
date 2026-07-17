@@ -4,6 +4,36 @@ compatibility_date = "2026-03-17"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = false
 preview_urls = false
+upload_source_maps = true
+
+[observability]
+enabled = true
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+invocation_logs = false
+persist = false
+
+[observability.traces]
+enabled = false
+head_sampling_rate = 0
+persist = false
+
+[env.staging.observability]
+enabled = true
+
+[env.staging.observability.logs]
+destinations = ["axiom-staging-logs"]
+enabled = true
+head_sampling_rate = 1
+invocation_logs = false
+persist = false
+
+[env.staging.observability.traces]
+enabled = false
+head_sampling_rate = 0
+persist = false
 
 [env.local]
 workers_dev = false
@@ -13,13 +43,10 @@ preview_urls = false
 APP_API_ENVIRONMENT = "development"
 AUTH_SHELL_ORIGIN = "http://127.0.0.1:27014"
 APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "example.edu"
-APP_API_END_USER_EMAIL_ALLOWLIST = "eval-benchmark@example.edu,help_bot@outlook.com"
-APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com"
+APP_API_END_USER_EMAIL_ALLOWLIST = "help_bot@outlook.com"
 APP_API_PUBLIC_NOTICE_URL_ALLOWLIST = "www.example.edu"
-APP_API_OPERATOR_SERVICE_ID_ALLOWLIST = ""
 EXECUTION_CONTROL_BASE_URL = "http://127.0.0.1:27051"
 EXECUTION_CONTROL_TIMEOUT_MS = "180000"
-APP_API_OTEL_INGEST_ENDPOINT = "http://127.0.0.1:4318"
 
 [env.local.secrets]
 required = [
@@ -28,10 +55,8 @@ required = [
   "RESEND_API_KEY",
   "AUTH_RESET_EMAIL_FROM",
   "EXECUTION_CONTROL_SHARED_SECRET",
-  "APP_API_INTERNAL_SHARED_SECRET",
+  "APP_API_PRODUCT_CALLBACK_SHARED_SECRET",
   "APP_API_SAFETY_IDENTIFIER_HMAC_SECRET",
-  "APP_API_OTEL_INGEST_SHARED_SECRET",
-  "SENTRY_DSN",
 ]
 
 [env.staging.vars]
@@ -39,13 +64,10 @@ APP_API_ENVIRONMENT = "staging"
 AUTH_SHELL_ORIGIN = "https://campus-staging.mucwiki-edge.link"
 APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "example.edu"
 APP_API_END_USER_EMAIL_ALLOWLIST = "help_bot@outlook.com"
-APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com,help_bot@outlook.com"
 APP_API_PUBLIC_NOTICE_URL_ALLOWLIST = "www.example.edu"
-APP_API_OPERATOR_SERVICE_ID_ALLOWLIST = "0574fdaa4ead6412aba1c56ef9aec9af"
 EXECUTION_CONTROL_PRIVATE_ORIGIN = "http://execution-control.campus-agent-staging.svc.cluster.local:8000"
 EXECUTION_CONTROL_TIMEOUT_MS = "95000"
 SENTRY_ENVIRONMENT = "staging"
-APP_API_OTEL_INGEST_ENDPOINT = "https://otel-collector-staging.mucwiki-edge.link"
 
 [env.staging.secrets]
 required = [
@@ -54,11 +76,9 @@ required = [
   "RESEND_API_KEY",
   "AUTH_RESET_EMAIL_FROM",
   "EXECUTION_CONTROL_SHARED_SECRET",
-  "APP_API_INTERNAL_SHARED_SECRET",
+  "APP_API_PRODUCT_CALLBACK_SHARED_SECRET",
   "APP_API_SAFETY_IDENTIFIER_HMAC_SECRET",
   "APP_API_STAGING_SMOKE_AUTH_SECRET",
-  "SENTRY_DSN",
-  "APP_API_OTEL_INGEST_SHARED_SECRET",
 ]
 
 [[env.staging.vpc_services]]

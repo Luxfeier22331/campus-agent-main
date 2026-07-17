@@ -115,7 +115,7 @@ OpenAI Agents SDK trace、Langfuse、Sentry 与 Axiom 可以提供进一步诊�
 
 ## 相关文档
 
-- `docs/contracts/app-api/observability.md`
+- `docs/data/app-api/runtime.md`
 - `docs/contracts/langfuse-runtime.md`
 - `docs/architecture/system/ops-observability.md`
 - `docs/architecture/system/learning-loop.md`
