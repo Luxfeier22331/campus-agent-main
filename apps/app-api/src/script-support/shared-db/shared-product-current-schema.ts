@@ -166,7 +166,7 @@ function applySharedProductSchemaStatement(specs: TableSpecMap, statement: strin
 		return;
 	}
 	if (
-		/^ALTER TABLE "chat"\."turn_dispatches" (?:ADD COLUMN IF NOT EXISTS|ALTER COLUMN) /iu.test(
+		/^ALTER TABLE "chat"\."turn_dispatches"\s+(?:ADD COLUMN IF NOT EXISTS|ALTER COLUMN) /iu.test(
 			trimmed,
 		) ||
 		/^UPDATE "chat"\."turn_dispatches"\s+SET /iu.test(trimmed)

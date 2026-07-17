@@ -36,6 +36,7 @@ describe("app-api schema installer", () => {
 		expect(sql).not.toContain('"runtime"."agent_runs"');
 		expect(sql).not.toContain('"official_web"');
 		expect(sql).not.toContain('"operator"');
+		expect(sql).not.toContain('"dining"');
 		expect(sql).not.toContain('"wechat_official_account"');
 	});
 

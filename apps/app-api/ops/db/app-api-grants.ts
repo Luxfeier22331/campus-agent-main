@@ -1,6 +1,6 @@
 const APP_API_DML_SCHEMAS = ["app_auth", "chat", "profile"] as const;
 
-const APP_API_READ_SCHEMAS = ["campus_services", "dining", "docs"] as const;
+const APP_API_READ_SCHEMAS = ["campus_services", "docs"] as const;
 
 export interface DatabaseGrantClient {
 	query(sql: string): Promise<unknown>;

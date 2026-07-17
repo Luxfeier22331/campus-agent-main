@@ -69,4 +69,13 @@ describe("app-api shared product current schema", () => {
 			"Unsupported shared-product schema baseline statement shape",
 		);
 	});
+
+	it("accepts allowlisted turn-dispatch column changes across lines", () => {
+		expect(() =>
+			validateSharedProductCurrentSchemaSql(`
+				ALTER TABLE "chat"."turn_dispatches"
+				ADD COLUMN IF NOT EXISTS "admission_status" text DEFAULT 'pending_input' NOT NULL;
+			`),
+		).not.toThrow();
+	});
 });

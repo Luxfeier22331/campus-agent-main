@@ -15,7 +15,12 @@ const RYUK_IMAGE =
 const DATABASE_NAME = "campus_agent";
 const SCHEMA_OWNER = "app_api_schema_owner";
 const RUNTIME_ROLE = "app_api";
-const SUPPORTING_ROLES = ["campus_services_publisher", "execution_control", "ops_web"] as const;
+const SUPPORTING_ROLES = [
+	"campus_services_publisher",
+	"docs_publish",
+	"execution_control",
+	"ops_web",
+] as const;
 const transportFixturePath = fileURLToPath(
 	new URL("../db/shared-product-schema/testdata/transport_integration.sql", import.meta.url),
 );

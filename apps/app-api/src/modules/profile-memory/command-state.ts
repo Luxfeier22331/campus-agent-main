@@ -148,7 +148,7 @@ export async function reconcileOwnerMemoryState(
 							and lifecycle_head."owner_sequence" > erase_head."owner_sequence"
 					)
 			)`,
-			eraseProcessedAt: sql<Date | null>`(
+			eraseProcessedAt: sql`(
 				select erase_head."processed_at"
 				from "profile"."memory_commands" as erase_head
 				where erase_head."owner_user_id" = ${input.ownerUserId}
@@ -173,7 +173,7 @@ export async function reconcileOwnerMemoryState(
 							and lifecycle_head."owner_sequence" > erase_head."owner_sequence"
 					)
 				limit 1
-			)`,
+			)`.mapWith(profileMemoryCommands.processedAt),
 			hasFailedHead: sql<boolean>`exists (
 				select 1
 				from "profile"."memory_commands" as failed_head

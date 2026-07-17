@@ -24,6 +24,7 @@ const AUDIT_MAINTENANCE_ROLE = "ops_audit_maintenance";
 const NOLOGIN_ROLES = [
 	"app_api",
 	"campus_services_publisher",
+	"docs_publish",
 	"execution_control",
 	"execution_provider_config_reader",
 	"execution_provider_config_admin",
