@@ -5,6 +5,8 @@ WORKDIR /app
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/ops-web/package.json ./apps/ops-web/package.json
+COPY packages/domains/dining/package.json ./packages/domains/dining/package.json
+COPY packages/domains/provider-config/package.json ./packages/domains/provider-config/package.json
 
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
   --mount=type=cache,id=corepack,target=/root/.cache/node/corepack,sharing=locked \
@@ -12,6 +14,8 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharin
   && pnpm install --frozen-lockfile --filter ops-web
 
 COPY apps/ops-web ./apps/ops-web
+COPY packages/domains/dining ./packages/domains/dining
+COPY packages/domains/provider-config ./packages/domains/provider-config
 
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
   pnpm --filter ops-web build \

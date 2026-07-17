@@ -29,12 +29,17 @@ export function loadMapLibre(): Promise<MapLibreRuntime> {
 
 		const existingScript = document.getElementById(MAPLIBRE_SCRIPT_ID) as HTMLScriptElement | null;
 		const script = existingScript ?? document.createElement("script");
+		const rejectLoad = (error: Error) => {
+			loadPromise = null;
+			script.remove();
+			reject(error);
+		};
 
 		script.addEventListener(
 			"load",
 			() => {
 				if (!window.maplibregl) {
-					reject(new Error("MapLibre vendor script loaded without registering maplibregl."));
+					rejectLoad(new Error("MapLibre vendor script loaded without registering maplibregl."));
 					return;
 				}
 				resolve(window.maplibregl);
@@ -44,7 +49,7 @@ export function loadMapLibre(): Promise<MapLibreRuntime> {
 		script.addEventListener(
 			"error",
 			() => {
-				reject(new Error("MapLibre vendor script failed to load."));
+				rejectLoad(new Error("MapLibre vendor script failed to load."));
 			},
 			{ once: true },
 		);

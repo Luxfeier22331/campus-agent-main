@@ -17,19 +17,17 @@ status: active
 | 项目 | 内容 |
 | --- | --- |
 | 产品名称 | Ops Web |
-| 产品形态 | 自托管、受访问保护、默认只读的运维网站 |
-| 主要用户 | 值班人员、运行服务负责人、排查问答链路的工程师 |
-| 主要任务 | 判断系统是否正常、查找请求、定位执行问题、维护固定门户认证 |
+| 产品形态 | 自托管、受访问保护的运维与领域运营网站 |
+| 主要用户 | 值班人员、运行服务负责人、排查问答链路的工程师、食堂内容和模型配置运营人员 |
+| 主要任务 | 判断系统是否正常、定位执行问题、管理模型配置、校正并发布食堂内容 |
 | 应用结构 | 一个 Node/Hono 进程同时提供 React 页面和 `/api/ops/*` |
 | 访问保护 | Cloudflare Access 加应用内操作者白名单 |
-| 相关产品 | `operator-console-web` 继续承担现有配置和业务操作，不由本项目替换 |
+| 产品边界 | 唯一运维产品，不维护第二个 panel 或 Provider Config 控制台 |
 
 ## 背景
 
-现有 `operator-console-web` 是 Cloudflare Worker 上的受控操作入口，适合调用
-`app-api` 提供的配置和业务操作接口。运行排查还需要读取自托管 PostgreSQL 中的请求摘要、
-集群服务健康状态和集群内观测数据。让 Worker 代为读取这些数据会扩大公开 API 和 Worker
-凭据范围，因此新增独立的自托管 Ops Web。
+历史上模型配置和运行排查被拆成两个运维产品，造成域名、认证、导航和数据所有权重复。
+Ops Web 统一这些任务，但每项能力仍使用专用数据库角色、固定资源和窄接口，不形成通用后台。
 
 Temporal UI 和 Langfuse UI 已分别提供完整工作流历史、模型调用和评测能力。Ops Web 不复制
 这些产品，而是从一次请求出发展示必要摘要、关联标识和跳转入口。Sentry、Axiom 继续保留
@@ -37,12 +35,14 @@ Temporal UI 和 Langfuse UI 已分别提供完整工作流历史、模型调用�
 
 ## 目标
 
-Ops Web 必须让值班人员直接回答四个问题：
+Ops Web 必须让值班人员直接回答三个问题：
 
 1. 当前请求处理、关键服务、Temporal 队列和观测数据是否正常。
 2. 某次请求最终处于什么状态，经过了哪些执行步骤，使用了哪些模型、工具和来源。
 3. 该请求的日志、调用链和外部系统入口在哪里，哪些数据当前不可用。
-4. 内部门户凭据是否已配置，固定维护 Schedule 是否正常，失效后如何安全替换凭据。
+4. 内部门户短期认证是否已配置，并能在失效后直接替换。
+5. 新采集的食堂目录是否需要校正，哪些内容已发布，哪些评价需要治理。
+6. 哪些模型连接和 profile 已验证，当前各 runtime role 使用哪个 revision。
 
 同时满足以下边界：
 
@@ -87,22 +87,40 @@ Ops Web 必须让值班人员直接回答四个问题：
 
 详情页提供关联标识复制和已配置系统的跳转入口。日志或调用链读取失败不能改变请求状态。
 
-### 维护门户认证
+### 替换门户认证
 
-人员操作者可以查看固定内部门户凭据是否已配置、最近更新时间和更新人，以及固定
-Schedule 的状态、最近维护结果和已观测有效区间。操作者可以粘贴原始 `SSO_TGC` 或包含
-唯一 `SSO_TGC` 的 Cookie 字符串完成替换；页面不读取或显示当前值，提交成功后立即清空输入。
+人员操作者可以查看内部门户认证是否已配置、最近更新时间和更新人，并粘贴原始
+`SSO_TGC` 或包含该值的 Cookie 字符串。页面不读取或展示当前值，替换成功后立即清空输入。
+页面同时展示半小时维护 Schedule、最近 Service Ticket 签发、下次验证和当前凭据的已观测
+有效时长。服务令牌不能执行该操作。凭据过期时 Schedule 暂停；替换成功后自动恢复并等待
+下一个周期，恢复失败时人员操作者可以重试。
 
-凭据替换后页面显示 Schedule 恢复结果，但不声称已经立即验证门户。恢复失败时可以显式
-重试固定 Schedule。服务令牌不能读取该页面或执行操作。
+### 管理食堂内容
+
+人员操作者可以查看采集运行和 observations，从当前 accepted catalog 重建草稿，校正档口名称、
+价格和窗口分配，查看校验结果并发布。发布历史最多保留 30 版；回滚通过创建新版本完成。
+
+评价页面展示姓名、评分、正文、来源档口/菜品、审核和可见状态。人员操作者可以隐藏、恢复、精确
+绑定到当前 offering 或请求复检，不能修改原始提交正文和姓名。
+
+### 管理模型服务
+
+人员操作者可以创建或更新未生效连接和 profile，分别验证 prompt、embedding 和 rerank 服务，
+再按 role 激活。连接摘要只显示不可逆指纹和末四位，不返回 API key。生效连接和 profile 不可
+原地修改；替换必须创建新 revision 并重新验证。服务身份只能读取状态。
+
+激活操作必须把所有当前生效 role 原子发布为 `provider_config_projection.v2`，记录 publication、
+操作者和摘要。并发发布冲突必须提示重试，不能覆盖其他操作者的更新。
 
 ## 页面和交互
 
 ### 信息结构
 
 - `/` 重定向到 `/overview`。
-- 一级导航为“运行概览”、“请求排查”和“门户认证”。
-- `/internal-portal-auth` 展示固定凭据和维护状态，并提供替换与恢复操作。
+- 一级导航为“运行概览”、“请求排查”、“门户认证”、“食堂内容”和“模型服务配置”。
+- `/internal-portal-auth` 展示状态并提供单一替换操作。
+- `/dining` 提供目录草稿、采集记录、发布记录和评价管理四个视图。
+- `/provider-config` 提供连接、profile、验证、激活和当前 runtime publication 状态。
 - `/requests/:requestId` 通过“概览 / 执行 / 日志与调用链”标签切换内容。
 - 不提供 `/runtime`、通用日志搜索、数据库浏览或隐藏的兼容路由。
 
@@ -125,7 +143,7 @@ Schedule 的状态、最近维护结果和已观测有效区间。操作者可�
 
 ### 请求摘要
 
-Ops Web 只读取以下 PostgreSQL 来源中明确授权的列：
+Ops Web 的诊断 pool 只读取以下 PostgreSQL 来源中明确授权的列：
 
 - `chat.turn_dispatches`
 - `chat.messages`
@@ -134,6 +152,12 @@ Ops Web 只读取以下 PostgreSQL 来源中明确授权的列：
 
 Temporal 队列状态由 Ops Web 服务端调用 execution-control 的内部只读接口获得，进程内缓存
 15 秒，不写入 PostgreSQL。
+
+Dining 使用独立 PostgreSQL pool 和 `ops_web_dining` 角色。学生端公开读取不经过 Ops Web；
+Dining schema、发布和角色边界见 `../architecture/domains/dining/architecture.md`。
+
+Provider Config 使用独立 PostgreSQL pool 和 `ops_web_provider_config` 角色保存候选与验证结果。
+active truth 是固定 Kubernetes Secret 中的 v2 projection；app-api 不读取、写入或代理该数据。
 
 页面可展示问题摘要和不可逆用户标识摘要，不展示完整用户身份、原始对话、原始提示词、
 原始回答、记忆正文或检索片段正文。
@@ -152,9 +176,10 @@ Temporal 队列状态由 Ops Web 服务端调用 execution-control 的内部只�
 - 所有 `/api/ops/*` 请求验证 Cloudflare Access JWT 的签发方、受众和签名。
 - 人员邮箱或服务令牌 ID 必须进入基础操作者白名单。
 - 原始日志和调用链使用独立白名单，基础权限不能自动获得原始记录权限。
-- 门户认证只允许基础白名单中的人员身份，服务令牌不能读取状态或替换凭据。
-- 门户凭据替换与 Schedule 恢复必须同源；页面和接口不得回显凭据。
-- `/readyz` 无需操作者登录，但必须验证 Access 配置、数据库读取权限和审计写权限。
+- 门户认证只允许基础白名单中的人员身份；服务令牌不能读取状态或替换凭据。
+- Ops Web 的 Kubernetes RBAC 只允许 `get`、`patch` 固定的内部门户和 Provider Config Secret。
+- `/readyz` 无需操作者登录，但必须验证 Access 配置、数据库权限、审计写权限、Provider Config
+  加密密钥和固定 Secret 访问。尚未激活 profile 不影响进入修复页。
 
 ## 缓存和故障处理
 
@@ -163,7 +188,6 @@ Temporal 队列状态由 Ops Web 服务端调用 execution-control 的内部只�
 - 请求列表、详情、日志和调用链不使用共享缓存。
 - PostgreSQL 失败时不能返回空请求列表来伪装成功。
 - OpenObserve 失败时，请求列表和详情仍可使用；观测区域显示不可用。
-- Kubernetes API 或认证维护接口失败只影响门户认证页面，不阻塞一般排查和 readiness。
 - 单个健康检查超时不能阻塞其他健康检查。
 - `/healthz` 只证明进程响应；`/readyz` 不因 OpenObserve 或被观测服务故障而失败。
 
@@ -175,7 +199,6 @@ Temporal 队列状态由 Ops Web 服务端调用 execution-control 的内部只�
 - 提供任意 SQL、任意数据流、任意时间范围或任意外部 API 代理。
 - 同步或缓存 Sentry、Axiom 的接口响应。
 - 质量评测、数据集管理、人工标注和学习闭环工作台。
-- 配置供应商、发布校园内容或承接现有 `operator-console-web` 的业务操作。
 - 创建、列举、删除通用 Secret，在线登录学校门户或编辑任意 Temporal Schedule。
 - 为只有一个页面消费方的接口拆出独立 `ops-api` 服务。
 
@@ -189,7 +212,9 @@ Temporal 队列状态由 Ops Web 服务端调用 execution-control 的内部只�
 - 浏览器不能控制 OpenObserve SQL、数据流、`traceId`、时间范围或返回上限。
 - 原始记录权限和读取审计均为拒绝优先；审计失败时不返回记录。
 - 人员操作者可以替换固定门户 Secret，服务令牌和跨站请求被拒绝，响应与日志不含 TGC。
-- 凭据更新会尝试恢复固定 Schedule；恢复失败不撤销更新，并可由人员显式重试。
+- 人员操作者可以完成 Dining rebase、validate、publish、rollback 和评价治理；服务身份不能写入。
+- 人员操作者可以完成 Provider 连接、profile、验证和激活；服务身份、跨站请求和并发覆盖被拒绝。
+- 确认凭据失效后维护 Schedule 暂停；替换凭据自动尝试恢复，人员操作者也可显式重试恢复。
 - 非本地 PostgreSQL 连接验证 CA 和主机名，不能降级为不验证证书。
 - 所有 API 错误都以错误状态返回，不能改写为成功空数据。
 - 320、390 和 1440 像素浏览器测试通过。

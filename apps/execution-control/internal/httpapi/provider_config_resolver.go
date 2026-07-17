@@ -1,12 +1,15 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 )
@@ -20,18 +23,18 @@ const (
 )
 
 type providerConfigSnapshot struct {
-	APIKey     string         `json:"api_key"`
-	BaseURL    string         `json:"base_url"`
-	ToolConfig map[string]any `json:"tool_config,omitempty"`
-	Dimensions int            `json:"dimensions,omitempty"`
-	Kind       string         `json:"kind"`
-	Model      string         `json:"model"`
-	ProfileID  string         `json:"profile_id"`
-	Provider   string         `json:"provider"`
-	Revision   int            `json:"revision"`
-	Role       string         `json:"role"`
-	TimeoutMS  int            `json:"timeout_ms"`
-	Transport  string         `json:"transport"`
+	APIKey        string         `json:"api_key"`
+	BaseURL       string         `json:"base_url"`
+	FeatureConfig map[string]any `json:"feature_config,omitempty"`
+	Dimensions    int            `json:"dimensions,omitempty"`
+	Kind          string         `json:"kind"`
+	Model         string         `json:"model"`
+	ProfileID     string         `json:"profile_id"`
+	Provider      string         `json:"provider"`
+	Revision      int            `json:"revision"`
+	Role          string         `json:"role"`
+	TimeoutMS     int            `json:"timeout_ms"`
+	Transport     string         `json:"transport"`
 }
 
 type providerConfigResolver interface {
@@ -90,14 +93,32 @@ func (resolver fileProviderConfigResolver) ResolveActiveProviderConfig(
 		return providerConfigSnapshot{}, fmt.Errorf("read provider config projection: %w", err)
 	}
 	var payload struct {
-		SchemaVersion string                            `json:"schema_version"`
-		Profiles      map[string]providerConfigSnapshot `json:"profiles"`
+		SchemaVersion string `json:"schema_version"`
+		PublicationID string `json:"publication_id"`
+		PublishedAt   string `json:"published_at"`
+		PublishedBy   struct {
+			DisplayName string `json:"displayName"`
+			PrincipalID string `json:"principalId"`
+		} `json:"published_by"`
+		Profiles map[string]providerConfigSnapshot `json:"profiles"`
 	}
-	if err := json.Unmarshal(data, &payload); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&payload); err != nil {
 		return providerConfigSnapshot{}, fmt.Errorf("decode provider config projection: %w", err)
 	}
-	if payload.SchemaVersion != "provider_config_projection.v1" {
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return providerConfigSnapshot{}, errors.New("provider config projection must contain one JSON value")
+	}
+	if payload.SchemaVersion != "provider_config_projection.v2" {
 		return providerConfigSnapshot{}, errors.New("provider config projection schema_version is unsupported")
+	}
+	if strings.TrimSpace(payload.PublicationID) == "" || strings.TrimSpace(payload.PublishedAt) == "" ||
+		strings.TrimSpace(payload.PublishedBy.DisplayName) == "" || strings.TrimSpace(payload.PublishedBy.PrincipalID) == "" {
+		return providerConfigSnapshot{}, errors.New("provider config projection publication identity is required")
+	}
+	if _, err := time.Parse(time.RFC3339, payload.PublishedAt); err != nil {
+		return providerConfigSnapshot{}, errors.New("provider config projection published_at is invalid")
 	}
 	snapshot, ok := payload.Profiles[normalizedRole]
 	if !ok {

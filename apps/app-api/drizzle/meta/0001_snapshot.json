@@ -1,6 +1,6 @@
 {
-  "id": "82892a2f-c070-4cb0-b5a3-407d0939c4a0",
-  "prevId": "a038c66d-d874-4187-9f32-b6133ad82e9a",
+  "id": "5d84a8d8-16a4-4732-97dc-afd30f635fee",
+  "prevId": "e3196247-964b-4091-aa86-c095b8299120",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -457,1790 +457,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "dining.audit_events": {
-      "name": "audit_events",
-      "schema": "dining",
-      "columns": {
-        "audit_event_id": {
-          "name": "audit_event_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "action": {
-          "name": "action",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "actor_display_name": {
-          "name": "actor_display_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "actor_principal_id": {
-          "name": "actor_principal_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "object_id": {
-          "name": "object_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "object_kind": {
-          "name": "object_kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "after_json": {
-          "name": "after_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "before_json": {
-          "name": "before_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "occurred_at": {
-          "name": "occurred_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "dining_audit_events_action_occurred_idx": {
-          "name": "dining_audit_events_action_occurred_idx",
-          "columns": [
-            {
-              "expression": "action",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "occurred_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "dining_audit_events_object_occurred_idx": {
-          "name": "dining_audit_events_object_occurred_idx",
-          "columns": [
-            {
-              "expression": "object_kind",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "object_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "occurred_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "dining.draft_versions": {
-      "name": "draft_versions",
-      "schema": "dining",
-      "columns": {
-        "draft_version_id": {
-          "name": "draft_version_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "version_number": {
-          "name": "version_number",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "summary_json": {
-          "name": "summary_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "dining_draft_versions_version_idx": {
-          "name": "dining_draft_versions_version_idx",
-          "columns": [
-            {
-              "expression": "version_number",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "dining.floors": {
-      "name": "floors",
-      "schema": "dining",
-      "columns": {
-        "floor_id": {
-          "name": "floor_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "hall_id": {
-          "name": "hall_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "label": {
-          "name": "label",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "floorplan_id": {
-          "name": "floorplan_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "floorplan_sha256": {
-          "name": "floorplan_sha256",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "svg_asset_url": {
-          "name": "svg_asset_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "sort_key": {
-          "name": "sort_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "dining_floors_hall_idx": {
-          "name": "dining_floors_hall_idx",
-          "columns": [
-            {
-              "expression": "hall_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "dining.halls": {
-      "name": "halls",
-      "schema": "dining",
-      "columns": {
-        "campus": {
-          "name": "campus",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "hall_id": {
-          "name": "hall_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'active'"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "dining.menu_items": {
-      "name": "menu_items",
-      "schema": "dining",
-      "columns": {
-        "menu_item_id": {
-          "name": "menu_item_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "tags_json": {
-          "name": "tags_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'active'"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "dining_menu_items_name_idx": {
-          "name": "dining_menu_items_name_idx",
-          "columns": [
-            {
-              "expression": "name",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "dining_menu_items_status_idx": {
-          "name": "dining_menu_items_status_idx",
-          "columns": [
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "dining.menu_offerings": {
-      "name": "menu_offerings",
-      "schema": "dining",
-      "columns": {
-        "offering_id": {
-          "name": "offering_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "assignment_id": {
-          "name": "assignment_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "menu_item_id": {
-          "name": "menu_item_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "price_label": {
-          "name": "price_label",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "dining_menu_offerings_assignment_idx": {
-          "name": "dining_menu_offerings_assignment_idx",
-          "columns": [
-            {
-              "expression": "assignment_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "dining_menu_offerings_menu_item_idx": {
-          "name": "dining_menu_offerings_menu_item_idx",
-          "columns": [
-            {
-              "expression": "menu_item_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "dining.release_candidate_validation_reports": {
-      "name": "release_candidate_validation_reports",
-      "schema": "dining",
-      "columns": {
-        "validation_report_id": {
-          "name": "validation_report_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "candidate_id": {
-          "name": "candidate_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "blockers_json": {
-          "name": "blockers_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "warnings_json": {
-          "name": "warnings_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "summary_json": {
-          "name": "summary_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "dining_release_candidate_reports_candidate_idx": {
-          "name": "dining_release_candidate_reports_candidate_idx",
-          "columns": [
-            {
-              "expression": "candidate_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "dining.release_candidates": {
-      "name": "release_candidates",
-      "schema": "dining",
-      "columns": {
-        "candidate_id": {
-          "name": "candidate_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "base_draft_version_id": {
-          "name": "base_draft_version_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "notes": {
-          "name": "notes",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "publish_mode": {
-          "name": "publish_mode",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "scheduled_at": {
-          "name": "scheduled_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "expected_predecessor_release_id": {
-          "name": "expected_predecessor_release_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "snapshot_hash": {
-          "name": "snapshot_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "floorplan_refs_json": {
-          "name": "floorplan_refs_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "snapshot_payload_json": {
-          "name": "snapshot_payload_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "approved_at": {
-          "name": "approved_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "approved_by": {
-          "name": "approved_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "cancelled_at": {
-          "name": "cancelled_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "cancelled_by": {
-          "name": "cancelled_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "published_release_id": {
-          "name": "published_release_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "dining_release_candidates_status_created_idx": {
-          "name": "dining_release_candidates_status_created_idx",
-          "columns": [
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "dining.release_latest_pointer": {
-      "name": "release_latest_pointer",
-      "schema": "dining",
-      "columns": {
-        "scope": {
-          "name": "scope",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "release_id": {
-          "name": "release_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "snapshot_id": {
-          "name": "snapshot_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_by": {
-          "name": "updated_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "dining.release_schedule_jobs": {
-      "name": "release_schedule_jobs",
-      "schema": "dining",
-      "columns": {
-        "schedule_job_id": {
-          "name": "schedule_job_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "candidate_id": {
-          "name": "candidate_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "scheduled_at": {
-          "name": "scheduled_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "attempt_count": {
-          "name": "attempt_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "last_error_code": {
-          "name": "last_error_code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "last_error_message": {
-          "name": "last_error_message",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "executed_at": {
-          "name": "executed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "dining_release_schedule_jobs_status_scheduled_idx": {
-          "name": "dining_release_schedule_jobs_status_scheduled_idx",
-          "columns": [
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "scheduled_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "dining.release_snapshots": {
-      "name": "release_snapshots",
-      "schema": "dining",
-      "columns": {
-        "snapshot_id": {
-          "name": "snapshot_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "release_id": {
-          "name": "release_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "payload_json": {
-          "name": "payload_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "svg_object_refs_json": {
-          "name": "svg_object_refs_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "snapshot_hash": {
-          "name": "snapshot_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "dining_release_snapshots_release_idx": {
-          "name": "dining_release_snapshots_release_idx",
-          "columns": [
-            {
-              "expression": "release_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "dining.releases": {
-      "name": "releases",
-      "schema": "dining",
-      "columns": {
-        "release_id": {
-          "name": "release_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "candidate_id": {
-          "name": "candidate_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "notes": {
-          "name": "notes",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "published": {
-          "name": "published",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "published_at": {
-          "name": "published_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "published_by": {
-          "name": "published_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "predecessor_release_id": {
-          "name": "predecessor_release_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "snapshot_hash": {
-          "name": "snapshot_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "dining_releases_status_created_idx": {
-          "name": "dining_releases_status_created_idx",
-          "columns": [
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "dining_releases_published_idx": {
-          "name": "dining_releases_published_idx",
-          "columns": [
-            {
-              "expression": "published",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "published_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "dining.review_projections": {
-      "name": "review_projections",
-      "schema": "dining",
-      "columns": {
-        "review_id": {
-          "name": "review_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "source_record_id": {
-          "name": "source_record_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "campus": {
-          "name": "campus",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "hall_id": {
-          "name": "hall_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "hall_name": {
-          "name": "hall_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "stall_profile_id": {
-          "name": "stall_profile_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "window_id": {
-          "name": "window_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "stall_name": {
-          "name": "stall_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "dish_name": {
-          "name": "dish_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "paid_price_label": {
-          "name": "paid_price_label",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "rating": {
-          "name": "rating",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "comment": {
-          "name": "comment",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "contributor_name": {
-          "name": "contributor_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "images_json": {
-          "name": "images_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "published_at": {
-          "name": "published_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "dining_review_projections_hall_idx": {
-          "name": "dining_review_projections_hall_idx",
-          "columns": [
-            {
-              "expression": "hall_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "dining_review_projections_source_record_idx": {
-          "name": "dining_review_projections_source_record_idx",
-          "columns": [
-            {
-              "expression": "source_record_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "dining_review_projections_stall_profile_idx": {
-          "name": "dining_review_projections_stall_profile_idx",
-          "columns": [
-            {
-              "expression": "stall_profile_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "dining_review_projections_window_idx": {
-          "name": "dining_review_projections_window_idx",
-          "columns": [
-            {
-              "expression": "window_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "dining.source_observations": {
-      "name": "source_observations",
-      "schema": "dining",
-      "columns": {
-        "observation_id": {
-          "name": "observation_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "source_type": {
-          "name": "source_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "source_base_token": {
-          "name": "source_base_token",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "source_table_id": {
-          "name": "source_table_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "source_record_id": {
-          "name": "source_record_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "target_kind": {
-          "name": "target_kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "target_id": {
-          "name": "target_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "payload_json": {
-          "name": "payload_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "content_hash": {
-          "name": "content_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "observed_at": {
-          "name": "observed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "first_seen_at": {
-          "name": "first_seen_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "last_seen_at": {
-          "name": "last_seen_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "last_seen_run_id": {
-          "name": "last_seen_run_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "stale_at": {
-          "name": "stale_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "reviewed_at": {
-          "name": "reviewed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "reviewed_by": {
-          "name": "reviewed_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "dining_source_observations_source_record_idx": {
-          "name": "dining_source_observations_source_record_idx",
-          "columns": [
-            {
-              "expression": "source_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "source_table_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "source_record_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "dining_source_observations_status_observed_idx": {
-          "name": "dining_source_observations_status_observed_idx",
-          "columns": [
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "observed_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "dining_source_observations_stale_idx": {
-          "name": "dining_source_observations_stale_idx",
-          "columns": [
-            {
-              "expression": "source_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "stale_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "dining_source_observations_target_idx": {
-          "name": "dining_source_observations_target_idx",
-          "columns": [
-            {
-              "expression": "target_kind",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "target_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "dining.source_sync_runs": {
-      "name": "source_sync_runs",
-      "schema": "dining",
-      "columns": {
-        "run_id": {
-          "name": "run_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "source_type": {
-          "name": "source_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "started_at": {
-          "name": "started_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "completed_at": {
-          "name": "completed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "total_count": {
-          "name": "total_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "accepted_count": {
-          "name": "accepted_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "blocked_count": {
-          "name": "blocked_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "stale_count": {
-          "name": "stale_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "error_message": {
-          "name": "error_message",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "dining_source_sync_runs_source_started_idx": {
-          "name": "dining_source_sync_runs_source_started_idx",
-          "columns": [
-            {
-              "expression": "source_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "started_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "dining_source_sync_runs_status_started_idx": {
-          "name": "dining_source_sync_runs_status_started_idx",
-          "columns": [
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "started_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "dining.stall_profiles": {
-      "name": "stall_profiles",
-      "schema": "dining",
-      "columns": {
-        "stall_profile_id": {
-          "name": "stall_profile_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "display_name": {
-          "name": "display_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "stall_type": {
-          "name": "stall_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "tags_json": {
-          "name": "tags_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'active'"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "dining_stall_profiles_status_idx": {
-          "name": "dining_stall_profiles_status_idx",
-          "columns": [
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "dining.window_assignments": {
-      "name": "window_assignments",
-      "schema": "dining",
-      "columns": {
-        "assignment_id": {
-          "name": "assignment_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "window_id": {
-          "name": "window_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "stall_profile_id": {
-          "name": "stall_profile_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'active'"
-        },
-        "effective_from": {
-          "name": "effective_from",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "effective_to": {
-          "name": "effective_to",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "dining_window_assignments_window_status_idx": {
-          "name": "dining_window_assignments_window_status_idx",
-          "columns": [
-            {
-              "expression": "window_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "dining_window_assignments_stall_profile_idx": {
-          "name": "dining_window_assignments_stall_profile_idx",
-          "columns": [
-            {
-              "expression": "stall_profile_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "dining.windows": {
-      "name": "windows",
-      "schema": "dining",
-      "columns": {
-        "window_id": {
-          "name": "window_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "hall_id": {
-          "name": "hall_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "floor_id": {
-          "name": "floor_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "label": {
-          "name": "label",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "location_label": {
-          "name": "location_label",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "svg_anchor_id": {
-          "name": "svg_anchor_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "geometry_json": {
-          "name": "geometry_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "tags_json": {
-          "name": "tags_json",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'active'"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "dining_windows_floor_idx": {
-          "name": "dining_windows_floor_idx",
-          "columns": [
-            {
-              "expression": "hall_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "floor_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "dining_windows_status_idx": {
-          "name": "dining_windows_status_idx",
-          "columns": [
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "docs.collections": {
       "name": "collections",
       "schema": "docs",
@@ -2269,6 +485,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "release_id": {
+          "name": "release_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "updated_at": {
           "name": "updated_at",
           "type": "timestamp with time zone",
@@ -2277,11 +499,27 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "collections_release_id_releases_release_id_fk": {
+          "name": "collections_release_id_releases_release_id_fk",
+          "tableFrom": "collections",
+          "tableTo": "releases",
+          "schemaTo": "docs",
+          "columnsFrom": [
+            "release_id"
+          ],
+          "columnsTo": [
+            "release_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {
-        "collections_corpus_collection_pk": {
-          "name": "collections_corpus_collection_pk",
+        "collections_release_id_corpus_collection_pk": {
+          "name": "collections_release_id_corpus_collection_pk",
           "columns": [
+            "release_id",
             "corpus",
             "collection"
           ]
@@ -2335,6 +573,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "release_id": {
+          "name": "release_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "updated_at": {
           "name": "updated_at",
           "type": "timestamp with time zone",
@@ -2344,7 +588,7 @@
         "version_id": {
           "name": "version_id",
           "type": "text",
-          "primaryKey": true,
+          "primaryKey": false,
           "notNull": true
         },
         "version_slug": {
@@ -2365,6 +609,12 @@
         "docs_document_versions_doc_current_idx": {
           "name": "docs_document_versions_doc_current_idx",
           "columns": [
+            {
+              "expression": "release_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
             {
               "expression": "doc_id",
               "isExpression": false,
@@ -2387,6 +637,12 @@
           "name": "docs_document_versions_doc_slug_idx",
           "columns": [
             {
+              "expression": "release_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
               "expression": "doc_id",
               "isExpression": false,
               "asc": true,
@@ -2407,6 +663,12 @@
         "docs_document_versions_delivery_visibility_idx": {
           "name": "docs_document_versions_delivery_visibility_idx",
           "columns": [
+            {
+              "expression": "release_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
             {
               "expression": "delivery_mode",
               "isExpression": false,
@@ -2433,22 +695,46 @@
         }
       },
       "foreignKeys": {
-        "document_versions_doc_id_documents_doc_id_fk": {
-          "name": "document_versions_doc_id_documents_doc_id_fk",
+        "document_versions_release_id_releases_release_id_fk": {
+          "name": "document_versions_release_id_releases_release_id_fk",
+          "tableFrom": "document_versions",
+          "tableTo": "releases",
+          "schemaTo": "docs",
+          "columnsFrom": [
+            "release_id"
+          ],
+          "columnsTo": [
+            "release_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "document_versions_release_id_doc_id_documents_release_id_doc_id_fk": {
+          "name": "document_versions_release_id_doc_id_documents_release_id_doc_id_fk",
           "tableFrom": "document_versions",
           "tableTo": "documents",
           "schemaTo": "docs",
           "columnsFrom": [
+            "release_id",
             "doc_id"
           ],
           "columnsTo": [
+            "release_id",
             "doc_id"
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
+      "compositePrimaryKeys": {
+        "document_versions_release_id_version_id_pk": {
+          "name": "document_versions_release_id_version_id_pk",
+          "columns": [
+            "release_id",
+            "version_id"
+          ]
+        }
+      },
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
@@ -2491,11 +777,17 @@
         "doc_id": {
           "name": "doc_id",
           "type": "text",
-          "primaryKey": true,
+          "primaryKey": false,
           "notNull": true
         },
         "document_slug": {
           "name": "document_slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "release_id": {
+          "name": "release_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -2517,6 +809,12 @@
         "docs_documents_collection_slug_idx": {
           "name": "docs_documents_collection_slug_idx",
           "columns": [
+            {
+              "expression": "release_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
             {
               "expression": "corpus",
               "isExpression": false,
@@ -2545,6 +843,12 @@
           "name": "docs_documents_collection_title_idx",
           "columns": [
             {
+              "expression": "release_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
               "expression": "corpus",
               "isExpression": false,
               "asc": true,
@@ -2569,8 +873,31 @@
           "with": {}
         }
       },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
+      "foreignKeys": {
+        "documents_release_id_releases_release_id_fk": {
+          "name": "documents_release_id_releases_release_id_fk",
+          "tableFrom": "documents",
+          "tableTo": "releases",
+          "schemaTo": "docs",
+          "columnsFrom": [
+            "release_id"
+          ],
+          "columnsTo": [
+            "release_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "documents_release_id_doc_id_pk": {
+          "name": "documents_release_id_doc_id_pk",
+          "columns": [
+            "release_id",
+            "doc_id"
+          ]
+        }
+      },
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
@@ -2594,6 +921,12 @@
         },
         "outline_url": {
           "name": "outline_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "release_id": {
+          "name": "release_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -2627,7 +960,7 @@
         "version_id": {
           "name": "version_id",
           "type": "text",
-          "primaryKey": true,
+          "primaryKey": false,
           "notNull": true
         }
       },
@@ -2635,6 +968,12 @@
         "docs_reader_assets_static_prefix_idx": {
           "name": "docs_reader_assets_static_prefix_idx",
           "columns": [
+            {
+              "expression": "release_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
             {
               "expression": "static_prefix",
               "isExpression": false,
@@ -2649,21 +988,82 @@
         }
       },
       "foreignKeys": {
-        "reader_assets_version_id_document_versions_version_id_fk": {
-          "name": "reader_assets_version_id_document_versions_version_id_fk",
+        "reader_assets_release_id_releases_release_id_fk": {
+          "name": "reader_assets_release_id_releases_release_id_fk",
+          "tableFrom": "reader_assets",
+          "tableTo": "releases",
+          "schemaTo": "docs",
+          "columnsFrom": [
+            "release_id"
+          ],
+          "columnsTo": [
+            "release_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "reader_assets_release_id_version_id_document_versions_release_id_version_id_fk": {
+          "name": "reader_assets_release_id_version_id_document_versions_release_id_version_id_fk",
           "tableFrom": "reader_assets",
           "tableTo": "document_versions",
           "schemaTo": "docs",
           "columnsFrom": [
+            "release_id",
             "version_id"
           ],
           "columnsTo": [
+            "release_id",
             "version_id"
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
+      "compositePrimaryKeys": {
+        "reader_assets_release_id_version_id_pk": {
+          "name": "reader_assets_release_id_version_id_pk",
+          "columns": [
+            "release_id",
+            "version_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "docs.releases": {
+      "name": "releases",
+      "schema": "docs",
+      "columns": {
+        "manifest_key": {
+          "name": "manifest_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "manifest_sha256": {
+          "name": "manifest_sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "materialized_at": {
+          "name": "materialized_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "release_id": {
+          "name": "release_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -2705,10 +1105,16 @@
           "primaryKey": false,
           "notNull": true
         },
+        "release_id": {
+          "name": "release_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "search_unit_id": {
           "name": "search_unit_id",
           "type": "text",
-          "primaryKey": true,
+          "primaryKey": false,
           "notNull": true
         },
         "snippet": {
@@ -2741,6 +1147,12 @@
           "name": "docs_search_units_doc_version_order_idx",
           "columns": [
             {
+              "expression": "release_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
               "expression": "doc_id",
               "isExpression": false,
               "asc": true,
@@ -2766,36 +1178,62 @@
         }
       },
       "foreignKeys": {
-        "search_units_doc_id_documents_doc_id_fk": {
-          "name": "search_units_doc_id_documents_doc_id_fk",
+        "search_units_release_id_releases_release_id_fk": {
+          "name": "search_units_release_id_releases_release_id_fk",
+          "tableFrom": "search_units",
+          "tableTo": "releases",
+          "schemaTo": "docs",
+          "columnsFrom": [
+            "release_id"
+          ],
+          "columnsTo": [
+            "release_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "search_units_release_id_doc_id_documents_release_id_doc_id_fk": {
+          "name": "search_units_release_id_doc_id_documents_release_id_doc_id_fk",
           "tableFrom": "search_units",
           "tableTo": "documents",
           "schemaTo": "docs",
           "columnsFrom": [
+            "release_id",
             "doc_id"
           ],
           "columnsTo": [
+            "release_id",
             "doc_id"
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "search_units_version_id_document_versions_version_id_fk": {
-          "name": "search_units_version_id_document_versions_version_id_fk",
+        "search_units_release_id_version_id_document_versions_release_id_version_id_fk": {
+          "name": "search_units_release_id_version_id_document_versions_release_id_version_id_fk",
           "tableFrom": "search_units",
           "tableTo": "document_versions",
           "schemaTo": "docs",
           "columnsFrom": [
+            "release_id",
             "version_id"
           ],
           "columnsTo": [
+            "release_id",
             "version_id"
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
+      "compositePrimaryKeys": {
+        "search_units_release_id_search_unit_id_pk": {
+          "name": "search_units_release_id_search_unit_id_pk",
+          "columns": [
+            "release_id",
+            "search_unit_id"
+          ]
+        }
+      },
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},

@@ -32,6 +32,8 @@ apps/app-api/.dev.vars
 !jobs/app-api-schema/**
 !jobs/transport-publisher/
 !jobs/transport-publisher/**
+!jobs/docs-publish/
+!jobs/docs-publish/**
 !packages/domains/
 !packages/domains/**
 !configs/ingestion/

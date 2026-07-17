@@ -16,6 +16,21 @@ spec:
 apiVersion: postgresql.cnpg.io/v1
 kind: DatabaseRole
 metadata:
+  name: campus-agent-postgres-docs-publish
+  labels:
+    app.kubernetes.io/name: campus-agent-postgres
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  cluster:
+    name: campus-agent-postgres
+  name: docs_publish
+  login: true
+  passwordSecret:
+    name: campus-agent-postgres-docs-publish
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: DatabaseRole
+metadata:
   name: campus-agent-postgres-temporal
   labels:
     app.kubernetes.io/name: campus-agent-postgres

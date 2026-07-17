@@ -14,21 +14,20 @@ status: active
 基本规则：
 
 - `.env.example` 不是 staging/production secret inventory；
-- 本地 seed 可以初始化 provider-config，active profile 仍由 app-api 所有；
+- Ops Web 保存候选与验证结果，固定 Kubernetes Secret 或本地原子文件保存 active projection；
 - server secret 只进入 app-local dev vars、平台 secret store 或运维 env；
 - browser 可见值必须明确标记为 public；
-- ConfigMap、Secret、Helm value 和 Worker var/secret 只交付 bootstrap/secret，不能拥有模型或
-  检索 active profile。
+- GitOps 只声明固定 Secret 元数据；Ops Web 发布的 v2 projection 是模型 active profile 真相。
 
 ## 核心 Provider
 
 ### LLM
 
-- 所有者：app-api provider-config；
+- 所有者：Ops Web Provider Config；
 - 消费方：agent-runtime、Hindsight 和 eval runtime；
-- 当前 role：`primary_agent`、`hindsight_llm`；
-- seed：`env/commands/provider-config-seed.env.example`；
-- runtime：`CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH`；
+- role：`primary_agent`、`rag_synthesis`、`hindsight_llm`、`eval_ragas_llm`、
+  `eval_judge_llm`；
+- runtime：`provider_config_projection.v2`；
 - raw key 不返回浏览器。
 
 `primary_agent` 承担完整 Agents SDK run，包括 Knowledge Agent handoff；不存在独立 public-web
@@ -36,10 +35,18 @@ status: active
 
 ### 向量模型
 
-- 所有者：app-api provider-config；
+- 所有者：Ops Web Provider Config；
 - 当前基线：`Qwen3-Embedding-4B`、2560 维、OpenAI-compatible；
 - role：`rag_query_embedding`、`hindsight_embedding`、`eval_ragas_embedding`；
 - runtime 真相：provider projection 与 collection serving config。
+
+### 重排模型
+
+- 所有者：Ops Web Provider Config；
+- role：`rag_reranker`；
+- kind：`rerank`；
+- transport：`rerank` 或 `gitee_rerank`；
+- endpoint path 可由连接的 `feature_config.rerank.path` 指定，默认 `/rerank`。
 
 ### Qdrant
 
@@ -71,17 +78,19 @@ provider 品牌不是。班车在线读取不经过对象存储。
 
 ## 食堂同步
 
-`jobs/dining-sync` 负责从飞书 Base 写 catalog/review observation、发布 catalog/release、下载
-已接受附件、写公开图片和 review projection。
+`jobs/dining-sync` 负责从飞书 Base 写 catalog/review observation、审核评价并物化公开附件。
+Catalog observation 不自动发布；`apps/ops-web` 负责 rebase、validate、publish 和 rollback。
 
 配置类别：
 
-- database：`DATABASE_URL` 或 operator DSN；
+- database：同步使用 `DATABASE_URL`，migration 使用独立
+  `DINING_MIGRATION_DATABASE_URL`；
 - 飞书应用：app ID/secret、base token、campus/hall/stall/dish/review table/view ID；
 - 对象存储：endpoint、region、access key、secret、bucket、public base URL 和 review prefix；
 - 内容审核：base URL、API key、文本/图片模型和 timeout。
 
-这些值只进入 Job/CronJob，不进入 app-api Worker 或浏览器。生产使用项目专用飞书应用；个人
+同步和审核值只进入 Job/CronJob，不进入 app-api Worker 或浏览器。Ops Web 使用独立
+`OPS_WEB_DINING_DATABASE_URL`。生产使用项目专用飞书应用；个人
 `lark-cli` 登录只用于调试。published projection 不得保存 file token 或临时下载 URL。
 
 当前命令和 Secret 名见 `../runbooks/dining.md`，数据语义见 `../data/dining.md`。
@@ -116,7 +125,7 @@ provider 品牌不是。班车在线读取不经过对象存储。
 
 ### Cloudflare Worker
 
-当前 Worker surface 为 app-api、campus-web 和 operator-console-web。每个应用使用自己的 Worker
+当前 Worker surface 为 app-api 和 campus-web。每个应用使用自己的 Worker
 secret store；数据面、对象存储和 execution runtime secret 不复制到 Worker。
 
 Worker vars/secrets 不拥有 `primary_agent`、`rag_query_embedding` 或 `hindsight_*` active
@@ -141,19 +150,20 @@ Collector endpoint、认证和 sink credential 属于观测 runtime 与部署 se
 ### 本地问答
 
 - root `.env`：共享 PostgreSQL 句柄；
-- provider seed 文件：仅创建/更新 profile 时；
-- active `primary_agent`、`rag_query_embedding` profile；
+- Ops Web 本地 `.env`：Provider Config 数据库、加密密钥和 file publisher 路径；
+- active `primary_agent`、`rag_synthesis`、`rag_query_embedding` 和 `rag_reranker` profile；
 - Qdrant 和 runtime secret projection；
 - app-api `.env` / `.dev.vars`；
 - campus-web `.dev.vars`；
-- 使用 Operator Console 时再提供其 `.dev.vars`。
+- 本地 execution runtime 挂载同一 v2 projection 文件。
 
 普通本地问答不要求 OCR、对象存储或独立 eval provider。
 
 ### 文档阅读器构建
 
-增加 command-scoped reader build env 和 derived object-store 访问。每个 worktree 显式提供，
-仓库不复制或软链接 ignored env。
+增加 command-scoped reader build env 和 derived object-store 只读访问。构建通过显式
+`docsReleaseId` 推导内容地址，不从 staging Environment 读取 manifest identity；构建过程不得
+获得 app-api 或数据库凭据。每个 worktree 显式提供本地配置，仓库不复制或软链接 ignored env。
 
 ### 采集
 

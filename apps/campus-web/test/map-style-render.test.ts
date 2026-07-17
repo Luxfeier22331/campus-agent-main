@@ -7,10 +7,30 @@ import {
 
 describe("campus map style", () => {
 	it("keeps campus building labels local to the MapLibre style", () => {
-		const style = createCampusMapStyle(readTestMapStyleColors(), getCampusMapProfile("丰台校区"));
+		const profiles = createCampusMapProfilesFromManifest({
+			attribution: ["Synthetic map contributors"],
+			campuses: {
+				fengtai: {
+					bounds: [120, 30, 120.1, 30.1],
+					geojsonUrl: "/map-data/v2026-06-30/geojson/fengtai-campus.geojson",
+					name: "丰台校区",
+				},
+				haidian: {
+					bounds: [121, 31, 121.1, 31.1],
+					geojsonUrl: "/map-data/v2026-06-30/geojson/haidian-campus.geojson",
+					name: "海淀校区",
+				},
+			},
+			licenseBoundary: "External map data",
+			version: "v2026-06-30",
+		});
+		const style = createCampusMapStyle(
+			readTestMapStyleColors(),
+			getCampusMapProfile(profiles, "丰台校区"),
+		);
 		const haidianStyle = createCampusMapStyle(
 			readTestMapStyleColors(),
-			getCampusMapProfile("海淀校区"),
+			getCampusMapProfile(profiles, "海淀校区"),
 		);
 
 		expect(style.glyphs).toBeUndefined();

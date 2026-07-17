@@ -460,6 +460,7 @@ export function registerApiMeSuite() {
 				recordRequestAccepted: vi.fn(),
 				recordRequestFinalized: vi.fn(),
 				recordRequestTransportError: vi.fn(),
+				recordWebPerformance: vi.fn(),
 			};
 			const app = createApp(APP_API_TEST_ENV, {
 				getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
@@ -517,6 +518,7 @@ export function registerApiMeSuite() {
 				recordRequestAccepted: vi.fn(),
 				recordRequestFinalized: vi.fn(),
 				recordRequestTransportError: vi.fn(),
+				recordWebPerformance: vi.fn(),
 			};
 			const app = createApp(APP_API_TEST_ENV, {
 				getPrincipal: vi.fn().mockResolvedValue({

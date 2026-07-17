@@ -45,11 +45,8 @@ course-map`、`handbook service navigation` 等离线/领域链路只把必备 c
 base URL、reasoning effort、max output tokens、transport 等 tuning 走代码默认、CLI 参数或领域配置，
 不回流成 root env contract。
 
-provider-config 本地 seed 输入也不放在 root `.env.example`。需要初始化或更新
-app-api provider-config active profiles 时，使用 command-scoped
-[`env/commands/provider-config-seed.env.example`](../../env/commands/provider-config-seed.env.example)。
-该模板只服务 seed command；online serving 仍消费 app-api provider-config 与显式
-projection artifact。
+Provider Config 不使用 seed command。Ops Web 本地运行读取自身 `.env`，验证后原子写入
+`OPS_WEB_PROVIDER_CONFIG_PROJECTION_PATH`；线上由同一应用发布固定 Kubernetes Secret。
 
 ### 应用环境模板
 
@@ -82,15 +79,20 @@ closeout / rebuild / release command env 不再作为 tracked fallback surface�
   - `source-collector` official-web 来源配置和来源桶运行环境
 - [`apps/source-collector/adapters/wechat-official-account/.env.example`][source-collector-wechat-env]
   - `source-collector` wechat-official-account 适配器 FeedWe 凭据和来源桶运行环境
-- [`apps/operator-console-web/.dev.vars.example`](../../apps/operator-console-web/.dev.vars.example)
-  - `operator-console-web` Worker 字符串环境变量
+- [`apps/ops-web/.env.example`](../../apps/ops-web/.env.example)
+  - Ops Web 本地数据库、Access 和 Provider Config file publisher 配置
 - [`infra/otel/collector.env.example`](../../infra/otel/collector.env.example)
   - 本地与 staging OTel Collector 进程环境变量
 
 ### 命令环境
 
 - [`env/commands/execution-control-runtime.env.example`](../../env/commands/execution-control-runtime.env.example)
-- [`env/commands/provider-config-seed.env.example`](../../env/commands/provider-config-seed.env.example)
+- [`env/commands/campus-docs-release.env.example`](../../env/commands/campus-docs-release.env.example)
+
+Campus Web staging 文档候选不使用 manifest key/SHA 环境变量。构建通过显式
+`docsReleaseId` 推导内容地址；常规构建读取 GitOps 已选 release，手动 promotion 使用 typed
+workflow input。derived bucket 只读凭据只注入 Campus Web 构建步骤，Worker runtime 只保存
+与该版本绑定的 `DOCS_RELEASE_ID`。
 
 ## 覆盖规则
 
@@ -105,7 +107,7 @@ closeout / rebuild / release command env 不再作为 tracked fallback surface�
   输出或 closeout 脚本派生值，不应作为手工维护的第二份 truth
 - 单次任务身份、源文档 identity、目标 scope 优先走 CLI args 或 typed request
 - repo-tracked truth 默认来自 config / manifest / source projection，而不是 env
-- K8s / Worker / Docker / app-api provider-config 各自使用成熟组件交付配置；
+- K8s、Worker、Docker 和 Ops Web 各自使用成熟组件交付配置；
   repo 级 policy 只做跨 surface contract 与 static drift check，不承担运行时配置平台职责
 - `RAW_ASSET_ID`、`RAW_VERSION_ID`、`REPLAY_SOURCE_PDF`、`--corpus`、`--collection`
   等任务输入优先走 CLI args

@@ -16,7 +16,7 @@ status: accepted
 `apps/app-api` 作为 Cloudflare Worker 运行，并保持 modular monolith。它拥有产品 HTTP
 合同，通过环境管理的 Cloudflare 私网连接访问 PostgreSQL。
 
-Campus Web 和 Operator Console 使用已开放的同源 proxy 或 Service Binding。app-api
+Campus Web 使用已开放的同源 proxy 或 Service Binding。app-api
 origin 不是第二个公开产品入口，浏览器不得借此绕过所属 Web 界面。
 
 execution-control 继续自托管。app-api 发送 typed execution request 并消费有界 projection，

@@ -129,6 +129,44 @@ test("新凭据已写入但调度仍暂停时可以重试恢复", async ({ page 
 	await expectStableViewport(page, errors);
 });
 
+test("模型服务配置可以完成连接、配置、验证和激活", async ({ page }) => {
+	const errors = captureRuntimeErrors(page);
+	const provider = await mockProviderConfig(page);
+	await page.goto("/provider-config");
+
+	await expect(page.getByRole("heading", { name: "模型服务配置" })).toBeVisible();
+	await page.getByLabel("服务端点").fill("https://provider.example/v1");
+	await page.getByLabel("API Key").fill("private-provider-key");
+	await page.getByRole("button", { name: "保存连接" }).click();
+	await expect(page.getByText("https://provider.example/v1", { exact: true })).toBeVisible();
+	await page.getByRole("button", { name: "编辑连接" }).click();
+	const editConnectionForm = page.getByRole("form", { name: "编辑连接" });
+	await editConnectionForm.getByLabel("服务端点").fill("https://provider.example/v2");
+	await editConnectionForm.getByRole("button", { name: "保存连接修改" }).click();
+	await expect(page.getByText("https://provider.example/v2", { exact: true })).toBeVisible();
+	const connection = page.getByRole("combobox", { name: "连接" });
+	await expect(connection.locator('option[value="provider-connection"]')).toHaveCount(1);
+	await connection.selectOption("provider-connection");
+	await expect(page.getByText("private-provider-key")).toHaveCount(0);
+
+	await page.getByLabel("模型").fill("provider-model");
+	await page.getByRole("button", { name: "保存配置" }).click();
+	await expect(page.getByText("草稿")).toBeVisible();
+	await page.getByRole("button", { name: "编辑配置" }).click();
+	const editProfileForm = page.getByRole("form", { name: "编辑配置" });
+	await editProfileForm.getByLabel("模型").fill("provider-model-v2");
+	await editProfileForm.getByRole("button", { name: "保存配置修改" }).click();
+	await expect(page.getByText("provider-model-v2", { exact: true })).toBeVisible();
+	await page.getByRole("button", { name: "验证配置" }).click();
+	await expect(page.getByText("已验证")).toBeVisible();
+	await page.getByRole("button", { name: "激活配置" }).click();
+
+	await expect(page.getByText("当前生效", { exact: true })).toBeVisible();
+	await expect(page.getByText("运行时已发布")).toBeVisible();
+	expect(provider.receivedApiKeys).toEqual(["private-provider-key"]);
+	await expectStableViewport(page, errors);
+});
+
 async function mockInternalPortalAuth(page: Page, initial: OpsInternalPortalAuthStatus) {
 	let status = structuredClone(initial);
 	const calls = { replacements: [] as string[], resumeCount: 0 };
@@ -161,6 +199,135 @@ async function mockInternalPortalAuth(page: Page, initial: OpsInternalPortalAuth
 		await route.fallback();
 	});
 	return calls;
+}
+
+async function mockProviderConfig(page: Page) {
+	const state = {
+		connections: [] as Record<string, unknown>[],
+		profiles: [] as Record<string, unknown>[],
+		receivedApiKeys: [] as string[],
+		runtime: {
+			configured: false,
+			digest: null as string | null,
+			profiles: {},
+			publicationId: null as string | null,
+			publishedAt: null as string | null,
+			publishedBy: null as { displayName: string; principalId: string } | null,
+		},
+	};
+	await page.route("**/api/ops/provider-config/**", async (route) => {
+		const request = route.request();
+		const path = new URL(request.url()).pathname;
+		if (path.endsWith("/connections") && request.method() === "GET") {
+			await route.fulfill({ json: { connections: state.connections } });
+			return;
+		}
+		if (path.endsWith("/connections") && request.method() === "POST") {
+			const body = request.postDataJSON() as Record<string, unknown>;
+			state.receivedApiKeys.push(String(body.apiKey));
+			state.connections = [
+				{
+					baseUrl: body.baseUrl,
+					connectionId: "provider-connection",
+					createdAt: "2026-07-16T00:00:00.000Z",
+					featureConfig: {},
+					features: body.features,
+					provider: body.provider,
+					revision: 1,
+					secretConfigured: true,
+					secretFingerprint: "fingerprint",
+					secretLast4: "-key",
+					updatedAt: "2026-07-16T00:00:00.000Z",
+				},
+			];
+			await route.fulfill({ json: { connection: state.connections[0] }, status: 201 });
+			return;
+		}
+		if (path.endsWith("/connections/provider-connection") && request.method() === "PATCH") {
+			const body = request.postDataJSON() as Record<string, unknown>;
+			state.connections = [
+				{
+					...state.connections[0],
+					...body,
+					revision: 2,
+					updatedAt: "2026-07-16T00:01:00.000Z",
+				},
+			];
+			await route.fulfill({ json: { connection: state.connections[0] } });
+			return;
+		}
+		if (path.endsWith("/profiles") && request.method() === "GET") {
+			await route.fulfill({ json: { profiles: state.profiles, runtime: state.runtime } });
+			return;
+		}
+		if (path.endsWith("/profiles") && request.method() === "POST") {
+			const body = request.postDataJSON() as Record<string, unknown>;
+			state.profiles = [
+				{
+					active: false,
+					baseUrl: "https://provider.example/v1",
+					connectionId: "provider-connection",
+					createdAt: "2026-07-16T00:00:00.000Z",
+					dimensions: null,
+					kind: body.kind,
+					model: body.model,
+					profileId: "provider-profile",
+					provider: "openai-compatible",
+					revision: 1,
+					role: body.role,
+					status: "draft",
+					timeoutMs: body.timeoutMs,
+					transport: body.transport,
+					updatedAt: "2026-07-16T00:00:00.000Z",
+					validation: null,
+				},
+			];
+			await route.fulfill({ json: { profile: state.profiles[0] }, status: 201 });
+			return;
+		}
+		if (path.endsWith("/profiles/provider-profile") && request.method() === "PATCH") {
+			const body = request.postDataJSON() as Record<string, unknown>;
+			state.profiles = [
+				{
+					...state.profiles[0],
+					...body,
+					revision: 2,
+					status: "draft",
+					updatedAt: "2026-07-16T00:02:00.000Z",
+					validation: null,
+				},
+			];
+			await route.fulfill({ json: { profile: state.profiles[0] } });
+			return;
+		}
+		if (path.endsWith("/validate") && request.method() === "POST") {
+			state.profiles = [{ ...state.profiles[0], status: "validated" }];
+			await route.fulfill({ json: { profile: state.profiles[0] } });
+			return;
+		}
+		if (path.endsWith("/activate") && request.method() === "POST") {
+			state.profiles = [{ ...state.profiles[0], active: true }];
+			state.runtime = {
+				configured: true,
+				digest: "sha256:test",
+				profiles: {
+					primary_agent: {
+						model: String(state.profiles[0]?.model),
+						profileId: "provider-profile",
+						provider: "openai-compatible",
+						revision: Number(state.profiles[0]?.revision),
+					},
+				},
+				publicationId: "publication-1",
+				publishedAt: "2026-07-16T00:00:00.000Z",
+				publishedBy: { displayName: "Operator", principalId: "operator-1" },
+			};
+			await route.fulfill({ json: { profile: state.profiles[0], runtime: state.runtime } });
+			return;
+		}
+		await route.fallback();
+	});
+	return state;
 }
 
 function unconfiguredAuthStatus(): OpsInternalPortalAuthStatus {

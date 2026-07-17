@@ -94,7 +94,7 @@ judge。
 每个 score 只指向一个 observation 或 trace；dataset item/run ID 是 lineage，不是 score target。
 缺失、`NaN` 和无穷值不会发布为 JSON score。
 
-Langfuse、Ragas 或 score 不可用不阻塞在线回答。app-api 和 Operator Console 不镜像 Langfuse
+Langfuse、Ragas 或 score 不可用不阻塞在线回答。app-api 和 Ops Web 不镜像 Langfuse
 score、dataset 或 annotation 状态。
 
 ## 禁止形态

@@ -3,6 +3,7 @@ import { Auth as BetterAuthHeroUIAuth } from "@better-auth-ui/heroui";
 
 import { ProductBrandLink } from "@/components/navigation/product-navigation";
 import { CampusAuthUIProvider } from "./auth-ui-provider";
+import "./auth-styles.css";
 
 export type CampusAuthView = AuthView;
 

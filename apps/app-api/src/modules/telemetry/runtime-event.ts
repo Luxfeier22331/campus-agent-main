@@ -80,6 +80,17 @@ const RUNTIME_EVENT_ALLOWED_FIELDS_BY_EVENT_TYPE = new Map<string, ReadonlySet<s
 		"identity.endpoint",
 		new Set([...RUNTIME_EVENT_BASE_ALLOWED_FIELDS, "correlation_id", "endpoint"]),
 	],
+	[
+		"web.performance",
+		new Set([
+			...RUNTIME_EVENT_BASE_ALLOWED_FIELDS,
+			"metric_name",
+			"metric_value",
+			"navigation_type",
+			"rating",
+			"route_group",
+		]),
+	],
 ]);
 
 export const RUNTIME_EVENT_ALLOWED_EVENT_TYPES = Array.from(

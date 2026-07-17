@@ -1,0 +1,17 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://muc.wiki/campus-agent/schemas/campus-docs-release-ref.v1.schema.json",
+	"title": "campus docs release reference",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["schemaVersion", "releaseId"],
+	"properties": {
+		"schemaVersion": {
+			"const": "campus_docs_release_ref.v1"
+		},
+		"releaseId": {
+			"type": "string",
+			"pattern": "^sha256:[a-f0-9]{64}$"
+		}
+	}
+}

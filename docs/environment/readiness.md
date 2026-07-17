@@ -48,7 +48,6 @@ pnpm exec tsx scripts/deploy/doctor-env.ts <surface> --json
 - `worker-staging`
 - `worker-staging-app-api`
 - `worker-staging-campus-web`
-- `worker-staging-operator-console-web`
 
 ### Execution Control 运行时
 
@@ -72,7 +71,7 @@ Worker 身份、运行投影数据库、内部查询认证和服务凭据。
 ### App API 产品就绪状态
 
 `app-api /readyz` 是 Worker staging 的产品侧就绪聚合点，可以展示 execution-control
-就绪摘要；浏览器产品仍必须从 `campus-web` 或 Operator Console 进入。
+就绪摘要；学生产品从 `campus-web` 进入，运维产品从独立 Ops Web 进入。
 
 固定解释：
 
@@ -113,10 +112,9 @@ pnpm exec tsx scripts/deploy/check-worker-secret-presence.ts --env staging --jso
 
 默认规则：
 
-- eval provider endpoint/key truth 来自本地
-  `provider_config_projection.v1` artifact。
-- artifact 由 app-api provider-config active profiles 显式同步生成；eval runtime
-  不在热路径调用 app-api。
+- eval provider endpoint/key truth 来自 Ops Web 发布的
+  `provider_config_projection.v2` artifact。
+- eval runtime 不在热路径调用 Ops Web 或 app-api。
 - 必需角色：`eval_ragas_llm`、`eval_ragas_embedding`、`eval_judge_llm`。
 - `LLM_*`、`EMBEDDING_*`、`EVAL_LLM_*`、`EVAL_EMBEDDING_*` 不再是 eval
   provider fallback。

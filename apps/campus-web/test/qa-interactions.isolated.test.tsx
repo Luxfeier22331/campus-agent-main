@@ -51,10 +51,6 @@ vi.mock("@/components/auth/auth-dialog", () => ({
 	),
 }));
 
-vi.mock("@/components/auth/user/qa-account-entry", () => ({
-	QAAccountEntry: () => <span>登录</span>,
-}));
-
 vi.mock("@tanstack/react-router", async () => {
 	const actual =
 		await vi.importActual<typeof import("@tanstack/react-router")>("@tanstack/react-router");
@@ -167,6 +163,7 @@ describe("Q&A product interactions", () => {
 	});
 
 	it("searches remote conversation history from the Q&A rail", async () => {
+		await import("../src/components/assistant-ui/thread-history-search-dialog");
 		const user = userEvent.setup();
 		render(<HomePage />);
 

@@ -3,7 +3,7 @@ export type AppApiRouteMethod = "ALL" | "DELETE" | "GET" | "PATCH" | "POST" | "P
 export type AppApiRouteCallerClass =
 	| "browser-surface"
 	| "machine-internal"
-	| "operator-via-panel"
+	| "operator-authenticated"
 	| "system";
 
 export interface AppApiRouteExposure {

@@ -1,14 +1,14 @@
 // @vitest-environment node
 
+import {
+	createDevDiningSeed,
+	createInMemoryDiningPublicReadStore,
+} from "@campus-agent/dining/domain";
 import { describe, expect, it, vi } from "vitest";
-
 import { createApp } from "../src/app";
 import type { CampusExperienceService } from "../src/modules/campus-experience";
-import {
-	buildDiningOperationsService,
-	createDevDiningOperationsState,
-	createInMemoryDiningOperationsStore,
-} from "../src/modules/dining-ops";
+import { buildDiningPublicReadService } from "../src/modules/dining";
+import { createAppTelemetry } from "../src/modules/telemetry";
 
 const env = {
 	APP_API_NAME: "campus-agent-app-api",
@@ -64,29 +64,33 @@ function createService(): CampusExperienceService {
 describe("campus experience routes", () => {
 	it("returns map and dining projections through app-api", async () => {
 		const service = createService();
-		const diningState = createDevDiningOperationsState();
-		diningState.reviewProjections = [
+		const diningSeed = createDevDiningSeed();
+		const seededReview = diningSeed.reviews[0];
+		if (!seededReview) {
+			throw new Error("Dining route test requires a seeded offering review.");
+		}
+		const seededReviews = [
 			{
-				campus: "海淀校区",
+				...seededReview,
 				comment: "清淡，分量合适",
 				contributorName: "果小生",
-				dishName: "金汤鱼粉",
-				hallId: "haidian-canteen-1",
-				hallName: "海淀一食堂",
 				images: [],
 				paidPriceLabel: "12 元",
 				rating: 4,
 				reviewId: "dining-review:route-test",
 				sourceRecordId: "route-test",
-				stallName: "鱼粉",
-				stallProfileId: "stall:fish-noodle",
-				windowId: "window:haidian-canteen-1:01",
+				submittedAt: "2026-07-12T08:00:00.000Z",
 			},
 		];
+		const offeringId = seededReview.offeringId;
 		const app = createApp(env, {
 			campusExperienceService: service,
-			diningOperationsService: buildDiningOperationsService({
-				store: createInMemoryDiningOperationsStore(diningState),
+			diningPublicReadService: buildDiningPublicReadService({
+				store: createInMemoryDiningPublicReadStore({
+					publication: diningSeed.publication,
+					reviews: seededReviews,
+					snapshot: diningSeed.snapshot,
+				}),
 			}),
 		});
 
@@ -95,6 +99,10 @@ describe("campus experience routes", () => {
 			new Request("https://app-api.internal/api/campus-map/places/library"),
 		);
 		const halls = await app.fetch(new Request("https://app-api.internal/api/dining/halls"));
+		const publication = await app.fetch(
+			new Request("https://app-api.internal/api/dining/publication"),
+		);
+		const bootstrap = await app.fetch(new Request("https://app-api.internal/api/dining/bootstrap"));
 		const floor = await app.fetch(
 			new Request(
 				"https://app-api.internal/api/dining/halls/haidian-canteen-1/floors/haidian-canteen-1-1f",
@@ -111,16 +119,31 @@ describe("campus experience routes", () => {
 			),
 		);
 		const reviews = await app.fetch(
-			new Request("https://app-api.internal/api/dining/halls/haidian-canteen-1/reviews"),
+			new Request(
+				`https://app-api.internal/api/dining/offerings/${encodeURIComponent(offeringId)}/reviews`,
+			),
+		);
+		const search = await app.fetch(
+			new Request(
+				"https://app-api.internal/api/dining/search?scopeHallId=haidian-canteen-1&q=%E9%87%91%E6%B1%A4",
+			),
 		);
 
 		expect(places.status).toBe(200);
 		expect(place.status).toBe(200);
 		expect(halls.status).toBe(200);
+		expect(publication.status).toBe(200);
+		expect(bootstrap.status).toBe(200);
 		expect(floor.status).toBe(200);
 		expect(haidianSecondFloor.status).toBe(200);
 		expect(haidianFourthFloor.status).toBe(200);
 		expect(reviews.status).toBe(200);
+		expect(search.status).toBe(200);
+		expect(bootstrap.headers.get("cache-control")).toBe("public, max-age=60, s-maxage=300");
+		expect(halls.headers.get("cache-control")).toBe("public, max-age=60, s-maxage=300");
+		expect(floor.headers.get("cache-control")).toBe("public, max-age=60, s-maxage=300");
+		expect(reviews.headers.get("cache-control")).toBe("public, max-age=60, s-maxage=300");
+		expect(search.headers.get("cache-control")).toBe("public, max-age=60, s-maxage=300");
 		expect(service.getMapPlace).toHaveBeenCalledWith({ placeId: "library" });
 		await expect(halls.json()).resolves.toMatchObject({
 			halls: expect.arrayContaining([
@@ -136,16 +159,43 @@ describe("campus experience routes", () => {
 				}),
 			]),
 		});
+		const bootstrapPayload = await bootstrap.json();
+		expect(bootstrapPayload).toMatchObject({
+			halls: expect.any(Array),
+			initial: {
+				floor: {
+					floor: {
+						floorId: expect.any(String),
+						hallId: expect.any(String),
+					},
+				},
+			},
+		});
+		expect(JSON.stringify(bootstrapPayload)).not.toMatch(
+			/"(?:anchorInventory|canvas|geometry|sha256|svgAssetUrl)"/,
+		);
 		const floorPayload = (await floor.json()) as {
-			floor: { floorId: string; hallId: string };
+			floor: {
+				floorId: string;
+				floorplan: { floorplanId: string; kind: "asset" | "placeholder" };
+				hallId: string;
+			};
 			source: { updatedAt: string };
+			windows: unknown[];
 		};
 		expect(floorPayload).toMatchObject({
 			floor: {
 				floorId: "haidian-canteen-1-1f",
+				floorplan: {
+					floorplanId: expect.any(String),
+					kind: expect.stringMatching(/^(asset|placeholder)$/),
+				},
 				hallId: "haidian-canteen-1",
 			},
 		});
+		expect(JSON.stringify(floorPayload)).not.toMatch(
+			/"(?:anchorInventory|canvas|geometry|sha256|svgAssetUrl)"/,
+		);
 		expect(floorPayload.source).toEqual({
 			updatedAt: expect.any(String),
 		});
@@ -170,14 +220,23 @@ describe("campus experience routes", () => {
 			]),
 		});
 		await expect(reviews.json()).resolves.toMatchObject({
+			offeringId,
 			reviews: expect.arrayContaining([
 				expect.objectContaining({
-					dishName: expect.any(String),
-					hallId: "haidian-canteen-1",
-					stallProfileId: "stall:fish-noodle",
-					windowId: "window:haidian-canteen-1:01",
+					comment: "清淡，分量合适",
+					reviewId: "dining-review:route-test",
+					submittedAt: "2026-07-12T08:00:00.000Z",
 				}),
 			]),
+		});
+		await expect(search.json()).resolves.toMatchObject({
+			results: expect.arrayContaining([
+				expect.objectContaining({
+					hallId: "haidian-canteen-1",
+					kind: "offering",
+				}),
+			]),
+			scope: { campus: "海淀校区", hallId: "haidian-canteen-1" },
 		});
 	});
 
@@ -214,6 +273,78 @@ describe("campus experience routes", () => {
 			contact: "student@example.edu",
 			routeContext: "/docs/student",
 		});
+	});
+
+	it("accepts only bounded anonymous browser performance telemetry", async () => {
+		const emit = vi.fn().mockResolvedValue(undefined);
+		const telemetry = createAppTelemetry(env, {
+			now: () => new Date("2026-07-12T12:00:00.000Z"),
+			runtimeEventSink: { emit },
+		});
+		const app = createApp(env, {
+			campusExperienceService: createService(),
+			telemetry,
+		});
+
+		const response = await app.fetch(
+			new Request("https://app-api.internal/api/telemetry/web-performance", {
+				body: JSON.stringify({
+					metricName: "LCP",
+					navigationType: "navigate",
+					rating: "good",
+					routeGroup: "dining",
+					schemaVersion: "web_performance.v1",
+					value: 1250,
+				}),
+				headers: { "content-type": "application/json" },
+				method: "POST",
+			}),
+		);
+
+		expect(response.status).toBe(202);
+		await expect(response.json()).resolves.toEqual({ accepted: true });
+		await vi.waitFor(() => expect(emit).toHaveBeenCalledTimes(1));
+		expect(emit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				event_type: "web.performance",
+				metric_name: "LCP",
+				metric_value: 1250,
+				navigation_type: "navigate",
+				rating: "good",
+				route_group: "dining",
+				surface: "campus_web",
+			}),
+		);
+	});
+
+	it("rejects browser performance payloads containing unbounded fields", async () => {
+		const emit = vi.fn().mockResolvedValue(undefined);
+		const app = createApp(env, {
+			campusExperienceService: createService(),
+			telemetry: createAppTelemetry(env, { runtimeEventSink: { emit } }),
+		});
+
+		const response = await app.fetch(
+			new Request("https://app-api.internal/api/telemetry/web-performance", {
+				body: JSON.stringify({
+					metricName: "LCP",
+					navigationType: "navigate",
+					pathname: "/dining/private-fragment",
+					rating: "good",
+					routeGroup: "dining",
+					schemaVersion: "web_performance.v1",
+					value: 1250,
+				}),
+				headers: { "content-type": "application/json" },
+				method: "POST",
+			}),
+		);
+
+		expect(response.status).toBe(400);
+		await expect(response.json()).resolves.toMatchObject({
+			error: { code: "validation_failed" },
+		});
+		expect(emit).not.toHaveBeenCalled();
 	});
 
 	it("rejects invalid feedback category", async () => {

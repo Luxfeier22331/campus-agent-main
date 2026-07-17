@@ -50,7 +50,7 @@ export function resolveRequestSurface(request: Request): string {
 	const pathname = new URL(request.url).pathname;
 
 	if (pathname.startsWith("/api/operator/")) {
-		return "operator_console_web";
+		return "operator_api";
 	}
 	if (
 		pathname === "/api/me/overview" ||
@@ -65,7 +65,8 @@ export function resolveRequestSurface(request: Request): string {
 		pathname === "/api/history" ||
 		pathname.startsWith("/api/chat/") ||
 		pathname.startsWith("/api/auth/") ||
-		pathname === "/api/me"
+		pathname === "/api/me" ||
+		pathname === "/api/telemetry/web-performance"
 	) {
 		return "campus_web";
 	}

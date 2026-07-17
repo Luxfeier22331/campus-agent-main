@@ -76,4 +76,17 @@ export interface AppTelemetry {
 			retryable: boolean;
 		},
 	): Promise<void>;
+	recordWebPerformance(input: {
+		metricName: "CLS" | "FCP" | "INP" | "LCP" | "TTFB";
+		navigationType:
+			| "back-forward"
+			| "back-forward-cache"
+			| "navigate"
+			| "prerender"
+			| "reload"
+			| "restore";
+		rating: "good" | "needs-improvement" | "poor";
+		routeGroup: "account" | "dining" | "docs" | "feedback" | "map" | "other" | "qa" | "services";
+		value: number;
+	}): Promise<void>;
 }

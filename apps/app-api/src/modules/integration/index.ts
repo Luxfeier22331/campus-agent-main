@@ -5,7 +5,6 @@ export type {
 	ExecutionControlPersonalMemoryDisableInput,
 	ExecutionControlPersonalMemoryResult,
 	ExecutionControlPersonalMemoryUpsertInput,
-	ExecutionControlProviderConfigClient,
 	ExecutionControlReadinessProbeResult,
 	ExecutionControlRun,
 	ExecutionControlRunCancelInput,
@@ -36,7 +35,6 @@ export type {
 } from "./execution-control";
 export {
 	createExecutionControlPersonalMemoryClient,
-	createExecutionControlProviderConfigClient,
 	createExecutionControlRuntimeClient,
 	ExecutionControlTransportError,
 	isExecutionControlRuntimeConfigured,

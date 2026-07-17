@@ -10,7 +10,6 @@ status: active
 
 - Better Auth 处理登录、注册、退出、会话、密码重置和账号关联子路由。
 - `campus-web` 以同源路由形式向浏览器提供这些接口。
-- `operator-console-web` 不复用终端用户登录流程。
 - `POST /api/auth/sign-up/email` 必须携带
   `x-campus-legal-accepted: terms-and-privacy`；否则返回 `legal_consent_required`。
 - 注册标记只用于当次准入，不保存为协议版本、IP、时间或账号级记录。

@@ -1,0 +1,7 @@
+{
+	"extends": ["//"],
+	"tasks": {
+		"test": { "outputs": [] },
+		"typecheck": { "outputs": [] }
+	}
+}

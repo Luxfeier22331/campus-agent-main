@@ -41,7 +41,7 @@ instrumentation 只在进程配置了 exporter 时启用；未配置时 agent �
 
 不得包含 Authorization、Cookie、API key、密码、数据库凭据、对象存储 secret 或其他认证材料。
 
-app-api、Ops Web 和 Operator Console 不复制 trace 正文；它们只保存关联标识、model/provider
+app-api 和 Ops Web 不复制 trace 正文；它们只保存关联标识、model/provider
 identity、prompt version 摘要和 stage timing。`tool_trajectory.v2` 与
 `agent_runtime_eval_projection.v2` 仍由仓库合同拥有。
 

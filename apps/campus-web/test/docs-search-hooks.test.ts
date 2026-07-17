@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { clearProtectedSearchIndexCache, onSearch } from "../src/docs/search/rspress-search-hooks";
+import {
+	clearProtectedSearchIndexCache,
+	onSearch,
+	prioritizeProtectedSearchResults,
+} from "../src/docs/search/rspress-search-hooks";
 
 const originalFetch = globalThis.fetch;
 const originalLocation = window.location;
@@ -39,6 +43,21 @@ function renderReaderMeta(input: {
 }
 
 describe("Rspress docs search hooks", () => {
+	it("shows protected matches first when public search has no results", () => {
+		const results = [
+			{ group: "中央民族大学校园问答", renderType: "default", result: [] },
+			{
+				group: "当前账号可见",
+				renderType: "custom",
+				result: [{ kind: "result", documentTitle: "受保护制度" }],
+			},
+		];
+
+		prioritizeProtectedSearchResults(results);
+
+		expect(results.map((item) => item.group)).toEqual(["当前账号可见", "中央民族大学校园问答"]);
+	});
+
 	it("does not request gated search indexes for public reader pages", async () => {
 		setPathname("/docs/curriculum/curriculum_plan/doc-public");
 		renderReaderMeta({

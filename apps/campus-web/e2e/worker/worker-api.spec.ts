@@ -66,9 +66,9 @@ test.describe("campus web worker app-api boundary", () => {
 		await expectWorkerUnknownApi(await request.get("/api/auth/admin"));
 	});
 
-	test("routes admitted chat API paths to app-api and keeps unknown chat paths closed", async ({
-		request,
-	}) => {
+	test("routes admitted chat API paths to app-api and keeps unknown chat paths closed", {
+		tag: "@smoke",
+	}, async ({ request }) => {
 		for (const { method, path } of [
 			{ method: "GET", path: "/api/chat/conversations" },
 			{ method: "GET", path: "/api/chat/conversations/search" },

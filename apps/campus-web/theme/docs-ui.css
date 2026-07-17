@@ -1,19 +1,17 @@
-@import "@heroui/styles";
-@import "@better-auth-ui/heroui/styles";
 @import "../src/design/tokens.css";
 
 :root {
-	--docs-accent: var(--sys-brand-interactive, #2563eb);
-	--docs-accent-strong: var(--sys-brand-interactive, #1d4ed8);
-	--docs-accent-soft: var(--sys-brand-interactive-subtle, #eaf2ff);
-	--docs-identity: var(--sys-brand-identity, #2563eb);
-	--docs-ink: var(--sys-text-strong, #172033);
-	--docs-muted: var(--sys-text-muted, #5d6678);
-	--docs-faint: var(--sys-text-subtle, #788295);
-	--docs-border: var(--sys-border-subtle, #d8dee8);
+	--docs-accent: var(--sys-brand-interactive);
+	--docs-accent-strong: var(--sys-brand-interactive);
+	--docs-accent-soft: var(--sys-brand-interactive-subtle);
+	--docs-identity: var(--sys-brand-identity);
+	--docs-ink: var(--sys-text-strong);
+	--docs-muted: var(--sys-text-muted);
+	--docs-faint: var(--sys-text-subtle);
+	--docs-border: var(--sys-border-subtle);
 	--docs-border-soft: color-mix(in srgb, var(--docs-border) 72%, transparent);
-	--docs-surface: var(--sys-surface-default, #ffffff);
-	--docs-surface-soft: var(--sys-bg-subtle, #f6f8fb);
+	--docs-surface: var(--sys-surface-default);
+	--docs-surface-soft: var(--sys-bg-subtle);
 	--docs-sidebar-width: 17rem;
 	--docs-reader-padding: 2rem;
 	--docs-reader-page-max-standard: 68rem;
@@ -49,17 +47,39 @@
 }
 
 .docs-account-entry-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
 	max-width: min(13rem, 32vw);
 	min-width: 3.25rem;
 	min-height: 2rem;
 	padding-inline: 0.65rem;
+	border: 1px solid transparent;
 	border-radius: 999px;
+	background: transparent;
 	color: var(--docs-ink);
+	cursor: pointer;
+	font-family: inherit;
 	font-size: 0.85rem;
 	font-weight: 650;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+.docs-account-entry-button:hover {
+	border-color: var(--docs-border-soft);
+	background: var(--docs-surface-soft);
+}
+
+.docs-account-entry-button:focus-visible {
+	outline: 2px solid var(--docs-accent);
+	outline-offset: 2px;
+}
+
+.docs-account-entry-button:disabled {
+	cursor: default;
+	opacity: 0.62;
 }
 
 .docs-account-entry-user-button {
@@ -73,33 +93,37 @@
 .rspress-doc {
 	width: 100%;
 	min-width: 0;
-	max-width: min(100%, var(--docs-reader-page-max));
+	max-width: min(100%, var(--docs-reader-page-max-full));
 	color: var(--docs-ink);
 }
 
-.rspress-doc.docs-reader-layout-landing {
+.rspress-doc:has(.docs-reader-layout-landing) {
 	--docs-prose-measure: 58rem;
 }
 
-.rspress-doc.docs-reader-layout-article,
-.rspress-doc.docs-reader-layout-reference {
+.rspress-doc:has(.docs-reader-layout-article),
+.rspress-doc:has(.docs-reader-layout-reference) {
 	--docs-prose-measure: 64rem;
 }
 
-.rspress-doc.docs-reader-layout-tabular {
+.rspress-doc:has(.docs-reader-layout-tabular) {
 	--docs-prose-measure: 66rem;
 }
 
-.rspress-doc.docs-reader-measure-standard {
-	--docs-reader-page-max: var(--docs-reader-page-max-standard);
+.rspress-doc:has(.docs-reader-measure-standard) {
+	max-width: min(100%, var(--docs-reader-page-max-standard));
 }
 
-.rspress-doc.docs-reader-measure-wide {
-	--docs-reader-page-max: var(--docs-reader-page-max-wide);
+.rspress-doc:has(.docs-reader-measure-wide) {
+	max-width: min(100%, var(--docs-reader-page-max-wide));
 }
 
-.rspress-doc.docs-reader-measure-full {
-	--docs-reader-page-max: var(--docs-reader-page-max-full);
+.rspress-doc:has(.docs-reader-measure-full) {
+	max-width: min(100%, var(--docs-reader-page-max-full));
+}
+
+.docs-reader-document {
+	min-width: 0;
 }
 
 .rspress-doc :where(p, blockquote, ul, ol) {
@@ -204,9 +228,9 @@
 	margin: 0;
 	padding: 0.75rem;
 	border: 1px solid var(--docs-border);
-	border-radius: 0.8rem;
+	border-radius: var(--card-radius);
 	background: var(--docs-surface);
-	box-shadow: 0 18px 40px rgba(16, 24, 40, 0.14);
+	box-shadow: var(--shadow-sm);
 }
 
 .rspress-doc .document-meta-details:not([open]) dl {
@@ -270,20 +294,27 @@
 	font-weight: 680;
 }
 
-.rp-doc-outline a.docs-reader-current-link,
-.rp-doc-layout__sidebar a.docs-reader-current-link,
-.rspress-doc nav a.docs-reader-current-link {
-	color: var(--docs-accent-strong);
-	font-weight: 700;
-	text-decoration-color: currentColor;
-	text-underline-offset: 0.18em;
+.rspress-doc .docs-reader-heading-row {
+	display: flex;
+	align-items: baseline;
+	gap: 0.55rem;
+	max-width: var(--docs-prose-measure);
+}
+
+.rspress-doc .rp-header-anchor[aria-hidden="true"] {
+	display: none;
+}
+
+.rspress-doc .docs-reader-heading-row > :is(h1, h2, h3, h4, h5, h6) {
+	min-width: 0;
+	flex: 1;
 }
 
 .rspress-doc .docs-reader-heading-actions {
 	display: inline-flex;
+	flex: none;
 	align-items: center;
 	gap: 0.35rem;
-	margin-left: 0.55rem;
 	color: var(--docs-faint);
 	font-size: 0.78rem;
 	line-height: 1;
@@ -348,11 +379,16 @@
 
 .rspress-doc .reader-block.docs-reader-highlight {
 	border-radius: 0.45rem;
-	background: color-mix(in srgb, var(--docs-identity, #2563eb) 10%, transparent);
-	box-shadow: 0 0 0 0.28rem color-mix(in srgb, var(--docs-identity, #2563eb) 10%, transparent);
+	background: color-mix(in srgb, var(--docs-identity) 10%, transparent);
+	box-shadow: 0 0 0 0.28rem color-mix(in srgb, var(--docs-identity) 10%, transparent);
 	transition:
 		background-color 0.18s ease,
 		box-shadow 0.18s ease;
+}
+
+.rspress-doc :where(h1, h2, h3, h4, h5, h6):target {
+	border-radius: 0.35rem;
+	background: color-mix(in srgb, var(--docs-identity) 8%, transparent);
 }
 
 .rspress-doc .docs-course-map-figure {
@@ -364,10 +400,15 @@
 	overflow: auto;
 	aspect-ratio: 1233 / 649;
 	border: 1px solid var(--docs-border);
-	border-radius: 0.85rem;
+	border-radius: var(--card-radius);
 	background: var(--docs-surface);
-	box-shadow: 0 10px 24px rgba(16, 24, 40, 0.05);
+	box-shadow: var(--shadow-xs);
 	-webkit-overflow-scrolling: touch;
+}
+
+.rspress-doc .docs-course-map-frame:focus-visible {
+	outline: 2px solid var(--docs-accent);
+	outline-offset: 2px;
 }
 
 .rspress-doc .docs-course-map-frame::before {
@@ -472,9 +513,9 @@
 	margin: 1.35rem 0;
 	overflow-x: auto;
 	border: 1px solid var(--docs-border);
-	border-radius: 0.85rem;
+	border-radius: var(--card-radius);
 	background: var(--docs-surface);
-	box-shadow: 0 10px 24px rgba(16, 24, 40, 0.05);
+	box-shadow: var(--shadow-xs);
 	-webkit-overflow-scrolling: touch;
 }
 
@@ -515,7 +556,7 @@
 	margin: 1.25rem 0;
 	overflow: hidden;
 	border: 1px solid var(--docs-border);
-	border-radius: 0.85rem;
+	border-radius: var(--card-radius);
 	border-collapse: separate;
 	border-spacing: 0;
 	background: var(--docs-surface);
@@ -715,7 +756,7 @@
 	min-height: 3.25rem;
 	padding: 0.75rem 0.85rem;
 	border: 1px solid var(--docs-border);
-	border-radius: 0.7rem;
+	border-radius: var(--card-radius);
 	background: var(--docs-surface);
 	color: var(--docs-ink);
 	font-weight: 680;
@@ -747,7 +788,7 @@
 	margin-top: 1rem;
 	padding: 1rem;
 	border: 1px solid var(--docs-border);
-	border-radius: 0.7rem;
+	border-radius: var(--card-radius);
 	background: var(--docs-surface);
 }
 
@@ -789,7 +830,7 @@
 	min-height: 3rem;
 	padding: 0.72rem 0.85rem;
 	border: 1px solid var(--docs-border);
-	border-radius: 0.7rem;
+	border-radius: var(--card-radius);
 	background: var(--docs-surface);
 	color: var(--docs-ink);
 	font-weight: 680;
@@ -822,7 +863,7 @@
 
 	.rp-doc-layout__sidebar .rp-sidebar-item {
 		margin-right: 0.25rem;
-		border-radius: 0.58rem;
+		border-radius: var(--card-radius);
 		color: var(--docs-muted);
 		line-height: 1.45;
 	}
@@ -883,9 +924,17 @@
 		padding: 0.75rem;
 	}
 
+	.rspress-doc .docs-table-scroll[data-docs-table-kind="mobile-cards"]::before {
+		display: none;
+	}
+
+	.rspress-doc .docs-table-scroll[data-docs-table-kind="mobile-cards"] > table {
+		display: none;
+	}
+
 	.rspress-doc .docs-table-mobile-card {
 		border: 1px solid var(--docs-border-soft);
-		border-radius: 0.75rem;
+		border-radius: var(--card-radius);
 		background: var(--docs-surface);
 		padding: 0.8rem;
 	}
@@ -921,5 +970,19 @@
 		margin: 0;
 		color: var(--docs-muted);
 		font-size: 0.86rem;
+	}
+}
+
+@media (max-width: 360px) {
+	.rp-nav__title__link {
+		max-width: 9rem;
+		overflow: hidden;
+		white-space: nowrap;
+	}
+
+	.rp-nav__title__link > span {
+		overflow: hidden;
+		font-size: 0.82rem;
+		text-overflow: ellipsis;
 	}
 }

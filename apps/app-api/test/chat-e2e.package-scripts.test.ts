@@ -103,44 +103,4 @@ describe("chat e2e package scripts", () => {
 		expect(scriptSource).not.toContain("agents_sdk_notice_discover_e2e_smoke");
 		expect(scriptSource).not.toContain("notice_discover");
 	});
-
-	it("keeps local provider-config seeding as a direct script instead of package alias", () => {
-		const turboJson = JSON.parse(
-			readFileSync(resolve(__dirname, "../../../turbo.json"), "utf8"),
-		) as {
-			tasks: Record<string, { cache?: boolean }>;
-		};
-		const packageJson = JSON.parse(readFileSync(resolve(__dirname, "../package.json"), "utf8")) as {
-			scripts: Record<string, string>;
-		};
-		const scriptSource = readFileSync(
-			resolve(__dirname, "../ops/dev/seed-local-provider-config.ts"),
-			"utf8",
-		);
-		const runWithLocalEnvSource = readFileSync(
-			resolve(__dirname, "../scripts/run-with-local-env.ts"),
-			"utf8",
-		);
-		const retiredProjector = `${["project", "local", "runtime", "env"].join("-")}.mjs`;
-
-		expect(rootPackageJson.scripts["local:providers:seed"]).toBeUndefined();
-		expect(turboJson.tasks["local:providers:seed"]).toBeUndefined();
-		expect(packageJson.scripts["provider-config:seed-local-model"]).toBeUndefined();
-		expect(packageJson.scripts["local:providers:seed"]).toBeUndefined();
-		expect(scriptSource).toContain("primary_agent");
-		expect(scriptSource).toContain("LLM_API_KEY");
-		expect(scriptSource).toContain("LLM_MODEL");
-		expect(scriptSource).toContain("Qwen3-Embedding-4B");
-		expect(scriptSource).toContain("EMBEDDING_API_KEY");
-		expect(scriptSource).toContain("x-app-internal-auth");
-		expect(scriptSource).toContain("x-app-operator-email");
-		expect(scriptSource).toContain("--stage");
-		expect(scriptSource).toContain("prompt");
-		expect(scriptSource).toContain("embedding");
-		expect(runWithLocalEnvSource).toContain("repoEnvPath");
-		expect(runWithLocalEnvSource).not.toContain("generatedRuntimeEnvPath");
-		expect(runWithLocalEnvSource).not.toContain(retiredProjector);
-		expect(scriptSource).not.toContain("PROMPT_RUNTIME");
-		expect(scriptSource).not.toContain("EXECUTION_PROMPT_MODEL");
-	});
 });

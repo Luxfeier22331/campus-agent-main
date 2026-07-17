@@ -1,17 +1,17 @@
 import { DiningDomainError } from "./error";
-import { publicDiningFloorplanRef, resolveDiningFloorplanManifestRef } from "./floorplan-manifest";
-import { DINING_CANVAS } from "./state-factory";
 import type {
+	DiningCatalog,
 	DiningMenuOffering,
-	DiningOperationsService,
-	DiningOperationsState,
 	DiningOpsFloorResponse,
 	DiningOpsHall,
+	DiningPublishedFloorResponse,
+	DiningPublishedSearchResponse,
+	DiningPublishedSearchResult,
 	DiningPublishedSnapshot,
 } from "./types";
 
 export function buildPublishedSnapshot(
-	state: DiningOperationsState,
+	state: DiningCatalog,
 	releaseId: string,
 	source: Omit<DiningPublishedSnapshot["source"], "releaseId">,
 ): DiningPublishedSnapshot {
@@ -40,7 +40,7 @@ export function buildPublishedSnapshot(
 }
 
 export function buildFloorResponse(
-	state: DiningOperationsState,
+	state: DiningCatalog,
 	input: { floorId: string; hallId: string },
 ): DiningOpsFloorResponse {
 	const hall = state.halls.find((item) => item.hallId === input.hallId);
@@ -56,26 +56,6 @@ export function buildFloorResponse(
 	const windows = state.windows.filter(
 		(window) => window.hallId === input.hallId && window.floorId === input.floorId,
 	);
-	const floorplan = resolveDiningFloorplanManifestRef({
-		floorId: floor.floorId,
-		hallId: hall.hallId,
-	});
-	if (floor.floorplanId !== floorplan.floorplanId || floor.floorplanSha256 !== floorplan.sha256) {
-		throw new DiningDomainError({
-			code: "dining_floorplan_manifest_mismatch",
-			details: {
-				floorId: floor.floorId,
-				floorplanId: floor.floorplanId,
-				hallId: hall.hallId,
-				manifestFloorplanId: floorplan.floorplanId,
-				manifestSha256: floorplan.sha256,
-				sha256: floor.floorplanSha256,
-			},
-			message: "Dining floorplan manifest reference does not match checked-in manifest.",
-			retryable: false,
-			status: 500,
-		});
-	}
 	const windowIds = new Set(windows.map((window) => window.windowId));
 	const assignments = state.assignments.filter((assignment) => windowIds.has(assignment.windowId));
 	const assignmentIds = new Set(assignments.map((assignment) => assignment.assignmentId));
@@ -87,13 +67,12 @@ export function buildFloorResponse(
 	return {
 		assignments,
 		floor: {
-			canvas: DINING_CANVAS,
-			draftVersionId: state.currentDraftVersion.draftVersionId,
+			draftRevision:
+				"revision" in state && typeof state.revision === "number" ? state.revision : undefined,
 			floorId: floor.floorId,
-			floorplan: publicDiningFloorplanRef(floorplan),
+			floorplan: floor.floorplan,
 			hallId: hall.hallId,
 			label: publicFloorLabel(hall.name, floor.label),
-			svgAssetUrl: floor.svgAssetUrl,
 		},
 		menuItems: state.menuItems.filter((item) => menuItemIds.has(item.menuItemId)),
 		menuOfferings,
@@ -107,20 +86,7 @@ export function buildFloorResponse(
 export function toPublicFloor(
 	floor: DiningOpsFloorResponse,
 	source: DiningPublishedSnapshot["source"],
-): Awaited<ReturnType<DiningOperationsService["getPublishedFloor"]>> {
-	if (!floor.floor.canvas) {
-		throwInvalidProjection("Dining floor projection is missing canvas geometry.");
-	}
-	if (
-		!(
-			floor.floor.svgAssetUrl.trim() || floor.floor.floorplan.floorplanId.startsWith("placeholder:")
-		)
-	) {
-		throwInvalidProjection("Dining floor projection is missing SVG asset URL.");
-	}
-	if (!floor.floor.floorplan.sha256.trim()) {
-		throwInvalidProjection("Dining floor projection is missing floorplan manifest checksum.");
-	}
+): DiningPublishedFloorResponse {
 	const windows = floor.windows.map((window) => {
 		const assignment = floor.assignments.find((item) => item.windowId === window.windowId);
 		const stall = assignment
@@ -162,7 +128,6 @@ export function toPublicFloor(
 							},
 						}
 					: null,
-			geometry: window.geometry,
 			label: window.label,
 			locationLabel: window.locationLabel,
 			status: window.status,
@@ -180,12 +145,10 @@ export function toPublicFloor(
 			tags: uniqueStrings(windows.flatMap((window) => window.tags)),
 		},
 		floor: {
-			canvas: floor.floor.canvas,
 			floorId: floor.floor.floorId,
 			floorplan: floor.floor.floorplan,
 			hallId: floor.floor.hallId,
 			label: floor.floor.label,
-			svgAssetUrl: floor.floor.svgAssetUrl,
 		},
 		source: {
 			updatedAt: source.updatedAt,
@@ -202,23 +165,142 @@ export function toPublicHallSummary(hall: DiningOpsHall, snapshot: DiningPublish
 		if (!floor) {
 			throwInvalidProjection("Dining hall summary is missing a floor projection.");
 		}
-		if (!(floor.floor.canvas && floor.floor.floorplan.sha256)) {
-			throwInvalidProjection("Dining hall summary is missing floorplan projection fields.");
-		}
-		if (
-			!(
-				floor.floor.svgAssetUrl.trim() ||
-				floor.floor.floorplan.floorplanId.startsWith("placeholder:")
-			)
-		) {
-			throwInvalidProjection("Dining hall summary is missing floorplan asset URL.");
-		}
 	}
 	return {
 		campus: hall.campus,
 		floors: hall.floors.map((floor) => ({ floorId: floor.floorId, label: floor.label })),
 		hallId: hall.hallId,
 		name: hall.name,
+		tags: uniqueStrings(
+			floors.flatMap((floor) => (floor ? toPublicFloor(floor, snapshot.source).filters.tags : [])),
+		),
+	};
+}
+
+export function searchPublishedDiningSnapshot(
+	snapshot: DiningPublishedSnapshot,
+	input: { query: string; scopeHallId: string; tag: string | null },
+): DiningPublishedSearchResponse {
+	const scopeHall = snapshot.halls.find((hall) => hall.hallId === input.scopeHallId);
+	if (!scopeHall) {
+		throw new DiningDomainError({
+			code: "dining_hall_not_found",
+			message: "Dining hall projection was not found.",
+			retryable: false,
+			status: 404,
+		});
+	}
+	const query = normalizeSearchText(input.query);
+	const tag = input.tag ? normalizeSearchText(input.tag) : null;
+	const ranked: Array<{
+		currentHallRank: number;
+		rank: number;
+		result: DiningPublishedSearchResult;
+	}> = [];
+
+	for (const hall of snapshot.halls.filter((item) => item.campus === scopeHall.campus)) {
+		for (const floorRef of hall.floors) {
+			const floor = snapshot.floors[floorKey({ floorId: floorRef.floorId, hallId: hall.hallId })];
+			if (!floor) {
+				throwInvalidProjection("Dining search found a hall without its floor projection.");
+			}
+			const projection = toPublicFloor(floor, snapshot.source);
+			for (const diningWindow of projection.windows) {
+				const assignment = diningWindow.assignment;
+				if (!assignment) {
+					continue;
+				}
+				const sharedTags = uniqueStrings([...diningWindow.tags, ...assignment.stallProfile.tags]);
+				const stallRank = query
+					? bestSearchRank(query, [
+							assignment.stallProfile.displayName,
+							diningWindow.label,
+							diningWindow.locationLabel,
+							...sharedTags,
+						])
+					: null;
+				let hasOfferingResult = false;
+				for (const offering of assignment.offerings) {
+					const offeringTags = uniqueStrings([...sharedTags, ...offering.tags]);
+					if (tag && !offeringTags.some((value) => normalizeSearchText(value) === tag)) {
+						continue;
+					}
+					const offeringRank = query
+						? bestSearchRank(query, [offering.name, ...offering.tags])
+						: tag
+							? 6
+							: null;
+					if (offeringRank === null) {
+						continue;
+					}
+					hasOfferingResult = true;
+					ranked.push({
+						currentHallRank: hall.hallId === scopeHall.hallId ? 0 : 1,
+						rank: offeringRank,
+						result: {
+							campus: hall.campus,
+							floorId: floorRef.floorId,
+							floorLabel: floorRef.label,
+							hallId: hall.hallId,
+							hallName: hall.name,
+							kind: "offering",
+							offering: {
+								offeringId: offering.offeringId,
+								name: offering.name,
+								priceLabel: offering.priceLabel,
+							},
+							resultId: `offering:${offering.offeringId}`,
+							stallName: assignment.stallProfile.displayName,
+							stallProfileId: assignment.stallProfile.stallProfileId,
+							windowId: diningWindow.windowId,
+							windowLabel: diningWindow.label,
+						},
+					});
+				}
+				const stallTagMatches =
+					!tag || sharedTags.some((value) => normalizeSearchText(value) === tag);
+				const shouldAddStall =
+					stallTagMatches &&
+					((query && stallRank !== null && !hasOfferingResult) ||
+						(!query && Boolean(tag) && assignment.offerings.length === 0));
+				if (shouldAddStall) {
+					ranked.push({
+						currentHallRank: hall.hallId === scopeHall.hallId ? 0 : 1,
+						rank: stallRank === null ? 7 : stallRank + 3,
+						result: {
+							campus: hall.campus,
+							floorId: floorRef.floorId,
+							floorLabel: floorRef.label,
+							hallId: hall.hallId,
+							hallName: hall.name,
+							kind: "stall",
+							offering: null,
+							resultId: `stall:${diningWindow.windowId}`,
+							stallName: assignment.stallProfile.displayName,
+							stallProfileId: assignment.stallProfile.stallProfileId,
+							windowId: diningWindow.windowId,
+							windowLabel: diningWindow.label,
+						},
+					});
+				}
+			}
+		}
+	}
+
+	ranked.sort(
+		(left, right) =>
+			left.rank - right.rank ||
+			left.currentHallRank - right.currentHallRank ||
+			left.result.hallName.localeCompare(right.result.hallName, "zh-CN") ||
+			left.result.floorLabel.localeCompare(right.result.floorLabel, "zh-CN") ||
+			left.result.stallName.localeCompare(right.result.stallName, "zh-CN") ||
+			(left.result.offering?.name ?? "").localeCompare(right.result.offering?.name ?? "", "zh-CN"),
+	);
+	return {
+		results: ranked.slice(0, 20).map((item) => item.result),
+		scope: { campus: scopeHall.campus, hallId: scopeHall.hallId },
+		source: { updatedAt: snapshot.source.updatedAt },
+		total: ranked.length,
 	};
 }
 
@@ -238,6 +320,29 @@ function uniqueStrings(values: string[]): string[] {
 	return [...new Set(values.filter((value) => value.trim()).map((value) => value.trim()))].sort(
 		(left, right) => left.localeCompare(right, "zh-CN"),
 	);
+}
+
+function bestSearchRank(query: string, values: string[]): number | null {
+	let best: number | null = null;
+	for (const value of values) {
+		const normalized = normalizeSearchText(value);
+		const rank =
+			normalized === query
+				? 0
+				: normalized.startsWith(query)
+					? 1
+					: normalized.includes(query)
+						? 2
+						: null;
+		if (rank !== null && (best === null || rank < best)) {
+			best = rank;
+		}
+	}
+	return best;
+}
+
+function normalizeSearchText(value: string): string {
+	return value.trim().toLocaleLowerCase("zh-CN").replace(/\s+/g, "");
 }
 
 function throwInvalidProjection(message: string): never {

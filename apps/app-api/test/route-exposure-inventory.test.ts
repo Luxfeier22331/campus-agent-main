@@ -14,14 +14,12 @@ const routeFiles = [
 	"campus-services-ops.ts",
 	"chat.ts",
 	"chat-run-routes.ts",
-	"dining-ops.ts",
 	"docs.ts",
 	"federation.ts",
 	"identity-platform.ts",
 	"internal.ts",
 	"operator.ts",
 	"profile-memory.ts",
-	"provider-config.ts",
 	"runtime.ts",
 ] as const;
 
@@ -67,17 +65,12 @@ describe("app-api route exposure inventory", () => {
 		).toBe(true);
 	});
 
-	it("exposes dining publish only through release candidate commands", () => {
+	it("keeps Dining operations out of app-api", () => {
 		const keys = new Set(
 			APP_API_ROUTE_EXPOSURE_INVENTORY.map((route) => `${route.method} ${route.path}`),
 		);
 
-		expect(keys.has("POST /api/ops/dining/releases")).toBe(false);
-		expect(keys.has("GET /api/ops/dining/releases/:releaseId/preview")).toBe(false);
-		expect(keys.has("POST /api/ops/dining/releases/:releaseId/publish")).toBe(false);
-		expect(keys.has("POST /api/ops/dining/release-candidates")).toBe(true);
-		expect(keys.has("POST /api/ops/dining/release-candidates/:candidateId/validate")).toBe(true);
-		expect(keys.has("POST /api/ops/dining/release-candidates/:candidateId/approve")).toBe(true);
-		expect(keys.has("POST /api/ops/dining/release-candidates/:candidateId/publish")).toBe(true);
+		expect([...keys].some((key) => key.includes("/api/ops/dining"))).toBe(false);
+		expect(keys.has("GET /api/dining/publication")).toBe(true);
 	});
 });

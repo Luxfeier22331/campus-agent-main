@@ -2,6 +2,15 @@ import { useEffect, useState } from "react";
 
 import { buildAccountLoginUrlForCurrentRoute } from "@/platform/runtime/config";
 import { DocsBootstrapStatus } from "./docs-bootstrap-status";
+import {
+	ReaderAnchor,
+	ReaderBlock,
+	ReaderDocument,
+	ReaderDocumentMeta,
+	ReaderHeading,
+	ReaderTable,
+	type ReaderTableCell,
+} from "./reader-components";
 
 interface DocsResolveResponse {
 	document: {
@@ -60,13 +69,17 @@ type ReaderState =
 
 interface GatedReaderBootstrapProps {
 	documentSlug?: string;
+	renderTitle?: boolean;
 }
 
-export default function GatedReaderBootstrap({ documentSlug }: GatedReaderBootstrapProps) {
+export default function GatedReaderBootstrap({
+	documentSlug,
+	renderTitle = true,
+}: GatedReaderBootstrapProps) {
 	const [state, setState] = useState<ReaderState>({ status: "loading" });
 
 	useEffect(() => {
-		let cancelled = false;
+		const controller = new AbortController();
 
 		async function loadReader() {
 			const target = parseReaderRoute(window.location, documentSlug);
@@ -79,6 +92,7 @@ export default function GatedReaderBootstrap({ documentSlug }: GatedReaderBootst
 				const resolveResponse = await fetch(buildResolveUrl(target), {
 					credentials: "include",
 					headers: { accept: "application/json" },
+					signal: controller.signal,
 				});
 				if (!resolveResponse.ok) {
 					setState(resolveFailureState(resolveResponse.status));
@@ -88,7 +102,7 @@ export default function GatedReaderBootstrap({ documentSlug }: GatedReaderBootst
 				const resolved = (await resolveResponse.json()) as DocsResolveResponse;
 				const readerAssetUrl = resolveReaderAssetContentUrl(resolved.readerAsset);
 				if (!readerAssetUrl) {
-					if (!cancelled) {
+					if (!controller.signal.aborted) {
 						setState({ status: "unavailable" });
 					}
 					return;
@@ -96,6 +110,7 @@ export default function GatedReaderBootstrap({ documentSlug }: GatedReaderBootst
 				const readerResponse = await fetch(readerAssetUrl, {
 					credentials: "include",
 					headers: { accept: "application/json" },
+					signal: controller.signal,
 				});
 				if (!readerResponse.ok) {
 					setState(resolveFailureState(readerResponse.status));
@@ -103,11 +118,11 @@ export default function GatedReaderBootstrap({ documentSlug }: GatedReaderBootst
 				}
 
 				const reader = (await readerResponse.json()) as ReaderPayload;
-				if (!cancelled) {
+				if (!controller.signal.aborted) {
 					setState({ reader, resolve: resolved, status: "ready" });
 				}
 			} catch {
-				if (!cancelled) {
+				if (!controller.signal.aborted) {
 					setState({ status: "unavailable" });
 				}
 			}
@@ -115,7 +130,7 @@ export default function GatedReaderBootstrap({ documentSlug }: GatedReaderBootst
 
 		void loadReader();
 		return () => {
-			cancelled = true;
+			controller.abort();
 		};
 	}, [documentSlug]);
 
@@ -160,71 +175,64 @@ export default function GatedReaderBootstrap({ documentSlug }: GatedReaderBootst
 	const collectionLabel = resolveCollectionLabel(state.resolve.document);
 	const versionLabel = state.resolve.resolvedVersion.label || "当前版";
 	const sourceLabel = collectionLabel;
-	const versionsPayload = JSON.stringify({
-		versions: [
-			{
-				isCurrent: state.resolve.resolvedVersion.isCurrent ?? true,
-				label: versionLabel,
-				versionSlug: state.resolve.resolvedVersion.versionSlug,
-			},
-		],
-	});
 	return (
-		<article className="reader-bootstrap-article rspress-doc">
-			<header
-				className="document-meta-panel"
-				data-docs-collection={state.resolve.document.collection}
-				data-docs-corpus={state.resolve.document.corpus}
-				data-docs-document-slug={state.resolve.document.documentSlug}
-				data-docs-is-current={String(state.resolve.resolvedVersion.isCurrent ?? true)}
-				data-docs-reader-meta="true"
-				data-docs-route-slug={resolveCurrentRouteSlug()}
-				data-docs-search-visibility={
+		<ReaderDocument
+			as="article"
+			className="reader-bootstrap-article rspress-doc"
+			layout="reference"
+			measure="wide"
+		>
+			<ReaderDocumentMeta
+				accessLabel={
+					state.resolve.readerAsset.deliveryMode === "gated_asset" ? "登录后可见" : "公开"
+				}
+				collection={state.resolve.document.collection}
+				collectionLabel={collectionLabel}
+				corpus={state.resolve.document.corpus}
+				documentSlug={state.resolve.document.documentSlug}
+				isCurrent={state.resolve.resolvedVersion.isCurrent ?? true}
+				routeSlug={resolveCurrentRouteSlug()}
+				searchVisibility={
 					state.resolve.readerAsset.deliveryMode === "gated_asset"
 						? "gated_bootstrap"
 						: "public_current"
 				}
-				data-docs-version-slug={state.resolve.resolvedVersion.versionSlug}
-				data-docs-versions={versionsPayload}
-			>
-				<p className="document-meta-summary">
-					<span>{versionLabel}</span>
-					<span>
-						{state.resolve.readerAsset.deliveryMode === "gated_asset" ? "登录后可见" : "公开"}
-					</span>
-					<span>来源：{sourceLabel}</span>
-				</p>
-				<details className="document-meta-details">
-					<summary>来源详情</summary>
-					<dl>
-						<div>
-							<dt>文档集合</dt>
-							<dd>{collectionLabel}</dd>
-						</div>
-						<div>
-							<dt>版本</dt>
-							<dd>{versionLabel}</dd>
-						</div>
-						<div>
-							<dt>来源</dt>
-							<dd>{sourceLabel}</dd>
-						</div>
-					</dl>
-				</details>
-			</header>
-			<h1>{title}</h1>
+				sourceLabel={sourceLabel}
+				versionLabel={versionLabel}
+				versionSlug={state.resolve.resolvedVersion.versionSlug}
+				versions={[
+					{
+						isCurrent: state.resolve.resolvedVersion.isCurrent ?? true,
+						label: versionLabel,
+						versionSlug: state.resolve.resolvedVersion.versionSlug,
+					},
+				]}
+			/>
+			{renderTitle ? <h1>{title}</h1> : null}
 			{withStableKeys(state.reader.sections ?? [], resolveSectionKey).map(
-				({ item: section, key }) => (
-					<section key={key}>
-						{section.anchor ? <span id={section.anchor} /> : null}
-						{section.title && section.title !== title ? <h2>{section.title}</h2> : null}
-						{withStableKeys(section.blocks ?? [], resolveBlockKey).map(({ item: block, key }) =>
-							renderReaderBlock(block, state.resolve.readerState, key),
-						)}
-					</section>
-				),
+				({ item: section, key }) => {
+					const sectionRootUnitId = section.blocks?.find((block) => block.rootUnitId)?.rootUnitId;
+					const sectionAnchor = section.anchor || key;
+					return (
+						<section key={key}>
+							{section.title && section.title !== title ? (
+								<ReaderHeading
+									anchor={sectionAnchor}
+									level={2}
+									rootUnitId={sectionRootUnitId}
+									title={section.title}
+								/>
+							) : section.anchor ? (
+								<ReaderAnchor id={section.anchor} />
+							) : null}
+							{withStableKeys(section.blocks ?? [], resolveBlockKey).map(({ item: block, key }) =>
+								renderReaderBlock(block, key),
+							)}
+						</section>
+					);
+				},
 			)}
-		</article>
+		</ReaderDocument>
 	);
 }
 
@@ -347,58 +355,33 @@ function resolveCollectionLabel(input: { collection: string; corpus: string }): 
 	return input.collection;
 }
 
-function resolveBlockClassName(
-	rootUnitId: string | undefined,
-	readerState: DocsResolveResponse["readerState"],
-): string {
-	const classNames = ["reader-block"];
-	if (rootUnitId && readerState.highlightRootUnitIds.includes(rootUnitId)) {
-		classNames.push("docs-reader-highlight");
-	}
-	return classNames.join(" ");
-}
-
 function renderReaderBlock(
 	block: NonNullable<NonNullable<ReaderPayload["sections"]>[number]["blocks"]>[number],
-	readerState: DocsResolveResponse["readerState"],
 	key: string,
 ) {
 	const text = normalizeReaderText(block.text);
 	if (isReaderHeadingBlock(block, text)) {
-		const HeadingTag = resolveHeadingTag(block.headingLevel, text);
-		return <HeadingTag key={key}>{text}</HeadingTag>;
+		return (
+			<ReaderHeading
+				anchor={block.rootUnitId || key}
+				key={key}
+				level={resolveHeadingLevel(block.headingLevel, text)}
+				rootUnitId={block.rootUnitId}
+				title={text}
+			/>
+		);
 	}
 	return (
-		<div
-			className={resolveBlockClassName(block.rootUnitId, readerState)}
-			data-root-unit-id={block.rootUnitId}
-			key={key}
-		>
+		<ReaderBlock key={key} rootUnitId={block.rootUnitId}>
 			{renderTextBlock(text)}
-		</div>
+		</ReaderBlock>
 	);
 }
 
 function renderTextBlock(text: string) {
 	const table = parseSafeTable(text);
 	if (table) {
-		return (
-			<div className="docs-table-scroll" data-docs-scrollable="true">
-				<table>
-					<tbody>
-						{withStableKeys(table.rows, resolveSafeTableRowKey).map(({ item: row, key }) => (
-							<tr key={key}>
-								{withStableKeys(row, resolveSafeTableCellKey).map(({ item: cell, key }) => (
-									<cell.tag colSpan={cell.colSpan} key={key} rowSpan={cell.rowSpan}>
-										{cell.text}
-									</cell.tag>
-								))}
-							</tr>
-						))}
-					</tbody>
-				</table>
-			</div>
-		);
+		return <ReaderTable rows={table.rows} />;
 	}
 	return text.split(/\n{2,}/u).map((paragraph) => <p key={hashString(paragraph)}>{paragraph}</p>);
 }
@@ -410,12 +393,12 @@ function isReaderHeadingBlock(
 	return block.kind === "heading" && Boolean(text);
 }
 
-function resolveHeadingTag(level: number | undefined, text: string): "h2" | "h3" {
+function resolveHeadingLevel(level: number | undefined, text: string): 2 | 3 {
 	const explicitLevel = typeof level === "number" ? Math.trunc(level) : undefined;
 	if (explicitLevel === 2 || explicitLevel === 3) {
-		return explicitLevel === 2 ? "h2" : "h3";
+		return explicitLevel;
 	}
-	return /^(第[一二三四五六七八九十百]+章\b|[一二三四五六七八九十]+、\S)/u.test(text) ? "h2" : "h3";
+	return /^(第[一二三四五六七八九十百]+章\b|[一二三四五六七八九十]+、\S)/u.test(text) ? 2 : 3;
 }
 
 function normalizeReaderText(value: string | undefined): string {
@@ -426,12 +409,7 @@ interface SafeTable {
 	rows: SafeTableCell[][];
 }
 
-interface SafeTableCell {
-	colSpan?: number;
-	rowSpan?: number;
-	tag: "td" | "th";
-	text: string;
-}
+type SafeTableCell = ReaderTableCell;
 
 function parseSafeTable(value: string): SafeTable | null {
 	const text = value.trim();
@@ -485,14 +463,6 @@ function isSafeTableElementTree(table: HTMLTableElement): boolean {
 		}
 	}
 	return table.getAttributeNames().length === 0;
-}
-
-function resolveSafeTableRowKey(row: SafeTableCell[]): string {
-	return row.map(resolveSafeTableCellKey).join("|");
-}
-
-function resolveSafeTableCellKey(cell: SafeTableCell): string {
-	return `${cell.tag}:${cell.rowSpan ?? 1}:${cell.colSpan ?? 1}:${cell.text}`;
 }
 
 function resolveSectionKey(section: NonNullable<ReaderPayload["sections"]>[number]): string {

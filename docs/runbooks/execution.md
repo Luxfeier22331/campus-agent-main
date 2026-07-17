@@ -38,7 +38,7 @@ execution-control image digest，安装并验证 run projection schema；长期�
 非敏感 runtime config 由环境仓 ConfigMap 提供，secret 由环境选择的 secret backend 注入。私有
 registry 的 pull secret 由环境 overlay 绑定到 first-party ServiceAccount。
 
-provider active profile 仍由 app-api provider-config 管理；runtime 消费经过审查的 projection
+provider active profile 由 Ops Web Provider Config 管理；runtime 消费经过验证的 v2 projection
 artifact。缺少 Secret、ConfigMap 或 projection 都是部署阻塞项。
 
 ## 健康与排查

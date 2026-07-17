@@ -255,6 +255,7 @@ export function createTelemetryMock(): AppTelemetry {
 		recordRequestAccepted: vi.fn(),
 		recordRequestFinalized: vi.fn(),
 		recordRequestTransportError: vi.fn(),
+		recordWebPerformance: vi.fn(),
 	};
 }
 

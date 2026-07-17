@@ -4,9 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { MapExperience } from "@/components/map/map-experience";
 import { MapProductNavOverlay } from "@/components/navigation/product-navigation";
+import { MapProductNavMobileMenu } from "@/components/navigation/product-navigation-menu";
 import { Button } from "@/components/ui/button";
 import { SurfaceState } from "@/components/ui/surface-state";
-import { getCampusMapPlaces } from "@/features/map/api";
+import { getCampusMapManifest, getCampusMapPlaces } from "@/features/map/api";
 import {
 	CAMPUS_HOVER_PLACE_FILL_LAYER_ID,
 	CAMPUS_HOVER_PLACE_OUTLINE_LAYER_ID,
@@ -16,6 +17,7 @@ import {
 	type CampusMapProfile,
 	type CampusMapStyleColors,
 	createCampusMapFeatureFilter,
+	createCampusMapProfilesFromManifest,
 	createCampusMapStyle,
 	getCampusMapProfile,
 	getDefaultCampusMapProfile,
@@ -45,6 +47,7 @@ export function MapPage() {
 	const markerRefs = useRef<maplibregl.Marker[]>([]);
 	const mapMoveIntentRef = useRef<"filter" | "place">("filter");
 	const mapReadyProfileRef = useRef<string | null>(null);
+	const mapAttemptRef = useRef(0);
 	const selectPlaceRef = useRef<(placeId: string) => void>(() => {
 		throw new Error("Campus map place selector was not initialized.");
 	});
@@ -55,7 +58,10 @@ export function MapPage() {
 	const placeViewsByIdRef = useRef<Map<string, MapPlaceView>>(new Map());
 	const selectedFeatureRefKeySetRef = useRef<Set<MapFeatureRefKey>>(new Set());
 	const [data, setData] = useState<CampusMapPlacesResponse | null>(null);
+	const [mapProfiles, setMapProfiles] = useState<CampusMapProfile[]>([]);
 	const [mapLoaded, setMapLoaded] = useState(false);
+	const [mapStatus, setMapStatus] = useState<"error" | "loading" | "ready">("loading");
+	const [mapAttempt, setMapAttempt] = useState(0);
 	const [mapRuntime, setMapRuntime] = useState<MapLibreRuntime | null>(null);
 	const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
 	const [hoveredFeatureRefs, setHoveredFeatureRefs] = useState<CampusMapFeatureRef[]>([]);
@@ -68,8 +74,8 @@ export function MapPage() {
 	const places = useMemo(() => createMapPlaceViews(data?.places ?? []), [data]);
 	const campuses = useMemo(() => getMapCampuses(places), [places]);
 	const selectedCampusProfile = useMemo(
-		() => (selectedCampus ? getCampusMapProfile(selectedCampus) : null),
-		[selectedCampus],
+		() => (selectedCampus ? getCampusMapProfile(mapProfiles, selectedCampus) : null),
+		[mapProfiles, selectedCampus],
 	);
 	const campusPlaces = useMemo(
 		() => (selectedCampus ? places.filter((place) => place.place.campus === selectedCampus) : []),
@@ -111,40 +117,60 @@ export function MapPage() {
 	selectedFeatureRefKeySetRef.current = selectedFeatureRefKeySet;
 
 	useEffect(() => {
+		const controller = new AbortController();
 		setLoading(true);
 		setError(null);
-		getCampusMapPlaces()
-			.then((nextData) => {
+		Promise.all([
+			getCampusMapManifest({ signal: controller.signal }),
+			getCampusMapPlaces({ signal: controller.signal }),
+		])
+			.then(([manifest, nextData]) => {
+				if (controller.signal.aborted) {
+					return;
+				}
+				const nextProfiles = createCampusMapProfilesFromManifest(manifest);
 				const nextCampuses = getMapCampuses(createMapPlaceViews(nextData.places));
+				assertMapProfilesCoverCampuses(nextProfiles, nextCampuses);
 				const initialState = readMapUrlState(nextCampuses);
 				const defaultProfile =
-					(initialState.campus ? getCampusMapProfile(initialState.campus) : null) ??
-					getDefaultCampusMapProfile(nextCampuses);
+					(initialState.campus ? getCampusMapProfile(nextProfiles, initialState.campus) : null) ??
+					getDefaultCampusMapProfile(nextProfiles, nextCampuses);
 				setData(nextData);
+				setMapProfiles(nextProfiles);
 				setSelectedCampus(defaultProfile?.campus ?? null);
 				setQuery(initialState.query);
 				setSelectedCategory(initialState.category);
 				setSelectedPlaceId(initialState.placeId);
 			})
 			.catch(() => {
+				if (controller.signal.aborted) {
+					return;
+				}
 				setData(null);
+				setMapProfiles([]);
 				setSelectedPlaceId(null);
 				setError("校园地图暂时无法打开。");
 			})
 			.finally(() => {
-				setLoading(false);
+				if (!controller.signal.aborted) {
+					setLoading(false);
+				}
 			});
+		return () => controller.abort();
 	}, []);
 
 	useEffect(() => {
-		if (!(data && selectedCampusProfile?.assetUrl && mapRef.current && !mapInstanceRef.current)) {
+		if (!(data && selectedCampusProfile && mapRef.current && !mapInstanceRef.current)) {
 			return;
 		}
 
-		let cancelled = false;
+		const attempt = mapAttempt;
+		mapAttemptRef.current = attempt;
+		let creationPending = true;
+		setMapStatus("loading");
 		loadMapLibre()
 			.then((runtime) => {
-				if (cancelled || !mapRef.current) {
+				if (!creationPending || mapAttemptRef.current !== attempt || !mapRef.current) {
 					return;
 				}
 				const map = new runtime.Map({
@@ -184,23 +210,36 @@ export function MapPage() {
 					setHoveredFeatureRefs([]);
 					setMapCanvasCursor(map, "");
 				});
+				map.on("error", () => {
+					if (mapInstanceRef.current === map && mapAttemptRef.current === attempt) {
+						setMapLoaded(false);
+						setMapStatus("error");
+					}
+				});
 				mapInstanceRef.current = map;
 				mapReadyProfileRef.current = selectedCampusProfile.campus;
 				map.once("load", () => {
+					if (mapInstanceRef.current !== map || mapAttemptRef.current !== attempt) {
+						return;
+					}
 					map.resize();
 					setMapLoaded(true);
+					setMapStatus("ready");
 				});
 				window.requestAnimationFrame(() => map.resize());
 				setMapRuntime(runtime);
 			})
 			.catch(() => {
-				setError("地图暂时无法显示。");
+				if (creationPending && mapAttemptRef.current === attempt) {
+					setMapLoaded(false);
+					setMapStatus("error");
+				}
 			});
 
 		return () => {
-			cancelled = true;
+			creationPending = false;
 		};
-	}, [data, selectedCampusProfile]);
+	}, [data, mapAttempt, selectedCampusProfile]);
 
 	useEffect(
 		() => () => {
@@ -216,7 +255,7 @@ export function MapPage() {
 
 	useEffect(() => {
 		const map = mapInstanceRef.current;
-		if (!(map && selectedCampusProfile?.assetUrl && mapLoaded)) {
+		if (!(map && selectedCampusProfile && mapLoaded)) {
 			return;
 		}
 		if (mapReadyProfileRef.current === selectedCampusProfile.campus) {
@@ -225,8 +264,19 @@ export function MapPage() {
 		map.setMaxBounds(selectedCampusProfile.maxBounds);
 		map.setMinZoom(selectedCampusProfile.minZoom);
 		map.setMaxZoom(selectedCampusProfile.maxZoom);
+		setMapLoaded(false);
+		setMapStatus("loading");
+		const profileCampus = selectedCampusProfile.campus;
+		mapReadyProfileRef.current = profileCampus;
+		map.once("style.load", () => {
+			if (mapInstanceRef.current !== map || mapReadyProfileRef.current !== profileCampus) {
+				return;
+			}
+			map.resize();
+			setMapLoaded(true);
+			setMapStatus("ready");
+		});
 		map.setStyle(createCampusMapStyle(readCampusMapStyleColors(), selectedCampusProfile));
-		mapReadyProfileRef.current = selectedCampusProfile.campus;
 		map.resize();
 	}, [mapLoaded, selectedCampusProfile]);
 
@@ -260,7 +310,7 @@ export function MapPage() {
 
 	useEffect(() => {
 		const map = mapInstanceRef.current;
-		if (!(map && selectedCampusProfile?.assetUrl && mapLoaded)) {
+		if (!(map && selectedCampusProfile && mapLoaded)) {
 			return;
 		}
 
@@ -272,7 +322,7 @@ export function MapPage() {
 
 	useEffect(() => {
 		const map = mapInstanceRef.current;
-		if (!(map && selectedCampusProfile?.assetUrl && mapLoaded)) {
+		if (!(map && selectedCampusProfile && mapLoaded)) {
 			return;
 		}
 
@@ -307,7 +357,7 @@ export function MapPage() {
 			!(
 				mapLoaded &&
 				mapInstanceRef.current &&
-				selectedCampusProfile?.assetUrl &&
+				selectedCampusProfile &&
 				filteredPlaces.length > 0 &&
 				shouldFitMapForFilter({
 					category: selectedCategory,
@@ -374,7 +424,7 @@ export function MapPage() {
 				</MapStateShell>
 			) : data && selectedCampusProfile ? (
 				<MapExperience
-					assetAvailable={Boolean(selectedCampusProfile.assetUrl)}
+					mapStatus={mapStatus}
 					campuses={campuses}
 					categories={categories}
 					category={selectedCategory}
@@ -389,6 +439,7 @@ export function MapPage() {
 					onPlaceSelect={selectPlace}
 					onQueryChange={searchPlaces}
 					onResetViewport={resetCampusViewport}
+					onRetryMap={retryMap}
 					query={query}
 					selectedPlace={selected}
 					viewportControlsAvailable={mapLoaded}
@@ -415,15 +466,6 @@ export function MapPage() {
 		setSelectedCampus(nextCampus);
 		setSelectedCategory("all");
 		setSelectedPlaceId(null);
-		const nextProfile = getCampusMapProfile(nextCampus);
-		if (!nextProfile.assetUrl) {
-			clearMapMarkers(markerRefs.current);
-			markerRefs.current = [];
-			mapInstanceRef.current?.remove();
-			mapInstanceRef.current = null;
-			mapReadyProfileRef.current = null;
-			setMapLoaded(false);
-		}
 	}
 
 	function selectCategory(nextCategory: MapTaskFilter) {
@@ -455,7 +497,7 @@ export function MapPage() {
 
 	function resetCampusViewport() {
 		const map = mapInstanceRef.current;
-		if (!(map && selectedCampusProfile?.assetUrl)) {
+		if (!(map && selectedCampusProfile)) {
 			return;
 		}
 		mapMoveIntentRef.current = "filter";
@@ -464,6 +506,17 @@ export function MapPage() {
 			maxZoom: 16.8,
 			padding: getMapViewportPadding(),
 		});
+	}
+
+	function retryMap() {
+		clearMapMarkers(markerRefs.current);
+		markerRefs.current = [];
+		mapInstanceRef.current?.remove();
+		mapInstanceRef.current = null;
+		mapReadyProfileRef.current = null;
+		setMapLoaded(false);
+		setMapStatus("loading");
+		setMapAttempt((attempt) => attempt + 1);
 	}
 }
 
@@ -524,11 +577,17 @@ function getViewportBoundsForFilteredPlaces(input: {
 	query: string;
 	places: Array<{ coordinates: [number, number] }>;
 }) {
-	if (input.profile.assetUrl && input.category === "all" && input.query.trim().length === 0) {
+	if (input.category === "all" && input.query.trim().length === 0) {
 		return input.profile.maxBounds;
 	}
 
 	return getMapPlaceBounds(input.places);
+}
+
+function assertMapProfilesCoverCampuses(profiles: CampusMapProfile[], campuses: string[]) {
+	for (const campus of campuses) {
+		getCampusMapProfile(profiles, campus);
+	}
 }
 
 function getMapPlaceBounds(places: Array<{ coordinates: [number, number] }>) {
@@ -605,6 +664,9 @@ function MapStateShell({ children }: { children: ReactNode }) {
 	return (
 		<section className="relative grid min-h-dvh place-items-center bg-[var(--map-canvas-bg)] p-6">
 			<MapProductNavOverlay />
+			<div className="pointer-events-auto absolute right-3 top-3 z-30 md:hidden">
+				<MapProductNavMobileMenu />
+			</div>
 			<div className="w-full max-w-md">{children}</div>
 		</section>
 	);

@@ -115,7 +115,7 @@ app-api -> execution-control -> Temporal -> memory recall
 -> sanitized finalization projection
 ```
 
-单个工具内容质量、notice/navigation 等领域成熟度、Operator Console、eval、staging 和
+单个工具内容质量、notice/navigation 等领域成熟度、Ops Web、eval、staging 和
 release 收尾不自动成为主链阻塞项，除非它们破坏上述通用骨架。它们分别由领域、评测和
 操作文档判断。
 

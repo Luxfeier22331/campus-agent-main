@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Auth, AuthPanel } from "../src/components/auth/auth";
@@ -10,16 +11,20 @@ import { CampusAuthUIProvider } from "../src/components/auth/auth-ui-provider";
 import authUIProviderSource from "../src/components/auth/auth-ui-provider.tsx?raw";
 import authUIProviderConfigSource from "../src/components/auth/auth-ui-provider-config.tsx?raw";
 import { CampusBrowserAuthUIProvider } from "../src/components/auth/browser-auth-ui-provider";
+import browserAuthUIProviderSource from "../src/components/auth/browser-auth-ui-provider.tsx?raw";
 import { Settings } from "../src/components/auth/settings/settings";
 import settingsSource from "../src/components/auth/settings/settings.tsx?raw";
-import { QAAccountEntry } from "../src/components/auth/user/qa-account-entry";
-import qaAccountEntrySource from "../src/components/auth/user/qa-account-entry.tsx?raw";
+import { AccountEntry } from "../src/components/auth/user/account-entry";
+import accountEntrySource from "../src/components/auth/user/account-entry.tsx?raw";
+import { DeferredProductAccountEntry } from "../src/components/auth/user/deferred-product-account-entry";
+import deferredProductAccountEntrySource from "../src/components/auth/user/deferred-product-account-entry.tsx?raw";
 import { UserButton } from "../src/components/auth/user/user-button";
 import userButtonSource from "../src/components/auth/user/user-button.tsx?raw";
 import DocsAccountEntry from "../src/components/docs/docs-account-entry";
 import mainSource from "../src/main.tsx?raw";
 
 const stylesSource = readFileSync("src/styles.css", "utf8");
+const authStylesSource = readFileSync("src/components/auth/auth-styles.css", "utf8");
 
 const capturedCaptchaPluginOptions = vi.hoisted(() => ({
 	render: undefined as undefined | ((props: Record<string, unknown>) => React.ReactNode),
@@ -28,6 +33,7 @@ const sessionState = vi.hoisted(() => ({
 	data: null as null | Record<string, unknown>,
 	isPending: false,
 }));
+const heroUserButtonState = vi.hoisted(() => ({ label: "" }));
 
 vi.mock("@better-auth-ui/react/plugins", () => ({
 	captchaPlugin: ({ render }: { render: (props: Record<string, unknown>) => React.ReactNode }) => {
@@ -153,13 +159,13 @@ vi.mock("@better-auth-ui/heroui", () => ({
 		variant?: string;
 	}) => (
 		<button
-			aria-label="heroui-user-button"
 			data-placement={placement ?? ""}
+			data-slot="dropdown-trigger"
 			data-size={size ?? ""}
 			data-variant={variant ?? ""}
 			type="button"
 		>
-			账号
+			{heroUserButtonState.label}
 		</button>
 	),
 }));
@@ -302,6 +308,7 @@ describe("campus auth UI components", () => {
 	beforeEach(() => {
 		window.history.pushState({}, "", "/account/login");
 		capturedCaptchaPluginOptions.render = undefined;
+		heroUserButtonState.label = "";
 		sessionState.data = null;
 		sessionState.isPending = false;
 	});
@@ -316,24 +323,27 @@ describe("campus auth UI components", () => {
 		expect(authUIProviderSource).toContain("@better-auth-ui/heroui");
 		expect(authUIProviderConfigSource).toContain("@better-auth-ui/react/plugins");
 		expect(authUIProviderConfigSource).toContain("@marsidev/react-turnstile");
-		expect(mainSource).toContain("@heroui/react");
+		expect(mainSource).not.toContain("@heroui/react");
 		expect(authSource).toContain("@better-auth-ui/heroui");
 		expect(settingsSource).toContain("@better-auth-ui/heroui");
 		expect(userButtonSource).toContain("@better-auth-ui/heroui");
-		expect(stylesSource).toContain('@import "@heroui/styles";');
-		expect(stylesSource).toContain('@import "@better-auth-ui/heroui/styles";');
-		expect(stylesSource.indexOf('@import "@heroui/styles";')).toBeLessThan(
-			stylesSource.indexOf('@import "@better-auth-ui/heroui/styles";'),
+		expect(stylesSource).not.toContain('@import "@heroui/styles";');
+		expect(stylesSource).not.toContain('@import "@better-auth-ui/heroui/styles";');
+		expect(authStylesSource).toContain('@import "@heroui/styles";');
+		expect(authStylesSource).toContain('@import "@better-auth-ui/heroui/styles";');
+		expect(authStylesSource.indexOf('@import "@heroui/styles";')).toBeLessThan(
+			authStylesSource.indexOf('@import "@better-auth-ui/heroui/styles";'),
 		);
 		for (const source of [authUIProviderSource, authSource, settingsSource, userButtonSource]) {
 			expect(source).not.toMatch(/from\s+["']better-auth-ui["']/);
 		}
 	});
 
-	it("mounts the HeroUI toast provider used by Better Auth UI error toasts", () => {
-		expect(mainSource).toContain('<ToastProvider placement="top" />');
+	it("keeps HeroUI feedback infrastructure inside lazy auth surfaces", () => {
+		expect(mainSource).not.toContain("ToastProvider");
 		expect(authUIProviderSource).not.toContain('from "sonner"');
-		expect(authUIProviderSource).not.toContain("<ToastProvider");
+		expect(authUIProviderSource).toContain("<ToastProvider");
+		expect(browserAuthUIProviderSource).toContain("<ToastProvider");
 	});
 
 	it("does not add a duplicate local auth mutation toast bridge", () => {
@@ -414,7 +424,7 @@ describe("campus auth UI components", () => {
 
 		expect(screen.getByLabelText("account-view")).toHaveAttribute(
 			"data-class-name",
-			"mx-auto w-full max-w-4xl",
+			"mx-auto w-full max-w-[var(--layout-page-form-width)]",
 		);
 		expect(screen.getByLabelText("account-settings-layout")).toBeInTheDocument();
 		expect(container.innerHTML).not.toContain("rounded-lg");
@@ -540,34 +550,55 @@ describe("campus auth UI components", () => {
 		expect(captcha).toHaveAttribute("data-execution", "render");
 	});
 
-	it("uses the HeroUI UserButton without a self-built trigger", () => {
-		render(<UserButton />);
+	it("names the loading UserButton without overriding the resolved user name", async () => {
+		const { rerender } = render(<UserButton />);
 
-		const button = screen.getByLabelText("heroui-user-button");
+		const button = screen.getByRole("button", { name: "账号" });
 		expect(button).toHaveAttribute("data-placement", "bottom end");
 		expect(button).toHaveAttribute("data-size", "icon");
 		expect(button).toHaveAttribute("data-variant", "ghost");
+
+		heroUserButtonState.label = "测试";
+		rerender(<UserButton />);
+		await waitFor(() => expect(screen.getByRole("button", { name: "测试" })).toBe(button));
+		expect(button).not.toHaveAttribute("aria-label");
 		expect(userButtonSource).not.toContain("trigger=");
 		expect(userButtonSource).not.toContain("@/components/ui/button");
 	});
 
-	it("uses a minimal Q&A auth entry only to open the modal for unauthenticated users", () => {
-		render(<QAAccountEntry />);
+	it("uses a session-free shared account entry to open authentication", () => {
+		const onLogin = vi.fn();
+		render(
+			<AccountEntry authenticated={false} onLogin={onLogin} pending={false} variant="label" />,
+		);
 
-		expect(screen.getByText("登录")).toBeInTheDocument();
-		expect(qaAccountEntrySource).toContain("campusAuthClient.useSession");
-		expect(qaAccountEntrySource).toContain("<UserButton");
-		expect(qaAccountEntrySource).not.toContain("@/components/ui/button");
-		expect(qaAccountEntrySource).not.toContain("<input");
-		expect(qaAccountEntrySource).not.toContain("signIn.email");
+		screen.getByRole("button", { name: "登录" }).click();
+		expect(onLogin).toHaveBeenCalledTimes(1);
+		expect(accountEntrySource).not.toContain("campusAuthClient.useSession");
+		expect(accountEntrySource).toContain("lazy(");
+		expect(accountEntrySource).not.toContain("<input");
+		expect(accountEntrySource).not.toContain("signIn.email");
 	});
 
-	it("keeps the Better Auth UI UserButton for authenticated users", () => {
-		sessionState.data = { user: { id: "user_01", name: "用户" } };
+	it("loads support-page authentication only after the account button is activated", async () => {
+		const user = userEvent.setup();
+		render(<DeferredProductAccountEntry />);
 
-		render(<QAAccountEntry />);
+		expect(screen.getByRole("button", { name: "账号" })).toBeEnabled();
+		expect(screen.queryByRole("dialog", { name: "登录或创建校园问答账号" })).toBeNull();
+		expect(deferredProductAccountEntrySource).not.toContain("@/platform/auth/client");
 
-		expect(screen.getByLabelText("heroui-user-button")).toBeInTheDocument();
+		await user.click(screen.getByRole("button", { name: "账号" }));
+
+		expect(
+			await screen.findByRole("dialog", { name: "登录或创建校园问答账号" }),
+		).toBeInTheDocument();
+	});
+
+	it("loads the Better Auth UI UserButton only for authenticated users", async () => {
+		render(<AccountEntry authenticated onLogin={vi.fn()} pending={false} />);
+
+		expect(await screen.findByRole("button", { name: "账号" })).toBeInTheDocument();
 		expect(screen.queryByText("登录")).toBeNull();
 	});
 
@@ -586,6 +617,7 @@ describe("campus auth UI components", () => {
 			name: "登录查看账号可见文档",
 		});
 		expect(trigger).toHaveClass("docs-account-entry-button");
+		expect(trigger).toHaveTextContent("登录");
 		trigger.click();
 
 		expect(

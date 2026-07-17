@@ -82,7 +82,7 @@ export function validatePublishedReaderAssetManifest(
 ): void {
 	const manifestCopy = copies.find((copy) => copy.filePath === "asset-manifest.json");
 	if (!manifestCopy) {
-		throw new Error(`reader asset entry is missing asset-manifest.json: ${entry.docId ?? ""}`);
+		throw new Error(`reader asset entry is missing asset-manifest.json: ${entry.docId}`);
 	}
 	const manifest = JSON.parse(new TextDecoder().decode(manifestCopy.bytes));
 	if (!manifest.files || typeof manifest.files !== "object" || Array.isArray(manifest.files)) {

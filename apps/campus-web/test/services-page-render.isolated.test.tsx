@@ -55,12 +55,11 @@ describe("campus services page", () => {
 		expect(
 			await screen.findByRole("heading", { name: "班车时刻表", level: 1 }),
 		).toBeInTheDocument();
-		expect(
-			await screen.findByRole("heading", { name: "班车时刻表", level: 2 }),
-		).toBeInTheDocument();
+		expect(await screen.findByRole("heading", { name: "班次安排", level: 2 })).toBeInTheDocument();
 		expect(screen.queryByLabelText("服务日期")).toBeNull();
 		expect(screen.getByText("工作日运行")).toBeInTheDocument();
-		expect(screen.getByText(/snapshot:bus:2026-03-20/)).toBeInTheDocument();
+		expect(screen.queryByText(/snapshot:bus:2026-03-20/)).toBeNull();
+		expect(screen.getByText(/更新于/)).toBeInTheDocument();
 		expect(screen.getByText("含 1 条变更")).toBeInTheDocument();
 		expect(screen.getByText("海淀校区→丰台校区")).toBeInTheDocument();
 		expect(screen.getByText("07:00")).toBeInTheDocument();
@@ -81,11 +80,11 @@ describe("campus services page", () => {
 		expect(campusServicesApiMock.getCampusTransportStatus).toHaveBeenCalledWith();
 	});
 
-	it("keeps the campus services schedule table on the existing component stack", () => {
-		expect(servicesPageSource).toContain('from "@heroui/react"');
-		expect(servicesPageSource).toContain("<Table.");
+	it("keeps the one-off schedule table on semantic HTML", () => {
+		expect(servicesPageSource).not.toContain('from "@heroui/react"');
+		expect(servicesPageSource).not.toContain("<Table.");
 		expect(servicesPageSource).not.toContain("@tanstack/react-table");
-		expect(servicesPageSource).not.toContain("<table");
+		expect(servicesPageSource).toContain("<table");
 	});
 
 	it("renders campus services schedule empty and error states", async () => {

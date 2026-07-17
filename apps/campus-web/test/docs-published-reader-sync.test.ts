@@ -100,27 +100,21 @@ describe("campus-web published reader sync", () => {
 			parsePublishedReaderSyncArgs([
 				"all",
 				"--manifest-path",
-				"../../var/docs-reader-sync-manifest.json",
+				"../../var/docs-release-manifest.json",
 			]),
 		).toEqual({
 			command: "all",
-			manifestFilePath: "../../var/docs-reader-sync-manifest.json",
-			manifestObjectKey: undefined,
-		});
-		expect(
-			parsePublishedReaderSyncArgs(["docs", "--manifest-key", "published/docs/manifest.json"]),
-		).toEqual({
-			command: "docs",
-			manifestFilePath: undefined,
-			manifestObjectKey: "published/docs/manifest.json",
+			manifestFilePath: "../../var/docs-release-manifest.json",
 		});
 		expect(
 			parsePublishedReaderSyncArgs(["check", "--manifest-path", "../../var/public-docs.json"]),
 		).toEqual({
 			command: "check",
 			manifestFilePath: "../../var/public-docs.json",
-			manifestObjectKey: undefined,
 		});
+		expect(() =>
+			parsePublishedReaderSyncArgs(["docs", "--manifest-key", "published/docs/manifest.json"]),
+		).toThrow("unknown docs sync argument");
 	});
 
 	it("rejects ambiguous or env-owned docs sync manifest selection", () => {
@@ -132,10 +126,8 @@ describe("campus-web published reader sync", () => {
 				"--manifest-key",
 				"k",
 			]),
-		).toThrow("expected exactly one of --manifest-path or --manifest-key");
-		expect(() => parsePublishedReaderSyncArgs(["docs"])).toThrow(
-			"expected exactly one of --manifest-path or --manifest-key",
-		);
+		).toThrow("unknown docs sync argument");
+		expect(() => parsePublishedReaderSyncArgs(["docs"])).toThrow("--manifest-path is required");
 		expect(() =>
 			parsePublishedReaderSyncArgs(["docs", "--manifest-path", "manifest.json", "--extra"]),
 		).toThrow("unknown docs sync argument");
@@ -182,24 +174,28 @@ describe("campus-web published reader sync", () => {
 		);
 		expect(currentMdx).toContain('title: "中央民族大学学生考勤管理规定"');
 		expect(currentMdx).toContain('docsSearchVisibility: "public_current"');
+		expect(currentMdx).toContain('description: "学生应按时参加教学活动。"');
+		expect(currentMdx).toContain(
+			'head: [["link",{"href":"/docs/regulations/student_rules/student-attendance","rel":"canonical"}]]',
+		);
 		expect(currentMdx).not.toContain("data-pagefind-body");
 		expect(currentMdx).not.toContain("docs-pagefind-page-meta");
-		expect(currentMdx).toContain('data-root-unit-id="attendance-root"');
-		expect(currentMdx).toContain('data-root-unit-id="regular-enumeration"');
-		expect(currentMdx).toContain('<span id="general"></span>');
+		expect(currentMdx).toContain('<ReaderBlock rootUnitId={"attendance-root"}>');
+		expect(currentMdx).toContain('<ReaderBlock rootUnitId={"regular-enumeration"}>');
+		expect(currentMdx).toContain('<ReaderAnchor id={"general"} />');
 		expect(currentMdx).toContain("学生应按时参加教学活动。");
 		expect(currentMdx).toContain("一、这是一条普通正文，不应自动升级为标题。");
 		expect(currentMdx).not.toContain("## 一、这是一条普通正文，不应自动升级为标题。");
-		expect(currentMdx).toContain('<div className="docs-table-scroll"');
-		expect(currentMdx).toContain('<table><tbody><tr><td>{"活动名称"}</td><td>{"学分"}</td></tr>');
+		expect(currentMdx).toContain("<ReaderTable rows={");
+		expect(currentMdx).toContain('{"tag":"td","text":"活动名称"}');
 		expect(currentMdx).not.toContain("<table><tr>");
-		expect(currentMdx).toContain('<td>{"*战场医疗救护"}</td>');
-		expect(currentMdx).toContain('<td rowSpan="2">{"0.5"}</td>');
+		expect(currentMdx).toContain('{"tag":"td","text":"*战场医疗救护"}');
+		expect(currentMdx).toContain('{"rowSpan":2,"tag":"td","text":"0.5"}');
 		expect(currentMdx).not.toContain("&lt;table&gt;&lt;tr&gt;&lt;td&gt;活动名称");
 		expect(currentMdx).toContain("&lt;img src=x onerror=alert(1)&gt;");
-		expect(currentMdx).toContain("data-docs-versions=");
-		expect(currentMdx).toContain("&quot;versionSlug&quot;:&quot;2025-history&quot;");
-		expect(currentMdx).toContain('data-docs-route-slug="student-attendance"');
+		expect(currentMdx).toContain("versions={[");
+		expect(currentMdx).toContain('"versionSlug":"2025-history"');
+		expect(currentMdx).toContain('routeSlug={"student-attendance"}');
 		expect(currentMdx).not.toContain("doc_id");
 		expect(currentMdx).not.toContain("version_id");
 		expect(currentMdx).not.toContain("## 文档正文");
@@ -208,12 +204,16 @@ describe("campus-web published reader sync", () => {
 		expect(currentMdx).not.toContain(">六、课程地图</div>");
 		expect(currentMdx).toContain('className="docs-course-map-figure"');
 		expect(currentMdx).toContain(
+			'className="docs-course-map-frame" role="region" aria-label="学生考勤课程地图" tabIndex={0}',
+		);
+		expect(currentMdx).toContain(
 			'src="/_docs/regulations/student_rules/student-attendance/2026-current/course-maps/page-0001-map-01.png"',
 		);
 		expect(currentMdx).toContain('alt="学生考勤课程地图"');
-		expect(versionMdx).toContain('data-docs-version-slug="2026-current"');
+		expect(versionMdx).toContain('versionSlug={"2026-current"}');
 		expect(versionMdx).toContain('docsSearchVisibility: "noindex"');
 		expect(gatedMdx).toContain("GatedReaderBootstrap");
+		expect(gatedMdx).toContain("renderTitle={false}");
 		expect(gatedMdx).toContain('docsSearchVisibility: "gated_bootstrap"');
 		expect(gatedMdx).toContain(
 			'import GatedReaderBootstrap from "@/components/docs/gated-reader-bootstrap";',
@@ -275,8 +275,8 @@ describe("campus-web published reader sync", () => {
 		);
 
 		expect(routeSlug).toMatch(/^doc-[a-f0-9]{12}$/u);
-		expect(currentMdx).toContain('data-docs-document-slug="中央民族大学学生考勤管理规定"');
-		expect(currentMdx).toContain(`data-docs-route-slug="${routeSlug}"`);
+		expect(currentMdx).toContain('documentSlug={"中央民族大学学生考勤管理规定"}');
+		expect(currentMdx).toContain(`routeSlug={"${routeSlug}"}`);
 		expect(collectionMeta).toContain(`"name": "${routeSlug}"`);
 		expect(collectionMeta).not.toContain('"name": "中央民族大学学生考勤管理规定"');
 		expect(existsSync(join(docsRoot, "docs/regulations/student_rules/index.md"))).toBe(true);
@@ -300,11 +300,35 @@ describe("campus-web published reader sync", () => {
 			"utf8",
 		);
 
-		expect(currentMdx).toContain('<span id="general&quot;reader"></span>');
-		expect(currentMdx).toContain('data-root-unit-id="attendance&quot;root"');
+		expect(currentMdx).toContain('<ReaderAnchor id={"general\\"reader"} />');
+		expect(currentMdx).toContain('<ReaderBlock rootUnitId={"attendance\\"root"}>');
 		expect(currentMdx).toContain("学生应按时参加教学活动。");
-		expect(currentMdx).not.toContain('<span id="general"reader"></span>');
-		expect(currentMdx).not.toContain('data-root-unit-id="attendance"root"');
+		expect(currentMdx).not.toContain('<ReaderAnchor id={"general"reader"} />');
+		expect(currentMdx).not.toContain('<ReaderBlock rootUnitId={"attendance"root"}>');
+	});
+
+	it("renders source-controlled headings as literal single-line MDX text", async () => {
+		const { client, manifestPath, root } = createPublishedReaderFixture({
+			publicSectionTitle:
+				"补充 <img src=x onerror=alert(1)> {globalThis.__docsInjected = true}\nexport const compromised = true",
+		});
+		const docsRoot = join(root, "docs");
+
+		await syncCampusPublishedReaderDocs({
+			client,
+			docsRoot,
+			manifestFilePath: manifestPath,
+		});
+
+		const currentMdx = readFileSync(
+			join(docsRoot, "docs/regulations/student_rules/student-attendance.mdx"),
+			"utf8",
+		);
+		expect(currentMdx).toContain(
+			"## 补充 &lt;img src=x onerror=alert(1)&gt; &#123;globalThis.__docsInjected = true&#125; export const compromised = true",
+		);
+		expect(currentMdx).not.toContain("\nexport const compromised = true");
+		expect(currentMdx).not.toContain("{globalThis.__docsInjected = true}");
 	});
 
 	it("copies published reader assets into campus-web static delivery roots", async () => {
@@ -340,6 +364,15 @@ describe("campus-web published reader sync", () => {
 				"utf8",
 			),
 		).toContain("restricted-root");
+		const courseMapImage = readFileSync(
+			join(
+				targetRoot,
+				"_docs/regulations/student_rules/student-attendance/2026-current/course-maps/page-0001-map-01.png",
+			),
+		);
+		expect([...courseMapImage.subarray(0, 8)]).toEqual([
+			0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+		]);
 		const protectedSearchIndex = JSON.parse(
 			readFileSync(
 				join(
@@ -487,5 +520,20 @@ describe("campus-web published reader sync", () => {
 				targetRoot: join(root, "public"),
 			}),
 		).rejects.toThrow("unsupported docs reader release manifest surface");
+	});
+
+	it("rejects legacy or unknown manifest fields", async () => {
+		const { client, manifestPath, root } = createPublishedReaderFixture();
+		const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+		manifest.generatedAt = "2026-07-16T00:00:00.000Z";
+		writeFileSync(manifestPath, JSON.stringify(manifest), "utf8");
+
+		await expect(
+			syncCampusPublishedReaderAssets({
+				client,
+				manifestFilePath: manifestPath,
+				targetRoot: join(root, "public"),
+			}),
+		).rejects.toThrow("release manifest has unsupported fields");
 	});
 });

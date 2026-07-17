@@ -3,6 +3,7 @@ import type {
 	FeishuReviewSourceIdentity,
 } from "./catalog-source-types";
 import { buildReviewObservations, reviewsFromObservations } from "./review-source";
+import type { DiningReviewResolution } from "./review-resolver";
 import type {
 	DiningReviewImage,
 	DiningReviewProjection,
@@ -11,24 +12,18 @@ import type {
 	SyncReport,
 } from "./types";
 
-interface DiningHallResolution {
-	hallId: string;
-	hallName: string;
-	stallProfileId: string;
-	windowId: string;
-}
-
 export interface DiningSyncDependencies {
 	attachmentStore: {
 		materialize(input: { record: DiningSourceRecord }): Promise<DiningReviewImage[]>;
 		removeUnreferencedPublicImages?(referencedPublicUrls: string[]): Promise<void>;
 	};
-	hallResolver: {
+	reviewResolver: {
 		resolve(input: {
 			campus: string;
+			dishName: string;
 			hallName: string;
 			stallName: string;
-		}): DiningHallResolution | null;
+		}): DiningReviewResolution;
 	};
 	moderator: {
 		check(input: {
@@ -46,7 +41,7 @@ export interface DiningSyncDependencies {
 		): Promise<SyncReport["observationSync"]>;
 	};
 	publisher: {
-		publishReviews(reviews: DiningReviewProjection[]): Promise<void>;
+		publishReviewObservations(observations: DiningSourceObservation[]): Promise<number>;
 	};
 	records: DiningSourceRecord[];
 	sourceIdentity: FeishuReviewSourceIdentity;
@@ -58,6 +53,13 @@ export async function runDiningSync(input: DiningSyncDependencies): Promise<Sync
 	const blockedReasons: Record<string, number> = {};
 	let attachmentCount = 0;
 	for (const record of input.records) {
+		if (!record.submittedAt) {
+			blockedCount += 1;
+			const blockReason = "submitted_at_missing";
+			incrementBlockedReason(blockedReasons, blockReason);
+			observationInputs.push({ blockReason, record });
+			continue;
+		}
 		const moderation = await moderateRecord(input, record);
 		if (moderation.status !== "safe") {
 			blockedCount += 1;
@@ -66,10 +68,10 @@ export async function runDiningSync(input: DiningSyncDependencies): Promise<Sync
 			observationInputs.push({ blockReason, record });
 			continue;
 		}
-		const hall = resolveHall(input, record);
-		if (!hall) {
+		const resolution = resolveReview(input, record);
+		if (resolution.status === "blocked") {
 			blockedCount += 1;
-			const blockReason = "hall_or_stall_not_found";
+			const blockReason = resolution.reason;
 			incrementBlockedReason(blockedReasons, blockReason);
 			observationInputs.push({ blockReason, record });
 			continue;
@@ -81,11 +83,12 @@ export async function runDiningSync(input: DiningSyncDependencies): Promise<Sync
 			incrementBlockedReason(blockedReasons, blockReason);
 			observationInputs.push({
 				blockReason,
-				hallId: hall.hallId,
-				hallName: hall.hallName,
+				hallId: resolution.hallId,
+				hallName: resolution.hallName,
+				offeringId: resolution.offeringId,
 				record,
-				stallProfileId: hall.stallProfileId,
-				windowId: hall.windowId,
+				stallProfileId: resolution.stallProfileId,
+				windowId: resolution.windowId,
 			});
 			continue;
 		}
@@ -93,11 +96,12 @@ export async function runDiningSync(input: DiningSyncDependencies): Promise<Sync
 		observationInputs.push({
 			blockReason: null,
 			images,
-			hallId: hall.hallId,
-			hallName: hall.hallName,
+			hallId: resolution.hallId,
+			hallName: resolution.hallName,
+			offeringId: resolution.offeringId,
 			record,
-			stallProfileId: hall.stallProfileId,
-			windowId: hall.windowId,
+			stallProfileId: resolution.stallProfileId,
+			windowId: resolution.windowId,
 		});
 	}
 	const observations = buildReviewObservations(observationInputs);
@@ -105,10 +109,9 @@ export async function runDiningSync(input: DiningSyncDependencies): Promise<Sync
 		observations,
 		input.sourceIdentity,
 	);
-	const reviews = reviewsFromObservations(
-		await input.observationStore.listActiveFeishuReviewObservations(),
-	);
-	await input.publisher.publishReviews(reviews);
+	const activeObservations = await input.observationStore.listActiveFeishuReviewObservations();
+	const reviews = reviewsFromObservations(activeObservations);
+	await input.publisher.publishReviewObservations(activeObservations);
 	await input.attachmentStore.removeUnreferencedPublicImages?.(
 		reviews.flatMap((review) => review.images.map((image) => image.url)),
 	);
@@ -158,12 +161,13 @@ async function moderateRecord(
 	return { status: "blocked" };
 }
 
-function resolveHall(
+function resolveReview(
 	input: DiningSyncDependencies,
 	record: DiningSourceRecord,
-): DiningHallResolution | null {
-	return input.hallResolver.resolve({
+): DiningReviewResolution {
+	return input.reviewResolver.resolve({
 		campus: record.campus,
+		dishName: record.dishName,
 		hallName: record.hallName,
 		stallName: record.stallName,
 	});

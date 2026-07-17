@@ -50,7 +50,7 @@ test.describe("support page browser flows", () => {
 		await page.getByLabel("问题描述").fill("地图地点名称需要更新。");
 		await page.getByRole("button", { name: "提交反馈" }).click();
 
-		await expect(page.getByText("已收到：feedback_e2e")).toBeVisible();
+		await expect(page.getByText("反馈已提交。")).toBeVisible();
 		expect(submittedBody).toMatchObject({
 			body: "地图地点名称需要更新。",
 			routeContext: "/feedback?source=map",
@@ -112,7 +112,7 @@ test.describe("support page browser flows", () => {
 		await page.getByLabel("联系方式（可选）").fill("  student@example.edu  ");
 		await page.getByRole("button", { name: "提交反馈" }).click();
 
-		await expect(page.getByText("已收到：feedback_category_e2e")).toBeVisible();
+		await expect(page.getByText("反馈已提交。")).toBeVisible();
 		await expect(page.getByLabel("问题描述")).toHaveValue("");
 		await expect(page.getByRole("combobox", { name: "问题类型" })).toContainText("地图问题");
 		expect(submittedBody).toMatchObject({
@@ -150,7 +150,7 @@ test.describe("support page browser flows", () => {
 		await page.getByLabel("联系方式（可选）").fill("  mobile@example.edu  ");
 		await page.getByRole("button", { name: "提交反馈" }).click();
 
-		await expect(page.getByText("已收到：feedback_mobile_e2e")).toBeVisible();
+		await expect(page.getByText("反馈已提交。")).toBeVisible();
 		expect(submittedBody).toMatchObject({
 			body: "移动端反馈表单需要保持可用。",
 			category: "content_issue",
@@ -203,7 +203,7 @@ test.describe("support page browser flows", () => {
 		await page.getByLabel("问题描述").fill("服务协议里有一处链接需要更新。");
 		await page.getByRole("button", { name: "提交反馈" }).click();
 
-		await expect(page.getByText("已收到：feedback_legal_e2e")).toBeVisible();
+		await expect(page.getByText("反馈已提交。")).toBeVisible();
 		expect(submittedBody).toMatchObject({
 			body: "服务协议里有一处链接需要更新。",
 			routeContext: "/feedback?source=legal",

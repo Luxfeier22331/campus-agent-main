@@ -1,88 +1,99 @@
-import { escapeAttribute, escapeHtml } from "./published-reader-text.ts";
+import { escapeHtml } from "./published-reader-text.ts";
+
+interface ReaderTableCell {
+	colSpan?: number;
+	rowSpan?: number;
+	tag: "td" | "th";
+	text: string;
+}
 
 export function renderReaderBlockText(text: string): string {
-	const tableHtml = normalizeSafeTableHtml(text);
-	if (!tableHtml) {
+	const rows = parseSafeTableRows(text);
+	if (!rows) {
 		return escapeHtml(text);
 	}
-	return `<div className="docs-table-scroll" data-docs-scrollable="true">\n${tableHtml}\n</div>`;
+	return `<ReaderTable rows={${JSON.stringify(rows)}} />`;
 }
 
-function normalizeSafeTableHtml(value: unknown): string | undefined {
-	const text = String(value ?? "").trim();
-	if (!/^<table(?:\s[^>]*)?>[\s\S]*<\/table>$/iu.test(text)) {
+function parseSafeTableRows(value: unknown): ReaderTableCell[][] | undefined {
+	const source = String(value ?? "").trim();
+	const tableMatch = source.match(/^<table([^>]*)>([\s\S]*)<\/table>$/iu);
+	if (!tableMatch || tableMatch[1]?.trim()) {
 		return;
 	}
-	if (text.replace(/<\/?[a-z][^>]*>/giu, "").includes("<")) {
+	if (source.replace(/<\/?[a-z][^>]*>/giu, "").includes("<")) {
+		return;
+	}
+	if (!hasOnlySafeTableMarkup(source)) {
 		return;
 	}
 
+	const tableBody = tableMatch[2] ?? "";
+	const rowPattern = /<tr\s*>([\s\S]*?)<\/tr>/giu;
+	const rows: ReaderTableCell[][] = [];
+	let rowMatch = rowPattern.exec(tableBody);
+	while (rowMatch) {
+		const row = parseSafeTableRow(rowMatch[1] ?? "");
+		if (!row) {
+			return;
+		}
+		rows.push(row);
+		rowMatch = rowPattern.exec(tableBody);
+	}
+	const outsideRows = tableBody
+		.replace(rowPattern, "")
+		.replace(/<\/?(?:thead|tbody)\s*>/giu, "")
+		.trim();
+	return rows.length > 0 && !outsideRows ? rows : undefined;
+}
+
+function hasOnlySafeTableMarkup(source: string): boolean {
 	const allowedTags = new Set(["table", "thead", "tbody", "tr", "th", "td"]);
-	const tagPattern = /<\/?([a-z][a-z0-9-]*)([^>]*)>/giu;
-	let normalized = "";
-	let cursor = 0;
-	let sawTable = false;
-	let tableChildDepth = 0;
-	let insertedImplicitTbody = false;
-	let implicitTbodyOpen = false;
-	for (const match of text.matchAll(tagPattern)) {
-		const [rawTag, rawTagName, rawAttributes = ""] = match;
-		const index = match.index ?? 0;
-		const tagName = rawTagName.toLowerCase();
+	for (const match of source.matchAll(/<\/?([a-z][a-z0-9-]*)([^>]*)>/giu)) {
+		const tagName = String(match[1]).toLowerCase();
+		const attributes = String(match[2] ?? "").trim();
 		if (!allowedTags.has(tagName)) {
-			return;
+			return false;
 		}
-		normalized += renderJsxTextNode(text.slice(cursor, index));
-		cursor = index + rawTag.length;
-		if (rawTag.startsWith("</")) {
-			if (tagName === "table" && implicitTbodyOpen) {
-				normalized += "</tbody>";
-				implicitTbodyOpen = false;
-			}
-			normalized += `</${tagName}>`;
-			if (tagName === "thead" || tagName === "tbody") {
-				tableChildDepth = Math.max(0, tableChildDepth - 1);
-			}
-			continue;
+		if (!(match[0].startsWith("</") || ["td", "th"].includes(tagName)) && attributes) {
+			return false;
 		}
-		if (tagName === "table") {
-			if (sawTable) {
-				return;
-			}
-			sawTable = true;
+		if (["td", "th"].includes(tagName) && parseSafeSpans(attributes) === undefined) {
+			return false;
 		}
-		if (tagName === "thead" || tagName === "tbody") {
-			tableChildDepth += 1;
-		}
-		if (tagName === "tr" && sawTable && tableChildDepth === 0 && !insertedImplicitTbody) {
-			normalized += "<tbody>";
-			insertedImplicitTbody = true;
-			implicitTbodyOpen = true;
-			tableChildDepth = 1;
-		}
-		const attributes = normalizeSafeTableAttributes(rawAttributes);
-		if (attributes === undefined) {
-			return;
-		}
-		normalized += `<${tagName}${attributes}>`;
 	}
-	normalized += renderJsxTextNode(text.slice(cursor));
-	return sawTable ? normalized : undefined;
+	return true;
 }
 
-function renderJsxTextNode(value: string): string {
-	if (!value) {
-		return "";
+function parseSafeTableRow(source: string): ReaderTableCell[] | undefined {
+	const cells: ReaderTableCell[] = [];
+	const cellPattern = /<(th|td)([^>]*)>([^<]*)<\/\1>/giu;
+	let cursor = 0;
+	let match = cellPattern.exec(source);
+	while (match) {
+		if (source.slice(cursor, match.index).trim()) {
+			return;
+		}
+		const spans = parseSafeSpans(String(match[2] ?? "").trim());
+		if (!spans) {
+			return;
+		}
+		cells.push({
+			...spans,
+			tag: String(match[1]).toLowerCase() === "th" ? "th" : "td",
+			text: String(match[3] ?? "").trim(),
+		});
+		cursor = cellPattern.lastIndex;
+		match = cellPattern.exec(source);
 	}
-	return `{${JSON.stringify(value)}}`;
+	return cells.length > 0 && !source.slice(cursor).trim() ? cells : undefined;
 }
 
-function normalizeSafeTableAttributes(rawAttributes: string): string | undefined {
-	const source = rawAttributes.trim();
+function parseSafeSpans(source: string): Pick<ReaderTableCell, "colSpan" | "rowSpan"> | undefined {
 	if (!source) {
-		return "";
+		return {};
 	}
-	const attributes: string[] = [];
+	const spans: Pick<ReaderTableCell, "colSpan" | "rowSpan"> = {};
 	let unsupported = false;
 	const consumed = source.replace(
 		/([a-zA-Z][a-zA-Z0-9:-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/gu,
@@ -93,23 +104,26 @@ function normalizeSafeTableAttributes(rawAttributes: string): string | undefined
 			singleQuoted: string | undefined,
 			unquoted: string | undefined,
 		) => {
-			const name = String(rawName).toLowerCase();
-			const value = String(doubleQuoted ?? singleQuoted ?? unquoted ?? "");
-			if (name === "rowspan" || name === "colspan") {
-				if (!/^[1-9][0-9]{0,2}$/u.test(value)) {
-					throw new Error("unsafe table span attribute");
-				}
-				attributes.push(
-					`${name === "rowspan" ? "rowSpan" : "colSpan"}="${escapeAttribute(value)}"`,
-				);
+			const name = rawName.toLowerCase();
+			const value = doubleQuoted ?? singleQuoted ?? unquoted ?? "";
+			if (!((name === "rowspan" || name === "colspan") && /^[1-9][0-9]{0,2}$/u.test(value))) {
+				unsupported = true;
 				return "";
 			}
-			unsupported = true;
+			const numberValue = Number.parseInt(value, 10);
+			if (name === "rowspan") {
+				if (spans.rowSpan !== undefined) {
+					unsupported = true;
+				}
+				spans.rowSpan = numberValue;
+			} else {
+				if (spans.colSpan !== undefined) {
+					unsupported = true;
+				}
+				spans.colSpan = numberValue;
+			}
 			return "";
 		},
 	);
-	if (unsupported || consumed.trim()) {
-		return;
-	}
-	return attributes.length > 0 ? ` ${attributes.join(" ")}` : "";
+	return unsupported || consumed.trim() ? undefined : spans;
 }

@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { loadCatalogPublishConfig, loadCatalogSyncConfig, loadConfig } from "../src/config";
+import {
+	loadCatalogImportConfig,
+	loadCatalogSyncConfig,
+	loadConfig,
+	loadLocalMigrationConfig,
+	loadMigrationConfig,
+} from "../src/config";
 
 const COMPLETE_ENV = {
 	DATABASE_URL: "postgres://postgres:postgres@localhost:5432/campus_agent",
@@ -104,14 +110,22 @@ describe("dining sync config", () => {
 		});
 	});
 
-	it("loads catalog publish settings without Feishu, review, moderation, or object-store env", () => {
+	it("keeps deploy migration credentials separate from the sync runtime", () => {
+		expect(() => loadMigrationConfig(COMPLETE_ENV)).toThrow(
+			/DINING_MIGRATION_DATABASE_URL is required/,
+		);
 		expect(
-			loadCatalogPublishConfig({
-				DATABASE_URL: COMPLETE_ENV.DATABASE_URL,
-			}),
-		).toMatchObject({
+			loadMigrationConfig({ DINING_MIGRATION_DATABASE_URL: "postgres://migration" }),
+		).toEqual({ postgresUrl: "postgres://migration" });
+		expect(loadLocalMigrationConfig(COMPLETE_ENV)).toEqual({
 			postgresUrl: COMPLETE_ENV.DATABASE_URL,
 		});
+	});
+
+	it("does not borrow the app-api operator credential for dev seed import", () => {
+		expect(() =>
+			loadCatalogImportConfig({ APP_API_OPERATOR_DATABASE_URL: "postgres://app-api-owner" }),
+		).toThrow(/DATABASE_URL is required/);
 	});
 
 	it("fails closed when moderation timeout is invalid", () => {

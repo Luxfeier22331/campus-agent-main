@@ -1,9 +1,16 @@
 import { Link, Outlet, useLocation } from "@tanstack/react-router";
-import { Suspense } from "react";
+import { lazy, Suspense } from "react";
 
+import { DeferredProductAccountEntry } from "@/components/auth/user/deferred-product-account-entry";
 import { ProductBrandLink, ProductNavActions } from "@/components/navigation/product-navigation";
 import { Button } from "@/components/ui/button";
-import { CampusMotionProvider } from "@/components/ui/motion";
+import { RouteMetadata } from "./route-metadata";
+
+const ProductNavMobileMenu = lazy(() =>
+	import("@/components/navigation/product-navigation-menu").then((module) => ({
+		default: module.ProductNavMobileMenu,
+	})),
+);
 
 export function RootLayout() {
 	const location = useLocation();
@@ -12,41 +19,56 @@ export function RootLayout() {
 	const isAccountRoute = location.pathname.startsWith("/account");
 	const isLegalRoute = location.pathname.startsWith("/legal");
 	const shouldHideSupportHeader = isQaRoute || isMapRoute || isAccountRoute || isLegalRoute;
+	const outlet = (
+		<Suspense fallback={<RoutePending />}>
+			<Outlet />
+		</Suspense>
+	);
 	return (
-		<CampusMotionProvider>
+		<>
+			<RouteMetadata pathname={location.pathname} />
 			<div className="min-h-dvh bg-background text-foreground">
 				{shouldHideSupportHeader ? null : <SupportPageHeader activePath={location.pathname} />}
-				<main>
-					<Suspense fallback={<RoutePending />}>
-						<Outlet />
-					</Suspense>
-				</main>
+				{isQaRoute ? outlet : <main>{outlet}</main>}
 			</div>
-		</CampusMotionProvider>
+		</>
 	);
 }
 
 function SupportPageHeader({ activePath }: { activePath: string }) {
 	return (
 		<header className="sticky top-0 z-30 border-b border-border bg-white">
-			<div className="mx-auto flex min-h-16 max-w-[1440px] items-center justify-between gap-4 px-4 lg:px-6">
-				<ProductBrandLink linkMode="router" />
-				<ProductNavActions activePath={activePath} className="hidden gap-3 md:flex" />
-			</div>
-			<div className="mx-auto max-w-[1440px] px-4 lg:px-6">
+			<div className="mx-auto grid min-h-16 max-w-[var(--layout-page-workspace-width)] grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 px-4 md:grid-cols-[minmax(0,1fr)_auto_auto] lg:px-6">
+				<ProductBrandLink className="min-h-16" linkMode="router" />
 				<ProductNavActions
 					activePath={activePath}
-					className="flex overflow-x-auto border-t border-[var(--sys-border-subtle)] py-1 md:hidden"
+					className="hidden gap-3 md:col-start-2 md:flex"
 				/>
+				<div className="col-start-2 flex min-h-16 items-center gap-1 md:col-start-3">
+					<DeferredProductAccountEntry />
+					<Suspense fallback={<span aria-hidden="true" className="size-11 md:hidden" />}>
+						<ProductNavMobileMenu activePath={activePath} triggerClassName="md:hidden" />
+					</Suspense>
+				</div>
 			</div>
 		</header>
 	);
 }
 
-function RoutePending() {
+export function RoutePending() {
 	return (
-		<section className="mx-auto flex min-h-[60dvh] max-w-[1440px] items-center px-5 py-6 lg:px-6">
-			<p className="text-sm text-[var(--sys-text-muted)]">正在加载</p>
+		<section
+			aria-busy="true"
+			aria-label="正在加载页面"
+			className="mx-auto min-h-[60dvh] max-w-[var(--layout-page-workspace-width)] px-4 py-8 sm:px-5 lg:px-6"
+			role="status"
+		>
+			<span className="sr-only">正在加载页面</span>
+			<div aria-hidden="true" className="max-w-3xl animate-pulse space-y-4">
+				<div className="h-8 w-28 rounded-md bg-primary/10" />
+				<div className="h-4 w-full rounded-md bg-primary/10" />
+				<div className="h-4 w-4/5 rounded-md bg-primary/10" />
+			</div>
 		</section>
 	);
 }

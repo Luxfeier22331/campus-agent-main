@@ -1,4 +1,4 @@
-import { count, sql } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 
 import { type Env, readAppAuthConfig } from "../config";
 import { probeRuntimeDatabase, withRuntimeDatabase } from "../db/runtime";
@@ -18,12 +18,12 @@ function formatRuntimeDependencyFailure(error: unknown): string {
 	return error instanceof Error ? error.message : "Unknown dependency probe failure.";
 }
 
-async function probeDocsReadModel(env: Env): Promise<void> {
+async function probeDocsReadModel(env: Env, releaseId: string): Promise<void> {
 	await withRuntimeDatabase(env, async (db) => {
 		const rows = await db
 			.select({ collectionCount: count() })
 			.from(docsCollections)
-			.where(sql`1 = 1`);
+			.where(eq(docsCollections.releaseId, releaseId));
 		const collectionCount = rows[0]?.collectionCount ?? 0;
 		if (collectionCount < 1) {
 			throw new Error("docs read-model probe returned no collections");
@@ -31,7 +31,10 @@ async function probeDocsReadModel(env: Env): Promise<void> {
 	});
 }
 
-export async function defaultDocsReadinessProbe(env: Env): Promise<AppDocsReadinessResult> {
+export async function defaultDocsReadinessProbe(
+	env: Env,
+	releaseId: string,
+): Promise<AppDocsReadinessResult> {
 	const dependencies: AppDocsReadinessResult["dependencies"] = {
 		auth: "not_ready",
 		database: "not_ready",
@@ -81,7 +84,7 @@ export async function defaultDocsReadinessProbe(env: Env): Promise<AppDocsReadin
 	}
 
 	try {
-		await probeDocsReadModel(env);
+		await probeDocsReadModel(env, releaseId);
 		dependencies.docsReadModel = "ready";
 	} catch (error) {
 		failed.docsReadModel = formatRuntimeDependencyFailure(error);

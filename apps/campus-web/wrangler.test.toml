@@ -10,6 +10,7 @@ APP_API_BASE_URL = "https://app-api.internal"
 AUTH_TURNSTILE_APPEARANCE = "interaction-only"
 AUTH_TURNSTILE_EXECUTION = "render"
 CAMPUS_WEB_HOSTNAME = "campus.muc.wiki"
+DOCS_RELEASE_ID = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
 [assets]
 directory = "./test/assets"

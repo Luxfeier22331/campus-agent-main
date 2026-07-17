@@ -14,7 +14,7 @@ import {
 	createPgCampusServicesTransportScheduleStore,
 } from "../modules/campus-services-transport-schedule";
 import { buildChatConversationService, createPgChatConversationStore } from "../modules/chat";
-import { buildDiningOperationsService, createPgDiningOperationsStore } from "../modules/dining-ops";
+import { buildDiningPublicReadService, createPgDiningPublicReadStore } from "../modules/dining";
 import { buildDocsService, createPgDocsReadModelStore } from "../modules/docs";
 import {
 	buildIdentityPlatformService,
@@ -22,16 +22,11 @@ import {
 } from "../modules/identity-platform";
 import {
 	createExecutionControlPersonalMemoryClient,
-	createExecutionControlProviderConfigClient,
 	createExecutionControlRuntimeClient,
 	createIngestionTaskProjectionClient,
 	isExecutionControlRuntimeConfigured,
 } from "../modules/integration";
 import { buildProfileMemoryService, createPgProfileMemoryStore } from "../modules/profile-memory";
-import {
-	buildProviderConfigService,
-	createPgProviderConfigStore,
-} from "../modules/provider-config";
 import { buildChatCommandService, createPgChatCommandStore } from "../modules/runtime-command";
 import { buildRuntimeRunService, createPgRuntimeRunStore } from "../modules/runtime-run";
 import { createRequestRuntimeScope } from "../request-runtime-scope";
@@ -57,12 +52,11 @@ export function createRequestScopeFactory(input: {
 				input.dependencies.campusServicesTransportScheduleService ?? null;
 			let chatConversationService = input.dependencies.chatConversationService ?? null;
 			let chatCommandService = input.dependencies.chatCommandService ?? null;
-			let diningOperationsService = input.dependencies.diningOperationsService ?? null;
+			let diningPublicReadService = input.dependencies.diningPublicReadService ?? null;
 			let docsService = input.dependencies.docsService ?? null;
 			let identityPlatformService = input.dependencies.identityPlatformService ?? null;
 			let ingestionTaskProjectionClient = input.dependencies.ingestionTaskProjectionClient ?? null;
 			let profileMemoryService = input.dependencies.profileMemoryService ?? null;
-			let providerConfigService = input.dependencies.providerConfigService ?? null;
 			let runtimeRunService = input.dependencies.runtimeRunService ?? null;
 
 			function resolveChatConversationService() {
@@ -134,15 +128,15 @@ export function createRequestScopeFactory(input: {
 				return campusServicesTransportScheduleService;
 			}
 
-			function resolveDiningOperationsService() {
-				if (diningOperationsService) {
-					return diningOperationsService;
+			function resolveDiningPublicReadService() {
+				if (diningPublicReadService) {
+					return diningPublicReadService;
 				}
 
-				diningOperationsService = buildDiningOperationsService({
-					store: createPgDiningOperationsStore(input.env, { getDb: runtime.getFreshDb }),
+				diningPublicReadService = buildDiningPublicReadService({
+					store: createPgDiningPublicReadStore(input.env, { getDb: runtime.getFreshDb }),
 				});
-				return diningOperationsService;
+				return diningPublicReadService;
 			}
 
 			function resolveDocsService() {
@@ -195,30 +189,6 @@ export function createRequestScopeFactory(input: {
 				return profileMemoryService;
 			}
 
-			function resolveProviderConfigService() {
-				if (providerConfigService) {
-					return providerConfigService;
-				}
-
-				providerConfigService = buildProviderConfigService({
-					encryptionKey: input.env.APP_API_PROVIDER_CONFIG_ENCRYPTION_KEY,
-					store: createPgProviderConfigStore(input.env, { getDb: runtime.getFreshDb }),
-					validators: {
-						checkEmbeddingCompatibility: async (compatibilityInput) =>
-							createExecutionControlProviderConfigClient(input.env).checkEmbeddingCompatibility({
-								baseUrl: compatibilityInput.baseUrl,
-								dimensions: compatibilityInput.dimensions ?? 0,
-								model: compatibilityInput.model,
-								provider: compatibilityInput.provider,
-								role: compatibilityInput.role,
-								timeoutMs: compatibilityInput.timeoutMs,
-								transport: compatibilityInput.transport,
-							}),
-					},
-				});
-				return providerConfigService;
-			}
-
 			function resolveRuntimeRunService() {
 				if (runtimeRunService) {
 					return runtimeRunService;
@@ -238,12 +208,11 @@ export function createRequestScopeFactory(input: {
 				resolveCampusServicesTransportScheduleService,
 				resolveChatCommandService,
 				resolveChatConversationService,
-				resolveDiningOperationsService,
+				resolveDiningPublicReadService,
 				resolveDocsService,
 				resolveIdentityPlatformService,
 				resolveIngestionTaskProjectionClient,
 				resolveProfileMemoryService,
-				resolveProviderConfigService,
 				resolveRuntimeRunService,
 				telemetry: input.telemetry,
 			};

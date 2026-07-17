@@ -29,7 +29,7 @@ Temporal 和产品数据库可以说明请求如何执行及最终状态，但�
 ## 后果
 
 - Langfuse 不可用会降低模型调用排查和评测能力，但不得改写已持久化的产品状态。
-- Ops Web 和 Operator Console 可以展示安全关联标识或入口，不镜像 observation body、
+- Ops Web 可以展示安全关联标识或入口，不镜像 observation body、
   数据集、评分或评审状态。
 - 云托管 Langfuse 只是一种兼容部署选择，不改变数据所有权。
 

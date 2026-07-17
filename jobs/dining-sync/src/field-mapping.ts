@@ -17,6 +17,7 @@ export type DiningLarkFieldId = (typeof DINING_LARK_FIELD_IDS)[keyof typeof DINI
 export function recordFromFieldMap(input: {
 	fields: Map<string, unknown>;
 	sourceRecordId: string;
+	submittedAt: string | null;
 }): DiningSourceRecord {
 	return {
 		attachments: parseAttachments(input.fields.get(DINING_LARK_FIELD_IDS.attachments)),
@@ -41,6 +42,7 @@ export function recordFromFieldMap(input: {
 			input.fields.get(DINING_LARK_FIELD_IDS.stallName),
 			DINING_LARK_FIELD_IDS.stallName,
 		),
+		submittedAt: input.submittedAt,
 	};
 }
 

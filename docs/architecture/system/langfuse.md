@@ -63,7 +63,7 @@ self-hosted Langfuse 是受信任内部观测面。采样 trace 可以包含用�
 memory context 和已授权检索事实；Authorization、Cookie、API key、密码、数据库凭据和对象存储
 secret 始终禁止。
 
-app-api、Ops Web 和 Operator Console 只保存关联标识与有界摘要，不复制 Langfuse trace 正文。
+app-api 和 Ops Web 只保存关联标识与有界摘要，不复制 Langfuse trace 正文。
 score metadata 只允许标量白名单字段，答案和 context text 留在 trace、dataset 和 Ragas sample。
 
 ## 相关文档

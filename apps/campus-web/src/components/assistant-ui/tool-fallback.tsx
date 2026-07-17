@@ -224,7 +224,7 @@ function ToolFallbackArgs({
 			className={cn("aui-tool-fallback-args", className)}
 			{...props}
 		>
-			<pre className="aui-tool-fallback-args-value bg-muted/50 text-muted-foreground rounded-md p-2.5 text-xs whitespace-pre-wrap">
+			<pre className="aui-tool-fallback-args-value bg-surface-muted/50 text-muted-foreground rounded-md p-2.5 text-xs whitespace-pre-wrap">
 				{argsText}
 			</pre>
 		</div>
@@ -251,7 +251,7 @@ function ToolFallbackResult({
 			<p className="aui-tool-fallback-result-header text-muted-foreground text-xs font-medium">
 				结果：
 			</p>
-			<pre className="aui-tool-fallback-result-content bg-muted/50 text-muted-foreground mt-1 rounded-md p-2.5 text-xs whitespace-pre-wrap">
+			<pre className="aui-tool-fallback-result-content bg-surface-muted/50 text-muted-foreground mt-1 rounded-md p-2.5 text-xs whitespace-pre-wrap">
 				{typeof result === "string" ? result : JSON.stringify(result, null, 2)}
 			</pre>
 		</div>
@@ -395,7 +395,7 @@ function ToolFallbackApproval({
 					<ul className="aui-tool-fallback-approval-confirm-grants flex flex-col gap-1">
 						{confirming.grants.map((grant) => (
 							<li key={grant}>
-								<code className="aui-tool-fallback-approval-confirm-grant bg-muted rounded px-1.5 py-0.5 text-xs">
+								<code className="aui-tool-fallback-approval-confirm-grant bg-surface-muted rounded px-1.5 py-0.5 text-xs">
 									{grant}
 								</code>
 							</li>

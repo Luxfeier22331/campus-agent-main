@@ -6,6 +6,8 @@ import type { AppApiRouteError } from "../src/http";
 import type { ResolvedAppPrincipal } from "../src/modules/auth";
 import { buildDocsService, type DocsReadModelStore } from "../src/modules/docs";
 
+const RELEASE_ID = `sha256:${"a".repeat(64)}`;
+
 const publicDoc = {
 	canonicalUrl: "/docs/curriculum/curriculum_plan/law-ethnic-class-program",
 	collection: "curriculum_plan",
@@ -68,6 +70,9 @@ const historicalPublicDoc = {
 
 function createStore(): DocsReadModelStore {
 	return {
+		async hasRelease(releaseId) {
+			return releaseId === RELEASE_ID;
+		},
 		async getCollection(input) {
 			if (input.corpus === "regulations" && input.collection === "scoped_rules") {
 				return {
@@ -238,10 +243,27 @@ function createStudentPrincipal(): ResolvedAppPrincipal {
 }
 
 describe("docs service", () => {
+	it("fails closed when the selected release was not materialized", async () => {
+		const service = buildDocsService({ store: createStore() });
+
+		await expect(
+			service.getNavigation({
+				collection: "curriculum_plan",
+				corpus: "curriculum",
+				principal: null,
+				releaseId: `sha256:${"b".repeat(64)}`,
+			}),
+		).rejects.toMatchObject({
+			code: "docs_release_unavailable",
+			status: 503,
+		} satisfies Partial<AppApiRouteError>);
+	});
+
 	it("returns public current navigation and never leaks storage/source internals", async () => {
 		const service = buildDocsService({ store: createStore() });
 
 		const response = await service.getNavigation({
+			releaseId: RELEASE_ID,
 			collection: "curriculum_plan",
 			corpus: "curriculum",
 			principal: null,
@@ -273,6 +295,7 @@ describe("docs service", () => {
 		const service = buildDocsService({ store: createStore() });
 
 		const response = await service.resolveReader({
+			releaseId: RELEASE_ID,
 			anchor: "semester-4",
 			collection: "curriculum_plan",
 			corpus: "curriculum",
@@ -294,6 +317,7 @@ describe("docs service", () => {
 		expect(JSON.stringify(response)).not.toContain("rawSourceLocator");
 
 		const historical = await service.resolveReader({
+			releaseId: RELEASE_ID,
 			anchor: "semester-4",
 			collection: "curriculum_plan",
 			corpus: "curriculum",
@@ -323,6 +347,7 @@ describe("docs service", () => {
 
 		await expect(
 			service.resolveReader({
+				releaseId: RELEASE_ID,
 				anchor: null,
 				collection: "curriculum_plan",
 				corpus: "curriculum",
@@ -342,6 +367,7 @@ describe("docs service", () => {
 		const principal = createStudentPrincipal();
 
 		const response = await service.resolveReader({
+			releaseId: RELEASE_ID,
 			anchor: "restricted-section",
 			collection: "curriculum_plan",
 			corpus: "curriculum",
@@ -363,6 +389,7 @@ describe("docs service", () => {
 
 		await expect(
 			service.checkReaderAdmission({
+				releaseId: RELEASE_ID,
 				collection: "curriculum_plan",
 				corpus: "curriculum",
 				documentSlug: "restricted-program",
@@ -377,6 +404,7 @@ describe("docs service", () => {
 		const principal = createStudentPrincipal();
 
 		const navigation = await service.getNavigation({
+			releaseId: RELEASE_ID,
 			collection: "scoped_rules",
 			corpus: "regulations",
 			principal,
@@ -394,6 +422,7 @@ describe("docs service", () => {
 		]);
 
 		const response = await service.resolveReader({
+			releaseId: RELEASE_ID,
 			anchor: null,
 			collection: "scoped_rules",
 			corpus: "regulations",
@@ -415,6 +444,7 @@ describe("docs service", () => {
 
 		await expect(
 			service.checkReaderAdmission({
+				releaseId: RELEASE_ID,
 				collection: "scoped_rules",
 				corpus: "regulations",
 				documentSlug: restrictedRegulationDoc.documentSlug,
@@ -425,6 +455,7 @@ describe("docs service", () => {
 
 		await expect(
 			service.checkReaderAdmission({
+				releaseId: RELEASE_ID,
 				collection: "scoped_rules",
 				corpus: "regulations",
 				documentSlug: restrictedRegulationDoc.documentSlug,
@@ -442,6 +473,7 @@ describe("docs service", () => {
 
 		await expect(
 			service.getNavigation({
+				releaseId: RELEASE_ID,
 				collection: "scoped_rules",
 				corpus: "regulations",
 				principal: null,
@@ -457,6 +489,7 @@ describe("docs service", () => {
 
 		await expect(
 			service.checkReaderAdmission({
+				releaseId: RELEASE_ID,
 				collection: "curriculum_plan",
 				corpus: "curriculum",
 				documentSlug: "restricted-program",

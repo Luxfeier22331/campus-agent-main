@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const defaultAppPaths = ["apps/app-api", "apps/campus-web", "apps/operator-console-web"];
+export const defaultAppPaths = ["apps/app-api", "apps/campus-web"];
 
 const ansiEscapePattern = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*[A-Za-z]`, "g");
 const proxyEnvKeys = [

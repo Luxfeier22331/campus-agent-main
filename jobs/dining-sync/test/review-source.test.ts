@@ -15,6 +15,7 @@ const REVIEW_RECORD: DiningSourceRecord = {
 	rating: 4,
 	sourceRecordId: "rec-review-1",
 	stallName: "简餐窗口",
+	submittedAt: "2026-06-30T12:00:00.000Z",
 };
 
 describe("dining review source observations", () => {
@@ -25,6 +26,7 @@ describe("dining review source observations", () => {
 					blockReason: null,
 					hallId: "fengtai-juya-canteen",
 					hallName: "聚雅食堂",
+				offeringId: "offering:tomato-noodle",
 					record: REVIEW_RECORD,
 					stallProfileId: "stall:rec-stall-simple",
 					windowId: "window:fengtai-juya-canteen:1f:01",
@@ -39,8 +41,10 @@ describe("dining review source observations", () => {
 				payloadJson: expect.objectContaining({
 					blockReason: null,
 					dishName: "番茄鸡蛋面",
-					hallId: "fengtai-juya-canteen",
-					stallProfileId: "stall:rec-stall-simple",
+						hallId: "fengtai-juya-canteen",
+						offeringId: "offering:tomato-noodle",
+						stallProfileId: "stall:rec-stall-simple",
+						submittedAt: "2026-06-30T12:00:00.000Z",
 					windowId: "window:fengtai-juya-canteen:1f:01",
 				}),
 				sourceType: "feishu_review",
@@ -56,8 +60,8 @@ describe("dining review source observations", () => {
 			[
 				{
 					blockReason: null,
-					hallId: "fengtai-juya-canteen",
-					hallName: "聚雅食堂",
+				hallId: "fengtai-juya-canteen",
+				hallName: "聚雅食堂",
 					images: [
 						{
 							alt: "番茄鸡蛋面评价图片",
@@ -69,6 +73,7 @@ describe("dining review source observations", () => {
 						...REVIEW_RECORD,
 						attachments: [{ fileToken: "lark-token", name: "meal.jpg", size: 12 }],
 					},
+					offeringId: "offering:tomato-noodle",
 					stallProfileId: "stall:rec-stall-simple",
 					windowId: "window:fengtai-juya-canteen:1f:01",
 				},
@@ -88,6 +93,7 @@ describe("dining review source observations", () => {
 						url: "https://assets.example.test/dining/reviews/rec-review-1-1.jpg",
 					},
 				],
+				offeringId: "offering:tomato-noodle",
 				reviewId: "dining-review:rec-review-1",
 				stallProfileId: "stall:rec-stall-simple",
 				windowId: "window:fengtai-juya-canteen:1f:01",
@@ -96,11 +102,30 @@ describe("dining review source observations", () => {
 		expect(JSON.stringify(reviews)).not.toContain("lark-token");
 	});
 
+	it("rejects accepted observations without a complete offering binding", () => {
+		for (const binding of [
+			{ offeringId: "", stallProfileId: "stall:only", windowId: "window:only" },
+			{ offeringId: "offering:only", stallProfileId: "", windowId: "" },
+		]) {
+			expect(() =>
+				buildReviewObservations([
+					{
+						blockReason: null,
+						hallId: "fengtai-juya-canteen",
+						hallName: "聚雅食堂",
+						record: REVIEW_RECORD,
+						...binding,
+					},
+				]),
+			).toThrow(/Invalid dining review observation/);
+		}
+	});
+
 	it("keeps blocked review observations diagnostic without synthetic dining bindings", () => {
 		const observations = buildReviewObservations(
 			[
 				{
-					blockReason: "hall_or_stall_not_found",
+						blockReason: "hall_not_found",
 					record: REVIEW_RECORD,
 				},
 			],
@@ -110,8 +135,9 @@ describe("dining review source observations", () => {
 		expect(observations).toEqual([
 			expect.objectContaining({
 				payloadJson: expect.objectContaining({
-					blockReason: "hall_or_stall_not_found",
-					hallId: null,
+					blockReason: "hall_not_found",
+						hallId: null,
+						offeringId: null,
 					stallProfileId: null,
 					windowId: null,
 				}),
@@ -142,6 +168,7 @@ describe("dining review source observations", () => {
 						blockReason: null,
 						hallId: "fengtai-juya-canteen",
 						hallName: "聚雅食堂",
+						offeringId: "offering:tomato-noodle",
 						record: REVIEW_RECORD,
 						stallProfileId: "stall:rec-stall-simple",
 						windowId: "window:fengtai-juya-canteen:1f:01",

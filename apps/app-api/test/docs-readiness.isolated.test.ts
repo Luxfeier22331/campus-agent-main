@@ -48,7 +48,7 @@ describe("docs readiness", () => {
 	});
 
 	it("does not require executionClient or campus-web runtime config when docs auth shell is configured", async () => {
-		await expect(defaultDocsReadinessProbe(env)).resolves.toEqual({
+		await expect(defaultDocsReadinessProbe(env, `sha256:${"a".repeat(64)}`)).resolves.toEqual({
 			dependencies: {
 				auth: "ready",
 				database: "ready",

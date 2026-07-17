@@ -1,0 +1,528 @@
+{
+	"canvas": {
+		"height": 760,
+		"width": 1280
+	},
+	"entrances": [
+		{
+			"height": 32,
+			"id": "entrance-north",
+			"label": "入口 A",
+			"side": "top",
+			"width": 88,
+			"x": 538,
+			"y": 42
+		},
+		{
+			"height": 88,
+			"id": "entrance-west",
+			"label": "入口 B",
+			"side": "left",
+			"width": 32,
+			"x": 194,
+			"y": 350
+		},
+		{
+			"height": 32,
+			"id": "entrance-south",
+			"label": "入口 C",
+			"side": "bottom",
+			"width": 88,
+			"x": 445,
+			"y": 690
+		}
+	],
+	"floorId": "fengtai-huixian-canteen-1f",
+	"floorplanId": "floorplan:fengtai-huixian-canteen:fengtai-huixian-canteen-1f",
+	"hallId": "fengtai-huixian-canteen",
+	"label": "荟贤食堂一层",
+	"landmarks": [
+		{
+			"height": 72,
+			"id": "stairs-northwest",
+			"kind": "stairs",
+			"label": "楼梯",
+			"width": 92,
+			"x": 220,
+			"y": 62
+		},
+		{
+			"height": 72,
+			"id": "stairs-north",
+			"kind": "stairs",
+			"label": "楼梯",
+			"width": 104,
+			"x": 740,
+			"y": 62
+		},
+		{
+			"height": 72,
+			"id": "stairs-east",
+			"kind": "stairs",
+			"label": "楼梯",
+			"width": 88,
+			"x": 960,
+			"y": 260
+		},
+		{
+			"height": 72,
+			"id": "stairs-southeast",
+			"kind": "stairs",
+			"label": "楼梯",
+			"width": 88,
+			"x": 970,
+			"y": 595
+		},
+		{
+			"height": 72,
+			"id": "stairs-southwest",
+			"kind": "stairs",
+			"label": "楼梯",
+			"width": 88,
+			"x": 220,
+			"y": 585
+		}
+	],
+	"outline": {
+		"points": [
+			{
+				"x": 210,
+				"y": 50
+			},
+			{
+				"x": 533,
+				"y": 50
+			},
+			{
+				"x": 533,
+				"y": 95
+			},
+			{
+				"x": 631,
+				"y": 95
+			},
+			{
+				"x": 631,
+				"y": 50
+			},
+			{
+				"x": 965,
+				"y": 50
+			},
+			{
+				"x": 965,
+				"y": 228
+			},
+			{
+				"x": 1071,
+				"y": 228
+			},
+			{
+				"x": 1071,
+				"y": 695
+			},
+			{
+				"x": 210,
+				"y": 695
+			}
+		]
+	},
+	"partitions": [
+		{
+			"id": "room-boundaries-01",
+			"points": [
+				{
+					"x": 525,
+					"y": 251
+				},
+				{
+					"x": 920,
+					"y": 251
+				}
+			]
+		},
+		{
+			"id": "room-boundaries-02",
+			"points": [
+				{
+					"x": 525,
+					"y": 551
+				},
+				{
+					"x": 1071,
+					"y": 551
+				}
+			]
+		},
+		{
+			"id": "room-boundaries-03",
+			"points": [
+				{
+					"x": 610,
+					"y": 251
+				},
+				{
+					"x": 610,
+					"y": 551
+				}
+			]
+		},
+		{
+			"id": "room-boundaries-04",
+			"points": [
+				{
+					"x": 700,
+					"y": 251
+				},
+				{
+					"x": 700,
+					"y": 551
+				}
+			]
+		},
+		{
+			"id": "room-boundaries-05",
+			"points": [
+				{
+					"x": 790,
+					"y": 251
+				},
+				{
+					"x": 790,
+					"y": 551
+				}
+			]
+		},
+		{
+			"id": "room-boundaries-06",
+			"points": [
+				{
+					"x": 880,
+					"y": 251
+				},
+				{
+					"x": 880,
+					"y": 551
+				}
+			]
+		},
+		{
+			"id": "room-boundaries-07",
+			"points": [
+				{
+					"x": 525,
+					"y": 390
+				},
+				{
+					"x": 920,
+					"y": 390
+				}
+			]
+		},
+		{
+			"id": "room-boundaries-08",
+			"points": [
+				{
+					"x": 525,
+					"y": 470
+				},
+				{
+					"x": 920,
+					"y": 470
+				}
+			]
+		},
+		{
+			"id": "room-boundaries-09",
+			"points": [
+				{
+					"x": 920,
+					"y": 330
+				},
+				{
+					"x": 1071,
+					"y": 330
+				}
+			]
+		},
+		{
+			"id": "room-boundaries-10",
+			"points": [
+				{
+					"x": 920,
+					"y": 420
+				},
+				{
+					"x": 1071,
+					"y": 420
+				}
+			]
+		},
+		{
+			"id": "room-boundaries-11",
+			"points": [
+				{
+					"x": 920,
+					"y": 510
+				},
+				{
+					"x": 1071,
+					"y": 510
+				}
+			]
+		},
+		{
+			"id": "room-boundaries-12",
+			"points": [
+				{
+					"x": 620,
+					"y": 551
+				},
+				{
+					"x": 620,
+					"y": 695
+				}
+			]
+		},
+		{
+			"id": "room-boundaries-13",
+			"points": [
+				{
+					"x": 720,
+					"y": 551
+				},
+				{
+					"x": 720,
+					"y": 695
+				}
+			]
+		},
+		{
+			"id": "room-boundaries-14",
+			"points": [
+				{
+					"x": 820,
+					"y": 551
+				},
+				{
+					"x": 820,
+					"y": 695
+				}
+			]
+		},
+		{
+			"id": "room-boundaries-15",
+			"points": [
+				{
+					"x": 920,
+					"y": 551
+				},
+				{
+					"x": 920,
+					"y": 695
+				}
+			]
+		}
+	],
+	"regions": [
+		{
+			"height": 240,
+			"iconKey": "utensils",
+			"id": "seating-main",
+			"label": "就餐区",
+			"width": 205,
+			"x": 285,
+			"y": 290
+		}
+	],
+	"schemaVersion": 2,
+	"structures": [
+		{
+			"id": "service-center",
+			"points": [
+				{
+					"x": 525,
+					"y": 251
+				},
+				{
+					"x": 920,
+					"y": 251
+				},
+				{
+					"x": 920,
+					"y": 551
+				},
+				{
+					"x": 525,
+					"y": 551
+				}
+			]
+		},
+		{
+			"id": "service-south",
+			"points": [
+				{
+					"x": 525,
+					"y": 551
+				},
+				{
+					"x": 965,
+					"y": 551
+				},
+				{
+					"x": 965,
+					"y": 695
+				},
+				{
+					"x": 525,
+					"y": 695
+				}
+			]
+		},
+		{
+			"id": "service-east",
+			"points": [
+				{
+					"x": 920,
+					"y": 228
+				},
+				{
+					"x": 1071,
+					"y": 228
+				},
+				{
+					"x": 1071,
+					"y": 695
+				},
+				{
+					"x": 920,
+					"y": 695
+				}
+			]
+		},
+		{
+			"id": "service-northwest",
+			"points": [
+				{
+					"x": 210,
+					"y": 50
+				},
+				{
+					"x": 347,
+					"y": 50
+				},
+				{
+					"x": 347,
+					"y": 160
+				},
+				{
+					"x": 210,
+					"y": 160
+				}
+			]
+		},
+		{
+			"id": "service-southwest",
+			"points": [
+				{
+					"x": 210,
+					"y": 570
+				},
+				{
+					"x": 313,
+					"y": 570
+				},
+				{
+					"x": 313,
+					"y": 695
+				},
+				{
+					"x": 210,
+					"y": 695
+				}
+			]
+		}
+	],
+	"windows": [
+		{
+			"anchorId": "window-01",
+			"height": 72,
+			"label": "一号窗口",
+			"width": 112,
+			"x": 656,
+			"y": 248
+		},
+		{
+			"anchorId": "window-02",
+			"height": 72,
+			"label": "二号窗口",
+			"width": 104,
+			"x": 536,
+			"y": 256
+		},
+		{
+			"anchorId": "window-03",
+			"height": 72,
+			"label": "三号窗口",
+			"width": 112,
+			"x": 780,
+			"y": 260
+		},
+		{
+			"anchorId": "window-04",
+			"height": 72,
+			"label": "四号窗口",
+			"width": 112,
+			"x": 895,
+			"y": 350
+		},
+		{
+			"anchorId": "window-05",
+			"height": 72,
+			"label": "五号窗口",
+			"width": 112,
+			"x": 895,
+			"y": 445
+		},
+		{
+			"anchorId": "window-06",
+			"height": 72,
+			"label": "六号窗口",
+			"width": 112,
+			"x": 790,
+			"y": 570
+		},
+		{
+			"anchorId": "window-07",
+			"height": 72,
+			"label": "七号窗口",
+			"width": 112,
+			"x": 665,
+			"y": 570
+		},
+		{
+			"anchorId": "window-08",
+			"height": 72,
+			"label": "八号窗口",
+			"width": 112,
+			"x": 540,
+			"y": 570
+		},
+		{
+			"anchorId": "window-09",
+			"height": 72,
+			"label": "九号窗口",
+			"width": 112,
+			"x": 390,
+			"y": 590
+		},
+		{
+			"anchorId": "window-10",
+			"height": 72,
+			"label": "十号窗口",
+			"width": 112,
+			"x": 390,
+			"y": 175
+		}
+	]
+}

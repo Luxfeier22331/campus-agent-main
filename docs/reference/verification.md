@@ -49,6 +49,17 @@ branch protection、部署 secret、镜像清单或环境状态。
 `pnpm web:build` 是完整 web build，不是所有 PR 的默认检查；owner build 需要的 docs manifest、
 database 或其他外部输入必须先准备完毕。
 
+Campus Web 浏览器验证分为三个边界：
+
+- `pnpm --dir apps/campus-web test:e2e:smoke` 运行带 `@smoke` 标签的关键 Vite 与 Worker
+  用户旅途，是 Campus Web 运行时改动的 PR 门禁；
+- `pnpm --dir apps/campus-web test:e2e:full` 在本地运行全部 Vite 与 Worker 浏览器回归，适用于
+  跨页面、导航、认证、文档阅读或领域体验重构；
+- 请求竞态、故障注入、动画细节等实现级回归由 owner test 和完整浏览器回归承载，不进入
+  PR smoke；
+- 部署后真实认证、Service Binding 和正式数据验收属于 staging/release runbook，不由本地
+  Playwright fixture 代替。
+
 ## 变更面选择
 
 | 变更面 | 至少运行 |
@@ -57,6 +68,7 @@ database 或其他外部输入必须先准备完毕。
 | `packages/contracts`、OpenAPI、共享 schema | `pnpm ci:contracts`，再运行受影响 consumer 通道 |
 | 一般 app/package/job TypeScript | `pnpm ci:typescript` |
 | Worker route、binding、wrangler config 或 Worker shell | `pnpm ci:worker` 与 owner test |
+| Campus Web 用户可见运行时 | owner typecheck/test、`test:e2e:smoke`；跨页面重构本地加 `test:e2e:full` |
 | execution-control Go、Go module 或其 runtime config | `pnpm ci:go`；合同变化时加 `pnpm ci:contracts` |
 | Rust kernel 或 Cargo workspace | `pnpm ci:rust` |
 | ingestion app、package、source config 或 task registry | `pnpm ci:ingest`；合同变化时加 `pnpm ci:contracts` |
@@ -74,7 +86,8 @@ database 或其他外部输入必须先准备完毕。
 - app/package 的默认 `test`、`typecheck` 和 `build` 命令由其 `package.json` 与 README 拥有；
 - `pnpm web:test:worker` 明确运行 Worker runtime test；
 - `pnpm web:test:integration` 明确运行 app-api shared database integration；
-- campus-web 浏览器测试使用其 `test:e2e` 或 `test:e2e:worker`；
+- campus-web PR 浏览器门禁使用 `test:e2e:smoke`，完整本地回归使用 `test:e2e:full`；底层
+  `test:e2e` 与 `test:e2e:worker` 分别拥有 Vite 和 Worker 套件；
 - execution-control 的 Temporal server 测试使用 owner 提供的 explicit tag/command，不属于默认
   `pnpm ci:go`；
 - 真实 provider、database、object store、Langfuse 或 cluster credential 不进入普通 PR test。
@@ -105,7 +118,7 @@ integration test 必须使用隔离资源，不能缓存成功结果，也不能
 
 以下工作不属于普通 PR 验证：
 
-- 真实浏览器、auth/session 与 provider E2E；
+- 已部署环境中的真实 auth/session、provider 与 browser E2E；
 - Temporal、PostgreSQL、Qdrant、object store 或 Collector 的部署验收；
 - image publication、GitOps promotion 与 Cloudflare traffic selection；
 - RAG release、真实 Langfuse/Ragas scoring 与 release closeout。

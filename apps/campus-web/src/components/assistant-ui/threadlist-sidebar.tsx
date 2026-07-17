@@ -1,7 +1,6 @@
 import { MessagesSquare, SearchIcon } from "lucide-react";
 import type * as React from "react";
-import { useEffect, useState } from "react";
-import { ThreadHistorySearchDialog } from "@/components/assistant-ui/thread-history-search-dialog";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { ThreadList } from "@/components/assistant-ui/thread-list";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +12,12 @@ import {
 	SidebarMenuItem,
 	SidebarRail,
 } from "@/components/ui/sidebar";
+
+const ThreadHistorySearchDialog = lazy(() =>
+	import("@/components/assistant-ui/thread-history-search-dialog").then((module) => ({
+		default: module.ThreadHistorySearchDialog,
+	})),
+);
 
 export function ThreadListSidebar({
 	onLoginRequired,
@@ -68,11 +73,15 @@ export function ThreadListSidebar({
 				</SidebarContent>
 				<SidebarRail />
 			</Sidebar>
-			<ThreadHistorySearchDialog
-				onLoginRequired={onLoginRequired}
-				onOpenChange={setSearchOpen}
-				open={searchOpen}
-			/>
+			{searchOpen ? (
+				<Suspense fallback={null}>
+					<ThreadHistorySearchDialog
+						onLoginRequired={onLoginRequired}
+						onOpenChange={setSearchOpen}
+						open
+					/>
+				</Suspense>
+			) : null}
 		</>
 	);
 }

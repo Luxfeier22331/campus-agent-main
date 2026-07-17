@@ -49,6 +49,7 @@ const retiredExecutionControlAccessClientSecretKeyLocal = [
 	"CLIENT",
 	"SECRET",
 ].join("_");
+const docsReleaseId = `sha256:${"a".repeat(64)}`;
 
 function readTomlBlock(source: string, startMarker: string, endMarker: string): string {
 	const startIndex = source.indexOf(startMarker);
@@ -290,7 +291,6 @@ describe("app-api worker foundation", () => {
 			JSON.stringify(retiredExecutionControlAccessClientSecretKeyLocal),
 		);
 		expect(stagingSecretsBlock).toContain('"APP_API_INTERNAL_SHARED_SECRET"');
-		expect(stagingSecretsBlock).toContain('"APP_API_PROVIDER_CONFIG_ENCRYPTION_KEY"');
 		expect(stagingSecretsBlock).toContain('"APP_API_STAGING_SMOKE_AUTH_SECRET"');
 		expect(stagingSecretsBlock).not.toContain('"APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN"');
 		expect(stagingSecretsBlock).toContain('"SENTRY_DSN"');
@@ -324,7 +324,6 @@ describe("app-api worker foundation", () => {
 		expect(localSmokeSecretsBlock).toContain('"AUTH_RESET_EMAIL_FROM"');
 		expect(localSmokeSecretsBlock).toContain('"EXECUTION_CONTROL_SHARED_SECRET"');
 		expect(localSmokeSecretsBlock).toContain('"APP_API_INTERNAL_SHARED_SECRET"');
-		expect(localSmokeSecretsBlock).toContain('"APP_API_PROVIDER_CONFIG_ENCRYPTION_KEY"');
 		expect(localSmokeSecretsBlock).not.toContain('"EXECUTION_CONTROL_BASE_URL"');
 		expect(localSmokeWranglerConfig).toContain('APP_API_ENVIRONMENT = "development"');
 		expect(localSmokeWranglerConfig).toContain(
@@ -412,7 +411,9 @@ describe("app-api worker foundation", () => {
 		});
 
 		const response = await runtime.fetch(
-			new Request("https://app-api.internal/api/docs/readyz"),
+			new Request("https://app-api.internal/api/docs/readyz", {
+				headers: { "x-campus-docs-release": docsReleaseId },
+			}),
 			createExecutionContext(),
 		);
 

@@ -1,6 +1,6 @@
 # app-api
 
-`campus-web` 与 `operator-console-web` 共用的 Cloudflare Worker 后端。
+`campus-web` 使用的 Cloudflare Worker 后端。
 
 本应用拥有产品入口、认证与会话、聊天请求准入、产品投影和面向 Worker 的运维接口。它不
 拥有代理编排、工具执行、浏览器界面或运维页面业务逻辑。
@@ -42,9 +42,11 @@ app-api 拥有认证、聊天、请求观测、用户资料和相关产品操作
 - `ops/db/bootstrap-shared-product-database.ts`
 - `ops/db/ensure-app-auth-role-search-path.ts`
 
-共享产品数据库包含 app-api 所有的 `profile.*`、`runtime.*`、`dining.*`、`docs.*`、
-`identity.*`、`campus_services_ops.*`、`observability.*` 和 `provider_config.*`；
-`app_auth.*` 与 `chat.*` 由共享基线管理。
+共享产品数据库包含 app-api 所有的 `profile.*`、`runtime.*`、`docs.*`、`identity.*`、
+`campus_services_ops.*` 和 `observability.*`；`app_auth.*` 与 `chat.*` 由共享基线管理。
+`provider_config.*` 因已发布迁移历史仍由 App API journal 安装，但领域与运行写入归
+`apps/ops-web`，`app_api` 角色没有访问权限。`dining.*` 由 `jobs/dining-sync` 安装，app-api
+只有公开投影所需的只读权限。
 
 ## 相关文档
 

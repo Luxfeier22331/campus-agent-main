@@ -39,7 +39,7 @@ PERSONAL_MEMORY_OWNER_SALT
 runtime、timeout、recall limit/token 和 context char budget 由 execution-control runtime config
 管理。Hindsight 自身数据库、provider 和 worker 属于其部署内部实现。
 
-Hindsight LLM/embedding 通过 app-api provider-config 的 `hindsight_llm` 和
+Hindsight LLM/embedding 通过 Ops Web Provider Config 的 `hindsight_llm` 和
 `hindsight_embedding` profile 投影到部署环境；app-api 不代理流量。
 
 ## 用户隔离

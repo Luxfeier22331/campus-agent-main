@@ -46,10 +46,11 @@ export class LarkDiningClient {
 			});
 			for (const item of response.data.items) {
 				records.push(
-					recordFromFieldMap({
-						fields: fieldsById(item.fields, fieldIdByName),
-						sourceRecordId: item.record_id,
-					}),
+						recordFromFieldMap({
+							fields: fieldsById(item.fields, fieldIdByName),
+							sourceRecordId: item.record_id,
+							submittedAt: larkCreatedTimeToIso(item.created_time),
+						}),
 				);
 			}
 			pageToken = response.data.has_more ? response.data.page_token : undefined;
@@ -171,10 +172,23 @@ interface LarkRecordListResponse {
 	code: number;
 	data: {
 		has_more: boolean;
-		items: Array<{ fields: Record<string, unknown>; record_id: string }>;
+			items: Array<{
+				created_time: string;
+				fields: Record<string, unknown>;
+				record_id: string;
+			}>;
 		page_token?: string;
 	};
 	msg: string;
+}
+
+function larkCreatedTimeToIso(value: string): string | null {
+	const milliseconds = Number(value);
+	const date = Number.isFinite(milliseconds) ? new Date(milliseconds) : new Date(value);
+	if (Number.isNaN(date.getTime())) {
+		return null;
+	}
+	return date.toISOString();
 }
 
 interface LarkFieldListResponse {

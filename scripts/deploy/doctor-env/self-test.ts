@@ -110,14 +110,6 @@ function selfTestWorkerObservabilityLocalSurface(): void {
 				"SENTRY_RELEASE=campus-web@dev-local",
 			].join("\n")}\n`,
 		);
-		writeText(
-			join(root, "apps/operator-console-web/.dev.vars"),
-			`${[
-				"SENTRY_DSN=https://shared.example",
-				"SENTRY_ENVIRONMENT=development",
-				"SENTRY_RELEASE=operator-console-web@dev-local",
-			].join("\n")}\n`,
-		);
 		const status = collectEnvDoctorStatus({
 			env: {},
 			root,

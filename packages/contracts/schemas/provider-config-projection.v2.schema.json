@@ -1,0 +1,106 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://muc.wiki/contracts/provider-config-projection.v2.schema.json",
+	"title": "Provider Config Projection v2",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["schema_version", "publication_id", "published_at", "published_by", "profiles"],
+	"properties": {
+		"schema_version": { "const": "provider_config_projection.v2" },
+		"publication_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+		"published_at": { "type": "string", "format": "date-time" },
+		"published_by": { "$ref": "#/$defs/actor" },
+		"profiles": {
+			"type": "object",
+			"minProperties": 1,
+			"additionalProperties": { "$ref": "#/$defs/profile" }
+		}
+	},
+	"$defs": {
+		"actor": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["displayName", "principalId"],
+			"properties": {
+				"displayName": { "type": "string", "minLength": 1, "maxLength": 2048 },
+				"principalId": { "type": "string", "minLength": 1, "maxLength": 2048 }
+			}
+		},
+		"profile": {
+			"type": "object",
+			"additionalProperties": false,
+			"allOf": [
+				{
+					"if": { "properties": { "kind": { "const": "embedding" } }, "required": ["kind"] },
+					"then": {
+						"required": ["dimensions"],
+						"properties": {
+							"role": {
+								"enum": [
+									"eval_ragas_embedding",
+									"hindsight_embedding",
+									"index_embedding",
+									"rag_query_embedding"
+								]
+							},
+							"transport": { "enum": ["embeddings", "openai_embeddings"] }
+						}
+					},
+					"else": { "not": { "required": ["dimensions"] } }
+				},
+				{
+					"if": { "properties": { "kind": { "const": "prompt" } }, "required": ["kind"] },
+					"then": {
+						"properties": {
+							"role": {
+								"enum": [
+									"eval_judge_llm",
+									"eval_ragas_llm",
+									"hindsight_llm",
+									"primary_agent",
+									"rag_synthesis"
+								]
+							},
+							"transport": { "enum": ["chat_completions", "responses"] }
+						}
+					}
+				},
+				{
+					"if": { "properties": { "kind": { "const": "rerank" } }, "required": ["kind"] },
+					"then": {
+						"properties": {
+							"role": { "const": "rag_reranker" },
+							"transport": { "enum": ["gitee_rerank", "rerank"] }
+						}
+					}
+				}
+			],
+			"required": [
+				"api_key",
+				"base_url",
+				"kind",
+				"model",
+				"profile_id",
+				"provider",
+				"revision",
+				"role",
+				"timeout_ms",
+				"transport"
+			],
+			"properties": {
+				"api_key": { "type": "string", "minLength": 1 },
+				"base_url": { "type": "string", "format": "uri", "pattern": "^https://" },
+				"dimensions": { "type": "integer", "minimum": 1 },
+				"feature_config": { "type": "object" },
+				"kind": { "enum": ["embedding", "prompt", "rerank"] },
+				"model": { "type": "string", "minLength": 1 },
+				"profile_id": { "type": "string", "minLength": 1 },
+				"provider": { "type": "string", "minLength": 1 },
+				"revision": { "type": "integer", "minimum": 1 },
+				"role": { "type": "string", "minLength": 1 },
+				"timeout_ms": { "type": "integer", "minimum": 1 },
+				"transport": { "type": "string", "minLength": 1 }
+			}
+		}
+	}
+}

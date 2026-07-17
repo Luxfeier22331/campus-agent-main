@@ -1,16 +1,6 @@
-import type { DiningOperationsState } from "@campus-agent/dining/domain";
 
-export type DiningSourceObservationStatus = "accepted" | "blocked" | "observed";
-
-export interface DiningSourceObservation {
-	observationId: string;
-	observedAt: string;
-	payloadJson: Record<string, unknown>;
-	sourceType: "feishu_catalog" | "feishu_review";
-	status: DiningSourceObservationStatus;
-	targetId: string | null;
-	targetKind: "campus" | "hall" | "menu_item" | "menu_offering" | "review" | "stall";
-}
+export type { DiningSourceObservation } from "@campus-agent/dining/domain";
+import type { DiningSourceObservation } from "@campus-agent/dining/domain";
 
 export interface FeishuCatalogSourceIdentity {
 	baseToken: string;
@@ -67,8 +57,4 @@ export interface DiningCatalogBuildInput {
 		label: string;
 		updatedAt: string;
 	};
-}
-
-export interface DiningCatalogPublisher {
-	publishCatalog(state: DiningOperationsState): Promise<void>;
 }

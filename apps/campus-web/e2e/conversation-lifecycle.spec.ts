@@ -16,7 +16,9 @@ test.describe("conversation lifecycle browser flow", () => {
 		await expect(page.getByText("历史记录中的国家奖学金回答。")).toHaveCount(0);
 	});
 
-	test("searches archived conversations and opens the selected result", async ({ page }) => {
+	test("searches archived conversations and opens the selected result", { tag: "@smoke" }, async ({
+		page,
+	}) => {
 		await mockCampusApi(page);
 		await page.goto("/");
 

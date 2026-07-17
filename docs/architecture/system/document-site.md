@@ -35,8 +35,8 @@ status: active
 | --- | --- | --- |
 | `campus-web` | `/docs/*` 路由、Rspress 构建、静态资产交付和阅读交互 | 文档注册、版本和访问权限 |
 | Rspress | 页面渲染、目录、稳定锚点和本地搜索界面 | 规范文档和权限判断 |
-| `app-api` | 文档导航、版本、资产解析和受限访问准入 | 每次请求返回整篇正文或渲染页面 |
-| 发布任务 | 从规范文档生成阅读器读取模型和不可变资产 | 浏览器会话和在线搜索 |
+| `app-api` | 按 Worker 指定 release 读取导航、版本、资产解析和受限访问准入 | 发布、选择 release 或返回整篇正文 |
+| `jobs/docs-publish` | 发布内容寻址 release 并物化 release-scoped 读取投影 | 浏览器会话、在线搜索或环境流量选择 |
 | 对象存储 | 保存带摘要的发布产物 | 直接向浏览器公开内部对象路径 |
 
 ## 正文交付
@@ -48,6 +48,16 @@ status: active
 - 仓库中的构建目录只是发布输入或复制品，不能成为线上正文的唯一来源。
 
 Cloudflare 静态资产路由只负责交付方式，不拥有文档、版本或访问权限。
+
+## 构建与发布
+
+- 本地和浏览器回归使用仓库内无凭据 fixture 构建 Rspress 阅读面。
+- 发布任务消费已验收读取投影，生成内容寻址 manifest，并以专用数据库角色物化同一 release。
+- Campus Web release build 只接受 `docsReleaseId`，由它推导 manifest key 和摘要；构建不连接
+  app-api 数据库。
+- Worker 固定注入 `docsReleaseId`，GitOps 同时选择 Worker version 与该 docs release。
+- staging 与正式发布复用同一个 `build:release` 入口；不得恢复构建期数据库导出或单独的
+  `build-published-reader-docs.ts --staging` 路径。
 
 ## 搜索
 
@@ -75,6 +85,7 @@ Cloudflare 静态资产路由只负责交付方式，不拥有文档、版本或
 - 把原始采集产物、检索分块或供应商响应当作阅读正文；
 - 让静态化绕过服务端访问准入；
 - 把文档搜索与聊天回答合并成同一个接口。
+- 让浏览器、GitHub Environment variable 或“最新 manifest”选择 docs release。
 
 ## 相关文档
 

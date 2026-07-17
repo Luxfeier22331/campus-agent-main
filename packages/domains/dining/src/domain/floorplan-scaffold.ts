@@ -1,6 +1,6 @@
 import { DINING_FLOORPLAN_MANIFEST, type DiningFloorplanManifestEntry } from "../floorplans";
-import { createEmptyDiningOperationsState } from "./state-factory";
-import type { DiningOperationsState, DiningOpsHall, DiningWindow } from "./types";
+import { createEmptyDiningDraft } from "./state-factory";
+import type { DiningDraft, DiningOpsHall } from "./types";
 
 export interface DiningHallScaffold {
 	campus: string;
@@ -10,15 +10,12 @@ export interface DiningHallScaffold {
 
 export interface DiningFloorScaffold {
 	floorId: string;
-	floorplanId: string;
-	floorplanSha256: string;
+	floorplan: { floorplanId: string; kind: "asset" };
 	label: string;
-	svgAssetUrl: string;
 }
 
 export interface DiningWindowScaffold {
 	floorId: string;
-	geometry: DiningWindow["geometry"];
 	hallId: string;
 	label: string;
 	locationLabel: string;
@@ -42,10 +39,9 @@ const HALL_SCAFFOLDS: DiningHallScaffold[] = [
 	},
 ];
 
-export function createDiningFloorplanScaffoldState(): DiningOperationsState {
-	const state = createEmptyDiningOperationsState({
+export function createDiningFloorplanScaffoldDraft(): DiningDraft {
+	const state = createEmptyDiningDraft({
 		createdBy: "system:dining-floorplan-scaffold",
-		source: "floorplan-scaffold",
 	});
 	return {
 		...state,
@@ -101,10 +97,9 @@ export function listDiningWindowScaffold(input?: {
 				const anchorLabel = anchor.label?.trim() || temporaryWindowLabel(index);
 				return {
 					floorId: entry.floorId,
-					geometry: windowGeometry(index),
 					hallId: entry.hallId,
 					label: anchorLabel,
-					locationLabel: "待补充档口",
+					locationLabel: anchorLabel,
 					svgAnchorId: anchor.anchorId,
 					tags: [],
 					windowId: windowIdFor(entry.hallId, entry.floorId, anchor.anchorId),
@@ -126,10 +121,8 @@ function toDiningOpsHall(hall: DiningHallScaffold): DiningOpsHall {
 function toFloorScaffold(entry: DiningFloorplanManifestEntry): DiningFloorScaffold {
 	return {
 		floorId: entry.floorId,
-		floorplanId: entry.floorplanId,
-		floorplanSha256: entry.sha256,
+		floorplan: { floorplanId: entry.floorplanId, kind: "asset" },
 		label: floorLabel(entry.floorId),
-		svgAssetUrl: entry.svgAssetUrl,
 	};
 }
 
@@ -147,17 +140,6 @@ function floorLabel(floorId: string): string {
 		return "三层";
 	}
 	return "一层";
-}
-
-function windowGeometry(index: number): DiningWindow["geometry"] {
-	const column = index % 3;
-	const row = Math.floor(index / 3);
-	return {
-		height: 72,
-		width: 150,
-		x: 64 + column * 180,
-		y: 72 + row * 112,
-	};
 }
 
 function windowIdFor(hallId: string, floorId: string, suffix: string): string {

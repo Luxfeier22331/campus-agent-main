@@ -1,69 +1,89 @@
-import { motion } from "motion/react";
+import { lazy, type Ref, Suspense, useState } from "react";
 import type { DiningReview } from "@/features/dining/model";
 import { Badge } from "../ui/badge";
-import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "../ui/dialog";
-import { contentSwap } from "../ui/motion";
+import { Button } from "../ui/button";
+import { Skeleton } from "../ui/skeleton";
 
-export interface DiningReviewGroup {
-	reviews: DiningReview[];
-	title: string | null;
-}
+const loadDiningReviewImageDialog = () => import("./dining-review-image-dialog");
+const DiningReviewImageDialog = lazy(() =>
+	loadDiningReviewImageDialog().then((module) => ({
+		default: module.DiningReviewImageDialog,
+	})),
+);
 
-export function DiningOfferingReviews({
-	error,
-	label,
-	groups,
-	reviews,
+export type DiningReviewsState =
+	| { status: "idle" }
+	| { showSkeleton: boolean; status: "pending" }
+	| { message: string; status: "error" }
+	| { reviews: DiningReview[]; status: "ready" };
+
+export function DiningReviews({
+	onRetry,
+	ref,
+	state,
 }: {
-	error?: string | null;
-	groups?: DiningReviewGroup[];
-	label: string;
-	reviews: DiningReview[];
+	onRetry?: () => void;
+	ref?: Ref<HTMLElement>;
+	state: DiningReviewsState;
 }) {
-	const reviewGroups = groups ?? (reviews.length > 0 ? [{ reviews, title: null }] : []);
 	return (
-		<motion.section
-			aria-label={label}
-			className="rounded-xl border bg-card text-card-foreground shadow"
-			data-testid="dining-review-panel"
-			layout
-		>
-			<div className="divide-y divide-border">
-				{error ? (
-					<motion.div
-						className="px-3 py-4 text-destructive text-sm"
-						key="review-error"
-						layout
+		<section aria-label="评价" className="scroll-mt-20" data-testid="dining-review-panel" ref={ref}>
+			<h2 className="text-lg font-semibold text-[var(--sys-text-strong)]">评价</h2>
+			<div className="mt-3 min-h-28 border-t border-border">
+				{state.status === "pending" ? (
+					<div
+						aria-busy="true"
+						aria-label="正在读取评价"
+						className="min-h-28 space-y-3 py-5"
 						role="status"
-						{...contentSwap}
 					>
-						{error}
-					</motion.div>
-				) : reviewGroups.length > 0 ? (
-					reviewGroups.map((group) => (
-						<motion.div
-							className="space-y-2 px-3 py-3"
-							key={group.title ?? group.reviews.map((review) => review.reviewId).join(":")}
-							layout
-							{...contentSwap}
-						>
-							{group.title ? (
-								<h3 className="text-sm font-medium text-[var(--sys-text-strong)]">{group.title}</h3>
-							) : null}
+						<span className="sr-only">正在读取评价</span>
+						{state.showSkeleton ? (
+							<>
+								<Skeleton className="h-4 w-28 motion-reduce:animate-none" />
+								<Skeleton className="h-4 w-full max-w-2xl motion-reduce:animate-none" />
+								<Skeleton className="h-4 w-2/3 max-w-xl motion-reduce:animate-none" />
+							</>
+						) : null}
+					</div>
+				) : state.status === "error" ? (
+					<div
+						className="flex min-h-28 flex-wrap items-center justify-between gap-3 py-4 text-destructive text-sm"
+						role="status"
+					>
+						<span>{state.message}</span>
+						{onRetry ? (
+							<Button onClick={onRetry} size="sm" type="button" variant="outline">
+								重试
+							</Button>
+						) : null}
+					</div>
+				) : state.status === "ready" ? (
+					<div className="motion-safe:fade-in-0 motion-safe:animate-in motion-safe:duration-150">
+						{state.reviews.length > 0 ? (
 							<div className="divide-y divide-border">
-								{group.reviews.map((review) => (
-									<article className="space-y-3 py-3 first:pt-0 last:pb-0" key={review.reviewId}>
-										<div className="flex items-start justify-between gap-3">
-											<div className="min-w-0">
+								{state.reviews.map((review) => (
+									<article className="min-w-0 space-y-3 py-5" key={review.reviewId}>
+										<div className="flex min-w-0 items-start justify-between gap-3">
+											<div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
 												{review.contributorName ? (
-													<p className="text-[var(--sys-text-muted)] text-xs">
+													<p className="break-words text-sm font-medium text-[var(--sys-text-strong)]">
 														{review.contributorName}
 													</p>
 												) : null}
+												<time
+													className="text-xs text-[var(--sys-text-subtle)]"
+													dateTime={review.submittedAt}
+												>
+													{formatReviewDate(review.submittedAt)}
+												</time>
 											</div>
 											<div className="flex shrink-0 items-center gap-2">
 												{review.rating === null ? null : (
-													<Badge className="bg-muted text-muted-foreground" variant="secondary">
+													<Badge
+														className="bg-surface-muted text-muted-foreground"
+														variant="secondary"
+													>
 														{review.rating} 分
 													</Badge>
 												)}
@@ -75,7 +95,7 @@ export function DiningOfferingReviews({
 											</div>
 										</div>
 										{review.comment ? (
-											<p className="text-[var(--sys-text-strong)] text-sm leading-6">
+											<p className="max-w-3xl break-words text-sm leading-6 text-[var(--sys-text-default)]">
 												{review.comment}
 											</p>
 										) : null}
@@ -89,43 +109,56 @@ export function DiningOfferingReviews({
 									</article>
 								))}
 							</div>
-						</motion.div>
-					))
+						) : (
+							<p className="flex min-h-28 items-center py-4 text-sm text-[var(--sys-text-muted)]">
+								暂无评价
+							</p>
+						)}
+					</div>
 				) : (
-					<motion.div
-						className="px-3 py-4 text-muted-foreground text-sm"
-						key="empty-reviews"
-						layout
-						{...contentSwap}
-					>
-						暂无评价
-					</motion.div>
+					<p className="flex min-h-28 items-center py-5 text-sm text-[var(--sys-text-muted)]">
+						选择菜品查看评价
+					</p>
 				)}
 			</div>
-		</motion.section>
+		</section>
 	);
 }
 
+function formatReviewDate(value: string): string {
+	return new Intl.DateTimeFormat("zh-CN", {
+		day: "numeric",
+		month: "short",
+		year: "numeric",
+	}).format(new Date(value));
+}
+
 function DiningReviewImagePreview({ image }: { image: DiningReview["images"][number] }) {
+	const [open, setOpen] = useState(false);
+
 	return (
-		<Dialog>
-			<DialogTrigger asChild>
-				<button
-					aria-label={`预览${image.alt}`}
-					className="shrink-0 rounded-lg border border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-					type="button"
-				>
-					<img alt="" className="size-24 rounded-lg object-cover" loading="lazy" src={image.url} />
-				</button>
-			</DialogTrigger>
-			<DialogContent className="max-w-3xl p-3">
-				<DialogTitle className="sr-only">{image.alt}</DialogTitle>
+		<>
+			<button
+				aria-label={`预览${image.alt}`}
+				className="shrink-0 rounded-lg border border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+				onClick={() => setOpen(true)}
+				onFocus={() => void loadDiningReviewImageDialog()}
+				onPointerEnter={() => void loadDiningReviewImageDialog()}
+				type="button"
+			>
 				<img
-					alt={image.alt}
-					className="max-h-[80vh] w-full rounded-lg object-contain"
+					alt=""
+					className="size-24 rounded-lg object-cover"
+					decoding="async"
+					loading="lazy"
 					src={image.url}
 				/>
-			</DialogContent>
-		</Dialog>
+			</button>
+			{open ? (
+				<Suspense fallback={null}>
+					<DiningReviewImageDialog alt={image.alt} onOpenChange={setOpen} open src={image.url} />
+				</Suspense>
+			) : null}
+		</>
 	);
 }

@@ -18,7 +18,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 	const telemetry = dependencies.telemetry ?? createAppTelemetry(env);
 	const getPrincipal = dependencies.getPrincipal ?? resolveRequestPrincipal;
 	const docsReadinessProbe =
-		dependencies.docsReadinessProbe ?? (() => defaultDocsReadinessProbe(env));
+		dependencies.docsReadinessProbe ??
+		((releaseId: string) => defaultDocsReadinessProbe(env, releaseId));
 	const runtimeReadinessProbe =
 		dependencies.runtimeReadinessProbe ?? (() => defaultRuntimeReadinessProbe(env));
 	const scopedServices = createRequestScopeFactory({

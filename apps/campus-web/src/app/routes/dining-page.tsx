@@ -1,274 +1,426 @@
-import { Search } from "lucide-react";
-import { LayoutGroup, motion } from "motion/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLocation, useNavigate, useSearch } from "@tanstack/react-router";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import {
-	DiningOfferingReviews,
-	type DiningReviewGroup,
-	HallSelector,
+	DiningHallSwitcher,
+	DiningMapToolbar,
+	DiningReviews,
+	type DiningReviewsState,
 	InteractiveFloorplan,
 	StallDetail,
-	TagFilters,
 } from "@/components/dining/dining-experience";
-import { Alert } from "@/components/ui/alert";
+import { DiningPageSkeleton } from "@/components/dining/dining-page-skeleton";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { contentSwap } from "@/components/ui/motion";
 import { SurfaceState } from "@/components/ui/surface-state";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { getDiningFloor, getDiningHallReviews, getDiningHalls } from "@/features/dining/api";
 import type {
-	DiningFloorResponse,
 	DiningHallSummary,
 	DiningOfferingProjection,
-	DiningReview,
-	DiningWindowProjection,
+	DiningSearchResult,
 } from "@/features/dining/model";
-import { cn } from "@/lib/utils";
+import { classifyDiningPublicationChange } from "@/features/dining/publication";
+import {
+	diningBootstrapQueryOptions,
+	diningFloorQueryOptions,
+	diningPublicationQueryOptions,
+	diningReviewsQueryOptions,
+	diningSearchQueryOptions,
+	prefetchDiningFloor,
+} from "@/features/dining/queries";
+import { diningQueryClient } from "@/features/dining/query-client";
 
-const ALL_CAMPUSES_VALUE = "all-campuses";
+interface DiningLocalSelection {
+	floorId: string;
+	hallId: string;
+	offeringId: string | null;
+	windowId: string;
+}
+
+const REVIEW_LOADING_DELAY_MS = 150;
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 
 export function DiningPage() {
-	const [halls, setHalls] = useState<DiningHallSummary[]>([]);
-	const [selectedCampus, setSelectedCampus] = useState("");
-	const [selectedHallId, setSelectedHallId] = useState("");
-	const [selectedFloorId, setSelectedFloorId] = useState("");
-	const [selectedWindowId, setSelectedWindowId] = useState<string | null>(null);
-	const [selectedOfferingId, setSelectedOfferingId] = useState<string | null>(null);
-	const [selectedTag, setSelectedTag] = useState<string | null>(null);
-	const [query, setQuery] = useState("");
-	const [floor, setFloor] = useState<DiningFloorResponse | null>(null);
-	const [reviews, setReviews] = useState<DiningReview[]>([]);
-	const [hallsError, setHallsError] = useState<string | null>(null);
-	const [floorError, setFloorError] = useState<string | null>(null);
-	const [reviewsError, setReviewsError] = useState<string | null>(null);
-	const [isLoadingHalls, setIsLoadingHalls] = useState(true);
+	return (
+		<QueryClientProvider client={diningQueryClient}>
+			<DiningPageContent />
+		</QueryClientProvider>
+	);
+}
+
+export function DiningPageContent() {
+	const queryClient = useQueryClient();
+	const locationSearch = useLocation({ select: (location) => location.searchStr });
+	const navigate = useNavigate({ from: "/dining" });
+	const routeSearch = useSearch({ from: "/dining" });
 	const detailRef = useRef<HTMLDivElement>(null);
-
-	useEffect(() => {
-		getDiningHalls()
-			.then((payload) => {
-				setHallsError(null);
-				setHalls(payload.halls);
-				const firstHall = payload.halls[0];
-				if (firstHall) {
-					setSelectedHallId(firstHall.hallId);
-					setSelectedFloorId(firstHall.floors[0]?.floorId ?? "");
-				}
-			})
-			.catch(() => {
-				setHallsError("食堂信息暂时无法读取。");
-			})
-			.finally(() => {
-				setIsLoadingHalls(false);
-			});
-	}, []);
-
-	useEffect(() => {
-		if (!(selectedHallId && selectedFloorId)) {
-			setFloor(null);
-			setFloorError(null);
-			setReviews([]);
-			return;
-		}
-		getDiningFloor({ floorId: selectedFloorId, hallId: selectedHallId })
-			.then((payload) => {
-				setFloor(payload);
-				setFloorError(null);
-				setSelectedWindowId(payload.windows[0]?.windowId ?? null);
-				setSelectedOfferingId(null);
-				setSelectedTag(null);
-			})
-			.catch(() => {
-				setFloor(null);
-				setFloorError("食堂平面图暂时无法打开。");
-			});
-	}, [selectedHallId, selectedFloorId]);
-
-	useEffect(() => {
-		if (!selectedHallId) {
-			setReviews([]);
-			return;
-		}
-		getDiningHallReviews({ hallId: selectedHallId })
-			.then((payload) => {
-				setReviews(payload.reviews);
-				setReviewsError(null);
-			})
-			.catch(() => {
-				setReviews([]);
-				setReviewsError("食堂评价暂时无法读取。");
-			});
-	}, [selectedHallId]);
-
-	const campuses = useMemo(() => uniqueStrings(halls.map((hall) => hall.campus)), [halls]);
-	const selectedHall = halls.find((hall) => hall.hallId === selectedHallId) ?? null;
-	const selectedHallHasMultipleMaps = (selectedHall?.floors.length ?? 0) > 1;
-	const campusHalls = halls.filter((hall) => !selectedCampus || hall.campus === selectedCampus);
-	const filteredWindows = useMemo(
-		() =>
-			(floor?.windows ?? []).filter(
-				(window) =>
-					windowMatchesQuery(window, query) && (!selectedTag || window.tags.includes(selectedTag)),
-			),
-		[floor, query, selectedTag],
-	);
-	const matchedWindowIds = useMemo(
-		() =>
-			hasActiveWindowFilter(query, selectedTag)
-				? new Set(filteredWindows.map((window) => window.windowId))
-				: null,
-		[filteredWindows, query, selectedTag],
-	);
-	const selectedWindow =
-		filteredWindows.find((window) => window.windowId === selectedWindowId) ??
-		filteredWindows[0] ??
+	const reviewRef = useRef<HTMLElement>(null);
+	const [query, setQuery] = useState("");
+	const [selection, setSelection] = useState<DiningLocalSelection | null>(null);
+	const [selectedTag, setSelectedTag] = useState<string | null>(null);
+	const debouncedQuery = useDebouncedValue(query, 200);
+	const bootstrapQuery = useQuery(diningBootstrapQueryOptions());
+	const publicationQuery = useQuery(diningPublicationQueryOptions());
+	const previousPublicationRef = useRef(publicationQuery.data);
+	const halls = bootstrapQuery.data?.halls ?? [];
+	const selectedHall = halls.find((hall) => hall.hallId === routeSearch.hall) ?? halls[0] ?? null;
+	const selectedHallId = selectedHall?.hallId ?? "";
+	const selectedFloor =
+		selectedHall?.floors.find((floor) => floor.floorId === routeSearch.floor) ??
+		selectedHall?.floors[0] ??
 		null;
-	const selectedOfferings = selectedWindow?.assignment?.offerings ?? [];
-	const selectedStallName = selectedWindow
-		? (selectedWindow.assignment?.stallProfile.displayName ?? selectedWindow.label)
-		: null;
-	const selectedStallProfileId = selectedWindow?.assignment?.stallProfile.stallProfileId ?? null;
-	const selectedWindowIdForReviews = selectedWindow?.windowId ?? null;
-	const selectedStallReviews = selectedStallName
-		? reviews.filter((review) =>
-				selectedStallProfileId
-					? review.stallProfileId === selectedStallProfileId
-					: review.windowId === selectedWindowIdForReviews ||
-						review.stallName === selectedStallName,
-			)
-		: [];
-	const defaultOffering = resolveDefaultDiningOffering({
-		offerings: selectedOfferings,
-		reviews: selectedStallReviews,
-	});
-	const selectedOffering =
-		selectedOfferings.find((offering) => offering.offeringId === selectedOfferingId) ??
-		defaultOffering;
-	const selectedOfferingReviews = selectedOffering
-		? selectedStallReviews.filter((review) => review.dishName === selectedOffering.name)
-		: [];
-	const reviewPanel =
-		selectedOffering && selectedOfferingReviews.length > 0
-			? {
-					groups: [{ reviews: selectedOfferingReviews, title: null }],
-					label: `${selectedOffering.name}评价`,
-					reviews: selectedOfferingReviews,
-				}
-			: {
-					groups: groupDiningReviewsByDish(selectedStallReviews),
-					label: selectedStallName ? `${selectedStallName}评价` : "菜品评价",
-					reviews: selectedStallReviews,
-				};
-	const selectedHallMatchesLoadedFloor =
-		query.trim().length > 0 &&
-		selectedHall !== null &&
-		floor?.floor.hallId === selectedHall.hallId &&
-		filteredWindows.length > 0;
-	const filteredHalls = campusHalls.filter(
-		(hall) =>
-			hallMatchesQuery(hall, query) ||
-			(hall.hallId === selectedHall?.hallId && selectedHallMatchesLoadedFloor),
+	const selectedFloorId = selectedFloor?.floorId ?? "";
+	const initialFloor = bootstrapQuery.data?.initial?.floor;
+	const hasInitialFloor =
+		initialFloor?.floor.hallId === selectedHallId && initialFloor.floor.floorId === selectedFloorId;
+	const floorQuery = useQuery(
+		diningFloorQueryOptions({
+			floorId: selectedFloorId,
+			hallId: selectedHallId,
+			initialData: hasInitialFloor ? initialFloor : undefined,
+			initialDataUpdatedAt: hasInitialFloor ? bootstrapQuery.dataUpdatedAt : undefined,
+		}),
 	);
-	const hasQuery = query.trim().length > 0;
-	const hasSearchResults = !hasQuery || filteredHalls.length > 0 || filteredWindows.length > 0;
-
-	function selectHall(hall: DiningHallSummary, campusFilter = selectedCampus) {
-		setSelectedCampus(campusFilter);
-		setSelectedHallId(hall.hallId);
-		setSelectedFloorId(hall.floors[0]?.floorId ?? "");
-	}
-
-	function selectWindow(windowId: string, options: { scrollDetail?: boolean } = {}) {
-		setSelectedWindowId(windowId);
-		setSelectedOfferingId(null);
-		if (!(options.scrollDetail && isMobileDiningViewport())) {
+	const floor = floorQuery.data ?? null;
+	const activeFloor =
+		floor?.floor.hallId === selectedHallId && floor.floor.floorId === selectedFloorId
+			? floor
+			: null;
+	const selectionMatchesFloor =
+		selection?.hallId === selectedHallId && selection.floorId === selectedFloorId;
+	const selectedWindow = selectionMatchesFloor
+		? (activeFloor?.windows.find((diningWindow) => diningWindow.windowId === selection.windowId) ??
+			null)
+		: null;
+	const selectedWindowId = selectedWindow?.windowId ?? null;
+	const selectedOfferings = selectedWindow?.assignment?.offerings ?? [];
+	const selectedOffering = resolveSelectedDiningOffering({
+		offerings: selectedOfferings,
+		selectedOfferingId: selectionMatchesFloor ? (selection?.offeringId ?? null) : null,
+	});
+	const selectedOfferingId = selectedOffering?.offeringId ?? null;
+	const reviewsQuery = useQuery(
+		diningReviewsQueryOptions({ offeringId: selectedOfferingId ?? "" }),
+	);
+	const [loadingVisualOfferingId, setLoadingVisualOfferingId] = useState<string | null>(null);
+	const revealedOfferingIdRef = useRef<string | null>(null);
+	useEffect(() => {
+		setLoadingVisualOfferingId(null);
+		if (!(selectedOfferingId && reviewsQuery.isPending)) {
 			return;
 		}
-		window.requestAnimationFrame(() => {
-			detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+		const timeout = window.setTimeout(
+			() => setLoadingVisualOfferingId(selectedOfferingId),
+			REVIEW_LOADING_DELAY_MS,
+		);
+		return () => window.clearTimeout(timeout);
+	}, [reviewsQuery.isPending, selectedOfferingId]);
+	const searchQuery = useQuery(
+		diningSearchQueryOptions({
+			query: debouncedQuery,
+			scopeHallId: selectedHallId,
+			tag: selectedTag,
+		}),
+	);
+	const hasActiveSearch = query.trim().length > 0 || selectedTag !== null;
+	const searchResults = hasActiveSearch ? (searchQuery.data?.results ?? []) : [];
+	const matchedWindowIds = useMemo(() => {
+		if (!hasActiveSearch) {
+			return null;
+		}
+		return new Set(
+			searchResults
+				.filter((result) => result.hallId === selectedHallId && result.floorId === selectedFloorId)
+				.map((result) => result.windowId),
+		);
+	}, [hasActiveSearch, searchResults, selectedFloorId, selectedHallId]);
+	const campusTags = useMemo(
+		() =>
+			selectedHall
+				? uniqueStrings(
+						halls
+							.filter((hall) => hall.campus === selectedHall.campus)
+							.flatMap((hall) => hall.tags),
+					)
+				: [],
+		[halls, selectedHall],
+	);
+	const hallsError =
+		bootstrapQuery.isError && !bootstrapQuery.data ? "食堂信息暂时无法读取。" : null;
+	const floorError = floorQuery.isError && !floorQuery.data ? "食堂平面图暂时无法打开。" : null;
+	const hasReviewsError = Boolean(selectedOffering && reviewsQuery.isError && !reviewsQuery.data);
+	const showReviewsSkeleton = Boolean(
+		selectedOfferingId && reviewsQuery.isPending && loadingVisualOfferingId === selectedOfferingId,
+	);
+	const reviewsState: DiningReviewsState = selectedOffering
+		? reviewsQuery.isPending
+			? { showSkeleton: showReviewsSkeleton, status: "pending" }
+			: hasReviewsError
+				? { message: "评价暂时无法读取。", status: "error" }
+				: { reviews: reviewsQuery.data?.reviews ?? [], status: "ready" }
+		: { status: "idle" };
+	const canRevealReviews = Boolean(
+		selectedOfferingId && (!reviewsQuery.isPending || showReviewsSkeleton),
+	);
+	const isLoadingHalls = bootstrapQuery.isPending;
+	const isLoadingFloor = Boolean(selectedHallId && selectedFloorId && floorQuery.isPending);
+	const isFloorPending = Boolean(selectedHallId && selectedFloorId && !activeFloor && !floorError);
+	const hasRetiredSelectionParams = useMemo(() => {
+		const params = new URLSearchParams(locationSearch);
+		return params.has("window") || params.has("offering");
+	}, [locationSearch]);
+
+	useEffect(() => {
+		const previous = previousPublicationRef.current;
+		const current = publicationQuery.data;
+		previousPublicationRef.current = current;
+		if (!(previous && current)) {
+			return;
+		}
+		const change = classifyDiningPublicationChange(previous, current);
+		if (change === "catalog") {
+			setSelection(null);
+			void queryClient.invalidateQueries({
+				predicate: (query) => query.queryKey[0] === "dining" && query.queryKey[1] !== "publication",
+			});
+			return;
+		}
+		if (change === "reviews") {
+			void queryClient.invalidateQueries({ queryKey: ["dining", "reviews"] });
+		}
+	}, [publicationQuery.data, queryClient]);
+
+	useEffect(() => {
+		if (!selectedOfferingId) {
+			revealedOfferingIdRef.current = null;
+			return;
+		}
+		if (!canRevealReviews || revealedOfferingIdRef.current === selectedOfferingId) {
+			return;
+		}
+		const frame = window.requestAnimationFrame(() => {
+			revealDiningReview(reviewRef.current);
+			revealedOfferingIdRef.current = selectedOfferingId;
+		});
+		return () => window.cancelAnimationFrame(frame);
+	}, [canRevealReviews, selectedOfferingId]);
+
+	useEffect(() => {
+		if (!(bootstrapQuery.data && selectedHall && selectedFloor)) {
+			return;
+		}
+		if (
+			routeSearch.hall === selectedHall.hallId &&
+			routeSearch.floor === selectedFloor.floorId &&
+			!hasRetiredSelectionParams
+		) {
+			return;
+		}
+		void navigate({
+			replace: true,
+			search: {
+				floor: selectedFloor.floorId,
+				hall: selectedHall.hallId,
+			},
+		});
+	}, [
+		bootstrapQuery.data,
+		navigate,
+		hasRetiredSelectionParams,
+		routeSearch.floor,
+		routeSearch.hall,
+		selectedFloor,
+		selectedHall,
+	]);
+
+	useEffect(() => {
+		setSelection((current) => {
+			if (!current) {
+				return current;
+			}
+			if (current.hallId !== selectedHallId || current.floorId !== selectedFloorId) {
+				return null;
+			}
+			if (!activeFloor) {
+				return current;
+			}
+			const diningWindow = activeFloor.windows.find((item) => item.windowId === current.windowId);
+			if (!diningWindow) {
+				return null;
+			}
+			const offeringIsValid = current.offeringId
+				? diningWindow.assignment?.offerings.some(
+						(offering) => offering.offeringId === current.offeringId,
+					) === true
+				: true;
+			return offeringIsValid ? current : { ...current, offeringId: null };
+		});
+	}, [activeFloor, selectedFloorId, selectedHallId]);
+
+	useEffect(() => {
+		if (!(activeFloor && selectedHall)) {
+			return;
+		}
+		for (const siblingFloor of selectedHall.floors) {
+			if (siblingFloor.floorId !== selectedFloorId) {
+				void prefetchDiningFloor(queryClient, {
+					floorId: siblingFloor.floorId,
+					hallId: selectedHall.hallId,
+				});
+			}
+		}
+	}, [activeFloor, queryClient, selectedFloorId, selectedHall]);
+
+	useEffect(() => {
+		if (!selectedWindowId) {
+			return;
+		}
+		let innerFrame = 0;
+		let settleTimer = 0;
+		const outerFrame = window.requestAnimationFrame(() => {
+			innerFrame = window.requestAnimationFrame(() => {
+				revealDiningDetail(detailRef.current);
+				settleTimer = window.setTimeout(() => revealDiningDetail(detailRef.current), 160);
+			});
+		});
+		return () => {
+			window.cancelAnimationFrame(outerFrame);
+			if (innerFrame) {
+				window.cancelAnimationFrame(innerFrame);
+			}
+			if (settleTimer) {
+				window.clearTimeout(settleTimer);
+			}
+		};
+	}, [selectedWindowId]);
+
+	function selectHall(hall: DiningHallSummary) {
+		const floorId = hall.floors[0]?.floorId;
+		if (!floorId || (hall.hallId === selectedHallId && floorId === selectedFloorId)) {
+			return;
+		}
+		clearLocalSearch();
+		setSelection(null);
+		void navigate({
+			search: { floor: floorId, hall: hall.hallId },
 		});
 	}
 
+	function selectFloor(floorId: string) {
+		if (floorId === selectedFloorId) {
+			return;
+		}
+		clearLocalSearch();
+		setSelection(null);
+		void navigate({
+			search: { floor: floorId, hall: selectedHallId },
+		});
+	}
+
+	function selectWindow(windowId: string) {
+		const diningWindow = activeFloor?.windows.find((item) => item.windowId === windowId);
+		if (!diningWindow) {
+			return;
+		}
+		if (selectedWindowId === windowId) {
+			revealDiningDetail(detailRef.current);
+			return;
+		}
+		setSelection({
+			floorId: selectedFloorId,
+			hallId: selectedHallId,
+			offeringId: null,
+			windowId,
+		});
+	}
+
+	function selectOffering(offeringId: string) {
+		if (!selectedWindowId) {
+			return;
+		}
+		setSelection({
+			floorId: selectedFloorId,
+			hallId: selectedHallId,
+			offeringId,
+			windowId: selectedWindowId,
+		});
+	}
+
+	function retryReviews() {
+		setLoadingVisualOfferingId(null);
+		void reviewsQuery.refetch();
+	}
+
+	function selectSearchResult(result: DiningSearchResult) {
+		setSelection({
+			floorId: result.floorId,
+			hallId: result.hallId,
+			offeringId: result.offering?.offeringId ?? null,
+			windowId: result.windowId,
+		});
+		void navigate({
+			search: {
+				floor: result.floorId,
+				hall: result.hallId,
+			},
+		});
+	}
+
+	function updateQuery(nextQuery: string) {
+		setQuery(nextQuery);
+		clearSelection();
+	}
+
+	function selectTag(tag: string | null) {
+		setSelectedTag(tag);
+		clearSelection();
+	}
+
 	function clearFilters() {
+		clearLocalSearch();
+		clearSelection();
+	}
+
+	function clearLocalSearch() {
 		setQuery("");
 		setSelectedTag(null);
 	}
 
+	function clearSelection() {
+		setSelection(null);
+	}
+
+	function prefetchHall(hall: DiningHallSummary) {
+		for (const hallFloor of hall.floors) {
+			void prefetchDiningFloor(queryClient, {
+				floorId: hallFloor.floorId,
+				hallId: hall.hallId,
+			});
+		}
+	}
+
+	function prefetchFloor(floorId: string) {
+		if (selectedHallId) {
+			void prefetchDiningFloor(queryClient, { floorId, hallId: selectedHallId });
+		}
+	}
+
+	function prefetchSearchResult(result: DiningSearchResult) {
+		void prefetchDiningFloor(queryClient, { floorId: result.floorId, hallId: result.hallId });
+	}
+
 	return (
-		<section className="mx-auto max-w-[1440px] px-5 py-6 pb-24 lg:px-6">
-			<div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-				<div>
-					<h1 className="mt-1 text-3xl font-semibold tracking-normal text-[var(--sys-text-strong)]">
-						食堂
-					</h1>
-				</div>
-				{hallsError ? null : (
-					<div className="grid gap-3 sm:grid-cols-[minmax(240px,320px)_auto]">
-						<label className="relative block" htmlFor="dining-search">
-							<Search
-								aria-hidden="true"
-								className="-translate-y-1/2 pointer-events-none absolute left-3 top-1/2 size-4 text-[var(--sys-text-subtle)]"
-							/>
-							<Input
-								aria-label="搜索食堂、档口、菜品"
-								className="pl-9"
-								id="dining-search"
-								onChange={(event) => setQuery(event.target.value)}
-								placeholder="搜索食堂、档口、菜品"
-								value={query}
-							/>
-						</label>
-						<ToggleGroup
-							aria-label="校区"
-							onValueChange={(value) => {
-								if (!value) {
-									return;
-								}
-								const nextCampus = value === ALL_CAMPUSES_VALUE ? "" : value;
-								const hall = halls.find((item) => !nextCampus || item.campus === nextCampus);
-								if (hall) {
-									selectHall(hall, nextCampus);
-								}
-							}}
-							type="single"
-							value={selectedCampus || ALL_CAMPUSES_VALUE}
-						>
-							<ToggleGroupItem
-								className={cn(
-									"min-h-11 rounded-lg px-4 text-[var(--sys-text-muted)]",
-									selectedCampus === "" &&
-										"border-[var(--sys-text-strong)] bg-[var(--sys-text-strong)] text-white",
-								)}
-								value={ALL_CAMPUSES_VALUE}
-							>
-								全部校区
-							</ToggleGroupItem>
-							{campuses.map((campus) => (
-								<ToggleGroupItem
-									className={cn(
-										"min-h-11 rounded-lg px-4 text-[var(--sys-text-muted)]",
-										selectedCampus === campus &&
-											"border-[var(--sys-text-strong)] bg-[var(--sys-text-strong)] text-white",
-									)}
-									key={campus}
-									value={campus}
-								>
-									{campus}
-								</ToggleGroupItem>
-							))}
-						</ToggleGroup>
-					</div>
-				)}
-			</div>
+		<section className="mx-auto max-w-[var(--layout-page-workspace-width)] px-4 py-4 pb-40 sm:px-5 sm:py-6 sm:pb-24 lg:px-6">
+			<h1 className="text-2xl font-semibold tracking-normal text-[var(--sys-text-strong)] md:text-3xl">
+				食堂
+			</h1>
 
 			{hallsError ? (
 				<SurfaceState
+					className="mt-5"
 					description={hallsError}
 					kind="error"
 					primaryAction={
-						<Button onClick={() => window.location.reload()} type="button">
+						<Button onClick={() => void bootstrapQuery.refetch()} type="button">
 							重试
 						</Button>
 					}
@@ -280,211 +432,188 @@ export function DiningPage() {
 					title="食堂数据不可用"
 				/>
 			) : null}
-			{floorError ? <Alert variant="destructive">{floorError}</Alert> : null}
-			{isLoadingHalls && !hallsError ? (
-				<SurfaceState
-					description="正在读取已发布的食堂、地图和档口数据。"
-					kind="loading"
-					title="正在读取食堂数据"
-				/>
-			) : null}
+			{isLoadingHalls && !hallsError ? <DiningPageSkeleton includeHallSwitcher /> : null}
 			{!isLoadingHalls && halls.length === 0 && !hallsError ? (
 				<SurfaceState
-					className="border-dashed text-center"
-					description="当前没有已发布的食堂数据。"
+					className="mt-5 border-dashed text-center"
+					description="暂时没有可展示的食堂信息。"
 					kind="empty"
 					title="暂无内容"
 				/>
 			) : null}
-			{halls.length > 0 ? (
-				<LayoutGroup>
-					<motion.div className="space-y-5" layout>
-						{hasSearchResults ? (
-							<motion.div key="hall-selector" layout {...contentSwap}>
-								<HallSelector
-									halls={filteredHalls}
-									onSelectHall={selectHall}
-									selectedHallId={selectedHallId}
-								/>
-							</motion.div>
-						) : null}
-						{hasSearchResults ? (
-							floor && selectedHall ? (
-								<motion.div
-									className="space-y-4"
-									key={`${floor.floor.hallId}:${floor.floor.floorId}`}
-									layout
-									{...contentSwap}
+			{halls.length > 0 && !hallsError ? (
+				<div className="mt-4 space-y-4">
+					<DiningHallSwitcher
+						halls={halls}
+						onPrefetchHall={prefetchHall}
+						onSelectHall={selectHall}
+						selectedHallId={selectedHallId}
+					/>
+					{floorError ? (
+						<DiningWorkspaceState>
+							<SurfaceState
+								className="w-full max-w-lg"
+								description={floorError}
+								kind="error"
+								primaryAction={
+									<Button onClick={() => void floorQuery.refetch()} type="button">
+										重试
+									</Button>
+								}
+								title="食堂地图不可用"
+							/>
+						</DiningWorkspaceState>
+					) : isLoadingFloor || isFloorPending ? (
+						<DiningPageSkeleton />
+					) : activeFloor && selectedHall ? (
+						<div className="space-y-6">
+							<div
+								className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-6"
+								data-testid="dining-selection-panel"
+							>
+								<section
+									className="min-w-0 overflow-hidden rounded-lg border border-border/80 bg-card"
+									data-testid="dining-map-panel"
 								>
-									<div
-										className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]"
-										data-testid="dining-selection-panel"
-									>
-										<Card className="overflow-hidden p-4" data-testid="dining-map-panel">
-											<div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-												<div>
-													<p className="text-sm font-semibold text-[var(--sys-text-strong)]">
-														{selectedHallHasMultipleMaps ? floor.floor.label : selectedHall.name}
-													</p>
-													<p className="mt-1 text-xs text-[var(--sys-text-muted)]">
-														更新于 {new Date(floor.source.updatedAt).toLocaleDateString("zh-CN")}
-													</p>
-												</div>
-												{selectedHallHasMultipleMaps ? (
-													<ToggleGroup
-														aria-label="楼层"
-														onValueChange={(floorId) => {
-															if (floorId) {
-																setSelectedFloorId(floorId);
-															}
-														}}
-														type="single"
-														value={selectedFloorId}
-													>
-														{selectedHall.floors.map((item) => (
-															<ToggleGroupItem
-																className={cn(
-																	"min-h-9 text-[var(--sys-text-muted)]",
-																	selectedFloorId === item.floorId &&
-																		"border-primary bg-[var(--sys-brand-interactive-subtle)] text-primary",
-																)}
-																key={item.floorId}
-																value={item.floorId}
-															>
-																{item.label}
-															</ToggleGroupItem>
-														))}
-													</ToggleGroup>
-												) : null}
-											</div>
-											<TagFilters
-												onSelectTag={setSelectedTag}
-												selectedTag={selectedTag}
-												tags={floor.filters.tags}
-											/>
-											<div className="mt-4">
-												<InteractiveFloorplan
-													floor={floor}
-													matchedWindowIds={matchedWindowIds}
-													onSelectWindow={(windowId) =>
-														selectWindow(windowId, { scrollDetail: true })
-													}
-													selectedWindowId={selectedWindow?.windowId ?? selectedWindowId}
-													windows={floor.windows}
-												/>
-											</div>
-										</Card>
-										<div
-											className="scroll-mt-3 space-y-4 xl:col-start-2 xl:row-start-1"
-											ref={detailRef}
-										>
-											<StallDetail
-												onSelectOffering={setSelectedOfferingId}
-												selectedOfferingId={selectedOffering?.offeringId ?? null}
-												window={selectedWindow}
-											/>
-										</div>
-									</div>
-									<DiningOfferingReviews
-										error={reviewsError}
-										groups={reviewPanel.groups}
-										label={reviewPanel.label}
-										reviews={reviewPanel.reviews}
+									<DiningMapToolbar
+										campus={selectedHall.campus}
+										floorLabel={activeFloor.floor.label}
+										floors={selectedHall.floors}
+										hasActiveSearch={hasActiveSearch}
+										onClearFilters={clearFilters}
+										onPrefetchFloor={prefetchFloor}
+										onPrefetchResult={prefetchSearchResult}
+										onQueryChange={updateQuery}
+										onRetrySearch={() => void searchQuery.refetch()}
+										onSelectFloor={selectFloor}
+										onSelectResult={selectSearchResult}
+										onSelectTag={selectTag}
+										query={query}
+										searchError={searchQuery.isError ? "搜索暂时不可用。" : null}
+										searchIsLoading={
+											query.trim() !== debouncedQuery.trim() || searchQuery.isPending
+										}
+										searchResults={searchResults}
+										searchTotal={searchQuery.data?.total ?? 0}
+										selectedFloorId={selectedFloorId}
+										selectedTag={selectedTag}
+										tags={campusTags}
 									/>
-								</motion.div>
-							) : (
-								<motion.div key="empty-floor" layout {...contentSwap}>
-									<Card className="flex min-h-32 flex-col items-center justify-center border-dashed px-6 py-8 text-center">
-										<h3 className="font-medium text-foreground text-sm">暂无内容</h3>
-										<p className="mt-1 max-w-sm text-muted-foreground text-sm">
-											当前没有已发布的食堂地图数据。
-										</p>
-									</Card>
-								</motion.div>
-							)
-						) : (
-							<motion.div key="empty-search" layout {...contentSwap}>
-								<SurfaceState
-									description="调整搜索词或筛选条件后再试。"
-									kind="empty"
-									primaryAction={
-										<Button onClick={clearFilters} type="button" variant="outline">
-											清除筛选
-										</Button>
-									}
-									title="没有匹配的食堂、档口或菜品"
-								/>
-							</motion.div>
-						)}
-					</motion.div>
-				</LayoutGroup>
+									<InteractiveFloorplan
+										floor={activeFloor}
+										matchedWindowIds={matchedWindowIds}
+										onSelectWindow={selectWindow}
+										selectedWindowId={selectedWindow?.windowId ?? null}
+										windows={activeFloor.windows}
+									/>
+									<div className="flex min-h-11 flex-wrap items-center justify-between gap-2 border-border/70 border-t px-3 text-xs text-[var(--sys-text-subtle)] sm:px-4">
+										<span>信息更新于 {formatDiningDate(activeFloor.source.updatedAt)}</span>
+										<a
+											className="inline-flex min-h-11 items-center text-primary hover:underline"
+											href="/feedback?source=dining"
+										>
+											信息有误？反馈
+										</a>
+									</div>
+								</section>
+								<div
+									className="min-w-0 scroll-mt-28 border-border/70 border-t pt-4 md:scroll-mt-20 lg:sticky lg:top-20 lg:self-start lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0"
+									data-testid="dining-detail-panel"
+									ref={detailRef}
+								>
+									<StallDetail
+										onSelectOffering={selectOffering}
+										selectedOfferingId={selectedOffering?.offeringId ?? null}
+										window={selectedWindow}
+									/>
+								</div>
+							</div>
+							<DiningReviews onRetry={retryReviews} ref={reviewRef} state={reviewsState} />
+						</div>
+					) : (
+						<DiningWorkspaceState>
+							<SurfaceState
+								className="w-full max-w-lg border-dashed text-center"
+								description="暂时没有可展示的食堂地图。"
+								kind="empty"
+								title="暂无内容"
+							/>
+						</DiningWorkspaceState>
+					)}
+				</div>
 			) : null}
 		</section>
 	);
 }
 
-function resolveDefaultDiningOffering(input: {
+function DiningWorkspaceState({ children }: { children: ReactNode }) {
+	return (
+		<div className="grid min-h-[clamp(420px,65dvh,680px)] place-items-center rounded-lg border border-border bg-card p-4">
+			{children}
+		</div>
+	);
+}
+
+function resolveSelectedDiningOffering(input: {
 	offerings: DiningOfferingProjection[];
-	reviews: DiningReview[];
+	selectedOfferingId: string | null;
 }): DiningOfferingProjection | null {
 	return (
-		input.offerings.find((offering) =>
-			input.reviews.some((review) => review.dishName === offering.name),
-		) ??
-		input.offerings[0] ??
-		null
+		input.offerings.find((offering) => offering.offeringId === input.selectedOfferingId) ?? null
 	);
 }
 
-function hasActiveWindowFilter(query: string, selectedTag: string | null): boolean {
-	return query.trim().length > 0 || selectedTag !== null;
-}
-
-function isMobileDiningViewport(): boolean {
-	return (
-		typeof window !== "undefined" &&
-		typeof window.matchMedia === "function" &&
-		window.matchMedia("(max-width: 767px)").matches
-	);
-}
-
-function hallMatchesQuery(hall: DiningHallSummary, query: string): boolean {
-	const normalized = query.trim().toLowerCase();
-	if (!normalized) {
-		return true;
-	}
-	return [hall.name, hall.campus].some((value) => value.toLowerCase().includes(normalized));
-}
-
-function windowMatchesQuery(window: DiningWindowProjection, query: string): boolean {
-	const normalized = query.trim().toLowerCase();
-	if (!normalized) {
-		return true;
-	}
-	const values = [
-		window.label,
-		window.locationLabel,
-		...(window.assignment ? [window.assignment.stallProfile.displayName] : []),
-		...window.tags,
-		...(window.assignment?.offerings.flatMap((offering) => [
-			offering.name,
-			...(offering.priceLabel ? [offering.priceLabel] : []),
-			...offering.tags,
-		]) ?? []),
-	];
-	return values.some((value) => value.toLowerCase().includes(normalized));
-}
-
-function groupDiningReviewsByDish(reviews: DiningReview[]): DiningReviewGroup[] {
-	const groups = new Map<string, DiningReview[]>();
-	for (const review of reviews) {
-		const group = groups.get(review.dishName) ?? [];
-		group.push(review);
-		groups.set(review.dishName, group);
-	}
-	return [...groups].map(([title, group]) => ({ reviews: group, title }));
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+	const [debouncedValue, setDebouncedValue] = useState(value);
+	useEffect(() => {
+		const timeout = window.setTimeout(() => setDebouncedValue(value), delayMs);
+		return () => window.clearTimeout(timeout);
+	}, [delayMs, value]);
+	return debouncedValue;
 }
 
 function uniqueStrings(values: string[]): string[] {
-	return [...new Set(values)];
+	return [...new Set(values.map((value) => value.trim()).filter(Boolean))].sort((left, right) =>
+		left.localeCompare(right, "zh-CN"),
+	);
+}
+
+function formatDiningDate(value: string): string {
+	return new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric" }).format(
+		new Date(value),
+	);
+}
+
+function revealDiningDetail(detail: HTMLDivElement | null): void {
+	if (!detail) {
+		return;
+	}
+	const detailRect = detail.getBoundingClientRect();
+	const mapPanel = detail
+		.closest('[data-testid="dining-selection-panel"]')
+		?.querySelector<HTMLElement>('[data-testid="dining-map-panel"]');
+	const mapRect = mapPanel?.getBoundingClientRect();
+	if (mapRect && detailRect.left >= mapRect.right - 1) {
+		return;
+	}
+	const readableDetailTop = Math.min(128, window.innerHeight / 4);
+	if (detailRect.top >= 0 && detailRect.top <= readableDetailTop) {
+		return;
+	}
+	detail.scrollIntoView({ block: "start" });
+}
+
+function revealDiningReview(review: HTMLElement | null): void {
+	if (!review) {
+		return;
+	}
+	const reviewTop = review.getBoundingClientRect().top;
+	const readableBottom = window.innerHeight - 160;
+	if (reviewTop >= 0 && reviewTop <= readableBottom) {
+		return;
+	}
+	review.scrollIntoView({
+		behavior: window.matchMedia(REDUCED_MOTION_QUERY).matches ? "auto" : "smooth",
+		block: "start",
+	});
 }

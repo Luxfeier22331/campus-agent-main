@@ -1,26 +1,26 @@
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { createDevDiningOperationsState } from "@campus-agent/dining/domain";
+import { createDevDiningSeed } from "@campus-agent/dining/domain";
 
 import { S3DiningAttachmentStore } from "./attachment-store";
-import {
-	buildCatalogObservations,
-	buildDiningStateFromCatalogObservations,
-} from "./catalog-source";
+import { buildCatalogObservations } from "./catalog-source";
 import { PostgresDiningCatalogSourceObservationStore } from "./catalog-source-store";
-import { PostgresDiningCatalogPublisher } from "./catalog-publisher";
-import { buildDiningCatalogPublishSummary } from "./catalog-summary";
 import {
 	loadCatalogImportConfig,
-	loadCatalogPublishConfig,
 	loadCatalogSyncConfig,
 	loadConfig,
+	loadLocalMigrationConfig,
+	loadMigrationConfig,
 } from "./config";
-import { CatalogDiningHallResolver } from "./hall-resolver";
 import { LarkDiningClient } from "./lark-client";
 import { GiteeAiDiningModerator } from "./moderation";
+import { migrateDining } from "./migrate";
+import { PostgresDiningDevSeedImporter } from "./dev-seed-importer";
 import { PostgresDiningReviewPublisher } from "./postgres-publisher";
 import { PostgresDiningPublishedCloseoutVerifier } from "./published-closeout";
+import { PostgresDiningPublishedSnapshotReader } from "./published-snapshot-reader";
+import { PublishedDiningReviewResolver } from "./review-resolver";
+import { processDiningReviewRechecks } from "./review-recheck";
 import { PostgresDiningSourceObservationStore } from "./source-observation-store";
 import { runDiningSync } from "./sync-pipeline";
 
@@ -38,16 +38,16 @@ async function main() {
 		await importDevSeed();
 		return;
 	}
+	if (command === "migrate") {
+		await migrateDining(loadMigrationConfig().postgresUrl);
+		return;
+	}
+	if (command === "migrate-local") {
+		await migrateDining(loadLocalMigrationConfig().postgresUrl);
+		return;
+	}
 	if (command === "catalog-observations") {
 		await syncCatalogObservations();
-		return;
-	}
-	if (command === "publish-catalog") {
-		await publishCatalogFromFeishu();
-		return;
-	}
-	if (command === "publish-catalog-from-observations") {
-		await publishCatalogFromStoredObservations();
 		return;
 	}
 	if (command === "verify-published") {
@@ -55,12 +55,12 @@ async function main() {
 		return;
 	}
 	throw new Error(
-		"Usage: pnpm sync [sync-all|run|catalog-observations|publish-catalog|publish-catalog-from-observations|import-dev-seed|verify-published]",
+		"Usage: pnpm sync [sync-all|run|catalog-observations|import-dev-seed|verify-published|migrate|migrate-local]",
 	);
 }
 
 async function syncAll() {
-	await publishCatalogFromFeishu();
+	await syncCatalogObservations();
 	await runReviewSync();
 }
 
@@ -107,19 +107,20 @@ async function runReviewSync() {
 	const observationStore = new PostgresDiningSourceObservationStore({ databaseUrl: config.postgresUrl });
 	const report = await runDiningSync({
 		attachmentStore,
-		hallResolver: CatalogDiningHallResolver.fromObservations(
-			await observationStore.listActiveFeishuCatalogObservations(),
-		),
 		moderator,
 		observationStore,
 		publisher: new PostgresDiningReviewPublisher(config.postgresUrl),
 		records,
+		reviewResolver: new PublishedDiningReviewResolver(
+			await new PostgresDiningPublishedSnapshotReader(config.postgresUrl).read(),
+		),
 		sourceIdentity: {
 			baseToken: config.larkBaseToken,
 			reviewTableId: config.larkReviewTableId,
 		},
 	});
-	console.log(JSON.stringify(report, null, 2));
+	const rechecks = await processDiningReviewRechecks({ databaseUrl: config.postgresUrl, moderator });
+	console.log(JSON.stringify({ ...report, rechecks }, null, 2));
 }
 
 async function syncCatalogObservations() {
@@ -160,74 +161,23 @@ async function syncCatalogObservations() {
 	);
 }
 
-async function publishCatalogFromFeishu() {
-	const config = loadCatalogSyncConfig();
-	const lark = new LarkDiningClient({
-		appId: config.larkAppId,
-		appSecret: config.larkAppSecret,
-		baseToken: config.larkBaseToken,
-		campusTableId: config.larkCampusTableId,
-		dishTableId: config.larkDishTableId,
-		hallTableId: config.larkHallTableId,
-		stallTableId: config.larkStallTableId,
-	});
-	const records = await lark.listCatalogRecords();
-	const observations = buildCatalogObservations(records, new Date());
-	const store = new PostgresDiningCatalogSourceObservationStore({
-		databaseUrl: config.postgresUrl,
-	});
-	await store.upsertFeishuCatalogObservations(observations, {
-		baseToken: config.larkBaseToken,
-		campusTableId: config.larkCampusTableId,
-		dishTableId: config.larkDishTableId,
-		hallTableId: config.larkHallTableId,
-		stallTableId: config.larkStallTableId,
-	});
-	await publishCatalogFromObservations({
-		observations: await store.listActiveFeishuCatalogObservations(),
-		postgresUrl: config.postgresUrl,
-	});
-}
-
-async function publishCatalogFromStoredObservations() {
-	const config = loadCatalogPublishConfig();
-	const store = new PostgresDiningCatalogSourceObservationStore({
-		databaseUrl: config.postgresUrl,
-	});
-	await publishCatalogFromObservations({
-		observations: await store.listActiveFeishuCatalogObservations(),
-		postgresUrl: config.postgresUrl,
-	});
-}
-
-async function publishCatalogFromObservations(input: {
-	observations: ReturnType<typeof buildCatalogObservations>;
-	postgresUrl: string;
-}) {
-	const state = buildDiningStateFromCatalogObservations({
-		observations: input.observations,
-		source: {
-			label: "Feishu 食堂采集",
-			updatedAt: new Date().toISOString(),
-		},
-	});
-	await new PostgresDiningCatalogPublisher({ databaseUrl: input.postgresUrl }).publishCatalog(state);
-	console.log(JSON.stringify(buildDiningCatalogPublishSummary(state, "catalog_published"), null, 2));
-}
-
 async function importDevSeed() {
 	const config = loadCatalogImportConfig();
 	if (config.appEnvironment === "production") {
 		throw new Error("Refusing to import dining dev seed in production.");
 	}
-	const publisher = new PostgresDiningCatalogPublisher({ databaseUrl: config.postgresUrl });
-	const state = createDevDiningOperationsState();
-	await publisher.refreshCatalog(state);
-	console.log(JSON.stringify(buildDiningCatalogPublishSummary(state, "dev_seed_imported"), null, 2));
+	const seed = createDevDiningSeed();
+	await new PostgresDiningDevSeedImporter(config.postgresUrl).import(seed);
+	console.log(JSON.stringify({
+		hallCount: seed.draft.halls.length,
+		offeringCount: seed.draft.menuOfferings.length,
+		reviewCount: seed.reviews.length,
+		status: "dev_seed_imported",
+	}, null, 2));
 }
 
 async function verifyPublishedDining() {
-	const config = loadCatalogPublishConfig();
+	const config = loadCatalogImportConfig();
 	const summary = await new PostgresDiningPublishedCloseoutVerifier({
 		databaseUrl: config.postgresUrl,
 	}).verify();

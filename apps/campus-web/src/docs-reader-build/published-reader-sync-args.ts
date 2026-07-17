@@ -10,32 +10,27 @@ export function parsePublishedReaderSyncArgs(argv: string[]): PublishedReaderSyn
 	const command = args.shift();
 	if (!isPublishedReaderSyncCommand(command)) {
 		throw new Error(
-			"usage: pnpm exec tsx src/docs-reader-build/sync-campus-published-reader.ts all|docs|assets|check --manifest-path <path> | --manifest-key <key>",
+			"usage: pnpm exec tsx src/docs-reader-build/sync-campus-published-reader.ts all|docs|assets|check --manifest-path <path>",
 		);
 	}
 	let manifestFilePath: string | undefined;
-	let manifestObjectKey: string | undefined;
 	for (let index = 0; index < args.length; index += 1) {
 		const token = args[index];
-		if (token === "--manifest-path" || token === "--manifest-key") {
+		if (token === "--manifest-path") {
 			const value = args[index + 1]?.trim();
 			if (!value || value.startsWith("--")) {
 				throw new Error(`${token} requires a value`);
 			}
-			if (token === "--manifest-path") {
-				manifestFilePath = value;
-			} else {
-				manifestObjectKey = value;
-			}
+			manifestFilePath = value;
 			index += 1;
 			continue;
 		}
 		throw new Error(`unknown docs sync argument: ${token}`);
 	}
-	if (Boolean(manifestFilePath) === Boolean(manifestObjectKey)) {
-		throw new Error("expected exactly one of --manifest-path or --manifest-key");
+	if (!manifestFilePath) {
+		throw new Error("--manifest-path is required");
 	}
-	return { command, manifestFilePath, manifestObjectKey };
+	return { command, manifestFilePath };
 }
 
 function isPublishedReaderSyncCommand(

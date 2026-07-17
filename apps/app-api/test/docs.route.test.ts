@@ -19,6 +19,14 @@ const env = {
 	},
 };
 
+const DOCS_RELEASE_ID = `sha256:${"a".repeat(64)}`;
+
+function docsRequest(url: string, init?: RequestInit): Request {
+	const headers = new Headers(init?.headers);
+	headers.set("x-campus-docs-release", DOCS_RELEASE_ID);
+	return new Request(url, { ...init, headers });
+}
+
 function createCampusPrincipal(): ResolvedAppPrincipal {
 	return {
 		actor: {
@@ -60,7 +68,7 @@ describe("docs routes", () => {
 			}),
 		});
 
-		const response = await app.fetch(new Request("https://app-api.internal/api/docs/readyz"));
+		const response = await app.fetch(docsRequest("https://app-api.internal/api/docs/readyz"));
 
 		expect(response.status).toBe(200);
 		await expect(response.json()).resolves.toEqual({
@@ -89,7 +97,7 @@ describe("docs routes", () => {
 			}),
 		});
 
-		const response = await app.fetch(new Request("https://app-api.internal/api/docs/readyz"));
+		const response = await app.fetch(docsRequest("https://app-api.internal/api/docs/readyz"));
 
 		expect(response.status).toBe(503);
 		await expect(response.json()).resolves.toEqual({
@@ -140,7 +148,7 @@ describe("docs routes", () => {
 		});
 
 		const response = await app.fetch(
-			new Request(
+			docsRequest(
 				"https://app-api.internal/api/docs/collections/curriculum/curriculum_plan/navigation",
 			),
 		);
@@ -167,6 +175,7 @@ describe("docs routes", () => {
 			collection: "curriculum_plan",
 			corpus: "curriculum",
 			principal,
+			releaseId: DOCS_RELEASE_ID,
 		});
 	});
 
@@ -241,7 +250,7 @@ describe("docs routes", () => {
 		});
 
 		const summaryResponse = await app.fetch(
-			new Request(
+			docsRequest(
 				"https://app-api.internal/api/docs/collections/curriculum/curriculum_plan/documents/law-ethnic-class-program",
 			),
 		);
@@ -261,7 +270,7 @@ describe("docs routes", () => {
 		});
 
 		const versionsResponse = await app.fetch(
-			new Request(
+			docsRequest(
 				"https://app-api.internal/api/docs/collections/curriculum/curriculum_plan/documents/law-ethnic-class-program/versions",
 			),
 		);
@@ -284,7 +293,7 @@ describe("docs routes", () => {
 		});
 
 		const resolveResponse = await app.fetch(
-			new Request(
+			docsRequest(
 				"https://app-api.internal/api/docs/collections/curriculum/curriculum_plan/documents/law-ethnic-class-program/resolve?version=2026-current&anchor=semester-4&hl=semester-4-course-list,semester-4-practice",
 			),
 		);
@@ -327,6 +336,7 @@ describe("docs routes", () => {
 			documentSlug: "law-ethnic-class-program",
 			highlightRootUnitIds: ["semester-4-course-list", "semester-4-practice"],
 			principal: null,
+			releaseId: DOCS_RELEASE_ID,
 			version: "2026-current",
 		});
 	});
@@ -345,7 +355,7 @@ describe("docs routes", () => {
 		});
 
 		const searchResponse = await app.fetch(
-			new Request(
+			docsRequest(
 				"https://app-api.internal/api/docs/collections/curriculum/curriculum_plan/search?q=%E5%A4%A7%E4%BA%8C%E4%B8%8B%E8%AF%BE%E7%A8%8B&limit=5&versionMode=current",
 			),
 		);
@@ -368,7 +378,7 @@ describe("docs routes", () => {
 		});
 
 		const response = await app.fetch(
-			new Request(
+			docsRequest(
 				"https://app-api.internal/api/docs/collections/curriculum/curriculum_plan/documents/restricted-program/admission?version=2026-current",
 			),
 		);
@@ -382,6 +392,7 @@ describe("docs routes", () => {
 			corpus: "curriculum",
 			documentSlug: "restricted-program",
 			principal,
+			releaseId: DOCS_RELEASE_ID,
 			version: "2026-current",
 		});
 	});
@@ -407,7 +418,7 @@ describe("docs routes", () => {
 		});
 
 		const response = await app.fetch(
-			new Request(
+			docsRequest(
 				"https://app-api.internal/api/docs/collections/curriculum/curriculum_plan/documents/restricted-program/admission?version=2026-current",
 			),
 		);
@@ -423,7 +434,29 @@ describe("docs routes", () => {
 			corpus: "curriculum",
 			documentSlug: "restricted-program",
 			principal: null,
+			releaseId: DOCS_RELEASE_ID,
 			version: "2026-current",
+		});
+	});
+
+	it.each([
+		["missing", undefined],
+		["invalid", "latest"],
+	])("rejects a %s docs release header", async (_case, releaseId) => {
+		const app = createApp(env, {
+			getPrincipal: vi.fn().mockResolvedValue(null),
+		});
+		const headers = releaseId ? { "x-campus-docs-release": releaseId } : undefined;
+
+		const response = await app.fetch(
+			new Request("https://app-api.internal/api/docs/readyz", { headers }),
+		);
+
+		expect(response.status).toBe(503);
+		await expect(response.json()).resolves.toMatchObject({
+			error: {
+				code: "docs_release_unavailable",
+			},
 		});
 	});
 });

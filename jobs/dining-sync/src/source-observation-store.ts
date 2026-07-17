@@ -141,9 +141,9 @@ async function upsertObservations(
 					"observation_id", "source_type", "source_base_token", "source_table_id",
 					"source_record_id", "target_kind", "target_id", "payload_json", "content_hash",
 					"status", "observed_at", "first_seen_at", "last_seen_at", "last_seen_run_id",
-					"stale_at", "reviewed_at", "reviewed_by"
+					"stale_at"
 				) VALUES (
-					$1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13, $14, NULL, NULL, NULL
+					$1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13, $14, NULL
 				)
 				ON CONFLICT ("observation_id") DO UPDATE SET
 					"source_base_token" = EXCLUDED."source_base_token",

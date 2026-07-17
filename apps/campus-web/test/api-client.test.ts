@@ -56,6 +56,22 @@ describe("campus app-api client", () => {
 		await expect(requestJson<{ ok: true }>({ path: "/api/me" })).resolves.toEqual({ ok: true });
 	});
 
+	it("forwards an AbortSignal to fetch", async () => {
+		const controller = new AbortController();
+		const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			new Response(JSON.stringify({ ok: true }), {
+				headers: { "content-type": "application/json" },
+			}),
+		);
+
+		await requestJson({ path: "/api/me", signal: controller.signal });
+
+		expect(fetchMock).toHaveBeenCalledWith(
+			"/api/me",
+			expect.objectContaining({ signal: controller.signal }),
+		);
+	});
+
 	it("submits and deletes answer feedback through the conversation contract", async () => {
 		const fetchMock = vi
 			.spyOn(globalThis, "fetch")

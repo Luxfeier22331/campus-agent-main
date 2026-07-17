@@ -20,10 +20,10 @@ status: active
 - [error.md](./error.md)：共享错误结构；
 - [request-lifecycle.md](./request-lifecycle.md)：请求、流和终态生命周期；
 - [observability.md](./observability.md)：运维观测、质量、安全、成本和审计；
+- [telemetry.md](./telemetry.md)：匿名前端性能指标写入；
 - [operator.md](./operator.md)：采集任务运维投影；
 - [operator-ops.md](./operator-ops.md)：运维接口横切合同；
 - [transport-ops.md](./transport-ops.md)：班车来源确认、临时变更与发布；
-- [dining-ops.md](./dining-ops.md)：食堂草稿、发布候选、发布和审计；
 - [地点领域](../../domains/place.md)：校园地图接口语义；
 - [班车领域](../../domains/transport.md)：班车状态接口语义。
 

@@ -31,4 +31,18 @@ describe("Worker version upload arguments", () => {
 
 		expect(args).toEqual(expect.arrayContaining(["--env", "staging", "--tag", `git-${sourceSha}`]));
 	});
+
+	it("uses a content-addressed tag for a composite Worker build", () => {
+		const buildIdentity = `sha256:${"a".repeat(64)}`;
+		const args = buildWorkerVersionUploadArgs(
+			{
+				appName: "campus-web",
+				buildIdentity,
+				variables: { DOCS_RELEASE_ID: `sha256:${"b".repeat(64)}` },
+			},
+			sourceSha,
+		);
+
+		expect(args).toEqual(expect.arrayContaining(["--tag", `build-${"a".repeat(64)}`]));
+	});
 });

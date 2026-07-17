@@ -100,7 +100,7 @@ function LegalDocumentShell({
 	title: string;
 }) {
 	return (
-		<section className="mx-auto max-w-4xl px-4 py-6 pb-24 lg:px-6">
+		<section className="mx-auto max-w-[var(--layout-page-form-width)] px-4 py-6 pb-24 lg:px-6">
 			<ProductBrandLink className="mb-8" />
 			<p className="text-sm font-medium text-[var(--sys-text-muted)]">生效日期：{EFFECTIVE_DATE}</p>
 			<h1 className="mt-1 text-2xl font-semibold tracking-normal text-[var(--sys-text-strong)] md:text-3xl">

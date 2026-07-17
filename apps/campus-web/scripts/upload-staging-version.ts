@@ -1,9 +1,13 @@
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadRepoStagingEnvFile } from "../../../scripts/deploy/lib/repo-env.ts";
-import { resolveStagingSentryRelease } from "../../../scripts/deploy/staging-release.ts";
+import {
+	resolveGitSha,
+	resolveStagingSentryRelease,
+} from "../../../scripts/deploy/staging-release.ts";
 import { uploadStagingWorkerVersion } from "../../../scripts/deploy/worker-version.ts";
 
 const TURNSTILE_APPEARANCE = "interaction-only";
@@ -26,6 +30,14 @@ if (turnstileSiteKey === TURNSTILE_TEST_SITE_KEY) {
 }
 
 const mapBucketName = requiredEnv("STAGING_MAP_DATA_BUCKET_NAME");
+const docsReleaseId = requiredEnv("DOCS_RELEASE_ID");
+if (!/^sha256:[a-f0-9]{64}$/u.test(docsReleaseId)) {
+	throw new Error("DOCS_RELEASE_ID must be sha256:<64 lowercase hex characters>.");
+}
+const sourceSha = resolveGitSha();
+const buildIdentity = `sha256:${createHash("sha256")
+	.update(`${sourceSha}\n${docsReleaseId}\n`)
+	.digest("hex")}`;
 if (!/^[a-z0-9][a-z0-9-]*$/.test(mapBucketName)) {
 	throw new Error("STAGING_MAP_DATA_BUCKET_NAME must contain a valid R2 bucket name.");
 }
@@ -58,6 +70,8 @@ if (preflight.status !== 0) {
 
 uploadStagingWorkerVersion({
 	appName: "campus-web",
+	buildIdentity,
+	candidateMetadata: { docsReleaseId },
 	config: "dist/campus_web/wrangler.json",
 	cwd: appDir,
 	workerName: "campus-web-staging",
@@ -65,6 +79,7 @@ uploadStagingWorkerVersion({
 		AUTH_TURNSTILE_APPEARANCE: TURNSTILE_APPEARANCE,
 		AUTH_TURNSTILE_EXECUTION: TURNSTILE_EXECUTION,
 		AUTH_TURNSTILE_SITE_KEY: turnstileSiteKey,
+		DOCS_RELEASE_ID: docsReleaseId,
 		SENTRY_RELEASE: resolveStagingSentryRelease("campus-web"),
 	},
 });

@@ -8,6 +8,10 @@ on:
         required: true
         default: false
         type: boolean
+      docs_release_id:
+        description: Content-addressed Campus Docs release for the campus-web candidate
+        required: false
+        type: string
   push:
     branches:
       - main
@@ -18,9 +22,9 @@ on:
       - apps/source-collector/**
       - apps/ops-web/**
       - apps/campus-web/**
-      - apps/operator-console-web/**
       - jobs/app-api-schema/**
       - jobs/transport-publisher/**
+      - jobs/docs-publish/**
       - apps/app-api/package.json
       - apps/app-api/scripts/**
       - apps/app-api/src/**
@@ -40,6 +44,7 @@ on:
       - infra/k8s/**
       - packages/contracts/fixtures/tool_execution_contract/**
       - packages/contracts/schemas/transport-schedule-status.v1.schema.json
+      - packages/contracts/schemas/campus-docs-*.schema.json
       - packages/domains/dining/**
       - packages/ingest-core/**
       - packages/ingestion-contracts/**
@@ -70,15 +75,10 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_AUTOMATION_TOKEN }}
       STAGING_ACCESS_POLICY_AUD: ${{ vars.STAGING_ACCESS_POLICY_AUD }}
       STAGING_ACCESS_TEAM_DOMAIN: ${{ vars.STAGING_ACCESS_TEAM_DOMAIN }}
-      STAGING_APP_API_OPERATOR_DATABASE_URL: ${{ secrets.STAGING_APP_API_OPERATOR_DATABASE_URL }}
       STAGING_APP_API_DB_FRESH_HYPERDRIVE_ID: ${{ vars.STAGING_APP_API_DB_FRESH_HYPERDRIVE_ID }}
       STAGING_APP_API_DB_HYPERDRIVE_ID: ${{ vars.STAGING_APP_API_DB_HYPERDRIVE_ID }}
       STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY: ${{ vars.STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY }}
       STAGING_EXECUTION_CONTROL_VPC_SERVICE_ID: ${{ vars.STAGING_EXECUTION_CONTROL_VPC_SERVICE_ID }}
-      STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED: ${{ vars.STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED }}
-      STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY: ${{ secrets.STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY }}
-      STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY: ${{ secrets.STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY }}
-      STAGING_INGESTION_OBJECT_STORE_ENDPOINT: ${{ vars.STAGING_INGESTION_OBJECT_STORE_ENDPOINT }}
       STAGING_MAP_DATA_BUCKET_NAME: ${{ vars.STAGING_MAP_DATA_BUCKET_NAME }}
     steps:
       - name: Checkout
@@ -133,6 +133,13 @@ jobs:
               - 'jobs/transport-publisher/**'
               - 'apps/app-api/db/shared-product-schema/campus_services.sql'
               - 'packages/contracts/schemas/transport-schedule-status.v1.schema.json'
+            docs_publish:
+              - '.dockerignore'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'jobs/docs-publish/**'
+              - 'packages/contracts/schemas/campus-docs-*.schema.json'
             ingestion_control:
               - '.dockerignore'
               - 'package.json'
@@ -194,13 +201,6 @@ jobs:
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
-            operator_console_worker:
-              - 'apps/operator-console-web/**'
-              - 'configs/branding/**'
-              - 'scripts/deploy/**'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
 
       - name: Select images
         id: images
@@ -218,6 +218,7 @@ jobs:
               agent-runtime
               app-api-schema
               transport-publisher
+              docs-publish
               ingestion-control
               ingestion-control-worker
               source-collector
@@ -228,6 +229,7 @@ jobs:
             [ "${{ steps.release-filter.outputs.agent_runtime }}" = "true" ] && images+=(agent-runtime)
             [ "${{ steps.release-filter.outputs.app_api_schema }}" = "true" ] && images+=(app-api-schema)
             [ "${{ steps.release-filter.outputs.transport_publisher }}" = "true" ] && images+=(transport-publisher)
+            [ "${{ steps.release-filter.outputs.docs_publish }}" = "true" ] && images+=(docs-publish)
             [ "${{ steps.release-filter.outputs.ingestion_control }}" = "true" ] && images+=(ingestion-control)
             [ "${{ steps.release-filter.outputs.ingestion_control_worker }}" = "true" ] && images+=(ingestion-control-worker)
             [ "${{ steps.release-filter.outputs.source_collector }}" = "true" ] && images+=(source-collector)
@@ -249,16 +251,13 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             app_api=true
             campus_web=true
-            operator_console=true
           else
             app_api="${{ steps.release-filter.outputs.app_api_worker }}"
             campus_web="${{ steps.release-filter.outputs.campus_web_worker }}"
-            operator_console="${{ steps.release-filter.outputs.operator_console_worker }}"
           fi
           workers=()
           [ "$app_api" = "true" ] && workers+=(app-api)
           [ "$campus_web" = "true" ] && workers+=(campus-web)
-          [ "$operator_console" = "true" ] && workers+=(operator-console-web)
           if [ "${#workers[@]}" -eq 0 ]; then
             workers_json='[]'
           else
@@ -268,33 +267,9 @@ jobs:
           {
             echo "app_api=$app_api"
             echo "campus_web=$campus_web"
-            echo "operator_console=$operator_console"
             echo "workers=$workers_json"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Setup Node
-        if: steps.workers.outputs.workers != '[]'
-        uses: ./.github/actions/setup-node-pnpm
-
-      - name: Upload app-api candidate
-        if: steps.workers.outputs.app_api == 'true'
-        env:
-          WORKER_VERSION_OUTPUT: ${{ github.workspace }}/worker-candidates/app-api-staging.json
-        run: pnpm --dir apps/app-api upload:staging
-
-      - name: Build and upload campus-web candidate
-        if: steps.workers.outputs.campus_web == 'true'
-        env:
-          WORKER_VERSION_OUTPUT: ${{ github.workspace }}/worker-candidates/campus-web-staging.json
-        run: pnpm --dir apps/campus-web build:staging && pnpm --dir apps/campus-web upload:staging
-
-      - name: Build and upload operator-console candidate
-        if: steps.workers.outputs.operator_console == 'true'
-        env:
-          WORKER_VERSION_OUTPUT: ${{ github.workspace }}/worker-candidates/operator-console-web-staging.json
-        run: >-
-          pnpm --dir apps/operator-console-web build:staging &&
-          pnpm --dir apps/operator-console-web upload:staging
       - name: Setup persistent Docker Buildx
         if: steps.images.outputs.images != '[]' && runner.environment == 'self-hosted'
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4
@@ -349,6 +324,7 @@ jobs:
               agent-runtime) dockerfile=apps/agent-runtime/Dockerfile ;;
               app-api-schema) dockerfile=jobs/app-api-schema/Dockerfile ;;
               transport-publisher) dockerfile=jobs/transport-publisher/Dockerfile ;;
+              docs-publish) dockerfile=jobs/docs-publish/Dockerfile ;;
               ingestion-control)
                 dockerfile=apps/ingestion-control/Dockerfile
                 target=api
@@ -441,6 +417,71 @@ jobs:
             jq -r 'to_entries[] | "| `\(.key)` | `\(.value)` |"' image-digests.json
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Setup Node
+        if: steps.workers.outputs.workers != '[]'
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Create GitOps read token
+        if: steps.workers.outputs.campus_web == 'true' && (inputs.docs_release_id || '') == ''
+        id: gitops-read-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3
+        with:
+          client-id: ${{ vars.GITOPS_PROMOTER_CLIENT_ID }}
+          private-key: ${{ secrets.GITOPS_PROMOTER_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: campus-agent-gitops
+          permission-contents: read
+
+      - name: Checkout GitOps release selection
+        if: steps.gitops-read-token.outcome == 'success'
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+        with:
+          persist-credentials: false
+          repository: MUC-WIKI/campus-agent-gitops
+          token: ${{ steps.gitops-read-token.outputs.token }}
+          path: gitops-selection
+
+      - name: Resolve Campus Docs release
+        if: steps.workers.outputs.campus_web == 'true'
+        id: docs-release
+        shell: bash
+        env:
+          REQUESTED_DOCS_RELEASE_ID: ${{ inputs.docs_release_id || '' }}
+        run: |
+          set -euo pipefail
+          release_id="${REQUESTED_DOCS_RELEASE_ID}"
+          selection=gitops-selection/cloudflare/staging/docs-reader-release.json
+          if [ -z "${release_id}" ]; then
+            jq -e '.schemaVersion == "campus_docs_release_ref.v1"' "${selection}" >/dev/null
+            release_id="$(jq -er '.releaseId' "${selection}")"
+          fi
+          if ! [[ "${release_id}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "Invalid Campus Docs release id: ${release_id}." >&2
+            exit 1
+          fi
+          echo "release_id=${release_id}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload app-api candidate
+        if: steps.workers.outputs.app_api == 'true'
+        env:
+          WORKER_VERSION_OUTPUT: ${{ github.workspace }}/worker-candidates/app-api-staging.json
+        run: pnpm --dir apps/app-api upload:staging
+
+      - name: Build and upload campus-web candidate
+        if: steps.workers.outputs.campus_web == 'true'
+        env:
+          DOCS_RELEASE_ID: ${{ steps.docs-release.outputs.release_id }}
+          OBJECT_STORE_BUCKET_DERIVED: ${{ vars.STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED }}
+          OBJECT_STORE_DERIVED_ACCESS_KEY: ${{ secrets.STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY }}
+          OBJECT_STORE_DERIVED_SECRET_KEY: ${{ secrets.STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY }}
+          OBJECT_STORE_ENDPOINT: ${{ vars.STAGING_INGESTION_OBJECT_STORE_ENDPOINT }}
+          OBJECT_STORE_REGION: ${{ vars.STAGING_INGESTION_OBJECT_STORE_REGION }}
+          WORKER_VERSION_OUTPUT: ${{ github.workspace }}/worker-candidates/campus-web-staging.json
+        run: |
+          pnpm --dir apps/campus-web run build:staging \
+            --release-id "${DOCS_RELEASE_ID}"
+          pnpm --dir apps/campus-web upload:staging
+
       - name: Create GitOps promotion token
         if: >-
           github.ref == 'refs/heads/main' &&
@@ -457,14 +498,11 @@ jobs:
           permission-pull-requests: write
 
       - name: Checkout GitOps repository
-        if: >-
-          github.ref == 'refs/heads/main' &&
-          (github.event_name == 'push' || inputs.promote) &&
-          (steps.images.outputs.images != '[]' || steps.workers.outputs.workers != '[]' || steps.release-filter.outputs.k8s == 'true')
+        if: steps.gitops-token.outcome == 'success'
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
         with:
           persist-credentials: false
-          repository: ${{ vars.GITOPS_REPOSITORY }}
+          repository: MUC-WIKI/campus-agent-gitops
           token: ${{ steps.gitops-token.outputs.token }}
           path: gitops
 
@@ -571,7 +609,7 @@ jobs:
             [ -e "$candidate" ] || continue
             worker_name="$(jq -er '.workerName' "$candidate")"
             case "$worker_name" in
-              app-api-staging|campus-web-staging|operator-console-web-staging) ;;
+              app-api-staging|campus-web-staging) ;;
               *) echo "Unsupported Worker candidate: ${worker_name}." >&2; exit 1 ;;
             esac
             version_id="$(jq -er '.versionId | select(test("^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$"))' "$candidate")"
@@ -580,13 +618,36 @@ jobs:
               echo "Worker candidate ${worker_name} was built from ${candidate_sha}, expected ${SOURCE_SHA}." >&2
               exit 1
             fi
-            jq \
-              --arg worker "$worker_name" \
-              --arg version "$version_id" \
-              --arg source "$candidate_sha" \
-              '.workers[$worker] = {versionId: $version, sourceSha: $source}' \
-              gitops/cloudflare/staging/worker-versions.json \
-              > gitops/cloudflare/staging/worker-versions.tmp
+            if [ "$worker_name" = "campus-web-staging" ]; then
+              docs_release_id="$(jq -er '.docsReleaseId | select(test("^sha256:[0-9a-f]{64}$"))' "$candidate")"
+              build_identity="$(jq -er '.buildIdentity | select(test("^sha256:[0-9a-f]{64}$"))' "$candidate")"
+              expected_identity="sha256:$(printf '%s\n%s\n' "$candidate_sha" "$docs_release_id" | sha256sum | cut -d ' ' -f 1)"
+              if [ "$build_identity" != "$expected_identity" ]; then
+                echo "Campus Web candidate build identity does not match its source and docs release." >&2
+                exit 1
+              fi
+              jq \
+                --arg worker "$worker_name" \
+                --arg version "$version_id" \
+                --arg source "$candidate_sha" \
+                --arg release "$docs_release_id" \
+                --arg identity "$build_identity" \
+                '.workers[$worker] = {versionId: $version, sourceSha: $source, docsReleaseId: $release, buildIdentity: $identity}' \
+                gitops/cloudflare/staging/worker-versions.json \
+                > gitops/cloudflare/staging/worker-versions.tmp
+              jq -n \
+                --arg release "$docs_release_id" \
+                '{schemaVersion: "campus_docs_release_ref.v1", releaseId: $release}' \
+                > gitops/cloudflare/staging/docs-reader-release.json
+            else
+              jq \
+                --arg worker "$worker_name" \
+                --arg version "$version_id" \
+                --arg source "$candidate_sha" \
+                '.workers[$worker] = {versionId: $version, sourceSha: $source}' \
+                gitops/cloudflare/staging/worker-versions.json \
+                > gitops/cloudflare/staging/worker-versions.tmp
+            fi
             mv \
               gitops/cloudflare/staging/worker-versions.tmp \
               gitops/cloudflare/staging/worker-versions.json
@@ -619,6 +680,25 @@ jobs:
           SOURCE_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          docs_selection=gitops/cloudflare/staging/docs-reader-release.json
+          worker_selection=gitops/cloudflare/staging/worker-versions.json
+          jq -e '
+            .schemaVersion == "campus_docs_release_ref.v1" and
+            (.releaseId | test("^sha256:[0-9a-f]{64}$"))
+          ' "$docs_selection" >/dev/null
+          docs_release_id="$(jq -er '.releaseId' "$docs_selection")"
+          jq -e --arg release "$docs_release_id" '
+            .workers["campus-web-staging"].docsReleaseId == $release and
+            (.workers["campus-web-staging"].buildIdentity |
+              test("^sha256:[0-9a-f]{64}$"))
+          ' "$worker_selection" >/dev/null
+          campus_source_sha="$(jq -er '.workers["campus-web-staging"].sourceSha' "$worker_selection")"
+          campus_build_identity="$(jq -er '.workers["campus-web-staging"].buildIdentity' "$worker_selection")"
+          expected_build_identity="sha256:$(printf '%s\n%s\n' "$campus_source_sha" "$docs_release_id" | sha256sum | cut -d ' ' -f 1)"
+          if [ "$campus_build_identity" != "$expected_build_identity" ]; then
+            echo "GitOps Campus Web build identity does not match source SHA and docs release." >&2
+            exit 1
+          fi
           git_config="$(mktemp)"
           trap 'rm -f "$git_config"' EXIT
           export GIT_CONFIG_GLOBAL="$git_config"

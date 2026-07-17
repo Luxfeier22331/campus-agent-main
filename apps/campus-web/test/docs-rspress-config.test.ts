@@ -30,10 +30,7 @@ describe("campus docs Rspress build boundary", () => {
 			join(appDir, "scripts", "build-published-reader-docs.ts"),
 			"utf8",
 		);
-		const stagingEnvSource = readFileSync(
-			join(appDir, "src", "docs-reader-build", "run-with-staging-ingestion-env.ts"),
-			"utf8",
-		);
+		const buildReleaseSource = readFileSync(join(appDir, "scripts", "build-release.ts"), "utf8");
 
 		expect(packageJson.dependencies["@rspress/core"]).toBeTruthy();
 		expect(packageJson.devDependencies.pagefind).toBeUndefined();
@@ -45,40 +42,37 @@ describe("campus docs Rspress build boundary", () => {
 		expect(packageJson.scripts["docs:sync:published-reader"]).toBeUndefined();
 		expect(packageJson.scripts["docs:sync:published-reader:raw"]).toBeUndefined();
 		expect(packageJson.scripts["docs:sync:published-reader:staging"]).toBeUndefined();
-		expect(buildDocsSource).toContain("run-with-local-env.ts");
+		expect(buildDocsSource).not.toContain("run-with-local-env.ts");
 		expect(buildDocsSource).toContain("sync-campus-published-reader.ts");
-		expect(buildDocsSource).toContain("export-docs-reader-sync-manifest-cli.ts");
+		expect(buildDocsSource).not.toContain("export-docs-reader-sync-manifest-cli.ts");
 		expect(buildDocsSource).toContain("--manifest-path");
-		expect(buildDocsSource).toContain("../../var/docs-reader-sync-manifest.json");
-		expect(buildDocsSource).toContain("./src/docs-reader-build/run-with-staging-ingestion-env.ts");
-		expect(buildDocsSource).toContain("../../var/docs-reader-sync-manifest.staging.json");
-		expect(buildDocsSource.indexOf("export-docs-reader-sync-manifest-cli.ts")).toBeLessThan(
-			buildDocsSource.indexOf("sync-campus-published-reader.ts"),
-		);
-		expect(stagingEnvSource).toContain("STAGING_APP_API_OPERATOR_DATABASE_URL");
-		expect(stagingEnvSource).toContain("APP_API_OPERATOR_DATABASE_URL");
-		expect(stagingEnvSource).toContain("STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED");
-		expect(stagingEnvSource).toContain("STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY");
-		expect(stagingEnvSource).not.toContain("STAGING_INGESTION_SHARED_POSTGRES_URL");
-		expect(stagingEnvSource).not.toContain("STAGING_INGESTION_OBJECT_STORE_SOURCE_ACCESS_KEY");
+		expect(buildDocsSource).toContain("--fixture");
+		expect(buildDocsSource).not.toContain("APP_API_OPERATOR_DATABASE_URL");
 		expect(buildDocsSource).toContain("rspress");
 		expect(buildDocsSource).toContain("filter-rspress-search-index.ts");
 		expect(buildDocsSource).toContain("mirrorPublishedReaderAssetsForRspressBuild");
 		expect(buildDocsSource).toContain('"_docs", "_gated-docs", "_gated-docs-search"');
 		expect(buildDocsSource).toContain('".generated/docs/public"');
-		expect(packageJson.scripts["build:docs"]).toContain("build-published-reader-docs.ts");
+		expect(packageJson.scripts["build:docs"]).toBeUndefined();
+		expect(packageJson.scripts["build:docs:fixture"]).toContain(
+			"build-published-reader-docs.ts --fixture",
+		);
+		expect(packageJson.scripts["build:release"]).toContain("build-release.ts");
 		expect(packageJson.scripts["build:docs:staging"]).toBeUndefined();
 		expect(packageJson.scripts["build:app"]).not.toContain("build-published-reader-docs.ts");
 		expect(packageJson.scripts["build:app:staging"]).toBeUndefined();
-		expect(packageJson.scripts.build).toBe("pnpm run build:docs && pnpm run build:app");
-		expect(packageJson.scripts["build:staging"]).toContain(
-			"build-published-reader-docs.ts --staging",
+		expect(packageJson.scripts.build).toBe("pnpm run build:docs:fixture && pnpm run build:app");
+		expect(packageJson.scripts["build:staging"]).toBe(
+			"pnpm exec tsx ./scripts/build-release.ts --staging",
 		);
-		expect(packageJson.scripts["build:staging"]).toContain("run-worker-staging-build.ts");
-		expect(packageJson.scripts["build:staging"]).not.toContain("pnpm run build:docs:staging");
-		expect(packageJson.scripts["build:staging"]).not.toContain("pnpm run build:app:staging");
+		expect(packageJson.scripts["build:staging"]).not.toContain("build-published-reader-docs.ts");
+		expect(buildReleaseSource).toContain("run-worker-staging-build.ts");
+		expect(buildReleaseSource).toContain('token === "--staging"');
+		expect(buildReleaseSource).not.toContain("APP_API_OPERATOR_DATABASE_URL");
+		expect(
+			existsSync(join(appDir, "src", "docs-reader-build", "run-with-staging-ingestion-env.ts")),
+		).toBe(false);
 		expect(packageJson.scripts.build).not.toContain("docs:scaffold");
-		expect(packageJson.scripts["build:staging"]).not.toContain("docs:scaffold");
 		expect(configSource).toContain('logoText: "中央民族大学校园问答"');
 		expect(configSource).toContain("locales:");
 		expect(configSource).toContain('lang: "zh"');
@@ -91,10 +85,10 @@ describe("campus docs Rspress build boundary", () => {
 		expect(configSource).toContain("campusDocsSearchIndexPlugin");
 		expect(configSource).toContain("buildRspressSidebarConfig");
 		expect(configSource).toContain("buildRspressProductNav");
-		expect(configSource).toContain("reader-state-enhancer");
-		expect(configSource).toContain("docs-content-enhancer");
-		expect(configSource).toContain("docs-account-entry");
-		expect(configSource).toContain("mobile-sidebar-guard");
+		expect(configSource).not.toContain("reader-state-enhancer");
+		expect(configSource).not.toContain("docs-content-enhancer");
+		expect(configSource).not.toContain("mobile-sidebar-guard");
+		expect(configSource).not.toContain("globalUIComponents");
 		expect(configSource).not.toContain("pagefind-search");
 		expect(configSource).not.toContain("search-keyboard-guard");
 		expect(configSource).not.toContain('{ link: "/map", text: "校园地图" }');
@@ -127,6 +121,7 @@ describe("campus docs Rspress build boundary", () => {
 		expect(configSource).not.toContain('"_docs-static/_docs-static"');
 		expect(gitignore).toContain("public/_docs-static/");
 		expect(gitignore).not.toContain("public/static/");
+		expect(gitignore).toContain("public/docs/");
 	});
 
 	it("rejects Rspress docs builds that still reference the generic static namespace", () => {
@@ -149,20 +144,6 @@ describe("campus docs Rspress build boundary", () => {
 		} finally {
 			rmSync(tempDir, { force: true, recursive: true });
 		}
-	});
-
-	it("loads local object-store env without importing Worker runtime vars before published reader sync", () => {
-		const localEnvScript = readFileSync(join(appDir, "scripts", "run-with-local-env.ts"), "utf8");
-		const retiredProjector = `${["project", "local", "runtime", "env"].join("-")}.mjs`;
-
-		expect(localEnvScript).toContain('loadRepoEnvFile(import.meta.url, "../../..")');
-		expect(localEnvScript).toContain('resolve(appDir, ".env")');
-		expect(localEnvScript).not.toContain(retiredProjector);
-		expect(localEnvScript).not.toContain("--target");
-		expect(localEnvScript).not.toContain("--skip-hindsight-provider-config");
-		expect(localEnvScript).not.toContain('resolve(appDir, ".dev.vars")');
-		expect(localEnvScript).not.toContain("minioadmin");
-		expect(localEnvScript).not.toContain("OBJECT_STORE_ENDPOINT=");
 	});
 
 	it("keeps published reader generated sources out of the tracked scaffold docs root", () => {
@@ -210,7 +191,11 @@ describe("campus docs Rspress build boundary", () => {
 		const cssSource = readFileSync(join(appDir, "theme", "docs-ui.css"), "utf8");
 
 		expect(themeSource).toContain("Layout as OriginalLayout");
-		expect(themeSource).toContain("resolveReaderLayoutClasses");
+		expect(themeSource).toContain("wrapper: ReaderMdxDocument");
+		expect(themeSource).toContain("afterNavMenu=");
+		expect(themeSource).toContain("ReaderDocumentMeta");
+		expect(themeSource).not.toContain("MutationObserver");
+		expect(themeSource).not.toContain("document.querySelector");
 		expect(cssSource).toContain(".document-meta-panel");
 		expect(cssSource).toContain(".docs-version-switcher");
 		expect(cssSource).toContain(".docs-reader-status");
@@ -222,15 +207,17 @@ describe("campus docs Rspress build boundary", () => {
 		expect(cssSource).toContain("data-docs-table-kind");
 		expect(cssSource).toContain(".rp-doc.rspress-doc table tr:hover");
 		expect(cssSource).toContain("background: transparent;");
-		expect(cssSource).toContain("var(--sys-brand-interactive,");
-		expect(cssSource).toContain("var(--docs-identity,");
+		expect(cssSource).toContain("--docs-accent: var(--sys-brand-interactive);");
+		expect(cssSource).toContain("color-mix(in srgb, var(--docs-identity)");
+		expect(cssSource).not.toContain("var(--sys-brand-interactive,");
 		expect(cssSource).not.toContain("公开文档");
 		expect(cssSource).not.toContain(".docs-pagefind-");
 	});
 
 	it("mounts the docs account entry without depending on the TanStack Router app shell", () => {
-		const configSource = readFileSync(join(appDir, "rspress.config.ts"), "utf8");
+		const themeSource = readFileSync(join(appDir, "theme", "index.tsx"), "utf8");
 		const accountEntryPath = join(appDir, "src", "components", "docs", "docs-account-entry.tsx");
+		const authDialogPath = join(appDir, "src", "components", "docs", "docs-auth-dialog.tsx");
 		const authProviderPath = join(
 			appDir,
 			"src",
@@ -239,17 +226,23 @@ describe("campus docs Rspress build boundary", () => {
 			"browser-auth-ui-provider.tsx",
 		);
 
-		expect(configSource).toContain("docs-account-entry");
+		expect(themeSource).toContain("docs-account-entry");
+		expect(themeSource).toContain("<DocsAccountEntry />");
 		expect(existsSync(accountEntryPath)).toBe(true);
+		expect(existsSync(authDialogPath)).toBe(true);
 		expect(existsSync(authProviderPath)).toBe(true);
 		const accountEntrySource = readFileSync(accountEntryPath, "utf8");
+		const authDialogSource = readFileSync(authDialogPath, "utf8");
 		const authProviderSource = readFileSync(authProviderPath, "utf8");
-		expect(accountEntrySource).toContain(".rp-nav__right");
-		expect(accountEntrySource).not.toContain(".rp-nav__others");
-		expect(accountEntrySource).toContain("createPortal");
-		expect(accountEntrySource).toContain("@better-auth-ui/heroui");
-		expect(accountEntrySource).toContain("<AuthPanel");
-		expect(accountEntrySource).toContain("<CampusBrowserAuthUIProvider");
+		expect(accountEntrySource).toContain("lazy(");
+		expect(accountEntrySource).toContain("<button");
+		expect(accountEntrySource).not.toContain("MutationObserver");
+		expect(accountEntrySource).not.toContain("createPortal");
+		expect(accountEntrySource).not.toContain(".rp-");
+		expect(accountEntrySource).not.toContain("@better-auth-ui/heroui");
+		expect(accountEntrySource).not.toContain("<AuthPanel");
+		expect(authDialogSource).toContain("<AuthPanel");
+		expect(authDialogSource).toContain("<CampusBrowserAuthUIProvider");
 		expect(accountEntrySource).not.toContain("QAAccountEntry");
 		expect(accountEntrySource).not.toContain("@tanstack/react-router");
 		expect(authProviderSource).toContain("@better-auth-ui/heroui");

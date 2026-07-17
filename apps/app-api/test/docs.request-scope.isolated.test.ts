@@ -8,6 +8,9 @@ import type { AppTelemetry } from "../src/modules/telemetry";
 
 const docsModuleMock = vi.hoisted(() => {
 	const store = {
+		async hasRelease() {
+			return true;
+		},
 		async getCollection() {
 			return {
 				collection: "student_rules",
@@ -79,6 +82,7 @@ function createTelemetry(): AppTelemetry {
 		recordRequestAccepted: vi.fn(async () => undefined),
 		recordRequestFinalized: vi.fn(async () => undefined),
 		recordRequestTransportError: vi.fn(async () => undefined),
+		recordWebPerformance: vi.fn(async () => undefined),
 	};
 }
 
@@ -91,11 +95,15 @@ describe("docs request scope", () => {
 			telemetry: createTelemetry(),
 		});
 
-		const response = await factory.createRequestScope().resolveDocsService().getNavigation({
-			collection: "student_rules",
-			corpus: "regulations",
-			principal: null,
-		});
+		const response = await factory
+			.createRequestScope()
+			.resolveDocsService()
+			.getNavigation({
+				collection: "student_rules",
+				corpus: "regulations",
+				principal: null,
+				releaseId: `sha256:${"a".repeat(64)}`,
+			});
 
 		expect(docsModuleMock.createPgDocsReadModelStore).toHaveBeenCalledWith(
 			env,

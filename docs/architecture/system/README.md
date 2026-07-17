@@ -18,8 +18,7 @@ status: active
   [identity-platform.md](./identity-platform.md)、[identity-browser.md](./identity-browser.md)、
   [mucwiki-login.md](./mucwiki-login.md)、[memory-plane.md](./memory-plane.md)；
 - 运维与改进：[ops-observability.md](./ops-observability.md)、
-  [operator-console.md](./operator-console.md)、[langfuse.md](./langfuse.md)、
-  [learning-loop.md](./learning-loop.md)；
+  [langfuse.md](./langfuse.md)、[learning-loop.md](./learning-loop.md)；
 - 代码边界：[code-organization.md](./code-organization.md)、
   [python-boundaries.md](./python-boundaries.md)。
 

@@ -72,8 +72,38 @@ spec:
                 secretKeyRef:
                   name: ops-web-database-secrets
                   key: OPS_WEB_DATABASE_URL
+            - name: OPS_WEB_DINING_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ops-web-dining-database-secrets
+                  key: OPS_WEB_DINING_DATABASE_URL
+            - name: OPS_WEB_PROVIDER_CONFIG_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ops-web-provider-config-secrets
+                  key: OPS_WEB_PROVIDER_CONFIG_DATABASE_URL
+            - name: OPS_WEB_PROVIDER_CONFIG_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ops-web-provider-config-secrets
+                  key: OPS_WEB_PROVIDER_CONFIG_ENCRYPTION_KEY
+            - name: OPS_WEB_PROVIDER_CONFIG_DATABASE_CA_CERT_PATH
+              value: /etc/campus-agent/postgres/ca.crt
+            - name: OPS_WEB_PROVIDER_CONFIG_DATABASE_SSLMODE
+              value: verify-full
+            - name: OPS_WEB_PROVIDER_CONFIG_PUBLISH_TARGET
+              value: kubernetes
+            - name: OPS_WEB_DINING_DATABASE_CA_CERT_PATH
+              value: /etc/campus-agent/postgres/ca.crt
+            - name: OPS_WEB_DINING_DATABASE_SSLMODE
+              value: verify-full
             - name: OPS_WEB_EXECUTION_CONTROL_URL
               value: http://execution-control:8000
+            - name: OPS_WEB_EXECUTION_CONTROL_WORKER_SHARED_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: execution-control-secrets
+                  key: API_WORKER_SHARED_SECRET
             - name: OPS_WEB_EXECUTION_CONTROL_METRICS_TOKEN
               valueFrom:
                 secretKeyRef:

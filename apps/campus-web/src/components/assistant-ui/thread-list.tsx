@@ -113,7 +113,7 @@ const ThreadListNew: FC = () => (
 	<ThreadListPrimitive.New asChild>
 		<Button
 			variant="ghost"
-			className="aui-thread-list-new hover:bg-muted data-active:bg-muted h-8 justify-start gap-2 rounded-md px-2.5 text-sm font-normal"
+			className="aui-thread-list-new hover:bg-surface-muted data-active:bg-surface-muted h-8 justify-start gap-2 rounded-md px-2.5 text-sm font-normal"
 		>
 			<PlusIcon className="size-4" />
 			新对话
@@ -137,7 +137,7 @@ const ThreadListSkeleton: FC = () => (
 );
 
 const ThreadListItem: FC<ThreadListActionErrorProps> = ({ onActionError }) => (
-	<ThreadListItemPrimitive.Root className="aui-thread-list-item group hover:bg-muted focus-visible:bg-muted data-active:bg-muted relative flex h-8 items-center rounded-md transition-colors focus-visible:outline-none">
+	<ThreadListItemPrimitive.Root className="aui-thread-list-item group hover:bg-surface-muted focus-visible:bg-surface-muted data-active:bg-surface-muted relative flex h-8 items-center rounded-md transition-colors focus-visible:outline-none">
 		<ThreadListItemPrimitive.Trigger className="aui-thread-list-item-trigger flex h-full min-w-0 flex-1 items-center px-2.5 text-start text-sm group-hover:pe-9 group-has-data-[state=open]:pe-9 group-data-active:pe-9">
 			<span className="aui-thread-list-item-title min-w-0 flex-1 truncate">
 				<ThreadListItemPrimitive.Title fallback="新对话" />

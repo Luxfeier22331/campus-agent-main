@@ -16,16 +16,14 @@ HTTP 字段由 contracts 定义，数据库表由 data 文档定义，部署状�
 | 组件 | 负责 | 不负责 |
 | --- | --- | --- |
 | `campus-web` | 学生问答、账号、文档、地图、食堂和 campus status 页面 | 运行排查、数据库或内部 runtime 访问 |
-| `app-api` | browser auth、chat admission/finalization、产品 API、状态 API、provider 配置 API | Temporal worker、RAG 内部、通用运维数据 API |
-| `operator-console-web` | 模型服务配置 | 请求列表、执行诊断、数据库读取 |
-| `ops-web` | 自托管请求排查、运行概况、观测入口和固定门户凭据替换 | 产品写操作、模型配置、任意工作流控制或通用 Secret 管理 |
+| `app-api` | browser auth、chat admission/finalization、产品 API和状态 API | Temporal worker、RAG 内部、模型配置或通用运维数据 API |
+| `ops-web` | 请求排查、运行概况、观测入口、模型配置、食堂运维和固定门户凭据替换 | 产品写操作、任意工作流控制或通用 Secret 管理 |
 | `execution-control` | durable run admission、Temporal workflow、memory/RAG activities、run projection | browser auth、页面合同、operator config |
 | `agent-runtime` | primary agent execution | durable orchestration 和产品数据持久化 |
 
 ## Browser 路径
 
-- `campus-web`、`operator-console-web` 和其他 Worker 页面通过 Service Binding 或已配置的
-  app-api origin 调用 `app-api`。
+- `campus-web` 通过 Service Binding 或已配置的 app-api origin 调用 `app-api`。
 - 浏览器不直连 execution-control、Temporal、Hindsight、Qdrant、PostgreSQL 或
   OpenObserve。
 - `ops-web` 是独立受保护的自托管站点；其浏览器只调用同一进程的 `/api/ops/*`。
@@ -83,10 +81,10 @@ tool 也不通过 app-api。
 
 ## 配置与排查
 
-- `operator-console-web -> app-api` 管理 provider config。
-- `ops-web -> PostgreSQL/execution-control/OpenObserve` 提供只读排查；人员可以通过固定接口
-  patch `source-collector-internal-portal-auth` 并恢复固定认证维护 Schedule。
-- 两个应用不互相代理，也不共享“通用运维后端”。
+- `ops-web -> PostgreSQL/execution-control/OpenObserve` 提供排查；人员可以通过固定接口 patch
+  `source-collector-internal-portal-auth` 并恢复固定认证维护 Schedule。
+- Ops Web 使用专用 PostgreSQL role 保存 provider 候选和验证结果，并通过 Kubernetes CAS
+  发布固定 `execution-runtime-provider-config` Secret；app-api 不参与该链路。
 - Temporal UI、Langfuse UI 和 OpenObserve 保留各自完整能力；Ops Web 只提供跨系统关联和
   常用摘要。
 
@@ -102,7 +100,7 @@ tool 也不通过 app-api。
 
 - 不恢复 supervisor、bootstrap mega-agent 或 flat retrieval tool。
 - 不恢复 `runtime.request_execution`、projection outbox 或 operator request projector。
-- 不让 operator console 承担 Ops Web 请求诊断。
+- 不恢复第二个运维前端、panel 域名或 app-api Provider Config 代理。
 - 不让 app-api 代理 Temporal、Langfuse、OpenObserve 或数据库通用查询。
 - 不把 ingestion/data-plane ownership 混入在线回答路径。
 - 不为单一页面消费面拆出无独立 owner 的后端服务。
@@ -112,6 +110,6 @@ tool 也不通过 app-api。
 - `docs/contracts/app-api/README.md`
 - `docs/contracts/app-api/request-lifecycle.md`
 - `docs/architecture/system/ops-observability.md`
-- `docs/architecture/system/operator-console.md`
+- `docs/decisions/adr-0080-ops-web.md`
 - `docs/data/postgres-ownership.md`
 - `docs/domains/transport.md`

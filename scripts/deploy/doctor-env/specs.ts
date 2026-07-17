@@ -54,17 +54,6 @@ const workerStagingSurfaceSpecs = {
 		},
 		files: {},
 	},
-	"worker-staging-operator-console-web": {
-		providers: {},
-		required_settings: {
-			staging_access_policy_aud: ["STAGING_ACCESS_POLICY_AUD"],
-			staging_access_team_domain: ["STAGING_ACCESS_TEAM_DOMAIN"],
-		},
-		optional_settings: {
-			staging_sentry_release: ["STAGING_SENTRY_RELEASE"],
-		},
-		files: {},
-	},
 } satisfies Record<string, SurfaceSpec>;
 
 const surfaceSpecDefinitions = {
@@ -89,9 +78,6 @@ const surfaceSpecDefinitions = {
 				],
 			},
 			"apps/campus-web/.dev.vars": {
-				required_keys: ["SENTRY_DSN", "SENTRY_ENVIRONMENT", "SENTRY_RELEASE"],
-			},
-			"apps/operator-console-web/.dev.vars": {
 				required_keys: ["SENTRY_DSN", "SENTRY_ENVIRONMENT", "SENTRY_RELEASE"],
 			},
 		},

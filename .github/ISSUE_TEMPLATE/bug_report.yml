@@ -17,7 +17,6 @@ body:
       label: Affected area
       options:
         - campus-web
-        - operator-console-web
         - app-api
         - execution-control
         - agent-runtime

@@ -15,7 +15,36 @@ describe("runtime event sanitizer", () => {
 			"request.stage_timing",
 			"request.transport_error",
 			"identity.endpoint",
+			"web.performance",
 		]);
+	});
+
+	it("allows only bounded anonymous Web Vital fields", () => {
+		expect(
+			sanitizeRuntimeEventPayload({
+				event_type: "web.performance",
+				metric_name: "LCP",
+				metric_value: 1250,
+				navigation_type: "navigate",
+				occurred_at: "2026-07-12T12:30:00.000Z",
+				pathname: "/dining/private-fragment",
+				rating: "good",
+				route_group: "dining",
+				status: "observed",
+				surface: "campus_web",
+				user_id: "user_01",
+			}),
+		).toEqual({
+			event_type: "web.performance",
+			metric_name: "LCP",
+			metric_value: 1250,
+			navigation_type: "navigate",
+			occurred_at: "2026-07-12T12:30:00.000Z",
+			rating: "good",
+			route_group: "dining",
+			status: "observed",
+			surface: "campus_web",
+		});
 	});
 
 	it("drops forbidden sensitive fields before telemetry export", () => {

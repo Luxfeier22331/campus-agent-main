@@ -9,7 +9,7 @@ status: active
 ## 范围
 
 App API 不提供请求列表、请求详情、运行健康、Temporal 队列、trace 正文或观测配置接口。
-Operator Console 也不代理这些数据。
+Ops Web 直接读取其获准的观测来源；app-api 不代理这些数据。
 
 App API 只在产品请求生命周期内维护以下可关联事实：
 

@@ -9,7 +9,7 @@ status: active
 ## 范围
 
 本文说明如何用当前持久化事实排查 abuse throttle 和 safety failure。请求查找在 Ops Web，
-不是 Operator Console。
+不是 Ops Web。
 
 ## 信号
 

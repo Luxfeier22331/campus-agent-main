@@ -21,7 +21,7 @@ annotation 工作流，仓库不再建设第二套评测平台。
 - experiment、annotation queue 和分析使用 Langfuse 官方能力；
 - self-hosted Langfuse 可以在受信任边界保存用户关联、模型输入输出、memory 和已授权检索事实；
 - credential 和 secret 不得进入 trace、dataset 或 score；
-- app-api、Ops Web 和 Operator Console 不复制 Langfuse observation 正文；
+- app-api 和 Ops Web 不复制 Langfuse observation 正文；
 - Langfuse 不可用不得阻塞在线回答。
 
 ## 覆盖范围

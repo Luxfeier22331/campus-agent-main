@@ -1,3 +1,5 @@
+import { DiningDomainError } from "@campus-agent/dining/domain";
+import { ProviderConfigError } from "@campus-agent/provider-config";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -13,6 +15,15 @@ import {
 	OpsRequestListResponseSchema,
 	OpsRequestWindowSchema,
 } from "../shared/ops-contract.ts";
+import {
+	createDiningStoreFromEnv,
+	createUnavailableDiningStore,
+	type DiningStore,
+	type DiningStoreEnv,
+	DiningStoreNotFoundError,
+	DiningStoreUnavailableError,
+	DiningStoreValidationError,
+} from "./dining-store.ts";
 import {
 	createInternalPortalAuthMaintenanceClientFromEnv,
 	type InternalPortalAuthMaintenanceClient,
@@ -52,6 +63,22 @@ import {
 	OpsStatusStoreUnavailableError,
 } from "./ops-status-store.ts";
 import { PostgresTlsConfigurationError } from "./postgres-tls.ts";
+import {
+	createProviderConfigCompatibilityClient,
+	type ProviderConfigCompatibilityEnv,
+} from "./provider-config-compatibility.ts";
+import {
+	createProviderConfigPublisherFromEnv,
+	type ProviderConfigPublisherEnv,
+} from "./provider-config-publisher.ts";
+import {
+	createProviderConfigService,
+	type ProviderConfigService,
+} from "./provider-config-service.ts";
+import {
+	createProviderConfigStoreFromEnv,
+	type ProviderConfigStoreEnv,
+} from "./provider-config-store.ts";
 
 interface OpsHealthEnv {
 	OPS_WEB_HEALTH_AGENT_RUNTIME_URL?: string;
@@ -62,18 +89,26 @@ interface OpsHealthEnv {
 }
 
 type OpsAppEnv = OpsAdmissionEnv &
+	DiningStoreEnv &
 	InternalPortalAuthMaintenanceEnv &
 	OpenObserveEnv &
 	OpsHealthEnv &
-	OpsStatusEnv;
+	OpsStatusEnv &
+	ProviderConfigCompatibilityEnv &
+	ProviderConfigPublisherEnv &
+	ProviderConfigStoreEnv & {
+		OPS_WEB_PROVIDER_CONFIG_ENCRYPTION_KEY?: string;
+	};
 
 interface OpsAppOptions {
 	admission?: OpsAdmission;
 	env?: OpsAppEnv;
+	diningStore?: DiningStore;
 	internalPortalAuthStore?: InternalPortalAuthStore;
 	internalPortalMaintenanceClient?: InternalPortalAuthMaintenanceClient;
 	openObserve?: OpenObserveClient;
 	overviewService?: OpsOverviewService;
+	providerConfigService?: ProviderConfigService;
 	staticRoot?: string;
 	store?: OpsStatusStore;
 }
@@ -92,6 +127,48 @@ const RequestListQuerySchema = z
 	.strict();
 const OverviewQuerySchema = z.object({ window: OpsOverviewWindowSchema.default("1h") }).strict();
 const ObservabilityQuerySchema = z.object({ kind: z.enum(["logs", "trace"]) }).strict();
+const DiningLimitQuerySchema = z
+	.object({ limit: z.coerce.number().int().min(1).max(200).default(50) })
+	.strict();
+const DiningNotesSchema = z.object({ notes: z.string().trim().min(1).max(500) }).strict();
+const DiningCatalogCommandSchema = z.discriminatedUnion("kind", [
+	z
+		.object({
+			kind: z.literal("rename_stall"),
+			stallProfileId: z.string().min(1),
+			displayName: z.string().trim().min(1).max(120),
+		})
+		.strict(),
+	z
+		.object({
+			kind: z.literal("set_offering_price"),
+			offeringId: z.string().min(1),
+			priceLabel: z.string().trim().max(40).nullable(),
+		})
+		.strict(),
+	z
+		.object({
+			kind: z.literal("assign_stall"),
+			windowId: z.string().min(1),
+			stallProfileId: z.string().min(1),
+			displayName: z.string().trim().min(1).max(120),
+			tags: z.array(z.string().trim().min(1).max(40)).max(20),
+		})
+		.strict(),
+	z.object({ kind: z.literal("remove_assignment"), assignmentId: z.string().min(1) }).strict(),
+]);
+const DiningReviewCommandSchema = z.discriminatedUnion("kind", [
+	z.object({ kind: z.literal("hide"), reason: z.string().trim().min(1).max(300) }).strict(),
+	z.object({ kind: z.literal("restore"), reason: z.string().trim().min(1).max(300) }).strict(),
+	z
+		.object({
+			kind: z.literal("rebind"),
+			offeringId: z.string().min(1),
+			reason: z.string().trim().min(1).max(300),
+		})
+		.strict(),
+	z.object({ kind: z.literal("recheck") }).strict(),
+]);
 const OpsPathIdSchema = z
 	.string()
 	.min(1)
@@ -101,6 +178,7 @@ const OpsPathIdSchema = z
 export function createOpsApp(options: OpsAppOptions = {}) {
 	const app = new Hono();
 	const env = options.env ?? process.env;
+	const diningStore = options.diningStore ?? createDefaultDiningStore(env);
 	const admission = options.admission ?? createCloudflareAccessOpsAdmission(env);
 	const internalPortalAuthStore =
 		options.internalPortalAuthStore ?? createDefaultInternalPortalAuthStore();
@@ -125,6 +203,8 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 			}),
 			store,
 		});
+	const providerConfigService =
+		options.providerConfigService ?? createDefaultProviderConfigService(env);
 
 	app.use(
 		"*",
@@ -159,6 +239,33 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		if (error instanceof OpenObserveUnavailableError) {
 			return jsonError("OPS_OBSERVABILITY_UNAVAILABLE", "OpenObserve 数据不可用。", 503);
 		}
+		if (error instanceof DiningStoreUnavailableError) {
+			return jsonError("OPS_DINING_STORE_UNAVAILABLE", "食堂管理数据库不可用。", 503);
+		}
+		if (error instanceof DiningStoreNotFoundError) {
+			return jsonError("OPS_DINING_NOT_FOUND", "未找到对应的食堂数据。", 404);
+		}
+		if (error instanceof DiningStoreValidationError) {
+			return jsonError("OPS_DINING_CONFLICT", error.message, 409);
+		}
+		if (error instanceof DiningDomainError) {
+			return jsonError(
+				error.code,
+				error.message,
+				error.status === 409 ? 409 : 400,
+				error.details && typeof error.details === "object" && !Array.isArray(error.details)
+					? (error.details as Record<string, unknown>)
+					: undefined,
+			);
+		}
+		if (error instanceof ProviderConfigError) {
+			return jsonError(
+				error.code,
+				error.message,
+				providerConfigHttpStatus(error.status),
+				error.details,
+			);
+		}
 		const storeUnavailableReasonCode = classifyStoreUnavailableError(error);
 		if (storeUnavailableReasonCode) {
 			return jsonError("OPS_STATUS_STORE_UNAVAILABLE", "请求状态数据库不可用。", 503, {
@@ -189,6 +296,8 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 			}
 			await store.verifyReadiness();
 			await store.verifyObservabilityReadAuditWrite();
+			await diningStore.verifyReadiness();
+			await providerConfigService.verifyReadiness();
 			return context.json({ ok: true, service: "ops-web" });
 		} catch (error) {
 			const reasonCode = classifyReadinessError(error);
@@ -336,6 +445,104 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		return context.json(response);
 	});
 
+	app.get("/api/ops/provider-config/connections", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		return context.json(await providerConfigService.listConnections());
+	});
+	app.post("/api/ops/provider-config/connections", async (context) => {
+		const operator = await admitProviderConfigWrite(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		return context.json(
+			await providerConfigService.createConnection(
+				recordBody(await readBoundedJson(context.req.raw, 16 * 1024)),
+				toProviderActor(operator),
+			),
+			201,
+		);
+	});
+	app.patch("/api/ops/provider-config/connections/:connectionId", async (context) => {
+		const operator = await admitProviderConfigWrite(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		return context.json(
+			await providerConfigService.updateConnection(
+				context.req.param("connectionId"),
+				recordBody(await readBoundedJson(context.req.raw, 16 * 1024)),
+				toProviderActor(operator),
+			),
+		);
+	});
+	app.get("/api/ops/provider-config/profiles", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		return context.json(await providerConfigService.listProfiles());
+	});
+	app.post("/api/ops/provider-config/profiles", async (context) => {
+		const operator = await admitProviderConfigWrite(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		return context.json(
+			await providerConfigService.createProfile(
+				recordBody(await readBoundedJson(context.req.raw, 16 * 1024)),
+				toProviderActor(operator),
+			),
+			201,
+		);
+	});
+	app.patch("/api/ops/provider-config/profiles/:profileId", async (context) => {
+		const operator = await admitProviderConfigWrite(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		return context.json(
+			await providerConfigService.updateProfile(
+				context.req.param("profileId"),
+				recordBody(await readBoundedJson(context.req.raw, 16 * 1024)),
+				toProviderActor(operator),
+			),
+		);
+	});
+	app.post("/api/ops/provider-config/profiles/:profileId/validate", async (context) => {
+		const operator = await admitProviderConfigWrite(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		return context.json(
+			await providerConfigService.validate(
+				context.req.param("profileId"),
+				toProviderActor(operator),
+			),
+		);
+	});
+	app.post("/api/ops/provider-config/profiles/:profileId/activate", async (context) => {
+		const operator = await admitProviderConfigWrite(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		return context.json(
+			await providerConfigService.activate(
+				context.req.param("profileId"),
+				toProviderActor(operator),
+			),
+		);
+	});
+	app.get("/api/ops/provider-config/runtime", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		return context.json(await providerConfigService.runtimeStatus());
+	});
+
 	app.get("/api/ops/requests", async (context) => {
 		const operator = await admitOpsApiRequest(admission, context.req.raw);
 		if (operator instanceof Response) {
@@ -410,6 +617,144 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		return context.json(response);
 	});
 
+	app.get("/api/ops/dining/overview", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		return operator instanceof Response ? operator : context.json(await diningStore.getOverview());
+	});
+	app.get("/api/ops/dining/source-runs", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const query = DiningLimitQuerySchema.safeParse(context.req.query());
+		return query.success
+			? context.json({ runs: await diningStore.listSourceRuns(query.data.limit) })
+			: jsonError("OPS_INVALID_QUERY", "食堂同步记录查询无效。", 400);
+	});
+	app.get("/api/ops/dining/observations", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const query = DiningLimitQuerySchema.safeParse(context.req.query());
+		return query.success
+			? context.json({ observations: await diningStore.listObservations(query.data.limit) })
+			: jsonError("OPS_INVALID_QUERY", "食堂采集记录查询无效。", 400);
+	});
+	app.get("/api/ops/dining/catalog/draft", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		return operator instanceof Response
+			? operator
+			: context.json({ draft: await diningStore.getDraft() });
+	});
+	app.get("/api/ops/dining/catalog/draft/validation", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		return operator instanceof Response
+			? operator
+			: context.json({ validation: await diningStore.validate() });
+	});
+	app.post("/api/ops/dining/catalog/draft/rebase", async (context) => {
+		const operator = await admitDiningWrite(admission, context.req.raw);
+		return operator instanceof Response
+			? operator
+			: context.json({ draft: await diningStore.rebase(toDiningActor(operator)) });
+	});
+	app.post("/api/ops/dining/catalog/draft/commands", async (context) => {
+		const operator = await admitDiningWrite(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const command = DiningCatalogCommandSchema.safeParse(
+			await readBoundedJson(context.req.raw, 16 * 1024),
+		);
+		return command.success
+			? context.json({
+					draft: await diningStore.applyCatalogCommand(toDiningActor(operator), command.data),
+				})
+			: jsonError("OPS_DINING_COMMAND_INVALID", "食堂草稿操作无效。", 400);
+	});
+	app.post("/api/ops/dining/catalog/publish", async (context) => {
+		const operator = await admitDiningWrite(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const body = DiningNotesSchema.safeParse(await readBoundedJson(context.req.raw, 4 * 1024));
+		return body.success
+			? context.json(await diningStore.publish(toDiningActor(operator), body.data.notes), 201)
+			: jsonError("OPS_DINING_PUBLISH_INVALID", "食堂发布说明无效。", 400);
+	});
+	app.get("/api/ops/dining/releases", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		return operator instanceof Response
+			? operator
+			: context.json({ releases: await diningStore.listReleases() });
+	});
+	app.get("/api/ops/dining/releases/:releaseId", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const release = await diningStore.getRelease(context.req.param("releaseId"));
+		return release
+			? context.json(release)
+			: jsonError("OPS_DINING_NOT_FOUND", "未找到该食堂发布。", 404);
+	});
+	app.post("/api/ops/dining/releases/:releaseId/rollback", async (context) => {
+		const operator = await admitDiningWrite(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const body = DiningNotesSchema.safeParse(await readBoundedJson(context.req.raw, 4 * 1024));
+		return body.success
+			? context.json(
+					await diningStore.rollback(
+						toDiningActor(operator),
+						context.req.param("releaseId"),
+						body.data.notes,
+					),
+					201,
+				)
+			: jsonError("OPS_DINING_ROLLBACK_INVALID", "回滚说明无效。", 400);
+	});
+	app.get("/api/ops/dining/reviews", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const query = DiningLimitQuerySchema.safeParse(context.req.query());
+		return query.success
+			? context.json({ reviews: await diningStore.listReviews(query.data.limit) })
+			: jsonError("OPS_INVALID_QUERY", "评价查询无效。", 400);
+	});
+	app.get("/api/ops/dining/reviews/:reviewId", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const review = await diningStore.getReview(context.req.param("reviewId"));
+		return review
+			? context.json({ review })
+			: jsonError("OPS_DINING_NOT_FOUND", "未找到该评价。", 404);
+	});
+	app.post("/api/ops/dining/reviews/:reviewId/commands", async (context) => {
+		const operator = await admitDiningWrite(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const command = DiningReviewCommandSchema.safeParse(
+			await readBoundedJson(context.req.raw, 4 * 1024),
+		);
+		if (!command.success) {
+			return jsonError("OPS_DINING_REVIEW_COMMAND_INVALID", "评价操作无效。", 400);
+		}
+		await diningStore.applyReviewCommand(
+			toDiningActor(operator),
+			context.req.param("reviewId"),
+			command.data,
+		);
+		return context.json({ ok: true });
+	});
+
 	app.all("/api/*", () => jsonError("OPS_API_ROUTE_NOT_FOUND", "未找到该运维接口。"));
 	app.use("/*", serveStatic({ root: staticRoot }));
 	app.get("*", async (context, next) => {
@@ -431,6 +776,45 @@ function createDefaultInternalPortalAuthStore(): InternalPortalAuthStore {
 				? error.reasonCode
 				: "KUBERNETES_CONFIG_UNAVAILABLE",
 		);
+	}
+}
+
+function createDefaultDiningStore(env: DiningStoreEnv): DiningStore {
+	try {
+		return createDiningStoreFromEnv(env);
+	} catch (error) {
+		return createUnavailableDiningStore(error);
+	}
+}
+
+function createDefaultProviderConfigService(env: OpsAppEnv): ProviderConfigService {
+	try {
+		return createProviderConfigService({
+			compatibility: createProviderConfigCompatibilityClient(env),
+			encryptionKey: env.OPS_WEB_PROVIDER_CONFIG_ENCRYPTION_KEY,
+			publisher: createProviderConfigPublisherFromEnv(env),
+			store: createProviderConfigStoreFromEnv(env),
+		});
+	} catch (error) {
+		const unavailable = async (): Promise<never> => {
+			throw new ProviderConfigError(
+				"provider_config_unavailable",
+				error instanceof Error ? error.message : "模型服务配置不可用。",
+				503,
+			);
+		};
+		return {
+			activate: unavailable,
+			createConnection: unavailable,
+			createProfile: unavailable,
+			listConnections: unavailable,
+			listProfiles: unavailable,
+			runtimeStatus: unavailable,
+			updateConnection: unavailable,
+			updateProfile: unavailable,
+			validate: unavailable,
+			verifyReadiness: unavailable,
+		};
 	}
 }
 
@@ -540,10 +924,62 @@ async function admitOpsApiRequest(
 	return result.operator ?? result.response;
 }
 
+async function admitDiningWrite(
+	admission: OpsAdmission,
+	request: Request,
+): Promise<OpsOperatorContext | Response> {
+	const operator = await admitOpsApiRequest(admission, request);
+	if (operator instanceof Response) {
+		return operator;
+	}
+	if (operator.principalClass !== "human") {
+		return jsonError("OPS_DINING_WRITE_FORBIDDEN", "服务身份不能修改食堂数据。", 403);
+	}
+	if (!requestHasSameOrigin(request)) {
+		return jsonError("OPS_DINING_ORIGIN_INVALID", "食堂修改请求来源无效。", 403);
+	}
+	return operator;
+}
+
+async function admitProviderConfigWrite(admission: OpsAdmission, request: Request) {
+	const operator = await admitOpsApiRequest(admission, request);
+	if (operator instanceof Response) {
+		return operator;
+	}
+	if (operator.principalClass !== "human") {
+		return jsonError("OPS_PROVIDER_CONFIG_WRITE_FORBIDDEN", "服务身份不能修改模型服务配置。", 403);
+	}
+	if (!requestHasSameOrigin(request)) {
+		return jsonError("OPS_PROVIDER_CONFIG_ORIGIN_INVALID", "模型服务配置请求来源无效。", 403);
+	}
+	return operator;
+}
+
+function toProviderActor(operator: OpsOperatorContext) {
+	return {
+		displayName: operator.displayName ?? operator.email ?? operator.operatorId,
+		principalId: operator.operatorId,
+	};
+}
+
+function recordBody(value: unknown): Record<string, unknown> {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		throw new ProviderConfigError("validation_failed", "请求正文必须是对象。", 400);
+	}
+	return value as Record<string, unknown>;
+}
+
+function toDiningActor(operator: OpsOperatorContext) {
+	return {
+		displayName: operator.displayName ?? operator.email ?? operator.operatorId,
+		principalId: operator.operatorId,
+	};
+}
+
 function jsonError(
 	code: string,
 	message: string,
-	status: 400 | 403 | 404 | 500 | 503 = 404,
+	status: 400 | 403 | 404 | 409 | 422 | 500 | 503 = 404,
 	details?: Record<string, unknown>,
 ) {
 	return new Response(JSON.stringify({ error: { code, message, ...details } }), {
@@ -553,6 +989,17 @@ function jsonError(
 		},
 		status,
 	});
+}
+
+function providerConfigHttpStatus(status: number): 400 | 403 | 404 | 409 | 422 | 500 | 503 {
+	return status === 400 ||
+		status === 403 ||
+		status === 404 ||
+		status === 409 ||
+		status === 422 ||
+		status === 503
+		? status
+		: 500;
 }
 
 function internalPortalAuthForbiddenResponse(): Response {

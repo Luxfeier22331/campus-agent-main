@@ -16,7 +16,10 @@ const migrationsFolder = fileURLToPath(new URL("../../drizzle", import.meta.url)
 const REQUIRED_TABLES = [
 	"app_auth.user",
 	"chat.turn_dispatches",
+	"docs.releases",
 	"observability.ops_observability_read_audit",
+	"provider_config.connections",
+	"provider_config.profiles",
 	"runtime.request_observability_fact",
 ] as const;
 const RETIRED_TABLES = ["runtime.projection_outbox", "runtime.request_execution"] as const;
@@ -64,10 +67,20 @@ async function verifySchema(pool: ReturnType<typeof createSharedProductPool>): P
 	const privileges = await pool.query<{
 		canMutateDispatches: boolean;
 		canReadAgentRuns: boolean;
+		canReadDocs: boolean;
+		canWriteDocs: boolean;
 		canWriteObservability: boolean;
+		docsPublisherCanWrite: boolean;
+		appApiCanReadProviderConfig: boolean;
+		providerConfigOwnerCanWrite: boolean;
 	}>(
 		`select
 			has_table_privilege('app_api', 'chat.turn_dispatches', 'SELECT,INSERT,UPDATE,DELETE') as "canMutateDispatches",
+			has_table_privilege('app_api', 'docs.releases', 'SELECT') as "canReadDocs",
+			has_table_privilege('app_api', 'docs.releases', 'INSERT,UPDATE,DELETE') as "canWriteDocs",
+			has_table_privilege('docs_publish', 'docs.releases', 'SELECT,INSERT,UPDATE,DELETE') as "docsPublisherCanWrite",
+			has_table_privilege('app_api', 'provider_config.connections', 'SELECT') as "appApiCanReadProviderConfig",
+			has_table_privilege('ops_web_provider_config', 'provider_config.connections', 'SELECT,INSERT,UPDATE') as "providerConfigOwnerCanWrite",
 			case
 				when to_regclass('runtime.agent_runs') is null then false
 				else has_table_privilege('app_api', 'runtime.agent_runs', 'SELECT')
@@ -75,8 +88,22 @@ async function verifySchema(pool: ReturnType<typeof createSharedProductPool>): P
 			has_table_privilege('app_api', 'runtime.request_observability_fact', 'SELECT,INSERT,UPDATE,DELETE') as "canWriteObservability"`,
 	);
 	const privilege = privileges.rows[0];
-	if (!(privilege?.canMutateDispatches && privilege.canWriteObservability)) {
+	if (
+		!(privilege?.canMutateDispatches && privilege.canReadDocs && privilege.canWriteObservability)
+	) {
 		throw new Error("app_api role is missing required table privileges.");
+	}
+	if (privilege.canWriteDocs) {
+		throw new Error("app_api role must not mutate docs release projections.");
+	}
+	if (!privilege.docsPublisherCanWrite) {
+		throw new Error("docs_publish role is missing required docs table privileges.");
+	}
+	if (privilege.appApiCanReadProviderConfig) {
+		throw new Error("app_api role must not read provider config.");
+	}
+	if (!privilege.providerConfigOwnerCanWrite) {
+		throw new Error("ops_web_provider_config role is missing required privileges.");
 	}
 	if (privilege.canReadAgentRuns) {
 		throw new Error("app_api role must not read execution-control run tables.");

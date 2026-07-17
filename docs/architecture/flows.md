@@ -28,16 +28,16 @@ status: active
 flowchart LR
   Browser["浏览器"]
   CampusWeb["campus-web\n学生界面"]
-  OperatorWeb["operator-console-web\n受保护运维界面"]
+  OpsWeb["ops-web\n受保护运维界面"]
   AppAPI["app-api\n产品 API"]
   Exec["execution-control\n执行引擎"]
   Temporal["Temporal\n工作流与 activity queue"]
   Projection["脱敏投影"]
 
   Browser --> CampusWeb
-  Browser --> OperatorWeb
+  Browser --> OpsWeb
   CampusWeb --> AppAPI
-  OperatorWeb --> AppAPI
+  OpsWeb --> Projection["PostgreSQL / 固定 Secret / 窄运维接口"]
   AppAPI --> Exec
   Exec --> Temporal
   Temporal --> Projection

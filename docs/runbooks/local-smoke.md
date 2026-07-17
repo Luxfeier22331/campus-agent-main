@@ -23,22 +23,27 @@ Kubernetes/GitOps 之外维护第二套 staging 生命周期。
 ```bash
 pnpm --dir apps/app-api test:worker -- --reporter=verbose
 pnpm --dir apps/campus-web test:worker -- --reporter=verbose
-pnpm --dir apps/operator-console-web test:worker -- --reporter=verbose
+pnpm --dir apps/ops-web test
+pnpm --dir apps/ops-web test:browser
 ```
+
+## Campus Web 与文档阅读
+
+```bash
+pnpm --dir apps/campus-web test:node:fast
+pnpm --dir apps/campus-web build:docs:fixture
+pnpm dev
+```
+
+`build:docs:fixture` 使用仓库内无凭据 manifest 和 reader assets，不读取数据库或对象存储。根
+`pnpm dev` 同时启动 Campus Web 与 app-api，避免文档准入、账号、聊天和 Dining 的同源
+`/api/*` 依赖变成服务缺失错误。单独启动 Campus Web 只适合静态资源和纯界面调试。
 
 ## Provider 配置
 
-```bash
-pnpm --dir apps/app-api exec tsx ./scripts/run-with-local-env.ts pnpm exec tsx \
-  ./ops/dev/seed-local-provider-config.ts --stage prompt
-pnpm --dir apps/app-api exec tsx ./scripts/run-with-local-env.ts pnpm exec tsx \
-  ./ops/dev/seed-local-provider-config.ts --stage embedding
-
-pnpm exec tsx apps/execution-control/scripts/sync-provider-config-projection.ts \
-  --output .tmp/provider-config-projection.json
-```
-
-seed 和 projection refresh 都是显式命令，不能在应用启动时静默执行。
+准备 `apps/ops-web/.env` 后运行 `pnpm --dir apps/ops-web start`，再从“模型服务配置”创建、验证和
+激活 profile。file publisher 原子写入 `.env` 指定的 projection 路径；应用启动不执行 seed 或
+隐式同步。
 
 ## Chat 检查
 

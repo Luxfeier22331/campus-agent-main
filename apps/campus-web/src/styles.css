@@ -1,16 +1,13 @@
-@import "@heroui/styles";
-@import "@better-auth-ui/heroui/styles";
+@import "tailwindcss";
 @import "./design/tokens.css";
 @import "tw-shimmer";
-
-@custom-variant dark (&:is(.dark *));
 
 @theme inline {
 	--color-background: var(--sys-bg-canvas);
 	--color-foreground: var(--sys-text-default);
 	--color-card: var(--card-bg);
 	--color-card-foreground: var(--sys-text-default);
-	--color-muted: var(--sys-bg-muted);
+	--color-surface-muted: var(--sys-bg-muted);
 	--color-muted-foreground: var(--sys-text-muted);
 	--color-accent: var(--sys-bg-muted);
 	--color-accent-foreground: var(--sys-text-strong);
@@ -67,35 +64,14 @@
 }
 
 :root {
-	--aui-background: 0 0% 100%;
-	--aui-foreground: 218 33% 17%;
-	--aui-card: 0 0% 100%;
-	--aui-card-foreground: 218 33% 17%;
-	--aui-popover: 0 0% 100%;
-	--aui-popover-foreground: 218 33% 17%;
-	--aui-primary: 224 86% 30%;
-	--aui-primary-foreground: 0 0% 100%;
-	--aui-secondary: 220 20% 98%;
-	--aui-secondary-foreground: 218 33% 17%;
-	--aui-muted: 220 16% 96%;
-	--aui-muted-foreground: 220 17% 36%;
-	--aui-accent: 220 16% 96%;
-	--aui-accent-foreground: 220 43% 11%;
-	--aui-destructive: 0 100% 32%;
-	--aui-destructive-foreground: 0 0% 100%;
-	--aui-border: 220 23% 91%;
-	--aui-input: 220 17% 84%;
-	--aui-ring: 224 86% 30%;
-	--aui-radius: var(--radius-md);
-	--aui-thread-max-width: var(--layout-chat-content-width);
-	--sidebar: hsl(0 0% 98%);
-	--sidebar-foreground: hsl(240 5.3% 26.1%);
-	--sidebar-primary: hsl(240 5.9% 10%);
-	--sidebar-primary-foreground: hsl(0 0% 98%);
-	--sidebar-accent: hsl(240 4.8% 95.9%);
-	--sidebar-accent-foreground: hsl(240 5.9% 10%);
-	--sidebar-border: hsl(220 13% 91%);
-	--sidebar-ring: hsl(217.2 91.2% 59.8%);
+	--sidebar: var(--chat-sidebar-bg);
+	--sidebar-foreground: var(--sys-text-default);
+	--sidebar-primary: var(--sys-brand-interactive);
+	--sidebar-primary-foreground: var(--sys-text-inverse);
+	--sidebar-accent: var(--sys-bg-muted);
+	--sidebar-accent-foreground: var(--sys-text-strong);
+	--sidebar-border: var(--chat-sidebar-border);
+	--sidebar-ring: var(--sys-border-focus);
 }
 
 .campus-map-marker {
@@ -166,6 +142,17 @@
 	}
 }
 
+[data-campus-account-surface] {
+	--accent: var(--sys-brand-interactive);
+	--accent-foreground: var(--sys-text-inverse);
+	--accent-hover: color-mix(
+		in oklab,
+		var(--sys-brand-interactive) 90%,
+		var(--sys-text-inverse) 10%
+	);
+	--focus: var(--sys-border-focus);
+}
+
 [data-campus-account-surface="auth"],
 [data-campus-account-surface="settings"] {
 	--campus-auth-card-border: var(--sys-border-default);
@@ -179,7 +166,7 @@
 [data-campus-account-surface="auth"] [data-slot="card"],
 [data-campus-account-surface="settings"] [data-slot="card"] {
 	border: 1px solid var(--campus-auth-card-border);
-	border-radius: var(--radius-xl);
+	border-radius: var(--card-radius);
 	background: var(--sys-surface-default);
 	box-shadow: var(--campus-auth-card-shadow);
 }
@@ -230,26 +217,4 @@
 [data-campus-account-surface="settings"] button[aria-label="隐藏密码"] {
 	min-width: 44px;
 	min-height: 44px;
-}
-
-:root {
-	--sidebar: hsl(0 0% 98%);
-	--sidebar-foreground: hsl(240 5.3% 26.1%);
-	--sidebar-primary: hsl(240 5.9% 10%);
-	--sidebar-primary-foreground: hsl(0 0% 98%);
-	--sidebar-accent: hsl(240 4.8% 95.9%);
-	--sidebar-accent-foreground: hsl(240 5.9% 10%);
-	--sidebar-border: hsl(220 13% 91%);
-	--sidebar-ring: hsl(217.2 91.2% 59.8%);
-}
-
-.dark {
-	--sidebar: hsl(240 5.9% 10%);
-	--sidebar-foreground: hsl(240 4.8% 95.9%);
-	--sidebar-primary: hsl(224.3 76.3% 48%);
-	--sidebar-primary-foreground: hsl(0 0% 100%);
-	--sidebar-accent: hsl(240 3.7% 15.9%);
-	--sidebar-accent-foreground: hsl(240 4.8% 95.9%);
-	--sidebar-border: hsl(240 3.7% 15.9%);
-	--sidebar-ring: hsl(217.2 91.2% 59.8%);
 }

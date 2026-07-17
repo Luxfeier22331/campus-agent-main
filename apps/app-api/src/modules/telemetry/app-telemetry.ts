@@ -314,5 +314,25 @@ export function createAppTelemetry(
 				}),
 			);
 		},
+
+		async recordWebPerformance(input) {
+			await runTelemetryAsyncSideEffectWithoutRequestFailure(() =>
+				runtimeEventSink.emit({
+					metric_name: input.metricName,
+					metric_value: input.value,
+					navigation_type: input.navigationType,
+					rating: input.rating,
+					route_group: input.routeGroup,
+					...buildRuntimeEventEnvelope(
+						{
+							eventType: "web.performance",
+							status: "observed",
+							surface: "campus_web",
+						},
+						telemetryMetadata,
+					),
+				}),
+			);
+		},
 	};
 }

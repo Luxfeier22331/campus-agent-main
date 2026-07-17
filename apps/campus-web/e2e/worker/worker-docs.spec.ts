@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { DEFAULT_DOCS_READER_PATH } from "../src/platform/navigation/product-nav";
+import { DEFAULT_DOCS_READER_PATH } from "../../src/platform/navigation/product-nav";
 
 test.describe("campus web worker docs browser boundary", () => {
 	test("serves health and ready probes through the Worker", async ({ request }) => {
@@ -25,30 +25,32 @@ test.describe("campus web worker docs browser boundary", () => {
 
 		expect(response?.status()).toBe(200);
 		await expect(page).toHaveURL(DEFAULT_DOCS_READER_PATH);
-		await expect(page.locator("#__rspress_root")).toContainText("学生管理规定");
+		await expect(page.locator("#__rspress_root")).toContainText("学生考勤管理规定");
 		await expect(page.locator("#root")).toHaveCount(0);
 	});
 
-	test("serves public docs clean URLs through the Rspress reader", async ({ page }) => {
+	test("serves public docs clean URLs through the Rspress reader", { tag: "@smoke" }, async ({
+		page,
+	}) => {
 		const response = await page.goto(DEFAULT_DOCS_READER_PATH, {
 			waitUntil: "domcontentloaded",
 		});
 
 		expect(response?.status()).toBe(200);
-		await expect(page.locator("#__rspress_root")).toContainText("学生管理规定");
+		await expect(page.locator("#__rspress_root")).toContainText("学生考勤管理规定");
 		await expect(page.locator("#root")).toHaveCount(0);
 	});
 
 	test("serves public docs versioned clean URLs through the Rspress reader", async ({ page }) => {
 		const response = await page.goto(
-			"/docs/regulations/student_rules/doc-c62077b20430/v/2024-current",
+			"/docs/regulations/student_rules/doc-c62077b20430/v/2025-history",
 			{
 				waitUntil: "domcontentloaded",
 			},
 		);
 
 		expect(response?.status()).toBe(200);
-		await expect(page.locator("#__rspress_root")).toContainText("学生管理规定历史版");
+		await expect(page.locator("#__rspress_root")).toContainText("学生考勤管理规定");
 		await expect(page.locator("#root")).toHaveCount(0);
 	});
 
@@ -98,7 +100,7 @@ test.describe("campus web worker docs browser boundary", () => {
 		for (const path of [
 			"/api/campus-map/places/library",
 			"/api/dining/halls/haidian-canteen-1/floors/haidian-canteen-1-1f",
-			"/api/dining/halls/haidian-canteen-1/reviews",
+			"/api/dining/offerings/offering-1/reviews",
 		]) {
 			const response = await request.get(path);
 
@@ -145,16 +147,18 @@ test.describe("campus web worker docs browser boundary", () => {
 		});
 	});
 
-	test("does not serve gated reader assets when admission is unavailable", async ({ request }) => {
+	test("preserves dependency failure when gated reader admission is unavailable", async ({
+		request,
+	}) => {
 		const response = await request.get(
 			"/_gated-docs/curriculum/curriculum_plan/restricted-program/2026-current/reader.json",
 		);
 
-		expect(response.status()).toBe(404);
+		expect(response.status()).toBe(503);
 		expect(response.headers()["content-type"]).toMatch(/application\/json/);
 		await expect(response.json()).resolves.toMatchObject({
 			error: {
-				code: "not_found",
+				code: "dependency_not_ready",
 			},
 		});
 	});

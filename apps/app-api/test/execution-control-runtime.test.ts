@@ -1,7 +1,6 @@
 // @vitest-environment node
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createExecutionControlProviderConfigClient } from "../src/modules/integration/execution-control-provider-config";
 import {
 	createExecutionControlPersonalMemoryClient,
 	createExecutionControlRequester,
@@ -177,40 +176,5 @@ describe("execution control requester", () => {
 			code: "dependency_not_ready",
 			status: 503,
 		});
-	});
-
-	it("keeps provider-config compatibility checks on the bound worker fetch path", async () => {
-		vi.stubGlobal("fetch", function (
-			this: unknown,
-			_input: RequestInfo | URL,
-			_init?: RequestInit,
-		): Promise<Response> {
-			if (this !== globalThis) {
-				throw new TypeError("Illegal invocation: function called with incorrect `this` reference.");
-			}
-			return Promise.resolve(
-				new Response(JSON.stringify({ ok: true, reason: "" }), {
-					headers: { "content-type": "application/json" },
-					status: 200,
-				}),
-			);
-		} as typeof fetch);
-		const client = createExecutionControlProviderConfigClient({
-			EXECUTION_CONTROL_BASE_URL: "http://execution-control.local",
-			EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
-			EXECUTION_CONTROL_TIMEOUT_MS: "1000",
-		});
-
-		await expect(
-			client.checkEmbeddingCompatibility({
-				baseUrl: "https://embedding.example/v1",
-				dimensions: 2560,
-				model: "Qwen3-Embedding-4B",
-				provider: "openai-compatible",
-				role: "rag_query_embedding",
-				timeoutMs: 30000,
-				transport: "embeddings",
-			}),
-		).resolves.toEqual({ ok: true, reason: "" });
 	});
 });

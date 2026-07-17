@@ -1,4 +1,20 @@
 import type {
+	ProviderConfigConnectionSummary,
+	ProviderConfigProfileSummary,
+} from "@campus-agent/provider-config";
+import type {
+	DiningCatalogCommand,
+	DiningDraft,
+	DiningOpsObservation,
+	DiningOpsOverview,
+	DiningOpsReview,
+	DiningOpsSourceRun,
+	DiningRelease,
+	DiningReleaseDetail,
+	DiningReviewCommand,
+	DiningValidationReport,
+} from "../shared/dining-contract";
+import type {
 	OpsOverviewWindow,
 	OpsRequestSummary,
 	OpsRequestWindow,
@@ -179,4 +195,153 @@ export async function fetchOpsObservability(
 			{ signal: input.signal },
 		),
 	);
+}
+
+export async function fetchDiningOverview(input: { signal?: AbortSignal } = {}) {
+	return fetchJson("/api/ops/dining/overview", {
+		signal: input.signal,
+	}) as Promise<DiningOpsOverview>;
+}
+
+export async function fetchDiningDraft(input: { signal?: AbortSignal } = {}) {
+	return fetchJson("/api/ops/dining/catalog/draft", { signal: input.signal }) as Promise<{
+		draft: DiningDraft;
+	}>;
+}
+
+export async function fetchDiningValidation(input: { signal?: AbortSignal } = {}) {
+	return fetchJson("/api/ops/dining/catalog/draft/validation", {
+		signal: input.signal,
+	}) as Promise<{ validation: DiningValidationReport }>;
+}
+
+export async function rebaseDiningDraft() {
+	return fetchJson("/api/ops/dining/catalog/draft/rebase", { method: "POST" }) as Promise<{
+		draft: DiningDraft;
+	}>;
+}
+
+export async function applyDiningCatalogCommand(command: DiningCatalogCommand) {
+	return fetchJson("/api/ops/dining/catalog/draft/commands", {
+		body: JSON.stringify(command),
+		headers: { "content-type": "application/json" },
+		method: "POST",
+	}) as Promise<{ draft: DiningDraft }>;
+}
+
+export async function publishDiningCatalog(notes: string) {
+	return fetchJson("/api/ops/dining/catalog/publish", {
+		body: JSON.stringify({ notes }),
+		headers: { "content-type": "application/json" },
+		method: "POST",
+	}) as Promise<DiningReleaseDetail>;
+}
+
+export async function fetchDiningReleases(input: { signal?: AbortSignal } = {}) {
+	return fetchJson("/api/ops/dining/releases", { signal: input.signal }) as Promise<{
+		releases: DiningRelease[];
+	}>;
+}
+
+export async function rollbackDiningRelease(releaseId: string, notes: string) {
+	return fetchJson(`/api/ops/dining/releases/${encodeURIComponent(releaseId)}/rollback`, {
+		body: JSON.stringify({ notes }),
+		headers: { "content-type": "application/json" },
+		method: "POST",
+	}) as Promise<DiningReleaseDetail>;
+}
+
+export async function fetchDiningReviews(input: { signal?: AbortSignal } = {}) {
+	return fetchJson("/api/ops/dining/reviews?limit=100", { signal: input.signal }) as Promise<{
+		reviews: DiningOpsReview[];
+	}>;
+}
+
+export async function fetchDiningSource(input: { signal?: AbortSignal } = {}) {
+	const [runs, observations] = await Promise.all([
+		fetchJson("/api/ops/dining/source-runs?limit=30", { signal: input.signal }) as Promise<{
+			runs: DiningOpsSourceRun[];
+		}>,
+		fetchJson("/api/ops/dining/observations?limit=100", { signal: input.signal }) as Promise<{
+			observations: DiningOpsObservation[];
+		}>,
+	]);
+	return { observations: observations.observations, runs: runs.runs };
+}
+
+export async function applyDiningReviewCommand(reviewId: string, command: DiningReviewCommand) {
+	return fetchJson(`/api/ops/dining/reviews/${encodeURIComponent(reviewId)}/commands`, {
+		body: JSON.stringify(command),
+		headers: { "content-type": "application/json" },
+		method: "POST",
+	}) as Promise<{ ok: true }>;
+}
+
+export async function fetchProviderConfig(input: { signal?: AbortSignal } = {}) {
+	const [connections, profiles] = await Promise.all([
+		fetchJson("/api/ops/provider-config/connections", { signal: input.signal }) as Promise<{
+			connections: ProviderConfigConnectionSummary[];
+		}>,
+		fetchJson("/api/ops/provider-config/profiles", { signal: input.signal }) as Promise<{
+			profiles: ProviderConfigProfileSummary[];
+			runtime: {
+				configured: boolean;
+				digest: string | null;
+				publicationId: string | null;
+				profiles: Record<
+					string,
+					{ model: string; profileId: string; provider: string; revision: number }
+				>;
+				publishedAt: string | null;
+				publishedBy: { displayName: string; principalId: string } | null;
+			};
+		}>,
+	]);
+	return {
+		connections: connections.connections,
+		profiles: profiles.profiles,
+		runtime: profiles.runtime,
+	};
+}
+
+export async function createProviderConnection(payload: Record<string, unknown>) {
+	return fetchJson("/api/ops/provider-config/connections", {
+		body: JSON.stringify(payload),
+		headers: { "content-type": "application/json" },
+		method: "POST",
+	});
+}
+export async function createProviderProfile(payload: Record<string, unknown>) {
+	return fetchJson("/api/ops/provider-config/profiles", {
+		body: JSON.stringify(payload),
+		headers: { "content-type": "application/json" },
+		method: "POST",
+	});
+}
+export async function updateProviderConnection(
+	connectionId: string,
+	payload: Record<string, unknown>,
+) {
+	return fetchJson(`/api/ops/provider-config/connections/${encodeURIComponent(connectionId)}`, {
+		body: JSON.stringify(payload),
+		headers: { "content-type": "application/json" },
+		method: "PATCH",
+	});
+}
+export async function updateProviderProfile(profileId: string, payload: Record<string, unknown>) {
+	return fetchJson(`/api/ops/provider-config/profiles/${encodeURIComponent(profileId)}`, {
+		body: JSON.stringify(payload),
+		headers: { "content-type": "application/json" },
+		method: "PATCH",
+	});
+}
+export async function validateProviderProfile(profileId: string) {
+	return fetchJson(`/api/ops/provider-config/profiles/${encodeURIComponent(profileId)}/validate`, {
+		method: "POST",
+	});
+}
+export async function activateProviderProfile(profileId: string) {
+	return fetchJson(`/api/ops/provider-config/profiles/${encodeURIComponent(profileId)}/activate`, {
+		method: "POST",
+	});
 }

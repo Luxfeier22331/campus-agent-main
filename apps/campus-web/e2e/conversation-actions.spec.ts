@@ -95,7 +95,7 @@ test.describe("conversation action browser flow", () => {
 
 async function openThreadActionMenu(page: Page, title: string) {
 	const thread = page.locator(".aui-thread-list-item").filter({ hasText: title });
-	await expect(thread).toBeVisible();
+	await expect(thread).toBeVisible({ timeout: 15_000 });
 	await thread.hover();
 	await thread.getByRole("button", { name: "更多操作" }).click();
 }

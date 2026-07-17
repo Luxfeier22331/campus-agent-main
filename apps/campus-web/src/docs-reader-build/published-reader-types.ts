@@ -3,24 +3,20 @@ export interface ReaderObjectStoreClient {
 	readTextObject(input: { key: string }): Promise<string>;
 }
 
-export interface PublishedReaderObjectStoreClient {
-	readTextObject(input: { key: string }): Promise<string>;
-}
-
-export type PublishedReaderDeliveryMode = "gated_asset" | "public_static_asset" | "withheld";
+export type PublishedReaderDeliveryMode = "gated_asset" | "public_static_asset";
 
 export interface PublishedReaderManifestEntry {
 	collection: string;
 	corpus: string;
 	deliveryMode: PublishedReaderDeliveryMode;
-	docId?: string;
+	docId: string;
 	documentSlug: string;
 	isCurrent: boolean;
 	sourceObjects: Record<string, string>;
 	targetObjects: Record<string, string>;
 	title: string;
-	versionId?: string;
-	versionLabel?: string;
+	versionId: string;
+	versionLabel: string;
 	versionSlug: string;
 }
 
@@ -33,7 +29,7 @@ export interface PublishedReaderSearchUnit {
 	canonicalUrl: string;
 	collection: string;
 	corpus: string;
-	docId?: string;
+	docId: string;
 	documentSlug: string;
 	documentTitle: string;
 	highlightRootUnitIds: string[];
@@ -46,23 +42,21 @@ export interface PublishedReaderSearchUnit {
 
 export interface PublishedReaderManifest {
 	entries: PublishedReaderManifestEntry[];
-	generatedAt?: string;
-	searchUnits: unknown[];
+	searchUnits: PublishedReaderSearchUnit[];
 }
 
 export type PublishedReaderSyncCommand = "all" | "assets" | "check" | "docs";
 
 export interface PublishedReaderSyncArgs {
 	command: PublishedReaderSyncCommand;
-	manifestFilePath?: string;
-	manifestObjectKey?: string;
+	manifestFilePath: string;
 }
 
 export interface ReaderSyncInput {
 	client: ReaderObjectStoreClient;
 	docsRoot?: string;
-	manifestFilePath?: string;
-	manifestObjectKey?: string;
+	manifest?: PublishedReaderManifest;
+	manifestFilePath: string;
 	targetRoot?: string;
 }
 

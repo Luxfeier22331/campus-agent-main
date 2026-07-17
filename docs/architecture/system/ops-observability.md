@@ -10,23 +10,18 @@ status: active
 
 本文定义 `ops-web`、PostgreSQL、OpenTelemetry、OpenObserve、Temporal、Langfuse、
 Sentry 和 Axiom 在运行排查中的职责。页面要求见 `../../product/ops-web.md`，HTTP 字段见
-`../../contracts/ops-web.md`，Worker Operator Console 见 `operator-console.md`。
+`../../contracts/ops-web.md`，模型配置边界见 `../../decisions/adr-0080-ops-web.md`。
 
 本文不宣称 staging 已部署，也不记录环境地址、Secret 或资源规格；这些由环境 GitOps
 仓库和实际运行证据负责。
 
 ## 核心结论
 
-仓库保留两个用途不同的受控入口：
+`ops-web` 是唯一自托管运维产品。它在服务端读取严格授权的 PostgreSQL 摘要并查询
+OpenObserve，浏览器只访问同一进程的接口。明确允许的写能力包括模型服务配置、食堂内容、
+固定内部门户 TGC 和固定认证维护 Schedule；每项能力使用独立 role、固定 Secret 或窄接口。
 
-- `operator-console-web` 继续通过 `app-api` 承担供应商配置和业务操作。它仍受
-  ADR-0055、ADR-0067 约束，不直连数据库或观测平台。
-- `ops-web` 是独立、自托管、默认只读的运行排查应用。它在服务端读取严格授权的
-  PostgreSQL 摘要并查询 OpenObserve，浏览器只访问 `ops-web` 自身接口。唯一非诊断操作是
-  人员替换固定内部门户 TGC，以及恢复固定认证维护 Schedule。
-
-两者不互相代理，也不共享一个通用运维后端。`ops-web` 不是产品 API、数据库浏览器、
-Temporal 控制台或通用日志平台。
+Ops Web 不是产品 API、数据库浏览器、Temporal 控制台、通用 Secret 管理器或通用日志平台。
 
 ## 数据流
 
@@ -40,6 +35,8 @@ flowchart LR
   Health[固定服务健康检查]
   OpenObserve[(OpenObserve)]
   PortalSecret[(固定内部门户 Secret)]
+  ProviderDB[(Provider 候选与验证结果)]
+  ProviderSecret[(Provider Config v2 Secret)]
   IngestionControl[ingestion-control 运维接口]
   AuthSchedule[Temporal 认证维护 Schedule]
   OTel[OpenTelemetry Collector]
@@ -55,6 +52,8 @@ flowchart LR
   OpsWeb --> Health
   OpsWeb --> OpenObserve
   OpsWeb -->|仅 get/patch 固定资源| PortalSecret
+  OpsWeb --> ProviderDB
+  OpsWeb -->|resourceVersion CAS| ProviderSecret
   OpsWeb -->|读取状态/恢复固定 Schedule| IngestionControl
   IngestionControl --> AuthSchedule
   Runtime --> OTel
@@ -74,8 +73,8 @@ flowchart LR
 
 | 组件 | 负责 | 不负责 |
 | --- | --- | --- |
-| Ops Web 页面 | 展示、筛选、复制关联标识、打开入口和替换门户 TGC | 读取现有凭据或提交任意查询 |
-| Ops Web 服务端 | Access 验证、固定查询、短缓存、读取审计和固定 Secret patch | 写请求状态、触发工作流或提供通用代理 |
+| Ops Web 页面 | 展示、筛选、复制关联标识、打开入口和执行已准入运维操作 | 读取现有凭据或提交任意查询 |
+| Ops Web 服务端 | Access 验证、固定查询、短缓存、读取审计、Provider Config 和固定 Secret patch | 写请求状态、触发任意工作流或提供通用代理 |
 | ingestion-control | 读取固定 Schedule 与最近结果、幂等恢复该 Schedule | 接收任意 Schedule 或 Workflow 标识 |
 | PostgreSQL | turn dispatch、用户问题、agent run、observability fact 和读取审计 | Temporal 队列、原始日志、原始调用链 |
 | OpenTelemetry Collector | 接收、清理、批处理并发送观测数据 | 长期查询和请求状态判断 |
@@ -234,14 +233,14 @@ namespace、Ingress、ConfigMap、Secret 内容、NetworkPolicy、数据库角�
 - 不把 vendor-specific observability schema 写进 `packages/contracts`。
 - 不恢复供应商正文同步任务或外部观测数据镜像表。
 - 不把 Ops Web 做成通用管理后台、工作流控制台或外部平台复制品。
-- 不允许 Ops Web 创建、列举、删除 Secret，或修改固定门户 Secret 以外的 Secret。
+- 不允许 Ops Web 创建、列举、删除 Secret，或修改固定内部门户和 Provider Config 之外的 Secret。
 - 不为 Ops Web 单独拆分一个只有它消费的后端服务。
 
 ## 相关文档
 
 - `../../product/ops-web.md`
 - `../../contracts/ops-web.md`
-- `operator-console.md`
+- `../../decisions/adr-0080-ops-web.md`
 - `k8s-runtime.md`
 - `langfuse.md`
 - `../../contracts/stage-timing.md`

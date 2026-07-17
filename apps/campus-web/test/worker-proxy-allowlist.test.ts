@@ -4,12 +4,15 @@ import { isAllowedCampusAppApiRequest } from "../src/platform/worker-proxy/allow
 
 describe("campus worker app-api proxy allowlist", () => {
 	it("allows student dining read routes", () => {
+		expect(isAllowedCampusAppApiRequest("/api/dining/bootstrap")).toBe(true);
 		expect(isAllowedCampusAppApiRequest("/api/dining/halls")).toBe(true);
+		expect(isAllowedCampusAppApiRequest("/api/dining/publication")).toBe(true);
 		expect(isAllowedCampusAppApiRequest("/api/dining/halls/haidian-canteen-1/floors/1f")).toBe(
 			true,
 		);
-		expect(isAllowedCampusAppApiRequest("/api/dining/halls/haidian-canteen-1/reviews")).toBe(true);
-		expect(isAllowedCampusAppApiRequest("/api/dining/halls/haidian-canteen-1/reviews/raw")).toBe(
+		expect(isAllowedCampusAppApiRequest("/api/dining/search")).toBe(true);
+		expect(isAllowedCampusAppApiRequest("/api/dining/offerings/offering-1/reviews")).toBe(true);
+		expect(isAllowedCampusAppApiRequest("/api/dining/offerings/offering-1/reviews/raw")).toBe(
 			false,
 		);
 	});
@@ -25,5 +28,10 @@ describe("campus worker app-api proxy allowlist", () => {
 		expect(isAllowedCampusAppApiRequest("/api/campus-services/transport-schedule/status")).toBe(
 			true,
 		);
+	});
+
+	it("allows only the bounded browser performance ingest route", () => {
+		expect(isAllowedCampusAppApiRequest("/api/telemetry/web-performance")).toBe(true);
+		expect(isAllowedCampusAppApiRequest("/api/telemetry/raw-performance")).toBe(false);
 	});
 });

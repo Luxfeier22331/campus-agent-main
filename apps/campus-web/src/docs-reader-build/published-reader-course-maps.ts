@@ -58,7 +58,7 @@ export function renderCourseMapFigure(courseMap: CourseMapBlock): string {
 	const caption = courseMap.title === courseMap.parentHeadingHint ? "" : courseMap.title;
 	return [
 		`<figure className="docs-course-map-figure" data-docs-course-map-id="${escapeAttribute(courseMap.blockId)}">`,
-		'\t<div className="docs-course-map-frame">',
+		`\t<div className="docs-course-map-frame" role="region" aria-label="${escapeAttribute(courseMap.title)}" tabIndex={0}>`,
 		`\t\t<img className="docs-course-map-image" src="${escapeAttribute(courseMap.targetUrl)}" alt="${escapeAttribute(courseMap.title)}" loading="lazy" decoding="async" />`,
 		"\t</div>",
 		...(caption ? [`\t<figcaption>${escapeHtml(caption)}</figcaption>`] : []),

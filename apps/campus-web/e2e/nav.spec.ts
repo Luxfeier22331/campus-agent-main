@@ -32,7 +32,7 @@ test.describe("product navigation browser flow", () => {
 		await expect(page.getByRole("heading", { exact: true, name: "反馈" })).toBeVisible();
 	});
 
-	test("keeps mobile product navigation usable", async ({ page }) => {
+	test("keeps mobile product navigation usable", { tag: "@smoke" }, async ({ page }) => {
 		await page.setViewportSize({ height: 812, width: 390 });
 		await page.goto("/");
 
@@ -41,6 +41,25 @@ test.describe("product navigation browser flow", () => {
 
 		await expect(page).toHaveURL("/dining");
 		await expect(page.getByRole("heading", { exact: true, name: "食堂" })).toBeVisible();
+	});
+
+	test("keeps support-page mobile navigation touchable and restores keyboard focus", async ({
+		page,
+	}) => {
+		await page.setViewportSize({ height: 812, width: 390 });
+		await page.goto("/services");
+
+		const trigger = page.getByRole("button", { name: "打开产品导航" });
+		await expect(trigger).toBeVisible();
+		const triggerBox = await trigger.boundingBox();
+		expect(triggerBox?.width ?? 0).toBeGreaterThanOrEqual(44);
+		expect(triggerBox?.height ?? 0).toBeGreaterThanOrEqual(44);
+
+		await trigger.focus();
+		await trigger.press("Enter");
+		await expect(page.getByRole("menu")).toBeVisible();
+		await page.keyboard.press("Escape");
+		await expect(trigger).toBeFocused();
 	});
 
 	test("exposes the canonical docs reader entry without opening it in the Vite lane", async ({

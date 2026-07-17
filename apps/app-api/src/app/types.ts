@@ -4,7 +4,7 @@ import type { CampusExperienceService } from "../modules/campus-experience";
 import type { CampusServicesOpsService } from "../modules/campus-services-ops";
 import type { CampusServicesTransportScheduleService } from "../modules/campus-services-transport-schedule";
 import type { ChatConversationService } from "../modules/chat";
-import type { DiningOperationsService } from "../modules/dining-ops";
+import type { DiningPublicReadService } from "../modules/dining";
 import type { DocsService } from "../modules/docs";
 import type { IdentityPlatformService } from "../modules/identity-platform";
 import type {
@@ -14,7 +14,6 @@ import type {
 	IngestionTaskProjectionFetch,
 } from "../modules/integration";
 import type { ProfileMemoryService } from "../modules/profile-memory";
-import type { ProviderConfigService } from "../modules/provider-config";
 import type { ChatCommandService } from "../modules/runtime-command";
 import type { RuntimeRunService } from "../modules/runtime-run";
 import type { AppTelemetry } from "../modules/telemetry";
@@ -30,9 +29,9 @@ export interface AppDependencies {
 	campusServicesTransportScheduleService?: CampusServicesTransportScheduleService;
 	chatConversationService?: ChatConversationService;
 	chatCommandService?: ChatCommandService;
-	diningOperationsService?: DiningOperationsService;
+	diningPublicReadService?: DiningPublicReadService;
 	docsService?: DocsService;
-	docsReadinessProbe?: () => Promise<AppDocsReadinessResult>;
+	docsReadinessProbe?: (releaseId: string) => Promise<AppDocsReadinessResult>;
 	getAppAuth?: AppAuthGetter;
 	getPrincipal?: (
 		request: Request,
@@ -43,7 +42,6 @@ export interface AppDependencies {
 	ingestionTaskProjectionClient?: IngestionTaskProjectionClient;
 	ingestionTaskProjectionFetch?: IngestionTaskProjectionFetch;
 	profileMemoryService?: ProfileMemoryService;
-	providerConfigService?: ProviderConfigService;
 	telemetry?: AppTelemetry;
 	runtimeReadinessProbe?: () => Promise<AppRuntimeReadinessResult>;
 	runtimeRunService?: RuntimeRunService;
@@ -86,12 +84,11 @@ export interface AppRequestScope {
 	resolveCampusServicesTransportScheduleService(): CampusServicesTransportScheduleService;
 	resolveChatCommandService(): ChatCommandService;
 	resolveChatConversationService(): ChatConversationService;
-	resolveDiningOperationsService(): DiningOperationsService;
+	resolveDiningPublicReadService(): DiningPublicReadService;
 	resolveDocsService(): DocsService;
 	resolveIdentityPlatformService(): IdentityPlatformService;
 	resolveIngestionTaskProjectionClient(): IngestionTaskProjectionClient;
 	resolveProfileMemoryService(): ProfileMemoryService;
-	resolveProviderConfigService(): ProviderConfigService;
 	resolveRuntimeRunService(): RuntimeRunService;
 	telemetry: AppTelemetry;
 }

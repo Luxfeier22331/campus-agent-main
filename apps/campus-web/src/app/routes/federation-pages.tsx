@@ -105,7 +105,7 @@ function FederationStatusHeader({ icon, title }: { icon: ReactNode; title: strin
 
 function OAuthClientPanel({ oauthContext }: { oauthContext: CampusOAuthContext }) {
 	return (
-		<div className="mb-6 rounded-lg border border-border bg-muted/40 p-4">
+		<div className="mb-6 rounded-lg border border-border bg-surface-muted/40 p-4">
 			<div className="flex items-center justify-between gap-4">
 				<div>
 					<p className="font-semibold text-foreground text-sm">{oauthContext.client.displayName}</p>

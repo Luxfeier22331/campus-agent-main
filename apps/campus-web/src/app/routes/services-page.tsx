@@ -1,11 +1,10 @@
-import { Table } from "@heroui/react";
 import { LayoutGroup, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { contentSwap, stateSwap } from "@/components/ui/motion";
+import { CampusMotionProvider, contentSwap, stateSwap } from "@/components/ui/motion";
 import { SurfaceState } from "@/components/ui/surface-state";
 import { getCampusTransportStatus } from "@/features/campus-services/api";
 import type {
@@ -88,24 +87,19 @@ export function ServicesPage() {
 	}, []);
 
 	return (
-		<section className="mx-auto max-w-[1440px] px-5 py-6 pb-24 lg:px-6">
-			<div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-				<div>
-					<h1 className="text-3xl font-semibold tracking-normal text-[var(--sys-text-strong)]">
-						班车时刻表
-					</h1>
-					<p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--sys-text-muted)]">
-						展示已发布的校车班车时间和临时调整来源。
-					</p>
-				</div>
-			</div>
+		<section className="mx-auto max-w-[var(--layout-page-workspace-width)] px-4 py-6 pb-24 sm:px-5 lg:px-6">
+			<h1 className="text-2xl font-semibold tracking-normal text-[var(--sys-text-strong)] md:text-3xl">
+				班车时刻表
+			</h1>
 
-			<div className="grid gap-6">
-				<TransportScheduleSection
-					error={scheduleError}
-					isLoading={isScheduleLoading}
-					payload={schedulePayload}
-				/>
+			<div className="mt-5 grid gap-6">
+				<CampusMotionProvider>
+					<TransportScheduleSection
+						error={scheduleError}
+						isLoading={isScheduleLoading}
+						payload={schedulePayload}
+					/>
+				</CampusMotionProvider>
 			</div>
 		</section>
 	);
@@ -131,12 +125,11 @@ function TransportScheduleSection({
 						className="text-xl font-semibold tracking-normal text-[var(--sys-text-strong)]"
 						id="transport-schedule-heading"
 					>
-						班车时刻表
+						班次安排
 					</h2>
 					{payload ? (
 						<p className="mt-1 text-xs leading-5 text-[var(--sys-text-muted)]">
-							发布于 {formatDisplayDateTime(payload.release.publishedAt)} ·{" "}
-							{payload.release.releaseId}
+							更新于 {formatDisplayDateTime(payload.release.publishedAt)}
 						</p>
 					) : null}
 				</div>
@@ -170,11 +163,7 @@ function TransportScheduleSection({
 					) : null}
 					{isLoading ? (
 						<motion.div key="transport-loading" layout {...stateSwap}>
-							<SurfaceState
-								description="正在读取已发布的校车班次。"
-								kind="loading"
-								title="正在加载"
-							/>
+							<SurfaceState description="正在加载班车时刻。" kind="loading" title="正在加载" />
 						</motion.div>
 					) : null}
 					{!(isLoading || error) && payload && payload.groups.length === 0 ? (
@@ -250,24 +239,27 @@ function TransportRouteTable({ route }: { route: CampusTransportRoute }) {
 				{route.displayName}
 			</h4>
 			{rows.length > 0 ? (
-				<Table className="rounded-lg border border-border bg-white shadow-none" variant="secondary">
-					<Table.ScrollContainer>
-						<Table.Content aria-label={`${route.displayName}班车时刻表`}>
-							<Table.Header columns={scheduleTableColumns}>
-								{(column) => (
-									<Table.Column id={column.id} isRowHeader={column.isRowHeader}>
+				<div className="max-w-full overflow-x-auto rounded-[var(--card-radius)] border border-border bg-card shadow-[var(--card-shadow)]">
+					<table
+						aria-label={`${route.displayName}班车时刻表`}
+						className="w-full min-w-[640px] border-collapse text-left"
+					>
+						<thead className="bg-surface-muted/70 text-xs text-[var(--sys-text-muted)]">
+							<tr>
+								{scheduleTableColumns.map((column) => (
+									<th className="border-border border-b px-4 py-3 font-semibold" key={column.id}>
 										{column.label}
-									</Table.Column>
-								)}
-							</Table.Header>
-							<Table.Body items={rows}>
-								{(departure) => (
-									<TransportDepartureRow departure={departure} rowId={departure.rowId} />
-								)}
-							</Table.Body>
-						</Table.Content>
-					</Table.ScrollContainer>
-				</Table>
+									</th>
+								))}
+							</tr>
+						</thead>
+						<tbody>
+							{rows.map((departure) => (
+								<TransportDepartureRow departure={departure} key={departure.rowId} />
+							))}
+						</tbody>
+					</table>
+				</div>
 			) : (
 				<Alert>当前路线暂无可展示班次。</Alert>
 			)}
@@ -275,21 +267,22 @@ function TransportRouteTable({ route }: { route: CampusTransportRoute }) {
 	);
 }
 
-function TransportDepartureRow({
-	departure,
-	rowId,
-}: {
-	departure: CampusTransportDeparture;
-	rowId: string;
-}) {
+function TransportDepartureRow({ departure }: { departure: CampusTransportDeparture }) {
 	return (
-		<Table.Row columns={scheduleTableColumns} id={rowId}>
-			{(column) => (
-				<Table.Cell textValue={getDepartureCellText(departure, column.id)}>
-					{renderDepartureCell(departure, column.id)}
-				</Table.Cell>
-			)}
-		</Table.Row>
+		<tr className="border-border border-b last:border-b-0">
+			{scheduleTableColumns.map((column) => {
+				const Cell = column.isRowHeader ? "th" : "td";
+				return (
+					<Cell
+						className="px-4 py-3 align-middle font-normal"
+						key={column.id}
+						{...(column.isRowHeader ? { scope: "row" as const } : {})}
+					>
+						{renderDepartureCell(departure, column.id)}
+					</Cell>
+				);
+			})}
+		</tr>
 	);
 }
 
@@ -324,27 +317,9 @@ function renderDepartureCell(departure: CampusTransportDeparture, columnId: Sche
 	}
 	return (
 		<p className="min-w-[180px] max-w-xl text-sm leading-6 text-[var(--sys-text-muted)]">
-			{departure.note ?? "—"}
+			{departure.note ?? "暂无"}
 		</p>
 	);
-}
-
-function getDepartureCellText(
-	departure: CampusTransportDeparture,
-	columnId: ScheduleTableColumnId,
-): string {
-	if (columnId === "departureTime") {
-		return departure.serviceDate
-			? `${departure.serviceDate} ${departure.departureTime}`
-			: departure.departureTime;
-	}
-	if (columnId === "type") {
-		return departureKindLabels[departure.kind];
-	}
-	if (columnId === "status") {
-		return departureStatusLabels[departure.status];
-	}
-	return departure.note ?? "—";
 }
 
 function countDepartureAdjustments(payload: CampusTransportStatusResponse | null): number {

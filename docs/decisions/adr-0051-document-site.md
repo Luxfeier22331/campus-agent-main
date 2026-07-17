@@ -22,10 +22,15 @@ docs search mapping 的技术路线可行，但该独立 app 已删除，后续�
 - `campus-web /docs/*` 是最终文档产品入口。
 - Rspress 是 `campus-web` 文档阅读面的 reader/render/search integration shell；公开
   current 文档搜索使用 Rspress native local search。
-- `app-api` 继续拥有 canonical document truth、publish manifest、restricted / gated
-  navigation/search/resolve/versions/admission 与 source-card permalink shaping。
+- 文档数据链拥有 canonical document truth；`jobs/docs-publish` 拥有内容寻址 release 和
+  release-scoped 读取投影；`app-api` 只提供 restricted / gated
+  navigation/resolve/versions/admission 与 source-card permalink shaping。
 - published reader assets 继续是正文发布产物；Rspress build 消费这些 reader projection /
   generated MDX，不成为 canonical truth。
+- Campus Web 构建只接受内容寻址 `docsReleaseId`，不连接 app-api 数据库；Worker 固定注入同一
+  release，环境仓同时选择 Worker version 与 docs release。
+- fixture 构建与 release 构建分离；staging 复用同一个 release 入口，不维护隐式导出或第二套
+  `--staging` 文档构建逻辑。
 - Q&A source card、docs search result 与直接阅读必须共用 reader permalink：
   `/docs/:corpus/:collection/:docSlug`、`/v/:versionSlug`、`?hl=rootUnitId`、
   `#anchor`。

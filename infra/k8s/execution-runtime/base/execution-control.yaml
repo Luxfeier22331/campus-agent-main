@@ -119,7 +119,7 @@ spec:
       volumes:
         - name: provider-config-projection
           secret:
-            secretName: execution-runtime-provider-config-projection
+            secretName: execution-runtime-provider-config
             defaultMode: 0440
             items:
               - key: provider-config-projection.json

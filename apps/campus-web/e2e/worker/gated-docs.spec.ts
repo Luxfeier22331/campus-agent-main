@@ -1,13 +1,15 @@
 import { expect, test } from "@playwright/test";
 
-const gatedReaderPath = "/docs/regulations/scoped_rules/restricted-policy";
+const gatedReaderPath = "/docs/regulations/student_rules/restricted-policy";
 const resolvePath =
-	"/api/docs/collections/regulations/scoped_rules/documents/restricted-policy/resolve";
+	"/api/docs/collections/regulations/student_rules/documents/restricted-policy/resolve";
 const readerAssetPath =
-	"/_gated-docs/regulations/scoped_rules/restricted-policy/2026-current/reader.json";
+	"/_gated-docs/regulations/student_rules/restricted-policy/2026-current/reader.json";
 
 test.describe("gated docs browser flow", () => {
-	test("shows a login action when the gated reader requires authentication", async ({ page }) => {
+	test("shows a login action when the gated reader requires authentication", {
+		tag: "@smoke",
+	}, async ({ page }) => {
 		await page.route(`**${resolvePath}`, async (route) => {
 			await route.fulfill({
 				contentType: "application/json",
@@ -23,6 +25,7 @@ test.describe("gated docs browser flow", () => {
 		await expect(page.getByText("登录后会回到当前文档。")).toBeVisible();
 		const loginHref = new URL(
 			(await page.getByRole("link", { name: "登录后继续" }).getAttribute("href")) ?? "",
+			page.url(),
 		);
 		expect(loginHref.pathname).toBe("/account/login");
 		expect(loginHref.searchParams.get("redirectTo")).toBe(
@@ -30,24 +33,24 @@ test.describe("gated docs browser flow", () => {
 		);
 	});
 
-	test("renders gated reader content after resolve and controlled asset fetch", async ({
-		page,
-	}) => {
+	test("renders gated reader content after resolve and controlled asset fetch", {
+		tag: "@smoke",
+	}, async ({ page }) => {
 		await page.route(`**${resolvePath}`, async (route) => {
 			await route.fulfill({
 				contentType: "application/json",
 				json: {
 					document: {
-						collection: "scoped_rules",
+						collection: "student_rules",
 						corpus: "regulations",
 						documentSlug: "restricted-policy",
-						title: "受保护制度",
+						title: "受限制度",
 					},
 					readerAsset: {
 						contentUrl: readerAssetPath,
 						deliveryMode: "gated_asset",
 						outlineUrl:
-							"/_gated-docs/regulations/scoped_rules/restricted-policy/2026-current/outline.json",
+							"/_gated-docs/regulations/student_rules/restricted-policy/2026-current/outline.json",
 					},
 					readerState: {
 						anchor: null,
@@ -65,7 +68,7 @@ test.describe("gated docs browser flow", () => {
 			await route.fulfill({
 				contentType: "application/json",
 				json: {
-					document: { title: "受保护制度" },
+					document: { title: "受限制度" },
 					sections: [
 						{
 							anchor: "general",
@@ -87,7 +90,7 @@ test.describe("gated docs browser flow", () => {
 		const response = await page.goto(gatedReaderPath, { waitUntil: "domcontentloaded" });
 
 		expect(response?.status()).toBe(200);
-		await expect(page.getByRole("heading", { name: "受保护制度" })).toBeVisible();
+		await expect(page.getByRole("heading", { level: 1, name: "受限制度" })).toHaveCount(1);
 		await expect(page.locator(".document-meta-summary")).toContainText("现行版");
 		await expect(page.locator(".document-meta-summary")).toContainText("登录后可见");
 		await expect(page.locator("[data-docs-reader-meta]")).toHaveAttribute(

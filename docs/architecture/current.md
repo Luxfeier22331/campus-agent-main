@@ -23,7 +23,6 @@ status: active
 ```mermaid
 flowchart LR
   Browser["campus-web"]
-  Operator["operator-console-web"]
   Ops["ops-web"]
   AppAPI["app-api"]
   Control["execution-control"]
@@ -39,7 +38,6 @@ flowchart LR
   OTel["OpenTelemetry Collector"]
 
   Browser --> AppAPI
-  Operator --> AppAPI
   AppAPI --> Control
   Control --> Temporal
   Temporal --> Workflow
@@ -55,15 +53,15 @@ flowchart LR
   Control --> OTel
   Ops --> PG
   Ops --> Control
+  Ops --> ProviderSecret["Provider Config Secret"]
 ```
 
 当前边界：
 
 - `campus-web` 提供学生问答、账号、文档、地图、食堂和校园状态页面；
 - `app-api` 拥有用户身份、会话、聊天持久化、产品 API 和请求终结；
-- `operator-console-web` 只承载当前模型服务配置面；
-- `ops-web` 是独立的自托管排查面，不通过 app-api 代理数据库和 Temporal 状态；它默认只读，
-  仅允许人员替换固定内部门户 TGC 并恢复固定认证维护 Schedule；
+- `ops-web` 是唯一自托管运维产品，不通过 app-api 代理数据库和 Temporal 状态；运行诊断默认
+  只读，人员可以替换固定内部门户 TGC、管理食堂内容，并管理、验证和发布模型服务配置；
 - `execution-control` 拥有内部执行准入、Temporal 命令、受控查询和执行投影；
 - `agent-runtime` 在一个 Agent Activity 中完成 OpenAI Agents SDK agent/tool loop；
 - 浏览器不直连 execution-control、Temporal、Hindsight、Qdrant 或 PostgreSQL。
@@ -149,9 +147,17 @@ app-api。
 
 当前唯一 model-visible campus service 是班车时刻表。领域行为见 `../domains/transport.md`。
 
+## 食堂
+
+`jobs/dining-sync` 把飞书目录和评价写入独立 `dining.*` schema，`apps/ops-web` 使用专用角色完成
+草稿校正、校验、发布、回滚和评价治理。app-api 只读取当前 publication、release 和公开评价；
+Campus Web 使用代码版本内的 floorplan manifest 渲染地图，不从 API 接收 SVG URL、摘要或坐标。
+
+领域所有权、地图发布和同步流程见 `domains/dining/architecture.md`。
+
 ## 部署边界
 
-- campus-web、app-api 和 operator-console-web 是 Cloudflare Worker 应用；
+- campus-web 和 app-api 是 Cloudflare Worker 应用；
 - execution-control、Temporal workers、ops-web 及自托管依赖由 Kubernetes/GitOps 管理；
 - source repo 提供镜像、Worker 候选版本和 namespace-neutral base；
 - 环境仓选择不可变版本、流量、Secret、namespace 和平台配置；
@@ -177,6 +183,7 @@ app-api。
 - 检索：`system/retrieval-serving.md`
 - 个人记忆：`system/memory-plane.md`
 - 采集数据面：`system/data-plane.md`
+- 食堂：`domains/dining/architecture.md`
 - 可观测性：`system/ops-observability.md`
 - Kubernetes：`system/k8s-runtime.md`
 - 代码组织：`system/code-organization.md`

@@ -26,6 +26,7 @@ export interface Env {
 	AUTH_TURNSTILE_EXECUTION?: string;
 	AUTH_TURNSTILE_SITE_KEY?: string;
 	CAMPUS_WEB_HOSTNAME?: string;
+	DOCS_RELEASE_ID?: string;
 	MAP_DATA?: R2Bucket;
 	SENTRY_DSN?: string;
 	SENTRY_ENVIRONMENT?: string;
@@ -65,6 +66,8 @@ const PUBLIC_DOCS_ROUTE_PREFIX = "/docs";
 const GATED_READER_ASSET_PREFIX = "/_gated-docs/";
 const PROTECTED_READER_SEARCH_PREFIX = "/_gated-docs-search/";
 const PUBLIC_VENDOR_ASSET_PREFIX = "/vendor/";
+const DOCS_RELEASE_HEADER = "x-campus-docs-release";
+const DOCS_RELEASE_ID_PATTERN = /^sha256:[a-f0-9]{64}$/u;
 
 const VITE_DEV_ASSET_PREFIXES = [
 	"/@fs/",
@@ -171,6 +174,10 @@ const worker = {
 		}
 
 		if (request.method === "GET" || request.method === "HEAD") {
+			if (url.pathname === "/favicon.ico") {
+				return serveStaticAsset(request, env);
+			}
+
 			if (url.pathname.startsWith(PUBLIC_READER_ASSET_PREFIX)) {
 				return serveStaticAsset(request, env);
 			}
@@ -242,6 +249,9 @@ function getMissingRuntimeConfig(env: Env): string[] {
 	if (!env.CAMPUS_WEB_HOSTNAME?.trim()) {
 		missing.push("CAMPUS_WEB_HOSTNAME");
 	}
+	if (!resolveDocsReleaseId(env)) {
+		missing.push("DOCS_RELEASE_ID");
+	}
 	return missing;
 }
 
@@ -284,6 +294,13 @@ async function proxyNoStoreAppApiRequest(request: Request, env: Env): Promise<Re
 		if (value) {
 			headers.set(headerName, value);
 		}
+	}
+	if (isDocsApiPath(inboundUrl.pathname)) {
+		const releaseId = resolveDocsReleaseId(env);
+		if (!releaseId) {
+			return dependencyNotReadyResponse();
+		}
+		headers.set(DOCS_RELEASE_HEADER, releaseId);
 	}
 
 	try {
@@ -343,7 +360,7 @@ function resolveAppApiFetch(
 	env: Env,
 ): ((request: Request) => Promise<Response> | Response) | null {
 	if (isLoopbackAppApiBaseUrl(appApiBaseUrl)) {
-		return fetch;
+		return (request) => globalThis.fetch(request);
 	}
 	return env.APP_API?.fetch.bind(env.APP_API) ?? null;
 }
@@ -372,16 +389,7 @@ async function serveCampusShell(request: Request, env: Env): Promise<Response> {
 	if (response instanceof Response && response.status !== 503) {
 		const contentType = response.headers.get("content-type") ?? "";
 		if (contentType.includes("text/html")) {
-			const headers = new Headers(response.headers);
-			headers.set("cache-control", "no-store");
-			for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
-				headers.set(key, value);
-			}
-			return new Response(injectCampusRuntimeConfig(await response.text(), request, env), {
-				headers,
-				status: response.status,
-				statusText: response.statusText,
-			});
+			return campusHtmlResponse(response, request, env, { cacheControl: "no-store" });
 		}
 		return responseWithSecurityHeaders(response);
 	}
@@ -409,12 +417,12 @@ async function servePublicDocsReader(request: Request, env: Env): Promise<Respon
 			const securedResponse = responseWithSecurityHeaders(response);
 			if (request.method === "HEAD") {
 				return new Response(null, {
-					headers: securedResponse.headers,
+					headers: campusHtmlHeaders(securedResponse),
 					status: securedResponse.status,
 					statusText: securedResponse.statusText,
 				});
 			}
-			return securedResponse;
+			return campusHtmlResponse(securedResponse, request, env);
 		}
 		if (response.status === 503) {
 			return responseWithSecurityHeaders(response);
@@ -587,6 +595,11 @@ async function checkGatedReaderAdmission(input: {
 			headers.set(headerName, value);
 		}
 	}
+	const releaseId = resolveDocsReleaseId(input.env);
+	if (!releaseId) {
+		return dependencyNotReadyResponse();
+	}
+	headers.set(DOCS_RELEASE_HEADER, releaseId);
 
 	let response: Response;
 	try {
@@ -608,10 +621,22 @@ async function checkGatedReaderAdmission(input: {
 	if (response.status === 204) {
 		return null;
 	}
+	if (response.status >= 500) {
+		return withVaryAuth(dependencyNotReadyResponse());
+	}
 
 	return withVaryAuth(
 		jsonResponse(404, { error: { code: "not_found", message: "Route not found." } }),
 	);
+}
+
+function isDocsApiPath(pathname: string): boolean {
+	return pathname === "/api/docs/readyz" || pathname.startsWith("/api/docs/collections/");
+}
+
+function resolveDocsReleaseId(env: Env): string | null {
+	const value = env.DOCS_RELEASE_ID?.trim() ?? "";
+	return DOCS_RELEASE_ID_PATTERN.test(value) ? value : null;
 }
 
 function parseProtectedReaderTarget(
@@ -668,6 +693,41 @@ function injectCampusRuntimeConfig(html: string, request: Request, env: Env): st
 	}
 
 	return `${html}${scriptTag}`;
+}
+
+async function campusHtmlResponse(
+	response: Response,
+	request: Request,
+	env: Env,
+	input: { cacheControl?: string } = {},
+): Promise<Response> {
+	const headers = campusHtmlHeaders(response, input);
+	return new Response(injectCampusRuntimeConfig(await response.text(), request, env), {
+		headers,
+		status: response.status,
+		statusText: response.statusText,
+	});
+}
+
+function campusHtmlHeaders(response: Response, input: { cacheControl?: string } = {}): Headers {
+	const headers = new Headers(response.headers);
+	for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+		headers.set(key, value);
+	}
+	if (input.cacheControl) {
+		headers.set("cache-control", input.cacheControl);
+	}
+	for (const staleHeader of [
+		"content-digest",
+		"content-encoding",
+		"content-length",
+		"content-md5",
+		"etag",
+		"last-modified",
+	]) {
+		headers.delete(staleHeader);
+	}
+	return headers;
 }
 
 function getForwardedHeaders(pathname: string) {

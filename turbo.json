@@ -9,15 +9,6 @@
 	},
 	"tasks": {
 		"build": {
-			"env": [
-				"CAMPUS_DOCS_SYNC_MANIFEST_KEY",
-				"CAMPUS_DOCS_SYNC_MANIFEST_PATH",
-				"OBJECT_STORE_ACCESS_KEY",
-				"OBJECT_STORE_BUCKET_DERIVED",
-				"OBJECT_STORE_ENDPOINT",
-				"OBJECT_STORE_REGION",
-				"OBJECT_STORE_SECRET_KEY"
-			],
 			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
 			"outputs": ["dist/**", ".tanstack/**"]
 		},
@@ -133,15 +124,6 @@
 			"outputLogs": "new-only"
 		},
 		"campus-web#build": {
-			"env": [
-				"CAMPUS_DOCS_SYNC_MANIFEST_KEY",
-				"CAMPUS_DOCS_SYNC_MANIFEST_PATH",
-				"OBJECT_STORE_ACCESS_KEY",
-				"OBJECT_STORE_BUCKET_DERIVED",
-				"OBJECT_STORE_ENDPOINT",
-				"OBJECT_STORE_REGION",
-				"OBJECT_STORE_SECRET_KEY"
-			],
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				"!README.md",
@@ -306,26 +288,6 @@
 				"!README.md",
 				"!**/README.md",
 				"$TURBO_ROOT$/configs/runtime/latency-budgets.v1.json"
-			],
-			"outputLogs": "new-only"
-		},
-		"operator-console-web#build": {
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"!README.md",
-				"!**/README.md",
-				"$TURBO_ROOT$/configs/branding/**"
-			],
-			"outputLogs": "new-only",
-			"outputs": ["dist/**", ".tanstack/**"]
-		},
-		"operator-console-web#test": {
-			"dependsOn": ["^test"],
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"!README.md",
-				"!**/README.md",
-				"$TURBO_ROOT$/configs/branding/**"
 			],
 			"outputLogs": "new-only"
 		},

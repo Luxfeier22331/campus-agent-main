@@ -120,6 +120,16 @@ describe.skipIf(!databaseUrl)("app-api migration upgrade", () => {
 				 "started_at", "measured_at", "updated_at")
 			values ('request-upgrade', 'trace-upgrade', 'conversation-upgrade', 'web', 'user', 'running',
 				now(), now(), now());
+			insert into "provider_config"."connections"
+				("connection_id", "provider", "base_url", "features_json", "feature_config_json",
+				 "api_key_secret_json", "revision", "created_at", "created_by_json", "updated_at", "updated_by_json")
+			values ('connection-upgrade', 'openai-compatible', 'https://provider.example/v1', '["prompt"]', '{}',
+				'{"ciphertext":"aesgcm:test:test","fingerprint":"test","last4":"test"}', 1, now(), '{}', now(), '{}');
+			insert into "provider_config"."profiles"
+				("profile_id", "kind", "role", "connection_id", "transport", "model", "timeout_ms",
+				 "status", "active", "revision", "validation_json", "created_at", "created_by_json", "updated_at", "updated_by_json")
+			values ('profile-upgrade', 'prompt', 'primary_agent', 'connection-upgrade', 'responses', 'model', 30000,
+				'active', true, 1, '{"ok":true,"message":"passed","status":"passed"}', now(), '{}', now(), '{}');
 		`);
 		await applyCurrentChatSchema(pool);
 
@@ -139,6 +149,14 @@ describe.skipIf(!databaseUrl)("app-api migration upgrade", () => {
 			where dispatch."request_id" = 'request-upgrade'
 		`);
 		expect(retained.rows).toEqual([{ chat_targets: [], observation_targets: [] }]);
+		const providerHandoff = await pool.query<{ active_column: string | null; status: string }>(`
+			select profile.status,
+			       (select column_name from information_schema.columns
+			        where table_schema = 'provider_config' and table_name = 'profiles' and column_name = 'active') as active_column
+			from provider_config.profiles profile
+			where profile.profile_id = 'profile-upgrade'
+		`);
+		expect(providerHandoff.rows).toEqual([{ active_column: null, status: "validated" }]);
 
 		const retired = await pool.query<{ schema_name: string }>(`
 			select schema_name
@@ -154,7 +172,7 @@ describe.skipIf(!databaseUrl)("app-api migration upgrade", () => {
 		const ledger = await pool.query<{ count: string }>(
 			`select count(*)::text as count from "drizzle"."app_api_migrations"`,
 		);
-		expect(ledger.rows[0]?.count).toBe("2");
+		expect(ledger.rows[0]?.count).toBe("3");
 
 		await resetDisposableDatabase(pool);
 		await applyCurrentChatSchema(pool);

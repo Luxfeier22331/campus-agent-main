@@ -5,9 +5,41 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<link rel="icon" href="/favicon.ico" type="image/x-icon" />
 		<title>MUC Campus</title>
+		<style>
+			[data-app-boot] {
+				position: fixed;
+				inset: 0;
+				box-sizing: border-box;
+				padding: 24px;
+				background: #f7f9f8;
+			}
+			[data-app-boot] > div {
+				width: min(100%, 768px);
+				margin: 0 auto;
+			}
+			[data-app-boot] i {
+				display: block;
+				height: 16px;
+				margin-top: 16px;
+				border-radius: 6px;
+				background: #e3e8e6;
+			}
+			[data-app-boot] i:first-child {
+				width: 112px;
+				height: 32px;
+				margin-top: 0;
+			}
+			[data-app-boot] i:last-child {
+				width: 72%;
+			}
+		</style>
 	</head>
 	<body>
-		<div id="root"></div>
+		<div id="root">
+			<div aria-busy="true" aria-label="正在加载页面" data-app-boot role="status">
+				<div aria-hidden="true"><i></i><i></i><i></i></div>
+			</div>
+		</div>
 		<script type="module" src="/src/main.tsx"></script>
 	</body>
 </html>

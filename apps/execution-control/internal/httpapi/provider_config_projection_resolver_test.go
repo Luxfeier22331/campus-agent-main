@@ -74,12 +74,36 @@ func TestProviderConfigResolverRejectsInsecureProjectionPermissions(t *testing.T
 	}
 }
 
+func TestProviderConfigResolverRejectsUnknownProjectionFields(t *testing.T) {
+	path := writeProviderProjectionForTest(t)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	invalid := strings.Replace(string(data), `"profiles":`, `"legacy":true,"profiles":`, 1)
+	if err := os.WriteFile(path, []byte(invalid), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	resolver, err := newProviderConfigResolver(config.Config{ProviderConfigSnapshotPath: path})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = resolver.ResolveActiveProviderConfig(t.Context(), providerConfigRolePrimaryAgent)
+
+	if err == nil || !strings.Contains(err.Error(), "unknown field") {
+		t.Fatalf("error = %v, want unknown field rejection", err)
+	}
+}
+
 func writeProviderProjectionForTest(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "provider-projection.json")
 	payload := `{
-		"schema_version": "provider_config_projection.v1",
-		"generated_at": "2026-06-22T00:00:00Z",
+		"schema_version": "provider_config_projection.v2",
+			"publication_id": "provider_publication_test",
+			"published_at": "2026-07-16T00:00:00.000Z",
+			"published_by": {"displayName":"Operator","principalId":"operator-1"},
 		"profiles": {
 			"primary_agent": {
 				"api_key": "primary-key",

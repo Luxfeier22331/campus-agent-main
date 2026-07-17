@@ -1,0 +1,98 @@
+{
+	"canvas": {
+		"height": 760,
+		"width": 1280
+	},
+	"entrances": [
+		{
+			"height": 32,
+			"id": "entrance-south",
+			"label": "入口",
+			"side": "bottom",
+			"width": 112,
+			"x": 584,
+			"y": 704
+		}
+	],
+	"floorId": "haidian-canteen-1-1f",
+	"floorplanId": "floorplan:haidian-canteen-1:haidian-canteen-1-1f",
+	"hallId": "haidian-canteen-1",
+	"label": "海淀一食堂",
+	"landmarks": [],
+	"outline": {
+		"points": [
+			{
+				"x": 120,
+				"y": 72
+			},
+			{
+				"x": 1160,
+				"y": 72
+			},
+			{
+				"x": 1160,
+				"y": 688
+			},
+			{
+				"x": 120,
+				"y": 688
+			}
+		]
+	},
+	"partitions": [],
+	"regions": [
+		{
+			"height": 264,
+			"id": "seating-main",
+			"label": "就餐区",
+			"width": 560,
+			"x": 360,
+			"y": 270,
+			"iconKey": "utensils"
+		}
+	],
+	"schemaVersion": 2,
+	"structures": [],
+	"windows": [
+		{
+			"anchorId": "window-01",
+			"height": 80,
+			"label": "一号窗口",
+			"width": 160,
+			"x": 230,
+			"y": 112
+		},
+		{
+			"anchorId": "window-02",
+			"height": 80,
+			"label": "二号窗口",
+			"width": 160,
+			"x": 560,
+			"y": 112
+		},
+		{
+			"anchorId": "window-03",
+			"height": 80,
+			"label": "三号窗口",
+			"width": 160,
+			"x": 890,
+			"y": 112
+		},
+		{
+			"anchorId": "window-04",
+			"height": 80,
+			"label": "四号窗口",
+			"width": 160,
+			"x": 160,
+			"y": 520
+		},
+		{
+			"anchorId": "window-05",
+			"height": 80,
+			"label": "五号窗口",
+			"width": 160,
+			"x": 960,
+			"y": 520
+		}
+	]
+}

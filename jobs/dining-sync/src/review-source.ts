@@ -6,6 +6,7 @@ export interface DiningReviewObservationInput {
 	hallId?: string;
 	hallName?: string;
 	images?: DiningReviewImage[];
+	offeringId?: string;
 	record: DiningSourceRecord;
 	stallProfileId?: string;
 	windowId?: string;
@@ -22,8 +23,10 @@ export function buildReviewObservations(
 		if (accepted) {
 			requireString(input.hallId, "hallId");
 			requireString(input.hallName, "hallName");
+			requireString(input.offeringId, "offeringId");
 			requireString(input.stallProfileId, "stallProfileId");
 			requireString(input.windowId, "windowId");
+			requireString(input.record.submittedAt, "submittedAt");
 		}
 		return {
 			observationId: `feishu:review:${input.record.sourceRecordId}`,
@@ -37,12 +40,14 @@ export function buildReviewObservations(
 				hallId: input.hallId ?? null,
 				hallName: input.hallName ?? null,
 				images: input.images ?? [],
+				offeringId: input.offeringId ?? null,
 				paidPriceLabel: input.record.paidPriceLabel,
 				rating: input.record.rating,
 				reviewId,
 				sourceRecordId: input.record.sourceRecordId,
 				stallName: input.record.stallName,
 				stallProfileId: input.stallProfileId ?? null,
+				submittedAt: input.record.submittedAt,
 				windowId: input.windowId ?? null,
 			},
 			sourceType: "feishu_review",
@@ -68,12 +73,14 @@ export function reviewsFromObservations(
 				hallId: requireString(payload.hallId, "hallId"),
 				hallName: requireString(payload.hallName, "hallName"),
 				images: imageArray(payload.images),
+				offeringId: requireString(payload.offeringId, "offeringId"),
 				paidPriceLabel: optionalString(payload.paidPriceLabel, "paidPriceLabel"),
 				rating: optionalNumber(payload.rating, "rating"),
 				reviewId: requireString(payload.reviewId, "reviewId"),
 				sourceRecordId: requireString(payload.sourceRecordId, "sourceRecordId"),
 				stallName: requireString(payload.stallName, "stallName"),
 				stallProfileId: requireString(payload.stallProfileId, "stallProfileId"),
+				submittedAt: requireIsoTimestamp(payload.submittedAt, "submittedAt"),
 				windowId: requireString(payload.windowId, "windowId"),
 			};
 		});
@@ -104,6 +111,15 @@ function optionalNumber(value: unknown, fieldName: string): number | null {
 		throw new Error(`Invalid dining review observation ${fieldName}.`);
 	}
 	return value;
+}
+
+function requireIsoTimestamp(value: unknown, fieldName: string): string {
+	const text = requireString(value, fieldName);
+	const timestamp = Date.parse(text);
+	if (!Number.isFinite(timestamp)) {
+		throw new Error(`Invalid dining review observation ${fieldName}.`);
+	}
+	return new Date(timestamp).toISOString();
 }
 
 function imageArray(value: unknown): DiningReviewImage[] {

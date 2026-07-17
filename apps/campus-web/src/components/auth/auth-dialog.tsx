@@ -1,8 +1,8 @@
 import { Modal, useOverlayState } from "@heroui/react";
-import type { ReactNode } from "react";
 
 import { AuthPanel, type CampusAuthView } from "./auth";
 import { CampusAuthUIProvider } from "./auth-ui-provider";
+import "./auth-styles.css";
 
 type AuthDialogView = Extract<CampusAuthView, "signIn" | "signUp">;
 
@@ -10,26 +10,15 @@ export function AuthDialog({
 	initialView = "signIn",
 	onOpenChange,
 	open,
-	trigger,
-	triggerAriaLabel,
-	triggerClassName,
 }: {
 	initialView?: AuthDialogView;
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
-	trigger?: ReactNode;
-	triggerAriaLabel?: string;
-	triggerClassName?: string;
 }) {
 	const state = useOverlayState({ isOpen: open, onOpenChange });
 
 	return (
 		<Modal state={state}>
-			{trigger ? (
-				<Modal.Trigger aria-label={triggerAriaLabel} className={triggerClassName}>
-					{trigger}
-				</Modal.Trigger>
-			) : null}
 			{open ? (
 				<Modal.Backdrop isDismissable variant="blur">
 					<Modal.Container placement="center" scroll="inside" size="md">

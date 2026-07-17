@@ -11,7 +11,7 @@ status: active
 本文定义 `apps/ops-web` 服务端提供给自身页面的 HTTP 接口。可执行合同位于
 `apps/ops-web/src/server/app.ts` 和 `apps/ops-web/src/shared/ops-contract.ts`。
 
-接口只有：
+主要接口族为：
 
 - `GET /api/ops/overview`
 - `GET /api/ops/requests`
@@ -20,6 +20,29 @@ status: active
 - `GET /api/ops/internal-portal-auth`
 - `PUT /api/ops/internal-portal-auth`
 - `POST /api/ops/internal-portal-auth/maintenance/resume`
+- `GET /api/ops/provider-config/connections`
+- `POST /api/ops/provider-config/connections`
+- `PATCH /api/ops/provider-config/connections/:connectionId`
+- `GET /api/ops/provider-config/profiles`
+- `POST /api/ops/provider-config/profiles`
+- `PATCH /api/ops/provider-config/profiles/:profileId`
+- `POST /api/ops/provider-config/profiles/:profileId/validate`
+- `POST /api/ops/provider-config/profiles/:profileId/activate`
+- `GET /api/ops/provider-config/runtime`
+- `GET /api/ops/dining/overview`
+- `GET /api/ops/dining/source-runs`
+- `GET /api/ops/dining/observations`
+- `GET /api/ops/dining/catalog/draft`
+- `GET /api/ops/dining/catalog/draft/validation`
+- `POST /api/ops/dining/catalog/draft/rebase`
+- `POST /api/ops/dining/catalog/draft/commands`
+- `POST /api/ops/dining/catalog/publish`
+- `GET /api/ops/dining/releases`
+- `GET /api/ops/dining/releases/:releaseId`
+- `POST /api/ops/dining/releases/:releaseId/rollback`
+- `GET /api/ops/dining/reviews`
+- `GET /api/ops/dining/reviews/:reviewId`
+- `POST /api/ops/dining/reviews/:reviewId/commands`
 - `GET /healthz`
 - `GET /readyz`
 
@@ -32,7 +55,9 @@ status: active
 - `/api/ops/*` 验证 Cloudflare Access JWT 的签发方、受众和签名。
 - JWT 对应的人员邮箱或服务令牌 ID 必须进入基础操作者白名单。
 - 原始日志和调用链读取还必须进入独立的原始观测数据白名单。
-- 内部门户认证接口只允许基础白名单中的人员身份，服务令牌不能调用。
+- 内部门户认证读写只允许基础白名单中的人员身份，服务令牌不能调用。
+- Dining 读取允许已准入操作者；Dining 写入只允许人员身份，并要求同源请求。
+- Provider Config 读取允许已准入操作者；写入只允许人员身份，并要求同源请求。
 - 浏览器不持有 PostgreSQL、OpenObserve 或外部平台凭据。
 
 ### 响应和错误
@@ -62,16 +87,22 @@ status: active
 | ---: | --- | --- |
 | 400 | `OPS_INVALID_QUERY` | 查询参数或游标无效 |
 | 400 | `OPS_INVALID_REQUEST_ID` | 请求 ID 格式无效 |
-| 400 | `OPS_INTERNAL_PORTAL_AUTH_INPUT_INVALID` | 凭据正文无效或超过 8 KiB |
+| 400 | `OPS_INTERNAL_PORTAL_AUTH_INPUT_INVALID` | TGC/Cookie 正文无效或超过 8 KiB |
 | 401 | `OPS_ACCESS_JWT_MISSING`、`OPS_ACCESS_JWT_INVALID` | 未通过 Access 验证 |
 | 403 | `OPS_RAW_OBSERVABILITY_FORBIDDEN` | 无原始观测数据权限 |
-| 403 | `OPS_INTERNAL_PORTAL_AUTH_FORBIDDEN`、`OPS_INTERNAL_PORTAL_AUTH_ORIGIN_INVALID` | 无人员权限或请求不同源 |
+| 403 | `OPS_INTERNAL_PORTAL_AUTH_FORBIDDEN`、`OPS_INTERNAL_PORTAL_AUTH_ORIGIN_INVALID` | 无凭据轮换权限或请求不是同源 |
 | 404 | `OPS_REQUEST_NOT_FOUND`、`OPS_API_ROUTE_NOT_FOUND` | 请求或接口不存在 |
 | 503 | `OPS_ADMISSION_NOT_CONFIGURED` | 访问控制未配置 |
 | 503 | `OPS_STATUS_STORE_UNAVAILABLE` | PostgreSQL 读取不可用 |
 | 503 | `OPS_OBSERVABILITY_UNAVAILABLE` | OpenObserve 查询不可用 |
 | 503 | `OPS_INTERNAL_PORTAL_AUTH_NOT_INITIALIZED`、`OPS_INTERNAL_PORTAL_AUTH_UNAVAILABLE` | 固定 Secret 未初始化或 Kubernetes API 不可用 |
-| 503 | `OPS_INTERNAL_PORTAL_AUTH_MAINTENANCE_UNAVAILABLE` | 固定维护 Schedule 不可用 |
+| 503 | `OPS_INTERNAL_PORTAL_AUTH_MAINTENANCE_UNAVAILABLE` | 固定 Temporal Schedule 查询或恢复不可用 |
+| 503 | `OPS_DINING_STORE_UNAVAILABLE` | Dining PostgreSQL 不可用 |
+| 409 | `OPS_DINING_CONFLICT` | 草稿、发布或评价操作违反领域校验 |
+| 409 | `provider_profile_not_validated`、`active_provider_profile_immutable`、`active_provider_connection_immutable` | 激活或修改违反 Provider Config 状态约束 |
+| 409 | `embedding_profile_incompatible` | 向量 profile 与当前索引不兼容 |
+| 422 | `validation_failed`、`provider_profile_connection_incompatible` | Provider Config 正文或连接能力不合法 |
+| 503 | `provider_config_unavailable` | Provider 数据库、加密密钥或固定 Secret 不可用 |
 | 500 | `OPS_API_INTERNAL_ERROR` | 未分类服务端错误 |
 
 ### 状态值
@@ -87,22 +118,60 @@ status: active
 
 请求状态为 `COMPLETED`、`FAILED`、`CANCELLED`、`RUNNING` 或 `PENDING`。
 
+## 模型服务配置
+
+Provider Config 接口由 Ops Web 直接访问 `provider_config.*` 并发布固定 Kubernetes Secret，
+不经过 app-api。连接保存 provider、HTTPS base URL、支持能力、feature config 和加密 API key；
+响应只包含不可逆指纹和末四位。
+
+profile kind、role 和 transport 固定为：
+
+| kind | role | transport |
+| --- | --- | --- |
+| `prompt` | `primary_agent`、`rag_synthesis`、`hindsight_llm`、`eval_ragas_llm`、`eval_judge_llm` | `responses`、`chat_completions` |
+| `embedding` | `rag_query_embedding`、`index_embedding`、`hindsight_embedding`、`eval_ragas_embedding` | `embeddings`、`openai_embeddings` |
+| `rerank` | `rag_reranker` | `rerank`、`gitee_rerank` |
+
+创建或更新 profile 后状态回到 `draft`，验证成功后为 `validated`，失败为
+`validation_failed`。当前 projection 引用的连接和 profile 不可原地修改。激活必须基于已验证
+profile，并把该 role 与其他当前 role 一起发布；projection 严格符合
+`provider-config-projection.v2.schema.json`。
+
+Kubernetes publisher 先读取固定 Secret，再以 `test /metadata/resourceVersion` 的 JSON Patch
+执行 CAS，写后重新读取并校验 canonical SHA-256。并发冲突返回错误，不静默覆盖。
+
+## 食堂管理
+
+Dining 接口由 `apps/ops-web` 直接使用 `OPS_WEB_DINING_DATABASE_URL` 访问 PostgreSQL，
+不经过 app-api。完整领域流程见 `../architecture/domains/dining/architecture.md`。
+
+Catalog 命令只有 `rename_stall`、`set_offering_price`、`assign_stall` 和
+`remove_assignment`。`rebase` 从 accepted、非 stale source observations 重建 draft 并重放
+operator overrides。`publish` 必须携带非空说明并通过 validation；`rollback` 生成新 release，
+不直接移动到旧 release。
+
+评价命令只有 `hide`、`restore`、`rebind` 和 `recheck`。restore 只允许 safe 且已精确绑定的评价；
+rebind 的 offering 必须存在于当前 draft，并同步更新 hall、stall、window、offering 四级 identity。
+submitted fields 不允许通过 Ops API 修改。
+
 ## 内部门户认证
 
-三个接口都返回相同状态结构，且永远不返回 TGC、Cookie、Service Ticket 或 Kubernetes
-Secret data：
+### `GET /api/ops/internal-portal-auth`
+
+返回固定 Secret 元数据、固定 Temporal Schedule 摘要和观测生命周期，不返回 Secret data、
+TGC 或 Service Ticket：
 
 ```json
 {
   "configured": true,
-  "updatedAt": "2026-07-16T08:00:00.000Z",
+  "updatedAt": "2026-07-15T12:00:00.000Z",
   "updatedBy": "operator@example.com",
   "maintenance": {
     "scheduleState": "ACTIVE",
-    "nextRunAt": "2026-07-16T08:30:00.000Z",
-    "lastAttemptAt": "2026-07-16T08:00:03.000Z",
+    "nextRunAt": "2026-07-15T13:00:00.000Z",
+    "lastAttemptAt": "2026-07-15T12:30:00.000Z",
     "lastOutcome": "SUCCESS",
-    "lastSuccessAt": "2026-07-16T08:00:03.000Z",
+    "lastSuccessAt": "2026-07-15T12:30:03.000Z",
     "serviceTicketIssued": true,
     "portalSessionEstablished": true,
     "noticeProbeSucceeded": true,
@@ -115,39 +184,32 @@ Secret data：
 }
 ```
 
-`scheduleState` 为 `ACTIVE`、`PAUSED`、`MISSING` 或 `UNAVAILABLE`。`lastOutcome` 可为
-`SUCCESS`、`TRANSIENT_FAILURE`、`CREDENTIAL_EXPIRED`、`CREDENTIAL_UNAVAILABLE`、
-`RUNNING`、`UNKNOWN` 或 `null`。尚未产生的时间、布尔结果和错误码为 `null`。
-
-`observedLifetime` 只表示凭据更新时间、最近成功和首次确认失败之间的观测区间，精度受
-30 分钟维护周期限制，不是供应商有效期承诺。
-
-### `GET /api/ops/internal-portal-auth`
-
-读取固定 Secret 的配置状态、更新时间与更新人，并通过 ingestion-control 读取固定 Schedule
-及最近一次维护结果。Secret 不存在时返回 `configured=false`；认证维护接口不可用时仍返回
-凭据状态，并把 `maintenance.scheduleState` 设为 `UNAVAILABLE`。
+Secret 不存在时返回 `configured=false`；Kubernetes API 不可用时返回 `503`，但不影响
+Ops Web 的其他接口或 `/readyz`。Temporal 查询不可用时 `maintenance.scheduleState` 为
+`UNAVAILABLE`，仍返回 Secret 元数据。
 
 ### `PUT /api/ops/internal-portal-auth`
 
-请求必须同源，JSON 正文和原始请求体都不得超过 8 KiB：
+请求必须同源、正文不超过 8 KiB，并包含：
 
 ```json
 { "credential": "raw SSO_TGC or Cookie header" }
 ```
 
-服务端接受原始 TGC，或只包含一个 `SSO_TGC` 的 Cookie 字符串。校验后只 patch 已存在的
-`source-collector-internal-portal-auth/data.sso_tgc`，并记录更新时间和更新人 annotation。
-接口不创建 Secret、不读取旧值、不在线验证门户登录，也不提供回滚。
-
-Secret 更新成功后，服务端尝试恢复已暂停的固定 Schedule，但不立即触发工作流。恢复失败
-不回滚凭据更新；成功响应中的维护状态为 `UNAVAILABLE`，人员可以随后显式重试恢复。
+服务端接受原始 TGC 或包含且只包含一个 `SSO_TGC` 的 Cookie 字符串。校验后只对
+`source-collector-internal-portal-auth` 执行 JSON Patch，写入 `data.sso_tgc`、更新时间和
+更新人 annotation。成功响应与 GET 相同，不回显凭据。接口不创建 Secret、不在线验证门户
+登录、不保存旧值，也不提供回滚。Secret 更新成功后服务端幂等恢复已暂停的 Schedule；恢复
+失败不会撤销凭据更新，响应以 `UNAVAILABLE` 显示维护状态。
 
 ### `POST /api/ops/internal-portal-auth/maintenance/resume`
 
-请求必须同源。接口只恢复固定 `internal-portal-auth-maintenance` Schedule，不接受 Schedule
-ID、Workflow ID、凭据或其他参数，也不立即触发运行。维护接口不可用时返回
-`503 OPS_INTERNAL_PORTAL_AUTH_MAINTENANCE_UNAVAILABLE`。
+人员操作者可以同源调用该接口，重试恢复固定
+`internal-portal-auth-maintenance` Schedule。接口不接受 Schedule ID、Workflow ID 或凭据，
+不立即触发运行；成功响应与 GET 相同。
+
+`lowerBoundSeconds` 是当前凭据更新时间到最近一次成功 Service Ticket 签发的时间；首次确认
+过期后才产生 `upperBoundSeconds`。这是约 30 分钟精度的观测区间，不是 CAS 配置声明。
 
 ## `GET /api/ops/overview`
 
@@ -294,10 +356,10 @@ Temporal Run ID、任务队列、执行进程、token、费用、记忆摘要或
 - Cloudflare Access 域、受众、保护模式和至少一个基础操作者白名单；
 - `ops_web` 账号能读取四个允许来源所需的列；
 - `ops_web` 账号能在事务中插入审计测试记录并回滚。
+- `ops_web_dining` 账号能读取 `dining.publication`。
 
-失败返回 `503 OPS_WEB_NOT_READY` 及不含敏感信息的缺失项或 `reasonCode`。OpenObserve、
-Kubernetes API、认证维护接口和被观测服务的故障不影响 Pod 就绪，因为值班人员仍需要打开
-页面查看其他信息。
+失败返回 `503 OPS_WEB_NOT_READY` 及不含敏感信息的缺失项或 `reasonCode`。OpenObserve
+和被观测服务的故障不影响 Pod 就绪，因为值班人员仍需要打开页面查看其他信息。
 
 ## PostgreSQL 权限
 
@@ -310,6 +372,10 @@ Kubernetes API、认证维护接口和被观测服务的故障不影响 Pod 就�
 
 各表使用列级 `SELECT`，不得使用数据库 owner 账号。唯一写权限是向
 `observability.ops_observability_read_audit` 插入。
+
+Dining 使用独立 `ops_web_dining` 账号、连接池和 TLS 配置。它可读 Dining 全表并写 catalog、
+release、override、review 和 bounded operation events，但不能创建 schema。不得把
+`OPS_WEB_DATABASE_URL` 与 `OPS_WEB_DINING_DATABASE_URL` 合并为一个 owner 账号。
 
 非本地连接固定使用 `verify-full`：
 
@@ -329,7 +395,6 @@ pnpm --dir apps/app-api exec tsx ./scripts/run-with-staging-db-env.ts \
 - 根据 OpenObserve、Temporal、Langfuse、Sentry 或 Axiom 数据改写请求状态。
 - 让浏览器控制任意 OpenObserve 查询。
 - 返回数据库地址、JWT、Cookie 或服务凭据。
-- 创建、列举、删除 Secret，或更新固定门户 Secret 以外的 Secret。
-- 选择任意 Schedule、立即触发认证维护工作流或发送其他 Temporal 命令。
+- 创建、列举、删除或更新 `source-collector-internal-portal-auth` 以外的 Secret。
 - 恢复外部正文同步表、供应商响应缓存或通用观测查询接口。
 - 为旧 `/runtime` 或 `/api/ops/evidence/*` 增加兼容路由。

@@ -1,4 +1,9 @@
-import type { DefaultMatchResult, OnSearch, RenderSearchFunction } from "@rspress/core/theme";
+import type {
+	AfterSearch,
+	DefaultMatchResult,
+	OnSearch,
+	RenderSearchFunction,
+} from "@rspress/core/theme";
 import type { DocsProtectedSearchResult } from "./docs-search-model";
 import {
 	filterRspressLiteralResults,
@@ -51,6 +56,35 @@ export const onSearch: OnSearch = async (query: string, defaultResults: DefaultM
 		},
 	];
 };
+
+export const afterSearch: AfterSearch = (_query, results) => {
+	prioritizeProtectedSearchResults(results);
+};
+
+export function prioritizeProtectedSearchResults(
+	results: Array<{ group: string; renderType?: string; result: unknown }>,
+): void {
+	const hasDefaultResults = results.some(
+		(item) => item.renderType === "default" && Array.isArray(item.result) && item.result.length > 0,
+	);
+	if (hasDefaultResults) {
+		return;
+	}
+	const protectedResultIndex = results.findIndex(
+		(item) =>
+			item.renderType === "custom" &&
+			item.group === "当前账号可见" &&
+			Array.isArray(item.result) &&
+			item.result.length > 0,
+	);
+	if (protectedResultIndex <= 0) {
+		return;
+	}
+	const [protectedResults] = results.splice(protectedResultIndex, 1);
+	if (protectedResults) {
+		results.unshift(protectedResults);
+	}
+}
 
 export function clearProtectedSearchIndexCache(): void {
 	protectedSearchIndexCache.clear();

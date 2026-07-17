@@ -152,7 +152,7 @@ grounding/policy verdict。
 
 request tracing 启用时，受信任 self-hosted Langfuse 可以记录真实 Agent SDK model
 input/output、memory 和已授权 evidence。credential 和 secret 始终禁止。app-api、Ops Web
-和 Operator Console 只保留 prompt trace metadata、stage timing 和 correlation，不复制
+和 Ops Web 只保留 prompt trace metadata、stage timing 和 correlation，不复制
 Langfuse observation body。
 
 ## 评测与发布要求

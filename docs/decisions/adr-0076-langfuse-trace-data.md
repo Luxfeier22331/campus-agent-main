@@ -22,7 +22,7 @@ observability 无法看到需要排查的真实执行。
 - sampled Agent SDK trace 可以包含 user/session association、model input/output、memory
   context 和已授权 retrieved fact。
 - credential 和 secret 在所有 trace/eval lane 中都禁止出现。
-- app-api、Operator Console、Temporal metadata 和 PostgreSQL read model 只保存有界
+- app-api、Ops Web、Temporal metadata 和 PostgreSQL read model 只保存有界
   projection，不复制 Langfuse observation body。
 - tracing 在进程启动时通过标准 OTel exporter config 启用；request 不携带 observability
   mode、sample ratio、exporter setting 或 sink ref。

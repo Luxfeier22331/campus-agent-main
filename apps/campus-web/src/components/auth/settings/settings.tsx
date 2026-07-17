@@ -1,5 +1,6 @@
 import type { SettingsView } from "@better-auth-ui/core";
 import { Settings as BetterAuthHeroUISettings } from "@better-auth-ui/heroui";
+import "../auth-styles.css";
 
 import { ProductBrandLink } from "@/components/navigation/product-navigation";
 import { CampusAuthUIProvider } from "../auth-ui-provider";
@@ -14,8 +15,11 @@ export function Settings({ view }: { view?: CampusAccountSettingsView }) {
 				className="min-h-dvh px-4 py-8 lg:px-8"
 				data-campus-account-surface="settings"
 			>
-				<ProductBrandLink className="mx-auto mb-8 w-full max-w-4xl" />
-				<BetterAuthHeroUISettings className="mx-auto w-full max-w-4xl" view={view} />
+				<ProductBrandLink className="mx-auto mb-8 w-full max-w-[var(--layout-page-form-width)]" />
+				<BetterAuthHeroUISettings
+					className="mx-auto w-full max-w-[var(--layout-page-form-width)]"
+					view={view}
+				/>
 			</section>
 		</CampusAuthUIProvider>
 	);

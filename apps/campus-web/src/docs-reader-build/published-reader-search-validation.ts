@@ -34,9 +34,6 @@ export async function assertProtectedSearchUnitsReferenceReader(input: {
 		if (entry.deliveryMode !== "gated_asset" || !entry.isCurrent) {
 			continue;
 		}
-		if (!entry.versionId) {
-			throw new Error(`protected search index requires versionId: ${entry.documentSlug}`);
-		}
 		const searchUnits = input.searchUnitsByVersionId.get(entry.versionId);
 		if (!searchUnits) {
 			throw new Error(`missing protected search units for version: ${entry.versionId}`);

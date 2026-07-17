@@ -7,6 +7,7 @@ import {
 	docsDocuments,
 	docsDocumentVersions,
 	docsReaderAssets,
+	docsReleases,
 } from "../../db/schema";
 import type {
 	DocsCollectionRecord,
@@ -24,6 +25,15 @@ export function createPgDocsReadModelStore(
 	const getDb = input.getDb ?? createRuntimeDbGetter(env);
 
 	return {
+		async hasRelease(releaseId) {
+			const db = await getDb();
+			const rows = await db
+				.select({ releaseId: docsReleases.releaseId })
+				.from(docsReleases)
+				.where(eq(docsReleases.releaseId, releaseId))
+				.limit(1);
+			return rows.length > 0;
+		},
 		async getCollection(input) {
 			const db = await getDb();
 			const rows = await db
@@ -31,6 +41,7 @@ export function createPgDocsReadModelStore(
 				.from(docsCollections)
 				.where(
 					and(
+						eq(docsCollections.releaseId, input.releaseId),
 						eq(docsCollections.corpus, input.corpus),
 						eq(docsCollections.collection, input.collection),
 					),
@@ -47,6 +58,7 @@ export function createPgDocsReadModelStore(
 				.innerJoin(
 					docsDocumentVersions,
 					and(
+						eq(docsDocumentVersions.releaseId, docsDocuments.releaseId),
 						eq(docsDocumentVersions.docId, docsDocuments.docId),
 						input.version
 							? eq(docsDocumentVersions.versionSlug, input.version)
@@ -55,6 +67,7 @@ export function createPgDocsReadModelStore(
 				)
 				.where(
 					and(
+						eq(docsDocuments.releaseId, input.releaseId),
 						eq(docsDocuments.corpus, input.corpus),
 						eq(docsDocuments.collection, input.collection),
 						eq(docsDocuments.documentSlug, input.documentSlug),
@@ -78,15 +91,23 @@ export function createPgDocsReadModelStore(
 				.innerJoin(
 					docsDocumentVersions,
 					and(
+						eq(docsDocumentVersions.releaseId, docsDocuments.releaseId),
 						eq(docsDocumentVersions.docId, docsDocuments.docId),
 						input.version
 							? eq(docsDocumentVersions.versionSlug, input.version)
 							: eq(docsDocumentVersions.versionId, docsDocuments.currentVersionId),
 					),
 				)
-				.innerJoin(docsReaderAssets, eq(docsReaderAssets.versionId, docsDocumentVersions.versionId))
+				.innerJoin(
+					docsReaderAssets,
+					and(
+						eq(docsReaderAssets.releaseId, docsDocumentVersions.releaseId),
+						eq(docsReaderAssets.versionId, docsDocumentVersions.versionId),
+					),
+				)
 				.where(
 					and(
+						eq(docsDocuments.releaseId, input.releaseId),
 						eq(docsDocuments.corpus, input.corpus),
 						eq(docsDocuments.collection, input.collection),
 						eq(docsDocuments.documentSlug, input.documentSlug),
@@ -103,10 +124,14 @@ export function createPgDocsReadModelStore(
 				.from(docsDocuments)
 				.innerJoin(
 					docsDocumentVersions,
-					eq(docsDocumentVersions.versionId, docsDocuments.currentVersionId),
+					and(
+						eq(docsDocumentVersions.releaseId, docsDocuments.releaseId),
+						eq(docsDocumentVersions.versionId, docsDocuments.currentVersionId),
+					),
 				)
 				.where(
 					and(
+						eq(docsDocuments.releaseId, input.releaseId),
 						eq(docsDocuments.corpus, input.corpus),
 						eq(docsDocuments.collection, input.collection),
 					),
@@ -120,9 +145,16 @@ export function createPgDocsReadModelStore(
 			const rows = await db
 				.select(documentVersionSelection)
 				.from(docsDocuments)
-				.innerJoin(docsDocumentVersions, eq(docsDocumentVersions.docId, docsDocuments.docId))
+				.innerJoin(
+					docsDocumentVersions,
+					and(
+						eq(docsDocumentVersions.releaseId, docsDocuments.releaseId),
+						eq(docsDocumentVersions.docId, docsDocuments.docId),
+					),
+				)
 				.where(
 					and(
+						eq(docsDocuments.releaseId, input.releaseId),
 						eq(docsDocuments.corpus, input.corpus),
 						eq(docsDocuments.collection, input.collection),
 						eq(docsDocuments.documentSlug, input.documentSlug),

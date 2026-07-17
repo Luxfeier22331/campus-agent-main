@@ -56,8 +56,17 @@ owner smoke script 拥有。
 本次 release 涉及 docs reader、admission 或静态资产时执行：
 
 ```bash
-pnpm smoke:app-api -- docs-gated-staging
+pnpm smoke:app-api -- docs-gated-staging \
+  --gated-collection-navigation-path \
+  /api/docs/collections/<corpus>/<collection>/navigation \
+  --gated-reader-path \
+  /_gated-docs/<corpus>/<collection>/<document>/<version>/reader.json \
+  --gated-collection-navigation-unauthenticated-status 404
 ```
+
+两个路径必须来自环境仓库为本次 rollout 选择的 docs release；不得从本地 manifest、latest
+对象或 app-api 数据库推测。若该 collection 的 navigation 按产品合同允许未登录读取，将最后一个
+参数改为 `200`。
 
 至少验证公开 permalink、版本/anchor 跳转、受保护文档 admission、缺失 asset 失败关闭，以及
 campus-web 未退化为 generic app-api proxy。

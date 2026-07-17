@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import stagingBrowserE2ESource from "../e2e/staging-browser.ts?raw";
 import packageManifest from "../package.json";
@@ -19,6 +20,7 @@ describe("campus web staging config", () => {
 		expect(verifyStagingConfigSource).toContain("STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY");
 		expect(verifyStagingConfigSource).toContain("campus-staging.mucwiki-edge.link");
 		expect(verifyStagingConfigSource).toContain("AUTH_TURNSTILE_SITE_KEY must not remain");
+		expect(verifyStagingConfigSource).toContain("DOCS_RELEASE_ID must be injected");
 
 		expect(uploadStagingVersionSource).toContain("STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY");
 		expect(uploadStagingVersionSource).toContain("AUTH_TURNSTILE_SITE_KEY");
@@ -28,14 +30,27 @@ describe("campus web staging config", () => {
 		expect(packageScripts["upload:staging"]).toContain("upload-staging-version.ts");
 	});
 
-	it("keeps app-only staging deploy separate from docs reader builds", () => {
+	it("builds and uploads the complete staging surface from the release workflow", () => {
+		const publishWorkflowSource = readFileSync(
+			"../../.github/workflows/execution-runtime-publish.yml",
+			"utf8",
+		);
+
 		expect(packageScripts["build:app:staging"]).toBeUndefined();
 		expect(packageScripts["build:docs:staging"]).toBeUndefined();
-		expect(packageScripts["build:staging"]).toContain("build-published-reader-docs.ts --staging");
-		expect(packageScripts["build:staging"]).toContain("run-worker-staging-build.ts -- vite build");
-		expect(packageScripts["build:staging"]).toContain("check-client-bundle-budget.ts");
-		expect(packageScripts["build:staging"]).not.toContain("pnpm run build:docs:staging");
-		expect(packageScripts["build:staging"]).not.toContain("pnpm run build:app:staging");
+		expect(packageScripts["build:staging"]).toBe(
+			"pnpm exec tsx ./scripts/build-release.ts --staging",
+		);
+		expect(publishWorkflowSource).toContain("pnpm --dir apps/campus-web run build:staging");
+		expect(publishWorkflowSource).toContain("pnpm --dir apps/campus-web upload:staging");
+		expect(publishWorkflowSource).not.toContain("STAGING_CAMPUS_DOCS_READER_MANIFEST_KEY");
+		expect(publishWorkflowSource).not.toContain("STAGING_CAMPUS_DOCS_READER_MANIFEST_SHA256");
+		expect(publishWorkflowSource).toContain("docs-reader-release.json");
+		expect(publishWorkflowSource).toContain(`--release-id "\${DOCS_RELEASE_ID}"`);
+		expect(publishWorkflowSource).toContain("docsReleaseId");
+		expect(publishWorkflowSource).toContain("buildIdentity");
+		expect(publishWorkflowSource).not.toContain("STAGING_APP_API_OPERATOR_DATABASE_URL");
+		expect(publishWorkflowSource).not.toContain("deploy-staging.yml");
 		expect(stagingPreflightSource).not.toContain('"build:staging"');
 		expect(stagingPreflightSource).not.toContain('"build:app:staging"');
 		expect(stagingPreflightSource).toContain("worker-staging-campus-web");

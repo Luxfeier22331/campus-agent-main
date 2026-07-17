@@ -1,38 +1,68 @@
+import { getDiningFloorplanByFloor } from "@campus-agent/dining/floorplans";
+import type { DiningFloorTransportResponse } from "../src/features/dining/model";
+import { DINING_FLAVOR_STALL_FIXTURES } from "./fixtures/dining-flavor-stalls";
+
 interface DiningApiMock {
+	getDiningBootstrap: {
+		mockResolvedValue: (value: unknown) => unknown;
+	};
 	getDiningFloor: {
 		mockImplementation: (
 			implementation: (input: { floorId: string; hallId: string }) => Promise<unknown>,
 		) => unknown;
 	};
-	getDiningHallReviews: {
+	getDiningOfferingReviews: {
 		mockImplementation: (
-			implementation: (input: { hallId: string }) => Promise<unknown>,
+			implementation: (input: { offeringId: string }) => Promise<unknown>,
 		) => unknown;
 	};
-	getDiningHalls: {
+	getDiningPublication?: {
 		mockResolvedValue: (value: unknown) => unknown;
+	};
+	searchDining: {
+		mockImplementation: (
+			implementation: (input: {
+				query: string;
+				scopeHallId: string;
+				tag: string | null;
+			}) => Promise<unknown>,
+		) => unknown;
 	};
 }
 
 export function mockDiningFixtureApi(diningApiMock: DiningApiMock) {
-	diningApiMock.getDiningHalls.mockResolvedValue({
-		halls: [
-			{
-				campus: "海淀校区",
-				floors: [{ floorId: "haidian-canteen-1-1f", label: "地图" }],
-				hallId: "haidian-canteen-1",
-				name: "海淀一食堂",
-			},
-			{
-				campus: "丰台校区",
-				floors: [
-					{ floorId: "fengtai-huixian-canteen-1f", label: "一层" },
-					{ floorId: "fengtai-huixian-canteen-2f", label: "二层" },
-				],
-				hallId: "fengtai-huixian-canteen",
-				name: "荟贤食堂",
-			},
-		],
+	diningApiMock.getDiningPublication?.mockResolvedValue({
+		catalogReleaseId: "dining_release:fixture",
+		reviewRevision: 1,
+		updatedAt: "2026-07-16T00:00:00.000Z",
+	});
+	const halls = [
+		{
+			campus: "海淀校区",
+			floors: [{ floorId: "haidian-canteen-1-1f", label: "地图" }],
+			hallId: "haidian-canteen-1",
+			name: "海淀一食堂",
+			tags: ["粉面", "热餐"],
+		},
+		{
+			campus: "丰台校区",
+			floors: [
+				{ floorId: "fengtai-huixian-canteen-1f", label: "一层" },
+				{ floorId: "fengtai-huixian-canteen-2f", label: "二层" },
+			],
+			hallId: "fengtai-huixian-canteen",
+			name: "荟贤食堂",
+			tags: ["粉面", "热餐"],
+		},
+	];
+	const initialFloor = createDiningFloorPayload({
+		floorId: "haidian-canteen-1-1f",
+		hallId: "haidian-canteen-1",
+		label: "海淀一食堂",
+	});
+	diningApiMock.getDiningBootstrap.mockResolvedValue({
+		halls,
+		initial: { floor: initialFloor },
 	});
 	diningApiMock.getDiningFloor.mockImplementation(
 		({ floorId, hallId }: { floorId: string; hallId: string }) => {
@@ -48,65 +78,113 @@ export function mockDiningFixtureApi(diningApiMock: DiningApiMock) {
 			return Promise.resolve(createDiningFloorPayload({ floorId, hallId, label }));
 		},
 	);
-	diningApiMock.getDiningHallReviews.mockImplementation(({ hallId }: { hallId: string }) =>
-		Promise.resolve({
-			reviews:
-				hallId === "haidian-canteen-1"
-					? [
-							{
-								campus: "海淀校区",
-								comment: "有一点辣，有一点酸。",
-								contributorName: "果小生",
-								dishName: "金汤鱼粉",
-								hallId: "haidian-canteen-1",
-								hallName: "海淀一食堂",
-								images: [
-									{
-										alt: "金汤鱼粉评价图片",
-										imageId: "dining-review-image:rec27DpktN6uQn:1",
-										url: "/assets/dining/reviews/rec27DpktN6uQn-1.jpg",
-									},
-								],
-								paidPriceLabel: "12 元",
-								rating: 4,
-								reviewId: "dining-review:rec27DpktN6uQn",
-								sourceRecordId: "rec27DpktN6uQn",
-								stallName: "鱼粉",
-								stallProfileId: "stall:rice",
-								windowId: "haidian-canteen-1:haidian-canteen-1-1f:window-01",
-							},
-							{
-								campus: "海淀校区",
-								comment: "汤底清爽。",
-								contributorName: "小满",
-								dishName: "鱼粉招牌菜",
-								hallId: "haidian-canteen-1",
-								hallName: "海淀一食堂",
-								images: [],
-								paidPriceLabel: null,
-								rating: null,
-								reviewId: "dining-review:rec-fish-special",
-								sourceRecordId: "rec-fish-special",
-								stallName: "鱼粉",
-								stallProfileId: "stall:rice",
-								windowId: "haidian-canteen-1:haidian-canteen-1-1f:window-01",
-							},
-						]
-					: [],
-		}),
+	diningApiMock.getDiningOfferingReviews.mockImplementation(
+		({ offeringId }: { offeringId: string }) =>
+			Promise.resolve(createDiningReviewPayload(offeringId)),
 	);
+	diningApiMock.searchDining.mockImplementation(
+		({ query, scopeHallId, tag }: { query: string; scopeHallId: string; tag: string | null }) =>
+			Promise.resolve(createDiningSearchPayload({ query, scopeHallId, tag })),
+	);
+	return { halls, initialFloor };
 }
 
-function createDiningFloorPayload(input: { floorId: string; hallId: string; label: string }) {
+function createDiningReviewPayload(offeringId: string) {
+	return {
+		offeringId,
+		reviews:
+			offeringId === "offering:rice:1"
+				? [
+						{
+							comment: "有一点辣，有一点酸。",
+							contributorName: "果小生",
+							images: [
+								{
+									alt: "金汤鱼粉评价图片",
+									imageId: "dining-review-image:rec27DpktN6uQn:1",
+									url: "/assets/dining/reviews/rec27DpktN6uQn-1.jpg",
+								},
+							],
+							paidPriceLabel: "12 元",
+							rating: 4,
+							reviewId: "dining-review:rec27DpktN6uQn",
+							submittedAt: "2026-07-11T08:00:00.000Z",
+						},
+					]
+				: [],
+	};
+}
+
+function createDiningSearchPayload(input: {
+	query: string;
+	scopeHallId: string;
+	tag: string | null;
+}) {
+	const allResults = [
+		{
+			campus: "海淀校区",
+			floorId: "haidian-canteen-1-1f",
+			floorLabel: "地图",
+			hallId: "haidian-canteen-1",
+			hallName: "海淀一食堂",
+			kind: "offering" as const,
+			offering: { offeringId: "offering:rice:1", name: "金汤鱼粉", priceLabel: "12 元" },
+			resultId: "offering:rice:1",
+			stallName: "鱼粉",
+			stallProfileId: "stall:rice",
+			windowId: "haidian-canteen-1:haidian-canteen-1-1f:window-01",
+			windowLabel: "一号窗口",
+			tags: ["粉面", "热餐"],
+		},
+		{
+			campus: "海淀校区",
+			floorId: "haidian-canteen-1-1f",
+			floorLabel: "地图",
+			hallId: "haidian-canteen-1",
+			hallName: "海淀一食堂",
+			kind: "stall" as const,
+			offering: null,
+			resultId: "stall:noodle",
+			stallName: "螺蛳粉",
+			stallProfileId: "stall:noodle",
+			windowId: "haidian-canteen-1:haidian-canteen-1-1f:window-02",
+			windowLabel: "二号窗口",
+			tags: ["粉面", "热餐"],
+		},
+	];
+	const campus = input.scopeHallId.startsWith("fengtai-") ? "丰台校区" : "海淀校区";
+	const normalizedQuery = input.query.trim().toLocaleLowerCase("zh-CN");
+	const results = allResults
+		.filter((result) => result.campus === campus)
+		.filter(
+			(result) =>
+				!normalizedQuery ||
+				result.stallName.toLocaleLowerCase("zh-CN").includes(normalizedQuery) ||
+				result.offering?.name.toLocaleLowerCase("zh-CN").includes(normalizedQuery),
+		)
+		.filter((result) => !input.tag || result.tags.includes(input.tag))
+		.map(({ tags: _tags, ...result }) => result);
+	return {
+		results,
+		scope: { campus, hallId: input.scopeHallId },
+		source: { updatedAt: "2026-07-11T00:00:00.000Z" },
+		total: results.length,
+	};
+}
+
+function createDiningFloorPayload(input: {
+	floorId: string;
+	hallId: string;
+	label: string;
+}): DiningFloorTransportResponse {
+	const floorplan = toDiningFloorplanRef(input);
 	return {
 		filters: { tags: ["主食", "热餐"] },
 		floor: {
-			canvas: { height: 420, width: 720 },
 			floorId: input.floorId,
-			floorplan: toDiningFloorplanRef(input),
+			floorplan: { floorplanId: floorplan.floorplanId, kind: "asset" },
 			hallId: input.hallId,
 			label: input.label,
-			svgAssetUrl: `/assets/dining/${input.hallId}-${input.floorId}.svg`,
 		},
 		source: {
 			updatedAt: "2026-06-08T00:00:00.000Z",
@@ -137,6 +215,13 @@ function createDiningFloorPayload(input: { floorId: string; hallId: string; labe
 							priceLabel: null,
 							tags: ["粉面"],
 						},
+						{
+							menuItemId: "menu:rice:4",
+							name: "酸菜鱼粉",
+							offeringId: "offering:rice:4",
+							priceLabel: "13 元",
+							tags: ["粉面", "热餐"],
+						},
 					],
 					stallProfile: {
 						displayName: "鱼粉",
@@ -145,7 +230,6 @@ function createDiningFloorPayload(input: { floorId: string; hallId: string; labe
 						tags: ["粉面"],
 					},
 				},
-				geometry: { height: 72, width: 150, x: 64, y: 72 },
 				label: "一号窗口",
 				locationLabel: "入口侧",
 				svgAnchorId: "window-01",
@@ -172,7 +256,6 @@ function createDiningFloorPayload(input: { floorId: string; hallId: string; labe
 						tags: ["粉面", "热餐"],
 					},
 				},
-				geometry: { height: 72, width: 150, x: 240, y: 72 },
 				label: "二号窗口",
 				locationLabel: "中部",
 				svgAnchorId: "window-02",
@@ -180,35 +263,49 @@ function createDiningFloorPayload(input: { floorId: string; hallId: string; labe
 				tags: ["粉面", "热餐"],
 				windowId: `${input.hallId}:${input.floorId}:window-02`,
 			},
+			...floorplan.anchorInventory.slice(2).map((anchor, index) => {
+				const stall = DINING_FLAVOR_STALL_FIXTURES[index];
+				if (!stall) {
+					throw new Error(`Dining fixture stall is missing for anchor ${anchor.anchorId}.`);
+				}
+				const windowId = `${input.hallId}:${input.floorId}:${anchor.anchorId}`;
+				return {
+					assignment: {
+						assignmentId: `assignment:${windowId}`,
+						offerings: stall.offerings.map((offering, offeringIndex) => ({
+							menuItemId: `menu:${windowId}:${offeringIndex + 1}`,
+							name: offering.name,
+							offeringId: `offering:${windowId}:${offeringIndex + 1}`,
+							priceLabel: offering.priceLabel,
+							tags: ["主食", "热餐"],
+						})),
+						stallProfile: {
+							displayName: stall.displayName,
+							stallProfileId: `stall:${windowId}`,
+							stallType: "hot_meal",
+							tags: ["主食", "热餐"],
+						},
+					},
+					label: anchor.label ?? `${index + 3}号窗口`,
+					locationLabel: stall.displayName,
+					status: "active" as const,
+					svgAnchorId: anchor.anchorId,
+					tags: ["主食", "热餐"],
+					windowId,
+				};
+			}),
 		],
 	};
 }
 
 function toDiningFloorplanRef(input: { floorId: string; hallId: string }) {
-	const shaByFloor = {
-		"fengtai-huixian-canteen-1f":
-			"sha256:d5af2f44ac03d509f549efdb689c665b9f4dc54541dbd14c842f3ca839f016d6",
-		"fengtai-huixian-canteen-2f":
-			"sha256:25ba425130f907bf36f9e9057cf2509f77657ee299ccc38e2b724777680e54bf",
-		"haidian-canteen-1-1f":
-			"sha256:c55f08aa63157e174970361c07811678f54727179b317901c20b1b2f25df6929",
-	} as const;
-	const sha256 = shaByFloor[input.floorId as keyof typeof shaByFloor];
-	if (!sha256) {
-		throw new Error(`missing dining floorplan test fixture: ${input.hallId}/${input.floorId}`);
-	}
+	const manifest = getDiningFloorplanByFloor(input);
 	return {
-		anchorInventory: [
-			{ anchorId: "window-01", label: "一号窗口", role: "window" },
-			{ anchorId: "window-02", label: "二号窗口", role: "window" },
-			{ anchorId: "window-03", label: "三号窗口", role: "window" },
-			{ anchorId: "window-04", label: "四号窗口", role: "window" },
-			{ anchorId: "window-05", label: "五号窗口", role: "window" },
-		],
-		floorId: input.floorId,
-		floorplanId: `floorplan:${input.hallId}:${input.floorId}`,
-		hallId: input.hallId,
-		sha256,
-		svgAssetUrl: `/assets/dining/${input.hallId}-${input.floorId}.svg`,
+		anchorInventory: manifest.anchorInventory,
+		floorId: manifest.floorId,
+		floorplanId: manifest.floorplanId,
+		hallId: manifest.hallId,
+		sha256: manifest.sha256,
+		svgAssetUrl: manifest.svgAssetUrl,
 	};
 }

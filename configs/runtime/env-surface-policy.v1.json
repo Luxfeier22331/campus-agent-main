@@ -5,14 +5,13 @@
 		"apps/app-api/.dev.vars.example",
 		"apps/app-api/.env.example",
 		"apps/campus-web/.dev.vars.example",
-		"apps/operator-console-web/.dev.vars.example",
+		"apps/ops-web/.env.example",
 		"apps/source-collector/adapters/internal-portal/.env.example",
 		"apps/source-collector/adapters/official-web/.env.example",
 		"apps/source-collector/adapters/wechat-official-account/.env.example",
 		"env/commands/campus-docs-reader-build.env.example",
 		"env/commands/execution-control-runtime.env.example",
 		"env/commands/ingestion-control-runtime.env.example",
-		"env/commands/provider-config-seed.env.example",
 		"infra/otel/collector.env.example"
 	],
 	"template_key_limits": {
@@ -21,7 +20,7 @@
 		"env/commands/campus-docs-reader-build.env.example": 8,
 		"env/commands/execution-control-runtime.env.example": 39,
 		"env/commands/ingestion-control-runtime.env.example": 19,
-		"env/commands/provider-config-seed.env.example": 18
+		"apps/ops-web/.env.example": 8
 	},
 	"keys": {
 		"AGENT_PROMPT_MODEL": {
@@ -453,7 +452,7 @@
 		},
 		"SENTRY_DSN": {
 			"owner": "worker-secret",
-			"scopes": ["app-api", "campus-web", "operator-console-web"],
+			"scopes": ["app-api", "campus-web"],
 			"secret": true
 		},
 		"APP_API_OPERATOR_DATABASE_URL": {
@@ -529,16 +528,6 @@
 		"OFFICIAL_WEB_CONFIG_ROOT": {
 			"owner": "source-collector-runtime",
 			"scopes": ["source-collector"],
-			"secret": false
-		},
-		"OPERATOR_CONSOLE_APP_API_SHARED_SECRET": {
-			"owner": "worker-secret",
-			"scopes": ["operator-console-web"],
-			"secret": true
-		},
-		"OPERATOR_CONSOLE_ACCESS_SERVICE_TOKEN_OPERATOR_ALLOWLIST": {
-			"owner": "worker-non-secret-config",
-			"scopes": ["operator-console-web"],
 			"secret": false
 		},
 		"FEEDWE_BASE_URL": {
@@ -618,7 +607,7 @@
 		}
 	},
 	"allowed_prefixes": {
-		"ACCESS_": ["operator-console-web"],
+		"ACCESS_": ["ops-web"],
 		"AGENT_RUNTIME_": ["command"],
 		"API_": ["command"],
 		"APP_API_": ["app-api", "campus-web", "command", "staging-local"],
@@ -642,14 +631,14 @@
 		"OBJECT_STORE_": ["app-api", "campus-web", "command", "source-collector"],
 		"OCR_": [],
 		"OFFICIAL_WEB_": ["source-collector"],
-		"OPERATOR_CONSOLE_": ["operator-console-web"],
+		"OPS_WEB_": ["ops-web"],
 		"OTEL_": ["infra"],
 		"PROMPT_": ["command"],
 		"QDRANT_": [],
 		"RAGAS_": [],
 		"RAW_ASSET_": [],
 		"RESEND_": ["app-api"],
-		"SENTRY_": ["app-api", "campus-web", "operator-console-web"],
+		"SENTRY_": ["app-api", "campus-web"],
 		"SMOKE_": [],
 		"SPARSE_": [],
 		"STAGING_": ["staging-local"],

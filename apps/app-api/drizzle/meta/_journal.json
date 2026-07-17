@@ -5,15 +5,22 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1783899714209,
+      "when": 1784181304800,
       "tag": "0000_initial",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1784016031161,
-      "tag": "0001_runtime_cleanup",
+      "when": 1784206258472,
+      "tag": "0001_docs_release_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784214804738,
+      "tag": "0002_provider_config_handoff",
       "breakpoints": true
     }
   ]

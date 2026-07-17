@@ -60,6 +60,20 @@ status: active
   作为授权依据
 - gated static reader 的逐请求 admission 仍由 `app-api` 决定，`campus-web` 不缓存或重建
   visibility truth
+- Campus Web Worker 必须丢弃浏览器提供的 `x-campus-docs-release`，并用当前 Worker version
+  固定的 `sha256:<digest>` 覆盖；浏览器不能选择 release
+
+## Release 作用域
+
+所有接口必须携带内部 header：
+
+```text
+x-campus-docs-release: sha256:<64 lowercase hex>
+```
+
+App API 只查询该 release 的 `docs.*` 投影。header 缺失、格式非法或 release 未物化时返回
+`503 docs_release_unavailable`，不得回退到其他 release 或猜测“最新版本”。readiness 也按同一
+release 检查。
 
 ## 通用规则
 
@@ -305,7 +319,6 @@ native local search 处理；受限文档搜索由 campus-web 交付 admission �
 {
   "schemaVersion": "campus_docs_protected_search_index_v1",
   "visibilityMode": "principal_protected_static",
-  "generatedAt": "2026-06-13T00:00:00.000Z",
   "entries": [
     {
       "searchUnitId": "semester-4-course-list",

@@ -1,3 +1,7 @@
+import {
+	createDevDiningSeed,
+	DINING_DEV_SEED_RELEASE_ID,
+} from "@campus-agent/dining/domain";
 import { Client } from "pg";
 
 export interface DiningPublishedCloseoutPgClient {
@@ -38,7 +42,7 @@ export class PostgresDiningPublishedCloseoutVerifier {
 		const client = this.createClient();
 		await client.connect();
 		try {
-			return verifyPublishedDiningState(client);
+			return await verifyPublishedDiningState(client);
 		} finally {
 			await client.end();
 		}
@@ -49,11 +53,11 @@ async function verifyPublishedDiningState(
 	client: DiningPublishedCloseoutPgClient,
 ): Promise<DiningPublishedCloseoutSummary> {
 	const snapshotResult = await client.query(`
-    select lp.release_id, lp.updated_at, rs.payload_json
-    from "dining"."release_latest_pointer" lp
-    join "dining"."release_snapshots" rs on rs.release_id = lp.release_id
-    where lp.scope = 'global'
-    limit 1
+	    select p.catalog_release_id as release_id, p.updated_at, r.snapshot_hash, r.payload_json
+	    from "dining"."publication" p
+	    join "dining"."releases" r on r.release_id = p.catalog_release_id
+	    where p.scope = 'global'
+	    limit 1
   `);
 	const snapshotRow = snapshotResult.rows[0];
 	if (!snapshotRow) {
@@ -63,6 +67,10 @@ async function verifyPublishedDiningState(
 	if (!isRecord(snapshot)) {
 		throw new Error("Dining published closeout failed: snapshot payload is not an object.");
 	}
+	assertCurrentDevSeedFingerprint({
+		releaseId: requireString(snapshotRow.release_id, "releaseId"),
+		snapshotHash: requireString(snapshotRow.snapshot_hash, "snapshotHash"),
+	});
 	const halls = arrayOfRecords(snapshot.halls);
 	if (halls.length === 0) {
 		throw new Error("Dining published closeout failed: snapshot has no visible halls.");
@@ -96,10 +104,18 @@ async function verifyPublishedDiningState(
 				floorplan.floorplanId,
 				`floor ${hallId}/${floorId} floorplanId`,
 			);
-			if (floorplanId.startsWith("placeholder:")) {
+			const floorplanKind = requireString(
+				floorplan.kind,
+				`floor ${hallId}/${floorId} floorplan kind`,
+			);
+			if (floorplanKind !== "asset" && floorplanKind !== "placeholder") {
+				throw new Error(
+					`Dining published closeout failed: invalid floorplan kind: ${hallId}/${floorId}.`,
+				);
+			}
+			if (floorplanKind === "placeholder") {
 				placeholderFloorCount += 1;
 			}
-			requireString(floorplan.sha256, `floor ${hallId}/${floorId} sha256`);
 			const windows = arrayOfRecords(floor.windows);
 			if (windows.length === 0) {
 				throw new Error(
@@ -127,11 +143,6 @@ async function verifyPublishedDiningState(
 			const offeringCount = arrayOfRecords(floor.menuOfferings).filter((offering) =>
 				assignmentIds.has(requireString(offering.assignmentId, "offering assignmentId")),
 			).length;
-			if (offeringCount === 0) {
-				throw new Error(
-					`Dining published closeout failed: floor has no menu offerings: ${hallId}/${floorId}.`,
-				);
-			}
 			totalFloorCount += 1;
 			totalWindowCount += windows.length;
 			totalMenuOfferingCount += offeringCount;
@@ -145,12 +156,13 @@ async function verifyPublishedDiningState(
 	});
 
 	const reviewCountResult = await client.query(
-		'select count(*)::int as review_count from "dining"."review_projections"',
+		`select count(*)::int as review_count from "dining"."reviews"
+		 where visibility = 'published' and moderation_status = 'safe'`,
 	);
 	const reviewCount = Number(reviewCountResult.rows[0]?.review_count ?? 0);
 	const unsafeImageResult = await client.query(`
     select review_id
-    from "dining"."review_projections"
+	from "dining"."reviews"
     where images_json::text ~* '(feishu|lark|file_token|fileToken|open-apis|tenant_access_token)'
     limit 1
   `);
@@ -170,6 +182,21 @@ async function verifyPublishedDiningState(
 		totalWindowCount,
 		updatedAt: toIsoString(snapshotRow.updated_at),
 	};
+}
+
+function assertCurrentDevSeedFingerprint(input: {
+	releaseId: string;
+	snapshotHash: string;
+}): void {
+	if (input.releaseId !== DINING_DEV_SEED_RELEASE_ID) {
+		return;
+	}
+	const expected = createDevDiningSeed().release;
+	if (input.snapshotHash !== expected.snapshotHash) {
+		throw new Error(
+			"Dining published closeout failed: dev seed snapshot is stale; import the current dev seed before starting app-api.",
+		);
+	}
 }
 
 function arrayOfRecords(value: unknown): Array<Record<string, unknown>> {

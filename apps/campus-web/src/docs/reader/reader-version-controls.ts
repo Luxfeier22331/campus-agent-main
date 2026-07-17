@@ -11,35 +11,23 @@ export interface DocsVersionControlRequest {
 	corpus: string;
 	documentSlug: string;
 	fetchImplementation?: typeof fetch;
+	signal?: AbortSignal;
 }
 
 const VERSION_ERROR_MESSAGE = "文档版本信息暂不可用。";
-
-export function readStaticDocsVersionPayload(element: HTMLElement): DocsVersionsResponse | null {
-	const raw = element.dataset.docsVersions;
-	if (!raw) {
-		return null;
-	}
-	let payload: unknown;
-	try {
-		payload = JSON.parse(raw);
-	} catch {
-		return null;
-	}
-	return isDocsVersionsResponse(payload) ? payload : null;
-}
 
 export async function fetchDocsVersionControlPayload({
 	collection,
 	corpus,
 	documentSlug,
 	fetchImplementation = fetch,
+	signal,
 }: DocsVersionControlRequest): Promise<DocsVersionsResponse> {
 	const response = await fetchImplementation(
 		`/api/docs/collections/${encodeURIComponent(corpus)}/${encodeURIComponent(
 			collection,
 		)}/documents/${encodeURIComponent(documentSlug)}/versions`,
-		{ headers: { accept: "application/json" } },
+		{ headers: { accept: "application/json" }, signal },
 	);
 	if (!response.ok) {
 		throw new Error(VERSION_ERROR_MESSAGE);

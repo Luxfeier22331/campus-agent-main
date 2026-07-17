@@ -49,7 +49,9 @@
 	--radius-xl: 16px;
 	--shadow-xs: 0 1px 2px rgba(16, 24, 40, 0.05);
 	--shadow-sm: 0 8px 20px rgba(16, 24, 40, 0.08);
-	--shadow-auth-card: 0 1px 2px rgba(16, 24, 40, 0.06), 0 12px 28px rgba(16, 24, 40, 0.12);
+	--shadow-auth-card: var(--shadow-sm);
+	--layout-page-workspace-width: 1280px;
+	--layout-page-form-width: 896px;
 	--layout-chat-sidebar-width: 260px;
 	--layout-chat-content-width: 760px;
 	--layout-docs-sidebar-width: 260px;
@@ -57,7 +59,6 @@
 	--layout-docs-toc-width: 220px;
 	--layout-map-canvas-min-height: calc(100dvh - 136px);
 	--layout-map-workspace-min-height: calc(100dvh - 196px);
-	--layout-dining-svg-min-height: 64dvh;
 	--state-focus-shadow: 0 0 0 3px rgba(11, 48, 143, 0.18);
 	--state-disabled-bg: var(--neutral-100);
 	--state-disabled-text: var(--neutral-500);
@@ -67,10 +68,11 @@
 	--button-primary-text: var(--sys-text-inverse);
 	--input-bg: var(--sys-surface-default);
 	--input-border: var(--sys-border-default);
-	--input-radius: var(--radius-lg);
+	--input-radius: var(--radius-md);
 	--card-bg: var(--sys-surface-default);
 	--card-border: var(--sys-border-subtle);
-	--card-radius: var(--radius-xl);
+	--card-radius: var(--radius-md);
+	--card-shadow: var(--shadow-xs);
 	--chat-sidebar-bg: var(--sys-bg-subtle);
 	--chat-sidebar-border: var(--sys-border-subtle);
 	--chat-message-answer-bg: var(--sys-surface-default);

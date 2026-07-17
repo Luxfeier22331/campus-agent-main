@@ -19,15 +19,12 @@ const mockedGetAppAuth = vi.mocked(getAppAuth);
 
 describe("operator surface principal resolution", () => {
 	it("does not trust operator headers without a matching internal shared secret", () => {
-		const request = new Request(
-			"https://app-api.internal/api/operator/provider-config/connections",
-			{
-				headers: {
-					"x-app-operator-email": "ops@example.com",
-					"x-app-operator-groups": "panel,ops",
-				},
+		const request = new Request("https://app-api.internal/api/operator/campus-services/releases", {
+			headers: {
+				"x-app-operator-email": "ops@example.com",
+				"x-app-operator-groups": "panel,ops",
 			},
-		);
+		});
 
 		expect(
 			mapOperatorHeadersToPrincipal(request, {
@@ -38,19 +35,16 @@ describe("operator surface principal resolution", () => {
 	});
 
 	it("resolves an operator principal only when allowlist and internal auth both match", () => {
-		const request = new Request(
-			"https://app-api.internal/api/operator/provider-config/connections",
-			{
-				headers: {
-					"x-app-internal-auth": "trusted-secret",
-					"x-app-operator-email": "ops@example.com",
-					"x-app-operator-groups": "panel,ops",
-					"x-app-operator-campus-scope": "main",
-					"x-app-operator-id": "operator-001",
-					"x-app-operator-name": "Ops Team",
-				},
+		const request = new Request("https://app-api.internal/api/operator/campus-services/releases", {
+			headers: {
+				"x-app-internal-auth": "trusted-secret",
+				"x-app-operator-email": "ops@example.com",
+				"x-app-operator-groups": "panel,ops",
+				"x-app-operator-campus-scope": "main",
+				"x-app-operator-id": "operator-001",
+				"x-app-operator-name": "Ops Team",
 			},
-		);
+		});
 
 		const principal = mapOperatorHeadersToPrincipal(request, {
 			APP_API_INTERNAL_SHARED_SECRET: "trusted-secret",
@@ -94,26 +88,26 @@ describe("operator surface principal resolution", () => {
 	});
 
 	it("resolves a machine operator principal only when service id allowlist and internal auth both match", () => {
-		const request = new Request("https://app-api.internal/api/operator/provider-config/profiles", {
+		const request = new Request("https://app-api.internal/api/operator/ingestion/tasks", {
 			headers: {
 				"x-app-internal-auth": "trusted-secret",
-				"x-app-operator-id": "operator-console-staging-smoke",
-				"x-app-operator-name": "operator-console-staging-smoke",
-				"x-app-operator-service-id": "operator-console-staging-smoke",
+				"x-app-operator-id": "trusted-ops-service",
+				"x-app-operator-name": "trusted-ops-service",
+				"x-app-operator-service-id": "trusted-ops-service",
 			},
 		});
 
 		const principal = mapOperatorHeadersToPrincipal(request, {
 			APP_API_INTERNAL_SHARED_SECRET: "trusted-secret",
 			APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
-			APP_API_OPERATOR_SERVICE_ID_ALLOWLIST: "operator-console-staging-smoke",
+			APP_API_OPERATOR_SERVICE_ID_ALLOWLIST: "trusted-ops-service",
 		});
 
 		expect(principal).toMatchObject({
 			actor: {
-				principalId: "operator-console-staging-smoke",
+				principalId: "trusted-ops-service",
 				principalType: "operator",
-				userId: "operator-console-staging-smoke",
+				userId: "trusted-ops-service",
 			},
 			authorization: {
 				projectionSource: "operator_headers",
@@ -123,9 +117,9 @@ describe("operator surface principal resolution", () => {
 				operator: true,
 			},
 			principal: {
-				displayName: "operator-console-staging-smoke",
+				displayName: "trusted-ops-service",
 				email: null,
-				principalId: "operator-console-staging-smoke",
+				principalId: "trusted-ops-service",
 				type: "operator",
 			},
 			session: null,
@@ -133,12 +127,12 @@ describe("operator surface principal resolution", () => {
 	});
 
 	it("rejects machine operator headers when service id is not admitted", () => {
-		const request = new Request("https://app-api.internal/api/operator/provider-config/profiles", {
+		const request = new Request("https://app-api.internal/api/operator/ingestion/tasks", {
 			headers: {
 				"x-app-internal-auth": "trusted-secret",
-				"x-app-operator-email": "operator-console-staging-smoke",
-				"x-app-operator-id": "operator-console-staging-smoke",
-				"x-app-operator-service-id": "operator-console-staging-smoke",
+				"x-app-operator-email": "trusted-ops-service",
+				"x-app-operator-id": "trusted-ops-service",
+				"x-app-operator-service-id": "trusted-ops-service",
 			},
 		});
 
@@ -362,7 +356,7 @@ describe("request principal resolution", () => {
 	it("rejects operator route requests when the trusted operator email is not admitted", async () => {
 		await expect(
 			resolveRequestPrincipal(
-				new Request("https://app-api.internal/api/operator/provider-config/connections", {
+				new Request("https://app-api.internal/api/operator/campus-services/releases", {
 					headers: {
 						"x-app-internal-auth": "trusted-secret",
 						"x-app-operator-email": "help_bot@outlook.com",
@@ -386,7 +380,7 @@ describe("request principal resolution", () => {
 	it("rejects operator route requests when trusted internal auth is missing", async () => {
 		await expect(
 			resolveRequestPrincipal(
-				new Request("https://app-api.internal/api/operator/provider-config/connections", {
+				new Request("https://app-api.internal/api/operator/campus-services/releases", {
 					headers: {
 						"x-app-operator-email": "ops@example.com",
 					},

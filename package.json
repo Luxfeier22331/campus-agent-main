@@ -23,7 +23,7 @@
 		"node": ">=24 <25"
 	},
 	"scripts": {
-		"repo:static": "pnpm exec biome check . && pnpm exec markdownlint-cli2 \"*.md\" \".github/*.md\" \".github/ISSUE_TEMPLATE/**/*.md\" \"docs/**/*.md\" \"apps/**/*.md\" \"jobs/**/*.md\" \"packages/**/*.md\" \"configs/**/*.md\" \"infra/**/*.md\" \"#docs/**/archive/**\" \"#**/dist/**\" \"#**/vendor/**\" \"#**/node_modules/**\" && pnpm exec editorconfig-checker -no-color -disable-indentation -disable-indent-size -exclude '(^|/)(dist|node_modules|vendor|\\.tmp|\\.worktrees|public/vendor|drizzle/meta)(/|$)'",
+		"repo:static": "pnpm exec biome check . && pnpm exec markdownlint-cli2 \"*.md\" \".github/*.md\" \".github/ISSUE_TEMPLATE/**/*.md\" \"docs/**/*.md\" \"apps/**/*.md\" \"jobs/**/*.md\" \"packages/**/*.md\" \"configs/**/*.md\" \"infra/**/*.md\" \"#docs/**/archive/**\" \"#apps/campus-web/.generated/**\" \"#**/dist/**\" \"#**/vendor/**\" \"#**/node_modules/**\" && pnpm exec editorconfig-checker -no-color -disable-indentation -disable-indent-size -exclude '(^|/)(dist|node_modules|vendor|\\.tmp|\\.worktrees|public/vendor|drizzle/meta)(/|$)'",
 		"docs:check": "pnpm exec tsx scripts/docs/check-frontmatter.ts && pnpm exec tsx scripts/docs/check-adr-ids.ts && pnpm exec tsx scripts/docs/check-links.ts && pnpm exec tsx scripts/docs/check-language.ts",
 		"smoke:app-api": "pnpm exec tsx scripts/smoke/app-api.ts",
 		"ci:repo": "pnpm repo:static && pnpm docs:check",
@@ -35,11 +35,13 @@
 		"ci:rust": "scripts/ci/rust-check.sh",
 		"ci:typescript": "turbo run typecheck test --affected --filter=!eval-langfuse --filter=!ragas-runner --filter=!ingestion-contracts --filter=!ingest-core --filter=!ingestion-control --filter=!source-collector --only --concurrency=1 --summarize",
 		"ci:typescript:full": "turbo run typecheck test --filter=!eval-langfuse --filter=!ragas-runner --filter=!ingestion-contracts --filter=!ingest-core --filter=!ingestion-control --filter=!source-collector --only --concurrency=1 --summarize && pnpm ci:worker && pnpm --dir apps/ops-web build",
-		"ci:worker": "pnpm web:test:worker && pnpm exec turbo run build:worker --filter=app-api --concurrency=1 && pnpm exec turbo run build:app --filter=campus-web --concurrency=1 && pnpm exec turbo run build --filter=operator-console-web --concurrency=1",
+		"ci:worker": "pnpm web:test:worker && pnpm exec turbo run build:worker --filter=app-api --concurrency=1 && pnpm exec turbo run build:app --filter=campus-web --concurrency=1",
 		"ci:config": "pnpm ci:actions:lint && uvx zizmor --min-severity=medium .github",
 		"ci:actions:lint": "go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7",
 		"ci:deps": "scripts/ci/osv-scan.sh",
+		"predev": "pnpm dev:prepare",
 		"dev": "turbo run dev --filter=campus-web --filter=app-api",
+		"dev:prepare": "pnpm exec tsx scripts/dev/prepare.ts",
 		"web:build": "turbo run build",
 		"web:check": "turbo run typecheck test build --concurrency=1",
 		"web:lint": "pnpm exec biome check .",
@@ -53,6 +55,8 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.5.3",
+		"@types/react": "19.2.17",
+		"@types/react-dom": "19.2.3",
 		"editorconfig-checker": "^6.1.1",
 		"markdownlint-cli2": "^0.23.0",
 		"tsx": "^4.23.0",

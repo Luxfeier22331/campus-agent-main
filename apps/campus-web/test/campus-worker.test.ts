@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import worker, { type Env } from "../src/index";
 
 const appRoot = join(__dirname, "..");
+const DOCS_RELEASE_ID = `sha256:${"a".repeat(64)}`;
 
 function createEnv(appApi?: Env["APP_API"], assets?: Env["ASSETS"]): Env {
 	return {
@@ -17,6 +18,7 @@ function createEnv(appApi?: Env["APP_API"], assets?: Env["ASSETS"]): Env {
 				}),
 		},
 		CAMPUS_WEB_HOSTNAME: "campus.muc.wiki",
+		DOCS_RELEASE_ID,
 	};
 }
 
@@ -42,11 +44,35 @@ describe("campus worker boundary", () => {
 		});
 	});
 
+	it("serves the favicon through static assets before shell route matching", async () => {
+		const assetFetch = vi.fn(() =>
+			Promise.resolve(
+				new Response(new Uint8Array([0, 0, 1, 0]), {
+					headers: { "content-type": "image/x-icon" },
+				}),
+			),
+		);
+
+		const response = await worker.fetch(
+			new Request("https://campus.muc.wiki/favicon.ico"),
+			createEnv(undefined, { fetch: assetFetch }),
+		);
+
+		expect(response.status).toBe(200);
+		expect(response.headers.get("content-type")).toBe("image/x-icon");
+		expect(assetFetch).toHaveBeenCalledTimes(1);
+	});
+
 	it("allows only explicit app-api seams", async () => {
 		const seen: string[] = [];
+		const seenDocsReleaseIds: Array<string | null> = [];
 		const env = createEnv({
 			fetch(request) {
-				seen.push(new URL(request.url).pathname);
+				const pathname = new URL(request.url).pathname;
+				seen.push(pathname);
+				if (pathname.startsWith("/api/docs/")) {
+					seenDocsReleaseIds.push(request.headers.get("x-campus-docs-release"));
+				}
 				return new Response(JSON.stringify({ ok: true }), {
 					headers: { "content-type": "application/json" },
 				});
@@ -95,14 +121,23 @@ describe("campus worker boundary", () => {
 			"/api/campus-services/transport-schedule/status",
 			"/api/campus-map/places",
 			"/api/campus-map/places/library",
+			"/api/dining/bootstrap",
 			"/api/dining/halls",
+			"/api/dining/search",
 			"/api/dining/halls/haidian-canteen-1/floors/1f",
-			"/api/dining/halls/haidian-canteen-1/reviews",
+			"/api/dining/offerings/offering-1/reviews",
 			"/api/feedback",
 		];
 
 		for (const path of allowed) {
-			const response = await worker.fetch(new Request(`https://campus.muc.wiki${path}`), env);
+			const response = await worker.fetch(
+				new Request(`https://campus.muc.wiki${path}`, {
+					headers: path.startsWith("/api/docs/")
+						? { "x-campus-docs-release": `sha256:${"f".repeat(64)}` }
+						: undefined,
+				}),
+				env,
+			);
 			expect(response.status).toBe(200);
 		}
 
@@ -114,6 +149,21 @@ describe("campus worker boundary", () => {
 		);
 		expect(rejectedDocsSearch.status).toBe(404);
 		expect(seen).toEqual(allowed);
+		expect(seenDocsReleaseIds).toEqual([DOCS_RELEASE_ID, DOCS_RELEASE_ID, DOCS_RELEASE_ID]);
+	});
+
+	it("fails docs API requests before proxying when the Worker release is not configured", async () => {
+		const appApiFetch = vi.fn(() => new Response(null, { status: 200 }));
+		const env = createEnv({ fetch: appApiFetch });
+		delete env.DOCS_RELEASE_ID;
+
+		const response = await worker.fetch(
+			new Request("https://campus.muc.wiki/api/docs/readyz"),
+			env,
+		);
+
+		expect(response.status).toBe(503);
+		expect(appApiFetch).not.toHaveBeenCalled();
 	});
 
 	it("serves registered browser routes through the shell", async () => {
@@ -161,7 +211,15 @@ describe("campus worker boundary", () => {
 				) {
 					return new Response(
 						'<!doctype html><html><body><div id="__rspress_root">Rspress canonical reader</div></body></html>',
-						{ headers: { "content-type": "text/html; charset=utf-8" } },
+						{
+							headers: {
+								"content-encoding": "gzip",
+								"content-length": "9999",
+								"content-type": "text/html; charset=utf-8",
+								etag: '"static-reader"',
+								"last-modified": "Sat, 11 Jul 2026 00:00:00 GMT",
+							},
+						},
 					);
 				}
 				return new Response('<!doctype html><div id="root"></div>', {
@@ -183,7 +241,14 @@ describe("campus worker boundary", () => {
 			);
 			expect(response.status).toBe(200);
 			expect(response.headers.get("content-type")).toContain("text/html");
-			await expect(response.text()).resolves.toContain("__rspress_root");
+			expect(response.headers.get("content-encoding")).toBeNull();
+			expect(response.headers.get("content-length")).toBeNull();
+			expect(response.headers.get("etag")).toBeNull();
+			expect(response.headers.get("last-modified")).toBeNull();
+			const html = await response.text();
+			expect(html).toContain("__rspress_root");
+			expect(html).toContain("__CAMPUS_RUNTIME_CONFIG__");
+			expect(html).toContain("https://campus.muc.wiki/account/login");
 		}
 
 		expect(seenAssetPaths).toEqual([
@@ -543,11 +608,13 @@ describe("campus worker boundary", () => {
 	it("serves gated reader assets only after app-api admission passes", async () => {
 		let admissionUrl: string | null = null;
 		let admissionCookie: string | null = null;
+		let admissionReleaseId: string | null = null;
 		let assetPath: string | null = null;
 		const env = createEnv({
 			fetch(request) {
 				admissionUrl = request.url;
 				admissionCookie = request.headers.get("cookie");
+				admissionReleaseId = request.headers.get("x-campus-docs-release");
 				return new Response(null, { status: 204 });
 			},
 		});
@@ -584,6 +651,7 @@ describe("campus worker boundary", () => {
 			"https://app-api.internal/api/docs/collections/curriculum/curriculum_plan/documents/restricted-program/admission?version=2026-current",
 		);
 		expect(admissionCookie).toBe("better-auth.session_token=test");
+		expect(admissionReleaseId).toBe(DOCS_RELEASE_ID);
 	});
 
 	it("fails closed for gated reader assets when admission is denied", async () => {
@@ -611,6 +679,26 @@ describe("campus worker boundary", () => {
 		expect(response.headers.get("vary")).toContain("Cookie");
 		expect(response.headers.get("vary")).toContain("Authorization");
 		expect(assetsCalled).toBe(false);
+	});
+
+	it("preserves dependency failure when the selected docs release is unavailable", async () => {
+		const env = createEnv({
+			fetch() {
+				return new Response(null, { status: 503 });
+			},
+		});
+
+		const response = await worker.fetch(
+			new Request(
+				"https://campus.muc.wiki/_gated-docs/curriculum/curriculum_plan/restricted-program/2026-current/reader.json",
+			),
+			env,
+		);
+
+		expect(response.status).toBe(503);
+		await expect(response.json()).resolves.toMatchObject({
+			error: { code: "dependency_not_ready" },
+		});
 	});
 
 	it("serves protected docs search indexes only after app-api admission passes", async () => {

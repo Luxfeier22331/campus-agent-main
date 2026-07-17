@@ -1,15 +1,8 @@
 import { Link } from "@tanstack/react-router";
-import { BookOpen, Home, MapIcon, Menu, Send, Utensils } from "lucide-react";
 import type { AnchorHTMLAttributes, ComponentType, ReactNode, SVGProps } from "react";
 import { forwardRef } from "react";
 
 import { Button } from "@/components/ui/button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import {
 	getProductNavItems,
@@ -17,22 +10,13 @@ import {
 	type ProductNavItem,
 	type ProductNavItemId,
 } from "@/platform/navigation/product-nav";
-
-const productNavIcons = {
-	chat: Home,
-	dining: Utensils,
-	docs: BookOpen,
-	feedback: Send,
-	map: MapIcon,
-} satisfies Record<ProductNavItemId, ComponentType<SVGProps<SVGSVGElement>>>;
-
-type ProductNavigationVariant = "standard" | "chat" | "map";
-type ProductNavigationLinkMode = "anchor" | "router";
+export type ProductNavigationVariant = "standard" | "chat" | "map";
+export type ProductNavigationLinkMode = "anchor" | "router";
 
 export function ProductBrandLink({
 	className,
 	linkMode = "anchor",
-	subtitle = "MUC Campus Q&A",
+	subtitle = "",
 }: {
 	className?: string;
 	linkMode?: ProductNavigationLinkMode;
@@ -66,14 +50,14 @@ export function ProductBrandLink({
 export function ProductNavActions({
 	activePath,
 	className,
+	icons,
 	linkMode = "router",
-	showIcons = false,
 	variant = "standard",
 }: {
 	activePath: string;
 	className?: string;
+	icons?: Partial<Record<ProductNavItemId, ComponentType<SVGProps<SVGSVGElement>>>>;
 	linkMode?: ProductNavigationLinkMode;
-	showIcons?: boolean;
 	variant?: ProductNavigationVariant;
 }) {
 	return (
@@ -84,7 +68,7 @@ export function ProductNavActions({
 					item={item}
 					key={item.id}
 					linkMode={linkMode}
-					showIcon={showIcons}
+					Icon={icons?.[item.id]}
 					variant={variant}
 				/>
 			))}
@@ -92,70 +76,14 @@ export function ProductNavActions({
 	);
 }
 
-export function ProductNavMobileMenu({
-	activePath,
-	className,
-	linkMode = "router",
-	triggerClassName,
-	variant = "standard",
-}: {
-	activePath: string;
-	className?: string;
-	linkMode?: ProductNavigationLinkMode;
-	triggerClassName?: string;
-	variant?: ProductNavigationVariant;
-}) {
-	return (
-		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<Button
-					aria-label="打开产品导航"
-					className={cn("size-11 rounded-md", triggerClassName)}
-					size="icon"
-					variant={variant === "map" ? "secondary" : "ghost"}
-				>
-					<Menu aria-hidden="true" className="size-4" />
-				</Button>
-			</DropdownMenuTrigger>
-			<DropdownMenuContent align="end" className={cn("min-w-44", className)}>
-				{getProductNavItems().map((item) => {
-					const Icon = productNavIcons[item.id];
-					const active = isProductNavActive(activePath, item);
-					return (
-						<DropdownMenuItem asChild key={item.id}>
-							<ProductNavLink
-								className={cn(
-									"flex min-h-10 w-full items-center gap-2 rounded-sm px-2 text-sm",
-									active ? "bg-accent text-accent-foreground" : "",
-								)}
-								item={item}
-								linkMode={linkMode}
-							>
-								<Icon aria-hidden="true" className="size-4" />
-								<span>{item.label}</span>
-							</ProductNavLink>
-						</DropdownMenuItem>
-					);
-				})}
-			</DropdownMenuContent>
-		</DropdownMenu>
-	);
-}
-
 export function MapProductNavOverlay() {
 	const activePath = readBrowserPathname();
 	return (
-		<div className="pointer-events-auto absolute right-3 top-3 z-30">
+		<div className="pointer-events-auto absolute right-3 top-3 z-30 hidden md:block">
 			<ProductNavActions
 				activePath={activePath}
-				className="hidden rounded-full border border-white/65 bg-white/78 px-1.5 py-1 text-sm font-medium text-[var(--sys-text-muted)] shadow-[var(--shadow-xs)] backdrop-blur-md md:flex"
+				className="flex rounded-full border border-white/65 bg-white/78 px-1.5 py-1 text-sm font-medium text-[var(--sys-text-muted)] shadow-[var(--shadow-xs)] backdrop-blur-md"
 				linkMode="anchor"
-				variant="map"
-			/>
-			<ProductNavMobileMenu
-				activePath={activePath}
-				linkMode="anchor"
-				triggerClassName="border border-white/65 bg-white/85 shadow-[var(--shadow-xs)] backdrop-blur-md md:hidden"
 				variant="map"
 			/>
 		</div>
@@ -164,23 +92,22 @@ export function MapProductNavOverlay() {
 
 function ProductNavButton({
 	active,
+	Icon,
 	item,
 	linkMode,
-	showIcon,
 	variant,
 }: {
 	active: boolean;
+	Icon?: ComponentType<SVGProps<SVGSVGElement>>;
 	item: ProductNavItem;
 	linkMode: ProductNavigationLinkMode;
-	showIcon: boolean;
 	variant: ProductNavigationVariant;
 }) {
-	const Icon = productNavIcons[item.id];
 	const className = cn(
 		"min-h-8 rounded-md px-2.5 text-xs",
 		variant === "chat" ? "text-muted-foreground" : "",
 		variant === "map" ? "rounded-full bg-white/0 text-[var(--sys-text-muted)]" : "",
-		active ? "bg-muted text-foreground" : "",
+		active ? "bg-surface-muted text-foreground" : "",
 		active && item.id === "feedback"
 			? "text-[var(--sys-brand-identity)] hover:text-[var(--sys-brand-identity)]"
 			: "",
@@ -188,7 +115,7 @@ function ProductNavButton({
 	return (
 		<Button asChild className={className} size="sm" variant="ghost">
 			<ProductNavLink item={item} linkMode={linkMode}>
-				{showIcon ? <Icon aria-hidden="true" className="size-4" /> : null}
+				{Icon ? <Icon aria-hidden="true" className="size-4" /> : null}
 				<span>{item.label}</span>
 			</ProductNavLink>
 		</Button>
@@ -201,7 +128,7 @@ interface ProductNavLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
 	linkMode: ProductNavigationLinkMode;
 }
 
-const ProductNavLink = forwardRef<HTMLAnchorElement, ProductNavLinkProps>(
+export const ProductNavLink = forwardRef<HTMLAnchorElement, ProductNavLinkProps>(
 	({ children, className, item, linkMode, ...props }, ref) => {
 		if (linkMode === "anchor" || item.id === "docs") {
 			return (
@@ -219,7 +146,7 @@ const ProductNavLink = forwardRef<HTMLAnchorElement, ProductNavLinkProps>(
 );
 ProductNavLink.displayName = "ProductNavLink";
 
-function readBrowserPathname(): string {
+export function readBrowserPathname(): string {
 	if (typeof window === "undefined") {
 		return "/";
 	}

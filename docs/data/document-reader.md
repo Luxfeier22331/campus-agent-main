@@ -120,11 +120,15 @@ status: active
 
 `apps/app-api` 使用 `docs.*` 保存浏览器读取所需的关系型投影：
 
+- `docs.releases`：已物化的内容寻址 release 与 manifest identity；
 - `docs.collections`：文档集合名称与展示信息；
 - `docs.documents`：逻辑文档、固定标识和当前版本；
 - `docs.document_versions`：版本、当前标记、可见性和交付方式；
 - `docs.reader_assets`：已发布内容、目录和清单的读取位置；
 - `docs.search_units`：文档站搜索使用的章节命中信息。
+
+除 `docs.releases` 外的表都以 `release_id` 参与主键、外键和查询条件。同一文档身份可以在
+多个 release 中并存；`app-api` 只读取 Worker 指定 release，`docs_publish` 是唯一写入角色。
 
 这些表不是规范文档或对象存储产物的替代品。浏览器响应不得暴露对象存储路径、来源内部
 位置或检索分块标识。

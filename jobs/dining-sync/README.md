@@ -1,54 +1,84 @@
 # 食堂同步任务
 
-`jobs/dining-sync` 是食堂目录和评价的可部署写入任务。它从飞书读取来源记录，审核评价及
-附件，并向 app-api 所有的 `dining.*` schema 发布学生读取快照。
+`jobs/dining-sync` 是 Feishu/Lark 食堂来源同步、评价审核和 Dining schema migration 的可部署
+Job runtime，不是长驻 app，也不处理在线 `/api/dining/*`。
 
-## 边界
+## 责任
 
-本任务负责：
+- 增量同步 catalog records 到 `dining.source_observations`；
+- 增量同步 review records，执行文本/图片审核并把公开附件物化到 S3-compatible object storage；
+- 将 review observations upsert 到 `dining.reviews`；
+- 处理 Ops 请求的评价复检；
+- 为本地开发导入唯一 deterministic dev seed，其中地图只保存稳定 floorplan 引用和 anchor 绑定；
+- 用专用 migration credential 重建 Dining schema。
 
-- 同步食堂、档口和菜品目录来源观测；
-- 从有效目录观测发布目录与当前快照；
-- 同步、审核并物化评价图片；
-- 写入评价读取模型；
-- 验证当前已发布快照。
-
-它不提供 HTTP 服务，不拥有学生页面、app-api schema migration、平面图 SVG 或运维网页。
+Catalog observations 不在 job 中自动发布。`apps/ops-web` 执行 rebase、validate、publish 和
+rollback。`apps/app-api` 只读取 publication、release 和公开评价。
 
 ## 命令
-
-| 命令 | 作用 |
-| --- | --- |
-| `sync-all` | 刷新并发布目录，然后同步评价；Kubernetes CronJob 使用该命令 |
-| `run` | 只同步评价，要求数据库已有有效目录观测 |
-| `catalog-observations` | 只刷新目录来源观测，不发布 |
-| `publish-catalog` | 从飞书刷新目录观测并发布 |
-| `publish-catalog-from-observations` | 不访问飞书，只从数据库有效观测重新发布 |
-| `import-dev-seed` | 仅在非生产环境导入仓库测试数据 |
-| `verify-published` | 只读验证当前快照和评价图片引用 |
-
-运行示例：
-
-```bash
-pnpm --dir jobs/dining-sync exec tsx src/cli.ts sync-all
-pnpm --dir jobs/dining-sync exec tsx src/cli.ts verify-published
-```
-
-## 配置
-
-目录同步需要飞书应用、Base 和目录表配置；评价同步还需要评价表、对象存储和审核服务配置。
-数据库连接使用 `DATABASE_URL` 或命令明确支持的 `APP_API_OPERATOR_DATABASE_URL`。完整变量
-所有权见 `docs/environment/providers.md`。
-
-任务不会自动发现或跨目录加载环境文件，也不会在缺少配置时回退到 dev seed。
-生产环境禁止执行 `import-dev-seed`。
-
-## 验证
 
 ```bash
 pnpm --dir jobs/dining-sync typecheck
 pnpm --dir jobs/dining-sync test
+pnpm --dir jobs/dining-sync exec tsx src/cli.ts sync-all
+pnpm --dir jobs/dining-sync exec tsx src/cli.ts catalog-observations
+pnpm --dir jobs/dining-sync exec tsx src/cli.ts run
+pnpm --dir jobs/dining-sync exec tsx src/cli.ts verify-published
+pnpm --dir jobs/dining-sync exec tsx src/cli.ts migrate
+pnpm --dir jobs/dining-sync exec tsx src/cli.ts migrate-local
+pnpm --dir jobs/dining-sync exec tsx src/cli.ts import-dev-seed
 ```
 
-部署和数据收敛步骤见 `docs/runbooks/dining.md`；领域和数据规则见
-`docs/architecture/domains/dining/architecture.md` 与 `docs/data/dining.md`。
+- `sync-all`：先 catalog observations，再 review sync/rechecks；Kubernetes CronJob 每小时运行。
+- `catalog-observations`：只同步 catalog source observations。
+- `run`：只同步评价和处理复检。
+- `verify-published`：只读当前 publication/release/reviews，输出 closeout summary。
+- `migrate`：只接受 `DINING_MIGRATION_DATABASE_URL`，供 K8s PreSync Job 使用。
+- `migrate-local`：只接受本地 `DATABASE_URL`，由根目录 `pnpm dev:prepare` 调用。
+- `import-dev-seed`：只允许非 production，导入已提交地图引用、档口、菜品和合成评价。
+
+## 配置
+
+### Runtime sync
+
+- `DATABASE_URL`
+- `DINING_LARK_APP_ID`、`DINING_LARK_APP_SECRET`、`DINING_LARK_BASE_TOKEN`
+- `DINING_LARK_CAMPUS_TABLE_ID`、`DINING_LARK_HALL_TABLE_ID`
+- `DINING_LARK_STALL_TABLE_ID`、`DINING_LARK_DISH_TABLE_ID`
+- `DINING_LARK_REVIEW_TABLE_ID`、`DINING_LARK_REVIEW_VIEW_ID`
+- `DINING_MODERATION_*`
+- `OBJECT_STORE_ENDPOINT`、`OBJECT_STORE_REGION`
+- `OBJECT_STORE_ACCESS_KEY`、`OBJECT_STORE_SECRET_KEY`
+- `DINING_OBJECT_STORE_BUCKET`、`DINING_OBJECT_STORE_PUBLIC_BASE_URL`
+- `DINING_OBJECT_STORE_REVIEW_PREFIX`
+
+### Migration
+
+`DINING_MIGRATION_DATABASE_URL` 只通过 `dining-migration-secrets` 注入 PreSync migration Job。
+CronJob 的 `dining-sync-secrets` 不包含该 key，`dining_sync` 角色不得
+重建 schema。Kubernetes Secret key 名和数据库 role grant 见
+`infra/k8s/dining-sync/base/migration-job.yaml` 与 `migrations/0001_dining.sql`。
+
+## 同步语义
+
+Source observation 使用稳定 id upsert、content hash 和 last-seen run；本轮未出现的记录标记
+`stale_at`。单条非法记录写 blocked observation，不阻塞其他记录。
+
+评价首次落库后不更新提交正文、姓名、评分、价格、图片或提交时间。后续只更新审核、可见性和当前
+offering binding。blocked 内容始终 hidden，即使存在旧 restore override。只有公开投影摘要变化时
+才递增 `publication.review_revision`。
+
+## 附件
+
+图片先写入 moderation prefix，审核通过后复制到 public review prefix。公开记录不保存 Feishu
+file token 或临时 URL。同步结束后清理不再被 active accepted review observations 引用的公开图片。
+
+## 部署
+
+`Dockerfile` 是 Job/CronJob 共用镜像。Kustomize base 包含：
+
+- hourly `CronJob/dining-sync`，命令 `sync-all`；
+- Argo CD PreSync `Job/dining-migrate`，命令 `migrate`；
+- namespace-neutral ConfigMap 和 ServiceAccount。
+
+环境仓拥有 Secret、namespace、NetworkPolicy、不可变镜像 tag 和实际部署。

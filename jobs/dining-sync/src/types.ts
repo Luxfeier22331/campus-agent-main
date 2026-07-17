@@ -15,6 +15,7 @@ export interface DiningSourceRecord {
 	rating: number | null;
 	sourceRecordId: string;
 	stallName: string;
+	submittedAt: string | null;
 }
 
 export interface DiningReviewImage {
@@ -31,12 +32,14 @@ export interface DiningReviewProjection {
 	hallId: string;
 	hallName: string;
 	images: DiningReviewImage[];
+	offeringId: string;
 	paidPriceLabel: string | null;
 	rating: number | null;
 	reviewId: string;
 	sourceRecordId: string;
 	stallName: string;
 	stallProfileId: string;
+	submittedAt: string;
 	windowId: string;
 }
 

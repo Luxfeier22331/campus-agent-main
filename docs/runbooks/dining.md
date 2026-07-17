@@ -3,58 +3,73 @@ doc_type: runbook
 owner_boundary: jobs/dining-sync
 status: active
 ---
+# 食堂同步与发布
 
-# 食堂数据同步
+## 本地开发
 
-## 前置条件
+根目录执行：
 
-- 目标数据库已经执行 app-api schema 安装；
-- `dining-sync` 使用自己的数据库、飞书、对象存储和审核服务配置；
-- 生产环境不使用 dev seed；
-- Kubernetes 环境由环境仓提供 `dining-sync-config` 与 `dining-sync-secrets`。
+```bash
+pnpm dev:prepare
+```
 
-## 完整同步
+该命令启动共享 PostgreSQL、安装 app-api schema，然后显式执行 Dining `migrate-local` 和
+`import-dev-seed`。dev seed 是本地唯一合成食堂数据；app-api 和 Ops Web 启动时不得写 seed。
 
-正式环境和需要同步目录及评价的环境执行：
+地图编辑和数据库同步相互独立。启动学生端前验证仓库地图资产：
+
+```bash
+pnpm --dir packages/domains/dining floorplans:check
+```
+
+## 部署顺序
+
+1. 对目标 commit 运行 floorplan check，确认 canonical layout、generated manifest 和 Campus Web
+   静态 SVG 一致。
+2. 使用目标 dining-sync image 运行 Argo CD PreSync migration Job。
+3. migration Job 只从 `dining-migration-secrets` 注入 `DINING_MIGRATION_DATABASE_URL`。
+4. 确认 CronJob 使用 `dining_sync`，Ops Web 使用 `ops_web_dining`，app-api 使用只读
+   `app_api` 角色。
+5. 部署包含同一 floorplan manifest 的 Campus Web 与 Ops Web 版本。
+6. 启动每小时 Dining CronJob，命令为 `sync-all`。
+7. 在 Ops Web 查看来源观测，执行 catalog rebase、validation 和 publish。
+8. 执行 `verify-published`，再检查 publication、bootstrap、一个 floor 和一个 offering review。
+
+CronJob 不运行 migration、dev seed 或 catalog publish。
+
+## 手动同步
 
 ```bash
 pnpm --dir jobs/dining-sync exec tsx src/cli.ts sync-all
 pnpm --dir jobs/dining-sync exec tsx src/cli.ts verify-published
 ```
 
-`sync-all` 已经包含目录刷新和发布，不要在它前面重复执行 `publish-catalog`。验证通过后，再从
-真实产品入口检查 `/api/dining/halls`、一个楼层和一个评价接口。
+只排查目录来源时运行 `catalog-observations`；只同步评价和处理复检时运行 `run`。新 catalog
+observation 不会自动改变学生端，必须经过 Ops Web rebase、validate 和 publish。
 
-## 有界重放
-
-只需要从数据库中的有效目录观测重建发布快照时，不重新访问飞书：
+## 地图编辑与发布
 
 ```bash
-pnpm --dir jobs/dining-sync exec tsx src/cli.ts publish-catalog-from-observations
-pnpm --dir jobs/dining-sync exec tsx src/cli.ts verify-published
+pnpm --dir packages/domains/dining floorplans:edit
+pnpm --dir packages/domains/dining floorplans:generate
+pnpm --dir packages/domains/dining floorplans:check
 ```
 
-只刷新来源观测而暂不发布时使用 `catalog-observations`。只同步评价时使用 `run`，但必须先有
-有效目录观测。
+编辑器“保存”只原子更新 canonical layout，并校验 source revision；“生成静态地图”才重建 manifest
+和 digest SVG。数据库只保存稳定 `floorplanId` 与 anchor binding，不补写 URL、SHA、canvas 或
+geometry。
 
-## 本地测试数据
+## 故障判断
 
-仅在非生产环境执行：
+- 单条飞书字段非法：查看 blocked observation，其他合法记录应继续同步。
+- moderation 或对象存储不可用：任务失败关闭，不公开未审核评价。
+- catalog observation 已更新但学生端未变化：在 Ops Web 执行 rebase、validate 和 publish。
+- 地图区域不可用但详情正常：检查 Campus Web 构建是否包含对应 `floorplanId`，再运行
+  `floorplans:check`。
+- rollback 返回地图不兼容：恢复目标 release 需要的 anchor，或选择仍兼容的 release；不得绕过
+  manifest 校验。
+- migration 权限失败：使用 migration DSN，不提升 `dining_sync`、`ops_web_dining` 或
+  `app_api` 运行时角色。
+- review revision 未变化：确认公开评价摘要是否实际变化；隐藏内容变化不应递增 revision。
 
-```bash
-pnpm --dir jobs/dining-sync exec tsx src/cli.ts import-dev-seed
-pnpm --dir jobs/dining-sync exec tsx src/cli.ts verify-published
-```
-
-dev seed 只验证仓库内平面图和界面，不代表真实食堂内容。
-
-## 失败处理
-
-- migration 或权限失败：先修复 app-api schema 安装，不由同步任务自动建表；
-- 目录观测被阻止：修正飞书字段映射，不猜测食堂或档口关系；
-- 评价审核或附件物化失败：不写学生评价读取模型；
-- `verify-published` 失败：修复同步或发布步骤，不从草稿、fixture 或内存回退；
-- 对象存储 URL 含飞书 token 或临时地址：拒绝发布并清理对应公开引用。
-
-Kubernetes CronJob 运行 `sync-all`。镜像、周期、Secret 和数据库选择由环境仓维护；源码中的
-base 不能证明任务已经部署或成功执行。
+Secret 只存在于环境仓或部署 Secret，不写入源码、example 或发布快照。

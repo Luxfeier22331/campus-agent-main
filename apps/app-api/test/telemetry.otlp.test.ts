@@ -123,6 +123,41 @@ describe("app-api OTLP runtime event sink", () => {
 		expect(metricsBody).not.toContain("trace_high_cardinality");
 	});
 
+	it("posts anonymous Web Vitals as low-cardinality OTLP metrics", async () => {
+		const fetchImplementation = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+		const sink = createOtlpRuntimeEventSink(
+			{
+				APP_API_ENVIRONMENT: "staging",
+				APP_API_OTEL_INGEST_ENDPOINT: "https://otel-collector.example.com",
+				APP_API_OTEL_INGEST_SHARED_SECRET: "ingest-secret",
+			},
+			{ fetchImplementation },
+		);
+
+		await sink.emit({
+			event_type: "web.performance",
+			metric_name: "LCP",
+			metric_value: 1250,
+			navigation_type: "navigate",
+			pathname: "/dining/private-fragment",
+			rating: "good",
+			route_group: "dining",
+			status: "observed",
+			surface: "campus_web",
+			user_id: "user_high_cardinality",
+		});
+
+		expect(fetchImplementation).toHaveBeenCalledTimes(3);
+		const metricsBody = String(fetchImplementation.mock.calls[2]?.[1]?.body);
+		expect(metricsBody).toContain("campus.web.lcp_ms");
+		expect(metricsBody).toContain('"unit":"ms"');
+		expect(metricsBody).toContain("dining");
+		expect(metricsBody).toContain("navigate");
+		expect(metricsBody).toContain("1250");
+		expect(metricsBody).not.toContain("private-fragment");
+		expect(metricsBody).not.toContain("user_high_cardinality");
+	});
+
 	it("fails closed for deployed app-api environments when OTLP ingest config is missing", () => {
 		expect(() =>
 			createAppTelemetry({

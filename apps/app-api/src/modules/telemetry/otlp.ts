@@ -11,6 +11,17 @@ const OTLP_SCOPE_NAME = "campus-agent.app-api.telemetry";
 const STAGE_DURATION_HISTOGRAM_BOUNDS_MS = [
 	100, 250, 500, 1_000, 2_500, 5_000, 10_000, 15_000, 30_000,
 ];
+const WEB_VITAL_METRICS = {
+	CLS: { bounds: [0.05, 0.1, 0.25, 0.5, 1], name: "campus.web.cls", unit: "1" },
+	FCP: { bounds: [500, 1_000, 1_800, 3_000, 5_000, 10_000], name: "campus.web.fcp_ms", unit: "ms" },
+	INP: { bounds: [100, 200, 500, 1_000, 2_500, 5_000], name: "campus.web.inp_ms", unit: "ms" },
+	LCP: {
+		bounds: [1_000, 2_500, 4_000, 6_000, 10_000, 20_000],
+		name: "campus.web.lcp_ms",
+		unit: "ms",
+	},
+	TTFB: { bounds: [200, 500, 800, 1_800, 3_000, 5_000], name: "campus.web.ttfb_ms", unit: "ms" },
+} as const;
 
 const EVENT_NAME_BY_TYPE = new Map<string, string>([
 	["request.accepted", "runtime.request.accepted"],
@@ -18,6 +29,7 @@ const EVENT_NAME_BY_TYPE = new Map<string, string>([
 	["request.stage_timing", "runtime.request.stage_timing"],
 	["request.transport_error", "runtime.request.transport_error"],
 	["identity.endpoint", "runtime.identity.endpoint"],
+	["web.performance", "runtime.web.performance"],
 ]);
 
 export interface OtlpRuntimeEventEnv
@@ -75,7 +87,9 @@ export function createOtlpRuntimeEventSink(
 			}
 
 			const occurredAt = stringValue(sanitizedPayload.occurred_at) ?? now().toISOString();
-			const traceId = otlpTraceId(stringValue(sanitizedPayload.trace_id) ?? eventName);
+			const traceId = otlpTraceId(
+				stringValue(sanitizedPayload.trace_id) ?? `${eventName}:${occurredAt}`,
+			);
 			const spanId = otlpSpanId(
 				`${traceId}:${eventName}:${stringValue(sanitizedPayload.request_id) ?? ""}:${occurredAt}`,
 			);
@@ -143,11 +157,17 @@ export function createOtlpRuntimeEventSink(
 				{ fetchImplementation, sharedSecret, timeoutMs },
 			);
 
-			const metricPayload = buildStageDurationMetricPayload({
-				event: sanitizedPayload,
-				resourceAttributes,
-				timeUnixNano,
-			});
+			const metricPayload =
+				buildStageDurationMetricPayload({
+					event: sanitizedPayload,
+					resourceAttributes,
+					timeUnixNano,
+				}) ??
+				buildWebVitalMetricPayload({
+					event: sanitizedPayload,
+					resourceAttributes,
+					timeUnixNano,
+				});
 			if (metricPayload) {
 				await postOtlp(`${endpoint}/v1/metrics`, metricPayload, {
 					fetchImplementation,
@@ -197,7 +217,10 @@ function buildStageDurationMetricPayload(input: {
 												status: input.event.status,
 												surface: input.event.surface,
 											}),
-											bucketCounts: stageDurationBucketCounts(durationMs),
+											bucketCounts: histogramBucketCounts(
+												durationMs,
+												STAGE_DURATION_HISTOGRAM_BOUNDS_MS,
+											),
 											count: "1",
 											explicitBounds: STAGE_DURATION_HISTOGRAM_BOUNDS_MS,
 											max: durationMs,
@@ -219,9 +242,67 @@ function buildStageDurationMetricPayload(input: {
 	};
 }
 
-function stageDurationBucketCounts(durationMs: number): string[] {
-	const bucketIndex = STAGE_DURATION_HISTOGRAM_BOUNDS_MS.findIndex((bound) => durationMs <= bound);
-	const counts = Array.from({ length: STAGE_DURATION_HISTOGRAM_BOUNDS_MS.length + 1 }, () => "0");
+function buildWebVitalMetricPayload(input: {
+	event: Record<string, RuntimeEventScalar>;
+	resourceAttributes: ReturnType<typeof toOtlpAttributes>;
+	timeUnixNano: string;
+}): Record<string, unknown> | null {
+	if (input.event.event_type !== "web.performance") {
+		return null;
+	}
+	const metricName = stringValue(input.event.metric_name);
+	if (!(metricName && metricName in WEB_VITAL_METRICS)) {
+		return null;
+	}
+	const metric = WEB_VITAL_METRICS[metricName as keyof typeof WEB_VITAL_METRICS];
+	const value = input.event.metric_value;
+	if (!(typeof value === "number" && Number.isFinite(value) && value >= 0)) {
+		return null;
+	}
+
+	return {
+		resourceMetrics: [
+			{
+				resource: { attributes: input.resourceAttributes },
+				scopeMetrics: [
+					{
+						metrics: [
+							{
+								description: "Anonymous browser Web Vital with bounded route attributes.",
+								histogram: {
+									aggregationTemporality: "AGGREGATION_TEMPORALITY_DELTA",
+									dataPoints: [
+										{
+											attributes: toOtlpAttributes({
+												navigation_type: input.event.navigation_type,
+												rating: input.event.rating,
+												route_group: input.event.route_group,
+											}),
+											bucketCounts: histogramBucketCounts(value, metric.bounds),
+											count: "1",
+											explicitBounds: metric.bounds,
+											max: value,
+											min: value,
+											sum: value,
+											timeUnixNano: input.timeUnixNano,
+										},
+									],
+								},
+								name: metric.name,
+								unit: metric.unit,
+							},
+						],
+						scope: { name: OTLP_SCOPE_NAME },
+					},
+				],
+			},
+		],
+	};
+}
+
+function histogramBucketCounts(value: number, bounds: readonly number[]): string[] {
+	const bucketIndex = bounds.findIndex((bound) => value <= bound);
+	const counts = Array.from({ length: bounds.length + 1 }, () => "0");
 	counts[bucketIndex === -1 ? counts.length - 1 : bucketIndex] = "1";
 	return counts;
 }

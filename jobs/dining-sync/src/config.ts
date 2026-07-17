@@ -28,7 +28,7 @@ export interface DiningCatalogImportConfig {
 	postgresUrl: string;
 }
 
-export interface DiningCatalogPublishConfig {
+export interface DiningMigrationConfig {
 	postgresUrl: string;
 }
 
@@ -76,22 +76,22 @@ export function loadCatalogImportConfig(
 ): DiningCatalogImportConfig {
 	return {
 		appEnvironment: env.APP_API_ENVIRONMENT?.trim() || "development",
-		postgresUrl:
-			env.DATABASE_URL?.trim() ||
-			env.APP_API_OPERATOR_DATABASE_URL?.trim() ||
-			requireEnv(env, "DATABASE_URL"),
+		postgresUrl: requireEnv(env, "DATABASE_URL"),
 	};
 }
 
-export function loadCatalogPublishConfig(
+export function loadMigrationConfig(
 	env: NodeJS.ProcessEnv = process.env,
-): DiningCatalogPublishConfig {
+): DiningMigrationConfig {
 	return {
-		postgresUrl:
-			env.DATABASE_URL?.trim() ||
-			env.APP_API_OPERATOR_DATABASE_URL?.trim() ||
-			requireEnv(env, "DATABASE_URL"),
+		postgresUrl: requireEnv(env, "DINING_MIGRATION_DATABASE_URL"),
 	};
+}
+
+export function loadLocalMigrationConfig(
+	env: NodeJS.ProcessEnv = process.env,
+): DiningMigrationConfig {
+	return { postgresUrl: requireEnv(env, "DATABASE_URL") };
 }
 
 export function loadCatalogSyncConfig(

@@ -18,7 +18,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { MarkdownText } from "@/components/assistant-ui/markdown-text";
+import { LazyMarkdownText } from "@/components/assistant-ui/lazy-markdown-text";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 
@@ -31,7 +31,7 @@ const reasoningVariants = cva("aui-reasoning-root mb-4 w-full", {
 		variant: {
 			outline: "rounded-lg border px-3 py-2",
 			ghost: "",
-			muted: "bg-muted/50 rounded-lg px-3 py-2",
+			muted: "bg-surface-muted/50 rounded-lg px-3 py-2",
 		},
 	},
 	defaultVariants: {
@@ -294,7 +294,7 @@ function ReasoningText({ className, children, ...props }: React.ComponentProps<"
 	);
 }
 
-const ReasoningImpl: ReasoningMessagePartComponent = () => <MarkdownText />;
+const ReasoningImpl: ReasoningMessagePartComponent = () => <LazyMarkdownText />;
 
 const ReasoningGroupImpl: ReasoningGroupComponent = ({ children, startIndex, endIndex }) => {
 	const isReasoningStreaming = useAuiState((s) => {

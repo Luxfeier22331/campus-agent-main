@@ -74,7 +74,7 @@ Langfuse 数据集 `online-answer/candidates`。
 | `packages/eval-langfuse` | Langfuse 数据集、评分和实验适配 |
 | Langfuse | 轨迹、标注、数据集、评分和实验 |
 
-Ops Web 只显示排查请求所需的运行摘要；Operator Console 只维护受控产品配置。两者都不是
+Ops Web 显示排查请求所需的运行摘要并维护已准入配置，但不是
 质量复核和数据集管理界面。
 
 ## 不允许的形态

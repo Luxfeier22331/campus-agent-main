@@ -16,13 +16,16 @@ interface WorkerDeploymentSummary {
 }
 
 export interface UploadedWorkerVersion {
+	buildIdentity?: string;
 	workerName: string;
 	versionId: string;
 	sourceSha: string;
+	[key: string]: string | undefined;
 }
 
 interface WorkerVersionUploadOptions {
 	appName: string;
+	buildIdentity?: string;
 	config?: string;
 	environment?: string;
 	variables: Record<string, string>;
@@ -82,7 +85,7 @@ export function buildWorkerVersionUploadArgs(
 	}
 	args.push(
 		"--tag",
-		`git-${sourceSha}`,
+		resolveWorkerVersionTag(options.buildIdentity, sourceSha),
 		"--message",
 		`MUC-WIKI/campus-agent@${sourceSha} (${options.appName})`,
 	);
@@ -96,6 +99,8 @@ export function buildWorkerVersionUploadArgs(
 
 export function uploadStagingWorkerVersion(options: {
 	appName: string;
+	buildIdentity?: string;
+	candidateMetadata?: Record<string, string>;
 	config?: string;
 	cwd: string;
 	environment?: string;
@@ -103,7 +108,7 @@ export function uploadStagingWorkerVersion(options: {
 	workerName: string;
 }): UploadedWorkerVersion {
 	const sourceSha = resolveGitSha();
-	const tag = `git-${sourceSha}`;
+	const tag = resolveWorkerVersionTag(options.buildIdentity, sourceSha);
 	const deploymentBefore = readCurrentDeploymentId(options.cwd, options.workerName);
 	const args = buildWorkerVersionUploadArgs(options, sourceSha);
 
@@ -135,6 +140,8 @@ export function uploadStagingWorkerVersion(options: {
 	}
 
 	const result = {
+		...(options.buildIdentity ? { buildIdentity: options.buildIdentity } : {}),
+		...validateCandidateMetadata(options.candidateMetadata),
 		workerName: options.workerName,
 		versionId: version.id,
 		sourceSha,
@@ -145,4 +152,26 @@ export function uploadStagingWorkerVersion(options: {
 		writeFileSync(resolve(outputPath), `${JSON.stringify(result, null, 2)}\n`, "utf8");
 	}
 	return result;
+}
+
+function resolveWorkerVersionTag(buildIdentity: string | undefined, sourceSha: string): string {
+	if (!buildIdentity) {
+		return `git-${sourceSha}`;
+	}
+	if (!/^sha256:[a-f0-9]{64}$/u.test(buildIdentity)) {
+		return fail("Worker build identity must be sha256:<64 lowercase hex characters>.");
+	}
+	return `build-${buildIdentity.slice("sha256:".length)}`;
+}
+
+function validateCandidateMetadata(
+	value: Record<string, string> | undefined,
+): Record<string, string> {
+	const metadata = value ?? {};
+	for (const key of ["workerName", "versionId", "sourceSha", "buildIdentity"]) {
+		if (key in metadata) {
+			return fail(`Worker candidate metadata cannot override ${key}.`);
+		}
+	}
+	return metadata;
 }

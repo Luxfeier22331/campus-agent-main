@@ -10,8 +10,8 @@ partially_supersedes: ADR-0055
 
 ## 背景
 
-`operator-console-web` 运行在 Cloudflare Workers，通过白名单 app-api 接口管理 provider 和
-业务操作。完整运行诊断需要读取自托管 PostgreSQL 摘要、Temporal 状态和本地日志/trace。
+历史运维入口运行在 Cloudflare Workers。完整运行诊断需要读取自托管 PostgreSQL 摘要、
+Temporal 状态和本地日志/trace。
 
 如果让 app-api 代理这些读取，会扩大 browser-facing Worker API 并把内部 credential 放到错误
 边界；如果浏览器直连数据源，则会暴露 credential 和任意查询能力。
@@ -22,15 +22,14 @@ partially_supersedes: ADR-0055
 
 - 一个 Node/Hono 进程同时提供 React 静态应用和固定 `/api/ops/*`；
 - 服务端只读取白名单 PostgreSQL 字段，数据库账号只写原始观测读取审计；
-- 唯一非诊断操作是人员替换固定 `source-collector-internal-portal-auth/sso_tgc`，以及通过
-  ingestion-control 恢复固定 `internal-portal-auth-maintenance` Schedule；
+- 明确准入的非诊断操作由后续领域 ADR 扩展，当前包括固定门户认证、Dining 和 Provider Config；
 - Ops Web 不得创建、列举或删除 Secret，不得选择其他 Schedule、立即触发工作流或返回凭据；
 - OpenObserve 查询固定 stream、关联标识和有界时间窗口，浏览器不能提交 SQL 或选择 stream；
 - Cloudflare Access 与应用 allowlist 保护全部接口，原始日志/trace 使用更窄权限；
 - Temporal UI、Langfuse UI 保留各自完整能力；
-- Operator Console 继续负责配置和业务操作，不代理 Ops Web，也不继承其 credential。
+- ADR-0080 将 Provider Config 和其他已准入运维任务统一到 Ops Web，并删除旧控制台。
 
-ADR-0067 对 app-api/Operator Console 的限制保持不变。本文只增加独立诊断边界和明确列出的
+ADR-0067 对外部观测数据的限制保持不变。本文只增加独立诊断边界和明确列出的
 集群内操作，不把 Ops Web 变成通用控制面或产品后端。
 
 源码仓拥有应用、image 和 namespace-neutral base；环境仓拥有访问坐标、配置、secret、network
@@ -46,7 +45,7 @@ policy、ingress 和不可变部署选择。
 
 ## 否决方案
 
-- **扩展 app-api/Operator Console**：扩大公开 API、credential 和攻击面；
+- **扩展 app-api 或另建运维 Worker**：扩大公开 API、credential 和攻击面；
 - **拆独立 ops-api**：Ops Web 是唯一消费方，一个 Hono 部署单元已经足够；
 - **只使用平台原生 UI**：无法提供跨系统请求关联，且外部平台可能不在内网可达；
 - **浏览器直连 PostgreSQL/OpenObserve**：无法保护 credential、限制查询或可靠审计。

@@ -1,4 +1,5 @@
 import { AuthProvider } from "@better-auth-ui/heroui";
+import { ToastProvider } from "@heroui/react";
 import type { ReactNode } from "react";
 
 import { createCampusAuthUIProviderProps } from "./auth-ui-provider-config";
@@ -41,5 +42,10 @@ export function CampusBrowserAuthUIProvider({
 		redirectTo,
 	});
 
-	return <AuthProvider {...commonProps}>{children}</AuthProvider>;
+	return (
+		<AuthProvider {...commonProps}>
+			{children}
+			<ToastProvider placement="top" />
+		</AuthProvider>
+	);
 }

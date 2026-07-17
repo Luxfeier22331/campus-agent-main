@@ -20,9 +20,9 @@ test.describe("Q&A browser flow", () => {
 		await expect(page.getByRole("dialog", { name: "登录或创建校园问答账号" })).toBeVisible();
 	});
 
-	test("allows an anonymous user to sign in from the auth dialog and submit the prompt", async ({
-		page,
-	}) => {
+	test("allows an anonymous user to sign in from the auth dialog and submit the prompt", {
+		tag: "@smoke",
+	}, async ({ page }) => {
 		const requests: CampusApiRequestRecord[] = [];
 		const sessionState = { authenticated: false };
 		await mockCampusApi(page, { requests, sessionState });
@@ -77,7 +77,7 @@ test.describe("Q&A browser flow", () => {
 			.toMatchObject({ prompt: "国家奖学金怎么评审？" });
 	});
 
-	test("submits a prompt and renders streamed answer text", async ({ page }) => {
+	test("submits a prompt and renders streamed answer text", { tag: "@smoke" }, async ({ page }) => {
 		await mockCampusApi(page);
 		await page.goto("/");
 
@@ -104,7 +104,7 @@ test.describe("Q&A browser flow", () => {
 		expect(diagnostics.pageErrors).toEqual([]);
 	});
 
-	test("cancels a running request", async ({ page }) => {
+	test("cancels a running request", { tag: "@smoke" }, async ({ page }) => {
 		let cancelCalled = false;
 		await mockCampusApi(page);
 		await page.route("**/api/chat/requests/stream", (route) =>

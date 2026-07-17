@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480" role="img" aria-labelledby="title description">
+  <title id="title">本地开发餐食样例</title>
+  <desc id="description">一碗米饭、蔬菜和煎蛋组成的合成餐食图片</desc>
+  <rect width="640" height="480" fill="#eef1ed"/>
+  <rect x="48" y="44" width="544" height="392" rx="24" fill="#ffffff"/>
+  <ellipse cx="320" cy="266" rx="196" ry="134" fill="#d8ddd8"/>
+  <ellipse cx="320" cy="246" rx="178" ry="120" fill="#f7f4ec"/>
+  <path d="M188 226c24-74 109-95 170-47 22 17 42 48 42 80-64 34-143 44-212 13-8-14-8-30 0-46z" fill="#f2d48a"/>
+  <path d="M244 171c38-18 91-7 116 30-43 22-94 28-137 10 4-17 11-30 21-40z" fill="#fff9e9"/>
+  <circle cx="292" cy="201" r="25" fill="#efb634"/>
+  <path d="M393 190c55 8 91 44 91 92-39 28-86 35-131 20 25-27 38-68 40-112z" fill="#77a767"/>
+  <path d="M425 219c24-10 48 1 57 22-19 15-43 18-64 8 0-11 2-21 7-30z" fill="#a8c974"/>
+  <path d="M178 285c43-12 91-4 127 22-20 30-58 47-98 42-29-4-52-19-67-40 9-11 22-19 38-24z" fill="#d98755"/>
+  <path d="M232 312c24-11 51-8 72 8-13 18-36 27-59 22-13-3-24-10-32-20 5-4 12-8 19-10z" fill="#efad65"/>
+  <path d="M153 370h334" stroke="#c2c9c2" stroke-width="12" stroke-linecap="round"/>
+  <path d="M504 142l-47 218" stroke="#4f5a55" stroke-width="12" stroke-linecap="round"/>
+  <path d="M538 150l-47 218" stroke="#4f5a55" stroke-width="12" stroke-linecap="round"/>
+</svg>

@@ -1,4 +1,3 @@
-import { ToastProvider } from "@heroui/react";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
@@ -14,6 +13,9 @@ if (!rootElement) {
 createRoot(rootElement).render(
 	<StrictMode>
 		<AppRouter />
-		<ToastProvider placement="top" />
 	</StrictMode>,
 );
+
+void import("./platform/telemetry/web-performance")
+	.then(({ startWebPerformanceTelemetry }) => startWebPerformanceTelemetry())
+	.catch(() => undefined);

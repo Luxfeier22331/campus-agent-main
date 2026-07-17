@@ -2,24 +2,29 @@ import { AssistantRuntimeProvider, useRemoteThreadListRuntime } from "@assistant
 import { useNavigate } from "@tanstack/react-router";
 import {
 	type CSSProperties,
+	lazy,
 	type ReactNode,
+	Suspense,
 	useCallback,
 	useEffect,
 	useMemo,
 	useState,
 } from "react";
 import { ThreadListSidebar } from "@/components/assistant-ui/threadlist-sidebar";
-import { AuthDialog } from "@/components/auth/auth-dialog";
-import { QAAccountEntry } from "@/components/auth/user/qa-account-entry";
+import { AccountEntry } from "@/components/auth/user/account-entry";
 import { AssistantConversationSurface } from "@/components/conversation/assistant-conversation-surface";
 import {
-	ProductNavActions,
+	ProductNavActionsWithIcons,
 	ProductNavMobileMenu,
-} from "@/components/navigation/product-navigation";
+} from "@/components/navigation/product-navigation-menu";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { createCampusAssistantRuntimeHook } from "@/features/conversation/assistant-ui-runtime";
 import { createCampusAssistantThreadListAdapter } from "@/features/conversation/assistant-ui-thread-adapter";
 import { campusAuthClient } from "@/platform/auth/client";
+
+const AuthDialog = lazy(() =>
+	import("@/components/auth/auth-dialog").then((module) => ({ default: module.AuthDialog })),
+);
 
 export function QAShell({
 	assistantThreadId,
@@ -92,10 +97,9 @@ export function QAShell({
 									</div>
 								</div>
 								<div className="flex min-w-0 items-center gap-1 sm:gap-2">
-									<ProductNavActions
+									<ProductNavActionsWithIcons
 										activePath={activePath}
 										className="hidden gap-1 md:flex"
-										showIcons
 										variant="chat"
 									/>
 									<ProductNavMobileMenu
@@ -103,18 +107,16 @@ export function QAShell({
 										triggerClassName="md:hidden"
 										variant="chat"
 									/>
-									{hasSession ? <QAAccountEntry /> : null}
-									<AuthDialog
-										onOpenChange={setAuthDialogOpen}
-										open={authDialogOpen}
-										trigger={hasSession ? undefined : <QAAccountEntry />}
-										triggerAriaLabel={hasSession ? undefined : "登录"}
-										triggerClassName={
-											hasSession
-												? undefined
-												: "inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-2 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring sm:px-3"
-										}
+									<AccountEntry
+										authenticated={hasSession}
+										onLogin={openAuthDialog}
+										pending={session.isPending}
 									/>
+									{authDialogOpen ? (
+										<Suspense fallback={null}>
+											<AuthDialog onOpenChange={setAuthDialogOpen} open />
+										</Suspense>
+									) : null}
 								</div>
 							</div>
 						</header>

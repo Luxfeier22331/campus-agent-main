@@ -73,6 +73,22 @@ Kubernetes runtime 都由同一份环境仓 promotion pull request 选择。
 1. 合并环境仓 PR，等待 Cloudflare platform apply、Argo CD 同步、runtime readiness、
    Worker traffic apply 与产品面健康检查依次完成。
 
+### Campus Web 文档候选
+
+1. 准备已验收 `campus_docs_app_projection.v1` 对象引用，并通过
+   `jobs/docs-publish publish-materialize --input-ref <path>` 发布和物化；记录命令输出的
+   `releaseId`。
+1. 手动运行 `staging-candidate-publish` 时填写 `docs_release_id=sha256:<digest>`；常规源码变更
+   不填写该值，复用 GitOps 当前 `docs-reader-release.json` 中的 release。
+1. workflow 使用 derived bucket 只读凭据执行
+   `apps/campus-web build:staging --release-id <id>`，然后上传不承载流量的 Worker candidate。
+1. 审查 GitOps PR 中 `worker-versions.json` 的 `sourceSha`、`docsReleaseId`、`buildIdentity`、
+   `versionId` 与 `docs-reader-release.json` 是否一致。
+1. 合并环境 PR 后，先确认 release-scoped App API readiness，再验证公开和 gated 阅读路径。
+
+对象、release 投影、只读凭据或 GitOps selection 缺失时停止候选发布。不得修改 GitHub
+Environment variable 来选择文档，不得只回滚 Worker 或只回滚 docs release。
+
 ### 镜像发布失败后的恢复
 
 镜像以 source commit SHA 作为不可变 tag。发布任务中途失败时，不创建新 commit，

@@ -16,14 +16,12 @@ export interface PublicCacheableAppApiProxyInput {
 	withNoStore: (response: Response) => Promise<Response>;
 }
 
-const PUBLIC_CACHEABLE_APP_API_PATHS = new Set(["/api/campus-services/transport-schedule/status"]);
-
 export function isPublicCacheableAppApiRequest(request: Request): boolean {
 	if (request.method !== "GET" && request.method !== "HEAD") {
 		return false;
 	}
 	const url = new URL(request.url);
-	return PUBLIC_CACHEABLE_APP_API_PATHS.has(url.pathname) && getPublicCacheSearch(url) !== null;
+	return getPublicCacheSearch(url) !== null;
 }
 
 export async function proxyCacheableAppApiRequest(
@@ -31,30 +29,42 @@ export async function proxyCacheableAppApiRequest(
 ): Promise<Response> {
 	const isHeadRequest = input.request.method === "HEAD";
 	const cacheKey = buildPublicAppApiCacheKey(input.request);
-	const edgeCache = getDefaultEdgeCache();
+	let edgeCache = getDefaultEdgeCache();
 	if (edgeCache) {
-		const cached = await edgeCache.match(cacheKey);
-		if (cached) {
-			return finalizePublicCacheResponse(cached, "hit", isHeadRequest);
+		try {
+			const cached = await edgeCache.match(cacheKey);
+			if (cached) {
+				return finalizePublicCacheResponse(cached, "hit", isHeadRequest);
+			}
+		} catch {
+			edgeCache = null;
 		}
 	}
 
+	let response: Response;
 	try {
-		const response = await input.appApiFetch(
+		response = await input.appApiFetch(
 			buildPublicAppApiRequest(input.request, input.appApiBaseUrl),
 		);
-		if (input.isHtmlServerErrorResponse(response)) {
-			return withCampusEdgeCacheHeader(input.buildDependencyNotReadyResponse(), "bypass");
-		}
-		const securedResponse = withSecurityHeadersPreservingCache(response, input.securityHeaders);
-		if (edgeCache && isCacheablePublicAppApiResponse(securedResponse)) {
-			await edgeCache.put(cacheKey, securedResponse.clone());
-			return finalizePublicCacheResponse(securedResponse, "miss", isHeadRequest);
-		}
-		return finalizePublicCacheResponse(await input.withNoStore(response), "bypass", isHeadRequest);
 	} catch {
 		return withCampusEdgeCacheHeader(input.buildDependencyNotReadyResponse(), "bypass");
 	}
+	if (input.isHtmlServerErrorResponse(response)) {
+		return withCampusEdgeCacheHeader(input.buildDependencyNotReadyResponse(), "bypass");
+	}
+	const securedResponse = withSecurityHeadersPreservingCache(response, input.securityHeaders);
+	if (isCacheablePublicAppApiResponse(securedResponse)) {
+		if (edgeCache) {
+			try {
+				await edgeCache.put(cacheKey, securedResponse.clone());
+				return finalizePublicCacheResponse(securedResponse, "miss", isHeadRequest);
+			} catch {
+				return finalizePublicCacheResponse(securedResponse, "bypass", isHeadRequest);
+			}
+		}
+		return finalizePublicCacheResponse(securedResponse, "bypass", isHeadRequest);
+	}
+	return finalizePublicCacheResponse(await input.withNoStore(response), "bypass", isHeadRequest);
 }
 
 export function withCampusEdgeCacheBypass(response: Response): Response {
@@ -89,13 +99,20 @@ function buildPublicAppApiRequest(request: Request, appApiBaseUrl: string): Requ
 }
 
 function getPublicCacheSearch(url: URL): string | null {
-	if (
-		url.pathname !== "/api/campus-services/transport-schedule/status" ||
-		url.searchParams.size > 0
-	) {
+	if (!isPublicCacheableAppApiPath(url.pathname) || url.searchParams.size > 0) {
 		return null;
 	}
 	return "";
+}
+
+function isPublicCacheableAppApiPath(pathname: string): boolean {
+	return (
+		pathname === "/api/campus-services/transport-schedule/status" ||
+		pathname === "/api/dining/bootstrap" ||
+		pathname === "/api/dining/halls" ||
+		/^\/api\/dining\/halls\/[^/]+\/floors\/[^/]+$/.test(pathname) ||
+		/^\/api\/dining\/offerings\/[^/]+\/reviews$/.test(pathname)
+	);
 }
 
 function isCacheablePublicAppApiResponse(response: Response): boolean {

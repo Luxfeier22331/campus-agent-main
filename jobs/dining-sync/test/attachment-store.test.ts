@@ -26,6 +26,7 @@ const RECORD: DiningSourceRecord = {
 	rating: 4,
 	sourceRecordId: "rec_safe",
 	stallName: "鱼粉",
+	submittedAt: "2026-07-01T08:00:00.000Z",
 };
 
 describe("S3 dining attachment store", () => {

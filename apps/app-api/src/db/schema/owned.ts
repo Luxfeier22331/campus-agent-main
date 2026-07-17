@@ -5,30 +5,11 @@ export {
 	campusServicesOpsTransportOverrides,
 } from "./campus-services-ops";
 export {
-	diningAuditEvents,
-	diningDraftVersions,
-	diningFloors,
-	diningHalls,
-	diningMenuItems,
-	diningMenuOfferings,
-	diningReleaseCandidates,
-	diningReleaseCandidateValidationReports,
-	diningReleaseLatestPointer,
-	diningReleaseScheduleJobs,
-	diningReleaseSnapshots,
-	diningReleases,
-	diningReviewProjections,
-	diningSourceObservations,
-	diningSourceSyncRuns,
-	diningStallProfiles,
-	diningWindowAssignments,
-	diningWindows,
-} from "./dining";
-export {
 	docsCollections,
 	docsDocuments,
 	docsDocumentVersions,
 	docsReaderAssets,
+	docsReleases,
 	docsSearchUnits,
 } from "./docs";
 export {
@@ -42,7 +23,6 @@ export {
 } from "./identity";
 export { opsObservabilityReadAudit } from "./ops-observability";
 export { profileMemoryItems, profileMemorySettings } from "./profile";
-export { providerConfigConnections, providerConfigProfiles } from "./provider-config";
 export { requestObservabilityFact } from "./runtime";
 
 import {
@@ -52,30 +32,11 @@ import {
 	campusServicesOpsTransportOverrides,
 } from "./campus-services-ops";
 import {
-	diningAuditEvents,
-	diningDraftVersions,
-	diningFloors,
-	diningHalls,
-	diningMenuItems,
-	diningMenuOfferings,
-	diningReleaseCandidates,
-	diningReleaseCandidateValidationReports,
-	diningReleaseLatestPointer,
-	diningReleaseScheduleJobs,
-	diningReleaseSnapshots,
-	diningReleases,
-	diningReviewProjections,
-	diningSourceObservations,
-	diningSourceSyncRuns,
-	diningStallProfiles,
-	diningWindowAssignments,
-	diningWindows,
-} from "./dining";
-import {
 	docsCollections,
 	docsDocuments,
 	docsDocumentVersions,
 	docsReaderAssets,
+	docsReleases,
 	docsSearchUnits,
 } from "./docs";
 import {
@@ -89,7 +50,6 @@ import {
 } from "./identity";
 import { opsObservabilityReadAudit } from "./ops-observability";
 import { profileMemoryItems, profileMemorySettings } from "./profile";
-import { providerConfigConnections, providerConfigProfiles } from "./provider-config";
 import { requestObservabilityFact } from "./runtime";
 
 export const appApiOwnedSchema = {
@@ -101,25 +61,8 @@ export const appApiOwnedSchema = {
 	docsDocuments,
 	docsDocumentVersions,
 	docsReaderAssets,
+	docsReleases,
 	docsSearchUnits,
-	diningHalls,
-	diningFloors,
-	diningWindows,
-	diningWindowAssignments,
-	diningStallProfiles,
-	diningMenuItems,
-	diningMenuOfferings,
-	diningReviewProjections,
-	diningSourceObservations,
-	diningSourceSyncRuns,
-	diningDraftVersions,
-	diningReleaseCandidates,
-	diningReleaseCandidateValidationReports,
-	diningReleaseScheduleJobs,
-	diningReleases,
-	diningReleaseSnapshots,
-	diningReleaseLatestPointer,
-	diningAuditEvents,
 	identityAccounts,
 	identityProfiles,
 	identityAccessSnapshots,
@@ -130,7 +73,5 @@ export const appApiOwnedSchema = {
 	profileMemorySettings,
 	profileMemoryItems,
 	opsObservabilityReadAudit,
-	providerConfigConnections,
-	providerConfigProfiles,
 	requestObservabilityFact,
 };

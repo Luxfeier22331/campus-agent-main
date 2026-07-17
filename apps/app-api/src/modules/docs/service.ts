@@ -47,30 +47,36 @@ export interface DocsReaderAssetRecord extends DocsDocumentVersionRecord {
 }
 
 export interface DocsReadModelStore {
+	hasRelease(releaseId: string): Promise<boolean>;
 	getCollection(input: {
 		collection: string;
 		corpus: string;
+		releaseId: string;
 	}): Promise<DocsCollectionRecord | null>;
 	getDocumentVersion(input: {
 		collection: string;
 		corpus: string;
 		documentSlug: string;
+		releaseId: string;
 		version: string | null;
 	}): Promise<DocsDocumentVersionRecord | null>;
 	getReaderAsset(input: {
 		collection: string;
 		corpus: string;
 		documentSlug: string;
+		releaseId: string;
 		version: string | null;
 	}): Promise<DocsReaderAssetRecord | null>;
 	listCollectionDocuments(input: {
 		collection: string;
 		corpus: string;
+		releaseId: string;
 	}): Promise<DocsDocumentVersionRecord[]>;
 	listDocumentVersions(input: {
 		collection: string;
 		corpus: string;
 		documentSlug: string;
+		releaseId: string;
 	}): Promise<DocsDocumentVersionRecord[]>;
 }
 
@@ -79,10 +85,12 @@ export function buildDocsService(input: { store: DocsReadModelStore }): DocsServ
 
 	return {
 		async getDocumentSummary(request) {
+			await assertReleaseAvailable(store, request.releaseId);
 			const document = await store.getDocumentVersion({
 				collection: request.collection,
 				corpus: request.corpus,
 				documentSlug: request.documentSlug,
+				releaseId: request.releaseId,
 				version: null,
 			});
 			assertReadableDocument(document, request.principal);
@@ -103,9 +111,11 @@ export function buildDocsService(input: { store: DocsReadModelStore }): DocsServ
 		},
 
 		async getNavigation(request) {
+			await assertReleaseAvailable(store, request.releaseId);
 			const collection = await store.getCollection({
 				collection: request.collection,
 				corpus: request.corpus,
+				releaseId: request.releaseId,
 			});
 			if (!collection) {
 				throw notFound("docs_collection_not_found", "Document collection was not found.");
@@ -115,6 +125,7 @@ export function buildDocsService(input: { store: DocsReadModelStore }): DocsServ
 				await store.listCollectionDocuments({
 					collection: request.collection,
 					corpus: request.corpus,
+					releaseId: request.releaseId,
 				})
 			).filter(
 				(document) =>
@@ -143,11 +154,13 @@ export function buildDocsService(input: { store: DocsReadModelStore }): DocsServ
 		},
 
 		async getVersions(request) {
+			await assertReleaseAvailable(store, request.releaseId);
 			const versions = (
 				await store.listDocumentVersions({
 					collection: request.collection,
 					corpus: request.corpus,
 					documentSlug: request.documentSlug,
+					releaseId: request.releaseId,
 				})
 			).filter((version) => canReadDocumentVersion(version, request.principal));
 			if (versions.length === 0) {
@@ -172,10 +185,12 @@ export function buildDocsService(input: { store: DocsReadModelStore }): DocsServ
 		},
 
 		async resolveReader(request) {
+			await assertReleaseAvailable(store, request.releaseId);
 			const readerAsset = await store.getReaderAsset({
 				collection: request.collection,
 				corpus: request.corpus,
 				documentSlug: request.documentSlug,
+				releaseId: request.releaseId,
 				version: request.version,
 			});
 			assertReadableDocument(readerAsset, request.principal);
@@ -213,15 +228,29 @@ export function buildDocsService(input: { store: DocsReadModelStore }): DocsServ
 		},
 
 		async checkReaderAdmission(request) {
+			await assertReleaseAvailable(store, request.releaseId);
 			const readerAsset = await store.getReaderAsset({
 				collection: request.collection,
 				corpus: request.corpus,
 				documentSlug: request.documentSlug,
+				releaseId: request.releaseId,
 				version: request.version,
 			});
 			assertReadableDocument(readerAsset, request.principal);
 		},
 	};
+}
+
+async function assertReleaseAvailable(store: DocsReadModelStore, releaseId: string): Promise<void> {
+	if (await store.hasRelease(releaseId)) {
+		return;
+	}
+	throw new AppApiRouteError({
+		code: "docs_release_unavailable",
+		message: "Document reader release is unavailable.",
+		retryable: true,
+		status: 503,
+	});
 }
 
 function assertReadableDocument<T extends DocsVersionAccessRecord>(

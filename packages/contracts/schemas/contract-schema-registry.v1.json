@@ -65,6 +65,38 @@
 			"notes": "Browser-facing current effective transport status projection consumed by campus-web through app-api facade."
 		},
 		{
+			"id": "campus-docs-release-ref.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/campus-docs-release-ref.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"notes": "Content-addressed campus docs release selector used by publication and deployment."
+		},
+		{
+			"id": "campus-docs-release-manifest.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/campus-docs-release-manifest.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"notes": "Deterministic reader release manifest consumed by campus-web builds."
+		},
+		{
+			"id": "campus-docs-app-projection.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/campus-docs-app-projection.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"notes": "Release-scoped app-api document reader projection materialized by jobs/docs-publish."
+		},
+		{
+			"id": "provider-config-projection.v2",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/provider-config-projection.v2.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"notes": "Secret-bearing active provider projection published by ops-web and consumed by execution-control."
+		},
+		{
 			"id": "knowledge-tool-contracts.v2",
 			"kind": "json_artifact",
 			"path": "packages/contracts/schemas/knowledge-tool-contracts.v2.schema.json",

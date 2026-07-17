@@ -87,7 +87,7 @@ function buildGatedReaderMdx(input: {
 		"",
 		`import GatedReaderBootstrap from "${input.importPath}";`,
 		"",
-		`<GatedReaderBootstrap documentSlug={${JSON.stringify(input.entry.documentSlug)}} />`,
+		`<GatedReaderBootstrap documentSlug={${JSON.stringify(input.entry.documentSlug)}} renderTitle={false} />`,
 		"",
 	].join("\n");
 }

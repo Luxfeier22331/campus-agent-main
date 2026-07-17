@@ -69,7 +69,7 @@ MediaWiki 是 sibling service。不得共享 `.muc.wiki` Cookie、导入 passwor
 
 - memory、偏好或聊天历史成为授权来源；
 - raw auth/session 进入 agent 或 retrieval；
-- Operator Console 绕过 app-api 解释权限；
+- Ops Web 绕过自身 Access admission 和应用 allowlist 解释权限；
 - captcha/risk score 成为账号或工具真相；
 - MediaWiki 本地账号成为 app identity truth。
 

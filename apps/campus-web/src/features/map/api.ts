@@ -6,9 +6,12 @@ const CAMPUS_MAP_DATA_URL_PATTERN =
 const CAMPUS_MAP_TILE_URL_TEMPLATE_PATTERN =
 	/^\/map-data\/v[0-9]{4}-[0-9]{2}-[0-9]{2}\/tiles\/[a-z0-9-]+\/\{z\}\/\{x\}\/\{y\}\.png$/;
 
-export async function getCampusMapPlaces(): Promise<CampusMapPlacesResponse> {
+export async function getCampusMapPlaces(
+	input: { signal?: AbortSignal } = {},
+): Promise<CampusMapPlacesResponse> {
 	return requestJson<CampusMapPlacesResponse>({
 		path: "/api/campus-map/places",
+		signal: input.signal,
 	});
 }
 
@@ -19,9 +22,12 @@ export async function getCampusMapPlace(placeId: string): Promise<CampusMapPlace
 	return payload.place;
 }
 
-export async function getCampusMapManifest(): Promise<CampusMapManifest> {
+export async function getCampusMapManifest(
+	input: { signal?: AbortSignal } = {},
+): Promise<CampusMapManifest> {
 	const payload = await requestJson<unknown>({
 		path: "/map-data/manifest.json",
+		signal: input.signal,
 	});
 	return normalizeCampusMapManifest(payload);
 }

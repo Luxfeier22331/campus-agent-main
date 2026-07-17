@@ -81,7 +81,7 @@ describe("app-api shared product bootstrap contracts", () => {
 
 	it("keeps the current schema snapshot free of retired routing state", () => {
 		const chatSchema = readAppFile("db/shared-product-schema/chat_current.sql");
-		const snapshot = readAppFile("drizzle/meta/0001_snapshot.json");
+		const snapshot = readAppFile("drizzle/meta/0000_snapshot.json");
 
 		for (const retiredField of [
 			"intent_classifier_version",
@@ -166,7 +166,7 @@ describe("app-api shared product bootstrap contracts", () => {
 	it("keeps APP_API_DB_FRESH limited to explicit read-after-write paths", () => {
 		const requestScopeSource = readAppFile("src/app/request-scope.ts");
 		const freshDbReferences = requestScopeSource.match(/runtime\.getFreshDb/g) ?? [];
-		expect(freshDbReferences).toHaveLength(4);
+		expect(freshDbReferences).toHaveLength(3);
 
 		for (const resolverName of [
 			"resolveCampusServicesOpsService",
@@ -181,7 +181,7 @@ describe("app-api shared product bootstrap contracts", () => {
 			expect(resolverSource, `${resolverName} must use APP_API_DB`).toContain("runtime.getDb");
 		}
 
-		for (const resolverName of ["resolveDiningOperationsService", "resolveProviderConfigService"]) {
+		for (const resolverName of ["resolveDiningPublicReadService"]) {
 			const resolverSource = extractRequestScopeResolver(requestScopeSource, resolverName);
 			expect(resolverSource, `${resolverName} must use APP_API_DB_FRESH`).toContain(
 				"runtime.getFreshDb",
@@ -212,10 +212,10 @@ describe("app-api shared product bootstrap contracts", () => {
 		);
 	});
 
-	it("wires dining operations through shared PG storage instead of process memory", () => {
+	it("wires Dining public reads through fresh shared PG storage", () => {
 		const requestScopeSource = readAppFile("src/app/request-scope.ts");
 		const diningServiceStart = requestScopeSource.indexOf(
-			"diningOperationsService = buildDiningOperationsService({",
+			"diningPublicReadService = buildDiningPublicReadService({",
 		);
 		const diningServiceEnd = requestScopeSource.indexOf(
 			"function resolveDocsService()",
@@ -225,9 +225,9 @@ describe("app-api shared product bootstrap contracts", () => {
 		expect(diningServiceStart).toBeGreaterThan(-1);
 		expect(diningServiceEnd).toBeGreaterThan(diningServiceStart);
 		const diningScopeSource = requestScopeSource.slice(diningServiceStart, diningServiceEnd);
-		expect(diningScopeSource).toContain("createPgDiningOperationsStore(input.env, {");
+		expect(diningScopeSource).toContain("createPgDiningPublicReadStore(input.env, {");
 		expect(diningScopeSource).toContain("getDb: runtime.getFreshDb");
-		expect(requestScopeSource).not.toContain("createProcessDiningOperationsStore");
+		expect(requestScopeSource).not.toContain("DiningOperations");
 	});
 
 	it("keeps dining dev seed import outside the app-api bootstrap", () => {

@@ -1,13 +1,22 @@
 import { createRootRoute, createRoute, createRouter, RouterProvider } from "@tanstack/react-router";
-import { lazy } from "react";
-import { NotFoundPage, RootLayout } from "./root-layout";
+import { lazy, Suspense } from "react";
+import { DiningRoutePending } from "@/components/dining/dining-page-skeleton";
+import { NotFoundPage, RootLayout, RoutePending } from "./root-layout";
 
 const ConversationPage = lazy(() =>
 	import("./routes/conversation-page").then((module) => ({ default: module.ConversationPage })),
 );
-const DiningPage = lazy(() =>
+const LazyDiningPage = lazy(() =>
 	import("./routes/dining-page").then((module) => ({ default: module.DiningPage })),
 );
+
+function DiningPage() {
+	return (
+		<Suspense fallback={<DiningRoutePending />}>
+			<LazyDiningPage />
+		</Suspense>
+	);
+}
 const FeedbackPage = lazy(() =>
 	import("./routes/feedback-page").then((module) => ({ default: module.FeedbackPage })),
 );
@@ -98,7 +107,16 @@ const mapRoute = createRoute({
 const diningRoute = createRoute({
 	component: DiningPage,
 	getParentRoute: () => rootRoute,
+	loader: async () => {
+		const { preloadDiningRoute } = await import("@/features/dining/preload");
+		await preloadDiningRoute();
+	},
+	pendingComponent: DiningRoutePending,
 	path: "/dining",
+	validateSearch: (search: Record<string, unknown>) => ({
+		floor: optionalDiningSearchParam(search.floor),
+		hall: optionalDiningSearchParam(search.hall),
+	}),
 });
 
 const servicesRoute = createRoute({
@@ -207,6 +225,9 @@ const routeTree = rootRoute.addChildren([
 ]);
 
 const router = createRouter({
+	defaultPendingComponent: RoutePending,
+	defaultPendingMinMs: 200,
+	defaultPendingMs: 100,
 	defaultPreload: "intent",
 	routeTree,
 });
@@ -219,4 +240,8 @@ declare module "@tanstack/react-router" {
 
 export function AppRouter() {
 	return <RouterProvider router={router} />;
+}
+
+function optionalDiningSearchParam(value: unknown): string | undefined {
+	return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }

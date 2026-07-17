@@ -123,6 +123,18 @@ export const APP_API_BROWSER_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
+		path: "/api/dining/bootstrap",
+		callerClass: "browser-surface",
+		admission: "public dining bootstrap projection read",
+	},
+	{
+		method: "GET",
+		path: "/api/dining/publication",
+		callerClass: "browser-surface",
+		admission: "public dining publication revision read",
+	},
+	{
+		method: "GET",
 		path: "/api/dining/halls",
 		callerClass: "browser-surface",
 		admission: "public dining floorplan projection read",
@@ -135,9 +147,15 @@ export const APP_API_BROWSER_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
-		path: "/api/dining/halls/:hallId/reviews",
+		path: "/api/dining/search",
 		callerClass: "browser-surface",
-		admission: "public dining review projection read",
+		admission: "public dining campus search projection read",
+	},
+	{
+		method: "GET",
+		path: "/api/dining/offerings/:offeringId/reviews",
+		callerClass: "browser-surface",
+		admission: "public dining offering review projection read",
 	},
 	{
 		method: "GET",
@@ -222,6 +240,12 @@ export const APP_API_BROWSER_ROUTE_EXPOSURE_INVENTORY = [
 		path: "/api/feedback",
 		callerClass: "browser-surface",
 		admission: "public campus-web feedback submission",
+	},
+	{
+		method: "POST",
+		path: "/api/telemetry/web-performance",
+		callerClass: "browser-surface",
+		admission: "anonymous bounded campus-web performance metric ingest",
 	},
 	{
 		method: "GET",

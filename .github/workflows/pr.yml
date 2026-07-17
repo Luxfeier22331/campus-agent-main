@@ -39,7 +39,6 @@ jobs:
       typescript: ${{ steps.filter.outputs.typescript }}
       worker_app_api: ${{ steps.filter.outputs.worker_app_api }}
       worker_campus_web: ${{ steps.filter.outputs.worker_campus_web }}
-      worker_operator_console: ${{ steps.filter.outputs.worker_operator_console }}
       yaml: ${{ steps.filter.outputs.yaml }}
     steps:
       - name: Check self-hosted runner prerequisites
@@ -80,6 +79,7 @@ jobs:
               - 'apps/app-api/db/shared-product-schema/**'
               - 'apps/app-api/drizzle/**'
               - 'apps/app-api/ops/db/schema.ts'
+              - 'apps/app-api/ops/db/app-api-grants.ts'
               - 'apps/app-api/package.json'
               - 'apps/app-api/src/script-support/shared-db/shared-product-database-bootstrap.ts'
               - 'apps/app-api/test/app-api-migration-upgrade.integration.test.ts'
@@ -206,8 +206,6 @@ jobs:
               - '!apps/campus-web/README.md'
               - 'apps/ingestion-control/**'
               - '!apps/ingestion-control/README.md'
-              - 'apps/operator-console-web/**'
-              - '!apps/operator-console-web/README.md'
               - 'apps/ops-web/**'
               - '!apps/ops-web/README.md'
               - 'apps/source-collector/**'
@@ -216,6 +214,8 @@ jobs:
               - '!jobs/app-api-schema/README.md'
               - 'jobs/dining-sync/**'
               - '!jobs/dining-sync/README.md'
+              - 'jobs/docs-publish/**'
+              - '!jobs/docs-publish/README.md'
               - 'jobs/learning-loop-candidates/**'
               - '!jobs/learning-loop-candidates/README.md'
               - 'jobs/transport-publisher/**'
@@ -244,13 +244,6 @@ jobs:
               - 'apps/campus-web/**'
               - 'configs/branding/**'
               - 'packages/domains/dining/**'
-              - 'scripts/deploy/**'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-            worker_operator_console:
-              - 'apps/operator-console-web/**'
-              - 'configs/branding/**'
               - 'scripts/deploy/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
@@ -333,6 +326,13 @@ jobs:
               - 'jobs/transport-publisher/**'
               - 'apps/app-api/db/shared-product-schema/campus_services.sql'
               - 'packages/contracts/schemas/transport-schedule-status.v1.schema.json'
+            image_docs_publish:
+              - '.dockerignore'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'jobs/docs-publish/**'
+              - 'packages/contracts/schemas/campus-docs-*.schema.json'
 
       - name: Build changed image list
         id: images
@@ -346,6 +346,7 @@ jobs:
           OPS_WEB: ${{ steps.filter.outputs.image_ops_web }}
           SOURCE_COLLECTOR: ${{ steps.filter.outputs.image_source_collector }}
           TRANSPORT_PUBLISHER: ${{ steps.filter.outputs.image_transport_publisher }}
+          DOCS_PUBLISH: ${{ steps.filter.outputs.image_docs_publish }}
         run: |
           set -euo pipefail
           images=()
@@ -357,6 +358,7 @@ jobs:
           [[ "$APP_API_SCHEMA" == "true" ]] && images+=(app-api-schema)
           [[ "$OPS_WEB" == "true" ]] && images+=(ops-web)
           [[ "$TRANSPORT_PUBLISHER" == "true" ]] && images+=(transport-publisher)
+          [[ "$DOCS_PUBLISH" == "true" ]] && images+=(docs-publish)
           images_json="$(jq -cn --args '$ARGS.positional' "${images[@]}")"
           echo "images=$images_json" >> "$GITHUB_OUTPUT"
 
@@ -496,12 +498,13 @@ jobs:
           done < <(find infra/k8s -name kustomization.yaml -print | sort)
 
   image-scan:
-    needs: [changes, static, node, go, rust, infra]
+    needs: [changes, static, node, browser-smoke, go, rust, infra]
     if: >-
       always() &&
       needs.changes.result == 'success' &&
       needs.static.result == 'success' &&
       (needs.node.result == 'success' || needs.node.result == 'skipped') &&
+      (needs.browser-smoke.result == 'success' || needs.browser-smoke.result == 'skipped') &&
       (needs.go.result == 'success' || needs.go.result == 'skipped') &&
       (needs.rust.result == 'success' || needs.rust.result == 'skipped') &&
       (needs.infra.result == 'success' || needs.infra.result == 'skipped') &&
@@ -580,6 +583,7 @@ jobs:
               app-api-schema) dockerfile=jobs/app-api-schema/Dockerfile ;;
               ops-web) dockerfile=apps/ops-web/Dockerfile ;;
               transport-publisher) dockerfile=jobs/transport-publisher/Dockerfile ;;
+              docs-publish) dockerfile=jobs/docs-publish/Dockerfile ;;
               *) echo "Unsupported image: $image" >&2; exit 1 ;;
             esac
             tag="${IMAGE_ROOT,,}/${image}:${GITHUB_SHA}"
@@ -654,6 +658,9 @@ jobs:
                     })();
                   '
                 ;;
+              docs-publish)
+                docker run --rm "$tag" help | grep -q '^usage: docs-publish '
+                ;;
             esac
             trivy image \
               --cache-dir "$trivy_cache_dir" \
@@ -676,8 +683,7 @@ jobs:
         needs.changes.outputs.python_deps == 'true' ||
         needs.changes.outputs.typescript == 'true' ||
         needs.changes.outputs.worker_app_api == 'true' ||
-        needs.changes.outputs.worker_campus_web == 'true' ||
-        needs.changes.outputs.worker_operator_console == 'true'
+        needs.changes.outputs.worker_campus_web == 'true'
       )
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
     timeout-minutes: 35
@@ -741,18 +747,6 @@ jobs:
           pnpm turbo run test:worker build:worker
           --filter=app-api --concurrency=1
 
-      - name: Check campus-web Worker
-        if: needs.changes.outputs.worker_campus_web == 'true'
-        run: >-
-          pnpm turbo run test:worker build:app
-          --filter=campus-web --concurrency=1
-
-      - name: Check operator console Worker
-        if: needs.changes.outputs.worker_operator_console == 'true'
-        run: >-
-          pnpm turbo run test:worker build
-          --filter=operator-console-web --concurrency=1
-
       - name: Run eval lane
         if: >-
           needs.changes.outputs.eval == 'true' ||
@@ -770,6 +764,76 @@ jobs:
             needs.changes.outputs.python_deps == 'true'
           )
         run: scripts/ci/turbo-summary.sh
+
+  browser-smoke:
+    needs: [changes, static, node]
+    if: >-
+      needs.static.result == 'success' &&
+      needs.node.result == 'success' &&
+      needs.changes.outputs.worker_campus_web == 'true'
+    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
+    timeout-minutes: 15
+    env:
+      CAMPUS_WEB_E2E_PREBUILT: '1'
+      TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
+      TURBO_SCM_BASE: ${{ needs.changes.outputs.base_sha }}
+      TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          workspace-filters: |
+            campus-agent-web-workspace
+            campus-web...
+
+      - name: Check campus-web Worker and build app
+        run: >-
+          pnpm turbo run test:worker build:app
+          --filter=campus-web --concurrency=1
+
+      - name: Install campus-web Chromium
+        run: pnpm --dir apps/campus-web exec playwright install chromium
+
+      - name: Run campus-web app smoke
+        id: app-smoke
+        continue-on-error: true
+        run: pnpm --dir apps/campus-web run test:e2e:smoke:app
+
+      - name: Run campus-web Worker smoke
+        id: worker-smoke
+        continue-on-error: true
+        run: pnpm --dir apps/campus-web run test:e2e:smoke:worker
+
+      - name: Upload campus-web browser failure evidence
+        if: >-
+          always() &&
+          (steps.app-smoke.outcome != 'success' || steps.worker-smoke.outcome != 'success')
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          if-no-files-found: ignore
+          name: campus-web-playwright-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            apps/campus-web/playwright-report/e2e
+            apps/campus-web/playwright-report/e2e-worker
+            apps/campus-web/test-results/e2e
+            apps/campus-web/test-results/e2e-worker
+          retention-days: 7
+
+      - name: Require successful campus-web browser smoke
+        if: always()
+        env:
+          APP_SMOKE_OUTCOME: ${{ steps.app-smoke.outcome }}
+          WORKER_SMOKE_OUTCOME: ${{ steps.worker-smoke.outcome }}
+        run: |
+          test "$APP_SMOKE_OUTCOME" = success
+          test "$WORKER_SMOKE_OUTCOME" = success
 
   app-api-migration:
     needs: [changes, static]
@@ -894,6 +958,7 @@ jobs:
       - changes
       - static
       - node
+      - browser-smoke
       - app-api-migration
       - infra
       - image-scan
@@ -912,6 +977,7 @@ jobs:
             "${{ needs.changes.result }}" \
             "${{ needs.static.result }}" \
             "${{ needs.node.result }}" \
+            "${{ needs.browser-smoke.result }}" \
             "${{ needs.app-api-migration.result }}" \
             "${{ needs.infra.result }}" \
             "${{ needs.image-scan.result }}" \

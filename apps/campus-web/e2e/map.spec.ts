@@ -2,7 +2,9 @@ import { expect, test } from "@playwright/test";
 import { mockCampusApi } from "./support/api-mocks";
 
 test.describe("campus map browser flow", () => {
-	test("searches, selects, and restores a campus place from the URL", async ({ page }) => {
+	test("searches, selects, and restores a campus place from the URL", { tag: "@smoke" }, async ({
+		page,
+	}) => {
 		await mockCampusApi(page);
 		await page.goto("/map?campus=haidian");
 
@@ -51,9 +53,11 @@ test.describe("campus map browser flow", () => {
 
 	test("surfaces map place API failures", async ({ page }) => {
 		await mockCampusApi(page, { mapPlacesFailure: true });
+		await page.setViewportSize({ height: 812, width: 390 });
 		await page.goto("/map");
 
 		const errorState = page.getByRole("alert", { name: "校园地图暂时无法打开" });
+		await expect(page.getByRole("button", { name: "打开产品导航" })).toBeVisible();
 		await expect(errorState).toContainText("校园地图暂时无法打开。");
 		await expect(errorState.getByRole("button", { name: "重试" })).toBeVisible();
 		await expect(errorState.getByRole("link", { name: "反馈" })).toHaveAttribute(

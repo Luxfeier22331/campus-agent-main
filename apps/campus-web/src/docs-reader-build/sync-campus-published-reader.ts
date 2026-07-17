@@ -39,8 +39,7 @@ import {
 } from "./published-reader-search-validation.ts";
 import { parsePublishedReaderSyncArgs } from "./published-reader-sync-args.ts";
 import {
-	escapeAttribute,
-	escapeHtml,
+	escapeMdxHeadingText,
 	formatJson,
 	normalizeText,
 	writeText,
@@ -80,7 +79,7 @@ export async function syncCampusPublishedReaderDocs(
 	const docsRoot = resolve(
 		input.docsRoot ?? process.env.CAMPUS_WEB_RSPRESS_DOCS_ROOT?.trim() ?? DEFAULT_DOCS_ROOT,
 	);
-	const manifest = await loadPublishedReaderManifest(input);
+	const manifest = input.manifest ?? (await loadPublishedReaderManifest(input));
 	const readerEntries = attachReaderRouteSlugs(
 		manifest.entries.filter(
 			(entry) =>
@@ -115,7 +114,7 @@ export async function syncCampusPublishedReaderDocs(
 export async function syncCampusPublishedReaderAssets(
 	input: ReaderSyncInput,
 ): Promise<ReaderSyncAssetsResult> {
-	const manifest = await loadPublishedReaderManifest(input);
+	const manifest = input.manifest ?? (await loadPublishedReaderManifest(input));
 	const entries = manifest.entries.filter(
 		(entry) => entry.deliveryMode === "public_static_asset" || entry.deliveryMode === "gated_asset",
 	);
@@ -168,7 +167,7 @@ export async function syncCampusPublishedReaderAssets(
 export async function checkCampusPublishedReaderInputs(
 	input: ReaderSyncInput,
 ): Promise<ReaderSyncCheckResult> {
-	const manifest = await loadPublishedReaderManifest(input);
+	const manifest = input.manifest ?? (await loadPublishedReaderManifest(input));
 	const entries = attachReaderRouteSlugs(
 		manifest.entries.filter(
 			(entry) =>
@@ -205,7 +204,7 @@ export async function checkCampusPublishedReaderInputs(
 		if (entry.deliveryMode !== "gated_asset" || !entry.isCurrent) {
 			continue;
 		}
-		const searchUnits = entry.versionId ? searchUnitsByVersionId.get(entry.versionId) : undefined;
+		const searchUnits = searchUnitsByVersionId.get(entry.versionId);
 		if (!searchUnits) {
 			throw new Error(`missing protected search units for version: ${entry.versionId}`);
 		}
@@ -293,14 +292,20 @@ function buildReaderMdx(input: {
 }): string {
 	const title = input.reader.document?.title || input.entry.title;
 	const courseMapsByHeading = buildCourseMapsByHeading(input.courseMaps ?? []);
+	const description = buildReaderDescription(title, input.reader);
+	const canonicalUrl = buildReaderCanonicalUrl(input.entry);
+	const readerPermalinks = buildReaderPermalinkMap(input.reader, title);
 	const lines = [
 		"---",
 		`title: ${JSON.stringify(title)}`,
+		`description: ${JSON.stringify(description)}`,
+		`head: ${JSON.stringify([["link", { href: canonicalUrl, rel: "canonical" }]])}`,
 		"footer: false",
 		`docsSearchVisibility: ${JSON.stringify(input.searchable ? "public_current" : "noindex")}`,
 		`documentKind: ${JSON.stringify(resolveDocumentKind(input.entry))}`,
 		`readerLayout: ${JSON.stringify(resolveReaderLayout(input.entry))}`,
 		`readerMeasure: ${JSON.stringify(resolveReaderMeasure(input.entry))}`,
+		`readerPermalinks: ${JSON.stringify(readerPermalinks)}`,
 		'readerOutline: "document"',
 		"---",
 		"",
@@ -309,12 +314,19 @@ function buildReaderMdx(input: {
 	];
 	for (const section of input.reader.sections ?? []) {
 		const anchor = String(section.anchor ?? "").trim();
-		if (anchor) {
-			lines.push(`<span id="${escapeAttribute(anchor)}"></span>`, "");
-		}
 		const sectionTitle = normalizeText(section.title);
-		if (shouldRenderReaderSectionTitle({ sectionTitle, title })) {
-			lines.push(`## ${sectionTitle}`, "");
+		const renderSectionTitle = shouldRenderReaderSectionTitle({ sectionTitle, title });
+		if (anchor && !(renderSectionTitle && isSafeReaderAnchor(anchor))) {
+			lines.push(`<ReaderAnchor id={${JSON.stringify(anchor)}} />`, "");
+		}
+		if (renderSectionTitle) {
+			const safeSectionTitle = escapeMdxHeadingText(sectionTitle);
+			lines.push(
+				anchor && isSafeReaderAnchor(anchor)
+					? `## ${safeSectionTitle} {#${anchor}}`
+					: `## ${safeSectionTitle}`,
+				"",
+			);
 		}
 		const blocks = Array.isArray(section.blocks) ? section.blocks : [];
 		for (const block of blocks) {
@@ -324,7 +336,7 @@ function buildReaderMdx(input: {
 			}
 			if (isReaderHeadingBlock(block, text)) {
 				const headingLevel = resolveReaderHeadingLevel(text);
-				lines.push(`${"#".repeat(headingLevel)} ${text}`, "");
+				lines.push(`${"#".repeat(headingLevel)} ${escapeMdxHeadingText(text)}`, "");
 				for (const courseMap of courseMapsByHeading.get(text) ?? []) {
 					lines.push(renderCourseMapFigure(courseMap), "");
 				}
@@ -333,11 +345,11 @@ function buildReaderMdx(input: {
 			}
 			const rootUnitId = String(block.rootUnitId ?? "").trim();
 			lines.push(
-				`<div className="reader-block" data-root-unit-id="${escapeAttribute(rootUnitId)}">`,
+				`<ReaderBlock rootUnitId={${JSON.stringify(rootUnitId)}}>`,
 				"",
 				renderReaderBlockText(text),
 				"",
-				"</div>",
+				"</ReaderBlock>",
 				"",
 			);
 			for (const courseMap of courseMapsByHeading.get(text) ?? []) {
@@ -392,40 +404,78 @@ function buildMetaPanel(input: {
 	meta: ReaderMetaPayload;
 	versions: ReaderPublicVersion[];
 }): string {
-	const versionLabel = input.entry.versionLabel || input.meta.resolvedVersion?.label || "当前版";
+	const versionLabel = input.entry.versionLabel;
 	const collectionLabel = resolveCollectionLabel(input.entry);
 	const sourceLabel = input.meta.source?.title || input.meta.sourceLabel || collectionLabel;
-	const details = [
-		["文档集合", collectionLabel],
-		["版本", versionLabel],
-		["来源", sourceLabel],
-	];
-	const versionPayload = JSON.stringify({
-		versions: input.versions.map((version) => ({
-			isCurrent: version.isCurrent,
-			label: version.label,
-			versionSlug: version.versionSlug,
-		})),
-	});
+	const versions = input.versions.map((version) => ({
+		isCurrent: version.isCurrent,
+		label: version.label,
+		versionSlug: version.versionSlug,
+	}));
 	return [
-		`<section className="document-meta-panel" aria-label="文档来源与版本" data-docs-reader-meta="true" data-docs-corpus="${escapeAttribute(input.entry.corpus)}" data-docs-collection="${escapeAttribute(input.entry.collection)}" data-docs-document-slug="${escapeAttribute(input.entry.documentSlug)}" data-docs-route-slug="${escapeAttribute(input.entry.routeSlug)}" data-docs-version-slug="${escapeAttribute(input.entry.versionSlug)}" data-docs-search-visibility="${input.entry.deliveryMode === "gated_asset" ? "gated_bootstrap" : input.entry.isCurrent ? "public_current" : "noindex"}" data-docs-is-current="${input.entry.isCurrent ? "true" : "false"}" data-docs-versions="${escapeAttribute(versionPayload)}">`,
-		'\t<p className="document-meta-summary">',
-		`\t\t<span>${escapeHtml(versionLabel)}</span>`,
-		`\t\t<span>来源：${escapeHtml(sourceLabel)}</span>`,
-		"\t</p>",
-		'\t<details className="document-meta-details">',
-		"\t\t<summary>来源详情</summary>",
-		"\t\t<dl>",
-		...details.flatMap(([label, value]) => [
-			"\t\t\t<div>",
-			`\t\t\t\t<dt>${escapeHtml(label)}</dt>`,
-			`\t\t\t\t<dd>${escapeHtml(value)}</dd>`,
-			"\t\t\t</div>",
-		]),
-		"\t\t</dl>",
-		"\t</details>",
-		"</section>",
+		"<ReaderDocumentMeta",
+		`\tcollection={${JSON.stringify(input.entry.collection)}}`,
+		`\tcollectionLabel={${JSON.stringify(collectionLabel)}}`,
+		`\tcorpus={${JSON.stringify(input.entry.corpus)}}`,
+		`\tdocumentSlug={${JSON.stringify(input.entry.documentSlug)}}`,
+		`\tisCurrent={${JSON.stringify(input.entry.isCurrent)}}`,
+		`\trouteSlug={${JSON.stringify(input.entry.routeSlug)}}`,
+		`\tsearchVisibility={${JSON.stringify(input.entry.isCurrent ? "public_current" : "noindex")}}`,
+		`\tsourceLabel={${JSON.stringify(sourceLabel)}}`,
+		`\tversionLabel={${JSON.stringify(versionLabel)}}`,
+		`\tversionSlug={${JSON.stringify(input.entry.versionSlug)}}`,
+		`\tversions={${JSON.stringify(versions)}}`,
+		"/>",
 	].join("\n");
+}
+
+function buildReaderDescription(title: string, reader: ReaderDocumentPayload): string {
+	for (const section of reader.sections ?? []) {
+		const blocks = Array.isArray(section.blocks) ? (section.blocks as ReaderBlock[]) : [];
+		for (const block of blocks) {
+			const text = normalizeText(block.text);
+			if (!text || isReaderHeadingBlock(block, text) || /^<table\b/iu.test(text)) {
+				continue;
+			}
+			return text.length > 150 ? `${text.slice(0, 147)}...` : text;
+		}
+	}
+	return `${title}的校园文档阅读页。`;
+}
+
+function buildReaderCanonicalUrl(entry: RoutedPublishedReaderManifestEntry): string {
+	const base = `/docs/${entry.corpus}/${entry.collection}/${entry.routeSlug}`;
+	return entry.isCurrent ? base : `${base}/v/${encodeURIComponent(entry.versionSlug)}`;
+}
+
+function buildReaderPermalinkMap(
+	reader: ReaderDocumentPayload,
+	title: string,
+): Record<string, string> {
+	const permalinks: Record<string, string> = {};
+	for (const section of reader.sections ?? []) {
+		const anchor = String(section.anchor ?? "").trim();
+		const sectionTitle = normalizeText(section.title);
+		if (
+			!(
+				anchor &&
+				isSafeReaderAnchor(anchor) &&
+				shouldRenderReaderSectionTitle({ sectionTitle, title })
+			)
+		) {
+			continue;
+		}
+		const blocks = Array.isArray(section.blocks) ? (section.blocks as ReaderBlock[]) : [];
+		const rootUnitId = blocks.map((block) => String(block.rootUnitId ?? "").trim()).find(Boolean);
+		if (rootUnitId) {
+			permalinks[anchor] = rootUnitId;
+		}
+	}
+	return permalinks;
+}
+
+function isSafeReaderAnchor(value: string): boolean {
+	return /^[A-Za-z0-9][A-Za-z0-9._:-]*$/u.test(value);
 }
 
 function buildPublicVersionsByDocument(
@@ -438,7 +488,7 @@ function buildPublicVersionsByDocument(
 			...(versionsByDocument.get(key) ?? []),
 			{
 				isCurrent: entry.isCurrent,
-				label: entry.versionLabel || "当前版",
+				label: entry.versionLabel,
 				versionSlug: entry.versionSlug,
 			},
 		]);
@@ -522,9 +572,6 @@ async function writeProtectedSearchIndexes(input: {
 		if (entry.deliveryMode !== "gated_asset" || !entry.isCurrent) {
 			continue;
 		}
-		if (!entry.versionId) {
-			throw new Error(`protected search index requires versionId: ${entry.documentSlug}`);
-		}
 		const searchUnits = searchUnitsByVersionId.get(entry.versionId);
 		if (!searchUnits) {
 			throw new Error(`missing protected search units for version: ${entry.versionId}`);
@@ -544,7 +591,6 @@ async function writeProtectedSearchIndexes(input: {
 				entries: searchUnits.map((unit) =>
 					buildProtectedSearchEntry({ entry, resolveCollectionLabel, unit }),
 				),
-				generatedAt: input.manifest.generatedAt ?? null,
 				schemaVersion: "campus_docs_protected_search_index_v1",
 				visibilityMode: "principal_protected_static",
 			}),
@@ -571,13 +617,16 @@ function comparePublicVersion(left: ReaderPublicVersion, right: ReaderPublicVers
 async function main() {
 	const options = parsePublishedReaderSyncArgs(process.argv.slice(2));
 	const client = createS3ObjectStore();
+	const manifest = await loadPublishedReaderManifest({
+		manifestFilePath: options.manifestFilePath,
+	});
 	if (options.command === "all" || options.command === "docs") {
 		console.log(
 			JSON.stringify(
 				await syncCampusPublishedReaderDocs({
 					client,
+					manifest,
 					manifestFilePath: options.manifestFilePath,
-					manifestObjectKey: options.manifestObjectKey,
 				}),
 			),
 		);
@@ -587,8 +636,8 @@ async function main() {
 			JSON.stringify(
 				await syncCampusPublishedReaderAssets({
 					client,
+					manifest,
 					manifestFilePath: options.manifestFilePath,
-					manifestObjectKey: options.manifestObjectKey,
 				}),
 			),
 		);
@@ -598,8 +647,8 @@ async function main() {
 			JSON.stringify(
 				await checkCampusPublishedReaderInputs({
 					client,
+					manifest,
 					manifestFilePath: options.manifestFilePath,
-					manifestObjectKey: options.manifestObjectKey,
 				}),
 			),
 		);

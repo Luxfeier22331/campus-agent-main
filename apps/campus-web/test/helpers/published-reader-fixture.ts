@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -14,6 +15,7 @@ export interface PublishedReaderFixtureInput {
 	publicReaderAnchor?: string;
 	protectedSearchAnchor?: string;
 	publicReaderRootUnitId?: string;
+	publicSectionTitle?: string;
 	publicDocumentSlug?: string;
 	surface?: string;
 }
@@ -25,6 +27,13 @@ export interface PublishedReaderFixture {
 }
 
 let tempDir: string | null = null;
+
+type FixtureObject = string | Uint8Array;
+
+const COURSE_MAP_IMAGE = Buffer.from(
+	"iVBORw0KGgoAAAANSUhEUgAAABAAAAAJCAIAAAC0SDtlAAAAHklEQVR4nGN48OmjTnw+8SQDSaoffPrIMGoDLWwAAOICDTjkUnTKAAAAAElFTkSuQmCC",
+	"base64",
+);
 
 export function cleanupPublishedReaderFixture(): void {
 	if (tempDir) {
@@ -75,7 +84,7 @@ export function createPublishedReaderFixture(
 						text: "六、课程地图",
 					},
 				],
-				title: "文档正文",
+				title: input.publicSectionTitle ?? "文档正文",
 			},
 		],
 	});
@@ -110,7 +119,7 @@ export function createPublishedReaderFixture(
 	});
 	const gatedOutline = "{}";
 	const gatedMeta = JSON.stringify({ sourceLabel: "受限制度" });
-	const objects = new Map<string, string>([
+	const objects = new Map<string, FixtureObject>([
 		["reader/public.json", publicReader],
 		["reader/public-history.json", publicReader],
 		["outline/public.json", publicOutline],
@@ -118,11 +127,11 @@ export function createPublishedReaderFixture(
 		["meta/public.json", publicMeta],
 		["meta/public-history.json", publicMeta],
 		["supplements/public-course-maps.json", publicCourseMaps],
-		["supplements/public-course-map-image.png", "course-map-image"],
+		["supplements/public-course-map-image.png", COURSE_MAP_IMAGE],
 		[
 			"manifest/public.json",
 			buildAssetManifest({
-				courseMapImage: "course-map-image",
+				courseMapImage: COURSE_MAP_IMAGE,
 				courseMaps: publicCourseMaps,
 				meta: publicMeta,
 				outline: publicOutline,
@@ -132,7 +141,7 @@ export function createPublishedReaderFixture(
 		[
 			"manifest/public-history.json",
 			buildAssetManifest({
-				courseMapImage: "course-map-image",
+				courseMapImage: COURSE_MAP_IMAGE,
 				courseMaps: publicCourseMaps,
 				meta: publicMeta,
 				outline: publicOutline,
@@ -268,35 +277,22 @@ export function createPublishedReaderFixture(
 				versionLabel: "现行版",
 				versionSlug: "2026-current",
 			},
+		],
+		projection: {
+			byteSize: 1,
+			key: "docs-reader/projections/sha256/fixture.json",
+			sha256: `sha256:${"a".repeat(64)}`,
+		},
+		...(input.includeSearchUnits === false ? {} : { searchUnits }),
+		schemaVersion: "campus_docs_release_manifest.v1",
+		sourceReleaseRefs: [
 			{
-				collection: "student_rules",
-				corpus: "regulations",
-				deliveryMode: "withheld",
-				docId: "doc_withheld",
-				documentSlug: "withheld-policy",
-				isCurrent: true,
-				sourceObjects: {
-					"asset-manifest": "manifest/gated.json",
-					meta: "meta/gated.json",
-					outline: "outline/gated.json",
-					reader: "reader/gated.json",
-				},
-				targetObjects: {
-					"asset-manifest":
-						"_gated-docs/regulations/student_rules/withheld-policy/2026-current/asset-manifest.json",
-					meta: "_gated-docs/regulations/student_rules/withheld-policy/2026-current/meta.json",
-					outline:
-						"_gated-docs/regulations/student_rules/withheld-policy/2026-current/outline.json",
-					reader: "_gated-docs/regulations/student_rules/withheld-policy/2026-current/reader.json",
-				},
-				title: "不发布制度",
-				versionId: "version_withheld",
-				versionLabel: "现行版",
-				versionSlug: "2026-current",
+				byteSize: 1,
+				key: "docs-reader/source-releases/fixture.json",
+				sha256: `sha256:${"b".repeat(64)}`,
 			},
 		],
-		...(input.includeSearchUnits === false ? {} : { searchUnits }),
-		surface: input.surface ?? "public_docs",
+		surface: input.surface ?? "campus_docs",
 	};
 	const manifestPath = join(root, "manifest.json");
 	writeFileSync(manifestPath, JSON.stringify(manifest), "utf8");
@@ -308,15 +304,18 @@ export function createPublishedReaderFixture(
 					return;
 				}
 				const value = objects.get(input.key);
-				return value ? new TextEncoder().encode(value) : undefined;
+				return value === undefined ? undefined : toBytes(value);
 			},
 			async readTextObject(input) {
 				if (missingObjects.has(input.key)) {
 					throw new Error(`missing object: ${input.key}`);
 				}
 				const value = objects.get(input.key);
-				if (!value) {
+				if (value === undefined) {
 					throw new Error(`missing object: ${input.key}`);
+				}
+				if (typeof value !== "string") {
+					throw new Error(`object is not text: ${input.key}`);
 				}
 				return value;
 			},
@@ -327,7 +326,7 @@ export function createPublishedReaderFixture(
 }
 
 function buildAssetManifest(input: {
-	courseMapImage?: string;
+	courseMapImage?: Uint8Array;
 	courseMaps?: string;
 	meta: string;
 	outline: string;
@@ -339,7 +338,7 @@ function buildAssetManifest(input: {
 				? {
 						"course-maps.json": {
 							sha256: sha256(input.courseMaps),
-							sizeBytes: new TextEncoder().encode(input.courseMaps).byteLength,
+							sizeBytes: toBytes(input.courseMaps).byteLength,
 						},
 					}
 				: {}),
@@ -347,7 +346,7 @@ function buildAssetManifest(input: {
 				? {
 						"course-maps/page-0001-map-01.png": {
 							sha256: sha256(input.courseMapImage),
-							sizeBytes: new TextEncoder().encode(input.courseMapImage).byteLength,
+							sizeBytes: input.courseMapImage.byteLength,
 						},
 					}
 				: {}),
@@ -367,6 +366,10 @@ function buildAssetManifest(input: {
 	});
 }
 
-function sha256(value: string): string {
+function sha256(value: FixtureObject): string {
 	return createHash("sha256").update(value).digest("hex");
+}
+
+function toBytes(value: FixtureObject): Uint8Array {
+	return typeof value === "string" ? new TextEncoder().encode(value) : value;
 }

@@ -55,10 +55,7 @@ describe("app-api shared product current schema", () => {
 				"chat_conversations_owner_updated_at_idx",
 			]),
 		);
-		expect(currentSpecs.get("dining.menu_offerings")?.columns.get("price_label")).toMatchObject({
-			notNull: false,
-			type: "text",
-		});
+		expect(currentSpecs.has("dining.menu_offerings")).toBe(false);
 	});
 
 	it.each([

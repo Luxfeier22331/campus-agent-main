@@ -39,7 +39,7 @@ import {
 	ComposerAttachments,
 	UserMessageAttachments,
 } from "@/components/assistant-ui/attachment";
-import { MarkdownText } from "@/components/assistant-ui/markdown-text";
+import { LazyMarkdownText } from "@/components/assistant-ui/lazy-markdown-text";
 import {
 	Reasoning,
 	ReasoningContent,
@@ -133,7 +133,7 @@ const ThreadRoot: FC<{ isEmpty: boolean }> = ({ isEmpty }) => {
 			style={{
 				["--thread-max-width" as string]: "44rem",
 				["--composer-bg" as string]:
-					"color-mix(in oklab, var(--color-muted) 30%, var(--color-background))",
+					"color-mix(in oklab, var(--sys-bg-muted) 30%, var(--color-background))",
 				["--composer-radius" as string]: "1.5rem",
 				["--composer-padding" as string]: "8px",
 			}}
@@ -196,7 +196,7 @@ const ThreadScrollToBottom: FC = () => (
 		<TooltipIconButton
 			tooltip="滚动到底部"
 			variant="outline"
-			className="aui-thread-scroll-to-bottom dark:border-border dark:bg-background dark:hover:bg-accent absolute -top-12 z-10 self-center rounded-full p-4 disabled:invisible"
+			className="aui-thread-scroll-to-bottom absolute -top-12 z-10 self-center rounded-full p-4 disabled:invisible"
 		>
 			<ArrowDownIcon />
 		</TooltipIconButton>
@@ -208,7 +208,7 @@ const ThreadWelcome: FC = () => {
 
 	return (
 		<div className="aui-thread-welcome-root mb-6 flex flex-col items-center px-4 text-center">
-			<h1 className="aui-thread-welcome-message-inner fade-in slide-in-from-bottom-1 animate-in fill-mode-both text-2xl font-semibold duration-200">
+			<h1 className="aui-thread-welcome-message-inner fade-in slide-in-from-bottom-1 animate-in fill-mode-both text-balance text-2xl font-semibold duration-200">
 				{welcomeMessage}
 			</h1>
 		</div>
@@ -226,7 +226,7 @@ const ThreadSuggestionItem: FC = () => (
 		<SuggestionPrimitive.Trigger send asChild>
 			<Button
 				variant="ghost"
-				className="aui-thread-welcome-suggestion text-foreground hover:bg-muted border-border/60 h-auto gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-normal whitespace-nowrap transition-colors"
+				className="aui-thread-welcome-suggestion text-foreground hover:bg-surface-muted border-border/60 h-auto gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-normal whitespace-nowrap transition-colors"
 			>
 				<SuggestionPrimitive.Title className="aui-thread-welcome-suggestion-text-1" />
 				<SuggestionPrimitive.Description className="aui-thread-welcome-suggestion-text-2 empty:hidden" />
@@ -243,10 +243,12 @@ const Composer: FC = () => {
 			<ComposerPrimitive.AttachmentDropzone asChild>
 				<div
 					data-slot="aui_composer-shell"
-					className="border-border/60 data-[dragging=true]:border-ring focus-within:border-border dark:border-muted-foreground/15 dark:focus-within:border-muted-foreground/30 flex w-full flex-col gap-2 rounded-(--composer-radius) border bg-(--composer-bg) p-(--composer-padding) shadow-[0_4px_16px_-8px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.04)] transition-[border-color,box-shadow] focus-within:shadow-[0_6px_24px_-8px_rgba(0,0,0,0.12),0_1px_2px_rgba(0,0,0,0.05)] data-[dragging=true]:border-dashed data-[dragging=true]:bg-[color-mix(in_oklab,var(--color-accent)_50%,var(--color-background))] dark:shadow-none"
+					className="border-border/60 data-[dragging=true]:border-ring focus-within:border-border flex w-full flex-col gap-2 rounded-(--composer-radius) border bg-(--composer-bg) p-(--composer-padding) shadow-[var(--shadow-xs)] transition-[border-color,box-shadow] focus-within:shadow-[var(--shadow-sm)] data-[dragging=true]:border-dashed data-[dragging=true]:bg-[color-mix(in_oklab,var(--color-accent)_50%,var(--color-background))]"
 				>
 					<ComposerAttachments />
 					<ComposerPrimitive.Input
+						id="campus-chat-composer"
+						name="message"
 						placeholder={composerPlaceholder}
 						className="aui-composer-input placeholder:text-muted-foreground/80 max-h-32 min-h-10 w-full resize-none bg-transparent px-2.5 py-1 text-base outline-none"
 						rows={1}
@@ -334,7 +336,7 @@ const ComposerAction: FC = () => {
 
 const MessageError: FC = () => (
 	<MessagePrimitive.Error>
-		<ErrorPrimitive.Root className="aui-message-error-root border-destructive bg-destructive/10 text-destructive dark:bg-destructive/5 mt-2 rounded-md border p-3 text-sm dark:text-red-200">
+		<ErrorPrimitive.Root className="aui-message-error-root border-destructive bg-destructive/10 text-destructive mt-2 rounded-md border p-3 text-sm">
 			<ErrorPrimitive.Message className="aui-message-error-message line-clamp-2" />
 		</ErrorPrimitive.Root>
 	</MessagePrimitive.Error>
@@ -403,7 +405,7 @@ const AssistantMessage: FC = () => {
 								);
 							}
 							case "text":
-								return <MarkdownText />;
+								return <LazyMarkdownText />;
 							case "reasoning":
 								return <Reasoning {...part} />;
 							case "tool-call":
@@ -491,7 +493,7 @@ const UserMessage: FC = () => (
 		<UserMessageAttachments />
 
 		<div className="aui-user-message-content-wrapper relative col-start-2 min-w-0">
-			<div className="aui-user-message-content peer bg-muted text-foreground rounded-xl px-4 py-2 wrap-break-word empty:hidden">
+			<div className="aui-user-message-content peer bg-surface-muted text-foreground rounded-xl px-4 py-2 wrap-break-word empty:hidden">
 				<MessagePrimitive.Parts />
 			</div>
 			<div className="aui-user-action-bar-wrapper absolute start-0 top-1/2 -translate-x-full -translate-y-1/2 pe-2 peer-empty:hidden rtl:translate-x-full">
@@ -522,9 +524,12 @@ const UserActionBar: FC = () => (
 
 const EditComposer: FC = () => (
 	<MessagePrimitive.Root data-slot="aui_edit-composer-wrapper" className="flex flex-col px-2">
-		<ComposerPrimitive.Root className="aui-edit-composer-root border-border/60 dark:border-muted-foreground/15 ms-auto flex w-full max-w-[85%] flex-col rounded-(--composer-radius) border bg-(--composer-bg) shadow-[0_4px_16px_-8px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.04)] dark:shadow-none">
+		<ComposerPrimitive.Root className="aui-edit-composer-root border-border/60 ms-auto flex w-full max-w-[85%] flex-col rounded-(--composer-radius) border bg-(--composer-bg) shadow-[var(--shadow-xs)]">
 			<ComposerPrimitive.Input
+				aria-label="编辑消息"
 				className="aui-edit-composer-input text-foreground min-h-14 w-full resize-none bg-transparent px-4 pt-3 pb-1 text-base outline-none"
+				id="campus-chat-edit-composer"
+				name="edited-message"
 				autoFocus
 			/>
 			<div className="aui-edit-composer-footer mx-2.5 mb-2.5 flex items-center gap-1.5 self-end">

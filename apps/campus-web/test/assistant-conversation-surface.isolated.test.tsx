@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-
+import threadSource from "../src/components/assistant-ui/thread.tsx?raw";
 import { AssistantConversationSurface } from "../src/components/conversation/assistant-conversation-surface";
 
 vi.mock("@/components/assistant-ui/thread", () => ({
@@ -47,5 +47,12 @@ describe("AssistantConversationSurface", () => {
 		expect(thread).toHaveAttribute("data-has-tool-fallback", "true");
 		expect(thread).toHaveAttribute("data-has-registrations", "true");
 		expect(thread).toHaveAttribute("data-allow-attachments", "false");
+	});
+
+	it("names the new-message and edit-message composer fields", () => {
+		expect(threadSource).toContain('id="campus-chat-composer"');
+		expect(threadSource).toContain('name="message"');
+		expect(threadSource).toContain('aria-label="编辑消息"');
+		expect(threadSource).toContain('name="edited-message"');
 	});
 });

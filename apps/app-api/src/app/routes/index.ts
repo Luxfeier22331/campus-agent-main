@@ -11,14 +11,12 @@ import { registerAuthRoutes } from "./auth";
 import { registerCampusExperienceRoutes } from "./campus-experience";
 import { registerCampusServicesOpsRoutes } from "./campus-services-ops";
 import { registerChatRoutes } from "./chat";
-import { registerDiningOpsRoutes } from "./dining-ops";
 import { registerDocsRoutes } from "./docs";
 import { registerFederationRoutes } from "./federation";
 import { registerIdentityPlatformRoutes } from "./identity-platform";
 import { registerInternalRoutes } from "./internal";
 import { registerOperatorRoutes } from "./operator";
 import { registerProfileMemoryRoutes } from "./profile-memory";
-import { registerProviderConfigRoutes } from "./provider-config";
 import { registerRuntimeRoutes } from "./runtime";
 
 export function registerAppRoutes(input: {
@@ -27,7 +25,7 @@ export function registerAppRoutes(input: {
 	createRequestScope: () => AppRequestScope;
 	env: Env;
 	getPrincipal: NonNullable<AppDependencies["getPrincipal"]>;
-	docsReadinessProbe: () => Promise<AppDocsReadinessResult>;
+	docsReadinessProbe: (releaseId: string) => Promise<AppDocsReadinessResult>;
 	runtimeReadinessProbe: () => Promise<AppRuntimeReadinessResult>;
 }) {
 	registerRuntimeRoutes({
@@ -65,12 +63,6 @@ export function registerAppRoutes(input: {
 		createRequestScope: input.createRequestScope,
 		env: input.env,
 	});
-	registerDiningOpsRoutes({
-		app: input.app,
-		createRequestScope: input.createRequestScope,
-		env: input.env,
-		getPrincipal: input.getPrincipal,
-	});
 	registerDocsRoutes({
 		app: input.app,
 		createRequestScope: input.createRequestScope,
@@ -90,12 +82,6 @@ export function registerAppRoutes(input: {
 		env: input.env,
 	});
 	registerOperatorRoutes({
-		app: input.app,
-		createRequestScope: input.createRequestScope,
-		env: input.env,
-		getPrincipal: input.getPrincipal,
-	});
-	registerProviderConfigRoutes({
 		app: input.app,
 		createRequestScope: input.createRequestScope,
 		env: input.env,

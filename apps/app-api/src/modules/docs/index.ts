@@ -12,6 +12,20 @@ export {
 export { createPgDocsReadModelStore } from "./store";
 
 export type ReaderAssetDeliveryMode = "public_static_asset" | "gated_asset";
+export const DOCS_RELEASE_HEADER = "x-campus-docs-release";
+
+export function assertDocsReleaseId(value: string | null | undefined): string {
+	const releaseId = value?.trim();
+	if (!(releaseId && /^sha256:[a-f0-9]{64}$/u.test(releaseId))) {
+		throw new AppApiRouteError({
+			code: "docs_release_unavailable",
+			message: "Document reader release is unavailable.",
+			retryable: true,
+			status: 503,
+		});
+	}
+	return releaseId;
+}
 
 export interface DocsNavigationResponse {
 	collection: {
@@ -95,17 +109,20 @@ export interface DocsService {
 		corpus: string;
 		documentSlug: string;
 		principal: ResolvedAppPrincipal | null;
+		releaseId: string;
 	}): Promise<DocsDocumentSummaryResponse>;
 	getNavigation(input: {
 		collection: string;
 		corpus: string;
 		principal: ResolvedAppPrincipal | null;
+		releaseId: string;
 	}): Promise<DocsNavigationResponse>;
 	getVersions(input: {
 		collection: string;
 		corpus: string;
 		documentSlug: string;
 		principal: ResolvedAppPrincipal | null;
+		releaseId: string;
 	}): Promise<DocsVersionsResponse>;
 	resolveReader(input: {
 		anchor: string | null;
@@ -114,6 +131,7 @@ export interface DocsService {
 		documentSlug: string;
 		highlightRootUnitIds: string[];
 		principal: ResolvedAppPrincipal | null;
+		releaseId: string;
 		version: string | null;
 	}): Promise<DocsResolveResponse>;
 	checkReaderAdmission(input: {
@@ -121,6 +139,7 @@ export interface DocsService {
 		corpus: string;
 		documentSlug: string;
 		principal: ResolvedAppPrincipal | null;
+		releaseId: string;
 		version: string | null;
 	}): Promise<void>;
 }

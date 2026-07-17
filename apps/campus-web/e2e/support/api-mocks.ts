@@ -1,8 +1,17 @@
+import { listDiningFloorScaffold, listDiningHallScaffold } from "@campus-agent/dining/domain";
 import type { Page, Route } from "@playwright/test";
-import { fulfillDiningFloor, fulfillDiningReviews } from "./dining-mocks";
+import { mapPageManifest } from "../../test/fixtures/map-manifest";
+import {
+	createDiningFloorPayload,
+	fulfillDiningFloor,
+	fulfillDiningOfferingReviews,
+	fulfillDiningSearch,
+} from "./dining-mocks";
 import { installMapLibreMock } from "./maplibre-mock";
 
 const now = "2026-06-30T08:00:00.000Z";
+const diningReviewImage =
+	'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" fill="#dbe7e3"/><circle cx="20" cy="20" r="10" fill="#6f8f86"/></svg>';
 const historyConversation = {
 	archivedAt: null,
 	createdAt: now,
@@ -88,10 +97,11 @@ interface CampusApiMockOptions {
 		searchUnauthorized?: boolean;
 	};
 	diningFailures?: {
+		bootstrapFailure?: boolean;
 		floorFailure?: boolean;
-		hallsFailure?: boolean;
 		reviewsFailure?: boolean;
 	};
+	diningReviewsDelayMs?: number;
 	emptyDiningHalls?: boolean;
 	includePlaceholderDiningHall?: boolean;
 	emptyMapPlaces?: boolean;
@@ -117,6 +127,24 @@ export interface CampusApiSessionState {
 export async function mockCampusApi(page: Page, options: CampusApiMockOptions = {}) {
 	const sessionState = options.sessionState ?? { authenticated: options.authenticated ?? true };
 	await installMapLibreMock(page);
+	await page.route(
+		(url) => url.pathname === "/map-data/manifest.json",
+		(route) =>
+			route.fulfill({
+				contentType: "application/json",
+				json: mapPageManifest,
+				status: 200,
+			}),
+	);
+	await page.route(
+		(url) => url.pathname === "/assets/dining/reviews/source_review_fish-1.jpg",
+		(route) =>
+			route.fulfill({
+				body: diningReviewImage,
+				contentType: "image/svg+xml",
+				status: 200,
+			}),
+	);
 	await page.route(
 		(url) => url.pathname.startsWith("/api/"),
 		async (route) => {
@@ -608,9 +636,9 @@ function routeMocks(input: {
 		},
 		{
 			method: "GET",
-			path: "/api/dining/halls",
+			path: "/api/dining/bootstrap",
 			response: (route) =>
-				options.diningFailures?.hallsFailure
+				options.diningFailures?.bootstrapFailure
 					? route.fulfill({
 							contentType: "application/json",
 							json: { error: { code: "dining_unavailable", message: "unavailable" } },
@@ -618,51 +646,14 @@ function routeMocks(input: {
 						})
 					: route.fulfill({
 							contentType: "application/json",
-							json: {
-								halls: options.emptyDiningHalls
-									? []
-									: [
-											{
-												campus: "海淀校区",
-												floors: [{ floorId: "haidian-canteen-1-1f", label: "地图" }],
-												hallId: "haidian-canteen-1",
-												name: "海淀一食堂",
-											},
-											{
-												campus: "海淀校区",
-												floors: [{ floorId: "haidian-canteen-2", label: "地图" }],
-												hallId: "haidian-canteen-2",
-												name: "海淀二食堂",
-											},
-											{
-												campus: "海淀校区",
-												floors: [{ floorId: "haidian-canteen-4", label: "地图" }],
-												hallId: "haidian-canteen-4",
-												name: "海淀四食堂",
-											},
-											{
-												campus: "丰台校区",
-												floors: [
-													{ floorId: "fengtai-huixian-canteen-1f", label: "一层" },
-													{ floorId: "fengtai-huixian-canteen-2f", label: "二层" },
-												],
-												hallId: "fengtai-huixian-canteen",
-												name: "荟贤食堂",
-											},
-											...(options.includePlaceholderDiningHall
-												? [
-														{
-															campus: "丰台校区",
-															floors: [{ floorId: "fengtai-pending-canteen", label: "地图" }],
-															hallId: "fengtai-pending-canteen",
-															name: "待补充食堂",
-														},
-													]
-												: []),
-										],
-							},
+							json: buildDiningBootstrapMock(options),
 							status: 200,
 						}),
+		},
+		{
+			method: "POST",
+			path: "/api/telemetry/web-performance",
+			response: (route) => route.fulfill({ json: { accepted: true }, status: 202 }),
 		},
 		{
 			method: "GET",
@@ -678,17 +669,74 @@ function routeMocks(input: {
 		},
 		{
 			method: "GET",
-			path: /^\/api\/dining\/halls\/[^/]+\/reviews$/,
-			response: (route) =>
-				options.diningFailures?.reviewsFailure
+			path: "/api/dining/search",
+			response: (route) => fulfillDiningSearch(route),
+		},
+		{
+			method: "GET",
+			path: /^\/api\/dining\/offerings\/[^/]+\/reviews$/,
+			response: async (route) => {
+				if (options.diningReviewsDelayMs) {
+					await new Promise((resolve) => setTimeout(resolve, options.diningReviewsDelayMs));
+				}
+				return options.diningFailures?.reviewsFailure
 					? route.fulfill({
 							contentType: "application/json",
 							json: { error: { code: "reviews_unavailable", message: "unavailable" } },
 							status: 500,
 						})
-					: fulfillDiningReviews(route),
+					: fulfillDiningOfferingReviews(route);
+			},
 		},
 	];
+}
+
+function buildDiningBootstrapMock(options: CampusApiMockOptions) {
+	if (options.emptyDiningHalls) {
+		return { halls: [], initial: null };
+	}
+	return {
+		halls: buildDiningHallMocks(options),
+		initial: {
+			floor: createDiningFloorPayload({
+				floorId: "haidian-canteen-1-1f",
+				hallId: "haidian-canteen-1",
+			}),
+		},
+	};
+}
+
+function buildDiningHallMocks(options: CampusApiMockOptions) {
+	const halls = listDiningHallScaffold().map((hall) => ({
+		campus: hall.campus,
+		floors: listDiningFloorScaffold({ hallId: hall.hallId }).map((floor) => ({
+			floorId: floor.floorId,
+			label: floor.label,
+		})),
+		hallId: hall.hallId,
+		name: hall.name,
+		tags: diningHallTags(hall.hallId),
+	}));
+	return [
+		...halls,
+		...(options.includePlaceholderDiningHall
+			? [
+					{
+						campus: "丰台校区",
+						floors: [{ floorId: "fengtai-pending-canteen", label: "地图" }],
+						hallId: "fengtai-pending-canteen",
+						name: "待补充食堂",
+						tags: ["清淡", "热餐"],
+					},
+				]
+			: []),
+	];
+}
+
+function diningHallTags(hallId: string): string[] {
+	return hallId === "haidian-canteen-1" || hallId === "fengtai-huixian-canteen"
+		? ["粉面", "热餐"]
+		: ["热餐"];
 }
 
 function resolveConversationSearchResults(input: { query: string; view: string }) {
