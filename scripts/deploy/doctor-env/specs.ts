@@ -19,6 +19,8 @@ const workerStagingSurfaceSpecs = {
 	"worker-staging-app-api": {
 		providers: {},
 		required_settings: {
+			cloudflare_account_id: ["CLOUDFLARE_ACCOUNT_ID"],
+			cloudflare_api_token: ["CLOUDFLARE_API_TOKEN"],
 			sentry_app_api_project_slug: ["SENTRY_APP_API_PROJECT_SLUG"],
 			sentry_auth_token: ["SENTRY_AUTH_TOKEN"],
 			sentry_org_slug: ["SENTRY_ORG_SLUG"],
@@ -35,6 +37,13 @@ const workerStagingSurfaceSpecs = {
 	"worker-staging-campus-web": {
 		providers: {},
 		required_settings: {
+			cloudflare_account_id: ["CLOUDFLARE_ACCOUNT_ID"],
+			cloudflare_api_token: ["CLOUDFLARE_API_TOKEN"],
+			object_store_bucket_derived: ["OBJECT_STORE_BUCKET_DERIVED"],
+			object_store_derived_access_key: ["OBJECT_STORE_DERIVED_ACCESS_KEY"],
+			object_store_derived_secret_key: ["OBJECT_STORE_DERIVED_SECRET_KEY"],
+			object_store_endpoint: ["OBJECT_STORE_ENDPOINT"],
+			object_store_region: ["OBJECT_STORE_REGION"],
 			sentry_auth_token: ["SENTRY_AUTH_TOKEN"],
 			sentry_campus_web_project_slug: ["SENTRY_CAMPUS_WEB_PROJECT_SLUG"],
 			sentry_org_slug: ["SENTRY_ORG_SLUG"],

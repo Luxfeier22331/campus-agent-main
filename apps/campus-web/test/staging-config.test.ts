@@ -84,6 +84,10 @@ describe("campus web staging config", () => {
 			"../../.github/workflows/execution-runtime-publish.yml",
 			"utf8",
 		);
+		const promotionScriptSource = readFileSync(
+			"../../scripts/deploy/update-staging-candidate.sh",
+			"utf8",
+		);
 
 		expect(packageScripts["build:app:staging"]).toBeUndefined();
 		expect(packageScripts["build:docs:staging"]).toBeUndefined();
@@ -96,8 +100,8 @@ describe("campus web staging config", () => {
 		expect(publishWorkflowSource).not.toContain("STAGING_CAMPUS_DOCS_READER_MANIFEST_SHA256");
 		expect(publishWorkflowSource).toContain("docs-reader-release.json");
 		expect(publishWorkflowSource).toContain(`--release-id "\${DOCS_RELEASE_ID}"`);
-		expect(publishWorkflowSource).toContain("docsReleaseId");
-		expect(publishWorkflowSource).toContain("buildIdentity");
+		expect(promotionScriptSource).toContain("docsReleaseId");
+		expect(promotionScriptSource).toContain("buildIdentity");
 		expect(publishWorkflowSource).not.toContain("STAGING_APP_API_OPERATOR_DATABASE_URL");
 		expect(publishWorkflowSource).not.toContain("deploy-staging.yml");
 		expect(stagingPreflightSource).not.toContain('"build:staging"');

@@ -4,37 +4,12 @@ inputs:
   version:
     description: actionlint release version without the v prefix.
     required: false
-    default: 1.7.7
+    default: 1.7.12
 runs:
   using: composite
   steps:
     - name: Run actionlint
       shell: bash
       env:
-        VERSION: ${{ inputs.version }}
-      run: |
-        set -euo pipefail
-        case "${RUNNER_OS}/${RUNNER_ARCH}" in
-          Linux/X64) platform=linux_amd64 ;;
-          Linux/ARM64) platform=linux_arm64 ;;
-          *) echo "Unsupported actionlint platform: ${RUNNER_OS}/${RUNNER_ARCH}" >&2; exit 1 ;;
-        esac
-
-        asset="actionlint_${VERSION}_${platform}.tar.gz"
-        install_dir="${RUNNER_TOOL_CACHE}/actionlint/${VERSION}/${RUNNER_ARCH}"
-        binary="${install_dir}/actionlint"
-        if [[ ! -x "$binary" ]]; then
-          tmp_dir="$(mktemp -d)"
-          trap 'rm -rf "$tmp_dir"' EXIT
-          base_url="https://github.com/rhysd/actionlint/releases/download/v${VERSION}"
-          curl --fail --location --silent --show-error "${base_url}/${asset}" --output "${tmp_dir}/${asset}"
-          curl --fail --location --silent --show-error "${base_url}/actionlint_${VERSION}_checksums.txt" --output "${tmp_dir}/checksums.txt"
-          grep "  ${asset}$" "${tmp_dir}/checksums.txt" > "${tmp_dir}/${asset}.sha256"
-          (cd "$tmp_dir" && sha256sum --check "${asset}.sha256")
-          tar -xzf "${tmp_dir}/${asset}" -C "$tmp_dir" actionlint
-          mkdir -p "$install_dir"
-          install -m 0755 "${tmp_dir}/actionlint" "$binary"
-        fi
-
-        "$binary" -version
-        "$binary"
+        ACTIONLINT_VERSION: ${{ inputs.version }}
+      run: scripts/ci/actionlint.sh

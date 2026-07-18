@@ -1,6 +1,10 @@
 name: run-osv-scan
 description: Run OSV-Scanner with a checksum-verified release binary.
 inputs:
+  ecosystems:
+    description: Space-separated dependency ecosystems to scan.
+    required: false
+    default: node python rust go
   version:
     description: OSV-Scanner release tag.
     required: false
@@ -11,6 +15,7 @@ runs:
     - name: Scan dependencies
       shell: bash
       env:
+        ECOSYSTEMS: ${{ inputs.ecosystems }}
         VERSION: ${{ inputs.version }}
       run: |
         set -euo pipefail
@@ -35,4 +40,5 @@ runs:
         fi
 
         "$binary" --version
-        PATH="${install_dir}:${PATH}" "${GITHUB_WORKSPACE}/scripts/ci/osv-scan.sh"
+        read -r -a ecosystems <<< "$ECOSYSTEMS"
+        PATH="${install_dir}:${PATH}" "${GITHUB_WORKSPACE}/scripts/ci/osv-scan.sh" "${ecosystems[@]}"

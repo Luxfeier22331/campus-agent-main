@@ -11,9 +11,7 @@ const gatedSearchIndexPath =
 	"/_gated-docs-search/regulations/student_rules/restricted-policy/2026-current/index.json";
 
 test.describe("docs reader experience", () => {
-	test("renders direct reader highlights and focuses the requested anchor", {
-		tag: "@smoke",
-	}, async ({ page }) => {
+	test("renders direct reader highlights and focuses the requested anchor", async ({ page }) => {
 		await page.goto(`${publicReaderPath}?hl=attendance-root#general`, {
 			timeout: 60_000,
 			waitUntil: "domcontentloaded",

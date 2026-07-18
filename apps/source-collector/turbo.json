@@ -3,7 +3,12 @@
 	"extends": ["//"],
 	"tasks": {
 		"test": {
-			"inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/configs/sources/official_web/**"]
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/configs/sources/official_web/**"
+			]
 		}
 	}
 }

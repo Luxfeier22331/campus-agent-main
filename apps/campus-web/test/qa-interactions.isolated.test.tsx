@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -171,7 +171,15 @@ describe("Q&A product interactions", () => {
 		await user.click(screen.getByRole("button", { name: "搜索聊天" }));
 
 		expect(await screen.findByRole("dialog", { name: "搜索聊天" })).toBeInTheDocument();
-		await user.type(screen.getByPlaceholderText("搜索历史会话"), "图书馆");
+		vi.useFakeTimers();
+		try {
+			fireEvent.change(screen.getByPlaceholderText("搜索历史会话"), {
+				target: { value: "图书馆" },
+			});
+			await act(() => vi.advanceTimersByTimeAsync(250));
+		} finally {
+			vi.useRealTimers();
+		}
 
 		await waitFor(() => {
 			expect(conversationApiMock.searchConversations).toHaveBeenCalledWith({

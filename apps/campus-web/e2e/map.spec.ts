@@ -2,9 +2,7 @@ import { expect, test } from "@playwright/test";
 import { mockCampusApi } from "./support/api-mocks";
 
 test.describe("campus map browser flow", () => {
-	test("searches, selects, and restores a campus place from the URL", { tag: "@smoke" }, async ({
-		page,
-	}) => {
+	test("searches, selects, and restores a campus place from the URL", async ({ page }) => {
 		await mockCampusApi(page);
 		await page.goto("/map?campus=haidian");
 

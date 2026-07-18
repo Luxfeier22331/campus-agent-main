@@ -301,9 +301,9 @@ test.describe("dining browser flow", () => {
 		expect(overlappingEntranceLabels).toEqual([]);
 	});
 
-	test("selects a stall, searches dishes, and keeps single-map halls floorless", {
-		tag: "@smoke",
-	}, async ({ page }) => {
+	test("selects a stall, searches dishes, and keeps single-map halls floorless", async ({
+		page,
+	}) => {
 		await mockCampusApi(page);
 		await openDiningPage(page);
 		await expect(page.getByRole("button", { name: "海淀一食堂" })).toBeVisible();
@@ -526,7 +526,7 @@ test.describe("dining browser flow", () => {
 		expect(audit?.calls).toEqual([{ behavior: "auto", hasReview: true, hasSkeleton: false }]);
 	});
 
-	test("keeps mobile stall selection usable", { tag: "@smoke" }, async ({ page }) => {
+	test("keeps mobile stall selection usable", async ({ page }) => {
 		await mockCampusApi(page);
 		await openDiningPage(page, { height: 812, width: 390 });
 		await expect(page.getByRole("combobox", { name: "选择食堂" })).toHaveText("海淀一食堂");
@@ -723,7 +723,7 @@ test.describe("dining browser flow", () => {
 		expect(reviewHeadingBox?.y ?? 0).toBeGreaterThanOrEqual(workspaceBottom);
 	});
 
-	test("zooms and resets the inline map across halls", { tag: "@smoke" }, async ({ page }) => {
+	test("zooms and resets the inline map across halls", async ({ page }) => {
 		await mockCampusApi(page);
 		await openDiningPage(page, { height: 900, width: 1440 });
 

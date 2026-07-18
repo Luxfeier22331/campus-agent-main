@@ -5,6 +5,8 @@
 		"check": {
 			"inputs": [
 				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
 				"$TURBO_ROOT$/apps/app-api/src/modules/integration/generated/tool-execution-contract.ts",
 				"$TURBO_ROOT$/apps/execution-control/internal/contracts/tool_execution_contract.go",
 				"$TURBO_ROOT$/apps/agent-runtime/src/tool-catalog.ts",
@@ -17,6 +19,8 @@
 		"test": {
 			"inputs": [
 				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
 				"$TURBO_ROOT$/apps/agent-runtime/src/tool-catalog.ts",
 				"$TURBO_ROOT$/configs/runtime/**",
 				"$TURBO_ROOT$/docs/contracts/schemas/tool-execution.openapi.yaml",

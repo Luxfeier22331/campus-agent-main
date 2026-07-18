@@ -1,3 +1,7 @@
 self-hosted-runner:
   labels:
     - campus-agent-release
+paths:
+  .github/workflows/execution-runtime-publish.yml:
+    ignore:
+      - 'unexpected key "queue" for "concurrency" section'

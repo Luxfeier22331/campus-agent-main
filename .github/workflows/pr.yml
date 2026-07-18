@@ -11,542 +11,224 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  changes:
+  preflight:
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 5
+    timeout-minutes: 15
     permissions:
       contents: read
       pull-requests: read
     outputs:
-      app_api_migration: ${{ steps.filter.outputs.app_api_migration }}
-      app_api_postgres: ${{ steps.filter.outputs.app_api_postgres }}
       base_sha: ${{ github.event.pull_request.base.sha }}
-      config: ${{ steps.filter.outputs.config }}
-      contracts: ${{ steps.filter.outputs.contracts }}
-      deps: ${{ steps.filter.outputs.deps }}
-      docker: ${{ steps.filter.outputs.docker }}
-      eval: ${{ steps.filter.outputs.eval }}
-      go: ${{ steps.filter.outputs.go }}
-      go_deps: ${{ steps.filter.outputs.go_deps }}
-      execution_control_postgres: ${{ steps.filter.outputs.execution_control_postgres }}
-      infra: ${{ steps.filter.outputs.infra }}
-      ingest: ${{ steps.filter.outputs.ingest }}
-      images: ${{ steps.images.outputs.images }}
-      node_deps: ${{ steps.filter.outputs.node_deps }}
-      ops_web_postgres: ${{ steps.filter.outputs.ops_web_postgres }}
-      python: ${{ steps.filter.outputs.python }}
-      python_deps: ${{ steps.filter.outputs.python_deps }}
-      rust: ${{ steps.filter.outputs.rust }}
-      shell: ${{ steps.filter.outputs.shell }}
-      sql: ${{ steps.filter.outputs.sql }}
-      typescript: ${{ steps.filter.outputs.typescript }}
-      worker_app_api: ${{ steps.workers.outputs.app_api }}
-      worker_campus_web: ${{ steps.workers.outputs.campus_web }}
-      yaml: ${{ steps.filter.outputs.yaml }}
-    steps:
-      - name: Check self-hosted runner prerequisites
-        if: runner.environment == 'self-hosted'
-        shell: bash
-        run: |
-          set -euo pipefail
-          for command in cc cargo curl docker go golangci-lint jq make node pkg-config pnpm rustc rustup sha256sum tar trivy uv; do
-            command -v "$command" >/dev/null
-          done
-          test "$(node --version)" = "v24.18.0"
-          test "$(pnpm --version)" = "10.34.5"
-          test "$(go version | awk '{print $3}')" = "go1.26.5"
-          test "$(uv --version | awk '{print $2}')" = "0.11.28"
-          test "$(rustc --version | awk '{print $2}')" = "1.91.0"
-          test "$(cargo --version | awk '{print $2}')" = "1.91.0"
-          test "$(trivy --version | awk 'NR == 1 {print $2}')" = "0.72.0"
-          test "$(golangci-lint version --short)" = "2.11.4"
-          case "$RUNNER_ARCH" in
-            X64|ARM64) ;;
-            *) echo "Unsupported runner architecture: $RUNNER_ARCH" >&2; exit 1 ;;
-          esac
-          available_kib="$(df --output=avail -k "$RUNNER_TOOL_CACHE" | tail -n 1 | tr -d ' ')"
-          if (( available_kib < 20 * 1024 * 1024 )); then
-            echo "Runner has less than 20 GiB available under $RUNNER_TOOL_CACHE" >&2
-            exit 1
-          fi
-          docker version --format 'Docker server {{.Server.Version}}'
-          df -h "$RUNNER_TOOL_CACHE"
-          free -h
-
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
-        with:
-          persist-credentials: false
-
-      - name: Detect changed surfaces
-        id: filter
-        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706  # v4.0.2
-        with:
-          filters: |
-            app_api_migration:
-              - 'apps/app-api/db/shared-product-schema/**'
-              - 'apps/app-api/drizzle/**'
-              - 'apps/app-api/ops/db/schema.ts'
-              - 'apps/app-api/ops/db/app-api-grants.ts'
-              - 'apps/app-api/package.json'
-              - 'apps/app-api/src/script-support/shared-db/shared-product-database-bootstrap.ts'
-              - 'apps/app-api/test/app-api-migration-upgrade.integration.test.ts'
-              - 'apps/app-api/vitest*migration*.mts'
-              - 'turbo.json'
-            app_api_postgres:
-              - 'apps/app-api/**'
-              - '!apps/app-api/README.md'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - 'turbo.json'
-            config:
-              - '.github/**'
-              - 'scripts/ci/resolve-worker-routing.mjs'
-              - 'scripts/ci/resolve-worker-routing.test.mjs'
-            contracts:
-              - 'packages/contracts/**'
-              - '!packages/contracts/README.md'
-              - 'packages/ingestion-contracts/assertions/**'
-              - 'packages/ingestion-contracts/schemas/**'
-              - 'configs/runtime/**'
-              - 'docs/contracts/schemas/tool-execution.openapi.yaml'
-            deps:
-              - '.github/actions/run-osv-scan/**'
-              - 'scripts/ci/osv-scan.sh'
-              - 'osv-scanner.toml'
-              - 'pnpm-lock.yaml'
-              - 'uv.lock'
-              - 'pyproject.toml'
-              - '**/package.json'
-              - '**/pyproject.toml'
-              - '**/go.mod'
-              - '**/go.sum'
-              - 'Cargo.lock'
-              - '**/Cargo.toml'
-            docker:
-              - '.dockerignore'
-              - '.hadolint.yaml'
-              - '**/Dockerfile'
-              - '**/Dockerfile.*'
-              - '**/*.dockerfile'
-            node_deps:
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-            python_deps:
-              - 'pyproject.toml'
-              - 'uv.lock'
-            go_deps:
-              - '**/go.mod'
-              - '**/go.sum'
-            rust:
-              - 'Cargo.lock'
-              - 'rust-toolchain.toml'
-              - '**/Cargo.toml'
-              - 'packages/ingestion-kernels-rs/**'
-              - 'scripts/ci/rust-check.sh'
-            python:
-              - '**/*.py'
-              - 'pyproject.toml'
-              - 'uv.lock'
-              - '**/pyproject.toml'
-            yaml:
-              - '.yamllint.yml'
-              - '**/*.yaml'
-              - '**/*.yml'
-            sql:
-              - '.sqlfluff'
-              - '.sqlfluffignore'
-              - '**/*.sql'
-            shell:
-              - '.shellcheckrc'
-              - '**/*.sh'
-            infra:
-              - 'infra/gitops/**'
-              - 'infra/k8s/**'
-              - 'infra/policies/**'
-            ingest:
-              - 'apps/ingestion-control/**'
-              - '!apps/ingestion-control/README.md'
-              - 'apps/source-collector/**'
-              - '!apps/source-collector/README.md'
-              - 'configs/ingestion/**'
-              - 'configs/sources/**'
-              - 'packages/ingest-core/**'
-              - '!packages/ingest-core/README.md'
-              - 'packages/ingestion-contracts/**'
-              - '!packages/ingestion-contracts/README.md'
-            eval:
-              - 'packages/eval-langfuse/**'
-              - 'packages/ragas-runner/**'
-              - 'apps/app-api/src/modules/telemetry/**'
-              - 'apps/app-api/scripts/check-langfuse-trace-id-vectors.ts'
-              - 'docs/architecture/system/langfuse.md'
-              - 'docs/contracts/langfuse-runtime.md'
-              - 'docs/decisions/adr-0061-eval-runtime.md'
-              - 'docs/decisions/adr-0062-ragas-langfuse.md'
-              - 'docs/product/langfuse-evals.md'
-              - 'docs/reference/eval.md'
-              - 'docs/runbooks/ragas.md'
-              - 'scripts/deploy/doctor-env/**'
-              - 'scripts/deploy/lib/env-file.ts'
-            go:
-              - 'apps/execution-control/**/*.go'
-              - 'apps/execution-control/go.mod'
-              - 'apps/execution-control/go.sum'
-              - 'apps/execution-control/.golangci.yml'
-              - 'configs/ingestion/**/serving-config.json'
-              - 'configs/runtime/execution-control/**'
-              - 'configs/runtime/query-serving-targets.v1.json'
-              - 'configs/runtime/tool-function-schemas.v2.json'
-              - 'configs/runtime/tools.v5.json'
-              - 'configs/runtime/workflow-artifacts.v2.json'
-              - 'packages/contracts/fixtures/tool_execution_contract/**'
-              - 'scripts/ci/go-check.sh'
-            execution_control_postgres:
-              - 'apps/execution-control/cmd/run-projection-schema/**'
-              - 'apps/execution-control/integration/postgres/**'
-              - 'apps/execution-control/internal/execution/**'
-              - 'apps/execution-control/internal/memoryruntime/**'
-              - 'apps/execution-control/internal/providerconfig/**'
-              - 'apps/execution-control/internal/toolreadmodel/transport_schedule*'
-              - 'apps/execution-control/go.mod'
-              - 'apps/execution-control/go.sum'
-              - 'apps/app-api/db/shared-product-schema/campus_services.sql'
-              - 'apps/app-api/db/shared-product-schema/testdata/transport_integration.sql'
-              - 'package.json'
-              - 'scripts/ci/go-postgres-integration.sh'
-            ops_web_postgres:
-              - 'apps/ops-web/ops/db/**'
-              - 'apps/ops-web/test/**/*database*.ts'
-              - 'apps/ops-web/vitest*database*.mts'
-              - 'apps/ops-web/package.json'
-              - 'apps/app-api/db/shared-product-schema/**'
-              - 'apps/app-api/drizzle/**'
-              - 'apps/app-api/ops/db/**'
-              - 'apps/app-api/src/script-support/shared-db/**'
-              - 'apps/execution-control/cmd/run-projection-schema/**'
-              - 'apps/execution-control/internal/execution/**'
-              - 'apps/execution-control/internal/memoryruntime/**'
-              - 'apps/execution-control/internal/providerconfig/**'
-              - 'apps/execution-control/go.mod'
-              - 'apps/execution-control/go.sum'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - 'turbo.json'
-            typescript:
-              - 'turbo.json'
-              - 'configs/branding/**'
-              - 'configs/ingestion/**'
-              - 'configs/sources/**'
-              - 'configs/runtime/**'
-              - 'docs/contracts/schemas/tool-execution.openapi.yaml'
-              - 'scripts/deploy/**'
-              - 'scripts/smoke/**'
-              - 'apps/**/.dev.vars.example'
-              - 'apps/**/wrangler*.toml'
-              - 'apps/agent-runtime/**'
-              - '!apps/agent-runtime/README.md'
-              - 'apps/app-api/**'
-              - '!apps/app-api/README.md'
-              - 'apps/campus-web/**'
-              - '!apps/campus-web/README.md'
-              - 'apps/ingestion-control/**'
-              - '!apps/ingestion-control/README.md'
-              - 'apps/ops-web/**'
-              - '!apps/ops-web/README.md'
-              - 'apps/source-collector/**'
-              - '!apps/source-collector/README.md'
-              - 'jobs/app-api-schema/**'
-              - '!jobs/app-api-schema/README.md'
-              - 'jobs/dining-sync/**'
-              - '!jobs/dining-sync/README.md'
-              - 'jobs/docs-publish/**'
-              - '!jobs/docs-publish/README.md'
-              - 'jobs/learning-loop-candidates/**'
-              - '!jobs/learning-loop-candidates/README.md'
-              - 'jobs/transport-publisher/**'
-              - '!jobs/transport-publisher/README.md'
-              - 'packages/contracts/**'
-              - '!packages/contracts/README.md'
-              - 'packages/domains/dining/**'
-              - '!packages/domains/dining/README.md'
-              - 'packages/eval-langfuse/**'
-              - '!packages/eval-langfuse/README.md'
-              - 'packages/ingest-core/**'
-              - '!packages/ingest-core/README.md'
-              - 'packages/ingestion-contracts/**'
-              - '!packages/ingestion-contracts/README.md'
-            worker_app_api:
-              - 'package.json'
-              - 'pnpm-workspace.yaml'
-              - 'apps/app-api/**'
-              - 'configs/sources/**'
-              - 'configs/runtime/**'
-              - 'packages/domains/dining/**'
-              - 'packages/ingestion-contracts/**'
-              - 'scripts/deploy/**'
-            worker_campus_web:
-              - 'package.json'
-              - 'pnpm-workspace.yaml'
-              - 'apps/campus-web/**'
-              - 'configs/branding/**'
-              - 'packages/domains/dining/**'
-              - 'scripts/deploy/**'
-            worker_lockfile:
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-            worker_all:
-              - '**'
-            image_execution_control:
-              - '.dockerignore'
-              - 'apps/execution-control/**'
-              - 'configs/ingestion/**'
-              - 'configs/runtime/execution-control/**'
-              - 'configs/runtime/query-serving-targets.v1.json'
-              - 'configs/runtime/tool-function-schemas.v2.json'
-              - 'configs/runtime/tools.v5.json'
-              - 'configs/runtime/workflow-artifacts.v2.json'
-              - 'packages/contracts/fixtures/tool_execution_contract/**'
-            image_agent_runtime:
-              - '.dockerignore'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - 'apps/agent-runtime/**'
-              - 'configs/runtime/tool-function-schemas.v2.json'
-              - 'configs/runtime/tools.v5.json'
-              - 'configs/runtime/workflow-artifacts.v2.json'
-            image_ingestion_control:
-              - '.dockerignore'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - 'turbo.json'
-              - 'apps/ingestion-control/**'
-              - 'configs/ingestion/**'
-              - 'packages/ingest-core/**'
-              - 'packages/ingestion-contracts/**'
-            image_ingestion_control_worker:
-              - '.dockerignore'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - 'turbo.json'
-              - 'Cargo.lock'
-              - 'Cargo.toml'
-              - 'apps/ingestion-control/**'
-              - 'configs/ingestion/**'
-              - 'packages/ingest-core/**'
-              - 'packages/ingestion-contracts/**'
-              - 'packages/ingestion-kernels-rs/**'
-            image_source_collector:
-              - '.dockerignore'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - 'turbo.json'
-              - 'apps/source-collector/**'
-              - 'configs/ingestion/**'
-              - 'configs/sources/**'
-              - 'packages/ingest-core/**'
-              - 'packages/ingestion-contracts/**'
-            image_app_api_schema:
-              - '.dockerignore'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - 'jobs/app-api-schema/**'
-              - 'apps/app-api/package.json'
-              - 'apps/app-api/db/shared-product-schema/**'
-              - 'apps/app-api/drizzle/**'
-              - 'apps/app-api/ops/db/**'
-              - 'apps/ops-web/ops/db/**'
-              - 'apps/app-api/src/script-support/shared-db/**'
-            image_ops_web:
-              - '.dockerignore'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - 'apps/ops-web/**'
-            image_transport_publisher:
-              - '.dockerignore'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - 'jobs/transport-publisher/**'
-              - 'apps/app-api/db/shared-product-schema/campus_services.sql'
-              - 'packages/contracts/schemas/transport-schedule-status.v1.schema.json'
-            image_docs_publish:
-              - '.dockerignore'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - 'jobs/docs-publish/**'
-              - 'packages/contracts/schemas/campus-docs-*.schema.json'
-
-      - name: Test Worker change routing
-        run: node --test scripts/ci/resolve-worker-routing.test.mjs
-
-      - name: Resolve Worker changes
-        id: workers
-        env:
-          WORKER_APP_API_SURFACE: ${{ steps.filter.outputs.worker_app_api }}
-          WORKER_CAMPUS_WEB_SURFACE: ${{ steps.filter.outputs.worker_campus_web }}
-          WORKER_CHANGED_FILE_COUNT: ${{ steps.filter.outputs.worker_all_count }}
-          WORKER_LOCKFILE_CHANGED: ${{ steps.filter.outputs.worker_lockfile }}
-        run: |
-          set -euo pipefail
-          routing="$(node scripts/ci/resolve-worker-routing.mjs)"
-          {
-            echo "app_api=$(jq -er '.appApi | tostring' <<< "$routing")"
-            echo "campus_web=$(jq -er '.campusWeb | tostring' <<< "$routing")"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Build changed image list
-        id: images
-        shell: bash
-        env:
-          AGENT_RUNTIME: ${{ steps.filter.outputs.image_agent_runtime }}
-          APP_API_SCHEMA: ${{ steps.filter.outputs.image_app_api_schema }}
-          EXECUTION_CONTROL: ${{ steps.filter.outputs.image_execution_control }}
-          INGESTION_CONTROL: ${{ steps.filter.outputs.image_ingestion_control }}
-          INGESTION_CONTROL_WORKER: ${{ steps.filter.outputs.image_ingestion_control_worker }}
-          OPS_WEB: ${{ steps.filter.outputs.image_ops_web }}
-          SOURCE_COLLECTOR: ${{ steps.filter.outputs.image_source_collector }}
-          TRANSPORT_PUBLISHER: ${{ steps.filter.outputs.image_transport_publisher }}
-          DOCS_PUBLISH: ${{ steps.filter.outputs.image_docs_publish }}
-        run: |
-          set -euo pipefail
-          images=()
-          [[ "$EXECUTION_CONTROL" == "true" ]] && images+=(execution-control)
-          [[ "$AGENT_RUNTIME" == "true" ]] && images+=(agent-runtime)
-          [[ "$INGESTION_CONTROL" == "true" ]] && images+=(ingestion-control)
-          [[ "$INGESTION_CONTROL_WORKER" == "true" ]] && images+=(ingestion-control-worker)
-          [[ "$SOURCE_COLLECTOR" == "true" ]] && images+=(source-collector)
-          [[ "$APP_API_SCHEMA" == "true" ]] && images+=(app-api-schema)
-          [[ "$OPS_WEB" == "true" ]] && images+=(ops-web)
-          [[ "$TRANSPORT_PUBLISHER" == "true" ]] && images+=(transport-publisher)
-          [[ "$DOCS_PUBLISH" == "true" ]] && images+=(docs-publish)
-          images_json="$(jq -cn --args '$ARGS.positional' "${images[@]}")"
-          echo "images=$images_json" >> "$GITHUB_OUTPUT"
-
-  static:
-    needs: changes
-    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 25
+      plan_head_sha: ${{ github.sha }}
+      plan: ${{ steps.plan.outputs.plan }}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
         with:
           fetch-depth: 0
+          filter: blob:none
           persist-credentials: false
 
-      - name: Scan secrets
-        env:
-          BASE_SHA: ${{ needs.changes.outputs.base_sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          docker run --rm \
-            --volume "$PWD:/repo" \
-            --workdir /repo \
-            ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
-            detect \
-            --redact \
-            --exit-code=1 \
-            --config=.gitleaks.toml \
-            --log-opts="--no-merges ${BASE_SHA}..${HEAD_SHA}"
-
-      - name: Setup Node
+      - name: Setup planning tools
         uses: ./.github/actions/setup-node-pnpm
         with:
           workspace-filters: campus-agent-web-workspace
 
-      - name: Run repository lane
-        run: pnpm ci:repo
+      - name: Build change plan
+        id: plan
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          scripts/ci/write-change-plan.sh "$BASE_SHA" "$HEAD_SHA" change-plan.json
+          echo "plan=$(jq -c . change-plan.json)" >> "$GITHUB_OUTPUT"
+          {
+            echo '### PR change plan'
+            echo
+            echo '```json'
+            jq . change-plan.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Validate OTel trusted sanitizer contract
-        run: pnpm ci:otel
+      - name: Test change planning
+        run: >-
+          node --test
+          scripts/ci/change-plan.test.mjs
+          scripts/ci/check-docker-affected.test.mjs
+          scripts/ci/workflow-contract.test.mjs
 
-      - name: Setup Python and uv
+      - name: Test Git and Turbo change planning
+        if: contains(fromJSON(steps.plan.outputs.plan).preflightChecks, 'planner')
+        run: node --test scripts/ci/change-plan.integration.test.mjs
+
+      - name: Scan changed commits for secrets
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: scripts/ci/gitleaks.sh "$BASE_SHA" "$HEAD_SHA"
+
+      - name: Check changed repository files
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.sha }}
+        run: scripts/ci/check-static-affected.sh "$BASE_SHA" "$HEAD_SHA"
+
+      - name: Setup Python lint tools
         if: >-
-          needs.changes.outputs.config == 'true' ||
-          needs.changes.outputs.python == 'true' ||
-          needs.changes.outputs.python_deps == 'true' ||
-          needs.changes.outputs.sql == 'true' ||
-          needs.changes.outputs.yaml == 'true'
+          contains(fromJSON(steps.plan.outputs.plan).preflightChecks, 'actions') ||
+          contains(fromJSON(steps.plan.outputs.plan).lanes, 'python') ||
+          contains(fromJSON(steps.plan.outputs.plan).lanes, 'sql') ||
+          contains(fromJSON(steps.plan.outputs.plan).lanes, 'yaml')
         uses: ./.github/actions/setup-python-uv
         with:
-          sync: ${{ (needs.changes.outputs.python == 'true' || needs.changes.outputs.python_deps == 'true' || needs.changes.outputs.sql == 'true' || needs.changes.outputs.yaml == 'true') && 'true' || 'false' }}
+          sync: ${{ (contains(fromJSON(steps.plan.outputs.plan).lanes, 'python') || contains(fromJSON(steps.plan.outputs.plan).lanes, 'sql') || contains(fromJSON(steps.plan.outputs.plan).lanes, 'yaml')) && 'true' || 'false' }}
+          sync-mode: tools
 
-      - name: Validate workflow configuration
-        if: needs.changes.outputs.config == 'true'
+      - name: Check changed Python, SQL and YAML files
+        if: >-
+          contains(fromJSON(steps.plan.outputs.plan).lanes, 'python') ||
+          contains(fromJSON(steps.plan.outputs.plan).lanes, 'sql') ||
+          contains(fromJSON(steps.plan.outputs.plan).lanes, 'yaml')
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.sha }}
+        run: scripts/ci/check-python-tools-affected.sh "$BASE_SHA" "$HEAD_SHA"
+
+      - name: Validate Actions syntax
+        if: contains(fromJSON(steps.plan.outputs.plan).preflightChecks, 'actions')
         uses: ./.github/actions/run-actionlint
 
-      - name: Audit workflow security
-        if: needs.changes.outputs.config == 'true'
-        run: uvx zizmor --min-severity=medium .github
+      - name: Audit Actions security
+        if: contains(fromJSON(steps.plan.outputs.plan).preflightChecks, 'actions')
+        run: uvx zizmor==1.27.0 --min-severity=medium .github
 
-      - name: Check Python
-        if: needs.changes.outputs.python == 'true' || needs.changes.outputs.python_deps == 'true'
+      - name: Validate OTel sanitizer contract
+        if: contains(fromJSON(steps.plan.outputs.plan).lanes, 'otel')
+        run: pnpm ci:otel
+
+      - name: Lint changed shell scripts
+        if: contains(fromJSON(steps.plan.outputs.plan).lanes, 'shell')
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.sha }}
         run: |
-          uv run --all-packages ruff check .
-          uv run --all-packages ruff format . --check
-          uv lock --check --offline
-
-      - name: Lint YAML
-        if: needs.changes.outputs.yaml == 'true'
-        run: >-
-          uv run yamllint -c .yamllint.yml
-          .github configs infra
-          docs/contracts/schemas/tool-execution.openapi.yaml
-          apps/execution-control/.golangci.yml
-
-      - name: Lint SQL
-        if: needs.changes.outputs.sql == 'true'
-        run: uv run sqlfluff lint --config .sqlfluff
-
-      - name: Lint Dockerfiles
-        if: needs.changes.outputs.docker == 'true'
-        run: |
-          mapfile -d '' files < <(git ls-files -z '**/Dockerfile' '**/Dockerfile.*' '**/*.dockerfile')
-          docker run --rm \
-            -v "$PWD:/work" -w /work \
-            hadolint/hadolint:v2.14.0-debian@sha256:158cd0184dcaa18bd8ec20b61f4c1cabdf8b32a592d062f57bdcb8e4c1d312e2 \
-            hadolint -c /work/.hadolint.yaml "${files[@]}"
-
-      - name: Lint shell scripts
-        if: needs.changes.outputs.shell == 'true'
-        run: |
-          mapfile -d '' files < <(git ls-files -z '*.sh')
-          if [ "${#files[@]}" -eq 0 ]; then
-            exit 0
+          mapfile -d '' files < <(
+            git diff --name-only --diff-filter=ACMR -z "$BASE_SHA" "$HEAD_SHA" -- '*.sh'
+          )
+          if (( ${#files[@]} > 0 )); then
+            docker run --rm \
+              -v "$PWD:/work" -w /work \
+              koalaman/shellcheck:v0.11.0@sha256:61862eba1fcf09a484ebcc6feea46f1782532571a34ed51fedf90dd25f925a8d \
+              -x -s bash "${files[@]}"
           fi
-          docker run --rm \
-            -v "$PWD:/work" -w /work \
-            koalaman/shellcheck:v0.11.0@sha256:61862eba1fcf09a484ebcc6feea46f1782532571a34ed51fedf90dd25f925a8d \
-            -x -s bash "${files[@]}"
 
-      - name: Scan dependencies
-        if: needs.changes.outputs.deps == 'true'
+      - name: Lint changed Dockerfiles
+        if: fromJSON(steps.plan.outputs.plan).dockerChecks[0] != null
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          mapfile -d '' files < <(
+            git diff --name-only --diff-filter=ACMR -z "$BASE_SHA" "$HEAD_SHA" -- \
+              '**/Dockerfile' '**/Dockerfile.*' '**/*.dockerfile'
+          )
+          if (( ${#files[@]} > 0 )); then
+            docker run --rm \
+              -v "$PWD:/work" -w /work \
+              hadolint/hadolint:v2.14.0-debian@sha256:158cd0184dcaa18bd8ec20b61f4c1cabdf8b32a592d062f57bdcb8e4c1d312e2 \
+              hadolint -c /work/.hadolint.yaml "${files[@]}"
+          fi
+
+      - name: Check changed dependency ecosystems
+        if: fromJSON(steps.plan.outputs.plan).dependencyEcosystems[0] != null
         uses: ./.github/actions/run-osv-scan
+        with:
+          ecosystems: ${{ join(fromJSON(steps.plan.outputs.plan).dependencyEcosystems, ' ') }}
 
-  infra:
-    needs: [changes, static]
-    if: needs.changes.outputs.infra == 'true'
+      - name: Check changed Docker contexts
+        if: fromJSON(steps.plan.outputs.plan).dockerChecks[0] != null
+        env:
+          IMAGES: ${{ toJSON(fromJSON(steps.plan.outputs.plan).dockerChecks) }}
+        run: node scripts/ci/check-docker-affected.mjs "$IMAGES"
+
+  code:
+    needs: preflight
+    if: >-
+      contains(fromJSON(needs.preflight.outputs.plan).lanes, 'contracts') ||
+      contains(fromJSON(needs.preflight.outputs.plan).lanes, 'eval') ||
+      contains(fromJSON(needs.preflight.outputs.plan).lanes, 'ingest') ||
+      contains(fromJSON(needs.preflight.outputs.plan).lanes, 'node')
+    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
+    timeout-minutes: 20
+    env:
+      TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
+      TURBO_SCM_BASE: ${{ needs.preflight.outputs.base_sha }}
+      TURBO_SCM_HEAD: ${{ needs.preflight.outputs.plan_head_sha }}
+      TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+        with:
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+
+      - name: Setup affected Node workspaces
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          workspace-filters: campus-agent-web-workspace
+          workspace-filters-json: ${{ toJSON(fromJSON(needs.preflight.outputs.plan).nodeFilters) }}
+
+      - name: Setup Python evaluation package
+        if: fromJSON(needs.preflight.outputs.plan).pythonEval
+        uses: ./.github/actions/setup-python-uv
+        with:
+          sync-mode: eval
+
+      - name: Run contract checks
+        if: contains(fromJSON(needs.preflight.outputs.plan).lanes, 'contracts')
+        run: pnpm ci:contracts
+
+      - name: Run affected TypeScript checks
+        if: contains(fromJSON(needs.preflight.outputs.plan).lanes, 'node')
+        run: pnpm ci:typescript
+
+      - name: Run affected Worker checks
+        if: contains(fromJSON(needs.preflight.outputs.plan).lanes, 'node')
+        run: pnpm ci:worker:affected
+
+      - name: Run affected ingestion checks
+        if: contains(fromJSON(needs.preflight.outputs.plan).lanes, 'ingest')
+        run: pnpm ci:ingest:affected
+
+      - name: Run affected evaluation checks
+        if: contains(fromJSON(needs.preflight.outputs.plan).lanes, 'eval')
+        run: pnpm ci:eval:affected
+
+      - name: Summarize Turbo work
+        if: always()
+        run: scripts/ci/turbo-summary.sh
+
+  native:
+    needs: preflight
+    if: >-
+      contains(fromJSON(needs.preflight.outputs.plan).lanes, 'go') ||
+      contains(fromJSON(needs.preflight.outputs.plan).lanes, 'infra') ||
+      contains(fromJSON(needs.preflight.outputs.plan).lanes, 'rust')
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
     timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
         with:
-          fetch-depth: ${{ runner.environment == 'self-hosted' && '0' || '1' }}
+          fetch-depth: 0
+          filter: blob:none
           persist-credentials: false
 
       - name: Setup Go
-        if: runner.environment == 'github-hosted'
+        if: runner.environment == 'github-hosted' && (contains(fromJSON(needs.preflight.outputs.plan).lanes, 'go') || contains(fromJSON(needs.preflight.outputs.plan).lanes, 'infra'))
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16  # v6
         with:
           go-version: "1.26.5"
@@ -554,221 +236,177 @@ jobs:
           cache-dependency-path: apps/execution-control/go.mod
 
       - name: Verify Go
-        if: runner.environment == 'self-hosted'
+        if: runner.environment == 'self-hosted' && (contains(fromJSON(needs.preflight.outputs.plan).lanes, 'go') || contains(fromJSON(needs.preflight.outputs.plan).lanes, 'infra'))
         run: test "$(go version | awk '{print $3}')" = "go1.26.5"
 
-      - name: Install Kustomize and Conftest
+      - name: Setup Rust
+        if: runner.environment == 'github-hosted' && contains(fromJSON(needs.preflight.outputs.plan).lanes, 'rust')
+        uses: dtolnay/rust-toolchain@ad7910d95e317a4b12a9a3dfad520f4b409b3ec0  # 1.91.0
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache Rust
+        if: runner.environment == 'github-hosted' && contains(fromJSON(needs.preflight.outputs.plan).lanes, 'rust')
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4  # v2.9.1
+
+      - name: Verify Rust
+        if: runner.environment == 'self-hosted' && contains(fromJSON(needs.preflight.outputs.plan).lanes, 'rust')
         run: |
-          go install sigs.k8s.io/kustomize/kustomize/v5@v5.7.1
-          go install github.com/open-policy-agent/conftest@v0.65.0
+          test "$(rustc --version | awk '{print $2}')" = "1.91.0"
+          test "$(cargo --version | awk '{print $2}')" = "1.91.0"
+
+      - name: Install infrastructure tools
+        if: contains(fromJSON(needs.preflight.outputs.plan).lanes, 'infra')
+        run: |
+          if ! command -v kustomize >/dev/null; then
+            go install sigs.k8s.io/kustomize/kustomize/v5@v5.7.1
+          fi
+          if ! command -v conftest >/dev/null; then
+            go install github.com/open-policy-agent/conftest@v0.65.0
+          fi
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
-      - name: Validate Kubernetes resources
-        run: |
-          set -euo pipefail
-          conftest verify --policy infra/policies
-          while IFS= read -r kustomization; do
-            directory="${kustomization%/kustomization.yaml}"
-            kustomize build "$directory" | conftest test \
-              --namespace campus.k8s.config_secrets \
-              --policy infra/policies \
-              --parser yaml \
-              -
-          done < <(find infra/k8s -name kustomization.yaml -print | sort)
+      - name: Run Go checks
+        if: contains(fromJSON(needs.preflight.outputs.plan).lanes, 'go')
+        run: scripts/ci/go-check.sh
 
-  image-scan:
-    needs: [changes, static, node, browser-smoke, go, rust, infra]
-    if: >-
-      always() &&
-      needs.changes.result == 'success' &&
-      needs.static.result == 'success' &&
-      (needs.node.result == 'success' || needs.node.result == 'skipped') &&
-      (needs.browser-smoke.result == 'success' || needs.browser-smoke.result == 'skipped') &&
-      (needs.go.result == 'success' || needs.go.result == 'skipped') &&
-      (needs.rust.result == 'success' || needs.rust.result == 'skipped') &&
-      (needs.infra.result == 'success' || needs.infra.result == 'skipped') &&
-      needs.changes.outputs.images != '[]'
+      - name: Run Rust checks
+        if: contains(fromJSON(needs.preflight.outputs.plan).lanes, 'rust')
+        env:
+          CARGO_TARGET_DIR: ${{ runner.tool_cache }}/cargo-target/campus-agent
+        run: scripts/ci/rust-check.sh
+
+      - name: Validate Kubernetes resources
+        if: contains(fromJSON(needs.preflight.outputs.plan).lanes, 'infra')
+        run: scripts/ci/infra-check.sh
+
+  docker-check:
+    needs: preflight
+    if: fromJSON(needs.preflight.outputs.plan).dockerChecks[0] != null
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        image: ${{ fromJSON(needs.preflight.outputs.plan).dockerChecks }}
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 30
-    env:
-      IMAGE_ROOT: ghcr.io/${{ github.repository }}
-      IMAGES: ${{ needs.changes.outputs.images }}
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
         with:
-          fetch-depth: ${{ runner.environment == 'self-hosted' && '0' || '1' }}
           persist-credentials: false
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          install: "false"
+
+      - name: Resolve Docker check target
+        id: target
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: |
+          set -euo pipefail
+          definition="$(node scripts/ci/check-docker-affected.mjs --describe "$IMAGE")"
+          echo "dockerfile=$(jq -er .dockerfile <<< "$definition")" >> "$GITHUB_OUTPUT"
+          echo "target=$(jq -er .target <<< "$definition")" >> "$GITHUB_OUTPUT"
 
       - name: Setup persistent Docker Buildx
         if: runner.environment == 'self-hosted'
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4
         with:
-          name: campus-agent-release
+          name: campus-agent-pr
           keep-state: true
           cleanup: false
           cache-binary: false
           buildkitd-config-inline: |
             [worker.oci]
+              max-parallelism = 1
               gc = true
               reservedSpace = "2GB"
-              maxUsedSpace = "12GB"
-              minFreeSpace = "25GB"
+              maxUsedSpace = "10GB"
+              minFreeSpace = "20GB"
 
       - name: Setup temporary Docker Buildx
         if: runner.environment == 'github-hosted'
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4
-
-      - name: Verify Trivy
-        if: runner.environment == 'self-hosted'
-        run: test "$(trivy --version | awk 'NR == 1 {print $2}')" = "0.72.0"
-
-      - name: Setup Trivy
-        if: runner.environment == 'github-hosted'
-        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567  # v0.3.1
         with:
-          version: v0.72.0
-          cache: true
+          buildkitd-config-inline: |
+            [worker.oci]
+              max-parallelism = 1
 
-      - name: Build and scan changed images
-        shell: bash
+      - name: Build Docker check target
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7
+        with:
+          context: .
+          file: ${{ steps.target.outputs.dockerfile }}
+          target: ${{ steps.target.outputs.target }}
+          push: false
+          load: false
+          provenance: false
+          sbom: false
+          cache-from: type=gha,scope=pr-docker-${{ matrix.image }}
+          cache-to: type=gha,mode=max,ignore-error=true,scope=pr-docker-${{ matrix.image }}
+
+  integration:
+    needs: preflight
+    if: fromJSON(needs.preflight.outputs.plan).databaseSuites[0] != null
+    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
+    timeout-minutes: 25
+    env:
+      PLAN: ${{ needs.preflight.outputs.plan }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup database Node workspaces
+        if: fromJSON(needs.preflight.outputs.plan).databaseNodeFilters[0] != null
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          workspace-filters: campus-agent-web-workspace
+          workspace-filters-json: ${{ toJSON(fromJSON(needs.preflight.outputs.plan).databaseNodeFilters) }}
+
+      - name: Setup Go
+        if: runner.environment == 'github-hosted' && contains(fromJSON(needs.preflight.outputs.plan).databaseSuites, 'execution-control')
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16  # v6
+        with:
+          go-version: "1.26.5"
+          cache: true
+          cache-dependency-path: apps/execution-control/go.mod
+
+      - name: Verify Go
+        if: runner.environment == 'self-hosted' && contains(fromJSON(needs.preflight.outputs.plan).databaseSuites, 'execution-control')
+        run: test "$(go version | awk '{print $3}')" = "go1.26.5"
+
+      - name: Verify Docker
+        run: docker info >/dev/null
+
+      - name: Run selected PostgreSQL suites
         run: |
           set -euo pipefail
-          trivy_cache_dir="${RUNNER_TOOL_CACHE}/trivy"
-          built_tags=()
-          cleanup_images() {
-            if [ "${#built_tags[@]}" -gt 0 ]; then
-              docker image rm --force "${built_tags[@]}" >/dev/null 2>&1 || true
-            fi
-          }
-          trap cleanup_images EXIT
-          while IFS= read -r image; do
-            target=""
-            case "$image" in
-              execution-control) dockerfile=apps/execution-control/Dockerfile ;;
-              agent-runtime) dockerfile=apps/agent-runtime/Dockerfile ;;
-              ingestion-control)
-                dockerfile=apps/ingestion-control/Dockerfile
-                target=api
-                ;;
-              ingestion-control-worker)
-                dockerfile=apps/ingestion-control/Dockerfile
-                target=worker
-                ;;
-              source-collector)
-                dockerfile=apps/source-collector/Dockerfile
-                target=runtime
-                ;;
-              app-api-schema) dockerfile=jobs/app-api-schema/Dockerfile ;;
-              ops-web) dockerfile=apps/ops-web/Dockerfile ;;
-              transport-publisher) dockerfile=jobs/transport-publisher/Dockerfile ;;
-              docs-publish) dockerfile=jobs/docs-publish/Dockerfile ;;
-              *) echo "Unsupported image: $image" >&2; exit 1 ;;
-            esac
-            tag="${IMAGE_ROOT,,}/${image}:${GITHUB_SHA}"
-            built_tags+=("$tag")
-            build_args=(--pull --load --file "$dockerfile" --tag "$tag")
-            if [ -n "$target" ]; then
-              build_args+=(--target "$target")
-            fi
-            docker buildx build "${build_args[@]}" .
-            case "$image" in
-              ingestion-control)
-                docker run --rm --entrypoint /bin/sh "$tag" -c '
-                  test ! -e /usr/local/bin/ingestion-kernel-runner
-                  test ! -e /opt/campus-agent/models/qwen3-embedding-4b/tokenizer.json
-                  ! command -v npm
-                  ! command -v corepack
-                  ! command -v pnpm
-                  ! command -v yarn
-                  test ! -e /app/apps/ingestion-control/node_modules/@types
-                  ! find /app/node_modules/.pnpm -mindepth 1 -maxdepth 1 -type d \
-                    \( -name "vitest@*" -o -name "typescript@*" \) \
-                    | grep -q .
-                '
-                if docker image inspect "$tag" --format '{{range .Config.Env}}{{println .}}{{end}}' \
-                  | grep -q '^INGESTION_KERNEL_TOKENIZER_JSON_PATH='; then
-                  echo "API image must not expose the kernel tokenizer path" >&2
-                  exit 1
-                fi
-                ;;
-              ingestion-control-worker)
-                docker run --rm --entrypoint /bin/sh "$tag" -c '
-                  test -x /usr/local/bin/ingestion-kernel-runner
-                  echo "83cdf8c3a34f68862319cb1810ee7b1e2c0a44e0864ae930194ddb76bb7feb8d  /opt/campus-agent/models/qwen3-embedding-4b/tokenizer.json" \
-                    | sha256sum -c -
-                  ! command -v npm
-                  ! command -v corepack
-                  ! command -v pnpm
-                  ! command -v yarn
-                  test ! -e /app/apps/ingestion-control/node_modules/@types
-                  ! find /app/node_modules/.pnpm -mindepth 1 -maxdepth 1 -type d \
-                    \( -name "vitest@*" -o -name "typescript@*" \) \
-                    | grep -q .
-                '
-                ;;
-              source-collector)
-                docker run --rm --entrypoint /bin/sh "$tag" -c '
-                  test -x /usr/bin/tini
-                  ! command -v npm
-                  ! command -v corepack
-                  ! command -v pnpm
-                  ! command -v yarn
-                  test ! -e /workspace/apps/source-collector/node_modules/@types
-                  find /ms-playwright -mindepth 1 -maxdepth 1 -type d \
-                    -name "chromium_headless_shell-*" | grep -q .
-                  ! find /ms-playwright -mindepth 1 -maxdepth 1 -type d \
-                    \( -name "chromium-*" -o -name "firefox-*" -o -name "webkit-*" \) \
-                    | grep -q .
-                  ! find /workspace/node_modules/.pnpm -mindepth 1 -maxdepth 1 -type d \
-                    \( -name "vitest@*" -o -name "typescript@*" \) \
-                    | grep -q .
-                '
-                docker run --rm --read-only --tmpfs /tmp:rw,size=256m --shm-size=512m \
-                  --entrypoint /workspace/apps/source-collector/node_modules/.bin/tsx \
-                  "$tag" -e '
-                    import { chromium } from "playwright";
-                    void (async () => {
-                      const browser = await chromium.launch({ headless: true });
-                      const page = await browser.newPage();
-                      await page.setContent("<main>collector-ready</main>");
-                      if ((await page.textContent("main")) !== "collector-ready") process.exit(1);
-                      await browser.close();
-                    })();
-                  '
-                ;;
-              docs-publish)
-                docker run --rm "$tag" help | grep -q '^usage: docs-publish '
-                ;;
-            esac
-            trivy image \
-              --cache-dir "$trivy_cache_dir" \
-              --scanners vuln \
-              --ignore-unfixed \
-              --pkg-types os,library \
-              --severity HIGH,CRITICAL \
-              --exit-code 1 \
-              "$tag"
-          done < <(jq -r '.[]' <<< "$IMAGES")
+          has_suite() { jq -e --arg suite "$1" '.databaseSuites | index($suite) != null' <<< "$PLAN" >/dev/null; }
+          has_suite app-api-migration && pnpm ci:app-api-migration
+          has_suite app-api-product && pnpm ci:app-api-product-db
+          has_suite execution-control && scripts/ci/go-postgres-integration.sh
+          has_suite ops-web && pnpm ci:ops-web-postgres
 
-  node:
-    needs: [changes, static]
+  ui-smoke:
+    needs: [preflight, code]
     if: >-
-      needs.static.result == 'success' && (
-        needs.changes.outputs.contracts == 'true' ||
-        needs.changes.outputs.eval == 'true' ||
-        needs.changes.outputs.ingest == 'true' ||
-        needs.changes.outputs.node_deps == 'true' ||
-        needs.changes.outputs.python_deps == 'true' ||
-        needs.changes.outputs.typescript == 'true' ||
-        needs.changes.outputs.worker_app_api == 'true' ||
-        needs.changes.outputs.worker_campus_web == 'true'
-      )
+      always() &&
+      fromJSON(needs.preflight.outputs.plan).browser &&
+      (needs.code.result == 'success' || needs.code.result == 'skipped')
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 35
+    timeout-minutes: 10
     env:
+      CAMPUS_WEB_E2E_DOCS_PREBUILT: "1"
+      CAMPUS_WEB_E2E_PREBUILT: "1"
       TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
-      TURBO_SCM_BASE: ${{ needs.changes.outputs.base_sha }}
+      TURBO_SCM_BASE: ${{ needs.preflight.outputs.base_sha }}
+      TURBO_SCM_HEAD: ${{ needs.preflight.outputs.plan_head_sha }}
       TURBO_TEAM: ${{ vars.TURBO_TEAM }}
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
     steps:
@@ -776,130 +414,46 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
         with:
           fetch-depth: 0
+          filter: blob:none
           persist-credentials: false
 
-      - name: Setup Node
-        uses: ./.github/actions/setup-node-pnpm
-
-      - name: Setup Python
-        if: >-
-          needs.changes.outputs.eval == 'true' ||
-          needs.changes.outputs.node_deps == 'true' ||
-          needs.changes.outputs.python_deps == 'true'
-        uses: ./.github/actions/setup-python-uv
-
-      - name: Run contracts lane
-        if: needs.changes.outputs.contracts == 'true' || needs.changes.outputs.node_deps == 'true'
-        run: pnpm ci:contracts
-
-      - name: Run TypeScript lane
-        if: needs.changes.outputs.typescript == 'true' || needs.changes.outputs.node_deps == 'true'
-        run: |
-          rm -rf .turbo/runs
-          pnpm ci:typescript
-
-      - name: Summarize TypeScript lane
-        if: >-
-          always() && (
-            needs.changes.outputs.typescript == 'true' ||
-            needs.changes.outputs.node_deps == 'true'
-          )
-        run: scripts/ci/turbo-summary.sh
-
-      - name: Run ingestion lane
-        if: needs.changes.outputs.ingest == 'true' || needs.changes.outputs.node_deps == 'true'
-        run: |
-          rm -rf .turbo/runs
-          pnpm ci:ingest
-
-      - name: Summarize ingestion lane
-        if: >-
-          always() && (
-            needs.changes.outputs.ingest == 'true' ||
-            needs.changes.outputs.node_deps == 'true'
-          )
-        run: scripts/ci/turbo-summary.sh
-
-      - name: Check app-api Worker
-        if: needs.changes.outputs.worker_app_api == 'true'
-        run: >-
-          pnpm turbo run test:worker build:worker
-          --filter=app-api --concurrency=1
-
-      - name: Check campus-web Worker
-        if: needs.changes.outputs.worker_campus_web == 'true'
-        run: >-
-          pnpm turbo run test:worker build:app
-          --filter=campus-web --concurrency=1
-
-      - name: Run eval lane
-        if: >-
-          needs.changes.outputs.eval == 'true' ||
-          needs.changes.outputs.node_deps == 'true' ||
-          needs.changes.outputs.python_deps == 'true'
-        run: |
-          rm -rf .turbo/runs
-          pnpm ci:eval
-
-      - name: Summarize eval lane
-        if: >-
-          always() && (
-            needs.changes.outputs.eval == 'true' ||
-            needs.changes.outputs.node_deps == 'true' ||
-            needs.changes.outputs.python_deps == 'true'
-          )
-        run: scripts/ci/turbo-summary.sh
-
-  browser-smoke:
-    needs: [changes, static, node]
-    if: >-
-      needs.static.result == 'success' &&
-      needs.node.result == 'success' &&
-      needs.changes.outputs.worker_campus_web == 'true'
-    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 15
-    env:
-      CAMPUS_WEB_E2E_PREBUILT: '1'
-      TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
-      TURBO_SCM_BASE: ${{ needs.changes.outputs.base_sha }}
-      TURBO_TEAM: ${{ vars.TURBO_TEAM }}
-      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Setup Node
+      - name: Setup Campus Web
         uses: ./.github/actions/setup-node-pnpm
         with:
-          workspace-filters: |
-            campus-agent-web-workspace
-            campus-web...
+          workspace-filters: campus-agent-web-workspace
+          workspace-filters-json: '["campus-web..."]'
 
-      - name: Check campus-web Worker and build app
+      - name: Build Campus Web docs fixture
+        run: >-
+          pnpm turbo run build:docs:fixture
+          --filter=campus-web --concurrency=1 --summarize
+
+      - name: Build and test Campus Web Worker
         run: >-
           pnpm turbo run test:worker build:app
-          --filter=campus-web --concurrency=1
+          --filter=campus-web --concurrency=1 --summarize
 
-      - name: Install campus-web Chromium
-        run: pnpm --dir apps/campus-web exec playwright install chromium
+      - name: Ensure Chromium headless shell
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.tool_cache }}/ms-playwright
+        run: pnpm --dir apps/campus-web exec playwright install --only-shell chromium
 
-      - name: Run campus-web app smoke
+      - name: Run Campus Web app smoke
         id: app-smoke
         continue-on-error: true
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.tool_cache }}/ms-playwright
         run: pnpm --dir apps/campus-web run test:e2e:smoke:app
 
-      - name: Run campus-web Worker smoke
+      - name: Run Campus Web Worker smoke
         id: worker-smoke
         continue-on-error: true
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.tool_cache }}/ms-playwright
         run: pnpm --dir apps/campus-web run test:e2e:smoke:worker
 
-      - name: Upload campus-web browser failure evidence
-        if: >-
-          always() &&
-          (steps.app-smoke.outcome != 'success' || steps.worker-smoke.outcome != 'success')
+      - name: Upload browser failure evidence
+        if: always() && (steps.app-smoke.outcome != 'success' || steps.worker-smoke.outcome != 'success')
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           if-no-files-found: ignore
@@ -911,7 +465,7 @@ jobs:
             apps/campus-web/test-results/e2e-worker
           retention-days: 7
 
-      - name: Require successful campus-web browser smoke
+      - name: Require successful browser smoke
         if: always()
         env:
           APP_SMOKE_OUTCOME: ${{ steps.app-smoke.outcome }}
@@ -920,252 +474,30 @@ jobs:
           test "$APP_SMOKE_OUTCOME" = success
           test "$WORKER_SMOKE_OUTCOME" = success
 
-  app-api-migration:
-    needs: [changes, static]
-    if: >-
-      needs.static.result == 'success' && (
-        needs.changes.outputs.app_api_migration == 'true' ||
-        needs.changes.outputs.node_deps == 'true'
-      )
-    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 15
-    steps:
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
-        with:
-          fetch-depth: 1
-          persist-credentials: false
-
-      - name: Setup Node
-        uses: ./.github/actions/setup-node-pnpm
-
-      - name: Verify Docker
-        run: docker info >/dev/null
-
-      - name: Verify app-api migration upgrade
-        run: pnpm ci:app-api-migration
-
-  app-api-postgres:
-    needs: [changes, static]
-    if: >-
-      needs.static.result == 'success' && (
-        needs.changes.outputs.app_api_postgres == 'true' ||
-        needs.changes.outputs.node_deps == 'true'
-      )
-    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 15
-    steps:
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
-        with:
-          fetch-depth: 1
-          persist-credentials: false
-
-      - name: Setup Node
-        uses: ./.github/actions/setup-node-pnpm
-
-      - name: Verify Docker
-        run: docker info >/dev/null
-
-      - name: Verify app-api product database
-        run: pnpm ci:app-api-product-db
-
-  execution-control-postgres:
-    needs: [changes, static]
-    if: >-
-      needs.static.result == 'success' && (
-        needs.changes.outputs.execution_control_postgres == 'true' ||
-        needs.changes.outputs.go_deps == 'true'
-      )
-    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 20
-    steps:
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
-        with:
-          fetch-depth: 1
-          persist-credentials: false
-
-      - name: Setup Go
-        if: runner.environment == 'github-hosted'
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16  # v6
-        with:
-          go-version: "1.26.5"
-          cache: true
-          cache-dependency-path: apps/execution-control/go.mod
-
-      - name: Verify Go
-        if: runner.environment == 'self-hosted'
-        run: test "$(go version | awk '{print $3}')" = "go1.26.5"
-
-      - name: Verify Docker
-        run: docker info >/dev/null
-
-      - name: Verify execution-control PostgreSQL boundaries
-        run: pnpm ci:execution-control-postgres
-
-  ops-web-postgres:
-    needs: [changes, static]
-    if: >-
-      needs.static.result == 'success' && (
-        needs.changes.outputs.ops_web_postgres == 'true' ||
-        needs.changes.outputs.node_deps == 'true' ||
-        needs.changes.outputs.go_deps == 'true'
-      )
-    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 25
-    steps:
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
-        with:
-          fetch-depth: 1
-          persist-credentials: false
-
-      - name: Setup Node
-        uses: ./.github/actions/setup-node-pnpm
-
-      - name: Setup Go
-        if: runner.environment == 'github-hosted'
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16  # v6
-        with:
-          go-version: "1.26.5"
-          cache: true
-          cache-dependency-path: apps/execution-control/go.mod
-
-      - name: Verify Go
-        if: runner.environment == 'self-hosted'
-        run: test "$(go version | awk '{print $3}')" = "go1.26.5"
-
-      - name: Verify Docker
-        run: docker info >/dev/null
-
-      - name: Verify ops-web database permissions
-        run: pnpm ci:ops-web-postgres
-
-  go:
-    needs: [changes, static]
-    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.go_deps == 'true'
-    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 20
-    steps:
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
-        with:
-          fetch-depth: ${{ runner.environment == 'self-hosted' && '0' || '1' }}
-          persist-credentials: false
-
-      - name: Setup Go
-        if: runner.environment == 'github-hosted'
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16  # v6
-        with:
-          go-version: "1.26.5"
-          cache: true
-          cache-dependency-path: apps/execution-control/go.mod
-
-      - name: Verify Go
-        if: runner.environment == 'self-hosted'
-        run: test "$(go version | awk '{print $3}')" = "go1.26.5"
-
-      - name: Install golangci-lint
-        if: runner.environment == 'github-hosted'
-        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a  # v9.3.0
-        with:
-          version: v2.11.4
-          install-only: true
-
-      - name: Verify golangci-lint
-        if: runner.environment == 'self-hosted'
-        run: test "$(golangci-lint version --short)" = "2.11.4"
-
-      - name: Run Go lane
-        run: scripts/ci/go-check.sh
-
-  rust:
-    needs: [changes, static]
-    if: needs.changes.outputs.rust == 'true'
-    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 30
-    steps:
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
-        with:
-          fetch-depth: ${{ runner.environment == 'self-hosted' && '0' || '1' }}
-          persist-credentials: false
-
-      - name: Setup Rust
-        if: runner.environment == 'github-hosted'
-        uses: dtolnay/rust-toolchain@ad7910d95e317a4b12a9a3dfad520f4b409b3ec0  # 1.91.0
-        with:
-          components: clippy, rustfmt
-
-      - name: Verify Rust
-        if: runner.environment == 'self-hosted'
-        run: |
-          set -euo pipefail
-          test "$(rustc --version | awk '{print $2}')" = "1.91.0"
-          test "$(cargo --version | awk '{print $2}')" = "1.91.0"
-          rustup component list --toolchain 1.91.0 --installed | grep -q '^clippy-'
-          rustup component list --toolchain 1.91.0 --installed | grep -q '^rustfmt-'
-
-      - name: Cache Rust
-        if: runner.environment == 'github-hosted'
-        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4  # v2.9.1
-
-      - name: Run Rust lane with persistent target
-        if: runner.environment == 'self-hosted'
-        env:
-          CARGO_TARGET_DIR: ${{ runner.tool_cache }}/cargo-target/campus-agent
-        run: scripts/ci/rust-check.sh
-
-      - name: Run Rust lane
-        if: runner.environment == 'github-hosted'
-        run: scripts/ci/rust-check.sh
-
   required:
-    needs:
-      - changes
-      - static
-      - node
-      - browser-smoke
-      - app-api-migration
-      - app-api-postgres
-      - execution-control-postgres
-      - ops-web-postgres
-      - infra
-      - image-scan
-      - go
-      - rust
+    needs: [preflight, code, native, docker-check, integration, ui-smoke]
     if: always()
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
     timeout-minutes: 5
     steps:
       - name: Require successful PR checks
-        shell: bash
+        env:
+          CODE_RESULT: ${{ needs.code.result }}
+          DOCKER_RESULT: ${{ needs.docker-check.result }}
+          INTEGRATION_RESULT: ${{ needs.integration.result }}
+          NATIVE_RESULT: ${{ needs.native.result }}
+          PREFLIGHT_RESULT: ${{ needs.preflight.result }}
+          UI_SMOKE_RESULT: ${{ needs.ui-smoke.result }}
         run: |
-          set -euo pipefail
-          failed=0
           for result in \
-            "${{ needs.changes.result }}" \
-            "${{ needs.static.result }}" \
-            "${{ needs.node.result }}" \
-            "${{ needs.browser-smoke.result }}" \
-            "${{ needs.app-api-migration.result }}" \
-            "${{ needs.app-api-postgres.result }}" \
-            "${{ needs.execution-control-postgres.result }}" \
-            "${{ needs.ops-web-postgres.result }}" \
-            "${{ needs.infra.result }}" \
-            "${{ needs.image-scan.result }}" \
-            "${{ needs.go.result }}" \
-            "${{ needs.rust.result }}"; do
+            "$PREFLIGHT_RESULT" \
+            "$CODE_RESULT" \
+            "$DOCKER_RESULT" \
+            "$NATIVE_RESULT" \
+            "$INTEGRATION_RESULT" \
+            "$UI_SMOKE_RESULT"; do
             case "$result" in
-              success|skipped)
-                ;;
-              *)
-                failed=1
-                ;;
+              success|skipped) ;;
+              *) exit 1 ;;
             esac
           done
-          if [ "$failed" -ne 0 ]; then
-            echo "One or more required PR check lanes failed."
-            exit 1
-          fi

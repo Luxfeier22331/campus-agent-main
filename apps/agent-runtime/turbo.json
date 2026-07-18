@@ -3,7 +3,14 @@
 	"extends": ["//"],
 	"tasks": {
 		"test": {
-			"inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/configs/runtime/**"]
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/configs/runtime/tool-function-schemas.v2.json",
+				"$TURBO_ROOT$/configs/runtime/tools.v5.json",
+				"$TURBO_ROOT$/configs/runtime/workflow-artifacts.v2.json"
+			]
 		}
 	}
 }

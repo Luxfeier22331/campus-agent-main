@@ -6,27 +6,92 @@
 			"cache": false
 		},
 		"build:app": {
-			"inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/configs/branding/**"]
+			"inputs": [
+				"index.html",
+				"package.json",
+				"public/**",
+				"scripts/build-published-reader-docs.ts",
+				"scripts/build-release.ts",
+				"scripts/check-client-bundle-budget.ts",
+				"src/**",
+				"theme/**",
+				"tsconfig.json",
+				"vite.config.ts",
+				"wrangler*.toml",
+				"$TURBO_ROOT$/configs/branding/web-public/**",
+				"$TURBO_ROOT$/packages/domains/dining/package.json",
+				"$TURBO_ROOT$/packages/domains/dining/src/**",
+				"$TURBO_ROOT$/scripts/deploy/run-worker-staging-build.ts"
+			],
+			"outputLogs": "new-only",
+			"outputs": ["dist/**", ".tanstack/**"]
+		},
+		"build:docs:fixture": {
+			"inputs": [
+				"package.json",
+				"rspress.config.ts",
+				"scripts/build-published-reader-docs.ts",
+				"scripts/prepare-docs-build-fixture.ts",
+				"src/docs-reader-build/**",
+				"src/docs/search/**",
+				"test/helpers/published-reader-fixture.ts",
+				"theme/**",
+				"tsconfig.json"
+			],
+			"outputLogs": "new-only",
+			"outputs": [
+				".generated/docs/**",
+				"doc_build/**",
+				"public/_docs/**",
+				"public/_docs-static/**",
+				"public/_gated-docs/**",
+				"public/_gated-docs-search/**",
+				"public/docs/**"
+			]
 		},
 		"build:worker": {
-			"inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/configs/branding/**"]
+			"inputs": [
+				"index.html",
+				"package.json",
+				"public/**",
+				"scripts/build-published-reader-docs.ts",
+				"scripts/build-release.ts",
+				"scripts/check-client-bundle-budget.ts",
+				"src/**",
+				"theme/**",
+				"tsconfig.json",
+				"vite.config.ts",
+				"wrangler*.toml",
+				"$TURBO_ROOT$/configs/branding/web-public/**",
+				"$TURBO_ROOT$/packages/domains/dining/package.json",
+				"$TURBO_ROOT$/packages/domains/dining/src/**",
+				"$TURBO_ROOT$/scripts/deploy/run-worker-staging-build.ts"
+			]
 		},
 		"test": {
 			"inputs": [
 				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
 				"$TURBO_ROOT$/configs/branding/**",
 				"$TURBO_ROOT$/scripts/deploy/**"
 			]
 		},
 		"test:worker": {
 			"inputs": [
-				"$TURBO_DEFAULT$",
+				"package.json",
+				"src/**",
+				"test/assets/**",
+				"test/**/*.worker.test.ts",
+				"tsconfig.json",
+				"vitest.worker.config.mts",
+				"wrangler.test.toml",
 				"$TURBO_ROOT$/configs/branding/**",
 				"$TURBO_ROOT$/scripts/deploy/**"
 			]
 		},
 		"typecheck": {
-			"inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/scripts/deploy/**"]
+			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md", "$TURBO_ROOT$/scripts/deploy/**"]
 		}
 	}
 }

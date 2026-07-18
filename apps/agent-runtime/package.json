@@ -7,7 +7,7 @@
 	"scripts": {
 		"build": "tsc",
 		"dev": "tsx src/server.ts",
-		"test": "vitest run",
+		"test": "vitest run -c vitest.config.mts",
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {

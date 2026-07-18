@@ -13,38 +13,42 @@ describe("campus web browser test boundaries", () => {
 		expect(config).toContain("failOnFlakyTests: isCI");
 	});
 
-	it("builds the same credential-free Rspress reader fixture for Worker browser tests", () => {
+	it("builds or consumes the same credential-free Rspress reader fixture", () => {
 		const globalSetup = readFileSync("e2e/worker/global-setup.ts", "utf8");
+		const turboConfig = readFileSync("turbo.json", "utf8");
 
 		expect(globalSetup).toContain('"build:docs:fixture"');
+		expect(globalSetup).toContain("CAMPUS_WEB_E2E_DOCS_PREBUILT");
+		expect(globalSetup).toContain('"public/_docs-static"');
 		expect(globalSetup).not.toContain("prepare-docs-fixture");
+		expect(turboConfig).toContain('"build:docs:fixture"');
+		expect(turboConfig).toContain('"public/_docs-static/**"');
 	});
 
 	it("keeps tagged browser smoke separate from Node checks and required for Campus Web", () => {
 		const workflow = readFileSync("../../.github/workflows/pr.yml", "utf8");
-		const nodeJob = workflow.slice(
-			workflow.indexOf("\n  node:"),
-			workflow.indexOf("\n  browser-smoke:"),
-		);
+		const affectedCheck = readFileSync("../../scripts/ci/run-affected.sh", "utf8");
+		const codeJob = workflow.slice(workflow.indexOf("\n  code:"), workflow.indexOf("\n  native:"));
 		const browserJob = workflow.slice(
-			workflow.indexOf("\n  browser-smoke:"),
-			workflow.indexOf("\n  app-api-migration:"),
+			workflow.indexOf("\n  ui-smoke:"),
+			workflow.indexOf("\n  required:"),
 		);
 		const requiredJob = workflow.slice(workflow.indexOf("\n  required:"));
-		const requiredResultExpression = [
-			String.fromCharCode(36),
-			"{{ needs.browser-smoke.result }}",
-		].join("");
 
-		expect(nodeJob).toContain("needs.changes.outputs.worker_campus_web == 'true'");
-		expect(nodeJob).not.toContain("playwright");
-		expect(browserJob).toContain("CAMPUS_WEB_E2E_PREBUILT: '1'");
+		expect(codeJob).toContain("Run affected Worker checks");
+		expect(codeJob).not.toContain("playwright");
+		expect(browserJob).toContain('CAMPUS_WEB_E2E_PREBUILT: "1"');
+		expect(browserJob).toContain('CAMPUS_WEB_E2E_DOCS_PREBUILT: "1"');
+		expect(browserJob).toContain("turbo run build:docs:fixture");
 		expect(browserJob).toContain("test:e2e:smoke:app");
 		expect(browserJob).toContain("test:e2e:smoke:worker");
 		expect(browserJob).toContain("continue-on-error: true");
 		expect(browserJob).toContain("actions/upload-artifact@");
 		expect(browserJob).toContain("retention-days: 7");
-		expect(requiredJob).toContain("- browser-smoke");
-		expect(requiredJob).toContain(requiredResultExpression);
+		expect(requiredJob).toContain("ui-smoke");
+		expect(requiredJob).toContain("UI_SMOKE_RESULT");
+		expect(affectedCheck).toContain("CI=1");
+		expect(affectedCheck).toContain("CAMPUS_WEB_E2E_DOCS_PREBUILT=1");
+		expect(affectedCheck).toMatch(/CAMPUS_WEB_E2E_PORT=.*27114/u);
 	});
 });

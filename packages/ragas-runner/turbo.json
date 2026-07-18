@@ -3,7 +3,13 @@
 	"extends": ["//"],
 	"tasks": {
 		"test:eval": {
-			"inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/pyproject.toml", "$TURBO_ROOT$/uv.lock"]
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/pyproject.toml",
+				"$TURBO_ROOT$/uv.lock"
+			]
 		}
 	}
 }

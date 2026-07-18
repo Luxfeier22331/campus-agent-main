@@ -5,12 +5,16 @@
 		"test": {
 			"inputs": [
 				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
 				"$TURBO_ROOT$/configs/runtime/latency-budgets.v1.json"
 			]
 		},
 		"typecheck": {
 			"inputs": [
 				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
 				"$TURBO_ROOT$/configs/runtime/latency-budgets.v1.json"
 			]
 		}

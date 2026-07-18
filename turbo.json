@@ -48,185 +48,13 @@
 			"outputLogs": "new-only",
 			"outputs": []
 		},
-		"agent-runtime#test": {
-			"dependsOn": ["^test"],
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"!README.md",
-				"!**/README.md",
-				"$TURBO_ROOT$/configs/runtime/tool-function-schemas.v2.json",
-				"$TURBO_ROOT$/configs/runtime/tools.v5.json",
-				"$TURBO_ROOT$/configs/runtime/workflow-artifacts.v2.json"
-			],
-			"outputLogs": "new-only"
-		},
-		"app-api#build:worker": {
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"!README.md",
-				"!**/README.md",
-				"$TURBO_ROOT$/configs/runtime/**",
-				"$TURBO_ROOT$/configs/sources/**",
-				"$TURBO_ROOT$/packages/domains/dining/package.json",
-				"$TURBO_ROOT$/packages/domains/dining/src/**/*.ts",
-				"$TURBO_ROOT$/packages/ingestion-contracts/package.json",
-				"$TURBO_ROOT$/packages/ingestion-contracts/schemas/**",
-				"$TURBO_ROOT$/packages/ingestion-contracts/src/**/*.ts"
-			],
-			"outputLogs": "new-only",
-			"outputs": ["dist/worker/**"]
-		},
-		"app-api#typecheck": {
-			"dependsOn": ["^typecheck"],
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"!README.md",
-				"!**/README.md",
-				"$TURBO_ROOT$/configs/runtime/latency-budgets.v1.json",
-				"$TURBO_ROOT$/configs/sources/official_web/muc_public/target-inventory.json",
-				"$TURBO_ROOT$/scripts/deploy/**",
-				"$TURBO_ROOT$/scripts/smoke/**"
-			],
-			"outputLogs": "new-only"
-		},
-		"app-api#test": {
-			"dependsOn": ["^test"],
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"$TURBO_ROOT$/package.json",
-				"$TURBO_ROOT$/turbo.json",
-				"$TURBO_ROOT$/configs/runtime/**",
-				"$TURBO_ROOT$/configs/sources/official_web/muc_public/target-inventory.json",
-				"$TURBO_ROOT$/jobs/app-api-schema/**",
-				"$TURBO_ROOT$/packages/contracts/fixtures/tool_execution_contract/**",
-				"$TURBO_ROOT$/packages/eval-langfuse/test/fixtures/langfuse_trace_id_vectors.json",
-				"$TURBO_ROOT$/scripts/deploy/**",
-				"$TURBO_ROOT$/scripts/smoke/**"
-			],
-			"outputLogs": "new-only"
-		},
-		"app-api#test:worker": {
-			"dependsOn": ["^test"],
-			"inputs": [
-				"package.json",
-				"scripts/**",
-				"src/**",
-				"test/federation-runtime-readiness.test.ts",
-				"test/worker-scheduled-sweepers.test.ts",
-				"test/worker.test.ts",
-				"tsconfig.json",
-				"vitest.worker.config.mts",
-				"wrangler*.toml",
-				"$TURBO_ROOT$/configs/runtime/latency-budgets.v1.json",
-				"$TURBO_ROOT$/configs/sources/official_web/muc_public/target-inventory.json",
-				"$TURBO_ROOT$/package.json",
-				"$TURBO_ROOT$/scripts/deploy/**",
-				"$TURBO_ROOT$/scripts/smoke/**"
-			],
-			"outputLogs": "new-only"
-		},
-		"campus-web#build": {
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"!README.md",
-				"!**/README.md",
-				"$TURBO_ROOT$/configs/branding/**",
-				"$TURBO_ROOT$/docs/**",
-				"$TURBO_ROOT$/packages/domains/dining/package.json",
-				"$TURBO_ROOT$/packages/domains/dining/src/**/*.ts"
-			],
-			"outputLogs": "new-only",
-			"outputs": ["dist/**", ".tanstack/**"]
-		},
-		"campus-web#build:app": {
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"!README.md",
-				"!**/README.md",
-				"$TURBO_ROOT$/configs/branding/**",
-				"$TURBO_ROOT$/packages/domains/dining/package.json",
-				"$TURBO_ROOT$/packages/domains/dining/src/**/*.ts"
-			],
-			"outputLogs": "new-only",
-			"outputs": ["dist/**", ".tanstack/**"]
-		},
-		"campus-web#test": {
-			"dependsOn": ["^test"],
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"!README.md",
-				"!**/README.md",
-				"$TURBO_ROOT$/configs/branding/**",
-				"$TURBO_ROOT$/scripts/deploy/**",
-				"$TURBO_ROOT$/scripts/smoke/**"
-			],
-			"outputLogs": "new-only"
-		},
-		"campus-web#typecheck": {
-			"dependsOn": ["^typecheck"],
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"!README.md",
-				"!**/README.md",
-				"$TURBO_ROOT$/scripts/deploy/**",
-				"$TURBO_ROOT$/scripts/smoke/**"
-			],
-			"outputLogs": "new-only"
-		},
-		"campus-web#test:worker": {
-			"dependsOn": ["^test"],
-			"inputs": [
-				"package.json",
-				"src/**",
-				"test/assets/**",
-				"test/**/*.worker.test.ts",
-				"tsconfig.json",
-				"vitest.worker.config.mts",
-				"wrangler.test.toml"
-			],
-			"outputLogs": "new-only"
-		},
 		"campus-contracts#typecheck": {
 			"dependsOn": ["^typecheck"],
 			"inputs": ["package.json", "scripts/**/*.ts", "test/**/*.ts", "tsconfig.json"],
 			"outputLogs": "new-only"
 		},
-		"campus-contracts#test": {
-			"dependsOn": ["^test"],
-			"inputs": [
-				"fixtures/**",
-				"package.json",
-				"schemas/**",
-				"scripts/**/*.ts",
-				"test/**/*.ts",
-				"tsconfig.json",
-				"$TURBO_ROOT$/configs/runtime/**",
-				"$TURBO_ROOT$/docs/contracts/schemas/tool-execution.openapi.yaml"
-			],
-			"outputLogs": "new-only"
-		},
-		"ingest-core#test": {
-			"dependsOn": ["^test"],
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"!README.md",
-				"!**/README.md",
-				"$TURBO_ROOT$/configs/ingestion/**"
-			],
-			"outputLogs": "new-only"
-		},
 		"ingest-core#test:ingest": {
 			"dependsOn": ["^test:ingest"],
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"!README.md",
-				"!**/README.md",
-				"$TURBO_ROOT$/configs/ingestion/**"
-			],
-			"outputLogs": "new-only"
-		},
-		"ingestion-control#test": {
-			"dependsOn": ["^test"],
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				"!README.md",
@@ -275,26 +103,6 @@
 			],
 			"outputLogs": "new-only"
 		},
-		"learning-loop-candidates#test": {
-			"dependsOn": ["^test"],
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"!README.md",
-				"!**/README.md",
-				"$TURBO_ROOT$/configs/runtime/latency-budgets.v1.json"
-			],
-			"outputLogs": "new-only"
-		},
-		"learning-loop-candidates#typecheck": {
-			"dependsOn": ["^typecheck"],
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"!README.md",
-				"!**/README.md",
-				"$TURBO_ROOT$/configs/runtime/latency-budgets.v1.json"
-			],
-			"outputLogs": "new-only"
-		},
 		"ingestion-contracts#typecheck": {
 			"dependsOn": ["^typecheck"],
 			"inputs": ["package.json", "schemas/**", "src/**/*.ts", "test/**/*.ts", "tsconfig.json"],
@@ -309,16 +117,6 @@
 				"src/**/*.ts",
 				"test/**/*.ts",
 				"tsconfig.json"
-			],
-			"outputLogs": "new-only"
-		},
-		"source-collector#test": {
-			"dependsOn": ["^test"],
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"!README.md",
-				"!**/README.md",
-				"$TURBO_ROOT$/configs/sources/**"
 			],
 			"outputLogs": "new-only"
 		},

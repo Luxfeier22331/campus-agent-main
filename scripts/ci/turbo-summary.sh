@@ -32,6 +32,6 @@ duration_ms="$(jq -r '(.execution.endTime // 0) - (.execution.startTime // 0)' "
 		]
 		| sort_by(-.duration_ms)
 		| .[:10][]
-		| "| `\(.taskId)` | \(.cache.status // "MISS") | \((.duration_ms / 1000 * 10 | round) / 10)s | \(if .duration_ms >= 30000 then "over 30s" else "" end) |"
+		| "| `\(.taskId)` | \(.cache.status // "MISS") | \((.duration_ms / 1000 * 10 | round) / 10)s | \(if .duration_ms >= 10000 then "review" else "" end) |"
 	' "$summary"
 } >> "$output"

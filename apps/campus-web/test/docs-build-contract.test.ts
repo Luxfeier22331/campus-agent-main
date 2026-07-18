@@ -10,6 +10,7 @@ import {
 	parseBuildPublishedReaderDocsArgs,
 } from "../scripts/build-published-reader-docs";
 import { parseReleaseBuildArgs } from "../scripts/build-release";
+import { verifyPublishedReaderRelease } from "../scripts/verify-published-reader-release";
 
 let fixtureRoot: string | null = null;
 
@@ -37,6 +38,24 @@ describe("campus docs build contract", () => {
 		expect(() =>
 			assertManifestBytesSha256(new TextEncoder().encode('{"surface":"campus_docs"}'), digest),
 		).not.toThrow();
+	});
+
+	it("verifies the selected release through the object-store client", async () => {
+		const bytes = new TextEncoder().encode('{"surface":"campus_docs"}');
+		const digest = createHash("sha256").update(bytes).digest("hex");
+		const releaseId = `sha256:${digest}`;
+		await expect(
+			verifyPublishedReaderRelease(releaseId, {
+				readOptionalBytesObject: async () => bytes,
+				readTextObject: async () => "",
+			}),
+		).resolves.toBeUndefined();
+		await expect(
+			verifyPublishedReaderRelease(releaseId, {
+				readOptionalBytesObject: async () => undefined,
+				readTextObject: async () => "",
+			}),
+		).rejects.toThrow("missing docs reader release manifest object");
 	});
 
 	it("accepts one content-addressed release id and rejects legacy selectors", () => {

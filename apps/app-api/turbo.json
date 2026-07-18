@@ -4,16 +4,36 @@
 	"tasks": {
 		"build:worker": {
 			"inputs": [
-				"$TURBO_DEFAULT$",
-				"$TURBO_ROOT$/configs/runtime/**",
-				"$TURBO_ROOT$/configs/sources/official_web/**"
-			]
+				"package.json",
+				"scripts/**",
+				"src/**",
+				"tsconfig.json",
+				"wrangler*.toml",
+				"$TURBO_ROOT$/configs/runtime/latency-budgets.v1.json",
+				"$TURBO_ROOT$/packages/domains/dining/package.json",
+				"$TURBO_ROOT$/packages/domains/dining/src/**",
+				"$TURBO_ROOT$/scripts/deploy/check-worker-secret-presence.ts",
+				"$TURBO_ROOT$/scripts/deploy/doctor-env.ts",
+				"$TURBO_ROOT$/scripts/deploy/doctor-env/**",
+				"$TURBO_ROOT$/scripts/deploy/lib/env-file.ts",
+				"$TURBO_ROOT$/scripts/deploy/lib/repo-env.ts",
+				"$TURBO_ROOT$/scripts/deploy/run-worker-staging-preflight.ts",
+				"$TURBO_ROOT$/scripts/deploy/run-wrangler-command.ts",
+				"$TURBO_ROOT$/scripts/deploy/staging-release.ts",
+				"$TURBO_ROOT$/scripts/deploy/worker-observability-config.ts",
+				"$TURBO_ROOT$/scripts/deploy/worker-version.ts"
+			],
+			"outputLogs": "new-only",
+			"outputs": ["dist/worker/**"]
 		},
 		"test": {
 			"inputs": [
 				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
 				"$TURBO_ROOT$/configs/runtime/**",
 				"$TURBO_ROOT$/configs/sources/official_web/**",
+				"$TURBO_ROOT$/jobs/app-api-schema/**",
 				"$TURBO_ROOT$/package.json",
 				"$TURBO_ROOT$/packages/contracts/fixtures/**",
 				"$TURBO_ROOT$/packages/eval-langfuse/test/fixtures/langfuse_trace_id_vectors.json",
@@ -24,19 +44,27 @@
 		},
 		"test:worker": {
 			"inputs": [
-				"$TURBO_DEFAULT$",
-				"$TURBO_ROOT$/configs/runtime/**",
-				"$TURBO_ROOT$/configs/sources/official_web/**",
-				"$TURBO_ROOT$/package.json",
+				"package.json",
+				"scripts/**",
+				"src/**",
+				"test/federation-runtime-readiness.test.ts",
+				"test/worker-scheduled-sweepers.test.ts",
+				"test/worker.test.ts",
+				"tsconfig.json",
+				"vitest.worker.config.mts",
+				"wrangler*.toml",
+				"$TURBO_ROOT$/configs/runtime/latency-budgets.v1.json",
 				"$TURBO_ROOT$/scripts/deploy/**"
 			]
 		},
 		"typecheck": {
 			"inputs": [
 				"$TURBO_DEFAULT$",
-				"$TURBO_ROOT$/configs/runtime/**",
-				"$TURBO_ROOT$/configs/sources/official_web/**",
-				"$TURBO_ROOT$/scripts/deploy/**"
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/configs/runtime/latency-budgets.v1.json",
+				"$TURBO_ROOT$/scripts/deploy/**",
+				"$TURBO_ROOT$/scripts/smoke/**"
 			]
 		}
 	}

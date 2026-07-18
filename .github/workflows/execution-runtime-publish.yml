@@ -3,6 +3,11 @@ name: staging-candidate-publish
 on:
   workflow_dispatch:
     inputs:
+      validate_only:
+        description: Validate staging Worker configuration without publishing candidates
+        required: true
+        default: true
+        type: boolean
       promote:
         description: Open or update the staging GitOps promotion pull request
         required: true
@@ -15,66 +20,105 @@ on:
   push:
     branches:
       - main
-    paths:
-      - apps/execution-control/**
-      - apps/agent-runtime/**
-      - apps/ingestion-control/**
-      - apps/source-collector/**
-      - apps/ops-web/**
-      - apps/campus-web/**
-      - jobs/app-api-schema/**
-      - jobs/transport-publisher/**
-      - jobs/docs-publish/**
-      - apps/app-api/package.json
-      - apps/app-api/scripts/**
-      - apps/app-api/src/**
-      - apps/app-api/wrangler.toml
-      - apps/app-api/db/shared-product-schema/**
-      - apps/app-api/drizzle/**
-      - apps/app-api/ops/db/**
-      - apps/app-api/src/script-support/shared-db/**
-      - configs/ingestion/**
-      - configs/branding/**
-      - configs/sources/**
-      - configs/runtime/execution-control/**
-      - configs/runtime/query-serving-targets.v1.json
-      - configs/runtime/tool-function-schemas.v2.json
-      - configs/runtime/tools.v5.json
-      - configs/runtime/workflow-artifacts.v2.json
-      - infra/k8s/**
-      - packages/contracts/fixtures/tool_execution_contract/**
-      - packages/contracts/schemas/transport-schedule-status.v1.schema.json
-      - packages/contracts/schemas/campus-docs-*.schema.json
-      - packages/domains/dining/**
-      - packages/ingest-core/**
-      - packages/ingestion-contracts/**
-      - packages/ingestion-kernels-rs/**
-      - scripts/deploy/**
-      - Cargo.lock
-      - Cargo.toml
-      - pnpm-lock.yaml
-      - pnpm-workspace.yaml
-      - package.json
-      - turbo.json
-      - .dockerignore
 
 permissions:
   contents: read
-  packages: write
 
 concurrency:
   group: staging-candidate-publish
   cancel-in-progress: false
+  queue: max
 
 jobs:
-  publish:
+  release-plan:
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
+    timeout-minutes: 10
+    outputs:
+      images: ${{ steps.plan.outputs.images }}
+      kubernetes: ${{ steps.plan.outputs.kubernetes }}
+      validate_only: ${{ steps.plan.outputs.validate_only }}
+      worker_filters: ${{ steps.plan.outputs.worker_filters }}
+      workers: ${{ steps.plan.outputs.workers }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+        with:
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+
+      - name: Setup planning tools
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          workspace-filters: campus-agent-web-workspace
+
+      - name: Build release plan
+        id: plan
+        env:
+          BASE_SHA: ${{ github.event.before }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.sha }}
+          PROMOTE: ${{ inputs.promote || false }}
+          VALIDATE_ONLY: ${{ inputs.validate_only || false }}
+        run: |
+          set -euo pipefail
+          if [ "$PROMOTE" = true ] && [ "$GITHUB_REF" != refs/heads/main ]; then
+            echo "Manual promotion is allowed only from main." >&2
+            exit 1
+          fi
+          if [ "$PROMOTE" = true ] && [ "$VALIDATE_ONLY" = true ]; then
+            echo "Validation-only runs cannot promote candidates." >&2
+            exit 1
+          fi
+          if [ "$EVENT_NAME" = workflow_dispatch ]; then
+            if [ "$VALIDATE_ONLY" = true ]; then
+              release='{"images":[],"kubernetes":false,"workers":["app-api","campus-web"]}'
+            else
+              images="$(node --input-type=module -e \
+                'import { ALL_IMAGES } from "./scripts/ci/ci-surfaces.mjs"; process.stdout.write(JSON.stringify(ALL_IMAGES))')"
+              release="$(jq -cn --argjson images "$images" \
+                '{images: $images, kubernetes: true, workers: ["app-api", "campus-web"]}')"
+            fi
+          else
+            scripts/ci/write-change-plan.sh "$BASE_SHA" "$HEAD_SHA" change-plan.json
+            release="$(jq -c .release change-plan.json)"
+          fi
+          worker_filters="$(jq -c '[.workers[] | if . == "app-api" then "app-api..." else "campus-web..." end]' <<< "$release")"
+          {
+            echo "images=$(jq -c .images <<< "$release")"
+            echo "kubernetes=$(jq -r .kubernetes <<< "$release")"
+            echo "validate_only=$VALIDATE_ONLY"
+            echo "worker_filters=$worker_filters"
+            echo "workers=$(jq -c .workers <<< "$release")"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo '### Release plan'
+            echo
+            echo '```json'
+            jq . <<< "$release"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  release-config:
+    needs: release-plan
+    if: fromJSON(needs.release-plan.outputs.workers)[0] != null
+    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
+    timeout-minutes: 15
     environment: staging
+    outputs:
+      docs_release_id: ${{ steps.docs-release.outputs.release_id }}
+      object_store_endpoint: ${{ steps.object-store.outputs.endpoint }}
     env:
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_AUTOMATION_TOKEN }}
-      STAGING_ACCESS_POLICY_AUD: ${{ vars.STAGING_ACCESS_POLICY_AUD }}
-      STAGING_ACCESS_TEAM_DOMAIN: ${{ vars.STAGING_ACCESS_TEAM_DOMAIN }}
+      OBJECT_STORE_BUCKET_DERIVED: ${{ vars.STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED }}
+      OBJECT_STORE_DERIVED_ACCESS_KEY: ${{ secrets.STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY }}
+      OBJECT_STORE_DERIVED_SECRET_KEY: ${{ secrets.STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY }}
+      OBJECT_STORE_REGION: ${{ vars.STAGING_INGESTION_OBJECT_STORE_REGION }}
+      SENTRY_APP_API_PROJECT_SLUG: ${{ vars.SENTRY_APP_API_PROJECT_SLUG }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      SENTRY_CAMPUS_WEB_PROJECT_SLUG: ${{ vars.SENTRY_CAMPUS_WEB_PROJECT_SLUG }}
+      SENTRY_ORG_SLUG: ${{ vars.SENTRY_ORG_SLUG }}
       STAGING_APP_API_DB_FRESH_HYPERDRIVE_ID: ${{ vars.STAGING_APP_API_DB_FRESH_HYPERDRIVE_ID }}
       STAGING_APP_API_DB_HYPERDRIVE_ID: ${{ vars.STAGING_APP_API_DB_HYPERDRIVE_ID }}
       STAGING_APP_API_SENTRY_DSN: ${{ vars.STAGING_APP_API_SENTRY_DSN }}
@@ -87,351 +131,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
         with:
-          fetch-depth: 0
           persist-credentials: false
 
-      - name: Detect changed release inputs
-        if: github.event_name == 'push'
-        id: release-filter
-        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706  # v4.0.2
-        with:
-          base: ${{ github.event.before }}
-          ref: ${{ github.sha }}
-          filters: |
-            execution_control:
-              - '.dockerignore'
-              - 'apps/execution-control/**'
-              - 'configs/ingestion/**'
-              - 'configs/runtime/execution-control/**'
-              - 'configs/runtime/query-serving-targets.v1.json'
-              - 'configs/runtime/tool-function-schemas.v2.json'
-              - 'configs/runtime/tools.v5.json'
-              - 'configs/runtime/workflow-artifacts.v2.json'
-              - 'packages/contracts/fixtures/tool_execution_contract/**'
-            agent_runtime:
-              - '.dockerignore'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - 'apps/agent-runtime/**'
-              - 'configs/runtime/tool-function-schemas.v2.json'
-              - 'configs/runtime/tools.v5.json'
-              - 'configs/runtime/workflow-artifacts.v2.json'
-            app_api_schema:
-              - '.dockerignore'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - 'jobs/app-api-schema/**'
-              - 'apps/app-api/package.json'
-              - 'apps/app-api/db/shared-product-schema/**'
-              - 'apps/app-api/drizzle/**'
-              - 'apps/app-api/ops/db/**'
-              - 'apps/app-api/src/script-support/shared-db/**'
-            transport_publisher:
-              - '.dockerignore'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - 'jobs/transport-publisher/**'
-              - 'apps/app-api/db/shared-product-schema/campus_services.sql'
-              - 'packages/contracts/schemas/transport-schedule-status.v1.schema.json'
-            docs_publish:
-              - '.dockerignore'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - 'jobs/docs-publish/**'
-              - 'packages/contracts/schemas/campus-docs-*.schema.json'
-            ingestion_control:
-              - '.dockerignore'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - 'turbo.json'
-              - 'apps/ingestion-control/**'
-              - 'configs/ingestion/**'
-              - 'packages/ingest-core/**'
-              - 'packages/ingestion-contracts/**'
-            ingestion_control_worker:
-              - '.dockerignore'
-              - 'Cargo.lock'
-              - 'Cargo.toml'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - 'turbo.json'
-              - 'apps/ingestion-control/**'
-              - 'configs/ingestion/**'
-              - 'packages/ingest-core/**'
-              - 'packages/ingestion-contracts/**'
-              - 'packages/ingestion-kernels-rs/**'
-            source_collector:
-              - '.dockerignore'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - 'turbo.json'
-              - 'apps/source-collector/**'
-              - 'configs/ingestion/**'
-              - 'configs/sources/**'
-              - 'packages/ingest-core/**'
-              - 'packages/ingestion-contracts/**'
-            ops_web_image:
-              - '.dockerignore'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - 'turbo.json'
-              - 'apps/ops-web/**'
-            k8s:
-              - 'infra/k8s/**'
-            app_api_worker:
-              - 'package.json'
-              - 'pnpm-workspace.yaml'
-              - 'apps/app-api/**'
-              - 'configs/runtime/**'
-              - 'configs/sources/**'
-              - 'packages/domains/dining/**'
-              - 'packages/ingestion-contracts/**'
-              - 'scripts/deploy/**'
-            campus_web_worker:
-              - 'package.json'
-              - 'pnpm-workspace.yaml'
-              - 'apps/campus-web/**'
-              - 'configs/branding/**'
-              - 'packages/domains/dining/**'
-              - 'scripts/deploy/**'
-            worker_lockfile:
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-
-      - name: Select images
-        id: images
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ "${{ inputs.promote || false }}" = "true" ] && [ "$GITHUB_REF" != "refs/heads/main" ]; then
-            echo "Manual promotion is allowed only from main." >&2
-            exit 1
-          fi
-          images=()
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            images=(
-              execution-control
-              agent-runtime
-              app-api-schema
-              transport-publisher
-              docs-publish
-              ingestion-control
-              ingestion-control-worker
-              source-collector
-              ops-web
-            )
-          else
-            [ "${{ steps.release-filter.outputs.execution_control }}" = "true" ] && images+=(execution-control)
-            [ "${{ steps.release-filter.outputs.agent_runtime }}" = "true" ] && images+=(agent-runtime)
-            [ "${{ steps.release-filter.outputs.app_api_schema }}" = "true" ] && images+=(app-api-schema)
-            [ "${{ steps.release-filter.outputs.transport_publisher }}" = "true" ] && images+=(transport-publisher)
-            [ "${{ steps.release-filter.outputs.docs_publish }}" = "true" ] && images+=(docs-publish)
-            [ "${{ steps.release-filter.outputs.ingestion_control }}" = "true" ] && images+=(ingestion-control)
-            [ "${{ steps.release-filter.outputs.ingestion_control_worker }}" = "true" ] && images+=(ingestion-control-worker)
-            [ "${{ steps.release-filter.outputs.source_collector }}" = "true" ] && images+=(source-collector)
-            [ "${{ steps.release-filter.outputs.ops_web_image }}" = "true" ] && images+=(ops-web)
-          fi
-          if [ "${#images[@]}" -eq 0 ]; then
-            images_json='[]'
-          else
-            images_json="$(printf '%s\n' "${images[@]}" | jq -R . | jq -sc .)"
-          fi
-          echo '{}' > image-digests.json
-          echo "images=$images_json" >> "$GITHUB_OUTPUT"
-
-      - name: Select Workers
-        id: workers
-        shell: bash
-        env:
-          WORKER_APP_API_SURFACE: ${{ steps.release-filter.outputs.app_api_worker }}
-          WORKER_CAMPUS_WEB_SURFACE: ${{ steps.release-filter.outputs.campus_web_worker }}
-          WORKER_CHANGED_FILE_COUNT: ${{ steps.release-filter.outputs.worker_all_changes_count }}
-          WORKER_LOCKFILE_CHANGED: ${{ steps.release-filter.outputs.worker_lockfile }}
-        run: |
-          set -euo pipefail
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            app_api=true
-            campus_web=true
-          else
-            app_api="${{ steps.release-filter.outputs.app_api_worker }}"
-            campus_web="${{ steps.release-filter.outputs.campus_web_worker }}"
-          fi
-          workers=()
-          [ "$app_api" = "true" ] && workers+=(app-api)
-          [ "$campus_web" = "true" ] && workers+=(campus-web)
-          if [ "${#workers[@]}" -eq 0 ]; then
-            workers_json='[]'
-          else
-            workers_json="$(printf '%s\n' "${workers[@]}" | jq -R . | jq -sc .)"
-          fi
-          mkdir -p worker-candidates
-          {
-            echo "app_api=$app_api"
-            echo "campus_web=$campus_web"
-            echo "workers=$workers_json"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Setup persistent Docker Buildx
-        if: steps.images.outputs.images != '[]' && runner.environment == 'self-hosted'
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4
-        with:
-          name: campus-agent-release
-          keep-state: true
-          cleanup: false
-          cache-binary: false
-          buildkitd-config-inline: |
-            [worker.oci]
-              gc = true
-              reservedSpace = "2GB"
-              maxUsedSpace = "12GB"
-              minFreeSpace = "25GB"
-
-      - name: Setup temporary Docker Buildx
-        if: steps.images.outputs.images != '[]' && runner.environment == 'github-hosted'
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4
-
-      - name: Verify Trivy
-        if: steps.images.outputs.images != '[]' && runner.environment == 'self-hosted'
-        run: test "$(trivy --version | awk 'NR == 1 {print $2}')" = "0.72.0"
-
-      - name: Setup Trivy
-        if: steps.images.outputs.images != '[]' && runner.environment == 'github-hosted'
-        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567  # v0.3.1
-        with:
-          version: v0.72.0
-          cache: true
-
-      - name: Login to GHCR
-        if: steps.images.outputs.images != '[]'
-        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0  # v4.4.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build, publish and scan images
-        if: steps.images.outputs.images != '[]'
-        shell: bash
-        env:
-          IMAGES: ${{ steps.images.outputs.images }}
-        run: |
-          set -euo pipefail
-          trivy_cache_dir="${RUNNER_TOOL_CACHE}/trivy"
-          echo '{}' > image-digests.json
-          while IFS= read -r image; do
-            target=""
-            case "$image" in
-              execution-control) dockerfile=apps/execution-control/Dockerfile ;;
-              agent-runtime) dockerfile=apps/agent-runtime/Dockerfile ;;
-              app-api-schema) dockerfile=jobs/app-api-schema/Dockerfile ;;
-              transport-publisher) dockerfile=jobs/transport-publisher/Dockerfile ;;
-              docs-publish) dockerfile=jobs/docs-publish/Dockerfile ;;
-              ingestion-control)
-                dockerfile=apps/ingestion-control/Dockerfile
-                target=api
-                ;;
-              ingestion-control-worker)
-                dockerfile=apps/ingestion-control/Dockerfile
-                target=worker
-                ;;
-              source-collector)
-                dockerfile=apps/source-collector/Dockerfile
-                target=runtime
-                ;;
-              ops-web) dockerfile=apps/ops-web/Dockerfile ;;
-              *) echo "Unsupported image: $image" >&2; exit 1 ;;
-            esac
-            repository="ghcr.io/${GITHUB_REPOSITORY,,}/${image}"
-            tag="${repository}:${GITHUB_SHA}"
-            metadata_file="build-metadata-${image}.json"
-            inspect_file="inspect-${image}.json"
-            inspect_error="inspect-${image}.error"
-            if docker buildx imagetools inspect "$tag" --format '{{json .}}' \
-              > "$inspect_file" 2> "$inspect_error"; then
-              if ! jq -e '
-                (.manifest.mediaType == "application/vnd.oci.image.index.v1+json" or
-                  .manifest.mediaType == "application/vnd.docker.distribution.manifest.list.v2+json") and
-                (.manifest.digest | test("^sha256:[0-9a-f]{64}$")) and
-                ([.manifest.manifests[]? |
-                  select(.platform.os == "linux" and .platform.architecture == "arm64")] |
-                  length == 1) and
-                ([.manifest.manifests[]? |
-                  select(.platform.os == "linux" and .platform.architecture != "arm64")] |
-                  length == 0)
-              ' "$inspect_file" >/dev/null; then
-                echo "Existing immutable tag is incomplete or invalid: ${tag}." >&2
-                exit 1
-              fi
-              digest="$(jq -er '.manifest.digest' "$inspect_file")"
-              echo "Reusing ${tag}@${digest}."
-            else
-              if ! rg -qi 'manifest unknown|not found' "$inspect_error"; then
-                cat "$inspect_error" >&2
-                exit 1
-              fi
-              build_args=(
-                --file "$dockerfile"
-                --platform "linux/arm64"
-                --pull
-                --push
-                --sbom=true
-                --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}"
-                --label "org.opencontainers.image.revision=${GITHUB_SHA}"
-                --metadata-file "$metadata_file"
-                --tag "$tag"
-              )
-              if [ -n "$target" ]; then
-                build_args+=(--target "$target")
-              fi
-              docker buildx build "${build_args[@]}" .
-              digest="$(
-                jq -er \
-                  '."containerimage.digest" | select(test("^sha256:[0-9a-f]{64}$"))' \
-                  "$metadata_file"
-              )"
-            fi
-            for platform in linux/arm64; do
-              trivy image \
-                --cache-dir "$trivy_cache_dir" \
-                --platform "$platform" \
-                --scanners vuln \
-                --ignore-unfixed \
-                --pkg-types os,library \
-                --severity HIGH,CRITICAL \
-                --exit-code 1 \
-                "${repository}@${digest}"
-            done
-            jq --arg image "$image" --arg digest "$digest" \
-              '. + {($image): $digest}' image-digests.json > image-digests.tmp
-            mv image-digests.tmp image-digests.json
-          done < <(jq -r '.[]' <<< "$IMAGES")
-
-      - name: Summarize published image digests
-        if: steps.images.outputs.images != '[]'
-        shell: bash
-        run: |
-          {
-            echo "### Published image digests"
-            echo
-            echo '| Image | Digest |'
-            echo '| --- | --- |'
-            jq -r 'to_entries[] | "| `\(.key)` | `\(.value)` |"' image-digests.json
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Setup Node
-        if: steps.workers.outputs.workers != '[]'
+      - name: Setup selected Worker workspaces
         uses: ./.github/actions/setup-node-pnpm
+        with:
+          workspace-filters: campus-agent-web-workspace
+          workspace-filters-json: ${{ needs.release-plan.outputs.worker_filters }}
+
+      - name: Validate app-api staging configuration
+        if: contains(fromJSON(needs.release-plan.outputs.workers), 'app-api')
+        run: pnpm exec tsx scripts/deploy/doctor-env.ts worker-staging-app-api --json
 
       - name: Create GitOps read token
-        if: steps.workers.outputs.campus_web == 'true' && (inputs.docs_release_id || '') == ''
+        if: contains(fromJSON(needs.release-plan.outputs.workers), 'campus-web') && (inputs.docs_release_id || '') == ''
         id: gitops-read-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3
         with:
@@ -451,58 +164,248 @@ jobs:
           path: gitops-selection
 
       - name: Resolve Campus Docs release
-        if: steps.workers.outputs.campus_web == 'true'
+        if: contains(fromJSON(needs.release-plan.outputs.workers), 'campus-web')
         id: docs-release
-        shell: bash
         env:
           REQUESTED_DOCS_RELEASE_ID: ${{ inputs.docs_release_id || '' }}
         run: |
           set -euo pipefail
-          release_id="${REQUESTED_DOCS_RELEASE_ID}"
+          release_id="$REQUESTED_DOCS_RELEASE_ID"
           selection=gitops-selection/cloudflare/staging/docs-reader-release.json
-          if [ -z "${release_id}" ]; then
-            jq -e '.schemaVersion == "campus_docs_release_ref.v1"' "${selection}" >/dev/null
-            release_id="$(jq -er '.releaseId' "${selection}")"
+          if [ -z "$release_id" ]; then
+            jq -e '.schemaVersion == "campus_docs_release_ref.v1"' "$selection" >/dev/null
+            release_id="$(jq -er .releaseId "$selection")"
           fi
-          if ! [[ "${release_id}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+          if ! [[ "$release_id" =~ ^sha256:[0-9a-f]{64}$ ]]; then
             echo "Invalid Campus Docs release id: ${release_id}." >&2
             exit 1
           fi
           echo "release_id=${release_id}" >> "$GITHUB_OUTPUT"
 
+      - name: Resolve and verify the object store
+        if: contains(fromJSON(needs.release-plan.outputs.workers), 'campus-web')
+        id: object-store
+        env:
+          DOCS_RELEASE_ID: ${{ steps.docs-release.outputs.release_id }}
+        run: |
+          set -euo pipefail
+          service_ip="$(kubectl -n campus-agent-staging get service object-store -o jsonpath='{.spec.clusterIP}')"
+          test -n "$service_ip"
+          endpoint="http://${service_ip}:9000"
+          curl --noproxy '*' --fail --silent --show-error --max-time 5 \
+            "${endpoint}/minio/health/live" >/dev/null
+          echo "OBJECT_STORE_ENDPOINT=${endpoint}" >> "$GITHUB_ENV"
+          echo "endpoint=${endpoint}" >> "$GITHUB_OUTPUT"
+          OBJECT_STORE_ENDPOINT="$endpoint" \
+            pnpm --dir apps/campus-web exec tsx \
+              ./scripts/verify-published-reader-release.ts "$DOCS_RELEASE_ID"
+
+      - name: Validate campus-web staging configuration
+        if: contains(fromJSON(needs.release-plan.outputs.workers), 'campus-web')
+        run: pnpm exec tsx scripts/deploy/doctor-env.ts worker-staging-campus-web --json
+
+  publish-images:
+    needs: [release-plan, release-config]
+    if: >-
+      always() &&
+      needs.release-plan.result == 'success' &&
+      (needs.release-config.result == 'success' || needs.release-config.result == 'skipped') &&
+      needs.release-plan.outputs.validate_only != 'true' &&
+      fromJSON(needs.release-plan.outputs.images)[0] != null
+    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          install: "false"
+
+      - name: Setup persistent Docker Buildx
+        if: runner.environment == 'self-hosted'
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4
+        with:
+          name: campus-agent-release
+          keep-state: true
+          cleanup: false
+          cache-binary: false
+          buildkitd-config-inline: |
+            [worker.oci]
+              gc = true
+              reservedSpace = "2GB"
+              maxUsedSpace = "12GB"
+              minFreeSpace = "25GB"
+
+      - name: Setup temporary Docker Buildx
+        if: runner.environment == 'github-hosted'
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4
+
+      - name: Verify Trivy
+        if: runner.environment == 'self-hosted'
+        run: test "$(trivy --version | awk 'NR == 1 {print $2}')" = "0.72.0"
+
+      - name: Setup Trivy
+        if: runner.environment == 'github-hosted'
+        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567  # v0.3.1
+        with:
+          version: v0.72.0
+          cache: true
+
+      - name: Login to GHCR
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0  # v4.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build, publish and scan images
+        env:
+          IMAGES: ${{ needs.release-plan.outputs.images }}
+        run: scripts/ci/publish-images.sh "$IMAGES" image-digests.json
+
+      - name: Summarize published image digests
+        run: |
+          {
+            echo "### Published image digests"
+            echo
+            echo '| Image | Digest |'
+            echo '| --- | --- |'
+            jq -r 'to_entries[] | "| `\(.key)` | `\(.value)` |"' image-digests.json
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload image digests
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          name: release-image-digests
+          path: image-digests.json
+          retention-days: 1
+
+  publish-workers:
+    needs: [release-plan, release-config]
+    if: >-
+      needs.release-config.result == 'success' &&
+      needs.release-plan.outputs.validate_only != 'true' &&
+      fromJSON(needs.release-plan.outputs.workers)[0] != null
+    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
+    timeout-minutes: 45
+    environment: staging
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_AUTOMATION_TOKEN }}
+      STAGING_APP_API_DB_FRESH_HYPERDRIVE_ID: ${{ vars.STAGING_APP_API_DB_FRESH_HYPERDRIVE_ID }}
+      STAGING_APP_API_DB_HYPERDRIVE_ID: ${{ vars.STAGING_APP_API_DB_HYPERDRIVE_ID }}
+      STAGING_APP_API_SENTRY_DSN: ${{ vars.STAGING_APP_API_SENTRY_DSN }}
+      STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY: ${{ vars.STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY }}
+      STAGING_CAMPUS_WEB_BROWSER_SENTRY_DSN: ${{ vars.STAGING_CAMPUS_WEB_BROWSER_SENTRY_DSN }}
+      STAGING_CAMPUS_WEB_EDGE_SENTRY_DSN: ${{ vars.STAGING_CAMPUS_WEB_EDGE_SENTRY_DSN }}
+      STAGING_EXECUTION_CONTROL_VPC_SERVICE_ID: ${{ vars.STAGING_EXECUTION_CONTROL_VPC_SERVICE_ID }}
+      STAGING_MAP_DATA_BUCKET_NAME: ${{ vars.STAGING_MAP_DATA_BUCKET_NAME }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          workspace-filters: campus-agent-web-workspace
+          workspace-filters-json: ${{ needs.release-plan.outputs.worker_filters }}
+
       - name: Upload app-api candidate
-        if: steps.workers.outputs.app_api == 'true'
+        if: contains(fromJSON(needs.release-plan.outputs.workers), 'app-api')
         env:
           SENTRY_APP_API_PROJECT_SLUG: ${{ vars.SENTRY_APP_API_PROJECT_SLUG }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG_SLUG: ${{ vars.SENTRY_ORG_SLUG }}
           WORKER_VERSION_OUTPUT: ${{ github.workspace }}/worker-candidates/app-api-staging.json
-        run: pnpm --dir apps/app-api upload:staging
+        run: |
+          mkdir -p worker-candidates
+          pnpm --dir apps/app-api upload:staging
 
       - name: Build and upload campus-web candidate
-        if: steps.workers.outputs.campus_web == 'true'
+        if: contains(fromJSON(needs.release-plan.outputs.workers), 'campus-web')
         env:
           CAMPUS_WEB_SENTRY_SOURCE_MAP_UPLOAD: required
-          DOCS_RELEASE_ID: ${{ steps.docs-release.outputs.release_id }}
+          DOCS_RELEASE_ID: ${{ needs.release-config.outputs.docs_release_id }}
           OBJECT_STORE_BUCKET_DERIVED: ${{ vars.STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED }}
           OBJECT_STORE_DERIVED_ACCESS_KEY: ${{ secrets.STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY }}
           OBJECT_STORE_DERIVED_SECRET_KEY: ${{ secrets.STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY }}
-          OBJECT_STORE_ENDPOINT: ${{ vars.STAGING_INGESTION_OBJECT_STORE_ENDPOINT }}
+          OBJECT_STORE_ENDPOINT: ${{ needs.release-config.outputs.object_store_endpoint }}
           OBJECT_STORE_REGION: ${{ vars.STAGING_INGESTION_OBJECT_STORE_REGION }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_CAMPUS_WEB_PROJECT_SLUG: ${{ vars.SENTRY_CAMPUS_WEB_PROJECT_SLUG }}
           SENTRY_ORG_SLUG: ${{ vars.SENTRY_ORG_SLUG }}
           WORKER_VERSION_OUTPUT: ${{ github.workspace }}/worker-candidates/campus-web-staging.json
         run: |
-          pnpm --dir apps/campus-web run build:staging \
-            --release-id "${DOCS_RELEASE_ID}"
+          mkdir -p worker-candidates
+          pnpm --dir apps/campus-web run build:staging --release-id "${DOCS_RELEASE_ID}"
           pnpm --dir apps/campus-web upload:staging
 
+      - name: Upload Worker candidates
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          name: release-worker-candidates
+          path: worker-candidates/*.json
+          retention-days: 1
+
+  promote:
+    needs: [release-plan, release-config, publish-images, publish-workers]
+    if: >-
+      always() &&
+      needs.release-plan.result == 'success' &&
+      (
+        needs.release-config.result == 'success' ||
+        (
+          needs.release-config.result == 'skipped' &&
+          fromJSON(needs.release-plan.outputs.workers)[0] == null
+        )
+      ) &&
+      (needs.publish-images.result == 'success' || needs.publish-images.result == 'skipped') &&
+      (needs.publish-workers.result == 'success' || needs.publish-workers.result == 'skipped') &&
+      needs.release-plan.outputs.validate_only != 'true' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || inputs.promote) &&
+      (
+        fromJSON(needs.release-plan.outputs.images)[0] != null ||
+        fromJSON(needs.release-plan.outputs.workers)[0] != null ||
+        needs.release-plan.outputs.kubernetes == 'true'
+      )
+    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
+    timeout-minutes: 30
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+        with:
+          persist-credentials: false
+
+      - name: Prepare release inputs
+        run: |
+          echo '{}' > image-digests.json
+          mkdir -p worker-candidates
+
+      - name: Download image digests
+        if: fromJSON(needs.release-plan.outputs.images)[0] != null
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7
+        with:
+          name: release-image-digests
+
+      - name: Download Worker candidates
+        if: fromJSON(needs.release-plan.outputs.workers)[0] != null
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7
+        with:
+          name: release-worker-candidates
+          path: worker-candidates
+
       - name: Create GitOps promotion token
-        if: >-
-          github.ref == 'refs/heads/main' &&
-          (github.event_name == 'push' || inputs.promote) &&
-          (steps.images.outputs.images != '[]' || steps.workers.outputs.workers != '[]' || steps.release-filter.outputs.k8s == 'true')
         id: gitops-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3
         with:
@@ -514,7 +417,6 @@ jobs:
           permission-pull-requests: write
 
       - name: Checkout GitOps repository
-        if: steps.gitops-token.outcome == 'success'
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
         with:
           persist-credentials: false
@@ -523,159 +425,16 @@ jobs:
           path: gitops
 
       - name: Update GitOps desired state
-        if: >-
-          github.ref == 'refs/heads/main' &&
-          (github.event_name == 'push' || inputs.promote) &&
-          (steps.images.outputs.images != '[]' || steps.workers.outputs.workers != '[]' || steps.release-filter.outputs.k8s == 'true')
         id: source
-        shell: bash
         env:
-          K8S_CHANGED: ${{ steps.release-filter.outputs.k8s }}
+          K8S_CHANGED: ${{ needs.release-plan.outputs.kubernetes }}
           REQUIRE_ALL_IMAGE_CONSUMERS: ${{ github.event_name == 'workflow_dispatch' && inputs.promote }}
-          SOURCE_REPOSITORY: ${{ github.repository }}
-          SOURCE_SHA: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          short_sha="$(printf '%.12s' "${SOURCE_SHA}")"
-          image_root="ghcr.io/${GITHUB_REPOSITORY,,}"
-
-          docker run --rm \
-            --user "$(id -u):$(id -g)" \
-            --env IMAGE_ROOT="${image_root}" \
-            --env K8S_CHANGED \
-            --env REQUIRE_ALL_IMAGE_CONSUMERS \
-            --env SHORT_SHA="${short_sha}" \
-            --env SOURCE_REPOSITORY \
-            --env SOURCE_SHA \
-            --volume "${PWD}:/workdir" \
-            --workdir /workdir \
-            --entrypoint sh \
-            mikefarah/yq:4.53.3@sha256:11a1f0b604b13dbbdc662260d8db6f644b22d8553122a25c1b5b2e8713ca6977 -c '
-              set -eu
-              overlay_root=gitops/clusters/staging/overlays
-
-              if [ "${K8S_CHANGED}" = "true" ]; then
-                source_matches=0
-                for kustomization in "${overlay_root}"/*/kustomization.yaml; do
-                  count="$(yq "[
-                    .resources[]? | select(test(
-                      \"^https://github.com/\" + strenv(SOURCE_REPOSITORY) +
-                      \"//infra/k8s/.+\\\\?ref=[0-9a-f]{40}$\"
-                    ))
-                  ] | length" "${kustomization}")"
-                  if [ "${count}" -gt 0 ]; then
-                    yq -i "(
-                      .resources[]? |
-                      select(test(
-                        \"^https://github.com/\" + strenv(SOURCE_REPOSITORY) +
-                        \"//infra/k8s/.+\\\\?ref=[0-9a-f]{40}$\"
-                      ))
-                    ) |= sub(
-                      \"ref=[0-9a-f]{40}$\";
-                      \"ref=\" + strenv(SOURCE_SHA)
-                    )" "${kustomization}"
-                    source_matches="$((source_matches + count))"
-                  fi
-                done
-                if [ "${source_matches}" -eq 0 ]; then
-                  echo "No GitOps source ref matched ${SOURCE_REPOSITORY}." >&2
-                  exit 1
-                fi
-              fi
-
-              execution_control_written=false
-              for image in $(yq -r "keys | .[]" image-digests.json); do
-                digest="$(IMAGE_KEY="${image}" yq -r ".[strenv(IMAGE_KEY)]" image-digests.json)"
-                full_image="${IMAGE_ROOT}/${image}"
-                matches=0
-                export DIGEST="${digest}" IMAGE="${full_image}"
-                for kustomization in "${overlay_root}"/*/kustomization.yaml; do
-                  count="$(yq "[
-                    .images[]? | select(.name == strenv(IMAGE))
-                  ] | length" "${kustomization}")"
-                  if [ "${count}" -gt 0 ]; then
-                    yq -i "(
-                      .images[] | select(.name == strenv(IMAGE))
-                    ).digest = strenv(DIGEST)" "${kustomization}"
-                    matches="$((matches + count))"
-                  fi
-                done
-                if [ "${matches}" -eq 0 ]; then
-                  if [ "${REQUIRE_ALL_IMAGE_CONSUMERS}" = "true" ]; then
-                    echo "No GitOps consumer for ${image}." >&2
-                    exit 1
-                  fi
-                  echo "Published ${image} without a GitOps consumer."
-                elif [ "${image}" = "execution-control" ]; then
-                  execution_control_written=true
-                fi
-              done
-
-              if [ "${execution_control_written}" = "true" ]; then
-                runtime_config="${overlay_root}/execution-runtime/configmap.yaml"
-                if [ ! -f "${runtime_config}" ]; then
-                  echo "Missing execution runtime release config: ${runtime_config}." >&2
-                  exit 1
-                fi
-                yq -i ".data.EXECUTION_CONTROL_RUNTIME_RELEASE =
-                  (\"execution-control@\" + strenv(SHORT_SHA))" "${runtime_config}"
-              fi
-            '
-          for candidate in worker-candidates/*.json; do
-            [ -e "$candidate" ] || continue
-            worker_name="$(jq -er '.workerName' "$candidate")"
-            case "$worker_name" in
-              app-api-staging|campus-web-staging) ;;
-              *) echo "Unsupported Worker candidate: ${worker_name}." >&2; exit 1 ;;
-            esac
-            version_id="$(jq -er '.versionId | select(test("^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$"))' "$candidate")"
-            candidate_sha="$(jq -er '.sourceSha | select(test("^[0-9a-f]{40}$"))' "$candidate")"
-            if [ "$candidate_sha" != "$SOURCE_SHA" ]; then
-              echo "Worker candidate ${worker_name} was built from ${candidate_sha}, expected ${SOURCE_SHA}." >&2
-              exit 1
-            fi
-            if [ "$worker_name" = "campus-web-staging" ]; then
-              docs_release_id="$(jq -er '.docsReleaseId | select(test("^sha256:[0-9a-f]{64}$"))' "$candidate")"
-              build_identity="$(jq -er '.buildIdentity | select(test("^sha256:[0-9a-f]{64}$"))' "$candidate")"
-              expected_identity="sha256:$(printf '%s\n%s\n' "$candidate_sha" "$docs_release_id" | sha256sum | cut -d ' ' -f 1)"
-              if [ "$build_identity" != "$expected_identity" ]; then
-                echo "Campus Web candidate build identity does not match its source and docs release." >&2
-                exit 1
-              fi
-              jq \
-                --arg worker "$worker_name" \
-                --arg version "$version_id" \
-                --arg source "$candidate_sha" \
-                --arg release "$docs_release_id" \
-                --arg identity "$build_identity" \
-                '.workers[$worker] = {versionId: $version, sourceSha: $source, docsReleaseId: $release, buildIdentity: $identity}' \
-                gitops/cloudflare/staging/worker-versions.json \
-                > gitops/cloudflare/staging/worker-versions.tmp
-              jq -n \
-                --arg release "$docs_release_id" \
-                '{schemaVersion: "campus_docs_release_ref.v1", releaseId: $release}' \
-                > gitops/cloudflare/staging/docs-reader-release.json
-            else
-              jq \
-                --arg worker "$worker_name" \
-                --arg version "$version_id" \
-                --arg source "$candidate_sha" \
-                '.workers[$worker] = {versionId: $version, sourceSha: $source}' \
-                gitops/cloudflare/staging/worker-versions.json \
-                > gitops/cloudflare/staging/worker-versions.tmp
-            fi
-            mv \
-              gitops/cloudflare/staging/worker-versions.tmp \
-              gitops/cloudflare/staging/worker-versions.json
-          done
-          echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
+        run: >-
+          scripts/deploy/update-staging-candidate.sh
+          image-digests.json worker-candidates gitops
 
       - name: Detect GitOps changes
-        if: >-
-          github.ref == 'refs/heads/main' &&
-          (github.event_name == 'push' || inputs.promote)
         id: promotion
-        shell: bash
         run: |
           if git -C gitops diff --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -691,7 +450,6 @@ jobs:
 
       - name: Validate promoted manifests
         if: steps.promotion.outputs.changed == 'true'
-        shell: bash
         env:
           SOURCE_TOKEN: ${{ github.token }}
         run: |
@@ -702,7 +460,7 @@ jobs:
             .schemaVersion == "campus_docs_release_ref.v1" and
             (.releaseId | test("^sha256:[0-9a-f]{64}$"))
           ' "$docs_selection" >/dev/null
-          docs_release_id="$(jq -er '.releaseId' "$docs_selection")"
+          docs_release_id="$(jq -er .releaseId "$docs_selection")"
           jq -e --arg release "$docs_release_id" '
             .workers["campus-web-staging"].docsReleaseId == $release and
             (.workers["campus-web-staging"].buildIdentity |
@@ -711,10 +469,7 @@ jobs:
           campus_source_sha="$(jq -er '.workers["campus-web-staging"].sourceSha' "$worker_selection")"
           campus_build_identity="$(jq -er '.workers["campus-web-staging"].buildIdentity' "$worker_selection")"
           expected_build_identity="sha256:$(printf '%s\n%s\n' "$campus_source_sha" "$docs_release_id" | sha256sum | cut -d ' ' -f 1)"
-          if [ "$campus_build_identity" != "$expected_build_identity" ]; then
-            echo "GitOps Campus Web build identity does not match source SHA and docs release." >&2
-            exit 1
-          fi
+          test "$campus_build_identity" = "$expected_build_identity"
           git_config="$(mktemp)"
           trap 'rm -f "$git_config"' EXIT
           export GIT_CONFIG_GLOBAL="$git_config"
@@ -722,7 +477,7 @@ jobs:
             url."https://x-access-token:${SOURCE_TOKEN}@github.com/".insteadOf \
             "https://github.com/"
           for overlay in gitops/clusters/staging/overlays/*; do
-            kubectl kustomize "${overlay}" >/dev/null
+            kubectl kustomize "$overlay" >/dev/null
           done
           kubectl kustomize gitops/clusters/staging/applications >/dev/null
           kubectl kustomize gitops/clusters/staging/secrets >/dev/null

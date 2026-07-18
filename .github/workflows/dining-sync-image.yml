@@ -75,11 +75,4 @@ jobs:
 
       - name: Push dining-sync image
         if: ${{ inputs.push_image }}
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7
-        with:
-          context: .
-          file: jobs/dining-sync/Dockerfile
-          push: true
-          tags: ${{ env.IMAGE_NAME }}:${{ github.sha }}
-          cache-from: type=gha,scope=dining-sync
-          cache-to: type=gha,mode=max,scope=dining-sync
+        run: docker push "${IMAGE_NAME}:${GITHUB_SHA}"

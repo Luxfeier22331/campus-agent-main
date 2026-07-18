@@ -167,6 +167,8 @@ function selfTestWorkerStagingSurface(): void {
 	withFixture((root) => {
 		const status = collectEnvDoctorStatus({
 			env: {
+				CLOUDFLARE_ACCOUNT_ID: "cloudflare-account",
+				CLOUDFLARE_API_TOKEN: "cloudflare-token",
 				SENTRY_APP_API_PROJECT_SLUG: "app-api",
 				SENTRY_AUTH_TOKEN: "sentry-token",
 				SENTRY_ORG_SLUG: "muc-wiki",
@@ -183,6 +185,8 @@ function selfTestWorkerStagingSurface(): void {
 	withFixture((root) => {
 		const status = collectEnvDoctorStatus({
 			env: {
+				CLOUDFLARE_ACCOUNT_ID: "cloudflare-account",
+				CLOUDFLARE_API_TOKEN: "cloudflare-token",
 				SENTRY_APP_API_PROJECT_SLUG: "app-api",
 				SENTRY_AUTH_TOKEN: "sentry-token",
 				STAGING_APP_API_SENTRY_DSN: "https://public@example.ingest.sentry.io/1",
@@ -198,6 +202,13 @@ function selfTestWorkerStagingSurface(): void {
 	withFixture((root) => {
 		const status = collectEnvDoctorStatus({
 			env: {
+				CLOUDFLARE_ACCOUNT_ID: "cloudflare-account",
+				CLOUDFLARE_API_TOKEN: "cloudflare-token",
+				OBJECT_STORE_BUCKET_DERIVED: "campus-agent-derived",
+				OBJECT_STORE_DERIVED_ACCESS_KEY: "derived-access",
+				OBJECT_STORE_DERIVED_SECRET_KEY: "derived-secret",
+				OBJECT_STORE_ENDPOINT: "http://object-store:9000",
+				OBJECT_STORE_REGION: "us-east-1",
 				SENTRY_AUTH_TOKEN: "sentry-token",
 				SENTRY_CAMPUS_WEB_PROJECT_SLUG: "campus-web",
 				SENTRY_ORG_SLUG: "muc-wiki",

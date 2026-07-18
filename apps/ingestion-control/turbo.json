@@ -3,7 +3,12 @@
 	"extends": ["//"],
 	"tasks": {
 		"test": {
-			"inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/configs/ingestion/**"]
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/configs/ingestion/**"
+			]
 		}
 	}
 }
