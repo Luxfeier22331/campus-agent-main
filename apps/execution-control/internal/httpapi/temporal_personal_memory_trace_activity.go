@@ -20,7 +20,7 @@ func (s *Server) PurgePersonalMemoryTracesActivity(
 	if err != nil {
 		return temporalruntime.PersonalMemoryTraceMaintenanceActivityOutput{}, err
 	}
-	runtimeDeleted, err := s.runtimeTraceStore.PurgeUserTracesBefore(ctx, runtimeUserID, eraseCutoff)
+	runtimeDeleted, err := s.langfuseTraceStore.PurgeUserTracesBefore(ctx, runtimeUserID, eraseCutoff)
 	if err != nil {
 		return temporalruntime.PersonalMemoryTraceMaintenanceActivityOutput{}, sanitizedTemporalApplicationError(
 			"personal_memory_runtime_trace_purge_failed",
@@ -28,7 +28,7 @@ func (s *Server) PurgePersonalMemoryTracesActivity(
 			false,
 		)
 	}
-	hindsightDeleted, err := s.personalMemoryTraceStore.PurgeUserTraces(ctx, hindsightUserID)
+	hindsightDeleted, err := s.langfuseTraceStore.PurgeUserTraces(ctx, hindsightUserID)
 	if err != nil {
 		return temporalruntime.PersonalMemoryTraceMaintenanceActivityOutput{}, sanitizedTemporalApplicationError(
 			"personal_memory_hindsight_trace_purge_failed",
@@ -49,7 +49,7 @@ func (s *Server) VerifyPersonalMemoryTracesActivity(
 	if err != nil {
 		return temporalruntime.PersonalMemoryTraceMaintenanceActivityOutput{}, err
 	}
-	runtimeRemaining, err := s.runtimeTraceStore.CountUserTracesBefore(ctx, runtimeUserID, eraseCutoff)
+	runtimeRemaining, err := s.langfuseTraceStore.CountUserTracesBefore(ctx, runtimeUserID, eraseCutoff)
 	if err != nil {
 		return temporalruntime.PersonalMemoryTraceMaintenanceActivityOutput{}, sanitizedTemporalApplicationError(
 			"personal_memory_runtime_trace_verify_failed",
@@ -57,7 +57,7 @@ func (s *Server) VerifyPersonalMemoryTracesActivity(
 			false,
 		)
 	}
-	hindsightRemaining, err := s.personalMemoryTraceStore.CountUserTraces(ctx, hindsightUserID)
+	hindsightRemaining, err := s.langfuseTraceStore.CountUserTraces(ctx, hindsightUserID)
 	if err != nil {
 		return temporalruntime.PersonalMemoryTraceMaintenanceActivityOutput{}, sanitizedTemporalApplicationError(
 			"personal_memory_hindsight_trace_verify_failed",
@@ -83,7 +83,7 @@ func (s *Server) personalMemoryTraceScope(
 			true,
 		)
 	}
-	if s.runtimeTraceStore == nil || s.personalMemoryTraceStore == nil || s.langfuseTraceErr != nil {
+	if s.langfuseTraceStore == nil || s.langfuseTraceErr != nil {
 		return "", "", time.Time{}, sanitizedTemporalApplicationError(
 			"memory_trace_maintenance_not_configured",
 			s.langfuseTraceErr,

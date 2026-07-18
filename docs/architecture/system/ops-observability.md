@@ -51,8 +51,7 @@ flowchart LR
   CampusBrowser[campus-web 浏览器]
   Axiom[(Axiom)]
   Sentry[Sentry]
-  RuntimeLangfuse[Langfuse runtime project]
-  MemoryLangfuse[Langfuse Hindsight project]
+  Langfuse[Langfuse environment project]
   TemporalUI[Temporal UI]
 
   Browser --> Access --> OpsWeb
@@ -70,15 +69,14 @@ flowchart LR
   K8sRuntime -->|通用或编排 OTLP| Gateway
   Hindsight -->|受信任 trace| Gateway
   Gateway -->|清理后的 log/trace/metric| Axiom
-  Gateway -->|Agent 与编排 trace| RuntimeLangfuse
-  Gateway -->|memory.call 与 Hindsight trace| MemoryLangfuse
+  Gateway -->|Agent、编排与 Hindsight trace| Langfuse
 
   CFWorkers -->|producer 清理的 application logs| Axiom
   CFWorkers -->|edge SDK| Sentry
   CampusBrowser -->|browser SDK| Sentry
 
   OpsWeb -. 关联入口 .-> TemporalUI
-  OpsWeb -. 关联入口 .-> RuntimeLangfuse
+  OpsWeb -. 关联入口 .-> Langfuse
   OpsWeb -. 关联入口 .-> Sentry
 ```
 
@@ -93,11 +91,10 @@ flowchart LR
 | PostgreSQL | turn dispatch、用户问题、agent run、observability fact 和读取审计 | Temporal 队列、原始日志、原始调用链 |
 | Temporal | workflow history、重试、超时、timer、取消和 task queue 真相 | 产品请求状态或日志存储 |
 | Collector Agent | 第一方容器日志和 kubelet 指标采集、Kubernetes 元数据补充 | 采集 Hindsight/Collector stdout 或长期存储 |
-| Collector Gateway | 分入口认证、字段清理、路由、采样、批处理、持久队列和下游重试 | 决定产品请求状态或查询历史数据 |
+| Collector Gateway | 固定入口、字段清理、路由、采样、批处理、内存队列和有界下游重试 | 决定产品请求状态或查询历史数据 |
 | Axiom | 脱敏运行日志、调用链、指标、固定查询、看板和告警 | 模型正文、产品状态或工作流真相 |
 | Sentry | browser/edge SDK 错误、异常、受控性能、release 和 source map | 通用 OTLP sink、产品状态或模型 trace |
-| Langfuse runtime project | Agent、模型、工具和受控 execution-control trace、dataset 与 score | 通用日志或 workflow history |
-| Langfuse Hindsight project | `memory.call` 与 Hindsight 受信任 trace | 产品记忆设置或 erase 状态 |
+| Langfuse environment project | Agent、模型、工具、受控 execution-control、`memory.call` 与 Hindsight trace、dataset 和 score | 通用日志、产品记忆状态或 workflow history |
 | Hindsight | 个人记忆提取、observation、consolidation、recall 和来源删除 | Ops Web 查询接口或产品状态 |
 
 OpenObserve 已从目标运行和查询路径退役。它不得作为 Axiom 故障时的 fallback；环境残留资源只
@@ -146,18 +143,18 @@ Axiom 三个 dataset 独立查询；单个查询失败只将该信号标为 `UNA
 
 ## Collector 入口和路由
 
-staging 模板定义四个独立 bearer 认证的 OTLP/HTTP receiver：
+staging 模板定义四个固定端口的 OTLP/HTTP receiver：
 
 | 端口 | 生产者 | 允许输出 |
 | ---: | --- | --- |
 | `4318` | Collector Agent 和通用第一方运行信号 | Axiom log、trace、metric |
 | `4319` | execution-control 编排信号 | Axiom 脱敏 trace/metric、Langfuse 受控编排 trace、Hindsight `memory.call` 父 span |
-| `4320` | Agent runtime 受信任 trace | Langfuse runtime project |
-| `4321` | Hindsight 受信任 trace | Langfuse Hindsight project |
+| `4320` | Agent runtime 受信任 trace | Langfuse environment project，按 service/tag 区分 |
+| `4321` | Hindsight 受信任 trace | Langfuse environment project，按 service/tag 区分 |
 
-四个入口使用不同 bearer token 和 NetworkPolicy，不得共享通用 ingest secret。Gateway 对 Axiom
-使用字段白名单、固定 span/log 归一化、采样和持久发送队列；对 Langfuse 受信任 trace 删除
-credential 类属性，并按入口限制项目。
+四个入口使用精确 NetworkPolicy 隔离生产者，不增加集群内 bearer token。Gateway 对 Axiom
+使用字段白名单、固定 span/log 归一化、采样、内存发送队列和 300 秒重试上限；对 Langfuse 受信任 trace 删除
+credential 类属性，并按入口限制允许的 trace 类型。
 
 Collector Agent 只读取第一方 namespace 容器日志，明确排除 Collector 和 Hindsight stdout；
 kubeletstats 使用 ServiceAccount 和挂载 CA 验证 kubelet。Agent 从 Pod 的 canonical label 生成

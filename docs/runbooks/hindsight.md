@@ -24,8 +24,8 @@ status: active
 1. 应用 app-api profile memory outbox migration 和 shared chat schema。
 2. 安装 execution-control owner fence、call lease、command receipt 与 Langfuse trace maintenance
    配置。
-3. 部署 Hindsight API、embedded worker、外部 PostgreSQL、稳定 owner salt 与独立 OTLP 凭据。
-4. 部署 Collector Gateway 的 Hindsight trusted receiver 和独立 Langfuse project 路由。
+3. 部署 Hindsight API、embedded worker、外部 PostgreSQL 与稳定 owner salt。
+4. 部署 Collector Gateway 的 Hindsight trusted receiver，并路由到环境唯一的 Langfuse project。
 5. 依次部署 execution-control、app-api 和 campus-web。
 6. 确认 readiness 报告 Hindsight 与 memory state store 健康，再启用 profile-memory command
    sweeper。
@@ -53,7 +53,7 @@ execution-control 调用 Hindsight 时传播 W3C `traceparent` 与 `baggage`。H
 - `http.request.method`
 
 不得加入 URL、bank ID、document ID、operation ID、请求正文或响应正文。Hindsight 的原生 OTel
-trace 使用独立 trusted receiver 与 bearer token，进入独立 Langfuse Hindsight project；
+trace 使用独立 trusted receiver，进入环境唯一的 Langfuse project；
 `HINDSIGHT_API_LLM_TRACE_ENABLED` 保持关闭，避免与通用 OTel trace 重复。
 
 Collector 将 Hindsight 的 bank 标识原样映射为 `langfuse.user.id` 后删除源属性。该标识已经由
@@ -64,6 +64,12 @@ Langfuse 侧再次加盐，否则 owner erase 无法定位相同 trace。
 
 ```text
 HINDSIGHT_API_LLM_TRACE_ENABLED=false
+HINDSIGHT_API_LLM_PROVIDER=openai
+HINDSIGHT_API_LLM_MODEL=gpt-5.6-luna
+HINDSIGHT_API_LLM_BASE_URL=https://gateway.mucwiki-edge.link/v1
+HINDSIGHT_API_EMBEDDINGS_PROVIDER=openai
+HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL=https://ai.gitee.com/v1
+HINDSIGHT_API_RETAIN_EXTRACTION_MODE=chunks
 HINDSIGHT_API_OTEL_TRACES_ENABLED=true
 HINDSIGHT_API_OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4321
 HINDSIGHT_API_OTEL_SERVICE_NAME=hindsight-api
@@ -76,9 +82,8 @@ HINDSIGHT_API_OBSERVATION_HISTORY_MAX_ENTRIES=50
 HINDSIGHT_API_CONSOLIDATION_RECONCILE_INTERVAL_SECONDS=300
 ```
 
-`HINDSIGHT_API_OTEL_EXPORTER_OTLP_HEADERS` 必须由 Hindsight Secret 提供，并只匹配 `4321` 的
-trusted receiver。provider、model、embedding 与 reranker 仍由 Hindsight 环境 owner 配置，
-不得从本示例推断实际环境选择。
+LLM 与 embedding API key 由 Hindsight Secret 提供。`4321` 只允许 Hindsight Pod 通过
+NetworkPolicy 访问，不配置 `HINDSIGHT_API_OTEL_EXPORTER_OTLP_HEADERS`。
 
 ## Owner erase
 
@@ -87,15 +92,14 @@ owner erase 是个人记忆账户级删除，不是单次会话回滚。流程�
 1. generation fence 阻止旧 generation 新调用并等待旧 lease 排空；
 2. Hindsight 旧 generation bank 删除成功；
 3. execution-control 使用 command 冻结的产品 `UserID` 与 `source_updated_at` 上界，精确查询和
-   删除 Langfuse runtime project 中本次 erase 覆盖的 trace；
-4. 使用同一派生 bank 标识精确查询 Langfuse Hindsight project 的 `userId`，清空已退役
+   删除同一 Langfuse project 中本次 erase 覆盖的 Agent/runtime trace；
+4. 使用同一派生 bank 标识精确查询同一 project 的 `userId`，清空已退役
    generation bank 的全部 trace；
-5. 两个项目均以 100 条为一页收集 trace ID，并按 100 条批量删除，`404` 视为幂等成功；
-6. 15 分钟检查点再次 purge 并查询两个项目，合计非零时每分钟重试到零；
-7. 第一检查点收敛后再等待 23 小时 45 分钟，再次 purge 并查询；因此第二检查点不早于首次
-   purge 后 24 小时，非零时继续每分钟重试；
-8. 两个检查点都确认 runtime project 在冻结上界内为零，且 Hindsight 已退役 bank 全部为零后，
-   才完成 command receipt、app-api callback 和产品 `erased` 投影。上界之后的新 runtime trace
+5. 两类查询均以 100 条为一页收集 trace ID，并按 100 条批量删除，`404` 视为幂等成功；
+6. 旧 lease 排空且 bank 删除成功后等待 10 分钟，使 Collector 的 5 分钟最大重试窗口结束；
+7. purge 并查询两类 trace，合计非零时每分钟重试，最多五轮；
+8. 查询确认 Agent/runtime trace 在冻结上界内为零，且 Hindsight 已退役 bank 全部为零后，
+   完成 command receipt、app-api callback 和产品 `erased` 投影；五轮未收敛则明确失败。上界之后的新 runtime trace
    不属于本次 erase，不得被删除或计入 remaining count。
 
 Langfuse trace 删除是异步的，没有 completion webhook，因此不能以 DELETE HTTP 成功或本地
@@ -104,21 +108,9 @@ Langfuse trace 删除是异步的，没有 completion webhook，因此不能以 
 HTTP timeout 为 15 秒、response 上限为 1 MiB，最多读取 1000 页并按有界批次删除；错误只能
 暴露固定错误码，不记录 URL、credential、userId 或响应正文。
 
-`LANGFUSE_MAINTENANCE_BASE_URL`、runtime/Hindsight 两组 `LANGFUSE_*_MAINTENANCE_PUBLIC_KEY`
-与 `LANGFUSE_*_MAINTENANCE_SECRET_KEY` 由 execution-control core worker 消费。部署环境缺少
-任何一项时 core worker 启动失败；owner erase 也必须失败关闭，不能提前投影 `erased`。
-
-## 日常 trace retention
-
-workflow worker 收敛 `campus-agent.langfuse.trace-retention.daily.v1` Schedule：不存在时创建，
-存在时更新固定 spec/action/policy 并保留 paused/note State，不能静默接受 cron、task queue 或
-overlap 漂移。它每天 UTC 03:00 启动固定 workflow，以 workflow 开始时间减七天为 cutoff，同时
-删除 runtime 与 Hindsight project 的旧 trace。
-
-每轮 purge 后等待 15 分钟并查询两个 project，最多三轮；仍有旧 trace 时本次 workflow 以
-`langfuse_trace_retention_incomplete` 失败。Schedule 使用 overlap `SKIP`、24 小时 catchup window、
-六小时 run timeout 且失败不自动暂停。运维必须关注 Schedule failure 和剩余计数，不能只确认
-Schedule 存在。
+`LANGFUSE_MAINTENANCE_BASE_URL`、`LANGFUSE_MAINTENANCE_PUBLIC_KEY` 与
+`LANGFUSE_MAINTENANCE_SECRET_KEY` 由 execution-control core worker 消费。部署环境缺少任何
+一项时 core worker 启动失败；owner erase 也必须失败关闭，不能提前投影 `erased`。
 
 ## 来源删除
 
@@ -146,12 +138,11 @@ Langfuse 原生诊断，不建立产品 operation dashboard。
 1. 创建并读取 bank policy，确认 observation/consolidation/Memory Defense 配置。
 2. 从两个 conversation 同步 retain 两个 user-message document。
 3. 验证 observation-preferred recall 返回预期有界事实。
-4. 检查 `traceparent`/`baggage` 关联、`memory.call` 安全字段和独立 Langfuse project。
+4. 检查 `traceparent`/`baggage` 关联、`memory.call` 安全字段和 Langfuse service/tag 分类。
 5. 删除一个 source document，并验证 consolidation 后不再召回。
-6. 执行 owner erase，确认 Hindsight bank not found、runtime project 在 command 上界内为零、
-   Hindsight project 的已退役 bank 为零，且 15 分钟检查后产品仍为 `erasing`。
-7. 在 command 上界后生成一条新的 runtime trace，确认它不被删除；只有不早于 24 小时的第二次
-   双项目检查仍满足同一边界后，确认产品进入 `erased`。
+6. 执行 owner erase，确认等待窗口内产品保持 `erasing`，随后 Hindsight bank not found、
+   Agent/runtime trace 在 command 上界内为零且已退役 bank 对应的 Hindsight trace 为零。
+7. 在 command 上界后生成一条新的 runtime trace，确认它不被删除，且收敛后产品进入 `erased`。
 8. 在隔离 namespace 验证 PostgreSQL restore。
 
 release evidence 不保存 synthetic source text、bank/user ID、credential 或 provider raw payload。

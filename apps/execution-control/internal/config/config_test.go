@@ -40,10 +40,8 @@ func setStagingPersonalMemoryEnv(t *testing.T) {
 func setStagingLangfuseMaintenanceEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv("LANGFUSE_MAINTENANCE_BASE_URL", "http://langfuse-web:3000")
-	t.Setenv("LANGFUSE_RUNTIME_MAINTENANCE_PUBLIC_KEY", "pk-runtime")
-	t.Setenv("LANGFUSE_RUNTIME_MAINTENANCE_SECRET_KEY", "sk-runtime")
-	t.Setenv("LANGFUSE_HINDSIGHT_MAINTENANCE_PUBLIC_KEY", "pk-hindsight")
-	t.Setenv("LANGFUSE_HINDSIGHT_MAINTENANCE_SECRET_KEY", "sk-hindsight")
+	t.Setenv("LANGFUSE_MAINTENANCE_PUBLIC_KEY", "pk-staging")
+	t.Setenv("LANGFUSE_MAINTENANCE_SECRET_KEY", "sk-staging")
 }
 
 func setStagingTemporalWorkflowIDSalt(t *testing.T) {
@@ -281,7 +279,7 @@ func TestLoadFromEnvForRoleScopesPersonalMemoryRequirements(t *testing.T) {
 		t.Fatalf("execution-control must not require Langfuse maintenance keys: %v", err)
 	}
 	if _, err := LoadFromEnvForRole("activity-core"); err == nil {
-		t.Fatal("core worker must require both Langfuse maintenance projects")
+		t.Fatal("core worker must require Langfuse maintenance configuration")
 	}
 	setStagingLangfuseMaintenanceEnv(t)
 	if _, err := LoadFromEnvForRole("activity-core"); err != nil {

@@ -27,8 +27,6 @@ type langfuseTraceMaintenance interface {
 	CountUserTraces(context.Context, string) (int, error)
 	PurgeUserTracesBefore(context.Context, string, time.Time) (int, error)
 	CountUserTracesBefore(context.Context, string, time.Time) (int, error)
-	PurgeTracesBefore(context.Context, time.Time) (int, error)
-	CountTracesBefore(context.Context, time.Time) (int, error)
 }
 
 type langfuseTraceMaintenanceClient struct {
@@ -66,29 +64,17 @@ type langfuseTracePageWire struct {
 
 func newLangfuseTraceMaintenance(
 	cfg config.Config,
-) (langfuseTraceMaintenance, langfuseTraceMaintenance, error) {
+) (langfuseTraceMaintenance, error) {
 	baseURL := strings.TrimSpace(cfg.LangfuseMaintenanceBaseURL)
-	runtimePublicKey := strings.TrimSpace(cfg.LangfuseRuntimeMaintenancePublicKey)
-	runtimeSecretKey := strings.TrimSpace(cfg.LangfuseRuntimeMaintenanceSecretKey)
-	hindsightPublicKey := strings.TrimSpace(cfg.LangfuseHindsightMaintenancePublicKey)
-	hindsightSecretKey := strings.TrimSpace(cfg.LangfuseHindsightMaintenanceSecretKey)
-	if baseURL == "" && runtimePublicKey == "" && runtimeSecretKey == "" &&
-		hindsightPublicKey == "" && hindsightSecretKey == "" {
-		return nil, nil, nil
+	publicKey := strings.TrimSpace(cfg.LangfuseMaintenancePublicKey)
+	secretKey := strings.TrimSpace(cfg.LangfuseMaintenanceSecretKey)
+	if baseURL == "" && publicKey == "" && secretKey == "" {
+		return nil, nil
 	}
-	if baseURL == "" || runtimePublicKey == "" || runtimeSecretKey == "" ||
-		hindsightPublicKey == "" || hindsightSecretKey == "" {
-		return nil, nil, errors.New("Langfuse trace maintenance configuration is incomplete")
+	if baseURL == "" || publicKey == "" || secretKey == "" {
+		return nil, errors.New("langfuse trace maintenance configuration is incomplete")
 	}
-	runtimeClient, err := newLangfuseTraceMaintenanceClient(baseURL, runtimePublicKey, runtimeSecretKey)
-	if err != nil {
-		return nil, nil, err
-	}
-	hindsightClient, err := newLangfuseTraceMaintenanceClient(baseURL, hindsightPublicKey, hindsightSecretKey)
-	if err != nil {
-		return nil, nil, err
-	}
-	return runtimeClient, hindsightClient, nil
+	return newLangfuseTraceMaintenanceClient(baseURL, publicKey, secretKey)
 }
 
 func newLangfuseTraceMaintenanceClient(
@@ -115,7 +101,7 @@ func newLangfuseTraceMaintenanceClient(
 func (c *langfuseTraceMaintenanceClient) PurgeUserTraces(ctx context.Context, userID string) (int, error) {
 	userID = strings.TrimSpace(userID)
 	if userID == "" {
-		return 0, errors.New("Langfuse trace user id is required")
+		return 0, errors.New("langfuse trace user id is required")
 	}
 	query := url.Values{"userId": []string{userID}}
 	return c.purgeTraces(ctx, query)
@@ -124,7 +110,7 @@ func (c *langfuseTraceMaintenanceClient) PurgeUserTraces(ctx context.Context, us
 func (c *langfuseTraceMaintenanceClient) CountUserTraces(ctx context.Context, userID string) (int, error) {
 	userID = strings.TrimSpace(userID)
 	if userID == "" {
-		return 0, errors.New("Langfuse trace user id is required")
+		return 0, errors.New("langfuse trace user id is required")
 	}
 	return c.countTraces(ctx, url.Values{"userId": []string{userID}})
 }
@@ -153,31 +139,9 @@ func (c *langfuseTraceMaintenanceClient) CountUserTracesBefore(
 	return c.countTraces(ctx, query)
 }
 
-func (c *langfuseTraceMaintenanceClient) PurgeTracesBefore(
-	ctx context.Context,
-	cutoff time.Time,
-) (int, error) {
-	query, err := langfuseTraceCutoffQuery(cutoff)
-	if err != nil {
-		return 0, err
-	}
-	return c.purgeTraces(ctx, query)
-}
-
-func (c *langfuseTraceMaintenanceClient) CountTracesBefore(
-	ctx context.Context,
-	cutoff time.Time,
-) (int, error) {
-	query, err := langfuseTraceCutoffQuery(cutoff)
-	if err != nil {
-		return 0, err
-	}
-	return c.countTraces(ctx, query)
-}
-
 func langfuseTraceCutoffQuery(cutoff time.Time) (url.Values, error) {
 	if cutoff.IsZero() {
-		return nil, errors.New("Langfuse trace retention cutoff is required")
+		return nil, errors.New("langfuse trace erase cutoff is required")
 	}
 	return url.Values{"toTimestamp": []string{cutoff.UTC().Format(time.RFC3339Nano)}}, nil
 }
@@ -185,7 +149,7 @@ func langfuseTraceCutoffQuery(cutoff time.Time) (url.Values, error) {
 func langfuseUserTraceCutoffQuery(userID string, cutoff time.Time) (url.Values, error) {
 	userID = strings.TrimSpace(userID)
 	if userID == "" {
-		return nil, errors.New("Langfuse trace user id is required")
+		return nil, errors.New("langfuse trace user id is required")
 	}
 	query, err := langfuseTraceCutoffQuery(cutoff)
 	if err != nil {
@@ -226,16 +190,16 @@ func (c *langfuseTraceMaintenanceClient) collectTraceIDs(
 			return nil, err
 		}
 		if page.Meta.TotalItems < 0 || page.Meta.TotalPages < 0 {
-			return nil, errors.New("Langfuse trace list returned invalid pagination metadata")
+			return nil, errors.New("langfuse trace list returned invalid pagination metadata")
 		}
 		if page.Meta.TotalItems > langfuseMaintenancePageSize*langfuseMaintenanceMaxPages ||
 			page.Meta.TotalPages > langfuseMaintenanceMaxPages {
-			return nil, errors.New("Langfuse trace list exceeded the bounded pagination limit")
+			return nil, errors.New("langfuse trace list exceeded the bounded pagination limit")
 		}
 		for _, trace := range page.Data {
 			traceID := strings.TrimSpace(trace.ID)
 			if traceID == "" {
-				return nil, errors.New("Langfuse trace list returned an empty trace id")
+				return nil, errors.New("langfuse trace list returned an empty trace id")
 			}
 			if _, ok := seen[traceID]; ok {
 				continue
@@ -248,7 +212,7 @@ func (c *langfuseTraceMaintenanceClient) collectTraceIDs(
 			return traceIDs, nil
 		}
 	}
-	return nil, errors.New("Langfuse trace list exceeded the bounded pagination limit")
+	return nil, errors.New("langfuse trace list exceeded the bounded pagination limit")
 }
 
 func (c *langfuseTraceMaintenanceClient) countTraces(
@@ -260,7 +224,7 @@ func (c *langfuseTraceMaintenanceClient) countTraces(
 		return 0, err
 	}
 	if page.Meta.TotalItems < 0 {
-		return 0, errors.New("Langfuse trace list returned invalid pagination metadata")
+		return 0, errors.New("langfuse trace list returned invalid pagination metadata")
 	}
 	if page.Meta.TotalItems > 0 {
 		return page.Meta.TotalItems, nil
@@ -288,11 +252,11 @@ func (c *langfuseTraceMaintenanceClient) listTraces(
 	}
 	var wire langfuseTracePageWire
 	if err := json.Unmarshal(payload, &wire); err != nil {
-		return langfuseTracePage{}, errors.New("Langfuse trace list returned invalid JSON")
+		return langfuseTracePage{}, errors.New("langfuse trace list returned invalid JSON")
 	}
 	if wire.Data == nil || wire.Meta == nil || wire.Meta.Limit == nil || wire.Meta.Page == nil ||
 		wire.Meta.TotalItems == nil || wire.Meta.TotalPages == nil {
-		return langfuseTracePage{}, errors.New("Langfuse trace list returned an incomplete response contract")
+		return langfuseTracePage{}, errors.New("langfuse trace list returned an incomplete response contract")
 	}
 	page := langfuseTracePage{
 		Data: *wire.Data,
@@ -314,7 +278,7 @@ func validateLangfuseTracePage(page langfuseTracePage, requestedPage int, reques
 		page.Meta.Page != requestedPage || page.Meta.Limit != requestedLimit ||
 		page.Meta.TotalItems < 0 || page.Meta.TotalPages < 0 ||
 		len(page.Data) > requestedLimit || len(page.Data) > page.Meta.TotalItems {
-		return errors.New("Langfuse trace list returned invalid pagination metadata")
+		return errors.New("langfuse trace list returned invalid pagination metadata")
 	}
 	expectedPages := page.Meta.TotalItems / requestedLimit
 	if page.Meta.TotalItems%requestedLimit != 0 {
@@ -322,7 +286,7 @@ func validateLangfuseTracePage(page langfuseTracePage, requestedPage int, reques
 	}
 	if page.Meta.TotalPages != expectedPages ||
 		(page.Meta.TotalPages > 0 && requestedPage > page.Meta.TotalPages) {
-		return errors.New("Langfuse trace list returned inconsistent pagination metadata")
+		return errors.New("langfuse trace list returned inconsistent pagination metadata")
 	}
 	return nil
 }
@@ -332,7 +296,7 @@ func (c *langfuseTraceMaintenanceClient) deleteTraces(ctx context.Context, trace
 		return nil
 	}
 	if len(traceIDs) > langfuseMaintenancePageSize {
-		return errors.New("Langfuse trace delete batch exceeded the batch limit")
+		return errors.New("langfuse trace delete batch exceeded the batch limit")
 	}
 	payload, err := json.Marshal(struct {
 		TraceIDs []string `json:"traceIds"`
@@ -362,10 +326,10 @@ func (c *langfuseTraceMaintenanceClient) request(
 	expectedStatuses ...int,
 ) ([]byte, error) {
 	if c == nil || c.baseURL == nil || c.httpClient == nil {
-		return nil, errors.New("Langfuse trace maintenance client is not configured")
+		return nil, errors.New("langfuse trace maintenance client is not configured")
 	}
 	if len(body) > langfuseMaintenanceMaxBodyBytes {
-		return nil, errors.New("Langfuse trace maintenance request exceeded the body limit")
+		return nil, errors.New("langfuse trace maintenance request exceeded the body limit")
 	}
 	requestURL := *c.baseURL
 	requestURL.Path = strings.TrimRight(requestURL.Path, "/") + path
@@ -384,7 +348,7 @@ func (c *langfuseTraceMaintenanceClient) request(
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		return nil, errors.New("Langfuse trace maintenance transport failed")
+		return nil, errors.New("langfuse trace maintenance transport failed")
 	}
 	defer func() { _ = response.Body.Close() }()
 	accepted := false
@@ -396,14 +360,14 @@ func (c *langfuseTraceMaintenanceClient) request(
 	}
 	if !accepted {
 		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, langfuseMaintenanceMaxBodyBytes))
-		return nil, fmt.Errorf("Langfuse trace maintenance returned status %d", response.StatusCode)
+		return nil, fmt.Errorf("langfuse trace maintenance returned status %d", response.StatusCode)
 	}
 	payload, err := io.ReadAll(io.LimitReader(response.Body, langfuseMaintenanceMaxBodyBytes+1))
 	if err != nil {
 		return nil, errors.New("read Langfuse trace maintenance response failed")
 	}
 	if len(payload) > langfuseMaintenanceMaxBodyBytes {
-		return nil, errors.New("Langfuse trace maintenance response exceeded the body limit")
+		return nil, errors.New("langfuse trace maintenance response exceeded the body limit")
 	}
 	return payload, nil
 }

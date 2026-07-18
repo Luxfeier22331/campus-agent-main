@@ -28,8 +28,8 @@ source map；Axiom 需要经过白名单清理的运行日志、调用链和指�
   固定 APL 查询 Axiom，不提供任意查询代理。
 - Sentry 只通过应用或浏览器 SDK 接收错误、异常、受控性能数据、release 和 source map。
   OpenTelemetry Collector 不再向 Sentry 导出。
-- Langfuse 是受信任的 LLM 与记忆 trace、dataset、score 和 annotation 数据面。Agent runtime
-  与 Hindsight 使用不同项目和凭据。
+- Langfuse 是受信任的 LLM 与记忆 trace、dataset、score 和 annotation 数据面。每个环境只有
+  一个 project，Agent runtime 与 Hindsight 通过 `service.name` 和固定 tag 区分。
 - PostgreSQL 继续保存产品状态和有界诊断投影；Temporal 继续保存 workflow history、重试、
   timer 和 task queue 真相。任何观测平台都不能改写这些状态。
 - OpenObserve 不再是运行依赖、查询面或回滚路径。环境中的资源删除必须在替代链路通过
@@ -37,13 +37,13 @@ source map；Axiom 需要经过白名单清理的运行日志、调用链和指�
 
 ### Collector 边界
 
-Collector Gateway 使用四个独立的受认证 OTLP/HTTP 入口：通用运行信号、execution-control
-编排信号、Agent 受信任 trace 和 Hindsight 受信任 trace。每个入口使用不同凭据与网络权限，
-只路由到其允许的数据面。
+Collector Gateway 使用四个固定端口的 OTLP/HTTP 入口：通用运行信号、execution-control 编排
+信号、Agent 受信任 trace 和 Hindsight 受信任 trace。每个入口使用精确网络权限，只路由到其
+允许的数据面；集群内不再叠加没有独立信任边界的 bearer token。
 
 Collector Agent 以 DaemonSet 采集第一方容器日志和 kubelet 指标，排除 Collector 与 Hindsight
-stdout，清理后转发到 Gateway。Gateway 对 Axiom 数据使用明确字段白名单、采样、批处理和
-持久发送队列；对受信任 Langfuse trace 至少删除 credential 类属性。
+stdout，清理后转发到 Gateway。Gateway 对 Axiom 数据使用明确字段白名单、采样、批处理、内存
+发送队列和 300 秒重试上限；对受信任 Langfuse trace 只删除 credential 类属性。
 
 execution-control 调用 Hindsight 时传播 W3C `traceparent` 与 `baggage`，并创建固定父 span
 `memory.call`。该父 span 只记录 provider 和 HTTP method，不记录 URL、bank、document 或记忆
@@ -67,14 +67,13 @@ Collector 白名单当作 application log 旁路的保护。
 
 ### 权限与生命周期
 
-- Axiom 的 log、trace 和 metric 使用不同 dataset、写入 token 与保留期；Ops Web 使用单独的
+- Axiom 的 log、trace 和 metric 使用不同 dataset 和同一枚 ingest token；Ops Web 使用单独的
   query-only token，不使用 personal token 或写入 token。
 - Sentry browser 与 edge DSN 分开配置；构建发布 source map 时使用独立 CI credential，运行时
   不持有该 credential。
-- Langfuse runtime 与 Hindsight 项目使用独立写入和维护凭据。个人记忆 owner erase 必须按产品
+- Langfuse runtime 与 Hindsight 使用环境唯一 project 的同一组写入和维护凭据。个人记忆 owner erase 必须按产品
   `UserID` 与 `command.source_updated_at` 上界精确删除 runtime trace，并按已做 owner-salt 派生
-  的已退役 bank `langfuse.user.id` 精确清空 Hindsight trace；异步删除后必须按相同边界复查两个
-  项目。
+  的已退役 bank `langfuse.user.id` 精确清空 Hindsight trace；异步删除后必须按相同边界复查。
 - credential、Cookie、JWT、数据库地址、原始用户问题、回答、检索正文和记忆正文不得进入
   Axiom 或 Sentry。Langfuse 可以按 ADR-0076 保存受信任模型诊断正文，但仍不得保存认证材料。
 

@@ -20,7 +20,7 @@ func TestLangfuseTraceMaintenancePurgesOnlyTheRequestedUser(t *testing.T) {
 	deleted := map[string]bool{}
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		username, password, ok := request.BasicAuth()
-		if !ok || username != "pk-memory" || password != "sk-memory" {
+		if !ok || username != "pk-staging" || password != "sk-staging" {
 			t.Fatalf("basic auth = %q %q %t", username, password, ok)
 		}
 		switch {
@@ -47,12 +47,10 @@ func TestLangfuseTraceMaintenancePurgesOnlyTheRequestedUser(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, maintenance, err := newLangfuseTraceMaintenance(config.Config{
-		LangfuseMaintenanceBaseURL:            server.URL,
-		LangfuseRuntimeMaintenancePublicKey:   "pk-runtime",
-		LangfuseRuntimeMaintenanceSecretKey:   "sk-runtime",
-		LangfuseHindsightMaintenancePublicKey: "pk-memory",
-		LangfuseHindsightMaintenanceSecretKey: "sk-memory",
+	maintenance, err := newLangfuseTraceMaintenance(config.Config{
+		LangfuseMaintenanceBaseURL:   server.URL,
+		LangfuseMaintenancePublicKey: "pk-staging",
+		LangfuseMaintenanceSecretKey: "sk-staging",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -117,73 +115,17 @@ func TestLangfuseTraceMaintenanceSanitizesServerFailures(t *testing.T) {
 		_, _ = response.Write([]byte("provider-secret-and-user-content"))
 	}))
 	defer server.Close()
-	_, maintenance, err := newLangfuseTraceMaintenance(config.Config{
-		LangfuseMaintenanceBaseURL:            server.URL,
-		LangfuseRuntimeMaintenancePublicKey:   "pk-runtime",
-		LangfuseRuntimeMaintenanceSecretKey:   "sk-runtime",
-		LangfuseHindsightMaintenancePublicKey: "pk-memory",
-		LangfuseHindsightMaintenanceSecretKey: "sk-memory",
+	maintenance, err := newLangfuseTraceMaintenance(config.Config{
+		LangfuseMaintenanceBaseURL:   server.URL,
+		LangfuseMaintenancePublicKey: "pk-staging",
+		LangfuseMaintenanceSecretKey: "sk-staging",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	_, err = maintenance.CountUserTraces(context.Background(), "hindsight_bank_scoped")
-	if err == nil || strings.Contains(err.Error(), "provider-secret") || strings.Contains(err.Error(), "sk-memory") {
+	if err == nil || strings.Contains(err.Error(), "provider-secret") || strings.Contains(err.Error(), "sk-staging") {
 		t.Fatalf("sanitized error = %v", err)
-	}
-}
-
-func TestLangfuseTraceMaintenanceScopesRetentionToEachProjectKey(t *testing.T) {
-	cutoff := time.Date(2026, 7, 10, 3, 0, 0, 123, time.UTC)
-	deleted := map[string][]string{}
-	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		publicKey, secretKey, ok := request.BasicAuth()
-		if !ok || secretKey != "sk-"+strings.TrimPrefix(publicKey, "pk-") {
-			t.Fatalf("unexpected basic auth %q %q", publicKey, secretKey)
-		}
-		project := strings.TrimPrefix(publicKey, "pk-")
-		switch request.Method {
-		case http.MethodGet:
-			query := request.URL.Query()
-			if query.Get("toTimestamp") != cutoff.Format(time.RFC3339Nano) ||
-				query.Get("userId") != "" || query.Get("fields") != "core" ||
-				query.Get("orderBy") != "timestamp.asc" {
-				t.Fatalf("retention query = %q", request.URL.RawQuery)
-			}
-			_, _ = response.Write([]byte(`{"data":[{"id":"trace-` + project + `"}],"meta":{"page":1,"limit":100,"totalItems":1,"totalPages":1}}`))
-		case http.MethodDelete:
-			var body struct {
-				TraceIDs []string `json:"traceIds"`
-			}
-			if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
-				t.Fatal(err)
-			}
-			deleted[project] = append(deleted[project], body.TraceIDs...)
-		default:
-			t.Fatalf("unexpected method %s", request.Method)
-		}
-	}))
-	defer server.Close()
-
-	runtimeStore, hindsightStore, err := newLangfuseTraceMaintenance(config.Config{
-		LangfuseMaintenanceBaseURL:            server.URL,
-		LangfuseRuntimeMaintenancePublicKey:   "pk-runtime",
-		LangfuseRuntimeMaintenanceSecretKey:   "sk-runtime",
-		LangfuseHindsightMaintenancePublicKey: "pk-hindsight",
-		LangfuseHindsightMaintenanceSecretKey: "sk-hindsight",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if count, err := runtimeStore.PurgeTracesBefore(context.Background(), cutoff); err != nil || count != 1 {
-		t.Fatalf("runtime purge count=%d error=%v", count, err)
-	}
-	if count, err := hindsightStore.PurgeTracesBefore(context.Background(), cutoff); err != nil || count != 1 {
-		t.Fatalf("hindsight purge count=%d error=%v", count, err)
-	}
-	if len(deleted["runtime"]) != 1 || deleted["runtime"][0] != "trace-runtime" ||
-		len(deleted["hindsight"]) != 1 || deleted["hindsight"][0] != "trace-hindsight" {
-		t.Fatalf("deleted traces = %#v", deleted)
 	}
 }
 
@@ -196,7 +138,7 @@ func TestLangfuseTraceMaintenanceRejectsUnboundedPagination(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = client.PurgeTracesBefore(context.Background(), time.Now().UTC())
+	_, err = client.PurgeUserTraces(context.Background(), "user-1")
 	if err == nil || !strings.Contains(err.Error(), "bounded pagination") {
 		t.Fatalf("error = %v", err)
 	}
@@ -224,7 +166,7 @@ func TestLangfuseTraceMaintenanceRejectsIncompleteSuccessfulResponses(t *testing
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := client.CountTracesBefore(context.Background(), time.Now().UTC()); err == nil || !strings.Contains(err.Error(), "response contract") {
+			if _, err := client.CountUserTraces(context.Background(), "user-1"); err == nil || !strings.Contains(err.Error(), "response contract") {
 				t.Fatalf("error = %v", err)
 			}
 		})
@@ -240,7 +182,7 @@ func TestLangfuseTraceMaintenanceRejectsInconsistentPaginationMetadata(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := client.CountTracesBefore(context.Background(), time.Now().UTC()); err == nil || !strings.Contains(err.Error(), "pagination metadata") {
+	if _, err := client.CountUserTraces(context.Background(), "user-1"); err == nil || !strings.Contains(err.Error(), "pagination metadata") {
 		t.Fatalf("error = %v", err)
 	}
 }
@@ -248,20 +190,31 @@ func TestLangfuseTraceMaintenanceRejectsInconsistentPaginationMetadata(t *testin
 type fakePersonalMemoryTraceMaintenance struct {
 	count           int
 	deleted         int
+	countUserCalls  int
+	countUserErrors []error
 	lastCutoff      time.Time
 	lastUserID      string
 	purgeErr        error
+	purgeUserCalls  int
+	purgeUserErrors []error
+	userIDs         []string
 	verificationErr error
 }
 
 func (f *fakePersonalMemoryTraceMaintenance) PurgeUserTraces(_ context.Context, userID string) (int, error) {
 	f.lastUserID = userID
-	return f.deleted, f.purgeErr
+	f.userIDs = append(f.userIDs, userID)
+	err := errorAt(f.purgeUserErrors, f.purgeUserCalls, f.purgeErr)
+	f.purgeUserCalls++
+	return f.deleted, err
 }
 
 func (f *fakePersonalMemoryTraceMaintenance) CountUserTraces(_ context.Context, userID string) (int, error) {
 	f.lastUserID = userID
-	return f.count, f.verificationErr
+	f.userIDs = append(f.userIDs, userID)
+	err := errorAt(f.countUserErrors, f.countUserCalls, f.verificationErr)
+	f.countUserCalls++
+	return f.count, err
 }
 
 func (f *fakePersonalMemoryTraceMaintenance) PurgeUserTracesBefore(
@@ -271,7 +224,10 @@ func (f *fakePersonalMemoryTraceMaintenance) PurgeUserTracesBefore(
 ) (int, error) {
 	f.lastUserID = userID
 	f.lastCutoff = cutoff
-	return f.deleted, f.purgeErr
+	f.userIDs = append(f.userIDs, userID)
+	err := errorAt(f.purgeUserErrors, f.purgeUserCalls, f.purgeErr)
+	f.purgeUserCalls++
+	return f.deleted, err
 }
 
 func (f *fakePersonalMemoryTraceMaintenance) CountUserTracesBefore(
@@ -281,26 +237,24 @@ func (f *fakePersonalMemoryTraceMaintenance) CountUserTracesBefore(
 ) (int, error) {
 	f.lastUserID = userID
 	f.lastCutoff = cutoff
-	return f.count, f.verificationErr
+	f.userIDs = append(f.userIDs, userID)
+	err := errorAt(f.countUserErrors, f.countUserCalls, f.verificationErr)
+	f.countUserCalls++
+	return f.count, err
 }
 
-func (f *fakePersonalMemoryTraceMaintenance) PurgeTracesBefore(_ context.Context, cutoff time.Time) (int, error) {
-	f.lastCutoff = cutoff
-	return f.deleted, f.purgeErr
-}
-
-func (f *fakePersonalMemoryTraceMaintenance) CountTracesBefore(_ context.Context, cutoff time.Time) (int, error) {
-	f.lastCutoff = cutoff
-	return f.count, f.verificationErr
+func errorAt(errors []error, index int, fallback error) error {
+	if index < len(errors) {
+		return errors[index]
+	}
+	return fallback
 }
 
 func TestPersonalMemoryTraceActivitiesUseTheRetiredSaltedBankID(t *testing.T) {
-	runtimeMaintenance := &fakePersonalMemoryTraceMaintenance{deleted: 2}
-	hindsightMaintenance := &fakePersonalMemoryTraceMaintenance{deleted: 3}
+	maintenance := &fakePersonalMemoryTraceMaintenance{deleted: 2}
 	server := &Server{
-		config:                   config.Config{PersonalMemoryOwnerSalt: "owner-salt"},
-		runtimeTraceStore:        runtimeMaintenance,
-		personalMemoryTraceStore: hindsightMaintenance,
+		config:             config.Config{PersonalMemoryOwnerSalt: "owner-salt"},
+		langfuseTraceStore: maintenance,
 	}
 	command := memoryruntime.PersonalMemoryCommandRequest{
 		CommandID:         "cmd-erase",
@@ -322,21 +276,21 @@ func TestPersonalMemoryTraceActivitiesUseTheRetiredSaltedBankID(t *testing.T) {
 	}
 	wantUserID := scopedHindsightBankID("owner-salt", "tenant-main", "user-1", 1)
 	wantCutoff := time.Date(2026, 7, 16, 0, 0, 0, 0, time.UTC)
-	if result.DeletedTraceCount != 5 ||
-		runtimeMaintenance.lastUserID != "user-1" ||
-		!runtimeMaintenance.lastCutoff.Equal(wantCutoff) ||
-		hindsightMaintenance.lastUserID != wantUserID {
+	if result.DeletedTraceCount != 4 ||
+		len(maintenance.userIDs) != 2 ||
+		maintenance.userIDs[0] != "user-1" ||
+		maintenance.userIDs[1] != wantUserID ||
+		!maintenance.lastCutoff.Equal(wantCutoff) {
 		t.Fatalf(
-			"result=%#v runtimeUserID=%q runtimeCutoff=%s hindsightUserID=%q want=%q",
+			"result=%#v userIDs=%q cutoff=%s wantBank=%q",
 			result,
-			runtimeMaintenance.lastUserID,
-			runtimeMaintenance.lastCutoff,
-			hindsightMaintenance.lastUserID,
+			maintenance.userIDs,
+			maintenance.lastCutoff,
 			wantUserID,
 		)
 	}
-	runtimeMaintenance.count = 1
-	hindsightMaintenance.count = 2
+	maintenance.count = 1
+	maintenance.userIDs = nil
 	verification, err := server.VerifyPersonalMemoryTracesActivity(
 		context.Background(),
 		temporalruntime.PersonalMemoryTraceMaintenanceActivityInput{Command: command},
@@ -344,7 +298,7 @@ func TestPersonalMemoryTraceActivitiesUseTheRetiredSaltedBankID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if verification.RemainingTraceCount != 3 {
+	if verification.RemainingTraceCount != 2 || len(maintenance.userIDs) != 2 {
 		t.Fatalf("verification = %#v", verification)
 	}
 }
@@ -386,44 +340,38 @@ func TestPersonalMemoryTraceActivitiesDistinguishProjectFailures(t *testing.T) {
 	}
 	input := temporalruntime.PersonalMemoryTraceMaintenanceActivityInput{Command: command}
 	for _, testCase := range []struct {
-		name      string
-		runtime   *fakePersonalMemoryTraceMaintenance
-		hindsight *fakePersonalMemoryTraceMaintenance
-		verify    bool
-		errorType string
+		name        string
+		maintenance *fakePersonalMemoryTraceMaintenance
+		verify      bool
+		errorType   string
 	}{
 		{
-			name:      "runtime purge",
-			runtime:   &fakePersonalMemoryTraceMaintenance{purgeErr: errors.New("runtime failed")},
-			hindsight: &fakePersonalMemoryTraceMaintenance{},
-			errorType: "personal_memory_runtime_trace_purge_failed",
+			name:        "runtime purge",
+			maintenance: &fakePersonalMemoryTraceMaintenance{purgeUserErrors: []error{errors.New("runtime failed")}},
+			errorType:   "personal_memory_runtime_trace_purge_failed",
 		},
 		{
-			name:      "Hindsight purge",
-			runtime:   &fakePersonalMemoryTraceMaintenance{},
-			hindsight: &fakePersonalMemoryTraceMaintenance{purgeErr: errors.New("Hindsight failed")},
-			errorType: "personal_memory_hindsight_trace_purge_failed",
+			name:        "Hindsight purge",
+			maintenance: &fakePersonalMemoryTraceMaintenance{purgeUserErrors: []error{nil, errors.New("Hindsight failed")}},
+			errorType:   "personal_memory_hindsight_trace_purge_failed",
 		},
 		{
-			name:      "runtime verify",
-			runtime:   &fakePersonalMemoryTraceMaintenance{verificationErr: errors.New("runtime failed")},
-			hindsight: &fakePersonalMemoryTraceMaintenance{},
-			verify:    true,
-			errorType: "personal_memory_runtime_trace_verify_failed",
+			name:        "runtime verify",
+			maintenance: &fakePersonalMemoryTraceMaintenance{countUserErrors: []error{errors.New("runtime failed")}},
+			verify:      true,
+			errorType:   "personal_memory_runtime_trace_verify_failed",
 		},
 		{
-			name:      "Hindsight verify",
-			runtime:   &fakePersonalMemoryTraceMaintenance{},
-			hindsight: &fakePersonalMemoryTraceMaintenance{verificationErr: errors.New("Hindsight failed")},
-			verify:    true,
-			errorType: "personal_memory_hindsight_trace_verify_failed",
+			name:        "Hindsight verify",
+			maintenance: &fakePersonalMemoryTraceMaintenance{countUserErrors: []error{nil, errors.New("Hindsight failed")}},
+			verify:      true,
+			errorType:   "personal_memory_hindsight_trace_verify_failed",
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			server := &Server{
-				config:                   config.Config{PersonalMemoryOwnerSalt: "owner-salt"},
-				runtimeTraceStore:        testCase.runtime,
-				personalMemoryTraceStore: testCase.hindsight,
+				config:             config.Config{PersonalMemoryOwnerSalt: "owner-salt"},
+				langfuseTraceStore: testCase.maintenance,
 			}
 			var err error
 			if testCase.verify {

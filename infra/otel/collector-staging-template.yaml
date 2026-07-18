@@ -3,26 +3,18 @@ receivers:
     protocols:
       http:
         endpoint: "${env:OTEL_COLLECTOR_AGENT_HTTP_ENDPOINT}"
-        auth:
-          authenticator: bearertokenauth/agent
   otlp/orchestration:
     protocols:
       http:
         endpoint: "${env:OTEL_COLLECTOR_ORCHESTRATION_HTTP_ENDPOINT}"
-        auth:
-          authenticator: bearertokenauth/orchestration
   otlp/agent_trusted:
     protocols:
       http:
         endpoint: "${env:OTEL_COLLECTOR_AGENT_TRUSTED_HTTP_ENDPOINT}"
-        auth:
-          authenticator: bearertokenauth/agent_trusted
   otlp/hindsight_trusted:
     protocols:
       http:
         endpoint: "${env:OTEL_COLLECTOR_HINDSIGHT_TRUSTED_HTTP_ENDPOINT}"
-        auth:
-          authenticator: bearertokenauth/hindsight_trusted
   prometheus/platform:
     config:
       scrape_configs:
@@ -37,23 +29,6 @@ receivers:
             - targets: ["${env:OTEL_COLLECTOR_HINDSIGHT_METRICS_TARGET}"]
 
 extensions:
-  bearertokenauth/agent:
-    token: "${env:OTEL_COLLECTOR_AGENT_INGEST_TOKEN}"
-  bearertokenauth/orchestration:
-    token: "${env:OTEL_COLLECTOR_ORCHESTRATION_INGEST_TOKEN}"
-  bearertokenauth/agent_trusted:
-    token: "${env:OTEL_COLLECTOR_AGENT_TRUSTED_INGEST_TOKEN}"
-  bearertokenauth/hindsight_trusted:
-    token: "${env:OTEL_COLLECTOR_HINDSIGHT_TRUSTED_INGEST_TOKEN}"
-  file_storage/queue:
-    directory: "${env:OTEL_COLLECTOR_QUEUE_DIRECTORY}"
-    create_directory: true
-    fsync: true
-    compaction:
-      on_start: true
-      on_rebound: true
-      rebound_needed_threshold_mib: 512
-      rebound_trigger_threshold_mib: 64
   health_check:
     endpoint: "${env:OTEL_COLLECTOR_HEALTH_CHECK_ENDPOINT}"
 
@@ -176,9 +151,6 @@ processors:
   transform/trusted_credentials:
     error_mode: propagate
     trace_statements:
-      - 'set(span.status.message, "")'
-      - 'set(span.events, [])'
-      - 'set(span.links, [])'
       - 'delete_matching_keys(span.attributes, "(?i)(authorization|cookie|credential|jwt|password|secret|api[._-]?key|access[._-]?token|refresh[._-]?token|observability[._-]?canary|(^|[._-])headers?([._-]|$))")'
       - 'delete_matching_keys(resource.attributes, "(?i)(authorization|cookie|credential|jwt|password|secret|api[._-]?key|access[._-]?token|refresh[._-]?token|observability[._-]?canary|(^|[._-])headers?([._-]|$))")'
       - 'delete_matching_keys(instrumentation_scope.attributes, "(?i)(authorization|cookie|credential|jwt|password|secret|api[._-]?key|access[._-]?token|refresh[._-]?token|observability[._-]?canary|(^|[._-])headers?([._-]|$))")'
@@ -218,55 +190,52 @@ exporters:
   otlphttp/axiom_logs:
     endpoint: "${env:OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT}"
     headers:
-      authorization: "Bearer ${env:OTEL_COLLECTOR_AXIOM_LOGS_TOKEN}"
+      authorization: "Bearer ${env:OTEL_COLLECTOR_AXIOM_INGEST_TOKEN}"
       x-axiom-dataset: "${env:OTEL_COLLECTOR_AXIOM_LOGS_DATASET}"
     compression: zstd
     sending_queue:
       enabled: true
       num_consumers: 2
       queue_size: 4096
-      storage: file_storage/queue
     retry_on_failure:
       enabled: true
       initial_interval: 1s
       max_interval: 30s
-      max_elapsed_time: 0s
+      max_elapsed_time: 300s
   otlphttp/axiom_traces:
     endpoint: "${env:OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT}"
     headers:
-      authorization: "Bearer ${env:OTEL_COLLECTOR_AXIOM_TRACES_TOKEN}"
+      authorization: "Bearer ${env:OTEL_COLLECTOR_AXIOM_INGEST_TOKEN}"
       x-axiom-dataset: "${env:OTEL_COLLECTOR_AXIOM_TRACES_DATASET}"
     compression: zstd
     sending_queue:
       enabled: true
       num_consumers: 2
       queue_size: 4096
-      storage: file_storage/queue
     retry_on_failure:
       enabled: true
       initial_interval: 1s
       max_interval: 30s
-      max_elapsed_time: 0s
+      max_elapsed_time: 300s
   otlphttp/axiom_metrics:
     endpoint: "${env:OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT}"
     headers:
-      authorization: "Bearer ${env:OTEL_COLLECTOR_AXIOM_METRICS_TOKEN}"
+      authorization: "Bearer ${env:OTEL_COLLECTOR_AXIOM_INGEST_TOKEN}"
       x-axiom-metrics-dataset: "${env:OTEL_COLLECTOR_AXIOM_METRICS_DATASET}"
     compression: zstd
     sending_queue:
       enabled: true
       num_consumers: 2
       queue_size: 4096
-      storage: file_storage/queue
     retry_on_failure:
       enabled: true
       initial_interval: 1s
       max_interval: 30s
-      max_elapsed_time: 0s
-  otlphttp/langfuse_runtime:
-    endpoint: "${env:OTEL_COLLECTOR_LANGFUSE_RUNTIME_OTLP_ENDPOINT}"
+      max_elapsed_time: 300s
+  otlphttp/langfuse:
+    endpoint: "${env:OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT}"
     headers:
-      authorization: "${env:OTEL_COLLECTOR_LANGFUSE_RUNTIME_AUTH_HEADER}"
+      authorization: "${env:OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER}"
       x-langfuse-ingestion-version: "4"
     compression: gzip
     encoding: proto
@@ -274,37 +243,13 @@ exporters:
       enabled: true
       num_consumers: 2
       queue_size: 2048
-      storage: file_storage/queue
     retry_on_failure:
       enabled: true
       initial_interval: 1s
       max_interval: 30s
-      max_elapsed_time: 0s
-  otlphttp/langfuse_hindsight:
-    endpoint: "${env:OTEL_COLLECTOR_LANGFUSE_HINDSIGHT_OTLP_ENDPOINT}"
-    headers:
-      authorization: "${env:OTEL_COLLECTOR_LANGFUSE_HINDSIGHT_AUTH_HEADER}"
-      x-langfuse-ingestion-version: "4"
-    compression: gzip
-    encoding: proto
-    sending_queue:
-      enabled: true
-      num_consumers: 2
-      queue_size: 2048
-      storage: file_storage/queue
-    retry_on_failure:
-      enabled: true
-      initial_interval: 1s
-      max_interval: 30s
-      max_elapsed_time: 0s
-
+      max_elapsed_time: 300s
 service:
   extensions:
-    - bearertokenauth/agent
-    - bearertokenauth/orchestration
-    - bearertokenauth/agent_trusted
-    - bearertokenauth/hindsight_trusted
-    - file_storage/queue
     - health_check
   telemetry:
     logs:
@@ -332,11 +277,11 @@ service:
     traces/orchestration_langfuse:
       receivers: [otlp/orchestration]
       processors: [memory_limiter, resource/campus, filter/drop_marked, filter/orchestration_langfuse, transform/orchestration_langfuse, batch]
-      exporters: [otlphttp/langfuse_runtime]
+      exporters: [otlphttp/langfuse]
     traces/orchestration_memory_parent:
       receivers: [otlp/orchestration]
       processors: [memory_limiter, resource/campus, filter/drop_marked, filter/memory_parent, transform/memory_parent, batch]
-      exporters: [otlphttp/langfuse_hindsight]
+      exporters: [otlphttp/langfuse]
     metrics/orchestration:
       receivers: [otlp/orchestration]
       processors: [memory_limiter, resource/campus, filter/drop_marked, transform/axiom_safe, batch]
@@ -344,11 +289,11 @@ service:
     traces/agent_runtime:
       receivers: [otlp/agent_trusted]
       processors: [memory_limiter, resource/campus, filter/drop_marked, transform/trusted_credentials, batch]
-      exporters: [otlphttp/langfuse_runtime]
+      exporters: [otlphttp/langfuse]
     traces/hindsight:
       receivers: [otlp/hindsight_trusted]
       processors: [memory_limiter, resource/campus, filter/drop_marked, transform/trusted_credentials, transform/hindsight_langfuse, batch]
-      exporters: [otlphttp/langfuse_hindsight]
+      exporters: [otlphttp/langfuse]
     metrics/platform:
       receivers: [prometheus/platform]
       processors: [memory_limiter, resource/campus, transform/axiom_safe, batch]

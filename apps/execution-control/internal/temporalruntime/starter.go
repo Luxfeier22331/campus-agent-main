@@ -303,14 +303,6 @@ type ContextActivities interface {
 		context.Context,
 		PersonalMemoryTraceMaintenanceActivityInput,
 	) (PersonalMemoryTraceMaintenanceActivityOutput, error)
-	PurgeLangfuseTraceRetentionActivity(
-		context.Context,
-		LangfuseTraceRetentionActivityInput,
-	) (LangfuseTraceRetentionActivityOutput, error)
-	VerifyLangfuseTraceRetentionActivity(
-		context.Context,
-		LangfuseTraceRetentionActivityInput,
-	) (LangfuseTraceRetentionActivityOutput, error)
 	FinalizePersonalMemoryCommandReceiptActivity(
 		context.Context,
 		FinalizePersonalMemoryCommandReceiptActivityInput,
@@ -499,9 +491,6 @@ func NewWorkflowWorkerWithOptions(
 	workflowWorker.RegisterWorkflowWithOptions(PersonalMemoryCommandWorkflow, workflow.RegisterOptions{
 		Name: PersonalMemoryCommandWorkflowType,
 	})
-	workflowWorker.RegisterWorkflowWithOptions(LangfuseTraceRetentionWorkflow, workflow.RegisterOptions{
-		Name: LangfuseTraceRetentionWorkflowType,
-	})
 	return workflowWorker
 }
 
@@ -540,14 +529,6 @@ func NewCoreActivityWorkerWithOptions(
 	coreWorker.RegisterActivityWithOptions(
 		contextActivities.VerifyPersonalMemoryTracesActivity,
 		activityRegisterOptions(VerifyPersonalMemoryTracesActivityName),
-	)
-	coreWorker.RegisterActivityWithOptions(
-		contextActivities.PurgeLangfuseTraceRetentionActivity,
-		activityRegisterOptions(PurgeLangfuseTraceRetentionActivityName),
-	)
-	coreWorker.RegisterActivityWithOptions(
-		contextActivities.VerifyLangfuseTraceRetentionActivity,
-		activityRegisterOptions(VerifyLangfuseTraceRetentionActivityName),
 	)
 	coreWorker.RegisterActivityWithOptions(
 		contextActivities.FinalizePersonalMemoryCommandReceiptActivity,

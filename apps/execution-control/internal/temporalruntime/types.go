@@ -217,22 +217,6 @@ type PersonalMemoryTraceMaintenanceActivityOutput struct {
 	RemainingTraceCount int `json:"remaining_trace_count"`
 }
 
-type LangfuseTraceRetentionActivityInput struct {
-	Cutoff time.Time `json:"cutoff"`
-}
-
-type LangfuseTraceRetentionActivityOutput struct {
-	HindsightTraceCount int `json:"hindsight_trace_count"`
-	RuntimeTraceCount   int `json:"runtime_trace_count"`
-}
-
-type LangfuseTraceRetentionWorkflowResult struct {
-	Cutoff                     time.Time `json:"cutoff"`
-	DeletedHindsightTraceCount int       `json:"deleted_hindsight_trace_count"`
-	DeletedRuntimeTraceCount   int       `json:"deleted_runtime_trace_count"`
-	VerificationRounds         int       `json:"verification_rounds"`
-}
-
 type FinalizeExecutionFailureActivityInput struct {
 	FailureHash string    `json:"failure_hash"`
 	FailureKind string    `json:"failure_kind"`

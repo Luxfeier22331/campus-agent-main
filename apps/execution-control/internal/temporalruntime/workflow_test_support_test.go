@@ -44,14 +44,6 @@ func registerWorkflowTestActivities(env workflowTestActivityRegistrar, activitie
 		activity.RegisterOptions{Name: VerifyPersonalMemoryTracesActivityName},
 	)
 	env.RegisterActivityWithOptions(
-		activities.PurgeLangfuseTraceRetentionActivity,
-		activity.RegisterOptions{Name: PurgeLangfuseTraceRetentionActivityName},
-	)
-	env.RegisterActivityWithOptions(
-		activities.VerifyLangfuseTraceRetentionActivity,
-		activity.RegisterOptions{Name: VerifyLangfuseTraceRetentionActivityName},
-	)
-	env.RegisterActivityWithOptions(
 		activities.FinalizePersonalMemoryCommandReceiptActivity,
 		activity.RegisterOptions{Name: FinalizePersonalMemoryCommandReceiptActivityName},
 	)
@@ -101,20 +93,6 @@ func (Activities) VerifyPersonalMemoryTracesActivity(
 	PersonalMemoryTraceMaintenanceActivityInput,
 ) (PersonalMemoryTraceMaintenanceActivityOutput, error) {
 	return PersonalMemoryTraceMaintenanceActivityOutput{}, nil
-}
-
-func (Activities) PurgeLangfuseTraceRetentionActivity(
-	context.Context,
-	LangfuseTraceRetentionActivityInput,
-) (LangfuseTraceRetentionActivityOutput, error) {
-	return LangfuseTraceRetentionActivityOutput{}, nil
-}
-
-func (Activities) VerifyLangfuseTraceRetentionActivity(
-	context.Context,
-	LangfuseTraceRetentionActivityInput,
-) (LangfuseTraceRetentionActivityOutput, error) {
-	return LangfuseTraceRetentionActivityOutput{}, nil
 }
 
 func (Activities) WritePersonalMemoryCommandResultActivity(

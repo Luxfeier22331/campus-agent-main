@@ -292,7 +292,7 @@ func TestPersonalMemoryCommandWorkflowWaitsAtOwnerReceiptGate(t *testing.T) {
 	env.AssertActivityNumberOfCalls(t, ExecutePersonalMemoryCommandActivityName, 2)
 }
 
-func TestPersonalMemoryEraseWaitsForBothLangfuseVerificationCheckpoints(t *testing.T) {
+func TestPersonalMemoryEraseDrainsExporterThenConverges(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
 	registerWorkflowTestActivities(env, &Activities{})
@@ -316,9 +316,9 @@ func TestPersonalMemoryEraseWaitsForBothLangfuseVerificationCheckpoints(t *testi
 	env.OnActivity(ExecutePersonalMemoryCommandActivityName, mock.Anything, command).
 		Return(result, nil).Once()
 	env.OnActivity(PurgePersonalMemoryTracesActivityName, mock.Anything, maintenanceInput).
-		Return(PersonalMemoryTraceMaintenanceActivityOutput{}, nil).Times(3)
+		Return(PersonalMemoryTraceMaintenanceActivityOutput{}, nil).Once()
 	env.OnActivity(VerifyPersonalMemoryTracesActivityName, mock.Anything, maintenanceInput).
-		Return(PersonalMemoryTraceMaintenanceActivityOutput{RemainingTraceCount: 0}, nil).Times(2)
+		Return(PersonalMemoryTraceMaintenanceActivityOutput{RemainingTraceCount: 0}, nil).Once()
 	env.OnActivity(
 		FinalizePersonalMemoryCommandReceiptActivityName,
 		mock.Anything,
@@ -332,9 +332,66 @@ func TestPersonalMemoryEraseWaitsForBothLangfuseVerificationCheckpoints(t *testi
 	if err := env.GetWorkflowError(); err != nil {
 		t.Fatalf("workflow error: %v", err)
 	}
-	env.AssertActivityNumberOfCalls(t, PurgePersonalMemoryTracesActivityName, 3)
-	env.AssertActivityNumberOfCalls(t, VerifyPersonalMemoryTracesActivityName, 2)
+	env.AssertActivityNumberOfCalls(t, PurgePersonalMemoryTracesActivityName, 1)
+	env.AssertActivityNumberOfCalls(t, VerifyPersonalMemoryTracesActivityName, 1)
 	env.AssertActivityNumberOfCalls(t, FinalizePersonalMemoryCommandReceiptActivityName, 1)
+}
+
+func TestPersonalMemoryEraseFailsAfterBoundedVerificationRounds(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	registerWorkflowTestActivities(env, &Activities{})
+	command := memoryruntime.PersonalMemoryCommandRequest{
+		CommandID:         "cmd-owner-erase-bounded",
+		CommandKind:       "owner_erase",
+		OwnerGeneration:   2,
+		OwnerSequence:     3,
+		SchemaVersion:     memoryruntime.PersonalMemoryCommandSchemaVersion,
+		SourceUpdatedAt:   "2026-07-16T00:00:00Z",
+		SupersessionScope: "owner:erase:2",
+		TenantID:          "tenant-main",
+		UserID:            "user-1",
+	}
+	succeeded := PersonalMemoryCommandActivityOutput{
+		CommandID:         command.CommandID,
+		ResultFingerprint: "fingerprint",
+		Status:            "succeeded",
+	}
+	failed := PersonalMemoryCommandActivityOutput{
+		CommandID: command.CommandID,
+		ErrorCode: "personal_memory_trace_erase_failed",
+		Status:    "failed",
+	}
+	maintenanceInput := PersonalMemoryTraceMaintenanceActivityInput{Command: command}
+	env.OnActivity(ExecutePersonalMemoryCommandActivityName, mock.Anything, command).
+		Return(succeeded, nil).Once()
+	env.OnActivity(PurgePersonalMemoryTracesActivityName, mock.Anything, maintenanceInput).
+		Return(PersonalMemoryTraceMaintenanceActivityOutput{}, nil).Times(personalMemoryEraseMaxRounds)
+	env.OnActivity(VerifyPersonalMemoryTracesActivityName, mock.Anything, maintenanceInput).
+		Return(PersonalMemoryTraceMaintenanceActivityOutput{RemainingTraceCount: 1}, nil).
+		Times(personalMemoryEraseMaxRounds)
+	env.OnActivity(
+		FinalizePersonalMemoryCommandReceiptActivityName,
+		mock.Anything,
+		FinalizePersonalMemoryCommandReceiptActivityInput{Command: command, Result: failed},
+	).Return(failed, nil).Once()
+	env.OnActivity(WritePersonalMemoryCommandResultActivityName, mock.Anything, failed).
+		Return(nil).Once()
+
+	env.ExecuteWorkflow(PersonalMemoryCommandWorkflow, PersonalMemoryCommandWorkflowInput{Command: command})
+
+	if err := env.GetWorkflowError(); err != nil {
+		t.Fatalf("workflow error: %v", err)
+	}
+	var result PersonalMemoryCommandActivityOutput
+	if err := env.GetWorkflowResult(&result); err != nil {
+		t.Fatal(err)
+	}
+	if result != failed {
+		t.Fatalf("result = %#v, want %#v", result, failed)
+	}
+	env.AssertActivityNumberOfCalls(t, PurgePersonalMemoryTracesActivityName, personalMemoryEraseMaxRounds)
+	env.AssertActivityNumberOfCalls(t, VerifyPersonalMemoryTracesActivityName, personalMemoryEraseMaxRounds)
 }
 
 func TestToolExecutionWorkflowOwnsOnlyTheDurableFourStageShell(t *testing.T) {

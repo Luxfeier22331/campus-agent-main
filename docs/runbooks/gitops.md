@@ -86,13 +86,13 @@ URL、三个 dataset 和 timeout 时才启用观测查询。token 必须是限�
 不得使用 Axiom personal、ingest 或 Terraform 管理 token。该 Secret 缺失只使日志和调用链
 不可用，不阻塞 Ops Web readiness 或 PostgreSQL 摘要。
 
-Collector 的四个 receiver token、Axiom 三个 ingest token、Langfuse runtime/Hindsight project
-credential 必须彼此独立。workload 只消费自己端口或项目所需的 credential；不得恢复共享
-Collector ingest secret、Collector Sentry credential 或旧 OpenObserve key。
+Collector 四个 receiver 通过固定端口与精确 NetworkPolicy 隔离，不消费 bearer token。Axiom
+log、trace 和 metric 共用一枚可写三个 dataset 的 ingest token；不得恢复 Collector Sentry
+credential 或旧 OpenObserve key。
 
-execution-control `activity-core` 还必须消费一个 `LANGFUSE_MAINTENANCE_BASE_URL` 和 runtime、
-Hindsight 两组 maintenance public/secret key。base URL 属于非敏感部署配置，两组 key 属于独立
-project credential；它们同时服务 owner erase 与七天 Temporal retention。缺少任一项时 core
+execution-control `activity-core` 还必须消费 `LANGFUSE_MAINTENANCE_BASE_URL`、
+`LANGFUSE_MAINTENANCE_PUBLIC_KEY` 和 `LANGFUSE_MAINTENANCE_SECRET_KEY`。base URL 属于非敏感
+部署配置，key 属于环境 project 的共用 credential；它们只服务 owner erase。缺少任一项时 core
 worker 应在启动时失败，不能通过禁用删除来恢复 readiness。
 
 Cloudflare Axiom application-log destination token 只存在于受保护的 GitHub Environment，并由
@@ -104,16 +104,16 @@ campus-web browser source map upload credential 同样只存在于 CI Environmen
 
 可观测性变更按以下顺序拆分：
 
-1. 先创建 Axiom dataset/retention、两个 Langfuse project、受限 token 和 Cloudflare
+1. 先创建 Axiom dataset/retention、环境唯一的 Langfuse project、ingest/query token 和 Cloudflare
    application-log destination。
 2. 在可信部署主机完成 strict-scope SealedSecret reseal；任何 `requires-reseal` 标记、空
    `encryptedData` 或缺少 workload 引用 key 都必须使环境 CI 失败。
-3. 部署 Collector Gateway/Agent、Hindsight OTLP、execution-control、Ops Web 和 Worker log
-   destination；验证未认证和交叉 receiver token 都被拒绝，并确认 Worker
+3. 部署 Collector Gateway、Hindsight OTLP、execution-control、Ops Web 和 Worker log
+   destination；验证 NetworkPolicy 只允许指定生产者访问对应端口，并确认 Worker
    `invocation_logs=false`、native traces 关闭。
-4. 运行 chat、memory retain/recall/erase 和受控错误，确认 Axiom 三类信号、两个 Langfuse
-   project 与 Sentry release/source map 各自正确。
-5. 连续 24 小时确认 Collector 队列不增长、没有持续发送失败、dataset 新鲜且 trace 项目不交叉。
+4. 运行 chat、memory retain/recall/erase 和受控错误，确认 Axiom 三类信号、Langfuse
+   service/tag 分类与 Sentry release/source map 各自正确。
+5. 确认 Collector 队列回落、没有持续发送失败、dataset 新鲜且 trace 分类正确。
 6. 对 query、header、正文、用户标识、prompt、answer、memory 和 credential 哨兵做下游搜索；
    Axiom 与 Sentry 必须为零匹配。
 
@@ -121,8 +121,8 @@ Cloudflare application logs 绕过 Collector 白名单。上述哨兵失败时�
 或对应 producer 输出；Axiom 出现 invocation log/native trace 时必须按配置漂移处理，不能继续
 退役门禁。请求关联证据来自 execution-control 经 Collector 写入的 runtime trace。
 
-OpenObserve 资源删除是单独的破坏性环境变更，不得与首次 rollout、Secret reseal 或 canary
-修复放在同一 pull request。只有 24 小时门禁和哨兵检查完成后才能先声明数据库 absent；数据库
+OpenObserve 资源删除是单独的破坏性环境变更，不得与首次 rollout 或 Secret reseal
+放在同一 pull request。替代链路验收完成后才能先声明数据库 absent；数据库
 与会话确认清零后，再用后续 pull request 删除 role、Secret 和独占对象存储资源。回滚不恢复
 OpenObserve。
 

@@ -37,9 +37,7 @@ func TestTemporalActivitySetsExposeOnlyTheirQueueMethods(t *testing.T) {
 		"FinalizePersonalMemoryCommandReceiptActivity",
 		"MemoryReflectActivity",
 		"MemoryRecallActivity",
-		"PurgeLangfuseTraceRetentionActivity",
 		"PurgePersonalMemoryTracesActivity",
-		"VerifyLangfuseTraceRetentionActivity",
 		"VerifyPersonalMemoryTracesActivity",
 		"WritePersonalMemoryCommandResultActivity",
 	} {

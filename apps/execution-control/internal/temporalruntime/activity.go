@@ -9,8 +9,6 @@ const (
 	ExecutePersonalMemoryCommandActivityName         = "ExecutePersonalMemoryCommandActivity"
 	PurgePersonalMemoryTracesActivityName            = "PurgePersonalMemoryTracesActivity"
 	VerifyPersonalMemoryTracesActivityName           = "VerifyPersonalMemoryTracesActivity"
-	PurgeLangfuseTraceRetentionActivityName          = "PurgeLangfuseTraceRetentionActivity"
-	VerifyLangfuseTraceRetentionActivityName         = "VerifyLangfuseTraceRetentionActivity"
 	FinalizePersonalMemoryCommandReceiptActivityName = "FinalizePersonalMemoryCommandReceiptActivity"
 	FinalizeExecutionFailureActivityName             = "FinalizeExecutionFailureActivity"
 	WritePersonalMemoryCommandResultActivityName     = "WritePersonalMemoryCommandResultActivity"

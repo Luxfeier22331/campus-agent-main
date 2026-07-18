@@ -127,8 +127,8 @@ execution-control 编排 trace 按白名单进入 Axiom/Langfuse，Agent 与 Hin
 Collector Agent 采集第一方容器日志与 kubelet 指标，排除 Collector 和 Hindsight stdout。
 应用单行 JSON 只提升 `event_type`、request/trace/run/workflow/step 关联标识和固定结果字段；
 这些字段只接受受限长度的标量值。`service.name` 来自 Pod 的 `app.kubernetes.io/name`，原始
-stdout 正文在导出前被替换。Agent 使用 node-local 持久 checkpoint 与发送队列。Gateway 负责
-字段白名单、批处理、持久队列、重试、采样和 project 路由。
+stdout 正文在导出前被替换。Agent 与 Gateway 使用内存发送队列和 300 秒重试上限，不要求
+node-local 存储。Gateway 负责字段白名单、批处理、有界重试、采样和 project 路由。
 
 Cloudflare Worker 只把 producer 清理后的 application console logs 通过环境 log destination
 直接写入 Axiom，绕过 Collector 字段白名单；因此必须用 staging 哨兵验证实际 payload。

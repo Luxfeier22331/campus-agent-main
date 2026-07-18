@@ -49,9 +49,6 @@ expected=$(cat <<'EOF'
 transform/trusted_credentials:
   error_mode: propagate
   trace_statements:
-    - 'set(span.status.message, "")'
-    - 'set(span.events, [])'
-    - 'set(span.links, [])'
     - 'delete_matching_keys(span.attributes, "(?i)(authorization|cookie|credential|jwt|password|secret|api[._-]?key|access[._-]?token|refresh[._-]?token|observability[._-]?canary|(^|[._-])headers?([._-]|$))")'
     - 'delete_matching_keys(resource.attributes, "(?i)(authorization|cookie|credential|jwt|password|secret|api[._-]?key|access[._-]?token|refresh[._-]?token|observability[._-]?canary|(^|[._-])headers?([._-]|$))")'
     - 'delete_matching_keys(instrumentation_scope.attributes, "(?i)(authorization|cookie|credential|jwt|password|secret|api[._-]?key|access[._-]?token|refresh[._-]?token|observability[._-]?canary|(^|[._-])headers?([._-]|$))")'
@@ -59,7 +56,7 @@ EOF
 )
 
 if [[ "$sanitizer" != "$expected" ]]; then
-  echo "Collector trusted sanitizer does not match the fail-closed contract." >&2
+  echo "Collector trusted sanitizer does not match the credential-only contract." >&2
   diff -u <(printf '%s\n' "$expected") <(printf '%s\n' "$sanitizer") >&2 || true
   exit 1
 fi

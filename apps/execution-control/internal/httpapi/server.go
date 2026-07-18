@@ -34,8 +34,7 @@ type Server struct {
 	personalMemoryErr         error
 	personalMemoryStateStore  memoryruntime.StateStore
 	personalMemoryStateErr    error
-	personalMemoryTraceStore  langfuseTraceMaintenance
-	runtimeTraceStore         langfuseTraceMaintenance
+	langfuseTraceStore        langfuseTraceMaintenance
 	langfuseTraceErr          error
 	knowledgeSearchExecutor   knowledgeSearchExecutor
 	knowledgeSearchErr        error
@@ -96,20 +95,6 @@ func (a TemporalContextActivities) VerifyPersonalMemoryTracesActivity(
 	input temporalruntime.PersonalMemoryTraceMaintenanceActivityInput,
 ) (temporalruntime.PersonalMemoryTraceMaintenanceActivityOutput, error) {
 	return a.server.VerifyPersonalMemoryTracesActivity(ctx, input)
-}
-
-func (a TemporalContextActivities) PurgeLangfuseTraceRetentionActivity(
-	ctx context.Context,
-	input temporalruntime.LangfuseTraceRetentionActivityInput,
-) (temporalruntime.LangfuseTraceRetentionActivityOutput, error) {
-	return a.server.PurgeLangfuseTraceRetentionActivity(ctx, input)
-}
-
-func (a TemporalContextActivities) VerifyLangfuseTraceRetentionActivity(
-	ctx context.Context,
-	input temporalruntime.LangfuseTraceRetentionActivityInput,
-) (temporalruntime.LangfuseTraceRetentionActivityOutput, error) {
-	return a.server.VerifyLangfuseTraceRetentionActivity(ctx, input)
 }
 
 func (a TemporalContextActivities) FinalizePersonalMemoryCommandReceiptActivity(
@@ -212,7 +197,7 @@ func NewServerWithDependencies(
 	providerConfigResolver, providerConfigErr := newProviderConfigResolver(cfg)
 	personalMemoryExecutor, personalMemoryErr := newPersonalMemoryExecutor(cfg, providerConfigResolver)
 	personalMemoryStateStore, personalMemoryStateErr := newPersonalMemoryStateStore(cfg)
-	runtimeTraceStore, personalMemoryTraceStore, langfuseTraceErr := newLangfuseTraceMaintenance(cfg)
+	langfuseTraceStore, langfuseTraceErr := newLangfuseTraceMaintenance(cfg)
 	if personalMemoryErr == nil && personalMemoryStateErr == nil {
 		personalMemoryExecutor = newFencedPersonalMemoryExecutor(personalMemoryExecutor, personalMemoryStateStore, cfg.PersonalMemoryOwnerSalt, cfg.PersonalMemoryTimeoutSeconds)
 	}
@@ -234,8 +219,7 @@ func NewServerWithDependencies(
 		personalMemoryErr:        personalMemoryErr,
 		personalMemoryStateStore: personalMemoryStateStore,
 		personalMemoryStateErr:   personalMemoryStateErr,
-		personalMemoryTraceStore: personalMemoryTraceStore,
-		runtimeTraceStore:        runtimeTraceStore,
+		langfuseTraceStore:       langfuseTraceStore,
 		langfuseTraceErr:         langfuseTraceErr,
 		knowledgeSearchExecutor:  knowledgeSearchExecutor,
 		knowledgeSearchErr:       knowledgeSearchErr,
@@ -285,7 +269,7 @@ func NewTemporalActivityServer(
 			return nil, fmt.Errorf("initialize personal memory state store: %w", err)
 		}
 		server.personalMemoryExecutor = newFencedPersonalMemoryExecutor(server.personalMemoryExecutor, server.personalMemoryStateStore, cfg.PersonalMemoryOwnerSalt, cfg.PersonalMemoryTimeoutSeconds)
-		server.runtimeTraceStore, server.personalMemoryTraceStore, err = newLangfuseTraceMaintenance(cfg)
+		server.langfuseTraceStore, err = newLangfuseTraceMaintenance(cfg)
 		if err != nil {
 			closeRunProjectionStore()
 			return nil, fmt.Errorf("initialize Langfuse trace maintenance: %w", err)

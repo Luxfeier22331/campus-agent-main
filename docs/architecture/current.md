@@ -38,7 +38,7 @@ flowchart LR
   OTel["OpenTelemetry Collector"]
   Axiom["Axiom"]
   Sentry["Sentry"]
-  Langfuse["Langfuse projects"]
+  Langfuse["Langfuse project"]
 
   CampusWeb --> AppAPI
   AppAPI --> Control
@@ -129,7 +129,7 @@ execution-control 提供已准入工具集合，但不在 SDK 前建立文本分
 - 对象存储保存 digest-pinned ingestion request、source artifact 和 result manifest；
 - Langfuse 保存受信任的模型 trace、dataset、score 和评测工作流；
 - OpenTelemetry Collector 通过分权入口接收 Kubernetes 受控 trace、log 和 metric，并按数据
-  类别转发到 Axiom 与两个 Langfuse project；
+  类别转发到 Axiom 与环境唯一的 Langfuse project；
 - Sentry 通过 browser/edge SDK 保存经过清理的应用错误、受控性能、release 和 source map；
 - app-api 与 campus-web edge 只把 producer 清理后的 application console logs 按环境 log
   destination 直接写入 Axiom，不经过 Collector；Worker invocation logs 与 native traces 保持

@@ -9,93 +9,91 @@ import (
 )
 
 type Config struct {
-	AppName                               string
-	DeploymentEnvironment                 string
-	Host                                  string
-	Port                                  int
-	RuntimeMode                           string
-	RuntimeRelease                        string
-	AuthMode                              string
-	BearerToken                           string
-	WorkerSharedSecret                    string
-	DefaultActorID                        string
-	DefaultActorRoles                     []string
-	ExecutionResponseLimitBytes           int64
-	ExecutionBreakerFailureThreshold      int
-	ExecutionBreakerOpenMS                int
-	ExecutionRetryMaxAttempts             int
-	ExecutionRetryBaseMS                  int
-	MaxConcurrentAnswers                  int
-	QueueCapacity                         int
-	QueueTimeoutMS                        int
-	RequestTimeoutMS                      int
-	RequestBodyLimitBytes                 int64
-	ExecutionTimeoutMS                    int
-	ExecutionCancelTimeoutMS              int
-	ShutdownGraceMS                       int
-	MetricsBearerToken                    string
-	OTelEnabled                           bool
-	OTelEndpoint                          string
-	OTelMetricsEnabled                    bool
-	OTelMetricsEndpoint                   string
-	OTelHeaders                           string
-	OTelServiceName                       string
-	OTelExportTimeoutMS                   int
-	OTelExportIntervalMS                  int
-	OTelSampleRatio                       float64
-	OTelAllowedAttributesVersion          string
-	TemporalTracingEnabled                bool
-	RunProjectionDatabaseURL              string
-	RunProjectionAutoMigrate              bool
-	TemporalAddress                       string
-	TemporalNamespace                     string
-	TemporalTaskQueue                     string
-	TemporalWorkerIdentity                string
-	TemporalWorkflowIDSalt                string
-	TemporalStartTimeoutMS                int
-	AgentRuntimeBaseURL                   string
-	AgentRuntimeSharedSecret              string
-	AgentRuntimeDeadlineMS                int
-	AgentRuntimeMaxOutputTokens           int
-	AgentRuntimeMaxTurns                  int
-	AgentRuntimeSearchLimit               int
-	AgentRuntimeInputCharLimit            int
-	AgentRuntimeContextCharLimit          int
-	ProductCallbackBaseURL                string
-	ProductCallbackSharedSecret           string
-	ProductCallbackTimeoutMS              int
-	ProviderConfigSnapshotPath            string
-	ProviderConfigReaderDatabaseURL       string
-	ProviderConfigAdminDatabaseURL        string
-	ProviderConfigKeyringPath             string
-	ProviderConfigAdminReadToken          string
-	ProviderConfigAdminCommandToken       string
-	QueryServingTargetsPath               string
-	InternalQuerySharedSecret             string
-	ToolReadModelTrustedTimeRFC3339       string
-	ToolReadModelTimeoutMS                int
-	StructuredProjectionDatabaseURL       string
-	QdrantURL                             string
-	QdrantQueryAPIKey                     string
-	QdrantTLSCACertPath                   string
-	QdrantTimeoutSeconds                  float64
-	RAGTopKMax                            int
-	RAGEmbeddingTimeoutMS                 int
-	RAGQdrantTimeoutMS                    int
-	WorkerProfiles                        map[string]WorkerProfile
-	PersonalMemoryRuntime                 string
-	PersonalMemoryBaseURL                 string
-	PersonalMemoryAPISecret               string
-	PersonalMemoryOwnerSalt               string
-	PersonalMemoryTimeoutSeconds          float64
-	PersonalMemoryRecallLimit             int
-	PersonalMemoryRecallMaxTokens         int
-	PersonalMemoryContextCharBudget       int
-	LangfuseMaintenanceBaseURL            string
-	LangfuseRuntimeMaintenancePublicKey   string
-	LangfuseRuntimeMaintenanceSecretKey   string
-	LangfuseHindsightMaintenancePublicKey string
-	LangfuseHindsightMaintenanceSecretKey string
+	AppName                          string
+	DeploymentEnvironment            string
+	Host                             string
+	Port                             int
+	RuntimeMode                      string
+	RuntimeRelease                   string
+	AuthMode                         string
+	BearerToken                      string
+	WorkerSharedSecret               string
+	DefaultActorID                   string
+	DefaultActorRoles                []string
+	ExecutionResponseLimitBytes      int64
+	ExecutionBreakerFailureThreshold int
+	ExecutionBreakerOpenMS           int
+	ExecutionRetryMaxAttempts        int
+	ExecutionRetryBaseMS             int
+	MaxConcurrentAnswers             int
+	QueueCapacity                    int
+	QueueTimeoutMS                   int
+	RequestTimeoutMS                 int
+	RequestBodyLimitBytes            int64
+	ExecutionTimeoutMS               int
+	ExecutionCancelTimeoutMS         int
+	ShutdownGraceMS                  int
+	MetricsBearerToken               string
+	OTelEnabled                      bool
+	OTelEndpoint                     string
+	OTelMetricsEnabled               bool
+	OTelMetricsEndpoint              string
+	OTelHeaders                      string
+	OTelServiceName                  string
+	OTelExportTimeoutMS              int
+	OTelExportIntervalMS             int
+	OTelSampleRatio                  float64
+	OTelAllowedAttributesVersion     string
+	TemporalTracingEnabled           bool
+	RunProjectionDatabaseURL         string
+	RunProjectionAutoMigrate         bool
+	TemporalAddress                  string
+	TemporalNamespace                string
+	TemporalTaskQueue                string
+	TemporalWorkerIdentity           string
+	TemporalWorkflowIDSalt           string
+	TemporalStartTimeoutMS           int
+	AgentRuntimeBaseURL              string
+	AgentRuntimeSharedSecret         string
+	AgentRuntimeDeadlineMS           int
+	AgentRuntimeMaxOutputTokens      int
+	AgentRuntimeMaxTurns             int
+	AgentRuntimeSearchLimit          int
+	AgentRuntimeInputCharLimit       int
+	AgentRuntimeContextCharLimit     int
+	ProductCallbackBaseURL           string
+	ProductCallbackSharedSecret      string
+	ProductCallbackTimeoutMS         int
+	ProviderConfigSnapshotPath       string
+	ProviderConfigReaderDatabaseURL  string
+	ProviderConfigAdminDatabaseURL   string
+	ProviderConfigKeyringPath        string
+	ProviderConfigAdminReadToken     string
+	ProviderConfigAdminCommandToken  string
+	QueryServingTargetsPath          string
+	InternalQuerySharedSecret        string
+	ToolReadModelTrustedTimeRFC3339  string
+	ToolReadModelTimeoutMS           int
+	StructuredProjectionDatabaseURL  string
+	QdrantURL                        string
+	QdrantQueryAPIKey                string
+	QdrantTLSCACertPath              string
+	QdrantTimeoutSeconds             float64
+	RAGTopKMax                       int
+	RAGEmbeddingTimeoutMS            int
+	RAGQdrantTimeoutMS               int
+	WorkerProfiles                   map[string]WorkerProfile
+	PersonalMemoryRuntime            string
+	PersonalMemoryBaseURL            string
+	PersonalMemoryAPISecret          string
+	PersonalMemoryOwnerSalt          string
+	PersonalMemoryTimeoutSeconds     float64
+	PersonalMemoryRecallLimit        int
+	PersonalMemoryRecallMaxTokens    int
+	PersonalMemoryContextCharBudget  int
+	LangfuseMaintenanceBaseURL       string
+	LangfuseMaintenancePublicKey     string
+	LangfuseMaintenanceSecretKey     string
 }
 
 type WorkerProfile struct {
@@ -108,80 +106,78 @@ type WorkerProfile struct {
 }
 
 type envValues struct {
-	AppName                               string `env:"CAMPUS_AGENT_APP_NAME" envDefault:"campus-agent"`
-	DeploymentEnvironment                 string `env:"DEPLOYMENT_ENVIRONMENT"`
-	Host                                  string `env:"CAMPUS_AGENT_HTTP_HOST" envDefault:"127.0.0.1"`
-	Port                                  int    `env:"CAMPUS_AGENT_HTTP_PORT" envDefault:"8000"`
-	RuntimeMode                           string `env:"EXECUTION_CONTROL_RUNTIME_MODE" envDefault:"local"`
-	RuntimeRelease                        string `env:"EXECUTION_CONTROL_RUNTIME_RELEASE"`
-	AuthMode                              string `env:"API_AUTH_MODE" envDefault:"bearer"`
-	BearerToken                           string `env:"API_BEARER_TOKEN"`
-	WorkerSharedSecret                    string `env:"API_WORKER_SHARED_SECRET"`
-	DefaultActorID                        string `env:"API_DEFAULT_ACTOR_ID"`
-	MaxConcurrentAnswers                  int
-	QueueCapacity                         int
-	QueueTimeoutMS                        int
-	RequestTimeoutMS                      int
-	RequestBodyLimitBytes                 int64
-	ShutdownGraceMS                       int
-	MetricsBearerToken                    string `env:"EXECUTION_CONTROL_METRICS_BEARER_TOKEN"`
-	OTelEndpoint                          string
-	OTelMetricsEndpoint                   string
-	OTelHeaders                           string `env:"EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_HEADERS"`
-	OTelServiceName                       string
-	OTelExportTimeoutMS                   int
-	OTelExportIntervalMS                  int
-	OTelSampleRatio                       float64
-	OTelAllowedAttributesVersion          string
-	TemporalTracingEnabled                bool
-	RunProjectionDatabaseURL              string `env:"EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL"`
-	TemporalAddress                       string `env:"EXECUTION_CONTROL_TEMPORAL_ADDRESS"`
-	TemporalNamespace                     string `env:"EXECUTION_CONTROL_TEMPORAL_NAMESPACE"`
-	TemporalTaskQueue                     string `env:"EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE" envDefault:"campus-agent.workflow"`
-	TemporalWorkerIdentity                string `env:"EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY"`
-	TemporalWorkflowIDSalt                string `env:"EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT"`
-	TemporalStartTimeoutMS                int    `env:"EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS" envDefault:"5000"`
-	AgentRuntimeBaseURL                   string `env:"EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL"`
-	AgentRuntimeSharedSecret              string `env:"EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET"`
-	AgentRuntimeDeadlineMS                int
-	AgentRuntimeMaxOutputTokens           int
-	AgentRuntimeMaxTurns                  int
-	AgentRuntimeSearchLimit               int
-	AgentRuntimeInputCharLimit            int
-	AgentRuntimeContextCharLimit          int
-	ProductCallbackBaseURL                string `env:"EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL"`
-	ProductCallbackSharedSecret           string `env:"EXECUTION_CONTROL_PRODUCT_CALLBACK_SHARED_SECRET"`
-	ProductCallbackTimeoutMS              int    `env:"EXECUTION_CONTROL_PRODUCT_CALLBACK_TIMEOUT_MS" envDefault:"1000"`
-	ProviderConfigSnapshotPath            string `env:"EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH"`
-	ProviderConfigReaderDatabaseURL       string `env:"EXECUTION_CONTROL_PROVIDER_CONFIG_READER_DATABASE_URL"`
-	ProviderConfigAdminDatabaseURL        string `env:"EXECUTION_CONTROL_PROVIDER_CONFIG_ADMIN_DATABASE_URL"`
-	ProviderConfigKeyringPath             string `env:"EXECUTION_CONTROL_PROVIDER_CONFIG_KEYRING_PATH"`
-	ProviderConfigAdminReadToken          string `env:"EXECUTION_CONTROL_PROVIDER_CONFIG_ADMIN_READ_TOKEN"`
-	ProviderConfigAdminCommandToken       string `env:"EXECUTION_CONTROL_PROVIDER_CONFIG_ADMIN_COMMAND_TOKEN"`
-	QueryServingTargetsPath               string
-	InternalQuerySharedSecret             string `env:"EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET"`
-	ToolReadModelTrustedTimeRFC3339       string `env:"EXECUTION_CONTROL_TOOL_READ_MODEL_TRUSTED_TIME_RFC3339"`
-	ToolReadModelTimeoutMS                int
-	QdrantURL                             string  `env:"QDRANT_URL"`
-	QdrantQueryAPIKey                     string  `env:"QDRANT_QUERY_API_KEY"`
-	QdrantTLSCACertPath                   string  `env:"QDRANT_TLS_CA_CERT_PATH"`
-	QdrantTimeoutSeconds                  float64 `env:"QDRANT_TIMEOUT_SECONDS" envDefault:"10"`
-	RAGTopKMax                            int
-	RAGEmbeddingTimeoutMS                 int
-	RAGQdrantTimeoutMS                    int
-	PersonalMemoryRuntime                 string
-	PersonalMemoryBaseURL                 string `env:"PERSONAL_MEMORY_BASE_URL"`
-	PersonalMemoryAPISecret               string `env:"PERSONAL_MEMORY_API_SECRET"`
-	PersonalMemoryOwnerSalt               string `env:"PERSONAL_MEMORY_OWNER_SALT"`
-	PersonalMemoryTimeoutSeconds          float64
-	PersonalMemoryRecallLimit             int
-	PersonalMemoryRecallMaxTokens         int
-	PersonalMemoryContextCharBudget       int
-	LangfuseMaintenanceBaseURL            string `env:"LANGFUSE_MAINTENANCE_BASE_URL"`
-	LangfuseRuntimeMaintenancePublicKey   string `env:"LANGFUSE_RUNTIME_MAINTENANCE_PUBLIC_KEY"`
-	LangfuseRuntimeMaintenanceSecretKey   string `env:"LANGFUSE_RUNTIME_MAINTENANCE_SECRET_KEY"`
-	LangfuseHindsightMaintenancePublicKey string `env:"LANGFUSE_HINDSIGHT_MAINTENANCE_PUBLIC_KEY"`
-	LangfuseHindsightMaintenanceSecretKey string `env:"LANGFUSE_HINDSIGHT_MAINTENANCE_SECRET_KEY"`
+	AppName                         string `env:"CAMPUS_AGENT_APP_NAME" envDefault:"campus-agent"`
+	DeploymentEnvironment           string `env:"DEPLOYMENT_ENVIRONMENT"`
+	Host                            string `env:"CAMPUS_AGENT_HTTP_HOST" envDefault:"127.0.0.1"`
+	Port                            int    `env:"CAMPUS_AGENT_HTTP_PORT" envDefault:"8000"`
+	RuntimeMode                     string `env:"EXECUTION_CONTROL_RUNTIME_MODE" envDefault:"local"`
+	RuntimeRelease                  string `env:"EXECUTION_CONTROL_RUNTIME_RELEASE"`
+	AuthMode                        string `env:"API_AUTH_MODE" envDefault:"bearer"`
+	BearerToken                     string `env:"API_BEARER_TOKEN"`
+	WorkerSharedSecret              string `env:"API_WORKER_SHARED_SECRET"`
+	DefaultActorID                  string `env:"API_DEFAULT_ACTOR_ID"`
+	MaxConcurrentAnswers            int
+	QueueCapacity                   int
+	QueueTimeoutMS                  int
+	RequestTimeoutMS                int
+	RequestBodyLimitBytes           int64
+	ShutdownGraceMS                 int
+	MetricsBearerToken              string `env:"EXECUTION_CONTROL_METRICS_BEARER_TOKEN"`
+	OTelEndpoint                    string
+	OTelMetricsEndpoint             string
+	OTelHeaders                     string `env:"EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_HEADERS"`
+	OTelServiceName                 string
+	OTelExportTimeoutMS             int
+	OTelExportIntervalMS            int
+	OTelSampleRatio                 float64
+	OTelAllowedAttributesVersion    string
+	TemporalTracingEnabled          bool
+	RunProjectionDatabaseURL        string `env:"EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL"`
+	TemporalAddress                 string `env:"EXECUTION_CONTROL_TEMPORAL_ADDRESS"`
+	TemporalNamespace               string `env:"EXECUTION_CONTROL_TEMPORAL_NAMESPACE"`
+	TemporalTaskQueue               string `env:"EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE" envDefault:"campus-agent.workflow"`
+	TemporalWorkerIdentity          string `env:"EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY"`
+	TemporalWorkflowIDSalt          string `env:"EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT"`
+	TemporalStartTimeoutMS          int    `env:"EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS" envDefault:"5000"`
+	AgentRuntimeBaseURL             string `env:"EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL"`
+	AgentRuntimeSharedSecret        string `env:"EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET"`
+	AgentRuntimeDeadlineMS          int
+	AgentRuntimeMaxOutputTokens     int
+	AgentRuntimeMaxTurns            int
+	AgentRuntimeSearchLimit         int
+	AgentRuntimeInputCharLimit      int
+	AgentRuntimeContextCharLimit    int
+	ProductCallbackBaseURL          string `env:"EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL"`
+	ProductCallbackSharedSecret     string `env:"EXECUTION_CONTROL_PRODUCT_CALLBACK_SHARED_SECRET"`
+	ProductCallbackTimeoutMS        int    `env:"EXECUTION_CONTROL_PRODUCT_CALLBACK_TIMEOUT_MS" envDefault:"1000"`
+	ProviderConfigSnapshotPath      string `env:"EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH"`
+	ProviderConfigReaderDatabaseURL string `env:"EXECUTION_CONTROL_PROVIDER_CONFIG_READER_DATABASE_URL"`
+	ProviderConfigAdminDatabaseURL  string `env:"EXECUTION_CONTROL_PROVIDER_CONFIG_ADMIN_DATABASE_URL"`
+	ProviderConfigKeyringPath       string `env:"EXECUTION_CONTROL_PROVIDER_CONFIG_KEYRING_PATH"`
+	ProviderConfigAdminReadToken    string `env:"EXECUTION_CONTROL_PROVIDER_CONFIG_ADMIN_READ_TOKEN"`
+	ProviderConfigAdminCommandToken string `env:"EXECUTION_CONTROL_PROVIDER_CONFIG_ADMIN_COMMAND_TOKEN"`
+	QueryServingTargetsPath         string
+	InternalQuerySharedSecret       string `env:"EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET"`
+	ToolReadModelTrustedTimeRFC3339 string `env:"EXECUTION_CONTROL_TOOL_READ_MODEL_TRUSTED_TIME_RFC3339"`
+	ToolReadModelTimeoutMS          int
+	QdrantURL                       string  `env:"QDRANT_URL"`
+	QdrantQueryAPIKey               string  `env:"QDRANT_QUERY_API_KEY"`
+	QdrantTLSCACertPath             string  `env:"QDRANT_TLS_CA_CERT_PATH"`
+	QdrantTimeoutSeconds            float64 `env:"QDRANT_TIMEOUT_SECONDS" envDefault:"10"`
+	RAGTopKMax                      int
+	RAGEmbeddingTimeoutMS           int
+	RAGQdrantTimeoutMS              int
+	PersonalMemoryRuntime           string
+	PersonalMemoryBaseURL           string `env:"PERSONAL_MEMORY_BASE_URL"`
+	PersonalMemoryAPISecret         string `env:"PERSONAL_MEMORY_API_SECRET"`
+	PersonalMemoryOwnerSalt         string `env:"PERSONAL_MEMORY_OWNER_SALT"`
+	PersonalMemoryTimeoutSeconds    float64
+	PersonalMemoryRecallLimit       int
+	PersonalMemoryRecallMaxTokens   int
+	PersonalMemoryContextCharBudget int
+	LangfuseMaintenanceBaseURL      string `env:"LANGFUSE_MAINTENANCE_BASE_URL"`
+	LangfuseMaintenancePublicKey    string `env:"LANGFUSE_MAINTENANCE_PUBLIC_KEY"`
+	LangfuseMaintenanceSecretKey    string `env:"LANGFUSE_MAINTENANCE_SECRET_KEY"`
 }
 
 func LoadFromEnv() (Config, error) {
@@ -263,86 +259,84 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 	}
 
 	return Config{
-		AppName:                               defaultString(strings.TrimSpace(values.AppName), "campus-agent"),
-		DeploymentEnvironment:                 defaultString(strings.TrimSpace(values.DeploymentEnvironment), runtimeMode),
-		Host:                                  defaultString(strings.TrimSpace(values.Host), "127.0.0.1"),
-		Port:                                  values.Port,
-		RuntimeMode:                           runtimeMode,
-		RuntimeRelease:                        strings.TrimSpace(values.RuntimeRelease),
-		AuthMode:                              defaultString(strings.TrimSpace(values.AuthMode), "bearer"),
-		BearerToken:                           strings.TrimSpace(values.BearerToken),
-		WorkerSharedSecret:                    strings.TrimSpace(values.WorkerSharedSecret),
-		DefaultActorID:                        strings.TrimSpace(values.DefaultActorID),
-		DefaultActorRoles:                     readStringList("API_DEFAULT_ACTOR_ROLES"),
-		MaxConcurrentAnswers:                  values.MaxConcurrentAnswers,
-		QueueCapacity:                         values.QueueCapacity,
-		QueueTimeoutMS:                        values.QueueTimeoutMS,
-		RequestTimeoutMS:                      values.RequestTimeoutMS,
-		RequestBodyLimitBytes:                 values.RequestBodyLimitBytes,
-		ShutdownGraceMS:                       values.ShutdownGraceMS,
-		MetricsBearerToken:                    strings.TrimSpace(values.MetricsBearerToken),
-		OTelEnabled:                           otelEnabled,
-		OTelEndpoint:                          strings.TrimSpace(values.OTelEndpoint),
-		OTelMetricsEnabled:                    otelMetricsEnabled,
-		OTelMetricsEndpoint:                   strings.TrimSpace(values.OTelMetricsEndpoint),
-		OTelHeaders:                           strings.TrimSpace(values.OTelHeaders),
-		OTelServiceName:                       defaultString(strings.TrimSpace(values.OTelServiceName), "campus-execution-control"),
-		OTelExportTimeoutMS:                   values.OTelExportTimeoutMS,
-		OTelExportIntervalMS:                  values.OTelExportIntervalMS,
-		OTelSampleRatio:                       values.OTelSampleRatio,
-		OTelAllowedAttributesVersion:          defaultString(strings.TrimSpace(values.OTelAllowedAttributesVersion), "execution-control-otel-attrs-v1"),
-		TemporalTracingEnabled:                values.TemporalTracingEnabled,
-		RunProjectionDatabaseURL:              readRunProjectionDatabaseURL(values),
-		RunProjectionAutoMigrate:              runProjectionAutoMigrate,
-		TemporalAddress:                       strings.TrimSpace(values.TemporalAddress),
-		TemporalNamespace:                     strings.TrimSpace(values.TemporalNamespace),
-		TemporalTaskQueue:                     defaultString(strings.TrimSpace(values.TemporalTaskQueue), "campus-agent.workflow"),
-		TemporalWorkerIdentity:                strings.TrimSpace(values.TemporalWorkerIdentity),
-		TemporalWorkflowIDSalt:                strings.TrimSpace(values.TemporalWorkflowIDSalt),
-		TemporalStartTimeoutMS:                values.TemporalStartTimeoutMS,
-		AgentRuntimeBaseURL:                   strings.TrimRight(strings.TrimSpace(values.AgentRuntimeBaseURL), "/"),
-		AgentRuntimeSharedSecret:              strings.TrimSpace(values.AgentRuntimeSharedSecret),
-		AgentRuntimeDeadlineMS:                values.AgentRuntimeDeadlineMS,
-		AgentRuntimeMaxOutputTokens:           values.AgentRuntimeMaxOutputTokens,
-		AgentRuntimeMaxTurns:                  values.AgentRuntimeMaxTurns,
-		AgentRuntimeSearchLimit:               values.AgentRuntimeSearchLimit,
-		AgentRuntimeInputCharLimit:            values.AgentRuntimeInputCharLimit,
-		AgentRuntimeContextCharLimit:          values.AgentRuntimeContextCharLimit,
-		ProductCallbackBaseURL:                strings.TrimRight(strings.TrimSpace(values.ProductCallbackBaseURL), "/"),
-		ProductCallbackSharedSecret:           strings.TrimSpace(values.ProductCallbackSharedSecret),
-		ProductCallbackTimeoutMS:              values.ProductCallbackTimeoutMS,
-		ProviderConfigSnapshotPath:            strings.TrimSpace(values.ProviderConfigSnapshotPath),
-		ProviderConfigReaderDatabaseURL:       strings.TrimSpace(values.ProviderConfigReaderDatabaseURL),
-		ProviderConfigAdminDatabaseURL:        strings.TrimSpace(values.ProviderConfigAdminDatabaseURL),
-		ProviderConfigKeyringPath:             strings.TrimSpace(values.ProviderConfigKeyringPath),
-		ProviderConfigAdminReadToken:          strings.TrimSpace(values.ProviderConfigAdminReadToken),
-		ProviderConfigAdminCommandToken:       strings.TrimSpace(values.ProviderConfigAdminCommandToken),
-		QueryServingTargetsPath:               strings.TrimSpace(values.QueryServingTargetsPath),
-		InternalQuerySharedSecret:             strings.TrimSpace(values.InternalQuerySharedSecret),
-		ToolReadModelTrustedTimeRFC3339:       strings.TrimSpace(values.ToolReadModelTrustedTimeRFC3339),
-		ToolReadModelTimeoutMS:                values.ToolReadModelTimeoutMS,
-		StructuredProjectionDatabaseURL:       readStructuredProjectionDatabaseURL(),
-		QdrantURL:                             strings.TrimRight(strings.TrimSpace(values.QdrantURL), "/"),
-		QdrantQueryAPIKey:                     strings.TrimSpace(values.QdrantQueryAPIKey),
-		QdrantTLSCACertPath:                   strings.TrimSpace(values.QdrantTLSCACertPath),
-		QdrantTimeoutSeconds:                  values.QdrantTimeoutSeconds,
-		RAGTopKMax:                            values.RAGTopKMax,
-		RAGEmbeddingTimeoutMS:                 values.RAGEmbeddingTimeoutMS,
-		RAGQdrantTimeoutMS:                    values.RAGQdrantTimeoutMS,
-		WorkerProfiles:                        workerProfiles,
-		PersonalMemoryRuntime:                 defaultString(strings.TrimSpace(values.PersonalMemoryRuntime), "hindsight"),
-		PersonalMemoryBaseURL:                 strings.TrimRight(strings.TrimSpace(values.PersonalMemoryBaseURL), "/"),
-		PersonalMemoryAPISecret:               strings.TrimSpace(values.PersonalMemoryAPISecret),
-		PersonalMemoryOwnerSalt:               strings.TrimSpace(values.PersonalMemoryOwnerSalt),
-		PersonalMemoryTimeoutSeconds:          values.PersonalMemoryTimeoutSeconds,
-		PersonalMemoryRecallLimit:             values.PersonalMemoryRecallLimit,
-		PersonalMemoryRecallMaxTokens:         values.PersonalMemoryRecallMaxTokens,
-		PersonalMemoryContextCharBudget:       values.PersonalMemoryContextCharBudget,
-		LangfuseMaintenanceBaseURL:            strings.TrimRight(strings.TrimSpace(values.LangfuseMaintenanceBaseURL), "/"),
-		LangfuseRuntimeMaintenancePublicKey:   strings.TrimSpace(values.LangfuseRuntimeMaintenancePublicKey),
-		LangfuseRuntimeMaintenanceSecretKey:   strings.TrimSpace(values.LangfuseRuntimeMaintenanceSecretKey),
-		LangfuseHindsightMaintenancePublicKey: strings.TrimSpace(values.LangfuseHindsightMaintenancePublicKey),
-		LangfuseHindsightMaintenanceSecretKey: strings.TrimSpace(values.LangfuseHindsightMaintenanceSecretKey),
+		AppName:                         defaultString(strings.TrimSpace(values.AppName), "campus-agent"),
+		DeploymentEnvironment:           defaultString(strings.TrimSpace(values.DeploymentEnvironment), runtimeMode),
+		Host:                            defaultString(strings.TrimSpace(values.Host), "127.0.0.1"),
+		Port:                            values.Port,
+		RuntimeMode:                     runtimeMode,
+		RuntimeRelease:                  strings.TrimSpace(values.RuntimeRelease),
+		AuthMode:                        defaultString(strings.TrimSpace(values.AuthMode), "bearer"),
+		BearerToken:                     strings.TrimSpace(values.BearerToken),
+		WorkerSharedSecret:              strings.TrimSpace(values.WorkerSharedSecret),
+		DefaultActorID:                  strings.TrimSpace(values.DefaultActorID),
+		DefaultActorRoles:               readStringList("API_DEFAULT_ACTOR_ROLES"),
+		MaxConcurrentAnswers:            values.MaxConcurrentAnswers,
+		QueueCapacity:                   values.QueueCapacity,
+		QueueTimeoutMS:                  values.QueueTimeoutMS,
+		RequestTimeoutMS:                values.RequestTimeoutMS,
+		RequestBodyLimitBytes:           values.RequestBodyLimitBytes,
+		ShutdownGraceMS:                 values.ShutdownGraceMS,
+		MetricsBearerToken:              strings.TrimSpace(values.MetricsBearerToken),
+		OTelEnabled:                     otelEnabled,
+		OTelEndpoint:                    strings.TrimSpace(values.OTelEndpoint),
+		OTelMetricsEnabled:              otelMetricsEnabled,
+		OTelMetricsEndpoint:             strings.TrimSpace(values.OTelMetricsEndpoint),
+		OTelHeaders:                     strings.TrimSpace(values.OTelHeaders),
+		OTelServiceName:                 defaultString(strings.TrimSpace(values.OTelServiceName), "campus-execution-control"),
+		OTelExportTimeoutMS:             values.OTelExportTimeoutMS,
+		OTelExportIntervalMS:            values.OTelExportIntervalMS,
+		OTelSampleRatio:                 values.OTelSampleRatio,
+		OTelAllowedAttributesVersion:    defaultString(strings.TrimSpace(values.OTelAllowedAttributesVersion), "execution-control-otel-attrs-v1"),
+		TemporalTracingEnabled:          values.TemporalTracingEnabled,
+		RunProjectionDatabaseURL:        readRunProjectionDatabaseURL(values),
+		RunProjectionAutoMigrate:        runProjectionAutoMigrate,
+		TemporalAddress:                 strings.TrimSpace(values.TemporalAddress),
+		TemporalNamespace:               strings.TrimSpace(values.TemporalNamespace),
+		TemporalTaskQueue:               defaultString(strings.TrimSpace(values.TemporalTaskQueue), "campus-agent.workflow"),
+		TemporalWorkerIdentity:          strings.TrimSpace(values.TemporalWorkerIdentity),
+		TemporalWorkflowIDSalt:          strings.TrimSpace(values.TemporalWorkflowIDSalt),
+		TemporalStartTimeoutMS:          values.TemporalStartTimeoutMS,
+		AgentRuntimeBaseURL:             strings.TrimRight(strings.TrimSpace(values.AgentRuntimeBaseURL), "/"),
+		AgentRuntimeSharedSecret:        strings.TrimSpace(values.AgentRuntimeSharedSecret),
+		AgentRuntimeDeadlineMS:          values.AgentRuntimeDeadlineMS,
+		AgentRuntimeMaxOutputTokens:     values.AgentRuntimeMaxOutputTokens,
+		AgentRuntimeMaxTurns:            values.AgentRuntimeMaxTurns,
+		AgentRuntimeSearchLimit:         values.AgentRuntimeSearchLimit,
+		AgentRuntimeInputCharLimit:      values.AgentRuntimeInputCharLimit,
+		AgentRuntimeContextCharLimit:    values.AgentRuntimeContextCharLimit,
+		ProductCallbackBaseURL:          strings.TrimRight(strings.TrimSpace(values.ProductCallbackBaseURL), "/"),
+		ProductCallbackSharedSecret:     strings.TrimSpace(values.ProductCallbackSharedSecret),
+		ProductCallbackTimeoutMS:        values.ProductCallbackTimeoutMS,
+		ProviderConfigSnapshotPath:      strings.TrimSpace(values.ProviderConfigSnapshotPath),
+		ProviderConfigReaderDatabaseURL: strings.TrimSpace(values.ProviderConfigReaderDatabaseURL),
+		ProviderConfigAdminDatabaseURL:  strings.TrimSpace(values.ProviderConfigAdminDatabaseURL),
+		ProviderConfigKeyringPath:       strings.TrimSpace(values.ProviderConfigKeyringPath),
+		ProviderConfigAdminReadToken:    strings.TrimSpace(values.ProviderConfigAdminReadToken),
+		ProviderConfigAdminCommandToken: strings.TrimSpace(values.ProviderConfigAdminCommandToken),
+		QueryServingTargetsPath:         strings.TrimSpace(values.QueryServingTargetsPath),
+		InternalQuerySharedSecret:       strings.TrimSpace(values.InternalQuerySharedSecret),
+		ToolReadModelTrustedTimeRFC3339: strings.TrimSpace(values.ToolReadModelTrustedTimeRFC3339),
+		ToolReadModelTimeoutMS:          values.ToolReadModelTimeoutMS,
+		StructuredProjectionDatabaseURL: readStructuredProjectionDatabaseURL(),
+		QdrantURL:                       strings.TrimRight(strings.TrimSpace(values.QdrantURL), "/"),
+		QdrantQueryAPIKey:               strings.TrimSpace(values.QdrantQueryAPIKey),
+		QdrantTLSCACertPath:             strings.TrimSpace(values.QdrantTLSCACertPath),
+		QdrantTimeoutSeconds:            values.QdrantTimeoutSeconds,
+		RAGTopKMax:                      values.RAGTopKMax,
+		RAGEmbeddingTimeoutMS:           values.RAGEmbeddingTimeoutMS,
+		RAGQdrantTimeoutMS:              values.RAGQdrantTimeoutMS,
+		WorkerProfiles:                  workerProfiles,
+		PersonalMemoryRuntime:           defaultString(strings.TrimSpace(values.PersonalMemoryRuntime), "hindsight"),
+		PersonalMemoryBaseURL:           strings.TrimRight(strings.TrimSpace(values.PersonalMemoryBaseURL), "/"),
+		PersonalMemoryAPISecret:         strings.TrimSpace(values.PersonalMemoryAPISecret),
+		PersonalMemoryOwnerSalt:         strings.TrimSpace(values.PersonalMemoryOwnerSalt),
+		PersonalMemoryTimeoutSeconds:    values.PersonalMemoryTimeoutSeconds,
+		PersonalMemoryRecallLimit:       values.PersonalMemoryRecallLimit,
+		PersonalMemoryRecallMaxTokens:   values.PersonalMemoryRecallMaxTokens,
+		PersonalMemoryContextCharBudget: values.PersonalMemoryContextCharBudget,
+		LangfuseMaintenanceBaseURL:      strings.TrimRight(strings.TrimSpace(values.LangfuseMaintenanceBaseURL), "/"),
+		LangfuseMaintenancePublicKey:    strings.TrimSpace(values.LangfuseMaintenancePublicKey),
+		LangfuseMaintenanceSecretKey:    strings.TrimSpace(values.LangfuseMaintenanceSecretKey),
 	}, nil
 }
 
@@ -592,10 +586,8 @@ func validatePersonalMemorySettings(
 			value string
 		}{
 			{"LANGFUSE_MAINTENANCE_BASE_URL", values.LangfuseMaintenanceBaseURL},
-			{"LANGFUSE_RUNTIME_MAINTENANCE_PUBLIC_KEY", values.LangfuseRuntimeMaintenancePublicKey},
-			{"LANGFUSE_RUNTIME_MAINTENANCE_SECRET_KEY", values.LangfuseRuntimeMaintenanceSecretKey},
-			{"LANGFUSE_HINDSIGHT_MAINTENANCE_PUBLIC_KEY", values.LangfuseHindsightMaintenancePublicKey},
-			{"LANGFUSE_HINDSIGHT_MAINTENANCE_SECRET_KEY", values.LangfuseHindsightMaintenanceSecretKey},
+			{"LANGFUSE_MAINTENANCE_PUBLIC_KEY", values.LangfuseMaintenancePublicKey},
+			{"LANGFUSE_MAINTENANCE_SECRET_KEY", values.LangfuseMaintenanceSecretKey},
 		}
 		for _, item := range maintenanceRequired {
 			if strings.TrimSpace(item.value) == "" {

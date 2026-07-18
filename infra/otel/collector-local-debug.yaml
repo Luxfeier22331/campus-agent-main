@@ -3,12 +3,8 @@ receivers:
     protocols:
       http:
         endpoint: 0.0.0.0:4318
-        auth:
-          authenticator: bearertokenauth/orchestration
 
 extensions:
-  bearertokenauth/orchestration:
-    token: "${env:OTEL_COLLECTOR_ORCHESTRATION_INGEST_TOKEN}"
   health_check:
     endpoint: 0.0.0.0:13133
 
@@ -84,7 +80,6 @@ exporters:
 
 service:
   extensions:
-    - bearertokenauth/orchestration
     - health_check
   pipelines:
     traces:

@@ -6,26 +6,19 @@ export interface CollectorConfigCheck {
 export function checkCollectorConfig(source: Record<string, unknown>): CollectorConfigCheck {
 	const errors: string[] = [];
 	for (const key of [
+		"OTEL_COLLECTOR_AXIOM_INGEST_TOKEN",
 		"OTEL_COLLECTOR_AXIOM_LOGS_DATASET",
-		"OTEL_COLLECTOR_AXIOM_LOGS_TOKEN",
 		"OTEL_COLLECTOR_AXIOM_METRICS_DATASET",
-		"OTEL_COLLECTOR_AXIOM_METRICS_TOKEN",
 		"OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT",
 		"OTEL_COLLECTOR_AXIOM_TRACES_DATASET",
-		"OTEL_COLLECTOR_AXIOM_TRACES_TOKEN",
-		"OTEL_COLLECTOR_LANGFUSE_HINDSIGHT_OTLP_ENDPOINT",
-		"OTEL_COLLECTOR_LANGFUSE_HINDSIGHT_AUTH_HEADER",
-		"OTEL_COLLECTOR_LANGFUSE_RUNTIME_OTLP_ENDPOINT",
-		"OTEL_COLLECTOR_LANGFUSE_RUNTIME_AUTH_HEADER",
+		"OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT",
+		"OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER",
 	]) {
 		if (!String(source[key] ?? "").trim()) {
 			errors.push(`${key} is required`);
 		}
 	}
-	for (const key of [
-		"OTEL_COLLECTOR_LANGFUSE_RUNTIME_OTLP_ENDPOINT",
-		"OTEL_COLLECTOR_LANGFUSE_HINDSIGHT_OTLP_ENDPOINT",
-	]) {
+	for (const key of ["OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT"]) {
 		const endpoint = String(source[key] ?? "").trim();
 		if (endpoint && !endpoint.endsWith("/api/public/otel")) {
 			errors.push(`${key} must end with /api/public/otel`);
@@ -41,10 +34,7 @@ export function checkCollectorConfig(source: Record<string, unknown>): Collector
 	) {
 		errors.push("OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT must be an OTLP base URL without a path");
 	}
-	for (const key of [
-		"OTEL_COLLECTOR_LANGFUSE_RUNTIME_AUTH_HEADER",
-		"OTEL_COLLECTOR_LANGFUSE_HINDSIGHT_AUTH_HEADER",
-	]) {
+	for (const key of ["OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER"]) {
 		const auth = String(source[key] ?? "").trim();
 		if (auth && !auth.startsWith("Basic ")) {
 			errors.push(`${key} must use Basic auth`);
@@ -60,9 +50,9 @@ export function deriveCollectorEnv(input: {
 }): Record<string, string> {
 	const baseUrl = input.baseUrl.trim().replace(/\/+$/u, "");
 	return {
-		OTEL_COLLECTOR_LANGFUSE_RUNTIME_AUTH_HEADER: `Basic ${Buffer.from(
+		OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER: `Basic ${Buffer.from(
 			`${input.publicKey.trim()}:${input.secretKey.trim()}`,
 		).toString("base64")}`,
-		OTEL_COLLECTOR_LANGFUSE_RUNTIME_OTLP_ENDPOINT: `${baseUrl}/api/public/otel`,
+		OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT: `${baseUrl}/api/public/otel`,
 	};
 }

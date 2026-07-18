@@ -92,12 +92,12 @@ closeout / rebuild / release command env 不再作为 tracked fallback surface�
 - env 只承载会随 deploy 或 runtime 变化的资源句柄、密钥、provider 配置、运行时 host/base URL
 - self-hosted Qdrant 的 URL 与 key 由 local/staging lifecycle 约定、生成并投影；
   root env 不维护 `QDRANT_*`
-- provider canonical env 优先于 sink / exporter 派生 env。Langfuse runtime 与 Hindsight 是两个
-  project：Agent/eval runtime 消费自己的 `LANGFUSE_*` 配置；Collector 分别消费
-  `OTEL_COLLECTOR_LANGFUSE_RUNTIME_{OTLP_ENDPOINT,AUTH_HEADER}` 与
-  `OTEL_COLLECTOR_LANGFUSE_HINDSIGHT_{OTLP_ENDPOINT,AUTH_HEADER}`；execution-control core
-  worker 只为 owner erase 与七天 retention 消费共享 `LANGFUSE_MAINTENANCE_BASE_URL` 与两组
-  `LANGFUSE_{RUNTIME,HINDSIGHT}_MAINTENANCE_*`。这些 credential 不得跨 project 或角色复用
+- provider canonical env 优先于 sink / exporter 派生 env。每个环境只有一个 Langfuse project：
+  Agent/eval runtime 消费自己的 `LANGFUSE_*` 配置；Collector 消费
+  `OTEL_COLLECTOR_LANGFUSE_{OTLP_ENDPOINT,AUTH_HEADER}`；execution-control core worker 只为
+  owner erase 消费 `LANGFUSE_MAINTENANCE_BASE_URL`、
+  `LANGFUSE_MAINTENANCE_PUBLIC_KEY` 和 `LANGFUSE_MAINTENANCE_SECRET_KEY`。exporter 与 maintenance
+  复用环境唯一 project 的同一组 key，避免维护没有能力差异的重复凭据
 - 单次任务身份、源文档 identity、目标 scope 优先走 CLI args 或 typed request
 - repo-tracked truth 默认来自 config / manifest / source projection，而不是 env
 - K8s / Worker / Docker 与各 runtime owner 使用成熟组件交付配置；

@@ -3,12 +3,8 @@ receivers:
     protocols:
       http:
         endpoint: 0.0.0.0:4318
-        auth:
-          authenticator: bearertokenauth/orchestration
 
 extensions:
-  bearertokenauth/orchestration:
-    token: "${env:OTEL_COLLECTOR_ORCHESTRATION_INGEST_TOKEN}"
   health_check:
     endpoint: 0.0.0.0:13133
 
@@ -61,10 +57,10 @@ processors:
     send_batch_size: 512
 
 exporters:
-  otlphttp/langfuse_runtime:
-    endpoint: "${env:OTEL_COLLECTOR_LANGFUSE_RUNTIME_OTLP_ENDPOINT}"
+  otlphttp/langfuse:
+    endpoint: "${env:OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT}"
     headers:
-      authorization: "${env:OTEL_COLLECTOR_LANGFUSE_RUNTIME_AUTH_HEADER}"
+      authorization: "${env:OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER}"
       x-langfuse-ingestion-version: "4"
     compression: gzip
     encoding: proto
@@ -82,13 +78,12 @@ exporters:
 
 service:
   extensions:
-    - bearertokenauth/orchestration
     - health_check
   pipelines:
     traces/orchestration:
       receivers: [otlp/orchestration]
       processors: [memory_limiter, resource/campus, filter/drop_marked, filter/orchestration_langfuse, transform/orchestration_langfuse, batch]
-      exporters: [otlphttp/langfuse_runtime, debug]
+      exporters: [otlphttp/langfuse, debug]
     metrics/orchestration:
       receivers: [otlp/orchestration]
       processors: [memory_limiter, resource/campus, filter/drop_marked, batch]

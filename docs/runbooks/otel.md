@@ -16,11 +16,11 @@ Cloudflare Worker application-log destination 不经过本 Collector，必须按
 
 ## 配置文件
 
-- `infra/otel/collector-local-debug.yaml`：本地受认证 OTLP/HTTP 输入，清理后只写 `debug`。
-- `infra/otel/collector-local-prodlike.yaml`：本地 execution-control 编排 trace 进入 Langfuse runtime
-  project，并保留 `debug` 输出。
-- `infra/otel/collector-staging-template.yaml`：Gateway 模板，包含四个入口、Axiom 三类输出、两个
-  Langfuse project、平台 metrics scrape 和持久发送队列。
+- `infra/otel/collector-local-debug.yaml`：本地 OTLP/HTTP 输入，清理后只写 `debug`。
+- `infra/otel/collector-local-prodlike.yaml`：本地 execution-control 编排 trace 进入 Langfuse
+  environment project，并保留 `debug` 输出。
+- `infra/otel/collector-staging-template.yaml`：Gateway 模板，包含四个入口、Axiom 三类输出、一个
+  Langfuse environment project、平台 metrics scrape 和内存发送队列。
 - `infra/otel/collector-agent-staging-template.yaml`：DaemonSet Agent 模板，采集第一方容器日志和
   kubelet 指标并转发 Gateway。
 - `infra/otel/collector.env.example`：变量名称与非敏感协议常量；真实 token 和 endpoint 由 Secret
@@ -31,12 +31,12 @@ Cloudflare Worker application-log destination 不经过本 Collector，必须按
 | 端口 | receiver | 生产者 | 输出 |
 | ---: | --- | --- | --- |
 | `4318` | `otlp/agent` | Collector Agent、通用脱敏信号 | Axiom log、trace、metric |
-| `4319` | `otlp/orchestration` | execution-control | Axiom trace/metric、Langfuse runtime、`memory.call` 到 Hindsight project |
-| `4320` | `otlp/agent_trusted` | Agent runtime | Langfuse runtime project |
-| `4321` | `otlp/hindsight_trusted` | Hindsight | Langfuse Hindsight project |
+| `4319` | `otlp/orchestration` | execution-control | Axiom trace/metric、Langfuse 编排与 `memory.call` trace |
+| `4320` | `otlp/agent_trusted` | Agent runtime | Langfuse environment project |
+| `4321` | `otlp/hindsight_trusted` | Hindsight | Langfuse environment project |
 
-每个 receiver 只启用 OTLP/HTTP，使用独立 bearer token 与 NetworkPolicy。不得恢复共享 ingest
-secret、开放 receiver 或 OTLP/gRPC 兼容入口。
+每个 receiver 只启用 OTLP/HTTP。固定端口、Pod selector 和 NetworkPolicy 共同限制生产者，不在
+集群内重复增加 bearer token，也不开放 OTLP/gRPC 兼容入口。
 
 Gateway 对 Axiom 信号执行明确白名单：归一化任意 log body 与 span name，清空 status message、
 event 和 link，只保留受控资源与关联字段。通用入口不能写 Langfuse；受信任入口不能写 Axiom。
@@ -47,12 +47,8 @@ ServiceAccount 并以挂载 CA 验证 kubelet。Agent 必须从 Pod label 补齐
 JSON 后只保留准入关联字段，并在导出前将正文替换为固定值。Gateway 直接抓取 Hindsight `/metrics` 和 Collector
 自身指标，避免通过 stdout 建立递归采集。
 
-Agent 的 filelog checkpoint 和发送队列必须使用 node-local `/var/lib/otelcol`。在每个可调度节点由
-环境仓受 staging Environment 保护的 `prepare-observability-node` workflow 安装并校验
-systemd-tmpfiles 合同，然后才允许 rollout；GitOps validation 会再次只读校验。Helm hostPath 使用
-`Directory`，缺少前置目录时必须阻止调度，不得自动创建 root-owned 目录，也不得把 Agent 改为
-root。rollout 后重启一个 Agent Pod，确认 checkpoint 延续、队列目录可写且没有重复回放或停机窗口
-缺口。
+Agent 与 Gateway 使用内存队列，exporter 最多重试 300 秒。环境仓不得为其创建 hostPath、PVC、
+节点准备 workflow 或无限重试；超过窗口的数据丢弃必须通过 exporter failure 指标可见。
 
 ## 结构校验
 
@@ -62,16 +58,14 @@ root。rollout 后重启一个 Agent Pod，确认 checkpoint 延续、队列目�
 本地 debug：
 
 ```bash
-OTEL_COLLECTOR_ORCHESTRATION_INGEST_TOKEN=local-otel-proof-token \
-  otelcol-contrib validate --config=infra/otel/collector-local-debug.yaml
+otelcol-contrib validate --config=infra/otel/collector-local-debug.yaml
 ```
 
-本地 prodlike 还必须提供 Langfuse runtime endpoint 和认证：
+本地 prodlike 还必须提供 Langfuse environment project endpoint 和认证：
 
 ```bash
-OTEL_COLLECTOR_ORCHESTRATION_INGEST_TOKEN=local-otel-proof-token \
-OTEL_COLLECTOR_LANGFUSE_RUNTIME_OTLP_ENDPOINT=http://127.0.0.1:3000/api/public/otel \
-OTEL_COLLECTOR_LANGFUSE_RUNTIME_AUTH_HEADER='Basic <redacted>' \
+OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT=http://127.0.0.1:3000/api/public/otel \
+OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER='Basic <redacted>' \
   otelcol-contrib validate --config=infra/otel/collector-local-prodlike.yaml
 ```
 
@@ -93,18 +87,15 @@ pnpm ci:eval
 启动 debug Collector：
 
 ```bash
-OTEL_COLLECTOR_ORCHESTRATION_INGEST_TOKEN=local-otel-proof-token \
-  otelcol-contrib --config=infra/otel/collector-local-debug.yaml
+otelcol-contrib --config=infra/otel/collector-local-debug.yaml
 ```
 
-execution-control 的 trace/metric endpoint 指向 `127.0.0.1:4318` 的相应 OTLP 路径，并通过
-`EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_HEADERS` 发送同一 bearer token。app-api 不再使用手写
+execution-control 的 trace/metric endpoint 指向 `127.0.0.1:4318` 的相应 OTLP 路径。app-api 不再使用手写
 OTLP exporter；它写经过白名单的结构化 console lifecycle event，由 Cloudflare application-log
 destination 消费。
 
 通过标准：
 
-- 未带 token 和使用其他入口 token 的请求均被拒绝；
 - execution-control 可以观察到受控 `execution_control.*` span 和低基数 metric；
 - `memory.call` 只含 provider 与 HTTP method，不含 URL、bank、document 或正文；
 - metric label 不包含请求、用户、会话、run、trace、bank 或文档 ID；
@@ -117,29 +108,30 @@ destination 消费。
 
 关键约束：
 
-- Axiom log、trace、metric 使用不同 token 与 dataset；metric exporter 使用
+- Axiom log、trace、metric 使用同一 ingest token 与不同 dataset；metric exporter 使用
   `x-axiom-metrics-dataset`，log/trace 使用 `x-axiom-dataset`。
 - `OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT` 是 base domain，`otlphttp` exporter 自动追加 signal
   path。
-- Langfuse endpoint 为 `<base-url>/api/public/otel`，runtime 与 Hindsight 使用不同项目和
-  Basic auth。
+- Langfuse endpoint 为 `<base-url>/api/public/otel`；所有受信任 trace 使用当前环境 project
+  的一组 Basic auth，并按 service/tag 区分。
 - Agent runtime 与 Hindsight 的受信任 trace 不能进入 Axiom；通用信号不能进入 Langfuse。
 - Sentry 由 browser/edge SDK 直接消费，不存在 Collector Sentry endpoint 或 credential。
 - 实际启用的 exporter、dataset 和 retention 以环境仓 desired state 为准。
 
-验证 Langfuse Collector 配置时，分别提供 runtime 与 Hindsight project 参数；已有 CLI 检查只
-验证其支持的配置形态，不替代真实 trace 查询。
+验证 Langfuse Collector 配置时提供当前环境 project 参数；已有 CLI 检查只验证其支持的配置
+形态，不替代真实 trace 查询。
 
 ## 真实信号验证
 
 先发起不包含真实敏感正文的受控请求，记录 `request_id`、`run_id` 和 `trace_id`，然后：
 
-1. 在 Gateway 自身指标确认四个 receiver 的认证拒绝、接收量、持久队列和 exporter failure。
+1. 在 Gateway 自身指标确认四个 receiver 的接收量、内存队列和 exporter failure。
 2. 在 Axiom 分别查询 Collector 写入的 log、trace 和 metric，确认字段只在白名单内；用
    `request_id`/`trace_id` 确认 execution-control runtime trace 是请求级调用链证据。
-3. 在 Langfuse runtime project 查询 Agent 与 `execution_control.*` trace。
-4. 执行一次 Hindsight retain/recall，在独立 Hindsight project 确认 `memory.call` 与下游 span
-   关联，且没有出现在 runtime project。
+3. 在 Langfuse environment project 查询 Agent 与 `execution_control.*` trace，并按 service/tag
+   验证分类。
+4. 执行一次 Hindsight retain/recall，在同一 project 确认 `memory.call` 与 Hindsight 下游 span
+   关联，且不会混入 Agent service 分类。
 5. 使用合成哨兵填入 query、header、正文、用户标识和 credential 位置；Collector 输出、Worker
    application logs 与 Sentry 必须为零匹配。
 6. 验证 Hindsight trace 的 `langfuse.user.id` 等于 execution-control 派生的 bank 标识，Collector
@@ -184,13 +176,12 @@ logs 发送到 Axiom log destination，并设置 `persist=false`。这条路径�
 
 Collector 收到信号但下游没有记录时，依次检查：
 
-1. producer 使用的端口、bearer token 与 NetworkPolicy 是否匹配；
-2. receiver、file-backed queue、retry 与 exporter 的失败指标；
+1. producer 使用的端口与 NetworkPolicy 是否匹配；
+2. receiver、内存队列、有界 retry 与 exporter 的失败指标；
 3. `telemetry.drop`、入口过滤器、字段 transform 和采样比例；
-4. Axiom endpoint、三种 header/dataset/token，或 Langfuse project endpoint/Basic auth；
+4. Axiom endpoint、三个 dataset 与共用 ingest token，或 Langfuse project endpoint/Basic auth；
 5. 受信任 trace 是否被错误发送到通用入口，或项目路由是否交叉；
-6. Agent 是否因 kubelet CA/SAN 校验失败、`/var/lib/otelcol` 不可写，或 filelog
-   include/exclude 路径不匹配；
+6. Agent 是否因 kubelet CA/SAN 校验失败或 filelog include/exclude 路径不匹配；
 7. 环境仓是否实际启用了目标 exporter 和正确不可变版本。
 
 Cloudflare application-log destination 问题必须在 Cloudflare 与 Axiom 两侧排查，不能从 Gateway
