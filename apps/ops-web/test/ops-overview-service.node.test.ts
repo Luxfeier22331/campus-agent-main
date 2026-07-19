@@ -155,4 +155,40 @@ describe("ops overview service", () => {
 		expect(overview.requests.dataState).toBe("UNAVAILABLE");
 		expect(overview.services.every((item) => item.dataState === "UNAVAILABLE")).toBe(true);
 	});
+
+	it("aborts runtime signals when the source timeout expires", async () => {
+		let receivedSignal: AbortSignal | undefined;
+		const getSnapshot = vi.fn(
+			(_window: string, input?: { signal?: AbortSignal }) =>
+				new Promise<never>((_resolve, reject) => {
+					receivedSignal = input?.signal;
+					if (!receivedSignal) {
+						reject(new Error("missing signal"));
+						return;
+					}
+					receivedSignal.addEventListener("abort", () => reject(receivedSignal?.reason), {
+						once: true,
+					});
+				}),
+		);
+		const service = createOpsOverviewService({
+			now: () => new Date("2026-07-09T06:30:00.000Z"),
+			signals: { getSnapshot },
+			store: {
+				getOverview: vi.fn().mockResolvedValue({
+					externalLinks: opsOverviewFixture.externalLinks,
+					requests: opsOverviewFixture.requests,
+					temporal: opsOverviewFixture.temporal,
+					trends: opsOverviewFixture.trends,
+				}),
+			},
+			timeoutMs: 5,
+		});
+
+		const overview = await service.getOverview("15m");
+
+		expect(receivedSignal?.aborted).toBe(true);
+		expect(overview.services.every((item) => item.dataState === "UNAVAILABLE")).toBe(true);
+		expect(overview.telemetry.dataState).toBe("UNAVAILABLE");
+	});
 });

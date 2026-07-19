@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { appendFileSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
+import { appendFileSync, cpSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
@@ -30,6 +30,16 @@ function createRepository() {
 	run(repository, "git", ["config", "user.email", "ci-change-plan@example.invalid"]);
 	symlinkSync(join(repoRoot, "node_modules"), join(repository, "node_modules"), "dir");
 	appendFileSync(join(repository, ".git/info/exclude"), "\nnode_modules\nchange-plan.json\n");
+	cpSync(
+		join(repoRoot, "scripts/ci/change-plan.mjs"),
+		join(repository, "scripts/ci/change-plan.mjs"),
+	);
+	if (
+		run(repository, "git", ["status", "--porcelain", "--", "scripts/ci/change-plan.mjs"]).trim()
+	) {
+		run(repository, "git", ["add", "scripts/ci/change-plan.mjs"]);
+		run(repository, "git", ["commit", "--quiet", "--message", "test planner baseline"]);
+	}
 	return { repository, temporaryRoot };
 }
 
@@ -85,6 +95,32 @@ test("real Git and Turbo routing keeps non-production changes out of releases", 
 		const result = plan(repository, base, head);
 		assert.deepEqual(result.release, { images: [], kubernetes: false, workers: [] });
 		assert.equal(result.browser, false);
+	});
+
+	await withRepository((repository) => {
+		const base = run(repository, "git", ["rev-parse", "HEAD"]).trim();
+		appendFileSync(
+			join(repository, "apps/execution-control/internal/telemetry/emitter.go"),
+			"\n// Backend publication fixture.\n",
+		);
+		const head = commit(repository, "backend publication fixture");
+		const result = plan(repository, base, head);
+		assert.deepEqual(result.release.workers, []);
+		assert.equal(result.release.images.includes("execution-control"), true);
+	});
+
+	await withRepository((repository) => {
+		const base = run(repository, "git", ["rev-parse", "HEAD"]).trim();
+		appendFileSync(
+			join(repository, "infra/otel/collector-local-debug.yaml"),
+			"\n# OTel routing fixture.\n",
+		);
+		const head = commit(repository, "OTel fixture");
+		const result = plan(repository, base, head);
+		assert.equal(result.lanes.includes("otel"), true);
+		assert.equal(result.release.kubernetes, false);
+		assert.deepEqual(result.release.images, []);
+		assert.deepEqual(result.release.workers, []);
 	});
 });
 

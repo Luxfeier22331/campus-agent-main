@@ -124,7 +124,7 @@ export async function runAgentToolEval(input: AgentToolEvalInput): Promise<JsonO
 			runId: terminal.runId,
 			terminal,
 		});
-		const langfuseTraceId = deriveLangfuseTraceId(terminal.traceId);
+		const langfuseTraceId = await deriveLangfuseTraceId(terminal.traceId);
 		const datasetRunItem = await langfuse.createDatasetRunItem({
 			datasetItemId: item.dataset_item_id,
 			...(input.datasetVersion ? { datasetVersion: input.datasetVersion } : {}),

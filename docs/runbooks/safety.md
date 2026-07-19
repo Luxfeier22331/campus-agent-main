@@ -15,14 +15,14 @@ status: active
 - `chat.turn_dispatches`：`safety_identifier`、状态、错误和时间；
 - `runtime.request_observability_fact`：ACL、resolved targets、refusal、semantic outcome
   和 trace correlation；
-- Axiom：脱敏辅助日志和调用链，不是 throttle truth；
-- Sentry：经过清理的应用异常，不是用户身份、请求正文或 throttle truth。
+- Axiom：脱敏辅助日志和调用链，不是限流状态依据；
+- Sentry：经过清理的应用异常，不是用户身份、请求正文或限流状态依据。
 
 ## 阈值所有权
 
 abuse throttle 与 safety alert 阈值由
 `apps/app-api/src/modules/abuse-throttle-policy.ts` 及其测试拥有。本文不复制数值；变更阈值必须
-同时修改 owner code 与测试。
+同时修改所属实现与测试。
 
 ## 处理步骤
 
@@ -41,6 +41,6 @@ canary 重新验证；若出现 invocation log/native trace，则先修复必须
 
 ## 禁止
 
-- 不从日志 sink 改写 request status 或 throttle truth。
-- 不复制 auth、session、memory、prompt、provider response 或 remote raw text 到工单。
-- 不恢复 operator request projection 或独立 safety dashboard 数据库。
+- 不从日志平台改写请求状态或限流判断。
+- 不复制认证、session、记忆、prompt、供应商响应或远端原文到工单。
+- 不为安全排查建立第二套请求状态数据库。

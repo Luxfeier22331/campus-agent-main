@@ -8,12 +8,12 @@ status: accepted
 
 ## 背景
 
-隐式 web 或 world-knowledge fallback 会让用户和运维人员无法区分学校证据支持的答案与
+隐式网页搜索或通用模型知识回退会让用户和运维人员无法区分学校证据支持的答案与
 开放域猜测。
 
 ## 决策
 
-Campus Agent 是 institution-scoped 产品。学校特定事实只能使用已开放校园工具和已发布
+Campus Agent 是面向单一学校信息范围的产品。学校特定事实只能使用已开放校园工具和已发布
 证据。当前 Agent 没有通用 web-search 或 open-domain factual tool。
 
 primary agent 可以直接回答问候、产品问题和普通对话，但不得用模型记忆补齐缺失的校园
@@ -25,7 +25,7 @@ primary agent 可以直接回答问候、产品问题和普通对话，但不得
 - `unsupported_by_evidence`：属于范围内，但没有已开放证据支持；
 - `policy_refusal`：被策略禁止。
 
-校园搜索失败时不得触发 open-web fallback。未来开放域能力需要独立产品决策、可见工具或
+校园搜索失败时不得自动触发开放网页搜索。未来开放域能力需要独立产品决策、可见工具或
 handoff、policy 和 evaluation，不能伪装成 retrieval tuning 或 best-effort recovery。
 
 ## 后果

@@ -8,7 +8,7 @@ status: active
 
 ## 边界
 
-每个 Langfuse dataset 使用一个仓库维护的 `cases.v1.json` 保存 Agent 路由或 RAG 真相。
+每个 Langfuse dataset 使用一个仓库维护的 `cases.v1.json` 保存 Agent 路由或 RAG 预期行为。
 runtime 本地合同仍由所属测试维护。候选审查、score 和 annotation 不能直接改写这两类来源。
 
 ## RAG 用例
@@ -46,7 +46,7 @@ Agent 路由用例使用 `query`、`expected_outcome`、`reference_tool_calls[]`
 ## 编写规则
 
 - reference 必须包含支持答案的事实，不能只有文档标题；
-- 含糊问题应成为澄清/no-answer 用例，或补足能形成唯一合理真相的上下文；
+- 含糊问题应成为澄清/no-answer 用例，或补足能形成唯一合理预期的上下文；
 - 跨 target 问题列出支持完整答案所需的全部 target；
 - 跟进问题通过 `setup_turns` 明确被指代对象；
 - 历史问题设置 `include_history=true`，当前问题不编码物理 version ID；
@@ -55,7 +55,7 @@ Agent 路由用例使用 `query`、`expected_outcome`、`reference_tool_calls[]`
 
 ## 准入
 
-生产 bad case 只有经过脱敏、去重、target 审查和来源核验后才能进入 gold truth。Langfuse
+生产失败样例只有经过脱敏、去重、目标审查和来源核验后才能进入标准答案集。Langfuse
 annotation 可以提出候选，但接受后的仓库用例仍是版本化来源。
 
 公开仓库只保存 synthetic 或 self-authored 用例。真实校级 gold data 使用相同 schema 放在

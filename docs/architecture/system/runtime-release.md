@@ -78,6 +78,5 @@ runbook，不在架构文档保存某次验收输出。
 - [Kubernetes 运行时](./k8s-runtime.md)
 - [环境配置](../../environment/README.md)
 - [发布操作](../../runbooks/release.md)
-- [GitOps 操作](../../runbooks/gitops.md)
 - [ADR-0065](../../decisions/adr-0065-gitops.md)
 - [ADR-0078](../../decisions/adr-0078-worker-versioning.md)

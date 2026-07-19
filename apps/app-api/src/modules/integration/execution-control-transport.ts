@@ -5,7 +5,7 @@ import {
 	parsePositiveInteger,
 	resolveEnvironment,
 } from "../../config";
-import { applyTracePropagationHeaders, resolveTracePropagationHeaders } from "../telemetry/trace";
+import { applyTracePropagationHeaders } from "../telemetry/trace";
 
 import type { ToolExecutionInput } from "./tool-execution-types";
 
@@ -408,7 +408,6 @@ export function mapStatusCodeToErrorCode(status: number): string {
 export function createExecutionControlRequestHeaders(input: {
 	payload: Pick<ToolExecutionInput, "traceHeaders" | "traceId">;
 	sharedSecret: string;
-	traceDataProvider: () => Record<string, unknown>;
 	accept?: string;
 }): Record<string, string> {
 	const headers = new Headers({
@@ -419,12 +418,6 @@ export function createExecutionControlRequestHeaders(input: {
 	if (input.accept) {
 		headers.set("accept", input.accept);
 	}
-	applyTracePropagationHeaders(
-		headers,
-		resolveTracePropagationHeaders({
-			traceData: input.traceDataProvider(),
-		}),
-	);
 	if (input.payload.traceHeaders) {
 		applyTracePropagationHeaders(headers, input.payload.traceHeaders);
 	}

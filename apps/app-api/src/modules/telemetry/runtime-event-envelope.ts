@@ -24,11 +24,11 @@ export function buildRuntimeEventEnvelope(
 		occurred_at: input.occurredAt ?? metadata.now().toISOString(),
 		principal_type: input.principalType ?? null,
 		release: metadata.release,
-		request_id: input.requestId ?? null,
+		"campus.request_id": input.requestId ?? null,
 		requested_tool: input.requestedTool ?? null,
 		selected_tool: input.selectedTool ?? null,
 		status: input.status ?? null,
 		surface: input.surface ?? null,
-		trace_id: input.traceId ?? null,
+		"campus.trace_id": input.traceId ?? null,
 	};
 }

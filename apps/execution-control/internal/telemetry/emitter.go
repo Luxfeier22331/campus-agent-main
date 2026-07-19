@@ -55,7 +55,7 @@ type Status struct {
 	ExporterConfigured        bool   `json:"exporter_configured"`
 	MetricsEnabled            bool   `json:"metrics_enabled"`
 	MetricsExporterConfigured bool   `json:"metrics_exporter_configured"`
-	ExportedCount             uint64 `json:"exported_count"`
+	SubmittedCount            uint64 `json:"submitted_count"`
 	DroppedCount              uint64 `json:"dropped_count"`
 	FailedCount               uint64 `json:"failed_count"`
 	LastError                 string `json:"last_error"`
@@ -69,7 +69,7 @@ type Emitter struct {
 	exporterConfigured bool
 	metricsEnabled     bool
 	metricsConfigured  bool
-	exportedCount      uint64
+	submittedCount     uint64
 	droppedCount       uint64
 	failedCount        uint64
 	lastError          string
@@ -211,7 +211,11 @@ func (e *Emitter) Emit(ctx context.Context, event Event) error {
 		attribute.String("langfuse.session.id", event.ConversationID),
 		attribute.String("langfuse.user.id", event.UserID),
 		attribute.String("langfuse.release", event.Release),
-		attribute.String("langfuse.trace.tags", langfuseTraceTags(event)),
+		attribute.StringSlice("langfuse.trace.tags", langfuseTraceTags(event)),
+		attribute.String("langfuse.trace.metadata.request_id", event.RequestID),
+		attribute.String("langfuse.trace.metadata.run_id", event.RunID),
+		attribute.String("langfuse.trace.metadata.trace_id", event.TraceID),
+		attribute.String("langfuse.trace.metadata.workflow_id", event.WorkflowID),
 		attribute.String("deployment.environment", event.DeploymentEnvironment),
 		attribute.String("request_id", event.RequestID),
 		attribute.String("trace_id", event.TraceID),
@@ -230,7 +234,6 @@ func (e *Emitter) Emit(ctx context.Context, event Event) error {
 		attribute.String("projection_ref", event.ProjectionRef),
 		attribute.Int64("duration_ms", event.Duration.Milliseconds()),
 	}
-	attributes = append(attributes, langfuseGenerationAttributes(event)...)
 	name := strings.TrimSpace(event.Name)
 	if name == "" {
 		name = "execution.event"
@@ -242,7 +245,7 @@ func (e *Emitter) Emit(ctx context.Context, event Event) error {
 	)
 	span.End()
 	e.recordMetric(event)
-	e.recordExport()
+	e.recordSubmitted()
 	return nil
 }
 
@@ -258,7 +261,7 @@ func (e *Emitter) Status() Status {
 		ExporterConfigured:        e.exporterConfigured,
 		MetricsEnabled:            e.metricsEnabled,
 		MetricsExporterConfigured: e.metricsConfigured,
-		ExportedCount:             e.exportedCount,
+		SubmittedCount:            e.submittedCount,
 		DroppedCount:              e.droppedCount,
 		FailedCount:               e.failedCount,
 		LastError:                 statusSafeLastError(e.lastError, "telemetry exporter error"),
@@ -288,10 +291,10 @@ func (e *Emitter) recordDrop() {
 	e.droppedCount++
 }
 
-func (e *Emitter) recordExport() {
+func (e *Emitter) recordSubmitted() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.exportedCount++
+	e.submittedCount++
 }
 
 func (e *Emitter) configureMetrics() {
@@ -475,7 +478,7 @@ func (e *Emitter) shouldSample(event Event) bool {
 	return bucket < e.sampleRatio
 }
 
-func langfuseTraceTags(event Event) string {
+func langfuseTraceTags(event Event) []string {
 	tags := []string{"surface:execution-control"}
 	if target := strings.TrimSpace(event.SelectedTool); target != "" {
 		tags = append(tags, "target:"+target)
@@ -483,41 +486,7 @@ func langfuseTraceTags(event Event) string {
 	if environment := strings.TrimSpace(event.DeploymentEnvironment); environment != "" {
 		tags = append(tags, "env:"+environment)
 	}
-	return strings.Join(tags, ",")
-}
-
-func langfuseGenerationAttributes(event Event) []attribute.KeyValue {
-	modelName := strings.TrimSpace(event.ModelName)
-	modelProvider := strings.TrimSpace(event.ModelProvider)
-	if modelName == "" && modelProvider == "" {
-		return nil
-	}
-	if event.InputTokens <= 0 &&
-		event.OutputTokens <= 0 &&
-		event.CachedInputTokens <= 0 {
-		return nil
-	}
-	attrs := []attribute.KeyValue{
-		attribute.String("langfuse.observation.type", "generation"),
-		attribute.String("langfuse.observation.usage_details", langfuseUsageDetails(event)),
-	}
-	if modelName != "" {
-		attrs = append(attrs, attribute.String("langfuse.observation.model.name", modelName))
-	}
-	if stepID := strings.TrimSpace(event.StepID); stepID != "" {
-		attrs = append(attrs, attribute.String("langfuse.observation.metadata.step_id", stepID))
-	}
-	return attrs
-}
-
-func langfuseUsageDetails(event Event) string {
-	return `{"cache_read_input_tokens":` +
-		strconv.FormatInt(event.CachedInputTokens, 10) +
-		`,"input":` +
-		strconv.FormatInt(event.InputTokens, 10) +
-		`,"output":` +
-		strconv.FormatInt(event.OutputTokens, 10) +
-		`}`
+	return tags
 }
 
 func parseHeaders(value string) map[string]string {

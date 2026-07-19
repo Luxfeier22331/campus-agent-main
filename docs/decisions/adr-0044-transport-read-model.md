@@ -4,45 +4,36 @@ owner_boundary: docs/decisions
 decision_id: ADR-0044
 status: accepted
 ---
+
 # ADR-0044 班车读取模型
 
 ## 背景
 
-挂载 current JSON 会让时刻表更新依赖文件替换和进程级 reload，还会诱导请求消费者解析
-publication artifact，而不是读取一个已发布版本。
+挂载当前 JSON 会让时刻表更新依赖文件替换和进程重载，也会诱导在线消费者解析发布产物而不是
+读取明确的当前版本。
 
 ## 决策
 
-校园班车时刻表使用一套 PostgreSQL release model：
+校园班车时刻表使用 PostgreSQL 中的版本化发布模型：
 
-- `campus_services.transport_releases` 保存 immutable release metadata 和浏览器 status
-  projection；
-- `campus_services.transport_routes`、`transport_departures` 保存每个 release 的 typed
-  tool read model；
-- `campus_services.transport_current` 选择 current release。
+- 每次发布创建不可变版本，并通过唯一当前版本选择对外生效；
+- 发布任务在一个事务中校验并写入完整版本，再移动当前选择；
+- App API 读取同一版本的浏览器展示投影；
+- execution-control 读取同一版本的结构化工具投影；
+- 两个消费者不在请求时扫描通知、对象存储或检索分块；
+- 对象存储可以保存发布归档，但不是在线读取依据。
 
-`jobs/transport-publisher` 校验 publication payload、计算 content hash、写入全部 release row，
-并在一个 transaction 中移动 current pointer。相同 release id 不得对应不同内容。
-
-execution-control 读取 current pointer、typed route 和 departure row。app-api 读取同一
-current release 中存储的 status projection，供浏览器 endpoint 使用。两个消费者都不在
-request time 扫描 notice、object storage 或 retrieval chunk；浏览器也不调用 model-visible
-tool。
-
-object storage 可以保存上游 publication process 产生的 archive，但时刻表读取和发布不依赖
-它。Redis 和 mounted JSON 都不是事实所有者。
-
-本决策仅适用于 transport，不要求所有结构化领域复用相同 table 或 publication lifecycle。
+具体表、字段和发布输入由数据 schema、发布任务与合同维护。本决策只适用于班车领域，不要求
+其他结构化领域复用相同表结构。
 
 ## 后果
 
-- 更新时刻表不需要部署应用。
-- validation 或 publication 失败时，previous current release 保持不变。
-- tool 与 browser projection 可以不同，但共享 release identity。
-- source URL 随 normalized release 和 changed row 保存；raw notice content 仍属于 notice
-  source owner。
+- 更新时刻表不需要重新部署应用；
+- 校验或发布失败时，上一当前版本保持不变；
+- 浏览器与工具投影可以不同，但共享发布身份和来源；
+- Redis、挂载文件和对象存储都不成为第二个当前版本来源。
 
 ## 相关文档
 
 - `docs/domains/transport.md`
-- `jobs/transport-publisher/src/publication.ts`
+- `jobs/transport-publisher/README.md`

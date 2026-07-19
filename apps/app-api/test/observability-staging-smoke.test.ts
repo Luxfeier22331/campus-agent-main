@@ -126,8 +126,8 @@ describe("staging observability smoke orchestration", () => {
 				requestId: "req_observability_01",
 				runtimeTraceId: "a".repeat(32),
 				sentinelSha256,
-				sentinels,
 			});
+			expect(evidence).not.toHaveProperty("sentinels");
 			expect(JSON.stringify(evidence)).not.toContain("real-smoke-secret");
 			expect(writtenSecret).toBe("real-smoke-secret");
 		} finally {

@@ -7,6 +7,7 @@ import type {
 import { projectOpsStageTiming, projectOpsStageTimingBudget } from "../shared/stage-timing.ts";
 import {
 	type OpsObservabilityLinkAllowlist,
+	toSentryExternalLink,
 	toTemporalExternalLink,
 } from "./ops-external-links.ts";
 import type {
@@ -377,7 +378,9 @@ function normalizeExternalLinks(
 	workflowId: string | null,
 ): OpsRequestDetailResponse["externalLinks"] {
 	const temporalLink = toTemporalExternalLink(workflowId, allowlist);
-	return temporalLink ? [temporalLink] : [];
+	return [temporalLink, toSentryExternalLink(allowlist)].filter(
+		(link): link is NonNullable<typeof link> => link !== null,
+	);
 }
 
 function normalizeSupportingSources(value: unknown): OpsRequestDetailResponse["sources"] {

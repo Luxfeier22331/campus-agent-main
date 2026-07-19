@@ -92,11 +92,11 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup Campus Web
+      - name: Setup browser workspaces
         uses: ./.github/actions/setup-node-pnpm
         with:
           workspace-filters: campus-agent-web-workspace
-          workspace-filters-json: '["campus-web..."]'
+          workspace-filters-json: '["campus-web...", "ops-web..."]'
 
       - name: Build Campus Web docs fixture
         run: >-
@@ -118,6 +118,12 @@ jobs:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.tool_cache }}/ms-playwright
         run: pnpm --dir apps/campus-web run test:e2e:full
 
+      - name: Run Ops Web browser regression
+        env:
+          OPS_WEB_BROWSER_TEST_PORT: "4278"
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.tool_cache }}/ms-playwright
+        run: pnpm --dir apps/ops-web test:browser
+
       - name: Upload browser failure evidence
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
@@ -129,6 +135,7 @@ jobs:
             apps/campus-web/playwright-report/e2e-worker
             apps/campus-web/test-results/e2e
             apps/campus-web/test-results/e2e-worker
+            apps/ops-web/test-results
           retention-days: 7
 
   go:

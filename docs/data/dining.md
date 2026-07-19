@@ -9,12 +9,9 @@ status: active
 ## 边界
 
 本文只定义 `dining.*` 的逻辑 schema、字段所有权和角色权限。领域流程和产品语义见
-`../architecture/domains/dining/architecture.md`。可执行 schema 位于
+`../architecture/domains/dining.md`。可执行 schema 位于
 `packages/domains/dining/src/schema.ts`，干净重建 migration 位于
 `jobs/dining-sync/migrations/0001_dining.sql`。
-
-当前 staging 和 production 尚未承载需要迁移的正式 Dining 数据，因此 migration 直接重建
-`dining` schema，不提供兼容表、backfill 或双写。
 
 ## 表族
 
@@ -43,13 +40,13 @@ anchor inventory 或窗口 geometry，这些都是 Campus Web 应用版本拥有
 | `releases` | immutable catalog snapshot、hash、validation、作者与 rollback 关系 |
 | `publication` | 当前 catalog release id、review revision 和更新时间 |
 
-`releases.payload_json` 是学生端 data-only catalog projection truth，其中地图仍只有
+`releases.payload_json` 是学生端只读目录投影，其中地图仍只有
 `floorplan.kind`、`floorplanId` 和窗口 anchor 绑定。`predecessor_release_id` 和
 `rollback_of_release_id` 只表达历史关系；rollback 必须写新 release。最多保留 30 个 release，
 当前 publication 引用不删除。rollback 目标必须与当前应用内 floorplan manifest 兼容；当前地图
 新增 anchor 不影响旧 release，已删除或重复的目标 anchor 会使 rollback 返回冲突。
 
-### Source and overrides
+### 来源与人工修正
 
 | 表 | 事实 |
 | --- | --- |
@@ -84,17 +81,17 @@ overrides。
 完整。图片只保存审核通过后的 S3-compatible public URL，不保存 Feishu file token、临时下载 URL
 或 provider payload。
 
-### Bounded operation events
+### 有界操作事件
 
 `operation_events` 保存 Dining 管理动作的低敏摘要：actor id、action、object kind/id、bounded
 summary 和时间。它不保存原始评价正文副本、完整请求体或外部 trace。
 
 ## 角色权限
 
-### Migration
+### 结构管理
 
-`DINING_MIGRATION_DATABASE_URL` 仅供部署 PreSync migration 使用，可重建 schema 和配置 grants。
-它不注入 CronJob、Ops Web 或 app-api。
+数据库结构安装使用独立管理角色，可以重建 schema 和配置授权，但不提供给同步任务、Ops Web
+或 App API。精确连接变量和部署顺序由安装任务与环境配置维护。
 
 ### `dining_sync`
 
@@ -110,17 +107,3 @@ events。不得 create schema，也不使用 app-api 数据库凭据。
 
 只读 `publication`、`releases`、`reviews`。app-api Drizzle schema 只导出这三张表，不拥有 Dining
 migration。
-
-## 禁止恢复
-
-以下表和概念已删除：
-
-- `release_candidates`
-- `release_candidate_validation_reports`
-- `release_schedule_jobs`
-- `release_snapshots`
-- `release_latest_pointer`
-- `review_projections`
-- Dining audit/request payload 复制表
-
-不要为旧代码或旧文档增加兼容视图、别名表或双写。

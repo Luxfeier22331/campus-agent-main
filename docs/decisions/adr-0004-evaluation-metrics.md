@@ -4,47 +4,46 @@ owner_boundary: docs/decisions
 decision_id: ADR-0004
 status: accepted
 ---
+
 # ADR-0004 评测指标
 
 ## 背景
 
-Agent 可能在路由、检索、答案生成或安全处理阶段失败。单一总分无法说明失败边界。旧
-ADR 还把没有 scorer 或 dataset 的预想指标列成了必选项。
+Agent 可能在工具选择、检索、答案生成或安全处理阶段失败。单一总分无法指出失败边界，预先列出
+没有 scorer、观测来源或适用数据集的指标也不能形成可执行评测。
 
 ## 决策
 
 评测分别观察：
 
-- 执行 outcome 和 tool trajectory；
-- 检索相关性和禁止证据；
-- 答案质量和 grounding；
-- 安全与失败关闭行为。
+- 执行结果和工具轨迹；
+- 检索相关性与禁止证据；
+- 答案质量与证据一致性；
+- 安全和明确失败行为。
 
-不得用单一总分替代这些维度。精确 outcome、工具名、稳定参数、context id 和禁止证据
-优先使用确定性断言；只有需要语义判断时才使用模型指标。
+精确结果、工具名、稳定参数、上下文 ID 和禁止证据优先使用确定性断言。只有需要语义判断时才
+使用模型评分，不使用单一总分替代各维度结果。
 
 一个指标只有同时具备以下内容，才能进入仓库认可的指标集合：
 
-- observation 来源和适用 case；
+- 明确的观测来源和适用 case；
 - 可执行 scorer；
 - 已注册的 score 名称、类型和所有者；
-- missing 或不适用输入的明确处理方式。
+- 对缺失输入和不适用场景的明确处理；
+- 能说明正常、失败和边界输入的代表性 case。
 
-`packages/eval-langfuse/assets/registries` 下的可执行 registry 是当前已认可 Langfuse
-score 的清单。本 ADR 不复制该清单，也不承诺未实现指标。
-
-threshold、merge gate 和 release gate 属于经评审的操作配置。Langfuse 中存在某个
-score，不代表它自动成为发布 gate。
+`packages/eval-langfuse/assets/registries` 是当前已认可 Langfuse score 的可执行清单。本 ADR 不
+复制指标名或承诺未实现评分。评分结果用于质量分析和人工评审，不自动形成合并或发布结论。
 
 ## 后果
 
-- 新指标必须同时提供代码、registry 所有权和有代表性的 case。
-- 缺失 observation 时对应评测失败，不得转成零分或静默排除。
-- Ragas 指标与仓库确定性检查可以并存，任何框架都不独占指标分类。
-- 指标用于定位决策边界，不用于增加 dashboard 数量。
+- 新指标必须同时提供实现、注册项和代表性 case；
+- 声明为不适用的 case 不伪装成零分，意外缺失必需输入按评测错误处理；
+- Ragas 官方指标与仓库确定性断言可以协作，双方不重复实现同一评分器；
+- 指标按失败边界组织，不为增加看板数量创建无消费者 score。
 
 ## 相关文档
 
-- `docs/decisions/adr-0003-golden-datasets.md`
-- `docs/decisions/adr-0061-eval-runtime.md`
-- `docs/decisions/adr-0062-ragas-langfuse.md`
+- `adr-0003-golden-datasets.md`
+- `adr-0061-eval-runtime.md`
+- `../reference/eval.md`

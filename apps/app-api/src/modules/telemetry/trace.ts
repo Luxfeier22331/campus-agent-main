@@ -1,3 +1,5 @@
+import { createTraceId } from "@langfuse/tracing";
+
 export interface TracePropagationHeaders {
 	baggage?: string | null;
 	sentryTrace?: string | null;
@@ -65,22 +67,12 @@ export function applyTracePropagationHeaders(
 	}
 }
 
-export function deriveLangfuseTraceId(productTraceId: string): string {
+export async function deriveLangfuseTraceId(productTraceId: string): Promise<string> {
 	const normalized = productTraceId.trim();
 	if (!normalized) {
 		throw new Error("Langfuse trace id derivation requires a non-empty product trace id.");
 	}
-	const seed = `${LANGFUSE_TRACE_SALT}:${normalized}`;
-	let hash = 0x811c9dc5;
-	let output = "";
-	for (let index = 0; output.length < 32; index += 1) {
-		for (let offset = 0; offset < seed.length; offset += 1) {
-			hash ^= seed.charCodeAt(offset) + index;
-			hash = Math.imul(hash, 0x01000193) >>> 0;
-		}
-		output += hash.toString(16).padStart(8, "0");
-	}
-	return output.slice(0, 32);
+	return createTraceId(`${LANGFUSE_TRACE_SALT}:${normalized}`);
 }
 
 export function traceParentForLangfuseTraceId(langfuseTraceId: string): string {
@@ -90,13 +82,10 @@ export function traceParentForLangfuseTraceId(langfuseTraceId: string): string {
 	return `00-${langfuseTraceId}-${DEFAULT_SPAN_ID}-01`;
 }
 
-export function ensureLangfuseTraceParent(
-	traceHeaders: TracePropagationHeaders | undefined | null,
+export async function ensureLangfuseTraceParent(
 	productTraceId: string,
-): TracePropagationHeaders {
-	const existing = traceHeaders ?? {};
+): Promise<TracePropagationHeaders> {
 	return {
-		...existing,
-		traceParent: traceParentForLangfuseTraceId(deriveLangfuseTraceId(productTraceId)),
+		traceParent: traceParentForLangfuseTraceId(await deriveLangfuseTraceId(productTraceId)),
 	};
 }

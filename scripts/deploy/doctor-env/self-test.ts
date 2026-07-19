@@ -6,6 +6,7 @@ import { surfaceSpecs } from "./specs.ts";
 
 export function runDoctorEnvSelfTest(): number {
 	const renderedSpecs = JSON.stringify(surfaceSpecs);
+	expect(!Object.hasOwn(surfaceSpecs, "evals"), "empty evals surface leaked");
 	expect(!renderedSpecs.includes("PROMPT_RUNTIME_"), "retired prompt runtime key leaked");
 	expect(
 		!renderedSpecs.includes("EXECUTION_PROMPT_MODEL"),

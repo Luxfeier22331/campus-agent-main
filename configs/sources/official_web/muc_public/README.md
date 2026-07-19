@@ -1,29 +1,17 @@
 # muc_public 来源配置
 
-本目录定义 `muc_public` site 的公开网页来源边界、调度与质量策略。它不直接开放任何在线查询
-target。
+`muc_public` 是 Official Web 适配器使用的合成站点配置，网址位于 `example.edu`。它用于验证配置
+加载、定向发现、抓取、页面分类、质量检查和来源产物保留，不表示真实学校官网已经接入。
 
-## 配置所有权
+## 配置分工
 
-- `site.json`、`hosts.json`、`seeds.json`：site、host 与 seed 事实；
-- `crawl-policy.json`、`scheduler-policy.json`、`qc-policy.json`：crawl、调度与质量策略；
-- `credentials.schema.json`：匿名公开采集所需 credential 结构；
-- `projection-declarations.json`：target 准入后的 page-family action hint；
-- `target-source-map.json`：target-first 准入；
-- `consumer-denominator.json`、`target-inventory.json`：已准入下游消费范围；
-- `source-packs/`：显式 target-first batch manifest；
-- `projection-routing.json`：保留的 projection route 配置，当前值以文件为准。
+- 站点、主机和种子文件限制可访问范围；
+- 抓取、调度和质量文件控制离线执行；
+- source pack、target map 与 inventory 提供有明确目的的抓取清单和页面匹配提示；
+- consumer denominator 决定页面作为来源正文保留、仅用于发现还是拒绝；
+- projection declarations 提供页面类别的后续离线处理提示。
 
-具体 lane、host、budget、保留动作和 rollout 值只由对应 JSON 拥有，README 不维护副本。
+这些配置只影响 Official Web 来源采集。它们不会创建查询目标、向量索引、文档 release 或模型
+工具；当前在线目标仍以 `configs/runtime/query-serving-targets.v1.json` 为准。
 
-## 边界
-
-- host group 与 scheduler lane 只是 source-layer segmentation，不代表在线 target 已开放；
-- listing page 默认用于 discovery，保留与投影由配置及明确 target admission 决定；
-- `projection-declarations.json` 不能独立扩大 `stable_reference` 或其他 serving surface；
-- `projection-routing.json` 不能独立开放 Official Web 在线查询；
-- expansion batch 通过质量检查也不会自动改变 scheduler cadence 或 query-serving scope。
-
-## 相关文档
-
-- `docs/domains/official-web.md`
+具体值只由 JSON 文件维护。整体边界见 `docs/domains/official-web.md`。

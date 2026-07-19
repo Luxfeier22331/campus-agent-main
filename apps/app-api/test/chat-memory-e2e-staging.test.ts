@@ -198,7 +198,7 @@ describe("chat memory staging e2e runner", () => {
 			requestId: "req_01HQ",
 			resultKind: "answer",
 			runId: "run_01HQ",
-			runtimeTraceId: deriveLangfuseTraceId("trace_01HQ"),
+			runtimeTraceId: await deriveLangfuseTraceId("trace_01HQ"),
 			traceId: "trace_01HQ",
 		});
 		expect(mintedName).toBe("user-sentinel-0001");

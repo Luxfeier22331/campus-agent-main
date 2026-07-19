@@ -1,43 +1,18 @@
-# institutional_rules 集合配置
+# institutional_rules 配置
 
-本目录定义 `institutional_rules` knowledge target 使用的物理
-`regulations/institutional_rules` collection。
+本目录保存校级长期规章的规范化、分块、查询规划和采集任务配置。
 
 ## 文件
 
-- `serving-config.json`：query-serving 与 Qdrant 合同；
-- `canonical-profile.json`：document identity 与 provenance 字段；
-- `chunk-profile.json`：canonical document chunk profile；
-- `query-planning.json`：title-aware retrieval hint；
-- `task-registry.v3.json`：可执行 ingestion task。
+- `canonical-profile.json`：文档身份与来源字段；
+- `chunk-profile.json`：分块规则；
+- `query-planning.json`：查询规划提示；
+- `serving-config.json`：索引与查询兼容配置；
+- `task-registry.v3.json`：本目录可执行的采集任务。
 
-## 运行时
+查询目标名称、是否开放及其物理映射只由
+`configs/runtime/query-serving-targets.v1.json` 维护。任务能力以 `task-registry.v3.json` 为准，
+README 不复制状态、任务清单或字段定义。
 
-- `configs/runtime/query-serving-targets.v1.json` 将 `institutional_rules` target 映射到本
-  collection；
-- collection 状态为 `query_serving`，使用 `institutional_rules` Qdrant alias，可准入 public
-  或 campus-restricted evidence；
-- 在线查询要求 alias 已存在，且 dense/sparse vector 配置与当前 embedding profile 一致。
-
-## 采集
-
-当前 registry 从 canonical `document-units` 开始，只开放两个确定性 task：
-
-- `document_units_validate`
-- `chunk_prepare`
-
-source materialization、indexing 与 alias publication 不属于本 collection registry，不保留
-占位 promotion 声明。
-
-canonical regulation identity 以 regulation work、issuer 与 semantic applicability 为依据，
-不使用 wrapper notice id。promotion 保留 source notice provenance，同时区分
-`source_notice_document_id` 与 `semantic_owner_document_id`。
-
-display metadata 必须区分：
-
-- `regulation_work_title`：稳定 work identity；
-- `regulation_edition_label`：edition 或 revision label；
-- `regulation_display_title`：渲染后的 work 与 edition title；
-- `source_title_literal`：来源原始 title。
-
-年度周期与限时规则属于 `regulations/scoped_rules`，不属于本 collection。
+领域边界见 `docs/architecture/domains/regulations.md`，规章身份见
+`docs/decisions/adr-0040-regulation-identity.md`。

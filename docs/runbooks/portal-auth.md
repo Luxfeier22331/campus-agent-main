@@ -8,10 +8,7 @@ status: active
 
 ## 运行模型
 
-source-collector 只接收一个外部门户凭据：原始 `SSO_TGC`。本地或 Kubernetes 运行时通过
-`INTERNAL_PORTAL_SSO_TGC_FILE` 指定文件；旧的 `INTERNAL_PORTAL_SSO_TGC`、
-`INTERNAL_PORTAL_JSESSIONID` 和 `INTERNAL_PORTAL_NGINX` 环境变量已经退役，配置它们会使
-适配器启动失败。
+source-collector 只接收原始 `SSO_TGC`，并通过 `INTERNAL_PORTAL_SSO_TGC_FILE` 读取凭据文件。
 
 Playwright 使用 TGC 完成浏览器 SSO 并取得 Service Ticket，在
 `INTERNAL_PORTAL_RUNTIME_DIR` 中派生 `JSESSIONID`、`nginx` 和 storage state。派生状态只属于
@@ -23,17 +20,12 @@ Kubernetes 将固定 Secret `source-collector-internal-portal-auth` 的 `sso_tgc
 
 ## 首次部署
 
-环境先创建空的固定 Secret：
+环境仓负责创建固定 Secret、只允许 Ops Web 读取和 patch 的权限、source-collector 完整卷投影，
+以及固定认证维护 Schedule。首次部署时凭据可以为空，Schedule 保持暂停；源码仓操作手册不直接
+创建或修改环境资源。
 
-```bash
-kubectl create secret generic source-collector-internal-portal-auth \
-  --namespace "${NAMESPACE}"
-```
-
-`ingestion-schedule-sync` PostSync Job 创建固定
-`internal-portal-auth-maintenance` Schedule。首次创建时 Schedule 暂停，说明为
-`awaiting initial credential`。先确认 ingestion-control、两个 worker、Ops Web 和该暂停
-Schedule 正常，再获取真实凭据。
+先在环境仓和控制器状态中确认 Secret 投影、ingestion-control、相关 worker、Ops Web 和暂停的
+Schedule 已存在，再获取真实凭据。资源名称、namespace 和版本以环境仓为准。
 
 ## 获取与校验
 
@@ -92,4 +84,4 @@ PostgreSQL 或日志。当前门户服务依赖浏览器 SSO；不得增加 CAS 
 - `ingestion.md`
 - `../data/internal-portal.md`
 - `../contracts/file-release-export.md`
-- `../contracts/ops-web.md`
+- `../contracts/ops-web/portal.md`

@@ -1,6 +1,6 @@
 ---
 doc_type: architecture
-owner_boundary: execution-control
+owner_boundary: learning-loop
 status: active
 ---
 # 学习闭环
@@ -40,18 +40,9 @@ app-api 只保存产品运行所需的反馈、请求关联和受控观测字段
 
 ## 当前实现
 
-`jobs/learning-loop-candidates` 从 `chat.message_feedback` 和
-`runtime.request_observability_fact` 只读选择候选，并通过 `packages/eval-langfuse` 写入
-Langfuse 数据集 `online-answer/candidates`。
-
-该任务支持：
-
-- 预览将要产生的候选，不写外部平台；
-- 发布经过字段限制的候选；
-- 核对本批候选是否已经出现在 Langfuse 数据集中。
-
-稳定标识、去重规则和载荷结构由实现与测试维护，不在架构文档复制。核对失败必须返回失败，
-不能降级成警告或伪装为成功。
+`jobs/learning-loop-candidates` 从产品反馈和受控运行投影中选择候选，并通过
+`packages/eval-langfuse` 写入 Langfuse。输入字段、目标数据集、稳定标识、去重规则、命令和核对
+行为由任务实现、测试及其 README 维护，不在架构文档复制。
 
 ## 复核与改进
 
@@ -92,4 +83,4 @@ Ops Web 显示排查请求所需的运行摘要并维护在线 Provider Config�
 - [可观测性架构](./ops-observability.md)
 - [Langfuse 合同](../../contracts/langfuse-runtime.md)
 - [评测参考](../../reference/eval.md)
-- [Langfuse 评测需求](../../product/langfuse-evals.md)
+- [候选选择任务](../../../jobs/learning-loop-candidates/README.md)

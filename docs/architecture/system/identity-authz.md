@@ -4,77 +4,60 @@ owner_boundary: apps/app-api
 status: active
 ---
 
-# 身份与准入
+# 身份与权限
 
 ## 边界
 
-本文说明主问答链中的 account/session、quota/abuse 和 user-scoped memory binding。账号浏览器
-边界见 `identity-browser.md`，个人记忆运行时见 `memory-plane.md`。
+App API 拥有产品账号、会话、调用方映射、用量限制和权限判断。Campus Web 组合账号界面，
+execution-control 只消费执行所需的最小身份投影；Agent、检索和个人记忆运行时不读取认证材料。
 
-## 真相分层
+## 数据所有权
 
-- app-api：account、session、principal mapping、quota/abuse 和 memory binding；
-- identity source/policy：校园身份验证和 entitlement；
-- document/retrieval stack：机构知识、来源信任和 evidence；
-- execution-control：消费最小 actor/authz projection 并执行 runtime tool admission；
-- Hindsight：个人记忆内容与检索。
+- App API：账号、会话、调用方类别、账号状态、用量与滥用判断；
+- 身份来源：校园身份验证和所属身份声明；
+- execution-control：消费已确认的调用方和权限投影，执行工具与查询目标准入；
+- 机构知识：来源信任、版本和证据；
+- Hindsight：用户允许保存的个人记忆。
 
-这些层不能互相授予权限。
+这些数据不能互相授予权限。用户陈述、记忆内容、聊天历史和检索结果都不能成为身份依据。
 
-## 准入
+## 产品请求
 
-产品请求依次确认：
+App API 在接收产品请求时确认会话、账号状态、调用方类别和产品限制，再向 execution-control
+发送有界身份与授权投影。execution-control 根据当前工具注册表、查询目标和所属数据权限执行
+准入；工具自身继续校验领域输入和访问范围。
 
-1. session 和 principal mapping；
-2. account 状态；
-3. quota/abuse posture；
-4. execution-control 的 tool/target admission；
-5. 所属工具和来源 readiness。
+普通聊天用户共享当前已经开放的只读模型工具。用户资料、个人记忆或浏览器参数不能改变工具
+集合、查询目标或来源信任。
 
-当前普通 chat 用户共享同一组已开放 read-only tool，不按学生、教职工或院系建立隐式 tool
-差异。未来若引入 restricted source 或 state-changing tool，必须增加明确产品和授权合同。
+## 执行边界
 
-## 执行投影
+执行链不接收原始 JWT、Cookie、会话行、完整资料表或联邦身份载荷。检索只处理已准入目标、
+版本和证据，不解析账号、验证码或个人记忆授权。
 
-app-api 只向 execution path 提供最小 typed actor/context/authz。execution-control 和 agent 不读取
-raw JWT、Cookie、session row、profile table 或 MediaWiki identity。
+个人记忆可以帮助连续追问、偏好、地点和别名消歧，但不能决定账号、权限、工具开放、来源信任
+或运维访问。完整记忆边界见 [个人记忆](./memory-plane.md)。
 
-retrieval 只执行已准入 target、source trust 和 evidence policy，不解析账号或记忆授权。
+## 浏览器与外部服务
 
-## Memory 边界
+Campus Web 使用 App API 的认证接口和当前用户投影组合登录、注册、重置密码与账号设置界面，
+不维护第二套认证实现。Turnstile 等人机验证只保护认证入口，其结果不进入 Agent、检索或记忆。
 
-personal memory 可以影响：
-
-- 会话追问；
-- 偏好和措辞；
-- 常用校区、地点、服务或别名消歧；
-- 查询表述。
-
-personal memory 不得决定 tool opening、source trust、fail-close、Ops Web access、account/session
-或 entitlement。
-
-## 人机验证
-
-Turnstile 等验证只加强 sign-in/sign-up/reset admission。成功结果不是 principal、identity、
-memory、operator permission 或 tool opening；raw captcha token 和 provider risk signal 不进入执行、
-检索或运维读模型。
-
-## 外部 Wiki
-
-MediaWiki 是 sibling service。不得共享 `.muc.wiki` Cookie、导入 password/session/user table，
-或让执行链读取 Wiki 账号状态。联邦登录只通过 `mucwiki-login.md` 的显式协议实现。
+MUC Wiki 是独立服务，只通过明确的联邦协议关联账号。两个系统不共享 Cookie、密码、会话表或
+本地权限。详细关系见 [MUC Wiki 联邦登录](./mucwiki-login.md)。
 
 ## 禁止形态
 
-- memory、偏好或聊天历史成为授权来源；
-- raw auth/session 进入 agent 或 retrieval；
-- Ops Web 身份被解释为 app-api 产品用户权限；
-- captcha/risk score 成为账号或工具真相；
-- MediaWiki 本地账号成为 app identity truth。
+- 把记忆、偏好、聊天历史或模型判断作为授权来源；
+- 把原始认证或会话载荷发送给 Agent、检索或观测平台；
+- 把 Ops Web 操作者身份解释为产品用户权限；
+- 让验证码或供应商风险分数开放工具或知识目标；
+- 导入外部服务的密码、会话或权限表。
 
 ## 相关文档
 
-- `identity-browser.md`
-- `memory-plane.md`
-- `tool-routing.md`
-- `../../decisions/adr-0015-memory-boundaries.md`
+- [App API 登录合同](../../contracts/app-api/auth.md)
+- [联邦登录合同](../../contracts/app-api/federation.md)
+- [产品运行时](./product-runtime.md)
+- [工具路由](./tool-routing.md)
+- [个人记忆](./memory-plane.md)

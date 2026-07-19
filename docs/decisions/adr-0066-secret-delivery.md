@@ -8,14 +8,13 @@ status: accepted
 
 ## 背景
 
-仓库过去在 K8s `secret.example.yaml` 旁维护 Worker `secrets.required`。plaintext Kubernetes
-Secret 示例虽然便于 bootstrap，却容易被误认为 staging/production inventory，也无法在不复制
-本地文件或提交 credential 的情况下定义真实 secret delivery。
+工作负载需要稳定引用凭据，但凭据值、投递后端和环境资源清单具有不同的所有权和生命周期。
+源码示例不能证明某个环境已经投递凭据，也不能成为真实环境的凭据清单。
 
 ## 决策
 
 workload 只以稳定 Kubernetes Secret 名与 key 作为合同。具体 secret delivery backend 属于
-部署基础设施，不是 workload architecture truth。
+部署基础设施，不代表工作负载已经按目标架构运行。
 
 - Secret 按凭据所有者、生命周期和变更边界组织，不按 Pod 重复创建；
 - workload 只显式投影所需 key；共享 Secret 对象不代表共享上游身份或权限；

@@ -31,7 +31,7 @@ target admission、history mode 和 Knowledge Agent 工具参数由 ADR-0075 维
 - serving target 必须具备兼容的 dense 和 sparse vector 才能开放。
 - 供应商默认值不得静默决定 embedding dimension。
 - 检索调优进入受评审的 serving config 和测试，不进入 prompt 或 caller input。
-- 不提供本地 sparse fallback 或隐藏的第二检索路径。
+- 不提供本地稀疏检索回退或隐藏的第二检索路径。
 
 ## 相关文档
 

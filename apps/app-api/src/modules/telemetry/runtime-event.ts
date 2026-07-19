@@ -28,17 +28,17 @@ const FORBIDDEN_FIELD_NAMES = new Set([
 
 const RUNTIME_EVENT_BASE_ALLOWED_FIELDS = [
 	"environment",
+	"campus.request_id",
+	"campus.trace_id",
 	"error_code",
 	"event_type",
 	"occurred_at",
 	"principal_type",
 	"release",
-	"request_id",
 	"requested_tool",
 	"selected_tool",
 	"status",
 	"surface",
-	"trace_id",
 ] as const;
 
 const MAX_RUNTIME_EVENT_STRING_LENGTH = 128;

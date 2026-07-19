@@ -8,35 +8,25 @@ status: accepted
 
 ## 背景
 
-年度周期和限时操作规则不是稳定校级规章，但把 canonical rule text 留在来源通知 collection
-中，又会使它缺少 semantic owner。
+年度周期、特定人群和限时操作规则不是稳定校级规章，但仍需要规范正文、适用范围和有效时间，不能
+长期停留在通知包装中。
 
 ## 决策
 
-`regulations/scoped_rules` 保存以下 canonical 内容：
+- `regulations/scoped_rules` 保存年度或项目周期规则，以及有明确时间范围的操作规则；
+- 该集合不保存通知包装、附件处理结果、稳定校级规章或没有产品用途的过期通知；
+- 规范记录必须明确适用对象、组织、时间和来源；范围不足或已经失效的候选不能发布；
+- 是否开放在线查询需要单独定义时间判断、范围过滤、歧义处理和评测，集合配置存在不会自动开放
+  查询能力。
 
-- annual 或 programme-cycle rule；
-- time-bound operational rule。
+## 结果
 
-它不保存 wrapper notice、attachment-processing outcome、稳定校级规章，或没有当前产品
-用途的明确过期 source notice。
-
-该 collection 不在 online query-target registry 中。serving profile 只描述 index
-compatibility；当前 task registry 只能校验和 chunk caller 提供的 canonical document
-unit。仓库没有 scoped rule 的 source promotion 或 materialization task。
-
-开放 online target 需要独立决策和实现，定义 scope、effective-time handling、ambiguity、
-filter 和 evaluation。这些未来 query rule 不是 import field，本 ADR 不提前冻结。
-
-## 后果
-
-- `institutional_rules` 保持稳定校级边界。
-- `internal_notice` 保留 source wrapper 和 provenance。
-- checked-in collection scaffold 不代表 scoped rule 可查询。
-- 过期或 scope 不充分的 candidate 在 promotion 阶段失败关闭，不做 best-effort publication。
+- `institutional_rules` 保持稳定校级制度边界；
+- 通知领域继续保存来源包装和来源信息；
+- 限时规则可以拥有独立规范身份，而不被误认为永久制度。
 
 ## 相关文档
 
-- `docs/decisions/adr-0035-regulation-promotion.md`
-- `configs/ingestion/regulations/scoped_rules/README.md`
-- `configs/runtime/query-serving-targets.v1.json`
+- `../architecture/domains/regulations.md`
+- `adr-0035-regulation-promotion.md`
+- `../../configs/ingestion/regulations/scoped_rules/README.md`

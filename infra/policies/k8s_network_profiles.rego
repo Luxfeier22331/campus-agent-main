@@ -77,6 +77,13 @@ exact_pod_peer(peer, key, value) if {
 	labels[key] == value
 }
 
+exact_ip_block_peer(peer, cidr) if {
+	count(peer) == 1
+	ip_block := peer.ipBlock
+	count(ip_block) == 1
+	ip_block.cidr == cidr
+}
+
 exact_port(allowed_port, protocol, port) if {
 	count(allowed_port) == 2
 	allowed_port.protocol == protocol
@@ -106,6 +113,14 @@ allows_dns(egress, protocol) if {
 	exact_port(allowed_port, protocol, 53)
 }
 
+allows_external_https(egress) if {
+	some rule in egress
+	some peer in object.get(rule, "to", [])
+	exact_ip_block_peer(peer, "0.0.0.0/0")
+	some allowed_port in object.get(rule, "ports", [])
+	exact_port(allowed_port, "TCP", 443)
+}
+
 allowed_ops_web_peer_port(peer, allowed_port) if {
 	exact_namespace_peer(peer, "kubernetes.io/metadata.name", "kube-system")
 	protocol := {"TCP", "UDP"}[_]
@@ -125,6 +140,11 @@ allowed_ops_web_peer_port(peer, allowed_port) if {
 	}[_]
 	exact_pod_peer(peer, "app.kubernetes.io/name", name)
 	exact_port(allowed_port, "TCP", 8000)
+}
+
+allowed_ops_web_peer_port(peer, allowed_port) if {
+	exact_ip_block_peer(peer, "0.0.0.0/0")
+	exact_port(allowed_port, "TCP", 443)
 }
 
 network_policy_has_allow_rules(spec) if {
@@ -152,24 +172,18 @@ ops_web_egress_has_invalid_peer_port(egress) if {
 	not allowed_ops_web_peer_port(peer, allowed_port)
 }
 
-ops_web_egress_has_ip_block(egress) if {
-	some rule in egress
-	some peer in object.get(rule, "to", [])
-	peer.ipBlock
-}
-
 ops_web_egress_allowlist_is_complete(egress) if {
-	count(egress) == 5
+	count(egress) == 6
 	not ops_web_egress_rule_without_destination(egress)
 	not ops_web_egress_rule_without_port(egress)
 	not ops_web_egress_has_invalid_peer_port(egress)
-	not ops_web_egress_has_ip_block(egress)
 	allows_dns(egress, "UDP")
 	allows_dns(egress, "TCP")
 	allows_pod(egress, "cnpg.io/cluster", "campus-agent-postgres", 5432)
 	allows_pod(egress, "app.kubernetes.io/name", "execution-control", 8000)
 	allows_pod(egress, "app.kubernetes.io/name", "execution-control-admin", 8000)
 	allows_pod(egress, "app.kubernetes.io/name", "ingestion-control", 8000)
+	allows_external_https(egress)
 }
 
 validated_ops_web_egress_policy(policy) if {
@@ -220,8 +234,8 @@ violation contains msg if {
 	input.kind == "NetworkPolicy"
 	input.metadata.name == "ops-web-egress"
 	egress := object.get(input.spec, "egress", [])
-	count(egress) != 5
-	msg := "NetworkPolicy ops-web-egress must contain exactly five dependency rules"
+	count(egress) != 6
+	msg := "NetworkPolicy ops-web-egress must contain exactly six dependency rules"
 }
 
 violation contains msg if {
@@ -301,8 +315,7 @@ violation contains msg if {
 violation contains msg if {
 	input.kind == "NetworkPolicy"
 	input.metadata.name == "ops-web-egress"
-	some rule in object.get(input.spec, "egress", [])
-	some peer in object.get(rule, "to", [])
-	peer.ipBlock
-	msg := "NetworkPolicy ops-web-egress must leave environment IP egress to the GitOps overlay"
+	egress := object.get(input.spec, "egress", [])
+	not allows_external_https(egress)
+	msg := "NetworkPolicy ops-web-egress must allow external HTTPS on TCP 443"
 }

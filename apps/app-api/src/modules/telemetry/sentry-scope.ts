@@ -1,11 +1,11 @@
 import * as Sentry from "@sentry/cloudflare";
 
-import { hashIdentifier } from "./helpers";
 import { normalizeAppApiRoute } from "./sentry";
 
 export function applyRequestTags(input: {
 	errorCode?: string | null;
 	principalType?: string | null;
+	requestId?: string | null;
 	requestedTool?: string | null;
 	resolvedTargets?: string[];
 	route?: string | null;
@@ -14,8 +14,11 @@ export function applyRequestTags(input: {
 	surface?: string | null;
 	traceId?: string | null;
 }): void {
+	if (input.requestId) {
+		Sentry.setTag("campus.request_id", input.requestId);
+	}
 	if (input.traceId) {
-		Sentry.setTag("correlation_hash", hashIdentifier(input.traceId));
+		Sentry.setTag("campus.trace_id", input.traceId);
 	}
 	if (input.surface) {
 		Sentry.setTag("surface", input.surface);

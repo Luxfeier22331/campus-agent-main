@@ -521,6 +521,7 @@ async function proxyNoStoreAppApiRequest(request: Request, env: Env): Promise<Re
 				},
 			});
 		}
+		applyUpstreamCorrelationTags(response);
 		return withNoStore(response);
 	} catch {
 		return jsonResponse(503, {
@@ -541,7 +542,7 @@ async function proxyCacheableAppApiRequestWithEnv(request: Request, env: Env): P
 	if (!appApiFetch) {
 		return withCampusEdgeCacheBypass(dependencyNotReadyResponse());
 	}
-	return proxyCacheableAppApiRequest({
+	const response = await proxyCacheableAppApiRequest({
 		appApiBaseUrl,
 		appApiFetch,
 		buildDependencyNotReadyResponse: dependencyNotReadyResponse,
@@ -550,6 +551,31 @@ async function proxyCacheableAppApiRequestWithEnv(request: Request, env: Env): P
 		securityHeaders: SECURITY_HEADERS,
 		withNoStore,
 	});
+	applyUpstreamCorrelationTags(response);
+	return response;
+}
+
+export function applyUpstreamCorrelationTags(
+	response: Response,
+	setTag: (key: string, value: string) => void = Sentry.setTag,
+): void {
+	const requestId = normalizeUpstreamCorrelationId(response.headers.get("x-request-id"), 128);
+	const traceId = normalizeUpstreamCorrelationId(response.headers.get("x-trace-id"), 128);
+	if (requestId) {
+		setTag("campus.request_id", requestId);
+	}
+	if (traceId) {
+		setTag("campus.trace_id", traceId);
+	}
+}
+
+function normalizeUpstreamCorrelationId(value: string | null, maxLength: number): string | null {
+	const normalized = value?.trim() ?? "";
+	return normalized.length > 0 &&
+		normalized.length <= maxLength &&
+		/^[A-Za-z0-9._:-]+$/u.test(normalized)
+		? normalized
+		: null;
 }
 
 function resolveAppApiFetch(

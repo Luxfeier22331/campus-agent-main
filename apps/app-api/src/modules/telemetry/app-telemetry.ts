@@ -4,7 +4,6 @@ import { type Env, resolveEnvironment } from "../../config";
 import { isStageTimingField, stageTimingBudgetState } from "../latency-budget";
 import { createConsoleRuntimeEventSink } from "./console";
 import {
-	hashIdentifier,
 	normalizeString,
 	readTelemetryTraceDataWithoutRequestFailure,
 	runTelemetryAsyncSideEffectWithoutRequestFailure,
@@ -78,8 +77,11 @@ export function createAppTelemetry(
 					if (detail?.surface) {
 						scope.setTag("surface", detail.surface);
 					}
+					if (detail?.requestId) {
+						scope.setTag("campus.request_id", detail.requestId);
+					}
 					if (detail?.traceId) {
-						scope.setTag("correlation_hash", hashIdentifier(detail.traceId));
+						scope.setTag("campus.trace_id", detail.traceId);
 					}
 
 					Sentry.captureException(error);
@@ -91,6 +93,7 @@ export function createAppTelemetry(
 			runTelemetrySideEffectWithoutRequestFailure(() => {
 				applyRequestTags({
 					principalType: input.actor.principalType,
+					requestId: input.requestId,
 					requestedTool: input.requestedTool,
 					status: "accepted",
 					surface: input.surface,
@@ -102,6 +105,7 @@ export function createAppTelemetry(
 		configureHttpRequestScope(input) {
 			runTelemetrySideEffectWithoutRequestFailure(() => {
 				applyRequestTags({
+					requestId: input.requestId,
 					route: input.route,
 					surface: input.surface,
 					traceId: input.traceId,
@@ -126,6 +130,7 @@ export function createAppTelemetry(
 			runTelemetrySideEffectWithoutRequestFailure(() => {
 				applyRequestTags({
 					principalType: input.actor.principalType,
+					requestId: input.requestId,
 					requestedTool: input.requestedTool,
 					status: input.status,
 					surface: input.surface,
@@ -156,6 +161,7 @@ export function createAppTelemetry(
 				applyRequestTags({
 					errorCode: input.errorCode,
 					principalType: input.principalType,
+					requestId: input.requestId,
 					requestedTool: input.requestedTool,
 					resolvedTargets: input.resolvedTargets,
 					selectedTool: input.selectedTool,
@@ -195,6 +201,7 @@ export function createAppTelemetry(
 				applyRequestTags({
 					errorCode: input.errorCode,
 					principalType: input.principalType,
+					requestId: input.requestId,
 					requestedTool: input.requestedTool,
 					status: "error",
 					surface: input.surface,

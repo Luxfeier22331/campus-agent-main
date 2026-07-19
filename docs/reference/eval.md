@@ -9,7 +9,8 @@ status: active
 ## 当前形态
 
 - `packages/eval-langfuse` 是 TypeScript 平台适配器和数据集所有者；
-- `packages/ragas-runner` 是唯一 Python 评测包，只调用 Ragas 官方指标；
+- `packages/ragas-runner` 是唯一 Python 包，只作为 Ragas 官方指标的窄适配器；Python 不参与
+  在线回答、检索、采集或通用评测编排；
 - Langfuse 拥有 dataset、experiment、score、annotation queue 和分析；
 - Temporal 运行真实产品请求，所属 app/package 测试拥有确定性合同；
 - 仓库不维护第二套 experiment、annotation 或 release-gate 框架。
@@ -69,9 +70,9 @@ RAG 数据集包括：
 
 每个数据集由一个 `cases.v1.json` 维护。用例规范见 `eval-cases.md`。
 
-## 观测、真相、评分与落点
+## 观测、预期基准、评分与落点
 
-| 关注点 | 观测 | 真相 | 评分器 | 落点 |
+| 关注点 | 观测 | 预期基准 | 评分器 | 落点 |
 | --- | --- | --- | --- | --- |
 | Primary 工具选择 | public tool trajectory | routing dataset | Ragas tool metrics | Langfuse `ragas.tool_call_*` |
 | 知识搜索顺序 | internal tool calls | target/history/search count | 参数感知 tool metrics | Langfuse `ragas.tool_call_*` |
@@ -81,7 +82,7 @@ RAG 数据集包括：
 | Agent 目标 | 消息和终态 | expected outcome | 可选 goal accuracy | Langfuse |
 | 产品终态 | terminal kind | `expected_outcome` | 确定性相等 | `execution.outcome_match` |
 | 禁止上下文 | retrieved IDs | `forbidden_context_ids` | 确定性缺席检查 | `retrieval.forbidden_context_absent` |
-| 合同完整性 | finalization/search projection | owner contract | runtime tests | 所属测试 |
+| 合同完整性 | 终态与搜索投影 | 所属合同 | 运行时测试 | 所属测试 |
 
 授权、取消、超时、schema 严格性和 source ref 校验必须留在所属 runtime 测试，不能交给 LLM
 judge。

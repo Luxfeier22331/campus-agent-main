@@ -9,7 +9,7 @@ status: active
 ## 边界
 
 本文定义 campus-web 使用的只读 `/api/dining/*`。app-api 不提供 Dining 写入、草稿、发布、回滚或
-审核接口。领域与数据语义见 `../../architecture/domains/dining/architecture.md`。
+审核接口。领域与数据语义见 `../../architecture/domains/dining.md`。
 
 所有接口经 campus-web same-origin `/api/*` 代理访问，错误使用 app-api 统一 error envelope。
 
@@ -119,5 +119,5 @@ sale status、availability、queue 或备注字段。
 刷新所有 Dining query 并清除本地窗口/菜品选择；review revision 单独变化时只刷新评价。
 
 release payload 缺失、publication 与 payload release id 不一致、公开评价缺少精确 binding 或图片
-shape 非法时 fail closed，返回 `dining_published_projection_invalid`，不得猜测或 fallback 到 dev
+结构非法时拒绝读取，返回 `dining_published_projection_invalid`，不得猜测或回退到开发
 seed。地图 asset 的代码版本兼容性由 Campus Web 和 Ops rollback 校验，不由 app-api 注入资产元数据。

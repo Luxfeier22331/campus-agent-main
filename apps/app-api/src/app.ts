@@ -32,6 +32,7 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
 	app.use("*", async (c, next) => {
 		telemetry.configureHttpRequestScope({
+			requestId: c.req.header("x-request-id"),
 			route: c.req.path,
 			surface: APP_API_HTTP_SURFACE,
 			traceId: c.req.header("x-trace-id"),
@@ -66,6 +67,7 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 		});
 
 		telemetry.captureException(error, {
+			requestId: c.req.header("x-request-id"),
 			route: c.req.path,
 			status: 500,
 			surface: APP_API_HTTP_SURFACE,

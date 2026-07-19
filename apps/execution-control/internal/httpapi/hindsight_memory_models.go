@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"strings"
@@ -160,15 +161,30 @@ type hindsightPropagationTransport struct {
 	base http.RoundTripper
 }
 
+type hindsightBankContextKey struct{}
+
+func withHindsightBankContext(ctx context.Context, bankID string) context.Context {
+	return context.WithValue(ctx, hindsightBankContextKey{}, strings.TrimSpace(bankID))
+}
+
+func hindsightBankIDFromContext(ctx context.Context) string {
+	bankID, _ := ctx.Value(hindsightBankContextKey{}).(string)
+	return strings.TrimSpace(bankID)
+}
+
 func (t hindsightPropagationTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	attributes := []attribute.KeyValue{
+		attribute.String("memory.provider", "hindsight"),
+		attribute.String("http.request.method", request.Method),
+	}
+	if bankID := hindsightBankIDFromContext(request.Context()); bankID != "" {
+		attributes = append(attributes, attribute.String("langfuse.user.id", bankID))
+	}
 	ctx, span := otel.Tracer("campus-execution-control/hindsight").Start(
 		request.Context(),
 		"memory.call",
 		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			attribute.String("memory.provider", "hindsight"),
-			attribute.String("http.request.method", request.Method),
-		),
+		trace.WithAttributes(attributes...),
 	)
 	cloned := request.Clone(ctx)
 	cloned.Header = request.Header.Clone()

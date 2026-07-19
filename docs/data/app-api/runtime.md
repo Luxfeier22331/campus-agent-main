@@ -39,24 +39,16 @@ app-api 在接收 turn 时创建记录，在最终写入时更新同一记录。
 
 - 时间窗口；
 - status + time；
-- surface、selected tool、principal type、model 和 safety identifier + time。
+- `surface`、selected tool、principal type、model 和 safety identifier + time。
 
 Ops Web 按 `request_id` 联合该表与 `chat.turn_dispatches`、`chat.messages`、
 `runtime.agent_runs`，不会从 observability 字段反推或改写请求状态。
 
-## 不属于 app-api 的 runtime 表
+## execution-control 投影
 
-`runtime.agent_runs`、event/step/tool/memory/closeout 投影由
-`apps/execution-control` 的 schema installer 管理。`app_api` 角色不能读取这些表；
-`ops_web` 仅获得合同列的读取权限。
-
-以下表已经退役，不得恢复：
-
-- `runtime.request_execution`
-- `runtime.projection_outbox`
-
-当前请求关联不需要 projector：chat dispatch、agent run 和 observability fact 通过
-`request_id`、`run_id`、`trace_id` 直接关联。
+`runtime.agent_*` 由 `apps/execution-control` 的 schema installer 管理。`app_api` 角色不能读取
+这些表，`ops_web` 仅获得合同列的读取权限。chat dispatch、agent run 和 observability fact
+直接通过 `request_id`、`run_id` 与 `trace_id` 关联。
 
 ## 可执行来源
 

@@ -8,13 +8,12 @@ status: active
 
 ## 边界
 
-本文规定 Ops Web 中供应商密钥的新增、验证、激活、轮换和撤销。Provider 与环境所有权见
-`../environment/providers.md`，架构决策见 `../decisions/adr-0064-runtime-config.md`。
+本文规定在线 Provider Config 中供应商密钥的新增、验证、激活、轮换和撤销。Provider 与环境
+所有权见 `../environment/providers.md`，接口边界见 `../contracts/ops-web/providers.md`。
 
 固定边界：
 
 - 在线回答使用 execution-control Provider Config 中已验证并激活的完整 role bundle；
-- Hindsight 与 eval 使用各自 runtime owner 管理的供应商配置，不复用在线 bundle；
 - 顶层 Agent Activity 开始时通过 reader role 解析一次 active bundle，在途调用保留该 revision；
 - `dev`、`staging`、`production` 使用独立密钥；只有存在预算、限流或供应商隔离需求时，
   才为不同角色创建更多密钥。
@@ -23,8 +22,8 @@ status: active
 
 1. 确认目标环境和使用角色。
 2. 必要时在供应商平台创建该环境的密钥。
-3. 在线回答通过 Ops Web 创建 connection/profile，验证后以 `expectedRevision` 原子激活完整
-   role bundle；Hindsight 或 eval 则在各自部署流程中更新配置。
+3. 通过 Ops Web 创建 connection/profile，验证后以 `expectedRevision` 原子激活完整 role
+   bundle。
 4. 在线运行面确认 reader DSN 和版本化 keyring 可用；admin 服务使用独立 admin DSN、read token
    与 command token。
 5. keyring 本地文件权限使用 `0600`；Kubernetes Secret 投影使用 `0440`，由 Pod `fsGroup` 授予
@@ -36,36 +35,34 @@ status: active
 
 ## 本地开发
 
-1. 启动 execution-control 本地 admin 和 reader 接口，并提供独立 PostgreSQL owner/reader DSN
+1. 启动 execution-control 本地管理和读取接口，并提供独立 PostgreSQL 管理/读取 DSN
    与版本化 keyring。
 2. 通过 `OPS_WEB_EXECUTION_CONTROL_ADMIN_URL`、read token 和 command token 将 Ops Web 指向该
    admin 接口。
 3. 启动 Ops Web 后通过同一页面创建、验证并激活 profile。
-4. 确认 execution-control runtime reader 能解析同一 active revision；本地不生成 file
-   projection 或兼容 Secret publisher。
+4. 确认 execution-control runtime reader 能解析同一 active revision。
 
 只确认文件是否存在、解析了哪个配置所有者以及请求是否成功。不得打印原始密钥。
 
-## Staging 验证
+## Worker 平台 Secret 检查
 
 ```bash
 pnpm exec tsx scripts/deploy/check-worker-secret-presence.ts --env staging --json
 ```
 
-随后确认：
+该命令只查询 Cloudflare Worker 平台要求的 Secret 是否存在，不读取值，也不证明模型 Provider
+Config 已创建、验证或激活。在线 Provider Config 必须另行确认：
 
-1. 每个 Worker 应用均为 `ready=true`，且没有 `missing_secrets`；
-2. 目标在线 role bundle 已验证并激活；
-3. execution-control 只用 reader role 读取 active revision，并能解密对应 key ID；
-4. Ops Web 使用独立 read/command token，浏览器不获得该 token 或数据库凭据；
-5. Hindsight 与 eval 的独立配置检查通过；
-6. 受控冒烟请求成功。
+1. 目标 role bundle 已验证并激活；
+2. execution-control 只用 reader role 读取 active revision，并能解密对应 key ID；
+3. Ops Web 使用独立 read/command token，浏览器不获得该 token 或数据库凭据；
+4. 受控在线请求使用预期 revision。
 
 ## 轮换
 
 1. 在供应商平台创建新密钥。
-2. 在所属 runtime 创建新配置版本并验证；在线 bundle 使用预期 revision 原子激活。
-3. Hindsight 与 eval 更新所属部署密钥存储并按其运行手册重启或重新部署。
+2. 创建新 connection/profile 并完成验证；使用预期 revision 原子激活完整 bundle。
+3. 确认新请求使用新 revision，既有请求保持其启动时取得的 revision。
 4. 完成环境检查和冒烟测试。
 5. 撤销旧密钥。
 
@@ -80,3 +77,6 @@ pnpm exec tsx scripts/deploy/check-worker-secret-presence.ts --env staging --jso
 - 不让 agent-runtime 绕过 execution-control 的已激活 bundle 直接从环境变量读取在线供应商
   密钥；
 - 不把 Hindsight 或 eval provider 塞入在线 bundle。
+
+Hindsight 模型配置见 [Hindsight 个人记忆运维](./hindsight.md)，评测模型配置见
+[Ragas 评测](./ragas.md)。两者不复用本手册的在线 Provider Config。

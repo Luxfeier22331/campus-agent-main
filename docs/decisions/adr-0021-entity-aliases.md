@@ -8,9 +8,9 @@ status: accepted
 
 ## 背景
 
-校园名称和缩写具有学校与领域语义。全局字符串替换表可能把歧义短语变成错误的权威
-实体，也会让检索依赖隐藏 rewrite。旧 ADR 还规定了并未进入当前 knowledge-search 合同
-的 curriculum resolver、typed filter pipeline 和 answer policy。
+校园名称和缩写具有学校与领域语义。全局字符串替换可能把歧义短语变成错误的权威实体，
+也会让检索依赖不可见的改写。实体别名决策还不能替检索合同预先增加尚无运行时消费者的字段
+或处理阶段。
 
 ## 决策
 

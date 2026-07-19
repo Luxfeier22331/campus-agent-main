@@ -2,7 +2,7 @@
 
 `packages/domains/dining` 拥有 Dining 领域模型、发布校验、开发 seed，以及食堂平面图的 canonical
 layout、生成 manifest 和静态 SVG 生成器。领域架构见
-`../../../docs/architecture/domains/dining/architecture.md`。
+`../../../docs/architecture/domains/dining.md`。
 
 ## 地图身份
 

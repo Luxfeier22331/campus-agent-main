@@ -8,6 +8,7 @@ const scheduledHealthWorkflow = readFileSync(".github/workflows/scheduled-health
 const diningImageWorkflow = readFileSync(".github/workflows/dining-sync-image.yml", "utf8");
 const actionlintAction = readFileSync(".github/actions/run-actionlint/action.yml", "utf8");
 const actionlintConfig = readFileSync(".github/actionlint.yaml", "utf8");
+const updateStagingCandidate = readFileSync("scripts/deploy/update-staging-candidate.sh", "utf8");
 
 function jobNames(workflow) {
 	const jobs = workflow.slice(workflow.indexOf("\njobs:\n") + 7);
@@ -69,6 +70,9 @@ test("keeps full browser coverage scheduled without duplicate Go setup", () => {
 	assert.match(browserJob, /build:docs:fixture/u);
 	assert.match(browserJob, /test:e2e:full/u);
 	assert.match(browserJob, /CAMPUS_WEB_E2E_DOCS_PREBUILT/u);
+	assert.match(browserJob, /"ops-web\.\.\."/u);
+	assert.match(browserJob, /OPS_WEB_BROWSER_TEST_PORT: "4278"/u);
+	assert.match(browserJob, /pnpm --dir apps\/ops-web test:browser/u);
 });
 
 test("builds the manually published dining image once", () => {
@@ -89,6 +93,37 @@ test("routes main publication through the shared change plan", () => {
 	assert.doesNotMatch(releaseWorkflow, /dorny\/paths-filter|\n {4}paths:/u);
 	assert.match(releaseWorkflow, /queue: max/u);
 	assert.match(releaseWorkflow, /validate_only:/u);
+	assert.match(
+		updateStagingCandidate,
+		/\.data\.EXECUTION_CONTROL_RUNTIME_RELEASE =[\s\S]{0,120}execution-runtime@/u,
+	);
+	assert.match(
+		updateStagingCandidate,
+		/\.data\.LANGFUSE_RELEASE =[\s\S]{0,120}execution-runtime@/u,
+	);
+});
+
+test("validates Campus Web release identity only when that Worker is selected", () => {
+	const validationStep = releaseWorkflow.slice(
+		releaseWorkflow.indexOf("      - name: Validate promoted manifests\n"),
+		releaseWorkflow.indexOf("      - name: Open GitOps deployment pull request\n"),
+	);
+	const campusValidationStart = validationStep.indexOf(
+		'          if [[ "$CAMPUS_WEB_SELECTED" == "true" ]]; then\n',
+	);
+	const campusValidationEnd = validationStep.indexOf("          fi\n", campusValidationStart);
+	const manifestRenderStart = validationStep.indexOf(
+		"          for overlay in gitops/clusters/staging/overlays/*; do\n",
+	);
+
+	assert.match(
+		validationStep,
+		/CAMPUS_WEB_SELECTED: \$\{\{ contains\(fromJSON\(needs\.release-plan\.outputs\.workers\), 'campus-web'\) \}\}/u,
+	);
+	assert.ok(campusValidationStart >= 0);
+	assert.ok(campusValidationEnd > campusValidationStart);
+	assert.ok(validationStep.indexOf("docs-reader-release.json") < campusValidationEnd);
+	assert.ok(manifestRenderStart > campusValidationEnd);
 });
 
 test("keeps required staging Worker bindings in the publication job", () => {

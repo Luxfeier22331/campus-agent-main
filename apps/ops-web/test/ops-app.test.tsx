@@ -496,13 +496,18 @@ describe("OpsWebApp", () => {
 
 		fireEvent.click(screen.getByRole("link", { name: "日志与调用链" }));
 		expect(await screen.findByRole("list", { name: "日志原始记录" })).toHaveTextContent(
-			"request completed",
+			"request.finalized",
 		);
 		expect(await screen.findByRole("list", { name: "调用链原始记录" })).toHaveTextContent(
 			"agent.primary",
 		);
-		expect(screen.getByRole("list", { name: "日志原始记录" }).querySelector("pre")).toHaveClass(
-			"whitespace-pre",
+		expect(screen.getByRole("list", { name: "日志原始记录" }).querySelector("pre")).toBeNull();
+		expect(await screen.findByRole("list", { name: "Sentry Issue 摘要" })).toHaveTextContent(
+			"Request execution failed",
+		);
+		expect(screen.getByRole("link", { name: "在 Sentry 查看" })).toHaveAttribute(
+			"href",
+			"https://sentry.example.test/organizations/campus/issues/450001/",
 		);
 		expect(screen.getByTestId("observability-record-viewport-logs")).toHaveStyle({
 			height: "160px",

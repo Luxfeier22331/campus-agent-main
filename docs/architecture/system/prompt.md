@@ -1,22 +1,16 @@
 ---
 doc_type: architecture
-owner_boundary: docs/architecture/system
+owner_boundary: prompt-runtime
 status: active
 ---
 
-# Prompt 与指令架构
+# Prompt 与指令
 
-## 文档范围
+## 边界
 
-本文定义 `campus-agent` 的 prompt/instruction 装配边界，包括：
-
-- system、developer、task 和 evidence instruction 如何分层；
-- code、Agents SDK runtime 和 internal retrieval 分别拥有哪些事实；
-- 模型执行期间的可信与不可信内容；
-- prompt 变化需要通过哪些验证。
-
-本文不定义供应商 SDK 调用、模型选择、一次性 prompt 文案、retrieval serving scope、tool
-opening、source admission 或临时执行状态。
+本文定义模型指令与动态数据的装配边界。它不定义工具开放、知识目标、检索实现、供应商配置、
+具体 prompt 文案或接口字段；这些内容分别由工具架构、检索架构、Provider Config 和可执行合同
+维护。
 
 ## 核心原则
 
@@ -24,154 +18,68 @@ opening、source admission 或临时执行状态。
 代码负责边界，提示词负责边界内推理
 ```
 
-代码拥有边界、认证、policy、serving truth、tool opening、确定性停止条件、schema/evidence
-validation 和 terminal projection。OpenAI Agents SDK run 在这些边界内拥有 semantic
-routing、官方 handoff、tool loop、澄清文案和 answer text。execution-control 不改写答案。
+代码负责认证、授权、工具与知识目标准入、期限、输出 schema、依据校验和终态写入。Agents SDK
+在这些边界内负责语义选择、handoff、工具循环、澄清和答案生成。提示词不能替代代码检查，也
+不能扩大当前 run 已提供的能力。
 
-prompt 不得替代：
+## 指令层次
 
-- 当前查询服务目标；
-- 服务配置、服务别名或发布 manifest；
-- 失败关闭路径；
-- 工具就绪与开放门槛；
-- 来源可信度与新鲜度门槛；
-- policy、target admission 或 grounding truth。
+模型输入按以下职责分层：
 
-## 当前职责
+1. 仓库级稳定边界；
+2. Primary Agent 或 Knowledge Agent 的角色指令；
+3. execution-control 提供的有界运行上下文；
+4. 当前用户输入和近期会话；
+5. 工具返回的有界数据与依据；
+6. 严格结构化输出要求。
 
-- Go `apps/execution-control` 拥有确定性 admission/policy、四阶段 Temporal workflow、
-  internal `knowledge_search`、evidence validation、source generation 和脱敏 terminal
-  projection。
-- `apps/agent-runtime` 拥有完整 OpenAI Agents SDK run：primary/Knowledge Agent
-  instruction、官方 `handoff()`、model-visible function schema、tool call、answer text 和 SDK
-  trace normalization。
-- Knowledge Agent 只能调用 internal `knowledge_search`，并在同一 Agent Activity 内生成有
-  evidence 支持的 structured answer。
-- `apps/execution-control` 拥有在线 Provider Config；每个顶层 Agent Activity 解析一次 active
-  bundle，并把固定模型快照交给 agent-runtime。app-api 不组装产品路径 prompt。
+角色指令由 `apps/agent-runtime` 维护。execution-control 传入类型化数据，不在 Go 侧维护另一套
+Agent prompt 或答案合成 prompt。
 
-固定约束：
+## 可信边界
 
-- online serving 消费 execution-control 已激活的完整 role bundle，不使用临时 provider env
-  fallback；
-- provider `refusal`、`incomplete`、schema failure 和 content-filter outcome 失败关闭；
-- `official_web` 不在 online target registry 中，Agent 没有 public-web 或 provider-native
-  search tool。
+可信控制数据包括角色指令、固定边界、类型化任务字段与输出合同。以下内容始终是不可信数据：
 
-## 装配顺序
+- 用户文本和历史消息；
+- 个人记忆；
+- 检索片段与外部内容；
+- 工具返回值；
+- 人工注释和导入内容。
 
-```text
-仓库级 developer invariants
--> primary-agent 和 Knowledge Agent role instructions
--> admitted runtime context 与 recalled memory
--> untrusted user input
--> handoff 后的有界 knowledge_search result
--> strict structured output contract
--> execution-control evidence validation 与 source projection
-```
+不可信数据不得拼入 developer instruction，也不得用指令语气覆盖控制边界。结构标签可以帮助
+模型区分角色、任务、依据和输出要求，但标签本身不提供安全保证。
 
-仓库级 invariant 只表达稳定产品姿态：这是 institution-scoped campus assistant；模型不得
-覆盖 code/typed packet 提供的 policy、tool opening、serving surface 或 scope；不得用开放域
-知识补齐学校事实；缺少开放能力或 grounding 时必须拒答或澄清；输出必须满足 schema。
+## 输入与输出
 
-这些 invariant 不拥有 admission、retrieval implementation、evidence admission 或 terminal
-projection。
+当前用户消息只出现一次。近期对话、记忆、工具结果和依据按多轮上下文规则裁剪，并保持来源
+类别。模型输出必须满足可执行 schema；execution-control 可以拒绝无效终态和依据引用，但不
+调用第二个模型改写答案。
 
-## 可信与不可信区域
+具体上下文行为见 `../../product/run-context.md`，Agent 输入输出见 `agent-framework.md`，终态
+合同见 `../../contracts/tool-execution.md`。
 
-可信控制数据可以包含：
+## 可观测性
 
-- role instruction；
-- hard invariant；
-- typed task field；
-- output contract；
-- 显式安全 summary。
+有界产品投影只保存 prompt 标识、模板与渲染 hash、模型身份、终态分类和关联标识。受信任
+Langfuse trace 可以按合同记录真实模型输入输出；普通产品投影、Axiom 和 Sentry 不复制这些
+正文。请求不能动态开启或关闭遥测。
 
-以下内容始终是不可信数据：
+## 变更验证
 
-- retrieved snippet；
-- external web text；
-- user free text；
-- imported notice 或 memory text；
-- operator annotation；
-- tool output body。
+Prompt 或模型输入输出变化应验证：
 
-用户文本和检索片段不得进入 developer instruction。evidence snippet 不得写成指令语气。
-模板应使用 `<role>`、`<invariants>`、`<task>`、`<evidence>`、`<output_contract>` 等明确
-结构标签。
+- 输入变量完整且输出满足 schema；
+- 工具、权限和知识目标边界没有被 prompt 绕过；
+- 澄清、拒绝、依据不足和依赖不可用保持可区分；
+- 相关 Agent 与 RAG 数据集没有出现不可接受回归。
 
-## Packet 合同
-
-task packet 由代码生成，不由模型推断，可以携带 request/language/task identity、resolved
-target、selected tool、允许/禁止动作、response constraint 和 output schema identity。
-
-evidence packet 是结构化数据，不是 raw text dump，可以携带 document identity、source
-title、structural path、snippet/safe summary、rank/content role 和 domain canonical id。
-
-packet 不得包含 raw registry row、raw auth provider payload、JWT/cookie/header、隐藏 memory
-或完整 prompt history dump。
-
-## Agent 与终态
-
-primary direct/no-tool path 由 `apps/agent-runtime` 拥有，可以产生 direct answer、
-clarification、out-of-scope 和 unsupported outcome，不需要额外 synthetic prompt family。
-
-Knowledge Agent instruction 也由 `apps/agent-runtime` 拥有。校园事实回答前必须调用 internal
-`knowledge_search`，保持 target/access boundary，拒绝 unsupported claim，并使用与 primary
-agent 相同的 strict terminal output family。不存在单独 Go synthesis prompt 或 provider
-role。
-
-以下 outcome 必须保持区分：
-
-- `grounded_answer`
-- `needs_clarification`
-- `unsupported_by_evidence`
-- `out_of_scope`
-- `policy_refusal`
-- `tool_not_ready`
-- `source_truth_unavailable`
-
-这些 outcome 不得合并为通用 `no_answer`。retrieval miss 不是 out-of-scope；政治或敏感关键字
-本身也不是 policy verdict。
-
-## Prompt 调用链
-
-每个 provider-backed prompt family 在调用供应商前必须能由安全 metadata 识别。
-
-`agent_runtime_prompt_trace.v1` 从 agent-runtime 经 execution-control finalization 进入有界
-app-api observability projection，保存 `prompt_id`、prompt template SHA-256 和 rendered
-prompt SHA-256。它不是第二个 prompt registry，也不复制 rendered instruction。
-
-Knowledge handoff 和 active-agent identity 由同一 Agent SDK trace/tool trajectory 记录，
-execution-control 不再创建 provider call 或 prompt identity。
-
-## 安全与可观测性
-
-bounded product projection 只记录 model/provider identity、request/run identity、prompt id、
-template/rendered SHA-256、provider response id、terminal envelope kind、citation count 和
-grounding/policy verdict。
-
-request tracing 启用时，受信任 self-hosted Langfuse 可以记录真实 Agent SDK model
-input/output、memory 和已授权 evidence。credential 和 secret 始终禁止。app-api 和 Ops Web
-只保留 prompt trace metadata、stage timing 和 correlation，不复制
-Langfuse observation body。
-
-## 评测与发布要求
-
-prompt/LLM I/O 变化必须通过：
-
-- schema gate：变量完整且输出满足 strict schema；
-- policy gate：refusal、out-of-scope、unsupported、tool-not-ready 和 source-unavailable 保持
-  区分；
-- quality gate：grounding、citation、wording 和 ambiguity handling 可接受。
-
-post-LLM validation 按适用范围检查 schema、citation、grounding、boundary 和 freshness。
-claim-level semantic grounding 由 badcase/eval 持续强化，不新增默认 Python online gate。
+具体评测方法和发布流程分别见 `../../reference/eval.md` 与所属操作手册。
 
 ## 相关文档
 
-- `docs/architecture/current.md`
-- `docs/architecture/system/agent-framework.md`
-- `docs/architecture/system/retrieval-serving.md`
-- `docs/architecture/system/ops-observability.md`
-- `docs/decisions/adr-0060-agent-io.md`
+- `agent-framework.md`
+- `tool-routing.md`
+- `agentic-retrieval.md`
+- `retrieval-serving.md`
+- `langfuse.md`
+- `../../decisions/adr-0060-agent-io.md`

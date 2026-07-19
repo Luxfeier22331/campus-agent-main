@@ -54,9 +54,13 @@ flowchart LR
   Final["终结\n证据校验与来源生成"]
   Append["记忆追加 activity"]
 
-  Browser --> AppAPI --> Exec --> Temporal --> Memory --> Agent
+  Browser --> AppAPI --> Exec --> Temporal
+  Temporal --> Memory --> Temporal
+  Temporal --> Agent --> Temporal
   Agent --> Exec
-  Agent --> Final --> Append --> AppAPI
+  Temporal --> Final --> Temporal
+  Temporal --> Append --> Temporal
+  Temporal --> AppAPI
 ```
 
 ## 采集数据面
@@ -99,17 +103,23 @@ flowchart LR
 ```mermaid
 flowchart LR
   Runtime["真实产品执行与投影"]
-  OTel["OTel 管道"]
+  Generic["通用 OTel 入口"]
+  Trusted["受信任 OTel 入口"]
+  Axiom["Axiom\n日志、调用链、指标"]
+  Sentry["Sentry SDK\n错误与性能"]
   Langfuse["Langfuse\ntrace、dataset、score"]
   Adapter["eval-langfuse 适配器"]
   Ragas["Ragas 运行器"]
-  Operator["运维诊断"]
+  Ops["Ops Web 固定查询"]
 
-  Runtime --> OTel --> Langfuse
+  Runtime --> Generic --> Axiom
+  Runtime --> Trusted --> Langfuse
+  Runtime --> Sentry
+  Axiom --> Ops
+  Sentry --> Ops
   Langfuse --> Adapter
   Adapter -->|dataset-run-item 关联| Langfuse
   Adapter --> Ragas --> Adapter
-  Adapter --> Langfuse --> Operator
 ```
 
 纯字段字典、所属模块内部流程和可从 Git 历史恢复的材料不进入中央流程图。

@@ -7,7 +7,7 @@ import {
 import { hashCanonicalSentryCanarySentinels } from "../src/platform/telemetry/sentry-canary";
 
 describe("staging Sentry canary evidence", () => {
-	it("contains the shared chat and Sentry evidence but never the real smoke credential", async () => {
+	it("contains correlation ids without raw sentinels or the smoke credential", async () => {
 		const smokeAuthSecret = "real-staging-smoke-auth-secret";
 		const sentinels = createStagingObservabilityCanarySentinels();
 		const sentinelSha256 = await hashCanonicalSentryCanarySentinels(sentinels);
@@ -27,7 +27,7 @@ describe("staging Sentry canary evidence", () => {
 		});
 		const serialized = JSON.stringify(evidence);
 
-		expect(evidence.sentinels).toEqual(sentinels);
+		expect(evidence).not.toHaveProperty("sentinels");
 		expect(evidence.canaryWindow).toEqual({
 			completedAt: "2026-07-17T00:05:00.000Z",
 			startedAt: "2026-07-17T00:00:00.000Z",
@@ -39,8 +39,9 @@ describe("staging Sentry canary evidence", () => {
 		});
 		expect(evidence.runtimeTraceId).toBe("d".repeat(32));
 		expect(evidence.sentinelSha256).toBe(sentinelSha256);
-		expect(new Set(Object.values(evidence.sentinels)).size).toBe(5);
-		expect(evidence).not.toHaveProperty("releases");
+		for (const sentinel of Object.values(sentinels)) {
+			expect(serialized).not.toContain(sentinel);
+		}
 		expect(serialized).not.toContain(smokeAuthSecret);
 	});
 });

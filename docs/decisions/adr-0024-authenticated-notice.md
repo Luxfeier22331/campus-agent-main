@@ -8,40 +8,28 @@ status: accepted
 
 ## 背景
 
-需要认证的校内门户与公开网站具有不同的身份、访问和采集语义。把它作为 `official_web`
-会混合公开 crawl policy 与依赖 session 的来源采集。
+需要认证的校内门户与公开网站具有不同的身份、访问和采集语义。把两者视为同一来源会混合公开
+抓取策略与依赖会话的内部采集。
 
 ## 决策
 
-校内门户是一级 source channel。ADR-0063 将其命名为 `internal_portal`；`notice` 和
-`file_release` 是其下两个独立 source surface。
+- 校内门户使用独立来源通道 `internal_portal`；
+- `notice` 与 `file_release` 是两个独立来源类型；
+- notice 以门户和通知标识确定来源身份，正文、元数据或附件关系发生实质变化时产生新版本；
+- file release 保持自己的来源合同，不转换为 notice；
+- `apps/source-collector` 的 internal-portal 适配器负责供应商响应、规范来源块、附件引用和已验证
+  附件字节，并通过共享 Temporal 采集 workflow 返回带摘要的来源清单；
+- collector 不承担规范文档、OCR、规章物化、分块、索引或查询发布。
 
-notice 是稳定 source unit。source identity 基于 portal 与 notice identity；正文、metadata
-或 attachment relation 发生实质变化时产生新 source version。file release 保持自己的
-source-unit contract，不转换为 notice。
+## 结果
 
-来源采集由 `apps/source-collector` 的 internal-portal adapter 拥有。它采集 provider
-response、normalized source block、attachment reference 和已验证 attachment bytes，随后
-通过共享 Temporal ingestion workflow 返回一个 digest-pinned source manifest。
-
-collector 不拥有 canonical document、OCR、regulation promotion、chunking、indexing 或
-query publication。crawler local state 和 provider export 是实现状态，不是仓库 source
-truth。
-
-成功认证采集不代表 notice 可查询。下游产品必须同时补齐 normalization、authorization、
-freshness、publication、runtime contract 和 evaluation 后才能开放。
-
-## 后果
-
-- `internal_portal.notice.capture` 和 `internal_portal.file_release.capture` 使用共享
-  ingestion task 和 object-reference contract。
-- source bytes 保存在 source bucket；PostgreSQL 只保存有界共享 task projection。
-- app-api 不提供 notice collector command、ledger 或 query surface。
-- `official_web` 继续作为独立公开 source channel。
+- 内部门户和 Official Web 保持独立采集规则；
+- 成功认证和采集不代表通知已经具备在线查询能力；
+- 下游规章、班车、校历等领域必须通过自己的校验和发布入口消费通知来源。
 
 ## 相关文档
 
-- `docs/decisions/adr-0063-internal-portal.md`
-- `docs/decisions/adr-0077-ingestion.md`
-- `docs/architecture/system/data-plane.md`
-- `docs/data/internal-portal.md`
+- `../architecture/domains/notices.md`
+- `adr-0077-ingestion.md`
+- `../architecture/system/data-plane.md`
+- `../data/internal-portal.md`

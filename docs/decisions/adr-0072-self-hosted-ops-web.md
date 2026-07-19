@@ -4,50 +4,47 @@ owner_boundary: docs/decisions
 decision_id: ADR-0072
 status: accepted
 partially_supersedes: ADR-0055
-partially_superseded_by: ADR-0080
 ---
 
 # ADR-0072：自托管 Ops Web
 
 ## 背景
 
-完整运行诊断需要读取自托管 PostgreSQL 摘要、Temporal 状态和本地日志/trace。旧 Operator
-Console 与 app-api provider/operator 路径已由 ADR-0080 退役。
-
-如果让 app-api 代理这些读取，会扩大 browser-facing Worker API 并把内部 credential 放到错误
-边界；如果浏览器直连数据源，则会暴露 credential 和任意查询能力。
+运行排查需要关联内部状态、工作流和外部观测平台。让公开 App API 代理这些能力会扩大产品接口
+和凭据范围；让浏览器直连数据源则会暴露凭据和任意查询能力。少量内部管理操作也需要与学生
+产品保持独立授权。
 
 ## 决策
 
-新增 `apps/ops-web` 作为独立、自托管、默认只读的运行诊断应用：
+使用独立、自托管的 `apps/ops-web` 承担运行排查和明确准入的内部管理操作。
 
-- 一个 Node/Hono 进程同时提供 React 静态应用和固定 `/api/ops/*`；
-- 服务端只读取白名单 PostgreSQL 字段，数据库账号只写原始观测读取审计；
-- 明确准入的非诊断操作由后续领域 ADR 扩展，当前包括固定门户认证、Dining 和 Provider Config；
-- Ops Web 不得创建、列举或删除 Secret，不得选择其他 Schedule、立即触发工作流或返回凭据；
-- OpenObserve 查询固定 stream、关联标识和有界时间窗口，浏览器不能提交 SQL 或选择 stream；
-- Cloudflare Access 与应用 allowlist 保护全部接口，原始日志/trace 使用更窄权限；
-- Temporal UI、Langfuse UI 保留各自完整能力；
-- Ops Web 通过同源 BFF 调用 execution-control Provider Config admin；浏览器不继承 admin
-  credential，配置后端不可用不阻断请求诊断 readiness。
+- 浏览器只访问 Ops Web 同源服务端，不持有数据库、工作流、配置或外部平台凭据；
+- 服务端只提供固定、最小权限且可审计的读取和领域操作，不提供任意查询或通用代理；
+- App API 继续只承担学生产品接口，不代理 Ops Web 能力；
+- 原始观测读取和管理写入使用比基础查看更窄的权限；
+- 外部观测与工作流平台保留完整能力，Ops Web 只提供跨系统关联和常用摘要；
+- 观测数据不得改写产品状态或工作流状态。
 
-ADR-0067 对 app-api 与外部观测数据的限制保持不变。本文只增加独立诊断边界和明确列出的
-集群内操作，不把 Ops Web 变成通用控制面或产品后端。
-
-源码仓拥有应用、image 和 namespace-neutral base；环境仓拥有访问坐标、配置、secret、network
-policy、ingress 和不可变部署选择。
+具体页面、接口、数据源和获准操作由产品文档、架构文档和 HTTP 合同维护。ADR-0081 定义外部
+观测平台的数据分工；ADR-0074 定义源码仓库和环境仓库边界。
 
 ## 后果
 
-- 运维人员增加一个请求中心化诊断入口，以换取内部数据不经过公开 Worker API；
-- Ops Web 有独立可用性和凭据生命周期；固定门户凭据与 Schedule 操作不构成通用控制面；
-- request 状态仍以 PostgreSQL 产品/执行投影为准，日志平台不能改写；
-- 原始观测读取必须审计，审计写入失败时关闭读取；
-- manifest 或 image 存在不证明应用已经部署。
+- 内部数据不经过公开 App API，Ops Web 具有独立的可用性和权限生命周期；
+- 增加管理能力时必须明确数据所有者、固定操作范围和审计要求；
+- 产品和工作流状态仍由各自持久存储维护，观测平台只提供诊断证据；
+- 原始观测读取的审计失败时拒绝返回数据。
 
 ## 否决方案
 
-- **扩展 app-api**：扩大公开 API、credential 和攻击面；
-- **拆独立 ops-api**：Ops Web 是唯一消费方，一个 Hono 部署单元已经足够；
+- **扩展 app-api**：扩大公开 API、凭据和攻击面；
+- **拆出独立 Ops API**：只有 Ops Web 消费这些接口，额外服务不会形成新的所有权边界；
 - **只使用平台原生 UI**：无法提供跨系统请求关联，且外部平台可能不在内网可达；
-- **浏览器直连 PostgreSQL/OpenObserve**：无法保护 credential、限制查询或可靠审计。
+- **浏览器直连内部或外部数据源**：无法保护凭据、限制查询或可靠审计。
+
+## 相关文档
+
+- `../product/ops-web.md`
+- `../architecture/system/ops-observability.md`
+- `../contracts/ops-web/README.md`
+- `adr-0081-observability-planes.md`

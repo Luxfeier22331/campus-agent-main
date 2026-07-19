@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -230,6 +231,10 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 		"failure_kind":                         true,
 		"langfuse.release":                     true,
 		"langfuse.session.id":                  true,
+		"langfuse.trace.metadata.request_id":   true,
+		"langfuse.trace.metadata.run_id":       true,
+		"langfuse.trace.metadata.trace_id":     true,
+		"langfuse.trace.metadata.workflow_id":  true,
 		"langfuse.trace.name":                  true,
 		"langfuse.trace.tags":                  true,
 		"langfuse.user.id":                     true,
@@ -269,12 +274,12 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 			t.Fatalf("telemetry attribute %s = %q, want %q", key, found[key], want)
 		}
 	}
-	if status := emitter.Status(); status.ExportedCount != 1 {
-		t.Fatalf("exported count = %d, want 1", status.ExportedCount)
+	if status := emitter.Status(); status.SubmittedCount != 1 {
+		t.Fatalf("submitted count = %d, want 1", status.SubmittedCount)
 	}
 }
 
-func TestEmitterAddsLangfuseGenerationUsageForBillableModelStep(t *testing.T) {
+func TestEmitterDoesNotDuplicateAgentModelGeneration(t *testing.T) {
 	recorder := tracetest.NewSpanRecorder()
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
 	emitter := &Emitter{
@@ -303,62 +308,19 @@ func TestEmitterAddsLangfuseGenerationUsageForBillableModelStep(t *testing.T) {
 	if len(spans) != 1 {
 		t.Fatalf("ended spans = %d, want 1", len(spans))
 	}
-	found := map[string]string{}
+	found := map[string]bool{}
 	for _, attr := range spans[0].Attributes() {
-		found[string(attr.Key)] = attr.Value.AsString()
+		found[string(attr.Key)] = true
 	}
-	if found["langfuse.observation.type"] != "generation" {
-		t.Fatalf("observation type = %q, want generation", found["langfuse.observation.type"])
-	}
-	if found["langfuse.observation.model.name"] != "gpt-5.5" {
-		t.Fatalf("model name = %q, want gpt-5.5", found["langfuse.observation.model.name"])
-	}
-	if found["langfuse.observation.usage_details"] != `{"cache_read_input_tokens":12,"input":7282,"output":817}` {
-		t.Fatalf("usage details = %q", found["langfuse.observation.usage_details"])
-	}
-	if _, exists := found["langfuse.observation.cost_details"]; exists {
-		t.Fatalf("runtime must not publish custom cost details: %#v", found)
-	}
-	if found["langfuse.observation.metadata.step_id"] != "agent.primary" {
-		t.Fatalf("metadata step id = %q, want agent.primary", found["langfuse.observation.metadata.step_id"])
-	}
-}
-
-func TestEmitterOmitsCustomLangfuseCostDetails(t *testing.T) {
-	recorder := tracetest.NewSpanRecorder()
-	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
-	emitter := &Emitter{
-		enabled:     true,
-		sampleRatio: 1,
-		tracer:      provider.Tracer("test"),
-	}
-
-	if err := emitter.Emit(context.Background(), Event{
-		Name:                  "temporal.step_observation",
-		DeploymentEnvironment: "local",
-		ModelName:             "gpt-5.5",
-		ModelProvider:         "openai",
-		InputTokens:           11285,
-		OutputTokens:          617,
-		CachedInputTokens:     6656,
-		RequestID:             "req-zero-cost",
-		RunID:                 "run-zero-cost",
-		StepID:                "agent.primary",
-		TraceID:               "trace-zero-cost",
-	}); err != nil {
-		t.Fatalf("Emit returned error: %v", err)
-	}
-
-	spans := recorder.Ended()
-	if len(spans) != 1 {
-		t.Fatalf("ended spans = %d, want 1", len(spans))
-	}
-	found := map[string]string{}
-	for _, attr := range spans[0].Attributes() {
-		found[string(attr.Key)] = attr.Value.AsString()
-	}
-	if _, exists := found["langfuse.observation.cost_details"]; exists {
-		t.Fatalf("runtime must not publish zero-cost overrides: %#v", found)
+	for _, key := range []string{
+		"langfuse.observation.type",
+		"langfuse.observation.model.name",
+		"langfuse.observation.usage_details",
+		"langfuse.observation.cost_details",
+	} {
+		if found[key] {
+			t.Fatalf("orchestration span must not publish model generation attribute %q", key)
+		}
 	}
 }
 
@@ -382,6 +344,7 @@ func TestEmitterAddsLangfuseTraceSessionAttributes(t *testing.T) {
 		TraceID:               "trace-langfuse-001",
 		SelectedTool:          "knowledge_query",
 		DeploymentEnvironment: "staging",
+		WorkflowID:            "campus-agent.chat.run-langfuse-001",
 	}); err != nil {
 		t.Fatalf("Emit returned error: %v", err)
 	}
@@ -391,25 +354,37 @@ func TestEmitterAddsLangfuseTraceSessionAttributes(t *testing.T) {
 		t.Fatalf("ended spans = %d, want 1", len(spans))
 	}
 	found := map[string]string{}
+	var tags []string
 	for _, attr := range spans[0].Attributes() {
+		if attr.Key == "langfuse.trace.tags" {
+			tags = attr.Value.AsStringSlice()
+			continue
+		}
 		found[string(attr.Key)] = attr.Value.AsString()
 	}
 	expectedValues := map[string]string{
-		"langfuse.trace.name":    "online-answer",
-		"langfuse.session.id":    "conv-langfuse-001",
-		"langfuse.user.id":       "user-langfuse-001",
-		"langfuse.release":       "release-2026-06-18",
-		"langfuse.trace.tags":    "surface:execution-control,target:knowledge_query,env:staging",
-		"request_id":             "req-langfuse-001",
-		"run_id":                 "run-langfuse-001",
-		"trace_id":               "trace-langfuse-001",
-		"selected_tool":          "knowledge_query",
-		"deployment.environment": "staging",
+		"langfuse.trace.name":                 "online-answer",
+		"langfuse.session.id":                 "conv-langfuse-001",
+		"langfuse.user.id":                    "user-langfuse-001",
+		"langfuse.release":                    "release-2026-06-18",
+		"langfuse.trace.metadata.request_id":  "req-langfuse-001",
+		"langfuse.trace.metadata.run_id":      "run-langfuse-001",
+		"langfuse.trace.metadata.trace_id":    "trace-langfuse-001",
+		"langfuse.trace.metadata.workflow_id": "campus-agent.chat.run-langfuse-001",
+		"request_id":                          "req-langfuse-001",
+		"run_id":                              "run-langfuse-001",
+		"trace_id":                            "trace-langfuse-001",
+		"selected_tool":                       "knowledge_query",
+		"deployment.environment":              "staging",
 	}
 	for key, want := range expectedValues {
 		if found[key] != want {
 			t.Fatalf("telemetry attribute %s = %q, want %q", key, found[key], want)
 		}
+	}
+	wantTags := []string{"surface:execution-control", "target:knowledge_query", "env:staging"}
+	if !reflect.DeepEqual(tags, wantTags) {
+		t.Fatalf("langfuse trace tags = %#v, want %#v", tags, wantTags)
 	}
 }
 

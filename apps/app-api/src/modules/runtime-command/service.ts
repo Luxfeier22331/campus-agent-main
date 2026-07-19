@@ -278,10 +278,7 @@ export function buildChatCommandService(
 	async function buildExecutionInput(
 		context: AcceptedChatCommandContext,
 	): Promise<ToolExecutionInput> {
-		const traceHeaders = ensureLangfuseTraceParent(
-			context.input.traceHeaders ?? telemetry?.getTraceHeaders(),
-			context.traceId,
-		);
+		const traceHeaders = await ensureLangfuseTraceParent(context.traceId);
 		const previousToolResults = await dependencies.store.listPreviousToolResultRefs({
 			beforeTurnSequence: context.turnSequence,
 			conversationId: context.conversation.id,
@@ -605,6 +602,7 @@ export function buildChatCommandService(
 		terminalObserved: boolean;
 		transportError: { code: string; retryable: boolean } | null;
 	}> {
+		const traceHeaders = await ensureLangfuseTraceParent(input.context.traceId);
 		try {
 			return await waitForDurableFinalizationResponse({
 				context: input.context,
@@ -612,10 +610,7 @@ export function buildChatCommandService(
 					input.executionRuntime.listRunEvents({
 						afterSequence,
 						runId: input.context.runId ?? "",
-						traceHeaders: ensureLangfuseTraceParent(
-							input.context.input.traceHeaders ?? telemetry?.getTraceHeaders(),
-							input.context.traceId,
-						),
+						traceHeaders,
 						traceId: input.context.traceId,
 						waitMs,
 					}),
@@ -835,6 +830,7 @@ export function buildChatCommandService(
 					return;
 				}
 
+				const traceHeaders = await ensureLangfuseTraceParent(context.traceId);
 				const closeout = startDurableFinalizationCloseout({
 					context,
 					finalizeAcceptedCommand: ({ context: closeoutContext, executionResponse }) =>
@@ -843,10 +839,7 @@ export function buildChatCommandService(
 						executionRuntime.listRunEvents({
 							afterSequence,
 							runId: context.runId ?? "",
-							traceHeaders: ensureLangfuseTraceParent(
-								context.input.traceHeaders ?? telemetry?.getTraceHeaders(),
-								context.traceId,
-							),
+							traceHeaders,
 							traceId: context.traceId,
 							waitMs,
 						}),

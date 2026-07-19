@@ -8,111 +8,74 @@ status: active
 
 ## 文档边界
 
-本文定义 repo-owned PostgreSQL 的连接、角色、逻辑 schema 和安装边界。表字段由各 owner
-数据文档和可执行 schema 定义；环境是否已部署成功由 GitOps 状态和运行验证决定。
-
-## 部署拓扑
-
-- Kubernetes 使用一套自托管 CloudNativePG 集群。
-- 产品关系型数据位于 `campus_agent` 数据库，并按逻辑 schema 分域。
-- 集群内运行时通过 ClusterIP 直连，挂载 CNPG CA 并使用 `verify-full`。
-- `app-api` Worker 通过 Hyperdrive 和 Workers VPC TCP Service 访问同一数据库。
-- schema installer 使用 owner 连接直连 CNPG，不通过 Hyperdrive。
-- PostgreSQL 不暴露公网入口，也不提供旧数据库或公共地址 fallback。
-
-完整连接决策见 `docs/decisions/adr-0073-postgres.md`。
+本文定义仓库自有 PostgreSQL 的逻辑 schema、角色和读写边界。字段由所属数据文档和可执行
+schema 定义，连接拓扑见 `../architecture/system/data-plane.md`，部署方式和环境选择不在本文
+维护。
 
 ## 角色
 
-| 角色 | 所有者 | 权限边界 |
+| 角色 | 运行所有者 | 权限边界 |
 | --- | --- | --- |
-| `campus_agent` | CNPG bootstrap | schema 安装和授权，不用于常驻 runtime |
-| `app_api` | `apps/app-api` | app-owned runtime DML、`docs.*` 只读；只能访问允许的 `runtime.*` 表 |
-| `execution_control` | `apps/execution-control` | 执行投影写入和班车读取 |
+| `campus_agent` | 数据库 bootstrap | schema 安装和授权，不用于常驻运行时 |
+| `app_api` | `apps/app-api` | 产品数据读写、文档发布只读和获准运行摘要读取 |
+| `execution_control` | `apps/execution-control` | 执行投影写入和获准校园服务读取 |
 | `campus_services_publisher` | `jobs/transport-publisher` | `campus_services.*` 发布写入 |
-| `docs_publish` | `jobs/docs-publish` | `docs.*` release 投影发布写入 |
-| `ops_web` | `apps/ops-web` | 明确列的读取和 observability read-audit 写入 |
-| `execution_provider_config_reader` | `apps/execution-control` | `execution_config.*` 已激活配置读取 |
-| `execution_provider_config_admin` | `apps/execution-control` | `execution_config.*` 不可变 revision、验证和整包激活读写 |
+| `docs_publish` | `jobs/docs-publish` | `docs.*` 发布写入 |
+| `ops_web` | `apps/ops-web` | 获准排查投影读取和读取审计写入 |
+| `execution_provider_config_reader` | `apps/execution-control` | 已激活 `execution_config.*` 读取 |
+| `execution_provider_config_admin` | `apps/execution-control` | 配置 revision、验证和激活读写 |
 | `ops_web_dining` | `apps/ops-web` | Dining 草稿、发布、回滚和评价治理 |
-| `dining_sync` | `jobs/dining-sync` | Dining 来源观测、评价同步和复检 |
-| `ops_audit_maintenance` | maintenance Job | 只执行审计清理函数 |
+| `dining_sync` | `jobs/dining-sync` | Dining 来源观测、同步和复检 |
+| `ops_audit_maintenance` | 维护任务 | 只执行读取审计清理函数 |
 
-Temporal、Hindsight 和 Langfuse 使用各自数据库或登录角色，不共享产品运行时角色。Axiom 与
-Sentry 是外部观测数据面，不消费产品 PostgreSQL 角色。
-CNPG `DatabaseRole` 和部署 Secret 管理角色密码；应用 schema 只负责表、函数和 grant。
+Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，不共享产品运行时角色。外部
+观测平台不获得产品 PostgreSQL 角色。
 
 ## Schema 所有权
 
-- `app_auth.*`、`chat.*`、`docs.*`、`identity.*`、`profile.*`、`campus_services_ops.*` 和
-  `observability.*` 的 schema 合同由 `apps/app-api` 安装；`docs.*` 由 `jobs/docs-publish`
-  写入，app-api 只读。
-- `execution_config.*` 的领域合同、加密存储和运行写入由
-  `apps/execution-control/internal/providerconfig` 拥有。Ops Web 只通过 execution-control admin
-  BFF 操作，不持有该 schema 的数据库权限；App API migration 删除历史 `provider_config.*`，
-  后续字段变更不得回到 app-api runtime 模块。
-- `dining.*` 的 schema 和 migration 由 `jobs/dining-sync` 拥有；Ops Web 拥有领域运维写入，
-  app-api 只读取 `publication`、`releases` 和公开 `reviews`。
-- `app_auth.*` 与 `chat.*` 通过共享产品 SQL 基线安装，不属于 App API Drizzle journal；
-  其余 app-owned schema 由 App API migration 管理。
-- `runtime.request_observability_fact` 由 app-api schema 安装并由运行链路更新。
-- `runtime.agent_*` 由 execution-control schema owner 管理；`app_api` 不读取这些表。
-- `campus_services.*` 由 `jobs/transport-publisher` 安装和发布；app-api 状态页与
-  execution-control tool 读取同一个 current release。
-- ingestion registry 和 source truth 由 ingestion owner 管理，不并入 app-api migration。
+| Schema 或表族 | 写入所有者 | 主要读取方 |
+| --- | --- | --- |
+| `app_auth.*` | App API 身份模块 | App API |
+| `chat.*` | App API 对话模块 | App API、获准 Ops Web 投影 |
+| `profile.*` | App API 账号设置 | App API |
+| `docs.*` | 文档发布任务 | App API、文档读取面 |
+| `runtime.request_observability_fact` | App API 产品终态 | App API、Ops Web |
+| `runtime.agent_*` | execution-control | execution-control |
+| `execution_config.*` | execution-control 配置管理 | execution-control |
+| `observability.*` | Ops Web | Ops Web 与审计维护任务 |
+| `dining.*` | Dining 同步和 Ops Web | Ops Web、同步任务、App API 公开读取 |
+| `campus_services.*` | 校园服务发布任务 | App API、execution-control |
 
-已退役的 `runtime.request_execution`、`runtime.projection_outbox`、operator request
-projection、Temporal sampler projection 和 worker-autoscaler projection 不属于当前 schema。
+ingestion registry 和来源事实由采集数据所有者维护，不并入产品 schema。各表字段、状态和保留
+规则由所属数据文档或 schema 唯一维护。
 
-## 安装与 journal
+## 访问规则
 
-- `jobs/app-api-schema` 先收敛 Better Auth `app_auth.*` 与
-  `chat_current.sql`，再执行 immutable App API Drizzle journal，最后应用运行角色
-  grant。这个顺序同时支持干净数据库和已有 baseline 数据升级。
-- app-api Drizzle journal 固定为 `drizzle.app_api_migrations`。
-- `apps/app-api/drizzle/0000_initial.sql` 是已发布的 App API 初始基线；
-  `apps/app-api/db/shared-product-schema/chat_current.sql` 是 `chat.*` 共享产品基线。
-- `jobs/transport-publisher install-schema` 安装 `campus_services.*` 并应用 publisher、
-  app-api 和 execution-control 的最小权限；Ops Web 不读取该 schema。
-- App API schema installer 为 `docs_publish` 应用 `docs.*` 最小 DML grant，并撤销 app-api
-  对该 schema 的写权限；`jobs/docs-publish` 不创建或迁移 schema。
-- `jobs/dining-sync migrate` 使用独立 migration 凭据重建 `dining.*` 并为 `dining_sync`、
-  `ops_web_dining` 和 `app_api` 配置最小权限；常驻运行时角色不得创建 schema。
-- execution-control 使用独立的 run-projection schema installer 和 journal；installer 同时安装
-  `execution_config.*`，并只向 `execution_provider_config_reader` 和
-  `execution_provider_config_admin` 应用所需权限。
-- installer 必须可重复执行；缺少角色、表、CA 或权限时失败，不自动做破坏性修复。
-- `0000_initial.sql` 和其 snapshot 是已发布 baseline，不得重写。后续变更使用新
-  journal entry；migration integration 必须证明保留表中的现有行不会丢失。
+- 常驻运行时不使用 schema 管理或 migration 凭据；
+- 每个运行时只获得完成其职责所需的表、列和操作权限；
+- Provider Config 只能通过 execution-control 管理接口修改，Ops Web 不直连其 schema；
+- App API 只读取 Dining 当前发布和公开评价，不拥有 Dining migration；
+- Ops Web 的请求排查角色与 Dining 内容角色分离；
+- 读取原始观测记录前必须写审计，审计维护角色不能读取业务表；
+- 不同所有者不共享 migration journal，也不通过双写复制同一事实；
+- 对象 bytes、原始来源、工作流历史和供应商 trace 不进入这些 schema。
 
-## Hyperdrive
+角色、grant、migration 和应用查询必须共同变化。新增数据库列不会自动进入其他所有者的读取
+权限或 API 响应。
 
-- `APP_API_DB` 与 `APP_API_DB_FRESH` 指向同一 `campus_agent` 数据库和 `app_api` 角色。
-- `APP_API_DB` 承担普通读取并允许 Hyperdrive 查询缓存。
-- `APP_API_DB_FRESH` 关闭查询缓存，只用于明确列出的写后读路径。
-- 两个 binding 不是双写、双库或故障回退。
+## 可执行来源
 
-## 环境变量
-
-- 根 `CAMPUS_SHARED_POSTGRES_URL` 和 `CAMPUS_SHARED_POSTGRES_OPERATOR_URL` 只服务本地命令
-  与 owner 工具，不是 Kubernetes 部署 truth。
-- app-local env 只保存该 app 直接消费的连接，例如
-  `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB` 和
-  `APP_API_OPERATOR_DATABASE_URL`。
-- Kubernetes 连接由 ConfigMap 中的固定内部主机、CNPG CA 和角色 Secret 组装；Secret
-  不重复保存可由这些字段确定的 DSN。
-
-## 不变量
-
-- runtime 不使用 schema owner 凭据。
-- owner 之间不共享 migration journal。
-- 对象 bytes 进入 S3-compatible object storage，不进入 PostgreSQL。
-- 缺少私网连接时不公开数据库。
-- 代码中的 schema、GitOps DatabaseRole、Secret 和网络策略必须一起变更并一起验证。
+- App API schema：`apps/app-api/db/`、`apps/app-api/drizzle/`
+- 执行投影与配置：`apps/execution-control/internal/`
+- Ops Web schema 与 grant：`apps/ops-web/ops/db/`
+- Dining schema：`jobs/dining-sync/migrations/`、`packages/domains/dining/src/schema.ts`
+- 校园服务发布：`jobs/transport-publisher/`
 
 ## 相关文档
 
-- `docs/data/app-api/README.md`
-- `docs/architecture/system/data-plane.md`
-- `docs/architecture/system/k8s-runtime.md`
-- `docs/decisions/adr-0073-postgres.md`
+- `app-api/README.md`
+- `durable-runtime.md`
+- `dining.md`
+- `../architecture/system/data-plane.md`
+- `../architecture/system/k8s-runtime.md`
+- `../decisions/adr-0073-postgres.md`

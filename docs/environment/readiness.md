@@ -3,143 +3,75 @@ doc_type: reference
 owner_boundary: docs/environment
 status: active
 ---
+
 # 就绪状态
 
 ## 文档边界
 
-本文只负责仓库环境层的就绪状态语义。
+本文定义环境检查、`healthz`、`readyz` 和发布验收的不同含义。它不维护环境地址、路由、Secret
+清单、某次部署结果或评测供应商配置。
 
-它回答的是：
+## 四类检查
 
-- 当前仓库支持哪些环境和运行时就绪检查；
-- `healthz`、`readyz`、环境检查与发布验收的边界；
-- 评测供应商环境如何进入就绪检查。
+| 检查 | 回答的问题 | 不能证明 |
+| --- | --- | --- |
+| 环境检查 | 运行命令所需的已知配置是否存在且格式可解析 | 远端服务健康或环境已部署 |
+| `/healthz` | 当前进程或 Worker 是否能响应 | 依赖可用或产品路径完整 |
+| `/readyz` | 当前服务是否具备接受其职责范围内请求的核心依赖 | 新版本已发布或完整用户旅途可用 |
+| 发布验收 | 环境选择的不可变版本和必要用户路径是否符合预期 | 长期稳定性或所有可选依赖健康 |
 
-它不负责：
+这些检查不能相互替代。配置文件存在、健康检查成功或 CI 构建完成都不等于目标环境已经运行
+该版本。
 
-- provider / secret 获取方式
-- 具体 deploy/runbook 步骤
-- staging hostname、Worker route 或 release closeout artifact inventory
+## 环境检查
 
-相关文档：
-
-- `README.md`
-- `providers.md`
-- `../runbooks/execution.md`
-- `../architecture/system/runtime-release.md`
-- `../reference/verification.md`
-- `../runbooks/provider-secrets.md`
-
-## 就绪检查
-
-### 通用环境检查
+仓库通用入口为：
 
 ```bash
 pnpm exec tsx scripts/deploy/doctor-env.ts <surface> --json
 ```
 
-当前支持的 surface：
+可用检查对象及其字段由 `scripts/deploy/doctor-env/specs.ts` 唯一维护，命令在不支持的对象上必须
+失败。环境检查只读取声明的环境和配置文件，不把 schema、工具注册或 Secret 名存在推断为
+运行能力。
 
-- `query`
-- `ingestion`
-- `evals`
-- `execution-control`
-- `worker-observability-local`
-- `worker-staging`
-- `worker-staging-app-api`
-- `worker-staging-campus-web`
+Cloudflare Secret 存在性检查和 Worker 发布前检查由 `../runbooks/provider-secrets.md` 与发布
+脚本维护，不在本文复制命令清单。
 
-### Execution Control 运行时
+## 运行时就绪
 
-`execution-control` 环境检查独立于 Worker staging，检查当前运行配置、Temporal 连接与
-Worker 身份、运行投影数据库、内部查询认证和服务凭据。
+### Execution Control
 
-工具开放由 `configs/runtime/tools.v5.json` 和
-`configs/runtime/tool-function-schemas.v2.json` 维护，不由运行配置中的 `open_tools` 字段
-维护。因此，环境检查不得从已退役的运行配置结构推断工具就绪状态。
+Execution Control 的 `/readyz` 检查持久执行、运行投影、已开放工具依赖和回答准入所需的核心
+组件。非本地环境中的完整结果属于受信任机器接口，由产品后端携带内部身份读取，不直接作为
+公开浏览器探针。
 
-运行时 `/readyz` 比存活检查更严格：
+工具是否开放只由工具注册表、handler、合同和运行测试共同决定；环境检查不能替代工具准入。
 
-- `200 ready`：供应商配置、运行投影、Temporal poller、记忆、知识搜索、已开放工具读取
-  模型和遥测均健康，且回答准入未处于排空或饱和状态；
-- `503 degraded`：至少一个执行运行时组件未就绪；
-- 非 `local` 模式下，execution-control 完整 `/readyz` 需要内部 Worker 认证，不得作为未
-  认证的公开部署探针；staging 对外验收使用 `app-api /readyz`，由 app-api 携带共享密钥
-  检查 execution-control；
-- `/readyz` 不是完整部署验收，仍需核对配置、冒烟测试和 runbook 规定的验收产物。
+### App API
 
-### App API 产品就绪状态
+App API 的 `/readyz` 是产品后端就绪入口，可以包含安全的 Execution Control 摘要和当前运行
+版本标识。该标识必须由发布流程与环境仓选择的版本比较；旧版本即使健康，也不是目标版本已经
+发布的确认结果。
 
-`app-api /readyz` 是 Worker staging 的产品侧就绪聚合点，可以展示 execution-control
-就绪摘要；学生产品仍必须从 `campus-web` 进入，运维人员从独立的 Ops Web 进入。
+### 其他界面
 
-固定解释：
+Ops Web、文档阅读器和其他应用只报告各自职责范围内的就绪状态。一个界面的 `/readyz` 不代表
+聊天、采集、评测或其他产品界面同时就绪。
 
-- `/healthz` 表示进程或 Worker 已能响应；
-- `/readyz` 表示该界面依赖的运行时组件已就绪；
-- `app-api /readyz` 可以返回安全的依赖状态，例如 `executionControl`、
-  `executionRuntime` 和当前执行运行时发布标识；
-- 环境发布后的核验必须将该标识与环境仓期望版本比对；旧版本即使健康，也不算完成部署；
-- 非本地配置下，`execution-control /readyz` 是受信任的机器探针，不是公开浏览器接口；
-- 文档阅读器使用 `GET /api/docs/readyz`，不代表聊天、execution-control 或运维界面就绪。
+## 故障语义
 
-### Cloudflare 密钥存在性
+- 缺少核心依赖时 `/readyz` 返回非成功状态，不改写为降级成功；
+- 可选诊断平台或被观测服务故障不应阻止运维界面打开；
+- 就绪响应只返回安全的依赖类别和原因，不泄露地址、凭据或内部载荷；
+- 浏览器连接状态和上一次成功缓存不能替代当前就绪检查；
+- `/readyz` 成功后仍需按变更范围执行必要的用户路径验证。
 
-```bash
-pnpm exec tsx scripts/deploy/check-worker-secret-presence.ts --env staging --json
-```
+## 相关文档
 
-固定解释：
-
-- `worker-staging` 不直接读取 Cloudflare secret store
-- 发布前先过 `check-worker-secret-presence`
-- publish 时再由各 app `wrangler.toml` 的 `secrets.required` 做 fail-fast
-
-## 发布边界
-
-就绪检查是发布的必要条件，但不等于发布完成。
-
-固定规则：
-
-- staging hostname、Worker route 与 release identity 由
-  `docs/architecture/system/runtime-release.md` 冻结。
-- executable release closeout 由 `docs/runbooks/e2e.md` 承接。
-- `readyz = 200` 不等于 deploy closeout；还必须有 config truth、smoke 和
-  runbook-owned closeout artifact。
-- 跳过 Access / auth / readyz 或用 fallback 把 readiness 标绿都无效。
-
-## 评测环境合同
-
-默认规则：
-
-- eval provider endpoint/key truth 来自 eval runtime owner 管理的本地
-  `provider_config_projection.v1` artifact，不从在线 execution-control bundle 派生。
-- eval runtime 不在热路径调用 app-api 或 execution-control Provider Config admin。
-- 必需角色：`eval_ragas_llm`、`eval_ragas_embedding`、`eval_judge_llm`。
-- `LLM_*`、`EMBEDDING_*`、`EVAL_LLM_*`、`EVAL_EMBEDDING_*` 不再是 eval
-  provider fallback。
-
-固定要求：
-
-- `CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH` 指向 0600 的 provider projection artifact。
-- eval model、transport、reasoning 与 token 配置由
-  `packages/eval-langfuse` runtime config builders 持有
-- 临时脚本 / REPL 不自动 bootstrap `.env`
-- 需要确认 eval surface 实际可见性时，优先使用：
-
-```bash
-pnpm exec tsx scripts/deploy/doctor-env.ts evals --json
-```
-
-- repo-owned shared automation doctor 入口：
-
-```bash
-pnpm --dir packages/eval-langfuse exec tsx src/cli.ts doctor --json
-```
-
-## 相关操作手册
-
-- `docs/runbooks/execution.md`
-- `docs/runbooks/e2e.md`
-- `docs/runbooks/provider-secrets.md`
-- `docs/runbooks/worker-otel.md`
+- `providers.md`
+- `../architecture/system/runtime-release.md`
+- `../reference/verification.md`
+- `../runbooks/execution.md`
+- `../runbooks/e2e.md`
+- `../runbooks/provider-secrets.md`

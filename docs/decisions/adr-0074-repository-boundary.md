@@ -8,10 +8,9 @@ status: accepted
 
 ## 背景
 
-应用仓库需要能够公开并被其他机构复用。此前仓库将可复用 Kubernetes workload base 与真实
-staging Application、Helm value、machine overlay、network coordinate 和 encrypted secret
-inventory 混在一起。加密只能保护 secret 值，不能隐藏环境拓扑、资源名或运维所有权；源码与
-部署 desired state 的两份副本也可能漂移。
+应用仓库需要能够公开并被其他机构复用。可复用的 Kubernetes 工作负载基础配置与真实环境的
+应用选择、参数、机器覆盖、网络坐标和加密凭据清单具有不同的变更边界。把两者放在同一事实源
+会暴露环境拓扑，并产生重复的部署期望状态。
 
 ## 决策
 

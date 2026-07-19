@@ -19,8 +19,6 @@ status: active
 - execution-control 使用同一个 `run_id` 在 `runtime.agent_*` 中保存 workflow projection。
 - Temporal 保存完整 workflow history。
 
-`runtime.request_execution`、`runtime.projection_outbox` 和 operator request projector 已退役。
-
 ## 状态
 
 `chat.turn_dispatches.status` 允许：
@@ -47,17 +45,19 @@ app-api 完成身份、授权、输入和幂等检查后，在同一事务内：
 4. 写入 accepted observability fact；
 5. 推进 conversation active turn/run 指针。
 
-事务提交后才调用 execution-control 创建 durable run。创建失败或请求被限流时，app-api
-通过同一 finalization 规则收口，不能留下无法解释的 accepted turn。
+事务提交后才调用 execution-control 创建持久 run。可重试的创建失败保留为待准入状态，由
+幂等 dispatcher 使用已冻结且校验 hash 的同一输入重试；不可重试失败通过同一终结规则写入
+产品错误。任何路径都不能创建第二个 turn 或丢失关联标识。
 
 ## 持久运行
 
-app-api 向 execution-control 发送 `request_id`、`run_id`、`trace_id`、conversation context、
-principal/authorization 和显式 tool/scope 请求。三组关联标识必须在后续事件中保持一致；
-不一致的事件以验证错误拒绝。
+app-api 向 execution-control 发送 `request_id`、`run_id`、`trace_id`、有界会话上下文和最小
+principal/authorization 投影。公开聊天不发送 `requested_tool`、scope、collection 或检索控制
+参数。关联标识必须在后续事件中保持一致；不一致的事件以验证错误拒绝。
 
-stream 请求先发送 `request.accepted`，随后转发受类型约束的 run/answer 事件。客户端断开会
-触发取消路径，但数据库终态仍由 durable run 事件和 finalization 决定。
+stream 请求在持久 run 创建成功后发送 `request.accepted`，随后转发受类型约束的运行与答案
+事件。客户端断开只停止当前连接消费，不自动取消运行；显式取消使用 run cancel 接口。数据库
+终态由持久运行事件和 finalization 决定。
 
 ## 最终事务
 
@@ -89,8 +89,8 @@ app-api 运维接口读取。
 ## 失败边界
 
 - 缺少数据库、execution-control、合同或授权时失败关闭。
-- 不使用内存队列、JSONL、telemetry 或 chat transcript 重建 durable status。
-- 不允许静默 fallback 到同步 mega-agent、旧 supervisor 或 flat retrieval path。
+- 不使用内存队列、JSONL、遥测或聊天正文重建持久状态。
+- 不在执行失败时启动第二条同步回答路径。
 
 ## 可执行来源
 

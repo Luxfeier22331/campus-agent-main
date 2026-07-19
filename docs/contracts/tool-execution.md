@@ -27,7 +27,7 @@ status: active
 
 ## 创建运行
 
-运行信封携带不可变的 run、conversation、turn、request、owner、surface 和 trace 标识，
+运行信封携带不可变的 run、conversation、turn、request、`owner_user_id`、`surface` 和 trace 标识，
 唯一元数据字段是 `execution_payload`。嵌套的 conversation、request 和 trace 标识必须与
 信封一致。
 
@@ -50,9 +50,9 @@ status: active
 }
 ```
 
-`tenant_id` 与 `requested_tool` 可选。普通产品聊天不发送 `requested_tool`，由 Primary Agent
-从已准入的模型可见工具中选择。受信任的内部评测或调试请求可以限制 SDK 工具选择，但
-该提示不得提供知识目标或检索控制参数。
+`tenant_id` 与 `requested_tool` 可选。普通产品聊天和当前评测运行器都不发送
+`requested_tool`，由 Primary Agent 从已准入的模型可见工具中选择。该字段只为具有独立准入
+合同的内部执行保留，不能提供知识目标或检索控制参数。
 
 调用方不得发送 scope、version query、corpus、collection、top-k、provider、vector-store
 或 task-queue 字段。
@@ -72,8 +72,9 @@ execution-control 从 `configs/runtime/query-serving-targets.v1.json` 注入目�
 
 ## Temporal 与终态处理
 
-`ToolExecutionWorkflow` 依次运行 Memory Recall、一个完整 Agent Activity、Finalization 和
-Memory Append。SDK handoff 和函数调用不创建额外 Temporal Activity。
+`ToolExecutionWorkflow` 的阶段、队列和 Agent Activity 边界由
+`../architecture/system/durable-runtime.md` 定义。SDK handoff 和函数调用不创建额外 Temporal
+Activity。
 
 `ExecutionFinalizationResponse` 包含所选工具、状态、答案、追问、置信度、结果、错误、
 `resolved_targets[]`、会话更新和 trace 标识；可选字段包括观测摘要、工作流调用链摘要和
@@ -87,10 +88,14 @@ Memory Append。SDK handoff 和函数调用不创建额外 Temporal Activity。
 Temporal 历史是执行事实。PostgreSQL 保存安全的 run、event、step、attempt 和 result
 投影；app-api 将投影转换为 SSE 和产品响应，不重建执行状态。
 
+HTTP `ExecutionRunStatus` 与 execution-control 内部运行状态保持一致，包含等待、准入、执行、
+流式输出和终态。精确枚举、字段及响应结构只由 OpenAPI 维护；内部迁移规则见
+`../data/durable-runtime.md`。
+
 - 拒绝未知字段和 camelCase 私有消息字段；
 - 生成的 TypeScript 与 Go 产物必须匹配 OpenAPI；
 - schema 校验后，工具与目标准入仍由服务端拥有；
-- 不提供 fallback parser、别名加载器或双请求结构。
+- 不提供备用 parser、别名加载器或双请求结构。
 
 ## 验证
 

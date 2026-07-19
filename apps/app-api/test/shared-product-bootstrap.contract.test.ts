@@ -109,18 +109,16 @@ describe("app-api shared product bootstrap contracts", () => {
 		);
 	});
 
-	it("documents app-api as the shared product DB bootstrap owner", () => {
+	it("links app-api database ownership and installation documentation", () => {
 		const readme = readAppFile("README.md");
 
-		expect(readme).toContain("bootstrap-shared-product-database.ts");
-		expect(readme).toContain("ensure-app-auth-role-search-path.ts");
-		expect(readme).toContain("0000_initial.sql");
-		expect(readme).toContain("chat_current.sql");
+		expect(readme).toContain("docs/data/postgres-ownership.md");
+		expect(readme).toContain("jobs/app-api-schema/README.md");
+		expect(readme).toContain("docs/runbooks/release.md");
+		expect(readme).toContain("`ops/db/`");
 		expect(readme).toContain("test:node");
 		expect(readme).toContain("test:worker");
 		expect(readme).toContain("test:shared-db-integration");
-		expect(readme).toContain("app_auth.*");
-		expect(readme).toContain("chat.*");
 	});
 
 	it("keeps official-web collector lifecycle outside app-api shared DB lanes", () => {

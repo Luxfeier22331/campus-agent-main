@@ -6,7 +6,6 @@ import type { ExecutionControlRuntimeClient } from "../src/modules/integration/e
 import { ExecutionControlTransportError } from "../src/modules/integration/execution-control";
 import type { ChatCommandStreamEvent } from "../src/modules/runtime-command";
 import { DEFAULT_DURABLE_EVENT_POLLING_POLICY } from "../src/modules/runtime-command/service/durable";
-import { deriveLangfuseTraceId } from "../src/modules/telemetry/trace";
 import {
 	answerResponsePayload,
 	durableEvent,
@@ -22,7 +21,7 @@ import {
 	type ToolExecutionClient,
 } from "./chat-command.service.test-support";
 
-const EXPECTED_LANGFUSE_TRACE_PARENT = `00-${deriveLangfuseTraceId("trace_0001")}-0000000000000001-01`;
+const EXPECTED_LANGFUSE_TRACE_PARENT = "00-5f8392c82813604cd79a0f7eb8b7306a-0000000000000001-01";
 
 describe("chat command durable runtime cutover failure and streaming", () => {
 	it("keeps retryable durable admission failures pending for deterministic recovery", async () => {
@@ -417,8 +416,6 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			afterSequence: 0,
 			runId: "run_0001",
 			traceHeaders: {
-				baggage: "sentry-environment=test",
-				sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
 				traceParent: EXPECTED_LANGFUSE_TRACE_PARENT,
 			},
 			traceId: "trace_0001",
@@ -428,8 +425,6 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			afterSequence: 2,
 			runId: "run_0001",
 			traceHeaders: {
-				baggage: "sentry-environment=test",
-				sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
 				traceParent: EXPECTED_LANGFUSE_TRACE_PARENT,
 			},
 			traceId: "trace_0001",

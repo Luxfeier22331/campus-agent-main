@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const browserTestPort = process.env.OPS_WEB_BROWSER_TEST_PORT ?? "4178";
+
 export default defineConfig({
 	fullyParallel: false,
 	projects: [
@@ -22,15 +24,15 @@ export default defineConfig({
 	timeout: 30_000,
 	workers: 2,
 	use: {
-		baseURL: "http://127.0.0.1:4178",
+		baseURL: `http://127.0.0.1:${browserTestPort}`,
 		screenshot: "only-on-failure",
 		trace: "retain-on-failure",
 		video: "off",
 	},
 	webServer: {
 		command: "pnpm build && pnpm exec tsx test/browser-server.ts",
-		reuseExistingServer: !process.env.CI,
+		reuseExistingServer: false,
 		timeout: 120_000,
-		url: "http://127.0.0.1:4178/healthz",
+		url: `http://127.0.0.1:${browserTestPort}/healthz`,
 	},
 });

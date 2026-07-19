@@ -9,6 +9,7 @@ status: active
 
 - [place.md](./place.md)：地点目录与校园地图读取；
 - [official-web.md](./official-web.md)：公开官网采集、产物、时效状态和在线边界；
+- [calendar.md](./calendar.md)：校历参考数据、通知关联和未开放边界；
 - [source-card.md](./source-card.md)：问答来源卡片、阅读器固定链接、锚点与高亮；
 - [transport.md](./transport.md)：班车时刻表工具、状态页、来源、更新和存储。
 

@@ -6,76 +6,108 @@ status: active
 
 # App API 个人记忆接口
 
-这些接口只管理当前已登录用户的显式个人记忆和开关。
+这些接口管理当前已登录用户的个人记忆投影和生命周期。app-api 接受修改后写入 durable command；
+Hindsight 是否已经完成对应操作由响应状态和后续查询确认。
 
-## `GET /api/me/profile-memory`
+## 查询
+
+### `GET /api/me/profile-memory`
+
+成功返回 `200`：
 
 ```json
 {
   "profileMemory": {
-    "enabled": true,
+    "itemCount": 1,
     "items": [
       {
         "itemId": "mem_01HQ...",
-        "key": "recent_goal",
-        "value": "准备保研材料",
-        "sourceType": "user_declared",
-        "confidence": "low",
-        "visibility": "user_visible",
-        "lastVerifiedAt": "2026-04-27T00:00:00.000Z",
-        "updatedAt": "2026-04-27T00:00:00.000Z"
+        "key": "answer_style",
+        "revision": 2,
+        "state": "synced",
+        "updatedAt": "2026-04-27T00:00:00.000Z",
+        "value": "先给结论"
       }
-    ]
+    ],
+    "lifecycleState": "active",
+    "syncStatus": "synced"
   }
 }
 ```
 
-## `POST /api/me/profile-memory/items`
+`lifecycleState` 为 `active`、`paused`、`erasing` 或 `erased`；`syncStatus` 为 `synced`、
+`pending` 或 `failed`；item `state` 为 `synced`、`saving`、`deleting` 或 `failed`。
 
-新增或更新一条用户声明的个人记忆：
+## 修改
+
+所有修改都要求非空 `Idempotency-Key` 请求头。服务接受命令后返回 `202` 和当前产品投影；
+`202` 不表示 Hindsight 已经同步完成。
+
+### `POST /api/me/profile-memory/items`
 
 ```json
 {
-  "key": "recent_goal",
-  "value": "准备保研材料"
+  "key": "answer_style",
+  "value": "先给结论"
 }
 ```
 
-返回 `{ "item": <已保存项> }`，其中项的字段与列表响应一致。
+### `PATCH /api/me/profile-memory/items/:itemId`
 
-## `PATCH /api/me/profile-memory/settings`
+```json
+{
+  "key": "answer_style",
+  "value": "简洁回答"
+}
+```
+
+新增和修改响应包含正在保存的 item：
+
+```json
+{
+  "profileMemory": {
+    "item": {
+      "itemId": "mem_01HQ...",
+      "key": "answer_style",
+      "revision": 2,
+      "state": "saving",
+      "updatedAt": "2026-04-27T00:00:00.000Z",
+      "value": "简洁回答"
+    },
+    "lifecycleState": "active",
+    "syncStatus": "pending"
+  }
+}
+```
+
+### `PATCH /api/me/profile-memory/settings`
 
 ```json
 { "enabled": false }
 ```
 
-返回：
+`enabled=false` 将 lifecycle 设为 `paused`；`enabled=true` 将其设为 `active`。pause 保留现有
+item 和 Hindsight bank，但后续运行不会召回或追加个人记忆。
 
-```json
-{
-  "profileMemory": {
-    "enabled": false
-  }
-}
-```
+### `DELETE /api/me/profile-memory/items/:itemId`
 
-## `DELETE /api/me/profile-memory/items/:itemId`
+接受指定 item 的 durable 删除命令。响应不返回 `{ "deleted": true }`；客户端通过
+`profileMemory.syncStatus` 和后续 GET 观察完成状态。
 
-删除当前用户的指定项，成功返回：
+### `DELETE /api/me/profile-memory`
 
-```json
-{ "deleted": true }
-```
+接受当前账号的完整清除命令，响应 lifecycle 为 `erasing`。只有代次隔离、Hindsight
+bank 删除和受约束的 Langfuse trace 删除均完成后，状态才会进入 `erased`。
 
-## 规则
+## 共同规则
 
-- 所有接口都要求已解析的会话用户。
-- `key` 使用小写类型键，并拒绝授权、权限和 ACL 类键。
-- `enabled=false` 不删除已有项，但 execution-control/Hindsight 必须停止召回和追加该用户记忆。
-- 删除项后，app-api 必须同步禁用对应 Hindsight 文档，后续召回不得再返回该项。
-- 个人记忆不能改变用户身份、授权、工具准入或知识目标准入。
-- 当前单租户标识为 `tenant-main`；app-api 调用 execution-control 个人记忆内部命令时
-  必须显式传递。
+- 所有接口都要求已解析的会话用户；认证和错误 envelope 见 [错误合同](./error.md)。
+- `key` 必须以小写字母开头，只包含小写字母、数字、`_`、`:`、`-`，最长 64 个字符，并拒绝
+  授权、权限、token 和可见性类键。
+- `value` 会去除首尾空白、合并连续空白，非空且最长 500 个字符。
+- item ID 只在当前用户范围内有效；浏览器不会获得 bank、document、operation 或 provider ID。
+- 个人记忆不能改变身份、授权、工具准入或知识目标准入。
+- 当前产品 tenant 为显式 `tenant-main`，由 app-api 调用 execution-control 内部命令时传递。
 
 ## 可执行来源
 

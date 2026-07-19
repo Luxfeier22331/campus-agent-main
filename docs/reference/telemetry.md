@@ -40,6 +40,9 @@ app-api 与 campus-web edge 使用 `@sentry/cloudflare`；campus-web browser 使
 `@sentry/react`。Sentry SDK 数据不属于上述仓库事件 taxonomy，且在发送前清除 Cookie、header、
 query、正文、用户、breadcrumb 和未准入 span data。
 
+产品关联字段统一为 `campus.request_id` 和 `campus.trace_id`。它们可以用于 Axiom 关联查询和
+Sentry tag 搜索，不替代 OTel `trace_id`/`span_id` 或 Sentry SDK 的原生 trace ID。
+
 ### execution-control
 
 `apps/execution-control/internal/httpapi/temporal_step_projection_writer.go` 当前发出：
@@ -47,8 +50,7 @@ query、正文、用户、breadcrumb 和未准入 span data。
 - `execution_control.temporal.step_observation`：一次已写入步骤投影的受控观测，包含步骤、
   activity、队列、耗时、模型用量和终态摘要。
 
-`apps/execution-control/internal/telemetry/emitter.go` 中保留的旧 answer 名称归一化逻辑和测试
-构造不是额外的生产事件注册表。新增事件必须先增加真实调用点和测试，再更新本文。
+新增事件必须先增加真实调用点、字段白名单和测试，再更新本文。
 
 Temporal SDK tracing 在配置启用时产生 SDK 自有 workflow/activity span。其名称和字段遵循
 Temporal OpenTelemetry integration，不在本文伪装成仓库自有事件族。
@@ -60,19 +62,8 @@ Temporal OpenTelemetry integration，不在本文伪装成仓库自有事件族�
 的受控产品事件中。具体边界见 `../architecture/system/langfuse.md` 和
 `../contracts/langfuse-runtime.md`。
 
-### 尚未登记的生产者
-
-当前没有代码事实支持以下仓库自有 active event family：
-
-- `execution.activity.*`
-- `agent.tool.*`
-- `retrieval.runtime_observation`
-- `ingestion.run.*`
-- `index.release.*`
-- `telemetry.export.*`
-
-以后如果实现，应由对应 runtime 拥有 emitter、字段白名单和测试；实现前不得加入 active
-taxonomy。
+Agent instrumentation 唯一拥有 model generation。execution-control 的聚合 span 只记录编排和
+关联 metadata，不声明 model、token 或 generation 语义。
 
 ## 当前指标
 
@@ -82,6 +73,11 @@ taxonomy。
 | `campus.execution_control.runtime_errors` | execution-control | 与 runtime request counter 相同的低基数标签 |
 | `campus.execution_control.activity_duration_ms` | execution-control | 与步骤观测相同的低基数标签 |
 | `campus.execution_control.schedule_to_start_ms` | execution-control | 与步骤观测相同的低基数标签 |
+| `campus.execution_control.personal_memory.operations` | execution-control | operation、outcome、failure kind |
+| `campus.execution_control.personal_memory.duration_ms` | execution-control | operation、outcome、failure kind |
+| `campus.execution_control.personal_memory.selected_items` | execution-control | operation、outcome、failure kind |
+| `campus.execution_control.personal_memory.selected_chars` | execution-control | operation、outcome、failure kind |
+| `campus.execution_control.personal_memory.command_receipts` | execution-control | command kind、status、outcome |
 
 请求 ID、用户 ID、会话 ID、run ID、trace ID、文档 ID 和原始错误正文不得成为 metric label。
 
@@ -89,7 +85,7 @@ taxonomy。
 
 app-api 的允许字段由 `RUNTIME_EVENT_ALLOWED_FIELDS_BY_EVENT_TYPE` 唯一维护。主要类别包括：
 
-- 关联标识：`request_id`、`trace_id`；
+- 关联标识：`campus.request_id`、`campus.trace_id`；
 - 产品边界：`surface`、`principal_type`、`requested_tool`、`selected_tool`；
 - 结果摘要：`status`、`error_code`、`retryable` 和有界数量；
 - 性能：`duration_ms`、固定 stage timing 字段和汇总 budget state；
@@ -101,7 +97,7 @@ execution-control 的允许字段由 `telemetry.Event` 到 OTel attribute 的显
 - `activity_type`、`task_queue`、`activity_attempt`、`step_kind`；
 - `duration_ms`、`schedule_to_start_ms`、`status`、`failure_kind`；
 - `selected_tool`、`fail_close_reason`、`projection_ref`；
-- provider、model 和 token usage 的受控字段。
+- 编排 release、session/user 与 Langfuse request/run/trace/workflow metadata。
 
 文档不复制完整字段清单；字段增删以 producer 映射和测试为准。
 
@@ -120,24 +116,19 @@ secret。两类数据不能相互复制或混称。
 
 ## Collector 与下游
 
-Kubernetes 运行时通过四个分权 OTLP/HTTP 入口进入 Collector：通用信号进入 Axiom，
-execution-control 编排 trace 按白名单进入 Axiom/Langfuse，Agent 与 Hindsight 受信任 trace 只
-进入各自 Langfuse project。Collector 不向 Sentry 导出。
+Kubernetes 运行时通过四个固定 OTLP/HTTP 入口进入 Collector：通用信号进入 Axiom，
+execution-control 编排 trace 按白名单进入 Axiom 和环境唯一的 Langfuse project，Agent 与
+Hindsight 受信任 trace 只进入该 project。入口通过 NetworkPolicy 隔离，不使用集群内 bearer
+token；Collector 不向 Sentry 导出。
 
-Collector Agent 采集第一方容器日志与 kubelet 指标，排除 Collector 和 Hindsight stdout。
-应用单行 JSON 只提升 `event_type`、request/trace/run/workflow/step 关联标识和固定结果字段；
-这些字段只接受受限长度的标量值。`service.name` 来自 Pod 的 `app.kubernetes.io/name`，原始
-stdout 正文在导出前被替换。Agent 与 Gateway 使用内存发送队列和 300 秒重试上限，不要求
-node-local 存储。Gateway 负责字段白名单、批处理、有界重试、采样和 project 路由。
+Collector Agent 采集第一方容器日志与 kubelet 指标，并排除 Collector 和 Hindsight stdout。
+Gateway 对 Axiom log、trace 和 metric 使用同一个 ingest token 与三个 dataset；exporter 使用
+内存发送队列和最长 300 秒重试，不依赖 node-local 持久存储。Worker application log 与 Sentry
+SDK 链路不经过 Collector。
 
-Cloudflare Worker 只把 producer 清理后的 application console logs 通过环境 log destination
-直接写入 Axiom，绕过 Collector 字段白名单；因此必须用 staging 哨兵验证实际 payload。
-`invocation_logs=false` 且 `observability.traces.enabled=false`，不能把 Cloudflare invocation log
-或 native trace 当作证据。后端请求 trace 通过 W3C context 进入 execution-control，再由
-Collector 写入 Axiom/Langfuse；Sentry 错误与受控性能数据由 browser/edge SDK 直接发送。
-
-实际启用哪些 destination/exporter 由环境仓决定。配置和操作见 `../runbooks/otel.md`，仓库配置
-说明见 `../../infra/otel/README.md`。
+当前 receiver、端口、字段转换和输出 pipeline 由 `../../infra/otel/README.md` 与 Collector YAML
+维护；操作见 `../runbooks/otel.md` 和 `../runbooks/worker-otel.md`。实际启用的 exporter、dataset
+和保留期由环境仓决定。
 
 ## 验证
 
@@ -151,3 +142,7 @@ go -C apps/execution-control test ./internal/telemetry ./internal/httpapi
 
 修改 Collector 配置时执行 `../runbooks/otel.md` 的结构校验和本地 debug smoke。外部平台
 是否收到信号只能由实际 Collector 和下游查询证明，不能由配置文件存在替代。
+
+execution-control 的 `campus_execution_control_telemetry_submitted_total` 表示 span 已提交给异步
+OTel exporter，不表示 Collector 或下游已经持久化；导出失败另见
+`campus_execution_control_telemetry_failed_total`。

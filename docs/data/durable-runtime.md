@@ -14,10 +14,12 @@ app-api、诊断和评测消费。
 
 ### 运行
 
-run 关联 conversation、turn、request、trace、owner、surface、lifecycle、runtime version、
-selected tool/handoff、terminal reason 与 finalization ref。
+run 关联 conversation、turn、request、trace、`owner_user_id`、`surface`、生命周期、运行版本、
+所选工具或 handoff、终态原因与 finalization ref。
 
-run status 服从已准入的生命周期，不能根据浏览器连接状态推断；终态单调且不可回退。
+内部状态依次使用 `created`、`queued`、`admitted`、`running` 和可选的 `streaming`；终态为
+`completed`、`failed`、`canceled` 或 `expired`。运行可以从 `running` 或 `streaming` 回到
+`queued` 等待 Temporal 重试，但任何终态都不可再次迁移。浏览器连接状态不能用于推断运行状态。
 
 ### 运行事件
 
@@ -27,14 +29,15 @@ source body。
 
 ### Step、Attempt 与 Result
 
-step 投影描述四个 workflow 阶段：`memory_recall`、`agent_activity`、`finalization` 和
-`memory_append`。
+step 投影描述持久运行架构中的稳定阶段。阶段语义由
+`../architecture/system/durable-runtime.md` 维护，具体 `step_id` 与 `step_kind` 由执行代码和
+schema 维护。
 
 attempt 投影可以包含 Temporal queue/worker 标识、attempt number、timestamp、duration、
 retry/cancel/timeout outcome、可公开的 provider/model 标识及 input/output/cached token
 用量。模型费用由 Langfuse 计算，不属于 PostgreSQL 持久投影字段。
 
-result 投影包含 status、result kind/ref、fail-close reason 和有界 metadata。SDK 内部 handoff
+result 投影包含 status、result kind/ref、拒绝原因和有界 metadata。SDK 内部 handoff
 或 function call 不得由此形成第二套 workflow graph。
 
 ## Agent Activity 投影
@@ -73,9 +76,9 @@ Finalization 可以拒绝格式错误或不受支持的 output，但不会创建
 
 ## 终态与失败数据
 
-cancellation、timeout、fail-close、late completion、provider abort proof 与 missing usage 必须
-能归因到所属阶段或内部 tool call。面向用户的 error 文本不能替代低基数 terminal/fail-close
-code。迟到成功不能覆盖已进入终态的 run 或 phase result。
+取消、超时、失败关闭、较晚完成、供应商中止结果与缺失用量必须能归因到所属阶段或内部工具
+调用。面向用户的错误文本不能替代低基数终态或失败关闭代码。较晚成功不能覆盖已进入终态的
+run 或阶段结果。
 
 ## 数据安全
 
@@ -96,6 +99,7 @@ app-api 从这些投影生成浏览器 read model。浏览器响应只接收 fin
 
 ## 相关文档
 
-- `../contracts/durable-runtime.md`
 - `../contracts/tool-execution.md`
 - `../architecture/system/durable-runtime.md`
+
+可执行数据结构和状态迁移由 `apps/execution-control/internal/execution` 及其测试维护。

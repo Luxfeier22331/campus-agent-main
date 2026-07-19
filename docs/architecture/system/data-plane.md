@@ -7,133 +7,79 @@ status: active
 
 ## 边界
 
-本文描述当前 offline ingestion runtime，不定义 online retrieval、产品 route、来源特定浏览器
-API 或未来 publication step。
+采集数据面把已经写入对象存储的不可变请求交给 Temporal 执行，并产生带摘要的结果引用。它负责
+离线采集、文件校验和分块，不负责在线检索、产品接口或知识目标发布。
 
 ```text
-对象存储中的 digest-pinned request
--> ingestion-control HTTP admission
--> 一个 Temporal workflow
--> source-collector 或 Rust-kernel activity
--> 对象存储中的 digest-pinned result manifest
--> 有界 PostgreSQL projection
+对象存储中的请求
+-> ingestion-control 准入
+-> Temporal workflow
+-> source-collector 或 Rust 内核 activity
+-> 对象存储中的结果清单
+-> PostgreSQL 有界投影
 ```
 
-系统没有 parallel scheduler、task lease table、collector callback API、source-specific run
-ledger 或 Python executor。
+## 组件职责
 
-## 所有权
-
-| 所有者 | 负责 | 不得负责 |
+| 组件 | 负责 | 不负责 |
 | --- | --- | --- |
-| `apps/ingestion-control` API | v3 envelope 校验、registry snapshot、启动 Temporal、task query | provider capture、浏览器 route、在 API process 执行 activity |
-| ingestion-control worker | workflow、control activity、Rust bridge、terminal projection、official-web freshness | source provider client、online publication |
-| `apps/source-collector` | Crawlee/Playwright/provider capture、source artifact/result manifest | workflow start、PostgreSQL lifecycle truth、app-api command |
-| `packages/ingestion-contracts` | canonical JSON Schema 和 validator | Temporal、database、object-store、provider client |
-| `packages/ingest-core` | runtime-neutral ref、hash、parser、artifact writer、registry audit | 具体 runtime lifecycle 或 infrastructure client |
-| `packages/ingestion-kernels-rs` | 确定性 file validation 和 chunk preparation | network、provider、database、object-store、workflow |
+| `apps/ingestion-control` API | 校验任务请求、冻结注册任务、启动和查询 workflow | 来源采集、文件处理、在线发布 |
+| ingestion-control worker | workflow、控制 activity、Rust 内核桥接、任务终态与官网时效投影 | 供应商客户端、浏览器采集、在线查询 |
+| `apps/source-collector` | Crawlee、Playwright 和供应商适配器，写入来源产物与结果清单 | 启动 workflow、维护任务状态、发布知识目标 |
+| `packages/ingestion-contracts` | 跨运行时 JSON Schema 与校验器 | 运行时、存储和供应商实现 |
+| `packages/ingest-core` | 与运行时无关的引用、摘要、解析和产物辅助能力 | Temporal、数据库和具体供应商客户端 |
+| `packages/ingestion-kernels-rs` | 确定性文件校验与分块 | 网络、数据库、对象存储和工作流编排 |
 
-## 合同
+任务字段、版本和执行器清单由 `packages/ingestion-contracts`、任务注册表及其测试维护，本文不
+复制这些内容。
 
-`ingestion_task_envelope.v3` 只携带 `task_id`、`run_id`、`registry_task_id` 和包含
-`s3://` URI、`sha256:` digest 的 `input_ref`。caller 不选择 executor、source/target identity
-或 input/output contract；ingestion-control 从 registry 解析并冻结 execution snapshot。
-
-`ingestion_task_registry.v3` 只接受 `source_collector` 与 `rust_kernel` executor。entry 必须
-匹配 `packages/ingest-core` 中的 executable inventory；缺少 handler/kernel 或合同不一致时
-验证失败。
-
-executor 返回一个 `ingestion_task_result.v1`，包含 identity、declared output contract、一个
-digest-pinned result-manifest ref 和有界 scalar summary。所有 object ref 都包含 digest 和
-`byte_size`。page、notice、attachment、document、chunk 和详细 error artifact 留在 object
-storage，不复制到 Temporal history 或 PostgreSQL。
-
-## 对象 identity
-
-所有 writer 使用 create-or-verify：新 key 通过 conditional create 写入；key 已存在时，保存
-内容的 digest 和 byte size 必须一致，否则失败关闭。
-
-execution-specific preparation、provider observation、raw response、kernel output 和 result
-manifest 写入 `runs/<encoded-run-id>/attempts/<activity-attempt>/...`。canonical source truth
-保持 content-addressed；timestamp、redirect、header 和 fetch error 属于 attempt observation。
-
-## 工作流
+## 执行流程
 
 ```mermaid
 sequenceDiagram
   participant Caller as 调用方
-  participant API as ingestion-control 接口
-  participant Temporal
-  participant Control as 控制 activity
-  participant Executor as 来源采集器 / Rust 内核
   participant S3 as 对象存储
-  participant PG as PostgreSQL 投影
+  participant API as ingestion-control
+  participant Temporal
+  participant Executor as 来源采集器 / Rust 内核
+  participant PG as PostgreSQL
 
-  Caller->>S3: 写入请求与 SHA-256
-  Caller->>API: 提交 v3 任务载荷
-  API->>API: 校验载荷并冻结注册任务
-  API->>Temporal: 启动 ingestion/<task_id>
-  Temporal->>Control: 写入开始投影
-  Control->>PG: 插入运行中任务
-  Temporal->>Executor: 执行不可变快照
-  Executor->>S3: 校验输入并写入产物与结果 manifest
+  Caller->>S3: 写入带摘要的请求
+  Caller->>API: 提交任务引用
+  API->>API: 校验请求并冻结注册任务
+  API->>Temporal: 启动任务 workflow
+  Temporal->>PG: 通过控制 activity 写入运行投影
+  Temporal->>Executor: 执行冻结的任务
+  Executor->>S3: 写入产物与结果清单
   Executor-->>Temporal: 返回结果引用与有界摘要
-  Temporal->>Control: 校验并写入终态投影
-  Control->>PG: 更新终态
+  Temporal->>PG: 通过控制 activity 写入终态
 ```
 
-retry、timeout、heartbeat、cancellation 和 terminal projection commit point 由 workflow/activity
-代码及 runtime config 维护，不在架构文档固定数值。successful workflow 必须表示 completed
-PostgreSQL projection 已写入；failed/canceled workflow 保留相同 Temporal outcome 和对应有界
-projection。
+Temporal 维护执行、重试、超时、心跳和取消。详细抓取观测与文件产物进入对象存储，不展开到
+workflow history 或逐项写入 PostgreSQL。长 activity 通过心跳报告有界进度，取消信号必须传播
+到正在进行的供应商请求、浏览器和文件写入。
 
-长 activity 通过 heartbeat 报告粗粒度进度。大量 observation 和详细进度进入 object
-storage，不使用大量 signal 或 per-item database row。
+## 状态分工
 
-## Official Web 时效性
+- Temporal 保存 workflow 执行状态和历史；
+- 对象存储保存请求、准备数据、来源产物、内核产物和结果清单；
+- PostgreSQL 保存任务查询所需的有界投影；
+- Official Web 的 PostgreSQL 投影只保存下次抓取需要的最新网址和配置种子状态。
 
-`official_web.capture` 是 offline source task。采集前 control activity 从 URL freshness 和
-configured seed state 选择到期候选，写入 digest-pinned preparation manifest。成功后根据
-result manifest 校验 page observation，并按 `(observed_at, run_id)` 确定性更新最新 URL
+对象引用、写入一致性和具体对象路径由可执行合同与数据实现维护。PostgreSQL schema 由独立迁移
+命令安装，运行进程只校验所需结构。
+
+## 在线边界
+
+完成采集任务不会创建规范文档、索引、release 或在线查询目标。知识发布必须通过独立的文档
+规范化、分块、索引、release 和查询目标准入链路；在线回答不会现场执行采集。
+
+部署资源由源码仓的 Kubernetes base 和环境仓共同决定，本文不记录副本数、镜像摘要或某次环境
 状态。
-
-PostgreSQL 不保存 page body、artifact inventory、crawl-run history、target workset 或 release
-gate。seed identity 单独投影，因为一个 seed 可以 redirect 到其他 canonical URL。
-
-Official Web 不支持 query；source artifact 不代表 canonical document、chunk、index alias 或
-serving target 已存在。
-
-## 持久化
-
-- Temporal：workflow state、attempt、retry、timeout、heartbeat 和 cancellation；
-- object storage：request、preparation、source/kernel artifact 和 result manifest；
-- PostgreSQL `ingestion_control.tasks`：有界 operator/query projection；
-- PostgreSQL URL/seed table：下一次 official-web crawl 所需最新状态。
-
-runtime 启动时断言 schema，不创建或放宽 table。独立 migration command 拥有 schema journal；
-raw、未记录 SQL 不能作为部署事实。
-
-## 部署与发布边界
-
-源码仓提供 namespace-neutral ingestion runtime Kustomize base 和 image build。环境仓选择
-immutable digest、namespace、Temporal/database/object-store/provider 配置和 network patch。
-具体 Deployment、WorkerDeployment 和 image inventory 以 base 与环境仓为准，不在本文复制。
-
-完成 ingestion task 不会自动发布 online target。query serving 需要独立完整链路，产生
-canonical document、accepted chunk/index、release manifest 和 admitted serving target。
-
-## 验证
-
-```bash
-pnpm ci:contracts
-pnpm ci:ingest
-pnpm ci:rust
-kubectl kustomize infra/k8s/ingestion-runtime/base
-```
 
 ## 相关文档
 
 - `docs/decisions/adr-0077-ingestion.md`
-- `docs/decisions/adr-0078-worker-versioning.md`
 - `docs/domains/official-web.md`
 - `docs/runbooks/ingestion.md`
+- `packages/ingestion-contracts/README.md`

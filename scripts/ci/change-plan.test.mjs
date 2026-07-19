@@ -124,6 +124,28 @@ test("routes Kubernetes source changes to release promotion", () => {
 	assert.equal(result.lanes.includes("infra"), true);
 });
 
+test("validates OTel configuration without claiming a Kubernetes release", () => {
+	const result = plan([
+		"infra/otel/collector-staging-template.yaml",
+		"infra/otel/collector.env.example",
+	]);
+
+	assert.equal(result.lanes.includes("otel"), true);
+	assert.equal(result.lanes.includes("yaml"), true);
+	assert.equal(result.release.kubernetes, false);
+	assert.deepEqual(result.release.images, []);
+	assert.deepEqual(result.release.workers, []);
+	assert.deepEqual(result.databaseSuites, []);
+	assert.equal(result.browser, false);
+});
+
+test("keeps OTel documentation in the documentation lane", () => {
+	const result = plan(["infra/otel/README.md"]);
+
+	assert.deepEqual(result.lanes, ["docs"]);
+	assert.deepEqual(result.release, { images: [], kubernetes: false, workers: [] });
+});
+
 test("does not route Node dependencies into Ragas", () => {
 	const result = plan(["pnpm-lock.yaml"], ["eval-langfuse"], {
 		nodeDependencyChanged: true,

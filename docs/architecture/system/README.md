@@ -11,14 +11,12 @@ status: active
   [runtime-release.md](./runtime-release.md)、[document-site.md](./document-site.md)；
 - 执行与 Agent：[durable-runtime.md](./durable-runtime.md)、[k8s-runtime.md](./k8s-runtime.md)、
   [agent-framework.md](./agent-framework.md)、[prompt.md](./prompt.md)；
-- 工具与知识：[tool-routing.md](./tool-routing.md)、[tool-runtime.md](./tool-runtime.md)、
-  [retrieval-serving.md](./retrieval-serving.md)、
+- 工具与知识：[tool-routing.md](./tool-routing.md)、[retrieval-serving.md](./retrieval-serving.md)、
   [agentic-retrieval.md](./agentic-retrieval.md)、[data-plane.md](./data-plane.md)；
-- 身份与记忆：[identity-authz.md](./identity-authz.md)、[identity-browser.md](./identity-browser.md)、
-  [mucwiki-login.md](./mucwiki-login.md)、[memory-plane.md](./memory-plane.md)；
+- 身份与记忆：[identity-authz.md](./identity-authz.md)、[mucwiki-login.md](./mucwiki-login.md)、
+  [memory-plane.md](./memory-plane.md)；
 - 运维与改进：[ops-observability.md](./ops-observability.md)、[langfuse.md](./langfuse.md)、
   [learning-loop.md](./learning-loop.md)；
-- 代码边界：[code-organization.md](./code-organization.md)、
-  [python-boundaries.md](./python-boundaries.md)。
+- 代码边界：[code-organization.md](./code-organization.md)。
 
 稳定跨边界流程见 [flows.md](../flows.md)。领域细节、合同、数据和操作步骤不在本索引重复。

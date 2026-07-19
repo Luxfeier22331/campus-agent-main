@@ -13,6 +13,7 @@ import {
 	OpsRequestDetailResponseSchema,
 	OpsRequestListResponseSchema,
 	OpsRequestWindowSchema,
+	OpsSentryIssuesResponseSchema,
 } from "../shared/ops-contract.ts";
 import {
 	type AxiomClient,
@@ -69,6 +70,12 @@ import {
 	ProviderConfigAdminResponseError,
 	ProviderConfigAdminUnavailableError,
 } from "./provider-config-client.ts";
+import {
+	createSentryClientFromEnv,
+	type SentryClient,
+	type SentryEnv,
+	SentryUnavailableError,
+} from "./sentry-client.ts";
 
 interface OpsHealthEnv {
 	OPS_WEB_HEALTH_AGENT_RUNTIME_URL?: string;
@@ -85,7 +92,8 @@ type OpsAppEnv = OpsAdmissionEnv &
 	InternalPortalAuthMaintenanceEnv &
 	OpsHealthEnv &
 	OpsStatusEnv &
-	ProviderConfigAdminEnv;
+	ProviderConfigAdminEnv &
+	SentryEnv;
 
 interface OpsAppOptions {
 	admission?: OpsAdmission;
@@ -95,6 +103,7 @@ interface OpsAppOptions {
 	internalPortalAuthStore?: InternalPortalAuthStore;
 	internalPortalMaintenanceClient?: InternalPortalAuthMaintenanceClient;
 	overviewService?: OpsOverviewService;
+	sentry?: SentryClient;
 	staticRoot?: string;
 	store?: OpsStatusStore;
 	providerConfigClient?: ReturnType<typeof createProviderConfigAdminClient>;
@@ -176,6 +185,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	const staticRoot = options.staticRoot ?? "dist";
 	const store = options.store ?? createDefaultOpsStatusStore(env);
 	const axiom = options.axiom ?? createDefaultAxiomClient(env);
+	const sentry = options.sentry ?? createDefaultSentryClient(env);
 	const overviewService =
 		options.overviewService ??
 		createOpsOverviewService({
@@ -224,6 +234,9 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		console.error("[ops-web] unhandled api error", error);
 		if (error instanceof AxiomUnavailableError) {
 			return jsonError("OPS_OBSERVABILITY_UNAVAILABLE", "Axiom 数据不可用。", 503);
+		}
+		if (error instanceof SentryUnavailableError) {
+			return jsonError("OPS_SENTRY_UNAVAILABLE", "Sentry Issue 数据不可用。", 503);
 		}
 		if (error instanceof ProviderConfigAdminUnavailableError) {
 			return jsonError("OPS_PROVIDER_CONFIG_UNAVAILABLE", "Provider Config 后端不可用。", 503);
@@ -425,7 +438,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 			return jsonError("OPS_INVALID_QUERY", "运行概览查询参数无效。", 400);
 		}
 		const response = OpsOverviewResponseSchema.parse(
-			await overviewService.getOverview(parsed.data.window),
+			await overviewService.getOverview(parsed.data.window, { signal: context.req.raw.signal }),
 		);
 		context.header("cache-control", "private, max-age=15, stale-if-error=300");
 		return context.json(response);
@@ -550,6 +563,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 				completedAt: detail.request.completedAt,
 				kind: parsedQuery.data.kind,
 				requestId: detail.request.requestId,
+				signal: context.req.raw.signal,
 				startedAt: detail.request.startedAt,
 				traceId: detail.request.traceId,
 			}),
@@ -565,6 +579,35 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 			truncated: response.truncated,
 		});
 		return context.json(response);
+	});
+
+	app.get("/api/ops/requests/:requestId/sentry-issues", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const requestId = context.req.param("requestId");
+		if (
+			!OpsPathIdSchema.safeParse(requestId).success ||
+			Object.keys(context.req.query()).length > 0
+		) {
+			return jsonError("OPS_INVALID_QUERY", "Sentry Issue 查询参数无效。", 400);
+		}
+		const detail = await store.getRequestDetail(requestId);
+		if (!detail) {
+			return jsonError("OPS_REQUEST_NOT_FOUND", "未找到该请求。");
+		}
+		return context.json(
+			OpsSentryIssuesResponseSchema.parse(
+				await sentry.queryRequestIssues({
+					completedAt: detail.request.completedAt,
+					requestId: detail.request.requestId,
+					signal: context.req.raw.signal,
+					startedAt: detail.request.startedAt,
+					traceId: detail.request.traceId,
+				}),
+			),
+		);
 	});
 
 	app.get("/api/ops/dining/overview", async (context) => {
@@ -821,6 +864,20 @@ function createDefaultAxiomClient(env: AxiomEnv): AxiomClient {
 				: new AxiomUnavailableError("Axiom client is unavailable.", { cause: error });
 		};
 		return { getTelemetrySnapshot: unavailable, queryRequest: unavailable };
+	}
+}
+
+function createDefaultSentryClient(env: SentryEnv): SentryClient {
+	try {
+		return createSentryClientFromEnv(env);
+	} catch (error) {
+		return {
+			queryRequestIssues: async () => {
+				throw error instanceof SentryUnavailableError
+					? error
+					: new SentryUnavailableError("Sentry client is unavailable.", { cause: error });
+			},
+		};
 	}
 }
 

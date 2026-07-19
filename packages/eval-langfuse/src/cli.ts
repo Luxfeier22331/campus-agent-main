@@ -83,7 +83,7 @@ async function handleCommand(command: string, args: ParsedArgs): Promise<JsonObj
 		const productTraceId = optionalArg(args, "product-trace-id");
 		const traceId =
 			optionalArg(args, "trace-id") ??
-			deriveLangfuseTraceId(required(productTraceId, "product-trace-id"));
+			(await deriveLangfuseTraceId(required(productTraceId, "product-trace-id")));
 		return verifyLangfuseOnlineTraceEvidence({
 			expectedRelease: stringArg(args, "release"),
 			expectedRequestId: optionalArg(args, "request-id"),

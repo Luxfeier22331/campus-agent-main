@@ -113,7 +113,7 @@ function traceFetch(payload: unknown) {
 }
 
 describe("Langfuse trace identity", () => {
-	it("matches the shared trace id vectors", () => {
+	it("matches the shared trace id vectors", async () => {
 		const fixture = JSON.parse(
 			readFileSync(
 				resolve(repoRoot, "packages/eval-langfuse/test/fixtures/langfuse_trace_id_vectors.json"),
@@ -124,7 +124,7 @@ describe("Langfuse trace identity", () => {
 		};
 
 		for (const vector of fixture.vectors) {
-			expect(deriveLangfuseTraceId(vector.product_trace_id)).toBe(vector.langfuse_trace_id);
+			expect(await deriveLangfuseTraceId(vector.product_trace_id)).toBe(vector.langfuse_trace_id);
 			expect(traceParentForLangfuseTraceId(vector.langfuse_trace_id)).toBe(vector.traceparent);
 		}
 	});

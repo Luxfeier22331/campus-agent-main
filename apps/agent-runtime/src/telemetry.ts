@@ -15,6 +15,7 @@ import {
 } from "@opentelemetry/core";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { resourceFromAttributes } from "@opentelemetry/resources";
+import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { ATTR_SERVICE_NAME, ATTR_SERVICE_NAMESPACE } from "@opentelemetry/semantic-conventions";
 
@@ -24,6 +25,8 @@ export interface AgentTelemetryController {
 }
 
 let activeTelemetry: AgentTelemetryController | undefined;
+
+const OPENAI_AGENTS_INSTRUMENTATION_SCOPE = "@arizeai/openinference-instrumentation-openai-agents";
 
 export function startAgentRuntimeTelemetry(
 	env: NodeJS.ProcessEnv = process.env,
@@ -42,6 +45,7 @@ export function startAgentRuntimeTelemetry(
 		exporter,
 		mediaUploadEnabled: false,
 		release: env.LANGFUSE_RELEASE ?? env.DEPLOYMENT_RELEASE,
+		shouldExportSpan: ({ otelSpan }) => isAgentLangfuseSpan(otelSpan),
 	});
 	const provider = new NodeTracerProvider({
 		resource: resourceFromAttributes({
@@ -79,6 +83,41 @@ export function runWithExtractedTraceContext<T>(headers: Headers, callback: () =
 export function injectTraceContext(headers: Headers): Headers {
 	propagation.inject(context.active(), headers, headersSetter);
 	return headers;
+}
+
+export function bindAsyncIterableToActiveContext<T>(iterable: AsyncIterable<T>): AsyncIterable<T> {
+	const boundContext = context.active();
+	return {
+		async *[Symbol.asyncIterator]() {
+			const iterator = iterable[Symbol.asyncIterator]();
+			try {
+				for (;;) {
+					const item = await context.with(boundContext, () => iterator.next());
+					if (item.done) {
+						return;
+					}
+					yield item.value;
+				}
+			} finally {
+				if (iterator.return) {
+					await context.with(boundContext, () => iterator.return?.());
+				}
+			}
+		},
+	};
+}
+
+export function isAgentLangfuseSpan(
+	span: Pick<ReadableSpan, "attributes" | "instrumentationScope">,
+) {
+	const scope = span.instrumentationScope.name;
+	return (
+		scope === OPENAI_AGENTS_INSTRUMENTATION_SCOPE ||
+		scope === "@langfuse/tracing" ||
+		scope === "openinference" ||
+		scope.startsWith("openinference.") ||
+		Object.keys(span.attributes).some((key) => key.startsWith("gen_ai."))
+	);
 }
 
 function noopTelemetryController(): AgentTelemetryController {

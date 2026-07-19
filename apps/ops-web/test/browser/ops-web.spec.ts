@@ -46,6 +46,16 @@ test("总览在各宽度下保持可读", async ({ page }) => {
 
 test("请求列表可以进入详情并切换三个区域", async ({ page }) => {
 	const errors = captureRuntimeErrors(page);
+	const observabilityRequests: string[] = [];
+	page.on("request", (request) => {
+		const url = new URL(request.url());
+		if (
+			url.pathname === "/api/ops/requests/req_ops_001/observability" ||
+			url.pathname === "/api/ops/requests/req_ops_001/sentry-issues"
+		) {
+			observabilityRequests.push(`${url.pathname}${url.search}`);
+		}
+	});
 	await page.goto("/requests");
 
 	await expect(page.getByRole("heading", { name: "请求排查" })).toBeVisible();
@@ -54,9 +64,28 @@ test("请求列表可以进入详情并切换三个区域", async ({ page }) => 
 
 	await page.getByRole("link", { name: "执行" }).click();
 	await expect(page.getByRole("heading", { name: "执行步骤" })).toBeVisible();
+	expect(observabilityRequests).toEqual([]);
 	await page.getByRole("link", { name: "日志与调用链" }).click();
-	await expect(page.getByRole("list", { name: "日志原始记录" })).toContainText("request completed");
+	await expect(page.getByRole("list", { name: "日志原始记录" })).toContainText("request.finalized");
 	await expect(page.getByRole("list", { name: "调用链原始记录" })).toContainText("agent.primary");
+	const sentryIssues = page.getByRole("list", { name: "Sentry Issue 摘要" });
+	await expect(sentryIssues).toContainText("Request execution failed");
+	await expect(sentryIssues).toContainText("3 个事件");
+	await expect(page.getByText('campus.request_id:"req_ops_001"')).toBeVisible();
+	const sentryLink = page.getByRole("link", { name: "在 Sentry 查看" });
+	await expect(sentryLink).toHaveAttribute(
+		"href",
+		"https://sentry.example.test/organizations/campus/issues/450001/",
+	);
+	await expect(sentryLink).toHaveAttribute("target", "_blank");
+	await expect(sentryLink).toHaveAttribute("rel", "noreferrer");
+	expect([...observabilityRequests].sort()).toEqual(
+		[
+			"/api/ops/requests/req_ops_001/observability?kind=logs",
+			"/api/ops/requests/req_ops_001/observability?kind=trace",
+			"/api/ops/requests/req_ops_001/sentry-issues",
+		].sort(),
+	);
 	await expectStableViewport(page, errors);
 });
 

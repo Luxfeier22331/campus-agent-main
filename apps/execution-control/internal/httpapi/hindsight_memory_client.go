@@ -18,6 +18,7 @@ func (c hindsightHTTPClient) EnsureBank(ctx context.Context, bankID string, cfg 
 	if trimmedBankID == "" {
 		return errors.New("hindsight bank id is required")
 	}
+	ctx = withHindsightBankContext(ctx, trimmedBankID)
 	request := hindsight.CreateBankRequest{}
 	request.SetName("campus-agent personal memory")
 	_, response, err := c.client.BanksAPI.
@@ -96,7 +97,9 @@ func (c hindsightHTTPClient) HealthCheck(ctx context.Context) error {
 }
 
 func (c hindsightHTTPClient) BankExists(ctx context.Context, bankID string) (bool, error) {
-	_, response, err := c.client.BanksAPI.GetBankProfile(ctx, strings.TrimSpace(bankID)).Execute()
+	trimmedBankID := strings.TrimSpace(bankID)
+	ctx = withHindsightBankContext(ctx, trimmedBankID)
+	_, response, err := c.client.BanksAPI.GetBankProfile(ctx, trimmedBankID).Execute()
 	if response != nil && response.Body != nil {
 		defer func() { _ = response.Body.Close() }()
 	}
@@ -117,6 +120,8 @@ func (c hindsightHTTPClient) RetainMemories(
 	bankID string,
 	request hindsightRetainRequest,
 ) (hindsightRetainResponse, error) {
+	trimmedBankID := strings.TrimSpace(bankID)
+	ctx = withHindsightBankContext(ctx, trimmedBankID)
 	payload := hindsight.RetainRequest{
 		Async: request.Async,
 		Items: make([]hindsight.MemoryItem, 0, len(request.Items)),
@@ -129,7 +134,7 @@ func (c hindsightHTTPClient) RetainMemories(
 		payload.Items = append(payload.Items, sdkItem)
 	}
 	responseBody, response, err := c.client.MemoryAPI.
-		RetainMemories(ctx, strings.TrimSpace(bankID)).
+		RetainMemories(ctx, trimmedBankID).
 		RetainRequest(payload).
 		Execute()
 	if err != nil {
@@ -149,6 +154,8 @@ func (c hindsightHTTPClient) RecallMemories(
 	bankID string,
 	request hindsightRecallRequest,
 ) (hindsightRecallResponse, error) {
+	trimmedBankID := strings.TrimSpace(bankID)
+	ctx = withHindsightBankContext(ctx, trimmedBankID)
 	payload := hindsight.NewRecallRequest(strings.TrimSpace(request.Query))
 	if strings.TrimSpace(request.Budget) != "" {
 		budget := hindsight.Budget(strings.TrimSpace(request.Budget))
@@ -179,7 +186,7 @@ func (c hindsightHTTPClient) RecallMemories(
 	}
 	payload.Types = append([]string{}, request.Types...)
 	responseBody, response, err := c.client.MemoryAPI.
-		RecallMemories(ctx, strings.TrimSpace(bankID)).
+		RecallMemories(ctx, trimmedBankID).
 		RecallRequest(*payload).
 		Execute()
 	if err != nil {
@@ -199,6 +206,8 @@ func (c hindsightHTTPClient) Reflect(
 	bankID string,
 	request hindsightReflectRequest,
 ) (hindsightReflectResponse, error) {
+	trimmedBankID := strings.TrimSpace(bankID)
+	ctx = withHindsightBankContext(ctx, trimmedBankID)
 	payload := hindsight.NewReflectRequest(strings.TrimSpace(request.Query))
 	if strings.TrimSpace(request.Budget) != "" {
 		budget := hindsight.Budget(strings.TrimSpace(request.Budget))
@@ -221,7 +230,7 @@ func (c hindsightHTTPClient) Reflect(
 		payload.TagsMatch = &tagsMatch
 	}
 	responseBody, response, err := c.client.MemoryAPI.
-		Reflect(ctx, strings.TrimSpace(bankID)).
+		Reflect(ctx, trimmedBankID).
 		ReflectRequest(*payload).
 		Execute()
 	if err != nil {
@@ -237,8 +246,10 @@ func (c hindsightHTTPClient) Reflect(
 }
 
 func (c hindsightHTTPClient) DeleteDocument(ctx context.Context, bankID string, documentID string) error {
+	trimmedBankID := strings.TrimSpace(bankID)
+	ctx = withHindsightBankContext(ctx, trimmedBankID)
 	responseBody, response, err := c.client.DocumentsAPI.
-		DeleteDocument(ctx, strings.TrimSpace(bankID), strings.TrimSpace(documentID)).
+		DeleteDocument(ctx, trimmedBankID, strings.TrimSpace(documentID)).
 		Execute()
 	if response != nil && response.StatusCode == http.StatusNotFound {
 		if response.Body != nil {
@@ -265,8 +276,10 @@ func (c hindsightHTTPClient) DeleteDocument(ctx context.Context, bankID string, 
 }
 
 func (c hindsightHTTPClient) DeleteBank(ctx context.Context, bankID string) error {
+	trimmedBankID := strings.TrimSpace(bankID)
+	ctx = withHindsightBankContext(ctx, trimmedBankID)
 	responseBody, response, err := c.client.BanksAPI.
-		DeleteBank(ctx, strings.TrimSpace(bankID)).
+		DeleteBank(ctx, trimmedBankID).
 		Execute()
 	if response != nil && response.StatusCode == http.StatusNotFound {
 		if response.Body != nil {

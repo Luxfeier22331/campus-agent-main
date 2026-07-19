@@ -8,56 +8,36 @@ status: accepted
 
 ## 背景
 
-Knowledge Agent 需要能够重写问题并搜索多个受治理知识面。旧合同让 caller/handoff 参数
-携带 retrieval scope 和 version control，导致产品 transport 参与 retrieval planning、重复
-serving policy，并把一个知识问题绑定到预选 collection。
-
-仓库不需要兼容旧合同。
+Knowledge Agent 需要能够重写问题并搜索多个受治理知识面。让产品传输层选择检索范围、版本或
+存储位置，会使调用方参与检索规划并重复服务端策略。
 
 ## 决策
 
-OpenAI Agents SDK 是唯一 semantic agent/tool loop。primary agent 可以直接回答、调用
-model-visible function tool，或使用官方 `knowledge_query` handoff；handoff payload 只包含
-`query_text`。
+OpenAI Agents SDK 是唯一语义代理与工具循环。Primary Agent 可以进入 Knowledge Agent；Knowledge
+Agent 根据 execution-control 提供的已开放语义目标执行有界搜索。产品调用方和模型不能选择
+collection、索引、向量库、供应商或检索参数。
 
-execution-control 加载 `configs/runtime/query-serving-targets.v1.json`，把已开放 target id 和
-description 注入 Knowledge Agent context。Knowledge Agent 只能调用 internal
-`knowledge_search`，payload 固定为 `{query_text, target, include_history}`。search 和 SDK
-turn limit 来自 execution-control `agent_runtime` config。
-
-Agent 每次搜索一个 target，证据充分后停止，不重复 normalized target/query/history 完全相同
-的调用。重复调用返回 `duplicate_query`，并消耗一个 search slot。
-
-target registry entry 把一个 semantic id 映射到一个 `collection` 和一份 server-owned
-serving config，不重复 `corpus`。execution-control 必须验证 registry collection 与 serving
-config 一致。模型和 app-api 不接收 corpus、collection、alias、top-k、embedding 或
-vector-store control。unknown target 失败关闭。`include_history=false` 搜索当前文档；历史
-或比较问题由 Knowledge Agent 显式选择 historical lookup。
-
-execution-control 校验 run identity 和 retrieval access，执行 query embedding 与 Qdrant
-dense/sparse retrieval，再使用 native RRF fusion。不提供 custom reranker、version resolver、
-release guard 或 fallback retrieval path。Finalization 根据已投影 search result 校验 terminal
-evidence ref，并生成 browser-safe source，不改写答案。
-
-完整 primary/Knowledge Agent run 仍是四阶段 Temporal workflow 中的一个 Agent Activity。
-SDK handoff 和 search 不创建额外 Temporal activity。
+execution-control 负责运行身份、访问权限、目标注册表、服务配置、检索和依据投影。Knowledge
+Agent 负责选择语义目标、改写查询和判断证据是否足够。终态处理只校验已投影的依据并生成来源，
+不调用模型或改写答案。Agent 内部 handoff 和搜索保持在同一个 SDK run 中，不形成另一张
+Temporal 工作流图。
 
 ## 未采用方案
 
-- **Caller 选择 scope/version**：会让 product/eval caller 成为 retrieval planner。
-- **工具参数暴露 raw collection control**：会绕过 target admission 并泄露 data-plane
-  topology。
-- **Go 自建 retrieval planner**：会复制 Knowledge Agent semantic loop。
-- **自研 reranker/release guard**：当前 Qdrant hybrid fusion 和 serving registry 已拥有对应
-  边界。
+- **调用方选择范围或版本**：会让产品与评测调用方成为检索规划者。
+- **工具参数暴露存储控制**：会绕过目标准入并泄露数据面拓扑。
+- **Go 自建检索规划器**：会复制 Knowledge Agent 的语义循环。
 
 ## 后果
 
-- runtime tool truth 来自版本化 tool registry 和 function schema。
-- query-serving truth 是 target registry，不是 model-facing scope registry。
-- multi-target 和 follow-up search 是普通有界 SDK tool call。
-- deadline、turn/output、search 和 context limit 是必需 runtime config，不是 prompt 或
-  request-scoped env。
-- search result 只暴露有界 evidence 和 stable ref，不暴露 retrieval infrastructure。
-- tool eval 通过 `tool_trajectory.v2` 观察公开 handoff 和内部 search sequence。
-- source 在拥有 published target 和 serving config 前保持 unavailable。
+- 工具和查询目标分别由版本化注册表维护。
+- 多目标与后续搜索是普通的有界 SDK 工具调用。
+- 搜索结果只暴露有界依据和稳定引用，不暴露检索基础设施。
+- 工具评测可以观察公开 handoff 与内部搜索序列。
+
+当前工具参数、目标配置、检索过程和评测字段分别见：
+
+- `docs/contracts/tool-execution.md`
+- `docs/architecture/system/retrieval-serving.md`
+- `docs/architecture/system/agentic-retrieval.md`
+- `docs/contracts/tool-trajectory.md`

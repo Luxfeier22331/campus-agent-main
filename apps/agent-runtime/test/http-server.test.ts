@@ -748,6 +748,7 @@ function waitForAbort(signal: AbortSignal | undefined): Promise<void> {
 function validRunBody(): Record<string, unknown> {
 	return {
 		activity_attempt: 1,
+		user_id: "user-1",
 		request_id: "req-1",
 		run_id: "run-1",
 		conversation_id: "conversation-1",

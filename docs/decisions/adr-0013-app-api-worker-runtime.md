@@ -31,5 +31,4 @@ execution-control 继续自托管。app-api 发送 typed execution request 并�
 
 ## 相关文档
 
-- `docs/decisions/adr-0012-app-api.md`
 - `docs/architecture/system/product-runtime.md`

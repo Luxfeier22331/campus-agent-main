@@ -3,18 +3,18 @@
 	"vectors": [
 		{
 			"product_trace_id": "trace_0001",
-			"langfuse_trace_id": "c15de12f2781a232359741c047caac1d",
-			"traceparent": "00-c15de12f2781a232359741c047caac1d-0000000000000001-01"
+			"langfuse_trace_id": "5f8392c82813604cd79a0f7eb8b7306a",
+			"traceparent": "00-5f8392c82813604cd79a0f7eb8b7306a-0000000000000001-01"
 		},
 		{
 			"product_trace_id": "trace_001",
-			"langfuse_trace_id": "f84bd4d78bb492c58782c22fdfa5071d",
-			"traceparent": "00-f84bd4d78bb492c58782c22fdfa5071d-0000000000000001-01"
+			"langfuse_trace_id": "891484923eb0d16d1e161894f5a1eb87",
+			"traceparent": "00-891484923eb0d16d1e161894f5a1eb87-0000000000000001-01"
 		},
 		{
 			"product_trace_id": "app-api:chat:conv_001:req_001",
-			"langfuse_trace_id": "cddb51a6a07eef27aa22ded0a9be98b9",
-			"traceparent": "00-cddb51a6a07eef27aa22ded0a9be98b9-0000000000000001-01"
+			"langfuse_trace_id": "45a7eb73e395ebabd87d1b9986b3c165",
+			"traceparent": "00-45a7eb73e395ebabd87d1b9986b3c165-0000000000000001-01"
 		}
 	]
 }

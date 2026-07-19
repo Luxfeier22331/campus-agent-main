@@ -58,12 +58,6 @@ const workerStagingSurfaceSpecs = {
 } satisfies Record<string, SurfaceSpec>;
 
 const surfaceSpecDefinitions = {
-	evals: {
-		providers: {},
-		required_settings: {},
-		optional_settings: {},
-		files: {},
-	},
 	"worker-observability-local": {
 		providers: {},
 		required_settings: {},

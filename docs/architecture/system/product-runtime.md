@@ -8,27 +8,27 @@ status: active
 
 ## 文档边界
 
-本文定义 browser-facing 产品、受控配置面、自托管排查面和 execution runtime 的所有权。
-HTTP 字段由 contracts 定义，数据库表由 data 文档定义，部署状态由 GitOps 和运行证据定义。
+本文定义浏览器产品、受控配置面、自托管排查面和执行运行时的所有权。HTTP 字段由合同定义，
+数据库表由数据文档定义，部署状态由 GitOps 和实际运行状态定义。
 
 ## 组件
 
 | 组件 | 负责 | 不负责 |
 | --- | --- | --- |
-| `campus-web` | 学生问答、账号、文档、地图、食堂和 campus status 页面 | 运行排查、数据库或内部 runtime 访问 |
-| `app-api` | browser auth、chat admission/finalization、产品 API 和状态 API | Temporal worker、RAG 内部、Provider Config、通用运维数据 API |
-| `ops-web` | 自托管请求排查、运行概况、在线 Provider Config 和固定门户凭据替换 | 产品写操作、任意工作流控制或通用 Secret 管理 |
-| `execution-control` | durable run admission、Temporal workflow、memory/RAG activities、run projection 和在线 Provider Config | browser auth 和页面合同 |
-| `agent-runtime` | primary agent execution | durable orchestration 和产品数据持久化 |
+| `campus-web` | 学生问答、账号、文档、地图、食堂和校园状态页面 | 运行排查、数据库或内部运行时访问 |
+| `app-api` | 浏览器认证、聊天接收与终结、产品 API 和状态 API | Temporal worker、内部检索、Provider Config、通用运维数据 API |
+| `ops-web` | 自托管请求排查、运行概况、在线 Provider Config、固定门户凭据和 Dining 内容运营 | 学生账号、聊天和请求写入，任意工作流控制或通用 Secret 管理 |
+| `execution-control` | 持久运行准入、Temporal workflow、内部查询、终态投影和在线 Provider Config | 浏览器认证和页面合同 |
+| `agent-runtime` | Primary/Knowledge Agent 与工具循环 | 持久编排和产品数据持久化 |
 
-## Browser 路径
+## 浏览器路径
 
 - `campus-web` 通过 Service Binding 或已配置的 app-api origin 调用 `app-api`。
 - 浏览器不直连 execution-control、Temporal、Hindsight、Qdrant、PostgreSQL 或
   Axiom。
 - `ops-web` 是独立受保护的自托管站点；其浏览器只调用同一进程的 `/api/ops/*`。
 
-## Chat 路径
+## 聊天路径
 
 ```mermaid
 flowchart LR
@@ -48,15 +48,11 @@ flowchart LR
   Temporal --> Workers
   Workers --> Agent
   Workers --> RunDB
-  AppAPI --> Control
-  AppAPI --> ProductDB
 ```
 
-app-api 在接收 turn 时写 `chat.turn_dispatches` 和 accepted observability fact，随后创建
-durable run。execution-control/Temporal 推进执行并写 `runtime.agent_*`。app-api 读取 run
-events，最终以原子事务写 assistant message、terminal dispatch 和 observability fact。
-
-完整规则见 `docs/contracts/app-api/request-lifecycle.md`。
+app-api 保存用户轮次并创建持久 run；execution-control 和 Temporal 推进执行并写入
+`runtime.agent_*`；app-api 消费有界事件并保存产品终态。事务与幂等规则只在
+`docs/contracts/app-api/request-lifecycle.md` 维护。
 
 ## 数据边界
 
@@ -66,11 +62,11 @@ events，最终以原子事务写 assistant message、terminal dispatch 和 obse
 - 模型调用链与评测：Langfuse；
 - 脱敏运行日志、调用链和指标：Axiom；
 - browser/edge 错误、受控性能、release 和 source map：Sentry；
-- 模型、工具和记忆受信任 trace：分项目的 Langfuse；
+- 模型、工具和记忆受信任 trace：单一 Langfuse project；
 - 个人记忆：Hindsight，仅由 execution-control Activity 调用。
 
-这些数据通过 `request_id`、`run_id`、`trace_id` 和 `conversation_id` 关联，不复制成
-operator request projection。
+这些数据通过 `request_id`、`run_id`、`trace_id` 和 `conversation_id` 关联，不建立第二套请求
+关联投影。
 
 ## 校园服务
 
@@ -85,8 +81,12 @@ tool 也不通过 app-api。
 
 - `ops-web -> execution-control` 通过同源 BFF 管理在线 Provider Config；浏览器不持有
   execution-control credential。
-- `ops-web -> PostgreSQL/execution-control/Axiom` 提供受限排查；人员可以通过固定接口
-  patch `source-collector-internal-portal-auth` 并恢复固定认证维护 Schedule。
+- `ops-web -> PostgreSQL/execution-control/Axiom/Sentry` 提供受限排查；人员可以通过固定接口
+  更新内部门户认证并恢复固定维护 Schedule。
+- `ops-web -> dining.*` 使用独立角色维护草稿、不可变发布版本和评价状态；app-api 只读取公开
+  投影。
+- `ops-web -> ingestion-control` 只查询和恢复固定门户认证维护 Schedule，不提交采集任务或选择
+  其他工作流。
 - Provider Config 后端不可用不阻断 Ops Web 的请求诊断 readiness。
 - Temporal UI、Langfuse UI、Sentry 和 Axiom 保留各自完整能力；Ops Web 只提供跨系统关联、
   固定 Axiom 查询和常用摘要。
@@ -97,23 +97,20 @@ tool 也不通过 app-api。
   custom domain、cron 与流量版本。
 - execution-control、workers、ops-web、PostgreSQL 和依赖平台由 Kubernetes/GitOps 管理。
 - app-api Worker 通过 Hyperdrive/Workers VPC 访问私有 CNPG，不公开 PostgreSQL。
-- source repo 的 base 和镜像不是部署完成证明；环境 repo revision 和运行验证才是部署事实。
+- 源码仓的 base 和镜像不表示已经部署；实际环境状态由环境仓 revision 和运行检查确定。
 
-## 禁止形态
+## 架构约束
 
-- 不恢复 supervisor、bootstrap mega-agent 或 flat retrieval tool。
-- 不恢复 `runtime.request_execution`、projection outbox 或 operator request projector。
-- 不恢复 Operator Console 或 app-api operator/provider 路由。
 - 不让 app-api 代理 Temporal、Langfuse、Axiom、Sentry 或数据库通用查询。
-- 不恢复 OpenObserve 或让观测平台改写产品请求状态。
-- 不把 ingestion/data-plane ownership 混入在线回答路径。
-- 不为单一页面消费面拆出无独立 owner 的后端服务。
+- 不让观测平台改写产品请求状态。
+- 不把离线采集职责混入在线回答路径。
+- 不为单一页面拆出没有独立数据、扩缩容或安全边界的后端服务。
 
 ## 相关文档
 
 - `docs/contracts/app-api/README.md`
 - `docs/contracts/app-api/request-lifecycle.md`
 - `docs/architecture/system/ops-observability.md`
-- `docs/contracts/ops-web.md`
+- `docs/contracts/ops-web/README.md`
 - `docs/data/postgres-ownership.md`
 - `docs/domains/transport.md`

@@ -1,10 +1,10 @@
 ---
 doc_type: runbook
-owner_boundary: docs/runbooks
+owner_boundary: runtime-observability
 status: active
 ---
 
-# Worker 可观测性 Smoke
+# Worker 可观测性
 
 ## 边界
 
@@ -28,8 +28,9 @@ pnpm ci:worker
 application-log-only 契约，但发布使用 `wrangler versions upload`，不会应用非版本化的
 observability 设置；实际 destination、sampling、`persist=false`、`invocation_logs=false` 和
 `observability.traces.enabled=false` 由环境仓 `cloudflare_worker` 资源拥有。顶层配置、本地测试
-或 version upload 通过都不证明环境设置已生效。顶层无 destination 且 `persist=false` 是故意的
-fail-closed 默认，误用无环境的远程 deploy 不应产生无主 telemetry。
+或 version upload 通过都不证明环境设置已生效。顶层不配置 destination 且设置
+`persist=false`，用于在缺少明确环境时拒绝发送；误用无环境的远程 deploy 不应产生无主
+telemetry。
 
 ## 部署后检查
 
@@ -39,7 +40,8 @@ fail-closed 默认，误用无环境的远程 deploy 不应产生无主 telemetr
    在 trace dataset 查询同一请求由 execution-control 经 Collector 写入的 runtime trace。
 4. 在 Sentry 分别确认 campus-web browser、campus-web edge 与 app-api error，release 正确且
    stack frame 能映射到上传 source map。
-5. 确认 application log 的 `request_id`/`trace_id` 与 W3C context 传播后的 Collector trace 关联；
+5. 确认 application log 的 `campus.request_id`/`campus.trace_id` 与 W3C context 传播后的
+   Collector trace 关联；
    不要求或接受 Cloudflare native span 作为替代。
 6. 用合成值覆盖 OAuth/reset query、request header、body、用户标识、prompt、answer、memory
    和 credential 位置，在 Axiom 与 Sentry 搜索所有哨兵。
@@ -65,5 +67,4 @@ fail-closed 默认，误用无环境的远程 deploy 不应产生无主 telemetr
 - 任一禁止字段出现：立即关闭对应 log destination、producer 输出或 Sentry path；出现 invocation
   log/native trace 时先修复配置漂移，再执行完整哨兵检查。
 
-在该 smoke 与连续 24 小时 canary 完成前，不执行 OpenObserve 破坏性退役变更。验收结果记录在
-所属 release/incident 中，不提交外部平台导出正文。
+验收结果记录在所属 release 或 incident 中，不提交外部平台导出正文。

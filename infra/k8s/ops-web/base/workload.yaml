@@ -176,6 +176,11 @@ spec:
                 secretKeyRef:
                   name: ops-web-observability-secrets
                   key: OPS_WEB_AXIOM_QUERY_TOKEN
+            - name: OPS_WEB_SENTRY_EVENT_READ_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ops-web-observability-secrets
+                  key: OPS_WEB_SENTRY_EVENT_READ_TOKEN
           volumeMounts:
             - name: kubernetes-api-access
               mountPath: /var/run/secrets/kubernetes.io/serviceaccount

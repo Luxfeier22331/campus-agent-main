@@ -5,8 +5,11 @@ import { createFixtureOpsStatusStore } from "../src/server/ops-status-store.ts";
 import {
 	opsLogObservabilityFixture,
 	opsOverviewFixture,
+	opsSentryIssuesFixture,
 	opsTraceObservabilityFixture,
 } from "../src/shared/ops-fixtures.ts";
+
+const browserTestPort = Number(process.env.OPS_WEB_BROWSER_TEST_PORT ?? "4178");
 
 const app = createOpsApp({
 	admission: createAllowAllOpsAdmission({ email: "ops@example.test" }),
@@ -18,6 +21,9 @@ const app = createOpsApp({
 	},
 	overviewService: {
 		getOverview: async () => opsOverviewFixture,
+	},
+	sentry: {
+		queryRequestIssues: async () => opsSentryIssuesFixture,
 	},
 	internalPortalAuthStore: {
 		getStatus: async () => ({
@@ -39,7 +45,7 @@ const app = createOpsApp({
 	store: createFixtureOpsStatusStore(),
 });
 
-serve({ fetch: app.fetch, hostname: "127.0.0.1", port: 4178 });
+serve({ fetch: app.fetch, hostname: "127.0.0.1", port: browserTestPort });
 
 function internalPortalMaintenanceStatus() {
 	return {

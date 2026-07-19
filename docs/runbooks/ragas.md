@@ -6,6 +6,16 @@ status: active
 
 # Ragas 评测
 
+## 边界
+
+本文说明如何通过 `packages/eval-langfuse` 使用 Langfuse 数据集和 trace，并由
+`packages/ragas-runner` 调用 Ragas 官方指标。普通功能开发只运行本地检查；真实产品请求、外部
+模型评分和发布比较只在明确的评测或发布任务中执行。
+
+TypeScript 适配器拥有 Langfuse 交互、数据集关联、产品路径执行和 score 发布。Python runner
+只接收受控 sample、调用 Ragas 并返回结构化结果，不连接 Langfuse，也不建立另一套实验或发布
+判断。
+
 ## 本地检查
 
 ```bash
@@ -14,7 +24,15 @@ pnpm ci:eval
 
 该命令运行 TypeScript 适配器和隔离的 Python Ragas 测试，不访问 Langfuse 或模型服务。
 
-## 构建与同步 Dataset
+## 模型配置
+
+需要调用模型指标时，向相关命令传入 `--runtime-config <path>`，或使用 runner 支持的本地未跟踪
+环境配置。精确字段、优先级和执行限制以 `packages/ragas-runner` 的解析器与测试为准。不要从
+execution-control 的在线 Provider Config 推导离线评测配置。
+
+## 数据集
+
+先从仓库评测用例生成 manifest，并预览 Langfuse 变更：
 
 ```bash
 pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
@@ -29,19 +47,36 @@ pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
   --json
 ```
 
-manifest 从 `assets/datasets/agent` 和 `assets/datasets/rag` 下的 `cases.v1.json` 各生成一个
-dataset。确认目标 Langfuse project 后才移除 `--dry-run`。
+检查 manifest 和目标 Langfuse project 后才移除 `--dry-run`。仓库用例是预期输入，不是已经
+发生的产品运行结果。
 
-## 同步 Score 配置
+## Score 配置
 
 ```bash
 pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
   sync-score-configs --dry-run --json
 ```
 
-只允许发布 `assets/registries/langfuse_score_registry.v1.json` 登记的名称。
+只发布 score registry 已登记的名称。确认差异和目标 project 后才执行写入。
 
-## 评分 Trace
+## 执行真实产品路径
+
+```bash
+pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
+  agent-eval \
+  --app-api-base-url <app-api-url> \
+  --dataset <dataset-name> \
+  --limit <count> \
+  --json
+```
+
+命令通过 App API 执行 Langfuse dataset item，把目标 turn 关联到真实 product trace，再发布适用
+的 Ragas 和确定性 score。认证输入来自批准的评测环境，不能写入仓库。setup turn 与目标 turn
+使用同一 conversation，dataset run identity 只用于关联。
+
+## 评分现有 Trace
+
+按 trace 条件选择已经发生的产品请求：
 
 ```bash
 pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
@@ -53,44 +88,37 @@ pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
   --json
 ```
 
-TypeScript 适配器读取 Langfuse trace、构造安全 Ragas sample、调用
-`packages/ragas-runner` 并校验 score payload。确认样本和目标后才移除 `--validate-only`。
+TypeScript 适配器读取 Langfuse trace、构造受控 Ragas sample 并校验结果。先检查样本和目标，再
+移除 `--validate-only`。
 
-## 执行 Dataset
-
-通过真实产品路径执行并发布适用的 Agent/RAG score：
-
-```bash
-pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
-  agent-eval \
-  --app-api-base-url <app-api-url> \
-  --dataset campus/rag/student_rules \
-  --limit <count> \
-  --json
-```
-
-路由 benchmark 使用 `--dataset campus/agent/routing`。需要提供
-`CAMPUS_EVAL_COOKIE_HEADER`，或配置允许 runner 创建评测 session 的 staging auth secret。
-
-setup turn 与目标 turn 使用同一 conversation。runner 将目标 product trace 关联到 Langfuse
-dataset-run-item，再发布 Ragas 和确定性 BOOLEAN score。dataset run ID 只保留为内部 lineage。
-
-## 重新评分
-
-仅当 Langfuse 中已经存在 materialized answer、retrieved context 和关联 trace 时使用：
+仅当 Langfuse dataset run 已经保存真实 answer、retrieved context 和关联 trace 时，才重新评分：
 
 ```bash
 pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
   ragas-score-dataset \
-  --dataset campus/rag/student_rules \
+  --dataset <dataset-name> \
   --limit <count> \
   --validate-only \
   --json
 ```
 
-仓库 case truth 不是运行结果。缺少 materialized 字段时必须失败，不能用 reference 伪造检索。
+缺少已物化字段时必须失败，不能用 reference 或 fixture 伪造检索结果。
 
-## 验证 Trace
+## 发布评测
+
+retrieval 或 Agent 工具选择发生变化时：
+
+1. 确认查询目标、工具合同和 serving config 通过所属可执行校验；
+2. 运行 `pnpm ci:contracts`、`pnpm ci:go` 和 `pnpm ci:eval`；
+3. 确认 Langfuse dataset 包含本次行为及直接相关的反例；
+4. 通过真实产品路径生成 answer、retrieved context、tool trajectory 和 trace identity；
+5. 与已接受的基准运行比较适用的 Ragas、Agent 和确定性 score；
+6. 逐项审查失败用例，特别是无答案、跨目标和禁止上下文场景。
+
+Ragas score 用于评审，不自动决定发布。合同完整性和依据约束仍由所属运行时测试判断；仓库不生成
+第二套 gate report。
+
+## Trace 关联检查
 
 ```bash
 pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
@@ -102,5 +130,10 @@ pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
   --json
 ```
 
-外部评分只在批准的评测环境中运行。它不是普通功能开发检查，也不会自动形成发布 gate。命令输出
-属于本次评测记录，不提交到仓库。
+外部评分结果属于本次评测或发布记录，不提交到仓库。
+
+## 相关文档
+
+- `docs/reference/eval.md`
+- `packages/eval-langfuse/README.md`
+- `packages/ragas-runner/README.md`

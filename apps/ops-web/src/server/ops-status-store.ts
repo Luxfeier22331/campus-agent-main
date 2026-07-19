@@ -10,6 +10,7 @@ import type {
 import { createFixtureOpsStatusStore } from "./fixture-ops-status-store.ts";
 import { createPgOpsStatusStore, createPgOpsStatusStoreDatabase } from "./pg-ops-status-store.ts";
 import { resolvePostgresTlsConfig } from "./postgres-tls.ts";
+import { sentryTraceExplorerUrl } from "./sentry-client.ts";
 import { createTemporalTaskQueueSource } from "./temporal-task-queue-client.ts";
 
 export interface OpsRequestListQuery {
@@ -67,7 +68,6 @@ export interface OpsObservabilityReadAuditInput {
 }
 
 export interface OpsStatusEnv {
-	AXIOM_BASE_URL?: string;
 	DEPLOYMENT_ENVIRONMENT?: string;
 	LANGFUSE_BASE_URL?: string;
 	NODE_ENV?: string;
@@ -84,9 +84,9 @@ export interface OpsStatusEnv {
 	OPS_WEB_FIXTURE_MODE?: string;
 	OPS_WEB_LANGFUSE_URL?: string;
 	OPS_WEB_PRINCIPAL_HASH_SECRET?: string;
-	OPS_WEB_SENTRY_URL?: string;
+	OPS_WEB_SENTRY_BASE_URL?: string;
+	OPS_WEB_SENTRY_ORG_SLUG?: string;
 	OPS_WEB_TEMPORAL_URL?: string;
-	SENTRY_BASE_URL?: string;
 	TEMPORAL_BASE_URL?: string;
 }
 
@@ -234,9 +234,13 @@ export function createOpsStatusStoreFromEnv(env: OpsStatusEnv = process.env): Op
 			bearerToken: env.OPS_WEB_EXECUTION_CONTROL_METRICS_TOKEN ?? "",
 		}),
 		observabilityLinks: {
-			axiom: env.OPS_WEB_AXIOM_URL ?? env.AXIOM_BASE_URL,
+			axiom: env.OPS_WEB_AXIOM_URL,
 			langfuse: env.OPS_WEB_LANGFUSE_URL ?? env.LANGFUSE_BASE_URL,
-			sentry: env.OPS_WEB_SENTRY_URL ?? env.SENTRY_BASE_URL,
+			sentry:
+				sentryTraceExplorerUrl({
+					baseUrl: env.OPS_WEB_SENTRY_BASE_URL,
+					orgSlug: env.OPS_WEB_SENTRY_ORG_SLUG,
+				}) ?? undefined,
 			temporal: env.OPS_WEB_TEMPORAL_URL ?? env.TEMPORAL_BASE_URL,
 		},
 		principalHashSecret,

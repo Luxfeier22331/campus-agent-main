@@ -16,10 +16,10 @@ describe("console runtime event sink", () => {
 			event_type: "request.finalized",
 			occurred_at: "2026-07-16T12:30:00.000Z",
 			prompt: "private prompt",
-			request_id: "req_01",
+			"campus.request_id": "req_01",
 			status: "completed",
 			surface: "campus_web",
-			trace_id: "trace_01",
+			"campus.trace_id": "trace_01",
 		});
 
 		expect(info).toHaveBeenCalledTimes(1);

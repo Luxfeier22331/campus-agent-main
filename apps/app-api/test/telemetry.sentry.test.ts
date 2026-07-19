@@ -37,7 +37,12 @@ describe("app-api Sentry privacy boundary", () => {
 				query_string: "token=secret",
 				url: "https://app-api.internal/api/chat/runs/run_secret?token=secret",
 			},
-			tags: { app: "app-api", request_id: "req_secret", surface: "app_api" },
+			tags: {
+				app: "app-api",
+				"campus.request_id": "req_secret",
+				"campus.trace_id": "trace_secret",
+				surface: "app_api",
+			},
 			type: undefined,
 			user: { email: "student@example.edu", id: "user_secret", ip_address: "127.0.0.1" },
 		} satisfies ErrorEvent);
@@ -46,7 +51,12 @@ describe("app-api Sentry privacy boundary", () => {
 		expect(event.breadcrumbs).toEqual([]);
 		expect(event.extra).toBeUndefined();
 		expect(event.user).toBeUndefined();
-		expect(event.tags).toEqual({ app: "app-api", surface: "app_api" });
+		expect(event.tags).toEqual({
+			app: "app-api",
+			"campus.request_id": "req_secret",
+			"campus.trace_id": "trace_secret",
+			surface: "app_api",
+		});
 		expect(event.exception?.values?.[0]?.value).toBe("ProviderError");
 	});
 

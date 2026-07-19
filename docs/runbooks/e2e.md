@@ -3,119 +3,86 @@ doc_type: runbook
 owner_boundary: docs/runbooks
 status: active
 ---
+
 # 发布前 E2E 验收
 
 ## 边界
 
-本文是 staging 进入 release decision 前的端到端验收入口。它验证已选择环境 revision 的真实
-产品路径，不替代 PR test、环境仓库 rollout、RAG score review 或 production approval。
+本文说明如何根据发布变更选择并执行 staging 真实用户路径。它不维护固定的全产品清单，也不
+替代 PR 测试、环境 rollout、离线评测或 production 审批。
 
-本文不保存私有 hostname、Application/namespace、测试身份、secret、外部 dataset 名、截图
-目录或本轮 closeout 模板。环境输入由环境仓库和 secret manager 拥有，验收结果记录到对应
-release/PR/incident。
+环境地址、测试身份、Secret 和本次结果由环境仓及发布记录维护，不提交到源码仓。
 
 ## 前置条件
 
-- source PR 已合入 `main`，`pr / required` 成功；
-- publication workflow 已产生 immutable artifact；
-- 环境 pull request 已选择 source SHA、image digest 与 Worker version；
-- Argo CD、Terraform 和环境 migration 已在同一 desired revision 上完成；
-- 执行者拥有经批准的 staging 测试身份与观测平台访问权限。
+开始前确认：
 
-缺少以上条件时记录为环境阻塞，不反复修改源码制造新的候选 release。
+- 目标源码和不可变候选物已经由环境仓选择；
+- 环境控制器、数据库变更和运行时就绪检查已完成；
+- 执行者拥有本次路径所需的测试身份和观测权限；
+- 本次变更影响的产品合同、页面和失败路径已经明确。
 
-## 1. 环境健康
+前置条件缺失时记录环境阻塞，不通过重新发布无关源码规避。
 
-按环境仓库 runbook 确认：
+## 选择用户路径
 
-- Application 与 rollout 健康；
-- public surface health/readiness 正常；
-- app-api readiness 中本次产品路径依赖均可用；
-- Worker version、runtime release 与环境 desired state 一致；
-- 不存在 `CrashLoopBackOff`、`ImagePullBackOff` 或未解释的 `Pending`。
+从变更实际穿过的边界反向选择最小完整路径：
 
-source repo 不直连私有 cluster 绕过环境仓库，也不把 internal runtime 暴露为 public probe。
+1. 找到用户入口及其所属产品文档；
+2. 列出请求经过的 Worker、App API、执行运行时、工具或数据服务；
+3. 选择一个成功路径和与本次变化直接相关的失败路径；
+4. 涉及认证、权限、恢复、移动端或辅助功能时加入对应变体；
+5. 只在可观测性、评测或数据发布发生变化时追加相应专项检查。
 
-## 2. Chat 主链
+不能因为某领域存在就每次执行其全部路径，也不能只验证底层接口而省略用户入口。
 
-执行：
+## 执行顺序
 
-```bash
-pnpm smoke:app-api -- chat-staging
-```
+### 1. 确认环境版本
 
-按 `execution-smoke.md` 验收 durable submit/resume、终态 run、conversation write、
-Knowledge Agent handoff、内部搜索与 source finalization。使用包含证据的问题和无需工具的直接
-回答各一例；不得用宽松 matcher 或同步 fallback 代替失败路径。
+按环境仓操作手册确认目标 revision、运行版本和就绪状态一致。健康或就绪检查只证明各自职责，
+不代替后续用户路径。
 
-Memory 或其他专项 profile 只有在本次 release 明确变更对应能力时才追加，命令和通过标准由
-owner smoke script 拥有。
+### 2. 执行真实旅途
 
-## 3. 文档阅读
+使用部署后的 URL、正式认证方式和环境选择的数据完成用户任务。已有 smoke profile 或 Playwright
+项目时使用模块维护的入口；具体命令以根 `package.json`、应用 README 和测试配置为准。
 
-本次 release 涉及 docs reader、admission 或静态资产时执行：
+至少确认：
 
-```bash
-pnpm smoke:app-api -- docs-gated-staging \
-  --gated-collection-navigation-path \
-  /api/docs/collections/<corpus>/<collection>/navigation \
-  --gated-reader-path \
-  /_gated-docs/<corpus>/<collection>/<document>/<version>/reader.json \
-  --gated-collection-navigation-unauthenticated-status 404
-```
+- 用户操作到达预期终态，刷新、恢复或重试行为符合合同；
+- 页面在受影响 viewport 中没有遮挡、溢出或不可达操作；
+- loading、empty、error 和权限状态可理解；
+- console 和关键网络请求没有未解释错误；
+- 失败路径不会静默成功、泄露受限内容或切换到未声明的 fallback。
 
-两个路径必须来自环境仓库为本次 rollout 选择的 docs release；不得从本地 manifest、latest
-对象或 app-api 数据库推测。若该 collection 的 navigation 按产品合同允许未登录读取，将最后一个
-参数改为 `200`。
+### 3. 关联运行记录
 
-至少验证公开 permalink、版本/anchor 跳转、受保护文档 admission、缺失 asset 失败关闭，以及
-campus-web 未退化为 generic app-api proxy。
+记录请求、运行或 trace 的安全关联标识，并在本次变化涉及的观测系统中确认各阶段可定位。不得
+为了方便排查把认证材料、Secret 或未准入正文写入普通日志。
 
-## 4. 浏览器体验
+### 4. 检查数据一致性
 
-通过真实浏览器检查本次受影响的 campus-web journey：
+涉及发布数据、文档或检索目标时，确认用户入口与后端读取同一个已选择版本。缺少可选数据应只
+影响所属能力，不能用占位内容伪装成功，也不应使无关产品路径失效。
 
-- 页面在 desktop 与 mobile viewport 无遮挡、溢出或不可达操作；
-- auth/session、navigation、loading、empty、error 与 retry state 可理解；
-- chat stream、source card、docs reader、map/status 等受影响 surface 能完成主任务；
-- console 没有未解释 error，关键 asset 与 API 没有失败请求；
-- keyboard、focus、label 与基本 accessibility 行为正常。
+## 结果记录
 
-本地 Playwright 只能证明本地实现；真实 staging 仍需使用部署后的 URL 与配置。
+发布记录至少包含：
 
-## 5. 可观测性
+- 源码版本和环境 revision；
+- 实际执行的用户路径、命令及结果；
+- 检查的失败路径；
+- 用于定位的安全关联标识；
+- 明确省略的路径及原因。
 
-按 `worker-otel.md` 和 `otel.md`：
+失败时定位最先失败的组件，在对应仓库或模块修复，并重新执行受影响路径。不要重跑无关发布、
+放宽断言或直接修改集群来制造通过结果。
 
-- 用 request/trace id 关联入口、app-api、execution runtime 与已启用 sink；
-- 确认 error、stage timing、tool/search 与终态信号足以定位失败阶段；
-- 确认禁止正文、auth material 和 credential 未进入 signal；
-- telemetry failure 不得被误报成业务成功，也不得靠 Worker 直连 vendor 绕过 Collector。
+## 相关文档
 
-## 6. 数据能力
-
-只验收本次 release 明确包含且已发布 current/read model 的能力。每项检查：
-
-- source/release identity 可追溯；
-- browser/tool 读取同一正式数据事实；
-- cache/current pointer 更新符合所属合同；
-- 缺少可选领域数据只使该能力 unavailable，不应使 chat、memory、knowledge query 或整个
-  deployment readiness 失败。
-
-未发布的 transport、dining、notice 或 Official Web 数据不应通过 placeholder/fallback 伪装为
-已完成，也不应无关阻塞本次 release。
-
-## 通过与失败
-
-通过需要：环境健康、受影响产品 journey 成功、关键失败路径失败关闭、trace 可关联，并且本次
-release 范围内没有未解释 data/contract mismatch。
-
-失败时：
-
-1. 用 request/trace/run id 定位最先失败的 owner；
-1. 区分 source defect、environment desired-state defect、provider incident 与缺失可选数据；
-1. 在对应 owner 修复并复用同一验收步骤；
-1. 不用重跑无关 release closeout、放宽 assertion、跳过 auth 或直接改 cluster 结束验收。
-
-最终记录 source SHA、environment revision、实际执行命令、结果与明确省略项，不把本地 `.tmp`
-文件或外部平台原始导出提交进仓库。
+- `docs/reference/verification.md`
+- `docs/environment/readiness.md`
+- `docs/runbooks/release.md`
+- `docs/runbooks/otel.md`
+- `apps/campus-web/README.md`

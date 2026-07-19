@@ -22,7 +22,7 @@ import {
 	type ToolExecutionClient,
 } from "./chat-command.service.test-support";
 
-const EXPECTED_LANGFUSE_TRACE_PARENT = `00-${deriveLangfuseTraceId("trace_0001")}-0000000000000001-01`;
+const EXPECTED_LANGFUSE_TRACE_PARENT = "00-5f8392c82813604cd79a0f7eb8b7306a-0000000000000001-01";
 
 describe("chat command durable runtime cutover", () => {
 	it("rejects blocking deployed chat commands when durable runtime is required but missing", async () => {
@@ -284,8 +284,6 @@ describe("chat command durable runtime cutover", () => {
 				},
 				surface: "campus_web",
 				traceHeaders: {
-					baggage: "release=2026.06.18",
-					sentryTrace: "fedcba9876543210fedcba9876543210-0123456789abcdef-1",
 					traceParent: EXPECTED_LANGFUSE_TRACE_PARENT,
 				},
 				traceId: "trace_0001",
@@ -305,8 +303,6 @@ describe("chat command durable runtime cutover", () => {
 			afterSequence: 0,
 			runId: "run_0001",
 			traceHeaders: {
-				baggage: "release=2026.06.18",
-				sentryTrace: "fedcba9876543210fedcba9876543210-0123456789abcdef-1",
 				traceParent: EXPECTED_LANGFUSE_TRACE_PARENT,
 			},
 			traceId: "trace_0001",
@@ -431,7 +427,7 @@ describe("chat command durable runtime cutover", () => {
 			requestKind: "public_chat",
 		});
 
-		const langfuseTraceId = deriveLangfuseTraceId("trace_0001");
+		const langfuseTraceId = await deriveLangfuseTraceId("trace_0001");
 		const expectedTraceParent = `00-${langfuseTraceId}-0000000000000001-01`;
 		expect(executionRuntime.createRun).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -613,8 +609,6 @@ describe("chat command durable runtime cutover", () => {
 			afterSequence: 0,
 			runId: "run_0001",
 			traceHeaders: {
-				baggage: "sentry-environment=test",
-				sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
 				traceParent: EXPECTED_LANGFUSE_TRACE_PARENT,
 			},
 			traceId: "trace_0001",
@@ -624,8 +618,6 @@ describe("chat command durable runtime cutover", () => {
 			afterSequence: 1,
 			runId: "run_0001",
 			traceHeaders: {
-				baggage: "sentry-environment=test",
-				sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
 				traceParent: EXPECTED_LANGFUSE_TRACE_PARENT,
 			},
 			traceId: "trace_0001",

@@ -11,6 +11,10 @@ status: active
 chart/controller 版本、Helm value、namespace、endpoint 和资源尺寸由环境仓库拥有，不在本
 文复制。
 
+本文不定义应用工作流语义：在线回答见 `../architecture/system/durable-runtime.md`，个人记忆见
+`../architecture/system/memory-plane.md`，Langfuse retention 见
+`../contracts/langfuse-runtime.md`。平台运维不得改变这些工作流的业务状态。
+
 环境选择的版本必须满足 source manifest 使用的 CRD/API，并通过环境仓库 render 与兼容性
 检查。Worker Controller 必须先于 WorkerDeployment 可用；若 WorkerResourceTemplate 生成
 KEDA `ScaledObject` 或 `PodDisruptionBudget`，controller 与 GitOps principal 必须具备对应
@@ -91,3 +95,4 @@ Temporal persistence 与 visibility database 是 platform data。backup、restor
 - `../decisions/adr-0048-temporal.md`
 - `../decisions/adr-0078-worker-versioning.md`
 - `../architecture/system/k8s-runtime.md`
+- `../contracts/temporal-queues.md`

@@ -50,15 +50,12 @@ export function collectEnvDoctorStatus({
 	const currentEnv = { ...env };
 	const bootstrap = loadRepoEnv(resolvedRoot, currentEnv);
 	const spec = surfaceSpecs[normalizedSurface as Surface];
-	const providers =
-		normalizedSurface === "evals"
-			? {}
-			: Object.fromEntries(
-					Object.entries(spec.providers).map(([name, providerSpec]) => [
-						name,
-						collectProviderStatus(currentEnv, providerSpec.surface_name, providerSpec.checked_keys),
-					]),
-				);
+	const providers = Object.fromEntries(
+		Object.entries(spec.providers).map(([name, providerSpec]) => [
+			name,
+			collectProviderStatus(currentEnv, providerSpec.surface_name, providerSpec.checked_keys),
+		]),
+	);
 	const requiredSettings = Object.fromEntries(
 		Object.entries(spec.required_settings).map(([name, checkedKeys]) => [
 			name,

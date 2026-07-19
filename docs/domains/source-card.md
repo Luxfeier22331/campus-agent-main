@@ -3,60 +3,30 @@ doc_type: domain
 owner_boundary: domains/source-card
 status: active
 ---
-# 来源卡片
 
-本文统一说明问答与文档阅读器中来源卡片的 permalink、anchor 和 highlight 行为。
+# 来源卡片
 
 ## 边界
 
-来源卡片由已选 supporting evidence 生成，是可交付浏览器的引用目标。问答答案、文档搜索结果
-和直接阅读入口必须落到同一 reader permalink。
+来源卡片把回答中已经校验的依据连接到文档阅读器。问答、文档搜索和直接阅读使用同一文档身份、
+版本和章节位置，使用户可以从回答进入原文并返回当前任务。
 
-来源卡片不是：
+来源卡片只包含用户可见标题、摘要、版本和阅读目标，不包含检索轨迹、分块内部标识、对象存储
+位置、供应商分数或正文载荷。
 
-- 原始 retrieval trace；
-- 原始 chunk id 或 source unit key；
-- object storage key；
-- provider score 或 debug payload；
-- reader content payload。
+## 行为
 
-## 消费结构
+- 当前版本链接进入当前已发布文档，历史依据必须明确进入对应历史版本；
+- 章节锚点是稳定导航位置，重新分块或更换搜索实现不能改变其含义；
+- 高亮只帮助定位本次依据，不成为文档或段落身份；
+- 依据缺少可交付阅读目标时不能生成虚构链接；
+- 阅读权限由 App API 判定，来源卡片不能扩大用户可见范围。
 
-共享结构为：
+精确 HTTP 字段和 URL 结构由文档阅读器合同维护，逻辑标识由文档阅读器数据模型维护。
 
-```text
-回答证据 + 规范引用
-  -> 来源卡片
-  -> /docs/:corpus/:collection/:docSlug?hl=<rootUnitId>#<anchor>
-```
+## 相关文档
 
-固定规则：
-
-- assistant 正文只包含答案，不拼接序列化引用字段；
-- 来源卡片携带 canonical document title、可选 section title、snippet、version label 与 reader
-  target；
-- `canonicalUrl` 保留旧 wire 字段名，但语义是 reader permalink，不是 SEO canonical URL；
-- `anchor` 是稳定跳转目标；
-- `highlightRootUnitIds[]` 是稳定的临时高亮目标。
-
-## Reader 路径
-
-reader permalink 语义：
-
-- 当前版本：`/docs/:corpus/:collection/:docSlug`；
-- 指定版本：`/docs/:corpus/:collection/:docSlug/v/:versionSlug`；
-- section 跳转：`#<anchor>`；
-- 临时高亮：`?hl=<rootUnitId1>,<rootUnitId2>`。
-
-`anchor` 与 `rootUnitId` 来自 canonical document unit，不得根据当前 chunk id 或 vendor result
-id 派生。
-
-## 所有者文档
-
-- Browser/docs control-plane 字段：`../contracts/app-api/document-reader.md`；
-- canonical reader model：`../data/document-reader.md`；
-- knowledge evidence 与 final source 合同：`../contracts/tool-execution.md`；
-- indexed retrieval serving 边界：`../architecture/system/retrieval-serving.md`；
-- docs reader 架构：`../architecture/system/document-site.md`。
-
-上述文档拥有各自机器合同与数据模型；本文只拥有来源卡片导航的人类可读行为规则。
+- [App API 文档接口](../contracts/app-api/document-reader.md)
+- [文档阅读器数据](../data/document-reader.md)
+- [执行合同](../contracts/tool-execution.md)
+- [文档站架构](../architecture/system/document-site.md)

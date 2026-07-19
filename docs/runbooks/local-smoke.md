@@ -41,7 +41,7 @@ pnpm dev
 
 在线配置由 execution-control Provider Config 数据库和 keyring 持有。需要修改时启动本地
 execution-control admin 与 Ops Web，按 `provider-secrets.md` 创建、验证并激活完整 role bundle；
-应用启动不能静默 seed、激活或生成兼容投影。
+应用启动不能静默 seed 或激活在线配置。
 
 ## Chat 检查
 
@@ -53,5 +53,4 @@ curl -sS http://127.0.0.1:27051/readyz
 pnpm smoke:app-api -- chat-dev
 ```
 
-`chat-dev` 不负责启动或重启 execution-control。runtime 缺失是阻塞项，不是恢复旧 lifecycle
-脚本的理由。
+`chat-dev` 不负责启动或重启 execution-control；运行前必须显式启动所需依赖。

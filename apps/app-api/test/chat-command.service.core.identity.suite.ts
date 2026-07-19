@@ -13,6 +13,8 @@ import {
 	type ToolExecutionClient,
 } from "./chat-command.service.test-support";
 
+const EXPECTED_LANGFUSE_TRACE_PARENT = "00-5f8392c82813604cd79a0f7eb8b7306a-0000000000000001-01";
+
 export function registerChatCommandServiceCoreIdentitySuite(): void {
 	it("derives safety identifier from principal first, then app-owned session id, else null", () => {
 		const principal = createPrincipal();
@@ -108,10 +110,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 				safetyIdentifier: expectedSafetyIdentifier,
 				surface: "campus_web",
 				tenantId: "tenant-main",
-				traceHeaders: expect.objectContaining({
-					baggage: "sentry-environment=test",
-					sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
-				}),
+				traceHeaders: { traceParent: EXPECTED_LANGFUSE_TRACE_PARENT },
 				traceId: "trace_0001",
 				userGoal: "图书馆开放到几点？",
 			}),

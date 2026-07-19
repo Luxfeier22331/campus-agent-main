@@ -3,56 +3,61 @@ doc_type: architecture
 owner_boundary: tool-routing
 status: active
 ---
+
 # 工具路由
 
 ## 边界
 
-execution-control 接纳 run 并提供 model-visible tool；OpenAI Agents SDK 拥有 semantic tool
-selection、function call 和 handoff。
+本文定义工具如何开放、由谁选择以及如何调用。精确工具名称、暴露范围、schema、handler、
+timeout 和投影策略只由以下可执行注册表维护：
 
-## 调用顺序
+- `configs/runtime/tools.v5.json`；
+- `configs/runtime/tool-function-schemas.v2.json`。
 
-```text
-app-api auth/session/conversation transport
--> execution-control run 与 tool admission
--> Temporal Agent Activity
--> primary agent SDK loop
--> direct output、function call 或 Knowledge Agent handoff
--> structured terminal output
--> execution-control evidence validation 与 final projection
-```
+注册表、endpoint 或实现存在都不会自动向模型开放工具。
 
-app-api 不分类 intent、不选择 knowledge target，也不维护平行 tool allowlist。execution-control
-不分析用户文本来选择工具。
+## 职责
 
-## Primary Agent 决策
+- app-api 负责身份、会话和产品传输，不分类用户意图或维护工具 allowlist；
+- execution-control 根据注册表、运行状态和访问边界提供本次 run 可见的工具与知识目标；
+- OpenAI Agents SDK 负责回答、澄清、拒绝、函数调用和 handoff 的语义选择；
+- 工具 handler 负责自身认证、参数校验、数据访问和结果合同；
+- finalization 校验工具与依据投影，不重新选择工具或改写答案。
 
-primary agent 可以回答、澄清、拒绝、调用已开放 function tool，或通过 `knowledge_query`
-handoff。handoff 只接收完整 `query_text`。
+## Handler
 
-primary-agent handoff 不暴露 retrieval target、collection 或 version。Knowledge Agent 在
-handoff 后收到已开放 target，并在调用 `knowledge_search` 时选择。
+`execution_control_internal_query` handler 在同一个 Agent Activity 内调用带认证的
+execution-control 读取接口。接口重新校验运行标识、工具准入和结果结构，再返回有界 JSON。
 
-## 受信任 Tool Hint
+`agent_handoff` handler 使用 Agents SDK 官方 handoff 进入另一个 Agent，不创建新的 Temporal
+activity。Knowledge Agent 的搜索策略见 `agentic-retrieval.md`，后端检索见
+`retrieval-serving.md`。
 
-私有 execution contract 可以为受信任 eval/debug call 携带 `requested_tool`。它只约束 SDK
-tool choice，不选择 target、不创建 Temporal branch，也不绕过 registry/evidence validation。
-普通产品 chat 不提供该字段。
+## `requested_tool`
 
-`official_web` 没有 query-serving target，Knowledge Agent 无法使用。系统没有 public-web、
-provider-native search 或 live-source fallback。
+私有执行合同保留可选 `requested_tool`，仅用于调用方已经具备独立准入合同的内部执行。当前
+公开聊天和 `packages/eval-langfuse` 产品路径均不设置该字段，由 Primary Agent 自行选择工具。
+该字段不能选择知识目标、collection、版本、供应商或检索参数，也不能绕过注册表与终态校验。
 
-## 禁止形态
+## 投影
 
-- primary agent 前由 app-api/execution-control 分类 intent；
-- caller 选择 corpus、collection、target 或 version control；
-- handoff acknowledgement 后再执行 Go semantic graph；
-- per-tool Temporal activity 或 specialist queue；
-- SDK terminal output 后改写答案。
+模型可见调用与内部调用形成有界工具轨迹，供运行诊断和评测使用。精确结构由
+`../../contracts/tool-trajectory.md` 维护；原始模型参数、来源正文、凭据和后端响应不得进入
+产品投影。
+
+## 不允许的形态
+
+- 在 Primary Agent 前增加文本意图分类器；
+- 由浏览器或 app-api 选择知识目标与检索参数；
+- 为每个工具或 handoff 创建 Temporal activity 与专用队列；
+- 在 SDK 终态之后启动第二套语义规划或改写答案；
+- 工具失败时回退到未注册的供应商搜索或现场采集。
 
 ## 相关文档
 
 - `agent-framework.md`
-- `tool-runtime.md`
 - `agentic-retrieval.md`
-- `../../decisions/adr-0075-knowledge-search.md`
+- `retrieval-serving.md`
+- `../../contracts/tool-execution.md`
+- `../../contracts/tool-read-model.md`
+- `../../contracts/tool-trajectory.md`

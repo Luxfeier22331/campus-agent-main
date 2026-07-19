@@ -22,9 +22,9 @@ describe("runtime event sanitizer", () => {
 				environment: "staging",
 				event_type: "request.accepted",
 				occurred_at: "2026-04-20T12:30:00.000Z",
-				request_id: "req_01HQ",
+				"campus.request_id": "req_01HQ",
 				release: "app-api@2026.04.20",
-				trace_id: "trace_01HQ",
+				"campus.trace_id": "trace_01HQ",
 				surface: "campus_web",
 				status: "accepted",
 				unexpected_blob: "should-not-pass",
@@ -38,11 +38,11 @@ describe("runtime event sanitizer", () => {
 			environment: "staging",
 			event_type: "request.accepted",
 			occurred_at: "2026-04-20T12:30:00.000Z",
-			request_id: "req_01HQ",
+			"campus.request_id": "req_01HQ",
 			release: "app-api@2026.04.20",
 			status: "accepted",
 			surface: "campus_web",
-			trace_id: "trace_01HQ",
+			"campus.trace_id": "trace_01HQ",
 		});
 	});
 
@@ -51,9 +51,9 @@ describe("runtime event sanitizer", () => {
 			sanitizeRuntimeEventPayload({
 				event_type: "experimental.debug_dump",
 				occurred_at: "2026-04-20T12:30:00.000Z",
-				request_id: "req_01HQ",
+				"campus.request_id": "req_01HQ",
 				surface: "campus_web",
-				trace_id: "trace_01HQ",
+				"campus.trace_id": "trace_01HQ",
 			}),
 		).toBeNull();
 	});
@@ -62,11 +62,11 @@ describe("runtime event sanitizer", () => {
 		const sanitized = sanitizeRuntimeEventPayload({
 			duration_ms: Number.POSITIVE_INFINITY,
 			event_type: "request.finalized",
-			request_id: "r".repeat(300),
+			"campus.request_id": "r".repeat(300),
 			status: "completed",
 		});
 
-		expect(sanitized?.request_id).toHaveLength(128);
+		expect(sanitized?.["campus.request_id"]).toHaveLength(128);
 		expect(sanitized).not.toHaveProperty("duration_ms");
 	});
 
@@ -79,13 +79,13 @@ describe("runtime event sanitizer", () => {
 				occurred_at: "2026-04-20T12:30:00.000Z",
 				prompt: "raw prompt must not pass",
 				release: "app-api@2026.04.20",
-				request_id: "req_01HQ",
+				"campus.request_id": "req_01HQ",
 				selected_tool: "knowledge_query",
 				stage_timing_budget_state: "critical",
 				"stream.browser_ttft_ms": 5500,
 				status: "completed",
 				surface: "campus_web",
-				trace_id: "trace_01HQ",
+				"campus.trace_id": "trace_01HQ",
 			}),
 		).toEqual({
 			duration_ms: 5500,
@@ -93,13 +93,13 @@ describe("runtime event sanitizer", () => {
 			event_type: "request.finalized",
 			occurred_at: "2026-04-20T12:30:00.000Z",
 			release: "app-api@2026.04.20",
-			request_id: "req_01HQ",
+			"campus.request_id": "req_01HQ",
 			selected_tool: "knowledge_query",
 			stage_timing_budget_state: "critical",
 			"stream.browser_ttft_ms": 5500,
 			status: "completed",
 			surface: "campus_web",
-			trace_id: "trace_01HQ",
+			"campus.trace_id": "trace_01HQ",
 		});
 	});
 });

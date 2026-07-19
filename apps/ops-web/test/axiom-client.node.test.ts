@@ -1,7 +1,9 @@
 // @vitest-environment node
 
+import type { TabularQueryResult } from "@axiomhq/js";
 import { describe, expect, it, vi } from "vitest";
 import {
+	type AxiomSdkQueryClient,
 	AxiomUnavailableError,
 	buildAxiomRequestApl,
 	createAxiomClient,
@@ -9,7 +11,7 @@ import {
 } from "../src/server/axiom-client";
 
 const queryConfig = {
-	edgeUrl: "https://eu-central-1.aws.edge.axiom.co",
+	edgeDomain: "eu-central-1.aws.edge.axiom.co",
 	logsDataset: "campus-agent-staging-logs",
 	metricsDataset: "campus-agent-staging-metrics",
 	queryToken: "xaat-query-token",
@@ -17,33 +19,28 @@ const queryConfig = {
 };
 
 describe("Axiom client", () => {
-	it("queries the fixed logs dataset by the trusted request id", async () => {
+	it("queries through the official SDK and maps fixed log fields", async () => {
 		const onQueryComplete = vi.fn();
-		const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(
-			tabularResponse(
-				["timestamp", "service.name", "body", "trace_id", "span_id", "request_id"],
-				[
-					{
-						body: "request completed",
-						request_id: "req_ops_001",
-						"service.name": "app-api",
-						span_id: "span_ops_001",
-						timestamp: "2026-07-09T06:29:04.000Z",
-						trace_id: "trace_ops_001",
-					},
-				],
-				{
-					headers: {
-						"x-axiom-history-query-id": "query-001",
-						"x-querylimit-remaining": "42",
-					},
-				},
-			),
-		);
+		const sdkClient = fakeSdk([
+			{
+				durationMs: 125,
+				errorCode: "provider_timeout",
+				eventType: "request.finalized",
+				otelSpanId: "0123456789abcdef",
+				otelTraceId: "0123456789abcdef0123456789abcdef",
+				productTraceId: "trace_ops_001",
+				requestId: "req_ops_001",
+				serviceName: "app-api",
+				severityText: "ERROR",
+				source: "app-api.runtime",
+				status: "error",
+				timestamp: "2026-07-09T06:29:04.000Z",
+			},
+		]);
 		const client = createAxiomClient({
 			...queryConfig,
-			fetchFn,
 			onQueryComplete,
+			sdkClient,
 		});
 
 		const result = await client.queryRequest({
@@ -58,61 +55,52 @@ describe("Axiom client", () => {
 		expect(result).toMatchObject({
 			kind: "logs",
 			limit: 200,
+			records: [
+				expect.objectContaining({
+					eventType: "request.finalized",
+					requestId: "req_ops_001",
+				}),
+			],
 			requestId: "req_ops_001",
 			source: "AXIOM",
 			traceId: "trace_ops_001",
 			truncated: false,
 		});
-		expect(fetchFn).toHaveBeenCalledOnce();
-		const [url, init] = fetchFn.mock.calls[0] ?? [];
-		expect(url).toBe("https://eu-central-1.aws.edge.axiom.co/v1/query/_apl?format=tabular");
-		expect(init?.headers).toMatchObject({
-			accept: "application/json",
-			authorization: "Bearer xaat-query-token",
-			"content-type": "application/json",
+		expect(sdkClient.query).toHaveBeenCalledOnce();
+		const [apl, options] = vi.mocked(sdkClient.query).mock.calls[0] ?? [];
+		expect(options).toEqual({
+			endTime: "2026-07-09T06:30:00.000Z",
+			format: "tabular",
+			startTime: "2026-07-09T06:24:00.000Z",
 		});
-		const body = JSON.parse(String(init?.body)) as {
-			apl: string;
-			endTime: string;
-			startTime: string;
-		};
-		expect(body.apl).toContain("['campus-agent-staging-logs']");
-		expect(body.apl).toContain("attributes.custom['request_id']");
-		expect(body.apl).toContain("body['request_id']");
-		expect(body.apl).toContain("attributes.custom['http.request.header.x-request-id']");
-		expect(body.apl).toContain("attributes['http.request.header.x-request-id']");
-		expect(body.apl).toContain("attributes['http.request.header.x_request_id']");
-		expect(body.apl).toContain('| where correlated_request_id == "req_ops_001"');
-		expect(body.apl).toContain(
-			"| project timestamp = _time, ['service.name'], severity_text = tostring(coalesce(severity_text, severityText, severity)), event_type = tostring(coalesce(['event_type'], attributes.custom['event_type'], attributes['event_type'], attributes.custom['event.name'], attributes['event.name'], body['event_type']))",
-		);
-		expect(body.apl).toContain(
-			"trace_id = tostring(coalesce(['trace_id'], attributes.custom['trace_id'], attributes['trace_id']))",
-		);
-		expect(body.apl).not.toContain(", body,");
-		expect(body.apl).toContain("| take 201");
+		expect(apl).toContain("['campus-agent-staging-logs']");
+		expect(apl).toContain("attributes.custom['campus.request_id']");
+		expect(apl).toContain("body['campus.request_id']");
+		expect(apl).not.toContain("request.id");
+		expect(apl).not.toContain("http.request.header");
+		expect(apl).toContain("| take 201");
 		expect(onQueryComplete).toHaveBeenCalledWith(
-			expect.objectContaining({
-				dataset: "campus-agent-staging-logs",
-				historyQueryId: "query-001",
-				queryRemaining: "42",
-			}),
+			expect.objectContaining({ dataset: "campus-agent-staging-logs", rowsExamined: 1 }),
 		);
 	});
 
-	it("caps trace records and reports truncation", async () => {
+	it("caps typed trace records and preserves native and product trace identities", async () => {
 		const records = Array.from({ length: 501 }, (_, index) => ({
-			request_id: "req_ops_001",
-			span_id: `span-${index}`,
+			duration: "00:00:00.010000000",
+			hasError: false,
+			kind: "internal",
+			name: "execution_control.step",
+			otelSpanId: index.toString(16).padStart(16, "0"),
+			otelTraceId: "0123456789abcdef0123456789abcdef",
+			parentSpanId: null,
+			productTraceId: "trace_ops_001",
+			requestId: "req_ops_001",
+			serviceName: "execution-control",
+			statusCode: "OK",
+			timestamp: "2026-07-09T06:29:00.200Z",
 		}));
-		const fetchFn = vi
-			.fn<typeof fetch>()
-			.mockResolvedValue(tabularResponse(["span_id", "request_id"], records));
-		const client = createAxiomClient({
-			...queryConfig,
-			fetchFn,
-			onQueryComplete: vi.fn(),
-		});
+		const sdkClient = fakeSdk(records, { rowsMatched: records.length });
+		const client = createAxiomClient({ ...queryConfig, sdkClient });
 
 		const result = await client.queryRequest({
 			completedAt: null,
@@ -124,21 +112,20 @@ describe("Axiom client", () => {
 		});
 
 		expect(result.records).toHaveLength(500);
+		expect(result.records[0]).toMatchObject({
+			otelTraceId: "0123456789abcdef0123456789abcdef",
+			productTraceId: "trace_ops_001",
+		});
 		expect(result.truncated).toBe(true);
-		const body = JSON.parse(String(fetchFn.mock.calls[0]?.[1]?.body)) as { apl: string };
-		expect(body.apl).toContain("['campus-agent-staging-traces']");
-		expect(body.apl).toContain("| take 501");
-		expect(body.apl).not.toContain("trace_ops_001");
+		const [apl] = vi.mocked(sdkClient.query).mock.calls[0] ?? [];
+		expect(apl).toContain("['campus-agent-staging-traces']");
+		expect(apl).toContain("attributes.custom['campus.request_id']");
+		expect(apl).not.toContain("body['campus.request_id']");
+		expect(apl).toContain("| take 501");
 	});
 
-	it("limits raw request queries to the most recent thirty minutes", async () => {
-		const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(tabularResponse(["request_id"], []));
-		const client = createAxiomClient({
-			...queryConfig,
-			fetchFn,
-			onQueryComplete: vi.fn(),
-		});
-
+	it("limits request queries to the most recent thirty minutes", async () => {
+		const client = createAxiomClient({ ...queryConfig, sdkClient: fakeSdk([]) });
 		const result = await client.queryRequest({
 			completedAt: "2026-07-09T06:30:00.000Z",
 			kind: "logs",
@@ -147,63 +134,40 @@ describe("Axiom client", () => {
 			startedAt: "2026-07-09T04:00:00.000Z",
 			traceId: "trace_ops_001",
 		});
-
 		expect(Date.parse(result.to) - Date.parse(result.from)).toBe(30 * 60_000);
 		expect(result.truncated).toBe(true);
 	});
 
 	it("summarizes the fixed logs, traces, and metrics datasets", async () => {
-		const fetchFn = vi.fn<typeof fetch>().mockImplementation(async (_url, init) => {
-			const body = JSON.parse(String(init?.body)) as { apl: string };
-			const dataset = body.apl.match(/\['([^']+)'\]/)?.[1] ?? "";
-			return tabularResponse(
-				["record_count", "last_seen_at"],
-				[
+		const sdkClient: AxiomSdkQueryClient = {
+			query: vi.fn(async (apl) =>
+				tabularResult([
 					{
 						last_seen_at: "2026-07-09T06:29:59.000Z",
-						record_count: dataset.endsWith("metrics") ? 12 : 3,
+						record_count: apl.includes("metrics") ? 12 : 3,
 					},
-				],
-			);
-		});
-		const client = createAxiomClient({
-			...queryConfig,
-			fetchFn,
-			onQueryComplete: vi.fn(),
+				]),
+			),
+		};
+		const client = createAxiomClient({ ...queryConfig, sdkClient });
+		const telemetry = await client.getTelemetrySnapshot("15m", {
+			now: new Date("2026-07-09T06:30:00.000Z"),
 		});
 
-		const telemetry = await client.getTelemetrySnapshot(
-			"15m",
-			new Date("2026-07-09T06:30:00.000Z"),
-		);
-
-		expect(fetchFn).toHaveBeenCalledTimes(3);
-		expect(
-			fetchFn.mock.calls.map(([, init]) => JSON.parse(String(init?.body)).apl.split("\n")[0]),
-		).toEqual([
-			"['campus-agent-staging-logs']",
-			"['campus-agent-staging-metrics']",
-			"['campus-agent-staging-traces']",
-		]);
+		expect(sdkClient.query).toHaveBeenCalledTimes(3);
 		expect(telemetry).toMatchObject({ dataState: "FRESH", status: "HEALTHY" });
 		expect(telemetry.signals.map((signal) => signal.kind)).toEqual(["LOGS", "METRICS", "TRACES"]);
 	});
 
-	it("fails closed when Axiom marks a result partial", async () => {
-		const fetchFn = vi
-			.fn<typeof fetch>()
-			.mockResolvedValue(tabularResponse(["request_id"], [], { isPartial: true }));
+	it("fails when Axiom marks an SDK result partial", async () => {
 		const client = createAxiomClient({
 			...queryConfig,
-			fetchFn,
-			onQueryComplete: vi.fn(),
+			sdkClient: fakeSdk([], { isPartial: true }),
 		});
-
 		await expect(
 			client.queryRequest({
 				completedAt: null,
 				kind: "logs",
-				now: new Date("2026-07-09T06:30:00.000Z"),
 				requestId: "req_ops_001",
 				startedAt: "2026-07-09T06:29:00.000Z",
 				traceId: "trace_ops_001",
@@ -211,19 +175,145 @@ describe("Axiom client", () => {
 		).rejects.toThrow(AxiomUnavailableError);
 	});
 
-	it("rejects dataset, request id, and personal-token injection surfaces", () => {
+	it("wraps official SDK failures as unavailable", async () => {
+		const sdkClient: AxiomSdkQueryClient = {
+			query: vi.fn().mockRejectedValue(new Error("rate limited")),
+		};
+		const client = createAxiomClient({ ...queryConfig, sdkClient });
+		await expect(client.getTelemetrySnapshot("15m")).resolves.toMatchObject({
+			dataState: "UNAVAILABLE",
+		});
+	});
+
+	it("does not start an Axiom query for an already aborted caller", async () => {
+		const sdkClient = fakeSdk([]);
+		const client = createAxiomClient({ ...queryConfig, sdkClient });
+		const controller = new AbortController();
+		controller.abort(new Error("request closed"));
+
+		await expect(
+			client.queryRequest({
+				completedAt: null,
+				kind: "logs",
+				now: new Date("2026-07-09T06:30:00.000Z"),
+				requestId: "req_ops_001",
+				signal: controller.signal,
+				startedAt: "2026-07-09T06:29:00.000Z",
+				traceId: "trace_ops_001",
+			}),
+		).rejects.toThrow(AxiomUnavailableError);
+		expect(sdkClient.query).not.toHaveBeenCalled();
+	});
+
+	it("rejects an aborted telemetry snapshot instead of returning partial availability", async () => {
+		const pendingQueries: Deferred<TabularQueryResult>[] = [];
+		const sdkClient: AxiomSdkQueryClient = {
+			query: vi.fn(() => {
+				const pending = deferred<TabularQueryResult>();
+				pendingQueries.push(pending);
+				return pending.promise;
+			}),
+		};
+		const client = createAxiomClient({ ...queryConfig, sdkClient });
+		const controller = new AbortController();
+		const snapshot = client.getTelemetrySnapshot("15m", {
+			now: new Date("2026-07-09T06:30:00.000Z"),
+			signal: controller.signal,
+		});
+
+		await vi.waitFor(() => expect(sdkClient.query).toHaveBeenCalledTimes(3));
+		controller.abort(new Error("overview timed out"));
+		await expect(snapshot).rejects.toThrow(AxiomUnavailableError);
+		for (const pending of pendingQueries) {
+			pending.resolve(tabularResult([]));
+		}
+	});
+
+	it("keeps aborted SDK queries in bounded slots until the SDK settles", async () => {
+		const pendingQueries: Deferred<TabularQueryResult>[] = [];
+		const sdkClient: AxiomSdkQueryClient = {
+			query: vi.fn(() => {
+				const pending = deferred<TabularQueryResult>();
+				pendingQueries.push(pending);
+				return pending.promise;
+			}),
+		};
+		const client = createAxiomClient({ ...queryConfig, sdkClient });
+		const controllers = Array.from({ length: 5 }, () => new AbortController());
+		const requests = controllers.map((controller, index) =>
+			client.queryRequest({
+				completedAt: null,
+				kind: index % 2 === 0 ? "logs" : "trace",
+				now: new Date("2026-07-09T06:30:00.000Z"),
+				requestId: `req_ops_00${index + 1}`,
+				signal: controller.signal,
+				startedAt: "2026-07-09T06:29:00.000Z",
+				traceId: `trace_ops_00${index + 1}`,
+			}),
+		);
+
+		await vi.waitFor(() => expect(sdkClient.query).toHaveBeenCalledTimes(5));
+		for (const controller of controllers) {
+			controller.abort(new Error("overview timed out"));
+		}
+		await Promise.all(
+			requests.map((request) => expect(request).rejects.toThrow(AxiomUnavailableError)),
+		);
+
+		await expect(
+			client.queryRequest({
+				completedAt: null,
+				kind: "logs",
+				now: new Date("2026-07-09T06:30:00.000Z"),
+				requestId: "req_ops_blocked",
+				startedAt: "2026-07-09T06:29:00.000Z",
+				traceId: "trace_ops_blocked",
+			}),
+		).rejects.toThrow("concurrency limit");
+		expect(sdkClient.query).toHaveBeenCalledTimes(5);
+
+		pendingQueries[0]?.resolve(tabularResult([]));
+		await Promise.resolve();
+		await Promise.resolve();
+		const resumed = client.queryRequest({
+			completedAt: null,
+			kind: "logs",
+			now: new Date("2026-07-09T06:30:00.000Z"),
+			requestId: "req_ops_resumed",
+			startedAt: "2026-07-09T06:29:00.000Z",
+			traceId: "trace_ops_resumed",
+		});
+		await vi.waitFor(() => expect(sdkClient.query).toHaveBeenCalledTimes(6));
+		pendingQueries[5]?.resolve(tabularResult([]));
+		await expect(resumed).resolves.toMatchObject({ requestId: "req_ops_resumed" });
+
+		for (const pending of pendingQueries.slice(1, 5)) {
+			pending.resolve(tabularResult([]));
+		}
+	});
+
+	it("rejects dataset, request id, edge domain, and personal-token injection surfaces", () => {
 		expect(() =>
 			createAxiomClient({
 				...queryConfig,
 				logsDataset: "logs'] | take 1000 //",
+				sdkClient: fakeSdk([]),
 			}),
 		).toThrow("Axiom dataset name is invalid");
 		expect(() =>
 			createAxiomClient({
 				...queryConfig,
 				queryToken: "xapt-personal-token",
+				sdkClient: fakeSdk([]),
 			}),
 		).toThrow("personal tokens are not allowed");
+		expect(() =>
+			createAxiomClient({
+				...queryConfig,
+				edgeDomain: "https://api.axiom.co/v1/query/_apl",
+				sdkClient: fakeSdk([]),
+			}),
+		).toThrow("Axiom Edge domain is invalid");
 		expect(() =>
 			buildAxiomRequestApl({
 				dataset: "campus-agent-staging-logs",
@@ -234,54 +324,76 @@ describe("Axiom client", () => {
 		).toThrow("Axiom request ID is invalid");
 	});
 
-	it("consumes only the explicit Axiom environment surface", () => {
-		expect(() => createAxiomClientFromEnv({})).toThrow("OPS_WEB_AXIOM_EDGE_URL");
+	it("consumes only the official SDK environment surface", () => {
+		expect(() => createAxiomClientFromEnv({})).toThrow("OPS_WEB_AXIOM_EDGE_DOMAIN");
 		expect(() =>
 			createAxiomClientFromEnv({
-				OPS_WEB_AXIOM_EDGE_URL:
-					"https://eu-central-1.aws.edge.axiom.co/v1/query/_apl?format=tabular",
+				OPS_WEB_AXIOM_EDGE_DOMAIN: "https://eu-central-1.aws.edge.axiom.co",
 				OPS_WEB_AXIOM_LOGS_DATASET: "campus-agent-staging-logs",
 				OPS_WEB_AXIOM_METRICS_DATASET: "campus-agent-staging-metrics",
-				OPS_WEB_AXIOM_QUERY_TIMEOUT_MS: "30001",
 				OPS_WEB_AXIOM_QUERY_TOKEN: "xaat-query-token",
 				OPS_WEB_AXIOM_TRACES_DATASET: "campus-agent-staging-traces",
 			}),
-		).toThrow("OPS_WEB_AXIOM_QUERY_TIMEOUT_MS");
-		expect(() =>
-			createAxiomClient({
-				...queryConfig,
-				edgeUrl: "https://eu-central-1.aws.edge.axiom.co/v1/query/_apl?format=tabular&apl=attacker",
-			}),
-		).toThrow("tabular Edge APL endpoint");
+		).toThrow("Axiom Edge domain is invalid");
 	});
 });
 
-function tabularResponse(
-	fields: string[],
+function fakeSdk(
 	records: Record<string, unknown>[],
-	options: {
-		headers?: Record<string, string>;
-		isPartial?: boolean;
-	} = {},
-) {
-	return new Response(
-		JSON.stringify({
-			format: "tabular",
-			status: {
-				blocksExamined: 2,
-				elapsedTime: 7,
-				isPartial: options.isPartial ?? false,
-				rowsExamined: records.length,
-				rowsMatched: records.length,
-			},
-			tables: [
-				{
-					columns: fields.map((field) => records.map((record) => record[field] ?? null)),
-					fields: fields.map((name) => ({ name, type: "string" })),
-					name: "query",
+	status: { isPartial?: boolean; rowsMatched?: number } = {},
+): AxiomSdkQueryClient {
+	return {
+		query: vi.fn(async () => tabularResult(records, status)),
+	};
+}
+
+function tabularResult(
+	records: Record<string, unknown>[],
+	status: { isPartial?: boolean; rowsMatched?: number } = {},
+): TabularQueryResult {
+	return {
+		datasetNames: ["fixture"],
+		fieldsMetaMap: {},
+		format: "tabular",
+		status: {
+			blocksExamined: 2,
+			elapsedTime: 7,
+			isPartial: status.isPartial ?? false,
+			maxBlockTime: "2026-07-09T06:30:00.000Z",
+			maxCursor: "max",
+			minBlockTime: "2026-07-09T06:29:00.000Z",
+			minCursor: "min",
+			numGroups: 0,
+			rowsExamined: records.length,
+			rowsMatched: status.rowsMatched ?? records.length,
+		},
+		tables: [
+			{
+				columns: [],
+				events: function* () {
+					for (const record of records) {
+						yield record;
+					}
 				},
-			],
-		}),
-		{ headers: options.headers, status: 200 },
-	);
+				fields: [],
+				groups: [],
+				name: "fixture",
+				order: [],
+				sources: [{ name: "fixture" }],
+			},
+		],
+	} as TabularQueryResult;
+}
+
+interface Deferred<T> {
+	promise: Promise<T>;
+	resolve(value: T): void;
+}
+
+function deferred<T>(): Deferred<T> {
+	let resolve!: (value: T) => void;
+	const promise = new Promise<T>((resolvePromise) => {
+		resolve = resolvePromise;
+	});
+	return { promise, resolve };
 }

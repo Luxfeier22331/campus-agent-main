@@ -13,7 +13,7 @@ status: active
 相关文档：
 
 - `docs/contracts/tool-execution.md`
-- `docs/architecture/system/tool-runtime.md`
+- `docs/architecture/system/tool-routing.md`
 - `docs/domains/transport.md`
 - `docs/data/internal-portal.md`
 
@@ -29,10 +29,9 @@ Go `apps/execution-control` 拥有以下内部工具读取接口：
 
 合同规则：
 
-- 仅允许 repo-owned trusted internal runtime caller 使用
-- 请求头使用 `x-execution-query-auth`，语义为 execution-control owned internal
-  query authorization；不接受旧 runtime header alias。
-- JSON 命名保持 `snake_case`
+- 仅允许仓库内部已认证的运行时调用；
+- 请求头使用 `x-execution-query-auth`，由 execution-control 验证内部查询权限；
+- JSON 命名保持 `snake_case`；
 - 响应体必须匹配对应工具结果合同的安全类型化摘要；
 - 运行时只读已配置投影或标准化事实，不得在查询时回扫原始来源包、通知 HTML 或通用检索
   分块。
@@ -45,11 +44,10 @@ Go `apps/execution-control` 拥有以下内部工具读取接口：
   - 支持当前快照元数据、路线澄清、首班、下一班、末班、班次列表、服务时段、完整时刻表和
     临时停运摘要。
 
-`knowledge_search` 依次执行范围和版本校验、向量化、Qdrant 查询及可选重排，只供
+`knowledge_search` 依次执行访问与版本校验、向量化、Qdrant 稠密/稀疏查询和原生 RRF，只供
 Knowledge Agent 内部使用。
 
-当前没有通知读取模型工具接口。旧通知查询接口已从 ToolSpec、运行时配置、工作流产物和
-合同中删除。采集面可以继续物化通知来源和数据，但这不会自动开放查询工具。
+当前没有通知读取模型工具接口。采集面可以物化通知来源和数据，但这不会自动开放查询工具。
 
 ## 开放边界
 

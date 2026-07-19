@@ -4,52 +4,43 @@ owner_boundary: docs/decisions
 decision_id: ADR-0079
 status: accepted
 supersedes:
-  - ADR-0049 的食堂发布生命周期
-  - ADR-0055 的食堂运维界面与 app-api 所有权
+  - ADR-0049
+  - ADR-0055
 ---
-
-# ADR-0079 食堂运维边界
-
-## 状态
-
-2026-07-16 接受。
-
-本文只替代 ADR-0049、ADR-0055 中关于 Dining operations 实现、数据写入和发布流程的决策；
-两份 ADR 的其他历史判断保持不变。
+# ADR-0079 食堂写入与发布边界
 
 ## 背景
 
-旧设计让 Operator Console 通过 app-api 管理候选版本、审批、排期和发布。这个链路把公共应用
-中间层变成了领域控制面，也为尚不存在的组织流程引入了 candidate、approval 和 schedule 状态。
-当前产品只需要采集、人工校正、校验、发布和回滚。
+食堂目录需要定期接收外部来源，同时允许人工修正、显式发布和回滚。评价需要独立审核和可见性
+治理。把这些写操作放进学生产品 API 会混合公共读取、来源同步和内容运营权限。
 
 ## 决策
 
-- `apps/ops-web` 是 Dining operations 的 self-hosted 服务和页面，使用专用数据库角色直连
-  PostgreSQL，不经过 app-api。
-- `apps/app-api` 只读取 `dining.publication`、`dining.releases` 和公开评价，提供学生端
-  `/api/dining/*`。
-- `jobs/dining-sync` 定时从 Feishu/Lark 写入 source observations；评价审核通过后可自动进入公开
-  投影，catalog observations 只能由 Ops 人工 rebase、validate、publish。
-- catalog 流程固定为 `draft -> validate -> publish`。rollback 产生新的 immutable release，
-  不移动历史指针伪装成新版本。
-- floorplan layout、生成 manifest 和 immutable SVG 由仓库与 Campus Web 应用版本拥有，不进入对象
-  存储、catalog release 或数据库 source truth。数据库只保存稳定 `floorplanId`、`kind` 和窗口到
-  anchor 的绑定；digest URL、canvas、anchor inventory 和 geometry 不进入 app-api transport。
-- 本地地图编辑器保存 canonical layout，静态资产生成是独立显式动作；Campus Web 只从自身构建的
-  manifest 解析地图资产。rollback 目标必须与当前 manifest 兼容。
-- PostgreSQL 角色分为 migration、sync、ops 和 public read；运行时角色不得建表或重建 schema。
-- 保留最近 30 个 catalog releases。
-
-## 删除的设计
-
-- app-api `/api/ops/dining/*`
-- Operator Console Dining workspace/proxy
-- release candidate、approval、schedule 和 latest-pointer/snapshot 双表
-- catalog 自动发布
-- `review_projections` 复制表
+- `jobs/dining-sync` 写入来源观测、评价审核结果和公开附件，不自动发布目录；
+- `apps/ops-web` 使用专用数据库角色执行草稿重建、人工修正、校验、发布、回滚和评价治理；
+- `apps/app-api` 只读取当前 publication、不可变 release 和公开评价；
+- 目录按照“草稿、校验、发布”流转，回滚创建新的不可变 release；
+- 来源更新先形成观测，重新生成草稿时继续应用有效的人工修正；
+- 地图布局、静态 SVG 和摘要清单随 Campus Web 代码版本发布，数据库只保存稳定地图标识和窗口
+  锚点绑定；
+- schema migration、来源同步、内容运营和公共读取使用彼此独立的数据库角色。
 
 ## 结果
 
-Dining 的写入责任、发布责任和公共读取责任不再重叠。Feishu/Lark 的新数据不会自动覆盖人工校正，
-学生端只看到显式发布的 catalog 和审核通过的评价。
+- 外部来源不会直接覆盖已发布目录或人工修正；
+- 学生端只能读取经过显式发布的目录和审核通过的评价；
+- 地图资产可以随应用版本演进，不进入目录数据库和公共接口；
+- 公共产品 API 不持有 Dining 内容运营权限。
+
+## 未采用方案
+
+- 通过 app-api 提供 Dining 管理接口；
+- 为当前不存在的审批组织流程维护候选、审批和排期状态；
+- 让来源同步自动发布目录；
+- 把地图字节、坐标和静态资源地址复制到数据库 release。
+
+## 相关文档
+
+- `../architecture/domains/dining.md`
+- `../data/dining.md`
+- `../runbooks/dining.md`

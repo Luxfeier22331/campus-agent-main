@@ -28,7 +28,7 @@ func TestMetricsPrometheusIncludesCountersAndDurations(t *testing.T) {
 		},
 		Telemetry: TelemetrySnapshot{
 			DroppedCount:      3,
-			ExportedCount:     5,
+			SubmittedCount:    5,
 			FailedCount:       2,
 			SampleRatio:       "0.25",
 			MetricsEnabled:    true,
@@ -53,7 +53,7 @@ func TestMetricsPrometheusIncludesCountersAndDurations(t *testing.T) {
 		`campus_execution_control_personal_memory_selected_chars_count_bucket{operation="recall",le="250.000"} 1`,
 		`campus_execution_control_lifecycle_completed_total{state="completed"} 1`,
 		`campus_execution_control_lifecycle_completed_total{state="failed"} 1`,
-		`campus_execution_control_telemetry_exported_total 5`,
+		`campus_execution_control_telemetry_submitted_total 5`,
 		`campus_execution_control_telemetry_failed_total 2`,
 		`campus_execution_control_telemetry_sample_ratio 0.25`,
 		`campus_execution_control_telemetry_metrics_enabled 1`,

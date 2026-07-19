@@ -56,8 +56,14 @@ describe("ops-web contract fixtures", () => {
 		const trace = OpsObservabilityResponseSchema.parse(opsTraceObservabilityFixture);
 		expect(logs).toMatchObject({ kind: "logs", limit: 200, source: "AXIOM" });
 		expect(trace).toMatchObject({ kind: "trace", limit: 500, source: "AXIOM" });
-		expect(logs.records[0]).toMatchObject({ body: "request completed" });
-		expect(trace.records[0]).toMatchObject({ name: "agent.primary" });
+		expect(logs.records[0]).toMatchObject({
+			eventType: "request.finalized",
+			requestId: "req_ops_001",
+		});
+		expect(trace.records[0]).toMatchObject({
+			name: "agent.primary",
+			productTraceId: "trace_ops_001",
+		});
 	});
 
 	it("rejects non-HTTPS external links", () => {

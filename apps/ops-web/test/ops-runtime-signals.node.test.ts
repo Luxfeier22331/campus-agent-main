@@ -10,6 +10,7 @@ describe("ops runtime signals", () => {
 			const url = String(input);
 			return new Response(null, { status: url.includes("execution-control") ? 503 : 200 });
 		});
+		const getTelemetrySnapshot = vi.fn().mockResolvedValue(opsOverviewFixture.telemetry);
 		const source = createOpsRuntimeSignalsSource({
 			fetchFn,
 			healthUrls: {
@@ -21,12 +22,13 @@ describe("ops runtime signals", () => {
 			},
 			now: () => new Date("2026-07-09T06:30:00.000Z"),
 			axiom: {
-				getTelemetrySnapshot: vi.fn().mockResolvedValue(opsOverviewFixture.telemetry),
+				getTelemetrySnapshot,
 				queryRequest: vi.fn(),
 			},
 		});
+		const controller = new AbortController();
 
-		const snapshot = await source.getSnapshot("15m");
+		const snapshot = await source.getSnapshot("15m", { signal: controller.signal });
 
 		expect(snapshot.services).toHaveLength(5);
 		expect(snapshot.services.find((item) => item.name === "execution-control")).toMatchObject({
@@ -35,6 +37,10 @@ describe("ops runtime signals", () => {
 		});
 		expect(snapshot.services.find((item) => item.name === "app-api")?.status).toBe("HEALTHY");
 		expect(snapshot.telemetry.status).toBe("HEALTHY");
+		expect(getTelemetrySnapshot).toHaveBeenCalledWith("15m", {
+			now: new Date("2026-07-09T06:30:00.000Z"),
+			signal: controller.signal,
+		});
 	});
 
 	it("marks a missing health URL unavailable without failing other services", async () => {

@@ -33,7 +33,7 @@ backup frequency 和 retention 属于环境策略，本 ADR 不固定。所属�
 
 - Qdrant 是可以从已开放上游事实重建的 index，不是 document source。
 - single-node 不具备 high-availability 声明。
-- alias recovery 使用 release metadata，不能假设 collection snapshot 包含 alias truth。
+- alias 恢复使用 release metadata，不能假设 collection snapshot 包含 alias 当前状态。
 - 可执行 release/retention lifecycle 出现前，不允许 collection deletion。
 
 ## 外部参考

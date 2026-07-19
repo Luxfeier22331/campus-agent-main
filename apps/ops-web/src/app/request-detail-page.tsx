@@ -3,9 +3,17 @@ import { Link } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowLeft, ExternalLink, RefreshCw } from "lucide-react";
 import { useRef } from "react";
-import type { OpsObservabilityResponse, OpsRequestDetailResponse } from "../shared/ops-contract";
+import type {
+	OpsObservabilityResponse,
+	OpsRequestDetailResponse,
+	OpsSentryIssuesResponse,
+} from "../shared/ops-contract";
 import { formatDuration, formatTimestamp } from "./format";
-import { fetchOpsObservability, fetchOpsRequestDetail } from "./ops-api-client";
+import {
+	fetchOpsObservability,
+	fetchOpsRequestDetail,
+	fetchOpsSentryIssues,
+} from "./ops-api-client";
 import {
 	BudgetBadge,
 	CopyableKeyValue,
@@ -406,6 +414,10 @@ function RequestObservability({ detail }: { detail: OpsRequestDetailResponse }) 
 		queryFn: ({ signal }) => fetchOpsObservability(detail.request.requestId, "trace", { signal }),
 		queryKey: ["ops", "observability", detail.request.requestId, "trace"],
 	});
+	const sentryIssues = useQuery({
+		queryFn: ({ signal }) => fetchOpsSentryIssues(detail.request.requestId, { signal }),
+		queryKey: ["ops", "sentry-issues", detail.request.requestId],
+	});
 	return (
 		<div className="grid gap-4">
 			<Card>
@@ -453,20 +465,102 @@ function RequestObservability({ detail }: { detail: OpsRequestDetailResponse }) 
 					)}
 				</CardContent>
 			</Card>
+			<SentryIssuesPanel query={sentryIssues} />
 			<div className="grid gap-4 xl:grid-cols-2">
-				<ObservabilityPanel kind="logs" query={logs} title="日志" />
-				<ObservabilityPanel kind="trace" query={trace} title="调用链" />
+				<ObservabilityPanel query={logs} title="日志" />
+				<ObservabilityPanel query={trace} title="调用链" />
 			</div>
 		</div>
 	);
 }
 
+function SentryIssuesPanel({
+	query,
+}: {
+	query: ReturnType<typeof useQuery<OpsSentryIssuesResponse>>;
+}) {
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle>Sentry Issues</CardTitle>
+			</CardHeader>
+			<CardContent className="grid gap-3">
+				{query.isPending ? (
+					<p className="text-slate-500 text-sm" role="status">
+						正在读取 Sentry Issues...
+					</p>
+				) : null}
+				{query.isError ? (
+					<ErrorState
+						error={query.error}
+						onRetry={() => query.refetch()}
+						title="Sentry Issues 读取失败"
+					/>
+				) : null}
+				{query.data ? (
+					<>
+						<div className="flex flex-wrap gap-2 text-xs">
+							<Badge tone={query.data.dataState === "FRESH" ? "success" : "warning"}>
+								{formatDataStateLabel(query.data.dataState)}
+							</Badge>
+							<Badge tone="muted">{query.data.issues.length} 条</Badge>
+							<Badge tone="muted">查询 {formatDuration(query.data.queryDurationMs)}</Badge>
+							{query.data.truncated ? <Badge tone="warning">结果已截断</Badge> : null}
+						</div>
+						<CopyableKeyValue label="Sentry 查询" value={query.data.searchQuery} />
+						{query.data.issues.length === 0 ? (
+							<p className="rounded-md border border-slate-200 bg-slate-50 p-4 text-slate-500 text-sm">
+								当前请求没有关联的 Sentry Issue。
+							</p>
+						) : (
+							<ul aria-label="Sentry Issue 摘要" className="grid gap-2">
+								{query.data.issues.map((issue) => (
+									<li
+										className="grid gap-2 rounded-md border border-slate-200 p-3"
+										key={issue.issueId}
+									>
+										<div className="flex flex-wrap items-start justify-between gap-2">
+											<div className="min-w-0">
+												<p className="font-medium text-slate-950">{issue.title}</p>
+												<p className="text-slate-500 text-xs">
+													{issue.projectName} · {issue.shortId}
+												</p>
+											</div>
+											<a
+												className="inline-flex min-h-9 items-center gap-2 text-sky-700 text-sm hover:text-sky-900"
+												href={issue.permalink}
+												rel="noreferrer"
+												target="_blank"
+											>
+												在 Sentry 查看
+												<ExternalLink className="size-4" />
+											</a>
+										</div>
+										<div className="flex flex-wrap gap-2 text-xs">
+											<Badge tone={issue.status === "resolved" ? "success" : "warning"}>
+												{issue.status}
+											</Badge>
+											{issue.level ? <Badge tone="muted">{issue.level}</Badge> : null}
+											<Badge tone="muted">{issue.eventCount} 个事件</Badge>
+											<span className="text-slate-500">
+												最近：{formatTimestamp(issue.lastSeen)}
+											</span>
+										</div>
+									</li>
+								))}
+							</ul>
+						)}
+					</>
+				) : null}
+			</CardContent>
+		</Card>
+	);
+}
+
 function ObservabilityPanel({
-	kind,
 	query,
 	title,
 }: {
-	kind: "logs" | "trace";
 	query: ReturnType<typeof useQuery<OpsObservabilityResponse>>;
 	title: string;
 }) {
@@ -498,7 +592,7 @@ function ObservabilityPanel({
 							<Badge tone="muted">查询 {formatDuration(query.data.queryDurationMs)}</Badge>
 							{query.data.truncated ? <Badge tone="warning">结果已截断</Badge> : null}
 						</div>
-						<VirtualRecordList kind={kind} records={query.data.records} />
+						<VirtualRecordList response={query.data} />
 					</>
 				) : null}
 			</CardContent>
@@ -506,13 +600,8 @@ function ObservabilityPanel({
 	);
 }
 
-function VirtualRecordList({
-	kind,
-	records,
-}: {
-	kind: "logs" | "trace";
-	records: OpsObservabilityResponse["records"];
-}) {
+function VirtualRecordList({ response }: { response: OpsObservabilityResponse }) {
+	const { kind, records } = response;
 	const parentRef = useRef<HTMLDivElement>(null);
 	const viewportHeight = Math.min(420, Math.max(160, records.length * 144));
 	const virtualizer = useVirtualizer({
@@ -543,9 +632,11 @@ function VirtualRecordList({
 			>
 				{virtualizer.getVirtualItems().length === 0 ? (
 					<li className="absolute left-0 top-0 w-full px-3 py-2">
-						<pre className="max-w-full overflow-x-auto whitespace-pre rounded-md border border-slate-700 bg-slate-900 p-3 font-mono text-slate-100 text-xs">
-							{JSON.stringify(records[0], null, 2)}
-						</pre>
+						{response.kind === "logs" ? (
+							<LogRecordRow record={response.records[0]} />
+						) : (
+							<TraceRecordRow record={response.records[0]} />
+						)}
 					</li>
 				) : (
 					virtualizer.getVirtualItems().map((item) => (
@@ -556,13 +647,62 @@ function VirtualRecordList({
 							ref={virtualizer.measureElement}
 							style={{ transform: `translateY(${item.start}px)` }}
 						>
-							<pre className="max-w-full overflow-x-auto whitespace-pre rounded-md border border-slate-700 bg-slate-900 p-3 font-mono text-slate-100 text-xs">
-								{JSON.stringify(records[item.index], null, 2)}
-							</pre>
+							{response.kind === "logs" ? (
+								<LogRecordRow record={response.records[item.index]} />
+							) : (
+								<TraceRecordRow record={response.records[item.index]} />
+							)}
 						</li>
 					))
 				)}
 			</ul>
+		</div>
+	);
+}
+
+type LogRecord = Extract<OpsObservabilityResponse, { kind: "logs" }>["records"][number];
+type TraceRecord = Extract<OpsObservabilityResponse, { kind: "trace" }>["records"][number];
+
+function LogRecordRow({ record }: { record: LogRecord }) {
+	return (
+		<div className="grid gap-2 rounded-md border border-slate-700 bg-slate-900 p-3 text-slate-100 text-xs">
+			<div className="flex flex-wrap items-center gap-2">
+				<Badge tone={record.severityText === "ERROR" ? "danger" : "muted"}>
+					{record.severityText ?? "UNKNOWN"}
+				</Badge>
+				<span>{formatTimestamp(record.timestamp)}</span>
+				<span>{record.serviceName ?? "未知服务"}</span>
+			</div>
+			<p className="font-medium">{record.eventType ?? record.source ?? "未命名日志事件"}</p>
+			<p className="break-all font-mono text-slate-300">
+				requestId={record.requestId} · traceId={record.productTraceId ?? "未关联"}
+			</p>
+			<p className="text-slate-300">
+				状态：{record.status ?? "未记录"} · 耗时：
+				{record.durationMs === null ? "未记录" : formatDuration(record.durationMs)} · 错误：
+				{record.errorCode ?? "无"}
+			</p>
+		</div>
+	);
+}
+
+function TraceRecordRow({ record }: { record: TraceRecord }) {
+	return (
+		<div className="grid gap-2 rounded-md border border-slate-700 bg-slate-900 p-3 text-slate-100 text-xs">
+			<div className="flex flex-wrap items-center gap-2">
+				<Badge tone={record.hasError ? "danger" : "success"}>
+					{record.hasError ? "ERROR" : (record.statusCode ?? "OK")}
+				</Badge>
+				<span>{formatTimestamp(record.timestamp)}</span>
+				<span>{record.serviceName ?? "未知服务"}</span>
+			</div>
+			<p className="font-medium">{record.name ?? "未命名 Span"}</p>
+			<p className="break-all font-mono text-slate-300">
+				span={record.otelSpanId} · parent={record.parentSpanId ?? "root"}
+			</p>
+			<p className="text-slate-300">
+				类型：{record.kind ?? "未记录"} · 耗时：{record.duration} · requestId={record.requestId}
+			</p>
 		</div>
 	);
 }

@@ -1,18 +1,15 @@
-# stable_reference 集合配置
+# stable_reference 配置
 
-本目录定义离线 `official_web/stable_reference` collection，用于机构、院系和联系方式等长期
-有效的公开网页。
+本目录保存机构、院系、服务入口和联系方式等长期有效公开网页的离线集合配置。正式规章和培养
+方案由各自领域集合维护。
 
-## 当前边界
+## 文件
 
-- `serving-config.json` 为 `offline_preparation`，retrieval 关闭；
-- 该 collection 不在 `configs/runtime/query-serving-targets.v1.json` 中，`knowledge_query`
-  不能选择或搜索它；
-- serving config 中的 Qdrant 名称只保留 artifact identity，不表示在线 alias 已存在；
-- 正式 regulation 与 curriculum document 留在各自 corpus。
+- `split-manifest.v1.json`：公开合成逻辑文档边界；
+- `chunk-profile.json`：规范文档分块配置；
+- `serving-config.json`：集合身份、索引兼容和查询状态。
 
-## 采集
+采集器负责保存来源产物和新鲜度观测；规范化、发布和在线查询能力必须分别由可执行任务与运行
+注册表证明。本 README 不把索引名称或配置文件存在解释为已发布能力。
 
-该 collection 没有可执行 task registry。`official_web.capture` 只生成 source artifact 与 URL
-freshness state。canonical document、chunk/index、release 与 serving publication 全部实现后，
-才可增加可执行 task 或进入在线 target。
+来源范围见 `docs/domains/official-web.md`，采集入口见 `apps/source-collector/README.md`。

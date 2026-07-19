@@ -8,7 +8,7 @@ status: active
 ## 边界
 
 `internal_portal.file_release.capture` 把校内门户的文件发布栏目采集为认证文档来源。它与正式
-notice source truth 分离，也不提供在线文档或规章查询。
+通知来源正文分离，也不提供在线文档或规章查询。
 
 ## 请求
 
@@ -47,7 +47,7 @@ PostgreSQL run ledger 或隐式查询。
 
 ## 不负责
 
-- 修改 notice source truth；
+- 修改通知来源正文；
 - 按标题模糊选择；
 - OCR 或文档归一化；
 - 提升为 regulation；

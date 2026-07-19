@@ -26,9 +26,8 @@ export interface StagingObservabilityCanaryEvidence {
 		campusWebEdge: string;
 	};
 	requestId: string;
-	schemaVersion: 1;
+	schemaVersion: 2;
 	sentinelSha256: string;
-	sentinels: SentryCanarySentinels;
 	runtimeTraceId: string;
 }
 
@@ -112,15 +111,8 @@ export function buildStagingObservabilityCanaryEvidence(input: {
 			campusWebEdge: input.edgeEventId,
 		},
 		requestId: input.requestId,
-		schemaVersion: 1,
+		schemaVersion: 2,
 		sentinelSha256: input.sentinelSha256,
-		sentinels: {
-			body: input.sentinels.body,
-			credential: input.sentinels.credential,
-			header: input.sentinels.header,
-			query: input.sentinels.query,
-			user: input.sentinels.user,
-		},
 		runtimeTraceId: input.runtimeTraceId,
 	};
 	if (JSON.stringify(evidence).includes(input.smokeAuthSecret)) {

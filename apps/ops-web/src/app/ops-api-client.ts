@@ -21,6 +21,7 @@ import {
 	OpsOverviewResponseSchema,
 	OpsRequestDetailResponseSchema,
 	OpsRequestListResponseSchema,
+	OpsSentryIssuesResponseSchema,
 	ProviderConfigStatusSchema,
 } from "../shared/ops-contract";
 
@@ -212,6 +213,17 @@ export async function fetchOpsObservability(
 			`/api/ops/requests/${encodeURIComponent(requestId)}/observability?${query.toString()}`,
 			{ signal: input.signal },
 		),
+	);
+}
+
+export async function fetchOpsSentryIssues(
+	requestId: string,
+	input: { signal?: AbortSignal } = {},
+) {
+	return OpsSentryIssuesResponseSchema.parse(
+		await fetchJson(`/api/ops/requests/${encodeURIComponent(requestId)}/sentry-issues`, {
+			signal: input.signal,
+		}),
 	);
 }
 

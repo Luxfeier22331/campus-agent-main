@@ -148,7 +148,6 @@ export async function runObservabilityStaging(
 	if (sentry.sentinelSha256 !== sentinelSha256) {
 		throw new Error("Sentry canary did not preserve the shared canonical sentinel hash.");
 	}
-
 	const evidence = buildStagingObservabilityCanaryEvidence({
 		appApiEventId: sentry.appApiEventId,
 		appApiRelease: sentry.appApiRelease,

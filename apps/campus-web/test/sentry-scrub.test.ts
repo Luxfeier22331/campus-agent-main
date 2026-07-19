@@ -37,7 +37,13 @@ describe("campus Sentry privacy boundary", () => {
 				query_string: "token=secret",
 				url: "https://campus.muc.wiki/api/chat/runs/run_secret/cancel?token=secret",
 			},
-			tags: { app: "campus-web", message_id: "msg_secret", surface: "campus-web" },
+			tags: {
+				app: "campus-web",
+				"campus.request_id": "req_secret",
+				"campus.trace_id": "trace_secret",
+				message_id: "msg_secret",
+				surface: "campus-web",
+			},
 			type: undefined,
 			user: { email: "student@example.edu", id: "user_secret" },
 		} satisfies ErrorEvent);
@@ -45,7 +51,12 @@ describe("campus Sentry privacy boundary", () => {
 		expect(event.request).toEqual({ method: "POST", url: "/api/chat/runs/:runId/cancel" });
 		expect(event.extra).toBeUndefined();
 		expect(event.user).toBeUndefined();
-		expect(event.tags).toEqual({ app: "campus-web", surface: "campus-web" });
+		expect(event.tags).toEqual({
+			app: "campus-web",
+			"campus.request_id": "req_secret",
+			"campus.trace_id": "trace_secret",
+			surface: "campus-web",
+		});
 		expect(event.exception?.values?.[0]?.value).toBe("ProviderError");
 	});
 

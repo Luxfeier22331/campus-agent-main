@@ -305,10 +305,10 @@ function requireStringField(value: Record<string, unknown>, field: string): stri
 	return raw;
 }
 
-function readSubmitIdentity(
+async function readSubmitIdentity(
 	event: ProductStreamEvent,
 	accepted: Pick<SubmitIdentity, "requestId" | "runId" | "traceId">,
-): SubmitIdentity {
+): Promise<SubmitIdentity> {
 	const answer = event.data.answer;
 	if (!answer || typeof answer !== "object" || Array.isArray(answer)) {
 		throw new Error("request.completed must include answer payload.");
@@ -327,7 +327,7 @@ function readSubmitIdentity(
 		requestId,
 		resultKind: requireStringField(resultRecord, "kind"),
 		runId: accepted.runId,
-		runtimeTraceId: deriveLangfuseTraceId(traceId),
+		runtimeTraceId: await deriveLangfuseTraceId(traceId),
 		traceId,
 	};
 }
@@ -367,7 +367,7 @@ async function submitStream(input: {
 			if (!accepted) {
 				throw new Error("Memory chat stream completed before request.accepted.");
 			}
-			return readSubmitIdentity(event, accepted);
+			return await readSubmitIdentity(event, accepted);
 		}
 	}
 	throw new Error("Memory chat submit stream ended before request.completed.");

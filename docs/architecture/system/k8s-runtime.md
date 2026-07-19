@@ -3,124 +3,73 @@ doc_type: architecture
 owner_boundary: temporal-worker-runtime
 status: active
 ---
+
 # Kubernetes 运行时
 
 ## 边界
 
-本文定义源码仓拥有的 Temporal worker Kubernetes base 和与其直接相关的固定集群操作。
-环境仓拥有 Argo CD Application、namespace、immutable image digest、Helm value、encrypted
-Secret 和环境 patch。
+本文定义源码仓中的 Temporal worker Kubernetes 基础资源及其平台职责。环境仓负责 Argo CD
+Application、namespace、不可变镜像、环境配置、凭据和实际资源规格。
 
 ## 运行时基础
 
-`infra/k8s/execution-runtime/base` 和 `infra/k8s/ingestion-runtime/base` 分别提供 execution 与
-ingestion API/service、Temporal `WorkerDeployment`、`Connection`、
-`WorkerResourceTemplate`、ServiceAccount 和 NetworkPolicy。
+`infra/k8s/execution-runtime/base` 与 `infra/k8s/ingestion-runtime/base` 分别描述 execution 和
+ingestion 运行时。精确资源、标签、探针和配置引用以 Kustomize base 为准，不在架构文档维护
+副本。源码 base 不选择具体环境或可变镜像标签。
 
-ingestion base 还包含 `ingestion-schedule-sync` PostSync Job，用于对齐固定的内部门户认证维护
-Schedule。source-collector 通过可选完整 Secret 卷读取 TGC；`infra/k8s/ops-web/base` 只为
-Ops Web 增加固定 Secret 的资源名级 `get`、`patch` 权限，不提供通用集群管理权限。
-
-具体资源清单以 Kustomize base 为准，不在架构文档复制。first-party base 不选择 namespace、
-环境 Secret 或 mutable image tag。
-
-## 平台前置条件
-
-Temporal Server、Temporal Worker Controller、KEDA 和 cert-manager 必须使用相互兼容、支持
-本仓库 CRD/API 的 pinned version。具体版本和 Helm value 由环境仓维护。
-
-Worker Controller 及 apply `WorkerResourceTemplate` 的 principal 必须具备管理模板中 KEDA
-`ScaledObject` 和 `PodDisruptionBudget` 的最小权限。
+Temporal Server、Worker Controller、KEDA 与 cert-manager 属于平台前置条件。它们的版本和
+配置由环境仓维护，并必须支持源码 base 使用的 API。
 
 ## Worker 版本
 
-Worker Controller 根据 pod template 创建每个 build 的 Kubernetes Deployment，并注入：
+生产 worker 使用 Temporal Worker Deployment Versioning。Worker Controller 根据 worker 模板
+创建构建版本，注入运行身份并管理版本路由；应用只读取该身份，不自行生成或覆盖。
 
-- `TEMPORAL_DEPLOYMENT_NAME`
-- `TEMPORAL_WORKER_BUILD_ID`
-
-Go/TypeScript worker 要求两个变量同时存在，启用 Temporal Worker Deployment Versioning，
-默认使用 `PINNED`。local worker 可以同时省略；只提供一个变量时启动失败。
-
-rollout strategy 使用 `AllAtOnce`。旧 version 在 Temporal 判定 pinned work 已 drain 前保持
-可用，再由 WorkerDeployment sunset policy 处理。Argo CD 不得独立 prune controller 创建的
-version Deployment。具体时间值属于环境配置。
+新版本先启动 poller 并注册为可用构建，旧版本在已有任务完成前继续服务。版本切换、保留时间和
+清理由 Temporal 与环境配置共同控制，Argo CD 不直接接管 controller 创建的版本 Deployment。
 
 ## 自动扩缩
 
-`WorkerResourceTemplate` 为每个 active worker build 创建 `ScaledObject` 和 PDB，controller
-注入 `scaleTargetRef`。KEDA 直接读取 Temporal backlog，不经过应用进程、数据库 projection
-或 custom autoscaler。
+Worker Controller 为活动构建物化 KEDA 扩缩资源。KEDA 读取 Temporal backlog，副本数不经过
+应用进程、数据库投影或仓库自研扩缩器决定。
 
-新 build 必须能够先启动 poller、注册 Worker Deployment version 并成为 current；baseline
-replica posture 和具体 trigger/threshold 由环境配置及所属 queue 需求决定。单 pod activity
-并发由 SDK worker option 限制，fleet capacity 由 KEDA replica 扩展。
+单个 worker 的并发由 SDK 配置限制，整个 worker 组的容量由 KEDA 调整。具体阈值、最小副本和
+故障可用性要求属于环境配置。
 
-## Desired State 所有权
+## 状态职责
 
-Argo CD 拥有：
+- Argo CD 选择源码声明的基础资源、不可变镜像和环境配置；
+- Temporal 保存 workflow/activity history 并管理版本路由；
+- KEDA/HPA 管理副本数；
+- PostgreSQL 只保存产品或采集投影。
 
-- Connection、WorkerDeployment 和 WorkerResourceTemplate 期望状态；
-- 不可变第一方镜像 digest；
-- 环境 ConfigMap、Secret、schema job 和网络补丁；
-- 平台 chart 版本和同步顺序。
+workflow 代码不得部署、重启或修改自己的 Kubernetes 资源。
 
-Temporal 拥有 workflow/activity history 和 version routing；KEDA/HPA 拥有 replica count；
-PostgreSQL 只保存产品或 ingestion projection。workflow 不得部署、重启或修改自己的 worker
-resource。
+## 网络与凭据
 
-## 网络与 Secret
+源码 base 默认最小化网络访问，环境 overlay 根据真实 endpoint 进一步限制。浏览器不能直连
+Temporal、worker、数据库或对象存储。
 
-repository base 默认拒绝 ingress/egress，只开放 DNS 以及必需的 Temporal、PostgreSQL、
-object-store、OTLP、provider HTTPS 和 private-service traffic。环境 overlay 收窄 endpoint，
-并增加 private connector/VPC binding。浏览器不得直连 Temporal、worker、PostgreSQL 或
-object storage。
+环境仓为不同服务提供最小权限凭据，并满足源码声明的消费合同。运行身份、用户凭据和外部服务
+凭据不能混用；精确 Secret、NetworkPolicy 和地址以 base 与环境配置为准。
 
-共享 namespace 中的宽策略必须排除带 `campus-agent.muc.wiki/network-policy-profile` 的 Pod，
-由对应应用的专用策略完整声明其允许流量。Kubernetes NetworkPolicy 的允许规则取并集，专用
-策略不能覆盖另一条宽策略已经允许的流量。
+## 镜像与发布
 
-这些宽策略仍是现有共享 namespace 的兼容边界：没有专用 profile 的 Pod 会继续继承其允许
-集合。新增独立应用必须在首次部署时同时提供 profile、完整专用策略和宽策略排除，不能假定
-应用自己的 NetworkPolicy 会覆盖已有允许规则。
+源码 CI 生成并校验不可变候选物，环境仓通过 digest 选择部署版本。候选物存在不表示已部署；
+实际状态由环境 revision 和 controller 状态确认。发布操作见 `docs/runbooks/release.md`。
 
-database、object-store、provider、telemetry、memory 和 internal API Secret 必须分离。
-Worker Controller 注入的 version 变量是 runtime identity，不是用户管理 Secret。
+## 不允许的形态
 
-内部门户 TGC 使用环境预创建的 `source-collector-internal-portal-auth`，key 固定为
-`sso_tgc`。source-collector 只读完整卷投影；Ops Web 只能读取和 patch 该 Secret，不能
-创建、列举、删除或操作其他 Secret。日常轮换不生成环境仓 Git 变更。
-
-## Image 与发布
-
-源码 CI 构建、测试、扫描并发布不可变 image candidate；环境 GitOps 通过 digest 选择实际
-部署版本。mutable tag 不是部署事实。不同 runtime image 的内容和发布 lane 以 Dockerfile、
-workflow 和环境消费者为准，不在本文维护动态 inventory。
-
-## 验证
-
-```bash
-kubectl kustomize infra/k8s/execution-runtime/base
-kubectl kustomize infra/k8s/ingestion-runtime/base
-kubeconform -strict -ignore-missing-schemas rendered.yaml
-```
-
-cluster verification 应检查 WorkerDeployment status、current/target build id、
-WorkerResourceTemplate、生成的 Deployment/ScaledObject/PDB、KEDA condition、Temporal poller
-和 draining version。
-
-## 禁止形态
-
-- production Temporal worker 使用 static Deployment；
-- static ScaledObject 绑定单一 worker Deployment；
-- custom task-queue sampler 或 replica actuator；
-- workflow code 调用 Kubernetes 或 Argo CD；
-- 用户维护 Worker build id；
-- 未版本化的 production poller。
+- production Temporal worker 使用不受版本控制的静态 Deployment；
+- 为单一 worker Deployment 维护静态扩缩资源；
+- 使用自研 task queue 采样器或副本执行器替代 Temporal 与 KEDA；
+- workflow 调用 Kubernetes 或 Argo CD；
+- 应用自行维护 worker build identity。
 
 ## 相关文档
 
 - `docs/decisions/adr-0078-worker-versioning.md`
 - `docs/runbooks/temporal.md`
+- `docs/runbooks/release.md`
 - `docs/architecture/system/durable-runtime.md`
 - `docs/architecture/system/data-plane.md`

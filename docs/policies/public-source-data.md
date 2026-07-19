@@ -34,12 +34,12 @@ evidence 的具体保留周期。
 - secret、token、password、database URL、private endpoint 或 object-store key；
 - 无再分发权利的 raw notice、采集 HTML、attachment、OCR output、source-derived document 或
   地图数据；
-- 权利不清楚的真实 eval case、gold truth、photograph、logo、model/tokenizer asset；
+- 权利不清楚的真实评测样例、标准答案、照片、logo、模型或 tokenizer 资产；
 - canonical document artifact、chunk、index、embedding、Qdrant dump 或 provider response；
 - current pointer、mutable production projection、object-store manifest 等运行状态；
 - 真实 cluster/machine 名、private hostname、IP/CIDR topology、environment Helm value、Argo
   Application 或 encrypted secret inventory；
-- 本地生成的 crawl output、log、trace、closeout file 或 publication artifact。
+- 本地生成的抓取产物、日志、调用链、任务终结文件或发布产物。
 
 ## Provenance 分类
 
@@ -62,7 +62,7 @@ self-authored 数据与 synthetic example。
 ## 检查
 
 - 涉及公开发布的变更执行 `pnpm repo:static`；
-- 修改 fixture、source config、public asset 或 eval sample 后执行所属 owner 测试和 source
+- 修改 fixture、来源配置、公开资产或评测样例后执行所属模块测试和来源
   hygiene 检查；
 - 修改 dependency lock 后执行 dependency license policy 检查；
 - 私有仓库首次公开前单独扫描 git history；working-tree 检查不能证明历史记录干净。

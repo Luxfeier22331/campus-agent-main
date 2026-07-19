@@ -129,7 +129,9 @@ func TestHindsightHTTPClientPropagatesTraceContextAndPreservesAuthorization(t *t
 	for _, item := range spans[0].Attributes() {
 		attributes[item.Key] = item.Value.AsString()
 	}
-	if attributes["memory.provider"] != "hindsight" || attributes["http.request.method"] != http.MethodGet {
+	if attributes["memory.provider"] != "hindsight" ||
+		attributes["http.request.method"] != http.MethodGet ||
+		attributes["langfuse.user.id"] != "bank-01" {
 		t.Fatalf("memory span attributes = %#v", attributes)
 	}
 }

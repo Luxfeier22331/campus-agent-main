@@ -7,6 +7,7 @@ import { createFixtureOpsStatusStore } from "../src/server/ops-status-store";
 import {
 	opsLogObservabilityFixture,
 	opsOverviewFixture,
+	opsSentryIssuesFixture,
 	opsTraceObservabilityFixture,
 } from "../src/shared/ops-fixtures";
 
@@ -25,6 +26,9 @@ beforeAll(() => {
 		},
 		overviewService: {
 			getOverview: vi.fn(async () => opsOverviewFixture),
+		},
+		sentry: {
+			queryRequestIssues: vi.fn().mockResolvedValue(opsSentryIssuesFixture),
 		},
 		internalPortalAuthStore: {
 			getStatus: vi.fn().mockResolvedValue({

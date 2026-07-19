@@ -21,7 +21,7 @@ function parseArgs(argv: string[]): {
 			json: false,
 			repoRootArg: repoRoot,
 			selfTest: true,
-			surface: "evals",
+			surface: "query",
 		};
 	}
 	let repoRootArg = repoRoot;

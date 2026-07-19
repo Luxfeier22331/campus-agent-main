@@ -120,10 +120,13 @@ components:
       enum:
         - created
         - queued
+        - admitted
         - running
+        - streaming
         - completed
         - failed
         - canceled
+        - expired
     ExecutionRunCreateRequest:
       type: object
       additionalProperties: false

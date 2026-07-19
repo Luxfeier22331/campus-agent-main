@@ -89,7 +89,9 @@ docker run --rm \
 				exit 1
 			fi
 			yq -i ".data.EXECUTION_CONTROL_RUNTIME_RELEASE =
-				(\"execution-control@\" + strenv(SHORT_SHA))" "${runtime_config}"
+				(\"execution-runtime@\" + strenv(SHORT_SHA)) |
+				.data.LANGFUSE_RELEASE =
+				(\"execution-runtime@\" + strenv(SHORT_SHA))" "${runtime_config}"
 		fi
 	'
 

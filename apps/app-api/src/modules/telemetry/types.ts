@@ -20,6 +20,7 @@ export interface AppTelemetry {
 	captureException(
 		error: unknown,
 		input?: {
+			requestId?: string | null;
 			route?: string;
 			status?: number;
 			surface?: string;
@@ -32,6 +33,7 @@ export interface AppTelemetry {
 		},
 	): void;
 	configureHttpRequestScope(input: {
+		requestId?: string | null;
 		route: string;
 		surface: string;
 		traceId?: string | null;

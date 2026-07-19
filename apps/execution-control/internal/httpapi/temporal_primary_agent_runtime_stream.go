@@ -31,6 +31,7 @@ func (s *Server) callAgentRuntime(
 	defer cancel()
 	payload := map[string]any{
 		"activity_attempt":   activityAttempt,
+		"user_id":            run.OwnerUserID,
 		"run_id":             input.RunID,
 		"request_id":         run.RequestID,
 		"conversation_id":    input.ConversationID,

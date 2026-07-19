@@ -31,7 +31,6 @@ describe("execution control requester", () => {
 			},
 			{
 				fetchImplementation: fetchImplementation as typeof fetch,
-				traceDataProvider: () => ({}),
 			},
 		);
 
@@ -59,9 +58,7 @@ describe("execution control requester", () => {
 				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 				EXECUTION_CONTROL_TIMEOUT_MS: "1000",
 			},
-			{
-				traceDataProvider: () => ({}),
-			},
+			{},
 		);
 
 		await expect(
@@ -96,7 +93,6 @@ describe("execution control requester", () => {
 			},
 			{
 				fetchImplementation: overrideFetch,
-				traceDataProvider: () => ({}),
 			},
 		);
 
@@ -118,9 +114,7 @@ describe("execution control requester", () => {
 				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 				EXECUTION_CONTROL_TIMEOUT_MS: "1000",
 			},
-			{
-				traceDataProvider: () => ({}),
-			},
+			{},
 		);
 
 		await expect(

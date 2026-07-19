@@ -1,14 +1,4 @@
-import { createHash } from "node:crypto";
-
 import type { TraceDataLike } from "./trace";
-
-export function hashIdentifier(value: string | null): string | null {
-	if (!value?.trim()) {
-		return null;
-	}
-
-	return createHash("sha256").update(value).digest("hex").slice(0, 16);
-}
 
 export function normalizeString(value: string | null | undefined): string | null {
 	const trimmed = value?.trim();

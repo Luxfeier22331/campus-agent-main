@@ -25,7 +25,7 @@ export function createOpsRuntimeSignalsSource(input: {
 	const healthTimeoutMs = input.healthTimeoutMs ?? DEFAULT_HEALTH_TIMEOUT_MS;
 
 	return {
-		async getSnapshot(window) {
+		async getSnapshot(window, queryInput = {}) {
 			const checkedAt = now();
 			const [services, telemetry] = await Promise.all([
 				Promise.all(
@@ -35,12 +35,13 @@ export function createOpsRuntimeSignalsSource(input: {
 							displayName,
 							fetchFn,
 							name,
+							signal: queryInput.signal,
 							timeoutMs: healthTimeoutMs,
 							url: input.healthUrls[name],
 						}),
 					),
 				),
-				readTelemetry(input.axiom, window, checkedAt),
+				readTelemetry(input.axiom, window, checkedAt, queryInput.signal),
 			]);
 			return { services, telemetry } satisfies OpsRuntimeSignalsSnapshot;
 		},
@@ -52,9 +53,11 @@ async function checkService(input: {
 	displayName: string;
 	fetchFn: typeof fetch;
 	name: OpsHealthServiceName;
+	signal?: AbortSignal;
 	timeoutMs: number;
 	url: string | undefined;
 }): Promise<OpsOverviewResponse["services"][number]> {
+	input.signal?.throwIfAborted();
 	const url = normalizeHealthUrl(input.url);
 	if (!url) {
 		return {
@@ -67,10 +70,11 @@ async function checkService(input: {
 		};
 	}
 	try {
+		const timeoutSignal = AbortSignal.timeout(input.timeoutMs);
 		const response = await input.fetchFn(url, {
 			headers: { accept: "application/json" },
 			method: "GET",
-			signal: AbortSignal.timeout(input.timeoutMs),
+			signal: input.signal ? AbortSignal.any([input.signal, timeoutSignal]) : timeoutSignal,
 		});
 		return {
 			dataState: "FRESH",
@@ -80,7 +84,10 @@ async function checkService(input: {
 			status: response.ok ? "HEALTHY" : "OUTAGE",
 			updatedAt: input.checkedAt.toISOString(),
 		};
-	} catch {
+	} catch (error) {
+		if (input.signal?.aborted) {
+			throw error;
+		}
 		return {
 			dataState: "FRESH",
 			displayName: input.displayName,
@@ -96,10 +103,14 @@ async function readTelemetry(
 	axiom: AxiomClient,
 	window: OpsOverviewWindow,
 	now: Date,
+	signal?: AbortSignal,
 ): Promise<OpsOverviewResponse["telemetry"]> {
 	try {
-		return await axiom.getTelemetrySnapshot(window, now);
-	} catch {
+		return await axiom.getTelemetrySnapshot(window, { now, signal });
+	} catch (error) {
+		if (signal?.aborted) {
+			throw error;
+		}
 		return {
 			dataState: "UNAVAILABLE",
 			reason: "Axiom 查询失败。",

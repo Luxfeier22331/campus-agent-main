@@ -118,36 +118,27 @@ describe("app telemetry", () => {
 		});
 	});
 
-	it("derives deterministic Langfuse-compatible trace ids from product trace ids", () => {
-		const traceId = deriveLangfuseTraceId("trace_0001");
+	it("derives deterministic Langfuse-compatible trace ids from product trace ids", async () => {
+		const traceId = await deriveLangfuseTraceId("trace_0001");
 
 		expect(traceId).toMatch(/^[0-9a-f]{32}$/u);
-		expect(traceId).toBe(deriveLangfuseTraceId("trace_0001"));
-		expect(traceId).not.toBe(deriveLangfuseTraceId("trace_0002"));
+		expect(traceId).toBe(await deriveLangfuseTraceId("trace_0001"));
+		expect(traceId).not.toBe(await deriveLangfuseTraceId("trace_0002"));
 		expect(traceParentForLangfuseTraceId(traceId)).toBe(`00-${traceId}-0000000000000001-01`);
 	});
 
-	it("matches shared Langfuse trace id derivation vectors used by eval publishing", () => {
+	it("matches shared Langfuse trace id derivation vectors used by eval publishing", async () => {
 		for (const vector of langfuseTraceIdVectors()) {
-			expect(deriveLangfuseTraceId(vector.product_trace_id)).toBe(vector.langfuse_trace_id);
+			expect(await deriveLangfuseTraceId(vector.product_trace_id)).toBe(vector.langfuse_trace_id);
 			expect(traceParentForLangfuseTraceId(vector.langfuse_trace_id)).toBe(vector.traceparent);
 		}
 	});
 
-	it("pins execution-control traceparent to the product-derived Langfuse trace id", () => {
-		const traceHeaders = ensureLangfuseTraceParent(
-			{
-				baggage: "session=conv_01",
-				sentryTrace: "4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-1",
-				traceParent: "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
-			},
-			"trace_0001",
-		);
-		const langfuseTraceId = deriveLangfuseTraceId("trace_0001");
+	it("pins the internal traceparent and drops browser propagation headers", async () => {
+		const traceHeaders = await ensureLangfuseTraceParent("trace_0001");
+		const langfuseTraceId = await deriveLangfuseTraceId("trace_0001");
 
 		expect(traceHeaders).toEqual({
-			baggage: "session=conv_01",
-			sentryTrace: "4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-1",
 			traceParent: `00-${langfuseTraceId}-0000000000000001-01`,
 		});
 	});
@@ -193,18 +184,20 @@ describe("app telemetry", () => {
 			traceId: "trace_01",
 		});
 
-		expect(sentryMocks.setTag).not.toHaveBeenCalledWith("request_id", "req_01");
+		expect(sentryMocks.setTag).toHaveBeenCalledWith("campus.request_id", "req_01");
+		expect(sentryMocks.setTag).toHaveBeenCalledWith("campus.trace_id", "trace_01");
 		expect(sentryMocks.setTag).not.toHaveBeenCalledWith("safety_identifier", safetyIdentifier);
 		expect(sentryMocks.setTag).not.toHaveBeenCalledWith("principal_type", "campus_member");
 		expect(sentryMocks.setContext).not.toHaveBeenCalled();
-		expect(sentryMocks.setTag).toHaveBeenCalledWith("correlation_hash", expect.any(String));
+		expect(sentryMocks.setTag).not.toHaveBeenCalledWith("correlation_hash", expect.any(String));
 		expect(runtimeEventSink.emit).toHaveBeenCalledWith(
 			expect.objectContaining({
 				environment: "staging",
 				event_type: "request.accepted",
 				occurred_at: "2026-04-20T12:30:00.000Z",
 				principal_type: "campus_member",
-				request_id: "req_01",
+				"campus.request_id": "req_01",
+				"campus.trace_id": "trace_01",
 				release: "app-api@2026.04.20",
 			}),
 		);
@@ -281,7 +274,7 @@ describe("app telemetry", () => {
 			expect.objectContaining({
 				duration_ms: 5500,
 				event_type: "request.finalized",
-				request_id: "req_01",
+				"campus.request_id": "req_01",
 				stage_timing_budget_state: "critical",
 				"stream.browser_ttft_ms": 5500,
 			}),

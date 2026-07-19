@@ -51,8 +51,22 @@ valid_ops_web_egress_policy := {
 				}}}],
 				"ports": [{"protocol": "TCP", "port": 8000}],
 			},
+			{
+				"to": [{"ipBlock": {"cidr": "0.0.0.0/0"}}],
+				"ports": [{"protocol": "TCP", "port": 443}],
+			},
 		],
 	},
+}
+
+ops_web_policy_with_external_rule(peer, allowed_port) := policy if {
+	egress := array.concat(
+		array.slice(valid_ops_web_egress_policy.spec.egress, 0, 5),
+		[{"to": [peer], "ports": [allowed_port]}],
+	)
+	policy := object.union(valid_ops_web_egress_policy, {
+		"spec": object.union(valid_ops_web_egress_policy.spec, {"egress": egress}),
+	})
 }
 
 test_match_labels_policy_selecting_ops_web_without_profile_exclusion_is_rejected if {
@@ -266,6 +280,52 @@ test_ops_web_port_cannot_add_end_port if {
 			"podSelector": {"matchLabels": {"app.kubernetes.io/name": "ops-web"}},
 		},
 	}
+	"NetworkPolicy ops-web-egress contains a destination or port outside its dependency allowlist" in violations
+}
+
+test_ops_web_external_egress_is_required if {
+	policy := object.union(valid_ops_web_egress_policy, {
+		"spec": object.union(valid_ops_web_egress_policy.spec, {
+			"egress": array.slice(valid_ops_web_egress_policy.spec.egress, 0, 5),
+		}),
+	})
+	violations := violation with input as policy
+	"NetworkPolicy ops-web-egress must allow external HTTPS on TCP 443" in violations
+}
+
+test_ops_web_external_egress_cannot_use_http if {
+	policy := ops_web_policy_with_external_rule(
+		{"ipBlock": {"cidr": "0.0.0.0/0"}},
+		{"protocol": "TCP", "port": 80},
+	)
+	violations := violation with input as policy
+	"NetworkPolicy ops-web-egress contains a destination or port outside its dependency allowlist" in violations
+}
+
+test_ops_web_external_egress_must_use_tcp if {
+	policy := ops_web_policy_with_external_rule(
+		{"ipBlock": {"cidr": "0.0.0.0/0"}},
+		{"protocol": "UDP", "port": 443},
+	)
+	violations := violation with input as policy
+	"NetworkPolicy ops-web-egress contains a destination or port outside its dependency allowlist" in violations
+}
+
+test_ops_web_external_egress_cannot_change_cidr if {
+	policy := ops_web_policy_with_external_rule(
+		{"ipBlock": {"cidr": "203.0.113.0/24"}},
+		{"protocol": "TCP", "port": 443},
+	)
+	violations := violation with input as policy
+	"NetworkPolicy ops-web-egress contains a destination or port outside its dependency allowlist" in violations
+}
+
+test_ops_web_external_egress_cannot_add_ip_block_except if {
+	policy := ops_web_policy_with_external_rule(
+		{"ipBlock": {"cidr": "0.0.0.0/0", "except": ["10.0.0.0/8"]}},
+		{"protocol": "TCP", "port": 443},
+	)
+	violations := violation with input as policy
 	"NetworkPolicy ops-web-egress contains a destination or port outside its dependency allowlist" in violations
 }
 

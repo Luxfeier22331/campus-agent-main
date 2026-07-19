@@ -8,17 +8,17 @@ status: active
 
 ## 边界
 
-`apps/app-api` 拥有 conversation、message、run 关联、archive/pin/delete、答案反馈和编辑截断
-真相。campus-web 只渲染投影并通过本文接口发送命令。
+`apps/app-api` 负责 conversation、message、run 关联、archive/pin/delete、答案反馈和编辑截断。
+campus-web 只渲染投影并通过本文接口发送命令。
 
 默认问答使用 app-api 持久生命周期 SSE：`POST /api/chat/requests/stream` 创建或继续 run，
 `GET /api/chat/runs/:runId/events/stream` 恢复事件消费。本文不定义 provider raw token stream、
-分享导出、附件上传、批处理或浏览器本地 conversation truth。
+分享导出、附件上传、批处理或浏览器本地会话状态。
 
 ## 鉴权
 
 - 所有接口要求具有 chat access 的 end-user session principal；
-- conversation 和 run 只能由当前 owner 访问；
+- conversation 和 run 只能由当前用户访问；
 - soft-deleted conversation 不进入列表、搜索或详情；
 - 搜索不匹配 raw trace、source ref、provider internal 或内部错误；
 - 错误使用 `error.md` 的共享 envelope。
@@ -76,7 +76,7 @@ pinned conversation 排在其他 conversation 前，组内按 `updatedAt desc`�
 `vote` 允许 `helpful|unhelpful`；`reasonCodes` 只适用于 `unhelpful`。error message 不接受
 反馈。
 
-反馈真相保存在 app-api：
+反馈记录保存在 app-api：
 
 - 隐藏 campus-web 入口只停止新增，不删除 `chat.message_feedback`；
 - 未登录、跨用户、非 assistant、`kind=error` 或缺少 `requestId` 必须失败关闭；
@@ -104,7 +104,7 @@ type ChatRequest = {
 - `prompt` trim 后必须非空；
 - public chat 不接受 routing 字段；
 - execution-control 提供已准入 tool catalog，Primary Agent 决定是否调用；
-- forced `knowledge_query` 只允许 `eval-benchmark.md` 的受信任内部评测合同；
+- 当前评测运行器使用同一公开产品路径，不强制指定工具；
 - accept 后的执行失败保留 request/run 关联并返回 chat-visible error；accept 前拒绝使用共享错误
   envelope。
 
@@ -126,7 +126,7 @@ type ChatRequest = {
 规则：
 
 - accept transaction 和 durable run 创建完成后才能发送 `request.accepted`，并携带 `runId`；
-- `answer.delta` 只来自持久 `run.answer_delta` 投影，用于显示，不是最终答案真相；
+- `answer.delta` 只来自持久 `run.answer_delta` 投影，用于显示，不代表最终答案；
 - finalization transaction 完成后才能发送 terminal event；
 - 浏览器断开只停止消费，不取消 finalization；
 - 已发送 delta 后，终态不得再次把完整答案伪造成 delta。
@@ -135,13 +135,13 @@ type ChatRequest = {
 
 ### 取消
 
-`POST /api/chat/runs/:runId/cancel` 只允许 owner 取消未终态 run。终态返回 typed
-non-retryable error；成功请求不生成答案。
+`POST /api/chat/runs/:runId/cancel` 只允许当前用户取消未终态 run。终态返回类型化、不可重试的
+错误；成功请求不生成答案。
 
 ### 摘要
 
-`GET /api/chat/runs/:runId` 返回 owner 可见的产品 run summary，不暴露 execution-control raw
-storage。
+`GET /api/chat/runs/:runId` 返回当前用户可见的产品 run 摘要，不暴露 execution-control 原始
+存储。
 
 ### 事件列表
 
@@ -159,7 +159,7 @@ storage。
 
 ### 步骤轨迹
 
-`GET /api/chat/runs/:runId/steps` 返回 owner 可见的受控 `run`、`steps`、`attempts` 和
+`GET /api/chat/runs/:runId/steps` 返回当前用户可见的受控 `run`、`steps`、`attempts` 和
 `results`。它不是 execution-control raw passthrough，可用于验证 memory recall 等步骤，不依赖
 答案正文。
 

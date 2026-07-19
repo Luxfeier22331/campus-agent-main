@@ -1,25 +1,18 @@
 # Official Web 来源配置
 
-本目录保存 `official_web` source channel 的仓库配置。
+本目录保存 Official Web 离线采集的站点配置。配置由 source-collector 加载和校验，不是在线查询
+目标、文档发布或检索配置。
 
-- `site.json`：site identity 与共享 runtime baseline；
-- `hosts.json`：host 准入、crawl/robots policy、分组与 rollout order；
-- `seeds.json`：仓库维护的 seed URL 与理由；
-- `crawl-policy.json`：共享 URL、content 与 frontier policy；
-- `scheduler-policy.json`：lane identity、cadence、host scope 与每次 run 的 budget；
-- `credentials.schema.json`：runtime secret 结构，不保存 secret；
-- `projection-declarations.json`：target 已明确准入后使用的 page-family action hint；
-- `target-source-map.json`：target-first 准入映射；
-- `consumer-denominator.json`：下游消费 retained source truth 的 denominator；
-- `target-inventory.json`：已准入 target 的运维清单。
+每个站点目录可以包含：
 
-host policy group 只在来源层分区；它不会创建新的 source channel、retrieval collection 或
-query-serving surface。
+- `site.json`、`hosts.json`、`seeds.json`：站点、允许访问的主机和初始网址；
+- `crawl-policy.json`、`scheduler-policy.json`、`qc-policy.json`：抓取、调度和质量策略；
+- `credentials.schema.json`：运行时凭据结构，不保存凭据；
+- `source-packs/`、`target-source-map.json`、`target-inventory.json`：有明确采集目的的离线抓取清单与匹配规则；
+- `consumer-denominator.json`：页面分类和来源产物保留规则；
+- `projection-declarations.json`：页面类别的离线处理提示。
 
-scheduler lane 以明确 `lane_id` 作为稳定 run key。不同 `lane_id` 可以共享 `run_intent`；
-host 范围与 rollout 顺序由配置文件决定，不在 README 复制具体值。
+具体主机、预算、周期、匹配词和保留动作只由 JSON 配置维护。采集完成不代表规范文档、索引、
+release 或在线知识目标已经存在。
 
-这些文件是 source-channel 事实，不是 collection serving config；它们不能证明 document、
-chunk、index、release 或 serving alias 已发布。
-
-采集、产物、时效状态和在线边界见 `docs/domains/official-web.md`。
+采集链路和在线边界见 `docs/domains/official-web.md`。

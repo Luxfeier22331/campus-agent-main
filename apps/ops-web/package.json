@@ -22,6 +22,7 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
+		"@axiomhq/js": "1.8.0",
 		"@campus-agent/dining": "workspace:*",
 		"@hono/node-server": "^1.19.14",
 		"@kubernetes/client-node": "1.4.0",
@@ -43,8 +44,8 @@
 	},
 	"devDependencies": {
 		"@playwright/test": "^1.61.1",
-		"@testcontainers/postgresql": "12.0.4",
 		"@tailwindcss/vite": "^4.3.2",
+		"@testcontainers/postgresql": "12.0.4",
 		"@testing-library/jest-dom": "^6.9.1",
 		"@testing-library/react": "^16.3.0",
 		"@types/node": "^24.12.0",

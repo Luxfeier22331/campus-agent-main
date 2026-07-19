@@ -1,3 +1,4 @@
+import { propagateAttributes } from "@langfuse/tracing";
 import { z } from "zod";
 import {
 	agentRunResultWire,
@@ -7,6 +8,7 @@ import {
 } from "./http-response.ts";
 import type { PrimaryAgentRunResult, PrimaryAgentRuntime } from "./primary-agent.ts";
 import { agentRuntimeErrorPayload } from "./runtime-errors.ts";
+import { bindAsyncIterableToActiveContext } from "./telemetry.ts";
 
 const providerConfigSchema = z.object({
 	profile_id: z.string().min(1).optional(),
@@ -136,6 +138,7 @@ const runtimeLimitsSchema = z
 const runRequestSchema = z
 	.object({
 		activity_attempt: z.number().int().positive(),
+		user_id: z.string().min(1),
 		run_id: z.string().min(1),
 		request_id: z.string().min(1),
 		conversation_id: z.string().min(1),
@@ -235,8 +238,8 @@ export function createAgentRuntimeHandler(
 			const signals = runtimeSignals(request.signal, parsed.limits.agent_deadline_ms);
 			let result: PrimaryAgentRunResult;
 			try {
-				result = await options.runtime.run(
-					runtimeInputFromParsedRunRequest(parsed, signals.signal),
+				result = await withAgentTraceAttributes(parsed, () =>
+					options.runtime.run(runtimeInputFromParsedRunRequest(parsed, signals.signal)),
 				);
 			} catch (error) {
 				return jsonResponse(500, {
@@ -263,9 +266,13 @@ export function createAgentRuntimeHandler(
 				});
 			}
 			const signals = runtimeSignals(request.signal, parsed.limits.agent_deadline_ms);
-			return agentRunStreamResponse(
-				options.runtime.stream(runtimeInputFromParsedRunRequest(parsed, signals.signal)),
-				{ deadlineSignal: signals.deadlineSignal },
+			return withAgentTraceAttributes(parsed, () =>
+				agentRunStreamResponse(
+					bindAsyncIterableToActiveContext(
+						options.runtime.stream(runtimeInputFromParsedRunRequest(parsed, signals.signal)),
+					),
+					{ deadlineSignal: signals.deadlineSignal },
+				),
 			);
 		}
 		return jsonResponse(404, {
@@ -275,6 +282,29 @@ export function createAgentRuntimeHandler(
 			},
 		});
 	};
+}
+
+function withAgentTraceAttributes<T>(
+	parsed: z.infer<typeof runRequestSchema>,
+	callback: () => T,
+): T {
+	return propagateAttributes(
+		{
+			asBaggage: false,
+			metadata: {
+				activity_attempt: String(parsed.activity_attempt),
+				request_id: parsed.request_id,
+				run_id: parsed.run_id,
+				trace_id: parsed.trace_id,
+				turn_id: parsed.turn_id,
+			},
+			sessionId: parsed.conversation_id,
+			tags: ["surface:agent-runtime"],
+			traceName: "online-answer",
+			userId: parsed.user_id,
+		},
+		callback,
+	);
 }
 
 function runtimeInputFromParsedRunRequest(

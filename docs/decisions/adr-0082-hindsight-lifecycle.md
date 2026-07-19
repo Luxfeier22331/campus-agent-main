@@ -3,71 +3,52 @@ doc_type: decision
 owner_boundary: docs/decisions
 decision_id: ADR-0082
 status: accepted
-partially_supersedes: ADR-0058
 ---
 
-# ADR-0082：Hindsight 生产记忆生命周期
+# ADR-0082：Hindsight 记忆生命周期
 
 ## 背景
 
-ADR-0058 选择了 Hindsight，但没有冻结产品交付、来源删除、erase fence 和 observation policy。
-服务尚未上线，因此不存在旧 bank 迁移或兼容义务。系统应使用 Hindsight 原生 extraction、
-observation、consolidation、Memory Defense 和 bank cascade，不在仓库内重建第二套 provider
-operation scheduler。
+ADR-0058 选择 Hindsight 作为个人记忆运行时。产品仍需定义用户授权、并发隔离、来源删除和账号
+清除，同时不能在仓库中重建 Hindsight 已有的提取、观测、合并和后台操作调度。
 
 ## 决策
 
-- `profile.memory_settings`、`profile.memory_items`、`profile.memory_commands` 和
-  `profile.memory_command_sources` 是产品 consent、desired state 与 outbox 真相。
-- `personal_memory_command.v2` 在准入时冻结 lifecycle、item、source snapshot 和 source
-  timestamp；provider activity 不重读可变产品行。
-- 浏览器只看到 `pending`、`failed`、`erasing` 和稳定产品标识，不看到 Hindsight 标识。
-- chat 准入原子冻结 recall/append gate、owner generation 和 owner sequence；后续执行不得重读
-  setting 并改变该 turn 的合同。
-- bank 由 tenant、user 和 owner generation 派生。pause 保留 bank；erase 递增 generation、
-  拒绝旧 generation、等待旧调用排空、删除 bank 并验证不存在。
-- execution-control 只保存 owner fence、bounded call lease 和 idempotent command receipt。
-- 同一 owner 的后一条命令不得越过尚未完成或仍可重试的前一条命令。
+- 产品数据库拥有用户授权、期望状态、用户可见记忆条目和待执行命令；Hindsight 拥有记忆物化；
+- 命令和聊天请求在准入时冻结所需的生命周期、来源和用户代次，后续执行不能重读可变设置并
+  改变本次请求语义；
+- 每个用户代次使用独立 Hindsight bank。暂停保留当前 bank；账号清除递增代次、拒绝旧代次
+  调用、等待在途调用结束、删除旧 bank 并验证其不存在；
+- execution-control 只保存代次隔离、在途调用租约和幂等回执，不复制 Hindsight 记忆图；
+- 同一账号的命令按产品顺序执行，后一条命令不能越过仍未完成的前一条命令；
+- 浏览器只看到稳定产品标识和有限生命周期状态，不看到 Hindsight 内部标识。
 
 ## 来源与删除
 
-每条 accepted user message 对应一个确定性 source document：
-`conversation:<conversation_hash>:message:<message_hash>`。retain 使用 `async=false`、
-`update_mode=replace`，只发送当前用户消息；assistant output 不进入长期记忆。
-
-conversation prune/delete 在删除产品行前捕获 user message ID，以 50 条为一批派生相同 document
-ID 并同步删除。不存在的 document 视为幂等成功。
+每条已接受的用户消息对应可重复派生的来源文档，只发送该用户消息，助手输出不进入长期记忆。
+会话裁剪或删除必须在删除产品记录前捕获来源身份，并从 Hindsight 删除同一来源；重复删除按
+幂等成功处理。来源标识格式、批次和 API 参数由合同与实现维护。
 
 ## Hindsight 能力边界
 
-- 启用 observations、automatic consolidation 和 Memory Defense sensitive-data redaction。
-- retain 使用 private observation scope；recall 优先 observations，并只消费有界的
-  `experience`、`observation` 和 `world` 事实。
-- 不设置 `observations_mission`，由 Hindsight 原生默认策略管理 consolidation。
-- campus-agent 不接收 Hindsight webhook，不轮询 operation ledger，也不代理
-  status/list/cancel/retry。
-- Hindsight 的后台 operation、恢复和 provider 调用属于其部署内部实现。
+- 使用 Hindsight 原生的提取、observations、consolidation、Memory Defense 和 bank 生命周期；
+- recall 只向 Agent 提供有界且获准的记忆结果；
+- 仓库不接收 Hindsight webhook，不轮询或代理其后台操作，也不建设第二套操作调度器；
+- Hindsight 的后台恢复和模型调用属于其部署内部实现。
 
 ## Temporal 与终态
 
-- recall/append 的临时失败由 Temporal heartbeat/retry 管理；append 在 finalization 后执行，
-  失败不回滚已完成回答。
-- command workflow 分离 provider mutation、receipt finalization 和 app-api callback。
-- destructive privacy command 与 finalizer 无限重试；普通 upsert/lifecycle provider mutation
-  使用有界重试。
-- recall、primary agent 或 finalization 重试耗尽时，由 core queue failure finalizer 先写产品
-  callback，再原子提交 failed run、conversation lock release 和 browser `run.failed`。
-- browser、model 和 Temporal Failure 只保存固定公开消息、有界 kind 和 SHA-256，不序列化
-  provider cause、callback body、bank/document ID 或 raw payload。
+- Temporal 负责记忆调用的持久重试、取消、幂等和终态推进；
+- 回答完成后的记忆追加失败不能回滚已经完成的回答；
+- 账号清除必须持续推进到删除和验证完成，普通变更使用有界失败语义；
+- 浏览器、模型和 Temporal Failure 只保存有限错误类别与公开消息，不序列化供应商原因、内部
+  标识或原始载荷。
 
 ## 结果
 
-仓库拥有产品交付、确定性来源生命周期和并发 fencing；Hindsight 拥有记忆物化与内部后台工作。
-不 provision webhook ingress、webhook secret 或 provider-operation reconciliation schedule。
-
-“track anything notable” 不作为仓库 prompt。它会重复 Hindsight observation system、制造不稳定
-记忆标准，并让仓库承担 provider 已经拥有的模型行为。可验证边界是发送权威用户来源、启用原生
-能力，并验证 recall quality 和 source deletion。
+仓库拥有产品交付、确定性来源生命周期和代次隔离；Hindsight 拥有记忆物化与内部后台工作。
+仓库不为 Hindsight 配置 webhook 接收端或后台操作对账任务，也不增加重复其原生观测能力的
+自定义抽取提示词。质量验证关注召回效果和来源删除结果。
 
 ## 参考
 

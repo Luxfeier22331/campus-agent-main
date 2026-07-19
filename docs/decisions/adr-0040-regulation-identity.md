@@ -4,41 +4,35 @@ owner_boundary: docs/decisions
 decision_id: ADR-0040
 status: accepted
 ---
+
 # ADR-0040 规章标识
 
 ## 背景
 
-如果 edition label 属于规章 root identity，每次修订都会变成不同文档，无法可靠表达版本
-历史。
+如果版本标签属于规章根标识，每次修订都会成为另一份文档，无法可靠表达版本历史、重复来源和
+当前有效版本。
 
 ## 决策
 
-规章 identity 将作品与版本分离：
+规章的稳定作品身份与具体版本分开维护：
 
-- `regulation_work_title`：不含 edition label 的稳定规章名称；
-- `regulation_edition_label`：版本或修订标签；
-- `source_title_literal`：来源原始名称；
-- `regulation_display_title`：派生的展示名称，不参与 identity。
+- 作品身份由规范名称、发布组织和语义范围确定，不包含修订标签；
+- 版本身份表达内容、有效日期和修订关系；
+- 来源原始标题与产品展示标题分别保留，但不改变作品身份；
+- 通知标识和通知发布时间只作为来源信息，不能自动成为规章身份或生效日期；
+- “暂行”“试行”、届次和文件编号只有经过明确规则解释后才能成为版本信息。
 
-`document_id` 使用 normalized work title、issuing organization 和 semantic scope 标识规章
-作品。`version_id` 区分 semantic content、effective date 和 edition/revision signal。
-source notice id 或 release time 是 provenance，不是 regulation identity 或 effective date。
-
-`暂行`、`试行` 等 status qualifier 不自动成为 edition label，也不证明规则无效。cohort
-year 和 document number 即使含数字，也不得自动解析为 edition。
-
-canonical profile 记录此目标合同。仓库当前没有 regulation promotion materializer，profile
-声明和示例 metadata 不能证明 target row 已重建。
+精确字段、规范化规则和标识生成由规章配置、schema 与测试维护。
 
 ## 后果
 
-- 多个 edition 可以共享 work-level document id。
-- display format 变化不改变 identity。
-- duplicate source notice 可以在一个 regulation version 下聚合 provenance。
-- 未来 materializer 必须测试 title parsing、identity stability 和 replay，才能宣称该模型
-  已成为执行事实。
+- 同一规章的多个版本共享作品级标识；
+- 展示格式变化不改变身份；
+- 多个来源通知可以关联同一规章版本；
+- 无法确认作品或版本关系时不得自动合并。
 
 ## 相关文档
 
-- `docs/decisions/adr-0035-regulation-promotion.md`
-- `configs/ingestion/regulations/institutional_rules/canonical-profile.json`
+- `../architecture/domains/regulations.md`
+- `adr-0035-regulation-promotion.md`
+- `../../configs/ingestion/regulations/institutional_rules/canonical-profile.json`

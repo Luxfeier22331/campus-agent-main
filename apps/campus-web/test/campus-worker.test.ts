@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import worker, { type Env } from "../src/index";
+import worker, { applyUpstreamCorrelationTags, type Env } from "../src/index";
 
 const appRoot = join(__dirname, "..");
 const DOCS_RELEASE_ID = `sha256:${"a".repeat(64)}`;
@@ -42,6 +42,28 @@ describe("campus worker boundary", () => {
 			app_name: "campus-agent-campus-web",
 			surface: "campus-web",
 		});
+	});
+
+	it("adds validated upstream product correlation IDs to the current Sentry scope", () => {
+		const setTag = vi.fn();
+		applyUpstreamCorrelationTags(
+			new Response(null, {
+				headers: {
+					"x-request-id": "req_01HQ",
+					"x-trace-id": "trace_01HQ",
+				},
+			}),
+			setTag,
+		);
+		expect(setTag).toHaveBeenCalledWith("campus.request_id", "req_01HQ");
+		expect(setTag).toHaveBeenCalledWith("campus.trace_id", "trace_01HQ");
+
+		setTag.mockClear();
+		applyUpstreamCorrelationTags(
+			new Response(null, { headers: { "x-request-id": "invalid value" } }),
+			setTag,
+		);
+		expect(setTag).not.toHaveBeenCalled();
 	});
 
 	it("serves the favicon through static assets before shell route matching", async () => {

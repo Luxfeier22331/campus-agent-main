@@ -3,66 +3,44 @@ doc_type: data
 owner_boundary: sources/wechat-official
 status: active
 ---
+
 # 微信公众号数据
 
 ## 边界
 
-FeedWe 用于发现历史文章。正式 source evidence 来自同一次 collector activity 抓取的真实微信
-文章页面与媒体。该数据是离线 source truth，不是 notice read model 或在线查询 target。
+FeedWe 只用于发现文章。正式来源依据来自同一次采集活动抓取的真实微信文章页面和媒体。该数据是
+离线来源产物，不是通知读取模型或在线查询目标。
 
-## 请求
+## 逻辑对象
 
-`wechat_official_account_capture_request.v1` 包含 account identity 和有界 page/article 控制。
-请求存入 source bucket，再通过 `wechat_official_account.capture` 提交。
+- 采集请求：账号身份和有界的分页、文章数量控制；
+- 文章版本：稳定账号与文章身份、规范网址、发布时间、标题、正文状态和内容摘要；
+- 正文块：从真实文章页面提取的标题、摘要和正文；
+- 媒体引用：来源网址、最终网址、对象引用、摘要、类型、大小和采集结果；
+- 采集发布：把同一次采集确认的文章、正文和媒体引用组成可验证来源清单。
 
-## 文章产物
+精确字段、schema 版本和对象命名由 source-collector、ingest-core 及其测试维护。
 
-每个 article version 可以包含：
+## 一致性
 
-- attempt 范围内的 provider response 与 request summary；
-- attempt 范围内抓取的 article HTML 与 fetch metadata；
-- parser extraction；
-- 正式采集的 cover/inline media 及 attempt 范围内的 fetch metadata；
-- `source-truth/article-manifest.json`；
-- `source-truth/content-blocks.jsonl`；
-- `source-truth/media-refs.jsonl`。
+稳定文章和媒体依据不包含随重试变化的时间戳或请求信息。内容未变化的重试必须产生相同稳定
+字节；供应商响应、页面响应、媒体下载和失败详情属于当次采集观测，与稳定来源产物分开保存。
 
-`wechat_official_account_article_manifest.v3` 保留稳定 account/article identity、canonical URL、
-provider identity、publish time、normalized title、body state、page kind/parser version、hash、
-block/media count 和 media capture outcome。content block 只包含已观察到的 title、summary 与
-body text。
+采集发布只能引用同一来源存储中已经校验摘要和字节数的对象。缺失、摘要不一致或部分媒体失败
+必须保留明确状态，不能伪造完整来源。
 
-`wechat_official_account_media_ref.v3` 保留 source/final URL、object key、digest、type、size、
-status 与 failure detail。capture timestamp 不是正式字段。
+## 存储与下游
 
-内容不变的 retry 必须生成 bytes 完全相同的 article manifest 与 media ref。raw page HTML、
-FeedWe summary 和 page/media fetch metadata 写入
-`runs/<run-id>/attempts/<activity-attempt>/...`。
+- 对象存储保存来源产物和采集发布；
+- Temporal 保存执行、重试和取消；
+- PostgreSQL 只保存共享采集任务投影；
+- App API 不保存微信公众号采集路由、凭据或运行记录。
 
-## 采集发布
-
-采集结束后 worker 写入：
-
-```text
-wechat_official_account/<account_slug>/runs/<run_id>/attempts/<activity_attempt>/capture-release.json
-```
-
-release 通过同桶 ref 引用 article manifest、content block 与 media ref。worker 验证这些 ref
-后写入 `wechat_official_account_source_manifest.v1`，再返回一个带有界数量的
-`ingestion_task_result.v1` ref。
-
-## 存储边界
-
-- 对象存储拥有 source artifact 与 release；
-- Temporal 拥有 execution state 与 attempt；
-- PostgreSQL 只保存共享 ingestion task 投影；
-- app-api 没有微信公众号 collector route、token、run ledger 或 projection table。
-
-## 下游边界
-
-跨来源去重、notice 归一化、authorization、publication、chunking 与 online retrieval 尚无本
-链路合同，不得因此修改已采集的 article evidence。
+跨来源去重、通知规范化、文档发布、分块和在线检索需要各自明确的下游合同。采集结果本身不会
+开放在线回答能力。
 
 ## 相关文档
 
-- `docs/architecture/system/data-plane.md`
+- [采集数据面](../architecture/system/data-plane.md)
+- [通知领域](../architecture/domains/notices.md)
+- `apps/source-collector/README.md`

@@ -4,64 +4,41 @@ owner_boundary: docs/decisions
 decision_id: ADR-0051
 status: accepted
 ---
-# ADR-0051 Campus Docs Rspress 阅读器
+# ADR-0051 Rspress 文档阅读器
 
 ## 背景
 
-`campus-web` 已经成为学生侧统一产品入口与 account browser shell。文档阅读需要和 Q&A
-source card、docs search、账号态、地图/饭堂/反馈支撑页共享同一个 `campus.muc.wiki`
-产品上下文。
-
-当前 `campus-web /docs/*` 需要承担成熟 docs reader。历史 `apps/public-docs`
-已验证 Rspress + generated MDX + stable anchor + `data-root-unit-id` highlight +
-docs search mapping 的技术路线可行，但该独立 app 已删除，后续只能通过 git history
-追溯迁移来源。
+校园规章和培养方案需要目录、稳定锚点、版本、段落链接、本地搜索和受限访问。文档阅读还要与
+问答来源卡片共享固定链接，但不能把检索分块或对象存储文件直接交给浏览器。
 
 ## 决策
 
-- `campus-web /docs/*` 是最终文档产品入口。
-- Rspress 是 `campus-web` 文档阅读面的 reader/render/search integration shell；公开
-  current 文档搜索使用 Rspress native local search。
-- 文档数据链拥有 canonical document truth；`jobs/docs-publish` 拥有内容寻址 release 和
-  release-scoped 读取投影；`app-api` 只提供 restricted / gated
-  navigation/resolve/versions/admission 与 source-card permalink shaping。
-- published reader assets 继续是正文发布产物；Rspress build 消费这些 reader projection /
-  generated MDX，不成为 canonical truth。
-- Campus Web 构建只接受内容寻址 `docsReleaseId`，不连接 app-api 数据库；Worker 固定注入同一
-  release，环境仓同时选择 Worker version 与 docs release。
-- fixture 构建与 release 构建分离；staging 复用同一个 release 入口，不维护隐式导出或第二套
-  `--staging` 文档构建逻辑。
-- Q&A source card、docs search result 与直接阅读必须共用 reader permalink：
-  `/docs/:corpus/:collection/:docSlug`、`/v/:versionSlug`、`?hl=rootUnitId`、
-  `#anchor`。
-- anonymous-visible current docs search 默认使用 Rspress native local search，只索引
-  `docsSearchVisibility=public_current` 的 published reader pages。
-- Rspress runtime JS / CSS / public local search index 统一交付在
-  `/_docs-static/*`，不得占用 campus shell 的通用 `/static/*` namespace。
-- restricted / gated search 默认使用受同源 Worker admission 保护的
-  `/_gated-docs-search/*` static index，并在 browser 本地执行字面查询；查询词不发送到
-  app-api。
-- `/api/docs/collections/:corpus/:collection/search` 从 browser-facing docs HTTP
-  contract 退役；campus-web Worker 不再 allowlist 该 endpoint，public-docs 也不得保留旧
-  search hook。
-- docs site search 只做精确 / 字面命中；同义词、别名、意图扩展与语义检索属于 RAG/chat
-  能力，不进入文档站本地搜索。
-- 旧 `apps/public-docs` 退出 forward product topology，并从 active workspace 删除。
+- Campus Web 在同一产品入口的 `/docs/*` 提供文档阅读器；
+- Rspress 负责静态页面、目录、锚点和浏览器本地搜索；
+- 规范文档经过 `jobs/docs-publish` 生成内容寻址 release、静态阅读资产和 app-api 读取投影；
+- 公开正文随 Campus Web 静态资产交付，不在每次阅读时从 app-api 返回全文；
+- 受限正文和搜索索引由 Campus Web Worker 向 app-api 完成访问准入后交付；
+- 来源卡片、文档搜索和直接阅读使用同一固定链接、版本、锚点和高亮标识；
+- Worker 构建与 app-api 读取投影必须固定到同一文档 release。
 
-## 后果
+## 结果
 
-- 不继续扩展 `campus-web` 自研完整 docs reader。
-- 不复活独立 `public-docs` browser surface 作为长期文档入口。
-- `campus-web` build / deploy gate 必须覆盖 Rspress docs build。
-- Reader state enhancer、MDX generator 与 docs search mapping 已改挂到 campus product
-  shell 与同源 route；后续不得恢复独立 public-docs app。
-- 更换 reader engine 必须更新本 ADR、document-site architecture、contract tests 与 build
-  checks。
+- 文档阅读获得成熟的静态站点导航和搜索能力；
+- 浏览器不接触数据库、对象存储内部位置和检索索引；
+- 公开阅读不依赖逐页动态正文接口，受限内容仍由服务端判定权限；
+- 阅读器正文、聊天检索和来源卡片共享规范文档身份，但保持不同交付产物。
 
-## 不负责
+## 未采用方案
 
-- 不修改 reader resolve / versions / navigation / admission 的 `/api/docs/*`
-  endpoint path。
-- 不修改 reader permalink 语义。
-- 不把 docs search 做成 chat answer API。
-- 不把 reader asset resolve 改成每次返回整篇正文的 API。
+- 建立独立于 Campus Web 的第二个学生产品入口；
+- 在普通 React 页面中重新实现完整文档站能力；
+- 让 app-api 在每次阅读时返回整篇正文；
+- 用检索分块、原始采集产物或对象存储地址作为阅读页面；
+- 让浏览器选择文档 release 或自行解释访问权限。
+
+## 相关文档
+
+- `../architecture/system/document-site.md`
+- `../contracts/app-api/document-reader.md`
+- `../contracts/document-reader-publish.md`
+- `../data/document-reader.md`

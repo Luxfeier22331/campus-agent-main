@@ -59,7 +59,7 @@ type TelemetrySnapshot struct {
 	ExporterConfigured bool
 	MetricsEnabled     bool
 	MetricsConfigured  bool
-	ExportedCount      uint64
+	SubmittedCount     uint64
 	DroppedCount       uint64
 	FailedCount        uint64
 	SampleRatio        string

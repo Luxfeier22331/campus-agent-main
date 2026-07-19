@@ -1,6 +1,0 @@
-{
-	"schema_version": "official_web_projection_routing.v1",
-	"site_id": "muc_public",
-	"routing_policy_version": "muc_public_synthetic_projection_routing_v1",
-	"routes": []
-}

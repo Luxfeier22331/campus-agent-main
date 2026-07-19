@@ -42,7 +42,7 @@ func (s *Server) handleMetrics(response http.ResponseWriter, request *http.Reque
 			ExporterConfigured: telemetryStatus.ExporterConfigured,
 			MetricsEnabled:     telemetryStatus.MetricsEnabled,
 			MetricsConfigured:  telemetryStatus.MetricsExporterConfigured,
-			ExportedCount:      telemetryStatus.ExportedCount,
+			SubmittedCount:     telemetryStatus.SubmittedCount,
 			DroppedCount:       telemetryStatus.DroppedCount,
 			FailedCount:        telemetryStatus.FailedCount,
 			SampleRatio:        telemetryStatus.SampleRatio,

@@ -28,18 +28,11 @@ status: active
 内核必须从 `INGESTION_KERNEL_TOKENIZER_JSON_PATH` 读取本地 `tokenizer.json`。文件缺失或
 无效时失败关闭，不在运行时下载模型。
 
-`student_rules_semantic_v3` 当前预算：
-
-| 配置 | 值 |
-| --- | ---: |
-| `chunk_size` | 384 |
-| `max_chunk_size` | 512 |
-| `chunk_overlap` | 64 |
-| `min_chunk_size` | 96 |
-
-服务配置将向量模型声明为 `Qwen3-Embedding-4B`、`2560` 维。分块 tokenizer 与向量请求是
-两个边界：本地 tokenizer 只负责 token 预算，不发起向量请求；Qdrant sparse tokenizer 也
-不替代该预算来源。
+精确预算只在
+[`chunk-profile.json`](../../configs/ingestion/regulations/student_rules/chunk-profile.json)
+维护。分块 tokenizer 与向量请求是两个边界：本地 tokenizer 只负责 token 预算，不发起向量
+请求；检索侧 tokenizer 也不替代该预算来源。向量模型与维度由
+[`serving-config.json`](../../configs/ingestion/regulations/student_rules/serving-config.json) 维护。
 
 ## 当前分块行为
 
@@ -52,9 +45,9 @@ Rust 内核对每条有效 document unit 执行以下步骤：
    `max_chunk_size`；
 5. 按文档生成稳定序号形式的 `chunk_id`，并保留参与合并的 `unit_ids`。
 
-当前 `ingestion_chunk_set.v1` 只包含 `chunk_id`、`doc_id`、`unit_ids` 和 `text`。内核尚未
-输出章节上下文、结构专用切分结果、`answer_role`、类别概览或
-`answer_ready_evidence.v3` 元数据，因此文档不得把这些能力描述成已实现门槛。
+输出必须通过
+[`IngestionChunkSetSchema`](../../packages/ingest-core/src/kernel-artifacts.ts)；本文不复制输出字段
+或维护尚未实现的字段清单。
 
 ## 校验门槛
 
@@ -71,9 +64,8 @@ Rust 内核对每条有效 document unit 执行以下步骤：
 
 ## 变更要求
 
-调整预算时必须同时更新 profile、collection profile 测试和 Rust 内核覆盖。若要增加结构化
-切分、上下文标题或答案角色，必须先扩展机器合同和内核实现，再更新本文；不得只修改备注
-或策略文档宣称完成。
+调整预算时必须同时更新 profile、collection profile 测试和 Rust 内核覆盖。改变输出结构时必须
+先扩展机器合同和内核实现，再更新本文；不得只修改备注或策略文档宣称完成。
 
 ## 可执行来源
 

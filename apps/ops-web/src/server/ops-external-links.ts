@@ -39,3 +39,26 @@ export function toTemporalExternalLink(
 		source: "TEMPORAL",
 	};
 }
+
+export function toSentryExternalLink(
+	allowlist: OpsObservabilityLinkAllowlist | undefined,
+): OpsRequestDetailResponse["externalLinks"][number] | null {
+	const href = allowlist?.sentry?.trim();
+	if (!href) {
+		return null;
+	}
+	try {
+		const url = new URL(href);
+		if (url.protocol !== "https:") {
+			return null;
+		}
+		return {
+			href: url.toString(),
+			isAvailable: true,
+			label: "Sentry Trace Explorer",
+			source: "SENTRY",
+		};
+	} catch {
+		return null;
+	}
+}

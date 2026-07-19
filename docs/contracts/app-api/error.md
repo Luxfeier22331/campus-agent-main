@@ -3,202 +3,68 @@ doc_type: contract
 owner_boundary: apps/app-api
 status: active
 ---
-# App API 错误模型
 
-## 文档边界
+# App API 错误
 
-这份文档冻结 `apps/app-api` 产品层 API 的统一错误 envelope 与 status-code 语义。
+## 边界
 
-它补充但不替代以下文档：
-
-- 产品层 HTTP contract：`docs/contracts/app-api/README.md`
-- request lifecycle：`docs/contracts/app-api/request-lifecycle.md`
-- execution contract：`docs/contracts/tool-execution.md`
+本文定义 App API 共享错误结构与通用 HTTP 语义。每个领域接口的专用错误码由所属合同和路由
+测试维护；本文不建立一份容易与实现漂移的全仓错误码清单。
 
 ## 错误结构
 
-所有 HTTP error response 统一返回：
+HTTP 错误统一返回：
 
 ```json
 {
   "error": {
     "code": "validation_failed",
-    "message": "prompt is required",
+    "message": "prompt is required.",
     "retryable": false,
-    "traceId": "trace_01HQ...",
+    "traceId": "trace_01",
     "requestId": null,
     "details": null
   }
 }
 ```
 
-字段规则：
+| 字段 | 语义 |
+| --- | --- |
+| `code` | 稳定、使用 `snake_case` 的机器可读分类 |
+| `message` | 面向调用方的简短说明，不包含内部响应或凭据 |
+| `retryable` | 调用方是否可以在不修改请求的情况下重试 |
+| `traceId` | 已建立请求 trace 时返回的关联标识 |
+| `requestId` | 已分配产品请求标识时返回，否则为 `null` |
+| `details` | 可选的有界结构化信息，不接受任意异常对象 |
 
-- `code`
-  稳定机器可读错误码，使用 `snake_case`
-- `message`
-  面向人类的简短说明
-- `retryable`
-  是否推荐客户端自动或人工重试
-- `traceId`
-  runtime correlation id；如果请求在 HTTP 层被接受处理，则应尽量返回
-- `requestId`
-  只有在请求已经分配 canonical request identity 后才出现
-- `details`
-  可选结构化细节，例如字段校验失败列表
+## HTTP 语义
 
-## HTTP 状态映射
+- `400`：JSON、查询或请求结构无法解析；
+- `401`：缺少或无效的 session、内部认证或服务凭据；
+- `403`：身份有效但无权执行该操作；
+- `404`：当前调用方不可见的资源；
+- `409`：幂等键、当前状态或并发写入冲突；
+- `415`：请求媒体类型不受支持；
+- `422`：请求可以解析但字段语义无效；
+- `429`：速率或配额限制；
+- `500`：仓库自身不变量失败；
+- `502`：内部上游返回无效响应或暂时不可达；
+- `503`：运行依赖尚未就绪；
+- `504`：内部调用超过期限。
 
-### `400 Bad Request`
+认证、权限和校验失败通常不可重试；短暂上游故障、依赖未就绪与超时可以标记为可重试。具体
+状态和 `retryable` 由产生错误的路由或领域服务确定，浏览器不得自行推断。
 
-用于：
+## 聊天准入边界
 
-- `invalid_json`
-- `malformed_query`
+- 准入前失败使用非 `2xx` HTTP 错误结构，不创建产品请求；
+- 准入后的运行失败属于已存在请求的终态，通过同步答案结果或 SSE `request.failed` 表达；
+- 已创建的请求保留 `requestId`、`traceId` 与 run 关联，不能改写为新的 HTTP 请求；
+- `no_answer`、澄清和策略拒绝是产品结果，不自动等于 HTTP 错误。
 
-### `401 Unauthorized`
+## 可执行来源
 
-用于：
-
-- `unauthorized`
-- `session_required`
-- `session_expired`
-- `internal_auth_required`
-- `service_credential_required`
-
-### `403 Forbidden`
-
-用于：
-
-- `forbidden`
-- `operator_access_required`
-- `operator_identity_not_admitted`
-
-### `404 Not Found`
-
-用于：
-
-- `conversation_not_found`
-- `request_not_found`
-
-### `409 Conflict`
-
-用于：
-
-- `idempotency_conflict`
-- `request_in_progress`
-
-### `415 Unsupported Media Type`
-
-用于：
-
-- `unsupported_media_type`
-
-### `422 Unprocessable Content`
-
-用于：
-
-- `validation_failed`
-
-### `429 Too Many Requests`
-
-用于：
-
-- `rate_limited`
-
-### `500 Internal Server Error`
-
-用于：
-
-- `internal_error`
-
-### `502 Bad Gateway`
-
-用于：
-
-- `execution_runtime_unavailable`
-
-### `503 Service Unavailable`
-
-用于：
-
-- `dependency_not_ready`
-
-### `504 Gateway Timeout`
-
-用于：
-
-- `execution_timeout`
-
-## 准入前与准入后
-
-当前固定区分：
-
-- 准入前失败
-  返回 HTTP error envelope
-- 准入后执行失败
-  返回 `200`，并在 `POST /api/chat/requests` 的 `answer.result.kind=error` 中表达
-
-示例：
-
-- prompt 为空
-  `422 validation_failed`
-- `GET /api/chat/conversations/:conversationId` 命中不存在或非当前 user 所有的 conversation
-  `404 conversation_not_found`
-- 幂等键冲突
-  `409 idempotency_conflict`
-- execution-control 在请求已 durable 接受后失败
-  `200 + result.kind=error`
-
-## 领域错误码
-
-### 认证与准入
-
-- `unauthorized`
-- `session_required`
-- `session_expired`
-- `internal_auth_required`
-- `service_credential_required`
-- `forbidden`
-- `operator_access_required`
-- `operator_identity_not_admitted`
-
-### 请求校验
-
-- `invalid_json`
-- `unsupported_media_type`
-- `validation_failed`
-- `conversation_not_found`
-- `request_not_found`
-
-### 幂等性
-
-- `idempotency_conflict`
-- `request_in_progress`
-
-### 依赖与运行时
-
-- `dependency_not_ready`
-- `execution_runtime_unavailable`
-- `execution_timeout`
-- `internal_error`
-
-## 重试规则
-
-默认建议：
-
-- `retryable=false`
-  认证失败、权限失败、校验失败、ownership 失败、幂等冲突
-- `retryable=true`
-  上游临时不可用、超时、短暂依赖故障
-
-对于 `POST /api/chat/requests` 的 post-accept execution failure：
-
-- `retryable` 通过 `answer.result.retryable` 返回
-- 同时保留 `requestId` 与 `traceId`
-
-## 不负责
-
-- 不把 `no_answer` 当作 HTTP error
-- 不把 operator projection eventual consistency 暴露成 transport exception taxonomy
-- 不要求所有 dependency failure 都映射为同一个 `500`
+- `apps/app-api/src/http.ts`
+- `apps/app-api/src/app/responses.ts`
+- `apps/app-api/src/app/routes/`
+- `apps/app-api/src/modules/runtime-command/service/errors.ts`

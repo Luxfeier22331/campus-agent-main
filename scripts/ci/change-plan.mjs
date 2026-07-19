@@ -343,8 +343,11 @@ export function buildChangePlan({
 		hasAny(
 			runtimeFiles,
 			(file) =>
-				startsWithAny(file, ["packages/telemetry-node/", "scripts/ci/check-otel-"]) ||
-				file.includes("/telemetry/"),
+				startsWithAny(file, [
+					"infra/otel/",
+					"packages/telemetry-node/",
+					"scripts/ci/check-otel-",
+				]) || file.includes("/telemetry/"),
 		),
 		"otel",
 	);

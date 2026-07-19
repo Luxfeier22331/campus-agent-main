@@ -6,6 +6,7 @@ import {
 	type OpsOverviewWindow,
 } from "../shared/ops-contract.ts";
 import type { OpsStatusOverview, OpsStatusStore } from "./ops-status-store.ts";
+import { raceWithSignal } from "./race-with-signal.ts";
 
 const DEFAULT_TIMEOUT_MS = 3_000;
 const FRESH_CACHE_MS = 15_000;
@@ -21,11 +22,17 @@ const REQUIRED_SERVICES = [
 export type OpsRuntimeSignalsSnapshot = Pick<OpsOverviewResponse, "services" | "telemetry">;
 
 export interface OpsRuntimeSignalsSource {
-	getSnapshot(window: OpsOverviewWindow): Promise<OpsRuntimeSignalsSnapshot>;
+	getSnapshot(
+		window: OpsOverviewWindow,
+		input?: { signal?: AbortSignal },
+	): Promise<OpsRuntimeSignalsSnapshot>;
 }
 
 export interface OpsOverviewService {
-	getOverview(window: OpsOverviewWindow): Promise<OpsOverviewResponse>;
+	getOverview(
+		window: OpsOverviewWindow,
+		input?: { signal?: AbortSignal },
+	): Promise<OpsOverviewResponse>;
 }
 
 export function createOpsOverviewService(input: {
@@ -44,7 +51,7 @@ export function createOpsOverviewService(input: {
 	const completeCache = new Map<OpsOverviewWindow, OpsOverviewResponse>();
 
 	return {
-		async getOverview(window) {
+		async getOverview(window, queryInput = {}) {
 			const requestedAt = now();
 			const cached = responseCache.get(window);
 			const cacheAgeMs = cached
@@ -55,8 +62,12 @@ export function createOpsOverviewService(input: {
 			}
 
 			const [statusResult, signalsResult] = await Promise.allSettled([
-				withTimeout(input.store.getOverview(window), timeoutMs),
-				withTimeout(input.signals.getSnapshot(window), timeoutMs),
+				withTimeout(() => input.store.getOverview(window), timeoutMs, queryInput.signal),
+				withTimeout(
+					(signal) => input.signals.getSnapshot(window, { signal }),
+					timeoutMs,
+					queryInput.signal,
+				),
 			]);
 			const complete = completeCache.get(window);
 			const completeAgeMs = complete
@@ -257,18 +268,24 @@ function unavailableSignalsSnapshot(): OpsRuntimeSignalsSnapshot {
 	};
 }
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-	return new Promise<T>((resolve, reject) => {
-		const timeout = setTimeout(() => reject(new Error("ops overview source timed out")), timeoutMs);
-		promise.then(
-			(value) => {
-				clearTimeout(timeout);
-				resolve(value);
-			},
-			(error) => {
-				clearTimeout(timeout);
-				reject(error);
-			},
-		);
-	});
+function withTimeout<T>(
+	operation: (signal: AbortSignal) => Promise<T>,
+	timeoutMs: number,
+	upstreamSignal?: AbortSignal,
+): Promise<T> {
+	const controller = new AbortController();
+	const timeoutError = new Error("ops overview source timed out");
+	const timeout = setTimeout(() => controller.abort(timeoutError), timeoutMs);
+	const signal = upstreamSignal
+		? AbortSignal.any([upstreamSignal, controller.signal])
+		: controller.signal;
+	let promise: Promise<T>;
+	try {
+		signal.throwIfAborted();
+		promise = operation(signal);
+	} catch (error) {
+		clearTimeout(timeout);
+		return Promise.reject(error);
+	}
+	return raceWithSignal(promise, signal).finally(() => clearTimeout(timeout));
 }

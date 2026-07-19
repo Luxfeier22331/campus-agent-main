@@ -32,15 +32,13 @@ status: active
     "expiresAt": "2026-03-29T07:00:00.000Z"
   },
   "permissions": {
-    "chat": true,
-    "operator": false
+    "chat": true
   }
 }
 ```
 
 - 已登录普通用户默认投影为 `campus_member`。
 - `sessionId` 来自服务端身份会话，不接受浏览器自造的会话标识。
-- `operator` 权限来自受保护界面的可信身份传递。
 - 无已解析用户的聊天请求返回 `session_required`，不创建匿名会话。
 - 对普通终端用户，读取该接口会先更新当前身份会话投影。
 

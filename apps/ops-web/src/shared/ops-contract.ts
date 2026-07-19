@@ -309,12 +309,41 @@ export const OpsOverviewResponseSchema = z.object({
 	window: OpsOverviewWindowSchema,
 });
 
+const AxiomLogRecordSchema = z.object({
+	durationMs: z.number().nonnegative().nullable(),
+	errorCode: z.string().min(1).nullable(),
+	eventType: z.string().min(1).nullable(),
+	otelSpanId: z.string().min(1).nullable(),
+	otelTraceId: z.string().min(1).nullable(),
+	productTraceId: z.string().min(1).nullable(),
+	requestId: z.string().min(1),
+	serviceName: z.string().min(1).nullable(),
+	severityText: z.string().min(1).nullable(),
+	source: z.string().min(1).nullable(),
+	status: z.string().min(1).nullable(),
+	timestamp: IsoDateTimeSchema,
+});
+
+const AxiomTraceRecordSchema = z.object({
+	duration: z.string().min(1).nullable(),
+	hasError: z.boolean().nullable(),
+	kind: z.string().min(1).nullable(),
+	name: z.string().min(1).nullable(),
+	otelSpanId: z.string().min(1),
+	otelTraceId: z.string().min(1),
+	parentSpanId: z.string().min(1).nullable(),
+	productTraceId: z.string().min(1).nullable(),
+	requestId: z.string().min(1),
+	serviceName: z.string().min(1).nullable(),
+	statusCode: z.string().min(1).nullable(),
+	timestamp: IsoDateTimeSchema,
+});
+
 const ObservabilityBaseSchema = z.object({
 	dataState: OpsDataStateSchema,
 	from: IsoDateTimeSchema,
 	queryDurationMs: z.number().int().nonnegative(),
 	queriedAt: IsoDateTimeSchema,
-	records: z.array(z.record(z.string(), z.json())),
 	requestId: z.string().min(1),
 	source: z.literal("AXIOM"),
 	to: IsoDateTimeSchema,
@@ -326,14 +355,43 @@ export const OpsObservabilityResponseSchema = z.discriminatedUnion("kind", [
 	ObservabilityBaseSchema.extend({
 		kind: z.literal("logs"),
 		limit: z.literal(200),
-		records: z.array(z.record(z.string(), z.json())).max(200),
+		records: z.array(AxiomLogRecordSchema).max(200),
 	}),
 	ObservabilityBaseSchema.extend({
 		kind: z.literal("trace"),
 		limit: z.literal(500),
-		records: z.array(z.record(z.string(), z.json())).max(500),
+		records: z.array(AxiomTraceRecordSchema).max(500),
 	}),
 ]);
+
+const SentryIssueSummarySchema = z.object({
+	eventCount: z.number().int().nonnegative(),
+	firstSeen: IsoDateTimeSchema,
+	issueId: z.string().min(1),
+	lastSeen: IsoDateTimeSchema,
+	level: z.string().min(1).nullable(),
+	permalink: HttpsUrlSchema,
+	projectName: z.string().min(1),
+	projectSlug: z.string().min(1),
+	shortId: z.string().min(1),
+	status: z.string().min(1),
+	title: z.string().min(1),
+});
+
+export const OpsSentryIssuesResponseSchema = z.object({
+	dataState: OpsDataStateSchema,
+	from: IsoDateTimeSchema,
+	issues: z.array(SentryIssueSummarySchema).max(5),
+	limit: z.literal(5),
+	queriedAt: IsoDateTimeSchema,
+	queryDurationMs: z.number().int().nonnegative(),
+	requestId: z.string().min(1),
+	searchQuery: z.string().min(1),
+	source: z.literal("SENTRY"),
+	to: IsoDateTimeSchema,
+	traceId: z.string().min(1),
+	truncated: z.boolean(),
+});
 
 export type OpsDataState = z.infer<typeof OpsDataStateSchema>;
 export type OpsHealthStatus = z.infer<typeof OpsHealthStatusSchema>;
@@ -348,6 +406,7 @@ export type OpsObservabilityResponse = z.infer<typeof OpsObservabilityResponseSc
 export type OpsOverviewResponse = z.infer<typeof OpsOverviewResponseSchema>;
 export type OpsOverviewWindow = z.infer<typeof OpsOverviewWindowSchema>;
 export type OpsRequestDetailResponse = z.infer<typeof OpsRequestDetailResponseSchema>;
+export type OpsSentryIssuesResponse = z.infer<typeof OpsSentryIssuesResponseSchema>;
 export type OpsRequestListResponse = z.infer<typeof OpsRequestListResponseSchema>;
 export type OpsRequestSummary = z.infer<typeof OpsRequestSummarySchema>;
 export type OpsRequestWindow = z.infer<typeof OpsRequestWindowSchema>;

@@ -8,8 +8,8 @@ status: active
 
 ## 范围
 
-本文说明 Temporal-backed ingestion API 和 worker 的操作。系统没有来源 callback、独立 run
-ledger 或自动发布 query target，因此本文不描述这些路径。
+本文说明 ingestion-control API、Temporal worker 和来源 worker 的本地操作与故障处理。采集
+完成不会自动发布在线知识目标。
 
 ## 前置条件
 
@@ -28,17 +28,8 @@ ledger 或自动发布 query target，因此本文不描述这些路径。
 pnpm --filter ingestion-control migrate
 ```
 
-容器 migration Job 直接调用 image 内 `tsx src/migrate.ts`，runtime container 不调用 pnpm 或
-Corepack。migration 使用 transaction advisory lock，并在
-`ingestion_control.schema_migrations` 保存 SQL 文件 SHA-256；修改已经应用的 migration 必须
-失败，不能静默接管已有未登记表。
-
-部署通过 `ingestion-schedule-sync` PostSync Job 对齐固定认证维护 Schedule。首次创建时保持
-暂停；后续对齐只更新动作、策略和周期，保留现有暂停状态。本地需要验证该路径时显式运行：
-
-```bash
-pnpm --filter ingestion-control schedules:sync
-```
+迁移的执行入口、顺序和镜像版本由 Kubernetes base 与环境仓维护。内部门户认证维护操作见
+[内部门户认证](./portal-auth.md)，不在通用采集手册复制 Schedule 资源细节。
 
 ## 本地启动
 
@@ -62,23 +53,17 @@ curl -fsS http://127.0.0.1:8000/readyz
 
 ## 提交 Task
 
-先把 request document 写入 source bucket 并计算 SHA-256，再只提交 v3 envelope：
+请求结构以
+[`task-envelope.valid.json`](../../packages/ingestion-contracts/assertions/task-envelope.valid.json)
+为准。提交前为本次任务生成新的 `task_id`、`run_id`，把输入对象写入对应 bucket，并填写真实的
+URI、字节数和 SHA-256；不要直接提交 fixture 中的示例标识。
 
 ```bash
+export INGESTION_TASK_ENVELOPE_PATH=.tmp/ingestion-task-envelope.json
 curl -fsS \
   -H "Authorization: Bearer ${INGESTION_CONTROL_ADMIN_TOKEN}" \
   -H "Content-Type: application/json" \
-  -d '{
-    "schema_version": "ingestion_task_envelope.v3",
-    "task_id": "task-001",
-    "run_id": "run-001",
-    "registry_task_id": "official_web.capture",
-    "input_ref": {
-      "kind": "object_store",
-      "uri": "s3://campus-agent-source/requests/run-001.json",
-      "digest": "sha256:REPLACE_WITH_64_HEX_CHARACTERS"
-    }
-  }' \
+  --data-binary "@${INGESTION_TASK_ENVELOPE_PATH}" \
   http://127.0.0.1:8000/internal/ingestion/tasks
 ```
 
@@ -117,56 +102,18 @@ temporal workflow cancel \
 写 `canceled` 投影；executor result 已被接受后，晚到 cancel 不得覆盖 completed projection。
 不得手工修改 PostgreSQL 行。
 
-## Kubernetes
+## 部署与 Worker 排查
 
-```bash
-kubectl kustomize infra/k8s/ingestion-runtime/base >/tmp/ingestion-runtime.yaml
-kubeconform -strict -ignore-missing-schemas /tmp/ingestion-runtime.yaml
-```
+源码仓的 Kubernetes base 位于 `infra/k8s/ingestion-runtime/base`；实际环境的镜像、配置、Secret、
+网络和控制器资源由环境仓维护。不要在本手册保存环境资源清单。
 
-环境 overlay 必须提供：
-
-- `ingestion-runtime-rendered-config`；
-- 含数据库 URL、管理令牌和固定运维令牌的 `ingestion-control-secrets`；
-- 含不同来源与派生身份的 `object-store-secrets`；
-- 启用内部门户时预创建的 `source-collector-internal-portal-auth`；
-- 不可变 ingestion-control、worker 和 source-collector 镜像摘要；
-- Temporal Connection、KEDA 补丁和 migration-before-runtime 同步顺序。
-
-Secret 按凭据所有者和变更边界组织，不按 Pod 重复创建。workload 使用显式
-`secretKeyRef`，不能用 Secret 级 `envFrom` 扩大权限。ingestion-control worker 可以获得
-source/derived 对象存储凭据；source-collector 只能获得 source 凭据。
-
-`source-collector-internal-portal-auth` 只包含 `sso_tgc`，以完整可选卷挂载。日常轮换通过
-Ops Web 固定操作完成，不为每次轮换提交 SealedSecret；获取、校验和故障处理见
-`portal-auth.md`。
-
-所有 container 使用 non-root、read-only root filesystem 且不挂 service-account token。可写
-状态只放 `emptyDir` 的 `/tmp`、Crawlee storage 和受限 `/dev/shm`；保留 `fsGroup` 以确保
-非 root 用户可写新 volume。
-
-## Worker 排查
-
-```bash
-kubectl get connection,workerdeployment,workerresourcetemplate
-kubectl get deployment,scaledobject,poddisruptionbudget
-kubectl describe workerdeployment ingestion-control-worker
-kubectl describe workerdeployment source-collector-worker
-```
-
-依次检查：
-
-1. Connection 健康状态和 Temporal namespace；
-2. 目标与当前 build ID；
-3. Worker 启动及两个版本变量；
-4. WorkerResourceTemplate、ScaledObject 和 PDB；
-5. Temporal poller 与 heartbeat；
-6. 对象存储 digest；
-7. 有界任务投影。
+排查时依次确认 Temporal 连接与 poller、worker 当前版本、activity heartbeat、对象存储 digest 和
+有界任务投影。工作流历史、重试与取消以 Temporal 为准；部署与扩缩容状态以环境仓和集群控制器
+为准。内部门户凭据问题按 [内部门户认证](./portal-auth.md) 处理。
 
 ## 失败规则
 
-- 缺少 registry/config/schema/credential：修复配置，不增加 fallback executor；
+- 缺少 registry、配置、schema 或凭据：修复对应输入，不增加隐式替代执行器；
 - digest 不一致：拒绝 task/artifact，不重新计算后接受；
 - activity timeout：检查 heartbeat 和 provider/object-store latency，再决定新 task；
 - 执行成功后 projection 暂时失败：让 Temporal retry control activity，不重复采集；

@@ -4,57 +4,45 @@ owner_boundary: docs/decisions
 decision_id: ADR-0076
 status: accepted
 ---
-# ADR-0076 Langfuse Trace 数据
+# ADR-0076：Langfuse 调用链数据
 
 ## 背景
 
-raw replay 设计重复了 self-hosted Langfuse trace、dataset 和 score platform 已有能力，还
-引入 custom capture policy、replay packet schema、fingerprint、object-store lifecycle 和
-product database column，却没有迁移或兼容需求。
-
-另一方面，完全禁止 Langfuse 保存模型输入输出、memory 和 retrieved fact，会让 LLM
-observability 无法看到需要排查的真实执行。
+为模型调用另建回放系统会重复 Langfuse 已有的调用链、数据集和评分能力，并增加第二套采集、
+存储和关联模型。另一方面，如果 Langfuse 只能保存清理后的元数据，就无法排查模型输入输出、
+记忆上下文和检索事实。
 
 ## 决策
 
-使用自托管 Langfuse 作为受信任内部 LLM observability plane。
+使用自托管 Langfuse 作为受信任的内部模型观测和评测平台。
 
-- sampled Agent SDK trace 可以包含 user/session association、model input/output、memory
-  context 和已授权 retrieved fact。
-- credential 和 secret 在所有 trace/eval lane 中都禁止出现。
-- app-api、Ops Web、Temporal metadata 和 PostgreSQL read model 只保存有界
-  projection，不复制 Langfuse observation body。
-- tracing 在进程启动时通过标准 OTel exporter config 启用；request 不携带 observability
-  mode、sample ratio、exporter setting 或 sink ref。
-- 自定义原始采集策略、回放 packet/index/diff schema、LLM I/O/answer fingerprint、回放服务和
-  database column 全部退役。
-- badcase reproduction 通过真实产品路径重新运行版本化 Langfuse dataset item。
-- eval adapter 使用官方 dataset-run-item API 关联 product trace，并使用返回的 dataset run
-  identity 执行 Ragas 和确定性 score。
-- 已有真实 product trace 时不使用 `runExperiment`，避免产生第二个 synthetic trace。
+- 采样后的 Agent 调用链可以包含用户与会话关联、模型输入输出、记忆上下文和已授权检索事实；
+- 认证凭据和密钥不得进入调用链、数据集或评分；
+- App API、Ops Web、Temporal 元数据和 PostgreSQL 读取模型只保存有界摘要，不复制 Langfuse
+  observation 正文；
+- 运行时在进程启动时通过标准 OpenTelemetry 或官方集成启用发送，请求不能选择采样、发送端或
+  数据接收目标；
+- 仓库不建设第二套原始模型调用采集、回放索引、差异存储或回放服务；
+- 评测通过 Langfuse 官方的数据集、运行和评分能力关联产品调用，并使用 Ragas 等成熟评分实现；
+- 已经存在真实产品调用链时直接关联该调用链，不为评测重复执行产品请求。
 
 ## 后果
 
-- request tracing 启用时，OpenAI Agents SDK instrumentation 包含 model I/O。
-- 产品观测保持紧凑，只保存 correlation identity、model/provider identity、
-  `agent_runtime_prompt_trace.v1` 和 stage timing。
-- score metadata 保持 scalar 且 allowlisted；answer/context text 属于 trace、dataset 和 Ragas
-  sample field。
-- Langfuse 不可用不阻塞在线执行；Temporal 和 PostgreSQL 仍是 lifecycle truth。
-- Ragas 保持窄 Python island；TypeScript 拥有产品执行、dataset linking 和 score publication。
+- 启用模型调用链后，受信任的 Langfuse 数据可以包含排查所需正文；通用日志和产品投影仍保持
+  有界且不保存这些正文；
+- 评分元数据保持标量和白名单字段，回答与上下文正文属于调用链、数据集和评分样本；
+- Langfuse 不可用不阻塞在线执行；Temporal 和 PostgreSQL 仍维护执行生命周期状态。
 
 ## 未采用方案
 
-- **保留 custom replay plane**：无兼容消费者却重复 lifecycle、安全、schema 和运维。
-- **Langfuse 禁用 model I/O**：metadata-only span 无法排查 prompt、memory、retrieval 或
-  model output。
-- **用 `runExperiment` 包裹产品调用**：产品调用已产生 canonical trace，不应合成第二次
-  execution。
+- **保留自研回放系统**：重复生命周期、安全、数据结构和运维能力；
+- **禁止 Langfuse 保存模型输入输出**：只有元数据的调用链无法排查提示词、记忆、检索和输出；
+- **用实验接口重新执行已有产品调用**：会产生第二次执行和不一致的诊断证据。
 
 ## 与既有决策的关系
 
-ADR-0059 继续拥有 Langfuse 平台；本决策修订其中 sanitized-trace-only 表述。ADR-0061、
-ADR-0062 继续定义 TypeScript 所有权、Ragas Python island 和安全 sample/score shape。
+ADR-0059 继续拥有 Langfuse 平台；本决策修订其中只保存清理后元数据的表述。ADR-0061 定义
+TypeScript 所有权、Ragas Python 边界和安全评测输入。
 
 ## 相关文档
 

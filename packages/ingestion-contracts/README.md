@@ -1,36 +1,26 @@
 # ingestion-contracts
 
-采集任务与正式 document unit 的共享 JSON Schema，以及采集所有者使用的 TypeScript/Ajv
-validator。
+采集任务、结果、release 和规范文档单元的共享 JSON Schema 与 TypeScript 校验器。
 
-本 package 是 TypeScript 控制面与 Rust kernel 调度所用跨 runtime ingestion task 结构的事实
-来源。runtime package 必须通过 TypeScript Ajv validator 或正式 JSON Schema 校验 task
-envelope、task registry 和 canonical document unit，不得复制 DTO 规则。
+## 职责
 
-本 package 不是 ingestion runtime core，不得导入 Temporal、Crawlee、object-store client、
-database client 或 provider transport。`apps/*` 和 `jobs/*` 中的 runtime code 可以消费这些
-合同；可复用 ingest helper 必须保持 runtime-neutral。
+- 在 `schemas/` 维护跨运行时结构；
+- 为 TypeScript 调用方提供 Ajv 校验器和类型；
+- 以 `assertions/` 验证有效与无效样例；
+- 约束对象引用摘要、字节数和规范文档标识。
 
-当前合同：
+具体字段和版本只由 schema、导出类型与合同测试维护，README 不复制字段清单。本 package 不导入
+Temporal、数据库、对象存储客户端或供应商实现。
 
-- `CanonicalDocumentUnit`
-- `IngestionReleaseManifest`
-- `IngestionTaskEnvelope`
-- `IngestionTaskRegistry`
-- `IngestionTaskResult`
+## 验证
 
-当前 task 合同为 `ingestion_task_envelope.v3`、`ingestion_task_registry.v3` 和
-`ingestion_task_result.v1`。task envelope 只包含 task/run 标识、registry task id 和由 digest
-固定的 object-store input ref。source/target identity、executor kind 与 input/output contract
-由 ingestion-control 从 registry 冻结。activity 返回一个 result-manifest ref 和有界 summary。
+```bash
+pnpm --filter ingestion-contracts typecheck
+pnpm --filter ingestion-contracts test:ingest
+pnpm ci:contracts
+```
 
-当前 release manifest 为 `ingestion_release_manifest.v2`。task envelope、task result 与
-release manifest 中的每个 artifact ref 都必须同时包含 `sha256:` digest 和 `byte_size`；只有
-URI 或只有 digest 的 ref 无效。
+## 相关文档
 
-canonical document unit 使用面向 reader 的 `doc_id`、`version_id`、`chunk_id`、
-`root_unit_id`、`text`、`clean_text`、`metadata` 与 `anchor`。`canonical_document_units.v1`
-不接受旧 `document_id` / `unit_id` 输入。
-
-`assertions/` 中的 JSON 由 TypeScript contract test 消费；`schemas/` 中的文件是本 package
-唯一拥有的 schema 副本。
+- `docs/architecture/system/data-plane.md`
+- `packages/ingest-core/README.md`

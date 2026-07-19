@@ -197,14 +197,11 @@ export function createExecutionControlRuntimeClient(
 	env: ExecutionControlRuntimeEnv,
 	input: {
 		fetchImplementation?: typeof fetch;
-		traceDataProvider?: () => Record<string, unknown>;
 	} = {},
 ): ExecutionControlRuntimeClient {
 	const fetchImplementation = input.fetchImplementation ?? defaultRuntimeFetch;
-	const traceDataProvider = input.traceDataProvider ?? (() => ({}));
 	const requestExecutionControl = createExecutionControlRequester(env, {
 		fetchImplementation,
-		traceDataProvider,
 	});
 
 	return {
@@ -272,12 +269,10 @@ export function createExecutionControlPersonalMemoryClient(
 	env: ExecutionControlRuntimeEnv,
 	input: {
 		fetchImplementation?: typeof fetch;
-		traceDataProvider?: () => Record<string, unknown>;
 	} = {},
 ): ExecutionControlPersonalMemoryClient {
 	const requestExecutionControl = createExecutionControlRequester(env, {
 		fetchImplementation: input.fetchImplementation ?? defaultRuntimeFetch,
-		traceDataProvider: input.traceDataProvider ?? (() => ({})),
 	});
 
 	return {
@@ -317,7 +312,6 @@ export function createExecutionControlRequester(
 	env: ExecutionControlRuntimeEnv,
 	input: {
 		fetchImplementation?: typeof fetch;
-		traceDataProvider: () => Record<string, unknown>;
 	},
 ): (
 	path: string,
@@ -330,7 +324,6 @@ export function createExecutionControlRequester(
 		timeoutMs?: number;
 	},
 ) => Promise<JsonRecord> {
-	const traceDataProvider = input.traceDataProvider;
 	return async function requestExecutionControl(
 		path: string,
 		options: {
@@ -385,7 +378,6 @@ export function createExecutionControlRequester(
 							traceId: options.traceId?.trim() || "",
 						},
 						sharedSecret,
-						traceDataProvider,
 					}),
 					method: options.method,
 					signal: controller.signal,

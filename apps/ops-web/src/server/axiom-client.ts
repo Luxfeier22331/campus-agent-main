@@ -1,15 +1,17 @@
+import { AxiomWithoutBatching, type TabularQueryResult } from "@axiomhq/js";
+
 import {
 	type OpsObservabilityResponse,
 	OpsObservabilityResponseSchema,
 	type OpsOverviewResponse,
 	type OpsOverviewWindow,
 } from "../shared/ops-contract.ts";
+import { raceWithSignal } from "./race-with-signal.ts";
+import { resolveRequestObservabilityWindow } from "./request-observability-window.ts";
 
-const DEFAULT_TIMEOUT_MS = 5_000;
-const MAX_TIMEOUT_MS = 30_000;
-const QUERY_PADDING_MS = 5 * 60_000;
-const MAX_REQUEST_QUERY_WINDOW_MS = 30 * 60_000;
 const DATASET_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
+const EDGE_DOMAIN_PATTERN = /^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/;
+const MAX_ACTIVE_AXIOM_QUERIES = 5;
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
 
 export type OpsObservabilityKind = OpsObservabilityResponse["kind"];
@@ -19,25 +21,37 @@ export interface AxiomQueryInput {
 	kind: OpsObservabilityKind;
 	now?: Date;
 	requestId: string;
+	signal?: AbortSignal;
 	startedAt: string;
 	traceId: string;
+}
+
+export interface AxiomTelemetrySnapshotInput {
+	now?: Date;
+	signal?: AbortSignal;
 }
 
 export interface AxiomClient {
 	getTelemetrySnapshot(
 		window: OpsOverviewWindow,
-		now?: Date,
+		input?: AxiomTelemetrySnapshotInput,
 	): Promise<OpsOverviewResponse["telemetry"]>;
 	queryRequest(input: AxiomQueryInput): Promise<OpsObservabilityResponse>;
 }
 
 export interface AxiomEnv {
-	OPS_WEB_AXIOM_EDGE_URL?: string;
+	OPS_WEB_AXIOM_EDGE_DOMAIN?: string;
 	OPS_WEB_AXIOM_LOGS_DATASET?: string;
 	OPS_WEB_AXIOM_METRICS_DATASET?: string;
-	OPS_WEB_AXIOM_QUERY_TIMEOUT_MS?: string;
 	OPS_WEB_AXIOM_QUERY_TOKEN?: string;
 	OPS_WEB_AXIOM_TRACES_DATASET?: string;
+}
+
+export interface AxiomSdkQueryClient {
+	query(
+		apl: string,
+		options: { endTime: string; format: "tabular"; startTime: string },
+	): Promise<TabularQueryResult>;
 }
 
 export class AxiomUnavailableError extends Error {
@@ -51,10 +65,6 @@ interface AxiomQueryObservation {
 	blocksExamined: number | null;
 	dataset: string;
 	elapsedTime: number | null;
-	historyQueryId: string | null;
-	queryLimit: string | null;
-	queryRemaining: string | null;
-	queryReset: string | null;
 	rowsExamined: number | null;
 }
 
@@ -64,77 +74,95 @@ interface ParsedTabularResponse {
 }
 
 export function createAxiomClient(input: {
-	edgeUrl: string;
-	fetchFn?: typeof fetch;
+	edgeDomain: string;
 	logsDataset: string;
 	metricsDataset: string;
 	onQueryComplete?: (observation: AxiomQueryObservation) => void;
 	queryToken: string;
-	timeoutMs?: number;
+	sdkClient?: AxiomSdkQueryClient;
 	tracesDataset: string;
 }): AxiomClient {
-	const queryUrl = normalizeEdgeQueryUrl(input.edgeUrl);
+	const edgeDomain = normalizeEdgeDomain(input.edgeDomain);
 	const datasets = {
 		logs: normalizeDatasetName(input.logsDataset),
 		metrics: normalizeDatasetName(input.metricsDataset),
 		traces: normalizeDatasetName(input.tracesDataset),
 	};
 	const queryToken = normalizeQueryToken(input.queryToken);
-	const timeoutMs = normalizeTimeout(input.timeoutMs);
-	const fetchFn = input.fetchFn ?? fetch;
+	const sdkClient =
+		input.sdkClient ??
+		new AxiomWithoutBatching({
+			axiomClient: "campus-agent-ops-web",
+			edge: edgeDomain,
+			token: queryToken,
+		});
 	const onQueryComplete =
 		input.onQueryComplete ??
 		((observation: AxiomQueryObservation) => {
 			console.info("[ops-web] axiom query completed", observation);
 		});
+	let activeQueryCount = 0;
 
 	async function runQuery(query: {
 		apl: string;
 		dataset: string;
 		from: Date;
+		signal?: AbortSignal;
 		to: Date;
 	}): Promise<ParsedTabularResponse> {
-		let response: Response;
-		try {
-			response = await fetchFn(queryUrl, {
-				body: JSON.stringify({
-					apl: query.apl,
+		if (query.signal?.aborted) {
+			throw new AxiomUnavailableError("Axiom query was aborted before it started.", {
+				cause: query.signal.reason,
+			});
+		}
+		if (activeQueryCount >= MAX_ACTIVE_AXIOM_QUERIES) {
+			throw new AxiomUnavailableError("Axiom query concurrency limit was reached.");
+		}
+		activeQueryCount += 1;
+		// The SDK has no caller-provided AbortSignal, so retain the slot until its request settles.
+		const sdkQuery = Promise.resolve()
+			.then(() =>
+				sdkClient.query(query.apl, {
 					endTime: query.to.toISOString(),
+					format: "tabular",
 					startTime: query.from.toISOString(),
 				}),
-				headers: {
-					accept: "application/json",
-					authorization: `Bearer ${queryToken}`,
-					"content-type": "application/json",
-				},
-				method: "POST",
-				signal: AbortSignal.timeout(timeoutMs),
+			)
+			.finally(() => {
+				activeQueryCount -= 1;
 			});
+		let result: TabularQueryResult;
+		try {
+			result = await raceWithSignal(sdkQuery, query.signal);
 		} catch (error) {
 			throw new AxiomUnavailableError("Axiom query failed.", { cause: error });
 		}
-		if (!response.ok) {
-			throw new AxiomUnavailableError(`Axiom query returned HTTP ${response.status}.`);
+		if (result.status.isPartial !== false) {
+			throw new AxiomUnavailableError("Axiom returned a partial query result.");
 		}
-		const payload = await parseTabularResponse(response);
+		let records: Record<string, unknown>[];
+		try {
+			records = result.tables.flatMap((table) => [...table.events()]);
+		} catch (error) {
+			throw new AxiomUnavailableError("Axiom returned an invalid tabular result.", {
+				cause: error,
+			});
+		}
 		onQueryComplete({
-			blocksExamined: payload.status.blocksExamined,
+			blocksExamined: optionalNonNegativeNumber(result.status.blocksExamined),
 			dataset: query.dataset,
-			elapsedTime: payload.status.elapsedTime,
-			historyQueryId: normalizeHeader(response.headers.get("x-axiom-history-query-id")),
-			queryLimit: normalizeHeader(response.headers.get("x-querylimit-limit")),
-			queryRemaining: normalizeHeader(response.headers.get("x-querylimit-remaining")),
-			queryReset: normalizeHeader(response.headers.get("x-querylimit-reset")),
-			rowsExamined: payload.status.rowsExamined,
+			elapsedTime: optionalNonNegativeNumber(result.status.elapsedTime),
+			rowsExamined: optionalNonNegativeNumber(result.status.rowsExamined),
 		});
 		return {
-			records: payload.records,
-			rowsMatched: payload.status.rowsMatched,
+			records,
+			rowsMatched: optionalNonNegativeNumber(result.status.rowsMatched),
 		};
 	}
 
 	return {
-		async getTelemetrySnapshot(window, requestedNow = new Date()) {
+		async getTelemetrySnapshot(window, queryInput = {}) {
+			const requestedNow = queryInput.now ?? new Date();
 			const from = new Date(requestedNow.valueOf() - overviewWindowMs(window));
 			const specs = [
 				{ dataset: datasets.logs, kind: "LOGS" as const },
@@ -147,6 +175,7 @@ export function createAxiomClient(input: {
 						apl: buildAxiomOverviewApl(spec.dataset),
 						dataset: spec.dataset,
 						from,
+						signal: queryInput.signal,
 						to: requestedNow,
 					});
 					const row = payload.records[0] ?? {};
@@ -156,6 +185,11 @@ export function createAxiomClient(input: {
 					};
 				}),
 			);
+			if (queryInput.signal?.aborted) {
+				throw new AxiomUnavailableError("Axiom telemetry query was aborted.", {
+					cause: queryInput.signal.reason,
+				});
+			}
 			const signals: OpsOverviewResponse["telemetry"]["signals"] = results.map((result, index) => {
 				const kind = specs[index]?.kind ?? "LOGS";
 				if (result.status === "rejected") {
@@ -206,7 +240,14 @@ export function createAxiomClient(input: {
 			const limit = queryInput.kind === "logs" ? 200 : 500;
 			const dataset = queryInput.kind === "logs" ? datasets.logs : datasets.traces;
 			const now = queryInput.now ?? new Date();
-			const window = requestQueryWindow(queryInput, now);
+			let window: ReturnType<typeof resolveRequestObservabilityWindow>;
+			try {
+				window = resolveRequestObservabilityWindow(queryInput, now);
+			} catch (error) {
+				throw new AxiomUnavailableError("Axiom query received an invalid request time range.", {
+					cause: error,
+				});
+			}
 			const startedAt = Date.now();
 			const payload = await runQuery({
 				apl: buildAxiomRequestApl({
@@ -217,9 +258,12 @@ export function createAxiomClient(input: {
 				}),
 				dataset,
 				from: window.from,
+				signal: queryInput.signal,
 				to: window.to,
 			});
-			const records = payload.records.slice(0, limit);
+			const records = payload.records
+				.slice(0, limit)
+				.map((record) => mapAxiomRecord(queryInput.kind, record));
 			return OpsObservabilityResponseSchema.parse({
 				dataState: records.length === 0 ? "NO_DATA" : "FRESH",
 				from: window.from.toISOString(),
@@ -243,7 +287,7 @@ export function createAxiomClient(input: {
 
 export function createAxiomClientFromEnv(env: AxiomEnv = process.env): AxiomClient {
 	const required = {
-		OPS_WEB_AXIOM_EDGE_URL: env.OPS_WEB_AXIOM_EDGE_URL?.trim(),
+		OPS_WEB_AXIOM_EDGE_DOMAIN: env.OPS_WEB_AXIOM_EDGE_DOMAIN?.trim(),
 		OPS_WEB_AXIOM_LOGS_DATASET: env.OPS_WEB_AXIOM_LOGS_DATASET?.trim(),
 		OPS_WEB_AXIOM_METRICS_DATASET: env.OPS_WEB_AXIOM_METRICS_DATASET?.trim(),
 		OPS_WEB_AXIOM_QUERY_TOKEN: env.OPS_WEB_AXIOM_QUERY_TOKEN?.trim(),
@@ -256,11 +300,10 @@ export function createAxiomClientFromEnv(env: AxiomEnv = process.env): AxiomClie
 		throw new AxiomUnavailableError(`Axiom configuration is missing: ${missing.join(", ")}.`);
 	}
 	return createAxiomClient({
-		edgeUrl: required.OPS_WEB_AXIOM_EDGE_URL as string,
+		edgeDomain: required.OPS_WEB_AXIOM_EDGE_DOMAIN as string,
 		logsDataset: required.OPS_WEB_AXIOM_LOGS_DATASET as string,
 		metricsDataset: required.OPS_WEB_AXIOM_METRICS_DATASET as string,
 		queryToken: required.OPS_WEB_AXIOM_QUERY_TOKEN as string,
-		timeoutMs: normalizeEnvInteger(env.OPS_WEB_AXIOM_QUERY_TIMEOUT_MS),
 		tracesDataset: required.OPS_WEB_AXIOM_TRACES_DATASET as string,
 	});
 }
@@ -285,86 +328,63 @@ export function buildAxiomRequestApl(input: {
 	if (!(Number.isInteger(input.limit) && input.limit > 0 && input.limit <= 501)) {
 		throw new Error("Axiom query limit is invalid.");
 	}
+	const quotedRequestId = JSON.stringify(requestId);
+	const requestAttribute = "tostring(attributes.custom['campus.request_id'])";
+	const requestBody = "tostring(body['campus.request_id'])";
+	const predicate =
+		input.kind === "logs"
+			? `${requestAttribute} == ${quotedRequestId} or ${requestBody} == ${quotedRequestId}`
+			: `${requestAttribute} == ${quotedRequestId}`;
 	const projection =
 		input.kind === "logs"
 			? [
 					"timestamp = _time",
-					"['service.name']",
-					"severity_text = tostring(coalesce(severity_text, severityText, severity))",
-					"event_type = tostring(coalesce(['event_type'], attributes.custom['event_type'], attributes['event_type'], attributes.custom['event.name'], attributes['event.name'], body['event_type']))",
-					"source = tostring(coalesce(['source'], attributes.custom['source'], body['source']))",
-					"status = tostring(coalesce(['status'], attributes.custom['status'], body['status']))",
-					"error_code = tostring(coalesce(['error_code'], attributes.custom['error_code'], attributes['error_code'], attributes.custom['error.code'], attributes['error.code'], body['error_code']))",
-					"duration_ms = todouble(coalesce(['duration_ms'], attributes.custom['duration_ms'], body['duration_ms']))",
-					"trace_id = tostring(coalesce(['trace_id'], attributes.custom['trace_id'], attributes['trace_id']))",
-					"span_id = tostring(coalesce(['span_id'], attributes.custom['span_id'], attributes['span_id']))",
-					"request_id = correlated_request_id",
+					"serviceName = ['service.name']",
+					"severityText = tostring(coalesce(severity_text, severityText, severity))",
+					"eventType = tostring(coalesce(attributes.custom['event.name'], attributes.custom['event_type'], body['event_type']))",
+					"source = tostring(coalesce(attributes.custom['source'], body['source']))",
+					"status = tostring(coalesce(attributes.custom['status'], body['status']))",
+					"errorCode = tostring(coalesce(attributes.custom['error.code'], attributes.custom['error_code'], body['error_code']))",
+					"durationMs = todouble(coalesce(attributes.custom['duration_ms'], body['duration_ms']))",
+					"otelTraceId = tostring(trace_id)",
+					"otelSpanId = tostring(span_id)",
+					"requestId = tostring(coalesce(attributes.custom['campus.request_id'], body['campus.request_id']))",
+					"productTraceId = tostring(coalesce(attributes.custom['campus.trace_id'], body['campus.trace_id']))",
 				]
 			: [
 					"timestamp = _time",
-					"['service.name']",
+					"serviceName = ['service.name']",
 					"name",
-					"kind",
-					"duration",
-					"['status.code']",
-					"trace_id",
-					"span_id",
-					"parent_span_id",
-					"request_id = correlated_request_id",
+					"kind = tostring(kind)",
+					"duration = tostring(duration)",
+					"statusCode = tostring(['status.code'])",
+					"hasError = error",
+					"otelTraceId = tostring(trace_id)",
+					"otelSpanId = tostring(span_id)",
+					"parentSpanId = tostring(parent_span_id)",
+					"requestId = tostring(attributes.custom['campus.request_id'])",
+					"productTraceId = tostring(attributes.custom['campus.trace_id'])",
 				];
 	return [
 		`['${dataset}']`,
-		"| extend correlated_request_id = tostring(coalesce(['request_id'], attributes.custom['request_id'], attributes.custom['request.id'], attributes['request_id'], attributes['request.id'], body['request_id'], attributes.custom['http.request.header.x-request-id'], attributes.custom['http.request.header.x_request_id'], attributes['http.request.header.x-request-id'], attributes['http.request.header.x_request_id']))",
-		`| where correlated_request_id == ${JSON.stringify(requestId)}`,
+		`| where ${predicate}`,
 		`| project ${projection.join(", ")}`,
 		"| sort by timestamp asc",
 		`| take ${input.limit}`,
 	].join("\n");
 }
 
-function requestQueryWindow(input: AxiomQueryInput, now: Date) {
-	const startedAt = Date.parse(input.startedAt);
-	const completedAt = input.completedAt ? Date.parse(input.completedAt) : now.valueOf();
+function normalizeEdgeDomain(value: string) {
+	const normalized = value.trim().toLowerCase();
 	if (
-		!(Number.isFinite(startedAt) && Number.isFinite(completedAt) && Number.isFinite(now.valueOf()))
+		!EDGE_DOMAIN_PATTERN.test(normalized) ||
+		normalized.includes("..") ||
+		normalized.includes(":") ||
+		normalized.includes("/")
 	) {
-		throw new AxiomUnavailableError("Axiom query received invalid request timestamps.");
+		throw new Error("Axiom Edge domain is invalid.");
 	}
-	const unboundedFrom = startedAt - QUERY_PADDING_MS;
-	const to = Math.min(now.valueOf(), completedAt + QUERY_PADDING_MS);
-	if (to < unboundedFrom) {
-		throw new AxiomUnavailableError("Axiom query received an invalid request time range.");
-	}
-	const from = Math.max(unboundedFrom, to - MAX_REQUEST_QUERY_WINDOW_MS);
-	return {
-		clamped: from > unboundedFrom,
-		from: new Date(from),
-		to: new Date(to),
-	};
-}
-
-function normalizeEdgeQueryUrl(value: string) {
-	const parsed = new URL(value);
-	if (parsed.protocol !== "https:") {
-		throw new Error("Axiom Edge URL must use HTTPS.");
-	}
-	if (parsed.username || parsed.password || parsed.hash) {
-		throw new Error("Axiom Edge URL must not contain credentials or a fragment.");
-	}
-	const path = parsed.pathname.replace(/\/+$/, "");
-	const isBaseUrl = !path || path === "/v1";
-	const isExactQueryUrl = path === "/v1/query/_apl";
-	const queryEntries = [...parsed.searchParams.entries()];
-	const hasExactFormat =
-		queryEntries.length === 1 &&
-		queryEntries[0]?.[0] === "format" &&
-		queryEntries[0]?.[1] === "tabular";
-	if (!((isBaseUrl && queryEntries.length === 0) || (isExactQueryUrl && hasExactFormat))) {
-		throw new Error(
-			"Axiom Edge URL must be a base domain, end with /v1, or be the tabular Edge APL endpoint.",
-		);
-	}
-	return `${parsed.origin}/v1/query/_apl?format=tabular`;
+	return normalized;
 }
 
 function normalizeDatasetName(value: string) {
@@ -394,104 +414,78 @@ function normalizeQueryToken(value: string) {
 	return normalized;
 }
 
-function normalizeTimeout(value: number | undefined) {
-	if (value === undefined) {
-		return DEFAULT_TIMEOUT_MS;
-	}
-	if (!(Number.isInteger(value) && value > 0 && value <= MAX_TIMEOUT_MS)) {
-		throw new Error(`Axiom query timeout must be between 1 and ${MAX_TIMEOUT_MS} milliseconds.`);
-	}
-	return value;
-}
-
-function normalizeEnvInteger(value: string | undefined): number | undefined {
-	if (!value?.trim()) {
-		return;
-	}
-	const parsed = Number(value);
-	if (!(Number.isInteger(parsed) && parsed > 0 && parsed <= MAX_TIMEOUT_MS)) {
-		throw new AxiomUnavailableError(
-			`OPS_WEB_AXIOM_QUERY_TIMEOUT_MS must be between 1 and ${MAX_TIMEOUT_MS}.`,
-		);
-	}
-	return parsed;
-}
-
-async function parseTabularResponse(response: Response): Promise<{
-	records: Record<string, unknown>[];
-	status: {
-		blocksExamined: number | null;
-		elapsedTime: number | null;
-		rowsExamined: number | null;
-		rowsMatched: number | null;
+function mapAxiomRecord(kind: OpsObservabilityKind, record: Record<string, unknown>) {
+	const base = {
+		otelSpanId: nullableString(record.otelSpanId),
+		otelTraceId: nullableString(record.otelTraceId),
+		productTraceId: nullableString(record.productTraceId),
+		requestId: requiredString(record.requestId, "requestId"),
+		serviceName: nullableString(record.serviceName),
+		timestamp: requiredTimestamp(record.timestamp),
 	};
-}> {
-	let value: unknown;
-	try {
-		value = await response.json();
-	} catch (error) {
-		throw new AxiomUnavailableError("Axiom returned invalid JSON.", { cause: error });
+	if (kind === "logs") {
+		return {
+			...base,
+			durationMs: nullableNonNegativeNumber(record.durationMs),
+			errorCode: nullableString(record.errorCode),
+			eventType: nullableString(record.eventType),
+			severityText: nullableString(record.severityText),
+			source: nullableString(record.source),
+			status: nullableString(record.status),
+		};
 	}
-	if (!isRecord(value) || value.format !== "tabular" || !isRecord(value.status)) {
-		throw new AxiomUnavailableError("Axiom returned an invalid tabular response.");
-	}
-	if (value.status.isPartial !== false) {
-		throw new AxiomUnavailableError("Axiom returned a partial query result.");
-	}
-	if (!Array.isArray(value.tables)) {
-		throw new AxiomUnavailableError("Axiom tabular response is missing tables.");
-	}
-	const records = value.tables.flatMap(parseTableRows);
 	return {
-		records,
-		status: {
-			blocksExamined: optionalNonNegativeNumber(value.status.blocksExamined),
-			elapsedTime: optionalNonNegativeNumber(value.status.elapsedTime),
-			rowsExamined: optionalNonNegativeNumber(value.status.rowsExamined),
-			rowsMatched: optionalNonNegativeNumber(value.status.rowsMatched),
-		},
+		...base,
+		duration: nullableString(record.duration),
+		hasError: nullableBoolean(record.hasError),
+		kind: nullableString(record.kind),
+		name: nullableString(record.name),
+		otelSpanId: requiredString(record.otelSpanId, "otelSpanId"),
+		otelTraceId: requiredString(record.otelTraceId, "otelTraceId"),
+		parentSpanId: nullableString(record.parentSpanId),
+		statusCode: nullableString(record.statusCode),
 	};
 }
 
-function parseTableRows(value: unknown): Record<string, unknown>[] {
-	if (!(isRecord(value) && Array.isArray(value.fields))) {
-		throw new AxiomUnavailableError("Axiom returned an invalid tabular table.");
+function requiredString(value: unknown, field: string) {
+	const normalized = nullableString(value);
+	if (!normalized) {
+		throw new AxiomUnavailableError(`Axiom record is missing ${field}.`);
 	}
-	const fieldNames = value.fields.map((field) => {
-		if (!isRecord(field) || typeof field.name !== "string" || !field.name) {
-			throw new AxiomUnavailableError("Axiom returned an invalid tabular field.");
-		}
-		return field.name;
-	});
-	if (new Set(fieldNames).size !== fieldNames.length) {
-		throw new AxiomUnavailableError("Axiom returned duplicate tabular fields.");
-	}
-	if (value.columns === undefined) {
-		return [];
-	}
-	if (!Array.isArray(value.columns) || value.columns.length !== fieldNames.length) {
-		throw new AxiomUnavailableError("Axiom returned invalid tabular columns.");
-	}
-	const columns = value.columns.map((column) => {
-		if (!Array.isArray(column)) {
-			throw new AxiomUnavailableError("Axiom returned an invalid tabular column.");
-		}
-		return column;
-	});
-	const rowCount = columns[0]?.length ?? 0;
-	if (columns.some((column) => column.length !== rowCount)) {
-		throw new AxiomUnavailableError("Axiom returned misaligned tabular columns.");
-	}
-	return Array.from({ length: rowCount }, (_, rowIndex) =>
-		Object.fromEntries(
-			fieldNames.map((fieldName, fieldIndex) => [fieldName, columns[fieldIndex]?.[rowIndex]]),
-		),
-	);
+	return normalized;
 }
 
-function normalizeHeader(value: string | null) {
-	const normalized = value?.trim();
-	return normalized ? normalized.slice(0, 256) : null;
+function nullableString(value: unknown): string | null {
+	if (typeof value !== "string") {
+		return null;
+	}
+	return value.trim() || null;
+}
+
+function requiredTimestamp(value: unknown): string {
+	const normalized = normalizeTimestamp(value);
+	if (!normalized) {
+		throw new AxiomUnavailableError("Axiom record is missing a valid timestamp.");
+	}
+	return normalized;
+}
+
+function nullableNonNegativeNumber(value: unknown): number | null {
+	const parsed = typeof value === "number" ? value : Number(value);
+	return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function nullableBoolean(value: unknown): boolean | null {
+	if (typeof value === "boolean") {
+		return value;
+	}
+	if (value === "true") {
+		return true;
+	}
+	if (value === "false") {
+		return false;
+	}
+	return null;
 }
 
 function optionalNonNegativeNumber(value: unknown) {
@@ -519,8 +513,4 @@ function normalizeTimestamp(value: unknown): string | null {
 	}
 	const parsed = Date.parse(value);
 	return Number.isFinite(parsed) ? new Date(parsed).toISOString() : null;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
 }

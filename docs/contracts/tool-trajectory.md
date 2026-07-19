@@ -16,10 +16,10 @@ status: active
 
 - `schema_version=tool_trajectory.v2`；
 - request、run 与 trace 标识；
-- 可选的 conversation、surface、environment 与 release 标识；
+- 可选的 conversation、`surface`、environment 与 release 标识；
 - `available_tools`；
 - `decision_kind=direct_answer|tool_call|fail_closed`；
-- 适用时的 selected tool 或 fail-close reason；
+- 适用时的 selected tool 或拒绝原因；
 - 对外的 `tool_calls[]`；
 - 内部的 `internal_tool_calls[]`。
 
@@ -32,7 +32,7 @@ Temporal history replay。
 result kind 是 `agent_handoff` 的 `knowledge_query`；内部搜索不进入该列表。
 
 每次调用可以携带 tool call id、tool name、status、result kind、duration、argument
-shape/hash、fail-close reason 和可公开的 provider/model 标识。
+shape/hash、拒绝原因和可公开的 provider/model 标识。
 
 ## 内部搜索调用
 
@@ -70,3 +70,9 @@ trajectory 必须在写入前拒绝以下数据，不能事后再脱敏：
 `packages/eval-langfuse` 只解析 v2。它使用对外调用判断 Primary Agent 的工具选择，并使用内部
 搜索序列计算 Ragas tool-call metric 及 target/history 诊断。答案质量和检索质量仍通过
 execution eval projection 上相互独立的 Ragas metric 评估。
+
+## 可执行来源
+
+- `apps/execution-control/internal/httpapi/execution_projection_handlers.go`
+- `apps/execution-control/internal/httpapi/tool_trajectory_projection_test.go`
+- `packages/eval-langfuse/src/tool-trajectory.ts`

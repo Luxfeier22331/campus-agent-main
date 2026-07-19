@@ -6,186 +6,79 @@ status: active
 
 # Provider 与 Secret
 
-## 边界
+## 文档边界
 
-本文登记仓库支持的 provider family、所有者、secret 位置和常见任务的最小环境集合。界面
-操作和部署命令留在所属 runbook。
+本文登记供应商类别、消费方、配置所有者和凭据隔离原则。精确环境变量由应用模板和配置解析器
+维护，在线版本由运行配置与注册表维护，部署 Secret 名和地址由 workload manifest 与环境仓
+维护。
 
-基本规则：
+`.env.example` 不是 staging 或 production 的 Secret 清单，ConfigMap、Secret 和平台变量也不
+替代在线 Provider Config、Hindsight 内部配置或评测运行配置。
 
-- `.env.example` 不是 staging/production secret inventory；
-- 在线 active bundle 由 execution-control Provider Config 所有；
-- server secret 只进入 app-local dev vars、平台 secret store 或运维 env；
-- browser 可见值必须明确标记为 public；
-- ConfigMap、Secret、Helm value 和 Worker var/secret 只交付 bootstrap/secret，不能替代在线
-  active bundle、Hindsight 内部配置或 eval runtime 配置。
+## 模型与检索
 
-## 核心 Provider
+| 能力 | 配置所有者 | 消费方 | 隔离要求 |
+| --- | --- | --- | --- |
+| Primary Agent 模型 | execution-control Provider Config | agent-runtime | 运行开始时解析完整激活快照，不向浏览器返回密钥 |
+| 查询向量与可选重排 | execution-control Provider Config | 检索运行时 | 与索引发布配置相容，查询凭据不具备索引管理权限 |
+| 个人记忆模型 | Hindsight 部署 | Hindsight | 不从在线 Agent 配置或评测配置派生 |
+| 评测模型 | 评测命令运行环境 | Ragas 适配器 | 不复用在线配置数据库或浏览器凭据 |
 
-### LLM
+具体模型、维度、transport、endpoint 和角色开放状态由激活配置、collection serving config 与
+可执行注册表维护，不在本文复制。
 
-- 在线所有者：execution-control Provider Config；
-- 在线消费方：execution-control 在顶层 Agent Activity 开始时解析完整 active bundle，再把
-  固定快照交给 agent-runtime；
-- 在线 role：`primary_agent`；
-- Hindsight 与 eval 使用各自 runtime owner 管理的独立配置；
-- raw key 不返回浏览器。
-
-`primary_agent` 承担完整 Agents SDK run，包括 Knowledge Agent handoff；不存在独立 public-web
-或第二个 answer-generation profile。
-
-### 向量模型
-
-- 在线所有者：execution-control Provider Config；
-- 当前基线：`Qwen3-Embedding-4B`、2560 维、OpenAI-compatible；
-- 在线 role：`rag_query_embedding` 和可选 `rag_reranker`；
-- Hindsight embedding 与 eval embedding 由各自 runtime owner 管理；
-- 在线 runtime 真相：active bundle 与 collection serving config。
-
-### 重排模型
-
-- 所有者：Ops Web Provider Config；
-- role：`rag_reranker`；
-- kind：`rerank`；
-- transport：`rerank` 或 `gitee_rerank`；
-- endpoint path 可由连接的 `feature_config.rerank.path` 指定，默认 `/rerank`。
-
-### Qdrant
-
-- 所有者：ingestion/retrieval data plane；
-- 在线 runtime 只使用 `QDRANT_QUERY_API_KEY`；
-- admin key 只用于 lifecycle、backup、restore 或 ingestion；
-- server key 和 TLS 由平台/data GitOps secret 提供；
-- 跨 substrate endpoint 必须使用 HTTPS 和受控 CA；
-- 不向在线执行 Pod 注入 admin key。
-
-### Hindsight
-
-- 所有者：personal memory runtime；
-- execution-control 句柄：`PERSONAL_MEMORY_BASE_URL`、
-  `PERSONAL_MEMORY_API_SECRET`、`PERSONAL_MEMORY_OWNER_SALT`；
-- Hindsight LLM 与 embedding 配置由 Hindsight 部署所有者管理；
-- Hindsight 内部 PostgreSQL、API secret 和 provider key 只属于部署 secret。
+## 数据服务
 
 ### PostgreSQL
 
-root `.env` 只保存共享本地 `CAMPUS_SHARED_POSTGRES_URL` 和 operator URL。app、registry、
-run projection 和 staging operator DSN 进入所属 runtime env。表所有权见
-`../data/postgres-ownership.md`。
+应用、发布任务、配置管理和运维读取使用各自角色。连接拓扑与角色边界见
+`../data/postgres-ownership.md`，不得为了减少 Secret 数量合并成共享高权限账号。
+
+### Qdrant
+
+在线查询凭据与索引生命周期管理凭据分离。在线执行只获得查询所需权限，采集、发布、备份和
+恢复使用独立管理边界。
 
 ### 对象存储
 
-架构语义统一为 S3-compatible object storage。bucket 路由和 source/derived 权限属于仓库合同，
-provider 品牌不是。班车在线读取不经过对象存储。
+来源和派生产物使用 S3-compatible 接口及按 bucket、prefix 和操作范围限制的凭据。应用只获得
+直接消费对象所需权限；对象存储品牌不进入数据合同。
 
-## 食堂同步
+## 产品与来源服务
 
-`jobs/dining-sync` 负责从飞书 Base 写 catalog/review observation、审核评价并物化公开附件。
-Catalog observation 不自动发布；`apps/ops-web` 负责 rebase、validate、publish 和 rollback。
+| 类别 | 所有者 | 用途 |
+| --- | --- | --- |
+| 身份与安全验证 | App API、Campus Web | 账号、session、邮件验证和反滥用 |
+| 邮件服务 | App API | 密码重置和账号通知 |
+| 微信公众号来源 | Source Collector | 发现来源并取得采集入口，规范正文仍来自真实文章 |
+| 内部门户认证 | Source Collector 与 Ops Web | 固定认证凭据、会话建立和维护状态 |
+| Dining 来源与审核 | Dining 同步任务 | 目录、评价、附件和内容审核 |
+| Cloudflare Worker 平台 | App API、Campus Web | Worker 运行、公开配置和平台绑定 |
 
-配置类别：
+来源凭据只进入所属采集器或任务，不进入在线问答、浏览器或通用仓库根环境。个人调试凭据不能
+作为生产运行配置。
 
-- database：同步使用 `DATABASE_URL`，migration 使用独立
-  `DINING_MIGRATION_DATABASE_URL`；
-- 飞书应用：app ID/secret、base token、campus/hall/stall/dish/review table/view ID；
-- 对象存储：endpoint、region、access key、secret、bucket、public base URL 和 review prefix；
-- 内容审核：base URL、API key、文本/图片模型和 timeout。
+## 可观测性
 
-同步和审核值只进入 Job/CronJob，不进入 app-api Worker 或浏览器。Ops Web 使用独立
-`OPS_WEB_DINING_DATABASE_URL`。生产使用项目专用飞书应用；个人
-`lark-cli` 登录只用于调试。published projection 不得保存 file token 或临时下载 URL。
+Collector receiver、下游写入和 Ops Web 查询使用不同凭据：
 
-当前命令和 Secret 名见 `../runbooks/dining.md`，数据语义见 `../data/dining.md`。
+- 生产者只获得对应入口的写入或导出能力；
+- Collector 按信号入口和目标平台分离认证；
+- Ops Web 只获得固定范围的 Axiom 查询和 Sentry Issue 读取能力；
+- Worker 日志目标和 source map 上传凭据只进入所属平台配置或受保护 CI 环境；
+- Langfuse 模型 trace、Axiom 通用信号和 Sentry 错误事件保持不同数据边界。
 
-## 应用与边缘 Provider
+字段与内容边界见 `../reference/telemetry.md`、`../architecture/system/langfuse.md` 和
+`../architecture/system/ops-observability.md`。
 
-### Cloudflare Turnstile
+## 交付规则
 
-- app-api secret：`AUTH_TURNSTILE_SECRET_KEY`；
-- campus-web public 值：site key、appearance 和 execution；
-- 保护 sign-in、sign-up 和 password reset；
-- staging/production 使用允许目标 hostname 的 widget，自动化只使用官方测试 key。
+- 本地 Secret 进入应用自己的忽略文件或开发者密钥管理器；
+- Kubernetes 非敏感启动值使用 ConfigMap，敏感材料使用 Secret 交付机制；
+- Cloudflare 应用分别维护自己的 Worker vars 和 secrets；
+- 跨平台共享认证值属于同一轮换单元，但由各平台独立投递，不能互相充当同步源；
+- Secret 不进入 Git、镜像、前端包、Terraform state、日志或命令输出；
+- 环境仓选择部署版本和 Secret 引用，源码仓只维护环境无关的消费合同。
 
-### FeedWe
-
-- 所有者：微信公众号来源采集；
-- secret：`FEEDWE_EMAIL`、`FEEDWE_PASSWORD`、`FEEDWE_BASE_URL`；
-- FeedWe 结果只用于发现/审计，canonical body/media 必须来自真实文章采集。
-
-### Better Auth
-
-- 所有者：app-api；
-- 当前模式：email/password 与 reset；
-- secret：`BETTER_AUTH_SECRET`；
-- 当前不要求 GitHub、Google、WeChat 等 social OAuth credential。
-
-### Resend
-
-- 所有者：app-api；
-- 用途：密码重置和密码变更邮件；
-- secret/config：`RESEND_API_KEY`、发件地址和可选 reply-to。
-
-### Cloudflare Worker
-
-当前 Worker surface 为 app-api 和 campus-web。每个应用使用自己的 Worker
-secret store；数据面、对象存储和 execution runtime secret 不复制到 Worker。
-
-Worker vars/secrets 不拥有 `primary_agent` 或 `rag_query_embedding` active bundle。candidate
-upload 只产生不可变版本，流量由环境仓选择。
-
-### Kubernetes 与 GitOps
-
-源码仓保存 namespace-neutral base；环境仓保存 Argo CD Application、overlay、Helm value、
-Secret delivery 和不可变版本选择。
-
-- ConfigMap：非敏感启动配置；
-- Secret、ExternalSecret、SealedSecret 或 SOPS：密钥材料；
-- Helm value：第三方 chart 参数，不得包含供应商密钥、DSN、token 或应用配置决策。
-
-### 遥测
-
-Collector endpoint、认证和 sink credential 属于观测 runtime 与部署 secret store。事件和操作见
-`../reference/telemetry.md`、`../runbooks/otel.md`。
-
-## 常见环境最小集合
-
-### 本地问答
-
-- root `.env`：共享 PostgreSQL 句柄；
-- execution-control Provider Config reader/admin DSN、版本化 keyring 和已激活的
-  `primary_agent`、`rag_query_embedding` bundle；
-- Qdrant 和 runtime secret；
-- app-api `.env` / `.dev.vars`；
-- campus-web `.dev.vars`；
-- 需要修改在线配置时启动 Ops Web 与 execution-control admin。
-
-普通本地问答不要求 OCR、对象存储或独立 eval provider。
-
-### 文档阅读器构建
-
-增加 command-scoped reader build env 和 derived object-store 只读访问。构建通过显式
-`docsReleaseId` 推导内容地址，不从 staging Environment 读取 manifest identity；构建过程不得
-获得 app-api 或数据库凭据。每个 worktree 显式提供本地配置，仓库不复制或软链接 ignored env。
-
-### 采集
-
-只增加目标 registry task 需要的 collector object-store、OCR/provider 和 serving config。
-不得恢复旧 Python ingestion env 作为 fallback。
-
-### 食堂 Job
-
-增加飞书、PostgreSQL、公开图片对象存储和内容审核配置。app-api 在线请求只读 published
-projection。
-
-### Worker staging 候选版本
-
-增加 Cloudflare upload 权限、应用 Worker secret、环境 Terraform 同步的 public config，以及
-Sentry edge/browser DSN、release/source map CI 配置。Cloudflare Axiom application-log destination
-由环境 Terraform 选择，Worker 不持有 Axiom token；`invocation_logs=false` 且 native traces
-关闭。execution-control Kubernetes env 不复制到 Worker secret store。
-
-## 当前不需要
-
-- 社交 OAuth 凭据；
-- 没有预算/配额隔离需求时的独立 eval provider；
-- 没有声明 extraction lane 时的额外 OCR sidecar provider。
+环境文件和覆盖规则见 `env.md`，新增、轮换和撤销步骤见
+`../runbooks/provider-secrets.md`。

@@ -1,33 +1,17 @@
-# student_rules 集合配置
+# student_rules 配置
 
-本目录定义 `student_rules` knowledge target 使用的物理 `regulations/student_rules`
-collection。
+本目录保存学生手册和学生管理规章的规范化、分块、来源投影和采集任务配置。
 
 ## 文件
 
-- `serving-config.json`：query-serving 与 Qdrant 合同；
-- `split-manifest.v1.json`：公开 synthetic split-manifest fixture；
-- `canonical-profile.json`：document identity 与 metadata 字段；
-- `chunk-profile.json`：document chunk profile；
-- `task-registry.v3.json`：可执行 ingestion task。
+- `canonical-profile.json`：文档身份与元数据；
+- `chunk-profile.json`、`query-planning.json`：分块和查询规划；
+- `source-projections.v1.json`、`split-manifest.v1.json`：公开合成来源与逻辑文档边界；
+- `serving-config.json`：索引与查询兼容配置；
+- `task-registry.v3.json`：本目录可执行的采集任务。
 
-## 运行时
+查询开放状态和物理映射由 `configs/runtime/query-serving-targets.v1.json` 维护，任务能力由本目录
+注册表维护。真实来源数据不由公开合成 fixture 替代。
 
-- `configs/runtime/query-serving-targets.v1.json` 将 `student_rules` target 映射到本
-  collection；
-- collection 状态为 `query_serving`，使用 `student_rules` Qdrant alias；
-- 在线查询要求 alias 已发布，且 vector 配置与当前 embedding profile 一致。
-
-## 采集
-
-当前 registry 从 canonical `document-units` 开始，只开放两个确定性 task：
-
-- `document_units_validate`
-- `chunk_prepare`
-
-source parsing、document materialization、indexing 与 alias publication 不属于本 collection
-registry。仓库内 split manifest 是公开 synthetic fixture，部署数据来自私有 source artifact。
-
-学生手册专用 normalization、identity、chunk budget、header handling 与 validation rule 见
-`docs/policies/student-rules-chunking.md`。student rules 只包含规章文档与附件；电话目录与服务
-目录属于各自产品领域。
+领域边界见 `docs/architecture/domains/regulations.md`，学生手册处理规则见
+`docs/policies/student-rules-chunking.md`。

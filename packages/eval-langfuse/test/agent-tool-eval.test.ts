@@ -166,7 +166,7 @@ describe("agent tool eval runner", () => {
 		const writtenAgentSamples: JsonObject[] = [];
 		const writtenRagSamples: JsonObject[] = [];
 		const productTraceId = "trace-product-001";
-		const langfuseTraceId = deriveLangfuseTraceId(productTraceId);
+		const langfuseTraceId = await deriveLangfuseTraceId(productTraceId);
 		let chatRequestCount = 0;
 		const fetchImpl: typeof fetch = async (input, init) => {
 			const url = String(input);

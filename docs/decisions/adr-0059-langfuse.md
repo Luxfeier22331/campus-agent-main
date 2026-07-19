@@ -16,14 +16,14 @@ Temporal 和产品数据库可以说明请求如何执行及最终状态，但�
 采用 Langfuse 作为模型与工具调用的观测和评测平台，并优先自托管。
 
 - Langfuse 保存受信任的模型/工具 trace、数据集、评分、实验和评审状态。
-- Temporal 仍是工作流真相；产品数据库仍是请求状态和有限排查摘要真相。
+- Temporal 保存工作流执行状态；产品数据库保存请求状态和有限排查摘要。
 - 运行时通过 OpenTelemetry 和平台官方集成发送 trace，并保留跨系统关联标识。
-- 真实模型输入输出、记忆上下文和已授权检索内容只能按 ADR-0010、ADR-0076 的边界
+- 真实模型输入输出、记忆上下文和已授权检索内容只能按 ADR-0081、ADR-0076 的边界
   进入受信任 trace，不得复制到产品投影或通用日志。
 - eval runtime 可以读写 Langfuse 的数据集与评分，但确定性合同和发布判断仍由仓库拥有。
 - Langfuse SDK、字段和数据模型不得进入 `packages/contracts` 或定义产品 API。
 
-具体 trace 字段、评测流程、部署方式和完成度由 Langfuse owner 文档、eval runtime 和
+具体 trace 字段、评测流程、部署方式和完成度由 Langfuse 所属文档、评测运行时和
 部署配置维护。
 
 ## 后果
@@ -37,13 +37,13 @@ Temporal 和产品数据库可以说明请求如何执行及最终状态，但�
 
 - **把模型观测写入产品数据库**：会复制敏感正文和平台工作流。
 - **用 Temporal 或通用日志平台替代 Langfuse**：它们不拥有模型评测生命周期。
-- **让 Langfuse 成为执行或发布真相**：会把产品合同交给外部平台状态。
+- **让 Langfuse 决定执行或发布状态**：会把产品合同交给外部平台状态。
 
 ## 相关文档
 
 - `../architecture/system/langfuse.md`
 - `../contracts/langfuse-runtime.md`
 - `../reference/eval.md`
-- `adr-0010-observability.md`
+- `adr-0081-observability-planes.md`
 - `adr-0061-eval-runtime.md`
 - `adr-0076-langfuse-trace-data.md`
