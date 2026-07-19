@@ -3,7 +3,7 @@ import addFormats from "ajv-formats";
 import canonicalDocumentUnitSchema from "../schemas/canonical-document-units.v1.schema.json" with {
 	type: "json",
 };
-import releaseManifestSchema from "../schemas/ingestion-release-manifest.v2.schema.json" with {
+import offlineReleaseSchema from "../schemas/ingestion-offline-release.v1.schema.json" with {
 	type: "json",
 };
 import taskEnvelopeSchema from "../schemas/ingestion-task-envelope.v3.schema.json" with {
@@ -13,6 +13,15 @@ import taskRegistrySchema from "../schemas/ingestion-task-registry.v3.schema.jso
 	type: "json",
 };
 import taskResultSchema from "../schemas/ingestion-task-result.v1.schema.json" with {
+	type: "json",
+};
+import internalPortalCaptureRequestsSchema from "../schemas/internal-portal-capture-requests.v2.schema.json" with {
+	type: "json",
+};
+import internalPortalNoticeCheckpointSchema from "../schemas/internal-portal-notice-checkpoint.v1.schema.json" with {
+	type: "json",
+};
+import internalPortalStageResultsSchema from "../schemas/internal-portal-stage-results.v1.schema.json" with {
 	type: "json",
 };
 
@@ -40,23 +49,6 @@ export interface IngestionArtifactRef {
 	byte_size: number;
 }
 
-export interface IngestionReleaseManifestArtifact {
-	kind: string;
-	uri: string;
-	digest: string;
-	byte_size: number;
-	[key: string]: unknown;
-}
-
-export interface IngestionReleaseManifest {
-	schema_version: "ingestion_release_manifest.v2";
-	release_id: string;
-	corpus: string;
-	collection: string;
-	artifacts: IngestionReleaseManifestArtifact[];
-	[key: string]: unknown;
-}
-
 export interface IngestionTaskEnvelope {
 	schema_version: "ingestion_task_envelope.v3";
 	task_id: string;
@@ -65,7 +57,107 @@ export interface IngestionTaskEnvelope {
 	input_ref: IngestionArtifactRef;
 }
 
-export type IngestionTaskExecutorKind = "rust_kernel" | "source_collector";
+export type IngestionTaskExecutorKind = "rust_kernel" | "source_collector" | "typescript_kernel";
+
+export type InternalPortalArtifactRole =
+	| "attachment_refs"
+	| "canonical_document_units"
+	| "canonical_markdown"
+	| "capture_release"
+	| "capture_checkpoint"
+	| "content_blocks"
+	| "export_manifest"
+	| "released_file"
+	| "source_bundle"
+	| "source_manifest";
+
+export interface IngestionRoleArtifactRef extends IngestionArtifactRef {
+	role: InternalPortalArtifactRole;
+}
+
+export type InternalPortalStageResultContract =
+	| "internal_portal_file_release_capture_result.v1"
+	| "internal_portal_file_release_materialization_result.v1"
+	| "internal_portal_notice_capture_result.v1"
+	| "internal_portal_notice_materialization_result.v1";
+
+export interface InternalPortalStageResultManifest {
+	schema_version: InternalPortalStageResultContract;
+	task_id: string;
+	run_id: string;
+	registry_task_id: string;
+	artifacts: IngestionRoleArtifactRef[];
+	items?: IngestionOfflineReleaseItem[];
+	summary: Record<string, IngestionTaskSummaryValue>;
+}
+
+export interface InternalPortalNoticeCheckpoint {
+	notice_type: string;
+	last_released_notice_id: number;
+}
+
+export interface InternalPortalNoticeCaptureCheckpoint {
+	schema_version: "internal_portal_notice_checkpoint.v1";
+	captured_at: string;
+	previous: InternalPortalNoticeCheckpoint[];
+	next: InternalPortalNoticeCheckpoint[];
+}
+
+export interface InternalPortalNoticeCaptureRequestV2 {
+	schema_version: "internal_portal_notice_capture_request.v2";
+	collection_mode: "reconcile" | "incremental" | "selected";
+	checkpoints: InternalPortalNoticeCheckpoint[];
+	overlap_pages: number;
+	max_notices?: number;
+	selected_notices?: Array<{
+		notice_id: number;
+		notice_type: string;
+		notice_type_name?: string;
+		notice_title?: string;
+	}>;
+}
+
+export interface InternalPortalFileReleaseCaptureRequestV2 {
+	schema_version: "internal_portal_file_release_capture_request.v2";
+	file_release_id: number;
+}
+
+export type InternalPortalCaptureRequest =
+	| InternalPortalFileReleaseCaptureRequestV2
+	| InternalPortalNoticeCaptureRequestV2;
+
+export interface IngestionOfflineReleaseItem {
+	item_id: string;
+	version_id: string;
+	artifacts: Array<IngestionArtifactRef & { role: string }>;
+}
+
+export interface IngestionOfflineRelease {
+	schema_version: "ingestion_offline_release.v1";
+	release_id: string;
+	stream_id: string;
+	previous_release_id: string | null;
+	created_at: string;
+	source: { channel: "internal_portal"; surface: "file_release" | "notice"; site_id: string };
+	target: { corpus: string; collection: string };
+	pipeline: {
+		run_id: string;
+		workflow_id: string;
+		workflow_run_id: string;
+		task_ids: string[];
+		code_commit?: string | null;
+		worker_build_id?: string | null;
+		registry_digest?: string | null;
+		source_config_digest?: string | null;
+	};
+	checkpoint: Record<string, unknown>;
+	changes?: {
+		added_item_ids: string[];
+		updated_item_ids: string[];
+		withdrawn_item_ids: string[];
+	};
+	items: IngestionOfflineReleaseItem[];
+}
 
 export interface IngestionTaskSourceIdentity {
 	family: string;
@@ -129,9 +221,18 @@ const taskResultValidator = ajv.compile(taskResultSchema) as ValidateFunction<In
 const canonicalDocumentUnitValidator = ajv.compile(
 	canonicalDocumentUnitSchema,
 ) as ValidateFunction<CanonicalDocumentUnit>;
-const releaseManifestValidator = ajv.compile(
-	releaseManifestSchema,
-) as ValidateFunction<IngestionReleaseManifest>;
+const offlineReleaseValidator = ajv.compile(
+	offlineReleaseSchema,
+) as ValidateFunction<IngestionOfflineRelease>;
+const internalPortalCaptureRequestValidator = ajv.compile(
+	internalPortalCaptureRequestsSchema,
+) as ValidateFunction<InternalPortalCaptureRequest>;
+const internalPortalNoticeCheckpointValidator = ajv.compile(
+	internalPortalNoticeCheckpointSchema,
+) as ValidateFunction<InternalPortalNoticeCaptureCheckpoint>;
+const internalPortalStageResultValidator = ajv.compile(
+	internalPortalStageResultsSchema,
+) as ValidateFunction<InternalPortalStageResultManifest>;
 
 export function validateIngestionTaskEnvelope(value: unknown): ValidationResult {
 	return validateWith(taskEnvelopeValidator, value);
@@ -157,8 +258,83 @@ export function validateCanonicalDocumentUnit(value: unknown): ValidationResult 
 	return validateWith(canonicalDocumentUnitValidator, value);
 }
 
-export function validateIngestionReleaseManifest(value: unknown): ValidationResult {
-	return validateWith(releaseManifestValidator, value);
+export function validateIngestionOfflineRelease(value: unknown): ValidationResult {
+	const result = validateWith(offlineReleaseValidator, value);
+	if (!result.ok) {
+		return result;
+	}
+	const release = value as IngestionOfflineRelease;
+	const itemIds = new Set<string>();
+	for (const item of release.items) {
+		if (itemIds.has(item.item_id)) {
+			return { ok: false, errors: [`items contains duplicate item_id: ${item.item_id}`] };
+		}
+		itemIds.add(item.item_id);
+	}
+	return { ok: true };
+}
+
+export function validateInternalPortalCaptureRequest(value: unknown): ValidationResult {
+	return validateWith(internalPortalCaptureRequestValidator, value);
+}
+
+export function validateInternalPortalNoticeCheckpoint(value: unknown): ValidationResult {
+	const result = validateWith(internalPortalNoticeCheckpointValidator, value);
+	if (!result.ok) {
+		return result;
+	}
+	const checkpoint = value as InternalPortalNoticeCaptureCheckpoint;
+	for (const [label, entries] of [
+		["previous", checkpoint.previous],
+		["next", checkpoint.next],
+	] as const) {
+		const types = new Set<string>();
+		for (const entry of entries) {
+			if (types.has(entry.notice_type)) {
+				return {
+					ok: false,
+					errors: [`${label} contains duplicate notice_type: ${entry.notice_type}`],
+				};
+			}
+			types.add(entry.notice_type);
+		}
+	}
+	return { ok: true };
+}
+
+export function validateInternalPortalStageResult(value: unknown): ValidationResult {
+	const result = validateWith(internalPortalStageResultValidator, value);
+	if (!result.ok) {
+		return result;
+	}
+	const manifest = value as InternalPortalStageResultManifest;
+	const identities = new Set<string>();
+	for (const artifact of manifest.artifacts) {
+		const identity = `${artifact.role}:${artifact.uri}`;
+		if (identities.has(identity)) {
+			return { ok: false, errors: [`artifacts contains duplicate role and URI: ${identity}`] };
+		}
+		identities.add(identity);
+	}
+	const itemIds = new Set<string>();
+	for (const item of manifest.items ?? []) {
+		if (itemIds.has(item.item_id)) {
+			return { ok: false, errors: [`items contains duplicate item_id: ${item.item_id}`] };
+		}
+		itemIds.add(item.item_id);
+		const itemArtifacts = new Set<string>();
+		for (const artifact of item.artifacts) {
+			const identity = `${artifact.role}:${artifact.uri}`;
+			if (itemArtifacts.has(identity)) {
+				return {
+					ok: false,
+					errors: [`item ${item.item_id} contains duplicate role and URI: ${identity}`],
+				};
+			}
+			itemArtifacts.add(identity);
+		}
+	}
+	return { ok: true };
 }
 
 export function validateCanonicalDocumentUnitsJsonl(input: string): ValidationResult {

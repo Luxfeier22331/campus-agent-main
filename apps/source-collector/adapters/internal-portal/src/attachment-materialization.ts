@@ -7,6 +7,7 @@ import { lookup as lookupMimeType, extension as mimeExtension } from "mime-types
 import {
 	type FetchAttachmentBinaryResult,
 	isAttachmentDownloadTerminalUnavailableError,
+	isPortalSourceDeferredError,
 } from "./api.js";
 import type { AuthenticatedNoticeArtifactStore } from "./artifact-store.js";
 import {
@@ -15,6 +16,7 @@ import {
 	type AttachmentDownloadRequestSpec,
 	type ExternalVisualFetcher,
 	runAttachmentCrawleeDownloadOutcomes,
+	TRUSTED_EXTERNAL_VISUAL_HOSTS,
 } from "./attachment-crawlee-runner.js";
 import {
 	PortalCredentialExpiredError,
@@ -30,16 +32,25 @@ import type {
 
 const YEAR_RE = /(?<!\d)((?:19|20)\d{2})(?!\d)/;
 const GENERIC_BINARY_MIME_TYPES = new Set(["application/octet-stream", "binary/octet-stream"]);
-const DEFAULT_EXTERNAL_VISUAL_CAPTURE_HOSTS = new Set(["mmbiz.qpic.cn"]);
 const EXTERNAL_VISUAL_MAX_BYTES = 10 * 1024 * 1024;
+const INTERNAL_ATTACHMENT_MAX_BYTES = 50 * 1024 * 1024;
+const RUN_ATTACHMENT_MAX_BYTES = 1024 * 1024 * 1024;
+const BLOCKED_ATTACHMENT_EXTENSIONS = new Set([
+	".bat",
+	".cmd",
+	".com",
+	".dll",
+	".exe",
+	".msi",
+	".ps1",
+	".scr",
+]);
 
 export interface MaterializeBundleAttachmentsInput {
 	abortSignal?: AbortSignal;
 	apiContext: ApiRequestContextLike;
 	artifactStore: AuthenticatedNoticeArtifactStore;
 	externalVisualFetcher?: ExternalVisualFetcher;
-	attachmentFetchAdmissions?: AttachmentFetchAdmission[];
-	defaultInlineVisualCapture?: boolean;
 	bundleRecords: BundleNoticeRecord[];
 	observedAt: string;
 	requestMaxRetries: number;
@@ -50,18 +61,6 @@ export interface MaterializeBundleAttachmentsResult {
 	bundleRecords: BundleNoticeRecord[];
 	downloadedAttachmentCount: number;
 	uploadedAttachmentCount: number;
-}
-
-export type AttachmentCapturePolicy =
-	| "metadata_only"
-	| "fetch_to_quarantine"
-	| "fetch_required_for_source_truth"
-	| "fetch_required_for_admitted_owner";
-
-export interface AttachmentFetchAdmission {
-	noticeId: string;
-	attachmentRefId: string;
-	attachmentCapturePolicy: AttachmentCapturePolicy;
 }
 
 interface MaterializedAttachment {
@@ -84,12 +83,6 @@ interface MaterializationCandidate {
 	originHost: string | null;
 }
 
-const FETCH_REQUIRED_ATTACHMENT_POLICIES = new Set<AttachmentCapturePolicy>([
-	"fetch_to_quarantine",
-	"fetch_required_for_source_truth",
-	"fetch_required_for_admitted_owner",
-]);
-
 interface AttachmentDownloadPlan {
 	requests: Map<string, AttachmentDownloadRequestSpec>;
 }
@@ -98,11 +91,8 @@ export async function materializeBundleAttachments(
 	input: MaterializeBundleAttachmentsInput,
 ): Promise<MaterializeBundleAttachmentsResult> {
 	input.abortSignal?.throwIfAborted();
-	const fetchAdmissions = buildFetchAdmissionMap(input.attachmentFetchAdmissions ?? []);
 	const downloadPlan = await buildAttachmentDownloadPlan({
 		bundleRecords: input.bundleRecords,
-		defaultInlineVisualCapture: input.defaultInlineVisualCapture,
-		fetchAdmissions,
 		siteId: input.siteId,
 	});
 	const downloadOutcomes =
@@ -112,9 +102,16 @@ export async function materializeBundleAttachments(
 					abortSignal: input.abortSignal,
 					apiContext: input.apiContext,
 					externalVisualFetcher: input.externalVisualFetcher,
+					maxTotalBytes: RUN_ATTACHMENT_MAX_BYTES,
 					requestMaxRetries: input.requestMaxRetries,
 					requests: [...downloadPlan.requests.values()],
 				});
+	const downloadedBytes = [...downloadOutcomes.values()].reduce(
+		(total, outcome) =>
+			outcome.status === "fulfilled" ? total + outcome.result.body.byteLength : total,
+		0,
+	);
+	assertAttachmentRunSizeAccepted(downloadedBytes);
 	const bundleRecords: BundleNoticeRecord[] = [];
 	const materializedResults: MaterializedAttachment[] = [];
 
@@ -122,47 +119,22 @@ export async function materializeBundleAttachments(
 		input.abortSignal?.throwIfAborted();
 		const linksById = new Map(record.links.map((link) => [link.id, { ...link }]));
 		const attachmentsById = new Map<number, BundleAttachmentObservation>();
-		const attachmentRefIdByAttachmentId = new Map<number, string>();
 		const relationByAttachmentId = new Map<
 			number,
 			BundleNoticeRecord["notice_attachments"][number]
 		>();
-		record.notice_attachments.forEach((relation, index) => {
+		record.notice_attachments.forEach((relation) => {
 			relationByAttachmentId.set(relation.attachment_id, relation);
-			attachmentRefIdByAttachmentId.set(
-				relation.attachment_id,
-				`attachment-${String(index + 1).padStart(4, "0")}`,
-			);
 		});
 
 		for (const attachment of record.attachments) {
 			input.abortSignal?.throwIfAborted();
 			const clonedAttachment = { ...attachment };
-			const attachmentRefId =
-				attachmentRefIdByAttachmentId.get(clonedAttachment.attachment_id) ??
-				`attachment-${String(clonedAttachment.attachment_id).padStart(4, "0")}`;
-			const fetchAdmission = fetchAdmissions.get(
-				attachmentFetchAdmissionKey({
-					noticeId: String(record.notice_id),
-					attachmentRefId,
-				}),
-			);
 			const candidateUrl =
 				clonedAttachment.final_url ??
 				clonedAttachment.normalized_source_url ??
 				clonedAttachment.source_url;
 			const relation = relationByAttachmentId.get(clonedAttachment.attachment_id);
-			const shouldFetch =
-				Boolean(fetchAdmission) ||
-				(input.defaultInlineVisualCapture === true &&
-					isDefaultInlineVisualCaptureCandidate({
-						attachment: clonedAttachment,
-						relation,
-					}));
-			if (!shouldFetch) {
-				attachmentsById.set(clonedAttachment.attachment_id, clonedAttachment);
-				continue;
-			}
 			const materializationCandidate = classifyMaterializationCandidate({
 				attachment: clonedAttachment,
 				candidateUrl,
@@ -178,13 +150,13 @@ export async function materializeBundleAttachments(
 				abortSignal: input.abortSignal,
 				artifactStore: input.artifactStore,
 				attachment: clonedAttachment,
-				attachmentRefId,
+				attachmentRefId: `attachment-${String(clonedAttachment.attachment_id).padStart(4, "0")}`,
 				fetchMode: materializationCandidate.fetchMode,
 				noticeId: String(record.notice_id),
 				observedAt: input.observedAt,
 				originHost: materializationCandidate.originHost,
-				requiredAdmission: Boolean(fetchAdmission),
-				requireVisualContent: !fetchAdmission,
+				requiredCapture: materializationCandidate.fetchMode !== "trusted_external_visual",
+				requireVisualContent: materializationCandidate.fetchMode === "trusted_external_visual",
 				resolveDownload: async () => resolveDownloadOutcome(downloadOutcomes, cacheKey),
 				siteId: input.siteId,
 				year: inferAuthenticatedNoticeYear(record),
@@ -230,7 +202,7 @@ async function materializeSingleAttachment(input: {
 	noticeId: string;
 	observedAt: string;
 	originHost: string | null;
-	requiredAdmission: boolean;
+	requiredCapture: boolean;
 	requireVisualContent: boolean;
 	resolveDownload: () => Promise<FetchAttachmentBinaryResult>;
 	siteId: string;
@@ -254,6 +226,17 @@ async function materializeSingleAttachment(input: {
 				: extensionContentType) ??
 			responseContentType ??
 			"application/octet-stream";
+		if (
+			input.fetchMode !== "trusted_external_visual" &&
+			result.body.byteLength > INTERNAL_ATTACHMENT_MAX_BYTES
+		) {
+			throw new Error(`attachment_size_limit_exceeded:${result.body.byteLength}`);
+		}
+		assertAttachmentContentAccepted({
+			contentType: resolvedContentType,
+			filename: initialFilename,
+			fetchMode: input.fetchMode,
+		});
 		if (
 			input.requireVisualContent &&
 			(!resolvedContentType.startsWith("image/") ||
@@ -325,6 +308,7 @@ async function materializeSingleAttachment(input: {
 			bucket: stored.bucket,
 			object_key: stored.objectKey,
 			etag: stored.etag,
+			last_modified: result.lastModified,
 			version_id: stored.versionId,
 			provenance_status: "collected_internal",
 			ingest_status: "uploaded",
@@ -351,7 +335,8 @@ async function materializeSingleAttachment(input: {
 		if (
 			error instanceof PortalSessionExpiredError ||
 			error instanceof PortalCredentialExpiredError ||
-			error instanceof PortalCredentialUnavailableError
+			error instanceof PortalCredentialUnavailableError ||
+			isPortalSourceDeferredError(error)
 		) {
 			throw error;
 		}
@@ -381,7 +366,7 @@ async function materializeSingleAttachment(input: {
 				},
 			};
 		}
-		if (input.requiredAdmission) {
+		if (input.requiredCapture) {
 			throw new Error(
 				[
 					"attachment_materialization_failed",
@@ -413,23 +398,6 @@ async function materializeSingleAttachment(input: {
 	}
 }
 
-function buildFetchAdmissionMap(
-	admissions: AttachmentFetchAdmission[],
-): Map<string, AttachmentFetchAdmission> {
-	const map = new Map<string, AttachmentFetchAdmission>();
-	for (const admission of admissions) {
-		if (!FETCH_REQUIRED_ATTACHMENT_POLICIES.has(admission.attachmentCapturePolicy)) {
-			continue;
-		}
-		map.set(attachmentFetchAdmissionKey(admission), admission);
-	}
-	return map;
-}
-
-function attachmentFetchAdmissionKey(input: { noticeId: string; attachmentRefId: string }): string {
-	return `${input.noticeId}:${input.attachmentRefId}`;
-}
-
 function classifyMaterializationCandidate(input: {
 	attachment: BundleAttachmentObservation;
 	candidateUrl: string | null;
@@ -452,7 +420,7 @@ function classifyMaterializationCandidate(input: {
 	}
 	const originHost =
 		normalizeUrlHost(input.candidateUrl) ?? normalizeHost(input.attachment.origin_host);
-	if (!(originHost && DEFAULT_EXTERNAL_VISUAL_CAPTURE_HOSTS.has(originHost))) {
+	if (!(originHost && TRUSTED_EXTERNAL_VISUAL_HOSTS.has(originHost))) {
 		return null;
 	}
 	return {
@@ -461,58 +429,21 @@ function classifyMaterializationCandidate(input: {
 	};
 }
 
-function isDefaultInlineVisualCaptureCandidate(input: {
-	attachment: BundleAttachmentObservation;
-	relation: BundleNoticeRecord["notice_attachments"][number] | undefined;
-}): boolean {
-	if (input.attachment.storage_provider !== "reference_only") {
-		return false;
-	}
-	const role = input.relation?.resource_role;
-	return role === "inline_image";
-}
-
 async function buildAttachmentDownloadPlan(input: {
 	bundleRecords: BundleNoticeRecord[];
-	defaultInlineVisualCapture?: boolean;
-	fetchAdmissions: Map<string, AttachmentFetchAdmission>;
 	siteId: string;
 }): Promise<AttachmentDownloadPlan> {
 	const requests = new Map<string, AttachmentDownloadRequestSpec>();
 	for (const record of input.bundleRecords) {
-		const attachmentRefIdByAttachmentId = new Map<number, string>();
 		const relationByAttachmentId = new Map<
 			number,
 			BundleNoticeRecord["notice_attachments"][number]
 		>();
-		record.notice_attachments.forEach((relation, index) => {
+		record.notice_attachments.forEach((relation) => {
 			relationByAttachmentId.set(relation.attachment_id, relation);
-			attachmentRefIdByAttachmentId.set(
-				relation.attachment_id,
-				`attachment-${String(index + 1).padStart(4, "0")}`,
-			);
 		});
 		for (const attachment of record.attachments) {
-			const attachmentRefId =
-				attachmentRefIdByAttachmentId.get(attachment.attachment_id) ??
-				`attachment-${String(attachment.attachment_id).padStart(4, "0")}`;
-			const fetchAdmission = input.fetchAdmissions.get(
-				attachmentFetchAdmissionKey({
-					noticeId: String(record.notice_id),
-					attachmentRefId,
-				}),
-			);
 			const relation = relationByAttachmentId.get(attachment.attachment_id);
-			const shouldFetch =
-				Boolean(fetchAdmission) ||
-				(input.defaultInlineVisualCapture === true &&
-					isDefaultInlineVisualCaptureCandidate({
-						attachment,
-						relation,
-					}));
-			if (!shouldFetch) {
-				continue;
-			}
 			const candidateUrl =
 				attachment.final_url ?? attachment.normalized_source_url ?? attachment.source_url;
 			const materializationCandidate = classifyMaterializationCandidate({
@@ -537,6 +468,32 @@ async function buildAttachmentDownloadPlan(input: {
 	return {
 		requests,
 	};
+}
+
+export function assertAttachmentContentAccepted(input: {
+	contentType: string;
+	filename: string;
+	fetchMode: AttachmentDownloadFetchMode;
+}): void {
+	const extension = path.posix.extname(input.filename).toLowerCase();
+	if (BLOCKED_ATTACHMENT_EXTENSIONS.has(extension)) {
+		throw new Error(`attachment_executable_rejected:${extension}`);
+	}
+	if (
+		input.fetchMode !== "trusted_external_visual" &&
+		(input.contentType === "text/html" || input.contentType === "application/xhtml+xml")
+	) {
+		throw new Error(`attachment_html_response_rejected:${input.contentType}`);
+	}
+}
+
+export function assertAttachmentRunSizeAccepted(downloadedBytes: number): void {
+	if (!Number.isSafeInteger(downloadedBytes) || downloadedBytes < 0) {
+		throw new Error("attachment_run_size_invalid");
+	}
+	if (downloadedBytes > RUN_ATTACHMENT_MAX_BYTES) {
+		throw new Error(`attachment_run_size_limit_exceeded:${downloadedBytes}`);
+	}
 }
 
 function resolveDownloadOutcome(

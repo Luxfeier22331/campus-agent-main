@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if ! command -v osv-scanner >/dev/null 2>&1; then
+scanner="scripts/ci/osv-scanner.sh"
+if [[ "$("$scanner" --version 2>/dev/null | head -n 1 | rg -o '[0-9]+\.[0-9]+\.[0-9]+')" != "2.3.8" ]]; then
 	echo "osv-scanner v2.3.8 is required" >&2
 	exit 1
 fi
@@ -20,7 +21,7 @@ for ecosystem in "$@"; do
 	esac
 done
 
-osv-scanner scan source \
+"$scanner" scan source \
 	--config osv-scanner.toml \
 	--format=vertical \
 	--verbosity=error \

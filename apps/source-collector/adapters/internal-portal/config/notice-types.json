@@ -5,8 +5,8 @@
 		"enabled": true,
 		"incrementalPages": 3,
 		"incrementalPageSize": 20,
-		"backfillPages": 108,
-		"backfillPageSize": 20
+		"reconcilePages": 108,
+		"reconcilePageSize": 20
 	},
 	{
 		"type": "6",
@@ -14,8 +14,8 @@
 		"enabled": true,
 		"incrementalPages": 2,
 		"incrementalPageSize": 20,
-		"backfillPages": 90,
-		"backfillPageSize": 20
+		"reconcilePages": 90,
+		"reconcilePageSize": 20
 	},
 	{
 		"type": "8",
@@ -23,8 +23,8 @@
 		"enabled": true,
 		"incrementalPages": 2,
 		"incrementalPageSize": 20,
-		"backfillPages": 90,
-		"backfillPageSize": 20
+		"reconcilePages": 90,
+		"reconcilePageSize": 20
 	},
 	{
 		"type": "10",
@@ -32,8 +32,8 @@
 		"enabled": false,
 		"incrementalPages": 1,
 		"incrementalPageSize": 20,
-		"backfillPages": 30,
-		"backfillPageSize": 20
+		"reconcilePages": 30,
+		"reconcilePageSize": 20
 	},
 	{
 		"type": "11",
@@ -41,8 +41,8 @@
 		"enabled": true,
 		"incrementalPages": 2,
 		"incrementalPageSize": 20,
-		"backfillPages": 90,
-		"backfillPageSize": 20
+		"reconcilePages": 90,
+		"reconcilePageSize": 20
 	},
 	{
 		"type": "32",
@@ -50,8 +50,8 @@
 		"enabled": true,
 		"incrementalPages": 2,
 		"incrementalPageSize": 20,
-		"backfillPages": 90,
-		"backfillPageSize": 20
+		"reconcilePages": 90,
+		"reconcilePageSize": 20
 	},
 	{
 		"type": "36",
@@ -59,8 +59,8 @@
 		"enabled": false,
 		"incrementalPages": 1,
 		"incrementalPageSize": 20,
-		"backfillPages": 30,
-		"backfillPageSize": 20
+		"reconcilePages": 30,
+		"reconcilePageSize": 20
 	},
 	{
 		"type": "9978",
@@ -68,8 +68,8 @@
 		"enabled": false,
 		"incrementalPages": 1,
 		"incrementalPageSize": 20,
-		"backfillPages": 30,
-		"backfillPageSize": 20
+		"reconcilePages": 30,
+		"reconcilePageSize": 20
 	},
 	{
 		"type": "9979",
@@ -77,8 +77,8 @@
 		"enabled": false,
 		"incrementalPages": 1,
 		"incrementalPageSize": 20,
-		"backfillPages": 30,
-		"backfillPageSize": 20
+		"reconcilePages": 30,
+		"reconcilePageSize": 20
 	},
 	{
 		"type": "9980",
@@ -86,8 +86,8 @@
 		"enabled": true,
 		"incrementalPages": 2,
 		"incrementalPageSize": 20,
-		"backfillPages": 60,
-		"backfillPageSize": 20
+		"reconcilePages": 60,
+		"reconcilePageSize": 20
 	},
 	{
 		"type": "9982",
@@ -95,7 +95,7 @@
 		"enabled": true,
 		"incrementalPages": 2,
 		"incrementalPageSize": 20,
-		"backfillPages": 60,
-		"backfillPageSize": 20
+		"reconcilePages": 60,
+		"reconcilePageSize": 20
 	}
 ]

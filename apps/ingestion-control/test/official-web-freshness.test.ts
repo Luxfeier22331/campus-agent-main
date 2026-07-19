@@ -43,6 +43,7 @@ describe("official-web freshness service", () => {
 		if (!ref) {
 			throw new Error("official-web preparation ref is required");
 		}
+		expect(ref.uri).toMatch(/^s3:\/\/source\//u);
 		const manifest = await readJson(objectStore, ref);
 		expect(manifest).toMatchObject({
 			schema_version: "official_web_crawl_preparation.v1",
@@ -519,6 +520,7 @@ function memoryObjectStore(): IngestionObjectStore {
 	const objects = new Map<string, Uint8Array>();
 	return {
 		derivedBucket: "derived",
+		sourceBucket: "source",
 		async getObject(input) {
 			const bytes = objects.get(`${input.bucket}/${input.key}`);
 			if (!bytes) {

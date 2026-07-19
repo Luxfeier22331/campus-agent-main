@@ -21,9 +21,8 @@ describe("internal portal source collector config", () => {
 				"apps/source-collector/adapters/internal-portal/runtime/auth/storageState.json",
 			),
 		).toBe(true);
-		expect(config.defaultInlineVisualCapture).toBe(false);
 		expect(config.authSsoTgcFile.endsWith("runtime/auth/sso_tgc")).toBe(true);
-		expect(config.historicalBackfillMaxPagesPerType).toBeNull();
+		expect(config.reconcileMaxPagesPerType).toBeNull();
 	});
 
 	it("accepts explicit overrides from env-like input", () => {
@@ -33,8 +32,7 @@ describe("internal portal source collector config", () => {
 			INTERNAL_PORTAL_PAGE_URL: "https://portal.example.edu/page/99#/",
 			INTERNAL_PORTAL_BYPASS_PROXY: "false",
 			INTERNAL_PORTAL_PROXY_SERVER: "http://127.0.0.1:10808",
-			INTERNAL_PORTAL_DEFAULT_INLINE_VISUAL_CAPTURE: "false",
-			INTERNAL_PORTAL_HISTORICAL_BACKFILL_MAX_PAGES_PER_TYPE: "500",
+			INTERNAL_PORTAL_RECONCILE_MAX_PAGES_PER_TYPE: "500",
 			INTERNAL_PORTAL_REQUEST_MAX_RETRIES: "5",
 			INTERNAL_PORTAL_RUNTIME_DIR: "/tmp/collector-runtime",
 			INTERNAL_PORTAL_SSO_COOKIE_DOMAIN: ".example.edu",
@@ -48,8 +46,7 @@ describe("internal portal source collector config", () => {
 		expect(config.authCheckNoticeType).toBe("6");
 		expect(config.authSsoCookieDomain).toBe(".example.edu");
 		expect(config.authSsoTgcFile).toBe("/run/secrets/internal-portal/sso_tgc");
-		expect(config.defaultInlineVisualCapture).toBe(false);
-		expect(config.historicalBackfillMaxPagesPerType).toBe(500);
+		expect(config.reconcileMaxPagesPerType).toBe(500);
 		expect(config.bypassProxyForPortal).toBe(false);
 		expect(config.portalProxyServer).toBe("http://127.0.0.1:10808");
 		expect(config.authStorageStatePath).toBe("/tmp/collector-runtime/auth/storageState.json");

@@ -1,16 +1,11 @@
 import { encodeObjectKeySegment } from "ingest-core";
 import { fetchNoticeDetail, fetchNoticePage, fetchNoticeSelects } from "./api.js";
-import type { AuthenticatedNoticeArtifactStore, StoredArtifactRef } from "./artifact-store.js";
-
-export { parseAttachmentFetchAdmissionsFromManifest } from "./attachment-fetch-admissions.js";
-
 import { bindApiContextCancellation } from "./api-context-cancellation.js";
+import type { AuthenticatedNoticeArtifactStore, StoredArtifactRef } from "./artifact-store.js";
 import type { ExternalVisualFetcher } from "./attachment-crawlee-runner.js";
-import {
-	type AttachmentFetchAdmission,
-	materializeBundleAttachments,
-} from "./attachment-materialization.js";
+import { materializeBundleAttachments } from "./attachment-materialization.js";
 import { resolveInternalPortalConfig } from "./config.js";
+import type { NoticeCollectionCheckpoint } from "./notice-crawlee-runner.js";
 import { runNoticeCrawleeCollection } from "./notice-crawlee-runner.js";
 import {
 	buildCategories,
@@ -43,9 +38,8 @@ export interface CollectNoticeExportBundleInput {
 	abortSignal?: AbortSignal;
 	attachmentArtifactStore?: AuthenticatedNoticeArtifactStore;
 	externalVisualFetcher?: ExternalVisualFetcher;
-	attachmentFetchAdmissions?: AttachmentFetchAdmission[];
-	defaultInlineVisualCapture?: boolean;
-	backfillMaxPagesPerType?: number | null;
+	reconcileMaxPagesPerType?: number | null;
+	checkpoints?: NoticeCollectionCheckpoint[];
 	createApiContext?: () => Promise<ApiRequestContextLike & DisposableApiContextLike>;
 	exportedAt: string;
 	fetchNoticeDetail?: (input: {
@@ -65,6 +59,7 @@ export interface CollectNoticeExportBundleInput {
 		pageSize: number;
 	}) => Promise<NoticeSelectsResponse>;
 	maxNotices?: number;
+	overlapPages?: number;
 	collectionMode?: NoticeCollectionMode;
 	noticeTypes: NoticeTypeConfig[];
 	requestMaxRetries: number;
@@ -82,6 +77,10 @@ export interface SelectedNoticeSpec {
 
 export interface CollectNoticeExportBundleResult {
 	bundleRecords: BundleNoticeRecord[];
+	checkpoint: {
+		next: NoticeCollectionCheckpoint[];
+		previous: NoticeCollectionCheckpoint[];
+	};
 	exportManifest: NoticeExportManifest;
 	stats: {
 		attachmentObjectsUploaded: number;
@@ -89,6 +88,16 @@ export interface CollectNoticeExportBundleResult {
 		noticesCollected: number;
 		pagesFetched: number;
 	};
+}
+
+export class NoticeCheckpointGapError extends Error {
+	readonly gaps: NoticeCollectionCheckpoint[];
+
+	constructor(gaps: NoticeCollectionCheckpoint[]) {
+		super(`notice checkpoint gap: ${gaps.map((gap) => gap.notice_type).join(", ")}`);
+		this.name = "NoticeCheckpointGapError";
+		this.gaps = gaps;
+	}
 }
 
 export interface NoticeExportArtifactObjectRefs {
@@ -210,7 +219,7 @@ export async function collectNoticeExportBundle(
 	input.abortSignal?.throwIfAborted();
 	const selectedNotices = normalizeSelectedNoticeSpecs(input.selectedNotices ?? []);
 	const runAdmission = buildNoticeRunAdmission({
-		backfillMaxPagesPerType: input.backfillMaxPagesPerType,
+		reconcileMaxPagesPerType: input.reconcileMaxPagesPerType,
 		collectionMode: input.collectionMode,
 		noticeTypes: input.noticeTypes,
 		selectedNotices,
@@ -219,7 +228,7 @@ export async function collectNoticeExportBundle(
 	const collectionMode = runAdmission.collection_mode;
 	const fullScopeRequested =
 		selectedNotices.length === 0 &&
-		collectionMode === "backfill" &&
+		collectionMode === "reconcile" &&
 		(input.maxNotices ?? null) === null;
 	const createApiContext =
 		input.createApiContext ??
@@ -234,6 +243,8 @@ export async function collectNoticeExportBundle(
 
 	let collected = {
 		bundleRecords: [] as BundleNoticeRecord[],
+		checkpointGaps: [] as NoticeCollectionCheckpoint[],
+		nextCheckpoints: [] as NoticeCollectionCheckpoint[],
 		observedNoticeTypes: [] as Array<{ notice_type_id: number; notice_type_name: string }>,
 		observedOrganizations: [] as Array<{ organization_id: string; organization_name: string }>,
 		stats: {
@@ -254,20 +265,25 @@ export async function collectNoticeExportBundle(
 		collected = await runNoticeCrawleeCollection({
 			abortSignal: input.abortSignal,
 			apiContext,
-			backfillMaxPagesPerType: input.backfillMaxPagesPerType ?? null,
+			reconcileMaxPagesPerType: input.reconcileMaxPagesPerType ?? null,
 			collectionMode,
+			checkpoints: input.checkpoints,
 			exportedAt: input.exportedAt,
 			fetchNoticeDetail: fetchDetail,
 			fetchNoticePage: fetchPage,
 			fetchNoticeSelects: fetchSelects,
 			fullScopeRequested,
 			maxNotices: input.maxNotices ?? null,
+			overlapPages: input.overlapPages,
 			noticeTypes: input.noticeTypes,
 			requestMaxRetries: input.requestMaxRetries,
 			selectedNotices,
 			siteId: input.siteId,
 			sourceHomeUrl: input.sourceHomeUrl,
 		});
+		if (collected.checkpointGaps.length > 0) {
+			throw new NoticeCheckpointGapError(collected.checkpointGaps);
+		}
 		materialized =
 			input.attachmentArtifactStore === undefined
 				? {
@@ -279,8 +295,6 @@ export async function collectNoticeExportBundle(
 						abortSignal: input.abortSignal,
 						apiContext,
 						artifactStore: input.attachmentArtifactStore,
-						attachmentFetchAdmissions: input.attachmentFetchAdmissions,
-						defaultInlineVisualCapture: input.defaultInlineVisualCapture,
 						externalVisualFetcher: input.externalVisualFetcher,
 						bundleRecords: collected.bundleRecords,
 						observedAt: input.exportedAt,
@@ -297,6 +311,10 @@ export async function collectNoticeExportBundle(
 
 	return {
 		bundleRecords: materialized.bundleRecords,
+		checkpoint: {
+			next: collected.nextCheckpoints,
+			previous: normalizeCheckpointList(input.checkpoints ?? []),
+		},
 		exportManifest: buildExportManifest({
 			attachmentStorageMode:
 				materialized.uploadedAttachmentCount > 0 ? "object_store_write" : "reference_only",
@@ -326,6 +344,21 @@ export async function collectNoticeExportBundle(
 			pagesFetched: collected.stats.pagesFetched,
 		},
 	};
+}
+
+function normalizeCheckpointList(
+	checkpoints: readonly NoticeCollectionCheckpoint[],
+): NoticeCollectionCheckpoint[] {
+	return [...checkpoints]
+		.map((checkpoint) => ({
+			last_released_notice_id: checkpoint.last_released_notice_id,
+			notice_type: checkpoint.notice_type.trim(),
+		}))
+		.filter(
+			(checkpoint) =>
+				checkpoint.notice_type && Number.isSafeInteger(checkpoint.last_released_notice_id),
+		)
+		.sort((left, right) => left.notice_type.localeCompare(right.notice_type));
 }
 
 function normalizeSelectedNoticeSpecs(specs: SelectedNoticeSpec[]): SelectedNoticeSpec[] {
@@ -364,11 +397,11 @@ export async function uploadNoticeExportArtifacts(
 		throw new Error("activityAttempt must be a positive integer");
 	}
 	const prefix = [
+		"attempts",
 		"internal_portal",
 		encodeObjectKeySegment(input.siteId),
 		"runs",
 		encodeObjectKeySegment(input.runId),
-		"attempts",
 		String(input.activityAttempt),
 		"notice",
 	].join("/");

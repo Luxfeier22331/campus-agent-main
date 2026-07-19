@@ -1,6 +1,7 @@
 export interface IngestionTemporalWorkerRuntimeConfig {
 	databaseUrl: string;
 	registryRoot: string;
+	siteId: string;
 }
 
 export function buildIngestionTemporalWorkerRuntimeConfig(
@@ -9,6 +10,7 @@ export function buildIngestionTemporalWorkerRuntimeConfig(
 	return {
 		databaseUrl: requiredEnv(env, "INGESTION_CONTROL_DATABASE_URL"),
 		registryRoot: requiredEnv(env, "INGESTION_TASK_REGISTRY_ROOT"),
+		siteId: requiredEnv(env, "INTERNAL_PORTAL_SITE_ID"),
 	};
 }
 

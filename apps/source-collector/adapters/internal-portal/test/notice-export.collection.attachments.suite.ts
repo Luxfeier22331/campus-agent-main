@@ -1,9 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 
-import {
-	collectNoticeExportBundle,
-	parseAttachmentFetchAdmissionsFromManifest,
-} from "../src/notice-export.js";
+import { collectNoticeExportBundle } from "../src/notice-export.js";
 import { registerNoticeExportCollectionInlineVisualsSuite } from "./notice-export.collection.inline-visuals.suite.js";
 
 export function registerNoticeExportCollectionAttachmentsSuite(): void {
@@ -81,8 +78,8 @@ export function registerNoticeExportCollectionAttachmentsSuite(): void {
 					enabled: true,
 					incrementalPages: 1,
 					incrementalPageSize: 20,
-					backfillPages: 1,
-					backfillPageSize: 20,
+					reconcilePages: 1,
+					reconcilePageSize: 20,
 				},
 				{
 					type: "10",
@@ -90,8 +87,8 @@ export function registerNoticeExportCollectionAttachmentsSuite(): void {
 					enabled: false,
 					incrementalPages: 1,
 					incrementalPageSize: 20,
-					backfillPages: 1,
-					backfillPageSize: 20,
+					reconcilePages: 1,
+					reconcilePageSize: 20,
 				},
 			],
 			requestMaxRetries: 1,
@@ -103,7 +100,7 @@ export function registerNoticeExportCollectionAttachmentsSuite(): void {
 		expect(result.exportManifest.filters.notice_types).toEqual(["5"]);
 		expect(result.exportManifest.notice_type_policy).toEqual([
 			{
-				backfill: {
+				reconcile: {
 					page_size: 20,
 					pages: 1,
 				},
@@ -116,7 +113,7 @@ export function registerNoticeExportCollectionAttachmentsSuite(): void {
 				type: "5",
 			},
 			{
-				backfill: {
+				reconcile: {
 					page_size: 20,
 					pages: 1,
 				},
@@ -130,43 +127,7 @@ export function registerNoticeExportCollectionAttachmentsSuite(): void {
 			},
 		]);
 	});
-	it("parses attachment fetch request manifests into collector admissions", () => {
-		const admissions = parseAttachmentFetchAdmissionsFromManifest({
-			requests: [
-				{
-					attachment_capture_policy: "metadata_only",
-					attachment_ref_id: "attachment-0001",
-					notice_id: "355929",
-				},
-				{
-					capture_runtime_admission: {
-						attachmentCapturePolicy: "fetch_to_quarantine",
-						attachmentRefId: "attachment-0002",
-						noticeId: "355867",
-					},
-				},
-				{
-					attachment_capture_policy: "fetch_required_for_source_truth",
-					attachment_ref_id: "attachment-0003",
-					notice_id: "646",
-				},
-			],
-		});
-
-		expect(admissions).toEqual([
-			{
-				attachmentCapturePolicy: "fetch_to_quarantine",
-				attachmentRefId: "attachment-0002",
-				noticeId: "355867",
-			},
-			{
-				attachmentCapturePolicy: "fetch_required_for_source_truth",
-				attachmentRefId: "attachment-0003",
-				noticeId: "646",
-			},
-		]);
-	});
-	it("keeps internal attachments reference-only by default even when an artifact store is configured", async () => {
+	it("materializes internal attachments when an artifact store is configured", async () => {
 		let downloadCalls = 0;
 		const storedObjects: Array<{
 			key: string;
@@ -195,7 +156,6 @@ export function registerNoticeExportCollectionAttachmentsSuite(): void {
 					};
 				},
 			},
-			defaultInlineVisualCapture: true,
 			createApiContext: async () => ({
 				dispose: async () => undefined,
 				get: async () => ({
@@ -270,8 +230,8 @@ export function registerNoticeExportCollectionAttachmentsSuite(): void {
 					enabled: true,
 					incrementalPages: 1,
 					incrementalPageSize: 1,
-					backfillPages: 1,
-					backfillPageSize: 20,
+					reconcilePages: 1,
+					reconcilePageSize: 20,
 				},
 			],
 			requestMaxRetries: 1,
@@ -279,30 +239,28 @@ export function registerNoticeExportCollectionAttachmentsSuite(): void {
 			sourceHomeUrl: "https://portal.example.edu/home",
 		});
 
-		expect(downloadCalls).toBe(0);
-		expect(result.stats.attachmentObjectsUploaded).toBe(0);
+		expect(downloadCalls).toBe(1);
+		expect(result.stats.attachmentObjectsUploaded).toBe(1);
 		expect(result.exportManifest.capture_runtime).toEqual({
-			attachment_collection_mode: "detail_api_and_html_reference_only",
-			attachment_storage_mode: "reference_only",
+			attachment_collection_mode: "detail_api_and_html_materialized",
+			attachment_storage_mode: "object_store_write",
 			export_contract_version: "internal_portal_notice_export_v1",
 			link_collection_mode: "html_reference_only",
 			runtime_shell: "source_collector_node",
 		});
 		expect(result.bundleRecords[0]?.attachments[0]).toMatchObject({
-			bucket: null,
-			byte_size: null,
-			ingest_status: "reference_only",
-			mime_type: null,
-			object_key: null,
+			bucket: "campus-agent-source",
+			byte_size: 5,
+			ingest_status: "uploaded",
+			mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 			original_filename: "application.docx",
-			provenance_status: "reference_only",
-			sha256: null,
-			storage_provider: "reference_only",
+			provenance_status: "collected_internal",
+			storage_provider: "object_store",
 		});
-		expect(storedObjects).toEqual([]);
+		expect(storedObjects).toHaveLength(1);
 	});
 
-	it("materializes internal inline image refs when visual capture is explicitly enabled", async () => {
+	it("materializes internal inline image refs", async () => {
 		const storedObjects: Array<{
 			key: string;
 			contentType: string;
@@ -330,7 +288,6 @@ export function registerNoticeExportCollectionAttachmentsSuite(): void {
 					};
 				},
 			},
-			defaultInlineVisualCapture: true,
 			createApiContext: async () => ({
 				dispose: async () => undefined,
 				get: async () => ({
@@ -394,8 +351,8 @@ export function registerNoticeExportCollectionAttachmentsSuite(): void {
 					enabled: true,
 					incrementalPages: 1,
 					incrementalPageSize: 1,
-					backfillPages: 1,
-					backfillPageSize: 20,
+					reconcilePages: 1,
+					reconcilePageSize: 20,
 				},
 			],
 			requestMaxRetries: 1,
@@ -425,7 +382,7 @@ export function registerNoticeExportCollectionAttachmentsSuite(): void {
 		]);
 	});
 
-	it("keeps inline image refs reference-only unless visual capture is explicitly enabled", async () => {
+	it("captures internal inline images without a separate feature flag", async () => {
 		let downloadCalls = 0;
 		const storedObjects: unknown[] = [];
 		const result = await collectNoticeExportBundle({
@@ -434,10 +391,16 @@ export function registerNoticeExportCollectionAttachmentsSuite(): void {
 				headObject: async ({ objectKey }) => fakeArtifactHead(objectKey),
 				createOrVerifyObject: async ({ objectKey, data, contentType, metadata }) => {
 					storedObjects.push({ objectKey, data, contentType, metadata });
-					throw new Error("inline image should not be stored when capture is disabled");
+					return {
+						bucket: "campus-agent-source",
+						objectKey,
+						contentSha256: "2c8648d103e3dd7ad87660da0f126a1443b6d21ac1bd3ec000c5e24e2373a90c",
+						byteSize: data.byteLength,
+						etag: '"etag-image"',
+						versionId: null,
+					};
 				},
 			},
-			defaultInlineVisualCapture: false,
 			createApiContext: async () => ({
 				dispose: async () => undefined,
 				get: async () => {
@@ -504,8 +467,8 @@ export function registerNoticeExportCollectionAttachmentsSuite(): void {
 					enabled: true,
 					incrementalPages: 1,
 					incrementalPageSize: 1,
-					backfillPages: 1,
-					backfillPageSize: 20,
+					reconcilePages: 1,
+					reconcilePageSize: 20,
 				},
 			],
 			requestMaxRetries: 1,
@@ -513,17 +476,16 @@ export function registerNoticeExportCollectionAttachmentsSuite(): void {
 			sourceHomeUrl: "https://portal.example.edu/home",
 		});
 
-		expect(downloadCalls).toBe(0);
-		expect(result.stats.attachmentObjectsUploaded).toBe(0);
+		expect(downloadCalls).toBe(1);
+		expect(result.stats.attachmentObjectsUploaded).toBe(1);
 		expect(result.bundleRecords[0]?.attachments[0]).toMatchObject({
-			ingest_status: "reference_only",
-			object_key: null,
-			storage_provider: "reference_only",
+			ingest_status: "uploaded",
+			storage_provider: "object_store",
 		});
-		expect(storedObjects).toEqual([]);
+		expect(storedObjects).toHaveLength(1);
 	});
 
-	it("does not store non-visual bytes from default inline visual capture", async () => {
+	it("captures same-origin documents even when the HTML relation is an inline image", async () => {
 		let downloadCalls = 0;
 		const storedObjects: unknown[] = [];
 		const result = await collectNoticeExportBundle({
@@ -532,10 +494,16 @@ export function registerNoticeExportCollectionAttachmentsSuite(): void {
 				headObject: async ({ objectKey }) => fakeArtifactHead(objectKey),
 				createOrVerifyObject: async ({ objectKey, data, contentType, metadata }) => {
 					storedObjects.push({ objectKey, data, contentType, metadata });
-					throw new Error("non-visual inline bytes should not be stored by default capture");
+					return {
+						bucket: "campus-agent-source",
+						objectKey,
+						contentSha256: "eafc3d660dcd4ea3b3ac3e5d7d84cf219cfe6d44d48443237c30a5f74a436ab7",
+						byteSize: data.byteLength,
+						etag: '"etag-document"',
+						versionId: null,
+					};
 				},
 			},
-			defaultInlineVisualCapture: true,
 			createApiContext: async () => ({
 				dispose: async () => undefined,
 				get: async () => {
@@ -602,8 +570,8 @@ export function registerNoticeExportCollectionAttachmentsSuite(): void {
 					enabled: true,
 					incrementalPages: 1,
 					incrementalPageSize: 1,
-					backfillPages: 1,
-					backfillPageSize: 20,
+					reconcilePages: 1,
+					reconcilePageSize: 20,
 				},
 			],
 			requestMaxRetries: 1,
@@ -612,21 +580,20 @@ export function registerNoticeExportCollectionAttachmentsSuite(): void {
 		});
 
 		expect(downloadCalls).toBe(1);
-		expect(result.stats.attachmentObjectsUploaded).toBe(0);
+		expect(result.stats.attachmentObjectsUploaded).toBe(1);
 		expect(result.bundleRecords[0]?.links[0]).toMatchObject({
 			content_type: "application/pdf",
-			downloaded: false,
+			downloaded: true,
 			file_size: 8,
 		});
 		expect(result.bundleRecords[0]?.attachments[0]).toMatchObject({
-			ingest_status: "reference_only",
-			object_key: null,
-			storage_provider: "reference_only",
+			ingest_status: "uploaded",
+			storage_provider: "object_store",
 		});
-		expect(storedObjects).toEqual([]);
+		expect(storedObjects).toHaveLength(1);
 	});
 
-	it("materializes admitted internal attachments into object-backed bundle rows", async () => {
+	it("automatically materializes internal attachments into object-backed bundle rows", async () => {
 		const storedObjects: Array<{
 			key: string;
 			contentType: string;
@@ -654,13 +621,6 @@ export function registerNoticeExportCollectionAttachmentsSuite(): void {
 					};
 				},
 			},
-			attachmentFetchAdmissions: [
-				{
-					attachmentCapturePolicy: "fetch_required_for_admitted_owner",
-					attachmentRefId: "attachment-0001",
-					noticeId: "355119",
-				},
-			],
 			createApiContext: async () => ({
 				dispose: async () => undefined,
 				get: async () => ({
@@ -732,8 +692,8 @@ export function registerNoticeExportCollectionAttachmentsSuite(): void {
 					enabled: true,
 					incrementalPages: 1,
 					incrementalPageSize: 1,
-					backfillPages: 1,
-					backfillPageSize: 20,
+					reconcilePages: 1,
+					reconcilePageSize: 20,
 				},
 			],
 			requestMaxRetries: 1,

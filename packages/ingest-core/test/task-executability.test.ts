@@ -23,7 +23,6 @@ describe("ingestion task executability facts", () => {
 		expect(DEFAULT_EXECUTABLE_RUST_KERNEL_IDS).toEqual([
 			"chunk-document-units",
 			"validate-document-units",
-			"validate-release-manifest",
 		]);
 		expect(isDefaultRustKernelExecutable("chunk-document-units")).toBe(true);
 	});

@@ -24,15 +24,6 @@ export {
 	resolveAuthenticatedNoticeRoutingSampleFromBundleRecord,
 	resolveAuthenticatedNoticeTargetCandidates,
 } from "./authenticated-notice-routing.ts";
-export {
-	type AuthenticatedNoticeAttachmentSourceRetentionDecision,
-	type AuthenticatedNoticeRetentionManifestFields,
-	type AuthenticatedNoticeSourceRetentionDecision,
-	applyAuthenticatedNoticeSourceRetention,
-	buildAuthenticatedNoticeRetentionManifestFields,
-	buildAuthenticatedNoticeSourceRetentionDecision,
-	resolveAuthenticatedNoticeCaptureRoute,
-} from "./authenticated-notice-source-retention.ts";
 export { materializeAuthenticatedNoticeSourceTruthFromTask } from "./authenticated-notice-source-truth.ts";
 export {
 	type CollectionChunkProfile,
@@ -76,23 +67,30 @@ export {
 	DEFAULT_EXECUTABLE_RUST_KERNELS,
 	DEFAULT_EXECUTABLE_SOURCE_COLLECTOR_TASK_IDS,
 	DEFAULT_EXECUTABLE_SOURCE_COLLECTOR_TASKS,
+	DEFAULT_EXECUTABLE_TYPESCRIPT_KERNEL_IDS,
+	DEFAULT_EXECUTABLE_TYPESCRIPT_KERNELS,
 	type DefaultExecutableRustKernel,
 	type DefaultExecutableRustKernelId,
 	type DefaultExecutableSourceCollectorTask,
+	type DefaultExecutableTypeScriptKernel,
 	type IngestionTaskExecutabilityClassification,
 	type IngestionTaskExecutabilityIssue,
 	type IngestionTaskExecutabilityStatus,
 	isDefaultRustKernelExecutable,
 	isDefaultSourceCollectorExecutable,
+	isDefaultTypeScriptKernelExecutable,
 } from "./task-executor.ts";
 export {
+	encodeIngestionTaskProjectionCursor,
 	type IngestionTaskOperatorProjection,
 	type IngestionTaskOperatorProjectionList,
+	type IngestionTaskProjectionCursor,
 	type IngestionTaskProjectionFilters,
 	type IngestionTaskRecord,
 	type IngestionWorkflowStatus,
 	matchesIngestionTaskProjectionFilters,
 	normalizeIngestionTaskProjectionLimit,
+	parseIngestionTaskProjectionCursor,
 	parseIngestionWorkflowStatus,
 	toIngestionTaskOperatorProjection,
 } from "./task-state.ts";

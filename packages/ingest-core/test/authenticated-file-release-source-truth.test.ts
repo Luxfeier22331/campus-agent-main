@@ -23,6 +23,7 @@ describe("authenticated file-release source-truth materialization", () => {
 
 		const refs = await materializeAuthenticatedFileReleaseSourceTruthFromTask({
 			objectStore,
+			outputBucket: objectStore.bucket,
 			task,
 		});
 
@@ -71,6 +72,7 @@ describe("authenticated file-release source-truth materialization", () => {
 		await expect(
 			materializeAuthenticatedFileReleaseSourceTruthFromTask({
 				objectStore,
+				outputBucket: objectStore.bucket,
 				task,
 			}),
 		).rejects.toThrow("file-release source materialization requires object_store released_file");
@@ -86,6 +88,7 @@ describe("authenticated file-release source-truth materialization", () => {
 		await expect(
 			materializeAuthenticatedFileReleaseSourceTruthFromTask({
 				objectStore,
+				outputBucket: objectStore.bucket,
 				task,
 			}),
 		).rejects.toThrow("file-release source bytes sha256 mismatch");

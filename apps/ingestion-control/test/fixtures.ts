@@ -1,5 +1,11 @@
 import type { IngestionTaskExecutionSnapshot, IngestionTaskResult } from "ingestion-contracts";
 
+export const testTaskStartMetadata = {
+	createdBy: "test:operator",
+	pipelineWorkflowId: null,
+	retryOfTaskId: null,
+} as const;
+
 export function testSnapshot(
 	overrides: Partial<IngestionTaskExecutionSnapshot["registry_task"]> = {},
 ): IngestionTaskExecutionSnapshot {

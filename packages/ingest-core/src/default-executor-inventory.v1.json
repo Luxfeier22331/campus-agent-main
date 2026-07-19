@@ -8,18 +8,30 @@
 		},
 		{
 			"registryTaskId": "internal_portal.notice.capture",
-			"inputContract": "internal_portal_notice_capture_request.v1",
-			"outputContract": "authenticated_notice_source_manifest.v1"
+			"inputContract": "internal_portal_notice_capture_request.v2",
+			"outputContract": "internal_portal_notice_capture_result.v1"
 		},
 		{
 			"registryTaskId": "internal_portal.file_release.capture",
-			"inputContract": "internal_portal_file_release_capture_request.v1",
-			"outputContract": "authenticated_file_release_source_manifest.v1"
+			"inputContract": "internal_portal_file_release_capture_request.v2",
+			"outputContract": "internal_portal_file_release_capture_result.v1"
 		},
 		{
 			"registryTaskId": "wechat_official_account.capture",
 			"inputContract": "wechat_official_account_capture_request.v1",
 			"outputContract": "wechat_official_account_source_manifest.v1"
+		}
+	],
+	"typescript_kernels": [
+		{
+			"kernelId": "materialize-internal-portal-notice",
+			"inputContract": "internal_portal_notice_capture_result.v1",
+			"outputContract": "internal_portal_notice_materialization_result.v1"
+		},
+		{
+			"kernelId": "materialize-internal-portal-file-release",
+			"inputContract": "internal_portal_file_release_capture_result.v1",
+			"outputContract": "internal_portal_file_release_materialization_result.v1"
 		}
 	],
 	"rust_kernels": [
@@ -32,11 +44,6 @@
 			"kernelId": "validate-document-units",
 			"inputContract": "canonical_document_units.v1",
 			"outputContract": "document_units_validation_report.v1"
-		},
-		{
-			"kernelId": "validate-release-manifest",
-			"inputContract": "ingestion_release_manifest.v2",
-			"outputContract": "ingestion_release_manifest_validation_report.v1"
 		}
 	]
 }

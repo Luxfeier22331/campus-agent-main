@@ -1,10 +1,19 @@
 import { fileURLToPath } from "node:url";
+import { startNodeTelemetry } from "@campus-agent/telemetry-node";
+import { Client, Connection } from "@temporalio/client";
+import { OpenTelemetryPlugin } from "@temporalio/interceptors-opentelemetry-v2";
 import { NativeConnection, Worker } from "@temporalio/worker";
+import { buildCanonicalVersionDigest } from "ingest-core";
 import {
 	loadCollectionChunkProfilesFromRoot,
 	loadIngestionTaskRegistryCatalogFromRoot,
 } from "ingest-core/node";
-import { createIngestionProjectionActivities, createRustKernelActivities } from "./activities";
+import {
+	createIngestionProjectionActivities,
+	createRustKernelActivities,
+	createTypeScriptKernelActivities,
+} from "./activities";
+import { createInternalPortalScheduleActivities } from "./internal-portal-schedule-activities";
 import {
 	createS3IngestionObjectStoreFromEnv,
 	type IngestionObjectStore,
@@ -14,14 +23,20 @@ import {
 	createOfficialWebFreshnessService,
 	createPostgresOfficialWebFreshnessStore,
 } from "./official-web-freshness";
+import { createPostgresOfflineReleaseStore } from "./offline-release-store";
 import {
 	assertIngestionControlPostgresSchema,
 	createPostgresIngestionTaskStore,
 } from "./postgres-store";
+import { createInternalPortalPublicationActivities } from "./publication-activities";
 import { createDefaultRustKernelRegistry } from "./rust-kernel-runner";
 import { assertRustKernelRegistryCoversTasks } from "./task-executor";
 import { buildIngestionTemporalConfig } from "./temporal-config";
 import { buildIngestionTemporalWorkerRuntimeConfig } from "./temporal-worker-config";
+import {
+	assertTypeScriptKernelRegistryCoversTasks,
+	createDefaultTypeScriptKernelRegistry,
+} from "./typescript-kernel-runner";
 import { resolveWorkerDeploymentOptions } from "./worker-versioning";
 
 const WORKER_DATABASE_CONNECTION_TIMEOUT_MS = 10_000;
@@ -32,6 +47,7 @@ export async function startIngestionTemporalWorkers(
 ): Promise<void> {
 	const runtimeConfig = buildIngestionTemporalWorkerRuntimeConfig(env);
 	const temporalConfig = buildIngestionTemporalConfig(env);
+	const telemetry = startNodeTelemetry({ env, serviceName: "ingestion-control-worker" });
 	const { Pool } = await import("pg");
 	const pool = new Pool({
 		connectionString: runtimeConfig.databaseUrl,
@@ -41,11 +57,17 @@ export async function startIngestionTemporalWorkers(
 	});
 	const objectStore = requireTemporalWorkerObjectStore(env);
 	let connection: NativeConnection | null = null;
+	let clientConnection: Connection | null = null;
 	const workers: Worker[] = [];
 	const runs: Promise<void>[] = [];
 	try {
 		await assertIngestionControlPostgresSchema(pool);
 		const registryCatalog = loadIngestionTaskRegistryCatalogFromRoot(runtimeConfig.registryRoot);
+		const registryDigest = buildCanonicalVersionDigest({
+			tasks: registryCatalog
+				.registeredTasks()
+				.sort((left, right) => left.registry_task_id.localeCompare(right.registry_task_id)),
+		});
 		const rustKernels = createDefaultRustKernelRegistry({
 			chunkProfiles: loadCollectionChunkProfilesFromRoot(runtimeConfig.registryRoot),
 			objectStore,
@@ -53,10 +75,28 @@ export async function startIngestionTemporalWorkers(
 			tokenizerJsonPath: env.INGESTION_KERNEL_TOKENIZER_JSON_PATH,
 		});
 		assertRustKernelRegistryCoversTasks(registryCatalog.registeredTasks(), rustKernels);
+		const typeScriptKernels = createDefaultTypeScriptKernelRegistry({
+			objectStore,
+			registryRoot: runtimeConfig.registryRoot,
+		});
+		assertTypeScriptKernelRegistryCoversTasks(registryCatalog.registeredTasks(), typeScriptKernels);
 		connection = await NativeConnection.connect({ address: temporalConfig.address });
+		clientConnection = await Connection.connect({ address: temporalConfig.address });
+		const temporalClient = new Client({
+			connection: clientConnection,
+			namespace: temporalConfig.namespace,
+		});
 		const common = {
 			connection,
 			namespace: temporalConfig.namespace,
+			plugins: telemetry.spanProcessor
+				? [
+						new OpenTelemetryPlugin({
+							resource: telemetry.resource,
+							spanProcessor: telemetry.spanProcessor,
+						}),
+					]
+				: [],
 			shutdownGraceTime: "50 seconds" as const,
 			workerDeploymentOptions: resolveWorkerDeploymentOptions(env),
 		};
@@ -70,14 +110,29 @@ export async function startIngestionTemporalWorkers(
 		});
 		await createAndRunWorker(workers, runs, {
 			...common,
-			activities: createIngestionProjectionActivities({
-				objectStore,
-				officialWebFreshness: createOfficialWebFreshnessService({
+			activities: {
+				...createInternalPortalScheduleActivities({ client: temporalClient }),
+				...createInternalPortalPublicationActivities({
 					objectStore,
-					store: createPostgresOfficialWebFreshnessStore({ pool }),
+					registryCatalog,
+					releaseMetadata: {
+						codeCommit: env.GIT_COMMIT_SHA?.trim() || env.DEPLOYMENT_RELEASE?.trim() || null,
+						registryDigest,
+						workerBuildId: env.TEMPORAL_WORKER_BUILD_ID?.trim() || null,
+					},
+					releaseStore: createPostgresOfflineReleaseStore({ pool }),
+					siteId: runtimeConfig.siteId,
 				}),
-				store: createPostgresIngestionTaskStore({ pool }),
-			}),
+				...createIngestionProjectionActivities({
+					objectStore,
+					officialWebFreshness: createOfficialWebFreshnessService({
+						objectStore,
+						store: createPostgresOfficialWebFreshnessStore({ pool }),
+					}),
+					store: createPostgresIngestionTaskStore({ pool }),
+				}),
+				...createTypeScriptKernelActivities({ typeScriptKernels }),
+			},
 			maxConcurrentActivityTaskExecutions: 8,
 			taskQueue: temporalConfig.controlActivityTaskQueue,
 		});
@@ -94,12 +149,20 @@ export async function startIngestionTemporalWorkers(
 		throw error;
 	} finally {
 		try {
-			await connection?.close();
+			await clientConnection?.close();
 		} finally {
 			try {
-				await pool.end();
+				await connection?.close();
 			} finally {
-				await objectStore.close?.();
+				try {
+					await pool.end();
+				} finally {
+					try {
+						await objectStore.close?.();
+					} finally {
+						await telemetry.shutdown();
+					}
+				}
 			}
 		}
 	}

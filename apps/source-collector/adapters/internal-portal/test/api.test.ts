@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
 	fetchAttachmentBinary,
@@ -118,6 +118,63 @@ describe("internal portal source collector api", () => {
 		);
 		expect(result.etag).toBe('"etag-1"');
 		expect(result.statusCode).toBe(200);
+	});
+
+	it("rejects oversized attachments from content-length before reading the body", async () => {
+		const body = vi.fn(async () => Buffer.from("must-not-read"));
+		await expect(
+			fetchAttachmentBinary({
+				apiContext: {
+					get: async () => ({
+						body,
+						headers: () => ({ "content-length": String(50 * 1024 * 1024 + 1) }),
+						json: async () => ({}),
+						ok: () => true,
+						status: () => 200,
+						statusText: () => "OK",
+					}),
+					post: async () => {
+						throw new Error("unexpected post");
+					},
+				},
+				attachmentUrl: "https://portal.example.edu/download?id=large",
+				maxBytes: 50 * 1024 * 1024,
+			}),
+		).rejects.toThrow("attachment_size_limit_exceeded:52428801");
+		expect(body).not.toHaveBeenCalled();
+	});
+
+	it("waits for Retry-After before returning a retryable source failure", async () => {
+		const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout").mockImplementation(((
+			callback: () => void,
+		) => {
+			callback();
+			return 0;
+		}) as typeof setTimeout);
+		try {
+			await expect(
+				fetchNoticePage({
+					apiContext: {
+						get: async () => {
+							throw new Error("unexpected get");
+						},
+						post: async () => ({
+							headers: () => ({ "retry-after": "2" }),
+							json: async () => ({}),
+							ok: () => false,
+							status: () => 429,
+							statusText: () => "Too Many Requests",
+						}),
+					},
+					currentPage: 1,
+					noticeType: "5",
+					pageSize: 20,
+				}),
+			).rejects.toMatchObject({ code: "internal_portal_source_deferred" });
+			expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 2_000);
+		} finally {
+			setTimeoutSpy.mockRestore();
+		}
 	});
 
 	it("posts file release requests and parses page, detail, type, and url payloads", async () => {

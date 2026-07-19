@@ -12,12 +12,9 @@ status: active
 
 ## 请求
 
-`internal_portal_file_release_capture_request.v1` 接受：
-
-- 可选的正整数 `max_file_releases`；
-- 可选的正整数 `max_pages`；
-- 取值 1 至 200、默认 20 的 `page_size`；
-- 可选的精确正整数 `target_file_release_id`。
+`internal_portal_file_release_capture_request.v2` 只接受一个精确正整数
+`file_release_id`。范围扫描、模糊选择和隐式页数参数不属于该合同。Ops Web 一次可以提交最多
+50 个不重复 ID；ingestion-control 为每个 ID 创建独立的来源级父工作流。
 
 请求以 SHA-256 固定后写入对象存储，再由
 `internal_portal.file_release.capture` 对应的 `ingestion_task_envelope.v3` 引用。
@@ -32,24 +29,27 @@ collector 为每条门户记录保留：
 - capture disposition；
 - 成功采集 bytes 时的 source-bucket object key 与 SHA-256。
 
-collector 写入 bundle 与 export manifest，再生成已验证的 source ref。只有对象实际存在且
-bytes/digest 一致的记录才能进入 source materialization；`reference_only`、缺失或不匹配的
-bytes 均失败关闭。
+collector 写入 bundle、export manifest 和原文件。只有对象实际存在且 bytes/digest 一致的
+记录才能进入 TypeScript 物化；`reference_only`、缺失或不匹配的 bytes 均失败关闭。
 
 稳定 source object key 由 file-release identity、年份和 content digest 派生。本地 export
 路径只用于诊断，不得越过 task 边界。
 
 ## 结果
 
-activity 写入 `authenticated_file_release_source_manifest.v1`，并返回指向该 manifest 的
-`ingestion_task_result.v1`。有界 summary 只包含 file、page 与 upload 数量。合同不包含
-PostgreSQL run ledger 或隐式查询。
+采集阶段返回 `internal_portal_file_release_capture_result.v1`，其中明确标记 source bundle 和
+export manifest。物化阶段返回 `internal_portal_file_release_materialization_result.v1`，并在
+`items` 中记录文件发布条目的版本与产物引用。每个阶段再由
+`ingestion_task_result.v1.result_ref` 固定对应结果。
+
+父工作流把条目合并到 `ingestion_offline_release.v1` 完整清单，并在 PostgreSQL 事务中更新
+文件发布流的当前指针。该发布止于离线层，不自动生成 chunk、索引、在线查询目标或产品页面。
 
 ## 不负责
 
 - 修改通知来源正文；
 - 按标题模糊选择；
-- OCR 或文档归一化；
+- OCR 或正文抽取；
 - 提升为 regulation；
 - 发布 chunk、index 或 alias；
 - 提供在线查询。
@@ -58,8 +58,8 @@ PostgreSQL run ledger 或隐式查询。
 
 - 采集实现：`apps/source-collector/adapters/internal-portal/src/file-release-export-core.ts`；
 - runtime activity：`apps/source-collector/src/activities.ts`；
-- source ref 校验：`packages/ingest-core`；
-- workflow 与终态投影：`apps/ingestion-control`。
+- 来源物化：`packages/ingest-core` 与 `apps/ingestion-control` TypeScript kernel；
+- 父工作流、离线发布与任务投影：`apps/ingestion-control`。
 
 ## 相关文档
 

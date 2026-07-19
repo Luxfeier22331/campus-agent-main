@@ -9,23 +9,14 @@ import {
 } from "./artifacts.ts";
 import {
 	type AuthenticatedNoticeNoticeFamilyConfig,
-	findMissingTransportScheduleAttachmentRefIds,
 	resolveAuthenticatedNoticeRoutingSampleFromBundleRecord,
 } from "./authenticated-notice-routing.ts";
-import {
-	applyAuthenticatedNoticeSourceRetention,
-	buildAuthenticatedNoticeRetentionManifestFields,
-	buildAuthenticatedNoticeSourceRetentionDecision,
-	resolveAuthenticatedNoticeCaptureRoute,
-} from "./authenticated-notice-source-retention.ts";
 import {
 	buildAuthenticatedNoticeAttachmentIdentity,
 	buildAuthenticatedNoticeAttachmentRefs,
 	buildAuthenticatedNoticeCanonicalDocumentArtifacts,
-	buildAuthenticatedNoticeCaptureArtifacts,
 	buildAuthenticatedNoticeContentBlocks,
 	buildAuthenticatedNoticeOwnerExpectations,
-	buildAuthenticatedNoticeProviderArtifacts,
 	buildAuthenticatedNoticeSourceRootKeyFromManifestKey,
 } from "./authenticated-notice-source-truth-artifacts.ts";
 import {
@@ -52,6 +43,7 @@ const MANIFEST_SCHEMA = "authenticated_notice_manifest_v1";
 export async function materializeAuthenticatedNoticeSourceTruthFromTask(input: {
 	noticeFamilyConfig: AuthenticatedNoticeNoticeFamilyConfig;
 	objectStore: ObjectStore;
+	outputBucket: string;
 	task: IngestionTaskEnvelope;
 }): Promise<IngestionArtifactRef[]> {
 	const sourceInput = parseS3Uri(input.task.input_ref);
@@ -95,8 +87,7 @@ export async function materializeAuthenticatedNoticeSourceTruthFromTask(input: {
 				exportManifest,
 				noticeFamilyConfig: input.noticeFamilyConfig,
 				objectStore: input.objectStore,
-				sourceBucket: sourceInput.bucket,
-				task: input.task,
+				outputBucket: input.outputBucket,
 			})),
 		);
 	}
@@ -109,8 +100,7 @@ async function materializeNoticeSourceTruth(input: {
 	exportManifest: Record<string, unknown>;
 	noticeFamilyConfig: AuthenticatedNoticeNoticeFamilyConfig;
 	objectStore: ObjectStore;
-	sourceBucket: string;
-	task: IngestionTaskEnvelope;
+	outputBucket: string;
 }): Promise<IngestionArtifactRef[]> {
 	const notice = parseRecord(input.bundleRecord.notice, "bundle notice");
 	const siteId = input.captureRelease.siteId;
@@ -120,30 +110,49 @@ async function materializeNoticeSourceTruth(input: {
 	);
 	const title = parseRequiredText(notice.notice_title, "notice_title");
 	const rawAssetId = `asset:authenticated-notice:${siteId}:${noticeId}`;
-	const rawVersionId = buildCanonicalVersionDigest({
-		attachments: buildAuthenticatedNoticeAttachmentIdentity(input.bundleRecord),
-		categories: categoryPairs(notice),
-		html: String(notice.notice_content ?? ""),
+	const html = String(notice.notice_content ?? "");
+	const sourceUri =
+		parseOptionalText(notice.notice_link) ?? `campusnotice://${siteId}/notice/${noticeId}`;
+	const provisionalContentBlocks = buildAuthenticatedNoticeContentBlocks({
+		bundleRecord: input.bundleRecord,
+		html,
+		rawAssetId,
+		rawVersionId: "pending",
 		title,
 	});
-	const year = inferYear(
-		notice.notice_release_time ?? notice.notice_create_time ?? input.captureRelease.exportedAt,
-	);
+	const categoryPairsForNotice = categoryPairs(notice);
+	const rawVersionId = buildCanonicalVersionDigest({
+		attachments: buildAuthenticatedNoticeAttachmentIdentity(input.bundleRecord),
+		categories: categoryPairsForNotice,
+		content_blocks: contentBlockIdentity(provisionalContentBlocks),
+		notice: {
+			organization_id: parseOptionalText(notice.organization_id),
+			organization_name: parseOptionalText(notice.organization_name),
+			notice_create_time: parseOptionalText(notice.notice_create_time),
+			notice_first_time: parseOptionalText(notice.notice_first_time),
+			notice_link_state: notice.notice_link_state ?? null,
+			notice_release_time: parseOptionalText(notice.notice_release_time),
+			notice_source: notice.notice_source ?? null,
+			notice_state: notice.notice_state ?? null,
+			notice_stick: notice.notice_stick ?? null,
+			source_uri: sourceUri,
+			title,
+		},
+	});
+	const year = inferYear(notice.notice_release_time ?? notice.notice_create_time);
 	const keys = buildAuthenticatedNoticeSourceTruthKeys({
 		rawAssetId,
 		rawVersionId,
 		year,
 	});
 	const sourceRootKey = buildAuthenticatedNoticeSourceRootKeyFromManifestKey(keys.manifestKey);
-	const sourceUri =
-		parseOptionalText(notice.notice_link) ?? `campusnotice://${siteId}/notice/${noticeId}`;
 	const sourceHomeUrl = parseRequiredText(input.exportManifest.source_home_url, "source_home_url");
 	const contentBlocks = buildAuthenticatedNoticeContentBlocks({
 		bundleRecord: input.bundleRecord,
 		rawAssetId,
 		rawVersionId,
 		title,
-		html: String(notice.notice_content ?? ""),
+		html,
 	});
 	const rawAttachmentRefs = buildAuthenticatedNoticeAttachmentRefs({
 		bundleRecord: input.bundleRecord,
@@ -151,34 +160,18 @@ async function materializeNoticeSourceTruth(input: {
 		rawAssetId,
 		rawVersionId,
 	});
+	assertAuthenticatedNoticeAttachmentsPublishable(rawAttachmentRefs);
 	const routingSample = resolveAuthenticatedNoticeRoutingSampleFromBundleRecord({
 		attachmentRefs: rawAttachmentRefs,
 		bundleRecord: input.bundleRecord,
 		config: input.noticeFamilyConfig,
 	});
-	const noticeCaptureRoute = resolveAuthenticatedNoticeCaptureRoute({
-		suggestedConsumptionRoute: routingSample.suggestedConsumptionRoute,
-	});
-	const retentionDecision = buildAuthenticatedNoticeSourceRetentionDecision({
-		attachmentRefs: rawAttachmentRefs,
-		missingFactAttachmentRefIds: findMissingTransportScheduleAttachmentRefIds({
-			attachmentRefs: rawAttachmentRefs,
-			contentBlocks,
-			routingSample,
-		}),
-		noticeCaptureRoute,
-	});
-	const attachmentRefs = applyAuthenticatedNoticeSourceRetention({
-		attachmentRefs: rawAttachmentRefs,
-		capturedAt: input.captureRelease.exportedAt,
-		sourceRetentionDecision: retentionDecision,
-	});
+	const attachmentRefs = rawAttachmentRefs;
 	const ownerExpectations = buildAuthenticatedNoticeOwnerExpectations({
 		attachmentRefs,
 		contentBlocks,
 		title,
 	});
-	const categoryPairsForNotice = categoryPairs(notice);
 	const manifest = {
 		schema_version: MANIFEST_SCHEMA,
 		source_channel: SOURCE_CHANNEL,
@@ -186,13 +179,6 @@ async function materializeNoticeSourceTruth(input: {
 		notice_id: noticeId,
 		raw_asset_id: rawAssetId,
 		raw_version_id: rawVersionId,
-		captured_at: input.captureRelease.exportedAt,
-		list_observed_at: parseOptionalText(notice.last_seen_at) ?? input.captureRelease.exportedAt,
-		detail_observed_at:
-			parseOptionalText(notice.enrich_attempted_at) ?? input.captureRelease.exportedAt,
-		fetcher_name: "authenticated_notice_capture_release_materializer",
-		fetcher_version: String(input.exportManifest.schema_version ?? "unknown"),
-		capture_runtime_version: captureRuntimeVersion(input.exportManifest),
 		credentials_mode: "authenticated",
 		notice_title_raw: title,
 		notice_title_normalized: title,
@@ -221,27 +207,13 @@ async function materializeNoticeSourceTruth(input: {
 		notice_attachment_processing_reason: routingSample.attachmentProcessingReason,
 		notice_family_matched_title_patterns: routingSample.matchedTitlePatterns,
 		notice_family_matched_body_patterns: routingSample.matchedBodyPatterns,
-		body_html_hash: sha256Hex(new TextEncoder().encode(String(notice.notice_content ?? ""))),
+		body_html_hash: sha256Hex(new TextEncoder().encode(html)),
 		block_count: contentBlocks.length,
 		link_count: contentBlocks.filter((block) => block.block_role === "link").length,
 		attachment_ref_count: attachmentRefs.length,
-		...buildAuthenticatedNoticeRetentionManifestFields({
-			attachmentRefs,
-			noticeCaptureRoute,
-		}),
 		owner_expectation_count: ownerExpectations.length,
 		owner_expectations: ownerExpectations,
-		materialized_by_task_id: input.task.task_id,
 	};
-	const captureArtifacts = buildAuthenticatedNoticeCaptureArtifacts({
-		bundleRecord: input.bundleRecord,
-		exportManifest: input.exportManifest,
-	});
-	const providerArtifacts = buildAuthenticatedNoticeProviderArtifacts({
-		bundleRecord: input.bundleRecord,
-		categoryPairs: categoryPairsForNotice,
-		notice,
-	});
 	const canonicalArtifacts = buildAuthenticatedNoticeCanonicalDocumentArtifacts({
 		contentBlocks,
 		documentId: `notice:${siteId}:${noticeId}`,
@@ -251,73 +223,66 @@ async function materializeNoticeSourceTruth(input: {
 	});
 	return Promise.all([
 		writeCanonicalJsonArtifact({
-			bucket: input.sourceBucket,
-			key: `${sourceRootKey}/capture/list-response.json`,
-			objectStore: input.objectStore,
-			value: captureArtifacts.listResponse,
-		}),
-		writeCanonicalJsonArtifact({
-			bucket: input.sourceBucket,
-			key: `${sourceRootKey}/capture/detail-response.json`,
-			objectStore: input.objectStore,
-			value: captureArtifacts.detailResponse,
-		}),
-		writeCanonicalJsonArtifact({
-			bucket: input.sourceBucket,
-			key: `${sourceRootKey}/capture/fetch-metadata.json`,
-			objectStore: input.objectStore,
-			value: captureArtifacts.fetchMetadata,
-		}),
-		writeCanonicalJsonArtifact({
-			bucket: input.sourceBucket,
-			key: `${sourceRootKey}/provider/normalized-notice.json`,
-			objectStore: input.objectStore,
-			value: providerArtifacts.normalizedNotice,
-		}),
-		writeCanonicalJsonLinesArtifact({
-			bucket: input.sourceBucket,
-			key: `${sourceRootKey}/provider/discovered-links.jsonl`,
-			objectStore: input.objectStore,
-			rows: providerArtifacts.discoveredLinks,
-		}),
-		writeCanonicalJsonLinesArtifact({
-			bucket: input.sourceBucket,
-			key: `${sourceRootKey}/provider/attachment-observations.jsonl`,
-			objectStore: input.objectStore,
-			rows: providerArtifacts.attachmentObservations,
-		}),
-		writeCanonicalJsonArtifact({
-			bucket: input.sourceBucket,
+			bucket: input.outputBucket,
 			key: keys.manifestKey,
 			objectStore: input.objectStore,
 			value: manifest,
 		}),
 		writeCanonicalJsonLinesArtifact({
-			bucket: input.sourceBucket,
+			bucket: input.outputBucket,
 			key: keys.contentBlocksKey,
 			objectStore: input.objectStore,
 			rows: contentBlocks,
 		}),
 		writeCanonicalJsonLinesArtifact({
-			bucket: input.sourceBucket,
+			bucket: input.outputBucket,
 			key: keys.attachmentRefsKey,
 			objectStore: input.objectStore,
 			rows: attachmentRefs,
 		}),
 		writeUtf8Artifact({
 			body: canonicalArtifacts.canonicalMarkdown,
-			bucket: input.sourceBucket,
+			bucket: input.outputBucket,
 			contentType: "text/markdown; charset=utf-8",
 			key: `${sourceRootKey}/canonical/canonical.md`,
 			objectStore: input.objectStore,
 		}),
 		writeCanonicalJsonLinesArtifact({
-			bucket: input.sourceBucket,
+			bucket: input.outputBucket,
 			key: `${sourceRootKey}/canonical/document-units.jsonl`,
 			objectStore: input.objectStore,
 			rows: canonicalArtifacts.documentUnits,
 		}),
 	]);
+}
+
+function assertAuthenticatedNoticeAttachmentsPublishable(
+	attachmentRefs: readonly Record<string, unknown>[],
+): void {
+	for (const attachment of attachmentRefs) {
+		if (parseOptionalText(attachment.origin_scope) !== "internal") {
+			continue;
+		}
+		const attachmentRefId = parseRequiredText(attachment.attachment_ref_id, "attachment_ref_id");
+		const terminalReason = parseOptionalText(attachment.terminal_reason);
+		const isTerminalUnavailable =
+			parseOptionalText(attachment.ingest_status) === "terminal_unavailable" &&
+			(terminalReason === "http_404" || terminalReason === "http_410");
+		const byteSize = attachment.byte_size;
+		const isObjectBacked =
+			parseOptionalText(attachment.storage_provider) === "object_store" &&
+			parseOptionalText(attachment.bucket) !== null &&
+			parseOptionalText(attachment.object_key) !== null &&
+			parseOptionalText(attachment.content_sha256) !== null &&
+			typeof byteSize === "number" &&
+			Number.isSafeInteger(byteSize) &&
+			byteSize >= 0;
+		if (!(isTerminalUnavailable || isObjectBacked)) {
+			throw new Error(
+				`authenticated notice internal attachment is not publishable: ${attachmentRefId}`,
+			);
+		}
+	}
 }
 
 function verifyObjectRefBytes(
@@ -343,16 +308,15 @@ function categoryPairs(notice: Record<string, unknown>): [string, string][] {
 		});
 }
 
-function captureRuntimeVersion(manifest: Record<string, unknown>): string {
-	const captureRuntime = manifest.capture_runtime;
-	if (isRecord(captureRuntime)) {
-		return (
-			parseOptionalText(captureRuntime.export_contract_version) ??
-			parseOptionalText(captureRuntime.runtime_shell) ??
-			String(manifest.schema_version ?? "unknown")
-		);
-	}
-	return String(manifest.schema_version ?? "unknown");
+function contentBlockIdentity(blocks: readonly Record<string, unknown>[]): unknown[] {
+	return blocks.map((block) => ({
+		block_role: block.block_role ?? null,
+		heading_level: block.heading_level ?? null,
+		link_target: block.link_target ?? null,
+		list_level: block.list_level ?? null,
+		table_cells: block.table_cells ?? null,
+		text_normalized: block.text_normalized ?? null,
+	}));
 }
 
 function inferYear(value: unknown): string | null {

@@ -11,9 +11,9 @@ status: active
 branch protection、部署 secret、镜像清单或环境状态。
 
 - `scripts/ci/change-plan.mjs` 维护变更面到验证、数据库、浏览器和发布面的统一路由；
-- `.github/workflows/pr.yml` 维护 PR trigger、job dependency 与 required aggregate；
+- `.github/workflows/pr.yml` 维护自动 PR 轻量治理检查；
 - `.github/workflows/execution-runtime-publish.yml` 维护 `main` 候选产物发布和 GitOps 推广；
-- `.github/workflows/scheduled-health.yml` 拥有定期全量健康检查；
+- `.github/workflows/scheduled-health.yml` 提供按需手动健康检查，不设置定时任务；
 - root `package.json` 与所属 package script 维护命令实现；
 - app README 说明模块本地命令；
 - runbook 说明 staging、release 和真实外部依赖验收。
@@ -35,11 +35,14 @@ branch protection、部署 secret、镜像清单或环境状态。
 | --- | --- | --- |
 | `pre-commit` | staged file 基础格式、解析、冲突和 secret hygiene | typecheck、test、build 或 runtime |
 | `pnpm ci:repo` | Biome、Markdownlint、EditorConfig、ADR identity 与新增中文叙述检查 | 架构正确性、业务行为或 E2E |
-| `pnpm ci:affected origin/main HEAD` | 按统一变更计划运行当前分支需要的本地验证 | 未选择的全量、staging 或 release 验收 |
+| `pnpm ci:pr origin/main HEAD` | PR 自动执行的变更文件静态检查、secret hygiene、planner/workflow 契约及按需合同、配置和依赖治理 | typecheck、unit test、build、数据库、浏览器或部署行为 |
+| `pnpm ci:affected origin/main HEAD` | 在本地按统一计划运行代码 profile，包括受影响的 Node、Worker、Go、Rust、OTel 与基础设施检查 | Docker、数据库、浏览器、staging 或 release 验收 |
+| `pnpm ci:affected:docker origin/main HEAD` | 手动构建受影响镜像的最浅验证阶段 | 最终镜像发布、部署或运行时健康 |
+| `pnpm ci:affected:database origin/main HEAD` | 手动运行受影响的隔离 PostgreSQL 套件 | staging 或 production 数据库状态 |
+| `pnpm ci:affected:browser origin/main HEAD` | 手动运行受影响的 Campus Web browser smoke | 已部署环境、真实认证或完整浏览器回归 |
 | `pnpm ci:config` | GitHub Actions 的 actionlint 与 zizmor 检查 | workflow 已成功运行或部署已完成 |
 | `pnpm ci:deps` | pnpm、uv、Cargo 与 Go dependency graph 的 OSV 扫描 | application behavior 或 image 漏洞 |
-| `pnpm ci:typescript` | 受影响 JS/TS 模块的 typecheck 与 unit test | 专用 ingestion/eval 检查和 Worker runtime |
-| `pnpm ci:worker:affected` | 受影响 Worker 的 runtime test 与产物 build | browser E2E 或 production deploy |
+| `pnpm ci:typescript` | 一般 JS/TS 模块的 typecheck 与 unit test | 专用 ingestion/eval 检查和 Worker runtime |
 | `pnpm ci:typescript:full` | 全量 JS/TS 模块、Worker 与 Ops Web build | 外部 integration、staging 或 release 检查 |
 | `pnpm ci:worker` | Worker runtime test 与声明的 Worker/app build | browser E2E 或 production deploy |
 | `pnpm ci:contracts` | JSON Schema/OpenAPI 生成、同步与合同 invariant | consumer runtime 行为 |
@@ -55,13 +58,13 @@ database 或其他外部输入必须先准备完毕。
 
 Campus Web 浏览器验证分为三个边界：
 
-- `pnpm --dir apps/campus-web test:e2e:smoke` 运行带 `@smoke` 标签的关键 Vite 与 Worker
-  用户旅途，是 Campus Web 运行时改动的 PR 门禁；
+- `pnpm ci:affected:browser origin/main HEAD` 按变更计划运行带 `@smoke` 标签的关键 Vite 与
+  Worker 用户旅途，由开发者在本地或手动流程明确触发，不是自动 PR 门禁；
 - `pnpm --dir apps/campus-web test:e2e:full` 在本地运行全部 Vite 与 Worker 浏览器回归，适用于
   跨页面、导航、认证、文档阅读或领域体验重构；
-- 定时健康检查运行 Campus Web 完整 Vite/Worker 回归和 Ops Web 浏览器回归；PR 不重复运行
-  非关键交互细节；
-- `pnpm ci:affected` 使用独立 CI 端口且不复用已有开发服务器；并行本地检查通过
+- `manual-health` 的 `browser` profile 可显式运行 Campus Web 完整 Vite/Worker 回归和 Ops Web
+  浏览器回归；仓库不设置定时浏览器检查；
+- browser profile 使用独立端口且不复用已有开发服务器；并行本地检查通过
   `CAMPUS_WEB_E2E_PORT` 与 `CAMPUS_WEB_E2E_WORKER_PORT` 覆盖端口；
 - 请求竞态、故障注入、动画细节等实现级回归由模块测试和完整浏览器回归承载，不进入
    PR smoke；
@@ -87,16 +90,17 @@ Campus Web 浏览器验证分为三个边界：
 | K8s、Docker、Terraform 或 deployment script | 所属静态验证、build/render 检查与明确的环境验收 |
 
 具体变更范围分类以 `scripts/ci/change-plan.mjs` 及其测试为准。计划同时读取重命名前后路径和
-删除路径；本地先运行 `pnpm ci:affected origin/main HEAD`，CI 消费同一份计划。README 是否触发
-模块代码检查、哪些 image 需要发布等实现细节不得复制到本文。
+删除路径；自动 PR 运行 `pnpm ci:pr origin/main HEAD`，开发者按风险显式选择 code、Docker、
+database 或 browser profile。README 是否触发模块代码检查、哪些 image 需要发布等实现细节
+不得复制到本文。
 
 ## 模块与集成测试
 
 - app/package 的默认 `test`、`typecheck` 和 `build` 命令由其 `package.json` 与 README 维护；
 - `pnpm web:test:worker` 明确运行 Worker runtime test；
 - `pnpm web:test:integration` 明确运行 app-api shared database integration；
-- campus-web 浏览器 smoke 不进入普通 PR workflow；本地 `pnpm ci:affected` 按变更计划运行
-  `test:e2e:smoke`，定时健康检查运行 `test:e2e:full`；底层 `test:e2e` 与
+- campus-web 浏览器 smoke 不进入普通 PR workflow；本地 browser profile 按变更计划运行
+  `test:e2e:smoke`，手动 `manual-health` browser profile 运行 `test:e2e:full`；底层 `test:e2e` 与
   `test:e2e:worker` 分别拥有 Vite 和 Worker 套件；
 - execution-control 的 Temporal server 测试使用模块提供的明确 tag/command，不属于默认
   `pnpm ci:go` 检查；
@@ -116,6 +120,7 @@ integration test 必须使用隔离资源，不能缓存成功结果，也不能
 - runner concurrency、persistent cache 和 remote cache credential 由 workflow 与 CI 环境拥有；
   正确性不得依赖自托管 Runner 上次运行留下的工作目录；
 - 单 Runner 保持单并发，优先减少重复安装、重复构建和无关验证面；
+- `manual-health` 每次只接受一个明确 profile，且不设置 cron 或隐式 `all`；
 - 评估 CI 性能时分开记录 queue time、cold-cache time 与 hot-cache time。
 
 ## 安全检查
@@ -136,8 +141,8 @@ integration test 必须使用隔离资源，不能缓存成功结果，也不能
 - 完整镜像构建、SBOM、镜像扫描、产物发布、GitOps promotion 与 Cloudflare traffic selection；
 - RAG release、真实 Langfuse/Ragas scoring 与发布验收。
 
-PR 只对受影响 Dockerfile 运行 lint、构建上下文检查、BuildKit `--check` 和最浅检查阶段，不
-load、push、生成 SBOM 或扫描最终镜像；`main` 发布链路才构建并发布受影响最终镜像。
+自动 PR 不运行 Docker lint/build、Testcontainers、浏览器、staging 或 release。需要镜像证据时，
+开发者显式运行 Docker profile；`main` 发布链路才构建并发布受影响最终镜像。
 
 这些工作按所属 runbook 执行。source repo 中的 K8s base、Terraform source 或 workflow 成功，
 都不能单独证明环境已部署；环境事实由 GitOps revision、controller 状态、健康检查和明确验收

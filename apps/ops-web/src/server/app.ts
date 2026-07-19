@@ -5,8 +5,15 @@ import { bodyLimit } from "hono/body-limit";
 import { secureHeaders } from "hono/secure-headers";
 import { z } from "zod";
 import {
+	OpsFileReleaseBatchStartSchema,
+	OpsIngestionTaskListSchema,
+	OpsIngestionTaskRetryStartSchema,
+	OpsIngestionTaskSchema,
+	OpsIngestionWorkflowStartSchema,
 	OpsInternalPortalAuthStatusSchema,
 	OpsInternalPortalAuthUpdateSchema,
+	OpsInternalPortalIngestionStatusSchema,
+	OpsInternalPortalPublicationStatusSchema,
 	OpsObservabilityResponseSchema,
 	OpsOverviewResponseSchema,
 	OpsOverviewWindowSchema,
@@ -31,12 +38,14 @@ import {
 	DiningStoreValidationError,
 } from "./dining-store.ts";
 import {
-	createInternalPortalAuthMaintenanceClientFromEnv,
+	createIngestionControlClientFromEnv,
+	type IngestionControlClient,
+	type IngestionControlEnv,
+	IngestionControlResponseError,
+	IngestionControlUnavailableError,
 	type InternalPortalAuthMaintenanceClient,
-	type InternalPortalAuthMaintenanceEnv,
-	InternalPortalAuthMaintenanceUnavailableError,
 	unavailableMaintenanceStatus,
-} from "./internal-portal-auth-maintenance-client.ts";
+} from "./ingestion-control-client.ts";
 import {
 	createKubernetesInternalPortalAuthStore,
 	createUnavailableInternalPortalAuthStore,
@@ -87,7 +96,7 @@ interface OpsHealthEnv {
 type OpsAppEnv = OpsAdmissionEnv &
 	AxiomEnv &
 	DiningStoreEnv &
-	InternalPortalAuthMaintenanceEnv &
+	IngestionControlEnv &
 	OpsHealthEnv &
 	OpsStatusEnv &
 	ProviderConfigAdminEnv &
@@ -100,6 +109,7 @@ interface OpsAppOptions {
 	diningStore?: DiningStore;
 	internalPortalAuthStore?: InternalPortalAuthStore;
 	internalPortalMaintenanceClient?: InternalPortalAuthMaintenanceClient;
+	ingestionControlClient?: IngestionControlClient;
 	overviewService?: OpsOverviewService;
 	sentry?: SentryClient;
 	staticRoot?: string;
@@ -121,6 +131,39 @@ const RequestListQuerySchema = z
 	.strict();
 const OverviewQuerySchema = z.object({ window: OpsOverviewWindowSchema.default("1h") }).strict();
 const ObservabilityQuerySchema = z.object({ kind: z.enum(["logs", "trace"]) }).strict();
+const IngestionRequestIdSchema = z
+	.string()
+	.trim()
+	.min(1)
+	.max(128)
+	.regex(/^[A-Za-z0-9][A-Za-z0-9._:-]*$/u);
+const IngestionTaskListQuerySchema = z
+	.object({
+		collection: z.string().trim().min(1).max(128).optional(),
+		corpus: z.string().trim().min(1).max(128).optional(),
+		cursor: z.string().trim().min(1).max(512).optional(),
+		limit: z.coerce.number().int().min(1).max(200).default(50),
+		registry_task_id: z.string().trim().min(1).max(128).optional(),
+		run_id: z.string().trim().min(1).max(200).optional(),
+		source_channel: z.string().trim().min(1).max(128).optional(),
+		source_family: z.string().trim().min(1).max(128).optional(),
+		status: z.enum(["running", "completed", "failed", "canceled"]).optional(),
+	})
+	.strict();
+const IngestionReconcileBodySchema = z
+	.object({
+		requestId: IngestionRequestIdSchema,
+	})
+	.strict();
+const FileReleaseBatchBodySchema = z
+	.object({
+		fileReleaseIds: z.array(z.number().int().positive()).min(1).max(50),
+		requestId: IngestionRequestIdSchema,
+	})
+	.strict()
+	.refine((value) => new Set(value.fileReleaseIds).size === value.fileReleaseIds.length, {
+		message: "fileReleaseIds must not contain duplicates",
+	});
 const DiningLimitQuerySchema = z
 	.object({ limit: z.coerce.number().int().min(1).max(200).default(50) })
 	.strict();
@@ -166,8 +209,8 @@ const DiningReviewCommandSchema = z.discriminatedUnion("kind", [
 const OpsPathIdSchema = z
 	.string()
 	.min(1)
-	.max(128)
-	.regex(/^[A-Za-z0-9._:-]+$/);
+	.max(200)
+	.regex(/^[A-Za-z0-9][A-Za-z0-9._:-]*$/u);
 
 export function createOpsApp(options: OpsAppOptions = {}) {
 	const app = new Hono();
@@ -177,9 +220,10 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	const admission = options.admission ?? createCloudflareAccessOpsAdmission(env);
 	const internalPortalAuthStore =
 		options.internalPortalAuthStore ?? createDefaultInternalPortalAuthStore();
+	const ingestionControlClient =
+		options.ingestionControlClient ?? createIngestionControlClientFromEnv(env);
 	const internalPortalMaintenanceClient =
-		options.internalPortalMaintenanceClient ??
-		createInternalPortalAuthMaintenanceClientFromEnv(env);
+		options.internalPortalMaintenanceClient ?? ingestionControlClient;
 	const staticRoot = options.staticRoot ?? "dist";
 	const store = options.store ?? createDefaultOpsStatusStore(env);
 	const axiom = options.axiom ?? createDefaultAxiomClient(env);
@@ -232,6 +276,12 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		console.error("[ops-web] unhandled api error", error);
 		if (error instanceof AxiomUnavailableError) {
 			return jsonError("OPS_OBSERVABILITY_UNAVAILABLE", "Axiom 数据不可用。", 503);
+		}
+		if (error instanceof IngestionControlUnavailableError) {
+			return jsonError("OPS_INGESTION_UNAVAILABLE", "采集控制服务不可用。", 503);
+		}
+		if (error instanceof IngestionControlResponseError) {
+			return ingestionControlErrorResponse(error);
 		}
 		if (error instanceof SentryUnavailableError) {
 			return jsonError("OPS_SENTRY_UNAVAILABLE", "Sentry Issue 数据不可用。", 503);
@@ -321,6 +371,145 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		await next();
 	});
 
+	app.get("/api/ops/ingestion/status", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		return operator instanceof Response
+			? operator
+			: context.json(
+					OpsInternalPortalIngestionStatusSchema.parse(
+						await ingestionControlClient.getInternalPortalStatus(),
+					),
+				);
+	});
+
+	app.get("/api/ops/ingestion/tasks", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const parsed = IngestionTaskListQuerySchema.safeParse(context.req.query());
+		if (!parsed.success) {
+			return jsonError("OPS_INGESTION_QUERY_INVALID", "采集任务查询条件无效。", 400);
+		}
+		const query = new URLSearchParams();
+		for (const [key, value] of Object.entries(parsed.data)) {
+			if (value !== undefined) {
+				query.set(key, String(value));
+			}
+		}
+		return context.json(
+			OpsIngestionTaskListSchema.parse(await ingestionControlClient.listTasks(query)),
+		);
+	});
+
+	app.get("/api/ops/ingestion/tasks/:taskId", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const taskId = OpsPathIdSchema.safeParse(context.req.param("taskId"));
+		return taskId.success
+			? context.json(
+					OpsIngestionTaskSchema.parse(await ingestionControlClient.getTask(taskId.data)),
+				)
+			: jsonError("OPS_INGESTION_TASK_ID_INVALID", "采集任务标识无效。", 400);
+	});
+
+	app.post("/api/ops/ingestion/tasks/:taskId/retry", async (context) => {
+		const operator = await requireHumanOpsMutation(admission, context.req.raw, publicOrigin);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const taskId = OpsPathIdSchema.safeParse(context.req.param("taskId"));
+		return taskId.success
+			? context.json(
+					OpsIngestionTaskRetryStartSchema.parse(
+						await ingestionControlClient.retryTask(taskId.data, operator.operatorId),
+					),
+					202,
+				)
+			: jsonError("OPS_INGESTION_TASK_ID_INVALID", "采集任务标识无效。", 400);
+	});
+
+	app.post("/api/ops/ingestion/notice/pause", async (context) => {
+		const operator = await requireHumanOpsMutation(admission, context.req.raw, publicOrigin);
+		return operator instanceof Response
+			? operator
+			: context.json(
+					OpsInternalPortalPublicationStatusSchema.parse(
+						await ingestionControlClient.pauseNoticePublication(operator.operatorId),
+					),
+				);
+	});
+
+	app.post("/api/ops/ingestion/notice/resume", async (context) => {
+		const operator = await requireHumanOpsMutation(admission, context.req.raw, publicOrigin);
+		return operator instanceof Response
+			? operator
+			: context.json(
+					OpsInternalPortalPublicationStatusSchema.parse(
+						await ingestionControlClient.resumeNoticePublication(operator.operatorId),
+					),
+				);
+	});
+
+	app.post(
+		"/api/ops/ingestion/notice/reconcile",
+		bodyLimit({
+			maxSize: 1024,
+			onError: () => jsonError("OPS_INGESTION_BODY_INVALID", "请求正文无效。", 400),
+		}),
+		async (context) => {
+			const operator = await requireHumanOpsMutation(admission, context.req.raw, publicOrigin);
+			if (operator instanceof Response) {
+				return operator;
+			}
+			const body = IngestionReconcileBodySchema.safeParse(
+				await context.req.json().catch(() => undefined),
+			);
+			return body.success
+				? context.json(
+						OpsIngestionWorkflowStartSchema.parse(
+							await ingestionControlClient.startNoticeReconcile({
+								operatorId: operator.operatorId,
+								requestId: body.data.requestId,
+							}),
+						),
+						202,
+					)
+				: jsonError("OPS_INGESTION_BODY_INVALID", "完整核对请求无效。", 400);
+		},
+	);
+
+	app.post(
+		"/api/ops/ingestion/file-releases",
+		bodyLimit({
+			maxSize: 4096,
+			onError: () => jsonError("OPS_INGESTION_BODY_INVALID", "请求正文无效。", 400),
+		}),
+		async (context) => {
+			const operator = await requireHumanOpsMutation(admission, context.req.raw, publicOrigin);
+			if (operator instanceof Response) {
+				return operator;
+			}
+			const body = FileReleaseBatchBodySchema.safeParse(
+				await context.req.json().catch(() => undefined),
+			);
+			return body.success
+				? context.json(
+						OpsFileReleaseBatchStartSchema.parse(
+							await ingestionControlClient.startFileReleases({
+								fileReleaseIds: body.data.fileReleaseIds,
+								operatorId: operator.operatorId,
+								requestId: body.data.requestId,
+							}),
+						),
+						202,
+					)
+				: jsonError("OPS_INGESTION_BODY_INVALID", "文件发布 ID 无效。", 400);
+		},
+	);
+
 	app.get("/api/ops/internal-portal-auth", async (context) => {
 		const operator = await admitOpsApiRequest(admission, context.req.raw);
 		if (operator instanceof Response) {
@@ -372,8 +561,9 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 					updatedAt,
 					updatedBy: operator.operatorId,
 				});
-				const maintenance = await resumeInternalPortalMaintenanceSafely(
+				const maintenance = await validateInternalPortalAuthenticationSafely(
 					internalPortalMaintenanceClient,
+					operator.operatorId,
 				);
 				const status = OpsInternalPortalAuthStatusSchema.parse(
 					buildInternalPortalAuthStatus(credentialStatus, maintenance),
@@ -389,16 +579,16 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		},
 	);
 
-	app.post("/api/ops/internal-portal-auth/maintenance/resume", async (context) => {
+	app.post("/api/ops/internal-portal-auth/maintenance/validate", async (context) => {
 		const operator = await admitOpsApiRequest(admission, context.req.raw);
 		if (operator instanceof Response) {
 			return operator;
 		}
 		if (!requestHasConfiguredOrigin(context.req.raw, publicOrigin)) {
-			return jsonError("OPS_INTERNAL_PORTAL_AUTH_ORIGIN_INVALID", "恢复请求来源无效。", 403);
+			return jsonError("OPS_INTERNAL_PORTAL_AUTH_ORIGIN_INVALID", "验证请求来源无效。", 403);
 		}
 		try {
-			const maintenance = await internalPortalMaintenanceClient.resume();
+			const maintenance = await internalPortalMaintenanceClient.validate(operator.operatorId);
 			const credential = await internalPortalAuthStore.getStatus();
 			return context.json(
 				OpsInternalPortalAuthStatusSchema.parse(
@@ -406,10 +596,10 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 				),
 			);
 		} catch (error) {
-			return error instanceof InternalPortalAuthMaintenanceUnavailableError
+			return error instanceof IngestionControlUnavailableError
 				? jsonError(
-						"OPS_INTERNAL_PORTAL_AUTH_MAINTENANCE_UNAVAILABLE",
-						"门户认证维护暂时不可用。",
+						"OPS_INTERNAL_PORTAL_AUTH_VALIDATION_UNAVAILABLE",
+						"门户认证验证暂时不可用。",
 						503,
 					)
 				: internalPortalAuthErrorResponse(error);
@@ -752,15 +942,33 @@ async function readInternalPortalMaintenanceStatus(client: InternalPortalAuthMai
 	}
 }
 
-async function resumeInternalPortalMaintenanceSafely(client: InternalPortalAuthMaintenanceClient) {
+async function validateInternalPortalAuthenticationSafely(
+	client: InternalPortalAuthMaintenanceClient,
+	operatorId: string,
+) {
 	try {
-		return await client.resume();
+		return await client.validate(operatorId);
 	} catch (error) {
-		console.error("[ops-web] internal portal auth maintenance resume failed", {
+		console.error("[ops-web] internal portal auth validation request failed", {
 			message: error instanceof Error ? error.message : String(error),
 		});
 		return unavailableMaintenanceStatus();
 	}
+}
+
+async function requireHumanOpsMutation(
+	admission: OpsAdmission,
+	request: Request,
+	publicOrigin: string | null,
+): Promise<OpsOperatorContext | Response> {
+	const operator = await admitOpsApiRequest(admission, request);
+	if (operator instanceof Response) {
+		return operator;
+	}
+	if (!requestHasConfiguredOrigin(request, publicOrigin)) {
+		return jsonError("OPS_INGESTION_ORIGIN_INVALID", "采集操作请求来源无效。", 403);
+	}
+	return operator;
 }
 
 function buildInternalPortalAuthStatus(
@@ -902,6 +1110,23 @@ function invalidInternalPortalCredentialResponse(): Response {
 	return jsonError("OPS_INTERNAL_PORTAL_AUTH_INPUT_INVALID", "内部门户凭据格式无效。", 400);
 }
 
+function ingestionControlErrorResponse(error: IngestionControlResponseError): Response {
+	if (error.status === 404) {
+		return jsonError("OPS_INGESTION_NOT_FOUND", "未找到该采集任务。", 404);
+	}
+	if (error.status === 409) {
+		return jsonError("OPS_INGESTION_CONFLICT", "采集任务状态冲突。", 409, {
+			upstreamCode: error.upstreamCode,
+		});
+	}
+	if (error.status === 400) {
+		return jsonError("OPS_INGESTION_REQUEST_INVALID", "采集控制请求无效。", 400, {
+			upstreamCode: error.upstreamCode,
+		});
+	}
+	return jsonError("OPS_INGESTION_UNAVAILABLE", "采集控制服务不可用。", 503);
+}
+
 function internalPortalAuthErrorResponse(error: unknown): Response {
 	if (!(error instanceof InternalPortalAuthStoreUnavailableError)) {
 		return jsonError("OPS_INTERNAL_PORTAL_AUTH_UNAVAILABLE", "内部门户认证存储暂时不可用。", 503);
@@ -964,7 +1189,11 @@ function resolveOpsPublicOrigin(env: OpsHealthEnv): string | null {
 	}
 	try {
 		const parsed = new URL(configured);
-		return parsed.protocol === "https:" && parsed.origin === configured ? parsed.origin : null;
+		const allowedProtocol =
+			parsed.protocol === "https:" ||
+			(parsed.protocol === "http:" &&
+				(parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost"));
+		return allowedProtocol && parsed.origin === configured ? parsed.origin : null;
 	} catch {
 		return null;
 	}

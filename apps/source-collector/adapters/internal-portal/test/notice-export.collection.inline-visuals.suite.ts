@@ -32,13 +32,6 @@ export function registerNoticeExportCollectionInlineVisualsSuite(): void {
 					};
 				},
 			},
-			attachmentFetchAdmissions: [
-				{
-					attachmentCapturePolicy: "fetch_to_quarantine",
-					attachmentRefId: "attachment-0001",
-					noticeId: "355120",
-				},
-			],
 			createApiContext: async () => ({
 				dispose: async () => undefined,
 				get: async () => ({
@@ -102,8 +95,8 @@ export function registerNoticeExportCollectionInlineVisualsSuite(): void {
 					enabled: true,
 					incrementalPages: 1,
 					incrementalPageSize: 1,
-					backfillPages: 1,
-					backfillPageSize: 20,
+					reconcilePages: 1,
+					reconcilePageSize: 20,
 				},
 			],
 			requestMaxRetries: 1,
@@ -142,7 +135,7 @@ export function registerNoticeExportCollectionInlineVisualsSuite(): void {
 		]);
 	});
 
-	it("materializes allowlisted external inline image refs when visual capture is explicitly enabled", async () => {
+	it("automatically materializes allowlisted external inline image refs", async () => {
 		const sendRequest = vi.fn(async (input: { responseType: "buffer"; url: string }) => ({
 			body: Buffer.from(input.url.includes("mmbiz.qpic.cn") ? "wechat-image" : "other"),
 			headers: {
@@ -179,7 +172,6 @@ export function registerNoticeExportCollectionInlineVisualsSuite(): void {
 				},
 			},
 			externalVisualFetcher: createExternalVisualFetcher(sendRequest),
-			defaultInlineVisualCapture: true,
 			createApiContext: async () => ({
 				dispose: async () => undefined,
 				get: async () => {
@@ -239,8 +231,8 @@ export function registerNoticeExportCollectionInlineVisualsSuite(): void {
 					enabled: true,
 					incrementalPages: 1,
 					incrementalPageSize: 1,
-					backfillPages: 1,
-					backfillPageSize: 20,
+					reconcilePages: 1,
+					reconcilePageSize: 20,
 				},
 			],
 			requestMaxRetries: 1,
@@ -300,7 +292,7 @@ export function registerNoticeExportCollectionInlineVisualsSuite(): void {
 		]);
 	});
 
-	it("materializes admitted allowlisted external inline image refs without using the portal API context", async () => {
+	it("materializes allowlisted external inline image refs without using the portal API context", async () => {
 		const sendRequest = vi.fn(async () => ({
 			body: Buffer.from("wechat-image"),
 			headers: {
@@ -337,13 +329,6 @@ export function registerNoticeExportCollectionInlineVisualsSuite(): void {
 				},
 			},
 			externalVisualFetcher: createExternalVisualFetcher(sendRequest),
-			attachmentFetchAdmissions: [
-				{
-					attachmentCapturePolicy: "fetch_to_quarantine",
-					attachmentRefId: "attachment-0001",
-					noticeId: "351117",
-				},
-			],
 			createApiContext: async () => ({
 				dispose: async () => undefined,
 				get: async () => {
@@ -403,8 +388,8 @@ export function registerNoticeExportCollectionInlineVisualsSuite(): void {
 					enabled: true,
 					incrementalPages: 1,
 					incrementalPageSize: 1,
-					backfillPages: 1,
-					backfillPageSize: 20,
+					reconcilePages: 1,
+					reconcilePageSize: 20,
 				},
 			],
 			requestMaxRetries: 1,
@@ -483,6 +468,7 @@ function createExternalVisualFetcher(
 			contentDisposition: response.headers["content-disposition"] ?? null,
 			contentType: response.headers["content-type"] ?? null,
 			etag: response.headers.etag ?? null,
+			lastModified: response.headers["last-modified"] ?? null,
 			statusCode: response.statusCode,
 		};
 	};

@@ -18,6 +18,12 @@ data:
     mc mb --ignore-existing object-store/campus-agent-derived
     mc mb --ignore-existing object-store/langfuse
 
+    mc version enable object-store/campus-agent-source
+    mc version enable object-store/campus-agent-derived
+
+    mc ilm import object-store/campus-agent-source < /bootstrap/source-lifecycle.json
+    mc ilm import object-store/campus-agent-derived < /bootstrap/derived-lifecycle.json
+
     mc admin policy create object-store campus-agent-source-rw /bootstrap/source-policy.json
     mc admin policy create object-store campus-agent-derived-rw /bootstrap/derived-policy.json
 
@@ -36,7 +42,7 @@ data:
         },
         {
           "Effect": "Allow",
-          "Action": ["s3:AbortMultipartUpload", "s3:DeleteObject", "s3:GetObject", "s3:ListMultipartUploadParts", "s3:PutObject"],
+          "Action": ["s3:AbortMultipartUpload", "s3:GetObject", "s3:ListMultipartUploadParts", "s3:PutObject"],
           "Resource": ["arn:aws:s3:::campus-agent-source/*"]
         }
       ]
@@ -52,8 +58,55 @@ data:
         },
         {
           "Effect": "Allow",
+          "Action": ["s3:AbortMultipartUpload", "s3:GetObject", "s3:ListMultipartUploadParts", "s3:PutObject"],
+          "Resource": ["arn:aws:s3:::campus-agent-derived/*"]
+        },
+        {
+          "Effect": "Allow",
           "Action": ["s3:AbortMultipartUpload", "s3:DeleteObject", "s3:GetObject", "s3:ListMultipartUploadParts", "s3:PutObject"],
-          "Resource": ["arn:aws:s3:::campus-agent-derived/*", "arn:aws:s3:::langfuse/*"]
+          "Resource": ["arn:aws:s3:::langfuse/*"]
+        }
+      ]
+    }
+  source-lifecycle.json: |
+    {
+      "Rules": [
+        {
+          "ID": "temporary-attempts-30d",
+          "Status": "Enabled",
+          "Filter": {"Prefix": "attempts/"},
+          "Expiration": {"Days": 30},
+          "NoncurrentVersionExpiration": {"NoncurrentDays": 1},
+          "AbortIncompleteMultipartUpload": {"DaysAfterInitiation": 7}
+        },
+        {
+          "ID": "temporary-ingestion-results-30d",
+          "Status": "Enabled",
+          "Filter": {"Prefix": "ingestion-results/"},
+          "Expiration": {"Days": 30},
+          "NoncurrentVersionExpiration": {"NoncurrentDays": 1},
+          "AbortIncompleteMultipartUpload": {"DaysAfterInitiation": 7}
+        },
+        {
+          "ID": "temporary-ingestion-requests-30d",
+          "Status": "Enabled",
+          "Filter": {"Prefix": "ingestion-requests/"},
+          "Expiration": {"Days": 30},
+          "NoncurrentVersionExpiration": {"NoncurrentDays": 1},
+          "AbortIncompleteMultipartUpload": {"DaysAfterInitiation": 7}
+        }
+      ]
+    }
+  derived-lifecycle.json: |
+    {
+      "Rules": [
+        {
+          "ID": "temporary-ingestion-results-30d",
+          "Status": "Enabled",
+          "Filter": {"Prefix": "ingestion-results/"},
+          "Expiration": {"Days": 30},
+          "NoncurrentVersionExpiration": {"NoncurrentDays": 1},
+          "AbortIncompleteMultipartUpload": {"DaysAfterInitiation": 7}
         }
       ]
     }

@@ -7,10 +7,15 @@ on:
 
 permissions: read-all
 
+concurrency:
+  group: scorecard
+  cancel-in-progress: true
+
 jobs:
   analysis:
     name: OpenSSF Scorecard
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
+    timeout-minutes: 15
     permissions:
       actions: read
       contents: read

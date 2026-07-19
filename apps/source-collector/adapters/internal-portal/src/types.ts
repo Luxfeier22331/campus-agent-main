@@ -4,11 +4,11 @@ export interface NoticeTypeConfig {
 	enabled: boolean;
 	incrementalPages: number;
 	incrementalPageSize: number;
-	backfillPages: number;
-	backfillPageSize: number;
+	reconcilePages: number;
+	reconcilePageSize: number;
 }
 
-export type NoticeCollectionMode = "incremental" | "backfill" | "selected";
+export type NoticeCollectionMode = "incremental" | "reconcile" | "selected";
 
 export interface NoticeTypePolicySnapshot {
 	type: string;
@@ -18,7 +18,7 @@ export interface NoticeTypePolicySnapshot {
 		pages: number;
 		page_size: number;
 	};
-	backfill: {
+	reconcile: {
 		pages: number;
 		page_size: number;
 	};
@@ -184,6 +184,7 @@ export interface BundleAttachmentObservation {
 	bucket: string | null;
 	object_key: string | null;
 	etag: string | null;
+	last_modified?: string | null;
 	version_id: string | null;
 	origin_url_scheme: string | null;
 	origin_host: string | null;
@@ -432,6 +433,7 @@ export interface NoticeExportManifest {
 	source_surface: "notice";
 	site_id: string;
 	source_home_url: string;
+	source_config_digest: string;
 	full_scope_requested: boolean;
 	full_scope_completed: boolean;
 	page_budget_exhausted: boolean;

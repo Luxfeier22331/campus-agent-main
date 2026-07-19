@@ -106,24 +106,51 @@ test("导航在移动端使用抽屉且桌面端保持可见", async ({ page }) 
 	await expectStableViewport(page, errors);
 });
 
-test("首次部署只允许写入凭据并在成功后进入待验证", async ({ page }) => {
+test("采集页面可以查看任务并提交受控操作", async ({ page }) => {
+	const errors = captureRuntimeErrors(page);
+	await page.goto("/ingestion");
+
+	await expect(page.getByRole("heading", { name: "采集运行" })).toBeVisible();
+	await expect(page.getByText("release:run-001:v1").first()).toBeVisible();
+	await expect(page.getByRole("link", { name: "run-001:capture" })).toBeVisible();
+
+	await page.getByRole("button", { name: "立即完整核对" }).click();
+	await expect(page.getByText(/通知完整核对已提交/u)).toBeVisible();
+
+	await page.getByLabel("文件发布 ID").fill("646, 647");
+	await page.getByRole("button", { exact: true, name: "提交" }).click();
+	await expect(page.getByText("已提交 2 个文件发布采集流程。")).toBeVisible();
+
+	await page.getByRole("button", { name: "暂停" }).click();
+	await expect(page.getByText("通知计划已暂停。")).toBeVisible();
+
+	await page.getByRole("link", { name: "run-001:capture" }).click();
+	await expect(page.getByRole("heading", { name: "采集任务" })).toBeVisible();
+	await expect(page.getByText("ingestion/internal-portal-notice-publication")).toBeVisible();
+	await expect(page.getByRole("button", { name: "重试" })).toHaveCount(0);
+	await expectStableViewport(page, errors);
+});
+
+test("首次部署写入凭据后立即提交验证", async ({ page }) => {
 	const errors = captureRuntimeErrors(page);
 	const auth = await mockInternalPortalAuth(page, unconfiguredAuthStatus());
 	await page.goto("/internal-portal-auth");
 
 	await expect(page.getByRole("heading", { name: "门户认证" })).toBeVisible();
 	await expect(page.getByText("未配置")).toBeVisible();
-	await expect(page.getByText("已暂停")).toBeVisible();
-	await expect(page.getByRole("button", { name: "恢复验证" })).toHaveCount(0);
+	await expect(page.getByText("等待配置")).toBeVisible();
+	await expect(page.getByRole("button", { name: "立即验证" })).toHaveCount(0);
 	const input = page.getByLabel("SSO_TGC 或 Cookie");
 	await input.fill("SSO_TGC=TGT-browser-ticket; JSESSIONID=session");
 	await page.getByRole("button", { name: "替换凭据" }).click();
-	await expect(page.getByText("凭据已替换，将在下一个维护周期验证。")).toBeVisible();
+	await expect(
+		page.getByText("凭据已替换并提交验证，验证成功后通知采集将自动恢复。"),
+	).toBeVisible();
 	await expect(page.getByText("已配置")).toBeVisible();
-	await expect(page.getByText("待验证")).toBeVisible();
+	await expect(page.getByText("等待保活验证")).toBeVisible();
 	await expect(input).toHaveValue("");
 	expect(auth.replacements).toEqual(["SSO_TGC=TGT-browser-ticket; JSESSIONID=session"]);
-	expect(auth.resumeCount).toBe(0);
+	expect(auth.validationCount).toBe(1);
 	await expect(page.getByText("TGT-browser-ticket")).toHaveCount(0);
 	await expectStableViewport(page, errors);
 });
@@ -134,30 +161,41 @@ test("已过期凭据必须替换而不能直接恢复", async ({ page }) => {
 	await page.goto("/internal-portal-auth");
 
 	await expect(page.getByText("已配置")).toBeVisible();
-	await expect(page.getByText("已暂停")).toBeVisible();
-	await expect(page.getByRole("button", { name: "恢复验证" })).toHaveCount(0);
+	await expect(page.getByText("凭据已过期")).toBeVisible();
+	await expect(page.getByRole("button", { name: "立即验证" })).toBeVisible();
 	const input = page.getByLabel("SSO_TGC 或 Cookie");
 	await input.fill("TGT-replacement-ticket");
 	await page.getByRole("button", { name: "替换凭据" }).click();
 
-	await expect(page.getByText("待验证")).toBeVisible();
+	await expect(page.getByText("等待保活验证")).toBeVisible();
 	await expect(input).toHaveValue("");
 	expect(auth.replacements).toEqual(["TGT-replacement-ticket"]);
 	await expect(page.getByText("TGT-replacement-ticket")).toHaveCount(0);
 	await expectStableViewport(page, errors);
 });
 
-test("新凭据已写入但调度仍暂停时可以重试恢复", async ({ page }) => {
+test("新凭据已写入但验证未完成时可以立即重试", async ({ page }) => {
 	const errors = captureRuntimeErrors(page);
 	const auth = await mockInternalPortalAuth(page, pendingResumeAuthStatus());
 	await page.goto("/internal-portal-auth");
 
-	await expect(page.getByText("待验证")).toBeVisible();
-	const resume = page.getByRole("button", { name: "恢复验证" });
-	await resume.click();
+	await expect(page.getByText("等待保活验证")).toBeVisible();
+	const validate = page.getByRole("button", { name: "立即验证" });
+	await validate.click();
 
-	await expect(resume).toHaveCount(0);
-	expect(auth.resumeCount).toBe(1);
+	await expect(page.getByText("验证已提交，成功后通知采集将自动恢复。")).toBeVisible();
+	expect(auth.validationCount).toBe(1);
+	await expectStableViewport(page, errors);
+});
+
+test("保活接口不可用时不会显示为等待验证", async ({ page }) => {
+	const errors = captureRuntimeErrors(page);
+	await mockInternalPortalAuth(page, unavailableAuthStatus());
+	await page.goto("/internal-portal-auth");
+
+	await expect(page.getByText("保活状态不可用")).toBeVisible();
+	await expect(page.getByText("等待保活验证")).toHaveCount(0);
+	await expect(page.getByRole("button", { name: "立即验证" })).toBeVisible();
 	await expectStableViewport(page, errors);
 });
 
@@ -207,7 +245,7 @@ test("Provider Config 可以创建不可变 revision、验证并激活完整 bun
 
 async function mockInternalPortalAuth(page: Page, initial: OpsInternalPortalAuthStatus) {
 	let status = structuredClone(initial);
-	const calls = { replacements: [] as string[], resumeCount: 0 };
+	const calls = { replacements: [] as string[], validationCount: 0 };
 	await page.route("**/api/ops/internal-portal-auth**", async (route) => {
 		const request = route.request();
 		const pathname = new URL(request.url()).pathname;
@@ -218,15 +256,16 @@ async function mockInternalPortalAuth(page: Page, initial: OpsInternalPortalAuth
 		if (pathname === "/api/ops/internal-portal-auth" && request.method() === "PUT") {
 			const body = request.postDataJSON() as { credential: string };
 			calls.replacements.push(body.credential);
+			calls.validationCount += 1;
 			status = statusAfterReplacement(status);
 			await route.fulfill({ json: status });
 			return;
 		}
 		if (
-			pathname === "/api/ops/internal-portal-auth/maintenance/resume" &&
+			pathname === "/api/ops/internal-portal-auth/maintenance/validate" &&
 			request.method() === "POST"
 		) {
-			calls.resumeCount += 1;
+			calls.validationCount += 1;
 			status = {
 				...status,
 				maintenance: { ...status.maintenance, scheduleState: "ACTIVE" },
@@ -363,6 +402,19 @@ function pendingResumeAuthStatus(): OpsInternalPortalAuthStatus {
 			...emptyPausedMaintenance(),
 			lastAttemptAt: "2026-07-16T00:30:00.000Z",
 			lastOutcome: "CREDENTIAL_EXPIRED",
+		},
+		observedLifetime: { lowerBoundSeconds: null, upperBoundSeconds: null },
+		updatedAt: "2026-07-16T01:00:00.000Z",
+		updatedBy: "ops@example.test",
+	};
+}
+
+function unavailableAuthStatus(): OpsInternalPortalAuthStatus {
+	return {
+		configured: true,
+		maintenance: {
+			...emptyPausedMaintenance(),
+			scheduleState: "UNAVAILABLE",
 		},
 		observedLifetime: { lowerBoundSeconds: null, upperBoundSeconds: null },
 		updatedAt: "2026-07-16T01:00:00.000Z",

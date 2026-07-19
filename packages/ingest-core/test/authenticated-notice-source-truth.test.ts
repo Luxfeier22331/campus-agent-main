@@ -24,10 +24,11 @@ describe("authenticated notice source-truth materialization", () => {
 		const refs = await materializeAuthenticatedNoticeSourceTruthFromTask({
 			noticeFamilyConfig: sampleNoticeFamilyConfig(),
 			objectStore,
+			outputBucket: objectStore.bucket,
 			task,
 		});
 
-		expect(refs).toHaveLength(11);
+		expect(refs).toHaveLength(5);
 		expect(refs.every((ref) => ref.kind === "object_store")).toBe(true);
 		const manifestRef = refs.find((ref) => ref.uri.endsWith("/notice-manifest.json"));
 		expect(manifestRef?.uri).toContain("s3://campus-agent-source/internal_portal/");
@@ -38,8 +39,9 @@ describe("authenticated notice source-truth materialization", () => {
 			site_id: "synthetic_internal_portal",
 			notice_id: "355119",
 			notice_title_normalized: "通知标题",
-			materialized_by_task_id: task.task_id,
 		});
+		expect(materializedManifest).not.toHaveProperty("captured_at");
+		expect(materializedManifest).not.toHaveProperty("materialized_by_task_id");
 		const contentBlocksRef = refs.find((ref) => ref.uri.endsWith("/content-blocks.jsonl"));
 		const contentBlocks = objectStore
 			.getTextFromUri(requiredString(contentBlocksRef?.uri))
@@ -59,6 +61,7 @@ describe("authenticated notice source-truth materialization", () => {
 			materializeAuthenticatedNoticeSourceTruthFromTask({
 				noticeFamilyConfig: sampleNoticeFamilyConfig(),
 				objectStore,
+				outputBucket: objectStore.bucket,
 				task: {
 					...task,
 					input_ref: {
@@ -68,6 +71,35 @@ describe("authenticated notice source-truth materialization", () => {
 				},
 			}),
 		).rejects.toThrow("authenticated notice capture release input_ref digest mismatch");
+	});
+
+	it("reuses identical content bytes across capture runs with different observation times", async () => {
+		const objectStore = new InMemoryObjectStore("campus-agent-source");
+		objectStore.putJson(bundleKey, [sampleBundleRecord()]);
+		objectStore.putJson(manifestKey, sampleManifest());
+		const firstTask = writeCaptureRelease(objectStore);
+		const firstRefs = await materializeAuthenticatedNoticeSourceTruthFromTask({
+			noticeFamilyConfig: sampleNoticeFamilyConfig(),
+			objectStore,
+			outputBucket: objectStore.bucket,
+			task: firstTask,
+		});
+		const secondTask = writeCaptureRelease(objectStore, {
+			captureKey:
+				"internal_portal/runs/synthetic_internal_portal/20260404T015000Z/capture-release.json",
+			exportedAt: "2026-04-04T01:50:00.000Z",
+			runId: "run_internal_notice_20260404_second",
+			taskId: "task_internal_portal_notice_capture_002",
+		});
+
+		const secondRefs = await materializeAuthenticatedNoticeSourceTruthFromTask({
+			noticeFamilyConfig: sampleNoticeFamilyConfig(),
+			objectStore,
+			outputBucket: objectStore.bucket,
+			task: secondTask,
+		});
+
+		expect(secondRefs).toEqual(firstRefs);
 	});
 
 	it("fails closed when capture release points outside the input source bucket", async () => {
@@ -81,6 +113,7 @@ describe("authenticated notice source-truth materialization", () => {
 			materializeAuthenticatedNoticeSourceTruthFromTask({
 				noticeFamilyConfig: sampleNoticeFamilyConfig(),
 				objectStore,
+				outputBucket: objectStore.bucket,
 				task,
 			}),
 		).rejects.toThrow("capture release object refs must use the source bucket");
@@ -96,71 +129,85 @@ describe("authenticated notice source-truth materialization", () => {
 			materializeAuthenticatedNoticeSourceTruthFromTask({
 				noticeFamilyConfig: sampleNoticeFamilyConfig(),
 				objectStore,
+				outputBucket: objectStore.bucket,
 				task,
 			}),
 		).rejects.toThrow("notices bundle record must be an object");
 		expect([...objectStore.keys()].filter((key) => key.includes("/source-truth/"))).toHaveLength(0);
 	});
 
-	it("materializes canonical notice document artifacts and inline image references", async () => {
+	it("rejects an internal inline image that was not materialized", async () => {
 		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		objectStore.putJson(bundleKey, [sampleBundleRecordWithInlineImage()]);
+		objectStore.putJson(manifestKey, sampleManifest());
+		const task = writeCaptureRelease(objectStore);
+
+		await expect(
+			materializeAuthenticatedNoticeSourceTruthFromTask({
+				noticeFamilyConfig: sampleNoticeFamilyConfig(),
+				objectStore,
+				outputBucket: objectStore.bucket,
+				task,
+			}),
+		).rejects.toThrow(
+			"authenticated notice internal attachment is not publishable: attachment-0001",
+		);
+		expect([...objectStore.keys()].filter((key) => key.includes("/source-truth/"))).toHaveLength(0);
+	});
+
+	it("preserves tables, merged cells, line breaks, and quotations", async () => {
+		const objectStore = new InMemoryObjectStore("campus-agent-source");
+		objectStore.putJson(bundleKey, [sampleStructuredBundleRecord()]);
 		objectStore.putJson(manifestKey, sampleManifest());
 		const task = writeCaptureRelease(objectStore);
 
 		const refs = await materializeAuthenticatedNoticeSourceTruthFromTask({
 			noticeFamilyConfig: sampleNoticeFamilyConfig(),
 			objectStore,
+			outputBucket: objectStore.bucket,
 			task,
 		});
-
-		expect(refs.map((ref) => ref.uri)).toEqual(
-			expect.arrayContaining([
-				expect.stringContaining("/capture/list-response.json"),
-				expect.stringContaining("/provider/normalized-notice.json"),
-				expect.stringContaining("/source-truth/attachment-refs.jsonl"),
-				expect.stringContaining("/canonical/canonical.md"),
-				expect.stringContaining("/canonical/document-units.jsonl"),
-			]),
-		);
-		const attachmentRefsRef = refs.find((ref) =>
-			ref.uri.endsWith("/source-truth/attachment-refs.jsonl"),
-		);
-		const attachmentRefs = objectStore
-			.getTextFromUri(requiredString(attachmentRefsRef?.uri))
+		const blocksRef = refs.find((ref) => ref.uri.endsWith("/content-blocks.jsonl"));
+		const blocks = objectStore
+			.getTextFromUri(requiredString(blocksRef?.uri))
 			.trim()
 			.split("\n")
 			.map((line) => JSON.parse(line) as Record<string, unknown>);
-		expect(attachmentRefs).toEqual(
+		const table = blocks.find((block) => block.block_role === "table");
+		expect(table).toMatchObject({
+			block_role: "table",
+			table_cells: [
+				[
+					{ colspan: 1, header: true, rowspan: 2, text: "校区" },
+					{ colspan: 2, header: true, rowspan: 1, text: "工作日" },
+				],
+				[
+					{ colspan: 1, header: true, rowspan: 1, text: "发车" },
+					{ colspan: 1, header: true, rowspan: 1, text: "到达" },
+				],
+				[
+					{ colspan: 1, header: false, rowspan: 1, text: "海淀" },
+					{ colspan: 1, header: false, rowspan: 1, text: "07:00" },
+					{ colspan: 1, header: false, rowspan: 1, text: "08:10" },
+				],
+			],
+		});
+		expect(blocks).toEqual(
 			expect.arrayContaining([
+				expect.objectContaining({ block_role: "paragraph", text_normalized: "上午 下午" }),
 				expect.objectContaining({
-					relation_source: "notice_html_inline_img",
-					resource_role: "inline_image",
-					content_kind: "inline_image",
-					ingest_status: "reference_only",
-					source_url: "http://portal.example.edu/files/schedule.png",
-					normalized_source_url: "https://portal.example.edu/files/schedule.png",
+					block_role: "blockquote",
+					text_normalized: "临时班次以通知为准",
 				}),
 			]),
 		);
-		const canonicalRef = refs.find((ref) => ref.uri.endsWith("/canonical/canonical.md"));
-		expect(objectStore.getTextFromUri(requiredString(canonicalRef?.uri))).toContain(
-			"# 关于发布《班车安排》的通知",
-		);
-		const unitsRef = refs.find((ref) => ref.uri.endsWith("/canonical/document-units.jsonl"));
-		const units = objectStore
-			.getTextFromUri(requiredString(unitsRef?.uri))
-			.trim()
-			.split("\n")
-			.map((line) => JSON.parse(line) as Record<string, unknown>);
-		expect(units[0]).toMatchObject({
-			doc_id: "notice:synthetic_internal_portal:355120",
-			unit_type: "heading",
-			text: "关于发布《班车安排》的通知",
-		});
+		const markdownRef = refs.find((ref) => ref.uri.endsWith("/canonical/canonical.md"));
+		const markdown = objectStore.getTextFromUri(requiredString(markdownRef?.uri));
+		expect(markdown).toContain("| 校区 | 工作日 |");
+		expect(markdown).toContain("> 临时班次以通知为准");
 	});
 
-	it("writes source retention policy fields into notice manifest and attachment refs", async () => {
+	it("writes stable object-backed attachment references without deferred policy state", async () => {
 		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		objectStore.putJson(bundleKey, [sampleBundleRecordWithObjectBackedAttachment()]);
 		objectStore.putJson(manifestKey, sampleManifest());
@@ -169,6 +216,7 @@ describe("authenticated notice source-truth materialization", () => {
 		const refs = await materializeAuthenticatedNoticeSourceTruthFromTask({
 			noticeFamilyConfig: sampleNoticeFamilyConfig(),
 			objectStore,
+			outputBucket: objectStore.bucket,
 			task,
 		});
 
@@ -178,15 +226,8 @@ describe("authenticated notice source-truth materialization", () => {
 			unknown
 		>;
 		expect(manifest).toMatchObject({
-			admitted_source_byte_ref_count: 0,
-			attachment_capture_policy_counts: { metadata_only: 1 },
-			attachment_capture_state_counts: { metadata_recorded: 1 },
-			metadata_only_attachment_ref_count: 1,
-			notice_capture_route: "notice_level_query_only",
+			attachment_ref_count: 1,
 			notice_suggested_consumption_route: "notice_level_query",
-			quarantine_attachment_ref_count: 0,
-			required_source_object_count: 0,
-			retention_class_counts: { metadata_only: 1 },
 		});
 		const attachmentRefsRef = refs.find((ref) =>
 			ref.uri.endsWith("/source-truth/attachment-refs.jsonl"),
@@ -197,55 +238,55 @@ describe("authenticated notice source-truth materialization", () => {
 			.split("\n")
 			.map((line) => JSON.parse(line) as Record<string, unknown>);
 		expect(attachmentRefs[0]).toMatchObject({
-			attachment_capture_policy: "metadata_only",
-			attachment_capture_state: "metadata_recorded",
-			attachment_promotion_state: "not_applicable",
-			byte_fetch_required: false,
-			notice_capture_route: "notice_level_query_only",
-			required_source_object: false,
-			retention_class: "metadata_only",
+			byte_size: 1024,
+			content_sha256: "a".repeat(64),
+			mime_type: "application/pdf",
+			object_key: "internal_portal/files/schedule.pdf",
+		});
+		expect(attachmentRefs[0]).not.toHaveProperty("byte_fetch_required");
+	});
+
+	it.each([
+		"http_404",
+		"http_410",
+	] as const)("publishes an explicit %s terminal attachment outcome", async (terminalReason) => {
+		const objectStore = new InMemoryObjectStore("campus-agent-source");
+		objectStore.putJson(bundleKey, [sampleBundleRecordWithTerminalAttachment(terminalReason)]);
+		objectStore.putJson(manifestKey, sampleManifest());
+		const refs = await materializeAuthenticatedNoticeSourceTruthFromTask({
+			noticeFamilyConfig: sampleNoticeFamilyConfig(),
+			objectStore,
+			outputBucket: objectStore.bucket,
+			task: writeCaptureRelease(objectStore),
+		});
+		const attachmentRefsRef = refs.find((ref) =>
+			ref.uri.endsWith("/source-truth/attachment-refs.jsonl"),
+		);
+		expect(
+			JSON.parse(objectStore.getTextFromUri(requiredString(attachmentRefsRef?.uri)).trim()),
+		).toMatchObject({
+			ingest_status: "terminal_unavailable",
+			last_error_class: "terminal_unavailable",
+			terminal_reason: terminalReason,
 		});
 	});
 
-	it("uses notice-family routing config before attachment retention", async () => {
+	it("rejects an internal attachment whose bytes are still missing", async () => {
 		const objectStore = new InMemoryObjectStore("campus-agent-source");
 		objectStore.putJson(bundleKey, [sampleTransportBundleRecordWithMissingAttachmentFact()]);
 		objectStore.putJson(manifestKey, sampleManifest());
 		const task = writeCaptureRelease(objectStore);
 
-		const refs = await materializeAuthenticatedNoticeSourceTruthFromTask({
-			noticeFamilyConfig: sampleNoticeFamilyConfig(),
-			objectStore,
-			task,
-		});
-
-		const manifestRef = refs.find((ref) => ref.uri.endsWith("/notice-manifest.json"));
-		const manifest = objectStore.getJsonFromUri(requiredString(manifestRef?.uri)) as Record<
-			string,
-			unknown
-		>;
-		expect(manifest).toMatchObject({
-			attachment_capture_policy_counts: { fetch_to_quarantine: 1 },
-			notice_capture_route: "candidate_service_fact",
-			notice_family: "transport_commute_status",
-			notice_suggested_consumption_route: "service_status_candidate",
-			quarantine_attachment_ref_count: 1,
-		});
-		const attachmentRefsRef = refs.find((ref) =>
-			ref.uri.endsWith("/source-truth/attachment-refs.jsonl"),
+		await expect(
+			materializeAuthenticatedNoticeSourceTruthFromTask({
+				noticeFamilyConfig: sampleNoticeFamilyConfig(),
+				objectStore,
+				outputBucket: objectStore.bucket,
+				task,
+			}),
+		).rejects.toThrow(
+			"authenticated notice internal attachment is not publishable: attachment-0001",
 		);
-		const attachmentRefs = objectStore
-			.getTextFromUri(requiredString(attachmentRefsRef?.uri))
-			.trim()
-			.split("\n")
-			.map((line) => JSON.parse(line) as Record<string, unknown>);
-		expect(attachmentRefs[0]).toMatchObject({
-			attachment_capture_policy: "fetch_to_quarantine",
-			attachment_capture_state: "not_attempted",
-			byte_fetch_required: true,
-			notice_capture_route: "candidate_service_fact",
-			retention_class: "quarantine_candidate",
-		});
 	});
 
 	it("writes owner expectations for wrapper notices without collected attachments", async () => {
@@ -257,6 +298,7 @@ describe("authenticated notice source-truth materialization", () => {
 		const refs = await materializeAuthenticatedNoticeSourceTruthFromTask({
 			noticeFamilyConfig: sampleNoticeFamilyConfig(),
 			objectStore,
+			outputBucket: objectStore.bucket,
 			task,
 		});
 
@@ -315,6 +357,10 @@ class InMemoryObjectStore implements ObjectStore {
 		if (input.bucket !== this.bucket) {
 			throw new Error(`unexpected bucket: ${input.bucket}`);
 		}
+		const existing = this.#objects.get(input.key);
+		if (existing && sha256Hex(existing) !== sha256Hex(input.body)) {
+			throw new Error(`object identity conflict: ${input.key}`);
+		}
 		this.#objects.set(input.key, input.body);
 		return {
 			byteSize: input.body.byteLength,
@@ -365,27 +411,34 @@ class InMemoryObjectStore implements ObjectStore {
 
 function writeCaptureRelease(
 	objectStore: InMemoryObjectStore,
-	input: { bundleRef?: Record<string, unknown> } = {},
+	input: {
+		bundleRef?: Record<string, unknown>;
+		captureKey?: string;
+		exportedAt?: string;
+		runId?: string;
+		taskId?: string;
+	} = {},
 ): IngestionTaskEnvelope {
-	const bytes = objectStore.putJson(captureReleaseKey, {
+	const key = input.captureKey ?? captureReleaseKey;
+	const bytes = objectStore.putJson(key, {
 		schema_version: "authenticated_notice_capture_release.v1",
 		source_channel: "internal_portal",
 		source_surface: "notice",
 		site_id: "synthetic_internal_portal",
 		capture_id: "capture:synthetic_internal_portal:notice:20260404T012345Z",
-		exported_at: "2026-04-04T01:23:45.000Z",
+		exported_at: input.exportedAt ?? "2026-04-04T01:23:45.000Z",
 		bundle_ref: input.bundleRef ?? objectStore.refFor(bundleKey, "notices_bundle"),
 		export_manifest_ref: objectStore.refFor(manifestKey, "export_manifest"),
 	});
 	return {
 		schema_version: "ingestion_task_envelope.v3",
-		task_id: "task_internal_portal_notice_capture_001",
-		run_id: "run_internal_notice_20260404",
+		task_id: input.taskId ?? "task_internal_portal_notice_capture_001",
+		run_id: input.runId ?? "run_internal_notice_20260404",
 		registry_task_id: "internal_portal.notice.capture",
 		input_ref: {
 			byte_size: bytes.byteLength,
 			kind: "object_store",
-			uri: `s3://campus-agent-source/${captureReleaseKey}`,
+			uri: `s3://campus-agent-source/${key}`,
 			digest: `sha256:${sha256Hex(bytes)}`,
 		},
 	};
@@ -454,6 +507,26 @@ function sampleBundleRecordWithInlineImage(): Record<string, unknown> {
 	};
 }
 
+function sampleStructuredBundleRecord(): Record<string, unknown> {
+	const record = sampleBundleRecord();
+	return {
+		...record,
+		notice: {
+			...(record.notice as Record<string, unknown>),
+			notice_content: [
+				"<h1>通知标题</h1>",
+				"<div><span>上午</span><br><span>下午</span></div>",
+				"<table>",
+				'<tr><th rowspan="2">校区</th><th colspan="2">工作日</th></tr>',
+				"<tr><th>发车</th><th>到达</th></tr>",
+				"<tr><td>海淀</td><td>07:00</td><td>08:10</td></tr>",
+				"</table>",
+				"<blockquote><p>临时班次以通知为准</p></blockquote>",
+			].join(""),
+		},
+	};
+}
+
 function sampleBundleRecordWithObjectBackedAttachment(): Record<string, unknown> {
 	const record = sampleBundleRecord();
 	return {
@@ -470,6 +543,7 @@ function sampleBundleRecordWithObjectBackedAttachment(): Record<string, unknown>
 		attachments: [
 			{
 				attachment_id: "att-1",
+				bucket: "campus-agent-source",
 				byte_size: 1024,
 				final_url: "https://portal.example.edu/files/schedule.pdf",
 				ingest_status: "uploaded",
@@ -477,7 +551,7 @@ function sampleBundleRecordWithObjectBackedAttachment(): Record<string, unknown>
 				normalized_source_url: "https://portal.example.edu/files/schedule.pdf",
 				object_key: "internal_portal/files/schedule.pdf",
 				original_filename: "日程.pdf",
-				origin_scope: "same_origin",
+				origin_scope: "internal",
 				sha256: "a".repeat(64),
 				source_url: "https://portal.example.edu/files/schedule.pdf",
 				storage_provider: "object_store",
@@ -525,9 +599,12 @@ function sampleTransportBundleRecordWithMissingAttachmentFact(): Record<string, 
 		attachments: [
 			{
 				attachment_id: "att-1",
+				ingest_status: "reference_only",
 				mime_type: "image/png",
 				original_filename: "班车时刻表.png",
+				origin_scope: "internal",
 				source_url: "https://portal.example.edu/files/schedule.png",
+				storage_provider: "reference_only",
 			},
 		],
 		links: [
@@ -536,6 +613,28 @@ function sampleTransportBundleRecordWithMissingAttachmentFact(): Record<string, 
 				id: "link-1",
 				link_text: "附件：班车时刻表.png",
 				url: "https://portal.example.edu/files/schedule.png",
+			},
+		],
+	};
+}
+
+function sampleBundleRecordWithTerminalAttachment(
+	terminalReason: "http_404" | "http_410",
+): Record<string, unknown> {
+	const record = sampleBundleRecordWithObjectBackedAttachment();
+	return {
+		...record,
+		attachments: [
+			{
+				attachment_id: "att-1",
+				ingest_status: "terminal_unavailable",
+				last_error_class: "terminal_unavailable",
+				last_http_status: terminalReason === "http_404" ? 404 : 410,
+				origin_scope: "internal",
+				provenance_status: "terminal_unavailable",
+				source_url: "https://portal.example.edu/files/missing.pdf",
+				storage_provider: "reference_only",
+				terminal_reason: terminalReason,
 			},
 		],
 	};

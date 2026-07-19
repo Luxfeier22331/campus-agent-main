@@ -38,6 +38,27 @@ describe("internal portal recovering API context", () => {
 		await apiContext.dispose();
 	});
 
+	it("bootstraps independent notice and file-release sessions without a keepalive result", async () => {
+		const noticeConfig = createConfig();
+		const fileReleaseConfig = createConfig();
+		const bootstrapInputs: string[] = [];
+		const dependencies = {
+			bootstrapStorageState: async ({ ssoTgc }: { ssoTgc: string }) => {
+				bootstrapInputs.push(ssoTgc);
+				return bootstrapResult(ssoTgc, `session-${bootstrapInputs.length}`);
+			},
+			createRequestContext: async () => fakeContext([jsonResponse()]),
+		};
+
+		const noticeContext = await createPortalApiContext(noticeConfig, dependencies);
+		const fileReleaseContext = await createPortalApiContext(fileReleaseConfig, dependencies);
+
+		expect((await noticeContext.post("/notice", { form: {} })).ok()).toBe(true);
+		expect((await fileReleaseContext.post("/file-release", { form: {} })).ok()).toBe(true);
+		expect(bootstrapInputs).toEqual(["current-ticket", "current-ticket"]);
+		await Promise.all([noticeContext.dispose(), fileReleaseContext.dispose()]);
+	});
+
 	it("reuses stored state when it contains the current TGC", async () => {
 		const config = createConfig();
 		writeStorageState(config, storageState("current-ticket", "stored-session"));
@@ -185,8 +206,7 @@ describe("internal portal recovering API context", () => {
 			authSsoTgcFile: path.join(runtimeDir, "credential", "sso_tgc"),
 			authStorageStatePath: path.join(runtimeDir, "auth", "storageState.json"),
 			bypassProxyForPortal: true,
-			defaultInlineVisualCapture: false,
-			historicalBackfillMaxPagesPerType: null,
+			reconcileMaxPagesPerType: null,
 			noticeTypesPath: path.join(runtimeDir, "notice-types.json"),
 			portalBaseUrl: "https://portal.example.edu",
 			portalPageUrl: "https://portal.example.edu/page/11#/",

@@ -1,7 +1,6 @@
 use jsonschema::Validator;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashSet;
 use std::error::Error;
 use std::path::{Path, PathBuf};
 use text_splitter::{ChunkCapacity, ChunkConfig, TextSplitter};
@@ -9,8 +8,6 @@ use tokenizers::Tokenizer;
 
 const CANONICAL_DOCUMENT_UNIT_SCHEMA_JSON: &str =
     include_str!("../../ingestion-contracts/schemas/canonical-document-units.v1.schema.json");
-const INGESTION_RELEASE_MANIFEST_SCHEMA_JSON: &str =
-    include_str!("../../ingestion-contracts/schemas/ingestion-release-manifest.v2.schema.json");
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DocumentUnitsValidationReport {
@@ -35,13 +32,6 @@ pub struct IngestionChunk {
     pub doc_id: String,
     pub unit_ids: Vec<String>,
     pub text: String,
-}
-
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ReleaseManifestValidationReport {
-    pub schema_version: String,
-    pub error_count: usize,
-    pub errors: Vec<String>,
 }
 
 pub struct ChunkDocumentUnitsOptions {
@@ -163,31 +153,6 @@ pub fn chunk_document_units_jsonl(
     })
 }
 
-pub fn validate_release_manifest_json(input: &str) -> ReleaseManifestValidationReport {
-    let parsed: Value = match serde_json::from_str(input) {
-        Ok(value) => value,
-        Err(error) => {
-            return ReleaseManifestValidationReport {
-                schema_version: "ingestion_release_manifest_validation_report.v1".to_string(),
-                error_count: 1,
-                errors: vec![format!("invalid JSON: {error}")],
-            };
-        }
-    };
-    let validator = validator_for_schema(release_manifest_schema())
-        .expect("embedded release manifest schema must compile");
-    let mut errors = validation_errors(&validator, &parsed, None);
-    if errors.is_empty() {
-        errors.extend(release_manifest_consistency_errors(&parsed));
-    }
-
-    ReleaseManifestValidationReport {
-        schema_version: "ingestion_release_manifest_validation_report.v1".to_string(),
-        error_count: errors.len(),
-        errors,
-    }
-}
-
 pub fn count_tokens_from_tokenizer_json(
     tokenizer_json_path: impl AsRef<Path>,
     text: &str,
@@ -240,51 +205,6 @@ fn push_or_merge_chunk(
     }
     push_chunk(chunks, doc_id, &[unit_id_string], text);
     Ok(())
-}
-
-fn release_manifest_consistency_errors(value: &Value) -> Vec<String> {
-    let mut errors = Vec::new();
-    let mut seen_uris = HashSet::new();
-    let mut seen_kind_uris = HashSet::new();
-    let Some(artifacts) = value.get("artifacts").and_then(Value::as_array) else {
-        return errors;
-    };
-    for (index, artifact) in artifacts.iter().enumerate() {
-        let digest = artifact
-            .get("digest")
-            .and_then(Value::as_str)
-            .expect("schema validates digest");
-        if !is_sha256_digest(digest) {
-            errors.push(format!(
-                "artifacts[{index}] digest must be sha256 lowercase hex"
-            ));
-        }
-        let uri = artifact
-            .get("uri")
-            .and_then(Value::as_str)
-            .expect("schema validates uri");
-        if !seen_uris.insert(uri.to_string()) {
-            errors.push(format!("duplicate artifact uri: {uri}"));
-        }
-        let kind = artifact
-            .get("kind")
-            .and_then(Value::as_str)
-            .expect("schema validates kind");
-        let kind_uri = format!("{kind}\n{uri}");
-        if !seen_kind_uris.insert(kind_uri) {
-            errors.push(format!("duplicate artifact kind+uri: {kind} {uri}"));
-        }
-    }
-    errors
-}
-
-fn is_sha256_digest(value: &str) -> bool {
-    value.strip_prefix("sha256:").is_some_and(|hex| {
-        hex.len() == 64
-            && hex
-                .chars()
-                .all(|ch| ch.is_ascii_hexdigit() && !ch.is_ascii_uppercase())
-    })
 }
 
 fn validate_chunk_options(
@@ -390,16 +310,11 @@ fn document_unit_schema() -> Value {
         .expect("canonical document unit schema must be valid JSON")
 }
 
-fn release_manifest_schema() -> Value {
-    serde_json::from_str(INGESTION_RELEASE_MANIFEST_SCHEMA_JSON)
-        .expect("ingestion release manifest schema must be valid JSON")
-}
-
 #[cfg(test)]
 mod tests {
     use super::{
         ChunkDocumentUnitsOptions, chunk_document_units_jsonl, count_tokens_from_tokenizer_json,
-        validate_document_units_jsonl, validate_release_manifest_json,
+        validate_document_units_jsonl,
     };
     use std::fs;
     use std::path::Path;
@@ -502,57 +417,6 @@ mod tests {
                 "doc2::chunk::000001",
                 "doc2::chunk::000002"
             ]
-        );
-    }
-
-    #[test]
-    fn release_manifest_validation_reports_missing_required_fields() {
-        let report = validate_release_manifest_json(
-            r#"{
-  "schema_version": "ingestion_release_manifest.v2",
-  "release_id": "student-rules-release-001",
-  "collection": "student_rules",
-  "artifacts": [
-    {"kind": "chunks", "uri": "s3://bucket/chunks.jsonl", "digest": "sha256:abc", "byte_size": 1}
-  ]
-}"#,
-        );
-
-        assert_eq!(
-            report.schema_version,
-            "ingestion_release_manifest_validation_report.v1"
-        );
-        assert_eq!(report.error_count, 1);
-        assert_eq!(report.errors, vec!["missing required field: corpus"]);
-    }
-
-    #[test]
-    fn release_manifest_validation_rejects_invalid_digests_and_duplicate_uris() {
-        let report = validate_release_manifest_json(
-            r#"{
-  "schema_version": "ingestion_release_manifest.v2",
-  "release_id": "release-001",
-  "corpus": "official_web",
-  "collection": "stable_reference",
-  "artifacts": [
-    {"kind": "chunks", "uri": "s3://bucket/chunks.json", "digest": "sha256:abc", "byte_size": 1},
-    {"kind": "chunks-copy", "uri": "s3://bucket/chunks.json", "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000", "byte_size": 1}
-  ]
-}"#,
-        );
-
-        assert_eq!(report.error_count, 2);
-        assert!(
-            report
-                .errors
-                .iter()
-                .any(|error| error.contains("artifacts[0] digest must be sha256 lowercase hex"))
-        );
-        assert!(
-            report
-                .errors
-                .iter()
-                .any(|error| error.contains("duplicate artifact uri: s3://bucket/chunks.json"))
         );
     }
 

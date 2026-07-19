@@ -2,11 +2,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { KeyRound, RefreshCw } from "lucide-react";
 import { type FormEvent, useState } from "react";
 
+import type { OpsInternalPortalAuthStatus } from "../shared/ops-contract";
 import { formatDuration, formatTimestamp } from "./format";
 import {
 	fetchInternalPortalAuthStatus,
 	replaceInternalPortalCredential,
-	resumeInternalPortalAuthMaintenance,
+	validateInternalPortalAuthentication,
 } from "./ops-api-client";
 import { ErrorState, InlineError, KeyValue, PageHeader, PageShell } from "./ops-display";
 import { Badge } from "./ui/badge";
@@ -21,6 +22,7 @@ export function InternalPortalAuthPage() {
 	const status = useQuery({
 		queryFn: ({ signal }) => fetchInternalPortalAuthStatus({ signal }),
 		queryKey: STATUS_QUERY_KEY,
+		refetchInterval: 5_000,
 	});
 	const replacement = useMutation({
 		mutationFn: replaceInternalPortalCredential,
@@ -29,8 +31,8 @@ export function InternalPortalAuthPage() {
 			setCredential("");
 		},
 	});
-	const resume = useMutation({
-		mutationFn: resumeInternalPortalAuthMaintenance,
+	const validation = useMutation({
+		mutationFn: validateInternalPortalAuthentication,
 		onSuccess: (nextStatus) => queryClient.setQueryData(STATUS_QUERY_KEY, nextStatus),
 	});
 
@@ -40,7 +42,7 @@ export function InternalPortalAuthPage() {
 	if (status.isError || !status.data) {
 		return (
 			<section>
-				<PageHeader description="内部门户登录状态与轮换记录。" title="门户认证" />
+				<PageHeader description="内部门户凭据、保活状态与轮换记录。" title="门户认证" />
 				<Card>
 					<CardContent className="p-4 sm:p-5">
 						<ErrorState
@@ -61,34 +63,17 @@ export function InternalPortalAuthPage() {
 		}
 	};
 	const pendingValidation = isPendingValidation(status.data);
-	const maintenanceLabel = pendingValidation
-		? "待验证"
-		: maintenanceStatusLabel(
-				status.data.maintenance.scheduleState,
-				status.data.maintenance.lastOutcome,
-			);
-	const maintenanceTone =
-		!pendingValidation &&
-		(status.data.maintenance.scheduleState === "PAUSED" ||
-			status.data.maintenance.lastOutcome === "CREDENTIAL_EXPIRED")
-			? "danger"
-			: pendingValidation ||
-					status.data.maintenance.lastOutcome === "TRANSIENT_FAILURE" ||
-					status.data.maintenance.scheduleState === "UNAVAILABLE"
-				? "warning"
-				: "success";
-	const canResume =
-		status.data.configured &&
-		pendingValidation &&
-		status.data.maintenance.scheduleState === "PAUSED";
+	const maintenanceLabel = getMaintenanceLabel(status.data, pendingValidation);
+	const maintenanceTone = getMaintenanceTone(status.data, pendingValidation);
+	const canValidate = status.data.configured && status.data.maintenance.lastOutcome !== "RUNNING";
 
 	return (
 		<section>
-			<PageHeader description="内部门户登录状态与轮换记录。" title="门户认证" />
+			<PageHeader description="内部门户凭据、保活状态与轮换记录。" title="门户认证" />
 			<div className="grid gap-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
 				<Card>
 					<CardHeader>
-						<CardTitle>当前状态</CardTitle>
+						<CardTitle>保活状态</CardTitle>
 					</CardHeader>
 					<CardContent>
 						<div className="mb-3 flex items-center gap-2">
@@ -103,7 +88,7 @@ export function InternalPortalAuthPage() {
 						/>
 						<KeyValue label="更新人" value={status.data.updatedBy ?? "暂无记录"} />
 						<KeyValue
-							label="最近验证"
+							label="最近保活"
 							value={
 								status.data.maintenance.lastAttemptAt
 									? formatTimestamp(status.data.maintenance.lastAttemptAt)
@@ -119,7 +104,7 @@ export function InternalPortalAuthPage() {
 							}
 						/>
 						<KeyValue
-							label="下次验证"
+							label="下次保活"
 							value={
 								status.data.maintenance.nextRunAt
 									? formatTimestamp(status.data.maintenance.nextRunAt)
@@ -130,16 +115,25 @@ export function InternalPortalAuthPage() {
 							label="已观测有效时长"
 							value={formatObservedLifetime(status.data.observedLifetime)}
 						/>
-						{canResume ? (
+						{canValidate ? (
 							<div className="mt-4">
-								<Button disabled={resume.isPending} onClick={() => resume.mutate()} type="button">
+								<Button
+									disabled={validation.isPending}
+									onClick={() => validation.mutate()}
+									type="button"
+								>
 									<RefreshCw className="size-4" />
-									{resume.isPending ? "恢复中" : "恢复验证"}
+									{validation.isPending ? "提交中" : "立即验证"}
 								</Button>
-								{resume.isError ? (
+								{validation.isError ? (
 									<div className="mt-3">
-										<InlineError error={resume.error} title="恢复验证失败" />
+										<InlineError error={validation.error} title="立即验证失败" />
 									</div>
+								) : null}
+								{validation.isSuccess ? (
+									<p className="mt-3 text-emerald-700 text-sm" role="status">
+										验证已提交，成功后通知采集将自动恢复。
+									</p>
 								) : null}
 							</div>
 						) : null}
@@ -176,7 +170,7 @@ export function InternalPortalAuthPage() {
 							) : null}
 							{replacement.isSuccess ? (
 								<p className="text-emerald-700 text-sm" role="status">
-									凭据已替换，将在下一个维护周期验证。
+									凭据已替换并提交验证，验证成功后通知采集将自动恢复。
 								</p>
 							) : null}
 							<div>
@@ -191,6 +185,51 @@ export function InternalPortalAuthPage() {
 			</div>
 		</section>
 	);
+}
+
+function getMaintenanceLabel(status: OpsInternalPortalAuthStatus, pendingValidation: boolean) {
+	if (!status.configured) {
+		return "等待配置";
+	}
+	if (
+		status.maintenance.scheduleState === "MISSING" ||
+		status.maintenance.scheduleState === "UNAVAILABLE"
+	) {
+		return maintenanceStatusLabel(status.maintenance.scheduleState, status.maintenance.lastOutcome);
+	}
+	if (pendingValidation) {
+		return "等待保活验证";
+	}
+	return maintenanceStatusLabel(status.maintenance.scheduleState, status.maintenance.lastOutcome);
+}
+
+function getMaintenanceTone(
+	status: OpsInternalPortalAuthStatus,
+	pendingValidation: boolean,
+): "success" | "warning" | "danger" {
+	if (!status.configured) {
+		return "warning";
+	}
+	if (status.maintenance.scheduleState === "MISSING") {
+		return "danger";
+	}
+	if (status.maintenance.scheduleState === "UNAVAILABLE" || pendingValidation) {
+		return "warning";
+	}
+	if (
+		status.maintenance.scheduleState === "PAUSED" ||
+		status.maintenance.lastOutcome === "CREDENTIAL_EXPIRED" ||
+		status.maintenance.lastOutcome === "CREDENTIAL_UNAVAILABLE"
+	) {
+		return "danger";
+	}
+	if (
+		status.maintenance.scheduleState === "ACTIVE" &&
+		status.maintenance.lastOutcome === "SUCCESS"
+	) {
+		return "success";
+	}
+	return "warning";
 }
 
 function isPendingValidation(status: {
@@ -214,29 +253,31 @@ function maintenanceStatusLabel(
 		| "UNKNOWN"
 		| null,
 ) {
+	if (lastOutcome === "CREDENTIAL_EXPIRED") {
+		return "凭据已过期";
+	}
+	if (lastOutcome === "CREDENTIAL_UNAVAILABLE") {
+		return "凭据不可用";
+	}
 	switch (scheduleState) {
 		case "PAUSED":
-			return "已暂停";
+			return "保活已暂停";
 		case "MISSING":
-			return "未部署";
+			return "保活未部署";
 		case "UNAVAILABLE":
-			return "状态不可用";
+			return "保活状态不可用";
 		default:
 			break;
 	}
 	switch (lastOutcome) {
 		case "SUCCESS":
-			return "验证正常";
+			return "保活正常";
 		case "RUNNING":
-			return "验证中";
+			return "保活中";
 		case "TRANSIENT_FAILURE":
 			return "暂时异常";
-		case "CREDENTIAL_EXPIRED":
-			return "凭据已过期";
-		case "CREDENTIAL_UNAVAILABLE":
-			return "凭据不可用";
 		default:
-			return "等待首次验证";
+			return "等待首次保活";
 	}
 }
 

@@ -1,25 +1,33 @@
-name: scheduled-health
+name: manual-health
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "20 3 * * 2"
+    inputs:
+      profile:
+        description: Select one explicit health-check profile
+        required: true
+        default: node
+        type: choice
+        options:
+          - node
+          - go
+          - rust
+          - database
+          - browser
+          - dependencies
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: manual-health
+  cancel-in-progress: false
 
 jobs:
   node:
+    if: inputs.profile == 'node'
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
     timeout-minutes: 75
-    env:
-      TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
-      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
-      TURBO_TEAM: ${{ vars.TURBO_TEAM }}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
@@ -32,60 +40,27 @@ jobs:
       - name: Setup Python
         uses: ./.github/actions/setup-python-uv
 
-      - name: Run full repository lane
-        run: pnpm ci:repo
-
-      - name: Run contracts lane
-        run: pnpm ci:contracts
-
-      - name: Run full TypeScript lane
+      - name: Run repository and contract checks
         run: |
-          rm -rf .turbo/runs
-          pnpm ci:typescript:full
+          pnpm ci:repo
+          pnpm ci:contracts
 
-      - name: Summarize TypeScript lane
-        if: always()
-        run: scripts/ci/turbo-summary.sh
+      - name: Run full TypeScript checks
+        run: pnpm ci:typescript:full
 
-      - name: Run ingestion lane
-        run: |
-          rm -rf .turbo/runs
-          pnpm ci:ingest
+      - name: Run ingestion checks
+        run: pnpm ci:ingest
 
-      - name: Summarize ingestion lane
-        if: always()
-        run: scripts/ci/turbo-summary.sh
-
-      - name: Run eval lane
-        run: |
-          rm -rf .turbo/runs
-          pnpm ci:eval
-
-      - name: Summarize eval lane
-        if: always()
-        run: scripts/ci/turbo-summary.sh
-
-      - name: Verify Docker
-        run: docker info >/dev/null
-
-      - name: Run app-api migration integration
-        run: pnpm ci:app-api-migration
-
-      - name: Run app-api product database integration
-        run: pnpm ci:app-api-product-db
-
-      - name: Run ops-web database integration
-        run: pnpm ci:ops-web-postgres
+      - name: Run evaluation checks
+        run: pnpm ci:eval
 
   browser:
+    if: inputs.profile == 'browser'
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       CAMPUS_WEB_E2E_DOCS_PREBUILT: "1"
       CAMPUS_WEB_E2E_PREBUILT: "1"
-      TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
-      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
-      TURBO_TEAM: ${{ vars.TURBO_TEAM }}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
@@ -98,14 +73,9 @@ jobs:
           workspace-filters: campus-agent-web-workspace
           workspace-filters-json: '["campus-web...", "ops-web..."]'
 
-      - name: Build Campus Web docs fixture
+      - name: Build browser fixtures
         run: >-
-          pnpm turbo run build:docs:fixture
-          --filter=campus-web --concurrency=1 --summarize
-
-      - name: Build and test Campus Web Worker
-        run: >-
-          pnpm turbo run test:worker build:app
+          pnpm turbo run build:docs:fixture test:worker build:app
           --filter=campus-web --concurrency=1 --summarize
 
       - name: Ensure Chromium headless shell
@@ -113,23 +83,20 @@ jobs:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.tool_cache }}/ms-playwright
         run: pnpm --dir apps/campus-web exec playwright install --only-shell chromium
 
-      - name: Run full Campus Web browser regression
-        env:
-          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.tool_cache }}/ms-playwright
-        run: pnpm --dir apps/campus-web run test:e2e:full
-
-      - name: Run Ops Web browser regression
+      - name: Run browser regressions
         env:
           OPS_WEB_BROWSER_TEST_PORT: "4278"
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.tool_cache }}/ms-playwright
-        run: pnpm --dir apps/ops-web test:browser
+        run: |
+          pnpm --dir apps/campus-web run test:e2e:full
+          pnpm --dir apps/ops-web test:browser
 
       - name: Upload browser failure evidence
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           if-no-files-found: ignore
-          name: scheduled-campus-web-playwright-${{ github.run_id }}-${{ github.run_attempt }}
+          name: manual-browser-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             apps/campus-web/playwright-report/e2e
             apps/campus-web/playwright-report/e2e-worker
@@ -139,6 +106,7 @@ jobs:
           retention-days: 7
 
   go:
+    if: inputs.profile == 'go'
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
     timeout-minutes: 45
     steps:
@@ -147,39 +115,16 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup Go
-        if: runner.environment == 'github-hosted'
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16  # v6
-        with:
-          go-version: "1.26.5"
-          cache: true
-          cache-dependency-path: apps/execution-control/go.mod
+      - name: Verify Go tools
+        run: |
+          test "$(go version | awk '{print $3}')" = "go1.26.5"
+          test "$(golangci-lint version --short)" = "2.11.4"
 
-      - name: Verify Go
-        if: runner.environment == 'self-hosted'
-        run: test "$(go version | awk '{print $3}')" = "go1.26.5"
-
-      - name: Install golangci-lint
-        if: runner.environment == 'github-hosted'
-        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a  # v9.3.0
-        with:
-          version: v2.11.4
-          install-only: true
-
-      - name: Verify golangci-lint
-        if: runner.environment == 'self-hosted'
-        run: test "$(golangci-lint version --short)" = "2.11.4"
-
-      - name: Run full Go lane
+      - name: Run full Go checks
         run: scripts/ci/go-check.sh
 
-      - name: Verify Docker
-        run: docker info >/dev/null
-
-      - name: Run execution-control PostgreSQL integration
-        run: pnpm ci:execution-control-postgres
-
   rust:
+    if: inputs.profile == 'rust'
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
     timeout-minutes: 45
     steps:
@@ -188,36 +133,44 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup Rust
-        if: runner.environment == 'github-hosted'
-        uses: dtolnay/rust-toolchain@ad7910d95e317a4b12a9a3dfad520f4b409b3ec0  # 1.91.0
-        with:
-          components: clippy, rustfmt
-
-      - name: Verify Rust
-        if: runner.environment == 'self-hosted'
+      - name: Verify Rust tools
         run: |
-          set -euo pipefail
           test "$(rustc --version | awk '{print $2}')" = "1.91.0"
           test "$(cargo --version | awk '{print $2}')" = "1.91.0"
-          rustup component list --toolchain 1.91.0 --installed | grep -q '^clippy-'
-          rustup component list --toolchain 1.91.0 --installed | grep -q '^rustfmt-'
+          rustup component list --toolchain 1.91.0 --installed | rg -q '^clippy-'
+          rustup component list --toolchain 1.91.0 --installed | rg -q '^rustfmt-'
 
-      - name: Cache Rust
-        if: runner.environment == 'github-hosted'
-        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4  # v2.9.1
-
-      - name: Run full Rust lane with persistent target
-        if: runner.environment == 'self-hosted'
+      - name: Run full Rust checks
         env:
           CARGO_TARGET_DIR: ${{ runner.tool_cache }}/cargo-target/campus-agent
         run: scripts/ci/rust-check.sh
 
-      - name: Run full Rust lane
-        if: runner.environment == 'github-hosted'
-        run: scripts/ci/rust-check.sh
+  database:
+    if: inputs.profile == 'database'
+    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+        with:
+          persist-credentials: false
 
-  deps:
+      - name: Setup database workspaces
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          workspace-filters: campus-agent-web-workspace
+          workspace-filters-json: '["app-api...", "ops-web...", "transport-publisher..."]'
+
+      - name: Verify database tools
+        run: |
+          test "$(go version | awk '{print $3}')" = "go1.26.5"
+          docker info >/dev/null
+
+      - name: Run PostgreSQL integration suites
+        run: pnpm ci:postgres
+
+  dependencies:
+    if: inputs.profile == 'dependencies'
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
     timeout-minutes: 15
     steps:
@@ -226,5 +179,5 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Scan dependencies
+      - name: Scan dependency ecosystems
         uses: ./.github/actions/run-osv-scan

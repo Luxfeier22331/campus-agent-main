@@ -6,10 +6,12 @@ import { buildChangePlan, parseChangedPaths } from "./change-plan.mjs";
 function plan(files, affectedPackages = [], options = {}) {
 	return buildChangePlan({
 		affectedPackages: new Set(affectedPackages),
-		affectedTasks: new Set(options.affectedTasks ?? []),
+		contentFiles: options.contentFiles ?? files,
+		dockerIgnorePatterns: options.dockerIgnorePatterns ?? [],
 		files,
 		nodeDependencyChanged: options.nodeDependencyChanged ?? false,
 		nodeReleaseGraphChanged: options.nodeReleaseGraphChanged ?? false,
+		workspacePackageNames: new Set(options.workspacePackageNames ?? affectedPackages),
 	});
 }
 
@@ -25,9 +27,8 @@ test("routes documentation without owner runtime work", () => {
 	assert.equal(result.browser, false);
 });
 
-test("keeps a Node lockfile change inside Turbo affected packages", () => {
+test("routes a Node lockfile through selected importer packages", () => {
 	const result = plan(["pnpm-lock.yaml"], ["ingest-core", "source-collector"], {
-		affectedTasks: ["ingest-core#test:ingest", "source-collector#test:ingest"],
 		nodeDependencyChanged: true,
 		nodeReleaseGraphChanged: true,
 	});
@@ -62,9 +63,7 @@ test("routes shared product schema to its database owners", () => {
 });
 
 test("routes Campus Web runtime changes to one Worker and local browser validation", () => {
-	const result = plan(["apps/campus-web/src/main.tsx"], ["campus-web"], {
-		affectedTasks: ["campus-web#build:app", "campus-web#test"],
-	});
+	const result = plan(["apps/campus-web/src/main.tsx"], ["campus-web"]);
 
 	assert.equal(result.browser, true);
 	assert.deepEqual(result.release.workers, ["campus-web"]);
@@ -84,14 +83,26 @@ test("installs selected owners for root ingestion configuration", () => {
 	]);
 });
 
-test("routes a global Docker context change to checks and main images only", () => {
-	const result = plan([".dockerignore"]);
+test("routes a Docker context allow rule only to declared consumers", () => {
+	const result = plan([".dockerignore"], [], {
+		dockerIgnorePatterns: ["!packages/telemetry-node/**"],
+	});
 
-	assert.equal(result.dockerChecks.length, 8);
-	assert.equal(result.release.images.length, 9);
-	assert.equal(result.dockerChecks.includes("ingestion-control"), true);
-	assert.equal(result.dockerChecks.includes("ingestion-control-worker"), false);
-	assert.equal(result.lanes.includes("node"), false);
+	assert.deepEqual(result.dockerChecks, ["ingestion-control", "source-collector"]);
+	assert.deepEqual(result.release.images, [
+		"ingestion-control",
+		"ingestion-control-worker",
+		"source-collector",
+	]);
+	assert.deepEqual(result.unresolved, []);
+});
+
+test("blocks broad Docker context fallbacks instead of selecting every image", () => {
+	const result = plan([".dockerignore"], [], { dockerIgnorePatterns: ["**"] });
+
+	assert.deepEqual(result.dockerChecks, []);
+	assert.deepEqual(result.release.images, []);
+	assert.deepEqual(result.unresolved, [".dockerignore:**"]);
 });
 
 test("routes Actions files without running planner integration", () => {
@@ -153,6 +164,46 @@ test("validates OTel configuration without claiming a Kubernetes release", () =>
 	assert.equal(result.browser, false);
 });
 
+test("keeps Node telemetry inside its runtime owners", () => {
+	const result = plan(
+		["packages/telemetry-node/src/index.ts"],
+		["@campus-agent/telemetry-node", "ingestion-control", "source-collector"],
+	);
+
+	assert.equal(result.lanes.includes("otel"), false);
+	assert.equal(result.lanes.includes("eval"), false);
+	assert.deepEqual(result.dockerChecks, ["ingestion-control", "source-collector"]);
+	assert.deepEqual(result.release.images, [
+		"ingestion-control",
+		"ingestion-control-worker",
+		"source-collector",
+	]);
+});
+
+test("does not classify the pnpm lockfile as generic YAML", () => {
+	const result = plan(["pnpm-lock.yaml"], [], { nodeDependencyChanged: true });
+
+	assert.equal(result.lanes.includes("yaml"), false);
+	assert.deepEqual(result.dependencyEcosystems, ["node"]);
+});
+
+test("routes mode-only CI scripts through planner checks", () => {
+	const result = plan(["scripts/ci/go-postgres-integration.sh"], [], {
+		contentFiles: [],
+	});
+
+	assert.deepEqual(result.preflightChecks, ["planner"]);
+	assert.equal(result.lanes.includes("go"), false);
+	assert.equal(result.lanes.includes("shell"), false);
+});
+
+test("uses image inputs for local Docker verification", () => {
+	const result = plan(["apps/ops-web/src/app/ops-web-app.tsx"], ["ops-web"]);
+
+	assert.deepEqual(result.dockerChecks, ["ops-web"]);
+	assert.deepEqual(result.release.images, ["ops-web"]);
+});
+
 test("keeps OTel documentation in the documentation lane", () => {
 	const result = plan(["infra/otel/README.md"]);
 
@@ -174,7 +225,6 @@ test("routes Python evaluation changes without broad Node work", () => {
 	const result = plan(
 		["packages/ragas-runner/src/campus_ragas_runner/runner.py"],
 		["ragas-runner"],
-		{ affectedTasks: ["ragas-runner#test:eval"] },
 	);
 
 	assert.equal(result.pythonEval, true);
@@ -183,9 +233,7 @@ test("routes Python evaluation changes without broad Node work", () => {
 });
 
 test("runs owner tests without releasing test-only changes", () => {
-	const result = plan(["apps/campus-web/test/staging-config.test.ts"], ["campus-web"], {
-		affectedTasks: ["campus-web#test"],
-	});
+	const result = plan(["apps/campus-web/test/staging-config.test.ts"], ["campus-web"]);
 
 	assert.equal(result.lanes.includes("node"), true);
 	assert.deepEqual(result.release.workers, []);
@@ -193,9 +241,7 @@ test("runs owner tests without releasing test-only changes", () => {
 });
 
 test("keeps Turbo configuration out of product release surfaces", () => {
-	const result = plan(["turbo.json"], ["campus-web", "ops-web"], {
-		affectedTasks: ["campus-web#build:app", "ops-web#build"],
-	});
+	const result = plan(["turbo.json"], ["campus-web", "ops-web"]);
 
 	assert.deepEqual(result.databaseSuites, []);
 	assert.deepEqual(result.release, { images: [], kubernetes: false, workers: [] });
@@ -204,18 +250,14 @@ test("keeps Turbo configuration out of product release surfaces", () => {
 });
 
 test("does not treat the GitOps promotion script as Worker input", () => {
-	const result = plan(["scripts/deploy/update-staging-candidate.sh"], ["campus-web"], {
-		affectedTasks: ["campus-web#test"],
-	});
+	const result = plan(["scripts/deploy/update-staging-candidate.sh"], ["campus-web"]);
 
 	assert.deepEqual(result.release.workers, []);
 	assert.equal(result.browser, false);
 });
 
 test("routes deleted production paths through their former owner", () => {
-	const result = plan(["apps/app-api/src/retired.ts"], ["app-api"], {
-		affectedTasks: ["app-api#build:worker"],
-	});
+	const result = plan(["apps/app-api/src/retired.ts"], ["app-api"]);
 
 	assert.deepEqual(result.release.workers, ["app-api"]);
 });

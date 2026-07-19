@@ -15,6 +15,7 @@ import {
 
 export interface IngestionObjectStore extends ObjectStore {
 	readonly derivedBucket: string;
+	readonly sourceBucket: string;
 	close?(): Promise<void> | void;
 	getObject(input: ObjectStoreLocation & { abortSignal?: AbortSignal }): Promise<Uint8Array>;
 	headObject(
@@ -42,7 +43,11 @@ export function createS3IngestionObjectStore(input: {
 	bucket: string;
 	client: S3ClientLike;
 }): IngestionObjectStore {
-	return new S3IngestionObjectStore(new Map([[input.bucket, input.client]]), input.bucket);
+	return new S3IngestionObjectStore(
+		new Map([[input.bucket, input.client]]),
+		input.bucket,
+		input.bucket,
+	);
 }
 
 export function createS3IngestionObjectStoreFromEnv(
@@ -88,16 +93,23 @@ export function createS3IngestionObjectStoreFromEnv(
 			[derivedBucket, createClient(derivedAccessKey, derivedSecretKey)],
 		]),
 		derivedBucket,
+		sourceBucket,
 	);
 }
 
 class S3IngestionObjectStore implements IngestionObjectStore {
 	readonly derivedBucket: string;
+	readonly sourceBucket: string;
 	private readonly clients: ReadonlyMap<string, S3ClientLike>;
 
-	constructor(clients: ReadonlyMap<string, S3ClientLike>, derivedBucket: string) {
+	constructor(
+		clients: ReadonlyMap<string, S3ClientLike>,
+		derivedBucket: string,
+		sourceBucket: string,
+	) {
 		this.clients = clients;
 		this.derivedBucket = derivedBucket;
+		this.sourceBucket = sourceBucket;
 	}
 
 	close(): void {

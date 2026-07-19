@@ -16,6 +16,34 @@ const FILE_RELEASE_REFERENCE_KEYWORDS = [
 const WRAPPER_NOTICE_PREFIXES = ["关于发布", "关于印发", "关于修订", "关于转发", "关于公布"];
 const WRAPPER_NOTICE_KEYWORDS = ["通知", "现将", "予以发布", "予以印发", "请遵照执行", "转发"];
 const QUOTE_TITLE_PATTERN = /《([^》]{2,200})》/u;
+const HTML_BLOCK_SELECTOR = [
+	"h1",
+	"h2",
+	"h3",
+	"h4",
+	"h5",
+	"h6",
+	"p",
+	"li",
+	"table",
+	"blockquote",
+	"pre",
+	"dt",
+	"dd",
+	"div",
+].join(",");
+
+interface ExtractedHtmlBlock {
+	headingLevel: number | null;
+	htmlFragment: string | null;
+	linkTarget: string | null;
+	linkText: string | null;
+	listLevel: number | null;
+	role: string;
+	tableCells: Record<string, unknown>[][] | null;
+	tableHtml: string | null;
+	text: string;
+}
 
 export function buildAuthenticatedNoticeSourceRootKeyFromManifestKey(manifestKey: string): string {
 	if (!manifestKey.endsWith(SOURCE_TRUTH_MANIFEST_SUFFIX)) {
@@ -34,14 +62,8 @@ export function buildAuthenticatedNoticeContentBlocks(input: {
 	title: string;
 }): Record<string, unknown>[] {
 	const rows: Record<string, unknown>[] = [];
-	const append = (
-		role: string,
-		text: string,
-		headingLevel: number | null = null,
-		linkTarget: string | null = null,
-		linkText: string | null = null,
-	): void => {
-		const normalized = normalizeText(text);
+	const append = (block: ExtractedHtmlBlock): void => {
+		const normalized = normalizeText(block.text);
 		if (!normalized) {
 			return;
 		}
@@ -52,29 +74,29 @@ export function buildAuthenticatedNoticeContentBlocks(input: {
 			row_id: `block-${String(rows.length + 1).padStart(4, "0")}`,
 			row_index: rows.length,
 			block_order: rows.length + 1,
-			block_role: role,
-			heading_level: headingLevel,
+			block_role: block.role,
+			heading_level: block.headingLevel,
 			parent_heading_path: [],
-			list_level: null,
-			table_id: null,
+			list_level: block.listLevel,
+			table_id: block.role === "table" ? `table-${String(rows.length + 1).padStart(4, "0")}` : null,
 			table_row_index: null,
 			table_col_index: null,
-			text_raw: text.trim(),
+			text_raw: block.text.trim(),
 			text_normalized: normalized,
-			html_fragment: null,
-			link_target: linkTarget,
-			link_text: linkText,
-			table_html: null,
-			table_cells: null,
+			html_fragment: block.htmlFragment,
+			link_target: block.linkTarget,
+			link_text: block.linkText,
+			table_html: block.tableHtml,
+			table_cells: block.tableCells,
 		});
 	};
 
-	append("title", input.title, 1);
+	append(emptyExtractedBlock("title", input.title, 1));
 	for (const block of htmlTextBlocks(input.html)) {
 		if (normalizeText(block.text) === normalizeText(input.title)) {
 			continue;
 		}
-		append(block.role, block.text, block.headingLevel);
+		append(block);
 	}
 	for (const link of arrayOrEmpty(input.bundleRecord.links).filter(isRecord)) {
 		const linkTarget = parseOptionalText(link.final_url) ?? parseOptionalText(link.url);
@@ -82,8 +104,13 @@ export function buildAuthenticatedNoticeContentBlocks(input: {
 		if (!(linkTarget && linkText)) {
 			continue;
 		}
-		append("link", linkText, null, linkTarget, linkText);
+		append({
+			...emptyExtractedBlock("link", linkText),
+			linkTarget,
+			linkText,
+		});
 	}
+	assertVisibleTextCoverage({ blocks: rows, html: input.html, title: input.title });
 	return rows;
 }
 
@@ -111,11 +138,15 @@ export function buildAuthenticatedNoticeAttachmentRefs(input: {
 			normalized_source_url: parseOptionalText(attachment.normalized_source_url),
 			final_url: parseOptionalText(attachment.final_url),
 			origin_scope: parseOptionalText(attachment.origin_scope),
+			bucket: parseOptionalText(attachment.bucket),
 			object_key: parseOptionalText(attachment.object_key),
 			content_sha256: parseOptionalText(attachment.sha256),
 			mime_type: parseOptionalText(attachment.mime_type),
 			byte_size: attachment.byte_size ?? null,
 			storage_provider: parseOptionalText(attachment.storage_provider),
+			etag: parseOptionalText(attachment.etag),
+			version_id: parseOptionalText(attachment.version_id),
+			last_modified: parseOptionalText(attachment.last_modified),
 			ingest_status: parseOptionalText(attachment.ingest_status),
 			last_http_status: attachment.last_http_status ?? null,
 			terminal_reason: terminalOutcome.terminalReason,
@@ -159,11 +190,15 @@ export function buildAuthenticatedNoticeAttachmentRefs(input: {
 			normalized_source_url: inlineImage.normalizedSourceUrl,
 			final_url: inlineImage.normalizedSourceUrl,
 			origin_scope: "internal",
+			bucket: null,
 			object_key: null,
 			content_sha256: null,
 			mime_type: mimeTypeForFilename(inlineImage.originalFilename),
 			byte_size: null,
 			storage_provider: null,
+			etag: null,
+			version_id: null,
+			last_modified: null,
 			ingest_status: "reference_only",
 			last_http_status: null,
 			terminal_reason: null,
@@ -174,93 +209,6 @@ export function buildAuthenticatedNoticeAttachmentRefs(input: {
 		}
 	}
 	return rows;
-}
-
-export function buildAuthenticatedNoticeCaptureArtifacts(input: {
-	bundleRecord: Record<string, unknown>;
-	exportManifest: Record<string, unknown>;
-}): {
-	detailResponse: Record<string, unknown>;
-	fetchMetadata: Record<string, unknown>;
-	listResponse: Record<string, unknown>;
-} {
-	const notice = parseRecord(input.bundleRecord.notice, "bundle notice");
-	return {
-		listResponse: {
-			notice_id: notice.notice_id ?? input.bundleRecord.notice_id,
-			notice_title: notice.notice_title ?? null,
-			organization_name: notice.organization_name ?? null,
-			organization_id: notice.organization_id ?? null,
-			notice_release_time: notice.notice_release_time ?? null,
-			notice_create_time: notice.notice_create_time ?? null,
-			notice_first_time: notice.notice_first_time ?? null,
-			notice_link: notice.notice_link ?? null,
-			notice_source: notice.notice_source ?? null,
-			notice_link_state: notice.notice_link_state ?? null,
-			notice_state: notice.notice_state ?? null,
-			notice_stick: notice.notice_stick ?? null,
-			categories: arrayOrEmpty(notice.categories).filter(isRecord),
-		},
-		detailResponse: {
-			notice,
-			links: arrayOrEmpty(input.bundleRecord.links).filter(isRecord),
-			notice_attachments: arrayOrEmpty(input.bundleRecord.notice_attachments).filter(isRecord),
-			attachments: arrayOrEmpty(input.bundleRecord.attachments).filter(isRecord),
-		},
-		fetchMetadata: {
-			schema_version: "authenticated_notice_fetch_metadata_v1",
-			captured_at: parseOptionalText(input.exportManifest.exported_at) ?? null,
-			export_manifest: input.exportManifest,
-		},
-	};
-}
-
-export function buildAuthenticatedNoticeProviderArtifacts(input: {
-	bundleRecord: Record<string, unknown>;
-	categoryPairs: readonly [string, string][];
-	notice: Record<string, unknown>;
-}): {
-	attachmentObservations: Record<string, unknown>[];
-	discoveredLinks: Record<string, unknown>[];
-	normalizedNotice: Record<string, unknown>;
-} {
-	return {
-		normalizedNotice: {
-			schema_version: "authenticated_notice_normalized_notice_v1",
-			notice_id: input.notice.notice_id ?? input.bundleRecord.notice_id,
-			notice_title: input.notice.notice_title ?? null,
-			organization_name: input.notice.organization_name ?? null,
-			organization_id: input.notice.organization_id ?? null,
-			notice_release_time: input.notice.notice_release_time ?? null,
-			notice_create_time: input.notice.notice_create_time ?? null,
-			notice_first_time: input.notice.notice_first_time ?? null,
-			notice_link: input.notice.notice_link ?? null,
-			notice_source: input.notice.notice_source ?? null,
-			notice_link_state: input.notice.notice_link_state ?? null,
-			notice_state: input.notice.notice_state ?? null,
-			notice_stick: input.notice.notice_stick ?? null,
-			notice_type_ids: input.categoryPairs.map(([id]) => id),
-			notice_type_names: input.categoryPairs.map(([, name]) => name),
-			notice_content_html: input.notice.notice_content ?? null,
-		},
-		discoveredLinks: arrayOrEmpty(input.bundleRecord.links).filter(isRecord),
-		attachmentObservations: joinedAttachments(input.bundleRecord).map(([attachment, relation]) => ({
-			attachment_id: attachment.attachment_id ?? null,
-			link_id: relation.link_id ?? null,
-			source_url: attachment.source_url ?? null,
-			normalized_source_url: attachment.normalized_source_url ?? null,
-			final_url: attachment.final_url ?? null,
-			resource_role: relation.resource_role ?? null,
-			relation_source: relation.relation_source ?? null,
-			anchor_text: relation.anchor_text ?? null,
-			object_key: attachment.object_key ?? null,
-			content_sha256: attachment.sha256 ?? null,
-			mime_type: attachment.mime_type ?? null,
-			byte_size: attachment.byte_size ?? null,
-			origin_scope: attachment.origin_scope ?? null,
-			provenance_status: attachment.provenance_status ?? null,
-		})),
-	};
 }
 
 export function buildAuthenticatedNoticeCanonicalDocumentArtifacts(input: {
@@ -303,6 +251,9 @@ export function buildAuthenticatedNoticeCanonicalDocumentArtifacts(input: {
 				heading_level: block.heading_level ?? null,
 				link_target: block.link_target ?? null,
 				link_text: block.link_text ?? null,
+				list_level: block.list_level ?? null,
+				table_cells: block.table_cells ?? null,
+				table_html: block.table_html ?? null,
 			},
 		});
 	}
@@ -389,8 +340,14 @@ export function buildAuthenticatedNoticeAttachmentIdentity(
 			parseOptionalText(attachment.normalized_source_url) ??
 				parseOptionalText(attachment.source_url) ??
 				"",
+			parseOptionalText(attachment.final_url) ?? "",
 			parseOptionalText(relation.resource_role) ?? "",
+			parseOptionalText(relation.relation_source) ?? "",
+			parseOptionalText(attachment.object_key) ?? "",
 			parseOptionalText(attachment.sha256) ?? "",
+			parseOptionalText(attachment.mime_type) ?? "",
+			attachment.byte_size ?? null,
+			terminalFetchOutcome(attachment),
 		])
 		.sort();
 }
@@ -407,6 +364,18 @@ function markdownLineForBlock(role: string, text: string, block: Record<string, 
 	if (role === "link") {
 		const target = parseOptionalText(block.link_target);
 		return target ? `- [${text}](${target})` : `- ${text}`;
+	}
+	if (role === "blockquote") {
+		return text
+			.split("\n")
+			.map((line) => `> ${line}`)
+			.join("\n");
+	}
+	if (role === "preformatted") {
+		return `\`\`\`text\n${String(block.text_raw ?? text).trim()}\n\`\`\``;
+	}
+	if (role === "table") {
+		return markdownTable(block.table_cells, text);
 	}
 	return text;
 }
@@ -427,30 +396,183 @@ function unitTypeForBlock(role: string): string {
 	return "paragraph";
 }
 
-function htmlTextBlocks(
-	html: string,
-): { headingLevel: number | null; role: string; text: string }[] {
-	const rows: { headingLevel: number | null; role: string; text: string }[] = [];
+function htmlTextBlocks(html: string): ExtractedHtmlBlock[] {
+	const rows: ExtractedHtmlBlock[] = [];
 	const $ = load(html);
-	$("h1,h2,h3,h4,h5,h6,p,li").each((_index, element) => {
-		const tag = element.tagName.toLowerCase();
-		const text = normalizeText($(element).text());
-		if (!text) {
+	$("script,style,noscript,template").remove();
+	$(HTML_BLOCK_SELECTOR).each((_index, element) => {
+		const node = $(element);
+		const tag = String(node.prop("tagName") ?? "").toLowerCase();
+		if (!tag) {
+			return;
+		}
+		if (node.parents("table,blockquote,pre").length > 0) {
+			return;
+		}
+		if (tag === "div" && node.find(HTML_BLOCK_SELECTOR.replace(",div", "")).length > 0) {
+			return;
+		}
+		if (tag === "li" && node.parents("li").length > 0) {
+			return;
+		}
+		if (tag === "table") {
+			const tableCells = node
+				.find("tr")
+				.toArray()
+				.map((row) =>
+					$(row)
+						.children("th,td")
+						.toArray()
+						.map((cell) => ({
+							colspan: positiveSpan($(cell).attr("colspan")),
+							header: $(cell).is("th"),
+							rowspan: positiveSpan($(cell).attr("rowspan")),
+							text: normalizeText($(cell).text()),
+						})),
+				)
+				.filter((row) => row.length > 0);
+			const text = tableCells
+				.map((row) => row.map((cell) => String(cell.text)).join(" | "))
+				.join("\n");
+			if (normalizeText(text)) {
+				rows.push({
+					...emptyExtractedBlock("table", text),
+					htmlFragment: $.html(element),
+					tableCells,
+					tableHtml: $.html(element),
+				});
+			}
+			return;
+		}
+		const clone = node.clone();
+		if (tag === "li") {
+			clone.children("ul,ol").remove();
+		}
+		clone.find("br").replaceWith("\n");
+		const text = clone.text().trim();
+		if (!normalizeText(text)) {
 			return;
 		}
 		rows.push({
-			headingLevel: tag.startsWith("h") ? Number.parseInt(tag.slice(1), 10) : null,
-			role: tag.startsWith("h") ? "heading" : tag === "li" ? "list_item" : "paragraph",
-			text,
+			...emptyExtractedBlock(roleForHtmlTag(tag), text, headingLevelForTag(tag)),
+			htmlFragment: $.html(element),
+			listLevel: tag === "li" ? node.parents("ul,ol").length : null,
 		});
 	});
 	if (rows.length === 0) {
-		const text = normalizeText($.root().text());
-		if (text) {
-			rows.push({ headingLevel: null, role: "paragraph", text });
+		const text = $.root().text().trim();
+		if (normalizeText(text)) {
+			rows.push(emptyExtractedBlock("paragraph", text));
 		}
 	}
 	return rows;
+}
+
+function emptyExtractedBlock(
+	role: string,
+	text: string,
+	headingLevel: number | null = null,
+): ExtractedHtmlBlock {
+	return {
+		headingLevel,
+		htmlFragment: null,
+		linkTarget: null,
+		linkText: null,
+		listLevel: null,
+		role,
+		tableCells: null,
+		tableHtml: null,
+		text,
+	};
+}
+
+function roleForHtmlTag(tag: string): string {
+	if (/^h[1-6]$/u.test(tag)) {
+		return "heading";
+	}
+	if (tag === "li") {
+		return "list_item";
+	}
+	if (tag === "blockquote") {
+		return "blockquote";
+	}
+	if (tag === "pre") {
+		return "preformatted";
+	}
+	if (tag === "dt") {
+		return "definition_term";
+	}
+	if (tag === "dd") {
+		return "definition_description";
+	}
+	return "paragraph";
+}
+
+function headingLevelForTag(tag: string): number | null {
+	return /^h[1-6]$/u.test(tag) ? Number.parseInt(tag.slice(1), 10) : null;
+}
+
+function positiveSpan(value: string | undefined): number {
+	const parsed = Number.parseInt(value ?? "1", 10);
+	return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 1;
+}
+
+function assertVisibleTextCoverage(input: {
+	blocks: readonly Record<string, unknown>[];
+	html: string;
+	title: string;
+}): void {
+	const $ = load(input.html);
+	$("script,style,noscript,template").remove();
+	const sourceSegments = $.root()
+		.find("*")
+		.contents()
+		.toArray()
+		.filter((node) => node.type === "text")
+		.map((node) => normalizeText($(node).text()))
+		.filter(Boolean);
+	const extracted = input.blocks
+		.map((block) => normalizeText(String(block.text_normalized ?? "")))
+		.filter(Boolean);
+	for (const segment of sourceSegments) {
+		if (!extracted.some((text) => text.includes(segment))) {
+			throw new Error(
+				`authenticated notice visible text was not extracted: ${segment.slice(0, 80)}`,
+			);
+		}
+	}
+	const sourceTableCount = $("table").length;
+	const extractedTableCount = input.blocks.filter((block) => block.block_role === "table").length;
+	if (sourceTableCount !== extractedTableCount) {
+		throw new Error("authenticated notice table extraction is incomplete");
+	}
+	if (sourceSegments.length > 0 && extracted.length <= 1 && normalizeText(input.title)) {
+		throw new Error("authenticated notice body extraction produced no content");
+	}
+}
+
+function markdownTable(value: unknown, fallback: string): string {
+	if (!Array.isArray(value) || value.length === 0) {
+		return fallback;
+	}
+	const rows = value.map((row) =>
+		Array.isArray(row)
+			? row.map((cell) =>
+					isRecord(cell)
+						? String(cell.text ?? "").replaceAll("|", "\\|")
+						: String(cell).replaceAll("|", "\\|"),
+				)
+			: [],
+	);
+	const width = Math.max(...rows.map((row) => row.length));
+	if (width === 0) {
+		return fallback;
+	}
+	const normalized = rows.map((row) => [...row, ...new Array(width - row.length).fill("")]);
+	const [first = [], ...rest] = normalized;
+	return [first, new Array(width).fill("---"), ...rest]
+		.map((row) => `| ${row.join(" | ")} |`)
+		.join("\n");
 }
 
 function normalizeText(value: string): string {

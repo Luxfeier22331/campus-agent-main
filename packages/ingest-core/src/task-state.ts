@@ -21,6 +21,8 @@ export type IngestionTaskRecord = IngestionTaskEnvelope & {
 	updated_at: string;
 	workflow_id: string;
 	workflow_run_id: string | null;
+	pipeline_workflow_id: string | null;
+	retry_of_task_id: string | null;
 	result_ref: IngestionArtifactRef | null;
 	result_contract: string | null;
 	summary: Record<string, IngestionTaskSummaryValue> | null;
@@ -38,6 +40,7 @@ export interface IngestionTaskOperatorProjection {
 	source_channel: string | null;
 	corpus: string | null;
 	collection: string | null;
+	created_by: string;
 	status: IngestionWorkflowStatus;
 	created_at: string;
 	updated_at: string;
@@ -48,6 +51,8 @@ export interface IngestionTaskOperatorProjection {
 	last_error_message: string | null;
 	workflow_id: string;
 	workflow_run_id: string | null;
+	pipeline_workflow_id: string | null;
+	retry_of_task_id: string | null;
 }
 
 export interface IngestionTaskOperatorProjectionList {
@@ -57,6 +62,7 @@ export interface IngestionTaskOperatorProjectionList {
 
 export interface IngestionTaskProjectionFilters {
 	collection?: string | null;
+	cursor?: string | null;
 	corpus?: string | null;
 	registryTaskId?: string | null;
 	runId?: string | null;
@@ -64,6 +70,11 @@ export interface IngestionTaskProjectionFilters {
 	sourceFamily?: string | null;
 	status?: IngestionWorkflowStatus | null;
 	limit?: number | null;
+}
+
+export interface IngestionTaskProjectionCursor {
+	taskId: string;
+	updatedAt: string;
 }
 
 export function toIngestionTaskOperatorProjection(
@@ -79,6 +90,7 @@ export function toIngestionTaskOperatorProjection(
 		source_channel: task.source_channel,
 		corpus: task.corpus,
 		collection: task.collection,
+		created_by: task.created_by,
 		status: task.status,
 		created_at: task.created_at,
 		updated_at: task.updated_at,
@@ -89,6 +101,8 @@ export function toIngestionTaskOperatorProjection(
 		last_error_message: task.error_message,
 		workflow_id: task.workflow_id,
 		workflow_run_id: task.workflow_run_id,
+		pipeline_workflow_id: task.pipeline_workflow_id,
+		retry_of_task_id: task.retry_of_task_id,
 	};
 }
 
@@ -112,6 +126,32 @@ export function normalizeIngestionTaskProjectionLimit(value: number | null | und
 		return 50;
 	}
 	return Math.min(value, 200);
+}
+
+export function encodeIngestionTaskProjectionCursor(value: IngestionTaskProjectionCursor): string {
+	return `${value.updatedAt}|${value.taskId}`;
+}
+
+export function parseIngestionTaskProjectionCursor(
+	value: string | null | undefined,
+): IngestionTaskProjectionCursor | null {
+	if (!value) {
+		return null;
+	}
+	const separator = value.indexOf("|");
+	if (separator < 1) {
+		throw new Error("invalid ingestion task cursor");
+	}
+	const updatedAt = value.slice(0, separator);
+	const taskId = value.slice(separator + 1);
+	if (
+		Number.isNaN(Date.parse(updatedAt)) ||
+		!taskId ||
+		!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/u.test(taskId)
+	) {
+		throw new Error("invalid ingestion task cursor");
+	}
+	return { taskId, updatedAt: new Date(updatedAt).toISOString() };
 }
 
 export function parseIngestionWorkflowStatus(value: string | null): IngestionWorkflowStatus | null {

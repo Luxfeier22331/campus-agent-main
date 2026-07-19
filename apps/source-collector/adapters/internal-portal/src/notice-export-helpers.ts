@@ -1,4 +1,5 @@
 import path from "node:path";
+import { buildCanonicalVersionDigest } from "ingest-core";
 
 import { collectHtmlVisualReferenceCandidates } from "./html-visual-references.js";
 import { buildNoticeTypePolicySnapshot } from "./notice-types.js";
@@ -72,6 +73,7 @@ export function buildExportManifest(input: {
 	const timestamp = toTimestampLabel(input.exportedAt);
 	const selectedNoticeIds = input.selectedNoticeIds ?? [];
 	const selectedNoticeTypes = input.selectedNoticeTypes ?? [];
+	const noticeTypePolicy = buildNoticeTypePolicySnapshot(input.noticeTypes);
 	return {
 		schema_version: EXPORT_SCHEMA_VERSION,
 		exported_at: input.exportedAt,
@@ -81,6 +83,7 @@ export function buildExportManifest(input: {
 		source_surface: "notice",
 		site_id: input.siteId,
 		source_home_url: input.sourceHomeUrl,
+		source_config_digest: buildCanonicalVersionDigest({ notice_type_policy: noticeTypePolicy }),
 		full_scope_requested: input.fullScopeRequested,
 		full_scope_completed: input.fullScopeCompleted,
 		page_budget_exhausted: input.pageBudgetExhausted,
@@ -104,7 +107,7 @@ export function buildExportManifest(input: {
 			...(selectedNoticeIds.length > 0 ? { selected_notice_ids: selectedNoticeIds } : {}),
 		},
 		run_admission: input.runAdmission,
-		notice_type_policy: buildNoticeTypePolicySnapshot(input.noticeTypes),
+		notice_type_policy: noticeTypePolicy,
 		observed_notice_types: input.observedNoticeTypes,
 		observed_organizations: input.observedOrganizations,
 		run: {

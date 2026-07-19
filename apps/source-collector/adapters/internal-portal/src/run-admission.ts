@@ -6,7 +6,7 @@ import type {
 } from "./types.js";
 
 export interface NoticeRunAdmissionInput {
-	backfillMaxPagesPerType?: number | null;
+	reconcileMaxPagesPerType?: number | null;
 	collectionMode?: NoticeCollectionMode;
 	noticeTypes: NoticeTypeConfig[];
 	selectedNotices?: Array<{
@@ -37,13 +37,13 @@ export function buildNoticeRunAdmission(input: NoticeRunAdmissionInput): NoticeR
 		}
 		noticeTypeIds = enabledNoticeTypes.map((item) => item.type);
 		pageBudget = enabledNoticeTypes.map((item) => {
-			const backfillPages =
-				input.backfillMaxPagesPerType !== null && input.backfillMaxPagesPerType !== undefined
-					? input.backfillMaxPagesPerType
-					: item.backfillPages;
+			const reconcilePages =
+				input.reconcileMaxPagesPerType !== null && input.reconcileMaxPagesPerType !== undefined
+					? input.reconcileMaxPagesPerType
+					: item.reconcilePages;
 			const budget =
-				collectionMode === "backfill"
-					? { pages: backfillPages, pageSize: item.backfillPageSize }
+				collectionMode === "reconcile"
+					? { pages: reconcilePages, pageSize: item.reconcilePageSize }
 					: { pages: item.incrementalPages, pageSize: item.incrementalPageSize };
 			return {
 				notice_type: item.type,

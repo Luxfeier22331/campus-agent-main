@@ -33,8 +33,8 @@ export function registerNoticeExportCollectionValidationSuite(): void {
 						enabled: true,
 						incrementalPages: 1,
 						incrementalPageSize: 20,
-						backfillPages: 1,
-						backfillPageSize: 20,
+						reconcilePages: 1,
+						reconcilePageSize: 20,
 					},
 				],
 				requestMaxRetries: 1,
@@ -75,8 +75,8 @@ export function registerNoticeExportCollectionValidationSuite(): void {
 						enabled: false,
 						incrementalPages: 1,
 						incrementalPageSize: 20,
-						backfillPages: 1,
-						backfillPageSize: 20,
+						reconcilePages: 1,
+						reconcilePageSize: 20,
 					},
 				],
 				requestMaxRetries: 1,
@@ -87,11 +87,11 @@ export function registerNoticeExportCollectionValidationSuite(): void {
 
 		expect(apiContextCreated).toBe(false);
 	});
-	it("uses backfill page budgets when collection mode is backfill", async () => {
+	it("uses reconcile page budgets when collection mode is reconcile", async () => {
 		const pageCalls: Array<{ currentPage: number; noticeType: string; pageSize: number }> = [];
 		const detailCalls: number[] = [];
 		const result = await collectNoticeExportBundle({
-			collectionMode: "backfill",
+			collectionMode: "reconcile",
 			createApiContext: async () => ({
 				dispose: async () => undefined,
 				get: async () => ({
@@ -114,7 +114,7 @@ export function registerNoticeExportCollectionValidationSuite(): void {
 							notice_content: `<p>${noticeId}</p>`,
 							notice_id: noticeId,
 							notice_release_time: "2026-04-02 18:49",
-							notice_title: `回填通知 ${noticeId}`,
+							notice_title: `核对通知 ${noticeId}`,
 						},
 					},
 					state: true,
@@ -142,7 +142,7 @@ export function registerNoticeExportCollectionValidationSuite(): void {
 						tables: [
 							{
 								notice_id: 355000 + currentPage,
-								notice_title: `回填通知 ${currentPage}`,
+								notice_title: `核对通知 ${currentPage}`,
 								notice_type: noticeType,
 								notice_type_name: "办公通知",
 							},
@@ -158,8 +158,8 @@ export function registerNoticeExportCollectionValidationSuite(): void {
 					enabled: true,
 					incrementalPages: 1,
 					incrementalPageSize: 1,
-					backfillPages: 2,
-					backfillPageSize: 50,
+					reconcilePages: 2,
+					reconcilePageSize: 50,
 				},
 			],
 			requestMaxRetries: 1,
@@ -173,16 +173,16 @@ export function registerNoticeExportCollectionValidationSuite(): void {
 		]);
 		expect(detailCalls).toEqual([355001, 355002]);
 		expect(result.stats.pagesFetched).toBe(2);
-		expect(result.exportManifest.filters.collection_mode).toBe("backfill");
-		expect(result.exportManifest.run.mode).toBe("backfill");
+		expect(result.exportManifest.filters.collection_mode).toBe("reconcile");
+		expect(result.exportManifest.run.mode).toBe("reconcile");
 	});
 
-	it("allows historical backfill to extend beyond per-type page budgets up to a runtime max", async () => {
+	it("allows complete reconcile to extend beyond per-type page budgets up to a runtime max", async () => {
 		const pageCalls: number[] = [];
 		const detailCalls: number[] = [];
 		const result = await collectNoticeExportBundle({
-			backfillMaxPagesPerType: 3,
-			collectionMode: "backfill",
+			reconcileMaxPagesPerType: 3,
+			collectionMode: "reconcile",
 			createApiContext: async () => ({
 				dispose: async () => undefined,
 				get: async () => ({
@@ -249,8 +249,8 @@ export function registerNoticeExportCollectionValidationSuite(): void {
 					enabled: true,
 					incrementalPages: 1,
 					incrementalPageSize: 20,
-					backfillPages: 1,
-					backfillPageSize: 20,
+					reconcilePages: 1,
+					reconcilePageSize: 20,
 				},
 			],
 			requestMaxRetries: 1,
@@ -272,10 +272,10 @@ export function registerNoticeExportCollectionValidationSuite(): void {
 		});
 	});
 
-	it("fails closed when a full-scope backfill exhausts the page budget before the source surface ends", async () => {
+	it("fails closed when a full-scope reconcile exhausts the page budget before the source surface ends", async () => {
 		await expect(
 			collectNoticeExportBundle({
-				collectionMode: "backfill",
+				collectionMode: "reconcile",
 				createApiContext: async () => ({
 					dispose: async () => undefined,
 					get: async () => ({
@@ -336,8 +336,8 @@ export function registerNoticeExportCollectionValidationSuite(): void {
 						enabled: true,
 						incrementalPages: 1,
 						incrementalPageSize: 20,
-						backfillPages: 1,
-						backfillPageSize: 20,
+						reconcilePages: 1,
+						reconcilePageSize: 20,
 					},
 				],
 				requestMaxRetries: 1,

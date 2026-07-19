@@ -3,8 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
 	buildInternalPortalAuthScheduleOptions,
+	buildInternalPortalNoticeScheduleOptions,
 	type MaintenanceScheduleClient,
+	type NoticeScheduleClient,
 	syncInternalPortalAuthSchedule,
+	syncInternalPortalNoticeSchedule,
 } from "../src/schedule-sync";
 
 const config = {
@@ -22,7 +25,12 @@ describe("internal portal auth schedule sync", () => {
 
 		expect(schedule).toMatchObject({
 			action: {
-				args: [{ sourceCollectorActivityTaskQueue: "ingestion.source" }],
+				args: [
+					{
+						controlActivityTaskQueue: "ingestion.control",
+						sourceCollectorActivityTaskQueue: "ingestion.source",
+					},
+				],
 				taskQueue: "ingestion.workflow",
 				workflowId: "ingestion/internal-portal-auth-maintenance",
 			},
@@ -54,6 +62,41 @@ describe("internal portal auth schedule sync", () => {
 
 		await expect(syncInternalPortalAuthSchedule(client, config)).resolves.toBe("updated");
 		expect(client.update).toHaveBeenCalledOnce();
+		const updateFn = client.update.mock.calls[0]?.[0];
+		expect(updateFn?.({ state: { note: "credential expired", paused: true } })).toMatchObject({
+			state: { note: "credential expired", paused: true },
+		});
+	});
+});
+
+describe("internal portal notice schedule sync", () => {
+	it("builds a paused half-hour publication schedule", () => {
+		expect(buildInternalPortalNoticeScheduleOptions(config)).toMatchObject({
+			action: {
+				args: [
+					{
+						collectionMode: "incremental",
+						createdBy: "schedule:internal-portal-notice",
+						overlapPages: 1,
+					},
+				],
+				workflowId: "ingestion/internal-portal-notice-publication",
+			},
+			policies: {
+				overlap: ScheduleOverlapPolicy.SKIP,
+				pauseOnFailure: true,
+			},
+			scheduleId: "internal-portal-notice-publication",
+			spec: { intervals: [{ every: "30 minutes" }] },
+			state: { note: "awaiting operator enable", paused: true },
+		});
+	});
+
+	it("preserves the current pause state while updating the notice schedule", async () => {
+		const client = fakeClient({ alreadyExists: true });
+		await expect(
+			syncInternalPortalNoticeSchedule(client as unknown as NoticeScheduleClient, config),
+		).resolves.toBe("updated");
 		const updateFn = client.update.mock.calls[0]?.[0];
 		expect(updateFn?.({ state: { note: "credential expired", paused: true } })).toMatchObject({
 			state: { note: "credential expired", paused: true },

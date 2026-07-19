@@ -3,7 +3,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createOpsApp } from "../src/server/app";
 import { AxiomUnavailableError } from "../src/server/axiom-client";
-import type { InternalPortalAuthMaintenanceClient } from "../src/server/internal-portal-auth-maintenance-client";
+import type { InternalPortalAuthMaintenanceClient } from "../src/server/ingestion-control-client";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission";
 import { createOpsOverviewService } from "../src/server/ops-overview-service";
 import { createFixtureOpsStatusStore } from "../src/server/ops-status-store";
@@ -19,7 +19,7 @@ function createTestApp(options?: {
 	credentialStatus?: { configured: boolean; updatedAt: string | null; updatedBy: string | null };
 	maintenanceStatus?: Awaited<ReturnType<InternalPortalAuthMaintenanceClient["getStatus"]>>;
 	queryFails?: boolean;
-	resumeError?: Error;
+	validationError?: Error;
 	sentryFails?: boolean;
 }) {
 	const baseStore = createFixtureOpsStatusStore();
@@ -66,8 +66,8 @@ function createTestApp(options?: {
 		scheduleState: "ACTIVE" as const,
 		serviceTicketIssued: true,
 	};
-	const resume = options?.resumeError
-		? vi.fn().mockRejectedValue(options.resumeError)
+	const validate = options?.validationError
+		? vi.fn().mockRejectedValue(options.validationError)
 		: vi.fn().mockResolvedValue(maintenanceStatus);
 	const queryRequestIssues = options?.sentryFails
 		? vi.fn().mockRejectedValue(new SentryUnavailableError("Sentry unavailable"))
@@ -82,7 +82,7 @@ function createTestApp(options?: {
 		internalPortalAuthStore: { getStatus, replaceCredential },
 		internalPortalMaintenanceClient: {
 			getStatus: vi.fn().mockResolvedValue(maintenanceStatus),
-			resume,
+			validate,
 		},
 		sentry: { queryRequestIssues },
 		store,
@@ -93,7 +93,7 @@ function createTestApp(options?: {
 		queryRequest,
 		queryRequestIssues,
 		replaceCredential,
-		resume,
+		validate,
 	};
 }
 
@@ -148,7 +148,7 @@ describe("ops API", () => {
 
 	it("reads and replaces the internal portal credential without echoing it", async () => {
 		const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => undefined);
-		const { app, replaceCredential, resume } = createTestApp();
+		const { app, replaceCredential, validate } = createTestApp();
 		const status = await app.request("/api/ops/internal-portal-auth");
 		const response = await app.request("https://ops.example.test/api/ops/internal-portal-auth", {
 			body: JSON.stringify({
@@ -168,7 +168,7 @@ describe("ops API", () => {
 				updatedBy: "ops@example.test",
 			}),
 		);
-		expect(resume).toHaveBeenCalledOnce();
+		expect(validate).toHaveBeenCalledWith("ops@example.test");
 		expect(responseBody).toMatchObject({
 			maintenance: { lastOutcome: "SUCCESS", scheduleState: "ACTIVE" },
 			observedLifetime: { lowerBoundSeconds: null, upperBoundSeconds: null },
@@ -208,10 +208,10 @@ describe("ops API", () => {
 		});
 	});
 
-	it("keeps a successful credential replacement when schedule resume is unavailable", async () => {
+	it("keeps a successful credential replacement when immediate validation is unavailable", async () => {
 		const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
 		const { app, replaceCredential } = createTestApp({
-			resumeError: new Error("temporal unavailable"),
+			validationError: new Error("temporal unavailable"),
 		});
 
 		const response = await app.request("https://ops.example.test/api/ops/internal-portal-auth", {

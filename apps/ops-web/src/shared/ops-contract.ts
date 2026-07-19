@@ -100,6 +100,135 @@ export const OpsInternalPortalAuthUpdateSchema = z
 	})
 	.strict();
 
+const OpsIngestionArtifactRefSchema = z.object({
+	byte_size: z.number().int().nonnegative(),
+	digest: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
+	kind: z.literal("object_store"),
+	uri: z.string().startsWith("s3://"),
+});
+
+export const OpsIngestionTaskSchema = z.object({
+	collection: z.string().nullable(),
+	corpus: z.string().nullable(),
+	created_at: IsoDateTimeSchema,
+	created_by: z.string().min(1),
+	error_code: z.string().nullable().optional(),
+	error_message: z.string().nullable().optional(),
+	executor_kind: z.enum(["rust_kernel", "source_collector", "typescript_kernel"]),
+	has_result: z.boolean().optional(),
+	input_contract: z.string().optional(),
+	input_ref: OpsIngestionArtifactRefSchema.optional(),
+	last_error_code: z.string().nullable().optional(),
+	last_error_message: z.string().nullable().optional(),
+	output_contract: z.string().optional(),
+	pipeline_workflow_id: z.string().nullable(),
+	registry_task_id: z.string().min(1),
+	result_contract: z.string().nullable(),
+	result_ref: OpsIngestionArtifactRefSchema.nullable().optional(),
+	retry_of_task_id: z.string().nullable(),
+	run_id: z.string().min(1),
+	schema_version: z.string().min(1),
+	source_channel: z.string().nullable(),
+	source_family: z.string().nullable(),
+	status: z.enum(["running", "completed", "failed", "canceled"]),
+	summary: z
+		.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
+		.nullable(),
+	task_id: z.string().min(1),
+	updated_at: IsoDateTimeSchema,
+	workflow_id: z.string().min(1),
+	workflow_run_id: z.string().nullable(),
+});
+
+export const OpsIngestionTaskListSchema = z.object({
+	page: z.object({ next_cursor: z.string().nullable() }),
+	tasks: z.array(OpsIngestionTaskSchema),
+});
+
+export const OpsInternalPortalPublicationStatusSchema = z.object({
+	errorCode: z.string().nullable(),
+	lastAttemptAt: IsoDateTimeSchema.nullable(),
+	lastOutcome: z
+		.enum([
+			"CREDENTIAL_EXPIRED",
+			"CREDENTIAL_UNAVAILABLE",
+			"DEFERRED",
+			"FAILED",
+			"PUBLISHED",
+			"RUNNING",
+			"UNCHANGED",
+			"UNKNOWN",
+		])
+		.nullable(),
+	lastReleaseId: z.string().nullable(),
+	nextRunAt: IsoDateTimeSchema.nullable(),
+	scheduleState: z.enum(["ACTIVE", "PAUSED", "MISSING"]),
+	workflowId: z.string().nullable(),
+	workflowRunId: z.string().nullable(),
+});
+
+const OpsOfflineReleaseStatusSchema = z
+	.object({
+		checkpoint: z.record(z.string(), z.json()),
+		current_release_id: z.string().nullable(),
+		item_count: z.number().int().nonnegative().nullable(),
+		last_added_count: z.number().int().nonnegative(),
+		last_check_at: IsoDateTimeSchema.nullable(),
+		last_check_error_code: z.string().nullable(),
+		last_check_mode: z.enum(["incremental", "reconcile", "selected"]).nullable(),
+		last_check_outcome: z.enum(["published", "unchanged", "deferred", "failed"]).nullable(),
+		last_committed_at: IsoDateTimeSchema.nullable(),
+		last_published_at: IsoDateTimeSchema.nullable(),
+		last_reconcile_at: IsoDateTimeSchema.nullable(),
+		last_updated_count: z.number().int().nonnegative(),
+		last_withdrawn_count: z.number().int().nonnegative(),
+		stream_id: z.string().min(1),
+		version: z.number().int().nonnegative(),
+	})
+	.nullable();
+
+export const OpsInternalPortalIngestionStatusSchema = z.object({
+	auth_maintenance: OpsInternalPortalMaintenanceStatusSchema.extend({
+		workflowId: z.string().nullable().optional(),
+		workflowRunId: z.string().nullable().optional(),
+	}),
+	file_release: OpsOfflineReleaseStatusSchema,
+	notice: z.object({
+		publication: OpsInternalPortalPublicationStatusSchema,
+		release: OpsOfflineReleaseStatusSchema,
+	}),
+	schema_version: z.literal("internal_portal_ingestion_status.v1"),
+});
+
+export const OpsIngestionWorkflowStartSchema = z.object({
+	already_started: z.boolean(),
+	request_id: z.string().min(1),
+	temporal_status: z.string().min(1),
+	workflow_id: z.string().min(1),
+	workflow_run_id: z.string().nullable(),
+});
+
+export const OpsIngestionTaskRetryStartSchema = z.object({
+	retry_of_task_id: z.string().min(1),
+	task_id: z.string().min(1),
+	workflow_id: z.string().min(1),
+	workflow_run_id: z.string().nullable(),
+});
+
+export const OpsFileReleaseBatchStartSchema = z.object({
+	request_id: z.string().min(1),
+	schema_version: z.literal("internal_portal_file_release_batch_start.v1"),
+	workflows: z.array(
+		z.object({
+			alreadyStarted: z.boolean(),
+			file_release_id: z.number().int().positive(),
+			workflowId: z.string().min(1),
+			workflowRunId: z.string().nullable(),
+			workflowStatus: z.string().min(1),
+		}),
+	),
+});
+
 const OpsStatusSchema = z.enum(["COMPLETED", "FAILED", "CANCELLED", "RUNNING", "PENDING"]);
 const OpsStepStatusSchema = z.enum([
 	"COMPLETED",
@@ -399,6 +528,12 @@ export type OpsInternalPortalCredentialStatus = z.infer<
 >;
 export type OpsInternalPortalMaintenanceStatus = z.infer<
 	typeof OpsInternalPortalMaintenanceStatusSchema
+>;
+export type OpsIngestionTask = z.infer<typeof OpsIngestionTaskSchema>;
+export type OpsIngestionTaskList = z.infer<typeof OpsIngestionTaskListSchema>;
+export type OpsIngestionTaskRetryStart = z.infer<typeof OpsIngestionTaskRetryStartSchema>;
+export type OpsInternalPortalIngestionStatus = z.infer<
+	typeof OpsInternalPortalIngestionStatusSchema
 >;
 export type OpsObservabilityResponse = z.infer<typeof OpsObservabilityResponseSchema>;
 export type OpsOverviewResponse = z.infer<typeof OpsOverviewResponseSchema>;

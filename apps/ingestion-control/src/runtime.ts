@@ -6,6 +6,7 @@ import {
 	type IngestionControlHandler,
 	type IngestionControlServiceTokens,
 } from "./http";
+import { createPostgresOfflineReleaseStore } from "./offline-release-store";
 import {
 	assertIngestionControlPostgresSchema,
 	createPostgresIngestionTaskStore,
@@ -16,7 +17,7 @@ import {
 	type IngestionWorkflowStarter,
 } from "./temporal-client";
 import { buildIngestionTemporalConfig, type IngestionTemporalConfig } from "./temporal-config";
-import type { IngestionTaskStore } from "./types";
+import type { IngestionTaskStore, OfflineReleaseStore } from "./types";
 
 const MAX_REQUEST_BODY_BYTES = 1024 * 1024;
 const API_DATABASE_TIMEOUT_MS = 4_000;
@@ -27,6 +28,7 @@ export interface IngestionControlRuntimeConfig {
 	host: string;
 	port: number;
 	serviceTokens: Required<IngestionControlServiceTokens>;
+	siteId: string;
 	temporal: IngestionTemporalConfig;
 }
 
@@ -34,6 +36,8 @@ export interface IngestionControlRuntime {
 	close(): Promise<void>;
 	readinessCheck(): Promise<void>;
 	registryCatalog: ReturnType<typeof loadIngestionTaskRegistryCatalogFromRoot>;
+	releaseStore: OfflineReleaseStore;
+	siteId: string;
 	store: IngestionTaskStore;
 	workflowStarter: IngestionWorkflowStarter;
 }
@@ -50,6 +54,7 @@ export function buildIngestionControlRuntimeConfig(
 			adminToken: env.INGESTION_CONTROL_ADMIN_TOKEN?.trim() || null,
 			opsToken: env.OPS_WEB_INTERNAL_TOKEN?.trim() || null,
 		},
+		siteId: requiredEnv(env, "INTERNAL_PORTAL_SITE_ID"),
 		temporal: buildIngestionTemporalConfig(env),
 	};
 }
@@ -62,8 +67,10 @@ export async function startIngestionControlServer(
 	const handler = createIngestionControlHandler({
 		readinessCheck: runtime.readinessCheck,
 		registryCatalog: runtime.registryCatalog,
+		releaseStore: runtime.releaseStore,
 		serviceTokens: config.serviceTokens,
 		store: runtime.store,
+		siteId: runtime.siteId,
 		workflowStarter: runtime.workflowStarter,
 	});
 	const server = createServer((request, response) => {
@@ -106,7 +113,10 @@ export async function startIngestionControlServer(
 }
 
 async function createIngestionControlRuntime(
-	config: Pick<IngestionControlRuntimeConfig, "databaseUrl" | "registryRoot" | "temporal">,
+	config: Pick<
+		IngestionControlRuntimeConfig,
+		"databaseUrl" | "registryRoot" | "siteId" | "temporal"
+	>,
 ): Promise<IngestionControlRuntime> {
 	const pool = new Pool({
 		connectionString: config.databaseUrl,
@@ -127,6 +137,8 @@ async function createIngestionControlRuntime(
 				await Promise.all([pool.query("SELECT 1"), workflowStarter?.checkReady()]);
 			},
 			registryCatalog: loadIngestionTaskRegistryCatalogFromRoot(config.registryRoot),
+			releaseStore: createPostgresOfflineReleaseStore({ pool }),
+			siteId: config.siteId,
 			store: createPostgresIngestionTaskStore({ pool }),
 			workflowStarter,
 		};

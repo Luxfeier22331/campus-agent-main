@@ -11,16 +11,16 @@
 		{
 			"registry_task_id": "internal_portal.notice.capture",
 			"executor_kind": "source_collector",
-			"input_contract": "internal_portal_notice_capture_request.v1",
-			"output_contract": "authenticated_notice_source_manifest.v1",
+			"input_contract": "internal_portal_notice_capture_request.v2",
+			"output_contract": "internal_portal_notice_capture_result.v1",
 			"source": { "family": "authenticated_notice", "channel": "internal_portal" },
 			"target": { "corpus": "campus_notices", "collection": "internal_notice" }
 		},
 		{
 			"registry_task_id": "internal_portal.file_release.capture",
 			"executor_kind": "source_collector",
-			"input_contract": "internal_portal_file_release_capture_request.v1",
-			"output_contract": "authenticated_file_release_source_manifest.v1",
+			"input_contract": "internal_portal_file_release_capture_request.v2",
+			"output_contract": "internal_portal_file_release_capture_result.v1",
 			"source": { "family": "authenticated_notice", "channel": "internal_portal" },
 			"target": { "corpus": "authenticated_documents", "collection": "file_release_source" }
 		},

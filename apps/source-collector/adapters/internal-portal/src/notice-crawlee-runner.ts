@@ -27,8 +27,10 @@ type NoticeCrawlRequestUserData =
 	  }
 	| {
 			type: "list_page";
+			checkpointNoticeId: number | null;
 			currentPage: number;
 			noticeType: string;
+			overlapPages: number;
 			pageBudget: number;
 			pageSize: number;
 	  }
@@ -68,19 +70,28 @@ export interface NoticeCrawleeRunnerInput {
 	}) => Promise<NoticeSelectsResponse>;
 	fullScopeRequested: boolean;
 	apiContext?: ApiRequestContextLike;
-	backfillMaxPagesPerType: number | null;
+	reconcileMaxPagesPerType: number | null;
+	checkpoints?: NoticeCollectionCheckpoint[];
 	maxNotices: number | null;
 	noticeTypes: NoticeTypeConfig[];
 	requestMaxRetries: number;
+	overlapPages?: number;
 	selectedNotices: SelectedNoticeSpec[];
 	siteId: string;
 	sourceHomeUrl: string;
+}
+
+export interface NoticeCollectionCheckpoint {
+	notice_type: string;
+	last_released_notice_id: number;
 }
 
 export interface NoticeCrawleeRunnerResult {
 	bundleRecords: BundleNoticeRecord[];
 	observedNoticeTypes: Array<{ notice_type_id: number; notice_type_name: string }>;
 	observedOrganizations: Array<{ organization_id: string; organization_name: string }>;
+	checkpointGaps: NoticeCollectionCheckpoint[];
+	nextCheckpoints: NoticeCollectionCheckpoint[];
 	stats: {
 		detailFetched: number;
 		itemsSeen: number;
@@ -91,13 +102,18 @@ export interface NoticeCrawleeRunnerResult {
 
 interface NoticeCaptureState {
 	bundleMap: Map<number, BundleNoticeRecord>;
+	checkpointFoundPageByType: Map<string, number>;
 	detailFetched: number;
+	headNoticeIdByType: Map<string, number>;
 	itemsSeen: number;
+	lastFetchedPageByType: Map<string, number>;
 	pageBudgetExhausted: boolean;
 	pagesFetched: number;
 	observedNoticeTypes: Array<{ notice_type_id: number; notice_type_name: string }>;
 	observedOrganizations: Array<{ organization_id: string; organization_name: string }>;
 	observedListItemsByNoticeId: Map<number, NoticeItem[]>;
+	queuedNoticeIds: Set<number>;
+	totalPageCountByType: Map<string, number>;
 }
 
 const INTERNAL_REQUEST_BASE_URL = "https://collector.local/authenticated-notice";
@@ -115,8 +131,10 @@ export function buildNoticeSelectsRequest(input: {
 }
 
 export function buildNoticeListPageRequest(input: {
+	checkpointNoticeId?: number | null;
 	currentPage: number;
 	noticeType: string;
+	overlapPages?: number;
 	pageBudget?: number;
 	pageSize: number;
 	siteId: string;
@@ -127,8 +145,10 @@ export function buildNoticeListPageRequest(input: {
 		uniqueKey: `list_page:${input.siteId}:${input.noticeType}:${input.currentPage}:${input.pageSize}`,
 		url: `${INTERNAL_REQUEST_BASE_URL}/list-page`,
 		userData: {
+			checkpointNoticeId: input.checkpointNoticeId ?? null,
 			currentPage: input.currentPage,
 			noticeType: input.noticeType,
+			overlapPages: input.overlapPages ?? 1,
 			pageBudget: input.pageBudget ?? input.currentPage,
 			pageSize: input.pageSize,
 			type: "list_page",
@@ -173,13 +193,18 @@ export async function runNoticeCrawleeCollection(
 ): Promise<NoticeCrawleeRunnerResult> {
 	const state: NoticeCaptureState = {
 		bundleMap: new Map<number, BundleNoticeRecord>(),
+		checkpointFoundPageByType: new Map<string, number>(),
 		detailFetched: 0,
+		headNoticeIdByType: new Map<string, number>(),
 		itemsSeen: 0,
+		lastFetchedPageByType: new Map<string, number>(),
 		observedNoticeTypes: [],
 		observedOrganizations: [],
 		observedListItemsByNoticeId: new Map<number, NoticeItem[]>(),
 		pageBudgetExhausted: false,
 		pagesFetched: 0,
+		queuedNoticeIds: new Set(input.selectedNotices.map((notice) => notice.noticeId)),
+		totalPageCountByType: new Map<string, number>(),
 	};
 	const apiContext = input.apiContext ?? noopApiContext;
 	const requestHandler = async (context: NoticeCrawleeBasicContext) => {
@@ -208,6 +233,7 @@ export async function runNoticeCrawleeCollection(
 			});
 			input.abortSignal?.throwIfAborted();
 			state.pagesFetched += 1;
+			state.lastFetchedPageByType.set(userData.noticeType, userData.currentPage);
 			const items = pageResponse.datas?.tables ?? [];
 			state.itemsSeen += items.length;
 			const detailRequests: RequestOptions<NoticeCrawlRequestUserData>[] = [];
@@ -215,6 +241,14 @@ export async function runNoticeCrawleeCollection(
 				const noticeId = normalizeOptionalNoticeId(item.notice_id);
 				if (noticeId === null) {
 					continue;
+				}
+				const currentHead = state.headNoticeIdByType.get(userData.noticeType) ?? 0;
+				state.headNoticeIdByType.set(userData.noticeType, Math.max(currentHead, noticeId));
+				if (
+					userData.checkpointNoticeId === noticeId &&
+					!state.checkpointFoundPageByType.has(userData.noticeType)
+				) {
+					state.checkpointFoundPageByType.set(userData.noticeType, userData.currentPage);
 				}
 				const observedItems = state.observedListItemsByNoticeId.get(noticeId) ?? [];
 				observedItems.push(item);
@@ -224,13 +258,14 @@ export async function runNoticeCrawleeCollection(
 					state.bundleMap.set(noticeId, mergeBundleRecord(existing, item, input.exportedAt));
 					continue;
 				}
-				if (
-					input.maxNotices !== null &&
-					state.bundleMap.size + detailRequests.length >= input.maxNotices
-				) {
+				if (state.queuedNoticeIds.has(noticeId)) {
+					continue;
+				}
+				if (input.maxNotices !== null && state.queuedNoticeIds.size >= input.maxNotices) {
 					break;
 				}
 				const noticeType = normalizeNoticeType(item.notice_type ?? userData.noticeType);
+				state.queuedNoticeIds.add(noticeId);
 				detailRequests.push(
 					buildNoticeDetailRequest({
 						notice: {
@@ -250,6 +285,9 @@ export async function runNoticeCrawleeCollection(
 				await context.addRequests(detailRequests);
 			}
 			const totalCounts = pageResponse.datas?.page?.totalCounts;
+			if (typeof totalCounts === "number") {
+				state.totalPageCountByType.set(userData.noticeType, totalCounts);
+			}
 			if (
 				typeof totalCounts === "number" &&
 				totalCounts > userData.currentPage &&
@@ -257,18 +295,24 @@ export async function runNoticeCrawleeCollection(
 			) {
 				state.pageBudgetExhausted = true;
 			}
+			const checkpointFoundPage = state.checkpointFoundPageByType.get(userData.noticeType);
+			const lastRequiredPage =
+				checkpointFoundPage === undefined
+					? userData.pageBudget
+					: Math.min(userData.pageBudget, checkpointFoundPage + userData.overlapPages);
 			if (
 				typeof totalCounts === "number" &&
 				userData.currentPage < totalCounts &&
-				userData.currentPage < userData.pageBudget &&
-				(input.maxNotices === null ||
-					state.bundleMap.size + detailRequests.length < input.maxNotices)
+				userData.currentPage < lastRequiredPage &&
+				(input.maxNotices === null || state.queuedNoticeIds.size < input.maxNotices)
 			) {
 				input.abortSignal?.throwIfAborted();
 				await context.addRequests([
 					buildNoticeListPageRequest({
 						currentPage: userData.currentPage + 1,
+						checkpointNoticeId: userData.checkpointNoticeId,
 						noticeType: userData.noticeType,
+						overlapPages: userData.overlapPages,
 						pageBudget: userData.pageBudget,
 						pageSize: userData.pageSize,
 						siteId: input.siteId,
@@ -311,7 +355,11 @@ export async function runNoticeCrawleeCollection(
 		state.itemsSeen = input.selectedNotices.length;
 	}
 
+	const failedRequests: Error[] = [];
 	const crawler = createDefaultNoticeCrawler({
+		failedRequestHandler: async (_context, error) => {
+			failedRequests.push(error);
+		},
 		maxRequestRetries: input.requestMaxRetries,
 		requestHandler,
 	});
@@ -320,11 +368,42 @@ export async function runNoticeCrawleeCollection(
 		crawler,
 		requests: buildInitialRequests(input),
 	});
+	if (failedRequests[0]) {
+		throw failedRequests[0];
+	}
+	const checkpoints = normalizeCheckpoints(input.checkpoints ?? []);
+	const enabledTypes = new Set(
+		noticeTypeConfig.getEnabledNoticeTypes(input.noticeTypes).map((noticeType) => noticeType.type),
+	);
+	const checkpointGaps = checkpoints.filter((checkpoint) => {
+		if (!enabledTypes.has(checkpoint.notice_type)) {
+			return false;
+		}
+		const foundPage = state.checkpointFoundPageByType.get(checkpoint.notice_type);
+		const fetchedPage = state.lastFetchedPageByType.get(checkpoint.notice_type);
+		const totalPages = state.totalPageCountByType.get(checkpoint.notice_type);
+		if (foundPage === undefined || fetchedPage === undefined || totalPages === undefined) {
+			return true;
+		}
+		const requiredLastPage = Math.min(totalPages, foundPage + (input.overlapPages ?? 1));
+		return fetchedPage < requiredLastPage;
+	});
+	const nextByType = new Map(checkpoints.map((checkpoint) => [checkpoint.notice_type, checkpoint]));
+	for (const [noticeType, noticeId] of state.headNoticeIdByType) {
+		nextByType.set(noticeType, {
+			last_released_notice_id: noticeId,
+			notice_type: noticeType,
+		});
+	}
 
 	return {
 		bundleRecords: [...state.bundleMap.values()],
 		observedNoticeTypes: state.observedNoticeTypes,
 		observedOrganizations: state.observedOrganizations,
+		checkpointGaps,
+		nextCheckpoints: [...nextByType.values()]
+			.filter((checkpoint) => enabledTypes.has(checkpoint.notice_type))
+			.sort((left, right) => left.notice_type.localeCompare(right.notice_type)),
 		stats: {
 			detailFetched: state.detailFetched,
 			itemsSeen: state.itemsSeen,
@@ -359,19 +438,30 @@ function buildInitialRequests(
 		return requests;
 	}
 	const enabledNoticeTypes = noticeTypeConfig.getEnabledNoticeTypes(input.noticeTypes);
+	const checkpoints = new Map(
+		normalizeCheckpoints(input.checkpoints ?? []).map((checkpoint) => [
+			checkpoint.notice_type,
+			checkpoint.last_released_notice_id,
+		]),
+	);
 	for (const noticeType of enabledNoticeTypes) {
+		const checkpointNoticeId = checkpoints.get(noticeType.type) ?? null;
 		const pageBudget =
-			input.collectionMode === "backfill"
-				? (input.backfillMaxPagesPerType ?? noticeType.backfillPages)
-				: noticeType.incrementalPages;
+			input.collectionMode === "reconcile"
+				? (input.reconcileMaxPagesPerType ?? noticeType.reconcilePages)
+				: checkpointNoticeId === null
+					? noticeType.incrementalPages
+					: (input.reconcileMaxPagesPerType ?? noticeType.reconcilePages);
 		const pageSize =
-			input.collectionMode === "backfill"
-				? noticeType.backfillPageSize
+			input.collectionMode === "reconcile"
+				? noticeType.reconcilePageSize
 				: noticeType.incrementalPageSize;
 		requests.push(
 			buildNoticeListPageRequest({
+				checkpointNoticeId,
 				currentPage: 1,
 				noticeType: noticeType.type,
+				overlapPages: input.overlapPages ?? 1,
 				pageBudget,
 				pageSize,
 				siteId: input.siteId,
@@ -381,12 +471,36 @@ function buildInitialRequests(
 	return requests;
 }
 
+function normalizeCheckpoints(
+	checkpoints: readonly NoticeCollectionCheckpoint[],
+): NoticeCollectionCheckpoint[] {
+	const byType = new Map<string, NoticeCollectionCheckpoint>();
+	for (const checkpoint of checkpoints) {
+		const noticeType = checkpoint.notice_type.trim();
+		if (!(noticeType && Number.isSafeInteger(checkpoint.last_released_notice_id))) {
+			continue;
+		}
+		if (byType.has(noticeType)) {
+			throw new Error(`duplicate notice checkpoint: ${noticeType}`);
+		}
+		byType.set(noticeType, {
+			last_released_notice_id: checkpoint.last_released_notice_id,
+			notice_type: noticeType,
+		});
+	}
+	return [...byType.values()];
+}
+
 function createDefaultNoticeCrawler(input: {
+	failedRequestHandler: (context: NoticeCrawleeBasicContext, error: Error) => Promise<void>;
 	maxRequestRetries: number;
 	requestHandler: (context: NoticeCrawleeBasicContext) => Promise<void>;
 }) {
 	const crawler = new BasicCrawler<NoticeCrawleeBasicContext>(
 		{
+			failedRequestHandler: input.failedRequestHandler,
+			maxConcurrency: 2,
+			maxRequestsPerMinute: 60,
 			maxRequestRetries: input.maxRequestRetries,
 			requestHandler: input.requestHandler,
 		},

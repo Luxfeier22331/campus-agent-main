@@ -3,7 +3,7 @@ import { sha256Hex } from "ingest-core";
 import { describe, expect, it, vi } from "vitest";
 import { createIngestionProjectionActivities } from "../src/activities";
 import { InMemoryIngestionTaskStore } from "../src/in-memory-store";
-import { testResult, testSnapshot } from "./fixtures";
+import { testResult, testSnapshot, testTaskStartMetadata } from "./fixtures";
 
 describe("ingestion projection activities", () => {
 	it("rejects a result that does not match the frozen snapshot before projection", async () => {
@@ -18,6 +18,7 @@ describe("ingestion projection activities", () => {
 			source: { family: "official_web", channel: "official_web" },
 		};
 		store.recordTaskStarted({
+			...testTaskStartMetadata,
 			snapshot,
 			workflowId: "ingestion/task-curriculum-chunk-001",
 			workflowRunId: "temporal-run-001",
@@ -26,6 +27,7 @@ describe("ingestion projection activities", () => {
 		const activities = createIngestionProjectionActivities({
 			objectStore: {
 				derivedBucket: "campus-agent-derived",
+				sourceBucket: "campus-agent-source",
 				async getObject() {
 					throw new Error("result artifact must not be read before identity validation");
 				},
@@ -69,6 +71,7 @@ describe("ingestion projection activities", () => {
 			output_contract: "ingestion_chunk_set.v1",
 		});
 		store.recordTaskStarted({
+			...testTaskStartMetadata,
 			snapshot,
 			workflowId: "ingestion/task-curriculum-chunk-001",
 			workflowRunId: "temporal-run-001",
@@ -94,6 +97,7 @@ describe("ingestion projection activities", () => {
 		const activities = createIngestionProjectionActivities({
 			objectStore: {
 				derivedBucket: "campus-agent-derived",
+				sourceBucket: "campus-agent-source",
 				async getObject() {
 					return bytes;
 				},
@@ -116,6 +120,7 @@ describe("ingestion projection activities", () => {
 		const store = new InMemoryIngestionTaskStore();
 		const snapshot = testSnapshot();
 		store.recordTaskStarted({
+			...testTaskStartMetadata,
 			snapshot,
 			workflowId: "ingestion/task-curriculum-chunk-001",
 			workflowRunId: "temporal-run-001",
@@ -123,6 +128,7 @@ describe("ingestion projection activities", () => {
 		const activities = createIngestionProjectionActivities({
 			objectStore: {
 				derivedBucket: "campus-agent-derived",
+				sourceBucket: "campus-agent-source",
 				async getObject() {
 					throw Object.assign(new Error("missing result object"), {
 						name: "NoSuchKey",

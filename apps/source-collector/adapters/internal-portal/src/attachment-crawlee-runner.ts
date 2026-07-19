@@ -56,6 +56,7 @@ export interface AttachmentDownloadRunnerInput {
 	abortSignal?: AbortSignal;
 	apiContext: ApiRequestContextLike;
 	externalVisualFetcher?: ExternalVisualFetcher;
+	maxTotalBytes?: number;
 	requestMaxRetries: number;
 	requests: AttachmentDownloadRequestSpec[];
 }
@@ -70,7 +71,7 @@ interface AttachmentDownloadRequestHandlerContext {
 	request: {
 		userData: unknown;
 	};
-	sendRequest?(input: { responseType: "buffer"; url: string }): Promise<{
+	sendRequest?(input: { maxRedirects?: number; responseType: "buffer"; url: string }): Promise<{
 		body: Buffer | Uint8Array | string;
 		headers?: Record<string, string | string[] | undefined>;
 		statusCode?: number;
@@ -79,6 +80,8 @@ interface AttachmentDownloadRequestHandlerContext {
 
 const INTERNAL_REQUEST_BASE_URL = "https://collector.local/authenticated-notice/download";
 const EXTERNAL_VISUAL_MAX_BYTES = 10 * 1024 * 1024;
+const INTERNAL_ATTACHMENT_MAX_BYTES = 50 * 1024 * 1024;
+export const TRUSTED_EXTERNAL_VISUAL_HOSTS = new Set(["mmbiz.qpic.cn"]);
 
 export function buildAttachmentDownloadRequest(
 	input: AttachmentDownloadRequestSpec,
@@ -115,12 +118,13 @@ export async function runAttachmentCrawleeDownloadOutcomes(
 	input: AttachmentDownloadRunnerInput,
 ): Promise<Map<string, AttachmentDownloadOutcome>> {
 	const outcomes = new Map<string, AttachmentDownloadOutcome>();
+	let fulfilledBytes = 0;
 	const requestHandler = async (context: AttachmentDownloadRequestHandlerContext) => {
 		input.abortSignal?.throwIfAborted();
 		const userData = normalizeRequestUserData(context.request.userData);
 		const result =
 			userData.fetchMode === "trusted_external_visual"
-				? await (input.externalVisualFetcher ?? fetchExternalVisualBinary)({
+				? await (input.externalVisualFetcher ?? fetchTrustedExternalVisualBinary)({
 						abortSignal: input.abortSignal,
 						attachmentUrl: userData.attachmentUrl,
 						sendRequest: requireSendRequest(context),
@@ -128,8 +132,15 @@ export async function runAttachmentCrawleeDownloadOutcomes(
 				: await fetchAttachmentBinary({
 						apiContext: input.apiContext,
 						attachmentUrl: userData.attachmentUrl,
+						maxBytes:
+							userData.fetchMode === "portal_internal" ? INTERNAL_ATTACHMENT_MAX_BYTES : undefined,
 					});
 		input.abortSignal?.throwIfAborted();
+		const nextFulfilledBytes = fulfilledBytes + result.body.byteLength;
+		if (input.maxTotalBytes !== undefined && nextFulfilledBytes > input.maxTotalBytes) {
+			throw new Error(`attachment_run_size_limit_exceeded:${nextFulfilledBytes}`);
+		}
+		fulfilledBytes = nextFulfilledBytes;
 		outcomes.set(userData.cacheKey, {
 			status: "fulfilled",
 			result,
@@ -164,6 +175,8 @@ function createDefaultAttachmentDownloadCrawler(input: {
 }) {
 	const crawler = new BasicCrawler<AttachmentDownloadContext>(
 		{
+			maxConcurrency: 2,
+			maxRequestsPerMinute: 30,
 			failedRequestHandler: async (context, error) => {
 				await input.failedRequestHandler(
 					{
@@ -220,16 +233,32 @@ function requireSendRequest(
 	return context.sendRequest;
 }
 
-async function fetchExternalVisualBinary(input: {
+export async function fetchTrustedExternalVisualBinary(input: {
 	abortSignal?: AbortSignal;
 	attachmentUrl: string;
 	sendRequest: NonNullable<AttachmentDownloadRequestHandlerContext["sendRequest"]>;
 }): Promise<FetchAttachmentBinaryResult> {
 	input.abortSignal?.throwIfAborted();
-	const response = await input.sendRequest({
-		responseType: "buffer",
-		url: input.attachmentUrl,
-	});
+	let currentUrl = validateExternalVisualUrl(input.attachmentUrl);
+	let response: Awaited<ReturnType<typeof input.sendRequest>>;
+	for (let redirectCount = 0; ; redirectCount += 1) {
+		response = await input.sendRequest({
+			maxRedirects: 0,
+			responseType: "buffer",
+			url: currentUrl,
+		});
+		if (!isRedirectStatus(response.statusCode)) {
+			break;
+		}
+		if (redirectCount >= 3) {
+			throw new Error("downloadExternalVisual exceeded redirect limit");
+		}
+		const location = normalizeHeaderValue(response.headers?.location);
+		if (!location) {
+			throw new Error("downloadExternalVisual redirect omitted location");
+		}
+		currentUrl = validateExternalVisualUrl(new URL(location, currentUrl).toString());
+	}
 	input.abortSignal?.throwIfAborted();
 	const contentType = normalizeHeaderValue(response.headers?.["content-type"]);
 	const normalizedContentType = normalizeContentType(contentType);
@@ -253,8 +282,26 @@ async function fetchExternalVisualBinary(input: {
 		contentType,
 		contentDisposition: normalizeHeaderValue(response.headers?.["content-disposition"]),
 		etag: normalizeHeaderValue(response.headers?.etag),
+		lastModified: normalizeHeaderValue(response.headers?.["last-modified"]),
 		statusCode: response.statusCode ?? 0,
 	};
+}
+
+function validateExternalVisualUrl(value: string): string {
+	const url = new URL(value);
+	if (
+		url.protocol !== "https:" ||
+		url.username ||
+		url.password ||
+		!TRUSTED_EXTERNAL_VISUAL_HOSTS.has(url.hostname.toLowerCase())
+	) {
+		throw new Error("downloadExternalVisual rejected untrusted URL");
+	}
+	return url.toString();
+}
+
+function isRedirectStatus(statusCode: number | undefined): boolean {
+	return statusCode !== undefined && [301, 302, 303, 307, 308].includes(statusCode);
 }
 
 function normalizeContentType(value: string | null): string | null {

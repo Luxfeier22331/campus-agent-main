@@ -1,6 +1,8 @@
 import {
 	canonicalJsonString,
+	encodeIngestionTaskProjectionCursor,
 	normalizeIngestionTaskProjectionLimit,
+	parseIngestionTaskProjectionCursor,
 	toIngestionTaskOperatorProjection,
 } from "ingest-core";
 import type {
@@ -36,10 +38,13 @@ const REQUIRED_TASK_COLUMNS = [
 	"input_ref_json",
 	"input_contract",
 	"output_contract",
+	"created_by",
 	"created_at",
 	"status",
 	"workflow_id",
 	"workflow_run_id",
+	"pipeline_workflow_id",
+	"retry_of_task_id",
 	"updated_at",
 	"result_ref_json",
 	"result_contract",
@@ -83,6 +88,40 @@ const REQUIRED_OFFICIAL_WEB_SEED_STATE_COLUMNS = [
 	"last_seen_at",
 	"created_at",
 	"updated_at",
+] as const;
+
+const REQUIRED_OFFLINE_RELEASE_STREAM_COLUMNS = [
+	"stream_id",
+	"source_channel",
+	"source_surface",
+	"corpus",
+	"collection",
+	"current_release_id",
+	"checkpoint_json",
+	"version",
+	"created_at",
+	"updated_at",
+	"last_check_at",
+	"last_check_mode",
+	"last_check_outcome",
+	"last_check_error_code",
+	"last_reconcile_at",
+	"last_published_at",
+	"last_added_count",
+	"last_updated_count",
+	"last_withdrawn_count",
+] as const;
+
+const REQUIRED_OFFLINE_RELEASE_COLUMNS = [
+	"release_id",
+	"stream_id",
+	"previous_release_id",
+	"run_id",
+	"workflow_id",
+	"workflow_run_id",
+	"manifest_ref_json",
+	"item_count",
+	"committed_at",
 ] as const;
 
 const REQUIRED_MIGRATION_COLUMNS = ["migration_id", "content_sha256", "applied_at"] as const;
@@ -155,6 +194,32 @@ export async function assertIngestionControlPostgresSchema(client: PgQueryable):
 			`ingestion-control database schema is not migrated; missing official-web seed state columns: ${missingSeedState.join(", ")}`,
 		);
 	}
+	await assertTableColumns(
+		client,
+		"offline_release_streams",
+		REQUIRED_OFFLINE_RELEASE_STREAM_COLUMNS,
+	);
+	await assertTableColumns(client, "offline_releases", REQUIRED_OFFLINE_RELEASE_COLUMNS);
+}
+
+async function assertTableColumns(
+	client: PgQueryable,
+	tableName: string,
+	requiredColumns: readonly string[],
+): Promise<void> {
+	const result = await client.query(
+		`SELECT column_name
+		 FROM information_schema.columns
+		 WHERE table_schema = 'ingestion_control' AND table_name = $1`,
+		[tableName],
+	);
+	const columns = new Set(result.rows.map((row) => requiredString(row.column_name, "column_name")));
+	const missing = requiredColumns.filter((column) => !columns.has(column));
+	if (missing.length > 0) {
+		throw new Error(
+			`ingestion-control database schema is not migrated; missing ${tableName} columns: ${missing.join(", ")}`,
+		);
+	}
 }
 
 export function createPostgresIngestionTaskStore(input: {
@@ -180,12 +245,13 @@ class PostgresIngestionTaskStore implements IngestionTaskStore {
 		const rows = await this.#query(
 			`INSERT INTO ingestion_control.tasks (
 				task_id, run_id, registry_task_id, executor_kind, source_family, source_channel,
-				corpus, collection, input_ref_json, input_contract, output_contract, created_at,
-				status, workflow_id, workflow_run_id, updated_at, result_ref_json, result_contract,
+				corpus, collection, input_ref_json, input_contract, output_contract, created_by, created_at,
+				status, workflow_id, workflow_run_id, pipeline_workflow_id, retry_of_task_id,
+				updated_at, result_ref_json, result_contract,
 				summary_json, error_code, error_message
 			) VALUES (
-				$1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12::timestamptz,
-				'running', $13, $14, $15::timestamptz, NULL, NULL, NULL, NULL, NULL
+				$1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13::timestamptz,
+				'running', $14, $15, $16, $17, $18::timestamptz, NULL, NULL, NULL, NULL, NULL
 			)
 			ON CONFLICT (task_id) DO NOTHING
 			RETURNING *`,
@@ -201,9 +267,12 @@ class PostgresIngestionTaskStore implements IngestionTaskStore {
 				JSON.stringify(task.input_ref),
 				registryTask.input_contract,
 				registryTask.output_contract,
+				input.createdBy,
 				now,
 				input.workflowId,
 				input.workflowRunId,
+				input.pipelineWorkflowId,
+				input.retryOfTaskId,
 				now,
 			],
 		);
@@ -291,16 +360,33 @@ class PostgresIngestionTaskStore implements IngestionTaskStore {
 				where.push(`${column} = $${params.length}`);
 			}
 		}
-		params.push(normalizeIngestionTaskProjectionLimit(filters.limit));
+		const cursor = parseIngestionTaskProjectionCursor(filters.cursor);
+		if (cursor) {
+			params.push(cursor.updatedAt, cursor.taskId);
+			where.push(`(updated_at, task_id) < ($${params.length - 1}::timestamptz, $${params.length})`);
+		}
+		const limit = normalizeIngestionTaskProjectionLimit(filters.limit);
+		params.push(limit + 1);
 		const rows = await this.#query(
 			`SELECT * FROM ingestion_control.tasks
 			 ${where.length > 0 ? `WHERE ${where.join(" AND ")}` : ""}
 			 ORDER BY updated_at DESC, task_id DESC LIMIT $${params.length}`,
 			params,
 		);
+		const hasNext = rows.length > limit;
+		const page = rows.slice(0, limit).map(toTaskRecord);
+		const last = page.at(-1);
 		return {
-			tasks: rows.map((row) => toIngestionTaskOperatorProjection(toTaskRecord(row))),
-			page: { next_cursor: null },
+			tasks: page.map(toIngestionTaskOperatorProjection),
+			page: {
+				next_cursor:
+					hasNext && last
+						? encodeIngestionTaskProjectionCursor({
+								taskId: last.task_id,
+								updatedAt: last.updated_at,
+							})
+						: null,
+			},
 		};
 	}
 
@@ -369,12 +455,14 @@ function toTaskRecord(row: Record<string, unknown>): IngestionTaskRecord {
 		collection: optionalString(row.collection),
 		input_contract: requiredString(row.input_contract, "input_contract"),
 		output_contract: requiredString(row.output_contract, "output_contract"),
-		created_by: "temporal",
+		created_by: requiredString(row.created_by, "created_by"),
 		created_at: requiredTimestamp(row.created_at, "created_at"),
 		status: requiredStatus(row.status),
 		updated_at: requiredTimestamp(row.updated_at, "updated_at"),
 		workflow_id: requiredString(row.workflow_id, "workflow_id"),
 		workflow_run_id: optionalString(row.workflow_run_id),
+		pipeline_workflow_id: optionalString(row.pipeline_workflow_id),
+		retry_of_task_id: optionalString(row.retry_of_task_id),
 		result_ref:
 			row.result_ref_json == null
 				? null
@@ -403,6 +491,9 @@ function assertCompatibleStart(
 		current.registry_task_id !== task.registry_task_id ||
 		current.workflow_id !== input.workflowId ||
 		current.workflow_run_id !== input.workflowRunId ||
+		current.created_by !== input.createdBy ||
+		current.pipeline_workflow_id !== input.pipelineWorkflowId ||
+		current.retry_of_task_id !== input.retryOfTaskId ||
 		current.executor_kind !== registry.executor_kind ||
 		canonicalJsonString(current.input_ref) !== canonicalJsonString(task.input_ref)
 	) {
@@ -425,7 +516,7 @@ function assertResultMatchesTask(
 }
 
 function requiredExecutorKind(value: unknown): IngestionTaskRecord["executor_kind"] {
-	if (value === "rust_kernel" || value === "source_collector") {
+	if (value === "rust_kernel" || value === "source_collector" || value === "typescript_kernel") {
 		return value;
 	}
 	throw new Error(`executor_kind is invalid: ${String(value)}`);

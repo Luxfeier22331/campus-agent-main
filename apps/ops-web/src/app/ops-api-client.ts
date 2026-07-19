@@ -16,7 +16,14 @@ import type {
 	OpsRequestWindow,
 } from "../shared/ops-contract";
 import {
+	OpsFileReleaseBatchStartSchema,
+	OpsIngestionTaskListSchema,
+	OpsIngestionTaskRetryStartSchema,
+	OpsIngestionTaskSchema,
+	OpsIngestionWorkflowStartSchema,
 	OpsInternalPortalAuthStatusSchema,
+	OpsInternalPortalIngestionStatusSchema,
+	OpsInternalPortalPublicationStatusSchema,
 	OpsObservabilityResponseSchema,
 	OpsOverviewResponseSchema,
 	OpsRequestDetailResponseSchema,
@@ -149,9 +156,105 @@ export async function replaceInternalPortalCredential(credential: string) {
 	);
 }
 
-export async function resumeInternalPortalAuthMaintenance() {
+export async function validateInternalPortalAuthentication() {
 	return OpsInternalPortalAuthStatusSchema.parse(
-		await fetchJson("/api/ops/internal-portal-auth/maintenance/resume", { method: "POST" }),
+		await fetchJson("/api/ops/internal-portal-auth/maintenance/validate", { method: "POST" }),
+	);
+}
+
+export interface IngestionTaskListParams {
+	collection?: string;
+	corpus?: string;
+	cursor?: string;
+	limit?: number;
+	registryTaskId?: string;
+	runId?: string;
+	sourceChannel?: string;
+	sourceFamily?: string;
+	status?: "running" | "completed" | "failed" | "canceled";
+}
+
+export async function fetchIngestionStatus(input: { signal?: AbortSignal } = {}) {
+	return OpsInternalPortalIngestionStatusSchema.parse(
+		await fetchJson("/api/ops/ingestion/status", { signal: input.signal }),
+	);
+}
+
+export async function fetchIngestionTasks(
+	params: IngestionTaskListParams = {},
+	input: { signal?: AbortSignal } = {},
+) {
+	const query = new URLSearchParams();
+	for (const [key, value] of Object.entries({
+		collection: params.collection,
+		corpus: params.corpus,
+		cursor: params.cursor,
+		limit: params.limit,
+		registry_task_id: params.registryTaskId,
+		run_id: params.runId,
+		source_channel: params.sourceChannel,
+		source_family: params.sourceFamily,
+		status: params.status,
+	})) {
+		if (value !== undefined && value !== "") {
+			query.set(key, String(value));
+		}
+	}
+	return OpsIngestionTaskListSchema.parse(
+		await fetchJson(`/api/ops/ingestion/tasks${query.size > 0 ? `?${query.toString()}` : ""}`, {
+			signal: input.signal,
+		}),
+	);
+}
+
+export async function fetchIngestionTask(taskId: string, input: { signal?: AbortSignal } = {}) {
+	return OpsIngestionTaskSchema.parse(
+		await fetchJson(`/api/ops/ingestion/tasks/${encodeURIComponent(taskId)}`, {
+			signal: input.signal,
+		}),
+	);
+}
+
+export async function retryIngestionTask(taskId: string) {
+	return OpsIngestionTaskRetryStartSchema.parse(
+		await fetchJson(`/api/ops/ingestion/tasks/${encodeURIComponent(taskId)}/retry`, {
+			method: "POST",
+		}),
+	);
+}
+
+export async function pauseNoticePublication() {
+	return OpsInternalPortalPublicationStatusSchema.parse(
+		await fetchJson("/api/ops/ingestion/notice/pause", { method: "POST" }),
+	);
+}
+
+export async function resumeNoticePublication() {
+	return OpsInternalPortalPublicationStatusSchema.parse(
+		await fetchJson("/api/ops/ingestion/notice/resume", { method: "POST" }),
+	);
+}
+
+export async function startNoticeReconcile(input: { requestId: string }) {
+	return OpsIngestionWorkflowStartSchema.parse(
+		await fetchJson("/api/ops/ingestion/notice/reconcile", {
+			body: JSON.stringify(input),
+			headers: { "content-type": "application/json" },
+			method: "POST",
+		}),
+	);
+}
+
+export async function startFileReleaseBatch(input: {
+	fileReleaseIds: number[];
+	requestId: string;
+}) {
+	return OpsFileReleaseBatchStartSchema.parse(
+		await fetchJson("/api/ops/ingestion/file-releases", {
+			body: JSON.stringify(input),
+			headers: { "content-type": "application/json" },
+			method: "POST",
+		}),
 	);
 }
 

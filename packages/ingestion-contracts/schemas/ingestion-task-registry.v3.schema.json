@@ -44,7 +44,7 @@
 			"required": ["registry_task_id", "executor_kind", "input_contract", "output_contract"],
 			"properties": {
 				"registry_task_id": { "$ref": "#/$defs/identity" },
-				"executor_kind": { "enum": ["source_collector", "rust_kernel"] },
+				"executor_kind": { "enum": ["source_collector", "typescript_kernel", "rust_kernel"] },
 				"kernel_id": { "$ref": "#/$defs/identity" },
 				"input_contract": { "$ref": "#/$defs/identity" },
 				"output_contract": { "$ref": "#/$defs/identity" },
@@ -55,6 +55,10 @@
 				{
 					"if": { "properties": { "executor_kind": { "const": "source_collector" } } },
 					"then": { "required": ["source"], "not": { "required": ["kernel_id"] } }
+				},
+				{
+					"if": { "properties": { "executor_kind": { "const": "typescript_kernel" } } },
+					"then": { "required": ["kernel_id", "target"] }
 				},
 				{
 					"if": { "properties": { "executor_kind": { "const": "rust_kernel" } } },

@@ -60,7 +60,12 @@ export const IMAGE_DEFINITIONS = Object.freeze({
 	"ingestion-control": {
 		checkTarget: "check",
 		dockerfile: "apps/ingestion-control/Dockerfile",
-		packages: ["ingest-core", "ingestion-contracts", "ingestion-control"],
+		packages: [
+			"@campus-agent/telemetry-node",
+			"ingest-core",
+			"ingestion-contracts",
+			"ingestion-control",
+		],
 		inputs: [
 			"apps/ingestion-control/migrations/**",
 			"apps/ingestion-control/package.json",
@@ -71,13 +76,20 @@ export const IMAGE_DEFINITIONS = Object.freeze({
 			"packages/ingestion-contracts/package.json",
 			"packages/ingestion-contracts/schemas/**",
 			"packages/ingestion-contracts/src/**",
+			"packages/telemetry-node/package.json",
+			"packages/telemetry-node/src/**",
 		],
 		target: "api",
 	},
 	"ingestion-control-worker": {
 		checkTarget: "check",
 		dockerfile: "apps/ingestion-control/Dockerfile",
-		packages: ["ingest-core", "ingestion-contracts", "ingestion-control"],
+		packages: [
+			"@campus-agent/telemetry-node",
+			"ingest-core",
+			"ingestion-contracts",
+			"ingestion-control",
+		],
 		inputs: [
 			"apps/ingestion-control/migrations/**",
 			"apps/ingestion-control/package.json",
@@ -92,6 +104,8 @@ export const IMAGE_DEFINITIONS = Object.freeze({
 			"packages/ingestion-contracts/src/**",
 			"packages/ingestion-kernels-rs/Cargo.toml",
 			"packages/ingestion-kernels-rs/src/**",
+			"packages/telemetry-node/package.json",
+			"packages/telemetry-node/src/**",
 		],
 		target: "worker",
 	},
@@ -114,7 +128,12 @@ export const IMAGE_DEFINITIONS = Object.freeze({
 	"source-collector": {
 		checkTarget: "check",
 		dockerfile: "apps/source-collector/Dockerfile",
-		packages: ["ingest-core", "ingestion-contracts", "source-collector"],
+		packages: [
+			"@campus-agent/telemetry-node",
+			"ingest-core",
+			"ingestion-contracts",
+			"source-collector",
+		],
 		inputs: [
 			"apps/source-collector/package.json",
 			"apps/source-collector/src/**",
@@ -125,6 +144,8 @@ export const IMAGE_DEFINITIONS = Object.freeze({
 			"packages/ingestion-contracts/package.json",
 			"packages/ingestion-contracts/schemas/**",
 			"packages/ingestion-contracts/src/**",
+			"packages/telemetry-node/package.json",
+			"packages/telemetry-node/src/**",
 		],
 		target: "runtime",
 	},

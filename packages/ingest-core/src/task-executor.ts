@@ -13,6 +13,12 @@ export interface DefaultExecutableRustKernel {
 	outputContract: string;
 }
 
+export interface DefaultExecutableTypeScriptKernel {
+	inputContract: string;
+	kernelId: string;
+	outputContract: string;
+}
+
 export type IngestionTaskExecutabilityStatus = "executable" | "invalid_registry";
 
 export interface IngestionTaskExecutabilityClassification {
@@ -38,6 +44,13 @@ export const DEFAULT_EXECUTABLE_RUST_KERNEL_IDS = DEFAULT_EXECUTABLE_RUST_KERNEL
 	(kernel) => kernel.kernelId,
 );
 
+export const DEFAULT_EXECUTABLE_TYPESCRIPT_KERNELS =
+	defaultExecutorInventory.typescript_kernels as readonly DefaultExecutableTypeScriptKernel[];
+
+export const DEFAULT_EXECUTABLE_TYPESCRIPT_KERNEL_IDS = DEFAULT_EXECUTABLE_TYPESCRIPT_KERNELS.map(
+	(kernel) => kernel.kernelId,
+);
+
 export type DefaultExecutableRustKernelId = string;
 
 export function isDefaultSourceCollectorExecutable(registryTaskId: string): boolean {
@@ -48,6 +61,10 @@ export function isDefaultRustKernelExecutable(
 	kernelId: string,
 ): kernelId is DefaultExecutableRustKernelId {
 	return Boolean(defaultRustKernelForId(kernelId));
+}
+
+export function isDefaultTypeScriptKernelExecutable(kernelId: string): boolean {
+	return Boolean(defaultTypeScriptKernelForId(kernelId));
 }
 
 export function classifyIngestionRegistryTaskExecutability(input: {
@@ -69,9 +86,13 @@ export function classifyIngestionRegistryTaskExecutability(input: {
 		};
 	}
 	const kernelId = input.task.kernel_id;
-	const declared = kernelId ? defaultRustKernelForId(kernelId) : undefined;
+	const declared = kernelId
+		? input.task.executor_kind === "typescript_kernel"
+			? defaultTypeScriptKernelForId(kernelId)
+			: defaultRustKernelForId(kernelId)
+		: undefined;
 	return {
-		identity: kernelId ? `rust_kernel:${kernelId}` : input.task.registry_task_id,
+		identity: kernelId ? `${input.task.executor_kind}:${kernelId}` : input.task.registry_task_id,
 		executorKind: input.task.executor_kind,
 		status:
 			declared &&
@@ -103,7 +124,12 @@ function registryExecutabilityIssueMessage(task: IngestionTaskRegistryTask): str
 			: "registry-declared source collector task has no handler";
 	}
 	if (!task.kernel_id) {
-		return "registry-declared rust kernel task is missing kernel_id";
+		return `registry-declared ${task.executor_kind} task is missing kernel_id`;
+	}
+	if (task.executor_kind === "typescript_kernel") {
+		return defaultTypeScriptKernelForId(task.kernel_id)
+			? "registry-declared TypeScript kernel contract does not match its handler"
+			: "registry-declared TypeScript kernel task has no handler";
 	}
 	return defaultRustKernelForId(task.kernel_id)
 		? "registry-declared rust kernel contract does not match its bridge"
@@ -120,4 +146,10 @@ function defaultSourceCollectorForId(
 
 function defaultRustKernelForId(kernelId: string): DefaultExecutableRustKernel | undefined {
 	return DEFAULT_EXECUTABLE_RUST_KERNELS.find((candidate) => candidate.kernelId === kernelId);
+}
+
+function defaultTypeScriptKernelForId(
+	kernelId: string,
+): DefaultExecutableTypeScriptKernel | undefined {
+	return DEFAULT_EXECUTABLE_TYPESCRIPT_KERNELS.find((candidate) => candidate.kernelId === kernelId);
 }

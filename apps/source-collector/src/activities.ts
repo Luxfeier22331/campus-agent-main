@@ -1,13 +1,8 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { ApplicationFailure, Context } from "@temporalio/activity";
 import {
 	assertArtifactRefBytes,
 	buildObjectStoreArtifactRef,
 	encodeObjectKeySegment,
-	materializeAuthenticatedFileReleaseSourceTruthFromTask,
-	materializeAuthenticatedNoticeSourceTruthFromTask,
-	parseAuthenticatedNoticeNoticeFamilyConfig,
 	parseJsonObjectBytes,
 	parseS3Uri,
 	resolveWeChatOfficialAccountSourceTruthRefsFromTask,
@@ -18,8 +13,17 @@ import type {
 	IngestionTaskExecutionSnapshot,
 	IngestionTaskResult,
 	IngestionTaskSummaryValue,
+	InternalPortalArtifactRole,
+	InternalPortalCaptureRequest,
+	InternalPortalNoticeCaptureCheckpoint,
+} from "ingestion-contracts";
+import {
+	validateInternalPortalCaptureRequest,
+	validateInternalPortalNoticeCheckpoint,
+	validateInternalPortalStageResult,
 } from "ingestion-contracts";
 import { z } from "zod";
+import { isPortalSourceDeferredError } from "../adapters/internal-portal/src/api.ts";
 import { createAuthenticatedNoticeArtifactStoreFromEnv } from "../adapters/internal-portal/src/artifact-store.ts";
 import { isPortalCredentialFailure } from "../adapters/internal-portal/src/auth-errors.ts";
 import { resolveInternalPortalConfig } from "../adapters/internal-portal/src/config.ts";
@@ -29,6 +33,7 @@ import {
 } from "../adapters/internal-portal/src/file-release-export.ts";
 import {
 	collectNoticeExportBundle,
+	NoticeCheckpointGapError,
 	uploadNoticeExportArtifacts,
 } from "../adapters/internal-portal/src/notice-export.ts";
 import { loadNoticeTypes } from "../adapters/internal-portal/src/notice-types.ts";
@@ -108,36 +113,6 @@ const OfficialWebCrawlPreparationSchema = z
 	})
 	.strict();
 
-const NoticeRequestSchema = z
-	.object({
-		schema_version: z.literal("internal_portal_notice_capture_request.v1"),
-		collection_mode: z.enum(["incremental", "backfill", "selected"]).default("incremental"),
-		max_notices: z.number().int().positive().optional(),
-		selected_notices: z
-			.array(
-				z
-					.object({
-						notice_id: z.number().int().positive(),
-						notice_type: z.string().trim().min(1),
-						notice_type_name: z.string().trim().min(1).optional(),
-						notice_title: z.string().trim().min(1).optional(),
-					})
-					.strict(),
-			)
-			.optional(),
-	})
-	.strict();
-
-const FileReleaseRequestSchema = z
-	.object({
-		schema_version: z.literal("internal_portal_file_release_capture_request.v1"),
-		max_file_releases: z.number().int().positive().optional(),
-		max_pages: z.number().int().positive().optional(),
-		page_size: z.number().int().positive().max(200).default(20),
-		target_file_release_id: z.number().int().positive().optional(),
-	})
-	.strict();
-
 const WeChatRequestSchema = z
 	.object({
 		schema_version: z.literal("wechat_official_account_capture_request.v1"),
@@ -163,6 +138,13 @@ export function createSourceCollectorActivities(input: SourceCollectorActivityDe
 			} catch (error) {
 				if (isPortalCredentialFailure(error)) {
 					throw ApplicationFailure.nonRetryable(error.message, error.code);
+				}
+				if (isPortalSourceDeferredError(error)) {
+					throw ApplicationFailure.create({
+						message: error.message,
+						nonRetryable: false,
+						type: error.code,
+					});
 				}
 				throw error;
 			}
@@ -213,6 +195,18 @@ export function createSourceCollectorActivities(input: SourceCollectorActivityDe
 			} catch (error) {
 				if (isPortalCredentialFailure(error)) {
 					throw ApplicationFailure.nonRetryable(error.message, error.code);
+				}
+				if (isPortalSourceDeferredError(error)) {
+					throw ApplicationFailure.create({
+						message: error.message,
+						nonRetryable: false,
+						type: error.code,
+					});
+				}
+				if (error instanceof NoticeCheckpointGapError) {
+					throw ApplicationFailure.nonRetryable(error.message, "checkpoint_gap", {
+						gaps: error.gaps,
+					});
 				}
 				throw error;
 			} finally {
@@ -266,7 +260,7 @@ async function runCollector(input: {
 	request: Record<string, unknown>;
 	snapshot: IngestionTaskExecutionSnapshot;
 }): Promise<{
-	artifacts: IngestionArtifactRef[];
+	artifacts: Array<IngestionArtifactRef & { role?: InternalPortalArtifactRole }>;
 	summary: Record<string, IngestionTaskSummaryValue>;
 }> {
 	switch (input.snapshot.task.registry_task_id) {
@@ -356,7 +350,10 @@ function toOfficialWebCrawlCandidate(
 }
 
 async function runInternalNoticeCollector(input: Parameters<typeof runCollector>[0]) {
-	const request = NoticeRequestSchema.parse(input.request);
+	const request = parseInternalPortalCaptureRequest(
+		input.request,
+		"internal_portal_notice_capture_request.v2",
+	);
 	const config = resolveInternalPortalConfig(input.env);
 	const artifactStore = createAuthenticatedNoticeArtifactStoreFromEnv(input.env);
 	if (!artifactStore) {
@@ -367,12 +364,13 @@ async function runInternalNoticeCollector(input: Parameters<typeof runCollector>
 		const collected = await collectNoticeExportBundle({
 			abortSignal: input.abortSignal,
 			attachmentArtifactStore: artifactStore,
-			backfillMaxPagesPerType: config.historicalBackfillMaxPagesPerType,
+			reconcileMaxPagesPerType: config.reconcileMaxPagesPerType,
 			collectionMode: request.collection_mode,
+			checkpoints: request.checkpoints,
 			createApiContext: () => createPortalApiContext(config),
-			defaultInlineVisualCapture: config.defaultInlineVisualCapture,
 			exportedAt,
 			maxNotices: request.max_notices,
+			overlapPages: request.overlap_pages,
 			noticeTypes: loadNoticeTypes(config.noticeTypesPath),
 			requestMaxRetries: config.requestMaxRetries,
 			selectedNotices: request.selected_notices?.map((notice) => ({
@@ -395,24 +393,29 @@ async function runInternalNoticeCollector(input: Parameters<typeof runCollector>
 			runId: input.snapshot.task.run_id,
 			siteId: config.siteId,
 		});
-		input.abortSignal.throwIfAborted();
-		const materializeTask = {
-			...input.snapshot.task,
-			input_ref: buildObjectStoreArtifactRef({
-				bucket: uploaded.sourceBucket,
-				byteSize: uploaded.captureReleaseByteSize,
-				key: uploaded.captureReleaseObjectKey,
-				contentSha256: uploaded.captureReleaseContentSha256,
-			}),
-		};
-		const artifacts = await materializeAuthenticatedNoticeSourceTruthFromTask({
-			noticeFamilyConfig: loadNoticeFamilyConfig(input.env),
-			objectStore: bindObjectStoreCancellation(input.objectStore, input.abortSignal),
-			task: materializeTask,
+		const checkpointRef = await writeNoticeCheckpointArtifact({
+			abortSignal: input.abortSignal,
+			activityAttempt: input.activityAttempt,
+			capturedAt: exportedAt,
+			checkpoint: collected.checkpoint,
+			objectStore: input.objectStore,
+			runId: input.snapshot.task.run_id,
+			siteId: config.siteId,
 		});
 		input.abortSignal.throwIfAborted();
 		return {
-			artifacts,
+			artifacts: [
+				{
+					...buildObjectStoreArtifactRef({
+						bucket: uploaded.sourceBucket,
+						byteSize: uploaded.captureReleaseByteSize,
+						key: uploaded.captureReleaseObjectKey,
+						contentSha256: uploaded.captureReleaseContentSha256,
+					}),
+					role: "capture_release" as const,
+				},
+				{ ...checkpointRef, role: "capture_checkpoint" as const },
+			],
 			summary: {
 				attachment_count: collected.stats.attachmentObjectsUploaded,
 				notice_count: collected.stats.noticesCollected,
@@ -424,8 +427,59 @@ async function runInternalNoticeCollector(input: Parameters<typeof runCollector>
 	}
 }
 
+async function writeNoticeCheckpointArtifact(input: {
+	abortSignal: AbortSignal;
+	activityAttempt: number;
+	capturedAt: string;
+	checkpoint: {
+		previous: InternalPortalNoticeCaptureCheckpoint["previous"];
+		next: InternalPortalNoticeCaptureCheckpoint["next"];
+	};
+	objectStore: SourceCollectorObjectStore;
+	runId: string;
+	siteId: string;
+}): Promise<IngestionArtifactRef> {
+	const checkpoint: InternalPortalNoticeCaptureCheckpoint = {
+		captured_at: input.capturedAt,
+		next: input.checkpoint.next,
+		previous: input.checkpoint.previous,
+		schema_version: "internal_portal_notice_checkpoint.v1",
+	};
+	const validation = validateInternalPortalNoticeCheckpoint(checkpoint);
+	if (!validation.ok) {
+		throw new Error(`notice checkpoint violates contract: ${validation.errors.join("; ")}`);
+	}
+	const body = new TextEncoder().encode(`${JSON.stringify(checkpoint, null, 2)}\n`);
+	const key = [
+		"attempts",
+		"internal_portal",
+		encodeObjectKeySegment(input.siteId),
+		"runs",
+		encodeObjectKeySegment(input.runId),
+		String(input.activityAttempt),
+		"notice",
+		"checkpoint.json",
+	].join("/");
+	const write = await input.objectStore.createOrVerifyObject({
+		abortSignal: input.abortSignal,
+		body,
+		bucket: input.objectStore.sourceBucket,
+		contentType: "application/json",
+		key,
+	});
+	return buildObjectStoreArtifactRef({
+		bucket: input.objectStore.sourceBucket,
+		byteSize: write.byteSize,
+		contentSha256: write.contentSha256,
+		key,
+	});
+}
+
 async function runFileReleaseCollector(input: Parameters<typeof runCollector>[0]) {
-	const request = FileReleaseRequestSchema.parse(input.request);
+	const request = parseInternalPortalCaptureRequest(
+		input.request,
+		"internal_portal_file_release_capture_request.v2",
+	);
 	const config = resolveInternalPortalConfig(input.env);
 	const artifactStore = createAuthenticatedNoticeArtifactStoreFromEnv(input.env);
 	if (!artifactStore) {
@@ -438,13 +492,13 @@ async function runFileReleaseCollector(input: Parameters<typeof runCollector>[0]
 			attachmentArtifactStore: artifactStore,
 			createApiContext: () => createPortalApiContext(config),
 			exportedAt,
-			maxFileReleases: request.max_file_releases,
-			maxPages: request.max_pages,
-			pageSize: request.page_size,
+			maxFileReleases: 1,
+			maxPages: null,
+			pageSize: 20,
 			requestMaxRetries: config.requestMaxRetries,
 			siteId: config.siteId,
 			sourceHomeUrl: config.sourceHomeUrl,
-			targetFileReleaseId: request.target_file_release_id,
+			targetFileReleaseId: request.file_release_id,
 		});
 		input.abortSignal.throwIfAborted();
 		const uploaded = await uploadFileReleaseArtifacts({
@@ -458,21 +512,27 @@ async function runFileReleaseCollector(input: Parameters<typeof runCollector>[0]
 			siteId: config.siteId,
 		});
 		input.abortSignal.throwIfAborted();
-		const artifacts = await materializeAuthenticatedFileReleaseSourceTruthFromTask({
-			objectStore: bindObjectStoreCancellation(input.objectStore, input.abortSignal),
-			task: {
-				...input.snapshot.task,
-				input_ref: buildObjectStoreArtifactRef({
-					bucket: uploaded.sourceBucket,
-					byteSize: uploaded.manifestByteSize,
-					key: uploaded.manifestObjectKey,
-					contentSha256: uploaded.manifestContentSha256,
-				}),
-			},
-		});
-		input.abortSignal.throwIfAborted();
 		return {
-			artifacts,
+			artifacts: [
+				{
+					...buildObjectStoreArtifactRef({
+						bucket: uploaded.sourceBucket,
+						byteSize: uploaded.bundleByteSize,
+						key: uploaded.bundleObjectKey,
+						contentSha256: uploaded.bundleContentSha256,
+					}),
+					role: "source_bundle" as const,
+				},
+				{
+					...buildObjectStoreArtifactRef({
+						bucket: uploaded.sourceBucket,
+						byteSize: uploaded.manifestByteSize,
+						key: uploaded.manifestObjectKey,
+						contentSha256: uploaded.manifestContentSha256,
+					}),
+					role: "export_manifest" as const,
+				},
+			],
 			summary: {
 				file_count: collected.stats.fileReleasesCollected,
 				page_count: collected.stats.pagesFetched,
@@ -569,6 +629,14 @@ async function writeResultManifest(input: {
 		artifacts: input.artifacts,
 		summary: input.summary,
 	};
+	if (input.snapshot.registry_task.output_contract.startsWith("internal_portal_")) {
+		const validation = validateInternalPortalStageResult(manifest);
+		if (!validation.ok) {
+			throw new Error(
+				`source collector stage result violates contract: ${validation.errors.join("; ")}`,
+			);
+		}
+	}
 	const bytes = new TextEncoder().encode(`${JSON.stringify(manifest, null, 2)}\n`);
 	input.abortSignal.throwIfAborted();
 	const key = [
@@ -604,23 +672,31 @@ async function writeResultManifest(input: {
 	};
 }
 
-function loadNoticeFamilyConfig(env: Record<string, string | undefined>) {
-	const registryRoot = requiredEnv(env, "INGESTION_TASK_REGISTRY_ROOT");
-	const path = join(
-		registryRoot,
-		"campus_notices",
-		"internal_notice",
-		"notice-family-classification.v1.json",
-	);
-	return parseAuthenticatedNoticeNoticeFamilyConfig(JSON.parse(readFileSync(path, "utf8")));
-}
-
 function requiredEnv(env: Record<string, string | undefined>, key: string): string {
 	const value = env[key]?.trim();
 	if (!value) {
 		throw new Error(`${key} is required`);
 	}
 	return value;
+}
+
+function parseInternalPortalCaptureRequest<
+	SchemaVersion extends InternalPortalCaptureRequest["schema_version"],
+>(
+	value: Record<string, unknown>,
+	schemaVersion: SchemaVersion,
+): Extract<InternalPortalCaptureRequest, { schema_version: SchemaVersion }> {
+	const validation = validateInternalPortalCaptureRequest(value);
+	if (!validation.ok) {
+		throw new Error(`internal portal capture request is invalid: ${validation.errors.join("; ")}`);
+	}
+	if (value.schema_version !== schemaVersion) {
+		throw new Error(`internal portal capture request must use ${schemaVersion}`);
+	}
+	return value as unknown as Extract<
+		InternalPortalCaptureRequest,
+		{ schema_version: SchemaVersion }
+	>;
 }
 
 function bindObjectStoreCancellation(

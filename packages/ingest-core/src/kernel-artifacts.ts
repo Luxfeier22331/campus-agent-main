@@ -41,21 +41,9 @@ const IngestionChunkSetSchema = z
 		path: ["error_count"],
 	});
 
-const ReleaseManifestValidationReportSchema = z
-	.object({
-		error_count: z.number().int().nonnegative(),
-		errors: z.array(z.string()),
-		schema_version: z.literal("ingestion_release_manifest_validation_report.v1"),
-	})
-	.refine((value) => value.error_count === value.errors.length, {
-		message: "error_count must match errors length",
-		path: ["error_count"],
-	});
-
 const KernelOutputSchemas = {
 	"document_units_validation_report.v1": DocumentUnitsValidationReportSchema,
 	"ingestion_chunk_set.v1": IngestionChunkSetSchema,
-	"ingestion_release_manifest_validation_report.v1": ReleaseManifestValidationReportSchema,
 } as const;
 
 export function buildIngestionKernelArtifactKey(input: {

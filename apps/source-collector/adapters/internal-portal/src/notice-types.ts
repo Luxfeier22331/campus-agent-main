@@ -36,9 +36,9 @@ export function buildNoticeTypePolicySnapshot(
 			pages: item.incrementalPages,
 			page_size: item.incrementalPageSize,
 		},
-		backfill: {
-			pages: item.backfillPages,
-			page_size: item.backfillPageSize,
+		reconcile: {
+			pages: item.reconcilePages,
+			page_size: item.reconcilePageSize,
 		},
 	}));
 }
@@ -60,8 +60,8 @@ function validateNoticeTypes(noticeTypes: NoticeTypeConfig[]): NoticeTypeConfig[
 		for (const [fieldName, value] of [
 			["incrementalPages", item.incrementalPages],
 			["incrementalPageSize", item.incrementalPageSize],
-			["backfillPages", item.backfillPages],
-			["backfillPageSize", item.backfillPageSize],
+			["reconcilePages", item.reconcilePages],
+			["reconcilePageSize", item.reconcilePageSize],
 		] as const) {
 			if (!Number.isFinite(value) || value <= 0) {
 				throw new Error(`${fieldName} must be positive for ${type}`);

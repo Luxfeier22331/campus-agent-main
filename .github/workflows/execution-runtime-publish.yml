@@ -32,7 +32,7 @@ concurrency:
 jobs:
   release-plan:
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 10
+    timeout-minutes: 15
     outputs:
       images: ${{ steps.plan.outputs.images }}
       kubernetes: ${{ steps.plan.outputs.kubernetes }}
@@ -50,7 +50,22 @@ jobs:
       - name: Setup planning tools
         uses: ./.github/actions/setup-node-pnpm
         with:
-          workspace-filters: campus-agent-web-workspace
+          workspace-filters: |
+            campus-agent-web-workspace
+            campus-contracts...
+
+      - name: Restrict manual staging work to main
+        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+        run: |
+          echo "Staging validation and publication are allowed only from main." >&2
+          exit 1
+
+      - name: Revalidate lightweight source policy
+        if: github.event_name == 'push'
+        env:
+          BASE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: pnpm ci:pr "$BASE_SHA" "$HEAD_SHA"
 
       - name: Build release plan
         id: plan
@@ -81,6 +96,7 @@ jobs:
             fi
           else
             scripts/ci/write-change-plan.sh "$BASE_SHA" "$HEAD_SHA" change-plan.json
+            jq -e '.unresolved | length == 0' change-plan.json >/dev/null
             release="$(jq -c .release change-plan.json)"
           fi
           worker_filters="$(jq -c '[.workers[] | if . == "app-api" then "app-api..." else "campus-web..." end]' <<< "$release")"

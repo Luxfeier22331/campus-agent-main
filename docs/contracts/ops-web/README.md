@@ -12,6 +12,7 @@ status: active
 
 - [runtime.md](./runtime.md)：运行概况、请求排查和观测记录；
 - [providers.md](./providers.md)：在线 Provider Config；
+- [ingestion.md](./ingestion.md)：采集任务与内部门户离线发布；
 - [portal.md](./portal.md)：固定门户认证；
 - [dining.md](./dining.md)：Dining 内容运营。
 
@@ -40,7 +41,17 @@ Provider Config：
 
 - `GET /api/ops/internal-portal-auth`
 - `PUT /api/ops/internal-portal-auth`
-- `POST /api/ops/internal-portal-auth/maintenance/resume`
+- `POST /api/ops/internal-portal-auth/maintenance/validate`
+
+采集运行：
+
+- `GET /api/ops/ingestion/status`
+- `GET /api/ops/ingestion/tasks`
+- `GET /api/ops/ingestion/tasks/:taskId`
+- `POST /api/ops/ingestion/tasks/:taskId/retry`
+- `POST /api/ops/ingestion/notice/{pause|resume}`
+- `POST /api/ops/ingestion/notice/reconcile`
+- `POST /api/ops/ingestion/file-releases`
 
 Dining：
 
@@ -114,7 +125,8 @@ Dining：
 | 503 | `OPS_SENTRY_UNAVAILABLE` | Sentry Issue 查询未配置、失败或响应无效 |
 | 503 | `OPS_PROVIDER_CONFIG_UNAVAILABLE` | execution-control admin 未配置或不可用 |
 | 503 | `OPS_INTERNAL_PORTAL_AUTH_NOT_INITIALIZED`、`OPS_INTERNAL_PORTAL_AUTH_UNAVAILABLE` | 固定 Secret 未初始化或 Kubernetes API 不可用 |
-| 503 | `OPS_INTERNAL_PORTAL_AUTH_MAINTENANCE_UNAVAILABLE` | 固定认证维护任务查询或恢复不可用 |
+| 503 | `OPS_INTERNAL_PORTAL_AUTH_MAINTENANCE_UNAVAILABLE` | 固定认证维护任务查询或验证不可用 |
+| 503 | `OPS_INGESTION_UNAVAILABLE` | ingestion-control 未配置或不可用 |
 | 503 | `OPS_DINING_STORE_UNAVAILABLE` | Dining PostgreSQL 不可用 |
 | 503 | `OPS_WEB_NOT_READY` | Ops Web 核心依赖未就绪 |
 | 500 | `OPS_API_INTERNAL_ERROR` | 未分类服务端错误 |

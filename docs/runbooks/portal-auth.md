@@ -12,7 +12,8 @@ source-collector 只接收原始 `SSO_TGC`，并通过 `INTERNAL_PORTAL_SSO_TGC_
 
 Playwright 使用 TGC 完成浏览器 SSO 并取得 Service Ticket，在
 `INTERNAL_PORTAL_RUNTIME_DIR` 中派生 `JSESSIONID`、`nginx` 和 storage state。派生状态只属于
-worker 本地；应用会话过期时，单次来源请求只刷新一次并重试一次。
+worker 本地，不是共享认证状态或下游合同；应用会话过期时，单次来源请求只刷新一次并重试
+一次。通知和文件发布采集即使没有保活结果或本地缓存，也必须能从挂载 TGC 建立自己的会话。
 
 Kubernetes 将固定 Secret `source-collector-internal-portal-auth` 的 `sso_tgc` key 以完整卷
 投影给 source-collector。Ops Web 只能读取该 Secret 的配置状态和 patch 该 key，不能创建、
@@ -51,22 +52,35 @@ INTERNAL_PORTAL_SSO_TGC_FILE=/tmp/internal-portal-sso-tgc \
 Cookie 字符串。服务令牌、跨站请求、多个 TGC、控制字符和超过 8 KiB 的正文都会被拒绝。
 
 更新只替换固定 Secret 的 `sso_tgc`，并记录更新时间和更新人，不读取旧值或保留历史。
-Secret 更新成功后，Ops Web 尝试恢复固定 Schedule，但不立即触发工作流；恢复失败不撤销
-凭据更新，人员可以在同一页面显式重试恢复。
+Secret 更新成功后，Ops Web 恢复固定认证 Schedule 并立即提交一次验证；提交失败不撤销凭据
+更新，人员可以在同一页面显式重试验证。页面在新凭据产生成功结果前显示待验证，不能把已
+写入 Secret 等同于凭据有效。
 
 Secret 使用完整卷而非 `subPath`，因此 kubelet 最终会把新值投影到运行中的 Pod，不要求
-重启 worker。投影完成后的下一次维护或采集 activity 读取新文件；已经因凭据失效结束的采集
-任务不会自动重跑，需要使用新 task ID 提交。
+重启 worker。投影完成后的验证或采集 activity 读取新文件；若即时验证早于 Secret 投影，可在
+同一页面再次提交验证。已经因凭据失效结束的采集任务不会自动重跑，需要使用新 task ID 提交。
 
-## 定期维护
+## 定期保活与验证
 
-Temporal 每 30 分钟运行一次固定维护 workflow。每次运行只从挂载 TGC 开始，丢弃旧派生
-会话，重新取得 Service Ticket、建立门户会话并探测一条通知。瞬时网络或供应商错误记录为
-`TRANSIENT_FAILURE`，保留后续周期；确认凭据缺失或失效时以不可重试错误结束并暂停
-Schedule，等待人员替换凭据。
+Temporal 每 30 分钟运行一次固定保活 workflow。每次运行只从挂载 TGC 开始，丢弃旧派生
+会话，主动使用 TGC 重新取得 Service Ticket、建立门户会话并探测一条通知。该周期提供系统
+侧保活和可用性验证，但不承诺供应商一定延长 TGC 寿命。瞬时网络或供应商错误记录为
+`TRANSIENT_FAILURE`，保留后续周期；确认凭据缺失或失效时以不可重试错误结束并暂停 Schedule，
+等待人员替换凭据。
 
-Ops Web 展示最近维护结果和已观测有效区间。该区间受 30 分钟周期限制，不是供应商有效期
+Ops Web 展示最近保活结果和已观测有效区间。该区间受 30 分钟周期限制，不是供应商有效期
 承诺，也不能证明凭据在两次探测之间持续有效。
+
+## 下游消费
+
+保活 workflow 的结果只由 ingestion-control、Temporal UI 和 Ops Web 用于状态查询，不进入
+采集任务载荷，也不控制任务准入。`internal_portal.notice.capture` 和
+`internal_portal.file_release.capture` 直接读取同一个 TGC，并在各自 activity 中建立或恢复
+会话。
+
+通知发布有独立的 30 分钟 Schedule，首次同步保持暂停；文件发布只接受显式精确 ID。认证验证
+成功会恢复初始暂停或因凭据失败暂停的通知计划，但不会立即触发通知采集；人员主动暂停的通知
+计划不会被认证保活覆盖。采集和离线发布成功不自动开放 notice 产品页、文档阅读面或在线查询。
 
 ## 安全与失败处理
 

@@ -14,6 +14,7 @@ const temporal = vi.hoisted(() => {
 		getHandle: vi.fn(),
 		scheduleDescribe: vi.fn(),
 		scheduleGetHandle: vi.fn(),
+		scheduleTrigger: vi.fn(async () => undefined),
 		scheduleUnpause: vi.fn(async () => undefined),
 		start: vi.fn(),
 		withDeadline: vi.fn(async (_deadline: number, operation: () => Promise<unknown>) =>
@@ -31,6 +32,7 @@ vi.mock("@temporalio/client", () => ({
 		connect: temporal.connect,
 	},
 	ScheduleNotFoundError: temporal.NotFoundError,
+	ScheduleOverlapPolicy: { SKIP: "SKIP" },
 	WorkflowExecutionAlreadyStartedError: temporal.AlreadyStartedError,
 }));
 
@@ -69,6 +71,7 @@ describe("Temporal ingestion workflow starter", () => {
 		});
 		temporal.scheduleGetHandle.mockReturnValue({
 			describe: temporal.scheduleDescribe,
+			trigger: temporal.scheduleTrigger,
 			unpause: temporal.scheduleUnpause,
 		});
 	});
@@ -80,7 +83,9 @@ describe("Temporal ingestion workflow starter", () => {
 		});
 		const starter = await createTemporalIngestionWorkflowStarter(config);
 
-		await expect(starter.startTask(testSnapshot())).resolves.toEqual({
+		await expect(
+			starter.startTask(testSnapshot(), { createdBy: "test:operator" }),
+		).resolves.toEqual({
 			alreadyStarted: false,
 			workflowId: "ingestion/task-curriculum-chunk-001",
 			workflowRunId: "temporal-run-001",
@@ -111,7 +116,9 @@ describe("Temporal ingestion workflow starter", () => {
 		temporal.start.mockRejectedValue(new temporal.AlreadyStartedError("duplicate"));
 		const starter = await createTemporalIngestionWorkflowStarter(config);
 
-		await expect(starter.startTask(testSnapshot())).resolves.toEqual({
+		await expect(
+			starter.startTask(testSnapshot(), { createdBy: "test:operator" }),
+		).resolves.toEqual({
 			alreadyStarted: true,
 			workflowId: "ingestion/task-curriculum-chunk-001",
 			workflowRunId: "temporal-run-existing",
@@ -131,14 +138,16 @@ describe("Temporal ingestion workflow starter", () => {
 		});
 		const starter = await createTemporalIngestionWorkflowStarter(config);
 
-		await expect(starter.startTask(testSnapshot())).rejects.toMatchObject({
+		await expect(
+			starter.startTask(testSnapshot(), { createdBy: "test:operator" }),
+		).rejects.toMatchObject({
 			name: "IngestionWorkflowIdentityConflictError",
 			taskId: "task-curriculum-chunk-001",
 			workflowId: "ingestion/task-curriculum-chunk-001",
 		});
 	});
 
-	it("reads the fixed maintenance workflow result and resumes its schedule", async () => {
+	it("reads the fixed maintenance workflow result and triggers immediate validation", async () => {
 		temporal.scheduleDescribe.mockResolvedValue({
 			info: {
 				nextActionTimes: [new Date("2026-07-16T00:30:00.000Z")],
@@ -173,11 +182,32 @@ describe("Temporal ingestion workflow starter", () => {
 		await expect(starter.getInternalPortalAuthMaintenanceStatus?.()).resolves.toMatchObject({
 			lastOutcome: "SUCCESS",
 			lastSuccessAt: "2026-07-16T00:00:02.000Z",
+			nextRunAt: null,
 			scheduleState: "PAUSED",
 			serviceTicketIssued: true,
 		});
-		await starter.resumeInternalPortalAuthMaintenance?.();
-		expect(temporal.scheduleUnpause).toHaveBeenCalledWith("credential replaced through Ops Web");
+		await starter.validateInternalPortalAuthentication?.();
+		expect(temporal.scheduleUnpause).toHaveBeenCalledWith(
+			"credential validation requested through Ops Web",
+		);
+		expect(temporal.scheduleTrigger).toHaveBeenCalledWith("SKIP");
+	});
+
+	it("reports the next keepalive time only while the schedule is active", async () => {
+		temporal.scheduleDescribe.mockResolvedValue({
+			info: {
+				nextActionTimes: [new Date("2026-07-16T02:30:00.000Z")],
+				recentActions: [],
+			},
+			state: { paused: false },
+		});
+		const starter = await createTemporalIngestionWorkflowStarter(config);
+
+		await expect(starter.getInternalPortalAuthMaintenanceStatus?.()).resolves.toMatchObject({
+			lastOutcome: null,
+			nextRunAt: "2026-07-16T02:30:00.000Z",
+			scheduleState: "ACTIVE",
+		});
 	});
 
 	it("maps a credential-expired workflow failure to a paused maintenance status", async () => {

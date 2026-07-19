@@ -5,7 +5,9 @@ import { runInternalPortalAuthMaintenance } from "../src/workflows/ingestion-tas
 
 describe("internal portal auth maintenance workflow", () => {
 	it("records a complete successful CAS refresh", async () => {
+		const activateNoticePublication = async () => "resumed" as const;
 		const result = await runInternalPortalAuthMaintenance({
+			activateNoticePublication,
 			now: timestamps("2026-07-16T00:00:00.000Z", "2026-07-16T00:00:03.000Z"),
 			refresh: async () => ({
 				noticeProbeSucceeded: true,
@@ -27,6 +29,7 @@ describe("internal portal auth maintenance workflow", () => {
 
 	it("keeps the schedule active for transient failures and carries the last success", async () => {
 		const result = await runInternalPortalAuthMaintenance({
+			activateNoticePublication: async () => "already_active",
 			lastResult: previousSuccess(),
 			now: timestamps("2026-07-16T00:30:00.000Z", "2026-07-16T00:30:04.000Z"),
 			refresh: async () => {
@@ -48,6 +51,7 @@ describe("internal portal auth maintenance workflow", () => {
 	] as const)("fails non-retryably for %s so Temporal pauses the schedule", async (errorCode) => {
 		await expect(
 			runInternalPortalAuthMaintenance({
+				activateNoticePublication: async () => "already_active",
 				lastResult: previousSuccess(),
 				now: timestamps("2026-07-16T01:00:00.000Z", "2026-07-16T01:00:01.000Z"),
 				refresh: async () => {
@@ -63,6 +67,29 @@ describe("internal portal auth maintenance workflow", () => {
 			],
 			nonRetryable: true,
 			type: errorCode,
+		});
+	});
+
+	it("reports a transient failure when valid credentials cannot restore the notice schedule", async () => {
+		const result = await runInternalPortalAuthMaintenance({
+			activateNoticePublication: async () => {
+				throw new Error("notice schedule unavailable");
+			},
+			now: timestamps("2026-07-16T01:30:00.000Z", "2026-07-16T01:30:03.000Z"),
+			refresh: async () => ({
+				noticeProbeSucceeded: true,
+				portalSessionEstablished: true,
+				refreshedAt: "2026-07-16T01:30:02.000Z",
+				serviceTicketIssued: true,
+			}),
+		});
+
+		expect(result).toMatchObject({
+			errorCode: "internal_portal_notice_schedule_activation_failed",
+			lastSuccessAt: "2026-07-16T01:30:02.000Z",
+			noticeProbeSucceeded: true,
+			outcome: "transient_failure",
+			serviceTicketIssued: true,
 		});
 	});
 });

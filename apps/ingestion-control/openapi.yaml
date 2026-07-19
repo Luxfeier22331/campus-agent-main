@@ -1,0 +1,732 @@
+openapi: 3.1.0
+info:
+  title: campus-agent ingestion-control
+  version: 1.0.0
+  description: 内部离线采集、任务查询和内部门户发布控制接口。
+servers:
+  - url: http://ingestion-control
+paths:
+  /healthz:
+    get:
+      operationId: getIngestionHealth
+      security: []
+      responses:
+        "200":
+          description: 进程正常
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+  /readyz:
+    get:
+      operationId: getIngestionReadiness
+      security: []
+      responses:
+        "200":
+          description: 依赖可用
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Readiness"
+        "503":
+          description: 依赖不可用
+  /internal/ingestion/operations/internal-portal:
+    get:
+      operationId: getInternalPortalIngestionStatus
+      security:
+        - opsBearer: []
+      responses:
+        "200":
+          description: 认证、通知计划和当前离线发布状态
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalPortalStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /internal/ingestion/operations/internal-portal-auth-maintenance:
+    get:
+      operationId: getInternalPortalAuthMaintenance
+      security:
+        - opsBearer: []
+      responses:
+        "200":
+          description: 固定认证保活计划状态
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthMaintenanceStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /internal/ingestion/operations/internal-portal-auth-maintenance/validate:
+    post:
+      operationId: validateInternalPortalAuthentication
+      security:
+        - opsBearer: []
+      parameters:
+        - $ref: "#/components/parameters/OperatorId"
+      responses:
+        "202":
+          description: 已提交即时验证，返回当前认证保活计划状态
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthMaintenanceStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /internal/ingestion/operations/internal-portal/notice-publication/pause:
+    post:
+      operationId: pauseInternalPortalNoticePublication
+      security:
+        - opsBearer: []
+      parameters:
+        - $ref: "#/components/parameters/OperatorId"
+      responses:
+        "200":
+          description: 暂停后的通知采集计划状态
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NoticePublicationStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /internal/ingestion/operations/internal-portal/notice-publication/resume:
+    post:
+      operationId: resumeInternalPortalNoticePublication
+      security:
+        - opsBearer: []
+      parameters:
+        - $ref: "#/components/parameters/OperatorId"
+      responses:
+        "200":
+          description: 恢复后的通知采集计划状态
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NoticePublicationStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /internal/ingestion/operations/internal-portal/notice-publication/reconcile:
+    post:
+      operationId: startInternalPortalNoticeReconcile
+      security:
+        - opsBearer: []
+      parameters:
+        - $ref: "#/components/parameters/OperatorId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [request_id]
+              properties:
+                request_id:
+                  $ref: "#/components/schemas/RequestId"
+      responses:
+        "202":
+          description: 完整核对工作流已接受
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowStart"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /internal/ingestion/operations/internal-portal/file-releases:
+    post:
+      operationId: startInternalPortalFileReleaseBatch
+      security:
+        - opsBearer: []
+      parameters:
+        - $ref: "#/components/parameters/OperatorId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [request_id, file_release_ids]
+              properties:
+                request_id:
+                  $ref: "#/components/schemas/RequestId"
+                file_release_ids:
+                  type: array
+                  minItems: 1
+                  maxItems: 50
+                  uniqueItems: true
+                  items:
+                    type: integer
+                    minimum: 1
+      responses:
+        "202":
+          description: 每个精确 ID 的工作流均已接受
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileReleaseBatchStart"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /internal/ingestion/tasks:
+    post:
+      operationId: startIngestionTask
+      description: 使用管理令牌提交一个已在 registry 中声明的任务。
+      security:
+        - adminBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskEnvelope"
+      responses:
+        "200":
+          description: 相同任务已经存在，返回当前任务记录
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "202":
+          description: 任务工作流已接受
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskWorkflowStart"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: 任务标识已被不同输入占用，或已结束工作流缺少任务记录
+  /internal/ingestion/tasks/{taskId}:
+    get:
+      operationId: getAdminIngestionTask
+      description: 使用管理令牌读取完整任务记录。
+      security:
+        - adminBearer: []
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+      responses:
+        "200":
+          description: 任务详情
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /internal/ingestion/operations/tasks:
+    get:
+      operationId: listIngestionTasks
+      security:
+        - opsBearer: []
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+            maxLength: 512
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/TaskStatus"
+        - name: registry_task_id
+          in: query
+          schema:
+            type: string
+        - name: run_id
+          in: query
+          schema:
+            type: string
+        - name: source_channel
+          in: query
+          schema:
+            type: string
+        - name: source_family
+          in: query
+          schema:
+            type: string
+        - name: corpus
+          in: query
+          schema:
+            type: string
+        - name: collection
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 有界任务列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /internal/ingestion/operations/tasks/{taskId}:
+    get:
+      operationId: getIngestionTask
+      security:
+        - opsBearer: []
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+      responses:
+        "200":
+          description: 任务详情
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /internal/ingestion/operations/tasks/{taskId}/retry:
+    post:
+      operationId: retryIngestionTask
+      security:
+        - opsBearer: []
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+        - $ref: "#/components/parameters/OperatorId"
+      responses:
+        "202":
+          description: 新重试任务已接受
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskRetryStart"
+        "409":
+          description: 原任务仍在运行、不是失败终态、属于父工作流，或当前合同已变化
+        "404":
+          $ref: "#/components/responses/NotFound"
+components:
+  securitySchemes:
+    adminBearer:
+      type: http
+      scheme: bearer
+      description: ingestion-control 管理令牌
+    opsBearer:
+      type: http
+      scheme: bearer
+      description: ingestion-control 运维令牌
+  parameters:
+    OperatorId:
+      name: x-operator-id
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 256
+    TaskId:
+      name: taskId
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$"
+  responses:
+    InvalidRequest:
+      description: 请求无效
+    NotFound:
+      description: 未找到
+    Unauthorized:
+      description: 服务令牌或操作者身份无效
+    Unavailable:
+      description: 依赖不可用
+  schemas:
+    Health:
+      type: object
+      required: [status]
+      properties:
+        status:
+          const: ok
+    Readiness:
+      type: object
+      required: [status]
+      properties:
+        status:
+          const: ready
+    RequestId:
+      type: string
+      pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    TaskStatus:
+      type: string
+      enum: [running, completed, failed, canceled]
+    ArtifactRef:
+      type: object
+      additionalProperties: false
+      required: [kind, uri, digest, byte_size]
+      properties:
+        kind:
+          const: object_store
+        uri:
+          type: string
+          pattern: "^s3://[^/]+/.+"
+        digest:
+          type: string
+          pattern: "^sha256:[0-9a-f]{64}$"
+        byte_size:
+          type: integer
+          minimum: 0
+    TaskEnvelope:
+      type: object
+      additionalProperties: false
+      required: [schema_version, task_id, run_id, registry_task_id, input_ref]
+      properties:
+        schema_version:
+          const: ingestion_task_envelope.v3
+        task_id:
+          type: string
+          pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$"
+        run_id:
+          type: string
+          pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$"
+        registry_task_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        input_ref:
+          $ref: "#/components/schemas/ArtifactRef"
+    TaskWorkflowStart:
+      type: object
+      required: [schema_version, task_id, workflow_id, workflow_run_id, temporal_status, status]
+      properties:
+        schema_version:
+          const: ingestion_workflow_start.v1
+        task_id:
+          type: string
+        workflow_id:
+          type: string
+        workflow_run_id:
+          type: [string, "null"]
+        temporal_status:
+          type: string
+        status:
+          const: accepted
+    TaskRetryStart:
+      type: object
+      required: [retry_of_task_id, task_id, workflow_id, workflow_run_id]
+      properties:
+        retry_of_task_id:
+          type: string
+        task_id:
+          type: string
+        workflow_id:
+          type: string
+        workflow_run_id:
+          type: [string, "null"]
+    Task:
+      type: object
+      required:
+        - schema_version
+        - task_id
+        - run_id
+        - registry_task_id
+        - executor_kind
+        - input_ref
+        - input_contract
+        - output_contract
+        - created_by
+        - created_at
+        - status
+        - updated_at
+        - workflow_id
+      properties:
+        schema_version:
+          const: ingestion_task_envelope.v3
+        task_id:
+          type: string
+        run_id:
+          type: string
+        registry_task_id:
+          type: string
+        executor_kind:
+          enum: [source_collector, typescript_kernel, rust_kernel]
+        input_ref:
+          $ref: "#/components/schemas/ArtifactRef"
+        input_contract:
+          type: string
+        output_contract:
+          type: string
+        created_by:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        status:
+          $ref: "#/components/schemas/TaskStatus"
+        updated_at:
+          type: string
+          format: date-time
+        workflow_id:
+          type: string
+        workflow_run_id:
+          type: [string, "null"]
+        pipeline_workflow_id:
+          type: [string, "null"]
+        retry_of_task_id:
+          type: [string, "null"]
+        result_ref:
+          oneOf:
+            - $ref: "#/components/schemas/ArtifactRef"
+            - type: "null"
+        result_contract:
+          type: [string, "null"]
+        summary:
+          type: [object, "null"]
+        error_code:
+          type: [string, "null"]
+        error_message:
+          type: [string, "null"]
+    TaskList:
+      type: object
+      required: [tasks, page]
+      properties:
+        tasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/TaskSummary"
+        page:
+          type: object
+          required: [next_cursor]
+          properties:
+            next_cursor:
+              type: [string, "null"]
+    TaskSummary:
+      type: object
+      required:
+        - schema_version
+        - task_id
+        - run_id
+        - registry_task_id
+        - executor_kind
+        - created_by
+        - status
+        - created_at
+        - updated_at
+        - has_result
+        - workflow_id
+      properties:
+        schema_version:
+          const: ingestion_task_operator_projection.v2
+        task_id:
+          type: string
+        run_id:
+          type: string
+        registry_task_id:
+          type: string
+        executor_kind:
+          enum: [source_collector, typescript_kernel, rust_kernel]
+        source_family:
+          type: [string, "null"]
+        source_channel:
+          type: [string, "null"]
+        corpus:
+          type: [string, "null"]
+        collection:
+          type: [string, "null"]
+        created_by:
+          type: string
+        status:
+          $ref: "#/components/schemas/TaskStatus"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        result_contract:
+          type: [string, "null"]
+        has_result:
+          type: boolean
+        summary:
+          type: [object, "null"]
+        last_error_code:
+          type: [string, "null"]
+        last_error_message:
+          type: [string, "null"]
+        workflow_id:
+          type: string
+        workflow_run_id:
+          type: [string, "null"]
+        pipeline_workflow_id:
+          type: [string, "null"]
+        retry_of_task_id:
+          type: [string, "null"]
+    ScheduleState:
+      type: string
+      enum: [ACTIVE, PAUSED, MISSING]
+    AuthMaintenanceStatus:
+      type: object
+      required: [scheduleState]
+      properties:
+        scheduleState:
+          $ref: "#/components/schemas/ScheduleState"
+        lastAttemptAt:
+          type: [string, "null"]
+          format: date-time
+        lastSuccessAt:
+          type: [string, "null"]
+          format: date-time
+        nextRunAt:
+          type: [string, "null"]
+          format: date-time
+        lastOutcome:
+          type: [string, "null"]
+        errorCode:
+          type: [string, "null"]
+    NoticePublicationStatus:
+      type: object
+      required: [scheduleState, lastOutcome, lastReleaseId, errorCode]
+      properties:
+        scheduleState:
+          $ref: "#/components/schemas/ScheduleState"
+        lastAttemptAt:
+          type: [string, "null"]
+          format: date-time
+        nextRunAt:
+          type: [string, "null"]
+          format: date-time
+        lastOutcome:
+          type: [string, "null"]
+        lastReleaseId:
+          type: [string, "null"]
+        errorCode:
+          type: [string, "null"]
+    OfflineReleaseStatus:
+      type: object
+      required:
+        - stream_id
+        - current_release_id
+        - checkpoint
+        - version
+        - last_check_at
+        - last_check_mode
+        - last_check_outcome
+        - last_check_error_code
+        - last_reconcile_at
+        - last_published_at
+        - last_added_count
+        - last_updated_count
+        - last_withdrawn_count
+      properties:
+        stream_id:
+          type: string
+        current_release_id:
+          type: [string, "null"]
+        checkpoint:
+          type: object
+        version:
+          type: integer
+          minimum: 0
+        item_count:
+          type: [integer, "null"]
+          minimum: 0
+        last_committed_at:
+          type: [string, "null"]
+          format: date-time
+        last_check_at:
+          type: [string, "null"]
+          format: date-time
+        last_check_mode:
+          type: [string, "null"]
+          enum: [incremental, reconcile, selected, null]
+        last_check_outcome:
+          type: [string, "null"]
+          enum: [published, unchanged, deferred, failed, null]
+        last_check_error_code:
+          type: [string, "null"]
+        last_reconcile_at:
+          type: [string, "null"]
+          format: date-time
+        last_published_at:
+          type: [string, "null"]
+          format: date-time
+        last_added_count:
+          type: integer
+          minimum: 0
+        last_updated_count:
+          type: integer
+          minimum: 0
+        last_withdrawn_count:
+          type: integer
+          minimum: 0
+    InternalPortalStatus:
+      type: object
+      required: [schema_version, auth_maintenance, notice, file_release]
+      properties:
+        schema_version:
+          const: internal_portal_ingestion_status.v1
+        auth_maintenance:
+          $ref: "#/components/schemas/AuthMaintenanceStatus"
+        notice:
+          type: object
+          required: [publication, release]
+          properties:
+            publication:
+              $ref: "#/components/schemas/NoticePublicationStatus"
+            release:
+              oneOf:
+                - $ref: "#/components/schemas/OfflineReleaseStatus"
+                - type: "null"
+        file_release:
+          oneOf:
+            - $ref: "#/components/schemas/OfflineReleaseStatus"
+            - type: "null"
+    WorkflowStart:
+      type: object
+      required: [request_id, workflow_id, workflow_run_id, temporal_status, already_started]
+      properties:
+        request_id:
+          $ref: "#/components/schemas/RequestId"
+        workflow_id:
+          type: string
+        workflow_run_id:
+          type: [string, "null"]
+        temporal_status:
+          type: string
+        already_started:
+          type: boolean
+    FileReleaseBatchStart:
+      type: object
+      required: [schema_version, request_id, workflows]
+      properties:
+        schema_version:
+          const: internal_portal_file_release_batch_start.v1
+        request_id:
+          $ref: "#/components/schemas/RequestId"
+        workflows:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            type: object
+            required: [file_release_id, workflowId, workflowRunId, workflowStatus, alreadyStarted]
+            properties:
+              file_release_id:
+                type: integer
+                minimum: 1
+              workflowId:
+                type: string
+              workflowRunId:
+                type: [string, "null"]
+              workflowStatus:
+                type: string
+              alreadyStarted:
+                type: boolean

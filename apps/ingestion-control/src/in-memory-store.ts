@@ -1,7 +1,9 @@
 import {
 	canonicalJsonString,
+	encodeIngestionTaskProjectionCursor,
 	matchesIngestionTaskProjectionFilters,
 	normalizeIngestionTaskProjectionLimit,
+	parseIngestionTaskProjectionCursor,
 	toIngestionTaskOperatorProjection,
 } from "ingest-core";
 import type {
@@ -77,17 +79,35 @@ export class InMemoryIngestionTaskStore implements IngestionTaskStore {
 		filters: IngestionTaskProjectionFilters,
 	): IngestionTaskOperatorProjectionList {
 		const limit = normalizeIngestionTaskProjectionLimit(filters.limit);
+		const cursor = parseIngestionTaskProjectionCursor(filters.cursor);
+		const matching = [...this.#records.values()]
+			.filter((task) => matchesIngestionTaskProjectionFilters(task, filters))
+			.filter(
+				(task) =>
+					!cursor ||
+					task.updated_at < cursor.updatedAt ||
+					(task.updated_at === cursor.updatedAt && task.task_id < cursor.taskId),
+			)
+			.sort(
+				(left, right) =>
+					right.updated_at.localeCompare(left.updated_at) ||
+					right.task_id.localeCompare(left.task_id),
+			)
+			.slice(0, limit + 1);
+		const hasNext = matching.length > limit;
+		const page = matching.slice(0, limit);
+		const last = page.at(-1);
 		return {
-			tasks: [...this.#records.values()]
-				.filter((task) => matchesIngestionTaskProjectionFilters(task, filters))
-				.sort(
-					(left, right) =>
-						right.updated_at.localeCompare(left.updated_at) ||
-						right.task_id.localeCompare(left.task_id),
-				)
-				.slice(0, limit)
-				.map(toIngestionTaskOperatorProjection),
-			page: { next_cursor: null },
+			tasks: page.map(toIngestionTaskOperatorProjection),
+			page: {
+				next_cursor:
+					hasNext && last
+						? encodeIngestionTaskProjectionCursor({
+								taskId: last.task_id,
+								updatedAt: last.updated_at,
+							})
+						: null,
+			},
 		};
 	}
 
@@ -139,12 +159,14 @@ function taskRecordFromStart(
 		collection: registryTask.target?.collection ?? null,
 		input_contract: registryTask.input_contract,
 		output_contract: registryTask.output_contract,
-		created_by: "temporal",
+		created_by: input.createdBy,
 		created_at: createdAt,
 		status: "running",
 		updated_at: createdAt,
 		workflow_id: input.workflowId,
 		workflow_run_id: input.workflowRunId,
+		pipeline_workflow_id: input.pipelineWorkflowId,
+		retry_of_task_id: input.retryOfTaskId,
 		result_ref: null,
 		result_contract: null,
 		summary: null,

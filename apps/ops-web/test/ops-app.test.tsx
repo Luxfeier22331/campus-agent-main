@@ -54,12 +54,14 @@ describe("OpsWebApp", () => {
 		});
 		fireEvent.click(screen.getByRole("button", { name: "替换凭据" }));
 
-		expect(await screen.findByText("凭据已替换，将在下一个维护周期验证。")).toBeVisible();
+		expect(
+			await screen.findByText("凭据已替换并提交验证，验证成功后通知采集将自动恢复。"),
+		).toBeVisible();
 		expect(credentialInput).toHaveValue("");
 		expect(screen.getByRole("link", { name: "门户认证" })).toHaveAttribute("aria-current", "page");
 	});
 
-	it("retries resume after a newer credential is stored", async () => {
+	it("requests immediate validation after a newer credential is stored", async () => {
 		const originalFetch = globalThis.fetch;
 		const pausedStatus = {
 			configured: true,
@@ -78,25 +80,29 @@ describe("OpsWebApp", () => {
 			updatedAt: "2026-07-16T01:30:00.000Z",
 			updatedBy: "ops@example.test",
 		};
-		const resumedStatus = {
+		const validatingStatus = {
 			...pausedStatus,
-			maintenance: { ...pausedStatus.maintenance, scheduleState: "ACTIVE" },
+			maintenance: {
+				...pausedStatus.maintenance,
+				lastOutcome: "RUNNING" as const,
+				scheduleState: "ACTIVE" as const,
+			},
 		};
 		const fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) =>
-			Response.json(init?.method === "POST" ? resumedStatus : pausedStatus),
+			Response.json(init?.method === "POST" ? validatingStatus : pausedStatus),
 		);
 		vi.stubGlobal("fetch", fetch);
 
 		try {
 			render(<OpsWebApp initialPath="/internal-portal-auth" />);
-			expect(await screen.findByText("待验证")).toBeInTheDocument();
+			expect(await screen.findByText("等待保活验证")).toBeInTheDocument();
 
-			fireEvent.click(screen.getByRole("button", { name: "恢复验证" }));
+			fireEvent.click(screen.getByRole("button", { name: "立即验证" }));
 
 			await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
 			expect(fetch.mock.calls[1]?.[1]).toMatchObject({ method: "POST" });
-			expect(await screen.findByText("待验证")).toBeInTheDocument();
-			expect(screen.queryByRole("button", { name: "恢复验证" })).not.toBeInTheDocument();
+			expect(await screen.findByText("等待保活验证")).toBeInTheDocument();
+			expect(screen.queryByRole("button", { name: "立即验证" })).not.toBeInTheDocument();
 		} finally {
 			vi.stubGlobal("fetch", originalFetch);
 		}

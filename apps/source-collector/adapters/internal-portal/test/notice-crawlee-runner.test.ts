@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-
+import { PortalSourceDeferredError } from "../src/api.js";
 import {
 	buildNoticeDetailRequest,
 	buildNoticeListPageRequest,
@@ -15,8 +15,8 @@ const noticeTypes: NoticeTypeConfig[] = [
 		enabled: true,
 		incrementalPages: 2,
 		incrementalPageSize: 2,
-		backfillPages: 3,
-		backfillPageSize: 20,
+		reconcilePages: 3,
+		reconcilePageSize: 20,
 	},
 ];
 
@@ -99,7 +99,7 @@ describe("notice Crawlee runner", () => {
 				state: true,
 			}),
 			fullScopeRequested: false,
-			backfillMaxPagesPerType: null,
+			reconcileMaxPagesPerType: null,
 			maxNotices: null,
 			noticeTypes,
 			requestMaxRetries: 1,
@@ -120,6 +120,30 @@ describe("notice Crawlee runner", () => {
 			pageBudgetExhausted: false,
 			pagesFetched: 0,
 		});
+	});
+
+	it("fails the collection when a request exhausts its retries", async () => {
+		await expect(
+			runNoticeCrawleeCollection({
+				collectionMode: "selected",
+				exportedAt: "2026-04-04T01:23:45.000Z",
+				fetchNoticeDetail: async () => {
+					throw new PortalSourceDeferredError("getNotice failed: 503 Service Unavailable");
+				},
+				fetchNoticePage: async () => {
+					throw new Error("unexpected list page fetch");
+				},
+				fetchNoticeSelects: async () => ({ state: true }),
+				fullScopeRequested: false,
+				reconcileMaxPagesPerType: null,
+				maxNotices: null,
+				noticeTypes,
+				requestMaxRetries: 0,
+				selectedNotices: [{ noticeId: 355119, noticeType: "5" }],
+				siteId: "synthetic_internal_portal",
+				sourceHomeUrl: "https://portal.example.edu/home",
+			}),
+		).rejects.toMatchObject({ code: "internal_portal_source_deferred" });
 	});
 
 	it("enqueues detail requests from list pages and deduplicates repeated notices", async () => {
@@ -167,7 +191,7 @@ describe("notice Crawlee runner", () => {
 				state: true,
 			}),
 			fullScopeRequested: false,
-			backfillMaxPagesPerType: null,
+			reconcileMaxPagesPerType: null,
 			maxNotices: null,
 			noticeTypes,
 			requestMaxRetries: 1,
@@ -181,5 +205,143 @@ describe("notice Crawlee runner", () => {
 		expect(result.bundleRecords).toHaveLength(1);
 		expect(result.stats.itemsSeen).toBe(2);
 		expect(result.stats.pagesFetched).toBe(1);
+	});
+
+	it("finds the previous head and captures the configured overlap page", async () => {
+		const pages: number[] = [];
+		const idsByPage: Record<number, number[]> = {
+			1: [110, 109],
+			2: [101, 100],
+			3: [99, 98],
+			4: [97, 96],
+		};
+		const result = await runNoticeCrawleeCollection({
+			reconcileMaxPagesPerType: 4,
+			checkpoints: [{ last_released_notice_id: 100, notice_type: "5" }],
+			collectionMode: "incremental",
+			exportedAt: "2026-04-04T01:23:45.000Z",
+			fetchNoticeDetail: async ({ noticeId }) => ({
+				datas: {
+					notice_info: {
+						notice_content: String(noticeId),
+						notice_id: noticeId,
+						notice_title: `通知 ${noticeId}`,
+					},
+				},
+				state: true,
+			}),
+			fetchNoticePage: async ({ currentPage, noticeType }) => {
+				pages.push(currentPage);
+				return {
+					datas: {
+						page: { totalCounts: 4 },
+						tables: (idsByPage[currentPage] ?? []).map((noticeId) => ({
+							notice_id: noticeId,
+							notice_title: `通知 ${noticeId}`,
+							notice_type: noticeType,
+						})),
+					},
+					state: true,
+				};
+			},
+			fetchNoticeSelects: async () => ({ datas: { org: [], type: [] }, state: true }),
+			fullScopeRequested: false,
+			maxNotices: null,
+			noticeTypes,
+			overlapPages: 1,
+			requestMaxRetries: 1,
+			selectedNotices: [],
+			siteId: "synthetic_internal_portal",
+			sourceHomeUrl: "https://portal.example.edu/home",
+		});
+
+		expect(pages).toEqual([1, 2, 3]);
+		expect(result.checkpointGaps).toEqual([]);
+		expect(result.nextCheckpoints).toEqual([{ last_released_notice_id: 110, notice_type: "5" }]);
+	});
+
+	it("reports a checkpoint gap without advancing the stored head", async () => {
+		const result = await runNoticeCrawleeCollection({
+			reconcileMaxPagesPerType: 2,
+			checkpoints: [{ last_released_notice_id: 50, notice_type: "5" }],
+			collectionMode: "incremental",
+			exportedAt: "2026-04-04T01:23:45.000Z",
+			fetchNoticeDetail: async ({ noticeId }) => ({
+				datas: {
+					notice_info: {
+						notice_content: String(noticeId),
+						notice_id: noticeId,
+						notice_title: `通知 ${noticeId}`,
+					},
+				},
+				state: true,
+			}),
+			fetchNoticePage: async ({ currentPage, noticeType }) => ({
+				datas: {
+					page: { totalCounts: 3 },
+					tables: [{ notice_id: 100 - currentPage, notice_title: "通知", notice_type: noticeType }],
+				},
+				state: true,
+			}),
+			fetchNoticeSelects: async () => ({ datas: { org: [], type: [] }, state: true }),
+			fullScopeRequested: false,
+			maxNotices: null,
+			noticeTypes,
+			overlapPages: 1,
+			requestMaxRetries: 1,
+			selectedNotices: [],
+			siteId: "synthetic_internal_portal",
+			sourceHomeUrl: "https://portal.example.edu/home",
+		});
+
+		expect(result.checkpointGaps).toEqual([{ last_released_notice_id: 50, notice_type: "5" }]);
+	});
+
+	it("reports a checkpoint gap when the overlap page exceeds the page budget", async () => {
+		const pages: number[] = [];
+		const result = await runNoticeCrawleeCollection({
+			reconcileMaxPagesPerType: 2,
+			checkpoints: [{ last_released_notice_id: 100, notice_type: "5" }],
+			collectionMode: "incremental",
+			exportedAt: "2026-04-04T01:23:45.000Z",
+			fetchNoticeDetail: async ({ noticeId }) => ({
+				datas: {
+					notice_info: {
+						notice_content: String(noticeId),
+						notice_id: noticeId,
+						notice_title: `通知 ${noticeId}`,
+					},
+				},
+				state: true,
+			}),
+			fetchNoticePage: async ({ currentPage, noticeType }) => {
+				pages.push(currentPage);
+				return {
+					datas: {
+						page: { totalCounts: 3 },
+						tables: [
+							{
+								notice_id: currentPage === 2 ? 100 : 110,
+								notice_title: "通知",
+								notice_type: noticeType,
+							},
+						],
+					},
+					state: true,
+				};
+			},
+			fetchNoticeSelects: async () => ({ datas: { org: [], type: [] }, state: true }),
+			fullScopeRequested: false,
+			maxNotices: null,
+			noticeTypes,
+			overlapPages: 1,
+			requestMaxRetries: 1,
+			selectedNotices: [],
+			siteId: "synthetic_internal_portal",
+			sourceHomeUrl: "https://portal.example.edu/home",
+		});
+
+		expect(pages).toEqual([1, 2]);
+		expect(result.checkpointGaps).toEqual([{ last_released_notice_id: 100, notice_type: "5" }]);
 	});
 });

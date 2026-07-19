@@ -1,3 +1,5 @@
+import { startNodeTelemetry } from "@campus-agent/telemetry-node";
+import { OpenTelemetryPlugin } from "@temporalio/interceptors-opentelemetry-v2";
 import { NativeConnection, Worker } from "@temporalio/worker";
 import { createSourceCollectorActivities } from "./activities.ts";
 import { createSourceCollectorObjectStoreFromEnv } from "./object-store.ts";
@@ -10,6 +12,7 @@ export async function startSourceCollectorTemporalWorker(
 ): Promise<void> {
 	const address = requiredEnv(env, "INGESTION_TEMPORAL_ADDRESS");
 	const objectStore = createSourceCollectorObjectStoreFromEnv(env);
+	const telemetry = startNodeTelemetry({ env, serviceName: "source-collector-worker" });
 	let connection: NativeConnection | null = null;
 	try {
 		connection = await NativeConnection.connect({ address });
@@ -18,6 +21,14 @@ export async function startSourceCollectorTemporalWorker(
 			connection,
 			maxConcurrentActivityTaskExecutions: 1,
 			namespace: env.INGESTION_TEMPORAL_NAMESPACE?.trim() || "default",
+			plugins: telemetry.spanProcessor
+				? [
+						new OpenTelemetryPlugin({
+							resource: telemetry.resource,
+							spanProcessor: telemetry.spanProcessor,
+						}),
+					]
+				: [],
 			shutdownGraceTime: "80 seconds",
 			taskQueue:
 				env.INGESTION_TEMPORAL_SOURCE_COLLECTOR_ACTIVITY_TASK_QUEUE?.trim() || DEFAULT_TASK_QUEUE,
@@ -28,7 +39,11 @@ export async function startSourceCollectorTemporalWorker(
 		try {
 			await connection?.close();
 		} finally {
-			await objectStore.close?.();
+			try {
+				await objectStore.close?.();
+			} finally {
+				await telemetry.shutdown();
+			}
 		}
 	}
 }

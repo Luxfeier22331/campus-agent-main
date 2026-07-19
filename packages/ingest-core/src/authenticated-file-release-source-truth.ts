@@ -35,6 +35,7 @@ const FILE_RELEASE_REF_SCHEMA = "authenticated_notice_file_release_ref_v1";
 
 export async function materializeAuthenticatedFileReleaseSourceTruthFromTask(input: {
 	objectStore: ObjectStore;
+	outputBucket: string;
 	task: IngestionTaskEnvelope;
 }): Promise<IngestionArtifactRef[]> {
 	const manifestInput = parseS3Uri(input.task.input_ref);
@@ -71,6 +72,7 @@ export async function materializeAuthenticatedFileReleaseSourceTruthFromTask(inp
 				exportManifest,
 				parsedExportManifest,
 				objectStore: input.objectStore,
+				outputBucket: input.outputBucket,
 				sourceBucket: manifestInput.bucket,
 				task: input.task,
 			})),
@@ -84,6 +86,7 @@ async function materializeFileReleaseSourceTruth(input: {
 	exportManifest: Record<string, unknown>;
 	parsedExportManifest: { exportedAt: string; siteId: string; sourceHomeUrl: string };
 	objectStore: ObjectStore;
+	outputBucket: string;
 	sourceBucket: string;
 	task: IngestionTaskEnvelope;
 }): Promise<IngestionArtifactRef[]> {
@@ -140,7 +143,7 @@ async function materializeFileReleaseSourceTruth(input: {
 	});
 	return Promise.all([
 		writeCanonicalJsonArtifact({
-			bucket: input.sourceBucket,
+			bucket: input.outputBucket,
 			key: keys.manifestKey,
 			objectStore: input.objectStore,
 			value: {
@@ -178,13 +181,13 @@ async function materializeFileReleaseSourceTruth(input: {
 			},
 		}),
 		writeCanonicalJsonLinesArtifact({
-			bucket: input.sourceBucket,
+			bucket: input.outputBucket,
 			key: keys.contentBlocksKey,
 			objectStore: input.objectStore,
 			rows: contentBlocks,
 		}),
 		writeCanonicalJsonArtifact({
-			bucket: input.sourceBucket,
+			bucket: input.outputBucket,
 			key: keys.releasedFileRefKey,
 			objectStore: input.objectStore,
 			value: {

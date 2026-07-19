@@ -14,8 +14,8 @@ export function registerNoticeExportCollectionPagesSuite(): void {
 				enabled: true,
 				incrementalPages: 1,
 				incrementalPageSize: 2,
-				backfillPages: 1,
-				backfillPageSize: 20,
+				reconcilePages: 1,
+				reconcilePageSize: 20,
 			},
 			{
 				type: "6",
@@ -23,8 +23,8 @@ export function registerNoticeExportCollectionPagesSuite(): void {
 				enabled: true,
 				incrementalPages: 1,
 				incrementalPageSize: 2,
-				backfillPages: 1,
-				backfillPageSize: 20,
+				reconcilePages: 1,
+				reconcilePageSize: 20,
 			},
 		];
 
@@ -164,7 +164,7 @@ export function registerNoticeExportCollectionPagesSuite(): void {
 		expect(result.exportManifest.run.items_inserted).toBe(2);
 		expect(result.exportManifest.notice_type_policy).toEqual([
 			{
-				backfill: {
+				reconcile: {
 					page_size: 20,
 					pages: 1,
 				},
@@ -177,7 +177,7 @@ export function registerNoticeExportCollectionPagesSuite(): void {
 				type: "5",
 			},
 			{
-				backfill: {
+				reconcile: {
 					page_size: 20,
 					pages: 1,
 				},
@@ -291,8 +291,8 @@ export function registerNoticeExportCollectionPagesSuite(): void {
 					enabled: true,
 					incrementalPages: 1,
 					incrementalPageSize: 20,
-					backfillPages: 1,
-					backfillPageSize: 20,
+					reconcilePages: 1,
+					reconcilePageSize: 20,
 				},
 			],
 			requestMaxRetries: 1,
@@ -343,9 +343,9 @@ export function registerNoticeExportCollectionPagesSuite(): void {
 		expect(result.exportManifest.run.items_seen).toBe(1);
 	});
 
-	it("marks a bounded backfill that covers every fetched page as full-scope completed", async () => {
+	it("marks a bounded reconcile that covers every fetched page as full-scope completed", async () => {
 		const result = await collectNoticeExportBundle({
-			collectionMode: "backfill",
+			collectionMode: "reconcile",
 			createApiContext: async () => ({
 				dispose: async () => undefined,
 				get: async () => ({
@@ -406,8 +406,8 @@ export function registerNoticeExportCollectionPagesSuite(): void {
 					enabled: true,
 					incrementalPages: 1,
 					incrementalPageSize: 20,
-					backfillPages: 2,
-					backfillPageSize: 20,
+					reconcilePages: 2,
+					reconcilePageSize: 20,
 				},
 			],
 			requestMaxRetries: 1,

@@ -38,6 +38,7 @@ export interface FetchNoticeDetailInput {
 export interface FetchAttachmentBinaryInput {
 	apiContext: ApiRequestContextLike;
 	attachmentUrl: string;
+	maxBytes?: number;
 }
 
 export interface FetchAttachmentBinaryResult {
@@ -45,7 +46,21 @@ export interface FetchAttachmentBinaryResult {
 	contentType: string | null;
 	contentDisposition: string | null;
 	etag: string | null;
+	lastModified: string | null;
 	statusCode: number;
+}
+
+export class PortalSourceDeferredError extends Error {
+	readonly code = "internal_portal_source_deferred";
+
+	constructor(message: string) {
+		super(message);
+		this.name = "PortalSourceDeferredError";
+	}
+}
+
+export function isPortalSourceDeferredError(error: unknown): error is PortalSourceDeferredError {
+	return error instanceof PortalSourceDeferredError;
 }
 
 export type AttachmentTerminalReason = "http_404" | "http_410" | "portal_file_missing";
@@ -121,7 +136,7 @@ export async function fetchNoticePage(input: FetchNoticePageInput): Promise<Noti
 		},
 	});
 	if (!response.ok()) {
-		throw buildRequestError(response.status(), response.statusText(), "getNoticeByPage");
+		await throwRequestError(response, "getNoticeByPage");
 	}
 	const json = await parseJsonResponse<NoticeListResponse>(response, "getNoticeByPage");
 	assertNoticeListResponse(json);
@@ -151,7 +166,7 @@ export async function fetchNoticeSelects(
 		},
 	});
 	if (!response.ok()) {
-		throw buildRequestError(response.status(), response.statusText(), "getNoticeSlects");
+		await throwRequestError(response, "getNoticeSlects");
 	}
 	const json = await parseJsonResponse<NoticeSelectsResponse>(response, "getNoticeSlects");
 	assertNoticeSelectsResponse(json);
@@ -171,7 +186,7 @@ export async function fetchNoticeDetail(
 		},
 	});
 	if (!response.ok()) {
-		throw buildRequestError(response.status(), response.statusText(), "getNotice");
+		await throwRequestError(response, "getNotice");
 	}
 	const json = await parseJsonResponse<NoticeDetailResponse>(response, "getNotice");
 	if (!json.state) {
@@ -185,9 +200,20 @@ export async function fetchAttachmentBinary(
 ): Promise<FetchAttachmentBinaryResult> {
 	const response = await input.apiContext.get(input.attachmentUrl);
 	if (!response.ok()) {
-		throw buildRequestError(response.status(), response.statusText(), "downloadAttachment");
+		await throwRequestError(response, "downloadAttachment");
+	}
+	const contentLength = Number.parseInt(response.headers?.()["content-length"] ?? "", 10);
+	if (
+		input.maxBytes !== undefined &&
+		Number.isSafeInteger(contentLength) &&
+		contentLength > input.maxBytes
+	) {
+		throw new Error(`attachment_size_limit_exceeded:${contentLength}`);
 	}
 	const body = await readBinaryResponse(response, "downloadAttachment");
+	if (input.maxBytes !== undefined && body.byteLength > input.maxBytes) {
+		throw new Error(`attachment_size_limit_exceeded:${body.byteLength}`);
+	}
 	const maybeSessionInvalid = body.toString("utf-8").trim();
 	if (maybeSessionInvalid === "error_comsys_session_invalid") {
 		throw new PortalSessionExpiredError("downloadAttachment failed: session invalid");
@@ -197,6 +223,7 @@ export async function fetchAttachmentBinary(
 		contentType: normalizeHeaderValue(response.headers?.()["content-type"] ?? null),
 		contentDisposition: normalizeHeaderValue(response.headers?.()["content-disposition"] ?? null),
 		etag: normalizeHeaderValue(response.headers?.().etag ?? null),
+		lastModified: normalizeHeaderValue(response.headers?.()["last-modified"] ?? null),
 		statusCode: response.status(),
 	};
 }
@@ -213,7 +240,7 @@ export async function fetchFileReleasePage(
 		},
 	});
 	if (!response.ok()) {
-		throw buildRequestError(response.status(), response.statusText(), "pageFile");
+		await throwRequestError(response, "pageFile");
 	}
 	const json = await parseJsonResponse<FileReleasePageResponse>(response, "pageFile");
 	assertFileReleasePageResponse(json);
@@ -229,7 +256,7 @@ export async function fetchFileReleaseDetail(
 		},
 	});
 	if (!response.ok()) {
-		throw buildRequestError(response.status(), response.statusText(), "getFile");
+		await throwRequestError(response, "getFile");
 	}
 	const json = await parseJsonResponse<FileReleaseDetailResponse>(response, "getFile");
 	if (!(json.state === 1 || json.state === true)) {
@@ -247,7 +274,7 @@ export async function fetchFileReleaseDownloadUrl(
 		},
 	});
 	if (!response.ok()) {
-		throw buildRequestError(response.status(), response.statusText(), "getFileUrl");
+		await throwRequestError(response, "getFileUrl");
 	}
 	const json = await parseJsonResponse<FileReleaseDownloadUrlResponse>(response, "getFileUrl");
 	if (!json.state) {
@@ -263,7 +290,7 @@ export async function fetchFileReleaseTypes(
 		form: {},
 	});
 	if (!response.ok()) {
-		throw buildRequestError(response.status(), response.statusText(), "getFileType");
+		await throwRequestError(response, "getFileType");
 	}
 	const json = await parseJsonResponse<FileReleaseTypeListResponse>(response, "getFileType");
 	assertFileReleaseTypeResponse(json);
@@ -279,7 +306,7 @@ export async function fetchFileReleaseExplainDepartments(
 		},
 	});
 	if (!response.ok()) {
-		throw buildRequestError(response.status(), response.statusText(), "getExplainDepts");
+		await throwRequestError(response, "getExplainDepts");
 	}
 	const json = await parseJsonResponse<FileReleaseExplainDepartmentListResponse>(
 		response,
@@ -299,7 +326,7 @@ export async function fetchFileReleaseCodeTypes(
 		},
 	});
 	if (!response.ok()) {
-		throw buildRequestError(response.status(), response.statusText(), "getFileFileType");
+		await throwRequestError(response, "getFileFileType");
 	}
 	const json = await parseJsonResponse<FileReleaseCodeTypeListResponse>(
 		response,
@@ -307,6 +334,29 @@ export async function fetchFileReleaseCodeTypes(
 	);
 	assertFileReleaseCodeTypeResponse(json);
 	return json;
+}
+
+async function throwRequestError(response: ApiResponseLike, operation: string): Promise<never> {
+	const status = response.status();
+	if (status === 429) {
+		const retryAfterMs = parseRetryAfterMs(response.headers?.()["retry-after"] ?? null);
+		if (retryAfterMs > 0) {
+			await new Promise((resolve) => setTimeout(resolve, retryAfterMs));
+		}
+	}
+	throw buildRequestError(status, response.statusText(), operation);
+}
+
+function parseRetryAfterMs(value: string | null): number {
+	if (!value) {
+		return 0;
+	}
+	const seconds = Number(value);
+	if (Number.isFinite(seconds) && seconds >= 0) {
+		return Math.min(Math.ceil(seconds * 1_000), 5 * 60_000);
+	}
+	const date = Date.parse(value);
+	return Number.isFinite(date) ? Math.min(Math.max(0, date - Date.now()), 5 * 60_000) : 0;
 }
 
 function buildRequestError(status: number, statusText: string, operation: string): Error {
@@ -324,7 +374,7 @@ function buildRequestError(status: number, statusText: string, operation: string
 		}
 	}
 	if (status === 429 || status >= 500) {
-		return new Error(`${operation} failed: ${status} ${statusText}`);
+		return new PortalSourceDeferredError(`${operation} failed: ${status} ${statusText}`);
 	}
 	return new Error(`${operation} failed: ${status} ${statusText}`);
 }

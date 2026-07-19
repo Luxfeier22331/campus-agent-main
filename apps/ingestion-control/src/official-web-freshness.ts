@@ -139,12 +139,12 @@ export function createOfficialWebFreshnessService(input: {
 			].join("/");
 			const write = await input.objectStore.createOrVerifyObject({
 				body: bytes,
-				bucket: input.objectStore.derivedBucket,
+				bucket: input.objectStore.sourceBucket,
 				contentType: "application/json",
 				key,
 			});
 			return buildObjectStoreArtifactRef({
-				bucket: input.objectStore.derivedBucket,
+				bucket: input.objectStore.sourceBucket,
 				byteSize: write.byteSize,
 				contentSha256: write.contentSha256,
 				key,

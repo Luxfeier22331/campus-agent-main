@@ -9,6 +9,7 @@ import {
 	sha256Hex,
 } from "ingest-core";
 import type { IngestionTaskExecutionSnapshot, IngestionTaskResult } from "ingestion-contracts";
+import { validateInternalPortalStageResult } from "ingestion-contracts";
 import type { IngestionObjectStore } from "./object-store";
 
 export class IngestionResultArtifactContractError extends Error {
@@ -62,7 +63,7 @@ export async function verifyIngestionTaskResultArtifact(input: {
 			verifyRustKernelArtifact(bytes, input.result, input.snapshot);
 			return;
 		}
-		await verifySourceCollectorManifest(input.objectStore, bytes, input.result);
+		await verifyStructuredResultManifest(input.objectStore, bytes, input.result);
 	} catch (error) {
 		if (error instanceof IngestionResultArtifactContractError) {
 			throw error;
@@ -92,12 +93,20 @@ function verifyRustKernelArtifact(
 	});
 }
 
-async function verifySourceCollectorManifest(
+async function verifyStructuredResultManifest(
 	objectStore: IngestionObjectStore,
 	bytes: Uint8Array,
 	result: IngestionTaskResult,
 ): Promise<void> {
 	const manifest = parseJsonObjectBytes(bytes, "source collector result manifest");
+	if (result.output_contract.startsWith("internal_portal_")) {
+		const validation = validateInternalPortalStageResult(manifest);
+		if (!validation.ok) {
+			throw contractError(
+				`internal portal stage result is invalid: ${validation.errors.join("; ")}`,
+			);
+		}
+	}
 	for (const [field, expected] of [
 		["schema_version", result.output_contract],
 		["task_id", result.task_id],

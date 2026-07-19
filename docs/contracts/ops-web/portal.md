@@ -50,13 +50,14 @@ Secret 元数据。
 的凭据资源，并记录更新时间和更新人。成功响应与 GET 相同，不回显凭据。接口不选择或创建
 Secret、不在线验证门户登录、不保存旧值，也不提供回滚。
 
-凭据更新成功后服务端幂等恢复固定维护 Schedule；恢复失败不会撤销凭据更新，响应以
+凭据更新成功后服务端立即提交固定认证验证；提交失败不会撤销凭据更新，响应以
 `UNAVAILABLE` 显示维护状态。
 
-## `POST /api/ops/internal-portal-auth/maintenance/resume`
+## `POST /api/ops/internal-portal-auth/maintenance/validate`
 
-人员操作者可以同源调用该接口，重试恢复固定认证维护 Schedule。接口不接受 Schedule ID、
-Workflow ID 或凭据，不立即触发运行；成功响应与 GET 相同。
+人员操作者可以同源调用该接口，恢复固定认证维护 Schedule 并立即提交一次验证。接口不接受
+Schedule ID、Workflow ID 或凭据；成功响应与 GET 相同，验证成功后可以恢复因凭据问题自动
+暂停的通知计划。
 
 `lowerBoundSeconds` 是当前凭据更新时间到最近一次成功 Service Ticket 签发的时间；首次确认
 过期后才产生 `upperBoundSeconds`。这是约 30 分钟精度的观测区间，不是 CAS 配置声明。

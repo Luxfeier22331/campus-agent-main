@@ -99,22 +99,6 @@ fn chunk_document_units_fails_closed_when_tokenizer_is_missing() {
 }
 
 #[test]
-fn validate_release_manifest_reads_json_from_stdin() {
-    let output = run_kernel(
-        &["validate-release-manifest"],
-        r#"{"schema_version":"ingestion_release_manifest.v2","release_id":"release-1","corpus":"official_web","collection":"stable_reference","artifacts":[{"kind":"object_store","uri":"s3://bucket/release.json","digest":"sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824","byte_size":5}]}"#,
-    );
-
-    assert!(output.status.success(), "stderr={}", stderr(&output));
-    let payload: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json stdout");
-    assert_eq!(
-        payload["schema_version"],
-        "ingestion_release_manifest_validation_report.v1"
-    );
-    assert_eq!(payload["error_count"], 0);
-}
-
-#[test]
 fn unknown_kernel_exits_non_zero() {
     let output = run_kernel(&["unknown-kernel"], "");
 

@@ -8,20 +8,24 @@ describe("buildIngestionTemporalWorkerRuntimeConfig", () => {
 				INGESTION_CONTROL_DATABASE_URL: " postgres://ingestion ",
 				INGESTION_CONTROL_PORT: "tcp://10.43.0.1:8000",
 				INGESTION_TASK_REGISTRY_ROOT: " /app/configs/ingestion ",
+				INTERNAL_PORTAL_SITE_ID: " muc_internal_portal ",
 			}),
 		).toEqual({
 			databaseUrl: "postgres://ingestion",
 			registryRoot: "/app/configs/ingestion",
+			siteId: "muc_internal_portal",
 		});
 	});
 
 	it.each([
 		"INGESTION_CONTROL_DATABASE_URL",
 		"INGESTION_TASK_REGISTRY_ROOT",
+		"INTERNAL_PORTAL_SITE_ID",
 	])("requires %s", (key) => {
 		const env: Record<string, string> = {
 			INGESTION_CONTROL_DATABASE_URL: "postgres://ingestion",
 			INGESTION_TASK_REGISTRY_ROOT: "/app/configs/ingestion",
+			INTERNAL_PORTAL_SITE_ID: "muc_internal_portal",
 		};
 		delete env[key];
 

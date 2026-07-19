@@ -9,14 +9,9 @@ trap 'find "$temporary_directory" -depth -delete' EXIT
 
 TURBO_SCM_BASE="$base" TURBO_SCM_HEAD="$head" \
 	pnpm exec turbo ls --affected --output=json > "$temporary_directory/affected-packages.json"
-TURBO_SCM_BASE="$base" TURBO_SCM_HEAD="$head" \
-	pnpm exec turbo run \
-		build:app build:worker check test test:eval test:ingest test:worker typecheck \
-		--affected --dry=json > "$temporary_directory/affected-tasks.json"
 node scripts/ci/change-plan.mjs \
 	--base "$base" \
 	--head "$head" \
 	--affected-packages "$temporary_directory/affected-packages.json" \
-	--affected-tasks "$temporary_directory/affected-tasks.json" \
 	> "$output"
-jq -e '.schemaVersion == "change_plan.v1"' "$output" >/dev/null
+jq -e '.schemaVersion == "change_plan.v2"' "$output" >/dev/null

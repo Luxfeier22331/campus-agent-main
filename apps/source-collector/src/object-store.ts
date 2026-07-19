@@ -36,6 +36,7 @@ export function createSourceCollectorObjectStoreFromEnv(
 			client.destroy();
 		},
 		async getObject(input) {
+			assertSourceBucket(input.bucket, sourceBucket);
 			const result = await client.send(
 				new GetObjectCommand({ Bucket: input.bucket, Key: input.key }),
 				{ abortSignal: input.abortSignal },
@@ -46,6 +47,7 @@ export function createSourceCollectorObjectStoreFromEnv(
 			return result.Body.transformToByteArray();
 		},
 		async createOrVerifyObject(input) {
+			assertSourceBucket(input.bucket, sourceBucket);
 			return createOrVerifyS3Object({
 				abortSignal: input.abortSignal,
 				body: input.body,
@@ -57,6 +59,12 @@ export function createSourceCollectorObjectStoreFromEnv(
 			});
 		},
 	};
+}
+
+function assertSourceBucket(bucket: string, sourceBucket: string): void {
+	if (bucket !== sourceBucket) {
+		throw new Error(`source collector cannot access non-source bucket: ${bucket}`);
+	}
 }
 
 function requiredEnv(env: Record<string, string | undefined>, key: string): string {

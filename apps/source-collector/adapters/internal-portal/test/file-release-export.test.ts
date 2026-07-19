@@ -335,37 +335,8 @@ describe("internal portal source collector file release export", () => {
 				],
 				state: true,
 			}),
-			fetchFileReleasePage: async ({ currentPage }) => {
-				if (currentPage === 1) {
-					return {
-						data: [
-							{
-								filecode: "民大校发〔2026〕646号",
-								filedepartment: "教务处",
-								filename: "制度 646",
-								filetime: "2026-03-31 13:51:11",
-								id: 646,
-								typename: "教学管理",
-								user_name: "张老师",
-							},
-							{
-								filecode: "民大校发〔2026〕647号",
-								filedepartment: "教务处",
-								filename: "制度 647",
-								filetime: "2026-03-31 13:56:42",
-								id: 647,
-								typename: "教学管理",
-								user_name: "张老师",
-							},
-						],
-						dws: [{ filedepartment: "教务处" }],
-						size: 3,
-						state: true,
-						sync: false,
-					};
-				}
-
-				throw new Error("unexpected extra page fetch");
+			fetchFileReleasePage: async () => {
+				throw new Error("targeted collection must not scan list pages");
 			},
 			fetchFileReleaseTypes: async () => ({
 				data: [
@@ -397,7 +368,7 @@ describe("internal portal source collector file release export", () => {
 		});
 	});
 
-	it("fails closed when a targeted file release id is not present in the traversed export scope", async () => {
+	it("fails closed when the targeted file release detail is unavailable", async () => {
 		await expect(
 			collectFileReleaseBundle({
 				createApiContext: async () => ({
@@ -415,7 +386,7 @@ describe("internal portal source collector file release export", () => {
 				}),
 				exportedAt: "2026-04-12T00:30:00.000Z",
 				fetchFileReleaseDetail: async () => {
-					throw new Error("unexpected detail fetch");
+					throw new Error("target file release not found");
 				},
 				fetchFileReleaseDownloadUrl: async () => {
 					throw new Error("unexpected url fetch");
@@ -462,7 +433,7 @@ describe("internal portal source collector file release export", () => {
 				sourceHomeUrl: "https://portal.example.edu",
 				targetFileReleaseId: 351119,
 			}),
-		).rejects.toThrow("target file_release_id 351119 was not found in file_release export scope");
+		).rejects.toThrow("target file release not found");
 	});
 
 	it("materializes released files into object-backed rows when an artifact store is configured", async () => {

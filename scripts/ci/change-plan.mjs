@@ -2,35 +2,15 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { matchesGlob, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { parse as parseYaml } from "yaml";
 
 import {
-	ALL_IMAGES,
 	IMAGE_DEFINITIONS,
-	imageForDockerfile,
 	imagesForFiles,
 	imagesForPackages,
 	workersForFiles,
 	workersForPackages,
 } from "./ci-surfaces.mjs";
-
-const NODE_PACKAGE_NAMES = new Set([
-	"@campus-agent/dining",
-	"agent-runtime",
-	"app-api",
-	"app-api-schema",
-	"campus-contracts",
-	"campus-web",
-	"dining-sync",
-	"docs-publish",
-	"eval-langfuse",
-	"ingest-core",
-	"ingestion-contracts",
-	"ingestion-control",
-	"learning-loop-candidates",
-	"ops-web",
-	"source-collector",
-	"transport-publisher",
-]);
 
 const INGEST_PACKAGES = new Set([
 	"ingest-core",
@@ -38,6 +18,8 @@ const INGEST_PACKAGES = new Set([
 	"ingestion-control",
 	"source-collector",
 ]);
+
+const EVAL_PACKAGES = new Set(["eval-langfuse", "ragas-runner"]);
 
 const DATABASE_SUITES = Object.freeze({
 	APP_API_MIGRATION: "app-api-migration",
@@ -121,29 +103,6 @@ function parseAffectedPackages(source) {
 	return new Set((parsed.packages?.items ?? []).map((item) => item.name));
 }
 
-function parseAffectedTasks(source) {
-	const parsed = JSON.parse(source);
-	return new Set((parsed.tasks ?? []).map((task) => task.taskId ?? `${task.package}#${task.task}`));
-}
-
-function taskPackage(taskId) {
-	return taskId.slice(0, taskId.lastIndexOf("#"));
-}
-
-function taskName(taskId) {
-	return taskId.slice(taskId.lastIndexOf("#") + 1);
-}
-
-function taskPackages(affectedTasks, names = null) {
-	const packages = new Set();
-	for (const taskId of affectedTasks) {
-		if (!names || names.has(taskName(taskId))) {
-			packages.add(taskPackage(taskId));
-		}
-	}
-	return packages;
-}
-
 function isCiControlFile(file, nodeReleaseGraphChanged) {
 	return (
 		file.startsWith(".github/") ||
@@ -159,25 +118,85 @@ function matchesAny(file, patterns) {
 	return patterns.some((pattern) => matchesGlob(file, pattern));
 }
 
+function globPrefix(pattern) {
+	return pattern
+		.trim()
+		.replace(/^!/u, "")
+		.replace(/^\.\//u, "")
+		.replace(/^\//u, "")
+		.split(/[?*[\]{}]/u, 1)[0]
+		.replace(/\/$/u, "");
+}
+
+function prefixesOverlap(left, right) {
+	return left === right || left.startsWith(`${right}/`) || right.startsWith(`${left}/`);
+}
+
+function dockerIgnoreImpact(patterns) {
+	const images = new Set();
+	const unresolved = new Set();
+	for (const pattern of patterns) {
+		const prefix = globPrefix(pattern);
+		if (!prefix) {
+			unresolved.add(`.dockerignore:${pattern}`);
+			continue;
+		}
+		for (const [image, definition] of Object.entries(IMAGE_DEFINITIONS)) {
+			if (
+				definition.inputs.some((input) => {
+					const inputPrefix = globPrefix(input);
+					return inputPrefix && prefixesOverlap(prefix, inputPrefix);
+				})
+			) {
+				images.add(image);
+			}
+		}
+	}
+	return { images, unresolved };
+}
+
 export function buildChangePlan({
 	affectedPackages,
-	affectedTasks = new Set(),
 	files,
+	contentFiles = files,
+	dockerIgnorePatterns = [],
 	nodeDependencyChanged = false,
 	nodeReleaseGraphChanged = false,
+	workspacePackageNames = affectedPackages,
 }) {
 	const normalizedFiles = [...new Set(files.filter(Boolean))].sort();
-	const runtimeFiles = normalizedFiles.filter(isRuntimeFile);
+	const normalizedContentFiles = [...new Set(contentFiles.filter(Boolean))].sort();
+	const runtimeFiles = normalizedContentFiles.filter(isRuntimeFile);
+	const releaseInputFiles = normalizedFiles.filter(isRuntimeFile);
 	const packageNames = new Set(affectedPackages);
-	const selectedTaskPackages = taskPackages(affectedTasks);
-	const effectiveTaskPackages = selectedTaskPackages.size > 0 ? selectedTaskPackages : packageNames;
+	const hasIngestionConfigChange = hasAny(runtimeFiles, (file) =>
+		startsWithAny(file, ["configs/ingestion/", "configs/sources/"]),
+	);
+	const ingestPackageNames = new Set([...packageNames].filter((name) => INGEST_PACKAGES.has(name)));
+	if (hasIngestionConfigChange) {
+		for (const name of INGEST_PACKAGES) {
+			ingestPackageNames.add(name);
+		}
+	}
+	const evalPackageNames = new Set([...packageNames].filter((name) => EVAL_PACKAGES.has(name)));
+	const nodePackageNames = new Set(
+		[...packageNames].filter(
+			(name) =>
+				workspacePackageNames.has(name) && !INGEST_PACKAGES.has(name) && !EVAL_PACKAGES.has(name),
+		),
+	);
 	const lanes = new Set();
 	const preflightChecks = new Set();
 	const databaseSuites = new Set();
 	const dependencyEcosystems = new Set();
-	const releaseImages = imagesForFiles(runtimeFiles);
-	const releaseWorkers = workersForFiles(runtimeFiles);
-	const dockerChecks = new Set();
+	const releaseImages = imagesForFiles(releaseInputFiles);
+	const releaseWorkers = workersForFiles(releaseInputFiles);
+	const dockerChecks = new Set(releaseImages);
+	const { images: dockerIgnoreImages, unresolved } = dockerIgnoreImpact(dockerIgnorePatterns);
+	for (const image of dockerIgnoreImages) {
+		dockerChecks.add(image);
+		releaseImages.add(image);
+	}
 
 	if (nodeReleaseGraphChanged) {
 		for (const image of imagesForPackages(packageNames)) {
@@ -188,7 +207,6 @@ export function buildChangePlan({
 		}
 	}
 
-	const hasDockerIgnoreChange = normalizedFiles.includes(".dockerignore");
 	const hasAppApiDatabaseChange = hasAny(runtimeFiles, (file) =>
 		startsWithAny(file, [
 			"apps/app-api/db/",
@@ -231,13 +249,10 @@ export function buildChangePlan({
 	addIf(
 		preflightChecks,
 		hasAny(
-			runtimeFiles,
+			normalizedFiles,
 			(file) =>
-				startsWithAny(file, ["scripts/ci/change-plan", "scripts/ci/ci-surfaces."]) ||
-				file === "scripts/ci/check-docker-affected.mjs" ||
-				file === "scripts/ci/check-docker-affected.test.mjs" ||
-				file === "scripts/ci/run-affected.sh" ||
-				file === "scripts/ci/write-change-plan.sh" ||
+				file.startsWith("scripts/ci/") ||
+				file === "scripts/deploy/update-staging-candidate.sh" ||
 				file === "package.json" ||
 				file === "pnpm-workspace.yaml" ||
 				file === "turbo.json" ||
@@ -259,7 +274,7 @@ export function buildChangePlan({
 	addIf(
 		lanes,
 		hasNonCiRuntimeChange &&
-			([...effectiveTaskPackages].some((name) => name === "campus-contracts") ||
+			(packageNames.has("campus-contracts") ||
 				hasAny(
 					runtimeFiles,
 					(file) =>
@@ -268,29 +283,16 @@ export function buildChangePlan({
 				)),
 		"contracts",
 	);
+	addIf(lanes, hasNonCiRuntimeChange && nodePackageNames.size > 0, "node");
 	addIf(
 		lanes,
-		hasNonCiRuntimeChange &&
-			([...effectiveTaskPackages].some((name) => NODE_PACKAGE_NAMES.has(name)) ||
-				hasAny(runtimeFiles, (file) =>
-					startsWithAny(file, ["configs/", "scripts/deploy/", "scripts/smoke/"]),
-				)),
-		"node",
-	);
-	addIf(
-		lanes,
-		hasNonCiRuntimeChange &&
-			([...effectiveTaskPackages].some((name) => INGEST_PACKAGES.has(name)) ||
-				hasAny(runtimeFiles, (file) =>
-					startsWithAny(file, ["configs/ingestion/", "configs/sources/"]),
-				)),
+		hasNonCiRuntimeChange && (ingestPackageNames.size > 0 || hasIngestionConfigChange),
 		"ingest",
 	);
 	addIf(
 		lanes,
 		hasNonCiRuntimeChange &&
-			(effectiveTaskPackages.has("eval-langfuse") ||
-				effectiveTaskPackages.has("ragas-runner") ||
+			(evalPackageNames.size > 0 ||
 				hasAny(runtimeFiles, (file) =>
 					startsWithAny(file, ["packages/eval-langfuse/", "packages/ragas-runner/"]),
 				)),
@@ -327,35 +329,29 @@ export function buildChangePlan({
 	);
 	addIf(
 		lanes,
-		normalizedFiles.some((file) => file.endsWith(".py")),
+		normalizedContentFiles.some((file) => file.endsWith(".py")),
 		"python",
 	);
 	addIf(
 		lanes,
-		normalizedFiles.some((file) => file.endsWith(".sql")),
+		normalizedContentFiles.some((file) => file.endsWith(".sql")),
 		"sql",
 	);
 	addIf(
 		lanes,
-		normalizedFiles.some((file) => file.endsWith(".yaml") || file.endsWith(".yml")),
+		normalizedContentFiles.some(
+			(file) => file !== "pnpm-lock.yaml" && (file.endsWith(".yaml") || file.endsWith(".yml")),
+		),
 		"yaml",
 	);
 	addIf(
 		lanes,
-		normalizedFiles.some((file) => file.endsWith(".sh")),
+		normalizedContentFiles.some((file) => file.endsWith(".sh")),
 		"shell",
 	);
 	addIf(
 		lanes,
-		hasAny(
-			runtimeFiles,
-			(file) =>
-				startsWithAny(file, [
-					"infra/otel/",
-					"packages/telemetry-node/",
-					"scripts/ci/check-otel-",
-				]) || file.includes("/telemetry/"),
-		),
+		hasAny(runtimeFiles, (file) => startsWithAny(file, ["infra/otel/", "scripts/ci/check-otel-"])),
 		"otel",
 	);
 
@@ -384,9 +380,7 @@ export function buildChangePlan({
 	);
 	addIf(
 		databaseSuites,
-		hasExecutionDatabaseChange ||
-			hasSharedProductSchemaChange ||
-			normalizedFiles.some((file) => file.endsWith("/go.sum")),
+		hasExecutionDatabaseChange || hasSharedProductSchemaChange,
 		DATABASE_SUITES.EXECUTION_CONTROL,
 	);
 	addIf(
@@ -408,18 +402,6 @@ export function buildChangePlan({
 		databaseNodeFilters.add("transport-publisher...");
 	}
 
-	if (hasDockerIgnoreChange) {
-		for (const image of ALL_IMAGES) {
-			dockerChecks.add(image);
-			releaseImages.add(image);
-		}
-	}
-	for (const file of normalizedFiles) {
-		for (const image of imageForDockerfile(file)) {
-			dockerChecks.add(image);
-			releaseImages.add(image);
-		}
-	}
 	if (nodeReleaseGraphChanged) {
 		for (const image of imagesForPackages(packageNames)) {
 			dockerChecks.add(image);
@@ -430,25 +412,47 @@ export function buildChangePlan({
 		(nodeReleaseGraphChanged && packageNames.has("campus-web")) ||
 		hasAny(runtimeFiles, (file) => matchesAny(file, BROWSER_INPUTS));
 
-	const nodeInstallPackages = new Set(
-		[...effectiveTaskPackages].filter((name) => NODE_PACKAGE_NAMES.has(name)),
-	);
+	const nodeInstallPackages = new Set(nodePackageNames);
 	if (lanes.has("contracts")) {
 		nodeInstallPackages.add("campus-contracts");
 		nodeInstallPackages.add("ingestion-contracts");
 	}
 	if (lanes.has("ingest")) {
-		for (const name of INGEST_PACKAGES) {
+		for (const name of ingestPackageNames) {
 			nodeInstallPackages.add(name);
 		}
 	}
 	if (lanes.has("eval")) {
-		nodeInstallPackages.add("eval-langfuse");
+		for (const name of evalPackageNames) {
+			nodeInstallPackages.add(name);
+		}
 	}
 	for (const worker of releaseWorkers) {
 		nodeInstallPackages.add(worker);
 	}
 	const nodeFilters = sorted(new Set([...nodeInstallPackages].map((name) => `${name}...`)));
+	const reasons = normalizedFiles
+		.map((file) => ({
+			file,
+			images: sorted(imagesForFiles([file])),
+			workers: sorted(workersForFiles([file])),
+		}))
+		.filter((reason) => reason.images.length > 0 || reason.workers.length > 0);
+	const verification = {
+		browser: browser ? ["campus-web"] : [],
+		contracts: lanes.has("contracts"),
+		database: sorted(databaseSuites),
+		docker: uniqueDockerChecks(dockerChecks),
+		evalFilters: sorted(evalPackageNames),
+		go: lanes.has("go"),
+		infra: lanes.has("infra"),
+		ingestFilters: sorted(ingestPackageNames),
+		nodeFilters: sorted(nodePackageNames),
+		rust: lanes.has("rust"),
+		workerFilters: sorted(
+			new Set([...packageNames].filter((name) => name === "app-api" || name === "campus-web")),
+		),
+	};
 
 	return {
 		affectedPackages: sorted(packageNames),
@@ -462,12 +466,15 @@ export function buildChangePlan({
 		nodeFilters,
 		preflightChecks: sorted(preflightChecks),
 		pythonEval: packageNames.has("ragas-runner") || dependencyEcosystems.has("python"),
+		reasons,
 		release: {
 			images: sorted(releaseImages),
 			kubernetes: hasAny(runtimeFiles, (file) => file.startsWith("infra/k8s/")),
 			workers: sorted(releaseWorkers),
 		},
-		schemaVersion: "change_plan.v1",
+		schemaVersion: "change_plan.v2",
+		unresolved: sorted(unresolved),
+		verification,
 	};
 }
 
@@ -495,17 +502,236 @@ export function parseChangedPaths(source) {
 	return [...files].sort();
 }
 
-function readJsonAtRevision(revision, path) {
+function readTextAtRevision(revision, path) {
 	try {
-		return JSON.parse(
-			execFileSync("git", ["show", `${revision}:${path}`], {
-				encoding: "utf8",
-				stdio: ["ignore", "pipe", "ignore"],
-			}),
-		);
+		return execFileSync("git", ["show", `${revision}:${path}`], {
+			encoding: "utf8",
+			stdio: ["ignore", "pipe", "ignore"],
+		});
 	} catch {
 		return null;
 	}
+}
+
+function readTreeAtRevision(revision) {
+	const output = execFileSync("git", ["ls-tree", "-r", "-z", revision], {
+		encoding: "utf8",
+	});
+	const entries = new Map();
+	for (const entry of output.split("\0")) {
+		if (!entry) {
+			continue;
+		}
+		const separator = entry.indexOf("\t");
+		const [mode, , object] = entry.slice(0, separator).split(" ");
+		entries.set(entry.slice(separator + 1), { mode, object });
+	}
+	return entries;
+}
+
+function contentFilesForDiff(files, baseTree, headTree) {
+	return files.filter((file) => baseTree.get(file)?.object !== headTree.get(file)?.object);
+}
+
+function normalizedDockerIgnoreLines(source) {
+	return new Set(
+		(source ?? "")
+			.split(/\r?\n/u)
+			.map((line) => line.trim())
+			.filter((line) => line && !line.startsWith("#")),
+	);
+}
+
+function changedDockerIgnorePatterns(base, head) {
+	const baseLines = normalizedDockerIgnoreLines(readTextAtRevision(base, ".dockerignore"));
+	const headLines = normalizedDockerIgnoreLines(readTextAtRevision(head, ".dockerignore"));
+	return sorted(
+		new Set(
+			[...baseLines, ...headLines].filter((line) => baseLines.has(line) !== headLines.has(line)),
+		),
+	);
+}
+
+function readJsonAtRevision(revision, path) {
+	try {
+		return JSON.parse(readTextAtRevision(revision, path));
+	} catch {
+		return null;
+	}
+}
+
+function dependencyNames(manifest) {
+	return new Set(
+		["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"].flatMap((key) =>
+			Object.keys(manifest?.[key] ?? {}),
+		),
+	);
+}
+
+function workspacePackagePatterns(revision) {
+	const workspace = parseYaml(readTextAtRevision(revision, "pnpm-workspace.yaml") ?? "{}");
+	return Array.isArray(workspace?.packages)
+		? workspace.packages.filter((pattern) => typeof pattern === "string")
+		: [];
+}
+
+function matchesWorkspacePackage(directory, patterns) {
+	const included = patterns.filter((pattern) => !pattern.startsWith("!"));
+	const excluded = patterns
+		.filter((pattern) => pattern.startsWith("!"))
+		.map((pattern) => pattern.slice(1));
+	return (
+		included.some((pattern) => matchesGlob(directory, pattern)) &&
+		!excluded.some((pattern) => matchesGlob(directory, pattern))
+	);
+}
+
+function workspaceAtRevision(revision, tree) {
+	const packagesByPath = new Map();
+	const pathByName = new Map();
+	const patterns = workspacePackagePatterns(revision);
+	for (const path of tree.keys()) {
+		if (path === "package.json" || !path.endsWith("/package.json")) {
+			continue;
+		}
+		const directory = path.slice(0, -"/package.json".length);
+		if (!matchesWorkspacePackage(directory, patterns)) {
+			continue;
+		}
+		const manifest = readJsonAtRevision(revision, path);
+		if (!manifest?.name) {
+			continue;
+		}
+		packagesByPath.set(directory, manifest);
+		pathByName.set(manifest.name, directory);
+	}
+	const reverseDependencies = new Map([...pathByName.keys()].map((name) => [name, new Set()]));
+	for (const manifest of packagesByPath.values()) {
+		for (const dependency of dependencyNames(manifest)) {
+			if (pathByName.has(dependency)) {
+				reverseDependencies.get(dependency).add(manifest.name);
+			}
+		}
+	}
+	return { packagesByPath, pathByName, reverseDependencies };
+}
+
+function packageForFile(path, ...workspaces) {
+	let selected = null;
+	for (const workspace of workspaces) {
+		for (const [directory, manifest] of workspace.packagesByPath) {
+			if (
+				(path === `${directory}/package.json` || path.startsWith(`${directory}/`)) &&
+				(!selected || directory.length > selected.directory.length)
+			) {
+				selected = { directory, name: manifest.name };
+			}
+		}
+	}
+	return selected?.name ?? null;
+}
+
+function packageForManifestPath(path, ...workspaces) {
+	const directory = path.slice(0, -"/package.json".length);
+	for (const workspace of workspaces) {
+		const name = workspace.packagesByPath.get(directory)?.name;
+		if (name) {
+			return name;
+		}
+	}
+	return null;
+}
+
+function lockDependencyVersion(value) {
+	return typeof value === "string" ? value : value?.version;
+}
+
+function lockDependencyKey(name, value) {
+	const version = lockDependencyVersion(value);
+	if (
+		!version ||
+		/^(?:file|git|https?|link|workspace):/u.test(version) ||
+		version.startsWith("/")
+	) {
+		return null;
+	}
+	return version.startsWith(`${name}@`) ? version : `${name}@${version}`;
+}
+
+function lockDependencies(entry) {
+	return ["dependencies", "devDependencies", "optionalDependencies"].flatMap((field) =>
+		Object.entries(entry?.[field] ?? {}),
+	);
+}
+
+function lockfileImporterFingerprint(lockfile, importer) {
+	const importerEntry = lockfile?.importers?.[importer] ?? null;
+	const queue = lockDependencies(importerEntry)
+		.map(([name, value]) => lockDependencyKey(name, value))
+		.filter(Boolean);
+	const visited = new Set();
+	const entries = [];
+	while (queue.length > 0) {
+		const key = queue.shift();
+		if (visited.has(key)) {
+			continue;
+		}
+		visited.add(key);
+		const packageKey = key.replace(/\(.+$/u, "");
+		const packageEntry = lockfile?.packages?.[packageKey] ?? null;
+		const snapshotEntry = lockfile?.snapshots?.[key] ?? null;
+		entries.push([key, packageEntry, snapshotEntry]);
+		for (const [name, value] of lockDependencies(snapshotEntry)) {
+			const dependencyKey = lockDependencyKey(name, value);
+			if (dependencyKey && !visited.has(dependencyKey)) {
+				queue.push(dependencyKey);
+			}
+		}
+	}
+	entries.sort(([left], [right]) => left.localeCompare(right));
+	return canonicalize({ entries, importer: importerEntry });
+}
+
+function lockfileAffectedPackages(base, head, baseWorkspace, headWorkspace) {
+	const baseLockfile = parseYaml(readTextAtRevision(base, "pnpm-lock.yaml") ?? "{}");
+	const headLockfile = parseYaml(readTextAtRevision(head, "pnpm-lock.yaml") ?? "{}");
+	const baseImporters = baseLockfile?.importers ?? {};
+	const headImporters = headLockfile?.importers ?? {};
+	const importers = new Set([...Object.keys(baseImporters), ...Object.keys(headImporters)]);
+	const packages = new Set();
+	for (const importer of importers) {
+		if (
+			JSON.stringify(lockfileImporterFingerprint(baseLockfile, importer)) ===
+			JSON.stringify(lockfileImporterFingerprint(headLockfile, importer))
+		) {
+			continue;
+		}
+		for (const workspace of [headWorkspace, baseWorkspace]) {
+			const name = workspace.packagesByPath.get(importer)?.name;
+			if (name) {
+				packages.add(name);
+				break;
+			}
+		}
+	}
+	return packages;
+}
+
+function expandReverseDependencies(packageNames, ...workspaces) {
+	const expanded = new Set(packageNames);
+	const queue = [...expanded];
+	while (queue.length > 0) {
+		const current = queue.shift();
+		for (const workspace of workspaces) {
+			for (const dependent of workspace.reverseDependencies.get(current) ?? []) {
+				if (!expanded.has(dependent)) {
+					expanded.add(dependent);
+					queue.push(dependent);
+				}
+			}
+		}
+	}
+	return expanded;
 }
 
 function selectedManifestFields(manifest) {
@@ -541,9 +767,7 @@ function parseArgs(args) {
 		const key = args[index];
 		const value = args[index + 1];
 		if (!(key?.startsWith("--") && value)) {
-			throw new Error(
-				"expected --base, --head, --affected-packages and --affected-tasks arguments",
-			);
+			throw new Error("expected --base, --head and --affected-packages arguments");
 		}
 		result[key.slice(2)] = value;
 	}
@@ -552,10 +776,8 @@ function parseArgs(args) {
 
 function main(args) {
 	const options = parseArgs(args);
-	if (
-		!(options.base && options.head && options["affected-packages"] && options["affected-tasks"])
-	) {
-		throw new Error("--base, --head, --affected-packages and --affected-tasks are required");
+	if (!(options.base && options.head && options["affected-packages"])) {
+		throw new Error("--base, --head and --affected-packages are required");
 	}
 	const output = execFileSync(
 		"git",
@@ -563,8 +785,19 @@ function main(args) {
 		{ encoding: "utf8" },
 	);
 	const files = parseChangedPaths(output);
+	const baseTree = readTreeAtRevision(options.base);
+	const headTree = readTreeAtRevision(options.head);
+	const contentFiles = contentFilesForDiff(files, baseTree, headTree);
+	const baseWorkspace = workspaceAtRevision(options.base, baseTree);
+	const headWorkspace = workspaceAtRevision(options.head, headTree);
 	const manifestFiles = files.filter(
 		(file) => file === "package.json" || file.endsWith("/package.json"),
+	);
+	const changedManifestPackages = new Set(
+		manifestFiles
+			.filter((file) => file !== "package.json")
+			.map((file) => packageForManifestPath(file, headWorkspace, baseWorkspace))
+			.filter(Boolean),
 	);
 	const nodeDependencyChanged =
 		files.includes("pnpm-lock.yaml") ||
@@ -573,22 +806,46 @@ function main(args) {
 	const nodeReleaseGraphChanged =
 		files.includes("pnpm-lock.yaml") ||
 		files.includes("pnpm-workspace.yaml") ||
-		(files.includes("package.json") &&
-			manifestDependenciesChanged(options.base, options.head, "package.json"));
-	const affectedPackages = parseAffectedPackages(
+		manifestFiles.some((file) => manifestDependenciesChanged(options.base, options.head, file));
+	const turboAffectedPackages = parseAffectedPackages(
 		readFileSync(resolve(options["affected-packages"]), "utf8"),
 	);
-	const affectedTasks = parseAffectedTasks(
-		readFileSync(resolve(options["affected-tasks"]), "utf8"),
+	const directlyChangedPackages = new Set(
+		files.map((file) => packageForFile(file, headWorkspace, baseWorkspace)).filter(Boolean),
+	);
+	const affectedPackages = files.includes("pnpm-lock.yaml")
+		? new Set([...directlyChangedPackages, ...changedManifestPackages])
+		: new Set([...turboAffectedPackages, ...changedManifestPackages]);
+	if (files.includes("pnpm-lock.yaml")) {
+		for (const packageName of lockfileAffectedPackages(
+			options.base,
+			options.head,
+			baseWorkspace,
+			headWorkspace,
+		)) {
+			affectedPackages.add(packageName);
+		}
+	}
+	const expandedPackages = expandReverseDependencies(
+		affectedPackages,
+		headWorkspace,
+		baseWorkspace,
 	);
 	process.stdout.write(
 		`${JSON.stringify(
 			buildChangePlan({
-				affectedPackages,
-				affectedTasks,
+				affectedPackages: expandedPackages,
+				contentFiles,
+				dockerIgnorePatterns: files.includes(".dockerignore")
+					? changedDockerIgnorePatterns(options.base, options.head)
+					: [],
 				files,
 				nodeDependencyChanged,
 				nodeReleaseGraphChanged,
+				workspacePackageNames: new Set([
+					...baseWorkspace.pathByName.keys(),
+					...headWorkspace.pathByName.keys(),
+				]),
 			}),
 		)}\n`,
 	);

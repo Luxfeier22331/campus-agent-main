@@ -216,13 +216,24 @@ export async function runFileReleaseCrawleeCollection(
 			input.abortSignal?.throwIfAborted();
 			state.observedExplainDepartments =
 				normalizeObservedExplainDepartments(explainDepartmentResponse);
-			await context.addRequests([
-				buildFileReleasePageRequest({
-					currentPage: 1,
-					pageSize: input.pageSize,
-					siteId: input.siteId,
-				}),
-			]);
+			if (input.targetFileReleaseId === null) {
+				await context.addRequests([
+					buildFileReleasePageRequest({
+						currentPage: 1,
+						pageSize: input.pageSize,
+						siteId: input.siteId,
+					}),
+				]);
+			} else {
+				state.queuedFileReleaseIds.add(input.targetFileReleaseId);
+				await context.addRequests([
+					buildFileReleaseDetailRequest({
+						fileReleaseId: input.targetFileReleaseId,
+						item: { id: input.targetFileReleaseId },
+						siteId: input.siteId,
+					}),
+				]);
+			}
 			return;
 		}
 		if (userData.type === "page") {

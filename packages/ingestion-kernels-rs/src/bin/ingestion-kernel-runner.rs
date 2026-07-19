@@ -3,7 +3,6 @@ use std::path::PathBuf;
 
 use ingestion_kernels_rs::{
     ChunkDocumentUnitsOptions, chunk_document_units_jsonl, validate_document_units_jsonl,
-    validate_release_manifest_json,
 };
 
 fn main() {
@@ -29,9 +28,6 @@ fn run() -> Result<(), String> {
             let chunk_set = chunk_document_units_jsonl(&input, options)
                 .map_err(|error| format!("failed to chunk document units: {error}"))?;
             serde_json::to_string(&chunk_set)
-        }
-        "validate-release-manifest" => {
-            serde_json::to_string(&validate_release_manifest_json(&input))
         }
         _ => return Err(format!("unsupported ingestion kernel: {kernel_id}")),
     }

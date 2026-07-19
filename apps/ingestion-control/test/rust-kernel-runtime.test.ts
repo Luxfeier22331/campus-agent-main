@@ -7,6 +7,7 @@ import { assertRustKernelRegistryCoversTasks, RustKernelRegistry } from "../src/
 
 const objectStore = {
 	derivedBucket: "campus-agent-derived",
+	sourceBucket: "campus-agent-source",
 	async getObject(): Promise<Uint8Array> {
 		return new Uint8Array();
 	},
@@ -74,6 +75,7 @@ describe("Rust kernel worker runtime", () => {
 			},
 			objectStore: {
 				derivedBucket: "campus-agent-derived",
+				sourceBucket: "campus-agent-source",
 				async getObject(input) {
 					observedSignals.push(input.abortSignal);
 					return source;

@@ -111,51 +111,6 @@ describe("collection ingestion profiles", () => {
 		).toThrow("tool_read_model_serving requires retrieval_enabled=false");
 	});
 
-	it("parses chunk profiles and lane-specific runtime defaults", () => {
-		const profile = parseCollectionChunkProfile({
-			corpus: "campus_notices",
-			collection: "internal_notice",
-			chunk_profile_version: "authenticated_notice_semantic_v1",
-			structured_input: "document_units_jsonl",
-			cleaning_policy_version: "authenticated_notice_projection_v1",
-			runtime_defaults: {
-				strategy_name: "internal_notice_generic_v1",
-				chunk_size: 220,
-				max_chunk_size: 320,
-				chunk_overlap: 32,
-				min_chunk_size: 32,
-			},
-			lane_defaults: {
-				notice_body: {
-					strategy_name: "internal_notice_notice_body_v2",
-					chunk_size: 260,
-					max_chunk_size: 320,
-					chunk_overlap: 32,
-					min_chunk_size: 48,
-				},
-			},
-		});
-
-		expect(profile).toMatchObject({
-			corpus: "campus_notices",
-			collection: "internal_notice",
-			chunkProfileVersion: "authenticated_notice_semantic_v1",
-			structuredInput: "document_units_jsonl",
-			runtimeDefaults: {
-				strategyName: "internal_notice_generic_v1",
-				chunkSize: 220,
-				maxChunkSize: 320,
-				chunkOverlap: 32,
-				minChunkSize: 32,
-			},
-			laneDefaults: {
-				notice_body: {
-					strategyName: "internal_notice_notice_body_v2",
-				},
-			},
-		});
-	});
-
 	it("parses every tracked collection runtime profile and available chunk profile", () => {
 		for (const { collection, corpus } of listConfiguredCollectionScopes()) {
 			const runtimeProfile = parseCollectionRuntimeProfile(

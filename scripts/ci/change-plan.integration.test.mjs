@@ -1,10 +1,19 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { appendFileSync, cpSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
+import {
+	appendFileSync,
+	cpSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	symlinkSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -30,14 +39,16 @@ function createRepository() {
 	run(repository, "git", ["config", "user.email", "ci-change-plan@example.invalid"]);
 	symlinkSync(join(repoRoot, "node_modules"), join(repository, "node_modules"), "dir");
 	appendFileSync(join(repository, ".git/info/exclude"), "\nnode_modules\nchange-plan.json\n");
-	cpSync(
-		join(repoRoot, "scripts/ci/change-plan.mjs"),
-		join(repository, "scripts/ci/change-plan.mjs"),
-	);
-	if (
-		run(repository, "git", ["status", "--porcelain", "--", "scripts/ci/change-plan.mjs"]).trim()
-	) {
-		run(repository, "git", ["add", "scripts/ci/change-plan.mjs"]);
+	const plannerFiles = [
+		"scripts/ci/change-plan.mjs",
+		"scripts/ci/ci-surfaces.mjs",
+		"scripts/ci/write-change-plan.sh",
+	];
+	for (const path of plannerFiles) {
+		cpSync(join(repoRoot, path), join(repository, path));
+	}
+	if (run(repository, "git", ["status", "--porcelain", "--", ...plannerFiles]).trim()) {
+		run(repository, "git", ["add", ...plannerFiles]);
 		run(repository, "git", ["commit", "--quiet", "--message", "test planner baseline"]);
 	}
 	return { repository, temporaryRoot };
@@ -64,77 +75,40 @@ async function withRepository(callback) {
 	}
 }
 
-test("real Git and Turbo routing keeps non-production changes out of releases", async () => {
+test("real Git and Turbo routing composes mixed changes without widening releases", async () => {
 	await withRepository((repository) => {
 		const base = run(repository, "git", ["rev-parse", "HEAD"]).trim();
 		appendFileSync(join(repository, "apps/app-api/README.md"), "\nCI routing fixture.\n");
-		const head = commit(repository, "docs fixture");
-		const result = plan(repository, base, head);
-		assert.deepEqual(result.release, { images: [], kubernetes: false, workers: [] });
-		assert.equal(result.browser, false);
-		assert.deepEqual(result.lanes, ["docs"]);
-	});
-
-	await withRepository((repository) => {
-		const base = run(repository, "git", ["rev-parse", "HEAD"]).trim();
 		appendFileSync(
 			join(repository, "apps/campus-web/test/staging-config.test.ts"),
 			"\n// CI routing fixture.\n",
 		);
-		const head = commit(repository, "test fixture");
-		const result = plan(repository, base, head);
-		assert.deepEqual(result.release.workers, []);
-		assert.equal(result.browser, false);
-		assert.equal(result.lanes.includes("node"), true);
-	});
-
-	await withRepository((repository) => {
-		const base = run(repository, "git", ["rev-parse", "HEAD"]).trim();
 		appendFileSync(join(repository, "turbo.json"), "\n");
-		const head = commit(repository, "Turbo fixture");
-		const result = plan(repository, base, head);
-		assert.deepEqual(result.release, { images: [], kubernetes: false, workers: [] });
-		assert.equal(result.browser, false);
-	});
-
-	await withRepository((repository) => {
-		const base = run(repository, "git", ["rev-parse", "HEAD"]).trim();
 		appendFileSync(
 			join(repository, "apps/execution-control/internal/telemetry/emitter.go"),
 			"\n// Backend publication fixture.\n",
 		);
-		const head = commit(repository, "backend publication fixture");
-		const result = plan(repository, base, head);
-		assert.deepEqual(result.release.workers, []);
-		assert.equal(result.release.images.includes("execution-control"), true);
-	});
-
-	await withRepository((repository) => {
-		const base = run(repository, "git", ["rev-parse", "HEAD"]).trim();
 		appendFileSync(
 			join(repository, "infra/otel/collector-local-debug.yaml"),
 			"\n# OTel routing fixture.\n",
 		);
-		const head = commit(repository, "OTel fixture");
+		const head = commit(repository, "mixed routing fixture");
 		const result = plan(repository, base, head);
-		assert.equal(result.lanes.includes("otel"), true);
-		assert.equal(result.release.kubernetes, false);
-		assert.deepEqual(result.release.images, []);
+		assert.deepEqual(result.release.images, ["execution-control"]);
 		assert.deepEqual(result.release.workers, []);
+		assert.equal(result.release.kubernetes, false);
+		assert.equal(result.browser, false);
+		assert.equal(result.lanes.includes("docs"), true);
+		assert.equal(result.lanes.includes("node"), true);
+		assert.equal(result.lanes.includes("otel"), true);
 	});
 });
 
 test("real Git and Turbo routing preserves production deletions and merge results", async () => {
 	await withRepository((repository) => {
-		const base = run(repository, "git", ["rev-parse", "HEAD"]).trim();
-		run(repository, "git", ["rm", "apps/app-api/src/base64url.ts"]);
-		const head = commit(repository, "delete production fixture");
-		assert.deepEqual(plan(repository, base, head).release.workers, ["app-api"]);
-	});
-
-	await withRepository((repository) => {
 		const original = run(repository, "git", ["rev-parse", "HEAD"]).trim();
 		run(repository, "git", ["switch", "--quiet", "--create", "fixture-pr"]);
+		run(repository, "git", ["rm", "apps/app-api/src/base64url.ts"]);
 		appendFileSync(join(repository, "apps/campus-web/src/main.tsx"), "\n// PR fixture.\n");
 		const pullRequestHead = commit(repository, "production fixture");
 		run(repository, "git", ["switch", "--quiet", "--create", "fixture-main", original]);
@@ -143,8 +117,30 @@ test("real Git and Turbo routing preserves production deletions and merge result
 		run(repository, "git", ["merge", "--quiet", "--no-ff", pullRequestHead, "-m", "merge fixture"]);
 		const mergeHead = run(repository, "git", ["rev-parse", "HEAD"]).trim();
 		const result = plan(repository, updatedBase, mergeHead);
-		assert.deepEqual(result.release.workers, ["campus-web"]);
+		assert.deepEqual(result.release.workers, ["app-api", "campus-web"]);
 		assert.equal(result.browser, true);
 		assert.equal(result.lanes.includes("docs"), false);
+	});
+});
+
+test("lockfile importer and transitive changes select only reachable workspaces", async () => {
+	await withRepository((repository) => {
+		const base = run(repository, "git", ["rev-parse", "HEAD"]).trim();
+		const manifestPath = join(repository, "apps/source-collector/package.json");
+		const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+		delete manifest.dependencies["@campus-agent/telemetry-node"];
+		writeFileSync(manifestPath, `${JSON.stringify(manifest, null, "\t")}\n`);
+
+		const lockfilePath = join(repository, "pnpm-lock.yaml");
+		const lockfile = parseYaml(readFileSync(lockfilePath, "utf8"));
+		delete lockfile.importers["apps/source-collector"].dependencies["@campus-agent/telemetry-node"];
+		lockfile.packages["crawlee@3.17.0"].resolution.integrity = "sha512-ci-routing-fixture";
+		writeFileSync(lockfilePath, stringifyYaml(lockfile));
+
+		const head = commit(repository, "lockfile routing fixture");
+		const result = plan(repository, base, head);
+		assert.equal(result.affectedPackages.includes("source-collector"), true);
+		assert.equal(result.affectedPackages.includes("@campus-agent/dining"), false);
+		assert.equal(result.release.workers.includes("campus-web"), false);
 	});
 });

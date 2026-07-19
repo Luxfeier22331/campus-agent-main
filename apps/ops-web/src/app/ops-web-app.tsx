@@ -8,10 +8,12 @@ import {
 	RouterProvider,
 	redirect,
 } from "@tanstack/react-router";
-import { Activity, ClipboardList, KeyRound, ServerCog, Utensils } from "lucide-react";
+import { Activity, ClipboardList, Database, KeyRound, ServerCog, Utensils } from "lucide-react";
 import { useMemo } from "react";
 import type { OpsOverviewWindow } from "../shared/ops-contract";
 import { DiningPage } from "./dining-page";
+import { IngestionPage } from "./ingestion-page";
+import { IngestionTaskPage } from "./ingestion-task-page";
 import { InternalPortalAuthPage } from "./internal-portal-auth-page";
 import { NotFoundPage } from "./not-found-page";
 import {
@@ -109,6 +111,18 @@ const internalPortalAuthRoute = createRoute({
 	component: InternalPortalAuthPage,
 });
 
+const ingestionRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/ingestion",
+	component: IngestionPage,
+});
+
+const ingestionTaskRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/ingestion/tasks/$taskId",
+	component: IngestionTaskRoute,
+});
+
 const diningRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/dining",
@@ -122,6 +136,8 @@ const routeTree = rootRoute.addChildren([
 	requestDetailRoute,
 	providerConfigRoute,
 	internalPortalAuthRoute,
+	ingestionRoute,
+	ingestionTaskRoute,
 	diningRoute,
 ]);
 
@@ -152,6 +168,7 @@ function RootLayout() {
 				{ href: "/overview", icon: Activity, label: "运行概览" },
 				{ href: "/requests", icon: ClipboardList, label: "请求排查" },
 				{ href: "/providers", icon: ServerCog, label: "Provider Config" },
+				{ href: "/ingestion", icon: Database, label: "采集运行" },
 				{ href: "/internal-portal-auth", icon: KeyRound, label: "门户认证" },
 				{ href: "/dining", icon: Utensils, label: "食堂内容" },
 			]}
@@ -159,6 +176,10 @@ function RootLayout() {
 			<Outlet />
 		</SidebarLayout>
 	);
+}
+
+function IngestionTaskRoute() {
+	return <IngestionTaskPage taskId={ingestionTaskRoute.useParams().taskId} />;
 }
 
 function OverviewRoute() {

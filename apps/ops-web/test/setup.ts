@@ -43,7 +43,7 @@ beforeAll(() => {
 		},
 		internalPortalMaintenanceClient: {
 			getStatus: vi.fn().mockResolvedValue(maintenanceStatus()),
-			resume: vi.fn().mockResolvedValue(maintenanceStatus()),
+			validate: vi.fn().mockResolvedValue(maintenanceStatus()),
 		},
 		staticRoot: "test/fixtures/static",
 		store: createFixtureOpsStatusStore(),

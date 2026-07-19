@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
 	buildAttachmentDownloadRequest,
+	fetchTrustedExternalVisualBinary,
 	runAttachmentCrawleeDownloadOutcomes,
 	runAttachmentCrawleeDownloads,
 } from "../src/attachment-crawlee-runner.js";
@@ -71,6 +72,45 @@ describe("authenticated notice attachment Crawlee runner", () => {
 		expect(results.get("portal:1")?.body.toString("utf-8")).toBe("portal-bytes");
 	});
 
+	it("enforces the aggregate byte budget while downloads are collected", async () => {
+		await expect(
+			runAttachmentCrawleeDownloads({
+				apiContext: {
+					get: async () => {
+						throw new Error("unexpected get");
+					},
+					post: async () => {
+						throw new Error("unexpected post");
+					},
+				},
+				externalVisualFetcher: async () => ({
+					body: Buffer.from("ab"),
+					contentDisposition: null,
+					contentType: "image/png",
+					etag: null,
+					lastModified: null,
+					statusCode: 200,
+				}),
+				maxTotalBytes: 3,
+				requestMaxRetries: 0,
+				requests: [
+					{
+						attachmentUrl: "https://mmbiz.qpic.cn/one.png",
+						cacheKey: "external:one",
+						fetchMode: "trusted_external_visual",
+						siteId: "example_internal_portal",
+					},
+					{
+						attachmentUrl: "https://mmbiz.qpic.cn/two.png",
+						cacheKey: "external:two",
+						fetchMode: "trusted_external_visual",
+						siteId: "example_internal_portal",
+					},
+				],
+			}),
+		).rejects.toThrow("attachment_run_size_limit_exceeded:4");
+	});
+
 	it("downloads trusted external visuals through Crawlee request context and rejects non-image responses", async () => {
 		const externalVisualFetcher = vi.fn(async ({ attachmentUrl }) => {
 			expect(attachmentUrl).toBe("https://mmbiz.qpic.cn/image.jpg");
@@ -79,6 +119,7 @@ describe("authenticated notice attachment Crawlee runner", () => {
 				contentDisposition: null,
 				contentType: "image/jpeg; charset=binary",
 				etag: '"etag-external"',
+				lastModified: null,
 				statusCode: 200,
 			};
 		});
@@ -135,6 +176,59 @@ describe("authenticated notice attachment Crawlee runner", () => {
 				],
 			}),
 		).rejects.toThrow("downloadExternalVisual returned non-image content-type");
+	});
+
+	it("validates every trusted external visual redirect", async () => {
+		const sendRequest = vi
+			.fn()
+			.mockResolvedValueOnce({
+				body: Buffer.alloc(0),
+				headers: { location: "/redirected.jpg" },
+				statusCode: 302,
+			})
+			.mockResolvedValueOnce({
+				body: Buffer.from("image"),
+				headers: { "content-type": "image/jpeg" },
+				statusCode: 200,
+			});
+
+		await expect(
+			fetchTrustedExternalVisualBinary({
+				attachmentUrl: "https://mmbiz.qpic.cn/image.jpg",
+				sendRequest,
+			}),
+		).resolves.toMatchObject({ contentType: "image/jpeg", statusCode: 200 });
+		expect(sendRequest).toHaveBeenNthCalledWith(2, {
+			maxRedirects: 0,
+			responseType: "buffer",
+			url: "https://mmbiz.qpic.cn/redirected.jpg",
+		});
+
+		await expect(
+			fetchTrustedExternalVisualBinary({
+				attachmentUrl: "https://mmbiz.qpic.cn/image.jpg",
+				sendRequest: vi.fn().mockResolvedValue({
+					body: Buffer.alloc(0),
+					headers: { location: "http://127.0.0.1/private" },
+					statusCode: 302,
+				}),
+			}),
+		).rejects.toThrow("rejected untrusted URL");
+	});
+
+	it("rejects trusted external visual redirects beyond three hops", async () => {
+		const sendRequest = vi.fn().mockResolvedValue({
+			body: Buffer.alloc(0),
+			headers: { location: "/next.jpg" },
+			statusCode: 302,
+		});
+		await expect(
+			fetchTrustedExternalVisualBinary({
+				attachmentUrl: "https://mmbiz.qpic.cn/image.jpg",
+				sendRequest,
+			}),
+		).rejects.toThrow("exceeded redirect limit");
+		expect(sendRequest).toHaveBeenCalledTimes(4);
 	});
 
 	it("returns per-request outcomes after Crawlee exhausts individual downloads", async () => {

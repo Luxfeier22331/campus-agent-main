@@ -2,6 +2,17 @@
 	"schema_version": "ingestion_task_registry.v3",
 	"tasks": [
 		{
+			"registry_task_id": "campus_notices.internal_notice.materialize",
+			"executor_kind": "typescript_kernel",
+			"kernel_id": "materialize-internal-portal-notice",
+			"input_contract": "internal_portal_notice_capture_result.v1",
+			"output_contract": "internal_portal_notice_materialization_result.v1",
+			"target": {
+				"corpus": "campus_notices",
+				"collection": "internal_notice"
+			}
+		},
+		{
 			"registry_task_id": "campus_notices.internal_notice.document_units_validate",
 			"executor_kind": "rust_kernel",
 			"kernel_id": "validate-document-units",

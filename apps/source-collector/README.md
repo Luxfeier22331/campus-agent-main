@@ -1,43 +1,58 @@
 # source-collector
 
-来源采集的 Temporal Activity Worker。
+用于来源采集的 Temporal Activity Worker。
 
-## 职责
+## 所有权
 
-本应用执行任务注册表中分配给 `source_collector` 的来源任务。适配器读取对象存储中的请求，调用
-来源系统，写入来源产物和结果清单，并把有界结果返回 Temporal。
+当前处理四个注册任务：
 
-当前适配器覆盖 Official Web、内部门户通知、内部门户文件发布和微信公众号。Crawlee、
-Playwright、浏览器状态、供应商客户端及供应商凭据留在本应用内。
+- `official_web.capture`
+- `internal_portal.notice.capture`
+- `internal_portal.file_release.capture`
+- `wechat_official_account.capture`
 
-本应用不启动 workflow、不维护 PostgreSQL 任务状态、不发布查询目标，也不通过 app-api 提供
-采集接口。重试、超时和取消由 Temporal 管理；取消必须传递到来源请求、浏览器和对象存储写入。
+每个 activity 从对象存储读取带摘要的请求，通过所属适配器采集来源，写入来源产物和一个
+结果 manifest，并返回 `ingestion_task_result.v1`。Crawlee、Playwright、浏览器状态、存储
+句柄和供应商凭据都留在本应用边界内，不进入采集合同。
 
-内部门户认证 activity 只建立新门户会话并探测登录状态，不执行通知采集或保存凭据到 Temporal
-载荷。凭据更新与状态检查步骤见认证操作手册。
+所有存储引用都包含摘要和字节数。写入采用 create-or-verify：新 key 条件创建，已有 key
+只有在摘要与大小一致时才接受。按运行产生的临时元数据和结果 manifest 按 activity attempt
+隔离；认证通知临时产物位于顶层 `attempts/internal_portal/`，便于对象存储按前缀保留 30 天。
+内容寻址的来源事实必须在重试间产生相同字节。
 
-## 入口
+collector 不提供 HTTP 控制面，不调用 app-api，不维护 PostgreSQL run ledger，不启动
+workflow，也不结束任务投影。Temporal 拥有重试、超时、心跳和取消；详细进度写入来源桶，
+activity 只通过心跳上报有界摘要。取消必须传播到来源请求、Crawlee、浏览器和对象存储写入，
+已取消 activity 不得写终态结果 manifest。
+
+同一 worker 还提供非采集 activity，每 30 分钟主动使用固定 TGC，强制建立新的浏览器 SSO、
+门户会话并探测一条通知，用于保活与验证。它只返回 Service Ticket、会话建立和探测结果，
+不写来源产物，也不把凭据或供应商票据放入 Temporal 载荷。
+
+## 运行
 
 ```bash
 pnpm --filter source-collector start:temporal-worker
-pnpm --filter source-collector auth:check:notice
-pnpm --filter source-collector auth:check:file-release
-pnpm --filter source-collector auth:save
-pnpm --filter source-collector auth:refresh
 ```
 
-生产镜像只包含 activity 所需的 Playwright Chromium。具体对象存储和供应商配置由部署环境注入。
+生产镜像包含 `configs/ingestion` 和 `configs/sources`，默认启动 Temporal worker，并通过
+`infra/k8s/ingestion-runtime/base` 以版本化 `WorkerDeployment` 部署。镜像只安装 activity
+需要的 Playwright Chromium headless shell，不包含 Firefox、WebKit、品牌 Chrome、包管理器
+或开发依赖。交互式认证获取只在可信人员工作站执行，不是容器入口。
+
+共享运行输入只有 ingestion Temporal 地址和来源对象存储凭据。供应商特有凭据只注入
+source-collector。内部门户唯一外部凭据是 `INTERNAL_PORTAL_SSO_TGC_FILE` 指向的原始
+TGC；Kubernetes 通过固定 Secret 完整卷投影该文件。适配器在本地运行目录派生并保存
+`JSESSIONID`、`nginx` 和 Playwright storage state。这些派生值只是 Pod 本地缓存，不是共享
+下游状态；通知和文件发布 activity 在缓存为空或 Pod 变化时仍从 TGC 自行建立会话。旧的
+直接 Cookie 环境变量不再受支持。
+
+```bash
+docker build --target runtime -f apps/source-collector/Dockerfile -t source-collector .
+```
 
 ## 验证
 
 ```bash
-pnpm --filter source-collector typecheck
-pnpm --filter source-collector test:ingest
+pnpm ci:ingest
 ```
-
-## 相关文档
-
-- `docs/architecture/system/data-plane.md`
-- `docs/domains/official-web.md`
-- `docs/data/internal-portal.md`
-- `docs/runbooks/portal-auth.md`

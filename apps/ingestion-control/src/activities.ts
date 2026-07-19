@@ -17,8 +17,12 @@ import type {
 	IngestionTaskResult,
 	IngestionTaskStore,
 } from "./types";
+import type { TypeScriptKernelRegistry } from "./typescript-kernel-runner";
 
 export interface RecordIngestionTaskStartedInput {
+	createdBy: string;
+	pipelineWorkflowId: string | null;
+	retryOfTaskId: string | null;
 	snapshot: IngestionTaskExecutionSnapshot;
 	workflowId: string;
 	workflowRunId: string;
@@ -52,6 +56,12 @@ export interface IngestionProjectionActivities {
 
 export interface RustKernelActivities {
 	executeRustKernelTask(snapshot: IngestionTaskExecutionSnapshot): Promise<IngestionTaskResult>;
+}
+
+export interface TypeScriptKernelActivities {
+	executeTypeScriptKernelTask(
+		snapshot: IngestionTaskExecutionSnapshot,
+	): Promise<IngestionTaskResult>;
 }
 
 export interface SourceCollectorActivities {
@@ -166,6 +176,29 @@ export function createRustKernelActivities(input: {
 			}, 10_000);
 			try {
 				return await input.rustKernels.require(requireRustKernelId(snapshot))(snapshot, {
+					activityAttempt: context.info.attempt,
+					signal: context.cancellationSignal,
+				});
+			} finally {
+				clearInterval(heartbeat);
+			}
+		},
+	};
+}
+
+export function createTypeScriptKernelActivities(input: {
+	typeScriptKernels: TypeScriptKernelRegistry;
+}): TypeScriptKernelActivities {
+	return {
+		async executeTypeScriptKernelTask(snapshot) {
+			const context = Context.current();
+			context.heartbeat({ phase: "starting", task_id: snapshot.task.task_id });
+			const heartbeat = setInterval(() => {
+				context.heartbeat({ phase: "running", task_id: snapshot.task.task_id });
+			}, 10_000);
+			heartbeat.unref();
+			try {
+				return await input.typeScriptKernels.require(snapshot)(snapshot, {
 					activityAttempt: context.info.attempt,
 					signal: context.cancellationSignal,
 				});

@@ -6,10 +6,12 @@ import {
 	type IngestionTaskResult,
 	validateCanonicalDocumentUnit,
 	validateCanonicalDocumentUnitsJsonl,
-	validateIngestionReleaseManifest,
+	validateIngestionOfflineRelease,
 	validateIngestionTaskEnvelope,
 	validateIngestionTaskRegistry,
 	validateIngestionTaskResult,
+	validateInternalPortalNoticeCheckpoint,
+	validateInternalPortalStageResult,
 } from "../src/index.ts";
 
 const assertionRoot = join(import.meta.dirname, "..", "assertions");
@@ -73,7 +75,7 @@ describe("ingestion task contracts", () => {
 		}
 	});
 
-	it("validates source collector and Rust registry declarations only", () => {
+	it("validates source collector, TypeScript kernel, and Rust registry declarations", () => {
 		expect(validateIngestionTaskRegistry(loadAssertion("task-registry.valid.json")).ok).toBe(true);
 		expect(
 			validateIngestionTaskRegistry(loadAssertion("task-registry.invalid-python-adapter.json")).ok,
@@ -91,6 +93,134 @@ describe("ingestion task contracts", () => {
 				],
 			}).ok,
 		).toBe(false);
+	});
+
+	it("requires unique notice checkpoints and materialized release items", () => {
+		const checkpoint = {
+			captured_at: "2026-07-17T00:01:00.000Z",
+			next: [{ last_released_notice_id: 110, notice_type: "5" }],
+			previous: [{ last_released_notice_id: 100, notice_type: "5" }],
+			schema_version: "internal_portal_notice_checkpoint.v1",
+		};
+		expect(validateInternalPortalNoticeCheckpoint(checkpoint).ok).toBe(true);
+		expect(
+			validateInternalPortalNoticeCheckpoint({
+				...checkpoint,
+				next: [
+					{ last_released_notice_id: 110, notice_type: "5" },
+					{ last_released_notice_id: 111, notice_type: "5" },
+				],
+			}).ok,
+		).toBe(false);
+
+		const releaseItem = {
+			artifacts: [
+				"source_manifest",
+				"content_blocks",
+				"attachment_refs",
+				"canonical_markdown",
+				"canonical_document_units",
+			].map((role) => ({
+				byte_size: 10,
+				digest,
+				kind: "object_store",
+				role,
+				uri: `s3://derived/notice/${role}`,
+			})),
+			item_id: "asset:notice:110",
+			version_id: digest,
+		};
+		const stageResult = {
+			artifacts: [
+				{
+					byte_size: 20,
+					digest,
+					kind: "object_store",
+					role: "canonical_document_units",
+					uri: "s3://derived/notice/units.jsonl",
+				},
+			],
+			items: [releaseItem],
+			registry_task_id: "campus_notices.internal_notice.materialize",
+			run_id: "run-110",
+			schema_version: "internal_portal_notice_materialization_result.v1",
+			summary: { document_count: 1 },
+			task_id: "run-110:materialize",
+		};
+		expect(validateInternalPortalStageResult(stageResult).ok).toBe(true);
+		expect(validateInternalPortalStageResult({ ...stageResult, items: undefined }).ok).toBe(false);
+		expect(
+			validateInternalPortalStageResult({
+				...stageResult,
+				items: [{ ...releaseItem, artifacts: releaseItem.artifacts.slice(0, -1) }],
+			}).ok,
+		).toBe(false);
+		expect(
+			validateInternalPortalStageResult({ ...stageResult, items: [releaseItem, releaseItem] }).ok,
+		).toBe(false);
+
+		const fileItem = {
+			artifacts: ["source_manifest", "content_blocks", "released_file"].map((role) => ({
+				byte_size: 10,
+				digest,
+				kind: "object_store",
+				role,
+				uri: `s3://derived/file/${role}`,
+			})),
+			item_id: "asset:file-release:646",
+			version_id: digest,
+		};
+		const fileStageResult = {
+			artifacts: [fileItem.artifacts.at(-1)],
+			items: [fileItem],
+			registry_task_id: "authenticated_documents.file_release_source.materialize",
+			run_id: "run-646",
+			schema_version: "internal_portal_file_release_materialization_result.v1",
+			summary: { file_count: 1 },
+			task_id: "run-646:materialize",
+		};
+		expect(validateInternalPortalStageResult(fileStageResult).ok).toBe(true);
+		expect(
+			validateInternalPortalStageResult({
+				...fileStageResult,
+				items: [{ ...fileItem, artifacts: fileItem.artifacts.slice(0, -1) }],
+			}).ok,
+		).toBe(false);
+	});
+
+	it("rejects duplicate item identities in a complete offline release", () => {
+		const item = {
+			artifacts: [
+				{
+					byte_size: 10,
+					digest,
+					kind: "object_store",
+					role: "source_manifest",
+					uri: "s3://derived/notice/manifest.json",
+				},
+			],
+			item_id: "asset:notice:110",
+			version_id: digest,
+		};
+		const release = {
+			checkpoint: { notices: [{ last_released_notice_id: 110, notice_type: "5" }] },
+			created_at: "2026-07-17T00:02:00.000Z",
+			items: [item],
+			pipeline: {
+				run_id: "run-110",
+				task_ids: ["run-110:capture", "run-110:materialize"],
+				workflow_id: "ingestion/internal-portal-notice/run-110",
+				workflow_run_id: "run-110",
+			},
+			previous_release_id: null,
+			release_id: "release:run-110:v1",
+			schema_version: "ingestion_offline_release.v1",
+			source: { channel: "internal_portal", site_id: "muc", surface: "notice" },
+			stream_id: "internal_portal:muc:notice",
+			target: { collection: "internal_notice", corpus: "campus_notices" },
+		};
+		expect(validateIngestionOfflineRelease(release).ok).toBe(true);
+		expect(validateIngestionOfflineRelease({ ...release, items: [item, item] }).ok).toBe(false);
 	});
 
 	it("validates a single bounded result reference", () => {
@@ -128,19 +258,5 @@ describe("ingestion task contracts", () => {
 				summary: { InvalidKey: true },
 			}).ok,
 		).toBe(false);
-	});
-
-	it("validates ingestion release manifests as a shared contract", () => {
-		const manifest = {
-			schema_version: "ingestion_release_manifest.v2",
-			release_id: "release-001",
-			corpus: "curriculum",
-			collection: "curriculum_plan",
-			artifacts: [
-				{ byte_size: 512, kind: "object_store", uri: "s3://bucket/release.json", digest },
-			],
-		};
-		expect(validateIngestionReleaseManifest(manifest).ok).toBe(true);
-		expect(validateIngestionReleaseManifest({ ...manifest, corpus: "" }).ok).toBe(false);
 	});
 });

@@ -16,11 +16,10 @@ const RETIRED_INTERNAL_PORTAL_AUTH_KEYS = new Set([
 
 export interface InternalPortalConfig {
 	runtimeDir: string;
-	defaultInlineVisualCapture: boolean;
 	authStorageStatePath: string;
 	authSsoCookieDomain: string | null;
 	authSsoTgcFile: string;
-	historicalBackfillMaxPagesPerType: number | null;
+	reconcileMaxPagesPerType: number | null;
 	noticeTypesPath: string;
 	portalBaseUrl: string;
 	portalPageUrl: string;
@@ -62,10 +61,6 @@ export function resolveInternalPortalConfig(
 	const bypassProxyForPortal = shouldBypassProxyForPortal(source.INTERNAL_PORTAL_BYPASS_PROXY);
 	return {
 		runtimeDir,
-		defaultInlineVisualCapture: parseBooleanFlag(
-			source.INTERNAL_PORTAL_DEFAULT_INLINE_VISUAL_CAPTURE,
-			false,
-		),
 		authStorageStatePath: path.join(runtimeDir, "auth", "storageState.json"),
 		authSsoCookieDomain: resolveSsoCookieDomain({
 			portalBaseUrl,
@@ -74,8 +69,8 @@ export function resolveInternalPortalConfig(
 		authSsoTgcFile: path.resolve(
 			String(source.INTERNAL_PORTAL_SSO_TGC_FILE || path.join(runtimeDir, "auth", "sso_tgc")),
 		),
-		historicalBackfillMaxPagesPerType: parseOptionalPositiveInteger(
-			source.INTERNAL_PORTAL_HISTORICAL_BACKFILL_MAX_PAGES_PER_TYPE,
+		reconcileMaxPagesPerType: parseOptionalPositiveInteger(
+			source.INTERNAL_PORTAL_RECONCILE_MAX_PAGES_PER_TYPE,
 		),
 		noticeTypesPath: path.resolve(
 			String(
@@ -122,22 +117,6 @@ function parseOptionalPositiveInteger(raw: string | undefined): number | null {
 		return null;
 	}
 	return Math.floor(parsed);
-}
-
-function parseBooleanFlag(raw: string | undefined, defaultValue: boolean): boolean {
-	const normalized = String(raw ?? "")
-		.trim()
-		.toLowerCase();
-	if (!normalized) {
-		return defaultValue;
-	}
-	if (["1", "true", "yes", "on"].includes(normalized)) {
-		return true;
-	}
-	if (["0", "false", "no", "off"].includes(normalized)) {
-		return false;
-	}
-	return defaultValue;
 }
 
 function resolvePortalNoProxyHosts(
