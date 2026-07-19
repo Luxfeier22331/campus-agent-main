@@ -21,12 +21,11 @@ schema 定义，连接拓扑见 `../architecture/system/data-plane.md`，部署�
 | `execution_control` | `apps/execution-control` | 执行投影写入和获准校园服务读取 |
 | `campus_services_publisher` | `jobs/transport-publisher` | `campus_services.*` 发布写入 |
 | `docs_publish` | `jobs/docs-publish` | `docs.*` 发布写入 |
-| `ops_web` | `apps/ops-web` | 获准排查投影读取和读取审计写入 |
+| `ops_web` | `apps/ops-web` | 获准排查投影的列级只读访问 |
 | `execution_provider_config_reader` | `apps/execution-control` | 已激活 `execution_config.*` 读取 |
 | `execution_provider_config_admin` | `apps/execution-control` | 配置 revision、验证和激活读写 |
 | `ops_web_dining` | `apps/ops-web` | Dining 草稿、发布、回滚和评价治理 |
 | `dining_sync` | `jobs/dining-sync` | Dining 来源观测、同步和复检 |
-| `ops_audit_maintenance` | 维护任务 | 只执行读取审计清理函数 |
 
 Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，不共享产品运行时角色。外部
 观测平台不获得产品 PostgreSQL 角色。
@@ -42,7 +41,6 @@ Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，�
 | `runtime.request_observability_fact` | App API 产品终态 | App API、Ops Web |
 | `runtime.agent_*` | execution-control | execution-control |
 | `execution_config.*` | execution-control 配置管理 | execution-control |
-| `observability.*` | Ops Web | Ops Web 与审计维护任务 |
 | `dining.*` | Dining 同步和 Ops Web | Ops Web、同步任务、App API 公开读取 |
 | `campus_services.*` | 校园服务发布任务 | App API、execution-control |
 
@@ -56,7 +54,6 @@ ingestion registry 和来源事实由采集数据所有者维护，不并入产�
 - Provider Config 只能通过 execution-control 管理接口修改，Ops Web 不直连其 schema；
 - App API 只读取 Dining 当前发布和公开评价，不拥有 Dining migration；
 - Ops Web 的请求排查角色与 Dining 内容角色分离；
-- 读取原始观测记录前必须写审计，审计维护角色不能读取业务表；
 - 不同所有者不共享 migration journal，也不通过双写复制同一事实；
 - 对象 bytes、原始来源、工作流历史和供应商 trace 不进入这些 schema。
 

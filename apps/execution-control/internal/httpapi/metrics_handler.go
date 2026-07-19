@@ -9,7 +9,7 @@ import (
 func (s *Server) handleMetrics(response http.ResponseWriter, request *http.Request) {
 	if !s.metricsAuthorized(request) {
 		setOutcome(response, "unauthorized")
-		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid metrics bearer token.", false)
+		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid Ops Web internal token.", false)
 		return
 	}
 	response.Header().Set("content-type", "text/plain; version=0.0.4")

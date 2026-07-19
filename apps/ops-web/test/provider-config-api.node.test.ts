@@ -18,34 +18,11 @@ const status = {
 };
 
 describe("ops provider config BFF", () => {
-	it("keeps service principals read-only", async () => {
-		const command = vi.fn();
-		const app = createOpsApp({
-			admission: createAllowAllOpsAdmission({ principalClass: "service", serviceId: "smoke" }),
-			env: {
-				OPS_WEB_PROVIDER_CONFIG_WRITE_HUMAN_EMAIL_ALLOWLIST: "ops@example.test",
-				OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test",
-			},
-			providerConfigClient: { command, getStatus: async () => status },
-		});
-		const read = await app.request("http://ops.test/api/ops/provider-config");
-		expect(read.status).toBe(200);
-		expect(await read.json()).toMatchObject({ writeAllowed: false });
-		const write = await app.request("http://ops.test/api/ops/provider-config/connections", {
-			body: "{}",
-			headers: { "content-type": "application/json", origin: "http://ops.test" },
-			method: "POST",
-		});
-		expect(write.status).toBe(403);
-		expect(command).not.toHaveBeenCalled();
-	});
-
-	it("requires same-origin writes from an allowlisted human", async () => {
+	it("requires same-origin writes from an admitted person", async () => {
 		const command = vi.fn().mockResolvedValue({ connection: { connectionId: "connection_1" } });
 		const app = createOpsApp({
-			admission: createAllowAllOpsAdmission({ email: "ops@example.test", principalClass: "human" }),
+			admission: createAllowAllOpsAdmission({ email: "ops@example.test" }),
 			env: {
-				OPS_WEB_PROVIDER_CONFIG_WRITE_HUMAN_EMAIL_ALLOWLIST: "ops@example.test",
 				OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test",
 			},
 			providerConfigClient: { command, getStatus: async () => status },

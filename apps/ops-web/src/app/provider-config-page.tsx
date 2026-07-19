@@ -95,9 +95,7 @@ export function ProviderConfigPage() {
 					<ErrorState error={commandError} title="Provider Config 命令失败" />
 				</div>
 			) : null}
-			{data.writeAllowed ? (
-				<ProviderWriteControls command={command.mutate} data={data} pending={command.isPending} />
-			) : null}
+			<ProviderWriteControls command={command.mutate} data={data} pending={command.isPending} />
 			<div className="mt-4 grid gap-4">
 				<Card>
 					<CardHeader>

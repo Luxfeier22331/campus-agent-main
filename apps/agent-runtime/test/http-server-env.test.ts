@@ -3,13 +3,14 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 describe("agent runtime server env contract", () => {
-	it("uses AGENT_RUNTIME-prefixed env names for execution-control internal query config", () => {
+	it("uses one secret for execution-control and agent-runtime calls in both directions", () => {
 		const source = readServerSource();
 
 		expect(source).toContain("AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL");
-		expect(source).toContain("AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET");
+		expect(source.match(/process\.env\.EXECUTION_AGENT_RUNTIME_SHARED_SECRET/gu)).toHaveLength(1);
 		expect(source).not.toContain("process.env.EXECUTION_CONTROL_BASE_URL");
-		expect(source).not.toContain("process.env.EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET");
+		expect(source).not.toContain("process.env.AGENT_RUNTIME_SHARED_SECRET");
+		expect(source).not.toContain("process.env.AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET");
 	});
 
 	it("does not project root provider env into the OpenAI Agents SDK provider", () => {

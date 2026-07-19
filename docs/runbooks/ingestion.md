@@ -20,7 +20,7 @@ status: active
 - `configs/ingestion` 下 v3 registry 已通过校验；
 - 目标来源所需 provider credential 已注入；
 - 启用内部门户时，固定 `source-collector-internal-portal-auth` Secret 已初始化，且 Ops Web
-  与 ingestion-control 使用同一个 `INGESTION_CONTROL_OPS_TOKEN` 合同。
+  与 ingestion-control 使用同一个 `OPS_WEB_INTERNAL_TOKEN` 合同。
 
 本地迁移：
 
@@ -80,14 +80,10 @@ curl -fsS \
 curl -fsS \
   -H "Authorization: Bearer ${INGESTION_CONTROL_ADMIN_TOKEN}" \
   http://127.0.0.1:8000/internal/ingestion/tasks/task-001
-
-curl -fsS \
-  -H "Authorization: Bearer ${INGESTION_CONTROL_APP_API_PROJECTION_TOKEN}" \
-  'http://127.0.0.1:8000/internal/ingestion/operator-projection/tasks?limit=50'
 ```
 
 workflow history、attempt、heartbeat、timeout 和 cancellation 使用 Temporal UI/CLI。PostgreSQL
-只保存有界投影。
+只保存有界投影；ingestion-control 不提供给 App API 的 operator projection 列表路由。
 
 ## 取消
 

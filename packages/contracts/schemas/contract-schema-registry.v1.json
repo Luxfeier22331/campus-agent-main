@@ -179,13 +179,27 @@
 			"notes": "Character-budget and count-only context truncation diagnostic without raw dropped content."
 		},
 		{
-			"id": "env-surface-policy.v1",
+			"id": "env-contract.v1",
 			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/env-surface-policy.v1.schema.json",
+			"path": "packages/contracts/schemas/env-contract.v1.schema.json",
 			"owner": "packages/contracts",
 			"status": "active",
-			"validates": ["configs/runtime/env-surface-policy.v1.json"],
-			"notes": "Repo-wide environment surface policy consumed by static checks."
+			"notes": "自动发现的所有者本地环境合同 schema。"
+		},
+		{
+			"id": "provider-config-projection.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/provider-config-projection.v1.schema.json",
+			"owner": "packages/eval-langfuse",
+			"status": "active",
+			"fixture_groups": [
+				{
+					"path": "packages/contracts/fixtures/provider_config_projection",
+					"valid_glob": "*.valid.json",
+					"invalid_glob": "*.invalid.json"
+				}
+			],
+			"notes": "三个已准入评测 provider 角色使用的 0600 本地投影。"
 		},
 		{
 			"id": "canonical-document-units.v1",

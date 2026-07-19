@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import process from "node:process";
+import { loadEvalProviderProjection } from "../../../packages/eval-langfuse/src/provider-config.ts";
 import { parseEnvFile } from "../lib/env-file.ts";
 import { type Env, type Surface, surfaceSpecs } from "./specs.ts";
 
@@ -94,6 +95,11 @@ export function collectEnvDoctorStatus({
 		currentEnv,
 		normalizedSurface,
 	);
+	const providerProjection = collectEvalProviderProjectionStatus(
+		resolvedRoot,
+		currentEnv,
+		normalizedSurface,
+	);
 	const conditions = collectSurfaceConditions({
 		env: currentEnv,
 		runtimeConfig,
@@ -104,6 +110,7 @@ export function collectEnvDoctorStatus({
 		Object.values(providers).every((status) => status.present === true) &&
 		Object.values(requiredSettings).every((status) => status.present === true) &&
 		Object.values(files).every((status) => status.ready === true) &&
+		(providerProjection.required !== true || providerProjection.ready === true) &&
 		postgresDiagnosticsReady(postgres, checkPostgresConnectivity) &&
 		Object.values(conditions).every((condition) => condition.ready === true);
 	return {
@@ -111,7 +118,7 @@ export function collectEnvDoctorStatus({
 		overall_ready: overallReady,
 		bootstrap: { ran: true, ...bootstrap },
 		providers,
-		provider_projection: {},
+		provider_projection: providerProjection,
 		settings: { required: requiredSettings, optional: optionalSettings },
 		conditions,
 		runtime_config: runtimeConfig,
@@ -148,6 +155,15 @@ export function renderTextReport(status: Status): string {
 		);
 		if (providerStatus.error) {
 			lines.push(`provider.${providerName}.error=${providerStatus.error}`);
+		}
+	}
+	if (status.provider_projection.required === true) {
+		lines.push(
+			`provider_projection.ready=${status.provider_projection.ready}`,
+			`provider_projection.path=${status.provider_projection.path}`,
+		);
+		if (status.provider_projection.error) {
+			lines.push(`provider_projection.error=${status.provider_projection.error}`);
 		}
 	}
 	for (const group of ["required", "optional"] as const) {
@@ -351,6 +367,46 @@ function collectExecutionControlRuntimeConfigStatus(
 	}
 }
 
+function collectEvalProviderProjectionStatus(
+	root: string,
+	env: Env,
+	surface: string,
+): Record<string, unknown> {
+	if (surface !== "evals") {
+		return {};
+	}
+	const rawPath = env.EVAL_PROVIDER_CONFIG_PROJECTION_PATH?.trim() ?? "";
+	if (!rawPath) {
+		return {
+			required: true,
+			present: false,
+			ready: false,
+			path: null,
+			error: "EVAL_PROVIDER_CONFIG_PROJECTION_PATH is required",
+		};
+	}
+	const path = isAbsolute(rawPath) ? rawPath : join(root, rawPath);
+	try {
+		loadEvalProviderProjection(path);
+		return {
+			required: true,
+			present: true,
+			ready: true,
+			path,
+			roles: ["eval_judge_llm", "eval_ragas_embedding", "eval_ragas_llm"],
+			error: null,
+		};
+	} catch (error) {
+		return {
+			required: true,
+			present: existsSync(path),
+			ready: false,
+			path,
+			error: error instanceof Error ? error.message : String(error),
+		};
+	}
+}
+
 function postgresDiagnosticsReady(
 	postgres: { shared: Record<string, unknown> },
 	checkConnectivity: boolean,
@@ -429,43 +485,6 @@ function collectSettingStatus(
 		checked_keys: [...checkedKeys],
 		resolved_key: null,
 		error: `missing setting; checked ${checkedKeys.join(" > ")}`,
-	};
-}
-
-function collectObjectStoreCredentialsStatus(env: Env): Record<string, unknown> {
-	const sharedKeys = ["OBJECT_STORE_ACCESS_KEY", "OBJECT_STORE_SECRET_KEY"] as const;
-	const sourceKeys = ["OBJECT_STORE_SOURCE_ACCESS_KEY", "OBJECT_STORE_SOURCE_SECRET_KEY"] as const;
-	const derivedKeys = [
-		"OBJECT_STORE_DERIVED_ACCESS_KEY",
-		"OBJECT_STORE_DERIVED_SECRET_KEY",
-	] as const;
-	const checkedKeys = [...sharedKeys, ...sourceKeys, ...derivedKeys];
-	if (sharedKeys.every((key) => env[key]?.trim())) {
-		return {
-			required: true,
-			present: true,
-			checked_keys: checkedKeys,
-			resolved_key: "shared:OBJECT_STORE_ACCESS_KEY+OBJECT_STORE_SECRET_KEY",
-			error: null,
-		};
-	}
-	if (sourceKeys.every((key) => env[key]?.trim()) && derivedKeys.every((key) => env[key]?.trim())) {
-		return {
-			required: true,
-			present: true,
-			checked_keys: checkedKeys,
-			resolved_key:
-				"bucket_scoped:OBJECT_STORE_SOURCE_ACCESS_KEY+OBJECT_STORE_SOURCE_SECRET_KEY;OBJECT_STORE_DERIVED_ACCESS_KEY+OBJECT_STORE_DERIVED_SECRET_KEY",
-			error: null,
-		};
-	}
-	return {
-		required: true,
-		present: false,
-		checked_keys: checkedKeys,
-		resolved_key: null,
-		error:
-			"missing object-store credentials; ingestion requires either shared OBJECT_STORE_ACCESS_KEY/OBJECT_STORE_SECRET_KEY credentials or both bucket-scoped OBJECT_STORE_SOURCE_* and OBJECT_STORE_DERIVED_* credential pairs",
 	};
 }
 

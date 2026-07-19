@@ -9,7 +9,6 @@ export function requestSql(suffix: string): string {
 			"conversation_id" as "conversationId",
 			"duration_ms" as "durationMs",
 			"error_code" as "errorCode",
-			"principal_id" as "principalId",
 			"principal_type" as "principalType",
 			"projected_at" as "projectedAt",
 			"question_preview" as "questionPreview",
@@ -48,10 +47,6 @@ export function requestRowsCte(): string {
 							then nullif(agent_run.terminal_reason, '')
 					end
 				) as "error_code",
-				coalesce(
-					dispatch.principal_snapshot_json #>> '{principal,principalId}',
-					dispatch.owner_user_id
-				) as "principal_id",
 				coalesce(
 					dispatch.principal_snapshot_json #>> '{principal,type}',
 					'unknown'

@@ -26,9 +26,15 @@ pnpm ci:eval
 
 ## 模型配置
 
-需要调用模型指标时，向相关命令传入 `--runtime-config <path>`，或使用 runner 支持的本地未跟踪
-环境配置。精确字段、优先级和执行限制以 `packages/ragas-runner` 的解析器与测试为准。不要从
-execution-control 的在线 Provider Config 推导离线评测配置。
+需要调用模型指标时，设置 `EVAL_PROVIDER_CONFIG_PROJECTION_PATH`，指向未跟踪的
+`provider_config_projection.v1` JSON 文件。该文件必须是当前用户拥有、权限严格为 `0600` 的普通
+文件，不能是符号链接，并且必须完整提供 `eval_judge_llm`、`eval_ragas_llm` 和
+`eval_ragas_embedding` 三个 role。适配器按评测类型生成短生命周期的 `0600` Ragas 配置，并在
+调用结束后删除。
+
+精确字段和执行限制以 provider projection schema、`packages/eval-langfuse/src/provider-config.ts`
+及其测试为准。不要从 execution-control 的在线 Provider Config 推导离线评测配置，也不要恢复
+已退役的 `--runtime-config` 或分散模型环境变量。
 
 ## 数据集
 

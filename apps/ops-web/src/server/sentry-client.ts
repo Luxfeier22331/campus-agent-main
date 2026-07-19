@@ -48,9 +48,9 @@ export interface SentryClient {
 export interface SentryEnv {
 	DEPLOYMENT_ENVIRONMENT?: string;
 	OPS_WEB_SENTRY_BASE_URL?: string;
-	OPS_WEB_SENTRY_EVENT_READ_TOKEN?: string;
-	OPS_WEB_SENTRY_ORG_SLUG?: string;
 	OPS_WEB_SENTRY_PROJECT_SLUGS?: string;
+	SENTRY_AUTH_TOKEN?: string;
+	SENTRY_ORG_SLUG?: string;
 }
 
 export class SentryUnavailableError extends Error {
@@ -164,9 +164,9 @@ export function createSentryClientFromEnv(env: SentryEnv = process.env): SentryC
 	const required = {
 		DEPLOYMENT_ENVIRONMENT: env.DEPLOYMENT_ENVIRONMENT?.trim(),
 		OPS_WEB_SENTRY_BASE_URL: env.OPS_WEB_SENTRY_BASE_URL?.trim(),
-		OPS_WEB_SENTRY_EVENT_READ_TOKEN: env.OPS_WEB_SENTRY_EVENT_READ_TOKEN?.trim(),
-		OPS_WEB_SENTRY_ORG_SLUG: env.OPS_WEB_SENTRY_ORG_SLUG?.trim(),
 		OPS_WEB_SENTRY_PROJECT_SLUGS: env.OPS_WEB_SENTRY_PROJECT_SLUGS?.trim(),
+		SENTRY_AUTH_TOKEN: env.SENTRY_AUTH_TOKEN?.trim(),
+		SENTRY_ORG_SLUG: env.SENTRY_ORG_SLUG?.trim(),
 	};
 	const missing = Object.entries(required)
 		.filter(([, value]) => !value)
@@ -177,9 +177,9 @@ export function createSentryClientFromEnv(env: SentryEnv = process.env): SentryC
 	return createSentryClient({
 		baseUrl: required.OPS_WEB_SENTRY_BASE_URL as string,
 		environment: required.DEPLOYMENT_ENVIRONMENT as string,
-		orgSlug: required.OPS_WEB_SENTRY_ORG_SLUG as string,
+		orgSlug: required.SENTRY_ORG_SLUG as string,
 		projectSlugs: (required.OPS_WEB_SENTRY_PROJECT_SLUGS as string).split(","),
-		token: required.OPS_WEB_SENTRY_EVENT_READ_TOKEN as string,
+		token: required.SENTRY_AUTH_TOKEN as string,
 	});
 }
 
@@ -249,7 +249,7 @@ function normalizeRequestId(value: string) {
 function normalizeToken(value: string) {
 	const normalized = value.trim();
 	if (!normalized || /[\r\n]/.test(normalized)) {
-		throw new Error("Sentry event read token is invalid.");
+		throw new Error("Sentry auth token is invalid.");
 	}
 	return normalized;
 }

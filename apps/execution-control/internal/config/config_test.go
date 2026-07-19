@@ -50,21 +50,19 @@ func setStagingTemporalWorkflowIDSalt(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_PROVIDER_CONFIG_KEYRING_PATH", "/run/provider-config/keyring.json")
 	t.Setenv("EXECUTION_CONTROL_PROVIDER_CONFIG_READER_DATABASE_URL", "postgresql://provider-config-reader")
 	t.Setenv("EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL", "https://api.example.test")
-	t.Setenv("EXECUTION_CONTROL_PRODUCT_CALLBACK_SHARED_SECRET", "product-callback-secret")
+	t.Setenv("APP_API_EXECUTION_SHARED_SECRET", "product-callback-secret")
 }
 
 func TestProviderConfigAdminRoleDoesNotRequireOnlineRuntimeDependencies(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_MODE", "staging")
 	t.Setenv("EXECUTION_CONTROL_PROVIDER_CONFIG_ADMIN_DATABASE_URL", "postgresql://provider-config-admin")
 	t.Setenv("EXECUTION_CONTROL_PROVIDER_CONFIG_KEYRING_PATH", "/run/provider-config/keyring.json")
-	t.Setenv("EXECUTION_CONTROL_PROVIDER_CONFIG_ADMIN_READ_TOKEN", "provider-read-token")
-	t.Setenv("EXECUTION_CONTROL_PROVIDER_CONFIG_ADMIN_COMMAND_TOKEN", "provider-command-token")
+	t.Setenv("OPS_WEB_INTERNAL_TOKEN", "ops-web-token")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT", "")
 	t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", "")
-	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "")
 	t.Setenv("PERSONAL_MEMORY_BASE_URL", "")
 	t.Setenv("PERSONAL_MEMORY_API_SECRET", "")
 	t.Setenv("PERSONAL_MEMORY_OWNER_SALT", "")
@@ -91,7 +89,7 @@ func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_REQUEST_TIMEOUT_MS", "")
 	t.Setenv("EXECUTION_CONTROL_REQUEST_BODY_LIMIT_BYTES", "")
 	t.Setenv("EXECUTION_CONTROL_SHUTDOWN_GRACE_MS", "")
-	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "")
+	t.Setenv("OPS_WEB_INTERNAL_TOKEN", "")
 	t.Setenv("EXECUTION_CONTROL_DURABLE_RUNTIME_DATABASE_URL", "")
 	t.Setenv("EXECUTION_CONTROL_DURABLE_RUNTIME_AUTO_MIGRATE", "")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "")
@@ -148,8 +146,8 @@ func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 	if cfg.ShutdownGraceMS != 45_000 {
 		t.Fatalf("shutdown grace = %d, want 45000", cfg.ShutdownGraceMS)
 	}
-	if cfg.MetricsBearerToken != "" {
-		t.Fatalf("metrics bearer token = %q, want empty", cfg.MetricsBearerToken)
+	if cfg.OpsWebInternalToken != "" {
+		t.Fatalf("ops web internal token = %q, want empty", cfg.OpsWebInternalToken)
 	}
 	if cfg.OTelEnabled {
 		t.Fatal("otel enabled = true, want false by default")
@@ -203,7 +201,7 @@ func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 
 func TestLoadFromEnvRequiresTemporalSettingsForStaging(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_MODE", "staging")
-	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
+	t.Setenv("OPS_WEB_INTERNAL_TOKEN", "ops-web-token")
 	t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", "postgres://runtime.example/campus_agent")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
@@ -217,7 +215,7 @@ func TestLoadFromEnvRequiresTemporalSettingsForStaging(t *testing.T) {
 
 func TestLoadFromEnvReadsTemporalSettings(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_MODE", "staging")
-	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
+	t.Setenv("OPS_WEB_INTERNAL_TOKEN", "ops-web-token")
 	t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", "postgres://runtime.example/campus_agent")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
@@ -242,7 +240,7 @@ func TestLoadFromEnvReadsTemporalSettings(t *testing.T) {
 
 func TestLoadFromEnvRequiresDeployedPersonalMemorySettings(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_MODE", "staging")
-	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
+	t.Setenv("OPS_WEB_INTERNAL_TOKEN", "ops-web-token")
 	t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", "postgres://runtime.example/campus_agent")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
@@ -256,10 +254,10 @@ func TestLoadFromEnvRequiresDeployedPersonalMemorySettings(t *testing.T) {
 
 func TestLoadFromEnvForRoleScopesPersonalMemoryRequirements(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_MODE", "staging")
-	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
+	t.Setenv("OPS_WEB_INTERNAL_TOKEN", "ops-web-token")
 	t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", "postgres://runtime.example/campus_agent")
 	t.Setenv("EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL", "http://agent-runtime:27062")
-	t.Setenv("EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET", "agent-secret")
+	t.Setenv("EXECUTION_AGENT_RUNTIME_SHARED_SECRET", "agent-secret")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "staging:workflow-worker:001")
@@ -432,18 +430,18 @@ func TestLoadFromEnvReportsRetiredDurableLoopBeforeParsingOldValues(t *testing.T
 	}
 }
 
-func TestFromEnvRejectsNonLocalRuntimeModeWithoutMetricsToken(t *testing.T) {
+func TestFromEnvRejectsNonLocalRuntimeModeWithoutOpsWebInternalToken(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_MODE", "staging")
-	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "")
+	t.Setenv("OPS_WEB_INTERNAL_TOKEN", "")
 
 	if _, err := LoadFromEnv(); err == nil {
-		t.Fatal("expected staging runtime config without metrics token to fail")
+		t.Fatal("expected staging runtime config without ops web internal token to fail")
 	}
 }
 
-func TestLoadFromEnvForRoleDoesNotRequireServerMetricsToken(t *testing.T) {
+func TestLoadFromEnvForRoleDoesNotRequireOpsWebInternalToken(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_MODE", "staging")
-	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "")
+	t.Setenv("OPS_WEB_INTERNAL_TOKEN", "")
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_RELEASE", "execution-control@worker-test")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
@@ -451,13 +449,13 @@ func TestLoadFromEnvForRoleDoesNotRequireServerMetricsToken(t *testing.T) {
 	setStagingTemporalWorkflowIDSalt(t)
 
 	if _, err := LoadFromEnvForRole("workflow"); err != nil {
-		t.Fatalf("workflow worker must not require HTTP metrics token: %v", err)
+		t.Fatalf("workflow worker must not require ops web internal token: %v", err)
 	}
 }
 
-func TestFromEnvAcceptsStagingRuntimeModeWithMetricsToken(t *testing.T) {
+func TestFromEnvAcceptsStagingRuntimeModeWithOpsWebInternalToken(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_MODE", "staging")
-	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
+	t.Setenv("OPS_WEB_INTERNAL_TOKEN", "ops-web-token")
 	t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", "postgres://runtime.example/campus_agent")
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_RELEASE", "execution-control@staging-test")
 	t.Setenv("DEPLOYMENT_ENVIRONMENT", "staging")
@@ -516,7 +514,6 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
   "otel": {
     "enabled": true,
     "endpoint": "http://collector:4318/v1/traces",
-    "headers": "authorization=Bearer test",
     "service_name": "custom-execution-control",
     "export_timeout_ms": 750,
     "export_interval_ms": 15000,
@@ -528,7 +525,7 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 	}
 }`)
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_RELEASE", "execution-control@hardening-test")
-	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
+	t.Setenv("OPS_WEB_INTERNAL_TOKEN", "ops-web-token")
 
 	cfg, err := LoadFromEnv()
 	if err != nil {
@@ -540,10 +537,9 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		cfg.QueueTimeoutMS != 2500 ||
 		cfg.RequestTimeoutMS != 30000 ||
 		cfg.ShutdownGraceMS != 20000 ||
-		cfg.MetricsBearerToken != "metrics-token" ||
+		cfg.OpsWebInternalToken != "ops-web-token" ||
 		!cfg.OTelEnabled ||
 		cfg.OTelEndpoint != "http://collector:4318/v1/traces" ||
-		cfg.OTelHeaders != "authorization=Bearer test" ||
 		cfg.OTelServiceName != "custom-execution-control" ||
 		cfg.OTelExportTimeoutMS != 750 ||
 		cfg.OTelExportIntervalMS != 15000 ||

@@ -42,9 +42,12 @@ spec:
           envFrom:
             - configMapRef:
                 name: execution-runtime-rendered-config
-            - secretRef:
-                name: agent-runtime-secrets
           env:
+            - name: EXECUTION_AGENT_RUNTIME_SHARED_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: execution-agent-runtime-secrets
+                  key: EXECUTION_AGENT_RUNTIME_SHARED_SECRET
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: http://otel-collector:4320
             - name: OTEL_SERVICE_NAME

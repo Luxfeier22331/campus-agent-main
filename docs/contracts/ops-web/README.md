@@ -69,10 +69,9 @@ Dining：
 ### 身份和权限
 
 - `/api/ops/*` 验证 Cloudflare Access JWT 的签发方、受众和签名。
-- JWT 对应的人员邮箱或服务令牌 ID 必须进入基础操作者白名单。
-- 原始日志和调用链读取还必须进入独立的原始观测数据白名单。
-- 内部门户认证接口只允许基础白名单中的人员身份，服务令牌不能调用。
-- Provider Config 读取允许已准入人员或服务身份；写入还要求独立人员邮箱或组白名单。
+- Cloudflare Access policy 决定人员范围；服务端拒绝 `type=app` 服务身份，不复制人员、组或
+  分接口白名单。
+- 所有接口使用同一人员准入。写接口另外执行同源、正文、幂等和领域校验。
 - 浏览器不持有 PostgreSQL、Axiom、Provider Config admin 或外部平台凭据。
 
 ### 响应和错误
@@ -105,9 +104,8 @@ Dining：
 | 400 | `OPS_INTERNAL_PORTAL_AUTH_INPUT_INVALID` | 凭据正文无效或超过 8 KiB |
 | 400 | `OPS_PROVIDER_CONFIG_CONTENT_TYPE_REQUIRED`、`OPS_PROVIDER_CONFIG_IDEMPOTENCY_REQUIRED` | Provider Config 写入合同无效 |
 | 401 | `OPS_ACCESS_JWT_MISSING`、`OPS_ACCESS_JWT_INVALID` | 未通过 Access 验证 |
-| 403 | `OPS_RAW_OBSERVABILITY_FORBIDDEN` | 无原始观测数据权限 |
-| 403 | `OPS_INTERNAL_PORTAL_AUTH_FORBIDDEN`、`OPS_INTERNAL_PORTAL_AUTH_ORIGIN_INVALID` | 无人员权限或请求不同源 |
-| 403 | `OPS_PROVIDER_CONFIG_WRITE_FORBIDDEN`、`OPS_PROVIDER_CONFIG_CSRF_REJECTED` | 无配置写权限或请求不同源 |
+| 403 | `OPS_INTERNAL_PORTAL_AUTH_ORIGIN_INVALID` | 门户凭据写请求不同源 |
+| 403 | `OPS_PROVIDER_CONFIG_CSRF_REJECTED` | Provider Config 写请求不同源 |
 | 404 | `OPS_REQUEST_NOT_FOUND`、`OPS_API_ROUTE_NOT_FOUND` | 请求或接口不存在 |
 | 409 | `OPS_DINING_CONFLICT` | 草稿、发布或评价操作违反领域校验 |
 | 503 | `OPS_ADMISSION_NOT_CONFIGURED` | 访问控制未配置 |
@@ -142,8 +140,8 @@ Dining：
 { "ok": true, "service": "ops-web" }
 ```
 
-`GET /readyz` 无需操作者 JWT，但必须检查访问控制配置、请求状态读取、审计写入和 Dining 当前
-发布读取是否可用。失败返回 `503 OPS_WEB_NOT_READY` 及不含敏感信息的缺失项或 `reasonCode`。
+`GET /readyz` 无需操作者 JWT，但必须检查访问控制配置、请求状态读取和 Dining 当前发布读取
+是否可用。失败返回 `503 OPS_WEB_NOT_READY` 及不含敏感信息的缺失项或 `reasonCode`。
 Provider Config、Axiom、Kubernetes API、认证维护接口和被观测服务故障不影响 Pod 就绪。
 
 ## 禁止行为

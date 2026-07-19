@@ -395,9 +395,7 @@ function createRequestColumns(search: RequestSearchLike) {
 					<span className="line-clamp-2 text-slate-700" title={row.questionPreview}>
 						{row.questionPreview}
 					</span>
-					<span className="text-slate-500 text-xs">
-						{row.principalType} / {row.principalHash}
-					</span>
+					<span className="text-slate-500 text-xs">{row.principalType}</span>
 				</div>
 			),
 			header: "请求",

@@ -4,7 +4,6 @@ const SAFE_TAGS = new Set([
 	"app",
 	"campus.request_id",
 	"campus.trace_id",
-	"canary_sentinel_sha256",
 	"error_code",
 	"route",
 	"runtime",
@@ -43,7 +42,6 @@ const CAMPUS_ROUTE_TEMPLATES = [
 	"/api/chat/runs/:runId/events/stream",
 	"/api/chat/runs/:runId/cancel",
 	"/api/me/profile-memory/items/:itemId",
-	"/api/internal/staging-smoke/observability/sentry-canary",
 ] as const;
 
 const SENSITIVE_IDENTIFIER =

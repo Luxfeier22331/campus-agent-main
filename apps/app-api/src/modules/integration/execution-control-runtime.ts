@@ -22,7 +22,7 @@ type ExecutionControlRuntimeEnv = Pick<
 	| "EXECUTION_CONTROL_BASE_URL"
 	| "EXECUTION_CONTROL_PRIVATE"
 	| "EXECUTION_CONTROL_PRIVATE_ORIGIN"
-	| "EXECUTION_CONTROL_SHARED_SECRET"
+	| "APP_API_EXECUTION_SHARED_SECRET"
 	| "EXECUTION_CONTROL_TIMEOUT_MS"
 >;
 
@@ -190,7 +190,7 @@ export function isExecutionControlRuntimeConfigured(env: ExecutionControlRuntime
 	} catch {
 		return false;
 	}
-	return Boolean(env.EXECUTION_CONTROL_SHARED_SECRET?.trim());
+	return Boolean(env.APP_API_EXECUTION_SHARED_SECRET?.trim());
 }
 
 export function createExecutionControlRuntimeClient(
@@ -335,7 +335,7 @@ export function createExecutionControlRequester(
 			timeoutMs?: number;
 		},
 	): Promise<JsonRecord> {
-		const sharedSecret = env.EXECUTION_CONTROL_SHARED_SECRET?.trim();
+		const sharedSecret = env.APP_API_EXECUTION_SHARED_SECRET?.trim();
 		if (!sharedSecret) {
 			throw new ExecutionControlTransportError({
 				code: "dependency_not_ready",

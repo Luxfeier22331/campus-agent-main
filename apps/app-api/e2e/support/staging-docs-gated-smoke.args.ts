@@ -66,10 +66,7 @@ export function parseStagingDocsGatedSmokeArgs(
 	let gatedCollectionNavigationUnauthenticatedStatus: 200 | 404 =
 		DEFAULT_GATED_NAVIGATION_UNAUTHENTICATED_STATUS;
 	let gatedReaderPath: string | null = null;
-	let smokeAuthSecret =
-		normalizeOptionalValue(env.APP_API_STAGING_SMOKE_AUTH_SECRET) ??
-		normalizeOptionalValue(env.STAGING_APP_API_SMOKE_AUTH_SECRET) ??
-		"";
+	let smokeAuthSecret = normalizeOptionalValue(env.APP_API_STAGING_SMOKE_AUTH_SECRET) ?? "";
 
 	for (let index = 0; index < argv.length; index += 1) {
 		const token = argv[index];
@@ -161,9 +158,7 @@ export function parseStagingDocsGatedSmokeArgs(
 		throw new Error(`Unknown argument: ${token}`);
 	}
 	if (!smokeAuthSecret) {
-		throw new Error(
-			"APP_API_STAGING_SMOKE_AUTH_SECRET or STAGING_APP_API_SMOKE_AUTH_SECRET is required.",
-		);
+		throw new Error("APP_API_STAGING_SMOKE_AUTH_SECRET is required.");
 	}
 
 	return {

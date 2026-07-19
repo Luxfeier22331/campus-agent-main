@@ -12,21 +12,20 @@ const COMPLETE_ENV = {
 	DATABASE_URL: "postgres://postgres:postgres@localhost:5432/campus_agent",
 	DINING_LARK_APP_ID: "cli_xxx",
 	DINING_LARK_APP_SECRET: "secret",
-	DINING_LARK_BASE_ID: "base_id",
 	DINING_LARK_BASE_TOKEN: "base_token",
 	DINING_LARK_CAMPUS_TABLE_ID: "tbl_campus",
 	DINING_LARK_DISH_TABLE_ID: "tbl_dish",
 	DINING_LARK_HALL_TABLE_ID: "tbl_hall",
-	DINING_MODERATION_API_KEY: "moderation-secret",
-	DINING_MODERATION_BASE_URL: "https://ai.gitee.com/v1",
 	DINING_LARK_REVIEW_TABLE_ID: "tbl_review",
 	DINING_LARK_REVIEW_VIEW_ID: "vew_review",
 	DINING_LARK_STALL_TABLE_ID: "tbl_stall",
+	DINING_MODERATION_API_KEY: "moderation-secret",
+	DINING_MODERATION_BASE_URL: "https://ai.gitee.com/v1",
 	DINING_OBJECT_STORE_BUCKET: "campus-dining-public",
 	DINING_OBJECT_STORE_PUBLIC_BASE_URL: "https://assets.example.test",
-	OBJECT_STORE_ACCESS_KEY: "access",
+	OBJECT_STORE_DERIVED_ACCESS_KEY: "access",
 	OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
-	OBJECT_STORE_SECRET_KEY: "secret",
+	OBJECT_STORE_DERIVED_SECRET_KEY: "secret",
 } satisfies NodeJS.ProcessEnv;
 
 describe("dining sync config", () => {
@@ -51,9 +50,9 @@ describe("dining sync config", () => {
 
 	it("fails closed when object-store credentials are missing", () => {
 		const env: NodeJS.ProcessEnv = { ...COMPLETE_ENV };
-		delete env.OBJECT_STORE_SECRET_KEY;
+		delete env.OBJECT_STORE_DERIVED_SECRET_KEY;
 
-		expect(() => loadConfig(env)).toThrow(/OBJECT_STORE_SECRET_KEY is required/);
+		expect(() => loadConfig(env)).toThrow(/OBJECT_STORE_DERIVED_SECRET_KEY is required/);
 	});
 
 	it("fails closed when moderation provider credentials are missing", () => {
@@ -96,7 +95,6 @@ describe("dining sync config", () => {
 				DATABASE_URL: COMPLETE_ENV.DATABASE_URL,
 				DINING_LARK_APP_ID: COMPLETE_ENV.DINING_LARK_APP_ID,
 				DINING_LARK_APP_SECRET: COMPLETE_ENV.DINING_LARK_APP_SECRET,
-				DINING_LARK_BASE_ID: COMPLETE_ENV.DINING_LARK_BASE_ID,
 				DINING_LARK_BASE_TOKEN: COMPLETE_ENV.DINING_LARK_BASE_TOKEN,
 				DINING_LARK_CAMPUS_TABLE_ID: "tbl_campus",
 				DINING_LARK_DISH_TABLE_ID: "tbl_dish",

@@ -1,4 +1,3 @@
-import { createHmac } from "node:crypto";
 import type {
 	OpsRequestDetailResponse,
 	OpsRequestListResponse,
@@ -18,15 +17,12 @@ import type {
 } from "./ops-status-store.ts";
 
 const TERMINAL_STATUSES = new Set(["COMPLETED", "FAILED", "CANCELLED"]);
-const TEST_PRINCIPAL_HASH_SECRET = "ops-web-test-principal-hash-secret";
-
 export function toRequestDetail(
 	requestRow: OpsRequestRow,
 	observabilityRow: OpsRequestObservabilityRow | null,
 	observabilityLinks?: OpsObservabilityLinkAllowlist,
-	principalHashSecret: string = TEST_PRINCIPAL_HASH_SECRET,
 ): OpsRequestDetailResponse {
-	const request = toRequestSummary(requestRow, observabilityRow, principalHashSecret);
+	const request = toRequestSummary(requestRow, observabilityRow);
 	const workflowTrace = normalizeWorkflowTrace(observabilityRow?.workflowTraceSummaryJson);
 	const workflowId = toTemporalWorkflowId(request.runId);
 	const externalLinks = normalizeExternalLinks(observabilityLinks, workflowId);
@@ -91,7 +87,6 @@ export function toRequestDetail(
 export function toRequestSummary(
 	row: OpsRequestRow,
 	observability: OpsRequestObservabilityRow | null,
-	principalHashSecret: string = TEST_PRINCIPAL_HASH_SECRET,
 ): OpsRequestSummary {
 	const status = normalizeRequestStatus(row.status);
 	const runId = normalizeNullableString(row.runId);
@@ -102,7 +97,6 @@ export function toRequestSummary(
 		diagnostics: summarizeRequestDiagnostics(row, observability),
 		durationMs: row.durationMs ?? null,
 		errorCode: row.errorCode ?? null,
-		principalHash: hashPrincipal(row.principalId, row.principalType, principalHashSecret),
 		principalType: normalizeNonEmptyString(row.principalType, "unknown"),
 		projectedAt: row.projectedAt.toISOString(),
 		questionPreview: row.questionPreview,
@@ -115,23 +109,6 @@ export function toRequestSummary(
 		traceId: row.traceId,
 		workflowId,
 	};
-}
-
-function hashPrincipal(
-	principalId: string | null | undefined,
-	principalType: string,
-	secret: string,
-) {
-	const normalizedType = normalizeNonEmptyString(principalType, "unknown");
-	const normalizedPrincipalId = normalizeNullableString(principalId);
-	if (!normalizedPrincipalId) {
-		return `principal:v1:${normalizedType}:unknown`;
-	}
-	const digest = createHmac("sha256", secret)
-		.update(`${normalizedType}:${normalizedPrincipalId}`, "utf8")
-		.digest("hex")
-		.slice(0, 16);
-	return `principal:v1:${normalizedType}:${digest}`;
 }
 
 export function matchesRequestQuery(request: OpsRequestSummary, query: OpsRequestListQuery) {

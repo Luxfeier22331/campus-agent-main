@@ -20,12 +20,6 @@ export const APP_API_MACHINE_ROUTE_EXPOSURE_INVENTORY = [
 		admission: "staging-only x-app-staging-smoke-auth release verification credential",
 	},
 	{
-		method: "POST",
-		path: "/api/internal/staging-smoke/observability/sentry-canary",
-		callerClass: "machine-internal",
-		admission: "staging-only x-app-staging-smoke-auth observability verification credential",
-	},
-	{
 		method: "PUT",
 		path: "/api/internal/execution/runs/:runId/product-finalization",
 		callerClass: "machine-internal",

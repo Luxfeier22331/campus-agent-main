@@ -72,7 +72,7 @@ func TestProductCallbackRejectionDoesNotPersistResponseBody(t *testing.T) {
 	defer callback.Close()
 	server := NewServer(config.Config{
 		ProductCallbackBaseURL:      callback.URL,
-		ProductCallbackSharedSecret: "callback-secret",
+		AppAPIExecutionSharedSecret: "callback-secret",
 		ProductCallbackTimeoutMS:    1_000,
 	})
 

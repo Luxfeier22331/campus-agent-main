@@ -56,17 +56,8 @@ export interface AgentToolEvalInput {
 	environment: string;
 	fetchImpl?: typeof fetch;
 	limit?: number;
-	runPythonRagasAgentScoreBatch: (input: {
-		inputPath: string;
-		outputPath: string;
-		runtimeConfigPath?: string;
-	}) => void;
-	runPythonRagasScoreBatch: (input: {
-		inputPath: string;
-		outputPath: string;
-		runtimeConfigPath?: string;
-	}) => void;
-	runtimeConfigPath?: string;
+	runPythonRagasAgentScoreBatch: (input: { inputPath: string; outputPath: string }) => void;
+	runPythonRagasScoreBatch: (input: { inputPath: string; outputPath: string }) => void;
 	settings: LangfuseSettings;
 	stagingSmokeAuthSecret?: string | null;
 	stagingSmokeEmail?: string | null;
@@ -181,7 +172,6 @@ export async function runAgentToolEval(input: AgentToolEvalInput): Promise<JsonO
 		input.runPythonRagasAgentScoreBatch({
 			inputPath: agentSampleBatchPath,
 			outputPath: agentScoreBatchPath,
-			runtimeConfigPath: input.runtimeConfigPath,
 		});
 		const agentScorePlan = buildLangfuseScoresFromRagasAgentScoreBatch({
 			ragasAgentScoreBatchPath: agentScoreBatchPath,
@@ -202,7 +192,6 @@ export async function runAgentToolEval(input: AgentToolEvalInput): Promise<JsonO
 			input.runPythonRagasScoreBatch({
 				inputPath: ragSampleBatchPath,
 				outputPath: ragScoreBatchPath,
-				runtimeConfigPath: input.runtimeConfigPath,
 			});
 			const ragScorePlan = buildLangfuseScoresFromRagasScoreBatch({
 				ragasScoreBatchPath: ragScoreBatchPath,

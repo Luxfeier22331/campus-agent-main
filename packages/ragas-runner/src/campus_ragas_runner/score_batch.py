@@ -120,78 +120,38 @@ class RagasRunnerSettings:
     def from_sources(
         cls,
         *,
-        env: Mapping[str, str] | None = None,
         runtime_config_path: Path | None = None,
     ) -> RagasRunnerSettings:
-        source = env if env is not None else os.environ
         config = _load_runtime_config(runtime_config_path)
-        llm_api_key = _required_setting(
-            "llm_api_key",
-            config=config,
-            env=source,
-            names=("RAGAS_LLM_API_KEY", "EVAL_RAGAS_LLM_API_KEY", "LLM_API_KEY"),
-        )
-        llm_model = _required_setting(
-            "llm_model",
-            config=config,
-            env=source,
-            names=("RAGAS_LLM_MODEL", "EVAL_RAGAS_MODEL", "LLM_MODEL"),
-        )
-        embedding_api_key = _required_setting(
-            "embedding_api_key",
-            config=config,
-            env=source,
-            names=(
-                "RAGAS_EMBEDDING_API_KEY",
-                "EVAL_RAGAS_EMBEDDING_API_KEY",
-                "EMBEDDING_API_KEY",
-            ),
-        )
-        embedding_model = _required_setting(
-            "embedding_model",
-            config=config,
-            env=source,
-            names=("RAGAS_EMBEDDING_MODEL", "EMBEDDING_MODEL"),
-        )
+        llm_api_key = _required_setting("llm_api_key", config=config)
+        llm_model = _required_setting("llm_model", config=config)
+        embedding_api_key = _required_setting("embedding_api_key", config=config)
+        embedding_model = _required_setting("embedding_model", config=config)
         return cls(
             llm_api_key=llm_api_key,
             llm_model=llm_model,
             llm_base_url=_optional_setting(
                 "llm_base_url",
                 config=config,
-                env=source,
-                names=("RAGAS_LLM_BASE_URL", "EVAL_RAGAS_LLM_BASE_URL", "LLM_BASE_URL"),
             ),
             embedding_api_key=embedding_api_key,
             embedding_model=embedding_model,
             embedding_base_url=_optional_setting(
                 "embedding_base_url",
                 config=config,
-                env=source,
-                names=(
-                    "RAGAS_EMBEDDING_BASE_URL",
-                    "EVAL_RAGAS_EMBEDDING_BASE_URL",
-                    "EMBEDDING_BASE_URL",
-                ),
             ),
             embedding_dimensions=_optional_int_setting(
                 "embedding_dimensions",
                 config=config,
-                env=source,
-                names=("RAGAS_EMBEDDING_DIMENSIONS", "EMBEDDING_DIMENSIONS"),
             ),
             timeout_seconds=_positive_int_setting(
                 "timeout_seconds",
                 config=config,
-                env=source,
-                names=("RAGAS_TIMEOUT_SECONDS",),
                 default=180,
             ),
             max_workers=_positive_int_setting(
                 "max_workers",
                 config=config,
-                env=source,
-                names=("RAGAS_MAX_WORKERS",),
                 default=4,
             ),
             metric_names=_metric_names_setting(config),
@@ -288,7 +248,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True)
     parser.add_argument("--output", required=True)
-    parser.add_argument("--runtime-config")
+    parser.add_argument("--runtime-config", required=True)
     args = parser.parse_args(argv)
     summary = run_ragas_score_batch(
         input_path=Path(args.input),
@@ -452,10 +412,27 @@ def _load_json_object(path: Path) -> dict[str, object]:
 
 def _load_runtime_config(path: Path | None) -> dict[str, object]:
     if path is None:
-        return {}
+        raise ValueError("--runtime-config is required")
     payload = _load_json_object(path)
-    if "schema_version" in payload and payload.get("schema_version") != "ragas_runner_config.v1":
+    if payload.get("schema_version") != "ragas_runner_config.v1":
         raise ValueError("runtime config schema_version must be ragas_runner_config.v1")
+    allowed_fields = {
+        "agent_metric_names",
+        "embedding_api_key",
+        "embedding_base_url",
+        "embedding_dimensions",
+        "embedding_model",
+        "llm_api_key",
+        "llm_base_url",
+        "llm_model",
+        "max_workers",
+        "metric_names",
+        "schema_version",
+        "timeout_seconds",
+    }
+    unknown_fields = sorted(set(payload) - allowed_fields)
+    if unknown_fields:
+        raise ValueError(f"runtime config contains unsupported fields: {', '.join(unknown_fields)}")
     return payload
 
 
@@ -568,10 +545,8 @@ def _required_setting(
     key: str,
     *,
     config: Mapping[str, object],
-    env: Mapping[str, str],
-    names: tuple[str, ...],
 ) -> str:
-    value = _optional_setting(key, config=config, env=env, names=names)
+    value = _optional_setting(key, config=config)
     if value is None:
         raise ValueError(f"{key} is required")
     return value
@@ -581,16 +556,10 @@ def _optional_setting(
     key: str,
     *,
     config: Mapping[str, object],
-    env: Mapping[str, str],
-    names: tuple[str, ...],
 ) -> str | None:
     raw_config_value = config.get(key)
     if isinstance(raw_config_value, str) and raw_config_value.strip():
         return raw_config_value.strip()
-    for name in names:
-        raw_env_value = env.get(name)
-        if raw_env_value is not None and raw_env_value.strip():
-            return raw_env_value.strip()
     return None
 
 
@@ -598,10 +567,8 @@ def _optional_int_setting(
     key: str,
     *,
     config: Mapping[str, object],
-    env: Mapping[str, str],
-    names: tuple[str, ...],
 ) -> int | None:
-    raw_value = _optional_setting(key, config=config, env=env, names=names)
+    raw_value = _optional_setting(key, config=config)
     if raw_value is None and isinstance(config.get(key), int):
         return int(config[key])
     if raw_value is None:
@@ -616,11 +583,9 @@ def _positive_int_setting(
     key: str,
     *,
     config: Mapping[str, object],
-    env: Mapping[str, str],
-    names: tuple[str, ...],
     default: int,
 ) -> int:
-    value = _optional_int_setting(key, config=config, env=env, names=names)
+    value = _optional_int_setting(key, config=config)
     return value if value is not None else default
 
 

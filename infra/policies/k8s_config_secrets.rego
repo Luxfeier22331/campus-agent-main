@@ -30,10 +30,10 @@ config_owned_keys := {
 	"AGENT_RUNTIME_PORT",
 	"AGENT_RUNTIME_TOOL_REGISTRY_PATH",
 	"DEPLOYMENT_ENVIRONMENT",
+	"DINING_LARK_BASE_TOKEN",
 	"EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL",
 	"EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL",
 	"EXECUTION_CONTROL_PRODUCT_CALLBACK_TIMEOUT_MS",
-	"EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH",
 	"EXECUTION_CONTROL_RUNTIME_CONFIG_PATH",
 	"EXECUTION_CONTROL_RUNTIME_MODE",
 	"EXECUTION_CONTROL_RUNTIME_RELEASE",
@@ -49,19 +49,13 @@ config_owned_keys := {
 }
 
 secret_owned_keys := {
-	"AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET",
-	"AGENT_RUNTIME_SHARED_SECRET",
-	"API_WORKER_SHARED_SECRET",
+	"EXECUTION_AGENT_RUNTIME_SHARED_SECRET",
+	"APP_API_EXECUTION_SHARED_SECRET",
+	"AXIOM_QUERY_TOKEN",
 	"CAMPUS_AGENT_POSTGRES_PASSWORD",
 	"CAMPUS_SHARED_POSTGRES_URL",
-	"EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET",
-	"EXECUTION_CONTROL_PRODUCT_CALLBACK_SHARED_SECRET",
-	"EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET",
-	"EXECUTION_CONTROL_METRICS_BEARER_TOKEN",
-	"EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_HEADERS",
-	"EXECUTION_CONTROL_PROVIDER_CONFIG_ADMIN_COMMAND_TOKEN",
+	"OPS_WEB_INTERNAL_TOKEN",
 	"EXECUTION_CONTROL_PROVIDER_CONFIG_ADMIN_DATABASE_URL",
-	"EXECUTION_CONTROL_PROVIDER_CONFIG_ADMIN_READ_TOKEN",
 	"EXECUTION_CONTROL_PROVIDER_CONFIG_READER_DATABASE_URL",
 	"EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL",
 	"HINDSIGHT_API_DATABASE_URL",
@@ -82,6 +76,7 @@ violation contains msg if {
 	input.data
 	key := object.keys(input.data)[_]
 	secret_like_key(key)
+	not config_owned_keys[key]
 	msg := sprintf("ConfigMap %s contains secret-like key %s", [input.metadata.name, key])
 }
 
@@ -129,6 +124,14 @@ violation contains msg if {
 	key := object.keys(input.data)[_]
 	provider_profile_keys[key]
 	msg := sprintf("provider profile key %s must not be rendered in Secret %s", [key, input.metadata.name])
+}
+
+violation contains msg if {
+	[path, value] := walk(input)
+	path[_] == "envFrom"
+	value.secretRef
+	secret_name := object.get(value.secretRef, "name", "<unknown>")
+	msg := sprintf("workload %s must project Secret %s with explicit secretKeyRef entries", [input.metadata.name, secret_name])
 }
 
 violation contains msg if {

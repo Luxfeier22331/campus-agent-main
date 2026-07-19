@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { parse } from "smol-toml";
 import { describe, expect, it } from "vitest";
 import stagingBrowserE2ESource from "../e2e/staging-browser.ts?raw";
-import stagingSentryCanarySource from "../e2e/staging-sentry-canary.ts?raw";
 import packageManifest from "../package.json";
 import stagingPreflightSource from "../scripts/preflight-staging.ts?raw";
 import uploadStagingVersionSource from "../scripts/upload-staging-version.ts?raw";
@@ -62,18 +61,19 @@ describe("campus web staging config", () => {
 		expect(wranglerConfig).toContain("invocation_logs = false");
 		expect(wranglerConfig).not.toContain("axiom-staging-traces");
 
-		expect(verifyStagingConfigSource).toContain("STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY");
+		expect(verifyStagingConfigSource).toContain("CAMPUS_AUTH_TURNSTILE_SITE_KEY");
 		expect(verifyStagingConfigSource).toContain("campus-staging.mucwiki-edge.link");
 		expect(verifyStagingConfigSource).toContain("AUTH_TURNSTILE_SITE_KEY must not remain");
 		expect(verifyStagingConfigSource).toContain("DOCS_RELEASE_ID must be injected");
 
-		expect(uploadStagingVersionSource).toContain("STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY");
-		expect(uploadStagingVersionSource).toContain("STAGING_CAMPUS_WEB_BROWSER_SENTRY_DSN");
-		expect(uploadStagingVersionSource).toContain("STAGING_CAMPUS_WEB_EDGE_SENTRY_DSN");
+		expect(uploadStagingVersionSource).toContain("CAMPUS_AUTH_TURNSTILE_SITE_KEY");
+		expect(uploadStagingVersionSource).toContain("SENTRY_CAMPUS_WEB_DSN");
+		expect(uploadStagingVersionSource).not.toContain("STAGING_CAMPUS_WEB_BROWSER_SENTRY_DSN");
+		expect(uploadStagingVersionSource).not.toContain("STAGING_CAMPUS_WEB_EDGE_SENTRY_DSN");
 		expect(uploadStagingVersionSource).toContain("SENTRY_CAMPUS_WEB_PROJECT_SLUG");
 		expect(uploadStagingVersionSource).toContain('artifactDirectory: "dist/campus_web"');
 		expect(uploadStagingVersionSource).toContain("AUTH_TURNSTILE_SITE_KEY");
-		expect(uploadStagingVersionSource).toContain("STAGING_MAP_DATA_BUCKET_NAME");
+		expect(uploadStagingVersionSource).toContain("MAP_DATA_BUCKET_NAME");
 		expect(uploadStagingVersionSource).toContain("uploadStagingWorkerVersion");
 		expect(packageScripts["deploy:staging"]).toBeUndefined();
 		expect(packageScripts["upload:staging"]).toContain("upload-staging-version.ts");
@@ -124,7 +124,7 @@ describe("campus web staging config", () => {
 	it("keeps staging browser e2e credentialed and evidence-producing", () => {
 		expect(stagingBrowserE2ESource).toContain('from "playwright"');
 		expect(stagingBrowserE2ESource).toContain("APP_API_STAGING_SMOKE_AUTH_SECRET");
-		expect(stagingBrowserE2ESource).toContain("STAGING_APP_API_SMOKE_AUTH_SECRET");
+		expect(stagingBrowserE2ESource).not.toContain("STAGING_APP_API_SMOKE_AUTH_SECRET");
 		expect(stagingBrowserE2ESource).toContain("/api/internal/staging-smoke/auth/session");
 		expect(stagingBrowserE2ESource).toContain("E2E_QA_EVIDENCE_DIR");
 		expect(stagingBrowserE2ESource).toContain("campus-browser-e2e.json");
@@ -134,20 +134,5 @@ describe("campus web staging config", () => {
 		expect(stagingBrowserE2ESource).toContain("/docs/regulations/student_rules/");
 		expect(packageScripts["browser:e2e:staging"]).toBeUndefined();
 		expect(packageScripts["browser:smoke:staging"]).toBeUndefined();
-	});
-
-	it("injects the smoke credential only into the exact Sentry canary navigation", () => {
-		expect(stagingSentryCanarySource).toContain("page.route(");
-		expect(stagingSentryCanarySource).toContain("navigation.isNavigationRequest()");
-		expect(stagingSentryCanarySource).toContain('navigation.method() !== "POST"');
-		expect(stagingSentryCanarySource).toContain("url.pathname !== SENTRY_CANARY_ROUTE");
-		expect(stagingSentryCanarySource).toContain('"x-app-staging-smoke-auth"');
-		expect(stagingSentryCanarySource).toContain('"x-request-id": input.productRequestId');
-		expect(stagingSentryCanarySource).toContain('"x-trace-id": input.runtimeTraceId');
-		expect(stagingSentryCanarySource).toContain("route.continue");
-		expect(stagingSentryCanarySource).not.toContain("extraHTTPHeaders");
-		expect(stagingSentryCanarySource).not.toContain("searchParams.set");
-		expect(stagingSentryCanarySource).not.toContain("--smoke-auth-secret");
-		expect(packageScripts["sentry:canary:staging"]).toBeUndefined();
 	});
 });

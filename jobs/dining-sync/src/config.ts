@@ -60,13 +60,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): DiningSyncConf
 		larkReviewTableId: requireEnv(env, "DINING_LARK_REVIEW_TABLE_ID"),
 		larkReviewViewId: requireEnv(env, "DINING_LARK_REVIEW_VIEW_ID"),
 		larkStallTableId: requireEnv(env, "DINING_LARK_STALL_TABLE_ID"),
-		objectStoreAccessKey: requireEnv(env, "OBJECT_STORE_ACCESS_KEY"),
+		objectStoreAccessKey: requireEnv(env, "OBJECT_STORE_DERIVED_ACCESS_KEY"),
 		objectStoreBucket: requireEnv(env, "DINING_OBJECT_STORE_BUCKET"),
 		objectStoreEndpoint: requireEnv(env, "OBJECT_STORE_ENDPOINT"),
 		objectStorePublicBaseUrl: requireEnv(env, "DINING_OBJECT_STORE_PUBLIC_BASE_URL"),
 		objectStoreRegion: env.OBJECT_STORE_REGION?.trim() || "us-east-1",
 		objectStoreReviewPrefix: env.DINING_OBJECT_STORE_REVIEW_PREFIX?.trim() || "dining/reviews",
-		objectStoreSecretKey: requireEnv(env, "OBJECT_STORE_SECRET_KEY"),
+		objectStoreSecretKey: requireEnv(env, "OBJECT_STORE_DERIVED_SECRET_KEY"),
 		postgresUrl: requireEnv(env, "DATABASE_URL"),
 	};
 }

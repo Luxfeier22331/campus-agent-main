@@ -59,8 +59,8 @@ signal 标为 `UNAVAILABLE`。日志或调用链为零条时返回 `NO_DATA` 且
 字段，不能成为 SQL 片段。
 
 响应包含实际 `window`、状态 `summary`、请求摘要 `data[]` 和可为空的 `page.nextCursor`。每条
-请求摘要包含关联标识、状态、错误、时间、耗时、主体哈希、问题预览、诊断和可为空的工具选择。
-`principalHash` 使用服务端版本化 HMAC 生成，不能返回原始用户 ID。
+请求摘要包含关联标识、状态、错误、时间、耗时、主体类型、问题预览、诊断和可为空的工具选择。
+接口不返回原始用户 ID。
 
 ## `GET /api/ops/requests/:requestId`
 
@@ -78,21 +78,20 @@ signal 标为 `UNAVAILABLE`。日志或调用链为零条时返回 `NO_DATA` 且
 
 该接口读取与已保存请求关联的 Axiom 脱敏记录。`kind` 是必填参数，只允许 `logs` 或 `trace`。
 
-服务端验证基础权限和原始观测权限，从请求详情取得可信关联标识与时间，固定 dataset、查询条件、
-字段投影和排序。查询窗口从请求开始前五分钟到完成后五分钟；未完成请求以当前时间为上限，实际
-窗口最多 30 分钟。浏览器不能提供 APL、dataset、`traceId`、起止时间、字段投影或记录上限。
+服务端完成统一人员准入后，从请求详情取得可信关联标识与时间，固定 dataset、查询条件、字段
+投影和排序。查询窗口从请求开始前五分钟到完成后五分钟；未完成请求以当前时间为上限，实际窗口
+最多 30 分钟。浏览器不能提供 APL、dataset、`traceId`、起止时间、字段投影或记录上限。
 
 响应包含查询来源、类型、关联标识、实际窗口、查询时间、耗时、数据状态、记录、截断状态和
 上限。日志上限为 200，调用链上限为 500。响应不包含任意 `body` 或 attributes。
 
 Axiom 必须返回非 partial 的有效表格数据；部分响应、结构无效、字段重复、列长度错位、超时或
-非成功 HTTP 都返回 `503 OPS_OBSERVABILITY_UNAVAILABLE`。每次成功读取前必须写读取审计，
-审计失败时拒绝返回记录。审计数据见 `../../data/postgres-ownership.md`。
+非成功 HTTP 都返回 `503 OPS_OBSERVABILITY_UNAVAILABLE`。
 
 ## `GET /api/ops/requests/:requestId/sentry-issues`
 
-该接口使用普通 Ops 读取权限返回与已保存请求关联的最多五条 Sentry Issue 摘要，不返回完整
-event、stack、breadcrumb、request 或用户上下文，也不要求原始 Axiom 读取权限。
+该接口返回与已保存请求关联的最多五条 Sentry Issue 摘要，不返回完整 event、stack、breadcrumb、
+request 或用户上下文。
 
 服务端使用可信请求标识、固定 environment、项目集合、排序和有界时间窗口调用官方 Issues
 API。浏览器不能添加查询参数。响应包含关联标识、查询窗口、耗时、固定搜索条件、数据状态、

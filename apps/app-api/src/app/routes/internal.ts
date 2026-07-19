@@ -22,15 +22,11 @@ import {
 	type ToolExecutionResponse,
 } from "../../modules/integration";
 import { ChatFinalizationConflict } from "../../modules/runtime-command/store-types";
-import {
-	captureAppApiSentryCanary,
-	parseSentryCanarySentinels,
-} from "../../modules/telemetry/sentry-canary";
 import { readJsonRequestBody } from "../request-utils";
 import type { AppRequestScope } from "../types";
 
 function authorized(request: Request, env: Env): boolean {
-	const expected = env.APP_API_PRODUCT_CALLBACK_SHARED_SECRET?.trim();
+	const expected = env.APP_API_EXECUTION_SHARED_SECRET?.trim();
 	const provided = request.headers.get("x-app-product-callback-auth")?.trim();
 	if (!(expected && provided)) {
 		return false;
@@ -73,11 +69,6 @@ function hasMatchingStagingSmokeAuthSecret(request: Request, env: Env): boolean 
 function readStringField(payload: Record<string, unknown>, fieldName: string): string | null {
 	const value = payload[fieldName];
 	return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function readSyntheticCredential(request: Request): string | null {
-	const value = request.headers.get("authorization")?.trim();
-	return value?.startsWith("Synthetic ") ? value.slice("Synthetic ".length) : null;
 }
 
 function parseCsvList(value: string | null | undefined): string[] {
@@ -138,133 +129,6 @@ export function registerInternalRoutes(input: {
 	createRequestScope: () => AppRequestScope;
 	env: Env;
 }) {
-	input.app.post("/api/internal/staging-smoke/observability/sentry-canary", async (c) => {
-		if (resolveEnvironment(input.env) !== "staging") {
-			return routeErrorResponse(
-				new AppApiRouteError({
-					code: "not_found",
-					message: "Route not found.",
-					retryable: false,
-					status: 404,
-				}),
-			);
-		}
-		if (!input.env.APP_API_STAGING_SMOKE_AUTH_SECRET?.trim()) {
-			return jsonResponse(
-				errorEnvelope({
-					code: "staging_smoke_auth_not_configured",
-					message: "Staging smoke auth secret is not configured.",
-					retryable: false,
-				}),
-				{ status: 503 },
-			);
-		}
-		if (!hasMatchingStagingSmokeAuthSecret(c.req.raw, input.env)) {
-			return jsonResponse(
-				errorEnvelope({
-					code: "staging_smoke_auth_required",
-					message: "Staging smoke auth secret required.",
-					retryable: false,
-				}),
-				{ status: 401 },
-			);
-		}
-		const sentryRelease = input.env.SENTRY_RELEASE?.trim();
-		if (
-			!(
-				input.env.SENTRY_DSN?.trim() &&
-				sentryRelease &&
-				/^app-api@[0-9a-f]{40}$/u.test(sentryRelease)
-			)
-		) {
-			return jsonResponse(
-				errorEnvelope({
-					code: "sentry_canary_not_configured",
-					message: "Sentry canary is not configured for this release.",
-					retryable: false,
-				}),
-				{ status: 503 },
-			);
-		}
-
-		const contentType = c.req.raw.headers.get("content-type")?.split(";", 1)[0]?.trim();
-		if (contentType !== "application/x-www-form-urlencoded") {
-			return routeErrorResponse(
-				new AppApiRouteError({
-					code: "invalid_request",
-					message: "Sentry canary requires a form navigation request.",
-					retryable: false,
-					status: 400,
-				}),
-			);
-		}
-		const form = await c.req.raw.formData().catch(() => null);
-		const sentinels = parseSentryCanarySentinels({
-			body: form?.get("body"),
-			credential: readSyntheticCredential(c.req.raw),
-			header: c.req.raw.headers.get("x-observability-canary"),
-			query: form?.get("query"),
-			user: form?.get("user"),
-		});
-		if (!sentinels) {
-			return routeErrorResponse(
-				new AppApiRouteError({
-					code: "invalid_request",
-					message: "Sentry canary sentinels are invalid.",
-					retryable: false,
-					status: 400,
-				}),
-			);
-		}
-		const requestId = readObservabilityCanaryCorrelation(
-			c.req.raw.headers.get("x-request-id"),
-			/^[A-Za-z0-9._:-]{1,128}$/u,
-		);
-		const traceId = readObservabilityCanaryCorrelation(
-			c.req.raw.headers.get("x-trace-id"),
-			/^[0-9a-f]{32}$/u,
-		);
-		if (!(requestId && traceId)) {
-			return routeErrorResponse(
-				new AppApiRouteError({
-					code: "invalid_request",
-					message: "Sentry canary correlation is invalid.",
-					retryable: false,
-					status: 400,
-				}),
-			);
-		}
-
-		const result = await captureAppApiSentryCanary(sentinels);
-		if (!result) {
-			return jsonResponse(
-				errorEnvelope({
-					code: "sentry_canary_flush_failed",
-					message: "Sentry did not confirm canary delivery.",
-					retryable: true,
-				}),
-				{ status: 503 },
-			);
-		}
-		console.info({
-			event_type: "observability.canary",
-			request_id: requestId,
-			schema_version: "observability-canary-v1",
-			sentinel_sha256: result.sentinelSha256,
-			source: "app-api.staging-smoke",
-			surface: "app-api",
-			trace_id: traceId,
-		});
-
-		return withNoStore(
-			jsonResponse({
-				app_api_sentry_event_id: result.eventId,
-				release: sentryRelease,
-				sentinel_sha256: result.sentinelSha256,
-			}),
-		);
-	});
-
 	input.app.post("/api/internal/staging-smoke/auth/session", async (c) => {
 		if (resolveEnvironment(input.env) !== "staging") {
 			return routeErrorResponse(
@@ -486,9 +350,4 @@ export function registerInternalRoutes(input: {
 		}
 		return jsonResponse({ outcome }, { status: 200 });
 	});
-}
-
-function readObservabilityCanaryCorrelation(value: string | null, pattern: RegExp): string | null {
-	const normalized = value?.trim() ?? "";
-	return pattern.test(normalized) ? normalized : null;
 }

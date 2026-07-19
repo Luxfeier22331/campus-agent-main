@@ -20,7 +20,7 @@ func (f fakeTemporalTaskQueueSampler) Sample(context.Context) (temporalmetrics.S
 }
 
 func TestTemporalTaskQueuesRequiresMetricsToken(t *testing.T) {
-	server := NewServer(config.Config{MetricsBearerToken: "metrics-token"})
+	server := NewServer(config.Config{OpsWebInternalToken: "ops-web-token"})
 	server.temporalTaskQueueSampler = fakeTemporalTaskQueueSampler{}
 	request := httptest.NewRequestWithContext(
 		t.Context(),
@@ -40,7 +40,7 @@ func TestTemporalTaskQueuesRequiresMetricsToken(t *testing.T) {
 func TestTemporalTaskQueuesReturnsCurrentSampleWithoutPersistence(t *testing.T) {
 	backlog := 3
 	ageMS := 2500
-	server := NewServer(config.Config{MetricsBearerToken: "metrics-token"})
+	server := NewServer(config.Config{OpsWebInternalToken: "ops-web-token"})
 	server.temporalTaskQueueSampler = fakeTemporalTaskQueueSampler{payload: temporalmetrics.SnapshotPayload{
 		SchemaVersion: temporalmetrics.SchemaVersion,
 		Snapshots: []temporalmetrics.TaskQueueSnapshot{{
@@ -58,7 +58,7 @@ func TestTemporalTaskQueuesReturnsCurrentSampleWithoutPersistence(t *testing.T) 
 		"/internal/ops/temporal/task-queues",
 		nil,
 	)
-	request.Header.Set("authorization", "Bearer metrics-token")
+	request.Header.Set("authorization", "Bearer ops-web-token")
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, request)

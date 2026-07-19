@@ -74,7 +74,7 @@ flowchart LR
 | 组件 | 负责 | 不负责 |
 | --- | --- | --- |
 | Ops Web 页面 | 展示、筛选、复制关联标识和发起获准操作 | 保存凭据、构造任意查询或决定请求状态 |
-| Ops Web 服务端 | 身份校验、固定查询、读取审计、外部入口和受控管理调用 | 通用代理、产品执行或任意工作流控制 |
+| Ops Web 服务端 | 人员身份校验、固定查询、外部入口和受控管理调用 | 通用代理、产品执行或任意工作流控制 |
 | 产品与执行投影 | 请求、运行和有界排查摘要 | 原始日志、模型 trace 或 Temporal history |
 | Temporal | workflow history、任务队列、重试、timer 和取消 | 产品请求摘要或日志存储 |
 | Collector Agent | 第一方容器日志和 kubelet 指标采集、Kubernetes 元数据补充 | 长期存储或采集 Collector/Hindsight stdout |
@@ -99,8 +99,8 @@ PostgreSQL 角色和 schema 由 `../../data/postgres-ownership.md` 维护，Dini
 - Temporal 与 Langfuse 只提供根据可信标识生成的受控入口；
 - 外部正文不复制到产品数据库或 Ops Web 自有缓存。
 
-原始观测记录读取使用独立权限，并在返回前写入读取审计。失败、无记录、部分响应和旧缓存分别
-保留自己的状态，不转换成产品请求成功或失败。
+所有接口使用同一 Cloudflare Access 人员准入；应用不复制人员、组或分操作白名单。失败、无记录、
+部分响应和旧缓存分别保留自己的状态，不转换成产品请求成功或失败。
 
 ## 运行概况
 
@@ -148,12 +148,11 @@ Ops Web 使用服务端固定、最小权限的 Axiom 和 Sentry 读取能力。
 
 ## 访问与故障边界
 
-- 基础运维读取、原始观测记录、配置写入、门户凭据和 Dining 操作分别授权；
-- 服务身份不能获得人员专属的凭据或配置写入能力；
+- Cloudflare Access policy 决定人员范围，服务端验证 JWT 并拒绝服务身份；
+- 写操作继续执行同源、幂等、并发和所属领域校验；
 - PostgreSQL 不可用时，请求读取返回错误而不是空列表；
 - Axiom 或 Sentry 不可用时，只影响对应观测区域；
 - Provider Config、Kubernetes API、认证维护或 Dining 依赖失败时，只影响对应页面；
-- 读取审计失败时，不返回原始观测记录；
 - `/healthz` 只表示进程响应，`/readyz` 只检查 Ops Web 接受请求所需的核心依赖。
 
 ## 部署边界

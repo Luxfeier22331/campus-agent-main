@@ -2,8 +2,7 @@ import { ProviderConfigStatusSchema } from "../shared/ops-contract.ts";
 
 export interface ProviderConfigAdminEnv {
 	OPS_WEB_EXECUTION_CONTROL_ADMIN_URL?: string;
-	OPS_WEB_EXECUTION_CONTROL_PROVIDER_COMMAND_TOKEN?: string;
-	OPS_WEB_EXECUTION_CONTROL_PROVIDER_READ_TOKEN?: string;
+	OPS_WEB_INTERNAL_TOKEN?: string;
 }
 
 export class ProviderConfigAdminUnavailableError extends Error {}
@@ -27,11 +26,7 @@ export function createProviderConfigAdminClient(
 		path: string,
 		options: { actorId?: string; body?: unknown; command: boolean; idempotencyKey?: string },
 	) {
-		const token = (
-			options.command
-				? env.OPS_WEB_EXECUTION_CONTROL_PROVIDER_COMMAND_TOKEN
-				: env.OPS_WEB_EXECUTION_CONTROL_PROVIDER_READ_TOKEN
-		)?.trim();
+		const token = env.OPS_WEB_INTERNAL_TOKEN?.trim();
 		if (!(baseUrl && token)) {
 			throw new ProviderConfigAdminUnavailableError("Provider config admin API is not configured.");
 		}

@@ -39,10 +39,10 @@ func TestReadyzDoesNotRequireRetiredPythonHandoffForOnlineRAGRuntime(t *testing.
 
 func TestReadyzRequiresWorkerAuthOutsideLocalProfile(t *testing.T) {
 	server := NewServer(config.Config{
-		AppName:              "campus-agent",
-		MaxConcurrentAnswers: 8,
-		RuntimeMode:          "staging",
-		WorkerSharedSecret:   "worker-secret",
+		AppName:                     "campus-agent",
+		MaxConcurrentAnswers:        8,
+		RuntimeMode:                 "staging",
+		AppAPIExecutionSharedSecret: "worker-secret",
 	})
 
 	unauthorized := httptest.NewRecorder()

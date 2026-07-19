@@ -43,7 +43,7 @@ export async function probeExecutionControlReady(
 	env: Pick<
 		Env,
 		| "APP_API_ENVIRONMENT"
-		| "EXECUTION_CONTROL_SHARED_SECRET"
+		| "APP_API_EXECUTION_SHARED_SECRET"
 		| "EXECUTION_CONTROL_BASE_URL"
 		| "EXECUTION_CONTROL_PRIVATE"
 		| "EXECUTION_CONTROL_PRIVATE_ORIGIN"
@@ -74,7 +74,7 @@ async function fetchExecutionControlReadyz(
 	env: Pick<
 		Env,
 		| "APP_API_ENVIRONMENT"
-		| "EXECUTION_CONTROL_SHARED_SECRET"
+		| "APP_API_EXECUTION_SHARED_SECRET"
 		| "EXECUTION_CONTROL_BASE_URL"
 		| "EXECUTION_CONTROL_PRIVATE"
 		| "EXECUTION_CONTROL_PRIVATE_ORIGIN"
@@ -425,9 +425,9 @@ export function createExecutionControlRequestHeaders(input: {
 }
 
 function createExecutionControlReadinessHeaders(
-	env: Pick<Env, "EXECUTION_CONTROL_SHARED_SECRET">,
+	env: Pick<Env, "APP_API_EXECUTION_SHARED_SECRET">,
 ): Record<string, string> {
-	const sharedSecret = env.EXECUTION_CONTROL_SHARED_SECRET?.trim();
+	const sharedSecret = env.APP_API_EXECUTION_SHARED_SECRET?.trim();
 	return {
 		...(sharedSecret ? { "x-worker-origin-auth": sharedSecret } : {}),
 	};

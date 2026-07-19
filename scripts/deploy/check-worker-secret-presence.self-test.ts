@@ -2,11 +2,26 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
+	buildCloudflareCliEnv,
 	CommandTimeoutError,
 	collectWorkerSecretPresence,
 } from "./check-worker-secret-presence.ts";
 
 export function runWorkerSecretPresenceSelfTest(): number {
+	const canonicalWranglerEnv = buildCloudflareCliEnv({
+		CLOUDFLARE_API_TOKEN: "legacy-token-must-not-win",
+		CLOUDFLARE_AUTOMATION_TOKEN: "  canonical-token  ",
+	});
+	expectEqualJson(canonicalWranglerEnv.CLOUDFLARE_API_TOKEN, "canonical-token");
+	expect(
+		!("CLOUDFLARE_AUTOMATION_TOKEN" in canonicalWranglerEnv),
+		"canonical token leaked to Wrangler",
+	);
+	const noCanonicalWranglerEnv = buildCloudflareCliEnv({
+		CLOUDFLARE_API_TOKEN: "legacy-token-must-not-be-a-fallback",
+	});
+	expect(!("CLOUDFLARE_API_TOKEN" in noCanonicalWranglerEnv), "vendor token alias remained active");
+
 	withFixture((root) => {
 		writeText(
 			join(root, "apps", "app-api", "wrangler.toml"),
@@ -154,7 +169,7 @@ export function runWorkerSecretPresenceSelfTest(): number {
 				error.includes("pnpm --dir apps/campus-web exec wrangler login"),
 				"login guidance missing",
 			);
-			expect(error.includes("CLOUDFLARE_API_TOKEN"), "token guidance missing");
+			expect(error.includes("CLOUDFLARE_AUTOMATION_TOKEN"), "token guidance missing");
 		} finally {
 			restoreEnv("HOME", oldHome);
 		}

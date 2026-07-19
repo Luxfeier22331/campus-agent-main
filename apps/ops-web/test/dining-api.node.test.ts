@@ -80,17 +80,4 @@ describe("Ops Web Dining API", () => {
 		expect(response.status).toBe(403);
 		expect(diningStore.rebase).not.toHaveBeenCalled();
 	});
-
-	it("rejects Dining writes from service identities", async () => {
-		const app = createOpsApp({
-			admission: createAllowAllOpsAdmission({ principalClass: "service", serviceId: "automation" }),
-			diningStore: createDiningStore(),
-			store: createFixtureOpsStatusStore(),
-		});
-		const response = await app.request("/api/ops/dining/catalog/draft/rebase", {
-			headers: { origin: "http://localhost" },
-			method: "POST",
-		});
-		expect(response.status).toBe(403);
-	});
 });

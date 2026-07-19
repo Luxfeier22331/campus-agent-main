@@ -7,7 +7,7 @@ import (
 )
 
 func (s *Server) internalWorkerAuthorized(request *http.Request) bool {
-	secret := strings.TrimSpace(s.config.WorkerSharedSecret)
+	secret := strings.TrimSpace(s.config.AppAPIExecutionSharedSecret)
 	if secret == "" {
 		return false
 	}
@@ -19,7 +19,7 @@ func (s *Server) internalWorkerAuthorized(request *http.Request) bool {
 }
 
 func (s *Server) toolReadModelAuthorized(request *http.Request) bool {
-	secret := strings.TrimSpace(s.config.InternalQuerySharedSecret)
+	secret := strings.TrimSpace(s.config.AgentRuntimeSharedSecret)
 	if secret == "" {
 		return false
 	}
@@ -31,7 +31,7 @@ func (s *Server) toolReadModelAuthorized(request *http.Request) bool {
 }
 
 func (s *Server) metricsAuthorized(request *http.Request) bool {
-	token := strings.TrimSpace(s.config.MetricsBearerToken)
+	token := strings.TrimSpace(s.config.OpsWebInternalToken)
 	if token == "" {
 		return s.localRuntimeMode()
 	}

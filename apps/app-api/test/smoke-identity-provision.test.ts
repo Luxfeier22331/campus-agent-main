@@ -63,7 +63,7 @@ describe("app-api smoke identity provisioning", () => {
 				email: "help_bot@outlook.com",
 				endUserEmailAllowlist: "help_bot@outlook.com",
 				endUserEmailDomainAllowlist: "example.edu",
-				productCallbackSharedSecret: "smoke-identity-internal-secret",
+				appApiExecutionSharedSecret: "smoke-identity-execution-secret",
 				managementDatabaseUrl: "postgresql://legacy-management.example/campus_agent",
 				name: "Smoke User",
 				schemaDatabaseUrl: "",
@@ -71,7 +71,6 @@ describe("app-api smoke identity provisioning", () => {
 				passwordEnvKey: "APP_API_SMOKE_IDENTITY_PASSWORD",
 				authShellOrigin: "https://campus-staging.mucwiki-edge.link",
 				executionControlBaseUrl: "https://execution-control.internal",
-				executionControlSharedSecret: "smoke-identity-execution-secret",
 			}),
 		).toThrow("schemaDatabaseUrl is required");
 	});

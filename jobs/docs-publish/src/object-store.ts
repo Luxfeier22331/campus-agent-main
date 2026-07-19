@@ -11,8 +11,8 @@ export function createDocsObjectStore(env: NodeJS.ProcessEnv = process.env): Doc
 	const bucket = required(env, "OBJECT_STORE_BUCKET_DERIVED");
 	const client = new S3Client({
 		credentials: {
-			accessKeyId: required(env, "DOCS_PUBLISH_OBJECT_STORE_ACCESS_KEY"),
-			secretAccessKey: required(env, "DOCS_PUBLISH_OBJECT_STORE_SECRET_KEY"),
+			accessKeyId: required(env, "OBJECT_STORE_DERIVED_ACCESS_KEY"),
+			secretAccessKey: required(env, "OBJECT_STORE_DERIVED_SECRET_KEY"),
 		},
 		endpoint: required(env, "OBJECT_STORE_ENDPOINT"),
 		forcePathStyle: true,

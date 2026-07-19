@@ -38,6 +38,12 @@ export function buildWranglerCommandEnv(
 	baseEnv: NodeJS.ProcessEnv = process.env,
 ): NodeJS.ProcessEnv {
 	const nextEnv = { ...baseEnv };
+	delete nextEnv.CLOUDFLARE_API_TOKEN;
+	const automationToken = baseEnv.CLOUDFLARE_AUTOMATION_TOKEN?.trim();
+	if (automationToken) {
+		nextEnv.CLOUDFLARE_API_TOKEN = automationToken;
+	}
+	delete nextEnv.CLOUDFLARE_AUTOMATION_TOKEN;
 	for (const key of PROXY_ENV_KEYS) {
 		delete nextEnv[key];
 	}

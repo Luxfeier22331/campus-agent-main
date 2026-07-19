@@ -19,6 +19,10 @@ function requiredEnv(name: string): string {
 	return value;
 }
 
+function optionalEnv(name: string): string {
+	return process.env[name]?.trim() ?? "";
+}
+
 const preflight = spawnSync("pnpm", ["exec", "tsx", "./scripts/preflight-staging.ts"], {
 	cwd: appDir,
 	env: process.env,
@@ -35,9 +39,9 @@ try {
 	writeFileSync(
 		configPath,
 		buildAppApiStagingUploadConfig(readFileSync(resolve(appDir, "wrangler.toml"), "utf8"), appDir, {
-			freshHyperdriveId: requiredEnv("STAGING_APP_API_DB_FRESH_HYPERDRIVE_ID"),
-			hyperdriveId: requiredEnv("STAGING_APP_API_DB_HYPERDRIVE_ID"),
-			vpcServiceId: requiredEnv("STAGING_EXECUTION_CONTROL_VPC_SERVICE_ID"),
+			freshHyperdriveId: requiredEnv("APP_API_DB_FRESH_HYPERDRIVE_ID"),
+			hyperdriveId: requiredEnv("APP_API_DB_HYPERDRIVE_ID"),
+			vpcServiceId: requiredEnv("EXECUTION_CONTROL_VPC_SERVICE_ID"),
 		}),
 		"utf8",
 	);
@@ -55,7 +59,9 @@ try {
 			wranglerOutdir: "dist/sentry/app-api-edge",
 		},
 		variables: {
-			SENTRY_DSN: requiredEnv("STAGING_APP_API_SENTRY_DSN"),
+			AUTH_RESET_EMAIL_FROM: requiredEnv("AUTH_RESET_EMAIL_FROM"),
+			AUTH_RESET_EMAIL_REPLY_TO: optionalEnv("AUTH_RESET_EMAIL_REPLY_TO"),
+			SENTRY_DSN: requiredEnv("SENTRY_APP_API_DSN"),
 			SENTRY_RELEASE: sentryRelease,
 		},
 	});

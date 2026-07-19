@@ -63,8 +63,7 @@ func (s *ProviderConfigAdminServer) ServeHTTP(response http.ResponseWriter, requ
 }
 
 func handleProviderConfigAdmin(response http.ResponseWriter, request *http.Request, cfg config.Config, store *providerconfig.Store) {
-	command := request.Method != http.MethodGet
-	if !providerConfigAdminAuthorized(request, cfg, command) {
+	if !providerConfigAdminAuthorized(request, cfg) {
 		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid provider config admin credential.", false)
 		return
 	}
@@ -182,11 +181,8 @@ func writeProviderCommandError(response http.ResponseWriter, status int, default
 	writeError(response, status, code, err.Error(), status >= 500)
 }
 
-func providerConfigAdminAuthorized(request *http.Request, cfg config.Config, command bool) bool {
-	want := cfg.ProviderConfigAdminReadToken
-	if command {
-		want = cfg.ProviderConfigAdminCommandToken
-	}
+func providerConfigAdminAuthorized(request *http.Request, cfg config.Config) bool {
+	want := cfg.OpsWebInternalToken
 	got := strings.TrimPrefix(strings.TrimSpace(request.Header.Get("Authorization")), "Bearer ")
 	return want != "" && len(got) == len(want) && subtle.ConstantTimeCompare([]byte(got), []byte(want)) == 1
 }

@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import type {
 	OpsOverviewResponse,
@@ -44,11 +43,9 @@ export function createPgOpsStatusStore(input: {
 		sentry?: string;
 		temporal?: string;
 	};
-	principalHashSecret?: string;
 	temporalTaskQueues?: OpsTemporalTaskQueueSource;
 }): OpsStatusStore {
 	const now = input.now ?? (() => new Date());
-	const principalHashSecret = input.principalHashSecret ?? "ops-web-test-principal-hash-secret";
 	const temporalTaskQueues = input.temporalTaskQueues ?? { getTaskQueues: async () => [] };
 
 	return {
@@ -79,7 +76,7 @@ export function createPgOpsStatusStore(input: {
 				return null;
 			}
 			const observability = await input.db.getRequestObservability(requestId);
-			return toRequestDetail(request, observability, input.observabilityLinks, principalHashSecret);
+			return toRequestDetail(request, observability, input.observabilityLinks);
 		},
 		async listRequests(query) {
 			const since = subtractWindow(now(), query.window);
@@ -91,11 +88,7 @@ export function createPgOpsStatusStore(input: {
 			const lastVisibleRow = visibleRows.at(-1);
 			return {
 				data: visibleRows.map((row) =>
-					toRequestSummary(
-						row,
-						observabilityByRequest.get(row.requestId) ?? null,
-						principalHashSecret,
-					),
+					toRequestSummary(row, observabilityByRequest.get(row.requestId) ?? null),
 				),
 				page: {
 					nextCursor:
@@ -107,14 +100,8 @@ export function createPgOpsStatusStore(input: {
 				window: query.window,
 			};
 		},
-		async verifyObservabilityReadAuditWrite() {
-			await input.db.verifyObservabilityReadAuditWrite();
-		},
 		async verifyReadiness() {
 			await input.db.verifyReadiness();
-		},
-		async writeObservabilityReadAudit(auditInput) {
-			await input.db.writeObservabilityReadAudit(auditInput);
 		},
 	};
 }
@@ -244,28 +231,6 @@ export function createPgOpsStatusStoreDatabase(
 				return summarizeStatusCounts(result.rows as Array<{ count: number; status: string }>);
 			});
 		},
-		async verifyObservabilityReadAuditWrite() {
-			return classifyDbError(async () => {
-				const client = await pool.connect();
-				try {
-					await client.query("begin");
-					await client.query(observabilityReadAuditInsertSql(), [
-						randomUUID(),
-						"logs",
-						"ops-web-readyz",
-						"service",
-						new Date(),
-						0,
-						"ops-web-readyz",
-						"ops-web-readyz",
-						false,
-					]);
-				} finally {
-					await client.query("rollback").catch(() => undefined);
-					client.release();
-				}
-			});
-		},
 		async verifyReadiness() {
 			return classifyDbError(async () => {
 				await Promise.all([
@@ -274,31 +239,7 @@ export function createPgOpsStatusStoreDatabase(
 				]);
 			});
 		},
-		async writeObservabilityReadAudit(input) {
-			return classifyDbError(async () => {
-				await pool.query(observabilityReadAuditInsertSql(), [
-					randomUUID(),
-					input.kind,
-					input.operatorId,
-					input.operatorPrincipalClass,
-					input.readAt,
-					input.recordCount,
-					input.requestId,
-					input.traceId,
-					input.truncated,
-				]);
-			});
-		},
 	};
-}
-
-function observabilityReadAuditInsertSql() {
-	return `
-		insert into "observability"."ops_observability_read_audit" (
-			"audit_id", "kind", "operator_id", "operator_principal_class", "read_at",
-			"record_count", "request_id", "trace_id", "truncated"
-		) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-	`;
 }
 
 function toRequestOverview(row: OpsRequestOverviewRow): OpsOverviewResponse["requests"] {
@@ -425,12 +366,7 @@ async function classifyDbError<T>(operation: () => Promise<T>): Promise<T> {
 			throw new OpsStatusStoreUnavailableError("MISSING_SCHEMA", message);
 		}
 		if (code === "42501") {
-			throw new OpsStatusStoreUnavailableError(
-				message.includes("ops_observability_read_audit")
-					? "AUDIT_WRITE_DENIED"
-					: "DB_PERMISSION_DENIED",
-				message,
-			);
+			throw new OpsStatusStoreUnavailableError("DB_PERMISSION_DENIED", message);
 		}
 		if (code.startsWith("08") || code.startsWith("28")) {
 			throw new OpsStatusStoreUnavailableError("DB_CONNECT_FAILED", message);

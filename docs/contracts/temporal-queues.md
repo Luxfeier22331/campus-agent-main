@@ -22,7 +22,7 @@ status: active
 
 - 所有者：`apps/execution-control`；
 - 调用方：`apps/ops-web` 服务端；
-- 认证：`Authorization: Bearer <metrics token>`；
+- 认证：`Authorization: Bearer <OPS_WEB_INTERNAL_TOKEN>`；
 - 数据来源：Temporal SDK 的 task queue 描述接口。
 
 成功响应：

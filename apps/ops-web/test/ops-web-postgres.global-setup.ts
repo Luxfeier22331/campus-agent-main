@@ -20,7 +20,6 @@ const RYUK_IMAGE =
 const DATABASE_NAME = "campus_agent";
 const SCHEMA_OWNER = "ops_web_schema_owner";
 const OPS_WEB_ROLE = "ops_web";
-const AUDIT_MAINTENANCE_ROLE = "ops_audit_maintenance";
 const NOLOGIN_ROLES = [
 	"app_api",
 	"campus_services_publisher",
@@ -32,7 +31,6 @@ const NOLOGIN_ROLES = [
 const executionControlRoot = fileURLToPath(new URL("../../execution-control", import.meta.url));
 
 export interface OpsWebPostgresContext {
-	auditMaintenanceConnectionString: string;
 	managementConnectionString: string;
 	opsWebConnectionString: string;
 }
@@ -80,15 +78,11 @@ async function provisionDatabase(
 	const adminConnectionString = container.getConnectionUri();
 	const schemaOwnerPassword = randomBytes(24).toString("hex");
 	const opsWebPassword = randomBytes(24).toString("hex");
-	const auditMaintenancePassword = randomBytes(24).toString("hex");
 	const admin = new Client({ connectionString: adminConnectionString, ssl: false });
 	await admin.connect();
 	try {
 		await admin.query(`create role "${SCHEMA_OWNER}" login password '${schemaOwnerPassword}'`);
 		await admin.query(`create role "${OPS_WEB_ROLE}" login password '${opsWebPassword}'`);
-		await admin.query(
-			`create role "${AUDIT_MAINTENANCE_ROLE}" login password '${auditMaintenancePassword}'`,
-		);
 		for (const role of NOLOGIN_ROLES) {
 			await admin.query(`create role "${role}" nologin`);
 		}
@@ -107,12 +101,6 @@ async function provisionDatabase(
 		OPS_WEB_ROLE,
 		opsWebPassword,
 	);
-	const auditMaintenanceConnectionString = roleConnectionString(
-		adminConnectionString,
-		AUDIT_MAINTENANCE_ROLE,
-		auditMaintenancePassword,
-	);
-
 	await installCampusServicesSchema({ connectionString: managementConnectionString, ssl: false });
 	await installAppApiSchema({
 		APP_API_DATABASE_SSLMODE: "disable",
@@ -123,7 +111,6 @@ async function provisionDatabase(
 	await installExecutionControlSchema(managementConnectionString);
 
 	return {
-		auditMaintenanceConnectionString,
 		managementConnectionString,
 		opsWebConnectionString,
 	};

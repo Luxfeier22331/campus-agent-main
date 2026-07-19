@@ -46,13 +46,7 @@ export function createFixtureOpsStatusStore(): OpsStatusStore {
 				window: query.window,
 			};
 		},
-		async verifyObservabilityReadAuditWrite() {
-			return;
-		},
 		async verifyReadiness() {
-			return;
-		},
-		async writeObservabilityReadAudit() {
 			return;
 		},
 	};

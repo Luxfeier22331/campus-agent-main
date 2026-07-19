@@ -1,6 +1,5 @@
 import { decodeRequestCursor } from "../src/server/ops-status-mappers";
 import type {
-	OpsObservabilityReadAuditInput,
 	OpsRequestListQuery,
 	OpsRequestObservabilityRow,
 	OpsRequestRow,
@@ -14,13 +13,11 @@ export function createFakeOpsDb(
 		observabilityRows?: ReturnType<typeof requestObservabilityRow>[];
 		requestRows?: OpsRequestRow[];
 	} = {},
-): PgOpsStatusStoreDatabase & { auditEvents: OpsObservabilityReadAuditInput[] } {
+): PgOpsStatusStoreDatabase {
 	const requestRows = overrides.requestRows ?? [requestRow()];
 	const observabilityRows = overrides.observabilityRows ?? [requestObservabilityRow()];
-	const auditEvents: OpsObservabilityReadAuditInput[] = [];
 
 	return {
-		auditEvents,
 		async getRequestObservability(requestId) {
 			return observabilityRows.find((row) => row.requestId === requestId) ?? null;
 		},
@@ -75,14 +72,8 @@ export function createFakeOpsDb(
 		async summarizeRequests(query, since) {
 			return summarizeRows(filterRequestRows(requestRows, query, since));
 		},
-		async verifyObservabilityReadAuditWrite() {
-			return;
-		},
 		async verifyReadiness() {
 			return;
-		},
-		async writeObservabilityReadAudit(input) {
-			auditEvents.push(input);
 		},
 	};
 }
@@ -99,7 +90,6 @@ export function requestRow(overrides: Partial<OpsRequestRow> = {}): OpsRequestRo
 		conversationId: "conv_pg_001",
 		durationMs: 4200,
 		errorCode: null,
-		principalId: "student-123",
 		principalType: "student",
 		projectedAt: new Date("2026-07-09T07:29:05.000Z"),
 		questionPreview: "今天班车什么时候发车？",

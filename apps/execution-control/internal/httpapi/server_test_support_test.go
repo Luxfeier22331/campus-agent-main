@@ -40,13 +40,13 @@ func newServerForTest() *Server {
 
 func newWorkerAuthServerForTest() *Server {
 	server := newServerForTest()
-	server.config.WorkerSharedSecret = "secret"
+	server.config.AppAPIExecutionSharedSecret = "secret"
 	return server
 }
 
 func newToolReadModelAuthServerForTest() *Server {
 	return NewServer(config.Config{
-		InternalQuerySharedSecret:       "query-secret",
+		AgentRuntimeSharedSecret:        "query-secret",
 		RAGTopKMax:                      8,
 		ToolReadModelTrustedTimeRFC3339: "2026-04-24T10:30:00+08:00",
 	})

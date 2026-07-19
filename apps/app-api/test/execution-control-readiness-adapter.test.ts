@@ -31,7 +31,7 @@ describe("execution control readiness adapter", () => {
 					APP_API_ENVIRONMENT: "staging",
 					EXECUTION_CONTROL_PRIVATE: { fetch: privateFetch },
 					EXECUTION_CONTROL_PRIVATE_ORIGIN: "http://execution-control.internal:8000",
-					EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
+					APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 				},
 				{ fetchImplementation: overrideFetch },
 			),

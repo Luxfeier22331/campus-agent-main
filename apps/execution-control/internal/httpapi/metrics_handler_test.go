@@ -12,7 +12,7 @@ import (
 func TestMetricsEndpointRequiresBearerTokenWhenConfigured(t *testing.T) {
 	server := NewServer(config.Config{
 		MaxConcurrentAnswers: 8,
-		MetricsBearerToken:   "metrics-token",
+		OpsWebInternalToken:  "ops-web-token",
 	})
 
 	unauthorized := httptest.NewRecorder()
@@ -21,7 +21,7 @@ func TestMetricsEndpointRequiresBearerTokenWhenConfigured(t *testing.T) {
 
 	authorized := httptest.NewRecorder()
 	request := newTestRequest(http.MethodGet, "/metrics", nil)
-	request.Header.Set("authorization", "Bearer metrics-token")
+	request.Header.Set("authorization", "Bearer ops-web-token")
 	server.ServeHTTP(authorized, request)
 	if authorized.Code != http.StatusOK {
 		t.Fatalf("authorized metrics status = %d, want 200", authorized.Code)

@@ -41,10 +41,6 @@ spec:
           envFrom:
             - configMapRef:
                 name: execution-runtime-rendered-config
-            - secretRef:
-                name: execution-provider-config-runtime-secrets
-            - secretRef:
-                name: execution-provider-config-admin-secrets
           env:
             - name: CAMPUS_AGENT_HTTP_HOST
               value: 0.0.0.0
@@ -52,6 +48,16 @@ spec:
               value: "8000"
             - name: API_AUTH_MODE
               value: trusted-worker
+            - name: EXECUTION_CONTROL_PROVIDER_CONFIG_ADMIN_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: execution-provider-config-admin-secrets
+                  key: EXECUTION_CONTROL_PROVIDER_CONFIG_ADMIN_DATABASE_URL
+            - name: OPS_WEB_INTERNAL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ops-web-internal-secrets
+                  key: OPS_WEB_INTERNAL_TOKEN
           volumeMounts:
             - name: provider-config-keyring
               mountPath: /run/campus-agent/provider-config

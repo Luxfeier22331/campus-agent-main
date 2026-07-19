@@ -50,8 +50,6 @@ import {
 	type OpsAdmission,
 	type OpsAdmissionEnv,
 	type OpsOperatorContext,
-	operatorCanReadRawObservability,
-	operatorCanWriteProviderConfig,
 } from "./ops-admission.ts";
 import { createOpsOverviewService, type OpsOverviewService } from "./ops-overview-service.ts";
 import { createOpsRuntimeSignalsSource } from "./ops-runtime-signals.ts";
@@ -295,7 +293,6 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 				);
 			}
 			await store.verifyReadiness();
-			await store.verifyObservabilityReadAuditWrite();
 			await diningStore.verifyReadiness();
 			return context.json({ ok: true, service: "ops-web" });
 		} catch (error) {
@@ -329,9 +326,6 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		if (operator instanceof Response) {
 			return operator;
 		}
-		if (operator.principalClass !== "human") {
-			return internalPortalAuthForbiddenResponse();
-		}
 		try {
 			const credential = await internalPortalAuthStore.getStatus();
 			const maintenance = await readInternalPortalMaintenanceStatus(
@@ -354,9 +348,6 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 			const operator = await admitOpsApiRequest(admission, context.req.raw);
 			if (operator instanceof Response) {
 				return operator;
-			}
-			if (operator.principalClass !== "human") {
-				return internalPortalAuthForbiddenResponse();
 			}
 			if (!requestHasConfiguredOrigin(context.req.raw, publicOrigin)) {
 				return jsonError("OPS_INTERNAL_PORTAL_AUTH_ORIGIN_INVALID", "凭据更新请求来源无效。", 403);
@@ -403,9 +394,6 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		if (operator instanceof Response) {
 			return operator;
 		}
-		if (operator.principalClass !== "human") {
-			return internalPortalAuthForbiddenResponse();
-		}
 		if (!requestHasConfiguredOrigin(context.req.raw, publicOrigin)) {
 			return jsonError("OPS_INTERNAL_PORTAL_AUTH_ORIGIN_INVALID", "恢复请求来源无效。", 403);
 		}
@@ -449,23 +437,13 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		if (operator instanceof Response) {
 			return operator;
 		}
-		return context.json({
-			...(await providerConfigClient.getStatus()),
-			writeAllowed: operatorCanWriteProviderConfig(operator, env),
-		});
+		return context.json(await providerConfigClient.getStatus());
 	});
 
 	app.post("/api/ops/provider-config/*", async (context) => {
 		const operator = await admitOpsApiRequest(admission, context.req.raw);
 		if (operator instanceof Response) {
 			return operator;
-		}
-		if (!operatorCanWriteProviderConfig(operator, env)) {
-			return jsonError(
-				"OPS_PROVIDER_CONFIG_WRITE_FORBIDDEN",
-				"当前操作者无权修改 Provider Config。",
-				403,
-			);
 		}
 		if (!requestHasConfiguredOrigin(context.req.raw, publicOrigin)) {
 			return jsonError(
@@ -542,13 +520,6 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		if (operator instanceof Response) {
 			return operator;
 		}
-		if (!operatorCanReadRawObservability(operator, env)) {
-			return jsonError(
-				"OPS_RAW_OBSERVABILITY_FORBIDDEN",
-				"当前操作者无权读取原始日志和调用链。",
-				403,
-			);
-		}
 		const requestId = context.req.param("requestId");
 		const parsedQuery = ObservabilityQuerySchema.safeParse(context.req.query());
 		if (!(OpsPathIdSchema.safeParse(requestId).success && parsedQuery.success)) {
@@ -568,16 +539,6 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 				traceId: detail.request.traceId,
 			}),
 		);
-		await store.writeObservabilityReadAudit({
-			kind: response.kind,
-			operatorId: operator.operatorId,
-			operatorPrincipalClass: operator.principalClass,
-			readAt: new Date().toISOString(),
-			recordCount: response.records.length,
-			requestId: response.requestId,
-			traceId: response.traceId,
-			truncated: response.truncated,
-		});
 		return context.json(response);
 	});
 
@@ -909,9 +870,6 @@ async function admitDiningWrite(
 	if (operator instanceof Response) {
 		return operator;
 	}
-	if (operator.principalClass !== "human") {
-		return jsonError("OPS_DINING_WRITE_FORBIDDEN", "服务身份不能修改食堂数据。", 403);
-	}
 	if (!requestHasConfiguredOrigin(request, publicOrigin)) {
 		return jsonError("OPS_DINING_ORIGIN_INVALID", "食堂修改请求来源无效。", 403);
 	}
@@ -938,10 +896,6 @@ function jsonError(
 		},
 		status,
 	});
-}
-
-function internalPortalAuthForbiddenResponse(): Response {
-	return jsonError("OPS_INTERNAL_PORTAL_AUTH_FORBIDDEN", "当前操作者无权管理内部门户认证。", 403);
 }
 
 function invalidInternalPortalCredentialResponse(): Response {

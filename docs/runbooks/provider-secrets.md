@@ -24,8 +24,8 @@ status: active
 2. 必要时在供应商平台创建该环境的密钥。
 3. 通过 Ops Web 创建 connection/profile，验证后以 `expectedRevision` 原子激活完整 role
    bundle。
-4. 在线运行面确认 reader DSN 和版本化 keyring 可用；admin 服务使用独立 admin DSN、read token
-   与 command token。
+4. 在线运行面确认 reader DSN 和版本化 keyring 可用；admin 服务使用独立 admin DSN 和
+   `OPS_WEB_INTERNAL_TOKEN`。
 5. keyring 本地文件权限使用 `0600`；Kubernetes Secret 投影使用 `0440`，由 Pod `fsGroup` 授予
    运行时组只读权限。Kubernetes 使用目录挂载，不使用 `subPath`。
 6. 运行所属环境检查和受控冒烟测试。
@@ -37,7 +37,7 @@ status: active
 
 1. 启动 execution-control 本地管理和读取接口，并提供独立 PostgreSQL 管理/读取 DSN
    与版本化 keyring。
-2. 通过 `OPS_WEB_EXECUTION_CONTROL_ADMIN_URL`、read token 和 command token 将 Ops Web 指向该
+2. 通过 `OPS_WEB_EXECUTION_CONTROL_ADMIN_URL` 和 `OPS_WEB_INTERNAL_TOKEN` 将 Ops Web 指向该
    admin 接口。
 3. 启动 Ops Web 后通过同一页面创建、验证并激活 profile。
 4. 确认 execution-control runtime reader 能解析同一 active revision。
@@ -55,7 +55,7 @@ Config 已创建、验证或激活。在线 Provider Config 必须另行确认�
 
 1. 目标 role bundle 已验证并激活；
 2. execution-control 只用 reader role 读取 active revision，并能解密对应 key ID；
-3. Ops Web 使用独立 read/command token，浏览器不获得该 token 或数据库凭据；
+3. Ops Web 服务端使用 `OPS_WEB_INTERNAL_TOKEN`，浏览器不获得该 token 或数据库凭据；
 4. 受控在线请求使用预期 revision。
 
 ## 轮换

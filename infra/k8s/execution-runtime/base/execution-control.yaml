@@ -50,28 +50,6 @@ spec:
           envFrom:
             - configMapRef:
                 name: execution-runtime-rendered-config
-            - secretRef:
-                name: execution-control-secrets
-            - secretRef:
-                name: execution-agent-client-secrets
-            - secretRef:
-                name: execution-control-metrics-secrets
-            - secretRef:
-                name: execution-temporal-workflow-secrets
-            - secretRef:
-                name: execution-telemetry-client-secrets
-            - secretRef:
-                name: execution-run-projection-secrets
-            - secretRef:
-                name: execution-memory-client-secrets
-            - secretRef:
-                name: execution-control-internal-query-secrets
-            - secretRef:
-                name: execution-rag-secrets
-            - secretRef:
-                name: execution-tool-read-model-secrets
-            - secretRef:
-                name: execution-provider-config-runtime-secrets
           env:
             - name: CAMPUS_AGENT_HTTP_HOST
               value: 0.0.0.0
@@ -83,11 +61,51 @@ spec:
                   fieldPath: metadata.name
             - name: API_AUTH_MODE
               value: trusted-worker
-            - name: EXECUTION_CONTROL_PRODUCT_CALLBACK_SHARED_SECRET
+            - name: OPS_WEB_INTERNAL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ops-web-internal-secrets
+                  key: OPS_WEB_INTERNAL_TOKEN
+            - name: EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT
+              valueFrom:
+                secretKeyRef:
+                  name: execution-temporal-workflow-secrets
+                  key: EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT
+            - name: EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: execution-run-projection-secrets
+                  key: EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL
+            - name: PERSONAL_MEMORY_API_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: hindsight-api-secrets
+                  key: HINDSIGHT_API_TENANT_API_KEY
+            - name: PERSONAL_MEMORY_OWNER_SALT
+              valueFrom:
+                secretKeyRef:
+                  name: execution-memory-client-secrets
+                  key: PERSONAL_MEMORY_OWNER_SALT
+            - name: QDRANT_QUERY_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: qdrant-server-secrets
+                  key: QDRANT_READ_ONLY_API_KEY
+            - name: CAMPUS_SHARED_POSTGRES_URL
+              valueFrom:
+                secretKeyRef:
+                  name: execution-tool-read-model-secrets
+                  key: CAMPUS_SHARED_POSTGRES_URL
+            - name: EXECUTION_CONTROL_PROVIDER_CONFIG_READER_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: execution-provider-config-runtime-secrets
+                  key: EXECUTION_CONTROL_PROVIDER_CONFIG_READER_DATABASE_URL
+            - name: APP_API_EXECUTION_SHARED_SECRET
               valueFrom:
                 secretKeyRef:
                   name: execution-app-api-internal-secrets
-                  key: APP_API_PRODUCT_CALLBACK_SHARED_SECRET
+                  key: APP_API_EXECUTION_SHARED_SECRET
           volumeMounts:
             - name: provider-config-keyring
               mountPath: /run/campus-agent/provider-config
@@ -102,7 +120,7 @@ spec:
                 - -ec
                 - |
                   curl -fsS \
-                    -H "x-worker-origin-auth: ${API_WORKER_SHARED_SECRET}" \
+                    -H "x-worker-origin-auth: ${APP_API_EXECUTION_SHARED_SECRET}" \
                     http://127.0.0.1:8000/readyz >/dev/null
             initialDelaySeconds: 20
             periodSeconds: 10

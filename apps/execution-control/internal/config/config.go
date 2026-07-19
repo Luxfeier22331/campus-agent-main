@@ -17,7 +17,7 @@ type Config struct {
 	RuntimeRelease                   string
 	AuthMode                         string
 	BearerToken                      string
-	WorkerSharedSecret               string
+	AppAPIExecutionSharedSecret      string
 	DefaultActorID                   string
 	DefaultActorRoles                []string
 	ExecutionResponseLimitBytes      int64
@@ -33,12 +33,11 @@ type Config struct {
 	ExecutionTimeoutMS               int
 	ExecutionCancelTimeoutMS         int
 	ShutdownGraceMS                  int
-	MetricsBearerToken               string
+	OpsWebInternalToken              string
 	OTelEnabled                      bool
 	OTelEndpoint                     string
 	OTelMetricsEnabled               bool
 	OTelMetricsEndpoint              string
-	OTelHeaders                      string
 	OTelServiceName                  string
 	OTelExportTimeoutMS              int
 	OTelExportIntervalMS             int
@@ -62,16 +61,11 @@ type Config struct {
 	AgentRuntimeInputCharLimit       int
 	AgentRuntimeContextCharLimit     int
 	ProductCallbackBaseURL           string
-	ProductCallbackSharedSecret      string
 	ProductCallbackTimeoutMS         int
-	ProviderConfigSnapshotPath       string
 	ProviderConfigReaderDatabaseURL  string
 	ProviderConfigAdminDatabaseURL   string
 	ProviderConfigKeyringPath        string
-	ProviderConfigAdminReadToken     string
-	ProviderConfigAdminCommandToken  string
 	QueryServingTargetsPath          string
-	InternalQuerySharedSecret        string
 	ToolReadModelTrustedTimeRFC3339  string
 	ToolReadModelTimeoutMS           int
 	StructuredProjectionDatabaseURL  string
@@ -114,7 +108,7 @@ type envValues struct {
 	RuntimeRelease                  string `env:"EXECUTION_CONTROL_RUNTIME_RELEASE"`
 	AuthMode                        string `env:"API_AUTH_MODE" envDefault:"bearer"`
 	BearerToken                     string `env:"API_BEARER_TOKEN"`
-	WorkerSharedSecret              string `env:"API_WORKER_SHARED_SECRET"`
+	AppAPIExecutionSharedSecret     string `env:"APP_API_EXECUTION_SHARED_SECRET"`
 	DefaultActorID                  string `env:"API_DEFAULT_ACTOR_ID"`
 	MaxConcurrentAnswers            int
 	QueueCapacity                   int
@@ -122,10 +116,9 @@ type envValues struct {
 	RequestTimeoutMS                int
 	RequestBodyLimitBytes           int64
 	ShutdownGraceMS                 int
-	MetricsBearerToken              string `env:"EXECUTION_CONTROL_METRICS_BEARER_TOKEN"`
+	OpsWebInternalToken             string `env:"OPS_WEB_INTERNAL_TOKEN"`
 	OTelEndpoint                    string
 	OTelMetricsEndpoint             string
-	OTelHeaders                     string `env:"EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_HEADERS"`
 	OTelServiceName                 string
 	OTelExportTimeoutMS             int
 	OTelExportIntervalMS            int
@@ -140,7 +133,7 @@ type envValues struct {
 	TemporalWorkflowIDSalt          string `env:"EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT"`
 	TemporalStartTimeoutMS          int    `env:"EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS" envDefault:"5000"`
 	AgentRuntimeBaseURL             string `env:"EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL"`
-	AgentRuntimeSharedSecret        string `env:"EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET"`
+	AgentRuntimeSharedSecret        string `env:"EXECUTION_AGENT_RUNTIME_SHARED_SECRET"`
 	AgentRuntimeDeadlineMS          int
 	AgentRuntimeMaxOutputTokens     int
 	AgentRuntimeMaxTurns            int
@@ -148,16 +141,11 @@ type envValues struct {
 	AgentRuntimeInputCharLimit      int
 	AgentRuntimeContextCharLimit    int
 	ProductCallbackBaseURL          string `env:"EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL"`
-	ProductCallbackSharedSecret     string `env:"EXECUTION_CONTROL_PRODUCT_CALLBACK_SHARED_SECRET"`
 	ProductCallbackTimeoutMS        int    `env:"EXECUTION_CONTROL_PRODUCT_CALLBACK_TIMEOUT_MS" envDefault:"1000"`
-	ProviderConfigSnapshotPath      string `env:"EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH"`
 	ProviderConfigReaderDatabaseURL string `env:"EXECUTION_CONTROL_PROVIDER_CONFIG_READER_DATABASE_URL"`
 	ProviderConfigAdminDatabaseURL  string `env:"EXECUTION_CONTROL_PROVIDER_CONFIG_ADMIN_DATABASE_URL"`
 	ProviderConfigKeyringPath       string `env:"EXECUTION_CONTROL_PROVIDER_CONFIG_KEYRING_PATH"`
-	ProviderConfigAdminReadToken    string `env:"EXECUTION_CONTROL_PROVIDER_CONFIG_ADMIN_READ_TOKEN"`
-	ProviderConfigAdminCommandToken string `env:"EXECUTION_CONTROL_PROVIDER_CONFIG_ADMIN_COMMAND_TOKEN"`
 	QueryServingTargetsPath         string
-	InternalQuerySharedSecret       string `env:"EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET"`
 	ToolReadModelTrustedTimeRFC3339 string `env:"EXECUTION_CONTROL_TOOL_READ_MODEL_TRUSTED_TIME_RFC3339"`
 	ToolReadModelTimeoutMS          int
 	QdrantURL                       string  `env:"QDRANT_URL"`
@@ -267,7 +255,7 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 		RuntimeRelease:                  strings.TrimSpace(values.RuntimeRelease),
 		AuthMode:                        defaultString(strings.TrimSpace(values.AuthMode), "bearer"),
 		BearerToken:                     strings.TrimSpace(values.BearerToken),
-		WorkerSharedSecret:              strings.TrimSpace(values.WorkerSharedSecret),
+		AppAPIExecutionSharedSecret:     strings.TrimSpace(values.AppAPIExecutionSharedSecret),
 		DefaultActorID:                  strings.TrimSpace(values.DefaultActorID),
 		DefaultActorRoles:               readStringList("API_DEFAULT_ACTOR_ROLES"),
 		MaxConcurrentAnswers:            values.MaxConcurrentAnswers,
@@ -276,12 +264,11 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 		RequestTimeoutMS:                values.RequestTimeoutMS,
 		RequestBodyLimitBytes:           values.RequestBodyLimitBytes,
 		ShutdownGraceMS:                 values.ShutdownGraceMS,
-		MetricsBearerToken:              strings.TrimSpace(values.MetricsBearerToken),
+		OpsWebInternalToken:             strings.TrimSpace(values.OpsWebInternalToken),
 		OTelEnabled:                     otelEnabled,
 		OTelEndpoint:                    strings.TrimSpace(values.OTelEndpoint),
 		OTelMetricsEnabled:              otelMetricsEnabled,
 		OTelMetricsEndpoint:             strings.TrimSpace(values.OTelMetricsEndpoint),
-		OTelHeaders:                     strings.TrimSpace(values.OTelHeaders),
 		OTelServiceName:                 defaultString(strings.TrimSpace(values.OTelServiceName), "campus-execution-control"),
 		OTelExportTimeoutMS:             values.OTelExportTimeoutMS,
 		OTelExportIntervalMS:            values.OTelExportIntervalMS,
@@ -305,16 +292,11 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 		AgentRuntimeInputCharLimit:      values.AgentRuntimeInputCharLimit,
 		AgentRuntimeContextCharLimit:    values.AgentRuntimeContextCharLimit,
 		ProductCallbackBaseURL:          strings.TrimRight(strings.TrimSpace(values.ProductCallbackBaseURL), "/"),
-		ProductCallbackSharedSecret:     strings.TrimSpace(values.ProductCallbackSharedSecret),
 		ProductCallbackTimeoutMS:        values.ProductCallbackTimeoutMS,
-		ProviderConfigSnapshotPath:      strings.TrimSpace(values.ProviderConfigSnapshotPath),
 		ProviderConfigReaderDatabaseURL: strings.TrimSpace(values.ProviderConfigReaderDatabaseURL),
 		ProviderConfigAdminDatabaseURL:  strings.TrimSpace(values.ProviderConfigAdminDatabaseURL),
 		ProviderConfigKeyringPath:       strings.TrimSpace(values.ProviderConfigKeyringPath),
-		ProviderConfigAdminReadToken:    strings.TrimSpace(values.ProviderConfigAdminReadToken),
-		ProviderConfigAdminCommandToken: strings.TrimSpace(values.ProviderConfigAdminCommandToken),
 		QueryServingTargetsPath:         strings.TrimSpace(values.QueryServingTargetsPath),
-		InternalQuerySharedSecret:       strings.TrimSpace(values.InternalQuerySharedSecret),
 		ToolReadModelTrustedTimeRFC3339: strings.TrimSpace(values.ToolReadModelTrustedTimeRFC3339),
 		ToolReadModelTimeoutMS:          values.ToolReadModelTimeoutMS,
 		StructuredProjectionDatabaseURL: readStructuredProjectionDatabaseURL(),
@@ -415,10 +397,10 @@ func validateEnvValues(values envValues, runtimeMode string, runtimeRole string,
 		return fmt.Errorf("EXECUTION_CONTROL_RUNTIME_RELEASE is required when runtime config otel.enabled=true")
 	}
 	if runtimeMode != "local" &&
-		roleRequiresMetricsBearerToken(runtimeRole) &&
-		strings.TrimSpace(values.MetricsBearerToken) == "" {
+		roleRequiresOpsWebInternalToken(runtimeRole) &&
+		strings.TrimSpace(values.OpsWebInternalToken) == "" {
 		return fmt.Errorf(
-			"EXECUTION_CONTROL_METRICS_BEARER_TOKEN is required when EXECUTION_CONTROL_RUNTIME_MODE=%s",
+			"OPS_WEB_INTERNAL_TOKEN is required when EXECUTION_CONTROL_RUNTIME_MODE=%s",
 			runtimeMode,
 		)
 	}
@@ -435,16 +417,16 @@ func validateEnvValues(values envValues, runtimeMode string, runtimeRole string,
 		(strings.TrimSpace(values.AgentRuntimeBaseURL) == "" ||
 			strings.TrimSpace(values.AgentRuntimeSharedSecret) == "") {
 		return fmt.Errorf(
-			"EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL and EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET are required when EXECUTION_CONTROL_RUNTIME_MODE=%s",
+			"EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL and EXECUTION_AGENT_RUNTIME_SHARED_SECRET are required when EXECUTION_CONTROL_RUNTIME_MODE=%s",
 			runtimeMode,
 		)
 	}
 	if runtimeMode != "local" &&
 		roleRequiresProductCallback(runtimeRole) &&
 		(strings.TrimSpace(values.ProductCallbackBaseURL) == "" ||
-			strings.TrimSpace(values.ProductCallbackSharedSecret) == "") {
+			strings.TrimSpace(values.AppAPIExecutionSharedSecret) == "") {
 		return fmt.Errorf(
-			"EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL and EXECUTION_CONTROL_PRODUCT_CALLBACK_SHARED_SECRET are required for role %s",
+			"EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL and APP_API_EXECUTION_SHARED_SECRET are required for role %s",
 			runtimeRole,
 		)
 	}
@@ -457,11 +439,6 @@ func validateEnvValues(values envValues, runtimeMode string, runtimeRole string,
 		(strings.TrimSpace(values.ProviderConfigAdminDatabaseURL) == "" ||
 			strings.TrimSpace(values.ProviderConfigKeyringPath) == "") {
 		return fmt.Errorf("EXECUTION_CONTROL_PROVIDER_CONFIG_ADMIN_DATABASE_URL and EXECUTION_CONTROL_PROVIDER_CONFIG_KEYRING_PATH are required for role %s", runtimeRole)
-	}
-	if runtimeMode != "local" && roleRequiresProviderConfigAdminTokens(runtimeRole) &&
-		(strings.TrimSpace(values.ProviderConfigAdminReadToken) == "" ||
-			strings.TrimSpace(values.ProviderConfigAdminCommandToken) == "") {
-		return fmt.Errorf("provider config admin read and command tokens are required for role %s", runtimeRole)
 	}
 	return nil
 }
@@ -479,10 +456,6 @@ func roleRequiresProviderConfigAdmin(runtimeRole string) bool {
 	return normalizeRuntimeRole(runtimeRole) == "provider-config-admin"
 }
 
-func roleRequiresProviderConfigAdminTokens(runtimeRole string) bool {
-	return normalizeRuntimeRole(runtimeRole) == "provider-config-admin"
-}
-
 func roleRequiresProductCallback(runtimeRole string) bool {
 	switch normalizeRuntimeRole(runtimeRole) {
 	case "", "execution-control", "activity-core":
@@ -492,9 +465,9 @@ func roleRequiresProductCallback(runtimeRole string) bool {
 	}
 }
 
-func roleRequiresMetricsBearerToken(runtimeRole string) bool {
+func roleRequiresOpsWebInternalToken(runtimeRole string) bool {
 	switch normalizeRuntimeRole(runtimeRole) {
-	case "", "execution-control":
+	case "", "execution-control", "provider-config-admin":
 		return true
 	default:
 		return false

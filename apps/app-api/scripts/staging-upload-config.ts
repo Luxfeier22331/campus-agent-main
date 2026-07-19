@@ -59,22 +59,19 @@ export function buildAppApiStagingUploadConfig(
 		staging.vpc_services,
 		"EXECUTION_CONTROL_PRIVATE",
 		"service_id",
-		requireUuid("STAGING_EXECUTION_CONTROL_VPC_SERVICE_ID", resources.vpcServiceId),
+		requireUuid("EXECUTION_CONTROL_VPC_SERVICE_ID", resources.vpcServiceId),
 	);
 	replaceBinding(
 		staging.hyperdrive,
 		"APP_API_DB",
 		"id",
-		requireHyperdriveConfigurationId("STAGING_APP_API_DB_HYPERDRIVE_ID", resources.hyperdriveId),
+		requireHyperdriveConfigurationId("APP_API_DB_HYPERDRIVE_ID", resources.hyperdriveId),
 	);
 	replaceBinding(
 		staging.hyperdrive,
 		"APP_API_DB_FRESH",
 		"id",
-		requireHyperdriveConfigurationId(
-			"STAGING_APP_API_DB_FRESH_HYPERDRIVE_ID",
-			resources.freshHyperdriveId,
-		),
+		requireHyperdriveConfigurationId("APP_API_DB_FRESH_HYPERDRIVE_ID", resources.freshHyperdriveId),
 	);
 	config.main = resolve(appDir, "src/index.ts");
 	return stringify(config);

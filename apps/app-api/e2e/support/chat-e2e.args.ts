@@ -78,18 +78,9 @@ export function parseChatE2eArgs(
 	let expectResultKind: ChatE2eExpectedResultKind = "answer";
 	let profile: ChatE2eProfile = "staging";
 	let transport: ChatE2eTransport = "stream";
-	let password =
-		normalizeOptionalValue(env.APP_API_SMOKE_IDENTITY_PASSWORD) ??
-		normalizeOptionalValue(env.CHAT_E2E_SMOKE_IDENTITY_PASSWORD) ??
-		"";
-	let captchaToken =
-		normalizeOptionalValue(env.APP_API_SMOKE_IDENTITY_CAPTCHA_TOKEN) ??
-		normalizeOptionalValue(env.CHAT_E2E_SMOKE_IDENTITY_CAPTCHA_TOKEN) ??
-		"";
-	let smokeAuthSecret =
-		normalizeOptionalValue(env.APP_API_STAGING_SMOKE_AUTH_SECRET) ??
-		normalizeOptionalValue(env.STAGING_APP_API_SMOKE_AUTH_SECRET) ??
-		"";
+	let password = normalizeOptionalValue(env.APP_API_SMOKE_IDENTITY_PASSWORD) ?? "";
+	let captchaToken = normalizeOptionalValue(env.APP_API_SMOKE_IDENTITY_CAPTCHA_TOKEN) ?? "";
+	let smokeAuthSecret = normalizeOptionalValue(env.APP_API_STAGING_SMOKE_AUTH_SECRET) ?? "";
 	let explicitChatBaseUrl = false;
 	let explicitAppApiReadyzUrl = false;
 	let explicitExecReadyzUrl = false;
@@ -246,14 +237,10 @@ export function parseChatE2eArgs(
 		}
 	}
 	if (profile === "staging" && !smokeAuthSecret) {
-		throw new Error(
-			"APP_API_STAGING_SMOKE_AUTH_SECRET or STAGING_APP_API_SMOKE_AUTH_SECRET is required.",
-		);
+		throw new Error("APP_API_STAGING_SMOKE_AUTH_SECRET is required.");
 	}
 	if (profile !== "staging" && !password) {
-		throw new Error(
-			"APP_API_SMOKE_IDENTITY_PASSWORD or CHAT_E2E_SMOKE_IDENTITY_PASSWORD is required.",
-		);
+		throw new Error("APP_API_SMOKE_IDENTITY_PASSWORD is required.");
 	}
 	if (profile !== "staging" && !captchaToken) {
 		if (
@@ -261,9 +248,7 @@ export function parseChatE2eArgs(
 		) {
 			captchaToken = DEFAULT_TURNSTILE_TEST_TOKEN;
 		} else {
-			throw new Error(
-				"APP_API_SMOKE_IDENTITY_CAPTCHA_TOKEN or CHAT_E2E_SMOKE_IDENTITY_CAPTCHA_TOKEN is required.",
-			);
+			throw new Error("APP_API_SMOKE_IDENTITY_CAPTCHA_TOKEN is required.");
 		}
 	}
 

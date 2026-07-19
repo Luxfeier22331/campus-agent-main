@@ -29,15 +29,6 @@ export function campusReactErrorHandler() {
 	};
 }
 
-export function runCampusWebBrowserSentryCanary(
-	input: CampusRuntimeConfig["sentry"],
-): Promise<import("./sentry-browser").CampusWebBrowserSentryCanaryEvidence | null> {
-	if (!input.dsn) {
-		return Promise.resolve(null);
-	}
-	return loadSentryBrowser().then((sentry) => sentry.runCampusWebBrowserSentryCanary(input));
-}
-
 export class CampusSentryErrorBoundary extends Component<
 	{ children: ReactNode; fallback: ReactNode },
 	{ failed: boolean }

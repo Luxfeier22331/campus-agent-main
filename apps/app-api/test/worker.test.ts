@@ -96,9 +96,8 @@ const env = {
 	RESEND_API_KEY: "resend_test_key",
 	AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
 	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
-	EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
+	APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 	APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
-	APP_API_PRODUCT_CALLBACK_SHARED_SECRET: "app-api-internal-secret",
 	APP_API_ENVIRONMENT: "test" as const,
 	APP_API_DB: {
 		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
@@ -195,20 +194,10 @@ describe("app-api worker foundation", () => {
 	});
 
 	it("keeps traffic out of Wrangler and injects staging bindings at upload time", () => {
-		const localSecretsBlock = readTomlBlock(
-			wranglerConfig,
-			"[env.local.secrets]",
-			"[env.staging.vars]",
-		);
 		const stagingVarsBlock = readTomlBlock(
 			wranglerConfig,
 			"[env.staging.vars]",
 			"[env.staging.secrets]",
-		);
-		const stagingSecretsBlock = readTomlBlock(
-			wranglerConfig,
-			"[env.staging.secrets]",
-			"[[env.staging.vpc_services]]",
 		);
 		expect(wranglerConfig).toContain("workers_dev = false");
 		expect(wranglerConfig).toContain("preview_urls = false");
@@ -242,8 +231,6 @@ describe("app-api worker foundation", () => {
 		expect(wranglerConfig).toContain('destinations = ["axiom-staging-logs"]');
 		expect(wranglerConfig).toContain("invocation_logs = false");
 		expect(wranglerConfig).not.toContain("axiom-staging-traces");
-		expect(localSecretsBlock).not.toContain("INGESTION_CONTROL_APP_API_PROJECTION_TOKEN");
-		expect(stagingSecretsBlock).not.toContain("INGESTION_CONTROL_APP_API_PROJECTION_TOKEN");
 		expect(packageManifest.scripts?.dev).toContain("WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1");
 		expect(packageManifest.scripts?.deploy).not.toContain("XDG_CONFIG_HOME=./.wrangler-home");
 		expect(packageManifest.scripts?.deploy).toContain("run-wrangler-command.ts");
@@ -256,10 +243,11 @@ describe("app-api worker foundation", () => {
 		expect(uploadStagingVersionSource).toContain("resolveStagingSentryRelease");
 		expect(uploadStagingVersionSource).toContain("SENTRY_APP_API_PROJECT_SLUG");
 		expect(uploadStagingVersionSource).toContain('wranglerOutdir: "dist/sentry/app-api-edge"');
-		expect(uploadStagingVersionSource).toContain("STAGING_APP_API_SENTRY_DSN");
-		expect(uploadStagingVersionSource).toContain("STAGING_EXECUTION_CONTROL_VPC_SERVICE_ID");
-		expect(uploadStagingVersionSource).toContain("STAGING_APP_API_DB_HYPERDRIVE_ID");
-		expect(uploadStagingVersionSource).toContain("STAGING_APP_API_DB_FRESH_HYPERDRIVE_ID");
+		expect(uploadStagingVersionSource).toContain("SENTRY_APP_API_DSN");
+		expect(uploadStagingVersionSource).toContain("EXECUTION_CONTROL_VPC_SERVICE_ID");
+		expect(uploadStagingVersionSource).toContain("APP_API_DB_HYPERDRIVE_ID");
+		expect(uploadStagingVersionSource).toContain("APP_API_DB_FRESH_HYPERDRIVE_ID");
+		expect(uploadStagingVersionSource).toContain("AUTH_RESET_EMAIL_FROM");
 		expect(uploadStagingVersionSource).toContain("preflight-staging.ts");
 		expect(packageManifest.scripts?.["chat:e2e:staging"]).toBeUndefined();
 		expect(rootPackageManifest.scripts?.["smoke:app-api"]).toBe(
@@ -320,7 +308,7 @@ describe("app-api worker foundation", () => {
 		expect(wranglerConfig).toContain("[env.local.secrets]");
 		expect(localVarsBlock).toContain('AUTH_SHELL_ORIGIN = "http://127.0.0.1:27014"');
 		expect(wranglerConfig).toContain('"RESEND_API_KEY"');
-		expect(wranglerConfig).toContain('"AUTH_RESET_EMAIL_FROM"');
+		expect(localVarsBlock).toContain('AUTH_RESET_EMAIL_FROM = "Campus Agent <auth@example.com>"');
 		expect(wranglerConfig).toContain('"AUTH_TURNSTILE_SECRET_KEY"');
 		expect(localSecretsBlock).not.toContain('"APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN"');
 		expect(localSecretsBlock).not.toContain("APP_API_OTEL_INGEST_");
@@ -328,15 +316,14 @@ describe("app-api worker foundation", () => {
 		expect(stagingSecretsBlock).toContain('"BETTER_AUTH_SECRET"');
 		expect(stagingSecretsBlock).toContain('"AUTH_TURNSTILE_SECRET_KEY"');
 		expect(stagingSecretsBlock).toContain('"RESEND_API_KEY"');
-		expect(stagingSecretsBlock).toContain('"AUTH_RESET_EMAIL_FROM"');
-		expect(stagingSecretsBlock).toContain('"EXECUTION_CONTROL_SHARED_SECRET"');
+		expect(stagingSecretsBlock).not.toContain('"AUTH_RESET_EMAIL_FROM"');
+		expect(stagingSecretsBlock).toContain('"APP_API_EXECUTION_SHARED_SECRET"');
 		expect(stagingSecretsBlock).not.toContain(
 			JSON.stringify(retiredExecutionControlAccessClientIdKeyLocal),
 		);
 		expect(stagingSecretsBlock).not.toContain(
 			JSON.stringify(retiredExecutionControlAccessClientSecretKeyLocal),
 		);
-		expect(stagingSecretsBlock).toContain('"APP_API_PRODUCT_CALLBACK_SHARED_SECRET"');
 		expect(stagingSecretsBlock).toContain('"APP_API_STAGING_SMOKE_AUTH_SECRET"');
 		expect(stagingSecretsBlock).not.toContain('"APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN"');
 		expect(stagingSecretsBlock).not.toContain('"SENTRY_DSN"');
@@ -365,9 +352,11 @@ describe("app-api worker foundation", () => {
 		expect(localSmokeSecretsBlock).toContain('"BETTER_AUTH_SECRET"');
 		expect(localSmokeSecretsBlock).toContain('"AUTH_TURNSTILE_SECRET_KEY"');
 		expect(localSmokeSecretsBlock).toContain('"RESEND_API_KEY"');
-		expect(localSmokeSecretsBlock).toContain('"AUTH_RESET_EMAIL_FROM"');
-		expect(localSmokeSecretsBlock).toContain('"EXECUTION_CONTROL_SHARED_SECRET"');
-		expect(localSmokeSecretsBlock).toContain('"APP_API_PRODUCT_CALLBACK_SHARED_SECRET"');
+		expect(localSmokeSecretsBlock).not.toContain('"AUTH_RESET_EMAIL_FROM"');
+		expect(localSmokeWranglerConfig).toContain(
+			'AUTH_RESET_EMAIL_FROM = "Campus Agent <auth@example.com>"',
+		);
+		expect(localSmokeSecretsBlock).toContain('"APP_API_EXECUTION_SHARED_SECRET"');
 		expect(localSmokeSecretsBlock).not.toContain('"EXECUTION_CONTROL_BASE_URL"');
 		expect(localSmokeWranglerConfig).toContain('APP_API_ENVIRONMENT = "development"');
 		expect(localSmokeWranglerConfig).toContain(
@@ -496,9 +485,8 @@ describe("app-api worker foundation", () => {
 						"RESEND_API_KEY",
 						"AUTH_RESET_EMAIL_FROM",
 						"EXECUTION_CONTROL_UPSTREAM",
-						"EXECUTION_CONTROL_SHARED_SECRET",
+						"APP_API_EXECUTION_SHARED_SECRET",
 						"APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST",
-						"APP_API_PRODUCT_CALLBACK_SHARED_SECRET",
 					],
 				},
 			},

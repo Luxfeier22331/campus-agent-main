@@ -12,12 +12,10 @@ import { createExecutionControlToolExecutor } from "./tool-executor.ts";
 
 const port = Number.parseInt(process.env.AGENT_RUNTIME_PORT ?? "27062", 10);
 const host = process.env.AGENT_RUNTIME_HOST ?? "127.0.0.1";
-const sharedSecret = process.env.AGENT_RUNTIME_SHARED_SECRET ?? "";
+const executionAgentRuntimeSharedSecret = process.env.EXECUTION_AGENT_RUNTIME_SHARED_SECRET ?? "";
 const catalogPath = process.env.AGENT_RUNTIME_TOOL_REGISTRY_PATH ?? "configs/runtime/tools.v5.json";
 const executionControlBaseUrl =
 	process.env.AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL ?? "http://127.0.0.1:27051";
-const executionControlSharedSecret =
-	process.env.AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET ?? "";
 
 const telemetry = (() => {
 	try {
@@ -35,10 +33,13 @@ const runtime = createPrimaryAgentRuntime({
 	streamingRunner: createRequestScopedStreamingOpenAIAgentsRunner(),
 	toolExecutor: createExecutionControlToolExecutor({
 		baseUrl: executionControlBaseUrl,
-		sharedSecret: executionControlSharedSecret,
+		sharedSecret: executionAgentRuntimeSharedSecret,
 	}),
 });
-const handler = createAgentRuntimeHandler({ sharedSecret, runtime });
+const handler = createAgentRuntimeHandler({
+	sharedSecret: executionAgentRuntimeSharedSecret,
+	runtime,
+});
 
 const server = createServer(async (request, response) => {
 	const chunks: Buffer[] = [];

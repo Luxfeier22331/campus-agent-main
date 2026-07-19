@@ -123,7 +123,13 @@ export function buildRuntimeDatabaseConfig(
 	};
 }
 
-export function buildSchemaDatabaseConfig(env: Env) {
+export interface SchemaDatabaseEnv {
+	APP_API_DATABASE_CA_CERT_PATH?: string;
+	APP_API_DATABASE_SSLMODE?: Env["APP_API_DATABASE_SSLMODE"];
+	APP_API_SCHEMA_DATABASE_URL?: string;
+}
+
+export function buildSchemaDatabaseConfig(env: SchemaDatabaseEnv) {
 	const connectionString = env.APP_API_SCHEMA_DATABASE_URL?.trim();
 	if (!connectionString) {
 		throw new Error("APP_API_SCHEMA_DATABASE_URL is required.");

@@ -132,10 +132,7 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): ChatMe
 	let observabilityCanaryApiKeySentinel: string | null = null;
 	let observabilityCanaryHeaderSentinel: string | null = null;
 	let prompt = "请根据你记住的 smoke memory sentinel 回答我。";
-	let smokeAuthSecret =
-		normalizeOptionalValue(env.APP_API_STAGING_SMOKE_AUTH_SECRET) ??
-		normalizeOptionalValue(env.STAGING_APP_API_SMOKE_AUTH_SECRET) ??
-		"";
+	let smokeAuthSecret = normalizeOptionalValue(env.APP_API_STAGING_SMOKE_AUTH_SECRET) ?? "";
 
 	for (let index = 0; index < argv.length; index += 1) {
 		const token = argv[index];
@@ -236,9 +233,7 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): ChatMe
 	}
 
 	if (!smokeAuthSecret) {
-		throw new Error(
-			"APP_API_STAGING_SMOKE_AUTH_SECRET or STAGING_APP_API_SMOKE_AUTH_SECRET is required.",
-		);
+		throw new Error("APP_API_STAGING_SMOKE_AUTH_SECRET is required.");
 	}
 	if (
 		(observabilityCanaryHeaderSentinel === null) !==

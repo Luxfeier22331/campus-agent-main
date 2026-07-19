@@ -21,8 +21,22 @@ spec:
           envFrom:
             - configMapRef:
                 name: docs-publish-runtime
-            - secretRef:
-                name: docs-publish-secrets
+          env:
+            - name: DOCS_PUBLISH_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: docs-publish-secrets
+                  key: DOCS_PUBLISH_DATABASE_URL
+            - name: OBJECT_STORE_DERIVED_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_DERIVED_ACCESS_KEY
+            - name: OBJECT_STORE_DERIVED_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_DERIVED_SECRET_KEY
           resources:
             requests:
               cpu: 50m

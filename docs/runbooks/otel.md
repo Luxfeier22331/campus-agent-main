@@ -24,11 +24,13 @@ Cloudflare Worker application-log destination 不经过本 Collector，按 `work
 pnpm ci:otel
 ```
 
-该命令使用与部署一致的固定 `otelcol-contrib` 镜像校验本地 debug、prodlike、Gateway 和 Agent
-配置，包括必需环境变量与 kubelet CA。它不证明目标环境已部署或外部平台已收到数据。
+该命令先检查受信任链路清理规则和 Agent 生产认证不变量，再使用固定 digest 的
+`otelcol-contrib` 镜像依次校验本地 debug、prodlike、Gateway 和 Agent 配置。Agent 的容器校验
+仅通过命令行临时关闭集群认证，生产文件仍必须使用 ServiceAccount、挂载 CA 并开启 TLS 校验。
+它不证明目标环境已部署或外部平台已收到数据。
 
 手工校验必须使用 contrib distribution，不能使用缺少处理器和 exporter 的 core distribution。
-真实 endpoint、header、dataset 和 key 只能来自本地未跟踪环境或 Secret manager，不得写回仓库。
+真实 endpoint、dataset 和凭据只能来自本地未跟踪环境或 Secret manager，不得写回仓库。
 
 ## 本地调试
 

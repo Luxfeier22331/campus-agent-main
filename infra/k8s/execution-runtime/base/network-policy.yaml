@@ -71,6 +71,25 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
+  name: execution-runtime-langfuse-maintenance-egress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: execution-core
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: langfuse
+              app.kubernetes.io/component: web
+      ports:
+        - protocol: TCP
+          port: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
   name: execution-runtime-agent-observability-egress
 spec:
   podSelector:

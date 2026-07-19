@@ -60,35 +60,25 @@ class RagasAgentRunnerSettings:
     def from_sources(
         cls,
         *,
-        env: Mapping[str, str] | None = None,
         runtime_config_path: Path | None = None,
     ) -> RagasAgentRunnerSettings:
-        source = env if env is not None else os.environ
         config = _load_runtime_config(runtime_config_path)
         return cls(
             llm_api_key=_optional_setting(
                 "llm_api_key",
                 config=config,
-                env=source,
-                names=("RAGAS_LLM_API_KEY", "EVAL_RAGAS_LLM_API_KEY", "LLM_API_KEY"),
             ),
             llm_model=_optional_setting(
                 "llm_model",
                 config=config,
-                env=source,
-                names=("RAGAS_LLM_MODEL", "EVAL_RAGAS_MODEL", "LLM_MODEL"),
             ),
             llm_base_url=_optional_setting(
                 "llm_base_url",
                 config=config,
-                env=source,
-                names=("RAGAS_LLM_BASE_URL", "EVAL_RAGAS_LLM_BASE_URL", "LLM_BASE_URL"),
             ),
             timeout_seconds=_positive_int_setting(
                 "timeout_seconds",
                 config=config,
-                env=source,
-                names=("RAGAS_TIMEOUT_SECONDS",),
                 default=180,
             ),
             metric_names=_agent_metric_names_setting(config),
@@ -169,7 +159,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True)
     parser.add_argument("--output", required=True)
-    parser.add_argument("--runtime-config")
+    parser.add_argument("--runtime-config", required=True)
     args = parser.parse_args(argv)
     summary = run_ragas_agent_score_batch(
         input_path=Path(args.input),
@@ -393,16 +383,10 @@ def _optional_setting(
     key: str,
     *,
     config: Mapping[str, object],
-    env: Mapping[str, str],
-    names: tuple[str, ...],
 ) -> str | None:
     value = config.get(key)
     if isinstance(value, str) and value.strip():
         return value.strip()
-    for name in names:
-        env_value = env.get(name)
-        if env_value and env_value.strip():
-            return env_value.strip()
     return None
 
 
@@ -410,16 +394,9 @@ def _positive_int_setting(
     key: str,
     *,
     config: Mapping[str, object],
-    env: Mapping[str, str],
-    names: tuple[str, ...],
     default: int,
 ) -> int:
     raw = config.get(key)
-    if raw is None:
-        for name in names:
-            if env.get(name):
-                raw = env[name]
-                break
     if raw is None:
         return default
     value = int(raw)

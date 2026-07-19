@@ -24,12 +24,12 @@ function requiredEnv(name: string): string {
 
 loadRepoStagingEnvFile(import.meta.url, "../../..");
 const appDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const turnstileSiteKey = requiredEnv("STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY");
+const turnstileSiteKey = requiredEnv("CAMPUS_AUTH_TURNSTILE_SITE_KEY");
 if (turnstileSiteKey === TURNSTILE_TEST_SITE_KEY) {
-	throw new Error("STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY must use the admitted staging widget.");
+	throw new Error("CAMPUS_AUTH_TURNSTILE_SITE_KEY must use the admitted environment widget.");
 }
 
-const mapBucketName = requiredEnv("STAGING_MAP_DATA_BUCKET_NAME");
+const mapBucketName = requiredEnv("MAP_DATA_BUCKET_NAME");
 const docsReleaseId = requiredEnv("DOCS_RELEASE_ID");
 if (!/^sha256:[a-f0-9]{64}$/u.test(docsReleaseId)) {
 	throw new Error("DOCS_RELEASE_ID must be sha256:<64 lowercase hex characters>.");
@@ -39,7 +39,7 @@ const buildIdentity = `sha256:${createHash("sha256")
 	.update(`${sourceSha}\n${docsReleaseId}\n`)
 	.digest("hex")}`;
 if (!/^[a-z0-9][a-z0-9-]*$/.test(mapBucketName)) {
-	throw new Error("STAGING_MAP_DATA_BUCKET_NAME must contain a valid R2 bucket name.");
+	throw new Error("MAP_DATA_BUCKET_NAME must contain a valid R2 bucket name.");
 }
 const configPath = resolve(appDir, "dist/campus_web/wrangler.json");
 const config = JSON.parse(readFileSync(configPath, "utf8")) as {
@@ -60,6 +60,7 @@ mapBinding.bucket_name = mapBucketName;
 writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
 
 const sentryRelease = resolveStagingSentryRelease("campus-web");
+const sentryDsn = requiredEnv("SENTRY_CAMPUS_WEB_DSN");
 
 const preflight = spawnSync("pnpm", ["exec", "tsx", "./scripts/preflight-staging.ts"], {
 	cwd: appDir,
@@ -88,8 +89,8 @@ uploadStagingWorkerVersion({
 		AUTH_TURNSTILE_EXECUTION: TURNSTILE_EXECUTION,
 		AUTH_TURNSTILE_SITE_KEY: turnstileSiteKey,
 		DOCS_RELEASE_ID: docsReleaseId,
-		SENTRY_BROWSER_DSN: requiredEnv("STAGING_CAMPUS_WEB_BROWSER_SENTRY_DSN"),
-		SENTRY_DSN: requiredEnv("STAGING_CAMPUS_WEB_EDGE_SENTRY_DSN"),
+		SENTRY_BROWSER_DSN: sentryDsn,
+		SENTRY_DSN: sentryDsn,
 		SENTRY_RELEASE: sentryRelease,
 	},
 });

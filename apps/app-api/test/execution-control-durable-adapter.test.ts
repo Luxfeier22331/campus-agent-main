@@ -123,24 +123,24 @@ describe("execution control runtime adapter", () => {
 		expect(
 			isExecutionControlRuntimeConfigured({
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
-				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
+				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 			}),
 		).toBe(true);
 		expect(
 			isExecutionControlRuntimeConfigured({
 				EXECUTION_CONTROL_BASE_URL: " ",
-				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
+				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 			}),
 		).toBe(false);
 		expect(
 			isExecutionControlRuntimeConfigured({
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
-				EXECUTION_CONTROL_SHARED_SECRET: "",
+				APP_API_EXECUTION_SHARED_SECRET: "",
 			}),
 		).toBe(false);
 		expect(
 			isExecutionControlRuntimeConfigured({
-				APP_API_PRODUCT_CALLBACK_SHARED_SECRET: "shared-secret",
+				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 			} as never),
 		).toBe(false);
 	});
@@ -154,7 +154,7 @@ describe("execution control runtime adapter", () => {
 		const client = createExecutionControlRuntimeClient(
 			{
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
-				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
+				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -263,7 +263,7 @@ describe("execution control runtime adapter", () => {
 		const client = createExecutionControlRuntimeClient(
 			{
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
-				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
+				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -326,7 +326,7 @@ describe("execution control runtime adapter", () => {
 		const client = createExecutionControlRuntimeClient(
 			{
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
-				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
+				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -354,7 +354,7 @@ describe("execution control runtime adapter", () => {
 		const client = createExecutionControlRuntimeClient(
 			{
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
-				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
+				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -377,7 +377,7 @@ describe("execution control runtime adapter", () => {
 	it("rejects invalid durable run event wait budgets", async () => {
 		const client = createExecutionControlRuntimeClient({
 			EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
-			EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
+			APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 		});
 
 		await expect(
@@ -397,7 +397,7 @@ describe("execution control runtime adapter", () => {
 		const client = createExecutionControlRuntimeClient(
 			{
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
-				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
+				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -437,7 +437,7 @@ describe("execution control runtime adapter", () => {
 		const client = createExecutionControlRuntimeClient(
 			{
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
-				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
+				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -463,7 +463,7 @@ describe("execution control runtime adapter", () => {
 		const client = createExecutionControlRuntimeClient(
 			{
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
-				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
+				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -500,7 +500,7 @@ describe("execution control runtime adapter", () => {
 		const client = createExecutionControlPersonalMemoryClient(
 			{
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
-				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
+				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -580,7 +580,7 @@ describe("execution control runtime adapter", () => {
 		const client = createExecutionControlRuntimeClient(
 			{
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
-				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
+				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -616,7 +616,7 @@ describe("execution control runtime adapter", () => {
 		const client = createExecutionControlRuntimeClient(
 			{
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
-				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
+				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);

@@ -51,9 +51,9 @@ export function parseCliArgs(argv: string[]): CliArgs {
 
 async function main(): Promise<void> {
 	const args = parseCliArgs(process.argv.slice(2));
-	const connectionString = process.env.APP_API_DB_URL ?? process.env.DATABASE_URL;
+	const connectionString = process.env.LEARNING_LOOP_CANDIDATES_DATABASE_URL?.trim();
 	if (!connectionString) {
-		throw new Error("APP_API_DB_URL or DATABASE_URL is required.");
+		throw new Error("LEARNING_LOOP_CANDIDATES_DATABASE_URL is required.");
 	}
 
 	const store = createPostgresCandidateSelectionStore({ connectionString });

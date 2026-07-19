@@ -83,7 +83,7 @@ describe("app-api staging upload config", () => {
 				freshHyperdriveId: "invalid",
 			}),
 		).toThrow(
-			"STAGING_APP_API_DB_FRESH_HYPERDRIVE_ID must contain a 32-character lowercase hexadecimal Cloudflare Hyperdrive configuration ID.",
+			"APP_API_DB_FRESH_HYPERDRIVE_ID must contain a 32-character lowercase hexadecimal Cloudflare Hyperdrive configuration ID.",
 		);
 	});
 
@@ -93,6 +93,6 @@ describe("app-api staging upload config", () => {
 				...resources,
 				vpcServiceId: "invalid",
 			}),
-		).toThrow("STAGING_EXECUTION_CONTROL_VPC_SERVICE_ID must contain a Cloudflare resource UUID.");
+		).toThrow("EXECUTION_CONTROL_VPC_SERVICE_ID must contain a Cloudflare resource UUID.");
 	});
 });

@@ -53,6 +53,10 @@ Temporal、worker、数据库或对象存储。
 环境仓为不同服务提供最小权限凭据，并满足源码声明的消费合同。运行身份、用户凭据和外部服务
 凭据不能混用；精确 Secret、NetworkPolicy 和地址以 base 与环境配置为准。
 
+第一方 workload 禁止使用 `envFrom.secretRef`。每个进程只通过显式
+`env[].valueFrom.secretKeyRef` 引用实际读取的 key；多个进程需要同一逻辑凭据时引用同一 Secret
+key，不创建按消费者复制的影子 Secret。非敏感 ConfigMap 不受此限制。
+
 ## 镜像与发布
 
 源码 CI 生成并校验不可变候选物，环境仓通过 digest 选择部署版本。候选物存在不表示已部署；

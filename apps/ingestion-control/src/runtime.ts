@@ -48,8 +48,7 @@ export function buildIngestionControlRuntimeConfig(
 		port: readPort(env.INGESTION_CONTROL_PORT),
 		serviceTokens: {
 			adminToken: env.INGESTION_CONTROL_ADMIN_TOKEN?.trim() || null,
-			appApiProjectionToken: env.INGESTION_CONTROL_APP_API_PROJECTION_TOKEN?.trim() || null,
-			opsToken: env.INGESTION_CONTROL_OPS_TOKEN?.trim() || null,
+			opsToken: env.OPS_WEB_INTERNAL_TOKEN?.trim() || null,
 		},
 		temporal: buildIngestionTemporalConfig(env),
 	};

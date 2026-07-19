@@ -6,10 +6,7 @@ import { AxiomUnavailableError } from "../src/server/axiom-client";
 import type { InternalPortalAuthMaintenanceClient } from "../src/server/internal-portal-auth-maintenance-client";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission";
 import { createOpsOverviewService } from "../src/server/ops-overview-service";
-import {
-	createFixtureOpsStatusStore,
-	OpsStatusStoreUnavailableError,
-} from "../src/server/ops-status-store";
+import { createFixtureOpsStatusStore } from "../src/server/ops-status-store";
 import { SentryUnavailableError } from "../src/server/sentry-client";
 import {
 	opsLogObservabilityFixture,
@@ -19,19 +16,14 @@ import {
 } from "../src/shared/ops-fixtures";
 
 function createTestApp(options?: {
-	auditWriteFails?: boolean;
 	credentialStatus?: { configured: boolean; updatedAt: string | null; updatedBy: string | null };
 	maintenanceStatus?: Awaited<ReturnType<InternalPortalAuthMaintenanceClient["getStatus"]>>;
 	queryFails?: boolean;
-	rawAllowed?: boolean;
 	resumeError?: Error;
 	sentryFails?: boolean;
 }) {
 	const baseStore = createFixtureOpsStatusStore();
-	const writeObservabilityReadAudit = options?.auditWriteFails
-		? vi.fn().mockRejectedValue(new OpsStatusStoreUnavailableError("AUDIT_WRITE_DENIED", "denied"))
-		: vi.fn(baseStore.writeObservabilityReadAudit);
-	const store = { ...baseStore, writeObservabilityReadAudit };
+	const store = baseStore;
 	const queryRequest = options?.queryFails
 		? vi.fn().mockRejectedValue(new AxiomUnavailableError("partial result"))
 		: vi.fn(async (input: { kind: "logs" | "trace" }) =>
@@ -84,9 +76,6 @@ function createTestApp(options?: {
 		admission: createAllowAllOpsAdmission({ email: "ops@example.test" }),
 		env: {
 			OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test",
-			...(options?.rawAllowed
-				? { OPS_WEB_RAW_HUMAN_OPERATOR_EMAIL_ALLOWLIST: "ops@example.test" }
-				: {}),
 		},
 		axiom,
 		overviewService,
@@ -105,7 +94,6 @@ function createTestApp(options?: {
 		queryRequestIssues,
 		replaceCredential,
 		resume,
-		writeObservabilityReadAudit,
 	};
 }
 
@@ -312,36 +300,8 @@ describe("ops API", () => {
 		expect(replaceCredential).not.toHaveBeenCalled();
 	});
 
-	it("does not allow a service operator to manage the portal credential", async () => {
-		const replaceCredential = vi.fn();
-		const app = createOpsApp({
-			admission: createAllowAllOpsAdmission({ principalClass: "service" }),
-			internalPortalAuthStore: {
-				getStatus: vi.fn(),
-				replaceCredential,
-			},
-			axiom: {
-				getTelemetrySnapshot: vi.fn().mockResolvedValue(opsOverviewFixture.telemetry),
-				queryRequest: vi.fn(),
-			},
-			overviewService: { getOverview: vi.fn().mockResolvedValue(opsOverviewFixture) },
-			store: createFixtureOpsStatusStore(),
-		});
-
-		expect((await app.request("/api/ops/internal-portal-auth")).status).toBe(403);
-		expect(replaceCredential).not.toHaveBeenCalled();
-	});
-
-	it("requires the separate raw observability allowlist", async () => {
-		const { app, queryRequest } = createTestApp();
-		const response = await app.request("/api/ops/requests/req_ops_001/observability?kind=logs");
-
-		expect(response.status).toBe(403);
-		expect(queryRequest).not.toHaveBeenCalled();
-	});
-
 	it("rejects all browser-supplied APL, dataset, window, limit, and trace parameters", async () => {
-		const { app, queryRequest } = createTestApp({ rawAllowed: true });
+		const { app, queryRequest } = createTestApp();
 		const response = await app.request(
 			"/api/ops/requests/req_ops_001/observability?kind=logs&apl=x&dataset=x&from=0&limit=1000&to=1&traceId=browser-trace",
 		);
@@ -350,8 +310,8 @@ describe("ops API", () => {
 		expect(queryRequest).not.toHaveBeenCalled();
 	});
 
-	it("queries by the stored trace id and audits before returning raw records", async () => {
-		const { app, queryRequest, writeObservabilityReadAudit } = createTestApp({ rawAllowed: true });
+	it("queries fixed Axiom records by the stored request identity", async () => {
+		const { app, queryRequest } = createTestApp();
 		const response = await app.request("/api/ops/requests/req_ops_001/observability?kind=trace");
 
 		expect(response.status).toBe(200);
@@ -363,22 +323,13 @@ describe("ops API", () => {
 				traceId: "trace_ops_001",
 			}),
 		);
-		expect(writeObservabilityReadAudit).toHaveBeenCalledWith(
-			expect.objectContaining({
-				kind: "trace",
-				recordCount: 1,
-				requestId: "req_ops_001",
-				traceId: "trace_ops_001",
-			}),
-		);
 		await expect(response.json()).resolves.toMatchObject({ source: "AXIOM" });
 	});
 
 	it("returns unavailable instead of partial Axiom records", async () => {
 		const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
-		const { app, writeObservabilityReadAudit } = createTestApp({
+		const { app } = createTestApp({
 			queryFails: true,
-			rawAllowed: true,
 		});
 
 		const response = await app.request("/api/ops/requests/req_ops_001/observability?kind=logs");
@@ -387,11 +338,10 @@ describe("ops API", () => {
 		await expect(response.json()).resolves.toMatchObject({
 			error: { code: "OPS_OBSERVABILITY_UNAVAILABLE" },
 		});
-		expect(writeObservabilityReadAudit).not.toHaveBeenCalled();
 		consoleError.mockRestore();
 	});
 
-	it("returns trusted Sentry issue summaries without the raw observability allowlist", async () => {
+	it("returns trusted Sentry issue summaries under unified Ops admission", async () => {
 		const { app, queryRequestIssues } = createTestApp();
 		const response = await app.request("/api/ops/requests/req_ops_001/sentry-issues");
 
@@ -431,24 +381,6 @@ describe("ops API", () => {
 		expect(response.status).toBe(503);
 		await expect(response.json()).resolves.toMatchObject({
 			error: { code: "OPS_SENTRY_UNAVAILABLE" },
-		});
-		consoleError.mockRestore();
-	});
-
-	it("refuses raw records when the read audit cannot be written", async () => {
-		const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
-		const { app, queryRequest, writeObservabilityReadAudit } = createTestApp({
-			auditWriteFails: true,
-			rawAllowed: true,
-		});
-
-		const response = await app.request("/api/ops/requests/req_ops_001/observability?kind=logs");
-
-		expect(queryRequest).toHaveBeenCalledOnce();
-		expect(writeObservabilityReadAudit).toHaveBeenCalledOnce();
-		expect(response.status).toBe(503);
-		await expect(response.json()).resolves.toMatchObject({
-			error: { code: "OPS_STATUS_STORE_UNAVAILABLE", reasonCode: "AUDIT_WRITE_DENIED" },
 		});
 		consoleError.mockRestore();
 	});

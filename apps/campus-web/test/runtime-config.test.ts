@@ -18,7 +18,6 @@ describe("campus runtime config", () => {
 
 		expect(config.accountUrl).toBe("https://campus-staging.mucwiki-edge.link/account");
 		expect(config.sentry).toEqual({
-			canary: null,
 			dsn: null,
 			environment: null,
 			release: null,
@@ -42,7 +41,6 @@ describe("campus runtime config", () => {
 		);
 
 		expect(config.sentry).toEqual({
-			canary: null,
 			dsn: "https://public@example.ingest.sentry.io/1",
 			environment: "staging",
 			release: "campus-web@0123456789abcdef0123456789abcdef01234567",

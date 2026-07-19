@@ -5,7 +5,6 @@ import type { Env } from "../src/config";
 const TURNSTILE_TEST_SECRET_KEY = "1x0000000000000000000000000000000AA";
 
 export function buildSharedDbIntegrationEnv(input: {
-	managementConnectionString: string;
 	runtimeConnectionString: string;
 	overrides?: Partial<Env>;
 }): Env {
@@ -22,13 +21,11 @@ export function buildSharedDbIntegrationEnv(input: {
 		AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 		AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
 		AUTH_TURNSTILE_SECRET_KEY: TURNSTILE_TEST_SECRET_KEY,
-		APP_API_PRODUCT_CALLBACK_SHARED_SECRET: "shared-db-integration-secret",
+		APP_API_EXECUTION_SHARED_SECRET: "shared-db-integration-secret",
 		APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
-		APP_API_SCHEMA_DATABASE_URL: input.managementConnectionString,
 		BETTER_AUTH_SECRET: "testcontainers-app-api-product-database-secret",
 		RESEND_API_KEY: "shared-db-integration-resend-key",
 		EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
-		EXECUTION_CONTROL_SHARED_SECRET: "shared-db-integration-secret",
 	};
 
 	return {

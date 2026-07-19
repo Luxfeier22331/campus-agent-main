@@ -265,7 +265,7 @@ func (s *Server) WritePersonalMemoryCommandResultActivity(
 	result temporalruntime.PersonalMemoryCommandActivityOutput,
 ) error {
 	baseURL := strings.TrimRight(strings.TrimSpace(s.config.ProductCallbackBaseURL), "/")
-	secret := strings.TrimSpace(s.config.ProductCallbackSharedSecret)
+	secret := strings.TrimSpace(s.config.AppAPIExecutionSharedSecret)
 	if baseURL == "" || secret == "" {
 		return sanitizedTemporalApplicationError(
 			"product_callback_not_configured",
@@ -323,7 +323,7 @@ func (s *Server) writeChatProductFinalization(
 	finalizedResponse map[string]any,
 ) error {
 	baseURL := strings.TrimRight(strings.TrimSpace(s.config.ProductCallbackBaseURL), "/")
-	secret := strings.TrimSpace(s.config.ProductCallbackSharedSecret)
+	secret := strings.TrimSpace(s.config.AppAPIExecutionSharedSecret)
 	if baseURL == "" || secret == "" {
 		return sanitizedTemporalApplicationError(
 			"product_callback_not_configured",

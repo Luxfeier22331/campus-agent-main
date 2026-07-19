@@ -21,16 +21,14 @@ function expectAbsent(record: Record<string, unknown>, key: string, message: str
 }
 
 async function main(): Promise<void> {
-	const turnstileSiteKey = process.env.STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY?.trim();
+	const turnstileSiteKey = process.env.CAMPUS_AUTH_TURNSTILE_SITE_KEY?.trim();
 	if (!turnstileSiteKey) {
-		fail(
-			"STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY is required for apps/campus-web staging preflight.",
-		);
+		fail("CAMPUS_AUTH_TURNSTILE_SITE_KEY is required for apps/campus-web staging preflight.");
 	}
 
 	if (turnstileSiteKey === TURNSTILE_TEST_SITE_KEY) {
 		fail(
-			"STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY must not use the Cloudflare Turnstile testing sitekey in staging preflight.",
+			"CAMPUS_AUTH_TURNSTILE_SITE_KEY must not use the Cloudflare Turnstile testing sitekey in staging preflight.",
 		);
 	}
 
@@ -54,9 +52,9 @@ async function main(): Promise<void> {
 		fail("Missing required service binding APP_API -> app-api-staging in built staging config.");
 	}
 
-	const mapBucketName = process.env.STAGING_MAP_DATA_BUCKET_NAME?.trim();
+	const mapBucketName = process.env.MAP_DATA_BUCKET_NAME?.trim();
 	if (!mapBucketName) {
-		fail("STAGING_MAP_DATA_BUCKET_NAME is required for staging preflight.");
+		fail("MAP_DATA_BUCKET_NAME is required for staging preflight.");
 	}
 	const hasMapBucket = r2Buckets.some(
 		(bucket) => bucket?.binding === "MAP_DATA" && bucket?.bucket_name === mapBucketName,

@@ -34,9 +34,8 @@ const env = {
 	RESEND_API_KEY: "resend_test_key",
 	AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
 	APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
-	APP_API_PRODUCT_CALLBACK_SHARED_SECRET: "internal-shared-secret",
 	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
-	EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
+	APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 	APP_API_DB: {
 		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 	},

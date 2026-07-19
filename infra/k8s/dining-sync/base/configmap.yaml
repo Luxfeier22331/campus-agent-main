@@ -3,7 +3,8 @@ kind: ConfigMap
 metadata:
   name: dining-sync-config
 data:
-  DINING_LARK_BASE_ID: replace-me
+  DINING_LARK_APP_ID: replace-me
+  DINING_LARK_BASE_TOKEN: replace-me
   DINING_LARK_CAMPUS_TABLE_ID: replace-me
   DINING_LARK_DISH_TABLE_ID: replace-me
   DINING_LARK_HALL_TABLE_ID: replace-me

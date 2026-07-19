@@ -1,0 +1,13 @@
+{
+	"schema_version": "provider_config_projection.v1",
+	"profiles": {
+		"eval_ragas_llm": {
+			"api_key": "ragas-key",
+			"base_url": "https://provider.example/v1",
+			"model": "judge-model",
+			"provider": "openai",
+			"timeout_ms": 180000,
+			"transport": "openai_responses"
+		}
+	}
+}

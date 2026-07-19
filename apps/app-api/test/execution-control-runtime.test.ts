@@ -26,7 +26,7 @@ describe("execution control requester", () => {
 		const requestExecutionControl = createExecutionControlRequester(
 			{
 				EXECUTION_CONTROL_BASE_URL: "http://execution-control.local",
-				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
+				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 				EXECUTION_CONTROL_TIMEOUT_MS: "1000",
 			},
 			{
@@ -55,7 +55,7 @@ describe("execution control requester", () => {
 				APP_API_ENVIRONMENT: "staging",
 				EXECUTION_CONTROL_PRIVATE: { fetch: privateFetch },
 				EXECUTION_CONTROL_PRIVATE_ORIGIN: "http://execution-control.internal:8000",
-				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
+				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 				EXECUTION_CONTROL_TIMEOUT_MS: "1000",
 			},
 			{},
@@ -88,7 +88,7 @@ describe("execution control requester", () => {
 				APP_API_ENVIRONMENT: "staging",
 				EXECUTION_CONTROL_PRIVATE: { fetch: privateFetch },
 				EXECUTION_CONTROL_PRIVATE_ORIGIN: "http://execution-control.internal:8000",
-				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
+				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 				EXECUTION_CONTROL_TIMEOUT_MS: "1000",
 			},
 			{
@@ -111,7 +111,7 @@ describe("execution control requester", () => {
 			{
 				APP_API_ENVIRONMENT: "staging",
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.example.invalid",
-				EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
+				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 				EXECUTION_CONTROL_TIMEOUT_MS: "1000",
 			},
 			{},

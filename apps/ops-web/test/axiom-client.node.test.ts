@@ -325,13 +325,13 @@ describe("Axiom client", () => {
 	});
 
 	it("consumes only the official SDK environment surface", () => {
-		expect(() => createAxiomClientFromEnv({})).toThrow("OPS_WEB_AXIOM_EDGE_DOMAIN");
+		expect(() => createAxiomClientFromEnv({})).toThrow("AXIOM_QUERY_TOKEN");
 		expect(() =>
 			createAxiomClientFromEnv({
+				AXIOM_QUERY_TOKEN: "xaat-query-token",
 				OPS_WEB_AXIOM_EDGE_DOMAIN: "https://eu-central-1.aws.edge.axiom.co",
 				OPS_WEB_AXIOM_LOGS_DATASET: "campus-agent-staging-logs",
 				OPS_WEB_AXIOM_METRICS_DATASET: "campus-agent-staging-metrics",
-				OPS_WEB_AXIOM_QUERY_TOKEN: "xaat-query-token",
 				OPS_WEB_AXIOM_TRACES_DATASET: "campus-agent-staging-traces",
 			}),
 		).toThrow("Axiom Edge domain is invalid");

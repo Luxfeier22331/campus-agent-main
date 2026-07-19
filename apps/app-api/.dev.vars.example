@@ -19,11 +19,8 @@ APP_API_END_USER_EMAIL_ALLOWLIST=help_bot@outlook.com
 # Comma-separated exact public notice hosts admitted into browser-facing source links.
 APP_API_PUBLIC_NOTICE_URL_ALLOWLIST=www.example.edu
 EXECUTION_CONTROL_BASE_URL=https://execution-control.internal
-EXECUTION_CONTROL_SHARED_SECRET=replace-with-execution-control-shared-secret
+APP_API_EXECUTION_SHARED_SECRET=replace-with-execution-control-shared-secret
 EXECUTION_CONTROL_TIMEOUT_MS=8000
-# Set this explicitly for local app-api scripts that need trusted internal
-# access. The repo no longer generates local runtime secrets.
-APP_API_PRODUCT_CALLBACK_SHARED_SECRET=
 APP_API_DATABASE_SSLMODE=prefer
 SENTRY_DSN=
 SENTRY_ENVIRONMENT=development

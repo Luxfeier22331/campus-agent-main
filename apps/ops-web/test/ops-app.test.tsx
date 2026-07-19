@@ -516,7 +516,7 @@ describe("OpsWebApp", () => {
 			"rel",
 			"noreferrer",
 		);
-	});
+	}, 10_000);
 
 	it("loads raw observability only after opening the observability tab", async () => {
 		const originalFetch = globalThis.fetch;

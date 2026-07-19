@@ -60,7 +60,7 @@ describe("app-api Sentry privacy boundary", () => {
 		expect(event.exception?.values?.[0]?.value).toBe("ProviderError");
 	});
 
-	it("keeps only the canonical canary hash while removing all raw sentinel contexts", () => {
+	it("removes private request context and unapproved tags", () => {
 		const rawSentinels = [
 			"query-sentinel-0001",
 			"header-sentinel-0001",
@@ -69,20 +69,20 @@ describe("app-api Sentry privacy boundary", () => {
 			"credential-sentinel-0001",
 		];
 		const event = sanitizeAppApiSentryEvent({
-			exception: { values: [{ type: "AppApiSentryCanaryError", value: rawSentinels[2] }] },
+			exception: { values: [{ type: "ProviderError", value: rawSentinels[2] }] },
 			extra: { synthetic_sentinels: rawSentinels },
 			request: {
 				data: { body: rawSentinels[2] },
 				headers: {
 					authorization: `Synthetic ${rawSentinels[4]}`,
-					"x-observability-canary": rawSentinels[1],
+					"x-private-header": rawSentinels[1],
 				},
-				method: "POST",
+				method: "GET",
 				query_string: `query=${rawSentinels[0]}`,
-				url: `/api/internal/staging-smoke/observability/sentry-canary?query=${rawSentinels[0]}`,
+				url: `/api/chat/runs/run_private?token=${rawSentinels[0]}`,
 			},
 			tags: {
-				canary_sentinel_sha256: "a".repeat(64),
+				correlation_hash: "a".repeat(64),
 				raw_sentinel: rawSentinels[0],
 			},
 			type: undefined,
@@ -90,10 +90,10 @@ describe("app-api Sentry privacy boundary", () => {
 		} satisfies ErrorEvent);
 
 		expect(event.request).toEqual({
-			method: "POST",
-			url: "/api/internal/staging-smoke/observability/sentry-canary",
+			method: "GET",
+			url: "/api/chat/runs/:runId",
 		});
-		expect(event.tags).toEqual({ canary_sentinel_sha256: "a".repeat(64) });
+		expect(event.tags).toEqual({});
 		const serialized = JSON.stringify(event);
 		for (const sentinel of rawSentinels) {
 			expect(serialized).not.toContain(sentinel);

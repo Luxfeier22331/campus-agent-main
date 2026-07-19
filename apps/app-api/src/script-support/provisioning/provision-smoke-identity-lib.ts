@@ -9,8 +9,7 @@ const DEFAULT_AUTH_SHELL_ORIGIN = "https://campus-staging.mucwiki-edge.link";
 const DEFAULT_END_USER_EMAIL_DOMAIN_ALLOWLIST = "example.edu";
 const DEFAULT_END_USER_EMAIL_ALLOWLIST = "help_bot@outlook.com";
 const DEFAULT_EXECUTION_CONTROL_BASE_URL = "https://execution-control.internal";
-const DEFAULT_EXECUTION_CONTROL_SHARED_SECRET = "smoke-identity-execution-secret";
-const DEFAULT_INTERNAL_SHARED_SECRET = "smoke-identity-internal-secret";
+const DEFAULT_APP_API_EXECUTION_SHARED_SECRET = "smoke-identity-execution-secret";
 const DEFAULT_BETTER_AUTH_SECRET = "smoke-identity-secret-smoke-identity-secret";
 const DEFAULT_TURNSTILE_TEST_SECRET_KEY = "1x0000000000000000000000000000000AA";
 const DEFAULT_TURNSTILE_TEST_TOKEN = "XXXX.DUMMY.TOKEN.XXXX";
@@ -36,8 +35,7 @@ interface SmokeIdentityProvisionInput {
 	endUserEmailAllowlist: string;
 	endUserEmailDomainAllowlist: string;
 	executionControlBaseUrl: string;
-	executionControlSharedSecret: string;
-	productCallbackSharedSecret: string;
+	appApiExecutionSharedSecret: string;
 	name: string;
 	schemaDatabaseUrl: string;
 	password: string;
@@ -47,7 +45,7 @@ interface SmokeIdentityProvisionInput {
 }
 
 interface SmokeIdentityProvisionRuntimeEnv {
-	APP_API_PRODUCT_CALLBACK_SHARED_SECRET: string;
+	APP_API_EXECUTION_SHARED_SECRET: string;
 	APP_API_DB: { connectionString: string };
 	APP_API_DB_FRESH: { connectionString: string };
 	[key: string]: unknown;
@@ -197,8 +195,8 @@ export function readSmokeIdentityProvisionInput(
 		email,
 		endUserEmailAllowlist,
 		endUserEmailDomainAllowlist,
-		productCallbackSharedSecret:
-			env.APP_API_PRODUCT_CALLBACK_SHARED_SECRET?.trim() || DEFAULT_INTERNAL_SHARED_SECRET,
+		appApiExecutionSharedSecret:
+			env.APP_API_EXECUTION_SHARED_SECRET?.trim() || DEFAULT_APP_API_EXECUTION_SHARED_SECRET,
 		schemaDatabaseUrl,
 		name,
 		password,
@@ -206,8 +204,6 @@ export function readSmokeIdentityProvisionInput(
 		authShellOrigin,
 		executionControlBaseUrl:
 			env.EXECUTION_CONTROL_BASE_URL?.trim() || DEFAULT_EXECUTION_CONTROL_BASE_URL,
-		executionControlSharedSecret:
-			env.EXECUTION_CONTROL_SHARED_SECRET?.trim() || DEFAULT_EXECUTION_CONTROL_SHARED_SECRET,
 	};
 }
 
@@ -230,7 +226,7 @@ export function buildSmokeIdentityProvisionRuntimeEnv(
 		},
 		APP_API_END_USER_EMAIL_ALLOWLIST: input.endUserEmailAllowlist,
 		APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: input.endUserEmailDomainAllowlist,
-		APP_API_PRODUCT_CALLBACK_SHARED_SECRET: input.productCallbackSharedSecret,
+		APP_API_EXECUTION_SHARED_SECRET: input.appApiExecutionSharedSecret,
 		APP_API_SCHEMA_DATABASE_URL: schemaDatabaseUrl,
 		AUTH_RESET_EMAIL_FROM: input.authResetEmailFrom || DEFAULT_AUTH_RESET_EMAIL_FROM,
 		AUTH_TURNSTILE_SECRET_KEY: input.authTurnstileSecretKey,
@@ -238,7 +234,6 @@ export function buildSmokeIdentityProvisionRuntimeEnv(
 		AUTH_SHELL_ORIGIN: input.authShellOrigin,
 		RESEND_API_KEY: input.resendApiKey || DEFAULT_RESEND_API_KEY,
 		EXECUTION_CONTROL_BASE_URL: input.executionControlBaseUrl,
-		EXECUTION_CONTROL_SHARED_SECRET: input.executionControlSharedSecret,
 	};
 }
 

@@ -128,9 +128,6 @@ func NewEmitter(ctx context.Context, cfg config.Config, logger *slog.Logger) *Em
 		otlptracehttp.WithEndpointURL(endpoint),
 		otlptracehttp.WithTimeout(timeout),
 	}
-	if headers := parseHeaders(cfg.OTelHeaders); len(headers) > 0 {
-		options = append(options, otlptracehttp.WithHeaders(headers))
-	}
 	exporter, err := otlptracehttp.New(exporterCtx, options...)
 	if err != nil {
 		emitter.setLastError(err.Error())
@@ -157,9 +154,6 @@ func NewEmitter(ctx context.Context, cfg config.Config, logger *slog.Logger) *Em
 		metricOptions := []otlpmetrichttp.Option{
 			otlpmetrichttp.WithEndpointURL(metricsEndpoint),
 			otlpmetrichttp.WithTimeout(timeout),
-		}
-		if headers := parseHeaders(cfg.OTelHeaders); len(headers) > 0 {
-			metricOptions = append(metricOptions, otlpmetrichttp.WithHeaders(headers))
 		}
 		metricExporter, metricErr := otlpmetrichttp.New(exporterCtx, metricOptions...)
 		if metricErr != nil {
@@ -487,22 +481,6 @@ func langfuseTraceTags(event Event) []string {
 		tags = append(tags, "env:"+environment)
 	}
 	return tags
-}
-
-func parseHeaders(value string) map[string]string {
-	headers := map[string]string{}
-	for _, part := range strings.Split(value, ",") {
-		key, val, ok := strings.Cut(part, "=")
-		if !ok {
-			continue
-		}
-		key = strings.TrimSpace(key)
-		val = strings.TrimSpace(val)
-		if key != "" && val != "" {
-			headers[key] = val
-		}
-	}
-	return headers
 }
 
 func defaultString(value string, defaultValue string) string {

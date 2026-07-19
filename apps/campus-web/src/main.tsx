@@ -7,7 +7,6 @@ import {
 	CampusSentryErrorBoundary,
 	campusReactErrorHandler,
 	initializeCampusBrowserSentry,
-	runCampusWebBrowserSentryCanary,
 } from "./platform/telemetry/sentry-browser-loader";
 import "./styles.css";
 
@@ -18,9 +17,7 @@ if (!rootElement) {
 }
 
 const runtimeConfig = getCampusRuntimeConfig();
-void initializeCampusBrowserSentry(runtimeConfig.sentry, campusRouter)
-	.then(() => runCampusWebBrowserSentryCanary(runtimeConfig.sentry))
-	.catch(() => undefined);
+void initializeCampusBrowserSentry(runtimeConfig.sentry, campusRouter).catch(() => undefined);
 
 createRoot(rootElement, {
 	onRecoverableError: campusReactErrorHandler(),

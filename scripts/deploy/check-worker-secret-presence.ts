@@ -2,25 +2,11 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { buildWranglerCommandEnv } from "./run-wrangler-command.ts";
 
 export const defaultAppPaths = ["apps/app-api", "apps/campus-web"];
 
 const ansiEscapePattern = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*[A-Za-z]`, "g");
-const proxyEnvKeys = [
-	"ALL_PROXY",
-	"HTTP_PROXY",
-	"HTTPS_PROXY",
-	"all_proxy",
-	"http_proxy",
-	"https_proxy",
-];
-const cloudflareNoProxyHosts = [
-	"api.cloudflare.com",
-	"dash.cloudflare.com",
-	"localhost",
-	"127.0.0.1",
-	"::1",
-];
 const defaultWranglerTimeoutSeconds = 30;
 const defaultWranglerMaxAttempts = 3;
 const wranglerAuthErrorMarkers = [
@@ -123,16 +109,11 @@ export function buildCloudflareCliEnv(
 	baseEnv: Record<string, string | undefined> = process.env,
 ): Record<string, string> {
 	const sourceEnv: Record<string, string> = {};
-	for (const [key, value] of Object.entries(baseEnv)) {
+	for (const [key, value] of Object.entries(buildWranglerCommandEnv(baseEnv))) {
 		if (value !== undefined) {
 			sourceEnv[key] = value;
 		}
 	}
-	for (const key of proxyEnvKeys) {
-		delete sourceEnv[key];
-	}
-	sourceEnv.NO_PROXY = mergeNoProxyValue(sourceEnv.NO_PROXY);
-	sourceEnv.no_proxy = mergeNoProxyValue(sourceEnv.no_proxy || sourceEnv.NO_PROXY);
 	return sourceEnv;
 }
 
@@ -481,19 +462,6 @@ function sanitizeCliOutput(value: string): string {
 		.trim();
 }
 
-function mergeNoProxyValue(currentValue: string | undefined): string {
-	const entries = new Set(
-		String(currentValue || "")
-			.split(",")
-			.map((entry) => entry.trim())
-			.filter(Boolean),
-	);
-	for (const host of cloudflareNoProxyHosts) {
-		entries.add(host);
-	}
-	return [...entries].sort().join(",");
-}
-
 function readPositiveIntEnv(name: string, defaultValue: number): number {
 	const rawValue = String(process.env[name] ?? defaultValue).trim();
 	const parsed = Number.parseInt(rawValue, 10);
@@ -542,7 +510,7 @@ function buildWranglerAuthFailureGuidance({
 	}
 
 	guidanceParts.push(
-		`Run \`pnpm --dir ${appPath} exec wrangler login\` to refresh the local OAuth session, or export \`CLOUDFLARE_API_TOKEN\` for non-interactive staging preflight.`,
+		`Run \`pnpm --dir ${appPath} exec wrangler login\` to refresh the local OAuth session, or export \`CLOUDFLARE_AUTOMATION_TOKEN\` for non-interactive staging preflight.`,
 	);
 	return guidanceParts.join(" ");
 }

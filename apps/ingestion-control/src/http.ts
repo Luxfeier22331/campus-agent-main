@@ -3,7 +3,6 @@ import {
 	createIngestionTaskExecutionSnapshot,
 	type IngestionTaskRegistryCatalog,
 	parseIngestionTaskEnvelope,
-	parseIngestionWorkflowStatus,
 } from "ingest-core";
 import {
 	IngestionWorkflowIdentityConflictError,
@@ -15,7 +14,6 @@ export type IngestionControlHandler = (request: Request) => Promise<Response>;
 
 export interface IngestionControlServiceTokens {
 	adminToken?: string | null;
-	appApiProjectionToken?: string | null;
 	opsToken?: string | null;
 }
 
@@ -29,7 +27,6 @@ export function createIngestionControlHandler(input: {
 	const tokens = {
 		admin: input.serviceTokens?.adminToken?.trim() || null,
 		ops: input.serviceTokens?.opsToken?.trim() || null,
-		projection: input.serviceTokens?.appApiProjectionToken?.trim() || null,
 	};
 	return async (request): Promise<Response> => {
 		const url = new URL(request.url);
@@ -106,24 +103,6 @@ export function createIngestionControlHandler(input: {
 					202,
 				);
 			}
-			if (
-				request.method === "GET" &&
-				url.pathname === "/internal/ingestion/operator-projection/tasks"
-			) {
-				requireToken(request, tokens.projection, "app-api projection reader");
-				return jsonResponse(
-					await input.store.listOperatorTaskProjections({
-						collection: url.searchParams.get("collection"),
-						corpus: url.searchParams.get("corpus"),
-						limit: parseLimit(url.searchParams.get("limit")),
-						registryTaskId: url.searchParams.get("registry_task_id"),
-						runId: url.searchParams.get("run_id"),
-						sourceChannel: url.searchParams.get("source_channel"),
-						sourceFamily: url.searchParams.get("source_family"),
-						status: parseIngestionWorkflowStatus(url.searchParams.get("status")),
-					}),
-				);
-			}
 			const taskMatch = url.pathname.match(/^\/internal\/ingestion\/tasks\/([^/]+)$/u);
 			if (request.method === "GET" && taskMatch) {
 				requireToken(request, tokens.admin, "admin");
@@ -180,14 +159,6 @@ function constantTimeEqual(left: string, right: string): boolean {
 		createHash("sha256").update(left).digest(),
 		createHash("sha256").update(right).digest(),
 	);
-}
-
-function parseLimit(value: string | null): number | null {
-	if (!value) {
-		return null;
-	}
-	const parsed = Number.parseInt(value, 10);
-	return Number.isInteger(parsed) ? parsed : null;
 }
 
 function jsonResponse(value: unknown, status = 200): Response {

@@ -10,7 +10,6 @@ import { testSnapshot } from "./fixtures";
 
 const tokens = {
 	adminToken: "admin-token",
-	appApiProjectionToken: "projection-token",
 	opsToken: "ops-token",
 };
 

@@ -38,7 +38,7 @@ function appWithCallbacks(input: {
 	applyProductFinalization?: NonNullable<ChatCommandService["applyProductFinalization"]>;
 }) {
 	return createApp(
-		{ APP_API_PRODUCT_CALLBACK_SHARED_SECRET: callbackSecret },
+		{ APP_API_EXECUTION_SHARED_SECRET: callbackSecret },
 		{
 			chatCommandService: {
 				applyProductFinalization:

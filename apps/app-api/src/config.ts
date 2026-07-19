@@ -23,24 +23,14 @@ export interface Env {
 	EXECUTION_CONTROL_BASE_URL?: string;
 	EXECUTION_CONTROL_PRIVATE?: WorkerFetchBindingLike;
 	EXECUTION_CONTROL_PRIVATE_ORIGIN?: string;
-	EXECUTION_CONTROL_SHARED_SECRET?: string;
+	APP_API_EXECUTION_SHARED_SECRET?: string;
 	EXECUTION_CONTROL_TIMEOUT_MS?: string;
 	APP_API_DATABASE_SSLMODE?: DatabaseSslMode;
-	APP_API_SCHEMA_DATABASE_URL?: string;
 	APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST?: string;
 	APP_API_END_USER_EMAIL_ALLOWLIST?: string;
 	APP_API_PUBLIC_NOTICE_URL_ALLOWLIST?: string;
-	APP_API_PRODUCT_CALLBACK_SHARED_SECRET?: string;
 	APP_API_STAGING_SMOKE_AUTH_SECRET?: string;
 	APP_API_SAFETY_IDENTIFIER_HMAC_SECRET?: string;
-	OBJECT_STORE_ACCESS_KEY?: string;
-	OBJECT_STORE_BUCKET_SOURCE?: string;
-	OBJECT_STORE_BUCKET_DERIVED?: string;
-	OBJECT_STORE_DERIVED_ACCESS_KEY?: string;
-	OBJECT_STORE_DERIVED_SECRET_KEY?: string;
-	OBJECT_STORE_ENDPOINT?: string;
-	OBJECT_STORE_REGION?: string;
-	OBJECT_STORE_SECRET_KEY?: string;
 	APP_API_PROFILE_MEMORY_COMMAND_SWEEPER_ENABLED?: string;
 	APP_API_PROFILE_MEMORY_COMMAND_TIMEOUT_MS?: string;
 	SENTRY_DSN?: string;
@@ -61,11 +51,10 @@ export interface AppApiConfig {
 	authResetEmailReplyTo?: string;
 	databaseConnectionString: string;
 	databaseSslMode: DatabaseSslMode;
-	productCallbackSharedSecret: string;
+	executionSharedSecret: string;
 	endUserEmailDomainAllowlist: string[];
 	endUserEmailAllowlist: string[];
 	executionControlBaseUrl: string;
-	executionControlSharedSecret: string;
 	executionControlTimeoutMs: number;
 }
 
@@ -90,9 +79,8 @@ const MISSING_CONFIG_KEYS = [
 	"RESEND_API_KEY",
 	"AUTH_RESET_EMAIL_FROM",
 	"EXECUTION_CONTROL_UPSTREAM",
-	"EXECUTION_CONTROL_SHARED_SECRET",
+	"APP_API_EXECUTION_SHARED_SECRET",
 	"APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST",
-	"APP_API_PRODUCT_CALLBACK_SHARED_SECRET",
 ] as const;
 const MISSING_AUTH_CONFIG_KEYS = [
 	"BETTER_AUTH_SECRET",
@@ -187,16 +175,12 @@ export function getMissingRuntimeConfig(env: Env): string[] {
 	if (!isExecutionControlUpstreamConfigured(env)) {
 		missing.push(MISSING_CONFIG_KEYS[5]);
 	}
-	if (!env.EXECUTION_CONTROL_SHARED_SECRET?.trim()) {
+	if (!env.APP_API_EXECUTION_SHARED_SECRET?.trim()) {
 		missing.push(MISSING_CONFIG_KEYS[6]);
 	}
 	if (parseCsvList(env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST).length === 0) {
 		missing.push(MISSING_CONFIG_KEYS[7]);
 	}
-	if (!env.APP_API_PRODUCT_CALLBACK_SHARED_SECRET?.trim()) {
-		missing.push(MISSING_CONFIG_KEYS[8]);
-	}
-
 	return missing;
 }
 
@@ -301,9 +285,9 @@ export function readAppApiConfig(env: Env): AppApiConfig {
 		env.APP_API_DB?.connectionString,
 		"APP_API_DB.connectionString",
 	);
-	const productCallbackSharedSecret = readRequiredTrimmedValue(
-		env.APP_API_PRODUCT_CALLBACK_SHARED_SECRET,
-		"APP_API_PRODUCT_CALLBACK_SHARED_SECRET",
+	const executionSharedSecret = readRequiredTrimmedValue(
+		env.APP_API_EXECUTION_SHARED_SECRET,
+		"APP_API_EXECUTION_SHARED_SECRET",
 	);
 	const environment = resolveEnvironment(env);
 	const executionControlBaseUrl = isDeployedEnvironment(environment)
@@ -312,10 +296,6 @@ export function readAppApiConfig(env: Env): AppApiConfig {
 				"EXECUTION_CONTROL_PRIVATE_ORIGIN",
 			)
 		: readRequiredTrimmedValue(env.EXECUTION_CONTROL_BASE_URL, "EXECUTION_CONTROL_BASE_URL");
-	const executionControlSharedSecret = readRequiredTrimmedValue(
-		env.EXECUTION_CONTROL_SHARED_SECRET,
-		"EXECUTION_CONTROL_SHARED_SECRET",
-	);
 	const executionControlTimeoutMs = parsePositiveInteger(
 		env.EXECUTION_CONTROL_TIMEOUT_MS,
 		DEFAULT_EXECUTION_CONTROL_TIMEOUT_MS,
@@ -324,7 +304,7 @@ export function readAppApiConfig(env: Env): AppApiConfig {
 		...authConfig,
 		databaseConnectionString,
 		databaseSslMode: resolveDatabaseSslMode(env),
-		productCallbackSharedSecret,
+		executionSharedSecret,
 		endUserEmailDomainAllowlist: parseCsvList(env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST).map(
 			(item) => item.toLowerCase(),
 		),
@@ -332,7 +312,6 @@ export function readAppApiConfig(env: Env): AppApiConfig {
 			item.toLowerCase(),
 		),
 		executionControlBaseUrl,
-		executionControlSharedSecret,
 		executionControlTimeoutMs,
 	};
 }

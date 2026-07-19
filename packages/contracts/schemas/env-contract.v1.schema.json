@@ -1,0 +1,136 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://muc.wiki/campus-agent/schemas/env-contract.v1.schema.json",
+	"title": "campus-agent 所有者本地环境合同",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["schema_version", "owner", "consumers", "keys"],
+	"properties": {
+		"schema_version": { "const": "campus_env_contract.v1" },
+		"owner": { "type": "string", "minLength": 1 },
+		"consumers": {
+			"type": "array",
+			"minItems": 1,
+			"items": {
+				"type": "object",
+				"additionalProperties": false,
+				"required": ["id"],
+				"properties": {
+					"id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+					"sources": {
+						"type": "array",
+						"items": { "$ref": "#/$defs/Source" },
+						"uniqueItems": true
+					},
+					"doctor_surfaces": {
+						"type": "array",
+						"items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+						"uniqueItems": true
+					}
+				}
+			}
+		},
+		"keys": {
+			"type": "array",
+			"items": { "$ref": "#/$defs/Key" }
+		},
+		"retired_names": {
+			"type": "array",
+			"items": { "$ref": "#/$defs/EnvName" },
+			"uniqueItems": true
+		},
+		"forbidden_values": {
+			"type": "object",
+			"additionalProperties": {
+				"type": "array",
+				"minItems": 1,
+				"items": { "type": "string" },
+				"uniqueItems": true
+			}
+		}
+	},
+	"$defs": {
+		"EnvName": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+		"ConsumerList": {
+			"type": "array",
+			"items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+			"uniqueItems": true
+		},
+		"Source": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "path"],
+			"properties": {
+				"kind": {
+					"enum": ["compose", "go", "kubernetes", "otel", "typescript", "workflow", "wrangler"]
+				},
+				"path": { "type": "string", "minLength": 1 },
+				"environment": { "type": "string", "minLength": 1 },
+				"resources": {
+					"type": "array",
+					"items": { "type": "string", "minLength": 1 },
+					"uniqueItems": true
+				},
+				"jobs": {
+					"type": "array",
+					"items": { "type": "string", "minLength": 1 },
+					"uniqueItems": true
+				},
+				"services": {
+					"type": "array",
+					"items": { "type": "string", "minLength": 1 },
+					"uniqueItems": true
+				},
+				"ignore": {
+					"type": "array",
+					"items": { "$ref": "#/$defs/EnvName" },
+					"uniqueItems": true
+				},
+				"rejects": {
+					"type": "array",
+					"items": { "$ref": "#/$defs/EnvName" },
+					"uniqueItems": true
+				}
+			},
+			"allOf": [
+				{
+					"if": { "properties": { "kind": { "const": "wrangler" } } },
+					"then": {},
+					"else": { "not": { "required": ["environment"] } }
+				},
+				{
+					"if": { "properties": { "kind": { "const": "kubernetes" } } },
+					"then": {},
+					"else": { "not": { "required": ["resources"] } }
+				},
+				{
+					"if": { "properties": { "kind": { "const": "workflow" } } },
+					"then": {},
+					"else": { "not": { "required": ["jobs"] } }
+				},
+				{
+					"if": { "properties": { "kind": { "const": "compose" } } },
+					"then": {},
+					"else": { "not": { "required": ["services"] } }
+				}
+			]
+		},
+		"Key": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["name", "class", "required_by"],
+			"properties": {
+				"name": { "$ref": "#/$defs/EnvName" },
+				"class": { "enum": ["config", "secret"] },
+				"required_by": { "$ref": "#/$defs/ConsumerList" },
+				"optional_by": { "$ref": "#/$defs/ConsumerList" },
+				"templates": {
+					"type": "array",
+					"items": { "type": "string", "minLength": 1 },
+					"uniqueItems": true
+				},
+				"delivery": { "enum": ["env", "file", "binding", "command"] }
+			}
+		}
+	}
+}

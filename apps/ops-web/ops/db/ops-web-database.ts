@@ -5,21 +5,6 @@ import { fileURLToPath } from "node:url";
 import pg, { type Client } from "pg";
 import { type DatabaseSslConfig, readDatabaseConnectionConfig } from "./postgres-tls.ts";
 
-const OPS_WEB_SCHEMA_STATEMENTS = [
-	`CREATE SCHEMA IF NOT EXISTS "observability"`,
-	`CREATE TABLE IF NOT EXISTS "observability"."ops_observability_read_audit" (
-		"audit_id" text PRIMARY KEY,
-		"kind" text NOT NULL,
-		"operator_id" text NOT NULL,
-		"operator_principal_class" text NOT NULL,
-		"read_at" timestamptz NOT NULL,
-		"record_count" integer NOT NULL,
-		"request_id" text,
-		"trace_id" text,
-		"truncated" boolean NOT NULL DEFAULT false
-	)`,
-] as const;
-
 const OPS_WEB_GRANT_STATEMENTS = [
 	`REVOKE ALL PRIVILEGES ON SCHEMA "execution_config" FROM "ops_web"`,
 	`REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA "execution_config" FROM "ops_web"`,
@@ -59,16 +44,15 @@ const OPS_WEB_GRANT_STATEMENTS = [
 		END LOOP;
 	END
 	$ops_web_provider_config_revoke$`,
-	`GRANT USAGE ON SCHEMA "chat", "runtime", "observability" TO "ops_web"`,
+	`GRANT USAGE ON SCHEMA "chat", "runtime" TO "ops_web"`,
 	`REVOKE ALL PRIVILEGES ON TABLE
 		"chat"."turn_dispatches",
 			"chat"."messages",
 			"runtime"."agent_runs",
-			"runtime"."request_observability_fact",
-			"observability"."ops_observability_read_audit"
+			"runtime"."request_observability_fact"
 	FROM "ops_web"`,
 	`GRANT SELECT (
-		"completed_at", "conversation_id", "created_at", "error_code", "owner_user_id",
+		"completed_at", "conversation_id", "created_at", "error_code",
 		"principal_snapshot_json", "request_id", "requested_tool", "run_id", "selected_tool",
 		"status", "trace_id", "updated_at", "user_message_id"
 	) ON TABLE "chat"."turn_dispatches" TO "ops_web"`,
@@ -87,41 +71,12 @@ const OPS_WEB_GRANT_STATEMENTS = [
 			"supporting_sources_json", "template_sha256", "trace_available", "updated_at",
 			"workflow_trace_summary_json"
 	) ON TABLE "runtime"."request_observability_fact" TO "ops_web"`,
-	`GRANT INSERT (
-			"audit_id", "kind", "operator_id", "operator_principal_class", "read_at",
-			"record_count", "request_id", "trace_id", "truncated"
-		) ON TABLE "observability"."ops_observability_read_audit" TO "ops_web"`,
-] as const;
-const OPS_AUDIT_MAINTENANCE_GRANT_STATEMENTS = [
-	`GRANT USAGE ON SCHEMA "observability" TO "ops_audit_maintenance"`,
-	`CREATE OR REPLACE FUNCTION "observability"."prune_ops_observability_read_audit"()
-	RETURNS bigint
-	LANGUAGE plpgsql
-	SECURITY DEFINER
-	SET search_path = pg_catalog
-	AS $ops_audit_retention$
-	DECLARE
-		deleted_count bigint;
-	BEGIN
-		DELETE FROM "observability"."ops_observability_read_audit"
-		WHERE "read_at" < pg_catalog.now() - interval '180 days';
-		GET DIAGNOSTICS deleted_count = ROW_COUNT;
-		RETURN deleted_count;
-	END;
-	$ops_audit_retention$`,
-	`REVOKE ALL PRIVILEGES ON TABLE "observability"."ops_observability_read_audit" FROM "ops_audit_maintenance"`,
-	`REVOKE ALL PRIVILEGES ON FUNCTION "observability"."prune_ops_observability_read_audit"() FROM PUBLIC`,
-	`GRANT EXECUTE ON FUNCTION "observability"."prune_ops_observability_read_audit"() TO "ops_audit_maintenance"`,
 ] as const;
 
 export async function applyOpsWebGrantStatements(client: {
 	query(sql: string): Promise<unknown>;
 }): Promise<void> {
-	for (const statement of [
-		...OPS_WEB_SCHEMA_STATEMENTS,
-		...OPS_WEB_GRANT_STATEMENTS,
-		...OPS_AUDIT_MAINTENANCE_GRANT_STATEMENTS,
-	]) {
+	for (const statement of OPS_WEB_GRANT_STATEMENTS) {
 		await client.query(statement);
 	}
 }
@@ -139,7 +94,6 @@ const REQUIRED_SELECTS = [
 				"conversation_id",
 				"created_at",
 				"error_code",
-				"owner_user_id",
 				"principal_snapshot_json",
 				"request_id",
 				"requested_tool",
@@ -245,7 +199,6 @@ async function assertDatabaseRole(client: Client, roleName: string): Promise<voi
 async function verifyDatabaseRoles(config: DatabaseConnectionConfig): Promise<void> {
 	return withClient(config, async (client) => {
 		await assertDatabaseRole(client, "ops_web");
-		await assertDatabaseRole(client, "ops_audit_maintenance");
 	});
 }
 
@@ -323,79 +276,10 @@ async function verifyOpsWebRoleAndGrants(config: DatabaseConnectionConfig): Prom
 		) {
 			throw new Error("ops_web must not have direct or inherited privileges on execution_config.");
 		}
-
-		await client.query("begin");
-		try {
-			await client.query(
-				`
-					insert into "observability"."ops_observability_read_audit" (
-						"audit_id",
-						"kind",
-						"operator_id",
-						"operator_principal_class",
-						"read_at",
-						"record_count",
-						"request_id",
-						"trace_id",
-						"truncated"
-					)
-					values ($1, $2, $3, $4, now(), $5, $6, $7, $8)
-				`,
-				[
-					`ops_web_preflight_${Date.now()}`,
-					"logs",
-					"ops-web-preflight",
-					"service",
-					0,
-					"ops_web_preflight_request",
-					"ops_web_preflight_trace",
-					false,
-				],
-			);
-		} finally {
-			await client.query("rollback");
-		}
-	});
-}
-
-async function verifyAuditMaintenanceRoleAndGrants(
-	config: DatabaseConnectionConfig,
-): Promise<void> {
-	return withClient(config, async (client) => {
-		const currentUserResult = await client.query(`select current_user as "currentUser"`);
-		const currentUser = currentUserResult.rows[0]?.currentUser;
-		if (currentUser !== "ops_audit_maintenance") {
-			throw new Error(
-				`OPS_AUDIT_MAINTENANCE_DATABASE_URL must connect as ops_audit_maintenance; current_user is ${currentUser ?? "<unknown>"}.`,
-			);
-		}
-
-		const tablePrivilegeResult = await client.query(
-			`select
-				has_table_privilege(current_user, 'observability.ops_observability_read_audit', 'SELECT') as "canSelectAudit",
-				has_table_privilege(current_user, 'observability.ops_observability_read_audit', 'DELETE') as "canDeleteAudit",
-				has_function_privilege(current_user, 'observability.prune_ops_observability_read_audit()', 'EXECUTE') as "canPruneAudit"`,
-		);
-		const privileges = tablePrivilegeResult.rows[0];
-		if (privileges?.canSelectAudit === true || privileges?.canDeleteAudit === true) {
-			throw new Error("ops_audit_maintenance must not have direct audit table privileges.");
-		}
-		if (privileges?.canPruneAudit !== true) {
-			throw new Error("ops_audit_maintenance must be able to execute the audit pruning function.");
-		}
-		await client.query("begin");
-		try {
-			await client.query(
-				`select "observability"."prune_ops_observability_read_audit"() as "deletedCount"`,
-			);
-		} finally {
-			await client.query("rollback");
-		}
 	});
 }
 
 function readDatabaseConfigs(env: NodeJS.ProcessEnv): {
-	auditMaintenance: DatabaseConnectionConfig;
 	schemaAdmin: DatabaseConnectionConfig;
 	opsWeb: DatabaseConnectionConfig;
 } {
@@ -410,24 +294,16 @@ function readDatabaseConfigs(env: NodeJS.ProcessEnv): {
 			databaseUrl: "OPS_WEB_DATABASE_URL",
 			sslMode: "OPS_WEB_DATABASE_SSLMODE",
 		}),
-		auditMaintenance: readDatabaseConnectionConfig(env, {
-			caCertPath: "OPS_AUDIT_MAINTENANCE_DATABASE_CA_CERT_PATH",
-			databaseUrl: "OPS_AUDIT_MAINTENANCE_DATABASE_URL",
-			sslMode: "OPS_AUDIT_MAINTENANCE_DATABASE_SSLMODE",
-		}),
 	};
 }
 
 export async function applyOpsWebDatabaseGrants(env: NodeJS.ProcessEnv = process.env): Promise<{
-	auditMaintenance: "ready";
 	opsWebRole: "ready";
-	readAudit: "ready";
 	readModel: "ready";
 }> {
 	const config = readDatabaseConfigs(env);
 	await withClient(config.schemaAdmin, async (client) => {
 		await assertDatabaseRole(client, "ops_web");
-		await assertDatabaseRole(client, "ops_audit_maintenance");
 		await client.query("begin");
 		try {
 			await applyOpsWebGrantStatements(client);
@@ -438,32 +314,24 @@ export async function applyOpsWebDatabaseGrants(env: NodeJS.ProcessEnv = process
 		}
 	});
 	await verifyOpsWebRoleAndGrants(config.opsWeb);
-	await verifyAuditMaintenanceRoleAndGrants(config.auditMaintenance);
 	return {
-		auditMaintenance: "ready",
 		opsWebRole: "ready",
-		readAudit: "ready",
 		readModel: "ready",
 	};
 }
 
 export async function verifyOpsWebDatabase(env: NodeJS.ProcessEnv = process.env): Promise<{
-	auditMaintenance: "ready";
 	opsWebRole: "ready";
-	readAudit: "ready";
 	readModel: "ready";
 }> {
 	const config = readDatabaseConfigs(env);
 
 	await verifyDatabaseRoles(config.schemaAdmin);
 	await verifyOpsWebRoleAndGrants(config.opsWeb);
-	await verifyAuditMaintenanceRoleAndGrants(config.auditMaintenance);
 
 	return {
-		auditMaintenance: "ready",
 		opsWebRole: "ready",
 		readModel: "ready",
-		readAudit: "ready",
 	};
 }
 

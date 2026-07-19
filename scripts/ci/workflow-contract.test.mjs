@@ -15,14 +15,13 @@ function jobNames(workflow) {
 	return [...jobs.matchAll(/^ {2}([a-z][a-z0-9-]+):$/gmu)].map((match) => match[1]);
 }
 
-test("keeps the PR graph small and free of release image work", () => {
+test("keeps the PR graph small and free of release and browser work", () => {
 	assert.deepEqual(jobNames(prWorkflow), [
 		"preflight",
 		"code",
 		"native",
 		"docker-check",
 		"integration",
-		"ui-smoke",
 		"required",
 	]);
 	assert.doesNotMatch(prWorkflow, /image-scan|trivy image|--sbom=true/u);
@@ -31,9 +30,14 @@ test("keeps the PR graph small and free of release image work", () => {
 	assert.match(prWorkflow, /target: \$\{\{ steps\.target\.outputs\.target \}\}/u);
 	assert.match(prWorkflow, /push: false/u);
 	assert.match(prWorkflow, /load: false/u);
+	assert.doesNotMatch(prWorkflow, /playwright|test:e2e:smoke|ui-smoke/u);
 });
 
 test("routes preflight tools and database installs from the shared plan", () => {
+	const integrationJob = prWorkflow.slice(
+		prWorkflow.indexOf("\n  integration:\n"),
+		prWorkflow.indexOf("\n  required:\n"),
+	);
 	assert.match(prWorkflow, /preflightChecks, 'planner'/u);
 	assert.match(prWorkflow, /preflightChecks, 'actions'/u);
 	assert.match(prWorkflow, /databaseNodeFilters/u);
@@ -45,6 +49,14 @@ test("routes preflight tools and database installs from the shared plan", () => 
 	assert.match(
 		prWorkflow,
 		/has_suite execution-control && scripts\/ci\/go-postgres-integration\.sh/u,
+	);
+	assert.equal(
+		[
+			...integrationJob.matchAll(
+				/contains\(fromJSON\(needs\.preflight\.outputs\.plan\)\.databaseSuites, 'ops-web'\)/gu,
+			),
+		].length,
+		2,
 	);
 });
 
@@ -128,18 +140,17 @@ test("validates Campus Web release identity only when that Worker is selected", 
 
 test("keeps required staging Worker bindings in the publication job", () => {
 	for (const name of [
-		"STAGING_APP_API_DB_FRESH_HYPERDRIVE_ID",
-		"STAGING_APP_API_DB_HYPERDRIVE_ID",
-		"STAGING_EXECUTION_CONTROL_VPC_SERVICE_ID",
-		"STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY",
-		"STAGING_MAP_DATA_BUCKET_NAME",
+		"APP_API_DB_FRESH_HYPERDRIVE_ID",
+		"APP_API_DB_HYPERDRIVE_ID",
+		"EXECUTION_CONTROL_VPC_SERVICE_ID",
+		"CAMPUS_AUTH_TURNSTILE_SITE_KEY",
+		"MAP_DATA_BUCKET_NAME",
+		"SENTRY_APP_API_DSN",
+		"SENTRY_CAMPUS_WEB_DSN",
 	]) {
 		assert.match(releaseWorkflow, new RegExp(`${name}:`, "u"));
 	}
-	for (const name of [
-		"STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED",
-		"STAGING_INGESTION_OBJECT_STORE_REGION",
-	]) {
+	for (const name of ["OBJECT_STORE_BUCKET_DERIVED", "OBJECT_STORE_REGION"]) {
 		assert.match(releaseWorkflow, new RegExp(`vars\\.${name}`, "u"));
 	}
 	assert.doesNotMatch(releaseWorkflow, /STAGING_INGESTION_OBJECT_STORE_ENDPOINT/u);

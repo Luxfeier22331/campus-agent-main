@@ -7,6 +7,10 @@ receivers:
 extensions:
   health_check:
     endpoint: 0.0.0.0:13133
+  basicauth/langfuse:
+    client_auth:
+      username: "${env:LANGFUSE_PUBLIC_KEY}"
+      password: "${env:LANGFUSE_SECRET_KEY}"
 
 processors:
   memory_limiter:
@@ -59,8 +63,9 @@ processors:
 exporters:
   otlphttp/langfuse:
     endpoint: "${env:OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT}"
+    auth:
+      authenticator: basicauth/langfuse
     headers:
-      authorization: "${env:OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER}"
       x-langfuse-ingestion-version: "4"
     compression: gzip
     encoding: proto
@@ -79,6 +84,7 @@ exporters:
 service:
   extensions:
     - health_check
+    - basicauth/langfuse
   pipelines:
     traces/orchestration:
       receivers: [otlp/orchestration]

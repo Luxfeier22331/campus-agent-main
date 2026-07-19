@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { checkEnvContracts } from "./contracts/env-contracts.ts";
 import { checkContractSchemas } from "./contracts/schema-registry.ts";
 import { runContractSchemaSelfTest } from "./contracts/self-test.ts";
 
@@ -38,6 +39,7 @@ async function main(argv: string[]): Promise<number> {
 		return 0;
 	}
 	checkContractSchemas(args.registry ? { registry: args.registry } : {});
+	checkEnvContracts();
 	return 0;
 }
 

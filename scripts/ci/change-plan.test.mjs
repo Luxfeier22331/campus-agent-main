@@ -53,11 +53,15 @@ test("routes shared product schema to its database owners", () => {
 		"execution-control",
 		"ops-web",
 	]);
-	assert.deepEqual(result.databaseNodeFilters, ["app-api...", "ops-web..."]);
+	assert.deepEqual(result.databaseNodeFilters, [
+		"app-api...",
+		"ops-web...",
+		"transport-publisher...",
+	]);
 	assert.deepEqual(result.release.images, ["app-api-schema", "transport-publisher"]);
 });
 
-test("routes Campus Web runtime changes to one Worker and browser smoke", () => {
+test("routes Campus Web runtime changes to one Worker and local browser validation", () => {
 	const result = plan(["apps/campus-web/src/main.tsx"], ["campus-web"], {
 		affectedTasks: ["campus-web#build:app", "campus-web#test"],
 	});
@@ -105,15 +109,19 @@ test("routes planner and Turbo contracts without product work", () => {
 	assert.deepEqual(result.release, { images: [], kubernetes: false, workers: [] });
 });
 
-test("installs only the selected database owner workspace", () => {
-	const appApi = plan(["apps/app-api/test/app-api-product-db.integration.test.ts"]);
-	const opsWeb = plan(["apps/ops-web/test/ops-web-postgres.integration.test.ts"]);
+test("installs every workspace imported by the selected database fixture", () => {
+	const appApi = plan(["apps/app-api/test/shared-product-db.integration.test.ts"]);
+	const opsWeb = plan(["apps/ops-web/test/ops-web-database.integration.test.ts"]);
 	const executionControl = plan([
 		"apps/execution-control/internal/execution/postgres_repository.go",
 	]);
 
-	assert.deepEqual(appApi.databaseNodeFilters, ["app-api..."]);
-	assert.deepEqual(opsWeb.databaseNodeFilters, ["ops-web..."]);
+	assert.deepEqual(appApi.databaseNodeFilters, ["app-api...", "transport-publisher..."]);
+	assert.deepEqual(opsWeb.databaseNodeFilters, [
+		"app-api...",
+		"ops-web...",
+		"transport-publisher...",
+	]);
 	assert.deepEqual(executionControl.databaseNodeFilters, []);
 });
 
@@ -122,6 +130,12 @@ test("routes Kubernetes source changes to release promotion", () => {
 
 	assert.equal(result.release.kubernetes, true);
 	assert.equal(result.lanes.includes("infra"), true);
+});
+
+test("routes owner environment contracts through contract checks", () => {
+	const result = plan(["apps/execution-control/env.contract.json"]);
+
+	assert.equal(result.lanes.includes("contracts"), true);
 });
 
 test("validates OTel configuration without claiming a Kubernetes release", () => {

@@ -23,12 +23,7 @@ export interface RagasLangfusePipelineInput {
 	fetchImpl?: typeof fetch;
 	limit?: number;
 	release?: string | null;
-	runPythonRagasScoreBatch: (input: {
-		inputPath: string;
-		outputPath: string;
-		runtimeConfigPath?: string;
-	}) => void;
-	runtimeConfigPath?: string;
+	runPythonRagasScoreBatch: (input: { inputPath: string; outputPath: string }) => void;
 	settings: LangfuseSettings;
 	tag?: string[];
 	traceName?: string;
@@ -49,7 +44,6 @@ export async function runRagasTraceScoring(input: RagasLangfusePipelineInput): P
 	return runRagasPipeline({
 		environment: input.environment,
 		fetchImpl: input.fetchImpl,
-		runtimeConfigPath: input.runtimeConfigPath,
 		runPythonRagasScoreBatch: input.runPythonRagasScoreBatch,
 		sampleItems: traces
 			.slice(0, input.limit ?? traces.length)
@@ -79,7 +73,6 @@ export async function runRagasDatasetScoring(
 	return runRagasPipeline({
 		environment: input.environment,
 		fetchImpl: input.fetchImpl,
-		runtimeConfigPath: input.runtimeConfigPath,
 		runPythonRagasScoreBatch: input.runPythonRagasScoreBatch,
 		sampleItems,
 		settings: input.settings,
@@ -91,7 +84,6 @@ export async function runRagasDatasetScoring(
 async function runRagasPipeline(input: {
 	environment: string;
 	fetchImpl?: typeof fetch;
-	runtimeConfigPath?: string;
 	runPythonRagasScoreBatch: RagasLangfusePipelineInput["runPythonRagasScoreBatch"];
 	sampleItems: JsonObject[];
 	settings: LangfuseSettings;
@@ -111,7 +103,6 @@ async function runRagasPipeline(input: {
 		input.runPythonRagasScoreBatch({
 			inputPath: sampleBatchPath,
 			outputPath: scoreBatchPath,
-			runtimeConfigPath: input.runtimeConfigPath,
 		});
 		const scorePlan = buildLangfuseScoresFromRagasScoreBatch({
 			ragasScoreBatchPath: scoreBatchPath,

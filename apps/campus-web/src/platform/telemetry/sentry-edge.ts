@@ -3,12 +3,6 @@ import * as Sentry from "@sentry/cloudflare";
 
 import type { Env } from "../../index";
 import {
-	captureCampusSentryCanary,
-	type SentryCanaryCaptureResult,
-	type SentryCanaryClient,
-	type SentryCanarySentinels,
-} from "./sentry-canary";
-import {
 	sanitizeCampusSentryEvent,
 	sanitizeCampusSentrySpan,
 	sanitizeCampusSentryTransaction,
@@ -68,40 +62,3 @@ export function createCampusEdgeSentryOptions(env: Env): CloudflareOptions | und
 		},
 	};
 }
-
-export class CampusWebEdgeSentryCanaryError extends Error {
-	constructor() {
-		super("CampusWebEdgeSentryCanaryError");
-		this.name = "CampusWebEdgeSentryCanaryError";
-	}
-}
-
-export function throwCampusWebEdgeSentryCanaryError(): never {
-	throw new CampusWebEdgeSentryCanaryError();
-}
-
-export function captureCampusWebEdgeSentryCanary(
-	sentinels: SentryCanarySentinels,
-): Promise<SentryCanaryCaptureResult | null> {
-	return captureCampusSentryCanary({
-		client: cloudflareSentryCanaryClient,
-		sentinels,
-		throwError: throwCampusWebEdgeSentryCanaryError,
-	});
-}
-
-const cloudflareSentryCanaryClient: SentryCanaryClient = {
-	captureException: (error) => Sentry.captureException(error),
-	flush: (timeoutMs) => Sentry.flush(timeoutMs),
-	withScope: (callback) =>
-		Sentry.withScope((scope) =>
-			callback({
-				addEventProcessor(processor) {
-					scope.addEventProcessor((event) => processor(event as never) as never);
-				},
-				setExtra: (key, value) => scope.setExtra(key, value),
-				setTag: (key, value) => scope.setTag(key, value),
-				setUser: (user) => scope.setUser(user),
-			}),
-		),
-};

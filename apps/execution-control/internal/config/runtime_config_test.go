@@ -100,7 +100,6 @@ func TestLoadFromEnvReadsRuntimeConfig(t *testing.T) {
     "endpoint": "http://collector:4318/v1/traces",
     "metrics_enabled": true,
     "metrics_endpoint": "http://collector:4318/v1/metrics",
-    "headers": "authorization=Bearer test",
     "service_name": "custom-execution-control",
     "export_timeout_ms": 800,
     "export_interval_ms": 16000,
@@ -144,7 +143,6 @@ func TestLoadFromEnvReadsRuntimeConfig(t *testing.T) {
 		cfg.OTelEndpoint != "http://collector:4318/v1/traces" ||
 		!cfg.OTelMetricsEnabled ||
 		cfg.OTelMetricsEndpoint != "http://collector:4318/v1/metrics" ||
-		cfg.OTelHeaders != "authorization=Bearer test" ||
 		cfg.OTelServiceName != "custom-execution-control" ||
 		cfg.OTelExportTimeoutMS != 800 ||
 		cfg.OTelExportIntervalMS != 16000 ||

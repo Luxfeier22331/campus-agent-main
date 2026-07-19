@@ -8,7 +8,6 @@ const SAFE_TAGS = new Set([
 	"app",
 	"campus.request_id",
 	"campus.trace_id",
-	"canary_sentinel_sha256",
 	"error_code",
 	"route",
 	"runtime",

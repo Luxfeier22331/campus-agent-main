@@ -9,28 +9,23 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 )
 
-func TestProviderConfigAdminAuthorizationSeparatesReadAndCommandTokens(t *testing.T) {
-	cfg := config.Config{
-		ProviderConfigAdminReadToken:    "read-token",
-		ProviderConfigAdminCommandToken: "command-token",
-	}
+func TestProviderConfigAdminAuthorizationUsesOpsWebInternalToken(t *testing.T) {
+	cfg := config.Config{OpsWebInternalToken: "ops-web-token"}
 
 	readRequest := newTestRequest(http.MethodGet, providerConfigAdminPrefix, nil)
-	readRequest.Header.Set("Authorization", "Bearer read-token")
-	if !providerConfigAdminAuthorized(readRequest, cfg, false) {
-		t.Fatal("read token should authorize reads")
+	readRequest.Header.Set("Authorization", "Bearer ops-web-token")
+	if !providerConfigAdminAuthorized(readRequest, cfg) {
+		t.Fatal("Ops Web token should authorize reads")
 	}
-	if providerConfigAdminAuthorized(readRequest, cfg, true) {
-		t.Fatal("read token must not authorize commands")
-	}
-
 	commandRequest := newTestRequest(http.MethodPost, providerConfigAdminPrefix+"/activation", nil)
-	commandRequest.Header.Set("Authorization", "Bearer command-token")
-	if !providerConfigAdminAuthorized(commandRequest, cfg, true) {
-		t.Fatal("command token should authorize commands")
+	commandRequest.Header.Set("Authorization", "Bearer ops-web-token")
+	if !providerConfigAdminAuthorized(commandRequest, cfg) {
+		t.Fatal("Ops Web token should authorize commands")
 	}
-	if providerConfigAdminAuthorized(commandRequest, cfg, false) {
-		t.Fatal("command token must not authorize reads")
+	wrongRequest := newTestRequest(http.MethodGet, providerConfigAdminPrefix, nil)
+	wrongRequest.Header.Set("Authorization", "Bearer wrong-token")
+	if providerConfigAdminAuthorized(wrongRequest, cfg) {
+		t.Fatal("unknown token must not authorize requests")
 	}
 }
 

@@ -2,9 +2,9 @@
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { runAgentToolEval } from "./agent-tool-runner";
-import { checkCollectorConfig, deriveCollectorEnv } from "./collector";
 import { buildEvalDatasetManifest } from "./dataset-manifest";
 import { syncLangfuseDatasets, syncLangfuseScoreConfigs } from "./platform";
+import { withRagasRuntimeConfig } from "./provider-config";
 import { runRagasDatasetScoring, runRagasTraceScoring } from "./ragas-langfuse";
 import { type JsonObject, settingsFromEnv } from "./shared";
 import { deriveLangfuseTraceId } from "./trace";
@@ -32,10 +32,11 @@ export async function main(argv: string[]): Promise<number> {
 
 async function handleCommand(command: string, args: ParsedArgs): Promise<JsonObject> {
 	if (command === "agent-eval") {
+		rejectRetiredRuntimeConfigArg(args);
 		return runAgentToolEval({
 			appApiBaseUrl:
 				optionalArg(args, "app-api-base-url") ??
-				required(optionalEnv("STAGING_APP_API_BASE_URL", "APP_API_BASE_URL"), "app-api-base-url"),
+				required(optionalEnv("APP_API_BASE_URL"), "app-api-base-url"),
 			cookieHeader: optionalArg(args, "cookie-header") ?? optionalEnv("CAMPUS_EVAL_COOKIE_HEADER"),
 			datasetName: stringArg(args, "dataset"),
 			datasetVersion: optionalArg(args, "dataset-version"),
@@ -44,23 +45,19 @@ async function handleCommand(command: string, args: ParsedArgs): Promise<JsonObj
 			limit: numberArg(args, "limit") ?? undefined,
 			runPythonRagasAgentScoreBatch,
 			runPythonRagasScoreBatch,
-			runtimeConfigPath: optionalArg(args, "runtime-config") ?? undefined,
 			settings: settingsFromEnv(),
-			stagingSmokeAuthSecret: optionalEnv(
-				"APP_API_STAGING_SMOKE_AUTH_SECRET",
-				"STAGING_APP_API_SMOKE_AUTH_SECRET",
-			),
+			stagingSmokeAuthSecret: optionalEnv("APP_API_STAGING_SMOKE_AUTH_SECRET"),
 			stagingSmokeEmail: optionalEnv("CAMPUS_EVAL_SMOKE_EMAIL"),
 			validateOnly: Boolean(args["validate-only"]),
 		});
 	}
 	if (command === "ragas-score-traces") {
+		rejectRetiredRuntimeConfigArg(args);
 		return runRagasTraceScoring({
 			environment: environmentFromEnv(),
 			limit: numberArg(args, "limit") ?? undefined,
 			release: optionalArg(args, "release"),
 			runPythonRagasScoreBatch,
-			runtimeConfigPath: optionalArg(args, "runtime-config") ?? undefined,
 			settings: settingsFromEnv(),
 			tag: arrayArg(args, "tag"),
 			traceName: optionalArg(args, "trace-name") ?? undefined,
@@ -68,13 +65,13 @@ async function handleCommand(command: string, args: ParsedArgs): Promise<JsonObj
 		});
 	}
 	if (command === "ragas-score-dataset") {
+		rejectRetiredRuntimeConfigArg(args);
 		return runRagasDatasetScoring({
 			datasetName: stringArg(args, "dataset"),
 			datasetVersion: optionalArg(args, "dataset-version"),
 			environment: environmentFromEnv(),
 			limit: numberArg(args, "limit") ?? undefined,
 			runPythonRagasScoreBatch,
-			runtimeConfigPath: optionalArg(args, "runtime-config") ?? undefined,
 			settings: settingsFromEnv(),
 			validateOnly: Boolean(args["validate-only"]),
 		});
@@ -120,20 +117,6 @@ async function handleCommand(command: string, args: ParsedArgs): Promise<JsonObj
 			sourceGitHead: optionalArg(args, "source-git-head") ?? currentGitHead(),
 		});
 	}
-	if (command === "check-collector-config") {
-		const validation = checkCollectorConfig(process.env);
-		if (!validation.passed) {
-			throw new Error(validation.errors.join("; "));
-		}
-		return validation as unknown as JsonObject;
-	}
-	if (command === "derive-collector-env") {
-		return deriveCollectorEnv({
-			baseUrl: stringArg(args, "base-url"),
-			publicKey: stringArg(args, "public-key"),
-			secretKey: stringArg(args, "secret-key"),
-		});
-	}
 	throw new Error(`Unknown command: ${command}`);
 }
 
@@ -166,57 +149,80 @@ function parseArgs(argv: string[]): ParsedArgs {
 	return parsed;
 }
 
-function runPythonRagasScoreBatch(input: {
-	inputPath: string;
-	outputPath: string;
-	runtimeConfigPath?: string;
-}): void {
-	const args = [
-		"run",
-		"--package",
-		"campus-ragas-runner",
-		"python",
-		"-m",
-		"campus_ragas_runner",
-		"rag",
-		"--input",
-		input.inputPath,
-		"--output",
-		input.outputPath,
-	];
-	if (input.runtimeConfigPath) {
-		args.push("--runtime-config", input.runtimeConfigPath);
-	}
-	const result = spawnSync("uv", args, { encoding: "utf-8", stdio: "pipe" });
-	if (result.status !== 0) {
-		throw new Error(`RAGAS scoring failed: ${(result.stderr || result.stdout || "").trim()}`);
-	}
+function runPythonRagasScoreBatch(input: { inputPath: string; outputPath: string }): void {
+	withRagasRuntimeConfig(
+		{ kind: "rag", projectionPath: requiredProjectionPath() },
+		(runtimeConfigPath) => {
+			const result = spawnSync(
+				"uv",
+				[
+					"run",
+					"--package",
+					"campus-ragas-runner",
+					"python",
+					"-m",
+					"campus_ragas_runner",
+					"rag",
+					"--input",
+					input.inputPath,
+					"--output",
+					input.outputPath,
+					"--runtime-config",
+					runtimeConfigPath,
+				],
+				{ encoding: "utf-8", stdio: "pipe" },
+			);
+			if (result.status !== 0) {
+				throw new Error(`RAGAS scoring failed: ${(result.stderr || result.stdout || "").trim()}`);
+			}
+		},
+	);
 }
 
-function runPythonRagasAgentScoreBatch(input: {
-	inputPath: string;
-	outputPath: string;
-	runtimeConfigPath?: string;
-}): void {
-	const args = [
-		"run",
-		"--package",
-		"campus-ragas-runner",
-		"python",
-		"-m",
-		"campus_ragas_runner",
-		"agent",
-		"--input",
-		input.inputPath,
-		"--output",
-		input.outputPath,
-	];
-	if (input.runtimeConfigPath) {
-		args.push("--runtime-config", input.runtimeConfigPath);
-	}
-	const result = spawnSync("uv", args, { encoding: "utf-8", stdio: "pipe" });
-	if (result.status !== 0) {
-		throw new Error(`RAGAS agent scoring failed: ${(result.stderr || result.stdout || "").trim()}`);
+function runPythonRagasAgentScoreBatch(input: { inputPath: string; outputPath: string }): void {
+	withRagasRuntimeConfig(
+		{ kind: "agent", projectionPath: requiredProjectionPath() },
+		(runtimeConfigPath) => {
+			const result = spawnSync(
+				"uv",
+				[
+					"run",
+					"--package",
+					"campus-ragas-runner",
+					"python",
+					"-m",
+					"campus_ragas_runner",
+					"agent",
+					"--input",
+					input.inputPath,
+					"--output",
+					input.outputPath,
+					"--runtime-config",
+					runtimeConfigPath,
+				],
+				{ encoding: "utf-8", stdio: "pipe" },
+			);
+			if (result.status !== 0) {
+				throw new Error(
+					`RAGAS agent scoring failed: ${(result.stderr || result.stdout || "").trim()}`,
+				);
+			}
+		},
+	);
+}
+
+function requiredProjectionPath(): string {
+	return required(
+		optionalEnv("EVAL_PROVIDER_CONFIG_PROJECTION_PATH"),
+		"EVAL_PROVIDER_CONFIG_PROJECTION_PATH",
+	);
+}
+
+function rejectRetiredRuntimeConfigArg(args: ParsedArgs): void {
+	if (optionalArg(args, "runtime-config")) {
+		throw new Error(
+			"--runtime-config is retired; configure EVAL_PROVIDER_CONFIG_PROJECTION_PATH for the eval runtime",
+		);
 	}
 }
 
@@ -282,12 +288,7 @@ function optionalEnv(...names: string[]): string | null {
 }
 
 function environmentFromEnv(env: NodeJS.ProcessEnv = process.env): string {
-	return (
-		env.LANGFUSE_ENVIRONMENT?.trim() ||
-		env.CAMPUS_EVAL_ENVIRONMENT?.trim() ||
-		env.NODE_ENV?.trim() ||
-		"local"
-	);
+	return required(env.LANGFUSE_ENVIRONMENT?.trim() || null, "LANGFUSE_ENVIRONMENT");
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

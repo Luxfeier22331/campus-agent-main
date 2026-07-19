@@ -73,3 +73,13 @@ rg -Fq \
   echo "Hindsight Langfuse pipeline is missing the trusted sanitizer before enrichment." >&2
   exit 1
 }
+
+if rg -q 'OTEL_COLLECTOR_(AXIOM|LANGFUSE)_AUTH_HEADER' "$config"; then
+  echo "Collector template must consume canonical credentials instead of prebuilt auth headers." >&2
+  exit 1
+fi
+
+rg -Fq 'basicauth/langfuse:' "$config" || {
+  echo "Collector template must derive Langfuse Basic auth with the basicauth extension." >&2
+  exit 1
+}

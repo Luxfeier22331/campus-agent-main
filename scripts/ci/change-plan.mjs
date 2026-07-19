@@ -195,8 +195,11 @@ export function buildChangePlan({
 			"apps/app-api/drizzle/",
 			"apps/app-api/ops/db/",
 			"apps/app-api/src/script-support/shared-db/",
-			"apps/app-api/test/app-api-migration-upgrade.integration.test.ts",
+			"apps/app-api/test/app-api-migration",
 			"apps/app-api/test/app-api-product-db.",
+			"apps/app-api/test/shared-product-db.",
+			"apps/app-api/vitest.migration-integration.",
+			"apps/app-api/vitest.shared-db.",
 		]),
 	);
 	const hasSharedProductSchemaChange = hasAny(runtimeFiles, (file) =>
@@ -205,6 +208,7 @@ export function buildChangePlan({
 	const hasOpsDatabaseChange = hasAny(runtimeFiles, (file) =>
 		startsWithAny(file, [
 			"apps/ops-web/ops/db/",
+			"apps/ops-web/test/ops-web-database.",
 			"apps/ops-web/test/ops-web-postgres.",
 			"apps/ops-web/vitest.database-integration.",
 		]),
@@ -256,8 +260,11 @@ export function buildChangePlan({
 		lanes,
 		hasNonCiRuntimeChange &&
 			([...effectiveTaskPackages].some((name) => name === "campus-contracts") ||
-				hasAny(runtimeFiles, (file) =>
-					startsWithAny(file, ["configs/runtime/", "docs/contracts/schemas/"]),
+				hasAny(
+					runtimeFiles,
+					(file) =>
+						startsWithAny(file, ["configs/runtime/", "docs/contracts/schemas/"]) ||
+						file.endsWith("env.contract.json"),
 				)),
 		"contracts",
 	);
@@ -393,9 +400,12 @@ export function buildChangePlan({
 		databaseSuites.has(DATABASE_SUITES.APP_API_PRODUCT)
 	) {
 		databaseNodeFilters.add("app-api...");
+		databaseNodeFilters.add("transport-publisher...");
 	}
 	if (databaseSuites.has(DATABASE_SUITES.OPS_WEB)) {
+		databaseNodeFilters.add("app-api...");
 		databaseNodeFilters.add("ops-web...");
+		databaseNodeFilters.add("transport-publisher...");
 	}
 
 	if (hasDockerIgnoreChange) {

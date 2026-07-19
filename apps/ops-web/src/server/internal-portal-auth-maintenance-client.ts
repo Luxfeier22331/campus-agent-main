@@ -7,7 +7,7 @@ const REQUEST_TIMEOUT_MS = 5_000;
 const STATUS_PATH = "/internal/ingestion/operations/internal-portal-auth-maintenance";
 
 export interface InternalPortalAuthMaintenanceEnv {
-	OPS_WEB_INGESTION_CONTROL_OPS_TOKEN?: string;
+	OPS_WEB_INTERNAL_TOKEN?: string;
 	OPS_WEB_INGESTION_CONTROL_URL?: string;
 }
 
@@ -27,7 +27,7 @@ export function createInternalPortalAuthMaintenanceClientFromEnv(
 	env: InternalPortalAuthMaintenanceEnv,
 ): InternalPortalAuthMaintenanceClient {
 	const baseUrl = env.OPS_WEB_INGESTION_CONTROL_URL?.trim().replace(/\/+$/u, "");
-	const token = env.OPS_WEB_INGESTION_CONTROL_OPS_TOKEN?.trim();
+	const token = env.OPS_WEB_INTERNAL_TOKEN?.trim();
 	if (!(baseUrl && token)) {
 		return createUnavailableInternalPortalAuthMaintenanceClient();
 	}

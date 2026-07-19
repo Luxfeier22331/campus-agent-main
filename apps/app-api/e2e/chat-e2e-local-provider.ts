@@ -21,14 +21,8 @@ const child = spawn("pnpm", args, {
 	cwd: new URL("..", import.meta.url),
 	env: {
 		...process.env,
-		EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET:
-			process.env.EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET ||
-			process.env.AGENT_RUNTIME_SHARED_SECRET ||
-			"agent-runtime-local-placeholder",
-		AGENT_RUNTIME_SHARED_SECRET:
-			process.env.AGENT_RUNTIME_SHARED_SECRET ||
-			process.env.EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET ||
-			"agent-runtime-local-placeholder",
+		EXECUTION_AGENT_RUNTIME_SHARED_SECRET:
+			process.env.EXECUTION_AGENT_RUNTIME_SHARED_SECRET || "agent-runtime-local-placeholder",
 		EXECUTION_CONTROL_TIMEOUT_MS:
 			process.env.EXECUTION_CONTROL_TIMEOUT_MS || localProviderTimeoutMs,
 		EXECUTION_CONTROL_RUNTIME_CONFIG_PATH:

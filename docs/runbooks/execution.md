@@ -39,7 +39,7 @@ execution-control image digest，安装并验证 run projection schema；长期�
 registry 的 pull secret 由环境 overlay 绑定到 first-party ServiceAccount。
 
 在线 Provider Config 由 execution-control 管理。runtime 使用 reader DSN 与版本化 keyring，
-独立 admin 服务使用 admin DSN 和 read/command token；缺少 required role、数据库或可解密 key
+独立 admin 服务使用 admin DSN 和 `OPS_WEB_INTERNAL_TOKEN`；缺少 required role、数据库或可解密 key
 都是部署阻塞项。Hindsight 与 eval provider 配置不进入在线 bundle。
 
 ## 健康与排查

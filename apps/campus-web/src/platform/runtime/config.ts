@@ -1,15 +1,9 @@
-import {
-	type CampusSentryCanaryRuntimeConfig,
-	parseCampusSentryCanaryRuntimeConfig,
-} from "../telemetry/sentry-canary";
-
 export const CAMPUS_RUNTIME_CONFIG_SCRIPT_ID = "__CAMPUS_RUNTIME_CONFIG__";
 
 export interface CampusRuntimeConfig {
 	accountUrl: string;
 	loginUrl: string;
 	sentry: {
-		canary: CampusSentryCanaryRuntimeConfig | null;
 		dsn: string | null;
 		environment: string | null;
 		release: string | null;
@@ -77,7 +71,6 @@ function normalizeCampusRuntimeConfig(input: {
 function normalizeSentryConfig(value: unknown): CampusRuntimeConfig["sentry"] {
 	const input = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 	return {
-		canary: parseCampusSentryCanaryRuntimeConfig(input.canary),
 		dsn: normalizeOptionalString(input.dsn),
 		environment: normalizeOptionalString(input.environment),
 		release: normalizeOptionalString(input.release),

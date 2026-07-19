@@ -27,5 +27,7 @@ OTLP 与 `activity-core` maintenance 凭据属于同一环境 project。exporter
 pnpm ci:otel
 ```
 
-该命令使用仓库固定的 Collector 版本校验所有配置。它不证明目标环境已部署，也不证明外部平台
-已经收到信号。调试和故障排查见 `../../docs/runbooks/otel.md`。
+该命令检查受信任链路清理规则和 Agent 的生产认证不变量，并使用固定 digest 的 Collector 镜像
+依次 `validate` 四份配置。Agent 只在校验命令中覆盖集群认证字段，生产模板保持 ServiceAccount
+和 CA 校验。该检查不证明目标环境已部署，也不证明外部平台已经收到信号。调试和故障排查见
+`../../docs/runbooks/otel.md`。

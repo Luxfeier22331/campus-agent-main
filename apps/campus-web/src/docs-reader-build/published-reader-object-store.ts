@@ -70,27 +70,11 @@ export function resolvePublishedReaderObjectStoreBucket(
 export function resolvePublishedReaderObjectStoreCredentials(
 	env: PublishedReaderObjectStoreEnv,
 ): PublishedReaderObjectStoreCredentials {
-	const derivedAccessKey = env.OBJECT_STORE_DERIVED_ACCESS_KEY?.trim();
-	const derivedSecretKey = env.OBJECT_STORE_DERIVED_SECRET_KEY?.trim();
-	if (derivedAccessKey && derivedSecretKey) {
-		return {
-			accessKeyId: derivedAccessKey,
-			credentialMode: "derived",
-			secretAccessKey: derivedSecretKey,
-		};
-	}
-	const sharedAccessKey = env.OBJECT_STORE_ACCESS_KEY?.trim();
-	const sharedSecretKey = env.OBJECT_STORE_SECRET_KEY?.trim();
-	if (sharedAccessKey && sharedSecretKey) {
-		return {
-			accessKeyId: sharedAccessKey,
-			credentialMode: "shared",
-			secretAccessKey: sharedSecretKey,
-		};
-	}
-	throw new Error(
-		"missing object-store credentials: provide OBJECT_STORE_ACCESS_KEY/OBJECT_STORE_SECRET_KEY or OBJECT_STORE_DERIVED_ACCESS_KEY/OBJECT_STORE_DERIVED_SECRET_KEY",
-	);
+	return {
+		accessKeyId: readRequiredEnv(env, "OBJECT_STORE_DERIVED_ACCESS_KEY"),
+		credentialMode: "derived",
+		secretAccessKey: readRequiredEnv(env, "OBJECT_STORE_DERIVED_SECRET_KEY"),
+	};
 }
 
 function isMissingObjectError(error: unknown): boolean {

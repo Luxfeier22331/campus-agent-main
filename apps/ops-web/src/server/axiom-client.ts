@@ -40,10 +40,10 @@ export interface AxiomClient {
 }
 
 export interface AxiomEnv {
+	AXIOM_QUERY_TOKEN?: string;
 	OPS_WEB_AXIOM_EDGE_DOMAIN?: string;
 	OPS_WEB_AXIOM_LOGS_DATASET?: string;
 	OPS_WEB_AXIOM_METRICS_DATASET?: string;
-	OPS_WEB_AXIOM_QUERY_TOKEN?: string;
 	OPS_WEB_AXIOM_TRACES_DATASET?: string;
 }
 
@@ -287,10 +287,10 @@ export function createAxiomClient(input: {
 
 export function createAxiomClientFromEnv(env: AxiomEnv = process.env): AxiomClient {
 	const required = {
+		AXIOM_QUERY_TOKEN: env.AXIOM_QUERY_TOKEN?.trim(),
 		OPS_WEB_AXIOM_EDGE_DOMAIN: env.OPS_WEB_AXIOM_EDGE_DOMAIN?.trim(),
 		OPS_WEB_AXIOM_LOGS_DATASET: env.OPS_WEB_AXIOM_LOGS_DATASET?.trim(),
 		OPS_WEB_AXIOM_METRICS_DATASET: env.OPS_WEB_AXIOM_METRICS_DATASET?.trim(),
-		OPS_WEB_AXIOM_QUERY_TOKEN: env.OPS_WEB_AXIOM_QUERY_TOKEN?.trim(),
 		OPS_WEB_AXIOM_TRACES_DATASET: env.OPS_WEB_AXIOM_TRACES_DATASET?.trim(),
 	};
 	const missing = Object.entries(required)
@@ -303,7 +303,7 @@ export function createAxiomClientFromEnv(env: AxiomEnv = process.env): AxiomClie
 		edgeDomain: required.OPS_WEB_AXIOM_EDGE_DOMAIN as string,
 		logsDataset: required.OPS_WEB_AXIOM_LOGS_DATASET as string,
 		metricsDataset: required.OPS_WEB_AXIOM_METRICS_DATASET as string,
-		queryToken: required.OPS_WEB_AXIOM_QUERY_TOKEN as string,
+		queryToken: required.AXIOM_QUERY_TOKEN as string,
 		tracesDataset: required.OPS_WEB_AXIOM_TRACES_DATASET as string,
 	});
 }

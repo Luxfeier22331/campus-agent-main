@@ -5,17 +5,7 @@ import {
 } from "./platform/auth/turnstile-runtime-config";
 import { DEFAULT_DOCS_READER_PATH } from "./platform/navigation/product-nav";
 import { CAMPUS_RUNTIME_CONFIG_SCRIPT_ID } from "./platform/runtime/config";
-import {
-	type CampusSentryCanaryRuntimeConfig,
-	hashCanonicalSentryCanarySentinels,
-	parseSentryCanarySentinels,
-	SENTRY_CANARY_ROUTE,
-	type SentryCanarySentinels,
-} from "./platform/telemetry/sentry-canary";
-import {
-	captureCampusWebEdgeSentryCanary,
-	createCampusEdgeSentryOptions,
-} from "./platform/telemetry/sentry-edge";
+import { createCampusEdgeSentryOptions } from "./platform/telemetry/sentry-edge";
 import { isAllowedCampusAppApiRequest } from "./platform/worker-proxy/allowlist";
 import { PUBLIC_MAP_DATA_PREFIX, serveCampusMapData } from "./platform/worker-proxy/map-data";
 import {
@@ -148,10 +138,6 @@ const worker = {
 			});
 		}
 
-		if (url.pathname === SENTRY_CANARY_ROUTE) {
-			return handleStagingSentryCanary(request, env);
-		}
-
 		if (isAllowedCampusAppApiRequest(url.pathname)) {
 			return proxyToAppApi(request, env);
 		}
@@ -250,187 +236,6 @@ const worker = {
 		});
 	},
 };
-
-async function handleStagingSentryCanary(request: Request, env: Env): Promise<Response> {
-	if (request.method !== "POST" || env.SENTRY_ENVIRONMENT?.trim() !== "staging") {
-		return jsonResponse(404, {
-			error: { code: "not_found", message: "Route not found." },
-		});
-	}
-	const campusRelease = env.SENTRY_RELEASE?.trim();
-	if (
-		!(
-			env.SENTRY_DSN?.trim() &&
-			env.SENTRY_BROWSER_DSN?.trim() &&
-			campusRelease &&
-			/^campus-web@[0-9a-f]{40}$/u.test(campusRelease)
-		)
-	) {
-		return jsonResponse(503, {
-			error: {
-				code: "sentry_canary_not_configured",
-				message: "Sentry canary is not configured for this release.",
-			},
-		});
-	}
-
-	const sentinels = await readSentryCanarySentinels(request);
-	if (!sentinels) {
-		return jsonResponse(400, {
-			error: { code: "invalid_request", message: "Sentry canary sentinels are invalid." },
-		});
-	}
-	const requestId = readObservabilityCanaryCorrelation(
-		request.headers.get("x-request-id"),
-		/^[A-Za-z0-9._:-]{1,128}$/u,
-	);
-	const traceId = readObservabilityCanaryCorrelation(
-		request.headers.get("x-trace-id"),
-		/^[0-9a-f]{32}$/u,
-	);
-	if (!(requestId && traceId)) {
-		return jsonResponse(400, {
-			error: { code: "invalid_request", message: "Sentry canary correlation is invalid." },
-		});
-	}
-	const appApiBaseUrl = env.APP_API_BASE_URL?.trim();
-	const appApiFetch = appApiBaseUrl ? resolveAppApiFetch(appApiBaseUrl, env) : null;
-	if (!(appApiBaseUrl && appApiFetch)) {
-		return dependencyNotReadyResponse();
-	}
-
-	const appApiUrl = new URL(SENTRY_CANARY_ROUTE, appApiBaseUrl);
-	const headers = new Headers({ accept: "application/json" });
-	for (const headerName of [
-		"authorization",
-		"content-type",
-		"x-app-staging-smoke-auth",
-		"x-observability-canary",
-		"x-request-id",
-		"x-trace-id",
-	] as const) {
-		const value = request.headers.get(headerName);
-		if (value) {
-			headers.set(headerName, value);
-		}
-	}
-
-	let appApiResponse: Response;
-	try {
-		appApiResponse = await appApiFetch(
-			new Request(appApiUrl, {
-				body: await request.arrayBuffer(),
-				headers,
-				method: "POST",
-				redirect: "manual",
-			}),
-		);
-	} catch {
-		return dependencyNotReadyResponse();
-	}
-	if (!appApiResponse.ok) {
-		return withNoStore(appApiResponse);
-	}
-
-	const appApiResult = await appApiResponse.json().catch(() => null);
-	const appApiRecord = requireRecord(appApiResult);
-	const appApiEventId = readEventId(appApiRecord?.app_api_sentry_event_id);
-	const appApiRelease = readRelease(appApiRecord?.release, "app-api");
-	const upstreamHash = readSha256(appApiRecord?.sentinel_sha256);
-	const sentinelSha256 = await hashCanonicalSentryCanarySentinels(sentinels).catch(() => null);
-	if (!(appApiEventId && appApiRelease && upstreamHash === sentinelSha256)) {
-		return dependencyNotReadyResponse();
-	}
-
-	const edgeResult = await captureCampusWebEdgeSentryCanary(sentinels);
-	if (
-		!edgeResult ||
-		edgeResult.eventId === appApiEventId ||
-		edgeResult.sentinelSha256 !== sentinelSha256
-	) {
-		return jsonResponse(503, {
-			error: {
-				code: "sentry_canary_flush_failed",
-				message: "Sentry did not confirm canary delivery.",
-			},
-		});
-	}
-	console.info({
-		event_type: "observability.canary",
-		request_id: requestId,
-		schema_version: "observability-canary-v1",
-		sentinel_sha256: edgeResult.sentinelSha256,
-		source: "campus-web.staging-smoke",
-		surface: "campus-web-edge",
-		trace_id: traceId,
-	});
-
-	const canary: CampusSentryCanaryRuntimeConfig = {
-		appApiEventId,
-		edgeEventId: edgeResult.eventId,
-		sentinelSha256,
-		sentinels,
-	};
-	const shellRequest = new Request(new URL("/", request.url), {
-		headers: { accept: "text/html" },
-		method: "GET",
-	});
-	const response = await serveCampusShell(shellRequest, env, canary);
-	const headersWithEvidence = new Headers(response.headers);
-	headersWithEvidence.set("x-app-api-sentry-release", appApiRelease);
-	headersWithEvidence.set("x-campus-web-sentry-release", campusRelease);
-	return new Response(response.body, {
-		headers: headersWithEvidence,
-		status: response.status,
-		statusText: response.statusText,
-	});
-}
-
-function readObservabilityCanaryCorrelation(value: string | null, pattern: RegExp): string | null {
-	const normalized = value?.trim() ?? "";
-	return pattern.test(normalized) ? normalized : null;
-}
-
-async function readSentryCanarySentinels(request: Request): Promise<SentryCanarySentinels | null> {
-	const contentType = request.headers.get("content-type")?.split(";", 1)[0]?.trim();
-	if (contentType !== "application/x-www-form-urlencoded") {
-		return null;
-	}
-	const form = await request
-		.clone()
-		.formData()
-		.catch(() => null);
-	const authorization = request.headers.get("authorization")?.trim();
-	return parseSentryCanarySentinels({
-		body: form?.get("body"),
-		credential: authorization?.startsWith("Synthetic ")
-			? authorization.slice("Synthetic ".length)
-			: null,
-		header: request.headers.get("x-observability-canary"),
-		query: form?.get("query"),
-		user: form?.get("user"),
-	});
-}
-
-function requireRecord(value: unknown): Record<string, unknown> | null {
-	return value && typeof value === "object" && !Array.isArray(value)
-		? (value as Record<string, unknown>)
-		: null;
-}
-
-function readEventId(value: unknown): string | null {
-	return typeof value === "string" && /^[0-9a-f]{32}$/u.test(value) ? value : null;
-}
-
-function readRelease(value: unknown, app: string): string | null {
-	return typeof value === "string" && new RegExp(`^${app}@[0-9a-f]{40}$`, "u").test(value)
-		? value
-		: null;
-}
-
-function readSha256(value: unknown): string | null {
-	return typeof value === "string" && /^[0-9a-f]{64}$/u.test(value) ? value : null;
-}
 
 function getMissingRuntimeConfig(env: Env): string[] {
 	const missing: string[] = [];
@@ -607,19 +412,12 @@ function isLoopbackAppApiBaseUrl(value: string): boolean {
 	}
 }
 
-async function serveCampusShell(
-	request: Request,
-	env: Env,
-	canary: CampusSentryCanaryRuntimeConfig | null = null,
-): Promise<Response> {
+async function serveCampusShell(request: Request, env: Env): Promise<Response> {
 	const response = await fetchStaticAsset(request, env);
 	if (response instanceof Response && response.status !== 503) {
 		const contentType = response.headers.get("content-type") ?? "";
 		if (contentType.includes("text/html")) {
-			return campusHtmlResponse(response, request, env, {
-				cacheControl: "no-store",
-				canary,
-			});
+			return campusHtmlResponse(response, request, env, { cacheControl: "no-store" });
 		}
 		return responseWithSecurityHeaders(response);
 	}
@@ -899,18 +697,12 @@ function parseProtectedReaderTarget(
 	}
 }
 
-function injectCampusRuntimeConfig(
-	html: string,
-	request: Request,
-	env: Env,
-	canary: CampusSentryCanaryRuntimeConfig | null = null,
-): string {
+function injectCampusRuntimeConfig(html: string, request: Request, env: Env): string {
 	const campusOrigin = new URL(request.url).origin;
 	const serializedConfig = JSON.stringify({
 		accountUrl: new URL("/account", campusOrigin).toString(),
 		loginUrl: new URL("/account/login", campusOrigin).toString(),
 		sentry: {
-			canary,
 			dsn: env.SENTRY_BROWSER_DSN?.trim() || null,
 			environment: env.SENTRY_ENVIRONMENT?.trim() || null,
 			release: env.SENTRY_RELEASE?.trim() || null,
@@ -940,17 +732,14 @@ async function campusHtmlResponse(
 	response: Response,
 	request: Request,
 	env: Env,
-	input: { cacheControl?: string; canary?: CampusSentryCanaryRuntimeConfig | null } = {},
+	input: { cacheControl?: string } = {},
 ): Promise<Response> {
 	const headers = campusHtmlHeaders(response, input);
-	return new Response(
-		injectCampusRuntimeConfig(await response.text(), request, env, input.canary),
-		{
-			headers,
-			status: response.status,
-			statusText: response.statusText,
-		},
-	);
+	return new Response(injectCampusRuntimeConfig(await response.text(), request, env), {
+		headers,
+		status: response.status,
+		statusText: response.statusText,
+	});
 }
 
 function campusHtmlHeaders(response: Response, input: { cacheControl?: string } = {}): Headers {

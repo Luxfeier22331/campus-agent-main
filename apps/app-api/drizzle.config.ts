@@ -1,5 +1,10 @@
 import { defineConfig } from "drizzle-kit";
 
+const schemaDatabaseUrl = process.env.APP_API_SCHEMA_DATABASE_URL?.trim();
+if (!schemaDatabaseUrl) {
+	throw new Error("APP_API_SCHEMA_DATABASE_URL is required for Drizzle schema commands.");
+}
+
 export default defineConfig({
 	schema: "./src/db/schema/owned.ts",
 	out: "./drizzle",
@@ -9,9 +14,7 @@ export default defineConfig({
 		table: "app_api_migrations",
 	},
 	dbCredentials: {
-		url:
-			process.env.APP_API_SCHEMA_DATABASE_URL ??
-			"postgres://postgres:postgres@127.0.0.1:5432/campus_agent",
+		url: schemaDatabaseUrl,
 	},
 	strict: true,
 	verbose: true,

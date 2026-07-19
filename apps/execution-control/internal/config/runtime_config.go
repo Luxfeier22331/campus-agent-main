@@ -42,7 +42,6 @@ type runtimeConfigFileOTel struct {
 	Endpoint                 *string  `json:"endpoint,omitempty"`
 	MetricsEnabled           *bool    `json:"metrics_enabled,omitempty"`
 	MetricsEndpoint          *string  `json:"metrics_endpoint,omitempty"`
-	Headers                  *string  `json:"headers,omitempty"`
 	ServiceName              *string  `json:"service_name,omitempty"`
 	ExportTimeoutMS          *int     `json:"export_timeout_ms,omitempty"`
 	ExportIntervalMS         *int     `json:"export_interval_ms,omitempty"`
@@ -295,7 +294,6 @@ func applyRuntimeConfigValues(values envValues, profile runtimeConfigFile) envVa
 	if profile.OTel != nil {
 		applyString(&values.OTelEndpoint, profile.OTel.Endpoint)
 		applyString(&values.OTelMetricsEndpoint, profile.OTel.MetricsEndpoint)
-		applyString(&values.OTelHeaders, profile.OTel.Headers)
 		applyString(&values.OTelServiceName, profile.OTel.ServiceName)
 		applyInt(&values.OTelExportTimeoutMS, profile.OTel.ExportTimeoutMS)
 		applyInt(&values.OTelExportIntervalMS, profile.OTel.ExportIntervalMS)

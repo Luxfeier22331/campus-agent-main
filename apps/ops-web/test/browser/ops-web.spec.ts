@@ -251,7 +251,6 @@ async function mockProviderConfig(page: Page) {
 			{ configured: false, role: "rag_reranker" },
 		],
 		sampledAt: "2026-07-16T00:00:00.000Z",
-		writeAllowed: true,
 	};
 	await page.route("**/api/ops/provider-config**", async (route) => {
 		const request = route.request();

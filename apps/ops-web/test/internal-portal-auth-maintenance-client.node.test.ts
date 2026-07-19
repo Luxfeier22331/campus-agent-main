@@ -26,7 +26,7 @@ describe("internal portal auth maintenance client", () => {
 		);
 		vi.stubGlobal("fetch", fetchFn);
 		const client = createInternalPortalAuthMaintenanceClientFromEnv({
-			OPS_WEB_INGESTION_CONTROL_OPS_TOKEN: "ops-token",
+			OPS_WEB_INTERNAL_TOKEN: "ops-token",
 			OPS_WEB_INGESTION_CONTROL_URL: "http://ingestion-control:8000/",
 		});
 

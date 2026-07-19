@@ -60,7 +60,7 @@ describe("campus Sentry privacy boundary", () => {
 		expect(event.exception?.values?.[0]?.value).toBe("ProviderError");
 	});
 
-	it("keeps the canonical canary hash and route while removing every raw sentinel", () => {
+	it("removes private request context and unapproved tags", () => {
 		const rawSentinels = [
 			"query-sentinel-0001",
 			"header-sentinel-0001",
@@ -69,20 +69,20 @@ describe("campus Sentry privacy boundary", () => {
 			"credential-sentinel-0001",
 		];
 		const event = sanitizeCampusSentryEvent({
-			exception: { values: [{ type: "CampusWebEdgeSentryCanaryError", value: rawSentinels[2] }] },
+			exception: { values: [{ type: "ProviderError", value: rawSentinels[2] }] },
 			extra: { synthetic_sentinels: rawSentinels },
 			request: {
 				data: { body: rawSentinels[2] },
 				headers: {
 					authorization: `Synthetic ${rawSentinels[4]}`,
-					"x-observability-canary": rawSentinels[1],
+					"x-private-header": rawSentinels[1],
 				},
 				method: "POST",
 				query_string: `query=${rawSentinels[0]}`,
-				url: `/api/internal/staging-smoke/observability/sentry-canary?query=${rawSentinels[0]}`,
+				url: `/api/chat/runs/run_private/cancel?token=${rawSentinels[0]}`,
 			},
 			tags: {
-				canary_sentinel_sha256: "a".repeat(64),
+				correlation_hash: "a".repeat(64),
 				raw_sentinel: rawSentinels[0],
 			},
 			type: undefined,
@@ -91,9 +91,9 @@ describe("campus Sentry privacy boundary", () => {
 
 		expect(event.request).toEqual({
 			method: "POST",
-			url: "/api/internal/staging-smoke/observability/sentry-canary",
+			url: "/api/chat/runs/:runId/cancel",
 		});
-		expect(event.tags).toEqual({ canary_sentinel_sha256: "a".repeat(64) });
+		expect(event.tags).toEqual({});
 		const serialized = JSON.stringify(event);
 		for (const sentinel of rawSentinels) {
 			expect(serialized).not.toContain(sentinel);

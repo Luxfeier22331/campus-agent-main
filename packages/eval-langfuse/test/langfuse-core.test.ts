@@ -6,7 +6,6 @@ import {
 	buildEvalDatasetManifest,
 	buildLangfuseDatasetItems,
 	buildLangfuseScoresFromRagasScoreBatch,
-	checkCollectorConfig,
 	deriveLangfuseTraceId,
 	publishLangfuseScores,
 	runRagasDatasetScoring,
@@ -864,35 +863,5 @@ describe("Langfuse trace evidence", () => {
 				traceId: "trace-001",
 			}),
 		).rejects.toThrow("forbidden Langfuse payload fields: clientSecret");
-	});
-});
-
-describe("Langfuse collector contracts", () => {
-	it("checks derived collector env", () => {
-		expect(
-			checkCollectorConfig({
-				OTEL_COLLECTOR_AXIOM_INGEST_TOKEN: "axiom-ingest",
-				OTEL_COLLECTOR_AXIOM_LOGS_DATASET: "campus-agent-staging-logs",
-				OTEL_COLLECTOR_AXIOM_METRICS_DATASET: "campus-agent-staging-metrics",
-				OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT: "https://us-east-1.aws.edge.axiom.co",
-				OTEL_COLLECTOR_AXIOM_TRACES_DATASET: "campus-agent-staging-traces",
-				OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER: "Basic staging",
-				OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT: "https://langfuse.example/api/public/otel",
-			}).passed,
-		).toBe(true);
-	});
-
-	it("requires Axiom metrics dataset for full fanout", () => {
-		const result = checkCollectorConfig({
-			OTEL_COLLECTOR_AXIOM_INGEST_TOKEN: "axiom-ingest",
-			OTEL_COLLECTOR_AXIOM_LOGS_DATASET: "campus-agent-staging-logs",
-			OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT: "https://us-east-1.aws.edge.axiom.co",
-			OTEL_COLLECTOR_AXIOM_TRACES_DATASET: "campus-agent-staging-traces",
-			OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER: "Basic staging",
-			OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT: "https://langfuse.example/api/public/otel",
-		});
-
-		expect(result.passed).toBe(false);
-		expect(result.errors).toContain("OTEL_COLLECTOR_AXIOM_METRICS_DATASET is required");
 	});
 });

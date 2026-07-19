@@ -38,7 +38,7 @@ function client(fetchFn: typeof fetch) {
 		fetchFn,
 		orgSlug: "campus",
 		projectSlugs: ["app-api", "campus-web"],
-		token: "event-read-token",
+		token: "sentry-auth-token",
 	});
 }
 
@@ -62,7 +62,7 @@ describe("Sentry client", () => {
 		expect(requestedUrl.searchParams.get("limit")).toBe("6");
 		expect(requestedUrl.searchParams.get("start")).toBe("2026-07-09T06:24:00.000Z");
 		expect(requestedUrl.searchParams.get("end")).toBe("2026-07-09T06:30:00.000Z");
-		expect(new Headers(init.headers).get("authorization")).toBe("Bearer event-read-token");
+		expect(new Headers(init.headers).get("authorization")).toBe("Bearer sentry-auth-token");
 		expect(init.signal).toBeInstanceOf(AbortSignal);
 		expect(response).toMatchObject({
 			dataState: "FRESH",

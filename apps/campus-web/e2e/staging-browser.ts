@@ -38,14 +38,8 @@ function optionalValue(value: string | undefined): string | null {
 
 function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): Args {
 	const args: Args = {
-		appApiBaseUrl:
-			optionalValue(env.STAGING_APP_API_BASE_URL) ??
-			optionalValue(env.APP_API_STAGING_BASE_URL) ??
-			DEFAULT_APP_API_BASE_URL,
-		campusBaseUrl:
-			optionalValue(env.STAGING_CAMPUS_BASE_URL) ??
-			optionalValue(env.CAMPUS_WEB_STAGING_BASE_URL) ??
-			DEFAULT_CAMPUS_BASE_URL,
+		appApiBaseUrl: optionalValue(env.APP_API_BASE_URL) ?? DEFAULT_APP_API_BASE_URL,
+		campusBaseUrl: optionalValue(env.CAMPUS_WEB_BASE_URL) ?? DEFAULT_CAMPUS_BASE_URL,
 		email: optionalValue(env.APP_API_SMOKE_IDENTITY_EMAIL)?.toLowerCase() ?? DEFAULT_EMAIL,
 		evidenceDir:
 			optionalValue(env.E2E_QA_EVIDENCE_DIR) ??
@@ -53,10 +47,7 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): Args {
 		headed: false,
 		name: optionalValue(env.APP_API_SMOKE_IDENTITY_NAME) ?? DEFAULT_NAME,
 		prompt: optionalValue(env.CAMPUS_BROWSER_E2E_PROMPT) ?? DEFAULT_PROMPT,
-		smokeAuthSecret:
-			optionalValue(env.APP_API_STAGING_SMOKE_AUTH_SECRET) ??
-			optionalValue(env.STAGING_APP_API_SMOKE_AUTH_SECRET) ??
-			"",
+		smokeAuthSecret: optionalValue(env.APP_API_STAGING_SMOKE_AUTH_SECRET) ?? "",
 		timeoutMs: Number.parseInt(optionalValue(env.CAMPUS_BROWSER_E2E_TIMEOUT_MS) ?? "120000", 10),
 	};
 	for (let index = 0; index < argv.length; index += 1) {
@@ -94,9 +85,7 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): Args {
 		throw new Error(`Unknown or incomplete argument: ${token}`);
 	}
 	if (!args.smokeAuthSecret) {
-		throw new Error(
-			"APP_API_STAGING_SMOKE_AUTH_SECRET or STAGING_APP_API_SMOKE_AUTH_SECRET is required.",
-		);
+		throw new Error("APP_API_STAGING_SMOKE_AUTH_SECRET is required.");
 	}
 	return args;
 }

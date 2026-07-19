@@ -52,7 +52,6 @@ export const ProviderConfigStatusSchema = z.object({
 		}),
 	),
 	sampledAt: IsoDateTimeSchema,
-	writeAllowed: z.boolean().optional(),
 });
 
 export type ProviderConfigStatus = z.infer<typeof ProviderConfigStatusSchema>;
@@ -133,7 +132,6 @@ export const OpsRequestSummarySchema = z.object({
 	diagnostics: z.array(z.string().min(1)),
 	durationMs: z.number().int().nonnegative().nullable(),
 	errorCode: z.string().min(1).nullable(),
-	principalHash: z.string().min(1),
 	principalType: z.string().min(1),
 	projectedAt: IsoDateTimeSchema,
 	questionPreview: z.string().min(1),

@@ -289,6 +289,12 @@ class RagasAgentScoreBatchTest(unittest.TestCase):
             work_dir = Path(raw_dir)
             input_path = work_dir / "agent-samples.json"
             output_path = work_dir / "agent-scores.json"
+            runtime_config_path = work_dir / "runtime-config.json"
+            runtime_config_path.write_text(
+                json.dumps({"schema_version": "ragas_runner_config.v1"}),
+                encoding="utf-8",
+            )
+            runtime_config_path.chmod(0o600)
             input_path.write_text(
                 json.dumps(
                     {
@@ -310,7 +316,16 @@ class RagasAgentScoreBatchTest(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            exit_code = agent_main(["--input", str(input_path), "--output", str(output_path)])
+            exit_code = agent_main(
+                [
+                    "--input",
+                    str(input_path),
+                    "--output",
+                    str(output_path),
+                    "--runtime-config",
+                    str(runtime_config_path),
+                ]
+            )
 
             self.assertEqual(exit_code, 0)
             payload = json.loads(output_path.read_text(encoding="utf-8"))

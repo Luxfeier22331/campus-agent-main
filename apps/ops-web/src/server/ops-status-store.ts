@@ -1,5 +1,4 @@
 import type {
-	OpsObservabilityResponse,
 	OpsOverviewResponse,
 	OpsOverviewWindow,
 	OpsRequestDetailResponse,
@@ -33,13 +32,10 @@ export interface OpsStatusStore {
 	getOverview(window: OpsOverviewWindow): Promise<OpsStatusOverview>;
 	getRequestDetail(requestId: string): Promise<OpsRequestDetailResponse | null>;
 	listRequests(query: OpsRequestListQuery): Promise<OpsRequestListResponse>;
-	verifyObservabilityReadAuditWrite(): Promise<void>;
 	verifyReadiness(): Promise<void>;
-	writeObservabilityReadAudit(input: OpsObservabilityReadAuditInput): Promise<void>;
 }
 
 export type OpsStatusStoreUnavailableReasonCode =
-	| "AUDIT_WRITE_DENIED"
 	| "DB_CONNECT_FAILED"
 	| "DB_PERMISSION_DENIED"
 	| "MISSING_SCHEMA"
@@ -56,20 +52,8 @@ export class OpsStatusStoreUnavailableError extends Error {
 	}
 }
 
-export interface OpsObservabilityReadAuditInput {
-	kind: OpsObservabilityResponse["kind"];
-	operatorId: string;
-	operatorPrincipalClass: "human" | "service";
-	readAt: string;
-	recordCount: number;
-	requestId: string;
-	traceId: string;
-	truncated: boolean;
-}
-
 export interface OpsStatusEnv {
 	DEPLOYMENT_ENVIRONMENT?: string;
-	LANGFUSE_BASE_URL?: string;
 	NODE_ENV?: string;
 	OPS_WEB_AXIOM_URL?: string;
 	OPS_WEB_DATABASE_CA_CERT_PATH?: string;
@@ -79,15 +63,13 @@ export interface OpsStatusEnv {
 	OPS_WEB_DB_IDLE_TIMEOUT_MS?: string;
 	OPS_WEB_DB_POOL_MAX?: string;
 	OPS_WEB_DB_STATEMENT_TIMEOUT_MS?: string;
-	OPS_WEB_EXECUTION_CONTROL_METRICS_TOKEN?: string;
+	OPS_WEB_INTERNAL_TOKEN?: string;
 	OPS_WEB_EXECUTION_CONTROL_URL?: string;
 	OPS_WEB_FIXTURE_MODE?: string;
 	OPS_WEB_LANGFUSE_URL?: string;
-	OPS_WEB_PRINCIPAL_HASH_SECRET?: string;
 	OPS_WEB_SENTRY_BASE_URL?: string;
-	OPS_WEB_SENTRY_ORG_SLUG?: string;
 	OPS_WEB_TEMPORAL_URL?: string;
-	TEMPORAL_BASE_URL?: string;
+	SENTRY_ORG_SLUG?: string;
 }
 
 export interface PgOpsStatusStoreDatabase {
@@ -98,9 +80,7 @@ export interface PgOpsStatusStoreDatabase {
 	getRequestTrends(since: Date, bucketMinutes: number): Promise<OpsRequestTrendRow[]>;
 	listRequests(query: OpsRequestListQuery, since: Date): Promise<OpsRequestRow[]>;
 	summarizeRequests(query: OpsRequestListQuery, since: Date): Promise<OpsRequestSummaryTotals>;
-	verifyObservabilityReadAuditWrite(): Promise<void>;
 	verifyReadiness(): Promise<void>;
-	writeObservabilityReadAudit(input: OpsObservabilityReadAuditInput): Promise<void>;
 }
 
 export interface OpsRequestSummaryTotals {
@@ -130,7 +110,6 @@ export interface OpsRequestRow {
 	conversationId: string;
 	durationMs: number | null;
 	errorCode: string | null;
-	principalId?: string | null;
 	principalType: string;
 	projectedAt: Date;
 	questionPreview: string;
@@ -189,9 +168,7 @@ export function createUnavailableOpsStatusStore(
 		getOverview: fail,
 		getRequestDetail: fail,
 		listRequests: fail,
-		verifyObservabilityReadAuditWrite: fail,
 		verifyReadiness: fail,
-		writeObservabilityReadAudit: fail,
 	};
 }
 
@@ -205,13 +182,6 @@ export function createOpsStatusStoreFromEnv(env: OpsStatusEnv = process.env): Op
 		throw new OpsStatusStoreUnavailableError(
 			"OPS_WEB_DATABASE_URL_MISSING",
 			"OPS_WEB_DATABASE_URL is required unless OPS_WEB_FIXTURE_MODE=1.",
-		);
-	}
-	const principalHashSecret = env.OPS_WEB_PRINCIPAL_HASH_SECRET?.trim();
-	if (!principalHashSecret) {
-		throw new OpsStatusStoreUnavailableError(
-			"OPS_STATUS_STORE_UNAVAILABLE",
-			"OPS_WEB_PRINCIPAL_HASH_SECRET is required.",
 		);
 	}
 	const databaseConfig = resolvePostgresTlsConfig({
@@ -231,19 +201,18 @@ export function createOpsStatusStoreFromEnv(env: OpsStatusEnv = process.env): Op
 		}),
 		temporalTaskQueues: createTemporalTaskQueueSource({
 			baseUrl: env.OPS_WEB_EXECUTION_CONTROL_URL ?? "",
-			bearerToken: env.OPS_WEB_EXECUTION_CONTROL_METRICS_TOKEN ?? "",
+			bearerToken: env.OPS_WEB_INTERNAL_TOKEN ?? "",
 		}),
 		observabilityLinks: {
 			axiom: env.OPS_WEB_AXIOM_URL,
-			langfuse: env.OPS_WEB_LANGFUSE_URL ?? env.LANGFUSE_BASE_URL,
+			langfuse: env.OPS_WEB_LANGFUSE_URL,
 			sentry:
 				sentryTraceExplorerUrl({
 					baseUrl: env.OPS_WEB_SENTRY_BASE_URL,
-					orgSlug: env.OPS_WEB_SENTRY_ORG_SLUG,
+					orgSlug: env.SENTRY_ORG_SLUG,
 				}) ?? undefined,
-			temporal: env.OPS_WEB_TEMPORAL_URL ?? env.TEMPORAL_BASE_URL,
+			temporal: env.OPS_WEB_TEMPORAL_URL,
 		},
-		principalHashSecret,
 	});
 }
 

@@ -33,15 +33,13 @@ describe("campus-web published reader sync", () => {
 		);
 	});
 
-	it("resolves object store config with derived credentials preferred over shared credentials", () => {
+	it("resolves object store config from the derived identity", () => {
 		expect(
 			resolvePublishedReaderObjectStoreConfig({
-				OBJECT_STORE_ACCESS_KEY: "shared-access",
 				OBJECT_STORE_BUCKET_DERIVED: "campus-agent-derived",
 				OBJECT_STORE_DERIVED_ACCESS_KEY: "derived-access",
 				OBJECT_STORE_DERIVED_SECRET_KEY: "derived-secret",
 				OBJECT_STORE_ENDPOINT: "http://localhost:9000",
-				OBJECT_STORE_SECRET_KEY: "shared-secret",
 			}),
 		).toMatchObject({
 			accessKeyId: "derived-access",
@@ -72,10 +70,8 @@ describe("campus-web published reader sync", () => {
 	it("uses derived bucket credentials for published reader object store access", () => {
 		expect(
 			resolvePublishedReaderObjectStoreCredentials({
-				OBJECT_STORE_ACCESS_KEY: "shared-access",
 				OBJECT_STORE_DERIVED_ACCESS_KEY: "derived-access",
 				OBJECT_STORE_DERIVED_SECRET_KEY: "derived-secret",
-				OBJECT_STORE_SECRET_KEY: "shared-secret",
 			}),
 		).toEqual({
 			accessKeyId: "derived-access",
@@ -90,9 +86,7 @@ describe("campus-web published reader sync", () => {
 				OBJECT_STORE_BUCKET_DERIVED: "campus-agent-derived",
 				OBJECT_STORE_ENDPOINT: "http://localhost:9000",
 			}),
-		).toThrow(
-			"missing object-store credentials: provide OBJECT_STORE_ACCESS_KEY/OBJECT_STORE_SECRET_KEY or OBJECT_STORE_DERIVED_ACCESS_KEY/OBJECT_STORE_DERIVED_SECRET_KEY",
-		);
+		).toThrow("OBJECT_STORE_DERIVED_ACCESS_KEY is required");
 	});
 
 	it("resolves docs sync manifest selection from CLI args only", () => {

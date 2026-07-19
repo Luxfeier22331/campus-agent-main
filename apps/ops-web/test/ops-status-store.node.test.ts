@@ -157,22 +157,4 @@ describe("PostgreSQL ops status store", () => {
 		expect(result.window).toBe("1h");
 		expect(result.data).toHaveLength(1);
 	});
-
-	it("writes a raw observability read audit", async () => {
-		const db = createFakeOpsDb();
-		const store = createPgOpsStatusStore({ db, now: () => now });
-		await store.writeObservabilityReadAudit({
-			kind: "logs",
-			operatorId: "operator:v1:human:abc",
-			operatorPrincipalClass: "human",
-			readAt: now.toISOString(),
-			recordCount: 1,
-			requestId: "req_pg_001",
-			traceId: "trace_pg_001",
-			truncated: false,
-		});
-
-		expect(db.auditEvents).toHaveLength(1);
-		expect(db.auditEvents[0]).toMatchObject({ kind: "logs", requestId: "req_pg_001" });
-	});
 });

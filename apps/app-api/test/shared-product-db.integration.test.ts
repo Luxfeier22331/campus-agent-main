@@ -58,7 +58,6 @@ describe("app-api shared product DB integration", () => {
 
 	beforeAll(async () => {
 		env = buildSharedDbIntegrationEnv({
-			managementConnectionString: postgres.managementConnectionString,
 			runtimeConnectionString: postgres.runtimeConnectionString,
 		});
 
@@ -393,11 +392,9 @@ describe("app-api shared product DB integration", () => {
 		const suffix = Date.now().toString(36);
 		const ownerUserId = `memory-owner-${suffix}`;
 		const firstEnv = buildSharedDbIntegrationEnv({
-			managementConnectionString: postgres.managementConnectionString,
 			runtimeConnectionString: postgres.runtimeConnectionString,
 		});
 		const secondEnv = buildSharedDbIntegrationEnv({
-			managementConnectionString: postgres.managementConnectionString,
 			runtimeConnectionString: postgres.runtimeConnectionString,
 		});
 		const firstStore = createPgProfileMemoryStore(firstEnv);
