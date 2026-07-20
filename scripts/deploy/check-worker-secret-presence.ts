@@ -29,8 +29,10 @@ export interface WorkerSecretAppStatus {
 	error: string | null;
 	missing_secrets: string[];
 	ready: boolean;
+	recommended_delete_commands: string[];
 	recommended_put_commands: string[];
 	required_secrets: string[];
+	unexpected_secrets: string[];
 	worker_name: string | null;
 	wrangler_config_path: string;
 }
@@ -133,13 +135,42 @@ export function buildSecretListCommand({
 		join(root, "scripts", "deploy", "run-wrangler-command.ts"),
 		"--cwd",
 		join(root, appPath),
-		"secret",
+		"versions",
 		"list",
 	];
 	if (envName) {
 		command.push("--env", envName);
 	}
-	command.push("--format", "json");
+	command.push("--json");
+	return command;
+}
+
+export function buildSecretViewCommand({
+	root,
+	appPath,
+	versionId,
+	envName,
+}: {
+	root: string;
+	appPath: string;
+	versionId: string;
+	envName: string | null;
+}): string[] {
+	const command = [
+		"pnpm",
+		"exec",
+		"tsx",
+		join(root, "scripts", "deploy", "run-wrangler-command.ts"),
+		"--cwd",
+		join(root, appPath),
+		"versions",
+		"view",
+		versionId,
+	];
+	if (envName) {
+		command.push("--env", envName);
+	}
+	command.push("--json");
 	return command;
 }
 
@@ -161,8 +192,38 @@ export function buildSecretPutCommand({
 		join(root, "scripts", "deploy", "run-wrangler-command.ts"),
 		"--cwd",
 		join(root, appPath),
+		"versions",
 		"secret",
 		"put",
+		secretName,
+	];
+	if (envName) {
+		command.push("--env", envName);
+	}
+	return command;
+}
+
+export function buildSecretDeleteCommand({
+	root,
+	appPath,
+	secretName,
+	envName,
+}: {
+	root: string;
+	appPath: string;
+	secretName: string;
+	envName: string | null;
+}): string[] {
+	const command = [
+		"pnpm",
+		"exec",
+		"tsx",
+		join(root, "scripts", "deploy", "run-wrangler-command.ts"),
+		"--cwd",
+		join(root, appPath),
+		"versions",
+		"secret",
+		"delete",
 		secretName,
 	];
 	if (envName) {
@@ -182,7 +243,71 @@ export function listConfiguredWorkerSecrets({
 	envName: string | null;
 	runCommand?: RunCommand;
 }): { auditCommand: string; configuredSecrets: string[] } {
-	const command = buildSecretListCommand({ root, appPath, envName });
+	const listCommand = buildSecretListCommand({ root, appPath, envName });
+	const versions = runWranglerJsonCommand({
+		appPath,
+		command: listCommand,
+		operation: "versions list",
+		runCommand,
+	});
+	if (!Array.isArray(versions)) {
+		throw new Error(`Unexpected wrangler versions list payload for ${appPath}: expected list`);
+	}
+	const latestVersion = versions
+		.filter(
+			(item): item is Record<string, unknown> =>
+				isRecord(item) && typeof item.id === "string" && item.id.trim().length > 0,
+		)
+		.toSorted((left, right) => versionOrder(right) - versionOrder(left))[0];
+	if (!latestVersion || typeof latestVersion.id !== "string") {
+		throw new Error(`Wrangler returned no Worker versions for ${appPath}`);
+	}
+
+	const viewCommand = buildSecretViewCommand({
+		root,
+		appPath,
+		versionId: latestVersion.id,
+		envName,
+	});
+	const version = runWranglerJsonCommand({
+		appPath,
+		command: viewCommand,
+		operation: "versions view",
+		runCommand,
+	});
+	const bindings =
+		isRecord(version) && isRecord(version.resources) ? version.resources.bindings : null;
+	if (!Array.isArray(bindings)) {
+		throw new Error(`Unexpected wrangler versions view payload for ${appPath}: missing bindings`);
+	}
+	const configuredSecrets = [
+		...new Set(
+			bindings
+				.map((item) =>
+					isRecord(item) && item.type === "secret_text" && typeof item.name === "string"
+						? item.name.trim()
+						: "",
+				)
+				.filter(Boolean),
+		),
+	].sort();
+	return {
+		auditCommand: `${shellJoin(listCommand)} && ${shellJoin(viewCommand)}`,
+		configuredSecrets,
+	};
+}
+
+function runWranglerJsonCommand({
+	appPath,
+	command,
+	operation,
+	runCommand,
+}: {
+	appPath: string;
+	command: string[];
+	operation: string;
+	runCommand: RunCommand;
+}): unknown {
 	const timeoutSeconds = readPositiveIntEnv(
 		"WORKER_SECRET_AUDIT_TIMEOUT_SECONDS",
 		defaultWranglerTimeoutSeconds,
@@ -211,16 +336,16 @@ export function listConfiguredWorkerSecrets({
 			if (attempt === maxAttempts) {
 				const attemptDetail = maxAttempts > 1 ? ` after ${maxAttempts} attempts` : "";
 				throw new Error(
-					`wrangler secret list timed out for ${appPath} after ${timeoutSeconds}s${attemptDetail}`,
+					`wrangler ${operation} timed out for ${appPath} after ${timeoutSeconds}s${attemptDetail}`,
 				);
 			}
 		}
 	}
 	if (!result) {
 		if (lastTimeout) {
-			throw new Error(`wrangler secret list timed out for ${appPath} after ${timeoutSeconds}s`);
+			throw new Error(`wrangler ${operation} timed out for ${appPath} after ${timeoutSeconds}s`);
 		}
-		throw new Error(`wrangler secret list failed to start for ${appPath}`);
+		throw new Error(`wrangler ${operation} failed to start for ${appPath}`);
 	}
 
 	if (result.status !== 0) {
@@ -238,24 +363,31 @@ export function listConfiguredWorkerSecrets({
 			parts.push(guidance);
 		}
 		throw new Error(
-			`wrangler secret list failed for ${appPath}: ${
+			`wrangler ${operation} failed for ${appPath}: ${
 				parts.length > 0 ? parts.join(" | ") : `exit_code=${result.status ?? 1}`
 			}`,
 		);
 	}
 
-	const payload = JSON.parse(result.stdout || "[]") as unknown;
-	if (!Array.isArray(payload)) {
-		throw new Error(`Unexpected wrangler secret list payload for ${appPath}: expected list`);
+	try {
+		return JSON.parse(result.stdout || "null") as unknown;
+	} catch (error) {
+		throw new Error(
+			`Invalid JSON from wrangler ${operation} for ${appPath}: ${
+				error instanceof Error ? error.message : String(error)
+			}`,
+		);
 	}
-	const configuredSecrets = [
-		...new Set(
-			payload
-				.map((item) => (isRecord(item) && typeof item.name === "string" ? item.name.trim() : ""))
-				.filter(Boolean),
-		),
-	].sort();
-	return { auditCommand: shellJoin(command), configuredSecrets };
+}
+
+function versionOrder(version: Record<string, unknown>): number {
+	if (typeof version.number === "number" && Number.isFinite(version.number)) {
+		return version.number;
+	}
+	const metadata = isRecord(version.metadata) ? version.metadata : null;
+	const createdOn = metadata && typeof metadata.created_on === "string" ? metadata.created_on : "";
+	const timestamp = Date.parse(createdOn);
+	return Number.isNaN(timestamp) ? 0 : timestamp;
 }
 
 export function collectWorkerSecretPresence({
@@ -280,8 +412,10 @@ export function collectWorkerSecretPresence({
 			error: null,
 			missing_secrets: [],
 			ready: false,
+			recommended_delete_commands: [],
 			recommended_put_commands: [],
 			required_secrets: [],
+			unexpected_secrets: [],
 			worker_name: null,
 			wrangler_config_path: wranglerConfigPath,
 		};
@@ -295,12 +429,6 @@ export function collectWorkerSecretPresence({
 			appStatus.required_secrets = requiredSecrets;
 			appStatus.audit_command = shellJoin(buildSecretListCommand({ root, appPath, envName }));
 
-			if (requiredSecrets.length === 0) {
-				appStatus.ready = true;
-				apps[appPath] = appStatus;
-				continue;
-			}
-
 			const { auditCommand, configuredSecrets } = listConfiguredWorkerSecrets({
 				root,
 				appPath,
@@ -310,13 +438,20 @@ export function collectWorkerSecretPresence({
 			const missingSecrets = requiredSecrets.filter(
 				(secretName) => !configuredSecrets.includes(secretName),
 			);
+			const unexpectedSecrets = configuredSecrets.filter(
+				(secretName) => !requiredSecrets.includes(secretName),
+			);
 			appStatus.audit_command = auditCommand;
 			appStatus.configured_secrets = configuredSecrets;
 			appStatus.missing_secrets = missingSecrets;
+			appStatus.unexpected_secrets = unexpectedSecrets;
+			appStatus.recommended_delete_commands = unexpectedSecrets.map((secretName) =>
+				shellJoin(buildSecretDeleteCommand({ root, appPath, secretName, envName })),
+			);
 			appStatus.recommended_put_commands = missingSecrets.map((secretName) =>
 				shellJoin(buildSecretPutCommand({ root, appPath, secretName, envName })),
 			);
-			appStatus.ready = missingSecrets.length === 0;
+			appStatus.ready = missingSecrets.length === 0 && unexpectedSecrets.length === 0;
 		} catch (error) {
 			appStatus.error = error instanceof Error ? error.message : String(error);
 		}
@@ -619,8 +754,14 @@ function printTextReport(status: WorkerSecretPresenceStatus): void {
 		if (appStatus.missing_secrets.length > 0) {
 			console.log(`${appPath}: missing_secrets=${appStatus.missing_secrets.join(",")}`);
 		}
+		if (appStatus.unexpected_secrets.length > 0) {
+			console.log(`${appPath}: unexpected_secrets=${appStatus.unexpected_secrets.join(",")}`);
+		}
 		for (const command of appStatus.recommended_put_commands) {
 			console.log(`${appPath}: recommended_put_command=${command}`);
+		}
+		for (const command of appStatus.recommended_delete_commands) {
+			console.log(`${appPath}: recommended_delete_command=${command}`);
 		}
 		if (appStatus.error) {
 			console.log(`${appPath}: error=${appStatus.error}`);

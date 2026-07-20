@@ -18,6 +18,7 @@ import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 function run(cwd, command, args, options = {}) {
+	const { env: optionEnv = {}, ...runOptions } = options;
 	return execFileSync(command, args, {
 		cwd,
 		encoding: "utf8",
@@ -25,8 +26,9 @@ function run(cwd, command, args, options = {}) {
 			...process.env,
 			PATH: `${join(repoRoot, "node_modules/.bin")}:${process.env.PATH ?? ""}`,
 			TURBO_TELEMETRY_DISABLED: "1",
+			...optionEnv,
 		},
-		...options,
+		...runOptions,
 	});
 }
 
@@ -99,7 +101,7 @@ test("real Git and Turbo routing composes mixed changes without widening release
 		assert.equal(result.release.kubernetes, false);
 		assert.equal(result.browser, false);
 		assert.equal(result.lanes.includes("docs"), true);
-		assert.equal(result.lanes.includes("node"), true);
+		assert.equal(result.affectedPackages.includes("campus-web"), true);
 		assert.equal(result.lanes.includes("otel"), true);
 	});
 });
@@ -142,5 +144,23 @@ test("lockfile importer and transitive changes select only reachable workspaces"
 		assert.equal(result.affectedPackages.includes("source-collector"), true);
 		assert.equal(result.affectedPackages.includes("@campus-agent/dining"), false);
 		assert.equal(result.release.workers.includes("campus-web"), false);
+	});
+});
+
+test("Turbo task inputs route root ingestion configuration without planner package lists", async () => {
+	await withRepository((repository) => {
+		const base = run(repository, "git", ["rev-parse", "HEAD"]).trim();
+		appendFileSync(join(repository, "configs/ingestion/tasks.v1.json"), "\n");
+		const head = commit(repository, "ingestion configuration fixture");
+		const dryRun = JSON.parse(
+			run(repository, "pnpm", ["exec", "turbo", "run", "test", "--affected", "--dry=json"], {
+				env: { TURBO_SCM_BASE: base, TURBO_SCM_HEAD: head },
+			}),
+		);
+		const packages = new Set(dryRun.tasks.map((task) => task.package));
+		assert.equal(packages.has("ingest-core"), true);
+		assert.equal(packages.has("ingestion-control"), true);
+		assert.equal(packages.has("source-collector"), true);
+		assert.equal(packages.has("eval-langfuse"), false);
 	});
 });

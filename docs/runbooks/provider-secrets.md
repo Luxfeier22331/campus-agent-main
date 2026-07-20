@@ -50,8 +50,11 @@ status: active
 pnpm exec tsx scripts/deploy/check-worker-secret-presence.ts --env staging --json
 ```
 
-该命令只查询 Cloudflare Worker 平台要求的 Secret 是否存在，不读取值，也不证明模型 Provider
-Config 已创建、验证或激活。在线 Provider Config 必须另行确认：
+该命令读取目标环境最新 Worker version 的 Secret 名称，不读取值。远端名称必须与
+`wrangler.toml` 的 `[env.<name>.secrets].required` 精确一致；缺失或多余字段都会使检查失败。
+修正命令使用 `wrangler versions secret put/delete` 创建新的候选 version，不通过
+`wrangler secret put/delete` 直接切换流量。该检查不证明模型 Provider Config 已创建、验证或
+激活。在线 Provider Config 必须另行确认：
 
 1. 目标 role bundle 已验证并激活；
 2. execution-control 只用 reader role 读取 active revision，并能解密对应 key ID；

@@ -10,10 +10,12 @@ status: active
 本文说明仓库稳定验证命令的含义和选择规则，不复制 GitHub Actions job graph、runner 配置、
 branch protection、部署 secret、镜像清单或环境状态。
 
-- `scripts/ci/change-plan.mjs` 维护变更面到验证、数据库、浏览器和发布面的统一路由；
-- `.github/workflows/pr.yml` 维护自动 PR 轻量治理检查；
+- Turbo package graph 与 task inputs 维护 JS/TS 受影响任务；
+- `scripts/ci/change-plan.mjs` 维护数据库、浏览器、原生语言和发布等跨工具路由；
+- `.github/workflows/pr.yml` 维护自动 PR 轻量静态门禁；
 - `.github/workflows/execution-runtime-publish.yml` 维护 `main` 候选产物发布和 GitOps 推广；
-- `.github/workflows/scheduled-health.yml` 提供按需手动健康检查，不设置定时任务；
+- `.github/workflows/health.yml` 提供按单一技术域触发的手动健康检查，不设置定时任务；
+- `.github/workflows/verify.yml` 提供按变更范围触发的重型验证，并使用签名 Remote Cache；
 - root `package.json` 与所属 package script 维护命令实现；
 - app README 说明模块本地命令；
 - runbook 说明 staging、release 和真实外部依赖验收。
@@ -35,15 +37,16 @@ branch protection、部署 secret、镜像清单或环境状态。
 | --- | --- | --- |
 | `pre-commit` | staged file 基础格式、解析、冲突和 secret hygiene | typecheck、test、build 或 runtime |
 | `pnpm ci:repo` | Biome、Markdownlint、EditorConfig、ADR identity 与新增中文叙述检查 | 架构正确性、业务行为或 E2E |
-| `pnpm ci:pr origin/main HEAD` | PR 自动执行的变更文件静态检查、secret hygiene、planner/workflow 契约及按需合同、配置和依赖治理 | typecheck、unit test、build、数据库、浏览器或部署行为 |
+| `pnpm ci:fast origin/main HEAD` | 变更文件静态检查、secret hygiene、planner/workflow 契约及按需合同、配置和依赖治理 | typecheck、unit test、build、数据库、浏览器或部署行为 |
+| `pnpm ci:pr origin/main HEAD` | 自动 PR 使用的 `ci:fast` 别名；检查变更文件、secret、workflow/planner 合同及按需合同、配置和依赖治理 | typecheck、unit test、build、数据库、浏览器或部署行为 |
 | `pnpm ci:affected origin/main HEAD` | 在本地按统一计划运行代码 profile，包括受影响的 Node、Worker、Go、Rust、OTel 与基础设施检查 | Docker、数据库、浏览器、staging 或 release 验收 |
 | `pnpm ci:affected:docker origin/main HEAD` | 手动构建受影响镜像的最浅验证阶段 | 最终镜像发布、部署或运行时健康 |
 | `pnpm ci:affected:database origin/main HEAD` | 手动运行受影响的隔离 PostgreSQL 套件 | staging 或 production 数据库状态 |
 | `pnpm ci:affected:browser origin/main HEAD` | 手动运行受影响的 Campus Web browser smoke | 已部署环境、真实认证或完整浏览器回归 |
 | `pnpm ci:config` | GitHub Actions 的 actionlint 与 zizmor 检查 | workflow 已成功运行或部署已完成 |
 | `pnpm ci:deps` | pnpm、uv、Cargo 与 Go dependency graph 的 OSV 扫描 | application behavior 或 image 漏洞 |
-| `pnpm ci:typescript` | 一般 JS/TS 模块的 typecheck 与 unit test | 专用 ingestion/eval 检查和 Worker runtime |
-| `pnpm ci:typescript:full` | 全量 JS/TS 模块、Worker 与 Ops Web build | 外部 integration、staging 或 release 检查 |
+| `pnpm ci:typescript` | 全部 JS/TS package 的通用 typecheck 与 unit test | Python Ragas、Worker runtime、外部 integration 或浏览器 |
+| `pnpm ci:typescript:full` | 全量 JS/TS package、Worker 与 Ops Web build | 外部 integration、staging 或 release 检查 |
 | `pnpm ci:worker` | Worker runtime test 与声明的 Worker/app build | browser E2E 或 production deploy |
 | `pnpm ci:contracts` | JSON Schema/OpenAPI 生成、同步与合同 invariant | consumer runtime 行为 |
 | `pnpm ci:go` | execution-control Go static check 与 test | Temporal server 或已部署 runtime |
@@ -90,10 +93,11 @@ Campus Web 浏览器验证分为三个边界：
 | dependency manifest 或 lockfile | `pnpm ci:deps` 与受影响模块检查 |
 | K8s、Docker、Terraform 或 deployment script | 所属静态验证、build/render 检查与明确的环境验收 |
 
-具体变更范围分类以 `scripts/ci/change-plan.mjs` 及其测试为准。计划同时读取重命名前后路径和
-删除路径；自动 PR 运行 `pnpm ci:pr origin/main HEAD`，开发者按风险显式选择 code、Docker、
-database 或 browser profile。README 是否触发模块代码检查、哪些 image 需要发布等实现细节
-不得复制到本文。
+JS/TS 任务选择以 Turbo package graph、task inputs 与其集成测试为准；数据库、浏览器、原生语言
+和发布分类以 `scripts/ci/change-plan.mjs` 及其测试为准。两者都读取重命名前后路径和删除路径。
+自动 PR 运行 `pnpm ci:pr origin/main HEAD`，不运行 package typecheck、unit test、build、数据库或
+浏览器验证；开发者在本地运行受影响模块检查，并按风险显式选择 code、Docker、database 或
+browser profile。README 是否触发模块代码检查、哪些 image 需要发布等实现细节不得复制到本文。
 
 ## 模块与集成测试
 
@@ -111,7 +115,7 @@ integration test 必须使用隔离资源，不能缓存成功结果，也不能
 
 ## CI 与缓存
 
-- Turbo 负责 JS/TS task selection 与 task-result cache；读取 package 外文件的 task 必须在
+- Turbo `--affected` 负责 JS/TS task selection 与 task-result cache；读取 package 外文件的 task 必须在
   `turbo.json` 中声明 input；
 - Campus Web 文档 fixture 是声明输入和输出的 Turbo 任务；浏览器 job 先恢复或构建一次，Worker
   Playwright 初始化不得重复运行 Rspress 构建；
@@ -120,6 +124,8 @@ integration test 必须使用隔离资源，不能缓存成功结果，也不能
 - 不缓存或上传 `node_modules`；
 - runner concurrency、persistent cache 和 remote cache credential 由 workflow 与 CI 环境拥有；
   正确性不得依赖自托管 Runner 上次运行留下的工作目录；
+- 手动 `verify` 通过 `base_ref` 选择比较基线，`docker`、`database` 和 `browser` profile 复用
+  变更计划；Remote Cache 配置完整时启用，缺失时正常执行；
 - 单 Runner 保持单并发，优先减少重复安装、重复构建和无关验证面；
 - `manual-health` 每次只接受一个明确 profile，且不设置 cron 或隐式 `all`；
 - 评估 CI 性能时分开记录 queue time、cold-cache time 与 hot-cache time。
@@ -142,7 +148,8 @@ integration test 必须使用隔离资源，不能缓存成功结果，也不能
 - 完整镜像构建、SBOM、镜像扫描、产物发布、GitOps promotion 与 Cloudflare traffic selection；
 - RAG release、真实 Langfuse/Ragas scoring 与发布验收。
 
-自动 PR 不运行 Docker lint/build、Testcontainers、浏览器、staging 或 release。需要镜像证据时，
+自动 PR 不运行 Testcontainers、Docker lint/build、浏览器、staging 或 release。migration/schema
+变更的隔离数据库套件由开发者在本地运行，或通过手动 database profile 明确触发。需要镜像证据时，
 开发者显式运行 Docker profile；`main` 发布链路才构建并发布受影响最终镜像。
 
 这些工作按所属 runbook 执行。source repo 中的 K8s base、Terraform source 或 workflow 成功，

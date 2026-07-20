@@ -12,15 +12,6 @@ import {
 	workersForPackages,
 } from "./ci-surfaces.mjs";
 
-const INGEST_PACKAGES = new Set([
-	"ingest-core",
-	"ingestion-contracts",
-	"ingestion-control",
-	"source-collector",
-]);
-
-const EVAL_PACKAGES = new Set(["eval-langfuse", "ragas-runner"]);
-
 const DATABASE_SUITES = Object.freeze({
 	APP_API_MIGRATION: "app-api-migration",
 	APP_API_PRODUCT: "app-api-product",
@@ -163,29 +154,12 @@ export function buildChangePlan({
 	dockerIgnorePatterns = [],
 	nodeDependencyChanged = false,
 	nodeReleaseGraphChanged = false,
-	workspacePackageNames = affectedPackages,
 }) {
 	const normalizedFiles = [...new Set(files.filter(Boolean))].sort();
 	const normalizedContentFiles = [...new Set(contentFiles.filter(Boolean))].sort();
 	const runtimeFiles = normalizedContentFiles.filter(isRuntimeFile);
 	const releaseInputFiles = normalizedFiles.filter(isRuntimeFile);
 	const packageNames = new Set(affectedPackages);
-	const hasIngestionConfigChange = hasAny(runtimeFiles, (file) =>
-		startsWithAny(file, ["configs/ingestion/", "configs/sources/"]),
-	);
-	const ingestPackageNames = new Set([...packageNames].filter((name) => INGEST_PACKAGES.has(name)));
-	if (hasIngestionConfigChange) {
-		for (const name of INGEST_PACKAGES) {
-			ingestPackageNames.add(name);
-		}
-	}
-	const evalPackageNames = new Set([...packageNames].filter((name) => EVAL_PACKAGES.has(name)));
-	const nodePackageNames = new Set(
-		[...packageNames].filter(
-			(name) =>
-				workspacePackageNames.has(name) && !INGEST_PACKAGES.has(name) && !EVAL_PACKAGES.has(name),
-		),
-	);
 	const lanes = new Set();
 	const preflightChecks = new Set();
 	const databaseSuites = new Set();
@@ -295,21 +269,6 @@ export function buildChangePlan({
 				)),
 		"contracts",
 	);
-	addIf(lanes, hasNonCiRuntimeChange && nodePackageNames.size > 0, "node");
-	addIf(
-		lanes,
-		hasNonCiRuntimeChange && (ingestPackageNames.size > 0 || hasIngestionConfigChange),
-		"ingest",
-	);
-	addIf(
-		lanes,
-		hasNonCiRuntimeChange &&
-			(evalPackageNames.size > 0 ||
-				hasAny(runtimeFiles, (file) =>
-					startsWithAny(file, ["packages/eval-langfuse/", "packages/ragas-runner/"]),
-				)),
-		"eval",
-	);
 	addIf(
 		lanes,
 		hasAny(
@@ -401,23 +360,6 @@ export function buildChangePlan({
 		hasOpsDatabaseChange || hasSharedProductSchemaChange,
 		DATABASE_SUITES.OPS_WEB,
 	);
-	const databaseNodeFilters = new Set();
-	if (
-		databaseSuites.has(DATABASE_SUITES.APP_API_MIGRATION) ||
-		databaseSuites.has(DATABASE_SUITES.APP_API_PRODUCT)
-	) {
-		databaseNodeFilters.add("app-api...");
-		databaseNodeFilters.add("transport-publisher...");
-	}
-	if (databaseSuites.has(DATABASE_SUITES.OPS_WEB)) {
-		databaseNodeFilters.add("app-api...");
-		databaseNodeFilters.add("ops-web...");
-		databaseNodeFilters.add("transport-publisher...");
-	}
-	if (databaseSuites.has(DATABASE_SUITES.INGESTION_CONTROL)) {
-		databaseNodeFilters.add("ingestion-control...");
-	}
-
 	if (nodeReleaseGraphChanged) {
 		for (const image of imagesForPackages(packageNames)) {
 			dockerChecks.add(image);
@@ -428,25 +370,6 @@ export function buildChangePlan({
 		(nodeReleaseGraphChanged && packageNames.has("campus-web")) ||
 		hasAny(runtimeFiles, (file) => matchesAny(file, BROWSER_INPUTS));
 
-	const nodeInstallPackages = new Set(nodePackageNames);
-	if (lanes.has("contracts")) {
-		nodeInstallPackages.add("campus-contracts");
-		nodeInstallPackages.add("ingestion-contracts");
-	}
-	if (lanes.has("ingest")) {
-		for (const name of ingestPackageNames) {
-			nodeInstallPackages.add(name);
-		}
-	}
-	if (lanes.has("eval")) {
-		for (const name of evalPackageNames) {
-			nodeInstallPackages.add(name);
-		}
-	}
-	for (const worker of releaseWorkers) {
-		nodeInstallPackages.add(worker);
-	}
-	const nodeFilters = sorted(new Set([...nodeInstallPackages].map((name) => `${name}...`)));
 	const reasons = normalizedFiles
 		.map((file) => ({
 			file,
@@ -459,36 +382,26 @@ export function buildChangePlan({
 		contracts: lanes.has("contracts"),
 		database: sorted(databaseSuites),
 		docker: uniqueDockerChecks(dockerChecks),
-		evalFilters: sorted(evalPackageNames),
 		go: lanes.has("go"),
 		infra: lanes.has("infra"),
-		ingestFilters: sorted(ingestPackageNames),
-		nodeFilters: sorted(nodePackageNames),
+		ragas: packageNames.has("ragas-runner") || dependencyEcosystems.has("python"),
 		rust: lanes.has("rust"),
-		workerFilters: sorted(
-			new Set([...packageNames].filter((name) => name === "app-api" || name === "campus-web")),
-		),
 	};
 
 	return {
 		affectedPackages: sorted(packageNames),
 		browser,
 		changedFileCount: normalizedFiles.length,
-		databaseNodeFilters: sorted(databaseNodeFilters),
-		databaseSuites: sorted(databaseSuites),
 		dependencyEcosystems: sorted(dependencyEcosystems),
-		dockerChecks: uniqueDockerChecks(dockerChecks),
 		lanes: sorted(lanes),
-		nodeFilters,
 		preflightChecks: sorted(preflightChecks),
-		pythonEval: packageNames.has("ragas-runner") || dependencyEcosystems.has("python"),
 		reasons,
 		release: {
 			images: sorted(releaseImages),
 			kubernetes: hasAny(runtimeFiles, (file) => file.startsWith("infra/k8s/")),
 			workers: sorted(releaseWorkers),
 		},
-		schemaVersion: "change_plan.v2",
+		schemaVersion: "change_plan.v3",
 		unresolved: sorted(unresolved),
 		verification,
 	};
@@ -858,10 +771,6 @@ function main(args) {
 				files,
 				nodeDependencyChanged,
 				nodeReleaseGraphChanged,
-				workspacePackageNames: new Set([
-					...baseWorkspace.pathByName.keys(),
-					...headWorkspace.pathByName.keys(),
-				]),
 			}),
 		)}\n`,
 	);

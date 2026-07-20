@@ -32,19 +32,6 @@ has_suite() {
 	jq -e --arg suite "$1" '.verification.database | index($suite) != null' "$temporary_directory/change-plan.json" >/dev/null
 }
 
-run_turbo_filters() {
-	local tasks="$1"
-	local field="$2"
-	local -a args=()
-	while IFS= read -r filter; do
-		[[ -n "$filter" ]] && args+=(--filter "$filter")
-	done < <(jq -r "${field}[]" "$temporary_directory/change-plan.json")
-	if (( ${#args[@]} > 0 )); then
-		# shellcheck disable=SC2086
-		pnpm exec turbo run $tasks "${args[@]}" --concurrency=1 --summarize
-	fi
-}
-
 run_fast() {
 	scripts/ci/check-static-affected.sh "$base" "$head"
 	node --test \
@@ -81,20 +68,28 @@ run_fast() {
 	fi
 }
 
+run_code() {
+	TURBO_SCM_BASE="$base" TURBO_SCM_HEAD="$head" \
+		pnpm exec turbo run typecheck test --affected --concurrency=1 --summarize
+	TURBO_SCM_BASE="$base" TURBO_SCM_HEAD="$head" \
+		pnpm exec turbo run test:worker build:worker build:app --affected --concurrency=1 --summarize
+	if jq -e '.verification.ragas' "$temporary_directory/change-plan.json" >/dev/null; then
+		TURBO_SCM_BASE="$base" TURBO_SCM_HEAD="$head" \
+			pnpm exec turbo run test:eval --filter=ragas-runner --affected --concurrency=1 --summarize
+	fi
+	has_lane otel && pnpm ci:otel
+	jq -e '.verification.go' "$temporary_directory/change-plan.json" >/dev/null && pnpm ci:go
+	jq -e '.verification.rust' "$temporary_directory/change-plan.json" >/dev/null && pnpm ci:rust
+	jq -e '.verification.infra' "$temporary_directory/change-plan.json" >/dev/null && scripts/ci/infra-check.sh
+}
+
 case "$profile" in
 	fast)
 		run_fast
 		;;
 	code)
 		run_fast
-		run_turbo_filters "typecheck test" '.verification.nodeFilters'
-		run_turbo_filters "typecheck test:ingest" '.verification.ingestFilters'
-		run_turbo_filters "typecheck test:eval" '.verification.evalFilters'
-		run_turbo_filters "test:worker build:worker build:app" '.verification.workerFilters'
-		has_lane otel && pnpm ci:otel
-		jq -e '.verification.go' "$temporary_directory/change-plan.json" >/dev/null && pnpm ci:go
-		jq -e '.verification.rust' "$temporary_directory/change-plan.json" >/dev/null && pnpm ci:rust
-		jq -e '.verification.infra' "$temporary_directory/change-plan.json" >/dev/null && scripts/ci/infra-check.sh
+		run_code
 		;;
 	docker)
 		docker_checks="$(jq -c '.verification.docker' "$temporary_directory/change-plan.json")"

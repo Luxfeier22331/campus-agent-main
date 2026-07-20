@@ -24,9 +24,45 @@
 			"outputLogs": "new-only",
 			"outputs": []
 		},
+		"ingest-core#test": {
+			"dependsOn": ["^test"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/configs/ingestion/**"
+			],
+			"outputLogs": "new-only"
+		},
+		"ingestion-control#test": {
+			"dependsOn": ["^test"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/configs/ingestion/**"
+			],
+			"outputLogs": "new-only"
+		},
+		"source-collector#test": {
+			"dependsOn": ["^test"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/configs/sources/**"
+			],
+			"outputLogs": "new-only"
+		},
 		"test:eval": {
 			"dependsOn": ["^test:eval"],
-			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/pyproject.toml",
+				"$TURBO_ROOT$/uv.lock"
+			],
 			"outputLogs": "new-only",
 			"outputs": []
 		},

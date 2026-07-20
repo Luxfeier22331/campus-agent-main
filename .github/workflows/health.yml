@@ -28,6 +28,11 @@ jobs:
     if: inputs.profile == 'node'
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
     timeout-minutes: 75
+    env:
+      TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
+      TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+      TURBO_TELEMETRY_DISABLED: "1"
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
@@ -61,6 +66,10 @@ jobs:
     env:
       CAMPUS_WEB_E2E_DOCS_PREBUILT: "1"
       CAMPUS_WEB_E2E_PREBUILT: "1"
+      TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
+      TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+      TURBO_TELEMETRY_DISABLED: "1"
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
@@ -103,6 +112,7 @@ jobs:
             apps/campus-web/test-results/e2e
             apps/campus-web/test-results/e2e-worker
             apps/ops-web/test-results
+            apps/ops-web/playwright-report
           retention-days: 7
 
   go:

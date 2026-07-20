@@ -104,12 +104,12 @@ spec:
             - name: AXIOM_QUERY_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: ops-web-observability-secrets
-                  key: AXIOM_QUERY_TOKEN
+                  name: observability-runtime-secrets
+                  key: AXIOM_RUNTIME_TOKEN
             - name: SENTRY_AUTH_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: ops-web-observability-secrets
+                  name: observability-runtime-secrets
                   key: SENTRY_AUTH_TOKEN
           volumeMounts:
             - name: kubernetes-api-access

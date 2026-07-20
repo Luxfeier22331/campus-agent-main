@@ -8,8 +8,10 @@ const prSource = read(".github/workflows/pr.yml");
 const prWorkflow = parse(prSource);
 const releaseSource = read(".github/workflows/execution-runtime-publish.yml");
 const releaseWorkflow = parse(releaseSource);
-const healthSource = read(".github/workflows/scheduled-health.yml");
+const healthSource = read(".github/workflows/health.yml");
 const healthWorkflow = parse(healthSource);
+const verifySource = read(".github/workflows/verify.yml");
+const verifyWorkflow = parse(verifySource);
 const diningSource = read(".github/workflows/dining-sync-image.yml");
 const diningWorkflow = parse(diningSource);
 const scorecardSource = read(".github/workflows/scorecard.yml");
@@ -25,7 +27,7 @@ function setupNodeStep(jobName) {
 	);
 }
 
-test("keeps automatic PR CI to one lightweight job", () => {
+test("keeps automatic PR checks lightweight and bounded", () => {
 	assert.deepEqual(Object.keys(prWorkflow.jobs), ["pr-fast"]);
 	assert.equal(prWorkflow.jobs["pr-fast"]["timeout-minutes"], 8);
 	assert.match(prSource, /pnpm ci:pr/u);
@@ -35,15 +37,16 @@ test("keeps automatic PR CI to one lightweight job", () => {
 	);
 	assert.doesNotMatch(
 		prSource,
-		/docker\/build-push-action|playwright|testcontainers|TURBO_TOKEN|TURBO_REMOTE_CACHE|pnpm ci:(?:go|rust|postgres)|wrangler/iu,
+		/docker\/build-push-action|playwright|test:e2e|staging|wrangler deploy|TURBO_TOKEN/iu,
 	);
+	assert.match(packageJson, /"ci:pr": "CI_AFFECTED_PROFILE=fast/u);
 });
 
 test("keeps the fast profile free of build and runtime checks", () => {
 	const fastProfileStart = runAffected.indexOf("run_fast()");
 	const fastProfile = runAffected.slice(
 		fastProfileStart,
-		runAffected.indexOf('case "$profile" in', fastProfileStart),
+		runAffected.indexOf("run_code()", fastProfileStart),
 	);
 	assert.doesNotMatch(fastProfile, /docker (?:run|build)|playwright|test:e2e|ci:go|ci:rust/u);
 	assert.match(fastProfile, /check-static-affected/u);
@@ -62,13 +65,32 @@ test("keeps heavy health checks explicit and single-profile", () => {
 		"browser",
 		"dependencies",
 	]);
-	assert.doesNotMatch(healthSource, /TURBO_TOKEN|TURBO_REMOTE_CACHE/u);
+	assert.match(healthSource, /TURBO_TOKEN/u);
+	assert.doesNotMatch(healthSource, /schedule:/u);
+});
+
+test("keeps Docker, database and browser verification manual and affected", () => {
+	assert.equal(verifyWorkflow.on.schedule, undefined);
+	assert.ok(verifyWorkflow.on.workflow_dispatch);
+	assert.deepEqual(verifyWorkflow.on.workflow_dispatch.inputs.profile.options, [
+		"docker",
+		"database",
+		"browser",
+	]);
+	assert.deepEqual(Object.keys(verifyWorkflow.jobs), ["plan", "docker", "database", "browser"]);
+	assert.match(verifySource, /TURBO_TOKEN/u);
+	assert.match(verifySource, /TURBO_TEAM/u);
+	assert.match(verifySource, /TURBO_REMOTE_CACHE_SIGNATURE_KEY/u);
+	assert.doesNotMatch(verifySource, /Require Remote Cache configuration/u);
+	assert.match(verifySource, /pnpm ci:affected:docker /u);
+	assert.match(verifySource, /pnpm ci:affected:database /u);
+	assert.match(verifySource, /pnpm ci:affected:browser /u);
 });
 
 test("guards release publication and unresolved surfaces", () => {
 	assert.equal(releaseWorkflow.concurrency.queue, "max");
 	assert.match(releaseSource, /allowed only from main/u);
-	assert.match(releaseSource, /pnpm ci:pr/u);
+	assert.match(releaseSource, /pnpm ci:fast/u);
 	for (const jobName of ["release-plan", "release-config", "publish-workers"]) {
 		const step = setupNodeStep(jobName);
 		assert.ok(step, `${jobName} must set up Node and pnpm`);
@@ -107,11 +129,14 @@ test("bounds auxiliary workflows", () => {
 	assert.equal(diningSource.match(/docker\/build-push-action@/gu)?.length, 1);
 });
 
-test("uses explicit plan filters instead of runtime affected expansion", () => {
-	assert.doesNotMatch(packageJson, /--affected/u);
-	assert.doesNotMatch(runAffected, /--affected/u);
-	assert.match(runAffected, /\.verification\.nodeFilters/u);
-	assert.match(runAffected, /\.verification\.ingestFilters/u);
+test("uses Turbo affected tasks instead of planner package cohorts", () => {
+	assert.match(runAffected, /turbo run typecheck test --affected/u);
+	assert.match(runAffected, /turbo run test:worker build:worker build:app --affected/u);
+	assert.doesNotMatch(
+		runAffected,
+		/\.verification\.(?:nodeFilters|ingestFilters|evalFilters|workerFilters)/u,
+	);
+	assert.doesNotMatch(packageJson, /--filter=!eval-langfuse|--filter=!ingest-core/u);
 });
 
 test("documents the current Actionlint schema exception narrowly", () => {

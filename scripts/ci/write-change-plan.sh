@@ -14,4 +14,4 @@ node scripts/ci/change-plan.mjs \
 	--head "$head" \
 	--affected-packages "$temporary_directory/affected-packages.json" \
 	> "$output"
-jq -e '.schemaVersion == "change_plan.v2"' "$output" >/dev/null
+jq -e '.schemaVersion == "change_plan.v3"' "$output" >/dev/null

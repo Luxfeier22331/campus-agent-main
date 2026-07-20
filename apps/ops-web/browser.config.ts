@@ -3,6 +3,7 @@ import { defineConfig, devices } from "@playwright/test";
 const browserTestPort = process.env.OPS_WEB_BROWSER_TEST_PORT ?? "4178";
 
 export default defineConfig({
+	failOnFlakyTests: Boolean(process.env.CI),
 	fullyParallel: false,
 	projects: [
 		{
@@ -18,7 +19,9 @@ export default defineConfig({
 			use: { ...devices["Desktop Chrome"], viewport: { height: 900, width: 1440 } },
 		},
 	],
-	reporter: process.env.CI ? "github" : "list",
+	reporter: process.env.CI
+		? [["github"], ["html", { open: "never", outputFolder: "playwright-report" }]]
+		: "list",
 	retries: process.env.CI ? 1 : 0,
 	testDir: "./test/browser",
 	timeout: 30_000,
@@ -26,7 +29,7 @@ export default defineConfig({
 	use: {
 		baseURL: `http://127.0.0.1:${browserTestPort}`,
 		screenshot: "only-on-failure",
-		trace: "retain-on-failure",
+		trace: process.env.CI ? "on-first-retry" : "retain-on-failure",
 		video: "off",
 	},
 	webServer: {

@@ -11,7 +11,6 @@ function plan(files, affectedPackages = [], options = {}) {
 		files,
 		nodeDependencyChanged: options.nodeDependencyChanged ?? false,
 		nodeReleaseGraphChanged: options.nodeReleaseGraphChanged ?? false,
-		workspacePackageNames: new Set(options.workspacePackageNames ?? affectedPackages),
 	});
 }
 
@@ -20,9 +19,8 @@ test("routes documentation without owner runtime work", () => {
 
 	assert.deepEqual(result.lanes, ["docs"]);
 	assert.deepEqual(result.preflightChecks, []);
-	assert.deepEqual(result.databaseNodeFilters, []);
-	assert.deepEqual(result.databaseSuites, []);
-	assert.deepEqual(result.dockerChecks, []);
+	assert.deepEqual(result.verification.database, []);
+	assert.deepEqual(result.verification.docker, []);
 	assert.deepEqual(result.release, { images: [], kubernetes: false, workers: [] });
 	assert.equal(result.browser, false);
 });
@@ -34,7 +32,7 @@ test("routes a Node lockfile through selected importer packages", () => {
 	});
 
 	assert.deepEqual(result.affectedPackages, ["ingest-core", "source-collector"]);
-	assert.deepEqual(result.databaseSuites, []);
+	assert.deepEqual(result.verification.database, []);
 	assert.deepEqual(result.dependencyEcosystems, ["node"]);
 	assert.deepEqual(result.release.images, [
 		"ingestion-control",
@@ -42,22 +40,17 @@ test("routes a Node lockfile through selected importer packages", () => {
 		"source-collector",
 	]);
 	assert.deepEqual(result.release.workers, []);
-	assert.equal(result.pythonEval, false);
+	assert.equal(result.verification.ragas, false);
 });
 
 test("routes shared product schema to its database owners", () => {
 	const result = plan(["apps/app-api/db/shared-product-schema/campus_services.sql"]);
 
-	assert.deepEqual(result.databaseSuites, [
+	assert.deepEqual(result.verification.database, [
 		"app-api-migration",
 		"app-api-product",
 		"execution-control",
 		"ops-web",
-	]);
-	assert.deepEqual(result.databaseNodeFilters, [
-		"app-api...",
-		"ops-web...",
-		"transport-publisher...",
 	]);
 	assert.deepEqual(result.release.images, ["app-api-schema", "transport-publisher"]);
 });
@@ -67,20 +60,15 @@ test("routes Campus Web runtime changes to one Worker and local browser validati
 
 	assert.equal(result.browser, true);
 	assert.deepEqual(result.release.workers, ["campus-web"]);
-	assert.deepEqual(result.databaseSuites, []);
-	assert.equal(result.nodeFilters.includes("campus-web..."), true);
+	assert.deepEqual(result.verification.database, []);
+	assert.equal(result.affectedPackages.includes("campus-web"), true);
 });
 
-test("installs selected owners for root ingestion configuration", () => {
+test("keeps root ingestion configuration out of custom package routing", () => {
 	const result = plan(["configs/ingestion/tasks.v1.json"]);
 
-	assert.equal(result.lanes.includes("ingest"), true);
-	assert.deepEqual(result.nodeFilters, [
-		"ingest-core...",
-		"ingestion-contracts...",
-		"ingestion-control...",
-		"source-collector...",
-	]);
+	assert.deepEqual(result.affectedPackages, []);
+	assert.deepEqual(result.verification.database, []);
 });
 
 test("routes a Docker context allow rule only to declared consumers", () => {
@@ -88,7 +76,7 @@ test("routes a Docker context allow rule only to declared consumers", () => {
 		dockerIgnorePatterns: ["!packages/telemetry-node/**"],
 	});
 
-	assert.deepEqual(result.dockerChecks, ["ingestion-control", "source-collector"]);
+	assert.deepEqual(result.verification.docker, ["ingestion-control", "source-collector"]);
 	assert.deepEqual(result.release.images, [
 		"ingestion-control",
 		"ingestion-control-worker",
@@ -100,7 +88,7 @@ test("routes a Docker context allow rule only to declared consumers", () => {
 test("blocks broad Docker context fallbacks instead of selecting every image", () => {
 	const result = plan([".dockerignore"], [], { dockerIgnorePatterns: ["**"] });
 
-	assert.deepEqual(result.dockerChecks, []);
+	assert.deepEqual(result.verification.docker, []);
 	assert.deepEqual(result.release.images, []);
 	assert.deepEqual(result.unresolved, [".dockerignore:**"]);
 });
@@ -120,28 +108,22 @@ test("routes planner and Turbo contracts without product work", () => {
 	assert.deepEqual(result.release, { images: [], kubernetes: false, workers: [] });
 });
 
-test("installs every workspace imported by the selected database fixture", () => {
+test("routes each database fixture to its owned suite", () => {
 	const appApi = plan(["apps/app-api/test/shared-product-db.integration.test.ts"]);
 	const opsWeb = plan(["apps/ops-web/test/ops-web-database.integration.test.ts"]);
 	const executionControl = plan([
 		"apps/execution-control/internal/execution/postgres_repository.go",
 	]);
 
-	assert.deepEqual(appApi.databaseNodeFilters, ["app-api...", "transport-publisher..."]);
-	assert.deepEqual(opsWeb.databaseNodeFilters, [
-		"app-api...",
-		"ops-web...",
-		"transport-publisher...",
-	]);
-	assert.deepEqual(executionControl.databaseNodeFilters, []);
+	assert.deepEqual(appApi.verification.database, ["app-api-migration", "app-api-product"]);
+	assert.deepEqual(opsWeb.verification.database, ["ops-web"]);
+	assert.deepEqual(executionControl.verification.database, ["execution-control"]);
 });
 
 test("routes ingestion PostgreSQL ownership to its explicit database suite", () => {
 	const result = plan(["apps/ingestion-control/src/schema-bootstrap.ts"], ["ingestion-control"]);
 
-	assert.deepEqual(result.databaseSuites, ["ingestion-control"]);
-	assert.deepEqual(result.databaseNodeFilters, ["ingestion-control..."]);
-	assert.equal(result.lanes.includes("ingest"), true);
+	assert.deepEqual(result.verification.database, ["ingestion-control"]);
 });
 
 test("routes Kubernetes source changes to release promotion", () => {
@@ -168,7 +150,7 @@ test("validates OTel configuration without claiming a Kubernetes release", () =>
 	assert.equal(result.release.kubernetes, false);
 	assert.deepEqual(result.release.images, []);
 	assert.deepEqual(result.release.workers, []);
-	assert.deepEqual(result.databaseSuites, []);
+	assert.deepEqual(result.verification.database, []);
 	assert.equal(result.browser, false);
 });
 
@@ -179,8 +161,7 @@ test("keeps Node telemetry inside its runtime owners", () => {
 	);
 
 	assert.equal(result.lanes.includes("otel"), false);
-	assert.equal(result.lanes.includes("eval"), false);
-	assert.deepEqual(result.dockerChecks, ["ingestion-control", "source-collector"]);
+	assert.deepEqual(result.verification.docker, ["ingestion-control", "source-collector"]);
 	assert.deepEqual(result.release.images, [
 		"ingestion-control",
 		"ingestion-control-worker",
@@ -208,7 +189,7 @@ test("routes mode-only CI scripts through planner checks", () => {
 test("uses image inputs for local Docker verification", () => {
 	const result = plan(["apps/ops-web/src/app/ops-web-app.tsx"], ["ops-web"]);
 
-	assert.deepEqual(result.dockerChecks, ["ops-web"]);
+	assert.deepEqual(result.verification.docker, ["ops-web"]);
 	assert.deepEqual(result.release.images, ["ops-web"]);
 });
 
@@ -225,8 +206,7 @@ test("does not route Node dependencies into Ragas", () => {
 	});
 
 	assert.deepEqual(result.dependencyEcosystems, ["node"]);
-	assert.equal(result.pythonEval, false);
-	assert.equal(result.lanes.includes("eval"), true);
+	assert.equal(result.verification.ragas, false);
 });
 
 test("routes Python evaluation changes without broad Node work", () => {
@@ -235,15 +215,13 @@ test("routes Python evaluation changes without broad Node work", () => {
 		["ragas-runner"],
 	);
 
-	assert.equal(result.pythonEval, true);
-	assert.equal(result.lanes.includes("eval"), true);
-	assert.equal(result.lanes.includes("node"), false);
+	assert.equal(result.verification.ragas, true);
 });
 
 test("runs owner tests without releasing test-only changes", () => {
 	const result = plan(["apps/campus-web/test/staging-config.test.ts"], ["campus-web"]);
 
-	assert.equal(result.lanes.includes("node"), true);
+	assert.equal(result.affectedPackages.includes("campus-web"), true);
 	assert.deepEqual(result.release.workers, []);
 	assert.equal(result.browser, false);
 });
@@ -251,7 +229,7 @@ test("runs owner tests without releasing test-only changes", () => {
 test("keeps Turbo configuration out of product release surfaces", () => {
 	const result = plan(["turbo.json"], ["campus-web", "ops-web"]);
 
-	assert.deepEqual(result.databaseSuites, []);
+	assert.deepEqual(result.verification.database, []);
 	assert.deepEqual(result.release, { images: [], kubernetes: false, workers: [] });
 	assert.equal(result.browser, false);
 	assert.deepEqual(result.preflightChecks, ["planner"]);

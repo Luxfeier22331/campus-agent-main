@@ -3,6 +3,10 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
 	buildCloudflareCliEnv,
+	buildSecretDeleteCommand,
+	buildSecretListCommand,
+	buildSecretPutCommand,
+	buildSecretViewCommand,
 	CommandTimeoutError,
 	collectWorkerSecretPresence,
 } from "./check-worker-secret-presence.ts";
@@ -21,6 +25,35 @@ export function runWorkerSecretPresenceSelfTest(): number {
 		CLOUDFLARE_API_TOKEN: "legacy-token-must-not-be-a-fallback",
 	});
 	expect(!("CLOUDFLARE_API_TOKEN" in noCanonicalWranglerEnv), "vendor token alias remained active");
+
+	const commandFixture = {
+		root: "/repo",
+		appPath: "apps/app-api",
+		envName: "staging",
+	};
+	expectEqualJson(buildSecretListCommand(commandFixture).slice(-5), [
+		"versions",
+		"list",
+		"--env",
+		"staging",
+		"--json",
+	]);
+	expectEqualJson(buildSecretViewCommand({ ...commandFixture, versionId: "version-2" }).slice(-6), [
+		"versions",
+		"view",
+		"version-2",
+		"--env",
+		"staging",
+		"--json",
+	]);
+	expectEqualJson(
+		buildSecretPutCommand({ ...commandFixture, secretName: "REQUIRED_SECRET" }).slice(-6),
+		["versions", "secret", "put", "REQUIRED_SECRET", "--env", "staging"],
+	);
+	expectEqualJson(
+		buildSecretDeleteCommand({ ...commandFixture, secretName: "OLD_SECRET" }).slice(-6),
+		["versions", "secret", "delete", "OLD_SECRET", "--env", "staging"],
+	);
 
 	withFixture((root) => {
 		writeText(
@@ -43,11 +76,7 @@ export function runWorkerSecretPresenceSelfTest(): number {
 			appPaths: ["apps/app-api"],
 			runCommand: (command) => {
 				seenCommands.push(command);
-				return {
-					status: 0,
-					stdout: JSON.stringify([{ name: "SHARED_SECRET" }]),
-					stderr: "",
-				};
+				return successfulWranglerResponse(command, ["SHARED_SECRET"]);
 			},
 		});
 		expect(!status.overall_ready, "missing secret should make status not ready");
@@ -58,11 +87,42 @@ export function runWorkerSecretPresenceSelfTest(): number {
 			join(root, "scripts", "deploy", "run-wrangler-command.ts"),
 		]);
 		expectEqualJson(seenCommands[0]?.slice(4, 6), ["--cwd", join(root, "apps", "app-api")]);
-		expectEqualJson(seenCommands[0]?.slice(6, 10), ["secret", "list", "--env", "staging"]);
+		expectEqualJson(seenCommands[0]?.slice(6), ["versions", "list", "--env", "staging", "--json"]);
+		expectEqualJson(seenCommands[1]?.slice(6), [
+			"versions",
+			"view",
+			"version-2",
+			"--env",
+			"staging",
+			"--json",
+		]);
 		const appStatus = status.apps["apps/app-api"];
 		expectEqualJson(appStatus?.required_secrets, ["SHARED_SECRET", "STAGING_ONLY_SECRET"]);
 		expectEqualJson(appStatus?.configured_secrets, ["SHARED_SECRET"]);
 		expectEqualJson(appStatus?.missing_secrets, ["STAGING_ONLY_SECRET"]);
+		expectEqualJson(appStatus?.unexpected_secrets, []);
+		expectEqualJson(appStatus?.recommended_put_commands.length, 1);
+		expectEqualJson(appStatus?.recommended_delete_commands, []);
+	});
+
+	withFixture((root) => {
+		writeWorkerConfig(root, "apps/campus-web", []);
+		const status = collectWorkerSecretPresence({
+			root,
+			envName: "staging",
+			appPaths: ["apps/campus-web"],
+			runCommand: (command) => successfulWranglerResponse(command, ["SENTRY_DSN"]),
+		});
+		const appStatus = status.apps["apps/campus-web"];
+		expect(!status.overall_ready, "unexpected secret should make status not ready");
+		expectEqualJson(appStatus?.required_secrets, []);
+		expectEqualJson(appStatus?.unexpected_secrets, ["SENTRY_DSN"]);
+		expectEqualJson(appStatus?.recommended_delete_commands.length, 1);
+		expect(
+			appStatus?.recommended_delete_commands[0]?.includes("versions secret delete SENTRY_DSN") ===
+				true,
+			"unexpected secret should recommend a versioned delete",
+		);
 	});
 
 	withFixture((root) => {
@@ -71,17 +131,13 @@ export function runWorkerSecretPresenceSelfTest(): number {
 			root,
 			envName: "staging",
 			appPaths: ["apps/campus-web"],
-			runCommand: (_command, options) => {
+			runCommand: (command, options) => {
 				expect(!("HTTP_PROXY" in options.env), "proxy env should be stripped");
 				expect(
 					options.env.NO_PROXY.includes("api.cloudflare.com"),
 					"NO_PROXY should include Cloudflare",
 				);
-				return {
-					status: 0,
-					stdout: JSON.stringify([{ name: "SENTRY_DSN" }]),
-					stderr: "",
-				};
+				return successfulWranglerResponse(command, ["SENTRY_DSN"]);
 			},
 		});
 		expect(status.overall_ready, "configured secret should make status ready");
@@ -120,14 +176,10 @@ export function runWorkerSecretPresenceSelfTest(): number {
 					if (calls === 1) {
 						throw new CommandTimeoutError(command, 30);
 					}
-					return {
-						status: 0,
-						stdout: JSON.stringify([{ name: "BETTER_AUTH_SECRET" }]),
-						stderr: "",
-					};
+					return successfulWranglerResponse(command, ["BETTER_AUTH_SECRET"]);
 				},
 			});
-			expect(calls === 2, "timeout should be retried");
+			expect(calls === 3, "version list timeout should be retried before version view");
 			expect(status.apps["apps/app-api"]?.ready === true, "retry success should be ready");
 		} finally {
 			restoreEnv("WORKER_SECRET_AUDIT_MAX_ATTEMPTS", oldMaxAttempts);
@@ -190,6 +242,32 @@ function writeWorkerConfig(root: string, appPath: string, secrets: string[]): vo
 			"",
 		].join("\n"),
 	);
+}
+
+function successfulWranglerResponse(command: string[], secrets: string[]) {
+	const operation = command[7];
+	if (operation === "list") {
+		return {
+			status: 0,
+			stdout: JSON.stringify([
+				{ id: "version-1", number: 1 },
+				{ id: "version-2", number: 2 },
+			]),
+			stderr: "",
+		};
+	}
+	if (operation === "view") {
+		return {
+			status: 0,
+			stdout: JSON.stringify({
+				resources: {
+					bindings: secrets.map((name) => ({ name, type: "secret_text" })),
+				},
+			}),
+			stderr: "",
+		};
+	}
+	throw new Error(`unexpected Wrangler command: ${command.join(" ")}`);
 }
 
 function withFixture(callback: (root: string) => void): void {
