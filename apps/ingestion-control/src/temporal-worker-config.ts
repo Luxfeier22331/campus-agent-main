@@ -1,5 +1,7 @@
+import { type PostgresConnectionConfig, readPostgresConnectionConfig } from "./postgres-config";
+
 export interface IngestionTemporalWorkerRuntimeConfig {
-	databaseUrl: string;
+	database: PostgresConnectionConfig;
 	registryRoot: string;
 	siteId: string;
 }
@@ -8,7 +10,11 @@ export function buildIngestionTemporalWorkerRuntimeConfig(
 	env: Record<string, string | undefined>,
 ): IngestionTemporalWorkerRuntimeConfig {
 	return {
-		databaseUrl: requiredEnv(env, "INGESTION_CONTROL_DATABASE_URL"),
+		database: readPostgresConnectionConfig(env, {
+			caCertPath: "INGESTION_CONTROL_DATABASE_CA_CERT_PATH",
+			connectionString: "INGESTION_CONTROL_DATABASE_URL",
+			sslMode: "INGESTION_CONTROL_DATABASE_SSLMODE",
+		}),
 		registryRoot: requiredEnv(env, "INGESTION_TASK_REGISTRY_ROOT"),
 		siteId: requiredEnv(env, "INTERNAL_PORTAL_SITE_ID"),
 	};

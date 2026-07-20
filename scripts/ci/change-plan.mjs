@@ -25,6 +25,7 @@ const DATABASE_SUITES = Object.freeze({
 	APP_API_MIGRATION: "app-api-migration",
 	APP_API_PRODUCT: "app-api-product",
 	EXECUTION_CONTROL: "execution-control",
+	INGESTION_CONTROL: "ingestion-control",
 	OPS_WEB: "ops-web",
 });
 
@@ -241,6 +242,17 @@ export function buildChangePlan({
 			"apps/execution-control/internal/toolreadmodel/transport_schedule",
 		]),
 	);
+	const hasIngestionDatabaseChange = hasAny(runtimeFiles, (file) =>
+		startsWithAny(file, [
+			"apps/ingestion-control/migrations/",
+			"apps/ingestion-control/src/migrate.ts",
+			"apps/ingestion-control/src/postgres-config.ts",
+			"apps/ingestion-control/src/postgres-store.ts",
+			"apps/ingestion-control/src/schema-bootstrap.ts",
+			"apps/ingestion-control/test/ingestion-control-postgres.database.",
+			"apps/ingestion-control/vitest.database-integration.",
+		]),
+	);
 	const hasNonCiRuntimeChange = runtimeFiles.some(
 		(file) => !isCiControlFile(file, nodeReleaseGraphChanged),
 	);
@@ -383,6 +395,7 @@ export function buildChangePlan({
 		hasExecutionDatabaseChange || hasSharedProductSchemaChange,
 		DATABASE_SUITES.EXECUTION_CONTROL,
 	);
+	addIf(databaseSuites, hasIngestionDatabaseChange, DATABASE_SUITES.INGESTION_CONTROL);
 	addIf(
 		databaseSuites,
 		hasOpsDatabaseChange || hasSharedProductSchemaChange,
@@ -400,6 +413,9 @@ export function buildChangePlan({
 		databaseNodeFilters.add("app-api...");
 		databaseNodeFilters.add("ops-web...");
 		databaseNodeFilters.add("transport-publisher...");
+	}
+	if (databaseSuites.has(DATABASE_SUITES.INGESTION_CONTROL)) {
+		databaseNodeFilters.add("ingestion-control...");
 	}
 
 	if (nodeReleaseGraphChanged) {

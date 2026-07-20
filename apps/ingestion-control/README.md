@@ -33,6 +33,7 @@ Temporal 同时拥有固定的 `internal-portal-notice-publication` 通知计划
 | --- | --- | --- |
 | HTTP API | `pnpm --filter ingestion-control start:api` | 校验 v3 envelope、冻结 registry task、启动 Temporal 并提供有界 task 投影。 |
 | Temporal worker | `pnpm --filter ingestion-control start:temporal-worker` | 轮询 workflow、control activity、TypeScript 与 Rust kernel queue，并写入任务和离线发布状态。 |
+| Schema bootstrap | `pnpm --filter ingestion-control schema:bootstrap` | 使用 schema owner 连接创建固定 schema、撤销 PUBLIC 权限并授权 `ingestion_control` runtime role。 |
 | Schema migration | `pnpm --filter ingestion-control migrate` | 在一个 advisory lock 下按顺序执行 SQL migration，并校验 migration journal。 |
 | Schedule 同步 | `pnpm --filter ingestion-control schedules:sync` | 创建或更新固定认证保活与通知发布计划，并保留现有暂停状态。 |
 
@@ -101,6 +102,12 @@ pnpm --filter ingestion-control start:temporal-worker
 pnpm --filter source-collector start:temporal-worker
 ```
 
+runtime、worker 和 migration 共用同一数据库 TLS 合同：默认 `verify-full`，CA 由
+`INGESTION_CONTROL_DATABASE_CA_CERT_PATH` 提供；只有明确的 `local`、`development` 或无
+部署环境的测试进程可以设置 `disable`。数据库 URL 不得内嵌 `sslmode` 等 TLS 参数。schema
+bootstrap 使用独立的 `INGESTION_CONTROL_SCHEMA_DATABASE_*` command-only 变量，普通 runtime
+不持有 schema owner 凭据。
+
 本地 image 使用同一 Dockerfile 的明确 target：
 
 ```bash
@@ -112,4 +119,7 @@ docker build --target worker -f apps/ingestion-control/Dockerfile -t ingestion-c
 
 ```bash
 pnpm ci:ingest
+pnpm ci:ingestion-control-postgres
 ```
+
+第二条命令属于显式 database profile，不进入自动 PR 快速检查。

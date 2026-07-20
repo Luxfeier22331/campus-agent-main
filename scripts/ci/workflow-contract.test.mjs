@@ -19,6 +19,12 @@ const packageJson = read("package.json");
 const osvScan = read("scripts/ci/osv-scan.sh");
 const runAffected = read("scripts/ci/run-affected.sh");
 
+function setupNodeStep(jobName) {
+	return releaseWorkflow.jobs[jobName].steps.find(
+		(candidate) => candidate.uses === "./.github/actions/setup-node-pnpm",
+	);
+}
+
 test("keeps automatic PR CI to one lightweight job", () => {
 	assert.deepEqual(Object.keys(prWorkflow.jobs), ["pr-fast"]);
 	assert.equal(prWorkflow.jobs["pr-fast"]["timeout-minutes"], 8);
@@ -63,13 +69,28 @@ test("guards release publication and unresolved surfaces", () => {
 	assert.equal(releaseWorkflow.concurrency.queue, "max");
 	assert.match(releaseSource, /allowed only from main/u);
 	assert.match(releaseSource, /pnpm ci:pr/u);
-	assert.match(
-		releaseWorkflow.jobs["release-plan"].steps[1].with["workspace-filters"],
-		/campus-contracts\.\.\./u,
-	);
+	for (const jobName of ["release-plan", "release-config", "publish-workers"]) {
+		const step = setupNodeStep(jobName);
+		assert.ok(step, `${jobName} must set up Node and pnpm`);
+		assert.match(step.with["workspace-filters"], /campus-contracts\.\.\./u);
+	}
 	assert.match(releaseSource, /\.unresolved \| length == 0/u);
 	assert.match(releaseSource, /scripts\/ci\/publish-images\.sh/u);
 	assert.match(releaseSource, /github\.ref == 'refs\/heads\/main'/u);
+});
+
+test("supports a bounded failed release replay", () => {
+	const input = releaseWorkflow.on.workflow_dispatch.inputs.replay_base_sha;
+	assert.equal(input.required, false);
+	assert.equal(input.type, "string");
+	assert.match(releaseSource, /\^\[0-9a-f\]\{40\}\$/u);
+	assert.match(releaseSource, /git cat-file -e "\$\{REPLAY_BASE_SHA\}\^\{commit\}"/u);
+	assert.match(releaseSource, /git merge-base --is-ancestor "\$REPLAY_BASE_SHA" "\$HEAD_SHA"/u);
+	assert.match(
+		releaseSource,
+		/scripts\/ci\/write-change-plan\.sh "\$REPLAY_BASE_SHA" "\$HEAD_SHA"/u,
+	);
+	assert.match(releaseSource, /Release replay cannot run in validation-only mode/u);
 });
 
 test("retains selected Worker release validation", () => {

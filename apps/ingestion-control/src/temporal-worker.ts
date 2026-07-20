@@ -50,7 +50,7 @@ export async function startIngestionTemporalWorkers(
 	const telemetry = startNodeTelemetry({ env, serviceName: "ingestion-control-worker" });
 	const { Pool } = await import("pg");
 	const pool = new Pool({
-		connectionString: runtimeConfig.databaseUrl,
+		...runtimeConfig.database,
 		connectionTimeoutMillis: WORKER_DATABASE_CONNECTION_TIMEOUT_MS,
 		query_timeout: WORKER_DATABASE_QUERY_TIMEOUT_MS,
 		statement_timeout: WORKER_DATABASE_QUERY_TIMEOUT_MS,

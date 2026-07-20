@@ -136,6 +136,14 @@ test("installs every workspace imported by the selected database fixture", () =>
 	assert.deepEqual(executionControl.databaseNodeFilters, []);
 });
 
+test("routes ingestion PostgreSQL ownership to its explicit database suite", () => {
+	const result = plan(["apps/ingestion-control/src/schema-bootstrap.ts"], ["ingestion-control"]);
+
+	assert.deepEqual(result.databaseSuites, ["ingestion-control"]);
+	assert.deepEqual(result.databaseNodeFilters, ["ingestion-control..."]);
+	assert.equal(result.lanes.includes("ingest"), true);
+});
+
 test("routes Kubernetes source changes to release promotion", () => {
 	const result = plan(["infra/k8s/apps/execution-runtime/kustomization.yaml"]);
 

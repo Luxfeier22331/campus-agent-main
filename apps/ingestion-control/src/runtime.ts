@@ -7,6 +7,7 @@ import {
 	type IngestionControlServiceTokens,
 } from "./http";
 import { createPostgresOfflineReleaseStore } from "./offline-release-store";
+import { type PostgresConnectionConfig, readPostgresConnectionConfig } from "./postgres-config";
 import {
 	assertIngestionControlPostgresSchema,
 	createPostgresIngestionTaskStore,
@@ -23,7 +24,7 @@ const MAX_REQUEST_BODY_BYTES = 1024 * 1024;
 const API_DATABASE_TIMEOUT_MS = 4_000;
 
 export interface IngestionControlRuntimeConfig {
-	databaseUrl: string;
+	database: PostgresConnectionConfig;
 	registryRoot: string;
 	host: string;
 	port: number;
@@ -46,7 +47,11 @@ export function buildIngestionControlRuntimeConfig(
 	env: Record<string, string | undefined>,
 ): IngestionControlRuntimeConfig {
 	return {
-		databaseUrl: requiredEnv(env, "INGESTION_CONTROL_DATABASE_URL"),
+		database: readPostgresConnectionConfig(env, {
+			caCertPath: "INGESTION_CONTROL_DATABASE_CA_CERT_PATH",
+			connectionString: "INGESTION_CONTROL_DATABASE_URL",
+			sslMode: "INGESTION_CONTROL_DATABASE_SSLMODE",
+		}),
 		registryRoot: requiredEnv(env, "INGESTION_TASK_REGISTRY_ROOT"),
 		host: env.INGESTION_CONTROL_HOST?.trim() || "0.0.0.0",
 		port: readPort(env.INGESTION_CONTROL_PORT),
@@ -113,13 +118,10 @@ export async function startIngestionControlServer(
 }
 
 async function createIngestionControlRuntime(
-	config: Pick<
-		IngestionControlRuntimeConfig,
-		"databaseUrl" | "registryRoot" | "siteId" | "temporal"
-	>,
+	config: Pick<IngestionControlRuntimeConfig, "database" | "registryRoot" | "siteId" | "temporal">,
 ): Promise<IngestionControlRuntime> {
 	const pool = new Pool({
-		connectionString: config.databaseUrl,
+		...config.database,
 		connectionTimeoutMillis: API_DATABASE_TIMEOUT_MS,
 		query_timeout: API_DATABASE_TIMEOUT_MS,
 		statement_timeout: API_DATABASE_TIMEOUT_MS,

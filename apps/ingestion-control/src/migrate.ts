@@ -3,6 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Pool, type PoolClient } from "pg";
+import { readPostgresConnectionConfig } from "./postgres-config";
 
 const MIGRATION_FILE_PATTERN = /^\d+_[a-z0-9_-]+\.sql$/u;
 const MIGRATION_LOCK_ID = "74021920260713";
@@ -89,12 +90,13 @@ export async function applyIngestionControlMigrations(
 export async function runIngestionControlMigrations(
 	env: Record<string, string | undefined> = process.env,
 ): Promise<string[]> {
-	const databaseUrl = env.INGESTION_CONTROL_DATABASE_URL?.trim();
-	if (!databaseUrl) {
-		throw new Error("INGESTION_CONTROL_DATABASE_URL is required");
-	}
+	const database = readPostgresConnectionConfig(env, {
+		caCertPath: "INGESTION_CONTROL_DATABASE_CA_CERT_PATH",
+		connectionString: "INGESTION_CONTROL_DATABASE_URL",
+		sslMode: "INGESTION_CONTROL_DATABASE_SSLMODE",
+	});
 	const pool = new Pool({
-		connectionString: databaseUrl,
+		...database,
 		connectionTimeoutMillis: MIGRATION_DATABASE_CONNECTION_TIMEOUT_MS,
 	});
 	let client: PoolClient | null = null;

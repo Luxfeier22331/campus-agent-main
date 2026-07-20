@@ -49,6 +49,7 @@ branch protection、部署 secret、镜像清单或环境状态。
 | `pnpm ci:go` | execution-control Go static check 与 test | Temporal server 或已部署 runtime |
 | `pnpm ci:rust` | Rust kernel format、Clippy 与 test | runtime bridge 或对象存储行为 |
 | `pnpm ci:ingest` | ingestion-contracts、ingest-core、ingestion-control 与 source-collector | 在线 retrieval 或 release publication |
+| `pnpm ci:ingestion-control-postgres` | disposable PostgreSQL 上的 ingestion schema bootstrap、migration 与 role 权限 | staging 或 production 数据库状态 |
 | `pnpm ci:eval` | eval-langfuse 与 Ragas adapter 的 typecheck/test | 真实数据集评分已完成 |
 | `pnpm ci:otel` | 固定版本 Collector 的官方配置校验 | 真实 OTLP payload 行为或目标环境已收到信号 |
 | `pnpm ci:app-api-migration` | disposable PostgreSQL 上的 baseline upgrade 与 clean install | staging database 已迁移 |

@@ -71,6 +71,10 @@ production 只选择已合入 `main` 的提交或其 release tag。发布前确�
 ## 失败处理
 
 - 候选物发布中断：对同一源码提交重试缺失步骤，不覆盖已存在的不可变产物；
+- 某次 `main` 发布在产物或 promotion 前失败，且后续提交已进入 `main`：手动运行
+  `staging-candidate-publish`，设置 `validate_only=false`，并把失败范围之前的完整 commit SHA
+  作为 `replay_base_sha`。workflow 会重新计算该 SHA 到当前 `main` 的受影响发布面；不能用
+  任意分支、非祖先提交或零 SHA 代替；
 - 环境计划失败：修复环境仓变更，不强制同步；
 - migration 或 rollout 失败：使用环境仓定义的恢复路径回到已知版本；
 - 用户路径失败：记录关联标识，按最先失败的组件定位并重新执行受影响路径。

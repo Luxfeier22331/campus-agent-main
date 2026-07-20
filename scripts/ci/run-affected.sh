@@ -107,6 +107,7 @@ case "$profile" in
 		has_suite app-api-migration && pnpm ci:app-api-migration
 		has_suite app-api-product && pnpm ci:app-api-product-db
 		has_suite execution-control && pnpm ci:execution-control-postgres
+		has_suite ingestion-control && pnpm ci:ingestion-control-postgres
 		has_suite ops-web && pnpm ci:ops-web-postgres
 		;;
 	browser)

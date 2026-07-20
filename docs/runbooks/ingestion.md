@@ -25,8 +25,15 @@ ledger 或自动发布 query target，因此本文不描述这些路径。
 本地迁移：
 
 ```bash
+pnpm --filter ingestion-control schema:bootstrap
 pnpm --filter ingestion-control migrate
 ```
+
+bootstrap 只接受固定 `ingestion_control` schema 与同名 runtime role，使用 command-only 的
+`INGESTION_CONTROL_SCHEMA_DATABASE_*` owner 连接。migration、API 和 worker 只使用
+`INGESTION_CONTROL_DATABASE_*` runtime 连接。正式环境默认并要求 `verify-full`，CA 通过文件
+挂载提供；数据库 URL 不携带 TLS query 参数。本地明文 PostgreSQL 必须同时显式设置
+`DEPLOYMENT_ENVIRONMENT=local` 和 `INGESTION_CONTROL_DATABASE_SSLMODE=disable`。
 
 容器 migration Job 直接调用 image 内 `tsx src/migrate.ts`，runtime container 不调用 pnpm 或
 Corepack。migration 使用 transaction advisory lock，并在
@@ -209,7 +216,9 @@ kubectl describe workerdeployment source-collector-worker
 ```bash
 pnpm ci:contracts
 pnpm ci:ingest
+pnpm ci:ingestion-control-postgres
 pnpm ci:rust
 ```
 
-staging capture 只用于环境或发布验证，不是普通本地实现检查。
+PostgreSQL 套件使用隔离 Testcontainers，只在显式 database profile 运行。staging capture
+只用于环境或发布验证，不是普通本地实现检查。

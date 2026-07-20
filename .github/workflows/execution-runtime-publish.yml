@@ -17,6 +17,10 @@ on:
         description: Content-addressed Campus Docs release for the campus-web candidate
         required: false
         type: string
+      replay_base_sha:
+        description: Rebuild the affected release plan from this failed main release base
+        required: false
+        type: string
   push:
     branches:
       - main
@@ -74,6 +78,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           HEAD_SHA: ${{ github.sha }}
           PROMOTE: ${{ inputs.promote || false }}
+          REPLAY_BASE_SHA: ${{ inputs.replay_base_sha || '' }}
           VALIDATE_ONLY: ${{ inputs.validate_only || false }}
         run: |
           set -euo pipefail
@@ -86,7 +91,27 @@ jobs:
             exit 1
           fi
           if [ "$EVENT_NAME" = workflow_dispatch ]; then
-            if [ "$VALIDATE_ONLY" = true ]; then
+            if [ -n "$REPLAY_BASE_SHA" ]; then
+              if [ "$VALIDATE_ONLY" = true ]; then
+                echo "Release replay cannot run in validation-only mode." >&2
+                exit 1
+              fi
+              if ! [[ "$REPLAY_BASE_SHA" =~ ^[0-9a-f]{40}$ ]] || [[ "$REPLAY_BASE_SHA" =~ ^0{40}$ ]]; then
+                echo "Replay base must be a non-zero 40-character lowercase commit SHA." >&2
+                exit 1
+              fi
+              if ! git cat-file -e "${REPLAY_BASE_SHA}^{commit}"; then
+                echo "Replay base commit does not exist: ${REPLAY_BASE_SHA}." >&2
+                exit 1
+              fi
+              if ! git merge-base --is-ancestor "$REPLAY_BASE_SHA" "$HEAD_SHA"; then
+                echo "Replay base must be an ancestor of ${HEAD_SHA}." >&2
+                exit 1
+              fi
+              scripts/ci/write-change-plan.sh "$REPLAY_BASE_SHA" "$HEAD_SHA" change-plan.json
+              jq -e '.unresolved | length == 0' change-plan.json >/dev/null
+              release="$(jq -c .release change-plan.json)"
+            elif [ "$VALIDATE_ONLY" = true ]; then
               release='{"images":[],"kubernetes":false,"workers":["app-api","campus-web"]}'
             else
               images="$(node --input-type=module -e \
@@ -113,6 +138,10 @@ jobs:
             echo '```json'
             jq . <<< "$release"
             echo '```'
+            if [ -n "$REPLAY_BASE_SHA" ]; then
+              echo
+              echo "Replay range: \`${REPLAY_BASE_SHA}..${HEAD_SHA}\`"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
   release-config:
@@ -153,7 +182,9 @@ jobs:
       - name: Setup selected Worker workspaces
         uses: ./.github/actions/setup-node-pnpm
         with:
-          workspace-filters: campus-agent-web-workspace
+          workspace-filters: |
+            campus-agent-web-workspace
+            campus-contracts...
           workspace-filters-json: ${{ needs.release-plan.outputs.worker_filters }}
 
       - name: Validate app-api staging configuration
@@ -334,7 +365,9 @@ jobs:
       - name: Setup Node
         uses: ./.github/actions/setup-node-pnpm
         with:
-          workspace-filters: campus-agent-web-workspace
+          workspace-filters: |
+            campus-agent-web-workspace
+            campus-contracts...
           workspace-filters-json: ${{ needs.release-plan.outputs.worker_filters }}
 
       - name: Upload app-api candidate
