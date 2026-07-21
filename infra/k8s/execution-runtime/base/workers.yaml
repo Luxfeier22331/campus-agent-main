@@ -117,9 +117,9 @@ spec:
                   key: PERSONAL_MEMORY_OWNER_SALT
             - name: LANGFUSE_MAINTENANCE_PUBLIC_KEY
               valueFrom:
-                secretKeyRef:
-                  name: langfuse-secrets
-                  key: LANGFUSE_PUBLIC_KEY
+                configMapKeyRef:
+                  name: execution-runtime-rendered-config
+                  key: LANGFUSE_MAINTENANCE_PUBLIC_KEY
             - name: LANGFUSE_MAINTENANCE_SECRET_KEY
               valueFrom:
                 secretKeyRef:

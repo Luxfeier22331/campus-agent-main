@@ -7,8 +7,8 @@ import { buildWranglerCommandEnv } from "./run-wrangler-command.ts";
 export const defaultAppPaths = ["apps/app-api", "apps/campus-web"];
 
 const ansiEscapePattern = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*[A-Za-z]`, "g");
-const defaultWranglerTimeoutSeconds = 30;
-const defaultWranglerMaxAttempts = 3;
+const defaultWranglerTimeoutSeconds = 120;
+const defaultWranglerMaxAttempts = 1;
 const wranglerAuthErrorMarkers = [
 	"failed to fetch auth token",
 	"not logged in",

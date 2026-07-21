@@ -76,6 +76,11 @@ spec:
                 secretKeyRef:
                   name: execution-run-projection-secrets
                   key: EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL
+            - name: EXECUTION_AGENT_RUNTIME_SHARED_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: execution-agent-runtime-secrets
+                  key: EXECUTION_AGENT_RUNTIME_SHARED_SECRET
             - name: PERSONAL_MEMORY_API_SECRET
               valueFrom:
                 secretKeyRef:

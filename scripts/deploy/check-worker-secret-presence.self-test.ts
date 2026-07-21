@@ -163,6 +163,35 @@ export function runWorkerSecretPresenceSelfTest(): number {
 
 	withFixture((root) => {
 		writeWorkerConfig(root, "apps/app-api", ["BETTER_AUTH_SECRET"]);
+		const oldTimeout = process.env.WORKER_SECRET_AUDIT_TIMEOUT_SECONDS;
+		const oldMaxAttempts = process.env.WORKER_SECRET_AUDIT_MAX_ATTEMPTS;
+		delete process.env.WORKER_SECRET_AUDIT_TIMEOUT_SECONDS;
+		delete process.env.WORKER_SECRET_AUDIT_MAX_ATTEMPTS;
+		let calls = 0;
+		try {
+			const status = collectWorkerSecretPresence({
+				root,
+				envName: "staging",
+				appPaths: ["apps/app-api"],
+				runCommand: (command, options) => {
+					calls += 1;
+					expect(options.timeout === 120, "default Wrangler audit timeout should be 120s");
+					throw new CommandTimeoutError(command, options.timeout);
+				},
+			});
+			expect(calls === 1, "default Wrangler audit should not retry a timed-out command");
+			expect(
+				status.apps["apps/app-api"]?.error?.includes("after 120s") === true,
+				"default timeout should be reported",
+			);
+		} finally {
+			restoreEnv("WORKER_SECRET_AUDIT_TIMEOUT_SECONDS", oldTimeout);
+			restoreEnv("WORKER_SECRET_AUDIT_MAX_ATTEMPTS", oldMaxAttempts);
+		}
+	});
+
+	withFixture((root) => {
+		writeWorkerConfig(root, "apps/app-api", ["BETTER_AUTH_SECRET"]);
 		const oldMaxAttempts = process.env.WORKER_SECRET_AUDIT_MAX_ATTEMPTS;
 		process.env.WORKER_SECRET_AUDIT_MAX_ATTEMPTS = "2";
 		let calls = 0;

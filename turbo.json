@@ -198,7 +198,7 @@
 		},
 		"deploy": {
 			"cache": false,
-			"passThroughEnv": ["WORKER_SECRET_AUDIT_MAX_ATTEMPTS"]
+			"passThroughEnv": ["WORKER_SECRET_AUDIT_MAX_ATTEMPTS", "WORKER_SECRET_AUDIT_TIMEOUT_SECONDS"]
 		}
 	}
 }
