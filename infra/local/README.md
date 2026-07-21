@@ -10,7 +10,6 @@
 - `docker-compose.execution-runtime.yml`：本地 execution-control、agent-runtime、Temporal、
   Hindsight 与 runtime worker；
 - `docker-compose.execution-runtime.fanout.yml`：测试外部观测目的地时使用的可选 OTel overlay；
-- `docker-compose.langfuse.yml`：本地观测 fan-out 所需的可选 self-hosted Langfuse；
 - `docker-compose.postgres.yml`：共享本地 Postgres；
 - `docker-compose.ingestion-control.yml`：本地 ingestion-control；
 - `docker-compose.object-store.yml`：本地 S3-compatible object store；

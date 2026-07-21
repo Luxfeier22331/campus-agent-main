@@ -15,7 +15,10 @@ if (( ${#changed[@]} == 0 )); then
 	exit 0
 fi
 
-pnpm exec biome check --files-ignore-unknown=true "${changed[@]}"
+pnpm exec biome check \
+	--files-ignore-unknown=true \
+	--no-errors-on-unmatched \
+	"${changed[@]}"
 pnpm exec editorconfig-checker \
 	-no-color \
 	-disable-indentation \

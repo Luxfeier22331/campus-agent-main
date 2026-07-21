@@ -14,7 +14,7 @@ status: accepted
 
 ## 决策
 
-使用自托管 Langfuse 作为受信任的内部模型观测和评测平台。
+使用 Langfuse Cloud Japan 区域中的 `campus-agent` project 作为受信任的模型观测和评测平台。
 
 - 采样后的 Agent 调用链可以包含用户与会话关联、模型输入输出、记忆上下文和已授权检索事实；
 - 认证凭据和密钥不得进入调用链、数据集或评分；

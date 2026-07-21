@@ -11,9 +11,9 @@ status: active
 Langfuse 消费受信任 OpenTelemetry trace 和评测 score，不拥有产品 HTTP、Temporal 生命周期、
 PostgreSQL run projection、Hindsight bank 或仓库 dataset 真相。
 
-每个环境只提供一个固定 project。staging project 名称固定为 `campus-agent-staging`；Agent、
-execution-control 与 Hindsight trace 通过 `service.name`、固定 tag、receiver 和字段合同区分，
-不创建第二个 project 模拟服务边界。
+所有环境使用 Langfuse Cloud Japan 区域中的 `campus-agent` project，并通过原生 `environment`
+字段区分 local、staging 和 production。Agent、execution-control 与 Hindsight trace 通过
+`service.name`、固定 tag、receiver 和字段合同区分，不创建第二个 project 模拟环境或服务边界。
 
 ## Runtime 集成
 
@@ -96,8 +96,8 @@ execution-control core worker 通过以下配置访问环境 project 的 Public 
 - `LANGFUSE_MAINTENANCE_PUBLIC_KEY`
 - `LANGFUSE_MAINTENANCE_SECRET_KEY`
 
-部署的 `activity-core` 必须同时配置三项；任何一项缺失都是启动配置错误。key 必须属于当前
-环境 project，base URL 必须是没有内嵌 credential 的 HTTP(S) origin。
+部署的 `activity-core` 必须同时配置三项；任何一项缺失都是启动配置错误。key 必须属于
+`campus-agent` project，base URL 必须是没有内嵌 credential 的 Langfuse Cloud HTTP(S) origin。
 
 maintenance client 使用 HTTP Basic auth。owner erase 在同一 project 中先执行精确
 `GET /api/public/traces?userId=<command.UserID>&toTimestamp=<command.source_updated_at>`，再执行

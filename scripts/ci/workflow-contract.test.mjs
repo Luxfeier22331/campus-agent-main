@@ -20,6 +20,7 @@ const actionlintConfig = read(".github/actionlint.yaml");
 const packageJson = read("package.json");
 const osvScan = read("scripts/ci/osv-scan.sh");
 const runAffected = read("scripts/ci/run-affected.sh");
+const checkStaticAffected = read("scripts/ci/check-static-affected.sh");
 
 function setupNodeStep(jobName) {
 	return releaseWorkflow.jobs[jobName].steps.find(
@@ -50,6 +51,7 @@ test("keeps the fast profile free of build and runtime checks", () => {
 	);
 	assert.doesNotMatch(fastProfile, /docker (?:run|build)|playwright|test:e2e|ci:go|ci:rust/u);
 	assert.match(fastProfile, /check-static-affected/u);
+	assert.match(checkStaticAffected, /--no-errors-on-unmatched/u);
 	assert.match(fastProfile, /gitleaks/u);
 	assert.match(fastProfile, /scripts\/ci\/shellcheck\.sh/u);
 });
