@@ -54,7 +54,7 @@ while IFS= read -r image; do
 			--push
 			--sbom=true
 			--cache-from "type=registry,ref=${repository}:buildcache-arm64"
-			--cache-to "type=registry,ref=${repository}:buildcache-arm64,mode=max,image-manifest=true,oci-mediatypes=true"
+			--cache-to "type=registry,ref=${repository}:buildcache-arm64,mode=max,image-manifest=true,oci-mediatypes=true,ignore-error=true"
 			--label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}"
 			--label "org.opencontainers.image.revision=${GITHUB_SHA}"
 			--metadata-file "$metadata_file"

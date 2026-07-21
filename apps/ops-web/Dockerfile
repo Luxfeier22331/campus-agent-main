@@ -6,6 +6,7 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/ops-web/package.json ./apps/ops-web/package.json
 COPY packages/domains/dining/package.json ./packages/domains/dining/package.json
+COPY scripts/ci/check-ops-web-artifact.mjs ./scripts/ci/check-ops-web-artifact.mjs
 
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
   --mount=type=cache,id=corepack,target=/root/.cache/node/corepack,sharing=locked \
@@ -17,7 +18,8 @@ COPY packages/domains/dining ./packages/domains/dining
 
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
   pnpm --filter ops-web build \
-  && pnpm --filter ops-web deploy --legacy --prod /opt/ops-web
+  && pnpm --filter ops-web deploy --legacy --prod /opt/ops-web \
+  && node scripts/ci/check-ops-web-artifact.mjs /opt/ops-web
 
 FROM node:24.15-bookworm-slim AS runtime
 

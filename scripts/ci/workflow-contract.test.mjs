@@ -21,6 +21,9 @@ const packageJson = read("package.json");
 const osvScan = read("scripts/ci/osv-scan.sh");
 const runAffected = read("scripts/ci/run-affected.sh");
 const checkStaticAffected = read("scripts/ci/check-static-affected.sh");
+const publishImages = read("scripts/ci/publish-images.sh");
+const opsWebDockerfile = read("apps/ops-web/Dockerfile");
+const ciSurfaces = read("scripts/ci/ci-surfaces.mjs");
 
 function setupNodeStep(jobName) {
 	return releaseWorkflow.jobs[jobName].steps.find(
@@ -51,6 +54,7 @@ test("keeps the fast profile free of build and runtime checks", () => {
 	);
 	assert.doesNotMatch(fastProfile, /docker (?:run|build)|playwright|test:e2e|ci:go|ci:rust/u);
 	assert.match(fastProfile, /check-static-affected/u);
+	assert.match(runAffected, /check-ops-web-artifact\.test\.mjs/u);
 	assert.match(checkStaticAffected, /--no-errors-on-unmatched/u);
 	assert.match(fastProfile, /gitleaks/u);
 	assert.match(fastProfile, /scripts\/ci\/shellcheck\.sh/u);
@@ -102,10 +106,28 @@ test("guards release publication and unresolved surfaces", () => {
 		(step) => step.name === "Validate Cloudflare staging credentials",
 	);
 	assert.ok(cloudflareCredentialStep, "release-config must validate Cloudflare credentials early");
-	assert.match(cloudflareCredentialStep.run, /run-wrangler-command\.ts whoami/u);
+	assert.match(
+		cloudflareCredentialStep.env.RELEASE_WORKERS,
+		/^\$\{\{ needs\.release-plan\.outputs\.workers \}\}$/u,
+	);
+	assert.match(cloudflareCredentialStep.run, /pnpm --dir "\$worker_app" exec tsx/u);
+	assert.match(cloudflareCredentialStep.run, /if jq -e 'index\("app-api"\) != null'/u);
+	assert.match(cloudflareCredentialStep.run, /elif jq -e 'index\("campus-web"\) != null'/u);
+	assert.match(
+		cloudflareCredentialStep.run,
+		/\.\.\/\.\.\/scripts\/deploy\/run-wrangler-command\.ts/u,
+	);
+	assert.doesNotMatch(cloudflareCredentialStep.run, /pnpm exec tsx/u);
 	assert.match(cloudflareCredentialStep.run, /--account ["']?\$CLOUDFLARE_ACCOUNT_ID/u);
 	assert.match(releaseSource, /\.unresolved \| length == 0/u);
 	assert.match(releaseSource, /scripts\/ci\/publish-images\.sh/u);
+	assert.match(publishImages, /--cache-to .*ignore-error=true/u);
+	assert.match(opsWebDockerfile, /check-ops-web-artifact\.mjs \/opt\/ops-web/u);
+	assert.match(ciSurfaces, /"apps\/ops-web\/Dockerfile"/u);
+	assert.match(releaseSource, /name: campus-agent-release-\$\{\{ github\.run_id \}\}/u);
+	assert.match(releaseSource, /keep-state: false/u);
+	assert.match(releaseSource, /cleanup: true/u);
+	assert.doesNotMatch(releaseSource, /name: campus-agent-release\s*$/mu);
 	assert.match(releaseSource, /github\.ref == 'refs\/heads\/main'/u);
 });
 

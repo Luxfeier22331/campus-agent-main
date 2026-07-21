@@ -188,7 +188,21 @@ jobs:
           workspace-filters-json: ${{ needs.release-plan.outputs.worker_filters }}
 
       - name: Validate Cloudflare staging credentials
-        run: pnpm exec tsx scripts/deploy/run-wrangler-command.ts whoami --account "$CLOUDFLARE_ACCOUNT_ID" --json
+        env:
+          RELEASE_WORKERS: ${{ needs.release-plan.outputs.workers }}
+        run: |
+          set -euo pipefail
+          if jq -e 'index("app-api") != null' <<< "$RELEASE_WORKERS" >/dev/null; then
+            worker_app="apps/app-api"
+          elif jq -e 'index("campus-web") != null' <<< "$RELEASE_WORKERS" >/dev/null; then
+            worker_app="apps/campus-web"
+          else
+            echo "Release plan does not select a supported Cloudflare Worker." >&2
+            exit 1
+          fi
+          pnpm --dir "$worker_app" exec tsx \
+            ../../scripts/deploy/run-wrangler-command.ts \
+            whoami --account "$CLOUDFLARE_ACCOUNT_ID" --json
 
       - name: Validate app-api staging configuration
         if: contains(fromJSON(needs.release-plan.outputs.workers), 'app-api')
@@ -279,13 +293,13 @@ jobs:
         with:
           install: "false"
 
-      - name: Setup persistent Docker Buildx
+      - name: Setup isolated Docker Buildx
         if: runner.environment == 'self-hosted'
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4
         with:
-          name: campus-agent-release
-          keep-state: true
-          cleanup: false
+          name: campus-agent-release-${{ github.run_id }}
+          keep-state: false
+          cleanup: true
           cache-binary: false
           buildkitd-config-inline: |
             [worker.oci]

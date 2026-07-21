@@ -47,6 +47,38 @@ func TestHindsightHTTPClientHealthRequiresNativeLLMTracing(t *testing.T) {
 	}
 }
 
+func TestHindsightHTTPClientHealthRejectsMissingNativeLLMTracing(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodGet || request.URL.Path != "/version" {
+			t.Fatalf("request = %s %s", request.Method, request.URL.Path)
+		}
+		response.Header().Set("content-type", "application/json")
+		_, _ = response.Write([]byte(`{
+			"api_version":"0.8.4",
+			"features":{
+				"observations":true,
+				"mcp":false,
+				"worker":true,
+				"bank_config_api":true,
+				"bank_llm_health":false,
+				"file_upload_api":true,
+				"document_export_api":true,
+				"document_import_api":true,
+				"audit_log":false,
+				"llm_trace":false,
+				"store_document_text":true
+			}
+		}`))
+	}))
+	defer server.Close()
+
+	client := newHindsightHTTPClient(hindsightClientOptions{apiSecret: "hindsight-secret", baseURL: server.URL})
+	err := client.HealthCheck(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "llm_trace=false") {
+		t.Fatalf("error = %v, want missing native tracing diagnostic", err)
+	}
+}
+
 func TestHindsightHTTPClientSendsSynchronousReplaceRetain(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost || request.URL.Path != "/v1/default/banks/bank-01/memories" {

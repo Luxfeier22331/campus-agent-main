@@ -223,11 +223,24 @@ func (s *Server) personalMemoryRuntimeStatus(ctx context.Context) map[string]any
 	}
 	status["state_store_healthy"] = true
 	if err := s.personalMemoryExecutor.HealthCheck(checkCtx); err != nil {
-		status["last_error"] = "personal memory health check failed"
+		status["last_error"] = "personal memory health check failed: " + formatReadinessError(err)
 		return status
 	}
 	status["healthy"] = true
 	return status
+}
+
+func formatReadinessError(err error) string {
+	if err == nil {
+		return ""
+	}
+	message := strings.Join(strings.Fields(err.Error()), " ")
+	const maxLength = 256
+	runes := []rune(message)
+	if len(runes) > maxLength {
+		return string(runes[:maxLength]) + "..."
+	}
+	return message
 }
 
 func requiredTemporalTaskQueueNames(cfg config.Config) []string {

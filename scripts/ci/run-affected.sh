@@ -41,6 +41,7 @@ run_fast() {
 	node --test \
 		scripts/ci/change-plan.test.mjs \
 		scripts/ci/check-docker-affected.test.mjs \
+		scripts/ci/check-ops-web-artifact.test.mjs \
 		scripts/ci/workflow-contract.test.mjs
 	has_preflight_check planner && node --test scripts/ci/change-plan.integration.test.mjs
 	if has_worker_release; then
