@@ -10,7 +10,6 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimepolicy"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/toolreadmodel"
 )
 
 type providerConfigGate struct {
@@ -22,7 +21,6 @@ type providerConfigGate struct {
 func providerConfigGateRequiredRoles() []providerConfigRole {
 	return []providerConfigRole{
 		providerConfigRolePrimaryAgent,
-		providerConfigRoleRAGQueryEmbedding,
 	}
 }
 
@@ -45,18 +43,12 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 	agentRuntimeStatus := s.agentRuntimeStatus(request.Context())
 	personalMemoryStatus := s.personalMemoryRuntimeStatus(request.Context())
 	knowledgeSearchStatus := s.knowledgeSearchRuntimeStatus(request.Context())
-	telemetryHealthy := !telemetryStatus.Enabled || telemetryStatus.ExporterConfigured
-	toolReadModelRuntimeHealthy := s.openToolReadModelRuntimeHealthy(toolReadModelStatus)
 	runProjectionStoreStatus := s.runProjectionStoreStatus(request.Context())
 	ready := transportStatus.Healthy &&
-		telemetryHealthy &&
-		toolReadModelRuntimeHealthy &&
 		providerConfigGate.Configured &&
 		agentRuntimeStatus["healthy"] == true &&
 		runProjectionStoreStatus["healthy"] == true &&
-		temporalRuntimeStatus["healthy"] == true &&
-		personalMemoryStatus["healthy"] == true &&
-		knowledgeSearchStatus["healthy"] == true
+		temporalRuntimeStatus["healthy"] == true
 	statusCode := http.StatusOK
 	statusText := "ready"
 	if !ready {
@@ -85,7 +77,7 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 
 func (s *Server) agentRuntimeStatus(ctx context.Context) map[string]any {
 	baseURL := strings.TrimRight(strings.TrimSpace(s.config.AgentRuntimeBaseURL), "/")
-	configured := baseURL != "" && strings.TrimSpace(s.config.AgentRuntimeSharedSecret) != ""
+	configured := baseURL != ""
 	status := map[string]any{
 		"configured": configured,
 		"healthy":    false,
@@ -159,10 +151,11 @@ func (s *Server) temporalRuntimeStatus(ctx context.Context) map[string]any {
 
 func (s *Server) knowledgeSearchRuntimeStatus(ctx context.Context) map[string]any {
 	status := map[string]any{
-		"configured":        s.knowledgeSearchExecutor != nil,
-		"healthy":           false,
-		"last_error":        "",
-		"retrieval_adapter": "qdrant_native",
+		"configured":                    s.knowledgeSearchExecutor != nil,
+		"embedding_provider_configured": false,
+		"healthy":                       false,
+		"last_error":                    "",
+		"retrieval_adapter":             "qdrant_native",
 	}
 	if s.knowledgeSearchErr != nil {
 		status["last_error"] = "knowledge search executor could not be initialized"
@@ -174,6 +167,18 @@ func (s *Server) knowledgeSearchRuntimeStatus(ctx context.Context) map[string]an
 	}
 	checkCtx, cancel := context.WithTimeout(ctx, time.Duration(s.config.ToolReadModelTimeoutMS)*time.Millisecond)
 	defer cancel()
+	if s.providerConfigErr != nil || s.providerConfigResolver == nil {
+		status["last_error"] = "knowledge search embedding provider config is not available"
+		return status
+	}
+	if _, err := s.providerConfigResolver.ResolveActiveProviderConfig(
+		checkCtx,
+		providerConfigRoleRAGQueryEmbedding,
+	); err != nil {
+		status["last_error"] = "knowledge search embedding provider config is not available"
+		return status
+	}
+	status["embedding_provider_configured"] = true
 	if err := s.knowledgeSearchExecutor.HealthCheck(checkCtx); err != nil {
 		status["last_error"] = "knowledge search health check failed: " + err.Error()
 		return status
@@ -333,16 +338,6 @@ func (s *Server) toolGateStatus() map[string]any {
 			"gate": "tool_read_model_runtime_and_activity_worker",
 		},
 	}
-}
-
-func (s *Server) openToolReadModelRuntimeHealthy(status toolreadmodel.Status) bool {
-	if modelVisibleToolConfigured("transport_schedule_lookup") &&
-		(!status.Configured ||
-			!status.TransportScheduleReadModelConfigured ||
-			!status.TransportScheduleReadModelHealthy) {
-		return false
-	}
-	return true
 }
 
 func modelVisibleToolConfigured(toolName string) bool {

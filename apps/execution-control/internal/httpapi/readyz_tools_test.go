@@ -13,15 +13,15 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/toolreadmodel"
 )
 
-func TestReadyzDegradesWhenModelVisibleCampusServicesRuntimeIsUnavailable(t *testing.T) {
+func TestReadyzReportsUnavailableToolReadModelWithoutBlockingCoreRuntime(t *testing.T) {
 	server := newReadyServerForTest(t)
 	server.toolReadModel = toolreadmodel.NewRuntime(toolreadmodel.Options{})
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
 
-	if response.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d, want 503, body: %s", response.Code, response.Body.String())
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body: %s", response.Code, response.Body.String())
 	}
 	body := decodeBody(t, response)
 	toolReadModelRuntime := expectRecord(t, body["tool_read_model_runtime"], "tool_read_model_runtime")
@@ -59,7 +59,7 @@ func TestReadyzKeepsRuntimeReadyWhenTransportProjectionHasNoCurrentRelease(t *te
 	}
 }
 
-func TestReadyzDegradesWhenTransportReadModelDatabaseIsUnhealthy(t *testing.T) {
+func TestReadyzReportsUnhealthyTransportReadModelWithoutBlockingCoreRuntime(t *testing.T) {
 	server := newReadyServerForTest(t)
 	server.toolReadModel = toolreadmodel.NewRuntime(toolreadmodel.Options{
 		TransportScheduleReadModelStore: &fakeStructuredReadModelStore{
@@ -70,8 +70,8 @@ func TestReadyzDegradesWhenTransportReadModelDatabaseIsUnhealthy(t *testing.T) {
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
 
-	if response.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d, want 503, body: %s", response.Code, response.Body.String())
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body: %s", response.Code, response.Body.String())
 	}
 	body := decodeBody(t, response)
 	toolReadModelRuntime := expectRecord(t, body["tool_read_model_runtime"], "tool_read_model_runtime")

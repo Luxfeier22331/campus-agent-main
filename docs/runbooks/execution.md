@@ -47,9 +47,10 @@ registry 的 pull secret 由环境 overlay 绑定到 first-party ServiceAccount�
 使用环境仓为当前环境提供的 app-api 与 campus-web 地址检查 `/readyz`，并确认响应中的运行版本
 与环境选择一致。源码仓不保存 staging hostname。
 
-execution-control readiness 降级时，根据返回信息定位 Temporal、Hindsight、Qdrant、OTel、
-PostgreSQL 或 execution runtime Application。通过环境仓修复期望状态，不以本地 Docker、临时
-环境渲染器或宿主机修改代替 GitOps。
+execution-control readiness 降级时，根据顶层核心状态定位回答准入、Temporal、Primary Agent
+Provider Config、Agent Runtime、PostgreSQL 或 execution runtime Application。Hindsight、Qdrant、
+OTel 和工具读取投影状态是局部能力诊断，不单独阻断顶层 readiness。通过环境仓修复期望状态，
+不以本地 Docker、临时环境渲染器或宿主机修改代替 GitOps。
 
 相关入口：`../architecture/system/durable-runtime.md`、`../architecture/system/k8s-runtime.md`、
 `../contracts/tool-execution.md`、`temporal.md`、`release.md`、`e2e.md`。

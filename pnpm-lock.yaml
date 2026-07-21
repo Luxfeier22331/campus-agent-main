@@ -6,7 +6,11 @@ settings:
 
 overrides:
   adm-zip: 0.6.0
+  body-parser@<2.3.0: 2.3.0
+  brace-expansion@>=2.0.0 <2.1.2: 2.1.2
   esbuild@<0.25.0: 0.25.12
+  js-yaml@>=5.0.0 <5.2.1: 5.2.1
+  protobufjs@<7.6.5: 7.6.5
 
 packageExtensionsChecksum: sha256-SD8FftkzcH9iA2Sb4LJ9SvWRHv5QmnHSXXCFmAOvSio=
 
@@ -477,9 +481,6 @@ importers:
       '@axiomhq/js':
         specifier: 1.8.0
         version: 1.8.0
-      '@campus-agent/dining':
-        specifier: workspace:*
-        version: link:../../packages/domains/dining
       '@hono/node-server':
         specifier: ^1.19.14
         version: 1.19.14(hono@4.12.28)
@@ -532,6 +533,9 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@campus-agent/dining':
+        specifier: workspace:*
+        version: link:../../packages/domains/dining
       '@playwright/test':
         specifier: ^1.61.1
         version: 1.61.1
@@ -5615,8 +5619,8 @@ packages:
   blake3-wasm@2.1.5:
     resolution: {integrity: sha512-F1+K8EbfOZE49dtoPtmxUQrpXaBIl3ICvasLh+nJta0xkz+9kF/7uet9fLnwKqhDrmj6g+6K3Tw9yQPUg2ka5g==}
 
-  body-parser@2.2.2:
-    resolution: {integrity: sha512-oP5VkATKlNwcgvxi0vM0p/D3n2C3EReYVX+DNYs5TjZFn/oQt2j+4sVJtSMr18pdRr8wjTcBl6LoV+FUwzPmNA==}
+  body-parser@2.3.0:
+    resolution: {integrity: sha512-2cGmJupaNgg+QUwVLAucDuWuoMZ6EX9iHDRswZ5lsNYEmwPaRknMPCLZz07yTzVq/83p4o/wzbDZbBrTvGGTIw==}
     engines: {node: '>=18'}
 
   body-scroll-lock@4.0.0-beta.0:
@@ -5628,8 +5632,8 @@ packages:
   bowser@2.14.1:
     resolution: {integrity: sha512-tzPjzCxygAKWFOJP011oxFHs57HzIhOEracIgAePE4pqB3LikALKnSzUyU4MGs9/iCEUuHlAJTjTc5M+u7YEGg==}
 
-  brace-expansion@2.0.3:
-    resolution: {integrity: sha512-MCV/fYJEbqx68aE58kv2cA/kiky1G8vux3OR6/jbS+jIMe/6fJWa0DTzJU7dqijOWYwHi1t29FlfYI9uytqlpA==}
+  brace-expansion@2.1.2:
+    resolution: {integrity: sha512-w5JZcKgdhDOgOwm8H+KgbosopHMuGcl6qbulwjtz3SM7I7P3yW1eAjzMPLrIE+NQ9vjgANKHWeMHnrT0OXW1oA==}
 
   brace-expansion@5.0.7:
     resolution: {integrity: sha512-7oFy703dxfY3/NLxC1fh2SUCQ0H9rmAY+5EpDVfXjUTTs+HEwR2nYaqLv+GWcTsumwxPfiz6CzCNkwXwBUwqCA==}
@@ -6958,8 +6962,8 @@ packages:
     resolution: {integrity: sha512-1td788aAnnZ5qs7V2QIRl1owjtYpbKt749Y3xauqQgwIIGF/xXWz1wMTEBx5O3LK3lXLVuqXPdPxj2BoFHaW9Q==}
     hasBin: true
 
-  js-yaml@5.2.0:
-    resolution: {integrity: sha512-YeLUMlvR4Ou1B119LIaM0r65JvbOBooJDc9yEu0dClb/uSC5P4FrLU8OCCz/HXWvtPoIrR0dRzABTjo1sTN9Bw==}
+  js-yaml@5.2.1:
+    resolution: {integrity: sha512-zfLtNfQqxVqq3uaTqSkh4x4hZw3KHobGUA0fJUj4wawW8bsQLTVqpHdXSIzidh7o+4lEW36tANuAGdaFx6Zgnw==}
     hasBin: true
 
   jsdom@26.1.0:
@@ -8037,8 +8041,8 @@ packages:
     resolution: {integrity: sha512-SAzp/O4Yh02jGdRc+uIrGoe87dkN/XtwxfZ4ZyafJHymd79ozp5VG5nyZ7ygqPM5+cpLDjjGnYFUkngonyDPOQ==}
     engines: {node: '>=14.0.0'}
 
-  protobufjs@7.6.4:
-    resolution: {integrity: sha512-RJJPTTpvFfHcWLkIa2JFWK4XvtSzS0yEWDmunqHXli1h3JlkbcQZXDZdcWxv+JK3Xsl5/UFDPZ0iGm7DAengYw==}
+  protobufjs@7.6.5:
+    resolution: {integrity: sha512-/FPD0nUc9jH6rfFjji9IBqOz4pcSE3CsT1m7Ep6Mdb0LxSUMj8hgl6GomOvZzpNpAqqGaXA0P3VSrZLFzIhQrw==}
     engines: {node: '>=12.0.0'}
 
   protocol-buffers-schema@3.6.1:
@@ -10697,14 +10701,14 @@ snapshots:
     dependencies:
       lodash.camelcase: 4.3.0
       long: 5.3.2
-      protobufjs: 7.6.4
+      protobufjs: 7.6.5
       yargs: 17.7.2
 
   '@grpc/proto-loader@0.8.1':
     dependencies:
       lodash.camelcase: 4.3.0
       long: 5.3.2
-      protobufjs: 7.6.4
+      protobufjs: 7.6.5
       yargs: 17.7.2
 
   '@heroui/react@3.2.2(@react-spectrum/provider@3.11.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tailwindcss@4.3.2)':
@@ -13528,7 +13532,7 @@ snapshots:
   '@temporalio/proto@1.20.2':
     dependencies:
       long: 5.3.2
-      protobufjs: 7.6.4
+      protobufjs: 7.6.5
 
   '@temporalio/worker@1.20.2(@swc/helpers@0.5.23)(esbuild@0.28.1)(tslib@2.8.1)':
     dependencies:
@@ -13544,7 +13548,7 @@ snapshots:
       heap-js: 2.7.1
       memfs: 4.57.8(tslib@2.8.1)
       nexus-rpc: 0.0.2
-      protobufjs: 7.6.4
+      protobufjs: 7.6.5
       rxjs: 7.8.2
       source-map: 0.7.6
       source-map-loader: 5.0.0(webpack@5.108.3(@swc/core@1.15.43(@swc/helpers@0.5.23))(esbuild@0.28.1))
@@ -14475,10 +14479,10 @@ snapshots:
 
   blake3-wasm@2.1.5: {}
 
-  body-parser@2.2.2:
+  body-parser@2.3.0:
     dependencies:
       bytes: 3.1.2
-      content-type: 1.0.5
+      content-type: 2.0.0
       debug: 4.4.3
       http-errors: 2.0.1
       iconv-lite: 0.7.2
@@ -14496,7 +14500,7 @@ snapshots:
 
   bowser@2.14.1: {}
 
-  brace-expansion@2.0.3:
+  brace-expansion@2.1.2:
     dependencies:
       balanced-match: 1.0.2
 
@@ -14933,7 +14937,7 @@ snapshots:
       '@grpc/grpc-js': 1.14.4
       '@grpc/proto-loader': 0.7.15
       docker-modem: 5.0.7
-      protobufjs: 7.6.4
+      protobufjs: 7.6.5
       tar-fs: 2.1.5
     transitivePeerDependencies:
       - supports-color
@@ -15239,7 +15243,7 @@ snapshots:
   express@5.2.1:
     dependencies:
       accepts: 2.0.0
-      body-parser: 2.2.2
+      body-parser: 2.3.0
       content-disposition: 1.1.0
       content-type: 1.0.5
       cookie: 0.7.2
@@ -15946,7 +15950,7 @@ snapshots:
     dependencies:
       argparse: 2.0.1
 
-  js-yaml@5.2.0:
+  js-yaml@5.2.1:
     dependencies:
       argparse: 2.0.1
 
@@ -16218,7 +16222,7 @@ snapshots:
   markdownlint-cli2@0.23.0:
     dependencies:
       globby: 16.2.0
-      js-yaml: 5.2.0
+      js-yaml: 5.2.1
       jsonc-parser: 3.3.1
       jsonpointer: 5.0.1
       markdown-it: 14.2.0
@@ -16824,11 +16828,11 @@ snapshots:
 
   minimatch@5.1.9:
     dependencies:
-      brace-expansion: 2.0.3
+      brace-expansion: 2.1.2
 
   minimatch@9.0.9:
     dependencies:
-      brace-expansion: 2.0.3
+      brace-expansion: 2.1.2
 
   minimist@1.2.8: {}
 
@@ -17304,9 +17308,9 @@ snapshots:
 
   proto3-json-serializer@2.0.2:
     dependencies:
-      protobufjs: 7.6.4
+      protobufjs: 7.6.5
 
-  protobufjs@7.6.4:
+  protobufjs@7.6.5:
     dependencies:
       '@protobufjs/aspromise': 1.1.2
       '@protobufjs/base64': 1.1.2

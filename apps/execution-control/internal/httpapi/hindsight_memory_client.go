@@ -83,7 +83,7 @@ func (c hindsightHTTPClient) HealthCheck(ctx context.Context) error {
 		return fmt.Errorf("hindsight api_version=%q, want 0.8.4", version.GetApiVersion())
 	}
 	features := version.GetFeatures()
-	if !features.GetObservations() || !features.GetBankConfigApi() || features.GetMcp() || features.GetLlmTrace() || !features.GetStoreDocumentText() {
+	if !features.GetObservations() || !features.GetBankConfigApi() || features.GetMcp() || !features.GetLlmTrace() || !features.GetStoreDocumentText() {
 		return fmt.Errorf(
 			"hindsight required features unavailable: observations=%t bank_config_api=%t mcp=%t llm_trace=%t store_document_text=%t",
 			features.GetObservations(),

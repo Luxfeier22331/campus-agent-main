@@ -42,9 +42,18 @@ Cloudflare Secret 存在性检查和 Worker 发布前检查由 `../runbooks/prov
 
 ### Execution Control
 
-Execution Control 的 `/readyz` 检查持久执行、运行投影、已开放工具依赖和回答准入所需的核心
-组件。非本地环境中的完整结果属于受信任机器接口，由产品后端携带内部身份读取，不直接作为
-公开浏览器探针。
+Execution Control 的 `/readyz` 只用以下核心条件决定 HTTP 状态：回答准入仍可接收请求、运行
+投影可用、Temporal 及必要 task queue poller 可用、Primary Agent 配置已激活，以及 Agent
+Runtime 地址已配置且其 `/readyz` 成功。Agent Runtime 的就绪探针本身不需要调用 Activity 使用的
+共享密钥。
+
+OTel exporter、工具读取投影、Hindsight 个人记忆和 Qdrant 知识检索仍作为诊断字段出现在响应
+中，但它们是局部能力，不参与 Execution Control 顶层就绪判定。局部能力不可用时，由对应工具
+或运行路径返回明确失败；不能让无关请求因一个局部依赖故障而失去整个服务端点。查询向量配置
+由知识检索运行时自行检查，只有 Primary Agent 配置参与顶层 Provider Config gate。
+
+非本地环境中的完整结果属于受信任机器接口，由产品后端携带内部身份读取，不直接作为公开浏览器
+探针。
 
 工具是否开放只由工具注册表、handler、合同和运行测试共同决定；环境检查不能替代工具准入。
 
@@ -53,6 +62,10 @@ Execution Control 的 `/readyz` 检查持久执行、运行投影、已开放工
 App API 的 `/readyz` 是产品后端就绪入口，可以包含安全的 Execution Control 摘要和当前运行
 版本标识。该标识必须由发布流程与环境仓选择的版本比较；旧版本即使健康，也不是目标版本已经
 发布的确认结果。
+
+App API 连接不到 Execution Control 时，只记录 `executionControl` 这一项失败；
+`executionRuntime` 保持 `not_ready`，但不复制同一个网络错误。Execution Control 已响应但其核心
+运行预检失败时，才由 `executionRuntime` 记录返回的具体阻断原因。
 
 ### 其他界面
 

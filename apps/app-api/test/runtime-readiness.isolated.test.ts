@@ -115,4 +115,26 @@ describe("runtime readiness", () => {
 			},
 		});
 	});
+
+	it("reports an execution-control transport failure only once", async () => {
+		mockedProbeExecutionControlReady.mockRejectedValue(new Error("connection refused"));
+		const deployedEnv = {
+			...env,
+			APP_API_ENVIRONMENT: "staging" as const,
+			EXECUTION_CONTROL_PRIVATE: { fetch: vi.fn() },
+			EXECUTION_CONTROL_PRIVATE_ORIGIN: "https://execution-control.internal",
+		};
+
+		const result = await defaultRuntimeReadinessProbe(deployedEnv);
+		expect(result).toMatchObject({
+			dependencies: {
+				executionControl: "not_ready",
+				executionRuntime: "not_ready",
+			},
+			failed: {
+				executionControl: "connection refused",
+			},
+		});
+		expect(result.failed).not.toHaveProperty("executionRuntime");
+	});
 });

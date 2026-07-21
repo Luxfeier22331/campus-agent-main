@@ -10,7 +10,7 @@ COPY packages/domains/dining/package.json ./packages/domains/dining/package.json
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
   --mount=type=cache,id=corepack,target=/root/.cache/node/corepack,sharing=locked \
   corepack enable pnpm \
-  && pnpm install --frozen-lockfile --filter ops-web
+  && pnpm install --frozen-lockfile --filter 'ops-web...'
 
 COPY apps/ops-web ./apps/ops-web
 COPY packages/domains/dining ./packages/domains/dining
@@ -38,4 +38,4 @@ USER node
 
 EXPOSE 5178
 
-CMD ["node", "--experimental-strip-types", "src/server/node.ts"]
+CMD ["node", "dist-server/node.js"]

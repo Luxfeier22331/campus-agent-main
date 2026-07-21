@@ -11,6 +11,9 @@ export default defineConfig({
 		},
 	},
 	plugins: [tailwindcss(), react()],
+	ssr: {
+		noExternal: ["@campus-agent/dining", "fast-xml-parser"],
+	},
 });
 
 function opsWebManualChunks(id: string): string | undefined {

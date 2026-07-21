@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -336,14 +337,57 @@ func TestReadyzDegradesWhenAgentRuntimeIsUnavailable(t *testing.T) {
 	}
 }
 
-func TestReadyzDegradesWhenOTelEnabledWithoutExporter(t *testing.T) {
-	server := NewServer(config.Config{
-		AppName:              "campus-agent",
-		MaxConcurrentAnswers: 1,
-		QueueCapacity:        1,
-		QueueTimeoutMS:       1_000,
-		OTelEnabled:          true,
+func TestReadyzAcceptsAgentRuntimeWithoutServerSharedSecret(t *testing.T) {
+	server := newReadyServerForTest(t, func(cfg *config.Config) {
+		cfg.AgentRuntimeSharedSecret = ""
 	})
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	body := decodeBody(t, response)
+	agentRuntime := expectRecord(t, body["agent_runtime"], "agent_runtime")
+	if agentRuntime["configured"] != true || agentRuntime["healthy"] != true {
+		t.Fatalf("agent_runtime = %#v, want configured and healthy", agentRuntime)
+	}
+}
+
+func TestReadyzDoesNotRequireRAGEmbeddingProviderForCoreRuntime(t *testing.T) {
+	server := newReadyServerForTest(t)
+	server.providerConfigResolver = staticProviderConfigResolver{
+		"primary_agent": primaryAgentProviderConfigSnapshotForTest(),
+	}
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	body := decodeBody(t, response)
+	providerConfigGate := expectRecord(t, body["provider_config_gate"], "provider_config_gate")
+	if providerConfigGate["configured"] != true {
+		t.Fatalf("provider_config_gate = %#v, want configured", providerConfigGate)
+	}
+	knowledgeSearchRuntime := expectRecord(t, body["knowledge_search_runtime"], "knowledge_search_runtime")
+	if knowledgeSearchRuntime["healthy"] != false || knowledgeSearchRuntime["embedding_provider_configured"] != false {
+		t.Fatalf("knowledge_search_runtime = %#v, want unavailable embedding diagnostic", knowledgeSearchRuntime)
+	}
+}
+
+func TestReadyzRequiresPrimaryAgentProvider(t *testing.T) {
+	server := newReadyServerForTest(t)
+	server.providerConfigResolver = staticProviderConfigResolver{
+		"rag_query_embedding": embeddingProviderConfigSnapshotForTest(
+			providerConfigRoleRAGQueryEmbedding,
+			"https://embedding.example/v1",
+			"embedding-test",
+			2560,
+		),
+	}
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
@@ -352,11 +396,41 @@ func TestReadyzDegradesWhenOTelEnabledWithoutExporter(t *testing.T) {
 		t.Fatalf("status = %d, want 503; body: %s", response.Code, response.Body.String())
 	}
 	body := decodeBody(t, response)
+	providerConfigGate := expectRecord(t, body["provider_config_gate"], "provider_config_gate")
+	if providerConfigGate["reason"] != "provider_config_invalid_for_primary_agent" {
+		t.Fatalf("provider_config_gate = %#v", providerConfigGate)
+	}
+}
+
+func TestReadyzReportsUnavailableOptionalRuntimesWithoutBlockingCoreRuntime(t *testing.T) {
+	server := newReadyServerForTest(t, func(cfg *config.Config) {
+		cfg.OTelEnabled = true
+	})
+	server.personalMemoryExecutor = nil
+	server.personalMemoryErr = errors.New("hindsight unavailable")
+	server.knowledgeSearchExecutor = nil
+	server.knowledgeSearchErr = errors.New("qdrant unavailable")
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	body := decodeBody(t, response)
 	telemetryRuntime := expectRecord(t, body["telemetry_runtime"], "telemetry_runtime")
 	if telemetryRuntime["enabled"] != true || telemetryRuntime["exporter_configured"] != false {
 		t.Fatalf("unexpected telemetry runtime: %#v", telemetryRuntime)
 	}
 	if telemetryRuntime["last_error"] == "" {
 		t.Fatal("expected telemetry last_error to be populated")
+	}
+	personalMemoryRuntime := expectRecord(t, body["personal_memory_runtime"], "personal_memory_runtime")
+	if personalMemoryRuntime["healthy"] != false || personalMemoryRuntime["last_error"] == "" {
+		t.Fatalf("personal_memory_runtime = %#v, want unhealthy diagnostic", personalMemoryRuntime)
+	}
+	knowledgeSearchRuntime := expectRecord(t, body["knowledge_search_runtime"], "knowledge_search_runtime")
+	if knowledgeSearchRuntime["healthy"] != false || knowledgeSearchRuntime["last_error"] == "" {
+		t.Fatalf("knowledge_search_runtime = %#v, want unhealthy diagnostic", knowledgeSearchRuntime)
 	}
 }

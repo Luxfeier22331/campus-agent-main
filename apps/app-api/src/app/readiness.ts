@@ -78,9 +78,6 @@ export async function defaultRuntimeReadinessProbe(env: Env): Promise<AppRuntime
 		preflight.campusServicesProductPath = executionReadiness.campusServicesProductPath;
 	} catch (error) {
 		failed.executionControl = formatRuntimeDependencyFailure(error);
-		if (requireExecutionRuntime) {
-			failed.executionRuntime = formatRuntimeDependencyFailure(error);
-		}
 	}
 
 	return {

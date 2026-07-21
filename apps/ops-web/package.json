@@ -5,15 +5,14 @@
 	"type": "module",
 	"files": [
 		"dist",
-		"ops",
-		"src/server",
-		"src/shared"
+		"dist-server",
+		"ops"
 	],
 	"scripts": {
-		"build": "vite build",
+		"build": "vite build && vite build --ssr src/server/node.ts --outDir dist-server",
 		"check": "pnpm typecheck && pnpm test && pnpm build",
 		"dev": "vite --host 0.0.0.0",
-		"start": "node --env-file-if-exists=.env --experimental-strip-types src/server/node.ts",
+		"start": "node --env-file-if-exists=.env dist-server/node.js",
 		"db:apply": "node --experimental-strip-types ops/db/ops-web-database.ts apply",
 		"db:verify": "node --experimental-strip-types ops/db/ops-web-database.ts verify",
 		"test": "vitest run --config vitest.config.mts",
@@ -23,7 +22,6 @@
 	},
 	"dependencies": {
 		"@axiomhq/js": "1.8.0",
-		"@campus-agent/dining": "workspace:*",
 		"@hono/node-server": "^1.19.14",
 		"@kubernetes/client-node": "1.4.0",
 		"@radix-ui/react-slot": "^1.3.0",
@@ -43,6 +41,7 @@
 		"zod": "^4.4.3"
 	},
 	"devDependencies": {
+		"@campus-agent/dining": "workspace:*",
 		"@playwright/test": "^1.61.1",
 		"@tailwindcss/vite": "^4.3.2",
 		"@testcontainers/postgresql": "12.0.4",
