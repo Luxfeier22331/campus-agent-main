@@ -187,6 +187,9 @@ jobs:
             campus-contracts...
           workspace-filters-json: ${{ needs.release-plan.outputs.worker_filters }}
 
+      - name: Validate Cloudflare staging credentials
+        run: pnpm exec tsx scripts/deploy/run-wrangler-command.ts whoami --account "$CLOUDFLARE_ACCOUNT_ID" --json
+
       - name: Validate app-api staging configuration
         if: contains(fromJSON(needs.release-plan.outputs.workers), 'app-api')
         run: pnpm exec tsx scripts/deploy/doctor-env.ts worker-staging-app-api --json

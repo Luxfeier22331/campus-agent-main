@@ -19,6 +19,11 @@ const CLOUDFLARE_NO_PROXY_HOSTS = [
 	"::1",
 ];
 
+// The secret audit invokes this wrapper through another wrapper command. This
+// marker carries the already-normalized vendor variable across that boundary
+// without making CLOUDFLARE_API_TOKEN a supported repository input.
+export const NORMALIZED_WRANGLER_ENV_MARKER = "CAMPUS_AGENT_WRANGLER_ENV_NORMALIZED";
+
 function mergeNoProxyValue(currentValue: string | undefined): string {
 	const entries = new Set(
 		String(currentValue ?? "")
@@ -38,12 +43,17 @@ export function buildWranglerCommandEnv(
 	baseEnv: NodeJS.ProcessEnv = process.env,
 ): NodeJS.ProcessEnv {
 	const nextEnv = { ...baseEnv };
+	const alreadyNormalized = baseEnv[NORMALIZED_WRANGLER_ENV_MARKER] === "1";
+	const existingApiToken = baseEnv.CLOUDFLARE_API_TOKEN?.trim();
 	delete nextEnv.CLOUDFLARE_API_TOKEN;
 	const automationToken = baseEnv.CLOUDFLARE_AUTOMATION_TOKEN?.trim();
 	if (automationToken) {
 		nextEnv.CLOUDFLARE_API_TOKEN = automationToken;
+	} else if (alreadyNormalized && existingApiToken) {
+		nextEnv.CLOUDFLARE_API_TOKEN = existingApiToken;
 	}
 	delete nextEnv.CLOUDFLARE_AUTOMATION_TOKEN;
+	delete nextEnv[NORMALIZED_WRANGLER_ENV_MARKER];
 	for (const key of PROXY_ENV_KEYS) {
 		delete nextEnv[key];
 	}

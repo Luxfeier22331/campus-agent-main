@@ -6,6 +6,20 @@ worker_candidates="${2:?worker candidate directory is required}"
 gitops_root="${3:?GitOps checkout directory is required}"
 source_repository="${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
 source_sha="${GITHUB_SHA:?GITHUB_SHA is required}"
+
+if [[ ! -f "$image_digests" ]]; then
+	echo "Image digest file does not exist: ${image_digests}." >&2
+	exit 1
+fi
+if [[ ! -d "$worker_candidates" ]]; then
+	echo "Worker candidate directory does not exist: ${worker_candidates}." >&2
+	exit 1
+fi
+if [[ ! -d "$gitops_root/cloudflare/staging" ]]; then
+	echo "GitOps Cloudflare staging directory does not exist: ${gitops_root}/cloudflare/staging." >&2
+	exit 1
+fi
+
 short_sha="$(printf '%.12s' "$source_sha")"
 image_root="ghcr.io/${source_repository,,}"
 

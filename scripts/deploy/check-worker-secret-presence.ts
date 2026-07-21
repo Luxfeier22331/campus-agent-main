@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildWranglerCommandEnv } from "./run-wrangler-command.ts";
+import { buildWranglerCommandEnv, NORMALIZED_WRANGLER_ENV_MARKER } from "./run-wrangler-command.ts";
 
 export const defaultAppPaths = ["apps/app-api", "apps/campus-web"];
 
@@ -116,6 +116,10 @@ export function buildCloudflareCliEnv(
 			sourceEnv[key] = value;
 		}
 	}
+	// Secret-audit commands execute the wrapper script as a child process. Tell
+	// that child that the vendor variable has already been normalized, so it
+	// does not discard the generated API-token alias on the second pass.
+	sourceEnv[NORMALIZED_WRANGLER_ENV_MARKER] = "1";
 	return sourceEnv;
 }
 

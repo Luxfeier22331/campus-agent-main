@@ -82,7 +82,7 @@ Campus Web 浏览器验证分为三个边界：
 | 仅 Markdown、文档索引或贡献规范 | `pnpm ci:repo` |
 | `packages/contracts`、OpenAPI、共享 schema | `pnpm ci:contracts`，再运行受影响 consumer 检查 |
 | 一般 app/package/job TypeScript | `pnpm ci:typescript` |
-| Worker route、binding、wrangler config 或 Worker shell | `pnpm ci:worker` 与模块测试 |
+| Worker route、binding、wrangler config 或 Worker shell | `pnpm ci:worker` 与模块测试；涉及发布脚本时加运行时密钥审计和 Worker version self-test |
 | Campus Web 用户可见运行时 | 模块 typecheck/test、`test:e2e:smoke`；跨页面重构本地加 `test:e2e:full` |
 | execution-control Go、Go module 或其 runtime config | `pnpm ci:go`；合同变化时加 `pnpm ci:contracts` |
 | Rust kernel 或 Cargo workspace | `pnpm ci:rust` |

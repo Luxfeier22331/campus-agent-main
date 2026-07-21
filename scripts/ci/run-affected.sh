@@ -32,6 +32,10 @@ has_suite() {
 	jq -e --arg suite "$1" '.verification.database | index($suite) != null' "$temporary_directory/change-plan.json" >/dev/null
 }
 
+has_worker_release() {
+	jq -e '.release.workers | length > 0' "$temporary_directory/change-plan.json" >/dev/null
+}
+
 run_fast() {
 	scripts/ci/check-static-affected.sh "$base" "$head"
 	node --test \
@@ -39,6 +43,10 @@ run_fast() {
 		scripts/ci/check-docker-affected.test.mjs \
 		scripts/ci/workflow-contract.test.mjs
 	has_preflight_check planner && node --test scripts/ci/change-plan.integration.test.mjs
+	if has_worker_release; then
+		pnpm exec tsx scripts/deploy/check-worker-secret-presence.ts --self-test
+		pnpm exec tsx scripts/deploy/worker-version.self-test.ts
+	fi
 	scripts/ci/gitleaks.sh "$base" "$head"
 
 	if has_lane python || has_lane sql || has_lane yaml; then

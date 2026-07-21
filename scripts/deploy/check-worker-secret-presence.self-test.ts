@@ -10,6 +10,7 @@ import {
 	CommandTimeoutError,
 	collectWorkerSecretPresence,
 } from "./check-worker-secret-presence.ts";
+import { buildWranglerCommandEnv } from "./run-wrangler-command.ts";
 
 export function runWorkerSecretPresenceSelfTest(): number {
 	const canonicalWranglerEnv = buildCloudflareCliEnv({
@@ -17,6 +18,12 @@ export function runWorkerSecretPresenceSelfTest(): number {
 		CLOUDFLARE_AUTOMATION_TOKEN: "  canonical-token  ",
 	});
 	expectEqualJson(canonicalWranglerEnv.CLOUDFLARE_API_TOKEN, "canonical-token");
+	const nestedWranglerEnv = buildWranglerCommandEnv(canonicalWranglerEnv);
+	expectEqualJson(nestedWranglerEnv.CLOUDFLARE_API_TOKEN, "canonical-token");
+	expect(
+		!("CAMPUS_AGENT_WRANGLER_ENV_NORMALIZED" in nestedWranglerEnv),
+		"internal Wrangler environment marker leaked to Wrangler",
+	);
 	expect(
 		!("CLOUDFLARE_AUTOMATION_TOKEN" in canonicalWranglerEnv),
 		"canonical token leaked to Wrangler",

@@ -98,6 +98,12 @@ test("guards release publication and unresolved surfaces", () => {
 		assert.ok(step, `${jobName} must set up Node and pnpm`);
 		assert.match(step.with["workspace-filters"], /campus-contracts\.\.\./u);
 	}
+	const cloudflareCredentialStep = releaseWorkflow.jobs["release-config"].steps.find(
+		(step) => step.name === "Validate Cloudflare staging credentials",
+	);
+	assert.ok(cloudflareCredentialStep, "release-config must validate Cloudflare credentials early");
+	assert.match(cloudflareCredentialStep.run, /run-wrangler-command\.ts whoami/u);
+	assert.match(cloudflareCredentialStep.run, /--account ["']?\$CLOUDFLARE_ACCOUNT_ID/u);
 	assert.match(releaseSource, /\.unresolved \| length == 0/u);
 	assert.match(releaseSource, /scripts\/ci\/publish-images\.sh/u);
 	assert.match(releaseSource, /github\.ref == 'refs\/heads\/main'/u);
@@ -134,6 +140,9 @@ test("bounds auxiliary workflows", () => {
 test("uses Turbo affected tasks instead of planner package cohorts", () => {
 	assert.match(runAffected, /turbo run typecheck test --affected/u);
 	assert.match(runAffected, /turbo run test:worker build:worker build:app --affected/u);
+	assert.match(runAffected, /has_worker_release/u);
+	assert.match(runAffected, /check-worker-secret-presence\.ts --self-test/u);
+	assert.match(runAffected, /worker-version\.self-test\.ts/u);
 	assert.doesNotMatch(
 		runAffected,
 		/\.verification\.(?:nodeFilters|ingestFilters|evalFilters|workerFilters)/u,
