@@ -146,8 +146,10 @@ test("supports a bounded failed release replay", () => {
 test("retains selected Worker release validation", () => {
 	assert.match(releaseSource, /worker-staging-app-api/u);
 	assert.match(releaseSource, /worker-staging-campus-web/u);
-	assert.match(releaseSource, /CAMPUS_WEB_SELECTED/u);
-	assert.match(releaseSource, /docs-reader-release\.json/u);
+	assert.match(releaseSource, /worker-versions\.json/u);
+	assert.match(releaseSource, /worker-version\.ts/u);
+	assert.match(releaseSource, /read-variable apps\/campus-web campus-web-staging/u);
+	assert.doesNotMatch(releaseSource, /docs-reader-release\.json/u);
 });
 
 test("bounds auxiliary workflows", () => {

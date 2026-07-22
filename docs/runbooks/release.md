@@ -36,8 +36,9 @@ Cloudflare version、配置和其他环境资源。候选物发布成功不表�
 3. 检查候选物记录的源码提交、摘要和构建身份，不用可变标签或重复构建覆盖已有产物。
 4. 生成或更新环境仓变更，由环境仓选择完整的一组运行版本。
 
-文档阅读器必须成对选择 Campus Web Worker 与 `docsReleaseId`，具体不变量见
-`docs/contracts/document-reader-publish.md`；发布和物化命令见 `jobs/docs-publish/README.md`。
+Campus Web 的不可变 Worker version 已固化对应 `docsReleaseId`，环境仓只选择 Worker version，
+不维护第二份文档 release 指针。具体不变量见 `docs/contracts/document-reader-publish.md`；发布和
+物化命令见 `jobs/docs-publish/README.md`。
 
 ## 环境交接
 

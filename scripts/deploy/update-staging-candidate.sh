@@ -131,26 +131,13 @@ for candidate in "$worker_candidates"/*.json; do
 			echo "Campus Web candidate build identity does not match its source and docs release." >&2
 			exit 1
 		fi
-		jq \
-			--arg worker "$worker_name" \
-			--arg version "$version_id" \
-			--arg source "$candidate_sha" \
-			--arg release "$docs_release_id" \
-			--arg identity "$build_identity" \
-			'.workers[$worker] = {versionId: $version, sourceSha: $source, docsReleaseId: $release, buildIdentity: $identity}' \
-			"$worker_selection" > "${worker_selection}.tmp"
-		jq -n \
-			--arg release "$docs_release_id" \
-			'{schemaVersion: "campus_docs_release_ref.v1", releaseId: $release}' \
-			> "${gitops_root}/cloudflare/staging/docs-reader-release.json"
-	else
-		jq \
-			--arg worker "$worker_name" \
-			--arg version "$version_id" \
-			--arg source "$candidate_sha" \
-			'.workers[$worker] = {versionId: $version, sourceSha: $source}' \
-			"$worker_selection" > "${worker_selection}.tmp"
 	fi
+	jq \
+		--arg worker "$worker_name" \
+		--arg version "$version_id" \
+		--arg source "$candidate_sha" \
+		'.workers[$worker] = {versionId: $version, sourceSha: $source}' \
+		"$worker_selection" > "${worker_selection}.tmp"
 	mv "${worker_selection}.tmp" "$worker_selection"
 done
 

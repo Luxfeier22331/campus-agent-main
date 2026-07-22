@@ -1,6 +1,7 @@
 import {
 	buildSentrySourceMapUploadArgs,
 	buildWorkerVersionUploadArgs,
+	resolveWorkerPlainTextVariable,
 	selectUploadedVersion,
 } from "./worker-version.ts";
 
@@ -52,6 +53,22 @@ const selected = selectUploadedVersion(
 	"release-tag",
 );
 expect(selected.id === "newer", "latest tagged Worker version was not selected");
+
+const docsReleaseId = `sha256:${"a".repeat(64)}`;
+expect(
+	resolveWorkerPlainTextVariable(
+		{
+			resources: {
+				bindings: [
+					{ name: "OTHER", text: "ignored", type: "plain_text" },
+					{ name: "DOCS_RELEASE_ID", text: docsReleaseId, type: "plain_text" },
+				],
+			},
+		},
+		"DOCS_RELEASE_ID",
+	) === docsReleaseId,
+	"selected Worker plain-text variable was not resolved",
+);
 
 console.log("worker-version self-test passed.");
 

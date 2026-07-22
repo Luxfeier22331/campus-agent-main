@@ -19,6 +19,12 @@ interface WorkerDeploymentSummary {
 	id: string;
 }
 
+interface WorkerVersionDetails {
+	resources?: {
+		bindings?: unknown[];
+	};
+}
+
 export interface UploadedWorkerVersion {
 	buildIdentity?: string;
 	workerName: string;
@@ -55,6 +61,46 @@ function parseJsonOutput<T>(stdout: string | Buffer | null, command: string): T 
 	} catch {
 		return fail(`${command} did not return valid JSON.`);
 	}
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function resolveWorkerPlainTextVariable(payload: unknown, variableName: string): string {
+	const bindings = isRecord(payload)
+		? (payload as WorkerVersionDetails).resources?.bindings
+		: undefined;
+	if (!Array.isArray(bindings)) {
+		return fail("Worker version details do not contain resource bindings.");
+	}
+	const matches = bindings.filter(
+		(binding) =>
+			isRecord(binding) && binding.type === "plain_text" && binding.name === variableName,
+	);
+	if (matches.length !== 1 || typeof matches[0]?.text !== "string") {
+		return fail(`Worker version must contain exactly one plain-text ${variableName} binding.`);
+	}
+	return matches[0].text;
+}
+
+export function readWorkerVersionPlainTextVariable(options: {
+	cwd: string;
+	variableName: string;
+	versionId: string;
+	workerName: string;
+}): string {
+	const result = runWranglerCommand(
+		["versions", "view", options.versionId, "--name", options.workerName, "--json"],
+		{ cwd: options.cwd, stdio: "pipe" },
+	);
+	if (result.status !== 0) {
+		return fail(`Unable to read Worker version ${options.versionId} for ${options.workerName}.`);
+	}
+	return resolveWorkerPlainTextVariable(
+		parseJsonOutput<unknown>(result.stdout, "wrangler versions view"),
+		options.variableName,
+	);
 }
 
 function readCurrentDeploymentId(cwd: string, workerName: string): string {
@@ -265,4 +311,20 @@ function validateCandidateMetadata(
 		}
 	}
 	return metadata;
+}
+
+function main(argv: string[]): number {
+	if (argv.length !== 5 || argv[0] !== "read-variable") {
+		console.error(
+			"Usage: worker-version.ts read-variable <app-dir> <worker-name> <version-id> <variable-name>",
+		);
+		return 1;
+	}
+	const [, cwd, workerName, versionId, variableName] = argv;
+	console.log(readWorkerVersionPlainTextVariable({ cwd, variableName, versionId, workerName }));
+	return 0;
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+	process.exit(main(process.argv.slice(2)));
 }

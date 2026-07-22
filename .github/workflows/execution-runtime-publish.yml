@@ -236,10 +236,11 @@ jobs:
         run: |
           set -euo pipefail
           release_id="$REQUESTED_DOCS_RELEASE_ID"
-          selection=gitops-selection/cloudflare/staging/docs-reader-release.json
           if [ -z "$release_id" ]; then
-            jq -e '.schemaVersion == "campus_docs_release_ref.v1"' "$selection" >/dev/null
-            release_id="$(jq -er .releaseId "$selection")"
+            selection=gitops-selection/cloudflare/staging/worker-versions.json
+            version_id="$(jq -er '.workers["campus-web-staging"].versionId' "$selection")"
+            release_id="$(pnpm exec tsx scripts/deploy/worker-version.ts \
+              read-variable apps/campus-web campus-web-staging "$version_id" DOCS_RELEASE_ID)"
           fi
           if ! [[ "$release_id" =~ ^sha256:[0-9a-f]{64}$ ]]; then
             echo "Invalid Campus Docs release id: ${release_id}." >&2
@@ -519,28 +520,9 @@ jobs:
       - name: Validate promoted manifests
         if: steps.promotion.outputs.changed == 'true'
         env:
-          CAMPUS_WEB_SELECTED: ${{ contains(fromJSON(needs.release-plan.outputs.workers), 'campus-web') }}
           SOURCE_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if [[ "$CAMPUS_WEB_SELECTED" == "true" ]]; then
-            docs_selection=gitops/cloudflare/staging/docs-reader-release.json
-            worker_selection=gitops/cloudflare/staging/worker-versions.json
-            jq -e '
-              .schemaVersion == "campus_docs_release_ref.v1" and
-              (.releaseId | test("^sha256:[0-9a-f]{64}$"))
-            ' "$docs_selection" >/dev/null
-            docs_release_id="$(jq -er .releaseId "$docs_selection")"
-            jq -e --arg release "$docs_release_id" '
-              .workers["campus-web-staging"].docsReleaseId == $release and
-              (.workers["campus-web-staging"].buildIdentity |
-                test("^sha256:[0-9a-f]{64}$"))
-            ' "$worker_selection" >/dev/null
-            campus_source_sha="$(jq -er '.workers["campus-web-staging"].sourceSha' "$worker_selection")"
-            campus_build_identity="$(jq -er '.workers["campus-web-staging"].buildIdentity' "$worker_selection")"
-            expected_build_identity="sha256:$(printf '%s\n%s\n' "$campus_source_sha" "$docs_release_id" | sha256sum | cut -d ' ' -f 1)"
-            test "$campus_build_identity" = "$expected_build_identity"
-          fi
           git_config="$(mktemp)"
           trap 'rm -f "$git_config"' EXIT
           export GIT_CONFIG_GLOBAL="$git_config"

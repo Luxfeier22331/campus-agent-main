@@ -45,12 +45,14 @@ App API 不创建、发布或选择文档 release。浏览器、Campus Web 构�
 
 ## Worker 与文档版本
 
-Campus Web 候选物必须同时记录完整源码提交、`docsReleaseId` 和由两者派生的构建标识。环境仓
-在同一次变更中选择 Worker version 与对应文档 release；只修改其中一项会造成静态资产和 App API
-投影不一致，必须拒绝。
+Campus Web 候选物必须同时记录完整源码提交、`docsReleaseId` 和由两者派生的构建标识，并把
+`DOCS_RELEASE_ID` 固化为该不可变 Worker version 的绑定。环境仓只选择 Worker version；不得再维护
+独立的文档 release 指针，否则两份环境选择可能漂移。
 
-回滚同样选择已经匹配的一组 Worker version 与 `docsReleaseId`。历史 release 可以按保留策略
-并存，但清理前必须确认没有环境选择、候选物或有效回滚记录仍在引用。
+发布新候选物时，默认继承环境仓当前选择的 Worker version 中的 `DOCS_RELEASE_ID`；显式发布新的
+文档 release 时可以指定新的内容寻址标识。回滚只需选择原 Worker version，其中已经包含匹配的
+文档 release。历史 release 可以按保留策略并存，但清理前必须确认没有 Worker version 或有效回滚
+记录仍在引用。
 
 ## 操作入口
 

@@ -98,10 +98,13 @@ describe("campus web staging config", () => {
 		expect(publishWorkflowSource).toContain("pnpm --dir apps/campus-web upload:staging");
 		expect(publishWorkflowSource).not.toContain("STAGING_CAMPUS_DOCS_READER_MANIFEST_KEY");
 		expect(publishWorkflowSource).not.toContain("STAGING_CAMPUS_DOCS_READER_MANIFEST_SHA256");
-		expect(publishWorkflowSource).toContain("docs-reader-release.json");
+		expect(publishWorkflowSource).toContain("worker-versions.json");
+		expect(publishWorkflowSource).toContain("worker-version.ts");
+		expect(publishWorkflowSource).not.toContain("docs-reader-release.json");
 		expect(publishWorkflowSource).toContain(`--release-id "\${DOCS_RELEASE_ID}"`);
 		expect(promotionScriptSource).toContain("docsReleaseId");
 		expect(promotionScriptSource).toContain("buildIdentity");
+		expect(promotionScriptSource).not.toContain("docsReleaseId: $release");
 		expect(publishWorkflowSource).not.toContain("STAGING_APP_API_OPERATOR_DATABASE_URL");
 		expect(publishWorkflowSource).not.toContain("deploy-staging.yml");
 		expect(stagingPreflightSource).not.toContain('"build:staging"');
