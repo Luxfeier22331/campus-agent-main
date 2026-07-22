@@ -2,7 +2,11 @@ import type { DiningDevSeed } from "@campus-agent/dining/domain";
 import { Client } from "pg";
 
 export class PostgresDiningDevSeedImporter {
-	constructor(private readonly databaseUrl: string) {}
+	private readonly databaseUrl: string;
+
+	constructor(databaseUrl: string) {
+		this.databaseUrl = databaseUrl;
+	}
 
 	async import(seed: DiningDevSeed): Promise<void> {
 		const client = new Client({ connectionString: this.databaseUrl });

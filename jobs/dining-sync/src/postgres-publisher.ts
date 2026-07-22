@@ -1,15 +1,21 @@
 import { Client } from "pg";
 
-import type { DiningSourceObservation } from "./catalog-source-types";
+import type { DiningSourceObservation } from "./catalog-source-types.ts";
 
 type DiningPublisherClient = Pick<Client, "connect" | "end" | "query">;
 
 export class PostgresDiningReviewPublisher {
+	private readonly createClient: (databaseUrl: string) => DiningPublisherClient;
+	private readonly databaseUrl: string;
+
 	constructor(
-		private readonly databaseUrl: string,
-		private readonly createClient: (databaseUrl: string) => DiningPublisherClient = (databaseUrl) =>
+		databaseUrl: string,
+		createClient: (databaseUrl: string) => DiningPublisherClient = (databaseUrl) =>
 			new Client({ connectionString: databaseUrl }),
-	) {}
+	) {
+		this.databaseUrl = databaseUrl;
+		this.createClient = createClient;
+	}
 
 	async publishReviewObservations(observations: DiningSourceObservation[]): Promise<number> {
 		const client = this.createClient(this.databaseUrl);

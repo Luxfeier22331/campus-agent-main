@@ -1,0 +1,91 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: campus-services-schema
+  labels:
+    app.kubernetes.io/name: campus-services-schema
+    app.kubernetes.io/part-of: campus-agent
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  activeDeadlineSeconds: 180
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: campus-services-schema
+        app.kubernetes.io/part-of: campus-agent
+    spec:
+      serviceAccountName: execution-runtime
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      restartPolicy: Never
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: schema
+          image: ghcr.io/muc-wiki/campus-agent/transport-publisher:replace-me
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              export DATABASE_URL="$(node -e '
+                const url = new URL(`postgresql://${process.env.PGHOST}:${process.env.PGPORT}/${process.env.PGDATABASE}`);
+                url.username = process.env.PGUSER;
+                url.password = process.env.PGPASSWORD;
+                process.stdout.write(url.toString());
+              ')"
+              exec node /app/jobs/transport-publisher/src/cli.ts install-schema
+          envFrom:
+            - configMapRef:
+                name: execution-schema-database-config
+          env:
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: campus-agent-postgres-campus-agent-owner
+                  key: username
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: campus-agent-postgres-campus-agent-owner
+                  key: password
+            - name: HOME
+              value: /tmp
+            - name: XDG_CACHE_HOME
+              value: /tmp/.cache
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: postgres-ca
+              mountPath: /etc/campus-agent/postgres
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: postgres-ca
+          secret:
+            secretName: campus-agent-postgres-origin-server
+            items:
+              - key: ca.crt
+                path: ca.crt
+        - name: tmp
+          emptyDir:
+            sizeLimit: 32Mi

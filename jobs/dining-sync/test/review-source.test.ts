@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { buildReviewObservations, reviewsFromObservations } from "../src/review-source";
-import { PostgresDiningSourceObservationStore } from "../src/source-observation-store";
-import type { DiningSourceRecord } from "../src/types";
+import { buildReviewObservations, reviewsFromObservations } from "../src/review-source.ts";
+import { PostgresDiningSourceObservationStore } from "../src/source-observation-store.ts";
+import type { DiningSourceRecord } from "../src/types.ts";
 
 const REVIEW_RECORD: DiningSourceRecord = {
 	attachments: [],

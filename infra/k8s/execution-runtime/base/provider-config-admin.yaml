@@ -62,6 +62,9 @@ spec:
             - name: provider-config-keyring
               mountPath: /run/campus-agent/provider-config
               readOnly: true
+            - name: postgres-ca
+              mountPath: /etc/campus-agent/postgres
+              readOnly: true
           livenessProbe:
             httpGet:
               path: /healthz
@@ -88,6 +91,12 @@ spec:
             items:
               - key: keyring.json
                 path: keyring.json
+        - name: postgres-ca
+          secret:
+            secretName: campus-agent-postgres-origin-server
+            items:
+              - key: ca.crt
+                path: ca.crt
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

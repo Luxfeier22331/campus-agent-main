@@ -14,7 +14,7 @@ import {
 	assertDiningWayfindingLayout,
 	canonicalizeDiningWayfindingLayout,
 	type DiningWayfindingLayout,
-} from "./wayfinding-layout";
+} from "./wayfinding-layout.ts";
 
 const RAW_LAYOUTS: unknown[] = [
 	fengtaiOutdoor,

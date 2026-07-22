@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ingestion-schema-database-config
+  labels:
+    app.kubernetes.io/part-of: campus-agent
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+data:
+  PGHOST: postgres.example.invalid
+  PGPORT: "5432"
+  PGDATABASE: campus_agent
+  INGESTION_CONTROL_SCHEMA_DATABASE_CA_CERT_PATH: /etc/campus-agent/postgres/ca.crt
+  INGESTION_CONTROL_SCHEMA_DATABASE_SSLMODE: verify-full

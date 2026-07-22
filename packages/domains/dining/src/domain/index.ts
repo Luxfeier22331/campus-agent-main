@@ -1,21 +1,21 @@
-export type { DiningDevSeed } from "./dev-seed";
-export { DiningDomainError } from "./error";
-export type { DiningObservationTargetKind, DiningSourceObservation } from "./observations";
-export { materializeDiningCatalog } from "./observations";
-export { buildPublishedSnapshot } from "./projection";
+export type { DiningDevSeed } from "./dev-seed.ts";
+export { DiningDomainError } from "./error.ts";
+export type { DiningObservationTargetKind, DiningSourceObservation } from "./observations.ts";
+export { materializeDiningCatalog } from "./observations.ts";
+export { buildPublishedSnapshot } from "./projection.ts";
 export {
 	assertDiningSnapshotFloorplanCompatibility,
 	publicationAfterCatalogPublish,
 	publishDiningDraft,
 	validateDiningDraft,
-} from "./publication";
+} from "./publication.ts";
 export type {
 	DiningPublication,
 	DiningRelease,
 	DiningReleaseDetail,
 	DiningValidationIssue,
 	DiningValidationReport,
-} from "./release-types";
+} from "./release-types.ts";
 export {
 	buildDiningPublicReadService,
 	createDevDiningSeed,
@@ -29,7 +29,7 @@ export {
 	listDiningWindowScaffold,
 	resolveDiningFloorScaffold,
 	resolveDiningHallScaffold,
-} from "./service";
+} from "./service.ts";
 export type {
 	DiningCatalog,
 	DiningDraft,
@@ -55,4 +55,4 @@ export type {
 	DiningWindow,
 	DiningWindowAssignment,
 	DiningWindowStatus,
-} from "./types";
+} from "./types.ts";

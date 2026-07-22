@@ -115,6 +115,9 @@ spec:
             - name: provider-config-keyring
               mountPath: /run/campus-agent/provider-config
               readOnly: true
+            - name: postgres-ca
+              mountPath: /etc/campus-agent/postgres
+              readOnly: true
             - name: qdrant-tls-ca
               mountPath: /etc/campus-agent/qdrant/tls
               readOnly: true
@@ -153,6 +156,12 @@ spec:
             items:
               - key: keyring.json
                 path: keyring.json
+        - name: postgres-ca
+          secret:
+            secretName: campus-agent-postgres-origin-server
+            items:
+              - key: ca.crt
+                path: ca.crt
         - name: qdrant-tls-ca
           configMap:
             name: execution-runtime-qdrant-tls-ca

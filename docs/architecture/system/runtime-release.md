@@ -43,6 +43,10 @@ status: active
 - 一个应用失败不能被其他应用的健康状态掩盖；
 - 候选版本上传成功、镜像构建成功或清单渲染成功都不等于部署完成。
 
+Kubernetes 发布以拥有同一运行时的 Application 为原子编排边界。该 Application 依次同步配置与
+身份、数据库角色、migration、workload 和 schedule；migration 使用 `Sync` hook，并在 Secret 与
+DatabaseRole 健康后执行。不同 child Application 的 wave 只帮助组织资源，不能承诺跨应用事务。
+
 ## 发布标识
 
 每次构建必须能够关联到源码提交、镜像摘要或 Worker 版本标识。包含静态数据 release 的
@@ -68,6 +72,7 @@ runbook，不在架构文档保存某次验收输出。
 - 在源码仓用 `wrangler deploy`、回滚命令或路由配置直接改变环境流量；
 - 使用可变镜像标签或手写版本字符串代替不可变发布标识；
 - 让常驻应用自行执行数据库迁移；
+- 在环境 overlay 中拼接数据库 URL、重写第一方命令或补齐安全上下文；
 - 把 staging 域名、账号、截图或一次性检查结果写成长期架构；
 - 只凭单个健康接口判断整次发布完成；
 - 把本地 Compose 或源码清单当作线上环境事实。

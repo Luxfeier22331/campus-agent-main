@@ -17,9 +17,13 @@ COPY packages/domains/dining ./packages/domains/dining
 
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
   pnpm --filter dining-sync typecheck \
+  && pnpm --filter dining-sync build:runtime \
   && pnpm --filter dining-sync deploy --legacy --prod /opt/dining-sync \
-  && test -x /opt/dining-sync/node_modules/.bin/tsx \
-  && test -f /opt/dining-sync/migrations/0001_dining.sql
+  && test ! -e /opt/dining-sync/node_modules/.bin/tsx \
+  && test -f /opt/dining-sync/migrations/0001_dining.sql \
+  && test -f /opt/dining-sync/dist/cli.mjs \
+  && node --enable-source-maps /opt/dining-sync/dist/cli.mjs native-entrypoint-smoke 2>&1 \
+    | grep -F "Usage: pnpm sync"
 
 FROM node:24.15-bookworm-slim AS runtime
 
@@ -36,5 +40,5 @@ COPY --from=build --chown=node:node /opt/dining-sync /app/jobs/dining-sync
 
 USER node
 
-ENTRYPOINT ["/app/jobs/dining-sync/node_modules/.bin/tsx", "/app/jobs/dining-sync/src/cli.ts"]
+ENTRYPOINT ["node", "--enable-source-maps", "/app/jobs/dining-sync/dist/cli.mjs"]
 CMD ["sync-all"]

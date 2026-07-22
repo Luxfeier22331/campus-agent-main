@@ -1,0 +1,33 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dining-migration-egress
+  labels:
+    app.kubernetes.io/name: dining-sync
+    app.kubernetes.io/component: migration
+    app.kubernetes.io/part-of: campus-agent
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: dining-sync
+      app.kubernetes.io/component: migration
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: replace-me
+      ports:
+        - protocol: TCP
+          port: 5432

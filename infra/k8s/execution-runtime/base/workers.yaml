@@ -130,12 +130,23 @@ spec:
                 secretKeyRef:
                   name: execution-tool-read-model-secrets
                   key: CAMPUS_SHARED_POSTGRES_URL
+          volumeMounts:
+            - name: postgres-ca
+              mountPath: /etc/campus-agent/postgres
+              readOnly: true
           resources:
             requests:
               cpu: 100m
               memory: 256Mi
             limits:
               memory: 1Gi
+      volumes:
+        - name: postgres-ca
+          secret:
+            secretName: campus-agent-postgres-origin-server
+            items:
+              - key: ca.crt
+                path: ca.crt
 ---
 apiVersion: temporal.io/v1alpha1
 kind: WorkerDeployment
@@ -202,6 +213,9 @@ spec:
             - name: provider-config-keyring
               mountPath: /run/campus-agent/provider-config
               readOnly: true
+            - name: postgres-ca
+              mountPath: /etc/campus-agent/postgres
+              readOnly: true
           resources:
             requests:
               cpu: 150m
@@ -216,3 +230,9 @@ spec:
             items:
               - key: keyring.json
                 path: keyring.json
+        - name: postgres-ca
+          secret:
+            secretName: campus-agent-postgres-origin-server
+            items:
+              - key: ca.crt
+                path: ca.crt

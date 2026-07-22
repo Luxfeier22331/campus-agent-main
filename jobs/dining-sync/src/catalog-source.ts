@@ -11,7 +11,7 @@ import type {
 	FeishuDishRecord,
 	FeishuHallRecord,
 	FeishuStallRecord,
-} from "./catalog-source-types";
+} from "./catalog-source-types.ts";
 
 const FEISHU_CATALOG_ACTOR = "system:feishu-dining-catalog-sync";
 

@@ -1,6 +1,6 @@
 import type { DiningPublishedSnapshot } from "@campus-agent/dining/domain";
 
-import { canonicalHallName, normalizeCampusName } from "./catalog-source";
+import { canonicalHallName, normalizeCampusName } from "./catalog-source.ts";
 
 export type DiningReviewResolution =
 	| {

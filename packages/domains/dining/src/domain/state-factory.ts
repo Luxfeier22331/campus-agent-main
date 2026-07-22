@@ -1,4 +1,4 @@
-import type { DiningDraft } from "./types";
+import type { DiningDraft } from "./types.ts";
 
 export const DINING_SYSTEM_SOURCE = {
 	label: "食堂发布数据",

@@ -161,7 +161,7 @@ spec:
                         fieldPath: metadata.namespace
         - name: postgres-ca
           secret:
-            secretName: campus-agent-postgres-ca
+            secretName: campus-agent-postgres-origin-server
             items:
               - key: ca.crt
                 path: ca.crt

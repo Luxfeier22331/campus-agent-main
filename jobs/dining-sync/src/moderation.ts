@@ -1,4 +1,4 @@
-import type { ModerationResult } from "./types";
+import type { ModerationResult } from "./types.ts";
 
 export interface DiningTextModerationInput {
 	comment: string | null;

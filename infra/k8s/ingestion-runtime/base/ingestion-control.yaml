@@ -87,6 +87,9 @@ spec:
             - name: http
               containerPort: 8000
           volumeMounts:
+            - name: postgres-ca
+              mountPath: /etc/campus-agent/postgres
+              readOnly: true
             - name: runtime-tmp
               mountPath: /tmp
           readinessProbe:
@@ -112,5 +115,11 @@ spec:
             limits:
               memory: 1Gi
       volumes:
+        - name: postgres-ca
+          secret:
+            secretName: campus-agent-postgres-origin-server
+            items:
+              - key: ca.crt
+                path: ca.crt
         - name: runtime-tmp
           emptyDir: {}

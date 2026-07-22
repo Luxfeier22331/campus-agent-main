@@ -1,33 +1,119 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: execution-runtime-default-deny
+  name: execution-runtime-ingress
 spec:
-  podSelector: {}
-  policyTypes: ["Ingress", "Egress"]
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+          - agent-runtime
+          - app-api-schema
+          - campus-services-schema
+          - execution-agent
+          - execution-control
+          - execution-control-admin
+          - execution-core
+          - execution-run-projection-schema
+          - execution-workflow
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - agent-runtime
+                  - cloudflared-execution-control
+                  - execution-agent
+                  - execution-control
+                  - execution-control-admin
+                  - execution-core
+                  - execution-workflow
+                  - ops-web
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: execution-runtime-namespace-traffic
+  name: execution-runtime-platform-egress
 spec:
   podSelector:
-    matchLabels:
-      app.kubernetes.io/part-of: campus-agent
     matchExpressions:
-      - key: campus-agent.muc.wiki/network-policy-profile
-        operator: DoesNotExist
-  policyTypes: ["Ingress", "Egress"]
-  ingress:
-    - from:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/part-of: campus-agent
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+          - agent-runtime
+          - app-api-schema
+          - campus-services-schema
+          - execution-agent
+          - execution-control
+          - execution-control-admin
+          - execution-core
+          - execution-run-projection-schema
+          - execution-workflow
+  policyTypes: ["Egress"]
   egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - agent-runtime
+                  - execution-control
+                  - execution-control-admin
+      ports:
+        - protocol: TCP
+          port: 8000
+        - protocol: TCP
+          port: 27062
     - to:
         - podSelector:
             matchLabels:
-              app.kubernetes.io/part-of: campus-agent
+              app.kubernetes.io/part-of: temporal
+      ports:
+        - protocol: TCP
+          port: 7233
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: hindsight
+              app.kubernetes.io/instance: hindsight
+              app.kubernetes.io/component: api
+      ports:
+        - protocol: TCP
+          port: 8888
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: qdrant
+      ports:
+        - protocol: TCP
+          port: 6333
+    - to:
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: campus-agent-postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -35,11 +121,14 @@ metadata:
   name: execution-runtime-general-observability-egress
 spec:
   podSelector:
-    matchLabels:
-      app.kubernetes.io/part-of: campus-agent
     matchExpressions:
-      - key: campus-agent.muc.wiki/network-policy-profile
-        operator: DoesNotExist
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+          - execution-agent
+          - execution-control-admin
+          - execution-core
+          - execution-workflow
   policyTypes: ["Egress"]
   egress:
     - to:
@@ -57,7 +146,7 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/component: execution-control
+      app.kubernetes.io/name: execution-control
   policyTypes: ["Egress"]
   egress:
     - to:
@@ -89,14 +178,11 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: execution-runtime-platform-egress
+  name: cloudflared-execution-control-egress
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/part-of: campus-agent
-    matchExpressions:
-      - key: campus-agent.muc.wiki/network-policy-profile
-        operator: DoesNotExist
+      app.kubernetes.io/name: cloudflared-execution-control
   policyTypes: ["Egress"]
   egress:
     - to:
@@ -109,18 +195,19 @@ spec:
         - protocol: TCP
           port: 53
     - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: execution-control
+      ports:
+        - protocol: TCP
+          port: 8000
+    - to:
         - ipBlock:
             cidr: 0.0.0.0/0
       ports:
         - protocol: TCP
           port: 443
         - protocol: TCP
-          port: 5432
-        - protocol: TCP
-          port: 6443
-        - protocol: TCP
-          port: 6333
-        - protocol: TCP
-          port: 7233
-        - protocol: TCP
-          port: 8888
+          port: 7844
+        - protocol: UDP
+          port: 7844

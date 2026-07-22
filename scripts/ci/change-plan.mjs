@@ -15,6 +15,7 @@ import {
 const DATABASE_SUITES = Object.freeze({
 	APP_API_MIGRATION: "app-api-migration",
 	APP_API_PRODUCT: "app-api-product",
+	DINING: "dining-sync",
 	EXECUTION_CONTROL: "execution-control",
 	INGESTION_CONTROL: "ingestion-control",
 	OPS_WEB: "ops-web",
@@ -216,6 +217,15 @@ export function buildChangePlan({
 			"apps/execution-control/internal/toolreadmodel/transport_schedule",
 		]),
 	);
+	const hasDiningDatabaseChange = hasAny(runtimeFiles, (file) =>
+		startsWithAny(file, [
+			"jobs/dining-sync/migrations/",
+			"jobs/dining-sync/src/config.ts",
+			"jobs/dining-sync/src/migrate.ts",
+			"jobs/dining-sync/test/migration.database.",
+			"jobs/dining-sync/vitest.database-integration.",
+		]),
+	);
 	const hasIngestionDatabaseChange = hasAny(runtimeFiles, (file) =>
 		startsWithAny(file, [
 			"apps/ingestion-control/migrations/",
@@ -354,6 +364,7 @@ export function buildChangePlan({
 		hasExecutionDatabaseChange || hasSharedProductSchemaChange,
 		DATABASE_SUITES.EXECUTION_CONTROL,
 	);
+	addIf(databaseSuites, hasDiningDatabaseChange, DATABASE_SUITES.DINING);
 	addIf(databaseSuites, hasIngestionDatabaseChange, DATABASE_SUITES.INGESTION_CONTROL);
 	addIf(
 		databaseSuites,

@@ -6,8 +6,9 @@ metadata:
     app.kubernetes.io/name: ingestion-schedule-sync
     app.kubernetes.io/part-of: campus-agent
   annotations:
-    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook: Sync
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   backoffLimit: 6
   ttlSecondsAfterFinished: 3600
@@ -49,3 +50,10 @@ spec:
               memory: 96Mi
             limits:
               memory: 256Mi
+          volumeMounts:
+            - name: runtime-tmp
+              mountPath: /tmp
+      volumes:
+        - name: runtime-tmp
+          emptyDir:
+            sizeLimit: 64Mi

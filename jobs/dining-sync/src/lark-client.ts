@@ -1,7 +1,7 @@
-import { recordFromFieldMap } from "./field-mapping";
-import { catalogRecordsFromLarkTables, type LarkTableRecord } from "./catalog-field-mapping";
-import type { DiningCatalogSourceRecords } from "./catalog-source-types";
-import type { DiningSourceRecord } from "./types";
+import { recordFromFieldMap } from "./field-mapping.ts";
+import { catalogRecordsFromLarkTables, type LarkTableRecord } from "./catalog-field-mapping.ts";
+import type { DiningCatalogSourceRecords } from "./catalog-source-types.ts";
+import type { DiningSourceRecord } from "./types.ts";
 
 const FEISHU_OPENAPI_BASE_URL = "https://open.feishu.cn/open-apis";
 

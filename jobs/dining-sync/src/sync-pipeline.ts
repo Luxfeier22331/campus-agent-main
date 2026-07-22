@@ -1,16 +1,16 @@
 import type {
 	DiningSourceObservation,
 	FeishuReviewSourceIdentity,
-} from "./catalog-source-types";
-import { buildReviewObservations, reviewsFromObservations } from "./review-source";
-import type { DiningReviewResolution } from "./review-resolver";
+} from "./catalog-source-types.ts";
+import { buildReviewObservations, reviewsFromObservations } from "./review-source.ts";
+import type { DiningReviewResolution } from "./review-resolver.ts";
 import type {
 	DiningReviewImage,
 	DiningReviewProjection,
 	DiningSourceRecord,
 	ModerationResult,
 	SyncReport,
-} from "./types";
+} from "./types.ts";
 
 export interface DiningSyncDependencies {
 	attachmentStore: {

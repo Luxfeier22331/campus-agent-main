@@ -6,6 +6,7 @@
 		"jsx": "react-jsx",
 		"resolveJsonModule": true,
 		"allowImportingTsExtensions": true,
+		"erasableSyntaxOnly": true,
 		"strict": true,
 		"types": ["node", "vitest/globals"],
 		"skipLibCheck": true,

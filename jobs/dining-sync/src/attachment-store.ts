@@ -6,8 +6,8 @@ import {
 	type S3Client,
 } from "@aws-sdk/client-s3";
 
-import type { DiningImageModerationInput } from "./moderation";
-import type { DiningReviewImage, DiningSourceRecord, ModerationResult } from "./types";
+import type { DiningImageModerationInput } from "./moderation.ts";
+import type { DiningReviewImage, DiningSourceRecord, ModerationResult } from "./types.ts";
 
 export interface AttachmentDownloader {
 	downloadAttachment(fileToken: string): Promise<Uint8Array>;

@@ -67,7 +67,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): DiningSyncConf
 		objectStoreRegion: env.OBJECT_STORE_REGION?.trim() || "us-east-1",
 		objectStoreReviewPrefix: env.DINING_OBJECT_STORE_REVIEW_PREFIX?.trim() || "dining/reviews",
 		objectStoreSecretKey: requireEnv(env, "OBJECT_STORE_DERIVED_SECRET_KEY"),
-		postgresUrl: requireEnv(env, "DATABASE_URL"),
+		postgresUrl: postgresUrlFromEnv(env),
 	};
 }
 
@@ -76,7 +76,7 @@ export function loadCatalogImportConfig(
 ): DiningCatalogImportConfig {
 	return {
 		appEnvironment: env.APP_API_ENVIRONMENT?.trim() || "development",
-		postgresUrl: requireEnv(env, "DATABASE_URL"),
+		postgresUrl: postgresUrlFromEnv(env),
 	};
 }
 
@@ -84,14 +84,8 @@ export function loadMigrationConfig(
 	env: NodeJS.ProcessEnv = process.env,
 ): DiningMigrationConfig {
 	return {
-		postgresUrl: requireEnv(env, "DINING_MIGRATION_DATABASE_URL"),
+		postgresUrl: postgresUrlFromEnv(env),
 	};
-}
-
-export function loadLocalMigrationConfig(
-	env: NodeJS.ProcessEnv = process.env,
-): DiningMigrationConfig {
-	return { postgresUrl: requireEnv(env, "DATABASE_URL") };
 }
 
 export function loadCatalogSyncConfig(
@@ -105,8 +99,32 @@ export function loadCatalogSyncConfig(
 		larkDishTableId: requireEnv(env, "DINING_LARK_DISH_TABLE_ID"),
 		larkHallTableId: requireEnv(env, "DINING_LARK_HALL_TABLE_ID"),
 		larkStallTableId: requireEnv(env, "DINING_LARK_STALL_TABLE_ID"),
-		postgresUrl: requireEnv(env, "DATABASE_URL"),
+		postgresUrl: postgresUrlFromEnv(env),
 	};
+}
+
+export function postgresUrlFromEnv(env: NodeJS.ProcessEnv = process.env): string {
+	const host = requireEnv(env, "PGHOST");
+	const port = parsePort(requireEnv(env, "PGPORT"));
+	const database = requireEnv(env, "PGDATABASE");
+	const user = requireEnv(env, "PGUSER");
+	const password = requireEnv(env, "PGPASSWORD");
+	const sslMode = requireEnv(env, "PGSSLMODE");
+	if (sslMode !== "disable" && sslMode !== "verify-full") {
+		throw new Error("PGSSLMODE must be disable or verify-full for dining sync.");
+	}
+
+	const url = new URL("postgresql://localhost");
+	url.hostname = host;
+	url.port = String(port);
+	url.pathname = `/${database}`;
+	url.username = user;
+	url.password = password;
+	url.searchParams.set("sslmode", sslMode);
+	if (sslMode === "verify-full") {
+		url.searchParams.set("sslrootcert", requireEnv(env, "PGSSLROOTCERT"));
+	}
+	return url.toString();
 }
 
 function requireEnv(env: NodeJS.ProcessEnv, key: string): string {
@@ -127,4 +145,12 @@ function parsePositiveIntegerEnv(env: NodeJS.ProcessEnv, key: string, fallback: 
 		throw new Error(`${key} must be a positive integer.`);
 	}
 	return value;
+}
+
+function parsePort(rawValue: string): number {
+	const port = Number.parseInt(rawValue, 10);
+	if (!Number.isSafeInteger(port) || port < 1 || port > 65_535 || String(port) !== rawValue) {
+		throw new Error("PGPORT must be an integer between 1 and 65535 for dining sync.");
+	}
+	return port;
 }

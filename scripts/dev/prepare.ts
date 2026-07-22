@@ -33,43 +33,29 @@ run(pnpm, [
 	"tsx",
 	"./ops/db/prepare-local.ts",
 ]);
-run(pnpm, [
-	"--dir",
-	"apps/app-api",
-	"exec",
-	"tsx",
-	"./scripts/run-with-local-env.ts",
+const diningDatabaseEnv = {
+	PGDATABASE: process.env.LOCAL_POSTGRES_DB?.trim() || "campus_agent",
+	PGHOST: "127.0.0.1",
+	PGPASSWORD: process.env.LOCAL_POSTGRES_PASSWORD?.trim() || "postgres",
+	PGPORT: process.env.LOCAL_POSTGRES_PORT?.trim() || "5432",
+	PGSSLMODE: "disable",
+	PGUSER: process.env.LOCAL_POSTGRES_USER?.trim() || "postgres",
+};
+run(pnpm, ["--dir", "jobs/dining-sync", "exec", "tsx", "src/cli.ts", "migrate"], diningDatabaseEnv);
+run(
 	pnpm,
-	"--dir",
-	"../../jobs/dining-sync",
-	"exec",
-	"tsx",
-	"src/cli.ts",
-	"migrate-local",
-]);
-run(pnpm, [
-	"--dir",
-	"apps/app-api",
-	"exec",
-	"tsx",
-	"./scripts/run-with-local-env.ts",
-	pnpm,
-	"--dir",
-	"../../jobs/dining-sync",
-	"exec",
-	"tsx",
-	"src/cli.ts",
-	"import-dev-seed",
-]);
+	["--dir", "jobs/dining-sync", "exec", "tsx", "src/cli.ts", "import-dev-seed"],
+	diningDatabaseEnv,
+);
 
 function commandSucceeds(command: string, args: string[]): boolean {
 	return spawnSync(command, args, { cwd: repoRoot, stdio: "ignore" }).status === 0;
 }
 
-function run(command: string, args: string[]): void {
+function run(command: string, args: string[], env: NodeJS.ProcessEnv = {}): void {
 	const result = spawnSync(command, args, {
 		cwd: repoRoot,
-		env: process.env,
+		env: { ...process.env, ...env },
 		stdio: "inherit",
 	});
 	if (result.error) {

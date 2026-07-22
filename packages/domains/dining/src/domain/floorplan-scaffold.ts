@@ -1,6 +1,9 @@
-import { DINING_FLOORPLAN_MANIFEST, type DiningFloorplanManifestEntry } from "../floorplans";
-import { createEmptyDiningDraft } from "./state-factory";
-import type { DiningDraft, DiningOpsHall } from "./types";
+import {
+	DINING_FLOORPLAN_MANIFEST,
+	type DiningFloorplanManifestEntry,
+} from "../floorplans/index.ts";
+import { createEmptyDiningDraft } from "./state-factory.ts";
+import type { DiningDraft, DiningOpsHall } from "./types.ts";
 
 export interface DiningHallScaffold {
 	campus: string;

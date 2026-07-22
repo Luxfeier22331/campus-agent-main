@@ -1,6 +1,9 @@
-import { type DiningFloorplanManifestEntry, getDiningFloorplanByFloor } from "../floorplans";
+import {
+	type DiningFloorplanManifestEntry,
+	getDiningFloorplanByFloor,
+} from "../floorplans/index.ts";
 
-import { DiningDomainError } from "./error";
+import { DiningDomainError } from "./error.ts";
 
 export function resolveDiningFloorplanManifestRef(input: {
 	floorId: string;

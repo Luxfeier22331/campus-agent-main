@@ -17,8 +17,10 @@ Kubernetes workload 源码、具体环境状态和第三方平台组件需要不
 - 第一方 workload 默认提供 namespace-neutral Kustomize/raw YAML base；只有出现明确复用
   需求并经新决策接受后，才为其维护 Helm chart。
 - 第三方平台组件使用环境仓固定版本的上游 Helm chart，不把供应商清单复制进源码仓。
-- 环境仓拥有 Argo CD Applications、overlays、第三方 values、资源规格、网络和具体镜像
-  选择；源码仓只拥有可复用 base 与镜像构建。
+- 源码仓的第一方 base 完整声明容器入口、标签、ServiceAccount、Secret key 消费、探针、默认资源、
+  安全上下文、可写目录和应用级 NetworkPolicy；环境仓不得重新实现这些行为。
+- 环境仓拥有 Argo CD Application、第三方 values、环境值、资源额度、网络目标、Secret 对象和
+  具体镜像选择，只对源码 base 中明确开放的环境坐标做覆盖。
 - Argo CD 不管理 Cloudflare。环境仓中的 Terraform 管理 Cloudflare infrastructure、
   Worker 版本选择和流量；应用 CI 只产出不可变版本并提出环境变更。
 - Secret backend 由 ADR-0066 决定；workload 只依赖稳定 Kubernetes Secret 合同。
@@ -29,6 +31,8 @@ Kubernetes workload 源码、具体环境状态和第三方平台组件需要不
 
 - 合并源码不等于部署；环境变更需要独立 review 和 Argo CD reconcile。
 - 第一方 Kustomize base 不选择 namespace、环境配置、可变镜像标签或真实 Secret。
+- 数据库角色、迁移任务和依赖该结构的 workload 必须位于同一个发布 Application；同步顺序只在
+  该 Application 内表达，不把 root 中 child Application 的 wave 当作跨应用事务。
 - Helm 只解决成熟第三方组件交付，不成为第一方服务的默认包装层。
 
 ## 未采用方案

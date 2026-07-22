@@ -21,11 +21,13 @@ pnpm --dir jobs/dining-sync exec tsx src/cli.ts catalog-observations
 pnpm --dir jobs/dining-sync exec tsx src/cli.ts run
 pnpm --dir jobs/dining-sync exec tsx src/cli.ts verify-published
 pnpm --dir jobs/dining-sync exec tsx src/cli.ts migrate
-pnpm --dir jobs/dining-sync exec tsx src/cli.ts migrate-local
 pnpm --dir jobs/dining-sync exec tsx src/cli.ts import-dev-seed
 ```
 
-`sync-all` 是生产 CronJob 入口；`migrate` 是部署迁移入口；`migrate-local` 和
+生产镜像由 Node 24 执行 `esbuild` 打包后的 ESM，不包含 `tsx` 或运行时 TypeScript 加载器。
+所有数据库命令统一读取 `PGHOST`、
+`PGPORT`、`PGDATABASE`、`PGUSER`、`PGPASSWORD`、`PGSSLMODE` 和按需的
+`PGSSLROOTCERT`；`sync-all` 是 CronJob 入口，`migrate` 是部署与本地迁移入口，
 `import-dev-seed` 只用于本地环境。具体执行和故障处理见 `docs/runbooks/dining.md`。
 
 ## 验证
@@ -33,6 +35,7 @@ pnpm --dir jobs/dining-sync exec tsx src/cli.ts import-dev-seed
 ```bash
 pnpm --dir jobs/dining-sync typecheck
 pnpm --dir jobs/dining-sync test
+pnpm ci:dining-postgres
 ```
 
 ## 相关文档

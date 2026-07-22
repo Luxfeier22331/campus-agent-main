@@ -2,6 +2,12 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: dining-sync-config
+  labels:
+    app.kubernetes.io/name: dining-sync
+    app.kubernetes.io/component: source-sync
+    app.kubernetes.io/part-of: campus-agent
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
 data:
   DINING_LARK_APP_ID: replace-me
   DINING_LARK_BASE_TOKEN: replace-me

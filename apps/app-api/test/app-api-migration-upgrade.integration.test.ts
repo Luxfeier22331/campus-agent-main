@@ -94,6 +94,7 @@ describe("app-api migration upgrade", () => {
 			.withDatabase(MIGRATION_DATABASE_NAME)
 			.withUsername("migration_test")
 			.withPassword(randomUUID())
+			.withResourcesQuota({ cpu: 1, memory: 512 * 1024 * 1024 })
 			.start();
 		pool = new Pool({ connectionString: container.getConnectionUri() });
 		await resetDisposableDatabase(pool);

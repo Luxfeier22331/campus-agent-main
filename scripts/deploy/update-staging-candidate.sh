@@ -23,7 +23,18 @@ fi
 short_sha="$(printf '%.12s' "$source_sha")"
 image_root="ghcr.io/${source_repository,,}"
 
-docker run --rm \
+docker_args=(--rm)
+if [[ -n "${CI_DOCKER_CGROUP_PARENT:-}" ]]; then
+	docker_args+=(
+		--cgroup-parent "$CI_DOCKER_CGROUP_PARENT"
+		--cpus "${CI_DOCKER_CPUS:-2}"
+		--memory "${CI_DOCKER_MEMORY:-2g}"
+		--memory-swap "${CI_DOCKER_MEMORY:-2g}"
+		--pids-limit "${CI_DOCKER_PIDS_LIMIT:-1024}"
+	)
+fi
+
+docker run "${docker_args[@]}" \
 	--user "$(id -u):$(id -g)" \
 	--env IMAGE_ROOT="$image_root" \
 	--env K8S_CHANGED="${K8S_CHANGED:?K8S_CHANGED is required}" \

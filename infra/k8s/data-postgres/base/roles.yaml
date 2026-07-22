@@ -24,9 +24,7 @@ spec:
   cluster:
     name: campus-agent-postgres
   name: docs_publish
-  login: true
-  passwordSecret:
-    name: campus-agent-postgres-docs-publish
+  login: false
 ---
 apiVersion: postgresql.cnpg.io/v1
 kind: DatabaseRole

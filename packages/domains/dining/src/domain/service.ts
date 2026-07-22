@@ -1,12 +1,12 @@
-import { DiningDomainError } from "./error";
+import { DiningDomainError } from "./error.ts";
 import {
 	floorKey,
 	searchPublishedDiningSnapshot,
 	toPublicFloor,
 	toPublicHallSummary,
-} from "./projection";
-import type { DiningPublication } from "./release-types";
-import { createEmptyDiningDraft } from "./state-factory";
+} from "./projection.ts";
+import type { DiningPublication } from "./release-types.ts";
+import { createEmptyDiningDraft } from "./state-factory.ts";
 import type {
 	DiningDraft,
 	DiningPublicReadService,
@@ -15,9 +15,9 @@ import type {
 	DiningPublishedReview,
 	DiningPublishedSnapshot,
 	DiningReview,
-} from "./types";
+} from "./types.ts";
 
-export { createDevDiningSeed, DINING_DEV_SEED_RELEASE_ID } from "./dev-seed";
+export { createDevDiningSeed, DINING_DEV_SEED_RELEASE_ID } from "./dev-seed.ts";
 export {
 	createDiningFloorplanScaffoldDraft,
 	listDiningFloorScaffold,
@@ -25,8 +25,8 @@ export {
 	listDiningWindowScaffold,
 	resolveDiningFloorScaffold,
 	resolveDiningHallScaffold,
-} from "./floorplan-scaffold";
-export { createEmptyDiningDraft, DINING_SYSTEM_SOURCE } from "./state-factory";
+} from "./floorplan-scaffold.ts";
+export { createEmptyDiningDraft, DINING_SYSTEM_SOURCE } from "./state-factory.ts";
 
 export function buildDiningPublicReadService(input: {
 	store: DiningPublicReadStore;

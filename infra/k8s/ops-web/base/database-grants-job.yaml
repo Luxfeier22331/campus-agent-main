@@ -3,8 +3,9 @@ kind: Job
 metadata:
   name: ops-web-database-grants
   annotations:
-    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook: Sync
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   backoffLimit: 1
   template:
@@ -15,24 +16,48 @@ spec:
     spec:
       serviceAccountName: ops-web
       automountServiceAccountToken: false
+      enableServiceLinks: false
       restartPolicy: Never
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: grants
           image: ghcr.io/muc-wiki/campus-agent/ops-web:replace-me
           imagePullPolicy: IfNotPresent
           command:
-            - node
-            - --experimental-strip-types
-            - ops/db/ops-web-database.ts
-            - apply
+            - /bin/sh
+            - -ec
+          args:
+            - |
+              export OPS_WEB_SCHEMA_DATABASE_URL="$(node -e '
+                const url = new URL(`postgresql://${process.env.PGHOST}:${process.env.PGPORT}/${process.env.PGDATABASE}`);
+                url.username = process.env.PGUSER;
+                url.password = process.env.PGPASSWORD;
+                process.stdout.write(url.toString());
+              ')"
+              exec node --experimental-strip-types ops/db/ops-web-database.ts apply
+          envFrom:
+            - configMapRef:
+                name: ops-web-schema-database-config
           env:
             - name: DEPLOYMENT_ENVIRONMENT
               value: production
-            - name: OPS_WEB_SCHEMA_DATABASE_URL
+            - name: PGUSER
               valueFrom:
                 secretKeyRef:
-                  name: ops-web-schema-database-secrets
-                  key: OPS_WEB_SCHEMA_DATABASE_URL
+                  name: campus-agent-postgres-campus-agent-owner
+                  key: username
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: campus-agent-postgres-campus-agent-owner
+                  key: password
             - name: OPS_WEB_DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -72,7 +97,7 @@ spec:
       volumes:
         - name: postgres-ca
           secret:
-            secretName: campus-agent-postgres-ca
+            secretName: campus-agent-postgres-origin-server
             items:
               - key: ca.crt
                 path: ca.crt

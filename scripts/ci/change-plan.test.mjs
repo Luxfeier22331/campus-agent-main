@@ -126,6 +126,12 @@ test("routes ingestion PostgreSQL ownership to its explicit database suite", () 
 	assert.deepEqual(result.verification.database, ["ingestion-control"]);
 });
 
+test("routes Dining migrations to its explicit database suite", () => {
+	const result = plan(["jobs/dining-sync/migrations/0001_dining.sql"], ["dining-sync"]);
+
+	assert.deepEqual(result.verification.database, ["dining-sync"]);
+});
+
 test("routes Kubernetes source changes to release promotion", () => {
 	const result = plan(["infra/k8s/apps/execution-runtime/kustomization.yaml"]);
 
@@ -215,6 +221,7 @@ test("publishes dining-sync for migration and runtime changes", () => {
 	);
 
 	assert.deepEqual(migration.verification.docker, ["dining-sync"]);
+	assert.deepEqual(migration.verification.database, ["dining-sync"]);
 	assert.deepEqual(migration.release.images, ["dining-sync"]);
 	assert.deepEqual(domain.verification.docker, ["dining-sync", "ops-web"]);
 	assert.deepEqual(domain.release.images, ["dining-sync", "ops-web"]);

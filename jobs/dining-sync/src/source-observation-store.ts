@@ -6,7 +6,7 @@ import type {
 	DiningSourceObservation,
 	FeishuCatalogSourceIdentity,
 	FeishuReviewSourceIdentity,
-} from "./catalog-source-types";
+} from "./catalog-source-types.ts";
 
 export interface DiningCatalogPgClient {
 	connect(): Promise<unknown>;

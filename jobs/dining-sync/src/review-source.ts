@@ -1,5 +1,5 @@
-import type { DiningSourceObservation } from "./catalog-source-types";
-import type { DiningReviewImage, DiningReviewProjection, DiningSourceRecord } from "./types";
+import type { DiningSourceObservation } from "./catalog-source-types.ts";
+import type { DiningReviewImage, DiningReviewProjection, DiningSourceRecord } from "./types.ts";
 
 export interface DiningReviewObservationInput {
 	blockReason: string | null;

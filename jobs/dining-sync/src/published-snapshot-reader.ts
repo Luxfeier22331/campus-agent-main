@@ -2,7 +2,11 @@ import type { DiningPublishedSnapshot } from "@campus-agent/dining/domain";
 import { Client } from "pg";
 
 export class PostgresDiningPublishedSnapshotReader {
-	constructor(private readonly databaseUrl: string) {}
+	private readonly databaseUrl: string;
+
+	constructor(databaseUrl: string) {
+		this.databaseUrl = databaseUrl;
+	}
 
 	async read(): Promise<DiningPublishedSnapshot> {
 		const client = new Client({ connectionString: this.databaseUrl });

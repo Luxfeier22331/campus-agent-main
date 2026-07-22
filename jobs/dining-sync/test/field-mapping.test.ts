@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { recordFromFieldMap } from "../src/field-mapping";
+import { recordFromFieldMap } from "../src/field-mapping.ts";
 
 describe("Feishu dining review field mapping", () => {
 	it("maps OpenAPI fields while retaining the record submission time", () => {

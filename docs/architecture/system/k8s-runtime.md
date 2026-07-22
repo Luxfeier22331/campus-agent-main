@@ -8,8 +8,8 @@ status: active
 
 ## 边界
 
-本文定义源码仓中的 Temporal worker Kubernetes 基础资源及其平台职责。环境仓负责 Argo CD
-Application、namespace、不可变镜像、环境配置、凭据和实际资源规格。
+本文定义源码仓中的第一方 Kubernetes 基础资源及其平台职责。环境仓负责 Argo CD Application、
+namespace、不可变镜像、环境配置、凭据对象和实际资源额度。
 
 ## 运行时基础
 
@@ -47,10 +47,11 @@ workflow 代码不得部署、重启或修改自己的 Kubernetes 资源。
 
 ## 网络与凭据
 
-源码 base 默认最小化网络访问，环境 overlay 根据真实 endpoint 进一步限制。浏览器不能直连
+源码 base 用稳定 workload label 声明应用级 NetworkPolicy 和端口，环境 overlay 只替换真实网络
+目标。浏览器不能直连
 Temporal、worker、数据库或对象存储。
 
-环境仓为不同服务提供最小权限凭据，并满足源码声明的消费合同。运行身份、用户凭据和外部服务
+环境仓为不同服务提供最小权限 Secret，并满足源码声明的 key 消费合同。运行身份、用户凭据和外部服务
 凭据不能混用；精确 Secret、NetworkPolicy 和地址以 base 与环境配置为准。
 
 第一方 workload 禁止使用 `envFrom.secretRef`。每个进程只通过显式

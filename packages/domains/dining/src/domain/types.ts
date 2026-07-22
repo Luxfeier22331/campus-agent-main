@@ -1,4 +1,4 @@
-import type { DiningPublication, DiningRelease, DiningValidationReport } from "./release-types";
+import type { DiningPublication, DiningRelease, DiningValidationReport } from "./release-types.ts";
 
 export type DiningWindowStatus = "active" | "closed" | "maintenance";
 

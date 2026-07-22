@@ -17,6 +17,7 @@ pnpm --dir jobs/docs-publish exec tsx src/cli.ts materialize --release-id sha256
 专用 `DOCS_PUBLISH_DATABASE_URL`。对象存储写入是 create-or-verify，数据库按 release 在一个事务
 内重建；命令不修改 Cloudflare Worker 流量，也不维护“最新 release”指针。
 
-Kubernetes 一次性 Job base 位于 `infra/k8s/docs-publish/base`。环境仓负责输入引用、对象存储、
-数据库、CA、Secret 和实际版本选择；精确资源与变量以 base 和任务实现为准。任务使用独立发布
-角色，不复用 App API 运行角色或数据库结构管理角色。
+Kubernetes 一次性 Job base 位于 `infra/k8s/docs-publish/base`，但清单存在不代表环境已经部署该
+任务。部署文档发布单元时，环境仓必须在同一 Application 中提供输入引用、对象存储配置、独立
+`docs_publish` 登录 Secret、DatabaseRole 和实际镜像版本。任务不复用 App API 运行角色或数据库
+结构管理角色。

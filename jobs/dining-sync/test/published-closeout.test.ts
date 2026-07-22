@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	PostgresDiningPublishedCloseoutVerifier,
 	type DiningPublishedCloseoutPgClient,
-} from "../src/published-closeout";
+} from "../src/published-closeout.ts";
 
 function createClient(input: { missing?: boolean; reviewCount?: number; unsafeImage?: boolean } = {}) {
 	const seed = createDevDiningSeed();

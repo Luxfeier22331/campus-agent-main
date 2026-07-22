@@ -19,8 +19,8 @@ staging execution runtime 由 Kubernetes/GitOps 管理，Docker Compose 只用�
 3. 合并环境 PR 选择 deployment revision；
 4. Argo CD 按该 revision 对账。
 
-环境 overlay 在 first-party Deployment 前运行 `PreSync` schema Job。Job 必须使用相同
-execution-control image digest，安装并验证 run projection schema；长期进程保持
+同一 execution runtime Application 在 first-party Deployment 前运行低 wave 的 `Sync` schema
+Job。Job 必须使用相同 execution-control image digest，安装并验证 run projection schema；长期进程保持
 `EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE=false`。
 
 发布检查：

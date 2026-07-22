@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { processDiningReviewRechecks } from "../src/review-recheck";
+import { processDiningReviewRechecks } from "../src/review-recheck.ts";
 
 describe("Dining review rechecks", () => {
 	it("hides newly blocked content despite a previous restore override", async () => {

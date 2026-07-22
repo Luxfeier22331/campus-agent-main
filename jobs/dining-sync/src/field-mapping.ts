@@ -1,4 +1,4 @@
-import type { DiningSourceRecord, LarkAttachmentRef } from "./types";
+import type { DiningSourceRecord, LarkAttachmentRef } from "./types.ts";
 
 export const DINING_LARK_FIELD_IDS = {
 	attachments: "fldyqctdoB",

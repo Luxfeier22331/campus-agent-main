@@ -29,6 +29,15 @@ docker_args=(
   -e OTEL_COLLECTOR_AXIOM_INGEST_TOKEN=xaat-ci-validation
   -e OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT=https://langfuse.example.invalid/api/public/otel
 )
+if [[ -n "${CI_DOCKER_CGROUP_PARENT:-}" ]]; then
+  docker_args+=(
+    --cgroup-parent "$CI_DOCKER_CGROUP_PARENT"
+    --cpus "${CI_DOCKER_CPUS:-2}"
+    --memory "${CI_DOCKER_MEMORY:-2g}"
+    --memory-swap "${CI_DOCKER_MEMORY:-2g}"
+    --pids-limit "${CI_DOCKER_PIDS_LIMIT:-1024}"
+  )
+fi
 
 validate_config() {
   local config="$1"

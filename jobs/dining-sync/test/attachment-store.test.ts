@@ -6,8 +6,8 @@ import {
 } from "@aws-sdk/client-s3";
 import { describe, expect, it, vi } from "vitest";
 
-import { S3DiningAttachmentStore } from "../src/attachment-store";
-import type { DiningSourceRecord } from "../src/types";
+import { S3DiningAttachmentStore } from "../src/attachment-store.ts";
+import type { DiningSourceRecord } from "../src/types.ts";
 
 const RECORD: DiningSourceRecord = {
 	attachments: [

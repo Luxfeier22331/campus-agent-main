@@ -4,12 +4,21 @@ import {
 	loadCatalogImportConfig,
 	loadCatalogSyncConfig,
 	loadConfig,
-	loadLocalMigrationConfig,
 	loadMigrationConfig,
-} from "../src/config";
+	postgresUrlFromEnv,
+} from "../src/config.ts";
+
+const DATABASE_ENV = {
+	PGDATABASE: "campus_agent",
+	PGHOST: "localhost",
+	PGPASSWORD: "postgres",
+	PGPORT: "5432",
+	PGSSLMODE: "disable",
+	PGUSER: "postgres",
+} satisfies NodeJS.ProcessEnv;
 
 const COMPLETE_ENV = {
-	DATABASE_URL: "postgres://postgres:postgres@localhost:5432/campus_agent",
+	...DATABASE_ENV,
 	DINING_LARK_APP_ID: "cli_xxx",
 	DINING_LARK_APP_SECRET: "secret",
 	DINING_LARK_BASE_TOKEN: "base_token",
@@ -30,12 +39,12 @@ const COMPLETE_ENV = {
 
 describe("dining sync config", () => {
 	it("loads required Feishu, Postgres, and object-store settings", () => {
-			expect(loadConfig(COMPLETE_ENV)).toMatchObject({
-				larkAppId: "cli_xxx",
-				larkCampusTableId: "tbl_campus",
-				larkDishTableId: "tbl_dish",
-				larkHallTableId: "tbl_hall",
-				larkStallTableId: "tbl_stall",
+		expect(loadConfig(COMPLETE_ENV)).toMatchObject({
+			larkAppId: "cli_xxx",
+			larkCampusTableId: "tbl_campus",
+			larkDishTableId: "tbl_dish",
+			larkHallTableId: "tbl_hall",
+			larkStallTableId: "tbl_stall",
 			moderationApiKey: "moderation-secret",
 			moderationBaseUrl: "https://ai.gitee.com/v1",
 			moderationImageModel: "nsfw-classifier",
@@ -44,7 +53,7 @@ describe("dining sync config", () => {
 			objectStoreEndpoint: "http://127.0.0.1:9000",
 			objectStoreRegion: "us-east-1",
 			objectStoreReviewPrefix: "dining/reviews",
-			postgresUrl: "postgres://postgres:postgres@localhost:5432/campus_agent",
+			postgresUrl: "postgresql://postgres:postgres@localhost:5432/campus_agent?sslmode=disable",
 		});
 	});
 
@@ -92,40 +101,58 @@ describe("dining sync config", () => {
 	it("loads catalog sync settings without review, moderation, or object-store env", () => {
 		expect(
 			loadCatalogSyncConfig({
-				DATABASE_URL: COMPLETE_ENV.DATABASE_URL,
-				DINING_LARK_APP_ID: COMPLETE_ENV.DINING_LARK_APP_ID,
-				DINING_LARK_APP_SECRET: COMPLETE_ENV.DINING_LARK_APP_SECRET,
-				DINING_LARK_BASE_TOKEN: COMPLETE_ENV.DINING_LARK_BASE_TOKEN,
-				DINING_LARK_CAMPUS_TABLE_ID: "tbl_campus",
-				DINING_LARK_DISH_TABLE_ID: "tbl_dish",
-				DINING_LARK_HALL_TABLE_ID: "tbl_hall",
-				DINING_LARK_STALL_TABLE_ID: "tbl_stall",
+				...DATABASE_ENV,
+					DINING_LARK_APP_ID: COMPLETE_ENV.DINING_LARK_APP_ID,
+					DINING_LARK_APP_SECRET: COMPLETE_ENV.DINING_LARK_APP_SECRET,
+					DINING_LARK_BASE_TOKEN: COMPLETE_ENV.DINING_LARK_BASE_TOKEN,
+					DINING_LARK_CAMPUS_TABLE_ID: "tbl_campus",
+					DINING_LARK_DISH_TABLE_ID: "tbl_dish",
+					DINING_LARK_HALL_TABLE_ID: "tbl_hall",
+					DINING_LARK_STALL_TABLE_ID: "tbl_stall",
 			}),
 		).toMatchObject({
 			larkCampusTableId: "tbl_campus",
 			larkDishTableId: "tbl_dish",
 			larkHallTableId: "tbl_hall",
 			larkStallTableId: "tbl_stall",
-			postgresUrl: COMPLETE_ENV.DATABASE_URL,
+			postgresUrl: "postgresql://postgres:postgres@localhost:5432/campus_agent?sslmode=disable",
 		});
 	});
 
-	it("keeps deploy migration credentials separate from the sync runtime", () => {
-		expect(() => loadMigrationConfig(COMPLETE_ENV)).toThrow(
-			/DINING_MIGRATION_DATABASE_URL is required/,
-		);
-		expect(
-			loadMigrationConfig({ DINING_MIGRATION_DATABASE_URL: "postgres://migration" }),
-		).toEqual({ postgresUrl: "postgres://migration" });
-		expect(loadLocalMigrationConfig(COMPLETE_ENV)).toEqual({
-			postgresUrl: COMPLETE_ENV.DATABASE_URL,
+	it("uses the same PostgreSQL variable contract for migration and runtime", () => {
+		expect(loadMigrationConfig(DATABASE_ENV)).toEqual({
+			postgresUrl: "postgresql://postgres:postgres@localhost:5432/campus_agent?sslmode=disable",
 		});
+	});
+
+	it("builds a verify-full connection without shell interpolation", () => {
+		expect(
+			postgresUrlFromEnv({
+				...DATABASE_ENV,
+				PGHOST: "postgres-staging.mucwiki-edge.link",
+				PGPASSWORD: "p@ss:/word",
+				PGSSLMODE: "verify-full",
+				PGSSLROOTCERT: "/etc/campus-agent/postgres/ca.crt",
+			}),
+		).toBe(
+			"postgresql://postgres:p%40ss%3A%2Fword@postgres-staging.mucwiki-edge.link:5432/campus_agent?sslmode=verify-full&sslrootcert=%2Fetc%2Fcampus-agent%2Fpostgres%2Fca.crt",
+		);
+	});
+
+	it("rejects incomplete or ambiguous PostgreSQL TLS configuration", () => {
+		expect(() => postgresUrlFromEnv({ ...DATABASE_ENV, PGPORT: "0" })).toThrow(/PGPORT/);
+		expect(() => postgresUrlFromEnv({ ...DATABASE_ENV, PGSSLMODE: "require" })).toThrow(
+			/PGSSLMODE must be disable or verify-full/,
+		);
+		expect(() =>
+			postgresUrlFromEnv({ ...DATABASE_ENV, PGSSLMODE: "verify-full" }),
+		).toThrow(/PGSSLROOTCERT is required/);
 	});
 
 	it("does not borrow the app-api operator credential for dev seed import", () => {
-		expect(() =>
-			loadCatalogImportConfig({ APP_API_OPERATOR_DATABASE_URL: "postgres://app-api-owner" }),
-		).toThrow(/DATABASE_URL is required/);
+			expect(() =>
+				loadCatalogImportConfig({ APP_API_OPERATOR_DATABASE_URL: "postgres://app-api-owner" }),
+			).toThrow(/PGHOST is required/);
 	});
 
 	it("fails closed when moderation timeout is invalid", () => {

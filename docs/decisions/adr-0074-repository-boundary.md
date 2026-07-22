@@ -20,7 +20,8 @@ status: accepted
 
 - application、job 与 package source；
 - 稳定 runtime 与 secret-consumption contract；
-- namespace-neutral first-party Kustomize base；
+- namespace-neutral first-party Kustomize base，包括完整 Pod/Job 行为、稳定 Secret key 合同和
+  应用级 NetworkPolicy；
 - image build、scan、SBOM 与 immutable SHA-tag publication；
 - Cloudflare Worker build 与不改变 traffic 的 immutable version upload；
 - 通过 pull request 提议环境变更的 promotion workflow。
@@ -28,7 +29,8 @@ status: accepted
 每个部署环境仓库负责：
 
 - Argo CD root 与 child Application；
-- environment overlay、namespace、resource sizing 与 network coordinate；
+- environment overlay、namespace、resource sizing 与 network coordinate，但不重写第一方
+  command、安全上下文或数据库连接组装；
 - 固定版本的 third-party Helm chart 与 value；
 - strict-scope SealedSecret 与 environment trust anchor；
 - first-party image digest 与完整 source commit SHA；

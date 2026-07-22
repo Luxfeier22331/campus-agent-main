@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { PostgresDiningReviewPublisher } from "../src/postgres-publisher";
-import type { DiningSourceObservation } from "../src/catalog-source-types";
+import { PostgresDiningReviewPublisher } from "../src/postgres-publisher.ts";
+import type { DiningSourceObservation } from "../src/catalog-source-types.ts";
 
 function reviewObservation(status: "accepted" | "blocked"): DiningSourceObservation {
 	return {

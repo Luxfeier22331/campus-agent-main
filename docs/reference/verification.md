@@ -56,6 +56,7 @@ branch protection、部署 secret、镜像清单或环境状态。
 | `pnpm ci:eval` | eval-langfuse 与 Ragas adapter 的 typecheck/test | 真实数据集评分已完成 |
 | `pnpm ci:otel` | 固定版本 Collector 的官方配置校验 | 真实 OTLP payload 行为或目标环境已收到信号 |
 | `pnpm ci:app-api-migration` | disposable PostgreSQL 上的 baseline upgrade 与 clean install | staging database 已迁移 |
+| `pnpm ci:dining-postgres` | disposable PostgreSQL 上的 Dining migration 幂等、数据保留和失败事务 | staging database 已迁移 |
 
 `pnpm web:build` 是完整 web build，不是所有 PR 的默认检查；模块构建需要的 docs manifest、
 database 或其他外部输入必须先准备完毕。
@@ -89,6 +90,7 @@ Campus Web 浏览器验证分为三个边界：
 | ingestion app、package、source config 或 task registry | `pnpm ci:ingest`；合同变化时加 `pnpm ci:contracts` |
 | eval package、Ragas adapter 或 eval contract | `pnpm ci:eval` |
 | app-api migration | `pnpm ci:app-api-migration` 与 app-api 模块测试 |
+| Dining migration | `pnpm ci:dining-postgres` 与 dining-sync 模块测试 |
 | `.github/**` | `pnpm ci:config` 与 `pnpm ci:repo` |
 | dependency manifest 或 lockfile | `pnpm ci:deps` 与受影响模块检查 |
 | K8s、Docker、Terraform 或 deployment script | 所属静态验证、build/render 检查与明确的环境验收 |

@@ -1,4 +1,4 @@
-import { DiningDomainError } from "./error";
+import { DiningDomainError } from "./error.ts";
 import type {
 	DiningCatalog,
 	DiningMenuOffering,
@@ -8,7 +8,7 @@ import type {
 	DiningPublishedSearchResponse,
 	DiningPublishedSearchResult,
 	DiningPublishedSnapshot,
-} from "./types";
+} from "./types.ts";
 
 export function buildPublishedSnapshot(
 	state: DiningCatalog,

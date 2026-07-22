@@ -1,19 +1,19 @@
-export { S3DiningAttachmentStore } from "./attachment-store";
-export { PostgresDiningDevSeedImporter } from "./dev-seed-importer";
+export { S3DiningAttachmentStore } from "./attachment-store.ts";
+export { PostgresDiningDevSeedImporter } from "./dev-seed-importer.ts";
 export {
 	loadCatalogImportConfig,
 	loadCatalogSyncConfig,
 	loadConfig,
-	loadLocalMigrationConfig,
 	loadMigrationConfig,
-} from "./config";
-export { LarkDiningClient } from "./lark-client";
-export { GiteeAiDiningModerator } from "./moderation";
-export { PostgresDiningReviewPublisher } from "./postgres-publisher";
-export { PostgresDiningPublishedSnapshotReader } from "./published-snapshot-reader";
-export { PublishedDiningReviewResolver } from "./review-resolver";
-export { processDiningReviewRechecks } from "./review-recheck";
-export { runDiningSync } from "./sync-pipeline";
+	postgresUrlFromEnv,
+} from "./config.ts";
+export { LarkDiningClient } from "./lark-client.ts";
+export { GiteeAiDiningModerator } from "./moderation.ts";
+export { PostgresDiningReviewPublisher } from "./postgres-publisher.ts";
+export { PostgresDiningPublishedSnapshotReader } from "./published-snapshot-reader.ts";
+export { PublishedDiningReviewResolver } from "./review-resolver.ts";
+export { processDiningReviewRechecks } from "./review-recheck.ts";
+export { runDiningSync } from "./sync-pipeline.ts";
 export type {
 	DiningReviewImage,
 	DiningReviewProjection,
@@ -21,4 +21,4 @@ export type {
 	LarkAttachmentRef,
 	ModerationResult,
 	SyncReport,
-} from "./types";
+} from "./types.ts";

@@ -4,7 +4,7 @@ import type {
 	FeishuDishRecord,
 	FeishuHallRecord,
 	FeishuStallRecord,
-} from "./catalog-source-types";
+} from "./catalog-source-types.ts";
 
 export interface LarkTableRecord {
 	fields: Record<string, unknown>;

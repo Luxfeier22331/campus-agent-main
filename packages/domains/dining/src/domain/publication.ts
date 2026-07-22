@@ -1,19 +1,19 @@
-import { DiningDomainError } from "./error";
-import { resolveDiningFloorplanManifestRef } from "./floorplan-manifest";
-import { sha256Tag, stableJson } from "./hash";
-import { buildPublishedSnapshot } from "./projection";
+import { DiningDomainError } from "./error.ts";
+import { resolveDiningFloorplanManifestRef } from "./floorplan-manifest.ts";
+import { sha256Tag, stableJson } from "./hash.ts";
+import { buildPublishedSnapshot } from "./projection.ts";
 import type {
 	DiningPublication,
 	DiningRelease,
 	DiningValidationIssue,
 	DiningValidationReport,
-} from "./release-types";
+} from "./release-types.ts";
 import type {
 	DiningDraft,
 	DiningOpsActor,
 	DiningPublishedSnapshot,
 	DiningPublishResult,
-} from "./types";
+} from "./types.ts";
 
 export function validateDiningDraft(
 	draft: DiningDraft,

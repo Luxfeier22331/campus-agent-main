@@ -30,6 +30,10 @@ schema 定义，连接拓扑见 `../architecture/system/data-plane.md`，部署�
 Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，不共享产品运行时角色。外部
 观测平台不获得产品 PostgreSQL 角色。
 
+表中角色是权限主体，不等于都已具备环境登录凭据。当前数据库 base 将 `docs_publish` 保持为
+`NOLOGIN` 授权主体；只有部署文档发布单元时，才由该发布单元同时交付可登录 DatabaseRole、Secret
+和 Job。`dining_sync` 同样只随定时同步单元部署，不由数据库平台预创建。
+
 ## Schema 所有权
 
 | Schema 或表族 | 写入所有者 | 主要读取方 |
@@ -58,7 +62,9 @@ ingestion registry 和来源事实由采集数据所有者维护，不并入产�
 - 对象 bytes、原始来源、工作流历史和供应商 trace 不进入这些 schema。
 
 角色、grant、migration 和应用查询必须共同变化。新增数据库列不会自动进入其他所有者的读取
-权限或 API 响应。
+权限或 API 响应。可登录角色由实际消费它的发布 Application 同时拥有 Secret、DatabaseRole 和
+migration；数据库平台 Application 只维护数据库 owner 和无登录授权主体，不预创建没有部署
+消费者的登录凭据。
 
 ## 可执行来源
 

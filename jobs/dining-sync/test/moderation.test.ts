@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { GiteeAiDiningModerator } from "../src/moderation";
+import { GiteeAiDiningModerator } from "../src/moderation.ts";
 
 describe("Gitee AI dining moderator", () => {
 	it("sends OpenAI-compatible text moderation requests and accepts unflagged results", async () => {

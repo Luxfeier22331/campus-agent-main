@@ -13,8 +13,8 @@ status: active
 pnpm dev:prepare
 ```
 
-该命令启动共享 PostgreSQL、安装 app-api schema，然后显式执行 Dining `migrate-local` 和
-`import-dev-seed`。dev seed 是本地唯一合成食堂数据；app-api 和 Ops Web 启动时不得写 seed。
+该命令启动共享 PostgreSQL、安装 app-api schema，然后使用本地 `PG*` 变量显式执行 Dining
+`migrate` 和 `import-dev-seed`。dev seed 是本地唯一合成食堂数据；app-api 和 Ops Web 启动时不得写 seed。
 
 地图编辑和数据库同步相互独立。启动学生端前验证仓库地图资产：
 
@@ -26,10 +26,12 @@ pnpm --dir packages/domains/dining floorplans:check
 
 1. 对目标 commit 运行 floorplan check，确认 canonical layout、generated manifest 和 Campus Web
    静态 SVG 一致。
-2. 从 `infra/k8s/dining-sync/migration` 使用目标 dining-sync image 运行 Argo CD PreSync
-   migration Job；定时同步由独立的 `infra/k8s/dining-sync/runtime` 清单拥有。
+2. 从 `infra/k8s/dining-sync/migration` 使用目标 dining-sync image 运行低 wave 的 Argo CD
+   `Sync` migration Job；需要定时采集时，同一发布 Application 还必须选择
+   `infra/k8s/dining-sync/runtime`，并提供独立同步角色和来源凭据。源码清单存在不表示环境已启用
+   CronJob。
 3. migration Job 只使用环境拥有的 schema owner 连接，不向同步任务或应用下发该凭据。
-4. 确认 CronJob 使用 `dining_sync`，Ops Web 使用 `ops_web_dining`，app-api 使用只读
+4. 已启用 CronJob 时确认它使用 `dining_sync`；Ops Web 使用 `ops_web_dining`，app-api 使用只读
    `app_api` 角色。
 5. 部署包含同一 floorplan manifest 的 Campus Web 与 Ops Web 版本。
 6. 启动每小时 Dining CronJob，命令为 `sync-all`。
@@ -69,7 +71,8 @@ geometry。
   `floorplans:check`。
 - rollback 返回地图不兼容：恢复目标 release 需要的 anchor，或选择仍兼容的 release；不得绕过
   manifest 校验。
-- migration 权限失败：使用 migration DSN，不提升 `dining_sync`、`ops_web_dining` 或
+- migration 权限失败：检查 migration Job 的 `PGUSER`、`PGPASSWORD` 与 DatabaseRole，不提升
+  `dining_sync`、`ops_web_dining` 或
   `app_api` 运行时角色。
 - review revision 未变化：确认公开评价摘要是否实际变化；隐藏内容变化不应递增 revision。
 

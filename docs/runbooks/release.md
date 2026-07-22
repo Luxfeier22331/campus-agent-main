@@ -47,6 +47,8 @@ Campus Web 的不可变 Worker version 已固化对应 `docsReleaseId`，环境�
 
 - 所有候选物均来自同一预期源码版本，且引用不可变；
 - 环境配置、凭据消费合同、数据库变更和网络边界完整；
+- 可登录数据库角色、Secret、migration 和依赖它的 workload 位于同一发布 Application，且
+  migration 是低于 workload 的 `Sync` hook；
 - 渲染结果和控制器计划只包含预期资源；
 - 回滚目标及其依赖仍可用。
 

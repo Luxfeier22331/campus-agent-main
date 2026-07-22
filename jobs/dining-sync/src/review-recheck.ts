@@ -1,6 +1,6 @@
 import { Client } from "pg";
 
-import type { ModerationResult } from "./types";
+import type { ModerationResult } from "./types.ts";
 
 type DiningRecheckClient = Pick<Client, "connect" | "end" | "query">;
 

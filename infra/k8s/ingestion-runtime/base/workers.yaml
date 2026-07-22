@@ -75,6 +75,9 @@ spec:
             - name: INGESTION_TASK_REGISTRY_ROOT
               value: /app/configs/ingestion
           volumeMounts:
+            - name: postgres-ca
+              mountPath: /etc/campus-agent/postgres
+              readOnly: true
             - name: runtime-tmp
               mountPath: /tmp
           resources:
@@ -84,6 +87,12 @@ spec:
             limits:
               memory: 1Gi
       volumes:
+        - name: postgres-ca
+          secret:
+            secretName: campus-agent-postgres-origin-server
+            items:
+              - key: ca.crt
+                path: ca.crt
         - name: runtime-tmp
           emptyDir: {}
 ---

@@ -3,9 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 import type {
 	DiningSourceObservation,
 	FeishuReviewSourceIdentity,
-} from "../src/catalog-source-types";
-import { runDiningSync } from "../src/sync-pipeline";
-import type { DiningSourceRecord } from "../src/types";
+} from "../src/catalog-source-types.ts";
+import { runDiningSync } from "../src/sync-pipeline.ts";
+import type { DiningSourceRecord } from "../src/types.ts";
 
 const SAFE_RECORD: DiningSourceRecord = {
 		attachments: [

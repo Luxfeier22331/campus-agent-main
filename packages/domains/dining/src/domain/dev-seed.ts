@@ -1,8 +1,8 @@
-import { createDiningFloorplanScaffoldDraft } from "./floorplan-scaffold";
-import { sha256Tag, stableJson } from "./hash";
-import { buildPublishedSnapshot } from "./projection";
-import type { DiningPublication, DiningRelease } from "./release-types";
-import { DINING_SYSTEM_SOURCE } from "./state-factory";
+import { createDiningFloorplanScaffoldDraft } from "./floorplan-scaffold.ts";
+import { sha256Tag, stableJson } from "./hash.ts";
+import { buildPublishedSnapshot } from "./projection.ts";
+import type { DiningPublication, DiningRelease } from "./release-types.ts";
+import { DINING_SYSTEM_SOURCE } from "./state-factory.ts";
 import type {
 	DiningCatalog,
 	DiningDraft,
@@ -12,7 +12,7 @@ import type {
 	DiningReview,
 	DiningStallProfile,
 	DiningWindowAssignment,
-} from "./types";
+} from "./types.ts";
 
 export const DINING_DEV_SEED_RELEASE_ID = "dining_release:dev_seed";
 const DEV_SEED_ACTOR = "system:dining-dev-seed";

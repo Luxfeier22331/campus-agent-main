@@ -75,13 +75,14 @@ export function resolveWorkerPlainTextVariable(payload: unknown, variableName: s
 		return fail("Worker version details do not contain resource bindings.");
 	}
 	const matches = bindings.filter(
-		(binding) =>
+		(binding): binding is Record<string, unknown> =>
 			isRecord(binding) && binding.type === "plain_text" && binding.name === variableName,
 	);
-	if (matches.length !== 1 || typeof matches[0]?.text !== "string") {
+	const binding = matches[0];
+	if (matches.length !== 1 || typeof binding?.text !== "string") {
 		return fail(`Worker version must contain exactly one plain-text ${variableName} binding.`);
 	}
-	return matches[0].text;
+	return binding.text;
 }
 
 export function readWorkerVersionPlainTextVariable(options: {

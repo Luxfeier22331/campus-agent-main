@@ -2,27 +2,26 @@ import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { createDevDiningSeed } from "@campus-agent/dining/domain";
 
-import { S3DiningAttachmentStore } from "./attachment-store";
-import { buildCatalogObservations } from "./catalog-source";
-import { PostgresDiningCatalogSourceObservationStore } from "./catalog-source-store";
+import { S3DiningAttachmentStore } from "./attachment-store.ts";
+import { buildCatalogObservations } from "./catalog-source.ts";
+import { PostgresDiningCatalogSourceObservationStore } from "./catalog-source-store.ts";
 import {
 	loadCatalogImportConfig,
 	loadCatalogSyncConfig,
 	loadConfig,
-	loadLocalMigrationConfig,
 	loadMigrationConfig,
-} from "./config";
-import { LarkDiningClient } from "./lark-client";
-import { GiteeAiDiningModerator } from "./moderation";
-import { migrateDining } from "./migrate";
-import { PostgresDiningDevSeedImporter } from "./dev-seed-importer";
-import { PostgresDiningReviewPublisher } from "./postgres-publisher";
-import { PostgresDiningPublishedCloseoutVerifier } from "./published-closeout";
-import { PostgresDiningPublishedSnapshotReader } from "./published-snapshot-reader";
-import { PublishedDiningReviewResolver } from "./review-resolver";
-import { processDiningReviewRechecks } from "./review-recheck";
-import { PostgresDiningSourceObservationStore } from "./source-observation-store";
-import { runDiningSync } from "./sync-pipeline";
+} from "./config.ts";
+import { LarkDiningClient } from "./lark-client.ts";
+import { GiteeAiDiningModerator } from "./moderation.ts";
+import { migrateDining } from "./migrate.ts";
+import { PostgresDiningDevSeedImporter } from "./dev-seed-importer.ts";
+import { PostgresDiningReviewPublisher } from "./postgres-publisher.ts";
+import { PostgresDiningPublishedCloseoutVerifier } from "./published-closeout.ts";
+import { PostgresDiningPublishedSnapshotReader } from "./published-snapshot-reader.ts";
+import { PublishedDiningReviewResolver } from "./review-resolver.ts";
+import { processDiningReviewRechecks } from "./review-recheck.ts";
+import { PostgresDiningSourceObservationStore } from "./source-observation-store.ts";
+import { runDiningSync } from "./sync-pipeline.ts";
 
 async function main() {
 	const command = process.argv[2] ?? "run";
@@ -42,10 +41,6 @@ async function main() {
 		await migrateDining(loadMigrationConfig().postgresUrl);
 		return;
 	}
-	if (command === "migrate-local") {
-		await migrateDining(loadLocalMigrationConfig().postgresUrl);
-		return;
-	}
 	if (command === "catalog-observations") {
 		await syncCatalogObservations();
 		return;
@@ -55,7 +50,7 @@ async function main() {
 		return;
 	}
 	throw new Error(
-		"Usage: pnpm sync [sync-all|run|catalog-observations|import-dev-seed|verify-published|migrate|migrate-local]",
+		"Usage: pnpm sync [sync-all|run|catalog-observations|import-dev-seed|verify-published|migrate]",
 	);
 }
 

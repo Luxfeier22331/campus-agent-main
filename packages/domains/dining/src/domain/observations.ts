@@ -1,4 +1,4 @@
-import { createDiningFloorplanScaffoldDraft } from "./floorplan-scaffold";
+import { createDiningFloorplanScaffoldDraft } from "./floorplan-scaffold.ts";
 import type {
 	DiningDraft,
 	DiningMenuItem,
@@ -6,7 +6,7 @@ import type {
 	DiningStallProfile,
 	DiningWindow,
 	DiningWindowAssignment,
-} from "./types";
+} from "./types.ts";
 
 export type DiningObservationTargetKind =
 	| "campus"

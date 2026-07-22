@@ -74,6 +74,26 @@ jobs:
       - name: Verify Docker
         run: docker info >/dev/null
 
+      - name: Setup resource-bounded Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4
+        with:
+          name: campus-agent-verify-${{ github.run_id }}
+          keep-state: false
+          cleanup: true
+          cache-binary: false
+          driver-opts: |
+            cgroup-parent=ci.slice
+            cpu-period=100000
+            cpu-quota=200000
+            memory=2g
+            memory-swap=2g
+          buildkitd-config-inline: |
+            [worker.oci]
+              gc = true
+              reservedSpace = "2GB"
+              maxUsedSpace = "8GB"
+              minFreeSpace = "40GB"
+
       - name: Build affected Docker targets
         run: pnpm ci:affected:docker "${{ needs.plan.outputs.base_sha }}" "${{ needs.plan.outputs.head_sha }}"
 

@@ -1,10 +1,10 @@
-import { DINING_FLOORPLAN_ASSETS } from "./assets";
+import { DINING_FLOORPLAN_ASSETS } from "./assets.ts";
 import {
 	createDiningFloorplanManifestEntry,
 	type DiningFloorplanManifestEntry,
-} from "./floorplan-contract";
-import { DINING_WAYFINDING_LAYOUTS } from "./layout-registry";
-import { renderDiningWayfindingSvg } from "./wayfinding-layout";
+} from "./floorplan-contract.ts";
+import { DINING_WAYFINDING_LAYOUTS } from "./layout-registry.ts";
+import { renderDiningWayfindingSvg } from "./wayfinding-layout.ts";
 
 const generatedAssetByFloorId = new Map(
 	DINING_FLOORPLAN_ASSETS.map((asset) => [asset.floorId, asset]),
@@ -52,14 +52,14 @@ export type {
 	DiningFloorplanAnchorRole,
 	DiningFloorplanManifestEntry,
 	DiningFloorplanManifestInput,
-} from "./floorplan-contract";
+} from "./floorplan-contract.ts";
 export {
 	assertDiningFloorplanManifest,
 	buildDiningFloorplanAssetUrl,
 	createDiningFloorplanManifestEntry,
 	sanitizeDiningFloorplanSvg,
-} from "./floorplan-contract";
-export { DINING_WAYFINDING_LAYOUTS } from "./layout-registry";
+} from "./floorplan-contract.ts";
+export { DINING_WAYFINDING_LAYOUTS } from "./layout-registry.ts";
 export type {
 	DiningWayfindingCanvas,
 	DiningWayfindingEntrance,
@@ -72,7 +72,7 @@ export type {
 	DiningWayfindingRect,
 	DiningWayfindingRegion,
 	DiningWayfindingWindow,
-} from "./wayfinding-layout";
+} from "./wayfinding-layout.ts";
 export {
 	assertDiningWayfindingLayout,
 	canonicalizeDiningWayfindingLayout,
@@ -82,4 +82,4 @@ export {
 	DINING_WAYFINDING_SCHEMA_VERSION,
 	renderDiningWayfindingSvg,
 	serializeDiningWayfindingLayout,
-} from "./wayfinding-layout";
+} from "./wayfinding-layout.ts";

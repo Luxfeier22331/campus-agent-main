@@ -1,4 +1,4 @@
-import type { DiningPublishedSnapshot } from "./types";
+import type { DiningPublishedSnapshot } from "./types.ts";
 
 export interface DiningValidationIssue {
 	code:

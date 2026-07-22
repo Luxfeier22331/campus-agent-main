@@ -4,11 +4,11 @@ import { describe, expect, it } from "vitest";
 import {
 	buildCatalogObservations,
 	buildDiningDraftFromCatalogObservations,
-} from "../src/catalog-source";
-import { catalogRecordsFromLarkTables } from "../src/catalog-field-mapping";
-import { PostgresDiningCatalogSourceObservationStore } from "../src/catalog-source-store";
-import { PublishedDiningReviewResolver } from "../src/review-resolver";
-import type { DiningCatalogSourceRecords } from "../src/catalog-source-types";
+} from "../src/catalog-source.ts";
+import { catalogRecordsFromLarkTables } from "../src/catalog-field-mapping.ts";
+import { PostgresDiningCatalogSourceObservationStore } from "../src/catalog-source-store.ts";
+import { PublishedDiningReviewResolver } from "../src/review-resolver.ts";
+import type { DiningCatalogSourceRecords } from "../src/catalog-source-types.ts";
 
 const SOURCE_RECORDS: DiningCatalogSourceRecords = {
 	campuses: [
