@@ -127,6 +127,16 @@ test("guards release publication and unresolved surfaces", () => {
 	assert.match(releaseSource, /cleanup: true/u);
 	assert.doesNotMatch(releaseSource, /name: campus-agent-release\s*$/mu);
 	assert.match(releaseSource, /github\.ref == 'refs\/heads\/main'/u);
+	assert.deepEqual(releaseWorkflow.jobs["publish-images"].needs, "release-plan");
+	assert.match(releaseWorkflow.jobs.promote.if, /needs\.publish-images\.result == 'success'/u);
+	assert.doesNotMatch(
+		releaseWorkflow.jobs.promote.if,
+		/needs\.release-config\.result == 'success'/u,
+	);
+	const downloadWorkerCandidates = releaseWorkflow.jobs.promote.steps.find(
+		(step) => step.name === "Download Worker candidates",
+	);
+	assert.equal(downloadWorkerCandidates.if, "needs.publish-workers.result == 'success'");
 });
 
 test("supports a bounded failed release replay", () => {

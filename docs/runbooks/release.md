@@ -31,8 +31,9 @@ Cloudflare version、配置和其他环境资源。候选物发布成功不表�
 1. 确认目标源码已经合入 `main`，且该变更要求的 PR 检查通过。
 2. 由当前 workflow 发布受影响的不可变候选物；触发条件、输入和产物以 `.github/workflows/`
    为准。
-   `release-config` 会先使用 `CLOUDFLARE_AUTOMATION_TOKEN` 验证目标账户的 Wrangler
-   认证；认证失败会在镜像构建和 Worker 上传前终止本次发布。
+   Worker 候选发布前，`release-config` 会使用 `CLOUDFLARE_AUTOMATION_TOKEN` 验证目标账户的
+   Wrangler 认证。镜像、Worker 和 Kubernetes 清单是独立候选面；一个候选面的配置失败不得阻止
+   其他已验证候选物的构建和环境仓交接。
 3. 检查候选物记录的源码提交、摘要和构建身份，不用可变标签或重复构建覆盖已有产物。
 4. 生成或更新环境仓变更，由环境仓选择完整的一组运行版本。
 

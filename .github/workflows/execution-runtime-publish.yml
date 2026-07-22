@@ -271,11 +271,9 @@ jobs:
         run: pnpm exec tsx scripts/deploy/doctor-env.ts worker-staging-campus-web --json
 
   publish-images:
-    needs: [release-plan, release-config]
+    needs: release-plan
     if: >-
-      always() &&
       needs.release-plan.result == 'success' &&
-      (needs.release-config.result == 'success' || needs.release-config.result == 'skipped') &&
       needs.release-plan.outputs.validate_only != 'true' &&
       fromJSON(needs.release-plan.outputs.images)[0] != null
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
@@ -431,20 +429,15 @@ jobs:
       always() &&
       needs.release-plan.result == 'success' &&
       (
-        needs.release-config.result == 'success' ||
-        (
-          needs.release-config.result == 'skipped' &&
-          fromJSON(needs.release-plan.outputs.workers)[0] == null
-        )
+        fromJSON(needs.release-plan.outputs.images)[0] == null ||
+        needs.publish-images.result == 'success'
       ) &&
-      (needs.publish-images.result == 'success' || needs.publish-images.result == 'skipped') &&
-      (needs.publish-workers.result == 'success' || needs.publish-workers.result == 'skipped') &&
       needs.release-plan.outputs.validate_only != 'true' &&
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' || inputs.promote) &&
       (
-        fromJSON(needs.release-plan.outputs.images)[0] != null ||
-        fromJSON(needs.release-plan.outputs.workers)[0] != null ||
+        needs.publish-images.result == 'success' ||
+        needs.publish-workers.result == 'success' ||
         needs.release-plan.outputs.kubernetes == 'true'
       )
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
@@ -462,13 +455,13 @@ jobs:
           mkdir -p worker-candidates
 
       - name: Download image digests
-        if: fromJSON(needs.release-plan.outputs.images)[0] != null
+        if: needs.publish-images.result == 'success'
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7
         with:
           name: release-image-digests
 
       - name: Download Worker candidates
-        if: fromJSON(needs.release-plan.outputs.workers)[0] != null
+        if: needs.publish-workers.result == 'success'
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7
         with:
           name: release-worker-candidates
