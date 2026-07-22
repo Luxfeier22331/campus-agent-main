@@ -117,6 +117,7 @@ export const IMAGE_DEFINITIONS = Object.freeze({
 			"apps/ops-web/Dockerfile",
 			"apps/ops-web/browser.config.ts",
 			"apps/ops-web/index.html",
+			"apps/ops-web/ops/**",
 			"apps/ops-web/package.json",
 			"apps/ops-web/public/**",
 			"apps/ops-web/src/**",

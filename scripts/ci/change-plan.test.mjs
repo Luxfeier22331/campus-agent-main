@@ -200,6 +200,13 @@ test("publishes ops-web when its production Dockerfile changes", () => {
 	assert.deepEqual(result.release.images, ["ops-web"]);
 });
 
+test("publishes ops-web when its packaged database operations change", () => {
+	const result = plan(["apps/ops-web/ops/db/ops-web-database.ts"], ["ops-web"]);
+
+	assert.deepEqual(result.verification.docker, ["ops-web"]);
+	assert.deepEqual(result.release.images, ["ops-web"]);
+});
+
 test("keeps OTel documentation in the documentation lane", () => {
 	const result = plan(["infra/otel/README.md"]);
 
