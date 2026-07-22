@@ -52,16 +52,36 @@ function schemaRef(schemaName: string, definitionName: string): string {
 }
 
 describe("agent runtime HTTP handler", () => {
-	it.each(["/healthz", "/readyz"])("serves %s without worker authorization", async (path) => {
+	it("serves healthz without worker authorization", async () => {
 		const handler = createAgentRuntimeHandler({
 			sharedSecret: "secret",
 			runtime: createPrimaryAgentRuntime({ catalog, runner: noToolRunner }),
 		});
 
-		const response = await handler(new Request(`http://agent-runtime${path}`));
+		const response = await handler(new Request("http://agent-runtime/healthz"));
 
 		expect(response.status).toBe(200);
 		expect(await response.json()).toEqual({ status: "ok" });
+	});
+
+	it("requires the execution shared secret for readiness", async () => {
+		const runtime = createPrimaryAgentRuntime({ catalog, runner: noToolRunner });
+		const ready = await createAgentRuntimeHandler({ sharedSecret: "secret", runtime })(
+			new Request("http://agent-runtime/readyz"),
+		);
+		const unavailable = await createAgentRuntimeHandler({ sharedSecret: "", runtime })(
+			new Request("http://agent-runtime/readyz"),
+		);
+
+		expect(ready.status).toBe(200);
+		expect(await ready.json()).toEqual({ status: "ready" });
+		expect(unavailable.status).toBe(503);
+		expect(await unavailable.json()).toEqual({
+			error: {
+				code: "dependency_not_ready",
+				message: "Agent runtime authorization is not configured.",
+			},
+		});
 	});
 
 	it("rejects missing worker authorization", async () => {

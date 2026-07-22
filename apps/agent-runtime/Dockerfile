@@ -19,10 +19,7 @@ COPY configs/runtime/workflow-artifacts.v2.json ./configs/runtime/workflow-artif
 FROM node:24.15-bookworm-slim AS runtime
 
 WORKDIR /app
-ENV NODE_ENV=production \
-  AGENT_RUNTIME_HOST=0.0.0.0 \
-  AGENT_RUNTIME_PORT=27062 \
-  AGENT_RUNTIME_TOOL_REGISTRY_PATH=configs/runtime/tools.v5.json
+ENV NODE_ENV=production
 
 RUN apt-get update \
   && apt-get upgrade -y \

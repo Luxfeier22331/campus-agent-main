@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { buildChangePlan, parseChangedPaths } from "./change-plan.mjs";
+import { IMAGE_DEFINITIONS } from "./ci-surfaces.mjs";
 
 function plan(files, affectedPackages = [], options = {}) {
 	return buildChangePlan({
@@ -139,12 +140,6 @@ test("routes Kubernetes source changes to release promotion", () => {
 	assert.equal(result.lanes.includes("infra"), true);
 });
 
-test("routes owner environment contracts through contract checks", () => {
-	const result = plan(["apps/execution-control/env.contract.json"]);
-
-	assert.equal(result.lanes.includes("contracts"), true);
-});
-
 test("validates OTel configuration without claiming a Kubernetes release", () => {
 	const result = plan([
 		"infra/otel/collector-staging-template.yaml",
@@ -197,6 +192,27 @@ test("uses image inputs for local Docker verification", () => {
 
 	assert.deepEqual(result.verification.docker, ["ops-web"]);
 	assert.deepEqual(result.release.images, ["ops-web"]);
+});
+
+test("treats every production Dockerfile as its image release input", () => {
+	const imagesByDockerfile = new Map();
+	for (const [image, definition] of Object.entries(IMAGE_DEFINITIONS)) {
+		const images = imagesByDockerfile.get(definition.dockerfile) ?? [];
+		images.push(image);
+		imagesByDockerfile.set(definition.dockerfile, images);
+	}
+
+	for (const [dockerfile, images] of imagesByDockerfile) {
+		assert.deepEqual(plan([dockerfile]).release.images, images.sort(), dockerfile);
+	}
+});
+
+test("keeps Kubernetes-only changes out of image publication", () => {
+	const result = plan(["infra/k8s/execution-runtime/base/runtime/app-api-schema-job.yaml"]);
+
+	assert.deepEqual(result.release.images, []);
+	assert.equal(result.release.kubernetes, true);
+	assert.equal(result.lanes.includes("infra"), true);
 });
 
 test("publishes ops-web when its production Dockerfile changes", () => {

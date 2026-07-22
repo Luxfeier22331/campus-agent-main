@@ -24,6 +24,9 @@ FROM node:24.15-bookworm-slim
 
 WORKDIR /app
 ENV NODE_ENV=production
+LABEL org.opencontainers.image.source="https://github.com/MUC-WIKI/campus-agent" \
+  org.opencontainers.image.title="campus-agent-app-api-schema" \
+  org.opencontainers.image.description="One-shot app-api PostgreSQL schema installer"
 
 RUN apt-get update \
   && apt-get upgrade -y \

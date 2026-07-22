@@ -1,15 +1,10 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { readFileSync } from "node:fs";
 import { repoPath } from "./common.ts";
-import { checkEnvContracts } from "./env-contracts.ts";
 import { materializeAlertFile } from "./materialize-observability-alerts.ts";
 import { checkContractSchemas } from "./schema-registry.ts";
 
 export function runContractSchemaSelfTest(): void {
 	checkContractSchemasPass();
-	checkEnvContracts();
-	checkEnvContractFailureFixtures();
 	checkRegistryCoverage();
 	checkStructuredToolContractFixtures();
 	checkObservabilityFixtures();
@@ -22,142 +17,10 @@ function checkContractSchemasPass(): void {
 	checkContractSchemas();
 }
 
-function checkEnvContractFailureFixtures(): void {
-	expectEnvContractFailure({
-		label: "undeclared source key",
-		contract: envFixtureContract({
-			keys: [{ class: "config", name: "DECLARED_VALUE", required_by: [] }],
-			source: { kind: "typescript", path: "consumer.ts" },
-		}),
-		expected: "uses undeclared environment name UNDECLARED_VALUE",
-		files: { "consumer.ts": "process.env.UNDECLARED_VALUE;\n" },
-	});
-	expectEnvContractFailure({
-		label: "Kubernetes secret classification",
-		contract: envFixtureContract({
-			keys: [{ class: "config", name: "CONFIG_VALUE", required_by: ["runtime"] }],
-			source: { kind: "kubernetes", path: "workload.yaml" },
-		}),
-		expected: "delivers CONFIG_VALUE as secret, but fixture declares it as config",
-		files: {
-			"workload.yaml": `apiVersion: v1
-kind: Pod
-metadata:
-  name: fixture
-spec:
-  containers:
-    - name: fixture
-      image: example.invalid/fixture
-      env:
-        - name: CONFIG_VALUE
-          valueFrom:
-            secretKeyRef:
-              name: fixture
-              key: CONFIG_VALUE
-`,
-		},
-	});
-	expectEnvContractFailure({
-		label: "retired source key",
-		contract: envFixtureContract({
-			retiredNames: ["RETIRED_VALUE"],
-			source: { kind: "typescript", path: "consumer.ts" },
-		}),
-		expected: "still consumes retired environment name RETIRED_VALUE",
-		files: { "consumer.ts": "process.env.RETIRED_VALUE;\n" },
-	});
-	expectEnvContractFailure({
-		label: "forbidden Hindsight value",
-		contract: envFixtureContract({
-			forbiddenValues: { HINDSIGHT_API_ENABLE_OBSERVATIONS: ["false"] },
-			keys: [
-				{
-					class: "config",
-					name: "HINDSIGHT_API_ENABLE_OBSERVATIONS",
-					required_by: ["runtime"],
-				},
-			],
-			source: { kind: "kubernetes", path: "configmap.yaml" },
-		}),
-		expected: 'assigns forbidden value "false" to HINDSIGHT_API_ENABLE_OBSERVATIONS',
-		files: {
-			"configmap.yaml": `apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: fixture
-data:
-  HINDSIGHT_API_ENABLE_OBSERVATIONS: "false"
-`,
-		},
-	});
-	expectEnvContractFailure({
-		label: "non-retired rejection",
-		contract: envFixtureContract({
-			source: {
-				kind: "typescript",
-				path: "consumer.ts",
-				rejects: ["ACTIVE_VALUE"],
-			},
-		}),
-		expected: "rejects non-retired name ACTIVE_VALUE",
-		files: { "consumer.ts": "process.env.ACTIVE_VALUE;\n" },
-	});
-}
-
-function envFixtureContract(input: {
-	forbiddenValues?: Record<string, string[]>;
-	keys?: Array<{ class: "config" | "secret"; name: string; required_by: string[] }>;
-	retiredNames?: string[];
-	source: Record<string, unknown>;
-}): Record<string, unknown> {
-	return {
-		consumers: [{ id: "runtime", sources: [input.source] }],
-		forbidden_values: input.forbiddenValues,
-		keys: input.keys ?? [],
-		owner: "fixture",
-		retired_names: input.retiredNames,
-		schema_version: "campus_env_contract.v1",
-	};
-}
-
-function expectEnvContractFailure(input: {
-	contract: Record<string, unknown>;
-	expected: string;
-	files: Record<string, string>;
-	label: string;
-}): void {
-	const root = mkdtempSync(join(tmpdir(), "campus-env-contract-"));
-	try {
-		writeFileSync(join(root, "env.contract.json"), JSON.stringify(input.contract), "utf8");
-		for (const [relativePath, contents] of Object.entries(input.files)) {
-			const path = join(root, relativePath);
-			mkdirSync(dirname(path), { recursive: true });
-			writeFileSync(path, contents, "utf8");
-		}
-		let failure = "";
-		try {
-			checkEnvContracts(root);
-		} catch (error) {
-			failure = error instanceof Error ? error.message : String(error);
-		}
-		expect(
-			failure.includes(input.expected),
-			`${input.label} mismatch: expected ${JSON.stringify(input.expected)}, received ${JSON.stringify(failure)}`,
-		);
-	} finally {
-		rmSync(root, { force: true, recursive: true });
-	}
-}
-
 function checkRegistryCoverage(): void {
 	const entries = registryEntries();
 	const expectedValidates: Record<string, string[]> = {
 		"runtime-tools.v5": ["configs/runtime/tools.v5.json"],
-		"execution-control-runtime-config.v1": [
-			"configs/runtime/execution-control/runtime-config.local.json",
-			"configs/runtime/execution-control/runtime-config.local-provider.json",
-			"configs/runtime/execution-control/runtime-config.staging.json",
-		],
 		"query-serving-targets.v1": ["configs/runtime/query-serving-targets.v1.json"],
 		"runtime-latency-budgets.v1": ["configs/runtime/latency-budgets.v1.json"],
 	};

@@ -13,9 +13,15 @@ namespace、不可变镜像、环境配置、凭据对象和实际资源额度�
 
 ## 运行时基础
 
-`infra/k8s/execution-runtime/base` 与 `infra/k8s/ingestion-runtime/base` 分别描述 execution 和
-ingestion 运行时。精确资源、标签、探针和配置引用以 Kustomize base 为准，不在架构文档维护
-副本。源码 base 不选择具体环境或可变镜像标签。
+`infra/k8s/execution-runtime/base` 与 `infra/k8s/ingestion-runtime/base` 分别提供 execution 和
+ingestion 的完整聚合视图。环境仓按故障域消费其中的子单元：常驻运行时分别位于 `runtime/`，
+provider 配置管理面位于 `execution-runtime/base/admin/`，Temporal schedule 同步位于
+`ingestion-runtime/base/schedule/`。聚合 base 必须与全部子单元的并集等价，供本地验证和不需要
+故障隔离的消费者使用。
+
+精确资源、标签、探针和配置引用以 Kustomize 清单为准，不在架构文档维护副本。源码 base 不选择
+具体环境或可变镜像标签。子单元可以引用同 namespace 中由运行时或 foundation 唯一拥有的
+ServiceAccount、ConfigMap 和 Secret，不得复制共享资源所有权。
 
 Temporal Server、Worker Controller、KEDA 与 cert-manager 属于平台前置条件。它们的版本和
 配置由环境仓维护，并必须支持源码 base 使用的 API。

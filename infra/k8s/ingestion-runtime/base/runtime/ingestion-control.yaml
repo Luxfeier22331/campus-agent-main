@@ -72,11 +72,13 @@ spec:
                 secretKeyRef:
                   name: ingestion-control-secrets
                   key: INGESTION_CONTROL_ADMIN_TOKEN
+                  optional: true
             - name: OPS_WEB_INTERNAL_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: ops-web-internal-secrets
                   key: OPS_WEB_INTERNAL_TOKEN
+                  optional: true
             - name: INGESTION_CONTROL_HOST
               value: 0.0.0.0
             - name: INGESTION_CONTROL_PORT

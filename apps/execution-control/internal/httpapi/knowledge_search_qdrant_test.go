@@ -284,11 +284,10 @@ func writeServingConfigForCompatibilityTest(
 
 func TestNewQdrantKnowledgeSearchExecutorRejectsHTTPOutsideLocal(t *testing.T) {
 	_, err := newQdrantKnowledgeSearchExecutor(config.Config{
-		QdrantQueryAPIKey:    "readonly-key",
-		QdrantTLSCACertPath:  "/srv/qdrant/tls/ca.pem",
-		QdrantTimeoutSeconds: 10,
-		QdrantURL:            "http://qdrant:6333",
-		RuntimeMode:          "staging",
+		DeploymentEnvironment: "staging",
+		QdrantQueryAPIKey:     "readonly-key",
+		QdrantTLSCACertPath:   "/srv/qdrant/tls/ca.pem",
+		QdrantURL:             "http://qdrant:6333",
 	}, defaultKnowledgeSearchEmbeddingResolverForTest())
 	if err == nil || !strings.Contains(err.Error(), "QDRANT_URL must use https") {
 		t.Fatalf("error = %v, want https diagnostic", err)
@@ -297,10 +296,9 @@ func TestNewQdrantKnowledgeSearchExecutorRejectsHTTPOutsideLocal(t *testing.T) {
 
 func TestNewQdrantKnowledgeSearchExecutorAllowsLocalHTTP(t *testing.T) {
 	executor, err := newQdrantKnowledgeSearchExecutor(config.Config{
-		QdrantQueryAPIKey:    "readonly-key",
-		QdrantTimeoutSeconds: 10,
-		QdrantURL:            "http://qdrant:6333",
-		RuntimeMode:          "local",
+		DeploymentEnvironment: "local",
+		QdrantQueryAPIKey:     "readonly-key",
+		QdrantURL:             "http://qdrant:6333",
 	}, defaultKnowledgeSearchEmbeddingResolverForTest())
 	if err != nil || executor == nil {
 		t.Fatalf("local qdrant executor = %#v, error = %v", executor, err)
@@ -316,10 +314,9 @@ func TestNewQdrantKnowledgeSearchExecutorUsesQueryKeyAndTLSCA(t *testing.T) {
 	}))
 	defer qdrant.Close()
 	executor, err := newQdrantKnowledgeSearchExecutor(config.Config{
-		QdrantQueryAPIKey:    "readonly-key",
-		QdrantTLSCACertPath:  writeTestCACert(t, qdrant),
-		QdrantTimeoutSeconds: 10,
-		QdrantURL:            qdrant.URL,
+		QdrantQueryAPIKey:   "readonly-key",
+		QdrantTLSCACertPath: writeTestCACert(t, qdrant),
+		QdrantURL:           qdrant.URL,
 	}, defaultKnowledgeSearchEmbeddingResolverForTest())
 	if err != nil {
 		t.Fatalf("new qdrant executor: %v", err)
@@ -337,7 +334,6 @@ func TestNewQdrantKnowledgeSearchExecutorUsesSplitTimeouts(t *testing.T) {
 	lookupExecutor, err := newQdrantKnowledgeSearchExecutor(config.Config{
 		QdrantQueryAPIKey:     "readonly-key",
 		QdrantTLSCACertPath:   writeTestCACert(t, qdrant),
-		QdrantTimeoutSeconds:  10,
 		QdrantURL:             qdrant.URL,
 		RAGEmbeddingTimeoutMS: 2500,
 		RAGQdrantTimeoutMS:    3500,
@@ -354,9 +350,8 @@ func TestNewQdrantKnowledgeSearchExecutorUsesSplitTimeouts(t *testing.T) {
 
 func TestNewQdrantKnowledgeSearchExecutorFailsWithoutTLSCA(t *testing.T) {
 	_, err := newQdrantKnowledgeSearchExecutor(config.Config{
-		QdrantQueryAPIKey:    "readonly-key",
-		QdrantTimeoutSeconds: 10,
-		QdrantURL:            "https://qdrant:6333",
+		QdrantQueryAPIKey: "readonly-key",
+		QdrantURL:         "https://qdrant:6333",
 	}, defaultKnowledgeSearchEmbeddingResolverForTest())
 	if err == nil || !strings.Contains(err.Error(), "QDRANT_TLS_CA_CERT_PATH") {
 		t.Fatalf("error = %v, want TLS CA diagnostic", err)

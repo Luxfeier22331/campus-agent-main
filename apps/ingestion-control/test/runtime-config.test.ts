@@ -18,5 +18,18 @@ describe("buildIngestionControlRuntimeConfig", () => {
 		});
 		expect(config.registryRoot).toBe("/app/configs/ingestion");
 		expect(config.temporal.address).toBe("temporal:7233");
+		expect(config.siteId).toBe("muc_internal_portal");
+	});
+
+	it("does not require internal portal configuration for the API runtime", () => {
+		const config = buildIngestionControlRuntimeConfig({
+			DEPLOYMENT_ENVIRONMENT: "local",
+			INGESTION_CONTROL_DATABASE_SSLMODE: "disable",
+			INGESTION_CONTROL_DATABASE_URL: "postgresql://ingestion@db/campus",
+			INGESTION_TASK_REGISTRY_ROOT: "/app/configs/ingestion",
+			INGESTION_TEMPORAL_ADDRESS: "temporal:7233",
+		});
+
+		expect(config.siteId).toBeUndefined();
 	});
 });

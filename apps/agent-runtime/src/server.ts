@@ -10,10 +10,10 @@ import { runWithExtractedTraceContext, startAgentRuntimeTelemetry } from "./tele
 import { loadToolCatalog } from "./tool-catalog.ts";
 import { createExecutionControlToolExecutor } from "./tool-executor.ts";
 
-const port = Number.parseInt(process.env.AGENT_RUNTIME_PORT ?? "27062", 10);
-const host = process.env.AGENT_RUNTIME_HOST ?? "127.0.0.1";
+const port = 27062;
+const host = "0.0.0.0";
 const executionAgentRuntimeSharedSecret = process.env.EXECUTION_AGENT_RUNTIME_SHARED_SECRET ?? "";
-const catalogPath = process.env.AGENT_RUNTIME_TOOL_REGISTRY_PATH ?? "configs/runtime/tools.v5.json";
+const catalogPath = "configs/runtime/tools.v5.json";
 const executionControlBaseUrl =
 	process.env.AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL ?? "http://127.0.0.1:27051";
 

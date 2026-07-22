@@ -26,13 +26,6 @@ function run(command: string, args: string[]): void {
 run("pnpm", [
 	"exec",
 	"tsx",
-	"scripts/deploy/run-worker-staging-preflight.ts",
-	"--doctor-surface",
-	"worker-staging-app-api",
-	"--",
-	"pnpm",
-	"exec",
-	"tsx",
 	"scripts/deploy/check-worker-secret-presence.ts",
 	"--app",
 	"apps/app-api",

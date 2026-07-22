@@ -1,8 +1,6 @@
-import { type Env, isDeployedEnvironment, readAppApiConfig, resolveEnvironment } from "../config";
+import type { Env } from "../config";
 import { probeRuntimeDatabase } from "../db/runtime";
-import { buildBetterAuthConfig, probeAppAuthRuntime } from "../modules/auth";
-import type { ExecutionControlRuntimePreflight } from "../modules/integration";
-import { probeExecutionControlReady } from "../modules/integration";
+import { probeAppAuthRuntime } from "../modules/auth";
 import type { AppRuntimeReadinessResult } from "./types";
 
 function formatRuntimeDependencyFailure(error: unknown): string {
@@ -10,43 +8,11 @@ function formatRuntimeDependencyFailure(error: unknown): string {
 }
 
 export async function defaultRuntimeReadinessProbe(env: Env): Promise<AppRuntimeReadinessResult> {
-	const requireExecutionRuntime = isDeployedEnvironment(resolveEnvironment(env));
 	const dependencies: AppRuntimeReadinessResult["dependencies"] = {
 		auth: "not_ready",
-		authShellOrigin: "configured",
 		database: "not_ready",
-		executionRuntime: requireExecutionRuntime ? "not_ready" : "not_required",
-		executionControl: "not_ready",
 	};
 	const failed: AppRuntimeReadinessResult["failed"] = {};
-	const preflight: AppRuntimeReadinessResult["preflight"] = {};
-
-	try {
-		const config = readAppApiConfig(env);
-		buildBetterAuthConfig({
-			appName: config.appName,
-			authResetEmailFrom: config.authResetEmailFrom,
-			authResetEmailReplyTo: config.authResetEmailReplyTo,
-			authTurnstileSecretKey: config.authTurnstileSecretKey,
-			betterAuthSecret: config.betterAuthSecret,
-			database: {},
-			endUserEmailAllowlist: config.endUserEmailAllowlist,
-			endUserEmailDomainAllowlist: config.endUserEmailDomainAllowlist,
-			environment: config.environment,
-			authShellOrigin: config.authShellOrigin,
-			resendApiKey: config.resendApiKey,
-			resendFetch: fetch,
-		});
-	} catch (error) {
-		return {
-			dependencies,
-			failed: {
-				auth: formatRuntimeDependencyFailure(error),
-				database: formatRuntimeDependencyFailure(error),
-				executionControl: formatRuntimeDependencyFailure(error),
-			},
-		};
-	}
 
 	try {
 		await probeRuntimeDatabase(env);
@@ -62,40 +28,8 @@ export async function defaultRuntimeReadinessProbe(env: Env): Promise<AppRuntime
 		failed.auth = formatRuntimeDependencyFailure(error);
 	}
 
-	try {
-		const executionReadiness = await probeExecutionControlReady(env);
-		dependencies.executionControl = "ready";
-		preflight.executionRuntime = executionReadiness.executionRuntime;
-		if (requireExecutionRuntime) {
-			if (executionReadiness.executionRuntime.status === "ready") {
-				dependencies.executionRuntime = "ready";
-			} else {
-				failed.executionRuntime = formatExecutionRuntimePreflightFailure(
-					executionReadiness.executionRuntime,
-				);
-			}
-		}
-		preflight.campusServicesProductPath = executionReadiness.campusServicesProductPath;
-	} catch (error) {
-		failed.executionControl = formatRuntimeDependencyFailure(error);
-	}
-
 	return {
 		dependencies,
 		failed,
-		preflight,
 	};
-}
-
-function formatExecutionRuntimePreflightFailure(
-	preflight: ExecutionControlRuntimePreflight,
-): string {
-	if (!preflight) {
-		return "Execution control runtime readiness was not reported.";
-	}
-	const messages = Object.values(preflight.blockers);
-	if (messages.length === 0) {
-		return "Execution control runtime readiness was not reported.";
-	}
-	return messages.join("; ");
 }

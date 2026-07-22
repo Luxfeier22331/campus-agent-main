@@ -16,7 +16,7 @@ import (
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	cfg, err := config.LoadFromEnv()
+	cfg, err := config.LoadGatewayFromEnv()
 	if err != nil {
 		logger.Error("campus execution-control config invalid", "error", err.Error())
 		os.Exit(1)

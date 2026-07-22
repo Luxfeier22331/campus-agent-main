@@ -36,7 +36,8 @@ pnpm --filter source-collector start:temporal-worker
 ```
 
 生产镜像包含 `configs/ingestion` 和 `configs/sources`，默认启动 Temporal worker，并通过
-`infra/k8s/ingestion-runtime/base` 以版本化 `WorkerDeployment` 部署。镜像只安装 activity
+`infra/k8s/ingestion-runtime/base/runtime` 以版本化 `WorkerDeployment` 部署。完整聚合视图仍由
+`infra/k8s/ingestion-runtime/base` 提供。镜像只安装 activity
 需要的 Playwright Chromium headless shell，不包含 Firefox、WebKit、品牌 Chrome、包管理器
 或开发依赖。交互式认证获取只在可信人员工作站执行，不是容器入口。
 

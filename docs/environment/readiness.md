@@ -25,15 +25,17 @@ status: active
 
 ## 环境检查
 
-仓库通用入口为：
+仓库不维护跨应用的环境变量清单或通用环境 doctor。配置要求由实际消费方维护并测试：
 
-```bash
-pnpm exec tsx scripts/deploy/doctor-env.ts <surface> --json
-```
+- TypeScript 与 Go 服务由所属配置解析器校验启动必需输入；
+- Cloudflare Worker 由 Wrangler binding、vars、secrets 和所属发布脚本校验；
+- Kubernetes workload 由 manifest 的 `env`、`envFrom` 和 Secret 引用声明；
+- Compose 使用 `${VAR:?message}` 表示启动必需输入，使用显式默认值表示本地默认配置；
+- OTel Collector 使用官方配置校验；
+- 一次性命令和 Job 只在执行时校验自身参数。
 
-可用检查对象及其字段由 `scripts/deploy/doctor-env/specs.ts` 唯一维护，命令在不支持的对象上必须
-失败。环境检查只读取声明的环境和配置文件，不把 schema、工具注册或 Secret 名存在推断为
-运行能力。
+同一个配置规则不得再复制到仓库级 JSON 合同。可选能力缺少配置时，应由对应路由、工具、
+Activity 或 Job 返回明确错误，不得阻塞无关服务启动或顶层就绪。
 
 Cloudflare Secret 存在性检查和 Worker 发布前检查由 `../runbooks/provider-secrets.md` 与发布
 脚本维护，不在本文复制命令清单。
@@ -43,14 +45,14 @@ Cloudflare Secret 存在性检查和 Worker 发布前检查由 `../runbooks/prov
 ### Execution Control
 
 Execution Control 的 `/readyz` 只用以下核心条件决定 HTTP 状态：回答准入仍可接收请求、运行
-投影可用、Temporal 及必要 task queue poller 可用、Primary Agent 配置已激活，以及 Agent
-Runtime 地址已配置且其 `/readyz` 成功。Agent Runtime 的就绪探针本身不需要调用 Activity 使用的
-共享密钥。
+投影可用、Temporal 及必要 task queue poller 可用，以及 Agent Runtime 地址已配置且其
+`/readyz` 成功。Agent Runtime 的就绪探针本身不需要调用 Activity 使用的共享密钥。
 
-OTel exporter、工具读取投影、Hindsight 个人记忆和 Qdrant 知识检索仍作为诊断字段出现在响应
-中，但它们是局部能力，不参与 Execution Control 顶层就绪判定。局部能力不可用时，由对应工具
-或运行路径返回明确失败；不能让无关请求因一个局部依赖故障而失去整个服务端点。查询向量配置
-由知识检索运行时自行检查，只有 Primary Agent 配置参与顶层 Provider Config gate。
+Provider Config、OTel exporter、工具读取投影、Hindsight 个人记忆和 Qdrant 知识检索仍作为诊断
+字段出现在响应中，但它们不直接参与 Execution Control 顶层就绪判定。局部能力不可用时，由对应
+工具、Activity 或运行路径返回明确失败；不能让无关请求因一个局部依赖故障而失去整个服务端点。
+Primary Agent 所需的 agent activity worker 不可用时，会通过 Temporal 必要 poller 缺失反映为核心
+故障，不再复制一套 Provider Config 就绪判定。
 
 非本地环境中的完整结果属于受信任机器接口，由产品后端携带内部身份读取，不直接作为公开浏览器
 探针。
@@ -59,18 +61,21 @@ OTel exporter、工具读取投影、Hindsight 个人记忆和 Qdrant 知识检�
 
 ### App API
 
-App API 的 `/readyz` 是产品后端就绪入口，可以包含安全的 Execution Control 摘要和当前运行
-版本标识。该标识必须由发布流程与环境仓选择的版本比较；旧版本即使健康，也不是目标版本已经
-发布的确认结果。
-
-App API 连接不到 Execution Control 时，只记录 `executionControl` 这一项失败；
-`executionRuntime` 保持 `not_ready`，但不复制同一个网络错误。Execution Control 已响应但其核心
-运行预检失败时，才由 `executionRuntime` 记录返回的具体阻断原因。
+App API 的 `/readyz` 只检查自身接受产品请求所需的核心依赖，包括认证配置和产品数据库。
+Execution Control、邮件、通知、Sentry、smoke 与定时清理属于独立请求路径或后台能力；它们的
+配置和远端状态不参与 App API 顶层就绪。发布流程使用 Worker version、release 和环境选择确认
+目标版本，不能通过 `/readyz` 推断发布完成。
 
 ### 其他界面
 
-Ops Web、文档阅读器和其他应用只报告各自职责范围内的就绪状态。一个界面的 `/readyz` 不代表
-聊天、采集、评测或其他产品界面同时就绪。
+Campus Web 顶层 `/readyz` 只要求应用外壳和 App API binding；`DOCS_RELEASE_ID` 缺失只让文档 API
+拒绝请求。Ops Web 顶层 `/readyz` 只要求访问控制和请求状态数据库；Dining、Axiom、Sentry 与被
+观测服务由各自页面或接口报告不可用。Ingestion API 不要求内部门户 `siteId`，需要执行门户任务的
+Temporal worker 单独要求该配置。
+
+一个界面的 `/readyz` 不代表聊天、文档、采集、评测或其他产品界面同时就绪。Kubernetes 对局部
+能力使用 `optional` Secret 或 ConfigMap key 引用，使缺失值交给对应消费者处理；核心数据库、服务
+身份和必需 worker 依赖保持非 optional，并可直接阻止所属 workload 启动。
 
 ## 故障语义
 

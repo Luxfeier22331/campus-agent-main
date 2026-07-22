@@ -124,19 +124,6 @@
 			"notes": "Workflow artifact registry consumed by execution-control runtime policy."
 		},
 		{
-			"id": "execution-control-runtime-config.v1",
-			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/execution-control-runtime-config.v1.schema.json",
-			"owner": "packages/contracts",
-			"status": "active",
-			"validates": [
-				"configs/runtime/execution-control/runtime-config.local.json",
-				"configs/runtime/execution-control/runtime-config.local-provider.json",
-				"configs/runtime/execution-control/runtime-config.staging.json"
-			],
-			"notes": "Execution-control runtime config artifact used to own env-independent queue, execution group, RAG, telemetry, and memory settings."
-		},
-		{
 			"id": "query-serving-targets.v1",
 			"kind": "json_artifact",
 			"path": "packages/contracts/schemas/query-serving-targets.v1.schema.json",
@@ -177,14 +164,6 @@
 				}
 			],
 			"notes": "Character-budget and count-only context truncation diagnostic without raw dropped content."
-		},
-		{
-			"id": "env-contract.v1",
-			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/env-contract.v1.schema.json",
-			"owner": "packages/contracts",
-			"status": "active",
-			"notes": "自动发现的所有者本地环境合同 schema。"
 		},
 		{
 			"id": "provider-config-projection.v1",

@@ -35,7 +35,7 @@ func Run(role Role) {
 }
 
 func run(role Role, logger *slog.Logger) error {
-	cfg, err := config.LoadFromEnvForRole(string(role))
+	cfg, err := loadRoleConfig(role)
 	if err != nil {
 		return fmt.Errorf("load worker config: %w", err)
 	}
@@ -88,6 +88,19 @@ func run(role Role, logger *slog.Logger) error {
 	}
 	logger.Info("campus execution worker stopped", "role", string(role))
 	return nil
+}
+
+func loadRoleConfig(role Role) (config.Config, error) {
+	switch role {
+	case RoleWorkflow:
+		return config.LoadWorkflowWorkerFromEnv()
+	case RoleCore:
+		return config.LoadCoreActivityWorkerFromEnv()
+	case RoleAgent:
+		return config.LoadAgentActivityWorkerFromEnv()
+	default:
+		return config.Config{}, fmt.Errorf("unsupported worker target %q", role)
+	}
 }
 
 func buildWorker(
@@ -224,9 +237,6 @@ func roleNeedsActivityServer(role Role) bool {
 }
 
 func ensureTemporalTracingExporter(cfg config.Config, status telemetry.Status) error {
-	if cfg.TemporalTracingEnabled && !cfg.OTelEnabled {
-		return fmt.Errorf("temporal tracing requires runtime config otel.enabled=true")
-	}
 	if cfg.TemporalTracingEnabled && !status.ExporterConfigured {
 		return fmt.Errorf("temporal tracing requires configured OTel trace exporter")
 	}

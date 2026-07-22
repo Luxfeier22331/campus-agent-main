@@ -33,8 +33,8 @@ func TestMetricsEndpointRequiresBearerTokenWhenConfigured(t *testing.T) {
 
 func TestMetricsEndpointRequiresBearerTokenOutsideLocalProfile(t *testing.T) {
 	server := NewServer(config.Config{
-		MaxConcurrentAnswers: 8,
-		RuntimeMode:          "staging",
+		DeploymentEnvironment: "staging",
+		MaxConcurrentAnswers:  8,
 	})
 
 	response := httptest.NewRecorder()

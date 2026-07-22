@@ -1,14 +1,5 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - service-account.yaml
-  - database-config.yaml
-  - database-role.yaml
-  - network-policy.yaml
-  - migration-job.yaml
-  - availability.yaml
-  - ingestion-control.yaml
-  - temporal-connection.yaml
-  - schedule-sync.yaml
-  - workers.yaml
-  - worker-resources.yaml
+  - runtime
+  - schedule

@@ -7,36 +7,22 @@ vi.mock("../src/db/runtime", () => ({
 }));
 
 vi.mock("../src/modules/auth", () => ({
-	buildBetterAuthConfig: vi.fn(),
 	probeAppAuthRuntime: vi.fn(),
-}));
-
-vi.mock("../src/modules/integration", () => ({
-	probeExecutionControlReady: vi.fn(),
 }));
 
 import { defaultRuntimeReadinessProbe } from "../src/app/readiness";
 import { probeRuntimeDatabase } from "../src/db/runtime";
-import { buildBetterAuthConfig, probeAppAuthRuntime } from "../src/modules/auth";
-import { probeExecutionControlReady } from "../src/modules/integration";
+import { probeAppAuthRuntime } from "../src/modules/auth";
 
 const mockedProbeRuntimeDatabase = vi.mocked(probeRuntimeDatabase);
-const mockedBuildBetterAuthConfig = vi.mocked(buildBetterAuthConfig);
 const mockedProbeAppAuthRuntime = vi.mocked(probeAppAuthRuntime);
-const mockedProbeExecutionControlReady = vi.mocked(probeExecutionControlReady);
 
 const env = {
-	APP_API_NAME: "campus-agent-app-api",
 	APP_API_ENVIRONMENT: "test" as const,
-	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
-	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
-	AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
-	RESEND_API_KEY: "resend_test_key",
-	AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
-	APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
-	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
-	APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 	APP_API_DB: {
+		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
+	},
+	APP_API_DB_FRESH: {
 		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 	},
 };
@@ -44,97 +30,36 @@ const env = {
 describe("runtime readiness", () => {
 	beforeEach(() => {
 		mockedProbeRuntimeDatabase.mockReset();
-		mockedBuildBetterAuthConfig.mockReset();
 		mockedProbeAppAuthRuntime.mockReset();
-		mockedProbeExecutionControlReady.mockReset();
 		mockedProbeRuntimeDatabase.mockResolvedValue(undefined);
-		mockedBuildBetterAuthConfig.mockReturnValue({} as never);
 		mockedProbeAppAuthRuntime.mockResolvedValue(undefined);
-		const executionRuntime = {
-			status: "ready" as const,
-			checks: {
-				runProjectionStore: "ready" as const,
-				temporalRuntime: "ready" as const,
-			},
-			blockers: {},
-		};
-		mockedProbeExecutionControlReady.mockResolvedValue({
-			campusServicesProductPath: {
-				status: "ready",
-				toolGate: "open",
-				projectionSource: "postgres",
-				checks: {
-					toolReadModelRuntime: "ready",
-					transportSchedule: "ready",
-					transportScheduleReadModel: "ready",
-				},
-				blockers: {},
-			},
-			executionRuntime,
-		});
 	});
 
-	it("keeps app readiness healthy when the transport current release is unavailable", async () => {
-		const executionRuntime = {
-			status: "ready" as const,
-			checks: {
-				runProjectionStore: "ready" as const,
-				temporalRuntime: "ready" as const,
-			},
-			blockers: {},
-		};
-		mockedProbeExecutionControlReady.mockResolvedValue({
-			campusServicesProductPath: {
-				status: "blocked",
-				toolGate: "open",
-				projectionSource: "postgres",
-				checks: {
-					toolReadModelRuntime: "ready",
-					transportSchedule: "not_ready",
-					transportScheduleReadModel: "ready",
-				},
-				blockers: {
-					transportSchedule: "transport_schedule_implemented is false",
-				},
-			},
-			executionRuntime,
-		});
-
-		await expect(defaultRuntimeReadinessProbe(env)).resolves.toMatchObject({
+	it("checks only the service-owned database paths", async () => {
+		await expect(defaultRuntimeReadinessProbe(env)).resolves.toEqual({
 			dependencies: {
-				executionControl: "ready",
+				auth: "ready",
+				database: "ready",
 			},
 			failed: {},
-			preflight: {
-				campusServicesProductPath: {
-					status: "blocked",
-					checks: {
-						transportSchedule: "not_ready",
-					},
-				},
-			},
 		});
+		expect(mockedProbeRuntimeDatabase).toHaveBeenCalledWith(env);
+		expect(mockedProbeAppAuthRuntime).toHaveBeenCalledWith(env);
 	});
 
-	it("reports an execution-control transport failure only once", async () => {
-		mockedProbeExecutionControlReady.mockRejectedValue(new Error("connection refused"));
-		const deployedEnv = {
-			...env,
-			APP_API_ENVIRONMENT: "staging" as const,
-			EXECUTION_CONTROL_PRIVATE: { fetch: vi.fn() },
-			EXECUTION_CONTROL_PRIVATE_ORIGIN: "https://execution-control.internal",
-		};
+	it("reports each unavailable database path independently", async () => {
+		mockedProbeRuntimeDatabase.mockRejectedValue(new Error("cached database unavailable"));
+		mockedProbeAppAuthRuntime.mockRejectedValue(new Error("fresh auth database unavailable"));
 
-		const result = await defaultRuntimeReadinessProbe(deployedEnv);
-		expect(result).toMatchObject({
+		await expect(defaultRuntimeReadinessProbe(env)).resolves.toEqual({
 			dependencies: {
-				executionControl: "not_ready",
-				executionRuntime: "not_ready",
+				auth: "not_ready",
+				database: "not_ready",
 			},
 			failed: {
-				executionControl: "connection refused",
+				auth: "fresh auth database unavailable",
+				database: "cached database unavailable",
 			},
 		});
-		expect(result.failed).not.toHaveProperty("executionRuntime");
 	});
 });

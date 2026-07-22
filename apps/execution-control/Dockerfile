@@ -20,7 +20,6 @@ COPY configs/runtime/query-serving-targets.v1.json /src/configs/runtime/query-se
 COPY configs/runtime/tool-function-schemas.v2.json /src/configs/runtime/tool-function-schemas.v2.json
 COPY configs/runtime/tools.v5.json /src/configs/runtime/tools.v5.json
 COPY configs/runtime/workflow-artifacts.v2.json /src/configs/runtime/workflow-artifacts.v2.json
-COPY configs/runtime/execution-control /src/configs/runtime/execution-control
 COPY configs/ingestion /src/configs/ingestion
 COPY packages/contracts/fixtures/tool_execution_contract /src/packages/contracts/fixtures/tool_execution_contract
 
@@ -48,16 +47,12 @@ COPY --from=build /out/provider-config-admin /usr/local/bin/provider-config-admi
 COPY --from=build /out/run-projection-schema /usr/local/bin/run-projection-schema
 COPY configs/runtime/query-serving-targets.v1.json /etc/campus-agent/query-serving-targets.v1.json
 COPY configs/runtime/tool-function-schemas.v2.json /etc/campus-agent/tool-function-schemas.v2.json
-COPY configs/runtime/execution-control/runtime-config.local.json /etc/campus-agent/runtime-config.local.json
-COPY configs/runtime/execution-control/runtime-config.local-provider.json /etc/campus-agent/runtime-config.local-provider.json
-COPY configs/runtime/execution-control/runtime-config.staging.json /etc/campus-agent/runtime-config.staging.json
 COPY configs/runtime/tools.v5.json /etc/campus-agent/tools.v5.json
 COPY configs/runtime/workflow-artifacts.v2.json /etc/campus-agent/workflow-artifacts.v2.json
 COPY configs/ingestion /configs/ingestion
 
 USER appuser
 EXPOSE 8000
-ENV CAMPUS_AGENT_HTTP_HOST=0.0.0.0 \
-  EXECUTION_CONTROL_RUNTIME_CONFIG_PATH=/etc/campus-agent/runtime-config.local.json
+ENV CAMPUS_AGENT_HTTP_HOST=0.0.0.0
 
 ENTRYPOINT ["/usr/local/bin/execution-control"]

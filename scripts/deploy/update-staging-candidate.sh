@@ -113,9 +113,7 @@ docker run "${docker_args[@]}" \
 				echo "Missing execution runtime release config: ${runtime_config}." >&2
 				exit 1
 			fi
-			yq -i ".data.EXECUTION_CONTROL_RUNTIME_RELEASE =
-				(\"execution-runtime@\" + strenv(SHORT_SHA)) |
-				.data.LANGFUSE_RELEASE =
+			yq -i ".data.DEPLOYMENT_RELEASE =
 				(\"execution-runtime@\" + strenv(SHORT_SHA))" "${runtime_config}"
 		fi
 	'

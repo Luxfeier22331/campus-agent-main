@@ -5,10 +5,6 @@ import type { CampusServicesTransportScheduleService } from "../modules/campus-s
 import type { ChatConversationService } from "../modules/chat";
 import type { DiningPublicReadService } from "../modules/dining";
 import type { DocsService } from "../modules/docs";
-import type {
-	ExecutionControlCampusServicesProductPathPreflight,
-	ExecutionControlRuntimePreflight,
-} from "../modules/integration";
 import type { ProfileMemoryService } from "../modules/profile-memory";
 import type { ChatCommandService } from "../modules/runtime-command";
 import type { RuntimeRunService } from "../modules/runtime-run";
@@ -49,20 +45,13 @@ export interface AppDocsReadinessResult {
 	failed: Partial<Record<AppDocsDependencyName, string>>;
 }
 
-type AppRuntimeDependencyName = "auth" | "database" | "executionRuntime" | "executionControl";
+type AppRuntimeDependencyName = "auth" | "database";
 export interface AppRuntimeReadinessResult {
 	dependencies: {
 		auth: "ready" | "not_ready";
-		authShellOrigin: "configured";
 		database: "ready" | "not_ready";
-		executionControl: "ready" | "not_ready";
-		executionRuntime: "ready" | "not_ready" | "not_required";
 	};
 	failed: Partial<Record<AppRuntimeDependencyName, string>>;
-	preflight?: {
-		campusServicesProductPath?: ExecutionControlCampusServicesProductPathPreflight;
-		executionRuntime?: ExecutionControlRuntimePreflight;
-	};
 }
 
 export interface AppRequestScope {

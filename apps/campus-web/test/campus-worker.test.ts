@@ -44,6 +44,16 @@ describe("campus worker boundary", () => {
 		});
 	});
 
+	it("serves readyz without requiring the independently published docs release", async () => {
+		const env = createEnv({ fetch: () => new Response(null, { status: 200 }) });
+		delete env.DOCS_RELEASE_ID;
+
+		const response = await worker.fetch(new Request("https://campus.muc.wiki/readyz"), env);
+
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toMatchObject({ status: "ready" });
+	});
+
 	it("adds validated upstream product correlation IDs to the current Sentry scope", () => {
 		const setTag = vi.fn();
 		applyUpstreamCorrelationTags(

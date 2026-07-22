@@ -251,9 +251,6 @@ function getMissingRuntimeConfig(env: Env): string[] {
 	if (!env.CAMPUS_WEB_HOSTNAME?.trim()) {
 		missing.push("CAMPUS_WEB_HOSTNAME");
 	}
-	if (!resolveDocsReleaseId(env)) {
-		missing.push("DOCS_RELEASE_ID");
-	}
 	return missing;
 }
 

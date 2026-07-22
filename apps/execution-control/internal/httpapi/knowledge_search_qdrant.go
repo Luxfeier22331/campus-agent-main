@@ -53,7 +53,7 @@ func newQdrantKnowledgeSearchExecutor(
 	if parsedQdrantURL.Scheme != "http" && parsedQdrantURL.Scheme != "https" {
 		return nil, errors.New("QDRANT_URL must use http or https")
 	}
-	if parsedQdrantURL.Scheme == "http" && strings.TrimSpace(cfg.RuntimeMode) != "local" {
+	if parsedQdrantURL.Scheme == "http" && isDeployedEnvironment(cfg.DeploymentEnvironment) {
 		return nil, errors.New("QDRANT_URL must use https for authenticated Qdrant data-plane")
 	}
 	if strings.TrimSpace(cfg.QdrantQueryAPIKey) == "" {
@@ -61,10 +61,7 @@ func newQdrantKnowledgeSearchExecutor(
 	}
 	qdrantTimeout := time.Duration(cfg.RAGQdrantTimeoutMS) * time.Millisecond
 	if qdrantTimeout <= 0 {
-		qdrantTimeout = time.Duration(cfg.QdrantTimeoutSeconds * float64(time.Second))
-	}
-	if qdrantTimeout <= 0 {
-		qdrantTimeout = 10 * time.Second
+		qdrantTimeout = 60 * time.Second
 	}
 	embeddingTimeout := time.Duration(cfg.RAGEmbeddingTimeoutMS) * time.Millisecond
 	if embeddingTimeout <= 0 {
@@ -85,6 +82,11 @@ func newQdrantKnowledgeSearchExecutor(
 		servingConfigRoot:   retrievalServingConfigRoot(),
 		timeout:             qdrantTimeout,
 	}, nil
+}
+
+func isDeployedEnvironment(environment string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(environment))
+	return normalized == "staging" || normalized == "production"
 }
 
 func qdrantHTTPClient(scheme string, timeout time.Duration, caCertPath string) (*http.Client, error) {

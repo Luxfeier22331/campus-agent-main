@@ -271,11 +271,8 @@ export function buildChangePlan({
 		lanes,
 		hasNonCiRuntimeChange &&
 			(packageNames.has("campus-contracts") ||
-				hasAny(
-					runtimeFiles,
-					(file) =>
-						startsWithAny(file, ["configs/runtime/", "docs/contracts/schemas/"]) ||
-						file.endsWith("env.contract.json"),
+				hasAny(runtimeFiles, (file) =>
+					startsWithAny(file, ["configs/runtime/", "docs/contracts/schemas/"]),
 				)),
 		"contracts",
 	);
@@ -287,7 +284,7 @@ export function buildChangePlan({
 				file.endsWith(".go") ||
 				file.endsWith("/go.mod") ||
 				file.endsWith("/go.sum") ||
-				startsWithAny(file, ["configs/runtime/execution-control/", "scripts/ci/go-"]),
+				startsWithAny(file, ["scripts/ci/go-"]),
 		),
 		"go",
 	);

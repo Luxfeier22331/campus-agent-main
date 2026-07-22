@@ -40,6 +40,26 @@ function createDiningStore(): DiningStore {
 }
 
 describe("Ops Web Dining API", () => {
+	it("keeps core readiness independent from the Dining data store", async () => {
+		const diningStore = createDiningStore();
+		vi.mocked(diningStore.verifyReadiness).mockRejectedValue(new Error("dining unavailable"));
+		const app = createOpsApp({
+			admission: createAllowAllOpsAdmission(),
+			diningStore,
+			env: {
+				ACCESS_POLICY_AUD: "ops-web-test-audience",
+				ACCESS_TEAM_DOMAIN: "https://team-ops-web.cloudflareaccess.com",
+				OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test",
+			},
+			store: createFixtureOpsStatusStore(),
+		});
+
+		const response = await app.request("/readyz");
+
+		expect(response.status).toBe(200);
+		expect(diningStore.verifyReadiness).not.toHaveBeenCalled();
+	});
+
 	it("owns Dining reads and publish commands without app-api", async () => {
 		const diningStore = createDiningStore();
 		const app = createOpsApp({

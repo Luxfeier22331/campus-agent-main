@@ -45,7 +45,6 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 	knowledgeSearchStatus := s.knowledgeSearchRuntimeStatus(request.Context())
 	runProjectionStoreStatus := s.runProjectionStoreStatus(request.Context())
 	ready := transportStatus.Healthy &&
-		providerConfigGate.Configured &&
 		agentRuntimeStatus["healthy"] == true &&
 		runProjectionStoreStatus["healthy"] == true &&
 		temporalRuntimeStatus["healthy"] == true
@@ -58,7 +57,7 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 
 	responseBody := map[string]any{
 		"status":                   statusText,
-		"runtime_release":          strings.TrimSpace(s.config.RuntimeRelease),
+		"runtime_release":          strings.TrimSpace(s.config.DeploymentRelease),
 		"transport_runtime":        transportStatus,
 		"lifecycle_runtime":        s.lifecycle.Snapshot(),
 		"telemetry_runtime":        telemetryStatus,

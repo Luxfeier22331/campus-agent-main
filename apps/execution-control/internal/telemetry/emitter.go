@@ -114,7 +114,7 @@ func NewEmitter(ctx context.Context, cfg config.Config, logger *slog.Logger) *Em
 	}
 	endpoint := strings.TrimSpace(cfg.OTelEndpoint)
 	if endpoint == "" {
-		emitter.setLastError("OTel endpoint is required when runtime config otel.enabled=true.")
+		emitter.setLastError("OTel trace exporter endpoint is required when tracing is enabled.")
 		return emitter
 	}
 	timeout := time.Duration(cfg.OTelExportTimeoutMS) * time.Millisecond
@@ -124,11 +124,11 @@ func NewEmitter(ctx context.Context, cfg config.Config, logger *slog.Logger) *Em
 	exporterCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	options := []otlptracehttp.Option{
+	exporter, err := otlptracehttp.New(
+		exporterCtx,
 		otlptracehttp.WithEndpointURL(endpoint),
 		otlptracehttp.WithTimeout(timeout),
-	}
-	exporter, err := otlptracehttp.New(exporterCtx, options...)
+	)
 	if err != nil {
 		emitter.setLastError(err.Error())
 		return emitter
@@ -148,14 +148,14 @@ func NewEmitter(ctx context.Context, cfg config.Config, logger *slog.Logger) *Em
 	if emitter.metricsEnabled {
 		metricsEndpoint := strings.TrimSpace(cfg.OTelMetricsEndpoint)
 		if metricsEndpoint == "" {
-			emitter.setLastError("OTel metrics endpoint is required when runtime config otel.metrics_enabled=true.")
+			emitter.setLastError("OTel metrics exporter endpoint is required when metrics are enabled.")
 			return emitter
 		}
-		metricOptions := []otlpmetrichttp.Option{
+		metricExporter, metricErr := otlpmetrichttp.New(
+			exporterCtx,
 			otlpmetrichttp.WithEndpointURL(metricsEndpoint),
 			otlpmetrichttp.WithTimeout(timeout),
-		}
-		metricExporter, metricErr := otlpmetrichttp.New(exporterCtx, metricOptions...)
+		)
 		if metricErr != nil {
 			emitter.setLastError(metricErr.Error())
 			return emitter

@@ -42,7 +42,7 @@ func TestReadyzRequiresWorkerAuthOutsideLocalProfile(t *testing.T) {
 	server := NewServer(config.Config{
 		AppName:                     "campus-agent",
 		MaxConcurrentAnswers:        8,
-		RuntimeMode:                 "staging",
+		DeploymentEnvironment:       "staging",
 		AppAPIExecutionSharedSecret: "worker-secret",
 	})
 
@@ -120,9 +120,9 @@ func TestReadyzPublishesGoOwnedRuntimeStatus(t *testing.T) {
 	}
 }
 
-func TestReadyzPublishesRuntimeRelease(t *testing.T) {
+func TestReadyzPublishesDeploymentRelease(t *testing.T) {
 	server := newReadyServerForTest(t, func(cfg *config.Config) {
-		cfg.RuntimeRelease = "execution-control@0123456789ab"
+		cfg.DeploymentRelease = "execution-control@0123456789ab"
 	})
 	response := httptest.NewRecorder()
 
@@ -250,7 +250,7 @@ func TestRequiredTemporalTaskQueuesIncludeModelVisibleToolWorkers(t *testing.T) 
 	}
 }
 
-func TestReadyzPublishesProviderConfigGateReason(t *testing.T) {
+func TestReadyzPublishesProviderConfigGateReasonWithoutBlockingGateway(t *testing.T) {
 	server := newReadyServerForTest(t)
 	server.providerConfigResolver = nil
 	server.providerConfigErr = errProviderConfigResolverNotConfigured
@@ -258,12 +258,12 @@ func TestReadyzPublishesProviderConfigGateReason(t *testing.T) {
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
 
-	if response.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d, want 503; body: %s", response.Code, response.Body.String())
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
 	}
 	body := decodeBody(t, response)
-	if body["status"] != "degraded" {
-		t.Fatalf("status body = %v, want degraded", body["status"])
+	if body["status"] != "ready" {
+		t.Fatalf("status body = %v, want ready", body["status"])
 	}
 	if _, ok := body["prompt_config_gate"]; ok {
 		t.Fatalf("readyz must not publish retired prompt_config_gate: %#v", body["prompt_config_gate"])
@@ -378,7 +378,7 @@ func TestReadyzDoesNotRequireRAGEmbeddingProviderForCoreRuntime(t *testing.T) {
 	}
 }
 
-func TestReadyzRequiresPrimaryAgentProvider(t *testing.T) {
+func TestReadyzReportsMissingPrimaryAgentProviderWithoutBlockingGateway(t *testing.T) {
 	server := newReadyServerForTest(t)
 	server.providerConfigResolver = staticProviderConfigResolver{
 		"rag_query_embedding": embeddingProviderConfigSnapshotForTest(
@@ -392,8 +392,8 @@ func TestReadyzRequiresPrimaryAgentProvider(t *testing.T) {
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
 
-	if response.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d, want 503; body: %s", response.Code, response.Body.String())
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
 	}
 	body := decodeBody(t, response)
 	providerConfigGate := expectRecord(t, body["provider_config_gate"], "provider_config_gate")

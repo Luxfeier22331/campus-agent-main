@@ -21,10 +21,9 @@ func TestQdrantKnowledgeSearchHealthCheckUsesCollectionsEndpoint(t *testing.T) {
 	caPath := writeTestCACert(t, qdrant)
 
 	executor, err := newQdrantKnowledgeSearchExecutor(config.Config{
-		QdrantQueryAPIKey:    "readonly-key",
-		QdrantTLSCACertPath:  caPath,
-		QdrantTimeoutSeconds: 10,
-		QdrantURL:            qdrant.URL,
+		QdrantQueryAPIKey:   "readonly-key",
+		QdrantTLSCACertPath: caPath,
+		QdrantURL:           qdrant.URL,
 	}, nil)
 	if err != nil {
 		t.Fatalf("new qdrant executor: %v", err)
@@ -46,10 +45,9 @@ func TestQdrantKnowledgeSearchHealthCheckReportsHTTPStatus(t *testing.T) {
 	caPath := writeTestCACert(t, qdrant)
 
 	executor, err := newQdrantKnowledgeSearchExecutor(config.Config{
-		QdrantQueryAPIKey:    "readonly-key",
-		QdrantTLSCACertPath:  caPath,
-		QdrantTimeoutSeconds: 10,
-		QdrantURL:            qdrant.URL,
+		QdrantQueryAPIKey:   "readonly-key",
+		QdrantTLSCACertPath: caPath,
+		QdrantURL:           qdrant.URL,
 	}, nil)
 	if err != nil {
 		t.Fatalf("new qdrant executor: %v", err)

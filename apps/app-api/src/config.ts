@@ -40,24 +40,6 @@ export interface Env {
 	APP_API_DB_FRESH?: HyperdriveBindingLike;
 }
 
-export interface AppApiConfig {
-	appName: string;
-	environment: AppApiEnvironment;
-	betterAuthSecret: string;
-	authShellOrigin: string;
-	authTurnstileSecretKey: string;
-	resendApiKey: string;
-	authResetEmailFrom: string;
-	authResetEmailReplyTo?: string;
-	databaseConnectionString: string;
-	databaseSslMode: DatabaseSslMode;
-	executionSharedSecret: string;
-	endUserEmailDomainAllowlist: string[];
-	endUserEmailAllowlist: string[];
-	executionControlBaseUrl: string;
-	executionControlTimeoutMs: number;
-}
-
 export interface AppAuthConfig {
 	appName: string;
 	environment: AppApiEnvironment;
@@ -74,13 +56,8 @@ export interface AppAuthConfig {
 const DEFAULT_APP_NAME = "app-api";
 const MISSING_CONFIG_KEYS = [
 	"APP_API_DB.connectionString",
+	"APP_API_DB_FRESH.connectionString",
 	"BETTER_AUTH_SECRET",
-	"AUTH_TURNSTILE_SECRET_KEY",
-	"RESEND_API_KEY",
-	"AUTH_RESET_EMAIL_FROM",
-	"EXECUTION_CONTROL_UPSTREAM",
-	"APP_API_EXECUTION_SHARED_SECRET",
-	"APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST",
 ] as const;
 const MISSING_AUTH_CONFIG_KEYS = [
 	"BETTER_AUTH_SECRET",
@@ -160,47 +137,13 @@ export function getMissingRuntimeConfig(env: Env): string[] {
 	if (!env.APP_API_DB?.connectionString?.trim()) {
 		missing.push(MISSING_CONFIG_KEYS[0]);
 	}
-	if (!env.BETTER_AUTH_SECRET?.trim()) {
+	if (!env.APP_API_DB_FRESH?.connectionString?.trim()) {
 		missing.push(MISSING_CONFIG_KEYS[1]);
 	}
-	if (!env.AUTH_TURNSTILE_SECRET_KEY?.trim()) {
+	if (!env.BETTER_AUTH_SECRET?.trim()) {
 		missing.push(MISSING_CONFIG_KEYS[2]);
 	}
-	if (!env.RESEND_API_KEY?.trim()) {
-		missing.push(MISSING_CONFIG_KEYS[3]);
-	}
-	if (!env.AUTH_RESET_EMAIL_FROM?.trim()) {
-		missing.push(MISSING_CONFIG_KEYS[4]);
-	}
-	if (!isExecutionControlUpstreamConfigured(env)) {
-		missing.push(MISSING_CONFIG_KEYS[5]);
-	}
-	if (!env.APP_API_EXECUTION_SHARED_SECRET?.trim()) {
-		missing.push(MISSING_CONFIG_KEYS[6]);
-	}
-	if (parseCsvList(env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST).length === 0) {
-		missing.push(MISSING_CONFIG_KEYS[7]);
-	}
 	return missing;
-}
-
-function isExecutionControlUpstreamConfigured(
-	env: Pick<
-		Env,
-		| "APP_API_ENVIRONMENT"
-		| "EXECUTION_CONTROL_BASE_URL"
-		| "EXECUTION_CONTROL_PRIVATE"
-		| "EXECUTION_CONTROL_PRIVATE_ORIGIN"
-	>,
-): boolean {
-	const environment = resolveEnvironment(env);
-	if (isDeployedEnvironment(environment)) {
-		return (
-			typeof env.EXECUTION_CONTROL_PRIVATE?.fetch === "function" &&
-			Boolean(env.EXECUTION_CONTROL_PRIVATE_ORIGIN?.trim())
-		);
-	}
-	return Boolean(env.EXECUTION_CONTROL_BASE_URL?.trim());
 }
 
 export function getMissingAuthRuntimeConfig(env: Env): string[] {
@@ -272,46 +215,5 @@ export function readAppAuthConfig(env: Env): AppAuthConfig {
 		endUserEmailAllowlist: parseCsvList(env.APP_API_END_USER_EMAIL_ALLOWLIST).map((item) =>
 			item.toLowerCase(),
 		),
-	};
-}
-
-export function readAppApiConfig(env: Env): AppApiConfig {
-	const missing = getMissingRuntimeConfig(env);
-	if (missing.length > 0) {
-		throw new Error(`Missing runtime configuration: ${missing.join(", ")}`);
-	}
-	const authConfig = readAppAuthConfig(env);
-	const databaseConnectionString = readRequiredTrimmedValue(
-		env.APP_API_DB?.connectionString,
-		"APP_API_DB.connectionString",
-	);
-	const executionSharedSecret = readRequiredTrimmedValue(
-		env.APP_API_EXECUTION_SHARED_SECRET,
-		"APP_API_EXECUTION_SHARED_SECRET",
-	);
-	const environment = resolveEnvironment(env);
-	const executionControlBaseUrl = isDeployedEnvironment(environment)
-		? readRequiredTrimmedValue(
-				env.EXECUTION_CONTROL_PRIVATE_ORIGIN,
-				"EXECUTION_CONTROL_PRIVATE_ORIGIN",
-			)
-		: readRequiredTrimmedValue(env.EXECUTION_CONTROL_BASE_URL, "EXECUTION_CONTROL_BASE_URL");
-	const executionControlTimeoutMs = parsePositiveInteger(
-		env.EXECUTION_CONTROL_TIMEOUT_MS,
-		DEFAULT_EXECUTION_CONTROL_TIMEOUT_MS,
-	);
-	return {
-		...authConfig,
-		databaseConnectionString,
-		databaseSslMode: resolveDatabaseSslMode(env),
-		executionSharedSecret,
-		endUserEmailDomainAllowlist: parseCsvList(env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST).map(
-			(item) => item.toLowerCase(),
-		),
-		endUserEmailAllowlist: parseCsvList(env.APP_API_END_USER_EMAIL_ALLOWLIST).map((item) =>
-			item.toLowerCase(),
-		),
-		executionControlBaseUrl,
-		executionControlTimeoutMs,
 	};
 }

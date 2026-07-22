@@ -29,7 +29,7 @@ export interface IngestionControlRuntimeConfig {
 	host: string;
 	port: number;
 	serviceTokens: Required<IngestionControlServiceTokens>;
-	siteId: string;
+	siteId?: string;
 	temporal: IngestionTemporalConfig;
 }
 
@@ -38,7 +38,7 @@ export interface IngestionControlRuntime {
 	readinessCheck(): Promise<void>;
 	registryCatalog: ReturnType<typeof loadIngestionTaskRegistryCatalogFromRoot>;
 	releaseStore: OfflineReleaseStore;
-	siteId: string;
+	siteId?: string;
 	store: IngestionTaskStore;
 	workflowStarter: IngestionWorkflowStarter;
 }
@@ -59,7 +59,7 @@ export function buildIngestionControlRuntimeConfig(
 			adminToken: env.INGESTION_CONTROL_ADMIN_TOKEN?.trim() || null,
 			opsToken: env.OPS_WEB_INTERNAL_TOKEN?.trim() || null,
 		},
-		siteId: requiredEnv(env, "INTERNAL_PORTAL_SITE_ID"),
+		siteId: env.INTERNAL_PORTAL_SITE_ID?.trim() || undefined,
 		temporal: buildIngestionTemporalConfig(env),
 	};
 }

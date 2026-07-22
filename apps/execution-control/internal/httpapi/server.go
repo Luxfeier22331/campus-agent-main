@@ -258,22 +258,12 @@ func NewTemporalActivityServer(
 	}
 	switch role {
 	case TemporalActivityRuntimeRoleCore:
-		server.personalMemoryExecutor, err = newPersonalMemoryExecutor(cfg, nil)
-		if err != nil {
-			closeRunProjectionStore()
-			return nil, fmt.Errorf("initialize personal memory runtime: %w", err)
+		server.personalMemoryExecutor, server.personalMemoryErr = newPersonalMemoryExecutor(cfg, nil)
+		server.personalMemoryStateStore, server.personalMemoryStateErr = newPersonalMemoryStateStore(cfg)
+		if server.personalMemoryErr == nil && server.personalMemoryStateErr == nil {
+			server.personalMemoryExecutor = newFencedPersonalMemoryExecutor(server.personalMemoryExecutor, server.personalMemoryStateStore, cfg.PersonalMemoryOwnerSalt, cfg.PersonalMemoryTimeoutSeconds)
 		}
-		server.personalMemoryStateStore, err = newPersonalMemoryStateStore(cfg)
-		if err != nil {
-			closeRunProjectionStore()
-			return nil, fmt.Errorf("initialize personal memory state store: %w", err)
-		}
-		server.personalMemoryExecutor = newFencedPersonalMemoryExecutor(server.personalMemoryExecutor, server.personalMemoryStateStore, cfg.PersonalMemoryOwnerSalt, cfg.PersonalMemoryTimeoutSeconds)
-		server.langfuseTraceStore, err = newLangfuseTraceMaintenance(cfg)
-		if err != nil {
-			closeRunProjectionStore()
-			return nil, fmt.Errorf("initialize Langfuse trace maintenance: %w", err)
-		}
+		server.langfuseTraceStore, server.langfuseTraceErr = newLangfuseTraceMaintenance(cfg)
 	case TemporalActivityRuntimeRoleAgent:
 		server.providerConfigResolver, err = newProviderConfigResolver(cfg)
 		if err != nil {
@@ -343,7 +333,7 @@ func newRunProjectionStore(cfg config.Config) (execution.RunProjectionStore, err
 	defer cancel()
 	store, err := execution.NewPostgresRunProjectionStore(ctx, execution.PostgresRunProjectionStoreOptions{
 		DatabaseURL: strings.TrimSpace(cfg.RunProjectionDatabaseURL),
-		AutoMigrate: cfg.RunProjectionAutoMigrate,
+		AutoMigrate: false,
 	})
 	if err != nil {
 		return nil, err
@@ -358,7 +348,7 @@ func newPersonalMemoryStateStore(cfg config.Config) (memoryruntime.StateStore, e
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	return memoryruntime.NewPostgresStateStore(ctx, memoryruntime.PostgresStateStoreOptions{
-		AutoMigrate: cfg.RunProjectionAutoMigrate,
+		AutoMigrate: false,
 		DatabaseURL: strings.TrimSpace(cfg.RunProjectionDatabaseURL),
 	})
 }

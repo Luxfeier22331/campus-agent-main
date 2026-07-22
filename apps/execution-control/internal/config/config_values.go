@@ -3,21 +3,24 @@ package config
 import (
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 )
 
-func normalizeRuntimeMode(value string) (string, error) {
-	mode := strings.ToLower(strings.TrimSpace(value))
-	if mode == "" {
-		mode = "local"
+func normalizeDeploymentEnvironment(value string) (string, error) {
+	environment := strings.ToLower(strings.TrimSpace(value))
+	if environment == "" {
+		environment = "local"
 	}
-	switch mode {
-	case "local", "staging", "production":
-		return mode, nil
+	switch environment {
+	case "local", "development", "test", "staging", "production":
+		return environment, nil
 	default:
-		return "", fmt.Errorf("EXECUTION_CONTROL_RUNTIME_MODE contains unsupported mode %q", value)
+		return "", fmt.Errorf("DEPLOYMENT_ENVIRONMENT contains unsupported value %q", value)
 	}
+}
+
+func isDeployedEnvironment(environment string) bool {
+	return environment == "staging" || environment == "production"
 }
 
 func defaultString(value string, defaultValue string) string {
@@ -27,115 +30,23 @@ func defaultString(value string, defaultValue string) string {
 	return value
 }
 
-func readString(name string, defaultValue string) string {
-	value := strings.TrimSpace(os.Getenv(name))
-	if value == "" {
-		return defaultValue
-	}
-	return value
-}
-
-func readFirstString(names ...string) string {
-	for _, name := range names {
-		value := strings.TrimSpace(os.Getenv(name))
-		if value != "" {
-			return value
+func firstString(values ...string) string {
+	for _, value := range values {
+		if normalized := strings.TrimSpace(value); normalized != "" {
+			return normalized
 		}
 	}
 	return ""
 }
 
 func readStructuredProjectionDatabaseURL() string {
-	databaseURL := readFirstString("CAMPUS_SHARED_POSTGRES_URL")
-	return normalizePostgresDatabaseURL(databaseURL)
-}
-
-func readRunProjectionDatabaseURL(values envValues) string {
-	return normalizePostgresDatabaseURL(strings.TrimSpace(values.RunProjectionDatabaseURL))
+	return normalizePostgresDatabaseURL(os.Getenv("CAMPUS_SHARED_POSTGRES_URL"))
 }
 
 func normalizePostgresDatabaseURL(databaseURL string) string {
-	if strings.HasPrefix(databaseURL, "postgres://") {
-		return "postgresql://" + strings.TrimPrefix(databaseURL, "postgres://")
+	normalized := strings.TrimSpace(databaseURL)
+	if strings.HasPrefix(normalized, "postgres://") {
+		return "postgresql://" + strings.TrimPrefix(normalized, "postgres://")
 	}
-	return databaseURL
-}
-
-func readPositiveIntStrict(name string, defaultValue int) (int, error) {
-	value := strings.TrimSpace(os.Getenv(name))
-	if value == "" {
-		return defaultValue, nil
-	}
-
-	parsed, err := strconv.Atoi(value)
-	if err != nil || parsed <= 0 {
-		return 0, fmt.Errorf("%s must be a positive integer", name)
-	}
-	return parsed, nil
-}
-
-func readNonNegativeIntStrict(name string, defaultValue int) (int, error) {
-	value := strings.TrimSpace(os.Getenv(name))
-	if value == "" {
-		return defaultValue, nil
-	}
-
-	parsed, err := strconv.Atoi(value)
-	if err != nil || parsed < 0 {
-		return 0, fmt.Errorf("%s must be a non-negative integer", name)
-	}
-	return parsed, nil
-}
-
-func readNonNegativeFloatStrict(name string, defaultValue float64) (float64, error) {
-	value := strings.TrimSpace(os.Getenv(name))
-	if value == "" {
-		return defaultValue, nil
-	}
-
-	parsed, err := strconv.ParseFloat(value, 64)
-	if err != nil || parsed < 0 {
-		return 0, fmt.Errorf("%s must be a non-negative number", name)
-	}
-	return parsed, nil
-}
-
-func readBoolStrict(name string, defaultValue bool) (bool, error) {
-	value := strings.ToLower(strings.TrimSpace(os.Getenv(name)))
-	if value == "" {
-		return defaultValue, nil
-	}
-	return parseBoolStrict(name, value)
-}
-
-func parseBoolStrict(name string, value string) (bool, error) {
-	normalized := strings.ToLower(strings.TrimSpace(value))
-	if normalized == "" {
-		return false, fmt.Errorf("%s must be a boolean", name)
-	}
-	switch normalized {
-	case "1", "true", "yes", "on":
-		return true, nil
-	case "0", "false", "no", "off":
-		return false, nil
-	default:
-		return false, fmt.Errorf("%s must be a boolean", name)
-	}
-}
-
-func readStringList(name string) []string {
-	value := strings.TrimSpace(os.Getenv(name))
-	if value == "" {
-		return nil
-	}
-
-	parts := strings.Split(value, ",")
-	values := make([]string, 0, len(parts))
-	for _, part := range parts {
-		normalized := strings.TrimSpace(part)
-		if normalized != "" {
-			values = append(values, normalized)
-		}
-	}
-	return values
+	return normalized
 }

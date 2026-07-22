@@ -167,7 +167,7 @@ func (s *Server) emitTemporalStepObservation(ctx context.Context, projection tem
 func (s *Server) temporalStepObservationEvent(projection temporalStepProjection) telemetry.Event {
 	event := temporalStepObservationEvent(projection)
 	if strings.TrimSpace(event.Release) == "" {
-		event.Release = strings.TrimSpace(s.config.RuntimeRelease)
+		event.Release = strings.TrimSpace(s.config.DeploymentRelease)
 	}
 	if strings.TrimSpace(event.DeploymentEnvironment) == "" {
 		event.DeploymentEnvironment = strings.TrimSpace(s.config.DeploymentEnvironment)

@@ -51,7 +51,7 @@ spec:
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: http://otel-collector:4320
             - name: OTEL_SERVICE_NAME
-              value: campus-agent-runtime
+              value: agent-runtime
           readinessProbe:
             httpGet:
               path: /readyz

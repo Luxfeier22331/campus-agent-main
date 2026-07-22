@@ -20,8 +20,8 @@ staging execution runtime 由 Kubernetes/GitOps 管理，Docker Compose 只用�
 4. Argo CD 按该 revision 对账。
 
 同一 execution runtime Application 在 first-party Deployment 前运行低 wave 的 `Sync` schema
-Job。Job 必须使用相同 execution-control image digest，安装并验证 run projection schema；长期进程保持
-`EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE=false`。
+Job。Job 必须使用相同 execution-control image digest，安装并验证 run projection schema；长期进程不执行
+schema 迁移。
 
 发布检查：
 
@@ -35,7 +35,8 @@ Job。Job 必须使用相同 execution-control image digest，安装并验证 ru
 
 ## 配置和 Secret
 
-非敏感 runtime config 由环境仓 ConfigMap 提供，secret 由环境选择的 secret backend 注入。私有
+非敏感部署参数由环境仓 ConfigMap 提供，secret 由环境选择的 secret backend 注入。队列名、超时、
+并发上限和 RAG 限制等产品常量由源码拥有，不作为环境变量重复维护。私有
 registry 的 pull secret 由环境 overlay 绑定到 first-party ServiceAccount。
 
 在线 Provider Config 由 execution-control 管理。runtime 使用 reader DSN 与版本化 keyring，
@@ -47,9 +48,9 @@ registry 的 pull secret 由环境 overlay 绑定到 first-party ServiceAccount�
 使用环境仓为当前环境提供的 app-api 与 campus-web 地址检查 `/readyz`，并确认响应中的运行版本
 与环境选择一致。源码仓不保存 staging hostname。
 
-execution-control readiness 降级时，根据顶层核心状态定位回答准入、Temporal、Primary Agent
-Provider Config、Agent Runtime、PostgreSQL 或 execution runtime Application。Hindsight、Qdrant、
-OTel 和工具读取投影状态是局部能力诊断，不单独阻断顶层 readiness。通过环境仓修复期望状态，
+execution-control readiness 降级时，根据顶层核心状态定位回答准入、Temporal、Agent Runtime、
+PostgreSQL 或 execution runtime Application。Provider Config、Hindsight、Qdrant、OTel 和工具读取
+投影状态是局部能力诊断，不单独阻断顶层 readiness。通过环境仓修复期望状态，
 不以本地 Docker、临时环境渲染器或宿主机修改代替 GitOps。
 
 相关入口：`../architecture/system/durable-runtime.md`、`../architecture/system/k8s-runtime.md`、

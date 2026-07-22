@@ -4,13 +4,6 @@ secret_like_key(key) if {
 	regex.match("(?i)(secret|password|api[_-]?key|access[_-]?key|private[_-]?key|auth[_-]?(header|value)|database[_-]?url|dsn|token|salt)", key)
 }
 
-retired_secret_names := {
-	"execution-runtime-common-secrets",
-	"execution-runtime-secrets",
-	"notice-tool-secrets",
-	"qdrant-admin-secrets",
-}
-
 provider_profile_keys := {
 	"LLM_API_KEY",
 	"EMBEDDING_API_KEY",
@@ -26,24 +19,13 @@ provider_profile_keys := {
 
 config_owned_keys := {
 	"AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL",
-	"AGENT_RUNTIME_HOST",
-	"AGENT_RUNTIME_PORT",
-	"AGENT_RUNTIME_TOOL_REGISTRY_PATH",
 	"DEPLOYMENT_ENVIRONMENT",
 	"DINING_LARK_BASE_TOKEN",
 	"EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL",
 	"EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL",
-	"EXECUTION_CONTROL_PRODUCT_CALLBACK_TIMEOUT_MS",
-	"EXECUTION_CONTROL_RUNTIME_CONFIG_PATH",
-	"EXECUTION_CONTROL_RUNTIME_MODE",
-	"EXECUTION_CONTROL_RUNTIME_RELEASE",
-	"EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE",
 	"EXECUTION_CONTROL_TEMPORAL_ADDRESS",
 	"EXECUTION_CONTROL_TEMPORAL_NAMESPACE",
-	"EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS",
-	"EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE",
 	"PERSONAL_MEMORY_BASE_URL",
-	"QDRANT_TIMEOUT_SECONDS",
 	"QDRANT_TLS_CA_CERT_PATH",
 	"QDRANT_URL",
 }
@@ -102,12 +84,6 @@ violation contains msg if {
 	key := object.keys(input.stringData)[_]
 	config_owned_keys[key]
 	msg := sprintf("Secret %s contains config-owned key %s", [input.metadata.name, key])
-}
-
-violation contains msg if {
-	input.kind == "Secret"
-	retired_secret_names[input.metadata.name]
-	msg := sprintf("retired Secret %s must not be rendered", [input.metadata.name])
 }
 
 violation contains msg if {

@@ -25,9 +25,6 @@ const child = spawn("pnpm", args, {
 			process.env.EXECUTION_AGENT_RUNTIME_SHARED_SECRET || "agent-runtime-local-placeholder",
 		EXECUTION_CONTROL_TIMEOUT_MS:
 			process.env.EXECUTION_CONTROL_TIMEOUT_MS || localProviderTimeoutMs,
-		EXECUTION_CONTROL_RUNTIME_CONFIG_PATH:
-			process.env.EXECUTION_CONTROL_RUNTIME_CONFIG_PATH ||
-			"/etc/campus-agent/runtime-config.local-provider.json",
 	},
 	stdio: "inherit",
 });

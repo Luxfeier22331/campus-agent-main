@@ -46,8 +46,10 @@ spec:
               value: 0.0.0.0
             - name: CAMPUS_AGENT_HTTP_PORT
               value: "8000"
-            - name: API_AUTH_MODE
-              value: trusted-worker
+            - name: OTEL_SERVICE_NAME
+              value: execution-provider-config-admin
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector:4318
             - name: EXECUTION_CONTROL_PROVIDER_CONFIG_ADMIN_DATABASE_URL
               valueFrom:
                 secretKeyRef:

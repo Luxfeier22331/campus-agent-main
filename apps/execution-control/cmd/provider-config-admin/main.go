@@ -16,7 +16,7 @@ import (
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	cfg, err := config.LoadFromEnvForRole("provider-config-admin")
+	cfg, err := config.LoadProviderConfigAdminFromEnv()
 	if err != nil {
 		logger.Error("provider config admin configuration invalid", "error", err.Error())
 		os.Exit(1)

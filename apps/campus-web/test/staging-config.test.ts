@@ -109,7 +109,6 @@ describe("campus web staging config", () => {
 		expect(publishWorkflowSource).not.toContain("deploy-staging.yml");
 		expect(stagingPreflightSource).not.toContain('"build:staging"');
 		expect(stagingPreflightSource).not.toContain('"build:app:staging"');
-		expect(stagingPreflightSource).toContain("worker-staging-campus-web");
 		expect(stagingPreflightSource).toContain("check-worker-secret-presence.ts");
 		expect(stagingPreflightSource).toContain("apps/campus-web/scripts/verify-staging-config.ts");
 		expect(stagingPreflightSource).toContain("apps/campus-web/dist/campus_web/wrangler.json");

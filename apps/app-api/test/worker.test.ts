@@ -1,7 +1,6 @@
 import { parse } from "smol-toml";
 import { describe, expect, it, vi } from "vitest";
 import rootPackageManifestRaw from "../../../package.json?raw";
-import sharedStagingPreflightSource from "../../../scripts/deploy/run-worker-staging-preflight.ts?raw";
 import appApiSmokeEntrypointSource from "../../../scripts/smoke/app-api.ts?raw";
 import packageManifestRaw from "../package.json?raw";
 import stagingPreflightSource from "../scripts/preflight-staging.ts?raw";
@@ -102,6 +101,9 @@ const env = {
 	APP_API_DB: {
 		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 	},
+	APP_API_DB_FRESH: {
+		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
+	},
 };
 
 function createExecutionContext(waitUntil = vi.fn()): ExecutionContext {
@@ -118,34 +120,9 @@ function createRuntimeReadinessResult() {
 	return {
 		dependencies: {
 			auth: "ready",
-			authShellOrigin: "configured",
 			database: "ready",
-			executionRuntime: "not_required",
-			executionControl: "ready",
 		},
 		failed: {},
-		preflight: {
-			campusServicesProductPath: {
-				status: "ready",
-				toolGate: "open",
-				projectionSource: "postgres",
-				checks: {
-					toolReadModelRuntime: "ready",
-					transportSchedule: "ready",
-					transportScheduleReadModel: "ready",
-				},
-				blockers: {},
-			},
-			executionRuntime: {
-				status: "ready",
-				runtimeRelease: "execution-control@0123456789ab",
-				checks: {
-					runProjectionStore: "ready",
-					temporalRuntime: "ready",
-				},
-				blockers: {},
-			},
-		},
 	};
 }
 
@@ -272,14 +249,9 @@ describe("app-api worker foundation", () => {
 		expect(stagingPreflightSource).not.toContain(retiredExecutionControlAccessClientIdKey);
 		expect(stagingPreflightSource).not.toContain(retiredExecutionControlAccessClientSecretKey);
 		expect(stagingPreflightSource).toContain("loadRepoStagingEnvFile");
-		expect(stagingPreflightSource).toContain("worker-staging-app-api");
 		expect(stagingPreflightSource).toContain("check-worker-secret-presence.ts");
 		expect(stagingPreflightSource).toContain("apps/app-api/scripts/verify-staging-config.ts");
 		expect(stagingPreflightSource).not.toContain('new URL("/readyz", baseUrl)');
-		expect(sharedStagingPreflightSource).not.toContain("APP_PREFLIGHTS");
-		expect(sharedStagingPreflightSource).not.toContain(
-			"apps/app-api/scripts/verify-staging-config.ts",
-		);
 		expect(stagingPreflightSource).not.toContain('new URL("/healthz", baseUrl)');
 		expect(uploadStagingVersionSource).not.toContain("execution-control trusted machine ingress");
 		expect(uploadStagingVersionSource).not.toContain(retiredExecutionControlAccessClientIdKeyLocal);
@@ -389,32 +361,7 @@ describe("app-api worker foundation", () => {
 			status: "ready",
 			dependencies: {
 				auth: "ready",
-				authShellOrigin: "configured",
 				database: "ready",
-				executionRuntime: "not_required",
-				executionControl: "ready",
-			},
-			preflight: {
-				campusServicesProductPath: {
-					status: "ready",
-					toolGate: "open",
-					projectionSource: "postgres",
-					checks: {
-						toolReadModelRuntime: "ready",
-						transportSchedule: "ready",
-						transportScheduleReadModel: "ready",
-					},
-					blockers: {},
-				},
-				executionRuntime: {
-					status: "ready",
-					runtimeRelease: "execution-control@0123456789ab",
-					checks: {
-						runProjectionStore: "ready",
-						temporalRuntime: "ready",
-					},
-					blockers: {},
-				},
 			},
 		});
 	});
@@ -425,14 +372,9 @@ describe("app-api worker foundation", () => {
 			runtimeReadinessProbe: vi.fn().mockResolvedValue({
 				dependencies: {
 					auth: "ready",
-					authShellOrigin: "configured",
 					database: "ready",
-					executionRuntime: "not_required",
-					executionControl: "not_ready",
 				},
-				failed: {
-					executionControl: "execution-control /readyz returned 503",
-				},
+				failed: {},
 			}),
 		});
 
@@ -480,13 +422,8 @@ describe("app-api worker foundation", () => {
 				details: {
 					missing: [
 						"APP_API_DB.connectionString",
+						"APP_API_DB_FRESH.connectionString",
 						"BETTER_AUTH_SECRET",
-						"AUTH_TURNSTILE_SECRET_KEY",
-						"RESEND_API_KEY",
-						"AUTH_RESET_EMAIL_FROM",
-						"EXECUTION_CONTROL_UPSTREAM",
-						"APP_API_EXECUTION_SHARED_SECRET",
-						"APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST",
 					],
 				},
 			},
@@ -498,14 +435,10 @@ describe("app-api worker foundation", () => {
 			runtimeReadinessProbe: vi.fn().mockResolvedValue({
 				dependencies: {
 					auth: "not_ready",
-					authShellOrigin: "configured",
 					database: "ready",
-					executionRuntime: "not_required",
-					executionControl: "not_ready",
 				},
 				failed: {
 					auth: "better-auth session runtime failed probe",
-					executionControl: "execution-control /readyz returned 503",
 				},
 			}),
 		});
@@ -526,114 +459,7 @@ describe("app-api worker foundation", () => {
 				details: {
 					failed: {
 						auth: "better-auth session runtime failed probe",
-						executionControl: "execution-control /readyz returned 503",
 					},
-				},
-			},
-		});
-	});
-
-	it("fails readyz closed when deployed durable runtime preflight is blocked", async () => {
-		const runtime = createWorkerRuntime(env, {
-			runtimeReadinessProbe: vi.fn().mockResolvedValue({
-				dependencies: {
-					auth: "ready",
-					authShellOrigin: "configured",
-					database: "ready",
-					executionRuntime: "not_ready",
-					executionControl: "ready",
-				},
-				failed: {
-					executionRuntime: "temporal_runtime is not configured and healthy",
-				},
-				preflight: {
-					executionRuntime: {
-						status: "blocked",
-						checks: {
-							runProjectionStore: "ready",
-							temporalRuntime: "not_ready",
-						},
-						blockers: {
-							temporalRuntime: "temporal_runtime is not configured and healthy",
-						},
-					},
-				},
-			}),
-		});
-
-		const response = await runtime.fetch(
-			new Request("https://app-api.internal/readyz"),
-			createExecutionContext(),
-		);
-
-		expect(response.status).toBe(503);
-		await expect(response.json()).resolves.toEqual({
-			error: {
-				code: "dependency_not_ready",
-				message: "Runtime dependencies are not ready.",
-				retryable: true,
-				traceId: null,
-				requestId: null,
-				details: {
-					failed: {
-						executionRuntime: "temporal_runtime is not configured and healthy",
-					},
-					preflight: {
-						executionRuntime: {
-							status: "blocked",
-							checks: {
-								runProjectionStore: "ready",
-								temporalRuntime: "not_ready",
-							},
-							blockers: {
-								temporalRuntime: "temporal_runtime is not configured and healthy",
-							},
-						},
-					},
-				},
-			},
-		});
-	});
-
-	it("publishes campus services product-path preflight blockers on readyz", async () => {
-		const runtime = createWorkerRuntime(env, {
-			runtimeReadinessProbe: vi.fn().mockResolvedValue({
-				dependencies: {
-					auth: "ready",
-					authShellOrigin: "configured",
-					database: "ready",
-					executionRuntime: "not_required",
-					executionControl: "ready",
-				},
-				failed: {},
-				preflight: {
-					campusServicesProductPath: {
-						status: "ready",
-						toolGate: "open",
-						projectionSource: "postgres",
-						checks: {
-							toolReadModelRuntime: "ready",
-							transportSchedule: "ready",
-							transportScheduleReadModel: "ready",
-						},
-						blockers: {},
-					},
-				},
-			}),
-		});
-
-		const response = await runtime.fetch(
-			new Request("https://app-api.internal/readyz"),
-			createExecutionContext(),
-		);
-
-		expect(response.status).toBe(200);
-		await expect(response.json()).resolves.toMatchObject({
-			status: "ready",
-			preflight: {
-				campusServicesProductPath: {
-					status: "ready",
-					blockers: {},
 				},
 			},
 		});

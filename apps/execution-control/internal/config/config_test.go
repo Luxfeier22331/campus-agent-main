@@ -1,678 +1,165 @@
 package config
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
 
-func TestMain(m *testing.M) {
-	dir, err := os.MkdirTemp("", "campus-execution-control-config-test-")
+func TestGatewayUsesFixedProductLimits(t *testing.T) {
+	t.Setenv("DEPLOYMENT_ENVIRONMENT", "local")
+
+	cfg, err := LoadGatewayFromEnv()
 	if err != nil {
-		panic(err)
+		t.Fatalf("LoadGatewayFromEnv returned error: %v", err)
 	}
-	profile, err := readDefaultRuntimeConfigFile()
-	if err != nil {
-		panic(err)
+	if cfg.MaxConcurrentAnswers != 8 || cfg.QueueCapacity != 24 || cfg.QueueTimeoutMS != 3_000 {
+		t.Fatalf("unexpected admission limits: %#v", cfg)
 	}
-	profilePath := filepath.Join(dir, "runtime-config.json")
-	if err := os.WriteFile(profilePath, profile, 0o600); err != nil {
-		panic(err)
+	if cfg.RequestTimeoutMS != 95_000 || cfg.ShutdownGraceMS != 95_000 {
+		t.Fatalf("unexpected request limits: %#v", cfg)
 	}
-	if os.Getenv("EXECUTION_CONTROL_RUNTIME_CONFIG_PATH") == "" {
-		if err := os.Setenv("EXECUTION_CONTROL_RUNTIME_CONFIG_PATH", profilePath); err != nil {
-			panic(err)
+	if cfg.AgentRuntimeDeadlineMS != 90_000 || cfg.AgentRuntimeMaxOutputTokens != 2_048 || cfg.AgentRuntimeMaxTurns != 6 {
+		t.Fatalf("unexpected agent limits: %#v", cfg)
+	}
+	if cfg.AgentRuntimeSearchLimit != 3 || cfg.AgentRuntimeInputCharLimit != 8_000 || cfg.AgentRuntimeContextCharLimit != 16_000 {
+		t.Fatalf("unexpected agent context limits: %#v", cfg)
+	}
+	if cfg.RAGTopKMax != 8 || cfg.RAGEmbeddingTimeoutMS != 10_000 || cfg.RAGQdrantTimeoutMS != 60_000 {
+		t.Fatalf("unexpected RAG limits: %#v", cfg)
+	}
+	if cfg.PersonalMemoryTimeoutSeconds != 90 || cfg.PersonalMemoryRecallLimit != 8 || cfg.PersonalMemoryRecallMaxTokens != 2_500 || cfg.PersonalMemoryContextCharBudget != 2_500 {
+		t.Fatalf("unexpected personal memory limits: %#v", cfg)
+	}
+	if cfg.QueryServingTargetsPath != "/etc/campus-agent/query-serving-targets.v1.json" {
+		t.Fatalf("query serving targets path = %q", cfg.QueryServingTargetsPath)
+	}
+}
+
+func TestRoleLoadersRequireOnlyTheirDeployedDependencies(t *testing.T) {
+	t.Run("gateway", func(t *testing.T) {
+		setTemporalEnv(t, "execution-control-6b9d7f8c9d-abcde")
+		t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", "postgres://runtime/campus")
+		t.Setenv("APP_API_EXECUTION_SHARED_SECRET", "app-api-secret")
+		t.Setenv("EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL", "http://agent-runtime:27062")
+		cfg, err := LoadGatewayFromEnv()
+		if err != nil {
+			t.Fatalf("LoadGatewayFromEnv returned error: %v", err)
 		}
-	}
-	code := m.Run()
-	_ = os.RemoveAll(dir)
-	os.Exit(code)
+		if cfg.RunProjectionDatabaseURL != "postgresql://runtime/campus" {
+			t.Fatalf("run projection URL = %q", cfg.RunProjectionDatabaseURL)
+		}
+	})
+
+	t.Run("workflow", func(t *testing.T) {
+		setTemporalEnv(t, "execution-workflow-abcde")
+		if _, err := LoadWorkflowWorkerFromEnv(); err != nil {
+			t.Fatalf("workflow loader required unrelated dependencies: %v", err)
+		}
+	})
+
+	t.Run("activity-core", func(t *testing.T) {
+		setTemporalEnv(t, "execution-core-abcde")
+		t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", "postgres://runtime/campus")
+		t.Setenv("EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL", "https://app-api.internal")
+		t.Setenv("APP_API_EXECUTION_SHARED_SECRET", "app-api-secret")
+		if _, err := LoadCoreActivityWorkerFromEnv(); err != nil {
+			t.Fatalf("core activity loader required optional memory or Langfuse settings: %v", err)
+		}
+	})
+
+	t.Run("activity-agent", func(t *testing.T) {
+		setTemporalEnv(t, "execution-agent-abcde")
+		t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", "postgres://runtime/campus")
+		t.Setenv("EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL", "http://agent-runtime:27062")
+		t.Setenv("EXECUTION_AGENT_RUNTIME_SHARED_SECRET", "agent-secret")
+		t.Setenv("EXECUTION_CONTROL_PROVIDER_CONFIG_READER_DATABASE_URL", "postgres://provider/campus")
+		t.Setenv("EXECUTION_CONTROL_PROVIDER_CONFIG_KEYRING_PATH", "/run/provider/keyring.json")
+		if _, err := LoadAgentActivityWorkerFromEnv(); err != nil {
+			t.Fatalf("agent activity loader required optional retrieval settings: %v", err)
+		}
+	})
+
+	t.Run("provider-admin", func(t *testing.T) {
+		t.Setenv("DEPLOYMENT_ENVIRONMENT", "staging")
+		t.Setenv("EXECUTION_CONTROL_PROVIDER_CONFIG_ADMIN_DATABASE_URL", "postgres://provider/campus")
+		t.Setenv("EXECUTION_CONTROL_PROVIDER_CONFIG_KEYRING_PATH", "/run/provider/keyring.json")
+		t.Setenv("OPS_WEB_INTERNAL_TOKEN", "ops-token")
+		if _, err := LoadProviderConfigAdminFromEnv(); err != nil {
+			t.Fatalf("provider admin loader required runtime dependencies: %v", err)
+		}
+	})
+
+	t.Run("personal-memory-command", func(t *testing.T) {
+		t.Setenv("DEPLOYMENT_ENVIRONMENT", "staging")
+		t.Setenv("PERSONAL_MEMORY_BASE_URL", "http://hindsight:8000")
+		t.Setenv("PERSONAL_MEMORY_API_SECRET", "memory-secret")
+		t.Setenv("PERSONAL_MEMORY_OWNER_SALT", "owner-salt")
+		if _, err := LoadPersonalMemoryCommandFromEnv(); err != nil {
+			t.Fatalf("personal memory command loader required runtime dependencies: %v", err)
+		}
+	})
 }
 
-func setStagingPersonalMemoryEnv(t *testing.T) {
-	t.Helper()
-	t.Setenv("PERSONAL_MEMORY_BASE_URL", "http://hindsight-api:8000")
-	t.Setenv("PERSONAL_MEMORY_API_SECRET", "hindsight-secret")
-	t.Setenv("PERSONAL_MEMORY_OWNER_SALT", "staging-memory-salt")
-}
-
-func setStagingLangfuseMaintenanceEnv(t *testing.T) {
-	t.Helper()
-	t.Setenv("LANGFUSE_MAINTENANCE_BASE_URL", "http://langfuse-web:3000")
-	t.Setenv("LANGFUSE_MAINTENANCE_PUBLIC_KEY", "pk-staging")
-	t.Setenv("LANGFUSE_MAINTENANCE_SECRET_KEY", "sk-staging")
-}
-
-func setStagingTemporalWorkflowIDSalt(t *testing.T) {
-	t.Helper()
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT", "staging-workflow-id-salt")
-	t.Setenv("EXECUTION_CONTROL_PROVIDER_CONFIG_KEYRING_PATH", "/run/provider-config/keyring.json")
-	t.Setenv("EXECUTION_CONTROL_PROVIDER_CONFIG_READER_DATABASE_URL", "postgresql://provider-config-reader")
-	t.Setenv("EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL", "https://api.example.test")
-	t.Setenv("APP_API_EXECUTION_SHARED_SECRET", "product-callback-secret")
-}
-
-func TestProviderConfigAdminRoleDoesNotRequireOnlineRuntimeDependencies(t *testing.T) {
-	t.Setenv("EXECUTION_CONTROL_RUNTIME_MODE", "staging")
-	t.Setenv("EXECUTION_CONTROL_PROVIDER_CONFIG_ADMIN_DATABASE_URL", "postgresql://provider-config-admin")
-	t.Setenv("EXECUTION_CONTROL_PROVIDER_CONFIG_KEYRING_PATH", "/run/provider-config/keyring.json")
-	t.Setenv("OPS_WEB_INTERNAL_TOKEN", "ops-web-token")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT", "")
-	t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", "")
-	t.Setenv("PERSONAL_MEMORY_BASE_URL", "")
-	t.Setenv("PERSONAL_MEMORY_API_SECRET", "")
-	t.Setenv("PERSONAL_MEMORY_OWNER_SALT", "")
-
-	config, err := LoadFromEnvForRole("provider-config-admin")
-	if err != nil {
-		t.Fatalf("LoadFromEnvForRole(provider-config-admin) returned error: %v", err)
-	}
-	if config.ProviderConfigAdminDatabaseURL != "postgresql://provider-config-admin" {
-		t.Fatalf("provider config admin database URL = %q", config.ProviderConfigAdminDatabaseURL)
-	}
-}
-
-func TestFromEnvUsesExecutionDefaults(t *testing.T) {
-	t.Setenv("API_AUTH_MODE", "")
-	t.Setenv("EXECUTION_CONTROL_RUNTIME_MODE", "")
-	t.Setenv("API_DEFAULT_ACTOR_ID", "")
-	t.Setenv("API_DEFAULT_ACTOR_ROLES", "")
-	t.Setenv("CAMPUS_AGENT_HTTP_HOST", "")
-	t.Setenv("CAMPUS_AGENT_HTTP_PORT", "")
-	t.Setenv("EXECUTION_CONTROL_MAX_CONCURRENT_ANSWERS", "")
-	t.Setenv("EXECUTION_CONTROL_QUEUE_CAPACITY", "")
-	t.Setenv("EXECUTION_CONTROL_QUEUE_TIMEOUT_MS", "")
-	t.Setenv("EXECUTION_CONTROL_REQUEST_TIMEOUT_MS", "")
-	t.Setenv("EXECUTION_CONTROL_REQUEST_BODY_LIMIT_BYTES", "")
-	t.Setenv("EXECUTION_CONTROL_SHUTDOWN_GRACE_MS", "")
-	t.Setenv("OPS_WEB_INTERNAL_TOKEN", "")
-	t.Setenv("EXECUTION_CONTROL_DURABLE_RUNTIME_DATABASE_URL", "")
-	t.Setenv("EXECUTION_CONTROL_DURABLE_RUNTIME_AUTO_MIGRATE", "")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE", "")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS", "")
-	t.Setenv("CAMPUS_SHARED_POSTGRES_URL", "")
-	t.Setenv("PROMPT_RUNTIME_PROVIDER", "")
-	t.Setenv("AGENT_RUNTIME_PROVIDER", "")
-	t.Setenv("EXECUTION_PROMPT_MODEL", "")
-	t.Setenv("PROMPT_RUNTIME_API_KEY", "")
-	t.Setenv("LLM_API_KEY", "")
-	t.Setenv("PROMPT_RUNTIME_TRANSPORT", "")
-	t.Setenv("PROMPT_RUNTIME_BASE_URL", "")
-	t.Setenv("LLM_BASE_URL", "")
-	t.Setenv("PROMPT_STRICT_STRUCTURED_OUTPUTS", "")
-
-	cfg, err := LoadFromEnv()
-	if err != nil {
-		t.Fatalf("LoadFromEnv returned error: %v", err)
-	}
-
-	if cfg.Host != "127.0.0.1" {
-		t.Fatalf("host = %q, want 127.0.0.1", cfg.Host)
-	}
-	if cfg.Port != 8000 {
-		t.Fatalf("port = %d, want 8000", cfg.Port)
-	}
-	if cfg.AuthMode != "bearer" {
-		t.Fatalf("auth mode = %q, want bearer", cfg.AuthMode)
-	}
-	if cfg.RuntimeMode != "local" {
-		t.Fatalf("runtime mode = %q, want local", cfg.RuntimeMode)
-	}
-	if cfg.DefaultActorID != "" {
-		t.Fatalf("default actor id = %q, want empty", cfg.DefaultActorID)
-	}
-	if cfg.MaxConcurrentAnswers != 8 {
-		t.Fatalf("max concurrent answers = %d, want 8", cfg.MaxConcurrentAnswers)
-	}
-	if cfg.QueueCapacity != 24 {
-		t.Fatalf("queue capacity = %d, want 24", cfg.QueueCapacity)
-	}
-	if cfg.QueueTimeoutMS != 3_000 {
-		t.Fatalf("queue timeout = %d, want 3000", cfg.QueueTimeoutMS)
-	}
-	if cfg.RequestTimeoutMS != 45_000 {
-		t.Fatalf("request timeout = %d, want 45000", cfg.RequestTimeoutMS)
-	}
-	if cfg.RequestBodyLimitBytes != 1_048_576 {
-		t.Fatalf("body limit = %d, want 1048576", cfg.RequestBodyLimitBytes)
-	}
-	if cfg.ShutdownGraceMS != 45_000 {
-		t.Fatalf("shutdown grace = %d, want 45000", cfg.ShutdownGraceMS)
-	}
-	if cfg.OpsWebInternalToken != "" {
-		t.Fatalf("ops web internal token = %q, want empty", cfg.OpsWebInternalToken)
-	}
-	if cfg.OTelEnabled {
-		t.Fatal("otel enabled = true, want false by default")
-	}
-	if cfg.OTelServiceName != "campus-execution-control" {
-		t.Fatalf("otel service name = %q, want campus-execution-control", cfg.OTelServiceName)
-	}
-	if cfg.OTelSampleRatio != 1.0 {
-		t.Fatalf("otel sample ratio = %v, want 1.0", cfg.OTelSampleRatio)
-	}
-	if cfg.OTelAllowedAttributesVersion != "execution-control-otel-attrs-v1" {
-		t.Fatalf("otel allowed attrs version = %q", cfg.OTelAllowedAttributesVersion)
-	}
-	if cfg.StructuredProjectionDatabaseURL != "" {
-		t.Fatalf("structured projection database url = %q, want empty", cfg.StructuredProjectionDatabaseURL)
-	}
-	if cfg.RunProjectionDatabaseURL != "" {
-		t.Fatalf("run projection database url = %q, want empty", cfg.RunProjectionDatabaseURL)
-	}
-	if cfg.RunProjectionAutoMigrate {
-		t.Fatal("run projection auto migrate must be disabled by default")
-	}
-	if cfg.TemporalAddress != "" ||
-		cfg.TemporalNamespace != "" ||
-		cfg.TemporalTaskQueue != "campus-agent.workflow" ||
-		cfg.TemporalWorkerIdentity != "" ||
-		cfg.TemporalStartTimeoutMS != 5000 {
-		t.Fatalf("unexpected temporal defaults: %#v", cfg)
-	}
-	if cfg.PersonalMemoryRuntime != "hindsight" ||
-		cfg.PersonalMemoryBaseURL != "" ||
-		cfg.PersonalMemoryAPISecret != "" ||
-		cfg.PersonalMemoryOwnerSalt != "" ||
-		cfg.PersonalMemoryTimeoutSeconds != 10 ||
-		cfg.PersonalMemoryRecallLimit != 8 ||
-		cfg.PersonalMemoryRecallMaxTokens != 2500 ||
-		cfg.PersonalMemoryContextCharBudget != 2500 {
-		t.Fatalf("unexpected local personal memory defaults: %#v", cfg)
-	}
-	if cfg.RAGTopKMax != 8 ||
-		cfg.RAGEmbeddingTimeoutMS != 10_000 ||
-		cfg.RAGQdrantTimeoutMS != 10_000 {
-		t.Fatalf("unexpected knowledge search defaults: %#v", cfg)
-	}
-	if len(cfg.WorkerProfiles) != 3 ||
-		cfg.WorkerProfiles["activity-core"].ActivitySlots != 8 ||
-		cfg.WorkerProfiles["activity-agent"].ActivitySlots != 4 {
-		t.Fatalf("unexpected worker profile defaults: %#v", cfg.WorkerProfiles)
-	}
-}
-
-func TestLoadFromEnvRequiresTemporalSettingsForStaging(t *testing.T) {
-	t.Setenv("EXECUTION_CONTROL_RUNTIME_MODE", "staging")
-	t.Setenv("OPS_WEB_INTERNAL_TOKEN", "ops-web-token")
-	t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", "postgres://runtime.example/campus_agent")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "staging:gateway:001")
-	setStagingTemporalWorkflowIDSalt(t)
-
-	if _, err := LoadFromEnv(); err == nil {
-		t.Fatal("LoadFromEnv returned nil error, want missing Temporal address failure")
-	}
-}
-
-func TestLoadFromEnvReadsTemporalSettings(t *testing.T) {
-	t.Setenv("EXECUTION_CONTROL_RUNTIME_MODE", "staging")
-	t.Setenv("OPS_WEB_INTERNAL_TOKEN", "ops-web-token")
-	t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", "postgres://runtime.example/campus_agent")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE", "campus-agent.workflow")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "staging:gateway:001")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS", "7000")
-	setStagingTemporalWorkflowIDSalt(t)
-	setStagingPersonalMemoryEnv(t)
-
-	cfg, err := LoadFromEnv()
-	if err != nil {
-		t.Fatalf("LoadFromEnv returned error: %v", err)
-	}
-	if cfg.TemporalAddress != "temporal:7233" ||
-		cfg.TemporalNamespace != "campus-agent-staging" ||
-		cfg.TemporalTaskQueue != "campus-agent.workflow" ||
-		cfg.TemporalWorkerIdentity != "staging:gateway:001" ||
-		cfg.TemporalStartTimeoutMS != 7000 {
-		t.Fatalf("unexpected Temporal settings: %#v", cfg)
-	}
-}
-
-func TestLoadFromEnvRequiresDeployedPersonalMemorySettings(t *testing.T) {
-	t.Setenv("EXECUTION_CONTROL_RUNTIME_MODE", "staging")
-	t.Setenv("OPS_WEB_INTERNAL_TOKEN", "ops-web-token")
-	t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", "postgres://runtime.example/campus_agent")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "staging:gateway:001")
-	setStagingTemporalWorkflowIDSalt(t)
-
-	if _, err := LoadFromEnv(); err == nil {
-		t.Fatal("expected deployed personal memory settings to be required")
-	}
-}
-
-func TestLoadFromEnvForRoleScopesPersonalMemoryRequirements(t *testing.T) {
-	t.Setenv("EXECUTION_CONTROL_RUNTIME_MODE", "staging")
-	t.Setenv("OPS_WEB_INTERNAL_TOKEN", "ops-web-token")
-	t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", "postgres://runtime.example/campus_agent")
+func TestDeployedRoleReportsItsMissingDependency(t *testing.T) {
+	setTemporalEnv(t, "staging:activity-agent:001")
+	t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", "postgres://runtime/campus")
 	t.Setenv("EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL", "http://agent-runtime:27062")
 	t.Setenv("EXECUTION_AGENT_RUNTIME_SHARED_SECRET", "agent-secret")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "staging:workflow-worker:001")
-	setStagingTemporalWorkflowIDSalt(t)
+	t.Setenv("EXECUTION_CONTROL_PROVIDER_CONFIG_READER_DATABASE_URL", "")
+	t.Setenv("EXECUTION_CONTROL_PROVIDER_CONFIG_KEYRING_PATH", "/run/provider/keyring.json")
 
-	if _, err := LoadFromEnvForRole("workflow"); err != nil {
-		t.Fatalf("workflow worker must not require personal memory config: %v", err)
-	}
-	if _, err := LoadFromEnvForRole("activity-core"); err == nil {
-		t.Fatal("core worker must require personal memory config")
-	}
-	if _, err := LoadFromEnvForRole("activity-agent"); err != nil {
-		t.Fatalf("agent worker must not require personal memory config: %v", err)
-	}
-	setStagingPersonalMemoryEnv(t)
-	if _, err := LoadFromEnvForRole("execution-control"); err != nil {
-		t.Fatalf("execution-control must not require Langfuse maintenance keys: %v", err)
-	}
-	if _, err := LoadFromEnvForRole("activity-core"); err == nil {
-		t.Fatal("core worker must require Langfuse maintenance configuration")
-	}
-	setStagingLangfuseMaintenanceEnv(t)
-	if _, err := LoadFromEnvForRole("activity-core"); err != nil {
-		t.Fatalf("core worker must accept personal memory config: %v", err)
+	_, err := LoadAgentActivityWorkerFromEnv()
+	if err == nil || !strings.Contains(err.Error(), "EXECUTION_CONTROL_PROVIDER_CONFIG_READER_DATABASE_URL") {
+		t.Fatalf("error = %v, want missing provider reader database", err)
 	}
 }
 
-func TestLoadFromEnvRejectsRetiredQdrantPersonalMemoryEnv(t *testing.T) {
-	for _, tc := range []struct {
-		name  string
-		value string
-	}{
-		{"PERSONAL_MEMORY_COLLECTION", "personal_memory_v1"},
-		{"PERSONAL_MEMORY_TOP_K", "5"},
-		{"PERSONAL_MEMORY_MAX_CHARS", "1200"},
-		{"PERSONAL_MEMORY_SCORE_THRESHOLD", "0"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Setenv(tc.name, tc.value)
-			if _, err := LoadFromEnv(); err == nil {
-				t.Fatalf("expected retired personal memory env %s to be rejected", tc.name)
-			} else if !strings.Contains(err.Error(), "is retired") {
-				t.Fatalf("error = %q, want retired env diagnostic", err.Error())
-			}
-		})
-	}
-}
+func TestOTelUsesStandardEnvironmentAndRemainsOptional(t *testing.T) {
+	t.Setenv("DEPLOYMENT_ENVIRONMENT", "local")
+	t.Setenv("DEPLOYMENT_RELEASE", "execution-runtime@0123456789ab")
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "")
 
-func TestLoadFromEnvRejectsRetiredPredecessorMemoryEnv(t *testing.T) {
-	for _, tc := range []struct {
-		name  string
-		value string
-	}{
-		{"ZEP_BASE_URL", "https://api.getzep.com"},
-		{"ZEP_API_KEY", "zep-key"},
-		{"ZEP_PROJECT_SALT", "salt"},
-		{"ZEP_TIMEOUT_SECONDS", "10"},
-		{"ZEP_RECALL_MAX_CHARS", "2500"},
-		{"ZEP_ASSISTANT_NAME", "校园助理"},
-		{"ZEP_USER_NAME", "学生"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Setenv(tc.name, tc.value)
-			if _, err := LoadFromEnv(); err == nil {
-				t.Fatalf("expected retired Hindsight-retired env %s to be rejected", tc.name)
-			} else if !strings.Contains(err.Error(), "is retired") {
-				t.Fatalf("error = %q, want retired env diagnostic", err.Error())
-			}
-		})
-	}
-}
-
-func TestLoadFromEnvReadsRunProjectionDatabaseSettingsExplicitly(t *testing.T) {
-	t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", "postgres://runtime.example/campus_agent")
-	t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE", "true")
-	t.Setenv("CAMPUS_SHARED_POSTGRES_URL", "postgres://shared.example/campus_agent")
-
-	cfg, err := LoadFromEnv()
+	withoutExporter, err := LoadWorkflowWorkerFromEnv()
 	if err != nil {
-		t.Fatalf("LoadFromEnv returned error: %v", err)
+		t.Fatalf("load without exporter: %v", err)
 	}
-	if cfg.RunProjectionDatabaseURL != "postgresql://runtime.example/campus_agent" {
-		t.Fatalf("run projection database url = %q", cfg.RunProjectionDatabaseURL)
+	if withoutExporter.OTelEnabled || withoutExporter.OTelMetricsEnabled {
+		t.Fatalf("telemetry must be disabled without an exporter: %#v", withoutExporter)
 	}
-	if !cfg.RunProjectionAutoMigrate {
-		t.Fatal("run projection auto migrate = false, want true")
-	}
-}
 
-func TestLoadFromEnvDoesNotInferRunProjectionDatabaseURLFromSharedPostgres(t *testing.T) {
-	t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", "")
-	t.Setenv("CAMPUS_SHARED_POSTGRES_URL", "postgres://shared.example/campus_agent")
-
-	cfg, err := LoadFromEnv()
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://otel-collector:4318")
+	t.Setenv("OTEL_SERVICE_NAME", "execution-workflow")
+	withExporter, err := LoadWorkflowWorkerFromEnv()
 	if err != nil {
-		t.Fatalf("LoadFromEnv returned error: %v", err)
+		t.Fatalf("load with exporter: %v", err)
 	}
-	if cfg.RunProjectionDatabaseURL != "" {
-		t.Fatalf(
-			"run projection database url = %q, want explicit setting only",
-			cfg.RunProjectionDatabaseURL,
-		)
+	if !withExporter.OTelEnabled || !withExporter.OTelMetricsEnabled || !withExporter.TemporalTracingEnabled {
+		t.Fatalf("standard OTel endpoint was not enabled: %#v", withExporter)
 	}
-}
-
-func TestLoadFromEnvRejectsRetiredDurableRuntimeDatabaseSettings(t *testing.T) {
-	t.Setenv("EXECUTION_CONTROL_DURABLE_RUNTIME_DATABASE_URL", "postgres://runtime.example/campus_agent")
-
-	if _, err := LoadFromEnv(); err == nil {
-		t.Fatal("expected retired run projection database env to fail")
+	if withExporter.OTelServiceName != "execution-workflow" || withExporter.DeploymentRelease != "execution-runtime@0123456789ab" {
+		t.Fatalf("standard telemetry identity was not loaded: %#v", withExporter)
 	}
-}
+	if withExporter.OTelEndpoint != "http://otel-collector:4318/v1/traces" ||
+		withExporter.OTelMetricsEndpoint != "http://otel-collector:4318/v1/metrics" {
+		t.Fatalf("common OTLP endpoint did not receive signal paths: %#v", withExporter)
+	}
 
-func TestLoadFromEnvRejectsRetiredDurableWorkerLoopSettings(t *testing.T) {
-	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_ENABLED", "true")
-	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_WORKER_ID", "worker-staging-legacy-001")
-	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_LANE", "legacy")
-	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_STEP_ID", "legacy-step")
-	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS", "250")
-	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_LEASE_TTL_MS", "30000")
-	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS", "5000")
-
-	if _, err := LoadFromEnv(); err == nil {
-		t.Fatal("expected retired durable worker loop env to fail")
+	t.Setenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "https://otel.example.test/custom-traces")
+	t.Setenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "https://otel.example.test/custom-metrics")
+	withSignalEndpoints, err := LoadWorkflowWorkerFromEnv()
+	if err != nil {
+		t.Fatalf("load with signal endpoints: %v", err)
+	}
+	if withSignalEndpoints.OTelEndpoint != "https://otel.example.test/custom-traces" ||
+		withSignalEndpoints.OTelMetricsEndpoint != "https://otel.example.test/custom-metrics" {
+		t.Fatalf("signal-specific OTLP endpoints must remain unchanged: %#v", withSignalEndpoints)
 	}
 }
 
-func TestLoadFromEnvRejectsRetiredDurableRecoveryLoopSettings(t *testing.T) {
-	t.Setenv("EXECUTION_CONTROL_DURABLE_RECOVERY_LOOP_ENABLED", "true")
-	t.Setenv("EXECUTION_CONTROL_DURABLE_RECOVERY_LOOP_INTERVAL_MS", "250")
-	t.Setenv("EXECUTION_CONTROL_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS", "2")
-
-	if _, err := LoadFromEnv(); err == nil {
-		t.Fatal("expected retired durable recovery loop env to fail")
-	}
-}
-
-func TestLoadFromEnvRejectsAnyRetiredDurableLoopSetting(t *testing.T) {
-	for _, tc := range []struct {
-		name  string
-		value string
-	}{
-		{"EXECUTION_CONTROL_DURABLE_WORKER_LOOP_WORKER_ID", "worker-staging-legacy-001"},
-		{"EXECUTION_CONTROL_DURABLE_WORKER_LOOP_LANE", "legacy"},
-		{"EXECUTION_CONTROL_DURABLE_WORKER_LOOP_STEP_ID", "legacy-step"},
-		{"EXECUTION_CONTROL_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS", "250"},
-		{"EXECUTION_CONTROL_DURABLE_WORKER_LOOP_LEASE_TTL_MS", "30000"},
-		{"EXECUTION_CONTROL_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS", "5000"},
-		{"EXECUTION_CONTROL_DURABLE_RECOVERY_LOOP_INTERVAL_MS", "250"},
-		{"EXECUTION_CONTROL_DURABLE_RECOVERY_LOOP_MAX_RETRY_ATTEMPTS", "2"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Setenv(tc.name, tc.value)
-			if _, err := LoadFromEnv(); err == nil {
-				t.Fatalf("expected %s to be rejected", tc.name)
-			}
-		})
-	}
-}
-
-func TestLoadFromEnvReportsRetiredDurableLoopBeforeParsingOldValues(t *testing.T) {
-	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS", "old-value")
-
-	_, err := LoadFromEnv()
-	if err == nil {
-		t.Fatal("expected retired durable worker loop env to fail")
-	}
-	if !strings.Contains(err.Error(), "is retired") {
-		t.Fatalf("error = %q, want retired env error", err.Error())
-	}
-}
-
-func TestFromEnvRejectsNonLocalRuntimeModeWithoutOpsWebInternalToken(t *testing.T) {
-	t.Setenv("EXECUTION_CONTROL_RUNTIME_MODE", "staging")
-	t.Setenv("OPS_WEB_INTERNAL_TOKEN", "")
-
-	if _, err := LoadFromEnv(); err == nil {
-		t.Fatal("expected staging runtime config without ops web internal token to fail")
-	}
-}
-
-func TestLoadFromEnvForRoleDoesNotRequireOpsWebInternalToken(t *testing.T) {
-	t.Setenv("EXECUTION_CONTROL_RUNTIME_MODE", "staging")
-	t.Setenv("OPS_WEB_INTERNAL_TOKEN", "")
-	t.Setenv("EXECUTION_CONTROL_RUNTIME_RELEASE", "execution-control@worker-test")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "staging:workflow-worker:001")
-	setStagingTemporalWorkflowIDSalt(t)
-
-	if _, err := LoadFromEnvForRole("workflow"); err != nil {
-		t.Fatalf("workflow worker must not require ops web internal token: %v", err)
-	}
-}
-
-func TestFromEnvAcceptsStagingRuntimeModeWithOpsWebInternalToken(t *testing.T) {
-	t.Setenv("EXECUTION_CONTROL_RUNTIME_MODE", "staging")
-	t.Setenv("OPS_WEB_INTERNAL_TOKEN", "ops-web-token")
-	t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", "postgres://runtime.example/campus_agent")
-	t.Setenv("EXECUTION_CONTROL_RUNTIME_RELEASE", "execution-control@staging-test")
+func setTemporalEnv(t *testing.T, identity string) {
+	t.Helper()
 	t.Setenv("DEPLOYMENT_ENVIRONMENT", "staging")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "staging:gateway:001")
-	setStagingTemporalWorkflowIDSalt(t)
-	setStagingPersonalMemoryEnv(t)
-
-	cfg, err := LoadFromEnv()
-	if err != nil {
-		t.Fatalf("LoadFromEnv returned error: %v", err)
-	}
-	if cfg.RuntimeMode != "staging" {
-		t.Fatalf("runtime mode = %q, want staging", cfg.RuntimeMode)
-	}
-	if cfg.RuntimeRelease != "execution-control@staging-test" {
-		t.Fatalf("runtime release = %q, want execution-control@staging-test", cfg.RuntimeRelease)
-	}
-	if cfg.DeploymentEnvironment != "staging" {
-		t.Fatalf("deployment environment = %q, want staging", cfg.DeploymentEnvironment)
-	}
-}
-
-func TestLoadFromEnvRejectsInvalidPositiveIntegers(t *testing.T) {
-	t.Setenv("EXECUTION_CONTROL_QUEUE_CAPACITY", "not-a-number")
-
-	_, err := LoadFromEnv()
-	if err == nil {
-		t.Fatal("expected LoadFromEnv to reject invalid queue capacity")
-	} else if !strings.Contains(err.Error(), "EXECUTION_CONTROL_QUEUE_CAPACITY is retired") {
-		t.Fatalf("error = %q, want retired queue capacity error", err.Error())
-	}
-}
-
-func TestLoadFromEnvFallsBackForBlankDefaultedStrings(t *testing.T) {
-	t.Setenv("API_AUTH_MODE", "   ")
-
-	cfg, err := LoadFromEnv()
-	if err != nil {
-		t.Fatalf("LoadFromEnv returned error: %v", err)
-	}
-	if cfg.AuthMode != "bearer" {
-		t.Fatalf("auth mode = %q, want bearer", cfg.AuthMode)
-	}
-}
-
-func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
-	setRuntimeConfig(t, `{
-  "schema_version": "campus_execution_control_runtime_config.v1",
-  "max_concurrent_answers": 4,
-  "queue_capacity": 12,
-  "queue_timeout_ms": 2500,
-  "request_timeout_ms": 30000,
-  "shutdown_grace_ms": 20000,
-  "otel": {
-    "enabled": true,
-    "endpoint": "http://collector:4318/v1/traces",
-    "service_name": "custom-execution-control",
-    "export_timeout_ms": 750,
-    "export_interval_ms": 15000,
-    "metrics_enabled": true,
-    "metrics_endpoint": "http://collector:4318/v1/metrics",
-    "sample_ratio": 0.25,
-    "allowed_attributes_version": "custom-attrs-v1",
-    "temporal_tracing_enabled": true
-	}
-}`)
-	t.Setenv("EXECUTION_CONTROL_RUNTIME_RELEASE", "execution-control@hardening-test")
-	t.Setenv("OPS_WEB_INTERNAL_TOKEN", "ops-web-token")
-
-	cfg, err := LoadFromEnv()
-	if err != nil {
-		t.Fatalf("LoadFromEnv returned error: %v", err)
-	}
-
-	if cfg.MaxConcurrentAnswers != 4 ||
-		cfg.QueueCapacity != 12 ||
-		cfg.QueueTimeoutMS != 2500 ||
-		cfg.RequestTimeoutMS != 30000 ||
-		cfg.ShutdownGraceMS != 20000 ||
-		cfg.OpsWebInternalToken != "ops-web-token" ||
-		!cfg.OTelEnabled ||
-		cfg.OTelEndpoint != "http://collector:4318/v1/traces" ||
-		cfg.OTelServiceName != "custom-execution-control" ||
-		cfg.OTelExportTimeoutMS != 750 ||
-		cfg.OTelExportIntervalMS != 15000 ||
-		!cfg.OTelMetricsEnabled ||
-		cfg.OTelMetricsEndpoint != "http://collector:4318/v1/metrics" ||
-		!cfg.TemporalTracingEnabled ||
-		cfg.OTelSampleRatio != 0.25 ||
-		cfg.OTelAllowedAttributesVersion != "custom-attrs-v1" {
-		t.Fatalf("unexpected config: %#v", cfg)
-	}
-}
-
-func TestLoadFromEnvRejectsRetiredPromptRuntimeSettings(t *testing.T) {
-	for _, envVar := range []string{
-		"PROMPT_RUNTIME_PROVIDER",
-		"PROMPT_RUNTIME_MODEL",
-		"PROMPT_RUNTIME_API_KEY",
-		"PROMPT_RUNTIME_TRANSPORT",
-		"PROMPT_RUNTIME_BASE_URL",
-		"PROMPT_RUNTIME_REASONING_EFFORT",
-		"PROMPT_RUNTIME_MAX_OUTPUT_TOKENS",
-		"PROMPT_RUNTIME_CONNECT_TIMEOUT_SECONDS",
-		"PROMPT_RUNTIME_READ_TIMEOUT_SECONDS",
-		"PROMPT_RUNTIME_WRITE_TIMEOUT_SECONDS",
-		"PROMPT_RUNTIME_POOL_TIMEOUT_SECONDS",
-		"PROMPT_RUNTIME_MAX_CONNECTIONS",
-		"PROMPT_RUNTIME_MAX_KEEPALIVE_CONNECTIONS",
-		"PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS",
-		"PROMPT_STRICT_STRUCTURED_OUTPUTS",
-		"EXECUTION_PROMPT_MODEL",
-	} {
-		t.Run(envVar, func(t *testing.T) {
-			t.Setenv(envVar, "retired")
-
-			_, err := LoadFromEnv()
-			if err == nil {
-				t.Fatal("LoadFromEnv returned nil error")
-			}
-			if !strings.Contains(err.Error(), envVar+" is retired") {
-				t.Fatalf("error = %q, want retired %s", err, envVar)
-			}
-		})
-	}
-}
-
-func TestLoadFromEnvRejectsRetiredSupervisorPromptModel(t *testing.T) {
-	t.Setenv("SUPERVISOR_PROMPT_MODEL", "gpt-supervisor")
-
-	if _, err := LoadFromEnv(); err == nil {
-		t.Fatal("expected retired execution prompt model env to fail")
-	} else if !strings.Contains(err.Error(), "SUPERVISOR_PROMPT_MODEL is retired") {
-		t.Fatalf("error = %q, want retired execution prompt model error", err.Error())
-	}
-}
-
-func TestLoadFromEnvRejectsRetiredPythonBridgeSettings(t *testing.T) {
-	for _, tc := range []struct {
-		name  string
-		value string
-	}{
-		{"SUPERVISOR_AGENT_WORKER_BASE_URL", "http://127.0.0.1:27052"},
-		{"SUPERVISOR_AGENT_WORKER_SHARED_SECRET", "bridge-secret"},
-		{"SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES", "2048"},
-		{"SUPERVISOR_AGENT_WORKER_TIMEOUT_MS", "25000"},
-		{"SUPERVISOR_AGENT_WORKER_CANCEL_TIMEOUT_MS", "500"},
-		{"EXECUTION_CONTROL_BRIDGE_BREAKER_FAILURE_THRESHOLD", "3"},
-		{"EXECUTION_CONTROL_BRIDGE_BREAKER_OPEN_MS", "7500"},
-		{"EXECUTION_CONTROL_BRIDGE_RETRY_MAX_ATTEMPTS", "4"},
-		{"EXECUTION_CONTROL_BRIDGE_RETRY_BASE_MS", "15"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Setenv(tc.name, tc.value)
-			if _, err := LoadFromEnv(); err == nil {
-				t.Fatalf("expected retired Python handoff setting %s to fail", tc.name)
-			}
-		})
-	}
-}
-
-func TestLoadFromEnvIgnoresLegacyLLMAliases(t *testing.T) {
-	t.Setenv("LLM_API_KEY", "legacy-key")
-	t.Setenv("LLM_BASE_URL", "https://legacy.example/v1")
-
-	cfg, err := LoadFromEnv()
-	if err != nil {
-		t.Fatalf("LoadFromEnv returned error: %v", err)
-	}
-
-	if cfg.ProviderConfigReaderDatabaseURL != "" || cfg.ProviderConfigAdminDatabaseURL != "" || cfg.ProviderConfigKeyringPath != "" {
-		t.Fatalf("provider-config resolver env was inferred from LLM_*: %#v", cfg)
-	}
-}
-
-func TestLoadFromEnvDoesNotTreatAgentRuntimeProviderAsProviderConfigResolver(t *testing.T) {
-	t.Setenv("AGENT_RUNTIME_PROVIDER", "agent-os")
-
-	cfg, err := LoadFromEnv()
-	if err != nil {
-		t.Fatalf("LoadFromEnv returned error: %v", err)
-	}
-
-	if cfg.ProviderConfigReaderDatabaseURL != "" || cfg.ProviderConfigAdminDatabaseURL != "" || cfg.ProviderConfigKeyringPath != "" {
-		t.Fatalf("provider-config resolver env was inferred from agent runtime provider: %#v", cfg)
-	}
-}
-
-func TestLoadFromEnvRejectsRetiredGroupQueueAndInvalidOTelSettings(t *testing.T) {
-	t.Setenv("EXECUTION_CONTROL_LANE_LEGACY_QUEUE_CAPACITY", "-1")
-
-	_, err := LoadFromEnv()
-	if err == nil {
-		t.Fatal("expected retired group queue env to fail")
-	}
-
-	t.Setenv("EXECUTION_CONTROL_LANE_LEGACY_QUEUE_CAPACITY", "")
-	t.Setenv("EXECUTION_CONTROL_OTEL_ENABLED", "maybe")
-	_, err = LoadFromEnv()
-	if err == nil {
-		t.Fatal("expected invalid otel bool to fail")
-	}
-
-	t.Setenv("EXECUTION_CONTROL_OTEL_ENABLED", "")
-	t.Setenv("EXECUTION_CONTROL_OTEL_SAMPLE_RATIO", "1.5")
-	_, err = LoadFromEnv()
-	if err == nil {
-		t.Fatal("expected invalid otel sample ratio to fail")
-	}
-
-	t.Setenv("EXECUTION_CONTROL_OTEL_SAMPLE_RATIO", "")
-	t.Setenv("EXECUTION_CONTROL_OTEL_METRICS_ENABLED", "true")
-	t.Setenv("EXECUTION_CONTROL_OTEL_EXPORT_INTERVAL_MS", "0")
-	_, err = LoadFromEnv()
-	if err == nil {
-		t.Fatal("expected invalid otel export interval to fail")
-	}
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", identity)
 }

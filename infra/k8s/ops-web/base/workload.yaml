@@ -76,6 +76,7 @@ spec:
                 secretKeyRef:
                   name: ops-web-dining-database-secrets
                   key: OPS_WEB_DINING_DATABASE_URL
+                  optional: true
             - name: OPS_WEB_DINING_DATABASE_CA_CERT_PATH
               value: /etc/campus-agent/postgres/ca.crt
             - name: OPS_WEB_DINING_DATABASE_SSLMODE
@@ -89,6 +90,7 @@ spec:
                 secretKeyRef:
                   name: ops-web-internal-secrets
                   key: OPS_WEB_INTERNAL_TOKEN
+                  optional: true
             - name: OPS_WEB_INGESTION_CONTROL_URL
               value: http://ingestion-control:8000
             - name: ACCESS_TEAM_DOMAIN
@@ -106,11 +108,13 @@ spec:
                 secretKeyRef:
                   name: observability-runtime-secrets
                   key: AXIOM_RUNTIME_TOKEN
+                  optional: true
             - name: SENTRY_AUTH_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: observability-runtime-secrets
                   key: SENTRY_AUTH_TOKEN
+                  optional: true
           volumeMounts:
             - name: kubernetes-api-access
               mountPath: /var/run/secrets/kubernetes.io/serviceaccount

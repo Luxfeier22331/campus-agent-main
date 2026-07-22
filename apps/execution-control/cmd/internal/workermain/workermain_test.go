@@ -2,8 +2,6 @@ package workermain
 
 import (
 	"context"
-	"path/filepath"
-	"runtime"
 	"testing"
 	"time"
 
@@ -142,34 +140,4 @@ func mustTracingInterceptors(t *testing.T) temporalruntime.TracingInterceptors {
 		t.Fatalf("NewTracingInterceptors returned error: %v", err)
 	}
 	return interceptors
-}
-func setWorkerRuntimeEnv(t *testing.T) {
-	t.Helper()
-	t.Setenv("DEPLOYMENT_ENVIRONMENT", "staging")
-	t.Setenv("EXECUTION_CONTROL_RUNTIME_MODE", "staging")
-	t.Setenv("EXECUTION_CONTROL_RUNTIME_RELEASE", "execution-control@test")
-	t.Setenv("OPS_WEB_INTERNAL_TOKEN", "ops-web-secret")
-	t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", "postgres://runtime.example/campus_agent")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT", "workflow-salt")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "staging:activity-agent:001")
-	t.Setenv("EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL", "http://agent-runtime:8090")
-	t.Setenv("EXECUTION_AGENT_RUNTIME_SHARED_SECRET", "agent-runtime-secret")
-	t.Setenv("PERSONAL_MEMORY_BASE_URL", "http://hindsight-api:8888")
-	t.Setenv("PERSONAL_MEMORY_API_SECRET", "hindsight-secret")
-	t.Setenv("PERSONAL_MEMORY_OWNER_SALT", "memory-salt")
-	t.Setenv(
-		"EXECUTION_CONTROL_RUNTIME_CONFIG_PATH",
-		filepath.Join(repoRoot(t), "configs/runtime/execution-control/runtime-config.staging.json"),
-	)
-}
-
-func repoRoot(t *testing.T) string {
-	t.Helper()
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("resolve test file path")
-	}
-	return filepath.Clean(filepath.Join(filepath.Dir(file), "../../../../.."))
 }

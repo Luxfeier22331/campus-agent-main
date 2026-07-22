@@ -154,11 +154,34 @@ test("supports a bounded failed release replay", () => {
 });
 
 test("retains selected Worker release validation", () => {
-	assert.match(releaseSource, /worker-staging-app-api/u);
-	assert.match(releaseSource, /worker-staging-campus-web/u);
+	const releaseConfig = releaseWorkflow.jobs["release-config"];
+	assert.equal(releaseConfig.if, "fromJSON(needs.release-plan.outputs.workers)[0] != null");
+	const credentialCheck = releaseConfig.steps.find(
+		(step) => step.name === "Validate Cloudflare staging credentials",
+	);
+	assert.match(credentialCheck.run, /index\("app-api"\)/u);
+	assert.match(credentialCheck.run, /index\("campus-web"\)/u);
+	assert.match(credentialCheck.run, /run-wrangler-command\.ts[\s\S]*whoami/u);
+
+	const publishWorkers = releaseWorkflow.jobs["publish-workers"];
+	const appApiUpload = publishWorkers.steps.find(
+		(step) => step.name === "Upload app-api candidate",
+	);
+	const campusWebUpload = publishWorkers.steps.find(
+		(step) => step.name === "Build and upload campus-web candidate",
+	);
+	assert.equal(
+		appApiUpload.if,
+		"contains(fromJSON(needs.release-plan.outputs.workers), 'app-api')",
+	);
+	assert.equal(
+		campusWebUpload.if,
+		"contains(fromJSON(needs.release-plan.outputs.workers), 'campus-web')",
+	);
 	assert.match(releaseSource, /worker-versions\.json/u);
 	assert.match(releaseSource, /worker-version\.ts/u);
 	assert.match(releaseSource, /read-variable apps\/campus-web campus-web-staging/u);
+	assert.doesNotMatch(releaseSource, /worker-staging-app-api|worker-staging-campus-web/u);
 	assert.doesNotMatch(releaseSource, /docs-reader-release\.json/u);
 });
 

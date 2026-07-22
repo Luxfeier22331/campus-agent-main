@@ -30,7 +30,7 @@ func TestProjectTemporalStepEmitsLangfuseObservationTelemetry(t *testing.T) {
 		OTelExportTimeoutMS:          500,
 		OTelSampleRatio:              1,
 		RAGTopKMax:                   8,
-		RuntimeRelease:               "execution-control@langfuse-test",
+		DeploymentRelease:            "execution-control@langfuse-test",
 	})
 	shutdown := false
 	t.Cleanup(func() {

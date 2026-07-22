@@ -343,7 +343,6 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 				);
 			}
 			await store.verifyReadiness();
-			await diningStore.verifyReadiness();
 			return context.json({ ok: true, service: "ops-web" });
 		} catch (error) {
 			const reasonCode = classifyReadinessError(error);

@@ -13,16 +13,16 @@ test_secret_config_owned_key_is_rejected if {
 	violations := violation with input as {
 		"kind": "Secret",
 		"metadata": {"name": "unsafe-secret"},
-		"stringData": {"EXECUTION_CONTROL_RUNTIME_MODE": "staging"},
+		"stringData": {"DEPLOYMENT_ENVIRONMENT": "staging"},
 	}
-	"Secret unsafe-secret contains config-owned key EXECUTION_CONTROL_RUNTIME_MODE" in violations
+	"Secret unsafe-secret contains config-owned key DEPLOYMENT_ENVIRONMENT" in violations
 }
 
 test_safe_configmap_is_allowed if {
 	violations := violation with input as {
 		"kind": "ConfigMap",
 		"metadata": {"name": "safe-config"},
-		"data": {"EXECUTION_CONTROL_RUNTIME_MODE": "staging"},
+		"data": {"DEPLOYMENT_ENVIRONMENT": "staging"},
 	}
 	count(violations) == 0
 }

@@ -47,7 +47,8 @@ func (s *Server) readinessAuthorized(request *http.Request) bool {
 }
 
 func (s *Server) localRuntimeMode() bool {
-	return strings.TrimSpace(s.config.RuntimeMode) == "" || strings.TrimSpace(s.config.RuntimeMode) == "local"
+	environment := strings.ToLower(strings.TrimSpace(s.config.DeploymentEnvironment))
+	return environment == "" || environment == "local" || environment == "development" || environment == "test"
 }
 
 func extractBearerToken(headerValue string) string {

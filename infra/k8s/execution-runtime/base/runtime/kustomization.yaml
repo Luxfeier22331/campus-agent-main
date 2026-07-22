@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - service-account.yaml
+  - database-config.yaml
+  - database-roles.yaml
+  - network-policy.yaml
+  - app-api-schema-job.yaml
+  - campus-services-schema-job.yaml
+  - run-projection-schema-job.yaml
+  - cloudflared-execution-control.yaml
+  - availability.yaml
+  - agent-runtime.yaml
+  - execution-control.yaml
+  - temporal-connection.yaml
+  - workers.yaml
+  - worker-resources.yaml

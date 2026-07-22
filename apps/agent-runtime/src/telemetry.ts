@@ -44,7 +44,7 @@ export function startAgentRuntimeTelemetry(
 		environment: env.LANGFUSE_TRACING_ENVIRONMENT ?? env.DEPLOYMENT_ENVIRONMENT,
 		exporter,
 		mediaUploadEnabled: false,
-		release: env.LANGFUSE_RELEASE ?? env.DEPLOYMENT_RELEASE,
+		release: env.DEPLOYMENT_RELEASE,
 		shouldExportSpan: ({ otelSpan }) => isAgentLangfuseSpan(otelSpan),
 	});
 	const provider = new NodeTracerProvider({

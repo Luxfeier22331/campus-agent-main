@@ -157,6 +157,10 @@ kubectl kustomize infra/k8s/ingestion-runtime/base >/tmp/ingestion-runtime.yaml
 kubeconform -strict -ignore-missing-schemas /tmp/ingestion-runtime.yaml
 ```
 
+完整 `base` 聚合常驻运行时和 schedule 同步。环境仓分别消费
+`infra/k8s/ingestion-runtime/base/runtime` 与 `infra/k8s/ingestion-runtime/base/schedule`，使
+schedule API 的短暂失败不会把常驻 API 和 worker 标记为同一发布失败。
+
 环境 overlay 必须提供：
 
 - `ingestion-runtime-rendered-config`；
@@ -165,7 +169,8 @@ kubeconform -strict -ignore-missing-schemas /tmp/ingestion-runtime.yaml
 - 含不同来源与派生身份的 `object-store-secrets`；
 - 启用内部门户时预创建的 `source-collector-internal-portal-auth`；
 - 不可变 ingestion-control、worker 和 source-collector 镜像摘要；
-- Temporal Connection、KEDA 补丁和 migration-before-runtime 同步顺序。
+- Temporal Connection、KEDA 补丁和 migration-before-runtime 同步顺序；
+- schedule 同步单元复用运行时拥有的 ServiceAccount 和 ConfigMap，但由独立 Application 执行。
 
 Secret 按凭据所有者和变更边界组织，不按 Pod 重复创建。workload 使用显式
 `secretKeyRef`，不能用 Secret 级 `envFrom` 扩大权限。ingestion-control worker 可以获得

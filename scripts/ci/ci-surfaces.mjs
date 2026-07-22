@@ -44,7 +44,6 @@ export const IMAGE_DEFINITIONS = Object.freeze({
 		dockerfile: "jobs/dining-sync/Dockerfile",
 		packages: ["@campus-agent/dining", "dining-sync"],
 		inputs: [
-			"jobs/dining-sync/Dockerfile",
 			"jobs/dining-sync/migrations/**",
 			"jobs/dining-sync/package.json",
 			"jobs/dining-sync/src/**",
@@ -61,7 +60,6 @@ export const IMAGE_DEFINITIONS = Object.freeze({
 			"apps/execution-control/go.mod",
 			"apps/execution-control/go.sum",
 			"configs/ingestion/**",
-			"configs/runtime/execution-control/**",
 			"configs/runtime/query-serving-targets.v1.json",
 			"configs/runtime/tool-function-schemas.v2.json",
 			"configs/runtime/tools.v5.json",
@@ -127,7 +125,6 @@ export const IMAGE_DEFINITIONS = Object.freeze({
 		dockerfile: "apps/ops-web/Dockerfile",
 		packages: ["ops-web"],
 		inputs: [
-			"apps/ops-web/Dockerfile",
 			"apps/ops-web/browser.config.ts",
 			"apps/ops-web/index.html",
 			"apps/ops-web/ops/**",

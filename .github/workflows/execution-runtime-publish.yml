@@ -204,10 +204,6 @@ jobs:
             ../../scripts/deploy/run-wrangler-command.ts \
             whoami --account "$CLOUDFLARE_ACCOUNT_ID" --json
 
-      - name: Validate app-api staging configuration
-        if: contains(fromJSON(needs.release-plan.outputs.workers), 'app-api')
-        run: pnpm exec tsx scripts/deploy/doctor-env.ts worker-staging-app-api --json
-
       - name: Create GitOps read token
         if: contains(fromJSON(needs.release-plan.outputs.workers), 'campus-web') && (inputs.docs_release_id || '') == ''
         id: gitops-read-token
@@ -265,10 +261,6 @@ jobs:
           OBJECT_STORE_ENDPOINT="$endpoint" \
             pnpm --dir apps/campus-web exec tsx \
               ./scripts/verify-published-reader-release.ts "$DOCS_RELEASE_ID"
-
-      - name: Validate campus-web staging configuration
-        if: contains(fromJSON(needs.release-plan.outputs.workers), 'campus-web')
-        run: pnpm exec tsx scripts/deploy/doctor-env.ts worker-staging-campus-web --json
 
   publish-images:
     needs: release-plan

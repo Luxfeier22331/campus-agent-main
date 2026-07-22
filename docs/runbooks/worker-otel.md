@@ -20,11 +20,12 @@ version/traffic、Sentry DSN 和 CI source map credential 由环境仓与受保�
 ## 部署前检查
 
 ```bash
-pnpm exec tsx scripts/deploy/doctor-env.ts worker-observability-local --json
 pnpm ci:worker
 ```
 
-另外确认 staging build 强制 source map upload。源码 `wrangler.toml` 镜像 staging 的
+各 Worker 的 staging preflight 直接校验 Wrangler Secret 和所属构建配置；Sentry source map
+credential 只由实际执行上传的构建命令校验。另需确认 staging build 强制 source map upload。
+源码 `wrangler.toml` 镜像 staging 的
 application-log-only 契约，但发布使用 `wrangler versions upload`，不会应用非版本化的
 observability 设置；实际 destination、sampling、`persist=false`、`invocation_logs=false` 和
 `observability.traces.enabled=false` 由环境仓 `cloudflare_worker` 资源拥有。顶层配置、本地测试
