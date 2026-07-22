@@ -40,13 +40,3 @@ reason = "The remaining @hono/node-server 1.x instance is an optional dependency
 id = "GHSA-f88m-g3jw-g9cj"
 ignoreUntil = 2026-10-01
 reason = "Cloudflare Miniflare pins sharp 0.34.5 for local Worker tooling; it is not included in campus-agent runtime artifacts, and forcing an undeclared sharp minor into Miniflare is unsafe. Remove this exception when Cloudflare updates Miniflare."
-
-[[IgnoredVulns]]
-id = "GHSA-4c8g-83qw-93j6"
-ignoreUntil = 2026-08-15
-reason = "AJV resolves shared fast-uri 3.1.2 across multiple release owners; update that shared dependency in a dedicated release after validating every consumer rather than coupling the repository-wide artifact rebuild to the Dining migration fix."
-
-[[IgnoredVulns]]
-id = "GHSA-v2hh-gcrm-f6hx"
-ignoreUntil = 2026-08-15
-reason = "AJV resolves shared fast-uri 3.1.2 across multiple release owners; update that shared dependency in a dedicated release after validating every consumer rather than coupling the repository-wide artifact rebuild to the Dining migration fix."
