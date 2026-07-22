@@ -10,6 +10,8 @@ const databaseEnv = {
 	DEPLOYMENT_ENVIRONMENT: "local",
 	OPS_WEB_DATABASE_SSLMODE: "disable",
 	OPS_WEB_DATABASE_URL: postgres.opsWebConnectionString,
+	OPS_WEB_DINING_DATABASE_SSLMODE: "disable",
+	OPS_WEB_DINING_DATABASE_URL: postgres.opsWebDiningConnectionString,
 	OPS_WEB_SCHEMA_DATABASE_SSLMODE: "disable",
 	OPS_WEB_SCHEMA_DATABASE_URL: postgres.managementConnectionString,
 } as const;
@@ -31,10 +33,18 @@ async function postgresErrorCode(query: Promise<unknown>): Promise<string | unde
 	}
 }
 
+function requiredClient(client: Client | undefined, name: string): Client {
+	if (!client) {
+		throw new Error(`${name} test client is unavailable`);
+	}
+	return client;
+}
+
 describe("ops-web PostgreSQL grants", () => {
 	let applyResult: Awaited<ReturnType<typeof applyOpsWebDatabaseGrants>>;
 	let management: Client;
-	let opsWeb: Client;
+	let opsWeb: Client | undefined;
+	let opsWebDining: Client | undefined;
 	let verifyResult: Awaited<ReturnType<typeof verifyOpsWebDatabase>>;
 
 	beforeAll(async () => {
@@ -44,45 +54,71 @@ describe("ops-web PostgreSQL grants", () => {
 			grant select on execution_config.profiles to ops_web;
 			grant select (connection_id) on execution_config.connection_revisions to ops_web;
 		`);
+		await management.query(`
+			revoke all privileges on schema dining from ops_web_dining;
+			revoke all privileges on all tables in schema dining from ops_web_dining;
+		`);
 		applyResult = await applyOpsWebDatabaseGrants(databaseEnv);
 		verifyResult = await verifyOpsWebDatabase(databaseEnv);
 		opsWeb = await connect(postgres.opsWebConnectionString);
+		opsWebDining = await connect(postgres.opsWebDiningConnectionString);
 	});
 
 	afterAll(async () => {
-		await Promise.all([management.end(), opsWeb.end()]);
+		await Promise.all([management.end(), opsWeb?.end(), opsWebDining?.end()]);
 	});
 
 	it("applies and verifies the read-model grant contract", () => {
 		expect(applyResult).toEqual({
 			opsWebRole: "ready",
+			opsWebDiningRole: "ready",
 			readModel: "ready",
 		});
 		expect(verifyResult).toEqual({
 			opsWebRole: "ready",
+			opsWebDiningRole: "ready",
 			readModel: "ready",
 		});
 	});
 
-	it("allows only the declared read-model columns", async () => {
+	it("grants the dining role its bounded operational access", async () => {
+		const dining = requiredClient(opsWebDining, "ops_web_dining");
+		await expect(dining.query("select 1 from dining.publication limit 1")).resolves.toBeDefined();
 		await expect(
-			opsWeb.query(
+			dining.query("update dining.publication set updated_at = updated_at where false"),
+		).resolves.toBeDefined();
+		expect(
+			await postgresErrorCode(
+				dining.query("update dining.source_sync_runs set status = status where false"),
+			),
+		).toBe("42501");
+		expect(await postgresErrorCode(dining.query("create table dining.forbidden(id int)"))).toBe(
+			"42501",
+		);
+	});
+
+	it("allows only the declared read-model columns", async () => {
+		const runtime = requiredClient(opsWeb, "ops_web");
+		await expect(
+			runtime.query(
 				`select completed_at, conversation_id, created_at, error_code,
 					principal_snapshot_json, request_id, requested_tool, run_id, selected_tool,
 					status, trace_id, updated_at, user_message_id
 				 from chat.turn_dispatches limit 0`,
 			),
 		).resolves.toBeDefined();
-		await expect(opsWeb.query("select id, text from chat.messages limit 0")).resolves.toBeDefined();
 		await expect(
-			opsWeb.query(
+			runtime.query("select id, text from chat.messages limit 0"),
+		).resolves.toBeDefined();
+		await expect(
+			runtime.query(
 				`select completed_at, fail_close_reason, requested_tool, run_id, selected_tool,
 					status, terminal_reason, trace_id, updated_at
 				 from runtime.agent_runs limit 0`,
 			),
 		).resolves.toBeDefined();
 		await expect(
-			opsWeb.query(
+			runtime.query(
 				`select acl_anomaly_code, acl_decision, completed_at, duration_ms, fail_closed,
 					measured_at, model_name, model_provider, prompt_id, prompt_version,
 					projection_lag_ms, refusal_class, request_id, resolved_targets_json,
@@ -99,18 +135,19 @@ describe("ops-web PostgreSQL grants", () => {
 			"select * from runtime.agent_runs limit 0",
 			"select * from runtime.request_observability_fact limit 0",
 		]) {
-			expect(await postgresErrorCode(opsWeb.query(query))).toBe("42501");
+			expect(await postgresErrorCode(runtime.query(query))).toBe("42501");
 		}
 	});
 
 	it("rejects business-table writes", async () => {
+		const runtime = requiredClient(opsWeb, "ops_web");
 		for (const query of [
 			"update chat.turn_dispatches set status = status where false",
 			"delete from chat.messages where false",
 			"update runtime.agent_runs set status = status where false",
 			"delete from runtime.request_observability_fact where false",
 		]) {
-			expect(await postgresErrorCode(opsWeb.query(query))).toBe("42501");
+			expect(await postgresErrorCode(runtime.query(query))).toBe("42501");
 		}
 	});
 

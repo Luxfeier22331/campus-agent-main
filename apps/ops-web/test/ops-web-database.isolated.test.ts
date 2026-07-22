@@ -17,6 +17,7 @@ vi.mock("pg", () => ({ default: { Client: clientConstructor } }));
 const localTlsEnv = {
 	DEPLOYMENT_ENVIRONMENT: "local",
 	OPS_WEB_DATABASE_SSLMODE: "disable",
+	OPS_WEB_DINING_DATABASE_SSLMODE: "disable",
 	OPS_WEB_SCHEMA_DATABASE_SSLMODE: "disable",
 } as const;
 const noProviderConfigPrivileges = {
@@ -26,6 +27,7 @@ const noProviderConfigPrivileges = {
 	canExecuteFunctions: false,
 	canUseSchema: false,
 } as const;
+let currentUserQueryCount = 0;
 
 describe("ops-web database verification", () => {
 	beforeEach(() => {
@@ -33,10 +35,11 @@ describe("ops-web database verification", () => {
 		end.mockReset().mockResolvedValue(undefined);
 		query.mockReset();
 		clientConstructor.mockClear();
+		currentUserQueryCount = 0;
 		installSuccessfulQueries();
 	});
 
-	it("requires only schema-admin and runtime database URLs", async () => {
+	it("requires schema-admin, runtime, and dining database URLs", async () => {
 		const { verifyOpsWebDatabase } = await import("../ops/db/ops-web-database.ts");
 		await expect(verifyOpsWebDatabase({} as NodeJS.ProcessEnv)).rejects.toThrow(
 			"OPS_WEB_SCHEMA_DATABASE_URL is required",
@@ -47,16 +50,24 @@ describe("ops-web database verification", () => {
 				OPS_WEB_SCHEMA_DATABASE_URL: "postgresql://owner:secret@example.test/db",
 			} as NodeJS.ProcessEnv),
 		).rejects.toThrow("OPS_WEB_DATABASE_URL is required");
+		await expect(
+			verifyOpsWebDatabase({
+				...localTlsEnv,
+				OPS_WEB_SCHEMA_DATABASE_URL: "postgresql://owner:secret@example.test/db",
+				OPS_WEB_DATABASE_URL: "postgresql://ops_web:secret@example.test/db",
+			} as NodeJS.ProcessEnv),
+		).rejects.toThrow("OPS_WEB_DINING_DATABASE_URL is required");
 	});
 
 	it("verifies the ops_web role and read model without an audit role", async () => {
 		const { verifyOpsWebDatabase } = await import("../ops/db/ops-web-database.ts");
 		await expect(verifyOpsWebDatabase(validEnv())).resolves.toEqual({
 			opsWebRole: "ready",
+			opsWebDiningRole: "ready",
 			readModel: "ready",
 		});
-		expect(connect).toHaveBeenCalledTimes(2);
-		expect(end).toHaveBeenCalledTimes(2);
+		expect(connect).toHaveBeenCalledTimes(3);
+		expect(end).toHaveBeenCalledTimes(3);
 		const allQueries = query.mock.calls.map(([sql]) => String(sql)).join("\n");
 		expect(allQueries).toContain('from "chat"."turn_dispatches"');
 		expect(allQueries).toContain('from "runtime"."request_observability_fact"');
@@ -68,11 +79,13 @@ describe("ops-web database verification", () => {
 		const { applyOpsWebDatabaseGrants } = await import("../ops/db/ops-web-database.ts");
 		await expect(applyOpsWebDatabaseGrants(validEnv())).resolves.toEqual({
 			opsWebRole: "ready",
+			opsWebDiningRole: "ready",
 			readModel: "ready",
 		});
 		const allQueries = query.mock.calls.map(([sql]) => String(sql)).join("\n");
 		expect(allQueries).toContain('GRANT USAGE ON SCHEMA "chat", "runtime" TO "ops_web"');
-		expect(allQueries).not.toContain("GRANT INSERT");
+		expect(allQueries).toContain('GRANT USAGE ON SCHEMA "dining" TO "ops_web_dining"');
+		expect(allQueries).toContain("GRANT INSERT, UPDATE, DELETE ON");
 		expect(allQueries).not.toContain("ops_observability_read_audit");
 		expect(allQueries).not.toContain("ops_audit_maintenance");
 		expect(query).toHaveBeenCalledWith("commit");
@@ -94,18 +107,22 @@ describe("ops-web database verification", () => {
 		);
 	});
 
-	it("uses the two configured CA certificates", async () => {
+	it("uses the three configured CA certificates", async () => {
 		const directory = mkdtempSync(join(tmpdir(), "ops-web-db-command-tls-"));
 		const schemaCaPath = join(directory, "schema-ca.crt");
 		const runtimeCaPath = join(directory, "runtime-ca.crt");
+		const diningCaPath = join(directory, "dining-ca.crt");
 		writeFileSync(schemaCaPath, "schema-ca");
 		writeFileSync(runtimeCaPath, "runtime-ca");
+		writeFileSync(diningCaPath, "dining-ca");
 		const { verifyOpsWebDatabase } = await import("../ops/db/ops-web-database.ts");
 		await verifyOpsWebDatabase({
 			OPS_WEB_SCHEMA_DATABASE_CA_CERT_PATH: schemaCaPath,
 			OPS_WEB_SCHEMA_DATABASE_URL: "postgresql://owner:secret@example.test/db",
 			OPS_WEB_DATABASE_CA_CERT_PATH: runtimeCaPath,
 			OPS_WEB_DATABASE_URL: "postgresql://ops_web:secret@example.test/db",
+			OPS_WEB_DINING_DATABASE_CA_CERT_PATH: diningCaPath,
+			OPS_WEB_DINING_DATABASE_URL: "postgresql://ops_web_dining:secret@example.test/db",
 		} as NodeJS.ProcessEnv);
 		expect(clientConstructor).toHaveBeenNthCalledWith(1, {
 			connectionString: "postgresql://owner:secret@example.test/db",
@@ -115,6 +132,10 @@ describe("ops-web database verification", () => {
 			connectionString: "postgresql://ops_web:secret@example.test/db",
 			ssl: { ca: "runtime-ca", rejectUnauthorized: true },
 		});
+		expect(clientConstructor).toHaveBeenNthCalledWith(3, {
+			connectionString: "postgresql://ops_web_dining:secret@example.test/db",
+			ssl: { ca: "dining-ca", rejectUnauthorized: true },
+		});
 	});
 
 	it("rejects DSN TLS parameters and disabled staging TLS", async () => {
@@ -123,6 +144,13 @@ describe("ops-web database verification", () => {
 			verifyOpsWebDatabase({
 				...validEnv(),
 				OPS_WEB_DATABASE_URL: "postgresql://ops_web:secret@example.test/db?sslmode=require",
+			} as NodeJS.ProcessEnv),
+		).rejects.toThrow("must not include PostgreSQL TLS query parameters");
+		await expect(
+			verifyOpsWebDatabase({
+				...validEnv(),
+				OPS_WEB_DINING_DATABASE_URL:
+					"postgresql://ops_web_dining:secret@example.test/db?sslmode=require",
 			} as NodeJS.ProcessEnv),
 		).rejects.toThrow("must not include PostgreSQL TLS query parameters");
 		await expect(
@@ -139,6 +167,7 @@ function validEnv(): NodeJS.ProcessEnv {
 		...localTlsEnv,
 		OPS_WEB_SCHEMA_DATABASE_URL: "postgresql://owner:secret@example.test/db",
 		OPS_WEB_DATABASE_URL: "postgresql://ops_web:secret@example.test/db",
+		OPS_WEB_DINING_DATABASE_URL: "postgresql://ops_web_dining:secret@example.test/db",
 	};
 }
 
@@ -147,11 +176,18 @@ function installSuccessfulQueries() {
 		if (sql.includes("from pg_roles")) {
 			return { rowCount: 1, rows: [{ present: 1 }] };
 		}
+		if (sql.includes('current_user as "currentUser"')) {
+			currentUserQueryCount += 1;
+			return {
+				rowCount: 1,
+				rows: [{ currentUser: currentUserQueryCount % 2 === 1 ? "ops_web" : "ops_web_dining" }],
+			};
+		}
 		if (sql.includes("has_schema_privilege") && sql.includes("execution_config")) {
 			return { rowCount: 1, rows: [noProviderConfigPrivileges] };
 		}
-		if (sql.includes("current_user")) {
-			return { rowCount: 1, rows: [{ currentUser: "ops_web" }] };
+		if (sql.includes("has_schema_privilege") && sql.includes("'dining'")) {
+			return { rowCount: 1, rows: [{ canCreateSchema: false, canUseSchema: true }] };
 		}
 		return { rowCount: 0, rows: [] };
 	});
