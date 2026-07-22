@@ -11,19 +11,13 @@ spec:
   template:
     spec:
       serviceAccountName: dining-sync
+      automountServiceAccountToken: false
       restartPolicy: Never
       containers:
         - name: dining-migrate
           image: ghcr.io/muc-wiki/campus-agent/dining-sync:replace-me
           imagePullPolicy: IfNotPresent
-          command:
-            - pnpm
-            - --dir
-            - jobs/dining-sync
-            - exec
-            - tsx
-            - src/cli.ts
-            - migrate
+          args: ["migrate"]
           env:
             - name: DINING_MIGRATION_DATABASE_URL
               valueFrom:
@@ -35,5 +29,4 @@ spec:
               cpu: 25m
               memory: 64Mi
             limits:
-              cpu: 250m
               memory: 256Mi

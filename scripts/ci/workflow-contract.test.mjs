@@ -12,8 +12,6 @@ const healthSource = read(".github/workflows/health.yml");
 const healthWorkflow = parse(healthSource);
 const verifySource = read(".github/workflows/verify.yml");
 const verifyWorkflow = parse(verifySource);
-const diningSource = read(".github/workflows/dining-sync-image.yml");
-const diningWorkflow = parse(diningSource);
 const scorecardSource = read(".github/workflows/scorecard.yml");
 const scorecardWorkflow = parse(scorecardSource);
 const actionlintConfig = read(".github/actionlint.yaml");
@@ -153,10 +151,8 @@ test("retains selected Worker release validation", () => {
 });
 
 test("bounds auxiliary workflows", () => {
-	assert.equal(diningWorkflow.jobs.build["timeout-minutes"], 45);
 	assert.equal(scorecardWorkflow.jobs.analysis["timeout-minutes"], 15);
 	assert.equal(scorecardWorkflow.concurrency.group, "scorecard");
-	assert.equal(diningSource.match(/docker\/build-push-action@/gu)?.length, 1);
 });
 
 test("uses Turbo affected tasks instead of planner package cohorts", () => {

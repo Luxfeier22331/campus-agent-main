@@ -21,14 +21,7 @@ spec:
             - name: dining-sync
               image: ghcr.io/muc-wiki/campus-agent/dining-sync:replace-me
               imagePullPolicy: IfNotPresent
-              command:
-                - pnpm
-                - --dir
-                - jobs/dining-sync
-                - exec
-                - tsx
-                - src/cli.ts
-                - sync-all
+              args: ["sync-all"]
               envFrom:
                 - configMapRef:
                     name: dining-sync-config

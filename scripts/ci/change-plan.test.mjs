@@ -207,6 +207,19 @@ test("publishes ops-web when its packaged database operations change", () => {
 	assert.deepEqual(result.release.images, ["ops-web"]);
 });
 
+test("publishes dining-sync for migration and runtime changes", () => {
+	const migration = plan(["jobs/dining-sync/migrations/0001_dining.sql"], ["dining-sync"]);
+	const domain = plan(
+		["packages/domains/dining/src/schema.ts"],
+		["@campus-agent/dining", "dining-sync"],
+	);
+
+	assert.deepEqual(migration.verification.docker, ["dining-sync"]);
+	assert.deepEqual(migration.release.images, ["dining-sync"]);
+	assert.deepEqual(domain.verification.docker, ["dining-sync", "ops-web"]);
+	assert.deepEqual(domain.release.images, ["dining-sync", "ops-web"]);
+});
+
 test("keeps OTel documentation in the documentation lane", () => {
 	const result = plan(["infra/otel/README.md"]);
 

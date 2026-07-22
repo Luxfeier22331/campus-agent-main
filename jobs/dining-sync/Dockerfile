@@ -1,4 +1,5 @@
-FROM node:24-bookworm-slim AS build
+# syntax=docker/dockerfile:1
+FROM node:24.15-bookworm-slim AS build
 
 WORKDIR /app
 
@@ -6,21 +7,34 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY jobs/dining-sync/package.json ./jobs/dining-sync/package.json
 COPY packages/domains/dining/package.json ./packages/domains/dining/package.json
 
-RUN corepack enable pnpm \
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
+  --mount=type=cache,id=corepack,target=/root/.cache/node/corepack,sharing=locked \
+  corepack enable pnpm \
   && pnpm install --frozen-lockfile --filter dining-sync...
 
 COPY jobs/dining-sync ./jobs/dining-sync
 COPY packages/domains/dining ./packages/domains/dining
 
-RUN pnpm --filter dining-sync typecheck
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
+  pnpm --filter dining-sync typecheck \
+  && pnpm --filter dining-sync deploy --legacy --prod /opt/dining-sync \
+  && test -x /opt/dining-sync/node_modules/.bin/tsx \
+  && test -f /opt/dining-sync/migrations/0001_dining.sql
 
-FROM node:24-bookworm-slim AS runtime
+FROM node:24.15-bookworm-slim AS runtime
 
 WORKDIR /app
 ENV NODE_ENV=production
 
-COPY --from=build /app /app
+RUN apt-get update \
+  && apt-get upgrade -y \
+  && rm -rf /var/lib/apt/lists/* \
+  && rm -rf /usr/local/lib/node_modules/corepack /usr/local/lib/node_modules/npm \
+  && rm -f /usr/local/bin/corepack /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/pnpm /usr/local/bin/pnpx
+
+COPY --from=build --chown=node:node /opt/dining-sync /app/jobs/dining-sync
 
 USER node
 
-CMD ["pnpm", "--dir", "jobs/dining-sync", "exec", "tsx", "src/cli.ts", "sync-all"]
+ENTRYPOINT ["/app/jobs/dining-sync/node_modules/.bin/tsx", "/app/jobs/dining-sync/src/cli.ts"]
+CMD ["sync-all"]

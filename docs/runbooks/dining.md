@@ -26,8 +26,9 @@ pnpm --dir packages/domains/dining floorplans:check
 
 1. 对目标 commit 运行 floorplan check，确认 canonical layout、generated manifest 和 Campus Web
    静态 SVG 一致。
-2. 使用目标 dining-sync image 运行 Argo CD PreSync migration Job。
-3. migration Job 只从 `dining-migration-secrets` 注入 `DINING_MIGRATION_DATABASE_URL`。
+2. 从 `infra/k8s/dining-sync/migration` 使用目标 dining-sync image 运行 Argo CD PreSync
+   migration Job；定时同步由独立的 `infra/k8s/dining-sync/runtime` 清单拥有。
+3. migration Job 只使用环境拥有的 schema owner 连接，不向同步任务或应用下发该凭据。
 4. 确认 CronJob 使用 `dining_sync`，Ops Web 使用 `ops_web_dining`，app-api 使用只读
    `app_api` 角色。
 5. 部署包含同一 floorplan manifest 的 Campus Web 与 Ops Web 版本。

@@ -39,6 +39,19 @@ export const IMAGE_DEFINITIONS = Object.freeze({
 			"packages/contracts/schemas/**",
 		],
 	},
+	"dining-sync": {
+		checkTarget: "runtime",
+		dockerfile: "jobs/dining-sync/Dockerfile",
+		packages: ["@campus-agent/dining", "dining-sync"],
+		inputs: [
+			"jobs/dining-sync/Dockerfile",
+			"jobs/dining-sync/migrations/**",
+			"jobs/dining-sync/package.json",
+			"jobs/dining-sync/src/**",
+			"packages/domains/dining/package.json",
+			"packages/domains/dining/src/**",
+		],
+	},
 	"execution-control": {
 		checkTarget: "build",
 		dockerfile: "apps/execution-control/Dockerfile",
