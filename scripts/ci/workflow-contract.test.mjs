@@ -22,6 +22,7 @@ const checkStaticAffected = read("scripts/ci/check-static-affected.sh");
 const publishImages = read("scripts/ci/publish-images.sh");
 const opsWebDockerfile = read("apps/ops-web/Dockerfile");
 const ciSurfaces = read("scripts/ci/ci-surfaces.mjs");
+const docsPublishJob = parse(read("infra/k8s/docs-publish/base/job.yaml"));
 
 function setupNodeStep(jobName) {
 	return releaseWorkflow.jobs[jobName].steps.find(
@@ -92,9 +93,9 @@ test("keeps Docker, database and browser verification manual and affected", () =
 });
 
 test("guards release publication and unresolved surfaces", () => {
-	assert.equal(releaseWorkflow.concurrency.queue, "max");
+	assert.equal(releaseWorkflow.concurrency.queue, undefined);
 	assert.match(releaseSource, /allowed only from main/u);
-	assert.match(releaseSource, /pnpm ci:fast/u);
+	assert.doesNotMatch(releaseSource, /pnpm ci:fast/u);
 	for (const jobName of ["release-plan", "release-config", "publish-workers"]) {
 		const step = setupNodeStep(jobName);
 		assert.ok(step, `${jobName} must set up Node and pnpm`);
@@ -120,14 +121,38 @@ test("guards release publication and unresolved surfaces", () => {
 	assert.match(releaseSource, /\.unresolved \| length == 0/u);
 	assert.match(releaseSource, /scripts\/ci\/publish-images\.sh/u);
 	assert.match(publishImages, /--cache-to .*ignore-error=true/u);
+	assert.match(publishImages, /while IFS= read|JSON image list/u);
 	assert.match(opsWebDockerfile, /check-ops-web-artifact\.mjs \/opt\/ops-web/u);
 	assert.match(ciSurfaces, /"apps\/ops-web\/Dockerfile"/u);
-	assert.match(releaseSource, /name: campus-agent-release-\$\{\{ github\.run_id \}\}/u);
-	assert.match(releaseSource, /keep-state: false/u);
-	assert.match(releaseSource, /cleanup: true/u);
-	assert.doesNotMatch(releaseSource, /name: campus-agent-release\s*$/mu);
 	assert.match(releaseSource, /github\.ref == 'refs\/heads\/main'/u);
-	assert.deepEqual(releaseWorkflow.jobs["publish-images"].needs, "release-plan");
+	const publishImagesJob = releaseWorkflow.jobs["publish-images"];
+	assert.deepEqual(publishImagesJob.needs, ["release-plan", "release-config"]);
+	assert.match(publishImagesJob.if, /needs\.release-config\.result == 'success'/u);
+	assert.match(publishImagesJob.if, /needs\.release-config\.result == 'skipped'/u);
+	assert.deepEqual(publishImagesJob["runs-on"], [
+		"self-hosted",
+		"Linux",
+		"ARM64",
+		"campus-agent-release",
+	]);
+	const buildx = publishImagesJob.steps.find(
+		(step) => step.name === "Setup persistent Docker Buildx",
+	);
+	assert.equal(buildx.with.name, "campus-agent-release");
+	assert.equal(buildx.with["keep-state"], true);
+	assert.equal(buildx.with.cleanup, false);
+	assert.match(buildx.with["driver-opts"], /memory=2g/u);
+	assert.match(buildx.with["driver-opts"], /memory-swap=2g/u);
+	assert.match(buildx.with["driver-opts"], /cpu-quota=200000/u);
+	assert.doesNotMatch(releaseSource, /campus-agent-release-\$\{\{ github\.run_id \}\}/u);
+	assert.match(releaseSource, /keys == \(\$expected \| sort\)/u);
+	for (const jobName of ["publish-images", "publish-workers"]) {
+		const upload = releaseWorkflow.jobs[jobName].steps.find(
+			(step) => step.name === "Upload image digests" || step.name === "Upload Worker candidates",
+		);
+		assert.equal(upload.with["if-no-files-found"], "error");
+		assert.equal(upload.with.overwrite, true);
+	}
 	assert.match(releaseWorkflow.jobs.promote.if, /needs\.publish-images\.result == 'success'/u);
 	assert.doesNotMatch(
 		releaseWorkflow.jobs.promote.if,
@@ -137,6 +162,26 @@ test("guards release publication and unresolved surfaces", () => {
 		(step) => step.name === "Download Worker candidates",
 	);
 	assert.equal(downloadWorkerCandidates.if, "needs.publish-workers.result == 'success'");
+});
+
+test("bounds the single-node release jobs", () => {
+	assert.equal(releaseWorkflow.jobs["release-config"]["timeout-minutes"], 3);
+	assert.equal(releaseWorkflow.jobs["publish-images"]["timeout-minutes"], 15);
+	assert.equal(releaseWorkflow.jobs["publish-workers"]["timeout-minutes"], 5);
+	assert.ok(releaseWorkflow.jobs["publish-images"]["timeout-minutes"] < 20);
+});
+
+test("keeps repository-only release work off the staging runner", () => {
+	assert.equal(releaseWorkflow.jobs["release-plan"]["runs-on"], "ubuntu-24.04");
+	assert.equal(releaseWorkflow.jobs.promote["runs-on"], "ubuntu-24.04");
+	for (const jobName of ["release-config", "publish-images", "publish-workers"]) {
+		assert.deepEqual(releaseWorkflow.jobs[jobName]["runs-on"], [
+			"self-hosted",
+			"Linux",
+			"ARM64",
+			"campus-agent-release",
+		]);
+	}
 });
 
 test("supports a bounded failed release replay", () => {
@@ -162,6 +207,12 @@ test("retains selected Worker release validation", () => {
 	assert.match(credentialCheck.run, /index\("app-api"\)/u);
 	assert.match(credentialCheck.run, /index\("campus-web"\)/u);
 	assert.match(credentialCheck.run, /run-wrangler-command\.ts[\s\S]*whoami/u);
+	const docsRelease = releaseConfig.steps.find(
+		(step) => step.name === "Resolve Campus Docs release",
+	);
+	assert.match(docsRelease.env.CANDIDATE_DOCS_RELEASE_ID, /vars\.DOCS_RELEASE_ID/u);
+	assert.doesNotMatch(releaseSource, /Checkout GitOps release selection/u);
+	assert.doesNotMatch(releaseSource, /read-variable apps\/campus-web campus-web-staging/u);
 
 	const publishWorkers = releaseWorkflow.jobs["publish-workers"];
 	const appApiUpload = publishWorkers.steps.find(
@@ -178,11 +229,15 @@ test("retains selected Worker release validation", () => {
 		campusWebUpload.if,
 		"contains(fromJSON(needs.release-plan.outputs.workers), 'campus-web')",
 	);
-	assert.match(releaseSource, /worker-versions\.json/u);
-	assert.match(releaseSource, /worker-version\.ts/u);
-	assert.match(releaseSource, /read-variable apps\/campus-web campus-web-staging/u);
 	assert.doesNotMatch(releaseSource, /worker-staging-app-api|worker-staging-campus-web/u);
 	assert.doesNotMatch(releaseSource, /docs-reader-release\.json/u);
+});
+
+test("uses a numeric non-root identity for the docs publisher image", () => {
+	const container = docsPublishJob.spec.template.spec.containers[0];
+	assert.equal(container.securityContext.runAsNonRoot, true);
+	assert.equal(container.securityContext.runAsUser, 1000);
+	assert.equal(container.securityContext.runAsGroup, 1000);
 });
 
 test("bounds auxiliary workflows", () => {
@@ -203,9 +258,8 @@ test("uses Turbo affected tasks instead of planner package cohorts", () => {
 	assert.doesNotMatch(packageJson, /--filter=!eval-langfuse|--filter=!ingest-core/u);
 });
 
-test("documents the current Actionlint schema exception narrowly", () => {
-	assert.match(actionlintConfig, /execution-runtime-publish\.yml/u);
-	assert.match(actionlintConfig, /unexpected key "queue"/u);
+test("does not hide workflow schema errors from Actionlint", () => {
+	assert.doesNotMatch(actionlintConfig, /paths:|ignore:/u);
 });
 
 test("uses the repository OSV installer from every scan entry point", () => {

@@ -1,12 +1,11 @@
-import type { Editor, TLShape } from "tldraw";
-
 import {
 	assertDiningWayfindingLayout,
 	canonicalizeDiningWayfindingLayout,
 	type DiningWayfindingIconKey,
 	type DiningWayfindingLayout,
 	type DiningWayfindingPoint,
-} from "../src/floorplans/wayfinding-layout";
+} from "@campus-agent/dining/floorplans";
+import type { Editor, TLShape } from "tldraw";
 import { isReferenceShape, layoutToTldrawRecords, tldrawRecordsToLayout } from "./tldraw-adapter";
 
 type CreateEntity =

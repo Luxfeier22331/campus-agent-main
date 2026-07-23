@@ -26,7 +26,7 @@ describe("dining review source observations", () => {
 					blockReason: null,
 					hallId: "fengtai-juya-canteen",
 					hallName: "聚雅食堂",
-				offeringId: "offering:tomato-noodle",
+					offeringId: "offering:tomato-noodle",
 					record: REVIEW_RECORD,
 					stallProfileId: "stall:rec-stall-simple",
 					windowId: "window:fengtai-juya-canteen:1f:01",
@@ -41,10 +41,10 @@ describe("dining review source observations", () => {
 				payloadJson: expect.objectContaining({
 					blockReason: null,
 					dishName: "番茄鸡蛋面",
-						hallId: "fengtai-juya-canteen",
-						offeringId: "offering:tomato-noodle",
-						stallProfileId: "stall:rec-stall-simple",
-						submittedAt: "2026-06-30T12:00:00.000Z",
+					hallId: "fengtai-juya-canteen",
+					offeringId: "offering:tomato-noodle",
+					stallProfileId: "stall:rec-stall-simple",
+					submittedAt: "2026-06-30T12:00:00.000Z",
 					windowId: "window:fengtai-juya-canteen:1f:01",
 				}),
 				sourceType: "feishu_review",
@@ -60,8 +60,8 @@ describe("dining review source observations", () => {
 			[
 				{
 					blockReason: null,
-				hallId: "fengtai-juya-canteen",
-				hallName: "聚雅食堂",
+					hallId: "fengtai-juya-canteen",
+					hallName: "聚雅食堂",
 					images: [
 						{
 							alt: "番茄鸡蛋面评价图片",
@@ -125,7 +125,7 @@ describe("dining review source observations", () => {
 		const observations = buildReviewObservations(
 			[
 				{
-						blockReason: "hall_not_found",
+					blockReason: "hall_not_found",
 					record: REVIEW_RECORD,
 				},
 			],
@@ -136,8 +136,8 @@ describe("dining review source observations", () => {
 			expect.objectContaining({
 				payloadJson: expect.objectContaining({
 					blockReason: "hall_not_found",
-						hallId: null,
-						offeringId: null,
+					hallId: null,
+					offeringId: null,
 					stallProfileId: null,
 					windowId: null,
 				}),
@@ -161,26 +161,35 @@ describe("dining review source observations", () => {
 			}),
 		});
 
-		await store.upsertFeishuReviewObservations(
-			buildReviewObservations(
-				[
-					{
-						blockReason: null,
-						hallId: "fengtai-juya-canteen",
-						hallName: "聚雅食堂",
-						offeringId: "offering:tomato-noodle",
-						record: REVIEW_RECORD,
-						stallProfileId: "stall:rec-stall-simple",
-						windowId: "window:fengtai-juya-canteen:1f:01",
-					},
-				],
-				new Date("2026-07-01T00:00:00.000Z"),
-			),
-			{ baseToken: "base", reviewTableId: "tbl_review" },
+		const observations = buildReviewObservations(
+			[
+				{
+					blockReason: null,
+					hallId: "fengtai-juya-canteen",
+					hallName: "聚雅食堂",
+					offeringId: "offering:tomato-noodle",
+					record: REVIEW_RECORD,
+					stallProfileId: "stall:rec-stall-simple",
+					windowId: "window:fengtai-juya-canteen:1f:01",
+				},
+			],
+			new Date("2026-07-01T00:00:00.000Z"),
 		);
+		await store.completeReviewRun({
+			observations,
+			processingHashes: new Map(
+				observations.map((observation) => [observation.observationId, "sha256:test"]),
+			),
+			run: {
+				runId: "dining_feishu_review_sync:test",
+				sourceType: "feishu_review",
+				startedAt: new Date("2026-07-01T00:00:00.000Z"),
+			},
+			sourceIdentity: { baseToken: "base", reviewTableId: "tbl_review" },
+		});
 
 		const sql = queries.map((query) => query.sql).join("\n");
-		expect(sql).toContain('"dining"."source_observations"');
+		expect(sql).toContain("dining.source_observations");
 		expect(queries.flatMap((query) => query.values ?? [])).toContain("feishu_review");
 		expect(sql).toContain("ON CONFLICT");
 		expect(sql).not.toContain("review_projections");

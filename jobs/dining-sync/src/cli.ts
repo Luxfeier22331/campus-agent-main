@@ -1,185 +1,164 @@
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { createDevDiningSeed } from "@campus-agent/dining/domain";
 
 import { S3DiningAttachmentStore } from "./attachment-store.ts";
 import { buildCatalogObservations } from "./catalog-source.ts";
-import { PostgresDiningCatalogSourceObservationStore } from "./catalog-source-store.ts";
 import {
-	loadCatalogImportConfig,
+	DINING_MEDIA_BUCKET,
+	DINING_MEDIA_REGION,
 	loadCatalogSyncConfig,
-	loadConfig,
-	loadMigrationConfig,
+	loadDatabaseInstallConfig,
+	loadReviewRecheckConfig,
+	loadReviewSyncConfig,
 } from "./config.ts";
 import { LarkDiningClient } from "./lark-client.ts";
+import { installDiningDatabase } from "./migrate.ts";
 import { GiteeAiDiningModerator } from "./moderation.ts";
-import { migrateDining } from "./migrate.ts";
-import { PostgresDiningDevSeedImporter } from "./dev-seed-importer.ts";
 import { PostgresDiningReviewPublisher } from "./postgres-publisher.ts";
-import { PostgresDiningPublishedCloseoutVerifier } from "./published-closeout.ts";
 import { PostgresDiningPublishedSnapshotReader } from "./published-snapshot-reader.ts";
-import { PublishedDiningReviewResolver } from "./review-resolver.ts";
 import { processDiningReviewRechecks } from "./review-recheck.ts";
-import { PostgresDiningSourceObservationStore } from "./source-observation-store.ts";
+import { PublishedDiningReviewResolver } from "./review-resolver.ts";
+import {
+	DiningEmptySnapshotError,
+	type DiningSyncRun,
+	PostgresDiningSourceObservationStore,
+} from "./source-observation-store.ts";
 import { runDiningSync } from "./sync-pipeline.ts";
 
-async function main() {
-	const command = process.argv[2] ?? "run";
-	if (command === "run") {
+const USAGE = "Usage: dining-sync [catalog-sync|review-sync|review-recheck|db-install]";
+
+async function main(): Promise<void> {
+	const command = process.argv[2];
+	if (command === "catalog-sync") {
+		await runCatalogSync();
+		return;
+	}
+	if (command === "review-sync") {
 		await runReviewSync();
 		return;
 	}
-	if (command === "sync-all") {
-		await syncAll();
+	if (command === "review-recheck") {
+		await runReviewRecheck();
 		return;
 	}
-	if (command === "import-dev-seed") {
-		await importDevSeed();
+	if (command === "db-install") {
+		console.log(
+			JSON.stringify(await installDiningDatabase(loadDatabaseInstallConfig().postgresUrl)),
+		);
 		return;
 	}
-	if (command === "migrate") {
-		await migrateDining(loadMigrationConfig().postgresUrl);
-		return;
-	}
-	if (command === "catalog-observations") {
-		await syncCatalogObservations();
-		return;
-	}
-	if (command === "verify-published") {
-		await verifyPublishedDining();
-		return;
-	}
-	throw new Error(
-		"Usage: pnpm sync [sync-all|run|catalog-observations|import-dev-seed|verify-published|migrate]",
-	);
+	throw new Error(USAGE);
 }
 
-async function syncAll() {
-	await syncCatalogObservations();
-	await runReviewSync();
-}
-
-async function runReviewSync() {
-	const config = loadConfig();
-	const lark = new LarkDiningClient({
-		appId: config.larkAppId,
-		appSecret: config.larkAppSecret,
-		baseToken: config.larkBaseToken,
-		campusTableId: config.larkCampusTableId,
-		dishTableId: config.larkDishTableId,
-		hallTableId: config.larkHallTableId,
-		reviewTableId: config.larkReviewTableId,
-		reviewViewId: config.larkReviewViewId,
-		stallTableId: config.larkStallTableId,
-	});
-	const records = await lark.listReviewRecords();
-	const moderator = new GiteeAiDiningModerator({
-		apiKey: config.moderationApiKey,
-		baseUrl: config.moderationBaseUrl,
-		imageModel: config.moderationImageModel,
-		textModel: config.moderationTextModel,
-		timeoutMs: config.moderationTimeoutMs,
-	});
-	const s3 = new S3Client({
-		credentials: {
-			accessKeyId: config.objectStoreAccessKey,
-			secretAccessKey: config.objectStoreSecretKey,
-		},
-		endpoint: config.objectStoreEndpoint,
-		forcePathStyle: true,
-		region: config.objectStoreRegion,
-	});
-	const attachmentStore = new S3DiningAttachmentStore({
-		bucket: config.objectStoreBucket,
-		downloader: lark,
-		imageModerator: moderator,
-		publicBaseUrl: config.objectStorePublicBaseUrl,
-		reviewPrefix: config.objectStoreReviewPrefix,
-		s3,
-		signedUrlFor: async ({ bucket, key }) =>
-			getSignedUrl(s3, new GetObjectCommand({ Bucket: bucket, Key: key }), { expiresIn: 300 }),
-	});
-	const observationStore = new PostgresDiningSourceObservationStore({ databaseUrl: config.postgresUrl });
-	const report = await runDiningSync({
-		attachmentStore,
-		moderator,
-		observationStore,
-		publisher: new PostgresDiningReviewPublisher(config.postgresUrl),
-		records,
-		reviewResolver: new PublishedDiningReviewResolver(
-			await new PostgresDiningPublishedSnapshotReader(config.postgresUrl).read(),
-		),
-		sourceIdentity: {
-			baseToken: config.larkBaseToken,
-			reviewTableId: config.larkReviewTableId,
-		},
-	});
-	const rechecks = await processDiningReviewRechecks({ databaseUrl: config.postgresUrl, moderator });
-	console.log(JSON.stringify({ ...report, rechecks }, null, 2));
-}
-
-async function syncCatalogObservations() {
+async function runCatalogSync(): Promise<void> {
 	const config = loadCatalogSyncConfig();
-	const lark = new LarkDiningClient({
-		appId: config.larkAppId,
-		appSecret: config.larkAppSecret,
-		baseToken: config.larkBaseToken,
-		campusTableId: config.larkCampusTableId,
-		dishTableId: config.larkDishTableId,
-		hallTableId: config.larkHallTableId,
-		stallTableId: config.larkStallTableId,
-	});
-	const records = await lark.listCatalogRecords();
-	const observations = buildCatalogObservations(records, new Date());
-	const report = await new PostgresDiningCatalogSourceObservationStore({
-		databaseUrl: config.postgresUrl,
-	}).upsertFeishuCatalogObservations(observations, {
-		baseToken: config.larkBaseToken,
-		campusTableId: config.larkCampusTableId,
-		dishTableId: config.larkDishTableId,
-		hallTableId: config.larkHallTableId,
-		stallTableId: config.larkStallTableId,
-	});
-	console.log(
-		JSON.stringify(
-			{
-				acceptedCount: report.acceptedCount,
-				blockedCount: report.blockedCount,
-				runId: report.runId,
-				status: "catalog_observations_synced",
-				staleCount: report.staleCount,
-				totalCount: report.totalCount,
+	const store = new PostgresDiningSourceObservationStore({ databaseUrl: config.postgresUrl });
+	const run = await store.startRun("feishu_catalog");
+	try {
+		const lark = new LarkDiningClient({ ...config.lark });
+		const records = await lark.listCatalogRecords();
+		const observations = buildCatalogObservations(records, new Date());
+		const report = await store.completeCatalogRun({
+			observations,
+			run,
+			sourceIdentity: {
+				baseToken: config.lark.baseToken,
+				campusTableId: config.lark.catalog.campusTableId,
+				dishTableId: config.lark.catalog.dishTableId,
+				hallTableId: config.lark.catalog.hallTableId,
+				stallTableId: config.lark.catalog.stallTableId,
 			},
-			null,
-			2,
-		),
-	);
-}
-
-async function importDevSeed() {
-	const config = loadCatalogImportConfig();
-	if (config.appEnvironment === "production") {
-		throw new Error("Refusing to import dining dev seed in production.");
+		});
+		await store.succeedRun(run);
+		console.log(JSON.stringify({ ...report, status: "catalog_synced" }));
+	} catch (error) {
+		await recordRunFailure(store, run, error);
+		throw error;
 	}
-	const seed = createDevDiningSeed();
-	await new PostgresDiningDevSeedImporter(config.postgresUrl).import(seed);
-	console.log(JSON.stringify({
-		hallCount: seed.draft.halls.length,
-		offeringCount: seed.draft.menuOfferings.length,
-		reviewCount: seed.reviews.length,
-		status: "dev_seed_imported",
-	}, null, 2));
 }
 
-async function verifyPublishedDining() {
-	const config = loadCatalogImportConfig();
-	const summary = await new PostgresDiningPublishedCloseoutVerifier({
+async function runReviewSync(): Promise<void> {
+	const config = loadReviewSyncConfig();
+	const store = new PostgresDiningSourceObservationStore({ databaseUrl: config.postgresUrl });
+	const run = await store.startRun("feishu_review");
+	try {
+		const published = await new PostgresDiningPublishedSnapshotReader(config.postgresUrl).read();
+		const lark = new LarkDiningClient({ ...config.lark });
+		const source = await lark.listReviewRecords();
+		const moderator = new GiteeAiDiningModerator({ apiKey: config.moderationApiKey });
+		const credentials = {
+			accessKeyId: config.objectStore.accessKey,
+			secretAccessKey: config.objectStore.secretKey,
+		};
+		const internalS3 = new S3Client({
+			credentials,
+			endpoint: config.objectStore.endpoint,
+			forcePathStyle: true,
+			region: DINING_MEDIA_REGION,
+		});
+		const publicS3 = new S3Client({
+			credentials,
+			endpoint: config.objectStore.publicEndpoint,
+			forcePathStyle: true,
+			region: DINING_MEDIA_REGION,
+		});
+		const report = await runDiningSync({
+			attachmentStore: new S3DiningAttachmentStore({
+				bucket: DINING_MEDIA_BUCKET,
+				downloader: lark,
+				imageModerator: moderator,
+				publicEndpoint: config.objectStore.publicEndpoint,
+				s3: internalS3,
+				signedUrlFor: ({ bucket, key }) =>
+					getSignedUrl(publicS3, new GetObjectCommand({ Bucket: bucket, Key: key }), {
+						expiresIn: 300,
+					}),
+			}),
+			catalogReleaseId: published.releaseId,
+			moderator,
+			observationStore: store,
+			publisher: new PostgresDiningReviewPublisher(config.postgresUrl),
+			records: source.records,
+			reviewResolver: new PublishedDiningReviewResolver(published.snapshot),
+			run,
+			sourceIdentity: {
+				baseToken: config.lark.baseToken,
+				reviewTableId: config.lark.review.tableId,
+			},
+		});
+		console.log(JSON.stringify(report));
+	} catch (error) {
+		await recordRunFailure(store, run, error);
+		throw error;
+	}
+}
+
+async function runReviewRecheck(): Promise<void> {
+	const config = loadReviewRecheckConfig();
+	const report = await processDiningReviewRechecks({
 		databaseUrl: config.postgresUrl,
-	}).verify();
-	console.log(JSON.stringify(summary, null, 2));
+		moderator: new GiteeAiDiningModerator({ apiKey: config.moderationApiKey }),
+	});
+	console.log(JSON.stringify(report));
 }
 
-main().catch((error: unknown) => {
+async function recordRunFailure(
+	store: PostgresDiningSourceObservationStore,
+	run: DiningSyncRun,
+	error: unknown,
+): Promise<void> {
+	const code = error instanceof DiningEmptySnapshotError ? "empty_snapshot" : "sync_failed";
+	try {
+		await store.failRun(run, code, error);
+	} catch (recordError) {
+		throw new AggregateError(
+			[error, recordError],
+			"Dining sync failed and its run could not be updated.",
+		);
+	}
+}
+
+void main().catch((error: unknown) => {
 	console.error(error instanceof Error ? error.message : String(error));
 	process.exitCode = 1;
 });

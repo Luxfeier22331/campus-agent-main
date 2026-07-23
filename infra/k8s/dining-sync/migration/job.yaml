@@ -36,7 +36,7 @@ spec:
         - name: dining-migrate
           image: ghcr.io/muc-wiki/campus-agent/dining-sync:replace-me
           imagePullPolicy: IfNotPresent
-          args: ["migrate"]
+          args: ["db-install"]
           envFrom:
             - configMapRef:
                 name: dining-postgres-config

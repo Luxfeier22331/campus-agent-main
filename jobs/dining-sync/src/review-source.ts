@@ -62,7 +62,10 @@ export function reviewsFromObservations(
 	observations: DiningSourceObservation[],
 ): DiningReviewProjection[] {
 	return observations
-		.filter((observation) => observation.sourceType === "feishu_review" && observation.status === "accepted")
+		.filter(
+			(observation) =>
+				observation.sourceType === "feishu_review" && observation.status === "accepted",
+		)
 		.map((observation) => {
 			const payload = observation.payloadJson;
 			return {

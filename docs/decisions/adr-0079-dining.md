@@ -23,6 +23,8 @@ supersedes:
 - 来源更新先形成观测，重新生成草稿时继续应用有效的人工修正；
 - 地图布局、静态 SVG 和摘要清单随 Campus Web 代码版本发布，数据库只保存稳定地图标识和窗口
   锚点绑定；
+- 评价图片使用独立 `campus-dining-media` bucket，私有 quarantine 一天后过期，审核通过的
+  content-addressed public 对象匿名只读；
 - schema migration、来源同步、内容运营和公共读取使用彼此独立的数据库角色。
 
 ## 结果

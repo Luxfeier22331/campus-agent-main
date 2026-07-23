@@ -1,5 +1,5 @@
-
 export type { DiningSourceObservation } from "@campus-agent/dining/domain";
+
 import type { DiningSourceObservation } from "@campus-agent/dining/domain";
 
 export interface FeishuCatalogSourceIdentity {
@@ -16,12 +16,14 @@ export interface FeishuReviewSourceIdentity {
 }
 
 export interface FeishuCampusRecord {
+	blockReason?: string;
 	campusName: string;
 	order: number | null;
 	sourceRecordId: string;
 }
 
 export interface FeishuHallRecord {
+	blockReason?: string;
 	campusSourceRecordIds: string[];
 	hallName: string;
 	order: number | null;
@@ -29,6 +31,7 @@ export interface FeishuHallRecord {
 }
 
 export interface FeishuStallRecord {
+	blockReason?: string;
 	hallSourceRecordIds: string[];
 	order: number | null;
 	sourceRecordId: string;
@@ -37,6 +40,7 @@ export interface FeishuStallRecord {
 }
 
 export interface FeishuDishRecord {
+	blockReason?: string;
 	dishName: string;
 	priceLabel: string | null;
 	sourceRecordId: string;

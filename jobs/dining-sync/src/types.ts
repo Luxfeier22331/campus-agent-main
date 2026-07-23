@@ -13,9 +13,15 @@ export interface DiningSourceRecord {
 	hallName: string;
 	paidPriceLabel: string | null;
 	rating: number | null;
+	sourceBlockReason?: string;
 	sourceRecordId: string;
 	stallName: string;
 	submittedAt: string | null;
+}
+
+export interface DiningReviewSourceSnapshot {
+	complete: true;
+	records: DiningSourceRecord[];
 }
 
 export interface DiningReviewImage {
@@ -60,6 +66,7 @@ export interface SyncReport {
 	};
 	publishedCount: number;
 	readCount: number;
+	reusedCount: number;
 	reviews: DiningReviewProjection[];
 	status: "no_publishable_records" | "published";
 }

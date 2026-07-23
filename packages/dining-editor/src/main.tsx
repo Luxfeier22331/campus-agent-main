@@ -17,7 +17,7 @@ import "./styles.css";
 import {
 	type DiningWayfindingLayout,
 	serializeDiningWayfindingLayout,
-} from "../src/floorplans/wayfinding-layout";
+} from "@campus-agent/dining/floorplans";
 import {
 	applyDiningFloorplanEditorCommands,
 	type DiningFloorplanEditorBridge,

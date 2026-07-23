@@ -41,12 +41,8 @@ const diningDatabaseEnv = {
 	PGSSLMODE: "disable",
 	PGUSER: process.env.LOCAL_POSTGRES_USER?.trim() || "postgres",
 };
-run(pnpm, ["--dir", "jobs/dining-sync", "exec", "tsx", "src/cli.ts", "migrate"], diningDatabaseEnv);
-run(
-	pnpm,
-	["--dir", "jobs/dining-sync", "exec", "tsx", "src/cli.ts", "import-dev-seed"],
-	diningDatabaseEnv,
-);
+run(pnpm, ["--dir", "jobs/dining-sync", "db:dev"], diningDatabaseEnv);
+run(pnpm, ["--dir", "jobs/dining-sync", "seed:dev"], diningDatabaseEnv);
 
 function commandSucceeds(command: string, args: string[]): boolean {
 	return spawnSync(command, args, { cwd: repoRoot, stdio: "ignore" }).status === 0;

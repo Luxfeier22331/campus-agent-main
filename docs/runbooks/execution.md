@@ -21,7 +21,8 @@ staging execution runtime 由 Kubernetes/GitOps 管理，Docker Compose 只用�
 
 同一 execution runtime Application 在 first-party Deployment 前运行低 wave 的 `Sync` schema
 Job。Job 必须使用相同 execution-control image digest，安装并验证 run projection schema；长期进程不执行
-schema 迁移。
+schema 迁移。命令在执行 DDL 前最多等待 60 秒处理临时 PostgreSQL 连接错误；认证、TLS、权限、
+SQL 和 schema 错误立即失败，DDL 本身不自动重放。
 
 发布检查：
 

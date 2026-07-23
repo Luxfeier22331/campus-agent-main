@@ -154,27 +154,39 @@ describe("Dining operations store", () => {
 	});
 
 	it("resolves an offering to its exact hall, stall, and window binding", async () => {
+		const seed = createDevDiningSeed();
+		const floor = Object.values(seed.snapshot.floors)[0];
+		const offering = floor?.menuOfferings[0];
+		const assignment = floor?.assignments.find(
+			(item) => item.assignmentId === offering?.assignmentId,
+		);
+		const window = floor?.windows.find((item) => item.windowId === assignment?.windowId);
+		if (!(offering && assignment && window)) {
+			throw new Error("Dining dev seed must contain an exact published offering binding.");
+		}
 		const statements: string[] = [];
 		const query = vi.fn(async (sql: string) => {
 			statements.push(sql);
 			return {
 				rows: [
 					{
-						hall_id: "hall:1",
-						offering_id: "offering:1",
-						stall_profile_id: "stall:1",
-						window_id: "window:1",
+						catalog_release_id: seed.release.releaseId,
+						payload_json: seed.snapshot,
+						snapshot_hash: seed.release.snapshotHash,
 					},
 				],
 			};
 		});
-		await expect(loadReviewOfferingBinding({ query } as never, "offering:1")).resolves.toEqual({
-			hallId: "hall:1",
-			offeringId: "offering:1",
-			stallProfileId: "stall:1",
-			windowId: "window:1",
+		await expect(
+			loadReviewOfferingBinding({ query } as never, offering.offeringId),
+		).resolves.toEqual({
+			hallId: floor.floor.hallId,
+			offeringId: offering.offeringId,
+			stallProfileId: assignment.stallProfileId,
+			windowId: window.windowId,
 		});
-		expect(statements[0]).toContain("JOIN dining.windows");
+		expect(statements[0]).toContain("JOIN dining.releases");
+		expect(statements[0]).not.toContain("dining.menu_offerings");
 	});
 
 	it("refuses to restore a blocked review", async () => {
@@ -216,5 +228,47 @@ describe("Dining operations store", () => {
 		).rejects.toBeInstanceOf(DiningStoreValidationError);
 		expect(queries).toContain("ROLLBACK");
 		expect(client.release).toHaveBeenCalledOnce();
+	});
+
+	it("queues review rechecks with an immediately available claim timestamp", async () => {
+		const queries: string[] = [];
+		const client = {
+			query: vi.fn(async (sql: string) => {
+				queries.push(sql);
+				if (sql.includes("SELECT CASE WHEN visibility")) {
+					return { rows: [{ value: "hidden" }] };
+				}
+				if (sql.includes("SELECT review_id,moderation_status")) {
+					return {
+						rows: [
+							{
+								hall_id: "hall:1",
+								moderation_status: "safe",
+								offering_id: "offering:1",
+								review_id: "review:1",
+								stall_profile_id: "stall:1",
+								window_id: "window:1",
+							},
+						],
+					};
+				}
+				return { rows: [] };
+			}),
+			release: vi.fn(),
+		};
+		const store = createDiningStore({
+			connect: vi.fn(async () => client),
+			query: vi.fn(),
+		} as never);
+
+		await store.applyReviewCommand({ displayName: "值班员", principalId: "ops:1" }, "review:1", {
+			kind: "recheck",
+		});
+
+		const insert = queries.find((sql) =>
+			sql.includes("INSERT INTO dining.review_recheck_requests"),
+		);
+		expect(insert).toContain("attempt_count,available_at");
+		expect(insert).toContain("'pending',0,now(),now()");
 	});
 });

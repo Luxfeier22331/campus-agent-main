@@ -63,19 +63,10 @@ spec:
                 secretKeyRef:
                   name: ops-web-database-secrets
                   key: OPS_WEB_DATABASE_URL
-            - name: OPS_WEB_DINING_DATABASE_URL
-              valueFrom:
-                secretKeyRef:
-                  name: ops-web-dining-database-secrets
-                  key: OPS_WEB_DINING_DATABASE_URL
             - name: OPS_WEB_SCHEMA_DATABASE_CA_CERT_PATH
               value: /etc/campus-agent/postgres/ca.crt
             - name: OPS_WEB_DATABASE_CA_CERT_PATH
               value: /etc/campus-agent/postgres/ca.crt
-            - name: OPS_WEB_DINING_DATABASE_CA_CERT_PATH
-              value: /etc/campus-agent/postgres/ca.crt
-            - name: OPS_WEB_DINING_DATABASE_SSLMODE
-              value: verify-full
           volumeMounts:
             - name: postgres-ca
               mountPath: /etc/campus-agent/postgres

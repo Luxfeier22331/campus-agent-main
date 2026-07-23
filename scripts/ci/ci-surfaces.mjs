@@ -44,7 +44,7 @@ export const IMAGE_DEFINITIONS = Object.freeze({
 		dockerfile: "jobs/dining-sync/Dockerfile",
 		packages: ["@campus-agent/dining", "dining-sync"],
 		inputs: [
-			"jobs/dining-sync/migrations/**",
+			"jobs/dining-sync/drizzle/**",
 			"jobs/dining-sync/package.json",
 			"jobs/dining-sync/src/**",
 			"packages/domains/dining/package.json",

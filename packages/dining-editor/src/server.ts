@@ -3,13 +3,11 @@ import {
 	type IncomingMessage,
 	type ServerResponse,
 } from "node:http";
-import { dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-
+import { assertDiningWayfindingLayout } from "@campus-agent/dining/floorplans";
 import react from "@vitejs/plugin-react";
 import { createServer as createViteServer, type ViteDevServer } from "vite";
-
-import { assertDiningWayfindingLayout } from "../src/floorplans/wayfinding-layout";
 import {
 	DiningLayoutRevisionConflictError,
 	generateDiningFloorplanAssets,
@@ -22,6 +20,7 @@ const PORT = 27019;
 const MUTATION_REQUEST_HEADER = "x-dining-floorplan-editor";
 const EDITOR_ROOT = dirname(fileURLToPath(new URL("./index.html", import.meta.url)));
 const PACKAGE_ROOT = dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
+const DINING_PACKAGE_ROOT = resolve(PACKAGE_ROOT, "../domains/dining");
 let vite: ViteDevServer;
 
 const server = createHttpServer(async (request, response) => {
@@ -49,7 +48,11 @@ vite = await createViteServer({
 	appType: "spa",
 	plugins: [react()],
 	root: EDITOR_ROOT,
-	server: { fs: { allow: [PACKAGE_ROOT] }, hmr: { server }, middlewareMode: true },
+	server: {
+		fs: { allow: [DINING_PACKAGE_ROOT, PACKAGE_ROOT] },
+		hmr: { server },
+		middlewareMode: true,
+	},
 });
 
 server.listen(PORT, HOST, () => {

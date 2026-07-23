@@ -3,12 +3,12 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const migrationSql = readFileSync(
-	resolve(import.meta.dirname, "../migrations/0001_dining.sql"),
+	resolve(import.meta.dirname, "../drizzle/0000_dining.sql"),
 	"utf8",
 );
 
 describe("Dining database migration", () => {
-	it("installs the normalized catalog, publication, source, review, and operations surfaces", () => {
+	it("installs the catalog, publication, source, review, and operations tables", () => {
 		for (const table of [
 			"halls",
 			"floors",
@@ -28,29 +28,23 @@ describe("Dining database migration", () => {
 			"review_recheck_requests",
 			"operation_events",
 		]) {
-			expect(migrationSql).toContain(`CREATE TABLE dining.${table}`);
+			expect(migrationSql).toContain(`CREATE TABLE "dining"."${table}"`);
 		}
 	});
 
-	it("does not restore the retired candidate or projection lifecycle", () => {
+	it("contains the new constraints and no retired projection lifecycle", () => {
+		expect(migrationSql).toContain("dining_reviews_publication_check");
+		expect(migrationSql).toContain("dining_review_recheck_active_uidx");
+		expect(migrationSql).toContain("dining_floors_hall_floor_unique");
 		for (const retired of [
 			"release_candidates",
 			"release_candidate_validation_reports",
 			"release_latest_pointer",
 			"release_snapshots",
 			"review_projections",
+			"public.dining_migrations",
 		]) {
 			expect(migrationSql).not.toContain(retired);
 		}
-	});
-
-	it("separates public reads, operations writes, and sync writes by role", () => {
-		expect(migrationSql).toContain(
-			"GRANT SELECT ON dining.publication, dining.releases, dining.reviews TO app_api",
-		);
-		expect(migrationSql).toContain("GRANT SELECT ON ALL TABLES IN SCHEMA dining TO ops_web_dining");
-		expect(migrationSql).toContain("REVOKE CREATE ON SCHEMA dining FROM ops_web_dining");
-		expect(migrationSql).toContain("REVOKE CREATE ON SCHEMA dining FROM dining_sync");
-		expect(migrationSql).not.toContain("GRANT CREATE ON SCHEMA dining TO dining_sync");
 	});
 });

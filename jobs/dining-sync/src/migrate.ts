@@ -1,51 +1,55 @@
-import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { Client } from "pg";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { Pool } from "pg";
 
-const migrationId = "0001_dining";
-const migrationPath = resolve(
-	fileURLToPath(new URL("..", import.meta.url)),
-	"migrations/0001_dining.sql",
-);
+import { applyDiningDatabaseGrants } from "./database-grants.ts";
+
+const migrationsFolder = fileURLToPath(new URL("../drizzle", import.meta.url));
+
+export async function installDiningDatabase(databaseUrl: string): Promise<{
+	roles: string[];
+	status: "ready";
+}> {
+	await migrateDining(databaseUrl);
+	return applyDiningDatabaseGrants(databaseUrl, ["app_api", "dining_sync", "ops_web_dining"]);
+}
 
 export async function migrateDining(databaseUrl: string): Promise<void> {
-	const sql = await readFile(migrationPath, "utf8");
-	const sha256 = createHash("sha256").update(sql).digest("hex");
-	const client = new Client({ connectionString: databaseUrl });
-	await client.connect();
+	const pool = new Pool({ connectionString: databaseUrl, max: 1 });
 	try {
-		await client.query(`CREATE TABLE IF NOT EXISTS public.dining_migrations (
-			migration_id text PRIMARY KEY,
-			sha256 text NOT NULL,
-			applied_at timestamptz NOT NULL DEFAULT now()
-		)`);
-		const applied = await client.query(
-			"SELECT sha256 FROM public.dining_migrations WHERE migration_id = $1",
-			[migrationId],
-		);
-		const appliedSha256 = applied.rows[0]?.sha256;
-		if (appliedSha256) {
-			if (appliedSha256 !== sha256) {
-				throw new Error(`Dining migration ${migrationId} changed after it was applied.`);
-			}
-			return;
-		}
-		await client.query("BEGIN");
-		try {
-			await client.query(sql);
-			await client.query(
-				"INSERT INTO public.dining_migrations(migration_id, sha256) VALUES ($1, $2)",
-				[migrationId, sha256],
-			);
-			await client.query("COMMIT");
-		} catch (error) {
-			await client.query("ROLLBACK");
-			throw error;
-		}
+		await migrate(drizzle(pool), {
+			migrationsFolder,
+			migrationsSchema: "dining_migrations",
+			migrationsTable: "history",
+		});
+		await verifyDiningSchema(pool);
 	} finally {
-		await client.end();
+		await pool.end();
+	}
+}
+
+async function verifyDiningSchema(pool: Pick<Pool, "query">): Promise<void> {
+	const requiredTables = [
+		"dining.catalog_state",
+		"dining.publication",
+		"dining.releases",
+		"dining.reviews",
+		"dining.source_observations",
+		"dining.source_sync_runs",
+	] as const;
+	const result = await pool.query<{ qualifiedName: string }>(
+		`select required as "qualifiedName"
+		 from unnest($1::text[]) as required
+		 where to_regclass(required) is null`,
+		[requiredTables],
+	);
+	if (result.rows.length > 0) {
+		throw new Error(
+			`Dining schema is missing required tables: ${result.rows
+				.map((row) => row.qualifiedName)
+				.join(", ")}.`,
+		);
 	}
 }

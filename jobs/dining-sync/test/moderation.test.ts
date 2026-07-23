@@ -138,7 +138,7 @@ function jsonResponse(payload: unknown): Response {
 }
 
 function requestBodyFrom(fetchImpl: ReturnType<typeof vi.fn>): unknown {
-	const calls = fetchImpl.mock.calls as Array<[RequestInfo | URL, RequestInit]>;
+	const calls = fetchImpl.mock.calls as [RequestInfo | URL, RequestInit][];
 	const body = calls[0]?.[1]?.body;
 	if (typeof body !== "string") {
 		throw new Error("Expected string request body.");

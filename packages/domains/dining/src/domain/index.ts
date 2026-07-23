@@ -1,5 +1,6 @@
 export type { DiningDevSeed } from "./dev-seed.ts";
 export { DiningDomainError } from "./error.ts";
+export { sha256Tag, stableJson } from "./hash.ts";
 export type { DiningObservationTargetKind, DiningSourceObservation } from "./observations.ts";
 export { materializeDiningCatalog } from "./observations.ts";
 export { buildPublishedSnapshot } from "./projection.ts";
@@ -9,6 +10,12 @@ export {
 	publishDiningDraft,
 	validateDiningDraft,
 } from "./publication.ts";
+export type { DiningPublishedOfferingBinding } from "./published-snapshot.ts";
+export {
+	DiningPublishedSnapshotSchema,
+	parseDiningPublishedSnapshot,
+	resolveDiningPublishedOffering,
+} from "./published-snapshot.ts";
 export type {
 	DiningPublication,
 	DiningRelease,

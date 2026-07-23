@@ -31,13 +31,23 @@ Cloudflare version、配置和其他环境资源。候选物发布成功不表�
 1. 确认目标源码已经合入 `main`，且该变更要求的 PR 检查通过。
 2. 由当前 workflow 发布受影响的不可变候选物；触发条件、输入和产物以 `.github/workflows/`
    为准。
-   Worker 候选发布前，`release-config` 会使用 `CLOUDFLARE_AUTOMATION_TOKEN` 验证目标账户的
-   Wrangler 认证。镜像、Worker 和 Kubernetes 清单是独立候选面；一个候选面的配置失败不得阻止
-   其他已验证候选物的构建和环境仓交接。
+   `release-config` 会在昂贵构建前验证 Worker 凭据和文档 release 等共同前提。预检通过后，镜像、
+   Worker 和 Kubernetes 清单分别产生不可变候选物；一个候选面的发布失败不使已经成功发布的候选物
+   失效，同一源码提交重试时应直接复用它们。
 3. 检查候选物记录的源码提交、摘要和构建身份，不用可变标签或重复构建覆盖已有产物。
 4. 生成或更新环境仓变更，由环境仓选择完整的一组运行版本。
 
-Campus Web 的不可变 Worker version 已固化对应 `docsReleaseId`，环境仓只选择 Worker version，
+候选发布从 workflow 创建，到生成环境仓变更或返回可处理失败为止，总等待上限为 20 分钟。调度等待
+计入总等待，并单独记录以区分容量与任务耗时。单一 ARM64 Runner 依靠受影响面选择、不可变标签复用和
+固定 BuildKit builder 的本地热缓存完成发布；registry cache 只用于 builder 丢失后的恢复。超过上限
+时先检查缓存命中、重复安装和发布计划，不能通过提高超时或解除 2 GiB 内存限制解决。冷缓存全量构建
+仍无法满足时，必须增加构建容量。已经发布的不可变镜像会在同一源码提交的重试中直接复用。
+
+`release-config` 必须在镜像构建前完成 Worker 凭据、`DOCS_RELEASE_ID` 和对象存储 release 校验，避免
+已知配置错误在昂贵构建结束后才暴露。Campus Docs publisher 生成 release 后，将其完整内容摘要写入
+源码仓库 Actions variable `DOCS_RELEASE_ID`；手动发布可以用同名 workflow input 覆盖本次候选。
+
+Campus Web 的不可变 Worker version 会固化对应 `docsReleaseId`，环境仓只选择 Worker version，
 不维护第二份文档 release 指针。具体不变量见 `docs/contracts/document-reader-publish.md`；发布和
 物化命令见 `jobs/docs-publish/README.md`。
 
@@ -47,8 +57,8 @@ Campus Web 的不可变 Worker version 已固化对应 `docsReleaseId`，环境�
 
 - 所有候选物均来自同一预期源码版本，且引用不可变；
 - 环境配置、凭据消费合同、数据库变更和网络边界完整；
-- 可登录数据库角色、Secret、migration 和依赖它的 workload 位于同一发布 Application，且
-  migration 是低于 workload 的 `Sync` hook；
+- 强依赖数据库结构的角色、Secret、migration 和 workload 位于同一发布 Application；嵌入宿主的
+  可选领域能力则由领域 Application 拥有 schema、专用角色和授权，宿主只作 optional 消费；
 - 渲染结果和控制器计划只包含预期资源；
 - 回滚目标及其依赖仍可用。
 

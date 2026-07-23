@@ -1,7 +1,4 @@
-import {
-	materializeDiningCatalog,
-	type DiningDraft,
-} from "@campus-agent/dining/domain";
+import { type DiningDraft, materializeDiningCatalog } from "@campus-agent/dining/domain";
 
 import type {
 	DiningCatalogBuildInput,
@@ -21,24 +18,29 @@ export function buildCatalogObservations(
 ): DiningSourceObservation[] {
 	const observedAt = now.toISOString();
 	const observations: DiningSourceObservation[] = [];
-	const campusBySourceId = new Map(records.campuses.map((record) => [record.sourceRecordId, record]));
+	const campusBySourceId = new Map(
+		records.campuses.map((record) => [record.sourceRecordId, record]),
+	);
 	const hallBySourceId = new Map(records.halls.map((record) => [record.sourceRecordId, record]));
 	const stallBySourceId = new Map(records.stalls.map((record) => [record.sourceRecordId, record]));
 	const acceptedHallTargetBySourceId = new Map<string, string>();
 	const acceptedStallTargetBySourceId = new Map<string, string>();
 
 	for (const campus of records.campuses) {
+		const blockReason =
+			campus.blockReason ?? (campus.campusName.trim() ? null : "campus_name_missing");
 		observations.push({
 			observationId: observationId("campus", campus.sourceRecordId),
 			observedAt,
 			payloadJson: {
-				campusName: normalizeCampusName(campus.campusName),
+				blockReason,
+				campusName: campus.campusName.trim() ? normalizeCampusName(campus.campusName) : "",
 				order: campus.order,
 				sourceRecordId: campus.sourceRecordId,
 			},
 			sourceType: "feishu_catalog",
-			status: campus.campusName.trim() ? "accepted" : "blocked",
-			targetId: stableCampusId(campus),
+			status: blockReason === null ? "accepted" : "blocked",
+			targetId: blockReason === null ? stableCampusId(campus) : null,
 			targetKind: "campus",
 		});
 	}
@@ -134,9 +136,10 @@ export function buildCatalogObservations(
 				},
 				sourceType: "feishu_catalog",
 				status,
-				targetId: status === "accepted" && stall
-					? `offering:${stableStallId(stall)}:${stableMenuItemId(dish)}`
-					: null,
+				targetId:
+					status === "accepted" && stall
+						? `offering:${stableStallId(stall)}:${stableMenuItemId(dish)}`
+						: null,
 				targetKind: "menu_offering",
 			});
 		}
@@ -150,10 +153,10 @@ interface StallPublishability {
 	status: DiningSourceObservation["status"];
 }
 
-function hallBlockReason(
-	hall: FeishuHallRecord,
-	campus: FeishuCampusRecord | null,
-): string | null {
+function hallBlockReason(hall: FeishuHallRecord, campus: FeishuCampusRecord | null): string | null {
+	if (hall.blockReason) {
+		return hall.blockReason;
+	}
 	if (!hall.hallName.trim()) {
 		return "hall_name_missing";
 	}
@@ -170,6 +173,13 @@ function computeStallPublishability(
 ): Map<string, StallPublishability> {
 	const results = new Map<string, StallPublishability>();
 	for (const stall of stalls) {
+		if (stall.blockReason) {
+			results.set(stall.sourceRecordId, {
+				blockReason: stall.blockReason,
+				status: "blocked",
+			});
+			continue;
+		}
 		const hallSourceRecordId = stall.hallSourceRecordIds[0] ?? null;
 		const hall = hallSourceRecordId ? hallBySourceId.get(hallSourceRecordId) : null;
 		const hallTargetId = hallSourceRecordId
@@ -216,6 +226,9 @@ function requireStallPublishability(
 }
 
 function dishBlockReason(dish: FeishuDishRecord, hasPublishableStall: boolean): string | null {
+	if (dish.blockReason) {
+		return dish.blockReason;
+	}
 	if (!dish.dishName.trim()) {
 		return "dish_name_missing";
 	}
@@ -227,6 +240,9 @@ function menuOfferingBlockReason(
 	stall: FeishuStallRecord | undefined,
 	stallIsPublishable: boolean,
 ): string | null {
+	if (dish.blockReason) {
+		return dish.blockReason;
+	}
 	if (!dish.dishName.trim()) {
 		return "dish_name_missing";
 	}
@@ -236,7 +252,9 @@ function menuOfferingBlockReason(
 	return stallIsPublishable ? null : "stall_not_publishable";
 }
 
-export function buildDiningDraftFromCatalogObservations(input: DiningCatalogBuildInput): DiningDraft {
+export function buildDiningDraftFromCatalogObservations(
+	input: DiningCatalogBuildInput,
+): DiningDraft {
 	return materializeDiningCatalog({
 		actorId: FEISHU_CATALOG_ACTOR,
 		baseReleaseId: null,
@@ -286,14 +304,30 @@ function stableCampusId(campus: FeishuCampusRecord): string {
 
 function stableHallId(campus: FeishuCampusRecord, hall: FeishuHallRecord): string {
 	const name = canonicalHallName(hall.hallName);
-	if (name === "海淀一食堂") return "haidian-canteen-1";
-	if (name === "海淀二食堂") return "haidian-canteen-2";
-	if (name === "海淀三食堂") return "haidian-canteen-3";
-	if (name === "海淀四食堂") return "haidian-canteen-4";
-	if (name === "海淀五食堂") return "haidian-canteen-5";
-	if (name === "荟贤食堂") return "fengtai-huixian-canteen";
-	if (name === "聚雅食堂") return "fengtai-juya-canteen";
-	if (name === "丰台露天餐饮区") return "fengtai-outdoor-dining-zone";
+	if (name === "海淀一食堂") {
+		return "haidian-canteen-1";
+	}
+	if (name === "海淀二食堂") {
+		return "haidian-canteen-2";
+	}
+	if (name === "海淀三食堂") {
+		return "haidian-canteen-3";
+	}
+	if (name === "海淀四食堂") {
+		return "haidian-canteen-4";
+	}
+	if (name === "海淀五食堂") {
+		return "haidian-canteen-5";
+	}
+	if (name === "荟贤食堂") {
+		return "fengtai-huixian-canteen";
+	}
+	if (name === "聚雅食堂") {
+		return "fengtai-juya-canteen";
+	}
+	if (name === "丰台露天餐饮区") {
+		return "fengtai-outdoor-dining-zone";
+	}
 	return stableId("hall", `${campus.sourceRecordId}:${hall.sourceRecordId}`);
 }
 

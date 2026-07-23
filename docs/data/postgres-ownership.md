@@ -32,7 +32,9 @@ Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，�
 
 表中角色是权限主体，不等于都已具备环境登录凭据。当前数据库 base 将 `docs_publish` 保持为
 `NOLOGIN` 授权主体；只有部署文档发布单元时，才由该发布单元同时交付可登录 DatabaseRole、Secret
-和 Job。`dining_sync` 同样只随定时同步单元部署，不由数据库平台预创建。
+和 Job。`ops_web_dining` 与 `dining_sync` 均由 Dining migration 单元交付，不由数据库平台或
+Ops Web 核心发布单元预创建。`app_api` 是共享产品运行角色，Dining 只管理它在 `dining.*` 上的
+权限。
 
 ## Schema 所有权
 
@@ -58,20 +60,23 @@ ingestion registry 和来源事实由采集数据所有者维护，不并入产�
 - Provider Config 只能通过 execution-control 管理接口修改，Ops Web 不直连其 schema；
 - App API 只读取 Dining 当前发布和公开评价，不拥有 Dining migration；
 - Ops Web 的请求排查角色与 Dining 内容角色分离；
+- Ops Web 核心授权不检查或修改 Dining schema；
 - 不同所有者不共享 migration journal，也不通过双写复制同一事实；
 - 对象 bytes、原始来源、工作流历史和供应商 trace 不进入这些 schema。
 
 角色、grant、migration 和应用查询必须共同变化。新增数据库列不会自动进入其他所有者的读取
-权限或 API 响应。可登录角色由实际消费它的发布 Application 同时拥有 Secret、DatabaseRole 和
-migration；数据库平台 Application 只维护数据库 owner 和无登录授权主体，不预创建没有部署
-消费者的登录凭据。
+权限或 API 响应。强依赖 schema 的运行时在同一发布 Application 中拥有角色、Secret、migration
+和 workload。嵌入宿主进程的可选领域能力由领域 Application 拥有 schema、专用角色、Secret 和
+授权，宿主只使用 optional Secret 引用；该领域失败不得阻塞宿主的无关能力。数据库平台
+Application 只维护数据库 owner 和无登录授权主体。
 
 ## 可执行来源
 
 - App API schema：`apps/app-api/db/`、`apps/app-api/drizzle/`
 - 执行投影与配置：`apps/execution-control/internal/`
-- Ops Web schema 与 grant：`apps/ops-web/ops/db/`
-- Dining schema：`jobs/dining-sync/migrations/`、`packages/domains/dining/src/schema.ts`
+- Ops Web 核心 read-model grant：`apps/ops-web/ops/db/`
+- Dining schema 与 grant：`jobs/dining-sync/drizzle/`、`jobs/dining-sync/src/database-grants.ts`、
+  `packages/domains/dining/src/schema.ts`
 - 校园服务发布：`jobs/transport-publisher/`
 
 ## 相关文档

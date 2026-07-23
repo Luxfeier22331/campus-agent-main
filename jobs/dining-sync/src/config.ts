@@ -1,106 +1,128 @@
-export interface DiningSyncConfig {
-	moderationApiKey: string;
-	moderationBaseUrl: string;
-	moderationImageModel: string;
-	moderationTextModel: string;
-	moderationTimeoutMs: number;
-	larkAppId: string;
-	larkAppSecret: string;
-	larkBaseToken: string;
-	larkCampusTableId: string;
-	larkDishTableId: string;
-	larkHallTableId: string;
-	larkReviewTableId: string;
-	larkReviewViewId: string;
-	larkStallTableId: string;
-	objectStoreAccessKey: string;
-	objectStoreBucket: string;
-	objectStoreEndpoint: string;
-	objectStorePublicBaseUrl: string;
-	objectStoreRegion: string;
-	objectStoreReviewPrefix: string;
-	objectStoreSecretKey: string;
-	postgresUrl: string;
-}
+import { readFileSync } from "node:fs";
 
-export interface DiningCatalogImportConfig {
-	appEnvironment: string;
-	postgresUrl: string;
-}
+import { z } from "zod";
 
-export interface DiningMigrationConfig {
-	postgresUrl: string;
-}
+export const DINING_SOURCE_CONFIG_PATH = "/etc/campus-agent/dining/source.json";
+export const DINING_MEDIA_BUCKET = "campus-dining-media";
+export const DINING_MEDIA_REGION = "us-east-1";
+
+const catalogSchema = z.strictObject({
+	campusTableId: z.string().trim().min(1),
+	dishTableId: z.string().trim().min(1),
+	hallTableId: z.string().trim().min(1),
+	stallTableId: z.string().trim().min(1),
+});
+
+const reviewSchema = z.strictObject({
+	tableId: z.string().trim().min(1),
+	viewId: z.string().trim().min(1),
+});
+
+export const DiningSourceConfigSchema = z.strictObject({
+	appId: z.string().trim().min(1),
+	baseToken: z.string().trim().min(1),
+	catalog: catalogSchema,
+	provider: z.literal("lark"),
+	review: reviewSchema,
+	version: z.literal(1),
+});
+
+export type DiningSourceConfig = z.infer<typeof DiningSourceConfigSchema>;
 
 export interface DiningCatalogSyncConfig {
-	larkAppId: string;
-	larkAppSecret: string;
-	larkBaseToken: string;
-	larkCampusTableId: string;
-	larkDishTableId: string;
-	larkHallTableId: string;
-	larkStallTableId: string;
+	lark: Pick<DiningSourceConfig, "appId" | "baseToken" | "catalog"> & { appSecret: string };
 	postgresUrl: string;
 }
 
-export function loadConfig(env: NodeJS.ProcessEnv = process.env): DiningSyncConfig {
-	return {
-		moderationApiKey: requireEnv(env, "DINING_MODERATION_API_KEY"),
-		moderationBaseUrl: requireEnv(env, "DINING_MODERATION_BASE_URL"),
-		moderationImageModel: env.DINING_MODERATION_IMAGE_MODEL?.trim() || "nsfw-classifier",
-		moderationTextModel:
-			env.DINING_MODERATION_TEXT_MODEL?.trim() || "Security-semantic-filtering",
-		moderationTimeoutMs: parsePositiveIntegerEnv(env, "DINING_MODERATION_TIMEOUT_MS", 10_000),
-		larkAppId: requireEnv(env, "DINING_LARK_APP_ID"),
-		larkAppSecret: requireEnv(env, "DINING_LARK_APP_SECRET"),
-		larkBaseToken: requireEnv(env, "DINING_LARK_BASE_TOKEN"),
-		larkCampusTableId: requireEnv(env, "DINING_LARK_CAMPUS_TABLE_ID"),
-		larkDishTableId: requireEnv(env, "DINING_LARK_DISH_TABLE_ID"),
-		larkHallTableId: requireEnv(env, "DINING_LARK_HALL_TABLE_ID"),
-		larkReviewTableId: requireEnv(env, "DINING_LARK_REVIEW_TABLE_ID"),
-		larkReviewViewId: requireEnv(env, "DINING_LARK_REVIEW_VIEW_ID"),
-		larkStallTableId: requireEnv(env, "DINING_LARK_STALL_TABLE_ID"),
-		objectStoreAccessKey: requireEnv(env, "OBJECT_STORE_DERIVED_ACCESS_KEY"),
-		objectStoreBucket: requireEnv(env, "DINING_OBJECT_STORE_BUCKET"),
-		objectStoreEndpoint: requireEnv(env, "OBJECT_STORE_ENDPOINT"),
-		objectStorePublicBaseUrl: requireEnv(env, "DINING_OBJECT_STORE_PUBLIC_BASE_URL"),
-		objectStoreRegion: env.OBJECT_STORE_REGION?.trim() || "us-east-1",
-		objectStoreReviewPrefix: env.DINING_OBJECT_STORE_REVIEW_PREFIX?.trim() || "dining/reviews",
-		objectStoreSecretKey: requireEnv(env, "OBJECT_STORE_DERIVED_SECRET_KEY"),
-		postgresUrl: postgresUrlFromEnv(env),
+export interface DiningReviewSyncConfig {
+	lark: Pick<DiningSourceConfig, "appId" | "baseToken" | "review"> & { appSecret: string };
+	moderationApiKey: string;
+	objectStore: {
+		accessKey: string;
+		endpoint: string;
+		publicEndpoint: string;
+		secretKey: string;
 	};
+	postgresUrl: string;
 }
 
-export function loadCatalogImportConfig(
-	env: NodeJS.ProcessEnv = process.env,
-): DiningCatalogImportConfig {
-	return {
-		appEnvironment: env.APP_API_ENVIRONMENT?.trim() || "development",
-		postgresUrl: postgresUrlFromEnv(env),
-	};
+export interface DiningReviewRecheckConfig {
+	moderationApiKey: string;
+	postgresUrl: string;
 }
 
-export function loadMigrationConfig(
-	env: NodeJS.ProcessEnv = process.env,
-): DiningMigrationConfig {
-	return {
-		postgresUrl: postgresUrlFromEnv(env),
-	};
+export interface DiningDatabaseInstallConfig {
+	postgresUrl: string;
 }
 
 export function loadCatalogSyncConfig(
 	env: NodeJS.ProcessEnv = process.env,
+	source = loadDiningSourceConfig(env),
 ): DiningCatalogSyncConfig {
 	return {
-		larkAppId: requireEnv(env, "DINING_LARK_APP_ID"),
-		larkAppSecret: requireEnv(env, "DINING_LARK_APP_SECRET"),
-		larkBaseToken: requireEnv(env, "DINING_LARK_BASE_TOKEN"),
-		larkCampusTableId: requireEnv(env, "DINING_LARK_CAMPUS_TABLE_ID"),
-		larkDishTableId: requireEnv(env, "DINING_LARK_DISH_TABLE_ID"),
-		larkHallTableId: requireEnv(env, "DINING_LARK_HALL_TABLE_ID"),
-		larkStallTableId: requireEnv(env, "DINING_LARK_STALL_TABLE_ID"),
+		lark: {
+			appId: source.appId,
+			appSecret: requireEnv(env, "DINING_LARK_APP_SECRET"),
+			baseToken: source.baseToken,
+			catalog: source.catalog,
+		},
 		postgresUrl: postgresUrlFromEnv(env),
 	};
+}
+
+export function loadReviewSyncConfig(
+	env: NodeJS.ProcessEnv = process.env,
+	source = loadDiningSourceConfig(env),
+): DiningReviewSyncConfig {
+	return {
+		lark: {
+			appId: source.appId,
+			appSecret: requireEnv(env, "DINING_LARK_APP_SECRET"),
+			baseToken: source.baseToken,
+			review: source.review,
+		},
+		moderationApiKey: requireEnv(env, "DINING_MODERATION_API_KEY"),
+		objectStore: {
+			accessKey: requireEnv(env, "OBJECT_STORE_DERIVED_ACCESS_KEY"),
+			endpoint: parseEndpoint(requireEnv(env, "OBJECT_STORE_ENDPOINT"), "OBJECT_STORE_ENDPOINT"),
+			publicEndpoint: parseEndpoint(
+				requireEnv(env, "OBJECT_STORE_PUBLIC_ENDPOINT"),
+				"OBJECT_STORE_PUBLIC_ENDPOINT",
+			),
+			secretKey: requireEnv(env, "OBJECT_STORE_DERIVED_SECRET_KEY"),
+		},
+		postgresUrl: postgresUrlFromEnv(env),
+	};
+}
+
+export function loadReviewRecheckConfig(
+	env: NodeJS.ProcessEnv = process.env,
+): DiningReviewRecheckConfig {
+	return {
+		moderationApiKey: requireEnv(env, "DINING_MODERATION_API_KEY"),
+		postgresUrl: postgresUrlFromEnv(env),
+	};
+}
+
+export function loadDatabaseInstallConfig(
+	env: NodeJS.ProcessEnv = process.env,
+): DiningDatabaseInstallConfig {
+	return { postgresUrl: postgresUrlFromEnv(env) };
+}
+
+export function loadDiningSourceConfig(env: NodeJS.ProcessEnv = process.env): DiningSourceConfig {
+	const path = env.DINING_SOURCE_CONFIG_PATH?.trim() || DINING_SOURCE_CONFIG_PATH;
+	let value: unknown;
+	try {
+		value = JSON.parse(readFileSync(path, "utf8"));
+	} catch (error) {
+		throw new Error(`Dining source config could not be read from ${path}.`, { cause: error });
+	}
+	const result = DiningSourceConfigSchema.safeParse(value);
+	if (!result.success) {
+		throw new Error(`Dining source config at ${path} is invalid: ${z.prettifyError(result.error)}`);
+	}
+	return result.data;
 }
 
 export function postgresUrlFromEnv(env: NodeJS.ProcessEnv = process.env): string {
@@ -127,22 +149,23 @@ export function postgresUrlFromEnv(env: NodeJS.ProcessEnv = process.env): string
 	return url.toString();
 }
 
+function parseEndpoint(raw: string, key: string): string {
+	let url: URL;
+	try {
+		url = new URL(raw);
+	} catch (error) {
+		throw new Error(`${key} must be an absolute HTTP(S) URL.`, { cause: error });
+	}
+	if (url.protocol !== "http:" && url.protocol !== "https:") {
+		throw new Error(`${key} must be an absolute HTTP(S) URL.`);
+	}
+	return url.toString().replace(/\/$/, "");
+}
+
 function requireEnv(env: NodeJS.ProcessEnv, key: string): string {
 	const value = env[key]?.trim();
 	if (!value) {
 		throw new Error(`${key} is required for dining sync.`);
-	}
-	return value;
-}
-
-function parsePositiveIntegerEnv(env: NodeJS.ProcessEnv, key: string, fallback: number): number {
-	const rawValue = env[key]?.trim();
-	if (!rawValue) {
-		return fallback;
-	}
-	const value = Number.parseInt(rawValue, 10);
-	if (!Number.isSafeInteger(value) || value <= 0) {
-		throw new Error(`${key} must be a positive integer.`);
 	}
 	return value;
 }

@@ -11,7 +11,7 @@ metadata:
     argocd.argoproj.io/sync-wave: "-1"
 spec:
   activeDeadlineSeconds: 180
-  backoffLimit: 6
+  backoffLimit: 1
   template:
     metadata:
       labels:

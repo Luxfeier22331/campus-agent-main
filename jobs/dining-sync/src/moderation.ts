@@ -13,12 +13,18 @@ export interface DiningImageModerationInput {
 
 export interface GiteeAiDiningModeratorConfig {
 	apiKey: string;
-	baseUrl: string;
+	baseUrl?: string;
 	fetch?: typeof fetch;
-	imageModel: string;
-	textModel: string;
-	timeoutMs: number;
+	imageModel?: string;
+	textModel?: string;
+	timeoutMs?: number;
 }
+
+export const DINING_MODERATION_POLICY_VERSION = "gitee-v1-2026-07";
+const DINING_MODERATION_BASE_URL = "https://ai.gitee.com/v1";
+const DINING_MODERATION_IMAGE_MODEL = "nsfw-classifier";
+const DINING_MODERATION_TEXT_MODEL = "Security-semantic-filtering";
+const DINING_MODERATION_TIMEOUT_MS = 10_000;
 
 export class GiteeAiDiningModerator {
 	private readonly apiKey: string;
@@ -30,11 +36,11 @@ export class GiteeAiDiningModerator {
 
 	constructor(config: GiteeAiDiningModeratorConfig) {
 		this.apiKey = config.apiKey;
-		this.baseUrl = config.baseUrl.replace(/\/$/, "");
+		this.baseUrl = (config.baseUrl ?? DINING_MODERATION_BASE_URL).replace(/\/$/, "");
 		this.fetchImpl = config.fetch ?? fetch;
-		this.imageModel = config.imageModel;
-		this.textModel = config.textModel;
-		this.timeoutMs = config.timeoutMs;
+		this.imageModel = config.imageModel ?? DINING_MODERATION_IMAGE_MODEL;
+		this.textModel = config.textModel ?? DINING_MODERATION_TEXT_MODEL;
+		this.timeoutMs = config.timeoutMs ?? DINING_MODERATION_TIMEOUT_MS;
 	}
 
 	async check(input: DiningTextModerationInput): Promise<ModerationResult> {

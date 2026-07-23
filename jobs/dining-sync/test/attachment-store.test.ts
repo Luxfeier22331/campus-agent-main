@@ -1,22 +1,12 @@
-import {
-	CopyObjectCommand,
-	DeleteObjectCommand,
-	ListObjectsV2Command,
-	PutObjectCommand,
-} from "@aws-sdk/client-s3";
+import { CopyObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import sharp from "sharp";
 import { describe, expect, it, vi } from "vitest";
 
-import { S3DiningAttachmentStore } from "../src/attachment-store.ts";
+import { DINING_IMAGE_MAX_BYTES, S3DiningAttachmentStore } from "../src/attachment-store.ts";
 import type { DiningSourceRecord } from "../src/types.ts";
 
 const RECORD: DiningSourceRecord = {
-	attachments: [
-		{
-			fileToken: "file_token_1",
-			name: "meal.JPG",
-			size: 42,
-		},
-	],
+	attachments: [{ fileToken: "file_token_1", name: "meal.PNG", size: 42 }],
 	campus: "海淀校区",
 	comment: "清淡",
 	contributorName: "果小生",
@@ -30,126 +20,112 @@ const RECORD: DiningSourceRecord = {
 };
 
 describe("S3 dining attachment store", () => {
-	it("publishes images only after checking the moderation object URL", async () => {
-		const send = vi.fn(async (_command: CopyObjectCommand | DeleteObjectCommand | PutObjectCommand) => undefined);
+	it("normalizes, quarantines, moderates, and publishes by content hash", async () => {
+		const source = new Uint8Array(
+			await sharp({
+				create: { background: "#d45500", channels: 3, height: 24, width: 32 },
+			})
+				.png()
+				.toBuffer(),
+		);
+		const send = vi.fn(async (_command: CopyObjectCommand | PutObjectCommand) => undefined);
 		const imageModerator = { checkImage: vi.fn(async () => ({ status: "safe" as const })) };
-		const signedUrlFor = vi.fn(async () => "https://signed.example.test/moderation/rec_safe-1.jpg");
+		const signedUrlFor = vi.fn(async () => "https://signed.example.test/quarantine");
 		const store = new S3DiningAttachmentStore({
-			bucket: "campus-dining-public",
-			downloader: {
-				downloadAttachment: vi.fn(async () => new Uint8Array([1, 2, 3])),
-			},
+			bucket: "campus-dining-media",
+			downloader: { downloadAttachment: vi.fn(async () => source) },
 			imageModerator,
-			publicBaseUrl: "https://assets.example.test/",
-			reviewPrefix: "dining/reviews",
+			publicEndpoint: "https://assets.example.test/",
 			s3: { send },
 			signedUrlFor,
 		});
 
-		const images = await store.materialize({ record: RECORD });
+		const images = await store.materialize({ record: RECORD, runId: "run:unsafe/path" });
 
-		expect(send).toHaveBeenCalledTimes(3);
-		expect(imageModerator.checkImage).toHaveBeenCalledWith({
-			url: "https://signed.example.test/moderation/rec_safe-1.jpg",
+		expect(send).toHaveBeenCalledTimes(2);
+		const put = send.mock.calls[0]?.[0];
+		const copy = send.mock.calls[1]?.[0];
+		expect(put).toBeInstanceOf(PutObjectCommand);
+		expect(copy).toBeInstanceOf(CopyObjectCommand);
+		expect(put?.input).toMatchObject({
+			Bucket: "campus-dining-media",
+			ContentType: "image/webp",
+			Key: expect.stringMatching(/^quarantine\/reviews\/run_unsafe_path\/[a-f0-9]{64}\.webp$/),
+		});
+		expect(copy?.input).toMatchObject({
+			Bucket: "campus-dining-media",
+			Key: expect.stringMatching(/^public\/reviews\/sha256\/[a-f0-9]{64}\.webp$/),
 		});
 		expect(signedUrlFor).toHaveBeenCalledWith({
-			bucket: "campus-dining-public",
-			key: "dining/reviews-moderation/rec_safe-1.jpg",
+			bucket: "campus-dining-media",
+			key: put?.input.Key,
 		});
-		const calls = send.mock.calls as [
-			CopyObjectCommand | DeleteObjectCommand | PutObjectCommand,
-		][];
-		expect(calls[0]?.[0]).toBeInstanceOf(PutObjectCommand);
-		expect(calls[1]?.[0]).toBeInstanceOf(CopyObjectCommand);
-		expect(calls[2]?.[0]).toBeInstanceOf(DeleteObjectCommand);
+		expect(imageModerator.checkImage).toHaveBeenCalledWith({
+			url: "https://signed.example.test/quarantine",
+		});
 		expect(images).toEqual([
 			{
 				alt: "金汤鱼粉评价图片",
-				imageId: "dining-review-image:rec_safe:1",
-				url: "https://assets.example.test/dining/reviews/rec_safe-1.jpg",
+				imageId: expect.stringMatching(/^dining-review-image:sha256:[a-f0-9]{64}$/),
+				url: expect.stringMatching(
+					/^https:\/\/assets\.example\.test\/campus-dining-media\/public\/reviews\/sha256\/[a-f0-9]{64}\.webp$/,
+				),
 			},
 		]);
 		expect(JSON.stringify(images)).not.toContain("file_token_1");
-	});
+	}, 15_000);
 
-	it("does not publish blocked images", async () => {
-		const send = vi.fn(async (_command: DeleteObjectCommand | PutObjectCommand) => undefined);
-		const store = new S3DiningAttachmentStore({
-			bucket: "campus-dining-public",
-			downloader: {
-				downloadAttachment: vi.fn(async () => new Uint8Array([1, 2, 3])),
-			},
-			imageModerator: { checkImage: vi.fn(async () => ({ status: "blocked" as const })) },
-			publicBaseUrl: "https://assets.example.test/",
-			reviewPrefix: "dining/reviews",
-			s3: { send },
-			signedUrlFor: async () => "https://signed.example.test/moderation/rec_safe-1.jpg",
-		});
-
-		await expect(store.materialize({ record: RECORD })).rejects.toThrow(/image moderation blocked/);
-		expect(send).toHaveBeenCalledTimes(2);
-		expect(send.mock.calls[0]?.[0]).toBeInstanceOf(PutObjectCommand);
-		expect(send.mock.calls[1]?.[0]).toBeInstanceOf(DeleteObjectCommand);
-	});
-
-	it("deletes moderation images when public copy fails", async () => {
-		const send = vi.fn(
-			async (command: CopyObjectCommand | DeleteObjectCommand | PutObjectCommand) => {
-				if (command instanceof CopyObjectCommand) {
-					throw new Error("copy failed");
-				}
-			},
+	it("leaves blocked objects private for lifecycle expiration", async () => {
+		const source = new Uint8Array(
+			await sharp({ create: { background: "white", channels: 3, height: 2, width: 2 } })
+				.jpeg()
+				.toBuffer(),
 		);
+		const send = vi.fn(async (_command: CopyObjectCommand | PutObjectCommand) => undefined);
 		const store = new S3DiningAttachmentStore({
-			bucket: "campus-dining-public",
-			downloader: {
-				downloadAttachment: vi.fn(async () => new Uint8Array([1, 2, 3])),
-			},
-			imageModerator: { checkImage: vi.fn(async () => ({ status: "safe" as const })) },
-			publicBaseUrl: "https://assets.example.test/",
-			reviewPrefix: "dining/reviews",
+			bucket: "campus-dining-media",
+			downloader: { downloadAttachment: vi.fn(async () => source) },
+			imageModerator: { checkImage: vi.fn(async () => ({ status: "blocked" as const })) },
+			publicEndpoint: "https://assets.example.test",
 			s3: { send },
-			signedUrlFor: async () => "https://signed.example.test/moderation/rec_safe-1.jpg",
+			signedUrlFor: async () => "https://signed.example.test/quarantine",
 		});
 
-		await expect(store.materialize({ record: RECORD })).rejects.toThrow(/copy failed/);
-		expect(send).toHaveBeenCalledTimes(3);
+		await expect(store.materialize({ record: RECORD, runId: "run-1" })).rejects.toMatchObject({
+			reason: "image_moderation_blocked",
+		});
+		expect(send).toHaveBeenCalledTimes(1);
 		expect(send.mock.calls[0]?.[0]).toBeInstanceOf(PutObjectCommand);
-		expect(send.mock.calls[1]?.[0]).toBeInstanceOf(CopyObjectCommand);
-		expect(send.mock.calls[2]?.[0]).toBeInstanceOf(DeleteObjectCommand);
 	});
 
-	it("removes public review images that are no longer referenced", async () => {
-		const send = vi.fn(async (command: DeleteObjectCommand | ListObjectsV2Command) => {
-			if (command instanceof ListObjectsV2Command) {
-				return {
-					Contents: [
-						{ Key: "dining/reviews/live-1.jpg" },
-						{ Key: "dining/reviews/stale-1.jpg" },
-					],
-				};
-			}
-			return {};
-		});
+	it("rejects oversized declarations and invalid image bodies before publication", async () => {
+		const attachment = RECORD.attachments[0];
+		if (!attachment) {
+			throw new Error("Dining attachment fixture is missing.");
+		}
+		const downloadAttachment = vi.fn(async () => new Uint8Array([1, 2, 3]));
 		const store = new S3DiningAttachmentStore({
-			bucket: "campus-dining-public",
-			downloader: {
-				downloadAttachment: vi.fn(async () => new Uint8Array([1, 2, 3])),
-			},
+			bucket: "campus-dining-media",
+			downloader: { downloadAttachment },
 			imageModerator: { checkImage: vi.fn(async () => ({ status: "safe" as const })) },
-			publicBaseUrl: "https://assets.example.test/",
-			reviewPrefix: "dining/reviews",
-			s3: { send },
-			signedUrlFor: async () => "https://signed.example.test/moderation/rec_safe-1.jpg",
+			publicEndpoint: "https://assets.example.test",
+			s3: { send: vi.fn(async () => undefined) },
+			signedUrlFor: async () => "https://signed.example.test/quarantine",
 		});
 
-		await store.removeUnreferencedPublicImages([
-			"https://assets.example.test/dining/reviews/live-1.jpg",
-		]);
+		await expect(
+			store.materialize({
+				record: {
+					...RECORD,
+					attachments: [{ ...attachment, size: DINING_IMAGE_MAX_BYTES + 1 }],
+				},
+				runId: "run-1",
+			}),
+		).rejects.toMatchObject({ reason: "image_too_large" });
+		expect(downloadAttachment).not.toHaveBeenCalled();
 
-		expect(send.mock.calls[0]?.[0]).toBeInstanceOf(ListObjectsV2Command);
-		expect(send.mock.calls[1]?.[0]).toBeInstanceOf(DeleteObjectCommand);
-		expect(JSON.stringify(send.mock.calls[1]?.[0])).toContain("stale-1.jpg");
-		expect(JSON.stringify(send.mock.calls)).not.toContain("live-1.jpg\",\"Bucket");
+		await expect(store.materialize({ record: RECORD, runId: "run-2" })).rejects.toMatchObject({
+			reason: "image_decode_failed",
+		});
 	});
 });

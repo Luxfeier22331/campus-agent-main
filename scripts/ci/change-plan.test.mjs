@@ -128,7 +128,13 @@ test("routes ingestion PostgreSQL ownership to its explicit database suite", () 
 });
 
 test("routes Dining migrations to its explicit database suite", () => {
-	const result = plan(["jobs/dining-sync/migrations/0001_dining.sql"], ["dining-sync"]);
+	const result = plan(["jobs/dining-sync/drizzle/0000_dining.sql"], ["dining-sync"]);
+
+	assert.deepEqual(result.verification.database, ["dining-sync"]);
+});
+
+test("routes Dining grants to its explicit database suite", () => {
+	const result = plan(["jobs/dining-sync/src/database-grants.ts"], ["dining-sync"]);
 
 	assert.deepEqual(result.verification.database, ["dining-sync"]);
 });
@@ -230,7 +236,7 @@ test("publishes ops-web when its packaged database operations change", () => {
 });
 
 test("publishes dining-sync for migration and runtime changes", () => {
-	const migration = plan(["jobs/dining-sync/migrations/0001_dining.sql"], ["dining-sync"]);
+	const migration = plan(["jobs/dining-sync/drizzle/0000_dining.sql"], ["dining-sync"]);
 	const domain = plan(
 		["packages/domains/dining/src/schema.ts"],
 		["@campus-agent/dining", "dining-sync"],

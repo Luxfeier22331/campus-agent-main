@@ -27,15 +27,6 @@ test_safe_configmap_is_allowed if {
 	count(violations) == 0
 }
 
-test_explicit_config_owned_token_is_allowed_in_configmap if {
-	violations := violation with input as {
-		"kind": "ConfigMap",
-		"metadata": {"name": "dining-config"},
-		"data": {"DINING_LARK_BASE_TOKEN": "base-resource-id"},
-	}
-	count(violations) == 0
-}
-
 test_workload_secret_env_from_is_rejected if {
 	violations := violation with input as {
 		"apiVersion": "apps/v1",

@@ -20,10 +20,13 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharin
   && pnpm --filter dining-sync build:runtime \
   && pnpm --filter dining-sync deploy --legacy --prod /opt/dining-sync \
   && test ! -e /opt/dining-sync/node_modules/.bin/tsx \
-  && test -f /opt/dining-sync/migrations/0001_dining.sql \
+  && test -f /opt/dining-sync/drizzle/0000_dining.sql \
   && test -f /opt/dining-sync/dist/cli.mjs \
+  && cd /opt/dining-sync \
+  && node --input-type=module --eval \
+    "import('sharp').then(async ({ default: sharp }) => sharp({ create: { width: 1, height: 1, channels: 4, background: '#00000000' } }).webp().toBuffer())" \
   && node --enable-source-maps /opt/dining-sync/dist/cli.mjs native-entrypoint-smoke 2>&1 \
-    | grep -F "Usage: pnpm sync"
+    | grep -F "Usage: dining-sync [catalog-sync|review-sync|review-recheck|db-install]"
 
 FROM node:24.15-bookworm-slim AS runtime
 
@@ -41,4 +44,3 @@ COPY --from=build --chown=node:node /opt/dining-sync /app/jobs/dining-sync
 USER node
 
 ENTRYPOINT ["node", "--enable-source-maps", "/app/jobs/dining-sync/dist/cli.mjs"]
-CMD ["sync-all"]

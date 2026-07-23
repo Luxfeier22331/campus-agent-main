@@ -1,3 +1,4 @@
+import { DINING_WAYFINDING_MIN_WINDOW } from "@campus-agent/dining/floorplans";
 import {
 	BaseBoxShapeUtil,
 	getIndices,
@@ -16,8 +17,6 @@ import {
 	type TLShape,
 	Vec,
 } from "tldraw";
-
-import { DINING_WAYFINDING_MIN_WINDOW } from "../src/floorplans/wayfinding-layout";
 
 export const DINING_EDITOR_PATH_LAYERS = ["outline", "partition", "structure"] as const;
 export const DINING_EDITOR_MARKER_KINDS = ["entrance", "landmark", "region", "window"] as const;

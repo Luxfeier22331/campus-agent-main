@@ -73,44 +73,10 @@ const OPS_WEB_GRANT_STATEMENTS = [
 	) ON TABLE "runtime"."request_observability_fact" TO "ops_web"`,
 ] as const;
 
-const OPS_WEB_DINING_WRITE_TABLES = [
-	"halls",
-	"floors",
-	"windows",
-	"stall_profiles",
-	"window_assignments",
-	"menu_items",
-	"menu_offerings",
-	"catalog_state",
-	"releases",
-	"publication",
-	"catalog_overrides",
-	"reviews",
-	"review_overrides",
-	"review_recheck_requests",
-	"operation_events",
-] as const;
-
-const OPS_WEB_DINING_GRANT_STATEMENTS = [
-	`GRANT USAGE ON SCHEMA "dining" TO "ops_web_dining"`,
-	`REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA "dining" FROM "ops_web_dining"`,
-	`GRANT SELECT ON ALL TABLES IN SCHEMA "dining" TO "ops_web_dining"`,
-	`GRANT INSERT, UPDATE, DELETE ON ${OPS_WEB_DINING_WRITE_TABLES.map((table) => `"dining"."${table}"`).join(", ")} TO "ops_web_dining"`,
-	`REVOKE CREATE ON SCHEMA "dining" FROM "ops_web_dining"`,
-] as const;
-
 export async function applyOpsWebGrantStatements(client: {
 	query(sql: string): Promise<unknown>;
 }): Promise<void> {
 	for (const statement of OPS_WEB_GRANT_STATEMENTS) {
-		await client.query(statement);
-	}
-}
-
-export async function applyOpsWebDiningGrantStatements(client: {
-	query(sql: string): Promise<unknown>;
-}): Promise<void> {
-	for (const statement of OPS_WEB_DINING_GRANT_STATEMENTS) {
 		await client.query(statement);
 	}
 }
@@ -233,7 +199,6 @@ async function assertDatabaseRole(client: Client, roleName: string): Promise<voi
 async function verifyDatabaseRoles(config: DatabaseConnectionConfig): Promise<void> {
 	return withClient(config, async (client) => {
 		await assertDatabaseRole(client, "ops_web");
-		await assertDatabaseRole(client, "ops_web_dining");
 	});
 }
 
@@ -314,59 +279,9 @@ async function verifyOpsWebRoleAndGrants(config: DatabaseConnectionConfig): Prom
 	});
 }
 
-async function verifyOpsWebDiningRoleAndGrants(config: DatabaseConnectionConfig): Promise<void> {
-	return withClient(config, async (client) => {
-		const currentUserResult = await client.query(`select current_user as "currentUser"`);
-		const currentUser = currentUserResult.rows[0]?.currentUser;
-		if (currentUser !== "ops_web_dining") {
-			throw new Error(
-				`OPS_WEB_DINING_DATABASE_URL must connect as ops_web_dining; current_user is ${currentUser ?? "<unknown>"}.`,
-			);
-		}
-
-		const schemaPrivileges = await client.query(`select
-			has_schema_privilege(current_user, 'dining', 'USAGE') as "canUseSchema",
-			has_schema_privilege(current_user, 'dining', 'CREATE') as "canCreateSchema"`);
-		if (
-			schemaPrivileges.rows[0]?.canUseSchema !== true ||
-			schemaPrivileges.rows[0]?.canCreateSchema !== false
-		) {
-			throw new Error("ops_web_dining must have USAGE but not CREATE on the dining schema.");
-		}
-
-		const missingPrivileges = await client.query(
-			`with required(table_name, privilege) as (
-				select tablename, 'SELECT'::text
-				from pg_catalog.pg_tables
-				where schemaname = 'dining'
-				union all
-				select table_name, privilege
-				from unnest($1::text[]) as required_table(table_name)
-				cross join unnest(array['INSERT', 'UPDATE', 'DELETE']::text[])
-					as required_privilege(privilege)
-			)
-			select table_name, privilege
-			from required
-			where not has_table_privilege(
-				current_user,
-				format('%I.%I', 'dining', table_name),
-				privilege
-			)`,
-			[[...OPS_WEB_DINING_WRITE_TABLES]],
-		);
-		if (missingPrivileges.rowCount !== 0) {
-			const missing = missingPrivileges.rows
-				.map((row) => `${String(row.table_name)}:${String(row.privilege)}`)
-				.join(", ");
-			throw new Error(`ops_web_dining is missing required privileges: ${missing}`);
-		}
-	});
-}
-
 function readDatabaseConfigs(env: NodeJS.ProcessEnv): {
 	schemaAdmin: DatabaseConnectionConfig;
 	opsWeb: DatabaseConnectionConfig;
-	opsWebDining: DatabaseConnectionConfig;
 } {
 	return {
 		schemaAdmin: readDatabaseConnectionConfig(env, {
@@ -379,27 +294,19 @@ function readDatabaseConfigs(env: NodeJS.ProcessEnv): {
 			databaseUrl: "OPS_WEB_DATABASE_URL",
 			sslMode: "OPS_WEB_DATABASE_SSLMODE",
 		}),
-		opsWebDining: readDatabaseConnectionConfig(env, {
-			caCertPath: "OPS_WEB_DINING_DATABASE_CA_CERT_PATH",
-			databaseUrl: "OPS_WEB_DINING_DATABASE_URL",
-			sslMode: "OPS_WEB_DINING_DATABASE_SSLMODE",
-		}),
 	};
 }
 
 export async function applyOpsWebDatabaseGrants(env: NodeJS.ProcessEnv = process.env): Promise<{
 	opsWebRole: "ready";
-	opsWebDiningRole: "ready";
 	readModel: "ready";
 }> {
 	const config = readDatabaseConfigs(env);
 	await withClient(config.schemaAdmin, async (client) => {
 		await assertDatabaseRole(client, "ops_web");
-		await assertDatabaseRole(client, "ops_web_dining");
 		await client.query("begin");
 		try {
 			await applyOpsWebGrantStatements(client);
-			await applyOpsWebDiningGrantStatements(client);
 			await client.query("commit");
 		} catch (error) {
 			await client.query("rollback");
@@ -407,28 +314,23 @@ export async function applyOpsWebDatabaseGrants(env: NodeJS.ProcessEnv = process
 		}
 	});
 	await verifyOpsWebRoleAndGrants(config.opsWeb);
-	await verifyOpsWebDiningRoleAndGrants(config.opsWebDining);
 	return {
 		opsWebRole: "ready",
-		opsWebDiningRole: "ready",
 		readModel: "ready",
 	};
 }
 
 export async function verifyOpsWebDatabase(env: NodeJS.ProcessEnv = process.env): Promise<{
 	opsWebRole: "ready";
-	opsWebDiningRole: "ready";
 	readModel: "ready";
 }> {
 	const config = readDatabaseConfigs(env);
 
 	await verifyDatabaseRoles(config.schemaAdmin);
 	await verifyOpsWebRoleAndGrants(config.opsWeb);
-	await verifyOpsWebDiningRoleAndGrants(config.opsWebDining);
 
 	return {
 		opsWebRole: "ready",
-		opsWebDiningRole: "ready",
 		readModel: "ready",
 	};
 }

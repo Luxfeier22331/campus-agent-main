@@ -14,9 +14,21 @@ export class PostgresDiningDevSeedImporter {
 		try {
 			await client.query("BEGIN");
 			for (const table of [
-				"operation_events", "review_recheck_requests", "review_overrides", "reviews",
-				"publication", "catalog_state", "releases", "catalog_overrides", "menu_offerings", "menu_items",
-				"window_assignments", "stall_profiles", "windows", "floors", "halls",
+				"operation_events",
+				"review_recheck_requests",
+				"review_overrides",
+				"reviews",
+				"publication",
+				"catalog_state",
+				"releases",
+				"catalog_overrides",
+				"menu_offerings",
+				"menu_items",
+				"window_assignments",
+				"stall_profiles",
+				"windows",
+				"floors",
+				"halls",
 			]) {
 				await client.query(`DELETE FROM dining.${table}`);
 			}
@@ -60,13 +72,26 @@ export class PostgresDiningDevSeedImporter {
 			for (const stall of seed.draft.stallProfiles) {
 				await client.query(
 					"INSERT INTO dining.stall_profiles(stall_profile_id,display_name,stall_type,tags_json,status,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$6)",
-					[stall.stallProfileId, stall.displayName, stall.stallType, JSON.stringify(stall.tags), stall.status, now],
+					[
+						stall.stallProfileId,
+						stall.displayName,
+						stall.stallType,
+						JSON.stringify(stall.tags),
+						stall.status,
+						now,
+					],
 				);
 			}
 			for (const assignment of seed.draft.assignments) {
 				await client.query(
 					"INSERT INTO dining.window_assignments(assignment_id,window_id,stall_profile_id,status,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$5)",
-					[assignment.assignmentId, assignment.windowId, assignment.stallProfileId, assignment.status, now],
+					[
+						assignment.assignmentId,
+						assignment.windowId,
+						assignment.stallProfileId,
+						assignment.status,
+						now,
+					],
 				);
 			}
 			for (const item of seed.draft.menuItems) {
@@ -78,12 +103,29 @@ export class PostgresDiningDevSeedImporter {
 			for (const offering of seed.draft.menuOfferings) {
 				await client.query(
 					"INSERT INTO dining.menu_offerings(offering_id,assignment_id,menu_item_id,price_label,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$5)",
-					[offering.offeringId, offering.assignmentId, offering.menuItemId, offering.priceLabel, now],
+					[
+						offering.offeringId,
+						offering.assignmentId,
+						offering.menuItemId,
+						offering.priceLabel,
+						now,
+					],
 				);
 			}
 			await client.query(
 				"INSERT INTO dining.releases(release_id,predecessor_release_id,rollback_of_release_id,draft_revision,notes,snapshot_hash,payload_json,validation_json,created_at,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
-				[seed.release.releaseId, seed.release.predecessorReleaseId, seed.release.rollbackOfReleaseId, seed.release.draftRevision, seed.release.notes, seed.release.snapshotHash, JSON.stringify(seed.snapshot), JSON.stringify(seed.release.validation), new Date(seed.release.createdAt), seed.release.createdBy],
+				[
+					seed.release.releaseId,
+					seed.release.predecessorReleaseId,
+					seed.release.rollbackOfReleaseId,
+					seed.release.draftRevision,
+					seed.release.notes,
+					seed.release.snapshotHash,
+					JSON.stringify(seed.snapshot),
+					JSON.stringify(seed.release.validation),
+					new Date(seed.release.createdAt),
+					seed.release.createdBy,
+				],
 			);
 			await client.query(
 				"INSERT INTO dining.catalog_state(scope,draft_revision,base_release_id,updated_at,updated_by) VALUES('global',$1,$2,$3,$4)",
@@ -91,7 +133,11 @@ export class PostgresDiningDevSeedImporter {
 			);
 			await client.query(
 				"INSERT INTO dining.publication(scope,catalog_release_id,review_revision,updated_at) VALUES('global',$1,$2,$3)",
-				[seed.publication.catalogReleaseId, seed.publication.reviewRevision, new Date(seed.publication.updatedAt)],
+				[
+					seed.publication.catalogReleaseId,
+					seed.publication.reviewRevision,
+					new Date(seed.publication.updatedAt),
+				],
 			);
 			for (const review of seed.reviews) {
 				await client.query(
@@ -100,7 +146,25 @@ export class PostgresDiningDevSeedImporter {
 						rating,comment,contributor_name,images_json,submitted_at,moderation_status,visibility,
 						hall_id,stall_profile_id,window_id,offering_id,published_at,created_at,updated_at
 					) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'safe','published',$13,$14,$15,$16,$17,$17,$17)`,
-					[review.reviewId, review.sourceRecordId, review.campus, review.hallName, review.stallName, review.dishName, review.paidPriceLabel, review.rating, review.comment, review.contributorName, JSON.stringify(review.images), new Date(review.submittedAt), review.hallId, review.stallProfileId, review.windowId, review.offeringId, now],
+					[
+						review.reviewId,
+						review.sourceRecordId,
+						review.campus,
+						review.hallName,
+						review.stallName,
+						review.dishName,
+						review.paidPriceLabel,
+						review.rating,
+						review.comment,
+						review.contributorName,
+						JSON.stringify(review.images),
+						new Date(review.submittedAt),
+						review.hallId,
+						review.stallProfileId,
+						review.windowId,
+						review.offeringId,
+						now,
+					],
 				);
 			}
 			await client.query("COMMIT");

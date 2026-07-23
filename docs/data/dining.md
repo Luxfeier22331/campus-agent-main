@@ -11,7 +11,8 @@ status: active
 本文只定义 `dining.*` 的逻辑 schema、字段所有权和角色权限。领域流程和产品语义见
 `../architecture/domains/dining.md`。可执行 schema 位于
 `packages/domains/dining/src/schema.ts`，干净重建 migration 位于
-`jobs/dining-sync/migrations/0001_dining.sql`。
+`jobs/dining-sync/drizzle/0000_dining.sql`，迁移历史由 Drizzle 写入
+`dining_migrations.history`。
 
 ## 表族
 
@@ -81,6 +82,10 @@ overrides。
 完整。图片只保存审核通过后的 S3-compatible public URL，不保存 Feishu file token、临时下载 URL
 或 provider payload。
 
+评价图片使用独立 `campus-dining-media` bucket。`quarantine/reviews/` 保存等待审核的规范化 WebP，
+保持私有并在一天后过期；`public/reviews/sha256/` 使用内容摘要命名，允许匿名只读。同步任务复用
+现有 derived 对象存储凭据，不新增领域专用凭据。
+
 ### 有界操作事件
 
 `operation_events` 保存 Dining 管理动作的低敏摘要：actor id、action、object kind/id、bounded
@@ -91,7 +96,9 @@ summary 和时间。它不保存原始评价正文副本、完整请求体或外
 ### 结构管理
 
 数据库结构安装使用独立管理角色，可以重建 schema 和配置授权，但不提供给同步任务、Ops Web
-或 App API。精确连接变量和部署顺序由安装任务与环境配置维护。
+或 App API。部署入口先执行不可变 migration，再通过 `jobs/dining-sync/src/database-grants.ts`
+严格应用并验证角色权限。缺少 schema、角色或预期表时安装失败，不静默跳过。
+`0000_dining.sql` 与 Drizzle journal 是迁移事实，grant 集合由 `database-grants.ts` 维护。
 
 ### `dining_sync`
 

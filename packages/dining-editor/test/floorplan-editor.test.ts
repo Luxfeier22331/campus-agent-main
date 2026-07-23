@@ -1,21 +1,20 @@
-import { renderToStaticMarkup } from "react-dom/server";
-import { Box, type TLCreateShapePartial, type TLShape, Vec } from "tldraw";
-import { describe, expect, it } from "vitest";
-
-import { applyDiningFloorplanCommands } from "../editor/editor-commands";
-import { DINING_REFERENCE_CALIBRATIONS } from "../editor/reference-calibrations";
-import {
-	DINING_REFERENCE_SHAPE_META_KEY,
-	layoutToTldrawRecords,
-	tldrawRecordsToLayout,
-} from "../editor/tldraw-adapter";
-import { type DiningMarkerShape, DiningMarkerShapeUtil } from "../editor/tldraw-shapes";
 import {
 	assertDiningWayfindingLayout,
 	canonicalizeDiningWayfindingLayout,
 	DINING_WAYFINDING_LAYOUTS,
 	serializeDiningWayfindingLayout,
-} from "../src/floorplans";
+} from "@campus-agent/dining/floorplans";
+import { renderToStaticMarkup } from "react-dom/server";
+import { Box, type TLCreateShapePartial, type TLShape, Vec } from "tldraw";
+import { describe, expect, it } from "vitest";
+import { applyDiningFloorplanCommands } from "../src/editor-commands";
+import { DINING_REFERENCE_CALIBRATIONS } from "../src/reference-calibrations";
+import {
+	DINING_REFERENCE_SHAPE_META_KEY,
+	layoutToTldrawRecords,
+	tldrawRecordsToLayout,
+} from "../src/tldraw-adapter";
+import { type DiningMarkerShape, DiningMarkerShapeUtil } from "../src/tldraw-shapes";
 
 describe("dining tldraw adapter", () => {
 	it("round-trips every canonical layout without changing domain truth", () => {

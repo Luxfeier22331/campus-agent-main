@@ -7,6 +7,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,11 +16,16 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 const (
-	schemaModeCheck   = "check"
-	schemaModeInstall = "install"
+	databaseConnectAttemptTimeout = 5 * time.Second
+	databaseStartupRetryDelay     = 500 * time.Millisecond
+	databaseStartupTimeout        = 60 * time.Second
+	schemaModeCheck               = "check"
+	schemaModeInstall             = "install"
 )
 
 var errInvalidOptions = errors.New("invalid run projection schema options")
@@ -37,6 +43,20 @@ type schemaReport struct {
 	Passed      bool   `json:"passed"`
 	SchemaReady bool   `json:"schema_ready"`
 	Store       string `json:"store"`
+}
+
+type postgresProbe func(context.Context, *pgx.ConnConfig) error
+
+type databaseStartupPolicy struct {
+	AttemptTimeout time.Duration
+	RetryDelay     time.Duration
+	Timeout        time.Duration
+}
+
+var defaultDatabaseStartupPolicy = databaseStartupPolicy{
+	AttemptTimeout: databaseConnectAttemptTimeout,
+	RetryDelay:     databaseStartupRetryDelay,
+	Timeout:        databaseStartupTimeout,
 }
 
 func main() {
@@ -91,6 +111,14 @@ func runSchemaCommand(ctx context.Context, options schemaOptions) (schemaReport,
 	if now.IsZero() {
 		now = time.Now().UTC()
 	}
+	if err := waitForDatabase(
+		ctx,
+		options.DatabaseURL,
+		defaultDatabaseStartupPolicy,
+		probePostgres,
+	); err != nil {
+		return schemaReport{}, err
+	}
 	store, err := execution.NewPostgresRunProjectionStore(ctx, execution.PostgresRunProjectionStoreOptions{
 		DatabaseURL: options.DatabaseURL,
 		AutoMigrate: false,
@@ -140,6 +168,77 @@ func runSchemaCommand(ctx context.Context, options schemaOptions) (schemaReport,
 		return schemaReport{}, err
 	}
 	return report, nil
+}
+
+func waitForDatabase(
+	ctx context.Context,
+	databaseURL string,
+	policy databaseStartupPolicy,
+	probe postgresProbe,
+) error {
+	config, err := pgx.ParseConfig(databaseURL)
+	if err != nil {
+		return fmt.Errorf("parse schema database url: %w", err)
+	}
+	waitCtx, cancel := context.WithTimeout(ctx, policy.Timeout)
+	defer cancel()
+
+	for attempt := 1; ; attempt++ {
+		attemptCtx, cancelAttempt := context.WithTimeout(waitCtx, policy.AttemptTimeout)
+		err = probe(attemptCtx, config.Copy())
+		cancelAttempt()
+		if err == nil {
+			return nil
+		}
+		if waitCtx.Err() != nil {
+			return fmt.Errorf(
+				"wait for schema database after %d attempt(s): %w; last connection error: %v",
+				attempt,
+				waitCtx.Err(),
+				err,
+			)
+		}
+		if !isRetryableDatabaseStartupError(err) {
+			return fmt.Errorf("connect to schema database: %w", err)
+		}
+
+		timer := time.NewTimer(policy.RetryDelay)
+		select {
+		case <-waitCtx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return fmt.Errorf(
+				"wait for schema database after %d attempt(s): %w; last connection error: %v",
+				attempt,
+				waitCtx.Err(),
+				err,
+			)
+		case <-timer.C:
+		}
+	}
+}
+
+func probePostgres(ctx context.Context, config *pgx.ConnConfig) error {
+	connection, err := pgx.ConnectConfig(ctx, config)
+	if err != nil {
+		return err
+	}
+	return connection.Close(ctx)
+}
+
+func isRetryableDatabaseStartupError(err error) bool {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var postgresError *pgconn.PgError
+	if errors.As(err, &postgresError) {
+		return strings.HasPrefix(postgresError.Code, "08") ||
+			postgresError.Code == "53300" ||
+			postgresError.Code == "57P03"
+	}
+	var networkError net.Error
+	return errors.As(err, &networkError)
 }
 
 func writeSchemaReport(path string, report schemaReport) error {

@@ -1,11 +1,10 @@
-import { createShapeId, type TLCreateShapePartial, type TLShape } from "tldraw";
-
 import {
 	assertDiningWayfindingLayout,
 	canonicalizeDiningWayfindingLayout,
 	type DiningWayfindingLayout,
 	type DiningWayfindingPoint,
-} from "../src/floorplans/wayfinding-layout";
+} from "@campus-agent/dining/floorplans";
+import { createShapeId, type TLCreateShapePartial, type TLShape } from "tldraw";
 import type {
 	DiningEditorMarkerKind,
 	DiningEditorPathLayer,

@@ -1,12 +1,15 @@
+import { sha256Tag, stableJson } from "@campus-agent/dining/domain";
+
+import { DiningAttachmentRejectedError } from "./attachment-store.ts";
 import type {
 	DiningSourceObservation,
 	FeishuReviewSourceIdentity,
 } from "./catalog-source-types.ts";
+import { DINING_MODERATION_POLICY_VERSION } from "./moderation.ts";
 import { buildReviewObservations, reviewsFromObservations } from "./review-source.ts";
-import type { DiningReviewResolution } from "./review-resolver.ts";
+import type { DiningObservationState, DiningSyncRun } from "./source-observation-store.ts";
 import type {
 	DiningReviewImage,
-	DiningReviewProjection,
 	DiningSourceRecord,
 	ModerationResult,
 	SyncReport,
@@ -14,17 +17,9 @@ import type {
 
 export interface DiningSyncDependencies {
 	attachmentStore: {
-		materialize(input: { record: DiningSourceRecord }): Promise<DiningReviewImage[]>;
-		removeUnreferencedPublicImages?(referencedPublicUrls: string[]): Promise<void>;
+		materialize(input: { record: DiningSourceRecord; runId: string }): Promise<DiningReviewImage[]>;
 	};
-	reviewResolver: {
-		resolve(input: {
-			campus: string;
-			dishName: string;
-			hallName: string;
-			stallName: string;
-		}): DiningReviewResolution;
-	};
+	catalogReleaseId: string;
 	moderator: {
 		check(input: {
 			comment: string | null;
@@ -34,25 +29,71 @@ export interface DiningSyncDependencies {
 		}): Promise<ModerationResult>;
 	};
 	observationStore: {
-		listActiveFeishuReviewObservations(): Promise<DiningSourceObservation[]>;
-		upsertFeishuReviewObservations(
-			observations: DiningSourceObservation[],
-			sourceIdentity?: FeishuReviewSourceIdentity,
-		): Promise<SyncReport["observationSync"]>;
+		completeReviewRun(input: {
+			observations: DiningSourceObservation[];
+			processingHashes: ReadonlyMap<string, string>;
+			run: DiningSyncRun;
+			sourceIdentity: FeishuReviewSourceIdentity;
+		}): Promise<SyncReport["observationSync"]>;
+		listActiveReviewObservations(): Promise<DiningSourceObservation[]>;
+		loadActiveReviewStates(): Promise<Map<string, DiningObservationState>>;
+		succeedRun(run: DiningSyncRun): Promise<void>;
 	};
 	publisher: {
-		publishReviewObservations(observations: DiningSourceObservation[]): Promise<number>;
+		publishReviewObservations(
+			observations: DiningSourceObservation[],
+			expectedCatalogReleaseId: string,
+		): Promise<number>;
 	};
 	records: DiningSourceRecord[];
+	reviewResolver: {
+		resolve(input: { campus: string; dishName: string; hallName: string; stallName: string }):
+			| {
+					hallId: string;
+					hallName: string;
+					offeringId: string;
+					stallProfileId: string;
+					status: "resolved";
+					windowId: string;
+			  }
+			| { reason: string; status: "blocked" };
+	};
+	run: DiningSyncRun;
 	sourceIdentity: FeishuReviewSourceIdentity;
 }
 
 export async function runDiningSync(input: DiningSyncDependencies): Promise<SyncReport> {
+	const existing = await input.observationStore.loadActiveReviewStates();
 	const observationInputs: Parameters<typeof buildReviewObservations>[0] = [];
+	const processingHashes = new Map<string, string>();
+	const now = new Date();
 	let blockedCount = 0;
 	const blockedReasons: Record<string, number> = {};
 	let attachmentCount = 0;
+	let reusedCount = 0;
+
 	for (const record of input.records) {
+		const observationId = `feishu:review:${record.sourceRecordId}`;
+		const processingHash = reviewProcessingHash(record, input.catalogReleaseId);
+		processingHashes.set(observationId, processingHash);
+		const previous = existing.get(observationId);
+		if (previous?.processingHash === processingHash) {
+			const blockReason = optionalString(previous.observation.payloadJson.blockReason);
+			if (blockReason) {
+				blockedCount += 1;
+				incrementBlockedReason(blockedReasons, blockReason);
+			}
+			observationInputs.push(inputFromReusedObservation(record, previous.observation));
+			reusedCount += 1;
+			continue;
+		}
+		const sourceBlockReason = record.sourceBlockReason;
+		if (sourceBlockReason) {
+			blockedCount += 1;
+			incrementBlockedReason(blockedReasons, sourceBlockReason);
+			observationInputs.push({ blockReason: sourceBlockReason, record });
+			continue;
+		}
 		if (!record.submittedAt) {
 			blockedCount += 1;
 			const blockReason = "submitted_at_missing";
@@ -68,21 +109,39 @@ export async function runDiningSync(input: DiningSyncDependencies): Promise<Sync
 			observationInputs.push({ blockReason, record });
 			continue;
 		}
-		const resolution = resolveReview(input, record);
+		const resolution = input.reviewResolver.resolve({
+			campus: record.campus,
+			dishName: record.dishName,
+			hallName: record.hallName,
+			stallName: record.stallName,
+		});
 		if (resolution.status === "blocked") {
 			blockedCount += 1;
-			const blockReason = resolution.reason;
-			incrementBlockedReason(blockedReasons, blockReason);
-			observationInputs.push({ blockReason, record });
+			incrementBlockedReason(blockedReasons, resolution.reason);
+			observationInputs.push({ blockReason: resolution.reason, record });
 			continue;
 		}
-		const images = await materializeAttachments(input, record);
-		if (!images) {
-			blockedCount += 1;
-			const blockReason = "image_moderation_blocked";
-			incrementBlockedReason(blockedReasons, blockReason);
+		try {
+			const images = await input.attachmentStore.materialize({ record, runId: input.run.runId });
+			attachmentCount += images.length;
 			observationInputs.push({
-				blockReason,
+				blockReason: null,
+				hallId: resolution.hallId,
+				hallName: resolution.hallName,
+				images,
+				offeringId: resolution.offeringId,
+				record,
+				stallProfileId: resolution.stallProfileId,
+				windowId: resolution.windowId,
+			});
+		} catch (error) {
+			if (!(error instanceof DiningAttachmentRejectedError)) {
+				throw error;
+			}
+			blockedCount += 1;
+			incrementBlockedReason(blockedReasons, error.reason);
+			observationInputs.push({
+				blockReason: error.reason,
 				hallId: resolution.hallId,
 				hallName: resolution.hallName,
 				offeringId: resolution.offeringId,
@@ -90,31 +149,26 @@ export async function runDiningSync(input: DiningSyncDependencies): Promise<Sync
 				stallProfileId: resolution.stallProfileId,
 				windowId: resolution.windowId,
 			});
-			continue;
 		}
-		attachmentCount += images.length;
-		observationInputs.push({
-			blockReason: null,
-			images,
-			hallId: resolution.hallId,
-			hallName: resolution.hallName,
-			offeringId: resolution.offeringId,
-			record,
-			stallProfileId: resolution.stallProfileId,
-			windowId: resolution.windowId,
-		});
 	}
-	const observations = buildReviewObservations(observationInputs);
-	const observationSync = await input.observationStore.upsertFeishuReviewObservations(
+
+	const observations = buildReviewObservations(observationInputs, now).map((observation) => ({
+		...observation,
+		payloadJson: {
+			...observation.payloadJson,
+			sourceHash: processingHashes.get(observation.observationId),
+		},
+	}));
+	const observationSync = await input.observationStore.completeReviewRun({
 		observations,
-		input.sourceIdentity,
-	);
-	const activeObservations = await input.observationStore.listActiveFeishuReviewObservations();
+		processingHashes,
+		run: input.run,
+		sourceIdentity: input.sourceIdentity,
+	});
+	const activeObservations = await input.observationStore.listActiveReviewObservations();
 	const reviews = reviewsFromObservations(activeObservations);
-	await input.publisher.publishReviewObservations(activeObservations);
-	await input.attachmentStore.removeUnreferencedPublicImages?.(
-		reviews.flatMap((review) => review.images.map((image) => image.url)),
-	);
+	await input.publisher.publishReviewObservations(activeObservations, input.catalogReleaseId);
+	await input.observationStore.succeedRun(input.run);
 	return {
 		attachmentCount,
 		blockedCount,
@@ -122,27 +176,48 @@ export async function runDiningSync(input: DiningSyncDependencies): Promise<Sync
 		observationSync,
 		publishedCount: reviews.length,
 		readCount: input.records.length,
+		reusedCount,
 		reviews,
 		status: reviews.length > 0 ? "published" : "no_publishable_records",
 	};
 }
 
-function incrementBlockedReason(blockedReasons: Record<string, number>, blockReason: string): void {
-	blockedReasons[blockReason] = (blockedReasons[blockReason] ?? 0) + 1;
+function reviewProcessingHash(record: DiningSourceRecord, catalogReleaseId: string): string {
+	return sha256Tag(
+		stableJson({
+			catalogReleaseId,
+			policy: DINING_MODERATION_POLICY_VERSION,
+			record: {
+				...record,
+				attachments: record.attachments.map(({ fileToken, name, size }) => ({
+					fileToken,
+					name,
+					size,
+				})),
+			},
+		}),
+	);
 }
 
-async function materializeAttachments(
-	input: DiningSyncDependencies,
+function inputFromReusedObservation(
 	record: DiningSourceRecord,
-): Promise<DiningReviewImage[] | null> {
-	try {
-		return await input.attachmentStore.materialize({ record });
-	} catch (error) {
-		if (error instanceof Error && /moderation blocked/i.test(error.message)) {
-			return null;
-		}
-		throw error;
-	}
+	observation: DiningSourceObservation,
+): Parameters<typeof buildReviewObservations>[0][number] {
+	const payload = observation.payloadJson;
+	return {
+		blockReason: optionalString(payload.blockReason),
+		hallId: optionalString(payload.hallId) ?? undefined,
+		hallName: optionalString(payload.hallName) ?? undefined,
+		images: Array.isArray(payload.images) ? (payload.images as DiningReviewImage[]) : [],
+		offeringId: optionalString(payload.offeringId) ?? undefined,
+		record,
+		stallProfileId: optionalString(payload.stallProfileId) ?? undefined,
+		windowId: optionalString(payload.windowId) ?? undefined,
+	};
+}
+
+function incrementBlockedReason(blockedReasons: Record<string, number>, blockReason: string): void {
+	blockedReasons[blockReason] = (blockedReasons[blockReason] ?? 0) + 1;
 }
 
 async function moderateRecord(
@@ -155,20 +230,13 @@ async function moderateRecord(
 		dishName: record.dishName,
 		stallName: record.stallName,
 	});
-	if (moderation.status === "safe" || moderation.status === "blocked" || moderation.status === "uncertain") {
-		return moderation;
-	}
-	return { status: "blocked" };
+	return moderation.status === "safe" ||
+		moderation.status === "blocked" ||
+		moderation.status === "uncertain"
+		? moderation
+		: { status: "blocked" };
 }
 
-function resolveReview(
-	input: DiningSyncDependencies,
-	record: DiningSourceRecord,
-): DiningReviewResolution {
-	return input.reviewResolver.resolve({
-		campus: record.campus,
-		dishName: record.dishName,
-		hallName: record.hallName,
-		stallName: record.stallName,
-	});
+function optionalString(value: unknown): string | null {
+	return typeof value === "string" && value.trim() ? value : null;
 }

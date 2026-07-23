@@ -24,6 +24,7 @@ while IFS= read -r image; do
 	inspect_file="${temporary_directory}/inspect-${image}.json"
 	inspect_error="${temporary_directory}/inspect-${image}.error"
 
+	echo "Publishing ${image} from ${dockerfile}."
 	if docker buildx imagetools inspect "$tag" --format '{{json .}}' \
 		> "$inspect_file" 2> "$inspect_error"; then
 		if ! jq -e '

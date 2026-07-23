@@ -31,8 +31,9 @@ Kubernetes workload 源码、具体环境状态和第三方平台组件需要不
 
 - 合并源码不等于部署；环境变更需要独立 review 和 Argo CD reconcile。
 - 第一方 Kustomize base 不选择 namespace、环境配置、可变镜像标签或真实 Secret。
-- 数据库角色、迁移任务和依赖该结构的 workload 必须位于同一个发布 Application；同步顺序只在
-  该 Application 内表达，不把 root 中 child Application 的 wave 当作跨应用事务。
+- 强依赖数据库结构的角色、迁移任务和 workload 位于同一个发布 Application。嵌入宿主进程的可选
+  领域能力由领域 Application 拥有 schema、专用角色和授权，宿主通过 optional 引用局部降级。同步
+  顺序只在单个 Application 内表达，不把 root 中 child Application 的 wave 当作跨应用事务。
 - Helm 只解决成熟第三方组件交付，不成为第一方服务的默认包装层。
 
 ## 未采用方案

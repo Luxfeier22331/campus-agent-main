@@ -10,8 +10,6 @@ const databaseEnv = {
 	DEPLOYMENT_ENVIRONMENT: "local",
 	OPS_WEB_DATABASE_SSLMODE: "disable",
 	OPS_WEB_DATABASE_URL: postgres.opsWebConnectionString,
-	OPS_WEB_DINING_DATABASE_SSLMODE: "disable",
-	OPS_WEB_DINING_DATABASE_URL: postgres.opsWebDiningConnectionString,
 	OPS_WEB_SCHEMA_DATABASE_SSLMODE: "disable",
 	OPS_WEB_SCHEMA_DATABASE_URL: postgres.managementConnectionString,
 } as const;
@@ -44,7 +42,6 @@ describe("ops-web PostgreSQL grants", () => {
 	let applyResult: Awaited<ReturnType<typeof applyOpsWebDatabaseGrants>>;
 	let management: Client;
 	let opsWeb: Client | undefined;
-	let opsWebDining: Client | undefined;
 	let verifyResult: Awaited<ReturnType<typeof verifyOpsWebDatabase>>;
 
 	beforeAll(async () => {
@@ -54,47 +51,24 @@ describe("ops-web PostgreSQL grants", () => {
 			grant select on execution_config.profiles to ops_web;
 			grant select (connection_id) on execution_config.connection_revisions to ops_web;
 		`);
-		await management.query(`
-			revoke all privileges on schema dining from ops_web_dining;
-			revoke all privileges on all tables in schema dining from ops_web_dining;
-		`);
 		applyResult = await applyOpsWebDatabaseGrants(databaseEnv);
 		verifyResult = await verifyOpsWebDatabase(databaseEnv);
 		opsWeb = await connect(postgres.opsWebConnectionString);
-		opsWebDining = await connect(postgres.opsWebDiningConnectionString);
 	});
 
 	afterAll(async () => {
-		await Promise.all([management.end(), opsWeb?.end(), opsWebDining?.end()]);
+		await Promise.all([management.end(), opsWeb?.end()]);
 	});
 
 	it("applies and verifies the read-model grant contract", () => {
 		expect(applyResult).toEqual({
 			opsWebRole: "ready",
-			opsWebDiningRole: "ready",
 			readModel: "ready",
 		});
 		expect(verifyResult).toEqual({
 			opsWebRole: "ready",
-			opsWebDiningRole: "ready",
 			readModel: "ready",
 		});
-	});
-
-	it("grants the dining role its bounded operational access", async () => {
-		const dining = requiredClient(opsWebDining, "ops_web_dining");
-		await expect(dining.query("select 1 from dining.publication limit 1")).resolves.toBeDefined();
-		await expect(
-			dining.query("update dining.publication set updated_at = updated_at where false"),
-		).resolves.toBeDefined();
-		expect(
-			await postgresErrorCode(
-				dining.query("update dining.source_sync_runs set status = status where false"),
-			),
-		).toBe("42501");
-		expect(await postgresErrorCode(dining.query("create table dining.forbidden(id int)"))).toBe(
-			"42501",
-		);
 	});
 
 	it("allows only the declared read-model columns", async () => {

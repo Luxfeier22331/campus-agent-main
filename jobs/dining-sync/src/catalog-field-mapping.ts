@@ -20,47 +20,100 @@ export interface LarkCatalogTables {
 
 export function catalogRecordsFromLarkTables(input: LarkCatalogTables): DiningCatalogSourceRecords {
 	return {
-		campuses: input.campuses.map(toCampusRecord),
-		dishes: input.dishes.map(toDishRecord),
-		halls: input.halls.map(toHallRecord),
-		stalls: input.stalls.map(toStallRecord),
+		campuses: input.campuses.map((record) => parseRecord(record, toCampusRecord, blockedCampus)),
+		dishes: input.dishes.map((record) => parseRecord(record, toDishRecord, blockedDish)),
+		halls: input.halls.map((record) => parseRecord(record, toHallRecord, blockedHall)),
+		stalls: input.stalls.map((record) => parseRecord(record, toStallRecord, blockedStall)),
+	};
+}
+
+function parseRecord<T>(
+	record: LarkTableRecord,
+	parse: (value: LarkTableRecord) => T,
+	blocked: (value: LarkTableRecord) => T,
+): T {
+	try {
+		return parse(record);
+	} catch {
+		return blocked(record);
+	}
+}
+
+function blockedCampus(record: LarkTableRecord): FeishuCampusRecord {
+	return {
+		blockReason: "source_record_invalid",
+		campusName: "",
+		order: null,
+		sourceRecordId: record.recordId,
+	};
+}
+
+function blockedHall(record: LarkTableRecord): FeishuHallRecord {
+	return {
+		blockReason: "source_record_invalid",
+		campusSourceRecordIds: [],
+		hallName: "",
+		order: null,
+		sourceRecordId: record.recordId,
+	};
+}
+
+function blockedStall(record: LarkTableRecord): FeishuStallRecord {
+	return {
+		blockReason: "source_record_invalid",
+		hallSourceRecordIds: [],
+		order: null,
+		sourceRecordId: record.recordId,
+		stallName: "",
+		tags: [],
+	};
+}
+
+function blockedDish(record: LarkTableRecord): FeishuDishRecord {
+	return {
+		blockReason: "source_record_invalid",
+		dishName: "",
+		priceLabel: null,
+		sourceRecordId: record.recordId,
+		stallSourceRecordIds: [],
+		tags: [],
 	};
 }
 
 function toCampusRecord(record: LarkTableRecord): FeishuCampusRecord {
 	return {
-		campusName: requireText(record.fields["校区名称"], "校区名称"),
-		order: optionalNumber(record.fields["排序"]),
+		campusName: requireText(record.fields.校区名称, "校区名称"),
+		order: optionalNumber(record.fields.排序),
 		sourceRecordId: record.recordId,
 	};
 }
 
 function toHallRecord(record: LarkTableRecord): FeishuHallRecord {
 	return {
-		campusSourceRecordIds: linkedRecordIds(record.fields["所属校区"]),
-		hallName: requireText(record.fields["食堂名称"], "食堂名称"),
-		order: optionalNumber(record.fields["排序"]),
+		campusSourceRecordIds: linkedRecordIds(record.fields.所属校区),
+		hallName: requireText(record.fields.食堂名称, "食堂名称"),
+		order: optionalNumber(record.fields.排序),
 		sourceRecordId: record.recordId,
 	};
 }
 
 function toStallRecord(record: LarkTableRecord): FeishuStallRecord {
 	return {
-		hallSourceRecordIds: linkedRecordIds(record.fields["所属食堂"]),
-		order: optionalNumber(record.fields["排序"]),
+		hallSourceRecordIds: linkedRecordIds(record.fields.所属食堂),
+		order: optionalNumber(record.fields.排序),
 		sourceRecordId: record.recordId,
-		stallName: requireText(record.fields["档口名称"], "档口名称"),
-		tags: stringList(record.fields["品类"]),
+		stallName: requireText(record.fields.档口名称, "档口名称"),
+		tags: stringList(record.fields.品类),
 	};
 }
 
 function toDishRecord(record: LarkTableRecord): FeishuDishRecord {
 	return {
-		dishName: requireText(record.fields["菜品名称"], "菜品名称"),
-		priceLabel: optionalText(record.fields["价格"]),
+		dishName: requireText(record.fields.菜品名称, "菜品名称"),
+		priceLabel: optionalText(record.fields.价格),
 		sourceRecordId: record.recordId,
-		stallSourceRecordIds: linkedRecordIds(record.fields["所属档口"]),
-		tags: stringList(record.fields["标签"]),
+		stallSourceRecordIds: linkedRecordIds(record.fields.所属档口),
+		tags: stringList(record.fields.标签),
 	};
 }
 

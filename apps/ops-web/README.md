@@ -33,11 +33,14 @@ pnpm --dir apps/ops-web test:browser
 pnpm --dir apps/ops-web test:database-integration
 ```
 
-数据库 schema 和授权由模块自有安装器维护：
+核心运行投影的列级只读授权由模块安装器维护：
 
 ```bash
 pnpm --dir apps/ops-web exec tsx ./ops/db/ops-web-database.ts apply
 ```
+
+Dining schema、`ops_web_dining` 角色和权限由 Dining 发布单元维护。Ops Web 只可选消费对应连接，
+Dining 未部署时不阻塞本应用的核心就绪状态。
 
 ## 相关文档
 

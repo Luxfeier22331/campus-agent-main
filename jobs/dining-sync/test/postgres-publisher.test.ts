@@ -1,6 +1,14 @@
+import { createDevDiningSeed } from "@campus-agent/dining/domain";
 import { describe, expect, it, vi } from "vitest";
-import { PostgresDiningReviewPublisher } from "../src/postgres-publisher.ts";
+
 import type { DiningSourceObservation } from "../src/catalog-source-types.ts";
+import { PostgresDiningReviewPublisher } from "../src/postgres-publisher.ts";
+
+const seed = createDevDiningSeed();
+const offering = Object.values(seed.snapshot.floors)[0]?.menuOfferings[0];
+if (!offering) {
+	throw new Error("Dining dev seed must provide an offering for publisher tests.");
+}
 
 function reviewObservation(status: "accepted" | "blocked"): DiningSourceObservation {
 	return {
@@ -13,10 +21,11 @@ function reviewObservation(status: "accepted" | "blocked"): DiningSourceObservat
 			dishName: "番茄牛腩饭",
 			hallName: "海淀一食堂",
 			images: [],
-			offeringId: "offering:1",
-			paidPriceLabel: "¥16",
+			offeringId: offering.offeringId,
+			paidPriceLabel: "16 元",
 			rating: 5,
 			reviewId: "review:1",
+			sourceHash: "sha256:source",
 			sourceRecordId: "rec-1",
 			stallName: "川味窗口",
 			submittedAt: "2026-07-15T12:00:00.000Z",
@@ -30,13 +39,23 @@ function reviewObservation(status: "accepted" | "blocked"): DiningSourceObservat
 
 function createClient(input: { afterDigest: string; overrideVisibility?: string }) {
 	let digestCalls = 0;
-	const insertCalls: Array<{ params: unknown[]; sql: string }> = [];
-	const statements: string[] = [];
+	const statements: Array<{ params: unknown[]; sql: string }> = [];
 	const client = {
 		connect: vi.fn(async () => undefined),
 		end: vi.fn(async () => undefined),
 		query: vi.fn(async (sql: string, params: unknown[] = []) => {
-			statements.push(sql);
+			statements.push({ params, sql });
+			if (sql.includes("JOIN dining.releases")) {
+				return {
+					rows: [
+						{
+							catalog_release_id: seed.release.releaseId,
+							payload_json: seed.snapshot,
+							snapshot_hash: seed.release.snapshotHash,
+						},
+					],
+				};
+			}
 			if (sql.includes("SELECT COALESCE(jsonb_agg")) {
 				digestCalls += 1;
 				return { rows: [{ value: digestCalls === 1 ? "[]" : input.afterDigest }] };
@@ -44,51 +63,81 @@ function createClient(input: { afterDigest: string; overrideVisibility?: string 
 			if (sql.includes("FROM dining.review_overrides")) {
 				return { rows: [{ offering_id: null, visibility: input.overrideVisibility ?? null }] };
 			}
-			if (sql.includes("FROM dining.menu_offerings AS offering")) {
-				return {
-					rows: [{
-						hall_id: "hall:1",
-						offering_id: "offering:1",
-						stall_profile_id: "stall:1",
-						window_id: "window:1",
-					}],
-				};
+			if (sql.includes("SELECT review_revision")) {
+				return { rows: [{ review_revision: 7 }] };
 			}
-			if (sql.includes("INSERT INTO dining.reviews")) {
-				insertCalls.push({ params, sql });
-				return { rows: [] };
-			}
-			if (sql.includes("SELECT review_revision")) return { rows: [{ review_revision: 7 }] };
 			return { rows: [] };
 		}),
 	};
-	return { client, insertCalls, statements };
+	return { client, statements };
 }
 
 describe("Postgres Dining review publisher", () => {
-	it("never publishes blocked content even when an old override requested restore", async () => {
+	it("hides blocked content without honoring a stale restore override", async () => {
 		const fixture = createClient({ afterDigest: "[]", overrideVisibility: "published" });
-		const publisher = new PostgresDiningReviewPublisher("postgres://dining", () => fixture.client as never);
+		const publisher = new PostgresDiningReviewPublisher(
+			"postgres://dining",
+			() => fixture.client as never,
+		);
 
-		await expect(publisher.publishReviewObservations([reviewObservation("blocked")])).resolves.toBe(7);
-		expect(fixture.insertCalls[0]?.params[13]).toBe("hidden");
-		expect(fixture.statements.some((sql) => sql.includes("review_revision=review_revision+1"))).toBe(false);
+		await expect(
+			publisher.publishReviewObservations([reviewObservation("blocked")], seed.release.releaseId),
+		).resolves.toBe(7);
+		const update = fixture.statements.find(({ sql }) =>
+			sql.includes("UPDATE dining.reviews SET moderation_status='blocked'"),
+		);
+		expect(update?.params).toEqual(["review:1"]);
+		expect(fixture.statements.some(({ sql }) => sql.includes("FROM dining.review_overrides"))).toBe(
+			false,
+		);
 	});
 
-	it("publishes an exactly bound safe review and increments the public revision", async () => {
+	it("resolves accepted bindings only from the locked published snapshot", async () => {
 		const fixture = createClient({ afterDigest: "[published]" });
-		const publisher = new PostgresDiningReviewPublisher("postgres://dining", () => fixture.client as never);
+		const publisher = new PostgresDiningReviewPublisher(
+			"postgres://dining",
+			() => fixture.client as never,
+		);
 
-		await expect(publisher.publishReviewObservations([reviewObservation("accepted")])).resolves.toBe(7);
-		const insert = fixture.insertCalls[0];
+		await expect(
+			publisher.publishReviewObservations([reviewObservation("accepted")], seed.release.releaseId),
+		).resolves.toBe(7);
+		const insert = fixture.statements.find(({ sql }) => sql.includes("INSERT INTO dining.reviews"));
 		expect(insert?.params.slice(13, 18)).toEqual([
 			"published",
-			"hall:1",
-			"stall:1",
-			"window:1",
-			"offering:1",
+			expect.any(String),
+			expect.any(String),
+			expect.any(String),
+			offering.offeringId,
 		]);
-		expect(insert?.sql).not.toContain("comment = EXCLUDED.comment");
-		expect(fixture.statements.some((sql) => sql.includes("review_revision = review_revision + 1"))).toBe(true);
+		expect(fixture.statements.some(({ sql }) => sql.includes("FROM dining.menu_offerings"))).toBe(
+			false,
+		);
+		expect(
+			fixture.statements.some(({ sql }) => sql.includes("review_revision=review_revision+1")),
+		).toBe(true);
+	});
+
+	it("rolls back when the publication changes after review processing", async () => {
+		const fixture = createClient({ afterDigest: "[]" });
+		fixture.client.query.mockImplementationOnce(async () => undefined as never);
+		fixture.client.query.mockImplementationOnce(async () => ({
+			rows: [
+				{
+					catalog_release_id: "dining_release:new",
+					payload_json: seed.snapshot,
+					snapshot_hash: seed.release.snapshotHash,
+				},
+			],
+		}));
+		const publisher = new PostgresDiningReviewPublisher(
+			"postgres://dining",
+			() => fixture.client as never,
+		);
+
+		await expect(
+			publisher.publishReviewObservations([reviewObservation("accepted")], seed.release.releaseId),
+		).rejects.toThrow(/catalog release changed/);
+		expect(fixture.statements.at(-1)?.sql).toBe("ROLLBACK");
 	});
 });

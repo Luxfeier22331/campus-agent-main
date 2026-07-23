@@ -1,10 +1,10 @@
 import type {
 	DiningPublication,
 	DiningPublicReadStore,
-	DiningPublishedSnapshot,
 	DiningReview,
 	DiningReviewImage,
 } from "@campus-agent/dining/domain";
+import { parseDiningPublishedSnapshot } from "@campus-agent/dining/domain";
 import { and, eq } from "drizzle-orm";
 
 import type { Env } from "../../config";
@@ -43,6 +43,7 @@ export function createPgDiningPublicReadStore(
 					catalogReleaseId: diningPublication.catalogReleaseId,
 					payload: diningReleases.payloadJson,
 					releaseId: diningReleases.releaseId,
+					snapshotHash: diningReleases.snapshotHash,
 				})
 				.from(diningPublication)
 				.leftJoin(diningReleases, eq(diningPublication.catalogReleaseId, diningReleases.releaseId))
@@ -52,14 +53,17 @@ export function createPgDiningPublicReadStore(
 			if (!row?.catalogReleaseId) {
 				return null;
 			}
-			if (!(row.releaseId && row.payload)) {
+			if (!(row.releaseId && row.payload && row.snapshotHash)) {
 				invalidProjection("Publication references a missing release.");
 			}
-			const snapshot = parseSnapshot(row.payload);
-			if (snapshot.source.releaseId !== row.catalogReleaseId) {
-				invalidProjection("Publication and release payload identities do not match.");
+			try {
+				return parseDiningPublishedSnapshot(row.payload, {
+					releaseId: row.catalogReleaseId,
+					snapshotHash: row.snapshotHash,
+				});
+			} catch (error) {
+				invalidProjection(error instanceof Error ? error.message : "Published release is invalid.");
 			}
-			return snapshot;
 		},
 		async listPublishedReviewsByOffering({ offeringId }) {
 			const rows = await (await getDb())
@@ -75,20 +79,6 @@ export function createPgDiningPublicReadStore(
 			return rows.map(toReview);
 		},
 	};
-}
-
-function parseSnapshot(value: unknown): DiningPublishedSnapshot {
-	if (
-		!(
-			isRecord(value) &&
-			Array.isArray(value.halls) &&
-			isRecord(value.floors) &&
-			isRecord(value.source)
-		)
-	) {
-		invalidProjection("Published Dining release payload is invalid.");
-	}
-	return value as unknown as DiningPublishedSnapshot;
 }
 
 function toReview(row: typeof diningReviews.$inferSelect): DiningReview {

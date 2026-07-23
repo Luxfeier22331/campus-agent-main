@@ -6,14 +6,16 @@ import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testconta
 import { Client } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { migrateDining } from "../src/migrate.ts";
+import { applyDiningDatabaseGrants, type DiningDatabaseRole } from "../src/database-grants.ts";
+import { installDiningDatabase, migrateDining } from "../src/migrate.ts";
 
 const POSTGRES_IMAGE =
 	"postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193";
 const RYUK_IMAGE =
 	"testcontainers/ryuk:0.14.0@sha256:7c1a8a9a47c780ed0f983770a662f80deb115d95cce3e2daa3d12115b8cd28f0";
+const DINING_ROLES = ["app_api", "dining_sync", "ops_web_dining"] as const;
 
-describe("dining migration", () => {
+describe("Dining database installation", () => {
 	let container: StartedPostgreSqlContainer;
 	let databaseUrl = "";
 
@@ -38,17 +40,23 @@ describe("dining migration", () => {
 		const client = new Client({ connectionString: databaseUrl });
 		await client.connect();
 		try {
-			await client.query("DROP EVENT TRIGGER IF EXISTS fail_dining_migration");
-			await client.query("DROP FUNCTION IF EXISTS public.fail_dining_migration() CASCADE");
 			await client.query("DROP SCHEMA IF EXISTS dining CASCADE");
-			await client.query("DROP TABLE IF EXISTS public.dining_migrations");
+			await client.query("DROP SCHEMA IF EXISTS dining_migrations CASCADE");
+			for (const role of DINING_ROLES) {
+				await client.query(`DROP ROLE IF EXISTS "${role}"`);
+			}
 		} finally {
 			await client.end();
 		}
 	});
 
-	it("is idempotent and preserves existing data", async () => {
-		await migrateDining(databaseUrl);
+	it("installs once with Drizzle, preserves data, and reapplies grants", async () => {
+		await createRoles(DINING_ROLES);
+		await expect(installDiningDatabase(databaseUrl)).resolves.toEqual({
+			roles: [...DINING_ROLES],
+			status: "ready",
+		});
+
 		const client = new Client({ connectionString: databaseUrl });
 		await client.connect();
 		try {
@@ -60,61 +68,187 @@ describe("dining migration", () => {
 			await client.end();
 		}
 
-		await migrateDining(databaseUrl);
+		await expect(installDiningDatabase(databaseUrl)).resolves.toEqual({
+			roles: [...DINING_ROLES],
+			status: "ready",
+		});
 		const verification = new Client({ connectionString: databaseUrl });
 		await verification.connect();
 		try {
 			const halls = await verification.query("SELECT hall_id FROM dining.halls");
 			const journal = await verification.query(
-				"SELECT migration_id, sha256 FROM public.dining_migrations",
+				"SELECT id, hash, created_at FROM dining_migrations.history",
 			);
 			expect(halls.rows).toEqual([{ hall_id: "hall:test" }]);
 			expect(journal.rows).toHaveLength(1);
-			expect(journal.rows[0]).toMatchObject({ migration_id: "0001_dining" });
-			expect(String(journal.rows[0]?.sha256)).toMatch(/^[0-9a-f]{64}$/u);
+			expect(journal.rows[0]).toMatchObject({ id: 1 });
+			expect(String(journal.rows[0]?.hash)).toMatch(/^[0-9a-f]{64}$/u);
+			expect(Number(journal.rows[0]?.created_at)).toBeGreaterThan(0);
 		} finally {
 			await verification.end();
 		}
 	});
 
-	it("does not publish a journal entry when the schema transaction fails", async () => {
+	it("enforces publication and active recheck constraints", async () => {
+		await migrateDining(databaseUrl);
 		const client = new Client({ connectionString: databaseUrl });
 		await client.connect();
 		try {
-			await client.query(`CREATE TABLE public.dining_migrations (
-				migration_id text PRIMARY KEY,
-				sha256 text NOT NULL,
-				applied_at timestamptz NOT NULL DEFAULT now()
-			)`);
-			await client.query(`CREATE FUNCTION public.fail_dining_migration()
-				RETURNS event_trigger LANGUAGE plpgsql AS $$
-				BEGIN
-					IF tg_tag = 'CREATE TABLE' THEN
-						RAISE EXCEPTION 'injected dining migration failure';
-					END IF;
-				END
-				$$`);
+			expect(
+				await queryErrorCode(
+					client,
+					`INSERT INTO dining.reviews(
+						review_id, source_record_id, source_hash, campus, hall_name, stall_name,
+						dish_name, submitted_at, moderation_status, visibility, created_at, updated_at
+					 ) VALUES (
+						'review:published', 'record:published', 'sha256:test', 'haidian', 'Hall',
+						'Stall', 'Dish', now(), 'safe', 'published', now(), now()
+					 )`,
+				),
+			).toBe("23514");
+
 			await client.query(
-				"CREATE EVENT TRIGGER fail_dining_migration ON ddl_command_start EXECUTE FUNCTION public.fail_dining_migration()",
+				`INSERT INTO dining.reviews(
+					review_id, source_record_id, source_hash, campus, hall_name, stall_name,
+					dish_name, submitted_at, moderation_status, visibility, created_at, updated_at
+				 ) VALUES (
+					'review:hidden', 'record:hidden', 'sha256:test', 'haidian', 'Hall',
+					'Stall', 'Dish', now(), 'uncertain', 'hidden', now(), now()
+				 )`,
 			);
+			await client.query(
+				`INSERT INTO dining.review_recheck_requests(
+					request_id, review_id, status, available_at, requested_at, requested_by
+				 ) VALUES ('recheck:1', 'review:hidden', 'pending', now(), now(), 'test')`,
+			);
+			expect(
+				await queryErrorCode(
+					client,
+					`INSERT INTO dining.review_recheck_requests(
+						request_id, review_id, status, available_at, requested_at, requested_by
+					 ) VALUES ('recheck:2', 'review:hidden', 'processing', now(), now(), 'test')`,
+				),
+			).toBe("23505");
 		} finally {
 			await client.end();
 		}
+	});
 
-		await expect(migrateDining(databaseUrl)).rejects.toThrow(/injected dining migration failure/);
+	it("applies each runtime role's bounded Dining privileges", async () => {
+		await migrateDining(databaseUrl);
+		await createRoles(DINING_ROLES);
+		await expect(applyDiningDatabaseGrants(databaseUrl, DINING_ROLES)).resolves.toEqual({
+			roles: [...DINING_ROLES],
+			status: "ready",
+		});
 
-		const verification = new Client({ connectionString: databaseUrl });
-		await verification.connect();
-		try {
-			await verification.query("DROP EVENT TRIGGER fail_dining_migration");
-			const journal = await verification.query("SELECT migration_id FROM public.dining_migrations");
-			const schema = await verification.query(
-				"SELECT schema_name FROM information_schema.schemata WHERE schema_name = 'dining'",
-			);
-			expect(journal.rows).toEqual([]);
-			expect(schema.rows).toEqual([]);
-		} finally {
-			await verification.end();
+		expect(
+			await queryErrorCodeAsRole("app_api", "select * from dining.publication limit 0"),
+		).toBeUndefined();
+		expect(
+			await queryErrorCodeAsRole("app_api", "select * from dining.source_sync_runs limit 0"),
+		).toBe("42501");
+		expect(
+			await queryErrorCodeAsRole(
+				"app_api",
+				"update dining.publication set updated_at = updated_at where false",
+			),
+		).toBe("42501");
+
+		expect(
+			await queryErrorCodeAsRole(
+				"ops_web_dining",
+				"update dining.publication set updated_at = updated_at where false",
+			),
+		).toBeUndefined();
+		expect(
+			await queryErrorCodeAsRole(
+				"ops_web_dining",
+				"update dining.source_sync_runs set status = status where false",
+			),
+		).toBe("42501");
+
+		expect(
+			await queryErrorCodeAsRole(
+				"dining_sync",
+				"update dining.source_sync_runs set status = status where false",
+			),
+		).toBeUndefined();
+		expect(
+			await queryErrorCodeAsRole(
+				"dining_sync",
+				"update dining.catalog_state set updated_at = updated_at where false",
+			),
+		).toBe("42501");
+
+		for (const role of DINING_ROLES) {
+			expect(
+				await queryErrorCodeAsRole(role, `create table dining.forbidden_${role}(id int)`),
+			).toBe("42501");
 		}
 	});
+
+	it("does not partially grant roles when one required role is missing", async () => {
+		await migrateDining(databaseUrl);
+		await createRoles(["app_api"]);
+
+		await expect(
+			applyDiningDatabaseGrants(databaseUrl, ["app_api", "ops_web_dining"]),
+		).rejects.toThrow("ops_web_dining role is missing");
+
+		const client = new Client({ connectionString: databaseUrl });
+		await client.connect();
+		try {
+			const privilege = await client.query<{ canUse: boolean }>(
+				`select has_schema_privilege('app_api', 'dining', 'USAGE') as "canUse"`,
+			);
+			expect(privilege.rows[0]?.canUse).toBe(false);
+		} finally {
+			await client.end();
+		}
+	});
+
+	async function createRoles(roles: readonly DiningDatabaseRole[]): Promise<void> {
+		const client = new Client({ connectionString: databaseUrl });
+		await client.connect();
+		try {
+			for (const role of roles) {
+				await client.query(`CREATE ROLE "${role}" NOLOGIN`);
+			}
+		} finally {
+			await client.end();
+		}
+	}
+
+	async function queryErrorCodeAsRole(
+		role: DiningDatabaseRole,
+		sql: string,
+	): Promise<string | undefined> {
+		const client = new Client({ connectionString: databaseUrl });
+		await client.connect();
+		try {
+			await client.query(`SET ROLE "${role}"`);
+			await client.query(sql);
+			return;
+		} catch (error) {
+			return postgresErrorCode(error);
+		} finally {
+			await client.end();
+		}
+	}
 });
+
+async function queryErrorCode(client: Client, sql: string): Promise<string | undefined> {
+	try {
+		await client.query(sql);
+		return;
+	} catch (error) {
+		return postgresErrorCode(error);
+	}
+}
+
+function postgresErrorCode(error: unknown): string | undefined {
+	return error instanceof Error && "code" in error && typeof error.code === "string"
+		? error.code
+		: undefined;
+}

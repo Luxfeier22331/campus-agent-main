@@ -1,14 +1,13 @@
 import { buildPublishedSnapshot } from "@campus-agent/dining/domain";
 import { describe, expect, it } from "vitest";
-
+import { catalogRecordsFromLarkTables } from "../src/catalog-field-mapping.ts";
 import {
 	buildCatalogObservations,
 	buildDiningDraftFromCatalogObservations,
 } from "../src/catalog-source.ts";
-import { catalogRecordsFromLarkTables } from "../src/catalog-field-mapping.ts";
 import { PostgresDiningCatalogSourceObservationStore } from "../src/catalog-source-store.ts";
-import { PublishedDiningReviewResolver } from "../src/review-resolver.ts";
 import type { DiningCatalogSourceRecords } from "../src/catalog-source-types.ts";
+import { PublishedDiningReviewResolver } from "../src/review-resolver.ts";
 
 const SOURCE_RECORDS: DiningCatalogSourceRecords = {
 	campuses: [
@@ -73,9 +72,7 @@ describe("dining catalog source observations", () => {
 				{
 					fields: {
 						价格: "9.5元/3两",
-						所属档口: [
-							{ record_ids: ["rec-stall-basic", "rec-stall-alt"], text: "基本伙" },
-						],
+						所属档口: [{ record_ids: ["rec-stall-basic", "rec-stall-alt"], text: "基本伙" }],
 						标签: ["粉面"],
 						菜品名称: "牛肉拉面",
 					},
@@ -240,13 +237,13 @@ describe("dining catalog source observations", () => {
 			]),
 		);
 		expect(state.halls).toEqual([
-				expect.objectContaining({
-					floors: [
-						expect.objectContaining({
-							floorplan: {
-								floorplanId: expect.stringMatching(/^placeholder:/),
-								kind: "placeholder",
-							},
+			expect.objectContaining({
+				floors: [
+					expect.objectContaining({
+						floorplan: {
+							floorplanId: expect.stringMatching(/^placeholder:/),
+							kind: "placeholder",
+						},
 					}),
 				],
 				name: "第一教工餐厅",
@@ -346,12 +343,12 @@ describe("dining catalog source observations", () => {
 				}),
 			]),
 		);
-		expect(
-			state.windows.filter((window) => window.hallId === "haidian-canteen-2"),
-		).toHaveLength(25);
-		expect(
-			state.windows.filter((window) => window.hallId === "haidian-canteen-4"),
-		).toHaveLength(19);
+		expect(state.windows.filter((window) => window.hallId === "haidian-canteen-2")).toHaveLength(
+			25,
+		);
+		expect(state.windows.filter((window) => window.hallId === "haidian-canteen-4")).toHaveLength(
+			19,
+		);
 		expect(state.assignments).toHaveLength(2);
 		expect(JSON.stringify(state)).not.toContain("haidian-canteen-2-1f");
 		expect(JSON.stringify(state)).not.toContain("haidian-canteen-4-1f");
@@ -566,17 +563,13 @@ describe("dining catalog source observations", () => {
 			updatedAt: state.updatedAt,
 		});
 		expect(
-			snapshot.floors[
-				"fengtai-huixian-canteen:fengtai-huixian-canteen-1f"
-			]?.floor.floorplan,
+			snapshot.floors["fengtai-huixian-canteen:fengtai-huixian-canteen-1f"]?.floor.floorplan,
 		).toEqual({
 			floorplanId: "floorplan:fengtai-huixian-canteen:fengtai-huixian-canteen-1f",
 			kind: "asset",
 		});
 		expect(
-			snapshot.floors[
-				"fengtai-huixian-canteen:fengtai-huixian-canteen-2f"
-			]?.floor.floorplan,
+			snapshot.floors["fengtai-huixian-canteen:fengtai-huixian-canteen-2f"]?.floor.floorplan,
 		).toEqual({
 			floorplanId: "floorplan:fengtai-huixian-canteen:fengtai-huixian-canteen-2f",
 			kind: "asset",
@@ -588,11 +581,12 @@ describe("dining catalog source observations", () => {
 			observations: buildCatalogObservations(SOURCE_RECORDS),
 			source: { label: "test", updatedAt: "2026-07-01T00:00:00.000Z" },
 		});
-		const resolver = new PublishedDiningReviewResolver(buildPublishedSnapshot(
-			state,
-			"dining_release:test",
-			{ label: "test", updatedAt: state.updatedAt },
-		));
+		const resolver = new PublishedDiningReviewResolver(
+			buildPublishedSnapshot(state, "dining_release:test", {
+				label: "test",
+				updatedAt: state.updatedAt,
+			}),
+		);
 
 		expect(
 			resolver.resolve({
@@ -603,10 +597,10 @@ describe("dining catalog source observations", () => {
 			}),
 		).toMatchObject({
 			hallId: "haidian-canteen-3",
-				hallName: "海淀三食堂",
-				offeringId: expect.any(String),
-				stallProfileId: "stall:rec-stall-dongbei",
-				status: "resolved",
+			hallName: "海淀三食堂",
+			offeringId: expect.any(String),
+			stallProfileId: "stall:rec-stall-dongbei",
+			status: "resolved",
 		});
 		expect(
 			resolver.resolve({
@@ -641,10 +635,24 @@ describe("dining catalog source observation store", () => {
 			}),
 		});
 
-		await store.upsertFeishuCatalogObservations(buildCatalogObservations(SOURCE_RECORDS));
+		await store.completeCatalogRun({
+			observations: buildCatalogObservations(SOURCE_RECORDS),
+			run: {
+				runId: "dining_feishu_catalog_sync:test",
+				sourceType: "feishu_catalog",
+				startedAt: new Date("2026-06-30T00:00:00.000Z"),
+			},
+			sourceIdentity: {
+				baseToken: "base",
+				campusTableId: "campus",
+				dishTableId: "dish",
+				hallTableId: "hall",
+				stallTableId: "stall",
+			},
+		});
 
 		const sql = queries.map((query) => query.sql).join("\n");
-		expect(sql).toContain('"dining"."source_observations"');
+		expect(sql).toContain("dining.source_observations");
 		expect(sql).toContain("ON CONFLICT");
 		expect(sql).toContain("last_seen_run_id");
 		expect(sql).toContain("stale_at");
@@ -683,7 +691,7 @@ describe("dining catalog source observation store", () => {
 			}),
 		});
 
-		await expect(store.listActiveFeishuCatalogObservations()).resolves.toEqual([
+		await expect(store.listActiveCatalogObservations()).resolves.toEqual([
 			expect.objectContaining({
 				observationId: "feishu:campus:rec-campus-haidian",
 				sourceType: "feishu_catalog",

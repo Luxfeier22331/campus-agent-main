@@ -5,23 +5,24 @@ import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import { sanitizeDiningFloorplanSvg } from "../src/floorplans/floorplan-contract";
 import {
 	assertDiningWayfindingLayout,
 	canonicalizeDiningWayfindingLayout,
 	type DiningWayfindingLayout,
 	renderDiningWayfindingSvg,
+	sanitizeDiningFloorplanSvg,
 	serializeDiningWayfindingLayout,
-} from "../src/floorplans/wayfinding-layout";
+} from "@campus-agent/dining/floorplans";
 
 const PACKAGE_ROOT = dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
-const REPOSITORY_ROOT = resolve(PACKAGE_ROOT, "../../..");
+const REPOSITORY_ROOT = resolve(PACKAGE_ROOT, "../..");
+const DINING_PACKAGE_ROOT = join(REPOSITORY_ROOT, "packages/domains/dining");
 const execFileAsync = promisify(execFile);
 let floorplanOperationTail: Promise<void> = Promise.resolve();
 
-export const DINING_LAYOUT_DIRECTORY = join(PACKAGE_ROOT, "src/floorplans/layouts");
+export const DINING_LAYOUT_DIRECTORY = join(DINING_PACKAGE_ROOT, "src/floorplans/layouts");
 export const DINING_GENERATED_ASSET_MANIFEST = join(
-	PACKAGE_ROOT,
+	DINING_PACKAGE_ROOT,
 	"src/floorplans/generated-assets.json",
 );
 export const DINING_PUBLIC_ASSET_DIRECTORY = join(

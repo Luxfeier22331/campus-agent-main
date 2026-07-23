@@ -49,10 +49,11 @@ Campus Web 候选物必须同时记录完整源码提交、`docsReleaseId` 和�
 `DOCS_RELEASE_ID` 固化为该不可变 Worker version 的绑定。环境仓只选择 Worker version；不得再维护
 独立的文档 release 指针，否则两份环境选择可能漂移。
 
-发布新候选物时，默认继承环境仓当前选择的 Worker version 中的 `DOCS_RELEASE_ID`；显式发布新的
-文档 release 时可以指定新的内容寻址标识。回滚只需选择原 Worker version，其中已经包含匹配的
-文档 release。历史 release 可以按保留策略并存，但清理前必须确认没有 Worker version 或有效回滚
-记录仍在引用。
+发布新候选物时，源码仓库 Actions variable `DOCS_RELEASE_ID` 提供默认候选输入；手动发布
+可以显式指定另一个已发布内容寻址标识。候选发布必须先验证对象存储中的 manifest 字节摘要，再把该
+标识固化到 Worker version。这个变量只参与候选物创建，不选择环境流量；环境仓仍只选择 Worker
+version。回滚只需选择原 Worker version，其中已经包含匹配的文档 release。历史 release 可以按保留
+策略并存，但清理前必须确认没有 Worker version 或有效回滚记录仍在引用。
 
 ## 操作入口
 

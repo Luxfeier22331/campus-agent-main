@@ -32,6 +32,13 @@ spec:
         - protocol: TCP
           port: 5432
     - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: object-store
+      ports:
+        - protocol: TCP
+          port: 9000
+    - to:
         - ipBlock:
             cidr: 0.0.0.0/0
       ports:

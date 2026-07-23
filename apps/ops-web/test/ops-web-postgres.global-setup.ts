@@ -9,7 +9,6 @@ import { promisify } from "node:util";
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { Client } from "pg";
 import type { TestProject } from "vitest/node";
-import { migrateDining } from "../../../jobs/dining-sync/src/migrate.ts";
 import { installCampusServicesSchema } from "../../../jobs/transport-publisher/src/schema.ts";
 import { installAppApiSchema } from "../../app-api/ops/db/schema.ts";
 
@@ -21,7 +20,6 @@ const RYUK_IMAGE =
 const DATABASE_NAME = "campus_agent";
 const SCHEMA_OWNER = "ops_web_schema_owner";
 const OPS_WEB_ROLE = "ops_web";
-const OPS_WEB_DINING_ROLE = "ops_web_dining";
 const NOLOGIN_ROLES = [
 	"app_api",
 	"campus_services_publisher",
@@ -35,7 +33,6 @@ const executionControlRoot = fileURLToPath(new URL("../../execution-control", im
 export interface OpsWebPostgresContext {
 	managementConnectionString: string;
 	opsWebConnectionString: string;
-	opsWebDiningConnectionString: string;
 }
 
 declare module "vitest" {
@@ -81,15 +78,11 @@ async function provisionDatabase(
 	const adminConnectionString = container.getConnectionUri();
 	const schemaOwnerPassword = randomBytes(24).toString("hex");
 	const opsWebPassword = randomBytes(24).toString("hex");
-	const opsWebDiningPassword = randomBytes(24).toString("hex");
 	const admin = new Client({ connectionString: adminConnectionString, ssl: false });
 	await admin.connect();
 	try {
 		await admin.query(`create role "${SCHEMA_OWNER}" login password '${schemaOwnerPassword}'`);
 		await admin.query(`create role "${OPS_WEB_ROLE}" login password '${opsWebPassword}'`);
-		await admin.query(
-			`create role "${OPS_WEB_DINING_ROLE}" login password '${opsWebDiningPassword}'`,
-		);
 		for (const role of NOLOGIN_ROLES) {
 			await admin.query(`create role "${role}" nologin`);
 		}
@@ -108,11 +101,6 @@ async function provisionDatabase(
 		OPS_WEB_ROLE,
 		opsWebPassword,
 	);
-	const opsWebDiningConnectionString = roleConnectionString(
-		adminConnectionString,
-		OPS_WEB_DINING_ROLE,
-		opsWebDiningPassword,
-	);
 	await installCampusServicesSchema({ connectionString: managementConnectionString, ssl: false });
 	await installAppApiSchema({
 		APP_API_DATABASE_SSLMODE: "disable",
@@ -121,12 +109,10 @@ async function provisionDatabase(
 		BETTER_AUTH_SECRET: "testcontainers-ops-web-product-database-secret",
 	});
 	await installExecutionControlSchema(managementConnectionString);
-	await migrateDining(managementConnectionString);
 
 	return {
 		managementConnectionString,
 		opsWebConnectionString,
-		opsWebDiningConnectionString,
 	};
 }
 

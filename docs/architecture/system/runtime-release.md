@@ -43,9 +43,11 @@ status: active
 - 一个应用失败不能被其他应用的健康状态掩盖；
 - 候选版本上传成功、镜像构建成功或清单渲染成功都不等于部署完成。
 
-Kubernetes 发布以拥有同一运行时的 Application 为原子编排边界。该 Application 依次同步配置与
-身份、数据库角色、migration、workload 和 schedule；migration 使用 `Sync` hook，并在 Secret 与
-DatabaseRole 健康后执行。不同 child Application 的 wave 只帮助组织资源，不能承诺跨应用事务。
+Kubernetes 发布以实际故障域为 Application 边界。强依赖 schema 的运行时在同一 Application 内
+依次同步配置与身份、数据库角色、migration、workload 和 schedule。嵌入宿主的可选领域能力可以由
+独立 Application 拥有 schema、专用角色和授权，宿主必须通过 optional 引用局部降级。migration 使用
+`Sync` hook，并在本单元的 Secret 与 DatabaseRole 健康后执行。不同 child Application 的 wave 只帮助
+组织资源，不能承诺跨应用事务。
 
 ## 发布标识
 

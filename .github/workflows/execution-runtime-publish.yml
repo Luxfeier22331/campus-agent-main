@@ -31,12 +31,11 @@ permissions:
 concurrency:
   group: staging-candidate-publish
   cancel-in-progress: false
-  queue: max
 
 jobs:
   release-plan:
-    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 15
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
     outputs:
       images: ${{ steps.plan.outputs.images }}
       kubernetes: ${{ steps.plan.outputs.kubernetes }}
@@ -63,13 +62,6 @@ jobs:
         run: |
           echo "Staging validation and publication are allowed only from main." >&2
           exit 1
-
-      - name: Revalidate lightweight source policy
-        if: github.event_name == 'push'
-        env:
-          BASE_SHA: ${{ github.event.before }}
-          HEAD_SHA: ${{ github.sha }}
-        run: pnpm ci:fast "$BASE_SHA" "$HEAD_SHA"
 
       - name: Build release plan
         id: plan
@@ -148,7 +140,7 @@ jobs:
     needs: release-plan
     if: fromJSON(needs.release-plan.outputs.workers)[0] != null
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 15
+    timeout-minutes: 3
     environment: staging
     outputs:
       docs_release_id: ${{ steps.docs-release.outputs.release_id }}
@@ -204,40 +196,14 @@ jobs:
             ../../scripts/deploy/run-wrangler-command.ts \
             whoami --account "$CLOUDFLARE_ACCOUNT_ID" --json
 
-      - name: Create GitOps read token
-        if: contains(fromJSON(needs.release-plan.outputs.workers), 'campus-web') && (inputs.docs_release_id || '') == ''
-        id: gitops-read-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3
-        with:
-          client-id: ${{ vars.GITOPS_PROMOTER_CLIENT_ID }}
-          private-key: ${{ secrets.GITOPS_PROMOTER_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: campus-agent-gitops
-          permission-contents: read
-
-      - name: Checkout GitOps release selection
-        if: steps.gitops-read-token.outcome == 'success'
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
-        with:
-          persist-credentials: false
-          repository: MUC-WIKI/campus-agent-gitops
-          token: ${{ steps.gitops-read-token.outputs.token }}
-          path: gitops-selection
-
       - name: Resolve Campus Docs release
         if: contains(fromJSON(needs.release-plan.outputs.workers), 'campus-web')
         id: docs-release
         env:
-          REQUESTED_DOCS_RELEASE_ID: ${{ inputs.docs_release_id || '' }}
+          CANDIDATE_DOCS_RELEASE_ID: ${{ inputs.docs_release_id || vars.DOCS_RELEASE_ID }}
         run: |
           set -euo pipefail
-          release_id="$REQUESTED_DOCS_RELEASE_ID"
-          if [ -z "$release_id" ]; then
-            selection=gitops-selection/cloudflare/staging/worker-versions.json
-            version_id="$(jq -er '.workers["campus-web-staging"].versionId' "$selection")"
-            release_id="$(pnpm exec tsx scripts/deploy/worker-version.ts \
-              read-variable apps/campus-web campus-web-staging "$version_id" DOCS_RELEASE_ID)"
-          fi
+          release_id="$CANDIDATE_DOCS_RELEASE_ID"
           if ! [[ "$release_id" =~ ^sha256:[0-9a-f]{64}$ ]]; then
             echo "Invalid Campus Docs release id: ${release_id}." >&2
             exit 1
@@ -263,13 +229,15 @@ jobs:
               ./scripts/verify-published-reader-release.ts "$DOCS_RELEASE_ID"
 
   publish-images:
-    needs: release-plan
+    needs: [release-plan, release-config]
     if: >-
+      always() &&
       needs.release-plan.result == 'success' &&
+      (needs.release-config.result == 'success' || needs.release-config.result == 'skipped') &&
       needs.release-plan.outputs.validate_only != 'true' &&
       fromJSON(needs.release-plan.outputs.images)[0] != null
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 90
+    timeout-minutes: 15
     permissions:
       contents: read
       packages: write
@@ -284,13 +252,12 @@ jobs:
         with:
           install: "false"
 
-      - name: Setup isolated Docker Buildx
-        if: runner.environment == 'self-hosted'
+      - name: Setup persistent Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4
         with:
-          name: campus-agent-release-${{ github.run_id }}
-          keep-state: false
-          cleanup: true
+          name: campus-agent-release
+          keep-state: true
+          cleanup: false
           cache-binary: false
           driver-opts: |
             cgroup-parent=ci.slice
@@ -302,23 +269,11 @@ jobs:
             [worker.oci]
               gc = true
               reservedSpace = "2GB"
-              maxUsedSpace = "8GB"
-              minFreeSpace = "40GB"
-
-      - name: Setup temporary Docker Buildx
-        if: runner.environment == 'github-hosted'
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4
+              maxUsedSpace = "12GB"
+              minFreeSpace = "25GB"
 
       - name: Verify Trivy
-        if: runner.environment == 'self-hosted'
         run: test "$(trivy --version | awk 'NR == 1 {print $2}')" = "0.72.0"
-
-      - name: Setup Trivy
-        if: runner.environment == 'github-hosted'
-        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567  # v0.3.1
-        with:
-          version: v0.72.0
-          cache: true
 
       - name: Login to GHCR
         uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0  # v4.4.0
@@ -332,8 +287,12 @@ jobs:
           IMAGES: ${{ needs.release-plan.outputs.images }}
         run: scripts/ci/publish-images.sh "$IMAGES" image-digests.json
 
-      - name: Summarize published image digests
+      - name: Verify and summarize published image digests
+        env:
+          EXPECTED_IMAGES: ${{ needs.release-plan.outputs.images }}
         run: |
+          jq -e --argjson expected "$EXPECTED_IMAGES" \
+            'keys == ($expected | sort)' image-digests.json >/dev/null
           {
             echo "### Published image digests"
             echo
@@ -347,6 +306,8 @@ jobs:
         with:
           name: release-image-digests
           path: image-digests.json
+          if-no-files-found: error
+          overwrite: true
           retention-days: 1
 
   publish-workers:
@@ -356,7 +317,7 @@ jobs:
       needs.release-plan.outputs.validate_only != 'true' &&
       fromJSON(needs.release-plan.outputs.workers)[0] != null
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 45
+    timeout-minutes: 5
     environment: staging
     env:
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
@@ -419,6 +380,8 @@ jobs:
         with:
           name: release-worker-candidates
           path: worker-candidates/*.json
+          if-no-files-found: error
+          overwrite: true
           retention-days: 1
 
   promote:
@@ -438,8 +401,8 @@ jobs:
         needs.publish-workers.result == 'success' ||
         needs.release-plan.outputs.kubernetes == 'true'
       )
-    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 30
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
     environment: staging
     steps:
       - name: Checkout

@@ -30,12 +30,16 @@ interface ResolvedStall {
 }
 
 interface ResolvedOffering {
+	hallId: string;
 	offeringId: string;
+	stallProfileId: string;
+	windowId: string;
 }
 
 export class PublishedDiningReviewResolver {
 	private readonly hallIdsByKey = new Map<string, string[]>();
 	private readonly offeringsByKey = new Map<string, ResolvedOffering[]>();
+	private readonly offeringsById = new Map<string, ResolvedOffering>();
 	private readonly stallsByKey = new Map<string, ResolvedStall[]>();
 
 	constructor(snapshot: DiningPublishedSnapshot) {
@@ -72,11 +76,21 @@ export class PublishedDiningReviewResolver {
 						if (!menuItem) {
 							throw new Error("Dining review resolver found an offering without its menu item.");
 						}
+						const resolvedOffering = {
+							hallId: stall.hallId,
+							offeringId: offering.offeringId,
+							stallProfileId: stall.stallProfileId,
+							windowId: stall.windowId,
+						};
 						appendMapValue(
 							this.offeringsByKey,
 							offeringKey(assignment.assignmentId, menuItem.name),
-							{ offeringId: offering.offeringId },
+							resolvedOffering,
 						);
+						if (this.offeringsById.has(offering.offeringId)) {
+							throw new Error(`Dining published offering ${offering.offeringId} is duplicated.`);
+						}
+						this.offeringsById.set(offering.offeringId, resolvedOffering);
 					}
 				}
 			}
@@ -128,6 +142,10 @@ export class PublishedDiningReviewResolver {
 			status: "resolved",
 			windowId: stall.windowId,
 		};
+	}
+
+	resolveOfferingId(offeringId: string): ResolvedOffering | null {
+		return this.offeringsById.get(offeringId) ?? null;
 	}
 }
 

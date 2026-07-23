@@ -56,7 +56,7 @@ branch protection、部署 secret、镜像清单或环境状态。
 | `pnpm ci:eval` | eval-langfuse 与 Ragas adapter 的 typecheck/test | 真实数据集评分已完成 |
 | `pnpm ci:otel` | 固定版本 Collector 的官方配置校验 | 真实 OTLP payload 行为或目标环境已收到信号 |
 | `pnpm ci:app-api-migration` | disposable PostgreSQL 上的 baseline upgrade 与 clean install | staging database 已迁移 |
-| `pnpm ci:dining-postgres` | disposable PostgreSQL 上的 Dining migration 幂等、数据保留和失败事务 | staging database 已迁移 |
+| `pnpm ci:dining-postgres` | disposable PostgreSQL 上的 Dining clean install、重复安装、约束与三类角色权限 | staging database 已迁移或授权 |
 
 `pnpm web:build` 是完整 web build，不是所有 PR 的默认检查；模块构建需要的 docs manifest、
 database 或其他外部输入必须先准备完毕。
@@ -126,6 +126,12 @@ integration test 必须使用隔离资源，不能缓存成功结果，也不能
 - 不缓存或上传 `node_modules`；
 - runner concurrency、persistent cache 和 remote cache credential 由 workflow 与 CI 环境拥有；
   正确性不得依赖自托管 Runner 上次运行留下的工作目录；
+- ARM64 候选镜像按受影响面在单一发布 Runner 上构建、扫描和保存摘要；固定 BuildKit builder 保留本地
+  layer 与 cache mount，registry cache 只负责 Runner 重建后的恢复，摘要键必须与发布计划完全一致；
+- 发布 builder 固定为 2 CPU、2 GiB 内存和 2 GiB swap，并由 BuildKit GC 限制磁盘占用；缓存未命中
+  仍须正确执行，但冷缓存全量发布超出时限时应增加构建容量，不能解除资源限制；
+- 发布规划和环境仓变更生成在托管 runner 上执行；原生 ARM64 镜像、需要访问集群内依赖的候选配置与
+  Worker 发布使用 staging 自托管 runner；
 - 手动 `verify` 通过 `base_ref` 选择比较基线，`docker`、`database` 和 `browser` profile 复用
   变更计划；Remote Cache 配置完整时启用，缺失时正常执行；
 - 单 Runner 保持单并发，优先减少重复安装、重复构建和无关验证面；

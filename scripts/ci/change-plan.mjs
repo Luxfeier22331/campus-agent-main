@@ -219,8 +219,9 @@ export function buildChangePlan({
 	);
 	const hasDiningDatabaseChange = hasAny(runtimeFiles, (file) =>
 		startsWithAny(file, [
-			"jobs/dining-sync/migrations/",
+			"jobs/dining-sync/drizzle/",
 			"jobs/dining-sync/src/config.ts",
+			"jobs/dining-sync/src/database-grants.ts",
 			"jobs/dining-sync/src/migrate.ts",
 			"jobs/dining-sync/test/migration.database.",
 			"jobs/dining-sync/vitest.database-integration.",

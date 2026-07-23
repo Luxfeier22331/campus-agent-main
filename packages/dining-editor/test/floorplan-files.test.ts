@@ -1,13 +1,13 @@
 import { createHash } from "node:crypto";
-import { describe, expect, it, vi } from "vitest";
-import { sanitizeDiningFloorplanSvg } from "../src/floorplans/floorplan-contract";
-import rawLayout from "../src/floorplans/layouts/haidian-canteen-1-1f.json" with { type: "json" };
 import {
 	assertDiningWayfindingLayout,
 	canonicalizeDiningWayfindingLayout,
+	DINING_WAYFINDING_LAYOUTS,
 	renderDiningWayfindingSvg,
+	sanitizeDiningFloorplanSvg,
 	serializeDiningWayfindingLayout,
-} from "../src/floorplans/wayfinding-layout";
+} from "@campus-agent/dining/floorplans";
+import { describe, expect, it, vi } from "vitest";
 
 const fs = vi.hoisted(() => ({
 	mkdir: vi.fn(async () => undefined),
@@ -24,7 +24,14 @@ import {
 	DiningLayoutRevisionConflictError,
 	readDiningWayfindingLayoutDocuments,
 	saveDiningWayfindingLayout,
-} from "../editor/floorplan-files";
+} from "../src/floorplan-files";
+
+const rawLayout = DINING_WAYFINDING_LAYOUTS.find(
+	(layout) => layout.floorId === "haidian-canteen-1-1f",
+);
+if (!rawLayout) {
+	throw new Error("Dining floorplan persistence fixture is missing.");
+}
 
 describe("Dining floorplan source persistence", () => {
 	it("saves only the canonical layout and marks generated assets stale", async () => {

@@ -1,5 +1,6 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 
+import { sha256Tag, stableJson } from "@campus-agent/dining/domain";
 import { Client } from "pg";
 
 import type {
@@ -8,13 +9,18 @@ import type {
 	FeishuReviewSourceIdentity,
 } from "./catalog-source-types.ts";
 
-export interface DiningCatalogPgClient {
-	connect(): Promise<unknown>;
-	end(): Promise<unknown>;
-	query(sql: string, values?: unknown[]): Promise<{ rows: Array<Record<string, unknown>> }>;
+export type DiningSourceType = DiningSourceObservation["sourceType"];
+
+export interface DiningSyncRun {
+	runId: string;
+	sourceType: DiningSourceType;
+	startedAt: Date;
 }
 
-export type DiningCatalogPgClientFactory = () => DiningCatalogPgClient;
+export interface DiningObservationState {
+	observation: DiningSourceObservation;
+	processingHash: string;
+}
 
 export interface DiningObservationSyncReport {
 	acceptedCount: number;
@@ -24,74 +30,213 @@ export interface DiningObservationSyncReport {
 	totalCount: number;
 }
 
-export class PostgresDiningSourceObservationStore {
-	private readonly createClient: DiningCatalogPgClientFactory;
+export class DiningEmptySnapshotError extends Error {
+	constructor(sourceType: DiningSourceType) {
+		super(`Dining ${sourceType} snapshot is empty while active observations exist.`);
+		this.name = "DiningEmptySnapshotError";
+	}
+}
 
-	constructor(input: { databaseUrl: string } | { createClient: DiningCatalogPgClientFactory }) {
+export interface DiningPgClient {
+	connect(): Promise<unknown>;
+	end(): Promise<unknown>;
+	query(sql: string, values?: unknown[]): Promise<{ rows: Record<string, unknown>[] }>;
+}
+
+export type DiningPgClientFactory = () => DiningPgClient;
+
+export class PostgresDiningSourceObservationStore {
+	private readonly createClient: DiningPgClientFactory;
+
+	constructor(input: { databaseUrl: string } | { createClient: DiningPgClientFactory }) {
 		this.createClient =
 			"createClient" in input
 				? input.createClient
 				: () => new Client({ connectionString: input.databaseUrl });
 	}
 
-	async upsertFeishuCatalogObservations(
-		observations: DiningSourceObservation[],
-		sourceIdentity?: FeishuCatalogSourceIdentity,
-	): Promise<DiningObservationSyncReport> {
-		return this.upsertObservations({
-			observations,
-			sourceIdentity,
-			sourceType: "feishu_catalog",
+	async startRun(sourceType: DiningSourceType): Promise<DiningSyncRun> {
+		const run: DiningSyncRun = {
+			runId: `dining_${sourceType}_sync:${randomUUID()}`,
+			sourceType,
+			startedAt: new Date(),
+		};
+		await this.withClient(async (client) => {
+			await client.query(
+				`UPDATE dining.source_sync_runs SET status='failed',completed_at=now(),
+					error_code='run_abandoned',error_message='The worker stopped before completing this run.'
+				 WHERE source_type=$1 AND status='running' AND started_at < now() - interval '30 minutes'`,
+				[sourceType],
+			);
+			await client.query(
+				`INSERT INTO dining.source_sync_runs(
+					run_id,source_type,started_at,status,total_count,accepted_count,blocked_count,stale_count
+				) VALUES($1,$2,$3,'running',0,0,0,0)`,
+				[run.runId, run.sourceType, run.startedAt],
+			);
+		});
+		return run;
+	}
+
+	async succeedRun(run: DiningSyncRun): Promise<void> {
+		await this.withClient(async (client) => {
+			await client.query(
+				`UPDATE dining.source_sync_runs SET status='succeeded',completed_at=$1,
+					error_code=NULL,error_message=NULL WHERE run_id=$2 AND status='running'`,
+				[new Date(), run.runId],
+			);
 		});
 	}
 
-	async upsertFeishuReviewObservations(
-		observations: DiningSourceObservation[],
-		sourceIdentity?: FeishuReviewSourceIdentity,
-	): Promise<DiningObservationSyncReport> {
-		return this.upsertObservations({
-			observations,
-			sourceIdentity,
-			sourceType: "feishu_review",
+	async failRun(run: DiningSyncRun, errorCode: string, error: unknown): Promise<void> {
+		const message = error instanceof Error ? error.message : String(error);
+		await this.withClient(async (client) => {
+			await client.query(
+				`UPDATE dining.source_sync_runs
+				 SET status='failed',completed_at=$1,error_code=$2,error_message=$3
+				 WHERE run_id=$4 AND status='running'`,
+				[new Date(), errorCode, message.slice(0, 500), run.runId],
+			);
 		});
 	}
 
-	async listActiveFeishuCatalogObservations(): Promise<DiningSourceObservation[]> {
+	async completeCatalogRun(input: {
+		observations: DiningSourceObservation[];
+		run: DiningSyncRun;
+		sourceIdentity: FeishuCatalogSourceIdentity;
+	}): Promise<DiningObservationSyncReport> {
+		return this.completeRun(input);
+	}
+
+	async completeReviewRun(input: {
+		observations: DiningSourceObservation[];
+		processingHashes: ReadonlyMap<string, string>;
+		run: DiningSyncRun;
+		sourceIdentity: FeishuReviewSourceIdentity;
+	}): Promise<DiningObservationSyncReport> {
+		return this.completeRun(input);
+	}
+
+	async listActiveCatalogObservations(): Promise<DiningSourceObservation[]> {
 		return this.listActiveObservations("feishu_catalog");
 	}
 
-	async listActiveFeishuReviewObservations(): Promise<DiningSourceObservation[]> {
+	async listActiveReviewObservations(): Promise<DiningSourceObservation[]> {
 		return this.listActiveObservations("feishu_review");
 	}
 
-	private async upsertObservations(input: {
-		observations: DiningSourceObservation[];
-		sourceIdentity?: FeishuCatalogSourceIdentity | FeishuReviewSourceIdentity;
-		sourceType: DiningSourceObservation["sourceType"];
-	}): Promise<DiningObservationSyncReport> {
+	async loadActiveReviewStates(): Promise<Map<string, DiningObservationState>> {
 		const client = this.createClient();
 		await client.connect();
 		try {
-			return await upsertObservations(client, input);
+			const result = await client.query(
+				`SELECT observation_id,source_type,target_kind,target_id,payload_json,status,observed_at,
+					processing_hash
+				 FROM dining.source_observations
+				 WHERE source_type='feishu_review' AND stale_at IS NULL`,
+			);
+			return new Map(
+				result.rows.map((row) => {
+					const observation = rowToObservation(row);
+					return [
+						observation.observationId,
+						{ observation, processingHash: requireString(row.processing_hash, "processing_hash") },
+					];
+				}),
+			);
+		} finally {
+			await client.end();
+		}
+	}
+
+	private async completeRun(input: {
+		observations: DiningSourceObservation[];
+		processingHashes?: ReadonlyMap<string, string>;
+		run: DiningSyncRun;
+		sourceIdentity: FeishuCatalogSourceIdentity | FeishuReviewSourceIdentity;
+	}): Promise<DiningObservationSyncReport> {
+		if (
+			input.run.sourceType !== input.observations[0]?.sourceType &&
+			input.observations.length > 0
+		) {
+			throw new Error("Dining source run and observation types do not match.");
+		}
+		const acceptedCount = input.observations.filter((item) => item.status === "accepted").length;
+		const blockedCount = input.observations.filter((item) => item.status === "blocked").length;
+		const client = this.createClient();
+		await client.connect();
+		try {
+			await client.query("BEGIN");
+			try {
+				const active = await client.query(
+					`SELECT count(*)::int AS count FROM dining.source_observations
+					 WHERE source_type=$1 AND stale_at IS NULL`,
+					[input.run.sourceType],
+				);
+				if (input.observations.length === 0 && Number(active.rows[0]?.count ?? 0) > 0) {
+					throw new DiningEmptySnapshotError(input.run.sourceType);
+				}
+				for (const observation of input.observations) {
+					if (observation.sourceType !== input.run.sourceType) {
+						throw new Error(`Dining observation type mismatch: ${observation.sourceType}.`);
+					}
+					const processingHash =
+						input.processingHashes?.get(observation.observationId) ?? contentHash(observation);
+					await upsertObservation(client, {
+						observation,
+						processingHash,
+						run: input.run,
+						sourceIdentity: input.sourceIdentity,
+					});
+				}
+				const snapshotAppliedAt = new Date();
+				const staleResult = await client.query(
+					`UPDATE dining.source_observations
+					 SET stale_at=$1
+					 WHERE source_type=$2 AND last_seen_run_id IS DISTINCT FROM $3 AND stale_at IS NULL
+					 RETURNING observation_id`,
+					[snapshotAppliedAt, input.run.sourceType, input.run.runId],
+				);
+				await client.query(
+					`UPDATE dining.source_sync_runs SET total_count=$1,accepted_count=$2,
+						blocked_count=$3,stale_count=$4
+					 WHERE run_id=$5 AND status='running'`,
+					[
+						input.observations.length,
+						acceptedCount,
+						blockedCount,
+						staleResult.rows.length,
+						input.run.runId,
+					],
+				);
+				await client.query("COMMIT");
+				return {
+					acceptedCount,
+					blockedCount,
+					runId: input.run.runId,
+					staleCount: staleResult.rows.length,
+					totalCount: input.observations.length,
+				};
+			} catch (error) {
+				await client.query("ROLLBACK");
+				throw error;
+			}
 		} finally {
 			await client.end();
 		}
 	}
 
 	private async listActiveObservations(
-		sourceType: DiningSourceObservation["sourceType"],
+		sourceType: DiningSourceType,
 	): Promise<DiningSourceObservation[]> {
 		const client = this.createClient();
 		await client.connect();
 		try {
 			const result = await client.query(
-				`SELECT
-					"observation_id", "source_type", "target_kind", "target_id", "payload_json",
-					"status", "observed_at"
-				FROM "dining"."source_observations"
-				WHERE "source_type" = $1
-					AND "stale_at" IS NULL
-				ORDER BY "target_kind", "observation_id"`,
+				`SELECT observation_id,source_type,target_kind,target_id,payload_json,status,observed_at
+				 FROM dining.source_observations
+				 WHERE source_type=$1 AND stale_at IS NULL
+				 ORDER BY target_kind,observation_id`,
 				[sourceType],
 			);
 			return result.rows.map(rowToObservation);
@@ -99,111 +244,58 @@ export class PostgresDiningSourceObservationStore {
 			await client.end();
 		}
 	}
+
+	private async withClient(work: (client: DiningPgClient) => Promise<void>): Promise<void> {
+		const client = this.createClient();
+		await client.connect();
+		try {
+			await work(client);
+		} finally {
+			await client.end();
+		}
+	}
 }
 
-async function upsertObservations(
-	client: DiningCatalogPgClient,
+async function upsertObservation(
+	client: DiningPgClient,
 	input: {
-		observations: DiningSourceObservation[];
-		sourceIdentity?: FeishuCatalogSourceIdentity | FeishuReviewSourceIdentity;
-		sourceType: DiningSourceObservation["sourceType"];
+		observation: DiningSourceObservation;
+		processingHash: string;
+		run: DiningSyncRun;
+		sourceIdentity: FeishuCatalogSourceIdentity | FeishuReviewSourceIdentity;
 	},
-): Promise<DiningObservationSyncReport> {
-	const runId = `dining_${input.sourceType}_sync:${randomUUID()}`;
-	const startedAt = new Date();
-	const acceptedCount = input.observations.filter((observation) => observation.status === "accepted").length;
-	const blockedCount = input.observations.filter((observation) => observation.status === "blocked").length;
-	await client.query("BEGIN");
-	try {
-		await client.query(
-			`INSERT INTO "dining"."source_sync_runs" (
-				"run_id", "source_type", "started_at", "status", "total_count",
-				"accepted_count", "blocked_count"
-			) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-			[
-				runId,
-				input.sourceType,
-				startedAt,
-				"running",
-				input.observations.length,
-				acceptedCount,
-				blockedCount,
-			],
-		);
-
-		for (const observation of input.observations) {
-			if (observation.sourceType !== input.sourceType) {
-				throw new Error(`Dining source observation type mismatch: ${observation.sourceType}.`);
-			}
-			const sourceRecordId = sourceRecordIdForObservation(observation);
-			await client.query(
-				`INSERT INTO "dining"."source_observations" (
-					"observation_id", "source_type", "source_base_token", "source_table_id",
-					"source_record_id", "target_kind", "target_id", "payload_json", "content_hash",
-					"status", "observed_at", "first_seen_at", "last_seen_at", "last_seen_run_id",
-					"stale_at"
-				) VALUES (
-					$1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13, $14, NULL
-				)
-				ON CONFLICT ("observation_id") DO UPDATE SET
-					"source_base_token" = EXCLUDED."source_base_token",
-					"source_table_id" = EXCLUDED."source_table_id",
-					"source_record_id" = EXCLUDED."source_record_id",
-					"target_kind" = EXCLUDED."target_kind",
-					"target_id" = EXCLUDED."target_id",
-					"payload_json" = EXCLUDED."payload_json",
-					"content_hash" = EXCLUDED."content_hash",
-					"status" = EXCLUDED."status",
-					"observed_at" = EXCLUDED."observed_at",
-					"last_seen_at" = EXCLUDED."last_seen_at",
-					"last_seen_run_id" = EXCLUDED."last_seen_run_id",
-					"stale_at" = NULL`,
-				[
-					observation.observationId,
-					observation.sourceType,
-					sourceBaseTokenFor(input.sourceIdentity),
-					sourceTableIdForObservation(observation, input.sourceIdentity),
-					sourceRecordId,
-					observation.targetKind,
-					observation.targetId,
-					JSON.stringify(observation.payloadJson),
-					contentHash(observation),
-					observation.status,
-					new Date(observation.observedAt),
-					startedAt,
-					startedAt,
-					runId,
-				],
-			);
-		}
-
-		const staleResult = await client.query(
-			`UPDATE "dining"."source_observations"
-			SET "stale_at" = $1
-			WHERE "source_type" = $2
-				AND "last_seen_run_id" IS DISTINCT FROM $3
-				AND "stale_at" IS NULL
-			RETURNING "observation_id"`,
-			[startedAt, input.sourceType, runId],
-		);
-		await client.query(
-			`UPDATE "dining"."source_sync_runs"
-			SET "completed_at" = $1, "status" = $2, "stale_count" = $3
-			WHERE "run_id" = $4`,
-			[startedAt, "completed", staleResult.rows.length, runId],
-		);
-		await client.query("COMMIT");
-		return {
-			acceptedCount,
-			blockedCount,
-			runId,
-			staleCount: staleResult.rows.length,
-			totalCount: input.observations.length,
-		};
-	} catch (error) {
-		await client.query("ROLLBACK");
-		throw error;
-	}
+): Promise<void> {
+	const observation = input.observation;
+	await client.query(
+		`INSERT INTO dining.source_observations(
+			observation_id,source_type,source_base_token,source_table_id,source_record_id,
+			target_kind,target_id,payload_json,content_hash,processing_hash,status,observed_at,
+			first_seen_at,last_seen_at,last_seen_run_id,stale_at
+		) VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11,$12,$13,$13,$14,NULL)
+		ON CONFLICT(observation_id) DO UPDATE SET
+			source_base_token=EXCLUDED.source_base_token,source_table_id=EXCLUDED.source_table_id,
+			source_record_id=EXCLUDED.source_record_id,target_kind=EXCLUDED.target_kind,
+			target_id=EXCLUDED.target_id,payload_json=EXCLUDED.payload_json,
+			content_hash=EXCLUDED.content_hash,processing_hash=EXCLUDED.processing_hash,
+			status=EXCLUDED.status,observed_at=EXCLUDED.observed_at,last_seen_at=EXCLUDED.last_seen_at,
+			last_seen_run_id=EXCLUDED.last_seen_run_id,stale_at=NULL`,
+		[
+			observation.observationId,
+			observation.sourceType,
+			input.sourceIdentity.baseToken,
+			sourceTableIdForObservation(observation, input.sourceIdentity),
+			sourceRecordIdForObservation(observation),
+			observation.targetKind,
+			observation.targetId,
+			JSON.stringify(observation.payloadJson),
+			contentHash(observation),
+			input.processingHash,
+			observation.status,
+			new Date(observation.observedAt),
+			input.run.startedAt,
+			input.run.runId,
+		],
+	);
 }
 
 function rowToObservation(row: Record<string, unknown>): DiningSourceObservation {
@@ -223,19 +315,10 @@ function sourceRecordIdForObservation(observation: DiningSourceObservation): str
 	return typeof sourceRecordId === "string" && sourceRecordId.trim() ? sourceRecordId : null;
 }
 
-function sourceBaseTokenFor(
-	sourceIdentity?: FeishuCatalogSourceIdentity | FeishuReviewSourceIdentity,
-): string | null {
-	return sourceIdentity?.baseToken ?? null;
-}
-
 function sourceTableIdForObservation(
 	observation: DiningSourceObservation,
-	sourceIdentity?: FeishuCatalogSourceIdentity | FeishuReviewSourceIdentity,
-): string | null {
-	if (!sourceIdentity) {
-		return null;
-	}
+	sourceIdentity: FeishuCatalogSourceIdentity | FeishuReviewSourceIdentity,
+): string {
 	if ("reviewTableId" in sourceIdentity) {
 		return sourceIdentity.reviewTableId;
 	}
@@ -252,26 +335,15 @@ function sourceTableIdForObservation(
 }
 
 function contentHash(observation: DiningSourceObservation): string {
-	return `sha256:${createHash("sha256").update(stableJson({
-		payloadJson: observation.payloadJson,
-		sourceType: observation.sourceType,
-		status: observation.status,
-		targetId: observation.targetId,
-		targetKind: observation.targetKind,
-	})).digest("hex")}`;
-}
-
-function stableJson(value: unknown): string {
-	if (Array.isArray(value)) {
-		return `[${value.map((item) => stableJson(item)).join(",")}]`;
-	}
-	if (value && typeof value === "object") {
-		return `{${Object.entries(value as Record<string, unknown>)
-			.sort(([left], [right]) => left.localeCompare(right))
-			.map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`)
-			.join(",")}}`;
-	}
-	return JSON.stringify(value);
+	return sha256Tag(
+		stableJson({
+			payloadJson: observation.payloadJson,
+			sourceType: observation.sourceType,
+			status: observation.status,
+			targetId: observation.targetId,
+			targetKind: observation.targetKind,
+		}),
+	);
 }
 
 function dateToIso(value: unknown, fieldName: string): string {
@@ -298,7 +370,7 @@ function requireRecord(value: unknown, fieldName: string): Record<string, unknow
 	return value as Record<string, unknown>;
 }
 
-function requireSourceType(value: unknown): DiningSourceObservation["sourceType"] {
+function requireSourceType(value: unknown): DiningSourceType {
 	if (value === "feishu_catalog" || value === "feishu_review") {
 		return value;
 	}
