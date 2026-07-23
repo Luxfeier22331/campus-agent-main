@@ -34,7 +34,7 @@ concurrency:
 
 jobs:
   release-plan:
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
     timeout-minutes: 2
     outputs:
       images: ${{ steps.plan.outputs.images }}
@@ -401,7 +401,7 @@ jobs:
         needs.publish-workers.result == 'success' ||
         needs.release-plan.outputs.kubernetes == 'true'
       )
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
     timeout-minutes: 2
     environment: staging
     steps:

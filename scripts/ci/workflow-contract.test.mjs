@@ -171,10 +171,14 @@ test("bounds the single-node release jobs", () => {
 	assert.ok(releaseWorkflow.jobs["publish-images"]["timeout-minutes"] < 20);
 });
 
-test("keeps repository-only release work off the staging runner", () => {
-	assert.equal(releaseWorkflow.jobs["release-plan"]["runs-on"], "ubuntu-24.04");
-	assert.equal(releaseWorkflow.jobs.promote["runs-on"], "ubuntu-24.04");
-	for (const jobName of ["release-config", "publish-images", "publish-workers"]) {
+test("keeps every staging release job on the dedicated runner", () => {
+	for (const jobName of [
+		"release-plan",
+		"release-config",
+		"publish-images",
+		"publish-workers",
+		"promote",
+	]) {
 		assert.deepEqual(releaseWorkflow.jobs[jobName]["runs-on"], [
 			"self-hosted",
 			"Linux",
