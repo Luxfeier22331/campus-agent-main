@@ -8,7 +8,6 @@ resources:
   - app-api-schema-job.yaml
   - campus-services-schema-job.yaml
   - run-projection-schema-job.yaml
-  - cloudflared-execution-control.yaml
   - availability.yaml
   - agent-runtime.yaml
   - execution-control.yaml

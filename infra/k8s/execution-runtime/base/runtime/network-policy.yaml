@@ -26,13 +26,15 @@ spec:
                 operator: In
                 values:
                   - agent-runtime
-                  - cloudflared-execution-control
                   - execution-agent
                   - execution-control
                   - execution-control-admin
                   - execution-core
                   - execution-workflow
                   - ops-web
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: private-service-connector
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -174,40 +176,3 @@ spec:
       ports:
         - protocol: TCP
           port: 4320
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: cloudflared-execution-control-egress
-spec:
-  podSelector:
-    matchLabels:
-      app.kubernetes.io/name: cloudflared-execution-control
-  policyTypes: ["Egress"]
-  egress:
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-      ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
-    - to:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: execution-control
-      ports:
-        - protocol: TCP
-          port: 8000
-    - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-      ports:
-        - protocol: TCP
-          port: 443
-        - protocol: TCP
-          port: 7844
-        - protocol: UDP
-          port: 7844
