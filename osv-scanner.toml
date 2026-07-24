@@ -40,3 +40,8 @@ reason = "The remaining @hono/node-server 1.x instance is an optional dependency
 id = "GHSA-f88m-g3jw-g9cj"
 ignoreUntil = 2026-10-01
 reason = "Cloudflare Miniflare pins sharp 0.34.5 for local Worker tooling; it is not included in campus-agent runtime artifacts, and forcing an undeclared sharp minor into Miniflare is unsafe. Remove this exception when Cloudflare updates Miniflare."
+
+[[IgnoredVulns]]
+id = "GHSA-qwww-vcr4-c8h2"
+ignoreUntil = 2026-10-01
+reason = "React Router is present only through the Rspress static documentation dependency; campus-agent does not use React Router's unstable RSC APIs covered by this advisory, and the current Rspress line does not support the fixed React Router 8 release."

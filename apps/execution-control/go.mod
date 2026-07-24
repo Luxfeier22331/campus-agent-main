@@ -2,6 +2,8 @@ module github.com/MUC-WIKI/campus-agent/apps/execution-control
 
 go 1.26
 
+toolchain go1.26.5
+
 require (
 	github.com/caarlos0/env/v11 v11.4.1
 	github.com/jackc/pgx/v5 v5.10.0

@@ -46,7 +46,7 @@ handoff、函数工具与知识搜索不展开成额外 Temporal activity。
 要求 Go `1.26.x` 和 `golangci-lint v2.11.4`。
 
 ```bash
-pnpm go:check
+pnpm ci:go
 pnpm repo:static
 ```
 

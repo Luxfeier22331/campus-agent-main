@@ -28,13 +28,12 @@ describe("campus web browser test boundaries", () => {
 	it("keeps browser regressions outside automatic PR checks and available on demand", () => {
 		const prWorkflow = readFileSync("../../.github/workflows/pr.yml", "utf8");
 		const healthWorkflow = readFileSync("../../.github/workflows/health.yml", "utf8");
-		const affectedCheck = readFileSync("../../scripts/ci/run-affected.sh", "utf8");
 		const browserJob = healthWorkflow.slice(
 			healthWorkflow.indexOf("\n  browser:"),
 			healthWorkflow.indexOf("\n  go:"),
 		);
 
-		expect(prWorkflow).toContain("Run lightweight PR checks");
+		expect(prWorkflow).toContain("Run repository checks");
 		expect(prWorkflow).not.toContain("playwright");
 		expect(prWorkflow).not.toContain("test:e2e");
 		expect(browserJob).toContain('CAMPUS_WEB_E2E_PREBUILT: "1"');
@@ -44,8 +43,5 @@ describe("campus web browser test boundaries", () => {
 		expect(browserJob).toContain("apps/ops-web test:browser");
 		expect(browserJob).toContain("actions/upload-artifact@");
 		expect(browserJob).toContain("retention-days: 7");
-		expect(affectedCheck).toContain("CI=1");
-		expect(affectedCheck).toContain("CAMPUS_WEB_E2E_DOCS_PREBUILT=1");
-		expect(affectedCheck).toMatch(/CAMPUS_WEB_E2E_PORT=.*27114/u);
 	});
 });

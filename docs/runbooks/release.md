@@ -32,9 +32,23 @@ Cloudflare version、配置和其他环境资源。候选物发布成功不表�
 2. 由当前 workflow 发布受影响的不可变候选物；触发条件、输入和产物以 `.github/workflows/`
    为准。
    App API 在自己的候选任务中完成 Worker 配置预检；镜像、App API 和 Kubernetes 清单分别产生
-   候选物。一个候选面的发布失败不使已经成功发布的候选物失效，同一源码提交重试时应直接复用它们。
+   候选物。一个候选面的发布失败不使已经成功发布的候选物失效，但本次不会创建不完整的 GitOps
+   提升；同一源码提交重试时应直接复用已有候选物。
 3. 检查候选物记录的源码提交、摘要和构建身份，不用可变标签或重复构建覆盖已有产物。
-4. 生成或更新环境仓变更，由环境仓选择完整的一组运行版本。
+4. 在环境仓 checkout 中运行 `pnpm gitops promote-source`，只更新 staging root 已注册的活跃
+   Application，再更新唯一 `deploy/staging` PR。环境仓 PR 负责渲染、schema 与策略检查；确认只含
+   机器版本字段后由受信任 GitHub App 自动 squash merge。
+
+发布基线来自环境仓 `releases/staging.json`，不是 workflow 触发事件的前一个提交。镜像和 Worker
+影响面由 Turbo package graph 与 package 外部 task input 计算，Kubernetes 由 `infra/k8s` 所有者范围
+计算。当前自动候选只包含 `agent-runtime`、`app-api-schema`、
+`execution-control`、`ops-web`、`transport-publisher`、App API Worker 与 Kubernetes source。
+`docker-bake.hcl` 仍声明其他可手动构建的镜像，但未部署或已暂停的 ingestion、Dining 和 docs
+镜像不因普通 `main` 变更自动发布或推广。
+
+发布 workflow、路径配置、Bake 文件或发布适配器本身的变化只运行静态检查、适配器测试和 Bake
+解析，不自动重建所有运行时镜像。需要让这些治理变化重新产生全部活跃候选时，合入后手动运行
+`staging-candidate-publish`，设置 `validate_only=false`。
 
 候选发布从 workflow 创建，到生成环境仓变更或返回可处理失败为止，总等待上限为 20 分钟。调度等待
 计入总等待，并单独记录以区分容量与任务耗时。单一 ARM64 Runner 依靠受影响面选择、不可变标签复用和
@@ -48,7 +62,11 @@ Campus Web 的 staging 候选发布当前冻结，环境继续选择已有 Worke
 
 ## 环境交接
 
-合并环境仓变更前，检查：
+常规 staging 版本 PR 只允许修改 Source ref、镜像 digest、Worker version、发布标识、Application
+Source SHA 注解和 staging 游标；这些字段由环境仓策略检查并自动合并。以下变化必须使用普通短期分支
+并由人员审查：Secret、权限、资源、网络、Terraform、workflow、Application 拓扑和 production。
+
+人工环境变更合并前，检查：
 
 - 所有候选物均来自同一预期源码版本，且引用不可变；
 - 环境配置、凭据消费合同、数据库变更和网络边界完整；
@@ -82,10 +100,9 @@ production 只选择已合入 `main` 的提交或其 release tag。发布前确�
 ## 失败处理
 
 - 候选物发布中断：对同一源码提交重试缺失步骤，不覆盖已存在的不可变产物；
-- 某次 `main` 发布在产物或 promotion 前失败，且后续提交已进入 `main`：手动运行
-  `staging-candidate-publish`，设置 `validate_only=false`，并把失败范围之前的完整 commit SHA
-  作为 `replay_base_sha`。workflow 会重新计算该 SHA 到当前 `main` 的受影响发布面；不能用
-  任意分支、非祖先提交或零 SHA 代替；
+- 某次 `main` 发布在产物或 GitOps 交接前失败：从当前 `main` 手动重跑
+  `staging-candidate-publish`，设置 `validate_only=false`；workflow 始终从环境仓游标重新计算，不接受
+  人工基线；
 - 环境计划失败：修复环境仓变更，不强制同步；
 - migration 或 rollout 失败：使用环境仓定义的恢复路径回到已知版本；
 - 用户路径失败：记录关联标识，按最先失败的组件定位并重新执行受影响路径。
@@ -99,3 +116,4 @@ production 只选择已合入 `main` 的提交或其 release tag。发布前确�
 - `docs/environment/readiness.md`
 - `docs/decisions/adr-0065-gitops.md`
 - `docs/decisions/adr-0074-repository-boundary.md`
+- `docs/decisions/adr-0083-promotion.md`

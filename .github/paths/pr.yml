@@ -1,0 +1,51 @@
+contracts:
+  - "packages/contracts/**"
+  - "configs/runtime/**"
+  - "docs/contracts/schemas/**"
+
+config:
+  - ".github/**"
+  - "aqua.yaml"
+
+python:
+  - added|modified: "**/*.py"
+  - added|modified: "pyproject.toml"
+
+yaml:
+  - added|modified:
+      - "**/*.yaml"
+      - "**/*.yml"
+      - "!pnpm-lock.yaml"
+
+sql:
+  - added|modified: "**/*.sql"
+  - added|modified: ".sqlfluff"
+  - added|modified: ".sqlfluffignore"
+
+shell:
+  - added|modified: "**/*.sh"
+  - added|modified: "aqua.yaml"
+
+dependencies:
+  - "osv-scanner.toml"
+  - "package.json"
+  - "**/package.json"
+  - "pnpm-lock.yaml"
+  - "pnpm-workspace.yaml"
+  - "pyproject.toml"
+  - "**/pyproject.toml"
+  - "uv.lock"
+  - "Cargo.lock"
+  - "Cargo.toml"
+  - "**/Cargo.toml"
+  - "**/go.mod"
+  - "**/go.sum"
+
+release:
+  - "apps/ops-web/Dockerfile"
+  - "docker-bake.hcl"
+  - "scripts/ci/check-ops-web-artifact.mjs"
+  - "scripts/ci/check-ops-web-artifact.test.mjs"
+  - "scripts/release/**"
+  - ".github/paths/release-*.yml"
+  - ".github/workflows/execution-runtime-publish.yml"

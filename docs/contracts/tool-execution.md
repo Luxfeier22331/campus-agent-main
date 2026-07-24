@@ -99,5 +99,5 @@ HTTP `ExecutionRunStatus` 与 execution-control 内部运行状态保持一致�
 
 ## 验证
 
-运行 `pnpm ci:contracts`、`pnpm go:check`，以及
+运行 `pnpm ci:contracts`、`pnpm ci:go`，以及
 `../reference/verification.md` 列出的 app-api 类型检查和测试通道。

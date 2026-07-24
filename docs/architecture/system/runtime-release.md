@@ -28,7 +28,9 @@ status: active
 ```text
 源码 main
 -> 构建不可变镜像并上传 Worker 候选版本
--> 环境仓 PR 选择镜像摘要和 Worker 版本
+-> 从环境仓 staging 游标计算累计受影响范围
+-> 环境仓滚动 PR 选择镜像摘要和 Worker 版本
+-> 机器字段校验通过后自动合并
 -> 数据库 schema 与平台配置收敛
 -> Argo CD 同步 Kubernetes
 -> Terraform 切换 Worker 流量
@@ -42,6 +44,8 @@ status: active
 - 依赖新 schema 的运行时必须在迁移成功后才能接收流量；
 - 一个应用失败不能被其他应用的健康状态掩盖；
 - 候选版本上传成功、镜像构建成功或清单渲染成功都不等于部署完成。
+- 常规 staging 版本选择使用唯一滚动 PR；Secret、权限、资源、网络、Terraform、Application 拓扑和
+  production 变化不进入自动合并。
 
 Kubernetes 发布以实际故障域为 Application 边界。强依赖 schema 的运行时在同一 Application 内
 依次同步配置与身份、数据库角色、migration、workload 和 schedule。嵌入宿主的可选领域能力可以由
@@ -53,7 +57,9 @@ Kubernetes 发布以实际故障域为 Application 边界。强依赖 schema 的
 
 每次构建必须能够关联到源码提交、镜像摘要或 Worker 版本标识。包含静态数据 release 的
 Worker 还必须记录数据 release identity 和二者组合的 build identity。应用日志、观测数据和
-环境仓变更应使用这些不可变标识定位同一次发布，不在源码仓中长期写死某个环境发布号。
+环境仓变更应使用这些不可变标识定位同一次发布，不在源码仓中长期写死某个环境发布号。环境仓用
+已选择 Source SHA 作为下一次候选计算基线；Argo CD 和 Cloudflare 状态写回该 Source SHA，分别表达
+对应部署单元的结果。
 
 ## 配置与密钥
 
@@ -87,3 +93,4 @@ runbook，不在架构文档保存某次验收输出。
 - [发布操作](../../runbooks/release.md)
 - [ADR-0065](../../decisions/adr-0065-gitops.md)
 - [ADR-0078](../../decisions/adr-0078-worker-versioning.md)
+- [ADR-0083](../../decisions/adr-0083-promotion.md)

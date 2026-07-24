@@ -6,8 +6,8 @@ agent_config="$repo_root/infra/otel/collector-agent-staging-template.yaml"
 env_file="$repo_root/infra/otel/collector.env.example"
 collector_image="otel/opentelemetry-collector-contrib:0.127.0@sha256:e94cfd92357aa21f4101dda3c0c01f90e6f24115ba91b263c4d09fed7911ae68"
 
-conftest verify --policy "$repo_root/infra/policies"
-conftest test \
+aqua exec -- conftest verify --policy "$repo_root/infra/policies"
+aqua exec -- conftest test \
   --namespace campus.otel.config \
   --policy "$repo_root/infra/policies" \
   --parser yaml \

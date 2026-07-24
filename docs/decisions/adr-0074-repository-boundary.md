@@ -3,6 +3,7 @@ doc_type: decision
 owner_boundary: docs/decisions
 decision_id: ADR-0074
 status: accepted
+partially_superseded_by: ADR-0083
 ---
 # ADR-0074 源码仓库与环境仓库边界
 
@@ -56,7 +57,8 @@ Cloudflare Worker secret store，不复制到 Terraform state 或 Kubernetes Sec
   SealedSecret；
 - 通用 Kustomize base 不创建 Namespace、不选择 environment ConfigMap 或 mutable image tag，
   也不注入 registry credential；
-- 部署变更在环境仓库中接受审查，合并环境 pull request 是明确部署动作；
+- 环境仓 pull request 是部署选择记录；常规 staging 机器字段在结构化校验后自动合并，环境结构和
+  production 变化仍由人员审查；
 - 一个环境 pull request 可以选择同一 source commit 产生的 Kubernetes image digest 与
   Cloudflare Worker version；
 - source CI 证明源码与通用 base 质量，environment CI 与 Argo status 证明可部署性，双方不能

@@ -5,17 +5,21 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  pr-fast:
+  repo-checks:
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 8
-    permissions:
-      contents: read
+    timeout-minutes: 10
+    env:
+      TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
+      TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+      TURBO_TELEMETRY_DISABLED: "1"
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
@@ -24,15 +28,109 @@ jobs:
           filter: blob:none
           persist-credentials: false
 
-      - name: Setup lightweight repository tools
-        uses: ./.github/actions/setup-node-pnpm
+      - name: Select changed validation surfaces
+        id: changes
+        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706  # v4
         with:
-          workspace-filters: |
-            campus-agent-web-workspace
-            campus-contracts...
+          filters: .github/paths/pr.yml
 
-      - name: Run lightweight PR checks
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271  # v6
+        with:
+          version: "10.34.5"
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install Node validation dependencies
+        run: >-
+          pnpm install --frozen-lockfile --prefer-offline
+          --filter campus-agent-web-workspace
+          --filter 'campus-contracts...'
+
+      - name: Setup repository tools
+        uses: aquaproj/aqua-installer@96a9bc20066c5bf5e275b41019cfc165b25f4e2e  # v4.0.5
+        env:
+          AQUA_ROOT_DIR: ${{ runner.tool_cache }}/aqua
+        with:
+          aqua_version: v2.62.1
+
+      - name: Setup Python lint tools
+        if: >-
+          steps.changes.outputs.config == 'true' ||
+          steps.changes.outputs.python == 'true' ||
+          steps.changes.outputs.sql == 'true' ||
+          steps.changes.outputs.yaml == 'true'
+        uses: astral-sh/setup-uv@f98e06938123ccabd21905ea5d0069192241f9f1  # v8.3.1
+        with:
+          version: "0.11.28"
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: Install Python lint dependencies
+        if: >-
+          steps.changes.outputs.python == 'true' ||
+          steps.changes.outputs.sql == 'true' ||
+          steps.changes.outputs.yaml == 'true'
+        run: uv sync --only-dev --no-install-workspace
+
+      - name: Run repository checks
+        run: pnpm ci:repo
+
+      - name: Check executable contracts
+        if: steps.changes.outputs.contracts == 'true'
+        run: pnpm ci:contracts
+
+      - name: Lint GitHub Actions
+        if: steps.changes.outputs.config == 'true'
+        run: pnpm ci:config
+
+      - name: Lint Python
+        if: steps.changes.outputs.python == 'true'
+        run: |
+          git ls-files -z -- '*.py' \
+            | xargs -0 --no-run-if-empty uv run --no-sync ruff check
+          git ls-files -z -- '*.py' \
+            | xargs -0 --no-run-if-empty uv run --no-sync ruff format --check
+
+      - name: Lint YAML
+        if: steps.changes.outputs.yaml == 'true'
+        run: |
+          git ls-files -z -- '*.yaml' '*.yml' ':(exclude)pnpm-lock.yaml' \
+            | xargs -0 --no-run-if-empty uv run --no-sync yamllint -c .yamllint.yml
+
+      - name: Lint SQL
+        if: steps.changes.outputs.sql == 'true'
+        run: |
+          git ls-files -z -- '*.sql' \
+            | xargs -0 --no-run-if-empty uv run --no-sync sqlfluff lint --config .sqlfluff
+
+      - name: Lint Shell
+        if: steps.changes.outputs.shell == 'true'
+        run: |
+          git ls-files -z -- '*.sh' \
+            | xargs -0 --no-run-if-empty shellcheck -x -s bash
+
+      - name: Test release tooling
+        if: steps.changes.outputs.release == 'true'
+        run: pnpm ci:release
+
+      - name: Scan dependency manifests
+        if: steps.changes.outputs.dependencies == 'true'
+        run: pnpm ci:deps
+
+      - name: Scan changed commits for secrets
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.sha }}
-        run: pnpm ci:pr "$BASE_SHA" "$HEAD_SHA"
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          merge_base="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
+          gitleaks git \
+            --redact \
+            --exit-code=1 \
+            --config=.gitleaks.toml \
+            --log-opts="--no-merges ${merge_base}..${HEAD_SHA}"

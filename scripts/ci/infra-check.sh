@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-conftest verify --policy infra/policies
+aqua exec -- conftest verify --policy infra/policies
 while IFS= read -r kustomization; do
 	directory="${kustomization%/kustomization.yaml}"
-	kustomize build "$directory" | conftest test \
+	aqua exec -- kustomize build "$directory" | aqua exec -- conftest test \
 		--namespace campus.k8s.config_secrets \
 		--policy infra/policies \
 		--parser yaml \

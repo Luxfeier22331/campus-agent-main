@@ -13,10 +13,6 @@ on:
         required: true
         default: false
         type: boolean
-      replay_base_sha:
-        description: Rebuild the affected release plan from this failed main release base
-        required: false
-        type: string
   push:
     branches:
       - main
@@ -31,8 +27,10 @@ concurrency:
 jobs:
   release-plan:
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 2
+    timeout-minutes: 3
+    environment: staging
     outputs:
+      base: ${{ steps.plan.outputs.base }}
       images: ${{ steps.plan.outputs.images }}
       kubernetes: ${{ steps.plan.outputs.kubernetes }}
       validate_only: ${{ steps.plan.outputs.validate_only }}
@@ -45,94 +43,66 @@ jobs:
           filter: blob:none
           persist-credentials: false
 
-      - name: Setup planning tools
-        uses: ./.github/actions/setup-node-pnpm
+      - name: Create GitOps read token
+        id: gitops-read-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3
         with:
-          workspace-filters: |
-            campus-agent-web-workspace
-            campus-contracts...
+          client-id: ${{ vars.GITOPS_PROMOTER_CLIENT_ID }}
+          private-key: ${{ secrets.GITOPS_PROMOTER_PRIVATE_KEY }}
+          owner: MUC-WIKI
+          repositories: campus-agent-gitops
+          permission-contents: read
 
-      - name: Restrict manual staging work to main
-        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
-        run: |
-          echo "Staging validation and publication are allowed only from main." >&2
-          exit 1
+      - name: Checkout GitOps release selection
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+        with:
+          persist-credentials: false
+          repository: MUC-WIKI/campus-agent-gitops
+          token: ${{ steps.gitops-read-token.outputs.token }}
+          path: gitops-selection
+          sparse-checkout: releases
 
-      - name: Build release plan
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271  # v6
+        with:
+          version: "10.34.5"
+
+      - name: Select release candidates
         id: plan
         env:
-          BASE_SHA: ${{ github.event.before }}
-          EVENT_NAME: ${{ github.event_name }}
-          HEAD_SHA: ${{ github.sha }}
-          PROMOTE: ${{ inputs.promote || false }}
-          REPLAY_BASE_SHA: ${{ inputs.replay_base_sha || '' }}
-          VALIDATE_ONLY: ${{ inputs.validate_only || false }}
+          FULL: ${{ github.event_name == 'workflow_dispatch' && inputs.validate_only == false }}
+          PROMOTE: ${{ github.event_name == 'workflow_dispatch' && inputs.promote || false }}
+          VALIDATE_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.validate_only || false }}
         run: |
           set -euo pipefail
-          if [ "$PROMOTE" = true ] && [ "$GITHUB_REF" != refs/heads/main ]; then
-            echo "Manual promotion is allowed only from main." >&2
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "Staging validation and publication are allowed only from main." >&2
             exit 1
           fi
-          if [ "$PROMOTE" = true ] && [ "$VALIDATE_ONLY" = true ]; then
+          if [[ "$PROMOTE" == "true" && "$VALIDATE_ONLY" == "true" ]]; then
             echo "Validation-only runs cannot promote candidates." >&2
             exit 1
           fi
-          if [ "$EVENT_NAME" = workflow_dispatch ]; then
-            if [ -n "$REPLAY_BASE_SHA" ]; then
-              if [ "$VALIDATE_ONLY" = true ]; then
-                echo "Release replay cannot run in validation-only mode." >&2
-                exit 1
-              fi
-              if ! [[ "$REPLAY_BASE_SHA" =~ ^[0-9a-f]{40}$ ]] || [[ "$REPLAY_BASE_SHA" =~ ^0{40}$ ]]; then
-                echo "Replay base must be a non-zero 40-character lowercase commit SHA." >&2
-                exit 1
-              fi
-              if ! git cat-file -e "${REPLAY_BASE_SHA}^{commit}"; then
-                echo "Replay base commit does not exist: ${REPLAY_BASE_SHA}." >&2
-                exit 1
-              fi
-              if ! git merge-base --is-ancestor "$REPLAY_BASE_SHA" "$HEAD_SHA"; then
-                echo "Replay base must be an ancestor of ${HEAD_SHA}." >&2
-                exit 1
-              fi
-              scripts/ci/write-change-plan.sh "$REPLAY_BASE_SHA" "$HEAD_SHA" change-plan.json
-              jq -e '.unresolved | length == 0' change-plan.json >/dev/null
-              release="$(jq -c .release change-plan.json)"
-            elif [ "$VALIDATE_ONLY" = true ]; then
-              workers="$(node --input-type=module -e \
-                'import { ALL_WORKERS } from "./scripts/ci/ci-surfaces.mjs"; process.stdout.write(JSON.stringify(ALL_WORKERS))')"
-              release="$(jq -cn --argjson workers "$workers" \
-                '{images: [], kubernetes: false, workers: $workers}')"
-            else
-              images="$(node --input-type=module -e \
-                'import { ALL_IMAGES } from "./scripts/ci/ci-surfaces.mjs"; process.stdout.write(JSON.stringify(ALL_IMAGES))')"
-              workers="$(node --input-type=module -e \
-                'import { ALL_WORKERS } from "./scripts/ci/ci-surfaces.mjs"; process.stdout.write(JSON.stringify(ALL_WORKERS))')"
-              release="$(jq -cn --argjson images "$images" --argjson workers "$workers" \
-                '{images: $images, kubernetes: true, workers: $workers}')"
-            fi
-          else
-            scripts/ci/write-change-plan.sh "$BASE_SHA" "$HEAD_SHA" change-plan.json
-            jq -e '.unresolved | length == 0' change-plan.json >/dev/null
-            release="$(jq -c .release change-plan.json)"
-          fi
+          plan="$(node --experimental-strip-types scripts/release/candidates.mts \
+            --full "$FULL" \
+            --head "$GITHUB_SHA" \
+            --selection "$GITHUB_WORKSPACE/gitops-selection/releases/staging.json" \
+            --validate-only "$VALIDATE_ONLY")"
+          jq -e . <<< "$plan" >/dev/null
           {
-            echo "images=$(jq -c .images <<< "$release")"
-            echo "kubernetes=$(jq -r .kubernetes <<< "$release")"
-            echo "validate_only=$VALIDATE_ONLY"
-            echo "workers=$(jq -c .workers <<< "$release")"
+            echo "base=$(jq -r '.base' <<< "$plan")"
+            echo "images=$(jq -c '.images' <<< "$plan")"
+            echo "kubernetes=$(jq -r '.kubernetes' <<< "$plan")"
+            echo "validate_only=$(jq -r '.validateOnly' <<< "$plan")"
+            echo "workers=$(jq -c '.workers' <<< "$plan")"
           } >> "$GITHUB_OUTPUT"
-          {
-            echo '### Release plan'
-            echo
-            echo '```json'
-            jq . <<< "$release"
-            echo '```'
-            if [ -n "$REPLAY_BASE_SHA" ]; then
-              echo
-              echo "Replay range: \`${REPLAY_BASE_SHA}..${HEAD_SHA}\`"
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
+          jq . <<< "$plan"
 
   publish-images:
     needs: release-plan
@@ -152,9 +122,17 @@ jobs:
           persist-credentials: false
 
       - name: Setup Node
-        uses: ./.github/actions/setup-node-pnpm
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6
         with:
-          install: "false"
+          node-version-file: .node-version
+          package-manager-cache: false
+
+      - name: Setup image scanner
+        uses: aquaproj/aqua-installer@96a9bc20066c5bf5e275b41019cfc165b25f4e2e  # v4.0.5
+        env:
+          AQUA_ROOT_DIR: ${{ runner.tool_cache }}/aqua
+        with:
+          aqua_version: v2.62.1
 
       - name: Setup persistent Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4
@@ -176,9 +154,6 @@ jobs:
               maxUsedSpace = "12GB"
               minFreeSpace = "25GB"
 
-      - name: Verify Trivy
-        run: test "$(trivy --version | awk 'NR == 1 {print $2}')" = "0.72.0"
-
       - name: Login to GHCR
         uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0  # v4.4.0
         with:
@@ -189,21 +164,14 @@ jobs:
       - name: Build, publish and scan images
         env:
           IMAGES: ${{ needs.release-plan.outputs.images }}
-        run: scripts/ci/publish-images.sh "$IMAGES" image-digests.json
-
-      - name: Verify and summarize published image digests
-        env:
-          EXPECTED_IMAGES: ${{ needs.release-plan.outputs.images }}
-        run: |
-          jq -e --argjson expected "$EXPECTED_IMAGES" \
-            'keys == ($expected | sort)' image-digests.json >/dev/null
-          {
-            echo "### Published image digests"
-            echo
-            echo '| Image | Digest |'
-            echo '| --- | --- |'
-            jq -r 'to_entries[] | "| `\(.key)` | `\(.value)` |"' image-digests.json
-          } >> "$GITHUB_STEP_SUMMARY"
+        run: >-
+          node --experimental-strip-types scripts/release/images.mts
+          --images "$IMAGES"
+          --output image-digests.json
+          --repository "$GITHUB_REPOSITORY"
+          --source-sha "$GITHUB_SHA"
+          --trivy-cache "${RUNNER_TOOL_CACHE}/trivy"
+          --summary "$GITHUB_STEP_SUMMARY"
 
       - name: Upload image digests
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
@@ -221,12 +189,12 @@ jobs:
     timeout-minutes: 5
     environment: staging
     env:
-      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-      CLOUDFLARE_AUTOMATION_TOKEN: ${{ secrets.CLOUDFLARE_AUTOMATION_TOKEN }}
       APP_API_DB_FRESH_HYPERDRIVE_ID: ${{ vars.APP_API_DB_FRESH_HYPERDRIVE_ID }}
       APP_API_DB_HYPERDRIVE_ID: ${{ vars.APP_API_DB_HYPERDRIVE_ID }}
       AUTH_RESET_EMAIL_FROM: ${{ vars.AUTH_RESET_EMAIL_FROM }}
       AUTH_RESET_EMAIL_REPLY_TO: ${{ vars.AUTH_RESET_EMAIL_REPLY_TO }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_AUTOMATION_TOKEN: ${{ secrets.CLOUDFLARE_AUTOMATION_TOKEN }}
       EXECUTION_CONTROL_VPC_SERVICE_ID: ${{ vars.EXECUTION_CONTROL_VPC_SERVICE_ID }}
       SENTRY_APP_API_DSN: ${{ vars.SENTRY_APP_API_DSN }}
     steps:
@@ -235,13 +203,24 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup Node
-        uses: ./.github/actions/setup-node-pnpm
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271  # v6
         with:
-          workspace-filters: |
-            campus-agent-web-workspace
-            campus-contracts...
-          workspace-filters-json: '["app-api..."]'
+          version: "10.34.5"
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install App API workspace
+        run: >-
+          pnpm install --frozen-lockfile --prefer-offline
+          --filter campus-agent-web-workspace
+          --filter 'campus-contracts...'
+          --filter 'app-api...'
 
       - name: Validate app-api staging configuration
         if: needs.release-plan.outputs.validate_only == 'true'
@@ -276,13 +255,15 @@ jobs:
       needs.release-plan.outputs.validate_only != 'true' &&
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' || inputs.promote) &&
+      contains(fromJSON('["success","skipped"]'), needs.publish-images.result) &&
+      contains(fromJSON('["success","skipped"]'), needs.publish-app-api.result) &&
       (
         needs.publish-images.result == 'success' ||
         needs.publish-app-api.result == 'success' ||
         needs.release-plan.outputs.kubernetes == 'true'
       )
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 2
+    timeout-minutes: 5
     environment: staging
     steps:
       - name: Checkout
@@ -292,7 +273,7 @@ jobs:
 
       - name: Prepare release inputs
         run: |
-          echo '{}' > image-digests.json
+          node -e 'require("node:fs").writeFileSync("image-digests.json", "{}\n")'
           mkdir -p worker-candidates
 
       - name: Download image digests
@@ -315,9 +296,12 @@ jobs:
           client-id: ${{ vars.GITOPS_PROMOTER_CLIENT_ID }}
           private-key: ${{ secrets.GITOPS_PROMOTER_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
-          repositories: campus-agent-gitops
+          repositories: |
+            campus-agent
+            campus-agent-gitops
           permission-contents: write
           permission-pull-requests: write
+          permission-statuses: write
 
       - name: Checkout GitOps repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
@@ -327,14 +311,32 @@ jobs:
           token: ${{ steps.gitops-token.outputs.token }}
           path: gitops
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271  # v6
+        with:
+          version: "10.34.5"
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6
+        with:
+          node-version-file: gitops/.node-version
+          cache: pnpm
+          cache-dependency-path: gitops/pnpm-lock.yaml
+
+      - name: Install GitOps tooling
+        run: pnpm --dir gitops install --frozen-lockfile --prefer-offline
+
       - name: Update GitOps desired state
-        id: source
         env:
-          K8S_CHANGED: ${{ needs.release-plan.outputs.kubernetes }}
-          REQUIRE_ALL_IMAGE_CONSUMERS: ${{ github.event_name == 'workflow_dispatch' && inputs.promote }}
+          KUBERNETES_CHANGED: ${{ needs.release-plan.outputs.kubernetes }}
         run: >-
-          scripts/deploy/update-staging-candidate.sh
-          image-digests.json worker-candidates gitops
+          pnpm --dir gitops gitops promote-source
+          --image-digests "$GITHUB_WORKSPACE/image-digests.json"
+          --kubernetes "$KUBERNETES_CHANGED"
+          --root "$GITHUB_WORKSPACE/gitops"
+          --source-repository "$GITHUB_REPOSITORY"
+          --source-sha "$GITHUB_SHA"
+          --worker-candidates "$GITHUB_WORKSPACE/worker-candidates"
 
       - name: Detect GitOps changes
         id: promotion
@@ -345,51 +347,40 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Setup kubectl
-        if: steps.promotion.outputs.changed == 'true'
-        uses: azure/setup-kubectl@829323503d1be3d00ca8346e5391ca0b07a9ab0d  # v5
-        with:
-          version: v1.36.2
-
-      - name: Validate promoted manifests
-        if: steps.promotion.outputs.changed == 'true'
-        env:
-          SOURCE_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          git_config="$(mktemp)"
-          trap 'rm -f "$git_config"' EXIT
-          export GIT_CONFIG_GLOBAL="$git_config"
-          git config --global \
-            url."https://x-access-token:${SOURCE_TOKEN}@github.com/".insteadOf \
-            "https://github.com/"
-          for overlay in gitops/clusters/staging/overlays/*; do
-            kubectl kustomize "$overlay" >/dev/null
-          done
-          kubectl kustomize gitops/clusters/staging/applications >/dev/null
-
       - name: Open GitOps deployment pull request
+        id: deployment-pr
         if: steps.promotion.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1  # v8
         with:
           token: ${{ steps.gitops-token.outputs.token }}
           path: gitops
           base: main
-          branch: deploy/staging-${{ github.sha }}
+          branch: deploy/staging
           delete-branch: true
-          commit-message: "chore: 部署 staging 候选版本 ${{ steps.source.outputs.short_sha }}"
-          title: "chore: 部署 staging 候选版本 ${{ steps.source.outputs.short_sha }}"
+          commit-message: "chore: 部署 staging 候选版本 ${{ github.sha }}"
+          title: "chore: 部署 staging 候选版本 ${{ github.sha }}"
           body: |
             ## 变更内容
 
-            - 更新 `campus-agent@${{ github.sha }}` 产生的受影响镜像（如有）
-            - 更新受影响 Cloudflare Worker 的不可变版本（如有）
-            - 仅更新环境仓已经声明的镜像 digest
-            - Kubernetes 基座变化时同步源码引用
+            - 更新 `campus-agent@${{ github.sha }}` 产生的活跃镜像（如有）
+            - 更新 App API Worker 的不可变版本（如有）
+            - Kubernetes 基座变化时同步活跃 Application 的源码引用
 
             ## 验证结果
 
-            - [x] 本次产生的镜像（如有）均在 arm64 上通过 HIGH / CRITICAL 漏洞扫描
+            - [x] 发布镜像（如有）均为单一 `linux/arm64` 索引并通过 Trivy 扫描
             - [x] Worker 候选版本上传未改变当前流量版本
-            - [x] 所有 staging Kustomize overlay 可完整渲染
-            - [x] Application 与 SealedSecret 清单可完整渲染
+            - [x] `promote-source` 已校验候选身份和活跃消费者
+            - [ ] GitOps PR 的渲染、schema 与策略检查
+
+      - name: Mark staging promotion pending
+        if: steps.promotion.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ steps.gitops-token.outputs.token }}
+          TARGET_URL: ${{ steps.deployment-pr.outputs.pull-request-url }}
+        run: >-
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}"
+          -f state=pending
+          -f context=staging/promotion
+          -f description='GitOps is validating the staging promotion'
+          -f target_url="$TARGET_URL"

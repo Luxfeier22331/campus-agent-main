@@ -1,0 +1,35 @@
+{
+	"extends": ["//"],
+	"tasks": {
+		"native:format": {
+			"inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/Cargo.toml", "$TURBO_ROOT$/rust-toolchain.toml"]
+		},
+		"native:lint": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/Cargo.lock",
+				"$TURBO_ROOT$/Cargo.toml",
+				"$TURBO_ROOT$/packages/ingestion-contracts/schemas/canonical-document-units.v1.schema.json",
+				"$TURBO_ROOT$/rust-toolchain.toml"
+			]
+		},
+		"native:test": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/Cargo.lock",
+				"$TURBO_ROOT$/Cargo.toml",
+				"$TURBO_ROOT$/packages/ingestion-contracts/schemas/canonical-document-units.v1.schema.json",
+				"$TURBO_ROOT$/rust-toolchain.toml"
+			]
+		},
+		"native:typecheck": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/Cargo.lock",
+				"$TURBO_ROOT$/Cargo.toml",
+				"$TURBO_ROOT$/packages/ingestion-contracts/schemas/canonical-document-units.v1.schema.json",
+				"$TURBO_ROOT$/rust-toolchain.toml"
+			]
+		}
+	}
+}

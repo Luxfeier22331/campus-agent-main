@@ -15,6 +15,23 @@ on:
           - database
           - browser
           - dependencies
+          - docker
+      docker_target:
+        description: Docker Bake target used by the docker profile
+        required: true
+        default: agent-runtime
+        type: choice
+        options:
+          - agent-runtime
+          - app-api-schema
+          - docs-publish
+          - dining-sync
+          - execution-control
+          - ingestion-control
+          - ingestion-control-worker
+          - ops-web
+          - source-collector
+          - transport-publisher
 
 permissions:
   contents: read
@@ -23,41 +40,55 @@ concurrency:
   group: manual-health
   cancel-in-progress: false
 
+env:
+  TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+  TURBO_TELEMETRY_DISABLED: "1"
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+
 jobs:
   node:
     if: inputs.profile == 'node'
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
     timeout-minutes: 75
-    env:
-      TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
-      TURBO_TEAM: ${{ vars.TURBO_TEAM }}
-      TURBO_TELEMETRY_DISABLED: "1"
-      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
         with:
           persist-credentials: false
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271  # v6
+        with:
+          version: "10.34.5"
+
       - name: Setup Node
-        uses: ./.github/actions/setup-node-pnpm
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Setup Python
-        uses: ./.github/actions/setup-python-uv
+        uses: astral-sh/setup-uv@f98e06938123ccabd21905ea5d0069192241f9f1  # v8.3.1
+        with:
+          version: "0.11.28"
+          enable-cache: true
+          python-version: "3.12"
 
-      - name: Run repository and contract checks
+      - name: Install workspaces
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Install evaluation dependencies
+        run: uv sync --package campus-ragas-runner
+
+      - name: Run Node and Python checks
         run: |
           pnpm ci:repo
           pnpm ci:contracts
-
-      - name: Run full TypeScript checks
-        run: pnpm ci:typescript:full
-
-      - name: Run ingestion checks
-        run: pnpm ci:ingest
-
-      - name: Run evaluation checks
-        run: pnpm ci:eval
+          pnpm ci:typescript:full
+          pnpm ci:ingest
+          pnpm ci:eval
 
   browser:
     if: inputs.profile == 'browser'
@@ -66,21 +97,30 @@ jobs:
     env:
       CAMPUS_WEB_E2E_DOCS_PREBUILT: "1"
       CAMPUS_WEB_E2E_PREBUILT: "1"
-      TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
-      TURBO_TEAM: ${{ vars.TURBO_TEAM }}
-      TURBO_TELEMETRY_DISABLED: "1"
-      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
         with:
           persist-credentials: false
 
-      - name: Setup browser workspaces
-        uses: ./.github/actions/setup-node-pnpm
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271  # v6
         with:
-          workspace-filters: campus-agent-web-workspace
-          workspace-filters-json: '["campus-web...", "ops-web..."]'
+          version: "10.34.5"
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install browser workspaces
+        run: >-
+          pnpm install --frozen-lockfile --prefer-offline
+          --filter campus-agent-web-workspace
+          --filter 'campus-web...'
+          --filter 'ops-web...'
 
       - name: Build browser fixtures
         run: >-
@@ -125,13 +165,36 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Verify Go tools
-        run: |
-          test "$(go version | awk '{print $3}')" = "go1.26.5"
-          test "$(golangci-lint version --short)" = "2.11.4"
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271  # v6
+        with:
+          version: "10.34.5"
 
-      - name: Run full Go checks
-        run: scripts/ci/go-check.sh
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Setup Go lint tools
+        uses: aquaproj/aqua-installer@96a9bc20066c5bf5e275b41019cfc165b25f4e2e  # v4.0.5
+        env:
+          AQUA_ROOT_DIR: ${{ runner.tool_cache }}/aqua
+        with:
+          aqua_version: v2.62.1
+
+      - name: Install task runner
+        run: >-
+          pnpm install --frozen-lockfile --prefer-offline
+          --filter campus-agent-web-workspace
+          --filter execution-control
+
+      - name: Verify Go toolchain
+        run: test "$(go version | awk '{print $3}')" = "go1.26.5"
+
+      - name: Run Go checks
+        run: pnpm ci:go
 
   rust:
     if: inputs.profile == 'rust'
@@ -143,17 +206,28 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Verify Rust tools
-        run: |
-          test "$(rustc --version | awk '{print $2}')" = "1.91.0"
-          test "$(cargo --version | awk '{print $2}')" = "1.91.0"
-          rustup component list --toolchain 1.91.0 --installed | rg -q '^clippy-'
-          rustup component list --toolchain 1.91.0 --installed | rg -q '^rustfmt-'
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271  # v6
+        with:
+          version: "10.34.5"
 
-      - name: Run full Rust checks
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install task runner
+        run: >-
+          pnpm install --frozen-lockfile --prefer-offline
+          --filter campus-agent-web-workspace
+          --filter ingestion-kernels-rs
+
+      - name: Run Rust checks
         env:
           CARGO_TARGET_DIR: ${{ runner.tool_cache }}/cargo-target/campus-agent
-        run: scripts/ci/rust-check.sh
+        run: pnpm ci:rust
 
   database:
     if: inputs.profile == 'database'
@@ -165,11 +239,28 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup database workspaces
-        uses: ./.github/actions/setup-node-pnpm
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271  # v6
         with:
-          workspace-filters: campus-agent-web-workspace
-          workspace-filters-json: '["app-api...", "ops-web...", "transport-publisher..."]'
+          version: "10.34.5"
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install database workspaces
+        run: >-
+          pnpm install --frozen-lockfile --prefer-offline
+          --filter campus-agent-web-workspace
+          --filter 'app-api...'
+          --filter 'dining-sync...'
+          --filter execution-control
+          --filter 'ingestion-control...'
+          --filter 'ops-web...'
+          --filter 'transport-publisher...'
 
       - name: Verify database tools
         run: |
@@ -189,5 +280,49 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Setup dependency scanner
+        uses: aquaproj/aqua-installer@96a9bc20066c5bf5e275b41019cfc165b25f4e2e  # v4.0.5
+        env:
+          AQUA_ROOT_DIR: ${{ runner.tool_cache }}/aqua
+        with:
+          aqua_version: v2.62.1
+
       - name: Scan dependency ecosystems
-        uses: ./.github/actions/run-osv-scan
+        run: osv-scanner scan source --config osv-scanner.toml --format=vertical --verbosity=error
+
+  docker:
+    if: inputs.profile == 'docker'
+    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+        with:
+          persist-credentials: false
+
+      - name: Setup resource-bounded Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4
+        with:
+          name: campus-agent-manual-${{ github.run_id }}
+          keep-state: false
+          cleanup: true
+          cache-binary: false
+          driver-opts: |
+            cgroup-parent=ci.slice
+            cpu-period=100000
+            cpu-quota=200000
+            memory=2g
+            memory-swap=2g
+          buildkitd-config-inline: |
+            [worker.oci]
+              gc = true
+              reservedSpace = "2GB"
+              maxUsedSpace = "8GB"
+              minFreeSpace = "40GB"
+
+      - name: Build selected Docker target
+        env:
+          TARGET: ${{ inputs.docker_target }}
+        run: >-
+          docker buildx bake --file docker-bake.hcl --pull
+          --set "${TARGET}.output=type=cacheonly" "${TARGET}"

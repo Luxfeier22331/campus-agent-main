@@ -12,6 +12,49 @@
 			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
 			"outputs": ["dist/**", ".tanstack/**"]
 		},
+		"agent-runtime#build": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/configs/runtime/tool-function-schemas.v2.json",
+				"$TURBO_ROOT$/configs/runtime/tools.v5.json",
+				"$TURBO_ROOT$/configs/runtime/workflow-artifacts.v2.json"
+			]
+		},
+		"app-api-schema#build": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/apps/app-api/db/shared-product-schema/**",
+				"$TURBO_ROOT$/apps/app-api/drizzle/**",
+				"$TURBO_ROOT$/apps/app-api/ops/db/**",
+				"$TURBO_ROOT$/apps/app-api/src/script-support/shared-db/**"
+			]
+		},
+		"execution-control#build": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/configs/ingestion/**",
+				"$TURBO_ROOT$/configs/runtime/query-serving-targets.v1.json",
+				"$TURBO_ROOT$/configs/runtime/tool-function-schemas.v2.json",
+				"$TURBO_ROOT$/configs/runtime/tools.v5.json",
+				"$TURBO_ROOT$/configs/runtime/workflow-artifacts.v2.json",
+				"$TURBO_ROOT$/packages/contracts/fixtures/tool_execution_contract/**"
+			]
+		},
+		"ops-web#build": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/packages/domains/dining/package.json",
+				"$TURBO_ROOT$/packages/domains/dining/src/**",
+				"$TURBO_ROOT$/scripts/ci/check-ops-web-artifact.mjs"
+			]
+		},
+		"transport-publisher#build": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/apps/app-api/db/shared-product-schema/campus_services.sql",
+				"$TURBO_ROOT$/packages/contracts/schemas/transport-schedule-status.v1.schema.json"
+			]
+		},
 		"typecheck": {
 			"dependsOn": ["^typecheck"],
 			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
@@ -21,6 +64,22 @@
 		"test": {
 			"dependsOn": ["^test"],
 			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
+			"outputLogs": "new-only",
+			"outputs": []
+		},
+		"native:format": {
+			"outputLogs": "new-only",
+			"outputs": []
+		},
+		"native:lint": {
+			"outputLogs": "new-only",
+			"outputs": []
+		},
+		"native:test": {
+			"outputLogs": "new-only",
+			"outputs": []
+		},
+		"native:typecheck": {
 			"outputLogs": "new-only",
 			"outputs": []
 		},

@@ -11,3 +11,7 @@ linters:
     - noctx
     - promlinter
     - staticcheck
+
+formatters:
+  enable:
+    - gofmt

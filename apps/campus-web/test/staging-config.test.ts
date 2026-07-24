@@ -79,13 +79,9 @@ describe("campus web staging config", () => {
 		expect(packageScripts["upload:staging"]).toContain("upload-staging-version.ts");
 	});
 
-	it("builds and uploads the complete staging surface from the release workflow", () => {
+	it("keeps the Campus Web candidate outside the active release workflow", () => {
 		const publishWorkflowSource = readFileSync(
 			"../../.github/workflows/execution-runtime-publish.yml",
-			"utf8",
-		);
-		const promotionScriptSource = readFileSync(
-			"../../scripts/deploy/update-staging-candidate.sh",
 			"utf8",
 		);
 
@@ -94,17 +90,14 @@ describe("campus web staging config", () => {
 		expect(packageScripts["build:staging"]).toBe(
 			"pnpm exec tsx ./scripts/build-release.ts --staging",
 		);
-		expect(publishWorkflowSource).toContain("pnpm --dir apps/campus-web run build:staging");
-		expect(publishWorkflowSource).toContain("pnpm --dir apps/campus-web upload:staging");
+		expect(publishWorkflowSource).not.toContain("pnpm --dir apps/campus-web");
+		expect(publishWorkflowSource).not.toContain("campus-web-staging");
 		expect(publishWorkflowSource).not.toContain("STAGING_CAMPUS_DOCS_READER_MANIFEST_KEY");
 		expect(publishWorkflowSource).not.toContain("STAGING_CAMPUS_DOCS_READER_MANIFEST_SHA256");
-		expect(publishWorkflowSource).toContain("vars.DOCS_RELEASE_ID");
+		expect(publishWorkflowSource).not.toContain("DOCS_RELEASE_ID");
 		expect(publishWorkflowSource).not.toContain("Checkout GitOps release selection");
 		expect(publishWorkflowSource).not.toContain("docs-reader-release.json");
-		expect(publishWorkflowSource).toContain(`--release-id "\${DOCS_RELEASE_ID}"`);
-		expect(promotionScriptSource).toContain("docsReleaseId");
-		expect(promotionScriptSource).toContain("buildIdentity");
-		expect(promotionScriptSource).not.toContain("docsReleaseId: $release");
+		expect(publishWorkflowSource).toContain("pnpm --dir gitops gitops promote-source");
 		expect(publishWorkflowSource).not.toContain("STAGING_APP_API_OPERATOR_DATABASE_URL");
 		expect(publishWorkflowSource).not.toContain("deploy-staging.yml");
 		expect(stagingPreflightSource).not.toContain('"build:staging"');
