@@ -27,17 +27,18 @@ describe("Worker version upload arguments", () => {
 	});
 
 	it("selects staging when the source config still contains environments", () => {
+		const sourceMapDirectory = "/repo/apps/app-api/dist/sentry/app-api-edge";
 		const args = buildWorkerVersionUploadArgs(
 			{
 				appName: "app-api",
 				config: "/tmp/app-api/wrangler.toml",
 				environment: "staging",
 				sentrySourceMaps: {
-					artifactDirectory: "dist/sentry/app-api-edge",
+					artifactDirectory: sourceMapDirectory,
 					orgSlug: "muc-wiki",
 					projectSlug: "app-api",
 					release: "app-api@sha",
-					wranglerOutdir: "dist/sentry/app-api-edge",
+					wranglerOutdir: sourceMapDirectory,
 				},
 				variables: { SENTRY_RELEASE: "app-api@sha" },
 			},
@@ -46,8 +47,27 @@ describe("Worker version upload arguments", () => {
 
 		expect(args).toEqual(expect.arrayContaining(["--env", "staging", "--tag", `git-${sourceSha}`]));
 		expect(args).toEqual(
-			expect.arrayContaining(["--upload-source-maps", "--outdir", "dist/sentry/app-api-edge"]),
+			expect.arrayContaining(["--upload-source-maps", "--outdir", sourceMapDirectory]),
 		);
+	});
+
+	it("rejects a relative Wrangler source-map output directory", () => {
+		expect(() =>
+			buildWorkerVersionUploadArgs(
+				{
+					appName: "app-api",
+					sentrySourceMaps: {
+						artifactDirectory: "dist/sentry/app-api-edge",
+						orgSlug: "muc-wiki",
+						projectSlug: "app-api",
+						release: "app-api@sha",
+						wranglerOutdir: "dist/sentry/app-api-edge",
+					},
+					variables: { SENTRY_RELEASE: "app-api@sha" },
+				},
+				sourceSha,
+			),
+		).toThrow("Wrangler source-map output directory must be absolute");
 	});
 
 	it("uploads Sentry artifacts fail-closed without putting credentials in arguments", () => {

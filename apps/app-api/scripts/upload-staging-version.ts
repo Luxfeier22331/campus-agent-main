@@ -34,6 +34,7 @@ if (preflight.status !== 0) {
 
 const configDir = mkdtempSync(join(tmpdir(), "campus-agent-app-api-"));
 const configPath = resolve(configDir, "wrangler.toml");
+const sentryArtifactDirectory = resolve(configDir, "sentry");
 try {
 	const sentryRelease = resolveStagingSentryRelease("app-api");
 	writeFileSync(
@@ -52,11 +53,11 @@ try {
 		environment: "staging",
 		workerName: "app-api-staging",
 		sentrySourceMaps: {
-			artifactDirectory: "dist/sentry/app-api-edge",
+			artifactDirectory: sentryArtifactDirectory,
 			orgSlug: requiredEnv("SENTRY_ORG_SLUG"),
 			projectSlug: requiredEnv("SENTRY_APP_API_PROJECT_SLUG"),
 			release: sentryRelease,
-			wranglerOutdir: "dist/sentry/app-api-edge",
+			wranglerOutdir: sentryArtifactDirectory,
 		},
 		variables: {
 			AUTH_RESET_EMAIL_FROM: requiredEnv("AUTH_RESET_EMAIL_FROM"),

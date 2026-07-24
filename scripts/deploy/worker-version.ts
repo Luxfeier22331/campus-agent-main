@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runWranglerCommand } from "./run-wrangler-command.ts";
 import { resolveGitSha } from "./staging-release.ts";
@@ -146,6 +146,9 @@ export function buildWorkerVersionUploadArgs(
 	if (options.sentrySourceMaps) {
 		args.push("--upload-source-maps");
 		if (options.sentrySourceMaps.wranglerOutdir) {
+			if (!isAbsolute(options.sentrySourceMaps.wranglerOutdir)) {
+				fail("Wrangler source-map output directory must be absolute.");
+			}
 			args.push("--outdir", options.sentrySourceMaps.wranglerOutdir);
 		}
 	}

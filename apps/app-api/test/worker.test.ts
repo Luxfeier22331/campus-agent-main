@@ -219,7 +219,10 @@ describe("app-api worker foundation", () => {
 		expect(uploadStagingVersionSource).toContain("loadRepoStagingEnvFile");
 		expect(uploadStagingVersionSource).toContain("resolveStagingSentryRelease");
 		expect(uploadStagingVersionSource).toContain("SENTRY_APP_API_PROJECT_SLUG");
-		expect(uploadStagingVersionSource).toContain('wranglerOutdir: "dist/sentry/app-api-edge"');
+		expect(uploadStagingVersionSource).toContain(
+			'const sentryArtifactDirectory = resolve(configDir, "sentry")',
+		);
+		expect(uploadStagingVersionSource).toContain("wranglerOutdir: sentryArtifactDirectory");
 		expect(uploadStagingVersionSource).toContain("SENTRY_APP_API_DSN");
 		expect(uploadStagingVersionSource).toContain("EXECUTION_CONTROL_VPC_SERVICE_ID");
 		expect(uploadStagingVersionSource).toContain("APP_API_DB_HYPERDRIVE_ID");
