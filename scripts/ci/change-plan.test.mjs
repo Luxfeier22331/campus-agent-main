@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { buildChangePlan, parseChangedPaths } from "./change-plan.mjs";
-import { IMAGE_DEFINITIONS } from "./ci-surfaces.mjs";
+import { ALL_WORKERS, IMAGE_DEFINITIONS } from "./ci-surfaces.mjs";
 
 function plan(files, affectedPackages = [], options = {}) {
 	return buildChangePlan({
@@ -56,13 +56,17 @@ test("routes shared product schema to its database owners", () => {
 	assert.deepEqual(result.release.images, ["app-api-schema", "transport-publisher"]);
 });
 
-test("routes Campus Web runtime changes to one Worker and local browser validation", () => {
+test("keeps Campus Web runtime changes in validation without publishing a Worker", () => {
 	const result = plan(["apps/campus-web/src/main.tsx"], ["campus-web"]);
 
 	assert.equal(result.browser, true);
-	assert.deepEqual(result.release.workers, ["campus-web"]);
+	assert.deepEqual(result.release.workers, []);
 	assert.deepEqual(result.verification.database, []);
 	assert.equal(result.affectedPackages.includes("campus-web"), true);
+});
+
+test("limits staging Worker publication to App API", () => {
+	assert.deepEqual(ALL_WORKERS, ["app-api"]);
 });
 
 test("keeps root ingestion configuration out of custom package routing", () => {

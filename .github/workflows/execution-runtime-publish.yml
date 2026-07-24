@@ -13,10 +13,6 @@ on:
         required: true
         default: false
         type: boolean
-      docs_release_id:
-        description: Content-addressed Campus Docs release for the campus-web candidate
-        required: false
-        type: string
       replay_base_sha:
         description: Rebuild the affected release plan from this failed main release base
         required: false
@@ -40,7 +36,6 @@ jobs:
       images: ${{ steps.plan.outputs.images }}
       kubernetes: ${{ steps.plan.outputs.kubernetes }}
       validate_only: ${{ steps.plan.outputs.validate_only }}
-      worker_filters: ${{ steps.plan.outputs.worker_filters }}
       workers: ${{ steps.plan.outputs.workers }}
     steps:
       - name: Checkout
@@ -104,24 +99,27 @@ jobs:
               jq -e '.unresolved | length == 0' change-plan.json >/dev/null
               release="$(jq -c .release change-plan.json)"
             elif [ "$VALIDATE_ONLY" = true ]; then
-              release='{"images":[],"kubernetes":false,"workers":["app-api","campus-web"]}'
+              workers="$(node --input-type=module -e \
+                'import { ALL_WORKERS } from "./scripts/ci/ci-surfaces.mjs"; process.stdout.write(JSON.stringify(ALL_WORKERS))')"
+              release="$(jq -cn --argjson workers "$workers" \
+                '{images: [], kubernetes: false, workers: $workers}')"
             else
               images="$(node --input-type=module -e \
                 'import { ALL_IMAGES } from "./scripts/ci/ci-surfaces.mjs"; process.stdout.write(JSON.stringify(ALL_IMAGES))')"
-              release="$(jq -cn --argjson images "$images" \
-                '{images: $images, kubernetes: true, workers: ["app-api", "campus-web"]}')"
+              workers="$(node --input-type=module -e \
+                'import { ALL_WORKERS } from "./scripts/ci/ci-surfaces.mjs"; process.stdout.write(JSON.stringify(ALL_WORKERS))')"
+              release="$(jq -cn --argjson images "$images" --argjson workers "$workers" \
+                '{images: $images, kubernetes: true, workers: $workers}')"
             fi
           else
             scripts/ci/write-change-plan.sh "$BASE_SHA" "$HEAD_SHA" change-plan.json
             jq -e '.unresolved | length == 0' change-plan.json >/dev/null
             release="$(jq -c .release change-plan.json)"
           fi
-          worker_filters="$(jq -c '[.workers[] | if . == "app-api" then "app-api..." else "campus-web..." end]' <<< "$release")"
           {
             echo "images=$(jq -c .images <<< "$release")"
             echo "kubernetes=$(jq -r .kubernetes <<< "$release")"
             echo "validate_only=$VALIDATE_ONLY"
-            echo "worker_filters=$worker_filters"
             echo "workers=$(jq -c .workers <<< "$release")"
           } >> "$GITHUB_OUTPUT"
           {
@@ -136,104 +134,10 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-  release-config:
-    needs: release-plan
-    if: fromJSON(needs.release-plan.outputs.workers)[0] != null
-    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 3
-    environment: staging
-    outputs:
-      docs_release_id: ${{ steps.docs-release.outputs.release_id }}
-      object_store_endpoint: ${{ steps.object-store.outputs.endpoint }}
-    env:
-      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-      CLOUDFLARE_AUTOMATION_TOKEN: ${{ secrets.CLOUDFLARE_AUTOMATION_TOKEN }}
-      OBJECT_STORE_BUCKET_DERIVED: ${{ vars.OBJECT_STORE_BUCKET_DERIVED }}
-      OBJECT_STORE_DERIVED_ACCESS_KEY: ${{ secrets.OBJECT_STORE_DERIVED_ACCESS_KEY }}
-      OBJECT_STORE_DERIVED_SECRET_KEY: ${{ secrets.OBJECT_STORE_DERIVED_SECRET_KEY }}
-      OBJECT_STORE_REGION: ${{ vars.OBJECT_STORE_REGION }}
-      SENTRY_APP_API_PROJECT_SLUG: ${{ vars.SENTRY_APP_API_PROJECT_SLUG }}
-      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-      SENTRY_CAMPUS_WEB_PROJECT_SLUG: ${{ vars.SENTRY_CAMPUS_WEB_PROJECT_SLUG }}
-      SENTRY_ORG_SLUG: ${{ vars.SENTRY_ORG_SLUG }}
-      APP_API_DB_FRESH_HYPERDRIVE_ID: ${{ vars.APP_API_DB_FRESH_HYPERDRIVE_ID }}
-      APP_API_DB_HYPERDRIVE_ID: ${{ vars.APP_API_DB_HYPERDRIVE_ID }}
-      AUTH_RESET_EMAIL_FROM: ${{ vars.AUTH_RESET_EMAIL_FROM }}
-      AUTH_RESET_EMAIL_REPLY_TO: ${{ vars.AUTH_RESET_EMAIL_REPLY_TO }}
-      CAMPUS_AUTH_TURNSTILE_SITE_KEY: ${{ vars.CAMPUS_AUTH_TURNSTILE_SITE_KEY }}
-      EXECUTION_CONTROL_VPC_SERVICE_ID: ${{ vars.EXECUTION_CONTROL_VPC_SERVICE_ID }}
-      MAP_DATA_BUCKET_NAME: ${{ vars.MAP_DATA_BUCKET_NAME }}
-      SENTRY_APP_API_DSN: ${{ vars.SENTRY_APP_API_DSN }}
-      SENTRY_CAMPUS_WEB_DSN: ${{ vars.SENTRY_CAMPUS_WEB_DSN }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
-        with:
-          persist-credentials: false
-
-      - name: Setup selected Worker workspaces
-        uses: ./.github/actions/setup-node-pnpm
-        with:
-          workspace-filters: |
-            campus-agent-web-workspace
-            campus-contracts...
-          workspace-filters-json: ${{ needs.release-plan.outputs.worker_filters }}
-
-      - name: Validate Cloudflare staging credentials
-        env:
-          RELEASE_WORKERS: ${{ needs.release-plan.outputs.workers }}
-        run: |
-          set -euo pipefail
-          if jq -e 'index("app-api") != null' <<< "$RELEASE_WORKERS" >/dev/null; then
-            worker_app="apps/app-api"
-          elif jq -e 'index("campus-web") != null' <<< "$RELEASE_WORKERS" >/dev/null; then
-            worker_app="apps/campus-web"
-          else
-            echo "Release plan does not select a supported Cloudflare Worker." >&2
-            exit 1
-          fi
-          pnpm --dir "$worker_app" exec tsx \
-            ../../scripts/deploy/run-wrangler-command.ts \
-            whoami --account "$CLOUDFLARE_ACCOUNT_ID" --json
-
-      - name: Resolve Campus Docs release
-        if: contains(fromJSON(needs.release-plan.outputs.workers), 'campus-web')
-        id: docs-release
-        env:
-          CANDIDATE_DOCS_RELEASE_ID: ${{ inputs.docs_release_id || vars.DOCS_RELEASE_ID }}
-        run: |
-          set -euo pipefail
-          release_id="$CANDIDATE_DOCS_RELEASE_ID"
-          if ! [[ "$release_id" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-            echo "Invalid Campus Docs release id: ${release_id}." >&2
-            exit 1
-          fi
-          echo "release_id=${release_id}" >> "$GITHUB_OUTPUT"
-
-      - name: Resolve and verify the object store
-        if: contains(fromJSON(needs.release-plan.outputs.workers), 'campus-web')
-        id: object-store
-        env:
-          DOCS_RELEASE_ID: ${{ steps.docs-release.outputs.release_id }}
-        run: |
-          set -euo pipefail
-          service_ip="$(kubectl -n campus-agent-staging get service object-store -o jsonpath='{.spec.clusterIP}')"
-          test -n "$service_ip"
-          endpoint="http://${service_ip}:9000"
-          curl --noproxy '*' --fail --silent --show-error --max-time 5 \
-            "${endpoint}/minio/health/live" >/dev/null
-          echo "OBJECT_STORE_ENDPOINT=${endpoint}" >> "$GITHUB_ENV"
-          echo "endpoint=${endpoint}" >> "$GITHUB_OUTPUT"
-          OBJECT_STORE_ENDPOINT="$endpoint" \
-            pnpm --dir apps/campus-web exec tsx \
-              ./scripts/verify-published-reader-release.ts "$DOCS_RELEASE_ID"
-
   publish-images:
-    needs: [release-plan, release-config]
+    needs: release-plan
     if: >-
-      always() &&
       needs.release-plan.result == 'success' &&
-      (needs.release-config.result == 'success' || needs.release-config.result == 'skipped') &&
       needs.release-plan.outputs.validate_only != 'true' &&
       fromJSON(needs.release-plan.outputs.images)[0] != null
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
@@ -310,12 +214,9 @@ jobs:
           overwrite: true
           retention-days: 1
 
-  publish-workers:
-    needs: [release-plan, release-config]
-    if: >-
-      needs.release-config.result == 'success' &&
-      needs.release-plan.outputs.validate_only != 'true' &&
-      fromJSON(needs.release-plan.outputs.workers)[0] != null
+  publish-app-api:
+    needs: release-plan
+    if: contains(fromJSON(needs.release-plan.outputs.workers), 'app-api')
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
     timeout-minutes: 5
     environment: staging
@@ -326,11 +227,8 @@ jobs:
       APP_API_DB_HYPERDRIVE_ID: ${{ vars.APP_API_DB_HYPERDRIVE_ID }}
       AUTH_RESET_EMAIL_FROM: ${{ vars.AUTH_RESET_EMAIL_FROM }}
       AUTH_RESET_EMAIL_REPLY_TO: ${{ vars.AUTH_RESET_EMAIL_REPLY_TO }}
-      CAMPUS_AUTH_TURNSTILE_SITE_KEY: ${{ vars.CAMPUS_AUTH_TURNSTILE_SITE_KEY }}
       EXECUTION_CONTROL_VPC_SERVICE_ID: ${{ vars.EXECUTION_CONTROL_VPC_SERVICE_ID }}
-      MAP_DATA_BUCKET_NAME: ${{ vars.MAP_DATA_BUCKET_NAME }}
       SENTRY_APP_API_DSN: ${{ vars.SENTRY_APP_API_DSN }}
-      SENTRY_CAMPUS_WEB_DSN: ${{ vars.SENTRY_CAMPUS_WEB_DSN }}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
@@ -343,10 +241,14 @@ jobs:
           workspace-filters: |
             campus-agent-web-workspace
             campus-contracts...
-          workspace-filters-json: ${{ needs.release-plan.outputs.worker_filters }}
+          workspace-filters-json: '["app-api..."]'
+
+      - name: Validate app-api staging configuration
+        if: needs.release-plan.outputs.validate_only == 'true'
+        run: pnpm --dir apps/app-api exec tsx ./scripts/preflight-staging.ts
 
       - name: Upload app-api candidate
-        if: contains(fromJSON(needs.release-plan.outputs.workers), 'app-api')
+        if: needs.release-plan.outputs.validate_only != 'true'
         env:
           SENTRY_APP_API_PROJECT_SLUG: ${{ vars.SENTRY_APP_API_PROJECT_SLUG }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
@@ -356,26 +258,8 @@ jobs:
           mkdir -p worker-candidates
           pnpm --dir apps/app-api upload:staging
 
-      - name: Build and upload campus-web candidate
-        if: contains(fromJSON(needs.release-plan.outputs.workers), 'campus-web')
-        env:
-          CAMPUS_WEB_SENTRY_SOURCE_MAP_UPLOAD: required
-          DOCS_RELEASE_ID: ${{ needs.release-config.outputs.docs_release_id }}
-          OBJECT_STORE_BUCKET_DERIVED: ${{ vars.OBJECT_STORE_BUCKET_DERIVED }}
-          OBJECT_STORE_DERIVED_ACCESS_KEY: ${{ secrets.OBJECT_STORE_DERIVED_ACCESS_KEY }}
-          OBJECT_STORE_DERIVED_SECRET_KEY: ${{ secrets.OBJECT_STORE_DERIVED_SECRET_KEY }}
-          OBJECT_STORE_ENDPOINT: ${{ needs.release-config.outputs.object_store_endpoint }}
-          OBJECT_STORE_REGION: ${{ vars.OBJECT_STORE_REGION }}
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_CAMPUS_WEB_PROJECT_SLUG: ${{ vars.SENTRY_CAMPUS_WEB_PROJECT_SLUG }}
-          SENTRY_ORG_SLUG: ${{ vars.SENTRY_ORG_SLUG }}
-          WORKER_VERSION_OUTPUT: ${{ github.workspace }}/worker-candidates/campus-web-staging.json
-        run: |
-          mkdir -p worker-candidates
-          pnpm --dir apps/campus-web run build:staging --release-id "${DOCS_RELEASE_ID}"
-          pnpm --dir apps/campus-web upload:staging
-
       - name: Upload Worker candidates
+        if: needs.release-plan.outputs.validate_only != 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: release-worker-candidates
@@ -385,20 +269,16 @@ jobs:
           retention-days: 1
 
   promote:
-    needs: [release-plan, release-config, publish-images, publish-workers]
+    needs: [release-plan, publish-images, publish-app-api]
     if: >-
       always() &&
       needs.release-plan.result == 'success' &&
-      (
-        fromJSON(needs.release-plan.outputs.images)[0] == null ||
-        needs.publish-images.result == 'success'
-      ) &&
       needs.release-plan.outputs.validate_only != 'true' &&
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' || inputs.promote) &&
       (
         needs.publish-images.result == 'success' ||
-        needs.publish-workers.result == 'success' ||
+        needs.publish-app-api.result == 'success' ||
         needs.release-plan.outputs.kubernetes == 'true'
       )
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
@@ -422,7 +302,7 @@ jobs:
           name: release-image-digests
 
       - name: Download Worker candidates
-        if: needs.publish-workers.result == 'success'
+        if: needs.publish-app-api.result == 'success'
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7
         with:
           name: release-worker-candidates

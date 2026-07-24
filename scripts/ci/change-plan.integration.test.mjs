@@ -119,7 +119,7 @@ test("real Git and Turbo routing preserves production deletions and merge result
 		run(repository, "git", ["merge", "--quiet", "--no-ff", pullRequestHead, "-m", "merge fixture"]);
 		const mergeHead = run(repository, "git", ["rev-parse", "HEAD"]).trim();
 		const result = plan(repository, updatedBase, mergeHead);
-		assert.deepEqual(result.release.workers, ["app-api", "campus-web"]);
+		assert.deepEqual(result.release.workers, ["app-api"]);
 		assert.equal(result.browser, true);
 		assert.equal(result.lanes.includes("docs"), false);
 	});

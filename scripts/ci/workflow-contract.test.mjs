@@ -92,32 +92,16 @@ test("keeps Docker, database and browser verification manual and affected", () =
 	assert.match(verifySource, /pnpm ci:affected:browser /u);
 });
 
-test("guards release publication and unresolved surfaces", () => {
+test("guards release publication and isolates candidate surfaces", () => {
 	assert.equal(releaseWorkflow.concurrency.queue, undefined);
 	assert.match(releaseSource, /allowed only from main/u);
 	assert.doesNotMatch(releaseSource, /pnpm ci:fast/u);
-	for (const jobName of ["release-plan", "release-config", "publish-workers"]) {
+	assert.equal(releaseWorkflow.jobs["release-config"], undefined);
+	for (const jobName of ["release-plan", "publish-app-api"]) {
 		const step = setupNodeStep(jobName);
 		assert.ok(step, `${jobName} must set up Node and pnpm`);
 		assert.match(step.with["workspace-filters"], /campus-contracts\.\.\./u);
 	}
-	const cloudflareCredentialStep = releaseWorkflow.jobs["release-config"].steps.find(
-		(step) => step.name === "Validate Cloudflare staging credentials",
-	);
-	assert.ok(cloudflareCredentialStep, "release-config must validate Cloudflare credentials early");
-	assert.match(
-		cloudflareCredentialStep.env.RELEASE_WORKERS,
-		/^\$\{\{ needs\.release-plan\.outputs\.workers \}\}$/u,
-	);
-	assert.match(cloudflareCredentialStep.run, /pnpm --dir "\$worker_app" exec tsx/u);
-	assert.match(cloudflareCredentialStep.run, /if jq -e 'index\("app-api"\) != null'/u);
-	assert.match(cloudflareCredentialStep.run, /elif jq -e 'index\("campus-web"\) != null'/u);
-	assert.match(
-		cloudflareCredentialStep.run,
-		/\.\.\/\.\.\/scripts\/deploy\/run-wrangler-command\.ts/u,
-	);
-	assert.doesNotMatch(cloudflareCredentialStep.run, /pnpm exec tsx/u);
-	assert.match(cloudflareCredentialStep.run, /--account ["']?\$CLOUDFLARE_ACCOUNT_ID/u);
 	assert.match(releaseSource, /\.unresolved \| length == 0/u);
 	assert.match(releaseSource, /scripts\/ci\/publish-images\.sh/u);
 	assert.match(publishImages, /--cache-to .*ignore-error=true/u);
@@ -126,9 +110,7 @@ test("guards release publication and unresolved surfaces", () => {
 	assert.match(ciSurfaces, /"apps\/ops-web\/Dockerfile"/u);
 	assert.match(releaseSource, /github\.ref == 'refs\/heads\/main'/u);
 	const publishImagesJob = releaseWorkflow.jobs["publish-images"];
-	assert.deepEqual(publishImagesJob.needs, ["release-plan", "release-config"]);
-	assert.match(publishImagesJob.if, /needs\.release-config\.result == 'success'/u);
-	assert.match(publishImagesJob.if, /needs\.release-config\.result == 'skipped'/u);
+	assert.equal(publishImagesJob.needs, "release-plan");
 	assert.deepEqual(publishImagesJob["runs-on"], [
 		"self-hosted",
 		"Linux",
@@ -146,39 +128,36 @@ test("guards release publication and unresolved surfaces", () => {
 	assert.match(buildx.with["driver-opts"], /cpu-quota=200000/u);
 	assert.doesNotMatch(releaseSource, /campus-agent-release-\$\{\{ github\.run_id \}\}/u);
 	assert.match(releaseSource, /keys == \(\$expected \| sort\)/u);
-	for (const jobName of ["publish-images", "publish-workers"]) {
+	for (const jobName of ["publish-images", "publish-app-api"]) {
 		const upload = releaseWorkflow.jobs[jobName].steps.find(
 			(step) => step.name === "Upload image digests" || step.name === "Upload Worker candidates",
 		);
 		assert.equal(upload.with["if-no-files-found"], "error");
 		assert.equal(upload.with.overwrite, true);
 	}
+	assert.deepEqual(releaseWorkflow.jobs.promote.needs, [
+		"release-plan",
+		"publish-images",
+		"publish-app-api",
+	]);
 	assert.match(releaseWorkflow.jobs.promote.if, /needs\.publish-images\.result == 'success'/u);
-	assert.doesNotMatch(
-		releaseWorkflow.jobs.promote.if,
-		/needs\.release-config\.result == 'success'/u,
-	);
+	assert.match(releaseWorkflow.jobs.promote.if, /needs\.publish-app-api\.result == 'success'/u);
+	assert.match(releaseWorkflow.jobs.promote.if, /outputs\.kubernetes == 'true'/u);
+	assert.doesNotMatch(releaseWorkflow.jobs.promote.if, /outputs\.images\)\[0\] == null/u);
 	const downloadWorkerCandidates = releaseWorkflow.jobs.promote.steps.find(
 		(step) => step.name === "Download Worker candidates",
 	);
-	assert.equal(downloadWorkerCandidates.if, "needs.publish-workers.result == 'success'");
+	assert.equal(downloadWorkerCandidates.if, "needs.publish-app-api.result == 'success'");
 });
 
 test("bounds the single-node release jobs", () => {
-	assert.equal(releaseWorkflow.jobs["release-config"]["timeout-minutes"], 3);
 	assert.equal(releaseWorkflow.jobs["publish-images"]["timeout-minutes"], 15);
-	assert.equal(releaseWorkflow.jobs["publish-workers"]["timeout-minutes"], 5);
+	assert.equal(releaseWorkflow.jobs["publish-app-api"]["timeout-minutes"], 5);
 	assert.ok(releaseWorkflow.jobs["publish-images"]["timeout-minutes"] < 20);
 });
 
 test("keeps every staging release job on the dedicated runner", () => {
-	for (const jobName of [
-		"release-plan",
-		"release-config",
-		"publish-images",
-		"publish-workers",
-		"promote",
-	]) {
+	for (const jobName of ["release-plan", "publish-images", "publish-app-api", "promote"]) {
 		assert.deepEqual(releaseWorkflow.jobs[jobName]["runs-on"], [
 			"self-hosted",
 			"Linux",
@@ -202,39 +181,36 @@ test("supports a bounded failed release replay", () => {
 	assert.match(releaseSource, /Release replay cannot run in validation-only mode/u);
 });
 
-test("retains selected Worker release validation", () => {
-	const releaseConfig = releaseWorkflow.jobs["release-config"];
-	assert.equal(releaseConfig.if, "fromJSON(needs.release-plan.outputs.workers)[0] != null");
-	const credentialCheck = releaseConfig.steps.find(
-		(step) => step.name === "Validate Cloudflare staging credentials",
-	);
-	assert.match(credentialCheck.run, /index\("app-api"\)/u);
-	assert.match(credentialCheck.run, /index\("campus-web"\)/u);
-	assert.match(credentialCheck.run, /run-wrangler-command\.ts[\s\S]*whoami/u);
-	const docsRelease = releaseConfig.steps.find(
-		(step) => step.name === "Resolve Campus Docs release",
-	);
-	assert.match(docsRelease.env.CANDIDATE_DOCS_RELEASE_ID, /vars\.DOCS_RELEASE_ID/u);
-	assert.doesNotMatch(releaseSource, /Checkout GitOps release selection/u);
-	assert.doesNotMatch(releaseSource, /read-variable apps\/campus-web campus-web-staging/u);
-
-	const publishWorkers = releaseWorkflow.jobs["publish-workers"];
-	const appApiUpload = publishWorkers.steps.find(
-		(step) => step.name === "Upload app-api candidate",
-	);
-	const campusWebUpload = publishWorkers.steps.find(
-		(step) => step.name === "Build and upload campus-web candidate",
-	);
+test("keeps App API validation and upload in one candidate job", () => {
+	const publishAppApi = releaseWorkflow.jobs["publish-app-api"];
+	assert.equal(publishAppApi.needs, "release-plan");
 	assert.equal(
-		appApiUpload.if,
+		publishAppApi.if,
 		"contains(fromJSON(needs.release-plan.outputs.workers), 'app-api')",
 	);
-	assert.equal(
-		campusWebUpload.if,
-		"contains(fromJSON(needs.release-plan.outputs.workers), 'campus-web')",
+	const validation = publishAppApi.steps.find(
+		(step) => step.name === "Validate app-api staging configuration",
 	);
-	assert.doesNotMatch(releaseSource, /worker-staging-app-api|worker-staging-campus-web/u);
-	assert.doesNotMatch(releaseSource, /docs-reader-release\.json/u);
+	const appApiUpload = publishAppApi.steps.find((step) => step.name === "Upload app-api candidate");
+	assert.equal(validation.if, "needs.release-plan.outputs.validate_only == 'true'");
+	assert.match(validation.run, /apps\/app-api exec tsx \.\/scripts\/preflight-staging\.ts/u);
+	assert.equal(appApiUpload.if, "needs.release-plan.outputs.validate_only != 'true'");
+	assert.match(appApiUpload.run, /pnpm --dir apps\/app-api upload:staging/u);
+});
+
+test("freezes Campus Web candidate publication", () => {
+	assert.deepEqual(Object.keys(releaseWorkflow.jobs), [
+		"release-plan",
+		"publish-images",
+		"publish-app-api",
+		"promote",
+	]);
+	assert.equal(releaseWorkflow.on.workflow_dispatch.inputs.docs_release_id, undefined);
+	assert.match(releaseSource, /ALL_WORKERS/u);
+	assert.doesNotMatch(
+		releaseSource,
+		/campus-web|DOCS_RELEASE_ID|OBJECT_STORE_|release-config|publish-workers|build:staging/iu,
+	);
 });
 
 test("uses a numeric non-root identity for the docs publisher image", () => {

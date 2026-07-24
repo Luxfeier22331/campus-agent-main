@@ -197,29 +197,6 @@ export const WORKER_DEFINITIONS = Object.freeze({
 			...SHARED_WORKER_DEPLOY_INPUTS,
 		],
 	},
-	"campus-web": {
-		packages: ["campus-web", "@campus-agent/dining"],
-		inputs: [
-			"apps/campus-web/index.html",
-			"apps/campus-web/package.json",
-			"apps/campus-web/public/**",
-			"apps/campus-web/scripts/build-published-reader-docs.ts",
-			"apps/campus-web/scripts/build-release.ts",
-			"apps/campus-web/scripts/check-client-bundle-budget.ts",
-			"apps/campus-web/scripts/upload-staging-version.ts",
-			"apps/campus-web/src/**",
-			"apps/campus-web/theme/**",
-			"apps/campus-web/tsconfig.json",
-			"apps/campus-web/vite.config.ts",
-			"apps/campus-web/wrangler*.toml",
-			"configs/branding/web-public/**",
-			"packages/domains/dining/package.json",
-			"packages/domains/dining/src/**",
-			"scripts/deploy/run-worker-staging-build.ts",
-			"scripts/deploy/verify-worker-deploy-config.ts",
-			...SHARED_WORKER_DEPLOY_INPUTS,
-		],
-	},
 });
 
 export const ALL_IMAGES = Object.freeze(Object.keys(IMAGE_DEFINITIONS).sort());
