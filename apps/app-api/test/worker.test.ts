@@ -208,7 +208,9 @@ describe("app-api worker foundation", () => {
 		expect(wranglerConfig).toContain('destinations = ["axiom-staging-logs"]');
 		expect(wranglerConfig).toContain("invocation_logs = false");
 		expect(wranglerConfig).not.toContain("axiom-staging-traces");
-		expect(packageManifest.scripts?.dev).toContain("WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1");
+		expect(packageManifest.scripts?.dev).toBe(
+			"pnpm --dir ../.. exec tsx scripts/dev/service.ts app-api",
+		);
 		expect(packageManifest.scripts?.deploy).not.toContain("XDG_CONFIG_HOME=./.wrangler-home");
 		expect(packageManifest.scripts?.deploy).toContain("run-wrangler-command.ts");
 		expect(packageManifest.scripts?.["deploy:staging"]).toBeUndefined();

@@ -11,6 +11,7 @@ describe("dining domain boundary", () => {
 	it("keeps app-api Dining as a public read adapter", () => {
 		const forbiddenFiles = [
 			"src/app/routes/dining-ops.ts",
+			"src/modules/dining/service.ts",
 			"src/modules/dining-ops/fengtai-outdoor-dining-zone.ts",
 			"src/modules/dining-ops/floorplan-manifest.ts",
 			"src/modules/dining-ops/guards.ts",

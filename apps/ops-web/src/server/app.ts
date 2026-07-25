@@ -1,9 +1,19 @@
-import { DiningDomainError } from "@campus-agent/dining/domain";
+import {
+	DiningMenuItemCreateSchema,
+	DiningMenuItemMoveSchema,
+	DiningMenuItemUpdateSchema,
+	DiningMenuOrderSchema,
+	DiningOpsReviewCreateSchema,
+	DiningOpsReviewUpdateSchema,
+	DiningOpsReviewVisibilitySchema,
+	DiningReportResolutionSchema,
+} from "@campus-agent/dining/domain";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { secureHeaders } from "hono/secure-headers";
 import { z } from "zod";
+import { DiningDraftUpdateSchema, DiningRevisionSchema } from "../shared/dining-contract.ts";
 import {
 	HindsightModelSettingsStatusSchema,
 	HindsightModelSettingsUpdateSchema,
@@ -34,9 +44,15 @@ import {
 	createAxiomClientFromEnv,
 } from "./axiom-client.ts";
 import {
+	createDiningContentStoreFromEnv,
+	createUnavailableDiningContentStore,
+	type DiningContentStore,
+} from "./dining-content-store.ts";
+import {
 	createDiningStoreFromEnv,
 	createUnavailableDiningStore,
 	type DiningStore,
+	DiningStoreConflictError,
 	type DiningStoreEnv,
 	DiningStoreNotFoundError,
 	DiningStoreUnavailableError,
@@ -119,6 +135,7 @@ interface OpsAppOptions {
 	axiom?: AxiomClient;
 	env?: OpsAppEnv;
 	diningStore?: DiningStore;
+	diningContentStore?: DiningContentStore;
 	hindsightModelSettingsStore?: HindsightModelSettingsStore;
 	internalPortalAuthStore?: InternalPortalAuthStore;
 	internalPortalMaintenanceClient?: InternalPortalAuthMaintenanceClient;
@@ -181,59 +198,35 @@ const FileReleaseBatchBodySchema = z
 	.refine((value) => new Set(value.fileReleaseIds).size === value.fileReleaseIds.length, {
 		message: "fileReleaseIds must not contain duplicates",
 	});
-const DiningLimitQuerySchema = z
-	.object({ limit: z.coerce.number().int().min(1).max(200).default(50) })
-	.strict();
-const DiningNotesSchema = z.object({ notes: z.string().trim().min(1).max(500) }).strict();
-const DiningCatalogCommandSchema = z.discriminatedUnion("kind", [
-	z
-		.object({
-			kind: z.literal("rename_stall"),
-			stallProfileId: z.string().min(1),
-			displayName: z.string().trim().min(1).max(120),
-		})
-		.strict(),
-	z
-		.object({
-			kind: z.literal("set_offering_price"),
-			offeringId: z.string().min(1),
-			priceLabel: z.string().trim().max(40).nullable(),
-		})
-		.strict(),
-	z
-		.object({
-			kind: z.literal("assign_stall"),
-			windowId: z.string().min(1),
-			stallProfileId: z.string().min(1),
-			displayName: z.string().trim().min(1).max(120),
-			tags: z.array(z.string().trim().min(1).max(40)).max(20),
-		})
-		.strict(),
-	z.object({ kind: z.literal("remove_assignment"), assignmentId: z.string().min(1) }).strict(),
-]);
-const DiningReviewCommandSchema = z.discriminatedUnion("kind", [
-	z.object({ kind: z.literal("hide"), reason: z.string().trim().min(1).max(300) }).strict(),
-	z.object({ kind: z.literal("restore"), reason: z.string().trim().min(1).max(300) }).strict(),
-	z
-		.object({
-			kind: z.literal("rebind"),
-			offeringId: z.string().min(1),
-			reason: z.string().trim().min(1).max(300),
-		})
-		.strict(),
-	z.object({ kind: z.literal("recheck") }).strict(),
-]);
 const OpsPathIdSchema = z
 	.string()
 	.min(1)
 	.max(200)
 	.regex(/^[A-Za-z0-9][A-Za-z0-9._:-]*$/u);
+const DiningReviewListQuerySchema = z
+	.object({
+		cursor: z.string().trim().min(1).max(512).optional(),
+		limit: z.coerce.number().int().min(1).max(100).default(50),
+		menu_item_id: OpsPathIdSchema.optional(),
+		q: z.string().trim().min(1).max(200).optional(),
+		visibility: z.enum(["visible", "hidden", "deleted"]).optional(),
+		window_id: OpsPathIdSchema.optional(),
+	})
+	.strict();
+const DiningReportListQuerySchema = z
+	.object({
+		cursor: z.string().trim().min(1).max(512).optional(),
+		limit: z.coerce.number().int().min(1).max(100).default(50),
+		status: z.enum(["pending", "resolved"]).default("pending"),
+	})
+	.strict();
 
 export function createOpsApp(options: OpsAppOptions = {}) {
 	const app = new Hono();
 	const env = options.env ?? process.env;
 	const publicOrigin = resolveOpsPublicOrigin(env);
 	const diningStore = options.diningStore ?? createDefaultDiningStore(env);
+	const diningContentStore = options.diningContentStore ?? createDefaultDiningContentStore(env);
 	const admission = options.admission ?? createCloudflareAccessOpsAdmission(env);
 	const internalPortalAuthStore =
 		options.internalPortalAuthStore ?? createDefaultInternalPortalAuthStore();
@@ -269,7 +262,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		secureHeaders({
 			contentSecurityPolicy: {
 				baseUri: ["'self'"],
-				connectSrc: ["'self'"],
+				connectSrc: ["'self'", "blob:"],
 				defaultSrc: ["'self'"],
 				fontSrc: ["'self'"],
 				formAction: ["'self'"],
@@ -343,20 +336,13 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 			return jsonError("OPS_DINING_STORE_UNAVAILABLE", "食堂管理数据库不可用。", 503);
 		}
 		if (error instanceof DiningStoreNotFoundError) {
-			return jsonError("OPS_DINING_NOT_FOUND", "未找到对应的食堂数据。", 404);
+			return jsonError("OPS_DINING_NOT_FOUND", error.message, 404);
+		}
+		if (error instanceof DiningStoreConflictError) {
+			return jsonError("OPS_DINING_CONFLICT", error.message, 409, error.details);
 		}
 		if (error instanceof DiningStoreValidationError) {
-			return jsonError("OPS_DINING_CONFLICT", error.message, 409);
-		}
-		if (error instanceof DiningDomainError) {
-			return jsonError(
-				error.code,
-				error.message,
-				error.status === 409 ? 409 : 400,
-				error.details && typeof error.details === "object" && !Array.isArray(error.details)
-					? (error.details as Record<string, unknown>)
-					: undefined,
-			);
+			return jsonError("OPS_DINING_INVALID", error.message, 400);
 		}
 		const storeUnavailableReasonCode = classifyStoreUnavailableError(error);
 		if (storeUnavailableReasonCode) {
@@ -887,143 +873,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		);
 	});
 
-	app.get("/api/ops/dining/overview", async (context) => {
-		const operator = await admitOpsApiRequest(admission, context.req.raw);
-		return operator instanceof Response ? operator : context.json(await diningStore.getOverview());
-	});
-	app.get("/api/ops/dining/source-runs", async (context) => {
-		const operator = await admitOpsApiRequest(admission, context.req.raw);
-		if (operator instanceof Response) {
-			return operator;
-		}
-		const query = DiningLimitQuerySchema.safeParse(context.req.query());
-		return query.success
-			? context.json({ runs: await diningStore.listSourceRuns(query.data.limit) })
-			: jsonError("OPS_INVALID_QUERY", "食堂同步记录查询无效。", 400);
-	});
-	app.get("/api/ops/dining/observations", async (context) => {
-		const operator = await admitOpsApiRequest(admission, context.req.raw);
-		if (operator instanceof Response) {
-			return operator;
-		}
-		const query = DiningLimitQuerySchema.safeParse(context.req.query());
-		return query.success
-			? context.json({ observations: await diningStore.listObservations(query.data.limit) })
-			: jsonError("OPS_INVALID_QUERY", "食堂采集记录查询无效。", 400);
-	});
-	app.get("/api/ops/dining/catalog/draft", async (context) => {
-		const operator = await admitOpsApiRequest(admission, context.req.raw);
-		return operator instanceof Response
-			? operator
-			: context.json({ draft: await diningStore.getDraft() });
-	});
-	app.get("/api/ops/dining/catalog/draft/validation", async (context) => {
-		const operator = await admitOpsApiRequest(admission, context.req.raw);
-		return operator instanceof Response
-			? operator
-			: context.json({ validation: await diningStore.validate() });
-	});
-	app.post("/api/ops/dining/catalog/draft/rebase", async (context) => {
-		const operator = await admitDiningWrite(admission, context.req.raw, publicOrigin);
-		return operator instanceof Response
-			? operator
-			: context.json({ draft: await diningStore.rebase(toDiningActor(operator)) });
-	});
-	app.post("/api/ops/dining/catalog/draft/commands", async (context) => {
-		const operator = await admitDiningWrite(admission, context.req.raw, publicOrigin);
-		if (operator instanceof Response) {
-			return operator;
-		}
-		const command = DiningCatalogCommandSchema.safeParse(
-			await readBoundedJson(context.req.raw, 16 * 1024),
-		);
-		return command.success
-			? context.json({
-					draft: await diningStore.applyCatalogCommand(toDiningActor(operator), command.data),
-				})
-			: jsonError("OPS_DINING_COMMAND_INVALID", "食堂草稿操作无效。", 400);
-	});
-	app.post("/api/ops/dining/catalog/publish", async (context) => {
-		const operator = await admitDiningWrite(admission, context.req.raw, publicOrigin);
-		if (operator instanceof Response) {
-			return operator;
-		}
-		const body = DiningNotesSchema.safeParse(await readBoundedJson(context.req.raw, 4 * 1024));
-		return body.success
-			? context.json(await diningStore.publish(toDiningActor(operator), body.data.notes), 201)
-			: jsonError("OPS_DINING_PUBLISH_INVALID", "食堂发布说明无效。", 400);
-	});
-	app.get("/api/ops/dining/releases", async (context) => {
-		const operator = await admitOpsApiRequest(admission, context.req.raw);
-		return operator instanceof Response
-			? operator
-			: context.json({ releases: await diningStore.listReleases() });
-	});
-	app.get("/api/ops/dining/releases/:releaseId", async (context) => {
-		const operator = await admitOpsApiRequest(admission, context.req.raw);
-		if (operator instanceof Response) {
-			return operator;
-		}
-		const release = await diningStore.getRelease(context.req.param("releaseId"));
-		return release
-			? context.json(release)
-			: jsonError("OPS_DINING_NOT_FOUND", "未找到该食堂发布。", 404);
-	});
-	app.post("/api/ops/dining/releases/:releaseId/rollback", async (context) => {
-		const operator = await admitDiningWrite(admission, context.req.raw, publicOrigin);
-		if (operator instanceof Response) {
-			return operator;
-		}
-		const body = DiningNotesSchema.safeParse(await readBoundedJson(context.req.raw, 4 * 1024));
-		return body.success
-			? context.json(
-					await diningStore.rollback(
-						toDiningActor(operator),
-						context.req.param("releaseId"),
-						body.data.notes,
-					),
-					201,
-				)
-			: jsonError("OPS_DINING_ROLLBACK_INVALID", "回滚说明无效。", 400);
-	});
-	app.get("/api/ops/dining/reviews", async (context) => {
-		const operator = await admitOpsApiRequest(admission, context.req.raw);
-		if (operator instanceof Response) {
-			return operator;
-		}
-		const query = DiningLimitQuerySchema.safeParse(context.req.query());
-		return query.success
-			? context.json({ reviews: await diningStore.listReviews(query.data.limit) })
-			: jsonError("OPS_INVALID_QUERY", "评价查询无效。", 400);
-	});
-	app.get("/api/ops/dining/reviews/:reviewId", async (context) => {
-		const operator = await admitOpsApiRequest(admission, context.req.raw);
-		if (operator instanceof Response) {
-			return operator;
-		}
-		const review = await diningStore.getReview(context.req.param("reviewId"));
-		return review
-			? context.json({ review })
-			: jsonError("OPS_DINING_NOT_FOUND", "未找到该评价。", 404);
-	});
-	app.post("/api/ops/dining/reviews/:reviewId/commands", async (context) => {
-		const operator = await admitDiningWrite(admission, context.req.raw, publicOrigin);
-		if (operator instanceof Response) {
-			return operator;
-		}
-		const command = DiningReviewCommandSchema.safeParse(
-			await readBoundedJson(context.req.raw, 4 * 1024),
-		);
-		if (!command.success) {
-			return jsonError("OPS_DINING_REVIEW_COMMAND_INVALID", "评价操作无效。", 400);
-		}
-		await diningStore.applyReviewCommand(
-			toDiningActor(operator),
-			context.req.param("reviewId"),
-			command.data,
-		);
-		return context.json({ ok: true });
-	});
+	registerDiningRoutes({ admission, app, diningContentStore, diningStore, publicOrigin });
 
 	app.all("/api/*", () => jsonError("OPS_API_ROUTE_NOT_FOUND", "未找到该运维接口。"));
 	app.use("/*", serveStatic({ root: staticRoot }));
@@ -1035,6 +885,341 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	});
 	app.get("*", serveStatic({ path: "index.html", root: staticRoot }));
 	return app;
+}
+
+function registerDiningRoutes(input: {
+	admission: OpsAdmission;
+	app: Hono;
+	diningContentStore: DiningContentStore;
+	diningStore: DiningStore;
+	publicOrigin: string | null;
+}): void {
+	input.app.get("/api/ops/dining", async (context) => {
+		const operator = await admitOpsApiRequest(input.admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		if (Object.keys(context.req.query()).length > 0) {
+			return jsonError("OPS_DINING_QUERY_INVALID", "食堂地图查询不接受参数。", 400);
+		}
+		return context.json(await input.diningStore.getState());
+	});
+
+	input.app.put("/api/ops/dining/draft", async (context) => {
+		const operator = await admitDiningWrite(input.admission, context.req.raw, input.publicOrigin);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const body = DiningDraftUpdateSchema.safeParse(
+			await readBoundedJson(context.req.raw, 8 * 1024 * 1024),
+		);
+		if (!body.success) {
+			return jsonError("OPS_DINING_DRAFT_INVALID", "食堂地图保存请求无效。", 400);
+		}
+		return context.json({
+			draft: await input.diningStore.saveDraft(
+				toDiningActor(operator),
+				body.data.bundle,
+				body.data.expectedRevision,
+			),
+		});
+	});
+
+	input.app.post("/api/ops/dining/publish", async (context) => {
+		const operator = await admitDiningWrite(input.admission, context.req.raw, input.publicOrigin);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const body = DiningRevisionSchema.safeParse(await readBoundedJson(context.req.raw, 4 * 1024));
+		if (!body.success) {
+			return jsonError("OPS_DINING_PUBLISH_INVALID", "食堂地图发布请求无效。", 400);
+		}
+		return context.json({
+			release: await input.diningStore.publish(toDiningActor(operator), body.data.expectedRevision),
+		});
+	});
+
+	input.app.get("/api/ops/dining/releases", async (context) => {
+		const operator = await admitOpsApiRequest(input.admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		if (Object.keys(context.req.query()).length > 0) {
+			return jsonError("OPS_DINING_QUERY_INVALID", "地图版本查询不接受参数。", 400);
+		}
+		return context.json(await input.diningStore.listReleases());
+	});
+
+	input.app.post("/api/ops/dining/releases/:releaseId/restore", async (context) => {
+		const operator = await admitDiningWrite(input.admission, context.req.raw, input.publicOrigin);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const releaseId = context.req.param("releaseId");
+		const body = DiningRevisionSchema.safeParse(await readBoundedJson(context.req.raw, 4 * 1024));
+		if (!(OpsPathIdSchema.safeParse(releaseId).success && body.success)) {
+			return jsonError("OPS_DINING_RESTORE_INVALID", "食堂地图恢复请求无效。", 400);
+		}
+		return context.json(
+			await input.diningStore.restore(
+				toDiningActor(operator),
+				releaseId,
+				body.data.expectedRevision,
+			),
+		);
+	});
+
+	input.app.get("/api/ops/dining/menu-items", async (context) => {
+		const operator = await admitOpsApiRequest(input.admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		if (Object.keys(context.req.query()).length > 0) {
+			return jsonError("OPS_DINING_QUERY_INVALID", "菜单查询不接受参数。", 400);
+		}
+		return context.json({ items: await input.diningContentStore.listMenuItems() });
+	});
+
+	input.app.post("/api/ops/dining/menu-items", async (context) => {
+		const operator = await admitDiningWrite(input.admission, context.req.raw, input.publicOrigin);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const body = DiningMenuItemCreateSchema.safeParse(
+			await readBoundedJson(context.req.raw, 8 * 1024),
+		);
+		if (!body.success) {
+			return jsonError("OPS_DINING_MENU_INVALID", "菜品内容无效。", 400);
+		}
+		return context.json(
+			{ item: await input.diningContentStore.createMenuItem(toDiningActor(operator), body.data) },
+			201,
+		);
+	});
+
+	input.app.patch("/api/ops/dining/menu-items/:menuItemId", async (context) => {
+		const operator = await admitDiningWrite(input.admission, context.req.raw, input.publicOrigin);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const menuItemId = context.req.param("menuItemId");
+		const body = DiningMenuItemUpdateSchema.safeParse(
+			await readBoundedJson(context.req.raw, 8 * 1024),
+		);
+		if (!(OpsPathIdSchema.safeParse(menuItemId).success && body.success)) {
+			return jsonError("OPS_DINING_MENU_INVALID", "菜品修改请求无效。", 400);
+		}
+		return context.json({
+			item: await input.diningContentStore.updateMenuItem(
+				toDiningActor(operator),
+				menuItemId,
+				body.data,
+			),
+		});
+	});
+
+	input.app.post("/api/ops/dining/menu-items/:menuItemId/move", async (context) => {
+		const operator = await admitDiningWrite(input.admission, context.req.raw, input.publicOrigin);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const menuItemId = context.req.param("menuItemId");
+		const body = DiningMenuItemMoveSchema.safeParse(
+			await readBoundedJson(context.req.raw, 8 * 1024),
+		);
+		if (!(OpsPathIdSchema.safeParse(menuItemId).success && body.success)) {
+			return jsonError("OPS_DINING_MENU_INVALID", "菜品迁移请求无效。", 400);
+		}
+		return context.json({
+			item: await input.diningContentStore.moveMenuItem(
+				toDiningActor(operator),
+				menuItemId,
+				body.data.windowId,
+			),
+		});
+	});
+
+	for (const action of ["archive", "restore"] as const) {
+		input.app.post(`/api/ops/dining/menu-items/:menuItemId/${action}`, async (context) => {
+			const operator = await admitDiningWrite(input.admission, context.req.raw, input.publicOrigin);
+			if (operator instanceof Response) {
+				return operator;
+			}
+			const menuItemId = context.req.param("menuItemId");
+			if (!OpsPathIdSchema.safeParse(menuItemId).success) {
+				return jsonError("OPS_DINING_MENU_INVALID", "菜品标识无效。", 400);
+			}
+			const item =
+				action === "archive"
+					? await input.diningContentStore.archiveMenuItem(toDiningActor(operator), menuItemId)
+					: await input.diningContentStore.restoreMenuItem(toDiningActor(operator), menuItemId);
+			return context.json({ item });
+		});
+	}
+
+	input.app.put("/api/ops/dining/windows/:windowId/menu-order", async (context) => {
+		const operator = await admitDiningWrite(input.admission, context.req.raw, input.publicOrigin);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const windowId = context.req.param("windowId");
+		const body = DiningMenuOrderSchema.safeParse(await readBoundedJson(context.req.raw, 64 * 1024));
+		if (!(OpsPathIdSchema.safeParse(windowId).success && body.success)) {
+			return jsonError("OPS_DINING_MENU_INVALID", "菜品排序请求无效。", 400);
+		}
+		return context.json({
+			items: await input.diningContentStore.reorderMenuItems(
+				toDiningActor(operator),
+				windowId,
+				body.data.menuItemIds,
+			),
+		});
+	});
+
+	input.app.get("/api/ops/dining/reviews", async (context) => {
+		const operator = await admitOpsApiRequest(input.admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const query = DiningReviewListQuerySchema.safeParse(context.req.query());
+		if (!query.success) {
+			return jsonError("OPS_DINING_QUERY_INVALID", "评价查询参数无效。", 400);
+		}
+		return context.json(
+			await input.diningContentStore.listReviews({
+				cursor: query.data.cursor,
+				limit: query.data.limit,
+				menuItemId: query.data.menu_item_id,
+				q: query.data.q,
+				visibility: query.data.visibility,
+				windowId: query.data.window_id,
+			}),
+		);
+	});
+
+	input.app.get("/api/ops/dining/reviews/:reviewId", async (context) => {
+		const operator = await admitOpsApiRequest(input.admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const reviewId = context.req.param("reviewId");
+		if (!OpsPathIdSchema.safeParse(reviewId).success) {
+			return jsonError("OPS_DINING_REVIEW_INVALID", "评价标识无效。", 400);
+		}
+		return context.json(await input.diningContentStore.getReview(reviewId));
+	});
+
+	input.app.post("/api/ops/dining/reviews", async (context) => {
+		const operator = await admitDiningWrite(input.admission, context.req.raw, input.publicOrigin);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const body = DiningOpsReviewCreateSchema.safeParse(
+			await readBoundedJson(context.req.raw, 8 * 1024),
+		);
+		const menuItemId = OpsPathIdSchema.safeParse(context.req.query("menu_item_id"));
+		const idempotencyKey = context.req.header("idempotency-key")?.trim();
+		if (!(body.success && menuItemId.success && idempotencyKey) || idempotencyKey.length > 200) {
+			return jsonError("OPS_DINING_REVIEW_INVALID", "评价创建请求无效。", 400);
+		}
+		return context.json(
+			{
+				review: await input.diningContentStore.createReview(toDiningActor(operator), {
+					...body.data,
+					idempotencyKey,
+					menuItemId: menuItemId.data,
+				}),
+			},
+			201,
+		);
+	});
+
+	input.app.patch("/api/ops/dining/reviews/:reviewId", async (context) => {
+		const operator = await admitDiningWrite(input.admission, context.req.raw, input.publicOrigin);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const reviewId = context.req.param("reviewId");
+		const body = DiningOpsReviewUpdateSchema.safeParse(
+			await readBoundedJson(context.req.raw, 8 * 1024),
+		);
+		if (!(OpsPathIdSchema.safeParse(reviewId).success && body.success)) {
+			return jsonError("OPS_DINING_REVIEW_INVALID", "评价修改请求无效。", 400);
+		}
+		return context.json({
+			review: await input.diningContentStore.updateReview(
+				toDiningActor(operator),
+				reviewId,
+				body.data.body,
+			),
+		});
+	});
+
+	input.app.put("/api/ops/dining/reviews/:reviewId/visibility", async (context) => {
+		const operator = await admitDiningWrite(input.admission, context.req.raw, input.publicOrigin);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const reviewId = context.req.param("reviewId");
+		const body = DiningOpsReviewVisibilitySchema.safeParse(
+			await readBoundedJson(context.req.raw, 4 * 1024),
+		);
+		if (!(OpsPathIdSchema.safeParse(reviewId).success && body.success)) {
+			return jsonError("OPS_DINING_REVIEW_INVALID", "评价可见性请求无效。", 400);
+		}
+		return context.json({
+			review: await input.diningContentStore.setReviewVisibility(
+				toDiningActor(operator),
+				reviewId,
+				body.data.visible,
+			),
+		});
+	});
+
+	input.app.delete("/api/ops/dining/reviews/:reviewId", async (context) => {
+		const operator = await admitDiningWrite(input.admission, context.req.raw, input.publicOrigin);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const reviewId = context.req.param("reviewId");
+		if (!OpsPathIdSchema.safeParse(reviewId).success) {
+			return jsonError("OPS_DINING_REVIEW_INVALID", "评价标识无效。", 400);
+		}
+		await input.diningContentStore.deleteOperatorReview(toDiningActor(operator), reviewId);
+		return new Response(null, { status: 204 });
+	});
+
+	input.app.get("/api/ops/dining/reports", async (context) => {
+		const operator = await admitOpsApiRequest(input.admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const query = DiningReportListQuerySchema.safeParse(context.req.query());
+		if (!query.success) {
+			return jsonError("OPS_DINING_QUERY_INVALID", "举报查询参数无效。", 400);
+		}
+		return context.json(await input.diningContentStore.listReports(query.data));
+	});
+
+	input.app.post("/api/ops/dining/reviews/:reviewId/reports/resolve", async (context) => {
+		const operator = await admitDiningWrite(input.admission, context.req.raw, input.publicOrigin);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const reviewId = context.req.param("reviewId");
+		const body = DiningReportResolutionSchema.safeParse(
+			await readBoundedJson(context.req.raw, 4 * 1024),
+		);
+		if (!(OpsPathIdSchema.safeParse(reviewId).success && body.success)) {
+			return jsonError("OPS_DINING_REPORT_INVALID", "举报处理请求无效。", 400);
+		}
+		await input.diningContentStore.resolveReports(
+			toDiningActor(operator),
+			reviewId,
+			body.data.resolution,
+		);
+		return new Response(null, { status: 204 });
+	});
 }
 
 function createDefaultInternalPortalAuthStore(): InternalPortalAuthStore {
@@ -1066,6 +1251,14 @@ function createDefaultDiningStore(env: DiningStoreEnv): DiningStore {
 		return createDiningStoreFromEnv(env);
 	} catch (error) {
 		return createUnavailableDiningStore(error);
+	}
+}
+
+function createDefaultDiningContentStore(env: DiningStoreEnv): DiningContentStore {
+	try {
+		return createDiningContentStoreFromEnv(env);
+	} catch (error) {
+		return createUnavailableDiningContentStore(error);
 	}
 }
 
@@ -1357,17 +1550,24 @@ function requestHasConfiguredOrigin(request: Request, publicOrigin: string | nul
 }
 
 function resolveOpsPublicOrigin(env: OpsHealthEnv): string | null {
-	const configured = env.OPS_WEB_PUBLIC_ORIGIN?.trim();
+	return resolveHttpOrigin(env.OPS_WEB_PUBLIC_ORIGIN);
+}
+
+function resolveHttpOrigin(value: string | undefined): string | null {
+	const configured = value?.trim();
 	if (!configured) {
 		return null;
 	}
 	try {
 		const parsed = new URL(configured);
-		const allowedProtocol =
-			parsed.protocol === "https:" ||
-			(parsed.protocol === "http:" &&
-				(parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost"));
-		return allowedProtocol && parsed.origin === configured ? parsed.origin : null;
+		const isLoopbackHttp =
+			parsed.protocol === "http:" &&
+			(parsed.hostname === "127.0.0.1" ||
+				parsed.hostname === "localhost" ||
+				parsed.hostname === "[::1]");
+		return (parsed.protocol === "https:" || isLoopbackHttp) && parsed.origin === configured
+			? parsed.origin
+			: null;
 	} catch {
 		return null;
 	}

@@ -149,11 +149,8 @@ describe("campus worker boundary", () => {
 			"/api/campus-services/transport-schedule/status",
 			"/api/campus-map/places",
 			"/api/campus-map/places/library",
-			"/api/dining/bootstrap",
-			"/api/dining/halls",
-			"/api/dining/search",
-			"/api/dining/halls/haidian-canteen-1/floors/1f",
-			"/api/dining/offerings/offering-1/reviews",
+			"/api/dining",
+			`/api/dining/floorplans/${"a".repeat(64)}.svg`,
 			"/api/feedback",
 		];
 

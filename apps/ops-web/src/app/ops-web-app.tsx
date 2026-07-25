@@ -11,7 +11,10 @@ import {
 import { Activity, ClipboardList, Database, KeyRound, ServerCog, Utensils } from "lucide-react";
 import { useMemo } from "react";
 import type { OpsOverviewWindow } from "../shared/ops-contract";
+import { DiningMenuPage } from "./dining-menu-page";
 import { DiningPage } from "./dining-page";
+import { DiningReportsPage } from "./dining-reports-page";
+import { DiningReviewsPage } from "./dining-reviews-page";
 import { IngestionPage } from "./ingestion-page";
 import { IngestionTaskPage } from "./ingestion-task-page";
 import { InternalPortalAuthPage } from "./internal-portal-auth-page";
@@ -140,7 +143,25 @@ const ingestionTaskRoute = createRoute({
 const diningRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/dining",
-	component: DiningPage,
+	component: DiningRoute,
+});
+
+const diningMenuRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/dining/menu",
+	component: DiningMenuPage,
+});
+
+const diningReviewsRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/dining/reviews",
+	component: DiningReviewsPage,
+});
+
+const diningReportsRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/dining/reports",
+	component: DiningReportsPage,
 });
 
 const routeTree = rootRoute.addChildren([
@@ -154,6 +175,9 @@ const routeTree = rootRoute.addChildren([
 	ingestionRoute,
 	ingestionTaskRoute,
 	diningRoute,
+	diningMenuRoute,
+	diningReviewsRoute,
+	diningReportsRoute,
 ]);
 
 function createOpsRouter(initialPath?: string) {
@@ -185,7 +209,7 @@ function RootLayout() {
 				{ href: "/providers", icon: ServerCog, label: "模型配置" },
 				{ href: "/ingestion", icon: Database, label: "采集运行" },
 				{ href: "/internal-portal-auth", icon: KeyRound, label: "门户认证" },
-				{ href: "/dining", icon: Utensils, label: "食堂内容" },
+				{ href: "/dining", icon: Utensils, label: "食堂" },
 			]}
 		>
 			<Outlet />
@@ -226,6 +250,10 @@ function RequestSystemRoute() {
 function ProviderConfigRoute() {
 	const search = providerConfigRoute.useSearch();
 	return <ProviderConfigPage service={search.service} />;
+}
+
+function DiningRoute() {
+	return <DiningPage />;
 }
 
 function optionalOverviewWindow(value: unknown): OpsOverviewWindow | undefined {

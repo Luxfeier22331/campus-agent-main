@@ -3,7 +3,7 @@ import type { AppAuthGetter, AppAuthResolutionInput, ResolvedAppPrincipal } from
 import type { CampusExperienceService } from "../modules/campus-experience";
 import type { CampusServicesTransportScheduleService } from "../modules/campus-services-transport-schedule";
 import type { ChatConversationService } from "../modules/chat";
-import type { DiningPublicReadService } from "../modules/dining";
+import type { DiningContentService, DiningMapReadService } from "../modules/dining";
 import type { DocsService } from "../modules/docs";
 import type { ProfileMemoryService } from "../modules/profile-memory";
 import type { ChatCommandService } from "../modules/runtime-command";
@@ -20,7 +20,8 @@ export interface AppDependencies {
 	campusServicesTransportScheduleService?: CampusServicesTransportScheduleService;
 	chatConversationService?: ChatConversationService;
 	chatCommandService?: ChatCommandService;
-	diningPublicReadService?: DiningPublicReadService;
+	diningMapReadService?: DiningMapReadService;
+	diningContentService?: DiningContentService;
 	docsService?: DocsService;
 	docsReadinessProbe?: (releaseId: string) => Promise<AppDocsReadinessResult>;
 	getAppAuth?: AppAuthGetter;
@@ -60,7 +61,8 @@ export interface AppRequestScope {
 	resolveCampusServicesTransportScheduleService(): CampusServicesTransportScheduleService;
 	resolveChatCommandService(): ChatCommandService;
 	resolveChatConversationService(): ChatConversationService;
-	resolveDiningPublicReadService(): DiningPublicReadService;
+	resolveDiningMapReadService(): DiningMapReadService;
+	resolveDiningContentService(): DiningContentService;
 	resolveDocsService(): DocsService;
 	resolveProfileMemoryService(): ProfileMemoryService;
 	resolveRuntimeRunService(): RuntimeRunService;

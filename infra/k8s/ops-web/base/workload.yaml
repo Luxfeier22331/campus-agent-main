@@ -71,16 +71,27 @@ spec:
                 secretKeyRef:
                   name: ops-web-database-secrets
                   key: OPS_WEB_DATABASE_URL
-            - name: OPS_WEB_DINING_DATABASE_URL
+            - name: OPS_WEB_CAMPUS_WEB_PUBLIC_ORIGIN
+              valueFrom:
+                configMapKeyRef:
+                  name: ops-web-config
+                  key: OPS_WEB_CAMPUS_WEB_PUBLIC_ORIGIN
+            - name: OBJECT_STORE_ENDPOINT
+              value: http://object-store:9000
+            - name: OBJECT_STORE_BUCKET_DERIVED
+              value: campus-agent-derived
+            - name: OBJECT_STORE_REGION
+              value: us-east-1
+            - name: OBJECT_STORE_DERIVED_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: ops-web-dining-database-secrets
-                  key: OPS_WEB_DINING_DATABASE_URL
-                  optional: true
-            - name: OPS_WEB_DINING_DATABASE_CA_CERT_PATH
-              value: /etc/campus-agent/postgres/ca.crt
-            - name: OPS_WEB_DINING_DATABASE_SSLMODE
-              value: verify-full
+                  name: object-store-secrets
+                  key: OBJECT_STORE_DERIVED_ACCESS_KEY
+            - name: OBJECT_STORE_DERIVED_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_DERIVED_SECRET_KEY
             - name: OPS_WEB_EXECUTION_CONTROL_URL
               value: http://execution-control:8000
             - name: OPS_WEB_EXECUTION_CONTROL_ADMIN_URL

@@ -18,7 +18,7 @@ Ops Web 是独立的运维和内容运营应用，由浏览器页面和同源服
 
 - 浏览器只调用同源 `/api/ops/*`，不直连数据库、Kubernetes 或外部观测平台；
 - 服务端关联有界产品投影、执行投影、Temporal 状态、Axiom 记录、Sentry Issue 和外部入口；
-- 在线模型配置、固定门户凭据和 Dining 是三个独立管理边界；
+- 在线模型配置、固定门户凭据、通知采集和 Dining 是彼此独立的管理边界；
 - 外部平台继续拥有完整查询、工作流、模型观测和评测能力，Ops Web 不复制这些界面；
 - 任何观测信号都不能改写产品请求或工作流的持久状态。
 
@@ -33,7 +33,7 @@ flowchart LR
   Control[execution-control]
   Ingestion[ingestion-control]
   Portal[(固定门户凭据)]
-  Dining[(Dining 数据)]
+  Dining[(Dining 地图数据)]
   Temporal[Temporal]
   Axiom[Axiom]
   Sentry[Sentry]
@@ -82,10 +82,10 @@ flowchart LR
 | Axiom | 清理后的日志、调用链和指标 | 模型正文、产品状态或工作流执行状态 |
 | Sentry | 浏览器和边缘错误、性能摘要、release 与 Issue | 通用日志存储或模型 trace |
 | Langfuse environment project | Agent、模型、工具、受控编排、记忆 trace、数据集、评分和人工评审 | 产品状态或 Temporal history |
-| Dining 数据面 | 来源观测、草稿、发布版本和评价状态 | 运维身份或学生页面状态 |
+| Dining 数据 | 地图草稿与发布版本、菜单、评价、举报和评价修改记录 | 采集、来源同步或人员准入 |
 
-PostgreSQL 角色和 schema 由 `../../data/postgres-ownership.md` 维护，Dining 数据语义由
-`../../data/dining.md` 维护。
+PostgreSQL 角色和 schema 由 `../../data/postgres-ownership.md` 维护，食堂完整边界由
+`../../product/dining.md` 维护。
 
 ## 运行记录与平台分工
 
@@ -169,8 +169,8 @@ Schedule。它不能读取当前凭据、选择其他 Secret、在线执行门�
 
 ### Dining
 
-Ops Web 使用独立 Dining 数据权限管理草稿、不可变发布版本、回滚和评价状态。来源同步、内容
-运营、学生读取和地图资产保持独立所有权，完整流程见 `../domains/dining.md`。
+Ops Web 使用统一 `ops_web` 角色管理地图、菜单、评价和举报。App API 读取当前发布地图和菜单，
+并以受限权限创建、读取或删除学生评价及创建举报。完整规则见 `../../product/dining.md`。
 
 ## 可观测平台
 
@@ -241,7 +241,7 @@ HTTP 合同。新增下游依赖时必须同时更新实现、可执行网络配
 - `../../product/ops-web.md`
 - `../../contracts/ops-web/README.md`
 - `../../data/postgres-ownership.md`
-- `../../data/dining.md`
+- `../../product/dining.md`
 - `langfuse.md`
 - `../../contracts/langfuse-runtime.md`
 - `../../reference/telemetry.md`

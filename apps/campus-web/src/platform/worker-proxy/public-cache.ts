@@ -99,7 +99,10 @@ function buildPublicAppApiRequest(request: Request, appApiBaseUrl: string): Requ
 }
 
 function getPublicCacheSearch(url: URL): string | null {
-	if (!isPublicCacheableAppApiPath(url.pathname) || url.searchParams.size > 0) {
+	if (!isPublicCacheableAppApiPath(url.pathname)) {
+		return null;
+	}
+	if (url.searchParams.size > 0) {
 		return null;
 	}
 	return "";
@@ -108,10 +111,9 @@ function getPublicCacheSearch(url: URL): string | null {
 function isPublicCacheableAppApiPath(pathname: string): boolean {
 	return (
 		pathname === "/api/campus-services/transport-schedule/status" ||
-		pathname === "/api/dining/bootstrap" ||
-		pathname === "/api/dining/halls" ||
-		/^\/api\/dining\/halls\/[^/]+\/floors\/[^/]+$/.test(pathname) ||
-		/^\/api\/dining\/offerings\/[^/]+\/reviews$/.test(pathname)
+		pathname === "/api/dining" ||
+		/^\/api\/dining\/windows\/[^/]+\/menu$/.test(pathname) ||
+		/^\/api\/dining\/floorplans\/[0-9a-f]{64}\.svg$/.test(pathname)
 	);
 }
 

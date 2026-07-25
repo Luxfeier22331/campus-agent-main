@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
-import { DINING_FLOORPLAN_MANIFEST } from "@campus-agent/dining/floorplans";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { type QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect, useState } from "react";
@@ -20,28 +19,21 @@ import diningControlsSource from "../src/components/dining/dining-controls.tsx?r
 import diningExperienceSource from "../src/components/dining/dining-experience.tsx?raw";
 import diningFloorplanSource from "../src/components/dining/dining-floorplan.tsx?raw";
 import diningFloorplanZoomSource from "../src/components/dining/dining-floorplan-zoom.tsx?raw";
-import diningReviewImageDialogSource from "../src/components/dining/dining-review-image-dialog.tsx?raw";
-import diningReviewsSource from "../src/components/dining/dining-reviews.tsx?raw";
 import mapExperienceSource from "../src/components/map/map-experience.tsx?raw";
 import assistantRuntimeSource from "../src/features/conversation/assistant-ui-runtime.tsx?raw";
-import type {
-	DiningFloorResponse,
-	DiningReview,
-	DiningWindowProjection,
-} from "../src/features/dining/model";
 import { createCampusQueryClient } from "../src/platform/query/client";
-import { mockDiningFixtureApi } from "./dining-fixture-test-utils";
+import {
+	DINING_FIXTURE_ASSETS,
+	DINING_FIXTURE_MAP,
+	mockDiningFixtureApi,
+} from "./dining-fixture-test-utils";
 import { mockMapWorkspaceWidth } from "./map-page-test-utils";
 
 const stylesSource = readFileSync("src/styles.css", "utf8");
 const sharedThemeSource = readFileSync("../../packages/ui/src/theme.css", "utf8");
 
 const diningApiMock = vi.hoisted(() => ({
-	getDiningBootstrap: vi.fn(),
-	getDiningFloor: vi.fn(),
-	getDiningOfferingReviews: vi.fn(),
-	getDiningPublication: vi.fn(),
-	searchDining: vi.fn(),
+	getDiningMap: vi.fn(),
 }));
 const diningFloorplanAssetMock = vi.hoisted(() => ({
 	loadDiningFloorplanAsset: vi.fn(),
@@ -147,8 +139,8 @@ vi.mock("../src/features/dining/api", () => diningApiMock);
 
 vi.mock("../src/features/dining/floorplan-asset", () => diningFloorplanAssetMock);
 
-function DiningPage() {
-	const [queryClient] = useState(createCampusQueryClient);
+function DiningPage({ queryClient: providedQueryClient }: { queryClient?: QueryClient } = {}) {
+	const [queryClient] = useState(() => providedQueryClient ?? createCampusQueryClient());
 	const [, setRouteVersion] = useState(0);
 	useEffect(() => {
 		diningRouteSearch.notify = () => setRouteVersion((version) => version + 1);
@@ -167,30 +159,21 @@ describe("campus routes", () => {
 	beforeEach(() => {
 		sessionState.data = { user: { id: "user_01", name: "测试用户" } };
 		sessionState.isPending = false;
-		diningApiMock.getDiningBootstrap.mockReset();
-		diningApiMock.getDiningFloor.mockReset();
-		diningApiMock.getDiningOfferingReviews.mockReset();
-		diningApiMock.getDiningPublication.mockReset();
-		diningApiMock.getDiningPublication.mockResolvedValue({
-			catalogReleaseId: "dining_release:test",
-			reviewRevision: 1,
-			updatedAt: "2026-07-16T00:00:00.000Z",
-		});
-		diningApiMock.searchDining.mockReset();
+		diningApiMock.getDiningMap.mockReset();
 		diningFloorplanAssetMock.loadDiningFloorplanAsset.mockReset();
 		diningFloorplanAssetMock.loadDiningFloorplanAsset.mockImplementation(
 			async (input: { floorplanId: string; sha256: string; svgAssetUrl: string }) => {
-				const manifest = DINING_FLOORPLAN_MANIFEST.find(
+				const asset = DINING_FIXTURE_ASSETS.find(
 					(entry) => entry.floorplanId === input.floorplanId,
 				);
 				if (
-					!manifest ||
-					manifest.sha256 !== input.sha256 ||
-					manifest.svgAssetUrl !== input.svgAssetUrl
+					!asset ||
+					asset.sha256 !== input.sha256 ||
+					input.svgAssetUrl !== `/api/dining/floorplans/${input.sha256.slice("sha256:".length)}.svg`
 				) {
 					throw new Error("floorplan asset projection drifted");
 				}
-				return manifest.svgMarkup;
+				return asset.svgMarkup;
 			},
 		);
 		feedbackApiMock.submitFeedback.mockReset();
@@ -541,646 +524,134 @@ describe("campus routes", () => {
 		);
 	});
 
-	it("keeps dining floor rendering driven by the floor projection contract", () => {
-		expect(diningFloorplanSource).not.toContain("getDiningFloorplanByFloor");
+	it("keeps the Dining surface limited to one map projection and immutable SVG assets", () => {
+		expect(diningPageSource).toContain("diningMapQueryOptions");
+		expect(diningPageSource).not.toContain("diningReviewsQueryOptions");
+		expect(diningPageSource).not.toContain("getDiningFloor");
+		expect(diningPageSource).not.toContain("preview");
+		expect(diningExperienceSource).not.toContain("DiningReviewList");
+		expect(diningControlsSource).toContain("DiningHallSwitcher");
+		expect(diningControlsSource).toContain("搜索窗口");
 		expect(diningFloorplanSource).toContain("diningFloorplanAssetQueryOptions");
-		expect(diningFloorplanSource).toContain("floor.floor.floorplan.floorplanId");
 		expect(diningFloorplanSource).toContain("dangerouslySetInnerHTML");
 		expect(diningFloorplanSource).toContain("[data-dining-anchor-id]");
-		expect(diningFloorplanSource).not.toContain("h-full min-h-36");
-		expect(diningExperienceSource).not.toContain("DiningReviewList");
-		expect(diningReviewsSource).toContain("暂无评价");
-		expect(diningReviewsSource).toContain("alt={image.alt}");
-		expect(diningReviewsSource).toContain("overflow-x-auto");
-		expect(diningControlsSource).toContain("DiningHallSwitcher");
-		expect(diningControlsSource).toContain("SelectGroup");
-		expect(diningControlsSource).toContain("Popover");
-		expect(diningControlsSource).not.toContain("shrink-0 rounded-full");
 		expect(diningFloorplanSource).toContain('import("./dining-floorplan-zoom")');
 		expect(diningFloorplanZoomSource).toContain("react-zoom-pan-pinch");
-		expect(diningFloorplanZoomSource).toContain("maxScale={2}");
-		expect(diningFloorplanZoomSource).toContain("wheel={{ step: WHEEL_ZOOM_STEP }}");
-		expect(diningFloorplanZoomSource).toContain("doubleClick={{ disabled: true }}");
-		expect(diningFloorplanZoomSource).toContain("BUTTON_ZOOM_STEP = 0.16");
-		expect(diningFloorplanZoomSource).toContain("WHEEL_ZOOM_STEP = 0.002");
-		expect(diningFloorplanZoomSource).toContain("ZOOM_ANIMATION_MS = 220");
-		expect(diningFloorplanZoomSource).toContain("RESET_ANIMATION_MS = 280");
-		expect(diningFloorplanZoomSource).toContain("prefers-reduced-motion: reduce");
-		expect(diningFloorplanZoomSource).toContain('animationType: "easeOutCubic"');
-		expect(diningFloorplanZoomSource).toContain("will-change-transform");
-		expect(diningFloorplanZoomSource).toContain("disablePadding");
-		expect(diningControlsSource).not.toContain("查看地图");
-		expect(diningReviewsSource).toContain("lazy(() =>");
-		expect(diningReviewsSource).toContain('import("./dining-review-image-dialog")');
-		expect(diningReviewsSource).not.toContain('from "../ui/dialog"');
-		expect(diningReviewImageDialogSource).toContain("DialogContent");
-		expect(diningReviewsSource).toMatch(/aria-label=\{`预览\$\{image\.alt\}`\}/);
 		expect(diningFloorplanSource).toContain("parseDiningFloorplanViewBox");
-		expect(diningFloorplanSource).toContain("style={{ aspectRatio }}");
-		expect(diningExperienceSource).not.toContain("StallList");
-		expect(diningFloorplanSource).not.toContain("min-w-0 max-h-[360px]");
-		expect(diningFloorplanSource).toContain('"dining-floorplan-surface"');
-		expect(diningFloorplanSource).toContain("floorplanKey");
-		expect(diningFloorplanSource).toContain("key={floorplanKey}");
-		expect(diningFloorplanSource).not.toContain("nearestWindowForPoint");
-		expect(diningFloorplanSource).toContain("touch-pan-y");
-		expect(diningFloorplanSource).not.toContain("is-unassigned");
 		expect(diningFloorplanSource).toContain("matchedWindowIds");
 		expect(diningFloorplanSource).toContain("is-dimmed");
-		expect(diningFloorplanSource).toContain("useLayoutEffect");
-		expect(diningFloorplanSource).toContain("DiningFloorplanSvg");
-		expect(diningFloorplanSource).not.toContain("min-w-[640px]");
-		expect(diningFloorplanSource).not.toContain("<fieldset");
-		expect(diningFloorplanSource).toContain('data-testid="dining-inline-floorplan"');
-		expect(diningPageSource).toContain("campusTags");
-		expect(diningPageSource).toContain("diningFloorQueryOptions");
-		expect(diningPageSource).toContain("diningReviewsQueryOptions");
-		expect(diningPageSource).toContain("scrollIntoView");
-		expect(diningPageSource).toContain("requestAnimationFrame");
-		expect(diningPageSource).toContain("REVIEW_LOADING_DELAY_MS = 150");
-		expect(diningPageSource).toContain("matchMedia");
-		expect(diningReviewsSource).toContain("DiningReviewsState");
-		expect(diningReviewsSource).toContain('status: "pending"');
-		expect(diningPageSource).not.toContain('id: "rice-bowl"');
-		expect(diningFloorplanSource).not.toContain("x: 56");
-		expect(diningFloorplanSource).not.toContain("y: 72");
-		expect(diningPageSource).not.toContain("stalls");
-		expect(diningExperienceSource).not.toContain("stalls");
-		expect(diningExperienceSource).not.toContain("已下架");
-		expect(diningExperienceSource).not.toContain('?? "标准"');
 	});
 
-	it("renders dining map-first hall selector, interactive stalls, and menu references", async () => {
+	it("renders the published map and selects windows without additional data requests", async () => {
 		const user = userEvent.setup();
-		mockDiningFixtureApi(diningApiMock);
+		const fixture = mockDiningFixtureApi(diningApiMock);
+		const hall = fixture.halls[0];
+		const floor = hall?.floors[0];
+		const diningWindow = floor?.windows[0];
+		if (!(hall && floor && diningWindow)) {
+			throw new Error("Dining fixture is incomplete.");
+		}
+
 		render(<DiningPage />);
 
-		expect(await screen.findByText("食堂")).toBeInTheDocument();
-		expect((await screen.findAllByText("海淀一食堂")).length).toBeGreaterThan(0);
-		expect((await screen.findAllByText("荟贤食堂")).length).toBeGreaterThan(0);
-		expect(screen.getByRole("combobox", { name: "选择食堂" })).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "海淀一食堂" })).toHaveAttribute(
+		expect(await screen.findByRole("button", { name: hall.name })).toHaveAttribute(
 			"aria-pressed",
 			"true",
 		);
-		expect(screen.queryByText("1 层 · 1 个餐饮点")).toBeNull();
-		expect(screen.queryByText("9-18 元")).toBeNull();
-		expect(await screen.findByRole("button", { name: "选择鱼粉" })).toBeInTheDocument();
-		expect(screen.getByRole("heading", { name: "选择档口" })).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "选择鱼粉" })).toHaveAttribute(
-			"aria-pressed",
-			"false",
-		);
-		expect(screen.getByTestId("dining-review-panel")).toHaveTextContent("选择菜品查看评价");
-		await user.click(screen.getByRole("button", { name: "选择鱼粉" }));
-		expect(screen.getByRole("heading", { name: "鱼粉" })).toBeInTheDocument();
-		expect(screen.getAllByText("金汤鱼粉")).toHaveLength(1);
-		expect(screen.getByText("鱼粉招牌菜")).toBeInTheDocument();
-		expect(screen.getByRole("radio", { name: /金汤鱼粉/ })).not.toBeChecked();
-		expect(screen.getByTestId("dining-review-panel")).toHaveTextContent("选择菜品查看评价");
-		expect(diningApiMock.getDiningOfferingReviews).not.toHaveBeenCalled();
-		await user.click(screen.getByRole("radio", { name: /金汤鱼粉/ }));
-		expect(await screen.findByLabelText("评价")).toBeInTheDocument();
-		expect(screen.getByText("果小生")).toBeInTheDocument();
-		expect(screen.getByText("有一点辣，有一点酸。")).toBeInTheDocument();
-		expect(screen.queryByText(/Feishu 食堂采集/)).toBeNull();
-		expect(screen.queryByRole("img", { name: "金汤鱼粉评价图片" })).toBeNull();
-		const mapPanel = screen.getByTestId("dining-map-panel");
-		const reviewPanel = screen.getByTestId("dining-review-panel");
-		const detailPanel = screen.getByTestId("dining-stall-detail");
-		const selectionPanel = screen.getByTestId("dining-selection-panel");
-		expect(within(detailPanel).getByRole("heading", { name: "鱼粉" })).toBeInTheDocument();
-		expect(reviewPanel).toHaveAttribute("aria-label", "评价");
-		expect(within(reviewPanel).getByText("有一点辣，有一点酸。")).toBeInTheDocument();
-		expect(within(reviewPanel).queryByText("鱼粉招牌菜")).toBeNull();
-		expect(within(reviewPanel).queryByText("汤底清爽。")).toBeNull();
-		await user.click(within(detailPanel).getByRole("radio", { name: "清淡鱼粉" }));
-		expect(screen.getByTestId("dining-review-panel")).toHaveAttribute("aria-label", "评价");
-		expect(
-			within(screen.getByTestId("dining-review-panel")).getByText("暂无评价"),
-		).toBeInTheDocument();
-		expect(within(screen.getByTestId("dining-review-panel")).queryByText("金汤鱼粉")).toBeNull();
-		expect(within(screen.getByTestId("dining-review-panel")).queryByText("汤底清爽。")).toBeNull();
-		await user.click(within(detailPanel).getByRole("radio", { name: /金汤鱼粉/ }));
-		expect(
-			within(reviewPanel).getByRole("button", { name: "预览金汤鱼粉评价图片" }),
-		).toBeInTheDocument();
-		expect(selectionPanel).toContainElement(mapPanel);
-		expect(selectionPanel).toContainElement(detailPanel);
-		expect(selectionPanel).not.toContainElement(reviewPanel);
-		expect(selectionPanel.nextElementSibling).toBe(reviewPanel);
-		expect(within(mapPanel).queryByLabelText("评价")).toBeNull();
-		expect(within(mapPanel).queryByText("有一点辣，有一点酸。")).toBeNull();
-		expect(within(mapPanel).queryByRole("img", { name: "金汤鱼粉评价图片" })).toBeNull();
-		expect(within(detailPanel).queryByLabelText("评价")).toBeNull();
-		expect(within(detailPanel).queryByText("有一点辣，有一点酸。")).toBeNull();
-		expect(within(detailPanel).queryByRole("img", { name: "金汤鱼粉评价图片" })).toBeNull();
-		expect(diningApiMock.getDiningBootstrap).toHaveBeenCalledTimes(1);
-		expect(diningApiMock.getDiningFloor).not.toHaveBeenCalledWith(
-			expect.objectContaining({ hallId: "haidian-canteen-1" }),
-		);
-		expect(diningApiMock.getDiningOfferingReviews).toHaveBeenCalledWith(
-			expect.objectContaining({ offeringId: "offering:rice:1" }),
-		);
-		expect(screen.queryByText("参考价格")).toBeNull();
-		expect(screen.getAllByText("12 元").length).toBeGreaterThan(0);
-		expect(screen.queryByText("16 元")).toBeNull();
-		expect(screen.queryByText("标准份")).toBeNull();
-		expect(screen.queryByText("可售")).toBeNull();
-		expect(screen.queryByText("季节供应")).toBeNull();
-		expect(screen.queryByText("dining_release:dev_seed")).toBeNull();
-		expect(screen.getByLabelText("选择鱼粉")).toBeInTheDocument();
-		expect(screen.getByTestId("dining-inline-floorplan").querySelector("svg")).not.toBeNull();
-		expect(screen.queryByRole("button", { name: "放大平面图" })).toBeNull();
-		expect(screen.queryByRole("button", { name: "缩小平面图" })).toBeNull();
-		expect(screen.queryByRole("button", { name: "显示完整平面图" })).toBeNull();
-		expect(screen.queryByTestId("dining-selected-map-label")).toBeNull();
-		expect(
-			within(screen.getByTestId("dining-inline-floorplan")).getByText("鱼粉"),
-		).toBeInTheDocument();
-		expect(
-			within(screen.getByTestId("dining-inline-floorplan")).getByText("螺蛳粉"),
-		).toBeInTheDocument();
-		expect(
-			within(screen.getByTestId("dining-inline-floorplan")).getByText("四川风味"),
-		).toBeInTheDocument();
-		expect(within(screen.getByTestId("dining-inline-floorplan")).queryByText("01")).toBeNull();
-		expect(within(screen.getByTestId("dining-inline-floorplan")).queryByText("02")).toBeNull();
-		await user.click(screen.getByTestId("dining-anchor-window-01"));
-		expect(screen.getByTestId("dining-anchor-window-01")).toHaveClass("is-selected");
-		expect(screen.queryByRole("button", { name: "鱼粉" })).toBeNull();
-		const searchInput = screen.getByRole("combobox", { name: "搜索海淀校区的档口或菜品" });
-		await user.type(searchInput, "金汤");
-		expect(screen.getAllByText("海淀一食堂").length).toBeGreaterThan(0);
-		expect(screen.getByRole("button", { name: "荟贤食堂" })).toBeInTheDocument();
-		expect(screen.queryByText("当前校区没有匹配结果")).not.toBeInTheDocument();
-		expect((await screen.findAllByText("1 个结果")).length).toBeGreaterThan(0);
-		expect(screen.getByTestId("dining-anchor-window-01")).toBeInTheDocument();
-		expect(screen.getByTestId("dining-anchor-window-02")).toHaveClass("is-dimmed");
-		expect(screen.queryByRole("button", { name: "选择二号窗口" })).toBeNull();
-		await user.clear(searchInput);
-		await user.type(searchInput, "不存在的菜");
-		expect(await screen.findByText("当前校区没有匹配结果")).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "海淀一食堂" })).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "荟贤食堂" })).toBeInTheDocument();
-		expect(screen.getByTestId("dining-inline-floorplan")).toBeInTheDocument();
-		expect(within(detailPanel).getByRole("heading", { name: "选择档口" })).toBeInTheDocument();
-		await user.clear(searchInput);
-		await user.click(screen.getByRole("button", { name: "筛选餐饮标签" }));
-		await user.click(screen.getByRole("radio", { name: "热餐" }));
-		expect(await screen.findByRole("button", { name: "选择螺蛳粉" })).toBeInTheDocument();
-		await user.click(screen.getByRole("button", { name: "筛选：热餐" }));
-		await user.click(screen.getByRole("radio", { name: "全部" }));
-		expect(screen.getByRole("button", { name: "选择鱼粉" })).toBeInTheDocument();
-
-		expect((await screen.findAllByText("海淀一食堂")).length).toBeGreaterThan(0);
-		await user.click(await screen.findByRole("button", { name: "荟贤食堂" }));
-
-		expect((await screen.findAllByText("荟贤食堂一层")).length).toBeGreaterThan(0);
-		await user.click(screen.getByRole("radio", { name: "二层" }));
-		expect((await screen.findAllByText("荟贤食堂二层")).length).toBeGreaterThan(0);
-		await user.click(screen.getByRole("button", { name: "海淀一食堂" }));
-
-		expect((await screen.findAllByText("海淀一食堂")).length).toBeGreaterThan(0);
-		expect(diningApiMock.getDiningFloor).not.toHaveBeenCalledWith({
-			floorId: "fengtai-huixian-canteen-2f",
-			hallId: "haidian-canteen-1",
+		const windowButton = await screen.findByRole("button", {
+			name: `选择${diningWindow.name}`,
 		});
-	});
-
-	it("retries dining hall and floor requests without reloading the page", async () => {
-		const user = userEvent.setup();
-		mockDiningFixtureApi(diningApiMock);
-		const getFloor = diningApiMock.getDiningFloor.getMockImplementation();
-		diningApiMock.getDiningBootstrap.mockRejectedValueOnce(new Error("halls unavailable"));
-
-		render(<DiningPage />);
-
-		const hallsError = await screen.findByRole("alert", { name: "食堂数据不可用" });
-		await user.click(within(hallsError).getByRole("button", { name: "重试" }));
-		expect(await screen.findByRole("button", { name: "海淀一食堂" })).toBeInTheDocument();
-		expect(diningApiMock.getDiningBootstrap).toHaveBeenCalledTimes(2);
-
-		diningApiMock.getDiningFloor.mockRejectedValue(new Error("floor unavailable"));
-		await user.click(await screen.findByRole("button", { name: "荟贤食堂" }));
-		const floorError = await screen.findByRole("alert", { name: "食堂地图不可用" });
-		expect(floorError).toHaveTextContent("食堂平面图暂时无法打开。");
-		expect(screen.queryByText("暂时没有可展示的食堂地图。")).toBeNull();
-		diningApiMock.getDiningFloor.mockImplementation(getFloor ?? (() => Promise.reject()));
-		await user.click(within(floorError).getByRole("button", { name: "重试" }));
-		expect(await screen.findByTestId("dining-inline-floorplan")).toBeInTheDocument();
-		expect(diningApiMock.getDiningFloor).toHaveBeenCalledWith(
-			expect.objectContaining({
-				floorId: "fengtai-huixian-canteen-1f",
-				hallId: "fengtai-huixian-canteen",
-			}),
+		expect(screen.getByRole("heading", { name: "选择窗口" })).toBeInTheDocument();
+		await user.click(windowButton);
+		expect(screen.getByRole("heading", { name: diningWindow.name })).toBeInTheDocument();
+		expect(screen.getByText(floor.label)).toBeInTheDocument();
+		expect(diningApiMock.getDiningMap).toHaveBeenCalledOnce();
+		expect(diningFloorplanAssetMock.loadDiningFloorplanAsset).toHaveBeenCalledWith(
+			expect.objectContaining({ floorplanId: floor.floorplan.floorplanId }),
 		);
 	});
 
-	it("keeps the current hall when an earlier floor request resolves late", async () => {
+	it("searches published window names in the browser", async () => {
 		const user = userEvent.setup();
-		mockDiningFixtureApi(diningApiMock);
-		const getFloor = diningApiMock.getDiningFloor.getMockImplementation();
-		const delayedRequest = {
-			floorId: "fengtai-huixian-canteen-1f",
-			hallId: "fengtai-huixian-canteen",
-		};
-		const delayedFloor = await getFloor?.(delayedRequest);
-		if (!delayedFloor) {
-			throw new Error("Dining fixture did not produce the delayed floor.");
+		const fixture = mockDiningFixtureApi(diningApiMock);
+		const floor = fixture.halls[0]?.floors[0];
+		const diningWindow = floor?.windows[0];
+		const otherWindow = floor?.windows[1];
+		if (!(diningWindow && otherWindow)) {
+			throw new Error("Dining fixture needs two windows.");
 		}
-		const pendingFloor = deferred<unknown>();
-		diningApiMock.getDiningFloor.mockImplementation((input) =>
-			input.hallId === delayedRequest.hallId && input.floorId === delayedRequest.floorId
-				? pendingFloor.promise
-				: (getFloor?.(input) ?? Promise.reject(new Error("missing dining projection"))),
-		);
 
 		render(<DiningPage />);
+		await screen.findByTestId(`dining-anchor-${diningWindow.svgAnchorId}`);
+		await user.type(screen.getByPlaceholderText("搜索窗口"), diningWindow.name);
 
-		expect(await screen.findByTestId("dining-inline-floorplan")).toHaveTextContent("鱼粉");
-		await user.click(screen.getByRole("button", { name: "荟贤食堂" }));
-		await waitFor(() =>
-			expect(diningApiMock.getDiningFloor).toHaveBeenCalledWith(
-				expect.objectContaining(delayedRequest),
-			),
-		);
-		await user.click(screen.getByRole("button", { name: "海淀一食堂" }));
-		expect(screen.getByTestId("dining-map-panel")).toHaveTextContent("海淀一食堂");
+		expect(
+			await screen.findByRole("option", { name: new RegExp(diningWindow.name) }),
+		).toBeInTheDocument();
+		expect(screen.getByTestId(`dining-anchor-${otherWindow.svgAnchorId}`)).toHaveClass("is-dimmed");
+		expect(diningApiMock.getDiningMap).toHaveBeenCalledOnce();
+	});
 
-		pendingFloor.resolve(delayedFloor);
+	it("switches halls and floors from the same published map", async () => {
+		const user = userEvent.setup();
+		const fixture = mockDiningFixtureApi(diningApiMock);
+		const hall = fixture.halls.find((item) => item.floors.length > 1);
+		const floor = hall?.floors[1];
+		if (!(hall && floor)) {
+			throw new Error("Dining fixture needs a multi-floor hall.");
+		}
+
+		render(<DiningPage />);
+		await user.click(await screen.findByRole("button", { name: hall.name }));
+		await user.click(await screen.findByText(floor.label));
+
 		await waitFor(() => {
-			expect(screen.getByTestId("dining-map-panel")).toHaveTextContent("海淀一食堂");
-			expect(screen.getByTestId("dining-map-panel")).not.toHaveTextContent("荟贤食堂一层");
-		});
-	});
-
-	it("keeps review loading and retry states inside the review panel", async () => {
-		const user = userEvent.setup();
-		const pendingReviews = deferred<{ offeringId: string; reviews: [] }>();
-		mockDiningFixtureApi(diningApiMock);
-		const getReviews = diningApiMock.getDiningOfferingReviews.getMockImplementation();
-		diningApiMock.getDiningOfferingReviews.mockImplementation(
-			({ offeringId }: { offeringId: string }) =>
-				offeringId === "offering:rice:1" ? pendingReviews.promise : getReviews?.({ offeringId }),
-		);
-
-		render(<DiningPage />);
-
-		expect(await screen.findByTestId("dining-inline-floorplan")).toBeInTheDocument();
-		await user.click(await screen.findByRole("button", { name: "选择鱼粉" }));
-		await user.click(screen.getByRole("radio", { name: /金汤鱼粉/ }));
-		const reviewPanel = screen.getByTestId("dining-review-panel");
-		expect(within(reviewPanel).getByRole("status", { name: "正在读取评价" })).toHaveAttribute(
-			"aria-busy",
-			"true",
-		);
-		expect(reviewPanel.querySelector(".animate-pulse")).toBeNull();
-		expect(within(reviewPanel).queryByText("暂无评价")).toBeNull();
-		await waitFor(() => expect(reviewPanel.querySelector(".animate-pulse")).not.toBeNull(), {
-			timeout: 500,
-		});
-
-		pendingReviews.reject(new Error("reviews unavailable"));
-		expect(await within(reviewPanel).findByText("评价暂时无法读取。")).toBeInTheDocument();
-		diningApiMock.getDiningOfferingReviews.mockImplementation(
-			getReviews ?? (() => Promise.reject()),
-		);
-		await user.click(within(reviewPanel).getByRole("button", { name: "重试" }));
-		expect(await within(reviewPanel).findByText("有一点辣，有一点酸。")).toBeInTheDocument();
-		expect(diningApiMock.getDiningOfferingReviews).toHaveBeenLastCalledWith(
-			expect.objectContaining({ offeringId: "offering:rice:1" }),
-		);
-	});
-
-	it("turns a mismatched floor response into a retryable local error", async () => {
-		const user = userEvent.setup();
-		mockDiningFixtureApi(diningApiMock);
-		const getFloor = diningApiMock.getDiningFloor.getMockImplementation();
-		diningApiMock.getDiningFloor.mockImplementation(async (input) => {
-			const payload = (await getFloor?.(input)) as DiningFloorResponse;
-			return input.hallId === "fengtai-huixian-canteen"
-				? { ...payload, floor: { ...payload.floor, hallId: "wrong-hall" } }
-				: payload;
-		});
-
-		render(<DiningPage />);
-
-		await user.click(await screen.findByRole("button", { name: "荟贤食堂" }));
-		const floorError = await screen.findByRole("alert", { name: "食堂地图不可用" });
-		expect(floorError).toHaveTextContent("食堂平面图暂时无法打开。");
-		expect(screen.queryByRole("status", { name: "正在读取食堂地图" })).toBeNull();
-		diningApiMock.getDiningFloor.mockImplementation(getFloor ?? (() => Promise.reject()));
-		await user.click(within(floorError).getByRole("button", { name: "重试" }));
-		expect(await screen.findByTestId("dining-inline-floorplan")).toBeInTheDocument();
-	});
-
-	it("clears an active dish search while switching halls", async () => {
-		const user = userEvent.setup();
-		mockDiningFixtureApi(diningApiMock);
-		const getFloor = diningApiMock.getDiningFloor.getMockImplementation();
-		const nextFloor = deferred<DiningFloorResponse>();
-		const nextFloorPayload = (await getFloor?.({
-			floorId: "fengtai-huixian-canteen-1f",
-			hallId: "fengtai-huixian-canteen",
-		})) as DiningFloorResponse;
-		diningApiMock.getDiningFloor.mockImplementation((input) =>
-			input.hallId === "fengtai-huixian-canteen" ? nextFloor.promise : getFloor?.(input),
-		);
-
-		render(<DiningPage />);
-
-		expect(await screen.findByTestId("dining-map-panel")).toHaveTextContent("海淀一食堂");
-		await user.type(screen.getByRole("combobox", { name: "搜索海淀校区的档口或菜品" }), "金汤");
-		await user.click(screen.getByRole("button", { name: "荟贤食堂" }));
-
-		expect(screen.getByRole("status", { name: "正在读取食堂地图" })).toHaveAttribute(
-			"aria-busy",
-			"true",
-		);
-		expect(screen.getByTestId("dining-map-skeleton")).toBeInTheDocument();
-		expect(screen.getByTestId("dining-detail-skeleton")).toBeInTheDocument();
-		expect(screen.queryByTestId("dining-map-panel")).toBeNull();
-		nextFloor.resolve(nextFloorPayload);
-		expect(await screen.findByTestId("dining-map-panel")).toHaveTextContent("荟贤食堂一层");
-		expect(screen.getByTestId("dining-map-panel")).not.toHaveTextContent("海淀一食堂");
-		expect(screen.getByRole("combobox", { name: "搜索丰台校区的档口或菜品" })).toHaveValue("");
-	});
-
-	it("reuses cached floor and review data when revisiting a hall", async () => {
-		const user = userEvent.setup();
-		mockDiningFixtureApi(diningApiMock);
-
-		render(<DiningPage />);
-
-		expect(await screen.findByTestId("dining-map-panel")).toHaveTextContent("海淀一食堂");
-		await user.click(await screen.findByRole("button", { name: "选择鱼粉" }));
-		await user.click(screen.getByRole("radio", { name: /金汤鱼粉/ }));
-		expect(await screen.findByText("有一点辣，有一点酸。")).toBeInTheDocument();
-		await user.click(screen.getByRole("button", { name: "荟贤食堂" }));
-		expect(await screen.findByTestId("dining-map-panel")).toHaveTextContent("荟贤食堂一层");
-		await user.click(screen.getByRole("button", { name: "海淀一食堂" }));
-
-		expect(screen.queryByRole("status", { name: "正在读取食堂地图" })).toBeNull();
-		expect(screen.getByTestId("dining-map-panel")).toHaveTextContent("海淀一食堂");
-		await user.click(await screen.findByRole("button", { name: "选择鱼粉" }));
-		await user.click(screen.getByRole("radio", { name: /金汤鱼粉/ }));
-		expect(await screen.findByText("有一点辣，有一点酸。")).toBeInTheDocument();
-		expect(
-			diningApiMock.getDiningFloor.mock.calls.filter(
-				([input]) => input.hallId === "haidian-canteen-1",
-			),
-		).toHaveLength(0);
-		expect(
-			diningApiMock.getDiningOfferingReviews.mock.calls.filter(
-				([input]) => input.offeringId === "offering:rice:1",
-			),
-		).toHaveLength(1);
-	});
-
-	it("preloads sibling floor data and map assets before switching floors", async () => {
-		const user = userEvent.setup();
-		mockDiningFixtureApi(diningApiMock);
-
-		render(<DiningPage />);
-
-		await user.click(await screen.findByRole("button", { name: "荟贤食堂" }));
-		expect(await screen.findByTestId("dining-map-panel")).toHaveTextContent("荟贤食堂一层");
-		await waitFor(() =>
-			expect(diningApiMock.getDiningFloor).toHaveBeenCalledWith(
-				expect.objectContaining({
-					floorId: "fengtai-huixian-canteen-2f",
-					hallId: "fengtai-huixian-canteen",
-				}),
-			),
-		);
-		await waitFor(() =>
 			expect(diningFloorplanAssetMock.loadDiningFloorplanAsset).toHaveBeenCalledWith(
-				expect.objectContaining({
-					floorplanId: "floorplan:fengtai-huixian-canteen:fengtai-huixian-canteen-2f",
-				}),
-			),
-		);
-		const floorRequestCount = diningApiMock.getDiningFloor.mock.calls.length;
-		const assetRequestCount = diningFloorplanAssetMock.loadDiningFloorplanAsset.mock.calls.length;
-
-		await user.click(screen.getByRole("radio", { name: "二层" }));
-
-		expect(screen.queryByRole("status", { name: "正在读取食堂地图" })).toBeNull();
-		expect(screen.getByTestId("dining-map-panel")).toHaveTextContent("荟贤食堂二层");
-		expect(diningApiMock.getDiningFloor).toHaveBeenCalledTimes(floorRequestCount);
-		expect(diningFloorplanAssetMock.loadDiningFloorplanAsset).toHaveBeenCalledTimes(
-			assetRequestCount,
-		);
+				expect.objectContaining({ floorplanId: floor.floorplan.floorplanId }),
+			);
+		});
+		expect(diningRouteSearch.value).toMatchObject({ floor: floor.floorId, hall: hall.hallId });
+		expect(diningApiMock.getDiningMap).toHaveBeenCalledOnce();
 	});
 
-	it("keeps the initial stall detail neutral even when assigned windows exist", async () => {
-		const fixture = mockDiningFixtureApi(diningApiMock);
-		diningApiMock.getDiningBootstrap.mockResolvedValue({
-			halls: fixture.halls,
-			initial: {
-				floor: {
-					...fixture.initialFloor,
-					windows: fixture.initialFloor.windows.map((window, index) =>
-						index === 0 ? { ...window, assignment: null } : window,
-					),
-				},
-			},
-		});
-
-		render(<DiningPage />);
-
-		expect(await screen.findByRole("heading", { name: "选择档口" })).toBeInTheDocument();
-		expect(screen.queryByRole("heading", { name: "螺蛳粉" })).toBeNull();
-		expect(screen.queryByTestId("dining-anchor-window-01")).toBeNull();
-		expect(await screen.findByRole("button", { name: "选择螺蛳粉" })).toHaveAttribute(
-			"aria-pressed",
-			"false",
-		);
-	});
-
-	it("keeps generated placeholder anchors interactive without published SVG bindings", async () => {
-		const fixture = mockDiningFixtureApi(diningApiMock);
-		diningApiMock.getDiningBootstrap.mockResolvedValue({
-			halls: fixture.halls,
-			initial: {
-				floor: {
-					...fixture.initialFloor,
-					floor: {
-						...fixture.initialFloor.floor,
-						floorplan: {
-							floorplanId: `placeholder:${fixture.initialFloor.floor.hallId}:${fixture.initialFloor.floor.floorId}`,
-							kind: "placeholder",
-						},
-					},
-					windows: fixture.initialFloor.windows.map((window) => ({ ...window, svgAnchorId: null })),
-				},
-			},
-		});
-
-		render(<DiningPage />);
-
-		expect(await screen.findByRole("button", { name: "选择鱼粉" })).toBeInTheDocument();
-		expect(screen.getByTestId("dining-inline-floorplan")).toHaveTextContent("鱼粉");
-		expect(screen.getByTestId("dining-inline-floorplan")).toHaveTextContent("螺蛳粉");
-		expect(screen.getByTestId("dining-inline-floorplan")).not.toHaveTextContent("01");
-	});
-
-	it("fails closed inside the map when the published floorplan manifest drifts", async () => {
-		const fixture = mockDiningFixtureApi(diningApiMock);
-		diningApiMock.getDiningBootstrap.mockResolvedValue({
-			halls: fixture.halls,
-			initial: {
-				floor: {
-					...fixture.initialFloor,
-					floor: {
-						...fixture.initialFloor.floor,
-						floorplan: {
-							floorplanId: "floorplan:unknown:drifted",
-							kind: "asset",
-						},
-					},
-				},
-			},
-		});
-
-		render(<DiningPage />);
-
-		expect(await screen.findByRole("alert", { name: "平面图暂时无法显示" })).toBeInTheDocument();
-		expect(screen.getByTestId("dining-stall-detail")).toBeInTheDocument();
-	});
-
-	it.each<[string, (windows: DiningWindowProjection[]) => DiningWindowProjection[]]>([
-		[
-			"missing",
-			(windows) =>
-				windows.map((window, index) => (index === 0 ? { ...window, svgAnchorId: null } : window)),
-		],
-		[
-			"unknown",
-			(windows) =>
-				windows.map((window, index) =>
-					index === 0 ? { ...window, svgAnchorId: "unknown-window" } : window,
-				),
-		],
-		["duplicate", (windows) => windows.map((window) => ({ ...window, svgAnchorId: "window-01" }))],
-	])("fails closed for %s formal floorplan window bindings", async (_case, corruptWindows) => {
-		const fixture = mockDiningFixtureApi(diningApiMock);
-		diningApiMock.getDiningBootstrap.mockResolvedValue({
-			halls: fixture.halls,
-			initial: {
-				floor: {
-					...fixture.initialFloor,
-					windows: corruptWindows(fixture.initialFloor.windows),
-				},
-			},
-		});
-
-		render(<DiningPage />);
-
-		expect(await screen.findByRole("alert", { name: "平面图暂时无法显示" })).toBeInTheDocument();
-	});
-
-	it("keeps dining review failures scoped to the review panel", async () => {
-		const fixture = mockDiningFixtureApi(diningApiMock);
-		diningApiMock.getDiningBootstrap.mockResolvedValue({
-			halls: fixture.halls,
-			initial: { floor: fixture.initialFloor },
-		});
-		diningApiMock.getDiningOfferingReviews.mockRejectedValue(new Error("reviews unavailable"));
-
-		render(<DiningPage />);
-
-		expect(await screen.findByTestId("dining-inline-floorplan")).toBeInTheDocument();
-		await userEvent.setup().click(await screen.findByRole("button", { name: "选择鱼粉" }));
-		await userEvent.setup().click(screen.getByRole("radio", { name: /金汤鱼粉/ }));
-		expect(screen.getByTestId("dining-stall-detail")).toBeInTheDocument();
-		const reviewPanel = await screen.findByTestId("dining-review-panel");
-		expect(reviewPanel).toHaveTextContent("评价暂时无法读取。");
-		expect(screen.queryByRole("alert")).toBeNull();
-	});
-
-	it("fails closed when reviews belong to another offering", async () => {
-		const fixture = mockDiningFixtureApi(diningApiMock);
-		diningApiMock.getDiningBootstrap.mockResolvedValue({
-			halls: fixture.halls,
-			initial: { floor: fixture.initialFloor },
-		});
-		diningApiMock.getDiningOfferingReviews.mockResolvedValue({
-			offeringId: "wrong-offering",
-			reviews: [
-				createDiningReviewForTest({
-					comment: "错误菜品评价",
-					hallId: "haidian-canteen-1",
-					label: "错误菜品",
-				}),
-			],
-		});
-
-		render(<DiningPage />);
-
-		await userEvent.setup().click(await screen.findByRole("button", { name: "选择鱼粉" }));
-		await userEvent.setup().click(screen.getByRole("radio", { name: /金汤鱼粉/ }));
-		const reviewPanel = await screen.findByTestId("dining-review-panel");
-		expect(reviewPanel).toHaveTextContent("评价暂时无法读取。");
-		expect(reviewPanel).not.toHaveTextContent("错误菜品评价");
-	});
-
-	it("opens dining review image previews from the review panel", async () => {
+	it("retries a failed map read without reloading the page", async () => {
 		const user = userEvent.setup();
-		mockDiningFixtureApi(diningApiMock);
+		diningApiMock.getDiningMap
+			.mockRejectedValueOnce(new Error("map unavailable"))
+			.mockResolvedValueOnce(DINING_FIXTURE_MAP);
 
 		render(<DiningPage />);
 
-		expect(await screen.findByTestId("dining-review-panel")).toBeInTheDocument();
-		await user.click(await screen.findByRole("button", { name: "选择鱼粉" }));
-		await user.click(screen.getByRole("radio", { name: /金汤鱼粉/ }));
-		await user.click(screen.getByRole("button", { name: "预览金汤鱼粉评价图片" }));
-
-		expect(await screen.findByRole("dialog", { name: "金汤鱼粉评价图片" })).toBeInTheDocument();
-		expect(screen.getByRole("img", { name: "金汤鱼粉评价图片" })).toHaveAttribute(
-			"src",
-			"/assets/dining/reviews/rec27DpktN6uQn-1.jpg",
-		);
+		const error = await screen.findByRole("alert");
+		expect(error).toHaveTextContent("食堂地图不可用");
+		await user.click(within(error).getByRole("button", { name: "重试" }));
+		expect(await screen.findByTestId("dining-map-panel")).toBeInTheDocument();
+		expect(diningApiMock.getDiningMap).toHaveBeenCalledTimes(2);
 	});
 
-	it("keeps mobile stall selection inline without scrolling or transforming the map", async () => {
-		const user = userEvent.setup();
+	it("keeps an invalid floorplan failure inside the map panel", async () => {
 		mockDiningFixtureApi(diningApiMock);
-		const scrollIntoView = vi.fn();
-		HTMLElement.prototype.scrollIntoView = scrollIntoView;
-
-		try {
-			render(<DiningPage />);
-
-			expect(await screen.findByRole("button", { name: "选择鱼粉" })).toBeInTheDocument();
-			await user.click(screen.getByTestId("dining-anchor-window-02"));
-			expect(scrollIntoView).not.toHaveBeenCalled();
-			expect(screen.getByRole("heading", { name: "螺蛳粉" })).toBeInTheDocument();
-			expect(screen.getByTestId("dining-floorplan-surface")).toHaveClass("touch-pan-y");
-			expect(screen.getByTestId("dining-floorplan-surface")).not.toHaveAttribute("style");
-		} finally {
-			delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
-		}
-	});
-
-	it("renders dining empty state when no published halls exist", async () => {
-		diningApiMock.getDiningBootstrap.mockResolvedValue({ halls: [], initial: null });
+		diningFloorplanAssetMock.loadDiningFloorplanAsset.mockRejectedValueOnce(
+			new Error("checksum mismatch"),
+		);
 
 		render(<DiningPage />);
 
-		expect(screen.getByRole("status", { name: "正在读取食堂数据" })).toHaveAttribute(
-			"aria-busy",
-			"true",
-		);
-		expect(screen.getByTestId("dining-map-skeleton")).toBeInTheDocument();
-		expect(screen.getByTestId("dining-detail-skeleton")).toBeInTheDocument();
-		expect(await screen.findByText("暂时没有可展示的食堂信息。")).toBeInTheDocument();
-		expect(screen.getByRole("status", { name: "暂无内容" })).toHaveTextContent(
-			"暂时没有可展示的食堂信息。",
-		);
-		expect(screen.queryByText("正在读取食堂数据")).not.toBeInTheDocument();
-		expect(diningApiMock.getDiningFloor).not.toHaveBeenCalled();
+		expect(await screen.findByRole("alert")).toHaveTextContent("平面图暂时无法显示");
+		expect(screen.getByTestId("dining-window-detail")).toBeInTheDocument();
+	});
+
+	it("renders the empty state when no map has been published", async () => {
+		diningApiMock.getDiningMap.mockResolvedValue({
+			halls: [],
+			releaseId: "dining_release:empty",
+			updatedAt: "2026-07-16T00:00:00.000Z",
+		});
+
+		render(<DiningPage />);
+
+		expect(await screen.findByText("暂无食堂地图")).toBeInTheDocument();
+		expect(screen.queryByTestId("dining-map-panel")).toBeNull();
 	});
 
 	it("renders the assistant conversation shell as the thread surface", async () => {
@@ -1198,29 +669,3 @@ describe("campus routes", () => {
 		expect(screen.getByText("页面不存在")).toBeInTheDocument();
 	});
 });
-
-function deferred<T>() {
-	let resolve!: (value: T) => void;
-	let reject!: (error: unknown) => void;
-	const promise = new Promise<T>((nextResolve, nextReject) => {
-		resolve = nextResolve;
-		reject = nextReject;
-	});
-	return { promise, reject, resolve };
-}
-
-function createDiningReviewForTest(input: {
-	comment: string;
-	hallId: string;
-	label: string;
-}): DiningReview {
-	return {
-		comment: input.comment,
-		contributorName: "测试用户",
-		images: [],
-		paidPriceLabel: null,
-		rating: null,
-		reviewId: `review:${input.hallId}`,
-		submittedAt: "2026-07-11T08:00:00.000Z",
-	};
-}

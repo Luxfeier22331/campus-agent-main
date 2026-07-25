@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { ProductBrandLink } from "@/components/navigation/product-navigation";
 
-const EFFECTIVE_DATE = "2026-06-18";
+const EFFECTIVE_DATE = "2026-07-24";
 
 export function LegalTermsPage() {
 	return (
@@ -18,7 +18,17 @@ export function LegalTermsPage() {
 			</LegalSection>
 			<LegalSection title="账号责任">
 				<p>注册时请使用可接收邮件的邮箱，并妥善保管账号和密码。</p>
-				<p>你需要对通过账号提交的内容负责，包括问题、反馈和其他由你主动输入的信息。</p>
+				<p>你需要对通过账号提交的内容负责，包括问题、反馈、菜品评价和其他主动输入的信息。</p>
+			</LegalSection>
+			<LegalSection title="菜品评价">
+				<p>
+					菜品评价会公开展示。你可以选择公开署名或公开匿名；公开匿名不会向其他学生显示你的名称，
+					但获准内容维护人员仍可查看提交账号。
+				</p>
+				<p>
+					你可以删除自己的评价，也可以举报他人的评价。为处理不当内容和纠正正文，内容维护人员可以
+					隐藏评价或修改正文，修改前后的内容和操作信息会保留。
+				</p>
 			</LegalSection>
 			<LegalSection title="禁止行为">
 				<ul>
@@ -49,6 +59,7 @@ export function LegalPrivacyPage() {
 				<ul>
 					<li>邮箱、显示名称、账号 ID 和会话状态。</li>
 					<li>聊天内容、聊天记录、反馈内容和相关页面信息。</li>
+					<li>菜品评价、匿名选择、举报内容和评价处理记录。</li>
 					<li>个性化记忆或偏好摘要。</li>
 					<li>安全验证结果、日志、错误信息和基础设备信息。</li>
 				</ul>
@@ -56,9 +67,17 @@ export function LegalPrivacyPage() {
 			<LegalSection title="处理目的">
 				<ul>
 					<li>提供注册、登录、密码重置和账号服务。</li>
-					<li>提供问答、聊天记录和个性化体验。</li>
+					<li>提供问答、聊天记录、食堂评价和个性化体验。</li>
+					<li>执行评价提交次数限制、处理举报和保留修改记录。</li>
 					<li>进行安全防护、故障排查和服务改进。</li>
 				</ul>
+			</LegalSection>
+			<LegalSection title="公开评价与身份">
+				<p>
+					公开署名评价会显示提交时的名称；公开匿名评价不显示名称。无论选择哪种方式，服务都会保存
+					提交账号，获准内容维护人员可以在处理评价和举报时查看。
+				</p>
+				<p>内容维护人员修改评价正文时，服务会保存修改前后正文、操作人员和时间。</p>
 			</LegalSection>
 			<LegalSection title="第三方服务">
 				<p>
@@ -72,11 +91,16 @@ export function LegalPrivacyPage() {
 				<ul>
 					<li>你可以查看、更正或删除账号相关信息。</li>
 					<li>你可以关闭个性化记忆，或删除聊天记录。</li>
+					<li>你可以删除自己的菜品评价，或举报他人的评价。</li>
 					<li>你可以通过反馈入口提交注销或数据处理请求。</li>
 				</ul>
 			</LegalSection>
 			<LegalSection title="保存期限与本地存储">
 				<p>信息会按账号、问答、安全和运行维护需要保存，不承诺无限期保存。</p>
+				<p>
+					已删除或已隐藏的菜品评价仍会保留，用于执行每日提交次数限制、处理争议和核对操作记录；
+					这些内容不再向学生公开。
+				</p>
 				<p>浏览器 Cookie 和 local storage 用于登录状态、基础功能和页面运行。</p>
 			</LegalSection>
 			<LegalSection title="未成年人">

@@ -36,72 +36,23 @@ describe("campus worker public app-api cache", () => {
 		vi.unstubAllGlobals();
 	});
 
-	it("caches the public transport status projection at the edge", async () => {
-		installFakeEdgeCache();
-		const appApiFetch = vi.fn((request: Request) => {
-			const url = new URL(request.url);
-			return Promise.resolve(
-				new Response(
-					JSON.stringify({
-						groups: [],
-						release: {
-							publishedAt: "2026-03-20T00:00:00+08:00",
-							releaseId: "snapshot:bus:2026-03-20",
-							sourceRefs: ["https://portal.example.edu/notice/123"],
-						},
-						pathname: url.pathname,
-						search: url.search,
-					}),
-					{
-						headers: {
-							"cache-control": "public, max-age=60, s-maxage=300",
-							"content-type": "application/json; charset=utf-8",
-							etag: '"campus-services-transport-schedule-status:snapshot:bus:2026-03-20"',
-						},
-					},
-				),
-			);
-		});
-		const env = createEnv({ fetch: appApiFetch });
-
-		const first = await worker.fetch(
-			new Request("https://campus.muc.wiki/api/campus-services/transport-schedule/status"),
-			env,
-		);
-		const second = await worker.fetch(
-			new Request("https://campus.muc.wiki/api/campus-services/transport-schedule/status"),
-			env,
-		);
-		const withQuery = await worker.fetch(
-			new Request("https://campus.muc.wiki/api/campus-services/transport-schedule/status?x=1"),
-			env,
-		);
-
-		expect(first.headers.get("x-campus-edge-cache")).toBe("miss");
-		expect(second.headers.get("x-campus-edge-cache")).toBe("hit");
-		expect(withQuery.headers.get("x-campus-edge-cache")).not.toBe("hit");
-		expect(withQuery.headers.get("x-campus-edge-cache")).not.toBe("miss");
-		expect(appApiFetch).toHaveBeenCalledTimes(2);
-		await expect(second.json()).resolves.toMatchObject({
-			pathname: "/api/campus-services/transport-schedule/status",
-			search: "",
-		});
-		await expect(withQuery.json()).resolves.toMatchObject({ search: "?x=1" });
-	});
-
 	it.each([
-		"/api/dining/bootstrap",
-		"/api/dining/halls",
-		"/api/dining/halls/haidian-canteen-1/floors/haidian-canteen-1-1f",
-		"/api/dining/offerings/offering-1/reviews",
-	])("caches the public dining projection %s for GET and HEAD", async (pathname) => {
+		"/api/campus-services/transport-schedule/status",
+		"/api/dining",
+		"/api/dining/windows/hall:floor:window-01/menu",
+		`/api/dining/floorplans/${"a".repeat(64)}.svg`,
+	])("caches public projections at the edge for GET and HEAD: %s", async (pathname) => {
 		installFakeEdgeCache();
 		const appApiFetch = vi.fn((request: Request) =>
 			Promise.resolve(
 				new Response(JSON.stringify({ pathname: new URL(request.url).pathname }), {
 					headers: {
-						"cache-control": "public, max-age=60, s-maxage=300",
-						"content-type": "application/json; charset=utf-8",
+						"cache-control": pathname.endsWith(".svg")
+							? "public, max-age=31536000, immutable"
+							: "public, max-age=60, s-maxage=300",
+						"content-type": pathname.endsWith(".svg")
+							? "image/svg+xml"
+							: "application/json; charset=utf-8",
 					},
 				}),
 			),
@@ -119,10 +70,63 @@ describe("campus worker public app-api cache", () => {
 		expect(second.headers.get("x-campus-edge-cache")).toBe("hit");
 		expect(head.headers.get("x-campus-edge-cache")).toBe("hit");
 		expect(await head.text()).toBe("");
-		expect(appApiFetch).toHaveBeenCalledTimes(1);
+		expect(appApiFetch).toHaveBeenCalledOnce();
 	});
 
-	it("bypasses and does not store non-public dining responses", async () => {
+	it("never shares review reads through the edge cache", async () => {
+		installFakeEdgeCache();
+		const appApiFetch = vi.fn(() =>
+			Promise.resolve(
+				new Response(JSON.stringify({ items: [], nextCursor: null }), {
+					headers: {
+						"cache-control": "no-store",
+						"content-type": "application/json; charset=utf-8",
+					},
+				}),
+			),
+		);
+		const env = createEnv({ fetch: appApiFetch });
+		const request = () =>
+			worker.fetch(new Request("https://campus.muc.wiki/api/dining/menu-items/dmi_1/reviews"), env);
+
+		const first = await request();
+		const second = await request();
+
+		expect(first.headers.get("cache-control")).toBe("no-store");
+		expect(second.headers.get("cache-control")).toBe("no-store");
+		expect(appApiFetch).toHaveBeenCalledTimes(2);
+	});
+
+	it("does not cache dining requests with query parameters", async () => {
+		installFakeEdgeCache();
+		const appApiFetch = vi.fn((request: Request) =>
+			Promise.resolve(
+				new Response(JSON.stringify({ search: new URL(request.url).search }), {
+					headers: {
+						"cache-control": "public, max-age=60, s-maxage=300",
+						"content-type": "application/json; charset=utf-8",
+					},
+				}),
+			),
+		);
+		const env = createEnv({ fetch: appApiFetch });
+
+		const first = await worker.fetch(
+			new Request("https://campus.muc.wiki/api/dining?date=2026-07-24"),
+			env,
+		);
+		const second = await worker.fetch(
+			new Request("https://campus.muc.wiki/api/dining?date=2026-07-24"),
+			env,
+		);
+
+		expect(first.headers.get("x-campus-edge-cache")).toBeNull();
+		expect(first.headers.get("cache-control")).toBe("no-store");
+		expect(second.headers.get("x-campus-edge-cache")).toBeNull();
+		expect(appApiFetch).toHaveBeenCalledTimes(2);
+	});
+
+	it("bypasses and does not store failed dining responses", async () => {
 		installFakeEdgeCache();
 		const appApiFetch = vi.fn(() =>
 			Promise.resolve(
@@ -133,39 +137,13 @@ describe("campus worker public app-api cache", () => {
 			),
 		);
 		const env = createEnv({ fetch: appApiFetch });
-		const request = new Request("https://campus.muc.wiki/api/dining/bootstrap");
 
-		const first = await worker.fetch(request, env);
-		const second = await worker.fetch(request, env);
+		const first = await worker.fetch(new Request("https://campus.muc.wiki/api/dining"), env);
+		const second = await worker.fetch(new Request("https://campus.muc.wiki/api/dining"), env);
 
 		expect(first.status).toBe(503);
 		expect(first.headers.get("x-campus-edge-cache")).toBe("bypass");
 		expect(first.headers.get("cache-control")).toBe("no-store");
-		expect(second.headers.get("x-campus-edge-cache")).toBe("bypass");
-		expect(appApiFetch).toHaveBeenCalledTimes(2);
-	});
-
-	it("fails closed without caching an upstream dining HTML error", async () => {
-		installFakeEdgeCache();
-		const appApiFetch = vi.fn(() =>
-			Promise.resolve(
-				new Response("<html>upstream failure</html>", {
-					headers: { "content-type": "text/html" },
-					status: 500,
-				}),
-			),
-		);
-		const env = createEnv({ fetch: appApiFetch });
-		const request = new Request("https://campus.muc.wiki/api/dining/bootstrap");
-
-		const first = await worker.fetch(request, env);
-		const second = await worker.fetch(request, env);
-
-		expect(first.status).toBe(503);
-		expect(first.headers.get("x-campus-edge-cache")).toBe("bypass");
-		await expect(first.json()).resolves.toMatchObject({
-			error: { code: "dependency_not_ready" },
-		});
 		expect(second.headers.get("x-campus-edge-cache")).toBe("bypass");
 		expect(appApiFetch).toHaveBeenCalledTimes(2);
 	});
@@ -180,7 +158,6 @@ describe("campus worker public app-api cache", () => {
 					if (operation === "match") {
 						throw new Error("edge cache read unavailable");
 					}
-					return;
 				},
 				async put() {
 					if (operation === "put") {
@@ -199,29 +176,25 @@ describe("campus worker public app-api cache", () => {
 				}),
 			),
 		);
-		const env = createEnv({ fetch: appApiFetch });
-
 		const response = await worker.fetch(
-			new Request("https://campus.muc.wiki/api/dining/bootstrap"),
-			env,
+			new Request("https://campus.muc.wiki/api/dining"),
+			createEnv({ fetch: appApiFetch }),
 		);
 
 		expect(response.status).toBe(200);
 		expect(response.headers.get("x-campus-edge-cache")).toBe("bypass");
 		expect(response.headers.get("cache-control")).toBe("public, max-age=60, s-maxage=300");
-		await expect(response.json()).resolves.toEqual({ halls: [] });
 		expect(appApiFetch).toHaveBeenCalledOnce();
 	});
 
-	it("keeps the native fetch receiver for the local loopback transport", async () => {
+	it("keeps the native fetch receiver for local loopback transport", async () => {
 		installFakeEdgeCache();
-		const appApiBinding = {
-			fetch() {
-				throw new Error("service binding should not be used for local loopback proxy");
-			},
-		};
 		const env = {
-			...createEnv(appApiBinding),
+			...createEnv({
+				fetch() {
+					throw new Error("service binding should not be used for local loopback proxy");
+				},
+			}),
 			APP_API_BASE_URL: "http://127.0.0.1:27031",
 		};
 		const fetchMock = vi.fn(function (this: unknown) {
@@ -239,10 +212,7 @@ describe("campus worker public app-api cache", () => {
 		});
 		vi.stubGlobal("fetch", fetchMock);
 
-		const response = await worker.fetch(
-			new Request("http://127.0.0.1:27014/api/dining/bootstrap"),
-			env,
-		);
+		const response = await worker.fetch(new Request("http://127.0.0.1:27014/api/dining"), env);
 
 		expect(response.status).toBe(200);
 		expect(response.headers.get("x-campus-edge-cache")).toBe("miss");

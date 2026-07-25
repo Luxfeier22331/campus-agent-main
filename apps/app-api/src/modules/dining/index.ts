@@ -1,11 +1,9 @@
-export type {
-	DiningPublication,
-	DiningPublicReadService,
-	DiningPublishedBootstrap,
-	DiningPublishedFloorResponse,
-	DiningPublishedHallSummary,
-	DiningPublishedReview,
-	DiningPublishedSearchResponse,
-} from "@campus-agent/dining/domain";
-export { buildDiningPublicReadService } from "./service";
-export { createPgDiningPublicReadStore } from "./store";
+export {
+	createPgDiningContentService,
+	type DiningContentService,
+	type DiningReviewActor,
+} from "./content-store";
+export {
+	createPgDiningMapReadService,
+	type DiningMapReadService,
+} from "./store";

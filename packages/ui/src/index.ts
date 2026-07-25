@@ -2,6 +2,7 @@ export * from "./alert";
 export * from "./badge";
 export * from "./button";
 export * from "./card";
+export * from "./checkbox";
 export * from "./cn";
 export * from "./collapsible";
 export * from "./dialog";

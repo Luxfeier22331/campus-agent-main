@@ -128,6 +128,25 @@ export function registerAppApiAuthConfigSuite() {
 			expect(config.trustedOrigins).toEqual(["https://campus.muc.wiki"]);
 		});
 
+		it("disables CAPTCHA only for the managed local development sentinel", () => {
+			const config = buildBetterAuthConfig({
+				appName: "campus-agent-app-api",
+				authShellOrigin: "http://127.0.0.1:27114",
+				betterAuthSecret: "local-secret-local-secret-local-secret",
+				environment: "development",
+				authResetEmailFrom: "Campus Agent <auth@example.com>",
+				authTurnstileSecretKey: "local-turnstile-disabled",
+				resendApiKey: "local-resend-disabled",
+				endUserEmailDomainAllowlist: ["example.edu"],
+				endUserEmailAllowlist: [],
+				database: {} as never,
+			} as never);
+
+			expect(config.plugins).not.toEqual(
+				expect.arrayContaining([expect.objectContaining({ id: "captcha" })]),
+			);
+		});
+
 		it("keeps Better Auth as the only user and session persistence owner", () => {
 			const config = buildBetterAuthConfig({
 				appName: "campus-agent-app-api",

@@ -3,15 +3,16 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import { parseEnv } from "node:util";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const appDir = resolve(scriptDir, "..");
-const repoRoot = resolve(appDir, "../..");
-const repoEnvPath = resolve(repoRoot, ".env");
-const localEnvPath = resolve(appDir, ".env");
-const localDevVarsPath = resolve(appDir, ".dev.vars");
+const localEnvPath = resolve(appDir, ".env.local");
+const baseEnvPath = resolve(appDir, ".env");
+const localDevVarsPath = resolve(appDir, ".dev.vars.local");
+const baseDevVarsPath = resolve(appDir, ".dev.vars");
 
-for (const path of [repoEnvPath, localEnvPath, localDevVarsPath]) {
+for (const path of [localEnvPath, baseEnvPath, localDevVarsPath, baseDevVarsPath]) {
 	loadEnvFileIfPresent(path);
 }
 
@@ -56,17 +57,7 @@ function loadEnvFileIfPresent(path) {
 		}
 		throw error;
 	}
-	for (const rawLine of content.split(/\r?\n/)) {
-		const trimmed = rawLine.trim();
-		if (!trimmed || trimmed.startsWith("#")) {
-			continue;
-		}
-		const separatorIndex = rawLine.indexOf("=");
-		if (separatorIndex <= 0) {
-			continue;
-		}
-		const key = rawLine.slice(0, separatorIndex).trim();
-		const value = rawLine.slice(separatorIndex + 1).trim();
+	for (const [key, value] of Object.entries(parseEnv(content))) {
 		if (key && shouldSetEnv(key)) {
 			process.env[key] = value;
 		}

@@ -76,9 +76,10 @@ export function DiningFloorplanZoom({
 						</TransformComponent>
 					</div>
 					<div
-						className="flex min-h-14 items-center justify-end gap-1 border-border/70 border-t bg-card px-3 py-1.5"
+						className="flex min-h-14 items-center gap-1 border-border/70 border-t bg-card px-3 py-1.5"
 						data-testid="dining-zoom-controls"
 					>
+						<span className="mr-auto text-[var(--sys-text-muted)] text-xs">位置示意</span>
 						<Button
 							aria-label="缩小地图"
 							disabled={scale <= 1}

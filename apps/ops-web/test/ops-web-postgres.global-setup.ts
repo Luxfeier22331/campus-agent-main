@@ -20,8 +20,8 @@ const RYUK_IMAGE =
 const DATABASE_NAME = "campus_agent";
 const SCHEMA_OWNER = "ops_web_schema_owner";
 const OPS_WEB_ROLE = "ops_web";
+const APP_API_ROLE = "app_api";
 const NOLOGIN_ROLES = [
-	"app_api",
 	"campus_services_publisher",
 	"docs_publish",
 	"execution_control",
@@ -31,6 +31,7 @@ const NOLOGIN_ROLES = [
 const executionControlRoot = fileURLToPath(new URL("../../execution-control", import.meta.url));
 
 export interface OpsWebPostgresContext {
+	appApiConnectionString: string;
 	managementConnectionString: string;
 	opsWebConnectionString: string;
 }
@@ -78,11 +79,13 @@ async function provisionDatabase(
 	const adminConnectionString = container.getConnectionUri();
 	const schemaOwnerPassword = randomBytes(24).toString("hex");
 	const opsWebPassword = randomBytes(24).toString("hex");
+	const appApiPassword = randomBytes(24).toString("hex");
 	const admin = new Client({ connectionString: adminConnectionString, ssl: false });
 	await admin.connect();
 	try {
 		await admin.query(`create role "${SCHEMA_OWNER}" login password '${schemaOwnerPassword}'`);
 		await admin.query(`create role "${OPS_WEB_ROLE}" login password '${opsWebPassword}'`);
+		await admin.query(`create role "${APP_API_ROLE}" login password '${appApiPassword}'`);
 		for (const role of NOLOGIN_ROLES) {
 			await admin.query(`create role "${role}" nologin`);
 		}
@@ -101,6 +104,11 @@ async function provisionDatabase(
 		OPS_WEB_ROLE,
 		opsWebPassword,
 	);
+	const appApiConnectionString = roleConnectionString(
+		adminConnectionString,
+		APP_API_ROLE,
+		appApiPassword,
+	);
 	await installCampusServicesSchema({ connectionString: managementConnectionString, ssl: false });
 	await installAppApiSchema({
 		APP_API_DATABASE_SSLMODE: "disable",
@@ -111,6 +119,7 @@ async function provisionDatabase(
 	await installExecutionControlSchema(managementConnectionString);
 
 	return {
+		appApiConnectionString,
 		managementConnectionString,
 		opsWebConnectionString,
 	};

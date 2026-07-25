@@ -1,75 +1,63 @@
-import type {
-	DiningDraft,
-	DiningPublication,
-	DiningSourceObservation,
+import { randomUUID } from "node:crypto";
+import {
+	type DiningMapDraft,
+	type DiningMapPublication,
+	type DiningMapRelease,
+	DiningMapResponseSchema,
 } from "@campus-agent/dining/domain";
-import { Pool } from "pg";
-import type { DiningPublicationStoreMethods } from "./dining-store-publication.ts";
 import {
-	createDiningPublicationStore,
-	loadDiningDraft,
-	loadDiningPublication,
-} from "./dining-store-publication.ts";
+	canonicalizeDiningFloorplanBundle,
+	type DiningFloorplanBundleV1,
+} from "@campus-agent/dining/floorplans";
 import {
-	type DiningPool,
-	diningDateIso,
-	diningDateIsoOrNull,
-	diningObservationStatus,
-	diningRecord,
-	diningSourceType,
-	diningTargetKind,
-} from "./dining-store-repository.ts";
-import type { DiningReviewStoreMethods } from "./dining-store-reviews.ts";
-import { createDiningReviewStore } from "./dining-store-reviews.ts";
+	buildDiningMapResponse,
+	diningMapBundleFingerprint,
+	renderDiningMapAssets,
+} from "@campus-agent/dining/publisher";
+import { Pool, type PoolClient } from "pg";
+import type {
+	DiningOpsState,
+	DiningReleaseList,
+	DiningReleaseSummary,
+} from "../shared/dining-contract.ts";
+import {
+	createDiningFloorplanAssetStoreFromEnv,
+	type DiningFloorplanAssetStore,
+	type DiningFloorplanAssetStoreEnv,
+} from "./dining-floorplan-assets.ts";
 import { resolvePostgresTlsConfig } from "./postgres-tls.ts";
 import { logOpsError } from "./safe-logging.ts";
 
-export type { DiningCatalogCommand } from "./dining-store-publication.ts";
-export {
-	applyStoredOverride,
-	buildDiningRollback,
-	retainLatestReleases,
-} from "./dining-store-publication.ts";
-export { DiningStoreNotFoundError, DiningStoreValidationError } from "./dining-store-repository.ts";
-export type { DiningOpsReview, DiningReviewCommand } from "./dining-store-reviews.ts";
-export { loadReviewOfferingBinding } from "./dining-store-reviews.ts";
+const GLOBAL_SCOPE = "global";
 
-export interface DiningOpsOverview {
-	draft: { baseReleaseId: string | null; revision: number; updatedAt: string; updatedBy: string };
-	publication: DiningPublication;
-	releases: number;
-	reviews: { blocked: number; hidden: number; published: number };
-	source: { latestRunAt: string | null; pendingCatalogObservations: number };
+export interface DiningOpsActor {
+	displayName: string;
+	principalId: string;
 }
 
-export interface DiningOpsSourceRun {
-	acceptedCount: number;
-	blockedCount: number;
-	completedAt: string | null;
-	runId: string;
-	sourceType: string;
-	staleCount: number;
-	startedAt: string;
-	status: string;
-	totalCount: number;
+export interface DiningStoreEnv extends DiningFloorplanAssetStoreEnv {
+	DEPLOYMENT_ENVIRONMENT?: string;
+	NODE_ENV?: string;
+	OPS_WEB_DATABASE_CA_CERT_PATH?: string;
+	OPS_WEB_DATABASE_SSLMODE?: string;
+	OPS_WEB_DATABASE_URL?: string;
 }
 
-export interface DiningOpsObservation extends DiningSourceObservation {
-	staleAt: string | null;
-}
-
-export interface DiningStore extends DiningPublicationStoreMethods, DiningReviewStoreMethods {
-	getOverview(): Promise<DiningOpsOverview>;
-	listObservations(limit: number): Promise<DiningOpsObservation[]>;
-	listSourceRuns(limit: number): Promise<DiningOpsSourceRun[]>;
+export interface DiningStore {
+	getState(): Promise<DiningOpsState>;
+	listReleases(): Promise<DiningReleaseList>;
+	publish(actor: DiningOpsActor, expectedRevision: number): Promise<DiningReleaseSummary>;
+	restore(
+		actor: DiningOpsActor,
+		releaseId: string,
+		expectedRevision: number,
+	): Promise<{ draft: DiningMapDraft; release: DiningReleaseSummary }>;
+	saveDraft(
+		actor: DiningOpsActor,
+		bundle: DiningFloorplanBundleV1,
+		expectedRevision: number,
+	): Promise<DiningMapDraft>;
 	verifyReadiness(): Promise<void>;
-}
-
-export interface DiningStoreEnv {
-	OPS_WEB_DINING_DATABASE_CA_CERT_PATH?: string;
-	OPS_WEB_DINING_DATABASE_SSLMODE?: string;
-	OPS_WEB_DINING_DATABASE_URL?: string;
-	OPS_WEB_DINING_DB_POOL_MAX?: string;
 }
 
 export class DiningStoreUnavailableError extends Error {
@@ -81,153 +69,600 @@ export class DiningStoreUnavailableError extends Error {
 	}
 }
 
-export function createUnavailableDiningStore(error: unknown): DiningStore {
-	const unavailable = async (): Promise<never> => {
-		throw error instanceof DiningStoreUnavailableError
-			? error
-			: new DiningStoreUnavailableError("Dining operations database is unavailable.", {
-					cause: error,
-				});
-	};
-	return {
-		applyCatalogCommand: unavailable,
-		applyReviewCommand: unavailable,
-		getDraft: unavailable,
-		getOverview: unavailable,
-		getRelease: unavailable,
-		getReview: unavailable,
-		listObservations: unavailable,
-		listReleases: unavailable,
-		listReviews: unavailable,
-		listSourceRuns: unavailable,
-		publish: unavailable,
-		rebase: unavailable,
-		rollback: unavailable,
-		validate: unavailable,
-		verifyReadiness: unavailable,
-	};
+export class DiningStoreNotFoundError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = "DiningStoreNotFoundError";
+	}
+}
+
+export class DiningStoreConflictError extends Error {
+	readonly details: Record<string, unknown> | undefined;
+
+	constructor(message: string, details?: Record<string, unknown>) {
+		super(message);
+		this.name = "DiningStoreConflictError";
+		this.details = details;
+	}
+}
+
+export class DiningStoreValidationError extends Error {
+	constructor(message: string, options?: ErrorOptions) {
+		super(message, options);
+		this.name = "DiningStoreValidationError";
+	}
 }
 
 export function createDiningStoreFromEnv(env: DiningStoreEnv): DiningStore {
-	const databaseUrl = env.OPS_WEB_DINING_DATABASE_URL?.trim();
-	if (!databaseUrl) {
-		throw new DiningStoreUnavailableError("Dining operations are not configured.");
-	}
-	const tls = resolvePostgresTlsConfig({
-		caCertPath: env.OPS_WEB_DINING_DATABASE_CA_CERT_PATH,
+	const databaseUrl = required(env.OPS_WEB_DATABASE_URL, "OPS_WEB_DATABASE_URL");
+	const database = resolvePostgresTlsConfig({
+		caCertPath: env.OPS_WEB_DATABASE_CA_CERT_PATH,
 		databaseUrl,
-		deploymentEnvironment: process.env.DEPLOYMENT_ENVIRONMENT,
-		nodeEnvironment: process.env.NODE_ENV,
-		sslMode: env.OPS_WEB_DINING_DATABASE_SSLMODE,
+		deploymentEnvironment: env.DEPLOYMENT_ENVIRONMENT,
+		nodeEnvironment: env.NODE_ENV,
+		sslMode: env.OPS_WEB_DATABASE_SSLMODE,
 	});
 	const pool = new Pool({
-		connectionString: tls.connectionString,
-		max: boundedInteger(env.OPS_WEB_DINING_DB_POOL_MAX, 3, 1, 8),
-		ssl: tls.ssl,
+		connectionString: database.connectionString,
+		max: env.NODE_ENV === "test" ? 1 : 4,
+		ssl: database.ssl,
 	});
 	pool.on("error", (error) =>
 		logOpsError("dining postgres pool error", error, { source: "dining" }),
 	);
-	return createDiningStore(pool);
+	return createPgDiningStore({
+		assetStore: createDiningFloorplanAssetStoreFromEnv(env),
+		pool,
+	});
 }
 
-export function createDiningStore(pool: DiningPool): DiningStore {
+export function createPgDiningStore(input: {
+	assetStore: DiningFloorplanAssetStore;
+	now?: () => Date;
+	pool: Pick<Pool, "connect" | "query">;
+	releaseId?: () => string;
+}): DiningStore {
+	const now = input.now ?? (() => new Date());
+	const nextReleaseId = input.releaseId ?? randomUUID;
+
 	return {
-		...createDiningPublicationStore(pool),
-		...createDiningReviewStore(pool),
+		async getState() {
+			return withStoreErrors(async () => {
+				const [draft, release] = await Promise.all([
+					loadDraft(input.pool),
+					loadCurrentRelease(input.pool),
+				]);
+				return {
+					currentRelease: release ? toReleaseSummary(release) : null,
+					draft,
+				};
+			});
+		},
+
+		async listReleases() {
+			return withStoreErrors(async () => {
+				const [publication, result] = await Promise.all([
+					loadPublication(input.pool),
+					input.pool.query(`
+						select release_id, snapshot_hash, draft_revision, kind,
+						       restored_from_release_id, created_at, created_by
+						from dining.map_releases
+						order by created_at desc, release_id desc
+					`),
+				]);
+				return {
+					currentReleaseId: publication?.releaseId ?? null,
+					releases: result.rows.map(rowToReleaseSummary),
+				};
+			});
+		},
+
+		async saveDraft(actor, bundle, expectedRevision) {
+			return withStoreErrors(async () => {
+				const canonical = parseBundle(bundle);
+				const fingerprint = diningMapBundleFingerprint(canonical);
+				return transaction(input.pool, async (client) => {
+					const current = await loadDraft(client, true);
+					assertExpectedRevision(current, expectedRevision);
+					if (current.fingerprint === fingerprint) {
+						return current;
+					}
+					const updatedAt = now().toISOString();
+					const revision = current.revision + 1;
+					await client.query(
+						`update dining.map_draft
+						 set bundle_json = $1, fingerprint = $2, revision = $3,
+						     updated_at = $4, updated_by = $5
+						 where scope = $6`,
+						[canonical, fingerprint, revision, updatedAt, actor.principalId, GLOBAL_SCOPE],
+					);
+					return {
+						bundle: canonical,
+						fingerprint,
+						revision,
+						updatedAt,
+						updatedBy: actor.principalId,
+					};
+				});
+			});
+		},
+
+		async publish(actor, expectedRevision) {
+			return withStoreErrors(async () => {
+				const candidate = await loadDraft(input.pool);
+				assertExpectedRevision(candidate, expectedRevision);
+				await assertActiveMenuWindowsExist(input.pool, candidate.bundle);
+				const current = await loadCurrentRelease(input.pool);
+				if (current?.snapshotHash === candidate.fingerprint) {
+					return toReleaseSummary(current);
+				}
+				const assets = await uploadAssets(input.assetStore, candidate.bundle);
+				return transaction(input.pool, async (client) => {
+					const lockedDraft = await loadDraft(client, true);
+					assertExpectedRevision(lockedDraft, expectedRevision);
+					await assertActiveMenuWindowsExist(client, lockedDraft.bundle);
+					if (lockedDraft.fingerprint !== candidate.fingerprint) {
+						throw new DiningStoreConflictError("地图草稿已被其他操作者更新，请刷新后重试。");
+					}
+					const lockedCurrent = await loadCurrentRelease(client);
+					if (lockedCurrent?.snapshotHash === lockedDraft.fingerprint) {
+						return toReleaseSummary(lockedCurrent);
+					}
+					const release = createRelease({
+						actor,
+						assets,
+						bundle: lockedDraft.bundle,
+						draftRevision: lockedDraft.revision,
+						kind: "publish",
+						now: now(),
+						releaseId: nextReleaseId(),
+						restoredFromReleaseId: null,
+						snapshotHash: lockedDraft.fingerprint,
+					});
+					await insertRelease(client, release);
+					await savePublication(client, actor, release);
+					return toReleaseSummary(release);
+				});
+			});
+		},
+
+		async restore(actor, releaseId, expectedRevision) {
+			return withStoreErrors(async () => {
+				const target = await loadRelease(input.pool, releaseId);
+				if (!target) {
+					throw new DiningStoreNotFoundError("未找到要恢复的地图版本。");
+				}
+				await assertActiveMenuWindowsExist(input.pool, target.bundle);
+				const assets = await uploadAssets(input.assetStore, target.bundle);
+				return transaction(input.pool, async (client) => {
+					const draft = await loadDraft(client, true);
+					assertExpectedRevision(draft, expectedRevision);
+					await assertActiveMenuWindowsExist(client, target.bundle);
+					const current = await loadCurrentRelease(client);
+					const restoredDraft =
+						draft.fingerprint === target.snapshotHash
+							? draft
+							: await replaceDraft(client, {
+									actor,
+									bundle: target.bundle,
+									fingerprint: target.snapshotHash,
+									now: now(),
+									revision: draft.revision + 1,
+								});
+					if (current?.snapshotHash === target.snapshotHash) {
+						return { draft: restoredDraft, release: toReleaseSummary(current) };
+					}
+					const release = createRelease({
+						actor,
+						assets,
+						bundle: target.bundle,
+						draftRevision: restoredDraft.revision,
+						kind: "restore",
+						now: now(),
+						releaseId: nextReleaseId(),
+						restoredFromReleaseId: target.releaseId,
+						snapshotHash: target.snapshotHash,
+					});
+					await insertRelease(client, release);
+					await savePublication(client, actor, release);
+					return { draft: restoredDraft, release: toReleaseSummary(release) };
+				});
+			});
+		},
+
 		async verifyReadiness() {
-			await pool.query("SELECT 1 FROM dining.publication LIMIT 1");
-		},
-		async getOverview() {
-			const [draft, publication, releaseCount, reviewCounts, source] = await Promise.all([
-				loadDiningDraft(pool),
-				loadDiningPublication(pool),
-				pool.query("SELECT count(*)::int AS count FROM dining.releases"),
-				pool.query(`SELECT
-					count(*) FILTER (WHERE visibility = 'published')::int AS published,
-					count(*) FILTER (WHERE visibility = 'hidden')::int AS hidden,
-					count(*) FILTER (WHERE moderation_status <> 'safe')::int AS blocked
-					FROM dining.reviews`),
-				pool.query(`SELECT
-					(SELECT max(started_at) FROM dining.source_sync_runs) AS latest_run_at,
-					(SELECT count(*)::int FROM dining.source_observations AS observation
-					 CROSS JOIN dining.catalog_state AS state WHERE state.scope = 'global'
-					 AND observation.source_type = 'feishu_catalog' AND observation.stale_at IS NULL
-					 AND observation.status = 'accepted' AND observation.last_seen_at > state.updated_at) AS pending`),
-			]);
-			return overviewFromRows(
-				draft,
-				publication,
-				releaseCount.rows[0],
-				reviewCounts.rows[0],
-				source.rows[0],
-			);
-		},
-		async listSourceRuns(limit) {
-			const result = await pool.query(
-				"SELECT * FROM dining.source_sync_runs ORDER BY started_at DESC LIMIT $1",
-				[limit],
-			);
-			return result.rows.map((row) => ({
-				acceptedCount: Number(row.accepted_count),
-				blockedCount: Number(row.blocked_count),
-				completedAt: diningDateIsoOrNull(row.completed_at),
-				runId: String(row.run_id),
-				sourceType: String(row.source_type),
-				staleCount: Number(row.stale_count),
-				startedAt: diningDateIso(row.started_at),
-				status: String(row.status),
-				totalCount: Number(row.total_count),
-			}));
-		},
-		async listObservations(limit) {
-			const result = await pool.query(
-				"SELECT * FROM dining.source_observations ORDER BY last_seen_at DESC LIMIT $1",
-				[limit],
-			);
-			return result.rows.map((row) => ({
-				observationId: String(row.observation_id),
-				observedAt: diningDateIso(row.observed_at),
-				payloadJson: diningRecord(row.payload_json),
-				sourceType: diningSourceType(row.source_type),
-				staleAt: diningDateIsoOrNull(row.stale_at),
-				status: diningObservationStatus(row.status),
-				targetId: typeof row.target_id === "string" ? row.target_id : null,
-				targetKind: diningTargetKind(row.target_kind),
-			}));
+			return withStoreErrors(async () => {
+				await Promise.all([
+					input.pool.query("select 1 from dining.map_draft limit 1"),
+					input.assetStore.verifyReadiness(),
+				]);
+			});
 		},
 	};
 }
 
-function overviewFromRows(
-	draft: DiningDraft,
-	publication: DiningPublication,
-	release: Record<string, unknown> | undefined,
-	reviews: Record<string, unknown> | undefined,
-	source: Record<string, unknown> | undefined,
-): DiningOpsOverview {
+async function assertActiveMenuWindowsExist(
+	db: Pick<Pool, "query"> | Pick<PoolClient, "query">,
+	bundle: DiningFloorplanBundleV1,
+): Promise<void> {
+	const availableWindowIds = new Set(
+		bundle.layouts.flatMap((layout) =>
+			layout.windows.map((window) => `${layout.hallId}:${layout.floorId}:${window.anchorId}`),
+		),
+	);
+	const result = await db.query(
+		"select distinct window_id from dining.menu_items where archived_at is null order by window_id",
+	);
+	const missingWindowIds = result.rows
+		.map((row) => String(row.window_id))
+		.filter((windowId) => !availableWindowIds.has(windowId));
+	if (missingWindowIds.length > 0) {
+		throw new DiningStoreConflictError("地图会移除仍有在售菜品的窗口，请先迁移或归档这些菜品。", {
+			windowIds: missingWindowIds,
+		});
+	}
+}
+
+export function createUnavailableDiningStore(error: unknown): DiningStore {
+	const unavailable = async (): Promise<never> => {
+		throw new DiningStoreUnavailableError("食堂地图存储不可用。", { cause: error });
+	};
 	return {
-		draft: {
-			baseReleaseId: draft.baseReleaseId,
-			revision: draft.revision,
-			updatedAt: draft.updatedAt,
-			updatedBy: draft.updatedBy,
-		},
-		publication,
-		releases: Number(release?.count ?? 0),
-		reviews: {
-			blocked: Number(reviews?.blocked ?? 0),
-			hidden: Number(reviews?.hidden ?? 0),
-			published: Number(reviews?.published ?? 0),
-		},
-		source: {
-			latestRunAt: diningDateIsoOrNull(source?.latest_run_at),
-			pendingCatalogObservations: Number(source?.pending ?? 0),
-		},
+		getState: unavailable,
+		listReleases: unavailable,
+		publish: unavailable,
+		restore: unavailable,
+		saveDraft: unavailable,
+		verifyReadiness: unavailable,
 	};
 }
 
-function boundedInteger(value: string | undefined, fallback: number, min: number, max: number) {
-	const parsed = Number(value);
-	return Number.isInteger(parsed) && parsed >= min && parsed <= max ? parsed : fallback;
+async function uploadAssets(store: DiningFloorplanAssetStore, bundle: DiningFloorplanBundleV1) {
+	let assets: ReturnType<typeof renderDiningMapAssets>;
+	try {
+		assets = renderDiningMapAssets(bundle);
+	} catch (error) {
+		throw new DiningStoreValidationError(
+			error instanceof Error ? error.message : "食堂地图无法发布。",
+			{ cause: error },
+		);
+	}
+	try {
+		await Promise.all(
+			assets.map(async (asset) => {
+				const stored = await store.putSvg({ sha256: asset.sha256, svgMarkup: asset.svgMarkup });
+				if (stored.sha256 !== asset.sha256 || stored.svgAssetUrl !== asset.svgAssetUrl) {
+					throw new Error("Dining floorplan asset identity does not match rendered content.");
+				}
+			}),
+		);
+	} catch (error) {
+		throw new DiningStoreUnavailableError("食堂地图资源写入失败，公开版本未改变。", {
+			cause: error,
+		});
+	}
+	return assets;
+}
+
+function createRelease(input: {
+	actor: DiningOpsActor;
+	assets: ReturnType<typeof renderDiningMapAssets>;
+	bundle: DiningFloorplanBundleV1;
+	draftRevision: number;
+	kind: DiningMapRelease["kind"];
+	now: Date;
+	releaseId: string;
+	restoredFromReleaseId: string | null;
+	snapshotHash: `sha256:${string}`;
+}): DiningMapRelease {
+	const createdAt = input.now.toISOString();
+	return {
+		bundle: input.bundle,
+		createdAt,
+		createdBy: input.actor.principalId,
+		draftRevision: input.draftRevision,
+		kind: input.kind,
+		publicPayload: buildDiningMapResponse({
+			assets: input.assets,
+			bundle: input.bundle,
+			releaseId: input.releaseId,
+			updatedAt: createdAt,
+		}),
+		releaseId: input.releaseId,
+		restoredFromReleaseId: input.restoredFromReleaseId,
+		snapshotHash: input.snapshotHash,
+	};
+}
+
+async function loadDraft(
+	db: Pick<Pool, "query"> | Pick<PoolClient, "query">,
+	forUpdate = false,
+): Promise<DiningMapDraft> {
+	const result = await db.query(
+		`select bundle_json, fingerprint, revision, updated_at, updated_by
+		 from dining.map_draft where scope = $1${forUpdate ? " for update" : ""}`,
+		[GLOBAL_SCOPE],
+	);
+	const row = result.rows[0];
+	if (!row) {
+		throw new DiningStoreNotFoundError(
+			"食堂地图尚未初始化，请先运行 pnpm --dir apps/ops-web db:bootstrap-dining。",
+		);
+	}
+	const bundle = parseStoredBundle(row.bundle_json);
+	const fingerprint = parseHash(row.fingerprint, "draft fingerprint");
+	if (diningMapBundleFingerprint(bundle) !== fingerprint) {
+		throw new DiningStoreUnavailableError("食堂地图草稿内容与指纹不一致。");
+	}
+	return {
+		bundle,
+		fingerprint,
+		revision: positiveInteger(row.revision, "draft revision"),
+		updatedAt: isoDate(row.updated_at, "draft updated_at"),
+		updatedBy: nonEmptyString(row.updated_by, "draft updated_by"),
+	};
+}
+
+async function loadRelease(
+	db: Pick<Pool, "query"> | Pick<PoolClient, "query">,
+	releaseId: string,
+): Promise<DiningMapRelease | null> {
+	const result = await db.query(
+		`select release_id, snapshot_hash, draft_revision, kind, restored_from_release_id,
+		        bundle_json, public_payload_json, created_at, created_by
+		 from dining.map_releases where release_id = $1`,
+		[releaseId],
+	);
+	return result.rows[0] ? rowToRelease(result.rows[0]) : null;
+}
+
+async function loadCurrentRelease(
+	db: Pick<Pool, "query"> | Pick<PoolClient, "query">,
+): Promise<DiningMapRelease | null> {
+	const result = await db.query(`
+		select release.release_id, release.snapshot_hash, release.draft_revision, release.kind,
+		       release.restored_from_release_id, release.bundle_json,
+		       release.public_payload_json, release.created_at, release.created_by
+		from dining.map_publication publication
+		join dining.map_releases release on release.release_id = publication.release_id
+		where publication.scope = 'global'
+	`);
+	return result.rows[0] ? rowToRelease(result.rows[0]) : null;
+}
+
+async function loadPublication(
+	db: Pick<Pool, "query"> | Pick<PoolClient, "query">,
+): Promise<DiningMapPublication | null> {
+	const result = await db.query(
+		"select release_id, updated_at, updated_by from dining.map_publication where scope = $1",
+		[GLOBAL_SCOPE],
+	);
+	const row = result.rows[0];
+	return row
+		? {
+				releaseId: nonEmptyString(row.release_id, "publication release_id"),
+				updatedAt: isoDate(row.updated_at, "publication updated_at"),
+				updatedBy: nonEmptyString(row.updated_by, "publication updated_by"),
+			}
+		: null;
+}
+
+async function insertRelease(client: PoolClient, release: DiningMapRelease): Promise<void> {
+	await client.query(
+		`insert into dining.map_releases
+		 (release_id, snapshot_hash, draft_revision, kind, restored_from_release_id,
+		  bundle_json, public_payload_json, created_at, created_by)
+		 values ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+		[
+			release.releaseId,
+			release.snapshotHash,
+			release.draftRevision,
+			release.kind,
+			release.restoredFromReleaseId,
+			release.bundle,
+			release.publicPayload,
+			release.createdAt,
+			release.createdBy,
+		],
+	);
+}
+
+async function savePublication(
+	client: PoolClient,
+	actor: DiningOpsActor,
+	release: DiningMapRelease,
+): Promise<void> {
+	await client.query(
+		`insert into dining.map_publication (scope, release_id, updated_at, updated_by)
+		 values ($1,$2,$3,$4)
+		 on conflict (scope) do update set
+		 release_id = excluded.release_id,
+		 updated_at = excluded.updated_at,
+		 updated_by = excluded.updated_by`,
+		[GLOBAL_SCOPE, release.releaseId, release.createdAt, actor.principalId],
+	);
+}
+
+async function replaceDraft(
+	client: PoolClient,
+	input: {
+		actor: DiningOpsActor;
+		bundle: DiningFloorplanBundleV1;
+		fingerprint: `sha256:${string}`;
+		now: Date;
+		revision: number;
+	},
+): Promise<DiningMapDraft> {
+	const updatedAt = input.now.toISOString();
+	await client.query(
+		`update dining.map_draft
+		 set bundle_json = $1, fingerprint = $2, revision = $3,
+		     updated_at = $4, updated_by = $5
+		 where scope = $6`,
+		[
+			input.bundle,
+			input.fingerprint,
+			input.revision,
+			updatedAt,
+			input.actor.principalId,
+			GLOBAL_SCOPE,
+		],
+	);
+	return {
+		bundle: input.bundle,
+		fingerprint: input.fingerprint,
+		revision: input.revision,
+		updatedAt,
+		updatedBy: input.actor.principalId,
+	};
+}
+
+function rowToRelease(row: Record<string, unknown>): DiningMapRelease {
+	const releaseId = nonEmptyString(row.release_id, "release_id");
+	const bundle = parseStoredBundle(row.bundle_json);
+	const snapshotHash = parseHash(row.snapshot_hash, "snapshot_hash");
+	if (diningMapBundleFingerprint(bundle) !== snapshotHash) {
+		throw new DiningStoreUnavailableError(`食堂地图版本 ${releaseId} 的内容与指纹不一致。`);
+	}
+	const publicPayload = DiningMapResponseSchema.parse(row.public_payload_json);
+	if (publicPayload.releaseId !== releaseId) {
+		throw new DiningStoreUnavailableError(`食堂地图版本 ${releaseId} 的公开标识不一致。`);
+	}
+	return {
+		bundle,
+		createdAt: isoDate(row.created_at, "release created_at"),
+		createdBy: nonEmptyString(row.created_by, "release created_by"),
+		draftRevision: positiveInteger(row.draft_revision, "release draft_revision"),
+		kind: row.kind === "publish" || row.kind === "restore" ? row.kind : invalid("release kind"),
+		publicPayload,
+		releaseId,
+		restoredFromReleaseId:
+			row.restored_from_release_id === null
+				? null
+				: nonEmptyString(row.restored_from_release_id, "restored_from_release_id"),
+		snapshotHash,
+	};
+}
+
+function rowToReleaseSummary(row: Record<string, unknown>): DiningReleaseSummary {
+	return {
+		createdAt: isoDate(row.created_at, "release created_at"),
+		createdBy: nonEmptyString(row.created_by, "release created_by"),
+		draftRevision: positiveInteger(row.draft_revision, "release draft_revision"),
+		kind: row.kind === "publish" || row.kind === "restore" ? row.kind : invalid("release kind"),
+		releaseId: nonEmptyString(row.release_id, "release_id"),
+		restoredFromReleaseId:
+			row.restored_from_release_id === null
+				? null
+				: nonEmptyString(row.restored_from_release_id, "restored_from_release_id"),
+		snapshotHash: parseHash(row.snapshot_hash, "snapshot_hash"),
+	};
+}
+
+function toReleaseSummary(release: DiningMapRelease): DiningReleaseSummary {
+	return {
+		createdAt: release.createdAt,
+		createdBy: release.createdBy,
+		draftRevision: release.draftRevision,
+		kind: release.kind,
+		releaseId: release.releaseId,
+		restoredFromReleaseId: release.restoredFromReleaseId,
+		snapshotHash: release.snapshotHash,
+	};
+}
+
+function parseBundle(value: unknown): DiningFloorplanBundleV1 {
+	try {
+		return canonicalizeDiningFloorplanBundle(value);
+	} catch (error) {
+		throw new DiningStoreValidationError(
+			error instanceof Error ? error.message : "食堂地图格式无效。",
+			{ cause: error },
+		);
+	}
+}
+
+function parseStoredBundle(value: unknown): DiningFloorplanBundleV1 {
+	try {
+		return canonicalizeDiningFloorplanBundle(value);
+	} catch (error) {
+		throw new DiningStoreUnavailableError("数据库中的食堂地图格式无效。", { cause: error });
+	}
+}
+
+function assertExpectedRevision(draft: DiningMapDraft, expectedRevision: number): void {
+	if (draft.revision !== expectedRevision) {
+		throw new DiningStoreConflictError(
+			`地图草稿已更新（当前版本 ${draft.revision}），请刷新后重试。`,
+		);
+	}
+}
+
+async function transaction<T>(
+	pool: Pick<Pool, "connect">,
+	callback: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+	const client = await pool.connect();
+	try {
+		await client.query("begin");
+		const result = await callback(client);
+		await client.query("commit");
+		return result;
+	} catch (error) {
+		await client.query("rollback");
+		throw error;
+	} finally {
+		client.release();
+	}
+}
+
+async function withStoreErrors<T>(callback: () => Promise<T>): Promise<T> {
+	try {
+		return await callback();
+	} catch (error) {
+		if (
+			error instanceof DiningStoreConflictError ||
+			error instanceof DiningStoreNotFoundError ||
+			error instanceof DiningStoreUnavailableError ||
+			error instanceof DiningStoreValidationError
+		) {
+			throw error;
+		}
+		throw new DiningStoreUnavailableError("食堂地图数据库请求失败。", { cause: error });
+	}
+}
+
+function required(value: string | undefined, name: string): string {
+	const normalized = value?.trim();
+	if (!normalized) {
+		throw new DiningStoreUnavailableError(`${name} is required.`);
+	}
+	return normalized;
+}
+
+function nonEmptyString(value: unknown, field: string): string {
+	if (typeof value === "string" && value.trim()) {
+		return value;
+	}
+	return invalid(field);
+}
+
+function positiveInteger(value: unknown, field: string): number {
+	const parsed = typeof value === "number" ? value : Number(value);
+	return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : invalid(field);
+}
+
+function isoDate(value: unknown, field: string): string {
+	const date = value instanceof Date ? value : new Date(String(value));
+	return Number.isNaN(date.valueOf()) ? invalid(field) : date.toISOString();
+}
+
+function parseHash(value: unknown, field: string): `sha256:${string}` {
+	return typeof value === "string" && /^sha256:[0-9a-f]{64}$/.test(value)
+		? (value as `sha256:${string}`)
+		: invalid(field);
+}
+
+function invalid(field: string): never {
+	throw new DiningStoreUnavailableError(`数据库中的 ${field} 无效。`);
 }

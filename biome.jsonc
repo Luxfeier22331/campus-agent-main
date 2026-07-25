@@ -13,7 +13,6 @@
 			"package.json",
 			"turbo.json",
 			"apps/**",
-			"jobs/dining-sync/**",
 			"packages/**",
 			"configs/**",
 			"docs/reference/eval/**",
@@ -25,8 +24,7 @@
 			"!!.tmp",
 			"!!.worktrees",
 			"!!var",
-			"!!apps/app-api/drizzle/meta",
-			"!!jobs/dining-sync/drizzle/meta"
+			"!!apps/app-api/drizzle/meta"
 		]
 	},
 	"formatter": {

@@ -26,8 +26,6 @@ apps/app-api/.dev.vars
 !apps/ingestion-control/**
 !apps/ops-web/
 !apps/ops-web/**
-!jobs/dining-sync/
-!jobs/dining-sync/**
 !jobs/app-api-schema/
 !jobs/app-api-schema/**
 !jobs/transport-publisher/

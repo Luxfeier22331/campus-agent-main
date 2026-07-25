@@ -52,7 +52,6 @@ status: active
 | 邮件服务 | App API | 密码重置和账号通知 |
 | 微信公众号来源 | Source Collector | 发现来源并取得采集入口，规范正文仍来自真实文章 |
 | 内部门户认证 | Source Collector 与 Ops Web | 固定认证凭据、会话建立和维护状态 |
-| Dining 来源与审核 | Dining 同步任务 | 目录、评价、附件和内容审核 |
 | Cloudflare Worker 平台 | App API、Campus Web | Worker 运行、公开配置和平台绑定 |
 
 来源凭据只进入所属采集器或任务，不进入在线问答、浏览器或通用仓库根环境。个人调试凭据不能

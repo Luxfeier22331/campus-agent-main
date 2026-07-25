@@ -41,7 +41,8 @@ spec:
                 url.password = process.env.PGPASSWORD;
                 process.stdout.write(url.toString());
               ')"
-              exec node --experimental-strip-types ops/db/ops-web-database.ts apply
+              node --experimental-strip-types ops/db/ops-web-database.ts apply
+              exec node --experimental-strip-types ops/db/bootstrap-dining.ts
           envFrom:
             - configMapRef:
                 name: ops-web-schema-database-config

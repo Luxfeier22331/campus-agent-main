@@ -11,9 +11,7 @@ status: active
 本地开发可以使用 `infra/local/docker-compose.execution-runtime.yml` 作为诊断工具，但仓库不在
 Kubernetes/GitOps 之外维护第二套 staging 生命周期。
 
-本地命令只读取明确的 root/app `.env`、Worker `.dev.vars` 或 `env/commands/` 文件。仓库
-不生成通用 env bundle 或本地 secret；缺失 provider、database、Qdrant、Temporal 或 Hindsight
-配置时由开发者环境显式提供。
+产品页面本地开发使用 worktree profile 和应用本地托管环境文件，不读取根 `.env`。仓库只生成 loopback 数据库凭据和应用本地随机 secret；Provider、Qdrant、Temporal、Hindsight 与其他外部凭据仍由开发者进程环境显式提供。
 
 默认 compose 使用 debug OTel Collector。只有验证外部 fan-out 时加入
 `docker-compose.execution-runtime.fanout.yml`，需要本地 Langfuse 时再启动对应 compose。
@@ -33,9 +31,16 @@ pnpm --dir apps/campus-web build:docs:fixture
 pnpm dev
 ```
 
-`build:docs:fixture` 使用仓库内无凭据 manifest 和 reader assets，不读取数据库或对象存储。根
-`pnpm dev` 同时启动 Campus Web 与 app-api，避免文档准入、账号、聊天和 Dining 的同源
-`/api/*` 依赖变成服务缺失错误。单独启动 Campus Web 只适合静态资源和纯界面调试。
+`build:docs:fixture` 使用仓库内无凭据 manifest 和 reader assets，不读取数据库或对象存储。根 `pnpm dev` 首次运行时自动执行 `pnpm dev:init`，随后同时启动 Campus Web、app-api 和包含 Node API 的 Ops Web。命令输出当前 worktree 的三个 URL；Dining 学生端、运维编辑器和持久化数据库使用同一个实例。
+
+初始化失败时运行：
+
+```bash
+pnpm dev:doctor
+pnpm dev:instances
+```
+
+database 与 bucket 必须同时存在或同时不存在。只有一个存在表示上次供应中断，初始化会 fail closed；按 `pnpm dev:destroy` 输出的确认命令删除该实例后重新初始化。单独启动应用只适合所属应用调试，仍要求当前 worktree 已执行 `pnpm dev:init`。
 
 ## Provider 配置
 

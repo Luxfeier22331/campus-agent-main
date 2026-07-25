@@ -7,7 +7,7 @@
 	"packageManager": "pnpm@10.34.5",
 	"scripts": {
 		"build:worker": "rm -rf dist/worker && WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home pnpm exec wrangler deploy --dry-run --outdir dist/worker --env local",
-		"dev": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=../../.wrangler-home pnpm exec tsx ./scripts/run-with-local-env.ts wrangler dev -e local --name app-api-local --ip 127.0.0.1 --port 27031",
+		"dev": "pnpm --dir ../.. exec tsx scripts/dev/service.ts app-api",
 		"deploy": "pnpm exec tsx ../../scripts/deploy/run-wrangler-command.ts deploy",
 		"upload:staging": "pnpm exec tsx ./scripts/upload-staging-version.ts",
 		"test": "pnpm run test:node",

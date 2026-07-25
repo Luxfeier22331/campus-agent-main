@@ -1,14 +1,18 @@
-import type {
-	DiningCatalogCommand,
-	DiningDraft,
-	DiningOpsObservation,
-	DiningOpsOverview,
-	DiningOpsReview,
-	DiningOpsSourceRun,
-	DiningRelease,
-	DiningReleaseDetail,
-	DiningReviewCommand,
-	DiningValidationReport,
+import {
+	DiningMenuItemListResponseSchema,
+	DiningMenuItemResponseSchema,
+	DiningOpsReportPageSchema,
+	DiningOpsReviewDetailSchema,
+	DiningOpsReviewPageSchema,
+	DiningOpsReviewResponseSchema,
+} from "@campus-agent/dining/domain";
+import type { DiningFloorplanBundleV1 } from "@campus-agent/dining/floorplans";
+import {
+	DiningDraftResponseSchema,
+	DiningOpsStateResponseSchema,
+	DiningReleaseListResponseSchema,
+	DiningReleaseResponseSchema,
+	DiningRestoreResponseSchema,
 } from "../shared/dining-contract";
 import type {
 	HindsightModelSettingsUpdate,
@@ -142,6 +146,9 @@ async function fetchJson(input: string, init?: RequestInit) {
 			error.reasonCode,
 			error.details ?? {},
 		);
+	}
+	if (response.status === 204) {
+		return null;
 	}
 	return response.json() as Promise<unknown>;
 }
@@ -372,82 +379,218 @@ export async function fetchOpsSentryIssues(
 	);
 }
 
-export async function fetchDiningOverview(input: { signal?: AbortSignal } = {}) {
-	return fetchJson("/api/ops/dining/overview", {
-		signal: input.signal,
-	}) as Promise<DiningOpsOverview>;
+export async function fetchDiningState(input: { signal?: AbortSignal } = {}) {
+	return DiningOpsStateResponseSchema.parse(
+		await fetchJson("/api/ops/dining", { signal: input.signal }),
+	);
 }
 
-export async function fetchDiningDraft(input: { signal?: AbortSignal } = {}) {
-	return fetchJson("/api/ops/dining/catalog/draft", { signal: input.signal }) as Promise<{
-		draft: DiningDraft;
-	}>;
+export async function saveDiningDraft(input: {
+	bundle: DiningFloorplanBundleV1;
+	expectedRevision: number;
+}) {
+	return DiningDraftResponseSchema.parse(
+		await fetchJson("/api/ops/dining/draft", {
+			body: JSON.stringify(input),
+			headers: { "content-type": "application/json" },
+			method: "PUT",
+		}),
+	);
 }
 
-export async function fetchDiningValidation(input: { signal?: AbortSignal } = {}) {
-	return fetchJson("/api/ops/dining/catalog/draft/validation", {
-		signal: input.signal,
-	}) as Promise<{ validation: DiningValidationReport }>;
-}
-
-export async function rebaseDiningDraft() {
-	return fetchJson("/api/ops/dining/catalog/draft/rebase", { method: "POST" }) as Promise<{
-		draft: DiningDraft;
-	}>;
-}
-
-export async function applyDiningCatalogCommand(command: DiningCatalogCommand) {
-	return fetchJson("/api/ops/dining/catalog/draft/commands", {
-		body: JSON.stringify(command),
-		headers: { "content-type": "application/json" },
-		method: "POST",
-	}) as Promise<{ draft: DiningDraft }>;
-}
-
-export async function publishDiningCatalog(notes: string) {
-	return fetchJson("/api/ops/dining/catalog/publish", {
-		body: JSON.stringify({ notes }),
-		headers: { "content-type": "application/json" },
-		method: "POST",
-	}) as Promise<DiningReleaseDetail>;
+export async function publishDiningDraft(expectedRevision: number) {
+	return DiningReleaseResponseSchema.parse(
+		await fetchJson("/api/ops/dining/publish", {
+			body: JSON.stringify({ expectedRevision }),
+			headers: { "content-type": "application/json" },
+			method: "POST",
+		}),
+	);
 }
 
 export async function fetchDiningReleases(input: { signal?: AbortSignal } = {}) {
-	return fetchJson("/api/ops/dining/releases", { signal: input.signal }) as Promise<{
-		releases: DiningRelease[];
-	}>;
+	return DiningReleaseListResponseSchema.parse(
+		await fetchJson("/api/ops/dining/releases", { signal: input.signal }),
+	);
 }
 
-export async function rollbackDiningRelease(releaseId: string, notes: string) {
-	return fetchJson(`/api/ops/dining/releases/${encodeURIComponent(releaseId)}/rollback`, {
-		body: JSON.stringify({ notes }),
+export async function restoreDiningRelease(input: { expectedRevision: number; releaseId: string }) {
+	return DiningRestoreResponseSchema.parse(
+		await fetchJson(`/api/ops/dining/releases/${encodeURIComponent(input.releaseId)}/restore`, {
+			body: JSON.stringify({ expectedRevision: input.expectedRevision }),
+			headers: { "content-type": "application/json" },
+			method: "POST",
+		}),
+	);
+}
+
+export async function fetchDiningMenuItems(input: { signal?: AbortSignal } = {}) {
+	return DiningMenuItemListResponseSchema.parse(
+		await fetchJson("/api/ops/dining/menu-items", { signal: input.signal }),
+	);
+}
+
+export async function createDiningMenuItem(input: {
+	name: string;
+	priceText: string | null;
+	windowId: string;
+}) {
+	return DiningMenuItemResponseSchema.parse(
+		await fetchJson("/api/ops/dining/menu-items", {
+			body: JSON.stringify(input),
+			headers: { "content-type": "application/json" },
+			method: "POST",
+		}),
+	);
+}
+
+export async function updateDiningMenuItem(
+	menuItemId: string,
+	input: { name?: string; priceText?: string | null },
+) {
+	return DiningMenuItemResponseSchema.parse(
+		await fetchJson(`/api/ops/dining/menu-items/${encodeURIComponent(menuItemId)}`, {
+			body: JSON.stringify(input),
+			headers: { "content-type": "application/json" },
+			method: "PATCH",
+		}),
+	);
+}
+
+export async function moveDiningMenuItem(menuItemId: string, windowId: string) {
+	return DiningMenuItemResponseSchema.parse(
+		await fetchJson(`/api/ops/dining/menu-items/${encodeURIComponent(menuItemId)}/move`, {
+			body: JSON.stringify({ windowId }),
+			headers: { "content-type": "application/json" },
+			method: "POST",
+		}),
+	);
+}
+
+export async function setDiningMenuItemArchived(menuItemId: string, archived: boolean) {
+	return DiningMenuItemResponseSchema.parse(
+		await fetchJson(
+			`/api/ops/dining/menu-items/${encodeURIComponent(menuItemId)}/${archived ? "archive" : "restore"}`,
+			{ method: "POST" },
+		),
+	);
+}
+
+export async function reorderDiningMenuItems(windowId: string, menuItemIds: string[]) {
+	return DiningMenuItemListResponseSchema.parse(
+		await fetchJson(`/api/ops/dining/windows/${encodeURIComponent(windowId)}/menu-order`, {
+			body: JSON.stringify({ menuItemIds }),
+			headers: { "content-type": "application/json" },
+			method: "PUT",
+		}),
+	);
+}
+
+export interface DiningReviewListParams {
+	cursor?: string;
+	limit?: number;
+	menuItemId?: string;
+	q?: string;
+	visibility?: "deleted" | "hidden" | "visible";
+	windowId?: string;
+}
+
+export async function fetchDiningReviews(
+	params: DiningReviewListParams = {},
+	input: { signal?: AbortSignal } = {},
+) {
+	const query = queryString({
+		cursor: params.cursor,
+		limit: params.limit,
+		menu_item_id: params.menuItemId,
+		q: params.q,
+		visibility: params.visibility,
+		window_id: params.windowId,
+	});
+	return DiningOpsReviewPageSchema.parse(
+		await fetchJson(`/api/ops/dining/reviews${query}`, { signal: input.signal }),
+	);
+}
+
+export async function fetchDiningReview(reviewId: string, input: { signal?: AbortSignal } = {}) {
+	return DiningOpsReviewDetailSchema.parse(
+		await fetchJson(`/api/ops/dining/reviews/${encodeURIComponent(reviewId)}`, {
+			signal: input.signal,
+		}),
+	);
+}
+
+export async function createDiningReview(input: {
+	anonymous: boolean;
+	body: string;
+	idempotencyKey: string;
+	menuItemId: string;
+}) {
+	return DiningOpsReviewResponseSchema.parse(
+		await fetchJson(
+			`/api/ops/dining/reviews?menu_item_id=${encodeURIComponent(input.menuItemId)}`,
+			{
+				body: JSON.stringify({ anonymous: input.anonymous, body: input.body }),
+				headers: {
+					"content-type": "application/json",
+					"idempotency-key": input.idempotencyKey,
+				},
+				method: "POST",
+			},
+		),
+	);
+}
+
+export async function updateDiningReview(reviewId: string, body: string) {
+	return DiningOpsReviewResponseSchema.parse(
+		await fetchJson(`/api/ops/dining/reviews/${encodeURIComponent(reviewId)}`, {
+			body: JSON.stringify({ body }),
+			headers: { "content-type": "application/json" },
+			method: "PATCH",
+		}),
+	);
+}
+
+export async function setDiningReviewVisible(reviewId: string, visible: boolean) {
+	return DiningOpsReviewResponseSchema.parse(
+		await fetchJson(`/api/ops/dining/reviews/${encodeURIComponent(reviewId)}/visibility`, {
+			body: JSON.stringify({ visible }),
+			headers: { "content-type": "application/json" },
+			method: "PUT",
+		}),
+	);
+}
+
+export async function deleteDiningOperatorReview(reviewId: string) {
+	await fetchJson(`/api/ops/dining/reviews/${encodeURIComponent(reviewId)}`, {
+		method: "DELETE",
+	});
+}
+
+export async function fetchDiningReports(
+	params: { cursor?: string; limit?: number; status: "pending" | "resolved" },
+	input: { signal?: AbortSignal } = {},
+) {
+	const query = queryString(params);
+	return DiningOpsReportPageSchema.parse(
+		await fetchJson(`/api/ops/dining/reports${query}`, { signal: input.signal }),
+	);
+}
+
+export async function resolveDiningReports(reviewId: string, resolution: "hide" | "keep") {
+	await fetchJson(`/api/ops/dining/reviews/${encodeURIComponent(reviewId)}/reports/resolve`, {
+		body: JSON.stringify({ resolution }),
 		headers: { "content-type": "application/json" },
 		method: "POST",
-	}) as Promise<DiningReleaseDetail>;
+	});
 }
 
-export async function fetchDiningReviews(input: { signal?: AbortSignal } = {}) {
-	return fetchJson("/api/ops/dining/reviews?limit=100", { signal: input.signal }) as Promise<{
-		reviews: DiningOpsReview[];
-	}>;
-}
-
-export async function fetchDiningSource(input: { signal?: AbortSignal } = {}) {
-	const [runs, observations] = await Promise.all([
-		fetchJson("/api/ops/dining/source-runs?limit=30", { signal: input.signal }) as Promise<{
-			runs: DiningOpsSourceRun[];
-		}>,
-		fetchJson("/api/ops/dining/observations?limit=100", { signal: input.signal }) as Promise<{
-			observations: DiningOpsObservation[];
-		}>,
-	]);
-	return { observations: observations.observations, runs: runs.runs };
-}
-
-export async function applyDiningReviewCommand(reviewId: string, command: DiningReviewCommand) {
-	return fetchJson(`/api/ops/dining/reviews/${encodeURIComponent(reviewId)}/commands`, {
-		body: JSON.stringify(command),
-		headers: { "content-type": "application/json" },
-		method: "POST",
-	}) as Promise<{ ok: true }>;
+function queryString(values: Record<string, string | number | undefined>): string {
+	const query = new URLSearchParams();
+	for (const [key, value] of Object.entries(values)) {
+		if (value !== undefined && value !== "") {
+			query.set(key, String(value));
+		}
+	}
+	return query.size > 0 ? `?${query.toString()}` : "";
 }

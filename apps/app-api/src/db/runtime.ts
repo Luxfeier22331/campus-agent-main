@@ -211,7 +211,10 @@ async function createCachedPool(input: {
 }
 
 function isWorkerRuntimeDatabaseContext(): boolean {
-	return typeof WebSocketPair === "function";
+	return (
+		typeof (globalThis as typeof globalThis & { WebSocketPair?: unknown }).WebSocketPair ===
+		"function"
+	);
 }
 
 async function withIsolatedProbePool<T>(

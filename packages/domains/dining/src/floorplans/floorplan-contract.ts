@@ -8,7 +8,7 @@ export interface DiningFloorplanAnchor {
 	role: DiningFloorplanAnchorRole;
 }
 
-export interface DiningFloorplanManifestEntry {
+export interface DiningRenderedFloorplan {
 	anchorInventory: DiningFloorplanAnchor[];
 	canvas: { height: number; width: number };
 	floorId: string;
@@ -19,7 +19,7 @@ export interface DiningFloorplanManifestEntry {
 	svgMarkup: string;
 }
 
-export interface DiningFloorplanManifestInput {
+export interface DiningRenderedFloorplanInput {
 	anchorInventory?: DiningFloorplanAnchor[];
 	floorId: string;
 	floorplanId: string;
@@ -44,9 +44,9 @@ const ALLOWED_ANCHOR_ROLES = new Set<DiningFloorplanAnchorRole>([
 	"service",
 ]);
 
-export function createDiningFloorplanManifestEntry(
-	input: DiningFloorplanManifestInput,
-): DiningFloorplanManifestEntry {
+export function createDiningRenderedFloorplan(
+	input: DiningRenderedFloorplanInput,
+): DiningRenderedFloorplan {
 	const sanitizedSvgMarkup = sanitizeDiningFloorplanSvg(input.svgMarkup);
 	const canvas = extractDiningSvgCanvas(sanitizedSvgMarkup, input.floorplanId);
 	const extractedAnchors = extractDiningSvgAnchors(sanitizedSvgMarkup);
@@ -56,7 +56,7 @@ export function createDiningFloorplanManifestEntry(
 		extractedAnchors,
 		floorplanId: input.floorplanId,
 	});
-	assertDiningFloorplanManifest([{ ...input, anchorInventory, svgMarkup: sanitizedSvgMarkup }]);
+	assertDiningRenderedFloorplans([{ ...input, anchorInventory, svgMarkup: sanitizedSvgMarkup }]);
 	return {
 		anchorInventory,
 		canvas,
@@ -69,14 +69,14 @@ export function createDiningFloorplanManifestEntry(
 	};
 }
 
-export function assertDiningFloorplanManifest(
-	entries: readonly DiningFloorplanManifestInput[],
+export function assertDiningRenderedFloorplans(
+	entries: readonly DiningRenderedFloorplanInput[],
 ): void {
 	const seenFloorKeys = new Set<string>();
 	const seenFloorplanIds = new Set<string>();
 
 	for (const entry of entries) {
-		assertRequiredManifestFields(entry);
+		assertRequiredRenderedFloorplanFields(entry);
 		const floorKey = `${entry.hallId}/${entry.floorId}`;
 		if (seenFloorKeys.has(floorKey)) {
 			throw new Error(`Duplicate dining floorplan floor key: ${floorKey}`);
@@ -110,7 +110,7 @@ export function buildDiningFloorplanAssetUrl(sha256: `sha256:${string}`): string
 	if (!digest) {
 		throw new Error("Dining floorplan sha256 is invalid.");
 	}
-	return `/assets/dining/${digest}.svg`;
+	return `/api/dining/floorplans/${digest}.svg`;
 }
 
 export function sanitizeDiningFloorplanSvg(svgMarkup: string): string {
@@ -244,14 +244,14 @@ function assertAnchorInventoryMatchesSvg(input: {
 	const inventoryAnchorIds = input.anchorInventory.map((anchor) => anchor.anchorId);
 	const extractedAnchorIds = input.extractedAnchors.map((anchor) => anchor.anchorId);
 	if (new Set(inventoryAnchorIds).size !== inventoryAnchorIds.length) {
-		throw new Error(`Duplicate dining manifest anchor: ${input.floorplanId}`);
+		throw new Error(`Duplicate dining rendered floorplan anchor: ${input.floorplanId}`);
 	}
 	if (
 		inventoryAnchorIds.length !== extractedAnchorIds.length ||
 		!inventoryAnchorIds.every((anchorId, index) => anchorId === extractedAnchorIds[index])
 	) {
 		throw new Error(
-			`Dining manifest anchor inventory does not match extracted anchors: ${input.floorplanId}`,
+			`Dining rendered floorplan anchor inventory does not match extracted anchors: ${input.floorplanId}`,
 		);
 	}
 }
@@ -266,10 +266,10 @@ function normalizeAnchorRole(value: string | null): DiningFloorplanAnchorRole {
 	return value as DiningFloorplanAnchorRole;
 }
 
-function assertRequiredManifestFields(input: DiningFloorplanManifestInput): void {
+function assertRequiredRenderedFloorplanFields(input: DiningRenderedFloorplanInput): void {
 	for (const field of ["floorId", "floorplanId", "hallId", "svgMarkup"] as const) {
 		if (!input[field].trim()) {
-			throw new Error(`Dining floorplan manifest field is required: ${field}`);
+			throw new Error(`Dining rendered floorplan field is required: ${field}`);
 		}
 	}
 }

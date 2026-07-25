@@ -6,7 +6,8 @@ export interface DatabaseGrantClient {
 	query(sql: string): Promise<unknown>;
 }
 
-export function buildAppApiGrantSql(): string {
+export function buildAppApiGrantSql(databaseName: string): string {
+	const databaseIdentifier = quoteDatabaseIdentifier(databaseName);
 	const schemaList = APP_API_DML_SCHEMAS.map((schema) => `"${schema}"`).join(", ");
 	const perSchemaStatements = APP_API_DML_SCHEMAS.flatMap((schema) => [
 		`REVOKE CREATE ON SCHEMA "${schema}" FROM "app_api"`,
@@ -23,8 +24,8 @@ export function buildAppApiGrantSql(): string {
 
 	return [
 		`DO $app_api_roles$\nBEGIN\n\tIF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_api') THEN\n\t\tRAISE EXCEPTION 'app_api database role is missing';\n\tEND IF;\n\tIF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'docs_publish') THEN\n\t\tRAISE EXCEPTION 'docs_publish database role is missing';\n\tEND IF;\nEND\n$app_api_roles$`,
-		`GRANT CONNECT ON DATABASE "campus_agent" TO "app_api"`,
-		`GRANT CONNECT ON DATABASE "campus_agent" TO "docs_publish"`,
+		`GRANT CONNECT ON DATABASE ${databaseIdentifier} TO "app_api"`,
+		`GRANT CONNECT ON DATABASE ${databaseIdentifier} TO "docs_publish"`,
 		`GRANT USAGE ON SCHEMA ${schemaList}, "runtime" TO "app_api"`,
 		...perSchemaStatements,
 		...readOnlyStatements,
@@ -38,6 +39,16 @@ export function buildAppApiGrantSql(): string {
 	].join(";\n");
 }
 
-export async function applyAppApiGrants(client: DatabaseGrantClient): Promise<void> {
-	await client.query(buildAppApiGrantSql());
+export async function applyAppApiGrants(
+	client: DatabaseGrantClient,
+	databaseName: string,
+): Promise<void> {
+	await client.query(buildAppApiGrantSql(databaseName));
+}
+
+function quoteDatabaseIdentifier(databaseName: string): string {
+	if (!/^[a-z_][a-z0-9_]*$/u.test(databaseName)) {
+		throw new Error("app-api database name must be a lowercase PostgreSQL identifier.");
+	}
+	return `"${databaseName}"`;
 }

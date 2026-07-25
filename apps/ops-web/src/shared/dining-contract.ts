@@ -1,71 +1,91 @@
-import type { DiningPublication } from "@campus-agent/dining/domain";
+import type { DiningMapDraft } from "@campus-agent/dining/domain";
+import {
+	canonicalizeDiningFloorplanBundle,
+	type DiningFloorplanBundleV1,
+} from "@campus-agent/dining/floorplans";
+import { z } from "zod";
 
-export type {
-	DiningDraft,
-	DiningPublication,
-	DiningRelease,
-	DiningReleaseDetail,
-	DiningValidationReport,
-} from "@campus-agent/dining/domain";
+const sha256 = z
+	.string()
+	.regex(/^sha256:[0-9a-f]{64}$/)
+	.transform((value) => value as `sha256:${string}`);
+const isoDate = z.string().datetime({ offset: true });
+const revision = z.number().int().positive();
+const bundle = z.unknown().transform((value, context): DiningFloorplanBundleV1 => {
+	try {
+		return canonicalizeDiningFloorplanBundle(value);
+	} catch (error) {
+		context.addIssue({
+			code: "custom",
+			message: error instanceof Error ? error.message : "食堂地图格式无效。",
+		});
+		return z.NEVER;
+	}
+});
 
-export interface DiningOpsOverview {
-	draft: { baseReleaseId: string | null; revision: number; updatedAt: string; updatedBy: string };
-	publication: DiningPublication;
-	releases: number;
-	reviews: { blocked: number; hidden: number; published: number };
-	source: { latestRunAt: string | null; pendingCatalogObservations: number };
+const draft = z
+	.object({
+		bundle,
+		fingerprint: sha256,
+		revision,
+		updatedAt: isoDate,
+		updatedBy: z.string().min(1),
+	})
+	.strict();
+
+export const DiningReleaseSummarySchema = z
+	.object({
+		createdAt: isoDate,
+		createdBy: z.string().min(1),
+		draftRevision: revision,
+		kind: z.enum(["publish", "restore"]),
+		releaseId: z.string().min(1),
+		restoredFromReleaseId: z.string().min(1).nullable(),
+		snapshotHash: sha256,
+	})
+	.strict();
+
+export type DiningReleaseSummary = z.infer<typeof DiningReleaseSummarySchema>;
+
+export interface DiningOpsState {
+	currentRelease: DiningReleaseSummary | null;
+	draft: DiningMapDraft;
 }
 
-export interface DiningOpsReview {
-	comment: string | null;
-	contributorName: string | null;
-	dishName: string;
-	moderationStatus: string;
-	offeringId: string | null;
-	rating: number | null;
-	reviewId: string;
-	stallName: string;
-	submittedAt: string;
-	visibility: string;
+export interface DiningReleaseList {
+	currentReleaseId: string | null;
+	releases: DiningReleaseSummary[];
 }
 
-export interface DiningOpsSourceRun {
-	acceptedCount: number;
-	blockedCount: number;
-	completedAt: string | null;
-	runId: string;
-	sourceType: string;
-	staleCount: number;
-	startedAt: string;
-	status: string;
-	totalCount: number;
-}
+export const DiningDraftUpdateSchema = z
+	.object({
+		bundle,
+		expectedRevision: revision,
+	})
+	.strict();
 
-export interface DiningOpsObservation {
-	observationId: string;
-	observedAt: string;
-	payloadJson: Record<string, unknown>;
-	sourceType: string;
-	staleAt: string | null;
-	status: string;
-	targetId: string | null;
-	targetKind: string;
-}
+export const DiningRevisionSchema = z.object({ expectedRevision: revision }).strict();
 
-export type DiningCatalogCommand =
-	| { kind: "rename_stall"; stallProfileId: string; displayName: string }
-	| { kind: "set_offering_price"; offeringId: string; priceLabel: string | null }
-	| {
-			kind: "assign_stall";
-			windowId: string;
-			stallProfileId: string;
-			displayName: string;
-			tags: string[];
-	  }
-	| { kind: "remove_assignment"; assignmentId: string };
+export const DiningOpsStateResponseSchema = z
+	.object({
+		currentRelease: DiningReleaseSummarySchema.nullable(),
+		draft,
+	})
+	.strict();
 
-export type DiningReviewCommand =
-	| { kind: "hide"; reason: string }
-	| { kind: "restore"; reason: string }
-	| { kind: "rebind"; offeringId: string; reason: string }
-	| { kind: "recheck" };
+export const DiningDraftResponseSchema = z.object({ draft }).strict();
+
+export const DiningReleaseResponseSchema = z
+	.object({ release: DiningReleaseSummarySchema })
+	.strict();
+
+export const DiningRestoreResponseSchema = z
+	.object({ draft, release: DiningReleaseSummarySchema })
+	.strict();
+
+export const DiningReleaseListResponseSchema = z
+	.object({
+		currentReleaseId: z.string().min(1).nullable(),
+		releases: z.array(DiningReleaseSummarySchema),
+	})
+	.strict();

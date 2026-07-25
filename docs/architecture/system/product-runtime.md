@@ -83,8 +83,8 @@ tool 也不通过 app-api。
   execution-control credential。
 - `ops-web -> PostgreSQL/execution-control/Axiom/Sentry` 提供有界运行摘要和关联记录；人员可以
   通过固定接口更新内部门户认证并恢复固定维护 Schedule。
-- `ops-web -> dining.*` 使用独立角色维护草稿、不可变发布版本和评价状态；app-api 只读取公开
-  投影。
+- `ops-web -> dining.*` 使用统一 `ops_web` 角色维护地图草稿、不可变发布版本、菜单、评价和举报；
+  app-api 读取公开地图与菜单，并以受限权限处理学生评价和举报。
 - `ops-web -> ingestion-control` 只查询和恢复固定门户认证维护 Schedule，不提交采集任务或选择
   其他工作流。
 - 在线模型配置后端不可用不阻断 Ops Web 的运行记录读取 readiness。

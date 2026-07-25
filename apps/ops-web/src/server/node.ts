@@ -9,7 +9,6 @@ if (fixtureMode) {
 	assertFixtureModeAllowed(process.env);
 }
 const admission = fixtureMode ? createAllowAllOpsAdmission() : undefined;
-
 serve(
 	{
 		fetch: createOpsApp({ admission }).fetch,

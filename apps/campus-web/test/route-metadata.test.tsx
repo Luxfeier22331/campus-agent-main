@@ -8,7 +8,7 @@ describe("campus-web route metadata", () => {
 		expect(resolveRouteMetadata("/dining")).toMatchObject({
 			canonicalPath: "/dining",
 			description: expect.stringContaining("食堂"),
-			title: "食堂 | 中央民族大学校园问答",
+			title: "食堂地图 | 中央民族大学校园问答",
 		});
 		expect(resolveRouteMetadata("/map").title).toBe("校园地图 | 中央民族大学校园问答");
 		expect(resolveRouteMetadata("/feedback").canonicalPath).toBe("/feedback");

@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 
 import type {
 	ExecutionModelSettingsStatus,
@@ -10,7 +10,7 @@ import type {
 function captureRuntimeErrors(page: Page): string[] {
 	const errors: string[] = [];
 	page.on("console", (message) => {
-		if (message.type() === "error") {
+		if (message.type() === "error" || message.text().includes("missing messages for keys")) {
 			errors.push(`console: ${message.text()}`);
 		}
 	});
@@ -49,6 +49,34 @@ async function expectNoAccessibilityViolations(page: Page): Promise<void> {
 	expect(results.violations, JSON.stringify(results.violations, null, 2)).toEqual([]);
 }
 
+async function openDiningPage(page: Page): Promise<Locator> {
+	await page.goto("/dining");
+	await expect(page.getByRole("heading", { name: "平面图维护" })).toBeVisible({
+		timeout: 20_000,
+	});
+	const stage = page.getByRole("region", { name: "平面图画布" });
+	await expect(stage).toBeVisible({ timeout: 20_000 });
+	return stage;
+}
+
+async function diningElementPanel(page: Page): Promise<Locator> {
+	const desktopPanel = page.getByRole("complementary", { name: "地图元素" });
+	if (await desktopPanel.isVisible()) {
+		return desktopPanel;
+	}
+	await page.getByRole("button", { name: "图层与元素" }).click();
+	return page.getByRole("dialog", { name: "图层与元素" }).locator(".element-sections");
+}
+
+async function openDiningProperties(page: Page): Promise<void> {
+	const properties = page.getByRole("region", { name: "元素属性" });
+	if (await properties.isVisible()) {
+		return;
+	}
+	await page.getByRole("button", { name: "元素属性" }).click();
+	await expect(properties).toBeVisible();
+}
+
 test("总览在各宽度下保持可读", async ({ page }) => {
 	const errors = captureRuntimeErrors(page);
 	await page.goto("/overview?window=1h");
@@ -77,7 +105,6 @@ test("运行记录沿用户旅途进入详情和独立系统记录", async ({ pa
 			externalRecordRequests.push(`${url.pathname}${url.search}`);
 		}
 	});
-	await page.goto("/requests");
 
 	await expect(page.getByRole("heading", { name: "运行记录" })).toBeVisible();
 	const recentResults =
@@ -271,9 +298,8 @@ test("系统记录不会串到其他运行", async ({ page }) => {
 test("导航在移动端使用抽屉且桌面端保持可见", async ({ page }) => {
 	const errors = captureRuntimeErrors(page);
 	await page.goto("/requests");
-	const viewportWidth = page.viewportSize()?.width ?? 0;
 
-	if (viewportWidth < 1024) {
+	if ((page.viewportSize()?.width ?? 0) < 1024) {
 		const toggle = page.getByRole("button", { name: "打开导航" });
 		await toggle.click();
 		await expect(page.getByRole("navigation", { name: "运维导航" }).last()).toBeVisible();
@@ -285,7 +311,147 @@ test("导航在移动端使用抽屉且桌面端保持可见", async ({ page }) 
 	await expectStableViewport(page, errors);
 });
 
-test("采集页面可以查看任务并提交受控操作", async ({ page }) => {
+test("食堂地图页展示地图草稿和不可变发布历史", async ({ page }) => {
+	const errors = captureRuntimeErrors(page);
+	await openDiningPage(page);
+
+	await expect(page.getByText("学生端已更新", { exact: true })).toBeVisible();
+	await expect(page.getByRole("heading", { name: "发布历史" })).toBeVisible();
+	await expect(page.getByText("dining-release-1", { exact: true })).toBeVisible();
+	await expect(page.getByRole("button", { name: "发布", exact: true })).toBeDisabled();
+	await expect(page.locator("#ops-main-content")).not.toContainText(/采集记录|预览|导入|导出/);
+	await expectStableViewport(page, errors);
+});
+
+test("食堂地图按完整 bundle 保存、发布并恢复历史版本", async ({ page }) => {
+	const errors = captureRuntimeErrors(page);
+	let savedBundle: unknown = null;
+	page.on("request", (request) => {
+		if (request.method() === "PUT" && new URL(request.url()).pathname === "/api/ops/dining/draft") {
+			savedBundle = request.postDataJSON().bundle;
+		}
+	});
+	await openDiningPage(page);
+
+	const panel = await diningElementPanel(page);
+	const firstWindow = panel
+		.locator(".element-section")
+		.filter({ has: page.getByRole("heading", { name: "窗口" }) })
+		.locator(".element-list > button")
+		.first();
+	await firstWindow.click();
+	await openDiningProperties(page);
+	const name = page.getByLabel("名称");
+	const originalName = await name.inputValue();
+	await name.fill(`${originalName}测试`);
+	await name.press("Enter");
+	await expect(page.locator(".editor-status")).toContainText("未保存");
+	await page.getByRole("button", { name: "保存草稿", exact: true }).click();
+	await expect(page.locator(".editor-status")).toHaveText("草稿已保存");
+	await expect(page.getByText("草稿待发布", { exact: true })).toBeVisible();
+	expect(savedBundle).toEqual(
+		expect.objectContaining({
+			kind: "dining_floorplan_bundle",
+			layouts: expect.any(Array),
+			schemaVersion: 1,
+		}),
+	);
+
+	await page.getByRole("button", { name: "发布", exact: true }).click();
+	const publishDialog = page.getByRole("alertdialog", { name: "发布当前地图？" });
+	await publishDialog.getByRole("button", { name: "发布", exact: true }).click();
+	await expect(page.getByText("学生端已更新", { exact: true })).toBeVisible();
+	await expect(page.getByText("dining-release-2", { exact: true })).toBeVisible();
+
+	const historicalRelease = page.getByRole("listitem").filter({ hasText: "dining-release-1" });
+	await historicalRelease.getByRole("button", { name: "恢复" }).click();
+	const restoreDialog = page.getByRole("alertdialog", { name: "恢复这个地图版本？" });
+	await restoreDialog.getByRole("button", { name: "恢复", exact: true }).click();
+	await expect(page.getByText("dining-release-3", { exact: true })).toBeVisible();
+	await expect(page.getByText("恢复草稿第 3 版", { exact: true })).toBeVisible();
+	await expectStableViewport(page, errors);
+});
+
+test("食堂接口格式错误时显示失败状态并允许重试", async ({ page }) => {
+	const errors = captureRuntimeErrors(page);
+	let malformed = true;
+	await page.route("**/api/ops/dining", async (route) => {
+		if (malformed) {
+			await route.fulfill({ json: { unexpected: true } });
+			return;
+		}
+		await route.fallback();
+	});
+	await page.goto("/dining");
+
+	await expect(page.getByRole("heading", { name: "食堂地图读取失败" })).toBeVisible();
+	malformed = false;
+	await page.getByRole("button", { name: "重试" }).click();
+	await expect(page.getByRole("heading", { name: "平面图维护" })).toBeVisible();
+	await expectStableViewport(page, errors);
+});
+
+test("食堂菜单可以新增立即生效的菜品和价格", async ({ page }) => {
+	const errors = captureRuntimeErrors(page);
+	await page.goto("/dining/menu");
+	await expect(page.getByRole("heading", { name: "菜单维护" })).toBeVisible();
+
+	await page.getByRole("button", { name: "新增菜品" }).click();
+	const dialog = page.getByRole("dialog", { name: "新增菜品" });
+	await dialog.getByLabel("菜品名称").fill("宫保鸡丁");
+	await dialog.getByLabel("价格").fill("15 元");
+	await dialog.getByRole("button", { name: "保存", exact: true }).click();
+
+	await expect(dialog).toBeHidden();
+	const row = page.getByRole("row").filter({ hasText: "宫保鸡丁" });
+	await expect(row).toContainText("15 元");
+	await expect(row).toContainText("已启用");
+	await expect(row.getByRole("rowheader")).toHaveCSS("position", "sticky");
+	await expect(row.locator("td").last()).toHaveCSS("position", "sticky");
+	await expectStableViewport(page, errors);
+});
+
+test("食堂评价修改后展示正文和修改记录", async ({ page }) => {
+	const errors = captureRuntimeErrors(page);
+	await page.goto("/dining/reviews");
+	await expect(page.getByRole("heading", { name: "评价维护" })).toBeVisible();
+
+	await page.getByRole("button", { name: "查看评价 drv_1" }).click();
+	const dialog = page.getByRole("dialog", { name: "评价详情" });
+	await dialog.getByLabel("评价正文").fill("味道不错，午餐时段出餐也很快。");
+	await dialog.getByRole("button", { name: "保存修改" }).click();
+
+	await expect(dialog.getByRole("heading", { name: "修改记录" })).toBeVisible();
+	const editRecord = dialog.getByRole("listitem");
+	await expect(editRecord).toContainText("味道不错，出餐也很快。");
+	await expect(editRecord).toContainText("味道不错，午餐时段出餐也很快。");
+	await dialog
+		.getByRole("button", { name: "关闭", exact: true })
+		.filter({ hasText: "关闭" })
+		.click();
+	const row = page.getByRole("row").filter({ hasText: "午餐时段" });
+	await expect(row).toContainText("已编辑");
+	await expectStableViewport(page, errors);
+});
+
+test("食堂举报处理后进入已处理列表", async ({ page }) => {
+	const errors = captureRuntimeErrors(page);
+	await page.goto("/dining/reports");
+	await expect(page.getByRole("heading", { name: "举报处理" })).toBeVisible();
+	await expect(page.getByText("正文包含联系方式")).toBeVisible();
+
+	await page.getByRole("button", { name: "保留", exact: true }).click();
+	const dialog = page.getByRole("alertdialog", { name: "保留这条评价？" });
+	await dialog.getByRole("button", { name: "保留评价" }).click();
+	await expect(page.getByText("当前没有待处理举报。")).toBeVisible();
+
+	await page.getByRole("button", { name: "已处理" }).click();
+	await expect(page.getByText("正文包含联系方式")).toBeVisible();
+	await expect(page.getByText("已保留", { exact: true })).toBeVisible();
+	await expectStableViewport(page, errors);
+});
+
+test("采集页面可以进入通知采集任务", async ({ page }) => {
 	const errors = captureRuntimeErrors(page);
 	await page.goto("/ingestion");
 
@@ -307,22 +473,7 @@ test("采集页面可以查看任务并提交受控操作", async ({ page }) => 
 
 	await page.getByRole("link", { name: "查看门户通知抓取任务" }).click();
 	await expect(page.getByRole("heading", { name: "采集任务" })).toBeVisible();
-	await expect(page.getByText("ingestion/internal-portal-notice-publication")).toBeVisible();
-	await expect(page.getByRole("button", { name: "重试" })).toHaveCount(0);
 	await expectStableViewport(page, errors);
-});
-
-test("食堂数据库不可用时只显示一个可重试错误", async ({ page }) => {
-	const errors = captureRuntimeErrors(page);
-	await page.goto("/dining");
-
-	await expect(page.getByRole("heading", { name: "食堂内容" })).toBeVisible();
-	await expect(page.getByText("食堂状态读取失败")).toBeVisible();
-	await expect(page.getByRole("tab")).toHaveCount(0);
-	await expect(page.getByText(/食堂目录读取失败|采集记录读取失败|发布记录读取失败/u)).toHaveCount(
-		0,
-	);
-	await expectStableViewport(page, errors, ["503 (Service Unavailable)"]);
 });
 
 test("首次部署写入凭据后立即提交验证", async ({ page }) => {

@@ -1,4 +1,4 @@
-const DINING_FLOORPLAN_ASSET_PATH = /^\/assets\/dining\/[A-Za-z0-9][A-Za-z0-9._-]*\.svg$/;
+const DINING_FLOORPLAN_ASSET_PATH = /^\/api\/dining\/floorplans\/([0-9a-f]{64})\.svg$/;
 const SHA256_REFERENCE = /^sha256:([0-9a-f]{64})$/;
 
 export async function loadDiningFloorplanAsset(input: {
@@ -11,11 +11,12 @@ export async function loadDiningFloorplanAsset(input: {
 		throw new Error("Dining floorplan checksum is invalid.");
 	}
 	const assetUrl = new URL(input.svgAssetUrl, window.location.href);
+	const pathMatch = DINING_FLOORPLAN_ASSET_PATH.exec(assetUrl.pathname);
 	if (
 		assetUrl.origin !== window.location.origin ||
 		assetUrl.search ||
 		assetUrl.hash ||
-		!DINING_FLOORPLAN_ASSET_PATH.test(assetUrl.pathname)
+		pathMatch?.[1] !== expectedDigest
 	) {
 		throw new Error("Dining floorplan asset URL is invalid.");
 	}

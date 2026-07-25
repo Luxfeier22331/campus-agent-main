@@ -31,9 +31,8 @@ app-api 拥有认证、聊天、请求观测、用户资料和个人记忆产品
 `APP_API_DB` 与 `APP_API_DB_FRESH` 是指向同一共享 PostgreSQL 的两条 Hyperdrive 通道，不是
 两个逻辑数据库。只有数据所有者文档明确允许的路径才能使用写后立即读通道。
 
-学生食堂接口只读取已发布的 `dining.*` 投影。食堂目录 fixture 属于
-`packages/domains/dining`，导入与评价同步属于 `jobs/dining-sync`，不得进入 app-api 请求
-主路径。
+学生食堂接口只读取已发布的 `dining.map_releases` 和 `dining.map_publication`，并从统一
+derived bucket 读取按摘要命名的地图资源。App API 不读取草稿，也不执行地图编辑或发布。
 
 数据库 schema 与角色边界由 `docs/data/postgres-ownership.md` 维护，安装和迁移实现位于应用
 `ops/db/` 与 schema Job；README 不复制表清单和部署步骤。
@@ -46,12 +45,13 @@ app-api 拥有认证、聊天、请求观测、用户资料和个人记忆产品
 - 接口合同：`docs/contracts/app-api/README.md`
 - 数据所有权：`docs/data/app-api/README.md`
 - 运行排查：`docs/architecture/system/ops-observability.md`、`docs/runbooks/execution.md`
-- 食堂：`docs/architecture/domains/dining.md`、`docs/data/dining.md`
+- 食堂地图：`docs/product/dining.md`
 
 ## 本地开发
 
 ```bash
 pnpm install
+pnpm dev:init
 pnpm --dir apps/app-api dev
 pnpm --dir apps/app-api test
 pnpm --dir apps/app-api test:node
@@ -61,8 +61,6 @@ pnpm ci:app-api-migration
 pnpm --dir apps/app-api typecheck
 ```
 
-本地 Wrangler 与 Drizzle 进程变量放在 `apps/app-api/.env`，Worker 字符串变量放在
-`apps/app-api/.dev.vars`。从所属密钥存储或 runbook 直接填写应用本地文件，不从根目录
-`.env` 扩散数据库 URL。
+`pnpm dev:init` 在当前 worktree 的 App API 目录生成 `.env.local` 与 `.dev.vars.local`。不要手工修改或从根 `.env` 复制；外部凭据通过启动命令的进程环境或可选 secret manager 注入。只启动本应用时仍使用 profile 中的独立端口和 database。
 
 数据库安装入口见 `jobs/app-api-schema/README.md`，部署顺序见 `docs/runbooks/release.md`。

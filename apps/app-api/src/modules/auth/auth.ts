@@ -40,6 +40,7 @@ const APP_PASSWORD_SALT_BYTES = 16;
 const APP_PASSWORD_KEY_BYTES = 32;
 export const SIGNUP_LEGAL_CONSENT_HEADER_NAME = "x-campus-legal-accepted";
 export const SIGNUP_LEGAL_CONSENT_HEADER_VALUE = "terms-and-privacy";
+const LOCAL_TURNSTILE_DISABLED_SECRET_KEY = "local-turnstile-disabled";
 const appAuthCache = new WeakMap<Env, Promise<AppAuth>>();
 const passwordTextEncoder = new TextEncoder();
 
@@ -217,6 +218,10 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 		fetchImplementation: input.resendFetch,
 		resendApiKey: input.resendApiKey,
 	};
+	const captchaEnabled = !(
+		input.environment === "development" &&
+		input.authTurnstileSecretKey === LOCAL_TURNSTILE_DISABLED_SECRET_KEY
+	);
 
 	return {
 		appName: input.appName,
@@ -282,10 +287,14 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 				loginPage: "/account/login",
 				scopes: [...FEDERATION_SCOPES],
 			}),
-			captcha({
-				provider: "cloudflare-turnstile",
-				secretKey: input.authTurnstileSecretKey,
-			}),
+			...(captchaEnabled
+				? [
+						captcha({
+							provider: "cloudflare-turnstile",
+							secretKey: input.authTurnstileSecretKey,
+						}),
+					]
+				: []),
 		],
 		rateLimit: {
 			enabled: isDeployedEnvironment(input.environment),

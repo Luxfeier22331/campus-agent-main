@@ -2,13 +2,14 @@
 	"name": "@campus-agent/dining",
 	"version": "0.1.0",
 	"private": true,
-	"description": "Dining domain model, floorplan manifest, release, and projection logic.",
+	"description": "Dining map contracts, validation, publication, and database schema.",
 	"license": "Apache-2.0",
 	"type": "module",
 	"exports": {
+		"./bootstrap": "./src/floorplans/bootstrap.ts",
 		"./domain": "./src/domain/index.ts",
-		"./floorplan-assets": "./src/floorplans/assets.ts",
 		"./floorplans": "./src/floorplans/index.ts",
+		"./publisher": "./src/domain/publisher.ts",
 		"./schema": "./src/schema.ts"
 	},
 	"scripts": {

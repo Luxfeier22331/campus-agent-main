@@ -5,11 +5,186 @@ import { fileURLToPath } from "node:url";
 import pg, { type Client } from "pg";
 import { type DatabaseSslConfig, readDatabaseConnectionConfig } from "./postgres-tls.ts";
 
+const DINING_TABLES = [
+	"map_draft",
+	"map_publication",
+	"map_releases",
+	"menu_items",
+	"review_edits",
+	"review_reports",
+	"reviews",
+] as const;
+const RETIRED_DINING_TABLES = [
+	"catalog_overrides",
+	"catalog_state",
+	"floorplan_document_revisions",
+	"floorplan_documents",
+	"floorplan_versions",
+	"floors",
+	"halls",
+	"operation_events",
+	"preview_sessions",
+	"publication",
+	"release_reviews",
+	"releases",
+	"review_overrides",
+	"review_recheck_requests",
+	"source_observations",
+	"source_sync_runs",
+	"source_window_bindings",
+	"windows",
+] as const;
+
+const DINING_SCHEMA_STATEMENTS = [
+	`CREATE SCHEMA IF NOT EXISTS "dining"`,
+	`DO $retire_legacy_dining_content$
+	BEGIN
+		IF pg_catalog.to_regclass('dining.menu_items') IS NOT NULL
+			AND NOT EXISTS (
+				SELECT 1 FROM information_schema.columns
+				WHERE table_schema = 'dining' AND table_name = 'menu_items' AND column_name = 'window_id'
+			)
+		THEN
+			DROP TABLE "dining"."menu_items" CASCADE;
+		END IF;
+		IF pg_catalog.to_regclass('dining.reviews') IS NOT NULL
+			AND NOT EXISTS (
+				SELECT 1 FROM information_schema.columns
+				WHERE table_schema = 'dining' AND table_name = 'reviews' AND column_name = 'author_kind'
+			)
+		THEN
+			DROP TABLE "dining"."reviews" CASCADE;
+		END IF;
+	END
+	$retire_legacy_dining_content$`,
+	`DROP TABLE IF EXISTS ${RETIRED_DINING_TABLES.map((table) => `"dining"."${table}"`).join(", ")} CASCADE`,
+	`CREATE TABLE IF NOT EXISTS "dining"."map_draft" (
+		"scope" text PRIMARY KEY CHECK ("scope" = 'global'),
+		"bundle_json" jsonb NOT NULL,
+		"fingerprint" text NOT NULL CHECK ("fingerprint" ~ '^sha256:[0-9a-f]{64}$'),
+		"revision" integer NOT NULL CHECK ("revision" > 0),
+		"updated_at" timestamptz NOT NULL,
+		"updated_by" text NOT NULL
+	)`,
+	`CREATE TABLE IF NOT EXISTS "dining"."map_releases" (
+		"release_id" text PRIMARY KEY,
+		"snapshot_hash" text NOT NULL CHECK ("snapshot_hash" ~ '^sha256:[0-9a-f]{64}$'),
+		"draft_revision" integer NOT NULL CHECK ("draft_revision" > 0),
+		"kind" text NOT NULL CHECK ("kind" IN ('publish', 'restore')),
+		"restored_from_release_id" text REFERENCES "dining"."map_releases" ("release_id"),
+		"bundle_json" jsonb NOT NULL,
+		"public_payload_json" jsonb NOT NULL,
+		"created_at" timestamptz NOT NULL,
+		"created_by" text NOT NULL
+	)`,
+	`CREATE INDEX IF NOT EXISTS "dining_map_releases_created_idx"
+	 ON "dining"."map_releases" ("created_at" DESC, "release_id" DESC)`,
+	`CREATE TABLE IF NOT EXISTS "dining"."map_publication" (
+		"scope" text PRIMARY KEY CHECK ("scope" = 'global'),
+		"release_id" text NOT NULL REFERENCES "dining"."map_releases" ("release_id"),
+		"updated_at" timestamptz NOT NULL,
+		"updated_by" text NOT NULL
+	)`,
+	`CREATE TABLE IF NOT EXISTS "dining"."menu_items" (
+		"menu_item_id" text PRIMARY KEY,
+		"window_id" text NOT NULL,
+		"name" text NOT NULL CHECK (length(btrim("name")) BETWEEN 1 AND 80),
+		"price_text" text CHECK ("price_text" IS NULL OR length(btrim("price_text")) BETWEEN 1 AND 40),
+		"sort_order" integer NOT NULL CHECK ("sort_order" >= 0),
+		"archived_at" timestamptz,
+		"created_at" timestamptz NOT NULL,
+		"created_by" text NOT NULL,
+		"updated_at" timestamptz NOT NULL,
+		"updated_by" text NOT NULL
+	)`,
+	`CREATE INDEX IF NOT EXISTS "dining_menu_items_window_sort_idx"
+	 ON "dining"."menu_items" ("window_id", "archived_at", "sort_order", "menu_item_id")`,
+	`CREATE TABLE IF NOT EXISTS "dining"."reviews" (
+		"review_id" text PRIMARY KEY,
+		"menu_item_id" text NOT NULL REFERENCES "dining"."menu_items" ("menu_item_id") ON DELETE RESTRICT,
+		"author_kind" text NOT NULL CHECK ("author_kind" IN ('member', 'operator')),
+		"author_id" text NOT NULL,
+		"author_display_name" text NOT NULL,
+		"anonymous" boolean NOT NULL,
+		"body" text NOT NULL CHECK (length(btrim("body")) BETWEEN 1 AND 500),
+		"idempotency_key" text NOT NULL,
+		"submission_date" date NOT NULL,
+		"created_at" timestamptz NOT NULL,
+		"updated_at" timestamptz NOT NULL,
+		"updated_by" text NOT NULL,
+		"edited_at" timestamptz,
+		"hidden_at" timestamptz,
+		"hidden_by" text,
+		"deleted_at" timestamptz,
+		"deleted_by" text
+	)`,
+	`CREATE INDEX IF NOT EXISTS "dining_reviews_menu_created_idx"
+	 ON "dining"."reviews" ("menu_item_id", "created_at" DESC, "review_id" DESC)`,
+	`CREATE INDEX IF NOT EXISTS "dining_reviews_member_limit_idx"
+	 ON "dining"."reviews" ("author_kind", "author_id", "menu_item_id", "submission_date")`,
+	`CREATE UNIQUE INDEX IF NOT EXISTS "dining_reviews_idempotency_uidx"
+	 ON "dining"."reviews" ("author_kind", "author_id", "idempotency_key")`,
+	`CREATE TABLE IF NOT EXISTS "dining"."review_reports" (
+		"report_id" text PRIMARY KEY,
+		"review_id" text NOT NULL REFERENCES "dining"."reviews" ("review_id") ON DELETE CASCADE,
+		"reporter_user_id" text NOT NULL,
+		"reason" text NOT NULL CHECK ("reason" IN ('spam', 'inappropriate', 'privacy', 'other')),
+		"details" text CHECK ("details" IS NULL OR length("details") <= 300),
+		"created_at" timestamptz NOT NULL,
+		"resolution" text CHECK ("resolution" IS NULL OR "resolution" IN ('keep', 'hide')),
+		"resolved_at" timestamptz,
+		"resolved_by" text,
+		CHECK (("resolution" IS NULL AND "resolved_at" IS NULL AND "resolved_by" IS NULL)
+			OR ("resolution" IS NOT NULL AND "resolved_at" IS NOT NULL AND "resolved_by" IS NOT NULL)),
+		UNIQUE ("review_id", "reporter_user_id")
+	)`,
+	`CREATE INDEX IF NOT EXISTS "dining_review_reports_pending_idx"
+	 ON "dining"."review_reports" ("resolved_at", "created_at", "report_id")`,
+	`CREATE TABLE IF NOT EXISTS "dining"."review_edits" (
+		"edit_id" text PRIMARY KEY,
+		"review_id" text NOT NULL REFERENCES "dining"."reviews" ("review_id") ON DELETE CASCADE,
+		"previous_body" text NOT NULL,
+		"next_body" text NOT NULL,
+		"edited_at" timestamptz NOT NULL,
+		"edited_by" text NOT NULL
+	)`,
+	`CREATE INDEX IF NOT EXISTS "dining_review_edits_review_idx"
+	 ON "dining"."review_edits" ("review_id", "edited_at", "edit_id")`,
+] as const;
+
+const DINING_GRANT_STATEMENTS = [
+	`REVOKE ALL PRIVILEGES ON SCHEMA "dining" FROM PUBLIC, "ops_web", "app_api"`,
+	`REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA "dining" FROM PUBLIC, "ops_web", "app_api"`,
+	`GRANT USAGE ON SCHEMA "dining" TO "ops_web", "app_api"`,
+	`GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
+		"dining"."map_draft",
+		"dining"."map_releases",
+		"dining"."map_publication",
+		"dining"."menu_items",
+		"dining"."reviews",
+		"dining"."review_reports",
+		"dining"."review_edits"
+	 TO "ops_web"`,
+	`GRANT SELECT ON TABLE
+		"dining"."map_releases",
+		"dining"."map_publication",
+		"dining"."menu_items"
+	 TO "app_api"`,
+	`GRANT SELECT, INSERT, UPDATE ON TABLE "dining"."reviews" TO "app_api"`,
+	`GRANT SELECT, INSERT ON TABLE "dining"."review_reports" TO "app_api"`,
+] as const;
+
 const OPS_WEB_GRANT_STATEMENTS = [
-	`REVOKE ALL PRIVILEGES ON SCHEMA "execution_config" FROM "ops_web"`,
-	`REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA "execution_config" FROM "ops_web"`,
-	`REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA "execution_config" FROM "ops_web"`,
-	`REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA "execution_config" FROM "ops_web"`,
+	`DO $ops_web_provider_config_schema_revoke$
+	BEGIN
+		IF pg_catalog.to_regnamespace('execution_config') IS NOT NULL THEN
+			EXECUTE 'REVOKE ALL PRIVILEGES ON SCHEMA "execution_config" FROM "ops_web"';
+			EXECUTE 'REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA "execution_config" FROM "ops_web"';
+			EXECUTE 'REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA "execution_config" FROM "ops_web"';
+			EXECUTE 'REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA "execution_config" FROM "ops_web"';
+		END IF;
+	END
+	$ops_web_provider_config_schema_revoke$`,
 	`DO $ops_web_provider_config_revoke$
 	DECLARE
 		relation record;
@@ -113,9 +288,21 @@ const OPS_WEB_GRANT_STATEMENTS = [
 	) ON TABLE "runtime"."agent_step_attempts" TO "ops_web"`,
 ] as const;
 
+async function applyDiningDatabaseStatements(client: {
+	query(sql: string): Promise<unknown>;
+}): Promise<void> {
+	for (const statement of DINING_SCHEMA_STATEMENTS) {
+		await client.query(statement);
+	}
+	for (const statement of DINING_GRANT_STATEMENTS) {
+		await client.query(statement);
+	}
+}
+
 export async function applyOpsWebGrantStatements(client: {
 	query(sql: string): Promise<unknown>;
 }): Promise<void> {
+	await applyDiningDatabaseStatements(client);
 	for (const statement of OPS_WEB_GRANT_STATEMENTS) {
 		await client.query(statement);
 	}
@@ -126,6 +313,69 @@ interface DatabaseConnectionConfig {
 	ssl: DatabaseSslConfig;
 }
 const REQUIRED_SELECTS = [
+	{
+		label: "dining.map_draft",
+		sql: `
+			select "scope", "bundle_json", "fingerprint", "revision", "updated_at", "updated_by"
+			from "dining"."map_draft"
+			limit 0
+		`,
+	},
+	{
+		label: "dining.map_releases",
+		sql: `
+			select "release_id", "snapshot_hash", "draft_revision", "kind",
+				"restored_from_release_id", "bundle_json", "public_payload_json",
+				"created_at", "created_by"
+			from "dining"."map_releases"
+			limit 0
+		`,
+	},
+	{
+		label: "dining.map_publication",
+		sql: `
+			select "scope", "release_id", "updated_at", "updated_by"
+			from "dining"."map_publication"
+			limit 0
+		`,
+	},
+	{
+		label: "dining.menu_items",
+		sql: `
+			select "menu_item_id", "window_id", "name", "price_text", "sort_order",
+				"archived_at", "created_at", "created_by", "updated_at", "updated_by"
+			from "dining"."menu_items"
+			limit 0
+		`,
+	},
+	{
+		label: "dining.reviews",
+		sql: `
+			select "review_id", "menu_item_id", "author_kind", "author_id",
+				"author_display_name", "anonymous", "body", "idempotency_key",
+				"submission_date", "created_at", "updated_at", "updated_by",
+				"edited_at", "hidden_at", "hidden_by", "deleted_at", "deleted_by"
+			from "dining"."reviews"
+			limit 0
+		`,
+	},
+	{
+		label: "dining.review_reports",
+		sql: `
+			select "report_id", "review_id", "reporter_user_id", "reason", "details",
+				"created_at", "resolution", "resolved_at", "resolved_by"
+			from "dining"."review_reports"
+			limit 0
+		`,
+	},
+	{
+		label: "dining.review_edits",
+		sql: `
+			select "edit_id", "review_id", "previous_body", "next_body", "edited_at", "edited_by"
+			from "dining"."review_edits"
+			limit 0
+		`,
+	},
 	{
 		label: "chat.turn_dispatches",
 		sql: `
@@ -234,18 +484,100 @@ async function assertDatabaseRole(client: Client, roleName: string): Promise<voi
 async function verifyDatabaseRoles(config: DatabaseConnectionConfig): Promise<void> {
 	return withClient(config, async (client) => {
 		await assertDatabaseRole(client, "ops_web");
+		await assertDatabaseRole(client, "app_api");
+	});
+}
+
+async function verifyDiningSchemaAndAppApiGrants(config: DatabaseConnectionConfig): Promise<void> {
+	return withClient(config, async (client) => {
+		const tables = await client.query<{ table_name: string }>(`
+			select table_name
+			from information_schema.tables
+			where table_schema = 'dining' and table_type = 'BASE TABLE'
+			order by table_name
+		`);
+		const actualTables = tables.rows.map((row) => row.table_name);
+		const expectedTables = [...DINING_TABLES].sort();
+		if (actualTables.join(",") !== expectedTables.join(",")) {
+			throw new Error(
+				`dining schema must contain only ${expectedTables.join(", ")}; found ${actualTables.join(", ") || "none"}.`,
+			);
+		}
+
+		const privileges = await client.query<{
+			canDeleteReports: boolean;
+			canDeleteReviews: boolean;
+			canInsertReports: boolean;
+			canInsertReviews: boolean;
+			canMutateDraft: boolean;
+			canMutateEdits: boolean;
+			canMutateMenu: boolean;
+			canMutatePublication: boolean;
+			canMutateReleases: boolean;
+			canReadDraft: boolean;
+			canReadEdits: boolean;
+			canReadMenu: boolean;
+			canReadPublication: boolean;
+			canReadReports: boolean;
+			canReadReleases: boolean;
+			canReadReviews: boolean;
+			canUpdateReports: boolean;
+			canUpdateReviews: boolean;
+			canUseSchema: boolean;
+		}>(`select
+			has_schema_privilege('app_api', 'dining', 'USAGE') as "canUseSchema",
+			has_table_privilege('app_api', 'dining.map_draft', 'SELECT') as "canReadDraft",
+			has_table_privilege('app_api', 'dining.map_releases', 'SELECT') as "canReadReleases",
+			has_table_privilege('app_api', 'dining.map_publication', 'SELECT') as "canReadPublication",
+			has_table_privilege('app_api', 'dining.menu_items', 'SELECT') as "canReadMenu",
+			has_table_privilege('app_api', 'dining.reviews', 'SELECT') as "canReadReviews",
+			has_table_privilege('app_api', 'dining.review_reports', 'SELECT') as "canReadReports",
+			has_table_privilege('app_api', 'dining.review_edits', 'SELECT') as "canReadEdits",
+			has_table_privilege('app_api', 'dining.map_draft', 'INSERT,UPDATE,DELETE') as "canMutateDraft",
+			has_table_privilege('app_api', 'dining.map_releases', 'INSERT,UPDATE,DELETE') as "canMutateReleases",
+			has_table_privilege('app_api', 'dining.map_publication', 'INSERT,UPDATE,DELETE') as "canMutatePublication",
+			has_table_privilege('app_api', 'dining.menu_items', 'INSERT,UPDATE,DELETE') as "canMutateMenu",
+			has_table_privilege('app_api', 'dining.reviews', 'INSERT') as "canInsertReviews",
+			has_table_privilege('app_api', 'dining.reviews', 'UPDATE') as "canUpdateReviews",
+			has_table_privilege('app_api', 'dining.reviews', 'DELETE') as "canDeleteReviews",
+			has_table_privilege('app_api', 'dining.review_reports', 'INSERT') as "canInsertReports",
+			has_table_privilege('app_api', 'dining.review_reports', 'UPDATE') as "canUpdateReports",
+			has_table_privilege('app_api', 'dining.review_reports', 'DELETE') as "canDeleteReports",
+			has_table_privilege('app_api', 'dining.review_edits', 'INSERT,UPDATE,DELETE') as "canMutateEdits"`);
+		const access = privileges.rows[0];
+		if (
+			!(
+				access?.canUseSchema &&
+				access.canReadReleases &&
+				access.canReadPublication &&
+				access.canReadMenu &&
+				access.canReadReviews &&
+				access.canReadReports &&
+				access.canInsertReviews &&
+				access.canUpdateReviews &&
+				access.canInsertReports
+			) ||
+			access.canReadDraft ||
+			access.canReadEdits ||
+			access.canMutateDraft ||
+			access.canMutateEdits ||
+			access.canMutateMenu ||
+			access.canMutateReleases ||
+			access.canMutatePublication ||
+			access.canDeleteReviews ||
+			access.canUpdateReports ||
+			access.canDeleteReports
+		) {
+			throw new Error(
+				"app_api Dining privileges do not match the public menu and member review boundary.",
+			);
+		}
 	});
 }
 
 async function verifyOpsWebRoleAndGrants(config: DatabaseConnectionConfig): Promise<void> {
 	return withClient(config, async (client) => {
-		const currentUserResult = await client.query(`select current_user as "currentUser"`);
-		const currentUser = currentUserResult.rows[0]?.currentUser;
-		if (currentUser !== "ops_web") {
-			throw new Error(
-				`OPS_WEB_DATABASE_URL must connect as ops_web; current_user is ${currentUser ?? "<unknown>"}.`,
-			);
-		}
+		await assertOpsWebCurrentUser(client);
 
 		for (const check of REQUIRED_SELECTS) {
 			try {
@@ -257,10 +589,16 @@ async function verifyOpsWebRoleAndGrants(config: DatabaseConnectionConfig): Prom
 			}
 		}
 
+		await verifyOpsWebDiningPrivileges(client);
+
 		const providerConfigPrivileges = await client.query(`
 				select
-					has_schema_privilege(current_user, 'execution_config', 'CREATE') as "canCreateSchema",
-					has_schema_privilege(current_user, 'execution_config', 'USAGE') as "canUseSchema",
+					coalesce(has_schema_privilege(
+						current_user, pg_catalog.to_regnamespace('execution_config'), 'CREATE'
+					), false) as "canCreateSchema",
+					coalesce(has_schema_privilege(
+						current_user, pg_catalog.to_regnamespace('execution_config'), 'USAGE'
+					), false) as "canUseSchema",
 					exists (
 						select 1
 						from pg_catalog.pg_class class
@@ -314,6 +652,59 @@ async function verifyOpsWebRoleAndGrants(config: DatabaseConnectionConfig): Prom
 	});
 }
 
+async function assertOpsWebCurrentUser(client: Client): Promise<void> {
+	const currentUserResult = await client.query(`select current_user as "currentUser"`);
+	const currentUser = currentUserResult.rows[0]?.currentUser;
+	if (currentUser !== "ops_web") {
+		throw new Error(
+			`OPS_WEB_DATABASE_URL must connect as ops_web; current_user is ${currentUser ?? "<unknown>"}.`,
+		);
+	}
+}
+
+async function verifyOpsWebDiningPrivileges(client: Client): Promise<void> {
+	const diningPrivileges = await client.query<{
+		canMutateEdits: boolean;
+		canMutateMenu: boolean;
+		canMutateReports: boolean;
+		canMutateReviews: boolean;
+		canMutateDraft: boolean;
+		canMutatePublication: boolean;
+		canMutateReleases: boolean;
+		canUseSchema: boolean;
+	}>(`select
+		has_schema_privilege(current_user, 'dining', 'USAGE') as "canUseSchema",
+		has_table_privilege(current_user, 'dining.map_draft', 'INSERT,UPDATE,DELETE') as "canMutateDraft",
+		has_table_privilege(current_user, 'dining.map_releases', 'INSERT,UPDATE,DELETE') as "canMutateReleases",
+		has_table_privilege(current_user, 'dining.map_publication', 'INSERT,UPDATE,DELETE') as "canMutatePublication",
+		has_table_privilege(current_user, 'dining.menu_items', 'INSERT,UPDATE,DELETE') as "canMutateMenu",
+		has_table_privilege(current_user, 'dining.reviews', 'INSERT,UPDATE,DELETE') as "canMutateReviews",
+		has_table_privilege(current_user, 'dining.review_reports', 'INSERT,UPDATE,DELETE') as "canMutateReports",
+		has_table_privilege(current_user, 'dining.review_edits', 'INSERT,UPDATE,DELETE') as "canMutateEdits"`);
+	const diningAccess = diningPrivileges.rows[0];
+	if (
+		!(
+			diningAccess?.canUseSchema &&
+			diningAccess.canMutateDraft &&
+			diningAccess.canMutateReleases &&
+			diningAccess.canMutatePublication &&
+			diningAccess.canMutateMenu &&
+			diningAccess.canMutateReviews &&
+			diningAccess.canMutateReports &&
+			diningAccess.canMutateEdits
+		)
+	) {
+		throw new Error("ops_web is missing required Dining map write privileges.");
+	}
+}
+
+async function verifyOpsWebDiningAccess(config: DatabaseConnectionConfig): Promise<void> {
+	return withClient(config, async (client) => {
+		await assertOpsWebCurrentUser(client);
+		await verifyOpsWebDiningPrivileges(client);
+	});
+}
+
 function readDatabaseConfigs(env: NodeJS.ProcessEnv): {
 	schemaAdmin: DatabaseConnectionConfig;
 	opsWeb: DatabaseConnectionConfig;
@@ -333,12 +724,14 @@ function readDatabaseConfigs(env: NodeJS.ProcessEnv): {
 }
 
 export async function applyOpsWebDatabaseGrants(env: NodeJS.ProcessEnv = process.env): Promise<{
+	diningMap: "ready";
 	opsWebRole: "ready";
 	readModel: "ready";
 }> {
 	const config = readDatabaseConfigs(env);
 	await withClient(config.schemaAdmin, async (client) => {
 		await assertDatabaseRole(client, "ops_web");
+		await assertDatabaseRole(client, "app_api");
 		await client.query("begin");
 		try {
 			await applyOpsWebGrantStatements(client);
@@ -348,23 +741,49 @@ export async function applyOpsWebDatabaseGrants(env: NodeJS.ProcessEnv = process
 			throw error;
 		}
 	});
+	await verifyDiningSchemaAndAppApiGrants(config.schemaAdmin);
 	await verifyOpsWebRoleAndGrants(config.opsWeb);
 	return {
+		diningMap: "ready",
 		opsWebRole: "ready",
 		readModel: "ready",
 	};
 }
 
+export async function applyDiningDatabase(env: NodeJS.ProcessEnv = process.env): Promise<{
+	diningMap: "ready";
+}> {
+	const config = readDatabaseConfigs(env);
+	await withClient(config.schemaAdmin, async (client) => {
+		await assertDatabaseRole(client, "ops_web");
+		await assertDatabaseRole(client, "app_api");
+		await client.query("begin");
+		try {
+			await applyDiningDatabaseStatements(client);
+			await client.query("commit");
+		} catch (error) {
+			await client.query("rollback");
+			throw error;
+		}
+	});
+	await verifyDiningSchemaAndAppApiGrants(config.schemaAdmin);
+	await verifyOpsWebDiningAccess(config.opsWeb);
+	return { diningMap: "ready" };
+}
+
 export async function verifyOpsWebDatabase(env: NodeJS.ProcessEnv = process.env): Promise<{
+	diningMap: "ready";
 	opsWebRole: "ready";
 	readModel: "ready";
 }> {
 	const config = readDatabaseConfigs(env);
 
 	await verifyDatabaseRoles(config.schemaAdmin);
+	await verifyDiningSchemaAndAppApiGrants(config.schemaAdmin);
 	await verifyOpsWebRoleAndGrants(config.opsWeb);
 
 	return {
+		diningMap: "ready",
 		opsWebRole: "ready",
 		readModel: "ready",
 	};
@@ -372,11 +791,15 @@ export async function verifyOpsWebDatabase(env: NodeJS.ProcessEnv = process.env)
 
 async function main(): Promise<void> {
 	const action = process.argv[2];
-	if (action !== "apply" && action !== "verify") {
-		throw new Error("Usage: ops-web-database.ts <apply|verify>");
+	if (action !== "apply" && action !== "apply-dining" && action !== "verify") {
+		throw new Error("Usage: ops-web-database.ts <apply|apply-dining|verify>");
 	}
 	const result =
-		action === "apply" ? await applyOpsWebDatabaseGrants() : await verifyOpsWebDatabase();
+		action === "apply"
+			? await applyOpsWebDatabaseGrants()
+			: action === "apply-dining"
+				? await applyDiningDatabase()
+				: await verifyOpsWebDatabase();
 	console.log(JSON.stringify(result, null, 2));
 }
 

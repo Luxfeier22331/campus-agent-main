@@ -1,17 +1,10 @@
-import { listDiningFloorScaffold, listDiningHallScaffold } from "@campus-agent/dining/domain";
+import type { DiningMenuItem, DiningReview } from "@campus-agent/dining/domain";
 import type { Page, Route } from "@playwright/test";
 import { mapPageManifest } from "../../test/fixtures/map-manifest";
-import {
-	createDiningFloorPayload,
-	fulfillDiningFloor,
-	fulfillDiningOfferingReviews,
-	fulfillDiningSearch,
-} from "./dining-mocks";
+import { fulfillDiningFloorplan, fulfillDiningMap } from "./dining-mocks";
 import { installMapLibreMock } from "./maplibre-mock";
 
 const now = "2026-06-30T08:00:00.000Z";
-const diningReviewImage =
-	'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" fill="#dbe7e3"/><circle cx="20" cy="20" r="10" fill="#6f8f86"/></svg>';
 const historyConversation = {
 	archivedAt: null,
 	createdAt: now,
@@ -97,13 +90,13 @@ interface CampusApiMockOptions {
 		searchUnauthorized?: boolean;
 	};
 	diningFailures?: {
-		bootstrapFailure?: boolean;
-		floorFailure?: boolean;
-		reviewsFailure?: boolean;
+		floorplanFailure?: boolean;
+		mapFailure?: boolean;
+		menuFailure?: boolean;
+		reviewFailure?: boolean;
 	};
-	diningReviewsDelayMs?: number;
-	emptyDiningHalls?: boolean;
-	includePlaceholderDiningHall?: boolean;
+	emptyDiningMenu?: boolean;
+	emptyDiningMap?: boolean;
 	emptyMapPlaces?: boolean;
 	mapPlacesFailure?: boolean;
 	requests?: CampusApiRequestRecord[];
@@ -115,6 +108,7 @@ interface CampusApiMockOptions {
 
 export interface CampusApiRequestRecord {
 	body: unknown;
+	headers: Record<string, string>;
 	method: string;
 	path: string;
 	search: string;
@@ -126,6 +120,7 @@ export interface CampusApiSessionState {
 
 export async function mockCampusApi(page: Page, options: CampusApiMockOptions = {}) {
 	const sessionState = options.sessionState ?? { authenticated: options.authenticated ?? true };
+	const diningState = createDiningApiState();
 	await installMapLibreMock(page);
 	await page.route(
 		(url) => url.pathname === "/map-data/manifest.json",
@@ -133,15 +128,6 @@ export async function mockCampusApi(page: Page, options: CampusApiMockOptions = 
 			route.fulfill({
 				contentType: "application/json",
 				json: mapPageManifest,
-				status: 200,
-			}),
-	);
-	await page.route(
-		(url) => url.pathname === "/assets/dining/reviews/source_review_fish-1.jpg",
-		(route) =>
-			route.fulfill({
-				body: diningReviewImage,
-				contentType: "image/svg+xml",
 				status: 200,
 			}),
 	);
@@ -154,12 +140,13 @@ export async function mockCampusApi(page: Page, options: CampusApiMockOptions = 
 			const method = request.method();
 			options.requests?.push({
 				body: method === "GET" || method === "HEAD" ? null : parseRequestJson(route),
+				headers: request.headers(),
 				method,
 				path,
 				search: url.search,
 			});
 
-			const mock = routeMocks({ options, sessionState }).find((candidate) => {
+			const mock = routeMocks({ diningState, options, sessionState }).find((candidate) => {
 				if (candidate.method && candidate.method !== method) {
 					return false;
 				}
@@ -297,10 +284,11 @@ export async function fulfillChatFailure(route: Route) {
 }
 
 function routeMocks(input: {
+	diningState: DiningApiState;
 	options: CampusApiMockOptions;
 	sessionState: CampusApiSessionState;
 }): RouteMockInput[] {
-	const { options, sessionState } = input;
+	const { diningState, options, sessionState } = input;
 	return [
 		{
 			method: "GET",
@@ -636,102 +624,198 @@ function routeMocks(input: {
 		},
 		{
 			method: "GET",
-			path: "/api/dining/bootstrap",
+			path: "/api/dining",
 			response: (route) =>
-				options.diningFailures?.bootstrapFailure
+				options.diningFailures?.mapFailure
 					? route.fulfill({
 							contentType: "application/json",
 							json: { error: { code: "dining_unavailable", message: "unavailable" } },
 							status: 500,
 						})
-					: route.fulfill({
-							contentType: "application/json",
-							json: buildDiningBootstrapMock(options),
-							status: 200,
+					: fulfillDiningMap(route, {
+							empty: options.emptyDiningMap,
 						}),
 		},
 		{
 			method: "GET",
-			path: /^\/api\/dining\/halls\/[^/]+\/floors\/[^/]+$/,
-			response: (route) =>
-				options.diningFailures?.floorFailure
-					? route.fulfill({
-							contentType: "application/json",
-							json: { error: { code: "floor_unavailable", message: "unavailable" } },
-							status: 500,
-						})
-					: fulfillDiningFloor(route),
-		},
-		{
-			method: "GET",
-			path: "/api/dining/search",
-			response: (route) => fulfillDiningSearch(route),
-		},
-		{
-			method: "GET",
-			path: /^\/api\/dining\/offerings\/[^/]+\/reviews$/,
-			response: async (route) => {
-				if (options.diningReviewsDelayMs) {
-					await new Promise((resolve) => setTimeout(resolve, options.diningReviewsDelayMs));
+			path: /^\/api\/dining\/windows\/[^/]+\/menu$/,
+			response: (route) => {
+				if (options.diningFailures?.menuFailure) {
+					return route.fulfill({
+						contentType: "application/json",
+						json: { error: { code: "dining_menu_unavailable", message: "unavailable" } },
+						status: 500,
+					});
 				}
-				return options.diningFailures?.reviewsFailure
+				const windowId = decodePathSegment(route, -2);
+				return route.fulfill({
+					contentType: "application/json",
+					json: {
+						items: options.emptyDiningMenu ? [] : (diningState.menuByWindow.get(windowId) ?? []),
+						windowId,
+					},
+					status: 200,
+				});
+			},
+		},
+		{
+			method: "GET",
+			path: /^\/api\/dining\/menu-items\/[^/]+\/reviews$/,
+			response: (route) => {
+				if (options.diningFailures?.reviewFailure) {
+					return route.fulfill({
+						contentType: "application/json",
+						json: { error: { code: "dining_reviews_unavailable", message: "unavailable" } },
+						status: 500,
+					});
+				}
+				const menuItemId = decodePathSegment(route, -2);
+				const items = (diningState.reviewsByMenuItem.get(menuItemId) ?? []).map((review) => ({
+					...review,
+					canDelete: sessionState.authenticated && diningState.ownReviewIds.has(review.reviewId),
+					canReport:
+						sessionState.authenticated &&
+						!diningState.ownReviewIds.has(review.reviewId) &&
+						!review.hasReported,
+				}));
+				return route.fulfill({
+					contentType: "application/json",
+					json: { items, nextCursor: null },
+					status: 200,
+				});
+			},
+		},
+		{
+			method: "POST",
+			path: /^\/api\/dining\/menu-items\/[^/]+\/reviews$/,
+			response: (route) => {
+				const menuItemId = decodePathSegment(route, -2);
+				const body = parseRequestJson(route);
+				const review: DiningReview = {
+					anonymous: body.anonymous === true,
+					authorName: body.anonymous === true ? null : "测试用户",
+					body: parseStringField(body, "body") ?? "",
+					canDelete: true,
+					canReport: false,
+					createdAt: now,
+					edited: false,
+					hasReported: false,
+					menuItemId,
+					reviewId: `review_created_${diningState.nextReviewSequence++}`,
+				};
+				diningState.ownReviewIds.add(review.reviewId);
+				const reviews = diningState.reviewsByMenuItem.get(menuItemId) ?? [];
+				reviews.unshift(review);
+				diningState.reviewsByMenuItem.set(menuItemId, reviews);
+				return route.fulfill({ contentType: "application/json", json: review, status: 201 });
+			},
+		},
+		{
+			method: "DELETE",
+			path: /^\/api\/dining\/reviews\/[^/]+$/,
+			response: (route) => {
+				const reviewId = decodePathSegment(route, -1);
+				for (const [menuItemId, reviews] of diningState.reviewsByMenuItem) {
+					diningState.reviewsByMenuItem.set(
+						menuItemId,
+						reviews.filter((review) => review.reviewId !== reviewId),
+					);
+				}
+				return route.fulfill({ status: 204 });
+			},
+		},
+		{
+			method: "POST",
+			path: /^\/api\/dining\/reviews\/[^/]+\/reports$/,
+			response: (route) => {
+				const reviewId = decodePathSegment(route, -2);
+				for (const reviews of diningState.reviewsByMenuItem.values()) {
+					const review = reviews.find((candidate) => candidate.reviewId === reviewId);
+					if (review) {
+						review.hasReported = true;
+						review.canReport = false;
+					}
+				}
+				return route.fulfill({
+					contentType: "application/json",
+					json: { reportId: "report_e2e" },
+					status: 201,
+				});
+			},
+		},
+		{
+			method: "GET",
+			path: /^\/api\/dining\/floorplans\/[0-9a-f]{64}\.svg$/,
+			response: (route) =>
+				options.diningFailures?.floorplanFailure
 					? route.fulfill({
-							contentType: "application/json",
-							json: { error: { code: "reviews_unavailable", message: "unavailable" } },
+							contentType: "image/svg+xml",
+							body: "",
 							status: 500,
 						})
-					: fulfillDiningOfferingReviews(route);
-			},
+					: fulfillDiningFloorplan(route),
 		},
 	];
 }
 
-function buildDiningBootstrapMock(options: CampusApiMockOptions) {
-	if (options.emptyDiningHalls) {
-		return { halls: [], initial: null };
-	}
+interface DiningApiState {
+	menuByWindow: Map<string, DiningMenuItem[]>;
+	nextReviewSequence: number;
+	ownReviewIds: Set<string>;
+	reviewsByMenuItem: Map<string, DiningReview[]>;
+}
+
+function createDiningApiState(): DiningApiState {
+	const menuItemId = "dmi_lanzhou_beef_noodles";
 	return {
-		halls: buildDiningHallMocks(options),
-		initial: {
-			floor: createDiningFloorPayload({
-				floorId: "haidian-canteen-1-1f",
-				hallId: "haidian-canteen-1",
-			}),
-		},
+		menuByWindow: new Map([
+			[
+				"haidian:haidian-1f:window-1",
+				[
+					{ menuItemId, name: "牛肉面", priceText: "12 元", sortOrder: 0 },
+					{ menuItemId: "dmi_cold_noodles", name: "凉面", priceText: null, sortOrder: 1 },
+				],
+			],
+		]),
+		nextReviewSequence: 1,
+		ownReviewIds: new Set(["review_own"]),
+		reviewsByMenuItem: new Map([
+			[
+				menuItemId,
+				[
+					{
+						anonymous: false,
+						authorName: "测试用户",
+						body: "汤底很香，分量合适。",
+						canDelete: true,
+						canReport: false,
+						createdAt: now,
+						edited: false,
+						hasReported: false,
+						menuItemId,
+						reviewId: "review_own",
+					},
+					{
+						anonymous: true,
+						authorName: null,
+						body: "中午排队时间不长。",
+						canDelete: false,
+						canReport: true,
+						createdAt: now,
+						edited: false,
+						hasReported: false,
+						menuItemId,
+						reviewId: "review_other",
+					},
+				],
+			],
+		]),
 	};
 }
 
-function buildDiningHallMocks(options: CampusApiMockOptions) {
-	const halls = listDiningHallScaffold().map((hall) => ({
-		campus: hall.campus,
-		floors: listDiningFloorScaffold({ hallId: hall.hallId }).map((floor) => ({
-			floorId: floor.floorId,
-			label: floor.label,
-		})),
-		hallId: hall.hallId,
-		name: hall.name,
-		tags: diningHallTags(hall.hallId),
-	}));
-	return [
-		...halls,
-		...(options.includePlaceholderDiningHall
-			? [
-					{
-						campus: "丰台校区",
-						floors: [{ floorId: "fengtai-pending-canteen", label: "地图" }],
-						hallId: "fengtai-pending-canteen",
-						name: "待补充食堂",
-						tags: ["清淡", "热餐"],
-					},
-				]
-			: []),
-	];
-}
-
-function diningHallTags(hallId: string): string[] {
-	return hallId === "haidian-canteen-1" || hallId === "fengtai-huixian-canteen"
-		? ["粉面", "热餐"]
-		: ["热餐"];
+function decodePathSegment(route: Route, index: number): string {
+	const segment = new URL(route.request().url()).pathname.split("/").at(index) ?? "";
+	return decodeURIComponent(segment);
 }
 
 function resolveConversationSearchResults(input: { query: string; view: string }) {

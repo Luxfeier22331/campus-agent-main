@@ -11,9 +11,14 @@ import {
 	opsTraceObservabilityFixture,
 } from "../src/shared/ops-fixtures";
 
+if (typeof CSS !== "undefined" && typeof CSS.supports !== "function") {
+	Object.defineProperty(CSS, "supports", { configurable: true, value: () => false });
+}
+
 const app = createOpsApp({
 	admission: createAllowAllOpsAdmission(),
 	env: {
+		OPS_WEB_CAMPUS_WEB_PUBLIC_ORIGIN: "https://campus.example.test",
 		OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test",
 	},
 	axiom: {

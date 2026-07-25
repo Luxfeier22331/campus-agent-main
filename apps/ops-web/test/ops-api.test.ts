@@ -19,6 +19,7 @@ import {
 function createTestApp(options?: {
 	credentialStatus?: { configured: boolean; updatedAt: string | null; updatedBy: string | null };
 	maintenanceStatus?: Awaited<ReturnType<InternalPortalAuthMaintenanceClient["getStatus"]>>;
+	publicOrigin?: string;
 	queryFails?: boolean;
 	validationError?: Error;
 	sentryFails?: boolean;
@@ -74,7 +75,8 @@ function createTestApp(options?: {
 	const app = createOpsApp({
 		admission: createAllowAllOpsAdmission({ email: "ops@example.test" }),
 		env: {
-			OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test",
+			OPS_WEB_CAMPUS_WEB_PUBLIC_ORIGIN: "https://campus.example.test",
+			OPS_WEB_PUBLIC_ORIGIN: options?.publicOrigin ?? "https://ops.example.test",
 		},
 		axiom,
 		overviewService,
@@ -365,6 +367,23 @@ describe("ops API", () => {
 		expect(replaceCredential).not.toHaveBeenCalled();
 	});
 
+	it("accepts an explicitly configured loopback HTTP origin for local development", async () => {
+		const { app, replaceCredential } = createTestApp({
+			publicOrigin: "http://127.0.0.1:4178",
+		});
+		const response = await app.request("http://127.0.0.1:4178/api/ops/internal-portal-auth", {
+			body: JSON.stringify({ credential: "SSO_TGC=TGT-private-ticket" }),
+			headers: {
+				"content-type": "application/json",
+				origin: "http://127.0.0.1:4178",
+				"sec-fetch-site": "same-origin",
+			},
+			method: "PUT",
+		});
+
+		expect(response.status).toBe(200);
+		expect(replaceCredential).toHaveBeenCalledOnce();
+	});
 	it("rejects all browser-supplied APL, dataset, window, limit, and trace parameters", async () => {
 		const { app, queryRequest } = createTestApp();
 		const response = await app.request(

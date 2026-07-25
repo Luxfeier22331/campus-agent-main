@@ -18,6 +18,8 @@ APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST=example.edu
 APP_API_END_USER_EMAIL_ALLOWLIST=help_bot@outlook.com
 # Comma-separated exact public notice hosts admitted into browser-facing source links.
 APP_API_PUBLIC_NOTICE_URL_ALLOWLIST=www.example.edu
+# Public read base for immutable derived assets. This base includes the bucket path.
+OBJECT_STORE_DERIVED_PUBLIC_BASE_URL=http://127.0.0.1:9000/campus-agent-derived/
 EXECUTION_CONTROL_BASE_URL=https://execution-control.internal
 APP_API_EXECUTION_SHARED_SECRET=replace-with-execution-control-shared-secret
 EXECUTION_CONTROL_TIMEOUT_MS=8000

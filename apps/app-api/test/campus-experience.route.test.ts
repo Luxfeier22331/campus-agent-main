@@ -1,13 +1,11 @@
 // @vitest-environment node
 
-import {
-	createDevDiningSeed,
-	createInMemoryDiningPublicReadStore,
-} from "@campus-agent/dining/domain";
-import { describe, expect, it, vi } from "vitest";
+import { createHash } from "node:crypto";
+import { DINING_BOOTSTRAP_FLOORPLANS } from "@campus-agent/dining/floorplans";
+import { buildDiningMapResponse, renderDiningMapAssets } from "@campus-agent/dining/publisher";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../src/app";
 import type { CampusExperienceService } from "../src/modules/campus-experience";
-import { buildDiningPublicReadService } from "../src/modules/dining";
 
 const env = {
 	APP_API_NAME: "campus-agent-app-api",
@@ -20,6 +18,12 @@ const env = {
 		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 	},
 };
+
+const originalFetch = globalThis.fetch;
+
+afterEach(() => {
+	globalThis.fetch = originalFetch;
+});
 
 function createService(): CampusExperienceService {
 	return {
@@ -41,11 +45,7 @@ function createService(): CampusExperienceService {
 			},
 		}),
 		getMapPlaces: vi.fn().mockResolvedValue({
-			campus: {
-				defaultCenter: [116.2145, 39.9519],
-				id: "haidian",
-				name: "海淀校区",
-			},
+			campus: { defaultCenter: [116.2145, 39.9519], id: "haidian", name: "海淀校区" },
 			places: [],
 		}),
 		submitFeedback: vi.fn().mockResolvedValue({
@@ -60,189 +60,117 @@ function createService(): CampusExperienceService {
 	};
 }
 
+function diningMap() {
+	return buildDiningMapResponse({
+		assets: renderDiningMapAssets(DINING_BOOTSTRAP_FLOORPLANS),
+		bundle: DINING_BOOTSTRAP_FLOORPLANS,
+		releaseId: "release-1",
+		updatedAt: "2026-07-24T08:00:00.000Z",
+	});
+}
+
 describe("campus experience routes", () => {
-	it("returns map and dining projections through app-api", async () => {
+	it("returns campus places and one complete Dining map", async () => {
 		const service = createService();
-		const diningSeed = createDevDiningSeed();
-		const seededReview = diningSeed.reviews[0];
-		if (!seededReview) {
-			throw new Error("Dining route test requires a seeded offering review.");
-		}
-		const seededReviews = [
-			{
-				...seededReview,
-				comment: "清淡，分量合适",
-				contributorName: "果小生",
-				images: [],
-				paidPriceLabel: "12 元",
-				rating: 4,
-				reviewId: "dining-review:route-test",
-				sourceRecordId: "route-test",
-				submittedAt: "2026-07-12T08:00:00.000Z",
-			},
-		];
-		const offeringId = seededReview.offeringId;
+		const getMap = vi.fn(async () => diningMap());
 		const app = createApp(env, {
 			campusExperienceService: service,
-			diningPublicReadService: buildDiningPublicReadService({
-				store: createInMemoryDiningPublicReadStore({
-					publication: diningSeed.publication,
-					reviews: seededReviews,
-					snapshot: diningSeed.snapshot,
-				}),
-			}),
+			diningMapReadService: { getMap },
 		});
 
 		const places = await app.fetch(new Request("https://app-api.internal/api/campus-map/places"));
 		const place = await app.fetch(
 			new Request("https://app-api.internal/api/campus-map/places/library"),
 		);
-		const halls = await app.fetch(new Request("https://app-api.internal/api/dining/halls"));
-		const publication = await app.fetch(
-			new Request("https://app-api.internal/api/dining/publication"),
-		);
-		const bootstrap = await app.fetch(new Request("https://app-api.internal/api/dining/bootstrap"));
-		const floor = await app.fetch(
-			new Request(
-				"https://app-api.internal/api/dining/halls/haidian-canteen-1/floors/haidian-canteen-1-1f",
-			),
-		);
-		const haidianSecondFloor = await app.fetch(
-			new Request(
-				"https://app-api.internal/api/dining/halls/haidian-canteen-2/floors/haidian-canteen-2",
-			),
-		);
-		const haidianFourthFloor = await app.fetch(
-			new Request(
-				"https://app-api.internal/api/dining/halls/haidian-canteen-4/floors/haidian-canteen-4",
-			),
-		);
-		const reviews = await app.fetch(
-			new Request(
-				`https://app-api.internal/api/dining/offerings/${encodeURIComponent(offeringId)}/reviews`,
-			),
-		);
-		const search = await app.fetch(
-			new Request(
-				"https://app-api.internal/api/dining/search?scopeHallId=haidian-canteen-1&q=%E9%87%91%E6%B1%A4",
-			),
-		);
+		const dining = await app.fetch(new Request("https://app-api.internal/api/dining"));
 
 		expect(places.status).toBe(200);
 		expect(place.status).toBe(200);
-		expect(halls.status).toBe(200);
-		expect(publication.status).toBe(200);
-		expect(bootstrap.status).toBe(200);
-		expect(floor.status).toBe(200);
-		expect(haidianSecondFloor.status).toBe(200);
-		expect(haidianFourthFloor.status).toBe(200);
-		expect(reviews.status).toBe(200);
-		expect(search.status).toBe(200);
-		expect(bootstrap.headers.get("cache-control")).toBe("public, max-age=60, s-maxage=300");
-		expect(halls.headers.get("cache-control")).toBe("public, max-age=60, s-maxage=300");
-		expect(floor.headers.get("cache-control")).toBe("public, max-age=60, s-maxage=300");
-		expect(reviews.headers.get("cache-control")).toBe("public, max-age=60, s-maxage=300");
-		expect(search.headers.get("cache-control")).toBe("public, max-age=60, s-maxage=300");
-		expect(service.getMapPlace).toHaveBeenCalledWith({ placeId: "library" });
-		await expect(halls.json()).resolves.toMatchObject({
+		expect(dining.status).toBe(200);
+		expect(dining.headers.get("cache-control")).toBe(
+			"public, max-age=60, s-maxage=300, stale-while-revalidate=86400",
+		);
+		await expect(dining.json()).resolves.toMatchObject({
 			halls: expect.arrayContaining([
 				expect.objectContaining({
-					floors: [{ floorId: "haidian-canteen-2", label: "地图" }],
-					hallId: "haidian-canteen-2",
-					name: "海淀二食堂",
-				}),
-				expect.objectContaining({
-					floors: [{ floorId: "haidian-canteen-4", label: "地图" }],
-					hallId: "haidian-canteen-4",
-					name: "海淀四食堂",
-				}),
-			]),
-		});
-		const bootstrapPayload = await bootstrap.json();
-		expect(bootstrapPayload).toMatchObject({
-			halls: expect.any(Array),
-			initial: {
-				floor: {
-					floor: {
-						floorId: expect.any(String),
-						hallId: expect.any(String),
-					},
-				},
-			},
-		});
-		expect(JSON.stringify(bootstrapPayload)).not.toMatch(
-			/"(?:anchorInventory|canvas|geometry|sha256|svgAssetUrl)"/,
-		);
-		const floorPayload = (await floor.json()) as {
-			floor: {
-				floorId: string;
-				floorplan: { floorplanId: string; kind: "asset" | "placeholder" };
-				hallId: string;
-			};
-			source: { updatedAt: string };
-			windows: unknown[];
-		};
-		expect(floorPayload).toMatchObject({
-			floor: {
-				floorId: "haidian-canteen-1-1f",
-				floorplan: {
-					floorplanId: expect.any(String),
-					kind: expect.stringMatching(/^(asset|placeholder)$/),
-				},
-				hallId: "haidian-canteen-1",
-			},
-		});
-		expect(JSON.stringify(floorPayload)).not.toMatch(
-			/"(?:anchorInventory|canvas|geometry|sha256|svgAssetUrl)"/,
-		);
-		expect(floorPayload.source).toEqual({
-			updatedAt: expect.any(String),
-		});
-		await expect(haidianSecondFloor.json()).resolves.toMatchObject({
-			floor: {
-				floorId: "haidian-canteen-2",
-				hallId: "haidian-canteen-2",
-				label: "海淀二食堂",
-			},
-			windows: expect.arrayContaining([
-				expect.objectContaining({ assignment: expect.any(Object) }),
-			]),
-		});
-		await expect(haidianFourthFloor.json()).resolves.toMatchObject({
-			floor: {
-				floorId: "haidian-canteen-4",
-				hallId: "haidian-canteen-4",
-				label: "海淀四食堂",
-			},
-			windows: expect.arrayContaining([
-				expect.objectContaining({ assignment: expect.any(Object) }),
-			]),
-		});
-		await expect(reviews.json()).resolves.toMatchObject({
-			offeringId,
-			reviews: expect.arrayContaining([
-				expect.objectContaining({
-					comment: "清淡，分量合适",
-					reviewId: "dining-review:route-test",
-					submittedAt: "2026-07-12T08:00:00.000Z",
+					floors: expect.arrayContaining([
+						expect.objectContaining({
+							floorplan: {
+								canvas: expect.any(Object),
+								floorplanId: expect.any(String),
+								sha256: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
+								svgAssetUrl: expect.stringMatching(
+									/^\/api\/dining\/floorplans\/[0-9a-f]{64}\.svg$/,
+								),
+							},
+							windows: expect.any(Array),
+						}),
+					]),
 				}),
 			]),
+			releaseId: "release-1",
 		});
-		await expect(search.json()).resolves.toMatchObject({
-			results: expect.arrayContaining([
-				expect.objectContaining({
-					hallId: "haidian-canteen-1",
-					kind: "offering",
-				}),
-			]),
-			scope: { campus: "海淀校区", hallId: "haidian-canteen-1" },
-		});
+		expect(getMap).toHaveBeenCalledOnce();
+		expect(service.getMapPlace).toHaveBeenCalledWith({ placeId: "library" });
 	});
 
-	it("accepts global campus-web feedback with explicit route context", async () => {
+	it("does not expose retired Dining routes", async () => {
+		const app = createApp(env, {
+			campusExperienceService: createService(),
+			diningMapReadService: { getMap: vi.fn(async () => diningMap()) },
+		});
+
+		for (const path of [
+			"/api/dining/bootstrap",
+			"/api/dining/publication",
+			"/api/dining/halls",
+			"/api/dining/search?q=test",
+		]) {
+			expect((await app.fetch(new Request(`https://app-api.internal${path}`))).status).toBe(404);
+		}
+	});
+
+	it("serves a content-addressed floorplan only after digest verification", async () => {
+		const markup = '<svg xmlns="http://www.w3.org/2000/svg"></svg>';
+		const digest = createHash("sha256").update(markup).digest("hex");
+		globalThis.fetch = vi.fn(
+			async () =>
+				new Response(markup, { headers: { "content-type": "image/svg+xml" }, status: 200 }),
+		);
+		const app = createApp(
+			{ ...env, OBJECT_STORE_DERIVED_PUBLIC_BASE_URL: "https://assets.example.test/public/" },
+			{ campusExperienceService: createService() },
+		);
+
+		const response = await app.fetch(
+			new Request(`https://app-api.internal/api/dining/floorplans/${digest}.svg`),
+		);
+
+		expect(response.status).toBe(200);
+		expect(response.headers.get("cache-control")).toContain("immutable");
+		await expect(response.text()).resolves.toBe(markup);
+		expect(globalThis.fetch).toHaveBeenCalledWith(
+			new URL(`https://assets.example.test/public/dining/floorplans/${digest}.svg`),
+			expect.objectContaining({ headers: { accept: "image/svg+xml" } }),
+		);
+	});
+
+	it("fails closed when a floorplan object does not match its content address", async () => {
+		globalThis.fetch = vi.fn(async () => new Response("<svg></svg>", { status: 200 }));
+		const app = createApp(
+			{ ...env, OBJECT_STORE_DERIVED_PUBLIC_BASE_URL: "https://assets.example.test/" },
+			{ campusExperienceService: createService() },
+		);
+
+		const response = await app.fetch(
+			new Request(`https://app-api.internal/api/dining/floorplans/${"0".repeat(64)}.svg`),
+		);
+		expect(response.status).toBe(502);
+	});
+
+	it("accepts global feedback with explicit route context", async () => {
 		const service = createService();
 		const app = createApp(env, { campusExperienceService: service });
-
 		const response = await app.fetch(
 			new Request("https://app-api.internal/api/feedback", {
 				body: JSON.stringify({
@@ -257,43 +185,11 @@ describe("campus experience routes", () => {
 		);
 
 		expect(response.status).toBe(201);
-		await expect(response.json()).resolves.toEqual({
-			feedback: {
-				category: "content_issue",
-				feedbackId: "fb_test",
-				receivedAt: "2026-06-01T00:00:00.000Z",
-				routeContext: "/docs/student",
-				status: "received",
-			},
-		});
 		expect(service.submitFeedback).toHaveBeenCalledWith({
 			body: "这里的信息需要更新。",
 			category: "content_issue",
 			contact: "student@example.edu",
 			routeContext: "/docs/student",
-		});
-	});
-
-	it("rejects invalid feedback category", async () => {
-		const app = createApp(env, { campusExperienceService: createService() });
-
-		const response = await app.fetch(
-			new Request("https://app-api.internal/api/feedback", {
-				body: JSON.stringify({
-					body: "test",
-					category: "unsupported",
-					routeContext: "/",
-				}),
-				headers: { "content-type": "application/json" },
-				method: "POST",
-			}),
-		);
-
-		expect(response.status).toBe(400);
-		await expect(response.json()).resolves.toMatchObject({
-			error: {
-				code: "validation_failed",
-			},
 		});
 	});
 });

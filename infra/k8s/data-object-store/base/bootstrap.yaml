@@ -16,15 +16,13 @@ data:
 
     mc mb --ignore-existing object-store/campus-agent-source
     mc mb --ignore-existing object-store/campus-agent-derived
-    mc mb --ignore-existing object-store/campus-dining-media
 
     mc version enable object-store/campus-agent-source
     mc version enable object-store/campus-agent-derived
 
     mc ilm import object-store/campus-agent-source < /bootstrap/source-lifecycle.json
     mc ilm import object-store/campus-agent-derived < /bootstrap/derived-lifecycle.json
-    mc ilm import object-store/campus-dining-media < /bootstrap/dining-lifecycle.json
-    mc anonymous set-json /bootstrap/dining-public-policy.json object-store/campus-dining-media
+    mc anonymous set-json /bootstrap/derived-public-policy.json object-store/campus-agent-derived
 
     mc admin policy create object-store campus-agent-source-rw /bootstrap/source-policy.json
     mc admin policy create object-store campus-agent-derived-rw /bootstrap/derived-policy.json
@@ -56,18 +54,12 @@ data:
         {
           "Effect": "Allow",
           "Action": ["s3:GetBucketLocation", "s3:ListBucket", "s3:ListBucketMultipartUploads"],
-          "Resource": [
-            "arn:aws:s3:::campus-agent-derived",
-            "arn:aws:s3:::campus-dining-media"
-          ]
+          "Resource": ["arn:aws:s3:::campus-agent-derived"]
         },
         {
           "Effect": "Allow",
           "Action": ["s3:AbortMultipartUpload", "s3:GetObject", "s3:ListMultipartUploadParts", "s3:PutObject"],
-          "Resource": [
-            "arn:aws:s3:::campus-agent-derived/*",
-            "arn:aws:s3:::campus-dining-media/*"
-          ]
+          "Resource": ["arn:aws:s3:::campus-agent-derived/*"]
         }
       ]
     }
@@ -113,19 +105,7 @@ data:
         }
       ]
     }
-  dining-lifecycle.json: |
-    {
-      "Rules": [
-        {
-          "ID": "dining-quarantine-1d",
-          "Status": "Enabled",
-          "Filter": {"Prefix": "quarantine/"},
-          "Expiration": {"Days": 1},
-          "AbortIncompleteMultipartUpload": {"DaysAfterInitiation": 1}
-        }
-      ]
-    }
-  dining-public-policy.json: |
+  derived-public-policy.json: |
     {
       "Version": "2012-10-17",
       "Statement": [
@@ -133,7 +113,7 @@ data:
           "Effect": "Allow",
           "Principal": {"AWS": ["*"]},
           "Action": ["s3:GetObject"],
-          "Resource": ["arn:aws:s3:::campus-dining-media/public/*"]
+          "Resource": ["arn:aws:s3:::campus-agent-derived/dining/floorplans/*"]
         }
       ]
     }

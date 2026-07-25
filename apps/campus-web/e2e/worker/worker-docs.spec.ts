@@ -99,8 +99,7 @@ test.describe("campus web worker docs browser boundary", () => {
 	}) => {
 		for (const path of [
 			"/api/campus-map/places/library",
-			"/api/dining/halls/haidian-canteen-1/floors/haidian-canteen-1-1f",
-			"/api/dining/offerings/offering-1/reviews",
+			`/api/dining/floorplans/${"a".repeat(64)}.svg`,
 		]) {
 			const response = await request.get(path);
 

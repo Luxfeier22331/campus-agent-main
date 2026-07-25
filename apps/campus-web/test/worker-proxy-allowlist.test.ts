@@ -4,17 +4,19 @@ import { isAllowedCampusAppApiRequest } from "../src/platform/worker-proxy/allow
 
 describe("campus worker app-api proxy allowlist", () => {
 	it("allows student dining read routes", () => {
-		expect(isAllowedCampusAppApiRequest("/api/dining/bootstrap")).toBe(true);
-		expect(isAllowedCampusAppApiRequest("/api/dining/halls")).toBe(true);
-		expect(isAllowedCampusAppApiRequest("/api/dining/publication")).toBe(true);
-		expect(isAllowedCampusAppApiRequest("/api/dining/halls/haidian-canteen-1/floors/1f")).toBe(
+		expect(isAllowedCampusAppApiRequest("/api/dining")).toBe(true);
+		expect(isAllowedCampusAppApiRequest(`/api/dining/floorplans/${"a".repeat(64)}.svg`)).toBe(true);
+		expect(isAllowedCampusAppApiRequest("/api/dining/floorplans/not-a-digest.svg")).toBe(false);
+		expect(isAllowedCampusAppApiRequest("/api/dining/publication")).toBe(false);
+		expect(isAllowedCampusAppApiRequest("/api/dining/search")).toBe(false);
+		expect(isAllowedCampusAppApiRequest("/api/dining/windows/hall:floor:window-01/menu")).toBe(
 			true,
 		);
-		expect(isAllowedCampusAppApiRequest("/api/dining/search")).toBe(true);
-		expect(isAllowedCampusAppApiRequest("/api/dining/offerings/offering-1/reviews")).toBe(true);
-		expect(isAllowedCampusAppApiRequest("/api/dining/offerings/offering-1/reviews/raw")).toBe(
-			false,
-		);
+		expect(isAllowedCampusAppApiRequest("/api/dining/menu-items/menu-1/reviews")).toBe(true);
+		expect(isAllowedCampusAppApiRequest("/api/dining/reviews/review-1")).toBe(true);
+		expect(isAllowedCampusAppApiRequest("/api/dining/reviews/review-1/reports")).toBe(true);
+		expect(isAllowedCampusAppApiRequest("/api/dining/windows//menu")).toBe(false);
+		expect(isAllowedCampusAppApiRequest("/api/dining/reviews/review-1/edit")).toBe(false);
 	});
 
 	it("allows profile memory routes used by the student account surface", () => {

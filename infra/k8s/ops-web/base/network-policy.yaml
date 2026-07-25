@@ -48,6 +48,13 @@ spec:
     - to:
         - podSelector:
             matchLabels:
+              app.kubernetes.io/name: object-store
+      ports:
+        - protocol: TCP
+          port: 9000
+    - to:
+        - podSelector:
+            matchLabels:
               app.kubernetes.io/name: agent-runtime
       ports:
         - protocol: TCP

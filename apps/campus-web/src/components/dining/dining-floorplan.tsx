@@ -1,4 +1,4 @@
-import { Badge, Button } from "@campus-agent/ui";
+import { Button } from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
 import { LoaderCircle } from "lucide-react";
 import { lazy, memo, Suspense, useLayoutEffect, useMemo, useRef } from "react";
@@ -13,79 +13,29 @@ interface InteractiveFloorplanProps {
 	windows: DiningWindowProjection[];
 }
 
-interface PreparedDiningFloorplan {
-	aspectRatio: string;
-	markup: string;
-}
-
 const DiningFloorplanZoom = lazy(() =>
 	import("./dining-floorplan-zoom").then((module) => ({ default: module.DiningFloorplanZoom })),
 );
 
 export function InteractiveFloorplan(props: InteractiveFloorplanProps) {
-	if (isPlaceholderDiningFloorplan(props.floor)) {
-		return (
-			<ResolvedInteractiveFloorplan
-				{...props}
-				isPlaceholder
-				rawMarkup={buildPlaceholderFloorplanSvg(props.floor)}
-			/>
-		);
-	}
-	return <PublishedInteractiveFloorplan {...props} />;
-}
-
-function PublishedInteractiveFloorplan(props: InteractiveFloorplanProps) {
 	const floorplan = props.floor.floor.floorplan;
-	const aspectRatio = diningFloorplanAspectRatio(props.floor);
-	if (floorplan.kind !== "asset") {
-		return <DiningFloorplanUnavailable aspectRatio={aspectRatio} />;
-	}
-	const hasMatchingAssetReference =
-		floorplan.floorId === props.floor.floor.floorId &&
-		floorplan.hallId === props.floor.floor.hallId;
-	if (!hasMatchingAssetReference) {
-		return <DiningFloorplanUnavailable aspectRatio={aspectRatio} />;
-	}
-	return (
-		<PublishedDiningFloorplanAsset {...props} aspectRatio={aspectRatio} floorplan={floorplan} />
-	);
-}
-
-function PublishedDiningFloorplanAsset({
-	aspectRatio,
-	floorplan,
-	...props
-}: InteractiveFloorplanProps & {
-	aspectRatio: string;
-	floorplan: Extract<DiningFloorResponse["floor"]["floorplan"], { kind: "asset" }>;
-}) {
-	const floorplanQuery = useQuery(
+	const aspectRatio = `${floorplan.canvas.width} / ${floorplan.canvas.height}`;
+	const query = useQuery(
 		diningFloorplanAssetQueryOptions({
 			floorplanId: floorplan.floorplanId,
 			sha256: floorplan.sha256,
 			svgAssetUrl: floorplan.svgAssetUrl,
 		}),
 	);
-
-	if (floorplanQuery.isPending) {
+	if (query.isPending) {
 		return <DiningFloorplanLoading aspectRatio={aspectRatio} />;
 	}
-	if (floorplanQuery.isError) {
+	if (query.isError) {
 		return (
-			<DiningFloorplanUnavailable
-				aspectRatio={aspectRatio}
-				onRetry={() => void floorplanQuery.refetch()}
-			/>
+			<DiningFloorplanUnavailable aspectRatio={aspectRatio} onRetry={() => void query.refetch()} />
 		);
 	}
-	return (
-		<ResolvedInteractiveFloorplan
-			{...props}
-			isPlaceholder={false}
-			rawMarkup={floorplanQuery.data}
-		/>
-	);
+	return <ResolvedInteractiveFloorplan {...props} rawMarkup={query.data} />;
 }
 
 function DiningFloorplanLoading({ aspectRatio }: { aspectRatio: string }) {
@@ -106,30 +56,16 @@ function DiningFloorplanLoading({ aspectRatio }: { aspectRatio: string }) {
 	);
 }
 
-function DiningFloorplanUnavailable({
-	aspectRatio,
-	onRetry,
-}: {
-	aspectRatio: string;
-	onRetry?: () => void;
-}) {
+function DiningFloorplanUnavailable(props: { aspectRatio: string; onRetry?: () => void }) {
 	return (
 		<div
-			aria-label="平面图暂时无法显示"
 			className="grid min-h-56 place-content-center gap-2 bg-destructive/5 px-5 text-center"
 			role="alert"
-			style={{ aspectRatio }}
+			style={{ aspectRatio: props.aspectRatio }}
 		>
 			<h3 className="text-sm font-semibold text-[var(--sys-text-strong)]">平面图暂时无法显示</h3>
-			<p className="text-sm text-[var(--sys-text-muted)]">平面图数据暂时不可用，请稍后再试。</p>
-			{onRetry ? (
-				<Button
-					className="mx-auto mt-1"
-					onClick={onRetry}
-					size="sm"
-					type="button"
-					variant="outline"
-				>
+			{props.onRetry ? (
+				<Button className="mx-auto mt-1" onClick={props.onRetry} size="sm" variant="outline">
 					重试
 				</Button>
 			) : null}
@@ -139,115 +75,55 @@ function DiningFloorplanUnavailable({
 
 function ResolvedInteractiveFloorplan({
 	floor,
-	isPlaceholder,
 	matchedWindowIds,
 	onSelectWindow,
 	rawMarkup,
 	selectedWindowId,
 	windows,
-}: InteractiveFloorplanProps & { isPlaceholder: boolean; rawMarkup: string }) {
-	const preparedMarkup = useMemo(
-		() => prepareDiningFloorplanMarkup({ floor, isPlaceholder, rawMarkup, windows }),
-		[floor, isPlaceholder, rawMarkup, windows],
+}: InteractiveFloorplanProps & { rawMarkup: string }) {
+	const prepared = useMemo(
+		() => prepareDiningFloorplanMarkup({ floor, rawMarkup, windows }),
+		[floor, rawMarkup, windows],
 	);
-	if (!preparedMarkup) {
-		return <DiningFloorplanUnavailable aspectRatio={diningFloorplanAspectRatio(floor)} />;
+	if (!prepared) {
+		return (
+			<DiningFloorplanUnavailable
+				aspectRatio={`${floor.floor.floorplan.canvas.width} / ${floor.floor.floorplan.canvas.height}`}
+			/>
+		);
 	}
 	const selectedWindow = windows.find((window) => window.windowId === selectedWindowId) ?? null;
-	const floorplanKey = `${floor.floor.hallId}:${floor.floor.floorId}:${floor.floor.floorplan.floorplanId}:${floor.floor.floorplan.kind === "asset" ? floor.floor.floorplan.sha256 : "placeholder"}`;
-	return (
-		<DiningFloorplanSurface
-			aspectRatio={preparedMarkup.aspectRatio}
-			isPlaceholder={isPlaceholder}
-			key={floorplanKey}
-			markup={preparedMarkup.markup}
-			matchedWindowIds={matchedWindowIds}
-			onSelectWindow={onSelectWindow}
-			selectedWindow={selectedWindow}
-			windows={windows}
-		/>
-	);
-}
-
-function DiningFloorplanSurface({
-	aspectRatio,
-	isPlaceholder,
-	matchedWindowIds,
-	markup,
-	onSelectWindow,
-	selectedWindow,
-	windows,
-}: {
-	aspectRatio: string;
-	isPlaceholder: boolean;
-	matchedWindowIds: ReadonlySet<string> | null;
-	markup: string;
-	onSelectWindow(windowId: string): void;
-	selectedWindow: DiningWindowProjection | null;
-	windows: DiningWindowProjection[];
-}) {
-	const windowByAnchorId = useMemo(
-		() => mapWindowsByAnchor(windows, isPlaceholder),
-		[isPlaceholder, windows],
-	);
-	const selectedAnchorId = selectedWindow
-		? resolveDiningAnchorId(selectedWindow, isPlaceholder)
-		: null;
-	const placeholderBadge = isPlaceholder ? (
-		<Badge
-			className="absolute bottom-3 left-3 z-20 bg-white/95 text-muted-foreground"
-			tone="neutral"
-		>
-			地图待补充
-		</Badge>
-	) : null;
 	const interactionSurface = (isZoomed: boolean) => (
 		<DiningFloorplanInteractionSurface
 			isZoomed={isZoomed}
-			markup={markup}
+			markup={prepared.markup}
 			matchedWindowIds={matchedWindowIds}
 			onSelectWindow={onSelectWindow}
-			selectedAnchorId={selectedAnchorId}
-			windowByAnchorId={windowByAnchorId}
+			selectedAnchorId={selectedWindow?.svgAnchorId ?? null}
+			windowByAnchorId={new Map(windows.map((window) => [window.svgAnchorId, window]))}
 		/>
 	);
-
 	return (
 		<Suspense
 			fallback={
-				<>
-					<div
-						className="relative min-w-0 overflow-hidden bg-[var(--dining-svg-canvas-bg)]"
-						data-testid="dining-inline-floorplan"
-						style={{ aspectRatio }}
-					>
-						{placeholderBadge}
-						<span className="sr-only" role="status">
-							正在启用地图交互
-						</span>
-						<div aria-hidden="true" className="h-full w-full" inert>
-							<DiningFloorplanSvg markup={markup} />
-						</div>
+				<div
+					className="relative min-w-0 overflow-hidden bg-[var(--dining-svg-canvas-bg)]"
+					style={{ aspectRatio: prepared.aspectRatio }}
+				>
+					<div aria-hidden="true" className="h-full w-full" inert>
+						<DiningFloorplanSvg markup={prepared.markup} />
 					</div>
-					<div aria-hidden="true" className="min-h-14 border-border/70 border-t" />
-				</>
+				</div>
 			}
 		>
-			<DiningFloorplanZoom aspectRatio={aspectRatio} overlay={placeholderBadge}>
+			<DiningFloorplanZoom aspectRatio={prepared.aspectRatio}>
 				{interactionSurface}
 			</DiningFloorplanZoom>
 		</Suspense>
 	);
 }
 
-const DiningFloorplanInteractionSurface = memo(function DiningFloorplanInteractionSurface({
-	isZoomed,
-	markup,
-	matchedWindowIds,
-	onSelectWindow,
-	selectedAnchorId,
-	windowByAnchorId,
-}: {
+const DiningFloorplanInteractionSurface = memo(function DiningFloorplanInteractionSurface(props: {
 	isZoomed: boolean;
 	markup: string;
 	matchedWindowIds: ReadonlySet<string> | null;
@@ -256,7 +132,6 @@ const DiningFloorplanInteractionSurface = memo(function DiningFloorplanInteracti
 	windowByAnchorId: ReadonlyMap<string, DiningWindowProjection>;
 }) {
 	const floorplanRef = useRef<HTMLDivElement>(null);
-
 	useLayoutEffect(() => {
 		const root = floorplanRef.current;
 		if (!root) {
@@ -264,55 +139,50 @@ const DiningFloorplanInteractionSurface = memo(function DiningFloorplanInteracti
 		}
 		for (const element of root.querySelectorAll<SVGElement>("[data-dining-anchor-id]")) {
 			const anchorId = element.getAttribute("data-dining-anchor-id");
-			const diningWindow = anchorId ? windowByAnchorId.get(anchorId) : null;
-			if (!anchorId) {
-				continue;
-			}
-			const isAssigned = Boolean(diningWindow?.assignment);
-			const isSelected = Boolean(diningWindow && anchorId === selectedAnchorId);
-			const isSelectable = diningWindow
-				? isWindowSelectable(diningWindow, matchedWindowIds)
-				: false;
-			element.classList.toggle("is-selected", isSelected);
-			element.classList.toggle("is-dimmed", isAssigned && !(isSelected || isSelectable));
-			if (isSelectable && diningWindow) {
+			const diningWindow = anchorId ? props.windowByAnchorId.get(anchorId) : null;
+			const selected = Boolean(diningWindow && anchorId === props.selectedAnchorId);
+			const selectable = Boolean(
+				diningWindow &&
+					(props.matchedWindowIds === null || props.matchedWindowIds.has(diningWindow.windowId)),
+			);
+			element.classList.toggle("is-selected", selected);
+			element.classList.toggle("is-dimmed", Boolean(diningWindow) && !selectable);
+			if (selectable && diningWindow) {
 				element.setAttribute("role", "button");
 				element.setAttribute("tabindex", "0");
-				element.setAttribute("aria-label", `选择${displayLabelForWindow(diningWindow)}`);
-				element.setAttribute("aria-pressed", String(isSelected));
+				element.setAttribute("aria-label", `选择${diningWindow.name}`);
+				element.setAttribute("aria-pressed", String(selected));
 			} else {
-				element.removeAttribute("role");
-				element.removeAttribute("tabindex");
-				element.removeAttribute("aria-label");
-				element.removeAttribute("aria-pressed");
+				for (const attribute of ["role", "tabindex", "aria-label", "aria-pressed"]) {
+					element.removeAttribute(attribute);
+				}
 			}
 		}
-	}, [matchedWindowIds, selectedAnchorId, windowByAnchorId]);
-
+	}, [props.matchedWindowIds, props.selectedAnchorId, props.windowByAnchorId]);
 	return (
-		// biome-ignore lint/a11y/noStaticElementInteractions: this delegates pointer and keyboard events to annotated SVG button anchors.
+		// biome-ignore lint/a11y/noStaticElementInteractions: annotated SVG groups own delegated keyboard and pointer interaction.
 		<div
-			className={isZoomed ? "h-full w-full touch-none" : "h-full w-full touch-pan-y"}
+			className={props.isZoomed ? "h-full w-full touch-none" : "h-full w-full touch-pan-y"}
 			data-testid="dining-floorplan-surface"
 			onClick={(event) => {
-				const diningWindow = windowForTarget(event.target, windowByAnchorId);
-				if (diningWindow && isWindowSelectable(diningWindow, matchedWindowIds)) {
-					onSelectWindow(diningWindow.windowId);
+				const diningWindow = windowForTarget(event.target, props.windowByAnchorId);
+				if (diningWindow && isSelectable(diningWindow, props.matchedWindowIds)) {
+					props.onSelectWindow(diningWindow.windowId);
 				}
 			}}
 			onKeyDown={(event) => {
 				if (event.key !== "Enter" && event.key !== " ") {
 					return;
 				}
-				const diningWindow = windowForTarget(event.target, windowByAnchorId);
-				if (diningWindow && isWindowSelectable(diningWindow, matchedWindowIds)) {
+				const diningWindow = windowForTarget(event.target, props.windowByAnchorId);
+				if (diningWindow && isSelectable(diningWindow, props.matchedWindowIds)) {
 					event.preventDefault();
-					onSelectWindow(diningWindow.windowId);
+					props.onSelectWindow(diningWindow.windowId);
 				}
 			}}
 			ref={floorplanRef}
 		>
-			<DiningFloorplanSvg markup={markup} />
+			<DiningFloorplanSvg markup={props.markup} />
 		</div>
 	);
 });
@@ -321,45 +191,17 @@ const DiningFloorplanSvg = memo(function DiningFloorplanSvg({ markup }: { markup
 	return (
 		<div
 			className="flex h-full w-full items-center justify-center p-2 md:p-3 [&_.dining-svg-anchor.is-dimmed]:cursor-default [&_.dining-svg-anchor.is-dimmed]:opacity-35 [&_.dining-svg-anchor[role=button]]:cursor-pointer [&_svg]:block [&_svg]:h-auto [&_svg]:max-h-full [&_svg]:w-full"
-			// biome-ignore lint/security/noDangerouslySetInnerHtml: the same-origin SVG is checksum-verified and structurally validated before mounting.
+			// biome-ignore lint/security/noDangerouslySetInnerHtml: same-origin SVG is checksum-verified and structurally validated before mounting.
 			dangerouslySetInnerHTML={{ __html: markup }}
 		/>
 	);
 });
 
-function mapWindowsByAnchor(
-	windows: DiningWindowProjection[],
-	isPlaceholder: boolean,
-): Map<string, DiningWindowProjection> {
-	return new Map(
-		windows.flatMap((diningWindow) => {
-			const anchorId = resolveDiningAnchorId(diningWindow, isPlaceholder);
-			return anchorId ? [[anchorId, diningWindow]] : [];
-		}),
-	);
-}
-
-function windowForTarget(
-	target: EventTarget | null,
-	windowByAnchorId: ReadonlyMap<string, DiningWindowProjection>,
-): DiningWindowProjection | null {
-	if (!(target instanceof Element)) {
-		return null;
-	}
-	const anchorId = target.closest("[data-dining-anchor-id]")?.getAttribute("data-dining-anchor-id");
-	return anchorId ? (windowByAnchorId.get(anchorId) ?? null) : null;
-}
-
-function isPlaceholderDiningFloorplan(floor: DiningFloorResponse): boolean {
-	return floor.floor.floorplan.kind === "placeholder";
-}
-
 function prepareDiningFloorplanMarkup(input: {
 	floor: DiningFloorResponse;
-	isPlaceholder: boolean;
 	rawMarkup: string;
 	windows: DiningWindowProjection[];
-}): PreparedDiningFloorplan | null {
+}): { aspectRatio: string; markup: string } | null {
 	try {
 		const parser = new DOMParser();
 		const document = parser.parseFromString(input.rawMarkup, "image/svg+xml");
@@ -368,37 +210,31 @@ function prepareDiningFloorplanMarkup(input: {
 		}
 		assertSafeDiningSvg(document);
 		const viewBox = parseDiningFloorplanViewBox(document.documentElement.getAttribute("viewBox"));
-		if (!input.isPlaceholder) {
-			assertPublishedFloorplanBindings({ document, floor: input.floor, windows: input.windows });
-			assertDiningFloorplanCanvas({ floor: input.floor, viewBox });
+		const canvas = input.floor.floor.floorplan.canvas;
+		if (canvas.width !== viewBox.width || canvas.height !== viewBox.height) {
+			throw new Error("Dining floorplan canvas does not match its SVG.");
 		}
-		const windowByAnchorId = mapWindowsByAnchor(input.windows, input.isPlaceholder);
-		if ([...windowByAnchorId.values()].some((diningWindow) => diningWindow.assignment)) {
-			document.documentElement.setAttribute("role", "group");
+		const anchorElements = [...document.querySelectorAll("[data-dining-anchor-id]")];
+		const expectedAnchors = new Set(input.windows.map((window) => window.svgAnchorId));
+		if (
+			anchorElements.length !== expectedAnchors.size ||
+			anchorElements.some(
+				(element) => !expectedAnchors.has(element.getAttribute("data-dining-anchor-id") ?? ""),
+			)
+		) {
+			throw new Error("Dining floorplan anchors do not match its projection.");
 		}
-		const description = document.querySelector("desc");
-		if (description) {
-			description.textContent = "档口名称、就餐区域和入口位置示意图。";
-		}
-		for (const element of document.querySelectorAll("[data-dining-anchor-id]")) {
-			const anchorId = element.getAttribute("data-dining-anchor-id");
-			const diningWindow = anchorId ? windowByAnchorId.get(anchorId) : null;
-			if (!anchorId) {
-				continue;
+		document.documentElement.setAttribute("role", "group");
+		for (const element of anchorElements) {
+			const anchorId = element.getAttribute("data-dining-anchor-id") ?? "";
+			const diningWindow = input.windows.find((window) => window.svgAnchorId === anchorId);
+			if (!diningWindow) {
+				throw new Error("Dining floorplan anchor is unbound.");
 			}
-			if (!diningWindow?.assignment) {
-				element.remove();
-				continue;
-			}
-			const displayLabel = displayLabelForWindow(diningWindow);
-			setDiningWindowLabel(element, displayLabel);
-			element.setAttribute("data-dining-label", displayLabel);
+			setDiningWindowLabel(element, diningWindow.name);
+			element.setAttribute("data-dining-label", diningWindow.name);
 			element.classList.add("dining-svg-anchor");
 			element.setAttribute("data-testid", `dining-anchor-${anchorId}`);
-			element.setAttribute("role", "button");
-			element.setAttribute("tabindex", "0");
-			element.setAttribute("aria-label", `选择${displayLabel}`);
-			element.setAttribute("aria-pressed", "false");
 			const hitShape = element.querySelector("[data-dining-anchor-hit]");
 			if (!hitShape) {
 				throw new Error("Dining floorplan anchor is missing its hit shape.");
@@ -421,27 +257,28 @@ function setDiningWindowLabel(element: Element, label: string): void {
 	);
 	const hitShape = element.querySelector<SVGRectElement>("[data-dining-anchor-hit]");
 	if (!(labelElement && hitShape)) {
-		throw new Error("Dining floorplan anchor is missing its visible label.");
+		throw new Error("Dining floorplan anchor label is missing.");
 	}
 	const x = Number(hitShape.getAttribute("x"));
 	const y = Number(hitShape.getAttribute("y"));
 	const width = Number(hitShape.getAttribute("width"));
 	const height = Number(hitShape.getAttribute("height"));
 	if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) {
-		throw new Error("Dining floorplan anchor has invalid label geometry.");
+		throw new Error("Dining floorplan anchor has invalid geometry.");
 	}
-
 	const lines = wrapDiningWindowLabel(label, width, height);
 	labelElement.removeAttribute("data-dining-anchor-number");
 	labelElement.setAttribute("data-dining-anchor-label", "true");
-	labelElement.classList.remove("wayfinding-window-number");
 	labelElement.classList.add("wayfinding-window-label");
+	labelElement.replaceChildren();
+	if (lines.length === 0) {
+		labelElement.setAttribute("display", "none");
+		return;
+	}
+	labelElement.removeAttribute("display");
 	labelElement.setAttribute("x", String(x + width / 2));
 	labelElement.setAttribute("y", String(y + height / 2 - (lines.length - 1) * 8));
 	labelElement.setAttribute("text-anchor", "middle");
-	while (labelElement.firstChild) {
-		labelElement.removeChild(labelElement.firstChild);
-	}
 	for (const [index, line] of lines.entries()) {
 		const tspan = labelElement.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "tspan");
 		tspan.setAttribute("x", String(x + width / 2));
@@ -453,22 +290,15 @@ function setDiningWindowLabel(element: Element, label: string): void {
 	}
 }
 
-function wrapDiningWindowLabel(label: string, width: number, height: number): string[] {
+export function wrapDiningWindowLabel(label: string, width: number, height: number): string[] {
 	const characters = Array.from(label.trim() || "窗口");
-	const charsPerLine = Math.max(4, Math.floor((width - 16) / 16));
+	const charsPerLine = Math.floor((width - 16) / 16);
+	if (charsPerLine < 1 || height < 24) {
+		return [];
+	}
 	const maxLines = height >= 56 ? 2 : 1;
 	if (characters.length <= charsPerLine) {
 		return [characters.join("")];
-	}
-	const windowSuffix = Array.from("窗口");
-	const prefix = characters.slice(0, -windowSuffix.length);
-	if (
-		maxLines >= 2 &&
-		characters.slice(-windowSuffix.length).join("") === windowSuffix.join("") &&
-		prefix.length > 0 &&
-		prefix.length <= charsPerLine
-	) {
-		return [prefix.join(""), windowSuffix.join("")];
 	}
 	const maxCharacters = charsPerLine * maxLines;
 	if (characters.length <= maxCharacters) {
@@ -476,8 +306,10 @@ function wrapDiningWindowLabel(label: string, width: number, height: number): st
 			characters.slice(index * charsPerLine, (index + 1) * charsPerLine).join(""),
 		).filter(Boolean);
 	}
-	const visibleCharacters = Math.max(1, maxCharacters - 1);
-	const clipped = characters.slice(0, visibleCharacters);
+	if (maxCharacters === 1) {
+		return ["…"];
+	}
+	const clipped = characters.slice(0, maxCharacters - 1);
 	return Array.from({ length: maxLines }, (_, index) =>
 		clipped.slice(index * charsPerLine, (index + 1) * charsPerLine).join(""),
 	)
@@ -501,22 +333,6 @@ function parseDiningFloorplanViewBox(value: string | null): { height: number; wi
 	return { height, width };
 }
 
-function assertDiningFloorplanCanvas(input: {
-	floor: DiningFloorResponse;
-	viewBox: { height: number; width: number };
-}): void {
-	if (
-		input.floor.floor.floorplan.canvas.width !== input.viewBox.width ||
-		input.floor.floor.floorplan.canvas.height !== input.viewBox.height
-	) {
-		throw new Error("Dining floorplan SVG viewBox does not match its projection canvas.");
-	}
-}
-
-function diningFloorplanAspectRatio(floor: DiningFloorResponse): string {
-	return `${floor.floor.floorplan.canvas.width} / ${floor.floor.floorplan.canvas.height}`;
-}
-
 function assertSafeDiningSvg(document: Document): void {
 	if (document.querySelector("script, foreignObject, iframe, object, embed")) {
 		throw new Error("Dining floorplan SVG contains a forbidden element.");
@@ -524,127 +340,47 @@ function assertSafeDiningSvg(document: Document): void {
 	for (const element of document.querySelectorAll("*")) {
 		for (const attribute of element.attributes) {
 			if (attribute.name.toLowerCase().startsWith("on")) {
-				throw new Error("Dining floorplan SVG contains an event handler.");
+				throw new Error("Forbidden SVG handler.");
 			}
 			if (
 				(attribute.name === "href" || attribute.name === "xlink:href") &&
 				!attribute.value.startsWith("#")
 			) {
-				throw new Error("Dining floorplan SVG contains an external reference.");
+				throw new Error("Forbidden SVG reference.");
 			}
 		}
 	}
 }
 
-function assertPublishedFloorplanBindings(input: {
-	document: Document;
-	floor: DiningFloorResponse;
-	windows: DiningWindowProjection[];
-}): void {
-	const assetAnchorIds = [...input.document.querySelectorAll("[data-dining-anchor-id]")].map(
-		(element) => element.getAttribute("data-dining-anchor-id") ?? "",
-	);
-	const publishedAnchorIds = input.floor.floor.floorplan.anchorInventory.map(
-		(anchor) => anchor.anchorId,
-	);
-	if (assetAnchorIds.join("\u0000") !== publishedAnchorIds.join("\u0000")) {
-		throw new Error("Dining floorplan anchor inventory does not match its projection.");
-	}
-	const availableAnchors = new Set(assetAnchorIds);
-	const boundAnchors = new Set<string>();
-	for (const diningWindow of input.windows) {
-		if (
-			!(diningWindow.svgAnchorId && availableAnchors.has(diningWindow.svgAnchorId)) ||
-			boundAnchors.has(diningWindow.svgAnchorId)
-		) {
-			throw new Error("Dining window binding does not match its floorplan projection.");
-		}
-		boundAnchors.add(diningWindow.svgAnchorId);
-	}
-}
-
-function appendDiningFloorplanInteractionStyles(svgDocument: Document): void {
-	const style = svgDocument.createElementNS("http://www.w3.org/2000/svg", "style");
-	style.setAttribute("data-dining-interaction-styles", "true");
+function appendDiningFloorplanInteractionStyles(document: Document): void {
+	const style = document.createElementNS("http://www.w3.org/2000/svg", "style");
 	style.textContent = `
-.dining-svg-anchor {
-	outline: none;
-	transition: opacity 140ms ease-out;
-}
-.dining-svg-anchor-hit {
-	transition: fill 140ms ease-out, stroke-width 140ms ease-out;
-}
-.wayfinding-window-label {
-	fill: #263442;
-	font-size: 16px;
-	font-weight: 650;
-}
-.dining-svg-anchor.is-selected .dining-svg-anchor-hit {
-	fill: var(--sys-brand-interactive-subtle);
-	stroke: var(--sys-brand-interactive);
-	stroke-width: 3px;
-}
-.dining-svg-anchor[role="button"]:not(.is-dimmed):is(:hover, :focus-visible) .dining-svg-anchor-hit {
-	stroke: var(--sys-brand-interactive);
-	stroke-width: 3px;
-}
-.dining-svg-anchor[role="button"]:not(.is-dimmed):focus-visible .dining-svg-anchor-hit {
-	stroke-width: 5px;
-}
-@media (max-width: 639px) {
-	[data-dining-anchor-label] { font-size: 14px; }
-}
-@media (prefers-reduced-motion: reduce) {
-	.dining-svg-anchor,
-	.dining-svg-anchor-hit { transition: none; }
-}
+.dining-svg-anchor { outline: none; transition: opacity 140ms ease-out; }
+.dining-svg-anchor-hit { transition: fill 140ms ease-out, stroke-width 140ms ease-out; }
+.wayfinding-window-label { fill: #263442; font-size: 16px; font-weight: 650; }
+.dining-svg-anchor.is-selected .dining-svg-anchor-hit { fill: var(--sys-brand-interactive-subtle); stroke: var(--sys-brand-interactive); stroke-width: 3px; }
+.dining-svg-anchor[role="button"]:not(.is-dimmed):is(:hover, :focus-visible) .dining-svg-anchor-hit { stroke: var(--sys-brand-interactive); stroke-width: 3px; }
+.dining-svg-anchor[role="button"]:not(.is-dimmed):focus-visible .dining-svg-anchor-hit { stroke-width: 5px; }
+@media (max-width: 639px) { [data-dining-anchor-label] { font-size: 14px; } }
+@media (prefers-reduced-motion: reduce) { .dining-svg-anchor, .dining-svg-anchor-hit { transition: none; } }
 `;
-	svgDocument.documentElement.appendChild(style);
+	document.documentElement.appendChild(style);
 }
 
-function isWindowSelectable(
+function windowForTarget(
+	target: EventTarget | null,
+	windows: ReadonlyMap<string, DiningWindowProjection>,
+): DiningWindowProjection | null {
+	if (!(target instanceof Element)) {
+		return null;
+	}
+	const anchorId = target.closest("[data-dining-anchor-id]")?.getAttribute("data-dining-anchor-id");
+	return anchorId ? (windows.get(anchorId) ?? null) : null;
+}
+
+function isSelectable(
 	diningWindow: DiningWindowProjection,
 	matchedWindowIds: ReadonlySet<string> | null,
 ): boolean {
 	return matchedWindowIds === null || matchedWindowIds.has(diningWindow.windowId);
-}
-
-function resolveDiningAnchorId(
-	diningWindow: DiningWindowProjection,
-	isPlaceholder: boolean,
-): string | null {
-	return diningWindow.svgAnchorId ?? (isPlaceholder ? diningWindow.windowId : null);
-}
-
-function buildPlaceholderFloorplanSvg(floor: DiningFloorResponse): string {
-	const canvas = floor.floor.floorplan.canvas;
-	const width = Math.max(canvas.width, 720);
-	const height = Math.max(canvas.height, 420);
-	const title = escapeSvgText(floor.floor.label);
-	const windows = [...floor.windows]
-		.sort((left, right) => left.windowId.localeCompare(right.windowId))
-		.map((diningWindow, index) => {
-			const anchorId = escapeSvgAttribute(diningWindow.svgAnchorId ?? diningWindow.windowId);
-			const label = `${index + 1}号窗口`;
-			const number = String(index + 1).padStart(2, "0");
-			const x = 64 + (index % 3) * 180;
-			const y = 72 + Math.floor(index / 3) * 112;
-			const itemWidth = 150;
-			const itemHeight = 72;
-			return `<g data-dining-role="window" data-dining-anchor-id="${anchorId}" data-dining-label="${label}"><rect data-dining-anchor-hit="true" x="${x}" y="${y}" width="${itemWidth}" height="${itemHeight}" rx="8" fill="#fbfbf8" stroke="#b8c3d1"/><text data-dining-anchor-number="true" x="${x + itemWidth / 2}" y="${y + itemHeight / 2 + 7}" text-anchor="middle" font-size="20" font-weight="700" fill="#334155">${number}</text></g>`;
-		})
-		.join("");
-	return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeSvgAttribute(title)}" data-dining-floor-id="${escapeSvgAttribute(floor.floor.floorId)}"><rect x="24" y="24" width="${width - 48}" height="${height - 48}" rx="20" fill="#f6f8f7" stroke="#d7dee8"/><text x="56" y="54" font-size="18" fill="#334155">${title}</text>${windows}</svg>`;
-}
-
-function escapeSvgText(value: string): string {
-	return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-function escapeSvgAttribute(value: string): string {
-	return escapeSvgText(value).replace(/"/g, "&quot;");
-}
-
-function displayLabelForWindow(diningWindow: DiningWindowProjection): string {
-	return diningWindow.assignment?.stallProfile.displayName ?? diningWindow.label;
 }

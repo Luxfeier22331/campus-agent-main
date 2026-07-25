@@ -119,6 +119,8 @@ const diningRoute = createRoute({
 	validateSearch: (search: Record<string, unknown>) => ({
 		floor: optionalDiningSearchParam(search.floor),
 		hall: optionalDiningSearchParam(search.hall),
+		item: optionalDiningSearchParam(search.item),
+		window: optionalDiningSearchParam(search.window),
 	}),
 });
 

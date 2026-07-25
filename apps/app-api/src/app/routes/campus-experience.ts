@@ -6,7 +6,9 @@ import { parseFeedbackCategory, type SubmitFeedbackInput } from "../../modules/c
 import { readJsonRequestBody } from "../request-utils";
 import type { AppRequestScope } from "../types";
 
-const PUBLIC_DINING_CACHE_CONTROL = "public, max-age=60, s-maxage=300";
+const DINING_MAP_CACHE_CONTROL = "public, max-age=60, s-maxage=300, stale-while-revalidate=86400";
+const DINING_FLOORPLAN_DIGEST = /^[0-9a-f]{64}$/;
+const MAX_DINING_FLOORPLAN_BYTES = 2 * 1024 * 1024;
 export function registerCampusExperienceRoutes(input: {
 	app: Hono<{ Bindings: Env }>;
 	createRequestScope: () => AppRequestScope;
@@ -51,19 +53,12 @@ export function registerCampusExperienceRoutes(input: {
 		}
 	});
 
-	input.app.get("/api/dining/publication", async () => {
-		const scope = input.createRequestScope();
-		return jsonResponse(await scope.resolveDiningPublicReadService().getPublication(), {
-			headers: { "cache-control": "public, max-age=0, must-revalidate" },
-		});
-	});
-
-	input.app.get("/api/dining/bootstrap", async () => {
+	input.app.get("/api/dining", async () => {
 		const scope = input.createRequestScope();
 		try {
-			return publicDiningResponse(
-				await scope.resolveDiningPublicReadService().getPublishedBootstrap(),
-			);
+			return jsonResponse(await scope.resolveDiningMapReadService().getMap(), {
+				headers: { "cache-control": DINING_MAP_CACHE_CONTROL },
+			});
 		} catch (error) {
 			if (error instanceof AppApiRouteError) {
 				return routeErrorResponse(error);
@@ -72,63 +67,10 @@ export function registerCampusExperienceRoutes(input: {
 		}
 	});
 
-	input.app.get("/api/dining/halls", async () => {
-		const scope = input.createRequestScope();
-		return publicDiningResponse(await scope.resolveDiningPublicReadService().getPublishedHalls());
-	});
-
-	input.app.get("/api/dining/halls/:hallId/floors/:floorId", async (c) => {
-		const scope = input.createRequestScope();
+	input.app.get("/api/dining/floorplans/:asset", async (c) => {
 		try {
-			return publicDiningResponse(
-				await scope.resolveDiningPublicReadService().getPublishedFloor({
-					floorId: c.req.param("floorId"),
-					hallId: c.req.param("hallId"),
-				}),
-			);
-		} catch (error) {
-			if (error instanceof AppApiRouteError) {
-				return routeErrorResponse(error);
-			}
-			throw error;
-		}
-	});
-
-	input.app.get("/api/dining/search", async (c) => {
-		const scope = input.createRequestScope();
-		try {
-			const scopeHallId = requireString(c.req.query("scopeHallId"), "scopeHallId");
-			const query = optionalString(c.req.query("q")) ?? "";
-			const tag = optionalString(c.req.query("tag"));
-			if (!(query || tag)) {
-				throw validationError("Dining search requires q or tag.");
-			}
-			if (query.length > 80 || (tag?.length ?? 0) > 40) {
-				throw validationError("Dining search query is too long.");
-			}
-			return publicDiningResponse(
-				await scope.resolveDiningPublicReadService().searchPublishedDining({
-					query,
-					scopeHallId,
-					tag,
-				}),
-			);
-		} catch (error) {
-			if (error instanceof AppApiRouteError) {
-				return routeErrorResponse(error);
-			}
-			throw error;
-		}
-	});
-
-	input.app.get("/api/dining/offerings/:offeringId/reviews", async (c) => {
-		const scope = input.createRequestScope();
-		try {
-			return publicDiningResponse(
-				await scope.resolveDiningPublicReadService().getPublishedOfferingReviews({
-					offeringId: c.req.param("offeringId"),
-				}),
-			);
+			const match = /^([0-9a-f]{64})\.svg$/.exec(c.req.param("asset") ?? "");
+			return await loadDiningFloorplanAsset(input.env, match?.[1] ?? "");
 		} catch (error) {
 			if (error instanceof AppApiRouteError) {
 				return routeErrorResponse(error);
@@ -147,9 +89,99 @@ export function registerCampusExperienceRoutes(input: {
 	});
 }
 
-function publicDiningResponse(payload: unknown): Response {
-	return jsonResponse(payload, {
-		headers: { "cache-control": PUBLIC_DINING_CACHE_CONTROL },
+export async function loadDiningFloorplanAsset(env: Env, digest: string): Promise<Response> {
+	if (!DINING_FLOORPLAN_DIGEST.test(digest)) {
+		throw new AppApiRouteError({
+			code: "validation_failed",
+			message: "Dining floorplan digest is invalid.",
+			retryable: false,
+			status: 400,
+		});
+	}
+	const publicBaseUrl = env.OBJECT_STORE_DERIVED_PUBLIC_BASE_URL?.trim();
+	if (!publicBaseUrl) {
+		throw new AppApiRouteError({
+			code: "service_unavailable",
+			message: "Dining floorplan storage is unavailable.",
+			retryable: true,
+			status: 503,
+		});
+	}
+	let assetUrl: URL;
+	try {
+		const baseUrl = new URL(ensureTrailingSlash(publicBaseUrl));
+		if (
+			!(baseUrl.protocol === "https:" || baseUrl.protocol === "http:") ||
+			(baseUrl.protocol !== "https:" && env.APP_API_ENVIRONMENT !== "development") ||
+			baseUrl.username ||
+			baseUrl.password ||
+			baseUrl.search ||
+			baseUrl.hash
+		) {
+			throw new Error("invalid Dining floorplan public base URL");
+		}
+		assetUrl = new URL(`dining/floorplans/${digest}.svg`, baseUrl);
+	} catch {
+		throw new AppApiRouteError({
+			code: "service_unavailable",
+			message: "Dining floorplan storage is misconfigured.",
+			retryable: false,
+			status: 503,
+		});
+	}
+	const upstream = await fetch(assetUrl, { headers: { accept: "image/svg+xml" } });
+	if (upstream.status === 404) {
+		throw new AppApiRouteError({
+			code: "not_found",
+			message: "Dining floorplan asset was not found.",
+			retryable: false,
+			status: 404,
+		});
+	}
+	if (!upstream.ok) {
+		throw new AppApiRouteError({
+			code: "upstream_unavailable",
+			message: "Dining floorplan storage request failed.",
+			retryable: true,
+			status: 502,
+		});
+	}
+	const declaredLength = Number(upstream.headers.get("content-length"));
+	if (Number.isFinite(declaredLength) && declaredLength > MAX_DINING_FLOORPLAN_BYTES) {
+		throw invalidFloorplanAsset();
+	}
+	const bytes = await upstream.arrayBuffer();
+	if (bytes.byteLength > MAX_DINING_FLOORPLAN_BYTES) {
+		throw invalidFloorplanAsset();
+	}
+	const actualDigest = Array.from(
+		new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
+		(byte) => byte.toString(16).padStart(2, "0"),
+	).join("");
+	if (actualDigest !== digest) {
+		throw invalidFloorplanAsset();
+	}
+	return new Response(bytes, {
+		headers: {
+			"cache-control": "public, max-age=31536000, immutable",
+			"content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+			"content-type": "image/svg+xml; charset=utf-8",
+			etag: `"sha256-${digest}"`,
+			"x-content-type-options": "nosniff",
+		},
+	});
+}
+
+function ensureTrailingSlash(value: string): string {
+	return value.endsWith("/") ? value : `${value}/`;
+}
+
+function invalidFloorplanAsset(): AppApiRouteError {
+	return new AppApiRouteError({
+		code: "upstream_invalid_response",
+		message: "Dining floorplan storage returned an invalid asset.",
+		retryable: false,
+		status: 502,
 	});
 }
 
@@ -170,15 +202,6 @@ function parseFeedbackRequestBody(body: unknown): SubmitFeedbackInput {
 		contact: optionalString(record.contact),
 		routeContext: requireString(record.routeContext, "routeContext"),
 	};
-}
-
-function validationError(message: string): AppApiRouteError {
-	return new AppApiRouteError({
-		code: "validation_failed",
-		message,
-		retryable: false,
-		status: 400,
-	});
 }
 
 function requireString(value: unknown, field: string): string {

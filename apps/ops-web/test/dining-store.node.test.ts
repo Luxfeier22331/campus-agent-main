@@ -1,274 +1,255 @@
 // @vitest-environment node
 
-import { createDevDiningSeed } from "@campus-agent/dining/domain";
-import { describe, expect, it, vi } from "vitest";
+import type { DiningMapRelease } from "@campus-agent/dining/domain";
 import {
-	applyStoredOverride,
-	buildDiningRollback,
-	createDiningStore,
-	DiningStoreValidationError,
-	loadReviewOfferingBinding,
-	retainLatestReleases,
+	DINING_BOOTSTRAP_FLOORPLANS,
+	type DiningFloorplanBundleV1,
+} from "@campus-agent/dining/floorplans";
+import { diningMapBundleFingerprint } from "@campus-agent/dining/publisher";
+import { describe, expect, it, vi } from "vitest";
+import type { DiningFloorplanAssetStore } from "../src/server/dining-floorplan-assets";
+import {
+	createPgDiningStore,
+	DiningStoreConflictError,
+	DiningStoreUnavailableError,
 } from "../src/server/dining-store";
 
-describe("Dining operations store", () => {
-	it("reapplies operator overrides after source catalog materialization", () => {
-		const draft = structuredClone(createDevDiningSeed().draft);
-		const stall = draft.stallProfiles[0];
-		const offering = draft.menuOfferings[0];
-		if (!(stall && offering)) {
-			throw new Error("Dining dev seed must contain a stall and an offering.");
-		}
+const NOW = new Date("2026-07-24T08:00:00.000Z");
 
-		applyStoredOverride(draft, {
-			patch: { displayName: "川味窗口" },
-			targetId: stall.stallProfileId,
-			targetKind: "stall",
-		});
-		applyStoredOverride(draft, {
-			patch: { priceLabel: "¥18" },
-			targetId: offering.offeringId,
-			targetKind: "offering",
-		});
+describe("PostgreSQL Dining map store", () => {
+	it("keeps a no-change save idempotent", async () => {
+		const harness = createHarness();
+		const store = createStore(harness);
 
-		expect(stall.displayName).toBe("川味窗口");
-		expect(offering.priceLabel).toBe("¥18");
+		const saved = await store.saveDraft(operator, DINING_BOOTSTRAP_FLOORPLANS, 1);
+
+		expect(saved.revision).toBe(1);
+		expect(harness.draft.revision).toBe(1);
 	});
 
-	it("removes offerings from an assignment replaced by an operator override", () => {
-		const draft = structuredClone(createDevDiningSeed().draft);
-		const assignment = draft.assignments[0];
-		if (!assignment) {
-			throw new Error("Dining dev seed must contain an assignment.");
-		}
-		const offeringIds = draft.menuOfferings
-			.filter((offering) => offering.assignmentId === assignment.assignmentId)
-			.map((offering) => offering.offeringId);
+	it("rejects stale draft revisions", async () => {
+		const harness = createHarness();
+		const store = createStore(harness);
 
-		applyStoredOverride(draft, {
-			patch: {
-				displayName: "新档口",
-				stallProfileId: "stall:replacement",
-				tags: ["热餐"],
-				windowId: assignment.windowId,
-			},
-			targetId: assignment.windowId,
-			targetKind: "window",
-		});
-
-		expect(draft.assignments).toContainEqual(
-			expect.objectContaining({
-				stallProfileId: "stall:replacement",
-				windowId: assignment.windowId,
-			}),
+		await expect(store.saveDraft(operator, changedBundle(), 9)).rejects.toBeInstanceOf(
+			DiningStoreConflictError,
 		);
-		expect(draft.menuOfferings.some((offering) => offeringIds.includes(offering.offeringId))).toBe(
-			false,
-		);
+		expect(harness.draft.revision).toBe(1);
 	});
 
-	it("creates rollback as a new immutable release with a new snapshot identity", () => {
-		const seed = createDevDiningSeed();
-		const rollback = buildDiningRollback({
-			actor: { displayName: "值班员", principalId: "ops:1" },
-			notes: "回滚错误发布",
-			now: "2026-07-16T12:00:00.000Z",
-			predecessorReleaseId: seed.release.releaseId,
-			releaseId: "dining_release:rollback",
-			target: { release: seed.release, snapshot: seed.snapshot },
-		});
+	it("publishes each fingerprint once", async () => {
+		const harness = createHarness();
+		const store = createStore(harness);
 
-		expect(rollback.release.releaseId).toBe("dining_release:rollback");
-		expect(rollback.release.rollbackOfReleaseId).toBe(seed.release.releaseId);
-		expect(rollback.release.snapshotHash).not.toBe(seed.release.snapshotHash);
-		expect(rollback.snapshot.source).toMatchObject({
-			releaseId: "dining_release:rollback",
-			updatedAt: "2026-07-16T12:00:00.000Z",
-		});
+		const first = await store.publish(operator, 1);
+		const second = await store.publish(operator, 1);
+
+		expect(second.releaseId).toBe(first.releaseId);
+		expect(harness.releases).toHaveLength(1);
+		expect(harness.publicationReleaseId).toBe(first.releaseId);
+		expect(harness.assets.putSvg).toHaveBeenCalledTimes(DINING_BOOTSTRAP_FLOORPLANS.layouts.length);
 	});
 
-	it("rejects rollback snapshots that no longer match the code-owned floorplan", () => {
-		const seed = createDevDiningSeed();
-		const floor = Object.values(seed.snapshot.floors)[0];
-		if (!floor?.windows[0]) {
-			throw new Error("Dining dev seed must contain a published window.");
+	it("does not change publication when object storage fails", async () => {
+		const harness = createHarness();
+		vi.mocked(harness.assets.putSvg).mockRejectedValue(new Error("storage unavailable"));
+		const store = createStore(harness);
+
+		await expect(store.publish(operator, 1)).rejects.toBeInstanceOf(DiningStoreUnavailableError);
+		expect(harness.releases).toHaveLength(0);
+		expect(harness.publicationReleaseId).toBeNull();
+	});
+
+	it("blocks publishing a map that removes a window with active menu items", async () => {
+		const harness = createHarness();
+		const window = DINING_BOOTSTRAP_FLOORPLANS.layouts[0]?.windows[0];
+		const layout = DINING_BOOTSTRAP_FLOORPLANS.layouts[0];
+		if (!(window && layout)) {
+			throw new Error("Dining bootstrap needs one window.");
 		}
-		floor.windows[0].svgAnchorId = "removed-window";
+		harness.activeMenuWindowIds.push(`${layout.hallId}:${layout.floorId}:${window.anchorId}`);
+		const changed = structuredClone(DINING_BOOTSTRAP_FLOORPLANS);
+		changed.layouts[0]?.windows.splice(0, 1);
+		const store = createStore(harness);
+		await store.saveDraft(operator, changed, 1);
 
-		expect(() =>
-			buildDiningRollback({
-				actor: { displayName: "值班员", principalId: "ops:1" },
-				notes: "不兼容回滚",
-				predecessorReleaseId: seed.release.releaseId,
-				target: { release: seed.release, snapshot: seed.snapshot },
-			}),
-		).toThrow(/incompatible with the current floorplan manifest/);
-	});
-
-	it("rejects rollback snapshots with inconsistent floorplan kinds", () => {
-		const seed = createDevDiningSeed();
-		const floor = seed.snapshot.halls[0]?.floors[0];
-		if (!floor) {
-			throw new Error("Dining dev seed must contain a published floor.");
-		}
-		floor.floorplan = { floorplanId: floor.floorplan.floorplanId, kind: "placeholder" };
-
-		expect(() =>
-			buildDiningRollback({
-				actor: { displayName: "值班员", principalId: "ops:1" },
-				notes: "不兼容回滚",
-				predecessorReleaseId: seed.release.releaseId,
-				target: { release: seed.release, snapshot: seed.snapshot },
-			}),
-		).toThrow(/incompatible with the current floorplan manifest/);
-	});
-
-	it("accepts rollback snapshots that use a subset of current floorplan anchors", () => {
-		const seed = createDevDiningSeed();
-		const floor = Object.values(seed.snapshot.floors).find((item) => item.windows.length > 1);
-		if (!floor) {
-			throw new Error("Dining dev seed must contain a multi-window floor.");
-		}
-		floor.windows = floor.windows.slice(0, -1);
-
-		expect(() =>
-			buildDiningRollback({
-				actor: { displayName: "值班员", principalId: "ops:1" },
-				notes: "兼容新增地图锚点",
-				predecessorReleaseId: seed.release.releaseId,
-				target: { release: seed.release, snapshot: seed.snapshot },
-			}),
-		).not.toThrow();
-	});
-
-	it("retains only the latest 30 releases while protecting the publication", async () => {
-		const statements: string[] = [];
-		const query = vi.fn(async (sql: string) => {
-			statements.push(sql);
-			return { rows: [] };
+		await expect(store.publish(operator, 2)).rejects.toMatchObject({
+			details: { windowIds: harness.activeMenuWindowIds },
 		});
-		await retainLatestReleases({ query } as never);
-		const sql = statements[0] ?? "";
-		expect(sql).toContain("OFFSET 30");
-		expect(sql).toContain("catalog_release_id FROM dining.publication");
+		expect(harness.releases).toHaveLength(0);
 	});
 
-	it("resolves an offering to its exact hall, stall, and window binding", async () => {
-		const seed = createDevDiningSeed();
-		const floor = Object.values(seed.snapshot.floors)[0];
-		const offering = floor?.menuOfferings[0];
-		const assignment = floor?.assignments.find(
-			(item) => item.assignmentId === offering?.assignmentId,
-		);
-		const window = floor?.windows.find((item) => item.windowId === assignment?.windowId);
-		if (!(offering && assignment && window)) {
-			throw new Error("Dining dev seed must contain an exact published offering binding.");
-		}
-		const statements: string[] = [];
-		const query = vi.fn(async (sql: string) => {
-			statements.push(sql);
-			return {
-				rows: [
-					{
-						catalog_release_id: seed.release.releaseId,
-						payload_json: seed.snapshot,
-						snapshot_hash: seed.release.snapshotHash,
-					},
-				],
-			};
-		});
-		await expect(
-			loadReviewOfferingBinding({ query } as never, offering.offeringId),
-		).resolves.toEqual({
-			hallId: floor.floor.hallId,
-			offeringId: offering.offeringId,
-			stallProfileId: assignment.stallProfileId,
-			windowId: window.windowId,
-		});
-		expect(statements[0]).toContain("JOIN dining.releases");
-		expect(statements[0]).not.toContain("dining.menu_offerings");
-	});
+	it("restores an old version as a new release and updates the draft", async () => {
+		const harness = createHarness();
+		const store = createStore(harness);
+		const first = await store.publish(operator, 1);
+		const changed = changedBundle();
+		await store.saveDraft(operator, changed, 1);
+		const second = await store.publish(operator, 2);
 
-	it("refuses to restore a blocked review", async () => {
-		const queries: string[] = [];
-		const client = {
-			query: vi.fn(async (sql: string) => {
-				queries.push(sql);
-				if (sql.includes("SELECT CASE WHEN visibility")) {
-					return { rows: [{ value: "hidden" }] };
-				}
-				if (sql.includes("SELECT review_id,moderation_status")) {
-					return {
-						rows: [
-							{
-								hall_id: "hall:1",
-								moderation_status: "blocked",
-								offering_id: "offering:1",
-								review_id: "review:1",
-								stall_profile_id: "stall:1",
-								window_id: "window:1",
-							},
-						],
-					};
-				}
-				return { rows: [] };
-			}),
-			release: vi.fn(),
-		};
-		const store = createDiningStore({
-			connect: vi.fn(async () => client),
-			query: vi.fn(),
-		} as never);
+		const restored = await store.restore(operator, first.releaseId, 2);
 
-		await expect(
-			store.applyReviewCommand({ displayName: "值班员", principalId: "ops:1" }, "review:1", {
-				kind: "restore",
-				reason: "人工恢复",
-			}),
-		).rejects.toBeInstanceOf(DiningStoreValidationError);
-		expect(queries).toContain("ROLLBACK");
-		expect(client.release).toHaveBeenCalledOnce();
-	});
-
-	it("queues review rechecks with an immediately available claim timestamp", async () => {
-		const queries: string[] = [];
-		const client = {
-			query: vi.fn(async (sql: string) => {
-				queries.push(sql);
-				if (sql.includes("SELECT CASE WHEN visibility")) {
-					return { rows: [{ value: "hidden" }] };
-				}
-				if (sql.includes("SELECT review_id,moderation_status")) {
-					return {
-						rows: [
-							{
-								hall_id: "hall:1",
-								moderation_status: "safe",
-								offering_id: "offering:1",
-								review_id: "review:1",
-								stall_profile_id: "stall:1",
-								window_id: "window:1",
-							},
-						],
-					};
-				}
-				return { rows: [] };
-			}),
-			release: vi.fn(),
-		};
-		const store = createDiningStore({
-			connect: vi.fn(async () => client),
-			query: vi.fn(),
-		} as never);
-
-		await store.applyReviewCommand({ displayName: "值班员", principalId: "ops:1" }, "review:1", {
-			kind: "recheck",
-		});
-
-		const insert = queries.find((sql) =>
-			sql.includes("INSERT INTO dining.review_recheck_requests"),
-		);
-		expect(insert).toContain("attempt_count,available_at");
-		expect(insert).toContain("'pending',0,now(),now()");
+		expect(restored.release.kind).toBe("restore");
+		expect(restored.release.releaseId).not.toBe(first.releaseId);
+		expect(restored.release.releaseId).not.toBe(second.releaseId);
+		expect(restored.release.restoredFromReleaseId).toBe(first.releaseId);
+		expect(restored.draft.fingerprint).toBe(first.snapshotHash);
+		expect(harness.releases).toHaveLength(3);
+		expect(harness.publicationReleaseId).toBe(restored.release.releaseId);
 	});
 });
+
+const operator = { displayName: "值班员", principalId: "ops:1" };
+
+function changedBundle(): DiningFloorplanBundleV1 {
+	const bundle = structuredClone(DINING_BOOTSTRAP_FLOORPLANS);
+	const window = bundle.layouts[0]?.windows[0];
+	if (!window) {
+		throw new Error("Dining bootstrap needs one window.");
+	}
+	window.label = `${window.label}（调整）`;
+	return bundle;
+}
+
+function createStore(harness: ReturnType<typeof createHarness>) {
+	let id = 0;
+	return createPgDiningStore({
+		assetStore: harness.assets,
+		now: () => NOW,
+		pool: harness.pool as never,
+		releaseId: () => `release-${++id}`,
+	});
+}
+
+function createHarness() {
+	const initialBundle = structuredClone(DINING_BOOTSTRAP_FLOORPLANS);
+	const state = {
+		activeMenuWindowIds: [] as string[],
+		draft: {
+			bundleJson: initialBundle,
+			fingerprint: diningMapBundleFingerprint(initialBundle),
+			revision: 1,
+			updatedAt: NOW,
+			updatedBy: "bootstrap",
+		},
+		publicationReleaseId: null as string | null,
+		releases: [] as DiningMapRelease[],
+	};
+	const assets: DiningFloorplanAssetStore = {
+		putSvg: vi.fn(async ({ sha256 }) => ({
+			objectKey: `dining/floorplans/${sha256.slice(7)}.svg`,
+			sha256,
+			svgAssetUrl: `/api/dining/floorplans/${sha256.slice(7)}.svg`,
+		})),
+		verifyReadiness: vi.fn(async () => undefined),
+	};
+	const query = vi.fn(async (sql: string, values: unknown[] = []) => {
+		const normalized = sql.replace(/\s+/g, " ").trim().toLowerCase();
+		if (normalized === "begin" || normalized === "commit" || normalized === "rollback") {
+			return { rows: [] };
+		}
+		if (normalized.startsWith("select bundle_json, fingerprint, revision")) {
+			return { rows: [draftRow(state.draft)] };
+		}
+		if (normalized.startsWith("select distinct window_id from dining.menu_items")) {
+			return { rows: state.activeMenuWindowIds.map((windowId) => ({ window_id: windowId })) };
+		}
+		if (normalized.startsWith("update dining.map_draft")) {
+			state.draft = {
+				bundleJson: values[0] as DiningFloorplanBundleV1,
+				fingerprint: values[1] as `sha256:${string}`,
+				revision: values[2] as number,
+				updatedAt: new Date(String(values[3])),
+				updatedBy: String(values[4]),
+			};
+			return { rows: [] };
+		}
+		if (normalized.includes("from dining.map_publication publication join dining.map_releases")) {
+			const release = state.releases.find((item) => item.releaseId === state.publicationReleaseId);
+			return { rows: release ? [releaseRow(release)] : [] };
+		}
+		if (
+			normalized.startsWith("select release_id, updated_at, updated_by from dining.map_publication")
+		) {
+			return {
+				rows: state.publicationReleaseId
+					? [{ release_id: state.publicationReleaseId, updated_at: NOW, updated_by: "ops:1" }]
+					: [],
+			};
+		}
+		if (normalized.includes("from dining.map_releases where release_id = $1")) {
+			const release = state.releases.find((item) => item.releaseId === values[0]);
+			return { rows: release ? [releaseRow(release)] : [] };
+		}
+		if (normalized.includes("from dining.map_releases order by created_at desc")) {
+			return { rows: [...state.releases].reverse().map(releaseRow) };
+		}
+		if (normalized.startsWith("insert into dining.map_releases")) {
+			state.releases.push({
+				bundle: values[5] as DiningFloorplanBundleV1,
+				createdAt: String(values[7]),
+				createdBy: String(values[8]),
+				draftRevision: values[2] as number,
+				kind: values[3] as DiningMapRelease["kind"],
+				publicPayload: values[6] as DiningMapRelease["publicPayload"],
+				releaseId: String(values[0]),
+				restoredFromReleaseId: values[4] === null ? null : String(values[4]),
+				snapshotHash: values[1] as `sha256:${string}`,
+			});
+			return { rows: [] };
+		}
+		if (normalized.startsWith("insert into dining.map_publication")) {
+			state.publicationReleaseId = String(values[1]);
+			return { rows: [] };
+		}
+		if (normalized.startsWith("select 1 from dining.map_draft")) {
+			return { rows: [{ "?column?": 1 }] };
+		}
+		throw new Error(`Unexpected SQL: ${normalized}`);
+	});
+	const client = { query, release: vi.fn() };
+	return {
+		assets,
+		activeMenuWindowIds: state.activeMenuWindowIds,
+		get draft() {
+			return state.draft;
+		},
+		get publicationReleaseId() {
+			return state.publicationReleaseId;
+		},
+		pool: { connect: vi.fn(async () => client), query },
+		get releases() {
+			return state.releases;
+		},
+	};
+}
+
+function draftRow(draft: {
+	bundleJson: DiningFloorplanBundleV1;
+	fingerprint: `sha256:${string}`;
+	revision: number;
+	updatedAt: Date;
+	updatedBy: string;
+}) {
+	return {
+		bundle_json: draft.bundleJson,
+		fingerprint: draft.fingerprint,
+		revision: draft.revision,
+		updated_at: draft.updatedAt,
+		updated_by: draft.updatedBy,
+	};
+}
+
+function releaseRow(release: DiningMapRelease) {
+	return {
+		bundle_json: release.bundle,
+		created_at: release.createdAt,
+		created_by: release.createdBy,
+		draft_revision: release.draftRevision,
+		kind: release.kind,
+		public_payload_json: release.publicPayload,
+		release_id: release.releaseId,
+		restored_from_release_id: release.restoredFromReleaseId,
+		snapshot_hash: release.snapshotHash,
+	};
+}

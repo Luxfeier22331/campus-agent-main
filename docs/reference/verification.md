@@ -53,9 +53,9 @@ input 选择受影响镜像与 Worker；`infra/k8s` 作为非 package 所有者�
 | `pnpm ci:otel` | 固定 Collector 的官方配置校验 | 真实 OTLP payload 或后端已收到信号 |
 | `pnpm ci:postgres` | 所有 disposable PostgreSQL integration suite | staging 或 production 数据库状态 |
 
-数据库子入口包括 `ci:app-api-migration`、`ci:app-api-product-db`、`ci:dining-postgres`、
-`ci:execution-control-postgres`、`ci:ingestion-control-postgres` 与 `ci:ops-web-postgres`。需要缩小范围时
-直接运行对应入口，不创建新的跨仓调度脚本。
+数据库子入口包括 `ci:app-api-migration`、`ci:app-api-product-db`、
+`ci:execution-control-postgres`、`ci:ingestion-control-postgres` 与 `ci:ops-web-postgres`。Dining 七表和
+角色边界由 Ops Web 的数据库套件覆盖。需要缩小范围时直接运行对应入口，不创建新的跨仓调度脚本。
 
 ## PR 门禁
 

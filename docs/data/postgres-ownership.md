@@ -21,20 +21,16 @@ schema 定义，连接拓扑见 `../architecture/system/data-plane.md`，部署�
 | `execution_control` | `apps/execution-control` | 执行投影写入和获准校园服务读取 |
 | `campus_services_publisher` | `jobs/transport-publisher` | `campus_services.*` 发布写入 |
 | `docs_publish` | `jobs/docs-publish` | `docs.*` 发布写入 |
-| `ops_web` | `apps/ops-web` | 获准运行投影的列级只读访问 |
+| `ops_web` | `apps/ops-web` | 获准运行投影的列级只读访问，以及 Dining 内容维护 |
 | `execution_provider_config_reader` | `apps/execution-control` | 当前 `execution_config.model_settings` 只读 |
 | `execution_provider_config_admin` | `apps/execution-control` | 当前模型设置、凭据和验证结果读写 |
-| `ops_web_dining` | `apps/ops-web` | Dining 草稿、发布、回滚和评价治理 |
-| `dining_sync` | `jobs/dining-sync` | Dining 来源观测、同步和复检 |
 
 Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，不共享产品运行时角色。外部
 观测平台不获得产品 PostgreSQL 角色。
 
 表中角色是权限主体，不等于都已具备环境登录凭据。当前数据库 base 将 `docs_publish` 保持为
 `NOLOGIN` 授权主体；只有部署文档发布单元时，才由该发布单元同时交付可登录 DatabaseRole、Secret
-和 Job。`ops_web_dining` 与 `dining_sync` 均由 Dining migration 单元交付，不由数据库平台或
-Ops Web 核心发布单元预创建。`app_api` 是共享产品运行角色，Dining 只管理它在 `dining.*` 上的
-权限。
+和 Job。`ops_web` 是 Ops Web 的唯一运行角色，Dining 不创建第二个角色或连接。
 
 ## Schema 所有权
 
@@ -47,7 +43,7 @@ Ops Web 核心发布单元预创建。`app_api` 是共享产品运行角色，Di
 | `runtime.request_observability_fact` | App API 产品终态 | App API |
 | `runtime.agent_*` | execution-control | execution-control |
 | `execution_config.*` | execution-control 配置管理 | execution-control |
-| `dining.*` | Dining 同步和 Ops Web | Ops Web、同步任务、App API 公开读取 |
+| `dining.*` | Ops Web | Ops Web、App API 公开读取 |
 | `campus_services.*` | 校园服务发布任务 | App API、execution-control |
 
 ingestion registry 和来源事实由采集数据所有者维护，不并入产品 schema。各表字段、状态和保留
@@ -68,32 +64,28 @@ ingestion registry 和来源事实由采集数据所有者维护，不并入产�
   时切换失败。系统不保留双写、双读、运行时 fallback 或后续 contract 阶段。
 - 没有旧结构时，当前表可以为空或只配置一个 kind；schema 安装不把业务配置完整性变成部署门禁。
   `llm` 和 `embedding` 分别由消费它们的运行路径检查并失败。
-- App API 只读取 Dining 当前发布和公开评价，不拥有 Dining migration；
-- Ops Web 的运行记录角色与 Dining 内容角色分离；
-- Ops Web 核心授权不检查或修改 Dining schema；
+- App API 读取 Dining 当前发布地图、菜单和公开评价；可创建或删除学生自己的评价并创建举报，
+  但不能读取地图草稿和评价修改历史，也不能修改地图或菜单；
+- Ops Web 使用同一 `ops_web` 角色维护 Dining 地图、菜单、评价、举报和评价修改历史；
 - 不同所有者不共享 migration journal，也不通过双写复制同一事实；
 - 对象 bytes、原始来源、工作流历史和供应商 trace 不进入这些 schema。
 
-角色、grant、migration 和应用查询必须共同变化。新增数据库列不会自动进入其他所有者的读取
-权限或 API 响应。强依赖 schema 的运行时在同一发布 Application 中拥有角色、Secret、migration
-和 workload。嵌入宿主进程的可选领域能力由领域 Application 拥有 schema、专用角色、Secret 和
-授权，宿主只使用 optional Secret 引用；该领域失败不得阻塞宿主的无关能力。数据库平台
-Application 只维护数据库 owner 和无登录授权主体。
+角色、grant、schema 安装和应用查询必须共同变化。新增数据库列不会自动进入其他所有者的读取
+权限或 API 响应。拥有 schema 的应用同时交付安装命令和授权；常驻 workload 只使用运行角色。
+数据库平台只维护数据库 owner 和明确需要的无登录授权主体。
 
 ## 可执行来源
 
 - App API schema：`apps/app-api/db/`、`apps/app-api/drizzle/`
 - 执行投影与配置：`apps/execution-control/internal/`
-- Ops Web 核心 read-model grant：`apps/ops-web/ops/db/`
-- Dining schema 与 grant：`jobs/dining-sync/drizzle/`、`jobs/dining-sync/src/database-grants.ts`、
-  `packages/domains/dining/src/schema.ts`
+- Ops Web 排查授权与 Dining schema：`apps/ops-web/ops/db/`
 - 校园服务发布：`jobs/transport-publisher/`
 
 ## 相关文档
 
 - `app-api/README.md`
 - `durable-runtime.md`
-- `dining.md`
+- `../product/dining.md`
 - `../architecture/system/data-plane.md`
 - `../architecture/system/k8s-runtime.md`
 - `../decisions/adr-0073-postgres.md`

@@ -21,7 +21,7 @@ function appFileSha256(relativePath: string): string {
 
 describe("app-api schema installer", () => {
 	it("grants the runtime role only app-api-owned database surfaces", () => {
-		const sql = buildAppApiGrantSql();
+		const sql = buildAppApiGrantSql("campus_agent_wt_3_a1b2c3d4");
 
 		expect(sql).toContain('GRANT USAGE ON SCHEMA "app_auth"');
 		expect(sql).toContain('"chat"');
@@ -38,6 +38,10 @@ describe("app-api schema installer", () => {
 		expect(sql).not.toContain('"operator"');
 		expect(sql).not.toContain('"dining"');
 		expect(sql).not.toContain('"wechat_official_account"');
+		expect(sql).toContain('GRANT CONNECT ON DATABASE "campus_agent_wt_3_a1b2c3d4"');
+		expect(() => buildAppApiGrantSql("campus-agent-invalid")).toThrow(
+			"database name must be a lowercase PostgreSQL identifier",
+		);
 	});
 
 	it("extends the immutable main migration ledger with one productionization migration", () => {

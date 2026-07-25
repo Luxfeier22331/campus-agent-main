@@ -26,6 +26,37 @@ const noProviderConfigPrivileges = {
 	canExecuteFunctions: false,
 	canUseSchema: false,
 } as const;
+const appApiDiningPrivileges = {
+	canDeleteReports: false,
+	canDeleteReviews: false,
+	canInsertReports: true,
+	canInsertReviews: true,
+	canMutateDraft: false,
+	canMutateEdits: false,
+	canMutateMenu: false,
+	canMutatePublication: false,
+	canMutateReleases: false,
+	canReadDraft: false,
+	canReadEdits: false,
+	canReadMenu: true,
+	canReadPublication: true,
+	canReadReports: true,
+	canReadReleases: true,
+	canReadReviews: true,
+	canUpdateReports: false,
+	canUpdateReviews: true,
+	canUseSchema: true,
+} as const;
+const opsWebDiningPrivileges = {
+	canMutateDraft: true,
+	canMutateEdits: true,
+	canMutateMenu: true,
+	canMutatePublication: true,
+	canMutateReports: true,
+	canMutateReleases: true,
+	canMutateReviews: true,
+	canUseSchema: true,
+} as const;
 describe("ops-web database verification", () => {
 	beforeEach(() => {
 		connect.mockReset().mockResolvedValue(undefined);
@@ -51,12 +82,16 @@ describe("ops-web database verification", () => {
 	it("verifies the ops_web role and read model without an audit role", async () => {
 		const { verifyOpsWebDatabase } = await import("../ops/db/ops-web-database.ts");
 		await expect(verifyOpsWebDatabase(validEnv())).resolves.toEqual({
+			diningMap: "ready",
 			opsWebRole: "ready",
 			readModel: "ready",
 		});
-		expect(connect).toHaveBeenCalledTimes(2);
-		expect(end).toHaveBeenCalledTimes(2);
+		expect(connect).toHaveBeenCalledTimes(3);
+		expect(end).toHaveBeenCalledTimes(3);
 		const allQueries = query.mock.calls.map(([sql]) => String(sql)).join("\n");
+		expect(allQueries).toContain('from "dining"."map_draft"');
+		expect(allQueries).toContain('from "dining"."menu_items"');
+		expect(allQueries).toContain('from "dining"."reviews"');
 		expect(allQueries).toContain('from "chat"."turn_dispatches"');
 		expect(allQueries).toContain('from "runtime"."agent_run_steps"');
 		expect(allQueries).toContain('from "runtime"."agent_step_attempts"');
@@ -64,29 +99,45 @@ describe("ops-web database verification", () => {
 		expect(allQueries).not.toContain('"owner_user_id"');
 	});
 
-	it("applies only read-model grants", async () => {
+	it("applies the Dining schema and the declared runtime grants", async () => {
 		const { applyOpsWebDatabaseGrants } = await import("../ops/db/ops-web-database.ts");
 		await expect(applyOpsWebDatabaseGrants(validEnv())).resolves.toEqual({
+			diningMap: "ready",
 			opsWebRole: "ready",
 			readModel: "ready",
 		});
 		const allQueries = query.mock.calls.map(([sql]) => String(sql)).join("\n");
 		expect(allQueries).toContain('GRANT USAGE ON SCHEMA "chat", "runtime" TO "ops_web"');
-		expect(allQueries).not.toContain('SCHEMA "dining"');
+		expect(allQueries).toContain('CREATE SCHEMA IF NOT EXISTS "dining"');
+		expect(allQueries).toContain('"dining"."map_draft"');
+		expect(allQueries).toContain('"dining"."menu_items"');
+		expect(allQueries).toContain('"dining"."review_reports"');
+		expect(allQueries).toContain('TO "app_api"');
+		expect(allQueries).toContain('DROP TABLE IF EXISTS "dining"."catalog_overrides"');
+		expect(allQueries).toContain("to_regnamespace('execution_config')");
 		expect(allQueries).not.toContain("ops_observability_read_audit");
 		expect(allQueries).not.toContain("ops_audit_maintenance");
 		expect(query).toHaveBeenCalledWith("commit");
 	});
 
+	it("applies Dining independently from the Ops read model", async () => {
+		const { applyDiningDatabase } = await import("../ops/db/ops-web-database.ts");
+		await expect(applyDiningDatabase(validEnv())).resolves.toEqual({ diningMap: "ready" });
+		const allQueries = query.mock.calls.map(([sql]) => String(sql)).join("\n");
+		expect(allQueries).toContain('CREATE SCHEMA IF NOT EXISTS "dining"');
+		expect(allQueries).toContain('TO "app_api"');
+		expect(allQueries).not.toContain('"runtime"."agent_runs"');
+		expect(allQueries).not.toContain("execution_config");
+		expect(query).toHaveBeenCalledWith("commit");
+	});
+
 	it("rejects a runtime DSN that does not connect as ops_web", async () => {
+		const successfulQuery = query.getMockImplementation();
 		query.mockImplementation(async (sql: string) => {
-			if (sql.includes("from pg_roles")) {
-				return { rowCount: 1, rows: [{ present: 1 }] };
-			}
-			if (sql.includes("current_user")) {
+			if (sql.includes('current_user as "currentUser"')) {
 				return { rowCount: 1, rows: [{ currentUser: "campus_agent" }] };
 			}
-			return { rowCount: 0, rows: [] };
+			return successfulQuery?.(sql);
 		});
 		const { verifyOpsWebDatabase } = await import("../ops/db/ops-web-database.ts");
 		await expect(verifyOpsWebDatabase(validEnv())).rejects.toThrow(
@@ -112,6 +163,10 @@ describe("ops-web database verification", () => {
 			ssl: { ca: "schema-ca", rejectUnauthorized: true },
 		});
 		expect(clientConstructor).toHaveBeenNthCalledWith(2, {
+			connectionString: "postgresql://owner:secret@example.test/db",
+			ssl: { ca: "schema-ca", rejectUnauthorized: true },
+		});
+		expect(clientConstructor).toHaveBeenNthCalledWith(3, {
 			connectionString: "postgresql://ops_web:secret@example.test/db",
 			ssl: { ca: "runtime-ca", rejectUnauthorized: true },
 		});
@@ -149,6 +204,26 @@ function installSuccessfulQueries() {
 		}
 		if (sql.includes('current_user as "currentUser"')) {
 			return { rowCount: 1, rows: [{ currentUser: "ops_web" }] };
+		}
+		if (sql.includes("from information_schema.tables") && sql.includes("table_schema = 'dining'")) {
+			return {
+				rowCount: 7,
+				rows: [
+					{ table_name: "map_draft" },
+					{ table_name: "map_publication" },
+					{ table_name: "map_releases" },
+					{ table_name: "menu_items" },
+					{ table_name: "review_edits" },
+					{ table_name: "review_reports" },
+					{ table_name: "reviews" },
+				],
+			};
+		}
+		if (sql.includes("has_schema_privilege('app_api', 'dining'")) {
+			return { rowCount: 1, rows: [appApiDiningPrivileges] };
+		}
+		if (sql.includes("has_schema_privilege(current_user, 'dining'")) {
+			return { rowCount: 1, rows: [opsWebDiningPrivileges] };
 		}
 		if (sql.includes("has_schema_privilege") && sql.includes("execution_config")) {
 			return { rowCount: 1, rows: [noProviderConfigPrivileges] };

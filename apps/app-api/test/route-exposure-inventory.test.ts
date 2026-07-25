@@ -13,6 +13,7 @@ const routeFiles = [
 	"campus-experience.ts",
 	"chat.ts",
 	"chat-run-routes.ts",
+	"dining.ts",
 	"docs.ts",
 	"federation.ts",
 	"internal.ts",
@@ -52,6 +53,8 @@ describe("app-api route exposure inventory", () => {
 			registeredRoutes.map((route) => `${route.method} ${route.path}`),
 		);
 		expect(inventoryKeys.has("POST /api/chatkit")).toBe(false);
+		expect(inventoryKeys.has("GET /api/dining")).toBe(true);
+		expect(inventoryKeys.has("GET /api/dining/menu-items/:menuItemId/reviews")).toBe(true);
 	});
 
 	it("keeps internal and collector routes out of browser-facing caller classes", () => {

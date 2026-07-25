@@ -1,3 +1,4 @@
+import { cn } from "@campus-agent/ui";
 import {
 	type ColumnDef,
 	createColumnHelper,
@@ -18,12 +19,16 @@ export function DataTable<T>({
 	data,
 	minWidth = "760px",
 	rowKey,
+	stickyFirstColumn = false,
+	stickyLastColumn = false,
 }: {
 	caption?: string;
 	columns: DataTableColumn<T>[];
 	data: T[];
 	minWidth?: string;
 	rowKey: (row: T) => string;
+	stickyFirstColumn?: boolean;
+	stickyLastColumn?: boolean;
 }) {
 	const rowHeaderCount = columns.filter((column) => column.rowHeader).length;
 	if (rowHeaderCount !== 1) {
@@ -59,9 +64,15 @@ export function DataTable<T>({
 						<thead>
 							{table.getHeaderGroups().map((headerGroup) => (
 								<tr key={headerGroup.id}>
-									{headerGroup.headers.map((header) => (
+									{headerGroup.headers.map((header, index) => (
 										<th
-											className="border-border border-b bg-secondary px-3 py-2 font-semibold text-muted-foreground text-xs"
+											className={cn(
+												"border-border border-b bg-secondary px-3 py-2 font-semibold text-muted-foreground text-xs",
+												stickyFirstColumn && index === 0 && "sticky left-0 z-20 border-r",
+												stickyLastColumn &&
+													index === headerGroup.headers.length - 1 &&
+													"sticky right-0 z-20 border-l",
+											)}
 											key={header.id}
 											scope="col"
 										>
@@ -75,7 +86,13 @@ export function DataTable<T>({
 						</thead>
 						<tbody>
 							{rows.map((row) => (
-								<DataTableRow columns={columns} key={row.id} row={row} />
+								<DataTableRow
+									columns={columns}
+									key={row.id}
+									row={row}
+									stickyFirstColumn={stickyFirstColumn}
+									stickyLastColumn={stickyLastColumn}
+								/>
 							))}
 						</tbody>
 					</table>
@@ -88,24 +105,37 @@ export function DataTable<T>({
 function DataTableRow<T>({
 	columns,
 	row,
+	stickyFirstColumn,
+	stickyLastColumn,
 }: {
 	columns: DataTableColumn<T>[];
 	row: ReturnType<ReturnType<typeof useReactTable<T>>["getRowModel"]>["rows"][number];
+	stickyFirstColumn: boolean;
+	stickyLastColumn: boolean;
 }) {
+	const cells = row.getVisibleCells();
 	return (
-		<tr className="border-border border-b transition-colors last:border-b-0 hover:bg-surface-muted/60 focus-within:bg-surface-muted/60">
-			{row.getVisibleCells().map((cell, index) => {
+		<tr className="group border-border border-b transition-colors last:border-b-0 hover:bg-surface-muted/60 focus-within:bg-surface-muted/60">
+			{cells.map((cell, index) => {
 				const content = flexRender(cell.column.columnDef.cell, cell.getContext());
+				const stickyClass = cn(
+					stickyFirstColumn &&
+						index === 0 &&
+						"sticky left-0 z-10 border-r bg-background group-hover:bg-surface-muted",
+					stickyLastColumn &&
+						index === cells.length - 1 &&
+						"sticky right-0 z-10 border-l bg-background group-hover:bg-surface-muted",
+				);
 				return columns[index]?.rowHeader ? (
 					<th
-						className="break-words px-3 py-3 text-left font-medium align-top"
+						className={cn("break-words px-3 py-3 text-left font-medium align-top", stickyClass)}
 						key={cell.id}
 						scope="row"
 					>
 						{content}
 					</th>
 				) : (
-					<td className="break-words px-3 py-3 align-top" key={cell.id}>
+					<td className={cn("break-words px-3 py-3 align-top", stickyClass)} key={cell.id}>
 						{content}
 					</td>
 				);

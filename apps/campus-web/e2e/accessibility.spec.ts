@@ -15,9 +15,9 @@ const surfaces: ReadonlyArray<{
 		smoke: true,
 	},
 	{
-		name: "食堂",
+		name: "食堂地图",
 		path: "/dining",
-		ready: (page) => page.getByRole("heading", { exact: true, name: "食堂" }),
+		ready: (page) => page.getByRole("heading", { exact: true, name: "食堂地图" }),
 	},
 	{
 		name: "校园地图",

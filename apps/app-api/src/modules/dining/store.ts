@@ -1,136 +1,56 @@
-import type {
-	DiningPublication,
-	DiningPublicReadStore,
-	DiningReview,
-	DiningReviewImage,
-} from "@campus-agent/dining/domain";
-import { parseDiningPublishedSnapshot } from "@campus-agent/dining/domain";
-import { and, eq } from "drizzle-orm";
+import { type DiningMapResponse, DiningMapResponseSchema } from "@campus-agent/dining/domain";
+import { eq } from "drizzle-orm";
 
 import type { Env } from "../../config";
 import { createRuntimeDbGetter, type RuntimeDbGetter } from "../../db/runtime";
-import { diningPublication, diningReleases, diningReviews } from "../../db/schema";
+import { diningMapPublication, diningMapReleases } from "../../db/schema";
 import { AppApiRouteError } from "../../http";
 
-export function createPgDiningPublicReadStore(
+export interface DiningMapReadService {
+	getMap(): Promise<DiningMapResponse>;
+}
+
+export function createPgDiningMapReadService(
 	env: Env,
-	input: { getDb?: RuntimeDbGetter } = {},
-): DiningPublicReadStore {
-	const getDb = input.getDb ?? createRuntimeDbGetter(env, { consistency: "fresh" });
+	options: { getDb?: RuntimeDbGetter } = {},
+): DiningMapReadService {
+	const getDb = options.getDb ?? createRuntimeDbGetter(env);
 	return {
-		async getPublication(): Promise<DiningPublication> {
+		async getMap() {
 			const row = (
 				await (
 					await getDb()
 				)
-					.select()
-					.from(diningPublication)
-					.where(eq(diningPublication.scope, "global"))
+					.select({
+						payload: diningMapReleases.publicPayloadJson,
+						releaseId: diningMapReleases.releaseId,
+					})
+					.from(diningMapPublication)
+					.innerJoin(
+						diningMapReleases,
+						eq(diningMapPublication.releaseId, diningMapReleases.releaseId),
+					)
+					.where(eq(diningMapPublication.scope, "global"))
 					.limit(1)
 			)[0];
-			return row
-				? {
-						catalogReleaseId: row.catalogReleaseId,
-						reviewRevision: row.reviewRevision,
-						updatedAt: row.updatedAt.toISOString(),
-					}
-				: { catalogReleaseId: null, reviewRevision: 0, updatedAt: new Date(0).toISOString() };
-		},
-		async getPublishedSnapshot() {
-			const db = await getDb();
-			const rows = await db
-				.select({
-					catalogReleaseId: diningPublication.catalogReleaseId,
-					payload: diningReleases.payloadJson,
-					releaseId: diningReleases.releaseId,
-					snapshotHash: diningReleases.snapshotHash,
-				})
-				.from(diningPublication)
-				.leftJoin(diningReleases, eq(diningPublication.catalogReleaseId, diningReleases.releaseId))
-				.where(eq(diningPublication.scope, "global"))
-				.limit(1);
-			const row = rows[0];
-			if (!row?.catalogReleaseId) {
-				return null;
-			}
-			if (!(row.releaseId && row.payload && row.snapshotHash)) {
-				invalidProjection("Publication references a missing release.");
-			}
-			try {
-				return parseDiningPublishedSnapshot(row.payload, {
-					releaseId: row.catalogReleaseId,
-					snapshotHash: row.snapshotHash,
+			if (!row) {
+				throw new AppApiRouteError({
+					code: "dining_map_not_published",
+					message: "Dining map has not been published.",
+					retryable: false,
+					status: 404,
 				});
-			} catch (error) {
-				invalidProjection(error instanceof Error ? error.message : "Published release is invalid.");
 			}
-		},
-		async listPublishedReviewsByOffering({ offeringId }) {
-			const rows = await (await getDb())
-				.select()
-				.from(diningReviews)
-				.where(
-					and(
-						eq(diningReviews.offeringId, offeringId),
-						eq(diningReviews.visibility, "published"),
-						eq(diningReviews.moderationStatus, "safe"),
-					),
-				);
-			return rows.map(toReview);
+			const parsed = DiningMapResponseSchema.safeParse(row.payload);
+			if (!parsed.success || parsed.data.releaseId !== row.releaseId) {
+				throw new AppApiRouteError({
+					code: "dining_map_projection_invalid",
+					message: "Published Dining map is invalid.",
+					retryable: false,
+					status: 500,
+				});
+			}
+			return parsed.data;
 		},
 	};
-}
-
-function toReview(row: typeof diningReviews.$inferSelect): DiningReview {
-	if (!(row.hallId && row.stallProfileId && row.windowId && row.offeringId)) {
-		invalidProjection("Published review is missing its exact offering binding.");
-	}
-	return {
-		campus: row.campus,
-		comment: row.comment,
-		contributorName: row.contributorName,
-		dishName: row.dishName,
-		hallId: row.hallId,
-		hallName: row.hallName,
-		images: parseImages(row.imagesJson),
-		offeringId: row.offeringId,
-		paidPriceLabel: row.paidPriceLabel,
-		rating: row.rating,
-		reviewId: row.reviewId,
-		sourceRecordId: row.sourceRecordId,
-		stallName: row.stallName,
-		stallProfileId: row.stallProfileId,
-		submittedAt: row.submittedAt.toISOString(),
-		windowId: row.windowId,
-	};
-}
-
-function parseImages(value: unknown): DiningReviewImage[] {
-	if (!Array.isArray(value)) {
-		invalidProjection("Published review images are invalid.");
-	}
-	return value.map((item) => {
-		if (
-			!isRecord(item) ||
-			typeof item.alt !== "string" ||
-			typeof item.imageId !== "string" ||
-			typeof item.url !== "string"
-		) {
-			invalidProjection("Published review image is invalid.");
-		}
-		return { alt: item.alt, imageId: item.imageId, url: item.url };
-	});
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function invalidProjection(message: string): never {
-	throw new AppApiRouteError({
-		code: "dining_published_projection_invalid",
-		message,
-		retryable: false,
-		status: 500,
-	});
 }

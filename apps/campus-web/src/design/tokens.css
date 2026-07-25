@@ -36,5 +36,5 @@
 	--map-style-selection-outline: #1a73e8;
 	--map-style-sport-fill: #dce8f8;
 	--dining-svg-canvas-bg: var(--sys-bg-subtle);
-	--dining-stall-selected-stroke: var(--sys-brand-interactive);
+	--dining-window-selected-stroke: var(--sys-brand-interactive);
 }

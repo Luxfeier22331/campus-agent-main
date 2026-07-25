@@ -116,6 +116,7 @@ export async function installAppApiSchema(envOverrides: NodeJS.ProcessEnv = proc
 			envOverrides.BETTER_AUTH_SECRET?.trim() || "schema-install-only-not-a-runtime-secret-2026",
 	};
 	const env = readSharedProductBootstrapEnv(bootstrapEnv);
+	const databaseName = decodeURIComponent(new URL(env.databaseUrl).pathname.slice(1));
 	const bootstrap = await bootstrapSharedProductDatabase(bootstrapEnv);
 	const pool = createSharedProductPool(env);
 	try {
@@ -126,7 +127,7 @@ export async function installAppApiSchema(envOverrides: NodeJS.ProcessEnv = proc
 		});
 		await pool.query("BEGIN");
 		try {
-			await applyAppApiGrants(pool);
+			await applyAppApiGrants(pool, databaseName);
 			await pool.query("COMMIT");
 		} catch (error) {
 			await pool.query("ROLLBACK");

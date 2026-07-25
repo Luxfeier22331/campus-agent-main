@@ -12,7 +12,7 @@
 		"build:release": "pnpm exec tsx ./scripts/build-release.ts",
 		"build:worker": "pnpm run build:app",
 		"build:staging": "pnpm exec tsx ./scripts/build-release.ts --staging",
-		"dev": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 CLOUDFLARE_ENV=local XDG_CONFIG_HOME=../../.wrangler-home vite --host 127.0.0.1 --port 27014 --strictPort",
+		"dev": "pnpm --dir ../.. exec tsx scripts/dev/service.ts campus-web",
 		"deploy": "pnpm build && pnpm exec tsx ../../scripts/deploy/verify-worker-deploy-config.ts dist/campus_web/wrangler.json APP_API=app-api && pnpm exec tsx ../../scripts/deploy/run-wrangler-command.ts deploy --config dist/campus_web/wrangler.json",
 		"upload:staging": "pnpm exec tsx ./scripts/upload-staging-version.ts",
 		"preview": "pnpm build && WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home vite preview",

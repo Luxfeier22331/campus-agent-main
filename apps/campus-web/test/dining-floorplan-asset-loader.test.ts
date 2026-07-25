@@ -11,14 +11,18 @@ afterEach(() => {
 describe("dining floorplan asset loader", () => {
 	it("loads a same-origin asset after verifying its digest", async () => {
 		const markup = '<svg xmlns="http://www.w3.org/2000/svg"></svg>';
-		const sha256 = `sha256:${createHash("sha256").update(markup).digest("hex")}`;
+		const digest = createHash("sha256").update(markup).digest("hex");
+		const sha256 = `sha256:${digest}`;
 		globalThis.fetch = vi.fn(async () => new Response(markup, { status: 200 }));
 
 		await expect(
-			loadDiningFloorplanAsset({ sha256, svgAssetUrl: "/assets/dining/test.svg" }),
+			loadDiningFloorplanAsset({
+				sha256,
+				svgAssetUrl: `/api/dining/floorplans/${digest}.svg`,
+			}),
 		).resolves.toBe(markup);
 		expect(globalThis.fetch).toHaveBeenCalledWith(
-			"/assets/dining/test.svg",
+			`/api/dining/floorplans/${digest}.svg`,
 			expect.objectContaining({ credentials: "same-origin" }),
 		);
 	});
@@ -29,7 +33,7 @@ describe("dining floorplan asset loader", () => {
 		await expect(
 			loadDiningFloorplanAsset({
 				sha256: `sha256:${"0".repeat(64)}`,
-				svgAssetUrl: "/assets/dining/test.svg",
+				svgAssetUrl: `/api/dining/floorplans/${"0".repeat(64)}.svg`,
 			}),
 		).rejects.toThrow("checksum does not match");
 	});

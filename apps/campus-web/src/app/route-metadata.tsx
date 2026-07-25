@@ -18,7 +18,7 @@ export function resolveRouteMetadata(pathname: string): CampusRouteMetadata {
 		return publicMetadata("校园地图", "通过校园地图查找校区地点和服务位置。", "/map");
 	}
 	if (pathname === "/dining") {
-		return publicMetadata("食堂", "查看校园食堂、档口、菜品和评价信息。", "/dining");
+		return publicMetadata("食堂地图", "查看校园食堂、楼层和窗口分布。", "/dining");
 	}
 	if (pathname === "/services") {
 		return publicMetadata("校园服务", "查看校车等已发布的校园服务信息。", "/services");

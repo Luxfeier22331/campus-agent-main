@@ -10,7 +10,7 @@ import {
 	createPgCampusServicesTransportScheduleStore,
 } from "../modules/campus-services-transport-schedule";
 import { buildChatConversationService, createPgChatConversationStore } from "../modules/chat";
-import { buildDiningPublicReadService, createPgDiningPublicReadStore } from "../modules/dining";
+import { createPgDiningContentService, createPgDiningMapReadService } from "../modules/dining";
 import { buildDocsService, createPgDocsReadModelStore } from "../modules/docs";
 import {
 	createExecutionControlPersonalMemoryClient,
@@ -40,7 +40,8 @@ export function createRequestScopeFactory(input: {
 			let campusServices = input.dependencies.campusServicesTransportScheduleService ?? null;
 			let chat = input.dependencies.chatConversationService ?? null;
 			let command = input.dependencies.chatCommandService ?? null;
-			let dining = input.dependencies.diningPublicReadService ?? null;
+			let dining = input.dependencies.diningMapReadService ?? null;
+			let diningContent = input.dependencies.diningContentService ?? null;
 			let docs = input.dependencies.docsService ?? null;
 			let memory = input.dependencies.profileMemoryService ?? null;
 			let runtimeRuns = input.dependencies.runtimeRunService ?? null;
@@ -80,9 +81,13 @@ export function createRequestScopeFactory(input: {
 					})),
 				resolveChatCommandService,
 				resolveChatConversationService,
-				resolveDiningPublicReadService: () =>
-					(dining ??= buildDiningPublicReadService({
-						store: createPgDiningPublicReadStore(input.env, { getDb: runtime.getFreshDb }),
+				resolveDiningMapReadService: () =>
+					(dining ??= createPgDiningMapReadService(input.env, {
+						getDb: runtime.getFreshDb,
+					})),
+				resolveDiningContentService: () =>
+					(diningContent ??= createPgDiningContentService(input.env, {
+						getDb: runtime.getFreshDb,
 					})),
 				resolveDocsService: () =>
 					(docs ??= buildDocsService({

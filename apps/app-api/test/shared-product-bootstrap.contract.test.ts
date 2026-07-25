@@ -134,7 +134,7 @@ describe("app-api shared product bootstrap contracts", () => {
 	it("keeps APP_API_DB_FRESH limited to explicit read-after-write paths", () => {
 		const requestScopeSource = readAppFile("src/app/request-scope.ts");
 		const freshDbReferences = requestScopeSource.match(/runtime\.getFreshDb/g) ?? [];
-		expect(freshDbReferences).toHaveLength(4);
+		expect(freshDbReferences).toHaveLength(5);
 
 		expect(requestScopeSource).toContain(
 			"store: createPgRuntimeRunStore(input.env, { getDb: runtime.getDb })",
@@ -142,11 +142,15 @@ describe("app-api shared product bootstrap contracts", () => {
 		expect(requestScopeSource).toContain(
 			"store: createPgProfileMemoryStore(input.env, { getDb: runtime.getFreshDb })",
 		);
-		expect(requestScopeSource).toContain(
-			"store: createPgDiningPublicReadStore(input.env, { getDb: runtime.getFreshDb })",
-		);
+		expect(requestScopeSource).toContain("getDb: runtime.getFreshDb");
 		expect(requestScopeSource).toContain(
 			"detailStore: createPgChatConversationStore(input.env, { getDb: runtime.getFreshDb })",
+		);
+		expect(requestScopeSource).toContain(
+			"dining ??= createPgDiningMapReadService(input.env, {\n\t\t\t\t\t\tgetDb: runtime.getFreshDb",
+		);
+		expect(requestScopeSource).toContain(
+			"diningContent ??= createPgDiningContentService(input.env, {\n\t\t\t\t\t\tgetDb: runtime.getFreshDb",
 		);
 		expect(requestScopeSource).toContain(
 			"store: createPgChatConversationStore(input.env, { getDb: runtime.getDb })",
@@ -159,7 +163,7 @@ describe("app-api shared product bootstrap contracts", () => {
 		);
 	});
 
-	it("keeps dining dev seed import outside the app-api bootstrap", () => {
+	it("keeps Dining bootstrap outside the app-api shared database bootstrap", () => {
 		const bootstrapSource = readAppFile("ops/db/bootstrap-shared-product-database.ts");
 
 		expect(bootstrapSource).not.toContain("jobs/dining-sync");

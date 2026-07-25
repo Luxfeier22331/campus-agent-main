@@ -2,391 +2,192 @@ import { sql } from "drizzle-orm";
 import {
 	boolean,
 	check,
-	foreignKey,
+	date,
 	index,
 	integer,
 	jsonb,
 	pgSchema,
 	text,
 	timestamp,
-	unique,
 	uniqueIndex,
 } from "drizzle-orm/pg-core";
+import type { DiningMapResponse } from "./domain/map.ts";
+import type { DiningFloorplanBundleV1 } from "./floorplans/bundle.ts";
 
 export const dining = pgSchema("dining");
-const timestamps = {
-	createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-	updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-};
 
-export const diningHalls = dining.table(
-	"halls",
+export const diningMapDraft = dining.table(
+	"map_draft",
 	{
-		campus: text("campus").notNull(),
-		hallId: text("hall_id").primaryKey(),
-		name: text("name").notNull(),
-		status: text("status").notNull().default("active"),
-		...timestamps,
-	},
-	(table) => [check("dining_halls_status_check", sql`${table.status} = 'active'`)],
-);
-
-export const diningFloors = dining.table(
-	"floors",
-	{
-		floorId: text("floor_id").primaryKey(),
-		hallId: text("hall_id")
-			.notNull()
-			.references(() => diningHalls.hallId, { onDelete: "cascade" }),
-		label: text("label").notNull(),
-		floorplanId: text("floorplan_id").notNull(),
-		floorplanKind: text("floorplan_kind").notNull(),
-		sortKey: text("sort_key").notNull(),
-		...timestamps,
+		bundleJson: jsonb("bundle_json").$type<DiningFloorplanBundleV1>().notNull(),
+		fingerprint: text("fingerprint").notNull(),
+		revision: integer("revision").notNull(),
+		scope: text("scope").primaryKey(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+		updatedBy: text("updated_by").notNull(),
 	},
 	(table) => [
-		index("dining_floors_hall_idx").on(table.hallId),
-		unique("dining_floors_hall_floor_unique").on(table.hallId, table.floorId),
-		check("dining_floors_kind_check", sql`${table.floorplanKind} in ('asset', 'placeholder')`),
+		check("dining_map_draft_scope_check", sql`${table.scope} = 'global'`),
+		check("dining_map_draft_revision_check", sql`${table.revision} > 0`),
 	],
 );
 
-export const diningWindows = dining.table(
-	"windows",
+export const diningMapReleases = dining.table(
+	"map_releases",
 	{
-		windowId: text("window_id").primaryKey(),
-		hallId: text("hall_id").notNull(),
-		floorId: text("floor_id").notNull(),
-		label: text("label").notNull(),
-		locationLabel: text("location_label").notNull(),
-		svgAnchorId: text("svg_anchor_id"),
-		tagsJson: jsonb("tags_json").$type<string[]>().notNull().default([]),
-		status: text("status").notNull().default("active"),
-		...timestamps,
+		bundleJson: jsonb("bundle_json").$type<DiningFloorplanBundleV1>().notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+		createdBy: text("created_by").notNull(),
+		draftRevision: integer("draft_revision").notNull(),
+		kind: text("kind").notNull(),
+		publicPayloadJson: jsonb("public_payload_json").$type<DiningMapResponse>().notNull(),
+		releaseId: text("release_id").primaryKey(),
+		restoredFromReleaseId: text("restored_from_release_id"),
+		snapshotHash: text("snapshot_hash").notNull(),
 	},
 	(table) => [
-		index("dining_windows_floor_idx").on(table.hallId, table.floorId),
-		uniqueIndex("dining_windows_floor_anchor_uidx")
-			.on(table.floorId, table.svgAnchorId)
-			.where(sql`${table.svgAnchorId} is not null`),
-		foreignKey({
-			columns: [table.hallId, table.floorId],
-			foreignColumns: [diningFloors.hallId, diningFloors.floorId],
-			name: "dining_windows_floor_fk",
-		}).onDelete("cascade"),
-		check(
-			"dining_windows_status_check",
-			sql`${table.status} in ('active', 'closed', 'maintenance')`,
-		),
+		check("dining_map_releases_revision_check", sql`${table.draftRevision} > 0`),
+		check("dining_map_releases_kind_check", sql`${table.kind} in ('publish', 'restore')`),
 	],
 );
 
-export const diningStallProfiles = dining.table(
-	"stall_profiles",
+export const diningMapPublication = dining.table(
+	"map_publication",
 	{
-		stallProfileId: text("stall_profile_id").primaryKey(),
-		displayName: text("display_name").notNull(),
-		stallType: text("stall_type").notNull(),
-		tagsJson: jsonb("tags_json").$type<string[]>().notNull().default([]),
-		status: text("status").notNull().default("active"),
-		...timestamps,
-	},
-	(table) => [check("dining_stall_profiles_status_check", sql`${table.status} = 'active'`)],
-);
-
-export const diningWindowAssignments = dining.table(
-	"window_assignments",
-	{
-		assignmentId: text("assignment_id").primaryKey(),
-		windowId: text("window_id")
+		releaseId: text("release_id")
 			.notNull()
-			.references(() => diningWindows.windowId, { onDelete: "cascade" }),
-		stallProfileId: text("stall_profile_id")
-			.notNull()
-			.references(() => diningStallProfiles.stallProfileId),
-		status: text("status").notNull().default("active"),
-		...timestamps,
+			.references(() => diningMapReleases.releaseId),
+		scope: text("scope").primaryKey(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+		updatedBy: text("updated_by").notNull(),
 	},
-	(table) => [
-		uniqueIndex("dining_assignments_window_uidx").on(table.windowId),
-		check("dining_assignments_status_check", sql`${table.status} = 'active'`),
-	],
+	(table) => [check("dining_map_publication_scope_check", sql`${table.scope} = 'global'`)],
 );
 
 export const diningMenuItems = dining.table(
 	"menu_items",
 	{
-		menuItemId: text("menu_item_id").primaryKey(),
-		name: text("name").notNull(),
-		tagsJson: jsonb("tags_json").$type<string[]>().notNull().default([]),
-		status: text("status").notNull().default("active"),
-		...timestamps,
-	},
-	(table) => [check("dining_menu_items_status_check", sql`${table.status} = 'active'`)],
-);
-
-export const diningMenuOfferings = dining.table(
-	"menu_offerings",
-	{
-		offeringId: text("offering_id").primaryKey(),
-		assignmentId: text("assignment_id")
-			.notNull()
-			.references(() => diningWindowAssignments.assignmentId, { onDelete: "cascade" }),
-		menuItemId: text("menu_item_id")
-			.notNull()
-			.references(() => diningMenuItems.menuItemId),
-		priceLabel: text("price_label"),
-		...timestamps,
-	},
-	(table) => [
-		index("dining_offerings_assignment_idx").on(table.assignmentId),
-		uniqueIndex("dining_offerings_assignment_item_uidx").on(table.assignmentId, table.menuItemId),
-	],
-);
-
-export const diningReleases = dining.table(
-	"releases",
-	{
-		releaseId: text("release_id").primaryKey(),
-		predecessorReleaseId: text("predecessor_release_id"),
-		rollbackOfReleaseId: text("rollback_of_release_id"),
-		draftRevision: integer("draft_revision").notNull(),
-		notes: text("notes").notNull(),
-		snapshotHash: text("snapshot_hash").notNull(),
-		payloadJson: jsonb("payload_json").$type<Record<string, unknown>>().notNull(),
-		validationJson: jsonb("validation_json").$type<Record<string, unknown>>().notNull(),
+		archivedAt: timestamp("archived_at", { withTimezone: true }),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		createdBy: text("created_by").notNull(),
-	},
-	(table) => [
-		index("dining_releases_created_idx").on(table.createdAt),
-		foreignKey({
-			columns: [table.predecessorReleaseId],
-			foreignColumns: [table.releaseId],
-			name: "dining_releases_predecessor_fk",
-		}).onDelete("set null"),
-		foreignKey({
-			columns: [table.rollbackOfReleaseId],
-			foreignColumns: [table.releaseId],
-			name: "dining_releases_rollback_fk",
-		}).onDelete("set null"),
-		check("dining_releases_revision_check", sql`${table.draftRevision} > 0`),
-	],
-);
-
-export const diningCatalogState = dining.table(
-	"catalog_state",
-	{
-		scope: text("scope").primaryKey(),
-		draftRevision: integer("draft_revision").notNull(),
-		baseReleaseId: text("base_release_id").references(() => diningReleases.releaseId, {
-			onDelete: "set null",
-		}),
+		menuItemId: text("menu_item_id").primaryKey(),
+		name: text("name").notNull(),
+		priceText: text("price_text"),
+		sortOrder: integer("sort_order").notNull(),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 		updatedBy: text("updated_by").notNull(),
+		windowId: text("window_id").notNull(),
 	},
 	(table) => [
-		check("dining_catalog_state_scope_check", sql`${table.scope} = 'global'`),
-		check("dining_catalog_state_revision_check", sql`${table.draftRevision} > 0`),
-	],
-);
-
-export const diningPublication = dining.table(
-	"publication",
-	{
-		scope: text("scope").primaryKey(),
-		catalogReleaseId: text("catalog_release_id").references(() => diningReleases.releaseId),
-		reviewRevision: integer("review_revision").notNull().default(0),
-		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-	},
-	(table) => [
-		check("dining_publication_scope_check", sql`${table.scope} = 'global'`),
-		check("dining_publication_revision_check", sql`${table.reviewRevision} >= 0`),
-	],
-);
-
-export const diningSourceSyncRuns = dining.table(
-	"source_sync_runs",
-	{
-		runId: text("run_id").primaryKey(),
-		sourceType: text("source_type").notNull(),
-		startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
-		completedAt: timestamp("completed_at", { withTimezone: true }),
-		status: text("status").notNull(),
-		totalCount: integer("total_count").notNull().default(0),
-		acceptedCount: integer("accepted_count").notNull().default(0),
-		blockedCount: integer("blocked_count").notNull().default(0),
-		staleCount: integer("stale_count").notNull().default(0),
-		errorCode: text("error_code"),
-		errorMessage: text("error_message"),
-	},
-	(table) => [
-		index("dining_sync_runs_started_idx").on(table.sourceType, table.startedAt),
+		check("dining_menu_items_name_check", sql`length(btrim(${table.name})) between 1 and 80`),
 		check(
-			"dining_sync_runs_source_check",
-			sql`${table.sourceType} in ('feishu_catalog', 'feishu_review')`,
+			"dining_menu_items_price_check",
+			sql`${table.priceText} is null or length(btrim(${table.priceText})) between 1 and 40`,
 		),
-		check(
-			"dining_sync_runs_status_check",
-			sql`${table.status} in ('running', 'succeeded', 'failed')`,
+		check("dining_menu_items_sort_order_check", sql`${table.sortOrder} >= 0`),
+		index("dining_menu_items_window_sort_idx").on(
+			table.windowId,
+			table.archivedAt,
+			table.sortOrder,
+			table.menuItemId,
 		),
-		check(
-			"dining_sync_runs_counts_check",
-			sql`${table.totalCount} >= 0 and ${table.acceptedCount} >= 0 and ${table.blockedCount} >= 0 and ${table.staleCount} >= 0`,
-		),
-	],
-);
-
-export const diningSourceObservations = dining.table(
-	"source_observations",
-	{
-		observationId: text("observation_id").primaryKey(),
-		sourceType: text("source_type").notNull(),
-		sourceBaseToken: text("source_base_token"),
-		sourceTableId: text("source_table_id"),
-		sourceRecordId: text("source_record_id"),
-		targetKind: text("target_kind").notNull(),
-		targetId: text("target_id"),
-		payloadJson: jsonb("payload_json").$type<Record<string, unknown>>().notNull(),
-		contentHash: text("content_hash").notNull(),
-		processingHash: text("processing_hash").notNull(),
-		status: text("status").notNull(),
-		observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
-		firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull(),
-		lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
-		lastSeenRunId: text("last_seen_run_id")
-			.notNull()
-			.references(() => diningSourceSyncRuns.runId),
-		staleAt: timestamp("stale_at", { withTimezone: true }),
-	},
-	(table) => [
-		index("dining_observations_source_idx").on(table.sourceType, table.status, table.staleAt),
-		index("dining_observations_record_idx").on(
-			table.sourceType,
-			table.sourceTableId,
-			table.sourceRecordId,
-		),
-		check(
-			"dining_observations_source_check",
-			sql`${table.sourceType} in ('feishu_catalog', 'feishu_review')`,
-		),
-		check(
-			"dining_observations_status_check",
-			sql`${table.status} in ('accepted', 'blocked', 'observed')`,
-		),
-	],
-);
-
-export const diningCatalogOverrides = dining.table(
-	"catalog_overrides",
-	{
-		overrideId: text("override_id").primaryKey(),
-		targetKind: text("target_kind").notNull(),
-		targetId: text("target_id").notNull(),
-		patchJson: jsonb("patch_json").$type<Record<string, unknown>>().notNull(),
-		reason: text("reason").notNull(),
-		active: boolean("active").notNull().default(true),
-		...timestamps,
-		updatedBy: text("updated_by").notNull(),
-	},
-	(table) => [
-		index("dining_catalog_overrides_target_idx")
-			.on(table.targetKind, table.targetId)
-			.where(sql`${table.active}`),
 	],
 );
 
 export const diningReviews = dining.table(
 	"reviews",
 	{
+		anonymous: boolean("anonymous").notNull(),
+		authorDisplayName: text("author_display_name").notNull(),
+		authorId: text("author_id").notNull(),
+		authorKind: text("author_kind").notNull(),
+		body: text("body").notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+		deletedAt: timestamp("deleted_at", { withTimezone: true }),
+		deletedBy: text("deleted_by"),
+		editedAt: timestamp("edited_at", { withTimezone: true }),
+		hiddenAt: timestamp("hidden_at", { withTimezone: true }),
+		hiddenBy: text("hidden_by"),
+		idempotencyKey: text("idempotency_key").notNull(),
+		menuItemId: text("menu_item_id")
+			.notNull()
+			.references(() => diningMenuItems.menuItemId, { onDelete: "restrict" }),
 		reviewId: text("review_id").primaryKey(),
-		sourceRecordId: text("source_record_id").notNull(),
-		sourceHash: text("source_hash").notNull(),
-		campus: text("campus").notNull(),
-		hallName: text("hall_name").notNull(),
-		stallName: text("stall_name").notNull(),
-		dishName: text("dish_name").notNull(),
-		paidPriceLabel: text("paid_price_label"),
-		rating: integer("rating"),
-		comment: text("comment"),
-		contributorName: text("contributor_name"),
-		imagesJson: jsonb("images_json").$type<Record<string, unknown>[]>().notNull().default([]),
-		submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull(),
-		moderationStatus: text("moderation_status").notNull(),
-		visibility: text("visibility").notNull(),
-		hallId: text("hall_id"),
-		stallProfileId: text("stall_profile_id"),
-		windowId: text("window_id"),
-		offeringId: text("offering_id"),
-		publishedAt: timestamp("published_at", { withTimezone: true }),
-		...timestamps,
+		submissionDate: date("submission_date", { mode: "string" }).notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+		updatedBy: text("updated_by").notNull(),
 	},
 	(table) => [
-		index("dining_reviews_offering_idx").on(table.offeringId, table.visibility, table.submittedAt),
-		uniqueIndex("dining_reviews_source_uidx").on(table.sourceRecordId),
-		check("dining_reviews_rating_check", sql`${table.rating} between 1 and 5`),
-		check(
-			"dining_reviews_moderation_check",
-			sql`${table.moderationStatus} in ('safe', 'blocked', 'uncertain')`,
+		check("dining_reviews_author_kind_check", sql`${table.authorKind} in ('member', 'operator')`),
+		check("dining_reviews_body_check", sql`length(btrim(${table.body})) between 1 and 500`),
+		index("dining_reviews_menu_created_idx").on(table.menuItemId, table.createdAt, table.reviewId),
+		index("dining_reviews_member_limit_idx").on(
+			table.authorKind,
+			table.authorId,
+			table.menuItemId,
+			table.submissionDate,
 		),
-		check("dining_reviews_visibility_check", sql`${table.visibility} in ('published', 'hidden')`),
-		check(
-			"dining_reviews_publication_check",
-			sql`${table.visibility} <> 'published' or (${table.moderationStatus} = 'safe' and ${table.hallId} is not null and ${table.stallProfileId} is not null and ${table.windowId} is not null and ${table.offeringId} is not null)`,
+		uniqueIndex("dining_reviews_idempotency_uidx").on(
+			table.authorKind,
+			table.authorId,
+			table.idempotencyKey,
 		),
 	],
 );
 
-export const diningReviewOverrides = dining.table("review_overrides", {
-	reviewId: text("review_id")
-		.primaryKey()
-		.references(() => diningReviews.reviewId, { onDelete: "cascade" }),
-	offeringId: text("offering_id"),
-	visibility: text("visibility"),
-	reason: text("reason").notNull(),
-	updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-	updatedBy: text("updated_by").notNull(),
-});
-
-export const diningReviewRecheckRequests = dining.table(
-	"review_recheck_requests",
+export const diningReviewReports = dining.table(
+	"review_reports",
 	{
-		requestId: text("request_id").primaryKey(),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+		details: text("details"),
+		reason: text("reason").notNull(),
+		reportId: text("report_id").primaryKey(),
+		reporterUserId: text("reporter_user_id").notNull(),
+		resolution: text("resolution"),
+		resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+		resolvedBy: text("resolved_by"),
 		reviewId: text("review_id")
 			.notNull()
 			.references(() => diningReviews.reviewId, { onDelete: "cascade" }),
-		status: text("status").notNull(),
-		attemptCount: integer("attempt_count").notNull().default(0),
-		availableAt: timestamp("available_at", { withTimezone: true }).notNull(),
-		claimedAt: timestamp("claimed_at", { withTimezone: true }),
-		requestedAt: timestamp("requested_at", { withTimezone: true }).notNull(),
-		requestedBy: text("requested_by").notNull(),
-		completedAt: timestamp("completed_at", { withTimezone: true }),
-		errorMessage: text("error_message"),
 	},
 	(table) => [
-		index("dining_review_recheck_status_idx").on(table.status, table.availableAt),
-		uniqueIndex("dining_review_recheck_active_uidx")
-			.on(table.reviewId)
-			.where(sql`${table.status} in ('pending', 'processing')`),
 		check(
-			"dining_review_recheck_status_check",
-			sql`${table.status} in ('pending', 'processing', 'completed', 'failed')`,
+			"dining_review_reports_reason_check",
+			sql`${table.reason} in ('spam', 'inappropriate', 'privacy', 'other')`,
 		),
-		check("dining_review_recheck_attempt_check", sql`${table.attemptCount} >= 0`),
+		check(
+			"dining_review_reports_details_check",
+			sql`${table.details} is null or length(${table.details}) <= 300`,
+		),
+		check(
+			"dining_review_reports_resolution_check",
+			sql`${table.resolution} is null or ${table.resolution} in ('keep', 'hide')`,
+		),
+		check(
+			"dining_review_reports_resolution_state_check",
+			sql`(${table.resolution} is null and ${table.resolvedAt} is null and ${table.resolvedBy} is null)
+				or (${table.resolution} is not null and ${table.resolvedAt} is not null and ${table.resolvedBy} is not null)`,
+		),
+		uniqueIndex("dining_review_reports_reporter_uidx").on(table.reviewId, table.reporterUserId),
+		index("dining_review_reports_pending_idx").on(
+			table.resolvedAt,
+			table.createdAt,
+			table.reportId,
+		),
 	],
 );
 
-export const diningOperationEvents = dining.table(
-	"operation_events",
+export const diningReviewEdits = dining.table(
+	"review_edits",
 	{
-		eventId: text("event_id").primaryKey(),
-		action: text("action").notNull(),
-		actorId: text("actor_id").notNull(),
-		objectKind: text("object_kind").notNull(),
-		objectId: text("object_id").notNull(),
-		summaryJson: jsonb("summary_json").$type<Record<string, unknown>>().notNull(),
-		occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+		editId: text("edit_id").primaryKey(),
+		editedAt: timestamp("edited_at", { withTimezone: true }).notNull(),
+		editedBy: text("edited_by").notNull(),
+		nextBody: text("next_body").notNull(),
+		previousBody: text("previous_body").notNull(),
+		reviewId: text("review_id")
+			.notNull()
+			.references(() => diningReviews.reviewId, { onDelete: "cascade" }),
 	},
-	(table) => [index("dining_operation_events_occurred_idx").on(table.occurredAt)],
+	(table) => [index("dining_review_edits_review_idx").on(table.reviewId, table.editedAt)],
 );

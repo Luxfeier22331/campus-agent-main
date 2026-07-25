@@ -7,7 +7,7 @@
 - 组合产品路由、共享导航、认证界面和领域页面；
 - 通过 Service Binding 或配置的来源调用 app-api；
 - 在 `/docs/*` 构建和交付 Rspress 阅读器；
-- 交付应用内地图和 Dining 静态资产；
+- 按明确 Dining release 加载完整地图和不可变 SVG 资源；
 - 维护浏览器与 Worker 的错误、日志和调用链接入。
 
 本应用不拥有产品数据库、Agent 编排、知识检索、文档发布或运维页面。
@@ -29,12 +29,15 @@
 ## 入口
 
 ```bash
+pnpm dev:init
 pnpm --dir apps/campus-web dev
 pnpm --dir apps/campus-web test
 pnpm --dir apps/campus-web test:e2e:smoke
 pnpm --dir apps/campus-web build
 pnpm --dir apps/campus-web typecheck
 ```
+
+完整产品开发优先使用根 `pnpm dev`，它同时启动 app-api 与 Ops Web。单独启动 Campus Web 前先执行 `pnpm dev:init`；应用从当前 worktree 的 `.dev.vars.local` 读取独立端口，不读取根 `.env`。
 
 `build:docs:fixture` 用于无凭据的本地文档回归；`build:release` 使用已发布的文档 release 构建正式
 候选。发布步骤见文档发布合同和 release runbook。

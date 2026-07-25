@@ -13,11 +13,11 @@ status: active
 - [runtime.md](./runtime.md)：运行概况、运行记录和按需系统记录；
 - [providers.md](./providers.md)：在线模型配置；
 - [ingestion.md](./ingestion.md)：采集任务与内部门户离线发布；
-- [portal.md](./portal.md)：固定门户认证；
-- [dining.md](./dining.md)：Dining 内容运营。
+- [portal.md](./portal.md)：固定门户认证。
 
-可执行合同位于 `apps/ops-web/src/server/app.ts`、`apps/ops-web/src/shared/ops-contract.ts` 和
-`apps/ops-web/src/shared/dining-contract.ts`。环境变量、数据库授权和网络策略不由本目录维护。
+食堂是窄能力，其接口和数据边界统一由
+[食堂](../../product/dining.md) 说明。可执行合同位于 `apps/ops-web/src/server/app.ts` 和
+`apps/ops-web/src/shared/`。环境变量、数据库授权和网络策略不由本目录维护。
 
 ## 接口索引
 
@@ -53,23 +53,6 @@ status: active
 - `POST /api/ops/ingestion/notice/{pause|resume}`
 - `POST /api/ops/ingestion/notice/reconcile`
 - `POST /api/ops/ingestion/file-releases`
-
-Dining：
-
-- `GET /api/ops/dining/overview`
-- `GET /api/ops/dining/source-runs`
-- `GET /api/ops/dining/observations`
-- `GET /api/ops/dining/catalog/draft`
-- `GET /api/ops/dining/catalog/draft/validation`
-- `POST /api/ops/dining/catalog/draft/rebase`
-- `POST /api/ops/dining/catalog/draft/commands`
-- `POST /api/ops/dining/catalog/publish`
-- `GET /api/ops/dining/releases`
-- `GET /api/ops/dining/releases/:releaseId`
-- `POST /api/ops/dining/releases/:releaseId/rollback`
-- `GET /api/ops/dining/reviews`
-- `GET /api/ops/dining/reviews/:reviewId`
-- `POST /api/ops/dining/reviews/:reviewId/commands`
 
 健康检查：
 
@@ -115,10 +98,12 @@ Dining：
 | 400 | `OPS_INVALID_REQUEST_ID` | 请求 ID 格式无效 |
 | 400 | `OPS_INTERNAL_PORTAL_AUTH_INPUT_INVALID` | 凭据正文无效或超过 8 KiB |
 | 400 | `OPS_PROVIDER_CONFIG_CONTENT_TYPE_REQUIRED`、`OPS_MODEL_SETTINGS_PRECONDITION_REQUIRED` | 在线模型配置写入合同无效 |
+| 400 | `OPS_DINING_QUERY_INVALID`、`OPS_DINING_DRAFT_INVALID`、`OPS_DINING_PUBLISH_INVALID`、`OPS_DINING_RESTORE_INVALID`、`OPS_DINING_MENU_INVALID`、`OPS_DINING_REVIEW_INVALID`、`OPS_DINING_REPORT_INVALID`、`OPS_DINING_INVALID` | Dining 查询、正文或内容无效 |
 | 401 | `OPS_ACCESS_JWT_MISSING`、`OPS_ACCESS_JWT_INVALID` | 未通过 Access 验证 |
 | 403 | `OPS_INTERNAL_PORTAL_AUTH_ORIGIN_INVALID` | 门户凭据写请求不同源 |
 | 403 | `OPS_PROVIDER_CONFIG_CSRF_REJECTED` | 在线模型配置写请求不同源 |
-| 404 | `OPS_REQUEST_NOT_FOUND`、`OPS_API_ROUTE_NOT_FOUND` | 请求或接口不存在 |
+| 403 | `OPS_DINING_ORIGIN_INVALID` | Dining 写请求不同源 |
+| 404 | `OPS_REQUEST_NOT_FOUND`、`OPS_API_ROUTE_NOT_FOUND`、`OPS_DINING_NOT_FOUND` | 请求、接口或地图版本不存在 |
 | 409 | `OPS_PROVIDER_CONFIG_CONFLICT`、`OPS_HINDSIGHT_MODEL_SETTINGS_CONFLICT` | 模型配置已被其他操作更新 |
 | 409 | `OPS_DINING_CONFLICT` | 草稿、发布或评价操作违反领域校验 |
 | 503 | `OPS_ADMISSION_NOT_CONFIGURED` | 访问控制未配置 |

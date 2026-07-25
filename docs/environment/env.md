@@ -16,16 +16,20 @@ status: active
 
 ### 仓库根环境
 
-根 `.env` 只为本地共享基础设施提供连接句柄。允许的键以根 [`.env.example`](../../.env.example)
-和实际消费者为准，不在本文复制变量清单。在线模型配置、来源凭据和任务输入不进入根环境。
+根 `.env` 不属于 worktree 本地开发合同，`pnpm dev`、`pnpm dev:init` 和应用开发入口都不得读取或复制它。根 worktree 中已有的被忽略文件只服务明确声明的旧命令，不能作为 linked worktree 的兜底配置源。
 
 ### 应用本地环境
 
-应用只读取自身目录声明的环境文件：
+应用只读取自身目录声明的环境文件。`pnpm dev:init` 为当前 worktree 原子生成以下 `0600` 文件：
 
-- Worker 字符串变量使用所属应用的 `.dev.vars`；
-- Wrangler、数据库工具或本地进程变量使用所属应用的 `.env`；
-- 来源适配器只读取自身目录的本地环境文件。
+- App API：`.env.local` 和 `.dev.vars.local`；
+- Campus Web：`.dev.vars.local`；
+- Ops Web：`.env.local`。
+
+这些文件带有管理标记，不提交 Git，也不供人工编辑；命令拒绝覆盖同路径的开发者自有文件。重新初始化保留已生成的本地应用 secret，并按当前 profile 重写端口、数据库和 bucket 地址。进程环境优先于应用文件，因此外部供应商凭据应由 shell、`op run` 或其他可选 secret manager 注入，不写入 profile 或机器注册表。
+
+托管本地环境不连接 Turnstile：Campus Web 不渲染验证码，App API 只对本地禁用标记跳过
+CAPTCHA 插件。staging 和 production 仍必须提供配套的 Turnstile site key 与 secret key。
 
 一个应用不得读取其他应用或适配器的环境文件，也不得从根 `.env` 隐式扩散数据库或供应商凭据。
 
@@ -43,16 +47,24 @@ Kubernetes、Cloudflare 和外部平台配置由环境仓及所属密钥存储�
 
 ## 读取与覆盖
 
-仓库没有跨所有应用的统一环境覆盖顺序。每个应用的解析器、Wrangler 配置或命令入口拥有自己的
-读取顺序；新增覆盖规则时应在可执行解析器和所属 README 中说明并测试。
+本地开发统一使用“进程环境、应用 `.env.local`/`.dev.vars.local`、应用基础文件”的优先级。部署和一次性命令仍由各自解析器、Wrangler 配置或命令入口声明读取顺序。
 
 稳定业务事实进入配置、注册表、manifest 或数据库投影。只有会随环境变化的资源地址、凭据和
 运行参数才进入环境文件。
 
 ## Worktree
 
-Git 不会把被忽略的 `.env` 或 `.dev.vars` 自动带入新 worktree。每个 worktree 使用自身的本地
-环境文件或开发者密钥管理器，不在 worktree 之间复制凭据，也不通过仓库脚本分发被忽略文件。
+Git 不会把被忽略的环境文件带入新 worktree。每个 worktree 首次运行 `pnpm dev` 或显式运行
+`pnpm dev:init` 时获得独立 profile、应用文件、端口、PostgreSQL database 和 derived bucket；
+PostgreSQL 与 MinIO 容器和数据卷由同一机器上的 worktree 共享。
+
+profile 位于当前 worktree 的 `var/dev/profile.v1.json`，机器级实例注册表位于 `${XDG_STATE_HOME:-~/.local/state}/campus-agent/<repo-key>/instances.v1.json`。两者只保存资源身份，不保存外部凭据。使用 `pnpm dev:instances` 查看分配，使用 `pnpm dev:doctor` 检查完整性。
+
+`pnpm dev:destroy` 默认只打印影响范围。只有同时提供同一个实例 ID 才会删除该实例的 database、bucket、托管环境文件和注册记录：
+
+```bash
+pnpm dev:destroy -- --instance <instance-id> --confirm <instance-id>
+```
 
 ## 相关文档
 

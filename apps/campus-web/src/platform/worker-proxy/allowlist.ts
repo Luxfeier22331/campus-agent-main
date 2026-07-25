@@ -25,10 +25,7 @@ export const CAMPUS_ALLOWED_APP_API_PATHS = [
 	"/api/docs/readyz",
 	"/api/campus-services/transport-schedule/status",
 	"/api/campus-map/places",
-	"/api/dining/bootstrap",
-	"/api/dining/halls",
-	"/api/dining/publication",
-	"/api/dining/search",
+	"/api/dining",
 	"/api/feedback",
 ] as const;
 
@@ -56,7 +53,10 @@ export function isAllowedCampusAppApiRequest(pathname: string): boolean {
 		/^\/api\/docs\/collections\/[^/]+\/[^/]+\/documents\/[^/]+\/versions$/.test(pathname) ||
 		/^\/api\/docs\/collections\/[^/]+\/[^/]+\/documents\/[^/]+\/admission$/.test(pathname) ||
 		/^\/api\/campus-map\/places\/[^/]+$/.test(pathname) ||
-		/^\/api\/dining\/halls\/[^/]+\/floors\/[^/]+$/.test(pathname) ||
-		/^\/api\/dining\/offerings\/[^/]+\/reviews$/.test(pathname)
+		/^\/api\/dining\/floorplans\/[0-9a-f]{64}\.svg$/.test(pathname) ||
+		/^\/api\/dining\/windows\/[^/]+\/menu$/.test(pathname) ||
+		/^\/api\/dining\/menu-items\/[^/]+\/reviews$/.test(pathname) ||
+		/^\/api\/dining\/reviews\/[^/]+$/.test(pathname) ||
+		/^\/api\/dining\/reviews\/[^/]+\/reports$/.test(pathname)
 	);
 }

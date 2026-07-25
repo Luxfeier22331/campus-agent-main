@@ -1,6 +1,5 @@
 export const DINING_WAYFINDING_SCHEMA_VERSION = 2 as const;
 export const DINING_WAYFINDING_CANVAS = { height: 760, width: 1280 } as const;
-export const DINING_WAYFINDING_MIN_WINDOW = { height: 72, width: 88 } as const;
 export const DINING_WAYFINDING_ICON_KEYS = [
 	"armchair",
 	"coffee",
@@ -61,6 +60,10 @@ export interface DiningWayfindingWindow {
 	y: number;
 }
 
+export function isDiningWayfindingPlaceholderWindowLabel(value: string): boolean {
+	return /^(?:位置\s*\d+|新位置|未命名窗口(?:\s*\d+)?)$/u.test(value.trim());
+}
+
 export interface DiningWayfindingLayout {
 	canvas: DiningWayfindingCanvas;
 	entrances: DiningWayfindingEntrance[];
@@ -77,11 +80,105 @@ export interface DiningWayfindingLayout {
 	windows: DiningWayfindingWindow[];
 }
 
+export type DiningWayfindingDiagnosticCode = "invalid_layout" | "window_overlap";
+
+export interface DiningWayfindingDiagnosticEntity {
+	id: string;
+	kind: "landmark" | "region" | "window";
+	label: string;
+}
+
+export interface DiningWayfindingDiagnostic {
+	code: DiningWayfindingDiagnosticCode;
+	entities: DiningWayfindingDiagnosticEntity[];
+	message: string;
+}
+
+export class DiningWayfindingValidationError extends Error {
+	readonly diagnostic: DiningWayfindingDiagnostic;
+
+	constructor(diagnostic: DiningWayfindingDiagnostic) {
+		super(diagnostic.message);
+		this.name = "DiningWayfindingValidationError";
+		this.diagnostic = diagnostic;
+	}
+}
+
+export function createDefaultDiningWayfindingLayout(input: {
+	floorId: string;
+	floorplanId: string;
+	hallId: string;
+	label: string;
+}): DiningWayfindingLayout {
+	return canonicalizeDiningWayfindingLayout({
+		canvas: { ...DINING_WAYFINDING_CANVAS },
+		entrances: [],
+		floorId: input.floorId,
+		floorplanId: input.floorplanId,
+		hallId: input.hallId,
+		label: input.label,
+		landmarks: [],
+		outline: {
+			points: [
+				{ x: 80, y: 80 },
+				{ x: 1200, y: 80 },
+				{ x: 1200, y: 680 },
+				{ x: 80, y: 680 },
+			],
+		},
+		partitions: [],
+		regions: [],
+		schemaVersion: DINING_WAYFINDING_SCHEMA_VERSION,
+		structures: [],
+		windows: [
+			{
+				anchorId: "window-01",
+				height: 72,
+				label: "示例窗口",
+				width: 104,
+				x: 120,
+				y: 120,
+			},
+		],
+	});
+}
+
 const IDENTIFIER_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 const WINDOW_IDENTIFIER_PATTERN = /^window-[0-9]{2,}$/;
 const ICON_KEYS = new Set<string>(DINING_WAYFINDING_ICON_KEYS);
 
 export function assertDiningWayfindingLayout(
+	value: unknown,
+): asserts value is DiningWayfindingLayout {
+	assertDiningWayfindingLayoutStructure(value);
+}
+
+export function assertDiningWayfindingPublishableLayout(
+	value: unknown,
+): asserts value is DiningWayfindingLayout {
+	assertDiningWayfindingLayoutStructure(value);
+	const collision = collectWindowClearanceDiagnostics(value)[0];
+	if (collision) {
+		throw new DiningWayfindingValidationError(collision);
+	}
+}
+
+export function diagnoseDiningWayfindingLayout(value: unknown): DiningWayfindingDiagnostic[] {
+	try {
+		assertDiningWayfindingLayoutStructure(value);
+	} catch (error) {
+		return [
+			{
+				code: "invalid_layout",
+				entities: [],
+				message: error instanceof Error ? error.message : "食堂地图格式无效",
+			},
+		];
+	}
+	return collectWindowClearanceDiagnostics(value);
+}
+
+function assertDiningWayfindingLayoutStructure(
 	value: unknown,
 ): asserts value is DiningWayfindingLayout {
 	if (!isRecord(value)) {
@@ -121,7 +218,6 @@ export function assertDiningWayfindingLayout(
 	assertLandmarkCollection(value.landmarks, canvas);
 	assertWindowCollection(value.windows, canvas);
 	assertGloballyUniqueEntityIds(value);
-	assertWindowClearance(value);
 }
 
 export function canonicalizeDiningWayfindingLayout(
@@ -195,7 +291,7 @@ export function renderDiningWayfindingSvg(value: DiningWayfindingLayout): string
 	return [
 		`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${layout.canvas.width} ${layout.canvas.height}" role="img" aria-labelledby="${titleId} ${descriptionId}" data-dining-floor-id="${escapeXml(layout.floorId)}">`,
 		`<title id="${titleId}">${escapeXml(layout.label)}</title>`,
-		`<desc id="${descriptionId}">档口编号、就餐区域和入口位置示意图。</desc>`,
+		`<desc id="${descriptionId}">窗口、就餐区域和入口位置示意图。</desc>`,
 		`<style>text{font-family:"Noto Sans CJK SC","Microsoft YaHei",Arial,sans-serif;letter-spacing:0}.wayfinding-outline,.wayfinding-structure,.wayfinding-partition,.wayfinding-region,.wayfinding-landmark,.wayfinding-entrance-line,.wayfinding-window,.wayfinding-icon{vector-effect:non-scaling-stroke}.wayfinding-canvas{fill:#f7f9f8}.wayfinding-surface{fill:#ffffff}.wayfinding-outline{fill:none;stroke:#94a3b8;stroke-width:4;stroke-linejoin:round}.wayfinding-structure{fill:#e8edef;stroke:#b8c3ca;stroke-width:2.5;stroke-linejoin:round}.wayfinding-partition{fill:none;stroke:#c3ccd2;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.wayfinding-region{fill:#edf6f1;stroke:#c5ddd2;stroke-width:2}.wayfinding-landmark{fill:#f4f6f5;stroke:#b8c3ca;stroke-width:2}.wayfinding-region-label,.wayfinding-landmark-label{fill:#475569;font-size:18px;font-weight:600}.wayfinding-icon{fill:none;stroke:#16805a;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.wayfinding-entrance-line{stroke:#16805a;stroke-width:6;stroke-linecap:round}.wayfinding-entrance-label{fill:#16805a;font-size:17px;font-weight:700}.wayfinding-window{fill:#ffffff;stroke:#64748b;stroke-width:2.5}.wayfinding-window-number{fill:#263442;font-size:26px;font-weight:750}</style>`,
 		`<rect width="${layout.canvas.width}" height="${layout.canvas.height}" class="wayfinding-canvas"/>`,
 		`<path d="${pointsToSvgPath(layout.outline.points, true)}" class="wayfinding-surface"/>`,
@@ -264,10 +360,7 @@ function entranceLabelPosition(entrance: DiningWayfindingEntrance): {
 	return {
 		anchor: "middle",
 		x: entrance.x + entrance.width / 2,
-		y:
-			entrance.side === "top"
-				? entrance.y + entrance.height + 18
-				: entrance.y + entrance.height + 10,
+		y: entrance.side === "top" ? entrance.y - 8 : entrance.y + entrance.height + 18,
 	};
 }
 
@@ -536,13 +629,10 @@ function assertWindowCollection(value: unknown, canvas: DiningWayfindingCanvas):
 		seen.add(item.anchorId);
 		previousAnchorId = item.anchorId;
 		assertString(item.label, `windows[${index}].label`);
-		assertRectBounds(item, `windows[${index}]`, canvas);
-		if (
-			Number(item.width) < DINING_WAYFINDING_MIN_WINDOW.width ||
-			Number(item.height) < DINING_WAYFINDING_MIN_WINDOW.height
-		) {
-			throw new Error(`Dining wayfinding window is smaller than 88x72: ${item.anchorId}`);
+		if (isDiningWayfindingPlaceholderWindowLabel(item.label)) {
+			throw new Error(`Dining wayfinding windows[${index}].label must be a public name.`);
 		}
+		assertRectBounds(item, `windows[${index}]`, canvas);
 	}
 }
 
@@ -571,37 +661,59 @@ function assertGloballyUniqueEntityIds(value: Record<string, unknown>): void {
 	}
 }
 
-function assertWindowClearance(value: Record<string, unknown>): void {
-	const windows = value.windows as Record<string, unknown>[];
-	const blockers = [
-		...windows,
-		...(value.regions as Record<string, unknown>[]),
-		...(value.landmarks as Record<string, unknown>[]),
-	];
-	for (const window of windows) {
-		for (const blocker of blockers) {
-			if (window === blocker) {
-				continue;
-			}
+function collectWindowClearanceDiagnostics(
+	value: DiningWayfindingLayout,
+): DiningWayfindingDiagnostic[] {
+	const diagnostics: DiningWayfindingDiagnostic[] = [];
+	for (const [index, window] of value.windows.entries()) {
+		for (const blocker of value.windows.slice(index + 1)) {
 			if (rectanglesOverlap(window, blocker)) {
-				throw new Error(
-					`Dining wayfinding window overlaps another interactive area: ${String(window.anchorId)}`,
-				);
+				diagnostics.push(windowOverlapDiagnostic(window, blocker, "window"));
+			}
+		}
+		for (const blocker of value.regions) {
+			if (rectanglesOverlap(window, blocker)) {
+				diagnostics.push(windowOverlapDiagnostic(window, blocker, "region"));
+			}
+		}
+		for (const blocker of value.landmarks) {
+			if (rectanglesOverlap(window, blocker)) {
+				diagnostics.push(windowOverlapDiagnostic(window, blocker, "landmark"));
 			}
 		}
 	}
+	return diagnostics;
 }
 
-function rectanglesOverlap(left: Record<string, unknown>, right: Record<string, unknown>): boolean {
-	const leftX = Number(left.x);
-	const leftY = Number(left.y);
-	const rightX = Number(right.x);
-	const rightY = Number(right.y);
+function windowOverlapDiagnostic(
+	window: DiningWayfindingWindow,
+	blocker: DiningWayfindingWindow | DiningWayfindingRect,
+	blockerKind: DiningWayfindingDiagnosticEntity["kind"],
+): DiningWayfindingDiagnostic {
+	const blockerId = "anchorId" in blocker ? blocker.anchorId : blocker.id;
+	return {
+		code: "window_overlap",
+		entities: [
+			{ id: window.anchorId, kind: "window", label: window.label },
+			{ id: blockerId, kind: blockerKind, label: blocker.label },
+		],
+		message: `${window.label}与${blocker.label}重叠`,
+	};
+}
+
+function rectanglesOverlap(
+	left: { height: number; width: number; x: number; y: number },
+	right: { height: number; width: number; x: number; y: number },
+): boolean {
+	const leftX = left.x;
+	const leftY = left.y;
+	const rightX = right.x;
+	const rightY = right.y;
 	return (
-		leftX < rightX + Number(right.width) &&
-		leftX + Number(left.width) > rightX &&
-		leftY < rightY + Number(right.height) &&
-		leftY + Number(left.height) > rightY
+		leftX < rightX + right.width &&
+		leftX + left.width > rightX &&
+		leftY < rightY + right.height &&
+		leftY + left.height > rightY
 	);
 }
 

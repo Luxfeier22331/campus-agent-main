@@ -10,6 +10,7 @@ import {
 	AlertDialogTitle,
 	Badge,
 	Button,
+	Checkbox,
 	Dialog,
 	DialogContent,
 	DialogTitle,
@@ -41,6 +42,20 @@ describe("shared UI primitives", () => {
 		expect(ref.current).toBe(screen.getByRole("button", { name: "保存" }));
 		expect(ref.current).toBeDisabled();
 		expect(ref.current).toHaveAttribute("type", "button");
+	});
+
+	it("toggles checkboxes through their accessible label", async () => {
+		const user = userEvent.setup();
+		render(
+			<label htmlFor="archived-content">
+				<Checkbox id="archived-content" />
+				显示已归档内容
+			</label>,
+		);
+
+		const checkbox = screen.getByRole("checkbox", { name: "显示已归档内容" });
+		await user.click(checkbox);
+		expect(checkbox).toBeChecked();
 	});
 
 	it("connects field labels, descriptions, and errors to the control", () => {
