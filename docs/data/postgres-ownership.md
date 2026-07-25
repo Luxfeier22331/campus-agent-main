@@ -21,9 +21,9 @@ schema 定义，连接拓扑见 `../architecture/system/data-plane.md`，部署�
 | `execution_control` | `apps/execution-control` | 执行投影写入和获准校园服务读取 |
 | `campus_services_publisher` | `jobs/transport-publisher` | `campus_services.*` 发布写入 |
 | `docs_publish` | `jobs/docs-publish` | `docs.*` 发布写入 |
-| `ops_web` | `apps/ops-web` | 获准排查投影的列级只读访问 |
-| `execution_provider_config_reader` | `apps/execution-control` | 已激活 `execution_config.*` 读取 |
-| `execution_provider_config_admin` | `apps/execution-control` | 配置 revision、验证和激活读写 |
+| `ops_web` | `apps/ops-web` | 获准运行投影的列级只读访问 |
+| `execution_provider_config_reader` | `apps/execution-control` | 当前 `execution_config.model_settings` 只读 |
+| `execution_provider_config_admin` | `apps/execution-control` | 当前模型设置、凭据和验证结果读写 |
 | `ops_web_dining` | `apps/ops-web` | Dining 草稿、发布、回滚和评价治理 |
 | `dining_sync` | `jobs/dining-sync` | Dining 来源观测、同步和复检 |
 
@@ -44,7 +44,7 @@ Ops Web 核心发布单元预创建。`app_api` 是共享产品运行角色，Di
 | `chat.*` | App API 对话模块 | App API、获准 Ops Web 投影 |
 | `profile.*` | App API 账号设置 | App API |
 | `docs.*` | 文档发布任务 | App API、文档读取面 |
-| `runtime.request_observability_fact` | App API 产品终态 | App API、Ops Web |
+| `runtime.request_observability_fact` | App API 产品终态 | App API |
 | `runtime.agent_*` | execution-control | execution-control |
 | `execution_config.*` | execution-control 配置管理 | execution-control |
 | `dining.*` | Dining 同步和 Ops Web | Ops Web、同步任务、App API 公开读取 |
@@ -57,9 +57,19 @@ ingestion registry 和来源事实由采集数据所有者维护，不并入产�
 
 - 常驻运行时不使用 schema 管理或 migration 凭据；
 - 每个运行时只获得完成其职责所需的表、列和操作权限；
-- Provider Config 只能通过 execution-control 管理接口修改，Ops Web 不直连其 schema；
+- 在线模型配置只能通过 execution-control 管理接口修改，Ops Web 不直连其 schema；
+- `execution_config.model_settings` 的首次安装由低 wave 的 `run-projection-schema` Job 执行。
+  该 Job 使用环境仓交付的 schema-install DSN 和现有 provider keyring；常驻 runtime 只使用
+  reader/admin DSN，不执行迁移。
+- 从旧 `active_bundle`、`profiles` 和 `connection_revisions` 切换时，Job 在单一事务和 advisory
+  lock 下解密旧 AAD，以 `execution_config.model_settings:<kind>` 重加密当前 LLM 与 Embedding，
+  验证写入结果后删除七张旧表并应用当前权限。任一步失败都会连同新表和权限变化整体回滚。
+- 旧结构不完整、当前表已有数据、缺少 active bundle、缺少 keyring、profile 未验证或存在未知依赖
+  时切换失败。系统不保留双写、双读、运行时 fallback 或后续 contract 阶段。
+- 没有旧结构时，当前表可以为空或只配置一个 kind；schema 安装不把业务配置完整性变成部署门禁。
+  `llm` 和 `embedding` 分别由消费它们的运行路径检查并失败。
 - App API 只读取 Dining 当前发布和公开评价，不拥有 Dining migration；
-- Ops Web 的请求排查角色与 Dining 内容角色分离；
+- Ops Web 的运行记录角色与 Dining 内容角色分离；
 - Ops Web 核心授权不检查或修改 Dining schema；
 - 不同所有者不共享 migration journal，也不通过双写复制同一事实；
 - 对象 bytes、原始来源、工作流历史和供应商 trace 不进入这些 schema。

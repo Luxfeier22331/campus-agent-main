@@ -9,22 +9,22 @@ status: active
 ## 文档边界
 
 本文登记供应商类别、消费方、配置所有者和凭据隔离原则。精确环境变量由应用模板和配置解析器
-维护，在线版本由运行配置与注册表维护，部署 Secret 名和地址由 workload manifest 与环境仓
+维护，在线当前值由运行配置维护，部署 Secret 名和地址由 workload manifest 与环境仓
 维护。
 
 `.env.example` 不是 staging 或 production 的 Secret 清单，ConfigMap、Secret 和平台变量也不
-替代在线 Provider Config、Hindsight 内部配置或评测运行配置。
+替代在线模型配置、Hindsight 内部配置或评测运行配置。
 
 ## 模型与检索
 
 | 能力 | 配置所有者 | 消费方 | 隔离要求 |
 | --- | --- | --- | --- |
-| Primary Agent 模型 | execution-control Provider Config | agent-runtime | 运行开始时解析完整激活快照，不向浏览器返回密钥 |
-| 查询向量与可选重排 | execution-control Provider Config | 检索运行时 | 与索引发布配置相容，查询凭据不具备索引管理权限 |
-| 个人记忆模型 | Hindsight 部署 | Hindsight | 不从在线 Agent 配置或评测配置派生 |
+| LLM | execution-control 当前模型设置 | agent-runtime | Activity 调用读取当前值，不向浏览器返回密钥 |
+| 查询 Embedding | execution-control 当前模型设置 | 检索运行时 | 固定 Qwen3/2560，与索引发布配置相容，查询凭据不具备索引管理权限 |
+| 个人记忆 LLM、Embedding、RRF | Hindsight 固定 Secret 与 Deployment | Hindsight | Ops Web 只管理固定资源，不从 execution 配置或评测配置派生 |
 | 评测模型 | 评测命令运行环境 | Ragas 适配器 | 不复用在线配置数据库或浏览器凭据 |
 
-具体模型、维度、transport、endpoint 和角色开放状态由激活配置、collection serving config 与
+具体模型、维度、transport 和 endpoint 由当前模型设置、collection serving config 与
 可执行注册表维护，不在本文复制。
 
 ## 数据服务

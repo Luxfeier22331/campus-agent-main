@@ -131,6 +131,6 @@ function completedResult(runId: string) {
 		terminalReason: "answer_completed" as const,
 		toolResults: [],
 		toolRuntimeFingerprint: testToolRuntimeFingerprint(),
-		usage: { inputTokens: 1, outputTokens: 1 },
+		usage: { modelRequestCount: 1, inputTokens: 1, outputTokens: 1, usageObserved: true },
 	};
 }

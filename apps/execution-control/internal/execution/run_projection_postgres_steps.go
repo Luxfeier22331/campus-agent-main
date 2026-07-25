@@ -96,9 +96,11 @@ func (s *PostgresRunProjectionStore) UpsertStepAttempt(
 		attempt.ProviderResponseID,
 		attempt.ModelProvider,
 		attempt.ModelName,
+		attempt.ModelRequestCount,
 		attempt.InputTokens,
 		attempt.OutputTokens,
 		attempt.CachedInputTokens,
+		attempt.UsageObserved,
 		string(attempt.CancelOutcome),
 		string(attempt.TimeoutOutcome),
 		string(attempt.LateCompletionOutcome),
@@ -119,7 +121,7 @@ const runProjectionPostgresStepAttemptUpsertSQL = `insert into runtime.agent_ste
 	workflow_id, temporal_run_id, activity_id, activity_type, activity_attempt,
 	scheduled_at, started_at, completed_at, schedule_to_start_ms, duration_ms,
 	provider_request_ref, provider_response_id, model_provider, model_name,
-		input_tokens, output_tokens, cached_input_tokens,
+	model_request_count, input_tokens, output_tokens, cached_input_tokens, usage_observed,
 	cancel_outcome, timeout_outcome, late_completion_outcome,
 	fail_close_reason, terminal_reason, updated_at,
 	payload_schema_version, sanitized_payload_json
@@ -128,9 +130,9 @@ const runProjectionPostgresStepAttemptUpsertSQL = `insert into runtime.agent_ste
 	$8, $9, $10, $11, $12,
 	$13, $14, $15, $16, $17,
 	$18, $19, $20, $21,
-		$22, $23, $24,
-		$25, $26, $27, $28, $29,
-		$30, $31, $32
+	$22, $23, $24, $25, $26,
+	$27, $28, $29, $30, $31,
+	$32, $33, $34
 )
 on conflict (attempt_id) do update set
 	step_id = excluded.step_id,
@@ -153,9 +155,23 @@ on conflict (attempt_id) do update set
 	provider_response_id = excluded.provider_response_id,
 	model_provider = excluded.model_provider,
 	model_name = excluded.model_name,
-	input_tokens = excluded.input_tokens,
-	output_tokens = excluded.output_tokens,
-	cached_input_tokens = excluded.cached_input_tokens,
+	model_request_count = case
+		when excluded.usage_observed then excluded.model_request_count
+		else runtime.agent_step_attempts.model_request_count
+	end,
+	input_tokens = case
+		when excluded.usage_observed then excluded.input_tokens
+		else runtime.agent_step_attempts.input_tokens
+	end,
+	output_tokens = case
+		when excluded.usage_observed then excluded.output_tokens
+		else runtime.agent_step_attempts.output_tokens
+	end,
+	cached_input_tokens = case
+		when excluded.usage_observed then excluded.cached_input_tokens
+		else runtime.agent_step_attempts.cached_input_tokens
+	end,
+	usage_observed = runtime.agent_step_attempts.usage_observed or excluded.usage_observed,
 	cancel_outcome = excluded.cancel_outcome,
 	timeout_outcome = excluded.timeout_outcome,
 	late_completion_outcome = excluded.late_completion_outcome,
@@ -256,7 +272,7 @@ func (s *PostgresRunProjectionStore) ListStepAttempts(
 			workflow_id, temporal_run_id, activity_id, activity_type, activity_attempt,
 			scheduled_at, started_at, completed_at, schedule_to_start_ms, duration_ms,
 			provider_request_ref, provider_response_id, model_provider, model_name,
-				input_tokens, output_tokens, cached_input_tokens,
+			model_request_count, input_tokens, output_tokens, cached_input_tokens, usage_observed,
 			cancel_outcome, timeout_outcome, late_completion_outcome,
 			fail_close_reason, terminal_reason, updated_at,
 			payload_schema_version, sanitized_payload_json
@@ -395,9 +411,11 @@ func scanStepAttemptProjection(row pgx.Row) (StepAttemptProjection, error) {
 		&attempt.ProviderResponseID,
 		&attempt.ModelProvider,
 		&attempt.ModelName,
+		&attempt.ModelRequestCount,
 		&attempt.InputTokens,
 		&attempt.OutputTokens,
 		&attempt.CachedInputTokens,
+		&attempt.UsageObserved,
 		&cancelOutcome,
 		&timeoutOutcome,
 		&lateCompletionOutcome,

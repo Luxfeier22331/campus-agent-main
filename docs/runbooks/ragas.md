@@ -33,7 +33,7 @@ pnpm ci:eval
 调用结束后删除。
 
 精确字段和执行限制以 provider projection schema、`packages/eval-langfuse/src/provider-config.ts`
-及其测试为准。不要从 execution-control 的在线 Provider Config 推导离线评测配置，也不要恢复
+及其测试为准。不要从 execution-control 的在线模型配置推导离线评测配置，也不要恢复
 已退役的 `--runtime-config` 或分散模型环境变量。
 
 ## 数据集

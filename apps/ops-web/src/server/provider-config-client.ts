@@ -1,4 +1,12 @@
-import { ProviderConfigStatusSchema } from "../shared/ops-contract.ts";
+import type { z } from "zod";
+import {
+	ExecutionModelSettingsStatusSchema,
+	type ModelSettingKindSchema,
+	ModelSettingUpdateSchema,
+	ModelSettingValidationResponseSchema,
+} from "../shared/ops-contract.ts";
+
+type ModelSettingKind = z.infer<typeof ModelSettingKindSchema>;
 
 export interface ProviderConfigAdminEnv {
 	OPS_WEB_EXECUTION_CONTROL_ADMIN_URL?: string;
@@ -9,10 +17,12 @@ export class ProviderConfigAdminUnavailableError extends Error {}
 
 export class ProviderConfigAdminResponseError extends Error {
 	readonly response: Response;
+	readonly upstreamCode: string;
 
-	constructor(response: Response) {
-		super(`Provider config admin API returned HTTP ${response.status}.`);
+	constructor(response: Response, upstreamCode = "model_settings_error") {
+		super(`Model settings admin API returned HTTP ${response.status}.`);
 		this.response = response;
+		this.upstreamCode = upstreamCode;
 	}
 }
 
@@ -22,59 +32,84 @@ export function createProviderConfigAdminClient(
 ) {
 	const fetchImplementation = input.fetchImplementation ?? fetch;
 	const baseUrl = env.OPS_WEB_EXECUTION_CONTROL_ADMIN_URL?.trim().replace(/\/$/u, "");
+
 	async function request(
 		path: string,
-		options: { actorId?: string; body?: unknown; command: boolean; idempotencyKey?: string },
+		options: {
+			actorId?: string;
+			body?: unknown;
+			etag?: string;
+			method: "GET" | "POST" | "PUT";
+		},
 	) {
 		const token = env.OPS_WEB_INTERNAL_TOKEN?.trim();
 		if (!(baseUrl && token)) {
-			throw new ProviderConfigAdminUnavailableError("Provider config admin API is not configured.");
+			throw new ProviderConfigAdminUnavailableError("Model settings admin API is not configured.");
 		}
 		let response: Response;
 		try {
-			response = await fetchImplementation(`${baseUrl}/internal/admin/provider-config${path}`, {
+			response = await fetchImplementation(`${baseUrl}/internal/admin/model-settings${path}`, {
 				body: options.body === undefined ? undefined : JSON.stringify(options.body),
 				headers: {
 					authorization: `Bearer ${token}`,
-					...(options.body === undefined ? {} : { "content-type": "application/json" }),
 					...(options.actorId ? { "x-ops-actor-id": options.actorId } : {}),
-					...(options.idempotencyKey ? { "idempotency-key": options.idempotencyKey } : {}),
+					...(options.body === undefined ? {} : { "content-type": "application/json" }),
+					...(options.etag ? { "if-match": options.etag } : {}),
 				},
-				method: options.command ? "POST" : "GET",
+				method: options.method,
 				signal: AbortSignal.timeout(15_000),
 			});
 		} catch (error) {
 			throw new ProviderConfigAdminUnavailableError(
-				error instanceof Error ? error.message : "Provider config admin API is unavailable.",
+				error instanceof Error ? error.message : "Model settings admin API is unavailable.",
 			);
 		}
 		const body = (await response.json().catch(() => null)) as unknown;
 		if (!response.ok) {
 			throw new ProviderConfigAdminResponseError(
-				new Response(
-					JSON.stringify(
-						body ?? {
-							error: {
-								code: "PROVIDER_CONFIG_ADMIN_ERROR",
-								message: "Provider config command failed.",
-							},
-						},
-					),
-					{
-						headers: { "content-type": "application/json; charset=utf-8" },
-						status: response.status,
-					},
-				),
+				new Response(JSON.stringify(body), {
+					headers: { "content-type": "application/json; charset=utf-8" },
+					status: response.status,
+				}),
+				providerConfigErrorCode(body),
 			);
 		}
 		return body;
 	}
+
 	return {
 		async getStatus() {
-			return ProviderConfigStatusSchema.parse(await request("", { command: false }));
+			return ExecutionModelSettingsStatusSchema.parse(await request("", { method: "GET" }));
 		},
-		command(path: string, body: unknown, actorId: string, idempotencyKey: string) {
-			return request(path, { actorId, body, command: true, idempotencyKey });
+		async put(
+			kind: ModelSettingKind,
+			body: z.input<typeof ModelSettingUpdateSchema>,
+			actorId: string,
+			etag: string,
+		) {
+			return ExecutionModelSettingsStatusSchema.parse(
+				await request(`/${kind}`, {
+					actorId,
+					body: ModelSettingUpdateSchema.parse(body),
+					etag,
+					method: "PUT",
+				}),
+			);
+		},
+		validate(kind: ModelSettingKind, actorId: string) {
+			return request(`/${kind}/validate`, { actorId, method: "POST" }).then((body) =>
+				ModelSettingValidationResponseSchema.parse(body),
+			);
 		},
 	};
+}
+
+function providerConfigErrorCode(body: unknown) {
+	if (!body || typeof body !== "object" || !("error" in body)) {
+		return "model_settings_error";
+	}
+	const error = body.error;
+	return error && typeof error === "object" && "code" in error && typeof error.code === "string"
+		? error.code
+		: "model_settings_error";
 }

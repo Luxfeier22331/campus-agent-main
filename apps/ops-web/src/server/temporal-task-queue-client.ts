@@ -1,7 +1,13 @@
 import { z } from "zod";
-import type { OpsTemporalTaskQueueRow, OpsTemporalTaskQueueSource } from "./ops-status-store.ts";
+import type {
+	OpsTemporalTaskQueueResult,
+	OpsTemporalTaskQueueRow,
+	OpsTemporalTaskQueueSource,
+} from "./ops-status-store.ts";
+import { logOpsError } from "./safe-logging.ts";
 
 const CACHE_TTL_MS = 15_000;
+const STALE_CACHE_TTL_MS = 5 * 60_000;
 const REQUEST_TIMEOUT_MS = 5_000;
 
 const TemporalTaskQueueResponseSchema = z.object({
@@ -26,51 +32,73 @@ export function createTemporalTaskQueueSource(input: {
 	const baseUrl = input.baseUrl.trim().replace(/\/$/, "");
 	const bearerToken = input.bearerToken.trim();
 	if (!(baseUrl && bearerToken)) {
-		return { getTaskQueues: async () => [] };
+		return {
+			getTaskQueues: async () => ({
+				reason: "Temporal 队列查询未配置。",
+				rows: [],
+				state: "NOT_CONFIGURED",
+			}),
+		};
 	}
 	const fetchFn = input.fetchFn ?? fetch;
 	const now = input.now ?? (() => new Date());
 	let cachedRows: OpsTemporalTaskQueueRow[] | null = null;
-	let cacheExpiresAt = 0;
+	let cachedAt = 0;
+	let inFlight: Promise<OpsTemporalTaskQueueResult> | null = null;
 
 	return {
 		async getTaskQueues() {
 			const currentTime = now().valueOf();
-			if (cachedRows && currentTime < cacheExpiresAt) {
-				return cachedRows;
+			if (cachedRows && currentTime - cachedAt <= CACHE_TTL_MS) {
+				return { rows: cachedRows, state: "FRESH" };
 			}
-			try {
-				const response = await fetchFn(`${baseUrl}/internal/ops/temporal/task-queues`, {
-					headers: { authorization: `Bearer ${bearerToken}` },
-					signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-				});
-				if (!response.ok) {
-					throw new Error(`execution-control returned HTTP ${response.status}`);
+			if (inFlight) {
+				return inFlight;
+			}
+			inFlight = (async (): Promise<OpsTemporalTaskQueueResult> => {
+				try {
+					const response = await fetchFn(`${baseUrl}/internal/ops/temporal/task-queues`, {
+						headers: { authorization: `Bearer ${bearerToken}` },
+						signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+					});
+					if (!response.ok) {
+						throw Object.assign(new Error("execution-control request failed"), {
+							code: `HTTP_${response.status}`,
+						});
+					}
+					const payload = TemporalTaskQueueResponseSchema.parse(await response.json());
+					const sampledAt = new Date(payload.sampledAt);
+					cachedRows = payload.queues.map((queue) => ({
+						backlogJson:
+							queue.backlogCount === null
+								? { state: "unsupported_by_source" }
+								: { count: queue.backlogCount, state: "observed" },
+						oldestTaskAgeJson:
+							queue.oldestTaskAgeSeconds === null
+								? { state: "unsupported_by_source" }
+								: { ms: Math.round(queue.oldestTaskAgeSeconds * 1000), state: "observed" },
+						pollerCount: queue.pollerCount,
+						projectedAt: sampledAt,
+						taskQueue: queue.name,
+						taskQueueKind: queue.type,
+					}));
+					cachedAt = currentTime;
+					return { rows: cachedRows, state: "FRESH" };
+				} catch (error) {
+					logOpsError("temporal task queue query failed", error, { source: "execution-control" });
+					if (cachedRows && currentTime - cachedAt <= STALE_CACHE_TTL_MS) {
+						return { rows: cachedRows, state: "STALE" };
+					}
+					return {
+						reason: "Temporal 队列查询不可用。",
+						rows: [],
+						state: "UNAVAILABLE",
+					};
 				}
-				const payload = TemporalTaskQueueResponseSchema.parse(await response.json());
-				const sampledAt = new Date(payload.sampledAt);
-				cachedRows = payload.queues.map((queue) => ({
-					backlogJson:
-						queue.backlogCount === null
-							? { state: "unsupported_by_source" }
-							: { count: queue.backlogCount, state: "observed" },
-					oldestTaskAgeJson:
-						queue.oldestTaskAgeSeconds === null
-							? { state: "unsupported_by_source" }
-							: { ms: Math.round(queue.oldestTaskAgeSeconds * 1000), state: "observed" },
-					pollerCount: queue.pollerCount,
-					projectedAt: sampledAt,
-					taskQueue: queue.name,
-					taskQueueKind: queue.type,
-				}));
-				cacheExpiresAt = currentTime + CACHE_TTL_MS;
-				return cachedRows;
-			} catch (error) {
-				console.error("[ops-web] temporal task queue query failed", {
-					message: error instanceof Error ? error.message : String(error),
-				});
-				return cachedRows ?? [];
-			}
+			})().finally(() => {
+				inFlight = null;
+			});
+			return inFlight;
 		},
 	};
 }

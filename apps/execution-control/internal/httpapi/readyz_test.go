@@ -63,6 +63,24 @@ func TestReadyzRequiresWorkerAuthOutsideLocalProfile(t *testing.T) {
 	}
 }
 
+func TestReadyzAcceptsOpsWebBearerOutsideLocalProfile(t *testing.T) {
+	server := NewServer(config.Config{
+		AppName:               "campus-agent",
+		DeploymentEnvironment: "staging",
+		MaxConcurrentAnswers:  8,
+		OpsWebInternalToken:   "ops-web-token",
+	})
+	request := newTestRequest(http.MethodGet, "/readyz", nil)
+	request.Header.Set("authorization", "Bearer ops-web-token")
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("authorized readyz status = %d, want 503", response.Code)
+	}
+}
+
 func TestReadyzDoesNotCheckRetiredPythonHandoffReadiness(t *testing.T) {
 	server := newReadyServerForTest(t)
 	response := httptest.NewRecorder()
@@ -358,7 +376,7 @@ func TestReadyzAcceptsAgentRuntimeWithoutServerSharedSecret(t *testing.T) {
 func TestReadyzDoesNotRequireRAGEmbeddingProviderForCoreRuntime(t *testing.T) {
 	server := newReadyServerForTest(t)
 	server.providerConfigResolver = staticProviderConfigResolver{
-		"primary_agent": primaryAgentProviderConfigSnapshotForTest(),
+		providerConfigKindLLM: primaryAgentProviderConfigSnapshotForTest(),
 	}
 	response := httptest.NewRecorder()
 
@@ -378,11 +396,11 @@ func TestReadyzDoesNotRequireRAGEmbeddingProviderForCoreRuntime(t *testing.T) {
 	}
 }
 
-func TestReadyzReportsMissingPrimaryAgentProviderWithoutBlockingGateway(t *testing.T) {
+func TestReadyzReportsMissingLLMProviderWithoutBlockingGateway(t *testing.T) {
 	server := newReadyServerForTest(t)
 	server.providerConfigResolver = staticProviderConfigResolver{
-		"rag_query_embedding": embeddingProviderConfigSnapshotForTest(
-			providerConfigRoleRAGQueryEmbedding,
+		providerConfigKindEmbedding: embeddingProviderConfigSnapshotForTest(
+			providerConfigKindEmbedding,
 			"https://embedding.example/v1",
 			"embedding-test",
 			2560,
@@ -397,7 +415,7 @@ func TestReadyzReportsMissingPrimaryAgentProviderWithoutBlockingGateway(t *testi
 	}
 	body := decodeBody(t, response)
 	providerConfigGate := expectRecord(t, body["provider_config_gate"], "provider_config_gate")
-	if providerConfigGate["reason"] != "provider_config_invalid_for_primary_agent" {
+	if providerConfigGate["reason"] != "provider_config_invalid_for_llm" {
 		t.Fatalf("provider_config_gate = %#v", providerConfigGate)
 	}
 }

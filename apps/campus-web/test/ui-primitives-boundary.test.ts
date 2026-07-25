@@ -18,8 +18,8 @@ describe("campus-web UI primitive boundary", () => {
 		expect(source).not.toContain('title = "导航"');
 	});
 
-	it("keeps button and toggle-group on shadcn CVA primitives", () => {
-		const buttonSource = readSource("src/components/ui/button.tsx");
+	it("keeps shared button and local toggle-group on vetted CVA primitives", () => {
+		const buttonSource = readSource("../../packages/ui/src/button.tsx");
 		const toggleGroupSource = readSource("src/components/ui/toggle-group.tsx");
 
 		expect(buttonSource).toContain("buttonVariants = cva(");

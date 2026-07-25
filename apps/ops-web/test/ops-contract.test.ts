@@ -18,17 +18,23 @@ describe("ops-web contract fixtures", () => {
 		const parsed = OpsRequestListResponseSchema.parse(opsRequestListFixture);
 		expect(parsed.window).toBe("1h");
 		expect(parsed.data[0]).toMatchObject({
-			principalType: "student",
+			journey: { entry: "CAMPUS_WEB", result: { state: "WRITTEN" } },
 			requestId: "req_ops_001",
+			usage: { state: "COMPLETE", totalTokens: 2_400 },
 		});
+		expect(parsed.data[0]).not.toHaveProperty("executionSummary");
+		expect(parsed.data[0]).not.toHaveProperty("principalType");
 	});
 
 	it("keeps request detail free of the retired evidence store", () => {
 		const parsed = OpsRequestDetailResponseSchema.parse(opsRequestDetailFixture);
-		expect(parsed.request.requestId).toBe(parsed.correlationIds.requestId);
+		expect(parsed.request.requestId).toBe(parsed.technical.correlationIds.requestId);
+		expect(parsed.result).toMatchObject({ state: "WRITTEN" });
 		expect(parsed).not.toHaveProperty("externalEvidenceRefs");
 		expect(parsed).not.toHaveProperty("evidenceAvailability");
-		expect(parsed.correlationIds).not.toHaveProperty("externalEvidenceRef");
+		expect(parsed.technical.correlationIds).not.toHaveProperty("externalEvidenceRef");
+		expect(parsed).not.toHaveProperty("executionSteps");
+		expect(parsed).not.toHaveProperty("outcomeSummary");
 	});
 
 	it("validates overview health and source freshness independently", () => {
@@ -36,12 +42,13 @@ describe("ops-web contract fixtures", () => {
 		expect(parsed.window).toBe("1h");
 		expect(parsed.health.status).toBe("DEGRADED");
 		expect(parsed.requests.dataState).toBe("FRESH");
+		expect(parsed.requests.status).toBe("DEGRADED");
+		expect(parsed.issues).toContainEqual(expect.objectContaining({ code: "REQUESTS_DEGRADED" }));
 		expect(parsed.services.map((service) => service.name)).toEqual([
 			"campus-web",
 			"app-api",
 			"execution-control",
 			"agent-runtime",
-			"ops-web",
 		]);
 		expect(parsed.temporal.queues.length).toBeGreaterThan(0);
 		expect(parsed.telemetry.signals.map((signal) => signal.kind)).toEqual([

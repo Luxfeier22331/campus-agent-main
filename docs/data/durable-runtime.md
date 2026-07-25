@@ -8,7 +8,7 @@ status: active
 ## 边界
 
 本文定义在线执行的有界逻辑投影。Temporal history 始终是执行事实；PostgreSQL 投影供
-app-api、诊断和评测消费。
+app-api 产品读模型、Ops Web 运行记录和评测消费。
 
 ## 核心记录
 
@@ -35,7 +35,9 @@ schema 维护。
 
 attempt 投影可以包含 Temporal queue/worker 标识、attempt number、timestamp、duration、
 retry/cancel/timeout outcome、可公开的 provider/model 标识及 input/output/cached token
-用量。模型费用由 Langfuse 计算，不属于 PostgreSQL 持久投影字段。
+用量。Agent attempt 另外保存 `model_request_count` 和 `usage_observed`：前者来自 Agents SDK
+`Usage.requests`，后者区分供应商明确上报为零与没有取得 usage。模型费用由 Langfuse 计算，
+不属于 PostgreSQL 持久投影字段。
 
 result 投影包含 status、result kind/ref、拒绝原因和有界 metadata。SDK 内部 handoff
 或 function call 不得由此形成第二套 workflow graph。
@@ -49,10 +51,15 @@ Agent Activity 代表一次完整的 OpenAI Agents SDK run。其有界 metadata 
 - Knowledge Agent handoff 是否发生；
 - SDK function-tool 调用摘要；
 - provider response id 与 model/provider 标识；
-- input、output 与 cached token 数量；
+- input、output 与 cached token 数量、模型请求数与 usage 是否已观测；
 - 结构化终态结果。
 
 正式投影不存储 SDK state、raw message 或 raw function payload。
+
+运行级 Agent 模型用量只聚合 `step_id = 'agent.primary'` 的去重 attempt。每个已观测 attempt
+计算一次，重试已产生的用量不丢弃。`total_tokens` 按 input 与 output 相加，cached input 是 input
+子集，不重复计入总数。失败但已取得 SDK 结果的 attempt 仍保存 usage；调用前失败、网络中断或 SDK
+抛错且无法取得 usage 时保存 `usage_observed = false`，不用零伪装成真实用量。
 
 ## 知识搜索投影
 
@@ -93,9 +100,10 @@ run 或阶段结果。
 
 ## 消费
 
-app-api 从这些投影生成浏览器 read model。浏览器响应只接收 final answer、已批准 source item
-和公开 status/error 字段；诊断与评测消费有界生命周期、阶段/工具摘要和关联 ref，不读取原始
-执行 payload。
+app-api 从这些投影生成学生产品 read model。学生浏览器响应只接收 final answer、已批准 source item
+和公开 status/error 字段。Ops Web 通过列级只读权限按可信 `run_id` 聚合运行步骤、重试和 Agent
+模型用量，不经 app-api 复制到 `runtime.request_observability_fact`。Ops Web 与评测均不读取原始执行
+payload。
 
 ## 相关文档
 

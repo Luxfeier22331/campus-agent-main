@@ -5,6 +5,10 @@ import { bodyLimit } from "hono/body-limit";
 import { secureHeaders } from "hono/secure-headers";
 import { z } from "zod";
 import {
+	HindsightModelSettingsStatusSchema,
+	HindsightModelSettingsUpdateSchema,
+	ModelSettingKindSchema,
+	ModelSettingUpdateSchema,
 	OpsFileReleaseBatchStartSchema,
 	OpsIngestionTaskListSchema,
 	OpsIngestionTaskRetryStartSchema,
@@ -19,6 +23,7 @@ import {
 	OpsOverviewWindowSchema,
 	OpsRequestDetailResponseSchema,
 	OpsRequestListResponseSchema,
+	OpsRequestListViewSchema,
 	OpsRequestWindowSchema,
 	OpsSentryIssuesResponseSchema,
 } from "../shared/ops-contract.ts";
@@ -37,6 +42,13 @@ import {
 	DiningStoreUnavailableError,
 	DiningStoreValidationError,
 } from "./dining-store.ts";
+import {
+	createKubernetesHindsightModelSettingsStore,
+	createUnavailableHindsightModelSettingsStore,
+	HindsightModelSettingsConflictError,
+	type HindsightModelSettingsStore,
+	HindsightModelSettingsStoreUnavailableError,
+} from "./hindsight-model-settings-store.ts";
 import {
 	createIngestionControlClientFromEnv,
 	type IngestionControlClient,
@@ -77,6 +89,7 @@ import {
 	ProviderConfigAdminResponseError,
 	ProviderConfigAdminUnavailableError,
 } from "./provider-config-client.ts";
+import { logOpsError } from "./safe-logging.ts";
 import {
 	createSentryClientFromEnv,
 	type SentryClient,
@@ -89,7 +102,6 @@ interface OpsHealthEnv {
 	OPS_WEB_HEALTH_APP_API_URL?: string;
 	OPS_WEB_HEALTH_CAMPUS_WEB_URL?: string;
 	OPS_WEB_HEALTH_EXECUTION_CONTROL_URL?: string;
-	OPS_WEB_HEALTH_OPS_WEB_URL?: string;
 	OPS_WEB_PUBLIC_ORIGIN?: string;
 }
 
@@ -107,6 +119,7 @@ interface OpsAppOptions {
 	axiom?: AxiomClient;
 	env?: OpsAppEnv;
 	diningStore?: DiningStore;
+	hindsightModelSettingsStore?: HindsightModelSettingsStore;
 	internalPortalAuthStore?: InternalPortalAuthStore;
 	internalPortalMaintenanceClient?: InternalPortalAuthMaintenanceClient;
 	ingestionControlClient?: IngestionControlClient;
@@ -121,12 +134,16 @@ const RequestListQuerySchema = z
 	.object({
 		conversationId: z.string().trim().min(1).max(128).optional(),
 		cursor: z.string().trim().min(1).max(512).optional(),
-		limit: z.coerce.number().int().min(1).max(100).default(50),
 		q: z.string().trim().min(1).max(256).optional(),
 		requestId: z.string().trim().min(1).max(128).optional(),
-		status: z.enum(["COMPLETED", "FAILED", "CANCELLED", "RUNNING", "PENDING"]).optional(),
+		runId: z.string().trim().min(1).max(128).optional(),
+		status: z
+			.enum(["COMPLETED", "FAILED", "CANCELLED", "RUNNING", "PENDING", "ACTION_REQUIRED"])
+			.optional(),
 		traceId: z.string().trim().min(1).max(128).optional(),
+		view: OpsRequestListViewSchema.default("recent"),
 		window: OpsRequestWindowSchema.default("1h"),
+		workflowId: z.string().trim().min(1).max(128).optional(),
 	})
 	.strict();
 const OverviewQuerySchema = z.object({ window: OpsOverviewWindowSchema.default("1h") }).strict();
@@ -220,6 +237,8 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	const admission = options.admission ?? createCloudflareAccessOpsAdmission(env);
 	const internalPortalAuthStore =
 		options.internalPortalAuthStore ?? createDefaultInternalPortalAuthStore();
+	const hindsightModelSettingsStore =
+		options.hindsightModelSettingsStore ?? createDefaultHindsightModelSettingsStore();
 	const ingestionControlClient =
 		options.ingestionControlClient ?? createIngestionControlClientFromEnv(env);
 	const internalPortalMaintenanceClient =
@@ -237,8 +256,8 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 					"app-api": env.OPS_WEB_HEALTH_APP_API_URL,
 					"campus-web": env.OPS_WEB_HEALTH_CAMPUS_WEB_URL,
 					"execution-control": env.OPS_WEB_HEALTH_EXECUTION_CONTROL_URL,
-					"ops-web": env.OPS_WEB_HEALTH_OPS_WEB_URL,
 				},
+				internalToken: env.OPS_WEB_INTERNAL_TOKEN,
 				axiom,
 			}),
 			store,
@@ -273,7 +292,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	);
 
 	app.onError((error) => {
-		console.error("[ops-web] unhandled api error", error);
+		logOpsError("unhandled api error", error, { source: "http" });
 		if (error instanceof AxiomUnavailableError) {
 			return jsonError("OPS_OBSERVABILITY_UNAVAILABLE", "Axiom 数据不可用。", 503);
 		}
@@ -287,10 +306,38 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 			return jsonError("OPS_SENTRY_UNAVAILABLE", "Sentry Issue 数据不可用。", 503);
 		}
 		if (error instanceof ProviderConfigAdminUnavailableError) {
-			return jsonError("OPS_PROVIDER_CONFIG_UNAVAILABLE", "Provider Config 后端不可用。", 503);
+			return jsonError("OPS_PROVIDER_CONFIG_UNAVAILABLE", "在线模型配置服务暂不可用。", 503);
 		}
 		if (error instanceof ProviderConfigAdminResponseError) {
-			return error.response;
+			return providerConfigAdminErrorResponse(error);
+		}
+		if (error instanceof HindsightModelSettingsConflictError) {
+			return jsonError(
+				"OPS_HINDSIGHT_MODEL_SETTINGS_CONFLICT",
+				"个人记忆配置或运行状态已变化，请刷新后重试。",
+				409,
+			);
+		}
+		if (error instanceof HindsightModelSettingsStoreUnavailableError) {
+			const invalid =
+				error.reasonCode === "LLM_API_KEY_REQUIRED" ||
+				error.reasonCode === "EMBEDDING_API_KEY_REQUIRED" ||
+				error.reasonCode === "MODEL_CONFIG_INCOMPLETE" ||
+				error.reasonCode === "MODEL_CONFIG_DRIFTED";
+			const message =
+				error.reasonCode === "MODEL_CONFIG_DRIFTED"
+					? "固定模型配置与服务合同不一致，请保存配置修复后重试。"
+					: invalid
+						? "请补全个人记忆模型配置后重试。"
+						: "个人记忆模型配置暂不可用。";
+			return jsonError(
+				invalid
+					? "OPS_HINDSIGHT_MODEL_SETTINGS_INVALID"
+					: "OPS_HINDSIGHT_MODEL_SETTINGS_UNAVAILABLE",
+				message,
+				invalid ? 400 : 503,
+				{ reasonCode: error.reasonCode },
+			);
 		}
 		if (error instanceof DiningStoreUnavailableError) {
 			return jsonError("OPS_DINING_STORE_UNAVAILABLE", "食堂管理数据库不可用。", 503);
@@ -346,10 +393,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 			return context.json({ ok: true, service: "ops-web" });
 		} catch (error) {
 			const reasonCode = classifyReadinessError(error);
-			console.error("[ops-web] readiness check failed", {
-				message: error instanceof Error ? error.message : String(error),
-				reasonCode,
-			});
+			logOpsError("readiness check failed", error, { reasonCode, source: "readiness" });
 			return context.json(
 				{
 					error: {
@@ -621,7 +665,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		return context.json(response);
 	});
 
-	app.get("/api/ops/provider-config", async (context) => {
+	app.get("/api/ops/model-settings/execution", async (context) => {
 		const operator = await admitOpsApiRequest(admission, context.req.raw);
 		if (operator instanceof Response) {
 			return operator;
@@ -629,7 +673,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		return context.json(await providerConfigClient.getStatus());
 	});
 
-	app.post("/api/ops/provider-config/*", async (context) => {
+	app.put("/api/ops/model-settings/execution/:kind", async (context) => {
 		const operator = await admitOpsApiRequest(admission, context.req.raw);
 		if (operator instanceof Response) {
 			return operator;
@@ -637,7 +681,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		if (!requestHasConfiguredOrigin(context.req.raw, publicOrigin)) {
 			return jsonError(
 				"OPS_PROVIDER_CONFIG_CSRF_REJECTED",
-				"Provider Config 写请求未通过同源校验。",
+				"在线模型配置写请求未通过同源校验。",
 				403,
 			);
 		}
@@ -648,29 +692,112 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 				400,
 			);
 		}
-		const suffix = context.req.path.slice("/api/ops/provider-config".length);
-		if (!providerCommandPathAllowed(suffix)) {
-			return jsonError("OPS_API_ROUTE_NOT_FOUND", "未找到该运维接口。", 404);
-		}
-		const body = await context.req.json().catch(() => null);
-		if (body === null) {
+		const kind = ModelSettingKindSchema.safeParse(context.req.param("kind"));
+		const body = ModelSettingUpdateSchema.safeParse(await context.req.json().catch(() => null));
+		if (!(kind.success && body.success)) {
 			return jsonError("OPS_INVALID_JSON", "请求体必须是有效 JSON。", 400);
 		}
-		const idempotencyKey = context.req.header("idempotency-key")?.trim();
-		if (!idempotencyKey || idempotencyKey.length > 200) {
+		const etag = context.req.header("if-match")?.trim();
+		if (!etag || etag.length > 200) {
+			return jsonError("OPS_MODEL_SETTINGS_PRECONDITION_REQUIRED", "请刷新模型配置后再保存。", 400);
+		}
+		const result = await providerConfigClient.put(kind.data, body.data, operator.operatorId, etag);
+		return context.json(result);
+	});
+
+	app.post("/api/ops/model-settings/execution/:kind/validate", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		if (!requestHasConfiguredOrigin(context.req.raw, publicOrigin)) {
 			return jsonError(
-				"OPS_PROVIDER_CONFIG_IDEMPOTENCY_REQUIRED",
-				"Provider Config 写请求必须提供有效的 Idempotency-Key。",
+				"OPS_PROVIDER_CONFIG_CSRF_REJECTED",
+				"在线模型配置写请求未通过同源校验。",
+				403,
+			);
+		}
+		const kind = ModelSettingKindSchema.safeParse(context.req.param("kind"));
+		if (!kind.success) {
+			return jsonError("OPS_API_ROUTE_NOT_FOUND", "未找到该运维接口。", 404);
+		}
+		return context.json(await providerConfigClient.validate(kind.data, operator.operatorId));
+	});
+
+	app.get("/api/ops/model-settings/hindsight", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		return context.json(
+			HindsightModelSettingsStatusSchema.parse(await hindsightModelSettingsStore.getStatus()),
+		);
+	});
+
+	app.put("/api/ops/model-settings/hindsight", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		if (!requestHasConfiguredOrigin(context.req.raw, publicOrigin)) {
+			return jsonError(
+				"OPS_PROVIDER_CONFIG_CSRF_REJECTED",
+				"个人记忆模型配置写请求未通过同源校验。",
+				403,
+			);
+		}
+		if (!context.req.header("content-type")?.toLowerCase().startsWith("application/json")) {
+			return jsonError(
+				"OPS_PROVIDER_CONFIG_CONTENT_TYPE_REQUIRED",
+				"Content-Type 必须是 application/json。",
 				400,
 			);
 		}
-		const result = await providerConfigClient.command(
-			suffix,
-			body,
-			operator.operatorId,
-			idempotencyKey,
+		const body = HindsightModelSettingsUpdateSchema.safeParse(
+			await context.req.json().catch(() => null),
 		);
-		return context.json(result);
+		if (!body.success) {
+			return jsonError("OPS_INVALID_JSON", "请求体必须是有效 JSON。", 400);
+		}
+		const etag = context.req.header("if-match")?.trim();
+		if (!etag || etag.length > 200) {
+			return jsonError(
+				"OPS_MODEL_SETTINGS_PRECONDITION_REQUIRED",
+				"请加载最新模型配置后再保存。",
+				400,
+			);
+		}
+		return context.json(
+			HindsightModelSettingsStatusSchema.parse(
+				await hindsightModelSettingsStore.replaceSettings({
+					etag,
+					settings: body.data,
+					updatedAt: new Date().toISOString(),
+					updatedBy: operator.operatorId,
+				}),
+			),
+		);
+	});
+
+	app.post("/api/ops/model-settings/hindsight/apply", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		if (!requestHasConfiguredOrigin(context.req.raw, publicOrigin)) {
+			return jsonError(
+				"OPS_PROVIDER_CONFIG_CSRF_REJECTED",
+				"个人记忆模型配置写请求未通过同源校验。",
+				403,
+			);
+		}
+		return context.json(
+			HindsightModelSettingsStatusSchema.parse(
+				await hindsightModelSettingsStore.apply({
+					appliedAt: new Date().toISOString(),
+				}),
+			),
+		);
 	});
 
 	app.get("/api/ops/requests", async (context) => {
@@ -680,10 +807,10 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		}
 		const parsed = RequestListQuerySchema.safeParse(context.req.query());
 		if (!parsed.success) {
-			return jsonError("OPS_INVALID_QUERY", "请求列表查询参数无效。", 400);
+			return jsonError("OPS_INVALID_QUERY", "运行记录查询参数无效。", 400);
 		}
-		if (parsed.data.cursor && !decodeRequestCursor(parsed.data.cursor)) {
-			return jsonError("OPS_INVALID_QUERY", "请求列表翻页参数无效。", 400);
+		if (parsed.data.cursor && !decodeRequestCursor(parsed.data.cursor, parsed.data.view)) {
+			return jsonError("OPS_INVALID_QUERY", "运行记录翻页参数无效。", 400);
 		}
 		return context.json(OpsRequestListResponseSchema.parse(await store.listRequests(parsed.data)));
 	});
@@ -725,7 +852,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 				requestId: detail.request.requestId,
 				signal: context.req.raw.signal,
 				startedAt: detail.request.startedAt,
-				traceId: detail.request.traceId,
+				traceId: detail.technical.correlationIds.traceId,
 			}),
 		);
 		return context.json(response);
@@ -754,7 +881,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 					requestId: detail.request.requestId,
 					signal: context.req.raw.signal,
 					startedAt: detail.request.startedAt,
-					traceId: detail.request.traceId,
+					traceId: detail.technical.correlationIds.traceId,
 				}),
 			),
 		);
@@ -922,6 +1049,18 @@ function createDefaultInternalPortalAuthStore(): InternalPortalAuthStore {
 	}
 }
 
+function createDefaultHindsightModelSettingsStore(): HindsightModelSettingsStore {
+	try {
+		return createKubernetesHindsightModelSettingsStore();
+	} catch (error) {
+		return createUnavailableHindsightModelSettingsStore(
+			error instanceof HindsightModelSettingsStoreUnavailableError
+				? error.reasonCode
+				: "KUBERNETES_CONFIG_UNAVAILABLE",
+		);
+	}
+}
+
 function createDefaultDiningStore(env: DiningStoreEnv): DiningStore {
 	try {
 		return createDiningStoreFromEnv(env);
@@ -934,9 +1073,7 @@ async function readInternalPortalMaintenanceStatus(client: InternalPortalAuthMai
 	try {
 		return await client.getStatus();
 	} catch (error) {
-		console.error("[ops-web] internal portal auth maintenance query failed", {
-			message: error instanceof Error ? error.message : String(error),
-		});
+		logOpsError("internal portal auth maintenance query failed", error, { source: "ingestion" });
 		return unavailableMaintenanceStatus();
 	}
 }
@@ -948,9 +1085,7 @@ async function validateInternalPortalAuthenticationSafely(
 	try {
 		return await client.validate(operatorId);
 	} catch (error) {
-		console.error("[ops-web] internal portal auth validation request failed", {
-			message: error instanceof Error ? error.message : String(error),
-		});
+		logOpsError("internal portal auth validation request failed", error, { source: "ingestion" });
 		return unavailableMaintenanceStatus();
 	}
 }
@@ -1011,9 +1146,9 @@ function createDefaultOpsStatusStore(env: OpsStatusEnv): OpsStatusStore {
 			throw error;
 		}
 		const reasonCode = classifyReadinessError(error);
-		console.error("[ops-web] status store initialization failed", {
-			message: error instanceof Error ? error.message : String(error),
+		logOpsError("status store initialization failed", error, {
 			reasonCode,
+			source: "requests",
 		});
 		return createUnavailableOpsStatusStore(
 			reasonCode,
@@ -1103,6 +1238,46 @@ function jsonError(
 		},
 		status,
 	});
+}
+
+function providerConfigAdminErrorResponse(error: ProviderConfigAdminResponseError): Response {
+	const details = { upstreamCode: error.upstreamCode };
+	if (error.response.status === 409) {
+		return jsonError(
+			"OPS_PROVIDER_CONFIG_CONFLICT",
+			"在线模型配置已被其他操作更新，请刷新后重试。",
+			409,
+			details,
+		);
+	}
+	if (error.response.status === 400 || error.response.status === 422) {
+		return jsonError(
+			"OPS_PROVIDER_CONFIG_INVALID",
+			providerConfigValidationMessage(error.upstreamCode),
+			error.response.status,
+			details,
+		);
+	}
+	if (error.response.status === 404) {
+		return jsonError("OPS_PROVIDER_CONFIG_NOT_FOUND", "未找到对应的在线模型配置。", 404, details);
+	}
+	return jsonError(
+		"OPS_PROVIDER_CONFIG_COMMAND_FAILED",
+		"在线模型配置操作失败。",
+		error.response.status >= 500 ? 503 : 500,
+		details,
+	);
+}
+
+function providerConfigValidationMessage(upstreamCode: string) {
+	return (
+		{
+			dimension_mismatch: "Embedding 返回的向量维度与固定配置不一致。",
+			invalid_response: "模型服务返回了无法识别的响应。",
+			provider_timeout: "连接模型服务超时，请检查地址和网络。",
+			provider_unavailable: "无法连接模型服务，请检查地址和网络。",
+		}[upstreamCode] ?? "在线模型配置内容无效，请检查填写内容。"
+	);
 }
 
 function invalidInternalPortalCredentialResponse(): Response {
@@ -1196,13 +1371,4 @@ function resolveOpsPublicOrigin(env: OpsHealthEnv): string | null {
 	} catch {
 		return null;
 	}
-}
-
-function providerCommandPathAllowed(path: string) {
-	return (
-		path === "/connections" ||
-		path === "/profiles" ||
-		path === "/activation" ||
-		/^\/profiles\/[A-Za-z0-9._:-]+\/validate$/u.test(path)
-	);
 }

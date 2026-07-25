@@ -1,14 +1,10 @@
+import { Badge, Button, Dialog, DialogContent, DialogTitle, Input } from "@campus-agent/ui";
 import { List, LocateFixed, MapPin, Search, X } from "lucide-react";
 import { LayoutGroup, motion } from "motion/react";
 import type { RefObject } from "react";
 import { lazy, Suspense, useEffect, useState } from "react";
-
 import { MapProductNavOverlay } from "@/components/navigation/product-navigation";
 import { MapProductNavMobileMenu } from "@/components/navigation/product-navigation-menu";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import {
 	CampusMotionProvider,
 	contentSwap,
@@ -613,11 +609,7 @@ function MapPlacePopover({
 					</div>
 					<div className="mt-3 flex flex-wrap gap-2">
 						{place.displayTags.map((tag) => (
-							<Badge
-								className="bg-surface-muted text-muted-foreground"
-								key={tag}
-								variant="secondary"
-							>
+							<Badge className="bg-surface-muted text-muted-foreground" key={tag} tone="neutral">
 								{tag}
 							</Badge>
 						))}

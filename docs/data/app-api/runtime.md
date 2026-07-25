@@ -13,7 +13,9 @@ status: active
 
 ## `runtime.request_observability_fact`
 
-该表保存一次 browser request 的受控诊断摘要，用于 Ops Web 关联、质量分析和故障定位。
+该表保存一次 browser request 的受控诊断摘要，用于 app-api 的质量分析和受控故障定位。
+Ops Web 的主运行记录以 `chat.turn_dispatches` 和 execution-control 的 `runtime.agent_*`
+为事实来源，不依赖此表重建请求旅途；该表只作为明确授权的次级关联数据。
 它不是工作流状态机，也不承载原始日志、原始 prompt、模型完整输入输出、记忆正文或检索
 正文。
 
@@ -41,8 +43,8 @@ app-api 在接收 turn 时创建记录，在最终写入时更新同一记录。
 - status + time；
 - `surface`、selected tool、principal type、model 和 safety identifier + time。
 
-Ops Web 按 `request_id` 联合该表与 `chat.turn_dispatches`、`chat.messages`、
-`runtime.agent_runs`，不会从 observability 字段反推或改写请求状态。
+Ops Web 按 `request_id` 读取 `chat.turn_dispatches`、`chat.messages` 和
+`runtime.agent_runs`，不会从此表或其他观测字段反推或改写请求状态。
 
 ## execution-control 投影
 

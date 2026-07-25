@@ -10,34 +10,29 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 )
 
-type providerConfigRole string
+type providerConfigKind string
 
 const (
-	providerConfigRolePrimaryAgent      providerConfigRole = "primary_agent"
-	providerConfigRoleRAGQueryEmbedding providerConfigRole = "rag_query_embedding"
+	providerConfigKindLLM       providerConfigKind = "llm"
+	providerConfigKindEmbedding providerConfigKind = "embedding"
 )
 
 type providerConfigSnapshot struct {
-	APIKey     string         `json:"api_key"`
-	BaseURL    string         `json:"base_url"`
-	ToolConfig map[string]any `json:"tool_config,omitempty"`
-	Dimensions int            `json:"dimensions,omitempty"`
-	Kind       string         `json:"kind"`
-	Model      string         `json:"model"`
-	ProfileID  string         `json:"profile_id"`
-	Provider   string         `json:"provider"`
-	Revision   int            `json:"revision"`
-	Role       string         `json:"role"`
-	TimeoutMS  int            `json:"timeout_ms"`
-	Transport  string         `json:"transport"`
+	APIKey     string             `json:"api_key"`
+	BaseURL    string             `json:"base_url"`
+	Dimensions int                `json:"dimensions,omitempty"`
+	Kind       providerConfigKind `json:"kind"`
+	Model      string             `json:"model"`
+	Provider   string             `json:"provider"`
+	Transport  string             `json:"transport"`
 }
 
 type providerConfigResolver interface {
-	ResolveActiveProviderConfig(context.Context, providerConfigRole) (providerConfigSnapshot, error)
+	ResolveActiveProviderConfig(context.Context, providerConfigKind) (providerConfigSnapshot, error)
 }
 
-type staticProviderConfigResolverForRole struct {
-	role     providerConfigRole
+type staticProviderConfigResolverForKind struct {
+	kind     providerConfigKind
 	snapshot providerConfigSnapshot
 }
 
@@ -60,14 +55,14 @@ func newProviderConfigResolver(cfg config.Config) (providerConfigResolver, error
 	return postgresProviderConfigResolver{store: store}, nil
 }
 
-func (resolver staticProviderConfigResolverForRole) ResolveActiveProviderConfig(
+func (resolver staticProviderConfigResolverForKind) ResolveActiveProviderConfig(
 	_ context.Context,
-	role providerConfigRole,
+	kind providerConfigKind,
 ) (providerConfigSnapshot, error) {
-	if role != resolver.role {
-		return providerConfigSnapshot{}, fmt.Errorf("static provider config role = %q, want %q", resolver.role, role)
+	if kind != resolver.kind {
+		return providerConfigSnapshot{}, fmt.Errorf("static provider config kind = %q, want %q", resolver.kind, kind)
 	}
-	if err := validateProviderConfigSnapshot(resolver.snapshot, role); err != nil {
+	if err := validateProviderConfigSnapshot(resolver.snapshot, kind); err != nil {
 		return providerConfigSnapshot{}, err
 	}
 	return resolver.snapshot, nil
@@ -75,17 +70,25 @@ func (resolver staticProviderConfigResolverForRole) ResolveActiveProviderConfig(
 
 func (resolver postgresProviderConfigResolver) ResolveActiveProviderConfig(
 	ctx context.Context,
-	role providerConfigRole,
+	kind providerConfigKind,
 ) (providerConfigSnapshot, error) {
 	if resolver.store == nil {
 		return providerConfigSnapshot{}, errProviderConfigResolverNotConfigured
 	}
-	resolved, err := resolver.store.Resolve(ctx, providerconfig.Role(role))
+	resolved, err := resolver.store.Resolve(ctx, providerconfig.Kind(kind))
 	if err != nil {
 		return providerConfigSnapshot{}, err
 	}
-	snapshot := providerConfigSnapshot{APIKey: resolved.APIKey, BaseURL: resolved.BaseURL, ToolConfig: resolved.ToolConfig, Dimensions: resolved.Dimensions, Kind: resolved.Kind, Model: resolved.Model, ProfileID: resolved.ProfileID, Provider: resolved.Provider, Revision: int(resolved.Revision), Role: resolved.Role, TimeoutMS: resolved.TimeoutMS, Transport: resolved.Transport}
-	if err := validateProviderConfigSnapshot(snapshot, role); err != nil {
+	snapshot := providerConfigSnapshot{
+		APIKey:     resolved.APIKey,
+		BaseURL:    resolved.BaseURL,
+		Dimensions: resolved.Dimensions,
+		Kind:       providerConfigKind(resolved.Kind),
+		Model:      resolved.Model,
+		Provider:   resolved.Provider,
+		Transport:  resolved.Transport,
+	}
+	if err := validateProviderConfigSnapshot(snapshot, kind); err != nil {
 		return providerConfigSnapshot{}, err
 	}
 	return snapshot, nil
@@ -94,7 +97,7 @@ func (resolver postgresProviderConfigResolver) ResolveActiveProviderConfig(
 func (resolver postgresProviderConfigResolver) Close()                       { resolver.store.Close() }
 func (resolver postgresProviderConfigResolver) Store() *providerconfig.Store { return resolver.store }
 
-func validateProviderConfigSnapshot(snapshot providerConfigSnapshot, role providerConfigRole) error {
+func validateProviderConfigSnapshot(snapshot providerConfigSnapshot, kind providerConfigKind) error {
 	required := []struct {
 		name  string
 		value string
@@ -102,9 +105,7 @@ func validateProviderConfigSnapshot(snapshot providerConfigSnapshot, role provid
 		{"api_key", snapshot.APIKey},
 		{"base_url", snapshot.BaseURL},
 		{"model", snapshot.Model},
-		{"profile_id", snapshot.ProfileID},
 		{"provider", snapshot.Provider},
-		{"role", snapshot.Role},
 		{"transport", snapshot.Transport},
 	}
 	for _, item := range required {
@@ -112,33 +113,18 @@ func validateProviderConfigSnapshot(snapshot providerConfigSnapshot, role provid
 			return fmt.Errorf("provider config snapshot %s is required", item.name)
 		}
 	}
-	if snapshot.Role != string(role) {
-		return fmt.Errorf("provider config snapshot role = %q, want %q", snapshot.Role, role)
+	if snapshot.Kind != kind {
+		return fmt.Errorf("provider config snapshot kind = %q, want %q", snapshot.Kind, kind)
 	}
-	if snapshot.Revision <= 0 {
-		return errors.New("provider config snapshot revision is required")
-	}
-	if snapshot.TimeoutMS <= 0 {
-		return errors.New("provider config snapshot timeout_ms is required")
-	}
-	if isEmbeddingProviderConfigRole(role) && snapshot.Dimensions <= 0 {
+	if kind == providerConfigKindEmbedding && snapshot.Dimensions <= 0 {
 		return errors.New("embedding provider config snapshot dimensions is required")
 	}
 	return nil
 }
 
-func isEmbeddingProviderConfigRole(role providerConfigRole) bool {
-	switch role {
-	case providerConfigRoleRAGQueryEmbedding:
-		return true
-	default:
-		return false
-	}
-}
-
 func (s *Server) resolveProviderConfigSnapshot(
 	ctx context.Context,
-	role providerConfigRole,
+	kind providerConfigKind,
 ) (providerConfigSnapshot, error) {
 	if s.providerConfigErr != nil && !errors.Is(s.providerConfigErr, errProviderConfigResolverNotConfigured) {
 		return providerConfigSnapshot{}, s.providerConfigErr
@@ -146,5 +132,5 @@ func (s *Server) resolveProviderConfigSnapshot(
 	if s.providerConfigResolver == nil {
 		return providerConfigSnapshot{}, errProviderConfigResolverNotConfigured
 	}
-	return s.providerConfigResolver.ResolveActiveProviderConfig(ctx, role)
+	return s.providerConfigResolver.ResolveActiveProviderConfig(ctx, kind)
 }

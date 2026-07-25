@@ -1,8 +1,7 @@
+import { Button } from "@campus-agent/ui";
 import { Link } from "@tanstack/react-router";
 import type { AnchorHTMLAttributes, ComponentType, ReactNode, SVGProps } from "react";
 import { forwardRef } from "react";
-
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
 	getProductNavItems,

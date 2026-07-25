@@ -22,18 +22,18 @@ func TestKeyringEncryptsWithVersionedKeyAndAAD(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	encrypted, err := ring.Encrypt("sk-provider-secret", "connection:one:1")
+	encrypted, err := ring.Encrypt("sk-provider-secret", "execution_config.model_settings:llm")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if encrypted.KeyID != "key-2026-07" || encrypted.Last4 != "cret" {
 		t.Fatalf("encrypted metadata = %#v", encrypted)
 	}
-	plaintext, err := ring.Decrypt(encrypted.KeyID, encrypted.Nonce, encrypted.Ciphertext, "connection:one:1")
+	plaintext, err := ring.Decrypt(encrypted.KeyID, encrypted.Nonce, encrypted.Ciphertext, "execution_config.model_settings:llm")
 	if err != nil || plaintext != "sk-provider-secret" {
 		t.Fatalf("decrypt = %q, %v", plaintext, err)
 	}
-	if _, err := ring.Decrypt(encrypted.KeyID, encrypted.Nonce, encrypted.Ciphertext, "connection:two:1"); err == nil {
+	if _, err := ring.Decrypt(encrypted.KeyID, encrypted.Nonce, encrypted.Ciphertext, "execution_config.model_settings:embedding"); err == nil {
 		t.Fatal("expected AAD mismatch to fail")
 	}
 }

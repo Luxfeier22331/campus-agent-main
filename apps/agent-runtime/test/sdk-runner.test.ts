@@ -457,6 +457,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 					trace: { traceId: "trace-sdk-001" },
 					lastResponseId: "resp-sdk-001",
 					usage: {
+						requests: 2,
 						inputTokens: 21,
 						outputTokens: 13,
 						cachedInputTokens: 5,
@@ -507,9 +508,41 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			},
 		]);
 		expect(result.usage).toEqual({
+			modelRequestCount: 2,
 			inputTokens: 21,
 			outputTokens: 13,
 			cachedInputTokens: 5,
+			usageObserved: true,
+		});
+	});
+
+	it("distinguishes a missing SDK usage summary from explicit zero usage", async () => {
+		const withoutUsage = createOpenAIAgentsRunner({
+			runSdk: async () => ({ finalOutput: "done", newItems: [] }),
+		});
+		const withZeroUsage = createOpenAIAgentsRunner({
+			runSdk: async () => ({
+				finalOutput: "done",
+				newItems: [],
+				usage: { requests: 0, inputTokens: 0, outputTokens: 0 },
+			}),
+		});
+		const input = {
+			input: [{ role: "user" as const, content: "hello" }],
+			instructions: "Answer directly.",
+			tools: [],
+			requestId: "req-sdk-usage",
+			runId: "run-sdk-usage",
+			traceId: "trace-sdk-usage",
+			limits,
+			providerConfig,
+		};
+
+		await expect(withoutUsage(input)).resolves.toMatchObject({
+			usage: { modelRequestCount: 0, usageObserved: false },
+		});
+		await expect(withZeroUsage(input)).resolves.toMatchObject({
+			usage: { modelRequestCount: 0, usageObserved: true },
 		});
 	});
 
@@ -729,6 +762,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 							},
 						}),
 					usage: {
+						requests: 1,
 						inputTokens: 21,
 						outputTokens: 13,
 					},
@@ -793,6 +827,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 						},
 					}),
 				usage: {
+					requests: 1,
 					inputTokens: 21,
 					outputTokens: 13,
 				},
@@ -854,7 +889,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 							controller.close();
 						},
 					}),
-				usage: { inputTokens: 24, outputTokens: 12 },
+				usage: { requests: 1, inputTokens: 24, outputTokens: 12 },
 			}),
 		});
 
@@ -898,6 +933,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 						},
 					}),
 				usage: {
+					requests: 1,
 					inputTokens: 21,
 					outputTokens: 13,
 				},

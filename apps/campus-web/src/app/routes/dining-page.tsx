@@ -1,7 +1,7 @@
+import { Button } from "@campus-agent/ui";
 import { QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate, useSearch } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-
 import {
 	DiningHallSwitcher,
 	DiningMapToolbar,
@@ -11,7 +11,6 @@ import {
 	StallDetail,
 } from "@/components/dining/dining-experience";
 import { DiningPageSkeleton } from "@/components/dining/dining-page-skeleton";
-import { Button } from "@/components/ui/button";
 import { SurfaceState } from "@/components/ui/surface-state";
 import type {
 	DiningHallSummary,

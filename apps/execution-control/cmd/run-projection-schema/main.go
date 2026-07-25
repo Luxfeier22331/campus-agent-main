@@ -33,6 +33,7 @@ var errInvalidOptions = errors.New("invalid run projection schema options")
 type schemaOptions struct {
 	DatabaseURL  string
 	EvidencePath string
+	KeyringPath  string
 	Mode         string
 	Now          time.Time
 }
@@ -84,12 +85,14 @@ func parseOptions(args []string) (schemaOptions, error) {
 	var options schemaOptions
 	flags.StringVar(&options.DatabaseURL, "database-url", "", "explicit Postgres run projection database URL")
 	flags.StringVar(&options.EvidencePath, "evidence-path", "", "path to write run projection schema evidence JSON")
+	flags.StringVar(&options.KeyringPath, "provider-config-keyring-path", "", "provider config keyring path")
 	flags.StringVar(&options.Mode, "mode", "", "schema operation mode: install or check")
 	if err := flags.Parse(args); err != nil {
 		return schemaOptions{}, err
 	}
 	options.DatabaseURL = strings.TrimSpace(options.DatabaseURL)
 	options.EvidencePath = strings.TrimSpace(options.EvidencePath)
+	options.KeyringPath = strings.TrimSpace(options.KeyringPath)
 	options.Mode = strings.TrimSpace(options.Mode)
 	if options.Mode == "" {
 		return schemaOptions{}, fmt.Errorf("%w: --mode is required", errInvalidOptions)
@@ -143,7 +146,14 @@ func runSchemaCommand(ctx context.Context, options schemaOptions) (schemaReport,
 		if err := memoryStore.EnsureSchema(ctx); err != nil {
 			return schemaReport{}, err
 		}
-		if err := providerconfig.EnsureDatabaseSchema(ctx, options.DatabaseURL); err != nil {
+		var keyring *providerconfig.Keyring
+		if options.KeyringPath != "" {
+			keyring, err = providerconfig.LoadKeyring(options.KeyringPath)
+			if err != nil {
+				return schemaReport{}, err
+			}
+		}
+		if err := providerconfig.InstallDatabaseSchema(ctx, options.DatabaseURL, keyring); err != nil {
 			return schemaReport{}, err
 		}
 	}

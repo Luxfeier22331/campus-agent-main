@@ -21,6 +21,8 @@
 				"$TURBO_ROOT$/configs/branding/web-public/**",
 				"$TURBO_ROOT$/packages/domains/dining/package.json",
 				"$TURBO_ROOT$/packages/domains/dining/src/**",
+				"$TURBO_ROOT$/packages/ui/package.json",
+				"$TURBO_ROOT$/packages/ui/src/**",
 				"$TURBO_ROOT$/scripts/deploy/run-worker-staging-build.ts"
 			],
 			"outputLogs": "new-only",
@@ -65,6 +67,8 @@
 				"$TURBO_ROOT$/configs/branding/web-public/**",
 				"$TURBO_ROOT$/packages/domains/dining/package.json",
 				"$TURBO_ROOT$/packages/domains/dining/src/**",
+				"$TURBO_ROOT$/packages/ui/package.json",
+				"$TURBO_ROOT$/packages/ui/src/**",
 				"$TURBO_ROOT$/scripts/deploy/run-worker-staging-build.ts"
 			]
 		},

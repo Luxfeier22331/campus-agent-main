@@ -1,8 +1,6 @@
+import { Badge, Button, Skeleton } from "@campus-agent/ui";
 import { lazy, type Ref, Suspense, useState } from "react";
 import type { DiningReview } from "@/features/dining/model";
-import { Badge } from "../ui/badge";
-import { Button } from "../ui/button";
-import { Skeleton } from "../ui/skeleton";
 
 const loadDiningReviewImageDialog = () => import("./dining-review-image-dialog");
 const DiningReviewImageDialog = lazy(() =>
@@ -80,10 +78,7 @@ export function DiningReviews({
 											</div>
 											<div className="flex shrink-0 items-center gap-2">
 												{review.rating === null ? null : (
-													<Badge
-														className="bg-surface-muted text-muted-foreground"
-														variant="secondary"
-													>
+													<Badge className="bg-surface-muted text-muted-foreground" tone="neutral">
 														{review.rating} 分
 													</Badge>
 												)}

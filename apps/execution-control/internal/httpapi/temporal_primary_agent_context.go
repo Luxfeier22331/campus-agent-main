@@ -467,9 +467,11 @@ type agentToolResult struct {
 }
 
 type agentRuntimeUsage struct {
+	ModelRequestCount int64 `json:"model_request_count"`
 	InputTokens       int64 `json:"input_tokens"`
 	OutputTokens      int64 `json:"output_tokens"`
 	CachedInputTokens int64 `json:"cached_input_tokens"`
+	UsageObserved     bool  `json:"usage_observed"`
 }
 
 type agentRuntimeError struct {

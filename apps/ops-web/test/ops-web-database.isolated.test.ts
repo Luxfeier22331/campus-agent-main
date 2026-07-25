@@ -58,7 +58,8 @@ describe("ops-web database verification", () => {
 		expect(end).toHaveBeenCalledTimes(2);
 		const allQueries = query.mock.calls.map(([sql]) => String(sql)).join("\n");
 		expect(allQueries).toContain('from "chat"."turn_dispatches"');
-		expect(allQueries).toContain('from "runtime"."request_observability_fact"');
+		expect(allQueries).toContain('from "runtime"."agent_run_steps"');
+		expect(allQueries).toContain('from "runtime"."agent_step_attempts"');
 		expect(allQueries).not.toContain("ops_observability_read_audit");
 		expect(allQueries).not.toContain('"owner_user_id"');
 	});

@@ -1,4 +1,4 @@
-import { Skeleton } from "@/components/ui/skeleton";
+import { Skeleton } from "@campus-agent/ui";
 
 export function DiningPageSkeleton({
 	includeHallSwitcher = false,

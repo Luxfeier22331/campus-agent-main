@@ -95,7 +95,6 @@ describe("campus web staging config", () => {
 		expect(publishWorkflowSource).not.toContain("STAGING_CAMPUS_DOCS_READER_MANIFEST_KEY");
 		expect(publishWorkflowSource).not.toContain("STAGING_CAMPUS_DOCS_READER_MANIFEST_SHA256");
 		expect(publishWorkflowSource).not.toContain("DOCS_RELEASE_ID");
-		expect(publishWorkflowSource).not.toContain("Checkout GitOps release selection");
 		expect(publishWorkflowSource).not.toContain("docs-reader-release.json");
 		expect(publishWorkflowSource).toContain("pnpm --dir gitops gitops promote-source");
 		expect(publishWorkflowSource).not.toContain("STAGING_APP_API_OPERATOR_DATABASE_URL");

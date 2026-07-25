@@ -170,8 +170,8 @@ func TestQdrantKnowledgeSearchEmbeddingRequestUsesConfiguredDimensions(t *testin
 	defer server.Close()
 	executor := qdrantKnowledgeSearchExecutor{
 		configResolver: staticProviderConfigResolver{
-			"rag_query_embedding": embeddingProviderConfigSnapshotForTest(
-				providerConfigRoleRAGQueryEmbedding,
+			providerConfigKindEmbedding: embeddingProviderConfigSnapshotForTest(
+				providerConfigKindEmbedding,
 				server.URL,
 				"Qwen3-Embedding-4B",
 				2560,
@@ -196,8 +196,8 @@ func TestQdrantKnowledgeSearchEmbeddingFailsOnDimensionMismatch(t *testing.T) {
 	defer server.Close()
 	executor := qdrantKnowledgeSearchExecutor{
 		configResolver: staticProviderConfigResolver{
-			"rag_query_embedding": embeddingProviderConfigSnapshotForTest(
-				providerConfigRoleRAGQueryEmbedding,
+			providerConfigKindEmbedding: embeddingProviderConfigSnapshotForTest(
+				providerConfigKindEmbedding,
 				server.URL,
 				"Qwen3-Embedding-4B",
 				2560,

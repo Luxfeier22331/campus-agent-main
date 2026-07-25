@@ -31,7 +31,7 @@ func TestProviderConfigCompatibilityEndpointChecksRAGEmbedding(t *testing.T) {
 	request := newTestRequest(
 		http.MethodPost,
 		"/internal/provider-config/embedding:check-compatibility",
-		bytes.NewBufferString(`{"role":"rag_query_embedding","provider":"openai","transport":"embeddings","base_url":"https://embedding.example/v1","model":"embedding-model","dimensions":2560,"timeout_ms":30000}`),
+		bytes.NewBufferString(`{"kind":"embedding","provider":"openai-compatible","transport":"embeddings","base_url":"https://embedding.example/v1","model":"Qwen3-Embedding-4B","dimensions":2560}`),
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
 	response := httptest.NewRecorder()
@@ -45,7 +45,7 @@ func TestProviderConfigCompatibilityEndpointChecksRAGEmbedding(t *testing.T) {
 	if body["ok"] != true || body["reason"] != "" {
 		t.Fatalf("body = %#v, want ok compatibility", body)
 	}
-	if checker.seen.Model != "embedding-model" || checker.seen.Dimensions != 2560 {
+	if checker.seen.Model != "Qwen3-Embedding-4B" || checker.seen.Dimensions != 2560 {
 		t.Fatalf("seen snapshot = %#v", checker.seen)
 	}
 }
@@ -57,7 +57,7 @@ func TestProviderConfigCompatibilityEndpointReportsRAGDrift(t *testing.T) {
 	request := newTestRequest(
 		http.MethodPost,
 		"/internal/provider-config/embedding:check-compatibility",
-		bytes.NewBufferString(`{"role":"rag_query_embedding","provider":"openai","transport":"embeddings","base_url":"https://embedding.example/v1","model":"embedding-model","dimensions":1536,"timeout_ms":30000}`),
+		bytes.NewBufferString(`{"kind":"embedding","provider":"openai-compatible","transport":"embeddings","base_url":"https://embedding.example/v1","model":"Qwen3-Embedding-4B","dimensions":2560}`),
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
 	response := httptest.NewRecorder()
@@ -71,6 +71,21 @@ func TestProviderConfigCompatibilityEndpointReportsRAGDrift(t *testing.T) {
 	if body["ok"] != false || !strings.Contains(body["reason"].(string), "release metadata drift") {
 		t.Fatalf("body = %#v, want drift blocker", body)
 	}
+}
+
+func TestProviderConfigCompatibilityEndpointRejectsRetiredTimeoutField(t *testing.T) {
+	server := newWorkerAuthServerForTest()
+	request := newTestRequest(
+		http.MethodPost,
+		"/internal/provider-config/embedding:check-compatibility",
+		bytes.NewBufferString(`{"kind":"embedding","provider":"openai-compatible","transport":"embeddings","base_url":"https://embedding.example/v1","model":"Qwen3-Embedding-4B","dimensions":2560,"timeout_ms":30000}`),
+	)
+	request.Header.Set("x-worker-origin-auth", "secret")
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, request)
+
+	assertError(t, response, http.StatusBadRequest, "invalid_request")
 }
 
 type fakeRAGCompatibilityChecker struct {

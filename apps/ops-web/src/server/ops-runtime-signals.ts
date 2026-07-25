@@ -1,6 +1,6 @@
 import type { OpsOverviewResponse, OpsOverviewWindow } from "../shared/ops-contract.ts";
 import type { AxiomClient } from "./axiom-client.ts";
-import type { OpsRuntimeSignalsSnapshot, OpsRuntimeSignalsSource } from "./ops-overview-service.ts";
+import type { OpsRuntimeSignalsSource } from "./ops-overview-service.ts";
 
 const DEFAULT_HEALTH_TIMEOUT_MS = 1_500;
 const SERVICE_DEFINITIONS = [
@@ -8,7 +8,6 @@ const SERVICE_DEFINITIONS = [
 	["app-api", "浏览器接口"],
 	["execution-control", "执行控制"],
 	["agent-runtime", "Agent 运行服务"],
-	["ops-web", "运维工作台"],
 ] as const;
 
 export type OpsHealthServiceName = (typeof SERVICE_DEFINITIONS)[number][0];
@@ -18,6 +17,7 @@ export function createOpsRuntimeSignalsSource(input: {
 	fetchFn?: typeof fetch;
 	healthTimeoutMs?: number;
 	healthUrls: Partial<Record<OpsHealthServiceName, string>>;
+	internalToken?: string;
 	now?: () => Date;
 }): OpsRuntimeSignalsSource {
 	const fetchFn = input.fetchFn ?? fetch;
@@ -25,25 +25,30 @@ export function createOpsRuntimeSignalsSource(input: {
 	const healthTimeoutMs = input.healthTimeoutMs ?? DEFAULT_HEALTH_TIMEOUT_MS;
 
 	return {
-		async getSnapshot(window, queryInput = {}) {
+		async getServices(queryInput = {}) {
 			const checkedAt = now();
-			const [services, telemetry] = await Promise.all([
-				Promise.all(
-					SERVICE_DEFINITIONS.map(([name, displayName]) =>
-						checkService({
-							checkedAt,
-							displayName,
-							fetchFn,
-							name,
-							signal: queryInput.signal,
-							timeoutMs: healthTimeoutMs,
-							url: input.healthUrls[name],
-						}),
-					),
-				),
-				readTelemetry(input.axiom, window, checkedAt, queryInput.signal),
-			]);
-			return { services, telemetry } satisfies OpsRuntimeSignalsSnapshot;
+			return Promise.all(
+				SERVICE_DEFINITIONS.flatMap(([name, displayName]) => {
+					const url = normalizeHealthUrl(input.healthUrls[name]);
+					return url
+						? [
+								checkService({
+									checkedAt,
+									displayName,
+									fetchFn,
+									internalToken: input.internalToken,
+									name,
+									signal: queryInput.signal,
+									timeoutMs: healthTimeoutMs,
+									url,
+								}),
+							]
+						: [];
+				}),
+			);
+		},
+		async getTelemetry(window, queryInput = {}) {
+			return readTelemetry(input.axiom, window, now(), queryInput.signal);
 		},
 	};
 }
@@ -52,50 +57,76 @@ async function checkService(input: {
 	checkedAt: Date;
 	displayName: string;
 	fetchFn: typeof fetch;
+	internalToken?: string;
 	name: OpsHealthServiceName;
 	signal?: AbortSignal;
 	timeoutMs: number;
-	url: string | undefined;
+	url: string;
 }): Promise<OpsOverviewResponse["services"][number]> {
 	input.signal?.throwIfAborted();
-	const url = normalizeHealthUrl(input.url);
-	if (!url) {
+	try {
+		const timeoutSignal = AbortSignal.timeout(input.timeoutMs);
+		const headers: Record<string, string> = { accept: "application/json" };
+		if (input.name === "execution-control" && input.internalToken?.trim()) {
+			headers.authorization = `Bearer ${input.internalToken.trim()}`;
+		}
+		const response = await input.fetchFn(input.url, {
+			headers,
+			method: "GET",
+			signal: input.signal ? AbortSignal.any([input.signal, timeoutSignal]) : timeoutSignal,
+		});
+		const readiness = await readReadinessBody(response);
+		if (response.ok && readiness.isReady) {
+			return {
+				dataState: "FRESH",
+				displayName: input.displayName,
+				name: input.name,
+				reason: null,
+				status: "HEALTHY",
+				updatedAt: input.checkedAt.toISOString(),
+			};
+		}
+		if (response.status >= 500 && readiness.isJsonObject) {
+			return {
+				dataState: "FRESH",
+				displayName: input.displayName,
+				name: input.name,
+				reason: `健康检查返回 HTTP ${response.status}。`,
+				status: "OUTAGE",
+				updatedAt: input.checkedAt.toISOString(),
+			};
+		}
 		return {
 			dataState: "UNAVAILABLE",
 			displayName: input.displayName,
 			name: input.name,
-			reason: "未配置健康检查地址。",
+			reason: response.ok ? "健康检查响应无效。" : `健康检查无法读取（HTTP ${response.status}）。`,
 			status: "UNKNOWN",
 			updatedAt: null,
-		};
-	}
-	try {
-		const timeoutSignal = AbortSignal.timeout(input.timeoutMs);
-		const response = await input.fetchFn(url, {
-			headers: { accept: "application/json" },
-			method: "GET",
-			signal: input.signal ? AbortSignal.any([input.signal, timeoutSignal]) : timeoutSignal,
-		});
-		return {
-			dataState: "FRESH",
-			displayName: input.displayName,
-			name: input.name,
-			reason: response.ok ? null : `健康检查返回 HTTP ${response.status}。`,
-			status: response.ok ? "HEALTHY" : "OUTAGE",
-			updatedAt: input.checkedAt.toISOString(),
 		};
 	} catch (error) {
 		if (input.signal?.aborted) {
 			throw error;
 		}
 		return {
-			dataState: "FRESH",
+			dataState: "UNAVAILABLE",
 			displayName: input.displayName,
 			name: input.name,
 			reason: "健康检查连接失败或超时。",
-			status: "OUTAGE",
-			updatedAt: input.checkedAt.toISOString(),
+			status: "UNKNOWN",
+			updatedAt: null,
 		};
+	}
+}
+
+async function readReadinessBody(response: Response) {
+	try {
+		const body: unknown = await response.json();
+		const isJsonObject = typeof body === "object" && body !== null && !Array.isArray(body);
+		const status = isJsonObject ? Reflect.get(body, "status") : null;
+		return { isJsonObject, isReady: status === "ok" || status === "ready" };
+	} catch {
+		return { isJsonObject: false, isReady: false };
 	}
 }
 
@@ -134,7 +165,9 @@ function normalizeHealthUrl(value: string | undefined) {
 	}
 	try {
 		const url = new URL(value);
-		return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : null;
+		return (url.protocol === "http:" || url.protocol === "https:") && url.pathname === "/readyz"
+			? url.toString()
+			: null;
 	} catch {
 		return null;
 	}

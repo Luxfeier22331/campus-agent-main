@@ -43,10 +43,18 @@
 		"ops-web#build": {
 			"inputs": [
 				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/configs/runtime/latency-budgets.v1.json",
 				"$TURBO_ROOT$/packages/domains/dining/package.json",
 				"$TURBO_ROOT$/packages/domains/dining/src/**",
+				"$TURBO_ROOT$/packages/langfuse-identity/package.json",
+				"$TURBO_ROOT$/packages/langfuse-identity/src/**",
+				"$TURBO_ROOT$/packages/ui/package.json",
+				"$TURBO_ROOT$/packages/ui/src/**",
 				"$TURBO_ROOT$/scripts/ci/check-ops-web-artifact.mjs"
-			]
+			],
+			"outputs": ["dist/**", ".tanstack/**"]
 		},
 		"transport-publisher#build": {
 			"inputs": [
@@ -214,6 +222,28 @@
 				"tsconfig.json"
 			],
 			"outputLogs": "new-only"
+		},
+		"ops-web#test": {
+			"dependsOn": ["^test"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/configs/runtime/latency-budgets.v1.json"
+			],
+			"outputLogs": "new-only",
+			"outputs": []
+		},
+		"ops-web#typecheck": {
+			"dependsOn": ["^typecheck"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/configs/runtime/latency-budgets.v1.json"
+			],
+			"outputLogs": "new-only",
+			"outputs": []
 		},
 		"source-collector#test:ingest": {
 			"dependsOn": ["^test:ingest"],

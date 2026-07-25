@@ -42,6 +42,8 @@ spec:
             - $(EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL)
             - --evidence-path
             - /tmp/run-projection-schema.json
+            - --provider-config-keyring-path
+            - /run/campus-agent/provider-config/keyring.json
           env:
             - name: EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL
               valueFrom:
@@ -62,7 +64,17 @@ spec:
           volumeMounts:
             - name: evidence
               mountPath: /tmp
+            - name: provider-config-keyring
+              mountPath: /run/campus-agent/provider-config
+              readOnly: true
       volumes:
         - name: evidence
           emptyDir:
             sizeLimit: 16Mi
+        - name: provider-config-keyring
+          secret:
+            secretName: execution-provider-config-keyring
+            defaultMode: 0440
+            items:
+              - key: keyring.json
+                path: keyring.json

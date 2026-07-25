@@ -32,6 +32,13 @@ func TestExecutePrimaryAgentActivityFailsClosedWhenDirectAnswerMissingTerminalEn
 			"selected_tools":       []string{},
 			"tool_results":         []any{},
 			"terminal_reason":      "answer_completed",
+			"usage": map[string]any{
+				"model_request_count": 2,
+				"input_tokens":        12,
+				"output_tokens":       8,
+				"cached_input_tokens": 3,
+				"usage_observed":      true,
+			},
 		})
 	}))
 	defer agentRuntime.Close()
@@ -61,6 +68,19 @@ func TestExecutePrimaryAgentActivityFailsClosedWhenDirectAnswerMissingTerminalEn
 	}
 	if len(steps) != 1 || steps[0].SanitizedPayload["failure_kind"] != "agent_runtime_missing_terminal_envelope" {
 		t.Fatalf("steps = %#v", steps)
+	}
+	attempts, listAttemptsErr := store.ListStepAttempts(context.Background(), "run-primary-agent-missing-envelope")
+	if listAttemptsErr != nil {
+		t.Fatalf("list attempts: %v", listAttemptsErr)
+	}
+	if len(attempts) != 1 ||
+		attempts[0].Status != "failed" ||
+		attempts[0].ModelRequestCount != 2 ||
+		attempts[0].InputTokens != 12 ||
+		attempts[0].OutputTokens != 8 ||
+		attempts[0].CachedInputTokens != 3 ||
+		!attempts[0].UsageObserved {
+		t.Fatalf("failed agent attempt lost observed usage: %#v", attempts)
 	}
 }
 

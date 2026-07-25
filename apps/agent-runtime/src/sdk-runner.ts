@@ -164,6 +164,7 @@ interface OpenAIAgentsStreamRunResultLike extends OpenAIAgentsRunResultLike {
 }
 
 interface UsageLike {
+	requests?: number;
 	inputTokens?: number;
 	outputTokens?: number;
 	cachedInputTokens?: number;
@@ -674,12 +675,27 @@ function usageFromResult(result: OpenAIAgentsRunResultLike) {
 		result.usage ??
 		result.state?.usage ??
 		result.state?._context?.usage ??
-		result.state?.context?.usage ??
-		{};
+		result.state?.context?.usage;
+	if (usage === undefined) {
+		return {
+			modelRequestCount: 0,
+			inputTokens: 0,
+			outputTokens: 0,
+			cachedInputTokens: 0,
+			usageObserved: false,
+		};
+	}
 	return {
+		modelRequestCount: integerOrZero(usage.requests),
 		inputTokens: integerOrZero(usage.inputTokens),
 		outputTokens: integerOrZero(usage.outputTokens),
 		cachedInputTokens: cachedInputTokensFromUsage(usage),
+		usageObserved:
+			usage.requests !== undefined ||
+			usage.inputTokens !== undefined ||
+			usage.outputTokens !== undefined ||
+			usage.cachedInputTokens !== undefined ||
+			usage.inputTokensDetails !== undefined,
 	};
 }
 

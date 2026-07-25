@@ -52,6 +52,12 @@ valid_ops_web_egress_policy := {
 				"ports": [{"protocol": "TCP", "port": 8000}],
 			},
 			{
+				"to": [{"podSelector": {"matchLabels": {
+					"app.kubernetes.io/name": "agent-runtime",
+				}}}],
+				"ports": [{"protocol": "TCP", "port": 27062}],
+			},
+			{
 				"to": [{"ipBlock": {"cidr": "0.0.0.0/0"}}],
 				"ports": [{"protocol": "TCP", "port": 443}],
 			},
@@ -61,7 +67,7 @@ valid_ops_web_egress_policy := {
 
 ops_web_policy_with_external_rule(peer, allowed_port) := policy if {
 	egress := array.concat(
-		array.slice(valid_ops_web_egress_policy.spec.egress, 0, 5),
+		array.slice(valid_ops_web_egress_policy.spec.egress, 0, 6),
 		[{"to": [peer], "ports": [allowed_port]}],
 	)
 	policy := object.union(valid_ops_web_egress_policy, {
@@ -286,11 +292,23 @@ test_ops_web_port_cannot_add_end_port if {
 test_ops_web_external_egress_is_required if {
 	policy := object.union(valid_ops_web_egress_policy, {
 		"spec": object.union(valid_ops_web_egress_policy.spec, {
-			"egress": array.slice(valid_ops_web_egress_policy.spec.egress, 0, 5),
+			"egress": array.slice(valid_ops_web_egress_policy.spec.egress, 0, 6),
 		}),
 	})
 	violations := violation with input as policy
 	"NetworkPolicy ops-web-egress must allow external HTTPS on TCP 443" in violations
+}
+
+test_ops_web_agent_runtime_egress_is_required if {
+	egress := array.concat(
+		array.slice(valid_ops_web_egress_policy.spec.egress, 0, 5),
+		array.slice(valid_ops_web_egress_policy.spec.egress, 6, 7),
+	)
+	policy := object.union(valid_ops_web_egress_policy, {
+		"spec": object.union(valid_ops_web_egress_policy.spec, {"egress": egress}),
+	})
+	violations := violation with input as policy
+	"NetworkPolicy ops-web-egress must allow agent-runtime on TCP 27062" in violations
 }
 
 test_ops_web_external_egress_cannot_use_http if {

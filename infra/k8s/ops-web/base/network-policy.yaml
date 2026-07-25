@@ -46,6 +46,13 @@ spec:
         - protocol: TCP
           port: 8000
     - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: agent-runtime
+      ports:
+        - protocol: TCP
+          port: 27062
+    - to:
         - ipBlock:
             cidr: 0.0.0.0/0
       ports:

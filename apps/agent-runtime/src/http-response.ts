@@ -85,9 +85,11 @@ export function agentRunResultWire(result: PrimaryAgentRunResult) {
 		},
 		terminal_reason: result.terminalReason,
 		usage: {
+			model_request_count: result.usage.modelRequestCount,
 			input_tokens: result.usage.inputTokens,
 			output_tokens: result.usage.outputTokens,
 			cached_input_tokens: result.usage.cachedInputTokens ?? 0,
+			usage_observed: result.usage.usageObserved,
 		},
 	};
 }

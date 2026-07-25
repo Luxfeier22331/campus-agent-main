@@ -1,12 +1,5 @@
-import { LoaderCircle, SlidersHorizontal, X } from "lucide-react";
-import { useState } from "react";
-
-import type { DiningHallSummary, DiningSearchResult } from "@/features/dining/model";
-import { cn } from "@/lib/utils";
-import { Button } from "../ui/button";
-import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "../ui/command";
-import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "../ui/popover";
 import {
+	Button,
 	Select,
 	SelectContent,
 	SelectGroup,
@@ -14,7 +7,13 @@ import {
 	SelectLabel,
 	SelectTrigger,
 	SelectValue,
-} from "../ui/select";
+} from "@campus-agent/ui";
+import { LoaderCircle, SlidersHorizontal, X } from "lucide-react";
+import { useState } from "react";
+import type { DiningHallSummary, DiningSearchResult } from "@/features/dining/model";
+import { cn } from "@/lib/utils";
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "../ui/command";
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
 
 export function DiningHallSwitcher({

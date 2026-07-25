@@ -29,9 +29,9 @@ handoff、函数工具与知识搜索不展开成额外 Temporal activity。
 - `workflow-worker`：确定性工作流；
 - `activity-worker-core`：记忆、终态处理和维护 activity；
 - `activity-worker-agent`：完整 Agent Activity；
-- `provider-config-admin`：在线 Provider Config 管理接口；
+- `provider-config-admin`：在线模型配置管理接口；
 - `personal-memory-runtime`：个人记忆命令入口；
-- `run-projection-schema`：安装和验证运行投影与 Provider Config schema。
+- `run-projection-schema`：安装和验证运行投影与在线模型配置 schema。
 
 具体 HTTP 路径、字段和枚举不在 README 复制：
 
@@ -39,7 +39,7 @@ handoff、函数工具与知识搜索不展开成额外 Temporal activity。
 - 工具读取：`docs/contracts/tool-read-model.md`；
 - 队列诊断：`docs/contracts/temporal-queues.md`；
 - 个人记忆：`docs/architecture/system/memory-plane.md` 与 `docs/contracts/app-api/memory.md`；
-- Provider Config：`docs/contracts/ops-web/providers.md` 与 `docs/environment/providers.md`。
+- 在线模型配置：`docs/contracts/ops-web/providers.md` 与 `docs/environment/providers.md`。
 
 ## 本地开发
 

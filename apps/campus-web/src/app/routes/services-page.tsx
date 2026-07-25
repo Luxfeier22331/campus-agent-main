@@ -1,9 +1,6 @@
+import { Alert, Badge, Button } from "@campus-agent/ui";
 import { LayoutGroup, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
-
-import { Alert } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { CampusMotionProvider, contentSwap, stateSwap } from "@/components/ui/motion";
 import { SurfaceState } from "@/components/ui/surface-state";
 import { getCampusTransportStatus } from "@/features/campus-services/api";
@@ -134,7 +131,7 @@ function TransportScheduleSection({
 					) : null}
 				</div>
 				{payload ? (
-					<Badge className="h-9 px-3" variant={adjustmentCount > 0 ? "default" : "secondary"}>
+					<Badge className="h-9 px-3" tone={adjustmentCount > 0 ? "info" : "neutral"}>
 						{adjustmentSummary}
 					</Badge>
 				) : null}
@@ -310,7 +307,7 @@ function renderDepartureCell(departure: CampusTransportDeparture, columnId: Sche
 	}
 	if (columnId === "status") {
 		return (
-			<Badge variant={departure.status === "normal" ? "secondary" : "default"}>
+			<Badge tone={departure.status === "normal" ? "neutral" : "info"}>
 				{departureStatusLabels[departure.status]}
 			</Badge>
 		);

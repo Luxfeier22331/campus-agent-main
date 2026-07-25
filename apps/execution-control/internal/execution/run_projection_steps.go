@@ -176,6 +176,9 @@ func validateStepAttemptProjection(attempt StepAttemptProjection) error {
 	if attempt.DurationMS < 0 {
 		return fmt.Errorf("%w: duration_ms must be non-negative", ErrInvalidStepAttempt)
 	}
+	if attempt.ModelRequestCount < 0 {
+		return fmt.Errorf("%w: model_request_count must be non-negative", ErrInvalidStepAttempt)
+	}
 	if attempt.InputTokens < 0 ||
 		attempt.OutputTokens < 0 ||
 		attempt.CachedInputTokens < 0 {

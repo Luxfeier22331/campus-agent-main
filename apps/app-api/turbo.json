@@ -12,6 +12,8 @@
 				"$TURBO_ROOT$/configs/runtime/latency-budgets.v1.json",
 				"$TURBO_ROOT$/packages/domains/dining/package.json",
 				"$TURBO_ROOT$/packages/domains/dining/src/**",
+				"$TURBO_ROOT$/packages/langfuse-identity/package.json",
+				"$TURBO_ROOT$/packages/langfuse-identity/src/**",
 				"$TURBO_ROOT$/scripts/deploy/check-worker-secret-presence.ts",
 				"$TURBO_ROOT$/scripts/deploy/lib/env-file.ts",
 				"$TURBO_ROOT$/scripts/deploy/lib/repo-env.ts",

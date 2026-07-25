@@ -193,9 +193,11 @@ create table if not exists runtime.agent_step_attempts (
 	provider_response_id text not null default '',
 	model_provider text not null default '',
 	model_name text not null default '',
+	model_request_count bigint not null default 0,
 	input_tokens bigint not null default 0,
 	output_tokens bigint not null default 0,
 	cached_input_tokens bigint not null default 0,
+	usage_observed boolean not null default false,
 	cancel_outcome text not null default '',
 	timeout_outcome text not null default '',
 	late_completion_outcome text not null default 'not_late',
@@ -220,9 +222,15 @@ alter table runtime.agent_step_attempts add column if not exists provider_reques
 alter table runtime.agent_step_attempts add column if not exists provider_response_id text not null default '';
 alter table runtime.agent_step_attempts add column if not exists model_provider text not null default '';
 alter table runtime.agent_step_attempts add column if not exists model_name text not null default '';
+alter table runtime.agent_step_attempts add column if not exists model_request_count bigint not null default 0;
 alter table runtime.agent_step_attempts add column if not exists input_tokens bigint not null default 0;
 alter table runtime.agent_step_attempts add column if not exists output_tokens bigint not null default 0;
 alter table runtime.agent_step_attempts add column if not exists cached_input_tokens bigint not null default 0;
+alter table runtime.agent_step_attempts add column if not exists usage_observed boolean not null default false;
+update runtime.agent_step_attempts
+set usage_observed = true
+where not usage_observed
+	and (input_tokens > 0 or output_tokens > 0 or cached_input_tokens > 0);
 alter table runtime.agent_step_attempts drop column if exists estimated_cost_microusd;
 alter table runtime.agent_step_attempts add column if not exists cancel_outcome text not null default '';
 alter table runtime.agent_step_attempts add column if not exists timeout_outcome text not null default '';

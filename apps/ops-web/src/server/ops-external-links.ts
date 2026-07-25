@@ -1,3 +1,4 @@
+import { deriveLangfuseTraceId } from "@campus-agent/langfuse-identity";
 import type { OpsRequestDetailResponse } from "../shared/ops-contract";
 
 export interface OpsObservabilityLinkAllowlist {
@@ -7,10 +8,16 @@ export interface OpsObservabilityLinkAllowlist {
 	temporal?: string;
 }
 
+export function toAxiomExternalLink(
+	allowlist: OpsObservabilityLinkAllowlist | undefined,
+): OpsRequestDetailResponse["technical"]["externalLinks"][number] | null {
+	return toConfiguredExternalLink(allowlist?.axiom, "Axiom", "AXIOM");
+}
+
 export function toTemporalExternalLink(
 	workflowId: string | null,
 	allowlist: OpsObservabilityLinkAllowlist | undefined,
-): OpsRequestDetailResponse["externalLinks"][number] | null {
+): OpsRequestDetailResponse["technical"]["externalLinks"][number] | null {
 	if (!workflowId) {
 		return null;
 	}
@@ -42,8 +49,15 @@ export function toTemporalExternalLink(
 
 export function toSentryExternalLink(
 	allowlist: OpsObservabilityLinkAllowlist | undefined,
-): OpsRequestDetailResponse["externalLinks"][number] | null {
-	const href = allowlist?.sentry?.trim();
+): OpsRequestDetailResponse["technical"]["externalLinks"][number] | null {
+	return toConfiguredExternalLink(allowlist?.sentry, "Sentry Trace Explorer", "SENTRY");
+}
+
+export async function toLangfuseExternalLink(
+	productTraceId: string,
+	allowlist: OpsObservabilityLinkAllowlist | undefined,
+): Promise<OpsRequestDetailResponse["technical"]["externalLinks"][number] | null> {
+	const href = allowlist?.langfuse?.trim();
 	if (!href) {
 		return null;
 	}
@@ -52,12 +66,39 @@ export function toSentryExternalLink(
 		if (url.protocol !== "https:") {
 			return null;
 		}
+		const normalizedPath = url.pathname.replace(/\/+$/u, "");
+		if (!/(?:^|\/)project\/[^/]+$/u.test(normalizedPath)) {
+			return null;
+		}
+		url.pathname = `${normalizedPath}/traces/${await deriveLangfuseTraceId(productTraceId)}`;
+		url.search = "";
+		url.hash = "";
 		return {
 			href: url.toString(),
 			isAvailable: true,
-			label: "Sentry Trace Explorer",
-			source: "SENTRY",
+			label: "Langfuse Trace",
+			source: "LANGFUSE",
 		};
+	} catch {
+		return null;
+	}
+}
+
+function toConfiguredExternalLink(
+	href: string | undefined,
+	label: string,
+	source: "AXIOM" | "SENTRY",
+): OpsRequestDetailResponse["technical"]["externalLinks"][number] | null {
+	const normalized = href?.trim();
+	if (!normalized) {
+		return null;
+	}
+	try {
+		const url = new URL(normalized);
+		if (url.protocol !== "https:") {
+			return null;
+		}
+		return { href: url.toString(), isAvailable: true, label, source };
 	} catch {
 		return null;
 	}

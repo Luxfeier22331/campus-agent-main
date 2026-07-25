@@ -14,7 +14,7 @@ describe("ops-web display formatting", () => {
 		expect(formatPercent(0.08)).toBe("8.0%");
 		expect(formatCurrencyUsd(0.012)).toBe("$0.0120");
 		expect(formatId("trace_ops_001")).toBe("trace_..._001");
-		expect(formatTimestamp("2026-07-09T06:29:04.000Z")).toBe("2026-07-09 06:29:04 UTC");
+		expect(formatTimestamp("2026-07-09T06:29:04.000Z")).toBe("2026-07-09 14:29:04");
 	});
 
 	it("uses explicit labels for missing values", () => {

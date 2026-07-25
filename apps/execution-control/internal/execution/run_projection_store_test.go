@@ -649,9 +649,11 @@ func TestInMemoryRunProjectionStorePersistsStepTrajectory(t *testing.T) {
 		ProviderResponseID:    "resp_001",
 		ModelProvider:         "openai",
 		ModelName:             "gpt-5-mini",
+		ModelRequestCount:     3,
 		InputTokens:           100,
 		OutputTokens:          40,
 		CachedInputTokens:     20,
+		UsageObserved:         true,
 		CancelOutcome:         CancelOutcomeNotRequested,
 		TimeoutOutcome:        TimeoutOutcomeNotTimedOut,
 		LateCompletionOutcome: LateCompletionOutcomeIgnoredAfterCancel,
@@ -702,9 +704,11 @@ func TestInMemoryRunProjectionStorePersistsStepTrajectory(t *testing.T) {
 		attempts[0].ScheduleToStartMS != 100 ||
 		attempts[0].DurationMS != 1000 ||
 		attempts[0].ProviderResponseID != "resp_001" ||
+		attempts[0].ModelRequestCount != 3 ||
 		attempts[0].InputTokens != 100 ||
 		attempts[0].OutputTokens != 40 ||
 		attempts[0].CachedInputTokens != 20 ||
+		!attempts[0].UsageObserved ||
 		attempts[0].CancelOutcome != CancelOutcomeNotRequested ||
 		attempts[0].TimeoutOutcome != TimeoutOutcomeNotTimedOut ||
 		attempts[0].LateCompletionOutcome != LateCompletionOutcomeIgnoredAfterCancel ||

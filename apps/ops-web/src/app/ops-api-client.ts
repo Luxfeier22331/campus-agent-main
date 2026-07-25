@@ -11,11 +11,18 @@ import type {
 	DiningValidationReport,
 } from "../shared/dining-contract";
 import type {
+	HindsightModelSettingsUpdate,
+	ModelSettingKind,
+	ModelSettingUpdate,
 	OpsOverviewWindow,
+	OpsRequestListView,
 	OpsRequestSummary,
 	OpsRequestWindow,
 } from "../shared/ops-contract";
 import {
+	ExecutionModelSettingsStatusSchema,
+	HindsightModelSettingsStatusSchema,
+	ModelSettingValidationResponseSchema,
 	OpsFileReleaseBatchStartSchema,
 	OpsIngestionTaskListSchema,
 	OpsIngestionTaskRetryStartSchema,
@@ -29,40 +36,73 @@ import {
 	OpsRequestDetailResponseSchema,
 	OpsRequestListResponseSchema,
 	OpsSentryIssuesResponseSchema,
-	ProviderConfigStatusSchema,
 } from "../shared/ops-contract";
 
 export interface OpsRequestListParams {
 	conversationId?: string;
 	cursor?: string;
-	limit?: number;
-	previous?: string;
 	q?: string;
 	requestId?: string;
+	runId?: string;
 	status?: OpsRequestSummary["status"];
 	traceId?: string;
+	view?: OpsRequestListView;
 	window?: OpsRequestWindow;
+	workflowId?: string;
 }
 
-export async function fetchProviderConfig(input: { signal?: AbortSignal } = {}) {
-	return ProviderConfigStatusSchema.parse(
-		await fetchJson("/api/ops/provider-config", { signal: input.signal }),
+export async function fetchExecutionModelSettings(input: { signal?: AbortSignal } = {}) {
+	return ExecutionModelSettingsStatusSchema.parse(
+		await fetchJson("/api/ops/model-settings/execution", { signal: input.signal }),
 	);
 }
 
-export async function commandProviderConfig(
-	path: "connections" | "profiles" | `profiles/${string}/validate` | "activation",
-	payload: unknown,
-	input: { idempotencyKey: string },
+export async function putExecutionModelSetting(
+	kind: ModelSettingKind,
+	payload: ModelSettingUpdate,
+	etag: string,
 ) {
-	return fetchJson(`/api/ops/provider-config/${path}`, {
-		body: JSON.stringify(payload),
-		headers: {
-			"content-type": "application/json",
-			"idempotency-key": input.idempotencyKey,
-		},
-		method: "POST",
-	});
+	return ExecutionModelSettingsStatusSchema.parse(
+		await fetchJson(`/api/ops/model-settings/execution/${kind}`, {
+			body: JSON.stringify(payload),
+			headers: {
+				"content-type": "application/json",
+				"if-match": etag,
+			},
+			method: "PUT",
+		}),
+	);
+}
+
+export async function validateExecutionModelSetting(kind: ModelSettingKind) {
+	return ModelSettingValidationResponseSchema.parse(
+		await fetchJson(`/api/ops/model-settings/execution/${kind}/validate`, { method: "POST" }),
+	);
+}
+
+export async function fetchHindsightModelSettings(input: { signal?: AbortSignal } = {}) {
+	return HindsightModelSettingsStatusSchema.parse(
+		await fetchJson("/api/ops/model-settings/hindsight", { signal: input.signal }),
+	);
+}
+
+export async function putHindsightModelSettings(
+	payload: HindsightModelSettingsUpdate,
+	etag: string,
+) {
+	return HindsightModelSettingsStatusSchema.parse(
+		await fetchJson("/api/ops/model-settings/hindsight", {
+			body: JSON.stringify(payload),
+			headers: { "content-type": "application/json", "if-match": etag },
+			method: "PUT",
+		}),
+	);
+}
+
+export async function applyHindsightModelSettings() {
+	return HindsightModelSettingsStatusSchema.parse(
+		await fetchJson("/api/ops/model-settings/hindsight/apply", { method: "POST" }),
+	);
 }
 
 export class OpsApiError extends Error {
@@ -266,12 +306,14 @@ export async function fetchOpsRequests(
 	const apiParams = {
 		conversationId: params.conversationId,
 		cursor: params.cursor,
-		limit: params.limit,
 		q: params.q,
 		requestId: params.requestId,
+		runId: params.runId,
 		status: params.status,
 		traceId: params.traceId,
+		view: params.view === "attention" ? params.view : undefined,
 		window: params.window,
+		workflowId: params.workflowId,
 	};
 	for (const [key, value] of Object.entries(apiParams)) {
 		if (value !== undefined && value !== "") {

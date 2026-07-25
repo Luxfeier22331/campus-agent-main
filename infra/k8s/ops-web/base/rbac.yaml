@@ -8,7 +8,11 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: ["secrets"]
-    resourceNames: ["source-collector-internal-portal-auth", "execution-runtime-provider-config"]
+    resourceNames: ["source-collector-internal-portal-auth", "hindsight-model-config"]
+    verbs: ["get", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["hindsight-api"]
     verbs: ["get", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1

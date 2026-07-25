@@ -7,11 +7,14 @@ import type {
 import {
 	decodeRequestCursor,
 	encodeRequestCursor,
+	requestListView,
 	toRequestDetail,
 	toRequestSummary,
 } from "./ops-status-mappers.ts";
 import type {
-	OpsRequestObservabilityRow,
+	OpsAgentUsageRow,
+	OpsProductActionRow,
+	OpsRequestDetailRow,
 	OpsRequestOverviewRow,
 	OpsRequestRow,
 	OpsRequestTrendRow,
@@ -19,15 +22,19 @@ import type {
 	OpsTemporalTaskQueueSource,
 	PgOpsStatusStoreDatabase,
 } from "./ops-status-store.ts";
+import { OPS_REQUEST_PAGE_SIZE } from "./ops-status-store.ts";
 import {
+	agentUsageSql,
 	buildRequestFilter,
-	requestObservabilitySql,
+	productActionsSql,
+	requestDetailSql,
 	requestRowsCte,
 	requestSql,
 	summarizeStatusCounts,
 } from "./pg-request-query.ts";
 import { summarizeTemporalTaskQueues } from "./pg-runtime-summary.ts";
 import type { PostgresSslConfig } from "./postgres-tls.ts";
+import { logOpsError } from "./safe-logging.ts";
 
 const DEFAULT_POOL_MAX = 4;
 const DEFAULT_CONNECTION_TIMEOUT_MS = 5_000;
@@ -43,60 +50,107 @@ export function createPgOpsStatusStore(input: {
 		sentry?: string;
 		temporal?: string;
 	};
+	campusWebPublicOrigin?: string;
 	temporalTaskQueues?: OpsTemporalTaskQueueSource;
 }): OpsStatusStore {
 	const now = input.now ?? (() => new Date());
-	const temporalTaskQueues = input.temporalTaskQueues ?? { getTaskQueues: async () => [] };
+	const temporalTaskQueues = input.temporalTaskQueues ?? {
+		getTaskQueues: async () => ({
+			reason: "Temporal 队列查询未配置。",
+			rows: [] as [],
+			state: "NOT_CONFIGURED" as const,
+		}),
+	};
 
 	return {
 		async getOverview(window) {
 			const current = now();
 			const since = subtractWindow(current, window);
-			const [requestOverview, trends, taskQueues] = await Promise.all([
+			const [requestsResult, trendsResult, taskQueuesResult] = await Promise.allSettled([
 				input.db.getRequestOverview(since),
 				input.db.getRequestTrends(since, trendBucketMinutes(window)),
 				temporalTaskQueues.getTaskQueues(),
 			]);
+			const requestOverview =
+				requestsResult.status === "fulfilled"
+					? toRequestOverview(requestsResult.value)
+					: unavailableRequestOverview();
+			const temporal =
+				taskQueuesResult.status === "fulfilled"
+					? summarizeTemporalTaskQueues(taskQueuesResult.value, current)
+					: unavailableTemporalOverview();
 			return {
 				externalLinks: normalizeOverviewLinks(input.observabilityLinks),
-				requests: toRequestOverview(requestOverview),
-				temporal: summarizeTemporalTaskQueues(taskQueues, current),
-				trends: trends.map((row) => ({
-					bucketStart: row.bucketStart.toISOString(),
-					completed: row.completed,
-					failed: row.failed,
-					p95DurationMs: row.p95DurationMs,
-					total: row.total,
-				})),
+				requests: requestOverview,
+				temporal,
+				trends: toRequestTrends(trendsResult),
 			};
 		},
 		async getRequestDetail(requestId) {
+			const generatedAt = now();
 			const request = await input.db.getRequest(requestId);
 			if (!request) {
 				return null;
 			}
-			const observability = await input.db.getRequestObservability(requestId);
-			return toRequestDetail(request, observability, input.observabilityLinks);
+			const runIds = request.runId ? [request.runId] : [];
+			const [actionsResult, usagesResult] = await Promise.allSettled([
+				input.db.getProductActions(runIds),
+				input.db.getAgentUsages(runIds),
+			]);
+			return await toRequestDetail(
+				request,
+				actionsResult.status === "fulfilled" ? actionsResult.value : null,
+				usagesResult.status === "fulfilled" ? (usagesResult.value[0] ?? null) : undefined,
+				input.observabilityLinks,
+				generatedAt,
+				input.campusWebPublicOrigin,
+			);
 		},
 		async listRequests(query) {
-			const since = subtractWindow(now(), query.window);
+			const view = requestListView(query);
+			const generatedAt = now();
+			const since = subtractWindow(generatedAt, query.window);
 			const rows = await input.db.listRequests(query, since);
-			const visibleRows = rows.slice(0, query.limit);
-			const requestIds = visibleRows.map((row) => row.requestId);
-			const observabilityRows = await input.db.getRequestObservabilities(requestIds);
-			const observabilityByRequest = new Map(observabilityRows.map((row) => [row.requestId, row]));
-			const lastVisibleRow = visibleRows.at(-1);
-			return {
-				data: visibleRows.map((row) =>
-					toRequestSummary(row, observabilityByRequest.get(row.requestId) ?? null),
+			const visibleRows = rows.slice(0, OPS_REQUEST_PAGE_SIZE);
+			const runIds = [...new Set(visibleRows.flatMap((row) => (row.runId ? [row.runId] : [])))];
+			const [actionRowsResult, usageRowsResult] = await Promise.allSettled([
+				input.db.getProductActions(runIds),
+				input.db.getAgentUsages(runIds),
+			]);
+			const actionsByRun =
+				actionRowsResult.status === "fulfilled"
+					? groupProductActions(actionRowsResult.value)
+					: null;
+			const usageByRun =
+				usageRowsResult.status === "fulfilled"
+					? new Map(usageRowsResult.value.map((row) => [row.runId, row]))
+					: null;
+			const data = visibleRows.map((row) =>
+				toRequestSummary(
+					row,
+					row.runId ? (actionsByRun === null ? null : (actionsByRun.get(row.runId) ?? [])) : [],
+					row.runId
+						? usageByRun === null
+							? undefined
+							: (usageByRun.get(row.runId) ?? null)
+						: null,
 				),
+			);
+			const lastVisibleRequest = data.at(-1);
+			return {
+				data,
+				generatedAt: generatedAt.toISOString(),
 				page: {
 					nextCursor:
-						rows.length > query.limit && lastVisibleRow
-							? encodeRequestCursor(lastVisibleRow)
+						rows.length > OPS_REQUEST_PAGE_SIZE && lastVisibleRequest
+							? encodeRequestCursor(lastVisibleRequest, view)
 							: null,
 				},
-				summary: await input.db.summarizeRequests(query, since),
+				statusCounts: await input.db.summarizeRequests(
+					{ ...query, cursor: undefined, status: undefined },
+					since,
+				),
+				view,
 				window: query.window,
 			};
 		},
@@ -126,28 +180,30 @@ export function createPgOpsStatusStoreDatabase(
 		ssl: options.ssl,
 		statement_timeout: options.statementTimeoutMs ?? DEFAULT_STATEMENT_TIMEOUT_MS,
 	});
-	pool.on("error", (error) => console.error("[ops-web] postgres pool error", error));
+	pool.on("error", (error) => logOpsError("postgres pool error", error, { source: "requests" }));
 
 	return {
-		async getRequestObservability(requestId) {
-			return classifyDbError(async () => {
-				const result = await pool.query(
-					requestObservabilitySql('where "request_id" = $1 limit 1'),
-					[requestId],
-				);
-				return (result.rows[0] as OpsRequestObservabilityRow | undefined) ?? null;
-			});
-		},
-		async getRequestObservabilities(requestIds) {
-			if (requestIds.length === 0) {
+		async getProductActions(runIds) {
+			if (runIds.length === 0) {
 				return [];
 			}
 			return classifyDbError(async () => {
 				const result = await pool.query(
-					requestObservabilitySql('where "request_id" = any($1::text[])'),
-					[requestIds],
+					productActionsSql(
+						'and "run_id" = any($1::text[]) order by "run_id", "started_at" nulls last, "updated_at"',
+					),
+					[runIds],
 				);
-				return result.rows as OpsRequestObservabilityRow[];
+				return result.rows as OpsProductActionRow[];
+			});
+		},
+		async getAgentUsages(runIds) {
+			if (runIds.length === 0) {
+				return [];
+			}
+			return classifyDbError(async () => {
+				const result = await pool.query(agentUsageSql('and "run_id" = any($1::text[])'), [runIds]);
+				return result.rows as OpsAgentUsageRow[];
 			});
 		},
 		async getRequestOverview(since) {
@@ -155,10 +211,11 @@ export function createPgOpsStatusStoreDatabase(
 				const result = await pool.query(
 					`${requestRowsCte()}
 						select
+							count(*) filter (where "status" in ('approval_required', 'needs_clarification'))::int as "actionRequired",
 							count(*) filter (where "status" = 'cancelled')::int as "cancelled",
 							count(*) filter (where "status" = 'completed')::int as "completed",
 							count(*) filter (where "status" in ('error', 'rejected', 'no_answer'))::int as "failed",
-							count(*) filter (where "status" in ('accepted', 'approval_required', 'needs_clarification'))::int as "pending",
+							count(*) filter (where "status" = 'accepted')::int as "pending",
 							count(*) filter (where "status" = 'running')::int as "running",
 							count(*)::int as "total",
 							max("projected_at") as "latestProjectedAt",
@@ -173,8 +230,10 @@ export function createPgOpsStatusStoreDatabase(
 		},
 		async getRequest(requestId) {
 			return classifyDbError(async () => {
-				const result = await pool.query(requestSql('where "request_id" = $1 limit 1'), [requestId]);
-				return (result.rows[0] as OpsRequestRow | undefined) ?? null;
+				const result = await pool.query(requestDetailSql('where "request_id" = $1 limit 1'), [
+					requestId,
+				]);
+				return (result.rows[0] as OpsRequestDetailRow | undefined) ?? null;
 			});
 		},
 		async getRequestTrends(since, bucketMinutes) {
@@ -199,20 +258,32 @@ export function createPgOpsStatusStoreDatabase(
 		},
 		async listRequests(query, since) {
 			return classifyDbError(async () => {
+				const view = requestListView(query);
 				const filter = buildRequestFilter(query, since);
 				const conditions = filter.whereClause ? [filter.whereClause.slice(6)] : [];
 				const values = [...filter.values];
-				const cursor = decodeRequestCursor(query.cursor);
+				const cursor = decodeRequestCursor(query.cursor, view);
 				if (cursor) {
-					values.push(cursor.startedAt, cursor.requestId);
-					conditions.push(
-						`("started_at" < $${values.length - 1} or ("started_at" = $${values.length - 1} and "request_id" < $${values.length}))`,
-					);
+					if (cursor.view === "recent") {
+						values.push(cursor.startedAt, cursor.requestId);
+						conditions.push(
+							`("started_at" < $${values.length - 1} or ("started_at" = $${values.length - 1} and "request_id" < $${values.length}))`,
+						);
+					} else {
+						values.push(cursor.priority, cursor.startedAt, cursor.requestId);
+						conditions.push(
+							`("attention_priority" > $${values.length - 2} or ("attention_priority" = $${values.length - 2} and ("started_at" < $${values.length - 1} or ("started_at" = $${values.length - 1} and "request_id" < $${values.length}))))`,
+						);
+					}
 				}
-				values.push(query.limit + 1);
+				values.push(OPS_REQUEST_PAGE_SIZE + 1);
+				const orderBy =
+					view === "attention"
+						? '"attention_priority" asc, "started_at" desc, "request_id" desc'
+						: '"started_at" desc, "request_id" desc';
 				const result = await pool.query(
 					requestSql(
-						`where ${conditions.join(" and ")} order by "started_at" desc, "request_id" desc limit $${values.length}`,
+						`where ${conditions.join(" and ")} order by ${orderBy} limit $${values.length}`,
 					),
 					values,
 				);
@@ -221,7 +292,10 @@ export function createPgOpsStatusStoreDatabase(
 		},
 		async summarizeRequests(query, since) {
 			return classifyDbError(async () => {
-				const filter = buildRequestFilter({ ...query, cursor: undefined }, since);
+				const filter = buildRequestFilter(
+					{ ...query, cursor: undefined, status: undefined },
+					since,
+				);
 				const result = await pool.query(
 					`${requestRowsCte()}
 					 select "status", count(*)::int as "count" from request_rows
@@ -235,11 +309,23 @@ export function createPgOpsStatusStoreDatabase(
 			return classifyDbError(async () => {
 				await Promise.all([
 					pool.query(requestSql("limit 0")),
-					pool.query(requestObservabilitySql("limit 0")),
+					pool.query(requestDetailSql("limit 0")),
+					pool.query(productActionsSql("limit 0")),
+					pool.query(agentUsageSql("and false")),
 				]);
 			});
 		},
 	};
+}
+
+function groupProductActions(rows: OpsProductActionRow[]): Map<string, OpsProductActionRow[]> {
+	const grouped = new Map<string, OpsProductActionRow[]>();
+	for (const row of rows) {
+		const current = grouped.get(row.runId) ?? [];
+		current.push(row);
+		grouped.set(row.runId, current);
+	}
+	return grouped;
 }
 
 function toRequestOverview(row: OpsRequestOverviewRow): OpsOverviewResponse["requests"] {
@@ -248,12 +334,15 @@ function toRequestOverview(row: OpsRequestOverviewRow): OpsOverviewResponse["req
 	const status =
 		row.total === 0
 			? "UNKNOWN"
-			: row.failed > 0 && row.failed === terminal && row.running + row.pending === 0
+			: row.failed > 0 &&
+					row.failed === terminal &&
+					row.running + row.pending + row.actionRequired === 0
 				? "OUTAGE"
 				: row.failed > 0
 					? "DEGRADED"
 					: "HEALTHY";
 	return {
+		actionRequired: row.actionRequired,
 		cancelled: row.cancelled,
 		completed: row.completed,
 		dataState: row.total === 0 ? "NO_DATA" : "FRESH",
@@ -276,23 +365,80 @@ function toRequestOverview(row: OpsRequestOverviewRow): OpsOverviewResponse["req
 	};
 }
 
+function toRequestTrends(
+	result: PromiseSettledResult<OpsRequestTrendRow[]>,
+): OpsOverviewResponse["trends"] {
+	if (result.status === "rejected") {
+		return {
+			data: [],
+			dataState: "UNAVAILABLE",
+			reason: "请求趋势查询不可用。",
+		};
+	}
+	return {
+		data: result.value.map((row) => ({
+			bucketStart: row.bucketStart.toISOString(),
+			completed: row.completed,
+			failed: row.failed,
+			p95DurationMs: row.p95DurationMs,
+			total: row.total,
+		})),
+		dataState: result.value.length === 0 ? "NO_DATA" : "FRESH",
+		reason: result.value.length === 0 ? "当前时间范围内没有趋势数据。" : null,
+	};
+}
+
 function normalizeOverviewLinks(
 	links: Parameters<typeof createPgOpsStatusStore>[0]["observabilityLinks"],
 ): OpsOverviewResponse["externalLinks"] {
 	return [
 		["LANGFUSE", "Langfuse", links?.langfuse],
-		["TEMPORAL", "Temporal", links?.temporal],
 		["SENTRY", "Sentry", links?.sentry],
 		["AXIOM", "Axiom", links?.axiom],
-	].map(([source, label, value]) => {
+	].flatMap(([source, label, value]) => {
 		const href = normalizeHttpsUrl(value);
-		return {
-			href,
-			isAvailable: Boolean(href),
-			label: String(label),
-			source: source as OpsOverviewResponse["externalLinks"][number]["source"],
-		};
+		return href
+			? [
+					{
+						href,
+						isAvailable: true,
+						label: String(label),
+						source: source as OpsOverviewResponse["externalLinks"][number]["source"],
+					},
+				]
+			: [];
 	});
+}
+
+function unavailableRequestOverview(): OpsOverviewResponse["requests"] {
+	return {
+		actionRequired: 0,
+		cancelled: 0,
+		completed: 0,
+		dataState: "UNAVAILABLE",
+		failed: 0,
+		p95DurationMs: null,
+		pending: 0,
+		reason: "请求状态数据库不可用。",
+		running: 0,
+		status: "UNKNOWN",
+		successRate: null,
+		total: 0,
+		updatedAt: null,
+	};
+}
+
+function unavailableTemporalOverview(): OpsOverviewResponse["temporal"] {
+	return {
+		backlogCount: 0,
+		dataState: "UNAVAILABLE",
+		oldestTaskAgeMs: null,
+		pollerCount: 0,
+		queues: [],
+		reason: "Temporal 队列查询不可用。",
+		status: "UNKNOWN",
+		updatedAt: null,
+	};
 }
 
 function normalizeHttpsUrl(value: unknown): string | null {
@@ -310,6 +456,7 @@ function normalizeHttpsUrl(value: unknown): string | null {
 function normalizeOverviewRow(value: unknown): OpsRequestOverviewRow {
 	const row = isRecord(value) ? value : {};
 	return {
+		actionRequired: toCount(row.actionRequired),
 		cancelled: toCount(row.cancelled),
 		completed: toCount(row.completed),
 		failed: toCount(row.failed),

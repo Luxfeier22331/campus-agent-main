@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
-import { afterEach, beforeAll, vi } from "vitest";
+import { afterEach, beforeEach, vi } from "vitest";
 import { createOpsApp } from "../src/server/app";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission";
 import { createFixtureOpsStatusStore } from "../src/server/ops-status-store";
@@ -11,43 +11,44 @@ import {
 	opsTraceObservabilityFixture,
 } from "../src/shared/ops-fixtures";
 
-beforeAll(() => {
-	const app = createOpsApp({
-		admission: createAllowAllOpsAdmission(),
-		env: {
-			OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test",
-		},
-		axiom: {
-			getTelemetrySnapshot: vi.fn(),
-			queryRequest: vi.fn(async ({ kind }) =>
-				kind === "logs" ? opsLogObservabilityFixture : opsTraceObservabilityFixture,
-			),
-		},
-		overviewService: {
-			getOverview: vi.fn(async () => opsOverviewFixture),
-		},
-		sentry: {
-			queryRequestIssues: vi.fn().mockResolvedValue(opsSentryIssuesFixture),
-		},
-		internalPortalAuthStore: {
-			getStatus: vi.fn().mockResolvedValue({
-				configured: true,
-				updatedAt: "2026-07-15T12:00:00.000Z",
-				updatedBy: "ops@example.test",
-			}),
-			replaceCredential: vi.fn(async (input) => ({
-				configured: true,
-				updatedAt: input.updatedAt,
-				updatedBy: input.updatedBy,
-			})),
-		},
-		internalPortalMaintenanceClient: {
-			getStatus: vi.fn().mockResolvedValue(maintenanceStatus()),
-			validate: vi.fn().mockResolvedValue(maintenanceStatus()),
-		},
-		staticRoot: "test/fixtures/static",
-		store: createFixtureOpsStatusStore(),
-	});
+const app = createOpsApp({
+	admission: createAllowAllOpsAdmission(),
+	env: {
+		OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test",
+	},
+	axiom: {
+		getTelemetrySnapshot: vi.fn(),
+		queryRequest: vi.fn(async ({ kind }) =>
+			kind === "logs" ? opsLogObservabilityFixture : opsTraceObservabilityFixture,
+		),
+	},
+	overviewService: {
+		getOverview: vi.fn(async () => opsOverviewFixture),
+	},
+	sentry: {
+		queryRequestIssues: vi.fn().mockResolvedValue(opsSentryIssuesFixture),
+	},
+	internalPortalAuthStore: {
+		getStatus: vi.fn().mockResolvedValue({
+			configured: true,
+			updatedAt: "2026-07-15T12:00:00.000Z",
+			updatedBy: "ops@example.test",
+		}),
+		replaceCredential: vi.fn(async (input) => ({
+			configured: true,
+			updatedAt: input.updatedAt,
+			updatedBy: input.updatedBy,
+		})),
+	},
+	internalPortalMaintenanceClient: {
+		getStatus: vi.fn().mockResolvedValue(maintenanceStatus()),
+		validate: vi.fn().mockResolvedValue(maintenanceStatus()),
+	},
+	staticRoot: "test/fixtures/static",
+	store: createFixtureOpsStatusStore(),
+});
+
+beforeEach(() => {
 	Object.defineProperty(navigator, "clipboard", {
 		configurable: true,
 		value: {
@@ -70,6 +71,7 @@ beforeAll(() => {
 
 afterEach(() => {
 	cleanup();
+	vi.unstubAllGlobals();
 });
 
 function maintenanceStatus() {

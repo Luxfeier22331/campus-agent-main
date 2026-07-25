@@ -116,19 +116,27 @@ func (s *Server) failFinalizationActivity(
 }
 
 type temporalStepFailureProjection struct {
-	Tool            string
-	FailedAt        time.Time
-	FailureHash     string
-	FailureKind     string
-	CancelOutcome   execution.CancelOutcome
-	FailCloseReason string
-	Payload         map[string]any
-	ProjectionRef   string
-	ResultKind      string
-	StepID          string
-	StepKind        string
-	TaskQueue       string
-	TimeoutOutcome  execution.TimeoutOutcome
+	Tool               string
+	FailedAt           time.Time
+	FailureHash        string
+	FailureKind        string
+	CancelOutcome      execution.CancelOutcome
+	FailCloseReason    string
+	ProviderResponseID string
+	ModelProvider      string
+	ModelName          string
+	ModelRequestCount  int64
+	InputTokens        int64
+	OutputTokens       int64
+	CachedInputTokens  int64
+	UsageObserved      bool
+	Payload            map[string]any
+	ProjectionRef      string
+	ResultKind         string
+	StepID             string
+	StepKind           string
+	TaskQueue          string
+	TimeoutOutcome     execution.TimeoutOutcome
 }
 
 func (s *Server) projectTemporalFailureStep(
@@ -141,23 +149,31 @@ func (s *Server) projectTemporalFailureStep(
 	projection.FailureKind = boundedTemporalFailureKind(projection.FailureKind)
 	payload := temporalFailurePayload(projection, cause)
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
-		Attempt:         1,
-		Tool:            temporalFailureTool(projection),
-		CancelOutcome:   temporalFailureCancelOutcome(ctx, projection.CancelOutcome),
-		FailCloseReason: temporalFailureFailCloseReason(projection),
-		Run:             run,
-		Status:          "failed",
-		StepID:          projection.StepID,
-		StepKind:        projection.StepKind,
-		TaskQueue:       projection.TaskQueue,
-		WorkerID:        s.config.TemporalWorkerIdentity,
-		StartedAt:       now,
-		CompletedAt:     now,
-		UpdatedAt:       now,
-		ResultKind:      projection.ResultKind,
-		ProjectionRef:   projection.ProjectionRef,
-		TimeoutOutcome:  temporalFailureTimeoutOutcome(ctx, projection.TimeoutOutcome, cause),
-		Payload:         payload,
+		Attempt:            1,
+		Tool:               temporalFailureTool(projection),
+		CancelOutcome:      temporalFailureCancelOutcome(ctx, projection.CancelOutcome),
+		FailCloseReason:    temporalFailureFailCloseReason(projection),
+		Run:                run,
+		Status:             "failed",
+		StepID:             projection.StepID,
+		StepKind:           projection.StepKind,
+		TaskQueue:          projection.TaskQueue,
+		WorkerID:           s.config.TemporalWorkerIdentity,
+		StartedAt:          now,
+		CompletedAt:        now,
+		UpdatedAt:          now,
+		ResultKind:         projection.ResultKind,
+		ProjectionRef:      projection.ProjectionRef,
+		ProviderResponseID: projection.ProviderResponseID,
+		ModelProvider:      projection.ModelProvider,
+		ModelName:          projection.ModelName,
+		ModelRequestCount:  projection.ModelRequestCount,
+		InputTokens:        projection.InputTokens,
+		OutputTokens:       projection.OutputTokens,
+		CachedInputTokens:  projection.CachedInputTokens,
+		UsageObserved:      projection.UsageObserved,
+		TimeoutOutcome:     temporalFailureTimeoutOutcome(ctx, projection.TimeoutOutcome, cause),
+		Payload:            payload,
 	}); err != nil {
 		return err
 	}
@@ -315,7 +331,7 @@ func temporalFailureTerminalReason(
 		return execution.DurableTerminalReasonRunTimeout
 	}
 	switch strings.TrimSpace(failureKind) {
-	case "agent_runtime_failed", "memory_recall_failed", "personal_memory_not_configured", "provider_profile_missing", "provider_unavailable":
+	case "agent_runtime_failed", "memory_recall_failed", "model_setting_missing", "personal_memory_not_configured", "provider_unavailable":
 		return execution.DurableTerminalReasonProviderUnavailable
 	case "knowledge_search_failed", "retrieval_lookup_failed", "tool_execution_failed":
 		return execution.DurableTerminalReasonRetrievalUnavailable

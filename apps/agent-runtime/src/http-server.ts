@@ -11,8 +11,6 @@ import { agentRuntimeErrorPayload } from "./runtime-errors.ts";
 import { bindAsyncIterableToActiveContext } from "./telemetry.ts";
 
 const providerConfigSchema = z.object({
-	profile_id: z.string().min(1).optional(),
-	revision: z.number().int().nonnegative().optional(),
 	provider: z.string().min(1),
 	transport: z.enum(["responses", "chat_completions"]),
 	base_url: z.string().min(1).optional(),
@@ -333,8 +331,6 @@ function runtimeInputFromParsedRunRequest(
 		knowledgeTargets: mapKnowledgeTargets(parsed.knowledge_targets),
 		toolChoice: parsed.tool_choice,
 		providerConfig: {
-			profileId: parsed.provider_config.profile_id,
-			revision: parsed.provider_config.revision,
 			provider: parsed.provider_config.provider,
 			transport: parsed.provider_config.transport,
 			baseUrl: parsed.provider_config.base_url,

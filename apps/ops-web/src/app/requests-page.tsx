@@ -1,12 +1,15 @@
+import { Button, cn } from "@campus-agent/ui";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { RefreshCw } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import type { OpsRequestSummary } from "../shared/ops-contract";
+import type {
+	OpsRequestListResponse,
+	OpsRequestListView,
+	OpsRequestSummary,
+} from "../shared/ops-contract";
 import { formatTimestamp } from "./format";
 import { fetchOpsRequests } from "./ops-api-client";
 import {
-	CopyableValue,
 	CopyIconButton,
 	ErrorState,
 	PageHeader,
@@ -14,19 +17,15 @@ import {
 	StaleDataWarning,
 	StatusBadge,
 } from "./ops-display";
+import { formatOpsDomainValue } from "./ops-domain-labels";
 import {
 	cleanRequestSearch,
-	formatRequestCompletedAt,
 	formatRequestDuration,
-	normalizePreviousRequestListPath,
 	type RequestSearchLike,
 	requestFilterLabels,
 	requestListPath,
 } from "./ops-view-helpers";
 import { RequestFilters } from "./request-filters";
-import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { DataTable } from "./ui/data-table";
 
 export function RequestsPage({
@@ -36,93 +35,46 @@ export function RequestsPage({
 	ignoredParams?: string[];
 	search: RequestSearchLike;
 }) {
-	const navigate = useNavigate();
+	const view = search.view ?? "recent";
+	const querySearch = cleanRequestSearch(search);
 	const requests = useQuery({
-		placeholderData: keepPreviousData,
+		placeholderData: search.cursor ? keepPreviousData : undefined,
 		queryFn: ({ signal }) => fetchOpsRequests(search, { signal }),
-		queryKey: ["ops", "requests", search],
+		queryKey: ["ops", "requests", querySearch],
 		refetchInterval: 30_000,
 		refetchIntervalInBackground: false,
 	});
-	const ignoredParamsKey = (ignoredParams ?? []).join(",");
-	const [visibleIgnoredParamsKey, setVisibleIgnoredParamsKey] = useState(ignoredParamsKey);
-	const justCleanedIgnoredSearchRef = useRef(false);
-	useEffect(() => {
-		if (!search.ignored || typeof window === "undefined") {
-			if (justCleanedIgnoredSearchRef.current) {
-				justCleanedIgnoredSearchRef.current = false;
-				return;
-			}
-			setVisibleIgnoredParamsKey((previous) => (previous ? "" : previous));
-			return;
-		}
-		setVisibleIgnoredParamsKey(ignoredParamsKey);
-		justCleanedIgnoredSearchRef.current = true;
-		const cleanPath = requestListPath({ ...search, ignored: undefined });
-		if (`${window.location.pathname}${window.location.search}` !== cleanPath) {
-			void navigate({
-				replace: true,
-				search: cleanRequestSearch({ ...search, ignored: undefined }),
-				to: "/requests",
-			});
-		}
-	}, [ignoredParamsKey, navigate, search]);
 
 	if (requests.isPending) {
-		return <PageShell title="请求排查">正在读取请求状态...</PageShell>;
+		return <PageShell title="运行记录">正在读取运行记录...</PageShell>;
 	}
-
 	if (requests.isError && !requests.data) {
 		return (
 			<section>
-				<PageHeader
-					description="按状态、关键词或关联 ID 查找请求，并进入详情定位问题。"
-					title="请求排查"
-				/>
+				<PageHeader description="还原用户请求的产品处理过程和会话结果。" title="运行记录" />
+				<RequestViewSwitch search={search} view={view} />
 				<RequestFilters search={search} />
-				<Card className="mt-4">
-					<CardContent className="grid gap-3 p-4">
-						<ErrorState
-							error={requests.error}
-							onRetry={() => requests.refetch()}
-							title="请求状态读取失败"
-						/>
-						<div>
-							<Button asChild variant="outline">
-								<Link search={{}} to="/requests">
-									清除筛选
-								</Link>
-							</Button>
-						</div>
-					</CardContent>
-				</Card>
+				<div className="mt-4">
+					<ErrorState
+						error={requests.error}
+						onRetry={() => requests.refetch()}
+						title="运行记录读取失败"
+					/>
+				</div>
 			</section>
 		);
 	}
 	if (!requests.data) {
-		return <PageShell title="请求排查">正在读取请求状态...</PageShell>;
+		return <PageShell title="运行记录">正在读取运行记录...</PageShell>;
 	}
 
-	const summaryCards = [
-		{ label: "全部", value: requests.data.summary.total },
-		{ label: "完成", value: requests.data.summary.completed },
-		{ label: "待处理", value: requests.data.summary.pending },
-		{ label: "运行中", value: requests.data.summary.running },
-		{ label: "失败", value: requests.data.summary.failed },
-		{ label: "取消", value: requests.data.summary.cancelled },
-	];
 	const activeFilterLabels = requestFilterLabels(search);
 	const hasActiveFilters = activeFilterLabels.length > 0;
-	const ignoredParamNames = visibleIgnoredParamsKey ? visibleIgnoredParamsKey.split(",") : [];
-	const requestListContext = [
-		search.cursor ? "下一页结果" : "第一页",
-		`每页 ${search.limit ?? 50}`,
-		`当前显示 ${requests.data.data.length}`,
-		`最后刷新 ${formatTimestamp(new Date(requests.dataUpdatedAt).toISOString())}`,
-	].join(" / ");
+	const ignoredParamNames = ignoredParams ?? [];
 	const isRefreshing = requests.isFetching;
-	const currentListPath = requestListPath(search);
-	const previousPath = normalizePreviousRequestListPath(search.previous);
+	const selectedCount = search.status
+		? requests.data.statusCounts[statusCountKey(search.status)]
+		: requests.data.statusCounts.total;
 
 	return (
 		<section>
@@ -130,323 +82,456 @@ export function RequestsPage({
 				actions={
 					<Button
 						aria-busy={isRefreshing}
+						aria-label={isRefreshing ? "刷新中" : "刷新运行记录"}
+						className="self-start lg:self-auto"
 						disabled={isRefreshing}
-						onClick={() => {
-							requests.refetch();
-						}}
+						onClick={() => void requests.refetch()}
 						variant="outline"
 					>
 						<RefreshCw className="size-4" />
-						{isRefreshing ? "刷新中" : "刷新"}
+						<span>{isRefreshing ? "刷新中" : "刷新"}</span>
 					</Button>
 				}
-				description="按状态、关键词或关联 ID 查找请求，并进入详情定位问题。"
-				title="请求排查"
+				description="还原用户请求的产品处理过程和会话结果。"
+				title="运行记录"
 			/>
 			{requests.isRefetchError ? (
 				<StaleDataWarning
 					error={requests.error}
 					lastSuccessfulAt={requests.dataUpdatedAt}
 					onRetry={() => void requests.refetch()}
-					title="请求列表刷新失败"
+					title="运行记录刷新失败"
 				/>
 			) : null}
-			<div
-				className="grid grid-cols-3 gap-2 lg:grid-cols-6 lg:gap-3"
-				data-testid="request-summary-grid"
-			>
-				{summaryCards.map((metric) => (
-					<Card key={metric.label}>
-						<CardContent className="p-3 sm:p-4">
-							<p className="text-slate-500 text-xs sm:text-sm">{metric.label}</p>
-							<p className="mt-1 font-semibold text-2xl tabular-nums sm:mt-2 sm:text-3xl">
-								{metric.value}
-							</p>
-						</CardContent>
-					</Card>
-				))}
-			</div>
 			{ignoredParamNames.length > 0 ? (
-				<div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900 text-sm">
-					<div className="flex flex-wrap items-center gap-2">
-						<span className="font-medium">已忽略无效筛选参数</span>
-						{ignoredParamNames.map((name) => (
-							<Badge key={name} tone="warning">
-								{name}
-							</Badge>
-						))}
-					</div>
-					<p className="mt-1 text-amber-800 text-xs">
-						页面按当前可识别的筛选条件读取请求；请重新应用筛选生成可分享链接。
-					</p>
+				<div className="mb-3 border-warning/20 border-y bg-warning-subtle px-1 py-2 text-warning text-sm">
+					已忽略无效筛选参数：<span className="font-mono">{ignoredParamNames.join("、")}</span>
 				</div>
 			) : null}
-			<div className="mt-4">
-				<RequestFilters search={search} />
+			<RequestViewSwitch search={search} view={view} />
+			<RequestFilters search={search} />
+			<div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm">
+				<div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+					<span className="font-medium text-foreground">
+						共 {selectedCount} 条，当前显示 {requests.data.data.length} 条
+					</span>
+					<span
+						className="text-muted-foreground"
+						title={formatTimestamp(requests.data.generatedAt)}
+					>
+						更新于 {formatTimestamp(requests.data.generatedAt)}
+					</span>
+				</div>
+				<RequestPagination
+					hasActiveFilters={hasActiveFilters}
+					nextCursor={requests.data.page.nextCursor}
+					search={search}
+				/>
 			</div>
-			<Card className="mt-4">
-				<CardHeader>
-					<div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-						<div className="grid gap-1">
-							<CardTitle>最近请求</CardTitle>
-							<p className="text-slate-500 text-sm">{requestListContext}</p>
-						</div>
-						<div className="flex flex-wrap items-center gap-2">
-							{search.cursor ? (
-								<>
-									<span className="text-slate-500 text-sm">已进入下一页</span>
-									<Button asChild variant="outline">
-										<a href={previousPath}>返回上一页</a>
-									</Button>
-									<Button asChild variant="outline">
-										<Link
-											search={cleanRequestSearch({
-												...search,
-												cursor: undefined,
-												previous: undefined,
-											})}
-											to="/requests"
-										>
-											返回第一页
-										</Link>
-									</Button>
-								</>
-							) : null}
-							{requests.data.page.nextCursor ? (
-								<Button asChild variant="outline">
-									<Link
-										search={cleanRequestSearch({
-											...search,
-											cursor: requests.data.page.nextCursor ?? undefined,
-											previous: currentListPath,
-										})}
-										to="/requests"
-									>
-										下一页
-									</Link>
-								</Button>
-							) : null}
-						</div>
-					</div>
-					{requests.isFetching ? (
-						<p className="mt-2 text-slate-500 text-sm" role="status">
-							正在刷新列表...
-						</p>
-					) : null}
-					{requests.isPlaceholderData ? (
-						<p className="mt-2 text-amber-700 text-sm" role="status">
-							正在读取新筛选结果，当前列表仍是上一组数据。
-						</p>
-					) : null}
-					{hasActiveFilters ? (
-						<div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-							<span className="text-slate-500">已应用筛选</span>
-							{activeFilterLabels.map((item) => (
-								<Badge key={item} tone="muted">
-									{item}
-								</Badge>
-							))}
-							<Link
-								className="inline-flex min-h-11 items-center rounded-md border border-slate-200 bg-white px-3 font-semibold text-slate-700 text-xs hover:bg-slate-100"
-								search={{}}
-								to="/requests"
-							>
-								清除全部
-							</Link>
-						</div>
-					) : null}
-				</CardHeader>
-				<CardContent>
-					{requests.data.data.length === 0 ? (
-						<RequestListEmptyState
-							hasActiveFilters={hasActiveFilters}
-							isRefreshing={isRefreshing}
-							onRefresh={() => {
-								requests.refetch();
-							}}
+			{hasActiveFilters ? (
+				<p className="mb-3 text-muted-foreground text-xs">
+					已应用：{activeFilterLabels.join("、")}
+				</p>
+			) : null}
+			{requests.isPlaceholderData ? (
+				<p className="mb-3 text-warning text-sm" role="status">
+					正在读取新筛选结果，当前列表仍是上一组数据。
+				</p>
+			) : null}
+			{requests.data.data.length === 0 ? (
+				<RequestListEmptyState hasActiveFilters={hasActiveFilters} view={view} />
+			) : (
+				<>
+					<RequestMobileList
+						generatedAt={requests.data.generatedAt}
+						requests={requests.data.data}
+						search={search}
+						view={view}
+					/>
+					<div className="hidden md:block">
+						<DataTable<OpsRequestSummary>
+							caption="运行记录"
+							columns={createRequestColumns(requests.data.generatedAt, search, view)}
+							data={requests.data.data}
+							minWidth="1040px"
+							rowKey={(row) => row.requestId}
 						/>
-					) : (
-						<>
-							<RequestMobileList requests={requests.data.data} search={search} />
-							<div className="hidden md:block">
-								<DataTable<OpsRequestSummary>
-									caption="最近请求列表"
-									columns={createRequestColumns(search)}
-									data={requests.data.data}
-									minWidth="860px"
-									rowKey={(row) => row.requestId}
-								/>
-							</div>
-						</>
-					)}
-				</CardContent>
-			</Card>
+					</div>
+				</>
+			)}
 		</section>
 	);
 }
 
-function RequestListEmptyState({
-	hasActiveFilters,
-	isRefreshing,
-	onRefresh,
+function RequestViewSwitch({
+	search,
+	view,
 }: {
-	hasActiveFilters: boolean;
-	isRefreshing: boolean;
-	onRefresh: () => void;
+	search: RequestSearchLike;
+	view: OpsRequestListView;
 }) {
 	return (
-		<div className="grid gap-3 rounded-md border border-slate-200 bg-slate-50 p-4 text-sm">
-			<p className="font-medium text-slate-950">
-				{hasActiveFilters ? "没有匹配的请求。" : "暂无近期请求。"}
-			</p>
-			<p className="text-slate-600">
+		<nav aria-label="运行记录视图" className="mb-4 flex border-border border-b">
+			{(
+				[
+					["recent", "最近运行"],
+					["attention", "需要关注"],
+				] as const
+			).map(([value, label]) => (
+				<Link
+					activeOptions={{ exact: true, includeSearch: true }}
+					aria-current={view === value ? "page" : undefined}
+					className={cn(
+						"inline-flex min-h-11 items-center border-b-2 px-4 font-medium text-sm",
+						view === value
+							? "border-primary text-foreground"
+							: "border-transparent text-muted-foreground hover:text-foreground",
+					)}
+					key={value}
+					search={cleanRequestSearch({
+						...search,
+						cursor: undefined,
+						status: undefined,
+						view: value,
+					})}
+					to="/requests"
+				>
+					{label}
+				</Link>
+			))}
+		</nav>
+	);
+}
+
+function RequestPagination({
+	hasActiveFilters,
+	nextCursor,
+	search,
+}: {
+	hasActiveFilters: boolean;
+	nextCursor: string | null;
+	search: RequestSearchLike;
+}) {
+	return (
+		<div className="flex items-center gap-3">
+			{hasActiveFilters ? (
+				<Link
+					className="font-medium text-info hover:underline"
+					search={cleanRequestSearch({ view: search.view })}
+					to="/requests"
+				>
+					清除筛选
+				</Link>
+			) : null}
+			{search.cursor ? (
+				<Link
+					className="font-medium text-info hover:underline"
+					search={cleanRequestSearch({ ...search, cursor: undefined })}
+					to="/requests"
+				>
+					返回第一页
+				</Link>
+			) : null}
+			{nextCursor ? (
+				<Link
+					className="font-medium text-info hover:underline"
+					search={cleanRequestSearch({ ...search, cursor: nextCursor })}
+					to="/requests"
+				>
+					下一页
+				</Link>
+			) : null}
+		</div>
+	);
+}
+
+function statusCountKey(
+	status: NonNullable<RequestSearchLike["status"]>,
+): keyof OpsRequestListResponse["statusCounts"] {
+	return status === "ACTION_REQUIRED"
+		? "actionRequired"
+		: status === "CANCELLED"
+			? "cancelled"
+			: (status.toLowerCase() as keyof OpsRequestListResponse["statusCounts"]);
+}
+
+function RequestListEmptyState({
+	hasActiveFilters,
+	view,
+}: {
+	hasActiveFilters: boolean;
+	view: OpsRequestListView;
+}) {
+	return (
+		<div className="border-border border-y bg-secondary p-4 text-sm">
+			<p className="font-medium text-foreground">
 				{hasActiveFilters
-					? "调整筛选条件，或回到完整请求列表。"
-					: "当前没有可展示的请求；如果预期应有请求，请检查请求状态是否持续写入。"}
+					? "没有匹配的运行记录。"
+					: view === "attention"
+						? "当前没有需要关注的运行。"
+						: "当前时间范围内没有运行记录。"}
 			</p>
-			<div className="flex flex-wrap gap-2">
-				<Button disabled={isRefreshing} onClick={onRefresh} variant="outline">
-					<RefreshCw className="size-4" />
-					{isRefreshing ? "刷新中" : "刷新"}
-				</Button>
-				<Button asChild variant="outline">
-					<Link to="/overview">查看运行概览</Link>
-				</Button>
-			</div>
+			<p className="mt-1 text-muted-foreground">
+				{hasActiveFilters ? "调整或清除筛选条件后重试。" : "这不表示运行故障。"}
+			</p>
 		</div>
 	);
 }
 
 function RequestMobileList({
+	generatedAt,
 	requests,
 	search,
+	view,
 }: {
+	generatedAt: string;
 	requests: OpsRequestSummary[];
 	search: RequestSearchLike;
+	view: OpsRequestListView;
 }) {
 	return (
-		<div className="divide-y divide-slate-100 md:hidden" data-testid="request-mobile-list">
+		<div className="divide-y divide-border md:hidden" data-testid="request-mobile-list">
 			{requests.map((request) => (
-				<div
-					className="grid gap-2.5 py-4 first:pt-0 last:pb-0 text-sm"
+				<article
+					className="grid gap-3 py-4 first:pt-0"
 					data-testid="request-mobile-card"
 					key={request.requestId}
 				>
-					<div className="flex min-w-0 items-start justify-between gap-3">
-						<div className="grid min-w-0 gap-1">
-							<StatusBadge status={request.status} />
-							<Link
-								className="inline-flex min-h-11 items-center break-words font-semibold text-slate-950 underline-offset-4 hover:underline"
-								params={{ requestId: request.requestId }}
-								search={{ from: requestListPath(search) }}
-								to="/requests/$requestId"
-							>
-								{request.requestId}
-							</Link>
-						</div>
+					<div className="flex items-center justify-between gap-3">
+						<span className="text-muted-foreground text-xs">
+							{formatTimestamp(request.startedAt)}
+						</span>
+						<StatusBadge status={request.status} />
+					</div>
+					<Link
+						className="break-words font-semibold text-foreground underline-offset-4 hover:underline"
+						params={{ requestId: request.requestId }}
+						search={{ from: requestListPath(search) }}
+						to="/requests/$requestId"
+					>
+						{questionPreview(request)}
+					</Link>
+					<ProductJourney request={request} />
+					{view === "attention" ? <RequestAttentionReason request={request} /> : null}
+					<div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+						<AgentTokenUsage mobile request={request} />
+						<span className="font-medium text-foreground">
+							{formatRequestDuration(request, generatedAt)}
+						</span>
+					</div>
+					<div className="flex min-w-0 items-center gap-1">
+						<span
+							className="truncate font-mono text-muted-foreground text-xs"
+							title={request.requestId}
+						>
+							{request.requestId}
+						</span>
 						<CopyIconButton
 							contextLabel={request.requestId}
 							label="requestId"
 							value={request.requestId}
 						/>
 					</div>
-					<p className="line-clamp-3 text-slate-700">{request.questionPreview}</p>
-					<div className="grid min-w-0 gap-1 rounded-md bg-slate-50 px-3 py-2 text-slate-600 text-xs">
-						<span>
-							工具:{" "}
-							<span className="font-medium text-slate-950">
-								{request.selectedTool ?? request.requestedTool ?? "未使用工具"}
-							</span>
-						</span>
-						{request.errorCode ? (
-							<span className="text-red-700">错误: {request.errorCode}</span>
-						) : null}
-					</div>
-					<div className="flex flex-wrap items-center justify-between gap-2 border-slate-100 border-t pt-2 text-slate-600 text-xs">
-						<span className="font-medium text-slate-950 text-sm">
-							{formatRequestDuration(request)}
-						</span>
-						<span>更新 {formatTimestamp(request.projectedAt)}</span>
-					</div>
-				</div>
+				</article>
 			))}
 		</div>
 	);
 }
 
-function createRequestColumns(search: RequestSearchLike) {
+function createRequestColumns(
+	generatedAt: string,
+	search: RequestSearchLike,
+	view: OpsRequestListView,
+) {
 	return [
-		{ cell: (row: OpsRequestSummary) => <StatusBadge status={row.status} />, header: "状态" },
 		{
 			cell: (row: OpsRequestSummary) => (
-				<div className="grid min-w-[220px] gap-2">
-					<div className="flex min-w-0 items-start justify-between gap-2">
-						<Link
-							className="break-all font-medium text-slate-950 underline-offset-4 hover:underline"
-							params={{ requestId: row.requestId }}
-							search={{ from: requestListPath(search) }}
+				<span className="min-w-[150px] text-muted-foreground">
+					{formatTimestamp(row.startedAt)}
+				</span>
+			),
+			header: "发起时间",
+		},
+		{
+			cell: (row: OpsRequestSummary) => (
+				<div className="grid min-w-[250px] gap-1">
+					<Link
+						className="line-clamp-2 font-medium text-foreground underline-offset-4 hover:underline"
+						params={{ requestId: row.requestId }}
+						search={{ from: requestListPath(search) }}
+						to="/requests/$requestId"
+					>
+						{questionPreview(row)}
+					</Link>
+					<div className="flex min-w-0 items-center gap-1">
+						<span
+							className="truncate font-mono text-muted-foreground text-xs"
 							title={row.requestId}
-							to="/requests/$requestId"
 						>
 							{row.requestId}
-						</Link>
+						</span>
 						<CopyIconButton contextLabel={row.requestId} label="requestId" value={row.requestId} />
 					</div>
-					<span className="line-clamp-2 text-slate-700" title={row.questionPreview}>
-						{row.questionPreview}
-					</span>
-					<span className="text-slate-500 text-xs">{row.principalType}</span>
 				</div>
 			),
-			header: "请求",
+			header: "用户问题",
+			rowHeader: true,
+		},
+		{
+			cell: (row: OpsRequestSummary) => <ProductJourney className="min-w-[280px]" request={row} />,
+			header: "产品处理",
 		},
 		{
 			cell: (row: OpsRequestSummary) => (
-				<div
-					className="grid min-w-[320px] grid-cols-2 gap-2"
-					data-testid="request-list-correlations"
-				>
-					<CopyableValue
-						compact
-						contextLabel={row.requestId}
-						label="conversationId"
-						value={row.conversationId}
-					/>
-					<CopyableValue compact contextLabel={row.requestId} label="traceId" value={row.traceId} />
-					<CopyableValue compact contextLabel={row.requestId} label="runId" value={row.runId} />
-					<CopyableValue
-						compact
-						contextLabel={row.requestId}
-						label="workflowId"
-						value={row.workflowId}
-					/>
+				<div className="grid min-w-[130px] justify-items-start gap-2">
+					<StatusBadge status={row.status} />
+					{view === "attention" ? <RequestAttentionReason request={row} /> : null}
 				</div>
 			),
-			header: "关联",
+			header: "状态",
+		},
+		{
+			cell: (row: OpsRequestSummary) => <AgentTokenUsage request={row} />,
+			header: "Token",
 		},
 		{
 			cell: (row: OpsRequestSummary) => (
-				<div className="grid min-w-[180px] gap-1">
-					<span className="font-medium text-slate-950">
-						请求: {row.requestedTool ?? "未请求工具"}
-					</span>
-					<span className="text-slate-600 text-xs">实际: {row.selectedTool ?? "未选择工具"}</span>
-					<span className="text-slate-500 text-xs">{row.errorCode ?? "无错误"}</span>
-					<span className="text-slate-500 text-xs">{row.diagnostics.join(", ") || "暂无诊断"}</span>
-				</div>
+				<span className="min-w-[120px] tabular-nums">
+					{formatRequestDuration(row, generatedAt)}
+				</span>
 			),
-			header: "工具/诊断",
-		},
-		{
-			cell: (row: OpsRequestSummary) => (
-				<div className="grid min-w-[180px] gap-1 text-slate-600 text-xs">
-					<span className="font-medium text-slate-950 text-sm">{formatRequestDuration(row)}</span>
-					<span>开始 {formatTimestamp(row.startedAt)}</span>
-					<span>完成 {formatRequestCompletedAt(row)}</span>
-					<span>更新 {formatTimestamp(row.projectedAt)}</span>
-				</div>
-			),
-			header: "时间",
+			header: "耗时",
 		},
 	];
+}
+
+function questionPreview(request: OpsRequestSummary) {
+	return `${request.question.preview}${request.question.truncated ? "…" : ""}`;
+}
+
+function productJourneyNodes(request: OpsRequestSummary) {
+	const actions = request.journey.actions.map((action, actionIndex) => ({
+		key: `action:${actionIndex}:${action.capability}`,
+		label: formatOpsDomainValue(action.capability),
+	}));
+	const actionState = journeyActionStateNode(request.journey.actionsDataState);
+	const result =
+		request.journey.result.state === "WRITTEN"
+			? "回答已写入会话"
+			: request.journey.result.state === "MISSING"
+				? "会话结果缺失"
+				: "处理中";
+	return [
+		{
+			key: `entry:${request.journey.entry}`,
+			label: formatOpsDomainValue(request.journey.entry),
+		},
+		{ key: "agent:online-qa", label: "在线问答 Agent" },
+		...actions,
+		...(actionState ? [actionState] : []),
+		{ key: `result:${request.journey.result.state}`, label: result },
+	];
+}
+
+function journeyActionStateNode(state: OpsRequestSummary["journey"]["actionsDataState"]) {
+	const labels = {
+		PARTIAL: "业务处理记录不完整",
+		STALE: "业务处理记录为旧数据",
+		UNAVAILABLE: "业务处理记录不可用",
+	} as const;
+	if (state === "FRESH" || state === "NO_DATA") {
+		return null;
+	}
+	return { key: `action-state:${state}`, label: labels[state] };
+}
+
+function ProductJourney({
+	className,
+	request,
+}: {
+	className?: string;
+	request: OpsRequestSummary;
+}) {
+	const nodes = productJourneyNodes(request);
+	return (
+		<div className={cn("flex flex-wrap items-center gap-x-1 gap-y-0.5 text-sm", className)}>
+			<span className="sr-only">产品处理：{nodes.map((node) => node.label).join("，")}</span>
+			{nodes.map((node, index) => (
+				<span className="contents" key={node.key}>
+					{index > 0 ? (
+						<span aria-hidden className="text-muted-foreground">
+							→
+						</span>
+					) : null}
+					<span
+						aria-hidden
+						className={cn(
+							index === 0 || index === nodes.length - 1
+								? "text-muted-foreground"
+								: "font-medium text-foreground",
+						)}
+					>
+						{node.label}
+					</span>
+				</span>
+			))}
+		</div>
+	);
+}
+
+function formatAgentTokenUsage(request: OpsRequestSummary) {
+	if (request.usage.totalTokens !== null) {
+		return new Intl.NumberFormat("zh-CN").format(request.usage.totalTokens);
+	}
+	return request.usage.state === "NOT_STARTED"
+		? "尚未开始"
+		: request.usage.state === "IN_PROGRESS"
+			? "暂未记录"
+			: "不可用";
+}
+
+function AgentTokenUsage({
+	mobile = false,
+	request,
+}: {
+	mobile?: boolean;
+	request: OpsRequestSummary;
+}) {
+	return (
+		<span
+			className={cn(
+				"grid min-w-[90px] justify-items-start gap-0.5 tabular-nums",
+				mobile && "text-muted-foreground",
+			)}
+		>
+			<span>
+				{mobile ? "Token：" : ""}
+				{formatAgentTokenUsage(request)}
+			</span>
+			{request.usage.state === "PARTIAL" ? (
+				<span className="text-warning text-xs">仅记录部分用量</span>
+			) : null}
+		</span>
+	);
+}
+
+function RequestAttentionReason({ request }: { request: OpsRequestSummary }) {
+	if (!request.attentionReason) {
+		return null;
+	}
+	const labels = {
+		REQUEST_FAILED: "产品请求失败",
+		RESULT_MISSING: "会话结果缺失",
+		WAITING_USER: "等待用户补充信息",
+	} as const;
+	return (
+		<span
+			className={cn(
+				"text-xs",
+				request.attentionReason === "WAITING_USER" ? "text-warning" : "text-danger",
+			)}
+		>
+			{labels[request.attentionReason]}
+		</span>
+	);
 }

@@ -1,6 +1,6 @@
 import type { OpsOverviewResponse } from "../shared/ops-contract.ts";
 import { readMetricCount, readMetricMs } from "./ops-status-mappers.ts";
-import type { OpsTemporalTaskQueueRow } from "./ops-status-store.ts";
+import type { OpsTemporalTaskQueueResult, OpsTemporalTaskQueueRow } from "./ops-status-store.ts";
 
 const TASK_QUEUE_READY_THRESHOLD_MS = 30_000;
 const TASK_QUEUE_STALE_THRESHOLD_MS = 120_000;
@@ -12,11 +12,24 @@ export const REQUIRED_TEMPORAL_TASK_QUEUES = [
 ] as const;
 
 export function summarizeTemporalTaskQueues(
-	rows: OpsTemporalTaskQueueRow[],
+	result: OpsTemporalTaskQueueResult,
 	now: Date,
 ): OpsOverviewResponse["temporal"] {
+	if (result.state === "NOT_CONFIGURED" || result.state === "UNAVAILABLE") {
+		return {
+			backlogCount: 0,
+			dataState: result.state === "NOT_CONFIGURED" ? "NO_DATA" : "UNAVAILABLE",
+			oldestTaskAgeMs: null,
+			pollerCount: 0,
+			queues: [],
+			reason: result.reason,
+			status: "UNKNOWN",
+			updatedAt: null,
+		};
+	}
+	const rows = result.rows;
 	const latestByQueue = new Map(rows.map((row) => [row.taskQueue, row]));
-	const queues = REQUIRED_TEMPORAL_TASK_QUEUES.map((required) =>
+	let queues = REQUIRED_TEMPORAL_TASK_QUEUES.map((required) =>
 		toQueueSummary(required, latestByQueue.get(required.taskQueue) ?? null, now),
 	);
 	for (const row of rows) {
@@ -35,8 +48,16 @@ export function summarizeTemporalTaskQueues(
 			),
 		);
 	}
+	if (result.state === "STALE") {
+		queues = queues.map((queue) => ({
+			...queue,
+			dataState: "STALE",
+			reason: queue.reason ?? "Temporal 队列刷新失败，显示旧数据。",
+			status: queue.status === "HEALTHY" ? "DEGRADED" : queue.status,
+		}));
+	}
 	const status = aggregateQueueHealth(queues);
-	const dataState = resolveTemporalDataState(rows, queues);
+	const dataState = result.state === "STALE" ? "STALE" : resolveTemporalDataState(rows, queues);
 	const updatedAt =
 		rows
 			.map((row) => row.projectedAt)

@@ -14,8 +14,9 @@
 
 ## 界面实现
 
-- `src/design/tokens.css` 维护基础值、语义 Token、共享组件 Token 和领域可视化 Token；
-- `src/components/ui/` 维护跨页面控件和共享状态；
+- `@campus-agent/ui` 提供仓库语义 Token 和跨应用基础控件；
+- `src/design/tokens.css` 只维护页面布局、问答、文档、地图和 Dining 等应用 Token；
+- `src/components/ui/` 只维护 Campus 专属组合控件和共享状态；
 - `src/styles.css` 与 `theme/docs-ui.css` 只适配应用和 Rspress；
 - assistant-ui 负责问答交互，Better Auth UI 与 HeroUI 负责账号界面，Rspress 负责文档阅读；
 - 普通共享控件使用仓库的 shadcn/Radix wrapper，单场景展示优先使用语义 HTML；
@@ -41,6 +42,8 @@ pnpm --dir apps/campus-web typecheck
 ## 相关文档
 
 - `docs/product/web.md`
+- `docs/product/ui.md`
+- `docs/architecture/system/ui-foundation.md`
 - `docs/architecture/system/product-runtime.md`
 - `docs/architecture/system/identity-authz.md`
 - `docs/architecture/system/document-site.md`

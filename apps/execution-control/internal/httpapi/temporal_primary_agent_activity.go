@@ -36,9 +36,9 @@ func (s *Server) ExecutePrimaryAgentActivity(
 			fmt.Errorf("agent runtime base URL and shared secret are required"),
 		)
 	}
-	providerConfig, err := s.resolveProviderConfigSnapshot(ctx, providerConfigRolePrimaryAgent)
+	providerConfig, err := s.resolveProviderConfigSnapshot(ctx, providerConfigKindLLM)
 	if err != nil {
-		return s.failPrimaryAgentActivity(ctx, run, "provider_profile_missing", err)
+		return s.failPrimaryAgentActivity(ctx, run, "model_setting_missing", err)
 	}
 	input.KnowledgeTargets, err = s.knowledgeTargetsForAgent(input.VisibleToolNames)
 	if err != nil {
@@ -50,6 +50,14 @@ func (s *Server) ExecutePrimaryAgentActivity(
 	finalModelContext, err := primaryAgentFinalModelContextForRun(run, input, limits)
 	if err != nil {
 		return s.failPrimaryAgentActivity(ctx, run, "context_budget_exceeded", err)
+	}
+	agentStepPayload := map[string]any{
+		"context_usage":          primaryAgentContextUsageSummary(finalModelContext),
+		"knowledge_targets":      knowledgeTargetsProjectionPayload(input.KnowledgeTargets),
+		"memory_context_summary": temporalMemoryContextProjectionPayload(input.MemoryContext),
+		"memory_projection_refs": append([]string{}, input.MemoryProjectionRefs...),
+		"requested_tool":         input.RequestedTool,
+		"visible_tool_names":     append([]string{}, input.VisibleToolNames...),
 	}
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       attempt,
@@ -63,14 +71,7 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		StartedAt:     startedAt,
 		UpdatedAt:     startedAt,
 		ProjectionRef: agentResultRef,
-		Payload: map[string]any{
-			"context_usage":          primaryAgentContextUsageSummary(finalModelContext),
-			"knowledge_targets":      knowledgeTargetsProjectionPayload(input.KnowledgeTargets),
-			"memory_context_summary": temporalMemoryContextProjectionPayload(input.MemoryContext),
-			"memory_projection_refs": append([]string{}, input.MemoryProjectionRefs...),
-			"requested_tool":         input.RequestedTool,
-			"visible_tool_names":     append([]string{}, input.VisibleToolNames...),
-		},
+		Payload:       agentStepPayload,
 	}); err != nil {
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 	}
@@ -88,6 +89,29 @@ func (s *Server) ExecutePrimaryAgentActivity(
 	}
 	output.RunID = run.RunID
 	output.AgentResultRef = agentResultRef
+	if err := s.projectTemporalStep(ctx, temporalStepProjection{
+		Attempt:            attempt,
+		Run:                run,
+		Status:             "started",
+		StepID:             "agent.primary",
+		StepKind:           "agent",
+		TaskQueue:          temporalruntime.ActivityTaskQueueAgent,
+		WorkerID:           s.config.TemporalWorkerIdentity,
+		StartedAt:          startedAt,
+		UpdatedAt:          time.Now().UTC(),
+		ProjectionRef:      agentResultRef,
+		ProviderResponseID: output.ProviderResponseID,
+		ModelProvider:      output.ModelProvider,
+		ModelName:          output.ModelName,
+		ModelRequestCount:  output.Usage.ModelRequestCount,
+		InputTokens:        output.Usage.InputTokens,
+		OutputTokens:       output.Usage.OutputTokens,
+		CachedInputTokens:  output.Usage.CachedInputTokens,
+		UsageObserved:      output.Usage.UsageObserved,
+		Payload:            agentStepPayload,
+	}); err != nil {
+		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
+	}
 	if toolName, failCloseReason, failed := primaryAgentFailedToolResult(output); failed {
 		completedAt := time.Now().UTC()
 		if err := s.projectPrimaryAgentToolResults(
@@ -101,11 +125,12 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		); err != nil {
 			return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 		}
-		return s.failPrimaryAgentActivity(
+		return s.failPrimaryAgentActivityAfterResponse(
 			ctx,
 			run,
 			"tool_execution_failed",
 			primaryAgentToolFailureError{ToolName: toolName, FailCloseReason: failCloseReason},
+			output,
 		)
 	}
 	if strings.TrimSpace(output.Status) != "completed" {
@@ -121,11 +146,12 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		); err != nil {
 			return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 		}
-		return s.failPrimaryAgentActivity(
+		return s.failPrimaryAgentActivityAfterResponse(
 			ctx,
 			run,
 			"agent_runtime_incomplete",
 			fmt.Errorf("agent runtime status is %q", output.Status),
+			output,
 		)
 	}
 	if output.TerminalReason == "" {
@@ -144,11 +170,12 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 	}
 	if !validPrimaryAgentTerminalEnvelope(output.TerminalEnvelope) {
-		return s.failPrimaryAgentActivity(
+		return s.failPrimaryAgentActivityAfterResponse(
 			ctx,
 			run,
 			"agent_runtime_missing_terminal_envelope",
 			fmt.Errorf("agent runtime terminal_envelope is required"),
+			output,
 		)
 	}
 	payload, err := primaryAgentResultPayload(primaryAgentResultInput{
@@ -157,7 +184,13 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		run:             run,
 	}, output)
 	if err != nil {
-		return s.failPrimaryAgentActivity(ctx, run, "agent_runtime_result_invalid", err)
+		return s.failPrimaryAgentActivityAfterResponse(
+			ctx,
+			run,
+			"agent_runtime_result_invalid",
+			err,
+			output,
+		)
 	}
 	if err := s.replaceTemporalAgentMetadata(ctx, run, func(metadata map[string]any) {
 		for key, value := range payload {
@@ -183,9 +216,11 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		ProviderResponseID: output.ProviderResponseID,
 		ModelProvider:      output.ModelProvider,
 		ModelName:          output.ModelName,
+		ModelRequestCount:  output.Usage.ModelRequestCount,
 		InputTokens:        output.Usage.InputTokens,
 		OutputTokens:       output.Usage.OutputTokens,
 		CachedInputTokens:  output.Usage.CachedInputTokens,
+		UsageObserved:      output.Usage.UsageObserved,
 		Payload:            withPrimaryAgentContextUsage(payload, finalModelContext),
 	}); err != nil {
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
@@ -386,6 +421,7 @@ func (s *Server) projectPrimaryAgentToolResults(
 				Status:          "failed",
 				StepID:          stepID,
 				StepKind:        "tool",
+				ParentStepID:    "agent.primary",
 				TaskQueue:       temporalruntime.ActivityTaskQueueForToolTarget(projectionClass),
 				WorkerID:        s.config.TemporalWorkerIdentity,
 				StartedAt:       startedAt,
@@ -431,6 +467,7 @@ func (s *Server) projectPrimaryAgentToolResults(
 				Status:          "failed",
 				StepID:          stepID,
 				StepKind:        "tool",
+				ParentStepID:    "agent.primary",
 				TaskQueue:       temporalruntime.ActivityTaskQueueForToolTarget(projectionClass),
 				WorkerID:        s.config.TemporalWorkerIdentity,
 				StartedAt:       startedAt,
@@ -468,6 +505,7 @@ func (s *Server) projectPrimaryAgentToolResults(
 			Status:          temporalSDKToolStepStatus(status),
 			StepID:          stepID,
 			StepKind:        "tool",
+			ParentStepID:    "agent.primary",
 			TaskQueue:       temporalruntime.ActivityTaskQueueForToolTarget(projectionClass),
 			WorkerID:        s.config.TemporalWorkerIdentity,
 			StartedAt:       startedAt,
@@ -595,6 +633,26 @@ func (s *Server) failPrimaryAgentActivity(
 	failureKind string,
 	cause error,
 ) (temporalruntime.ExecutePrimaryAgentActivityOutput, error) {
+	return s.failPrimaryAgentActivityWithOutput(ctx, run, failureKind, cause, nil)
+}
+
+func (s *Server) failPrimaryAgentActivityAfterResponse(
+	ctx context.Context,
+	run execution.DurableRun,
+	failureKind string,
+	cause error,
+	output temporalruntime.ExecutePrimaryAgentActivityOutput,
+) (temporalruntime.ExecutePrimaryAgentActivityOutput, error) {
+	return s.failPrimaryAgentActivityWithOutput(ctx, run, failureKind, cause, &output)
+}
+
+func (s *Server) failPrimaryAgentActivityWithOutput(
+	ctx context.Context,
+	run execution.DurableRun,
+	failureKind string,
+	cause error,
+	output *temporalruntime.ExecutePrimaryAgentActivityOutput,
+) (temporalruntime.ExecutePrimaryAgentActivityOutput, error) {
 	failCloseReason := ""
 	timeoutOutcome := execution.TimeoutOutcomeNotTimedOut
 	switch failureKind {
@@ -628,7 +686,7 @@ func (s *Server) failPrimaryAgentActivity(
 			payload["agent_runtime_error_code"] = stableCode
 		}
 	}
-	err := s.projectTemporalFailureStep(ctx, run, temporalStepFailureProjection{
+	projection := temporalStepFailureProjection{
 		Tool:            "",
 		FailureHash:     summary.Hash,
 		FailureKind:     summary.Kind,
@@ -640,7 +698,18 @@ func (s *Server) failPrimaryAgentActivity(
 		FailCloseReason: failCloseReason,
 		Payload:         payload,
 		TimeoutOutcome:  timeoutOutcome,
-	}, cause)
+	}
+	if output != nil {
+		projection.ProviderResponseID = output.ProviderResponseID
+		projection.ModelProvider = output.ModelProvider
+		projection.ModelName = output.ModelName
+		projection.ModelRequestCount = output.Usage.ModelRequestCount
+		projection.InputTokens = output.Usage.InputTokens
+		projection.OutputTokens = output.Usage.OutputTokens
+		projection.CachedInputTokens = output.Usage.CachedInputTokens
+		projection.UsageObserved = output.Usage.UsageObserved
+	}
+	err := s.projectTemporalFailureStep(ctx, run, projection, cause)
 	if err != nil {
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, sanitizedTemporalApplicationError(
 			"activity_projection_failed",

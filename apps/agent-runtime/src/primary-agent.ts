@@ -131,8 +131,6 @@ export interface PersonalMemoryContext {
 }
 
 export interface PromptProviderRuntimeConfig {
-	profileId?: string;
-	revision?: number;
 	provider: string;
 	transport: string;
 	baseUrl?: string;
@@ -141,9 +139,11 @@ export interface PromptProviderRuntimeConfig {
 }
 
 export interface UsageSummary {
+	modelRequestCount: number;
 	inputTokens: number;
 	outputTokens: number;
 	cachedInputTokens?: number;
+	usageObserved: boolean;
 }
 
 export interface PromptTrace {

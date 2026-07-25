@@ -213,6 +213,10 @@ describe("agent runtime HTTP handler", () => {
 				schema_version?: string;
 				tools_registry_version?: string;
 			};
+			usage?: {
+				model_request_count?: number;
+				usage_observed?: boolean;
+			};
 		};
 		expect(body.final_output).toBe("我是校园问答助手。");
 		expect(body.model_name).toBe("gpt-5-mini");
@@ -231,6 +235,10 @@ describe("agent runtime HTTP handler", () => {
 			combined_sha256: catalog.runtimeFingerprint.combinedSha256,
 			schema_version: "tool_runtime_fingerprint.v1",
 			tools_registry_version: "test",
+		});
+		expect(body.usage).toMatchObject({
+			model_request_count: 1,
+			usage_observed: true,
 		});
 		expect(JSON.stringify(body)).not.toMatch(
 			/rawPrompt|rawAnswer|rawTranscript|rawProvider|providerPayload|rawSdk|sdkSpan|spanData|traceBody|modelInput|modelOutput/i,
@@ -285,7 +293,7 @@ describe("agent runtime HTTP handler", () => {
 		]);
 	});
 
-	it("accepts chat-completions prompt provider profiles at the HTTP boundary", async () => {
+	it("accepts chat-completions LLM settings at the HTTP boundary", async () => {
 		let observedProvider: unknown;
 		const handler = createAgentRuntimeHandler({
 			sharedSecret: "secret",
@@ -368,7 +376,12 @@ describe("agent runtime HTTP handler", () => {
 							toolRuntimeFingerprint: testToolRuntimeFingerprint(),
 							toolResults: [],
 							terminalReason: "answer_completed",
-							usage: { inputTokens: 11, outputTokens: 7 },
+							usage: {
+								modelRequestCount: 1,
+								inputTokens: 11,
+								outputTokens: 7,
+								usageObserved: true,
+							},
 						},
 					};
 				},
@@ -544,7 +557,7 @@ describe("agent runtime HTTP handler", () => {
 						toolRuntimeFingerprint: testToolRuntimeFingerprint(),
 						toolResults: [],
 						terminalReason: "answer_completed",
-						usage: { inputTokens: 1, outputTokens: 1 },
+						usage: { modelRequestCount: 1, inputTokens: 1, outputTokens: 1, usageObserved: true },
 					};
 				},
 				stream(input) {
@@ -585,7 +598,7 @@ describe("agent runtime HTTP handler", () => {
 					result: await tools[0]?.execute({ query_text: "校车" }),
 				},
 			],
-			usage: { inputTokens: 1, outputTokens: 1 },
+			usage: { modelRequestCount: 1, inputTokens: 1, outputTokens: 1, usageObserved: true },
 		});
 		const handler = createAgentRuntimeHandler({
 			sharedSecret: "secret",
@@ -738,7 +751,7 @@ const noToolRunner: AgentRunner = async () =>
 		terminalEnvelope: { kind: "answer", answerText: "我是校园问答助手。" },
 		providerResponseId: "resp_test",
 		toolCalls: [],
-		usage: { inputTokens: 1, outputTokens: 1 },
+		usage: { modelRequestCount: 1, inputTokens: 1, outputTokens: 1, usageObserved: true },
 	}) as never;
 
 function throwingAgentRuntimeStream(): AsyncIterable<never> {
@@ -793,8 +806,6 @@ function validRuntimeLimits(): Record<string, number> {
 
 function validPromptProviderConfig(): Record<string, unknown> {
 	return {
-		profile_id: "provider-profile-primary",
-		revision: 3,
 		provider: "openai",
 		transport: "responses",
 		base_url: "https://api.openai.com/v1",
@@ -805,8 +816,6 @@ function validPromptProviderConfig(): Record<string, unknown> {
 
 function validRuntimePromptProviderConfig(): Record<string, unknown> {
 	return {
-		profileId: "provider-profile-primary",
-		revision: 3,
 		provider: "openai",
 		transport: "responses",
 		baseUrl: "https://api.openai.com/v1",

@@ -1,11 +1,10 @@
+import { Button } from "@campus-agent/ui";
 import type maplibregl from "maplibre-gl";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-
 import { MapExperience } from "@/components/map/map-experience";
 import { MapProductNavOverlay } from "@/components/navigation/product-navigation";
 import { MapProductNavMobileMenu } from "@/components/navigation/product-navigation-menu";
-import { Button } from "@/components/ui/button";
 import { SurfaceState } from "@/components/ui/surface-state";
 import { getCampusMapManifest, getCampusMapPlaces } from "@/features/map/api";
 import {

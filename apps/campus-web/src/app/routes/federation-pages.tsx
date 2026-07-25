@@ -1,9 +1,6 @@
+import { Badge, Button, Card, CardContent } from "@campus-agent/ui";
 import { Check, ShieldCheck, TriangleAlert } from "lucide-react";
 import { type ReactNode, useMemo } from "react";
-
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { type CampusOAuthContext, resolveCampusOAuthContext } from "@/platform/auth/oauth-context";
 
 export function FederationConsentPage() {
@@ -111,7 +108,7 @@ function OAuthClientPanel({ oauthContext }: { oauthContext: CampusOAuthContext }
 					<p className="font-semibold text-foreground text-sm">{oauthContext.client.displayName}</p>
 					<p className="mt-1 text-muted-foreground text-xs">{oauthContext.client.hostLabel}</p>
 				</div>
-				<Badge variant="outline">授权登录</Badge>
+				<Badge tone="neutral">授权登录</Badge>
 			</div>
 			<div className="mt-4 border-border border-t pt-4">
 				<p className="font-medium text-muted-foreground text-xs uppercase">

@@ -223,7 +223,7 @@ export function createAxiomClient(input: {
 					.sort()
 					.at(-1) ?? null;
 			return {
-				dataState: allUnavailable || anyUnavailable ? "UNAVAILABLE" : "FRESH",
+				dataState: allUnavailable ? "UNAVAILABLE" : anyUnavailable ? "PARTIAL" : "FRESH",
 				reason: allUnavailable
 					? "Axiom 不可用。"
 					: anyUnavailable

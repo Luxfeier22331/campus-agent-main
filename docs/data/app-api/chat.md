@@ -71,7 +71,7 @@ status: active
 ## 数据边界
 
 - `chat.*` 拥有会话、消息、轮次接收和产品反馈；
-- `runtime.request_observability_fact` 拥有 app-api 请求诊断摘要；
+- `runtime.request_observability_fact` 拥有 app-api 产品运行摘要；
 - `runtime.agent_*` 由 execution-control 拥有；
 - Langfuse 拥有受信任的模型调用轨迹；
 - Hindsight 拥有在线个人记忆提取和召回。

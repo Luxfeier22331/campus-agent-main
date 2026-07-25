@@ -95,13 +95,11 @@ func primaryAgentTransportTimeout(deadlineMS int) time.Duration {
 
 func primaryAgentProviderConfigPayload(config providerConfigSnapshot) map[string]any {
 	return map[string]any{
-		"profile_id": config.ProfileID,
-		"revision":   config.Revision,
-		"provider":   config.Provider,
-		"transport":  config.Transport,
-		"base_url":   config.BaseURL,
-		"model":      config.Model,
-		"api_key":    config.APIKey,
+		"provider":  config.Provider,
+		"transport": config.Transport,
+		"base_url":  config.BaseURL,
+		"model":     config.Model,
+		"api_key":   config.APIKey,
 	}
 }
 
@@ -399,9 +397,11 @@ func (response agentRuntimeResponse) toTemporalOutput() temporalruntime.ExecuteP
 		ToolResults:            toolResults,
 		ToolRuntimeFingerprint: cloneAnyMapFromMetadata(response.ToolRuntimeFingerprint),
 		Usage: temporalruntime.AgentUsageSummary{
+			ModelRequestCount: response.Usage.ModelRequestCount,
 			CachedInputTokens: response.Usage.CachedInputTokens,
 			InputTokens:       response.Usage.InputTokens,
 			OutputTokens:      response.Usage.OutputTokens,
+			UsageObserved:     response.Usage.UsageObserved,
 		},
 	}
 }

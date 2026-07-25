@@ -38,21 +38,18 @@ func TestQdrantKnowledgeSearchEmbeddingUsesActiveProviderSnapshot(t *testing.T) 
 	defer server.Close()
 	executor := qdrantKnowledgeSearchExecutor{
 		configResolver: staticProviderConfigResolver{
-			"rag_query_embedding": {
+			providerConfigKindEmbedding: {
 				APIKey:     "snapshot-embedding-key",
 				BaseURL:    server.URL,
 				Dimensions: 3,
+				Kind:       providerConfigKindEmbedding,
 				Model:      "snapshot-embedding-model",
-				ProfileID:  "provider_profile_rag_embedding",
 				Provider:   "openai-compatible",
-				Revision:   4,
-				Role:       "rag_query_embedding",
-				TimeoutMS:  30000,
 				Transport:  "embeddings",
 			},
 		},
 		embeddingHTTPClient: server.Client(),
-		embeddingRole:       providerConfigRoleRAGQueryEmbedding,
+		embeddingKind:       providerConfigKindEmbedding,
 		timeout:             time.Second,
 	}
 

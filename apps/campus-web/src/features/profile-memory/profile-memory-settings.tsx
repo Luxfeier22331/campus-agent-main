@@ -1,9 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CircleAlert, LoaderCircle, Pencil, Plus, Trash2 } from "lucide-react";
-import { type FormEvent, useState } from "react";
-
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
+	Alert,
+	AlertDescription,
 	AlertDialog,
 	AlertDialogAction,
 	AlertDialogCancel,
@@ -13,19 +10,21 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 	AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
+	AlertTitle,
+	Badge,
+	Button,
 	Dialog,
 	DialogContent,
 	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+	Input,
+	Label,
+} from "@campus-agent/ui";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { CircleAlert, LoaderCircle, Pencil, Plus, Trash2 } from "lucide-react";
+import { type FormEvent, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
 	createProfileMemoryItem,
@@ -65,13 +64,16 @@ export function ProfileMemorySettings() {
 	if (query.isPending) {
 		return <SettingsLoading />;
 	}
-	if (query.isError || !memory) {
+	if (query.isError && !memory) {
 		return (
 			<SettingsError
 				message={query.error instanceof Error ? query.error.message : "无法读取记忆设置。"}
 				retry={() => query.refetch()}
 			/>
 		);
+	}
+	if (!memory) {
+		return <SettingsLoading />;
 	}
 
 	return (
@@ -84,45 +86,59 @@ export function ProfileMemorySettings() {
 							管理校园助手长期保留的个人偏好与背景。
 						</p>
 					</div>
-					<button
-						aria-checked={memory.lifecycleState === "active"}
-						className={cn(
-							"relative h-7 w-12 shrink-0 rounded-full border transition-colors",
-							memory.lifecycleState === "active"
-								? "border-primary bg-primary"
-								: "border-border bg-muted",
-						)}
-						disabled={busy || lifecycle.isPending || memory.lifecycleState === "erasing"}
-						onClick={() => lifecycle.mutate(memory.lifecycleState !== "active")}
-						role="switch"
-						type="button"
-					>
-						<span
+					<div className="flex min-h-11 min-w-11 items-center justify-center">
+						<button
+							aria-checked={memory.lifecycleState === "active"}
 							className={cn(
-								"absolute top-0.5 size-5 rounded-full bg-white shadow transition-transform",
-								memory.lifecycleState === "active" ? "translate-x-5" : "translate-x-0.5",
+								"relative h-7 w-12 shrink-0 rounded-full border transition-colors",
+								memory.lifecycleState === "active"
+									? "border-primary bg-primary"
+									: "border-border bg-muted",
 							)}
-						/>
-						<span className="sr-only">启用个性化记忆</span>
-					</button>
+							disabled={busy || lifecycle.isPending || memory.lifecycleState === "erasing"}
+							onClick={() => lifecycle.mutate(memory.lifecycleState !== "active")}
+							role="switch"
+							type="button"
+						>
+							<span
+								className={cn(
+									"absolute top-0.5 size-5 rounded-full bg-white shadow transition-transform",
+									memory.lifecycleState === "active" ? "translate-x-5" : "translate-x-0.5",
+								)}
+							/>
+							<span className="sr-only">启用个性化记忆</span>
+						</button>
+					</div>
 				</div>
 				<div className="mt-4 flex items-center gap-2">
-					<Badge variant="secondary">{statusLabel(memory.lifecycleState, memory.syncStatus)}</Badge>
+					<Badge tone="neutral">{statusLabel(memory.lifecycleState, memory.syncStatus)}</Badge>
 					{busy ? (
 						<LoaderCircle aria-hidden className="size-4 animate-spin text-muted-foreground" />
 					) : null}
 				</div>
 			</header>
 
+			{query.isRefetchError ? (
+				<Alert className="mt-6" tone="warning">
+					<CircleAlert className="size-4" />
+					<AlertTitle>记忆设置刷新失败</AlertTitle>
+					<AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+						<span>当前显示最近一次成功读取的数据。</span>
+						<Button onClick={() => void query.refetch()} size="sm" variant="outline">
+							重试
+						</Button>
+					</AlertDescription>
+				</Alert>
+			) : null}
 			{mutationError ? (
-				<Alert className="mt-6" variant="destructive">
+				<Alert className="mt-6" tone="danger">
 					<CircleAlert className="size-4" />
 					<AlertTitle>操作未完成</AlertTitle>
 					<AlertDescription>{mutationError.message}</AlertDescription>
 				</Alert>
 			) : null}
 			{memory.syncStatus === "failed" ? (
-				<Alert className="mt-6" variant="destructive">
+				<Alert className="mt-6" tone="danger">
 					<CircleAlert className="size-4" />
 					<AlertTitle>记忆同步失败</AlertTitle>
 					<AlertDescription>
@@ -157,7 +173,7 @@ export function ProfileMemorySettings() {
 									<p className="mt-1 break-words text-sm text-muted-foreground">{item.value}</p>
 								</div>
 								{item.state === "synced" ? null : (
-									<Badge variant="outline">{itemStateLabel(item.state)}</Badge>
+									<Badge tone={itemStateTone(item.state)}>{itemStateLabel(item.state)}</Badge>
 								)}
 								<Button
 									aria-label="编辑记忆"
@@ -341,6 +357,13 @@ function itemStateLabel(state: string) {
 				? "失败"
 				: "已同步";
 }
+function itemStateTone(state: string): "danger" | "neutral" | "warning" {
+	return state === "failed"
+		? "danger"
+		: state === "saving" || state === "deleting"
+			? "warning"
+			: "neutral";
+}
 function SettingsLoading() {
 	return (
 		<div className="flex min-h-56 items-center justify-center">
@@ -351,7 +374,7 @@ function SettingsLoading() {
 }
 function SettingsError({ message, retry }: { message: string; retry: () => void }) {
 	return (
-		<Alert variant="destructive">
+		<Alert tone="danger">
 			<CircleAlert className="size-4" />
 			<AlertTitle>无法打开记忆设置</AlertTitle>
 			<AlertDescription className="flex flex-wrap items-center justify-between gap-3">

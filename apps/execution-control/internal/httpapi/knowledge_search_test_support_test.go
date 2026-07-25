@@ -24,8 +24,8 @@ func writeTestCACert(t *testing.T, server *httptest.Server) string {
 
 func defaultKnowledgeSearchEmbeddingResolverForTest() providerConfigResolver {
 	return staticProviderConfigResolver{
-		"rag_query_embedding": embeddingProviderConfigSnapshotForTest(
-			providerConfigRoleRAGQueryEmbedding,
+		providerConfigKindEmbedding: embeddingProviderConfigSnapshotForTest(
+			providerConfigKindEmbedding,
 			"https://provider.example/v1",
 			"Qwen3-Embedding-4B",
 			2560,

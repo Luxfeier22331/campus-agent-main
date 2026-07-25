@@ -1,8 +1,8 @@
+import { Button } from "@campus-agent/ui";
 import { MessagesSquare, SearchIcon } from "lucide-react";
 import type * as React from "react";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { ThreadList } from "@/components/assistant-ui/thread-list";
-import { Button } from "@/components/ui/button";
 import {
 	Sidebar,
 	SidebarContent,

@@ -23,5 +23,5 @@ status: active
 调用边界见 [product-runtime.md](../../architecture/system/product-runtime.md)；路由开放类别以
 `apps/app-api/src/app/route-exposure-inventory.ts` 及其合同测试为准。
 
-在线 Provider Config、采集控制和运维诊断不属于 app-api HTTP 合同，分别由
+在线模型配置、采集控制和运维诊断不属于 app-api HTTP 合同，分别由
 `execution-control`、`ingestion-control` 和 `ops-web` 拥有。

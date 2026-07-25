@@ -1,5 +1,5 @@
+import { Button } from "@campus-agent/ui";
 import { BookOpen, Home, MapIcon, Menu, Send, Utensils } from "lucide-react";
-
 import {
 	ProductNavActions,
 	type ProductNavigationLinkMode,
@@ -7,7 +7,6 @@ import {
 	ProductNavLink,
 	readBrowserPathname,
 } from "@/components/navigation/product-navigation";
-import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,

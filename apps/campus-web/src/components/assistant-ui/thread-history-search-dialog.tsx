@@ -1,5 +1,6 @@
 "use client";
 
+import { Dialog, DialogContent, DialogTitle } from "@campus-agent/ui";
 import { useNavigate } from "@tanstack/react-router";
 import { SearchIcon } from "lucide-react";
 import { LayoutGroup, motion } from "motion/react";
@@ -12,7 +13,6 @@ import {
 	CommandItem,
 	CommandList,
 } from "@/components/ui/command";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { CampusMotionProvider, contentSwap, stateSwap } from "@/components/ui/motion";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { searchConversations } from "@/features/conversation/api";

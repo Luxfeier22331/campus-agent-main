@@ -1,3 +1,4 @@
+import "./client-runtime";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { OpsWebApp } from "./app/ops-web-app";

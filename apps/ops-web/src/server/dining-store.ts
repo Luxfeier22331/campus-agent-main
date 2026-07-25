@@ -22,6 +22,7 @@ import {
 import type { DiningReviewStoreMethods } from "./dining-store-reviews.ts";
 import { createDiningReviewStore } from "./dining-store-reviews.ts";
 import { resolvePostgresTlsConfig } from "./postgres-tls.ts";
+import { logOpsError } from "./safe-logging.ts";
 
 export type { DiningCatalogCommand } from "./dining-store-publication.ts";
 export {
@@ -72,6 +73,8 @@ export interface DiningStoreEnv {
 }
 
 export class DiningStoreUnavailableError extends Error {
+	readonly code = "OPS_DINING_STORE_UNAVAILABLE";
+
 	constructor(message: string, options?: ErrorOptions) {
 		super(message, options);
 		this.name = "DiningStoreUnavailableError";
@@ -108,7 +111,7 @@ export function createUnavailableDiningStore(error: unknown): DiningStore {
 export function createDiningStoreFromEnv(env: DiningStoreEnv): DiningStore {
 	const databaseUrl = env.OPS_WEB_DINING_DATABASE_URL?.trim();
 	if (!databaseUrl) {
-		throw new Error("OPS_WEB_DINING_DATABASE_URL is required.");
+		throw new DiningStoreUnavailableError("Dining operations are not configured.");
 	}
 	const tls = resolvePostgresTlsConfig({
 		caCertPath: env.OPS_WEB_DINING_DATABASE_CA_CERT_PATH,
@@ -122,7 +125,9 @@ export function createDiningStoreFromEnv(env: DiningStoreEnv): DiningStore {
 		max: boundedInteger(env.OPS_WEB_DINING_DB_POOL_MAX, 3, 1, 8),
 		ssl: tls.ssl,
 	});
-	pool.on("error", (error) => console.error("[ops-web] dining postgres pool error", error));
+	pool.on("error", (error) =>
+		logOpsError("dining postgres pool error", error, { source: "dining" }),
+	);
 	return createDiningStore(pool);
 }
 

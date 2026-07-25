@@ -68,9 +68,11 @@ func primaryAgentResultPayload(
 			output.ToolRuntimeFingerprint,
 		),
 		"usage": map[string]any{
+			"model_request_count": output.Usage.ModelRequestCount,
 			"cached_input_tokens": output.Usage.CachedInputTokens,
 			"input_tokens":        output.Usage.InputTokens,
 			"output_tokens":       output.Usage.OutputTokens,
+			"usage_observed":      output.Usage.UsageObserved,
 		},
 	}, nil
 }

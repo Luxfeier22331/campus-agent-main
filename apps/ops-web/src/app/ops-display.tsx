@@ -1,13 +1,11 @@
+import { Badge, Button, Card, CardContent, cn } from "@campus-agent/ui";
 import { Check, CircleAlert, Clipboard, RefreshCw } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
+import type { OpsHealthStatus, OpsRequestSummary } from "../shared/ops-contract";
 import { formatTimestamp } from "./format";
 import { OpsApiError } from "./ops-api-client";
 import { formatStatusLabel } from "./ops-view-helpers";
-import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
-import { Card, CardContent } from "./ui/card";
-import { cn } from "./ui/cn";
 
 export function PageHeader({
 	actions,
@@ -15,26 +13,36 @@ export function PageHeader({
 	title,
 }: {
 	actions?: ReactNode;
-	description: string;
+	description?: string;
 	title: string;
 }) {
 	return (
-		<div className="mb-6 flex flex-col gap-3 border-slate-200 border-b pb-5 lg:flex-row lg:items-end lg:justify-between">
+		<div className="mb-6 flex flex-col gap-3 border-border border-b pb-5 lg:flex-row lg:items-end lg:justify-between">
 			<div className="space-y-1">
-				<h1 className="font-semibold text-2xl text-slate-950">{title}</h1>
-				<p className="max-w-3xl text-slate-600 text-sm">{description}</p>
+				<h1 className="font-semibold text-2xl text-foreground">{title}</h1>
+				{description ? (
+					<p className="max-w-3xl text-muted-foreground text-sm">{description}</p>
+				) : null}
 			</div>
 			{actions}
 		</div>
 	);
 }
 
-export function PageShell({ children, title }: { children: ReactNode; title: string }) {
+export function PageShell({
+	children,
+	description,
+	title,
+}: {
+	children: ReactNode;
+	description?: string;
+	title: string;
+}) {
 	return (
 		<section>
-			<PageHeader description="查看当前运行信息。" title={title} />
+			<PageHeader description={description} title={title} />
 			<Card>
-				<CardContent aria-live="polite" className="p-6 text-slate-600 text-sm" role="status">
+				<CardContent aria-live="polite" className="p-6 text-muted-foreground text-sm" role="status">
 					{children}
 				</CardContent>
 			</Card>
@@ -54,7 +62,7 @@ export function ErrorState({
 	const detail = describeError(error);
 	return (
 		<div
-			className="grid gap-3 rounded-md border border-red-200 bg-red-50 p-4 text-red-900"
+			className="grid gap-3 rounded-md border border-danger/20 bg-danger-subtle p-4 text-danger"
 			role="alert"
 		>
 			<div className="grid gap-1">
@@ -77,7 +85,10 @@ export function ErrorState({
 export function InlineError({ error, title }: { error: unknown; title: string }) {
 	const detail = describeError(error);
 	return (
-		<div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-red-900" role="alert">
+		<div
+			className="rounded-md border border-danger/20 bg-danger-subtle px-3 py-2 text-danger"
+			role="alert"
+		>
 			<p className="font-medium">{title}</p>
 			<p className="mt-1 text-xs">{detail.message}</p>
 			<TechnicalErrorDetails className="mt-2" detail={detail} />
@@ -99,12 +110,12 @@ export function StaleDataWarning({
 	const detail = describeError(error);
 	return (
 		<div
-			className="mb-4 flex flex-col gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-950 sm:flex-row sm:items-center sm:justify-between"
+			className="mb-4 flex flex-col gap-3 rounded-md border border-warning/20 bg-warning-subtle px-3 py-2 text-warning sm:flex-row sm:items-center sm:justify-between"
 			role="alert"
 		>
 			<div className="grid gap-1 text-sm">
 				<p className="font-medium">{title}</p>
-				<p className="text-amber-800 text-xs">
+				<p className="text-warning text-xs">
 					仍显示最后一次成功数据（{formatTimestamp(new Date(lastSuccessfulAt).toISOString())}）。
 					数据可能已经过期。{detail.message}
 				</p>
@@ -128,13 +139,13 @@ function TechnicalErrorDetails({
 	return (
 		<details className={cn("text-xs", className)}>
 			<summary className="w-fit cursor-pointer font-medium text-current">技术信息</summary>
-			<div className="mt-2 flex flex-wrap gap-2">
+			<div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs">
 				<Badge tone="danger">{detail.status}</Badge>
-				<Badge tone="muted">{detail.code}</Badge>
-				{detail.reasonCode ? <Badge tone="warning">{detail.reasonCode}</Badge> : null}
+				<span>{detail.code}</span>
+				{detail.reasonCode ? <span className="text-warning">原因：{detail.reasonCode}</span> : null}
 			</div>
 			{detail.details ? (
-				<pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap break-words rounded-md border border-current/20 bg-white p-2 font-mono text-current text-xs">
+				<pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap break-words rounded-md border border-current/20 bg-background p-2 font-mono text-current text-xs">
 					{detail.details}
 				</pre>
 			) : null}
@@ -144,9 +155,9 @@ function TechnicalErrorDetails({
 
 export function KeyValue({ label, value }: { label: string; value: ReactNode }) {
 	return (
-		<div className="grid min-w-0 gap-1 border-slate-100 border-b py-2 last:border-b-0">
-			<span className="font-medium text-slate-500 text-xs">{label}</span>
-			<span className="min-w-0 break-words text-slate-950">{value}</span>
+		<div className="grid min-w-0 gap-1 border-border border-b py-2 last:border-b-0">
+			<span className="font-medium text-muted-foreground text-xs">{label}</span>
+			<span className="min-w-0 break-words text-foreground">{value}</span>
 		</div>
 	);
 }
@@ -162,7 +173,7 @@ export function CopyableKeyValue({
 }) {
 	return (
 		<div className="grid min-w-0 gap-1 px-1 py-2">
-			<span className="font-medium text-slate-500 text-xs">{label}</span>
+			<span className="font-medium text-muted-foreground text-xs">{label}</span>
 			<CopyableValue contextLabel={contextLabel} label={label} value={value} />
 		</div>
 	);
@@ -187,12 +198,12 @@ export function CopyableValue({
 
 	return (
 		<div className={compact ? "grid min-w-0 gap-1" : "grid min-w-0 gap-2"}>
-			{compact ? <span className="font-medium text-slate-500 text-xs">{label}</span> : null}
+			{compact ? <span className="font-medium text-muted-foreground text-xs">{label}</span> : null}
 			<div className="flex min-w-0 items-center justify-between gap-2">
 				<span
 					className={cn(
 						"min-w-0 truncate font-mono text-xs",
-						compact ? "text-slate-600" : "text-slate-950",
+						compact ? "text-muted-foreground" : "text-foreground",
 					)}
 					title={value ?? undefined}
 				>
@@ -202,8 +213,8 @@ export function CopyableValue({
 					aria-label={copyButtonLabel(label, contextLabel)}
 					className={cn(
 						"size-11 shrink-0 p-0",
-						copyStatus === "failed" && "text-red-700",
-						copyStatus === "copied" && "text-emerald-700",
+						copyStatus === "failed" && "text-danger",
+						copyStatus === "copied" && "text-success",
 					)}
 					data-copy-status={copyStatus}
 					disabled={!canCopy}
@@ -250,8 +261,8 @@ export function CopyIconButton({
 				aria-label={copyButtonLabel(label, contextLabel)}
 				className={cn(
 					"size-11 p-0",
-					copyStatus === "failed" && "text-red-700",
-					copyStatus === "copied" && "text-emerald-700",
+					copyStatus === "failed" && "text-danger",
+					copyStatus === "copied" && "text-success",
 				)}
 				data-copy-status={copyStatus}
 				onClick={async () => {
@@ -303,14 +314,14 @@ export function MetricTile({
 	return (
 		<div
 			className={cn(
-				"grid min-w-0 content-center gap-1 rounded-md border border-slate-100 bg-white px-3 py-2.5",
+				"grid min-w-0 content-center gap-1 rounded-md border border-border bg-background px-3 py-2.5",
 				className,
 			)}
 		>
-			<span className="font-medium text-slate-500 text-xs">{label}</span>
+			<span className="font-medium text-muted-foreground text-xs">{label}</span>
 			<span
 				className={cn(
-					"min-w-0 break-words font-semibold text-slate-950 tabular-nums",
+					"min-w-0 break-words font-semibold text-foreground tabular-nums",
 					valueClassName,
 				)}
 			>
@@ -320,17 +331,24 @@ export function MetricTile({
 	);
 }
 
-export function StatusBadge({ status }: { status: string }) {
-	const tone =
-		status === "COMPLETED" || status === "HEALTHY" || status === "READY"
-			? "success"
-			: status === "FAILED" || status === "BLOCKED" || status === "OUTAGE"
-				? "danger"
-				: status === "CANCELLED"
-					? "muted"
-					: "warning";
+type DisplayStatus = OpsHealthStatus | OpsRequestSummary["status"];
+
+const STATUS_TONES = {
+	ACTION_REQUIRED: "warning",
+	CANCELLED: "neutral",
+	COMPLETED: "success",
+	DEGRADED: "warning",
+	FAILED: "danger",
+	HEALTHY: "success",
+	OUTAGE: "danger",
+	PENDING: "neutral",
+	RUNNING: "info",
+	UNKNOWN: "neutral",
+} as const satisfies Record<DisplayStatus, React.ComponentProps<typeof Badge>["tone"]>;
+
+export function StatusBadge({ status }: { status: DisplayStatus }) {
 	return (
-		<Badge tone={tone}>
+		<Badge tone={STATUS_TONES[status]}>
 			<span title={formatStatusLabel(status) === status ? undefined : status}>
 				{formatStatusLabel(status)}
 			</span>
@@ -340,11 +358,6 @@ export function StatusBadge({ status }: { status: string }) {
 
 export function formatIssueSeverity(severity: "CRITICAL" | "INFO" | "WARNING") {
 	return { CRITICAL: "严重", INFO: "提示", WARNING: "警告" }[severity];
-}
-
-export function BudgetBadge({ state }: { state: string }) {
-	const tone = state === "BREACH" ? "danger" : state === "WARN" ? "warning" : "success";
-	return <Badge tone={tone}>{formatStatusLabel(state)}</Badge>;
 }
 
 function describeError(error: unknown) {

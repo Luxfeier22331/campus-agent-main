@@ -48,8 +48,7 @@ describe("ops-web PostgreSQL grants", () => {
 		management = await connect(postgres.managementConnectionString);
 		await management.query(`
 			grant usage on schema execution_config to ops_web;
-			grant select on execution_config.profiles to ops_web;
-			grant select (connection_id) on execution_config.connection_revisions to ops_web;
+			grant select on execution_config.model_settings to ops_web;
 		`);
 		applyResult = await applyOpsWebDatabaseGrants(databaseEnv);
 		verifyResult = await verifyOpsWebDatabase(databaseEnv);
@@ -75,9 +74,9 @@ describe("ops-web PostgreSQL grants", () => {
 		const runtime = requiredClient(opsWeb, "ops_web");
 		await expect(
 			runtime.query(
-				`select completed_at, conversation_id, created_at, error_code,
-					principal_snapshot_json, request_id, requested_tool, run_id, selected_tool,
-					status, trace_id, updated_at, user_message_id
+				`select admission_status, assistant_message_id, completed_at, conversation_id,
+					created_at, error_code, request_id, run_id, status, surface, trace_id,
+					turn_sequence, updated_at, user_message_id, workflow_id
 				 from chat.turn_dispatches limit 0`,
 			),
 		).resolves.toBeDefined();
@@ -86,19 +85,22 @@ describe("ops-web PostgreSQL grants", () => {
 		).resolves.toBeDefined();
 		await expect(
 			runtime.query(
-				`select completed_at, fail_close_reason, requested_tool, run_id, selected_tool,
+				`select completed_at, fail_close_reason, run_id, runtime_versions_json,
 					status, terminal_reason, trace_id, updated_at
 				 from runtime.agent_runs limit 0`,
 			),
 		).resolves.toBeDefined();
 		await expect(
 			runtime.query(
-				`select acl_anomaly_code, acl_decision, completed_at, duration_ms, fail_closed,
-					measured_at, model_name, model_provider, prompt_id, prompt_version,
-					projection_lag_ms, refusal_class, request_id, resolved_targets_json,
-					semantic_outcome, stage_timing_json, supporting_sources_json, template_sha256,
-					trace_available, updated_at, workflow_trace_summary_json
-				 from runtime.request_observability_fact limit 0`,
+				`select run_id, started_at, status, step_kind, tool, updated_at
+				 from runtime.agent_run_steps limit 0`,
+			),
+		).resolves.toBeDefined();
+		await expect(
+			runtime.query(
+				`select cached_input_tokens, input_tokens, output_tokens, run_id, step_id,
+					usage_observed
+				 from runtime.agent_step_attempts limit 0`,
 			),
 		).resolves.toBeDefined();
 
@@ -107,7 +109,8 @@ describe("ops-web PostgreSQL grants", () => {
 			"select owner_user_id from chat.turn_dispatches limit 0",
 			"select * from chat.messages limit 0",
 			"select * from runtime.agent_runs limit 0",
-			"select * from runtime.request_observability_fact limit 0",
+			"select * from runtime.agent_run_steps limit 0",
+			"select * from runtime.agent_step_attempts limit 0",
 		]) {
 			expect(await postgresErrorCode(runtime.query(query))).toBe("42501");
 		}
@@ -119,26 +122,24 @@ describe("ops-web PostgreSQL grants", () => {
 			"update chat.turn_dispatches set status = status where false",
 			"delete from chat.messages where false",
 			"update runtime.agent_runs set status = status where false",
-			"delete from runtime.request_observability_fact where false",
+			"update runtime.agent_run_steps set status = status where false",
+			"delete from runtime.agent_step_attempts where false",
 		]) {
 			expect(await postgresErrorCode(runtime.query(query))).toBe("42501");
 		}
 	});
 
-	it("revokes historical direct Provider Config access", async () => {
+	it("revokes direct Provider Config access", async () => {
 		const privilege = await management.query<{
-			canReadConnectionID: boolean;
-			canReadProfiles: boolean;
+			canReadModelSettings: boolean;
 			canUseSchema: boolean;
 		}>(`select
 			has_schema_privilege('ops_web', 'execution_config', 'USAGE') as "canUseSchema",
-			has_table_privilege('ops_web', 'execution_config.profiles', 'SELECT') as "canReadProfiles",
-			has_column_privilege(
-				'ops_web', 'execution_config.connection_revisions', 'connection_id', 'SELECT'
-			) as "canReadConnectionID"`);
+			has_table_privilege(
+				'ops_web', 'execution_config.model_settings', 'SELECT'
+			) as "canReadModelSettings"`);
 		expect(privilege.rows[0]).toEqual({
-			canReadConnectionID: false,
-			canReadProfiles: false,
+			canReadModelSettings: false,
 			canUseSchema: false,
 		});
 	});

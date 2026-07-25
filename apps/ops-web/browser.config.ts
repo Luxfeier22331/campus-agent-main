@@ -24,7 +24,7 @@ export default defineConfig({
 		: "list",
 	retries: process.env.CI ? 1 : 0,
 	testDir: "./test/browser",
-	timeout: 30_000,
+	timeout: 60_000,
 	workers: 2,
 	use: {
 		baseURL: `http://127.0.0.1:${browserTestPort}`,

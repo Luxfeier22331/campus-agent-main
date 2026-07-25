@@ -1,10 +1,9 @@
+import { Badge, Button } from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
 import { LoaderCircle } from "lucide-react";
 import { lazy, memo, Suspense, useLayoutEffect, useMemo, useRef } from "react";
 import type { DiningFloorResponse, DiningWindowProjection } from "@/features/dining/model";
 import { diningFloorplanAssetQueryOptions } from "@/features/dining/queries";
-import { Badge } from "../ui/badge";
-import { Button } from "../ui/button";
 
 interface InteractiveFloorplanProps {
 	floor: DiningFloorResponse;
@@ -197,7 +196,7 @@ function DiningFloorplanSurface({
 	const placeholderBadge = isPlaceholder ? (
 		<Badge
 			className="absolute bottom-3 left-3 z-20 bg-white/95 text-muted-foreground"
-			variant="secondary"
+			tone="neutral"
 		>
 			地图待补充
 		</Badge>

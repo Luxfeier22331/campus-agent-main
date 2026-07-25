@@ -39,7 +39,7 @@ status: active
 ### 部署环境
 
 Kubernetes、Cloudflare 和外部平台配置由环境仓及所属密钥存储交付。ConfigMap、Secret、平台变量
-和在线 Provider Config 各自服务明确消费者，不能互相充当同步源。
+和在线模型配置各自服务明确消费者，不能互相充当同步源。
 
 ## 读取与覆盖
 

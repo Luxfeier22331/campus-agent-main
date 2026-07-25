@@ -11,8 +11,21 @@ export default defineConfig({
 		},
 	},
 	plugins: [tailwindcss(), react()],
+	server: {
+		proxy: {
+			"/api": {
+				target: "http://127.0.0.1:5178",
+				changeOrigin: false,
+			},
+		},
+	},
 	ssr: {
-		noExternal: ["@campus-agent/dining", "fast-xml-parser"],
+		noExternal: [
+			"@campus-agent/dining",
+			"@campus-agent/langfuse-identity",
+			"@campus-agent/ui",
+			"fast-xml-parser",
+		],
 	},
 });
 

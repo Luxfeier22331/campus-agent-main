@@ -1,8 +1,8 @@
+import { Button } from "@campus-agent/ui";
 import { Minus, Plus, RotateCcw } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import { TransformComponent, TransformWrapper } from "react-zoom-pan-pinch";
 import { cn } from "@/lib/utils";
-import { Button } from "../ui/button";
 
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 const BUTTON_ZOOM_STEP = 0.16;

@@ -7,13 +7,20 @@ import {
 	useAui,
 	useAuiState,
 } from "@assistant-ui/react";
+import {
+	Dialog,
+	DialogContent,
+	DialogTitle,
+	DialogTrigger,
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@campus-agent/ui";
 import { FileText, PlusIcon, XIcon } from "lucide-react";
 import { type FC, type PropsWithChildren, useEffect, useState } from "react";
 import { useShallow } from "zustand/shallow";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 const useFileSrc = (file: File | undefined) => {
@@ -139,6 +146,7 @@ const AttachmentUI: FC = () => {
 			<AttachmentPrimitive.Root
 				className={cn(
 					"aui-attachment-root relative",
+					isComposer && "flex items-center gap-2.5 pe-2.5",
 					isImage && !isComposer && "aui-attachment-root-message only:*:first:size-24",
 				)}
 			>
@@ -166,7 +174,7 @@ const AttachmentRemove: FC = () => (
 	<AttachmentPrimitive.Remove asChild>
 		<TooltipIconButton
 			tooltip="移除附件"
-			className="aui-attachment-tile-remove text-muted-foreground hover:[&_svg]:text-destructive absolute end-1.5 top-1.5 size-3.5 rounded-full bg-white opacity-100 shadow-sm hover:bg-white! [&_svg]:text-black"
+			className="aui-attachment-tile-remove text-muted-foreground hover:[&_svg]:text-destructive size-6 shrink-0 rounded-full bg-white opacity-100 shadow-sm hover:bg-white! [&_svg]:text-black"
 			side="top"
 		>
 			<XIcon className="aui-attachment-remove-icon size-3" />
@@ -193,7 +201,7 @@ export const ComposerAddAttachment: FC = () => (
 			side="bottom"
 			variant="ghost"
 			size="icon"
-			className="aui-composer-add-attachment hover:bg-muted-foreground/15 size-7 rounded-full p-1 text-xs font-semibold"
+			className="aui-composer-add-attachment hover:bg-muted-foreground/15 size-7 rounded-full p-1 text-xs font-semibold after:-inset-x-2 after:-inset-y-2"
 			aria-label="添加附件"
 		>
 			<PlusIcon className="aui-attachment-add-icon size-4.5 stroke-[1.5px]" />

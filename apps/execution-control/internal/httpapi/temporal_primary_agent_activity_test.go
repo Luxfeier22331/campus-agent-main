@@ -52,9 +52,11 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 			"tool_results":    []any{},
 			"terminal_reason": "answer_completed",
 			"usage": map[string]any{
+				"model_request_count": 2,
 				"input_tokens":        12,
 				"output_tokens":       8,
 				"cached_input_tokens": 0,
+				"usage_observed":      true,
 			},
 		})
 	}))
@@ -91,8 +93,7 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 	if !ok {
 		t.Fatalf("agent runtime request missing provider_config: %#v", seenBody)
 	}
-	if providerConfig["profile_id"] != "provider_profile_primary" ||
-		providerConfig["api_key"] != "sk-primary-agent" ||
+	if providerConfig["api_key"] != "sk-primary-agent" ||
 		providerConfig["model"] != "gpt-test" {
 		t.Fatalf("provider_config = %#v", providerConfig)
 	}
@@ -168,7 +169,11 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 	}
 	if len(attempts) != 1 ||
 		attempts[0].ModelProvider != "openai" ||
-		attempts[0].ModelName != "gpt-test" {
+		attempts[0].ModelName != "gpt-test" ||
+		attempts[0].ModelRequestCount != 2 ||
+		attempts[0].InputTokens != 12 ||
+		attempts[0].OutputTokens != 8 ||
+		!attempts[0].UsageObserved {
 		t.Fatalf("projected attempts = %#v, want primary agent model", attempts)
 	}
 	events, err := store.ListRunEvents(context.Background(), "run-primary-agent-001")
@@ -527,7 +532,7 @@ func TestExecutePrimaryAgentActivityFailsClosedWhenProviderProfileMissing(t *tes
 		ragHandoffForDurableWorkerTest("hi"),
 	)
 	agentRuntime := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		t.Fatal("agent runtime must not be called without active primary_agent provider profile")
+		t.Fatal("agent runtime must not be called without an active llm model setting")
 	}))
 	defer agentRuntime.Close()
 	server := NewServer(config.Config{
@@ -544,9 +549,9 @@ func TestExecutePrimaryAgentActivityFailsClosedWhenProviderProfileMissing(t *tes
 		TraceID: "trace-executor-001",
 	})
 	if err == nil {
-		t.Fatal("expected missing provider profile to fail")
+		t.Fatal("expected missing llm model setting to fail")
 	}
-	assertTemporalFailureSanitized(t, err, "provider_profile_missing", false)
+	assertTemporalFailureSanitized(t, err, "model_setting_missing", false)
 	run, getErr := store.GetRun(context.Background(), "run-primary-agent-provider-missing")
 	if getErr != nil {
 		t.Fatalf("get run: %v", getErr)
@@ -558,7 +563,7 @@ func TestExecutePrimaryAgentActivityFailsClosedWhenProviderProfileMissing(t *tes
 	if listErr != nil {
 		t.Fatalf("list steps: %v", listErr)
 	}
-	if len(steps) != 1 || steps[0].SanitizedPayload["failure_kind"] != "provider_profile_missing" {
+	if len(steps) != 1 || steps[0].SanitizedPayload["failure_kind"] != "model_setting_missing" {
 		t.Fatalf("steps = %#v", steps)
 	}
 }

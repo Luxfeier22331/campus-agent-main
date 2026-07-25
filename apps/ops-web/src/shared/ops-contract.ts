@@ -7,54 +7,121 @@ const HttpsUrlSchema = z
 	.refine((value) => new URL(value).protocol === "https:", "external links must use HTTPS");
 
 export const OpsOverviewWindowSchema = z.enum(["15m", "1h", "6h", "24h"]);
-export const OpsRequestWindowSchema = z.enum(["1h", "6h", "24h", "7d"]);
+export const OpsRequestWindowSchema = z.enum(["15m", "1h", "6h", "24h", "7d"]);
 export const OpsHealthStatusSchema = z.enum(["HEALTHY", "DEGRADED", "OUTAGE", "UNKNOWN"]);
-export const OpsDataStateSchema = z.enum(["FRESH", "STALE", "NO_DATA", "UNAVAILABLE"]);
+export const OpsDataStateSchema = z.enum(["FRESH", "PARTIAL", "STALE", "NO_DATA", "UNAVAILABLE"]);
 
-export const ProviderRoleSchema = z.enum(["primary_agent", "rag_query_embedding", "rag_reranker"]);
+export const ModelSettingKindSchema = z.enum(["llm", "embedding"]);
+export type ModelSettingKind = z.infer<typeof ModelSettingKindSchema>;
 
-export const ProviderConfigStatusSchema = z.object({
-	activeRevision: z.number().int().nonnegative(),
-	connections: z.array(
-		z.object({
-			baseUrl: z.string().url(),
-			connectionId: z.string().min(1),
-			featureConfig: z.record(z.string(), z.unknown()),
-			features: z.array(z.enum(["prompt", "embedding", "rerank"])),
-			provider: z.string().min(1),
-			revision: z.number().int().positive(),
-			secretFingerprint: z.string().min(1),
-			secretLast4: z.string().max(4),
-		}),
-	),
-	profiles: z.array(
-		z.object({
-			connectionId: z.string().min(1),
-			connectionRevision: z.number().int().positive(),
-			dimensions: z.number().int().positive().optional(),
-			kind: z.enum(["prompt", "embedding", "rerank"]),
-			model: z.string().min(1),
-			profileId: z.string().min(1),
-			role: ProviderRoleSchema,
-			timeoutMs: z.number().int().positive(),
-			transport: z.string().min(1),
-			validationStatus: z.enum(["unvalidated", "passed", "failed"]),
-		}),
-	),
-	roles: z.array(
-		z.object({
-			configured: z.boolean(),
-			model: z.string().optional(),
-			profileId: z.string().optional(),
-			provider: z.string().optional(),
-			role: ProviderRoleSchema,
-			transport: z.string().optional(),
-		}),
-	),
-	sampledAt: IsoDateTimeSchema,
+export const ModelSettingLatestValidationSchema = z.object({
+	errorCode: z.string().min(1).optional(),
+	message: z.string(),
+	observedDimensions: z.number().int().positive().optional(),
+	status: z.enum(["passed", "failed"]),
+	validatedAt: IsoDateTimeSchema,
+	validatedBy: z.string().min(1),
+});
+export type ModelSettingLatestValidation = z.infer<typeof ModelSettingLatestValidationSchema>;
+
+export const ModelSettingValidationResponseSchema = z.object({
+	kind: ModelSettingKindSchema,
+	validation: ModelSettingLatestValidationSchema,
+});
+export type ModelSettingValidationResponse = z.infer<typeof ModelSettingValidationResponseSchema>;
+
+export const ExecutionModelSettingSchema = z.object({
+	baseUrl: z.string().url(),
+	credentialConfigured: z.boolean(),
+	credentialLast4: z.string().max(4).optional(),
+	dimensions: z.number().int().positive().optional(),
+	kind: ModelSettingKindSchema,
+	latestValidation: ModelSettingLatestValidationSchema.nullable(),
+	model: z.string().min(1),
+	provider: z.enum(["openai", "openai-compatible"]),
+	transport: z.enum(["responses", "chat_completions", "embeddings"]),
+	updatedAt: IsoDateTimeSchema,
+	updatedBy: z.string().min(1),
 });
 
-export type ProviderConfigStatus = z.infer<typeof ProviderConfigStatusSchema>;
+export const ExecutionModelSettingsStatusSchema = z.object({
+	etag: z.string(),
+	sampledAt: IsoDateTimeSchema,
+	settings: z.object({
+		embedding: ExecutionModelSettingSchema.nullable(),
+		llm: ExecutionModelSettingSchema.nullable(),
+	}),
+});
+
+export type ExecutionModelSettingsStatus = z.infer<typeof ExecutionModelSettingsStatusSchema>;
+
+export const ModelSettingUpdateSchema = z
+	.object({
+		apiKey: z
+			.string()
+			.max(16 * 1024)
+			.optional(),
+		baseUrl: z.string().url(),
+		model: z.string().trim().min(1).max(256),
+		provider: z.enum(["openai", "openai-compatible"]),
+		transport: z.enum(["responses", "chat_completions", "embeddings"]),
+	})
+	.strict();
+export type ModelSettingUpdate = z.infer<typeof ModelSettingUpdateSchema>;
+
+export const HindsightModelSettingsUpdateSchema = z
+	.object({
+		embedding: z.object({
+			apiKey: z
+				.string()
+				.max(16 * 1024)
+				.optional(),
+			baseUrl: z.string().url(),
+		}),
+		llm: z.object({
+			apiKey: z
+				.string()
+				.max(16 * 1024)
+				.optional(),
+			baseUrl: z.string().url(),
+			model: z.string().trim().min(1).max(256),
+		}),
+	})
+	.strict();
+export type HindsightModelSettingsUpdate = z.infer<typeof HindsightModelSettingsUpdateSchema>;
+
+const HindsightCredentialStatusSchema = z.object({
+	baseUrl: z.string().url().nullable(),
+	credentialConfigured: z.boolean(),
+	credentialLast4: z.string().max(4).nullable(),
+});
+
+export const HindsightModelSettingsStatusSchema = z.object({
+	applyState: z.enum(["blocked", "pending", "applying", "applied", "failed"]),
+	configState: z.enum(["unconfigured", "drifted", "configured"]),
+	etag: z.string().min(1),
+	embedding: HindsightCredentialStatusSchema.extend({
+		dimensions: z.literal(2560),
+		model: z.literal("Qwen3-Embedding-4B"),
+	}),
+	llm: HindsightCredentialStatusSchema.extend({
+		model: z.string().nullable(),
+		provider: z.literal("openai"),
+	}),
+	failure: z
+		.object({
+			message: z.string().min(1).max(512).nullable(),
+			reasonCode: z.enum(["HINDSIGHT_REPLICA_FAILURE", "HINDSIGHT_ROLLOUT_STALLED"]),
+		})
+		.nullable(),
+	rerank: z.object({ provider: z.literal("rrf") }),
+	runtimeState: z.enum(["running", "scaled_down"]),
+	sampledAt: IsoDateTimeSchema,
+	updatedAt: IsoDateTimeSchema.nullable(),
+	updatedBy: z.string().min(1).nullable(),
+});
+
+export type HindsightModelSettingsStatus = z.infer<typeof HindsightModelSettingsStatusSchema>;
 
 export const OpsInternalPortalCredentialStatusSchema = z.object({
 	configured: z.boolean(),
@@ -229,15 +296,54 @@ export const OpsFileReleaseBatchStartSchema = z.object({
 	),
 });
 
-const OpsStatusSchema = z.enum(["COMPLETED", "FAILED", "CANCELLED", "RUNNING", "PENDING"]);
-const OpsStepStatusSchema = z.enum([
+const OpsStatusSchema = z.enum([
 	"COMPLETED",
 	"FAILED",
 	"CANCELLED",
 	"RUNNING",
 	"PENDING",
-	"UNKNOWN",
+	"ACTION_REQUIRED",
 ]);
+const OpsRequestLifecyclePhaseSchema = z.enum([
+	"PREPARING",
+	"WAITING_ADMISSION",
+	"QUEUED",
+	"RUNNING",
+	"STREAMING",
+	"FINALIZING",
+	"FINISHED",
+]);
+const OpsProductActionStatusSchema = z.enum(["COMPLETED", "FAILED", "RUNNING", "PENDING"]);
+
+const AgentUsageStateSchema = z.enum([
+	"NOT_STARTED",
+	"IN_PROGRESS",
+	"COMPLETE",
+	"PARTIAL",
+	"UNAVAILABLE",
+]);
+
+const OpsProductCapabilitySchema = z.enum(["CAMPUS_KNOWLEDGE", "TRANSPORT_SCHEDULE", "OTHER"]);
+
+const OpsProductActionSchema = z.object({
+	capability: OpsProductCapabilitySchema,
+	status: OpsProductActionStatusSchema,
+});
+
+const OpsJourneyEntrySchema = z.enum(["CAMPUS_WEB", "OTHER"]);
+const OpsAssistantMessageKindSchema = z.enum(["answer", "clarification", "no_answer", "error"]);
+const OpsJourneyResultSchema = z.discriminatedUnion("state", [
+	z.object({ kind: z.null(), state: z.literal("PENDING") }),
+	z.object({ kind: OpsAssistantMessageKindSchema, state: z.literal("WRITTEN") }),
+	z.object({ kind: z.null(), state: z.literal("MISSING") }),
+]);
+
+const OpsRequestJourneySchema = z.object({
+	actions: z.array(OpsProductActionSchema),
+	actionsDataState: OpsDataStateSchema,
+	entry: OpsJourneyEntrySchema,
+	result: OpsJourneyResultSchema,
+});
 
 const ExternalLinkSchema = z.object({
 	href: HttpsUrlSchema.nullable(),
@@ -248,7 +354,6 @@ const ExternalLinkSchema = z.object({
 
 export const OpsCorrelationIdsSchema = z.object({
 	conversationId: z.string().min(1),
-	missingCorrelationFields: z.array(z.string().min(1)),
 	requestId: z.string().min(1),
 	runId: z.string().min(1).nullable(),
 	traceId: z.string().min(1),
@@ -256,30 +361,34 @@ export const OpsCorrelationIdsSchema = z.object({
 });
 
 export const OpsRequestSummarySchema = z.object({
+	attentionReason: z.enum(["RESULT_MISSING", "REQUEST_FAILED", "WAITING_USER"]).nullable(),
 	completedAt: IsoDateTimeSchema.nullable(),
-	conversationId: z.string().min(1),
-	diagnostics: z.array(z.string().min(1)),
 	durationMs: z.number().int().nonnegative().nullable(),
-	errorCode: z.string().min(1).nullable(),
-	principalType: z.string().min(1),
-	projectedAt: IsoDateTimeSchema,
-	questionPreview: z.string().min(1),
+	journey: OpsRequestJourneySchema,
+	lifecyclePhase: OpsRequestLifecyclePhaseSchema,
+	question: z.object({
+		preview: z.string().min(1),
+		truncated: z.boolean(),
+	}),
 	requestId: z.string().min(1),
-	requestedTool: z.string().min(1).nullable(),
-	runId: z.string().min(1).nullable(),
-	selectedTool: z.string().min(1).nullable(),
 	startedAt: IsoDateTimeSchema,
 	status: OpsStatusSchema,
-	traceId: z.string().min(1),
-	workflowId: z.string().min(1).nullable(),
+	usage: z.object({
+		state: AgentUsageStateSchema,
+		totalTokens: z.number().int().nonnegative().nullable(),
+	}),
 });
+
+export const OpsRequestListViewSchema = z.enum(["recent", "attention"]);
 
 export const OpsRequestListResponseSchema = z.object({
 	data: z.array(OpsRequestSummarySchema),
+	generatedAt: IsoDateTimeSchema,
 	page: z.object({
 		nextCursor: z.string().min(1).nullable(),
 	}),
-	summary: z.object({
+	statusCounts: z.object({
+		actionRequired: z.number().int().nonnegative(),
 		cancelled: z.number().int().nonnegative(),
 		completed: z.number().int().nonnegative(),
 		failed: z.number().int().nonnegative(),
@@ -287,73 +396,70 @@ export const OpsRequestListResponseSchema = z.object({
 		running: z.number().int().nonnegative(),
 		total: z.number().int().nonnegative(),
 	}),
+	view: OpsRequestListViewSchema,
 	window: OpsRequestWindowSchema,
 });
 
-const StageTimingSchema = z.record(z.string().min(1), z.number().nonnegative());
-
-const StepTrajectoryItemSchema = z.object({
-	outcome: z.string().min(1).nullable(),
-	parentStepId: z.string().min(1).nullable(),
-	resultStatus: z.string().min(1).nullable(),
-	retryCount: z.number().int().nonnegative(),
-	spanKind: z.string().min(1),
-	status: OpsStepStatusSchema,
-	stepId: z.string().min(1),
-	toolName: z.string().min(1).nullable(),
+const OpsProductSourceSchema = z.object({
+	collectionLabel: z.string(),
+	pageLabel: z.string(),
+	primaryAction: z.object({
+		disabledReason: z.string().min(1).nullable(),
+		external: z.boolean(),
+		href: z.string().min(1).nullable(),
+		label: z.string().min(1),
+	}),
+	publisherLabel: z.string(),
+	sectionTitle: z.string(),
+	snippet: z.string().nullable(),
+	title: z.string().min(1),
+	versionLabel: z.string(),
 });
 
-const SupportingSourceSchema = z.object({
-	canonicalUrl: z.string().min(1),
-	sourceKind: z.string().min(1).nullable(),
-	sourceTitle: z.string().min(1),
-	targetKind: z.string().min(1).nullable(),
-	versionId: z.string().min(1).nullable(),
-});
+const OpsProductResultSchema = z.discriminatedUnion("state", [
+	z.object({ state: z.literal("PENDING") }),
+	z.object({ reasonCode: z.literal("ASSISTANT_MESSAGE_MISSING"), state: z.literal("MISSING") }),
+	z.object({
+		kind: OpsAssistantMessageKindSchema,
+		sources: z.array(OpsProductSourceSchema).max(5),
+		state: z.literal("WRITTEN"),
+		text: z.string(),
+	}),
+]);
 
 export const OpsRequestDetailResponseSchema = z.object({
-	correlationIds: OpsCorrelationIdsSchema,
-	externalLinks: z.array(ExternalLinkSchema),
-	modelSummary: z.object({
-		model: z.string().min(1).nullable(),
-		promptId: z.string().min(1).nullable(),
-		provider: z.string().min(1).nullable(),
-		promptVersion: z.string().min(1).nullable(),
-		templateSha256: z.string().min(1).nullable(),
+	generatedAt: IsoDateTimeSchema,
+	journey: z.object({
+		actions: z.array(OpsProductActionSchema),
+		actionsDataState: OpsDataStateSchema,
+		entry: OpsJourneyEntrySchema,
 	}),
-	outcomeSummary: z.object({
-		refusalClass: z.string().min(1).nullable(),
-		resolvedTargets: z.array(z.string().min(1)),
-		semanticOutcome: z.string().min(1).nullable(),
+	question: z.object({
+		text: z.string().min(1),
+		turnSequence: z.number().int().nonnegative(),
 	}),
-	policySummary: z.object({
-		aclAnomalyCode: z.string().min(1).nullable(),
-		aclDecision: z.string().min(1).nullable(),
-		failClosed: z.boolean().nullable(),
+	request: z.object({
+		completedAt: IsoDateTimeSchema.nullable(),
+		durationMs: z.number().int().nonnegative().nullable(),
+		lifecyclePhase: OpsRequestLifecyclePhaseSchema,
+		requestId: z.string().min(1),
+		startedAt: IsoDateTimeSchema,
+		status: OpsStatusSchema,
 	}),
-	request: OpsRequestSummarySchema,
-	sources: z.array(SupportingSourceSchema),
-	stageTiming: StageTimingSchema,
-	stageTimingBudget: z.record(z.string().min(1), z.enum(["OK", "WARN", "BREACH"])),
-	stepTrajectory: z.array(StepTrajectoryItemSchema),
-	toolSummary: z.object({
-		requestedTool: z.string().min(1).nullable(),
-		selectedTool: z.string().min(1).nullable(),
-	}),
-	traceSummary: z.object({
-		available: z.boolean(),
-		measuredAt: IsoDateTimeSchema.nullable(),
-		projectionLagMs: z.number().int().nonnegative().nullable(),
-		updatedAt: IsoDateTimeSchema.nullable(),
-	}),
-	workflowSummary: z.object({
-		branch: z.string().min(1).nullable(),
-		firstDecisionActor: z.string().min(1).nullable(),
-		mode: z.string().min(1).nullable(),
-		planningOutcome: z.string().min(1).nullable(),
+	result: OpsProductResultSchema,
+	technical: z.object({
+		correlationIds: OpsCorrelationIdsSchema,
+		errorCode: z.string().min(1).nullable(),
+		externalLinks: z.array(ExternalLinkSchema),
 		runtimeVersions: z.record(z.string(), z.json()),
-		selectedTools: z.array(z.string().min(1)),
 		terminalReason: z.string().min(1).nullable(),
+	}),
+	usage: z.object({
+		cachedInputTokens: z.number().int().nonnegative().nullable(),
+		inputTokens: z.number().int().nonnegative().nullable(),
+		outputTokens: z.number().int().nonnegative().nullable(),
+		state: AgentUsageStateSchema,
+		totalTokens: z.number().int().nonnegative().nullable(),
 	}),
 });
 
@@ -373,7 +479,6 @@ export const OpsOverviewResponseSchema = z.object({
 	generatedAt: IsoDateTimeSchema,
 	health: z.object({
 		dataState: OpsDataStateSchema,
-		reasons: z.array(z.string().min(1)),
 		status: OpsHealthStatusSchema,
 	}),
 	issues: z.array(
@@ -386,6 +491,7 @@ export const OpsOverviewResponseSchema = z.object({
 		}),
 	),
 	requests: SourceStatusSchema.extend({
+		actionRequired: z.number().int().nonnegative(),
 		cancelled: z.number().int().nonnegative(),
 		completed: z.number().int().nonnegative(),
 		failed: z.number().int().nonnegative(),
@@ -424,15 +530,19 @@ export const OpsOverviewResponseSchema = z.object({
 			}),
 		),
 	}),
-	trends: z.array(
-		z.object({
-			bucketStart: IsoDateTimeSchema,
-			completed: z.number().int().nonnegative(),
-			failed: z.number().int().nonnegative(),
-			p95DurationMs: z.number().int().nonnegative().nullable(),
-			total: z.number().int().nonnegative(),
-		}),
-	),
+	trends: z.object({
+		data: z.array(
+			z.object({
+				bucketStart: IsoDateTimeSchema,
+				completed: z.number().int().nonnegative(),
+				failed: z.number().int().nonnegative(),
+				p95DurationMs: z.number().int().nonnegative().nullable(),
+				total: z.number().int().nonnegative(),
+			}),
+		),
+		dataState: OpsDataStateSchema,
+		reason: z.string().min(1).nullable(),
+	}),
 	window: OpsOverviewWindowSchema,
 });
 
@@ -539,6 +649,7 @@ export type OpsObservabilityResponse = z.infer<typeof OpsObservabilityResponseSc
 export type OpsOverviewResponse = z.infer<typeof OpsOverviewResponseSchema>;
 export type OpsOverviewWindow = z.infer<typeof OpsOverviewWindowSchema>;
 export type OpsRequestDetailResponse = z.infer<typeof OpsRequestDetailResponseSchema>;
+export type OpsRequestListView = z.infer<typeof OpsRequestListViewSchema>;
 export type OpsSentryIssuesResponse = z.infer<typeof OpsSentryIssuesResponseSchema>;
 export type OpsRequestListResponse = z.infer<typeof OpsRequestListResponseSchema>;
 export type OpsRequestSummary = z.infer<typeof OpsRequestSummarySchema>;

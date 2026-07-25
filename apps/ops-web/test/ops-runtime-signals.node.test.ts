@@ -8,18 +8,21 @@ describe("ops runtime signals", () => {
 	it("checks fixed service endpoints and preserves partial failures", async () => {
 		const fetchFn = vi.fn<typeof fetch>().mockImplementation(async (input) => {
 			const url = String(input);
-			return new Response(null, { status: url.includes("execution-control") ? 503 : 200 });
+			return Response.json(
+				url.includes("execution-control") ? { error: { code: "not_ready" } } : { status: "ready" },
+				{ status: url.includes("execution-control") ? 503 : 200 },
+			);
 		});
 		const getTelemetrySnapshot = vi.fn().mockResolvedValue(opsOverviewFixture.telemetry);
 		const source = createOpsRuntimeSignalsSource({
 			fetchFn,
 			healthUrls: {
 				"agent-runtime": "http://agent-runtime:27062/readyz",
-				"app-api": "https://api.example.test/healthz",
-				"campus-web": "https://campus.example.test/",
+				"app-api": "https://api.example.test/readyz",
+				"campus-web": "https://campus.example.test/readyz",
 				"execution-control": "http://execution-control:8000/readyz",
-				"ops-web": "http://127.0.0.1:5178/healthz",
 			},
+			internalToken: "ops-web-token",
 			now: () => new Date("2026-07-09T06:30:00.000Z"),
 			axiom: {
 				getTelemetrySnapshot,
@@ -28,22 +31,32 @@ describe("ops runtime signals", () => {
 		});
 		const controller = new AbortController();
 
-		const snapshot = await source.getSnapshot("15m", { signal: controller.signal });
+		const services = await source.getServices({ signal: controller.signal });
+		const telemetry = await source.getTelemetry("15m", { signal: controller.signal });
 
-		expect(snapshot.services).toHaveLength(5);
-		expect(snapshot.services.find((item) => item.name === "execution-control")).toMatchObject({
+		expect(services).toHaveLength(4);
+		expect(services.find((item) => item.name === "execution-control")).toMatchObject({
 			dataState: "FRESH",
 			status: "OUTAGE",
 		});
-		expect(snapshot.services.find((item) => item.name === "app-api")?.status).toBe("HEALTHY");
-		expect(snapshot.telemetry.status).toBe("HEALTHY");
+		expect(services.find((item) => item.name === "app-api")?.status).toBe("HEALTHY");
+		expect(telemetry.status).toBe("HEALTHY");
+		expect(fetchFn).toHaveBeenCalledWith(
+			"http://execution-control:8000/readyz",
+			expect.objectContaining({
+				headers: {
+					accept: "application/json",
+					authorization: "Bearer ops-web-token",
+				},
+			}),
+		);
 		expect(getTelemetrySnapshot).toHaveBeenCalledWith("15m", {
 			now: new Date("2026-07-09T06:30:00.000Z"),
 			signal: controller.signal,
 		});
 	});
 
-	it("marks a missing health URL unavailable without failing other services", async () => {
+	it("omits unconfigured health probes", async () => {
 		const source = createOpsRuntimeSignalsSource({
 			fetchFn: vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 200 })),
 			healthUrls: {},
@@ -54,9 +67,90 @@ describe("ops runtime signals", () => {
 			},
 		});
 
-		const snapshot = await source.getSnapshot("15m");
+		const services = await source.getServices();
 
-		expect(snapshot.services.every((item) => item.status === "UNKNOWN")).toBe(true);
-		expect(snapshot.services.every((item) => item.dataState === "UNAVAILABLE")).toBe(true);
+		expect(services).toEqual([]);
+	});
+
+	it("requires a valid readiness response before declaring a service healthy", async () => {
+		const fetchFn = vi.fn<typeof fetch>().mockImplementation(async (input) => {
+			const host = new URL(String(input)).hostname;
+			if (host === "campus.example.test") {
+				return new Response("<html>sign in</html>", { status: 200 });
+			}
+			if (host === "api.example.test") {
+				return Response.json({ error: { code: "unauthorized" } }, { status: 401 });
+			}
+			if (host === "execution-control") {
+				return Response.json({ status: "degraded" }, { status: 503 });
+			}
+			return Response.json({ status: "ok" });
+		});
+		const source = createOpsRuntimeSignalsSource({
+			fetchFn,
+			healthUrls: {
+				"agent-runtime": "http://agent-runtime:27062/readyz",
+				"app-api": "https://api.example.test/readyz",
+				"campus-web": "https://campus.example.test/readyz",
+				"execution-control": "http://execution-control:8000/readyz",
+			},
+			axiom: {
+				getTelemetrySnapshot: vi.fn().mockResolvedValue(opsOverviewFixture.telemetry),
+				queryRequest: vi.fn(),
+			},
+		});
+
+		const services = await source.getServices();
+
+		expect(services.find((item) => item.name === "campus-web")).toMatchObject({
+			dataState: "UNAVAILABLE",
+			status: "UNKNOWN",
+			updatedAt: null,
+		});
+		expect(services.find((item) => item.name === "app-api")).toMatchObject({
+			dataState: "UNAVAILABLE",
+			status: "UNKNOWN",
+		});
+		expect(services.find((item) => item.name === "execution-control")).toMatchObject({
+			dataState: "FRESH",
+			status: "OUTAGE",
+		});
+		expect(services.find((item) => item.name === "agent-runtime")).toMatchObject({
+			dataState: "FRESH",
+			status: "HEALTHY",
+		});
+	});
+
+	it("treats connection failures as unavailable rather than confirmed outages", async () => {
+		const source = createOpsRuntimeSignalsSource({
+			fetchFn: vi.fn<typeof fetch>().mockRejectedValue(new TypeError("connection refused")),
+			healthUrls: { "agent-runtime": "http://agent-runtime:27062/readyz" },
+			axiom: {
+				getTelemetrySnapshot: vi.fn().mockResolvedValue(opsOverviewFixture.telemetry),
+				queryRequest: vi.fn(),
+			},
+		});
+
+		await expect(source.getServices()).resolves.toEqual([
+			expect.objectContaining({ dataState: "UNAVAILABLE", status: "UNKNOWN", updatedAt: null }),
+		]);
+	});
+
+	it("omits endpoints that are not explicit readiness URLs", async () => {
+		const fetchFn = vi.fn<typeof fetch>();
+		const source = createOpsRuntimeSignalsSource({
+			fetchFn,
+			healthUrls: {
+				"campus-web": "https://campus.example.test/",
+				"app-api": "https://api.example.test/healthz",
+			},
+			axiom: {
+				getTelemetrySnapshot: vi.fn().mockResolvedValue(opsOverviewFixture.telemetry),
+				queryRequest: vi.fn(),
+			},
+		});
+
+		await expect(source.getServices()).resolves.toEqual([]);
+		expect(fetchFn).not.toHaveBeenCalled();
 	});
 });

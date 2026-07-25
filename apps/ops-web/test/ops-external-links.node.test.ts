@@ -1,24 +1,59 @@
 // @vitest-environment node
 
+import { deriveLangfuseTraceId } from "@campus-agent/langfuse-identity";
 import { describe, expect, it } from "vitest";
-import { toSentryExternalLink } from "../src/server/ops-external-links";
+import {
+	toAxiomExternalLink,
+	toLangfuseExternalLink,
+	toSentryExternalLink,
+	toTemporalExternalLink,
+} from "../src/server/ops-external-links.ts";
 
 describe("Ops external links", () => {
-	it("builds a fixed HTTPS Sentry Trace Explorer link", () => {
+	it("links a product trace to its concrete Langfuse trace", async () => {
+		const traceId = await deriveLangfuseTraceId("trace_0001");
+
 		expect(
-			toSentryExternalLink({
-				sentry: "https://sentry.example.test/orgredirect/organizations/campus/traces/",
+			await toLangfuseExternalLink("trace_0001", {
+				langfuse: "https://langfuse.example.test/project/project-001?view=traces",
 			}),
 		).toEqual({
-			href: "https://sentry.example.test/orgredirect/organizations/campus/traces/",
+			href: `https://langfuse.example.test/project/project-001/traces/${traceId}`,
 			isAvailable: true,
-			label: "Sentry Trace Explorer",
-			source: "SENTRY",
+			label: "Langfuse Trace",
+			source: "LANGFUSE",
 		});
 	});
 
-	it("rejects missing and non-HTTPS links", () => {
-		expect(toSentryExternalLink(undefined)).toBeNull();
-		expect(toSentryExternalLink({ sentry: "http://sentry.example.test" })).toBeNull();
+	it("requires a complete HTTPS Langfuse project URL", async () => {
+		await expect(
+			toLangfuseExternalLink("trace_0001", { langfuse: "https://langfuse.example.test" }),
+		).resolves.toBeNull();
+		await expect(
+			toLangfuseExternalLink("trace_0001", {
+				langfuse: "http://langfuse.example.test/project/project-001",
+			}),
+		).resolves.toBeNull();
+	});
+
+	it("links Temporal to the persisted workflow id", () => {
+		expect(
+			toTemporalExternalLink("campus-agent.chat.run_001", {
+				temporal: "https://temporal.example.test",
+			}),
+		).toMatchObject({
+			href: "https://temporal.example.test/namespaces/default/workflows/campus-agent.chat.run_001",
+			source: "TEMPORAL",
+		});
+	});
+
+	it("keeps configured Axiom and Sentry links HTTPS-only", () => {
+		expect(toAxiomExternalLink({ axiom: "https://app.axiom.co/org/example" })).toMatchObject({
+			source: "AXIOM",
+		});
+		expect(
+			toSentryExternalLink({ sentry: "https://sentry.example.test/explore/traces" }),
+		).toMatchObject({ source: "SENTRY" });
+		expect(toAxiomExternalLink({ axiom: "javascript:alert(1)" })).toBeNull();
 	});
 });

@@ -34,6 +34,7 @@ import { mockDiningFixtureApi } from "./dining-fixture-test-utils";
 import { mockMapWorkspaceWidth } from "./map-page-test-utils";
 
 const stylesSource = readFileSync("src/styles.css", "utf8");
+const sharedThemeSource = readFileSync("../../packages/ui/src/theme.css", "utf8");
 
 const diningApiMock = vi.hoisted(() => ({
 	getDiningBootstrap: vi.fn(),
@@ -343,8 +344,9 @@ describe("campus routes", () => {
 		expect(qaShellSource).not.toContain("ConversationSidebar");
 		expect(qaShellSource).toContain("ThreadListSidebar");
 		expect(stylesSource).toContain('@import "tailwindcss";');
-		expect(stylesSource).toContain("@layer base");
-		expect(stylesSource).toContain("font: inherit");
+		expect(stylesSource).toContain('@import "@campus-agent/ui/theme.css";');
+		expect(sharedThemeSource).toContain("@layer base");
+		expect(sharedThemeSource).toContain("font: inherit");
 		expect(rootLayoutSource).not.toContain("移动端主导航");
 		expect(rootLayoutSource).not.toContain("supportNavItems");
 	});
@@ -385,7 +387,7 @@ describe("campus routes", () => {
 		expect(diningPageSource).not.toContain('role="tablist"');
 		expect(mapExperienceSource).not.toContain("handleSearchKeyDown");
 		expect(mapExperienceSource).not.toContain('role="dialog"');
-		expect(mapExperienceSource).toContain("@/components/ui/input");
+		expect(mapExperienceSource).toContain("@campus-agent/ui");
 		expect(mapExperienceSource).not.toContain("@/components/ui/command");
 		expect(mapExperienceSource).toContain("@/components/ui/popover");
 	});

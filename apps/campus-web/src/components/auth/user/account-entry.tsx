@@ -1,7 +1,6 @@
+import { Button } from "@campus-agent/ui";
 import { UserRound } from "lucide-react";
 import { lazy, Suspense } from "react";
-
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const AuthenticatedUserButton = lazy(() =>

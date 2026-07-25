@@ -1,6 +1,6 @@
+import { Badge } from "@campus-agent/ui";
 import { MapPin } from "lucide-react";
 import type { DiningOfferingProjection, DiningWindowProjection } from "@/features/dining/model";
-import { Badge } from "../ui/badge";
 import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
 
 export function StallDetail({
@@ -51,11 +51,7 @@ export function StallDetail({
 				{selectedWindow.tags.length > 0 ? (
 					<div className="mt-3 flex flex-wrap gap-2">
 						{selectedWindow.tags.map((tag) => (
-							<Badge
-								className="bg-surface-muted text-muted-foreground"
-								key={tag}
-								variant="secondary"
-							>
+							<Badge className="bg-surface-muted text-muted-foreground" key={tag} tone="neutral">
 								{tag}
 							</Badge>
 						))}

@@ -40,9 +40,9 @@ SQL 和 schema 错误立即失败，DDL 本身不自动重放。
 并发上限和 RAG 限制等产品常量由源码拥有，不作为环境变量重复维护。私有
 registry 的 pull secret 由环境 overlay 绑定到 first-party ServiceAccount。
 
-在线 Provider Config 由 execution-control 管理。runtime 使用 reader DSN 与版本化 keyring，
-独立 admin 服务使用 admin DSN 和 `OPS_WEB_INTERNAL_TOKEN`；缺少 required role、数据库或可解密 key
-都是部署阻塞项。Hindsight 与 eval provider 配置不进入在线 bundle。
+在线模型配置由 execution-control 管理。runtime 使用 reader DSN 与可轮换 keyring，独立 admin
+服务使用 admin DSN 和 `OPS_WEB_INTERNAL_TOKEN`；缺少 LLM、Embedding、数据库或可解密 key
+都是部署阻塞项。Hindsight 与 eval provider 配置不进入 execution 配置数据库。
 
 ## 健康与排查
 

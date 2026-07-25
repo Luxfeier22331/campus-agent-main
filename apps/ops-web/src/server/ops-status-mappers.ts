@@ -1,148 +1,208 @@
+import { z } from "zod";
 import type {
 	OpsRequestDetailResponse,
 	OpsRequestListResponse,
+	OpsRequestListView,
 	OpsRequestSummary,
 } from "../shared/ops-contract";
-import { projectOpsStageTiming, projectOpsStageTimingBudget } from "../shared/stage-timing.ts";
 import {
 	type OpsObservabilityLinkAllowlist,
+	toAxiomExternalLink,
+	toLangfuseExternalLink,
 	toSentryExternalLink,
 	toTemporalExternalLink,
 } from "./ops-external-links.ts";
 import type {
+	OpsAgentUsageRow,
+	OpsProductActionRow,
+	OpsRequestDetailRow,
 	OpsRequestListQuery,
-	OpsRequestObservabilityRow,
 	OpsRequestRow,
 	OpsRequestSummaryTotals,
 } from "./ops-status-store.ts";
 
-const TERMINAL_STATUSES = new Set(["COMPLETED", "FAILED", "CANCELLED"]);
-export function toRequestDetail(
-	requestRow: OpsRequestRow,
-	observabilityRow: OpsRequestObservabilityRow | null,
-	observabilityLinks?: OpsObservabilityLinkAllowlist,
-): OpsRequestDetailResponse {
-	const request = toRequestSummary(requestRow, observabilityRow);
-	const workflowTrace = normalizeWorkflowTrace(observabilityRow?.workflowTraceSummaryJson);
-	const workflowId = toTemporalWorkflowId(request.runId);
-	const externalLinks = normalizeExternalLinks(observabilityLinks, workflowId);
+const TERMINAL_STATUSES = new Set<OpsRequestSummary["status"]>([
+	"COMPLETED",
+	"FAILED",
+	"CANCELLED",
+	"ACTION_REQUIRED",
+]);
 
+const ProductSourceActionSchema = z.object({
+	disabledReason: z.string().nullable(),
+	external: z.boolean(),
+	href: z.string().nullable(),
+	label: z.string().min(1),
+});
+
+const ProductSourceItemSchema = z.object({
+	collectionLabel: z.string(),
+	pageLabel: z.string(),
+	primaryAction: ProductSourceActionSchema,
+	publisherLabel: z.string(),
+	sectionTitle: z.string(),
+	snippet: z.string().nullable(),
+	title: z.string().min(1),
+	versionLabel: z.string(),
+});
+
+const ProductSourcePartSchema = z.object({
+	sourceItems: z.array(ProductSourceItemSchema),
+	type: z.literal("source_items"),
+});
+
+export async function toRequestDetail(
+	row: OpsRequestDetailRow,
+	actionRows: OpsProductActionRow[] | null,
+	usageRow: OpsAgentUsageRow | null | undefined,
+	observabilityLinks?: OpsObservabilityLinkAllowlist,
+	generatedAt = new Date(),
+	campusWebPublicOrigin?: string,
+): Promise<OpsRequestDetailResponse> {
+	const status = normalizeRequestStatus(row.status);
+	const runId = normalizeNullableString(row.runId);
 	return {
-		correlationIds: {
-			conversationId: request.conversationId,
-			missingCorrelationFields: missingCorrelationFields({
-				runId: request.runId,
-				workflowId,
-			}),
-			requestId: request.requestId,
-			runId: request.runId,
-			traceId: request.traceId,
-			workflowId,
+		generatedAt: generatedAt.toISOString(),
+		journey: {
+			actions: toProductActions(actionRows ?? []),
+			actionsDataState: actionDataState(actionRows),
+			entry: normalizeJourneyEntry(row.surface),
 		},
-		externalLinks,
-		modelSummary: {
-			model: normalizeNullableString(observabilityRow?.modelName),
-			promptId: normalizeNullableString(observabilityRow?.promptId),
-			provider: normalizeNullableString(observabilityRow?.modelProvider),
-			promptVersion: normalizeNullableString(observabilityRow?.promptVersion),
-			templateSha256: normalizeNullableString(observabilityRow?.templateSha256),
+		question: {
+			text: row.questionText,
+			turnSequence: row.turnSequence,
 		},
-		outcomeSummary: {
-			refusalClass: normalizeNullableString(observabilityRow?.refusalClass),
-			resolvedTargets: normalizeStringArray(observabilityRow?.resolvedTargetsJson),
-			semanticOutcome: normalizeNullableString(observabilityRow?.semanticOutcome),
+		request: {
+			completedAt: row.completedAt?.toISOString() ?? null,
+			durationMs: row.durationMs ?? null,
+			lifecyclePhase: deriveRequestLifecyclePhase(row, status),
+			requestId: row.requestId,
+			startedAt: row.startedAt.toISOString(),
+			status,
 		},
-		policySummary: {
-			aclAnomalyCode: normalizeNullableString(observabilityRow?.aclAnomalyCode),
-			aclDecision: normalizeNullableString(observabilityRow?.aclDecision),
-			failClosed: observabilityRow?.failClosed ?? null,
+		result: toProductResult(row, status, campusWebPublicOrigin),
+		technical: {
+			correlationIds: {
+				conversationId: row.conversationId,
+				requestId: row.requestId,
+				runId,
+				traceId: row.traceId,
+				workflowId: normalizeNullableString(row.workflowId),
+			},
+			errorCode: normalizeNullableString(row.errorCode),
+			externalLinks: await normalizeExternalLinks(
+				observabilityLinks,
+				row.traceId,
+				normalizeNullableString(row.workflowId),
+			),
+			runtimeVersions: normalizeJsonRecord(row.runtimeVersionsJson),
+			terminalReason: normalizeNullableString(row.terminalReason),
 		},
-		request,
-		sources: normalizeSupportingSources(observabilityRow?.supportingSourcesJson),
-		stageTiming: projectOpsStageTiming(observabilityRow?.stageTimingJson),
-		stageTimingBudget: projectOpsStageTimingBudget(observabilityRow?.stageTimingJson),
-		stepTrajectory: workflowTrace.steps,
-		toolSummary: {
-			requestedTool: request.requestedTool,
-			selectedTool: request.selectedTool,
-		},
-		traceSummary: {
-			available: observabilityRow?.traceAvailable ?? false,
-			measuredAt: normalizeIsoString(observabilityRow?.measuredAt),
-			projectionLagMs: normalizeNullableNonNegativeInteger(observabilityRow?.projectionLagMs),
-			updatedAt: normalizeIsoString(observabilityRow?.updatedAt),
-		},
-		workflowSummary: {
-			branch: workflowTrace.branch,
-			firstDecisionActor: workflowTrace.firstDecisionActor,
-			mode: workflowTrace.mode,
-			planningOutcome: workflowTrace.planningOutcome,
-			runtimeVersions: workflowTrace.runtimeVersions,
-			selectedTools: workflowTrace.selectedTools,
-			terminalReason: workflowTrace.terminalReason,
-		},
+		usage: usageRow === undefined ? emptyUsage("UNAVAILABLE") : toAgentUsage(usageRow, status),
 	};
 }
 
 export function toRequestSummary(
 	row: OpsRequestRow,
-	observability: OpsRequestObservabilityRow | null,
+	actionRows: OpsProductActionRow[] | null,
+	usageRow: OpsAgentUsageRow | null | undefined,
 ): OpsRequestSummary {
 	const status = normalizeRequestStatus(row.status);
-	const runId = normalizeNullableString(row.runId);
-	const workflowId = toTemporalWorkflowId(runId);
+	const usage = usageRow === undefined ? emptyUsage("UNAVAILABLE") : toAgentUsage(usageRow, status);
 	return {
+		attentionReason: normalizeAttentionReason(row.attentionReason),
 		completedAt: row.completedAt?.toISOString() ?? null,
-		conversationId: row.conversationId,
-		diagnostics: summarizeRequestDiagnostics(row, observability),
 		durationMs: row.durationMs ?? null,
-		errorCode: row.errorCode ?? null,
-		principalType: normalizeNonEmptyString(row.principalType, "unknown"),
-		projectedAt: row.projectedAt.toISOString(),
-		questionPreview: row.questionPreview,
+		journey: {
+			actions: toProductActions(actionRows ?? []),
+			actionsDataState: actionDataState(actionRows),
+			entry: normalizeJourneyEntry(row.surface),
+			result: toJourneyResult(row, status),
+		},
+		lifecyclePhase: deriveRequestLifecyclePhase(row, status),
+		question: {
+			preview: row.questionPreview,
+			truncated: row.questionTruncated,
+		},
 		requestId: row.requestId,
-		requestedTool: row.requestedTool ?? null,
-		runId,
-		selectedTool: row.selectedTool ?? null,
 		startedAt: row.startedAt.toISOString(),
 		status,
-		traceId: row.traceId,
-		workflowId,
+		usage: {
+			state: usage.state,
+			totalTokens: usage.totalTokens,
+		},
 	};
 }
 
-export function matchesRequestQuery(request: OpsRequestSummary, query: OpsRequestListQuery) {
-	if (query.status && request.status !== query.status) {
+function actionDataState(
+	rows: OpsProductActionRow[] | null,
+): OpsRequestDetailResponse["journey"]["actionsDataState"] {
+	if (rows === null) {
+		return "UNAVAILABLE";
+	}
+	return rows.length === 0 ? "NO_DATA" : "FRESH";
+}
+
+export function matchesRequestQuery(
+	request: OpsRequestSummary,
+	query: OpsRequestListQuery,
+	correlationIds?: OpsRequestDetailResponse["technical"]["correlationIds"],
+) {
+	if (requestListView(query) === "attention" && request.attentionReason === null) {
 		return false;
 	}
-	if (query.conversationId && request.conversationId !== query.conversationId) {
+	if (query.status && request.status !== query.status) {
 		return false;
 	}
 	if (query.requestId && request.requestId !== query.requestId) {
 		return false;
 	}
-	if (query.traceId && request.traceId !== query.traceId) {
+	if (query.conversationId && correlationIds?.conversationId !== query.conversationId) {
 		return false;
 	}
-	if (query.q && !requestSearchText(request).includes(query.q.toLowerCase())) {
+	if (query.runId && correlationIds?.runId !== query.runId) {
+		return false;
+	}
+	if (query.traceId && correlationIds?.traceId !== query.traceId) {
+		return false;
+	}
+	if (query.workflowId && correlationIds?.workflowId !== query.workflowId) {
+		return false;
+	}
+	if (query.q && !requestSearchText(request, correlationIds).includes(query.q.toLowerCase())) {
 		return false;
 	}
 	return true;
 }
 
-export interface RequestKeysetCursor {
-	requestId: string;
-	startedAt: string;
+export type RequestKeysetCursor =
+	| { requestId: string; startedAt: string; v: 2; view: "recent" }
+	| { priority: 0 | 1 | 2; requestId: string; startedAt: string; v: 2; view: "attention" };
+
+export function encodeRequestCursor(
+	row: Pick<OpsRequestSummary, "attentionReason" | "requestId" | "startedAt">,
+	view: OpsRequestListView = "recent",
+) {
+	return Buffer.from(
+		JSON.stringify(
+			view === "attention"
+				? {
+						priority: requestAttentionPriority(row.attentionReason),
+						requestId: row.requestId,
+						startedAt: row.startedAt,
+						v: 2,
+						view,
+					}
+				: { requestId: row.requestId, startedAt: row.startedAt, v: 2, view },
+		),
+		"utf8",
+	).toString("base64url");
 }
 
-export function encodeRequestCursor(row: { requestId: string; startedAt: Date | string }) {
-	const startedAt = row.startedAt instanceof Date ? row.startedAt.toISOString() : row.startedAt;
-	return Buffer.from(JSON.stringify({ requestId: row.requestId, startedAt }), "utf8").toString(
-		"base64url",
-	);
-}
-
-export function decodeRequestCursor(cursor: string | undefined): RequestKeysetCursor | null {
+export function decodeRequestCursor(
+	cursor: string | undefined,
+	expectedView?: OpsRequestListView,
+): RequestKeysetCursor | null {
 	if (!cursor) {
 		return null;
 	}
@@ -153,19 +213,68 @@ export function decodeRequestCursor(cursor: string | undefined): RequestKeysetCu
 		}
 		const requestId = normalizeNullableString(parsed.requestId);
 		const startedAt = normalizeNullableString(parsed.startedAt);
-		if (!(requestId && startedAt && Number.isFinite(Date.parse(startedAt)))) {
+		const view = parsed.view === "recent" || parsed.view === "attention" ? parsed.view : null;
+		if (
+			parsed.v !== 2 ||
+			!requestId ||
+			!startedAt ||
+			!view ||
+			(expectedView && view !== expectedView) ||
+			!Number.isFinite(Date.parse(startedAt))
+		) {
 			return null;
 		}
-		return { requestId, startedAt };
+		if (view === "recent") {
+			return { requestId, startedAt, v: 2, view };
+		}
+		const priority = readNullableNonNegativeInteger(parsed.priority);
+		return priority === 0 || priority === 1 || priority === 2
+			? { priority, requestId, startedAt, v: 2, view }
+			: null;
 	} catch {
 		return null;
 	}
 }
 
+export function requestListView(query: Pick<OpsRequestListQuery, "view">): OpsRequestListView {
+	return query.view ?? "recent";
+}
+
+export function requestAttentionPriority(reason: OpsRequestSummary["attentionReason"]): 0 | 1 | 2 {
+	if (reason === "RESULT_MISSING") {
+		return 0;
+	}
+	if (reason === "REQUEST_FAILED") {
+		return 1;
+	}
+	if (reason === "WAITING_USER") {
+		return 2;
+	}
+	throw new Error("Request is not eligible for the attention view");
+}
+
+export function compareRequestsForView(
+	left: Pick<OpsRequestSummary, "attentionReason" | "requestId" | "startedAt">,
+	right: Pick<OpsRequestSummary, "attentionReason" | "requestId" | "startedAt">,
+	view: OpsRequestListView,
+): number {
+	const priority =
+		view === "attention"
+			? requestAttentionPriority(left.attentionReason) -
+				requestAttentionPriority(right.attentionReason)
+			: 0;
+	return (
+		priority ||
+		Date.parse(right.startedAt) - Date.parse(left.startedAt) ||
+		(right.requestId === left.requestId ? 0 : right.requestId < left.requestId ? -1 : 1)
+	);
+}
+
 export function summarizeRequests(
 	requests: OpsRequestSummary[],
-): OpsRequestListResponse["summary"] {
+): OpsRequestListResponse["statusCounts"] {
 	return {
+		actionRequired: requests.filter((request) => request.status === "ACTION_REQUIRED").length,
 		cancelled: requests.filter((request) => request.status === "CANCELLED").length,
 		completed: requests.filter((request) => request.status === "COMPLETED").length,
 		failed: requests.filter((request) => request.status === "FAILED").length,
@@ -193,7 +302,10 @@ export function normalizeStatusToDbValues(value: string | undefined): string[] {
 		return ["cancelled"];
 	}
 	if (value === "PENDING") {
-		return ["accepted", "approval_required", "needs_clarification"];
+		return ["accepted"];
+	}
+	if (value === "ACTION_REQUIRED") {
+		return ["approval_required", "needs_clarification"];
 	}
 	if (value === "RUNNING") {
 		return ["running"];
@@ -205,13 +317,14 @@ export function normalizeDbStatusToSummaryKey(
 	status: string,
 ): Exclude<keyof OpsRequestSummaryTotals, "total"> {
 	const summaryKeys = {
+		action_required: "actionRequired",
 		cancelled: "cancelled",
 		completed: "completed",
 		error: "failed",
 		no_answer: "failed",
 		accepted: "pending",
-		approval_required: "pending",
-		needs_clarification: "pending",
+		approval_required: "actionRequired",
+		needs_clarification: "actionRequired",
 		rejected: "failed",
 		running: "running",
 	} as const;
@@ -227,215 +340,273 @@ export function readMetricMs(value: unknown) {
 	if (!isRecord(value)) {
 		return 0;
 	}
-	return normalizeNonNegativeInteger(value.ms, 0);
+	return readNonNegativeInteger(value.ms, 0);
 }
 
 export function readMetricCount(value: unknown, key: string) {
 	if (!isRecord(value)) {
 		return 0;
 	}
-	return normalizeNonNegativeInteger(value[key], 0);
+	return readNonNegativeInteger(value[key], 0);
 }
 
-function normalizeWorkflowTrace(value: unknown): {
-	branch: string | null;
-	firstDecisionActor: string | null;
-	mode: string | null;
-	planningOutcome: string | null;
-	runtimeVersions: OpsRequestDetailResponse["workflowSummary"]["runtimeVersions"];
-	selectedTools: string[];
-	steps: OpsRequestDetailResponse["stepTrajectory"];
-	terminalReason: string | null;
-} {
-	const record = isRecord(value) ? value : {};
-	const rawSteps = firstArray(record.steps, record.traceSteps, record.trace_steps);
-	const steps = rawSteps
-		.map((item) => (isRecord(item) ? item : null))
-		.filter((item): item is Record<string, unknown> => Boolean(item))
-		.map(normalizeWorkflowTraceStep);
-
-	return {
-		branch: normalizeNullableString(
-			record.directVsDelegateBranch ?? record.direct_vs_delegate_branch,
-		),
-		firstDecisionActor: normalizeNullableString(
-			record.firstDecisionActor ?? record.first_decision_actor,
-		),
-		mode: normalizeNullableString(record.workflowMode ?? record.workflow_mode),
-		planningOutcome: normalizeNullableString(record.planningOutcome ?? record.planning_outcome),
-		runtimeVersions: normalizeJsonRecord(record.runtimeVersions ?? record.runtime_versions),
-		selectedTools: normalizeStringArray(record.selectedTools ?? record.selected_tools),
-		steps,
-		terminalReason: normalizeNullableString(record.terminalReason ?? record.terminal_reason),
-	};
+function toJourneyResult(
+	row: Pick<OpsRequestRow, "assistantKind" | "assistantMessagePresent">,
+	status: OpsRequestSummary["status"],
+): OpsRequestSummary["journey"]["result"] {
+	if (row.assistantMessagePresent) {
+		return { kind: normalizeAssistantKind(row.assistantKind), state: "WRITTEN" };
+	}
+	return TERMINAL_STATUSES.has(status)
+		? { kind: null, state: "MISSING" }
+		: { kind: null, state: "PENDING" };
 }
 
-function firstArray(...values: unknown[]): unknown[] {
-	return values.find((value): value is unknown[] => Array.isArray(value)) ?? [];
+function toProductResult(
+	row: OpsRequestDetailRow,
+	status: OpsRequestSummary["status"],
+	campusWebPublicOrigin?: string,
+): OpsRequestDetailResponse["result"] {
+	if (row.assistantMessagePresent) {
+		if (row.assistantMessageText === null) {
+			throw new Error("Assistant message is present without text");
+		}
+		return {
+			kind: normalizeAssistantKind(row.assistantKind),
+			sources: normalizeProductSources(row.assistantStructuredPartsJson, campusWebPublicOrigin),
+			state: "WRITTEN",
+			text: row.assistantMessageText,
+		};
+	}
+	return TERMINAL_STATUSES.has(status)
+		? { reasonCode: "ASSISTANT_MESSAGE_MISSING", state: "MISSING" }
+		: { state: "PENDING" };
 }
 
-function normalizeWorkflowTraceStep(
-	item: Record<string, unknown>,
-): OpsRequestDetailResponse["stepTrajectory"][number] {
-	const spanKind = normalizeNullableString(item.spanKind ?? item.span_kind);
-	const toolName = normalizeNullableString(item.toolName ?? item.tool_name ?? item.tool);
-	const stepId = normalizeNonEmptyString(
-		item.stepId ?? item.step_id,
-		stageFromSpanKind(spanKind, toolName),
-	);
-	const retryCount = normalizeNullableNonNegativeInteger(item.retryCount ?? item.retry_count);
-	const resultStatus = normalizeNullableString(item.resultStatus ?? item.result_status);
-	return {
-		outcome: normalizeNullableString(item.outcome),
-		parentStepId: normalizeNullableString(item.parentStepId ?? item.parent_step_id),
-		resultStatus,
-		retryCount: retryCount ?? 0,
-		spanKind: spanKind ?? "unknown",
-		status: normalizeTraceStepStatus(item.status ?? resultStatus),
-		stepId,
-		toolName,
-	};
+function normalizeProductSourceAction(
+	action: z.infer<typeof ProductSourceActionSchema>,
+	campusWebPublicOrigin?: string,
+): z.infer<typeof ProductSourceActionSchema> {
+	const href = action.href?.trim();
+	if (!href) {
+		return action;
+	}
+	if (action.external) {
+		return isSafeExternalSourceUrl(href) ? { ...action, href } : invalidSourceAction(action);
+	}
+	if (!campusWebPublicOrigin) {
+		return invalidSourceAction(action, "Campus Web 地址未配置。");
+	}
+	try {
+		const parsed = new URL(href, campusWebPublicOrigin);
+		if (
+			href.startsWith("//") ||
+			(!href.startsWith("/") && parsed.origin !== campusWebPublicOrigin)
+		) {
+			return invalidSourceAction(action);
+		}
+		if (parsed.origin !== campusWebPublicOrigin || parsed.username || parsed.password) {
+			return invalidSourceAction(action);
+		}
+		return { ...action, href: parsed.href };
+	} catch {
+		return invalidSourceAction(action);
+	}
 }
 
-function stageFromSpanKind(spanKind: string | null, toolName: string | null): string {
-	if (spanKind === "tool_call") {
-		return toolName ? `tool.${toolName}` : "tool.call";
-	}
-	if (spanKind === "agent") {
-		return "agent.primary";
-	}
-	if (spanKind === "finalization") {
-		return "finalization.write";
-	}
-	if (spanKind === "runtime_policy") {
-		return "runtime.policy";
-	}
-	if (spanKind) {
-		return spanKind.replaceAll("_", ".");
-	}
-	return "unknown";
+function invalidSourceAction(
+	action: z.infer<typeof ProductSourceActionSchema>,
+	disabledReason = "来源链接地址无效。",
+): z.infer<typeof ProductSourceActionSchema> {
+	return { ...action, disabledReason, href: null };
 }
 
-function normalizeTraceStepStatus(
+function isSafeExternalSourceUrl(value: string) {
+	try {
+		const parsed = new URL(value);
+		return parsed.protocol === "https:" && !parsed.username && !parsed.password;
+	} catch {
+		return false;
+	}
+}
+
+function normalizeProductSources(
 	value: unknown,
-): OpsRequestDetailResponse["stepTrajectory"][number]["status"] {
-	const normalized = normalizeNullableString(value)?.toUpperCase();
-	if (!normalized) {
-		return "UNKNOWN";
-	}
-	if (
-		normalized === "COMPLETED" ||
-		normalized === "COMPLETE" ||
-		normalized === "FOUND" ||
-		normalized === "OK"
-	) {
-		return "COMPLETED";
-	}
-	if (normalized === "RUNNING" || normalized === "STARTED") {
-		return "RUNNING";
-	}
-	if (normalized === "CANCELLED" || normalized === "CANCELED") {
-		return "CANCELLED";
-	}
-	if (
-		normalized === "FAILED" ||
-		normalized === "ERROR" ||
-		normalized === "REJECTED" ||
-		normalized === "NO_ANSWER" ||
-		normalized === "FAIL_CLOSED" ||
-		normalized === "TEMPORARILY_UNVERIFIABLE"
-	) {
-		return "FAILED";
-	}
-	return "UNKNOWN";
-}
-
-function normalizeExternalLinks(
-	allowlist: OpsObservabilityLinkAllowlist | undefined,
-	workflowId: string | null,
-): OpsRequestDetailResponse["externalLinks"] {
-	const temporalLink = toTemporalExternalLink(workflowId, allowlist);
-	return [temporalLink, toSentryExternalLink(allowlist)].filter(
-		(link): link is NonNullable<typeof link> => link !== null,
-	);
-}
-
-function normalizeSupportingSources(value: unknown): OpsRequestDetailResponse["sources"] {
+	campusWebPublicOrigin?: string,
+): Extract<OpsRequestDetailResponse["result"], { state: "WRITTEN" }>["sources"] {
 	if (!Array.isArray(value)) {
 		return [];
 	}
-	return value.slice(0, 10).flatMap((item) => {
-		if (!isRecord(item)) {
-			return [];
+	const sources: z.infer<typeof ProductSourceItemSchema>[] = [];
+	for (const part of value) {
+		const parsed = ProductSourcePartSchema.safeParse(part);
+		if (!parsed.success) {
+			continue;
 		}
-		const canonicalUrl = normalizeNullableString(item.canonicalUrl ?? item.canonical_url);
-		const sourceTitle = normalizeNullableString(
-			item.sourceTitle ?? item.source_title ?? item.title,
-		);
-		if (!(canonicalUrl && sourceTitle)) {
-			return [];
+		for (const source of parsed.data.sourceItems) {
+			sources.push({
+				...source,
+				primaryAction: normalizeProductSourceAction(source.primaryAction, campusWebPublicOrigin),
+			});
+			if (sources.length === 5) {
+				return sources;
+			}
 		}
-		return [
-			{
-				canonicalUrl,
-				sourceKind: normalizeNullableString(item.sourceKind ?? item.source_kind),
-				sourceTitle,
-				targetKind: normalizeNullableString(item.targetKind ?? item.target_kind),
-				versionId: normalizeNullableString(item.versionId ?? item.version_id),
-			},
-		];
-	});
+	}
+	return sources;
 }
 
-function requestSearchText(request: OpsRequestSummary) {
-	return [
-		request.requestId,
-		request.traceId,
-		request.runId,
-		request.workflowId,
-		request.conversationId,
-		request.principalType,
-		request.questionPreview,
-		request.requestedTool,
-		request.selectedTool,
-		request.errorCode,
-		...request.diagnostics,
-	]
-		.filter(Boolean)
-		.join(" ")
-		.toLowerCase();
+function toProductActions(
+	rows: OpsProductActionRow[],
+): OpsRequestDetailResponse["journey"]["actions"] {
+	const grouped = new Map<
+		OpsRequestDetailResponse["journey"]["actions"][number]["capability"],
+		{ firstSeen: number; statuses: string[] }
+	>();
+	for (const row of rows) {
+		const capability = normalizeProductCapability(row.toolName);
+		const firstSeen = (row.startedAt ?? row.updatedAt).valueOf();
+		const current = grouped.get(capability) ?? { firstSeen, statuses: [] };
+		current.firstSeen = Math.min(current.firstSeen, firstSeen);
+		current.statuses.push(row.status);
+		grouped.set(capability, current);
+	}
+	return [...grouped.entries()]
+		.sort((left, right) => left[1].firstSeen - right[1].firstSeen)
+		.map(([capability, value]) => ({
+			capability,
+			status: aggregateActionStatus(value.statuses),
+		}));
 }
 
-function summarizeRequestDiagnostics(
-	row: OpsRequestRow,
-	observability: OpsRequestObservabilityRow | null,
-) {
-	const diagnostics = new Set<string>();
-	if (row.errorCode) {
-		diagnostics.add(`error: ${row.errorCode}`);
+function normalizeProductCapability(
+	toolName: string,
+): OpsRequestDetailResponse["journey"]["actions"][number]["capability"] {
+	const normalized = toolName.trim().toLowerCase();
+	if (normalized === "knowledge_query" || normalized === "knowledge_search") {
+		return "CAMPUS_KNOWLEDGE";
 	}
+	if (normalized === "transport_schedule_lookup") {
+		return "TRANSPORT_SCHEDULE";
+	}
+	return "OTHER";
+}
 
-	if (observability?.traceAvailable) {
-		diagnostics.add("调用链可用");
-	} else {
-		diagnostics.add("缺少调用链记录");
+function aggregateActionStatus(
+	statuses: string[],
+): OpsRequestDetailResponse["journey"]["actions"][number]["status"] {
+	const normalized = statuses.map((status) => status.trim().toLowerCase());
+	if (normalized.some((status) => status === "running" || status === "started")) {
+		return "RUNNING";
 	}
-	if (observability?.aclAnomalyCode) {
-		diagnostics.add(`访问控制异常: ${observability.aclAnomalyCode}`);
+	if (normalized.some((status) => ["completed", "complete", "found", "ok"].includes(status))) {
+		return "COMPLETED";
 	}
-	if (observability?.failClosed) {
-		diagnostics.add("请求因安全校验未通过而停止");
+	if (
+		normalized.some((status) =>
+			["failed", "error", "rejected", "no_answer", "fail_closed"].includes(status),
+		)
+	) {
+		return "FAILED";
 	}
-	return Array.from(diagnostics);
+	return "PENDING";
+}
+
+function toAgentUsage(
+	row: OpsAgentUsageRow | null,
+	status: OpsRequestSummary["status"],
+): OpsRequestDetailResponse["usage"] {
+	if (!row) {
+		return emptyUsage("NOT_STARTED");
+	}
+	const totalAttemptCount = readDbInteger(row.totalAttemptCount, "totalAttemptCount");
+	const observedAttemptCount = readDbInteger(row.observedAttemptCount, "observedAttemptCount");
+	if (observedAttemptCount > totalAttemptCount) {
+		throw new Error("Agent usage observed attempt count exceeds total attempt count");
+	}
+	if (observedAttemptCount === 0) {
+		return emptyUsage(TERMINAL_STATUSES.has(status) ? "UNAVAILABLE" : "IN_PROGRESS");
+	}
+	const inputTokens = readDbInteger(row.inputTokens, "inputTokens");
+	const cachedInputTokens = readDbInteger(row.cachedInputTokens, "cachedInputTokens");
+	const outputTokens = readDbInteger(row.outputTokens, "outputTokens");
+	const totalTokens = inputTokens + outputTokens;
+	if (!Number.isSafeInteger(totalTokens)) {
+		throw new Error("Agent usage totalTokens exceeds Number.MAX_SAFE_INTEGER");
+	}
+	return {
+		cachedInputTokens,
+		inputTokens,
+		outputTokens,
+		state: TERMINAL_STATUSES.has(status)
+			? observedAttemptCount === totalAttemptCount
+				? "COMPLETE"
+				: "PARTIAL"
+			: "IN_PROGRESS",
+		totalTokens,
+	};
+}
+
+function emptyUsage(state: "IN_PROGRESS" | "NOT_STARTED" | "UNAVAILABLE") {
+	return {
+		cachedInputTokens: null,
+		inputTokens: null,
+		outputTokens: null,
+		state,
+		totalTokens: null,
+	} as const;
+}
+
+function readDbInteger(value: number | string | null, field: string): number {
+	const normalized = typeof value === "string" && value.trim() ? Number(value) : value;
+	if (!(typeof normalized === "number" && Number.isSafeInteger(normalized) && normalized >= 0)) {
+		throw new Error(`Agent usage ${field} must be a non-negative safe integer`);
+	}
+	return normalized;
+}
+
+function normalizeAssistantKind(value: unknown) {
+	if (
+		value === "answer" ||
+		value === "clarification" ||
+		value === "no_answer" ||
+		value === "error"
+	) {
+		return value;
+	}
+	throw new Error("Assistant message kind is invalid");
+}
+
+function normalizeAttentionReason(value: unknown): OpsRequestSummary["attentionReason"] {
+	return value === "RESULT_MISSING" || value === "REQUEST_FAILED" || value === "WAITING_USER"
+		? value
+		: null;
+}
+
+function normalizeJourneyEntry(value: unknown): OpsRequestSummary["journey"]["entry"] {
+	const normalized = normalizeNullableString(value)?.toLowerCase();
+	return normalized === "campus-web" || normalized === "campus_web" ? "CAMPUS_WEB" : "OTHER";
 }
 
 function normalizeRequestStatus(value: string): OpsRequestSummary["status"] {
 	const normalized = value.trim().toUpperCase();
-	if (TERMINAL_STATUSES.has(normalized) || normalized === "RUNNING" || normalized === "PENDING") {
+	if (TERMINAL_STATUSES.has(normalized as OpsRequestSummary["status"])) {
 		return normalized as OpsRequestSummary["status"];
+	}
+	if (normalized === "RUNNING") {
+		return "RUNNING";
+	}
+	if (normalized === "PENDING") {
+		return "PENDING";
 	}
 	if (normalized === "ERROR" || normalized === "REJECTED" || normalized === "NO_ANSWER") {
 		return "FAILED";
+	}
+	if (normalized === "ACCEPTED") {
+		return "PENDING";
+	}
+	if (normalized === "APPROVAL_REQUIRED" || normalized === "NEEDS_CLARIFICATION") {
+		return "ACTION_REQUIRED";
 	}
 	if (normalized === "COMPLETED" || normalized === "COMPLETE") {
 		return "COMPLETED";
@@ -443,82 +614,100 @@ function normalizeRequestStatus(value: string): OpsRequestSummary["status"] {
 	throw new Error(`Unsupported request projection status: ${value}`);
 }
 
-function missingCorrelationFields(input: { runId: string | null; workflowId: string | null }) {
-	const missing: string[] = [];
-	if (!input.runId) {
-		missing.push("runId");
+function deriveRequestLifecyclePhase(
+	row: OpsRequestRow,
+	status: OpsRequestSummary["status"],
+): OpsRequestSummary["lifecyclePhase"] {
+	if (TERMINAL_STATUSES.has(status)) {
+		return "FINISHED";
 	}
-	if (!input.workflowId) {
-		missing.push("workflowId");
+	const runStatus = normalizeNullableString(row.runStatus)?.toLowerCase();
+	if (runStatus === "streaming") {
+		return "STREAMING";
 	}
-	return missing;
+	if (runStatus === "running") {
+		return "RUNNING";
+	}
+	if (
+		runStatus &&
+		["completed", "failed", "expired", "canceled", "cancelled"].includes(runStatus)
+	) {
+		return "FINALIZING";
+	}
+	if (runStatus && ["created", "queued", "admitted"].includes(runStatus)) {
+		return "QUEUED";
+	}
+	const admissionStatus = row.admissionStatus.trim().toLowerCase();
+	if (admissionStatus === "pending_input") {
+		return "PREPARING";
+	}
+	if (admissionStatus === "pending_admission") {
+		return "WAITING_ADMISSION";
+	}
+	if (admissionStatus === "admitted") {
+		return "QUEUED";
+	}
+	return status === "RUNNING" ? "RUNNING" : "PREPARING";
 }
 
-function normalizeIsoString(value: unknown) {
-	if (value instanceof Date) {
-		return value.toISOString();
-	}
-	if (typeof value === "string" && !Number.isNaN(new Date(value).valueOf())) {
-		return new Date(value).toISOString();
-	}
-	return null;
+async function normalizeExternalLinks(
+	allowlist: OpsObservabilityLinkAllowlist | undefined,
+	productTraceId: string,
+	workflowId: string | null,
+): Promise<OpsRequestDetailResponse["technical"]["externalLinks"]> {
+	const temporalLink = toTemporalExternalLink(workflowId, allowlist);
+	const langfuseLink = await toLangfuseExternalLink(productTraceId, allowlist);
+	return [
+		temporalLink,
+		langfuseLink,
+		toSentryExternalLink(allowlist),
+		toAxiomExternalLink(allowlist),
+	].filter((link): link is NonNullable<typeof link> => link !== null);
 }
 
-function normalizeStringArray(value: unknown): string[] {
-	return Array.isArray(value)
-		? value.flatMap((item) => {
-				const normalized = normalizeNullableString(item);
-				return normalized ? [normalized] : [];
-			})
-		: [];
-}
+type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
-function normalizeJsonRecord(
-	value: unknown,
-): OpsRequestDetailResponse["workflowSummary"]["runtimeVersions"] {
+function normalizeJsonRecord(value: unknown): Record<string, JsonValue> {
 	if (!isRecord(value)) {
 		return {};
 	}
 	try {
 		const normalized = JSON.parse(JSON.stringify(value)) as unknown;
-		return isRecord(normalized)
-			? (normalized as OpsRequestDetailResponse["workflowSummary"]["runtimeVersions"])
-			: {};
+		return isRecord(normalized) ? (normalized as Record<string, JsonValue>) : {};
 	} catch {
 		return {};
 	}
 }
 
-function toTemporalWorkflowId(runId: string | null): string | null {
-	return runId ? `campus-agent.chat.${runId}` : null;
-}
-
-function normalizeNonEmptyString(value: unknown, fallback: string) {
-	return typeof value === "string" && value.trim() ? value.trim() : fallback;
+function requestSearchText(
+	request: OpsRequestSummary,
+	correlationIds?: OpsRequestDetailResponse["technical"]["correlationIds"],
+) {
+	return [
+		request.requestId,
+		request.question.preview,
+		correlationIds?.traceId,
+		correlationIds?.runId,
+		correlationIds?.workflowId,
+		correlationIds?.conversationId,
+	]
+		.filter(Boolean)
+		.join(" ")
+		.toLowerCase();
 }
 
 function normalizeNullableString(value: unknown) {
 	return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function normalizeNonNegativeInteger(value: unknown, fallback: number) {
-	return typeof value === "number" &&
-		Number.isFinite(value) &&
-		Number.isInteger(value) &&
-		value >= 0
-		? value
-		: fallback;
+function readNonNegativeInteger(value: unknown, fallback: number) {
+	return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : fallback;
 }
 
-function normalizeNullableNonNegativeInteger(value: unknown) {
-	return typeof value === "number" &&
-		Number.isFinite(value) &&
-		Number.isInteger(value) &&
-		value >= 0
-		? value
-		: null;
+function readNullableNonNegativeInteger(value: unknown) {
+	return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-	return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+	return typeof value === "object" && value !== null && !Array.isArray(value);
 }

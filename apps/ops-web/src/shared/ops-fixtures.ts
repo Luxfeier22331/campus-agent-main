@@ -7,189 +7,287 @@ import type {
 
 const now = "2026-07-09T06:30:00.000Z";
 
-export const opsRequestListFixture = {
-	data: [
-		{
-			completedAt: "2026-07-09T06:29:04.000Z",
-			conversationId: "conv_ops_001",
-			diagnostics: ["调用链可用"],
-			durationMs: 4280,
-			errorCode: null,
-			principalType: "student",
-			projectedAt: now,
-			questionPreview: "今天班车什么时候发车？",
-			requestId: "req_ops_001",
-			requestedTool: "transport_schedule_lookup",
-			runId: "run_ops_001",
-			selectedTool: "transport_schedule_lookup",
-			startedAt: "2026-07-09T06:29:00.000Z",
-			status: "COMPLETED",
-			traceId: "trace_ops_001",
-			workflowId: "campus-agent.chat.run_ops_001",
-		},
-		{
-			completedAt: null,
-			conversationId: "conv_ops_002",
-			diagnostics: ["调用链记录仍在写入"],
-			durationMs: null,
-			errorCode: null,
-			principalType: "student",
-			projectedAt: now,
-			questionPreview: "帮我查一下最近的校园通知",
-			requestId: "req_ops_002",
-			requestedTool: "knowledge_query",
-			runId: "run_ops_002",
-			selectedTool: "knowledge_query",
-			startedAt: "2026-07-09T06:28:12.000Z",
-			status: "RUNNING",
-			traceId: "trace_ops_002",
-			workflowId: "campus-agent.chat.run_ops_002",
-		},
-		{
-			completedAt: "2026-07-09T06:27:44.000Z",
-			conversationId: "conv_ops_003",
-			diagnostics: ["请求失败"],
-			durationMs: 3320,
-			errorCode: "MODEL_PROVIDER_TIMEOUT",
-			principalType: "staff",
-			projectedAt: now,
-			questionPreview: "查看运行健康状态",
-			requestId: "req_ops_003",
-			requestedTool: null,
-			runId: "run_ops_003",
-			selectedTool: null,
-			startedAt: "2026-07-09T06:27:40.000Z",
-			status: "FAILED",
-			traceId: "trace_ops_003",
-			workflowId: "campus-agent.chat.run_ops_003",
-		},
-	],
-	page: { nextCursor: null },
-	summary: {
-		cancelled: 0,
-		completed: 1,
-		failed: 1,
-		pending: 0,
-		running: 1,
-		total: 3,
-	},
-	window: "1h",
-} satisfies OpsRequestListResponse;
+type AttentionReason = OpsRequestListResponse["data"][number]["attentionReason"];
 
-function requestDetail(
-	index: number,
-	input: {
-		stepStatus: "COMPLETED" | "FAILED" | "RUNNING";
-	},
-): OpsRequestDetailResponse {
-	const request = opsRequestListFixture.data[index];
-	if (!request) {
-		throw new Error(`missing request fixture at index ${index}`);
-	}
+function technical(requestId: string, index: number, errorCode: string | null = null) {
+	const runId = `run_ops_00${index}`;
+	const workflowId = `campus-agent.chat.${runId}`;
 	return {
 		correlationIds: {
-			conversationId: request.conversationId,
-			missingCorrelationFields: [],
-			requestId: request.requestId,
-			runId: request.runId,
-			traceId: request.traceId,
-			workflowId: request.workflowId,
+			conversationId: `conv_ops_00${index}`,
+			requestId,
+			runId,
+			traceId: `trace_ops_00${index}`,
+			workflowId,
 		},
+		errorCode,
 		externalLinks: [
 			{
-				href: `https://temporal.example.test/namespaces/default/workflows/${request.workflowId}`,
+				href: `https://langfuse.example.test/project/project-001/traces/trace_ops_00${index}`,
+				isAvailable: true,
+				label: "Langfuse Trace",
+				source: "LANGFUSE" as const,
+			},
+			{
+				href: `https://temporal.example.test/namespaces/default/workflows/${workflowId}`,
 				isAvailable: true,
 				label: "Temporal 工作流",
-				source: "TEMPORAL",
+				source: "TEMPORAL" as const,
 			},
 		],
-		modelSummary: {
-			model: "gpt-4.1-mini",
-			promptId: "campus-primary-agent",
-			provider: "openai",
-			promptVersion: "current",
-			templateSha256: "sha256:fixture-template",
+		runtimeVersions: {
+			agentRuntime: "openai_agents_sdk",
+			executionControl: "temporal",
 		},
-		outcomeSummary: {
-			refusalClass: null,
-			resolvedTargets: ["student_rules"],
-			semanticOutcome: input.stepStatus === "FAILED" ? "runtime_error" : "answer",
-		},
-		policySummary: {
-			aclAnomalyCode: null,
-			aclDecision: "allowed",
-			failClosed: false,
-		},
-		request,
-		sources:
-			request.selectedTool === "knowledge_query"
-				? [
-						{
-							canonicalUrl: "/docs/notices/campus-update",
-							sourceKind: "notice",
-							sourceTitle: "校园通知",
-							targetKind: "canonical_reader",
-							versionId: "notice-current",
-						},
-					]
-				: request.selectedTool === "transport_schedule_lookup"
-					? [
-							{
-								canonicalUrl: "/status/transport",
-								sourceKind: "campus_service",
-								sourceTitle: "班车时刻表",
-								targetKind: "status_page",
-								versionId: "transport-current",
-							},
-						]
-					: [],
-		stageTiming: {
-			"request.total_ms": request.durationMs ?? 1280,
-		},
-		stageTimingBudget: {
-			"request.total_ms": input.stepStatus === "FAILED" ? "BREACH" : "OK",
-		},
-		stepTrajectory: [
-			{
-				outcome: input.stepStatus === "FAILED" ? "runtime_error" : "answer",
-				parentStepId: null,
-				resultStatus: input.stepStatus.toLowerCase(),
-				retryCount: 0,
-				spanKind: request.selectedTool ? "tool_call" : "agent",
-				status: input.stepStatus,
-				stepId: `step_ops_00${index + 1}`,
-				toolName: request.selectedTool,
-			},
-		],
-		toolSummary: {
-			requestedTool: request.requestedTool,
-			selectedTool: request.selectedTool,
-		},
-		traceSummary: {
-			available: input.stepStatus !== "RUNNING",
-			measuredAt: now,
-			projectionLagMs: 120,
-			updatedAt: now,
-		},
-		workflowSummary: {
-			branch: request.selectedTool ? "tool" : "direct",
-			firstDecisionActor: "primary_agent",
-			mode: request.selectedTool ? "single_step" : "terminal",
-			planningOutcome: "primary_agent_completed",
-			runtimeVersions: { agentRuntime: "openai_agents_sdk" },
-			selectedTools: request.selectedTool ? [request.selectedTool] : [],
-			terminalReason: input.stepStatus === "FAILED" ? "runtime_error" : "answer",
-		},
+		terminalReason: errorCode ? "provider_unavailable" : null,
 	};
 }
 
+const transportDetail = {
+	generatedAt: now,
+	journey: {
+		actions: [{ capability: "TRANSPORT_SCHEDULE", status: "COMPLETED" }],
+		actionsDataState: "FRESH",
+		entry: "CAMPUS_WEB",
+	},
+	question: { text: "今天班车什么时候发车？", turnSequence: 3 },
+	request: {
+		completedAt: "2026-07-09T06:29:04.280Z",
+		durationMs: 4_280,
+		lifecyclePhase: "FINISHED",
+		requestId: "req_ops_001",
+		startedAt: "2026-07-09T06:29:00.000Z",
+		status: "COMPLETED",
+	},
+	result: {
+		kind: "answer",
+		sources: [
+			{
+				collectionLabel: "校园交通",
+				pageLabel: "运行状态",
+				primaryAction: {
+					disabledReason: null,
+					external: false,
+					href: "/status/transport",
+					label: "查看班车状态",
+				},
+				publisherLabel: "校园服务中心",
+				sectionTitle: "工作日班车",
+				snippet: "主校区下一班 14:30 发车，预计 15:05 到达东校区。",
+				title: "班车时刻表",
+				versionLabel: "今日班次",
+			},
+		],
+		state: "WRITTEN",
+		text: "今天主校区前往东校区的下一班车是 **14:30**，预计 **15:05** 到达。\n\n建议提前 10 分钟到候车点；临时调整请以班车状态页为准。",
+	},
+	technical: technical("req_ops_001", 1),
+	usage: {
+		cachedInputTokens: 320,
+		inputTokens: 2_000,
+		outputTokens: 400,
+		state: "COMPLETE",
+		totalTokens: 2_400,
+	},
+} satisfies OpsRequestDetailResponse;
+
+const directDetail = {
+	generatedAt: now,
+	journey: { actions: [], actionsDataState: "NO_DATA", entry: "CAMPUS_WEB" },
+	question: { text: "你好，你能帮我做什么？", turnSequence: 1 },
+	request: {
+		completedAt: "2026-07-09T06:28:43.600Z",
+		durationMs: 3_600,
+		lifecyclePhase: "FINISHED",
+		requestId: "req_ops_002",
+		startedAt: "2026-07-09T06:28:40.000Z",
+		status: "COMPLETED",
+	},
+	result: {
+		kind: "answer",
+		sources: [],
+		state: "WRITTEN",
+		text: "我可以帮助查询校园通知、班车、办事规则等信息，也可以结合当前对话继续回答。你可以直接告诉我想了解什么。",
+	},
+	technical: technical("req_ops_002", 2),
+	usage: {
+		cachedInputTokens: 64,
+		inputTokens: 390,
+		outputTokens: 96,
+		state: "COMPLETE",
+		totalTokens: 486,
+	},
+} satisfies OpsRequestDetailResponse;
+
+const runningDetail = {
+	generatedAt: now,
+	journey: {
+		actions: [{ capability: "CAMPUS_KNOWLEDGE", status: "RUNNING" }],
+		actionsDataState: "FRESH",
+		entry: "CAMPUS_WEB",
+	},
+	question: { text: "帮我查一下最近的校园通知", turnSequence: 5 },
+	request: {
+		completedAt: null,
+		durationMs: null,
+		lifecyclePhase: "STREAMING",
+		requestId: "req_ops_003",
+		startedAt: "2026-07-09T06:28:12.000Z",
+		status: "RUNNING",
+	},
+	result: { state: "PENDING" },
+	technical: technical("req_ops_003", 3),
+	usage: {
+		cachedInputTokens: 180,
+		inputTokens: 920,
+		outputTokens: 210,
+		state: "IN_PROGRESS",
+		totalTokens: 1_130,
+	},
+} satisfies OpsRequestDetailResponse;
+
+const failedDetail = {
+	generatedAt: now,
+	journey: { actions: [], actionsDataState: "NO_DATA", entry: "CAMPUS_WEB" },
+	question: { text: "帮我看看本周有哪些重要通知", turnSequence: 2 },
+	request: {
+		completedAt: "2026-07-09T06:27:43.320Z",
+		durationMs: 3_320,
+		lifecyclePhase: "FINISHED",
+		requestId: "req_ops_004",
+		startedAt: "2026-07-09T06:27:40.000Z",
+		status: "FAILED",
+	},
+	result: {
+		kind: "error",
+		sources: [],
+		state: "WRITTEN",
+		text: "当前暂时无法完成查询，请稍后重试。",
+	},
+	technical: technical("req_ops_004", 4, "MODEL_PROVIDER_TIMEOUT"),
+	usage: {
+		cachedInputTokens: 0,
+		inputTokens: 400,
+		outputTokens: 112,
+		state: "PARTIAL",
+		totalTokens: 512,
+	},
+} satisfies OpsRequestDetailResponse;
+
+const clarificationDetail = {
+	generatedAt: now,
+	journey: { actions: [], actionsDataState: "NO_DATA", entry: "CAMPUS_WEB" },
+	question: { text: "请帮我查询班车时间", turnSequence: 4 },
+	request: {
+		completedAt: "2026-07-09T06:26:04.100Z",
+		durationMs: 4_100,
+		lifecyclePhase: "FINISHED",
+		requestId: "req_ops_005",
+		startedAt: "2026-07-09T06:26:00.000Z",
+		status: "ACTION_REQUIRED",
+	},
+	result: {
+		kind: "clarification",
+		sources: [],
+		state: "WRITTEN",
+		text: "请告诉我出发校区、目的校区以及大致出发时间，我再为你查询合适的班次。",
+	},
+	technical: {
+		...technical("req_ops_005", 5),
+		terminalReason: "needs_clarification",
+	},
+	usage: {
+		cachedInputTokens: null,
+		inputTokens: null,
+		outputTokens: null,
+		state: "UNAVAILABLE",
+		totalTokens: null,
+	},
+} satisfies OpsRequestDetailResponse;
+
+const missingResultDetail = {
+	generatedAt: now,
+	journey: {
+		actions: [{ capability: "CAMPUS_KNOWLEDGE", status: "COMPLETED" }],
+		actionsDataState: "FRESH",
+		entry: "CAMPUS_WEB",
+	},
+	question: { text: "奖学金申请截止到哪一天？", turnSequence: 6 },
+	request: {
+		completedAt: "2026-07-09T06:25:05.200Z",
+		durationMs: 5_200,
+		lifecyclePhase: "FINISHED",
+		requestId: "req_ops_006",
+		startedAt: "2026-07-09T06:25:00.000Z",
+		status: "COMPLETED",
+	},
+	result: { reasonCode: "ASSISTANT_MESSAGE_MISSING", state: "MISSING" },
+	technical: technical("req_ops_006", 6),
+	usage: {
+		cachedInputTokens: 110,
+		inputTokens: 640,
+		outputTokens: 135,
+		state: "COMPLETE",
+		totalTokens: 775,
+	},
+} satisfies OpsRequestDetailResponse;
+
 export const opsRequestDetailFixtures = [
-	requestDetail(0, { stepStatus: "COMPLETED" }),
-	requestDetail(1, { stepStatus: "RUNNING" }),
-	requestDetail(2, { stepStatus: "FAILED" }),
+	transportDetail,
+	directDetail,
+	runningDetail,
+	failedDetail,
+	clarificationDetail,
+	missingResultDetail,
 ];
 
-export const opsRequestDetailFixture = opsRequestDetailFixtures[0];
+function requestSummary(
+	detail: OpsRequestDetailResponse,
+	attentionReason: AttentionReason,
+): OpsRequestListResponse["data"][number] {
+	const result =
+		detail.result.state === "WRITTEN"
+			? { kind: detail.result.kind, state: "WRITTEN" as const }
+			: { kind: null, state: detail.result.state };
+	return {
+		attentionReason,
+		completedAt: detail.request.completedAt,
+		durationMs: detail.request.durationMs,
+		journey: { ...detail.journey, result },
+		lifecyclePhase: detail.request.lifecyclePhase,
+		question: { preview: detail.question.text, truncated: false },
+		requestId: detail.request.requestId,
+		startedAt: detail.request.startedAt,
+		status: detail.request.status,
+		usage: { state: detail.usage.state, totalTokens: detail.usage.totalTokens },
+	};
+}
+
+export const opsRequestListFixture = {
+	data: [
+		requestSummary(transportDetail, null),
+		requestSummary(directDetail, null),
+		requestSummary(runningDetail, null),
+		requestSummary(failedDetail, "REQUEST_FAILED"),
+		requestSummary(clarificationDetail, "WAITING_USER"),
+		requestSummary(missingResultDetail, "RESULT_MISSING"),
+	],
+	generatedAt: now,
+	page: { nextCursor: null },
+	statusCounts: {
+		actionRequired: 1,
+		cancelled: 0,
+		completed: 3,
+		failed: 1,
+		pending: 0,
+		running: 1,
+		total: 6,
+	},
+	view: "recent",
+	window: "1h",
+} satisfies OpsRequestListResponse;
+
+export const opsRequestDetailFixture = transportDetail;
 
 export const opsOverviewFixture = {
 	cache: { ageMs: 0, status: "FRESH" },
@@ -201,12 +299,6 @@ export const opsOverviewFixture = {
 			source: "LANGFUSE",
 		},
 		{
-			href: "https://temporal.example.test",
-			isAvailable: true,
-			label: "Temporal",
-			source: "TEMPORAL",
-		},
-		{
 			href: "https://axiom.example.test",
 			isAvailable: true,
 			label: "Axiom",
@@ -216,10 +308,16 @@ export const opsOverviewFixture = {
 	generatedAt: now,
 	health: {
 		dataState: "FRESH",
-		reasons: ["执行控制健康检查失败。"],
 		status: "DEGRADED",
 	},
 	issues: [
+		{
+			code: "REQUESTS_DEGRADED",
+			detail: "当前时间范围内存在失败请求。",
+			severity: "WARNING",
+			source: "REQUESTS",
+			title: "存在失败请求",
+		},
 		{
 			code: "SERVICE_EXECUTION_CONTROL_DEGRADED",
 			detail: "最近一次健康检查没有成功。",
@@ -229,15 +327,16 @@ export const opsOverviewFixture = {
 		},
 	],
 	requests: {
+		actionRequired: 0,
 		cancelled: 0,
 		completed: 92,
 		dataState: "FRESH",
 		failed: 5,
 		p95DurationMs: 4810,
 		pending: 1,
-		reason: null,
+		reason: "当前时间范围内存在失败请求。",
 		running: 2,
-		status: "HEALTHY",
+		status: "DEGRADED",
 		successRate: 0.948,
 		total: 100,
 		updatedAt: now,
@@ -247,7 +346,6 @@ export const opsOverviewFixture = {
 		["app-api", "浏览器接口", "HEALTHY"],
 		["execution-control", "执行控制", "DEGRADED"],
 		["agent-runtime", "Agent 运行服务", "HEALTHY"],
-		["ops-web", "运维工作台", "HEALTHY"],
 	].map(([name, displayName, status]) => ({
 		dataState: "FRESH" as const,
 		displayName: displayName as string,
@@ -297,15 +395,40 @@ export const opsOverviewFixture = {
 		status: "HEALTHY",
 		updatedAt: now,
 	},
-	trends: [
-		{
-			bucketStart: "2026-07-09T06:15:00.000Z",
-			completed: 24,
-			failed: 1,
-			p95DurationMs: 4200,
-			total: 25,
-		},
-	],
+	trends: {
+		data: [
+			{
+				bucketStart: "2026-07-09T06:15:00.000Z",
+				completed: 23,
+				failed: 1,
+				p95DurationMs: 4200,
+				total: 25,
+			},
+			{
+				bucketStart: "2026-07-09T06:30:00.000Z",
+				completed: 25,
+				failed: 1,
+				p95DurationMs: 5000,
+				total: 27,
+			},
+			{
+				bucketStart: "2026-07-09T06:45:00.000Z",
+				completed: 20,
+				failed: 1,
+				p95DurationMs: 4610,
+				total: 22,
+			},
+			{
+				bucketStart: "2026-07-09T07:00:00.000Z",
+				completed: 24,
+				failed: 2,
+				p95DurationMs: 4810,
+				total: 26,
+			},
+		],
+		dataState: "FRESH",
+		reason: null,
+	},
 	window: "1h",
 } satisfies OpsOverviewResponse;
 

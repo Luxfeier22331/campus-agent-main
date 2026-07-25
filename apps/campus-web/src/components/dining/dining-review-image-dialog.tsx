@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@campus-agent/ui";
 
 export function DiningReviewImageDialog({
 	alt,

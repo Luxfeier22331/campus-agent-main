@@ -61,8 +61,12 @@ apps/app-api/.dev.vars
 !packages/ingestion-kernels-rs/**
 !packages/ingest-core/
 !packages/ingest-core/**
+!packages/langfuse-identity/
+!packages/langfuse-identity/**
 !packages/telemetry-node/
 !packages/telemetry-node/**
+!packages/ui/
+!packages/ui/**
 !packages/ragas-runner/
 !packages/ragas-runner/**
 !scripts/

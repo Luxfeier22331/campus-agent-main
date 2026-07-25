@@ -1,708 +1,492 @@
+import { Button, cn } from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { ArrowLeft, ExternalLink, RefreshCw } from "lucide-react";
-import { useRef } from "react";
-import type {
-	OpsObservabilityResponse,
-	OpsRequestDetailResponse,
-	OpsSentryIssuesResponse,
-} from "../shared/ops-contract";
-import { formatDuration, formatTimestamp } from "./format";
 import {
-	fetchOpsObservability,
-	fetchOpsRequestDetail,
-	fetchOpsSentryIssues,
-} from "./ops-api-client";
+	ArrowLeft,
+	Bot,
+	CheckCircle2,
+	CircleAlert,
+	ExternalLink,
+	Globe2,
+	MessageSquareText,
+	RefreshCw,
+	Search,
+	ServerCog,
+} from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import type { OpsRequestDetailResponse } from "../shared/ops-contract";
+import { formatTimestamp } from "./format";
+import { fetchOpsRequestDetail } from "./ops-api-client";
+import { ErrorState, PageHeader, PageShell, StaleDataWarning, StatusBadge } from "./ops-display";
+import { formatLifecyclePhase, formatOpsDomainValue } from "./ops-domain-labels";
 import {
-	BudgetBadge,
-	CopyableKeyValue,
-	ErrorState,
-	KeyValue,
-	MetricTile,
-	PageHeader,
-	PageShell,
-	StaleDataWarning,
-	StatusBadge,
-} from "./ops-display";
-import {
-	formatDataStateLabel,
 	formatRequestCompletedAt,
 	formatRequestDuration,
-	formatStageTimingLabel,
-	formatStatusLabel,
 	normalizeRequestListReturnPath,
-	orderedStageTimingEntries,
 } from "./ops-view-helpers";
-import { StepMobileList } from "./request-detail-panels";
-import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { cn } from "./ui/cn";
-import { DataTable } from "./ui/data-table";
 
-export type RequestDetailTab = "execution" | "observability" | "overview";
-
-const tabs: Array<{ label: string; value: RequestDetailTab }> = [
-	{ label: "概览", value: "overview" },
-	{ label: "执行", value: "execution" },
-	{ label: "日志与调用链", value: "observability" },
-];
-
-export function RequestDetailPage({
-	from,
-	requestId,
-	tab,
-}: {
-	from?: string;
-	requestId: string;
-	tab: RequestDetailTab;
-}) {
+export function RequestDetailPage({ from, requestId }: { from?: string; requestId: string }) {
 	const detail = useQuery({
 		queryFn: ({ signal }) => fetchOpsRequestDetail(requestId, { signal }),
 		queryKey: ["ops", "requests", requestId],
-		refetchInterval: (query) => {
-			const status = query.state.data?.request.status;
-			return status === "RUNNING" || status === "PENDING" ? 30_000 : false;
-		},
+		refetchInterval: (query) =>
+			query.state.data?.request.lifecyclePhase === "FINISHED" ? false : 30_000,
 		refetchIntervalInBackground: false,
 	});
 	const returnPath = normalizeRequestListReturnPath(from);
 
 	if (detail.isPending) {
-		return <PageShell title="请求详情">正在读取请求详情...</PageShell>;
+		return <PageShell title="运行详情">正在读取运行详情...</PageShell>;
 	}
 	if (detail.isError && !detail.data) {
 		return (
 			<section>
-				<PageHeader
-					actions={<BackToRequests href={returnPath} />}
-					description="查看一次用户请求的结果、执行步骤和观测记录。"
-					title="请求详情"
+				<BackToRequests href={returnPath} />
+				<PageHeader title="运行详情" />
+				<ErrorState
+					error={detail.error}
+					onRetry={() => detail.refetch()}
+					title="运行详情读取失败"
 				/>
-				<Card>
-					<CardContent className="p-6">
-						<ErrorState
-							error={detail.error}
-							onRetry={() => detail.refetch()}
-							title="请求详情读取失败"
-						/>
-					</CardContent>
-				</Card>
 			</section>
 		);
 	}
 	if (!detail.data) {
-		return <PageShell title="请求详情">正在读取请求详情...</PageShell>;
+		return <PageShell title="运行详情">正在读取运行详情...</PageShell>;
 	}
 
 	return (
 		<section>
+			<BackToRequests href={returnPath} />
 			<PageHeader
 				actions={
-					<div className="flex flex-wrap items-center gap-2">
-						<span className="text-slate-600 text-sm">
-							最后刷新：{formatTimestamp(new Date(detail.dataUpdatedAt).toISOString())}
-						</span>
+					<div className="flex flex-wrap gap-2">
 						<Button
 							aria-busy={detail.isFetching}
 							disabled={detail.isFetching}
-							onClick={() => detail.refetch()}
+							onClick={() => void detail.refetch()}
 							variant="outline"
 						>
 							<RefreshCw className="size-4" />
 							{detail.isFetching ? "刷新中" : "刷新"}
 						</Button>
-						<BackToRequests href={returnPath} />
+						<Button asChild variant="outline">
+							<Link params={{ requestId }} search={{ from }} to="/requests/$requestId/system">
+								<ServerCog className="size-4" />
+								系统记录
+							</Link>
+						</Button>
 					</div>
 				}
-				description="查看一次用户请求的结果、执行步骤和观测记录。"
-				title="请求详情"
+				description="查看本轮用户请求如何形成会话结果。"
+				title="运行详情"
 			/>
 			{detail.isRefetchError ? (
 				<StaleDataWarning
 					error={detail.error}
 					lastSuccessfulAt={detail.dataUpdatedAt}
 					onRetry={() => void detail.refetch()}
-					title="请求详情刷新失败"
+					title="运行详情刷新失败"
 				/>
 			) : null}
-			<nav
-				aria-label="请求详情分区"
-				className="mb-4 flex max-w-full gap-1 overflow-x-auto border-slate-200 border-b"
-			>
-				{tabs.map((item) => (
-					<Link
-						aria-current={tab === item.value ? "page" : undefined}
-						className={cn(
-							"min-h-11 shrink-0 border-b-2 px-4 py-3 font-semibold text-sm",
-							tab === item.value
-								? "border-slate-950 text-slate-950"
-								: "border-transparent text-slate-600 hover:text-slate-950",
-						)}
-						key={item.value}
-						params={{ requestId }}
-						search={{ from, tab: item.value }}
-						to="/requests/$requestId"
-					>
-						{item.label}
-					</Link>
-				))}
-			</nav>
-			{tab === "overview" ? <RequestOverview detail={detail.data} /> : null}
-			{tab === "execution" ? <RequestExecution detail={detail.data} /> : null}
-			{tab === "observability" ? <RequestObservability detail={detail.data} /> : null}
+			<RequestSummary detail={detail.data} />
+			<div className="grid gap-10 py-6">
+				<QuestionSection detail={detail.data} />
+				<JourneySection detail={detail.data} />
+				<ResultSection detail={detail.data} />
+				<SourcesSection detail={detail.data} />
+				<UsageSection detail={detail.data} />
+			</div>
+			{detail.data.request.lifecyclePhase === "FINISHED" ? null : (
+				<p className="border-border border-t pt-4 text-muted-foreground text-xs">
+					运行快照生成于 {formatTimestamp(detail.data.generatedAt)}
+				</p>
+			)}
 		</section>
 	);
 }
 
 function BackToRequests({ href }: { href: string }) {
 	return (
-		<Button asChild variant="outline">
-			<a href={href}>
-				<ArrowLeft className="size-4" />
-				返回请求列表
-			</a>
-		</Button>
+		<a
+			className="mb-3 inline-flex min-h-10 items-center gap-2 font-medium text-muted-foreground text-sm hover:text-foreground hover:underline"
+			href={href}
+		>
+			<ArrowLeft className="size-4" />
+			返回运行记录
+		</a>
 	);
 }
 
-function RequestOverview({ detail }: { detail: OpsRequestDetailResponse }) {
-	const failedStep = detail.stepTrajectory.find((step) => step.status === "FAILED");
-	return (
-		<div className="grid gap-4">
-			<div className="grid grid-cols-2 gap-2 md:grid-cols-4" data-testid="request-triage-grid">
-				<MetricTile label="请求状态" value={<StatusBadge status={detail.request.status} />} />
-				<MetricTile label="总耗时" value={formatRequestDuration(detail.request)} />
-				<MetricTile
-					className="col-span-2 md:col-span-1"
-					label="使用工具"
-					value={detail.toolSummary.selectedTool ?? "未使用工具"}
-				/>
-				<MetricTile
-					className="col-span-2 md:col-span-1"
-					label="错误"
-					value={detail.request.errorCode ?? failedStep?.outcome ?? "无错误"}
-				/>
-			</div>
-			<Card>
-				<CardHeader>
-					<CardTitle>关联信息</CardTitle>
-				</CardHeader>
-				<CardContent
-					className="grid grid-cols-2 gap-x-3 text-sm xl:grid-cols-3"
-					data-testid="request-correlation-grid"
-				>
-					<CopyableKeyValue label="requestId" value={detail.correlationIds.requestId} />
-					<CopyableKeyValue label="traceId" value={detail.correlationIds.traceId} />
-					<CopyableKeyValue label="conversationId" value={detail.correlationIds.conversationId} />
-					<CopyableKeyValue label="runId" value={detail.correlationIds.runId} />
-					<CopyableKeyValue label="workflowId" value={detail.correlationIds.workflowId} />
-					{detail.correlationIds.missingCorrelationFields.length > 0 ? (
-						<div className="col-span-full rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900">
-							<p className="font-medium text-xs">缺少关联字段</p>
-							<div className="mt-2 flex flex-wrap gap-2">
-								{detail.correlationIds.missingCorrelationFields.map((field) => (
-									<Badge key={field} tone="warning">
-										{field}
-									</Badge>
-								))}
-							</div>
-						</div>
-					) : null}
-				</CardContent>
-			</Card>
-			<div className="grid gap-4 xl:grid-cols-3">
-				<Card data-testid="request-status-card">
-					<CardHeader>
-						<CardTitle>请求结果</CardTitle>
-					</CardHeader>
-					<CardContent className="grid gap-2 text-sm">
-						<KeyValue label="状态" value={<StatusBadge status={detail.request.status} />} />
-						<KeyValue label="开始时间" value={formatTimestamp(detail.request.startedAt)} />
-						<KeyValue label="完成时间" value={formatRequestCompletedAt(detail.request)} />
-						<KeyValue label="状态更新时间" value={formatTimestamp(detail.request.projectedAt)} />
-					</CardContent>
-				</Card>
-				<Card data-testid="tool-outcome-card">
-					<CardHeader>
-						<CardTitle>工具与结果</CardTitle>
-					</CardHeader>
-					<CardContent className="grid gap-2 text-sm">
-						<KeyValue label="请求工具" value={detail.toolSummary.requestedTool ?? "未请求工具"} />
-						<KeyValue label="实际工具" value={detail.toolSummary.selectedTool ?? "未选择工具"} />
-						<KeyValue
-							label="结果类型"
-							value={formatStatusLabel(detail.outcomeSummary.semanticOutcome ?? "UNKNOWN")}
-						/>
-						<KeyValue
-							label="检索范围"
-							value={detail.outcomeSummary.resolvedTargets.join("、") || "未检索"}
-						/>
-						<KeyValue label="拒绝类型" value={detail.outcomeSummary.refusalClass ?? "无"} />
-					</CardContent>
-				</Card>
-				<Card>
-					<CardHeader>
-						<CardTitle>模型与安全</CardTitle>
-					</CardHeader>
-					<CardContent className="grid gap-2 text-sm">
-						<KeyValue label="服务商" value={detail.modelSummary.provider ?? "未知"} />
-						<KeyValue label="模型" value={detail.modelSummary.model ?? "未知"} />
-						<KeyValue label="提示词" value={detail.modelSummary.promptId ?? "未知"} />
-						<KeyValue label="提示词版本" value={detail.modelSummary.promptVersion ?? "未知"} />
-						<KeyValue
-							label="访问控制"
-							value={formatStatusLabel(detail.policySummary.aclDecision ?? "UNKNOWN")}
-						/>
-						<KeyValue
-							label="安全校验"
-							value={
-								detail.policySummary.failClosed === null
-									? "未记录"
-									: detail.policySummary.failClosed
-										? "未通过，已停止"
-										: "通过"
-							}
-						/>
-						<KeyValue label="访问控制异常" value={detail.policySummary.aclAnomalyCode ?? "无"} />
-					</CardContent>
-				</Card>
-			</div>
-			<Card data-testid="supporting-sources-card">
-				<CardHeader>
-					<CardTitle>依据来源</CardTitle>
-				</CardHeader>
-				<CardContent>
-					{detail.sources.length === 0 ? (
-						<p className="text-slate-500 text-sm">本次请求没有记录依据来源。</p>
-					) : (
-						<ul className="grid gap-2">
-							{detail.sources.map((source) => (
-								<li
-									className="rounded-md border border-slate-200 p-3"
-									key={`${source.canonicalUrl}:${source.versionId ?? "current"}`}
-								>
-									<p className="font-medium text-slate-950">{source.sourceTitle}</p>
-									<p className="mt-1 break-all text-slate-500 text-xs">{source.canonicalUrl}</p>
-									<div className="mt-2 flex flex-wrap gap-2">
-										{source.sourceKind ? <Badge tone="muted">{source.sourceKind}</Badge> : null}
-										{source.versionId ? <Badge tone="muted">版本 {source.versionId}</Badge> : null}
-									</div>
-								</li>
-							))}
-						</ul>
-					)}
-				</CardContent>
-			</Card>
-		</div>
-	);
-}
-
-function RequestExecution({ detail }: { detail: OpsRequestDetailResponse }) {
-	const timings = orderedStageTimingEntries(detail.stageTiming, detail.stageTimingBudget);
-	return (
-		<div className="grid gap-4">
-			<Card>
-				<CardHeader>
-					<CardTitle>工作流摘要</CardTitle>
-				</CardHeader>
-				<CardContent className="grid gap-2 text-sm md:grid-cols-2 xl:grid-cols-3">
-					<KeyValue label="执行方式" value={detail.workflowSummary.mode ?? "未记录"} />
-					<KeyValue label="处理分支" value={detail.workflowSummary.branch ?? "未记录"} />
-					<KeyValue
-						label="首次决策方"
-						value={detail.workflowSummary.firstDecisionActor ?? "未记录"}
-					/>
-					<KeyValue label="规划结果" value={detail.workflowSummary.planningOutcome ?? "未记录"} />
-					<KeyValue label="结束原因" value={detail.workflowSummary.terminalReason ?? "未记录"} />
-					<KeyValue
-						label="已选工具"
-						value={detail.workflowSummary.selectedTools.join("、") || "未选择工具"}
-					/>
-				</CardContent>
-			</Card>
-			<Card>
-				<CardHeader>
-					<CardTitle>分段耗时</CardTitle>
-				</CardHeader>
-				<CardContent>
-					{timings.length === 0 ? (
-						<p className="text-slate-500 text-sm">没有分段耗时数据。</p>
-					) : (
-						<>
-							<div className="grid gap-2 md:hidden" data-testid="stage-timing-mobile-list">
-								{timings.map((timing) => (
-									<div
-										className="flex items-center justify-between gap-3 rounded-md border border-slate-200 p-3 text-sm"
-										key={timing.key}
-									>
-										<div className="grid min-w-0 gap-1">
-											<span className="font-medium text-slate-950" title={timing.key}>
-												{formatStageTimingLabel(timing.key)}
-											</span>
-											<span className="text-slate-600 tabular-nums">
-												{formatDuration(timing.value)}
-											</span>
-										</div>
-										<BudgetBadge state={timing.budget} />
-									</div>
-								))}
-							</div>
-							<div className="hidden md:block">
-								<DataTable
-									caption="分段耗时"
-									columns={[
-										{
-											cell: (row) => <span title={row.key}>{formatStageTimingLabel(row.key)}</span>,
-											header: "阶段",
-										},
-										{ cell: (row) => formatDuration(row.value), header: "耗时" },
-										{ cell: (row) => <BudgetBadge state={row.budget} />, header: "预算" },
-									]}
-									data={timings}
-									minWidth="520px"
-									rowKey={(row) => row.key}
-								/>
-							</div>
-						</>
-					)}
-				</CardContent>
-			</Card>
-			<Card data-testid="step-trajectory-card">
-				<CardHeader>
-					<CardTitle>执行步骤</CardTitle>
-				</CardHeader>
-				<CardContent>
-					{detail.stepTrajectory.length === 0 ? (
-						<p className="text-slate-500 text-sm">没有执行步骤摘要。</p>
-					) : (
-						<>
-							<StepMobileList steps={detail.stepTrajectory} />
-							<div className="hidden md:block">
-								<DataTable
-									caption="执行步骤列表"
-									columns={[
-										{ cell: (row) => <StatusBadge status={row.status} />, header: "状态" },
-										{ cell: (row) => row.stepId, header: "步骤 ID" },
-										{ cell: (row) => row.spanKind, header: "类型" },
-										{ cell: (row) => row.toolName ?? "无", header: "工具" },
-										{ cell: (row) => row.outcome ?? "未记录", header: "结果" },
-										{ cell: (row) => row.resultStatus ?? "未记录", header: "结果状态" },
-										{ cell: (row) => row.retryCount, header: "重试" },
-										{ cell: (row) => row.parentStepId ?? "无", header: "上一步" },
-									]}
-									data={detail.stepTrajectory}
-									minWidth="860px"
-									rowKey={(row) => row.stepId}
-								/>
-							</div>
-						</>
-					)}
-				</CardContent>
-			</Card>
-		</div>
-	);
-}
-
-function RequestObservability({ detail }: { detail: OpsRequestDetailResponse }) {
-	const logs = useQuery({
-		queryFn: ({ signal }) => fetchOpsObservability(detail.request.requestId, "logs", { signal }),
-		queryKey: ["ops", "observability", detail.request.requestId, "logs"],
-	});
-	const trace = useQuery({
-		queryFn: ({ signal }) => fetchOpsObservability(detail.request.requestId, "trace", { signal }),
-		queryKey: ["ops", "observability", detail.request.requestId, "trace"],
-	});
-	const sentryIssues = useQuery({
-		queryFn: ({ signal }) => fetchOpsSentryIssues(detail.request.requestId, { signal }),
-		queryKey: ["ops", "sentry-issues", detail.request.requestId],
-	});
-	return (
-		<div className="grid gap-4">
-			<Card>
-				<CardHeader>
-					<CardTitle>相关系统</CardTitle>
-				</CardHeader>
-				<CardContent className="grid gap-3 md:grid-cols-2">
-					<div className="grid gap-1 rounded-md border border-slate-200 px-3 py-2 text-sm">
-						<div className="flex items-center justify-between gap-2">
-							<span className="font-medium">调用链状态</span>
-							<Badge tone={detail.traceSummary.available ? "success" : "warning"}>
-								{detail.traceSummary.available ? "可用" : "不可用"}
-							</Badge>
-						</div>
-						<span className="text-slate-500 text-xs">
-							记录时间：
-							{detail.traceSummary.updatedAt
-								? formatTimestamp(detail.traceSummary.updatedAt)
-								: "未记录"}
-						</span>
-						<span className="text-slate-500 text-xs">
-							写入延迟：
-							{detail.traceSummary.projectionLagMs === null
-								? "未记录"
-								: formatDuration(detail.traceSummary.projectionLagMs)}
-						</span>
-					</div>
-					{detail.externalLinks.length === 0 ? (
-						<p className="text-slate-500 text-sm">没有可用的外部入口。</p>
-					) : (
-						detail.externalLinks.map((link) =>
-							link.href && link.isAvailable ? (
-								<a
-									className="inline-flex min-h-11 items-center justify-between gap-2 rounded-md border border-slate-200 px-3 py-2 text-slate-700 hover:bg-slate-50"
-									href={link.href}
-									key={link.source}
-									rel="noreferrer"
-									target="_blank"
-								>
-									<span>{link.label}</span>
-									<ExternalLink className="size-4" />
-								</a>
-							) : null,
-						)
-					)}
-				</CardContent>
-			</Card>
-			<SentryIssuesPanel query={sentryIssues} />
-			<div className="grid gap-4 xl:grid-cols-2">
-				<ObservabilityPanel query={logs} title="日志" />
-				<ObservabilityPanel query={trace} title="调用链" />
-			</div>
-		</div>
-	);
-}
-
-function SentryIssuesPanel({
-	query,
-}: {
-	query: ReturnType<typeof useQuery<OpsSentryIssuesResponse>>;
-}) {
-	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>Sentry Issues</CardTitle>
-			</CardHeader>
-			<CardContent className="grid gap-3">
-				{query.isPending ? (
-					<p className="text-slate-500 text-sm" role="status">
-						正在读取 Sentry Issues...
-					</p>
-				) : null}
-				{query.isError ? (
-					<ErrorState
-						error={query.error}
-						onRetry={() => query.refetch()}
-						title="Sentry Issues 读取失败"
-					/>
-				) : null}
-				{query.data ? (
-					<>
-						<div className="flex flex-wrap gap-2 text-xs">
-							<Badge tone={query.data.dataState === "FRESH" ? "success" : "warning"}>
-								{formatDataStateLabel(query.data.dataState)}
-							</Badge>
-							<Badge tone="muted">{query.data.issues.length} 条</Badge>
-							<Badge tone="muted">查询 {formatDuration(query.data.queryDurationMs)}</Badge>
-							{query.data.truncated ? <Badge tone="warning">结果已截断</Badge> : null}
-						</div>
-						<CopyableKeyValue label="Sentry 查询" value={query.data.searchQuery} />
-						{query.data.issues.length === 0 ? (
-							<p className="rounded-md border border-slate-200 bg-slate-50 p-4 text-slate-500 text-sm">
-								当前请求没有关联的 Sentry Issue。
-							</p>
-						) : (
-							<ul aria-label="Sentry Issue 摘要" className="grid gap-2">
-								{query.data.issues.map((issue) => (
-									<li
-										className="grid gap-2 rounded-md border border-slate-200 p-3"
-										key={issue.issueId}
-									>
-										<div className="flex flex-wrap items-start justify-between gap-2">
-											<div className="min-w-0">
-												<p className="font-medium text-slate-950">{issue.title}</p>
-												<p className="text-slate-500 text-xs">
-													{issue.projectName} · {issue.shortId}
-												</p>
-											</div>
-											<a
-												className="inline-flex min-h-9 items-center gap-2 text-sky-700 text-sm hover:text-sky-900"
-												href={issue.permalink}
-												rel="noreferrer"
-												target="_blank"
-											>
-												在 Sentry 查看
-												<ExternalLink className="size-4" />
-											</a>
-										</div>
-										<div className="flex flex-wrap gap-2 text-xs">
-											<Badge tone={issue.status === "resolved" ? "success" : "warning"}>
-												{issue.status}
-											</Badge>
-											{issue.level ? <Badge tone="muted">{issue.level}</Badge> : null}
-											<Badge tone="muted">{issue.eventCount} 个事件</Badge>
-											<span className="text-slate-500">
-												最近：{formatTimestamp(issue.lastSeen)}
-											</span>
-										</div>
-									</li>
-								))}
-							</ul>
-						)}
-					</>
-				) : null}
-			</CardContent>
-		</Card>
-	);
-}
-
-function ObservabilityPanel({
-	query,
-	title,
-}: {
-	query: ReturnType<typeof useQuery<OpsObservabilityResponse>>;
-	title: string;
-}) {
-	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>{title}</CardTitle>
-			</CardHeader>
-			<CardContent className="grid gap-3">
-				{query.isPending ? (
-					<p className="text-slate-500 text-sm" role="status">
-						正在读取{title}...
-					</p>
-				) : null}
-				{query.isError ? (
-					<ErrorState
-						error={query.error}
-						onRetry={() => query.refetch()}
-						title={`${title}读取失败`}
-					/>
-				) : null}
-				{query.data ? (
-					<>
-						<div className="flex flex-wrap gap-2 text-xs">
-							<Badge tone={query.data.dataState === "FRESH" ? "success" : "warning"}>
-								{formatDataStateLabel(query.data.dataState)}
-							</Badge>
-							<Badge tone="muted">{query.data.records.length} 条</Badge>
-							<Badge tone="muted">查询 {formatDuration(query.data.queryDurationMs)}</Badge>
-							{query.data.truncated ? <Badge tone="warning">结果已截断</Badge> : null}
-						</div>
-						<VirtualRecordList response={query.data} />
-					</>
-				) : null}
-			</CardContent>
-		</Card>
-	);
-}
-
-function VirtualRecordList({ response }: { response: OpsObservabilityResponse }) {
-	const { kind, records } = response;
-	const parentRef = useRef<HTMLDivElement>(null);
-	const viewportHeight = Math.min(420, Math.max(160, records.length * 144));
-	const virtualizer = useVirtualizer({
-		count: records.length,
-		estimateSize: () => 144,
-		getScrollElement: () => parentRef.current,
-		initialRect: { height: viewportHeight, width: 720 },
-		overscan: 6,
-	});
-	if (records.length === 0) {
-		return (
-			<p className="rounded-md border border-slate-200 bg-slate-50 p-4 text-slate-500 text-sm">
-				当前请求没有{kind === "logs" ? "日志" : "调用链"}记录。
-			</p>
-		);
-	}
+function RequestSummary({ detail }: { detail: OpsRequestDetailResponse }) {
 	return (
 		<div
-			className="overflow-auto rounded-md border border-slate-200 bg-slate-950"
-			data-testid={`observability-record-viewport-${kind}`}
-			ref={parentRef}
-			style={{ height: `${viewportHeight}px` }}
+			className="flex flex-wrap items-center gap-x-4 gap-y-2 border-border border-y py-4 text-sm"
+			data-testid="request-context"
 		>
-			<ul
-				aria-label={`${kind === "logs" ? "日志" : "调用链"}原始记录`}
-				className="relative w-full"
-				style={{ height: `${virtualizer.getTotalSize()}px` }}
-			>
-				{virtualizer.getVirtualItems().length === 0 ? (
-					<li className="absolute left-0 top-0 w-full px-3 py-2">
-						{response.kind === "logs" ? (
-							<LogRecordRow record={response.records[0]} />
-						) : (
-							<TraceRecordRow record={response.records[0]} />
-						)}
+			<StatusBadge status={detail.request.status} />
+			{detail.request.lifecyclePhase === "FINISHED" ? null : (
+				<span className="text-muted-foreground">
+					{formatLifecyclePhase(detail.request.lifecyclePhase)}
+				</span>
+			)}
+			<span className="text-muted-foreground">{formatTimestamp(detail.request.startedAt)}</span>
+			<span className="font-medium text-foreground">
+				{formatRequestDuration(detail.request, detail.generatedAt)}
+			</span>
+		</div>
+	);
+}
+
+function QuestionSection({ detail }: { detail: OpsRequestDetailResponse }) {
+	return (
+		<section aria-labelledby="request-question-title" data-testid="request-question">
+			<div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+				<h2 className="font-semibold text-foreground text-lg" id="request-question-title">
+					用户问题
+				</h2>
+				<span className="text-muted-foreground text-sm">
+					会话第 {detail.question.turnSequence} 轮
+				</span>
+			</div>
+			<p className="whitespace-pre-wrap break-words border-border border-l-2 pl-4 text-base text-foreground leading-7">
+				{detail.question.text}
+			</p>
+		</section>
+	);
+}
+
+function JourneySection({ detail }: { detail: OpsRequestDetailResponse }) {
+	const nodes: JourneyNodeData[] = [
+		{
+			detail: "用户从产品界面发起本轮问题",
+			icon: Globe2,
+			key: `entry:${detail.journey.entry}`,
+			label: formatOpsDomainValue(detail.journey.entry),
+		},
+		{
+			detail: "理解问题并组织回答",
+			icon: Bot,
+			key: "agent:online-qa",
+			label: "在线问答 Agent",
+		},
+		...detail.journey.actions.map((action, actionIndex) => ({
+			detail: actionStatusLabel(action.status),
+			icon: Search,
+			key: `action:${actionIndex}:${action.capability}`,
+			label: formatOpsDomainValue(action.capability),
+		})),
+		...journeyActionStateNodes(detail.journey.actionsDataState),
+		journeyResultNode(detail.result),
+	];
+	return (
+		<section aria-labelledby="request-journey-title" data-testid="request-journey">
+			<h2 className="mb-4 font-semibold text-foreground text-lg" id="request-journey-title">
+				产品处理
+			</h2>
+			<ol className="grid max-w-3xl gap-0">
+				{nodes.map((node, index) => (
+					<li
+						className="relative grid grid-cols-[2.25rem_minmax(0,1fr)] gap-3 pb-4 last:pb-0"
+						key={node.key}
+					>
+						{index < nodes.length - 1 ? (
+							<span
+								aria-hidden
+								className="absolute left-[1.125rem] top-8 h-[calc(100%-1rem)] border-border border-l"
+							/>
+						) : null}
+						<span className="z-10 grid size-9 place-items-center rounded-full border border-border bg-background text-muted-foreground">
+							<node.icon className="size-4" />
+						</span>
+						<div className="min-w-0 pt-1">
+							<p className="font-medium text-foreground">{node.label}</p>
+							<p className="mt-1 text-muted-foreground text-sm">{node.detail}</p>
+						</div>
 					</li>
-				) : (
-					virtualizer.getVirtualItems().map((item) => (
-						<li
-							className="absolute left-0 top-0 w-full px-3 py-2"
-							data-index={item.index}
-							key={item.key}
-							ref={virtualizer.measureElement}
-							style={{ transform: `translateY(${item.start}px)` }}
-						>
-							{response.kind === "logs" ? (
-								<LogRecordRow record={response.records[item.index]} />
-							) : (
-								<TraceRecordRow record={response.records[item.index]} />
-							)}
-						</li>
-					))
-				)}
+				))}
+			</ol>
+		</section>
+	);
+}
+
+interface JourneyNodeData {
+	detail: string;
+	icon: typeof Bot;
+	key: string;
+	label: string;
+}
+
+function journeyActionStateNodes(
+	state: OpsRequestDetailResponse["journey"]["actionsDataState"],
+): JourneyNodeData[] {
+	if (state === "FRESH" || state === "NO_DATA") {
+		return [];
+	}
+	const content = {
+		PARTIAL: {
+			detail: "当前只读取到部分业务能力投影",
+			label: "业务处理记录不完整",
+		},
+		STALE: {
+			detail: "当前显示上一次成功读取的业务能力投影",
+			label: "业务处理记录为旧数据",
+		},
+		UNAVAILABLE: {
+			detail: "未能读取业务能力投影，请求与会话结果仍按产品记录展示",
+			label: "业务处理记录不可用",
+		},
+	} as const;
+	return [{ ...content[state], icon: CircleAlert, key: `action-state:${state}` }];
+}
+
+function journeyResultNode(result: OpsRequestDetailResponse["result"]): JourneyNodeData {
+	if (result.state === "WRITTEN") {
+		return {
+			detail: "产品回答已经写入本轮会话",
+			icon: CheckCircle2,
+			key: "result:written",
+			label: "回答已写入会话",
+		};
+	}
+	if (result.state === "MISSING") {
+		return {
+			detail: "产品已进入终态，但没有找到对应的助手消息",
+			icon: CircleAlert,
+			key: "result:missing",
+			label: "会话结果缺失",
+		};
+	}
+	return {
+		detail: "本轮请求尚未形成会话结果",
+		icon: MessageSquareText,
+		key: "result:pending",
+		label: "等待会话结果",
+	};
+}
+
+function actionStatusLabel(
+	status: OpsRequestDetailResponse["journey"]["actions"][number]["status"],
+) {
+	return {
+		COMPLETED: "业务查询已完成",
+		FAILED: "业务查询失败",
+		PENDING: "等待业务查询",
+		RUNNING: "正在查询",
+	}[status];
+}
+
+function ResultSection({ detail }: { detail: OpsRequestDetailResponse }) {
+	return (
+		<section aria-labelledby="request-result-title" data-testid="request-result">
+			<h2 className="mb-4 font-semibold text-foreground text-lg" id="request-result-title">
+				会话回答
+			</h2>
+			{detail.result.state === "WRITTEN" ? (
+				<div className="border-border border-y py-5">
+					<SafeMarkdown>{detail.result.text}</SafeMarkdown>
+				</div>
+			) : detail.result.state === "MISSING" ? (
+				<div className="border border-danger/30 bg-danger-subtle p-4 text-danger" role="alert">
+					<p className="font-semibold">会话结果缺失</p>
+					<p className="mt-1 text-sm">
+						产品状态保持为{formatOpsDomainValue(detail.request.status)}
+						，但没有找到与本次请求和会话匹配的助手消息。
+					</p>
+				</div>
+			) : (
+				<div className="border-border border-y bg-secondary p-4 text-muted-foreground text-sm">
+					请求仍在处理中，助手消息尚未写入会话。
+				</div>
+			)}
+		</section>
+	);
+}
+
+function SafeMarkdown({ children }: { children: string }) {
+	return (
+		<ReactMarkdown
+			components={{
+				a: ({ className, ...props }) => (
+					<a
+						{...props}
+						className={cn("break-words font-medium text-info underline", className)}
+						rel="noreferrer"
+						target="_blank"
+					/>
+				),
+				code: ({ className, ...props }) => (
+					<code
+						{...props}
+						className={cn(
+							"break-words rounded bg-secondary px-1 py-0.5 font-mono text-sm",
+							className,
+						)}
+					/>
+				),
+				li: ({ className, ...props }) => <li {...props} className={cn("ml-5 pl-1", className)} />,
+				ol: ({ className, ...props }) => (
+					<ol {...props} className={cn("my-3 list-decimal space-y-1", className)} />
+				),
+				p: ({ className, ...props }) => (
+					<p {...props} className={cn("my-3 first:mt-0 last:mb-0 leading-7", className)} />
+				),
+				pre: ({ className, ...props }) => (
+					<pre
+						{...props}
+						className={cn("my-3 max-w-full overflow-x-auto bg-secondary p-3 text-sm", className)}
+					/>
+				),
+				ul: ({ className, ...props }) => (
+					<ul {...props} className={cn("my-3 list-disc space-y-1", className)} />
+				),
+			}}
+			remarkPlugins={[remarkGfm]}
+		>
+			{children}
+		</ReactMarkdown>
+	);
+}
+
+function SourcesSection({ detail }: { detail: OpsRequestDetailResponse }) {
+	if (detail.result.state !== "WRITTEN" || detail.result.sources.length === 0) {
+		return null;
+	}
+	return (
+		<section aria-labelledby="request-sources-title" data-testid="request-sources">
+			<h2 className="mb-4 font-semibold text-foreground text-lg" id="request-sources-title">
+				回答来源
+			</h2>
+			<ul className="divide-y divide-border border-border border-y">
+				{detail.result.sources.map((source, sourceIndex) => (
+					<li
+						className="grid gap-2 py-4"
+						key={[
+							source.title,
+							source.collectionLabel,
+							source.publisherLabel,
+							source.sectionTitle,
+							source.pageLabel,
+							source.versionLabel,
+							source.primaryAction.href,
+							source.primaryAction.label,
+							source.snippet,
+							sourceIndex,
+						].join(":")}
+					>
+						<div className="flex flex-wrap items-start justify-between gap-3">
+							<div className="min-w-0">
+								<p className="font-medium text-foreground">{source.title}</p>
+								<p className="mt-1 text-muted-foreground text-xs">
+									{[source.collectionLabel, source.publisherLabel].filter(Boolean).join(" · ")}
+								</p>
+							</div>
+							<SourceAction source={source} />
+						</div>
+						{source.snippet ? (
+							<p className="max-w-3xl text-muted-foreground text-sm leading-6">{source.snippet}</p>
+						) : null}
+					</li>
+				))}
 			</ul>
+		</section>
+	);
+}
+
+function SourceAction({
+	source,
+}: {
+	source: Extract<OpsRequestDetailResponse["result"], { state: "WRITTEN" }>["sources"][number];
+}) {
+	const action = source.primaryAction;
+	if (!action.href) {
+		return action.disabledReason ? (
+			<span className="text-muted-foreground text-xs">{action.disabledReason}</span>
+		) : null;
+	}
+	return (
+		<a
+			className="inline-flex min-h-10 items-center gap-2 font-medium text-info text-sm hover:underline"
+			href={action.href}
+			rel={action.external ? "noreferrer" : undefined}
+			target={action.external ? "_blank" : undefined}
+		>
+			{action.label}
+			{action.external ? <ExternalLink className="size-4" /> : null}
+		</a>
+	);
+}
+
+function UsageSection({ detail }: { detail: OpsRequestDetailResponse }) {
+	const usage = detail.usage;
+	return (
+		<section aria-labelledby="request-usage-title" data-testid="request-usage">
+			<div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+				<h2 className="font-semibold text-foreground text-lg" id="request-usage-title">
+					Agent 用量与时间
+				</h2>
+				{usage.state === "COMPLETE" ? null : (
+					<span
+						className={cn(
+							"text-sm",
+							usage.state === "PARTIAL" || usage.state === "UNAVAILABLE"
+								? "text-warning"
+								: "text-muted-foreground",
+						)}
+					>
+						{usageStateLabel(usage.state)}
+					</span>
+				)}
+			</div>
+			<div className="grid border-border border-y sm:grid-cols-2 lg:grid-cols-4">
+				<TokenMetric label="输入 token" value={usage.inputTokens} />
+				<TokenMetric label="缓存输入 token" value={usage.cachedInputTokens} />
+				<TokenMetric label="输出 token" value={usage.outputTokens} />
+				<TokenMetric emphasis label="总 token" value={usage.totalTokens} />
+			</div>
+			<div className="mt-3 grid gap-x-8 gap-y-2 text-muted-foreground text-sm sm:grid-cols-3">
+				<p>开始：{formatTimestamp(detail.request.startedAt)}</p>
+				<p>完成：{formatRequestCompletedAt(detail.request)}</p>
+				<p>耗时：{formatRequestDuration(detail.request, detail.generatedAt)}</p>
+			</div>
+			<p className="mt-3 text-muted-foreground text-xs">
+				Token 只统计主 Agent；缓存输入已包含在输入 token 中，不重复计入总量。
+			</p>
+		</section>
+	);
+}
+
+function TokenMetric({
+	emphasis = false,
+	label,
+	value,
+}: {
+	emphasis?: boolean;
+	label: string;
+	value: number | null;
+}) {
+	return (
+		<div className="grid gap-1 border-border border-b px-3 py-4 last:border-b-0 sm:border-r sm:border-b-0 sm:last:border-r-0">
+			<span className="text-muted-foreground text-xs">{label}</span>
+			<span
+				className={cn(
+					"tabular-nums text-foreground",
+					emphasis ? "font-semibold text-xl" : "font-medium text-lg",
+				)}
+			>
+				{value === null ? "不可用" : new Intl.NumberFormat("zh-CN").format(value)}
+			</span>
 		</div>
 	);
 }
 
-type LogRecord = Extract<OpsObservabilityResponse, { kind: "logs" }>["records"][number];
-type TraceRecord = Extract<OpsObservabilityResponse, { kind: "trace" }>["records"][number];
-
-function LogRecordRow({ record }: { record: LogRecord }) {
-	return (
-		<div className="grid gap-2 rounded-md border border-slate-700 bg-slate-900 p-3 text-slate-100 text-xs">
-			<div className="flex flex-wrap items-center gap-2">
-				<Badge tone={record.severityText === "ERROR" ? "danger" : "muted"}>
-					{record.severityText ?? "UNKNOWN"}
-				</Badge>
-				<span>{formatTimestamp(record.timestamp)}</span>
-				<span>{record.serviceName ?? "未知服务"}</span>
-			</div>
-			<p className="font-medium">{record.eventType ?? record.source ?? "未命名日志事件"}</p>
-			<p className="break-all font-mono text-slate-300">
-				requestId={record.requestId} · traceId={record.productTraceId ?? "未关联"}
-			</p>
-			<p className="text-slate-300">
-				状态：{record.status ?? "未记录"} · 耗时：
-				{record.durationMs === null ? "未记录" : formatDuration(record.durationMs)} · 错误：
-				{record.errorCode ?? "无"}
-			</p>
-		</div>
-	);
-}
-
-function TraceRecordRow({ record }: { record: TraceRecord }) {
-	return (
-		<div className="grid gap-2 rounded-md border border-slate-700 bg-slate-900 p-3 text-slate-100 text-xs">
-			<div className="flex flex-wrap items-center gap-2">
-				<Badge tone={record.hasError ? "danger" : "success"}>
-					{record.hasError ? "ERROR" : (record.statusCode ?? "OK")}
-				</Badge>
-				<span>{formatTimestamp(record.timestamp)}</span>
-				<span>{record.serviceName ?? "未知服务"}</span>
-			</div>
-			<p className="font-medium">{record.name ?? "未命名 Span"}</p>
-			<p className="break-all font-mono text-slate-300">
-				span={record.otelSpanId} · parent={record.parentSpanId ?? "root"}
-			</p>
-			<p className="text-slate-300">
-				类型：{record.kind ?? "未记录"} · 耗时：{record.duration} · requestId={record.requestId}
-			</p>
-		</div>
-	);
+function usageStateLabel(state: OpsRequestDetailResponse["usage"]["state"]) {
+	return {
+		COMPLETE: "用量已完整记录",
+		IN_PROGRESS: "当前为运行快照",
+		NOT_STARTED: "Agent 尚未开始",
+		PARTIAL: "仅包含已上报用量",
+		UNAVAILABLE: "未取得用量数据",
+	}[state];
 }

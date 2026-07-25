@@ -83,7 +83,7 @@ describe("primary agent runtime", () => {
 				},
 				providerResponseId: "resp_1",
 				toolCalls: [],
-				usage: { inputTokens: 12, outputTokens: 8 },
+				usage: { modelRequestCount: 1, inputTokens: 12, outputTokens: 8, usageObserved: true },
 			} as never;
 		};
 		const runtime = createPrimaryAgentRuntime({
@@ -124,7 +124,7 @@ describe("primary agent runtime", () => {
 			finalOutput: "我是校园问答助手。",
 			providerResponseId: "resp_missing_envelope",
 			toolCalls: [],
-			usage: { inputTokens: 12, outputTokens: 8 },
+			usage: { modelRequestCount: 1, inputTokens: 12, outputTokens: 8, usageObserved: true },
 		});
 		const runtime = createPrimaryAgentRuntime({ catalog, runner });
 
@@ -156,7 +156,7 @@ describe("primary agent runtime", () => {
 					kind: "answer",
 				},
 				toolCalls: [],
-				usage: { inputTokens: 1, outputTokens: 1 },
+				usage: { modelRequestCount: 1, inputTokens: 1, outputTokens: 1, usageObserved: true },
 			}),
 		});
 
@@ -187,7 +187,7 @@ describe("primary agent runtime", () => {
 				finalOutput: "我会先给结论。",
 				providerResponseId: "resp_memory",
 				toolCalls: [],
-				usage: { inputTokens: 16, outputTokens: 8 },
+				usage: { modelRequestCount: 1, inputTokens: 16, outputTokens: 8, usageObserved: true },
 			};
 		};
 		const runtime = createPrimaryAgentRuntime({ catalog, runner });
@@ -264,7 +264,7 @@ describe("primary agent runtime", () => {
 					terminalEnvelope: { kind: "answer", answerText: "我会查询正式知识库。" },
 					providerResponseId: "resp_allowed_scopes",
 					toolCalls: [],
-					usage: { inputTokens: 12, outputTokens: 8 },
+					usage: { modelRequestCount: 1, inputTokens: 12, outputTokens: 8, usageObserved: true },
 				};
 			},
 		});
@@ -304,7 +304,7 @@ describe("primary agent runtime", () => {
 				terminalEnvelope: { kind: "answer", answerText: "我会先给结论。" },
 				providerResponseId: "resp_prompt_trace",
 				toolCalls: [],
-				usage: { inputTokens: 18, outputTokens: 8 },
+				usage: { modelRequestCount: 1, inputTokens: 18, outputTokens: 8, usageObserved: true },
 			};
 		};
 		const runtime = createPrimaryAgentRuntime({
@@ -356,7 +356,7 @@ describe("primary agent runtime", () => {
 				},
 				providerResponseId: "resp_context",
 				toolCalls: [],
-				usage: { inputTokens: 32, outputTokens: 12 },
+				usage: { modelRequestCount: 1, inputTokens: 32, outputTokens: 12, usageObserved: true },
 			};
 		};
 		const runtime = createPrimaryAgentRuntime({ catalog, runner });
@@ -467,7 +467,7 @@ describe("primary agent runtime", () => {
 						result: toolResult,
 					},
 				],
-				usage: { inputTokens: 20, outputTokens: 10 },
+				usage: { modelRequestCount: 1, inputTokens: 20, outputTokens: 10, usageObserved: true },
 			} as never;
 		};
 		const runtime = createPrimaryAgentRuntime({
@@ -523,7 +523,7 @@ describe("primary agent runtime", () => {
 						result: toolResult,
 					},
 				],
-				usage: { inputTokens: 18, outputTokens: 4 },
+				usage: { modelRequestCount: 1, inputTokens: 18, outputTokens: 4, usageObserved: true },
 			};
 		};
 		const runtime = createPrimaryAgentRuntime({ catalog, runner });
@@ -574,7 +574,7 @@ describe("primary agent runtime", () => {
 						result: toolResult,
 					},
 				],
-				usage: { inputTokens: 20, outputTokens: 10 },
+				usage: { modelRequestCount: 1, inputTokens: 20, outputTokens: 10, usageObserved: true },
 			};
 		};
 		const runtime = createPrimaryAgentRuntime({
@@ -634,7 +634,7 @@ describe("primary agent runtime", () => {
 						result: toolResult,
 					},
 				],
-				usage: { inputTokens: 20, outputTokens: 10 },
+				usage: { modelRequestCount: 1, inputTokens: 20, outputTokens: 10, usageObserved: true },
 			} as never;
 		};
 		const runtime = createPrimaryAgentRuntime({

@@ -8,17 +8,17 @@ status: active
 
 ## 文档边界
 
-本文定义浏览器产品、受控配置面、自托管排查面和执行运行时的所有权。HTTP 字段由合同定义，
+本文定义浏览器产品、受控配置面、自托管运行查看面和执行运行时的所有权。HTTP 字段由合同定义，
 数据库表由数据文档定义，部署状态由 GitOps 和实际运行状态定义。
 
 ## 组件
 
 | 组件 | 负责 | 不负责 |
 | --- | --- | --- |
-| `campus-web` | 学生问答、账号、文档、地图、食堂和校园状态页面 | 运行排查、数据库或内部运行时访问 |
-| `app-api` | 浏览器认证、聊天接收与终结、产品 API 和状态 API | Temporal worker、内部检索、Provider Config、通用运维数据 API |
-| `ops-web` | 自托管请求排查、运行概况、在线 Provider Config、固定门户凭据和 Dining 内容运营 | 学生账号、聊天和请求写入，任意工作流控制或通用 Secret 管理 |
-| `execution-control` | 持久运行准入、Temporal workflow、内部查询、终态投影和在线 Provider Config | 浏览器认证和页面合同 |
+| `campus-web` | 学生问答、账号、文档、地图、食堂和校园状态页面 | 运维运行记录、数据库或内部运行时访问 |
+| `app-api` | 浏览器认证、聊天接收与终结、产品 API 和状态 API | Temporal worker、内部检索、在线模型配置、通用运维数据 API |
+| `ops-web` | 自托管运行记录、运行概况、在线模型配置、固定门户凭据和 Dining 内容运营 | 学生账号、聊天和请求写入，任意工作流控制或通用 Secret 管理 |
+| `execution-control` | 持久运行准入、Temporal workflow、内部查询、终态投影和在线模型配置 | 浏览器认证和页面合同 |
 | `agent-runtime` | Primary/Knowledge Agent 与工具循环 | 持久编排和产品数据持久化 |
 
 ## 浏览器路径
@@ -77,17 +77,17 @@ tool 也不通过 app-api。
 当前 model-visible campus service 只有 `transport_schedule_lookup`。contract/schema 存在不
 代表其他 campus tool 已开放。
 
-## 配置与排查
+## 配置与运行记录
 
-- `ops-web -> execution-control` 通过同源 BFF 管理在线 Provider Config；浏览器不持有
+- `ops-web -> execution-control` 通过同源 BFF 管理在线模型配置；浏览器不持有
   execution-control credential。
-- `ops-web -> PostgreSQL/execution-control/Axiom/Sentry` 提供受限排查；人员可以通过固定接口
-  更新内部门户认证并恢复固定维护 Schedule。
+- `ops-web -> PostgreSQL/execution-control/Axiom/Sentry` 提供有界运行摘要和关联记录；人员可以
+  通过固定接口更新内部门户认证并恢复固定维护 Schedule。
 - `ops-web -> dining.*` 使用独立角色维护草稿、不可变发布版本和评价状态；app-api 只读取公开
   投影。
 - `ops-web -> ingestion-control` 只查询和恢复固定门户认证维护 Schedule，不提交采集任务或选择
   其他工作流。
-- Provider Config 后端不可用不阻断 Ops Web 的请求诊断 readiness。
+- 在线模型配置后端不可用不阻断 Ops Web 的运行记录读取 readiness。
 - Temporal UI、Langfuse UI、Sentry 和 Axiom 保留各自完整能力；Ops Web 只提供跨系统关联、
   固定 Axiom 查询和常用摘要。
 

@@ -20,11 +20,21 @@ status: active
 2. 确认 execution-control 获得 Hindsight base URL、tenant API secret 和稳定用户派生 salt；变量
    所有权见 [Provider 与模型配置](../environment/providers.md)。
 3. 确认 Hindsight 自身的 PostgreSQL、LLM、embedding 和 reranker 配置由其部署所有者提供，未从
-   app-api Provider Config 投影。
-4. 确认 execution-control health check 能访问 Hindsight，且失败时不会启用 Qdrant、PostgreSQL
+   app-api 投影或 execution-control 在线模型配置派生。
+4. 通过 Ops Web 读取固定 `hindsight-model-config` 与 `hindsight-api` Deployment 的派生状态。
+   如果 Secret 中的固定 provider、embedding model/provider 或 reranker provider 与合同不符，
+   `configState` 应为 `drifted`，先保存配置修复固定键。保存模型设置后 `applyState` 应为 `pending`，
+   显式应用后再按 `applyState` 和 `runtimeState` 判断结果：运行中应在 rollout 后变为
+   `applied + running`；零副本应直接变为 `applied + scaled_down`，且不会自动扩容。`applied` 不表示
+   模型供应商调用已经验证。
+5. 确认 execution-control health check 能访问 Hindsight，且失败时不会启用 Qdrant、PostgreSQL
    profile 注入或供应商抽取记忆。
 
 源码配置存在只证明仓库合同，不证明某个环境已部署或可用。
+
+Hindsight 0.8.x 在服务启动时读取 LLM、Embedding 和 Rerank 配置。模型 endpoint、model 或 key
+变化后，运行实例必须通过 Deployment rollout 重新加载；零副本只需先更新 Pod template，实例下次
+启动时读取目标配置。Bank Config API 只管理 bank 行为，不会热更新这些 provider 设置。
 
 ## Bank 配置
 

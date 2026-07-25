@@ -1,12 +1,10 @@
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@campus-agent/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft, RotateCcw } from "lucide-react";
 import { formatTimestamp } from "./format";
 import { fetchIngestionTask, retryIngestionTask } from "./ops-api-client";
 import { ErrorState, InlineError, KeyValue, PageHeader, PageShell } from "./ops-display";
-import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 
 export function IngestionTaskPage({ taskId }: { taskId: string }) {
 	const queryClient = useQueryClient();
@@ -70,7 +68,7 @@ export function IngestionTaskPage({ taskId }: { taskId: string }) {
 											? "danger"
 											: data.status === "running"
 												? "warning"
-												: "muted"
+												: "neutral"
 								}
 							>
 								{taskStatusLabel(data.status)}
@@ -101,7 +99,7 @@ export function IngestionTaskPage({ taskId }: { taskId: string }) {
 							</div>
 						) : null}
 						{retry.isSuccess ? (
-							<p className="mt-3 break-all text-emerald-700 text-sm" role="status">
+							<p className="mt-3 break-all text-success text-sm" role="status">
 								重试任务已提交：
 								<Link
 									className="font-mono underline underline-offset-4"

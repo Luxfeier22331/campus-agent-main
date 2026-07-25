@@ -1,23 +1,26 @@
-import { zodResolver } from "@hookform/resolvers/zod";
-import { LayoutGroup, motion } from "motion/react";
-import { useState } from "react";
-import { Controller, useForm } from "react-hook-form";
-import { z } from "zod";
-import { Alert } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { CampusMotionProvider, stateSwap } from "@/components/ui/motion";
 import {
+	Alert,
+	Button,
+	Card,
+	CardContent,
+	CardHeader,
+	CardTitle,
+	Input,
+	Label,
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import { Textarea } from "@/components/ui/textarea";
+	Separator,
+	Textarea,
+} from "@campus-agent/ui";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { LayoutGroup, motion } from "motion/react";
+import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { z } from "zod";
+import { CampusMotionProvider, stateSwap } from "@/components/ui/motion";
 import { submitFeedback } from "@/features/feedback/api";
 import type { FeedbackCategory } from "@/features/feedback/model";
 
@@ -149,7 +152,7 @@ export function FeedbackPage() {
 								<motion.div aria-live="polite" className="grid gap-2" layout>
 									{error ? (
 										<motion.div key="feedback-error" layout {...stateSwap}>
-											<Alert variant="destructive">{error}</Alert>
+											<Alert tone="danger">{error}</Alert>
 										</motion.div>
 									) : null}
 									{submitted ? (

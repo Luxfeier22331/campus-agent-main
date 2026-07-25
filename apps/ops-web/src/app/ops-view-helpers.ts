@@ -1,23 +1,32 @@
-import type { OpsRequestSummary, OpsRequestWindow } from "../shared/ops-contract";
-import { OPS_STAGE_TIMING_BUDGETS } from "../shared/stage-timing";
-import { formatDuration, formatId, formatTimestamp } from "./format";
+import type {
+	OpsRequestListView,
+	OpsRequestSummary,
+	OpsRequestWindow,
+} from "../shared/ops-contract";
+import { formatDuration, formatHumanDuration, formatId, formatTimestamp } from "./format";
 
 export function formatNullableDuration(value: number | null | undefined, emptyLabel: string) {
 	return value === null || value === undefined ? emptyLabel : formatDuration(value);
 }
 
 export function formatRequestDuration(
-	request: Pick<OpsRequestSummary, "durationMs" | "projectedAt" | "startedAt" | "status">,
+	request: Pick<OpsRequestSummary, "durationMs" | "startedAt" | "status">,
+	generatedAt: string,
 ) {
 	if (request.durationMs !== null && request.durationMs !== undefined) {
-		return formatDuration(request.durationMs);
+		return formatHumanDuration(request.durationMs);
 	}
 	if (request.status === "RUNNING" || request.status === "PENDING") {
-		const elapsedMs = Date.parse(request.projectedAt) - Date.parse(request.startedAt);
+		const elapsedMs = Date.parse(generatedAt) - Date.parse(request.startedAt);
 		if (Number.isFinite(elapsedMs) && elapsedMs >= 0) {
-			return `截至最近更新${request.status === "PENDING" ? "已等待" : "已运行"} ${formatDuration(elapsedMs)}`;
+			return request.status === "RUNNING"
+				? `已运行 ${formatHumanDuration(elapsedMs)}`
+				: `已等待 ${formatHumanDuration(elapsedMs)}`;
 		}
-		return request.status === "PENDING" ? "等待中" : "进行中";
+		return "持续时间不可用";
+	}
+	if (request.status === "ACTION_REQUIRED") {
+		return "已结束，等待用户";
 	}
 	return "未记录耗时";
 }
@@ -38,7 +47,9 @@ export function formatStatusLabel(status: string) {
 		NOT_USED: "未使用",
 		OK: "正常",
 		OUTAGE: "中断",
+		PARTIAL: "部分可用",
 		PENDING: "待处理",
+		ACTION_REQUIRED: "等待用户",
 		READY: "正常",
 		RUNNING: "运行中",
 		SKIPPED: "已跳过",
@@ -48,30 +59,6 @@ export function formatStatusLabel(status: string) {
 		WARN: "预警",
 	};
 	return labels[status] ?? status;
-}
-
-export function formatStageTimingLabel(field: string) {
-	const labels: Record<string, string> = {
-		"agent.first_delta_ms": "Agent 首次输出",
-		"agent.primary_ms": "主要 Agent 执行",
-		"agent.runtime_ms": "Agent 运行",
-		"execution.admission_ms": "执行接入",
-		"finalization.write_ms": "结果写入",
-		"memory.recall_ms": "记忆读取",
-		"projection.closeout_ms": "状态收尾",
-		"rag.grounding_ms": "回答依据检查",
-		"rag.lookup_ms": "知识检索",
-		"rag.plan_ms": "检索规划",
-		"rag.rerank_ms": "检索结果排序",
-		"rag.synthesis_ms": "检索回答生成",
-		"request.total_ms": "请求总耗时",
-		"stream.browser_ttft_ms": "页面首次响应",
-		"tool.campus_notice_discover_ms": "校园通知工具",
-		"tool.knowledge_query_ms": "知识查询工具",
-		"tool.total_ms": "工具总耗时",
-		"tool.transport_schedule_lookup_ms": "班车查询工具",
-	};
-	return labels[field] ?? field;
 }
 
 export function formatDataStateLabel(state: string) {
@@ -92,7 +79,9 @@ export function requestFilterLabels(search: Partial<RequestSearchLike>) {
 		search.status ? `状态 ${formatStatusLabel(search.status)}` : null,
 		search.q ? `关键词搜索 ${search.q}` : null,
 		search.requestId ? `requestId 精确 ${formatId(search.requestId)}` : null,
+		search.runId ? `runId 精确 ${formatId(search.runId)}` : null,
 		search.traceId ? `traceId 精确 ${formatId(search.traceId)}` : null,
+		search.workflowId ? `workflowId 精确 ${formatId(search.workflowId)}` : null,
 		search.conversationId ? `conversationId 精确 ${formatId(search.conversationId)}` : null,
 		search.window ? `时间范围 ${formatRequestWindowLabel(search.window)}` : null,
 	].filter((item): item is string => Boolean(item));
@@ -101,12 +90,14 @@ export function requestFilterLabels(search: Partial<RequestSearchLike>) {
 export function requestSearchDraftFromSearch(search: Partial<RequestSearchLike>) {
 	return {
 		conversationId: search.conversationId ?? "",
-		limit: String(search.limit ?? 50),
 		q: search.q ?? "",
 		requestId: search.requestId ?? "",
+		runId: search.runId ?? "",
 		status: search.status ?? "",
 		traceId: search.traceId ?? "",
+		view: search.view ?? "recent",
 		window: search.window ?? "1h",
+		workflowId: search.workflowId ?? "",
 	};
 }
 
@@ -114,18 +105,19 @@ export function cleanRequestSearch<T extends Partial<RequestSearchLike>>(search:
 	return {
 		...(search.conversationId ? { conversationId: search.conversationId } : {}),
 		...(search.cursor ? { cursor: search.cursor } : {}),
-		...(search.limit ? { limit: search.limit } : {}),
-		...(search.previous ? { previous: search.previous } : {}),
 		...(search.q ? { q: search.q } : {}),
 		...(search.requestId ? { requestId: search.requestId } : {}),
+		...(search.runId ? { runId: search.runId } : {}),
 		...(search.status ? { status: search.status } : {}),
 		...(search.traceId ? { traceId: search.traceId } : {}),
+		...(search.view && search.view !== "recent" ? { view: search.view } : {}),
 		...(search.window && search.window !== "1h" ? { window: search.window } : {}),
+		...(search.workflowId ? { workflowId: search.workflowId } : {}),
 	} as T;
 }
 
 export function requestListPath(search: Partial<RequestSearchLike>) {
-	const clean = cleanRequestSearch({ ...search, previous: undefined });
+	const clean = cleanRequestSearch(search);
 	const query = new URLSearchParams();
 	for (const [key, value] of Object.entries(clean)) {
 		if (value !== undefined && value !== "") {
@@ -151,10 +143,6 @@ export function normalizeRequestListReturnPath(value: string | undefined) {
 	}
 }
 
-export function normalizePreviousRequestListPath(value: string | undefined) {
-	return normalizeRequestListReturnPath(value);
-}
-
 export function optionalSearchString(value: unknown) {
 	if (typeof value !== "string") {
 		return;
@@ -176,13 +164,17 @@ export function ignoredRequestSearchParamNames(
 	parsedSearch: Partial<RequestSearchLike>,
 ): string[] {
 	const ignored = [
+		hasRawSearchValue(rawSearch.limit) ? "limit" : null,
+		hasRawSearchValue(rawSearch.previous) ? "previous" : null,
 		isIgnoredParam(rawSearch, parsedSearch, "status"),
-		isIgnoredParam(rawSearch, parsedSearch, "limit"),
 		isIgnoredParam(rawSearch, parsedSearch, "q"),
 		isIgnoredParam(rawSearch, parsedSearch, "requestId"),
+		isIgnoredParam(rawSearch, parsedSearch, "runId"),
 		isIgnoredParam(rawSearch, parsedSearch, "traceId"),
+		isIgnoredParam(rawSearch, parsedSearch, "workflowId"),
 		isIgnoredParam(rawSearch, parsedSearch, "conversationId"),
 		isIgnoredParam(rawSearch, parsedSearch, "cursor"),
+		isIgnoredParam(rawSearch, parsedSearch, "view"),
 		isIgnoredParam(rawSearch, parsedSearch, "window"),
 	].filter((value): value is string => Boolean(value));
 	return [...new Set(ignored)];
@@ -207,19 +199,14 @@ function hasRawSearchValue(value: unknown) {
 	return typeof value === "number" && Number.isFinite(value);
 }
 
-export function optionalLimit(value: unknown) {
-	const parsed =
-		typeof value === "string" || typeof value === "number" ? Number(String(value)) : Number.NaN;
-	return Number.isInteger(parsed) && parsed >= 1 && parsed <= 100 ? parsed : undefined;
-}
-
 export function optionalStatus(value: unknown): OpsRequestSummary["status"] | undefined {
 	if (
 		value === "COMPLETED" ||
 		value === "FAILED" ||
 		value === "CANCELLED" ||
 		value === "RUNNING" ||
-		value === "PENDING"
+		value === "PENDING" ||
+		value === "ACTION_REQUIRED"
 	) {
 		return value;
 	}
@@ -227,39 +214,31 @@ export function optionalStatus(value: unknown): OpsRequestSummary["status"] | un
 }
 
 export function optionalRequestWindow(value: unknown): OpsRequestWindow | undefined {
-	return value === "1h" || value === "6h" || value === "24h" || value === "7d" ? value : undefined;
+	return value === "15m" || value === "1h" || value === "6h" || value === "24h" || value === "7d"
+		? value
+		: undefined;
+}
+
+export function optionalRequestListView(value: unknown): OpsRequestListView | undefined {
+	return value === "recent" || value === "attention" ? value : undefined;
 }
 
 export function formatRequestWindowLabel(value: OpsRequestWindow) {
-	return { "1h": "1 小时", "6h": "6 小时", "24h": "24 小时", "7d": "7 天" }[value];
-}
-
-export function orderedStageTimingEntries(
-	stageTiming: Record<string, number>,
-	stageTimingBudget: Record<string, string>,
-) {
-	return OPS_STAGE_TIMING_BUDGETS.flatMap((rule) =>
-		typeof stageTiming[rule.field] === "number"
-			? [
-					{
-						budget: stageTimingBudget[rule.field] ?? "OK",
-						key: rule.field,
-						value: stageTiming[rule.field],
-					},
-				]
-			: [],
-	);
+	return { "15m": "15 分钟", "1h": "1 小时", "6h": "6 小时", "24h": "24 小时", "7d": "7 天" }[
+		value
+	];
 }
 
 export interface RequestSearchLike {
 	conversationId?: string;
 	cursor?: string;
 	ignored?: string;
-	limit?: number;
-	previous?: string;
 	q?: string;
 	requestId?: string;
+	runId?: string;
 	status?: OpsRequestSummary["status"];
 	traceId?: string;
+	view?: OpsRequestListView;
 	window?: OpsRequestWindow;
+	workflowId?: string;
 }

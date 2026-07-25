@@ -60,9 +60,13 @@ func TestPostgresRunProjectionStoreSchemaIncludesProjectionTablesOnly(t *testing
 		"provider_response_id text not null default ''",
 		"model_provider text not null default ''",
 		"model_name text not null default ''",
+		"model_request_count bigint not null default 0",
 		"input_tokens bigint not null default 0",
 		"output_tokens bigint not null default 0",
 		"cached_input_tokens bigint not null default 0",
+		"usage_observed boolean not null default false",
+		"set usage_observed = true",
+		"input_tokens > 0 or output_tokens > 0 or cached_input_tokens > 0",
 		"drop column if exists estimated_cost_microusd",
 		"cancel_outcome text not null default ''",
 		"timeout_outcome text not null default ''",
@@ -92,6 +96,14 @@ func TestPostgresRunProjectionStoreSchemaIncludesProjectionTablesOnly(t *testing
 			t.Fatalf("run projection schema must not include retired artifact %q", snippet)
 		}
 	}
+	for _, snippet := range []string{
+		"drop table runtime.agent_step_attempts",
+		"drop table if exists runtime.agent_step_attempts",
+	} {
+		if strings.Contains(runProjectionSchemaSQL, snippet) {
+			t.Fatalf("run projection schema must not destructively drop %q", snippet)
+		}
+	}
 }
 
 func TestPostgresStepAttemptInsertPlaceholdersMatchArguments(t *testing.T) {
@@ -111,10 +123,10 @@ func TestPostgresStepAttemptInsertPlaceholdersMatchArguments(t *testing.T) {
 			maxPlaceholder = value
 		}
 	}
-	if maxPlaceholder != 32 {
-		t.Fatalf("step attempt insert placeholders max = %d, want 32 store arguments", maxPlaceholder)
+	if maxPlaceholder != 34 {
+		t.Fatalf("step attempt insert placeholders max = %d, want 34 store arguments", maxPlaceholder)
 	}
-	if strings.Contains(insertSQL, "$33") {
+	if strings.Contains(insertSQL, "$35") {
 		t.Fatal("step attempt insert SQL must not reference placeholders beyond store arguments")
 	}
 }
@@ -130,4 +142,19 @@ func stepAttemptInsertSQLForTest(t *testing.T) string {
 		t.Fatal("step attempt upsert SQL missing on conflict clause")
 	}
 	return runProjectionPostgresStepAttemptUpsertSQL[start : start+end]
+}
+
+func TestStepAttemptUpsertDoesNotDowngradeObservedUsage(t *testing.T) {
+	required := []string{
+		"when excluded.usage_observed then excluded.model_request_count",
+		"when excluded.usage_observed then excluded.input_tokens",
+		"when excluded.usage_observed then excluded.output_tokens",
+		"when excluded.usage_observed then excluded.cached_input_tokens",
+		"usage_observed = runtime.agent_step_attempts.usage_observed or excluded.usage_observed",
+	}
+	for _, fragment := range required {
+		if !strings.Contains(runProjectionPostgresStepAttemptUpsertSQL, fragment) {
+			t.Fatalf("step attempt upsert SQL must preserve observed usage with %q", fragment)
+		}
+	}
 }

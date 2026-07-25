@@ -28,7 +28,7 @@ type knowledgeSearchExecutor interface {
 
 type qdrantKnowledgeSearchExecutor struct {
 	embeddingHTTPClient *http.Client
-	embeddingRole       providerConfigRole
+	embeddingKind       providerConfigKind
 	configResolver      providerConfigResolver
 	httpClient          *http.Client
 	queryTargetsPath    string
@@ -73,7 +73,7 @@ func newQdrantKnowledgeSearchExecutor(
 	}
 	return qdrantKnowledgeSearchExecutor{
 		embeddingHTTPClient: &http.Client{Timeout: embeddingTimeout},
-		embeddingRole:       providerConfigRoleRAGQueryEmbedding,
+		embeddingKind:       providerConfigKindEmbedding,
 		configResolver:      configResolver,
 		httpClient:          httpClient,
 		queryTargetsPath:    strings.TrimSpace(cfg.QueryServingTargetsPath),
@@ -318,12 +318,12 @@ func (e qdrantKnowledgeSearchExecutor) embedQueryWithProviderConfig(
 func (e qdrantKnowledgeSearchExecutor) resolveEmbeddingProviderConfig(
 	ctx context.Context,
 ) (providerConfigSnapshot, error) {
-	role := e.embeddingRole
-	if role == "" {
-		role = providerConfigRoleRAGQueryEmbedding
+	kind := e.embeddingKind
+	if kind == "" {
+		kind = providerConfigKindEmbedding
 	}
 	if e.configResolver != nil {
-		return e.configResolver.ResolveActiveProviderConfig(ctx, role)
+		return e.configResolver.ResolveActiveProviderConfig(ctx, kind)
 	}
 	return providerConfigSnapshot{}, errProviderConfigResolverNotConfigured
 }

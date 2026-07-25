@@ -1,9 +1,8 @@
 "use client";
 
+import { Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@campus-agent/ui";
 import { Slot } from "radix-ui";
 import { type ComponentPropsWithRef, forwardRef } from "react";
-import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 export type TooltipIconButtonProps = ComponentPropsWithRef<typeof Button> & {
@@ -20,7 +19,10 @@ export const TooltipIconButton = forwardRef<HTMLButtonElement, TooltipIconButton
 						variant="ghost"
 						size="icon"
 						{...rest}
-						className={cn("aui-button-icon size-6 p-1 active:scale-90", className)}
+						className={cn(
+							"aui-button-icon relative size-6 p-1 after:absolute after:-inset-x-2.5 after:-inset-y-2.5 after:content-[''] active:[&_svg]:scale-90",
+							className,
+						)}
 						ref={ref}
 					>
 						<Slot.Slottable>{children}</Slot.Slottable>

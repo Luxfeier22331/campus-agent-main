@@ -6,10 +6,9 @@ import {
 	useAuiState,
 	useThreadListItemRuntime,
 } from "@assistant-ui/react";
+import { Button, Skeleton } from "@campus-agent/ui";
 import { ArchiveIcon, MoreHorizontalIcon, PlusIcon, TrashIcon } from "lucide-react";
 import { type FC, Fragment, useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 
 export const ThreadList: FC = () => {
 	const [actionError, setActionError] = useState<string | null>(null);

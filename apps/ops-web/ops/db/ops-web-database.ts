@@ -49,28 +49,68 @@ const OPS_WEB_GRANT_STATEMENTS = [
 		"chat"."turn_dispatches",
 			"chat"."messages",
 			"runtime"."agent_runs",
+			"runtime"."agent_run_steps",
+			"runtime"."agent_step_attempts",
 			"runtime"."request_observability_fact"
 	FROM "ops_web"`,
+	`DO $ops_web_read_model_column_revoke$
+	DECLARE
+		relation record;
+		column_names text;
+	BEGIN
+		FOR relation IN
+			SELECT class.oid AS relation_oid, namespace.nspname AS schema_name,
+				class.relname AS relation_name
+			FROM pg_catalog.pg_class class
+			JOIN pg_catalog.pg_namespace namespace ON namespace.oid = class.relnamespace
+			WHERE (namespace.nspname, class.relname) IN (
+				('chat', 'turn_dispatches'),
+				('chat', 'messages'),
+				('runtime', 'agent_runs'),
+				('runtime', 'agent_run_steps'),
+				('runtime', 'agent_step_attempts'),
+				('runtime', 'request_observability_fact')
+			)
+		LOOP
+			SELECT pg_catalog.string_agg(
+				pg_catalog.quote_ident(attribute.attname), ', ' ORDER BY attribute.attnum
+			)
+			INTO column_names
+			FROM pg_catalog.pg_attribute attribute
+			WHERE attribute.attrelid = relation.relation_oid
+				AND attribute.attnum > 0
+				AND NOT attribute.attisdropped;
+
+			IF column_names IS NOT NULL THEN
+				EXECUTE pg_catalog.format(
+					'REVOKE ALL PRIVILEGES (%s) ON TABLE %I.%I FROM %I',
+					column_names,
+					relation.schema_name,
+					relation.relation_name,
+					'ops_web'
+				);
+			END IF;
+		END LOOP;
+	END
+	$ops_web_read_model_column_revoke$`,
 	`GRANT SELECT (
-		"completed_at", "conversation_id", "created_at", "error_code",
-		"principal_snapshot_json", "request_id", "requested_tool", "run_id", "selected_tool",
-		"status", "trace_id", "updated_at", "user_message_id"
+		"admission_status", "assistant_message_id", "completed_at", "conversation_id", "created_at",
+		"error_code", "request_id", "run_id", "status", "surface", "trace_id", "turn_sequence",
+		"updated_at", "user_message_id", "workflow_id"
 	) ON TABLE "chat"."turn_dispatches" TO "ops_web"`,
 	`GRANT SELECT (
-		"id", "text"
+		"conversation_id", "id", "kind", "request_id", "role", "structured_parts_json", "text"
 	) ON TABLE "chat"."messages" TO "ops_web"`,
 	`GRANT SELECT (
-		"completed_at", "fail_close_reason", "requested_tool", "run_id", "selected_tool",
-		"status", "terminal_reason", "trace_id", "updated_at"
+		"completed_at", "fail_close_reason", "run_id", "runtime_versions_json", "status",
+		"terminal_reason", "trace_id", "updated_at"
 	) ON TABLE "runtime"."agent_runs" TO "ops_web"`,
 	`GRANT SELECT (
-			"acl_anomaly_code", "acl_decision", "completed_at", "duration_ms", "fail_closed",
-			"measured_at",
-			"model_name", "model_provider", "prompt_id", "prompt_version", "projection_lag_ms",
-			"refusal_class", "request_id", "resolved_targets_json", "semantic_outcome", "stage_timing_json",
-			"supporting_sources_json", "template_sha256", "trace_available", "updated_at",
-			"workflow_trace_summary_json"
-	) ON TABLE "runtime"."request_observability_fact" TO "ops_web"`,
+		"run_id", "started_at", "status", "step_kind", "tool", "updated_at"
+	) ON TABLE "runtime"."agent_run_steps" TO "ops_web"`,
+	`GRANT SELECT (
+		"cached_input_tokens", "input_tokens", "output_tokens", "run_id", "step_id", "usage_observed"
+	) ON TABLE "runtime"."agent_step_attempts" TO "ops_web"`,
 ] as const;
 
 export async function applyOpsWebGrantStatements(client: {
@@ -90,19 +130,21 @@ const REQUIRED_SELECTS = [
 		label: "chat.turn_dispatches",
 		sql: `
 			select
-				"completed_at",
+					"admission_status",
+					"assistant_message_id",
+					"completed_at",
 				"conversation_id",
 				"created_at",
 				"error_code",
-				"principal_snapshot_json",
-				"request_id",
-				"requested_tool",
-				"run_id",
-				"selected_tool",
+					"request_id",
+					"run_id",
 				"status",
-				"trace_id",
+				"surface",
+					"trace_id",
+					"turn_sequence",
 				"updated_at",
-				"user_message_id"
+				"user_message_id",
+				"workflow_id"
 			from "chat"."turn_dispatches"
 			limit 0
 		`,
@@ -111,8 +153,13 @@ const REQUIRED_SELECTS = [
 		label: "chat.messages",
 		sql: `
 			select
-				"id",
-				"text"
+					"conversation_id",
+					"id",
+					"kind",
+					"request_id",
+					"role",
+					"structured_parts_json",
+					"text"
 			from "chat"."messages"
 			limit 0
 		`,
@@ -123,9 +170,8 @@ const REQUIRED_SELECTS = [
 			select
 				"completed_at",
 				"fail_close_reason",
-				"requested_tool",
-				"run_id",
-				"selected_tool",
+					"run_id",
+					"runtime_versions_json",
 				"status",
 				"terminal_reason",
 				"trace_id",
@@ -135,33 +181,22 @@ const REQUIRED_SELECTS = [
 		`,
 	},
 	{
-		label: "runtime.request_observability_fact",
+		label: "runtime.agent_run_steps",
 		sql: `
-				select
-						"acl_anomaly_code",
-						"acl_decision",
-						"completed_at",
-						"duration_ms",
-						"fail_closed",
-						"measured_at",
-						"model_name",
-						"model_provider",
-						"prompt_id",
-						"prompt_version",
-						"projection_lag_ms",
-						"refusal_class",
-						"request_id",
-						"resolved_targets_json",
-						"semantic_outcome",
-						"stage_timing_json",
-						"supporting_sources_json",
-						"template_sha256",
-						"trace_available",
-						"updated_at",
-						"workflow_trace_summary_json"
-				from "runtime"."request_observability_fact"
-				limit 0
-			`,
+			select
+					"run_id", "started_at", "status", "step_kind", "tool", "updated_at"
+			from "runtime"."agent_run_steps"
+			limit 0
+		`,
+	},
+	{
+		label: "runtime.agent_step_attempts",
+		sql: `
+			select
+					"cached_input_tokens", "input_tokens", "output_tokens", "run_id", "step_id", "usage_observed"
+			from "runtime"."agent_step_attempts"
+			limit 0
+		`,
 	},
 ];
 

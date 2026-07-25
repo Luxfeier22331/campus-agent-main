@@ -9,6 +9,7 @@ import {
 interface DataTableColumn<T> {
 	cell: (row: T) => React.ReactNode;
 	header: string;
+	rowHeader?: boolean;
 }
 
 export function DataTable<T>({
@@ -24,6 +25,12 @@ export function DataTable<T>({
 	minWidth?: string;
 	rowKey: (row: T) => string;
 }) {
+	const rowHeaderCount = columns.filter((column) => column.rowHeader).length;
+	if (rowHeaderCount !== 1) {
+		throw new Error(
+			`DataTable requires exactly one row header column; received ${rowHeaderCount}.`,
+		);
+	}
 	const columnHelper = createColumnHelper<T>();
 	const tableColumns = columns.map((column) =>
 		columnHelper.display({
@@ -41,7 +48,7 @@ export function DataTable<T>({
 	const rows = table.getRowModel().rows;
 
 	return (
-		<div className="max-w-full rounded-lg border border-slate-200 bg-white">
+		<div className="max-w-full border-border border-y bg-background">
 			<div className="overflow-x-auto overscroll-x-contain">
 				<div style={{ minWidth }}>
 					<table
@@ -54,7 +61,7 @@ export function DataTable<T>({
 								<tr key={headerGroup.id}>
 									{headerGroup.headers.map((header) => (
 										<th
-											className="border-slate-200 border-b bg-slate-50 px-3 py-2 font-semibold text-slate-600 text-xs uppercase"
+											className="border-border border-b bg-secondary px-3 py-2 font-semibold text-muted-foreground text-xs"
 											key={header.id}
 											scope="col"
 										>
@@ -68,7 +75,7 @@ export function DataTable<T>({
 						</thead>
 						<tbody>
 							{rows.map((row) => (
-								<DataTableRow key={row.id} row={row} />
+								<DataTableRow columns={columns} key={row.id} row={row} />
 							))}
 						</tbody>
 					</table>
@@ -79,17 +86,30 @@ export function DataTable<T>({
 }
 
 function DataTableRow<T>({
+	columns,
 	row,
 }: {
+	columns: DataTableColumn<T>[];
 	row: ReturnType<ReturnType<typeof useReactTable<T>>["getRowModel"]>["rows"][number];
 }) {
 	return (
-		<tr className="border-slate-100 border-b">
-			{row.getVisibleCells().map((cell) => (
-				<td className="break-words px-3 py-3 align-top" key={cell.id}>
-					{flexRender(cell.column.columnDef.cell, cell.getContext())}
-				</td>
-			))}
+		<tr className="border-border border-b transition-colors last:border-b-0 hover:bg-surface-muted/60 focus-within:bg-surface-muted/60">
+			{row.getVisibleCells().map((cell, index) => {
+				const content = flexRender(cell.column.columnDef.cell, cell.getContext());
+				return columns[index]?.rowHeader ? (
+					<th
+						className="break-words px-3 py-3 text-left font-medium align-top"
+						key={cell.id}
+						scope="row"
+					>
+						{content}
+					</th>
+				) : (
+					<td className="break-words px-3 py-3 align-top" key={cell.id}>
+						{content}
+					</td>
+				);
+			})}
 		</tr>
 	);
 }

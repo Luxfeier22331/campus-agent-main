@@ -3,6 +3,7 @@ import type {
 	OpsOverviewWindow,
 	OpsRequestDetailResponse,
 	OpsRequestListResponse,
+	OpsRequestListView,
 	OpsRequestSummary,
 	OpsRequestWindow,
 } from "../shared/ops-contract";
@@ -15,13 +16,17 @@ import { createTemporalTaskQueueSource } from "./temporal-task-queue-client.ts";
 export interface OpsRequestListQuery {
 	conversationId?: string;
 	cursor?: string;
-	limit: number;
 	q?: string;
 	requestId?: string;
+	runId?: string;
 	status?: OpsRequestSummary["status"];
 	traceId?: string;
+	view?: OpsRequestListView;
 	window: OpsRequestWindow;
+	workflowId?: string;
 }
+
+export const OPS_REQUEST_PAGE_SIZE = 50;
 
 export type OpsStatusOverview = Pick<
 	OpsOverviewResponse,
@@ -56,6 +61,7 @@ export interface OpsStatusEnv {
 	DEPLOYMENT_ENVIRONMENT?: string;
 	NODE_ENV?: string;
 	OPS_WEB_AXIOM_URL?: string;
+	OPS_WEB_CAMPUS_WEB_PUBLIC_ORIGIN?: string;
 	OPS_WEB_DATABASE_CA_CERT_PATH?: string;
 	OPS_WEB_DATABASE_SSLMODE?: string;
 	OPS_WEB_DATABASE_URL?: string;
@@ -68,15 +74,15 @@ export interface OpsStatusEnv {
 	OPS_WEB_FIXTURE_MODE?: string;
 	OPS_WEB_LANGFUSE_URL?: string;
 	OPS_WEB_SENTRY_BASE_URL?: string;
-	OPS_WEB_TEMPORAL_URL?: string;
+	OPS_WEB_TEMPORAL_UI_URL?: string;
 	SENTRY_ORG_SLUG?: string;
 }
 
 export interface PgOpsStatusStoreDatabase {
-	getRequestObservabilities(requestIds: string[]): Promise<OpsRequestObservabilityRow[]>;
-	getRequestObservability(requestId: string): Promise<OpsRequestObservabilityRow | null>;
+	getAgentUsages(runIds: string[]): Promise<OpsAgentUsageRow[]>;
+	getProductActions(runIds: string[]): Promise<OpsProductActionRow[]>;
 	getRequestOverview(since: Date): Promise<OpsRequestOverviewRow>;
-	getRequest(requestId: string): Promise<OpsRequestRow | null>;
+	getRequest(requestId: string): Promise<OpsRequestDetailRow | null>;
 	getRequestTrends(since: Date, bucketMinutes: number): Promise<OpsRequestTrendRow[]>;
 	listRequests(query: OpsRequestListQuery, since: Date): Promise<OpsRequestRow[]>;
 	summarizeRequests(query: OpsRequestListQuery, since: Date): Promise<OpsRequestSummaryTotals>;
@@ -84,6 +90,7 @@ export interface PgOpsStatusStoreDatabase {
 }
 
 export interface OpsRequestSummaryTotals {
+	actionRequired: number;
 	cancelled: number;
 	completed: number;
 	failed: number;
@@ -106,42 +113,52 @@ export interface OpsRequestTrendRow {
 }
 
 export interface OpsRequestRow {
+	admissionStatus: string;
+	assistantKind: string | null;
+	assistantMessagePresent: boolean;
+	attentionReason: string | null;
 	completedAt: Date | null;
 	conversationId: string;
 	durationMs: number | null;
 	errorCode: string | null;
-	principalType: string;
-	projectedAt: Date;
+	dataUpdatedAt: Date;
 	questionPreview: string;
+	questionTruncated: boolean;
 	requestId: string;
-	requestedTool: string | null;
 	runId: string | null;
-	selectedTool: string | null;
+	runStatus: string | null;
+	runtimeVersionsJson: unknown;
+	attentionPriority: number | null;
 	startedAt: Date;
 	status: string;
+	surface: string;
+	terminalReason: string | null;
 	traceId: string;
+	turnSequence: number;
+	workflowId: string | null;
 }
 
-export interface OpsRequestObservabilityRow {
-	aclAnomalyCode: string | null;
-	aclDecision: string | null;
-	failClosed: boolean | null;
-	measuredAt: Date;
-	modelName?: string | null;
-	modelProvider?: string | null;
-	promptId?: string | null;
-	promptVersion?: string | null;
-	projectionLagMs: number | null;
-	refusalClass: string | null;
-	requestId: string;
-	resolvedTargetsJson?: unknown;
-	semanticOutcome: string | null;
-	stageTimingJson?: unknown;
-	supportingSourcesJson?: unknown;
-	templateSha256?: string | null;
-	traceAvailable: boolean;
+export interface OpsRequestDetailRow extends OpsRequestRow {
+	assistantMessageText: string | null;
+	assistantStructuredPartsJson: unknown;
+	questionText: string;
+}
+
+export interface OpsProductActionRow {
+	runId: string;
+	startedAt: Date | null;
+	status: string;
+	toolName: string;
 	updatedAt: Date;
-	workflowTraceSummaryJson?: unknown;
+}
+
+export interface OpsAgentUsageRow {
+	cachedInputTokens: number | string | null;
+	inputTokens: number | string | null;
+	observedAttemptCount: number | string;
+	outputTokens: number | string | null;
+	runId: string;
+	totalAttemptCount: number | string;
 }
 
 export interface OpsTemporalTaskQueueRow {
@@ -153,8 +170,12 @@ export interface OpsTemporalTaskQueueRow {
 	taskQueueKind?: string | null;
 }
 
+export type OpsTemporalTaskQueueResult =
+	| { rows: OpsTemporalTaskQueueRow[]; state: "FRESH" | "STALE" }
+	| { reason: string; rows: []; state: "NOT_CONFIGURED" | "UNAVAILABLE" };
+
 export interface OpsTemporalTaskQueueSource {
-	getTaskQueues(): Promise<OpsTemporalTaskQueueRow[]>;
+	getTaskQueues(): Promise<OpsTemporalTaskQueueResult>;
 }
 
 export function createUnavailableOpsStatusStore(
@@ -211,9 +232,32 @@ export function createOpsStatusStoreFromEnv(env: OpsStatusEnv = process.env): Op
 					baseUrl: env.OPS_WEB_SENTRY_BASE_URL,
 					orgSlug: env.SENTRY_ORG_SLUG,
 				}) ?? undefined,
-			temporal: env.OPS_WEB_TEMPORAL_URL,
+			temporal: env.OPS_WEB_TEMPORAL_UI_URL,
 		},
+		campusWebPublicOrigin: resolveCampusWebPublicOrigin(env.OPS_WEB_CAMPUS_WEB_PUBLIC_ORIGIN),
 	});
+}
+
+export function resolveCampusWebPublicOrigin(value: string | undefined): string | undefined {
+	const configured = value?.trim();
+	if (!configured) {
+		return;
+	}
+	try {
+		const parsed = new URL(configured);
+		const allowedProtocol =
+			parsed.protocol === "https:" ||
+			(parsed.protocol === "http:" &&
+				(parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost"));
+		const isOriginOnly =
+			!(parsed.username || parsed.password) &&
+			parsed.pathname === "/" &&
+			!parsed.search &&
+			!parsed.hash;
+		return allowedProtocol && isOriginOnly ? parsed.origin : undefined;
+	} catch {
+		return;
+	}
 }
 
 export function assertFixtureModeAllowed(env: OpsStatusEnv): void {

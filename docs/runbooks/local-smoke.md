@@ -39,9 +39,9 @@ pnpm dev
 
 ## Provider 配置
 
-在线配置由 execution-control Provider Config 数据库和 keyring 持有。需要修改时启动本地
-execution-control admin 与 Ops Web，按 `provider-secrets.md` 创建、验证并激活完整 role bundle；
-应用启动不能静默 seed 或激活在线配置。
+在线配置由 execution-control 的模型配置数据库和 keyring 持有。需要修改时启动本地
+execution-control admin 与 Ops Web，按 `provider-secrets.md` 保存并验证 LLM 和 Embedding 当前值；
+应用启动不能静默 seed 在线配置。
 
 ## Chat 检查
 

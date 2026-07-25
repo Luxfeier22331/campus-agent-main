@@ -1,3 +1,4 @@
+import { Button, Field, NativeSelect } from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { AlertTriangle, ExternalLink, RefreshCw } from "lucide-react";
@@ -18,16 +19,12 @@ import {
 	ErrorState,
 	formatIssueSeverity,
 	KeyValue,
-	MetricTile,
 	PageHeader,
 	PageShell,
 	StaleDataWarning,
 	StatusBadge,
 } from "./ops-display";
-import { formatDataStateLabel } from "./ops-view-helpers";
-import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { formatDataStateLabel, formatStatusLabel } from "./ops-view-helpers";
 import { DataTable } from "./ui/data-table";
 
 const windows: Array<{ label: string; value: OpsOverviewWindow }> = [
@@ -70,11 +67,10 @@ export function OverviewPage({ window }: { window: OpsOverviewWindow }) {
 			<PageHeader
 				actions={
 					<div className="flex flex-wrap items-end gap-3">
-						<label className="grid gap-1 text-sm">
-							<span className="font-medium text-slate-600">统计窗口</span>
-							<select
+						<Field label="统计窗口">
+							<NativeSelect
 								aria-label="统计窗口"
-								className="min-h-11 rounded-md border border-slate-200 bg-white px-3 text-sm"
+								className="min-h-11"
 								name="window"
 								onChange={(event) => {
 									void navigate({
@@ -89,8 +85,8 @@ export function OverviewPage({ window }: { window: OpsOverviewWindow }) {
 										{item.label}
 									</option>
 								))}
-							</select>
-						</label>
+							</NativeSelect>
+						</Field>
 						<Button
 							aria-busy={overview.isFetching}
 							disabled={overview.isFetching}
@@ -102,7 +98,7 @@ export function OverviewPage({ window }: { window: OpsOverviewWindow }) {
 						</Button>
 					</div>
 				}
-				description="查看服务可用性、请求结果、Temporal 队列和观测数据是否持续写入。"
+				description="确认产品请求、执行队列和观测链路是否正常。"
 				title="运行概览"
 			/>
 			{overview.isRefetchError ? (
@@ -115,201 +111,186 @@ export function OverviewPage({ window }: { window: OpsOverviewWindow }) {
 			) : null}
 			{data.cache.status === "STALE" ? (
 				<div
-					className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900 text-sm"
+					className="mb-4 rounded-md border border-warning/20 bg-warning-subtle px-3 py-2 text-warning text-sm"
 					role="alert"
 				>
-					当前显示缓存数据，数据生成于 {formatTimestamp(data.generatedAt)}。
+					部分来源显示旧数据，最旧结果距本次刷新约 {formatDuration(data.cache.ageMs)}。
 				</div>
 			) : null}
 
-			<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-				<Card className="md:col-span-2 xl:col-span-1">
-					<CardHeader>
-						<CardTitle>整体状态</CardTitle>
-					</CardHeader>
-					<CardContent className="grid gap-3 text-sm">
+			<dl className="grid border-border border-y md:grid-cols-2 xl:grid-cols-4 xl:divide-x xl:divide-border">
+				<div className="grid content-start gap-2 border-border border-b px-1 py-4 md:border-r md:px-4 xl:border-b-0 xl:border-r-0 xl:pl-0">
+					<dt className="font-medium text-muted-foreground text-xs">整体状态</dt>
+					<dd>
 						<StatusBadge status={data.health.status} />
-						<p className="text-slate-600">
-							{data.health.reasons.length > 0 ? data.health.reasons.join("；") : "未发现阻塞问题。"}
-						</p>
-						<span className="text-slate-500 text-xs">
+					</dd>
+					<dd className="text-muted-foreground text-sm">
+						{data.issues.length > 0 ? `${data.issues.length} 个问题需要处理` : "当前没有阻塞问题"}
+					</dd>
+					{data.health.dataState === "FRESH" ? null : (
+						<dd className="font-medium text-warning text-xs">
 							数据状态：{formatDataStateLabel(data.health.dataState)}
-						</span>
-					</CardContent>
-				</Card>
-				<MetricTile
-					label="请求总数"
-					value={data.requests.total.toLocaleString("en-US")}
-					valueClassName="text-2xl"
-				/>
-				<MetricTile
+						</dd>
+					)}
+				</div>
+				<OverviewMetric label="请求总数" value={data.requests.total.toLocaleString("en-US")} />
+				<OverviewMetric
 					label="请求成功率"
 					value={
 						data.requests.successRate === null ? "无数据" : formatPercent(data.requests.successRate)
 					}
-					valueClassName="text-2xl"
 				/>
-				<MetricTile
+				<OverviewMetric
 					label="95% 请求耗时"
 					value={
 						data.requests.p95DurationMs === null
 							? "无数据"
 							: formatDuration(data.requests.p95DurationMs)
 					}
-					valueClassName="text-2xl"
 				/>
-			</div>
+			</dl>
 
-			<div className="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
-				<Card>
-					<CardHeader>
-						<CardTitle>请求趋势</CardTitle>
-					</CardHeader>
-					<CardContent>
-						<RequestTrendChart trends={data.trends} />
-					</CardContent>
-				</Card>
-				<Card>
-					<CardHeader>
-						<CardTitle>当前问题</CardTitle>
-					</CardHeader>
-					<CardContent className="grid gap-3">
-						{data.issues.length === 0 ? (
-							<p className="text-slate-500 text-sm">当前没有需要处理的问题。</p>
-						) : (
-							data.issues.map((issue) => (
-								<div
-									className="grid gap-2 rounded-md border border-amber-200 bg-amber-50 p-3"
-									key={issue.code}
-								>
+			<div className="mt-8 grid items-start gap-8 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)] xl:gap-0">
+				<section className="min-w-0 border-border border-b pb-8 xl:border-b-0 xl:border-r xl:pr-8">
+					<h2 className="mb-4 font-semibold text-lg">请求趋势</h2>
+					<RequestTrendChart trends={data.trends} />
+				</section>
+				<section className="min-w-0 border-border border-b pb-8 xl:border-b-0 xl:pl-8">
+					<h2 className="mb-4 font-semibold text-lg">当前问题</h2>
+					{data.issues.length === 0 ? (
+						<p className="text-muted-foreground text-sm">当前没有需要处理的问题。</p>
+					) : (
+						<ul className="divide-y divide-border">
+							{data.issues.map((issue) => (
+								<li className="grid gap-2 py-4 first:pt-0 last:pb-0" key={issue.code}>
 									<div className="flex items-start gap-2">
-										<AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-700" />
+										<AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
 										<div className="min-w-0">
-											<p className="font-semibold text-amber-950">{issue.title}</p>
-											<p className="mt-1 text-amber-800 text-sm">{issue.detail}</p>
+											<p className="font-semibold text-foreground">{issue.title}</p>
+											<p className="mt-1 text-muted-foreground text-sm">{issue.detail}</p>
 										</div>
 									</div>
-									<div className="flex flex-wrap gap-2">
-										<Badge tone={issue.severity === "CRITICAL" ? "danger" : "warning"}>
+									<div className="flex flex-wrap items-center gap-3 pl-6 text-xs">
+										<span className="font-medium text-warning">
 											{formatIssueSeverity(issue.severity)}
-										</Badge>
-										<details className="text-xs">
-											<summary className="cursor-pointer font-medium text-amber-900">
+										</span>
+										<details>
+											<summary className="cursor-pointer font-medium text-muted-foreground">
 												技术信息
 											</summary>
-											<code className="mt-2 block break-all text-amber-800">{issue.code}</code>
+											<code className="mt-2 block break-all text-muted-foreground">
+												{issue.code}
+											</code>
 										</details>
 									</div>
-								</div>
-							))
-						)}
-					</CardContent>
-				</Card>
+								</li>
+							))}
+						</ul>
+					)}
+				</section>
 			</div>
 
-			<div className="mt-4 grid gap-4 2xl:grid-cols-2">
-				<Card>
-					<CardHeader>
-						<CardTitle>服务状态</CardTitle>
-					</CardHeader>
-					<CardContent>
-						<ServiceStatusMobileList services={data.services} />
-						<div className="hidden md:block">
-							<DataTable
-								caption="服务状态"
-								columns={[
-									{ cell: (row) => row.displayName, header: "服务" },
-									{ cell: (row) => <StatusBadge status={row.status} />, header: "状态" },
-									{ cell: (row) => formatDataStateLabel(row.dataState), header: "数据" },
-									{ cell: (row) => row.reason ?? "无异常", header: "说明" },
-								]}
-								data={data.services}
-								minWidth="560px"
-								rowKey={(row) => row.name}
-							/>
+			<div className="mt-8 grid gap-8 2xl:grid-cols-2">
+				<section className="min-w-0">
+					<h2 className="mb-4 font-semibold text-lg">服务状态</h2>
+					{data.services.length === 0 ? (
+						<p className="text-muted-foreground text-sm">暂无服务状态。</p>
+					) : null}
+					<ServiceStatusMobileList services={data.services} />
+					<div className="hidden md:block">
+						<DataTable
+							caption="服务状态"
+							columns={[
+								{ cell: (row) => row.displayName, header: "服务", rowHeader: true },
+								{
+									cell: (row) => (
+										<div className="flex flex-wrap items-center gap-2">
+											<StatusBadge status={row.status} />
+											<AbnormalDataState state={row.dataState} />
+										</div>
+									),
+									header: "状态",
+								},
+								{ cell: (row) => formatTimestamp(row.updatedAt), header: "检查时间" },
+							]}
+							data={data.services}
+							minWidth="560px"
+							rowKey={(row) => row.name}
+						/>
+					</div>
+				</section>
+				<section className="min-w-0">
+					<h2 className="mb-4 font-semibold text-lg">Temporal 队列</h2>
+					{data.temporal.queues.length === 0 ? (
+						<p className="text-muted-foreground text-sm">没有可展示的任务队列。</p>
+					) : (
+						<>
+							<TemporalQueueMobileList queues={data.temporal.queues} />
+							<div className="hidden md:block">
+								<DataTable
+									caption="Temporal 队列状态"
+									columns={[
+										{
+											cell: (row) => <span className="break-all">{row.taskQueue}</span>,
+											header: "队列",
+											rowHeader: true,
+										},
+										{ cell: (row) => <StatusBadge status={row.status} />, header: "状态" },
+										{ cell: (row) => row.pollerCount, header: "工作进程" },
+										{ cell: (row) => row.backlogCount, header: "积压" },
+										{
+											cell: (row) =>
+												row.oldestTaskAgeMs === null
+													? "无数据"
+													: formatDuration(row.oldestTaskAgeMs),
+											header: "最久等待",
+										},
+									]}
+									data={data.temporal.queues}
+									minWidth="620px"
+									rowKey={(row) => `${row.taskQueue}:${row.name}`}
+								/>
+							</div>
+						</>
+					)}
+				</section>
+			</div>
+
+			<div className="mt-8 grid items-start gap-8 border-border border-t pt-8 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
+				<section className="min-w-0">
+					<h2 className="mb-4 font-semibold text-lg">观测数据</h2>
+					{data.telemetry.dataState === "FRESH" ? null : (
+						<p className="mb-3 font-medium text-warning text-sm">
+							数据状态：{formatDataStateLabel(data.telemetry.dataState)}
+						</p>
+					)}
+					{data.telemetry.reason ? (
+						<p className="mb-3 text-muted-foreground text-sm">{data.telemetry.reason}</p>
+					) : null}
+					{data.telemetry.signals.length === 0 ? (
+						<p className="text-muted-foreground text-sm">没有可展示的观测数据。</p>
+					) : (
+						<div className="grid gap-3 sm:grid-cols-3">
+							{data.telemetry.signals.map((signal) => (
+								<KeyValue
+									key={signal.kind}
+									label={telemetryLabel(signal.kind)}
+									value={<TelemetrySignalValue signal={signal} />}
+								/>
+							))}
 						</div>
-					</CardContent>
-				</Card>
-				<Card>
-					<CardHeader>
-						<CardTitle>Temporal 队列</CardTitle>
-					</CardHeader>
-					<CardContent>
-						{data.temporal.queues.length === 0 ? (
-							<p className="text-slate-500 text-sm">没有可展示的任务队列。</p>
-						) : (
-							<>
-								<TemporalQueueMobileList queues={data.temporal.queues} />
-								<div className="hidden md:block">
-									<DataTable
-										caption="Temporal 队列状态"
-										columns={[
-											{
-												cell: (row) => (
-													<div className="grid min-w-[220px] gap-1">
-														<span className="break-all">{row.taskQueue}</span>
-														{row.reason ? (
-															<span className="text-slate-500 text-xs">{row.reason}</span>
-														) : null}
-													</div>
-												),
-												header: "队列",
-											},
-											{ cell: (row) => <StatusBadge status={row.status} />, header: "状态" },
-											{ cell: (row) => row.pollerCount, header: "工作进程" },
-											{ cell: (row) => row.backlogCount, header: "积压" },
-											{
-												cell: (row) =>
-													row.oldestTaskAgeMs === null
-														? "无数据"
-														: formatDuration(row.oldestTaskAgeMs),
-												header: "最久等待",
-											},
-										]}
-										data={data.temporal.queues}
-										minWidth="620px"
-										rowKey={(row) => `${row.taskQueue}:${row.name}`}
-									/>
-								</div>
-							</>
-						)}
-					</CardContent>
-				</Card>
-			</div>
-
-			<div className="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
-				<Card>
-					<CardHeader>
-						<CardTitle>观测数据</CardTitle>
-					</CardHeader>
-					<CardContent className="grid gap-3 sm:grid-cols-3">
-						{data.telemetry.signals.map((signal) => (
-							<KeyValue
-								key={signal.kind}
-								label={telemetryLabel(signal.kind)}
-								value={
-									<div className="grid gap-2">
-										<StatusBadge status={signal.status} />
-										<span className="tabular-nums">
-											{signal.recordCount === null
-												? "无数据"
-												: `${signal.recordCount.toLocaleString("en-US")} 条`}
-										</span>
-									</div>
-								}
-							/>
-						))}
-					</CardContent>
-				</Card>
-				<Card>
-					<CardHeader>
-						<CardTitle>相关系统</CardTitle>
-					</CardHeader>
-					<CardContent className="grid gap-2 text-sm">
+					)}
+				</section>
+				<section className="min-w-0">
+					<h2 className="mb-4 font-semibold text-lg">相关系统</h2>
+					<div className="grid gap-2 text-sm">
+						{data.externalLinks.length === 0 ? (
+							<p className="text-muted-foreground">暂无已配置入口。</p>
+						) : null}
 						{data.externalLinks.map((link) =>
 							link.href && link.isAvailable ? (
 								<a
-									className="inline-flex min-h-11 items-center justify-between gap-2 rounded-md border border-slate-200 px-3 py-2 text-slate-700 hover:bg-slate-50"
+									className="inline-flex min-h-11 items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-foreground hover:bg-secondary"
 									href={link.href}
 									key={link.source}
 									rel="noreferrer"
@@ -318,18 +299,10 @@ export function OverviewPage({ window }: { window: OpsOverviewWindow }) {
 									<span>{link.label}</span>
 									<ExternalLink className="size-4" />
 								</a>
-							) : (
-								<div
-									className="flex min-h-11 items-center justify-between gap-2 rounded-md border border-slate-200 px-3 py-2 text-slate-500"
-									key={link.source}
-								>
-									<span>{link.label}</span>
-									<Badge tone="muted">未配置</Badge>
-								</div>
-							),
+							) : null,
 						)}
-					</CardContent>
-				</Card>
+					</div>
+				</section>
 			</div>
 		</section>
 	);
@@ -337,19 +310,57 @@ export function OverviewPage({ window }: { window: OpsOverviewWindow }) {
 
 function ServiceStatusMobileList({ services }: { services: OpsOverviewResponse["services"] }) {
 	return (
-		<div className="divide-y divide-slate-100 md:hidden" data-testid="service-status-mobile-list">
+		<div className="divide-y divide-border md:hidden" data-testid="service-status-mobile-list">
 			{services.map((service) => (
 				<div className="grid gap-2 py-3 first:pt-0 last:pb-0" key={service.name}>
 					<div className="flex items-start justify-between gap-3">
-						<span className="font-semibold text-slate-950">{service.displayName}</span>
+						<span className="font-semibold text-foreground">{service.displayName}</span>
 						<StatusBadge status={service.status} />
 					</div>
-					<div className="flex flex-wrap gap-x-4 gap-y-1 text-slate-600 text-xs">
-						<span>数据：{formatDataStateLabel(service.dataState)}</span>
-						<span>{service.reason ?? "无异常"}</span>
+					<div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground text-xs">
+						<AbnormalDataState state={service.dataState} />
+						<span>{formatTimestamp(service.updatedAt)}</span>
 					</div>
 				</div>
 			))}
+		</div>
+	);
+}
+
+function OverviewMetric({ label, value }: { label: string; value: string }) {
+	return (
+		<div className="grid content-center gap-1 border-border border-b px-1 py-4 md:px-4 xl:border-b-0">
+			<dt className="font-medium text-muted-foreground text-xs">{label}</dt>
+			<dd className="font-semibold text-2xl text-foreground tabular-nums">{value}</dd>
+		</div>
+	);
+}
+
+function AbnormalDataState({ state }: { state: OpsOverviewResponse["health"]["dataState"] }) {
+	return state === "FRESH" ? null : (
+		<span className="font-medium text-warning">数据：{formatDataStateLabel(state)}</span>
+	);
+}
+
+function TelemetrySignalValue({
+	signal,
+}: {
+	signal: OpsOverviewResponse["telemetry"]["signals"][number];
+}) {
+	return (
+		<div className="grid gap-1">
+			<span className="font-semibold tabular-nums">
+				{signal.recordCount === null
+					? "无数据"
+					: `${signal.recordCount.toLocaleString("en-US")} 条`}
+			</span>
+			{signal.status === "HEALTHY" ? null : (
+				<span
+					className={signal.status === "OUTAGE" ? "text-danger text-xs" : "text-warning text-xs"}
+				>
+					{formatStatusLabel(signal.status)}
+				</span>
+			)}
 		</div>
 	);
 }
@@ -360,14 +371,14 @@ function TemporalQueueMobileList({
 	queues: OpsOverviewResponse["temporal"]["queues"];
 }) {
 	return (
-		<div className="divide-y divide-slate-100 md:hidden" data-testid="temporal-queue-mobile-list">
+		<div className="divide-y divide-border md:hidden" data-testid="temporal-queue-mobile-list">
 			{queues.map((queue) => (
 				<div
 					className="grid gap-3 py-3 first:pt-0 last:pb-0"
 					key={`${queue.taskQueue}:${queue.name}`}
 				>
 					<div className="flex min-w-0 items-start justify-between gap-3">
-						<span className="min-w-0 break-all font-semibold text-slate-950">
+						<span className="min-w-0 break-all font-semibold text-foreground text-sm">
 							{queue.taskQueue}
 						</span>
 						<StatusBadge status={queue.status} />
@@ -382,7 +393,6 @@ function TemporalQueueMobileList({
 							}
 						/>
 					</div>
-					{queue.reason ? <p className="text-slate-600 text-xs">{queue.reason}</p> : null}
 				</div>
 			))}
 		</div>
@@ -391,55 +401,216 @@ function TemporalQueueMobileList({
 
 function QueueMetric({ label, value }: { label: string; value: number | string }) {
 	return (
-		<div className="grid gap-1 rounded-md bg-slate-50 p-2">
-			<span className="text-slate-500">{label}</span>
-			<span className="font-semibold text-slate-950 tabular-nums">{value}</span>
+		<div className="grid gap-1 rounded-md bg-secondary p-2">
+			<span className="text-muted-foreground">{label}</span>
+			<span className="font-semibold text-foreground tabular-nums">{value}</span>
 		</div>
 	);
 }
 
-function RequestTrendChart({ trends }: { trends: OpsOverviewResponse["trends"] }) {
-	if (trends.length === 0) {
-		return <p className="py-20 text-center text-slate-500 text-sm">当前窗口没有请求数据。</p>;
+export function RequestTrendChart({ trends }: { trends: OpsOverviewResponse["trends"] }) {
+	if (trends.dataState === "UNAVAILABLE") {
+		return (
+			<div className="border border-warning/30 bg-warning-subtle p-4 text-warning" role="status">
+				<p className="font-semibold">请求趋势暂不可用</p>
+				<p className="mt-1 text-sm">
+					{trends.reason ?? "请求总量和状态仍可查看，请稍后重新加载趋势。"}
+				</p>
+			</div>
+		);
 	}
+	if (trends.data.length === 0) {
+		return (
+			<p className="border-border border-y py-8 text-center text-muted-foreground text-sm">
+				{trends.dataState === "NO_DATA"
+					? "当前窗口没有请求数据。"
+					: (trends.reason ?? "当前没有可展示的趋势数据。")}
+			</p>
+		);
+	}
+	const dataWarning =
+		trends.dataState === "STALE"
+			? (trends.reason ?? "趋势刷新失败，当前显示上一次成功数据。")
+			: trends.dataState === "PARTIAL"
+				? (trends.reason ?? "当前趋势只包含部分统计数据。")
+				: null;
+	const dataWarningStatus = (
+		<p
+			aria-atomic="true"
+			className={dataWarning ? "text-warning text-sm" : "sr-only"}
+			role="status"
+		>
+			{dataWarning ?? ""}
+		</p>
+	);
+	if (trends.data.length === 1) {
+		const point = trends.data[0];
+		return (
+			<div className="grid gap-4 border-border border-y py-4">
+				{dataWarningStatus}
+				<div>
+					<p className="font-medium text-foreground">当前窗口只有一个统计点</p>
+					<p className="mt-1 text-muted-foreground text-sm">
+						{formatTimestamp(point.bucketStart)}，暂时无法形成变化趋势。
+					</p>
+				</div>
+				<div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
+					<TrendValue label="请求" value={point.total} />
+					<TrendValue label="完成" value={point.completed} />
+					<TrendValue label="失败" value={point.failed} />
+					<TrendValue label="95% 耗时" value={formatDuration(point.p95DurationMs)} />
+				</div>
+			</div>
+		);
+	}
+	const hasLatencyData = trends.data.some((point) => point.p95DurationMs !== null);
 	return (
-		<div aria-label="请求趋势" className="h-56 min-w-0 sm:h-72" role="img">
-			<ResponsiveContainer height="100%" width="100%">
-				<LineChart data={trends} margin={{ bottom: 8, left: 0, right: 8, top: 8 }}>
-					<CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} />
-					<XAxis
-						dataKey="bucketStart"
-						tickFormatter={(value) => formatChartTime(String(value))}
-						tickLine={false}
-					/>
-					<YAxis allowDecimals={false} tickLine={false} width={36} />
-					<Tooltip labelFormatter={(value) => formatTimestamp(String(value))} />
-					<Legend />
-					<Line
-						dataKey="completed"
-						dot={false}
-						name="完成"
-						stroke="#0f766e"
-						strokeWidth={2}
-						type="monotone"
-					/>
-					<Line
-						dataKey="failed"
-						dot={false}
-						name="失败"
-						stroke="#dc2626"
-						strokeWidth={2}
-						type="monotone"
-					/>
-				</LineChart>
-			</ResponsiveContainer>
+		<div className="grid gap-3">
+			{dataWarningStatus}
+			<div className="grid gap-6 lg:grid-cols-2">
+				<div className="min-w-0 border-border border-y py-3">
+					<p className="px-1 font-medium text-foreground text-sm">请求量与结果</p>
+					<div aria-hidden="true" className="mt-2 h-48 min-w-0 sm:h-56">
+						<ResponsiveContainer height="100%" width="100%">
+							<LineChart
+								accessibilityLayer={false}
+								data={trends.data}
+								margin={{ bottom: 8, left: 0, right: 8, top: 8 }}
+							>
+								<CartesianGrid
+									stroke="var(--sys-border-subtle)"
+									strokeDasharray="3 3"
+									vertical={false}
+								/>
+								<XAxis
+									dataKey="bucketStart"
+									tickFormatter={(value) => formatChartTime(String(value))}
+									tickLine={false}
+								/>
+								<YAxis allowDecimals={false} tickLine={false} width={36} />
+								<Tooltip labelFormatter={(value) => formatTimestamp(String(value))} />
+								<Legend />
+								<Line
+									dataKey="total"
+									dot={false}
+									name="请求"
+									stroke="var(--ops-chart-primary)"
+									strokeWidth={2}
+									type="monotone"
+								/>
+								<Line
+									dataKey="completed"
+									dot={false}
+									name="完成"
+									stroke="var(--ops-chart-success)"
+									strokeWidth={2}
+									type="monotone"
+								/>
+								<Line
+									dataKey="failed"
+									dot={false}
+									name="失败"
+									stroke="var(--ops-chart-danger)"
+									strokeWidth={2}
+									type="monotone"
+								/>
+							</LineChart>
+						</ResponsiveContainer>
+					</div>
+				</div>
+				<div className="min-w-0 border-border border-y py-3">
+					<p className="px-1 font-medium text-foreground text-sm">95% 耗时</p>
+					{hasLatencyData ? (
+						<div aria-hidden="true" className="mt-2 h-48 min-w-0 sm:h-56">
+							<ResponsiveContainer height="100%" width="100%">
+								<LineChart
+									accessibilityLayer={false}
+									data={trends.data}
+									margin={{ bottom: 8, left: 0, right: 8, top: 8 }}
+								>
+									<CartesianGrid
+										stroke="var(--sys-border-subtle)"
+										strokeDasharray="3 3"
+										vertical={false}
+									/>
+									<XAxis
+										dataKey="bucketStart"
+										tickFormatter={(value) => formatChartTime(String(value))}
+										tickLine={false}
+									/>
+									<YAxis
+										allowDecimals={false}
+										tickFormatter={(value) => formatDuration(Number(value))}
+										tickLine={false}
+										width={72}
+									/>
+									<Tooltip
+										formatter={(value) => [formatDuration(Number(value)), "95% 耗时"]}
+										labelFormatter={(value) => formatTimestamp(String(value))}
+									/>
+									<Line
+										dataKey="p95DurationMs"
+										dot={{ r: 2 }}
+										name="95% 耗时"
+										stroke="var(--ops-chart-warning)"
+										strokeWidth={2}
+										type="monotone"
+									/>
+								</LineChart>
+							</ResponsiveContainer>
+						</div>
+					) : (
+						<p className="px-1 py-8 text-muted-foreground text-sm">当前没有耗时数据。</p>
+					)}
+				</div>
+			</div>
+			<TrendSummaryTable trends={trends.data} />
+		</div>
+	);
+}
+
+function TrendSummaryTable({ trends }: { trends: OpsOverviewResponse["trends"]["data"] }) {
+	return (
+		<div className="sr-only">
+			<table>
+				<caption>请求趋势数据</caption>
+				<thead>
+					<tr>
+						<th scope="col">时间</th>
+						<th scope="col">请求</th>
+						<th scope="col">完成</th>
+						<th scope="col">失败</th>
+						<th scope="col">95% 耗时</th>
+					</tr>
+				</thead>
+				<tbody>
+					{trends.map((point) => (
+						<tr key={point.bucketStart}>
+							<th scope="row">{formatTimestamp(point.bucketStart)}</th>
+							<td>{point.total}</td>
+							<td>{point.completed}</td>
+							<td>{point.failed}</td>
+							<td>{formatDuration(point.p95DurationMs)}</td>
+						</tr>
+					))}
+				</tbody>
+			</table>
+		</div>
+	);
+}
+
+function TrendValue({ label, value }: { label: string; value: number | string }) {
+	return (
+		<div className="grid gap-1">
+			<span className="text-muted-foreground text-xs">{label}</span>
+			<span className="font-semibold text-foreground tabular-nums">{value}</span>
 		</div>
 	);
 }
 
 function formatChartTime(value: string) {
-	const date = new Date(value);
-	return Number.isNaN(date.valueOf()) ? value : date.toISOString().slice(11, 16);
+	const formatted = formatTimestamp(value);
+	return formatted === value ? value : formatted.slice(11, 16);
 }
 
 function telemetryLabel(kind: "LOGS" | "METRICS" | "TRACES") {

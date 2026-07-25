@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
 	createIngestionControlClientFromEnv,
@@ -9,8 +9,6 @@ import {
 } from "../src/server/ingestion-control-client";
 
 describe("ingestion-control client", () => {
-	afterEach(() => vi.unstubAllGlobals());
-
 	it("queries and validates only through the fixed ingestion-control operation", async () => {
 		const fetchFn = vi.fn(async (url: string) =>
 			Response.json(

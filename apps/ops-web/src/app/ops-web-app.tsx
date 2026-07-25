@@ -19,14 +19,15 @@ import { NotFoundPage } from "./not-found-page";
 import {
 	ignoredRequestSearchParamNames,
 	optionalBoundedSearchString,
-	optionalLimit,
+	optionalRequestListView,
 	optionalRequestWindow,
 	optionalSearchString,
 	optionalStatus,
 } from "./ops-view-helpers";
 import { OverviewPage } from "./overview-page";
-import { ProviderConfigPage } from "./provider-config-page";
-import { RequestDetailPage, type RequestDetailTab } from "./request-detail-page";
+import { type ModelSettingsService, ProviderConfigPage } from "./provider-config-page";
+import { RequestDetailPage } from "./request-detail-page";
+import { RequestSystemPage } from "./request-system-page";
 import { RequestsPage as RequestsPageView } from "./requests-page";
 import { SidebarLayout } from "./ui/sidebar-layout";
 
@@ -69,16 +70,18 @@ const requestsRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/requests",
 	validateSearch: (search: Record<string, unknown>) => {
+		const view = optionalRequestListView(search.view);
 		const parsed = {
 			conversationId: optionalBoundedSearchString(search.conversationId, 128),
 			cursor: optionalBoundedSearchString(search.cursor, 512),
-			limit: optionalLimit(search.limit),
-			previous: optionalBoundedSearchString(search.previous, 512),
 			q: optionalBoundedSearchString(search.q, 256),
 			requestId: optionalBoundedSearchString(search.requestId, 128),
+			runId: optionalBoundedSearchString(search.runId, 128),
 			status: optionalStatus(search.status),
 			traceId: optionalBoundedSearchString(search.traceId, 128),
+			view,
 			window: optionalRequestWindow(search.window),
+			workflowId: optionalBoundedSearchString(search.workflowId, 128),
 		};
 		const ignored = ignoredRequestSearchParamNames(search, parsed);
 		return {
@@ -94,15 +97,26 @@ const requestDetailRoute = createRoute({
 	path: "/requests/$requestId",
 	validateSearch: (search: Record<string, unknown>) => ({
 		from: optionalSearchString(search.from),
-		tab: optionalRequestDetailTab(search.tab) ?? "overview",
 	}),
 	component: RequestDetailRoute,
+});
+
+const requestSystemRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/requests/$requestId/system",
+	validateSearch: (search: Record<string, unknown>) => ({
+		from: optionalSearchString(search.from),
+	}),
+	component: RequestSystemRoute,
 });
 
 const providerConfigRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/providers",
-	component: ProviderConfigPage,
+	validateSearch: (search: Record<string, unknown>) => ({
+		service: optionalModelSettingsService(search.service) ?? "execution",
+	}),
+	component: ProviderConfigRoute,
 });
 
 const internalPortalAuthRoute = createRoute({
@@ -133,6 +147,7 @@ const routeTree = rootRoute.addChildren([
 	indexRoute,
 	overviewRoute,
 	requestsRoute,
+	requestSystemRoute,
 	requestDetailRoute,
 	providerConfigRoute,
 	internalPortalAuthRoute,
@@ -166,8 +181,8 @@ function RootLayout() {
 		<SidebarLayout
 			navItems={[
 				{ href: "/overview", icon: Activity, label: "运行概览" },
-				{ href: "/requests", icon: ClipboardList, label: "请求排查" },
-				{ href: "/providers", icon: ServerCog, label: "Provider Config" },
+				{ href: "/requests", icon: ClipboardList, label: "运行记录" },
+				{ href: "/providers", icon: ServerCog, label: "模型配置" },
 				{ href: "/ingestion", icon: Database, label: "采集运行" },
 				{ href: "/internal-portal-auth", icon: KeyRound, label: "门户认证" },
 				{ href: "/dining", icon: Utensils, label: "食堂内容" },
@@ -198,16 +213,25 @@ function RequestsRoute() {
 
 function RequestDetailRoute() {
 	const { requestId } = requestDetailRoute.useParams();
-	const { from, tab } = requestDetailRoute.useSearch();
-	return <RequestDetailPage from={from} requestId={requestId} tab={tab} />;
+	const { from } = requestDetailRoute.useSearch();
+	return <RequestDetailPage from={from} requestId={requestId} />;
+}
+
+function RequestSystemRoute() {
+	const { requestId } = requestSystemRoute.useParams();
+	const { from } = requestSystemRoute.useSearch();
+	return <RequestSystemPage from={from} requestId={requestId} />;
+}
+
+function ProviderConfigRoute() {
+	const search = providerConfigRoute.useSearch();
+	return <ProviderConfigPage service={search.service} />;
 }
 
 function optionalOverviewWindow(value: unknown): OpsOverviewWindow | undefined {
 	return value === "15m" || value === "1h" || value === "6h" || value === "24h" ? value : undefined;
 }
 
-function optionalRequestDetailTab(value: unknown): RequestDetailTab | undefined {
-	return value === "overview" || value === "execution" || value === "observability"
-		? value
-		: undefined;
+function optionalModelSettingsService(value: unknown): ModelSettingsService | undefined {
+	return value === "execution" || value === "hindsight" ? value : undefined;
 }

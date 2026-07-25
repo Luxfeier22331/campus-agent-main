@@ -17,6 +17,7 @@ status: active
   [memory-plane.md](./memory-plane.md)；
 - 运维与改进：[ops-observability.md](./ops-observability.md)、[langfuse.md](./langfuse.md)、
   [learning-loop.md](./learning-loop.md)；
-- 代码边界：[code-organization.md](./code-organization.md)。
+- 界面与代码边界：[ui-foundation.md](./ui-foundation.md)、
+  [code-organization.md](./code-organization.md)。
 
 稳定跨边界流程见 [flows.md](../flows.md)。领域细节、合同、数据和操作步骤不在本索引重复。

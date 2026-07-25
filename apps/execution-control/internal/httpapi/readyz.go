@@ -18,9 +18,9 @@ type providerConfigGate struct {
 	Source     string `json:"source"`
 }
 
-func providerConfigGateRequiredRoles() []providerConfigRole {
-	return []providerConfigRole{
-		providerConfigRolePrimaryAgent,
+func providerConfigGateRequiredKinds() []providerConfigKind {
+	return []providerConfigKind{
+		providerConfigKindLLM,
 	}
 }
 
@@ -172,7 +172,7 @@ func (s *Server) knowledgeSearchRuntimeStatus(ctx context.Context) map[string]an
 	}
 	if _, err := s.providerConfigResolver.ResolveActiveProviderConfig(
 		checkCtx,
-		providerConfigRoleRAGQueryEmbedding,
+		providerConfigKindEmbedding,
 	); err != nil {
 		status["last_error"] = "knowledge search embedding provider config is not available"
 		return status
@@ -294,11 +294,11 @@ func (s *Server) evaluateProviderConfigGate() providerConfigGate {
 			Source:     "execution-config",
 		}
 	}
-	for _, role := range providerConfigGateRequiredRoles() {
-		if _, err := s.providerConfigResolver.ResolveActiveProviderConfig(context.Background(), role); err != nil {
+	for _, kind := range providerConfigGateRequiredKinds() {
+		if _, err := s.providerConfigResolver.ResolveActiveProviderConfig(context.Background(), kind); err != nil {
 			return providerConfigGate{
 				Configured: false,
-				Reason:     "provider_config_invalid_for_" + string(role),
+				Reason:     "provider_config_invalid_for_" + string(kind),
 				Source:     "execution-config",
 			}
 		}

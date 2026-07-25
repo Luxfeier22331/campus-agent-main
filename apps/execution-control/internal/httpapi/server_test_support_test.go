@@ -225,9 +225,9 @@ func newReadyServerForTest(t *testing.T, mutators ...func(*config.Config)) *Serv
 	t.Helper()
 	server := NewServer(readyServerConfigForTest(t, mutators...))
 	server.providerConfigResolver = staticProviderConfigResolver{
-		"primary_agent": primaryAgentProviderConfigSnapshotForTest(),
-		"rag_query_embedding": embeddingProviderConfigSnapshotForTest(
-			providerConfigRoleRAGQueryEmbedding,
+		providerConfigKindLLM: primaryAgentProviderConfigSnapshotForTest(),
+		providerConfigKindEmbedding: embeddingProviderConfigSnapshotForTest(
+			providerConfigKindEmbedding,
 			"https://embedding.example/v1",
 			"embedding-test",
 			2560,

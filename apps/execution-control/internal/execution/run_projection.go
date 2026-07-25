@@ -141,9 +141,11 @@ type StepAttemptProjection struct {
 	ProviderResponseID    string
 	ModelProvider         string
 	ModelName             string
+	ModelRequestCount     int64
 	InputTokens           int64
 	OutputTokens          int64
 	CachedInputTokens     int64
+	UsageObserved         bool
 	CancelOutcome         CancelOutcome
 	TimeoutOutcome        TimeoutOutcome
 	LateCompletionOutcome LateCompletionOutcome

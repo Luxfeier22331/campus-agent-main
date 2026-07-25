@@ -11,11 +11,12 @@ status: active
 
 ## 已生效需求
 
-- [web.md](./web.md)：Campus Web 跨页面设计、响应式、无障碍、动效和性能要求；
+- [ui.md](./ui.md)：仓库内界面的信息层级、状态真实性、响应式和无障碍基线；
+- [web.md](./web.md)：Campus Web 学生旅途、领域连续性和性能要求；
 - [dining.md](./dining.md)：食堂地图、档口、菜品、搜索和评价体验；
 - [legal-consent.md](./legal-consent.md)：注册同意体验和法律页面内容；
 - [run-context.md](./run-context.md)：连续追问、上一轮依据、上下文裁剪和并发轮次体验；
-- [ops-web.md](./ops-web.md)：自托管运行概览、请求诊断、门户认证和食堂内容运营。
+- [ops-web.md](./ops-web.md)：自托管运行概览、运行记录、门户认证和食堂内容运营。
 
 ## 拟议需求
 

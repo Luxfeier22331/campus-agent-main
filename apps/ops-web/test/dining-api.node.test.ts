@@ -3,7 +3,7 @@
 import { createDevDiningSeed, validateDiningDraft } from "@campus-agent/dining/domain";
 import { describe, expect, it, vi } from "vitest";
 import { createOpsApp } from "../src/server/app";
-import type { DiningStore } from "../src/server/dining-store";
+import { createUnavailableDiningStore, type DiningStore } from "../src/server/dining-store";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission";
 import { createFixtureOpsStatusStore } from "../src/server/ops-status-store";
 
@@ -99,5 +99,30 @@ describe("Ops Web Dining API", () => {
 
 		expect(response.status).toBe(403);
 		expect(diningStore.rebase).not.toHaveBeenCalled();
+	});
+
+	it("logs a stable error code when the Dining store is unavailable", async () => {
+		const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
+		try {
+			const app = createOpsApp({
+				admission: createAllowAllOpsAdmission(),
+				diningStore: createUnavailableDiningStore(new Error("dining unavailable")),
+				env: { OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test" },
+				store: createFixtureOpsStatusStore(),
+			});
+			const response = await app.request("/api/ops/dining/overview");
+
+			expect(response.status).toBe(503);
+			expect(errorLog).toHaveBeenCalledWith(
+				"[ops-web] unhandled api error",
+				expect.objectContaining({
+					errorCode: "OPS_DINING_STORE_UNAVAILABLE",
+					errorName: "DiningStoreUnavailableError",
+				}),
+			);
+			expect(errorLog.mock.calls.flat().join(" ")).not.toContain("UNCLASSIFIED");
+		} finally {
+			errorLog.mockRestore();
+		}
 	});
 });

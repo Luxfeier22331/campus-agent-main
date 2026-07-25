@@ -1,21 +1,23 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
-	"time"
+
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 )
 
 type providerConfigCompatibilityRequest struct {
 	BaseURL    string `json:"base_url"`
 	Dimensions int    `json:"dimensions"`
+	Kind       string `json:"kind"`
 	Model      string `json:"model"`
 	Provider   string `json:"provider"`
-	Role       string `json:"role"`
-	TimeoutMS  int    `json:"timeout_ms"`
 	Transport  string `json:"transport"`
 }
 
@@ -30,7 +32,14 @@ func (s *Server) handleProviderConfigCompatibility(response http.ResponseWriter,
 		return
 	}
 	var candidate providerConfigCompatibilityRequest
-	if err := json.Unmarshal(body, &candidate); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&candidate); err != nil {
+		setOutcome(response, "invalid_request")
+		writeError(response, http.StatusBadRequest, "invalid_request", "Provider config compatibility request is invalid.", false)
+		return
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
 		setOutcome(response, "invalid_request")
 		writeError(response, http.StatusBadRequest, "invalid_request", "Provider config compatibility request is invalid.", false)
 		return
@@ -39,33 +48,26 @@ func (s *Server) handleProviderConfigCompatibility(response http.ResponseWriter,
 		APIKey:     "compatibility-check-redacted",
 		BaseURL:    strings.TrimRight(strings.TrimSpace(candidate.BaseURL), "/"),
 		Dimensions: candidate.Dimensions,
+		Kind:       providerConfigKind(strings.TrimSpace(candidate.Kind)),
 		Model:      strings.TrimSpace(candidate.Model),
-		ProfileID:  "provider_profile_candidate",
 		Provider:   strings.TrimSpace(candidate.Provider),
-		Revision:   1,
-		Role:       strings.TrimSpace(candidate.Role),
-		TimeoutMS:  candidate.TimeoutMS,
 		Transport:  strings.TrimSpace(candidate.Transport),
 	}
-	role := providerConfigRole(snapshot.Role)
-	if !isEmbeddingProviderConfigRole(role) {
+	if snapshot.Kind != providerConfigKindEmbedding {
 		setOutcome(response, "invalid_request")
-		writeError(response, http.StatusBadRequest, "invalid_request", "Embedding provider role is required.", false)
+		writeError(response, http.StatusBadRequest, "invalid_request", "Embedding model setting is required.", false)
 		return
 	}
-	if err := validateProviderConfigSnapshot(snapshot, role); err != nil {
+	if err := validateProviderConfigSnapshot(snapshot, providerConfigKindEmbedding); err != nil {
 		setOutcome(response, "invalid_request")
 		writeError(response, http.StatusBadRequest, "invalid_request", err.Error(), false)
 		return
 	}
-	ctx, cancel := context.WithTimeout(request.Context(), time.Duration(snapshot.TimeoutMS)*time.Millisecond)
+	ctx, cancel := context.WithTimeout(request.Context(), providerconfig.ValidationTimeout)
 	defer cancel()
-	result := s.checkProviderConfigCompatibility(ctx, role, snapshot)
+	result := s.checkProviderConfigCompatibility(ctx, snapshot)
 	setOutcome(response, "provider_config_compatibility")
-	writeJSON(response, http.StatusOK, map[string]any{
-		"ok":     result.ok,
-		"reason": result.reason,
-	})
+	writeJSON(response, http.StatusOK, map[string]any{"ok": result.ok, "reason": result.reason})
 }
 
 type providerConfigCompatibilityResult struct {
@@ -75,21 +77,12 @@ type providerConfigCompatibilityResult struct {
 
 func (s *Server) checkProviderConfigCompatibility(
 	ctx context.Context,
-	role providerConfigRole,
 	snapshot providerConfigSnapshot,
 ) providerConfigCompatibilityResult {
-	switch role {
-	case providerConfigRoleRAGQueryEmbedding:
-		if err := s.checkKnowledgeSearchEmbeddingCompatibility(ctx, snapshot); err != nil {
-			return providerConfigCompatibilityResult{ok: false, reason: err.Error()}
-		}
-		return providerConfigCompatibilityResult{ok: true}
-	default:
-		return providerConfigCompatibilityResult{
-			ok:     false,
-			reason: fmt.Sprintf("provider config role %q is not supported for compatibility checks", role),
-		}
+	if err := s.checkKnowledgeSearchEmbeddingCompatibility(ctx, snapshot); err != nil {
+		return providerConfigCompatibilityResult{ok: false, reason: err.Error()}
 	}
+	return providerConfigCompatibilityResult{ok: true}
 }
 
 func (s *Server) checkKnowledgeSearchEmbeddingCompatibility(

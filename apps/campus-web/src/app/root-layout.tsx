@@ -1,9 +1,8 @@
+import { Button } from "@campus-agent/ui";
 import { Link, Outlet, useLocation } from "@tanstack/react-router";
 import { lazy, Suspense } from "react";
-
 import { DeferredProductAccountEntry } from "@/components/auth/user/deferred-product-account-entry";
 import { ProductBrandLink, ProductNavActions } from "@/components/navigation/product-navigation";
-import { Button } from "@/components/ui/button";
 import { RouteMetadata } from "./route-metadata";
 
 const ProductNavMobileMenu = lazy(() =>

@@ -43,7 +43,7 @@ func (s *Server) readinessAuthorized(request *http.Request) bool {
 	if s.localRuntimeMode() {
 		return true
 	}
-	return s.internalWorkerAuthorized(request)
+	return s.internalWorkerAuthorized(request) || s.metricsAuthorized(request)
 }
 
 func (s *Server) localRuntimeMode() bool {

@@ -166,9 +166,11 @@ type ExecutePrimaryAgentActivityOutput struct {
 }
 
 type AgentUsageSummary struct {
+	ModelRequestCount int64 `json:"model_request_count"`
 	CachedInputTokens int64 `json:"cached_input_tokens"`
 	InputTokens       int64 `json:"input_tokens"`
 	OutputTokens      int64 `json:"output_tokens"`
+	UsageObserved     bool  `json:"usage_observed"`
 }
 
 type WriteFinalizationActivityInput struct {

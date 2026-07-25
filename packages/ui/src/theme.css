@@ -1,0 +1,76 @@
+@theme inline {
+	--color-background: var(--sys-bg-canvas);
+	--color-foreground: var(--sys-text-default);
+	--color-card: var(--card-bg);
+	--color-card-foreground: var(--sys-text-default);
+	--color-surface-muted: var(--sys-bg-muted);
+	--color-muted-foreground: var(--sys-text-muted);
+	--color-accent: var(--sys-bg-muted);
+	--color-accent-foreground: var(--sys-text-strong);
+	--color-secondary: var(--sys-bg-subtle);
+	--color-secondary-foreground: var(--sys-text-default);
+	--color-popover: var(--sys-surface-default);
+	--color-popover-foreground: var(--sys-text-default);
+	--color-primary: var(--sys-brand-interactive);
+	--color-primary-foreground: var(--sys-text-inverse);
+	--color-destructive: var(--sys-status-danger);
+	--color-destructive-foreground: var(--sys-text-inverse);
+	--color-border: var(--sys-border-subtle);
+	--color-input: var(--input-border);
+	--color-ring: var(--sys-border-focus);
+	--color-info: var(--sys-status-info);
+	--color-info-subtle: var(--sys-status-info-subtle);
+	--color-success: var(--sys-status-success);
+	--color-success-subtle: var(--sys-status-success-subtle);
+	--color-warning: var(--sys-status-warning);
+	--color-warning-subtle: var(--sys-status-warning-subtle);
+	--color-danger: var(--sys-status-danger);
+	--color-danger-subtle: var(--sys-status-danger-subtle);
+}
+
+@layer base {
+	* {
+		box-sizing: border-box;
+		border-color: var(--sys-border-subtle);
+	}
+
+	html {
+		background: var(--sys-bg-canvas);
+		color: var(--sys-text-default);
+		font-family: var(--font-sans);
+	}
+
+	body {
+		margin: 0;
+		min-width: 320px;
+		min-height: 100dvh;
+		background: var(--sys-bg-canvas);
+	}
+
+	a {
+		text-decoration: none;
+	}
+
+	button,
+	input,
+	select,
+	textarea {
+		font: inherit;
+	}
+
+	:focus-visible {
+		outline: 2px solid var(--sys-border-focus);
+		outline-offset: 2px;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		scroll-behavior: auto;
+		transition-duration: 0.01ms;
+		animation-duration: 0.01ms;
+		animation-iteration-count: 1;
+	}
+}

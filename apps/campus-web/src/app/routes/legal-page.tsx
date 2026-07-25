@@ -1,10 +1,7 @@
+import { Button, Card, Separator } from "@campus-agent/ui";
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-
 import { ProductBrandLink } from "@/components/navigation/product-navigation";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 
 const EFFECTIVE_DATE = "2026-06-18";
 

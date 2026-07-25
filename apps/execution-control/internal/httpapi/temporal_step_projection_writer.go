@@ -22,12 +22,15 @@ type temporalStepProjection struct {
 	CompletedAt           time.Time
 	DurationMS            int64
 	FailCloseReason       string
+	ModelRequestCount     int64
 	InputTokens           int64
 	LateCompletionOutcome execution.LateCompletionOutcome
 	ModelName             string
 	ModelProvider         string
 	OutputTokens          int64
 	CachedInputTokens     int64
+	UsageObserved         bool
+	ParentStepID          string
 	Payload               map[string]any
 	ProjectionRef         string
 	ProviderRequestRef    string
@@ -80,6 +83,7 @@ func (s *Server) projectTemporalStep(ctx context.Context, projection temporalSte
 			ConversationID:       projection.Run.ConversationID,
 			StepKind:             projection.StepKind,
 			Tool:                 projection.Tool,
+			ParentStepID:         projection.ParentStepID,
 			Status:               projection.Status,
 			TaskQueue:            projection.TaskQueue,
 			WorkerID:             projection.WorkerID,
@@ -115,9 +119,11 @@ func (s *Server) projectTemporalStep(ctx context.Context, projection temporalSte
 		ProviderResponseID:    projection.ProviderResponseID,
 		ModelProvider:         projection.ModelProvider,
 		ModelName:             projection.ModelName,
+		ModelRequestCount:     projection.ModelRequestCount,
 		InputTokens:           projection.InputTokens,
 		OutputTokens:          projection.OutputTokens,
 		CachedInputTokens:     projection.CachedInputTokens,
+		UsageObserved:         projection.UsageObserved,
 		CancelOutcome:         projection.CancelOutcome,
 		TimeoutOutcome:        projection.TimeoutOutcome,
 		LateCompletionOutcome: projection.LateCompletionOutcome,

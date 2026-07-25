@@ -1,29 +1,39 @@
-import { decodeRequestCursor } from "../src/server/ops-status-mappers";
+import {
+	decodeRequestCursor,
+	requestAttentionPriority,
+	requestListView,
+} from "../src/server/ops-status-mappers";
 import type {
+	OpsAgentUsageRow,
+	OpsProductActionRow,
+	OpsRequestDetailRow,
 	OpsRequestListQuery,
-	OpsRequestObservabilityRow,
 	OpsRequestRow,
 	OpsTemporalTaskQueueRow,
 	OpsTemporalTaskQueueSource,
 	PgOpsStatusStoreDatabase,
 } from "../src/server/ops-status-store";
+import { OPS_REQUEST_PAGE_SIZE } from "../src/server/ops-status-store";
 
 export function createFakeOpsDb(
 	overrides: {
-		observabilityRows?: ReturnType<typeof requestObservabilityRow>[];
-		requestRows?: OpsRequestRow[];
+		actionRows?: OpsProductActionRow[];
+		requestRows?: OpsRequestDetailRow[];
+		usageRows?: OpsAgentUsageRow[];
 	} = {},
 ): PgOpsStatusStoreDatabase {
 	const requestRows = overrides.requestRows ?? [requestRow()];
-	const observabilityRows = overrides.observabilityRows ?? [requestObservabilityRow()];
+	const actionRows = overrides.actionRows ?? [productActionRow()];
+	const usageRows = overrides.usageRows ?? [agentUsageRow()];
 
 	return {
-		async getRequestObservability(requestId) {
-			return observabilityRows.find((row) => row.requestId === requestId) ?? null;
+		async getAgentUsages(runIds) {
+			const runIdSet = new Set(runIds);
+			return usageRows.filter((row) => runIdSet.has(row.runId));
 		},
-		async getRequestObservabilities(requestIds) {
-			const requestIdSet = new Set(requestIds);
-			return observabilityRows.filter((row) => requestIdSet.has(row.requestId));
+		async getProductActions(runIds) {
+			const runIdSet = new Set(runIds);
+			return actionRows.filter((row) => runIdSet.has(row.runId));
 		},
 		async getRequestOverview(since) {
 			const visible = requestRows.filter((row) => row.startedAt >= since);
@@ -35,10 +45,10 @@ export function createFakeOpsDb(
 			return {
 				...summary,
 				latestProjectedAt:
-					visible.map((row) => row.projectedAt).sort((a, b) => b.valueOf() - a.valueOf())[0] ??
+					visible.map((row) => row.dataUpdatedAt).sort((a, b) => b.valueOf() - a.valueOf())[0] ??
 					null,
 				p95DurationMs:
-					durations.length > 0 ? durations[Math.ceil(durations.length * 0.95) - 1] : null,
+					durations.length > 0 ? (durations[Math.ceil(durations.length * 0.95) - 1] ?? null) : null,
 			};
 		},
 		async getRequest(requestId) {
@@ -57,17 +67,36 @@ export function createFakeOpsDb(
 					];
 		},
 		async listRequests(query, since) {
-			const filtered = filterRequestRows(requestRows, query, since);
-			const cursor = decodeRequestCursor(query.cursor);
+			const view = requestListView(query);
+			const filtered = filterRequestRows(requestRows, query, since).sort((left, right) => {
+				const priority =
+					view === "attention"
+						? requestAttentionPriority(validAttentionReason(left.attentionReason)) -
+							requestAttentionPriority(validAttentionReason(right.attentionReason))
+						: 0;
+				return (
+					priority ||
+					right.startedAt.valueOf() - left.startedAt.valueOf() ||
+					(right.requestId === left.requestId ? 0 : right.requestId < left.requestId ? -1 : 1)
+				);
+			});
+			const cursor = decodeRequestCursor(query.cursor, view);
 			const visible = cursor
-				? filtered.filter(
-						(row) =>
+				? filtered.filter((row) => {
+						const followsTimestamp =
 							row.startedAt.toISOString() < cursor.startedAt ||
 							(row.startedAt.toISOString() === cursor.startedAt &&
-								row.requestId < cursor.requestId),
-					)
+								row.requestId < cursor.requestId);
+						return cursor.view === "recent"
+							? followsTimestamp
+							: requestAttentionPriority(validAttentionReason(row.attentionReason)) >
+									cursor.priority ||
+									(requestAttentionPriority(validAttentionReason(row.attentionReason)) ===
+										cursor.priority &&
+										followsTimestamp);
+					})
 				: filtered;
-			return visible.slice(0, query.limit + 1);
+			return visible.slice(0, OPS_REQUEST_PAGE_SIZE + 1);
 		},
 		async summarizeRequests(query, since) {
 			return summarizeRows(filterRequestRows(requestRows, query, since));
@@ -78,78 +107,101 @@ export function createFakeOpsDb(
 	};
 }
 
+function validAttentionReason(
+	value: string | null,
+): "REQUEST_FAILED" | "RESULT_MISSING" | "WAITING_USER" | null {
+	if (
+		value === null ||
+		value === "REQUEST_FAILED" ||
+		value === "RESULT_MISSING" ||
+		value === "WAITING_USER"
+	) {
+		return value;
+	}
+	throw new Error(`invalid attention reason: ${value}`);
+}
+
 export function createFakeTemporalTaskQueueSource(
 	rows: OpsTemporalTaskQueueRow[] = requiredTemporalQueueRows(),
 ): OpsTemporalTaskQueueSource {
-	return { getTaskQueues: async () => rows };
+	return { getTaskQueues: async () => ({ rows, state: "FRESH" }) };
 }
 
-export function requestRow(overrides: Partial<OpsRequestRow> = {}): OpsRequestRow {
+export function requestRow(overrides: Partial<OpsRequestDetailRow> = {}): OpsRequestDetailRow {
 	return {
+		admissionStatus: "accepted",
+		assistantKind: "answer",
+		assistantMessagePresent: true,
+		assistantMessageText: "下一班车将于 14:30 发车。",
+		assistantStructuredPartsJson: [
+			{
+				sourceItems: [
+					{
+						collectionLabel: "校园交通",
+						pageLabel: "运行状态",
+						primaryAction: {
+							disabledReason: null,
+							external: false,
+							href: "/status/transport",
+							label: "查看班车状态",
+						},
+						publisherLabel: "校园服务中心",
+						sectionTitle: "工作日班车",
+						snippet: "下一班 14:30 发车。",
+						title: "班车时刻表",
+						versionLabel: "今日班次",
+					},
+				],
+				type: "source_items",
+			},
+		],
+		attentionPriority: null,
+		attentionReason: null,
 		completedAt: new Date("2026-07-09T07:29:04.000Z"),
 		conversationId: "conv_pg_001",
-		durationMs: 4200,
+		dataUpdatedAt: new Date("2026-07-09T07:29:05.000Z"),
+		durationMs: 4_200,
 		errorCode: null,
-		principalType: "student",
-		projectedAt: new Date("2026-07-09T07:29:05.000Z"),
 		questionPreview: "今天班车什么时候发车？",
+		questionText: "今天班车什么时候发车？",
+		questionTruncated: false,
 		requestId: "req_pg_001",
-		requestedTool: "transport_schedule_lookup",
 		runId: "run_pg_001",
-		selectedTool: "transport_schedule_lookup",
+		runStatus: "completed",
+		runtimeVersionsJson: { agentRuntime: "openai_agents_sdk" },
 		startedAt: new Date("2026-07-09T07:29:00.000Z"),
 		status: "completed",
+		surface: "campus_web",
+		terminalReason: "answer",
 		traceId: "trace_pg_001",
+		turnSequence: 3,
+		workflowId: "campus-agent.chat.run_pg_001",
 		...overrides,
 	};
 }
 
-export function requestObservabilityRow(): OpsRequestObservabilityRow {
+export function productActionRow(
+	overrides: Partial<OpsProductActionRow> = {},
+): OpsProductActionRow {
 	return {
-		aclAnomalyCode: null,
-		aclDecision: "allowed",
-		failClosed: false,
-		measuredAt: new Date("2026-07-09T07:29:05.000Z"),
-		modelName: "gpt-4.1-mini",
-		modelProvider: "openai",
-		promptId: "campus-primary-agent",
-		promptVersion: "current",
-		projectionLagMs: 120,
-		refusalClass: null,
-		requestId: "req_pg_001",
-		resolvedTargetsJson: ["student_rules"],
-		semanticOutcome: "answer",
-		stageTimingJson: { "agent.primary_ms": 1400, "request.total_ms": 4200 },
-		supportingSourcesJson: [
-			{
-				canonicalUrl: "/docs/transport",
-				sourceKind: "campus_service",
-				sourceTitle: "班车时刻表",
-				targetKind: "canonical_reader",
-				versionId: "transport-current",
-			},
-		],
-		templateSha256: "sha256:fixture-template",
-		traceAvailable: true,
-		updatedAt: new Date("2026-07-09T07:29:05.000Z"),
-		workflowTraceSummaryJson: {
-			direct_vs_delegate_branch: "tool",
-			first_decision_actor: "primary_agent",
-			planning_outcome: "primary_agent_completed",
-			runtime_versions: { agent_runtime: "openai_agents_sdk" },
-			selected_tools: ["transport_schedule_lookup"],
-			terminal_reason: "answer",
-			trace_steps: [
-				{
-					outcome: "answer",
-					parent_step_id: "",
-					result_status: "completed",
-					span_kind: "agent",
-					step_id: "agent.primary",
-				},
-			],
-			workflow_mode: "single_step",
-		},
+		runId: "run_pg_001",
+		startedAt: new Date("2026-07-09T07:29:01.000Z"),
+		status: "completed",
+		toolName: "transport_schedule_lookup",
+		updatedAt: new Date("2026-07-09T07:29:02.000Z"),
+		...overrides,
+	};
+}
+
+export function agentUsageRow(overrides: Partial<OpsAgentUsageRow> = {}): OpsAgentUsageRow {
+	return {
+		cachedInputTokens: 200,
+		inputTokens: 1_200,
+		observedAttemptCount: 1,
+		outputTokens: 240,
+		runId: "run_pg_001",
+		totalAttemptCount: 1,
+		...overrides,
 	};
 }
 
@@ -176,19 +228,23 @@ export function requiredTemporalQueueRows(): OpsTemporalTaskQueueRow[] {
 }
 
 function filterRequestRows(
-	rows: OpsRequestRow[],
+	rows: OpsRequestDetailRow[],
 	query: OpsRequestListQuery,
 	since: Date,
-): OpsRequestRow[] {
+): OpsRequestDetailRow[] {
 	return rows
 		.filter((row) => row.startedAt >= since)
 		.filter((row) => {
+			if (requestListView(query) === "attention" && row.attentionReason === null) {
+				return false;
+			}
 			if (query.status) {
 				const statuses = {
+					ACTION_REQUIRED: ["approval_required", "needs_clarification"],
 					CANCELLED: ["cancelled"],
 					COMPLETED: ["completed"],
 					FAILED: ["error", "rejected", "no_answer"],
-					PENDING: ["accepted", "approval_required", "needs_clarification"],
+					PENDING: ["accepted"],
 					RUNNING: ["running"],
 				}[query.status];
 				if (!statuses.includes(row.status)) {
@@ -201,7 +257,13 @@ function filterRequestRows(
 			if (query.requestId && row.requestId !== query.requestId) {
 				return false;
 			}
+			if (query.runId && row.runId !== query.runId) {
+				return false;
+			}
 			if (query.traceId && row.traceId !== query.traceId) {
+				return false;
+			}
+			if (query.workflowId && row.workflowId !== query.workflowId) {
 				return false;
 			}
 			if (query.q) {
@@ -209,10 +271,10 @@ function filterRequestRows(
 					row.conversationId,
 					row.errorCode,
 					row.questionPreview,
-					row.requestedTool,
 					row.requestId,
-					row.selectedTool,
+					row.runId,
 					row.traceId,
+					row.workflowId,
 				].join(" ");
 				if (!text.toLowerCase().includes(query.q.toLowerCase())) {
 					return false;
@@ -223,7 +285,15 @@ function filterRequestRows(
 }
 
 function summarizeRows(rows: OpsRequestRow[]) {
-	const summary = { cancelled: 0, completed: 0, failed: 0, pending: 0, running: 0, total: 0 };
+	const summary = {
+		actionRequired: 0,
+		cancelled: 0,
+		completed: 0,
+		failed: 0,
+		pending: 0,
+		running: 0,
+		total: 0,
+	};
 	for (const row of rows) {
 		if (row.status === "completed") {
 			summary.completed += 1;
@@ -231,7 +301,9 @@ function summarizeRows(rows: OpsRequestRow[]) {
 			summary.cancelled += 1;
 		} else if (["error", "rejected", "no_answer"].includes(row.status)) {
 			summary.failed += 1;
-		} else if (["accepted", "approval_required", "needs_clarification"].includes(row.status)) {
+		} else if (["approval_required", "needs_clarification"].includes(row.status)) {
+			summary.actionRequired += 1;
+		} else if (row.status === "accepted") {
 			summary.pending += 1;
 		} else {
 			summary.running += 1;

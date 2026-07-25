@@ -404,14 +404,14 @@ describe("campus worker boundary", () => {
 		});
 
 		const response = await worker.fetch(
-			new Request("https://campus.muc.wiki/src/components/ui/separator.tsx", {
+			new Request("https://campus.muc.wiki/src/components/ui/toggle.tsx", {
 				headers: { accept: "*/*" },
 			}),
 			env,
 		);
 
 		expect(response.status).toBe(500);
-		expect(seenAssetPaths).toEqual(["/src/components/ui/separator.tsx"]);
+		expect(seenAssetPaths).toEqual(["/src/components/ui/toggle.tsx"]);
 		await expect(response.text()).resolves.not.toContain("__CAMPUS_RUNTIME_CONFIG__");
 	});
 

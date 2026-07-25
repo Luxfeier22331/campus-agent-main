@@ -13,6 +13,7 @@ import {
 	type ToolCallMessagePartComponent,
 	useAuiState,
 } from "@assistant-ui/react";
+import { Button } from "@campus-agent/ui";
 import {
 	ArrowDownIcon,
 	ArrowUpIcon,
@@ -54,7 +55,6 @@ import {
 	ToolGroupTrigger,
 } from "@/components/assistant-ui/tool-group";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export type ThreadGroupPart = MessagePrimitive.GroupedParts.GroupPart;
@@ -154,7 +154,7 @@ const ThreadRoot: FC<{ isEmpty: boolean }> = ({ isEmpty }) => {
 						<Welcome />
 					</AuiIf>
 
-					<div data-slot="aui_message-group" className="mb-14 flex flex-col gap-y-6 empty:hidden">
+					<div data-slot="aui_message-group" className="mb-14 flex flex-col gap-y-5 empty:hidden">
 						<ThreadPrimitive.Messages>{() => <ThreadMessage />}</ThreadPrimitive.Messages>
 					</div>
 
@@ -268,7 +268,7 @@ const ComposerAction: FC = () => {
 	return (
 		<div className="aui-composer-action-wrapper relative flex items-center justify-between">
 			{allowAttachments ? <ComposerAddAttachment /> : <span aria-hidden />}
-			<div className="flex items-center gap-1.5">
+			<div className="flex items-center gap-4">
 				<AuiIf condition={(s) => s.thread.capabilities.dictation}>
 					<AuiIf condition={(s) => s.composer.dictation == null}>
 						<ComposerPrimitive.Dictate asChild>
@@ -278,7 +278,7 @@ const ComposerAction: FC = () => {
 								type="button"
 								variant="ghost"
 								size="icon"
-								className="aui-composer-dictate size-7 rounded-full"
+								className="aui-composer-dictate size-7 rounded-full after:-inset-x-2 after:-inset-y-2"
 								aria-label="开始语音输入"
 							>
 								<MicIcon className="aui-composer-dictate-icon size-4" />
@@ -293,7 +293,7 @@ const ComposerAction: FC = () => {
 								type="button"
 								variant="ghost"
 								size="icon"
-								className="aui-composer-stop-dictation text-destructive size-7 rounded-full"
+								className="aui-composer-stop-dictation text-destructive size-7 rounded-full after:-inset-x-2 after:-inset-y-2"
 								aria-label="停止语音输入"
 							>
 								<SquareIcon className="aui-composer-stop-dictation-icon size-3.5 animate-pulse fill-current" />
@@ -307,9 +307,9 @@ const ComposerAction: FC = () => {
 							tooltip="发送"
 							side="bottom"
 							type="button"
-							variant="default"
+							variant="primary"
 							size="icon"
-							className="aui-composer-send size-7 rounded-full"
+							className="aui-composer-send size-7 rounded-full after:-inset-x-2 after:-inset-y-2"
 							aria-label="发送"
 						>
 							<ArrowUpIcon className="aui-composer-send-icon size-4.5" />
@@ -320,9 +320,9 @@ const ComposerAction: FC = () => {
 					<ComposerPrimitive.Cancel asChild>
 						<Button
 							type="button"
-							variant="default"
+							variant="primary"
 							size="icon"
-							className="aui-composer-cancel size-7 rounded-full"
+							className="aui-composer-cancel relative size-7 rounded-full after:absolute after:-inset-x-2 after:-inset-y-2 after:content-['']"
 							aria-label="停止生成"
 						>
 							<SquareIcon className="aui-composer-cancel-icon size-3.5 fill-current" />
@@ -349,11 +349,8 @@ const AssistantMessage: FC = () => {
 		ReasoningGroup,
 	} = useContext(ThreadComponentsContext);
 
-	// reserves space for action bar and compensates with `-mb` for consistent msg spacing
-	// keeps hovered action bar from shifting layout (autohide doesn't support absolute positioning well)
-	// for pt-[n] use -mb-[n + 6] & min-h-[n + 6] to preserve compensation
-	const ACTION_BAR_PT = "pt-1.5";
-	const ACTION_BAR_HEIGHT = `-mb-7.5 min-h-7.5 ${ACTION_BAR_PT}`;
+	// Keep the 44px hit area in flow; the message-group gap offsets only the visual spacing.
+	const ACTION_BAR_HEIGHT = "-mb-5 min-h-11";
 
 	return (
 		<MessagePrimitive.Root
@@ -431,7 +428,7 @@ const AssistantMessage: FC = () => {
 
 			<div
 				data-slot="aui_assistant-message-footer"
-				className={cn("ms-2 flex items-center", ACTION_BAR_HEIGHT)}
+				className={cn("ms-2 flex items-center gap-5", ACTION_BAR_HEIGHT)}
 			>
 				<BranchPicker />
 				<AssistantActionBar />
@@ -444,7 +441,7 @@ const AssistantActionBar: FC = () => (
 	<ActionBarPrimitive.Root
 		hideWhenRunning
 		autohide="not-last"
-		className="aui-assistant-action-bar-root text-muted-foreground animate-in fade-in col-start-3 row-start-2 -ms-1 flex gap-1 duration-200"
+		className="aui-assistant-action-bar-root text-muted-foreground animate-in fade-in col-start-3 row-start-2 flex gap-5 duration-200"
 	>
 		<ActionBarPrimitive.Copy asChild>
 			<TooltipIconButton tooltip="复制">
@@ -487,7 +484,7 @@ const AssistantActionBar: FC = () => (
 const UserMessage: FC = () => (
 	<MessagePrimitive.Root
 		data-slot="aui_user-message-root"
-		className="fade-in slide-in-from-bottom-1 animate-in grid auto-rows-auto grid-cols-[minmax(72px,1fr)_auto] content-start gap-y-2 px-2 duration-150 [contain-intrinsic-size:auto_60px] [content-visibility:auto] [&:where(>*)]:col-start-2"
+		className="fade-in slide-in-from-bottom-1 animate-in grid auto-rows-auto grid-cols-[minmax(72px,1fr)_auto] content-start gap-y-2.5 px-2 duration-150 [contain-intrinsic-size:auto_60px] [content-visibility:auto] [&:where(>*)]:col-start-2"
 		data-role="user"
 	>
 		<UserMessageAttachments />
@@ -496,7 +493,7 @@ const UserMessage: FC = () => (
 			<div className="aui-user-message-content peer bg-surface-muted text-foreground rounded-xl px-4 py-2 wrap-break-word empty:hidden">
 				<MessagePrimitive.Parts />
 			</div>
-			<div className="aui-user-action-bar-wrapper absolute start-0 top-1/2 -translate-x-full -translate-y-1/2 pe-2 peer-empty:hidden rtl:translate-x-full">
+			<div className="aui-user-action-bar-wrapper absolute start-0 top-1/2 -translate-x-full -translate-y-1/2 pe-2.5 peer-empty:hidden rtl:translate-x-full">
 				<UserActionBar />
 			</div>
 		</div>
@@ -552,7 +549,7 @@ const BranchPicker: FC<BranchPickerPrimitive.Root.Props> = ({ className, ...rest
 	<BranchPickerPrimitive.Root
 		hideWhenSingleBranch
 		className={cn(
-			"aui-branch-picker-root text-muted-foreground -ms-2 me-2 inline-flex items-center text-xs",
+			"aui-branch-picker-root text-muted-foreground -ms-2 inline-flex items-center text-xs",
 			className,
 		)}
 		{...rest}
@@ -562,7 +559,7 @@ const BranchPicker: FC<BranchPickerPrimitive.Root.Props> = ({ className, ...rest
 				<ChevronLeftIcon />
 			</TooltipIconButton>
 		</BranchPickerPrimitive.Previous>
-		<span className="aui-branch-picker-state font-medium">
+		<span className="aui-branch-picker-state mx-2.5 font-medium">
 			<BranchPickerPrimitive.Number /> / <BranchPickerPrimitive.Count />
 		</span>
 		<BranchPickerPrimitive.Next asChild>

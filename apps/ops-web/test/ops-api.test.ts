@@ -3,6 +3,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createOpsApp } from "../src/server/app";
 import { AxiomUnavailableError } from "../src/server/axiom-client";
+import { createUnavailableDiningStore } from "../src/server/dining-store";
 import type { InternalPortalAuthMaintenanceClient } from "../src/server/ingestion-control-client";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission";
 import { createOpsOverviewService } from "../src/server/ops-overview-service";
@@ -36,10 +37,8 @@ function createTestApp(options?: {
 	const overviewService = createOpsOverviewService({
 		now: () => new Date("2026-07-09T06:30:00.000Z"),
 		signals: {
-			getSnapshot: vi.fn().mockResolvedValue({
-				services: opsOverviewFixture.services,
-				telemetry: opsOverviewFixture.telemetry,
-			}),
+			getServices: vi.fn().mockResolvedValue(opsOverviewFixture.services),
+			getTelemetry: vi.fn().mockResolvedValue(opsOverviewFixture.telemetry),
 		},
 		store,
 	});
@@ -98,6 +97,37 @@ function createTestApp(options?: {
 }
 
 describe("ops API", () => {
+	it("requires the request status database but not the optional Dining database", async () => {
+		const store = createFixtureOpsStatusStore();
+		store.verifyReadiness = vi.fn().mockRejectedValue(new Error("database unavailable"));
+		const unavailable = createOpsApp({
+			admission: createAllowAllOpsAdmission(),
+			diningStore: createUnavailableDiningStore(new Error("dining unavailable")),
+			env: {
+				ACCESS_POLICY_AUD: "access-audience",
+				ACCESS_TEAM_DOMAIN: "https://team.example.cloudflareaccess.com",
+				OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test",
+			},
+			store,
+		});
+
+		const unavailableResponse = await unavailable.request("/readyz");
+		expect(unavailableResponse.status).toBe(503);
+		expect(store.verifyReadiness).toHaveBeenCalledOnce();
+
+		const ready = createOpsApp({
+			admission: createAllowAllOpsAdmission(),
+			diningStore: createUnavailableDiningStore(new Error("dining unavailable")),
+			env: {
+				ACCESS_POLICY_AUD: "access-audience",
+				ACCESS_TEAM_DOMAIN: "https://team.example.cloudflareaccess.com",
+				OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test",
+			},
+			store: createFixtureOpsStatusStore(),
+		});
+		expect((await ready.request("/readyz")).status).toBe(200);
+	});
+
 	it("sets restrictive security headers on every response class", async () => {
 		const { app } = createTestApp();
 		const responses = await Promise.all([
@@ -137,6 +167,41 @@ describe("ops API", () => {
 
 		expect(response.status).toBe(200);
 		expect(await response.json()).toMatchObject({ window: "1h" });
+	});
+
+	it("rejects legacy and cross-view cursors while allowing status filters in attention view", async () => {
+		const { app } = createTestApp();
+		const recentCursor = Buffer.from(
+			JSON.stringify({
+				requestId: "req_ops_001",
+				startedAt: "2026-07-09T06:29:00.000Z",
+				v: 1,
+				view: "recent",
+			}),
+		).toString("base64url");
+		const legacyCursor = Buffer.from(
+			JSON.stringify({
+				requestId: "req_ops_001",
+				startedAt: "2026-07-09T06:29:00.000Z",
+				v: 1,
+			}),
+		).toString("base64url");
+		const responses = await Promise.all([
+			app.request(`/api/ops/requests?view=attention&cursor=${encodeURIComponent(recentCursor)}`),
+			app.request(`/api/ops/requests?cursor=${encodeURIComponent(legacyCursor)}`),
+		]);
+
+		for (const response of responses) {
+			expect(response.status).toBe(400);
+			await expect(response.json()).resolves.toMatchObject({
+				error: { code: "OPS_INVALID_QUERY" },
+			});
+		}
+		const completedAttention = await app.request(
+			"/api/ops/requests?view=attention&status=COMPLETED",
+		);
+		expect(completedAttention.status).toBe(200);
+		expect(await completedAttention.json()).toMatchObject({ view: "attention" });
 	});
 
 	it("does not retain the runtime or evidence routes", async () => {
