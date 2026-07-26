@@ -14,6 +14,8 @@ import { applyAppApiGrants } from "./app-api-grants.ts";
 const migrationsFolder = fileURLToPath(new URL("../../drizzle", import.meta.url));
 const REQUIRED_TABLES = [
 	"app_auth.user",
+	"campus_groups.sections",
+	"campus_groups.groups",
 	"chat.turn_dispatches",
 	"docs.releases",
 	"runtime.request_observability_fact",
@@ -74,6 +76,8 @@ async function verifySchema(pool: ReturnType<typeof createSharedProductPool>): P
 		canReadDocs: boolean;
 		canWriteDocs: boolean;
 		canWriteObservability: boolean;
+		canWriteGroupSections: boolean;
+		canWriteGroups: boolean;
 		docsPublisherCanWrite: boolean;
 	}>(
 		`select
@@ -85,7 +89,9 @@ async function verifySchema(pool: ReturnType<typeof createSharedProductPool>): P
 				when to_regclass('runtime.agent_runs') is null then false
 				else has_table_privilege('app_api', 'runtime.agent_runs', 'SELECT')
 			end as "canReadAgentRuns",
-			has_table_privilege('app_api', 'runtime.request_observability_fact', 'SELECT,INSERT,UPDATE,DELETE') as "canWriteObservability"`,
+				has_table_privilege('app_api', 'runtime.request_observability_fact', 'SELECT,INSERT,UPDATE,DELETE') as "canWriteObservability",
+				has_table_privilege('app_api', 'campus_groups.sections', 'SELECT,INSERT,UPDATE,DELETE') as "canWriteGroupSections",
+				has_table_privilege('app_api', 'campus_groups.groups', 'SELECT,INSERT,UPDATE,DELETE') as "canWriteGroups"`,
 	);
 	const privilege = privileges.rows[0];
 	if (
@@ -93,6 +99,8 @@ async function verifySchema(pool: ReturnType<typeof createSharedProductPool>): P
 			privilege?.canMutateDispatches &&
 			privilege.canReadDocs &&
 			privilege.canWriteObservability &&
+			privilege.canWriteGroupSections &&
+			privilege.canWriteGroups &&
 			privilege.docsPublisherCanWrite
 		)
 	) {

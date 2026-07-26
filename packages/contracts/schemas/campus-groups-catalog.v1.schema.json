@@ -1,0 +1,100 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"schemaVersion": {
+			"type": "string",
+			"const": "campus-groups-catalog.v1"
+		},
+		"sections": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"properties": {
+					"groups": {
+						"maxItems": 500,
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"id": {
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 200
+								},
+								"joinUrl": {
+									"anyOf": [
+										{
+											"anyOf": [
+												{
+													"type": "string",
+													"pattern": "^https:\\/\\/(?:jq|qm|qun)\\.qq\\.com(?:[/?#]|$)",
+													"format": "uri"
+												},
+												{
+													"type": "string",
+													"pattern": "^https:\\/\\/(?:discord\\.gg\\/|(?:www\\.)?discord\\.com\\/invite\\/)[^/?#]+(?:[/?#]|$)",
+													"format": "uri"
+												}
+											]
+										},
+										{
+											"type": "null"
+										}
+									]
+								},
+								"name": {
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 200
+								},
+								"qqGroupNumber": {
+									"anyOf": [
+										{
+											"type": "string",
+											"pattern": "^[0-9]{5,12}$"
+										},
+										{
+											"type": "null"
+										}
+									]
+								},
+								"summary": {
+									"type": "string",
+									"maxLength": 2000
+								},
+								"tags": {
+									"maxItems": 20,
+									"type": "array",
+									"items": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 80
+									}
+								}
+							},
+							"required": ["id", "joinUrl", "name", "qqGroupNumber", "summary", "tags"],
+							"additionalProperties": false
+						}
+					},
+					"id": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 200
+					},
+					"name": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 200
+					}
+				},
+				"required": ["groups", "id", "name"],
+				"additionalProperties": false
+			}
+		}
+	},
+	"required": ["schemaVersion", "sections"],
+	"additionalProperties": false,
+	"$id": "https://muc.wiki/campus-agent/schemas/campus-groups-catalog.v1.schema.json",
+	"title": "campus-agent campus groups catalog"
+}

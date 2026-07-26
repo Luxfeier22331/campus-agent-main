@@ -24,6 +24,7 @@ export default defineConfig({
 			"@campus-agent/dining",
 			"@campus-agent/langfuse-identity",
 			"@campus-agent/ui",
+			"campus-contracts",
 			"fast-xml-parser",
 		],
 	},

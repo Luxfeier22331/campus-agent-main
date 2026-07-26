@@ -1,6 +1,6 @@
 # campus-web
 
-学生使用的 React 应用与 Cloudflare Worker，提供问答、账号、文档、地图、食堂和校园服务页面。
+学生使用的 React 应用与 Cloudflare Worker，提供问答、账号、文档、地图、食堂、同好群和校园服务页面。
 
 ## 职责
 

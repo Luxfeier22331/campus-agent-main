@@ -10,6 +10,7 @@ import {
 	AlertDialogTitle,
 	AlertDialogTrigger,
 	Button,
+	Checkbox,
 	Dialog,
 	DialogContent,
 	DialogDescription,
@@ -37,7 +38,6 @@ import { createDiningReview, deleteDiningReview, reportDiningReview } from "@/fe
 import { diningQueryKeys, diningReviewsInfiniteQueryOptions } from "@/features/dining/queries";
 import { createIdempotencyKey } from "@/platform/api/client";
 import { campusAuthClient } from "@/platform/auth/client";
-import { Checkbox } from "../ui/checkbox";
 
 const AuthDialog = lazy(() =>
 	import("../auth/auth-dialog").then((module) => ({ default: module.AuthDialog })),

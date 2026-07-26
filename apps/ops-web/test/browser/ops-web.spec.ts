@@ -1,11 +1,43 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Locator, type Page, test } from "@playwright/test";
+import type { CampusGroupsCatalog } from "campus-contracts/campus-groups";
 
 import type {
 	ExecutionModelSettingsStatus,
 	HindsightModelSettingsStatus,
 	OpsInternalPortalAuthStatus,
 } from "../../src/shared/ops-contract.ts";
+
+const browserCampusGroup = {
+	id: "qq-760540871",
+	joinUrl: null,
+	name: "央民二匹马俱乐部",
+	qqGroupNumber: "760540871",
+	summary: "优俊少女",
+	tags: ["优俊少女"],
+};
+
+const browserSecondCampusGroup = {
+	...browserCampusGroup,
+	id: "qq-825319996",
+	name: "民大 TRPG 交流群",
+	qqGroupNumber: "825319996",
+	tags: ["TRPG"],
+};
+
+function browserCampusGroupsCatalog(): CampusGroupsCatalog {
+	return {
+		schemaVersion: "campus-groups-catalog.v1" as const,
+		sections: [
+			{
+				groups: [browserCampusGroup, browserSecondCampusGroup],
+				id: "interest-groups",
+				name: "同好群",
+			},
+			{ groups: [], id: "clubs", name: "社团群" },
+		],
+	};
+}
 
 function captureRuntimeErrors(page: Page): string[] {
 	const errors: string[] = [];
@@ -77,6 +109,31 @@ async function openDiningProperties(page: Page): Promise<void> {
 	await expect(properties).toBeVisible();
 }
 
+async function routeCampusGroupsCatalog(
+	page: Page,
+	getCatalog: () => CampusGroupsCatalog,
+	onWrite?: (catalog: CampusGroupsCatalog) => void,
+	writeError?: { body: unknown; status: number },
+): Promise<void> {
+	await page.route("**/api/ops/groups/catalog", async (route) => {
+		if (route.request().method() === "PUT") {
+			if (writeError) {
+				await route.fulfill({
+					contentType: "application/json",
+					json: writeError.body,
+					status: writeError.status,
+				});
+				return;
+			}
+			const next = route.request().postDataJSON() as CampusGroupsCatalog;
+			onWrite?.(next);
+			await route.fulfill({ contentType: "application/json", json: next, status: 200 });
+			return;
+		}
+		await route.fulfill({ contentType: "application/json", json: getCatalog(), status: 200 });
+	});
+}
+
 test("总览在各宽度下保持可读", async ({ page }) => {
 	const errors = captureRuntimeErrors(page);
 	await page.goto("/overview?window=1h");
@@ -105,6 +162,7 @@ test("运行记录沿用户旅途进入详情和独立系统记录", async ({ pa
 			externalRecordRequests.push(`${url.pathname}${url.search}`);
 		}
 	});
+	await page.goto("/requests");
 
 	await expect(page.getByRole("heading", { name: "运行记录" })).toBeVisible();
 	const recentResults =
@@ -309,6 +367,158 @@ test("导航在移动端使用抽屉且桌面端保持可见", async ({ page }) 
 		await expect(page.getByRole("navigation", { name: "运维导航" }).first()).toBeVisible();
 	}
 	await expectStableViewport(page, errors);
+});
+
+test("同好群目录可以排序、跨组移动和删除", async ({ page }) => {
+	const errors = captureRuntimeErrors(page);
+	let catalog = browserCampusGroupsCatalog();
+	await routeCampusGroupsCatalog(
+		page,
+		() => catalog,
+		(next) => {
+			catalog = next;
+		},
+	);
+
+	await page.goto("/groups");
+	await expect(page.getByRole("heading", { level: 1, name: "同好群" })).toBeVisible();
+	await expect(page.getByText("央民二匹马俱乐部").filter({ visible: true })).toBeVisible();
+	const missingJoinLinks = page.getByText("未配置邀请链接").filter({ visible: true });
+	await expect(missingJoinLinks).toHaveCount(2);
+	await expect(missingJoinLinks.first()).toBeVisible();
+	await expect(page.getByRole("heading", { name: "目录" })).toBeVisible();
+	const editButtonBox = await page
+		.getByRole("button", { name: "编辑 央民二匹马俱乐部" })
+		.boundingBox();
+	const viewport = page.viewportSize();
+	expect(editButtonBox).not.toBeNull();
+	expect(viewport).not.toBeNull();
+	expect(editButtonBox?.x).toBeGreaterThanOrEqual(0);
+	expect((editButtonBox?.x ?? 0) + (editButtonBox?.width ?? 0)).toBeLessThanOrEqual(
+		(viewport?.width ?? 0) + 1,
+	);
+
+	const sectionReorderRequest = page.waitForRequest(
+		(request) =>
+			new URL(request.url()).pathname === "/api/ops/groups/catalog" && request.method() === "PUT",
+	);
+	const sectionReorderHandle = page.getByRole("button", { name: "调整分组“同好群”的顺序" });
+	await sectionReorderHandle.focus();
+	await page.keyboard.press("Space");
+	await page.keyboard.press("ArrowDown");
+	await page.keyboard.press("Space");
+	const sectionsReordered = (await sectionReorderRequest).postDataJSON() as CampusGroupsCatalog;
+	expect(sectionsReordered.sections.map(({ id }) => id)).toEqual(["clubs", "interest-groups"]);
+	await expect(page.getByText("目录顺序已保存。")).toBeVisible();
+
+	const reorderRequest = page.waitForRequest(
+		(request) =>
+			new URL(request.url()).pathname === "/api/ops/groups/catalog" && request.method() === "PUT",
+	);
+	const reorderHandle = page.getByRole("button", { name: "调整“央民二匹马俱乐部”的顺序" });
+	await reorderHandle.focus();
+	await page.keyboard.press("Space");
+	await page.keyboard.press("ArrowDown");
+	await page.keyboard.press("Space");
+	const reordered = (await reorderRequest).postDataJSON() as CampusGroupsCatalog;
+	expect(
+		reordered.sections.find(({ id }) => id === "interest-groups")?.groups.map(({ id }) => id),
+	).toEqual([browserSecondCampusGroup.id, browserCampusGroup.id]);
+	await expect(page.getByText("目录顺序已保存。")).toBeVisible();
+
+	await page.getByRole("button", { name: "编辑 央民二匹马俱乐部" }).click();
+	const dialog = page.getByRole("dialog", { name: "编辑同好群" });
+	await dialog.getByRole("textbox", { name: "说明" }).fill("更新后的说明");
+	await dialog.getByRole("combobox", { name: "分组" }).selectOption("clubs");
+	const updateRequest = page.waitForRequest(
+		(request) =>
+			new URL(request.url()).pathname === "/api/ops/groups/catalog" && request.method() === "PUT",
+	);
+	await dialog.getByRole("button", { name: "保存" }).click();
+	const updated = (await updateRequest).postDataJSON() as CampusGroupsCatalog;
+	expect(
+		updated.sections.find(({ id }) => id === "interest-groups")?.groups.map(({ id }) => id),
+	).toEqual([browserSecondCampusGroup.id]);
+	expect(updated.sections.find(({ id }) => id === "clubs")?.groups).toEqual([
+		expect.objectContaining({ id: browserCampusGroup.id, summary: "更新后的说明" }),
+	]);
+	await expect(page.getByText("同好群已保存。")).toBeVisible();
+	await expect(page.getByText("更新后的说明").filter({ visible: true })).toBeVisible();
+
+	await page.getByRole("button", { name: "删除 央民二匹马俱乐部" }).click();
+	const confirmation = page.getByRole("alertdialog");
+	await expect(confirmation).toContainText("确定删除“央民二匹马俱乐部”吗？");
+	await confirmation.getByRole("button", { name: "确认" }).click();
+	await expect(page.getByText("同好群已删除。")).toBeVisible();
+	await expect(page.getByText("央民二匹马俱乐部")).toHaveCount(0);
+	if (page.viewportSize()?.width === 1440) {
+		await expectNoAccessibilityViolations(page);
+	}
+	await expectStableViewport(page, errors);
+});
+
+test("同好群可以通过指针拖拽到其他分组", async ({ page }) => {
+	if (page.viewportSize()?.width !== 1440) {
+		return;
+	}
+	let catalog = browserCampusGroupsCatalog();
+	await routeCampusGroupsCatalog(
+		page,
+		() => catalog,
+		(next) => {
+			catalog = next;
+		},
+	);
+	await page.goto("/groups");
+
+	const source = page.getByRole("button", { name: "调整“央民二匹马俱乐部”的顺序" });
+	const target = page.getByRole("list", { name: "“社团群”分组中的群" });
+	const sourceBox = await source.boundingBox();
+	const targetBox = await target.boundingBox();
+	expect(sourceBox).not.toBeNull();
+	expect(targetBox).not.toBeNull();
+	const writeRequest = page.waitForRequest(
+		(request) =>
+			new URL(request.url()).pathname === "/api/ops/groups/catalog" && request.method() === "PUT",
+	);
+	await page.mouse.move(
+		(sourceBox?.x ?? 0) + (sourceBox?.width ?? 0) / 2,
+		(sourceBox?.y ?? 0) + (sourceBox?.height ?? 0) / 2,
+	);
+	await page.mouse.down();
+	await page.mouse.move(
+		(targetBox?.x ?? 0) + (targetBox?.width ?? 0) / 2,
+		(targetBox?.y ?? 0) + (targetBox?.height ?? 0) / 2,
+		{ steps: 12 },
+	);
+	await page.mouse.up();
+
+	const moved = (await writeRequest).postDataJSON() as CampusGroupsCatalog;
+	expect(
+		moved.sections.find(({ id }) => id === "interest-groups")?.groups.map(({ id }) => id),
+	).toEqual([browserSecondCampusGroup.id]);
+	expect(moved.sections.find(({ id }) => id === "clubs")?.groups.map(({ id }) => id)).toEqual([
+		browserCampusGroup.id,
+	]);
+});
+
+test("同好群写入失败在当前对话框内显示", async ({ page }) => {
+	const errors = captureRuntimeErrors(page);
+	await routeCampusGroupsCatalog(page, () => browserCampusGroupsCatalog(), undefined, {
+		body: { error: { code: "groups_catalog_invalid", message: "标签内容无效。" } },
+		status: 422,
+	});
+
+	await page.goto("/groups");
+
+	await page.getByRole("button", { name: "编辑 央民二匹马俱乐部" }).click();
+	const editor = page.getByRole("dialog", { name: "编辑同好群" });
+	await editor.getByRole("textbox", { name: "标签（用逗号分隔）" }).fill("音乐，校园");
+	await editor.getByRole("button", { name: "保存" }).click();
+	await expect(editor.getByRole("alert")).toContainText("保存失败");
+	await expect(editor.getByRole("alert")).toContainText("标签内容无效。");
+	await expect(editor.getByRole("alert")).toBeInViewport();
+	await expectStableViewport(page, errors, ["422 (Unprocessable Entity)"]);
 });
 
 test("食堂地图页展示地图草稿和不可变发布历史", async ({ page }) => {

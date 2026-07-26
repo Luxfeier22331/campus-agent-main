@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import type { NormalizedColumnSpec, NormalizedIndexSpec } from "./shared-db-script-types.ts";
 
 export const APP_API_KNOWN_SCHEMAS = [
+	"campus_groups",
 	"campus_services",
 	"chat",
 	"dining",

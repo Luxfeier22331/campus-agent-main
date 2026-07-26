@@ -15,8 +15,8 @@ status: active
 - [ingestion.md](./ingestion.md)：采集任务与内部门户离线发布；
 - [portal.md](./portal.md)：固定门户认证。
 
-食堂是窄能力，其接口和数据边界统一由
-[食堂](../../product/dining.md) 说明。可执行合同位于 `apps/ops-web/src/server/app.ts` 和
+食堂和同好群是内容运营能力，其接口与数据边界分别由
+[食堂](../../product/dining.md) 和 [同好群](../../domains/groups.md) 说明。可执行合同位于 `apps/ops-web/src/server/app.ts` 和
 `apps/ops-web/src/shared/`。环境变量、数据库授权和网络策略不由本目录维护。
 
 ## 接口索引
@@ -53,6 +53,11 @@ status: active
 - `POST /api/ops/ingestion/notice/{pause|resume}`
 - `POST /api/ops/ingestion/notice/reconcile`
 - `POST /api/ops/ingestion/file-releases`
+
+同好群：
+
+- `GET /api/ops/groups/catalog`
+- `PUT /api/ops/groups/catalog`
 
 健康检查：
 
@@ -99,6 +104,7 @@ status: active
 | 400 | `OPS_INTERNAL_PORTAL_AUTH_INPUT_INVALID` | 凭据正文无效或超过 8 KiB |
 | 400 | `OPS_PROVIDER_CONFIG_CONTENT_TYPE_REQUIRED`、`OPS_MODEL_SETTINGS_PRECONDITION_REQUIRED` | 在线模型配置写入合同无效 |
 | 400 | `OPS_DINING_QUERY_INVALID`、`OPS_DINING_DRAFT_INVALID`、`OPS_DINING_PUBLISH_INVALID`、`OPS_DINING_RESTORE_INVALID`、`OPS_DINING_MENU_INVALID`、`OPS_DINING_REVIEW_INVALID`、`OPS_DINING_REPORT_INVALID`、`OPS_DINING_INVALID` | Dining 查询、正文或内容无效 |
+| 400 | `OPS_CAMPUS_GROUPS_REQUEST_INVALID` | 同好群目录正文无效 |
 | 401 | `OPS_ACCESS_JWT_MISSING`、`OPS_ACCESS_JWT_INVALID` | 未通过 Access 验证 |
 | 403 | `OPS_INTERNAL_PORTAL_AUTH_ORIGIN_INVALID` | 门户凭据写请求不同源 |
 | 403 | `OPS_PROVIDER_CONFIG_CSRF_REJECTED` | 在线模型配置写请求不同源 |
@@ -116,6 +122,7 @@ status: active
 | 503 | `OPS_INTERNAL_PORTAL_AUTH_MAINTENANCE_UNAVAILABLE` | 固定认证维护任务查询或验证不可用 |
 | 503 | `OPS_INGESTION_UNAVAILABLE` | ingestion-control 未配置或不可用 |
 | 503 | `OPS_DINING_STORE_UNAVAILABLE` | Dining PostgreSQL 不可用 |
+| 503 | `OPS_CAMPUS_GROUPS_UNAVAILABLE` | App API 同好群管理接口未配置或不可用 |
 | 503 | `OPS_WEB_NOT_READY` | Ops Web 核心依赖未就绪 |
 | 500 | `OPS_API_INTERNAL_ERROR` | 未分类服务端错误 |
 

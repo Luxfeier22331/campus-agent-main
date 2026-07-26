@@ -9,6 +9,10 @@ import {
 	DiningReportResolutionSchema,
 } from "@campus-agent/dining/domain";
 import { serveStatic } from "@hono/node-server/serve-static";
+import {
+	type CampusGroupsCatalog,
+	CampusGroupsCatalogSchema,
+} from "campus-contracts/campus-groups";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { secureHeaders } from "hono/secure-headers";
@@ -43,6 +47,12 @@ import {
 	AxiomUnavailableError,
 	createAxiomClientFromEnv,
 } from "./axiom-client.ts";
+import {
+	type CampusGroupsAdminEnv,
+	CampusGroupsAdminResponseError,
+	CampusGroupsAdminUnavailableError,
+	createCampusGroupsAdminClient,
+} from "./campus-groups-client.ts";
 import {
 	createDiningContentStoreFromEnv,
 	createUnavailableDiningContentStore,
@@ -115,7 +125,6 @@ import {
 
 interface OpsHealthEnv {
 	OPS_WEB_HEALTH_AGENT_RUNTIME_URL?: string;
-	OPS_WEB_HEALTH_APP_API_URL?: string;
 	OPS_WEB_HEALTH_CAMPUS_WEB_URL?: string;
 	OPS_WEB_HEALTH_EXECUTION_CONTROL_URL?: string;
 	OPS_WEB_PUBLIC_ORIGIN?: string;
@@ -123,6 +132,7 @@ interface OpsHealthEnv {
 
 type OpsAppEnv = OpsAdmissionEnv &
 	AxiomEnv &
+	CampusGroupsAdminEnv &
 	DiningStoreEnv &
 	IngestionControlEnv &
 	OpsHealthEnv &
@@ -145,6 +155,7 @@ interface OpsAppOptions {
 	staticRoot?: string;
 	store?: OpsStatusStore;
 	providerConfigClient?: ReturnType<typeof createProviderConfigAdminClient>;
+	campusGroupsClient?: ReturnType<typeof createCampusGroupsAdminClient>;
 }
 
 const RequestListQuerySchema = z
@@ -213,6 +224,8 @@ const DiningReviewListQuerySchema = z
 		window_id: OpsPathIdSchema.optional(),
 	})
 	.strict();
+
+class CampusGroupsRequestError extends Error {}
 const DiningReportListQuerySchema = z
 	.object({
 		cursor: z.string().trim().min(1).max(512).optional(),
@@ -256,6 +269,12 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 			store,
 		});
 	const providerConfigClient = options.providerConfigClient ?? createProviderConfigAdminClient(env);
+	const campusGroupsClient =
+		options.campusGroupsClient ??
+		createCampusGroupsAdminClient({
+			OPS_WEB_HEALTH_APP_API_URL: env.OPS_WEB_HEALTH_APP_API_URL,
+			OPS_WEB_INTERNAL_TOKEN: env.OPS_WEB_INTERNAL_TOKEN,
+		});
 
 	app.use(
 		"*",
@@ -303,6 +322,15 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		}
 		if (error instanceof ProviderConfigAdminResponseError) {
 			return providerConfigAdminErrorResponse(error);
+		}
+		if (error instanceof CampusGroupsAdminUnavailableError) {
+			return jsonError("OPS_CAMPUS_GROUPS_UNAVAILABLE", "同好群内容服务不可用。", 503);
+		}
+		if (error instanceof CampusGroupsAdminResponseError) {
+			return error.response;
+		}
+		if (error instanceof CampusGroupsRequestError) {
+			return jsonError("OPS_CAMPUS_GROUPS_REQUEST_INVALID", error.message, 400);
 		}
 		if (error instanceof HindsightModelSettingsConflictError) {
 			return jsonError(
@@ -873,6 +901,25 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		);
 	});
 
+	app.get("/api/ops/groups/catalog", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		return operator instanceof Response
+			? operator
+			: context.json(await campusGroupsClient.getCatalog());
+	});
+
+	app.put("/api/ops/groups/catalog", async (context) => {
+		const admissionResult = await requireHumanOpsMutation(admission, context.req.raw, publicOrigin);
+		if (admissionResult instanceof Response) {
+			return admissionResult;
+		}
+		return context.json(
+			await campusGroupsClient.replaceCatalog(
+				parseCampusGroupsCatalog(await readBoundedJson(context.req.raw, 8 * 1024 * 1024)),
+			),
+		);
+	});
+
 	registerDiningRoutes({ admission, app, diningContentStore, diningStore, publicOrigin });
 
 	app.all("/api/*", () => jsonError("OPS_API_ROUTE_NOT_FOUND", "未找到该运维接口。"));
@@ -1416,6 +1463,14 @@ function toDiningActor(operator: OpsOperatorContext) {
 		displayName: operator.displayName ?? operator.email ?? operator.operatorId,
 		principalId: operator.operatorId,
 	};
+}
+
+function parseCampusGroupsCatalog(value: unknown): CampusGroupsCatalog {
+	const parsed = CampusGroupsCatalogSchema.safeParse(value);
+	if (!parsed.success) {
+		throw new CampusGroupsRequestError("同好群目录无效。");
+	}
+	return parsed.data;
 }
 
 function jsonError(

@@ -8,13 +8,22 @@ import {
 	RouterProvider,
 	redirect,
 } from "@tanstack/react-router";
-import { Activity, ClipboardList, Database, KeyRound, ServerCog, Utensils } from "lucide-react";
+import {
+	Activity,
+	ClipboardList,
+	Database,
+	KeyRound,
+	ServerCog,
+	UsersRound,
+	Utensils,
+} from "lucide-react";
 import { useMemo } from "react";
 import type { OpsOverviewWindow } from "../shared/ops-contract";
 import { DiningMenuPage } from "./dining-menu-page";
 import { DiningPage } from "./dining-page";
 import { DiningReportsPage } from "./dining-reports-page";
 import { DiningReviewsPage } from "./dining-reviews-page";
+import { GroupsPage } from "./groups-page";
 import { IngestionPage } from "./ingestion-page";
 import { IngestionTaskPage } from "./ingestion-task-page";
 import { InternalPortalAuthPage } from "./internal-portal-auth-page";
@@ -164,6 +173,12 @@ const diningReportsRoute = createRoute({
 	component: DiningReportsPage,
 });
 
+const groupsRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/groups",
+	component: GroupsPage,
+});
+
 const routeTree = rootRoute.addChildren([
 	indexRoute,
 	overviewRoute,
@@ -178,6 +193,7 @@ const routeTree = rootRoute.addChildren([
 	diningMenuRoute,
 	diningReviewsRoute,
 	diningReportsRoute,
+	groupsRoute,
 ]);
 
 function createOpsRouter(initialPath?: string) {
@@ -210,6 +226,7 @@ function RootLayout() {
 				{ href: "/ingestion", icon: Database, label: "采集运行" },
 				{ href: "/internal-portal-auth", icon: KeyRound, label: "门户认证" },
 				{ href: "/dining", icon: Utensils, label: "食堂" },
+				{ href: "/groups", icon: UsersRound, label: "同好群" },
 			]}
 		>
 			<Outlet />

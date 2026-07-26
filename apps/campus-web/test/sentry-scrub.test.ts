@@ -23,6 +23,9 @@ describe("campus Sentry privacy boundary", () => {
 		expect(normalizeCampusTelemetryRoute("https://campus.muc.wiki/student@example.edu")).toBe(
 			"/<unmatched>",
 		);
+		expect(normalizeCampusTelemetryRoute("https://campus.muc.wiki/groups?source=nav")).toBe(
+			"/groups",
+		);
 	});
 
 	it("drops browser request content, user identity and unsafe tags", () => {

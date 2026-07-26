@@ -1,5 +1,6 @@
 import { parse } from "smol-toml";
 import { describe, expect, it, vi } from "vitest";
+import stagingPublishWorkflowSource from "../../../.github/workflows/execution-runtime-publish.yml?raw";
 import rootPackageManifestRaw from "../../../package.json?raw";
 import appApiSmokeEntrypointSource from "../../../scripts/smoke/app-api.ts?raw";
 import packageManifestRaw from "../package.json?raw";
@@ -230,6 +231,16 @@ describe("app-api worker foundation", () => {
 		expect(uploadStagingVersionSource).toContain("APP_API_DB_HYPERDRIVE_ID");
 		expect(uploadStagingVersionSource).toContain("APP_API_DB_FRESH_HYPERDRIVE_ID");
 		expect(uploadStagingVersionSource).toContain("AUTH_RESET_EMAIL_FROM");
+		expect(uploadStagingVersionSource).toContain("STAGING_APP_API_EXECUTION_SHARED_SECRET");
+		expect(uploadStagingVersionSource).toContain("STAGING_OPS_WEB_INTERNAL_TOKEN");
+		expect(uploadStagingVersionSource).toContain("secretsFile: secretsPath");
+		expect(uploadStagingVersionSource).toContain("mode: 0o600");
+		expect(stagingPublishWorkflowSource).toContain("STAGING_APP_API_EXECUTION_SHARED_SECRET:");
+		expect(stagingPublishWorkflowSource).toContain(
+			"secrets.STAGING_APP_API_EXECUTION_SHARED_SECRET",
+		);
+		expect(stagingPublishWorkflowSource).toContain("STAGING_OPS_WEB_INTERNAL_TOKEN:");
+		expect(stagingPublishWorkflowSource).toContain("secrets.STAGING_OPS_WEB_INTERNAL_TOKEN");
 		expect(uploadStagingVersionSource).toContain("preflight-staging.ts");
 		expect(packageManifest.scripts?.["chat:e2e:staging"]).toBeUndefined();
 		expect(rootPackageManifest.scripts?.["smoke:app-api"]).toBe(
@@ -254,7 +265,7 @@ describe("app-api worker foundation", () => {
 		expect(stagingPreflightSource).not.toContain(retiredExecutionControlAccessClientIdKey);
 		expect(stagingPreflightSource).not.toContain(retiredExecutionControlAccessClientSecretKey);
 		expect(stagingPreflightSource).toContain("loadRepoStagingEnvFile");
-		expect(stagingPreflightSource).toContain("check-worker-secret-presence.ts");
+		expect(stagingPreflightSource).not.toContain("check-worker-secret-presence.ts");
 		expect(stagingPreflightSource).toContain("apps/app-api/scripts/verify-staging-config.ts");
 		expect(stagingPreflightSource).not.toContain('new URL("/readyz", baseUrl)');
 		expect(stagingPreflightSource).not.toContain('new URL("/healthz", baseUrl)');
@@ -287,6 +298,7 @@ describe("app-api worker foundation", () => {
 		expect(wranglerConfig).toContain('"RESEND_API_KEY"');
 		expect(localVarsBlock).toContain('AUTH_RESET_EMAIL_FROM = "Campus Agent <auth@example.com>"');
 		expect(wranglerConfig).toContain('"AUTH_TURNSTILE_SECRET_KEY"');
+		expect(localSecretsBlock).toContain('"OPS_WEB_INTERNAL_TOKEN"');
 		expect(localSecretsBlock).not.toContain('"APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN"');
 		expect(localSecretsBlock).not.toContain("APP_API_OTEL_INGEST_");
 		expect(wranglerConfig).toContain("[env.staging.secrets]");
@@ -295,6 +307,7 @@ describe("app-api worker foundation", () => {
 		expect(stagingSecretsBlock).toContain('"RESEND_API_KEY"');
 		expect(stagingSecretsBlock).not.toContain('"AUTH_RESET_EMAIL_FROM"');
 		expect(stagingSecretsBlock).toContain('"APP_API_EXECUTION_SHARED_SECRET"');
+		expect(stagingSecretsBlock).toContain('"OPS_WEB_INTERNAL_TOKEN"');
 		expect(stagingSecretsBlock).not.toContain(
 			JSON.stringify(retiredExecutionControlAccessClientIdKeyLocal),
 		);

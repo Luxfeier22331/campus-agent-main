@@ -29,6 +29,11 @@ const MapPage = lazy(() =>
 const ServicesPage = lazy(() =>
 	import("./routes/services-page").then((module) => ({ default: module.ServicesPage })),
 );
+const InterestGroupsPage = lazy(() =>
+	import("./routes/interest-groups-page").then((module) => ({
+		default: module.InterestGroupsPage,
+	})),
+);
 const AccountPage = lazy(() =>
 	import("./routes/account-page").then((module) => ({ default: module.AccountPage })),
 );
@@ -130,6 +135,16 @@ const servicesRoute = createRoute({
 	path: "/services",
 });
 
+const interestGroupsRoute = createRoute({
+	component: InterestGroupsPage,
+	getParentRoute: () => rootRoute,
+	loader: async () => {
+		const { preloadInterestGroupsRoute } = await import("@/features/interest-groups/preload");
+		await preloadInterestGroupsRoute();
+	},
+	path: "/groups",
+});
+
 const feedbackRoute = createRoute({
 	component: FeedbackPage,
 	getParentRoute: () => rootRoute,
@@ -220,6 +235,7 @@ const routeTree = rootRoute.addChildren([
 	mapRoute,
 	diningRoute,
 	servicesRoute,
+	interestGroupsRoute,
 	feedbackRoute,
 	accountRoute,
 	accountLoginRoute,

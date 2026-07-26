@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 function readSource(path: string) {
@@ -24,5 +24,13 @@ describe("campus-web UI primitive boundary", () => {
 
 		expect(buttonSource).toContain("buttonVariants = cva(");
 		expect(toggleGroupSource).toContain("toggleVariants");
+	});
+
+	it("uses the shared checkbox primitive", () => {
+		const reviewSource = readSource("src/components/dining/dining-review-sheet.tsx");
+
+		expect(existsSync("src/components/ui/checkbox.tsx")).toBe(false);
+		expect(reviewSource).toContain("Checkbox,");
+		expect(reviewSource).not.toContain('from "../ui/checkbox"');
 	});
 });

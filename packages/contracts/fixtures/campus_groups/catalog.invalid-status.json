@@ -1,0 +1,20 @@
+{
+	"schemaVersion": "campus-groups-catalog.v1",
+	"sections": [
+		{
+			"id": "interest-groups",
+			"name": "同好群",
+			"groups": [
+				{
+					"id": "qq-760540871",
+					"name": "央民二匹马俱乐部",
+					"qqGroupNumber": "760540871",
+					"tags": [],
+					"summary": "已阵亡",
+					"joinUrl": null,
+					"active": false
+				}
+			]
+		}
+	]
+}

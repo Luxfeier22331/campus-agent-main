@@ -48,6 +48,20 @@ describe("UI foundation boundaries", () => {
 		expect(controlOffenders).toEqual([]);
 	});
 
+	it("uses shared dialog primitives instead of direct alert-dialog bindings", () => {
+		const packageJson = JSON.parse(
+			readFileSync(join(import.meta.dirname, "../package.json"), "utf8"),
+		) as { dependencies?: Record<string, string> };
+		const confirmationSource = readFileSync(
+			join(import.meta.dirname, "../src/app/ui/alert-dialog.tsx"),
+			"utf8",
+		);
+
+		expect(packageJson.dependencies).not.toHaveProperty("@radix-ui/react-alert-dialog");
+		expect(confirmationSource).toContain('from "@campus-agent/ui"');
+		expect(confirmationSource).not.toContain("@radix-ui/react-alert-dialog");
+	});
+
 	it("rejects data tables without exactly one row header", () => {
 		expect(() =>
 			render(

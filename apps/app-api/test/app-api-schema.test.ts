@@ -25,6 +25,9 @@ describe("app-api schema installer", () => {
 
 		expect(sql).toContain('GRANT USAGE ON SCHEMA "app_auth"');
 		expect(sql).toContain('"chat"');
+		expect(sql).toContain(
+			'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "campus_groups" TO "app_api"',
+		);
 		expect(sql).not.toContain('"observability"');
 		expect(sql).toContain(
 			'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "runtime"."request_observability_fact"',
@@ -44,7 +47,7 @@ describe("app-api schema installer", () => {
 		);
 	});
 
-	it("extends the immutable main migration ledger with one productionization migration", () => {
+	it("keeps the immutable main migration ledger aligned with app-owned schema changes", () => {
 		const source = readAppFile("ops/db/schema.ts");
 		const journalSource = readAppFile("drizzle/meta/_journal.json");
 		const journal = JSON.parse(journalSource) as {
@@ -71,6 +74,8 @@ describe("app-api schema installer", () => {
 			{ idx: 1, tag: "0001_docs_release_scope", version: "7" },
 			{ idx: 2, tag: "0002_provider_config_handoff", version: "7" },
 			{ idx: 3, tag: "0003_hindsight_productionization", version: "7" },
+			{ idx: 4, tag: "0004_campus_groups", version: "7" },
+			{ idx: 5, tag: "0005_campus_groups_seed", version: "7" },
 		]);
 		expect(appFileSha256("drizzle/0000_initial.sql")).toBe(
 			"3c2464d91d240212435818779898cf68fe72e59077b8833b4bfed023686cd0df",

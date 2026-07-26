@@ -12,6 +12,7 @@ const uploadArgs = buildWorkerVersionUploadArgs(
 		appName: "app-api",
 		config: "/tmp/app-api/wrangler.toml",
 		environment: "staging",
+		secretsFile: "/tmp/app-api/secrets.json",
 		variables: {
 			SENTRY_RELEASE: "app-api@sha",
 			SENTRY_DSN: "https://example.invalid/1",
@@ -21,6 +22,7 @@ const uploadArgs = buildWorkerVersionUploadArgs(
 );
 expect(uploadArgs.includes("--env") && uploadArgs.includes("staging"), "staging env missing");
 expect(uploadArgs.includes(`git-${sourceSha}`), "source tag missing");
+expect(uploadArgs.includes("/tmp/app-api/secrets.json"), "Worker secrets file missing");
 expect(uploadArgs.includes("SENTRY_DSN:https://example.invalid/1"), "Worker variable missing");
 expect(
 	!uploadArgs.some((argument) => argument.includes("SENTRY_AUTH_TOKEN")),

@@ -21,6 +21,9 @@
 - `schemas/campus-services-tool-contracts.v1.schema.json` 与
   `schemas/campus-services-tool-result.v1.schema.json`：已准入 campus service tool；当前唯一
   模型可见 service tool 是 `transport_schedule_lookup`；
+- `src/campus-groups.ts`：同好群有序分组、条目与公开目录的 Zod 运行时合同，供 app-api、
+  ops-web 和 campus-web 共同消费；公开目录 JSON Schema 生成到
+  `schemas/campus-groups-catalog.v1.schema.json`；
 - `schemas/contract-schema-registry.v1.json`：runtime catalog 与 contract check 使用的 schema
   registry；
 - `schemas/runtime-*.schema.json`：运行时工具注册表、function schema、workflow artifact、
@@ -31,8 +34,9 @@ schema 存在不代表工具对模型可见；实际 exposure 由 runtime regist
 
 ## 生成产物
 
-`pnpm contracts:generate` 生成 app-api TypeScript 与 execution-control Go wire consumer。生成
-type 是本地 parser，不是第二份事实来源。
+`pnpm contracts:generate` 生成 app-api TypeScript、execution-control Go wire consumer 和同好群
+公开目录 JSON Schema。生成 type 是本地 parser，生成的 JSON Schema 是跨运行时交换产物，
+都不是第二份事实来源，不得手工修改。
 
 ## 验证
 

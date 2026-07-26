@@ -1,5 +1,5 @@
 import { Button } from "@campus-agent/ui";
-import { BookOpen, Home, MapIcon, Menu, Send, Utensils } from "lucide-react";
+import { BookOpen, Home, MapIcon, Menu, Send, UsersRound, Utensils } from "lucide-react";
 import {
 	ProductNavActions,
 	type ProductNavigationLinkMode,
@@ -25,6 +25,7 @@ const productNavIcons = {
 	dining: Utensils,
 	docs: BookOpen,
 	feedback: Send,
+	groups: UsersRound,
 	map: MapIcon,
 } satisfies Record<ProductNavItemId, typeof Home>;
 

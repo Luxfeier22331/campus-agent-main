@@ -17,6 +17,7 @@ const CAMPUS_ROUTE_TEMPLATES = [
 	"/map",
 	"/dining",
 	"/services",
+	"/groups",
 	"/feedback",
 	"/account",
 	"/account/login",

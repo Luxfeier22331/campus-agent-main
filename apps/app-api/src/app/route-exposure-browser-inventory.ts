@@ -123,6 +123,12 @@ export const APP_API_BROWSER_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
+		path: "/api/campus-groups/catalog",
+		callerClass: "browser-surface",
+		admission: "public published campus groups catalog read",
+	},
+	{
+		method: "GET",
 		path: "/api/dining",
 		callerClass: "browser-surface",
 		admission: "public dining map projection read",

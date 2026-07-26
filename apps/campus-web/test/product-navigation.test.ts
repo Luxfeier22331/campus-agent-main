@@ -13,6 +13,7 @@ describe("campus product navigation model", () => {
 			["docs", "/docs/regulations/student_rules/doc-c62077b20430", "文档"],
 			["map", "/map", "校园地图"],
 			["dining", "/dining", "食堂"],
+			["groups", "/groups", "同好群"],
 			["feedback", "/feedback", "反馈"],
 		]);
 		expect(buildRspressProductNav()).toEqual([
@@ -20,6 +21,7 @@ describe("campus product navigation model", () => {
 			{ link: "/docs/regulations/student_rules/doc-c62077b20430", text: "文档" },
 			{ link: "/map", text: "校园地图" },
 			{ link: "/dining", text: "食堂" },
+			{ link: "/groups", text: "同好群" },
 			{ link: "/feedback", text: "反馈" },
 		]);
 	});
@@ -33,6 +35,7 @@ describe("campus product navigation model", () => {
 		expect(isProductNavActive("/docs/regulations", byId.docs)).toBe(true);
 		expect(isProductNavActive("/map", byId.map)).toBe(true);
 		expect(isProductNavActive("/dining", byId.dining)).toBe(true);
+		expect(isProductNavActive("/groups", byId.groups)).toBe(true);
 		expect(isProductNavActive("/feedback", byId.feedback)).toBe(true);
 		expect(isProductNavActive("/feedback/extra", byId.feedback)).toBe(false);
 	});

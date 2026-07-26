@@ -73,6 +73,35 @@ describe("campus worker public app-api cache", () => {
 		expect(appApiFetch).toHaveBeenCalledOnce();
 	});
 
+	it("always reads the latest campus groups catalog", async () => {
+		installFakeEdgeCache();
+		const appApiFetch = vi.fn(() =>
+			Promise.resolve(
+				new Response(JSON.stringify({ schemaVersion: "campus-groups-catalog.v1", sections: [] }), {
+					headers: {
+						"cache-control": "no-store",
+						"content-type": "application/json; charset=utf-8",
+					},
+				}),
+			),
+		);
+		const env = createEnv({ fetch: appApiFetch });
+
+		const first = await worker.fetch(
+			new Request("https://campus.muc.wiki/api/campus-groups/catalog"),
+			env,
+		);
+		const second = await worker.fetch(
+			new Request("https://campus.muc.wiki/api/campus-groups/catalog"),
+			env,
+		);
+
+		expect(first.headers.get("cache-control")).toBe("no-store");
+		expect(first.headers.get("x-campus-edge-cache")).toBeNull();
+		expect(second.headers.get("x-campus-edge-cache")).toBeNull();
+		expect(appApiFetch).toHaveBeenCalledTimes(2);
+	});
+
 	it("never shares review reads through the edge cache", async () => {
 		installFakeEdgeCache();
 		const appApiFetch = vi.fn(() =>

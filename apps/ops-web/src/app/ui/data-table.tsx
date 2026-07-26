@@ -53,7 +53,7 @@ export function DataTable<T>({
 	const rows = table.getRowModel().rows;
 
 	return (
-		<div className="max-w-full border-border border-y bg-background">
+		<div className="min-w-0 w-full max-w-full border-border border-y bg-background">
 			<div className="overflow-x-auto overscroll-x-contain">
 				<div style={{ minWidth }}>
 					<table

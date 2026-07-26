@@ -5,6 +5,7 @@ import {
 	resolveEnvironment,
 } from "../config";
 import { buildCampusExperienceService } from "../modules/campus-experience";
+import { buildCampusGroupsService, createPgCampusGroupsStore } from "../modules/campus-groups";
 import {
 	buildCampusServicesTransportScheduleService,
 	createPgCampusServicesTransportScheduleStore,
@@ -37,6 +38,7 @@ export function createRequestScopeFactory(input: {
 		createRequestScope(): AppRequestScope {
 			const runtime = createRequestRuntimeScope(input.env);
 			let campusExperience = input.dependencies.campusExperienceService ?? null;
+			let campusGroups = input.dependencies.campusGroupsService ?? null;
 			let campusServices = input.dependencies.campusServicesTransportScheduleService ?? null;
 			let chat = input.dependencies.chatConversationService ?? null;
 			let command = input.dependencies.chatCommandService ?? null;
@@ -73,6 +75,10 @@ export function createRequestScopeFactory(input: {
 			return {
 				getAppAuth: input.dependencies.getAppAuth ?? runtime.getAppAuth,
 				resolveCampusExperienceService: () => (campusExperience ??= buildCampusExperienceService()),
+				resolveCampusGroupsService: () =>
+					(campusGroups ??= buildCampusGroupsService(
+						createPgCampusGroupsStore(input.env, { getDb: runtime.getFreshDb }),
+					)),
 				resolveCampusServicesTransportScheduleService: () =>
 					(campusServices ??= buildCampusServicesTransportScheduleService({
 						store: createPgCampusServicesTransportScheduleStore(input.env, {

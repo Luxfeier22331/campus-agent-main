@@ -46,6 +46,7 @@ interface WorkerVersionUploadOptions {
 	buildIdentity?: string;
 	config?: string;
 	environment?: string;
+	secretsFile?: string;
 	sentrySourceMaps?: SentrySourceMapUploadOptions;
 	variables: Record<string, string>;
 }
@@ -143,6 +144,9 @@ export function buildWorkerVersionUploadArgs(
 	if (options.environment) {
 		args.push("--env", options.environment);
 	}
+	if (options.secretsFile) {
+		args.push("--secrets-file", options.secretsFile);
+	}
 	if (options.sentrySourceMaps) {
 		args.push("--upload-source-maps");
 		if (options.sentrySourceMaps.wranglerOutdir) {
@@ -233,6 +237,7 @@ export function uploadStagingWorkerVersion(options: {
 	config?: string;
 	cwd: string;
 	environment?: string;
+	secretsFile?: string;
 	sentrySourceMaps?: SentrySourceMapUploadOptions;
 	variables: Record<string, string>;
 	workerName: string;

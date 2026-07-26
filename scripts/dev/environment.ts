@@ -45,6 +45,7 @@ export function renderLocalEnvironmentFiles(input: {
 	const campusVarsPath = resolve(repoRoot, "apps/campus-web/.dev.vars.local");
 	const opsEnvPath = resolve(repoRoot, "apps/ops-web/.env.local");
 	const existingSecrets = readManagedEnv(appApiVarsPath);
+	const opsWebInternalToken = existingSecrets.OPS_WEB_INTERNAL_TOKEN || randomSecret();
 
 	writeManagedEnv(appApiEnvPath, {
 		APP_API_DATABASE_SSLMODE: "disable",
@@ -62,6 +63,7 @@ export function renderLocalEnvironmentFiles(input: {
 		AUTH_TURNSTILE_SECRET_KEY: "local-turnstile-disabled",
 		BETTER_AUTH_SECRET: existingSecrets.BETTER_AUTH_SECRET || randomSecret(),
 		OBJECT_STORE_DERIVED_PUBLIC_BASE_URL: `http://127.0.0.1:9000/${profile.bucketName}/`,
+		OPS_WEB_INTERNAL_TOKEN: opsWebInternalToken,
 		RESEND_API_KEY: existingSecrets.RESEND_API_KEY || "local-resend-disabled",
 		SENTRY_DSN: "",
 		SENTRY_ENVIRONMENT: "development",
@@ -92,6 +94,8 @@ export function renderLocalEnvironmentFiles(input: {
 		OPS_WEB_DATABASE_SSLMODE: "disable",
 		OPS_WEB_DATABASE_URL: database.opsWeb,
 		OPS_WEB_FIXTURE_MODE: "1",
+		OPS_WEB_HEALTH_APP_API_URL: `http://127.0.0.1:${profile.ports.appApi}/readyz`,
+		OPS_WEB_INTERNAL_TOKEN: opsWebInternalToken,
 		OPS_WEB_PUBLIC_ORIGIN: `http://127.0.0.1:${profile.ports.opsWeb}`,
 		PORT: String(profile.ports.opsWebApi),
 	});

@@ -34,6 +34,7 @@ if (preflight.status !== 0) {
 
 const configDir = mkdtempSync(join(tmpdir(), "campus-agent-app-api-"));
 const configPath = resolve(configDir, "wrangler.toml");
+const secretsPath = resolve(configDir, "secrets.json");
 const sentryArtifactDirectory = resolve(configDir, "sentry");
 try {
 	const sentryRelease = resolveStagingSentryRelease("app-api");
@@ -46,11 +47,20 @@ try {
 		}),
 		"utf8",
 	);
+	writeFileSync(
+		secretsPath,
+		`${JSON.stringify({
+			APP_API_EXECUTION_SHARED_SECRET: requiredEnv("STAGING_APP_API_EXECUTION_SHARED_SECRET"),
+			OPS_WEB_INTERNAL_TOKEN: requiredEnv("STAGING_OPS_WEB_INTERNAL_TOKEN"),
+		})}\n`,
+		{ encoding: "utf8", mode: 0o600 },
+	);
 	uploadStagingWorkerVersion({
 		appName: "app-api",
 		config: configPath,
 		cwd: appDir,
 		environment: "staging",
+		secretsFile: secretsPath,
 		workerName: "app-api-staging",
 		sentrySourceMaps: {
 			artifactDirectory: sentryArtifactDirectory,

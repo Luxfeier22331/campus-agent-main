@@ -11,6 +11,10 @@ describe("campus-web route metadata", () => {
 			title: "食堂地图 | 中央民族大学校园问答",
 		});
 		expect(resolveRouteMetadata("/map").title).toBe("校园地图 | 中央民族大学校园问答");
+		expect(resolveRouteMetadata("/groups")).toMatchObject({
+			canonicalPath: "/groups",
+			title: "同好群 | 中央民族大学校园问答",
+		});
 		expect(resolveRouteMetadata("/feedback").canonicalPath).toBe("/feedback");
 	});
 

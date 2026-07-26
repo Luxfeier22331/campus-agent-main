@@ -21,6 +21,12 @@ export const APP_API_MACHINE_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "PUT",
+		path: "/api/internal/ops/campus-groups/catalog",
+		callerClass: "machine-internal",
+		admission: "ops-web bearer credential required",
+	},
+	{
+		method: "PUT",
 		path: "/api/internal/execution/runs/:runId/product-finalization",
 		callerClass: "machine-internal",
 		admission: "x-app-product-callback-auth from execution-control",

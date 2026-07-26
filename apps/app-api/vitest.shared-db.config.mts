@@ -10,6 +10,7 @@ export default defineProject({
 		maxWorkers: 1,
 		testTimeout: 60_000,
 		include: [
+			"test/campus-groups-postgres.integration.test.ts",
 			"test/shared-product-db.integration.test.ts",
 			"test/transport-schedule-postgres.integration.test.ts",
 		],

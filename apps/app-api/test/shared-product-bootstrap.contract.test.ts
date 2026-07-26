@@ -102,7 +102,7 @@ describe("app-api shared product bootstrap contracts", () => {
 
 	it("keeps app-owned schema inventory aligned with the current schema baseline", () => {
 		expect(APP_API_KNOWN_SCHEMAS).toEqual(
-			expect.arrayContaining(["docs", "dining", "profile", "runtime"]),
+			expect.arrayContaining(["campus_groups", "docs", "dining", "profile", "runtime"]),
 		);
 		expect(APP_API_KNOWN_SCHEMAS).not.toEqual(
 			expect.arrayContaining(["identity", "observability"]),
@@ -134,7 +134,7 @@ describe("app-api shared product bootstrap contracts", () => {
 	it("keeps APP_API_DB_FRESH limited to explicit read-after-write paths", () => {
 		const requestScopeSource = readAppFile("src/app/request-scope.ts");
 		const freshDbReferences = requestScopeSource.match(/runtime\.getFreshDb/g) ?? [];
-		expect(freshDbReferences).toHaveLength(5);
+		expect(freshDbReferences).toHaveLength(6);
 
 		expect(requestScopeSource).toContain(
 			"store: createPgRuntimeRunStore(input.env, { getDb: runtime.getDb })",
@@ -143,6 +143,9 @@ describe("app-api shared product bootstrap contracts", () => {
 			"store: createPgProfileMemoryStore(input.env, { getDb: runtime.getFreshDb })",
 		);
 		expect(requestScopeSource).toContain("getDb: runtime.getFreshDb");
+		expect(requestScopeSource).toContain(
+			"createPgCampusGroupsStore(input.env, { getDb: runtime.getFreshDb })",
+		);
 		expect(requestScopeSource).toContain(
 			"detailStore: createPgChatConversationStore(input.env, { getDb: runtime.getFreshDb })",
 		);

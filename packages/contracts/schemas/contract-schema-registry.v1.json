@@ -181,6 +181,21 @@
 			"notes": "三个已准入评测 provider 角色使用的 0600 本地投影。"
 		},
 		{
+			"id": "campus-groups-catalog.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/campus-groups-catalog.v1.schema.json",
+			"owner": "app-api",
+			"status": "active",
+			"fixture_groups": [
+				{
+					"path": "packages/contracts/fixtures/campus_groups",
+					"valid_glob": "*.valid.json",
+					"invalid_glob": "*.invalid-*.json"
+				}
+			],
+			"notes": "已发布校园同好群目录的公开读取合同。"
+		},
+		{
 			"id": "canonical-document-units.v1",
 			"kind": "json_artifact",
 			"path": "packages/ingestion-contracts/schemas/canonical-document-units.v1.schema.json",

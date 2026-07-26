@@ -8,6 +8,10 @@ import {
 } from "@campus-agent/dining/domain";
 import type { DiningFloorplanBundleV1 } from "@campus-agent/dining/floorplans";
 import {
+	type CampusGroupsCatalog,
+	CampusGroupsCatalogSchema,
+} from "campus-contracts/campus-groups";
+import {
 	DiningDraftResponseSchema,
 	DiningOpsStateResponseSchema,
 	DiningReleaseListResponseSchema,
@@ -583,6 +587,24 @@ export async function resolveDiningReports(reviewId: string, resolution: "hide" 
 		headers: { "content-type": "application/json" },
 		method: "POST",
 	});
+}
+
+export async function fetchCampusGroupsCatalog(input: { signal?: AbortSignal } = {}) {
+	return CampusGroupsCatalogSchema.parse(
+		await fetchJson("/api/ops/groups/catalog", { signal: input.signal }),
+	);
+}
+
+export async function replaceCampusGroupsCatalog(
+	catalog: CampusGroupsCatalog,
+): Promise<CampusGroupsCatalog> {
+	return CampusGroupsCatalogSchema.parse(
+		await fetchJson("/api/ops/groups/catalog", {
+			body: JSON.stringify(catalog),
+			headers: { "content-type": "application/json" },
+			method: "PUT",
+		}),
+	);
 }
 
 function queryString(values: Record<string, string | number | undefined>): string {

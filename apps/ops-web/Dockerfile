@@ -5,6 +5,7 @@ WORKDIR /app
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/ops-web/package.json ./apps/ops-web/package.json
+COPY packages/contracts/package.json ./packages/contracts/package.json
 COPY packages/domains/dining/package.json ./packages/domains/dining/package.json
 COPY packages/langfuse-identity/package.json ./packages/langfuse-identity/package.json
 COPY packages/ui/package.json ./packages/ui/package.json
@@ -16,6 +17,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharin
   && pnpm install --frozen-lockfile --filter 'ops-web...'
 
 COPY apps/ops-web ./apps/ops-web
+COPY packages/contracts ./packages/contracts
 COPY packages/domains/dining ./packages/domains/dining
 COPY packages/langfuse-identity ./packages/langfuse-identity
 COPY packages/ui ./packages/ui

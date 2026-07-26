@@ -1,5 +1,6 @@
 // @vitest-environment node
 
+import type { CampusGroupsCatalog } from "campus-contracts/campus-groups";
 import { describe, expect, it, vi } from "vitest";
 import { createOpsApp } from "../src/server/app";
 import { AxiomUnavailableError } from "../src/server/axiom-client";
@@ -211,6 +212,55 @@ describe("ops API", () => {
 
 		expect((await app.request("/api/ops/runtime")).status).toBe(404);
 		expect((await app.request("/api/ops/evidence/ev_001")).status).toBe(404);
+	});
+
+	it("forwards campus groups reads and same-origin group writes", async () => {
+		const catalog: CampusGroupsCatalog = {
+			schemaVersion: "campus-groups-catalog.v1" as const,
+			sections: [
+				{
+					id: "interest-groups",
+					name: "同好群",
+					groups: [
+						{
+							id: "qq-760540871",
+							joinUrl: null,
+							name: "央民二匹马俱乐部",
+							qqGroupNumber: "760540871",
+							summary: "优俊少女",
+							tags: ["优俊少女"],
+						},
+					],
+				},
+			],
+		};
+		const campusGroupsClient = {
+			getCatalog: vi.fn().mockResolvedValue(catalog),
+			replaceCatalog: vi.fn().mockResolvedValue(catalog),
+		};
+		const app = createOpsApp({
+			admission: createAllowAllOpsAdmission({ email: "ops@example.test" }),
+			campusGroupsClient,
+			env: { OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test" },
+			store: createFixtureOpsStatusStore(),
+		});
+		const writeHeaders = {
+			"content-type": "application/json",
+			origin: "https://ops.example.test",
+		};
+
+		const responses = await Promise.all([
+			app.request("/api/ops/groups/catalog"),
+			app.request("https://ops.example.test/api/ops/groups/catalog", {
+				body: JSON.stringify(catalog),
+				headers: writeHeaders,
+				method: "PUT",
+			}),
+		]);
+
+		expect(responses.map((response) => response.status)).toEqual([200, 200]);
+		expect(campusGroupsClient.getCatalog).toHaveBeenCalledWith();
+		expect(campusGroupsClient.replaceCatalog).toHaveBeenCalledWith(catalog);
 	});
 
 	it("reads and replaces the internal portal credential without echoing it", async () => {

@@ -1,6 +1,7 @@
 import type { Env } from "../config";
 import type { AppAuthGetter, AppAuthResolutionInput, ResolvedAppPrincipal } from "../modules/auth";
 import type { CampusExperienceService } from "../modules/campus-experience";
+import type { CampusGroupsService } from "../modules/campus-groups";
 import type { CampusServicesTransportScheduleService } from "../modules/campus-services-transport-schedule";
 import type { ChatConversationService } from "../modules/chat";
 import type { DiningContentService, DiningMapReadService } from "../modules/dining";
@@ -17,6 +18,7 @@ export interface AppDependencies {
 		input?: AppAuthResolutionInput,
 	) => Promise<Response> | Response;
 	campusExperienceService?: CampusExperienceService;
+	campusGroupsService?: CampusGroupsService;
 	campusServicesTransportScheduleService?: CampusServicesTransportScheduleService;
 	chatConversationService?: ChatConversationService;
 	chatCommandService?: ChatCommandService;
@@ -58,6 +60,7 @@ export interface AppRuntimeReadinessResult {
 export interface AppRequestScope {
 	getAppAuth: AppAuthGetter;
 	resolveCampusExperienceService(): CampusExperienceService;
+	resolveCampusGroupsService(): CampusGroupsService;
 	resolveCampusServicesTransportScheduleService(): CampusServicesTransportScheduleService;
 	resolveChatCommandService(): ChatCommandService;
 	resolveChatConversationService(): ChatConversationService;

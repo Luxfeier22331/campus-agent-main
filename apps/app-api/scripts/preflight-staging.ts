@@ -23,13 +23,4 @@ function run(command: string, args: string[]): void {
 	fail(`Failed to run ${command}: ${result.error?.message ?? "unknown error"}`);
 }
 
-run("pnpm", [
-	"exec",
-	"tsx",
-	"scripts/deploy/check-worker-secret-presence.ts",
-	"--app",
-	"apps/app-api",
-	"--env",
-	"staging",
-]);
 run("pnpm", ["exec", "tsx", "apps/app-api/scripts/verify-staging-config.ts"]);

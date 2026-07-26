@@ -30,6 +30,11 @@ const surfaces: ReadonlyArray<{
 		ready: (page) => page.getByRole("heading", { level: 1, name: "班车时刻表" }),
 	},
 	{
+		name: "同好群",
+		path: "/groups",
+		ready: (page) => page.getByRole("heading", { level: 1, name: "同好群" }),
+	},
+	{
 		name: "反馈",
 		path: "/feedback",
 		ready: (page) => page.getByRole("heading", { level: 1, name: "反馈" }),
@@ -50,7 +55,7 @@ test.describe("campus web design contract", () => {
 				await mockCampusApi(page, { authenticated: !surface.path.startsWith("/account") });
 				await page.goto(surface.path);
 				await expect(surface.ready(page).first()).toBeVisible({ timeout: 15_000 });
-				await page.evaluate(async () => {
+				await page.evaluate(() => {
 					const finiteAnimations = document.getAnimations().filter((animation) => {
 						const endTime = animation.effect?.getComputedTiming().endTime;
 						return (
@@ -59,9 +64,9 @@ test.describe("campus web design contract", () => {
 							Number.isFinite(endTime)
 						);
 					});
-					await Promise.all(
-						finiteAnimations.map((animation) => animation.finished.catch(() => undefined)),
-					);
+					for (const animation of finiteAnimations) {
+						animation.finish();
+					}
 				});
 
 				const results = await new AxeBuilder({ page })

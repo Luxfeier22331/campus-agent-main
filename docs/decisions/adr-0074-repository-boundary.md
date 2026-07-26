@@ -45,8 +45,10 @@ Argo CD 通过只读 GitHub App credential 读取两个仓库，只有环境 pul
 reconcile。
 
 Cloudflare 不由 Argo CD 管理。应用仓库上传 immutable Worker version；环境仓库使用 Terraform
-选择 version、管理 traffic 并 reconcile Cloudflare infrastructure。Worker secret 值只进入
-Cloudflare Worker secret store，不复制到 Terraform state 或 Kubernetes Secret。
+选择 version、管理 traffic 并 reconcile Cloudflare infrastructure。Worker 独占 secret 只进入
+Cloudflare Worker secret store，不复制到 Terraform state 或 Kubernetes Secret；确需由
+Kubernetes 调用方和 Worker 验证方共同持有的跨运行时认证凭据，按 ADR-0066 分别投递并作为同一
+轮换单元。
 
 本次分仓不重写现有私有源码历史。首次公开发布必须从单独审查的 sanitized snapshot 产生，并
 通过 history-level secret 与 topology review。

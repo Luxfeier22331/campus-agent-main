@@ -39,6 +39,7 @@ Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，�
 | `app_auth.*` | App API 身份模块 | App API |
 | `chat.*` | App API 对话模块 | App API、获准 Ops Web 投影 |
 | `profile.*` | App API 账号设置 | App API |
+| `campus_groups.sections`、`campus_groups.groups` | App API 同好群模块 | App API、通过内部接口访问的 Ops Web |
 | `docs.*` | 文档发布任务 | App API、文档读取面 |
 | `runtime.request_observability_fact` | App API 产品终态 | App API |
 | `runtime.agent_*` | execution-control | execution-control |

@@ -276,7 +276,38 @@ describe("app-api migration upgrade", () => {
 		const ledger = await pool.query<{ count: string }>(
 			`select count(*)::text as count from "drizzle"."app_api_migrations"`,
 		);
-		expect(ledger.rows[0]?.count).toBe("4");
+		expect(ledger.rows[0]?.count).toBe("6");
+		const seededGroups = await pool.query<{
+			count: string;
+			discord_join_url: string | null;
+			featured_group_name: string | null;
+			lol_summary: string | null;
+			mahjong_count: string;
+		}>(`
+				select count(*)::text as count,
+				       max(name) filter (where id = 'qq-760540871') as featured_group_name,
+				       max(join_url) filter (where id = 'discord-muc-community') as discord_join_url,
+				       max(summary) filter (where id = 'qq-720518745') as lol_summary,
+				       count(*) filter (where id in ('contact-mahjong', 'qq-863056472'))::text as mahjong_count
+				from campus_groups.groups
+		`);
+		expect(seededGroups.rows).toEqual([
+			{
+				count: "55",
+				discord_join_url: "https://discord.gg/XgQqU9zrPZ",
+				featured_group_name: "王佐体育运动学校",
+				lol_summary: "已阵亡",
+				mahjong_count: "2",
+			},
+		]);
+		const seededSections = await pool.query<{ id: string; name: string; position: number }>(`
+			select id, name, position from campus_groups.sections order by position
+		`);
+		expect(seededSections.rows).toEqual([
+			{ id: "acgn", name: "ACGN", position: 0 },
+			{ id: "online-games", name: "线上游戏", position: 1 },
+			{ id: "interest-groups", name: "同好群", position: 2 },
+		]);
 
 		await resetDisposableDatabase(pool);
 		await applyCurrentChatSchema(pool);
@@ -286,10 +317,14 @@ describe("app-api migration upgrade", () => {
 		});
 		const cleanInstall = await pool.query<{
 			assistant_message_id: string | null;
+			campus_groups_ready: boolean;
+			campus_group_sections_ready: boolean;
 			memory_commands_ready: boolean;
 			resolved_targets_json: string | null;
 		}>(`
-			select
+				select
+					to_regclass('campus_groups.groups') is not null as campus_groups_ready,
+					to_regclass('campus_groups.sections') is not null as campus_group_sections_ready,
 				to_regclass('profile.memory_commands') is not null as memory_commands_ready,
 				(select column_name from information_schema.columns
 				 where table_schema = 'chat' and table_name = 'turn_dispatches'
@@ -301,9 +336,41 @@ describe("app-api migration upgrade", () => {
 		expect(cleanInstall.rows).toEqual([
 			{
 				assistant_message_id: "assistant_message_id",
+				campus_group_sections_ready: true,
+				campus_groups_ready: true,
 				memory_commands_ready: true,
 				resolved_targets_json: "resolved_targets_json",
 			},
 		]);
+		const groupPrimaryKey = await pool.query<{ column_name: string }>(`
+			select attribute.attname as column_name
+			from pg_constraint constraint_row
+			join pg_class relation on relation.oid = constraint_row.conrelid
+			join pg_namespace namespace on namespace.oid = relation.relnamespace
+			join unnest(constraint_row.conkey) with ordinality key(attnum, position) on true
+			join pg_attribute attribute
+			  on attribute.attrelid = relation.oid and attribute.attnum = key.attnum
+			where namespace.nspname = 'campus_groups'
+			  and relation.relname = 'groups'
+			  and constraint_row.contype = 'p'
+			order by key.position
+		`);
+		expect(groupPrimaryKey.rows).toEqual([{ column_name: "id" }]);
+		await expect(
+			pool.query(`select id from campus_groups.groups where id = 'qq-533365461'`),
+		).resolves.toMatchObject({ rowCount: 1 });
+		await expect(
+			pool.query(`
+					insert into campus_groups.groups(
+						id, section_id, position, join_url, name, qq_group_number, summary, tags
+					)
+						values (
+							'migration-verification', 'interest-groups', 21, null,
+						'迁移测试群', '123456789', '', array[]::text[]
+					)
+				on conflict(id) do update
+				set name = excluded.name
+			`),
+		).resolves.toMatchObject({ rowCount: 1 });
 	});
 });

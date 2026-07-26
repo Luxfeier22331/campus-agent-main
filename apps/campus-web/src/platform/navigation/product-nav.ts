@@ -1,4 +1,4 @@
-export type ProductNavItemId = "chat" | "docs" | "map" | "dining" | "feedback";
+export type ProductNavItemId = "chat" | "docs" | "map" | "dining" | "groups" | "feedback";
 
 export interface ProductNavItem {
 	href: string;
@@ -13,6 +13,7 @@ export const productNavItems = [
 	{ href: DEFAULT_DOCS_READER_PATH, id: "docs", label: "文档" },
 	{ href: "/map", id: "map", label: "校园地图" },
 	{ href: "/dining", id: "dining", label: "食堂" },
+	{ href: "/groups", id: "groups", label: "同好群" },
 	{ href: "/feedback", id: "feedback", label: "反馈" },
 ] as const satisfies readonly ProductNavItem[];
 

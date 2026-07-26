@@ -34,4 +34,9 @@ describe("campus worker app-api proxy allowlist", () => {
 			true,
 		);
 	});
+
+	it("allows only the public campus groups catalog", () => {
+		expect(isAllowedCampusAppApiRequest("/api/campus-groups/catalog")).toBe(true);
+		expect(isAllowedCampusAppApiRequest("/api/internal/ops/campus-groups/state")).toBe(false);
+	});
 });

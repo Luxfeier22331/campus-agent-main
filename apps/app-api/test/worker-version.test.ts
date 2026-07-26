@@ -33,6 +33,7 @@ describe("Worker version upload arguments", () => {
 				appName: "app-api",
 				config: "/tmp/app-api/wrangler.toml",
 				environment: "staging",
+				secretsFile: "/tmp/app-api/secrets.json",
 				sentrySourceMaps: {
 					artifactDirectory: sourceMapDirectory,
 					orgSlug: "muc-wiki",
@@ -46,6 +47,7 @@ describe("Worker version upload arguments", () => {
 		);
 
 		expect(args).toEqual(expect.arrayContaining(["--env", "staging", "--tag", `git-${sourceSha}`]));
+		expect(args).toEqual(expect.arrayContaining(["--secrets-file", "/tmp/app-api/secrets.json"]));
 		expect(args).toEqual(
 			expect.arrayContaining(["--upload-source-maps", "--outdir", sourceMapDirectory]),
 		);

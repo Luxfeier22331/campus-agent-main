@@ -116,6 +116,7 @@ describe("managed worktree environment", () => {
 		const second = parseEnv(readFileSync(secretPath, "utf8"));
 
 		assert.equal(first.BETTER_AUTH_SECRET, second.BETTER_AUTH_SECRET);
+		assert.equal(first.OPS_WEB_INTERNAL_TOKEN, second.OPS_WEB_INTERNAL_TOKEN);
 		assert.equal(second.AUTH_TURNSTILE_SECRET_KEY, "local-turnstile-disabled");
 		assert.equal(second.AUTH_SHELL_ORIGIN, "http://127.0.0.1:27114");
 		assert.equal(
@@ -138,6 +139,8 @@ describe("managed worktree environment", () => {
 		assert.equal(new URL(appApiEnvironment.APP_API_SCHEMA_DATABASE_URL ?? "").search, "");
 		assert.equal(campusWebEnvironment.AUTH_TURNSTILE_SITE_KEY, "");
 		assert.equal(new URL(opsWebEnvironment.OPS_WEB_DATABASE_URL ?? "").search, "");
+		assert.equal(opsWebEnvironment.OPS_WEB_HEALTH_APP_API_URL, "http://127.0.0.1:27131/readyz");
+		assert.equal(opsWebEnvironment.OPS_WEB_INTERNAL_TOKEN, second.OPS_WEB_INTERNAL_TOKEN);
 	});
 
 	it("refuses to overwrite a developer-owned application environment file", () => {

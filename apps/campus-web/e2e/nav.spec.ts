@@ -26,6 +26,15 @@ test.describe("product navigation browser flow", () => {
 
 		await page
 			.getByRole("navigation", { name: "产品导航" })
+			.getByRole("link", { name: "同好群" })
+			.click();
+		await expect(page).toHaveURL("/groups");
+		await expect(
+			page.getByRole("heading", { exact: true, level: 1, name: "同好群" }),
+		).toBeVisible();
+
+		await page
+			.getByRole("navigation", { name: "产品导航" })
 			.getByRole("link", { name: "反馈" })
 			.click();
 		await expect(page).toHaveURL("/feedback");

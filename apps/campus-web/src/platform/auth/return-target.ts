@@ -7,6 +7,7 @@ const CAMPUS_RETURN_EXACT_PATHS = new Set([
 	"/",
 	"/map",
 	"/dining",
+	"/groups",
 	"/feedback",
 	"/account",
 	"/account/login",

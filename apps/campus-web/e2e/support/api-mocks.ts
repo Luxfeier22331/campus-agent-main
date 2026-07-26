@@ -74,6 +74,109 @@ const archivedConversation = {
 	title: "归档奖学金材料",
 	updatedAt: now,
 };
+const campusGroupsCatalog = {
+	schemaVersion: "campus-groups-catalog.v1",
+	sections: [
+		{
+			groups: [
+				{
+					id: "qq-879596093",
+					joinUrl: null,
+					name: "夜之瞳音游群",
+					qqGroupNumber: "879596093",
+					summary: "挂靠夜之瞳",
+					tags: ["音游"],
+				},
+				{
+					id: "qq-300321279",
+					joinUrl: null,
+					name: "极上引诱会所",
+					qqGroupNumber: "300321279",
+					summary: "",
+					tags: ["音游"],
+				},
+				...Array.from({ length: 12 }, (_, index) => ({
+					id: `qq-test-${String(index).padStart(2, "0")}`,
+					joinUrl: null,
+					name: `测试群 ${index + 1}`,
+					qqGroupNumber: String(900000000 + index),
+					summary: "测试目录条目",
+					tags: ["测试"],
+				})),
+			],
+			id: "acgn",
+			name: "ACGN",
+		},
+		{
+			groups: [
+				{
+					id: "qq-760540871",
+					joinUrl: null,
+					name: "王佐体育运动学校",
+					qqGroupNumber: "760540871",
+					summary: "",
+					tags: ["赛马娘"],
+				},
+				{
+					id: "qq-720518745",
+					joinUrl: null,
+					name: "LML民大峡谷之巅推免交流群",
+					qqGroupNumber: "720518745",
+					summary: "已阵亡",
+					tags: ["LOL"],
+				},
+				...Array.from({ length: 18 }, (_, index) => ({
+					id: `qq-test-${String(index + 12).padStart(2, "0")}`,
+					joinUrl: null,
+					name: `测试群 ${index + 13}`,
+					qqGroupNumber: String(900000012 + index),
+					summary: "测试目录条目",
+					tags: ["测试"],
+				})),
+			],
+			id: "online-games",
+			name: "线上游戏",
+		},
+		{
+			groups: [
+				{
+					id: "qq-284874509",
+					joinUrl: null,
+					name: "民大重型群",
+					qqGroupNumber: "284874509",
+					summary: "",
+					tags: ["重型乐队"],
+				},
+				{
+					id: "qq-863056472",
+					joinUrl: null,
+					name: "夜之瞳麻将群",
+					qqGroupNumber: "863056472",
+					summary: "主要是日麻",
+					tags: ["麻将"],
+				},
+				{
+					id: "discord-muc-community",
+					joinUrl: "https://discord.gg/XgQqU9zrPZ",
+					name: "Discord",
+					qqGroupNumber: null,
+					summary: "请务必注意保护个人信息安全。",
+					tags: ["中央民族大学Discord交流群"],
+				},
+				...Array.from({ length: 18 }, (_, index) => ({
+					id: `qq-test-${String(index + 30).padStart(2, "0")}`,
+					joinUrl: null,
+					name: `测试群 ${index + 31}`,
+					qqGroupNumber: String(900000030 + index),
+					summary: "测试目录条目",
+					tags: ["测试"],
+				})),
+			],
+			id: "interest-groups",
+			name: "同好群",
+		},
+	],
+};
 
 interface RouteMockInput {
 	method?: string;
@@ -290,6 +393,12 @@ function routeMocks(input: {
 }): RouteMockInput[] {
 	const { diningState, options, sessionState } = input;
 	return [
+		{
+			method: "GET",
+			path: "/api/campus-groups/catalog",
+			response: (route) =>
+				route.fulfill({ contentType: "application/json", json: campusGroupsCatalog, status: 200 }),
+		},
 		{
 			method: "GET",
 			path: "/api/auth/get-session",
