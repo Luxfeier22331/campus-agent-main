@@ -16,7 +16,6 @@ const env = {
 	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 	APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
-	APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
 };
 
 describe("request runtime scope", () => {

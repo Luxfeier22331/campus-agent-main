@@ -42,14 +42,9 @@ preview_urls = false
 [env.local.vars]
 APP_API_ENVIRONMENT = "development"
 AUTH_SHELL_ORIGIN = "http://127.0.0.1:27014"
-APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "example.edu"
-APP_API_END_USER_EMAIL_ALLOWLIST = "help_bot@outlook.com"
-APP_API_PUBLIC_NOTICE_URL_ALLOWLIST = "www.example.edu"
 EXECUTION_CONTROL_BASE_URL = "http://127.0.0.1:27051"
-EXECUTION_CONTROL_TIMEOUT_MS = "180000"
-OBJECT_STORE_DERIVED_PUBLIC_BASE_URL = "http://127.0.0.1:9000/campus-agent-derived/"
+OBJECT_STORE_LOCAL_BASE_URL = "http://127.0.0.1:9000/campus-agent-derived/"
 AUTH_RESET_EMAIL_FROM = "Campus Agent <auth@example.com>"
-AUTH_RESET_EMAIL_REPLY_TO = ""
 
 [env.local.secrets]
 required = [
@@ -64,11 +59,7 @@ required = [
 [env.staging.vars]
 APP_API_ENVIRONMENT = "staging"
 AUTH_SHELL_ORIGIN = "https://campus-staging.mucwiki-edge.link"
-APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "example.edu"
-APP_API_END_USER_EMAIL_ALLOWLIST = "help_bot@outlook.com"
-APP_API_PUBLIC_NOTICE_URL_ALLOWLIST = "www.example.edu"
 EXECUTION_CONTROL_PRIVATE_ORIGIN = "http://execution-control.campus-agent-staging.svc.cluster.local:8000"
-EXECUTION_CONTROL_TIMEOUT_MS = "95000"
 SENTRY_ENVIRONMENT = "staging"
 
 [env.staging.secrets]
@@ -84,6 +75,11 @@ required = [
 
 [[env.staging.vpc_services]]
 binding = "EXECUTION_CONTROL_PRIVATE"
+service_id = "00000000-0000-0000-0000-000000000000"
+remote = true
+
+[[env.staging.vpc_services]]
+binding = "OBJECT_STORE_PRIVATE"
 service_id = "00000000-0000-0000-0000-000000000000"
 remote = true
 

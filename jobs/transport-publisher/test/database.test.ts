@@ -11,9 +11,9 @@ describe("readTransportPublisherDatabaseConfig", () => {
 		writeFileSync(caPath, "-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----\n");
 
 		const config = readTransportPublisherDatabaseConfig({
-			DATABASE_CA_CERT_PATH: caPath,
-			DATABASE_SSLMODE: "verify-full",
-			DATABASE_URL: "postgresql://publisher:secret@postgres.internal/campus_agent?sslmode=require",
+			TRANSPORT_PUBLISHER_DATABASE_CA_CERT_PATH: caPath,
+			TRANSPORT_PUBLISHER_DATABASE_SSLMODE: "verify-full",
+			TRANSPORT_PUBLISHER_DATABASE_URL: "postgresql://publisher:secret@postgres.internal/campus_agent?sslmode=require",
 		});
 
 		expect(config.connectionString).toBe(
@@ -28,16 +28,16 @@ describe("readTransportPublisherDatabaseConfig", () => {
 	it("fails closed when TLS verification has no CA", () => {
 		expect(() =>
 			readTransportPublisherDatabaseConfig({
-				DATABASE_URL: "postgresql://publisher:secret@postgres.internal/campus_agent",
+				TRANSPORT_PUBLISHER_DATABASE_URL: "postgresql://publisher:secret@postgres.internal/campus_agent",
 			}),
-		).toThrow(/DATABASE_CA_CERT_PATH is required/u);
+		).toThrow(/TRANSPORT_PUBLISHER_DATABASE_CA_CERT_PATH is required/u);
 	});
 
 	it("allows explicit plaintext only for local verification", () => {
 		expect(
 			readTransportPublisherDatabaseConfig({
-				DATABASE_SSLMODE: "disable",
-				DATABASE_URL: "postgresql://localhost/campus_agent",
+				TRANSPORT_PUBLISHER_DATABASE_SSLMODE: "disable",
+				TRANSPORT_PUBLISHER_DATABASE_URL: "postgresql://localhost/campus_agent",
 			}),
 		).toEqual({ connectionString: "postgresql://localhost/campus_agent", ssl: false });
 	});

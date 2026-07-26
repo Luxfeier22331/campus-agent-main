@@ -18,7 +18,7 @@ if (typeof CSS !== "undefined" && typeof CSS.supports !== "function") {
 const app = createOpsApp({
 	admission: createAllowAllOpsAdmission(),
 	env: {
-		OPS_WEB_CAMPUS_WEB_PUBLIC_ORIGIN: "https://campus.example.test",
+		OPS_WEB_CAMPUS_WEB_URL: "https://campus.example.test",
 		OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test",
 	},
 	axiom: {
@@ -32,22 +32,6 @@ const app = createOpsApp({
 	},
 	sentry: {
 		queryRequestIssues: vi.fn().mockResolvedValue(opsSentryIssuesFixture),
-	},
-	internalPortalAuthStore: {
-		getStatus: vi.fn().mockResolvedValue({
-			configured: true,
-			updatedAt: "2026-07-15T12:00:00.000Z",
-			updatedBy: "ops@example.test",
-		}),
-		replaceCredential: vi.fn(async (input) => ({
-			configured: true,
-			updatedAt: input.updatedAt,
-			updatedBy: input.updatedBy,
-		})),
-	},
-	internalPortalMaintenanceClient: {
-		getStatus: vi.fn().mockResolvedValue(maintenanceStatus()),
-		validate: vi.fn().mockResolvedValue(maintenanceStatus()),
 	},
 	staticRoot: "test/fixtures/static",
 	store: createFixtureOpsStatusStore(),
@@ -78,17 +62,3 @@ afterEach(() => {
 	cleanup();
 	vi.unstubAllGlobals();
 });
-
-function maintenanceStatus() {
-	return {
-		errorCode: null,
-		lastAttemptAt: "2026-07-15T12:30:00.000Z",
-		lastOutcome: "SUCCESS" as const,
-		lastSuccessAt: "2026-07-15T12:30:03.000Z",
-		nextRunAt: "2026-07-15T13:00:00.000Z",
-		noticeProbeSucceeded: true,
-		portalSessionEstablished: true,
-		scheduleState: "ACTIVE" as const,
-		serviceTicketIssued: true,
-	};
-}

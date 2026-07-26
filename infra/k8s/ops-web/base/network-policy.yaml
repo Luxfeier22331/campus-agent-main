@@ -41,13 +41,6 @@ spec:
     - to:
         - podSelector:
             matchLabels:
-              app.kubernetes.io/name: ingestion-control
-      ports:
-        - protocol: TCP
-          port: 8000
-    - to:
-        - podSelector:
-            matchLabels:
               app.kubernetes.io/name: object-store
       ports:
         - protocol: TCP

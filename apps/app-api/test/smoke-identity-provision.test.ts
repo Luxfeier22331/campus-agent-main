@@ -13,17 +13,12 @@ describe("app-api smoke identity provisioning", () => {
 		expect(() =>
 			readSmokeIdentityProvisionInput(
 				["--email", "not-allowed@example.com", "--name", "Smoke User"],
-				{
-					APP_API_END_USER_EMAIL_ALLOWLIST: "help_bot@outlook.com",
-					APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
-				} as NodeJS.ProcessEnv,
+				{} as NodeJS.ProcessEnv,
 			),
 		).toThrow("is not admitted by the configured end-user auth allowlist");
 
 		expect(() =>
 			readSmokeIdentityProvisionInput(["--email", "help_bot@outlook.com", "--name", "Smoke User"], {
-				APP_API_END_USER_EMAIL_ALLOWLIST: "help_bot@outlook.com",
-				APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
 				APP_API_SCHEMA_DATABASE_URL: "postgresql://db.example/campus_agent",
 			} as NodeJS.ProcessEnv),
 		).toThrow("APP_API_SMOKE_IDENTITY_PASSWORD is required");
@@ -34,8 +29,6 @@ describe("app-api smoke identity provisioning", () => {
 			["--email", "help_bot@outlook.com", "--name", "Smoke User"],
 			{
 				APP_API_ENVIRONMENT: "development",
-				APP_API_END_USER_EMAIL_ALLOWLIST: "help_bot@outlook.com",
-				APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
 				APP_API_SCHEMA_DATABASE_URL: "postgresql://db.example/campus_agent",
 				APP_API_SMOKE_IDENTITY_PASSWORD: "SmokePass!2026",
 			} as NodeJS.ProcessEnv,
@@ -45,8 +38,6 @@ describe("app-api smoke identity provisioning", () => {
 			APP_API_DB: {
 				connectionString: "postgresql://db.example/campus_agent",
 			},
-			APP_API_END_USER_EMAIL_ALLOWLIST: "help_bot@outlook.com",
-			APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
 			AUTH_TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA",
 		});
 	});
@@ -55,14 +46,11 @@ describe("app-api smoke identity provisioning", () => {
 		expect(() =>
 			buildSmokeIdentityProvisionRuntimeEnv({
 				appApiEnvironment: "development",
-				appName: "campus-agent-app-api",
 				authTurnstileSecretKey: "1x0000000000000000000000000000000AA",
 				betterAuthSecret: "smoke-identity-secret-smoke-identity-secret",
 				captchaToken: "XXXX.DUMMY.TOKEN.XXXX",
 				databaseSslMode: "require",
 				email: "help_bot@outlook.com",
-				endUserEmailAllowlist: "help_bot@outlook.com",
-				endUserEmailDomainAllowlist: "example.edu",
 				appApiExecutionSharedSecret: "smoke-identity-execution-secret",
 				managementDatabaseUrl: "postgresql://legacy-management.example/campus_agent",
 				name: "Smoke User",
@@ -78,8 +66,6 @@ describe("app-api smoke identity provisioning", () => {
 	it("requires an explicit captcha token when not using the Cloudflare testing secret", () => {
 		expect(() =>
 			readSmokeIdentityProvisionInput(["--email", "help_bot@outlook.com", "--name", "Smoke User"], {
-				APP_API_END_USER_EMAIL_ALLOWLIST: "help_bot@outlook.com",
-				APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
 				APP_API_ENVIRONMENT: "staging",
 				APP_API_SCHEMA_DATABASE_URL: "postgresql://db.example/campus_agent",
 				APP_API_SMOKE_IDENTITY_PASSWORD: "SmokePass!2026",
@@ -114,8 +100,6 @@ describe("app-api smoke identity provisioning", () => {
 			["--email", "help_bot@outlook.com", "--name", "Help Bot"],
 			{
 				APP_API_ENVIRONMENT: "development",
-				APP_API_END_USER_EMAIL_ALLOWLIST: "help_bot@outlook.com",
-				APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
 				APP_API_SCHEMA_DATABASE_URL: "postgresql://db.example/campus_agent",
 				APP_API_SMOKE_IDENTITY_PASSWORD: "SmokePass!2026",
 			} as NodeJS.ProcessEnv,

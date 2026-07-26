@@ -26,7 +26,7 @@ pnpm ci:eval
 
 ## 模型配置
 
-需要调用模型指标时，设置 `EVAL_PROVIDER_CONFIG_PROJECTION_PATH`，指向未跟踪的
+需要调用模型指标时，通过 `--provider-config-projection` 指向未跟踪的
 `provider_config_projection.v1` JSON 文件。该文件必须是当前用户拥有、权限严格为 `0600` 的普通
 文件，不能是符号链接，并且必须完整提供 `eval_judge_llm`、`eval_ragas_llm` 和
 `eval_ragas_embedding` 三个 role。适配器按评测类型生成短生命周期的 `0600` Ragas 配置，并在
@@ -34,7 +34,7 @@ pnpm ci:eval
 
 精确字段和执行限制以 provider projection schema、`packages/eval-langfuse/src/provider-config.ts`
 及其测试为准。不要从 execution-control 的在线模型配置推导离线评测配置，也不要恢复
-已退役的 `--runtime-config` 或分散模型环境变量。
+Python runner 使用的临时运行配置由 TypeScript 入口生成，不由调用方提供。
 
 ## 数据集
 

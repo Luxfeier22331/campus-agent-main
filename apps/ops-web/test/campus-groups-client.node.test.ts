@@ -21,23 +21,21 @@ const catalog = {
 };
 
 describe("campus groups app-api client", () => {
-	it("derives the app-api origin from the configured health URL", () => {
+	it("accepts an app-api root URL", () => {
 		expect(resolveAppApiBaseUrl(" https://api.example.test/ ")).toBe("https://api.example.test");
-		expect(resolveAppApiBaseUrl("https://api.example.test/readyz")).toBe(
-			"https://api.example.test",
-		);
 		expect(resolveAppApiBaseUrl(undefined)).toBeUndefined();
 	});
 
 	it.each([
 		"not-a-url",
 		"ftp://api.example.test",
+		"https://api.example.test/readyz",
 		"https://api.example.test/internal",
 		"https://operator:secret@api.example.test",
 		"https://api.example.test?target=staging",
-	])("rejects an invalid app-api health URL: %s", (value) => {
+	])("rejects an invalid app-api root URL: %s", (value) => {
 		expect(() => resolveAppApiBaseUrl(value)).toThrow(
-			"OPS_WEB_HEALTH_APP_API_URL must be an HTTP(S) root or /readyz URL.",
+			"OPS_WEB_APP_API_URL must be an HTTP(S) root URL.",
 		);
 	});
 
@@ -45,7 +43,7 @@ describe("campus groups app-api client", () => {
 		const fetchImplementation = vi.fn<typeof fetch>().mockResolvedValue(Response.json(catalog));
 		const client = createCampusGroupsAdminClient(
 			{
-				OPS_WEB_HEALTH_APP_API_URL: "https://api.example.test/readyz",
+				OPS_WEB_APP_API_URL: "https://api.example.test",
 				OPS_WEB_INTERNAL_TOKEN: "ops-token",
 			},
 			{ fetchImplementation },
@@ -68,7 +66,7 @@ describe("campus groups app-api client", () => {
 		const fetchImplementation = vi.fn<typeof fetch>().mockResolvedValue(Response.json(catalog));
 		const client = createCampusGroupsAdminClient(
 			{
-				OPS_WEB_HEALTH_APP_API_URL: "https://api.example.test/readyz",
+				OPS_WEB_APP_API_URL: "https://api.example.test",
 				OPS_WEB_INTERNAL_TOKEN: "ops-token",
 			},
 			{ fetchImplementation },
@@ -85,7 +83,7 @@ describe("campus groups app-api client", () => {
 	it("does not turn an invalid upstream response into an empty result", async () => {
 		const client = createCampusGroupsAdminClient(
 			{
-				OPS_WEB_HEALTH_APP_API_URL: "https://api.example.test/readyz",
+				OPS_WEB_APP_API_URL: "https://api.example.test",
 				OPS_WEB_INTERNAL_TOKEN: "ops-token",
 			},
 			{

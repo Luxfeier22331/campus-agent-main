@@ -22,18 +22,22 @@ function withoutTlsQueryParameters(databaseUrl: string): string {
 export function readTransportPublisherDatabaseConfig(
 	env: NodeJS.ProcessEnv = process.env,
 ): ClientConfig {
-	const connectionString = withoutTlsQueryParameters(readRequiredEnv(env, "DATABASE_URL"));
-	const sslMode = env.DATABASE_SSLMODE?.trim() || "verify-full";
+	const connectionString = withoutTlsQueryParameters(
+		readRequiredEnv(env, "TRANSPORT_PUBLISHER_DATABASE_URL"),
+	);
+	const sslMode = env.TRANSPORT_PUBLISHER_DATABASE_SSLMODE?.trim() || "verify-full";
 	if (sslMode === "disable") {
 		return { connectionString, ssl: false };
 	}
 	if (sslMode !== "verify-full") {
-		throw new Error("DATABASE_SSLMODE must be verify-full or disable");
+		throw new Error("TRANSPORT_PUBLISHER_DATABASE_SSLMODE must be verify-full or disable");
 	}
-	const caCertPath = readRequiredEnv(env, "DATABASE_CA_CERT_PATH");
+	const caCertPath = readRequiredEnv(env, "TRANSPORT_PUBLISHER_DATABASE_CA_CERT_PATH");
 	const ca = readFileSync(caCertPath, "utf8");
 	if (!ca.includes("BEGIN CERTIFICATE")) {
-		throw new Error("DATABASE_CA_CERT_PATH must contain a PostgreSQL CA certificate");
+		throw new Error(
+			"TRANSPORT_PUBLISHER_DATABASE_CA_CERT_PATH must contain a PostgreSQL CA certificate",
+		);
 	}
 	return {
 		connectionString,

@@ -1,8 +1,7 @@
 import {
-	DEFAULT_EXECUTION_CONTROL_TIMEOUT_MS,
-	DEFAULT_PROFILE_MEMORY_COMMAND_TIMEOUT_MS,
 	type Env,
-	parsePositiveInteger,
+	EXECUTION_CONTROL_TIMEOUT_MS,
+	PROFILE_MEMORY_COMMAND_TIMEOUT_MS,
 } from "../../config";
 import { DEFAULT_PERSONAL_MEMORY_TENANT_ID } from "../personalization/tenant";
 import type { TracePropagationHeaders } from "../telemetry/trace";
@@ -18,12 +17,10 @@ import {
 type ExecutionControlRuntimeEnv = Pick<
 	Env,
 	| "APP_API_ENVIRONMENT"
-	| "APP_API_PROFILE_MEMORY_COMMAND_TIMEOUT_MS"
 	| "EXECUTION_CONTROL_BASE_URL"
 	| "EXECUTION_CONTROL_PRIVATE"
 	| "EXECUTION_CONTROL_PRIVATE_ORIGIN"
 	| "APP_API_EXECUTION_SHARED_SECRET"
-	| "EXECUTION_CONTROL_TIMEOUT_MS"
 >;
 
 export type JsonRecord = Record<string, unknown>;
@@ -296,10 +293,7 @@ export function createExecutionControlPersonalMemoryClient(
 				},
 				expectedStatus: 202,
 				method: "POST",
-				timeoutMs: parsePositiveInteger(
-					env.APP_API_PROFILE_MEMORY_COMMAND_TIMEOUT_MS,
-					DEFAULT_PROFILE_MEMORY_COMMAND_TIMEOUT_MS,
-				),
+				timeoutMs: PROFILE_MEMORY_COMMAND_TIMEOUT_MS,
 			});
 			return { workflowId: readRequiredString(parsed, "workflow_id") };
 		},
@@ -351,9 +345,7 @@ export function createExecutionControlRequester(
 			input.fetchImplementation,
 		);
 
-		const timeoutMs =
-			options.timeoutMs ??
-			parsePositiveInteger(env.EXECUTION_CONTROL_TIMEOUT_MS, DEFAULT_EXECUTION_CONTROL_TIMEOUT_MS);
+		const timeoutMs = options.timeoutMs ?? EXECUTION_CONTROL_TIMEOUT_MS;
 		let response: Response;
 		try {
 			response = await new Promise<Response>((resolve, reject) => {

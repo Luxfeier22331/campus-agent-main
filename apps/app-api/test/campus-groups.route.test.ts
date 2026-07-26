@@ -10,7 +10,6 @@ import type {
 import { buildCampusGroupsService } from "../src/modules/campus-groups";
 
 const env = {
-	APP_API_NAME: "campus-agent-app-api",
 	APP_API_ENVIRONMENT: "test" as const,
 	OPS_WEB_INTERNAL_TOKEN: "ops-secret",
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",

@@ -19,24 +19,13 @@ import {
 afterEach(cleanupPublishedReaderFixture);
 
 describe("campus-web published reader sync", () => {
-	it("uses the standard derived object store bucket env name", () => {
-		expect(
-			resolvePublishedReaderObjectStoreBucket({
-				OBJECT_STORE_BUCKET_DERIVED: "campus-agent-derived-local",
-			}),
-		).toBe("campus-agent-derived-local");
-	});
-
-	it("requires an explicit derived object store bucket for published reader sync", () => {
-		expect(() => resolvePublishedReaderObjectStoreBucket({})).toThrow(
-			"OBJECT_STORE_BUCKET_DERIVED is required for campus docs published reader sync",
-		);
+	it("uses the canonical derived object store bucket", () => {
+		expect(resolvePublishedReaderObjectStoreBucket()).toBe("campus-agent-derived");
 	});
 
 	it("resolves object store config from the derived identity", () => {
 		expect(
 			resolvePublishedReaderObjectStoreConfig({
-				OBJECT_STORE_BUCKET_DERIVED: "campus-agent-derived",
 				OBJECT_STORE_DERIVED_ACCESS_KEY: "derived-access",
 				OBJECT_STORE_DERIVED_SECRET_KEY: "derived-secret",
 				OBJECT_STORE_ENDPOINT: "http://localhost:9000",
@@ -47,22 +36,6 @@ describe("campus-web published reader sync", () => {
 			credentialMode: "derived",
 			endpoint: "http://localhost:9000",
 			region: "us-east-1",
-			secretAccessKey: "derived-secret",
-		});
-		expect(
-			resolvePublishedReaderObjectStoreConfig({
-				OBJECT_STORE_BUCKET_DERIVED: "campus-agent-derived",
-				OBJECT_STORE_DERIVED_ACCESS_KEY: "derived-access",
-				OBJECT_STORE_DERIVED_SECRET_KEY: "derived-secret",
-				OBJECT_STORE_ENDPOINT: "http://localhost:9000",
-				OBJECT_STORE_REGION: "auto",
-			}),
-		).toMatchObject({
-			accessKeyId: "derived-access",
-			bucket: "campus-agent-derived",
-			credentialMode: "derived",
-			endpoint: "http://localhost:9000",
-			region: "auto",
 			secretAccessKey: "derived-secret",
 		});
 	});
@@ -83,7 +56,6 @@ describe("campus-web published reader sync", () => {
 	it("fails closed when object store credentials are incomplete", () => {
 		expect(() =>
 			resolvePublishedReaderObjectStoreConfig({
-				OBJECT_STORE_BUCKET_DERIVED: "campus-agent-derived",
 				OBJECT_STORE_ENDPOINT: "http://localhost:9000",
 			}),
 		).toThrow("OBJECT_STORE_DERIVED_ACCESS_KEY is required");

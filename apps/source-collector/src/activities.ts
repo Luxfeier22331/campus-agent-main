@@ -24,7 +24,7 @@ import {
 } from "ingestion-contracts";
 import { z } from "zod";
 import { isPortalSourceDeferredError } from "../adapters/internal-portal/src/api.ts";
-import { createAuthenticatedNoticeArtifactStoreFromEnv } from "../adapters/internal-portal/src/artifact-store.ts";
+import type { AuthenticatedNoticeArtifactStore } from "../adapters/internal-portal/src/artifact-store.ts";
 import { isPortalCredentialFailure } from "../adapters/internal-portal/src/auth-errors.ts";
 import { resolveInternalPortalConfig } from "../adapters/internal-portal/src/config.ts";
 import {
@@ -43,13 +43,13 @@ import {
 } from "../adapters/internal-portal/src/portal.ts";
 import {
 	crawlSite,
-	createS3ArtifactStoreFromEnv,
+	type OfficialWebArtifactStore,
 	type OfficialWebCrawlCandidate,
 } from "../adapters/official-web/src/index.ts";
 import { buildWeChatOfficialAccountCaptureRelease } from "../adapters/wechat-official-account/src/capture-release.ts";
 import {
 	captureFeedWeHistory,
-	createWeChatOfficialAccountArtifactStoreFromEnv,
+	type WeChatOfficialAccountArtifactStore,
 } from "../adapters/wechat-official-account/src/index.ts";
 import type { SourceCollectorObjectStore } from "./object-store.ts";
 
@@ -284,10 +284,7 @@ async function runOfficialWebCollector(input: Parameters<typeof runCollector>[0]
 	if (input.preparation && input.preparation.site_id !== request.site_id) {
 		throw new Error("official-web crawl preparation site_id does not match request");
 	}
-	const artifactStore = createS3ArtifactStoreFromEnv(input.env);
-	if (!artifactStore) {
-		throw new Error("official-web source artifact store is required");
-	}
+	const artifactStore = createOfficialWebArtifactStore(input.objectStore);
 	try {
 		const result = await crawlSite(request.site_id, {
 			abortSignal: input.abortSignal,
@@ -355,10 +352,7 @@ async function runInternalNoticeCollector(input: Parameters<typeof runCollector>
 		"internal_portal_notice_capture_request.v2",
 	);
 	const config = resolveInternalPortalConfig(input.env);
-	const artifactStore = createAuthenticatedNoticeArtifactStoreFromEnv(input.env);
-	if (!artifactStore) {
-		throw new Error("internal portal source artifact store is required");
-	}
+	const artifactStore = createAuthenticatedNoticeArtifactStore(input.objectStore);
 	try {
 		const exportedAt = new Date().toISOString();
 		const collected = await collectNoticeExportBundle({
@@ -481,10 +475,7 @@ async function runFileReleaseCollector(input: Parameters<typeof runCollector>[0]
 		"internal_portal_file_release_capture_request.v2",
 	);
 	const config = resolveInternalPortalConfig(input.env);
-	const artifactStore = createAuthenticatedNoticeArtifactStoreFromEnv(input.env);
-	if (!artifactStore) {
-		throw new Error("internal portal source artifact store is required");
-	}
+	const artifactStore = createAuthenticatedNoticeArtifactStore(input.objectStore);
 	try {
 		const exportedAt = new Date().toISOString();
 		const collected = await collectFileReleaseBundle({
@@ -546,10 +537,7 @@ async function runFileReleaseCollector(input: Parameters<typeof runCollector>[0]
 
 async function runWeChatCollector(input: Parameters<typeof runCollector>[0]) {
 	const request = WeChatRequestSchema.parse(input.request);
-	const artifactStore = createWeChatOfficialAccountArtifactStoreFromEnv(input.env);
-	if (!artifactStore) {
-		throw new Error("WeChat source artifact store is required");
-	}
+	const artifactStore = createWeChatOfficialAccountArtifactStore(input.objectStore);
 	try {
 		const result = await captureFeedWeHistory({
 			abortSignal: input.abortSignal,
@@ -699,6 +687,74 @@ function parseInternalPortalCaptureRequest<
 	>;
 }
 
+function createOfficialWebArtifactStore(
+	objectStore: SourceCollectorObjectStore,
+): OfficialWebArtifactStore {
+	return {
+		async createOrVerifyObject(input) {
+			const stored = await objectStore.createOrVerifyObject({
+				abortSignal: input.abortSignal,
+				body: input.data,
+				bucket: objectStore.sourceBucket,
+				contentType: input.contentType,
+				key: input.objectKey,
+			});
+			return {
+				byteSize: stored.byteSize,
+				contentSha256: stored.contentSha256,
+				etag: stored.etag,
+				objectKey: input.objectKey,
+				recordCount: input.recordCount,
+				versionId: stored.versionId,
+			};
+		},
+	};
+}
+
+function createWeChatOfficialAccountArtifactStore(
+	objectStore: SourceCollectorObjectStore,
+): WeChatOfficialAccountArtifactStore {
+	return createOfficialWebArtifactStore(objectStore);
+}
+
+function createAuthenticatedNoticeArtifactStore(
+	objectStore: SourceCollectorObjectStore,
+): AuthenticatedNoticeArtifactStore {
+	return {
+		storageProvider: "object_store",
+		async createOrVerifyObject(input) {
+			const stored = await objectStore.createOrVerifyObject({
+				abortSignal: input.abortSignal,
+				body: input.data,
+				bucket: objectStore.sourceBucket,
+				contentType: input.contentType,
+				key: input.objectKey,
+				metadata: input.metadata,
+			});
+			return {
+				bucket: objectStore.sourceBucket,
+				byteSize: stored.byteSize,
+				contentSha256: stored.contentSha256,
+				etag: stored.etag,
+				objectKey: input.objectKey,
+				versionId: stored.versionId,
+			};
+		},
+		async headObject(input) {
+			const stored = await objectStore.headObject({
+				abortSignal: input.abortSignal,
+				bucket: objectStore.sourceBucket,
+				key: input.objectKey,
+			});
+			return {
+				...stored,
+				bucket: objectStore.sourceBucket,
+				objectKey: input.objectKey,
+			};
+		},
+	};
+}
+
 function bindObjectStoreCancellation(
 	objectStore: SourceCollectorObjectStore,
 	abortSignal: AbortSignal,
@@ -710,6 +766,12 @@ function bindObjectStoreCancellation(
 			const bytes = await objectStore.getObject({ ...input, abortSignal });
 			abortSignal.throwIfAborted();
 			return bytes;
+		},
+		async headObject(input) {
+			abortSignal.throwIfAborted();
+			const result = await objectStore.headObject({ ...input, abortSignal });
+			abortSignal.throwIfAborted();
+			return result;
 		},
 		async createOrVerifyObject(input) {
 			abortSignal.throwIfAborted();

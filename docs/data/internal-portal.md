@@ -6,6 +6,9 @@ status: active
 
 # 内部门户来源数据
 
+本页描述仓库中的离线采集目标合同。该运行时当前未部署，也没有 Ops Web 操作入口；文中的计划、
+发布和 PostgreSQL 投影只有在重新启用所属 ingestion runtime 后才成为环境事实。
+
 ## 发布链路
 
 内部门户数据通过来源级 Temporal 工作流发布到离线层：
@@ -32,7 +35,7 @@ PostgreSQL 当前检查点
 - collector 必须找到上次头部，并继续采集 `overlap_pages` 指定的重叠页；
 - 在安全页数内找不到上次头部时以 `checkpoint_gap` 结束，不更新发布指针或检查点；
 - `reconcile` 读取所有启用类型和全部分页，以来源当前集合替换发布集合，并记录撤回条目；
-- 通知计划在从未完整核对或距上次完整核对满 7 天时自动使用 `reconcile`，Ops Web 也可立即触发；
+- 通知计划在从未完整核对或距上次完整核对满 7 天时使用 `reconcile`；
 - `reconcile` 不推进增量检查点，也不接受通知数量上限；
 - `selected` 保留给明确 notice id/type 的受控采集。
 
@@ -54,7 +57,7 @@ unit，并在 stage result 的 `items` 中明确每条通知及其版本。校�
 ## 文件发布
 
 文件发布输入为 `internal_portal_file_release_capture_request.v2`，只接受一个精确正整数 ID。
-Ops Web 一次最多提交 50 个 ID，ingestion-control 为每个 ID 启动独立父工作流。采集结果必须
+ingestion-control 为每个 ID 启动独立父工作流。采集结果必须
 包含对象存储支撑的原文件；`reference_only` 记录不能发布成功。
 
 文件发布没有自动计划，也没有范围扫描。并发 ID 在提交时重新读取最新完整发布清单，按

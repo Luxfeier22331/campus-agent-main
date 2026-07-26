@@ -7,12 +7,6 @@ import { parse as parseDomain } from "tldts";
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = path.resolve(packageRoot, "../../../..");
 const DEFAULT_PORTAL_BASE_URL = "https://portal.example.edu";
-const RETIRED_INTERNAL_PORTAL_ENV_PREFIX = "AUTHENTICATED_NOTICE_";
-const RETIRED_INTERNAL_PORTAL_AUTH_KEYS = new Set([
-	"INTERNAL_PORTAL_JSESSIONID",
-	"INTERNAL_PORTAL_NGINX",
-	"INTERNAL_PORTAL_SSO_TGC",
-]);
 
 export interface InternalPortalConfig {
 	runtimeDir: string;
@@ -35,12 +29,10 @@ export interface InternalPortalConfig {
 export function loadInternalPortalEnv(): void {
 	dotenv.config({ path: path.join(repoRoot, ".env"), quiet: true });
 	dotenv.config({ path: path.join(packageRoot, ".env"), override: true, quiet: true });
-	assertNoRetiredInternalPortalEnv(process.env);
 	applyInternalPortalNoProxyEnv(process.env);
 }
 
 export function applyInternalPortalNoProxyEnv(target: NodeJS.ProcessEnv): void {
-	assertNoRetiredInternalPortalEnv(target);
 	const raw = target.NO_PROXY ?? target.no_proxy;
 	const portalHosts = resolvePortalNoProxyHosts(target);
 	const merged = shouldBypassProxyForPortal(target.INTERNAL_PORTAL_BYPASS_PROXY)
@@ -53,7 +45,6 @@ export function applyInternalPortalNoProxyEnv(target: NodeJS.ProcessEnv): void {
 export function resolveInternalPortalConfig(
 	source: NodeJS.ProcessEnv | Record<string, string | undefined>,
 ): InternalPortalConfig {
-	assertNoRetiredInternalPortalEnv(source);
 	const runtimeDir = path.resolve(
 		String(source.INTERNAL_PORTAL_RUNTIME_DIR || path.join(packageRoot, "runtime")),
 	);
@@ -204,20 +195,4 @@ function resolveSsoCookieDomain(input: {
 		throw new Error("INTERNAL_PORTAL_SSO_COOKIE_DOMAIN must match or parent the portal host");
 	}
 	return normalized.startsWith(".") ? `.${cookieHost}` : cookieHost;
-}
-
-function assertNoRetiredInternalPortalEnv(
-	source: NodeJS.ProcessEnv | Record<string, string | undefined>,
-): void {
-	const retiredKeys = Object.keys(source)
-		.filter(
-			(key) =>
-				key.startsWith(RETIRED_INTERNAL_PORTAL_ENV_PREFIX) ||
-				RETIRED_INTERNAL_PORTAL_AUTH_KEYS.has(key),
-		)
-		.sort();
-	if (retiredKeys.length === 0) {
-		return;
-	}
-	throw new Error(`retired internal-portal env keys are not supported: ${retiredKeys.join(", ")}`);
 }

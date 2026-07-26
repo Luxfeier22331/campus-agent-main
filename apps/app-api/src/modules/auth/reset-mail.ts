@@ -6,7 +6,6 @@ const PASSWORD_CHANGED_SUBJECT = "Your Campus Agent password was changed";
 export interface AuthResetMailConfig {
 	authShellOrigin: string;
 	authResetEmailFrom: string;
-	authResetEmailReplyTo?: string;
 	fetchImplementation?: typeof fetch;
 	resendApiKey: string;
 }
@@ -33,7 +32,6 @@ interface PasswordChangedEmailInput {
 interface ResendEmailPayload {
 	from: string;
 	html: string;
-	reply_to?: string;
 	subject: string;
 	text: string;
 	to: string[];
@@ -106,7 +104,6 @@ function buildPasswordResetEmailPayload(
 			`<p><a href="${resetUrl}">Reset your password</a></p>`,
 			"<p>If you did not request this change, you can ignore this email.</p>",
 		].join(""),
-		reply_to: config.authResetEmailReplyTo,
 		subject: PASSWORD_RESET_SUBJECT,
 		text: [
 			`Hello ${recipientName},`,
@@ -134,7 +131,6 @@ function buildPasswordChangedEmailPayload(
 			"<p>Your Campus Agent password was changed successfully.</p>",
 			"<p>If you did not make this change, contact support immediately.</p>",
 		].join(""),
-		reply_to: config.authResetEmailReplyTo,
 		subject: PASSWORD_CHANGED_SUBJECT,
 		text: [
 			`Hello ${recipientName},`,

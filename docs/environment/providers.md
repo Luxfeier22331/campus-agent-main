@@ -21,7 +21,7 @@ status: active
 | --- | --- | --- | --- |
 | LLM | execution-control 当前模型设置 | agent-runtime | Activity 调用读取当前值，不向浏览器返回密钥 |
 | 查询 Embedding | execution-control 当前模型设置 | 检索运行时 | 固定 Qwen3/2560，与索引发布配置相容，查询凭据不具备索引管理权限 |
-| 个人记忆 LLM、Embedding、RRF | Hindsight 固定 Secret 与 Deployment | Hindsight | Ops Web 只管理固定资源，不从 execution 配置或评测配置派生 |
+| 个人记忆 LLM、Embedding、RRF | 环境仓的 Hindsight Helm 配置 | Hindsight | 不从 execution 配置、Ops Web 或评测配置派生 |
 | 评测模型 | 评测命令运行环境 | Ragas 适配器 | 不复用在线配置数据库或浏览器凭据 |
 
 具体模型、维度、transport 和 endpoint 由当前模型设置、collection serving config 与
@@ -42,7 +42,8 @@ status: active
 ### 对象存储
 
 来源和派生产物使用 S3-compatible 接口及按 bucket、prefix 和操作范围限制的凭据。应用只获得
-直接消费对象所需权限；对象存储品牌不进入数据合同。
+直接消费对象所需权限；对象存储品牌不进入数据合同。Kubernetes 内的写入者使用各自 S3 凭据；
+当前 App API 的 Dining 资源接口通过 Workers VPC binding 访问明确前缀，不获得 S3 凭据。
 
 ## 产品与来源服务
 
@@ -51,7 +52,7 @@ status: active
 | 身份与安全验证 | App API、Campus Web | 账号、session、邮件验证和反滥用 |
 | 邮件服务 | App API | 密码重置和账号通知 |
 | 微信公众号来源 | Source Collector | 发现来源并取得采集入口，规范正文仍来自真实文章 |
-| 内部门户认证 | Source Collector 与 Ops Web | 固定认证凭据、会话建立和维护状态 |
+| 内部门户认证 | Source Collector | 采集命令读取凭据文件并建立来源会话；当前环境未部署该采集运行时 |
 | Cloudflare Worker 平台 | App API、Campus Web | Worker 运行、公开配置和平台绑定 |
 
 来源凭据只进入所属采集器或任务，不进入在线问答、浏览器或通用仓库根环境。个人调试凭据不能

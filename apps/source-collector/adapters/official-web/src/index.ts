@@ -1,10 +1,8 @@
 export type {
 	OfficialWebArtifactStore,
-	OfficialWebObjectStoreEnvironment,
 	StoredArtifactRef,
 } from "./artifact-store.ts";
 export {
-	createS3ArtifactStoreFromEnv,
 	FilesystemArtifactStore,
 	S3ArtifactStore,
 } from "./artifact-store.ts";

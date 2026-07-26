@@ -38,10 +38,22 @@ spec:
           ports:
             - name: http
               containerPort: 8000
-          envFrom:
-            - configMapRef:
-                name: execution-runtime-rendered-config
           env:
+            - name: DEPLOYMENT_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: execution-runtime-rendered-config
+                  key: DEPLOYMENT_ENVIRONMENT
+            - name: DEPLOYMENT_RELEASE
+              valueFrom:
+                configMapKeyRef:
+                  name: execution-runtime-rendered-config
+                  key: DEPLOYMENT_RELEASE
+            - name: EXECUTION_CONTROL_PROVIDER_CONFIG_KEYRING_PATH
+              valueFrom:
+                configMapKeyRef:
+                  name: execution-runtime-rendered-config
+                  key: EXECUTION_CONTROL_PROVIDER_CONFIG_KEYRING_PATH
             - name: CAMPUS_AGENT_HTTP_HOST
               value: 0.0.0.0
             - name: CAMPUS_AGENT_HTTP_PORT

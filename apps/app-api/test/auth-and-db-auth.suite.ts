@@ -29,7 +29,6 @@ export function registerAppApiAuthConfigSuite() {
 				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
 				environment: "production",
 				authResetEmailFrom: "Campus Agent <auth@example.com>",
-				authResetEmailReplyTo: "support@example.com",
 				authTurnstileSecretKey: "turnstile_secret_key",
 				resendApiKey: "resend_test_key",
 				resendFetch,
@@ -178,7 +177,6 @@ export function registerAppApiAuthConfigSuite() {
 				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
 				environment: "production",
 				authResetEmailFrom: "Campus Agent <auth@example.com>",
-				authResetEmailReplyTo: "support@example.com",
 				authTurnstileSecretKey: "turnstile_secret_key",
 				resendApiKey: "resend_test_key",
 				resendFetch,
@@ -223,10 +221,10 @@ export function registerAppApiAuthConfigSuite() {
 			};
 			expect(firstPayload).toMatchObject({
 				from: "Campus Agent <auth@example.com>",
-				reply_to: "support@example.com",
 				subject: "Reset your Campus Agent password",
 				to: ["jane@example.edu"],
 			});
+			expect(firstPayload).not.toHaveProperty("reply_to");
 			expect(firstPayload.html).toContain(
 				"https://campus.muc.wiki/api/auth/reset-password/reset_token_01HQ",
 			);

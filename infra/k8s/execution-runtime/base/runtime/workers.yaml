@@ -29,10 +29,27 @@ spec:
           image: ghcr.io/muc-wiki/campus-agent/execution-control:replace-me
           imagePullPolicy: IfNotPresent
           command: ["/usr/local/bin/workflow-worker"]
-          envFrom:
-            - configMapRef:
-                name: execution-runtime-rendered-config
           env:
+            - name: DEPLOYMENT_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: execution-runtime-rendered-config
+                  key: DEPLOYMENT_ENVIRONMENT
+            - name: DEPLOYMENT_RELEASE
+              valueFrom:
+                configMapKeyRef:
+                  name: execution-runtime-rendered-config
+                  key: DEPLOYMENT_RELEASE
+            - name: EXECUTION_CONTROL_TEMPORAL_ADDRESS
+              valueFrom:
+                configMapKeyRef:
+                  name: execution-runtime-rendered-config
+                  key: EXECUTION_CONTROL_TEMPORAL_ADDRESS
+            - name: EXECUTION_CONTROL_TEMPORAL_NAMESPACE
+              valueFrom:
+                configMapKeyRef:
+                  name: execution-runtime-rendered-config
+                  key: EXECUTION_CONTROL_TEMPORAL_NAMESPACE
             - name: EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY
               valueFrom:
                 fieldRef:
@@ -81,10 +98,47 @@ spec:
           image: ghcr.io/muc-wiki/campus-agent/execution-control:replace-me
           imagePullPolicy: IfNotPresent
           command: ["/usr/local/bin/activity-worker-core"]
-          envFrom:
-            - configMapRef:
-                name: execution-runtime-rendered-config
           env:
+            - name: DEPLOYMENT_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: execution-runtime-rendered-config
+                  key: DEPLOYMENT_ENVIRONMENT
+            - name: DEPLOYMENT_RELEASE
+              valueFrom:
+                configMapKeyRef:
+                  name: execution-runtime-rendered-config
+                  key: DEPLOYMENT_RELEASE
+            - name: EXECUTION_CONTROL_TEMPORAL_ADDRESS
+              valueFrom:
+                configMapKeyRef:
+                  name: execution-runtime-rendered-config
+                  key: EXECUTION_CONTROL_TEMPORAL_ADDRESS
+            - name: EXECUTION_CONTROL_TEMPORAL_NAMESPACE
+              valueFrom:
+                configMapKeyRef:
+                  name: execution-runtime-rendered-config
+                  key: EXECUTION_CONTROL_TEMPORAL_NAMESPACE
+            - name: EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: execution-runtime-rendered-config
+                  key: EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL
+            - name: PERSONAL_MEMORY_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: execution-runtime-rendered-config
+                  key: PERSONAL_MEMORY_BASE_URL
+            - name: LANGFUSE_MAINTENANCE_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: execution-runtime-rendered-config
+                  key: LANGFUSE_MAINTENANCE_BASE_URL
+            - name: LANGFUSE_MAINTENANCE_PUBLIC_KEY
+              valueFrom:
+                configMapKeyRef:
+                  name: execution-runtime-rendered-config
+                  key: LANGFUSE_MAINTENANCE_PUBLIC_KEY
             - name: EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY
               valueFrom:
                 fieldRef:
@@ -108,19 +162,16 @@ spec:
                 secretKeyRef:
                   name: hindsight-api-secrets
                   key: HINDSIGHT_API_TENANT_API_KEY
-                  optional: true
             - name: PERSONAL_MEMORY_OWNER_SALT
               valueFrom:
                 secretKeyRef:
                   name: execution-memory-client-secrets
                   key: PERSONAL_MEMORY_OWNER_SALT
-                  optional: true
             - name: LANGFUSE_MAINTENANCE_SECRET_KEY
               valueFrom:
                 secretKeyRef:
                   name: langfuse-secrets
                   key: LANGFUSE_SECRET_KEY
-                  optional: true
           volumeMounts:
             - name: postgres-ca
               mountPath: /etc/campus-agent/postgres
@@ -172,10 +223,37 @@ spec:
           image: ghcr.io/muc-wiki/campus-agent/execution-control:replace-me
           imagePullPolicy: IfNotPresent
           command: ["/usr/local/bin/activity-worker-agent"]
-          envFrom:
-            - configMapRef:
-                name: execution-runtime-rendered-config
           env:
+            - name: DEPLOYMENT_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: execution-runtime-rendered-config
+                  key: DEPLOYMENT_ENVIRONMENT
+            - name: DEPLOYMENT_RELEASE
+              valueFrom:
+                configMapKeyRef:
+                  name: execution-runtime-rendered-config
+                  key: DEPLOYMENT_RELEASE
+            - name: EXECUTION_CONTROL_TEMPORAL_ADDRESS
+              valueFrom:
+                configMapKeyRef:
+                  name: execution-runtime-rendered-config
+                  key: EXECUTION_CONTROL_TEMPORAL_ADDRESS
+            - name: EXECUTION_CONTROL_TEMPORAL_NAMESPACE
+              valueFrom:
+                configMapKeyRef:
+                  name: execution-runtime-rendered-config
+                  key: EXECUTION_CONTROL_TEMPORAL_NAMESPACE
+            - name: EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: execution-runtime-rendered-config
+                  key: EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL
+            - name: EXECUTION_CONTROL_PROVIDER_CONFIG_KEYRING_PATH
+              valueFrom:
+                configMapKeyRef:
+                  name: execution-runtime-rendered-config
+                  key: EXECUTION_CONTROL_PROVIDER_CONFIG_KEYRING_PATH
             - name: EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY
               valueFrom:
                 fieldRef:

@@ -5,10 +5,10 @@ import { DINING_BOOTSTRAP_FLOORPLANS } from "@campus-agent/dining/floorplans";
 import { buildDiningMapResponse, renderDiningMapAssets } from "@campus-agent/dining/publisher";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../src/app";
+import { loadDiningFloorplanAsset } from "../src/app/routes/campus-experience";
 import type { CampusExperienceService } from "../src/modules/campus-experience";
 
 const env = {
-	APP_API_NAME: "campus-agent-app-api",
 	APP_API_ENVIRONMENT: "test" as const,
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
 	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
@@ -138,7 +138,7 @@ describe("campus experience routes", () => {
 				new Response(markup, { headers: { "content-type": "image/svg+xml" }, status: 200 }),
 		);
 		const app = createApp(
-			{ ...env, OBJECT_STORE_DERIVED_PUBLIC_BASE_URL: "https://assets.example.test/public/" },
+			{ ...env, OBJECT_STORE_LOCAL_BASE_URL: "https://assets.example.test/public/" },
 			{ campusExperienceService: createService() },
 		);
 
@@ -155,10 +155,44 @@ describe("campus experience routes", () => {
 		);
 	});
 
+	it("uses the private object-store binding in a deployed environment", async () => {
+		const markup = '<svg xmlns="http://www.w3.org/2000/svg"></svg>';
+		const digest = createHash("sha256").update(markup).digest("hex");
+		const privateFetch = vi.fn(
+			async () =>
+				new Response(markup, { headers: { "content-type": "image/svg+xml" }, status: 200 }),
+		);
+		globalThis.fetch = vi.fn(async () => {
+			throw new Error("global fetch must not be used in staging");
+		});
+
+		await expect(
+			loadDiningFloorplanAsset(
+				{
+					...env,
+					APP_API_ENVIRONMENT: "staging",
+					OBJECT_STORE_PRIVATE: { fetch: privateFetch },
+				},
+				digest,
+			),
+		).resolves.toBeInstanceOf(Response);
+		expect(privateFetch).toHaveBeenCalledWith(
+			new URL(`http://object-store/campus-agent-derived/dining/floorplans/${digest}.svg`),
+			expect.objectContaining({ headers: { accept: "image/svg+xml" } }),
+		);
+		expect(globalThis.fetch).not.toHaveBeenCalled();
+	});
+
+	it("requires the private object-store binding in a deployed environment", async () => {
+		await expect(
+			loadDiningFloorplanAsset({ ...env, APP_API_ENVIRONMENT: "staging" }, "0".repeat(64)),
+		).rejects.toMatchObject({ code: "service_unavailable", status: 503 });
+	});
+
 	it("fails closed when a floorplan object does not match its content address", async () => {
 		globalThis.fetch = vi.fn(async () => new Response("<svg></svg>", { status: 200 }));
 		const app = createApp(
-			{ ...env, OBJECT_STORE_DERIVED_PUBLIC_BASE_URL: "https://assets.example.test/" },
+			{ ...env, OBJECT_STORE_LOCAL_BASE_URL: "https://assets.example.test/" },
 			{ campusExperienceService: createService() },
 		);
 

@@ -1,13 +1,11 @@
+import { END_USER_EMAIL_ALLOWLIST, END_USER_EMAIL_DOMAIN_ALLOWLIST } from "../../config.ts";
 import {
 	buildEndUserEmailAdmissionPolicy,
 	isEndUserEmailAllowedForAuth,
 } from "../../modules/auth/auth.ts";
 
 const DEFAULT_PASSWORD_ENV_KEY = "APP_API_SMOKE_IDENTITY_PASSWORD";
-const DEFAULT_APP_NAME = "campus-agent-app-api";
 const DEFAULT_AUTH_SHELL_ORIGIN = "https://campus-staging.mucwiki-edge.link";
-const DEFAULT_END_USER_EMAIL_DOMAIN_ALLOWLIST = "example.edu";
-const DEFAULT_END_USER_EMAIL_ALLOWLIST = "help_bot@outlook.com";
 const DEFAULT_EXECUTION_CONTROL_BASE_URL = "https://execution-control.internal";
 const DEFAULT_APP_API_EXECUTION_SHARED_SECRET = "smoke-identity-execution-secret";
 const DEFAULT_BETTER_AUTH_SECRET = "smoke-identity-secret-smoke-identity-secret";
@@ -24,7 +22,6 @@ interface SqlResult {
 
 interface SmokeIdentityProvisionInput {
 	appApiEnvironment: string;
-	appName: string;
 	authResetEmailFrom?: string;
 	authShellOrigin: string;
 	authTurnstileSecretKey: string;
@@ -32,8 +29,6 @@ interface SmokeIdentityProvisionInput {
 	captchaToken: string;
 	databaseSslMode: DatabaseSslMode;
 	email: string;
-	endUserEmailAllowlist: string;
-	endUserEmailDomainAllowlist: string;
 	executionControlBaseUrl: string;
 	appApiExecutionSharedSecret: string;
 	name: string;
@@ -163,13 +158,9 @@ export function readSmokeIdentityProvisionInput(
 	);
 	const authShellOrigin = env.AUTH_SHELL_ORIGIN?.trim() || DEFAULT_AUTH_SHELL_ORIGIN;
 	const authTurnstileSecretKey = resolveTurnstileSecretKey(env, appApiEnvironment, authShellOrigin);
-	const endUserEmailAllowlist =
-		env.APP_API_END_USER_EMAIL_ALLOWLIST?.trim() || DEFAULT_END_USER_EMAIL_ALLOWLIST;
-	const endUserEmailDomainAllowlist =
-		env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST?.trim() || DEFAULT_END_USER_EMAIL_DOMAIN_ALLOWLIST;
 	const policy = buildEndUserEmailAdmissionPolicy({
-		endUserEmailAllowlist: endUserEmailAllowlist.split(","),
-		endUserEmailDomainAllowlist: endUserEmailDomainAllowlist.split(","),
+		endUserEmailAllowlist: [...END_USER_EMAIL_ALLOWLIST],
+		endUserEmailDomainAllowlist: [...END_USER_EMAIL_DOMAIN_ALLOWLIST],
 	});
 	if (!isEndUserEmailAllowedForAuth(email, policy)) {
 		throw new Error(
@@ -187,14 +178,11 @@ export function readSmokeIdentityProvisionInput(
 
 	return {
 		appApiEnvironment,
-		appName: env.APP_API_NAME?.trim() || DEFAULT_APP_NAME,
 		authTurnstileSecretKey,
 		betterAuthSecret: env.BETTER_AUTH_SECRET?.trim() || DEFAULT_BETTER_AUTH_SECRET,
 		captchaToken: resolveSmokeCaptchaToken(env, authTurnstileSecretKey),
 		databaseSslMode: parseDatabaseSslMode(env.APP_API_DATABASE_SSLMODE?.trim()),
 		email,
-		endUserEmailAllowlist,
-		endUserEmailDomainAllowlist,
 		appApiExecutionSharedSecret:
 			env.APP_API_EXECUTION_SHARED_SECRET?.trim() || DEFAULT_APP_API_EXECUTION_SHARED_SECRET,
 		schemaDatabaseUrl,
@@ -215,7 +203,6 @@ export function buildSmokeIdentityProvisionRuntimeEnv(
 		"schemaDatabaseUrl is required for smoke identity provisioning.",
 	);
 	return {
-		APP_API_NAME: input.appName,
 		APP_API_ENVIRONMENT: input.appApiEnvironment,
 		APP_API_DATABASE_SSLMODE: input.databaseSslMode,
 		APP_API_DB: {
@@ -224,8 +211,6 @@ export function buildSmokeIdentityProvisionRuntimeEnv(
 		APP_API_DB_FRESH: {
 			connectionString: schemaDatabaseUrl,
 		},
-		APP_API_END_USER_EMAIL_ALLOWLIST: input.endUserEmailAllowlist,
-		APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: input.endUserEmailDomainAllowlist,
 		APP_API_EXECUTION_SHARED_SECRET: input.appApiExecutionSharedSecret,
 		APP_API_SCHEMA_DATABASE_URL: schemaDatabaseUrl,
 		AUTH_RESET_EMAIL_FROM: input.authResetEmailFrom || DEFAULT_AUTH_RESET_EMAIL_FROM,

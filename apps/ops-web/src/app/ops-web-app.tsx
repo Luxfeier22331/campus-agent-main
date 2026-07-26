@@ -8,15 +8,7 @@ import {
 	RouterProvider,
 	redirect,
 } from "@tanstack/react-router";
-import {
-	Activity,
-	ClipboardList,
-	Database,
-	KeyRound,
-	ServerCog,
-	UsersRound,
-	Utensils,
-} from "lucide-react";
+import { Activity, ClipboardList, ServerCog, UsersRound, Utensils } from "lucide-react";
 import { useMemo } from "react";
 import type { OpsOverviewWindow } from "../shared/ops-contract";
 import { DiningMenuPage } from "./dining-menu-page";
@@ -24,9 +16,6 @@ import { DiningPage } from "./dining-page";
 import { DiningReportsPage } from "./dining-reports-page";
 import { DiningReviewsPage } from "./dining-reviews-page";
 import { GroupsPage } from "./groups-page";
-import { IngestionPage } from "./ingestion-page";
-import { IngestionTaskPage } from "./ingestion-task-page";
-import { InternalPortalAuthPage } from "./internal-portal-auth-page";
 import { NotFoundPage } from "./not-found-page";
 import {
 	ignoredRequestSearchParamNames,
@@ -37,7 +26,7 @@ import {
 	optionalStatus,
 } from "./ops-view-helpers";
 import { OverviewPage } from "./overview-page";
-import { type ModelSettingsService, ProviderConfigPage } from "./provider-config-page";
+import { ProviderConfigPage } from "./provider-config-page";
 import { RequestDetailPage } from "./request-detail-page";
 import { RequestSystemPage } from "./request-system-page";
 import { RequestsPage as RequestsPageView } from "./requests-page";
@@ -125,28 +114,7 @@ const requestSystemRoute = createRoute({
 const providerConfigRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/providers",
-	validateSearch: (search: Record<string, unknown>) => ({
-		service: optionalModelSettingsService(search.service) ?? "execution",
-	}),
 	component: ProviderConfigRoute,
-});
-
-const internalPortalAuthRoute = createRoute({
-	getParentRoute: () => rootRoute,
-	path: "/internal-portal-auth",
-	component: InternalPortalAuthPage,
-});
-
-const ingestionRoute = createRoute({
-	getParentRoute: () => rootRoute,
-	path: "/ingestion",
-	component: IngestionPage,
-});
-
-const ingestionTaskRoute = createRoute({
-	getParentRoute: () => rootRoute,
-	path: "/ingestion/tasks/$taskId",
-	component: IngestionTaskRoute,
 });
 
 const diningRoute = createRoute({
@@ -186,9 +154,6 @@ const routeTree = rootRoute.addChildren([
 	requestSystemRoute,
 	requestDetailRoute,
 	providerConfigRoute,
-	internalPortalAuthRoute,
-	ingestionRoute,
-	ingestionTaskRoute,
 	diningRoute,
 	diningMenuRoute,
 	diningReviewsRoute,
@@ -223,8 +188,6 @@ function RootLayout() {
 				{ href: "/overview", icon: Activity, label: "运行概览" },
 				{ href: "/requests", icon: ClipboardList, label: "运行记录" },
 				{ href: "/providers", icon: ServerCog, label: "模型配置" },
-				{ href: "/ingestion", icon: Database, label: "采集运行" },
-				{ href: "/internal-portal-auth", icon: KeyRound, label: "门户认证" },
 				{ href: "/dining", icon: Utensils, label: "食堂" },
 				{ href: "/groups", icon: UsersRound, label: "同好群" },
 			]}
@@ -232,10 +195,6 @@ function RootLayout() {
 			<Outlet />
 		</SidebarLayout>
 	);
-}
-
-function IngestionTaskRoute() {
-	return <IngestionTaskPage taskId={ingestionTaskRoute.useParams().taskId} />;
 }
 
 function OverviewRoute() {
@@ -265,8 +224,7 @@ function RequestSystemRoute() {
 }
 
 function ProviderConfigRoute() {
-	const search = providerConfigRoute.useSearch();
-	return <ProviderConfigPage service={search.service} />;
+	return <ProviderConfigPage />;
 }
 
 function DiningRoute() {
@@ -275,8 +233,4 @@ function DiningRoute() {
 
 function optionalOverviewWindow(value: unknown): OpsOverviewWindow | undefined {
 	return value === "15m" || value === "1h" || value === "6h" || value === "24h" ? value : undefined;
-}
-
-function optionalModelSettingsService(value: unknown): ModelSettingsService | undefined {
-	return value === "execution" || value === "hindsight" ? value : undefined;
 }

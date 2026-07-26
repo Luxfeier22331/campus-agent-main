@@ -77,7 +77,6 @@ type Config struct {
 	ProviderConfigAdminDatabaseURL  string
 	ProviderConfigKeyringPath       string
 	QueryServingTargetsPath         string
-	ToolReadModelTrustedTimeRFC3339 string
 	ToolReadModelTimeoutMS          int
 	StructuredProjectionDatabaseURL string
 	QdrantURL                       string
@@ -137,7 +136,7 @@ type envValues struct {
 	ProviderConfigReaderDatabaseURL string `env:"EXECUTION_CONTROL_PROVIDER_CONFIG_READER_DATABASE_URL"`
 	ProviderConfigAdminDatabaseURL  string `env:"EXECUTION_CONTROL_PROVIDER_CONFIG_ADMIN_DATABASE_URL"`
 	ProviderConfigKeyringPath       string `env:"EXECUTION_CONTROL_PROVIDER_CONFIG_KEYRING_PATH"`
-	ToolReadModelTrustedTimeRFC3339 string `env:"EXECUTION_CONTROL_TOOL_READ_MODEL_TRUSTED_TIME_RFC3339"`
+	ToolReadDatabaseURL             string `env:"EXECUTION_CONTROL_TOOL_READ_DATABASE_URL"`
 	QdrantURL                       string `env:"QDRANT_URL"`
 	QdrantQueryAPIKey               string `env:"QDRANT_QUERY_API_KEY"`
 	QdrantTLSCACertPath             string `env:"QDRANT_TLS_CA_CERT_PATH"`
@@ -249,9 +248,8 @@ func loadFromEnv(role runtimeRole) (Config, error) {
 		ProviderConfigAdminDatabaseURL:  strings.TrimSpace(values.ProviderConfigAdminDatabaseURL),
 		ProviderConfigKeyringPath:       strings.TrimSpace(values.ProviderConfigKeyringPath),
 		QueryServingTargetsPath:         packagedQueryServingTargetsPath,
-		ToolReadModelTrustedTimeRFC3339: strings.TrimSpace(values.ToolReadModelTrustedTimeRFC3339),
 		ToolReadModelTimeoutMS:          defaultToolReadModelTimeoutMS,
-		StructuredProjectionDatabaseURL: readStructuredProjectionDatabaseURL(),
+		StructuredProjectionDatabaseURL: normalizePostgresDatabaseURL(values.ToolReadDatabaseURL),
 		QdrantURL:                       strings.TrimRight(strings.TrimSpace(values.QdrantURL), "/"),
 		QdrantQueryAPIKey:               strings.TrimSpace(values.QdrantQueryAPIKey),
 		QdrantTLSCACertPath:             strings.TrimSpace(values.QdrantTLSCACertPath),
@@ -291,6 +289,7 @@ func validateDeployedRole(values envValues, role runtimeRole) error {
 			struct{ name, value string }{"EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", values.RunProjectionDatabaseURL},
 			struct{ name, value string }{"APP_API_EXECUTION_SHARED_SECRET", values.AppAPIExecutionSharedSecret},
 			struct{ name, value string }{"EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL", values.AgentRuntimeBaseURL},
+			struct{ name, value string }{"EXECUTION_CONTROL_TOOL_READ_DATABASE_URL", values.ToolReadDatabaseURL},
 		)
 	case roleCoreActivityWorker:
 		required = append(required,

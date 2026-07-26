@@ -47,8 +47,8 @@ describe("chat e2e package scripts", () => {
 		);
 
 		expect(scriptSource).toContain("chat-e2e-local-dev.ts");
-		expect(scriptSource).toContain("EXECUTION_CONTROL_TIMEOUT_MS");
-		expect(scriptSource).toContain("CHAT_E2E_LOCAL_PROVIDER_TIMEOUT_MS");
+		expect(scriptSource).not.toContain("EXECUTION_CONTROL_TIMEOUT_MS");
+		expect(scriptSource).not.toContain("CHAT_E2E_LOCAL_PROVIDER_TIMEOUT_MS");
 		expect(scriptSource).toContain('"--restart-campus-web"');
 		expect(scriptSource).toContain('"--expect-model-execution-state"');
 		expect(scriptSource).toContain('"go_provider_synthesis_completed"');

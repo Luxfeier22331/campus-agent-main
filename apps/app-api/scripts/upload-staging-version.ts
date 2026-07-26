@@ -19,10 +19,6 @@ function requiredEnv(name: string): string {
 	return value;
 }
 
-function optionalEnv(name: string): string {
-	return process.env[name]?.trim() ?? "";
-}
-
 const preflight = spawnSync("pnpm", ["exec", "tsx", "./scripts/preflight-staging.ts"], {
 	cwd: appDir,
 	env: process.env,
@@ -43,6 +39,7 @@ try {
 		buildAppApiStagingUploadConfig(readFileSync(resolve(appDir, "wrangler.toml"), "utf8"), appDir, {
 			freshHyperdriveId: requiredEnv("APP_API_DB_FRESH_HYPERDRIVE_ID"),
 			hyperdriveId: requiredEnv("APP_API_DB_HYPERDRIVE_ID"),
+			objectStoreVpcServiceId: requiredEnv("OBJECT_STORE_VPC_SERVICE_ID"),
 			vpcServiceId: requiredEnv("EXECUTION_CONTROL_VPC_SERVICE_ID"),
 		}),
 		"utf8",
@@ -71,8 +68,6 @@ try {
 		},
 		variables: {
 			AUTH_RESET_EMAIL_FROM: requiredEnv("AUTH_RESET_EMAIL_FROM"),
-			AUTH_RESET_EMAIL_REPLY_TO: optionalEnv("AUTH_RESET_EMAIL_REPLY_TO"),
-			OBJECT_STORE_DERIVED_PUBLIC_BASE_URL: requiredEnv("OBJECT_STORE_DERIVED_PUBLIC_BASE_URL"),
 			SENTRY_DSN: requiredEnv("SENTRY_APP_API_DSN"),
 			SENTRY_RELEASE: sentryRelease,
 		},

@@ -1,4 +1,3 @@
-APP_API_NAME=campus-agent-app-api
 APP_API_ENVIRONMENT=development
 # Generate a high-entropy secret with at least 32 characters.
 BETTER_AUTH_SECRET=replace-with-dev-secret
@@ -6,24 +5,14 @@ AUTH_TURNSTILE_SECRET_KEY=replace-with-turnstile-secret-key
 RESEND_API_KEY=replace-with-resend-api-key
 OPS_WEB_INTERNAL_TOKEN=replace-with-ops-web-internal-token
 AUTH_RESET_EMAIL_FROM=Campus Agent <auth@example.com>
-# Optional. Keep empty unless your transactional mail setup needs a distinct reply-to.
-AUTH_RESET_EMAIL_REPLY_TO=
 # Generate a different high-entropy secret for anonymous safety identifier derivation.
 APP_API_SAFETY_IDENTIFIER_HMAC_SECRET=replace-with-safety-identifier-secret
 # Browser account shell origin. This is required.
 AUTH_SHELL_ORIGIN=https://campus.example.com
-# Comma-separated campus email domain suffixes allowed for end-user sign-up/sign-in.
-# Matches exact domains and subdomains, case-insensitively.
-APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST=example.edu
-# Optional exact email exceptions for end-user sign-up/sign-in.
-APP_API_END_USER_EMAIL_ALLOWLIST=help_bot@outlook.com
-# Comma-separated exact public notice hosts admitted into browser-facing source links.
-APP_API_PUBLIC_NOTICE_URL_ALLOWLIST=www.example.edu
-# Public read base for immutable derived assets. This base includes the bucket path.
-OBJECT_STORE_DERIVED_PUBLIC_BASE_URL=http://127.0.0.1:9000/campus-agent-derived/
+# Local read base for immutable derived assets. This base includes the bucket path.
+OBJECT_STORE_LOCAL_BASE_URL=http://127.0.0.1:9000/campus-agent-derived/
 EXECUTION_CONTROL_BASE_URL=https://execution-control.internal
 APP_API_EXECUTION_SHARED_SECRET=replace-with-execution-control-shared-secret
-EXECUTION_CONTROL_TIMEOUT_MS=8000
 APP_API_DATABASE_SSLMODE=prefer
 SENTRY_DSN=
 SENTRY_ENVIRONMENT=development

@@ -2,7 +2,6 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-agent_config="$repo_root/infra/otel/collector-agent-staging-template.yaml"
 env_file="$repo_root/infra/otel/collector.env.example"
 collector_image="otel/opentelemetry-collector-contrib:0.127.0@sha256:e94cfd92357aa21f4101dda3c0c01f90e6f24115ba91b263c4d09fed7911ae68"
 
@@ -12,9 +11,7 @@ aqua exec -- conftest test \
   --policy "$repo_root/infra/policies" \
   --parser yaml \
   "$repo_root/infra/otel/collector-local-debug.yaml" \
-  "$repo_root/infra/otel/collector-local-prodlike.yaml" \
-  "$repo_root/infra/otel/collector-staging-template.yaml" \
-  "$agent_config"
+  "$repo_root/infra/otel/collector-local-prodlike.yaml"
 
 docker_args=(
   --rm
@@ -51,9 +48,3 @@ validate_config() {
 
 validate_config "$repo_root/infra/otel/collector-local-debug.yaml"
 validate_config "$repo_root/infra/otel/collector-local-prodlike.yaml"
-validate_config "$repo_root/infra/otel/collector-staging-template.yaml"
-validate_config "$agent_config" \
-  --set=receivers::kubeletstats::auth_type=none \
-  --set=receivers::kubeletstats::ca_file= \
-  --set=receivers::kubeletstats::insecure_skip_verify=true \
-  --set=processors::k8sattributes::auth_type=none

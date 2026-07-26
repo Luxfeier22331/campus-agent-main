@@ -5,6 +5,5 @@ resources:
   - database-roles.yaml
   - database-grants-job.yaml
   - network-policy.yaml
-  - rbac.yaml
   - service-account.yaml
   - workload.yaml

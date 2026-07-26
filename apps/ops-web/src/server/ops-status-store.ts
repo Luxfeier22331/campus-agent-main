@@ -61,14 +61,10 @@ export interface OpsStatusEnv {
 	DEPLOYMENT_ENVIRONMENT?: string;
 	NODE_ENV?: string;
 	OPS_WEB_AXIOM_URL?: string;
-	OPS_WEB_CAMPUS_WEB_PUBLIC_ORIGIN?: string;
+	OPS_WEB_CAMPUS_WEB_URL?: string;
 	OPS_WEB_DATABASE_CA_CERT_PATH?: string;
 	OPS_WEB_DATABASE_SSLMODE?: string;
 	OPS_WEB_DATABASE_URL?: string;
-	OPS_WEB_DB_CONNECTION_TIMEOUT_MS?: string;
-	OPS_WEB_DB_IDLE_TIMEOUT_MS?: string;
-	OPS_WEB_DB_POOL_MAX?: string;
-	OPS_WEB_DB_STATEMENT_TIMEOUT_MS?: string;
 	OPS_WEB_INTERNAL_TOKEN?: string;
 	OPS_WEB_EXECUTION_CONTROL_URL?: string;
 	OPS_WEB_FIXTURE_MODE?: string;
@@ -214,11 +210,7 @@ export function createOpsStatusStoreFromEnv(env: OpsStatusEnv = process.env): Op
 	});
 	return createPgOpsStatusStore({
 		db: createPgOpsStatusStoreDatabase(databaseConfig.connectionString, {
-			connectionTimeoutMs: normalizePositiveIntegerEnv(env.OPS_WEB_DB_CONNECTION_TIMEOUT_MS),
-			idleTimeoutMs: normalizePositiveIntegerEnv(env.OPS_WEB_DB_IDLE_TIMEOUT_MS),
-			max: normalizePositiveIntegerEnv(env.OPS_WEB_DB_POOL_MAX),
 			ssl: databaseConfig.ssl,
-			statementTimeoutMs: normalizePositiveIntegerEnv(env.OPS_WEB_DB_STATEMENT_TIMEOUT_MS),
 		}),
 		temporalTaskQueues: createTemporalTaskQueueSource({
 			baseUrl: env.OPS_WEB_EXECUTION_CONTROL_URL ?? "",
@@ -234,7 +226,7 @@ export function createOpsStatusStoreFromEnv(env: OpsStatusEnv = process.env): Op
 				}) ?? undefined,
 			temporal: env.OPS_WEB_TEMPORAL_UI_URL,
 		},
-		campusWebPublicOrigin: resolveCampusWebPublicOrigin(env.OPS_WEB_CAMPUS_WEB_PUBLIC_ORIGIN),
+		campusWebPublicOrigin: resolveCampusWebPublicOrigin(env.OPS_WEB_CAMPUS_WEB_URL),
 	});
 }
 
@@ -274,14 +266,6 @@ export function assertFixtureModeAllowed(env: OpsStatusEnv): void {
 		"OPS_STATUS_STORE_UNAVAILABLE",
 		"OPS_WEB_FIXTURE_MODE is only allowed for tests or local development.",
 	);
-}
-
-function normalizePositiveIntegerEnv(value: string | undefined): number | undefined {
-	if (!value?.trim()) {
-		return;
-	}
-	const parsed = Number.parseInt(value, 10);
-	return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 export { createFixtureOpsStatusStore } from "./fixture-ops-status-store.ts";

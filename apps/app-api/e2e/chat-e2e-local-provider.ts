@@ -1,8 +1,6 @@
 import { spawn } from "node:child_process";
 import process from "node:process";
 
-const localProviderTimeoutMs = process.env.CHAT_E2E_LOCAL_PROVIDER_TIMEOUT_MS?.trim() || "180000";
-
 const args = [
 	"--dir",
 	new URL("..", import.meta.url).pathname,
@@ -23,8 +21,6 @@ const child = spawn("pnpm", args, {
 		...process.env,
 		EXECUTION_AGENT_RUNTIME_SHARED_SECRET:
 			process.env.EXECUTION_AGENT_RUNTIME_SHARED_SECRET || "agent-runtime-local-placeholder",
-		EXECUTION_CONTROL_TIMEOUT_MS:
-			process.env.EXECUTION_CONTROL_TIMEOUT_MS || localProviderTimeoutMs,
 	},
 	stdio: "inherit",
 });

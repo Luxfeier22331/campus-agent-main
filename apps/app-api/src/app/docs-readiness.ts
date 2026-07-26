@@ -47,7 +47,6 @@ export async function defaultDocsReadinessProbe(
 		buildBetterAuthConfig({
 			appName: config.appName,
 			authResetEmailFrom: config.authResetEmailFrom,
-			authResetEmailReplyTo: config.authResetEmailReplyTo,
 			authTurnstileSecretKey: config.authTurnstileSecretKey,
 			betterAuthSecret: config.betterAuthSecret,
 			database: {},

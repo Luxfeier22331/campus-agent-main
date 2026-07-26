@@ -36,9 +36,7 @@ async function main(): Promise<void> {
 		return;
 	}
 	const raw = path === "-" ? await readStdin() : await readFile(path, "utf8");
-	const prepared = prepareTransportPublication(JSON.parse(raw) as unknown, {
-		schemaPath: process.env.TRANSPORT_STATUS_SCHEMA_PATH,
-	});
+	const prepared = prepareTransportPublication(JSON.parse(raw) as unknown);
 	const result = await new PostgresTransportPublisher(databaseConfig).publish(prepared);
 	console.log(JSON.stringify(result));
 }

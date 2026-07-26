@@ -165,9 +165,17 @@ function normalizeHealthUrl(value: string | undefined) {
 	}
 	try {
 		const url = new URL(value);
-		return (url.protocol === "http:" || url.protocol === "https:") && url.pathname === "/readyz"
-			? url.toString()
-			: null;
+		if (
+			(url.protocol !== "http:" && url.protocol !== "https:") ||
+			url.username ||
+			url.password ||
+			url.pathname !== "/" ||
+			url.search ||
+			url.hash
+		) {
+			return null;
+		}
+		return new URL("/readyz", url).toString();
 	} catch {
 		return null;
 	}

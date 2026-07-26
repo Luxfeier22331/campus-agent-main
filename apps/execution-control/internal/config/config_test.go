@@ -39,6 +39,7 @@ func TestRoleLoadersRequireOnlyTheirDeployedDependencies(t *testing.T) {
 	t.Run("gateway", func(t *testing.T) {
 		setTemporalEnv(t, "execution-control-6b9d7f8c9d-abcde")
 		t.Setenv("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", "postgres://runtime/campus")
+		t.Setenv("EXECUTION_CONTROL_TOOL_READ_DATABASE_URL", "postgres://tool-read/campus")
 		t.Setenv("APP_API_EXECUTION_SHARED_SECRET", "app-api-secret")
 		t.Setenv("EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL", "http://agent-runtime:27062")
 		cfg, err := LoadGatewayFromEnv()
@@ -47,6 +48,9 @@ func TestRoleLoadersRequireOnlyTheirDeployedDependencies(t *testing.T) {
 		}
 		if cfg.RunProjectionDatabaseURL != "postgresql://runtime/campus" {
 			t.Fatalf("run projection URL = %q", cfg.RunProjectionDatabaseURL)
+		}
+		if cfg.StructuredProjectionDatabaseURL != "postgresql://tool-read/campus" {
+			t.Fatalf("structured projection URL = %q", cfg.StructuredProjectionDatabaseURL)
 		}
 	})
 

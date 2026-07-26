@@ -4,6 +4,7 @@ import { parse, stringify } from "smol-toml";
 export interface AppApiStagingResources {
 	hyperdriveId: string;
 	freshHyperdriveId: string;
+	objectStoreVpcServiceId: string;
 	vpcServiceId: string;
 }
 
@@ -60,6 +61,12 @@ export function buildAppApiStagingUploadConfig(
 		"EXECUTION_CONTROL_PRIVATE",
 		"service_id",
 		requireUuid("EXECUTION_CONTROL_VPC_SERVICE_ID", resources.vpcServiceId),
+	);
+	replaceBinding(
+		staging.vpc_services,
+		"OBJECT_STORE_PRIVATE",
+		"service_id",
+		requireUuid("OBJECT_STORE_VPC_SERVICE_ID", resources.objectStoreVpcServiceId),
 	);
 	replaceBinding(
 		staging.hyperdrive,

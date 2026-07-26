@@ -1,9 +1,4 @@
-import {
-	type Env,
-	isDeployedEnvironment,
-	readPublicNoticeURLAllowlist,
-	resolveEnvironment,
-} from "../config";
+import { type Env, isDeployedEnvironment, resolveEnvironment } from "../config";
 import { buildCampusExperienceService } from "../modules/campus-experience";
 import { buildCampusGroupsService, createPgCampusGroupsStore } from "../modules/campus-groups";
 import {
@@ -66,7 +61,7 @@ export function createRequestScopeFactory(input: {
 					executionRuntime,
 					isExecutionRuntimeConfigured: executionRuntimeConfigured,
 					profileMemoryStore: createPgProfileMemoryStore(input.env, { getDb: runtime.getDb }),
-					publicNoticeURLAllowlist: readPublicNoticeURLAllowlist(input.env),
+					publicNoticeURLAllowlist: [],
 					requireExecutionRuntime,
 					safetyIdentifierHmacSecret: input.env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET,
 					store: createPgChatCommandStore(input.env, { getDb: runtime.getDb }),

@@ -1,10 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { OpsWebApp } from "../src/app/ops-web-app";
-import type {
-	ExecutionModelSettingsStatus,
-	HindsightModelSettingsStatus,
-} from "../src/shared/ops-contract";
+import type { ExecutionModelSettingsStatus } from "../src/shared/ops-contract";
 
 const executionStatus: ExecutionModelSettingsStatus = {
 	etag: "etag-1",
@@ -36,32 +33,6 @@ const executionStatus: ExecutionModelSettingsStatus = {
 			updatedBy: "ops@example.test",
 		},
 	},
-};
-
-const driftedHindsightStatus: HindsightModelSettingsStatus = {
-	applyState: "blocked",
-	configState: "drifted",
-	embedding: {
-		baseUrl: "https://embedding.example.test/v1",
-		credentialConfigured: true,
-		credentialLast4: "demo",
-		dimensions: 2560,
-		model: "Qwen3-Embedding-4B",
-	},
-	etag: "hindsight-etag-1",
-	failure: null,
-	llm: {
-		baseUrl: "https://provider.example.test/v1",
-		credentialConfigured: true,
-		credentialLast4: "demo",
-		model: "hindsight-model",
-		provider: "openai",
-	},
-	rerank: { provider: "rrf" },
-	runtimeState: "running",
-	sampledAt: "2026-07-21T01:00:00.000Z",
-	updatedAt: "2026-07-21T01:00:00.000Z",
-	updatedBy: "ops@example.test",
 };
 
 describe("model settings page", () => {
@@ -130,70 +101,5 @@ describe("model settings page", () => {
 
 		expect(await screen.findByText(/已保存配置验证未通过/u)).toBeInTheDocument();
 		expect(screen.getByText(/供应商验证超时/u)).toBeInTheDocument();
-	});
-
-	it("repairs fixed Hindsight configuration without requiring a fake editable change", async () => {
-		let receivedBody: unknown;
-		vi.stubGlobal(
-			"fetch",
-			vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-				if (init?.method === "PUT") {
-					receivedBody = JSON.parse(String(init.body));
-					return Response.json({
-						...driftedHindsightStatus,
-						applyState: "pending",
-						configState: "configured",
-						etag: "hindsight-etag-2",
-					});
-				}
-				return Response.json(driftedHindsightStatus);
-			}),
-		);
-		render(<OpsWebApp initialPath="/providers?service=hindsight" />);
-
-		const repair = await screen.findByRole("button", { name: "修复固定配置" });
-		expect(repair).toBeEnabled();
-		fireEvent.click(repair);
-
-		await waitFor(() =>
-			expect(receivedBody).toEqual({
-				embedding: { apiKey: "", baseUrl: "https://embedding.example.test/v1" },
-				llm: {
-					apiKey: "",
-					baseUrl: "https://provider.example.test/v1",
-					model: "hindsight-model",
-				},
-			}),
-		);
-		expect(await screen.findByText("待应用")).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "应用配置" })).toBeEnabled();
-	});
-
-	it("prepares configuration without scaling up a stopped Hindsight service", async () => {
-		const pending: HindsightModelSettingsStatus = {
-			...driftedHindsightStatus,
-			applyState: "pending",
-			configState: "configured",
-			runtimeState: "scaled_down",
-		};
-		const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) =>
-			Response.json(
-				init?.method === "POST"
-					? { ...pending, applyState: "applied", sampledAt: "2026-07-21T01:01:00.000Z" }
-					: pending,
-			),
-		);
-		vi.stubGlobal("fetch", fetchMock);
-		render(<OpsWebApp initialPath="/providers?service=hindsight" />);
-
-		expect(await screen.findByText("服务未运行")).toBeInTheDocument();
-		expect(screen.getByText("配置已保存，服务当前未运行。请应用到下次启动。")).toBeInTheDocument();
-		fireEvent.click(screen.getByRole("button", { name: "应用到下次启动" }));
-
-		expect(await screen.findByText("已为下次启动准备")).toBeInTheDocument();
-		expect(fetchMock).toHaveBeenCalledWith(
-			"/api/ops/model-settings/hindsight/apply",
-			expect.objectContaining({ method: "POST" }),
-		);
 	});
 });

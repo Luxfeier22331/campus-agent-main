@@ -2,11 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import type { CampusGroupsCatalog } from "campus-contracts/campus-groups";
 
-import type {
-	ExecutionModelSettingsStatus,
-	HindsightModelSettingsStatus,
-	OpsInternalPortalAuthStatus,
-} from "../../src/shared/ops-contract.ts";
+import type { ExecutionModelSettingsStatus } from "../../src/shared/ops-contract.ts";
 
 const browserCampusGroup = {
 	id: "qq-760540871",
@@ -661,99 +657,6 @@ test("食堂举报处理后进入已处理列表", async ({ page }) => {
 	await expectStableViewport(page, errors);
 });
 
-test("采集页面可以进入通知采集任务", async ({ page }) => {
-	const errors = captureRuntimeErrors(page);
-	await page.goto("/ingestion");
-
-	await expect(page.getByRole("heading", { name: "采集运行" })).toBeVisible();
-	await expect(page.getByText("第 1 版")).toBeVisible();
-	await expect(page.getByRole("link", { name: "查看门户通知抓取任务" })).toBeVisible();
-	await expect(page.getByRole("main")).not.toContainText("run-001:capture");
-	await expect(page.getByRole("main")).not.toContainText("internal_portal.notice.capture");
-
-	await page.getByRole("button", { name: "立即完整核对" }).click();
-	await expect(page.getByText("完整核对已进入队列。")).toBeVisible();
-
-	await page.getByLabel("文件发布 ID").fill("646, 647");
-	await page.getByRole("button", { name: "开始采集" }).click();
-	await expect(page.getByText("已提交 2 个文件采集流程。")).toBeVisible();
-
-	await page.getByRole("button", { name: "暂停计划" }).click();
-	await expect(page.getByText("通知计划已暂停。")).toBeVisible();
-
-	await page.getByRole("link", { name: "查看门户通知抓取任务" }).click();
-	await expect(page.getByRole("heading", { name: "采集任务" })).toBeVisible();
-	await expectStableViewport(page, errors);
-});
-
-test("首次部署写入凭据后立即提交验证", async ({ page }) => {
-	const errors = captureRuntimeErrors(page);
-	const auth = await mockInternalPortalAuth(page, unconfiguredAuthStatus());
-	await page.goto("/internal-portal-auth");
-
-	await expect(page.getByRole("heading", { name: "门户认证" })).toBeVisible();
-	await expect(page.getByText("未配置")).toBeVisible();
-	await expect(page.getByText("等待配置")).toBeVisible();
-	await expect(page.getByRole("button", { name: "立即验证" })).toHaveCount(0);
-	const input = page.getByLabel("SSO_TGC 或 Cookie");
-	await input.fill("SSO_TGC=TGT-browser-ticket; JSESSIONID=session");
-	await page.getByRole("button", { name: "替换凭据" }).click();
-	await expect(
-		page.getByText("凭据已替换并提交验证，验证成功后通知采集将自动恢复。"),
-	).toBeVisible();
-	await expect(page.getByText("已配置")).toBeVisible();
-	await expect(page.getByText("等待验证")).toBeVisible();
-	await expect(input).toHaveValue("");
-	expect(auth.replacements).toEqual(["SSO_TGC=TGT-browser-ticket; JSESSIONID=session"]);
-	expect(auth.validationCount).toBe(1);
-	await expect(page.getByText("TGT-browser-ticket")).toHaveCount(0);
-	await expectStableViewport(page, errors);
-});
-
-test("已过期凭据必须替换而不能直接恢复", async ({ page }) => {
-	const errors = captureRuntimeErrors(page);
-	const auth = await mockInternalPortalAuth(page, expiredAuthStatus());
-	await page.goto("/internal-portal-auth");
-
-	await expect(page.getByText("已配置")).toBeVisible();
-	await expect(page.getByText("凭据已过期")).toBeVisible();
-	await expect(page.getByRole("button", { name: "立即验证" })).toBeVisible();
-	const input = page.getByLabel("SSO_TGC 或 Cookie");
-	await input.fill("TGT-replacement-ticket");
-	await page.getByRole("button", { name: "替换凭据" }).click();
-
-	await expect(page.getByText("等待验证")).toBeVisible();
-	await expect(input).toHaveValue("");
-	expect(auth.replacements).toEqual(["TGT-replacement-ticket"]);
-	await expect(page.getByText("TGT-replacement-ticket")).toHaveCount(0);
-	await expectStableViewport(page, errors);
-});
-
-test("新凭据已写入但验证未完成时可以立即重试", async ({ page }) => {
-	const errors = captureRuntimeErrors(page);
-	const auth = await mockInternalPortalAuth(page, pendingResumeAuthStatus());
-	await page.goto("/internal-portal-auth");
-
-	await expect(page.getByText("等待验证")).toBeVisible();
-	const validate = page.getByRole("button", { name: "立即验证" });
-	await validate.click();
-
-	await expect(page.getByText("验证已提交，成功后通知采集将自动恢复。")).toBeVisible();
-	expect(auth.validationCount).toBe(1);
-	await expectStableViewport(page, errors);
-});
-
-test("保活接口不可用时不会显示为等待验证", async ({ page }) => {
-	const errors = captureRuntimeErrors(page);
-	await mockInternalPortalAuth(page, unavailableAuthStatus());
-	await page.goto("/internal-portal-auth");
-
-	await expect(page.getByText("验证状态不可用")).toBeVisible();
-	await expect(page.getByText("等待验证")).toHaveCount(0);
-	await expect(page.getByRole("button", { name: "立即验证" })).toBeVisible();
-	await expectStableViewport(page, errors);
-});
-
 test("在线问答直接编辑当前 LLM 和 Embedding 配置", async ({ page }) => {
 	const errors = captureRuntimeErrors(page);
 	const modelSettings = await mockExecutionModelSettings(page);
@@ -776,76 +679,22 @@ test("在线问答直接编辑当前 LLM 和 Embedding 配置", async ({ page })
 	await expectStableViewport(page, errors);
 });
 
-test("Hindsight 保存后明确等待应用并可触发更新", async ({ page }) => {
-	const errors = captureRuntimeErrors(page);
-	const hindsight = await mockHindsightModelSettings(page);
-	await page.goto("/providers?service=hindsight");
-
-	await expect(page.getByText("hindsight-model", { exact: true })).toBeVisible();
-	await expect(page.getByText("配置已生效")).toBeVisible();
-	await page.getByLabel("模型", { exact: true }).first().fill("hindsight-model-next");
-	await page.getByRole("button", { name: "保存配置" }).click();
-
-	await expect(page.getByText("待应用")).toBeVisible();
-	await expect(page.getByLabel("模型", { exact: true })).toHaveValue("hindsight-model-next");
-	await page.getByRole("button", { name: "应用配置" }).click();
-	await expect(page.getByText("正在应用").first()).toBeVisible();
-	expect(hindsight.applyCount).toBe(1);
-	await expectStableViewport(page, errors);
-});
-
 test("未保存模型配置时确认离开", async ({ page }) => {
 	const errors = captureRuntimeErrors(page);
 	await mockExecutionModelSettings(page);
-	await mockHindsightModelSettings(page);
 	await page.goto("/providers");
 
 	await page.getByLabel("模型", { exact: true }).fill("unsaved-model");
-	await page.getByRole("link", { name: "个人记忆" }).click();
+	await page.getByRole("link", { name: "运行概览" }).click();
 	await expect(page.getByRole("dialog")).toBeVisible();
 	await page.getByRole("button", { name: "继续编辑" }).click();
 	await expect(page.getByLabel("模型", { exact: true })).toHaveValue("unsaved-model");
 
-	await page.getByRole("link", { name: "个人记忆" }).click();
+	await page.getByRole("link", { name: "运行概览" }).click();
 	await page.getByRole("button", { name: "放弃修改并离开" }).click();
-	await expect(page).toHaveURL(/service=hindsight/u);
+	await expect(page).toHaveURL(/\/overview/u);
 	await expectStableViewport(page, errors);
 });
-
-async function mockInternalPortalAuth(page: Page, initial: OpsInternalPortalAuthStatus) {
-	let status = structuredClone(initial);
-	const calls = { replacements: [] as string[], validationCount: 0 };
-	await page.route("**/api/ops/internal-portal-auth**", async (route) => {
-		const request = route.request();
-		const pathname = new URL(request.url()).pathname;
-		if (pathname === "/api/ops/internal-portal-auth" && request.method() === "GET") {
-			await route.fulfill({ json: status });
-			return;
-		}
-		if (pathname === "/api/ops/internal-portal-auth" && request.method() === "PUT") {
-			const body = request.postDataJSON() as { credential: string };
-			calls.replacements.push(body.credential);
-			calls.validationCount += 1;
-			status = statusAfterReplacement(status);
-			await route.fulfill({ json: status });
-			return;
-		}
-		if (
-			pathname === "/api/ops/internal-portal-auth/maintenance/validate" &&
-			request.method() === "POST"
-		) {
-			calls.validationCount += 1;
-			status = {
-				...status,
-				maintenance: { ...status.maintenance, scheduleState: "ACTIVE" },
-			};
-			await route.fulfill({ json: status });
-			return;
-		}
-		await route.fallback();
-	});
-	return calls;
-}
 
 async function mockExecutionModelSettings(page: Page) {
 	const state: ExecutionModelSettingsStatus & { receivedApiKeys: string[] } = {
@@ -909,146 +758,4 @@ async function mockExecutionModelSettings(page: Page) {
 		await route.fallback();
 	});
 	return state;
-}
-
-async function mockHindsightModelSettings(page: Page) {
-	const status: HindsightModelSettingsStatus = {
-		applyState: "applied",
-		configState: "configured",
-		etag: "hindsight-etag-1",
-		embedding: {
-			baseUrl: "https://embedding.example/v1",
-			credentialConfigured: true,
-			credentialLast4: "demo",
-			dimensions: 2560,
-			model: "Qwen3-Embedding-4B",
-		},
-		llm: {
-			baseUrl: "https://provider.example/v1",
-			credentialConfigured: true,
-			credentialLast4: "demo",
-			model: "hindsight-model",
-			provider: "openai",
-		},
-		failure: null,
-		rerank: { provider: "rrf" },
-		runtimeState: "running",
-		sampledAt: "2026-07-16T00:00:00.000Z",
-		updatedAt: "2026-07-16T00:00:00.000Z",
-		updatedBy: "ops@example.test",
-	};
-	const calls = { applyCount: 0 };
-	await page.route("**/api/ops/model-settings/hindsight**", async (route) => {
-		const request = route.request();
-		const path = new URL(request.url()).pathname;
-		if (path === "/api/ops/model-settings/hindsight" && request.method() === "GET") {
-			await route.fulfill({ json: status });
-			return;
-		}
-		if (path === "/api/ops/model-settings/hindsight" && request.method() === "PUT") {
-			const body = request.postDataJSON() as {
-				llm: { baseUrl: string; model: string };
-				embedding: { baseUrl: string };
-			};
-			status.llm.baseUrl = body.llm.baseUrl;
-			status.llm.model = body.llm.model;
-			status.embedding.baseUrl = body.embedding.baseUrl;
-			status.etag = "hindsight-etag-2";
-			status.applyState = "pending";
-			await route.fulfill({ json: status });
-			return;
-		}
-		if (path.endsWith("/apply") && request.method() === "POST") {
-			calls.applyCount += 1;
-			status.applyState = "applying";
-			await route.fulfill({ json: status });
-			return;
-		}
-		await route.fallback();
-	});
-	return calls;
-}
-
-function unconfiguredAuthStatus(): OpsInternalPortalAuthStatus {
-	return {
-		configured: false,
-		maintenance: emptyPausedMaintenance(),
-		observedLifetime: { lowerBoundSeconds: null, upperBoundSeconds: null },
-		updatedAt: null,
-		updatedBy: null,
-	};
-}
-
-function expiredAuthStatus(): OpsInternalPortalAuthStatus {
-	return {
-		configured: true,
-		maintenance: {
-			errorCode: "internal_portal_credential_expired",
-			lastAttemptAt: "2026-07-16T01:00:00.000Z",
-			lastOutcome: "CREDENTIAL_EXPIRED",
-			lastSuccessAt: "2026-07-16T00:30:02.000Z",
-			nextRunAt: null,
-			noticeProbeSucceeded: false,
-			portalSessionEstablished: false,
-			scheduleState: "PAUSED",
-			serviceTicketIssued: false,
-		},
-		observedLifetime: { lowerBoundSeconds: 1_802, upperBoundSeconds: 3_600 },
-		updatedAt: "2026-07-16T00:00:00.000Z",
-		updatedBy: "ops@example.test",
-	};
-}
-
-function pendingResumeAuthStatus(): OpsInternalPortalAuthStatus {
-	return {
-		configured: true,
-		maintenance: {
-			...emptyPausedMaintenance(),
-			lastAttemptAt: "2026-07-16T00:30:00.000Z",
-			lastOutcome: "CREDENTIAL_EXPIRED",
-		},
-		observedLifetime: { lowerBoundSeconds: null, upperBoundSeconds: null },
-		updatedAt: "2026-07-16T01:00:00.000Z",
-		updatedBy: "ops@example.test",
-	};
-}
-
-function unavailableAuthStatus(): OpsInternalPortalAuthStatus {
-	return {
-		configured: true,
-		maintenance: {
-			...emptyPausedMaintenance(),
-			scheduleState: "UNAVAILABLE",
-		},
-		observedLifetime: { lowerBoundSeconds: null, upperBoundSeconds: null },
-		updatedAt: "2026-07-16T01:00:00.000Z",
-		updatedBy: "ops@example.test",
-	};
-}
-
-function emptyPausedMaintenance(): OpsInternalPortalAuthStatus["maintenance"] {
-	return {
-		errorCode: null,
-		lastAttemptAt: null,
-		lastOutcome: null,
-		lastSuccessAt: null,
-		nextRunAt: null,
-		noticeProbeSucceeded: null,
-		portalSessionEstablished: null,
-		scheduleState: "PAUSED",
-		serviceTicketIssued: null,
-	};
-}
-
-function statusAfterReplacement(
-	previous: OpsInternalPortalAuthStatus,
-): OpsInternalPortalAuthStatus {
-	return {
-		...previous,
-		configured: true,
-		maintenance: { ...previous.maintenance, scheduleState: "ACTIVE" },
-		observedLifetime: { lowerBoundSeconds: null, upperBoundSeconds: null },
-		updatedAt: "2026-07-16T02:00:00.000Z",
-		updatedBy: "ops@example.test",
-	};
 }

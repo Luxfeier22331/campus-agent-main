@@ -32,7 +32,9 @@ app-api 拥有认证、聊天、请求观测、用户资料和个人记忆产品
 两个逻辑数据库。只有数据所有者文档明确允许的路径才能使用写后立即读通道。
 
 学生食堂接口只读取已发布的 `dining.map_releases` 和 `dining.map_publication`，并从统一
-derived bucket 读取按摘要命名的地图资源。App API 不读取草稿，也不执行地图编辑或发布。
+derived bucket 读取按摘要命名的地图资源。staging 和 production 通过 `OBJECT_STORE_PRIVATE`
+Workers VPC binding 访问集群内对象存储，不持有 S3 凭据或使用公开对象存储地址。App API 不读取
+草稿，也不执行地图编辑或发布。
 
 数据库 schema 与角色边界由 `docs/data/postgres-ownership.md` 维护，安装和迁移实现位于应用
 `ops/db/` 与 schema Job；README 不复制表清单和部署步骤。
@@ -62,5 +64,6 @@ pnpm --dir apps/app-api typecheck
 ```
 
 `pnpm dev:init` 在当前 worktree 的 App API 目录生成 `.env.local` 与 `.dev.vars.local`。不要手工修改或从根 `.env` 复制；外部凭据通过启动命令的进程环境或可选 secret manager 注入。只启动本应用时仍使用 profile 中的独立端口和 database。
+本地 Dining 平面图读取地址由生成的 `OBJECT_STORE_LOCAL_BASE_URL` 提供；部署环境不读取该变量。
 
 数据库安装入口见 `jobs/app-api-schema/README.md`，部署顺序见 `docs/runbooks/release.md`。

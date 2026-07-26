@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"os"
 	"strings"
 )
 
@@ -37,10 +36,6 @@ func firstString(values ...string) string {
 		}
 	}
 	return ""
-}
-
-func readStructuredProjectionDatabaseURL() string {
-	return normalizePostgresDatabaseURL(os.Getenv("CAMPUS_SHARED_POSTGRES_URL"))
 }
 
 func normalizePostgresDatabaseURL(databaseURL string) string {

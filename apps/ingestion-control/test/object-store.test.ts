@@ -95,8 +95,6 @@ describe("ingestion-control object store adapter", () => {
 		).toThrow("source and derived object-store credentials");
 		expect(
 			createS3IngestionObjectStoreFromEnv({
-				OBJECT_STORE_BUCKET_DERIVED: "campus-agent-derived",
-				OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
 				OBJECT_STORE_DERIVED_ACCESS_KEY: "derived",
 				OBJECT_STORE_DERIVED_SECRET_KEY: "derived-secret",
 				OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",

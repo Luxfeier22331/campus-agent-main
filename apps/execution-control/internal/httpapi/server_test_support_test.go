@@ -46,9 +46,8 @@ func newWorkerAuthServerForTest() *Server {
 
 func newToolReadModelAuthServerForTest() *Server {
 	return NewServer(config.Config{
-		AgentRuntimeSharedSecret:        "query-secret",
-		RAGTopKMax:                      8,
-		ToolReadModelTrustedTimeRFC3339: "2026-04-24T10:30:00+08:00",
+		AgentRuntimeSharedSecret: "query-secret",
+		RAGTopKMax:               8,
 	})
 }
 

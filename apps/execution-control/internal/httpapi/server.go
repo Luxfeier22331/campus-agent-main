@@ -191,7 +191,6 @@ func NewServerWithDependencies(
 	telemetryEmitter := telemetry.NewEmitter(context.Background(), cfg, logger)
 	toolReadModelRuntime := toolreadmodel.NewRuntime(toolreadmodel.Options{
 		StructuredProjectionDatabaseURL: cfg.StructuredProjectionDatabaseURL,
-		TrustedTimeRFC3339:              cfg.ToolReadModelTrustedTimeRFC3339,
 	})
 	runProjectionStore, runProjectionStoreErr := newRunProjectionStore(cfg)
 	providerConfigResolver, providerConfigErr := newProviderConfigResolver(cfg)

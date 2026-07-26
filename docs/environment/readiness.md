@@ -70,12 +70,12 @@ Execution Control、邮件、通知、Sentry、smoke 与定时清理属于独立
 
 Campus Web 顶层 `/readyz` 只要求应用外壳和 App API binding；`DOCS_RELEASE_ID` 缺失只让文档 API
 拒绝请求。Ops Web 顶层 `/readyz` 只要求访问控制和请求状态数据库；Dining、Axiom、Sentry 与被
-观测服务由各自页面或接口报告不可用。Ingestion API 不要求内部门户 `siteId`，需要执行门户任务的
-Temporal worker 单独要求该配置。
+观测服务由各自页面或接口报告不可用。采集运行时当前未部署，其本地就绪状态不属于 staging
+服务健康的一部分。
 
 一个界面的 `/readyz` 不代表聊天、文档、采集、评测或其他产品界面同时就绪。Kubernetes 对局部
-能力使用 `optional` Secret 或 ConfigMap key 引用，使缺失值交给对应消费者处理；核心数据库、服务
-身份和必需 worker 依赖保持非 optional，并可直接阻止所属 workload 启动。
+能力在所属接口处理缺少配置的错误；核心数据库、服务身份和必需 worker 依赖保持非 optional，
+并可直接阻止所属 workload 启动。
 
 ## 故障语义
 

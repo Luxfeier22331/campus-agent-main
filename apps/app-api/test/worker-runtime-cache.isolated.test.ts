@@ -42,9 +42,7 @@ vi.mock("@sentry/cloudflare", () => ({
 import worker from "../src/index";
 
 const env = {
-	APP_API_NAME: "campus-agent-app-api",
 	APP_API_ENVIRONMENT: "test" as const,
-	APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
 	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",

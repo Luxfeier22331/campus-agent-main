@@ -1,8 +1,7 @@
 import {
-	DEFAULT_EXECUTION_CONTROL_TIMEOUT_MS,
 	type Env,
+	EXECUTION_CONTROL_TIMEOUT_MS,
 	isDeployedEnvironment,
-	parsePositiveInteger,
 	resolveEnvironment,
 } from "../../config";
 import { applyTracePropagationHeaders } from "../telemetry/trace";
@@ -47,7 +46,6 @@ export async function probeExecutionControlReady(
 		| "EXECUTION_CONTROL_BASE_URL"
 		| "EXECUTION_CONTROL_PRIVATE"
 		| "EXECUTION_CONTROL_PRIVATE_ORIGIN"
-		| "EXECUTION_CONTROL_TIMEOUT_MS"
 	>,
 	input: {
 		fetchImplementation?: typeof fetch;
@@ -78,7 +76,6 @@ async function fetchExecutionControlReadyz(
 		| "EXECUTION_CONTROL_BASE_URL"
 		| "EXECUTION_CONTROL_PRIVATE"
 		| "EXECUTION_CONTROL_PRIVATE_ORIGIN"
-		| "EXECUTION_CONTROL_TIMEOUT_MS"
 	>,
 	input: {
 		fetchImplementation?: typeof fetch;
@@ -86,10 +83,7 @@ async function fetchExecutionControlReadyz(
 ): Promise<Response> {
 	const upstream = resolveExecutionControlUpstream(env);
 
-	const timeoutMs = parsePositiveInteger(
-		env.EXECUTION_CONTROL_TIMEOUT_MS,
-		DEFAULT_EXECUTION_CONTROL_TIMEOUT_MS,
-	);
+	const timeoutMs = EXECUTION_CONTROL_TIMEOUT_MS;
 	const fetchImplementation = selectExecutionControlFetchImplementation(
 		env,
 		upstream,

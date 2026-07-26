@@ -17,10 +17,10 @@ describe("ops runtime signals", () => {
 		const source = createOpsRuntimeSignalsSource({
 			fetchFn,
 			healthUrls: {
-				"agent-runtime": "http://agent-runtime:27062/readyz",
-				"app-api": "https://api.example.test/readyz",
-				"campus-web": "https://campus.example.test/readyz",
-				"execution-control": "http://execution-control:8000/readyz",
+				"agent-runtime": "http://agent-runtime:27062",
+				"app-api": "https://api.example.test",
+				"campus-web": "https://campus.example.test",
+				"execution-control": "http://execution-control:8000",
 			},
 			internalToken: "ops-web-token",
 			now: () => new Date("2026-07-09T06:30:00.000Z"),
@@ -89,10 +89,10 @@ describe("ops runtime signals", () => {
 		const source = createOpsRuntimeSignalsSource({
 			fetchFn,
 			healthUrls: {
-				"agent-runtime": "http://agent-runtime:27062/readyz",
-				"app-api": "https://api.example.test/readyz",
-				"campus-web": "https://campus.example.test/readyz",
-				"execution-control": "http://execution-control:8000/readyz",
+				"agent-runtime": "http://agent-runtime:27062",
+				"app-api": "https://api.example.test",
+				"campus-web": "https://campus.example.test",
+				"execution-control": "http://execution-control:8000",
 			},
 			axiom: {
 				getTelemetrySnapshot: vi.fn().mockResolvedValue(opsOverviewFixture.telemetry),
@@ -124,7 +124,7 @@ describe("ops runtime signals", () => {
 	it("treats connection failures as unavailable rather than confirmed outages", async () => {
 		const source = createOpsRuntimeSignalsSource({
 			fetchFn: vi.fn<typeof fetch>().mockRejectedValue(new TypeError("connection refused")),
-			healthUrls: { "agent-runtime": "http://agent-runtime:27062/readyz" },
+			healthUrls: { "agent-runtime": "http://agent-runtime:27062" },
 			axiom: {
 				getTelemetrySnapshot: vi.fn().mockResolvedValue(opsOverviewFixture.telemetry),
 				queryRequest: vi.fn(),
@@ -136,12 +136,12 @@ describe("ops runtime signals", () => {
 		]);
 	});
 
-	it("omits endpoints that are not explicit readiness URLs", async () => {
+	it("omits endpoints that are not HTTP(S) root URLs", async () => {
 		const fetchFn = vi.fn<typeof fetch>();
 		const source = createOpsRuntimeSignalsSource({
 			fetchFn,
 			healthUrls: {
-				"campus-web": "https://campus.example.test/",
+				"campus-web": "ftp://campus.example.test",
 				"app-api": "https://api.example.test/healthz",
 			},
 			axiom: {

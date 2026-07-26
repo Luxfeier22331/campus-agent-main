@@ -11,7 +11,6 @@ const temporal = vi.hoisted(() => ({
 	signal: new AbortController().signal,
 }));
 const officialWeb = vi.hoisted(() => ({
-	createArtifactStore: vi.fn(() => ({})),
 	crawlSite: vi.fn(),
 }));
 
@@ -26,7 +25,6 @@ vi.mock("@temporalio/activity", () => ({
 }));
 
 vi.mock("../adapters/official-web/src/index.ts", () => ({
-	createS3ArtifactStoreFromEnv: officialWeb.createArtifactStore,
 	crawlSite: officialWeb.crawlSite,
 }));
 
@@ -192,15 +190,43 @@ class MemoryObjectStore implements SourceCollectorObjectStore {
 		return bytes;
 	}
 
+	async headObject(input: { bucket: string; key: string }): Promise<{
+		byteSize: number | null;
+		contentSha256: string | null;
+		etag: string | null;
+		versionId: string | null;
+	}> {
+		const bytes = this.#objects.get(`s3://${input.bucket}/${input.key}`);
+		if (!bytes) {
+			throw new Error(`missing test object: s3://${input.bucket}/${input.key}`);
+		}
+		return {
+			byteSize: bytes.byteLength,
+			contentSha256: sha256Hex(bytes),
+			etag: null,
+			versionId: null,
+		};
+	}
+
 	async createOrVerifyObject(input: {
 		body: Uint8Array;
 		bucket: string;
 		contentType: string;
 		key: string;
 		metadata?: Record<string, string>;
-	}): Promise<{ byteSize: number; contentSha256: string }> {
+	}): Promise<{
+		byteSize: number;
+		contentSha256: string;
+		etag: string | null;
+		versionId: string | null;
+	}> {
 		this.#objects.set(`s3://${input.bucket}/${input.key}`, input.body);
-		return { byteSize: input.body.byteLength, contentSha256: sha256Hex(input.body) };
+		return {
+			byteSize: input.body.byteLength,
+			contentSha256: sha256Hex(input.body),
+			etag: null,
+			versionId: null,
+		};
 	}
 
 	readJson(uri: string): Record<string, unknown> {

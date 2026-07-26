@@ -27,12 +27,9 @@ export interface IngestionObjectStore extends ObjectStore {
 }
 
 export interface IngestionObjectStoreEnvironment {
-	OBJECT_STORE_BUCKET_DERIVED?: string;
-	OBJECT_STORE_BUCKET_SOURCE?: string;
 	OBJECT_STORE_DERIVED_ACCESS_KEY?: string;
 	OBJECT_STORE_DERIVED_SECRET_KEY?: string;
 	OBJECT_STORE_ENDPOINT?: string;
-	OBJECT_STORE_REGION?: string;
 	OBJECT_STORE_SOURCE_ACCESS_KEY?: string;
 	OBJECT_STORE_SOURCE_SECRET_KEY?: string;
 }
@@ -74,16 +71,12 @@ export function createS3IngestionObjectStoreFromEnv(
 			"ingestion worker requires OBJECT_STORE_ENDPOINT plus source and derived object-store credentials",
 		);
 	}
-	const sourceBucket = env.OBJECT_STORE_BUCKET_SOURCE?.trim() || "campus-agent-source";
-	const derivedBucket = env.OBJECT_STORE_BUCKET_DERIVED?.trim() || "campus-agent-derived";
-	if (sourceBucket === derivedBucket) {
-		throw new Error("source and derived object-store buckets must be distinct");
-	}
-	const region = env.OBJECT_STORE_REGION?.trim() || "us-east-1";
+	const sourceBucket = "campus-agent-source";
+	const derivedBucket = "campus-agent-derived";
 	const createClient = (accessKeyId: string, secretAccessKey: string) =>
 		new S3Client({
 			endpoint,
-			region,
+			region: "us-east-1",
 			credentials: { accessKeyId, secretAccessKey },
 			forcePathStyle: true,
 		});

@@ -14,24 +14,12 @@ import {
 	CampusGroupsCatalogSchema,
 } from "campus-contracts/campus-groups";
 import { Hono } from "hono";
-import { bodyLimit } from "hono/body-limit";
 import { secureHeaders } from "hono/secure-headers";
 import { z } from "zod";
 import { DiningDraftUpdateSchema, DiningRevisionSchema } from "../shared/dining-contract.ts";
 import {
-	HindsightModelSettingsStatusSchema,
-	HindsightModelSettingsUpdateSchema,
 	ModelSettingKindSchema,
 	ModelSettingUpdateSchema,
-	OpsFileReleaseBatchStartSchema,
-	OpsIngestionTaskListSchema,
-	OpsIngestionTaskRetryStartSchema,
-	OpsIngestionTaskSchema,
-	OpsIngestionWorkflowStartSchema,
-	OpsInternalPortalAuthStatusSchema,
-	OpsInternalPortalAuthUpdateSchema,
-	OpsInternalPortalIngestionStatusSchema,
-	OpsInternalPortalPublicationStatusSchema,
 	OpsObservabilityResponseSchema,
 	OpsOverviewResponseSchema,
 	OpsOverviewWindowSchema,
@@ -69,29 +57,6 @@ import {
 	DiningStoreValidationError,
 } from "./dining-store.ts";
 import {
-	createKubernetesHindsightModelSettingsStore,
-	createUnavailableHindsightModelSettingsStore,
-	HindsightModelSettingsConflictError,
-	type HindsightModelSettingsStore,
-	HindsightModelSettingsStoreUnavailableError,
-} from "./hindsight-model-settings-store.ts";
-import {
-	createIngestionControlClientFromEnv,
-	type IngestionControlClient,
-	type IngestionControlEnv,
-	IngestionControlResponseError,
-	IngestionControlUnavailableError,
-	type InternalPortalAuthMaintenanceClient,
-	unavailableMaintenanceStatus,
-} from "./ingestion-control-client.ts";
-import {
-	createKubernetesInternalPortalAuthStore,
-	createUnavailableInternalPortalAuthStore,
-	type InternalPortalAuthStore,
-	InternalPortalAuthStoreUnavailableError,
-	parseInternalPortalCredential,
-} from "./internal-portal-auth-store.ts";
-import {
 	createCloudflareAccessOpsAdmission,
 	getMissingAccessConfig,
 	type OpsAdmission,
@@ -124,9 +89,10 @@ import {
 } from "./sentry-client.ts";
 
 interface OpsHealthEnv {
-	OPS_WEB_HEALTH_AGENT_RUNTIME_URL?: string;
-	OPS_WEB_HEALTH_CAMPUS_WEB_URL?: string;
-	OPS_WEB_HEALTH_EXECUTION_CONTROL_URL?: string;
+	OPS_WEB_AGENT_RUNTIME_URL?: string;
+	OPS_WEB_APP_API_URL?: string;
+	OPS_WEB_CAMPUS_WEB_URL?: string;
+	OPS_WEB_EXECUTION_CONTROL_URL?: string;
 	OPS_WEB_PUBLIC_ORIGIN?: string;
 }
 
@@ -134,7 +100,6 @@ type OpsAppEnv = OpsAdmissionEnv &
 	AxiomEnv &
 	CampusGroupsAdminEnv &
 	DiningStoreEnv &
-	IngestionControlEnv &
 	OpsHealthEnv &
 	OpsStatusEnv &
 	ProviderConfigAdminEnv &
@@ -146,10 +111,6 @@ interface OpsAppOptions {
 	env?: OpsAppEnv;
 	diningStore?: DiningStore;
 	diningContentStore?: DiningContentStore;
-	hindsightModelSettingsStore?: HindsightModelSettingsStore;
-	internalPortalAuthStore?: InternalPortalAuthStore;
-	internalPortalMaintenanceClient?: InternalPortalAuthMaintenanceClient;
-	ingestionControlClient?: IngestionControlClient;
 	overviewService?: OpsOverviewService;
 	sentry?: SentryClient;
 	staticRoot?: string;
@@ -176,39 +137,6 @@ const RequestListQuerySchema = z
 	.strict();
 const OverviewQuerySchema = z.object({ window: OpsOverviewWindowSchema.default("1h") }).strict();
 const ObservabilityQuerySchema = z.object({ kind: z.enum(["logs", "trace"]) }).strict();
-const IngestionRequestIdSchema = z
-	.string()
-	.trim()
-	.min(1)
-	.max(128)
-	.regex(/^[A-Za-z0-9][A-Za-z0-9._:-]*$/u);
-const IngestionTaskListQuerySchema = z
-	.object({
-		collection: z.string().trim().min(1).max(128).optional(),
-		corpus: z.string().trim().min(1).max(128).optional(),
-		cursor: z.string().trim().min(1).max(512).optional(),
-		limit: z.coerce.number().int().min(1).max(200).default(50),
-		registry_task_id: z.string().trim().min(1).max(128).optional(),
-		run_id: z.string().trim().min(1).max(200).optional(),
-		source_channel: z.string().trim().min(1).max(128).optional(),
-		source_family: z.string().trim().min(1).max(128).optional(),
-		status: z.enum(["running", "completed", "failed", "canceled"]).optional(),
-	})
-	.strict();
-const IngestionReconcileBodySchema = z
-	.object({
-		requestId: IngestionRequestIdSchema,
-	})
-	.strict();
-const FileReleaseBatchBodySchema = z
-	.object({
-		fileReleaseIds: z.array(z.number().int().positive()).min(1).max(50),
-		requestId: IngestionRequestIdSchema,
-	})
-	.strict()
-	.refine((value) => new Set(value.fileReleaseIds).size === value.fileReleaseIds.length, {
-		message: "fileReleaseIds must not contain duplicates",
-	});
 const OpsPathIdSchema = z
 	.string()
 	.min(1)
@@ -241,14 +169,6 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	const diningStore = options.diningStore ?? createDefaultDiningStore(env);
 	const diningContentStore = options.diningContentStore ?? createDefaultDiningContentStore(env);
 	const admission = options.admission ?? createCloudflareAccessOpsAdmission(env);
-	const internalPortalAuthStore =
-		options.internalPortalAuthStore ?? createDefaultInternalPortalAuthStore();
-	const hindsightModelSettingsStore =
-		options.hindsightModelSettingsStore ?? createDefaultHindsightModelSettingsStore();
-	const ingestionControlClient =
-		options.ingestionControlClient ?? createIngestionControlClientFromEnv(env);
-	const internalPortalMaintenanceClient =
-		options.internalPortalMaintenanceClient ?? ingestionControlClient;
 	const staticRoot = options.staticRoot ?? "dist";
 	const store = options.store ?? createDefaultOpsStatusStore(env);
 	const axiom = options.axiom ?? createDefaultAxiomClient(env);
@@ -258,10 +178,10 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		createOpsOverviewService({
 			signals: createOpsRuntimeSignalsSource({
 				healthUrls: {
-					"agent-runtime": env.OPS_WEB_HEALTH_AGENT_RUNTIME_URL,
-					"app-api": env.OPS_WEB_HEALTH_APP_API_URL,
-					"campus-web": env.OPS_WEB_HEALTH_CAMPUS_WEB_URL,
-					"execution-control": env.OPS_WEB_HEALTH_EXECUTION_CONTROL_URL,
+					"agent-runtime": env.OPS_WEB_AGENT_RUNTIME_URL,
+					"app-api": env.OPS_WEB_APP_API_URL,
+					"campus-web": env.OPS_WEB_CAMPUS_WEB_URL,
+					"execution-control": env.OPS_WEB_EXECUTION_CONTROL_URL,
 				},
 				internalToken: env.OPS_WEB_INTERNAL_TOKEN,
 				axiom,
@@ -272,7 +192,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	const campusGroupsClient =
 		options.campusGroupsClient ??
 		createCampusGroupsAdminClient({
-			OPS_WEB_HEALTH_APP_API_URL: env.OPS_WEB_HEALTH_APP_API_URL,
+			OPS_WEB_APP_API_URL: env.OPS_WEB_APP_API_URL,
 			OPS_WEB_INTERNAL_TOKEN: env.OPS_WEB_INTERNAL_TOKEN,
 		});
 
@@ -308,12 +228,6 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		if (error instanceof AxiomUnavailableError) {
 			return jsonError("OPS_OBSERVABILITY_UNAVAILABLE", "Axiom 数据不可用。", 503);
 		}
-		if (error instanceof IngestionControlUnavailableError) {
-			return jsonError("OPS_INGESTION_UNAVAILABLE", "采集控制服务不可用。", 503);
-		}
-		if (error instanceof IngestionControlResponseError) {
-			return ingestionControlErrorResponse(error);
-		}
 		if (error instanceof SentryUnavailableError) {
 			return jsonError("OPS_SENTRY_UNAVAILABLE", "Sentry Issue 数据不可用。", 503);
 		}
@@ -331,34 +245,6 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		}
 		if (error instanceof CampusGroupsRequestError) {
 			return jsonError("OPS_CAMPUS_GROUPS_REQUEST_INVALID", error.message, 400);
-		}
-		if (error instanceof HindsightModelSettingsConflictError) {
-			return jsonError(
-				"OPS_HINDSIGHT_MODEL_SETTINGS_CONFLICT",
-				"个人记忆配置或运行状态已变化，请刷新后重试。",
-				409,
-			);
-		}
-		if (error instanceof HindsightModelSettingsStoreUnavailableError) {
-			const invalid =
-				error.reasonCode === "LLM_API_KEY_REQUIRED" ||
-				error.reasonCode === "EMBEDDING_API_KEY_REQUIRED" ||
-				error.reasonCode === "MODEL_CONFIG_INCOMPLETE" ||
-				error.reasonCode === "MODEL_CONFIG_DRIFTED";
-			const message =
-				error.reasonCode === "MODEL_CONFIG_DRIFTED"
-					? "固定模型配置与服务合同不一致，请保存配置修复后重试。"
-					: invalid
-						? "请补全个人记忆模型配置后重试。"
-						: "个人记忆模型配置暂不可用。";
-			return jsonError(
-				invalid
-					? "OPS_HINDSIGHT_MODEL_SETTINGS_INVALID"
-					: "OPS_HINDSIGHT_MODEL_SETTINGS_UNAVAILABLE",
-				message,
-				invalid ? 400 : 503,
-				{ reasonCode: error.reasonCode },
-			);
 		}
 		if (error instanceof DiningStoreUnavailableError) {
 			return jsonError("OPS_DINING_STORE_UNAVAILABLE", "食堂管理数据库不可用。", 503);
@@ -426,241 +312,6 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	app.use("/api/ops/*", async (context, next) => {
 		context.header("cache-control", "no-store");
 		await next();
-	});
-
-	app.get("/api/ops/ingestion/status", async (context) => {
-		const operator = await admitOpsApiRequest(admission, context.req.raw);
-		return operator instanceof Response
-			? operator
-			: context.json(
-					OpsInternalPortalIngestionStatusSchema.parse(
-						await ingestionControlClient.getInternalPortalStatus(),
-					),
-				);
-	});
-
-	app.get("/api/ops/ingestion/tasks", async (context) => {
-		const operator = await admitOpsApiRequest(admission, context.req.raw);
-		if (operator instanceof Response) {
-			return operator;
-		}
-		const parsed = IngestionTaskListQuerySchema.safeParse(context.req.query());
-		if (!parsed.success) {
-			return jsonError("OPS_INGESTION_QUERY_INVALID", "采集任务查询条件无效。", 400);
-		}
-		const query = new URLSearchParams();
-		for (const [key, value] of Object.entries(parsed.data)) {
-			if (value !== undefined) {
-				query.set(key, String(value));
-			}
-		}
-		return context.json(
-			OpsIngestionTaskListSchema.parse(await ingestionControlClient.listTasks(query)),
-		);
-	});
-
-	app.get("/api/ops/ingestion/tasks/:taskId", async (context) => {
-		const operator = await admitOpsApiRequest(admission, context.req.raw);
-		if (operator instanceof Response) {
-			return operator;
-		}
-		const taskId = OpsPathIdSchema.safeParse(context.req.param("taskId"));
-		return taskId.success
-			? context.json(
-					OpsIngestionTaskSchema.parse(await ingestionControlClient.getTask(taskId.data)),
-				)
-			: jsonError("OPS_INGESTION_TASK_ID_INVALID", "采集任务标识无效。", 400);
-	});
-
-	app.post("/api/ops/ingestion/tasks/:taskId/retry", async (context) => {
-		const operator = await requireHumanOpsMutation(admission, context.req.raw, publicOrigin);
-		if (operator instanceof Response) {
-			return operator;
-		}
-		const taskId = OpsPathIdSchema.safeParse(context.req.param("taskId"));
-		return taskId.success
-			? context.json(
-					OpsIngestionTaskRetryStartSchema.parse(
-						await ingestionControlClient.retryTask(taskId.data, operator.operatorId),
-					),
-					202,
-				)
-			: jsonError("OPS_INGESTION_TASK_ID_INVALID", "采集任务标识无效。", 400);
-	});
-
-	app.post("/api/ops/ingestion/notice/pause", async (context) => {
-		const operator = await requireHumanOpsMutation(admission, context.req.raw, publicOrigin);
-		return operator instanceof Response
-			? operator
-			: context.json(
-					OpsInternalPortalPublicationStatusSchema.parse(
-						await ingestionControlClient.pauseNoticePublication(operator.operatorId),
-					),
-				);
-	});
-
-	app.post("/api/ops/ingestion/notice/resume", async (context) => {
-		const operator = await requireHumanOpsMutation(admission, context.req.raw, publicOrigin);
-		return operator instanceof Response
-			? operator
-			: context.json(
-					OpsInternalPortalPublicationStatusSchema.parse(
-						await ingestionControlClient.resumeNoticePublication(operator.operatorId),
-					),
-				);
-	});
-
-	app.post(
-		"/api/ops/ingestion/notice/reconcile",
-		bodyLimit({
-			maxSize: 1024,
-			onError: () => jsonError("OPS_INGESTION_BODY_INVALID", "请求正文无效。", 400),
-		}),
-		async (context) => {
-			const operator = await requireHumanOpsMutation(admission, context.req.raw, publicOrigin);
-			if (operator instanceof Response) {
-				return operator;
-			}
-			const body = IngestionReconcileBodySchema.safeParse(
-				await context.req.json().catch(() => undefined),
-			);
-			return body.success
-				? context.json(
-						OpsIngestionWorkflowStartSchema.parse(
-							await ingestionControlClient.startNoticeReconcile({
-								operatorId: operator.operatorId,
-								requestId: body.data.requestId,
-							}),
-						),
-						202,
-					)
-				: jsonError("OPS_INGESTION_BODY_INVALID", "完整核对请求无效。", 400);
-		},
-	);
-
-	app.post(
-		"/api/ops/ingestion/file-releases",
-		bodyLimit({
-			maxSize: 4096,
-			onError: () => jsonError("OPS_INGESTION_BODY_INVALID", "请求正文无效。", 400),
-		}),
-		async (context) => {
-			const operator = await requireHumanOpsMutation(admission, context.req.raw, publicOrigin);
-			if (operator instanceof Response) {
-				return operator;
-			}
-			const body = FileReleaseBatchBodySchema.safeParse(
-				await context.req.json().catch(() => undefined),
-			);
-			return body.success
-				? context.json(
-						OpsFileReleaseBatchStartSchema.parse(
-							await ingestionControlClient.startFileReleases({
-								fileReleaseIds: body.data.fileReleaseIds,
-								operatorId: operator.operatorId,
-								requestId: body.data.requestId,
-							}),
-						),
-						202,
-					)
-				: jsonError("OPS_INGESTION_BODY_INVALID", "文件发布 ID 无效。", 400);
-		},
-	);
-
-	app.get("/api/ops/internal-portal-auth", async (context) => {
-		const operator = await admitOpsApiRequest(admission, context.req.raw);
-		if (operator instanceof Response) {
-			return operator;
-		}
-		try {
-			const credential = await internalPortalAuthStore.getStatus();
-			const maintenance = await readInternalPortalMaintenanceStatus(
-				internalPortalMaintenanceClient,
-			);
-			return context.json(
-				OpsInternalPortalAuthStatusSchema.parse(
-					buildInternalPortalAuthStatus(credential, maintenance),
-				),
-			);
-		} catch (error) {
-			return internalPortalAuthErrorResponse(error);
-		}
-	});
-
-	app.put(
-		"/api/ops/internal-portal-auth",
-		bodyLimit({ maxSize: 8 * 1024, onError: invalidInternalPortalCredentialResponse }),
-		async (context) => {
-			const operator = await admitOpsApiRequest(admission, context.req.raw);
-			if (operator instanceof Response) {
-				return operator;
-			}
-			if (!requestHasConfiguredOrigin(context.req.raw, publicOrigin)) {
-				return jsonError("OPS_INTERNAL_PORTAL_AUTH_ORIGIN_INVALID", "凭据更新请求来源无效。", 403);
-			}
-
-			const body = await readBoundedJson(context.req.raw, 8 * 1024);
-			const parsed = OpsInternalPortalAuthUpdateSchema.safeParse(body);
-			if (!parsed.success) {
-				return invalidInternalPortalCredentialResponse();
-			}
-			let credential: string;
-			try {
-				credential = parseInternalPortalCredential(parsed.data.credential);
-			} catch {
-				return invalidInternalPortalCredentialResponse();
-			}
-
-			try {
-				const updatedAt = new Date().toISOString();
-				const credentialStatus = await internalPortalAuthStore.replaceCredential({
-					credential,
-					updatedAt,
-					updatedBy: operator.operatorId,
-				});
-				const maintenance = await validateInternalPortalAuthenticationSafely(
-					internalPortalMaintenanceClient,
-					operator.operatorId,
-				);
-				const status = OpsInternalPortalAuthStatusSchema.parse(
-					buildInternalPortalAuthStatus(credentialStatus, maintenance),
-				);
-				console.info("[ops-web] internal portal credential replaced", {
-					operatorId: operator.operatorId,
-					updatedAt,
-				});
-				return context.json(status);
-			} catch (error) {
-				return internalPortalAuthErrorResponse(error);
-			}
-		},
-	);
-
-	app.post("/api/ops/internal-portal-auth/maintenance/validate", async (context) => {
-		const operator = await admitOpsApiRequest(admission, context.req.raw);
-		if (operator instanceof Response) {
-			return operator;
-		}
-		if (!requestHasConfiguredOrigin(context.req.raw, publicOrigin)) {
-			return jsonError("OPS_INTERNAL_PORTAL_AUTH_ORIGIN_INVALID", "验证请求来源无效。", 403);
-		}
-		try {
-			const maintenance = await internalPortalMaintenanceClient.validate(operator.operatorId);
-			const credential = await internalPortalAuthStore.getStatus();
-			return context.json(
-				OpsInternalPortalAuthStatusSchema.parse(
-					buildInternalPortalAuthStatus(credential, maintenance),
-				),
-			);
-		} catch (error) {
-			return error instanceof IngestionControlUnavailableError
-				? jsonError(
-						"OPS_INTERNAL_PORTAL_AUTH_VALIDATION_UNAVAILABLE",
-						"门户认证验证暂时不可用。",
-						503,
-					)
-				: internalPortalAuthErrorResponse(error);
-		}
 	});
 
 	app.get("/api/ops/overview", async (context) => {
@@ -736,82 +387,6 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 			return jsonError("OPS_API_ROUTE_NOT_FOUND", "未找到该运维接口。", 404);
 		}
 		return context.json(await providerConfigClient.validate(kind.data, operator.operatorId));
-	});
-
-	app.get("/api/ops/model-settings/hindsight", async (context) => {
-		const operator = await admitOpsApiRequest(admission, context.req.raw);
-		if (operator instanceof Response) {
-			return operator;
-		}
-		return context.json(
-			HindsightModelSettingsStatusSchema.parse(await hindsightModelSettingsStore.getStatus()),
-		);
-	});
-
-	app.put("/api/ops/model-settings/hindsight", async (context) => {
-		const operator = await admitOpsApiRequest(admission, context.req.raw);
-		if (operator instanceof Response) {
-			return operator;
-		}
-		if (!requestHasConfiguredOrigin(context.req.raw, publicOrigin)) {
-			return jsonError(
-				"OPS_PROVIDER_CONFIG_CSRF_REJECTED",
-				"个人记忆模型配置写请求未通过同源校验。",
-				403,
-			);
-		}
-		if (!context.req.header("content-type")?.toLowerCase().startsWith("application/json")) {
-			return jsonError(
-				"OPS_PROVIDER_CONFIG_CONTENT_TYPE_REQUIRED",
-				"Content-Type 必须是 application/json。",
-				400,
-			);
-		}
-		const body = HindsightModelSettingsUpdateSchema.safeParse(
-			await context.req.json().catch(() => null),
-		);
-		if (!body.success) {
-			return jsonError("OPS_INVALID_JSON", "请求体必须是有效 JSON。", 400);
-		}
-		const etag = context.req.header("if-match")?.trim();
-		if (!etag || etag.length > 200) {
-			return jsonError(
-				"OPS_MODEL_SETTINGS_PRECONDITION_REQUIRED",
-				"请加载最新模型配置后再保存。",
-				400,
-			);
-		}
-		return context.json(
-			HindsightModelSettingsStatusSchema.parse(
-				await hindsightModelSettingsStore.replaceSettings({
-					etag,
-					settings: body.data,
-					updatedAt: new Date().toISOString(),
-					updatedBy: operator.operatorId,
-				}),
-			),
-		);
-	});
-
-	app.post("/api/ops/model-settings/hindsight/apply", async (context) => {
-		const operator = await admitOpsApiRequest(admission, context.req.raw);
-		if (operator instanceof Response) {
-			return operator;
-		}
-		if (!requestHasConfiguredOrigin(context.req.raw, publicOrigin)) {
-			return jsonError(
-				"OPS_PROVIDER_CONFIG_CSRF_REJECTED",
-				"个人记忆模型配置写请求未通过同源校验。",
-				403,
-			);
-		}
-		return context.json(
-			HindsightModelSettingsStatusSchema.parse(
-				await hindsightModelSettingsStore.apply({
-					appliedAt: new Date().toISOString(),
-				}),
-			),
-		);
 	});
 
 	app.get("/api/ops/requests", async (context) => {
@@ -909,9 +484,12 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	});
 
 	app.put("/api/ops/groups/catalog", async (context) => {
-		const admissionResult = await requireHumanOpsMutation(admission, context.req.raw, publicOrigin);
-		if (admissionResult instanceof Response) {
-			return admissionResult;
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		if (!requestHasConfiguredOrigin(context.req.raw, publicOrigin)) {
+			return jsonError("OPS_GROUPS_ORIGIN_INVALID", "同好群修改请求来源无效。", 403);
 		}
 		return context.json(
 			await campusGroupsClient.replaceCatalog(
@@ -1269,30 +847,6 @@ function registerDiningRoutes(input: {
 	});
 }
 
-function createDefaultInternalPortalAuthStore(): InternalPortalAuthStore {
-	try {
-		return createKubernetesInternalPortalAuthStore();
-	} catch (error) {
-		return createUnavailableInternalPortalAuthStore(
-			error instanceof InternalPortalAuthStoreUnavailableError
-				? error.reasonCode
-				: "KUBERNETES_CONFIG_UNAVAILABLE",
-		);
-	}
-}
-
-function createDefaultHindsightModelSettingsStore(): HindsightModelSettingsStore {
-	try {
-		return createKubernetesHindsightModelSettingsStore();
-	} catch (error) {
-		return createUnavailableHindsightModelSettingsStore(
-			error instanceof HindsightModelSettingsStoreUnavailableError
-				? error.reasonCode
-				: "KUBERNETES_CONFIG_UNAVAILABLE",
-		);
-	}
-}
-
 function createDefaultDiningStore(env: DiningStoreEnv): DiningStore {
 	try {
 		return createDiningStoreFromEnv(env);
@@ -1307,75 +861,6 @@ function createDefaultDiningContentStore(env: DiningStoreEnv): DiningContentStor
 	} catch (error) {
 		return createUnavailableDiningContentStore(error);
 	}
-}
-
-async function readInternalPortalMaintenanceStatus(client: InternalPortalAuthMaintenanceClient) {
-	try {
-		return await client.getStatus();
-	} catch (error) {
-		logOpsError("internal portal auth maintenance query failed", error, { source: "ingestion" });
-		return unavailableMaintenanceStatus();
-	}
-}
-
-async function validateInternalPortalAuthenticationSafely(
-	client: InternalPortalAuthMaintenanceClient,
-	operatorId: string,
-) {
-	try {
-		return await client.validate(operatorId);
-	} catch (error) {
-		logOpsError("internal portal auth validation request failed", error, { source: "ingestion" });
-		return unavailableMaintenanceStatus();
-	}
-}
-
-async function requireHumanOpsMutation(
-	admission: OpsAdmission,
-	request: Request,
-	publicOrigin: string | null,
-): Promise<OpsOperatorContext | Response> {
-	const operator = await admitOpsApiRequest(admission, request);
-	if (operator instanceof Response) {
-		return operator;
-	}
-	if (!requestHasConfiguredOrigin(request, publicOrigin)) {
-		return jsonError("OPS_INGESTION_ORIGIN_INVALID", "采集操作请求来源无效。", 403);
-	}
-	return operator;
-}
-
-function buildInternalPortalAuthStatus(
-	credential: Awaited<ReturnType<InternalPortalAuthStore["getStatus"]>>,
-	maintenance: Awaited<ReturnType<InternalPortalAuthMaintenanceClient["getStatus"]>>,
-) {
-	const updatedAt = timestampMs(credential.updatedAt);
-	const lastSuccessAt = timestampMs(maintenance.lastSuccessAt);
-	const lastAttemptAt = timestampMs(maintenance.lastAttemptAt);
-	const lowerBoundSeconds =
-		updatedAt !== null && lastSuccessAt !== null && lastSuccessAt >= updatedAt
-			? Math.floor((lastSuccessAt - updatedAt) / 1_000)
-			: null;
-	const upperBoundSeconds =
-		updatedAt !== null &&
-		lastAttemptAt !== null &&
-		lastAttemptAt >= updatedAt &&
-		maintenance.lastOutcome === "CREDENTIAL_EXPIRED"
-			? Math.ceil((lastAttemptAt - updatedAt) / 1_000)
-			: null;
-	return {
-		...credential,
-		maintenance,
-		observedLifetime: { lowerBoundSeconds, upperBoundSeconds },
-	};
-}
-
-function timestampMs(value: string | null): number | null {
-	if (!value) {
-		return null;
-	}
-	const parsed = Date.parse(value);
-	return Number.isFinite(parsed) ? parsed : null;
 }
 
 function createDefaultOpsStatusStore(env: OpsStatusEnv): OpsStatusStore {
@@ -1526,43 +1011,6 @@ function providerConfigValidationMessage(upstreamCode: string) {
 			provider_unavailable: "无法连接模型服务，请检查地址和网络。",
 		}[upstreamCode] ?? "在线模型配置内容无效，请检查填写内容。"
 	);
-}
-
-function invalidInternalPortalCredentialResponse(): Response {
-	return jsonError("OPS_INTERNAL_PORTAL_AUTH_INPUT_INVALID", "内部门户凭据格式无效。", 400);
-}
-
-function ingestionControlErrorResponse(error: IngestionControlResponseError): Response {
-	if (error.status === 404) {
-		return jsonError("OPS_INGESTION_NOT_FOUND", "未找到该采集任务。", 404);
-	}
-	if (error.status === 409) {
-		return jsonError("OPS_INGESTION_CONFLICT", "采集任务状态冲突。", 409, {
-			upstreamCode: error.upstreamCode,
-		});
-	}
-	if (error.status === 400) {
-		return jsonError("OPS_INGESTION_REQUEST_INVALID", "采集控制请求无效。", 400, {
-			upstreamCode: error.upstreamCode,
-		});
-	}
-	return jsonError("OPS_INGESTION_UNAVAILABLE", "采集控制服务不可用。", 503);
-}
-
-function internalPortalAuthErrorResponse(error: unknown): Response {
-	if (!(error instanceof InternalPortalAuthStoreUnavailableError)) {
-		return jsonError("OPS_INTERNAL_PORTAL_AUTH_UNAVAILABLE", "内部门户认证存储暂时不可用。", 503);
-	}
-	if (error.reasonCode === "SECRET_NOT_INITIALIZED") {
-		return jsonError(
-			"OPS_INTERNAL_PORTAL_AUTH_NOT_INITIALIZED",
-			"内部门户认证 Secret 尚未初始化。",
-			503,
-		);
-	}
-	return jsonError("OPS_INTERNAL_PORTAL_AUTH_UNAVAILABLE", "内部门户认证存储暂时不可用。", 503, {
-		reasonCode: error.reasonCode,
-	});
 }
 
 async function readBoundedJson(request: Request, maxBytes: number): Promise<unknown> {

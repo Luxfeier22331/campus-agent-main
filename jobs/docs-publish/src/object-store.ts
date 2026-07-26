@@ -8,7 +8,7 @@ import { sha256 } from "./release.ts";
 import type { DocsObjectStore, ObjectRef } from "./types.ts";
 
 export function createDocsObjectStore(env: NodeJS.ProcessEnv = process.env): DocsObjectStore {
-	const bucket = required(env, "OBJECT_STORE_BUCKET_DERIVED");
+	const bucket = "campus-agent-derived";
 	const client = new S3Client({
 		credentials: {
 			accessKeyId: required(env, "OBJECT_STORE_DERIVED_ACCESS_KEY"),
@@ -16,7 +16,7 @@ export function createDocsObjectStore(env: NodeJS.ProcessEnv = process.env): Doc
 		},
 		endpoint: required(env, "OBJECT_STORE_ENDPOINT"),
 		forcePathStyle: true,
-		region: env.OBJECT_STORE_REGION?.trim() || "us-east-1",
+		region: "us-east-1",
 	});
 
 	async function readByKey(key: string): Promise<Uint8Array | undefined> {

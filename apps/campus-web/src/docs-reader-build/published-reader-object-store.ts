@@ -47,8 +47,8 @@ export function resolvePublishedReaderObjectStoreConfig(
 	env: PublishedReaderObjectStoreEnv,
 ): PublishedReaderObjectStoreConfig {
 	const endpoint = readRequiredEnv(env, "OBJECT_STORE_ENDPOINT");
-	const bucket = resolvePublishedReaderObjectStoreBucket(env);
-	const region = env.OBJECT_STORE_REGION?.trim() || "us-east-1";
+	const bucket = resolvePublishedReaderObjectStoreBucket();
+	const region = "us-east-1";
 	const { accessKeyId, credentialMode, secretAccessKey } =
 		resolvePublishedReaderObjectStoreCredentials(env);
 	return {
@@ -61,10 +61,8 @@ export function resolvePublishedReaderObjectStoreConfig(
 	};
 }
 
-export function resolvePublishedReaderObjectStoreBucket(
-	env: Pick<PublishedReaderObjectStoreEnv, "OBJECT_STORE_BUCKET_DERIVED">,
-): string {
-	return readRequiredEnv(env, "OBJECT_STORE_BUCKET_DERIVED");
+export function resolvePublishedReaderObjectStoreBucket(): string {
+	return "campus-agent-derived";
 }
 
 export function resolvePublishedReaderObjectStoreCredentials(

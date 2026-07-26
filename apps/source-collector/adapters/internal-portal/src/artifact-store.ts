@@ -1,4 +1,4 @@
-import { HeadObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { HeadObjectCommand, type S3Client } from "@aws-sdk/client-s3";
 import type {
 	StoredArtifactHead as BaseStoredArtifactHead,
 	StoredArtifactRef as BaseStoredArtifactRef,
@@ -30,14 +30,6 @@ export interface AuthenticatedNoticeArtifactStore {
 		contentType: string;
 		metadata?: Record<string, string>;
 	}): Promise<StoredArtifactRef>;
-}
-
-export interface AuthenticatedNoticeObjectStoreEnvironment {
-	OBJECT_STORE_BUCKET_SOURCE?: string;
-	OBJECT_STORE_ENDPOINT?: string;
-	OBJECT_STORE_REGION?: string;
-	OBJECT_STORE_SOURCE_ACCESS_KEY?: string;
-	OBJECT_STORE_SOURCE_SECRET_KEY?: string;
 }
 
 class S3AuthenticatedNoticeArtifactStore implements AuthenticatedNoticeArtifactStore {
@@ -111,35 +103,4 @@ export function createAuthenticatedNoticeArtifactStore(input: {
 	client: Pick<S3Client, "send"> & Partial<Pick<S3Client, "destroy">>;
 }): AuthenticatedNoticeArtifactStore {
 	return new S3AuthenticatedNoticeArtifactStore(input);
-}
-
-export function createAuthenticatedNoticeArtifactStoreFromEnv(
-	env: AuthenticatedNoticeObjectStoreEnvironment = process.env,
-): AuthenticatedNoticeArtifactStore | undefined {
-	const endpoint = env.OBJECT_STORE_ENDPOINT?.trim();
-	const accessKey = env.OBJECT_STORE_SOURCE_ACCESS_KEY?.trim();
-	const secretKey = env.OBJECT_STORE_SOURCE_SECRET_KEY?.trim();
-	const configuredCount = [endpoint, accessKey, secretKey].filter(Boolean).length;
-
-	if (configuredCount === 0) {
-		return;
-	}
-	if (!(endpoint && accessKey && secretKey)) {
-		throw new Error(
-			"OBJECT_STORE_ENDPOINT plus OBJECT_STORE_SOURCE_ACCESS_KEY and OBJECT_STORE_SOURCE_SECRET_KEY are required for source-bucket uploads.",
-		);
-	}
-
-	return createAuthenticatedNoticeArtifactStore({
-		bucket: env.OBJECT_STORE_BUCKET_SOURCE?.trim() || "campus-agent-source",
-		client: new S3Client({
-			endpoint,
-			region: env.OBJECT_STORE_REGION?.trim() || "us-east-1",
-			credentials: {
-				accessKeyId: accessKey,
-				secretAccessKey: secretKey,
-			},
-			forcePathStyle: true,
-		}),
-	});
 }

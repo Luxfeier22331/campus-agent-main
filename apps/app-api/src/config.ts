@@ -1,7 +1,10 @@
 export type AppApiEnvironment = "development" | "test" | "staging" | "production";
 export type DatabaseSslMode = "disable" | "prefer" | "require";
-export const DEFAULT_EXECUTION_CONTROL_TIMEOUT_MS = 30_000;
-export const DEFAULT_PROFILE_MEMORY_COMMAND_TIMEOUT_MS = 120_000;
+export const APP_API_NAME = "campus-agent-app-api";
+export const EXECUTION_CONTROL_TIMEOUT_MS = 95_000;
+export const PROFILE_MEMORY_COMMAND_TIMEOUT_MS = 120_000;
+export const END_USER_EMAIL_DOMAIN_ALLOWLIST = ["muc.edu.cn"] as const;
+export const END_USER_EMAIL_ALLOWLIST = ["help_bot@outlook.com"] as const;
 
 export interface HyperdriveBindingLike {
 	connectionString?: string;
@@ -12,29 +15,22 @@ export interface WorkerFetchBindingLike {
 }
 
 export interface Env {
-	APP_API_NAME?: string;
 	APP_API_ENVIRONMENT?: AppApiEnvironment;
 	BETTER_AUTH_SECRET?: string;
 	AUTH_SHELL_ORIGIN?: string;
 	AUTH_TURNSTILE_SECRET_KEY?: string;
 	RESEND_API_KEY?: string;
 	AUTH_RESET_EMAIL_FROM?: string;
-	AUTH_RESET_EMAIL_REPLY_TO?: string;
 	EXECUTION_CONTROL_BASE_URL?: string;
 	EXECUTION_CONTROL_PRIVATE?: WorkerFetchBindingLike;
 	EXECUTION_CONTROL_PRIVATE_ORIGIN?: string;
+	OBJECT_STORE_PRIVATE?: WorkerFetchBindingLike;
+	OBJECT_STORE_LOCAL_BASE_URL?: string;
 	APP_API_EXECUTION_SHARED_SECRET?: string;
 	OPS_WEB_INTERNAL_TOKEN?: string;
-	EXECUTION_CONTROL_TIMEOUT_MS?: string;
 	APP_API_DATABASE_SSLMODE?: DatabaseSslMode;
-	APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST?: string;
-	APP_API_END_USER_EMAIL_ALLOWLIST?: string;
-	APP_API_PUBLIC_NOTICE_URL_ALLOWLIST?: string;
 	APP_API_STAGING_SMOKE_AUTH_SECRET?: string;
 	APP_API_SAFETY_IDENTIFIER_HMAC_SECRET?: string;
-	OBJECT_STORE_DERIVED_PUBLIC_BASE_URL?: string;
-	APP_API_PROFILE_MEMORY_COMMAND_SWEEPER_ENABLED?: string;
-	APP_API_PROFILE_MEMORY_COMMAND_TIMEOUT_MS?: string;
 	SENTRY_DSN?: string;
 	SENTRY_ENVIRONMENT?: string;
 	SENTRY_RELEASE?: string;
@@ -50,12 +46,10 @@ export interface AppAuthConfig {
 	authTurnstileSecretKey: string;
 	resendApiKey: string;
 	authResetEmailFrom: string;
-	authResetEmailReplyTo?: string;
 	endUserEmailDomainAllowlist: string[];
 	endUserEmailAllowlist: string[];
 }
 
-const DEFAULT_APP_NAME = "app-api";
 const MISSING_CONFIG_KEYS = [
 	"APP_API_DB.connectionString",
 	"APP_API_DB_FRESH.connectionString",
@@ -67,11 +61,10 @@ const MISSING_AUTH_CONFIG_KEYS = [
 	"RESEND_API_KEY",
 	"AUTH_RESET_EMAIL_FROM",
 	"AUTH_SHELL_ORIGIN",
-	"APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST",
 ] as const;
 
-export function resolveAppName(env: Env): string {
-	return env.APP_API_NAME?.trim() || DEFAULT_APP_NAME;
+export function resolveAppName(): string {
+	return APP_API_NAME;
 }
 
 export function resolveEnvironment(env: Env): AppApiEnvironment {
@@ -114,25 +107,6 @@ export function parseCsvList(value?: string): string[] {
 		.filter(Boolean);
 }
 
-export function readPublicNoticeURLAllowlist(
-	env: Pick<Env, "APP_API_PUBLIC_NOTICE_URL_ALLOWLIST">,
-): string[] {
-	return parseCsvList(env.APP_API_PUBLIC_NOTICE_URL_ALLOWLIST).map((item) => item.toLowerCase());
-}
-
-export function parsePositiveInteger(value: string | undefined, defaultValue: number): number {
-	if (!value?.trim()) {
-		return defaultValue;
-	}
-
-	const parsed = Number.parseInt(value, 10);
-	if (!Number.isFinite(parsed) || parsed < 1) {
-		return defaultValue;
-	}
-
-	return parsed;
-}
-
 export function getMissingRuntimeConfig(env: Env): string[] {
 	const missing: string[] = [];
 
@@ -166,10 +140,6 @@ export function getMissingAuthRuntimeConfig(env: Env): string[] {
 	if (!env.AUTH_SHELL_ORIGIN?.trim()) {
 		missing.push(MISSING_AUTH_CONFIG_KEYS[4]);
 	}
-	if (parseCsvList(env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST).length === 0) {
-		missing.push(MISSING_AUTH_CONFIG_KEYS[5]);
-	}
-
 	return missing;
 }
 
@@ -197,7 +167,7 @@ export function readAppAuthConfig(env: Env): AppAuthConfig {
 	}
 
 	return {
-		appName: resolveAppName(env),
+		appName: resolveAppName(),
 		environment: resolveEnvironment(env),
 		authShellOrigin: readAuthShellOrigin(env),
 		betterAuthSecret: readRequiredTrimmedValue(env.BETTER_AUTH_SECRET, "BETTER_AUTH_SECRET"),
@@ -210,12 +180,7 @@ export function readAppAuthConfig(env: Env): AppAuthConfig {
 			env.AUTH_RESET_EMAIL_FROM,
 			"AUTH_RESET_EMAIL_FROM",
 		),
-		authResetEmailReplyTo: env.AUTH_RESET_EMAIL_REPLY_TO?.trim() || undefined,
-		endUserEmailDomainAllowlist: parseCsvList(env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST).map(
-			(item) => item.toLowerCase(),
-		),
-		endUserEmailAllowlist: parseCsvList(env.APP_API_END_USER_EMAIL_ALLOWLIST).map((item) =>
-			item.toLowerCase(),
-		),
+		endUserEmailDomainAllowlist: [...END_USER_EMAIL_DOMAIN_ALLOWLIST],
+		endUserEmailAllowlist: [...END_USER_EMAIL_ALLOWLIST],
 	};
 }

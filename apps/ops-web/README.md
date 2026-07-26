@@ -7,7 +7,7 @@
 - 关联 PostgreSQL 有界投影、Temporal、Axiom、Sentry 和 Langfuse 跳转信息；
 - 读取固定范围的运行概况、运行记录和依赖状态；
 - 通过服务端固定查询访问 Axiom 和 Sentry，不向浏览器提供任意供应商查询；
-- 执行明确准入的模型配置、内部门户凭据、通知采集、食堂和同好群内容运营操作。
+- 执行明确准入的在线模型配置、食堂和同好群内容运营操作。
 
 本应用不是产品 API、数据库浏览器、Temporal 控制台或通用 Secret 管理器。浏览器只调用同源
 `/api/ops/*`，供应商凭据和数据库连接留在服务端。
@@ -16,9 +16,7 @@
 
 - `/overview`：运行概况；
 - `/requests`、`/requests/:requestId`：运行记录与单次运行详情；
-- `/providers`：在线问答与 Hindsight 当前模型配置；
-- `/ingestion`、`/ingestion/tasks/:taskId`：采集运行与任务详情；
-- `/internal-portal-auth`：固定门户认证；
+- `/providers`：在线问答当前模型配置；
 - `/dining`：食堂地图维护；
 - `/groups`：同好群目录分组、群和展示顺序维护。
 
@@ -47,8 +45,8 @@ pnpm --dir apps/ops-web db:apply-dining
 pnpm --dir apps/ops-web db:bootstrap-dining
 ```
 
-同好群页面通过服务端配置的 `OPS_WEB_HEALTH_APP_API_URL` 和 `OPS_WEB_INTERNAL_TOKEN` 调用
-app-api；客户端从健康检查 URL 提取 HTTP(S) origin，令牌不下发到浏览器。
+同好群页面通过服务端配置的 `OPS_WEB_APP_API_URL` 和 `OPS_WEB_INTERNAL_TOKEN` 调用 app-api；
+前者是 HTTP(S) 根地址，令牌不下发到浏览器。
 
 `pnpm dev:init` 为当前 worktree 创建独立 PostgreSQL database 和 derived bucket，并生成
 `.env.local`。Ops Web 使用统一 `ops_web` 角色和 `object-store-secrets`；Dining 不创建专属

@@ -41,7 +41,7 @@ export function startAgentRuntimeTelemetry(
 
 	const exporter = new OTLPTraceExporter();
 	const processor = new LangfuseSpanProcessor({
-		environment: env.LANGFUSE_TRACING_ENVIRONMENT ?? env.DEPLOYMENT_ENVIRONMENT,
+		environment: env.DEPLOYMENT_ENVIRONMENT,
 		exporter,
 		mediaUploadEnabled: false,
 		release: env.DEPLOYMENT_RELEASE,

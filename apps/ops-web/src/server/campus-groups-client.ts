@@ -4,7 +4,7 @@ import {
 } from "campus-contracts/campus-groups";
 
 export interface CampusGroupsAdminEnv {
-	OPS_WEB_HEALTH_APP_API_URL?: string;
+	OPS_WEB_APP_API_URL?: string;
 	OPS_WEB_INTERNAL_TOKEN?: string;
 }
 
@@ -24,7 +24,7 @@ export function createCampusGroupsAdminClient(
 	input: { fetchImplementation?: typeof fetch } = {},
 ) {
 	const fetchImplementation = input.fetchImplementation ?? fetch;
-	const baseUrl = resolveAppApiBaseUrl(env.OPS_WEB_HEALTH_APP_API_URL);
+	const baseUrl = resolveAppApiBaseUrl(env.OPS_WEB_APP_API_URL);
 
 	async function request(
 		path: string,
@@ -89,17 +89,17 @@ export function resolveAppApiBaseUrl(value: string | undefined): string | undefi
 	try {
 		url = new URL(value.trim());
 	} catch {
-		throw new TypeError("OPS_WEB_HEALTH_APP_API_URL must be an HTTP(S) root or /readyz URL.");
+		throw new TypeError("OPS_WEB_APP_API_URL must be an HTTP(S) root URL.");
 	}
 	if (
 		(url.protocol !== "http:" && url.protocol !== "https:") ||
 		url.username ||
 		url.password ||
-		(url.pathname !== "/" && url.pathname !== "/readyz") ||
+		url.pathname !== "/" ||
 		url.search ||
 		url.hash
 	) {
-		throw new TypeError("OPS_WEB_HEALTH_APP_API_URL must be an HTTP(S) root or /readyz URL.");
+		throw new TypeError("OPS_WEB_APP_API_URL must be an HTTP(S) root URL.");
 	}
 	return url.origin;
 }

@@ -15,7 +15,6 @@ import type { ModelSettingLatestValidation } from "../shared/ops-contract";
 import { formatTimestamp } from "./format";
 
 export const executionModelSettingsQueryKey = ["ops", "model-settings", "execution"] as const;
-export const hindsightModelSettingsQueryKey = ["ops", "model-settings", "hindsight"] as const;
 
 type LatestValidation = ModelSettingLatestValidation | null;
 

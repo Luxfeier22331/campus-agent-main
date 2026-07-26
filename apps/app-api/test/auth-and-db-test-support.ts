@@ -62,7 +62,6 @@ export function resetPoolMockState() {
 }
 
 export const APP_API_TEST_ENV = {
-	APP_API_NAME: "campus-agent-app-api",
 	APP_API_ENVIRONMENT: "test" as const,
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
 	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
@@ -71,7 +70,6 @@ export const APP_API_TEST_ENV = {
 	AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
 	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 	APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
-	APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
 	APP_API_DB: {
 		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 	},

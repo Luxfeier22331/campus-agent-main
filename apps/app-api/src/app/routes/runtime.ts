@@ -12,7 +12,7 @@ export function registerRuntimeRoutes(input: {
 	input.app.get("/healthz", (_c) =>
 		jsonResponse({
 			status: "ok",
-			app: resolveAppName(input.env),
+			app: resolveAppName(),
 		}),
 	);
 

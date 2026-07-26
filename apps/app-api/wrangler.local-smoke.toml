@@ -18,12 +18,8 @@ required = [
 
 [vars]
 APP_API_ENVIRONMENT = "development"
-APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "example.edu"
-APP_API_END_USER_EMAIL_ALLOWLIST = "help_bot@outlook.com"
 EXECUTION_CONTROL_BASE_URL = "http://127.0.0.1:27051"
-EXECUTION_CONTROL_TIMEOUT_MS = "15000"
 AUTH_RESET_EMAIL_FROM = "Campus Agent <auth@example.com>"
-AUTH_RESET_EMAIL_REPLY_TO = ""
 
 [[hyperdrive]]
 binding = "APP_API_DB"

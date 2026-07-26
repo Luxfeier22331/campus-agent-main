@@ -11,6 +11,7 @@ const source = readFileSync(resolve(appDir, "wrangler.toml"), "utf8");
 const resources = {
 	freshHyperdriveId: "22222222222222222222222222222222",
 	hyperdriveId: "11111111111111111111111111111111",
+	objectStoreVpcServiceId: "44444444-4444-4444-8444-444444444444",
 	vpcServiceId: "33333333-3333-4333-8333-333333333333",
 };
 
@@ -34,6 +35,10 @@ describe("app-api staging upload config", () => {
 			expect.objectContaining({
 				binding: "EXECUTION_CONTROL_PRIVATE",
 				service_id: resources.vpcServiceId,
+			}),
+			expect.objectContaining({
+				binding: "OBJECT_STORE_PRIVATE",
+				service_id: resources.objectStoreVpcServiceId,
 			}),
 		]);
 		expect(staging.hyperdrive).toEqual(
@@ -94,5 +99,14 @@ describe("app-api staging upload config", () => {
 				vpcServiceId: "invalid",
 			}),
 		).toThrow("EXECUTION_CONTROL_VPC_SERVICE_ID must contain a Cloudflare resource UUID.");
+	});
+
+	it("rejects an invalid object-store VPC service id", () => {
+		expect(() =>
+			buildAppApiStagingUploadConfig(source, appDir, {
+				...resources,
+				objectStoreVpcServiceId: "invalid",
+			}),
+		).toThrow("OBJECT_STORE_VPC_SERVICE_ID must contain a Cloudflare resource UUID.");
 	});
 });

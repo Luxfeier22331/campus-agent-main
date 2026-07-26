@@ -89,7 +89,6 @@ function readTomlBlock(source: string, startMarker: string, endMarker: string): 
 }
 
 const env = {
-	APP_API_NAME: "campus-agent-app-api",
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
 	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 	AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
@@ -97,7 +96,6 @@ const env = {
 	AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
 	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 	APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
-	APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "example.edu",
 	APP_API_ENVIRONMENT: "test" as const,
 	APP_API_DB: {
 		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
@@ -189,15 +187,16 @@ describe("app-api worker foundation", () => {
 		expect(stagingVarsBlock).toContain(
 			'AUTH_SHELL_ORIGIN = "https://campus-staging.mucwiki-edge.link"',
 		);
-		expect(stagingVarsBlock).toContain('APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "example.edu"');
+		expect(stagingVarsBlock).not.toContain("APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST");
 		expect(stagingVarsBlock).not.toContain("EXECUTION_CONTROL_BASE_URL");
-		expect(stagingVarsBlock).toContain('APP_API_END_USER_EMAIL_ALLOWLIST = "help_bot@outlook.com"');
+		expect(stagingVarsBlock).not.toContain("APP_API_END_USER_EMAIL_ALLOWLIST");
 		expect(stagingVarsBlock).toContain(
 			'EXECUTION_CONTROL_PRIVATE_ORIGIN = "http://execution-control.campus-agent-staging.svc.cluster.local:8000"',
 		);
-		expect(stagingVarsBlock).toContain('EXECUTION_CONTROL_TIMEOUT_MS = "95000"');
+		expect(stagingVarsBlock).not.toContain("EXECUTION_CONTROL_TIMEOUT_MS");
 		expect(wranglerConfig).toContain("[[env.staging.vpc_services]]");
 		expect(wranglerConfig).toContain('binding = "EXECUTION_CONTROL_PRIVATE"');
+		expect(wranglerConfig).toContain('binding = "OBJECT_STORE_PRIVATE"');
 		expect(wranglerConfig).toContain('service_id = "00000000-0000-0000-0000-000000000000"');
 		expect(wranglerConfig).toContain("remote = true");
 		expect(stagingVarsBlock).not.toContain("CHATKIT_ADAPTER_BASE_URL");
@@ -228,6 +227,7 @@ describe("app-api worker foundation", () => {
 		expect(uploadStagingVersionSource).toContain("wranglerOutdir: sentryArtifactDirectory");
 		expect(uploadStagingVersionSource).toContain("SENTRY_APP_API_DSN");
 		expect(uploadStagingVersionSource).toContain("EXECUTION_CONTROL_VPC_SERVICE_ID");
+		expect(uploadStagingVersionSource).toContain("OBJECT_STORE_VPC_SERVICE_ID");
 		expect(uploadStagingVersionSource).toContain("APP_API_DB_HYPERDRIVE_ID");
 		expect(uploadStagingVersionSource).toContain("APP_API_DB_FRESH_HYPERDRIVE_ID");
 		expect(uploadStagingVersionSource).toContain("AUTH_RESET_EMAIL_FROM");
@@ -241,6 +241,8 @@ describe("app-api worker foundation", () => {
 		);
 		expect(stagingPublishWorkflowSource).toContain("STAGING_OPS_WEB_INTERNAL_TOKEN:");
 		expect(stagingPublishWorkflowSource).toContain("secrets.STAGING_OPS_WEB_INTERNAL_TOKEN");
+		expect(stagingPublishWorkflowSource).toContain("OBJECT_STORE_VPC_SERVICE_ID:");
+		expect(stagingPublishWorkflowSource).toContain("vars.OBJECT_STORE_VPC_SERVICE_ID");
 		expect(uploadStagingVersionSource).toContain("preflight-staging.ts");
 		expect(packageManifest.scripts?.["chat:e2e:staging"]).toBeUndefined();
 		expect(rootPackageManifest.scripts?.["smoke:app-api"]).toBe(
@@ -349,9 +351,7 @@ describe("app-api worker foundation", () => {
 		expect(localSmokeSecretsBlock).toContain('"APP_API_EXECUTION_SHARED_SECRET"');
 		expect(localSmokeSecretsBlock).not.toContain('"EXECUTION_CONTROL_BASE_URL"');
 		expect(localSmokeWranglerConfig).toContain('APP_API_ENVIRONMENT = "development"');
-		expect(localSmokeWranglerConfig).toContain(
-			'APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "example.edu"',
-		);
+		expect(localSmokeWranglerConfig).not.toContain("APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST");
 	});
 
 	it("serves healthz and readyz from the worker shell", async () => {
@@ -417,7 +417,6 @@ describe("app-api worker foundation", () => {
 	it("fails readyz closed when required config is missing", async () => {
 		const runtime = createWorkerRuntime(
 			{
-				APP_API_NAME: "campus-agent-app-api",
 				APP_API_ENVIRONMENT: "test",
 			},
 			{

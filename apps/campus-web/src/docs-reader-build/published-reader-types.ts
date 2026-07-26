@@ -142,11 +142,9 @@ export type EntriesByScope = Map<string, RoutedPublishedReaderManifestEntry[]>;
 export type ObjectStoreCredentialMode = "derived";
 
 export interface PublishedReaderObjectStoreEnv {
-	OBJECT_STORE_BUCKET_DERIVED?: string;
 	OBJECT_STORE_DERIVED_ACCESS_KEY?: string;
 	OBJECT_STORE_DERIVED_SECRET_KEY?: string;
 	OBJECT_STORE_ENDPOINT?: string;
-	OBJECT_STORE_REGION?: string;
 }
 
 export interface PublishedReaderObjectStoreCredentials {

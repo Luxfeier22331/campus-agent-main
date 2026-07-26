@@ -16,7 +16,7 @@ status: active
 - [dining.md](./dining.md)：食堂地图、菜单、评价、举报与内容维护；
 - [legal-consent.md](./legal-consent.md)：注册同意体验和法律页面内容；
 - [run-context.md](./run-context.md)：连续追问、上一轮依据、上下文裁剪和并发轮次体验；
-- [ops-web.md](./ops-web.md)：自托管运行概览、运行记录、门户认证和食堂内容运营。
+- [ops-web.md](./ops-web.md)：自托管运行概览、运行记录、在线模型配置和内容运营。
 
 ## 拟议需求
 

@@ -52,7 +52,6 @@ export interface BetterAuthConfigInput {
 	appName: string;
 	authShellOrigin: string;
 	authResetEmailFrom: string;
-	authResetEmailReplyTo?: string;
 	authTurnstileSecretKey: string;
 	betterAuthSecret: string;
 	environment: AppApiEnvironment;
@@ -214,7 +213,6 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 	const authResetMailConfig = {
 		authShellOrigin: appOrigin,
 		authResetEmailFrom: input.authResetEmailFrom,
-		authResetEmailReplyTo: input.authResetEmailReplyTo,
 		fetchImplementation: input.resendFetch,
 		resendApiKey: input.resendApiKey,
 	};
@@ -433,7 +431,6 @@ export async function createAppAuth(env: Env, input: CreateAppAuthInput = {}) {
 		buildBetterAuthConfig({
 			appName: config.appName,
 			authResetEmailFrom: config.authResetEmailFrom,
-			authResetEmailReplyTo: config.authResetEmailReplyTo,
 			authTurnstileSecretKey: config.authTurnstileSecretKey,
 			authShellOrigin: config.authShellOrigin,
 			betterAuthSecret: config.betterAuthSecret,

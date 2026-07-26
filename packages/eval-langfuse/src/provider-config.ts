@@ -60,7 +60,7 @@ export function withRagasRuntimeConfig<T>(
 export function loadEvalProviderProjection(path: string): EvalProviderProjection {
 	const normalizedPath = path.trim();
 	if (!normalizedPath) {
-		throw new Error("EVAL_PROVIDER_CONFIG_PROJECTION_PATH is required");
+		throw new Error("provider config projection path is required");
 	}
 	let descriptor: number;
 	try {

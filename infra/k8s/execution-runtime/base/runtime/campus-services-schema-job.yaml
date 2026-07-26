@@ -37,7 +37,7 @@ spec:
           command: ["/bin/sh", "-ec"]
           args:
             - |
-              export DATABASE_URL="$(node -e '
+              export TRANSPORT_PUBLISHER_DATABASE_URL="$(node -e '
                 const url = new URL(`postgresql://${process.env.PGHOST}:${process.env.PGPORT}/${process.env.PGDATABASE}`);
                 url.username = process.env.PGUSER;
                 url.password = process.env.PGPASSWORD;

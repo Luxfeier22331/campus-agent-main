@@ -29,16 +29,12 @@ interface WorkerRuntime {
 	scheduled(): Promise<void>;
 }
 
-function isExplicitlyEnabled(value: string | undefined): boolean {
-	return value?.trim().toLowerCase() === "true";
-}
-
 export function createWorkerRuntime(
 	env: Env,
 	dependencies: WorkerRuntimeDependencies = {},
 ): WorkerRuntime {
 	const telemetry = dependencies.telemetry ?? createAppTelemetry(env);
-	let profileMemoryService: ProfileMemoryService | null = null;
+	let profileMemoryService: ProfileMemoryService | null = dependencies.profileMemoryService ?? null;
 	function resolveProfileMemoryService(): ProfileMemoryService {
 		if (profileMemoryService) {
 			return profileMemoryService;
@@ -70,10 +66,7 @@ export function createWorkerRuntime(
 					console.info({ ...result, source: "app-api.chat-admission-dispatcher" });
 				}
 			}
-			if (
-				isExplicitlyEnabled(env.APP_API_PROFILE_MEMORY_COMMAND_SWEEPER_ENABLED) &&
-				isExecutionControlRuntimeConfigured(env)
-			) {
+			if (isExecutionControlRuntimeConfigured(env)) {
 				const result = await Sentry.startSpan(
 					{ name: "app-api.profile-memory.dispatch", op: "cron" },
 					() => resolveProfileMemoryService().dispatchPending(),

@@ -96,23 +96,6 @@ describe("internal portal source collector config", () => {
 		).toThrow("INTERNAL_PORTAL_SSO_COOKIE_DOMAIN must be a registrable parent domain");
 	});
 
-	it("rejects retired authenticated-notice env keys in internal-portal runtime", () => {
-		expect(() =>
-			resolveInternalPortalConfig({
-				AUTHENTICATED_NOTICE_BASE_URL: "https://legacy.example.edu",
-			}),
-		).toThrow("retired internal-portal env keys are not supported: AUTHENTICATED_NOTICE_BASE_URL");
-		expect(() =>
-			resolveInternalPortalConfig({
-				INTERNAL_PORTAL_JSESSIONID: "retired-session",
-				INTERNAL_PORTAL_NGINX: "retired-upstream",
-				INTERNAL_PORTAL_SSO_TGC: "retired-ticket",
-			}),
-		).toThrow(
-			"retired internal-portal env keys are not supported: INTERNAL_PORTAL_JSESSIONID, INTERNAL_PORTAL_NGINX, INTERNAL_PORTAL_SSO_TGC",
-		);
-	});
-
 	it("derives portal hosts for no_proxy and preserves existing entries", () => {
 		const env = {
 			INTERNAL_PORTAL_BASE_URL: "https://my.muc.edu.cn",

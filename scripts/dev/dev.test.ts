@@ -120,7 +120,7 @@ describe("managed worktree environment", () => {
 		assert.equal(second.AUTH_TURNSTILE_SECRET_KEY, "local-turnstile-disabled");
 		assert.equal(second.AUTH_SHELL_ORIGIN, "http://127.0.0.1:27114");
 		assert.equal(
-			second.OBJECT_STORE_DERIVED_PUBLIC_BASE_URL,
+			second.OBJECT_STORE_LOCAL_BASE_URL,
 			"http://127.0.0.1:9000/campus-agent-derived-wt-1-deadbeef/",
 		);
 		assert.match(
@@ -139,7 +139,8 @@ describe("managed worktree environment", () => {
 		assert.equal(new URL(appApiEnvironment.APP_API_SCHEMA_DATABASE_URL ?? "").search, "");
 		assert.equal(campusWebEnvironment.AUTH_TURNSTILE_SITE_KEY, "");
 		assert.equal(new URL(opsWebEnvironment.OPS_WEB_DATABASE_URL ?? "").search, "");
-		assert.equal(opsWebEnvironment.OPS_WEB_HEALTH_APP_API_URL, "http://127.0.0.1:27131/readyz");
+		assert.equal(opsWebEnvironment.OPS_WEB_APP_API_URL, "http://127.0.0.1:27131");
+		assert.equal(opsWebEnvironment.OPS_WEB_CAMPUS_WEB_URL, "http://127.0.0.1:27114");
 		assert.equal(opsWebEnvironment.OPS_WEB_INTERNAL_TOKEN, second.OPS_WEB_INTERNAL_TOKEN);
 	});
 

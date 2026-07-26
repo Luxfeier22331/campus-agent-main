@@ -3,7 +3,13 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { sql } from "drizzle-orm";
 import type { Hono } from "hono";
 
-import { type Env, readAuthShellOrigin, resolveEnvironment } from "../../config";
+import {
+	END_USER_EMAIL_ALLOWLIST,
+	END_USER_EMAIL_DOMAIN_ALLOWLIST,
+	type Env,
+	readAuthShellOrigin,
+	resolveEnvironment,
+} from "../../config";
 import { withRuntimeDatabase } from "../../db/runtime";
 import {
 	AppApiRouteError,
@@ -71,13 +77,6 @@ function readStringField(payload: Record<string, unknown>, fieldName: string): s
 	return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function parseCsvList(value: string | null | undefined): string[] {
-	return (value ?? "")
-		.split(",")
-		.map((item) => item.trim())
-		.filter(Boolean);
-}
-
 async function resetStagingSmokeIdentity(input: {
 	email: string;
 	env: Env;
@@ -85,8 +84,8 @@ async function resetStagingSmokeIdentity(input: {
 	password: string;
 }): Promise<void> {
 	const policy = buildEndUserEmailAdmissionPolicy({
-		endUserEmailAllowlist: parseCsvList(input.env.APP_API_END_USER_EMAIL_ALLOWLIST),
-		endUserEmailDomainAllowlist: parseCsvList(input.env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST),
+		endUserEmailAllowlist: [...END_USER_EMAIL_ALLOWLIST],
+		endUserEmailDomainAllowlist: [...END_USER_EMAIL_DOMAIN_ALLOWLIST],
 	});
 	if (!isEndUserEmailAllowedForAuth(input.email, policy)) {
 		throw new AppApiRouteError({

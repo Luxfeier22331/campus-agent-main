@@ -16,14 +16,13 @@ export interface DiningFloorplanAssetStoreEnv {
 	OBJECT_STORE_DERIVED_ACCESS_KEY?: string;
 	OBJECT_STORE_DERIVED_SECRET_KEY?: string;
 	OBJECT_STORE_ENDPOINT?: string;
-	OBJECT_STORE_REGION?: string;
 }
 
 export function createDiningFloorplanAssetStoreFromEnv(
 	env: DiningFloorplanAssetStoreEnv,
 ): DiningFloorplanAssetStore {
 	const endpoint = required(env.OBJECT_STORE_ENDPOINT, "endpoint");
-	const bucket = required(env.OBJECT_STORE_BUCKET_DERIVED, "derived bucket");
+	const bucket = env.OBJECT_STORE_BUCKET_DERIVED?.trim() || "campus-agent-derived";
 	const client = new S3Client({
 		credentials: {
 			accessKeyId: required(env.OBJECT_STORE_DERIVED_ACCESS_KEY, "derived access key"),
@@ -31,7 +30,7 @@ export function createDiningFloorplanAssetStoreFromEnv(
 		},
 		endpoint,
 		forcePathStyle: true,
-		region: env.OBJECT_STORE_REGION?.trim() || "us-east-1",
+		region: "us-east-1",
 	});
 	return createS3DiningFloorplanAssetStore({ bucket, client });
 }

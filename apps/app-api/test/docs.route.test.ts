@@ -8,7 +8,6 @@ import type { ResolvedAppPrincipal } from "../src/modules/auth";
 import type { DocsService } from "../src/modules/docs";
 
 const env = {
-	APP_API_NAME: "campus-agent-app-api",
 	APP_API_ENVIRONMENT: "test" as const,
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
 	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",

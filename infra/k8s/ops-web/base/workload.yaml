@@ -71,17 +71,8 @@ spec:
                 secretKeyRef:
                   name: ops-web-database-secrets
                   key: OPS_WEB_DATABASE_URL
-            - name: OPS_WEB_CAMPUS_WEB_PUBLIC_ORIGIN
-              valueFrom:
-                configMapKeyRef:
-                  name: ops-web-config
-                  key: OPS_WEB_CAMPUS_WEB_PUBLIC_ORIGIN
             - name: OBJECT_STORE_ENDPOINT
               value: http://object-store:9000
-            - name: OBJECT_STORE_BUCKET_DERIVED
-              value: campus-agent-derived
-            - name: OBJECT_STORE_REGION
-              value: us-east-1
             - name: OBJECT_STORE_DERIVED_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
@@ -101,9 +92,6 @@ spec:
                 secretKeyRef:
                   name: ops-web-internal-secrets
                   key: OPS_WEB_INTERNAL_TOKEN
-                  optional: true
-            - name: OPS_WEB_INGESTION_CONTROL_URL
-              value: http://ingestion-control:8000
             - name: ACCESS_TEAM_DOMAIN
               valueFrom:
                 configMapKeyRef:
@@ -127,9 +115,6 @@ spec:
                   key: SENTRY_AUTH_TOKEN
                   optional: true
           volumeMounts:
-            - name: kubernetes-api-access
-              mountPath: /var/run/secrets/kubernetes.io/serviceaccount
-              readOnly: true
             - name: postgres-ca
               mountPath: /etc/campus-agent/postgres
               readOnly: true
@@ -156,24 +141,6 @@ spec:
             limits:
               memory: 768Mi
       volumes:
-        - name: kubernetes-api-access
-          projected:
-            defaultMode: 0400
-            sources:
-              - serviceAccountToken:
-                  expirationSeconds: 3600
-                  path: token
-              - configMap:
-                  name: kube-root-ca.crt
-                  items:
-                    - key: ca.crt
-                      path: ca.crt
-              - downwardAPI:
-                  items:
-                    - path: namespace
-                      fieldRef:
-                        apiVersion: v1
-                        fieldPath: metadata.namespace
         - name: postgres-ca
           secret:
             secretName: campus-agent-postgres-origin-server

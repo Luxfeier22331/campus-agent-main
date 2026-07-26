@@ -18,7 +18,7 @@ Ops Web 是独立的运维和内容运营应用，由浏览器页面和同源服
 
 - 浏览器只调用同源 `/api/ops/*`，不直连数据库、Kubernetes 或外部观测平台；
 - 服务端关联有界产品投影、执行投影、Temporal 状态、Axiom 记录、Sentry Issue 和外部入口；
-- 在线模型配置、固定门户凭据、通知采集和 Dining 是彼此独立的管理边界；
+- 在线模型配置、Dining 和同好群是彼此独立的管理边界；
 - 外部平台继续拥有完整查询、工作流、模型观测和评测能力，Ops Web 不复制这些界面；
 - 任何观测信号都不能改写产品请求或工作流的持久状态。
 
@@ -31,8 +31,6 @@ flowchart LR
   Ops[Ops Web]
   Product[(产品与执行投影)]
   Control[execution-control]
-  Ingestion[ingestion-control]
-  Portal[(固定门户凭据)]
   Dining[(Dining 地图数据)]
   Temporal[Temporal]
   Axiom[Axiom]
@@ -48,8 +46,6 @@ flowchart LR
   Browser --> Access --> Ops
   Ops --> Product
   Ops --> Control
-  Ops --> Ingestion
-  Ops --> Portal
   Ops --> Dining
   Ops --> Axiom
   Ops --> Sentry
@@ -58,7 +54,6 @@ flowchart LR
   Ops -. 受控入口 .-> TemporalUI
 
   Control --> Temporal
-  Ingestion --> Temporal
   CollectorAgent -->|容器日志与 kubelet 指标| Gateway
   Runtime -->|通用或编排 OTLP| Gateway
   AgentRuntime -->|受信任 trace| Gateway
@@ -162,11 +157,6 @@ Ops Web 通过 execution-control 的受控管理接口读取、验证和写入�
 当前设置的替换，不存在独立的 revision、bundle 或 activation 动作。Ops Web 不读取配置数据库、
 不持有 keyring，也不能写入不完整或未验证的配置。
 
-### 门户认证
-
-Ops Web 只能读取和更新固定门户凭据资源，并通过 ingestion-control 查询或恢复固定认证维护
-Schedule。它不能读取当前凭据、选择其他 Secret、在线执行门户登录或操作任意 Schedule。
-
 ### Dining
 
 Ops Web 使用统一 `ops_web` 角色管理地图、菜单、评价和举报。App API 读取当前发布地图和菜单，
@@ -195,22 +185,18 @@ Ops Web 使用服务端固定、最小权限的 Axiom 和 Sentry 读取能力。
 
 - Cloudflare Access policy 决定人员范围，服务端验证 JWT 并拒绝服务身份；
 - 写操作继续执行同源、幂等、并发和所属领域校验；
-- Kubernetes Secret 权限只允许 `get`、`patch` 固定资源
-  `source-collector-internal-portal-auth` 和 `hindsight-model-config`，不得创建、列举、删除通用 Secret
-  或修改其他 Secret；
-- Deployment 写操作只允许 `patch` 固定的 `hindsight-api`，不得修改其他 Deployment；
 - PostgreSQL 不可用时，请求读取返回错误而不是空列表；
 - Axiom 或 Sentry 不可用时，只影响对应观测区域；
-- 在线模型配置、Kubernetes API、认证维护或 Dining 依赖失败时，只影响对应页面；
+- 在线模型配置或 Dining 依赖失败时，只影响对应页面；
 - Dining 和 Sentry 未配置时不阻止 Ops Web 启动或就绪，所属接口返回明确的不可用状态；
 - `/healthz` 只表示进程响应，`/readyz` 检查 Cloudflare Access 配置、公开来源地址和请求状态
   PostgreSQL；不探测 Dining、供应商或被观测服务。
 
 ## 部署边界
 
-源码仓拥有 Ops Web 代码、镜像、namespace-neutral Kubernetes base 和 Collector 模板。环境仓
-拥有地址、Secret、网络目标、Ingress、保留策略和不可变版本选择。源码文件、manifest 或 Secret
-键存在不表示某个环境已经部署成功。
+源码仓拥有 Ops Web 代码、镜像、namespace-neutral Kubernetes base、遥测字段策略和本地 Collector
+配置。环境仓拥有 staging Collector Helm values、地址、Secret、网络目标、Ingress、保留策略和
+不可变版本选择。源码文件、manifest 或 Secret 键存在不表示某个环境已经部署成功。
 
 网络出站按 workload 的实际依赖由 Kubernetes 配置声明；环境特定地址和供应商解析结果不得写入
 HTTP 合同。新增下游依赖时必须同时更新实现、可执行网络配置和环境选择。
@@ -222,9 +208,7 @@ HTTP 合同。新增下游依赖时必须同时更新实现、可执行网络配
 - Ops Web 查询 Temporal、Langfuse 或 Hindsight 的内部数据库；
 - 把原始日志、event、模型 observation 或外部平台正文写入产品投影；
 - 把 Ops Web 扩张为通用管理后台、工作流控制台、评测平台或外部平台复制品；
-- 创建、列举、删除通用 Secret，修改
-  `source-collector-internal-portal-auth`、`hindsight-model-config` 之外的 Secret，或 patch
-  `hindsight-api` 之外的 Deployment。
+- 创建、列举、读取或更新 Kubernetes Secret 和 Deployment。
 
 ## 外部设计依据
 

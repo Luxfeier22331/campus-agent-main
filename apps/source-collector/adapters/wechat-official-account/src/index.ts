@@ -1,9 +1,7 @@
 export {
-	createWeChatOfficialAccountArtifactStoreFromEnv,
 	S3WeChatOfficialAccountArtifactStore,
 	type StoredArtifactRef,
 	type WeChatOfficialAccountArtifactStore,
-	type WeChatOfficialAccountObjectStoreEnvironment,
 } from "./artifact-store.ts";
 export {
 	type CaptureFeedWeHistoryInput,

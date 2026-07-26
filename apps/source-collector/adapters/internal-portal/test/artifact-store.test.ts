@@ -2,38 +2,9 @@
 
 import { describe, expect, it } from "vitest";
 
-import {
-	createAuthenticatedNoticeArtifactStore,
-	createAuthenticatedNoticeArtifactStoreFromEnv,
-} from "../src/artifact-store.js";
+import { createAuthenticatedNoticeArtifactStore } from "../src/artifact-store.js";
 
-describe("authenticated-notice artifact store env", () => {
-	it("returns undefined when object-store env is absent", () => {
-		expect(createAuthenticatedNoticeArtifactStoreFromEnv({})).toBeUndefined();
-	});
-
-	it("fails closed when object-store env is partially configured", () => {
-		expect(() =>
-			createAuthenticatedNoticeArtifactStoreFromEnv({
-				OBJECT_STORE_ENDPOINT: "https://s3.cstcloud.cn",
-				OBJECT_STORE_SOURCE_ACCESS_KEY: "source-ak",
-			} as never),
-		).toThrowError(
-			/OBJECT_STORE_ENDPOINT.*OBJECT_STORE_SOURCE_ACCESS_KEY.*OBJECT_STORE_SOURCE_SECRET_KEY/i,
-		);
-	});
-
-	it("accepts source-bucket scoped credentials when shared credentials are absent", () => {
-		expect(() =>
-			createAuthenticatedNoticeArtifactStoreFromEnv({
-				OBJECT_STORE_ENDPOINT: "https://s3.cstcloud.cn",
-				OBJECT_STORE_SOURCE_ACCESS_KEY: "source-ak",
-				OBJECT_STORE_SOURCE_SECRET_KEY: "source-sk",
-				OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
-			} as never),
-		).not.toThrow();
-	});
-
+describe("authenticated-notice artifact store", () => {
 	it("verifies a stored object with head metadata after upload", async () => {
 		const sentCommandNames: string[] = [];
 		const store = createAuthenticatedNoticeArtifactStore({

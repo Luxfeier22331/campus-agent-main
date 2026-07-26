@@ -1,6 +1,6 @@
 import type { Hono } from "hono";
 
-import type { Env } from "../../config";
+import { type Env, isDeployedEnvironment, resolveEnvironment } from "../../config";
 import { AppApiRouteError, jsonResponse, routeErrorResponse } from "../../http";
 import { parseFeedbackCategory, type SubmitFeedbackInput } from "../../modules/campus-experience";
 import { readJsonRequestBody } from "../request-utils";
@@ -9,6 +9,7 @@ import type { AppRequestScope } from "../types";
 const DINING_MAP_CACHE_CONTROL = "public, max-age=60, s-maxage=300, stale-while-revalidate=86400";
 const DINING_FLOORPLAN_DIGEST = /^[0-9a-f]{64}$/;
 const MAX_DINING_FLOORPLAN_BYTES = 2 * 1024 * 1024;
+const PRIVATE_DERIVED_OBJECT_STORE_BASE_URL = "http://object-store/campus-agent-derived/";
 export function registerCampusExperienceRoutes(input: {
 	app: Hono<{ Bindings: Env }>;
 	createRequestScope: () => AppRequestScope;
@@ -98,21 +99,12 @@ export async function loadDiningFloorplanAsset(env: Env, digest: string): Promis
 			status: 400,
 		});
 	}
-	const publicBaseUrl = env.OBJECT_STORE_DERIVED_PUBLIC_BASE_URL?.trim();
-	if (!publicBaseUrl) {
-		throw new AppApiRouteError({
-			code: "service_unavailable",
-			message: "Dining floorplan storage is unavailable.",
-			retryable: true,
-			status: 503,
-		});
-	}
+	const upstream = resolveObjectStoreUpstream(env);
 	let assetUrl: URL;
 	try {
-		const baseUrl = new URL(ensureTrailingSlash(publicBaseUrl));
+		const baseUrl = new URL(ensureTrailingSlash(upstream.baseUrl));
 		if (
 			!(baseUrl.protocol === "https:" || baseUrl.protocol === "http:") ||
-			(baseUrl.protocol !== "https:" && env.APP_API_ENVIRONMENT !== "development") ||
 			baseUrl.username ||
 			baseUrl.password ||
 			baseUrl.search ||
@@ -129,8 +121,8 @@ export async function loadDiningFloorplanAsset(env: Env, digest: string): Promis
 			status: 503,
 		});
 	}
-	const upstream = await fetch(assetUrl, { headers: { accept: "image/svg+xml" } });
-	if (upstream.status === 404) {
+	const response = await upstream.fetch(assetUrl, { headers: { accept: "image/svg+xml" } });
+	if (response.status === 404) {
 		throw new AppApiRouteError({
 			code: "not_found",
 			message: "Dining floorplan asset was not found.",
@@ -138,7 +130,7 @@ export async function loadDiningFloorplanAsset(env: Env, digest: string): Promis
 			status: 404,
 		});
 	}
-	if (!upstream.ok) {
+	if (!response.ok) {
 		throw new AppApiRouteError({
 			code: "upstream_unavailable",
 			message: "Dining floorplan storage request failed.",
@@ -146,11 +138,11 @@ export async function loadDiningFloorplanAsset(env: Env, digest: string): Promis
 			status: 502,
 		});
 	}
-	const declaredLength = Number(upstream.headers.get("content-length"));
+	const declaredLength = Number(response.headers.get("content-length"));
 	if (Number.isFinite(declaredLength) && declaredLength > MAX_DINING_FLOORPLAN_BYTES) {
 		throw invalidFloorplanAsset();
 	}
-	const bytes = await upstream.arrayBuffer();
+	const bytes = await response.arrayBuffer();
 	if (bytes.byteLength > MAX_DINING_FLOORPLAN_BYTES) {
 		throw invalidFloorplanAsset();
 	}
@@ -170,6 +162,35 @@ export async function loadDiningFloorplanAsset(env: Env, digest: string): Promis
 			"x-content-type-options": "nosniff",
 		},
 	});
+}
+
+function resolveObjectStoreUpstream(env: Env): { baseUrl: string; fetch: typeof fetch } {
+	if (isDeployedEnvironment(resolveEnvironment(env))) {
+		const privateFetch = env.OBJECT_STORE_PRIVATE?.fetch;
+		if (typeof privateFetch !== "function") {
+			throw new AppApiRouteError({
+				code: "service_unavailable",
+				message: "Dining floorplan storage is unavailable.",
+				retryable: true,
+				status: 503,
+			});
+		}
+		return {
+			baseUrl: PRIVATE_DERIVED_OBJECT_STORE_BASE_URL,
+			fetch: privateFetch.bind(env.OBJECT_STORE_PRIVATE) as typeof fetch,
+		};
+	}
+
+	const localBaseUrl = env.OBJECT_STORE_LOCAL_BASE_URL?.trim();
+	if (!localBaseUrl) {
+		throw new AppApiRouteError({
+			code: "service_unavailable",
+			message: "Dining floorplan storage is unavailable.",
+			retryable: true,
+			status: 503,
+		});
+	}
+	return { baseUrl: localBaseUrl, fetch: globalThis.fetch };
 }
 
 function ensureTrailingSlash(value: string): string {

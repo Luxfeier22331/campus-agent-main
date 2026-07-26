@@ -48,7 +48,7 @@ export function createAppApiSentryOptions(env: Env): CloudflareOptions | undefin
 		environment: env.SENTRY_ENVIRONMENT?.trim() || environment,
 		initialScope: {
 			tags: {
-				app: resolveAppName(env),
+				app: resolveAppName(),
 				runtime: "cloudflare-worker",
 				surface: "app_api",
 			},

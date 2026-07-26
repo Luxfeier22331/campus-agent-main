@@ -18,7 +18,6 @@ vi.mock("../src/db/runtime", async (importOriginal) => ({
 }));
 
 const env: Env = {
-	APP_API_NAME: "campus-agent-app-api",
 	APP_API_ENVIRONMENT: "staging",
 	APP_API_STAGING_SMOKE_AUTH_SECRET: "staging-smoke-secret",
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
@@ -162,7 +161,6 @@ describe("POST /api/internal/staging-smoke/auth/session", () => {
 		const app = createApp(
 			{
 				...env,
-				APP_API_END_USER_EMAIL_ALLOWLIST: "help_bot@outlook.com",
 			},
 			{
 				getAppAuth: vi.fn().mockResolvedValue({

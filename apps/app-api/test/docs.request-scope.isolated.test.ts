@@ -64,7 +64,6 @@ vi.mock("../src/modules/docs", async (importOriginal) => {
 });
 
 const env = {
-	APP_API_NAME: "campus-agent-app-api",
 	APP_API_ENVIRONMENT: "test" as const,
 	APP_API_DB: {
 		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",

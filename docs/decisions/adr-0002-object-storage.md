@@ -21,6 +21,10 @@ status: accepted
 source 与 derived 使用不同凭据。运行时合同传递不依赖 bucket 的 `s3://` 产物引用、
 digest 和字节数，不传递主机挂载路径或供应商 SDK 类型。
 
+两个逻辑 bucket 名称是源码合同，S3 client region 固定为兼容值 `us-east-1`。部署环境只提供 endpoint
+和消费者所属身份的凭据，不重复配置固定名称与 region。需要隔离本地 worktree 时，只有对应本地
+开发入口可以显式覆盖其派生 bucket。
+
 MinIO 是可接受的自托管实现，但不是应用合同。替换为其他 S3 兼容服务时，只改变部署
 配置和凭据，不改变产物 identity 或运行时 DTO。
 
@@ -31,13 +35,14 @@ MinIO 是可接受的自托管实现，但不是应用合同。替换为其他 S
 - 覆盖会丢失执行证据时，保留 retry attempt；
 - 不仅依靠路径片段推断必需 metadata。
 
-面向业务公开交付的存储不属于这两个采集 bucket。地图或媒体可以因访问和生命周期不同
-使用公开 bucket，但不得因此新增另一套采集 source/derived bucket。
+浏览器不能直接访问这两个 bucket。复用派生对象的产品接口必须通过所属后端读取明确前缀；例如
+App API 只通过私有绑定读取 `campus-agent-derived/dining/floorplans/`。地图或媒体若因访问和生命周期
+不同改用公开 bucket，也不得因此新增另一套采集 source/derived bucket。
 
 ## 后果
 
 - 对象存储不可用时，production 代码不回退到本地文件写入。
-- bucket 创建、凭据、生命周期和供应商选择属于部署环境。
+- bucket 创建、凭据、endpoint、生命周期和供应商选择属于部署环境。
 - 领域 key 结构放在 builder 和测试附近；通用 builder 当前位于
   `packages/ingest-core`。
 - Qdrant vector 和原生 snapshot 不是采集对象存储事实。

@@ -81,12 +81,9 @@ tool 也不通过 app-api。
 
 - `ops-web -> execution-control` 通过同源 BFF 管理在线模型配置；浏览器不持有
   execution-control credential。
-- `ops-web -> PostgreSQL/execution-control/Axiom/Sentry` 提供有界运行摘要和关联记录；人员可以
-  通过固定接口更新内部门户认证并恢复固定维护 Schedule。
+- `ops-web -> PostgreSQL/execution-control/Axiom/Sentry` 提供有界运行摘要和关联记录。
 - `ops-web -> dining.*` 使用统一 `ops_web` 角色维护地图草稿、不可变发布版本、菜单、评价和举报；
   app-api 读取公开地图与菜单，并以受限权限处理学生评价和举报。
-- `ops-web -> ingestion-control` 只查询和恢复固定门户认证维护 Schedule，不提交采集任务或选择
-  其他工作流。
 - 在线模型配置后端不可用不阻断 Ops Web 的运行记录读取 readiness。
 - Temporal UI、Langfuse UI、Sentry 和 Axiom 保留各自完整能力；Ops Web 只提供跨系统关联、
   固定 Axiom 查询和常用摘要。
