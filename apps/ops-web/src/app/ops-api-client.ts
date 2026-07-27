@@ -19,6 +19,7 @@ import {
 	DiningRestoreResponseSchema,
 } from "../shared/dining-contract";
 import type {
+	InternalPortalAuthUpdate,
 	ModelSettingKind,
 	ModelSettingUpdate,
 	OpsOverviewWindow,
@@ -28,6 +29,8 @@ import type {
 } from "../shared/ops-contract";
 import {
 	ExecutionModelSettingsStatusSchema,
+	InternalPortalAuthStatusSchema,
+	InternalPortalAuthUpdateSchema,
 	ModelSettingValidationResponseSchema,
 	OpsObservabilityResponseSchema,
 	OpsOverviewResponseSchema,
@@ -47,6 +50,22 @@ export interface OpsRequestListParams {
 	view?: OpsRequestListView;
 	window?: OpsRequestWindow;
 	workflowId?: string;
+}
+
+export async function fetchInternalPortalAuthStatus(input: { signal?: AbortSignal } = {}) {
+	return InternalPortalAuthStatusSchema.parse(
+		await fetchJson("/api/ops/internal-portal/auth", { signal: input.signal }),
+	);
+}
+
+export async function replaceInternalPortalAuthCredential(payload: InternalPortalAuthUpdate) {
+	return InternalPortalAuthStatusSchema.parse(
+		await fetchJson("/api/ops/internal-portal/auth", {
+			body: JSON.stringify(InternalPortalAuthUpdateSchema.parse(payload)),
+			headers: { "content-type": "application/json" },
+			method: "PUT",
+		}),
+	);
 }
 
 export async function fetchExecutionModelSettings(input: { signal?: AbortSignal } = {}) {

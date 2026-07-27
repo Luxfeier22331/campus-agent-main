@@ -8,7 +8,7 @@ import {
 	RouterProvider,
 	redirect,
 } from "@tanstack/react-router";
-import { Activity, ClipboardList, ServerCog, UsersRound, Utensils } from "lucide-react";
+import { Activity, ClipboardList, KeyRound, ServerCog, UsersRound, Utensils } from "lucide-react";
 import { useMemo } from "react";
 import type { OpsOverviewWindow } from "../shared/ops-contract";
 import { DiningMenuPage } from "./dining-menu-page";
@@ -16,6 +16,7 @@ import { DiningPage } from "./dining-page";
 import { DiningReportsPage } from "./dining-reports-page";
 import { DiningReviewsPage } from "./dining-reviews-page";
 import { GroupsPage } from "./groups-page";
+import { InternalPortalPage } from "./internal-portal-page";
 import { NotFoundPage } from "./not-found-page";
 import {
 	ignoredRequestSearchParamNames,
@@ -117,6 +118,12 @@ const providerConfigRoute = createRoute({
 	component: ProviderConfigRoute,
 });
 
+const internalPortalRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/internal-portal",
+	component: InternalPortalPage,
+});
+
 const diningRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/dining",
@@ -153,6 +160,7 @@ const routeTree = rootRoute.addChildren([
 	requestsRoute,
 	requestSystemRoute,
 	requestDetailRoute,
+	internalPortalRoute,
 	providerConfigRoute,
 	diningRoute,
 	diningMenuRoute,
@@ -188,6 +196,7 @@ function RootLayout() {
 				{ href: "/overview", icon: Activity, label: "运行概览" },
 				{ href: "/requests", icon: ClipboardList, label: "运行记录" },
 				{ href: "/providers", icon: ServerCog, label: "模型配置" },
+				{ href: "/internal-portal", icon: KeyRound, label: "内部门户" },
 				{ href: "/dining", icon: Utensils, label: "食堂" },
 				{ href: "/groups", icon: UsersRound, label: "同好群" },
 			]}

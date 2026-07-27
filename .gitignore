@@ -11,6 +11,8 @@ target/
 !.env.example
 !.env.local-minimal.example
 !.env.staging.local.example
+apps/source-collector/adapters/internal-portal/.auth-status.json
+apps/source-collector/adapters/internal-portal/.auth-status.json.*.tmp
 env/commands/*.env
 env/commands/historical/*.env
 .dev.vars

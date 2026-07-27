@@ -18,6 +18,8 @@ import { secureHeaders } from "hono/secure-headers";
 import { z } from "zod";
 import { DiningDraftUpdateSchema, DiningRevisionSchema } from "../shared/dining-contract.ts";
 import {
+	InternalPortalAuthStatusSchema,
+	InternalPortalAuthUpdateSchema,
 	ModelSettingKindSchema,
 	ModelSettingUpdateSchema,
 	OpsObservabilityResponseSchema,
@@ -56,6 +58,11 @@ import {
 	DiningStoreUnavailableError,
 	DiningStoreValidationError,
 } from "./dining-store.ts";
+import {
+	createClusterInternalPortalAuthClient,
+	type InternalPortalAuthClient,
+	InternalPortalAuthUnavailableError,
+} from "./internal-portal-auth-client.ts";
 import {
 	createCloudflareAccessOpsAdmission,
 	getMissingAccessConfig,
@@ -115,6 +122,7 @@ interface OpsAppOptions {
 	sentry?: SentryClient;
 	staticRoot?: string;
 	store?: OpsStatusStore;
+	internalPortalAuthClient?: InternalPortalAuthClient;
 	providerConfigClient?: ReturnType<typeof createProviderConfigAdminClient>;
 	campusGroupsClient?: ReturnType<typeof createCampusGroupsAdminClient>;
 }
@@ -189,6 +197,8 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 			store,
 		});
 	const providerConfigClient = options.providerConfigClient ?? createProviderConfigAdminClient(env);
+	const internalPortalAuthClient =
+		options.internalPortalAuthClient ?? createClusterInternalPortalAuthClient();
 	const campusGroupsClient =
 		options.campusGroupsClient ??
 		createCampusGroupsAdminClient({
@@ -245,6 +255,9 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		}
 		if (error instanceof CampusGroupsRequestError) {
 			return jsonError("OPS_CAMPUS_GROUPS_REQUEST_INVALID", error.message, 400);
+		}
+		if (error instanceof InternalPortalAuthUnavailableError) {
+			return jsonError("OPS_INTERNAL_PORTAL_AUTH_UNAVAILABLE", "内部门户认证资源暂不可用。", 503);
 		}
 		if (error instanceof DiningStoreUnavailableError) {
 			return jsonError("OPS_DINING_STORE_UNAVAILABLE", "食堂管理数据库不可用。", 503);
@@ -328,6 +341,62 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		);
 		context.header("cache-control", "private, max-age=15, stale-if-error=300");
 		return context.json(response);
+	});
+
+	app.get("/api/ops/internal-portal/auth", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		if (Object.keys(context.req.query()).length > 0) {
+			return jsonError(
+				"OPS_INTERNAL_PORTAL_AUTH_QUERY_INVALID",
+				"内部门户认证状态查询不接受参数。",
+				400,
+			);
+		}
+		return context.json(
+			InternalPortalAuthStatusSchema.parse(await internalPortalAuthClient.getStatus()),
+		);
+	});
+
+	app.put("/api/ops/internal-portal/auth", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		if (!requestHasConfiguredOrigin(context.req.raw, publicOrigin)) {
+			return jsonError(
+				"OPS_INTERNAL_PORTAL_AUTH_ORIGIN_INVALID",
+				"内部门户认证修改请求来源无效。",
+				403,
+			);
+		}
+		if (!context.req.header("content-type")?.toLowerCase().startsWith("application/json")) {
+			return jsonError(
+				"OPS_INTERNAL_PORTAL_AUTH_CONTENT_TYPE_REQUIRED",
+				"Content-Type 必须是 application/json。",
+				400,
+			);
+		}
+		if (Object.keys(context.req.query()).length > 0) {
+			return jsonError(
+				"OPS_INTERNAL_PORTAL_AUTH_QUERY_INVALID",
+				"内部门户认证修改不接受查询参数。",
+				400,
+			);
+		}
+		const body = InternalPortalAuthUpdateSchema.safeParse(
+			await readBoundedJson(context.req.raw, 8 * 1024),
+		);
+		if (!body.success) {
+			return jsonError("OPS_INTERNAL_PORTAL_AUTH_INVALID", "请输入原始 SSO_TGC 值。", 400);
+		}
+		return context.json(
+			InternalPortalAuthStatusSchema.parse(
+				await internalPortalAuthClient.replaceCredential(body.data.ssoTgc),
+			),
+		);
 	});
 
 	app.get("/api/ops/model-settings/execution", async (context) => {

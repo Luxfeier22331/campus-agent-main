@@ -10,6 +10,7 @@ spec:
   concurrencyPolicy: Forbid
   jobTemplate:
     spec:
+      activeDeadlineSeconds: 120
       backoffLimit: 0
       template:
         metadata:

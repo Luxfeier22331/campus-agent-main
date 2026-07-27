@@ -33,21 +33,25 @@ status: accepted
 - HTTP 适配器从原始 TGC 建立带 CookieJar 的会话。Service Ticket、`JSESSIONID` 和 `nginx`
   cookie 只存在于当前进程内存，不持久化会话状态；
 - 应用会话失效时当前命令或 activity 直接失败，不自动重新建立会话或重放业务请求；
-- 通知列表与详情、文件发布详情与原文件都使用 HTTP；source-collector 不负责获取、创建或保存
+- 通知列表与详情、文件发布详情与原文件都使用 HTTP；source-collector 不自行获取、创建或改写
   TGC；
 - TGC 获取由采集器外部的人员认证流程完成。生产 worker 从环境提供的固定 Secret 读取当前值；
-  本地通知命令可以显式提供 `INTERNAL_PORTAL_SSO_TGC`，也可以读取只含原始 TGC 的文件；
+  本地通知命令从适配器未跟踪的 `.env` 读取 `INTERNAL_PORTAL_SSO_TGC`；
+- 本地 `auth:keepalive` 启动后立即检查，此后每 30 分钟重新读取 `.env`，只在忽略的
+  `.auth-status.json` 保存最近尝试、最近成功和结果分类；
 - collector 不承担规范文档、OCR、规章物化、分块、索引或查询发布；
 - 通知是 `source-collector` 的本地开发命令，不进入 Temporal、任务注册表或 Ops 控制面；文件
   发布按精确 ID 提交独立 workflow，但不成为 ingestion task；
 - Kubernetes CronJob 直接执行 `auth:check` 验证并保活 TGC，不进入 Temporal，不提交采集任务，
-  也不控制通知同步。
+  也不控制通知同步；Ops Web 只替换固定 Secret 并读取该 CronJob 的原生状态，不提供通用 Secret
+  或 Kubernetes 管理能力。
 
 ## 结果
 
 - 成功认证和采集不代表通知已经具备在线查询能力；
 - 每个通知 ID 的来源对象和同步边界都保存在 source bucket；
 - 文件发布只保存原文件与来源 metadata，workflow result 返回 `source.json` 引用；
+- 本地认证状态只进入忽略文件，线上认证状态只使用固定 Secret annotation 与 CronJob 状态；
 - 下游规章、班车、校历等领域必须通过自己的校验和发布入口消费通知来源。
 
 ## 相关文档

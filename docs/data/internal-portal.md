@@ -66,8 +66,14 @@ workflow result，不另存对象。
 ## 认证
 
 source-collector 从当前原始 TGC 建立内存会话。Service Ticket、`JSESSIONID` 和 `nginx` Cookie
-不写环境变量、对象存储、PostgreSQL 或 Temporal 载荷。Kubernetes CronJob 定期运行
-`auth:check`，只建立会话并以退出码表示结果，不触发通知或文件发布采集。
+不写环境变量、对象存储、PostgreSQL 或 Temporal 载荷。认证状态也不进入 source 或 derived
+bucket。
+
+本地 `auth:keepalive` 将最近尝试时间、最近成功时间和结果分类写入忽略的
+`.auth-status.json`，不保存 TGC 或派生 Cookie。线上 Kubernetes CronJob 定期运行 `auth:check`；
+凭据更新时间来自固定 Secret annotation，检查时间与结果来自 CronJob 原生状态。Ops Web 只读取
+这些字段并替换固定 Secret，不创建认证数据库、ConfigMap 或对象存储记录，也不触发通知或文件
+发布采集。
 
 ## 相关文档
 

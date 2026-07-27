@@ -60,8 +60,9 @@ PostgreSQL、任务注册表或 Ops API，附件只保存 metadata。
 ## 认证检查
 
 Kubernetes CronJob 每 30 分钟直接执行 source-collector `auth:check`。该命令只用当前 TGC 建立
-门户会话，不触发采集、不写业务状态，也不进入 Temporal。固定 TGC 由部署环境提供，当前 Ops Web
-不提供替换页面或接口。
+门户会话，不触发采集、不写业务状态，也不进入 Temporal。固定 TGC 由部署环境提供；Ops Web 只
+替换固定 Secret，并从 Secret annotation 与该 CronJob 原生状态展示更新时间和最近检查结果。
+本地开发使用前台 `auth:keepalive` 和忽略的状态文件，不复用线上状态存储。
 
 ## 状态分工
 

@@ -7,6 +7,7 @@
 	"packageManager": "pnpm@10.34.5",
 	"scripts": {
 		"auth:check": "tsx adapters/internal-portal/src/auth-check.ts",
+		"auth:keepalive": "tsx adapters/internal-portal/src/auth-keepalive.ts",
 		"notice:backfill": "tsx adapters/internal-portal/src/notice-cli.ts backfill",
 		"notice:status": "tsx adapters/internal-portal/src/notice-cli.ts status",
 		"notice:sync": "tsx adapters/internal-portal/src/notice-cli.ts sync",

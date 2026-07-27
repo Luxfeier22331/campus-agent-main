@@ -20,7 +20,9 @@ describe("internal portal source collector auth check", () => {
 
 		await expect(checkAuth({ config, checkAuthentication })).resolves.toBeUndefined();
 		expect(checkAuthentication).toHaveBeenCalledOnce();
-		expect(checkAuthentication).toHaveBeenCalledWith(config);
+		expect(checkAuthentication).toHaveBeenCalledWith(config, {
+			abortSignal: expect.any(AbortSignal),
+		});
 	});
 
 	it("propagates session establishment failure", async () => {

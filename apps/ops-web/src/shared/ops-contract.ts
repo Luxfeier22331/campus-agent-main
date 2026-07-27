@@ -30,6 +30,44 @@ export const ModelSettingValidationResponseSchema = z.object({
 });
 export type ModelSettingValidationResponse = z.infer<typeof ModelSettingValidationResponseSchema>;
 
+const RawSsoTgcSchema = z
+	.string()
+	.min(1)
+	.max(4_096)
+	.refine((value) => !value.startsWith("SSO_TGC="), {
+		message: "ssoTgc must contain only the raw SSO_TGC value",
+	})
+	.refine((value) => {
+		for (let index = 0; index < value.length; index += 1) {
+			const code = value.charCodeAt(index);
+			if (
+				code < 0x21 ||
+				code > 0x7e ||
+				code === 0x22 ||
+				code === 0x2c ||
+				code === 0x3b ||
+				code === 0x5c
+			) {
+				return false;
+			}
+		}
+		return true;
+	}, "ssoTgc must contain only the raw SSO_TGC value");
+
+export const InternalPortalAuthUpdateSchema = z.object({ ssoTgc: RawSsoTgcSchema }).strict();
+export type InternalPortalAuthUpdate = z.infer<typeof InternalPortalAuthUpdateSchema>;
+
+export const InternalPortalAuthStatusSchema = z
+	.object({
+		credentialUpdatedAt: IsoDateTimeSchema,
+		currentCredentialChecked: z.boolean(),
+		lastScheduledAt: IsoDateTimeSchema.nullable(),
+		lastSuccessfulAt: IsoDateTimeSchema.nullable(),
+		latestRun: z.enum(["never_run", "running", "succeeded", "failed"]),
+	})
+	.strict();
+export type InternalPortalAuthStatus = z.infer<typeof InternalPortalAuthStatusSchema>;
+
 export const ExecutionModelSettingSchema = z.object({
 	baseUrl: z.string().url(),
 	credentialConfigured: z.boolean(),

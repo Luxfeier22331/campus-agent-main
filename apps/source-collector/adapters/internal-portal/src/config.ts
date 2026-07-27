@@ -18,10 +18,10 @@ export interface InternalPortalConfig {
 	portalProxyServer: string | null;
 }
 
-export function loadInternalPortalEnv(): void {
-	dotenv.config({ path: path.join(adapterRoot, ".env.local"), quiet: true });
-	dotenv.config({ path: path.join(adapterRoot, ".env"), quiet: true });
-	dotenv.config({ path: path.join(repoRoot, ".env"), quiet: true });
+export function loadInternalPortalEnv(processEnv: NodeJS.ProcessEnv = process.env): void {
+	dotenv.config({ path: path.join(adapterRoot, ".env.local"), processEnv, quiet: true });
+	dotenv.config({ path: path.join(adapterRoot, ".env"), processEnv, quiet: true });
+	dotenv.config({ path: path.join(repoRoot, ".env"), processEnv, quiet: true });
 }
 
 export function resolveInternalPortalConfig(

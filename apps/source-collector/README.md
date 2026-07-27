@@ -8,7 +8,8 @@
 
 - Temporal worker 按精确 ID 采集一份文件发布；
 - 本地命令增量采集或按日期回填通知；
-- `auth:check` 建立一次门户会话，供 Kubernetes CronJob 定期验证和保活。
+- `auth:check` 建立一次门户会话，`auth:keepalive` 在本地定期使用并检查当前 TGC；Kubernetes
+  CronJob 在线上执行同一单次检查。
 
 HTTP 会话、派生 Cookie、临时下载文件和供应商凭据只存在于本应用边界。应用不启动 workflow，
 不维护 ingestion task 或 PostgreSQL 投影，不写 derived bucket，也不发布在线查询目标。
@@ -65,10 +66,13 @@ Service Ticket 不跨执行保存。
 
 ```bash
 pnpm --filter source-collector auth:check
+pnpm --filter source-collector auth:keepalive
 ```
 
-Kubernetes 每 30 分钟直接运行该命令。认证检查不请求通知或文件发布内容，不写对象存储，也不
-触发采集。
+`auth:check` 只执行一次并以退出码表示结果。`auth:keepalive` 启动后立即检查，此后每 30 分钟
+重新读取未跟踪的 `.env` 并检查；最近尝试时间、最近成功时间和结果分类写入同目录下忽略的
+`.auth-status.json`，其中不包含 TGC。Kubernetes 每 30 分钟直接运行 `auth:check`。两种检查都不
+请求通知或文件发布内容，不写对象存储，也不触发采集。
 
 ## Worker
 
