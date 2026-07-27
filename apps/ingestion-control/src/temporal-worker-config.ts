@@ -3,7 +3,6 @@ import { type PostgresConnectionConfig, readPostgresConnectionConfig } from "./p
 export interface IngestionTemporalWorkerRuntimeConfig {
 	database: PostgresConnectionConfig;
 	registryRoot: string;
-	siteId: string;
 }
 
 export function buildIngestionTemporalWorkerRuntimeConfig(
@@ -16,7 +15,6 @@ export function buildIngestionTemporalWorkerRuntimeConfig(
 			sslMode: "INGESTION_CONTROL_DATABASE_SSLMODE",
 		}),
 		registryRoot: requiredEnv(env, "INGESTION_TASK_REGISTRY_ROOT"),
-		siteId: requiredEnv(env, "INTERNAL_PORTAL_SITE_ID"),
 	};
 }
 

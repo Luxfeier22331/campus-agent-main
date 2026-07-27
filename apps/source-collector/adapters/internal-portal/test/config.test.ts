@@ -1,138 +1,134 @@
-import { describe, expect, it } from "vitest";
+import dotenv from "dotenv";
+import { describe, expect, it, vi } from "vitest";
 
-import { applyInternalPortalNoProxyEnv, resolveInternalPortalConfig } from "../src/config.js";
+import {
+	loadInternalPortalEnv,
+	resolveInternalPortalConfig,
+	resolveInternalPortalSiteId,
+} from "../src/config.js";
+
+const TEST_SSO_TGC_FILE = "/tmp/internal-portal-sso-tgc";
+
+function resolveTestConfig(source: Record<string, string | undefined> = {}) {
+	return resolveInternalPortalConfig({
+		INTERNAL_PORTAL_SSO_TGC_FILE: TEST_SSO_TGC_FILE,
+		...source,
+	});
+}
 
 describe("internal portal source collector config", () => {
-	it("uses repo-local runtime defaults and authenticated portal semantics", () => {
-		const config = resolveInternalPortalConfig({});
+	it("loads managed local, developer, and repository env without overriding process env", () => {
+		const config = vi.spyOn(dotenv, "config").mockReturnValue({ parsed: {} });
+
+		loadInternalPortalEnv();
+
+		expect(config).toHaveBeenCalledTimes(3);
+		expect(config.mock.calls[0]?.[0]).toMatchObject({
+			path: expect.stringMatching(/adapters\/internal-portal\/\.env\.local$/u),
+			quiet: true,
+		});
+		expect(config.mock.calls[1]?.[0]).toMatchObject({
+			path: expect.stringMatching(/adapters\/internal-portal\/\.env$/u),
+			quiet: true,
+		});
+		expect(config.mock.calls[2]?.[0]).toMatchObject({
+			path: expect.stringMatching(/\/\.env$/u),
+			quiet: true,
+		});
+		expect(String(config.mock.calls[2]?.[0]?.path)).not.toContain("adapters/internal-portal");
+		expect(config.mock.calls.every(([options]) => options?.override !== true)).toBe(true);
+		config.mockRestore();
+	});
+
+	it("resolves site identity without parsing unrelated portal configuration", () => {
+		expect(
+			resolveInternalPortalSiteId({
+				INTERNAL_PORTAL_BASE_URL: "not-a-url",
+				INTERNAL_PORTAL_SITE_ID: "muc_internal_portal",
+			}),
+		).toBe("muc_internal_portal");
+	});
+
+	it("uses authenticated portal defaults", () => {
+		const config = resolveTestConfig();
 
 		expect(config.portalBaseUrl).toBe("https://portal.example.edu");
 		expect(config.portalPageUrl).toBe("https://portal.example.edu/page/11#/");
 		expect(config.sourceHomeUrl).toBe("https://portal.example.edu");
 		expect(config.siteId).toBe("synthetic_internal_portal");
-		expect(
-			config.noticeTypesPath.endsWith(
-				"apps/source-collector/adapters/internal-portal/config/notice-types.json",
-			),
-		).toBe(true);
-		expect(config.requestMaxRetries).toBe(3);
-		expect(
-			config.authStorageStatePath.endsWith(
-				"apps/source-collector/adapters/internal-portal/runtime/auth/storageState.json",
-			),
-		).toBe(true);
-		expect(config.authSsoTgcFile.endsWith("runtime/auth/sso_tgc")).toBe(true);
-		expect(config.reconcileMaxPagesPerType).toBeNull();
+		expect(config.authSsoTgc).toBeNull();
+		expect(config.authSsoTgcFile).toBe(TEST_SSO_TGC_FILE);
+		expect(config.portalProxyServer).toBeNull();
+	});
+
+	it("accepts a direct TGC and leaves the file optional", () => {
+		const config = resolveInternalPortalConfig({ INTERNAL_PORTAL_SSO_TGC: "TGT-current" });
+
+		expect(config.authSsoTgc).toBe("TGT-current");
+		expect(config.authSsoTgcFile).toBeNull();
 	});
 
 	it("accepts explicit overrides from env-like input", () => {
-		const config = resolveInternalPortalConfig({
-			INTERNAL_PORTAL_AUTH_CHECK_NOTICE_TYPE: "6",
+		const config = resolveTestConfig({
 			INTERNAL_PORTAL_BASE_URL: "https://portal.example.edu",
 			INTERNAL_PORTAL_PAGE_URL: "https://portal.example.edu/page/99#/",
-			INTERNAL_PORTAL_BYPASS_PROXY: "false",
 			INTERNAL_PORTAL_PROXY_SERVER: "http://127.0.0.1:10808",
-			INTERNAL_PORTAL_RECONCILE_MAX_PAGES_PER_TYPE: "500",
-			INTERNAL_PORTAL_REQUEST_MAX_RETRIES: "5",
-			INTERNAL_PORTAL_RUNTIME_DIR: "/tmp/collector-runtime",
 			INTERNAL_PORTAL_SSO_COOKIE_DOMAIN: ".example.edu",
 			INTERNAL_PORTAL_SSO_TGC_FILE: "/run/secrets/internal-portal/sso_tgc",
 		});
 
 		expect(config.portalBaseUrl).toBe("https://portal.example.edu");
 		expect(config.portalPageUrl).toBe("https://portal.example.edu/page/99#/");
-		expect(config.requestMaxRetries).toBe(5);
-		expect("authCookieHeader" in config).toBe(false);
-		expect(config.authCheckNoticeType).toBe("6");
 		expect(config.authSsoCookieDomain).toBe(".example.edu");
+		expect(config.authSsoTgc).toBeNull();
 		expect(config.authSsoTgcFile).toBe("/run/secrets/internal-portal/sso_tgc");
-		expect(config.reconcileMaxPagesPerType).toBe(500);
-		expect(config.bypassProxyForPortal).toBe(false);
 		expect(config.portalProxyServer).toBe("http://127.0.0.1:10808");
-		expect(config.authStorageStatePath).toBe("/tmp/collector-runtime/auth/storageState.json");
 	});
 
-	it("resolves an explicit portal proxy server when proxy bypass is disabled", () => {
-		const config = resolveInternalPortalConfig({
-			INTERNAL_PORTAL_BYPASS_PROXY: "false",
-			INTERNAL_PORTAL_PROXY_SERVER: "http://127.0.0.1:10808",
+	it("requires direct and file-backed TGC inputs to be mutually exclusive", () => {
+		expect(() =>
+			resolveTestConfig({
+				INTERNAL_PORTAL_SSO_TGC: "TGT-local",
+			}),
+		).toThrow("INTERNAL_PORTAL_SSO_TGC and INTERNAL_PORTAL_SSO_TGC_FILE are mutually exclusive");
+	});
+
+	it("ignores retired env keys instead of creating migration guards", () => {
+		const config = resolveTestConfig({
+			AUTHENTICATED_NOTICE_BASE_URL: "https://legacy.example.edu",
+			INTERNAL_PORTAL_JSESSIONID: "retired-session",
+			INTERNAL_PORTAL_NGINX: "retired-upstream",
 		});
 
-		expect(config.bypassProxyForPortal).toBe(false);
-		expect(config.portalProxyServer).toBe("http://127.0.0.1:10808");
-	});
-
-	it("requires an explicit portal proxy server when proxy bypass is disabled", () => {
-		expect(() =>
-			resolveInternalPortalConfig({
-				INTERNAL_PORTAL_BYPASS_PROXY: "false",
-				INTERNAL_PORTAL_PROXY_SERVER: "",
-				HTTP_PROXY: "http://127.0.0.1:10808",
-			}),
-		).toThrow("INTERNAL_PORTAL_PROXY_SERVER is required when INTERNAL_PORTAL_BYPASS_PROXY=false");
+		expect(config.portalBaseUrl).toBe("https://portal.example.edu");
+		expect(config.authSsoTgcFile).toBe(TEST_SSO_TGC_FILE);
 	});
 
 	it("rejects SSO cookie domains outside the configured portal host", () => {
 		expect(() =>
-			resolveInternalPortalConfig({
+			resolveTestConfig({
 				INTERNAL_PORTAL_BASE_URL: "https://portal.example.edu.cn",
 				INTERNAL_PORTAL_SSO_COOKIE_DOMAIN: ".edu.cn",
 			}),
 		).toThrow("INTERNAL_PORTAL_SSO_COOKIE_DOMAIN must be a registrable parent domain");
 		expect(() =>
-			resolveInternalPortalConfig({
+			resolveTestConfig({
 				INTERNAL_PORTAL_BASE_URL: "https://portal.example.edu.cn",
 				INTERNAL_PORTAL_SSO_COOKIE_DOMAIN: ".other.edu.cn",
 			}),
 		).toThrow("INTERNAL_PORTAL_SSO_COOKIE_DOMAIN must match or parent the portal host");
 	});
 
-	it("rejects invalid explicit SSO cookie domains even when SSO_TGC is not seeded", () => {
+	it("requires credential-free HTTPS portal URLs on one portal host", () => {
 		expect(() =>
-			resolveInternalPortalConfig({
-				INTERNAL_PORTAL_BASE_URL: "https://portal.example.edu.cn",
-				INTERNAL_PORTAL_SSO_COOKIE_DOMAIN: ".edu.cn",
+			resolveTestConfig({
+				INTERNAL_PORTAL_BASE_URL: "http://portal.example.edu",
 			}),
-		).toThrow("INTERNAL_PORTAL_SSO_COOKIE_DOMAIN must be a registrable parent domain");
-	});
-
-	it("derives portal hosts for no_proxy and preserves existing entries", () => {
-		const env = {
-			INTERNAL_PORTAL_BASE_URL: "https://my.muc.edu.cn",
-			INTERNAL_PORTAL_SSO_COOKIE_DOMAIN: ".muc.edu.cn",
-			NO_PROXY: "localhost,127.0.0.1",
-		} as NodeJS.ProcessEnv;
-
-		applyInternalPortalNoProxyEnv(env);
-
-		expect(env.NO_PROXY).toBe("localhost,127.0.0.1,muc.edu.cn,.muc.edu.cn,my.muc.edu.cn");
-		expect(env.no_proxy).toBe(env.NO_PROXY);
-	});
-
-	it("does not duplicate muc portal hosts when no_proxy already contains them", () => {
-		const env = {
-			INTERNAL_PORTAL_BASE_URL: "https://my.muc.edu.cn",
-			INTERNAL_PORTAL_SSO_COOKIE_DOMAIN: ".muc.edu.cn",
-			no_proxy: "localhost,.muc.edu.cn,my.muc.edu.cn",
-		} as NodeJS.ProcessEnv;
-
-		applyInternalPortalNoProxyEnv(env);
-
-		expect(env.NO_PROXY).toBe("localhost,.muc.edu.cn,my.muc.edu.cn,muc.edu.cn");
-		expect(env.no_proxy).toBe(env.NO_PROXY);
-	});
-
-	it("removes muc portal hosts from no_proxy when proxy bypass is disabled", () => {
-		const env = {
-			INTERNAL_PORTAL_BYPASS_PROXY: "false",
-			INTERNAL_PORTAL_BASE_URL: "https://my.muc.edu.cn",
-			INTERNAL_PORTAL_SSO_COOKIE_DOMAIN: ".muc.edu.cn",
-			NO_PROXY: "localhost,muc.edu.cn,.muc.edu.cn,my.muc.edu.cn,127.0.0.1",
-		} as NodeJS.ProcessEnv;
-
-		applyInternalPortalNoProxyEnv(env);
-
-		expect(env.NO_PROXY).toBe("localhost,127.0.0.1");
-		expect(env.no_proxy).toBe(env.NO_PROXY);
+		).toThrow("INTERNAL_PORTAL_BASE_URL must be a credential-free HTTPS URL");
+		expect(() =>
+			resolveTestConfig({
+				INTERNAL_PORTAL_PAGE_URL: "https://other.example.edu/page/11#/",
+			}),
+		).toThrow("INTERNAL_PORTAL_PAGE_URL must use the portal host");
 	});
 });

@@ -9,7 +9,6 @@ describe("buildIngestionControlRuntimeConfig", () => {
 			INGESTION_CONTROL_DATABASE_URL: " postgresql://ingestion@db/campus ",
 			INGESTION_TASK_REGISTRY_ROOT: " /app/configs/ingestion ",
 			INGESTION_TEMPORAL_ADDRESS: " temporal:7233 ",
-			INTERNAL_PORTAL_SITE_ID: " muc_internal_portal ",
 		});
 
 		expect(config.database).toEqual({
@@ -18,7 +17,6 @@ describe("buildIngestionControlRuntimeConfig", () => {
 		});
 		expect(config.registryRoot).toBe("/app/configs/ingestion");
 		expect(config.temporal.address).toBe("temporal:7233");
-		expect(config.siteId).toBe("muc_internal_portal");
 	});
 
 	it("does not require internal portal configuration for the API runtime", () => {
@@ -30,6 +28,8 @@ describe("buildIngestionControlRuntimeConfig", () => {
 			INGESTION_TEMPORAL_ADDRESS: "temporal:7233",
 		});
 
-		expect(config.siteId).toBeUndefined();
+		expect(config.temporal.sourceCollectorActivityTaskQueue).toBe(
+			"campus-agent.ingestion.activity.source-collector",
+		);
 	});
 });

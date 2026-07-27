@@ -10,10 +10,6 @@
 apps/source-collector/**/.env
 apps/source-collector/**/.env.*
 !apps/source-collector/**/.env.example
-apps/source-collector/**/runtime
-apps/source-collector/**/runtime/**
-apps/source-collector/**/.crawlee
-apps/source-collector/**/.crawlee/**
 !apps/agent-runtime/
 !apps/agent-runtime/**
 !apps/app-api/

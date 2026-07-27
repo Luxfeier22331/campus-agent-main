@@ -1,6 +1,6 @@
 import { ApplicationFailure } from "@temporalio/activity";
 import { sha256Hex } from "ingest-core";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { createIngestionProjectionActivities } from "../src/activities";
 import { InMemoryIngestionTaskStore } from "../src/in-memory-store";
 import { testResult, testSnapshot, testTaskStartMetadata } from "./fixtures";
@@ -9,21 +9,12 @@ describe("ingestion projection activities", () => {
 	it("rejects a result that does not match the frozen snapshot before projection", async () => {
 		const store = new InMemoryIngestionTaskStore();
 		const snapshot = testSnapshot();
-		snapshot.task.registry_task_id = "official_web.capture";
-		snapshot.registry_task = {
-			registry_task_id: "official_web.capture",
-			executor_kind: "source_collector",
-			input_contract: "official_web_capture_request.v1",
-			output_contract: "official_web_source_manifest.v1",
-			source: { family: "official_web", channel: "official_web" },
-		};
 		store.recordTaskStarted({
 			...testTaskStartMetadata,
 			snapshot,
 			workflowId: "ingestion/task-curriculum-chunk-001",
 			workflowRunId: "temporal-run-001",
 		});
-		const projectResult = vi.fn();
 		const activities = createIngestionProjectionActivities({
 			objectStore: {
 				derivedBucket: "campus-agent-derived",
@@ -38,18 +29,12 @@ describe("ingestion projection activities", () => {
 					throw new Error("result artifact must not be read before identity validation");
 				},
 			},
-			officialWebFreshness: {
-				prepareTask: vi.fn(),
-				projectResult,
-			},
 			store,
 		});
 
 		const completion = activities.completeIngestionTask({
 			result: {
 				...testResult(),
-				registry_task_id: "official_web.capture",
-				output_contract: "official_web_source_manifest.v1",
 				run_id: "another-run",
 			},
 			snapshot,
@@ -60,7 +45,6 @@ describe("ingestion projection activities", () => {
 			type: "invalid_ingestion_task_result",
 		});
 		await expect(completion).rejects.toBeInstanceOf(ApplicationFailure);
-		expect(projectResult).not.toHaveBeenCalled();
 		expect(store.getTask(snapshot.task.task_id)?.status).toBe("running");
 	});
 
@@ -90,7 +74,7 @@ describe("ingestion projection activities", () => {
 			result_ref: {
 				byte_size: bytes.byteLength,
 				kind: "object_store" as const,
-				uri: "s3://campus-agent-derived/results/chunks.json",
+				uri: "s3://campus-agent-derived/ingestion-kernels/curriculum.curriculum_plan.chunk_prepare/runs/run-curriculum-001/attempts/1/task-curriculum-chunk-001/chunk-document-units.json",
 				digest: `sha256:${sha256Hex(bytes)}`,
 			},
 		};

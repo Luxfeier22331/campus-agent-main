@@ -1,30 +1,10 @@
 export {
-	buildAuthenticatedFileReleaseSourceTruthKeys,
-	buildAuthenticatedNoticeSourceTruthKeys,
 	buildCanonicalVersionDigest,
 	buildDocumentArtifactKey,
 	joinObjectKeySegments,
 	writeCanonicalJsonArtifact,
 	writeCanonicalJsonLinesArtifact,
 } from "./artifacts.ts";
-export { materializeAuthenticatedFileReleaseSourceTruthFromTask } from "./authenticated-file-release-source-truth.ts";
-export {
-	type AuthenticatedNoticeDefaultFamilyRouteOverride,
-	type AuthenticatedNoticeFamilyRoutePolicy,
-	type AuthenticatedNoticeNoticeFamilyClassification,
-	type AuthenticatedNoticeNoticeFamilyConfig,
-	type AuthenticatedNoticeNoticeFamilyRule,
-	type AuthenticatedNoticeRoutingDecision,
-	type AuthenticatedNoticeRoutingPolicyConfig,
-	type AuthenticatedNoticeRoutingSample,
-	classifyAuthenticatedNoticeBundleRecord,
-	findMissingTransportScheduleAttachmentRefIds,
-	parseAuthenticatedNoticeNoticeFamilyConfig,
-	resolveAuthenticatedNoticeRoutingDecision,
-	resolveAuthenticatedNoticeRoutingSampleFromBundleRecord,
-	resolveAuthenticatedNoticeTargetCandidates,
-} from "./authenticated-notice-routing.ts";
-export { materializeAuthenticatedNoticeSourceTruthFromTask } from "./authenticated-notice-source-truth.ts";
 export {
 	type CollectionChunkProfile,
 	type CollectionChunkRuntimeDefaults,
@@ -44,41 +24,16 @@ export {
 	parseIngestionKernelJsonOutput,
 } from "./kernel-artifacts.ts";
 export {
-	type AuthenticatedFileReleaseManifest,
-	type AuthenticatedNoticeCaptureRelease,
-	assertObjectRefsUseBucket,
-	deriveFileReleaseBundleKeyForManifest,
-	type OfficialWebSourceTruthBundle,
-	type OfficialWebSourceTruthBundlePage,
-	parseAuthenticatedFileReleaseManifest,
-	parseAuthenticatedNoticeCaptureRelease,
-	parseOfficialWebSourceTruthBundle,
-	parseSourceObjectRefList,
-	parseWeChatOfficialAccountCaptureRelease,
-	resolveOfficialWebSourceTruthRefsFromTask,
-	resolveWeChatOfficialAccountSourceTruthRefsFromTask,
-	type WeChatOfficialAccountArticleSourceTruthRef,
-	type WeChatOfficialAccountCaptureRelease,
-} from "./source-handoff.ts";
-export {
 	auditIngestionRegistryExecutability,
 	classifyIngestionRegistryTaskExecutability,
 	DEFAULT_EXECUTABLE_RUST_KERNEL_IDS,
 	DEFAULT_EXECUTABLE_RUST_KERNELS,
-	DEFAULT_EXECUTABLE_SOURCE_COLLECTOR_TASK_IDS,
-	DEFAULT_EXECUTABLE_SOURCE_COLLECTOR_TASKS,
-	DEFAULT_EXECUTABLE_TYPESCRIPT_KERNEL_IDS,
-	DEFAULT_EXECUTABLE_TYPESCRIPT_KERNELS,
 	type DefaultExecutableRustKernel,
 	type DefaultExecutableRustKernelId,
-	type DefaultExecutableSourceCollectorTask,
-	type DefaultExecutableTypeScriptKernel,
 	type IngestionTaskExecutabilityClassification,
 	type IngestionTaskExecutabilityIssue,
 	type IngestionTaskExecutabilityStatus,
 	isDefaultRustKernelExecutable,
-	isDefaultSourceCollectorExecutable,
-	isDefaultTypeScriptKernelExecutable,
 } from "./task-executor.ts";
 export {
 	encodeIngestionTaskProjectionCursor,

@@ -1,42 +1,25 @@
 import { fileURLToPath } from "node:url";
 import { startNodeTelemetry } from "@campus-agent/telemetry-node";
-import { Client, Connection } from "@temporalio/client";
 import { OpenTelemetryPlugin } from "@temporalio/interceptors-opentelemetry-v2";
 import { NativeConnection, Worker } from "@temporalio/worker";
-import { buildCanonicalVersionDigest } from "ingest-core";
 import {
 	loadCollectionChunkProfilesFromRoot,
 	loadIngestionTaskRegistryCatalogFromRoot,
 } from "ingest-core/node";
-import {
-	createIngestionProjectionActivities,
-	createRustKernelActivities,
-	createTypeScriptKernelActivities,
-} from "./activities";
-import { createInternalPortalScheduleActivities } from "./internal-portal-schedule-activities";
+import { createIngestionProjectionActivities, createRustKernelActivities } from "./activities";
 import {
 	createS3IngestionObjectStoreFromEnv,
 	type IngestionObjectStore,
 	type IngestionObjectStoreEnvironment,
 } from "./object-store";
 import {
-	createOfficialWebFreshnessService,
-	createPostgresOfficialWebFreshnessStore,
-} from "./official-web-freshness";
-import { createPostgresOfflineReleaseStore } from "./offline-release-store";
-import {
 	assertIngestionControlPostgresSchema,
 	createPostgresIngestionTaskStore,
 } from "./postgres-store";
-import { createInternalPortalPublicationActivities } from "./publication-activities";
 import { createDefaultRustKernelRegistry } from "./rust-kernel-runner";
 import { assertRustKernelRegistryCoversTasks } from "./task-executor";
 import { buildIngestionTemporalConfig } from "./temporal-config";
 import { buildIngestionTemporalWorkerRuntimeConfig } from "./temporal-worker-config";
-import {
-	assertTypeScriptKernelRegistryCoversTasks,
-	createDefaultTypeScriptKernelRegistry,
-} from "./typescript-kernel-runner";
 import { resolveWorkerDeploymentOptions } from "./worker-versioning";
 
 const WORKER_DATABASE_CONNECTION_TIMEOUT_MS = 10_000;
@@ -57,17 +40,11 @@ export async function startIngestionTemporalWorkers(
 	});
 	const objectStore = requireTemporalWorkerObjectStore(env);
 	let connection: NativeConnection | null = null;
-	let clientConnection: Connection | null = null;
 	const workers: Worker[] = [];
 	const runs: Promise<void>[] = [];
 	try {
 		await assertIngestionControlPostgresSchema(pool);
 		const registryCatalog = loadIngestionTaskRegistryCatalogFromRoot(runtimeConfig.registryRoot);
-		const registryDigest = buildCanonicalVersionDigest({
-			tasks: registryCatalog
-				.registeredTasks()
-				.sort((left, right) => left.registry_task_id.localeCompare(right.registry_task_id)),
-		});
 		const rustKernels = createDefaultRustKernelRegistry({
 			chunkProfiles: loadCollectionChunkProfilesFromRoot(runtimeConfig.registryRoot),
 			objectStore,
@@ -75,17 +52,7 @@ export async function startIngestionTemporalWorkers(
 			tokenizerJsonPath: env.INGESTION_KERNEL_TOKENIZER_JSON_PATH,
 		});
 		assertRustKernelRegistryCoversTasks(registryCatalog.registeredTasks(), rustKernels);
-		const typeScriptKernels = createDefaultTypeScriptKernelRegistry({
-			objectStore,
-			registryRoot: runtimeConfig.registryRoot,
-		});
-		assertTypeScriptKernelRegistryCoversTasks(registryCatalog.registeredTasks(), typeScriptKernels);
 		connection = await NativeConnection.connect({ address: temporalConfig.address });
-		clientConnection = await Connection.connect({ address: temporalConfig.address });
-		const temporalClient = new Client({
-			connection: clientConnection,
-			namespace: temporalConfig.namespace,
-		});
 		const common = {
 			connection,
 			namespace: temporalConfig.namespace,
@@ -111,27 +78,10 @@ export async function startIngestionTemporalWorkers(
 		await createAndRunWorker(workers, runs, {
 			...common,
 			activities: {
-				...createInternalPortalScheduleActivities({ client: temporalClient }),
-				...createInternalPortalPublicationActivities({
-					objectStore,
-					registryCatalog,
-					releaseMetadata: {
-						codeCommit: env.GIT_COMMIT_SHA?.trim() || env.DEPLOYMENT_RELEASE?.trim() || null,
-						registryDigest,
-						workerBuildId: env.TEMPORAL_WORKER_BUILD_ID?.trim() || null,
-					},
-					releaseStore: createPostgresOfflineReleaseStore({ pool }),
-					siteId: runtimeConfig.siteId,
-				}),
 				...createIngestionProjectionActivities({
 					objectStore,
-					officialWebFreshness: createOfficialWebFreshnessService({
-						objectStore,
-						store: createPostgresOfficialWebFreshnessStore({ pool }),
-					}),
 					store: createPostgresIngestionTaskStore({ pool }),
 				}),
-				...createTypeScriptKernelActivities({ typeScriptKernels }),
 			},
 			maxConcurrentActivityTaskExecutions: 8,
 			taskQueue: temporalConfig.controlActivityTaskQueue,
@@ -149,19 +99,15 @@ export async function startIngestionTemporalWorkers(
 		throw error;
 	} finally {
 		try {
-			await clientConnection?.close();
+			await connection?.close();
 		} finally {
 			try {
-				await connection?.close();
+				await pool.end();
 			} finally {
 				try {
-					await pool.end();
+					await objectStore.close?.();
 				} finally {
-					try {
-						await objectStore.close?.();
-					} finally {
-						await telemetry.shutdown();
-					}
+					await telemetry.shutdown();
 				}
 			}
 		}

@@ -17,6 +17,7 @@ const LOCAL_ENVIRONMENT_PATHS = [
 	"apps/app-api/.dev.vars.local",
 	"apps/campus-web/.dev.vars.local",
 	"apps/ops-web/.env.local",
+	"apps/source-collector/adapters/internal-portal/.env.local",
 ] as const;
 
 export function localDatabaseUrls(profile: LocalDevProfileV1): {
@@ -44,6 +45,10 @@ export function renderLocalEnvironmentFiles(input: {
 	const appApiVarsPath = resolve(repoRoot, "apps/app-api/.dev.vars.local");
 	const campusVarsPath = resolve(repoRoot, "apps/campus-web/.dev.vars.local");
 	const opsEnvPath = resolve(repoRoot, "apps/ops-web/.env.local");
+	const sourceCollectorEnvPath = resolve(
+		repoRoot,
+		"apps/source-collector/adapters/internal-portal/.env.local",
+	);
 	const existingSecrets = readManagedEnv(appApiVarsPath);
 	const opsWebInternalToken = existingSecrets.OPS_WEB_INTERNAL_TOKEN || randomSecret();
 
@@ -98,7 +103,14 @@ export function renderLocalEnvironmentFiles(input: {
 		OPS_WEB_PUBLIC_ORIGIN: `http://127.0.0.1:${profile.ports.opsWeb}`,
 		PORT: String(profile.ports.opsWebApi),
 	});
-	return [appApiEnvPath, appApiVarsPath, campusVarsPath, opsEnvPath];
+	writeManagedEnv(sourceCollectorEnvPath, {
+		OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
+		OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
+		OBJECT_STORE_REGION: "us-east-1",
+		OBJECT_STORE_SOURCE_ACCESS_KEY: "minioadmin",
+		OBJECT_STORE_SOURCE_SECRET_KEY: "minioadmin",
+	});
+	return [appApiEnvPath, appApiVarsPath, campusVarsPath, opsEnvPath, sourceCollectorEnvPath];
 }
 
 export function removeLocalEnvironmentFiles(repoRoot: string): void {

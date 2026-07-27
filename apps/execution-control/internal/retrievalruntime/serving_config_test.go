@@ -63,16 +63,6 @@ func TestLoadServingConfigReadsInstitutionalServingPolicy(t *testing.T) {
 	}
 }
 
-func TestLoadServingConfigRejectsUnpublishedOfficialWebCollections(t *testing.T) {
-	_, err := LoadServingConfigPath(
-		filepath.Join("..", "..", "..", "..", "configs", "ingestion"),
-		filepath.Join("official_web", "fresh_news", "serving-config.json"),
-	)
-	if err == nil {
-		t.Fatal("fresh_news must not load as query-serving before official-web RAG publish is complete")
-	}
-}
-
 func TestBuildDenseQueryTextAppliesEmbeddingInstruction(t *testing.T) {
 	got := BuildDenseQueryText("学生请假手续", "Given a campus policy question, retrieve relevant passages.")
 	want := "Instruct: Given a campus policy question, retrieve relevant passages.\nQuery: 学生请假手续"

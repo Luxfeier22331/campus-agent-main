@@ -1,87 +1,97 @@
 import fs from "node:fs";
-import path from "node:path";
 
-import { type APIRequestContext, type BrowserContext, chromium, request } from "playwright";
-
-import { PortalCredentialExpiredError, PortalCredentialUnavailableError } from "./auth-errors.js";
+import fetchCookie from "fetch-cookie";
 import {
-	ensureRuntimeDirs,
-	type InternalPortalConfig,
-	resolveInternalPortalConfig,
-} from "./config.js";
+	type Dispatcher,
+	Headers,
+	ProxyAgent,
+	type RequestInfo,
+	type RequestInit,
+	type Response,
+	fetch as undiciFetch,
+} from "undici";
+import {
+	PortalCredentialExpiredError,
+	PortalCredentialUnavailableError,
+	PortalSessionExpiredError,
+} from "./auth-errors.js";
+import { type InternalPortalConfig, resolveInternalPortalConfig } from "./config.js";
 import type { ApiRequestContextLike, ApiResponseLike, DisposableApiContextLike } from "./types.js";
 
-type PortalStorageState = Awaited<ReturnType<BrowserContext["storageState"]>>;
-type PortalRequestContext = ApiRequestContextLike &
-	DisposableApiContextLike & {
-		storageState?: () => Promise<PortalStorageState>;
-	};
-
 const SSO_TGC_COOKIE_NAME = "SSO_TGC";
+const MAX_AUTH_REDIRECTS = 10;
+const MAX_PORTAL_REDIRECTS = 5;
+const REDIRECT_LIMIT_MESSAGE = "Reached maximum redirect";
 
-export interface PortalAuthenticationRefreshResult {
-	noticeProbeSucceeded: true;
-	portalSessionEstablished: true;
-	refreshedAt: string;
-	serviceTicketIssued: true;
-}
+type PortalRequestInit = RequestInit & {
+	maxRedirect?: number;
+};
 
-interface PortalBootstrapResult {
-	result: PortalAuthenticationRefreshResult;
-	storageState: PortalStorageState;
-}
+export type PortalFetch = (input: RequestInfo, init?: PortalRequestInit) => Promise<Response>;
+
+type PortalCookieJar = InstanceType<typeof fetchCookie.toughCookie.CookieJar>;
+type PortalCookieFetch = PortalFetch;
 
 export interface CreatePortalApiContextDependencies {
-	bootstrapStorageState?: (input: {
-		config: InternalPortalConfig;
-		ssoTgc: string;
-	}) => Promise<PortalBootstrapResult>;
-	createRequestContext?: (input: {
-		baseURL: string;
-		extraHTTPHeaders: Record<string, string>;
-		proxy?: { server: string };
-		storageState: PortalStorageState;
-	}) => Promise<PortalRequestContext>;
+	abortSignal?: AbortSignal;
+	createDispatcher?: (proxyServer: string) => Dispatcher;
+	fetch?: PortalFetch;
 }
 
 export async function createPortalApiContext(
 	config: InternalPortalConfig = resolveInternalPortalConfig(process.env),
 	dependencies: CreatePortalApiContextDependencies = {},
 ): Promise<ApiRequestContextLike & DisposableApiContextLike> {
-	const session = new RecoveringPortalSession(config, dependencies);
-	await session.initialize();
-	return session;
+	const session = new PortalSession(config, dependencies);
+	try {
+		await session.initialize();
+		return session;
+	} catch (error) {
+		await session.dispose();
+		throw error;
+	}
 }
 
-export async function refreshPortalAuthentication(
+export async function checkPortalAuthentication(
 	config: InternalPortalConfig = resolveInternalPortalConfig(process.env),
 	dependencies: CreatePortalApiContextDependencies = {},
-): Promise<PortalAuthenticationRefreshResult> {
-	return (await refreshPortalSessionState(config, dependencies)).result;
+): Promise<void> {
+	const session = new PortalSession(config, dependencies);
+	try {
+		await session.initialize();
+	} finally {
+		await session.dispose();
+	}
 }
 
-class RecoveringPortalSession implements ApiRequestContextLike, DisposableApiContextLike {
-	private activeContext: PortalRequestContext | null = null;
+class PortalSession implements ApiRequestContextLike, DisposableApiContextLike {
+	private activeContext: ApiRequestContextLike | null = null;
+	private readonly abortController = new AbortController();
 	private readonly config: InternalPortalConfig;
 	private readonly dependencies: CreatePortalApiContextDependencies;
-	private generation = 0;
-	private readonly contexts: PortalRequestContext[] = [];
-	private refreshPromise: Promise<void> | null = null;
+	private readonly dispatcher: Dispatcher | null;
+	private disposed = false;
+	private readonly removeUpstreamAbortListener: () => void;
 
 	constructor(config: InternalPortalConfig, dependencies: CreatePortalApiContextDependencies) {
 		this.config = config;
 		this.dependencies = dependencies;
+		this.dispatcher = config.portalProxyServer
+			? (dependencies.createDispatcher ?? ((server) => new ProxyAgent(server)))(
+					config.portalProxyServer,
+				)
+			: null;
+		this.removeUpstreamAbortListener = forwardAbort(dependencies.abortSignal, this.abortController);
 	}
 
 	async initialize(): Promise<void> {
-		ensureRuntimeDirs(this.config);
-		const ssoTgc = readSsoTgcFile(this.config.authSsoTgcFile);
-		const storedState = readStoredAuthStorageState(this.config.authStorageStatePath);
-		if (storedState && storageStateHasTgc(storedState, ssoTgc)) {
-			await this.activateContext(storedState);
-			return;
-		}
-		await this.refreshSession();
+		this.abortController.signal.throwIfAborted();
+		this.activeContext = await bootstrapPortalSession({
+			config: this.config,
+			dispatcher: this.dispatcher,
+			fetch: this.dependencies.fetch ?? undiciFetch,
+			signal: this.abortController.signal,
+		});
 	}
 
 	async get(requestPath: string): Promise<ApiResponseLike> {
@@ -96,77 +106,33 @@ class RecoveringPortalSession implements ApiRequestContextLike, DisposableApiCon
 	}
 
 	async dispose(): Promise<void> {
-		if (this.activeContext?.storageState) {
-			writeStoredAuthStorageState(
-				this.config.authStorageStatePath,
-				await this.activeContext.storageState(),
-			);
+		if (this.disposed) {
+			return;
 		}
-		await Promise.allSettled(this.contexts.map(async (context) => await context.dispose()));
+		this.disposed = true;
+		this.removeUpstreamAbortListener();
+		this.abortController.abort(new Error("internal portal HTTP session disposed"));
 		this.activeContext = null;
+		if (this.dispatcher) {
+			await this.dispatcher.close();
+		}
 	}
 
 	private async performRequest(
-		operation: (context: PortalRequestContext) => Promise<ApiResponseLike>,
+		operation: (context: ApiRequestContextLike) => Promise<ApiResponseLike>,
 	): Promise<ApiResponseLike> {
-		const generation = this.generation;
+		this.abortController.signal.throwIfAborted();
 		const response = await operation(this.requireContext());
 		if (isAuthHttpStatus(response.status())) {
-			return await this.retryAfterRefresh(generation, operation);
+			await response.cancelBody?.("portal authentication response rejected");
+			throw new PortalSessionExpiredError(
+				`internal portal API session expired: ${response.status()} ${response.statusText()}`,
+			);
 		}
-		return wrapRecoveringResponse(response, async () =>
-			this.retryAfterRefresh(generation, operation),
-		);
+		return response;
 	}
 
-	private async retryAfterRefresh(
-		failedGeneration: number,
-		operation: (context: PortalRequestContext) => Promise<ApiResponseLike>,
-	): Promise<ApiResponseLike> {
-		await this.refreshIfGeneration(failedGeneration);
-		const response = await operation(this.requireContext());
-		if (isAuthHttpStatus(response.status())) {
-			throw new PortalCredentialExpiredError();
-		}
-		return wrapRecoveringResponse(response, async () => {
-			throw new PortalCredentialExpiredError();
-		});
-	}
-
-	private async refreshIfGeneration(failedGeneration: number): Promise<void> {
-		if (this.generation !== failedGeneration) {
-			return;
-		}
-		await this.refreshSession();
-	}
-
-	private async refreshSession(): Promise<void> {
-		if (!this.refreshPromise) {
-			this.refreshPromise = this.performRefresh().finally(() => {
-				this.refreshPromise = null;
-			});
-		}
-		await this.refreshPromise;
-	}
-
-	private async performRefresh(): Promise<void> {
-		const refreshed = await refreshPortalSessionState(this.config, this.dependencies);
-		await this.activateContext(refreshed.storageState);
-	}
-
-	private async activateContext(storageState: PortalStorageState): Promise<void> {
-		const context = await (this.dependencies.createRequestContext ?? defaultCreateRequestContext)({
-			baseURL: this.config.portalBaseUrl,
-			extraHTTPHeaders: buildPortalApiHeaders(this.config),
-			...buildProxyOption(this.config),
-			storageState,
-		});
-		this.contexts.push(context);
-		this.activeContext = context;
-		this.generation += 1;
-	}
-
-	private requireContext(): PortalRequestContext {
+	private requireContext(): ApiRequestContextLike {
 		if (!this.activeContext) {
 			throw new Error("internal portal API context is not initialized");
 		}
@@ -174,146 +140,275 @@ class RecoveringPortalSession implements ApiRequestContextLike, DisposableApiCon
 	}
 }
 
-async function refreshPortalSessionState(
-	config: InternalPortalConfig,
-	dependencies: CreatePortalApiContextDependencies,
-): Promise<PortalBootstrapResult> {
-	ensureRuntimeDirs(config);
-	const ssoTgc = readSsoTgcFile(config.authSsoTgcFile);
-	if (!config.authSsoCookieDomain) {
+async function bootstrapPortalSession(input: {
+	config: InternalPortalConfig;
+	dispatcher: Dispatcher | null;
+	fetch: PortalFetch;
+	signal: AbortSignal;
+}): Promise<ApiRequestContextLike> {
+	const ssoTgc = resolveSsoTgc(input.config);
+	const cookieDomain = input.config.authSsoCookieDomain;
+	if (!cookieDomain) {
 		throw new PortalCredentialUnavailableError(
 			"INTERNAL_PORTAL_SSO_COOKIE_DOMAIN is required for internal portal authentication",
 		);
 	}
-	const refreshed = await (dependencies.bootstrapStorageState ?? defaultBootstrapStorageState)({
-		config,
+	const jar = new fetchCookie.toughCookie.CookieJar(undefined, {
+		looseMode: false,
+		rejectPublicSuffixes: true,
+	});
+	await seedSsoTgc({
+		cookieDomain,
+		jar,
+		portalBaseUrl: input.config.portalBaseUrl,
 		ssoTgc,
 	});
-	if (!storageStateHasTgc(refreshed.storageState, ssoTgc)) {
-		throw new PortalCredentialExpiredError("portal login did not retain the supplied SSO_TGC");
-	}
-	writeStoredAuthStorageState(config.authStorageStatePath, refreshed.storageState);
-	return refreshed;
-}
 
-async function defaultBootstrapStorageState(input: {
-	config: InternalPortalConfig;
-	ssoTgc: string;
-}): Promise<PortalBootstrapResult> {
-	const browser = await chromium.launch({
-		headless: true,
-		proxy: input.config.portalProxyServer ? { server: input.config.portalProxyServer } : undefined,
-	});
-	try {
-		const context = await browser.newContext({
-			baseURL: input.config.portalBaseUrl,
-			storageState: buildTgcStorageState(input.config, input.ssoTgc),
-		});
-		try {
-			const page = await context.newPage();
-			let serviceTicketIssued = false;
-			page.on("request", (pageRequest) => {
-				try {
-					const requestUrl = new URL(pageRequest.url());
-					const ticket = requestUrl.searchParams.get("ticket");
-					if (
-						requestUrl.hostname === new URL(input.config.portalBaseUrl).hostname &&
-						ticket?.startsWith("ST-")
-					) {
-						serviceTicketIssued = true;
-					}
-				} catch {
-					// Ignore non-URL browser requests.
-				}
-			});
-			await page.goto(input.config.portalBaseUrl, {
-				timeout: 30_000,
-				waitUntil: "domcontentloaded",
-			});
-			const finalUrl = new URL(page.url());
-			if (finalUrl.hostname !== new URL(input.config.portalBaseUrl).hostname) {
-				throw new PortalCredentialExpiredError();
+	let serviceTicketIssued = false;
+	const bootstrapFetch = createCookieFetch({
+		assertUrl: (url) => {
+			assertBootstrapUrlAllowed(url, input.config);
+			if (
+				url.hostname === new URL(input.config.portalBaseUrl).hostname &&
+				url.searchParams.get("ticket")?.startsWith("ST-")
+			) {
+				serviceTicketIssued = true;
 			}
-			if (!serviceTicketIssued) {
-				throw new PortalCredentialExpiredError("portal SSO did not issue a service ticket");
-			}
-			const apiContext = await defaultCreateRequestContext({
-				baseURL: input.config.portalBaseUrl,
-				extraHTTPHeaders: buildPortalApiHeaders(input.config),
-				...buildProxyOption(input.config),
-				storageState: await context.storageState(),
-			});
-			try {
-				await assertNoticeApiSession(apiContext, input.config);
-				return {
-					result: {
-						noticeProbeSucceeded: true,
-						portalSessionEstablished: true,
-						refreshedAt: new Date().toISOString(),
-						serviceTicketIssued: true,
-					},
-					storageState: await apiContext.storageState(),
-				};
-			} finally {
-				await apiContext.dispose();
-			}
-		} finally {
-			await context.close();
-		}
-	} finally {
-		await browser.close();
-	}
-}
-
-async function assertNoticeApiSession(
-	apiContext: APIRequestContext,
-	config: InternalPortalConfig,
-): Promise<void> {
-	const response = await apiContext.post("/comsys-portal-notice-web/getNoticeByPage", {
-		form: {
-			currentPage: "1",
-			pageSize: "1",
-			type: config.authCheckNoticeType,
-			searchValue: "",
-			state: "",
-			is_add: "0",
-			totalCounts: "0",
-			total: "-1",
-			select_all: "false",
-			select_notice: "",
-			searchDepartment: "",
-			start_date: "",
-			end_date: "",
-			new_total: "",
 		},
+		dispatcher: input.dispatcher,
+		fetch: input.fetch,
+		jar,
+		normalizeRedirectUrl: (url) => normalizeBootstrapRedirectUrl(url, input.config),
+		signal: input.signal,
 	});
-	if (!response.ok()) {
-		throw new PortalCredentialExpiredError();
+	const navigationResponse = await bootstrapFetch(input.config.portalBaseUrl, {
+		headers: buildPortalNavigationHeaders(),
+		maxRedirect: MAX_AUTH_REDIRECTS,
+		method: "GET",
+		redirect: "follow",
+		signal: input.signal,
+	});
+	const finalUrl = new URL(navigationResponse.url);
+	await navigationResponse.body?.cancel("portal SSO navigation complete");
+	if (!navigationResponse.ok) {
+		throw classifyBootstrapHttpError(
+			navigationResponse.status,
+			navigationResponse.statusText,
+			"portal SSO navigation",
+		);
 	}
-	const payload = await response.text();
-	if (isSessionInvalidPayload(payload)) {
-		throw new PortalCredentialExpiredError();
+	if (
+		finalUrl.protocol !== "https:" ||
+		finalUrl.hostname !== new URL(input.config.portalBaseUrl).hostname
+	) {
+		throw new PortalCredentialExpiredError("portal SSO did not return to the portal host");
 	}
+	if (!serviceTicketIssued) {
+		throw new PortalCredentialExpiredError("portal SSO did not issue a service ticket");
+	}
+
+	return createPortalRequestContext({
+		config: input.config,
+		dispatcher: input.dispatcher,
+		fetch: input.fetch,
+		jar,
+		signal: input.signal,
+	});
+}
+
+function createPortalRequestContext(input: {
+	config: InternalPortalConfig;
+	dispatcher: Dispatcher | null;
+	fetch: PortalFetch;
+	jar: PortalCookieJar;
+	signal: AbortSignal;
+}): ApiRequestContextLike {
+	const portalHost = new URL(input.config.portalBaseUrl).hostname;
+	const cookieFetch = createCookieFetch({
+		assertUrl: (url) => {
+			assertHttpsUrl(url, "internal portal API request");
+			if (url.hostname !== portalHost) {
+				throw new PortalCredentialExpiredError(
+					"internal portal API session redirected outside the portal host",
+				);
+			}
+		},
+		dispatcher: input.dispatcher,
+		fetch: input.fetch,
+		jar: input.jar,
+		signal: input.signal,
+	});
+	return {
+		get: async (requestPath) =>
+			toApiResponse(
+				await performPortalRequest({
+					config: input.config,
+					cookieFetch,
+					method: "GET",
+					requestPath,
+					signal: input.signal,
+				}),
+			),
+		post: async (requestPath, requestInput) =>
+			toApiResponse(
+				await performPortalRequest({
+					config: input.config,
+					cookieFetch,
+					form: requestInput.form,
+					method: "POST",
+					requestPath,
+					signal: input.signal,
+				}),
+			),
+	};
+}
+
+async function performPortalRequest(input: {
+	config: InternalPortalConfig;
+	cookieFetch: PortalCookieFetch;
+	form?: Record<string, string>;
+	method: "GET" | "POST";
+	requestPath: string;
+	signal: AbortSignal;
+}): Promise<Response> {
+	const url = new URL(input.requestPath, input.config.portalBaseUrl);
 	try {
-		const parsed = JSON.parse(payload) as { state?: boolean };
-		if (parsed.state !== true) {
-			throw new PortalCredentialExpiredError();
-		}
+		return await input.cookieFetch(url, {
+			body: input.form ? new URLSearchParams(input.form).toString() : undefined,
+			headers: buildPortalApiHeaders(input.config),
+			maxRedirect: MAX_PORTAL_REDIRECTS,
+			method: input.method,
+			redirect: "follow",
+			signal: input.signal,
+		});
 	} catch (error) {
-		if (error instanceof PortalCredentialExpiredError) {
-			throw error;
+		if (isRedirectLimitError(error)) {
+			throw new PortalCredentialExpiredError("internal portal API exceeded the redirect limit", {
+				cause: error,
+			});
 		}
-		throw new PortalCredentialExpiredError();
+		throw error;
 	}
 }
 
-function defaultCreateRequestContext(input: {
-	baseURL: string;
-	extraHTTPHeaders: Record<string, string>;
-	proxy?: { server: string };
-	storageState: PortalStorageState;
-}): Promise<APIRequestContext> {
-	return request.newContext(input);
+function createCookieFetch(input: {
+	assertUrl: (url: URL) => void;
+	dispatcher: Dispatcher | null;
+	fetch: PortalFetch;
+	jar: PortalCookieJar;
+	normalizeRedirectUrl?: (url: URL) => URL;
+	signal: AbortSignal;
+}): PortalCookieFetch {
+	const guardedFetch: PortalFetch = async (requestInput, requestInit = {}) => {
+		const url = requestUrl(requestInput);
+		input.assertUrl(url);
+		const signal = mergeAbortSignals(input.signal, requestInit.signal);
+		return await input.fetch(requestInput, {
+			...requestInit,
+			...(input.dispatcher ? { dispatcher: input.dispatcher } : {}),
+			redirect: "manual",
+			signal,
+		});
+	};
+	const cookieFetch = fetchCookie<RequestInfo, PortalRequestInit, Response>(
+		guardedFetch,
+		input.jar,
+		false,
+	);
+	return async (requestInput, requestInit = {}) =>
+		await fetchWithBoundedRedirects({
+			fetch: cookieFetch,
+			normalizeRedirectUrl: input.normalizeRedirectUrl,
+			requestInit,
+			requestInput,
+		});
+}
+
+async function fetchWithBoundedRedirects(input: {
+	fetch: ReturnType<typeof fetchCookie<RequestInfo, PortalRequestInit, Response>>;
+	normalizeRedirectUrl?: (url: URL) => URL;
+	requestInit: PortalRequestInit;
+	requestInput: RequestInfo;
+}): Promise<Response> {
+	const redirectMode = input.requestInit.redirect ?? "follow";
+	const maxRedirect = input.requestInit.maxRedirect ?? 20;
+	let currentInput = input.requestInput;
+	let currentInit: PortalRequestInit = { ...input.requestInit, redirect: "manual" };
+	let redirectCount = 0;
+
+	for (;;) {
+		const response = await input.fetch(currentInput, currentInit);
+		if (!isRedirectStatus(response.status)) {
+			return response;
+		}
+		if (redirectMode === "manual") {
+			return response;
+		}
+		if (redirectMode === "error") {
+			await response.body?.cancel("portal redirect rejected");
+			throw new TypeError(
+				`URI requested responded with a redirect and redirect mode is set to error: ${response.url}`,
+			);
+		}
+
+		const location = response.headers.get("location");
+		if (!location) {
+			return response;
+		}
+		if (redirectCount >= maxRedirect) {
+			await response.body?.cancel("portal redirect limit exceeded");
+			throw new TypeError(`${REDIRECT_LIMIT_MESSAGE} of ${maxRedirect} for URL: ${response.url}`);
+		}
+
+		const responseUrl = response.url || requestUrl(currentInput).toString();
+		await response.body?.cancel("following portal redirect");
+		const resolvedRedirectUrl = new URL(location, responseUrl);
+		const redirectUrl = input.normalizeRedirectUrl
+			? input.normalizeRedirectUrl(resolvedRedirectUrl)
+			: resolvedRedirectUrl;
+		currentInit = redirectRequestInit(currentInit, response.status);
+		currentInput = redirectUrl;
+		redirectCount += 1;
+	}
+}
+
+function redirectRequestInit(init: PortalRequestInit, status: number): PortalRequestInit {
+	const method = init.method?.toUpperCase();
+	if (status !== 303 && !((status === 301 || status === 302) && method === "POST")) {
+		return init;
+	}
+	const headers = new Headers(init.headers);
+	headers.delete("content-length");
+	headers.delete("content-type");
+	return {
+		...init,
+		body: undefined,
+		headers,
+		method: "GET",
+	};
+}
+
+function isRedirectStatus(status: number): boolean {
+	return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
+}
+
+function classifyBootstrapHttpError(status: number, statusText: string, operation: string): Error {
+	if (status === 401 || status === 403) {
+		return new PortalCredentialExpiredError(`${operation} failed: ${status} ${statusText}`);
+	}
+	return new Error(`${operation} failed: ${status} ${statusText}`);
+}
+
+function resolveSsoTgc(config: InternalPortalConfig): string {
+	if (config.authSsoTgc) {
+		return validateSsoTgc(config.authSsoTgc);
+	}
+	if (!config.authSsoTgcFile) {
+		throw new PortalCredentialUnavailableError(
+			"INTERNAL_PORTAL_SSO_TGC or INTERNAL_PORTAL_SSO_TGC_FILE is required",
+		);
+	}
+	return readSsoTgcFile(config.authSsoTgcFile);
 }
 
 function readSsoTgcFile(filePath: string): string {
@@ -329,9 +424,14 @@ function readSsoTgcFile(filePath: string): string {
 	return validateSsoTgc(raw.trim());
 }
 
-function validateSsoTgc(value: string): string {
+export function validateSsoTgc(value: string): string {
 	if (!value) {
-		throw new PortalCredentialUnavailableError("internal portal SSO credential file is empty");
+		throw new PortalCredentialUnavailableError("internal portal SSO_TGC is empty");
+	}
+	if (value.startsWith(`${SSO_TGC_COOKIE_NAME}=`)) {
+		throw new PortalCredentialUnavailableError(
+			"internal portal credential must contain only the raw SSO_TGC value",
+		);
 	}
 	for (let index = 0; index < value.length; index += 1) {
 		const code = value.charCodeAt(index);
@@ -344,141 +444,112 @@ function validateSsoTgc(value: string): string {
 			code === 0x5c
 		) {
 			throw new PortalCredentialUnavailableError(
-				"internal portal SSO credential file must contain only the raw SSO_TGC value",
+				"internal portal credential must contain only the raw SSO_TGC value",
 			);
 		}
 	}
 	return value;
 }
 
-function readStoredAuthStorageState(storageStatePath: string): PortalStorageState | null {
-	if (!fs.existsSync(storageStatePath)) {
-		return null;
-	}
-	try {
-		const parsed = JSON.parse(fs.readFileSync(storageStatePath, "utf-8")) as PortalStorageState;
-		return Array.isArray(parsed.cookies) && Array.isArray(parsed.origins) ? parsed : null;
-	} catch {
-		return null;
-	}
-}
-
-function writeStoredAuthStorageState(
-	storageStatePath: string,
-	storageState: PortalStorageState,
-): void {
-	const directory = path.dirname(storageStatePath);
-	fs.mkdirSync(directory, { mode: 0o700, recursive: true });
-	fs.chmodSync(directory, 0o700);
-	const temporaryPath = `${storageStatePath}.${process.pid}.${Date.now()}.tmp`;
-	fs.writeFileSync(temporaryPath, JSON.stringify(storageState, null, 2), {
-		encoding: "utf-8",
-		mode: 0o600,
-	});
-	fs.renameSync(temporaryPath, storageStatePath);
-	fs.chmodSync(storageStatePath, 0o600);
-}
-
-function buildTgcStorageState(config: InternalPortalConfig, ssoTgc: string): PortalStorageState {
-	if (!config.authSsoCookieDomain) {
-		throw new PortalCredentialUnavailableError(
-			"INTERNAL_PORTAL_SSO_COOKIE_DOMAIN is required for internal portal authentication",
-		);
-	}
-	return {
-		cookies: [
-			{
-				domain: config.authSsoCookieDomain,
-				expires: -1,
-				httpOnly: true,
-				name: SSO_TGC_COOKIE_NAME,
-				path: "/",
-				sameSite: "Lax",
-				secure: true,
-				value: ssoTgc,
-			},
-		],
-		origins: [],
-	};
-}
-
-function storageStateHasTgc(storageState: PortalStorageState, ssoTgc: string): boolean {
-	return storageState.cookies.some(
-		(cookie) => cookie.name === SSO_TGC_COOKIE_NAME && cookie.value === ssoTgc,
+async function seedSsoTgc(input: {
+	cookieDomain: string;
+	jar: PortalCookieJar;
+	portalBaseUrl: string;
+	ssoTgc: string;
+}): Promise<void> {
+	await input.jar.setCookie(
+		`${SSO_TGC_COOKIE_NAME}=${input.ssoTgc}; Domain=${input.cookieDomain}; Path=/; Secure; HttpOnly; SameSite=Lax`,
+		input.portalBaseUrl,
+		{ ignoreError: false },
 	);
 }
 
-function wrapRecoveringResponse(
-	response: ApiResponseLike,
-	recover: () => Promise<ApiResponseLike>,
-): ApiResponseLike {
+function normalizeBootstrapRedirectUrl(url: URL, config: InternalPortalConfig): URL {
+	const portalUrl = new URL(config.portalBaseUrl);
+	if (
+		url.protocol === "http:" &&
+		url.hostname === portalUrl.hostname &&
+		(url.port === "" || url.port === "80") &&
+		!url.username &&
+		!url.password
+	) {
+		const normalized = new URL(url);
+		normalized.protocol = "https:";
+		normalized.port = portalUrl.port;
+		return normalized;
+	}
+	return url;
+}
+
+function assertBootstrapUrlAllowed(url: URL, config: InternalPortalConfig): void {
+	assertHttpsUrl(url, "internal portal SSO redirect");
+	const portalHost = new URL(config.portalBaseUrl).hostname;
+	if (url.hostname === portalHost) {
+		return;
+	}
+	const cookieDomain = config.authSsoCookieDomain?.replace(/^\./, "").toLowerCase();
+	if (
+		cookieDomain &&
+		(url.hostname === cookieDomain || url.hostname.endsWith(`.${cookieDomain}`))
+	) {
+		return;
+	}
+	throw new PortalCredentialExpiredError(
+		"internal portal SSO redirected outside the configured authentication boundary",
+	);
+}
+
+function assertHttpsUrl(url: URL, operation: string): void {
+	if (url.protocol !== "https:" || url.username || url.password) {
+		throw new PortalCredentialExpiredError(`${operation} requires a credential-free HTTPS URL`);
+	}
+}
+
+function requestUrl(input: RequestInfo): URL {
+	if (typeof input === "string") {
+		return new URL(input);
+	}
+	return "url" in input ? new URL(input.url) : new URL(String(input));
+}
+
+function mergeAbortSignals(
+	sessionSignal: AbortSignal,
+	requestSignal?: AbortSignal | null,
+): AbortSignal {
+	if (!requestSignal || requestSignal === sessionSignal) {
+		return sessionSignal;
+	}
+	return AbortSignal.any([sessionSignal, requestSignal]);
+}
+
+function forwardAbort(source: AbortSignal | undefined, target: AbortController): () => void {
+	if (!source) {
+		return () => undefined;
+	}
+	if (source.aborted) {
+		target.abort(source.reason);
+		return () => undefined;
+	}
+	const abort = () => target.abort(source.reason);
+	source.addEventListener("abort", abort, { once: true });
+	return () => source.removeEventListener("abort", abort);
+}
+
+function toApiResponse(response: Response): ApiResponseLike {
 	return {
-		body: response.body
-			? async () => {
-					const readBody = response.body;
-					if (!readBody) {
-						throw new Error("portal response body is unavailable");
-					}
-					const payload = await readBody.call(response);
-					if (!isSessionInvalidPayload(payload.toString("utf-8"))) {
-						return payload;
-					}
-					const retried = await recover();
-					let retriedPayload: Buffer;
-					if (retried.body) {
-						retriedPayload = await retried.body();
-					} else if (retried.text) {
-						retriedPayload = Buffer.from(await retried.text(), "utf-8");
-					} else {
-						throw new Error("retried portal response body is unavailable");
-					}
-					if (isSessionInvalidPayload(retriedPayload.toString("utf-8"))) {
-						throw new PortalCredentialExpiredError();
-					}
-					return retriedPayload;
+		bodyStream: response.body
+			? () => response.body as unknown as AsyncIterable<Uint8Array>
+			: undefined,
+		cancelBody: response.body
+			? async (reason) => {
+					await response.body?.cancel(reason);
 				}
 			: undefined,
-		headers: response.headers
-			? () => {
-					const readHeaders = response.headers;
-					return readHeaders ? readHeaders.call(response) : {};
-				}
-			: undefined,
-		json: async () => {
-			const payload = await response.json();
-			if (!isSessionInvalidJson(payload)) {
-				return payload;
-			}
-			const retried = await recover();
-			const retriedPayload = await retried.json();
-			if (isSessionInvalidJson(retriedPayload)) {
-				throw new PortalCredentialExpiredError();
-			}
-			return retriedPayload;
-		},
-		ok: () => response.ok(),
-		status: () => response.status(),
-		statusText: () => response.statusText(),
-		text: response.text
-			? async () => {
-					const readText = response.text;
-					if (!readText) {
-						throw new Error("portal response text is unavailable");
-					}
-					const payload = await readText.call(response);
-					if (!isSessionInvalidPayload(payload)) {
-						return payload;
-					}
-					const retried = await recover();
-					const retriedPayload = retried.text
-						? await retried.text()
-						: JSON.stringify(await retried.json());
-					if (isSessionInvalidPayload(retriedPayload)) {
-						throw new PortalCredentialExpiredError();
-					}
-					return retriedPayload;
-				}
-			: undefined,
+		headers: () => Object.fromEntries(response.headers.entries()),
+		ok: () => response.ok,
+		status: () => response.status,
+		statusText: () => response.statusText,
+		text: async () => await response.text(),
 	};
 }
 
@@ -486,28 +557,11 @@ function isAuthHttpStatus(status: number): boolean {
 	return status === 401 || status === 403;
 }
 
-function isSessionInvalidPayload(payload: string): boolean {
-	const normalized = payload.trim();
-	if (normalized === "error_comsys_session_invalid") {
-		return true;
-	}
-	try {
-		return isSessionInvalidJson(JSON.parse(normalized));
-	} catch {
-		return false;
-	}
-}
-
-function isSessionInvalidJson(payload: unknown): boolean {
-	if (!payload || typeof payload !== "object") {
-		return false;
-	}
-	const candidate = payload as { state?: unknown; msg?: unknown };
-	if (candidate.state !== false && candidate.state !== 0) {
-		return false;
-	}
-	const message = typeof candidate.msg === "string" ? candidate.msg.toLowerCase() : "";
-	return message.includes("session") || message.includes("登录") || message.includes("认证");
+function buildPortalNavigationHeaders(): Record<string, string> {
+	return {
+		accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+		"user-agent": "campus-agent-source-collector/1.0",
+	};
 }
 
 function buildPortalApiHeaders(config: InternalPortalConfig): Record<string, string> {
@@ -519,6 +573,6 @@ function buildPortalApiHeaders(config: InternalPortalConfig): Record<string, str
 	};
 }
 
-function buildProxyOption(config: InternalPortalConfig): { proxy?: { server: string } } {
-	return config.portalProxyServer ? { proxy: { server: config.portalProxyServer } } : {};
+function isRedirectLimitError(error: unknown): boolean {
+	return error instanceof TypeError && error.message.includes(REDIRECT_LIMIT_MESSAGE);
 }

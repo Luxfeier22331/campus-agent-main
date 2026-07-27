@@ -4,7 +4,11 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { runIngestionControlMigrations } from "../src/migrate";
+import {
+	applyIngestionControlMigrations,
+	loadIngestionControlMigrations,
+	runIngestionControlMigrations,
+} from "../src/migrate";
 import { runIngestionControlSchemaBootstrap } from "../src/schema-bootstrap";
 
 const POSTGRES_IMAGE =
@@ -60,16 +64,285 @@ describe("ingestion-control PostgreSQL lifecycle", () => {
 
 		await runIngestionControlSchemaBootstrap(localEnvironment);
 		await runIngestionControlSchemaBootstrap(localEnvironment);
+		const migrations = loadIngestionControlMigrations();
+		const preResetClient = new Client({ connectionString: runtimeConnectionString, ssl: false });
+		await preResetClient.connect();
+		try {
+			await expect(
+				applyIngestionControlMigrations(preResetClient, migrations.slice(0, -2)),
+			).resolves.toEqual([
+				"0001_tasks.sql",
+				"0002_offline_releases.sql",
+				"0003_offline_release_checks.sql",
+			]);
+			await preResetClient.query(`INSERT INTO ingestion_control.offline_release_streams (
+				stream_id,
+				source_channel,
+				source_surface,
+				corpus,
+				collection,
+				checkpoint_json,
+				version,
+				created_at,
+				updated_at,
+				last_check_at,
+				last_check_mode,
+				last_check_outcome,
+				last_check_error_code,
+				last_reconcile_at,
+				last_published_at,
+				last_added_count,
+				last_updated_count,
+				last_withdrawn_count
+			) VALUES (
+				'internal_portal:migration-reset:notice',
+				'internal_portal',
+				'notice',
+				'campus_notices',
+				'internal_notice',
+				'{"legacy":true}'::jsonb,
+				7,
+				'2026-07-24T00:00:00Z',
+				'2026-07-24T01:00:00Z',
+				'2026-07-24T01:00:00Z',
+				'reconcile',
+				'published',
+				'legacy_status',
+				'2026-07-24T01:00:00Z',
+				'2026-07-24T01:00:00Z',
+				3,
+				2,
+				1
+			)`);
+			await preResetClient.query(`INSERT INTO ingestion_control.offline_releases (
+				release_id,
+				stream_id,
+				previous_release_id,
+				run_id,
+				workflow_id,
+				workflow_run_id,
+				manifest_ref_json,
+				item_count,
+				committed_at
+			) VALUES (
+				'release:migration-reset:v7',
+				'internal_portal:migration-reset:notice',
+				NULL,
+				'migration-reset',
+				'ingestion/migration-reset',
+				'migration-reset',
+				'{"kind":"object_store"}'::jsonb,
+				3,
+				'2026-07-24T01:00:00Z'
+			)`);
+			await preResetClient.query(`UPDATE ingestion_control.offline_release_streams
+				SET current_release_id = 'release:migration-reset:v7'
+				WHERE stream_id = 'internal_portal:migration-reset:notice'`);
+			await preResetClient.query(`INSERT INTO ingestion_control.offline_release_streams (
+				stream_id,
+				source_channel,
+				source_surface,
+				corpus,
+				collection,
+				checkpoint_json,
+				version,
+				created_at,
+				updated_at,
+				last_check_at,
+				last_check_mode,
+				last_check_outcome,
+				last_check_error_code,
+				last_reconcile_at,
+				last_added_count,
+				last_updated_count,
+				last_withdrawn_count
+			) VALUES (
+				'internal_portal:migration-reset:file-release',
+				'internal_portal',
+				'file_release',
+				'authenticated_documents',
+				'file_release_source',
+				'{"file_release":646}'::jsonb,
+				3,
+				'2026-07-24T00:00:00Z',
+				'2026-07-24T01:00:00Z',
+				'2026-07-24T01:00:00Z',
+				'reconcile',
+				'failed',
+				'legacy_reconcile_failed',
+				'2026-07-24T01:00:00Z',
+				4,
+				3,
+					2
+				)`);
+			await expect(
+				applyIngestionControlMigrations(preResetClient, migrations.slice(0, -1)),
+			).resolves.toEqual(["0004_internal_portal_ingestion_reset.sql"]);
+			await preResetClient.query(`INSERT INTO ingestion_control.internal_portal_notice_sync_state (
+				site_id,
+				notice_type,
+				incremental_head_id,
+				min_captured_id,
+				max_captured_id,
+				history_covered_from,
+				updated_at
+			) VALUES (
+				'muc_internal_portal',
+				'5',
+				355120,
+				350001,
+				355120,
+				'2026-01-01',
+				'2026-07-26T00:00:00Z'
+			)`);
+			await preResetClient.query(`INSERT INTO ingestion_control.tasks (
+				task_id,
+				run_id,
+				registry_task_id,
+				executor_kind,
+				source_family,
+				source_channel,
+				corpus,
+				collection,
+				input_ref_json,
+				input_contract,
+				output_contract,
+				created_by,
+				created_at,
+				status,
+				workflow_id,
+				workflow_run_id,
+				pipeline_workflow_id,
+				updated_at
+			) VALUES
+				(
+					'legacy-source-task',
+					'legacy-source-run',
+					'internal_portal.file_release.capture',
+					'source_collector',
+					'authenticated_documents',
+					'internal_portal',
+					NULL,
+					NULL,
+					'{"kind":"object_store"}'::jsonb,
+					'internal_portal_file_release_capture_request.v2',
+					'internal_portal_file_release_capture_result.v2',
+					'legacy:test',
+					'2026-07-26T00:00:00Z',
+					'running',
+					'ingestion/legacy-source-task',
+					'legacy-source-workflow-run',
+					NULL,
+					'2026-07-26T00:00:00Z'
+				),
+				(
+					'legacy-pipeline-task',
+					'legacy-pipeline-run',
+					'curriculum.curriculum_plan.chunk_prepare',
+					'rust_kernel',
+					NULL,
+					NULL,
+					'curriculum',
+					'curriculum_plan',
+					'{"kind":"object_store"}'::jsonb,
+					'canonical_document_units.v1',
+					'ingestion_chunk_set.v1',
+					'legacy:test',
+					'2026-07-26T00:00:00Z',
+					'running',
+					'ingestion/legacy-pipeline-task',
+					'legacy-pipeline-workflow-run',
+					'ingestion/internal-portal-file-release/legacy-pipeline-run',
+					'2026-07-26T00:00:00Z'
+				),
+				(
+					'retained-rust-task',
+					'retained-rust-run',
+					'curriculum.curriculum_plan.chunk_prepare',
+					'rust_kernel',
+					NULL,
+					NULL,
+					'curriculum',
+					'curriculum_plan',
+					'{"kind":"object_store"}'::jsonb,
+					'canonical_document_units.v1',
+					'ingestion_chunk_set.v1',
+					'operator:test',
+					'2026-07-26T00:00:00Z',
+					'running',
+					'ingestion/retained-rust-task',
+					'retained-rust-workflow-run',
+					NULL,
+					'2026-07-26T00:00:00Z'
+				)`);
+		} finally {
+			await preResetClient.end();
+		}
+
 		await expect(runIngestionControlMigrations(localEnvironment)).resolves.toEqual([
-			"0001_tasks.sql",
-			"0002_offline_releases.sql",
-			"0003_offline_release_checks.sql",
+			"0005_remove_internal_portal_pipeline.sql",
 		]);
 		await expect(runIngestionControlMigrations(localEnvironment)).resolves.toEqual([]);
 
 		const runtime = new Client({ connectionString: runtimeConnectionString, ssl: false });
 		await runtime.connect();
 		try {
+			const retired = await runtime.query<{
+				noticeSyncState: string | null;
+				offlineReleases: string | null;
+				offlineReleaseStreams: string | null;
+				seedState: string | null;
+				urlFreshness: string | null;
+			}>(`SELECT
+				to_regclass('ingestion_control.official_web_seed_state')::text AS "seedState",
+				to_regclass('ingestion_control.official_web_url_freshness')::text AS "urlFreshness",
+				to_regclass('ingestion_control.offline_release_streams')::text AS "offlineReleaseStreams",
+				to_regclass('ingestion_control.offline_releases')::text AS "offlineReleases",
+				to_regclass('ingestion_control.internal_portal_notice_sync_state')::text AS "noticeSyncState"`);
+			expect(retired.rows[0]).toEqual({
+				noticeSyncState: null,
+				offlineReleases: null,
+				offlineReleaseStreams: null,
+				seedState: null,
+				urlFreshness: null,
+			});
+
+			const taskRows = await runtime.query<{
+				executorKind: string;
+				taskId: string;
+			}>(`SELECT task_id AS "taskId", executor_kind AS "executorKind"
+				FROM ingestion_control.tasks
+				ORDER BY task_id`);
+			expect(taskRows.rows).toEqual([
+				{ executorKind: "rust_kernel", taskId: "retained-rust-task" },
+			]);
+			const pipelineColumn = await runtime.query<{
+				count: number;
+			}>(`SELECT count(*)::integer AS count
+				FROM information_schema.columns
+				WHERE table_schema = 'ingestion_control'
+				  AND table_name = 'tasks'
+				  AND column_name = 'pipeline_workflow_id'`);
+			expect(pipelineColumn.rows[0]).toEqual({ count: 0 });
+			await expect(
+				runtime.query(`INSERT INTO ingestion_control.tasks (
+					task_id, run_id, registry_task_id, executor_kind,
+					source_family, source_channel, corpus, collection,
+					input_ref_json, input_contract, output_contract, created_by, created_at,
+					status, workflow_id, workflow_run_id, updated_at
+				) VALUES (
+					'retired-source-task', 'retired-source-run',
+					'internal_portal.file_release.capture', 'source_collector',
+					'authenticated_documents', 'internal_portal', NULL, NULL,
+					'{"kind":"object_store"}'::jsonb,
+					'internal_portal_file_release_capture_request.v2',
+					'internal_portal_file_release_capture_result.v2',
+					'operator:test', '2026-07-26T00:00:00Z', 'running',
+					'ingestion/retired-source-task', 'retired-source-workflow-run',
+					'2026-07-26T00:00:00Z'
+				)`),
+			).rejects.toThrow("tasks_executor_kind_check");
+
 			await expect(
 				runtime.query("CREATE TABLE ingestion_control.permission_probe (id integer PRIMARY KEY)"),
 			).resolves.toMatchObject({ command: "CREATE" });

@@ -2,14 +2,16 @@ import {
 	assertArtifactByteSize,
 	assertIngestionKernelOutputSucceeded,
 	assertSha256Digest,
-	canonicalJsonString,
+	encodeObjectKeySegment,
 	parseIngestionKernelJsonOutput,
-	parseJsonObjectBytes,
 	parseS3Uri,
 	sha256Hex,
 } from "ingest-core";
-import type { IngestionTaskExecutionSnapshot, IngestionTaskResult } from "ingestion-contracts";
-import { validateInternalPortalStageResult } from "ingestion-contracts";
+import type {
+	IngestionArtifactRef,
+	IngestionTaskExecutionSnapshot,
+	IngestionTaskResult,
+} from "ingestion-contracts";
 import type { IngestionObjectStore } from "./object-store";
 
 export class IngestionResultArtifactContractError extends Error {
@@ -24,18 +26,9 @@ export async function verifyIngestionTaskResultArtifact(input: {
 	result: IngestionTaskResult;
 	snapshot: IngestionTaskExecutionSnapshot;
 }): Promise<void> {
-	let location: ReturnType<typeof parseS3Uri>;
-	try {
-		location = parseS3Uri(input.result.result_ref);
-	} catch (error) {
-		throw contractError("ingestion task result_ref is invalid", error);
-	}
-	await verifyPinnedArtifactHead(
-		input.objectStore,
-		input.result.result_ref,
-		"ingestion task result_ref",
-	);
-
+	const location = parseResultLocation(input.result.result_ref);
+	assertResultRefOwnership(input.objectStore, input.snapshot, location);
+	await verifyPinnedArtifactHead(input.objectStore, input.result.result_ref);
 	let bytes: Uint8Array;
 	try {
 		bytes = await input.objectStore.getObject(location);
@@ -47,7 +40,6 @@ export async function verifyIngestionTaskResultArtifact(input: {
 		}
 		throw error;
 	}
-
 	try {
 		assertSha256Digest({
 			actualSha256: sha256Hex(bytes),
@@ -59,121 +51,78 @@ export async function verifyIngestionTaskResultArtifact(input: {
 			byteSize: input.result.result_ref.byte_size,
 			label: "ingestion task result_ref",
 		});
-		if (input.snapshot.registry_task.executor_kind === "rust_kernel") {
-			verifyRustKernelArtifact(bytes, input.result, input.snapshot);
-			return;
+		const kernelId = input.snapshot.registry_task.kernel_id;
+		if (!kernelId) {
+			throw new Error("rust kernel result is missing frozen kernel_id");
 		}
-		await verifyStructuredResultManifest(input.objectStore, bytes, input.result);
+		const parsed = parseIngestionKernelJsonOutput({
+			expectedSchemaVersion: input.result.output_contract,
+			kernelId,
+			stdout: bytes,
+		});
+		assertIngestionKernelOutputSucceeded({
+			errorCount: parsed.errorCount,
+			errors: parsed.errors,
+			kernelId,
+		});
 	} catch (error) {
-		if (error instanceof IngestionResultArtifactContractError) {
-			throw error;
-		}
 		throw contractError("ingestion task result artifact violates its frozen contract", error);
 	}
 }
 
-function verifyRustKernelArtifact(
-	bytes: Uint8Array,
-	result: IngestionTaskResult,
-	snapshot: IngestionTaskExecutionSnapshot,
-): void {
-	const kernelId = snapshot.registry_task.kernel_id;
-	if (!kernelId) {
-		throw contractError("rust kernel result is missing frozen kernel_id");
+function parseResultLocation(ref: IngestionArtifactRef): ReturnType<typeof parseS3Uri> {
+	try {
+		return parseS3Uri(ref);
+	} catch (error) {
+		throw contractError("ingestion task result_ref is invalid", error);
 	}
-	const parsed = parseIngestionKernelJsonOutput({
-		expectedSchemaVersion: result.output_contract,
-		kernelId,
-		stdout: bytes,
-	});
-	assertIngestionKernelOutputSucceeded({
-		errorCount: parsed.errorCount,
-		errors: parsed.errors,
-		kernelId,
-	});
 }
 
-async function verifyStructuredResultManifest(
+function assertResultRefOwnership(
 	objectStore: IngestionObjectStore,
-	bytes: Uint8Array,
-	result: IngestionTaskResult,
-): Promise<void> {
-	const manifest = parseJsonObjectBytes(bytes, "source collector result manifest");
-	if (result.output_contract.startsWith("internal_portal_")) {
-		const validation = validateInternalPortalStageResult(manifest);
-		if (!validation.ok) {
-			throw contractError(
-				`internal portal stage result is invalid: ${validation.errors.join("; ")}`,
-			);
-		}
+	snapshot: IngestionTaskExecutionSnapshot,
+	location: ReturnType<typeof parseS3Uri>,
+): void {
+	const kernelId = snapshot.registry_task.kernel_id?.trim();
+	if (!kernelId) {
+		throw contractError("ingestion task result is missing its frozen kernel_id");
 	}
-	for (const [field, expected] of [
-		["schema_version", result.output_contract],
-		["task_id", result.task_id],
-		["run_id", result.run_id],
-		["registry_task_id", result.registry_task_id],
-	] as const) {
-		if (manifest[field] !== expected) {
-			throw contractError(`source collector result manifest ${field} does not match task result`);
-		}
-	}
-	if (canonicalJsonString(manifest.summary) !== canonicalJsonString(result.summary)) {
-		throw contractError("source collector result manifest summary does not match task result");
-	}
-	if (!Array.isArray(manifest.artifacts)) {
-		throw contractError("source collector result manifest artifacts must be an array");
-	}
-	for (const [index, artifact] of manifest.artifacts.entries()) {
-		const ref = parseArtifactRef(artifact, index);
-		await verifyPinnedArtifactHead(
-			objectStore,
-			ref,
-			`source collector result manifest artifact ${index}`,
+	const expected = [
+		"ingestion-kernels",
+		encodeObjectKeySegment(snapshot.task.registry_task_id),
+		"runs",
+		encodeObjectKeySegment(snapshot.task.run_id),
+		"attempts",
+	].join("/");
+	const suffix = [
+		encodeObjectKeySegment(snapshot.task.task_id),
+		`${encodeObjectKeySegment(kernelId)}.json`,
+	].join("/");
+	const relative = location.key.slice(expected.length + 1);
+	const [attempt, ...rest] = relative.split("/");
+	if (
+		location.bucket !== objectStore.derivedBucket ||
+		!location.key.startsWith(`${expected}/`) ||
+		!attempt ||
+		!/^[1-9]\d*$/u.test(attempt) ||
+		rest.join("/") !== suffix
+	) {
+		throw contractError(
+			`ingestion task result_ref is outside its executor namespace: s3://${location.bucket}/${location.key}`,
 		);
 	}
-}
-
-function parseArtifactRef(value: unknown, index: number): IngestionTaskResult["result_ref"] {
-	if (!isRecord(value) || value.kind !== "object_store") {
-		throw contractError(`source collector result manifest artifact ${index} is invalid`);
-	}
-	if (
-		typeof value.uri !== "string" ||
-		typeof value.digest !== "string" ||
-		typeof value.byte_size !== "number" ||
-		!Number.isSafeInteger(value.byte_size) ||
-		value.byte_size < 0
-	) {
-		throw contractError(`source collector result manifest artifact ${index} is invalid`);
-	}
-	if (!/^sha256:[0-9a-f]{64}$/u.test(value.digest)) {
-		throw contractError(`source collector result manifest artifact ${index} digest is invalid`);
-	}
-	try {
-		parseS3Uri({ kind: "object_store", uri: value.uri });
-	} catch (error) {
-		throw contractError(`source collector result manifest artifact ${index} URI is invalid`, error);
-	}
-	return {
-		byte_size: value.byte_size,
-		digest: value.digest,
-		kind: "object_store",
-		uri: value.uri,
-	};
 }
 
 async function verifyPinnedArtifactHead(
 	objectStore: IngestionObjectStore,
 	ref: IngestionTaskResult["result_ref"],
-	label: string,
 ): Promise<void> {
-	const location = parseS3Uri(ref);
 	let head: Awaited<ReturnType<IngestionObjectStore["headObject"]>>;
 	try {
-		head = await objectStore.headObject(location);
+		head = await objectStore.headObject(parseS3Uri(ref));
 	} catch (error) {
 		if (isObjectNotFoundError(error)) {
-			throw contractError(`${label} is missing: ${ref.uri}`);
+			throw contractError(`ingestion task result_ref is missing: ${ref.uri}`);
 		}
 		throw error;
 	}
@@ -181,27 +130,31 @@ async function verifyPinnedArtifactHead(
 		assertSha256Digest({
 			actualSha256: head.contentSha256 ?? "",
 			digest: ref.digest,
-			label,
+			label: "ingestion task result_ref",
 		});
 		assertArtifactByteSize({
 			actualByteSize: head.byteSize ?? -1,
 			byteSize: ref.byte_size,
-			label,
+			label: "ingestion task result_ref",
 		});
 	} catch (error) {
-		throw contractError(`${label} metadata does not match its pinned ref`, error);
+		throw contractError("ingestion task result_ref metadata does not match its pinned ref", error);
 	}
 }
 
 function isObjectNotFoundError(error: unknown): boolean {
-	if (!isRecord(error)) {
+	if (!error || typeof error !== "object") {
 		return false;
 	}
-	if (error.name === "NoSuchKey" || error.name === "NotFound") {
-		return true;
-	}
-	const metadata = error.$metadata;
-	return isRecord(metadata) && metadata.httpStatusCode === 404;
+	const candidate = error as {
+		$metadata?: { httpStatusCode?: number };
+		name?: string;
+	};
+	return (
+		candidate.name === "NoSuchKey" ||
+		candidate.name === "NotFound" ||
+		candidate.$metadata?.httpStatusCode === 404
+	);
 }
 
 function contractError(message: string, cause?: unknown): IngestionResultArtifactContractError {
@@ -209,8 +162,4 @@ function contractError(message: string, cause?: unknown): IngestionResultArtifac
 		message,
 		cause === undefined ? undefined : { cause },
 	);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }

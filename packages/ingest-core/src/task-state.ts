@@ -21,7 +21,6 @@ export type IngestionTaskRecord = IngestionTaskEnvelope & {
 	updated_at: string;
 	workflow_id: string;
 	workflow_run_id: string | null;
-	pipeline_workflow_id: string | null;
 	retry_of_task_id: string | null;
 	result_ref: IngestionArtifactRef | null;
 	result_contract: string | null;
@@ -51,7 +50,6 @@ export interface IngestionTaskOperatorProjection {
 	last_error_message: string | null;
 	workflow_id: string;
 	workflow_run_id: string | null;
-	pipeline_workflow_id: string | null;
 	retry_of_task_id: string | null;
 }
 
@@ -101,7 +99,6 @@ export function toIngestionTaskOperatorProjection(
 		last_error_message: task.error_message,
 		workflow_id: task.workflow_id,
 		workflow_run_id: task.workflow_run_id,
-		pipeline_workflow_id: task.pipeline_workflow_id,
 		retry_of_task_id: task.retry_of_task_id,
 	};
 }

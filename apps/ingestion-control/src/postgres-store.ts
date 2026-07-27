@@ -43,7 +43,6 @@ const REQUIRED_TASK_COLUMNS = [
 	"status",
 	"workflow_id",
 	"workflow_run_id",
-	"pipeline_workflow_id",
 	"retry_of_task_id",
 	"updated_at",
 	"result_ref_json",
@@ -51,77 +50,6 @@ const REQUIRED_TASK_COLUMNS = [
 	"summary_json",
 	"error_code",
 	"error_message",
-] as const;
-
-const REQUIRED_OFFICIAL_WEB_FRESHNESS_COLUMNS = [
-	"site_id",
-	"normalized_canonical_url",
-	"host",
-	"page_family",
-	"page_title_normalized",
-	"discovery_method",
-	"discovered_from_url",
-	"last_fetch_disposition",
-	"last_http_status",
-	"content_type",
-	"etag",
-	"last_modified",
-	"response_body_hash",
-	"main_content_hash",
-	"last_seen_at",
-	"last_changed_at",
-	"last_not_modified_at",
-	"cadence_class",
-	"priority_score",
-	"next_eligible_fetch_at",
-	"last_successful_run_id",
-	"last_change_reason",
-	"created_at",
-	"updated_at",
-] as const;
-
-const REQUIRED_OFFICIAL_WEB_SEED_STATE_COLUMNS = [
-	"site_id",
-	"configured_seed_url",
-	"normalized_canonical_url",
-	"last_observed_run_id",
-	"last_seen_at",
-	"created_at",
-	"updated_at",
-] as const;
-
-const REQUIRED_OFFLINE_RELEASE_STREAM_COLUMNS = [
-	"stream_id",
-	"source_channel",
-	"source_surface",
-	"corpus",
-	"collection",
-	"current_release_id",
-	"checkpoint_json",
-	"version",
-	"created_at",
-	"updated_at",
-	"last_check_at",
-	"last_check_mode",
-	"last_check_outcome",
-	"last_check_error_code",
-	"last_reconcile_at",
-	"last_published_at",
-	"last_added_count",
-	"last_updated_count",
-	"last_withdrawn_count",
-] as const;
-
-const REQUIRED_OFFLINE_RELEASE_COLUMNS = [
-	"release_id",
-	"stream_id",
-	"previous_release_id",
-	"run_id",
-	"workflow_id",
-	"workflow_run_id",
-	"manifest_ref_json",
-	"item_count",
-	"committed_at",
 ] as const;
 
 const REQUIRED_MIGRATION_COLUMNS = ["migration_id", "content_sha256", "applied_at"] as const;
@@ -155,71 +83,6 @@ export async function assertIngestionControlPostgresSchema(client: PgQueryable):
 			`ingestion-control database schema is not migrated; missing columns: ${missing.join(", ")}`,
 		);
 	}
-	for (const retired of ["closeout_json", "idempotency_key", "task_kind"]) {
-		if (columns.has(retired)) {
-			throw new Error(`ingestion-control database still contains retired column: ${retired}`);
-		}
-	}
-	const freshnessResult = await client.query(
-		`SELECT column_name
-		 FROM information_schema.columns
-		 WHERE table_schema = 'ingestion_control'
-		   AND table_name = 'official_web_url_freshness'`,
-	);
-	const freshnessColumns = new Set(
-		freshnessResult.rows.map((row) => requiredString(row.column_name, "column_name")),
-	);
-	const missingFreshness = REQUIRED_OFFICIAL_WEB_FRESHNESS_COLUMNS.filter(
-		(column) => !freshnessColumns.has(column),
-	);
-	if (missingFreshness.length > 0) {
-		throw new Error(
-			`ingestion-control database schema is not migrated; missing official-web freshness columns: ${missingFreshness.join(", ")}`,
-		);
-	}
-	const seedStateResult = await client.query(
-		`SELECT column_name
-		 FROM information_schema.columns
-		 WHERE table_schema = 'ingestion_control'
-		   AND table_name = 'official_web_seed_state'`,
-	);
-	const seedStateColumns = new Set(
-		seedStateResult.rows.map((row) => requiredString(row.column_name, "column_name")),
-	);
-	const missingSeedState = REQUIRED_OFFICIAL_WEB_SEED_STATE_COLUMNS.filter(
-		(column) => !seedStateColumns.has(column),
-	);
-	if (missingSeedState.length > 0) {
-		throw new Error(
-			`ingestion-control database schema is not migrated; missing official-web seed state columns: ${missingSeedState.join(", ")}`,
-		);
-	}
-	await assertTableColumns(
-		client,
-		"offline_release_streams",
-		REQUIRED_OFFLINE_RELEASE_STREAM_COLUMNS,
-	);
-	await assertTableColumns(client, "offline_releases", REQUIRED_OFFLINE_RELEASE_COLUMNS);
-}
-
-async function assertTableColumns(
-	client: PgQueryable,
-	tableName: string,
-	requiredColumns: readonly string[],
-): Promise<void> {
-	const result = await client.query(
-		`SELECT column_name
-		 FROM information_schema.columns
-		 WHERE table_schema = 'ingestion_control' AND table_name = $1`,
-		[tableName],
-	);
-	const columns = new Set(result.rows.map((row) => requiredString(row.column_name, "column_name")));
-	const missing = requiredColumns.filter((column) => !columns.has(column));
-	if (missing.length > 0) {
-		throw new Error(
-			`ingestion-control database schema is not migrated; missing ${tableName} columns: ${missing.join(", ")}`,
-		);
-	}
 }
 
 export function createPostgresIngestionTaskStore(input: {
@@ -246,12 +109,12 @@ class PostgresIngestionTaskStore implements IngestionTaskStore {
 			`INSERT INTO ingestion_control.tasks (
 				task_id, run_id, registry_task_id, executor_kind, source_family, source_channel,
 				corpus, collection, input_ref_json, input_contract, output_contract, created_by, created_at,
-				status, workflow_id, workflow_run_id, pipeline_workflow_id, retry_of_task_id,
+				status, workflow_id, workflow_run_id, retry_of_task_id,
 				updated_at, result_ref_json, result_contract,
 				summary_json, error_code, error_message
 			) VALUES (
 				$1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13::timestamptz,
-				'running', $14, $15, $16, $17, $18::timestamptz, NULL, NULL, NULL, NULL, NULL
+				'running', $14, $15, $16, $17::timestamptz, NULL, NULL, NULL, NULL, NULL
 			)
 			ON CONFLICT (task_id) DO NOTHING
 			RETURNING *`,
@@ -271,7 +134,6 @@ class PostgresIngestionTaskStore implements IngestionTaskStore {
 				now,
 				input.workflowId,
 				input.workflowRunId,
-				input.pipelineWorkflowId,
 				input.retryOfTaskId,
 				now,
 			],
@@ -461,7 +323,6 @@ function toTaskRecord(row: Record<string, unknown>): IngestionTaskRecord {
 		updated_at: requiredTimestamp(row.updated_at, "updated_at"),
 		workflow_id: requiredString(row.workflow_id, "workflow_id"),
 		workflow_run_id: optionalString(row.workflow_run_id),
-		pipeline_workflow_id: optionalString(row.pipeline_workflow_id),
 		retry_of_task_id: optionalString(row.retry_of_task_id),
 		result_ref:
 			row.result_ref_json == null
@@ -492,7 +353,6 @@ function assertCompatibleStart(
 		current.workflow_id !== input.workflowId ||
 		current.workflow_run_id !== input.workflowRunId ||
 		current.created_by !== input.createdBy ||
-		current.pipeline_workflow_id !== input.pipelineWorkflowId ||
 		current.retry_of_task_id !== input.retryOfTaskId ||
 		current.executor_kind !== registry.executor_kind ||
 		canonicalJsonString(current.input_ref) !== canonicalJsonString(task.input_ref)
@@ -516,7 +376,7 @@ function assertResultMatchesTask(
 }
 
 function requiredExecutorKind(value: unknown): IngestionTaskRecord["executor_kind"] {
-	if (value === "rust_kernel" || value === "source_collector" || value === "typescript_kernel") {
+	if (value === "rust_kernel") {
 		return value;
 	}
 	throw new Error(`executor_kind is invalid: ${String(value)}`);

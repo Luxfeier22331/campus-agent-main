@@ -1,37 +1,34 @@
+import { readFile } from "node:fs/promises";
+
 import { describe, expect, it, vi } from "vitest";
 
 import {
 	fetchAttachmentBinary,
-	fetchFileReleaseCodeTypes,
 	fetchFileReleaseDetail,
 	fetchFileReleaseDownloadUrl,
-	fetchFileReleaseExplainDepartments,
-	fetchFileReleasePage,
-	fetchFileReleaseTypes,
 	fetchNoticePage,
-	fetchNoticeSelects,
 } from "../src/api.js";
+import { PortalSessionExpiredError } from "../src/auth-errors.js";
 
 describe("internal portal source collector api", () => {
-	it("posts notice page requests and lets Crawlee retry thrown HTTP failures", async () => {
+	it("posts notice page requests and reports HTTP failures", async () => {
 		const calls: Array<{ path: string; form: Record<string, string> }> = [];
 		const apiContext = {
 			async get() {
 				return {
-					body: async () => Buffer.from(""),
-					json: async () => ({}),
 					ok: () => true,
 					status: () => 200,
 					statusText: () => "OK",
+					text: async () => "{}",
 				};
 			},
 			async post(path: string, input: { form: Record<string, string> }) {
 				calls.push({ path, form: input.form });
 				return {
-					json: async () => ({}),
 					ok: () => false,
 					status: () => 500,
 					statusText: () => "server error",
+					text: async () => "server error",
 				};
 			},
 		};
@@ -40,8 +37,7 @@ describe("internal portal source collector api", () => {
 			fetchNoticePage({
 				apiContext,
 				currentPage: 1,
-				noticeType: "5",
-				pageSize: 3,
+				startDate: "2026-04-01",
 			}),
 		).rejects.toThrow("getNoticeByPage failed: 500 server error");
 
@@ -49,23 +45,22 @@ describe("internal portal source collector api", () => {
 		expect(calls[0]?.path).toBe("/comsys-portal-notice-web/getNoticeByPage");
 		expect(calls[0]?.form.type).toBe("5");
 		expect(calls[0]?.form.currentPage).toBe("1");
-		expect(calls[0]?.form.pageSize).toBe("3");
+		expect(calls[0]?.form.pageSize).toBe("20");
+		expect(calls[0]?.form.end_date).toBe("");
 	});
 
 	it("treats comsys session invalid payloads as auth expiry", async () => {
 		const apiContext = {
 			async get() {
 				return {
-					body: async () => Buffer.from(""),
-					json: async () => ({}),
 					ok: () => true,
 					status: () => 200,
 					statusText: () => "OK",
+					text: async () => "{}",
 				};
 			},
 			async post() {
 				return {
-					json: async () => ({}),
 					ok: () => true,
 					status: () => 200,
 					statusText: () => "OK",
@@ -78,27 +73,25 @@ describe("internal portal source collector api", () => {
 			fetchNoticePage({
 				apiContext,
 				currentPage: 1,
-				noticeType: "5",
-				pageSize: 3,
+				startDate: "2026-04-01",
 			}),
 		).rejects.toThrow("getNoticeByPage failed: session invalid");
 	});
 
-	it("downloads attachment bytes and exposes response headers", async () => {
+	it("downloads attachment bytes and exposes filename headers", async () => {
 		const apiContext = {
 			async get() {
 				return {
-					body: async () => Buffer.from("hello"),
+					bodyStream: () => byteStream("hello"),
 					headers: () => ({
 						"content-disposition": "attachment; filename*=UTF-8''sample.docx",
 						"content-type":
 							"application/vnd.openxmlformats-officedocument.wordprocessingml.document; charset=utf-8",
-						etag: '"etag-1"',
 					}),
-					json: async () => ({}),
 					ok: () => true,
 					status: () => 200,
 					statusText: () => "OK",
+					text: async () => "hello",
 				};
 			},
 			async post() {
@@ -111,27 +104,28 @@ describe("internal portal source collector api", () => {
 			attachmentUrl: "https://portal.example.edu/download?id=1",
 		});
 
-		expect(result.body.toString("utf-8")).toBe("hello");
+		expect(await readFile(result.filePath, "utf-8")).toBe("hello");
 		expect(result.contentDisposition).toBe("attachment; filename*=UTF-8''sample.docx");
 		expect(result.contentType).toBe(
 			"application/vnd.openxmlformats-officedocument.wordprocessingml.document; charset=utf-8",
 		);
-		expect(result.etag).toBe('"etag-1"');
-		expect(result.statusCode).toBe(200);
+		await result.remove();
 	});
 
 	it("rejects oversized attachments from content-length before reading the body", async () => {
-		const body = vi.fn(async () => Buffer.from("must-not-read"));
+		const bodyStream = vi.fn(() => byteStream("must-not-read"));
+		const cancelBody = vi.fn(async () => undefined);
 		await expect(
 			fetchAttachmentBinary({
 				apiContext: {
 					get: async () => ({
-						body,
+						bodyStream,
+						cancelBody,
 						headers: () => ({ "content-length": String(50 * 1024 * 1024 + 1) }),
-						json: async () => ({}),
 						ok: () => true,
 						status: () => 200,
 						statusText: () => "OK",
+						text: async () => "",
 					}),
 					post: async () => {
 						throw new Error("unexpected post");
@@ -141,43 +135,56 @@ describe("internal portal source collector api", () => {
 				maxBytes: 50 * 1024 * 1024,
 			}),
 		).rejects.toThrow("attachment_size_limit_exceeded:52428801");
-		expect(body).not.toHaveBeenCalled();
+		expect(bodyStream).not.toHaveBeenCalled();
+		expect(cancelBody).toHaveBeenCalledOnce();
 	});
 
-	it("waits for Retry-After before returning a retryable source failure", async () => {
-		const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout").mockImplementation(((
-			callback: () => void,
-		) => {
-			callback();
-			return 0;
-		}) as typeof setTimeout);
-		try {
-			await expect(
-				fetchNoticePage({
-					apiContext: {
-						get: async () => {
-							throw new Error("unexpected get");
-						},
-						post: async () => ({
-							headers: () => ({ "retry-after": "2" }),
-							json: async () => ({}),
-							ok: () => false,
-							status: () => 429,
-							statusText: () => "Too Many Requests",
-						}),
+	it("fails a streamed session marker without retrying the request", async () => {
+		await expect(
+			fetchAttachmentBinary({
+				apiContext: {
+					get: async () => ({
+						bodyStream: () => byteStream("error_comsys_session_invalid"),
+						headers: () => ({ "content-type": "text/plain" }),
+						ok: () => true,
+						status: () => 200,
+						statusText: () => "OK",
+						text: async () => "error_comsys_session_invalid",
+					}),
+					post: async () => {
+						throw new Error("unexpected post");
 					},
-					currentPage: 1,
-					noticeType: "5",
-					pageSize: 20,
-				}),
-			).rejects.toMatchObject({ code: "internal_portal_source_deferred" });
-			expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 2_000);
-		} finally {
-			setTimeoutSpy.mockRestore();
-		}
+				},
+				attachmentUrl: "https://portal.example.edu/download?id=expired",
+			}),
+		).rejects.toBeInstanceOf(PortalSessionExpiredError);
 	});
 
-	it("posts file release requests and parses page, detail, type, and url payloads", async () => {
+	it("reports rate limiting without an application retry", async () => {
+		const cancelBody = vi.fn(async () => undefined);
+		await expect(
+			fetchNoticePage({
+				apiContext: {
+					get: async () => {
+						throw new Error("unexpected get");
+					},
+					post: async () => ({
+						cancelBody,
+						headers: () => ({ "retry-after": "2" }),
+						ok: () => false,
+						status: () => 429,
+						statusText: () => "Too Many Requests",
+						text: async () => "rate limited",
+					}),
+				},
+				currentPage: 1,
+				startDate: "2026-04-01",
+			}),
+		).rejects.toThrow("getNoticeByPage failed: 429 Too Many Requests");
+		expect(cancelBody).toHaveBeenCalledOnce();
+	});
+
+	it("posts file release requests and parses detail and download URL payloads", async () => {
 		const calls: Array<{ path: string; form: Record<string, string> }> = [];
 		const apiContext = {
 			async get() {
@@ -185,59 +192,8 @@ describe("internal portal source collector api", () => {
 			},
 			async post(path: string, input: { form: Record<string, string> }) {
 				calls.push({ path, form: input.form });
-				if (path === "/comsys-prompt-portlet-web/pageFile") {
-					return {
-						json: async () => ({
-							data: [
-								{
-									filecode: "民大校发〔2026〕39号",
-									filename: "示例大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
-									filetime: "2026-03-31 13:51:11",
-									filedepartment: "教务处",
-									id: 646,
-									typename: "教学管理",
-								},
-							],
-							dws: [{ filedepartment: "教务处" }],
-							size: 1,
-							state: true,
-							sync: false,
-						}),
-						ok: () => true,
-						status: () => 200,
-						statusText: () => "OK",
-						text: async () =>
-							JSON.stringify({
-								data: [
-									{
-										filecode: "民大校发〔2026〕39号",
-										filename: "示例大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
-										filetime: "2026-03-31 13:51:11",
-										filedepartment: "教务处",
-										id: 646,
-										typename: "教学管理",
-									},
-								],
-								dws: [{ filedepartment: "教务处" }],
-								size: 1,
-								state: true,
-								sync: false,
-							}),
-					};
-				}
 				if (path === "/comsys-prompt-portlet-web/getFile") {
 					return {
-						json: async () => ({
-							filecode: "民大校发〔2026〕39号",
-							filedepartment: "教务处",
-							filename: "示例大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
-							filetime: "2026-03-31 13:51:11",
-							filetypeid: 18,
-							fileurl: "/comsys/20181214/webapps/comsys-prompt-portlet-web/file/sample.pdf",
-							id: 646,
-							state: 1,
-							upfilename: "示例大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf",
-						}),
 						ok: () => true,
 						status: () => 200,
 						statusText: () => "OK",
@@ -257,10 +213,6 @@ describe("internal portal source collector api", () => {
 				}
 				if (path === "/comsys-prompt-portlet-web/getFileUrl") {
 					return {
-						json: async () => ({
-							state: true,
-							url: "/comsys-prompt-portlet-web/file/sample.pdf",
-						}),
 						ok: () => true,
 						status: () => 200,
 						statusText: () => "OK",
@@ -271,43 +223,10 @@ describe("internal portal source collector api", () => {
 							}),
 					};
 				}
-				if (path === "/comsys-prompt-portlet-web/getFileType") {
-					return {
-						json: async () => ({
-							data: [
-								{
-									id: 18,
-									sort: 3,
-									typename: "教学管理",
-								},
-							],
-							state: true,
-						}),
-						ok: () => true,
-						status: () => 200,
-						statusText: () => "OK",
-						text: async () =>
-							JSON.stringify({
-								data: [
-									{
-										id: 18,
-										sort: 3,
-										typename: "教学管理",
-									},
-								],
-								state: true,
-							}),
-					};
-				}
 				throw new Error(`unexpected path: ${path}`);
 			},
 		};
 
-		const page = await fetchFileReleasePage({
-			apiContext,
-			currentPage: 1,
-			pageSize: 10,
-		});
 		const detail = await fetchFileReleaseDetail({
 			apiContext,
 			fileReleaseId: 646,
@@ -316,24 +235,9 @@ describe("internal portal source collector api", () => {
 			apiContext,
 			fileReleaseId: 646,
 		});
-		const fileTypes = await fetchFileReleaseTypes({
-			apiContext,
-		});
-
-		expect(page.data?.[0]?.id).toBe(646);
 		expect(detail.id).toBe(646);
 		expect(downloadUrl.url).toBe("/comsys-prompt-portlet-web/file/sample.pdf");
-		expect(fileTypes.data?.[0]?.typename).toBe("教学管理");
 		expect(calls).toEqual([
-			{
-				path: "/comsys-prompt-portlet-web/pageFile",
-				form: {
-					currentPage: "1",
-					pageSize: "10",
-					mng: "1",
-					order: "name,time",
-				},
-			},
 			{
 				path: "/comsys-prompt-portlet-web/getFile",
 				form: {
@@ -346,174 +250,10 @@ describe("internal portal source collector api", () => {
 					id: "646",
 				},
 			},
-			{
-				path: "/comsys-prompt-portlet-web/getFileType",
-				form: {},
-			},
-		]);
-	});
-
-	it("lets Crawlee retry thrown file-release HTTP failures", async () => {
-		const calls: string[] = [];
-		const apiContext = {
-			async get() {
-				throw new Error("unexpected get");
-			},
-			async post(path: string) {
-				calls.push(path);
-				return {
-					json: async () => ({}),
-					ok: () => false,
-					status: () => 500,
-					statusText: () => "server error",
-					text: async () => JSON.stringify({ state: false }),
-				};
-			},
-		};
-
-		await expect(
-			fetchFileReleasePage({
-				apiContext,
-				currentPage: 1,
-				pageSize: 10,
-			}),
-		).rejects.toThrow("pageFile failed: 500 server error");
-
-		expect(calls).toEqual(["/comsys-prompt-portlet-web/pageFile"]);
-	});
-
-	it("fetches notice and file-release selector snapshots for taxonomy exports", async () => {
-		const calls: Array<{ path: string; form: Record<string, string> }> = [];
-		const apiContext = {
-			async get() {
-				throw new Error("unexpected get");
-			},
-			async post(path: string, input: { form: Record<string, string> }) {
-				calls.push({ path, form: input.form });
-				if (path === "/comsys-portal-notice-web/getNoticeSlects") {
-					const payload = {
-						datas: {
-							org: [
-								{
-									organization_id: "00011",
-									organization_name: "教务处（考试中心、教师教学发展中心）",
-								},
-							],
-							type: [
-								{
-									notice_type_id: 5,
-									notice_type_name: "办公通知",
-								},
-								{
-									notice_type_id: 6,
-									notice_type_name: "教学通知",
-								},
-							],
-						},
-						state: true,
-					};
-					return {
-						json: async () => payload,
-						ok: () => true,
-						status: () => 200,
-						statusText: () => "OK",
-						text: async () => JSON.stringify(payload),
-					};
-				}
-				if (path === "/comsys-prompt-portlet-web/getExplainDepts") {
-					const payload = {
-						data: [
-							{
-								ORGANIZATION_NAME: "教务处（考试中心、教师教学发展中心）",
-							},
-						],
-						state: true,
-					};
-					return {
-						json: async () => payload,
-						ok: () => true,
-						status: () => 200,
-						statusText: () => "OK",
-						text: async () => JSON.stringify(payload),
-					};
-				}
-				if (path === "/comsys-prompt-portlet-web/getFileFileType") {
-					const payload = {
-						data: [
-							{
-								id: 2,
-								name: "民大校发",
-								sort: 2,
-							},
-						],
-						state: true,
-					};
-					return {
-						json: async () => payload,
-						ok: () => true,
-						status: () => 200,
-						statusText: () => "OK",
-						text: async () => JSON.stringify(payload),
-					};
-				}
-				throw new Error(`unexpected path: ${path}`);
-			},
-		};
-
-		const noticeSelects = await fetchNoticeSelects({
-			apiContext,
-			currentPage: 1,
-			pageSize: 15,
-		});
-		const explainDepartments = await fetchFileReleaseExplainDepartments({
-			apiContext,
-		});
-		const codeTypes = await fetchFileReleaseCodeTypes({
-			apiContext,
-		});
-
-		expect(noticeSelects.datas?.type).toHaveLength(2);
-		expect(noticeSelects.datas?.org?.[0]?.organization_name).toBe(
-			"教务处（考试中心、教师教学发展中心）",
-		);
-		expect(explainDepartments.data?.[0]?.ORGANIZATION_NAME).toBe(
-			"教务处（考试中心、教师教学发展中心）",
-		);
-		expect(codeTypes.data?.[0]?.name).toBe("民大校发");
-		expect(calls).toEqual([
-			{
-				form: {
-					comsys_random_t: expect.any(String),
-					currentPage: "1",
-					end_date: "",
-					is_add: "0",
-					pageSize: "15",
-					searchDepartment: "",
-					searchValue: "",
-					select_all: "false",
-					select_notice: "",
-					start_date: "",
-					state: "",
-					system_show: "1",
-					total: "-1",
-					totalCounts: "0",
-					type: "",
-				},
-				path: "/comsys-portal-notice-web/getNoticeSlects",
-			},
-			{
-				form: {
-					comsys_random_t: expect.any(String),
-				},
-				path: "/comsys-prompt-portlet-web/getExplainDepts",
-			},
-			{
-				form: {
-					comsys_random_t: expect.any(String),
-					name: "",
-				},
-				path: "/comsys-prompt-portlet-web/getFileFileType",
-			},
 		]);
 	});
 });
+
+async function* byteStream(payload: string): AsyncIterable<Uint8Array> {
+	yield new TextEncoder().encode(payload);
+}

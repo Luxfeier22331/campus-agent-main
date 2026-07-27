@@ -6,46 +6,37 @@ status: active
 
 # 采集运行
 
-## 当前边界
+## 范围
 
-仓库保留 ingestion-control、source-collector、合同和本地验证能力，但 staging 当前不部署 ingestion
-Application、worker、schedule 或来源凭据。Ops Web 不提供采集任务、通知计划或门户认证接口。
-源码中的 Kubernetes base 是实现输入，不表示环境已经启用该运行时。
+本文说明注册 Rust 任务、内部门户文件发布 workflow 和本地通知命令。系统没有来源 callback、
+独立 run ledger、文件发布离线发布流或自动 query target 发布。
 
-## 本地前置条件
+## 前置条件
 
-- source 和 derived bucket 的 S3-compatible 连接；
-- 可用的 Temporal namespace；
-- 本地 PostgreSQL 与 ingestion schema owner/runtime 连接；
-- `configs/ingestion` v3 registry；
-- 目标来源明确需要的凭据。
+- ingestion migration 可以访问 PostgreSQL；
+- source 与 derived bucket 使用各自对象存储凭据；
+- Temporal namespace 可用；
+- ingestion-control 与 source-collector 来自同一 source revision；
+- `configs/ingestion` 中的 Rust registry 已通过校验；
+- 使用内部门户时，固定 TGC Secret 或本地 TGC 已配置。
 
-本地迁移：
+## 数据库与本地进程
 
 ```bash
 pnpm --filter ingestion-control schema:bootstrap
-pnpm --filter ingestion-control migrate
-```
-
-正式连接要求 `verify-full` 和 CA 文件。本地明文 PostgreSQL 必须同时显式设置
-`DEPLOYMENT_ENVIRONMENT=local` 与 `INGESTION_CONTROL_DATABASE_SSLMODE=disable`。
-
-## 本地启动
-
-使用 `env/commands/ingestion-control-runtime.env.example` 准备变量，然后运行：
-
-```bash
 pnpm --filter ingestion-control migrate
 pnpm --filter ingestion-control start:api
 pnpm --filter ingestion-control start:temporal-worker
 pnpm --filter source-collector start:temporal-worker
 ```
 
-本地 worker 不设置 `TEMPORAL_DEPLOYMENT_NAME` 和 `TEMPORAL_WORKER_BUILD_ID`。
+数据库 TLS 与运行变量见 `env/commands/ingestion-control-runtime.env.example`。migration 使用
+advisory lock，并在 `ingestion_control.schema_migrations` 校验已应用 SQL 的摘要。当前 migration
+会删除旧 source-collector/TypeScript 任务、父 pipeline 字段、离线发布表和旧通知边界表。
 
-## 提交与查询
+## 注册任务
 
-先将 request document 写入 source bucket 并计算 SHA-256，再提交 v3 envelope：
+调用方先把输入写入对象存储并计算摘要，再提交 `ingestion_task_envelope.v3`：
 
 ```bash
 curl -fsS \
@@ -53,23 +44,68 @@ curl -fsS \
   -H "Content-Type: application/json" \
   --data-binary "@${INGESTION_TASK_ENVELOPE_PATH}" \
   http://127.0.0.1:8000/internal/ingestion/tasks
-
-curl -fsS \
-  -H "Authorization: Bearer ${INGESTION_CONTROL_ADMIN_TOKEN}" \
-  http://127.0.0.1:8000/internal/ingestion/tasks/task-001
 ```
 
-`202` 表示 Temporal 接受 workflow，或相同 workflow 仍在运行。canonical workflow ID 为
-`ingestion/<task_id>`。只有冻结请求完全一致时才幂等；新的执行使用新 task ID。workflow history、
-attempt、heartbeat、timeout 和 cancellation 使用 Temporal UI/CLI，PostgreSQL 只保存有界投影。
+任务必须由当前 registry 声明为 Rust kernel。canonical workflow ID 为 `ingestion/<task_id>`。
+相同 task ID 只有在冻结输入一致时幂等；不同输入返回冲突。失败或取消的任务通过 Ops Web 使用
+新 task ID 重试。
 
-## 失败规则
+## 文件发布
 
-- 缺少 registry、schema 或 credential：修复所属输入，不增加 fallback executor；
-- digest 或 frozen identity 不一致：拒绝任务或产物；
-- activity timeout：检查 heartbeat 与来源/对象存储延迟后使用新 task；
-- projection 暂时失败：让 Temporal 重试 control activity，不重复采集；
-- 来源采集失败：保留已经写入的 artifact，修复后使用新 task ID。
+文件发布只接受精确 ID，一次最多 50 个：
+
+```bash
+curl -fsS -X POST \
+  -H "Authorization: Bearer ${OPS_WEB_INTERNAL_TOKEN}" \
+  -H "X-Operator-Id: operator@example.edu" \
+  -H "Content-Type: application/json" \
+  -d '{"request_id":"files-20260717","file_release_ids":[646,647]}' \
+  http://127.0.0.1:8000/internal/ingestion/operations/internal-portal/file-releases
+```
+
+响应为每个 ID 返回独立 workflow ID。调用方用这些 ID 调用
+`/internal/ingestion/operations/internal-portal/file-releases/status`，全部进入 Temporal 终态后停止
+轮询。当前 Ops Web 不提供该操作入口。文件发布不创建 ingestion task；失败后使用新的 request ID
+重新提交需要的文件 ID。
+
+成功结果只在 source bucket 保存 `file` 与 `source.json`，具体合同见
+`docs/contracts/internal-portal-file-release.md`。
+
+## 本地通知采集
+
+```bash
+pnpm dev:init
+pnpm --filter source-collector notice:sync
+pnpm --filter source-collector notice:status
+pnpm --filter source-collector notice:backfill -- --start-date 2026-01-01
+```
+
+`dev:init` 启动本地 MinIO、确保共享 source bucket 存在，并生成对象存储 `.env.local`。sync 与
+backfill 还需要开发者在未跟踪的 `.env` 中提供当前 TGC，status 只读对象存储状态；三者都不需要
+PostgreSQL、ingestion-control API 或 Temporal。首次同步只建立当前最大 ID；后续采集新增通知；
+历史回填必须显式提供日期。同一 `site_id` 的 sync 与 backfill 不得并发执行。通知对象和
+`_state.json` 边界都写入 source bucket。
+
+## Kubernetes
+
+`infra/k8s/ingestion-runtime/base/runtime` 包含 API、migration 和两个 worker；
+`infra/k8s/ingestion-runtime/base/schedule` 包含 `source-collector-auth-check` CronJob。环境 overlay
+必须提供数据库、对象存储、Temporal、镜像摘要和固定 TGC Secret。
+
+source-collector 只能获得 source bucket 凭据。所有容器使用 non-root、只读 root filesystem；
+临时下载文件只写 `/tmp`。TGC Secret 以完整必需卷挂载。
+
+从旧运行时迁移时，还需按 `portal-auth.md` 删除已退役 Temporal Schedule。源码仓不自动操作环境
+中的 Schedule。
+
+## 排查
+
+注册任务先检查 Temporal workflow、Rust Activity 和 PostgreSQL 投影。文件发布先检查返回的
+workflow ID、source-collector Activity、门户响应及两个固定 source 对象。通知先查看命令错误、
+通知对象和 `_state.json`，不要手工推进边界来伪装成功。
+
+认证错误按 `portal-auth.md` 替换 TGC。对象摘要或 schema 不一致时保留明确失败，不能改写为部分
+成功。
 
 ## 验证
 
@@ -77,8 +113,8 @@ attempt、heartbeat、timeout 和 cancellation 使用 Temporal UI/CLI，PostgreS
 pnpm ci:contracts
 pnpm ci:ingest
 pnpm ci:ingestion-control-postgres
-pnpm ci:rust
+pnpm ci:infra
 ```
 
-PostgreSQL 套件使用隔离 Testcontainers，只在显式 database profile 运行。真实来源与环境部署验证
-不属于普通本地检查。
+这些检查验证源码、合同、隔离数据库 migration 和 Kubernetes 期望配置，不证明集群已应用、
+CronJob 已成功或真实门户可用。

@@ -1,51 +1,36 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { checkAuth } from "../src/auth-check.js";
+import type { InternalPortalConfig } from "../src/config.js";
+
+const config: InternalPortalConfig = {
+	authSsoCookieDomain: ".example.edu",
+	authSsoTgc: "TGT-current",
+	authSsoTgcFile: null,
+	portalBaseUrl: "https://portal.example.edu",
+	portalPageUrl: "https://portal.example.edu/page/11#/",
+	portalProxyServer: null,
+	siteId: "synthetic_internal_portal",
+	sourceHomeUrl: "https://portal.example.edu",
+};
 
 describe("internal portal source collector auth check", () => {
-	it("checks only the notice surface and disposes the request context", async () => {
-		let disposed = false;
-		const result = await checkAuth({
-			authCheckNoticeType: "5",
-			authCheckPageSize: 3,
-			createApiContext: async () => ({
-				dispose: async () => {
-					disposed = true;
-				},
-				get: async () => response(),
-				post: async () => response(),
-			}),
-			fetchNoticePage: async () => ({
-				datas: { tables: [{ notice_id: 355119 }] },
-				state: true,
-			}),
-		});
+	it("establishes one portal session without calling a content surface", async () => {
+		const checkAuthentication = vi.fn(async () => undefined);
 
-		expect(result).toEqual({ ok: true, notice: { sampleCount: 1 } });
-		expect(disposed).toBe(true);
+		await expect(checkAuth({ config, checkAuthentication })).resolves.toBeUndefined();
+		expect(checkAuthentication).toHaveBeenCalledOnce();
+		expect(checkAuthentication).toHaveBeenCalledWith(config);
 	});
 
-	it("fails closed when the notice API rejects the session", async () => {
+	it("propagates session establishment failure", async () => {
 		await expect(
 			checkAuth({
-				authCheckNoticeType: "5",
-				authCheckPageSize: 3,
-				createApiContext: async () => ({
-					dispose: async () => undefined,
-					get: async () => response(),
-					post: async () => response(),
-				}),
-				fetchNoticePage: async () => ({ state: false }),
+				config,
+				checkAuthentication: async () => {
+					throw new Error("portal SSO did not issue a service ticket");
+				},
 			}),
-		).rejects.toThrow("auth check failed: notice surface unavailable");
+		).rejects.toThrow("portal SSO did not issue a service ticket");
 	});
 });
-
-function response() {
-	return {
-		json: async () => ({}),
-		ok: () => true,
-		status: () => 200,
-		statusText: () => "OK",
-	};
-}

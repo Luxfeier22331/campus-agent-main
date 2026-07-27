@@ -7,7 +7,6 @@ const forbiddenRuntimePackages = [
 	"@temporalio/client",
 	"@temporalio/worker",
 	"@temporalio/workflow",
-	"crawlee",
 	"openai",
 	"pg",
 	"qdrant-client",
@@ -41,7 +40,7 @@ describe("ingest-core module boundaries", () => {
 		expect(offenders).toEqual([]);
 	});
 
-	it("does not depend on runtime, crawler, storage, database or provider clients", () => {
+	it("does not depend on runtime, storage, database or provider clients", () => {
 		const packageJson = JSON.parse(
 			readFileSync(join(import.meta.dirname, "..", "package.json"), "utf8"),
 		) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };

@@ -3,10 +3,10 @@ import { describe, expect, it } from "vitest";
 import { formatSafeErrorMessage } from "../src/safe-error.js";
 
 describe("internal portal source collector safe errors", () => {
-	it("redacts portal cookies from Playwright call logs", () => {
+	it("redacts portal cookies from HTTP request errors", () => {
 		const message = [
-			"apiRequestContext.post: getaddrinfo EAI_AGAIN portal.example.edu",
-			"Call log:",
+			"portal request failed: getaddrinfo EAI_AGAIN portal.example.edu",
+			"Request headers:",
 			"  - cookie: SSO_TGC=TGT-secret; JSESSIONID=session-secret; nginx=proxy-secret",
 			"  - authorization: Bearer bearer-secret",
 		].join("\n");
@@ -36,7 +36,7 @@ describe("internal portal source collector safe errors", () => {
 
 	it("redacts CAS service tickets from redirect URLs", () => {
 		const safe = formatSafeErrorMessage(
-			"page.goto failed at https://portal.example.edu/login?ticket=ST-secret&next=/notice",
+			"request failed at https://portal.example.edu/login?ticket=ST-secret&next=/notice",
 		);
 
 		expect(safe).not.toContain("ST-secret");

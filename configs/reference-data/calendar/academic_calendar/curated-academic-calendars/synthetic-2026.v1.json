@@ -1,11 +1,11 @@
 {
-	"schemaVersion": "official_web_curated_academic_calendar.v1",
+	"schemaVersion": "calendar_curated_academic_calendar.v1",
 	"projectionName": "synthetic-2026-academic-calendar",
 	"documentData": {
 		"title": "Synthetic 2026 academic calendar",
 		"extractionStatus": "ready",
 		"manualReviewRequired": false,
-		"sourceRefs": ["https://www.example.edu/calendar"],
+		"sourceRefs": ["urn:campus-agent:calendar:synthetic-2026"],
 		"records": [
 			{
 				"academicYearLabel": "2026 academic year",
@@ -17,7 +17,7 @@
 				"classDayPattern": "",
 				"isMakeupClass": false,
 				"holidayName": "",
-				"sourceRefs": ["https://www.example.edu/calendar"]
+				"sourceRefs": ["urn:campus-agent:calendar:synthetic-2026"]
 			}
 		]
 	}

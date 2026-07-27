@@ -1,180 +1,105 @@
-import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 import { parse as parseDomain } from "tldts";
 
-const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const repoRoot = path.resolve(packageRoot, "../../../..");
+const adapterRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const repoRoot = path.resolve(adapterRoot, "../../../..");
 const DEFAULT_PORTAL_BASE_URL = "https://portal.example.edu";
 
 export interface InternalPortalConfig {
-	runtimeDir: string;
-	authStorageStatePath: string;
 	authSsoCookieDomain: string | null;
-	authSsoTgcFile: string;
-	reconcileMaxPagesPerType: number | null;
-	noticeTypesPath: string;
+	authSsoTgc: string | null;
+	authSsoTgcFile: string | null;
 	portalBaseUrl: string;
 	portalPageUrl: string;
 	sourceHomeUrl: string;
 	siteId: string;
-	requestMaxRetries: number;
-	authCheckNoticeType: string;
-	authCheckPageSize: number;
-	bypassProxyForPortal: boolean;
 	portalProxyServer: string | null;
 }
 
 export function loadInternalPortalEnv(): void {
+	dotenv.config({ path: path.join(adapterRoot, ".env.local"), quiet: true });
+	dotenv.config({ path: path.join(adapterRoot, ".env"), quiet: true });
 	dotenv.config({ path: path.join(repoRoot, ".env"), quiet: true });
-	dotenv.config({ path: path.join(packageRoot, ".env"), override: true, quiet: true });
-	applyInternalPortalNoProxyEnv(process.env);
-}
-
-export function applyInternalPortalNoProxyEnv(target: NodeJS.ProcessEnv): void {
-	const raw = target.NO_PROXY ?? target.no_proxy;
-	const portalHosts = resolvePortalNoProxyHosts(target);
-	const merged = shouldBypassProxyForPortal(target.INTERNAL_PORTAL_BYPASS_PROXY)
-		? mergeNoProxyValue(raw, portalHosts)
-		: removePortalNoProxyHosts(raw, portalHosts);
-	target.NO_PROXY = merged;
-	target.no_proxy = merged;
 }
 
 export function resolveInternalPortalConfig(
 	source: NodeJS.ProcessEnv | Record<string, string | undefined>,
 ): InternalPortalConfig {
-	const runtimeDir = path.resolve(
-		String(source.INTERNAL_PORTAL_RUNTIME_DIR || path.join(packageRoot, "runtime")),
+	const portalBaseUrl = resolveHttpsUrl(
+		String(source.INTERNAL_PORTAL_BASE_URL || DEFAULT_PORTAL_BASE_URL).trim(),
+		"INTERNAL_PORTAL_BASE_URL",
 	);
-	const portalBaseUrl = String(source.INTERNAL_PORTAL_BASE_URL || DEFAULT_PORTAL_BASE_URL).trim();
-	const bypassProxyForPortal = shouldBypassProxyForPortal(source.INTERNAL_PORTAL_BYPASS_PROXY);
+	const portalPageUrl = resolvePortalPageUrl(
+		String(
+			source.INTERNAL_PORTAL_PAGE_URL || new URL("/page/11#/", portalBaseUrl).toString(),
+		).trim(),
+		portalBaseUrl,
+	);
+	const authSsoTgc = normalizeOptionalSecret(source.INTERNAL_PORTAL_SSO_TGC);
+	const authSsoTgcFile = resolveOptionalPath(source.INTERNAL_PORTAL_SSO_TGC_FILE);
+	if (authSsoTgc && authSsoTgcFile) {
+		throw new Error(
+			"INTERNAL_PORTAL_SSO_TGC and INTERNAL_PORTAL_SSO_TGC_FILE are mutually exclusive",
+		);
+	}
 	return {
-		runtimeDir,
-		authStorageStatePath: path.join(runtimeDir, "auth", "storageState.json"),
 		authSsoCookieDomain: resolveSsoCookieDomain({
 			portalBaseUrl,
 			rawDomain: source.INTERNAL_PORTAL_SSO_COOKIE_DOMAIN,
 		}),
-		authSsoTgcFile: path.resolve(
-			String(source.INTERNAL_PORTAL_SSO_TGC_FILE || path.join(runtimeDir, "auth", "sso_tgc")),
-		),
-		reconcileMaxPagesPerType: parseOptionalPositiveInteger(
-			source.INTERNAL_PORTAL_RECONCILE_MAX_PAGES_PER_TYPE,
-		),
-		noticeTypesPath: path.resolve(
-			String(
-				source.INTERNAL_PORTAL_NOTICE_TYPES_PATH ||
-					path.join(packageRoot, "config", "notice-types.json"),
-			),
-		),
+		authSsoTgc,
+		authSsoTgcFile,
 		portalBaseUrl,
-		portalPageUrl: String(
-			source.INTERNAL_PORTAL_PAGE_URL || "https://portal.example.edu/page/11#/",
-		).trim(),
-		sourceHomeUrl: String(source.INTERNAL_PORTAL_SOURCE_HOME_URL || portalBaseUrl).trim(),
-		siteId:
-			String(source.INTERNAL_PORTAL_SITE_ID || "synthetic_internal_portal").trim() ||
-			"synthetic_internal_portal",
-		requestMaxRetries: parsePositiveInteger(source.INTERNAL_PORTAL_REQUEST_MAX_RETRIES, 3),
-		authCheckNoticeType: String(source.INTERNAL_PORTAL_AUTH_CHECK_NOTICE_TYPE || "5").trim() || "5",
-		authCheckPageSize: parsePositiveInteger(source.INTERNAL_PORTAL_AUTH_CHECK_PAGE_SIZE, 3),
-		bypassProxyForPortal,
-		portalProxyServer: resolvePortalProxyServer(source, bypassProxyForPortal),
+		portalPageUrl,
+		sourceHomeUrl: resolveHttpsUrl(
+			String(source.INTERNAL_PORTAL_SOURCE_HOME_URL || portalBaseUrl).trim(),
+			"INTERNAL_PORTAL_SOURCE_HOME_URL",
+		),
+		siteId: resolveInternalPortalSiteId(source),
+		portalProxyServer: normalizeOptionalSecret(source.INTERNAL_PORTAL_PROXY_SERVER),
 	};
+}
+
+export function resolveInternalPortalSiteId(
+	source: NodeJS.ProcessEnv | Record<string, string | undefined>,
+): string {
+	return (
+		String(source.INTERNAL_PORTAL_SITE_ID || "synthetic_internal_portal").trim() ||
+		"synthetic_internal_portal"
+	);
+}
+
+function resolveOptionalPath(raw: string | undefined): string | null {
+	const normalized = String(raw ?? "").trim();
+	return normalized ? path.resolve(normalized) : null;
+}
+
+function resolveHttpsUrl(raw: string, key: string): string {
+	let parsed: URL;
+	try {
+		parsed = new URL(raw);
+	} catch {
+		throw new Error(`${key} must be an absolute HTTPS URL`);
+	}
+	if (parsed.protocol !== "https:" || parsed.username || parsed.password) {
+		throw new Error(`${key} must be a credential-free HTTPS URL`);
+	}
+	return parsed.toString() === `${parsed.origin}/` ? parsed.origin : parsed.toString();
+}
+
+function resolvePortalPageUrl(raw: string, portalBaseUrl: string): string {
+	const normalized = resolveHttpsUrl(raw, "INTERNAL_PORTAL_PAGE_URL");
+	if (new URL(normalized).hostname !== new URL(portalBaseUrl).hostname) {
+		throw new Error("INTERNAL_PORTAL_PAGE_URL must use the portal host");
+	}
+	return normalized;
 }
 
 function normalizeOptionalSecret(raw: string | undefined): string | null {
 	const normalized = String(raw ?? "").trim();
 	return normalized ? normalized : null;
-}
-
-export function ensureRuntimeDirs(config: InternalPortalConfig): void {
-	fs.mkdirSync(path.join(config.runtimeDir, "auth"), { recursive: true });
-}
-
-function parsePositiveInteger(raw: string | undefined, defaultValue: number): number {
-	const parsed = Number(raw || "");
-	if (!Number.isFinite(parsed) || parsed <= 0) {
-		return defaultValue;
-	}
-	return Math.floor(parsed);
-}
-
-function parseOptionalPositiveInteger(raw: string | undefined): number | null {
-	const parsed = Number(raw || "");
-	if (!Number.isFinite(parsed) || parsed <= 0) {
-		return null;
-	}
-	return Math.floor(parsed);
-}
-
-function resolvePortalNoProxyHosts(
-	source: NodeJS.ProcessEnv | Record<string, string | undefined>,
-): string[] {
-	const portalHost = new URL(
-		String(source.INTERNAL_PORTAL_BASE_URL || DEFAULT_PORTAL_BASE_URL).trim(),
-	).hostname.toLowerCase();
-	const configuredDomain = String(source.INTERNAL_PORTAL_SSO_COOKIE_DOMAIN ?? "")
-		.trim()
-		.replace(/^\./, "")
-		.toLowerCase();
-	const registrableDomain = configuredDomain || parseDomain(portalHost).domain || portalHost;
-	return [...new Set([registrableDomain, `.${registrableDomain}`, portalHost])];
-}
-
-function mergeNoProxyValue(raw: string | undefined, portalHosts: string[]): string {
-	const tokens = (raw || "")
-		.split(",")
-		.map((token) => token.trim())
-		.filter(Boolean);
-	const seen = new Set(tokens.map((token) => token.toLowerCase()));
-	for (const host of portalHosts) {
-		const normalized = host.toLowerCase();
-		if (seen.has(normalized)) {
-			continue;
-		}
-		tokens.push(host);
-		seen.add(normalized);
-	}
-	return tokens.join(",");
-}
-
-function removePortalNoProxyHosts(raw: string | undefined, hosts: string[]): string {
-	const portalHosts = new Set(hosts.map((host) => host.toLowerCase()));
-	return (raw || "")
-		.split(",")
-		.map((token) => token.trim())
-		.filter(Boolean)
-		.filter((token) => !portalHosts.has(token.toLowerCase()))
-		.join(",");
-}
-
-function shouldBypassProxyForPortal(raw: string | undefined): boolean {
-	const normalized = String(raw ?? "")
-		.trim()
-		.toLowerCase();
-	if (!normalized) {
-		return true;
-	}
-	return !["0", "false", "no", "off"].includes(normalized);
-}
-
-function resolvePortalProxyServer(
-	source: NodeJS.ProcessEnv | Record<string, string | undefined>,
-	bypassProxyForPortal: boolean,
-): string | null {
-	if (bypassProxyForPortal) {
-		return null;
-	}
-	const normalized = String(source.INTERNAL_PORTAL_PROXY_SERVER ?? "").trim();
-	if (!normalized) {
-		throw new Error(
-			"INTERNAL_PORTAL_PROXY_SERVER is required when INTERNAL_PORTAL_BYPASS_PROXY=false",
-		);
-	}
-	return normalized;
 }
 
 function resolveSsoCookieDomain(input: {

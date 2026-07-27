@@ -3,94 +3,77 @@ doc_type: architecture
 owner_boundary: ingestion-data-plane
 status: active
 ---
+
 # 采集数据面
 
 ## 边界
 
-采集数据面把已经写入对象存储的不可变请求交给 Temporal 执行，并产生带摘要的结果引用。它负责
-离线采集、文件校验和分块，不负责在线检索、产品接口或知识目标发布。
-
-```text
-对象存储中的请求
--> ingestion-control 准入
--> Temporal workflow
--> source-collector 或 Rust 内核 activity
--> 对象存储中的结果清单
--> PostgreSQL 有界投影
-```
+采集数据面包含注册的确定性文件任务、按 ID 执行的内部门户文件发布采集，以及本地通知采集。
+这些入口共享对象存储和来源适配器，但不强行进入同一任务模型。采集完成不会自动创建产品读
+模型、知识索引或查询目标。
 
 ## 组件职责
 
 | 组件 | 负责 | 不负责 |
 | --- | --- | --- |
-| `apps/ingestion-control` API | 校验任务请求、冻结注册任务、启动和查询 workflow | 来源采集、文件处理、在线发布 |
-| ingestion-control worker | workflow、控制 activity、TypeScript 物化、Rust 内核桥接、任务终态、离线发布与官网时效投影 | 供应商客户端、浏览器采集、在线查询 |
-| `apps/source-collector` | Crawlee、Playwright 和供应商适配器，写入来源产物与结果清单 | 启动 workflow、维护任务状态、发布知识目标 |
-| `packages/ingestion-contracts` | 跨运行时 JSON Schema 与校验器 | 运行时、存储和供应商实现 |
-| `packages/ingest-core` | 与运行时无关的引用、摘要、解析和产物辅助能力 | Temporal、数据库和具体供应商客户端 |
-| `packages/ingestion-kernels-rs` | 确定性文件校验与分块 | 网络、数据库、对象存储和工作流编排 |
+| `apps/ingestion-control` | 注册任务准入、Temporal workflow、Rust kernel 投影；文件发布 workflow 提交与状态查询 | 门户 HTTP、通知同步、在线发布 |
+| `apps/source-collector` | 门户 HTTP 会话、文件发布 Activity、本地通知命令、认证检查 | 注册任务准入、PostgreSQL 投影、derived 处理 |
+| `packages/ingestion-contracts` | 跨运行时 JSON Schema 与校验器 | 工作流、存储和供应商客户端 |
+| `packages/ingest-core` | 对象引用、摘要、registry 与内核输入输出辅助能力 | Temporal、数据库和门户实现 |
+| `packages/ingestion-kernels-rs` | 确定性校验与分块 | 网络、数据库、对象存储和工作流编排 |
 
-任务字段、版本和执行器清单由 `packages/ingestion-contracts`、任务注册表及其测试维护，本文不
-复制这些内容。
+## 注册任务
 
-## 执行流程
-
-```mermaid
-sequenceDiagram
-  participant Caller as 调用方
-  participant S3 as 对象存储
-  participant API as ingestion-control
-  participant Temporal
-  participant Executor as 来源采集器 / Rust 内核
-  participant PG as PostgreSQL
-
-  Caller->>S3: 写入带摘要的请求
-  Caller->>API: 提交任务引用
-  API->>API: 校验请求并冻结注册任务
-  API->>Temporal: 启动任务 workflow
-  Temporal->>PG: 通过控制 activity 写入运行投影
-  Temporal->>Executor: 执行冻结的任务
-  Executor->>S3: 写入产物与结果清单
-  Executor-->>Temporal: 返回结果引用与有界摘要
-  Temporal->>PG: 通过控制 activity 写入终态
+```text
+带摘要的对象引用
+-> ingestion-control 按 registry 冻结 Rust kernel 任务
+-> Temporal workflow
+-> Rust kernel Activity
+-> 对象存储结果
+-> PostgreSQL 有界任务投影
 ```
 
-Temporal 维护执行、重试、超时、心跳和取消。详细抓取观测与文件产物进入对象存储，不展开到
-workflow history 或逐项写入 PostgreSQL。长 activity 通过心跳报告有界进度，取消信号必须传播
-到正在进行的供应商请求、浏览器和文件写入。
+registry 只声明 Rust kernel。Temporal 维护 workflow 历史、重试、超时、心跳与取消；PostgreSQL
+只保存任务查询所需的投影，不保存详细处理过程。结果对象必须通过摘要引用，任务完成不会触发
+知识发布。
+
+## 文件发布
+
+```text
+获准的内部调用提交精确文件发布 ID
+-> ingestion-control 启动每 ID 一个 workflow
+-> source-collector Activity
+-> source bucket 中的 file 与 source.json
+-> Temporal workflow result
+```
+
+文件发布 workflow 不是注册任务，不写 PostgreSQL 任务、发布流或检查点，也没有父子 workflow、
+TypeScript 物化、离线 release 或 derived 产物。提交方保存响应中的 workflow ID，并通过
+ingestion-control 的固定状态接口查询 Temporal 状态。当前 Ops Web 不提供文件发布入口。
+
+## 通知
+
+`source-collector` 本地命令直接请求通知列表与详情，在 source bucket 写每 ID 一个来源对象，
+并用同前缀 `_state.json` 保存增量 head、实际采集 ID 范围和历史覆盖日期。通知不进入 Temporal、
+PostgreSQL、任务注册表或 Ops API，附件只保存 metadata。
+
+## 认证检查
+
+Kubernetes CronJob 每 30 分钟直接执行 source-collector `auth:check`。该命令只用当前 TGC 建立
+门户会话，不触发采集、不写业务状态，也不进入 Temporal。固定 TGC 由部署环境提供，当前 Ops Web
+不提供替换页面或接口。
 
 ## 状态分工
 
-- Temporal 保存 workflow 执行状态和历史；
-- 对象存储保存请求、准备数据、来源产物、内核产物和结果清单；
-- PostgreSQL 保存任务查询所需的有界投影；
-- Official Web 的 PostgreSQL 投影只保存下次抓取需要的最新网址和配置种子状态。
-- 内部门户发布流在 PostgreSQL 保存当前发布指针、检查点和版本；完整发布清单仍在对象存储。
+- Temporal：注册任务和文件发布 workflow 状态；
+- PostgreSQL：注册 Rust 任务投影与 migration journal；
+- source bucket：门户通知、通知边界、文件发布原文件和来源 metadata；
+- derived bucket：注册 Rust kernel 的确定性输出，不保存内部门户文件发布或通知产物。
 
-对象引用、写入一致性和具体对象路径由可执行合同与数据实现维护。PostgreSQL schema 由独立迁移
-命令安装，运行进程只校验所需结构。
-
-## 内部门户离线发布
-
-通知父工作流依次执行采集、物化、文档单元校验和离线发布；文件发布父工作流执行采集、
-物化和离线发布。父子工作流只传递不可变对象引用和有界结果，不在 Temporal history 中传递
-正文。
-
-固定通知计划跳过重叠执行。只有完整清单写入对象存储且发布流在版本锁下提交成功，当前发布
-指针和通知检查点才同时前移。认证维护计划只验证门户会话；它不提交采集任务，验证成功仅恢复
-因凭据问题自动暂停的通知计划。
-
-## 在线边界
-
-完成采集任务或离线发布不会创建在线索引、产品读模型或查询目标。知识发布必须通过独立的文档
-规范化、分块、索引、release 和查询目标准入链路；在线回答不会现场执行采集。
-
-部署资源由源码仓的 Kubernetes base 和环境仓共同决定，本文不记录副本数、镜像摘要或某次环境
-状态。
+部署清单存在只表示期望状态；实际运行以环境仓选择和控制器状态为准。
 
 ## 相关文档
 
 - `docs/decisions/adr-0077-ingestion.md`
-- `docs/domains/official-web.md`
+- `docs/data/internal-portal.md`
 - `docs/runbooks/ingestion.md`
-- `packages/ingestion-contracts/README.md`

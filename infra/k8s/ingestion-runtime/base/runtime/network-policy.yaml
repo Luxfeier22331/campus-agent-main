@@ -11,7 +11,7 @@ spec:
           - ingestion-control
           - ingestion-control-schema
           - ingestion-control-worker
-          - ingestion-schedule-sync
+          - source-collector-auth-check
           - source-collector-worker
   policyTypes: ["Ingress"]
   ingress:
@@ -22,7 +22,6 @@ spec:
                 operator: In
                 values:
                   - ingestion-control-worker
-                  - ingestion-schedule-sync
                   - ops-web
                   - source-collector-worker
 ---
@@ -39,7 +38,7 @@ spec:
           - ingestion-control
           - ingestion-control-schema
           - ingestion-control-worker
-          - ingestion-schedule-sync
+          - source-collector-auth-check
           - source-collector-worker
   policyTypes: ["Egress"]
   egress:

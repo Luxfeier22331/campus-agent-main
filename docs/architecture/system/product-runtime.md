@@ -17,7 +17,7 @@ status: active
 | --- | --- | --- |
 | `campus-web` | 学生问答、账号、文档、地图、食堂和校园状态页面 | 运维运行记录、数据库或内部运行时访问 |
 | `app-api` | 浏览器认证、聊天接收与终结、产品 API 和状态 API | Temporal worker、内部检索、在线模型配置、通用运维数据 API |
-| `ops-web` | 自托管运行记录、运行概况、在线模型配置、固定门户凭据和 Dining 内容运营 | 学生账号、聊天和请求写入，任意工作流控制或通用 Secret 管理 |
+| `ops-web` | 自托管运行记录、运行概况、在线模型配置和 Dining 内容运营 | 学生账号、聊天和请求写入，任意工作流控制或通用 Secret 管理 |
 | `execution-control` | 持久运行准入、Temporal workflow、内部查询、终态投影和在线模型配置 | 浏览器认证和页面合同 |
 | `agent-runtime` | Primary/Knowledge Agent 与工具循环 | 持久编排和产品数据持久化 |
 

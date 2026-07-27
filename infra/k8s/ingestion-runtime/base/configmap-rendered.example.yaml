@@ -15,4 +15,3 @@ data:
   INTERNAL_PORTAL_SOURCE_HOME_URL: https://my.muc.edu.cn
   INTERNAL_PORTAL_SITE_ID: muc_internal_portal
   INTERNAL_PORTAL_SSO_COOKIE_DOMAIN: .muc.edu.cn
-  INTERNAL_PORTAL_BYPASS_PROXY: "true"

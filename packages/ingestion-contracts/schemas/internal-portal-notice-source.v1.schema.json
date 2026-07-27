@@ -1,0 +1,63 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://campus-agent.muc.wiki/contracts/internal-portal-notice-source.v1.schema.json",
+	"title": "Internal portal notice source",
+	"type": "object",
+	"additionalProperties": false,
+	"required": [
+		"schema_version",
+		"site_id",
+		"notice_id",
+		"notice_type",
+		"notice_type_name",
+		"notice_title",
+		"organization_name",
+		"organization_id",
+		"notice_release_time",
+		"notice_content",
+		"notice_link",
+		"attachments"
+	],
+	"properties": {
+		"schema_version": { "const": "internal_portal_notice_source.v1" },
+		"site_id": { "$ref": "#/$defs/identity" },
+		"notice_id": { "$ref": "#/$defs/positiveSafeInteger" },
+		"notice_type": { "const": "5" },
+		"notice_type_name": { "$ref": "#/$defs/nullableText" },
+		"notice_title": { "type": "string", "minLength": 1 },
+		"organization_name": { "$ref": "#/$defs/nullableText" },
+		"organization_id": { "$ref": "#/$defs/nullableText" },
+		"notice_release_time": { "$ref": "#/$defs/nullableText" },
+		"notice_content": { "$ref": "#/$defs/nullableText" },
+		"notice_link": { "$ref": "#/$defs/nullableText" },
+		"attachments": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"additionalProperties": false,
+				"required": ["notice_annex_id", "notice_annex_name", "notice_annex_path", "suffix", "type"],
+				"properties": {
+					"notice_annex_id": { "$ref": "#/$defs/nullableText" },
+					"notice_annex_name": { "$ref": "#/$defs/nullableText" },
+					"notice_annex_path": { "$ref": "#/$defs/nullableText" },
+					"suffix": { "$ref": "#/$defs/nullableText" },
+					"type": { "$ref": "#/$defs/nullableText" }
+				}
+			}
+		}
+	},
+	"$defs": {
+		"identity": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$"
+		},
+		"positiveSafeInteger": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 9007199254740991
+		},
+		"nullableText": {
+			"oneOf": [{ "type": "string" }, { "type": "null" }]
+		}
+	}
+}

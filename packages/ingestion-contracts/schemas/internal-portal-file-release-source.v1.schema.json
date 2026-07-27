@@ -1,0 +1,54 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://campus-agent.muc.wiki/contracts/internal-portal-file-release-source.v1.schema.json",
+	"title": "Internal portal file release source",
+	"type": "object",
+	"additionalProperties": false,
+	"required": [
+		"schema_version",
+		"site_id",
+		"file_release_id",
+		"title",
+		"file_code",
+		"department",
+		"explanation_department",
+		"published_at",
+		"file"
+	],
+	"properties": {
+		"schema_version": { "const": "internal_portal_file_release_source.v1" },
+		"site_id": { "$ref": "#/$defs/identity" },
+		"file_release_id": { "$ref": "#/$defs/positiveSafeInteger" },
+		"title": { "type": "string", "minLength": 1 },
+		"file_code": { "$ref": "#/$defs/nullableText" },
+		"department": { "$ref": "#/$defs/nullableText" },
+		"explanation_department": { "$ref": "#/$defs/nullableText" },
+		"published_at": { "$ref": "#/$defs/nullableText" },
+		"file": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["object_key", "original_filename", "content_type", "byte_size", "digest"],
+			"properties": {
+				"object_key": { "type": "string", "minLength": 1 },
+				"original_filename": { "type": "string", "minLength": 1 },
+				"content_type": { "type": "string", "minLength": 1 },
+				"byte_size": { "type": "integer", "minimum": 0 },
+				"digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+			}
+		}
+	},
+	"$defs": {
+		"identity": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$"
+		},
+		"positiveSafeInteger": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 9007199254740991
+		},
+		"nullableText": {
+			"oneOf": [{ "type": "string" }, { "type": "null" }]
+		}
+	}
+}

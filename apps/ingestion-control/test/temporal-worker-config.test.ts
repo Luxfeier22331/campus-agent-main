@@ -15,14 +15,12 @@ describe("buildIngestionTemporalWorkerRuntimeConfig", () => {
 		).toEqual({
 			database: { connectionString: "postgres://ingestion", ssl: false },
 			registryRoot: "/app/configs/ingestion",
-			siteId: "muc_internal_portal",
 		});
 	});
 
 	it.each([
 		"INGESTION_CONTROL_DATABASE_URL",
 		"INGESTION_TASK_REGISTRY_ROOT",
-		"INTERNAL_PORTAL_SITE_ID",
 	])("requires %s", (key) => {
 		const env: Record<string, string> = {
 			DEPLOYMENT_ENVIRONMENT: "local",

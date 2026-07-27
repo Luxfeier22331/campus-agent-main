@@ -95,11 +95,11 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 									root_unit_ids: ["notice-root-001"],
 									section_path: ["通知要点"],
 								},
-								canonical_url: "/docs/official_web/fresh_news/open-day-notice",
-								original_url: "https://mp.weixin.qq.com/s/public-notice-example",
+								canonical_url: "/docs/campus_notices/internal_notice/open-day-notice",
+								original_url: "https://portal.example.edu/notices/110",
 								published_at: "2026-04-21",
-								publisher_label: "示例大学公众号",
-								snippet: "整理版通知保留公开原通知链接。",
+								publisher_label: "示例大学教务处",
+								snippet: "整理版通知保留规范化内容。",
 								source_kind: "notice",
 								source_title: "校园开放日安排整理版",
 							},
@@ -179,18 +179,12 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 				}),
 				expect.objectContaining({
 					primaryAction: expect.objectContaining({
-						href: "/docs/official_web/fresh_news/open-day-notice?hl=notice-root-001#notice-summary",
-						label: "查看整理版",
+						href: "/docs/campus_notices/internal_notice/open-day-notice?hl=notice-root-001#notice-summary",
+						label: "查看文档",
 					}),
-					secondaryActions: expect.arrayContaining([
-						expect.objectContaining({
-							external: true,
-							href: "https://mp.weixin.qq.com/s/public-notice-example",
-							label: "原通知",
-						}),
-					]),
+					secondaryActions: [],
 					sourceKind: "notice",
-					targetKind: "notice_reader",
+					targetKind: "canonical_reader",
 					title: "校园开放日安排整理版",
 				}),
 				expect.objectContaining({

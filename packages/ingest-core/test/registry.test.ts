@@ -6,11 +6,12 @@ const registry: IngestionTaskRegistry = {
 	schema_version: "ingestion_task_registry.v3",
 	tasks: [
 		{
-			registry_task_id: "official_web.capture",
-			executor_kind: "source_collector",
-			input_contract: "official_web_capture_request.v1",
-			output_contract: "official_web_source_manifest.v1",
-			source: { family: "official_web", channel: "official_web" },
+			executor_kind: "rust_kernel",
+			input_contract: "canonical_document_units.v1",
+			kernel_id: "chunk-document-units",
+			output_contract: "ingestion_chunk_set.v1",
+			registry_task_id: "curriculum.curriculum_plan.chunk_prepare",
+			target: { collection: "curriculum_plan", corpus: "curriculum" },
 		},
 	],
 };
@@ -19,11 +20,11 @@ const task: IngestionTaskEnvelope = {
 	schema_version: "ingestion_task_envelope.v3",
 	task_id: "task_001",
 	run_id: "run_001",
-	registry_task_id: "official_web.capture",
+	registry_task_id: "curriculum.curriculum_plan.chunk_prepare",
 	input_ref: {
 		byte_size: 1,
 		kind: "object_store",
-		uri: "s3://campus-agent-source/requests/official-web.json",
+		uri: "s3://campus-agent-derived/curriculum/curriculum-plan/document-units.jsonl",
 		digest: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
 	},
 };
@@ -33,12 +34,14 @@ describe("ingestion task registry catalog", () => {
 		const catalog = createIngestionTaskRegistryCatalog([registry]);
 		expect(catalog.requireRegistry(task)).toBe(registry);
 		expect(catalog.requireTask(task)).toBe(registry.tasks[0]);
-		expect(catalog.requireTaskById("official_web.capture")).toBe(registry.tasks[0]);
+		expect(catalog.requireTaskById("curriculum.curriculum_plan.chunk_prepare")).toBe(
+			registry.tasks[0],
+		);
 	});
 
 	it("fails closed for duplicate and undeclared task ids", () => {
 		expect(() => createIngestionTaskRegistryCatalog([registry, registry])).toThrow(
-			"duplicate ingestion task declaration: official_web.capture",
+			"duplicate ingestion task declaration: curriculum.curriculum_plan.chunk_prepare",
 		);
 		const catalog = createIngestionTaskRegistryCatalog([]);
 		expect(() => catalog.requireTask(task)).toThrow(RegistryAdmissionError);

@@ -1,96 +1,43 @@
+import { readFile } from "node:fs/promises";
+
+import {
+	spoolAttachmentToTemporaryFile,
+	type TemporaryAttachmentFile,
+} from "./attachment-temp-file.js";
 import { PortalSessionExpiredError } from "./auth-errors.js";
 import type {
 	ApiRequestContextLike,
 	ApiResponseLike,
-	FileReleaseCodeTypeListResponse,
 	FileReleaseDetailResponse,
 	FileReleaseDownloadUrlResponse,
-	FileReleaseExplainDepartmentListResponse,
-	FileReleasePageResponse,
-	FileReleaseTypeListResponse,
 	NoticeDetailResponse,
 	NoticeListResponse,
-	NoticeSelectsResponse,
 } from "./types.js";
 
 export interface FetchNoticePageInput {
 	apiContext: ApiRequestContextLike;
-	noticeType: string;
 	currentPage: number;
-	pageSize: number;
-}
-
-export interface FetchNoticeSelectsInput {
-	apiContext: ApiRequestContextLike;
-	currentPage: number;
-	pageSize: number;
+	startDate: string;
 }
 
 export interface FetchNoticeDetailInput {
 	apiContext: ApiRequestContextLike;
 	noticeId: number;
-	noticeType: string;
-	showType?: string;
-	searchValue?: string;
-	searchDepartment?: string;
 }
 
+const NOTICE_TYPE = "5";
+const NOTICE_PAGE_SIZE = 20;
+
 export interface FetchAttachmentBinaryInput {
+	abortSignal?: AbortSignal;
 	apiContext: ApiRequestContextLike;
 	attachmentUrl: string;
 	maxBytes?: number;
 }
 
-export interface FetchAttachmentBinaryResult {
-	body: Buffer;
+export interface FetchAttachmentBinaryResult extends TemporaryAttachmentFile {
 	contentType: string | null;
 	contentDisposition: string | null;
-	etag: string | null;
-	lastModified: string | null;
-	statusCode: number;
-}
-
-export class PortalSourceDeferredError extends Error {
-	readonly code = "internal_portal_source_deferred";
-
-	constructor(message: string) {
-		super(message);
-		this.name = "PortalSourceDeferredError";
-	}
-}
-
-export function isPortalSourceDeferredError(error: unknown): error is PortalSourceDeferredError {
-	return error instanceof PortalSourceDeferredError;
-}
-
-export type AttachmentTerminalReason = "http_404" | "http_410" | "portal_file_missing";
-
-export class AttachmentDownloadTerminalUnavailableError extends Error {
-	readonly lastHttpStatus: number;
-	readonly terminalReason: AttachmentTerminalReason;
-
-	constructor(input: {
-		lastHttpStatus: number;
-		message: string;
-		terminalReason: AttachmentTerminalReason;
-	}) {
-		super(input.message);
-		this.name = "AttachmentDownloadTerminalUnavailableError";
-		this.lastHttpStatus = input.lastHttpStatus;
-		this.terminalReason = input.terminalReason;
-	}
-}
-
-export function isAttachmentDownloadTerminalUnavailableError(
-	error: unknown,
-): error is AttachmentDownloadTerminalUnavailableError {
-	return error instanceof AttachmentDownloadTerminalUnavailableError;
-}
-
-export interface FetchFileReleasePageInput {
-	apiContext: ApiRequestContextLike;
-	currentPage: number;
-	pageSize: number;
 }
 
 export interface FetchFileReleaseDetailInput {
@@ -103,23 +50,11 @@ export interface FetchFileReleaseDownloadUrlInput {
 	fileReleaseId: number;
 }
 
-export interface FetchFileReleaseTypesInput {
-	apiContext: ApiRequestContextLike;
-}
-
-export interface FetchFileReleaseExplainDepartmentsInput {
-	apiContext: ApiRequestContextLike;
-}
-
-export interface FetchFileReleaseCodeTypesInput {
-	apiContext: ApiRequestContextLike;
-}
-
 export async function fetchNoticePage(input: FetchNoticePageInput): Promise<NoticeListResponse> {
 	const response = await input.apiContext.post("/comsys-portal-notice-web/getNoticeByPage", {
 		form: {
 			currentPage: String(input.currentPage),
-			pageSize: String(input.pageSize),
+			pageSize: String(NOTICE_PAGE_SIZE),
 			searchValue: "",
 			state: "",
 			is_add: "0",
@@ -127,9 +62,9 @@ export async function fetchNoticePage(input: FetchNoticePageInput): Promise<Noti
 			total: "-1",
 			select_all: "false",
 			select_notice: "",
-			type: input.noticeType,
+			type: NOTICE_TYPE,
 			searchDepartment: "",
-			start_date: "",
+			start_date: input.startDate,
 			end_date: "",
 			new_total: "",
 			comsys_random_t: String(Math.random()),
@@ -143,46 +78,16 @@ export async function fetchNoticePage(input: FetchNoticePageInput): Promise<Noti
 	return json;
 }
 
-export async function fetchNoticeSelects(
-	input: FetchNoticeSelectsInput,
-): Promise<NoticeSelectsResponse> {
-	const response = await input.apiContext.post("/comsys-portal-notice-web/getNoticeSlects", {
-		form: {
-			currentPage: String(input.currentPage),
-			pageSize: String(input.pageSize),
-			searchValue: "",
-			state: "",
-			is_add: "0",
-			totalCounts: "0",
-			total: "-1",
-			select_all: "false",
-			select_notice: "",
-			type: "",
-			searchDepartment: "",
-			start_date: "",
-			end_date: "",
-			system_show: "1",
-			comsys_random_t: String(Math.random()),
-		},
-	});
-	if (!response.ok()) {
-		await throwRequestError(response, "getNoticeSlects");
-	}
-	const json = await parseJsonResponse<NoticeSelectsResponse>(response, "getNoticeSlects");
-	assertNoticeSelectsResponse(json);
-	return json;
-}
-
 export async function fetchNoticeDetail(
 	input: FetchNoticeDetailInput,
 ): Promise<NoticeDetailResponse> {
 	const response = await input.apiContext.post("/comsys-portal-notice-web/getNotice", {
 		form: {
 			notice_id: String(input.noticeId),
-			type: input.noticeType,
-			show_type: input.showType ?? "1",
-			searchValue: input.searchValue ?? "",
-			searchDepartment: input.searchDepartment ?? "",
+			type: NOTICE_TYPE,
+			show_type: "1",
+			searchValue: "",
+			searchDepartment: "",
 		},
 	});
 	if (!response.ok()) {
@@ -199,52 +104,76 @@ export async function fetchAttachmentBinary(
 	input: FetchAttachmentBinaryInput,
 ): Promise<FetchAttachmentBinaryResult> {
 	const response = await input.apiContext.get(input.attachmentUrl);
+	return await materializeAttachmentResponse({
+		abortSignal: input.abortSignal,
+		maxBytes: input.maxBytes ?? Number.MAX_SAFE_INTEGER,
+		response,
+	});
+}
+
+async function materializeAttachmentResponse(input: {
+	abortSignal?: AbortSignal;
+	maxBytes: number;
+	response: ApiResponseLike;
+}): Promise<FetchAttachmentBinaryResult> {
+	const response = input.response;
 	if (!response.ok()) {
 		await throwRequestError(response, "downloadAttachment");
 	}
 	const contentLength = Number.parseInt(response.headers?.()["content-length"] ?? "", 10);
-	if (
-		input.maxBytes !== undefined &&
-		Number.isSafeInteger(contentLength) &&
-		contentLength > input.maxBytes
-	) {
+	if (Number.isSafeInteger(contentLength) && contentLength > input.maxBytes) {
+		await cancelResponseBody(response, "attachment size limit exceeded");
 		throw new Error(`attachment_size_limit_exceeded:${contentLength}`);
 	}
-	const body = await readBinaryResponse(response, "downloadAttachment");
-	if (input.maxBytes !== undefined && body.byteLength > input.maxBytes) {
-		throw new Error(`attachment_size_limit_exceeded:${body.byteLength}`);
+	const bodyStream = response.bodyStream?.();
+	if (!bodyStream) {
+		await cancelResponseBody(response, "attachment body stream unavailable");
+		throw new Error("downloadAttachment response body stream is unavailable");
 	}
-	const maybeSessionInvalid = body.toString("utf-8").trim();
-	if (maybeSessionInvalid === "error_comsys_session_invalid") {
+	let temporaryFile: TemporaryAttachmentFile;
+	try {
+		temporaryFile = await spoolAttachmentToTemporaryFile({
+			abortSignal: input.abortSignal,
+			body: bodyStream,
+			maxBytes: input.maxBytes,
+			sizeLimitError: (observedBytes) =>
+				new Error(`attachment_size_limit_exceeded:${observedBytes}`),
+		});
+	} catch (error) {
+		await cancelResponseBody(response, "attachment download failed");
+		throw error;
+	}
+	let sessionInvalid: boolean;
+	try {
+		sessionInvalid = await containsSessionInvalidMarker(temporaryFile);
+	} catch (error) {
+		await temporaryFile.remove();
+		throw error;
+	}
+	if (sessionInvalid) {
+		await temporaryFile.remove();
 		throw new PortalSessionExpiredError("downloadAttachment failed: session invalid");
 	}
 	return {
-		body,
+		...temporaryFile,
 		contentType: normalizeHeaderValue(response.headers?.()["content-type"] ?? null),
 		contentDisposition: normalizeHeaderValue(response.headers?.()["content-disposition"] ?? null),
-		etag: normalizeHeaderValue(response.headers?.().etag ?? null),
-		lastModified: normalizeHeaderValue(response.headers?.()["last-modified"] ?? null),
-		statusCode: response.status(),
 	};
 }
 
-export async function fetchFileReleasePage(
-	input: FetchFileReleasePageInput,
-): Promise<FileReleasePageResponse> {
-	const response = await input.apiContext.post("/comsys-prompt-portlet-web/pageFile", {
-		form: {
-			currentPage: String(input.currentPage),
-			pageSize: String(input.pageSize),
-			mng: "1",
-			order: "name,time",
-		},
-	});
-	if (!response.ok()) {
-		await throwRequestError(response, "pageFile");
+async function containsSessionInvalidMarker(file: TemporaryAttachmentFile): Promise<boolean> {
+	if (file.byteSize > 4_096) {
+		return false;
 	}
-	const json = await parseJsonResponse<FileReleasePageResponse>(response, "pageFile");
-	assertFileReleasePageResponse(json);
-	return json;
+	return (await readFile(file.filePath, "utf-8")).trim() === "error_comsys_session_invalid";
+}
+
+async function cancelResponseBody(response: ApiResponseLike, reason: string): Promise<void> {
+	try {
+		await response.cancelBody?.(reason);
+	} catch {
+		// The primary request error remains the actionable failure.
+	}
 }
 
 export async function fetchFileReleaseDetail(
@@ -283,139 +212,32 @@ export async function fetchFileReleaseDownloadUrl(
 	return json;
 }
 
-export async function fetchFileReleaseTypes(
-	input: FetchFileReleaseTypesInput,
-): Promise<FileReleaseTypeListResponse> {
-	const response = await input.apiContext.post("/comsys-prompt-portlet-web/getFileType", {
-		form: {},
-	});
-	if (!response.ok()) {
-		await throwRequestError(response, "getFileType");
-	}
-	const json = await parseJsonResponse<FileReleaseTypeListResponse>(response, "getFileType");
-	assertFileReleaseTypeResponse(json);
-	return json;
-}
-
-export async function fetchFileReleaseExplainDepartments(
-	input: FetchFileReleaseExplainDepartmentsInput,
-): Promise<FileReleaseExplainDepartmentListResponse> {
-	const response = await input.apiContext.post("/comsys-prompt-portlet-web/getExplainDepts", {
-		form: {
-			comsys_random_t: String(Math.random()),
-		},
-	});
-	if (!response.ok()) {
-		await throwRequestError(response, "getExplainDepts");
-	}
-	const json = await parseJsonResponse<FileReleaseExplainDepartmentListResponse>(
-		response,
-		"getExplainDepts",
-	);
-	assertFileReleaseExplainDepartmentResponse(json);
-	return json;
-}
-
-export async function fetchFileReleaseCodeTypes(
-	input: FetchFileReleaseCodeTypesInput,
-): Promise<FileReleaseCodeTypeListResponse> {
-	const response = await input.apiContext.post("/comsys-prompt-portlet-web/getFileFileType", {
-		form: {
-			name: "",
-			comsys_random_t: String(Math.random()),
-		},
-	});
-	if (!response.ok()) {
-		await throwRequestError(response, "getFileFileType");
-	}
-	const json = await parseJsonResponse<FileReleaseCodeTypeListResponse>(
-		response,
-		"getFileFileType",
-	);
-	assertFileReleaseCodeTypeResponse(json);
-	return json;
-}
-
 async function throwRequestError(response: ApiResponseLike, operation: string): Promise<never> {
 	const status = response.status();
-	if (status === 429) {
-		const retryAfterMs = parseRetryAfterMs(response.headers?.()["retry-after"] ?? null);
-		if (retryAfterMs > 0) {
-			await new Promise((resolve) => setTimeout(resolve, retryAfterMs));
-		}
-	}
+	await cancelResponseBody(response, `${operation} request failed`);
 	throw buildRequestError(status, response.statusText(), operation);
-}
-
-function parseRetryAfterMs(value: string | null): number {
-	if (!value) {
-		return 0;
-	}
-	const seconds = Number(value);
-	if (Number.isFinite(seconds) && seconds >= 0) {
-		return Math.min(Math.ceil(seconds * 1_000), 5 * 60_000);
-	}
-	const date = Date.parse(value);
-	return Number.isFinite(date) ? Math.min(Math.max(0, date - Date.now()), 5 * 60_000) : 0;
 }
 
 function buildRequestError(status: number, statusText: string, operation: string): Error {
 	if (status === 401 || status === 403) {
 		return new PortalSessionExpiredError(`${operation} failed: ${status} ${statusText}`);
 	}
-	if (operation === "downloadAttachment") {
-		const terminalReason = terminalReasonForHttpStatus(status);
-		if (terminalReason) {
-			return new AttachmentDownloadTerminalUnavailableError({
-				lastHttpStatus: status,
-				message: `${operation} failed: ${status} ${statusText}`,
-				terminalReason,
-			});
-		}
-	}
-	if (status === 429 || status >= 500) {
-		return new PortalSourceDeferredError(`${operation} failed: ${status} ${statusText}`);
-	}
 	return new Error(`${operation} failed: ${status} ${statusText}`);
-}
-
-function terminalReasonForHttpStatus(status: number): AttachmentTerminalReason | null {
-	if (status === 404) {
-		return "http_404";
-	}
-	if (status === 410) {
-		return "http_410";
-	}
-	return null;
 }
 
 async function parseJsonResponse<T extends object>(
 	response: ApiResponseLike,
 	operation: string,
 ): Promise<T> {
-	if (typeof response.text === "function") {
-		const payload = (await response.text()).trim();
-		if (payload === "error_comsys_session_invalid") {
-			throw new PortalSessionExpiredError(`${operation} failed: session invalid`);
-		}
-		try {
-			return JSON.parse(payload) as T;
-		} catch {
-			throw new Error(`${operation} returned non-JSON payload: ${payload.slice(0, 200)}`);
-		}
+	const payload = (await response.text()).trim();
+	if (payload === "error_comsys_session_invalid") {
+		throw new PortalSessionExpiredError(`${operation} failed: session invalid`);
 	}
-	return (await response.json()) as T;
-}
-
-async function readBinaryResponse(response: ApiResponseLike, _operation: string): Promise<Buffer> {
-	if (typeof response.body === "function") {
-		return Buffer.from(await response.body());
+	try {
+		return JSON.parse(payload) as T;
+	} catch {
+		throw new Error(`${operation} returned non-JSON payload: ${payload.slice(0, 200)}`);
 	}
-	if (typeof response.text === "function") {
-		return Buffer.from(await response.text(), "utf-8");
-	}
-	const payload = await response.json();
-	return Buffer.from(JSON.stringify(payload), "utf-8");
 }
 
 function normalizeHeaderValue(value: string | null): string | null {
@@ -431,67 +253,5 @@ function assertNoticeListResponse(
 ): asserts payload is NoticeListResponse & { datas: { tables: Record<string, unknown>[] } } {
 	if (!(payload.state && payload.datas && Array.isArray(payload.datas.tables))) {
 		throw new Error(`unexpected notice response: ${JSON.stringify(payload).slice(0, 400)}`);
-	}
-}
-
-function assertNoticeSelectsResponse(
-	payload: NoticeSelectsResponse,
-): asserts payload is NoticeSelectsResponse & {
-	datas: {
-		org: Record<string, unknown>[];
-		type: Record<string, unknown>[];
-	};
-} {
-	if (
-		!(
-			payload.state &&
-			payload.datas &&
-			Array.isArray(payload.datas.org) &&
-			Array.isArray(payload.datas.type)
-		)
-	) {
-		throw new Error(`unexpected notice selects response: ${JSON.stringify(payload).slice(0, 400)}`);
-	}
-}
-
-function assertFileReleasePageResponse(
-	payload: FileReleasePageResponse,
-): asserts payload is FileReleasePageResponse & { data: Record<string, unknown>[] } {
-	if (!(payload.state && Array.isArray(payload.data))) {
-		throw new Error(
-			`unexpected file release page response: ${JSON.stringify(payload).slice(0, 400)}`,
-		);
-	}
-}
-
-function assertFileReleaseTypeResponse(
-	payload: FileReleaseTypeListResponse,
-): asserts payload is FileReleaseTypeListResponse & { data: Record<string, unknown>[] } {
-	if (!(payload.state && Array.isArray(payload.data))) {
-		throw new Error(
-			`unexpected file release type response: ${JSON.stringify(payload).slice(0, 400)}`,
-		);
-	}
-}
-
-function assertFileReleaseExplainDepartmentResponse(
-	payload: FileReleaseExplainDepartmentListResponse,
-): asserts payload is FileReleaseExplainDepartmentListResponse & {
-	data: Record<string, unknown>[];
-} {
-	if (!(payload.state && Array.isArray(payload.data))) {
-		throw new Error(
-			`unexpected file release explain department response: ${JSON.stringify(payload).slice(0, 400)}`,
-		);
-	}
-}
-
-function assertFileReleaseCodeTypeResponse(
-	payload: FileReleaseCodeTypeListResponse,
-): asserts payload is FileReleaseCodeTypeListResponse & { data: Record<string, unknown>[] } {
-	if (!(payload.state && Array.isArray(payload.data))) {
-		throw new Error(
-			`unexpected file release code type response: ${JSON.stringify(payload).slice(0, 400)}`,
-		);
 	}
 }

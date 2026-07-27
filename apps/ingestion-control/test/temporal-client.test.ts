@@ -4,18 +4,12 @@ import { testSnapshot } from "./fixtures";
 
 const temporal = vi.hoisted(() => {
 	class AlreadyStartedError extends Error {}
-	class NotFoundError extends Error {}
 	return {
 		AlreadyStartedError,
-		NotFoundError,
 		close: vi.fn(async () => undefined),
 		connect: vi.fn(),
 		getSystemInfo: vi.fn(async () => ({})),
 		getHandle: vi.fn(),
-		scheduleDescribe: vi.fn(),
-		scheduleGetHandle: vi.fn(),
-		scheduleTrigger: vi.fn(async () => undefined),
-		scheduleUnpause: vi.fn(async () => undefined),
 		start: vi.fn(),
 		withDeadline: vi.fn(async (_deadline: number, operation: () => Promise<unknown>) =>
 			operation(),
@@ -25,18 +19,18 @@ const temporal = vi.hoisted(() => {
 
 vi.mock("@temporalio/client", () => ({
 	Client: class {
-		readonly schedule = { getHandle: temporal.scheduleGetHandle };
 		readonly workflow = { getHandle: temporal.getHandle, start: temporal.start };
 	},
 	Connection: {
 		connect: temporal.connect,
 	},
-	ScheduleNotFoundError: temporal.NotFoundError,
-	ScheduleOverlapPolicy: { SKIP: "SKIP" },
 	WorkflowExecutionAlreadyStartedError: temporal.AlreadyStartedError,
 }));
 
-import { createTemporalIngestionWorkflowStarter } from "../src/temporal-client";
+import {
+	createTemporalIngestionWorkflowStarter,
+	internalPortalFileReleaseWorkflowId,
+} from "../src/temporal-client";
 
 const config = {
 	address: "temporal.example:7233",
@@ -62,21 +56,9 @@ describe("Temporal ingestion workflow starter", () => {
 				status: { code: 1, name: "RUNNING" },
 			})),
 		});
-		temporal.scheduleDescribe.mockResolvedValue({
-			info: {
-				nextActionTimes: [new Date("2026-07-16T00:30:00.000Z")],
-				recentActions: [],
-			},
-			state: { paused: false },
-		});
-		temporal.scheduleGetHandle.mockReturnValue({
-			describe: temporal.scheduleDescribe,
-			trigger: temporal.scheduleTrigger,
-			unpause: temporal.scheduleUnpause,
-		});
 	});
 
-	it("rejects task workflow id reuse and freezes every task queue in start input", async () => {
+	it("rejects task workflow ID reuse and freezes the Rust task queues in start input", async () => {
 		temporal.start.mockResolvedValue({
 			firstExecutionRunId: "temporal-run-001",
 			workflowId: "ingestion/task-curriculum-chunk-001",
@@ -102,17 +84,15 @@ describe("Temporal ingestion workflow starter", () => {
 		expect(temporal.start.mock.calls[0]?.[1]?.args[0]).toMatchObject({
 			controlActivityTaskQueue: "ingestion.control",
 			rustKernelActivityTaskQueue: "ingestion.rust",
-			sourceCollectorActivityTaskQueue: "ingestion.source",
 		});
 		expect(temporal.start.mock.calls[0]?.[1]?.memo).toEqual({
 			canonical_snapshot_digest: canonicalJsonSha256Digest(testSnapshot()),
 		});
 		await starter.checkReady();
 		expect(temporal.getSystemInfo).toHaveBeenCalledWith({});
-		expect(temporal.withDeadline).toHaveBeenCalledTimes(2);
 	});
 
-	it("treats a running or closed duplicate task as the same durable task", async () => {
+	it("treats a duplicate task with the same frozen snapshot as the same durable task", async () => {
 		temporal.start.mockRejectedValue(new temporal.AlreadyStartedError("duplicate"));
 		const starter = await createTemporalIngestionWorkflowStarter(config);
 
@@ -124,10 +104,9 @@ describe("Temporal ingestion workflow starter", () => {
 			workflowRunId: "temporal-run-existing",
 			workflowStatus: "RUNNING",
 		});
-		expect(temporal.getHandle).toHaveBeenCalledWith("ingestion/task-curriculum-chunk-001");
 	});
 
-	it("rejects a duplicate workflow when its frozen snapshot memo differs or is missing", async () => {
+	it("rejects a duplicate task when its frozen snapshot memo differs", async () => {
 		temporal.start.mockRejectedValue(new temporal.AlreadyStartedError("duplicate"));
 		temporal.getHandle.mockReturnValue({
 			describe: vi.fn(async () => ({
@@ -147,115 +126,77 @@ describe("Temporal ingestion workflow starter", () => {
 		});
 	});
 
-	it("reads the fixed maintenance workflow result and triggers immediate validation", async () => {
-		temporal.scheduleDescribe.mockResolvedValue({
-			info: {
-				nextActionTimes: [new Date("2026-07-16T00:30:00.000Z")],
-				recentActions: [
-					{
-						action: {
-							type: "startWorkflow",
-							workflow: { firstExecutionRunId: "run-auth-1", workflowId: "auth-run-1" },
-						},
-						takenAt: new Date("2026-07-16T00:00:00.000Z"),
-					},
-				],
-			},
-			state: { paused: true },
-		});
-		temporal.getHandle.mockReturnValue({
-			describe: vi.fn(async () => ({ status: { name: "COMPLETED" } })),
-			result: vi.fn(async () => ({
-				completedAt: "2026-07-16T00:00:03.000Z",
-				errorCode: null,
-				lastSuccessAt: "2026-07-16T00:00:02.000Z",
-				noticeProbeSucceeded: true,
-				outcome: "success",
-				portalSessionEstablished: true,
-				schemaVersion: "internal_portal_auth_maintenance.v1",
-				serviceTicketIssued: true,
-				startedAt: "2026-07-16T00:00:00.000Z",
-			})),
+	it("uses request ID and file ID for an exact file-release workflow", async () => {
+		temporal.start.mockResolvedValue({
+			firstExecutionRunId: "file-run-646",
+			workflowId: "ingestion/internal-portal-file-release/batch-001/646",
 		});
 		const starter = await createTemporalIngestionWorkflowStarter(config);
+		const startInput = {
+			createdBy: "ops@example.edu",
+			fileReleaseId: 646,
+			requestId: "batch-001",
+		};
 
-		await expect(starter.getInternalPortalAuthMaintenanceStatus?.()).resolves.toMatchObject({
-			lastOutcome: "SUCCESS",
-			lastSuccessAt: "2026-07-16T00:00:02.000Z",
-			nextRunAt: null,
-			scheduleState: "PAUSED",
-			serviceTicketIssued: true,
+		await expect(starter.startInternalPortalFileRelease?.(startInput)).resolves.toEqual({
+			alreadyStarted: false,
+			workflowId: "ingestion/internal-portal-file-release/batch-001/646",
+			workflowRunId: "file-run-646",
+			workflowStatus: "RUNNING",
 		});
-		await starter.validateInternalPortalAuthentication?.();
-		expect(temporal.scheduleUnpause).toHaveBeenCalledWith(
-			"credential validation requested through Ops Web",
+		expect(temporal.start.mock.calls[0]?.[1]).toMatchObject({
+			args: [{ fileReleaseId: 646, sourceCollectorActivityTaskQueue: "ingestion.source" }],
+			memo: { created_by: "ops@example.edu" },
+			workflowId: "ingestion/internal-portal-file-release/batch-001/646",
+			workflowIdReusePolicy: "REJECT_DUPLICATE",
+		});
+		expect(internalPortalFileReleaseWorkflowId("batch-001", 646)).toBe(
+			"ingestion/internal-portal-file-release/batch-001/646",
 		);
-		expect(temporal.scheduleTrigger).toHaveBeenCalledWith("SKIP");
 	});
 
-	it("reports the next keepalive time only while the schedule is active", async () => {
-		temporal.scheduleDescribe.mockResolvedValue({
-			info: {
-				nextActionTimes: [new Date("2026-07-16T02:30:00.000Z")],
-				recentActions: [],
-			},
-			state: { paused: false },
-		});
+	it("treats a repeated request and file ID as the same capture", async () => {
+		temporal.start.mockRejectedValue(new temporal.AlreadyStartedError("duplicate"));
 		const starter = await createTemporalIngestionWorkflowStarter(config);
 
-		await expect(starter.getInternalPortalAuthMaintenanceStatus?.()).resolves.toMatchObject({
-			lastOutcome: null,
-			nextRunAt: "2026-07-16T02:30:00.000Z",
-			scheduleState: "ACTIVE",
-		});
-	});
-
-	it("maps a credential-expired workflow failure to a paused maintenance status", async () => {
-		temporal.scheduleDescribe.mockResolvedValue({
-			info: {
-				nextActionTimes: [],
-				recentActions: [
-					{
-						action: {
-							type: "startWorkflow",
-							workflow: { firstExecutionRunId: "run-auth-expired", workflowId: "auth-run-expired" },
-						},
-						takenAt: new Date("2026-07-16T01:00:00.000Z"),
-					},
-				],
-			},
-			state: { paused: true },
-		});
-		temporal.getHandle.mockReturnValue({
-			describe: vi.fn(async () => ({ status: { name: "FAILED" } })),
-			result: vi.fn(async () => {
-				throw new Error("workflow failed", {
-					cause: {
-						details: [
-							{
-								errorCode: "internal_portal_credential_expired",
-								failedAt: "2026-07-16T01:00:02.000Z",
-								lastSuccessAt: "2026-07-16T00:30:02.000Z",
-								startedAt: "2026-07-16T01:00:00.000Z",
-							},
-						],
-						type: "internal_portal_credential_expired",
-					},
-				});
+		await expect(
+			starter.startInternalPortalFileRelease?.({
+				createdBy: "another-operator@example.edu",
+				fileReleaseId: 646,
+				requestId: "batch-001",
 			}),
+		).resolves.toEqual({
+			alreadyStarted: true,
+			workflowId: "ingestion/internal-portal-file-release/batch-001/646",
+			workflowRunId: "temporal-run-existing",
+			workflowStatus: "RUNNING",
 		});
-		const starter = await createTemporalIngestionWorkflowStarter(config);
+	});
 
-		await expect(starter.getInternalPortalAuthMaintenanceStatus?.()).resolves.toMatchObject({
-			errorCode: "internal_portal_credential_expired",
-			lastAttemptAt: "2026-07-16T01:00:00.000Z",
-			lastOutcome: "CREDENTIAL_EXPIRED",
-			lastSuccessAt: "2026-07-16T00:30:02.000Z",
-			nextRunAt: null,
-			noticeProbeSucceeded: false,
-			portalSessionEstablished: false,
-			scheduleState: "PAUSED",
-			serviceTicketIssued: false,
-		});
+	it("describes current file-release workflow statuses", async () => {
+		temporal.getHandle.mockImplementation((workflowId: string) => ({
+			describe: async () => ({
+				runId: `${workflowId}:run`,
+				status: { name: workflowId.endsWith("/646") ? "COMPLETED" : "RUNNING" },
+			}),
+		}));
+		const starter = await createTemporalIngestionWorkflowStarter(config);
+		const workflowIds = [
+			"ingestion/internal-portal-file-release/batch-001/646",
+			"ingestion/internal-portal-file-release/batch-001/647",
+		];
+
+		await expect(starter.getInternalPortalFileReleaseStatuses?.(workflowIds)).resolves.toEqual([
+			{
+				workflowId: workflowIds[0],
+				workflowRunId: `${workflowIds[0]}:run`,
+				workflowStatus: "COMPLETED",
+			},
+			{
+				workflowId: workflowIds[1],
+				workflowRunId: `${workflowIds[1]}:run`,
+				workflowStatus: "RUNNING",
+			},
+		]);
 	});
 });

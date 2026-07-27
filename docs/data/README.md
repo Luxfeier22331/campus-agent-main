@@ -10,7 +10,7 @@ status: active
 - App API 产品数据：[app-api/README.md](./app-api/README.md)；
 - 持久执行投影：[durable-runtime.md](./durable-runtime.md)；
 - 文档内容：[document-reader.md](./document-reader.md)、
-  [internal-portal.md](./internal-portal.md)、[wechat-official.md](./wechat-official.md)；
+  [internal-portal.md](./internal-portal.md)；
 - 数据库所有权：[postgres-ownership.md](./postgres-ownership.md)。
 
 班车的人类可读事实由 [transport.md](../domains/transport.md) 维护；机器 schema 位于

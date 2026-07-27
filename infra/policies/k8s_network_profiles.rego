@@ -136,7 +136,6 @@ allowed_ops_web_peer_port(peer, allowed_port) if {
 	name := {
 		"execution-control",
 		"execution-control-admin",
-		"ingestion-control",
 	}[_]
 	exact_pod_peer(peer, "app.kubernetes.io/name", name)
 	exact_port(allowed_port, "TCP", 8000)
@@ -183,7 +182,7 @@ ops_web_egress_has_invalid_peer_port(egress) if {
 }
 
 ops_web_egress_allowlist_is_complete(egress) if {
-	count(egress) == 8
+	count(egress) == 7
 	not ops_web_egress_rule_without_destination(egress)
 	not ops_web_egress_rule_without_port(egress)
 	not ops_web_egress_has_invalid_peer_port(egress)
@@ -192,7 +191,6 @@ ops_web_egress_allowlist_is_complete(egress) if {
 	allows_pod(egress, "cnpg.io/cluster", "campus-agent-postgres", 5432)
 	allows_pod(egress, "app.kubernetes.io/name", "execution-control", 8000)
 	allows_pod(egress, "app.kubernetes.io/name", "execution-control-admin", 8000)
-	allows_pod(egress, "app.kubernetes.io/name", "ingestion-control", 8000)
 	allows_pod(egress, "app.kubernetes.io/name", "object-store", 9000)
 	allows_pod(egress, "app.kubernetes.io/name", "agent-runtime", 27062)
 	allows_external_https(egress)
@@ -246,8 +244,8 @@ violation contains msg if {
 	input.kind == "NetworkPolicy"
 	input.metadata.name == "ops-web-egress"
 	egress := object.get(input.spec, "egress", [])
-	count(egress) != 8
-	msg := "NetworkPolicy ops-web-egress must contain exactly eight dependency rules"
+	count(egress) != 7
+	msg := "NetworkPolicy ops-web-egress must contain exactly seven dependency rules"
 }
 
 violation contains msg if {
@@ -314,14 +312,6 @@ violation contains msg if {
 	egress := object.get(input.spec, "egress", [])
 	not allows_pod(egress, "app.kubernetes.io/name", "execution-control-admin", 8000)
 	msg := "NetworkPolicy ops-web-egress must allow execution-control-admin on TCP 8000"
-}
-
-violation contains msg if {
-	input.kind == "NetworkPolicy"
-	input.metadata.name == "ops-web-egress"
-	egress := object.get(input.spec, "egress", [])
-	not allows_pod(egress, "app.kubernetes.io/name", "ingestion-control", 8000)
-	msg := "NetworkPolicy ops-web-egress must allow ingestion-control on TCP 8000"
 }
 
 violation contains msg if {

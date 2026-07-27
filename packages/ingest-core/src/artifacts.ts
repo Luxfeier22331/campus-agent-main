@@ -32,52 +32,6 @@ export function joinObjectKeySegments(...segments: readonly string[]): string {
 	return cleaned.join("/");
 }
 
-export function buildAuthenticatedNoticeSourceTruthKeys(input: {
-	rawAssetId: string;
-	rawVersionId: string;
-	year: string | null;
-}): {
-	attachmentRefsKey: string;
-	contentBlocksKey: string;
-	manifestKey: string;
-} {
-	const prefix = joinObjectKeySegments(
-		"internal_portal",
-		sourceAssetSlug(input.rawAssetId),
-		input.year ?? "undated",
-		...identitySegments(input.rawVersionId),
-		"source-truth",
-	);
-	return {
-		attachmentRefsKey: joinObjectKeySegments(prefix, "attachment-refs.jsonl"),
-		contentBlocksKey: joinObjectKeySegments(prefix, "content-blocks.jsonl"),
-		manifestKey: joinObjectKeySegments(prefix, "notice-manifest.json"),
-	};
-}
-
-export function buildAuthenticatedFileReleaseSourceTruthKeys(input: {
-	fileReleaseId: number;
-	rawVersionId: string;
-	year: string;
-}): {
-	contentBlocksKey: string;
-	manifestKey: string;
-	releasedFileRefKey: string;
-} {
-	const prefix = joinObjectKeySegments(
-		"internal_portal",
-		`file-release-${input.fileReleaseId}`,
-		input.year,
-		input.rawVersionId,
-		"source-truth",
-	);
-	return {
-		contentBlocksKey: joinObjectKeySegments(prefix, "content-blocks.jsonl"),
-		manifestKey: joinObjectKeySegments(prefix, "file-release-manifest.json"),
-		releasedFileRefKey: joinObjectKeySegments(prefix, "released-file-ref.json"),
-	};
-}
-
 export function buildDocumentArtifactKey(input: {
 	collection: string;
 	corpus: string;
@@ -168,20 +122,6 @@ async function writeCanonicalArtifact(input: {
 		key: input.key,
 		contentSha256: actualSha256,
 	});
-}
-
-function sourceAssetSlug(value: string): string {
-	return value
-		.toLowerCase()
-		.replace(/[^a-z0-9._:-]+/gu, "-")
-		.replace(/^-+|-+$/gu, "");
-}
-
-function identitySegments(rawVersionId: string): string[] {
-	const value = rawVersionId.startsWith("sha256:")
-		? rawVersionId.slice("sha256:".length)
-		: rawVersionId;
-	return [value.slice(0, 2), value];
 }
 
 function documentDirectoryName(documentId: string, title: string): string {

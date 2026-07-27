@@ -127,9 +127,6 @@ function corpusFromCollection(collection: string): string {
 	if (collection === "curriculum") {
 		return "curriculum";
 	}
-	if (collection === "stable_reference") {
-		return "official_web";
-	}
 	return "regulations";
 }
 

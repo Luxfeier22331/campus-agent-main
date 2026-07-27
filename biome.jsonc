@@ -18,7 +18,6 @@
 			"docs/reference/eval/**",
 			"scripts/**",
 			"tests/**",
-			"!!apps/source-collector/adapters/official-web/test/assertions/pages",
 			"!!apps/campus-web/public",
 			"!!apps/campus-web/public/vendor",
 			"!!.tmp",

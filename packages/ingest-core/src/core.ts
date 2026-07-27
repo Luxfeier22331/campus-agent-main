@@ -38,6 +38,17 @@ export class ArtifactCollisionError extends Error {
 	}
 }
 
+/** A payload violates an ingestion contract and must not be retried as transport work. */
+export class IngestionContractError extends Error {
+	readonly code: string;
+
+	constructor(message: string, code = "ingestion_contract_invalid", options?: ErrorOptions) {
+		super(message, options);
+		this.name = "IngestionContractError";
+		this.code = code;
+	}
+}
+
 export interface StoredArtifactRef {
 	bucket?: string;
 	objectKey: string;
@@ -127,9 +138,9 @@ export const OptionalTextSchema = z
 	.nullable()
 	.catch(null);
 
-export const RequiredIntegerSchema = z.number().int();
-export const RequiredNonNegativeIntegerSchema = z.number().int().nonnegative();
-export const OptionalIntegerSchema = z.number().int().nullable().catch(null);
+export const RequiredIntegerSchema = z.number().int().safe();
+export const RequiredNonNegativeIntegerSchema = z.number().int().nonnegative().safe();
+export const OptionalIntegerSchema = z.number().int().safe().nullable().catch(null);
 export const JsonRecordSchema = z.record(z.string(), z.unknown());
 
 export interface SourceObjectRef {
@@ -153,13 +164,22 @@ export function assertSha256Digest(input: {
 	label: string;
 }): void {
 	if (!input.digest.trim()) {
-		throw new Error(`${input.label} digest is required`);
+		throw new IngestionContractError(
+			`${input.label} digest is required`,
+			"ingestion_artifact_digest_invalid",
+		);
 	}
 	if (!input.digest.startsWith("sha256:")) {
-		throw new Error(`${input.label} digest must use sha256`);
+		throw new IngestionContractError(
+			`${input.label} digest must use sha256`,
+			"ingestion_artifact_digest_invalid",
+		);
 	}
 	if (input.digest.slice("sha256:".length) !== normalizeSha256Hex(input.actualSha256)) {
-		throw new Error(`${input.label} digest mismatch`);
+		throw new IngestionContractError(
+			`${input.label} digest mismatch`,
+			"ingestion_artifact_digest_invalid",
+		);
 	}
 }
 
@@ -186,8 +206,9 @@ export function assertArtifactByteSize(input: {
 	label: string;
 }): void {
 	if (input.actualByteSize !== input.byteSize) {
-		throw new Error(
+		throw new IngestionContractError(
 			`${input.label} byte size mismatch: expected ${input.byteSize}, got ${input.actualByteSize}`,
+			"ingestion_artifact_size_invalid",
 		);
 	}
 }
@@ -210,21 +231,82 @@ export function parseS3Uri(refOrUri: string | Pick<IngestionArtifactRef, "kind" 
 } {
 	const uri = typeof refOrUri === "string" ? refOrUri : refOrUri.uri;
 	if (typeof refOrUri !== "string" && refOrUri.kind !== "object_store") {
-		throw new Error(`input_ref must be object_store, got ${refOrUri.kind}`);
+		throw new IngestionContractError(
+			`input_ref must be object_store, got ${refOrUri.kind}`,
+			"ingestion_artifact_ref_invalid",
+		);
 	}
 	if (!uri.startsWith("s3://")) {
 		const prefix = typeof refOrUri === "string" ? "object-store uri" : "input_ref object_store uri";
-		throw new Error(`${prefix} must use s3://, got ${uri}`);
+		throw new IngestionContractError(
+			`${prefix} must use s3://, got ${uri}`,
+			"ingestion_artifact_ref_invalid",
+		);
 	}
 	const rest = uri.slice("s3://".length);
 	const slash = rest.indexOf("/");
 	if (slash <= 0 || slash === rest.length - 1) {
-		throw new Error(`invalid s3 uri: ${uri}`);
+		throw new IngestionContractError(`invalid s3 uri: ${uri}`, "ingestion_artifact_ref_invalid");
 	}
 	return {
 		bucket: rest.slice(0, slash),
 		key: rest.slice(slash + 1),
 	};
+}
+
+/**
+ * Assert that a pinned object reference stays in the bucket and key namespace
+ * owned by the current stage.  Callers may pass a list of accepted prefixes
+ * when a stage has more than one intentional artifact directory.
+ */
+export function assertArtifactRefOwnership(input: {
+	allowedBuckets: readonly string[];
+	allowedKeyPrefixes?: readonly string[];
+	label: string;
+	ref: IngestionArtifactRef;
+}): { bucket: string; key: string } {
+	const location = parseS3Uri(input.ref);
+	if (!input.allowedBuckets.includes(location.bucket)) {
+		throw new IngestionContractError(
+			`${input.label} bucket is outside its owner: ${location.bucket}`,
+			"ingestion_artifact_ownership_invalid",
+		);
+	}
+	if (
+		input.allowedKeyPrefixes &&
+		!input.allowedKeyPrefixes.some((prefix) => location.key.startsWith(prefix))
+	) {
+		throw new IngestionContractError(
+			`${input.label} key is outside its owner: ${location.key}`,
+			"ingestion_artifact_ownership_invalid",
+		);
+	}
+	return location;
+}
+
+export function assertObjectKeyOwnership(input: {
+	allowedBuckets: readonly string[];
+	allowedKeyPrefixes: readonly string[];
+	key: string;
+	label: string;
+	bucket: string;
+}): void {
+	if (!input.allowedBuckets.includes(input.bucket)) {
+		throw new IngestionContractError(
+			`${input.label} bucket is outside its owner: ${input.bucket}`,
+			"ingestion_artifact_ownership_invalid",
+		);
+	}
+	if (!input.allowedKeyPrefixes.some((prefix) => input.key.startsWith(prefix))) {
+		throw new IngestionContractError(
+			`${input.label} key is outside its owner: ${input.key}`,
+			"ingestion_artifact_ownership_invalid",
+		);
+	}
+}
+
+export function isIngestionContractError(error: unknown): error is IngestionContractError {
+	return error instanceof IngestionContractError;
 }
 
 export function buildObjectStoreArtifactRef(input: {
@@ -293,7 +375,7 @@ export function canonicalJsonSha256Digest(value: unknown): Sha256Digest {
 export function parseJsonObjectBytes(value: Uint8Array, label: string): Record<string, unknown> {
 	const parsed = parseJsonBytes(value, label);
 	if (!isRecord(parsed)) {
-		throw new Error(`${label} must be a JSON object`);
+		throw new IngestionContractError(`${label} must be a JSON object`, "ingestion_payload_invalid");
 	}
 	return parsed;
 }
@@ -309,7 +391,10 @@ export function parseJsonObjectLinesBytes(
 		.map((line, index) => {
 			const parsed = parseJsonText(line, `${label} line ${index + 1}`);
 			if (!isRecord(parsed)) {
-				throw new Error(`${label} line ${index + 1} must be a JSON object`);
+				throw new IngestionContractError(
+					`${label} line ${index + 1} must be a JSON object`,
+					"ingestion_payload_invalid",
+				);
 			}
 			return parsed;
 		});
@@ -318,14 +403,14 @@ export function parseJsonObjectLinesBytes(
 export function parseRecord(value: unknown, label: string): Record<string, unknown> {
 	const parsed = JsonRecordSchema.safeParse(value);
 	if (!parsed.success) {
-		throw new Error(`${label} must be an object`);
+		throw new IngestionContractError(`${label} must be an object`, "ingestion_payload_invalid");
 	}
 	return parsed.data;
 }
 
 export function parseArray(value: unknown, label: string): unknown[] {
 	if (!Array.isArray(value)) {
-		throw new Error(`${label} must be an array`);
+		throw new IngestionContractError(`${label} must be an array`, "ingestion_payload_invalid");
 	}
 	return value;
 }
@@ -333,7 +418,7 @@ export function parseArray(value: unknown, label: string): unknown[] {
 export function parseRequiredText(value: unknown, label: string): string {
 	const parsed = RequiredTextSchema.safeParse(value);
 	if (!parsed.success) {
-		throw new Error(`${label} is required`);
+		throw new IngestionContractError(`${label} is required`, "ingestion_payload_invalid");
 	}
 	return parsed.data;
 }
@@ -341,7 +426,7 @@ export function parseRequiredText(value: unknown, label: string): string {
 export function parseRequiredScalarText(value: unknown, label: string): string {
 	const parsed = RequiredScalarTextSchema.safeParse(value);
 	if (!parsed.success) {
-		throw new Error(`${label} is required`);
+		throw new IngestionContractError(`${label} is required`, "ingestion_payload_invalid");
 	}
 	return parsed.data;
 }
@@ -350,25 +435,40 @@ export function parseOptionalText(value: unknown): string | null {
 	if (typeof value !== "string") {
 		return null;
 	}
-	return OptionalTextSchema.parse(value);
+	try {
+		return OptionalTextSchema.parse(value);
+	} catch (error) {
+		throw new IngestionContractError("optional text is invalid", "ingestion_payload_invalid", {
+			cause: error,
+		});
+	}
 }
 
 export function parseRequiredInteger(value: unknown, label: string): number {
 	const parsed = RequiredIntegerSchema.safeParse(value);
 	if (!parsed.success) {
-		throw new Error(`${label} must be an integer`);
+		throw new IngestionContractError(`${label} must be an integer`, "ingestion_payload_invalid");
 	}
 	return parsed.data;
 }
 
 export function parseOptionalInteger(value: unknown): number | null {
-	return OptionalIntegerSchema.parse(value);
+	try {
+		return OptionalIntegerSchema.parse(value);
+	} catch (error) {
+		throw new IngestionContractError("optional integer is invalid", "ingestion_payload_invalid", {
+			cause: error,
+		});
+	}
 }
 
 export function parseRequiredNonNegativeInteger(value: unknown, label: string): number {
 	const parsed = RequiredNonNegativeIntegerSchema.safeParse(value);
 	if (!parsed.success) {
-		throw new Error(`${label} must be a non-negative integer`);
+		throw new IngestionContractError(
+			`${label} must be a non-negative integer`,
+			"ingestion_payload_invalid",
+		);
 	}
 	return parsed.data;
 }
@@ -376,7 +476,7 @@ export function parseRequiredNonNegativeInteger(value: unknown, label: string): 
 export function parseJsonArrayBytes(value: Uint8Array, label: string): unknown[] {
 	const parsed = parseJsonBytes(value, label);
 	if (!Array.isArray(parsed)) {
-		throw new Error(`${label} must be a JSON array`);
+		throw new IngestionContractError(`${label} must be a JSON array`, "ingestion_payload_invalid");
 	}
 	return parsed;
 }
@@ -384,8 +484,9 @@ export function parseJsonArrayBytes(value: Uint8Array, label: string): unknown[]
 export function parseSourceObjectRef(value: unknown, label: string): SourceObjectRef {
 	const parsed = SourceObjectRefPayloadSchema.safeParse(value);
 	if (!parsed.success) {
-		throw new Error(
+		throw new IngestionContractError(
 			`${label} is invalid: ${formatZodIssues(parsed.error.issues, label).join("; ")}`,
+			"ingestion_payload_invalid",
 		);
 	}
 	return parsed.data;
@@ -510,7 +611,10 @@ function parseJsonText(value: string, label: string): unknown {
 	try {
 		return JSON.parse(value) as unknown;
 	} catch (error) {
-		throw new Error(`${label} must be valid JSON: ${errorMessage(error)}`);
+		throw new IngestionContractError(
+			`${label} must be valid JSON: ${errorMessage(error)}`,
+			"ingestion_payload_invalid",
+		);
 	}
 }
 

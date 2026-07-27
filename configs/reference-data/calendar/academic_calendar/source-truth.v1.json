@@ -2,7 +2,7 @@
 	"schema_version": "academic_calendar_source_truth_manifest.v1",
 	"target_corpus": "calendar",
 	"target_collection": "academic_calendar",
-	"upstream_source_channel": "official_web",
+	"upstream_source_channel": "calendar_curated",
 	"release_id_prefix": "academic-calendar-synthetic-2026",
 	"expected_ready_records": 2,
 	"curated_academic_calendars": [

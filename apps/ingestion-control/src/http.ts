@@ -5,12 +5,11 @@ import {
 	parseIngestionTaskEnvelope,
 	parseIngestionWorkflowStatus,
 } from "ingest-core";
-import { internalPortalReleaseStreamId } from "./publication-activities";
 import {
 	IngestionWorkflowIdentityConflictError,
 	type IngestionWorkflowStarter,
 } from "./temporal-client";
-import type { IngestionTaskStore, OfflineReleaseStore } from "./types";
+import type { IngestionTaskStore } from "./types";
 
 export type IngestionControlHandler = (request: Request) => Promise<Response>;
 
@@ -23,9 +22,7 @@ export function createIngestionControlHandler(input: {
 	store: IngestionTaskStore;
 	registryCatalog: IngestionTaskRegistryCatalog;
 	readinessCheck?: () => Promise<void>;
-	releaseStore?: OfflineReleaseStore;
 	serviceTokens?: IngestionControlServiceTokens;
-	siteId?: string;
 	workflowStarter?: IngestionWorkflowStarter;
 }): IngestionControlHandler {
 	const tokens = {
@@ -47,81 +44,23 @@ export function createIngestionControlHandler(input: {
 				return jsonResponse({ status: "ready" });
 			}
 			if (
-				request.method === "GET" &&
-				url.pathname === "/internal/ingestion/operations/internal-portal"
-			) {
-				requireToken(request, tokens.ops, "ops");
-				if (
-					!(
-						input.workflowStarter?.getInternalPortalAuthMaintenanceStatus &&
-						input.workflowStarter.getInternalPortalNoticePublicationStatus
-					)
-				) {
-					return jsonResponse({ error: "ingestion workflow starter is required" }, 503);
-				}
-				const [authMaintenance, noticePublication, noticeRelease, fileRelease] = await Promise.all([
-					input.workflowStarter.getInternalPortalAuthMaintenanceStatus(),
-					input.workflowStarter.getInternalPortalNoticePublicationStatus(),
-					readReleaseStatus(input, "notice"),
-					readReleaseStatus(input, "file_release"),
-				]);
-				return jsonResponse({
-					auth_maintenance: authMaintenance,
-					file_release: fileRelease,
-					notice: { publication: noticePublication, release: noticeRelease },
-					schema_version: "internal_portal_ingestion_status.v1",
-				});
-			}
-			if (
-				request.method === "GET" &&
-				url.pathname === "/internal/ingestion/operations/internal-portal-auth-maintenance"
-			) {
-				requireToken(request, tokens.ops, "ops");
-				if (!input.workflowStarter?.getInternalPortalAuthMaintenanceStatus) {
-					return jsonResponse({ error: "ingestion workflow starter is required" }, 503);
-				}
-				return jsonResponse(await input.workflowStarter.getInternalPortalAuthMaintenanceStatus());
-			}
-			if (
 				request.method === "POST" &&
-				url.pathname === "/internal/ingestion/operations/internal-portal/notice-publication/pause"
+				url.pathname === "/internal/ingestion/operations/internal-portal/file-releases/status"
 			) {
 				requireToken(request, tokens.ops, "ops");
-				requireOperatorId(request);
-				if (!input.workflowStarter?.pauseInternalPortalNoticePublication) {
-					return jsonResponse({ error: "ingestion workflow starter is required" }, 503);
-				}
-				return jsonResponse(await input.workflowStarter.pauseInternalPortalNoticePublication());
-			}
-			if (
-				request.method === "POST" &&
-				url.pathname === "/internal/ingestion/operations/internal-portal/notice-publication/resume"
-			) {
-				requireToken(request, tokens.ops, "ops");
-				requireOperatorId(request);
-				if (!input.workflowStarter?.resumeInternalPortalNoticePublication) {
-					return jsonResponse({ error: "ingestion workflow starter is required" }, 503);
-				}
-				return jsonResponse(await input.workflowStarter.resumeInternalPortalNoticePublication());
-			}
-			if (
-				request.method === "POST" &&
-				url.pathname ===
-					"/internal/ingestion/operations/internal-portal/notice-publication/reconcile"
-			) {
-				requireToken(request, tokens.ops, "ops");
-				const createdBy = requireOperatorId(request);
-				if (!input.workflowStarter?.startInternalPortalNoticeReconcile) {
+				const workflowStarter = input.workflowStarter;
+				const getFileReleaseStatuses = workflowStarter?.getInternalPortalFileReleaseStatuses;
+				if (!getFileReleaseStatuses) {
 					return jsonResponse({ error: "ingestion workflow starter is required" }, 503);
 				}
 				const body = await readJsonObject(request);
-				assertOnlyKeys(body, ["request_id"]);
-				const requestId = requiredRequestId(body.request_id);
-				const started = await input.workflowStarter.startInternalPortalNoticeReconcile({
-					createdBy,
-					requestId,
+				const workflowIds = requiredFileReleaseWorkflowIds(body.workflow_ids);
+				return jsonResponse({
+					schema_version: "internal_portal_file_release_workflow_statuses.v1",
+					workflows: await runIngestionWorkflowOperation(() =>
+						getFileReleaseStatuses.call(workflowStarter, workflowIds),
+					),
 				});
-				return jsonResponse(publicationStartResponse(started, requestId), 202);
 			}
 			if (
 				request.method === "POST" &&
@@ -129,21 +68,25 @@ export function createIngestionControlHandler(input: {
 			) {
 				requireToken(request, tokens.ops, "ops");
 				const createdBy = requireOperatorId(request);
-				if (!input.workflowStarter?.startInternalPortalFileRelease) {
+				const workflowStarter = input.workflowStarter;
+				const startFileRelease = workflowStarter?.startInternalPortalFileRelease;
+				if (!startFileRelease) {
 					return jsonResponse({ error: "ingestion workflow starter is required" }, 503);
 				}
 				const body = await readJsonObject(request);
 				const requestId = requiredRequestId(body.request_id);
 				const ids = requiredFileReleaseIds(body.file_release_ids);
-				const workflows = await Promise.all(
-					ids.map(async (fileReleaseId) => ({
-						file_release_id: fileReleaseId,
-						...(await input.workflowStarter?.startInternalPortalFileRelease?.({
-							createdBy,
-							fileReleaseId,
-							requestId: `${requestId}:${fileReleaseId}`,
+				const workflows = await runIngestionWorkflowOperation(() =>
+					Promise.all(
+						ids.map(async (fileReleaseId) => ({
+							file_release_id: fileReleaseId,
+							...(await startFileRelease.call(workflowStarter, {
+								createdBy,
+								fileReleaseId,
+								requestId,
+							})),
 						})),
-					})),
+					),
 				);
 				return jsonResponse(
 					{
@@ -154,23 +97,10 @@ export function createIngestionControlHandler(input: {
 					202,
 				);
 			}
-			if (
-				request.method === "POST" &&
-				url.pathname === "/internal/ingestion/operations/internal-portal-auth-maintenance/validate"
-			) {
-				requireToken(request, tokens.ops, "ops");
-				requireOperatorId(request);
-				if (!input.workflowStarter?.validateInternalPortalAuthentication) {
-					return jsonResponse({ error: "ingestion workflow starter is required" }, 503);
-				}
-				return jsonResponse(
-					await input.workflowStarter.validateInternalPortalAuthentication(),
-					202,
-				);
-			}
 			if (request.method === "POST" && url.pathname === "/internal/ingestion/tasks") {
 				requireToken(request, tokens.admin, "admin");
-				if (!input.workflowStarter) {
+				const workflowStarter = input.workflowStarter;
+				if (!workflowStarter) {
 					return jsonResponse({ error: "ingestion workflow starter is required" }, 503);
 				}
 				const task = parseIngestionTaskEnvelope(await request.json());
@@ -178,9 +108,11 @@ export function createIngestionControlHandler(input: {
 					task,
 					registryTask: input.registryCatalog.requireTask(task),
 				});
-				const started = await input.workflowStarter.startTask(snapshot, {
-					createdBy: "admin-api",
-				});
+				const started = await runIngestionWorkflowOperation(() =>
+					workflowStarter.startTask(snapshot, {
+						createdBy: "admin-api",
+					}),
+				);
 				if (started.alreadyStarted) {
 					const existing = await input.store.getTask(task.task_id);
 					if (existing) {
@@ -241,7 +173,8 @@ export function createIngestionControlHandler(input: {
 			if (request.method === "POST" && retryTaskMatch) {
 				requireToken(request, tokens.ops, "ops");
 				const createdBy = requireOperatorId(request);
-				if (!input.workflowStarter) {
+				const workflowStarter = input.workflowStarter;
+				if (!workflowStarter) {
 					return jsonResponse({ error: "ingestion workflow starter is required" }, 503);
 				}
 				const previous = await input.store.getTask(parseTaskPathId(retryTaskMatch[1]));
@@ -253,9 +186,6 @@ export function createIngestionControlHandler(input: {
 				}
 				if (previous.status !== "failed" && previous.status !== "canceled") {
 					return jsonResponse({ error: "ingestion_task_not_retryable" }, 409);
-				}
-				if (previous.pipeline_workflow_id) {
-					return jsonResponse({ error: "ingestion_pipeline_task_retry_unsupported" }, 409);
 				}
 				const registryTask = input.registryCatalog.requireTaskById(previous.registry_task_id);
 				if (
@@ -276,10 +206,12 @@ export function createIngestionControlHandler(input: {
 						task_id: `retry:${retryId}`,
 					},
 				});
-				const started = await input.workflowStarter.startTask(snapshot, {
-					createdBy,
-					retryOfTaskId: previous.task_id,
-				});
+				const started = await runIngestionWorkflowOperation(() =>
+					workflowStarter.startTask(snapshot, {
+						createdBy,
+						retryOfTaskId: previous.task_id,
+					}),
+				);
 				return jsonResponse(
 					{
 						retry_of_task_id: previous.task_id,
@@ -311,14 +243,20 @@ export function createIngestionControlHandler(input: {
 			if (error instanceof IngestionAuthenticationError) {
 				return jsonResponse({ error: error.message }, error.status);
 			}
+			if (error instanceof IngestionWorkflowUnavailableError) {
+				return jsonResponse({ error: error.message }, 503);
+			}
 			const message = error instanceof Error ? error.message : "ingestion-control request failed";
-			const status =
-				message.includes("workflow") || message.includes("Temporal") || message.includes("Schedule")
-					? 503
-					: 400;
-			return jsonResponse({ error: message }, status);
+			return jsonResponse({ error: message }, 400);
 		}
 	};
+}
+
+class IngestionWorkflowUnavailableError extends Error {
+	constructor(cause: unknown) {
+		super("ingestion workflow dependency is unavailable", { cause });
+		this.name = "IngestionWorkflowUnavailableError";
+	}
 }
 
 class IngestionAuthenticationError extends Error {
@@ -327,6 +265,17 @@ class IngestionAuthenticationError extends Error {
 	constructor(message: string, status: 401 | 503) {
 		super(message);
 		this.status = status;
+	}
+}
+
+async function runIngestionWorkflowOperation<T>(operation: () => Promise<T>): Promise<T> {
+	try {
+		return await operation();
+	} catch (error) {
+		if (error instanceof IngestionWorkflowIdentityConflictError) {
+			throw error;
+		}
+		throw new IngestionWorkflowUnavailableError(error);
 	}
 }
 
@@ -398,14 +347,6 @@ function requiredRequestId(value: unknown): string {
 	return value.trim();
 }
 
-function assertOnlyKeys(value: Record<string, unknown>, allowedKeys: readonly string[]): void {
-	const allowed = new Set(allowedKeys);
-	const unexpected = Object.keys(value).filter((key) => !allowed.has(key));
-	if (unexpected.length > 0) {
-		throw new Error(`request body contains unsupported fields: ${unexpected.join(", ")}`);
-	}
-}
-
 function optionalPositiveInteger(value: unknown, label: string, maximum?: number): number | null {
 	if (value === undefined || value === null) {
 		return null;
@@ -434,53 +375,25 @@ function requiredFileReleaseIds(value: unknown): number[] {
 	return unique;
 }
 
-function publicationStartResponse(
-	started: Awaited<
-		ReturnType<NonNullable<IngestionWorkflowStarter["startInternalPortalNoticeReconcile"]>>
-	>,
-	requestId: string,
-) {
-	return {
-		already_started: started.alreadyStarted,
-		request_id: requestId,
-		temporal_status: started.workflowStatus,
-		workflow_id: started.workflowId,
-		workflow_run_id: started.workflowRunId,
-	};
-}
-
-async function readReleaseStatus(
-	input: { releaseStore?: OfflineReleaseStore; siteId?: string },
-	surface: "file_release" | "notice",
-) {
-	if (!(input.releaseStore && input.siteId)) {
-		return null;
+function requiredFileReleaseWorkflowIds(value: unknown): string[] {
+	if (!Array.isArray(value) || value.length === 0 || value.length > 50) {
+		throw new Error("workflow_ids must contain between 1 and 50 IDs");
 	}
-	const streamId = internalPortalReleaseStreamId(input.siteId, surface);
-	const [stream, release] = await Promise.all([
-		input.releaseStore.getStream(streamId),
-		input.releaseStore.getCurrentRelease(streamId),
-	]);
-	if (!stream) {
-		return null;
+	const ids = value.map((item) => {
+		if (
+			typeof item !== "string" ||
+			!/^ingestion\/internal-portal-file-release\/[A-Za-z0-9][A-Za-z0-9._:-]{0,127}\/[1-9]\d*$/u.test(
+				item,
+			)
+		) {
+			throw new Error("workflow_ids contains an invalid file-release workflow ID");
+		}
+		return item;
+	});
+	if (new Set(ids).size !== ids.length) {
+		throw new Error("workflow_ids must not contain duplicates");
 	}
-	return {
-		checkpoint: stream.checkpoint,
-		current_release_id: stream.current_release_id,
-		item_count: release?.item_count ?? null,
-		last_added_count: stream.last_added_count,
-		last_check_at: stream.last_check_at,
-		last_check_error_code: stream.last_check_error_code,
-		last_check_mode: stream.last_check_mode,
-		last_check_outcome: stream.last_check_outcome,
-		last_committed_at: release?.committed_at ?? null,
-		last_published_at: stream.last_published_at,
-		last_reconcile_at: stream.last_reconcile_at,
-		last_updated_count: stream.last_updated_count,
-		last_withdrawn_count: stream.last_withdrawn_count,
-		stream_id: stream.stream_id,
-		version: stream.version,
-	};
+	return ids;
 }
 
 function jsonResponse(value: unknown, status = 200): Response {

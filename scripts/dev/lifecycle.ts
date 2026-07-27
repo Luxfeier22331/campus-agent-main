@@ -22,6 +22,7 @@ const COMPOSE_PROJECT = "campus-agent-local";
 const DATA_NETWORK = "campus-agent-data-plane";
 const POSTGRES_VOLUME = "local_postgres-data";
 const MINIO_VOLUME = "local_minio-data";
+const SOURCE_BUCKET = "campus-agent-source";
 const POSTGRES_ADMIN_URL = "postgresql://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable";
 const MINIO_IMAGE =
 	"minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727";
@@ -96,6 +97,7 @@ export function diagnoseLocalDevelopment(repoRoot: string): {
 	managedEnvironmentReady: boolean;
 	profile: LocalDevProfileV1;
 	sharedInfrastructureReady: boolean;
+	sourceBucketExists: boolean;
 } {
 	const profile = loadLocalDevProfile(repoRoot);
 	const managedEnvironmentReady = [
@@ -103,6 +105,7 @@ export function diagnoseLocalDevelopment(repoRoot: string): {
 		"apps/app-api/.dev.vars.local",
 		"apps/campus-web/.dev.vars.local",
 		"apps/ops-web/.env.local",
+		"apps/source-collector/adapters/internal-portal/.env.local",
 	].every((path) => {
 		const absolutePath = resolve(repoRoot, path);
 		return (
@@ -118,6 +121,7 @@ export function diagnoseLocalDevelopment(repoRoot: string): {
 		sharedInfrastructureReady:
 			commandSucceeds("docker", ["inspect", `${COMPOSE_PROJECT}-postgres-1`]) &&
 			commandSucceeds("docker", ["inspect", `${COMPOSE_PROJECT}-minio-1`]),
+		sourceBucketExists: localBucketExists(SOURCE_BUCKET),
 	};
 }
 
@@ -157,6 +161,7 @@ export function formatProfileSummary(profile: LocalDevProfileV1): string {
 		`app-api: http://127.0.0.1:${profile.ports.appApi}`,
 		`Ops Web: http://127.0.0.1:${profile.ports.opsWeb}/dining`,
 		`Database: ${profile.databaseName}`,
+		`Source bucket: ${SOURCE_BUCKET}`,
 		`Derived bucket: ${profile.bucketName}`,
 	].join("\n");
 }
@@ -184,6 +189,7 @@ function ensureSharedInfrastructure(repoRoot: string): void {
 		],
 		{ cwd: repoRoot },
 	);
+	runMinio(SOURCE_BUCKET, "create");
 }
 
 function ensureDatabaseRoles(): void {

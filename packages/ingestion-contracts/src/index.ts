@@ -3,9 +3,6 @@ import addFormats from "ajv-formats";
 import canonicalDocumentUnitSchema from "../schemas/canonical-document-units.v1.schema.json" with {
 	type: "json",
 };
-import offlineReleaseSchema from "../schemas/ingestion-offline-release.v1.schema.json" with {
-	type: "json",
-};
 import taskEnvelopeSchema from "../schemas/ingestion-task-envelope.v3.schema.json" with {
 	type: "json",
 };
@@ -15,13 +12,16 @@ import taskRegistrySchema from "../schemas/ingestion-task-registry.v3.schema.jso
 import taskResultSchema from "../schemas/ingestion-task-result.v1.schema.json" with {
 	type: "json",
 };
-import internalPortalCaptureRequestsSchema from "../schemas/internal-portal-capture-requests.v2.schema.json" with {
+import internalPortalFileReleaseCaptureResultSchema from "../schemas/internal-portal-file-release-capture-result.v1.schema.json" with {
 	type: "json",
 };
-import internalPortalNoticeCheckpointSchema from "../schemas/internal-portal-notice-checkpoint.v1.schema.json" with {
+import internalPortalFileReleaseSourceSchema from "../schemas/internal-portal-file-release-source.v1.schema.json" with {
 	type: "json",
 };
-import internalPortalStageResultsSchema from "../schemas/internal-portal-stage-results.v1.schema.json" with {
+import internalPortalNoticeSourceSchema from "../schemas/internal-portal-notice-source.v1.schema.json" with {
+	type: "json",
+};
+import internalPortalNoticeSyncStateSchema from "../schemas/internal-portal-notice-sync-state.v1.schema.json" with {
 	type: "json",
 };
 
@@ -57,106 +57,63 @@ export interface IngestionTaskEnvelope {
 	input_ref: IngestionArtifactRef;
 }
 
-export type IngestionTaskExecutorKind = "rust_kernel" | "source_collector" | "typescript_kernel";
+export type IngestionTaskExecutorKind = "rust_kernel";
 
-export type InternalPortalArtifactRole =
-	| "attachment_refs"
-	| "canonical_document_units"
-	| "canonical_markdown"
-	| "capture_release"
-	| "capture_checkpoint"
-	| "content_blocks"
-	| "export_manifest"
-	| "released_file"
-	| "source_bundle"
-	| "source_manifest";
-
-export interface IngestionRoleArtifactRef extends IngestionArtifactRef {
-	role: InternalPortalArtifactRole;
+export interface InternalPortalNoticeSourceAttachment {
+	notice_annex_id: string | null;
+	notice_annex_name: string | null;
+	notice_annex_path: string | null;
+	suffix: string | null;
+	type: string | null;
 }
 
-export type InternalPortalStageResultContract =
-	| "internal_portal_file_release_capture_result.v1"
-	| "internal_portal_file_release_materialization_result.v1"
-	| "internal_portal_notice_capture_result.v1"
-	| "internal_portal_notice_materialization_result.v1";
-
-export interface InternalPortalStageResultManifest {
-	schema_version: InternalPortalStageResultContract;
-	task_id: string;
-	run_id: string;
-	registry_task_id: string;
-	artifacts: IngestionRoleArtifactRef[];
-	items?: IngestionOfflineReleaseItem[];
-	summary: Record<string, IngestionTaskSummaryValue>;
+export interface InternalPortalNoticeSource {
+	schema_version: "internal_portal_notice_source.v1";
+	site_id: string;
+	notice_id: number;
+	notice_type: "5";
+	notice_type_name: string | null;
+	notice_title: string;
+	organization_name: string | null;
+	organization_id: string | null;
+	notice_release_time: string | null;
+	notice_content: string | null;
+	notice_link: string | null;
+	attachments: InternalPortalNoticeSourceAttachment[];
 }
 
-export interface InternalPortalNoticeCheckpoint {
-	notice_type: string;
-	last_released_notice_id: number;
+export interface InternalPortalNoticeSyncState {
+	schema_version: "internal_portal_notice_sync_state.v1";
+	site_id: string;
+	incremental_head_id: number | null;
+	min_captured_id: number | null;
+	max_captured_id: number | null;
+	history_covered_from: string | null;
+	updated_at: string;
 }
 
-export interface InternalPortalNoticeCaptureCheckpoint {
-	schema_version: "internal_portal_notice_checkpoint.v1";
-	captured_at: string;
-	previous: InternalPortalNoticeCheckpoint[];
-	next: InternalPortalNoticeCheckpoint[];
-}
-
-export interface InternalPortalNoticeCaptureRequestV2 {
-	schema_version: "internal_portal_notice_capture_request.v2";
-	collection_mode: "reconcile" | "incremental" | "selected";
-	checkpoints: InternalPortalNoticeCheckpoint[];
-	overlap_pages: number;
-	max_notices?: number;
-	selected_notices?: Array<{
-		notice_id: number;
-		notice_type: string;
-		notice_type_name?: string;
-		notice_title?: string;
-	}>;
-}
-
-export interface InternalPortalFileReleaseCaptureRequestV2 {
-	schema_version: "internal_portal_file_release_capture_request.v2";
+export interface InternalPortalFileReleaseSource {
+	schema_version: "internal_portal_file_release_source.v1";
+	site_id: string;
 	file_release_id: number;
+	title: string;
+	file_code: string | null;
+	department: string | null;
+	explanation_department: string | null;
+	published_at: string | null;
+	file: {
+		object_key: string;
+		original_filename: string;
+		content_type: string;
+		byte_size: number;
+		digest: string;
+	};
 }
 
-export type InternalPortalCaptureRequest =
-	| InternalPortalFileReleaseCaptureRequestV2
-	| InternalPortalNoticeCaptureRequestV2;
-
-export interface IngestionOfflineReleaseItem {
-	item_id: string;
-	version_id: string;
-	artifacts: Array<IngestionArtifactRef & { role: string }>;
-}
-
-export interface IngestionOfflineRelease {
-	schema_version: "ingestion_offline_release.v1";
-	release_id: string;
-	stream_id: string;
-	previous_release_id: string | null;
-	created_at: string;
-	source: { channel: "internal_portal"; surface: "file_release" | "notice"; site_id: string };
-	target: { corpus: string; collection: string };
-	pipeline: {
-		run_id: string;
-		workflow_id: string;
-		workflow_run_id: string;
-		task_ids: string[];
-		code_commit?: string | null;
-		worker_build_id?: string | null;
-		registry_digest?: string | null;
-		source_config_digest?: string | null;
-	};
-	checkpoint: Record<string, unknown>;
-	changes?: {
-		added_item_ids: string[];
-		updated_item_ids: string[];
-		withdrawn_item_ids: string[];
-	};
-	items: IngestionOfflineReleaseItem[];
+export interface InternalPortalFileReleaseCaptureResult {
+	schema_version: "internal_portal_file_release_capture_result.v1";
+	file_release_id: number;
+	source_ref: IngestionArtifactRef;
 }
 
 export interface IngestionTaskSourceIdentity {
@@ -221,18 +178,18 @@ const taskResultValidator = ajv.compile(taskResultSchema) as ValidateFunction<In
 const canonicalDocumentUnitValidator = ajv.compile(
 	canonicalDocumentUnitSchema,
 ) as ValidateFunction<CanonicalDocumentUnit>;
-const offlineReleaseValidator = ajv.compile(
-	offlineReleaseSchema,
-) as ValidateFunction<IngestionOfflineRelease>;
-const internalPortalCaptureRequestValidator = ajv.compile(
-	internalPortalCaptureRequestsSchema,
-) as ValidateFunction<InternalPortalCaptureRequest>;
-const internalPortalNoticeCheckpointValidator = ajv.compile(
-	internalPortalNoticeCheckpointSchema,
-) as ValidateFunction<InternalPortalNoticeCaptureCheckpoint>;
-const internalPortalStageResultValidator = ajv.compile(
-	internalPortalStageResultsSchema,
-) as ValidateFunction<InternalPortalStageResultManifest>;
+const internalPortalFileReleaseCaptureResultValidator = ajv.compile(
+	internalPortalFileReleaseCaptureResultSchema,
+) as ValidateFunction<InternalPortalFileReleaseCaptureResult>;
+const internalPortalFileReleaseSourceValidator = ajv.compile(
+	internalPortalFileReleaseSourceSchema,
+) as ValidateFunction<InternalPortalFileReleaseSource>;
+const internalPortalNoticeSourceValidator = ajv.compile(
+	internalPortalNoticeSourceSchema,
+) as ValidateFunction<InternalPortalNoticeSource>;
+const internalPortalNoticeSyncStateValidator = ajv.compile(
+	internalPortalNoticeSyncStateSchema,
+) as ValidateFunction<InternalPortalNoticeSyncState>;
 
 export function validateIngestionTaskEnvelope(value: unknown): ValidationResult {
 	return validateWith(taskEnvelopeValidator, value);
@@ -258,83 +215,20 @@ export function validateCanonicalDocumentUnit(value: unknown): ValidationResult 
 	return validateWith(canonicalDocumentUnitValidator, value);
 }
 
-export function validateIngestionOfflineRelease(value: unknown): ValidationResult {
-	const result = validateWith(offlineReleaseValidator, value);
-	if (!result.ok) {
-		return result;
-	}
-	const release = value as IngestionOfflineRelease;
-	const itemIds = new Set<string>();
-	for (const item of release.items) {
-		if (itemIds.has(item.item_id)) {
-			return { ok: false, errors: [`items contains duplicate item_id: ${item.item_id}`] };
-		}
-		itemIds.add(item.item_id);
-	}
-	return { ok: true };
+export function validateInternalPortalNoticeSource(value: unknown): ValidationResult {
+	return validateWith(internalPortalNoticeSourceValidator, value);
 }
 
-export function validateInternalPortalCaptureRequest(value: unknown): ValidationResult {
-	return validateWith(internalPortalCaptureRequestValidator, value);
+export function validateInternalPortalNoticeSyncState(value: unknown): ValidationResult {
+	return validateWith(internalPortalNoticeSyncStateValidator, value);
 }
 
-export function validateInternalPortalNoticeCheckpoint(value: unknown): ValidationResult {
-	const result = validateWith(internalPortalNoticeCheckpointValidator, value);
-	if (!result.ok) {
-		return result;
-	}
-	const checkpoint = value as InternalPortalNoticeCaptureCheckpoint;
-	for (const [label, entries] of [
-		["previous", checkpoint.previous],
-		["next", checkpoint.next],
-	] as const) {
-		const types = new Set<string>();
-		for (const entry of entries) {
-			if (types.has(entry.notice_type)) {
-				return {
-					ok: false,
-					errors: [`${label} contains duplicate notice_type: ${entry.notice_type}`],
-				};
-			}
-			types.add(entry.notice_type);
-		}
-	}
-	return { ok: true };
+export function validateInternalPortalFileReleaseSource(value: unknown): ValidationResult {
+	return validateWith(internalPortalFileReleaseSourceValidator, value);
 }
 
-export function validateInternalPortalStageResult(value: unknown): ValidationResult {
-	const result = validateWith(internalPortalStageResultValidator, value);
-	if (!result.ok) {
-		return result;
-	}
-	const manifest = value as InternalPortalStageResultManifest;
-	const identities = new Set<string>();
-	for (const artifact of manifest.artifacts) {
-		const identity = `${artifact.role}:${artifact.uri}`;
-		if (identities.has(identity)) {
-			return { ok: false, errors: [`artifacts contains duplicate role and URI: ${identity}`] };
-		}
-		identities.add(identity);
-	}
-	const itemIds = new Set<string>();
-	for (const item of manifest.items ?? []) {
-		if (itemIds.has(item.item_id)) {
-			return { ok: false, errors: [`items contains duplicate item_id: ${item.item_id}`] };
-		}
-		itemIds.add(item.item_id);
-		const itemArtifacts = new Set<string>();
-		for (const artifact of item.artifacts) {
-			const identity = `${artifact.role}:${artifact.uri}`;
-			if (itemArtifacts.has(identity)) {
-				return {
-					ok: false,
-					errors: [`item ${item.item_id} contains duplicate role and URI: ${identity}`],
-				};
-			}
-			itemArtifacts.add(identity);
-		}
-	}
-	return { ok: true };
+export function validateInternalPortalFileReleaseCaptureResult(value: unknown): ValidationResult {
+	return validateWith(internalPortalFileReleaseCaptureResultValidator, value);
 }
 
 export function validateCanonicalDocumentUnitsJsonl(input: string): ValidationResult {

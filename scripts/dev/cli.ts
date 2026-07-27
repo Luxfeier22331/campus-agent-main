@@ -28,7 +28,8 @@ try {
 					diagnosis.bucketExists &&
 					diagnosis.databaseExists &&
 					diagnosis.managedEnvironmentReady &&
-					diagnosis.sharedInfrastructureReady
+					diagnosis.sharedInfrastructureReady &&
+					diagnosis.sourceBucketExists
 				)
 			) {
 				process.exitCode = 1;

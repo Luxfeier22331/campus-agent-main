@@ -9,9 +9,6 @@ function normalizeSourceRefCategory(reference: string): string | null {
 	if (prefix === "authenticated_notice" || prefix === "internal_notice" || prefix === "notice") {
 		return "校内通知";
 	}
-	if (prefix === "official_web") {
-		return "学校官网";
-	}
 	if (prefix === "service_catalog" || prefix === "campus_services") {
 		return "服务目录";
 	}

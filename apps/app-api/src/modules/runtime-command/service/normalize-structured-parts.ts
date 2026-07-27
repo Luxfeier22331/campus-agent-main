@@ -16,7 +16,6 @@ const UNSAFE_CAMPUS_SERVICE_TRACE_TOKEN_PATTERN =
 
 const SAFE_CAMPUS_SERVICE_REF_PREFIX_PATTERNS = [
 	/^authenticated_notice:\d+$/iu,
-	/^official_web:[a-z0-9._:-]{2,200}$/iu,
 	/^handbook:[a-z0-9._:-]{2,200}$/iu,
 	/^service_catalog:[a-z0-9._:-]{2,200}$/iu,
 	/^contact_directory:[a-z0-9._:-]{2,200}$/iu,
@@ -44,9 +43,6 @@ function formatCampusServiceTraceRef(ref: string): string {
 	const internalNoticeMatch = ref.match(/^notice:[a-z0-9._-]{2,120}:(\d+)$/iu);
 	if (internalNoticeMatch) {
 		return `校内通知 #${internalNoticeMatch[1]}`;
-	}
-	if (ref.startsWith("official_web:")) {
-		return `官网来源：${ref.split(":").slice(1).join("/")}`;
 	}
 	if (ref.startsWith("handbook:")) {
 		return `手册来源：${ref.split(":").slice(1).join("/")}`;

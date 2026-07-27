@@ -136,9 +136,18 @@ describe("managed worktree environment", () => {
 		const campusWebEnvironment = parseEnv(
 			readFileSync(resolve(repoRoot, "apps/campus-web/.dev.vars.local"), "utf8"),
 		);
+		const sourceCollectorEnvironment = parseEnv(
+			readFileSync(
+				resolve(repoRoot, "apps/source-collector/adapters/internal-portal/.env.local"),
+				"utf8",
+			),
+		);
 		assert.equal(new URL(appApiEnvironment.APP_API_SCHEMA_DATABASE_URL ?? "").search, "");
 		assert.equal(campusWebEnvironment.AUTH_TURNSTILE_SITE_KEY, "");
 		assert.equal(new URL(opsWebEnvironment.OPS_WEB_DATABASE_URL ?? "").search, "");
+		assert.equal(sourceCollectorEnvironment.OBJECT_STORE_BUCKET_SOURCE, "campus-agent-source");
+		assert.equal(sourceCollectorEnvironment.OBJECT_STORE_ENDPOINT, "http://127.0.0.1:9000");
+		assert.equal(sourceCollectorEnvironment.OBJECT_STORE_SOURCE_ACCESS_KEY, "minioadmin");
 		assert.equal(opsWebEnvironment.OPS_WEB_APP_API_URL, "http://127.0.0.1:27131");
 		assert.equal(opsWebEnvironment.OPS_WEB_CAMPUS_WEB_URL, "http://127.0.0.1:27114");
 		assert.equal(opsWebEnvironment.OPS_WEB_INTERNAL_TOKEN, second.OPS_WEB_INTERNAL_TOKEN);
@@ -232,6 +241,9 @@ function createRepositoryShape(): string {
 	for (const app of ["app-api", "campus-web", "ops-web"]) {
 		mkdirSync(resolve(repoRoot, "apps", app), { recursive: true });
 	}
+	mkdirSync(resolve(repoRoot, "apps/source-collector/adapters/internal-portal"), {
+		recursive: true,
+	});
 	return repoRoot;
 }
 

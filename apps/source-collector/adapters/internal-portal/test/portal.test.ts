@@ -2,17 +2,21 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { Headers, Response } from "undici";
 import { afterEach, describe, expect, it } from "vitest";
-
 import {
 	PortalCredentialExpiredError,
 	PortalCredentialUnavailableError,
+	PortalSessionExpiredError,
 } from "../src/auth-errors.js";
 import type { InternalPortalConfig } from "../src/config.js";
-import { createPortalApiContext, refreshPortalAuthentication } from "../src/portal.js";
-import type { ApiResponseLike } from "../src/types.js";
+import {
+	checkPortalAuthentication,
+	createPortalApiContext,
+	type PortalFetch,
+} from "../src/portal.js";
 
-describe("internal portal recovering API context", () => {
+describe("internal portal HTTP session", () => {
 	const tempDirs: string[] = [];
 
 	afterEach(() => {
@@ -21,168 +25,303 @@ describe("internal portal recovering API context", () => {
 		}
 	});
 
-	it("bootstraps from the TGC file and atomically persists storage state", async () => {
+	it("establishes an in-memory cookie session through guarded manual redirects", async () => {
 		const config = createConfig();
-		let bootstrapCount = 0;
+		const harness = createAuthenticatedFetch();
 		const apiContext = await createPortalApiContext(config, {
-			bootstrapStorageState: async ({ ssoTgc }) => {
-				bootstrapCount += 1;
-				return bootstrapResult(ssoTgc, "fresh-session");
-			},
-			createRequestContext: async () => fakeContext([jsonResponse()]),
+			fetch: harness.fetch,
 		});
 
-		expect(bootstrapCount).toBe(1);
-		expect(readStoredCookies(config).get("JSESSIONID")).toBe("fresh-session");
-		expect(fs.statSync(config.authStorageStatePath).mode & 0o777).toBe(0o600);
+		const response = await apiContext.post("/notice", { form: { page: "1" } });
+		expect(await response.text()).toBe(JSON.stringify({ state: true }));
+		expect(harness.bootstrapCount()).toBe(1);
+		expect(harness.calls.every((call) => call.redirect === "manual")).toBe(true);
+		expect(harness.calls.find((call) => call.url.hostname === "sso.example.edu")?.cookie).toContain(
+			"SSO_TGC=current-ticket",
+		);
+		expect(harness.calls.find((call) => call.url.pathname === "/notice")?.cookie).toContain(
+			"JSESSIONID=session-1",
+		);
+
 		await apiContext.dispose();
 	});
 
-	it("bootstraps independent notice and file-release sessions without a keepalive result", async () => {
-		const noticeConfig = createConfig();
-		const fileReleaseConfig = createConfig();
-		const bootstrapInputs: string[] = [];
-		const dependencies = {
-			bootstrapStorageState: async ({ ssoTgc }: { ssoTgc: string }) => {
-				bootstrapInputs.push(ssoTgc);
-				return bootstrapResult(ssoTgc, `session-${bootstrapInputs.length}`);
-			},
-			createRequestContext: async () => fakeContext([jsonResponse()]),
+	it("creates an independent cookie jar for every API context", async () => {
+		const config = createConfig();
+		const harness = createAuthenticatedFetch();
+
+		const first = await createPortalApiContext(config, { fetch: harness.fetch });
+		await first.dispose();
+		const second = await createPortalApiContext(config, { fetch: harness.fetch });
+		await second.dispose();
+
+		expect(harness.bootstrapCount()).toBe(2);
+	});
+
+	it("rejects redirect hosts outside the configured SSO parent domain before fetching them", async () => {
+		const config = createConfig();
+		const calls: URL[] = [];
+		const fetch: PortalFetch = async (request) => {
+			const url = requestUrl(request);
+			calls.push(url);
+			return responseAt(url, null, {
+				headers: { location: "https://login.attacker.example/cas" },
+				status: 302,
+			});
 		};
 
-		const noticeContext = await createPortalApiContext(noticeConfig, dependencies);
-		const fileReleaseContext = await createPortalApiContext(fileReleaseConfig, dependencies);
-
-		expect((await noticeContext.post("/notice", { form: {} })).ok()).toBe(true);
-		expect((await fileReleaseContext.post("/file-release", { form: {} })).ok()).toBe(true);
-		expect(bootstrapInputs).toEqual(["current-ticket", "current-ticket"]);
-		await Promise.all([noticeContext.dispose(), fileReleaseContext.dispose()]);
+		await expect(createPortalApiContext(config, { fetch })).rejects.toThrow(
+			"portal SSO redirected outside the configured authentication boundary",
+		);
+		expect(calls.map(String)).toEqual([config.portalBaseUrl]);
 	});
 
-	it("reuses stored state when it contains the current TGC", async () => {
+	it("rejects a redirect downgrade before issuing the HTTP request", async () => {
 		const config = createConfig();
-		writeStorageState(config, storageState("current-ticket", "stored-session"));
-		let bootstrapCount = 0;
-		const apiContext = await createPortalApiContext(config, {
-			bootstrapStorageState: async () => {
-				bootstrapCount += 1;
-				return bootstrapResult("current-ticket", "unexpected");
-			},
-			createRequestContext: async (input) => {
-				expect(
-					input.storageState.cookies.find((cookie) => cookie.name === "JSESSIONID")?.value,
-				).toBe("stored-session");
-				return fakeContext([jsonResponse()]);
-			},
-		});
+		const calls: URL[] = [];
+		const fetch: PortalFetch = async (request) => {
+			const url = requestUrl(request);
+			calls.push(url);
+			return responseAt(url, null, {
+				headers: { location: "http://sso.example.edu/cas" },
+				status: 302,
+			});
+		};
 
-		expect(bootstrapCount).toBe(0);
+		await expect(createPortalApiContext(config, { fetch })).rejects.toThrow(
+			"internal portal SSO redirect requires a credential-free HTTPS URL",
+		);
+		expect(calls).toHaveLength(1);
+	});
+
+	it("requires an observed ST return to the exact portal host", async () => {
+		const config = createConfig();
+		const fetch: PortalFetch = async (request) =>
+			responseAt(requestUrl(request), "portal home", { status: 200 });
+
+		await expect(createPortalApiContext(config, { fetch })).rejects.toBeInstanceOf(
+			PortalCredentialExpiredError,
+		);
+		await expect(createPortalApiContext(config, { fetch })).rejects.toThrow(
+			"portal SSO did not issue a service ticket",
+		);
+	});
+
+	it("reports bootstrap 5xx responses as session establishment failures", async () => {
+		const config = createConfig();
+		const bootstrapFetch: PortalFetch = async (request) =>
+			responseAt(requestUrl(request), "unavailable", {
+				status: 503,
+				statusText: "Service Unavailable",
+			});
+		await expect(createPortalApiContext(config, { fetch: bootstrapFetch })).rejects.toThrow(
+			"portal SSO navigation failed: 503 Service Unavailable",
+		);
+	});
+
+	it("normalizes a same-host HTTP port 80 service-ticket return to HTTPS", async () => {
+		const config = createConfig();
+		const calls: URL[] = [];
+		const fetch: PortalFetch = async (request) => {
+			const url = requestUrl(request);
+			calls.push(url);
+			return url.pathname === "/start"
+				? responseAt(url, null, {
+						headers: {
+							location: "http://portal.example.edu:80/callback?ticket=ST-1",
+						},
+						status: 302,
+					})
+				: textResponse(url, "portal home");
+		};
+
+		const apiContext = await createPortalApiContext(config, { fetch });
+
+		expect(calls.map(String)).toEqual([
+			config.portalBaseUrl,
+			"https://portal.example.edu/callback?ticket=ST-1",
+		]);
 		await apiContext.dispose();
 	});
 
-	it("refreshes before use when the mounted TGC changes", async () => {
+	it("bounds the manually followed SSO redirect chain", async () => {
 		const config = createConfig();
-		writeStorageState(config, storageState("old-ticket", "old-session"));
-		const apiContext = await createPortalApiContext(config, {
-			bootstrapStorageState: async ({ ssoTgc }) => bootstrapResult(ssoTgc, "new-session"),
-			createRequestContext: async () => fakeContext([jsonResponse()]),
-		});
+		let requestCount = 0;
+		const fetch: PortalFetch = async (request) => {
+			const url = requestUrl(request);
+			requestCount += 1;
+			const hop = Number(url.searchParams.get("hop") ?? "0") + 1;
+			return responseAt(url, null, {
+				headers: { location: `${config.portalBaseUrl}?hop=${hop}` },
+				status: 302,
+			});
+		};
 
-		expect(readStoredCookies(config).get("SSO_TGC")).toBe("current-ticket");
-		expect(readStoredCookies(config).get("JSESSIONID")).toBe("new-session");
+		await expect(createPortalApiContext(config, { fetch })).rejects.toThrow(
+			"Reached maximum redirect of 10",
+		);
+		expect(requestCount).toBe(11);
+	});
+
+	it("releases every response body while following the SSO redirect chain", async () => {
+		const config = createConfig();
+		const responses: Response[] = [];
+		const fetch: PortalFetch = async (request) => {
+			const url = requestUrl(request);
+			let response: Response;
+			if (url.pathname === "/start") {
+				response = responseAt(url, "portal redirect", {
+					headers: { location: "https://sso.example.edu/login" },
+					status: 302,
+				});
+			} else if (url.hostname === "sso.example.edu") {
+				response = responseAt(url, "SSO redirect", {
+					headers: { location: "https://portal.example.edu/callback?ticket=ST-1" },
+					status: 302,
+				});
+			} else if (url.pathname === "/callback") {
+				response = responseAt(url, "service-ticket redirect", {
+					headers: {
+						location: "https://portal.example.edu/home",
+						"set-cookie": "JSESSIONID=session-1; Path=/; Secure; HttpOnly",
+					},
+					status: 302,
+				});
+			} else if (url.pathname === "/home") {
+				response = textResponse(url, "portal home");
+			} else {
+				response = jsonResponse(url);
+			}
+			responses.push(response);
+			return response;
+		};
+
+		const apiContext = await createPortalApiContext(config, { fetch });
+
+		expect(responses).toHaveLength(4);
+		expect(responses.every((response) => response.bodyUsed)).toBe(true);
 		await apiContext.dispose();
 	});
 
-	it("refreshes once and retries only the failed request", async () => {
+	it("returns a session-invalid payload without rebuilding the session", async () => {
 		const config = createConfig();
-		writeStorageState(config, storageState("current-ticket", "stale-session"));
-		let bootstrapCount = 0;
-		let contextCount = 0;
-		const apiContext = await createPortalApiContext(config, {
-			bootstrapStorageState: async ({ ssoTgc }) => {
-				bootstrapCount += 1;
-				return bootstrapResult(ssoTgc, "refreshed-session");
-			},
-			createRequestContext: async () => {
-				contextCount += 1;
-				return fakeContext([
-					contextCount === 1
-						? textResponse("error_comsys_session_invalid")
-						: jsonResponse({ state: true }),
-				]);
-			},
+		const harness = createAuthenticatedFetch({
+			apiResponse: ({ url }) =>
+				url.pathname === "/notice"
+					? textResponse(url, "error_comsys_session_invalid")
+					: jsonResponse(url),
 		});
+		const apiContext = await createPortalApiContext(config, { fetch: harness.fetch });
 
 		const response = await apiContext.post("/notice", { form: {} });
-		expect(await response.text?.()).toBe(JSON.stringify({ state: true }));
-		expect(bootstrapCount).toBe(1);
-		expect(contextCount).toBe(2);
+		expect(await response.text()).toBe("error_comsys_session_invalid");
+		expect(harness.bootstrapCount()).toBe(1);
+
 		await apiContext.dispose();
 	});
 
-	it("coalesces concurrent refreshes for the same failed generation", async () => {
+	it("fails on 401 without rebuilding the session", async () => {
 		const config = createConfig();
-		writeStorageState(config, storageState("current-ticket", "stale-session"));
-		let bootstrapCount = 0;
-		let contextCount = 0;
-		const apiContext = await createPortalApiContext(config, {
-			bootstrapStorageState: async ({ ssoTgc }) => {
-				bootstrapCount += 1;
-				await new Promise((resolve) => setTimeout(resolve, 5));
-				return bootstrapResult(ssoTgc, "refreshed-session");
-			},
-			createRequestContext: async () => {
-				contextCount += 1;
-				return fakeContext([
-					contextCount === 1
-						? textResponse("error_comsys_session_invalid")
-						: jsonResponse({ state: true }),
-				]);
-			},
+		const harness = createAuthenticatedFetch({
+			apiResponse: ({ url }) =>
+				url.pathname === "/notice" ? textResponse(url, "unauthorized", 401) : jsonResponse(url),
 		});
+		const apiContext = await createPortalApiContext(config, { fetch: harness.fetch });
 
-		const first = await apiContext.post("/notice/1", { form: {} });
-		const second = await apiContext.post("/notice/2", { form: {} });
-		await Promise.all([first.text?.(), second.text?.()]);
-		expect(bootstrapCount).toBe(1);
-		expect(contextCount).toBe(2);
+		await expect(apiContext.post("/notice", { form: {} })).rejects.toBeInstanceOf(
+			PortalSessionExpiredError,
+		);
+		expect(harness.bootstrapCount()).toBe(1);
+
 		await apiContext.dispose();
 	});
 
-	it("fails without retry when the refreshed session is still invalid", async () => {
+	it("fails on a portal API redirect to SSO without rebuilding the session", async () => {
 		const config = createConfig();
-		writeStorageState(config, storageState("current-ticket", "stale-session"));
-		const apiContext = await createPortalApiContext(config, {
-			bootstrapStorageState: async ({ ssoTgc }) => bootstrapResult(ssoTgc, "invalid-session"),
-			createRequestContext: async () => fakeContext([textResponse("error_comsys_session_invalid")]),
+		const harness = createAuthenticatedFetch({
+			apiResponse: ({ url }) =>
+				url.pathname === "/notice"
+					? responseAt(url, null, {
+							headers: { location: "https://sso.example.edu/login" },
+							status: 302,
+						})
+					: jsonResponse(url),
 		});
-		const response = await apiContext.post("/notice", { form: {} });
-		await expect(response.text?.()).rejects.toBeInstanceOf(PortalCredentialExpiredError);
+		const apiContext = await createPortalApiContext(config, { fetch: harness.fetch });
+
+		await expect(apiContext.post("/notice", { form: {} })).rejects.toBeInstanceOf(
+			PortalCredentialExpiredError,
+		);
+		expect(harness.bootstrapCount()).toBe(1);
+
 		await apiContext.dispose();
 	});
 
-	it("forces a fresh browser SSO round trip even when stored state is current", async () => {
+	it("aborts in-flight HTTP work when the API context is disposed", async () => {
 		const config = createConfig();
-		writeStorageState(config, storageState("current-ticket", "stored-session"));
-		let bootstrapCount = 0;
-
-		const result = await refreshPortalAuthentication(config, {
-			bootstrapStorageState: async ({ ssoTgc }) => {
-				bootstrapCount += 1;
-				return bootstrapResult(ssoTgc, "forced-session");
+		const harness = createAuthenticatedFetch({
+			apiResponse: ({ init, url }) => {
+				if (url.pathname !== "/slow") {
+					return jsonResponse(url);
+				}
+				return new Promise<Response>((_resolve, reject) => {
+					const signal = init.signal;
+					if (!signal) {
+						reject(new Error("test request did not receive an AbortSignal"));
+						return;
+					}
+					if (signal.aborted) {
+						reject(signal.reason);
+						return;
+					}
+					signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+				});
 			},
 		});
+		const apiContext = await createPortalApiContext(config, { fetch: harness.fetch });
+		const pending = apiContext.get("/slow");
+		await Promise.resolve();
 
-		expect(bootstrapCount).toBe(1);
-		expect(result).toMatchObject({
-			noticeProbeSucceeded: true,
-			portalSessionEstablished: true,
-			serviceTicketIssued: true,
-		});
-		expect(readStoredCookies(config).get("JSESSIONID")).toBe("forced-session");
+		await apiContext.dispose();
+		await expect(pending).rejects.toThrow("internal portal HTTP session disposed");
 	});
 
-	it("fails closed when the credential file is missing or malformed", async () => {
+	it("forwards an upstream AbortSignal into SSO bootstrap", async () => {
+		const config = createConfig();
+		const abortController = new AbortController();
+		const fetch: PortalFetch = async (_request, init = {}) =>
+			await new Promise<Response>((_resolve, reject) => {
+				const signal = init.signal;
+				if (!signal) {
+					reject(new Error("test bootstrap did not receive an AbortSignal"));
+					return;
+				}
+				if (signal.aborted) {
+					reject(signal.reason);
+					return;
+				}
+				signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+			});
+		const pending = createPortalApiContext(config, {
+			abortSignal: abortController.signal,
+			fetch,
+		});
+		abortController.abort(new Error("activity cancelled"));
+
+		await expect(pending).rejects.toThrow("activity cancelled");
+	});
+
+	it("checks authentication entirely in memory", async () => {
+		const config = createConfig();
+		const harness = createAuthenticatedFetch();
+
+		const result = await checkPortalAuthentication(config, { fetch: harness.fetch });
+
+		expect(result).toBeUndefined();
+		expect(harness.bootstrapCount()).toBe(1);
+	});
+
+	it("fails closed when the credential file or cookie domain is unavailable", async () => {
 		const missingConfig = createConfig({ writeCredential: false });
 		await expect(createPortalApiContext(missingConfig)).rejects.toBeInstanceOf(
 			PortalCredentialUnavailableError,
@@ -192,113 +331,127 @@ describe("internal portal recovering API context", () => {
 		await expect(createPortalApiContext(malformedConfig)).rejects.toBeInstanceOf(
 			PortalCredentialUnavailableError,
 		);
+
+		const missingDomain = createConfig();
+		missingDomain.authSsoCookieDomain = null;
+		await expect(createPortalApiContext(missingDomain)).rejects.toBeInstanceOf(
+			PortalCredentialUnavailableError,
+		);
 	});
 
 	function createConfig(
 		options: { credential?: string; writeCredential?: boolean } = {},
 	): InternalPortalConfig {
-		const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "portal-session-"));
-		tempDirs.push(runtimeDir);
+		const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "portal-session-"));
+		tempDirs.push(tempDir);
 		const config: InternalPortalConfig = {
-			authCheckNoticeType: "5",
-			authCheckPageSize: 3,
 			authSsoCookieDomain: ".example.edu",
-			authSsoTgcFile: path.join(runtimeDir, "credential", "sso_tgc"),
-			authStorageStatePath: path.join(runtimeDir, "auth", "storageState.json"),
-			bypassProxyForPortal: true,
-			reconcileMaxPagesPerType: null,
-			noticeTypesPath: path.join(runtimeDir, "notice-types.json"),
-			portalBaseUrl: "https://portal.example.edu",
+			authSsoTgc: null,
+			authSsoTgcFile: path.join(tempDir, "credential", "sso_tgc"),
+			portalBaseUrl: "https://portal.example.edu/start",
 			portalPageUrl: "https://portal.example.edu/page/11#/",
 			portalProxyServer: null,
-			requestMaxRetries: 3,
-			runtimeDir,
 			siteId: "portal_site",
 			sourceHomeUrl: "https://portal.example.edu",
 		};
 		if (options.writeCredential !== false) {
-			fs.mkdirSync(path.dirname(config.authSsoTgcFile), { recursive: true });
-			fs.writeFileSync(config.authSsoTgcFile, options.credential ?? "current-ticket", "utf-8");
+			const credentialFile = config.authSsoTgcFile;
+			if (!credentialFile) {
+				throw new Error("test credential path is missing");
+			}
+			fs.mkdirSync(path.dirname(credentialFile), { recursive: true });
+			fs.writeFileSync(credentialFile, options.credential ?? "current-ticket", "utf-8");
 		}
 		return config;
 	}
 });
 
-function fakeContext(responses: ApiResponseLike[]) {
-	let index = 0;
-	const next = () => {
-		const response = responses[Math.min(index++, responses.length - 1)];
-		if (!response) {
-			throw new Error("fake portal response is missing");
+interface RecordedCall {
+	cookie: string;
+	redirect: string | undefined;
+	url: URL;
+}
+
+function createAuthenticatedFetch(
+	input: {
+		apiResponse?: (input: {
+			bootstrapCount: number;
+			init: NonNullable<Parameters<PortalFetch>[1]>;
+			url: URL;
+		}) => Response | Promise<Response>;
+	} = {},
+) {
+	let bootstrapCount = 0;
+	const calls: RecordedCall[] = [];
+	const fetch: PortalFetch = async (request, init = {}) => {
+		const url = requestUrl(request);
+		const headers = new Headers(init.headers);
+		calls.push({
+			cookie: headers.get("cookie") ?? "",
+			redirect: init.redirect,
+			url,
+		});
+		if (url.hostname === "portal.example.edu" && url.pathname === "/start") {
+			bootstrapCount += 1;
+			return responseAt(url, null, {
+				headers: { location: `https://sso.example.edu/login?round=${bootstrapCount}` },
+				status: 302,
+			});
 		}
-		return response;
+		if (url.hostname === "sso.example.edu" && url.pathname === "/login") {
+			return responseAt(url, null, {
+				headers: {
+					location: `https://portal.example.edu/callback?ticket=ST-${bootstrapCount}`,
+				},
+				status: 302,
+			});
+		}
+		if (url.hostname === "portal.example.edu" && url.pathname === "/callback") {
+			return responseAt(url, null, {
+				headers: {
+					location: "https://portal.example.edu/home",
+					"set-cookie": `JSESSIONID=session-${bootstrapCount}; Path=/; Secure; HttpOnly`,
+				},
+				status: 302,
+			});
+		}
+		if (url.hostname === "portal.example.edu" && url.pathname === "/home") {
+			return textResponse(url, "portal home");
+		}
+		return await (input.apiResponse?.({ bootstrapCount, init, url }) ?? jsonResponse(url));
 	};
 	return {
-		dispose: async () => undefined,
-		get: async () => next(),
-		post: async () => next(),
-		storageState: async () => storageState("current-ticket", "persisted-session"),
+		bootstrapCount: () => bootstrapCount,
+		calls,
+		fetch,
 	};
 }
 
-function textResponse(payload: string): ApiResponseLike {
-	return {
-		body: async () => Buffer.from(payload),
-		json: async () => JSON.parse(payload),
-		ok: () => true,
-		status: () => 200,
-		statusText: () => "OK",
-		text: async () => payload,
-	};
+function requestUrl(input: Parameters<PortalFetch>[0]): URL {
+	if (typeof input === "string") {
+		return new URL(input);
+	}
+	return "url" in input ? new URL(input.url) : new URL(String(input));
 }
 
-function jsonResponse(payload: object = { state: true }): ApiResponseLike {
-	return textResponse(JSON.stringify(payload));
+function jsonResponse(url: URL, payload: object = { state: true }): Response {
+	return textResponse(url, JSON.stringify(payload));
 }
 
-function storageState(tgc: string, jsessionId: string) {
-	return {
-		cookies: [
-			cookie(".example.edu", "SSO_TGC", tgc),
-			cookie("portal.example.edu", "JSESSIONID", jsessionId),
-		],
-		origins: [],
-	};
+function textResponse(url: URL, payload: string, status = 200): Response {
+	return responseAt(url, payload, {
+		headers: { "content-type": "application/json" },
+		status,
+		statusText: status === 401 ? "Unauthorized" : "OK",
+	});
 }
 
-function bootstrapResult(tgc: string, jsessionId: string) {
-	return {
-		result: {
-			noticeProbeSucceeded: true as const,
-			portalSessionEstablished: true as const,
-			refreshedAt: "2026-07-16T00:00:00.000Z",
-			serviceTicketIssued: true as const,
-		},
-		storageState: storageState(tgc, jsessionId),
-	};
-}
-
-function cookie(domain: string, name: string, value: string) {
-	return {
-		domain,
-		expires: -1,
-		httpOnly: true,
-		name,
-		path: "/",
-		sameSite: "Lax" as const,
-		secure: true,
-		value,
-	};
-}
-
-function writeStorageState(config: InternalPortalConfig, state: ReturnType<typeof storageState>) {
-	fs.mkdirSync(path.dirname(config.authStorageStatePath), { recursive: true });
-	fs.writeFileSync(config.authStorageStatePath, JSON.stringify(state), "utf-8");
-}
-
-function readStoredCookies(config: InternalPortalConfig): Map<string, string> {
-	const state = JSON.parse(fs.readFileSync(config.authStorageStatePath, "utf-8")) as ReturnType<
-		typeof storageState
-	>;
-	return new Map(state.cookies.map((item) => [item.name, item.value]));
+function responseAt(
+	url: URL,
+	body: string | null,
+	init: ConstructorParameters<typeof Response>[1],
+): Response {
+	const response = new Response(body, init);
+	Object.defineProperty(response, "url", { configurable: true, value: url.toString() });
+	return response;
 }

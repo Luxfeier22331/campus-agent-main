@@ -27,9 +27,9 @@ status: active
 -> Knowledge Agent
 ```
 
-Internal Portal 或 Official Web 可以提供来源材料，但来源清单不会自动成为规章。把通知中的制度
-正文提升为 `institutional_rules` 需要显式的规范文档物化、来源关联、质量检查和发布；当前任务
-注册表没有实现该提升步骤。
+Internal Portal 可以提供来源材料，但来源清单不会自动成为规章。把通知中的制度正文提升为
+`institutional_rules` 需要显式的规范文档物化、来源关联、质量检查和发布；当前任务注册表没有
+实现该提升步骤。
 
 ## 查询边界
 

@@ -157,17 +157,9 @@ spec:
                   key: OBJECT_STORE_SOURCE_SECRET_KEY
             - name: INGESTION_TASK_REGISTRY_ROOT
               value: /workspace/configs/ingestion
-            - name: OFFICIAL_WEB_CONFIG_ROOT
-              value: /workspace/configs/sources/official_web
             - name: INTERNAL_PORTAL_SSO_TGC_FILE
               value: /var/run/secrets/campus-agent/internal-portal/sso_tgc
-            - name: INTERNAL_PORTAL_RUNTIME_DIR
-              value: /tmp/internal-portal
           volumeMounts:
-            - name: browser-shared-memory
-              mountPath: /dev/shm
-            - name: crawlee-storage
-              mountPath: /workspace/apps/source-collector/storage
             - name: runtime-tmp
               mountPath: /tmp
             - name: internal-portal-auth
@@ -180,16 +172,9 @@ spec:
             limits:
               memory: 2Gi
       volumes:
-        - name: browser-shared-memory
-          emptyDir:
-            medium: Memory
-            sizeLimit: 512Mi
-        - name: crawlee-storage
-          emptyDir: {}
         - name: runtime-tmp
           emptyDir: {}
         - name: internal-portal-auth
           secret:
             defaultMode: 0400
-            optional: true
             secretName: source-collector-internal-portal-auth

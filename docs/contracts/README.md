@@ -13,8 +13,8 @@ status: active
 - Temporal 队列诊断：[temporal-queues.md](./temporal-queues.md)；
 - 观测与评测：[langfuse-runtime.md](./langfuse-runtime.md)、
   [stage-timing.md](./stage-timing.md)、[ops-web/README.md](./ops-web/README.md)；
-- 文档发布：[document-reader-publish.md](./document-reader-publish.md)、
-  [file-release-export.md](./file-release-export.md)。
+- 文档发布：[document-reader-publish.md](./document-reader-publish.md)；
+- 内部门户文件发布采集：[internal-portal-file-release.md](./internal-portal-file-release.md)。
 
 跨语言合同优先使用 `schemas/` 和 `packages/contracts/schemas/` 中登记的 OpenAPI 或 JSON
 Schema；语言本地类型和解析器不得成为第二份跨语言事实。

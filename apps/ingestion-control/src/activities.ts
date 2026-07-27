@@ -1,11 +1,12 @@
 import { ApplicationFailure, Context } from "@temporalio/activity";
-import type { IngestionArtifactRef } from "ingestion-contracts";
+import {
+	ArtifactCollisionError,
+	IngestionContractError,
+	IngestionKernelReportedErrorsError,
+} from "ingest-core";
+import type { InternalPortalFileReleaseCaptureResult } from "ingestion-contracts";
 import { validateIngestionTaskResult } from "ingestion-contracts";
 import type { IngestionObjectStore } from "./object-store";
-import {
-	type OfficialWebFreshnessService,
-	OfficialWebProjectionContractError,
-} from "./official-web-freshness";
 import {
 	IngestionResultArtifactContractError,
 	verifyIngestionTaskResultArtifact,
@@ -17,11 +18,9 @@ import type {
 	IngestionTaskResult,
 	IngestionTaskStore,
 } from "./types";
-import type { TypeScriptKernelRegistry } from "./typescript-kernel-runner";
 
 export interface RecordIngestionTaskStartedInput {
 	createdBy: string;
-	pipelineWorkflowId: string | null;
 	retryOfTaskId: string | null;
 	snapshot: IngestionTaskExecutionSnapshot;
 	workflowId: string;
@@ -45,9 +44,6 @@ export interface CancelIngestionTaskInput {
 }
 
 export interface IngestionProjectionActivities {
-	prepareSourceCollectorTask(
-		snapshot: IngestionTaskExecutionSnapshot,
-	): Promise<IngestionArtifactRef | null>;
 	recordIngestionTaskStarted(input: RecordIngestionTaskStartedInput): Promise<IngestionTaskRecord>;
 	completeIngestionTask(input: CompleteIngestionTaskInput): Promise<IngestionTaskRecord>;
 	failIngestionTask(input: FailIngestionTaskInput): Promise<IngestionTaskRecord>;
@@ -58,40 +54,17 @@ export interface RustKernelActivities {
 	executeRustKernelTask(snapshot: IngestionTaskExecutionSnapshot): Promise<IngestionTaskResult>;
 }
 
-export interface TypeScriptKernelActivities {
-	executeTypeScriptKernelTask(
-		snapshot: IngestionTaskExecutionSnapshot,
-	): Promise<IngestionTaskResult>;
-}
-
 export interface SourceCollectorActivities {
-	refreshInternalPortalAuthentication(): Promise<{
-		noticeProbeSucceeded: true;
-		portalSessionEstablished: true;
-		refreshedAt: string;
-		serviceTicketIssued: true;
-	}>;
-	executeSourceCollectorTask(
-		snapshot: IngestionTaskExecutionSnapshot,
-		preparationRef: IngestionArtifactRef | null,
-	): Promise<IngestionTaskResult>;
+	captureInternalPortalFileRelease(input: {
+		fileReleaseId: number;
+	}): Promise<InternalPortalFileReleaseCaptureResult>;
 }
 
 export function createIngestionProjectionActivities(input: {
 	objectStore: IngestionObjectStore;
-	officialWebFreshness?: OfficialWebFreshnessService;
 	store: IngestionTaskStore;
 }): IngestionProjectionActivities {
 	return {
-		async prepareSourceCollectorTask(snapshot) {
-			if (snapshot.task.registry_task_id !== "official_web.capture") {
-				return null;
-			}
-			if (!input.officialWebFreshness) {
-				throw new Error("official-web freshness service is not configured");
-			}
-			return input.officialWebFreshness.prepareTask(snapshot, Context.current().info.attempt);
-		},
 		async recordIngestionTaskStarted(activityInput) {
 			return input.store.recordTaskStarted(activityInput);
 		},
@@ -115,22 +88,6 @@ export function createIngestionProjectionActivities(input: {
 					throw ApplicationFailure.nonRetryable(error.message, "invalid_ingestion_task_result");
 				}
 				throw error;
-			}
-			if (activityInput.result.registry_task_id === "official_web.capture") {
-				if (!input.officialWebFreshness) {
-					throw new Error("official-web freshness service is not configured");
-				}
-				try {
-					await input.officialWebFreshness.projectResult(
-						activityInput.result,
-						activityInput.snapshot,
-					);
-				} catch (error) {
-					if (error instanceof OfficialWebProjectionContractError) {
-						throw ApplicationFailure.nonRetryable(error.message, "invalid_ingestion_task_result");
-					}
-					throw error;
-				}
 			}
 			return input.store.completeTask({
 				result: activityInput.result,
@@ -179,6 +136,8 @@ export function createRustKernelActivities(input: {
 					activityAttempt: context.info.attempt,
 					signal: context.cancellationSignal,
 				});
+			} catch (error) {
+				throwAsTypedKernelFailure(error);
 			} finally {
 				clearInterval(heartbeat);
 			}
@@ -186,25 +145,15 @@ export function createRustKernelActivities(input: {
 	};
 }
 
-export function createTypeScriptKernelActivities(input: {
-	typeScriptKernels: TypeScriptKernelRegistry;
-}): TypeScriptKernelActivities {
-	return {
-		async executeTypeScriptKernelTask(snapshot) {
-			const context = Context.current();
-			context.heartbeat({ phase: "starting", task_id: snapshot.task.task_id });
-			const heartbeat = setInterval(() => {
-				context.heartbeat({ phase: "running", task_id: snapshot.task.task_id });
-			}, 10_000);
-			heartbeat.unref();
-			try {
-				return await input.typeScriptKernels.require(snapshot)(snapshot, {
-					activityAttempt: context.info.attempt,
-					signal: context.cancellationSignal,
-				});
-			} finally {
-				clearInterval(heartbeat);
-			}
-		},
-	};
+function throwAsTypedKernelFailure(error: unknown): never {
+	if (error instanceof IngestionContractError) {
+		throw ApplicationFailure.nonRetryable(error.message, error.code);
+	}
+	if (error instanceof ArtifactCollisionError) {
+		throw ApplicationFailure.nonRetryable(error.message, "ingestion_artifact_collision");
+	}
+	if (error instanceof IngestionKernelReportedErrorsError) {
+		throw ApplicationFailure.nonRetryable(error.message, "ingestion_kernel_output_invalid");
+	}
+	throw error;
 }

@@ -33,7 +33,6 @@ const task: IngestionTaskRecord = {
 	updated_at: "2026-06-11T00:01:00Z",
 	workflow_id: "campus-agent.ingestion.task_curriculum_chunk_001",
 	workflow_run_id: "temporal-run-001",
-	pipeline_workflow_id: null,
 	retry_of_task_id: null,
 	result_ref: {
 		byte_size: 1,

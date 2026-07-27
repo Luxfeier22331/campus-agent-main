@@ -30,11 +30,12 @@ describe("ingest-core node registry loading", () => {
 				schema_version: "ingestion_task_registry.v3",
 				tasks: [
 					{
-						executor_kind: "source_collector",
-						registry_task_id: "official_web.capture",
-						input_contract: "official_web_capture_request.v1",
-						output_contract: "official_web_source_manifest.v1",
-						source: { family: "official_web", channel: "official_web" },
+						executor_kind: "rust_kernel",
+						input_contract: "canonical_document_units.v1",
+						kernel_id: "chunk-document-units",
+						output_contract: "ingestion_chunk_set.v1",
+						registry_task_id: "curriculum.curriculum_plan.chunk_prepare",
+						target: { collection: "curriculum_plan", corpus: "curriculum" },
 					},
 				],
 			}),
@@ -42,7 +43,7 @@ describe("ingest-core node registry loading", () => {
 
 		expect(listIngestionTaskRegistryFiles(root)).toEqual([registryPath]);
 		expect(loadIngestionTaskRegistryFromFile(registryPath).tasks[0]?.registry_task_id).toBe(
-			"official_web.capture",
+			"curriculum.curriculum_plan.chunk_prepare",
 		);
 		expect(loadIngestionTaskRegistryCatalogFromRoot(root).requireTask).toBeTypeOf("function");
 	});
@@ -59,17 +60,17 @@ describe("ingest-core node registry loading", () => {
 
 	it("loads collection chunk profiles recursively", () => {
 		const root = mkdtempSync(join(tmpdir(), "ingest-core-chunk-profile-"));
-		const profileDir = join(root, "official_web", "stable_reference");
+		const profileDir = join(root, "regulations", "institutional_rules");
 		mkdirSync(profileDir, { recursive: true });
 		const profilePath = join(profileDir, "chunk-profile.json");
 		writeFileSync(profilePath, JSON.stringify(chunkProfilePayload()));
 
 		expect(listCollectionChunkProfileFiles(root)).toEqual([profilePath]);
 		expect(
-			loadCollectionChunkProfilesFromRoot(root).get("official_web/stable_reference"),
+			loadCollectionChunkProfilesFromRoot(root).get("regulations/institutional_rules"),
 		).toMatchObject({
-			collection: "stable_reference",
-			corpus: "official_web",
+			collection: "institutional_rules",
+			corpus: "regulations",
 			runtimeDefaults: {
 				chunkSize: 260,
 				maxChunkSize: 360,
@@ -88,24 +89,24 @@ describe("ingest-core node registry loading", () => {
 		writeFileSync(join(right, "chunk-profile.json"), JSON.stringify(chunkProfilePayload()));
 
 		expect(() => loadCollectionChunkProfilesFromRoot(root)).toThrow(
-			"duplicate collection chunk profile: official_web/stable_reference",
+			"duplicate collection chunk profile: regulations/institutional_rules",
 		);
 	});
 });
 
 function chunkProfilePayload(): unknown {
 	return {
-		corpus: "official_web",
-		collection: "stable_reference",
-		chunk_profile_version: "official_web_semantic_v2",
+		corpus: "regulations",
+		collection: "institutional_rules",
+		chunk_profile_version: "institutional_rules_semantic_v1",
 		structured_input: "document_units_jsonl",
 		runtime_defaults: {
-			strategy_name: "official_web_stable_reference_semantic_v2",
+			strategy_name: "institutional_rules_semantic_v1",
 			chunk_size: 260,
 			max_chunk_size: 360,
 			chunk_overlap: 48,
 			min_chunk_size: 48,
 		},
-		cleaning_policy_version: "official_web_cleaning_v2",
+		cleaning_policy_version: "institutional_rules_cleaning_v1",
 	};
 }

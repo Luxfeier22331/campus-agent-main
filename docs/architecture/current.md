@@ -74,16 +74,18 @@ Agents SDK 运行；浏览器断线后仍读取同一个运行和产品终态。
 - `institutional_rules`
 - `curriculum`
 
-`official_web`、通知和校历不在查询目标注册表中，在线回答也不执行实时网页搜索。配置、schema、
-采集产物或页面存在不表示能力已经向模型开放。
+通知和校历不在查询目标注册表中，在线回答也不执行实时网页搜索。配置、schema、采集产物或
+页面存在不表示能力已经向模型开放。
 
 ## 产品与离线数据
 
 文档阅读器、校园地图、Dining 和班车状态分别消费已经发布的产品读取模型。班车同时向状态页面
 和模型工具提供同一发布版本的不同读取形态；Dining 当前不提供模型工具。
 
-离线采集由 ingestion-control、Temporal、source-collector 和 Rust 内核执行，产物写入对象存储，
-PostgreSQL 只保存有界任务状态。采集完成不会自动创建索引、发布阅读器或开放查询目标。
+注册的离线任务由 ingestion-control、Temporal 和 Rust 内核执行。内部门户文件发布使用独立
+workflow 调用 source-collector，通知则由 source-collector 本地命令直接写入来源对象；两者都
+不是注册任务。PostgreSQL 只保存有界任务状态，通知同步边界保存在 source bucket；采集完成
+不会自动创建索引、发布阅读器或开放查询目标。
 
 ## 观测与部署
 

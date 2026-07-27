@@ -103,16 +103,16 @@ describe("ingest artifact helpers", () => {
 	it("parses and builds object-store artifact refs", () => {
 		const uri = buildS3Uri({
 			bucket: "campus-agent-source",
-			key: "official_web/run/source-truth-bundle.json",
+			key: "example_source/run/source-truth-bundle.json",
 		});
 		const artifactRef = buildObjectStoreArtifactRef({
 			bucket: "campus-agent-source",
 			byteSize: 42,
-			key: "official_web/run/source-truth-bundle.json",
+			key: "example_source/run/source-truth-bundle.json",
 			contentSha256: "0".repeat(64),
 		});
 
-		expect(uri).toBe("s3://campus-agent-source/official_web/run/source-truth-bundle.json");
+		expect(uri).toBe("s3://campus-agent-source/example_source/run/source-truth-bundle.json");
 		expect(artifactRef).toEqual({
 			byte_size: 42,
 			kind: "object_store",
@@ -121,11 +121,11 @@ describe("ingest artifact helpers", () => {
 		});
 		expect(parseS3Uri(artifactRef)).toEqual({
 			bucket: "campus-agent-source",
-			key: "official_web/run/source-truth-bundle.json",
+			key: "example_source/run/source-truth-bundle.json",
 		});
 		expect(parseS3Uri(uri)).toEqual({
 			bucket: "campus-agent-source",
-			key: "official_web/run/source-truth-bundle.json",
+			key: "example_source/run/source-truth-bundle.json",
 		});
 	});
 

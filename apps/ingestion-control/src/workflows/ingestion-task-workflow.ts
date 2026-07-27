@@ -1,75 +1,33 @@
 import {
 	ApplicationFailure,
 	CancellationScope,
-	executeChild,
 	isCancellation,
 	proxyActivities,
 	workflowInfo,
 } from "@temporalio/workflow";
 import type {
+	IngestionTaskExecutionSnapshot,
+	IngestionTaskResult,
+	InternalPortalFileReleaseCaptureResult,
+} from "ingestion-contracts";
+import type {
 	IngestionProjectionActivities,
 	RustKernelActivities,
 	SourceCollectorActivities,
-	TypeScriptKernelActivities,
 } from "../activities";
-import {
-	type InternalPortalAuthMaintenanceFailureDetails,
-	type InternalPortalAuthMaintenanceResult,
-	parseInternalPortalAuthMaintenanceResult,
-} from "../internal-portal-auth-maintenance";
-import type { InternalPortalScheduleActivities } from "../internal-portal-schedule-activities";
-import type {
-	InternalPortalPublicationActivities,
-	InternalPortalPublicationContext,
-} from "../publication-activities";
-import type {
-	IngestionTaskExecutionSnapshot,
-	IngestionTaskRecord,
-	IngestionTaskResult,
-	OfflineReleaseRecord,
-	OfflineReleaseStreamRecord,
-} from "../types";
+import type { IngestionTaskRecord } from "../types";
 
 export interface IngestionTaskWorkflowInput {
 	controlActivityTaskQueue: string;
 	createdBy: string;
-	pipelineWorkflowId: string | null;
 	retryOfTaskId: string | null;
 	rustKernelActivityTaskQueue: string;
 	snapshot: IngestionTaskExecutionSnapshot;
-	sourceCollectorActivityTaskQueue: string;
 }
 
-export interface InternalPortalPublicationWorkflowInput {
-	controlActivityTaskQueue: string;
-	createdBy: string;
-	rustKernelActivityTaskQueue: string;
-	sourceCollectorActivityTaskQueue: string;
-}
-
-export interface InternalPortalNoticePublicationWorkflowInput
-	extends InternalPortalPublicationWorkflowInput {
-	collectionMode: "reconcile" | "incremental" | "selected";
-	maxNotices?: number | null;
-	overlapPages: number;
-	selectedNotices?: Array<{
-		notice_id: number;
-		notice_type: string;
-		notice_type_name?: string;
-		notice_title?: string;
-	}>;
-}
-
-export interface InternalPortalFileReleasePublicationWorkflowInput
-	extends InternalPortalPublicationWorkflowInput {
+export interface InternalPortalFileReleaseWorkflowInput {
 	fileReleaseId: number;
-}
-
-export interface InternalPortalPublicationWorkflowResult {
-	errorCode: string | null;
-	outcome: "deferred" | "published" | "unchanged";
-	release: OfflineReleaseRecord | null;
-	stream: OfflineReleaseStreamRecord | null;
+	sourceCollectorActivityTaskQueue: string;
 }
 
 export async function ingestionTaskWorkflow(
@@ -95,39 +53,16 @@ export async function ingestionTaskWorkflow(
 		startToCloseTimeout: "2 hours",
 		taskQueue: input.rustKernelActivityTaskQueue,
 	});
-	const sourceActivities = proxyActivities<SourceCollectorActivities>({
-		heartbeatTimeout: "30 seconds",
-		retry: { maximumAttempts: 3 },
-		startToCloseTimeout: "12 hours",
-		taskQueue: input.sourceCollectorActivityTaskQueue,
-	});
-	const typeScriptActivities = proxyActivities<TypeScriptKernelActivities>({
-		heartbeatTimeout: "30 seconds",
-		retry: { maximumAttempts: 3 },
-		startToCloseTimeout: "2 hours",
-		taskQueue: input.controlActivityTaskQueue,
-	});
 	const info = workflowInfo();
 	return runIngestionTaskWorkflowPlan({
 		createdBy: input.createdBy,
-		execute: async () => {
-			if (input.snapshot.registry_task.executor_kind === "rust_kernel") {
-				return rustActivities.executeRustKernelTask(input.snapshot);
-			}
-			if (input.snapshot.registry_task.executor_kind === "typescript_kernel") {
-				return typeScriptActivities.executeTypeScriptKernelTask(input.snapshot);
-			}
-			const preparationRef = await projectionActivities.prepareSourceCollectorTask(input.snapshot);
-			return sourceActivities.executeSourceCollectorTask(input.snapshot, preparationRef);
-		},
+		execute: async () => await rustActivities.executeRustKernelTask(input.snapshot),
 		projectionActivities: {
-			prepareSourceCollectorTask: projectionActivities.prepareSourceCollectorTask,
 			recordIngestionTaskStarted: projectionActivities.recordIngestionTaskStarted,
 			completeIngestionTask: terminalProjectionActivities.completeIngestionTask,
 			failIngestionTask: terminalProjectionActivities.failIngestionTask,
 			cancelIngestionTask: terminalProjectionActivities.cancelIngestionTask,
 		},
-		pipelineWorkflowId: input.pipelineWorkflowId,
 		retryOfTaskId: input.retryOfTaskId,
 		snapshot: input.snapshot,
 		workflowId: info.workflowId,
@@ -135,317 +70,18 @@ export async function ingestionTaskWorkflow(
 	});
 }
 
-export async function internalPortalNoticePublicationWorkflow(
-	input: InternalPortalNoticePublicationWorkflowInput,
-): Promise<InternalPortalPublicationWorkflowResult> {
-	const scheduleActivities = proxyActivities<InternalPortalScheduleActivities>({
-		retry: { maximumAttempts: 5 },
-		startToCloseTimeout: "1 minute",
-		taskQueue: input.controlActivityTaskQueue,
-	});
-	return await runInternalPortalNoticePublicationPlan({
-		execute: async () =>
-			await runInternalPortalPublicationWorkflow({
-				...input,
-				fileReleaseId: null,
-				maxNotices: input.maxNotices ?? null,
-				selectedNotices: input.selectedNotices ?? [],
-				surface: "notice",
-			}),
-		pauseForCredential: scheduleActivities.pauseInternalPortalNoticePublicationForCredential,
-	});
-}
-
-export async function runInternalPortalNoticePublicationPlan(input: {
-	execute: () => Promise<InternalPortalPublicationWorkflowResult>;
-	isCancellationError?: (error: unknown) => boolean;
-	pauseForCredential?: InternalPortalScheduleActivities["pauseInternalPortalNoticePublicationForCredential"];
-}): Promise<InternalPortalPublicationWorkflowResult> {
-	try {
-		return await input.execute();
-	} catch (error) {
-		if ((input.isCancellationError ?? isCancellation)(error)) {
-			throw error;
-		}
-		const errorCode = readPublicationFailureCode(error);
-		if (
-			errorCode === "internal_portal_credential_expired" ||
-			errorCode === "internal_portal_credential_unavailable"
-		) {
-			await input.pauseForCredential?.(errorCode);
-			return {
-				errorCode,
-				outcome: "deferred",
-				release: null,
-				stream: null,
-			};
-		}
-		if (errorCode !== "internal_portal_source_deferred") {
-			throw error;
-		}
-		return {
-			errorCode,
-			outcome: "deferred",
-			release: null,
-			stream: null,
-		};
-	}
-}
-
-export async function internalPortalFileReleasePublicationWorkflow(
-	input: InternalPortalFileReleasePublicationWorkflowInput,
-): Promise<InternalPortalPublicationWorkflowResult> {
-	return await runInternalPortalPublicationWorkflow({
-		...input,
-		collectionMode: "selected",
-		fileReleaseId: input.fileReleaseId,
-		maxNotices: null,
-		overlapPages: 1,
-		selectedNotices: [],
-		surface: "file_release",
-	});
-}
-
-async function runInternalPortalPublicationWorkflow(
-	input: InternalPortalPublicationWorkflowInput & {
-		collectionMode: "reconcile" | "incremental" | "selected";
-		fileReleaseId: number | null;
-		maxNotices: number | null;
-		overlapPages: number;
-		selectedNotices: NonNullable<InternalPortalNoticePublicationWorkflowInput["selectedNotices"]>;
-		surface: "file_release" | "notice";
-	},
-): Promise<InternalPortalPublicationWorkflowResult> {
-	const activities = proxyActivities<InternalPortalPublicationActivities>({
-		retry: {
-			backoffCoefficient: 2,
-			initialInterval: "1 second",
-			maximumAttempts: 5,
-			maximumInterval: "30 seconds",
-		},
-		startToCloseTimeout: "5 minutes",
-		taskQueue: input.controlActivityTaskQueue,
-	});
-	const info = workflowInfo();
-	const context = await activities.prepareInternalPortalPublication({
-		collectionMode: input.collectionMode,
-		createdBy: input.createdBy,
-		fileReleaseId: input.fileReleaseId,
-		maxNotices: input.maxNotices,
-		overlapPages: input.overlapPages,
-		runId: info.runId,
-		selectedNotices: input.selectedNotices,
-		startedAt: info.startTime.toISOString(),
-		surface: input.surface,
-		workflowId: info.workflowId,
-		workflowRunId: info.runId,
-	});
-	try {
-		const captureTask = await executePublicationChild(context.captureSnapshot, context, input);
-		const materializationSnapshot = await activities.prepareInternalPortalMaterialization({
-			captureTask,
-			context,
-		});
-		const materializationTask = await executePublicationChild(
-			materializationSnapshot,
-			context,
-			input,
-		);
-		let validationTask: IngestionTaskRecord | null = null;
-		if (input.surface === "notice") {
-			const validationSnapshot = await activities.prepareInternalPortalNoticeValidation({
-				context,
-				materializationTask,
-			});
-			validationTask = await executePublicationChild(validationSnapshot, context, input);
-		}
-		const committed = await activities.commitInternalPortalPublication({
-			captureTask,
-			context,
-			materializationTask,
-			validationTask,
-		});
-		return {
-			errorCode: null,
-			outcome: committed.outcome,
-			release: committed.release,
-			stream: committed.stream,
-		};
-	} catch (error) {
-		if (isCancellation(error)) {
-			throw error;
-		}
-		const errorCode = readPublicationFailureCode(error);
-		await activities.recordInternalPortalPublicationCheck({
-			context,
-			errorCode,
-			outcome:
-				errorCode === "internal_portal_source_deferred" ||
-				errorCode === "internal_portal_credential_expired" ||
-				errorCode === "internal_portal_credential_unavailable"
-					? "deferred"
-					: "failed",
-		});
-		throw error;
-	}
-}
-
-async function executePublicationChild(
-	snapshot: IngestionTaskExecutionSnapshot,
-	context: InternalPortalPublicationContext,
-	queues: InternalPortalPublicationWorkflowInput,
-): Promise<IngestionTaskRecord> {
-	return executeChild(ingestionTaskWorkflow, {
-		args: [
-			{
-				controlActivityTaskQueue: queues.controlActivityTaskQueue,
-				createdBy: context.createdBy,
-				pipelineWorkflowId: context.workflowId,
-				retryOfTaskId: null,
-				rustKernelActivityTaskQueue: queues.rustKernelActivityTaskQueue,
-				snapshot,
-				sourceCollectorActivityTaskQueue: queues.sourceCollectorActivityTaskQueue,
-			},
-		],
-		workflowId: `ingestion/${snapshot.task.task_id}`,
-		workflowIdReusePolicy: "REJECT_DUPLICATE",
-	});
-}
-
-function readPublicationFailureCode(error: unknown): string {
-	let current: unknown = error;
-	let found = "internal_portal_publication_failed";
-	for (let depth = 0; depth < 12 && current && typeof current === "object"; depth += 1) {
-		const candidate = current as { cause?: unknown; type?: unknown };
-		if (typeof candidate.type === "string" && candidate.type.trim()) {
-			found = candidate.type.slice(0, 128);
-			if (
-				found === "internal_portal_credential_expired" ||
-				found === "internal_portal_credential_unavailable"
-			) {
-				return found;
-			}
-		}
-		current = candidate.cause;
-	}
-	return found;
-}
-
-export async function internalPortalAuthMaintenanceWorkflow(input: {
-	controlActivityTaskQueue: string;
-	sourceCollectorActivityTaskQueue: string;
-}): Promise<InternalPortalAuthMaintenanceResult> {
+export async function internalPortalFileReleaseWorkflow(
+	input: InternalPortalFileReleaseWorkflowInput,
+): Promise<InternalPortalFileReleaseCaptureResult> {
 	const sourceActivities = proxyActivities<SourceCollectorActivities>({
-		retry: {
-			backoffCoefficient: 2,
-			initialInterval: "5 seconds",
-			maximumAttempts: 3,
-			maximumInterval: "30 seconds",
-		},
-		startToCloseTimeout: "2 minutes",
+		heartbeatTimeout: "30 seconds",
+		retry: { maximumAttempts: 1 },
+		startToCloseTimeout: "12 hours",
 		taskQueue: input.sourceCollectorActivityTaskQueue,
 	});
-	const scheduleActivities = proxyActivities<InternalPortalScheduleActivities>({
-		retry: {
-			backoffCoefficient: 2,
-			initialInterval: "1 second",
-			maximumAttempts: 5,
-			maximumInterval: "30 seconds",
-		},
-		startToCloseTimeout: "1 minute",
-		taskQueue: input.controlActivityTaskQueue,
+	return await sourceActivities.captureInternalPortalFileRelease({
+		fileReleaseId: input.fileReleaseId,
 	});
-	return await runInternalPortalAuthMaintenance({
-		activateNoticePublication: scheduleActivities.activateInternalPortalNoticePublication,
-		lastResult: workflowInfo().lastResult,
-		now: () => new Date().toISOString(),
-		refresh: sourceActivities.refreshInternalPortalAuthentication,
-	});
-}
-
-export async function runInternalPortalAuthMaintenance(input: {
-	activateNoticePublication: InternalPortalScheduleActivities["activateInternalPortalNoticePublication"];
-	lastResult?: unknown;
-	now: () => string;
-	refresh: SourceCollectorActivities["refreshInternalPortalAuthentication"];
-}): Promise<InternalPortalAuthMaintenanceResult> {
-	const startedAt = input.now();
-	const previous = parseInternalPortalAuthMaintenanceResult(input.lastResult);
-	let refreshed: Awaited<
-		ReturnType<SourceCollectorActivities["refreshInternalPortalAuthentication"]>
-	>;
-	try {
-		refreshed = await input.refresh();
-	} catch (error) {
-		const credentialErrorCode = readPortalCredentialFailureType(error);
-		if (credentialErrorCode) {
-			const details: InternalPortalAuthMaintenanceFailureDetails = {
-				errorCode: credentialErrorCode,
-				failedAt: input.now(),
-				lastSuccessAt: previous?.lastSuccessAt ?? null,
-				startedAt,
-			};
-			throw ApplicationFailure.nonRetryable(
-				"internal portal credential maintenance requires operator action",
-				credentialErrorCode,
-				details,
-			);
-		}
-		return {
-			completedAt: input.now(),
-			errorCode: "internal_portal_auth_refresh_transient_failure",
-			lastSuccessAt: previous?.lastSuccessAt ?? null,
-			noticeProbeSucceeded: false,
-			outcome: "transient_failure",
-			portalSessionEstablished: false,
-			schemaVersion: "internal_portal_auth_maintenance.v1",
-			serviceTicketIssued: false,
-			startedAt,
-		};
-	}
-	try {
-		await input.activateNoticePublication();
-	} catch {
-		return {
-			completedAt: input.now(),
-			errorCode: "internal_portal_notice_schedule_activation_failed",
-			lastSuccessAt: refreshed.refreshedAt,
-			noticeProbeSucceeded: refreshed.noticeProbeSucceeded,
-			outcome: "transient_failure",
-			portalSessionEstablished: refreshed.portalSessionEstablished,
-			schemaVersion: "internal_portal_auth_maintenance.v1",
-			serviceTicketIssued: refreshed.serviceTicketIssued,
-			startedAt,
-		};
-	}
-	return {
-		completedAt: input.now(),
-		errorCode: null,
-		lastSuccessAt: refreshed.refreshedAt,
-		noticeProbeSucceeded: refreshed.noticeProbeSucceeded,
-		outcome: "success",
-		portalSessionEstablished: refreshed.portalSessionEstablished,
-		schemaVersion: "internal_portal_auth_maintenance.v1",
-		serviceTicketIssued: refreshed.serviceTicketIssued,
-		startedAt,
-	};
-}
-
-function readPortalCredentialFailureType(
-	error: unknown,
-): InternalPortalAuthMaintenanceFailureDetails["errorCode"] | null {
-	let current: unknown = error;
-	for (let depth = 0; depth < 8 && current instanceof Error; depth += 1) {
-		if (
-			current instanceof ApplicationFailure &&
-			(current.type === "internal_portal_credential_expired" ||
-				current.type === "internal_portal_credential_unavailable")
-		) {
-			return current.type;
-		}
-		current = current.cause;
-	}
-	return null;
 }
 
 export async function runIngestionTaskWorkflowPlan(input: {
@@ -453,7 +89,6 @@ export async function runIngestionTaskWorkflowPlan(input: {
 	execute: () => Promise<IngestionTaskResult>;
 	isCancellationError?: (error: unknown) => boolean;
 	projectionActivities: IngestionProjectionActivities;
-	pipelineWorkflowId: string | null;
 	retryOfTaskId: string | null;
 	runNonCancellableCleanup?: <T>(cleanup: () => Promise<T>) => Promise<T>;
 	snapshot: IngestionTaskExecutionSnapshot;
@@ -465,7 +100,6 @@ export async function runIngestionTaskWorkflowPlan(input: {
 		input.runNonCancellableCleanup ?? ((cleanup) => CancellationScope.nonCancellable(cleanup));
 	await input.projectionActivities.recordIngestionTaskStarted({
 		createdBy: input.createdBy,
-		pipelineWorkflowId: input.pipelineWorkflowId,
 		retryOfTaskId: input.retryOfTaskId,
 		snapshot: input.snapshot,
 		workflowId: input.workflowId,
@@ -516,29 +150,72 @@ export async function runIngestionTaskWorkflowPlan(input: {
 }
 
 function isInvalidTaskResultFailure(error: unknown): boolean {
-	let current: unknown = error;
-	for (let depth = 0; depth < 8 && current instanceof Error; depth += 1) {
-		if (current instanceof ApplicationFailure && current.type === "invalid_ingestion_task_result") {
+	for (const current of walkFailureChain(error)) {
+		if (
+			current instanceof ApplicationFailure &&
+			(current.type === "invalid_ingestion_task_result" ||
+				(current as unknown as { code?: unknown }).code === "invalid_ingestion_task_result")
+		) {
 			return true;
 		}
-		current = current.cause;
+		if (
+			current &&
+			typeof current === "object" &&
+			((current as { type?: unknown }).type === "invalid_ingestion_task_result" ||
+				(current as { code?: unknown }).code === "invalid_ingestion_task_result")
+		) {
+			return true;
+		}
 	}
 	return false;
 }
 
 function readErrorMessage(error: unknown): string {
-	let current: unknown = error;
 	let message = "invalid ingestion task result";
-	for (let depth = 0; depth < 8 && current instanceof Error; depth += 1) {
-		message = current.message || message;
-		current = current.cause;
+	for (const current of walkFailureChain(error)) {
+		if (current instanceof Error && current.message) {
+			message = current.message;
+		}
 	}
 	return message;
 }
 
 function readErrorCode(error: unknown): string {
-	if (error && typeof error === "object" && "code" in error && typeof error.code === "string") {
-		return error.code.slice(0, 128);
+	for (const current of walkFailureChain(error)) {
+		if (current && typeof current === "object") {
+			const candidate = current as { code?: unknown; type?: unknown };
+			if (typeof candidate.code === "string" && candidate.code.trim()) {
+				return candidate.code.slice(0, 128);
+			}
+			if (typeof candidate.type === "string" && candidate.type.trim()) {
+				return candidate.type.slice(0, 128);
+			}
+		}
 	}
 	return "ingestion_activity_failed";
+}
+
+function walkFailureChain(error: unknown): unknown[] {
+	const chain: unknown[] = [];
+	const pending: unknown[] = [error];
+	const seen = new Set<unknown>();
+	while (pending.length > 0 && chain.length < 16) {
+		const current = pending.shift();
+		if (!current || (typeof current !== "object" && typeof current !== "function")) {
+			continue;
+		}
+		if (seen.has(current)) {
+			continue;
+		}
+		seen.add(current);
+		chain.push(current);
+		const candidate = current as { cause?: unknown; failure?: unknown };
+		if (candidate.cause) {
+			pending.push(candidate.cause);
+		}
+		if (candidate.failure) {
+			pending.push(candidate.failure);
+		}
+	}
+	return chain;
 }

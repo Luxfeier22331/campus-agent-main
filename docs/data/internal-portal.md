@@ -6,85 +6,71 @@ status: active
 
 # 内部门户来源数据
 
-本页描述仓库中的离线采集目标合同。该运行时当前未部署，也没有 Ops Web 操作入口；文中的计划、
-发布和 PostgreSQL 投影只有在重新启用所属 ingestion runtime 后才成为环境事实。
+## 边界
 
-## 发布链路
-
-内部门户数据通过来源级 Temporal 工作流发布到离线层：
-
-```text
-PostgreSQL 当前检查点
--> ingestion-control 写入不可变采集请求
--> source-collector 采集来源产物
--> TypeScript 确定性物化
--> 通知 document unit 校验
--> 有变化时写入对象存储完整发布清单
--> PostgreSQL 原子切换当前发布指针和检查点；无变化时只记录检查结果
-```
-
-同一次父工作流的采集、物化和校验任务共享一个 `run_id`。每个阶段返回
-`ingestion_task_result.v1`，其 `result_ref` 指向带角色的严格 stage result。详细来源内容和
-产物留在对象存储；PostgreSQL 只保存有界任务投影、发布流、当前发布指针和检查点。
+内部门户目前产生通知来源对象和文件发布来源对象。两者都只写 source bucket，不创建规范文档、
+derived 产物、离线发布清单、知识索引、产品通知页或模型查询目标。门户内容不按登录主体变化，
+对象身份只包含站点与来源 ID。
 
 ## 通知
 
-通知采集输入为 `internal_portal_notice_capture_request.v2`：
+通知由 `apps/source-collector` 本地命令直接采集，不进入 Temporal、任务注册表、PostgreSQL 或
+Ops API。来源固定为类型 `5`（办公通知），页大小固定为 20。
 
-- `incremental` 使用 PostgreSQL 中每个通知类型的 `last_released_notice_id`；
-- collector 必须找到上次头部，并继续采集 `overlap_pages` 指定的重叠页；
-- 在安全页数内找不到上次头部时以 `checkpoint_gap` 结束，不更新发布指针或检查点；
-- `reconcile` 读取所有启用类型和全部分页，以来源当前集合替换发布集合，并记录撤回条目；
-- 通知计划在从未完整核对或距上次完整核对满 7 天时使用 `reconcile`；
-- `reconcile` 不推进增量检查点，也不接受通知数量上限；
-- `selected` 保留给明确 notice id/type 的受控采集。
+每个通知保存为一个 `internal_portal_notice_source.v1` 对象：
 
-采集阶段写入 source bundle、capture release 和
-`internal_portal_notice_checkpoint.v1`。物化阶段写入来源事实、规范 Markdown 和 document
-unit，并在 stage result 的 `items` 中明确每条通知及其版本。校验通过后，增量检查按 `item_id`
-合并，完整核对用来源集合替换当前集合。排序后的条目、版本、产物摘要和检查点均未变化时，
-工作流返回 `unchanged`，不创建 release 对象或数据库 release 行。
+```text
+internal_portal/<site-id>/notices/<notice-id>.json
+```
 
-同源附件在采集时自动下载。正式物化只接受包含 bucket、对象 key、内容摘要和字节数的完整
-对象引用，或明确的 HTTP 404/410 终态；临时失败、登录 HTML、可执行文件和仅引用记录均阻止
-发布。单附件上限 50 MiB，单轮新增附件上限 1 GiB；外部图片只允许受信微信图片域名。
+对象保存标题、组织、发布时间、正文、链接和附件 metadata。附件只保留门户提供的标识、名称、
+路径和类型，保持门户返回顺序与重复记录，不下载附件字节。重跑遇到已有 ID 时重新取得详情；只有
+内容完全一致才复用已有对象，内容变化或已有对象损坏时明确失败且不覆盖。
 
-通知计划每 30 分钟执行一次，首次同步保持暂停。明确的 429/5xx 来源暂时故障在重试耗尽后
-记为 `deferred`，计划继续；合同、代码、检查点和完整性失败会由 Temporal `pauseOnFailure`
-暂停，只能人工恢复。凭据缺失或失效使用独立暂停原因；人员替换 TGC 后立即提交认证验证，
-验证成功只恢复初始或凭据原因暂停，不恢复人工暂停和正确性失败暂停。
+同步边界保存在同一前缀：
+
+```text
+internal_portal/<site-id>/notices/_state.json
+```
+
+该对象使用 `internal_portal_notice_sync_state.v1`，记录 `incremental_head_id`、实际采集到的最小和
+最大 ID、`history_covered_from` 以及更新时间。首次 `notice:sync` 只观察第一页并建立 head，不
+保存部署前通知；若当时列表为空，后续首次出现的通知作为新增内容采集。后续同步按总条数分页，
+验证 ID 严格递减并准确扫描到旧 head 后，只处理 head 之前的新 ID。历史通知必须显式执行：
+
+```bash
+pnpm --filter source-collector notice:backfill -- --start-date 2026-01-01
+```
+
+只有完整扫描成功后才更新历史覆盖日期。`notice:status` 直接读取 `_state.json` 展示边界。同一
+`site_id` 的 sync 与 backfill 必须串行执行，由单一命令写入该状态对象。
 
 ## 文件发布
 
-文件发布输入为 `internal_portal_file_release_capture_request.v2`，只接受一个精确正整数 ID。
-ingestion-control 为每个 ID 启动独立父工作流。采集结果必须
-包含对象存储支撑的原文件；`reference_only` 记录不能发布成功。
+文件发布由 ingestion-control 的获准内部接口接收精确正整数 ID。当前 Ops Web 不提供提交或状态
+页面。ingestion-control 为每个 ID 启动一个独立 Temporal workflow，source-collector Activity 写入：
 
-文件发布没有自动计划，也没有范围扫描。并发 ID 在提交时重新读取最新完整发布清单，按
-`item_id` 合并后原子更新同一个文件发布流。
+```text
+internal_portal/<site-id>/file-releases/<file-release-id>/file
+internal_portal/<site-id>/file-releases/<file-release-id>/source.json
+```
 
-## 存储合同
+`file` 是原始下载字节。`source.json` 使用 `internal_portal_file_release_source.v1`，保存门户
+metadata、文件名、media type、字节数、摘要和 `file` 的对象 key。Activity 返回
+`internal_portal_file_release_capture_result.v1`，只引用 `source.json`；该结果留在 Temporal
+workflow result，不另存对象。
 
-- source bucket：采集请求、provider/export bundle、原文件、capture release 和采集结果；
-- derived bucket：来源事实、规范文档单元、校验结果和 `ingestion_offline_release.v1`；
-- `ingestion_control.tasks`：阶段任务状态和有界错误；
-- `ingestion_control.offline_release_streams`：当前发布指针、检查点、乐观版本、最近检查/完整核对/
-  发布状态及新增、更新、撤回数量；
-- `ingestion_control.offline_releases`：不可变发布记录及其清单引用。
+同一 ID 的第一次成功采集确定这两个固定对象。已有合法 `source.json` 时直接返回，不访问门户；
+首次写入中的同 key 字节冲突会明确失败。
 
-发布止于可供未来下游读取的离线完整清单。它不创建 chunk、Qdrant collection、alias、在线
-query target、产品通知页或规章记录；`internal_notice` 仍不在 query-serving target registry。
+## 认证
 
-固定认证保活只验证 TGC，不作为采集准入条件。每个采集 activity 必须能从挂载 TGC 独立建立
-会话，本地 storage state 不是跨 Pod 状态。
-
-两只 MinIO bucket 启用版本控制，业务身份没有 `DeleteObject`。顶层 `attempts/`、
-`ingestion-results/` 和 `ingestion-requests/` 是 30 天临时前缀；内容寻址来源事实与 release 历史
-长期保留。
+source-collector 从当前原始 TGC 建立内存会话。Service Ticket、`JSESSIONID` 和 `nginx` Cookie
+不写环境变量、对象存储、PostgreSQL 或 Temporal 载荷。Kubernetes CronJob 定期运行
+`auth:check`，只建立会话并以退出码表示结果，不触发通知或文件发布采集。
 
 ## 相关文档
 
-- `docs/architecture/system/data-plane.md`
-- `apps/ingestion-control/openapi.yaml`
-- `docs/contracts/file-release-export.md`
+- `docs/contracts/internal-portal-file-release.md`
 - `docs/runbooks/portal-auth.md`
+- `apps/source-collector/README.md`

@@ -165,7 +165,6 @@ function taskRecordFromStart(
 		updated_at: createdAt,
 		workflow_id: input.workflowId,
 		workflow_run_id: input.workflowRunId,
-		pipeline_workflow_id: input.pipelineWorkflowId,
 		retry_of_task_id: input.retryOfTaskId,
 		result_ref: null,
 		result_contract: null,

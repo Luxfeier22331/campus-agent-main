@@ -1,11 +1,8 @@
 import { ApplicationFailure } from "@temporalio/workflow";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { IngestionProjectionActivities } from "../src/activities";
 import { InMemoryIngestionTaskStore } from "../src/in-memory-store";
-import {
-	runIngestionTaskWorkflowPlan,
-	runInternalPortalNoticePublicationPlan,
-} from "../src/workflows/ingestion-task-workflow";
+import { runIngestionTaskWorkflowPlan } from "../src/workflows/ingestion-task-workflow";
 import { testResult, testSnapshot, testTaskStartMetadata } from "./fixtures";
 
 describe("ingestion task workflow", () => {
@@ -137,87 +134,8 @@ describe("ingestion task workflow", () => {
 	});
 });
 
-describe("internal portal notice publication workflow", () => {
-	it("propagates correctness failures so Temporal pauses the schedule", async () => {
-		const failure = temporalFailure(
-			"ActivityFailure",
-			ApplicationFailure.nonRetryable("checkpoint not found", "checkpoint_gap"),
-		);
-		await expect(
-			runInternalPortalNoticePublicationPlan({
-				execute: async () => {
-					throw failure;
-				},
-				isCancellationError: () => false,
-			}),
-		).rejects.toBe(failure);
-	});
-
-	it("defers a temporary source failure without pausing the schedule", async () => {
-		const result = await runInternalPortalNoticePublicationPlan({
-			execute: async () => {
-				throw temporalFailure(
-					"ActivityFailure",
-					ApplicationFailure.create({
-						message: "source limited requests",
-						nonRetryable: false,
-						type: "internal_portal_source_deferred",
-					}),
-				);
-			},
-			isCancellationError: () => false,
-		});
-
-		expect(result).toEqual({
-			errorCode: "internal_portal_source_deferred",
-			outcome: "deferred",
-			release: null,
-			stream: null,
-		});
-	});
-
-	it.each([
-		"internal_portal_credential_expired",
-		"internal_portal_credential_unavailable",
-	] as const)("pauses and defers publication for %s", async (errorCode) => {
-		const failure = temporalFailure(
-			"ActivityFailure",
-			ApplicationFailure.nonRetryable("credential rejected", errorCode),
-		);
-
-		const pauseForCredential = vi.fn(async () => undefined);
-		await expect(
-			runInternalPortalNoticePublicationPlan({
-				execute: async () => {
-					throw failure;
-				},
-				isCancellationError: () => false,
-				pauseForCredential,
-			}),
-		).resolves.toMatchObject({ errorCode, outcome: "deferred" });
-		expect(pauseForCredential).toHaveBeenCalledWith(errorCode);
-	});
-
-	it("never converts cancellation into a deferred result", async () => {
-		const cancellation = new Error("workflow canceled");
-
-		await expect(
-			runInternalPortalNoticePublicationPlan({
-				execute: async () => {
-					throw cancellation;
-				},
-				isCancellationError: (error) => error === cancellation,
-			}),
-		).rejects.toBe(cancellation);
-	});
-});
-
 async function runImmediately<T>(operation: () => Promise<T>): Promise<T> {
 	return await operation();
-}
-
-function temporalFailure(type: string, cause: Error): Error & { type: string } {
-	return Object.assign(new Error(type, { cause }), { type });
 }
 
 function activities(
@@ -225,9 +143,6 @@ function activities(
 	calls: string[],
 ): IngestionProjectionActivities {
 	return {
-		async prepareSourceCollectorTask() {
-			return null;
-		},
 		async recordIngestionTaskStarted(input) {
 			calls.push("start");
 			return store.recordTaskStarted(input);

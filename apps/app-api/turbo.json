@@ -31,7 +31,6 @@
 				"!README.md",
 				"!**/README.md",
 				"$TURBO_ROOT$/configs/runtime/**",
-				"$TURBO_ROOT$/configs/sources/official_web/**",
 				"$TURBO_ROOT$/jobs/app-api-schema/**",
 				"$TURBO_ROOT$/package.json",
 				"$TURBO_ROOT$/packages/contracts/fixtures/**",

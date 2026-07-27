@@ -2,7 +2,6 @@ import type { IngestionTaskExecutionSnapshot, IngestionTaskResult } from "ingest
 
 export const testTaskStartMetadata = {
 	createdBy: "test:operator",
-	pipelineWorkflowId: null,
 	retryOfTaskId: null,
 } as const;
 
@@ -45,7 +44,7 @@ export function testResult(): IngestionTaskResult {
 		result_ref: {
 			byte_size: 2,
 			kind: "object_store",
-			uri: "s3://campus-agent-derived/results/chunks.jsonl",
+			uri: "s3://campus-agent-derived/ingestion-kernels/curriculum.curriculum_plan.chunk_prepare/runs/run-curriculum-001/attempts/1/task-curriculum-chunk-001/chunk-document-units.json",
 			digest: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
 		},
 		summary: { chunk_count: 12 },

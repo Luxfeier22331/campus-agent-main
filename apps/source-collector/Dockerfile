@@ -30,7 +30,6 @@ RUN corepack enable pnpm \
 
 COPY --from=pruner /repo/out/full/ ./
 COPY configs/ingestion ./configs/ingestion
-COPY configs/sources ./configs/sources
 
 RUN pnpm --filter source-collector typecheck \
   && touch /check-complete
@@ -54,13 +53,7 @@ FROM node:24-bookworm-slim AS runtime
 WORKDIR /workspace
 
 ENV NODE_ENV=production
-ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 ENV INGESTION_TASK_REGISTRY_ROOT=/workspace/configs/ingestion
-ENV OFFICIAL_WEB_CONFIG_ROOT=/workspace/configs/sources/official_web
-ENV INTERNAL_PORTAL_RUNTIME_DIR=/tmp/campus-agent/internal-portal
-ENV HOME=/tmp/source-collector-home
-ENV XDG_CACHE_HOME=/tmp/source-collector-home/.cache
-ENV XDG_CONFIG_HOME=/tmp/source-collector-home/.config
 
 COPY --from=production-dependencies /workspace /workspace
 
@@ -71,13 +64,10 @@ RUN node -p 'require("node:tls").rootCertificates.join("\n")' > /tmp/node-root-c
   && apt-get -o Acquire::https::CaInfo=/tmp/node-root-certificates.crt install \
     -y --no-install-recommends ca-certificates \
   && rm -f /tmp/node-root-certificates.crt \
-  && /workspace/apps/source-collector/node_modules/.bin/playwright install-deps chromium \
   && apt-get install -y --no-install-recommends tini \
   && rm -rf /var/lib/apt/lists/*
 
-RUN /workspace/apps/source-collector/node_modules/.bin/playwright install \
-    --only-shell chromium \
-  && rm -rf \
+RUN rm -rf \
     /opt/yarn-v* \
     /usr/local/lib/node_modules/npm \
     /usr/local/lib/node_modules/corepack \
@@ -93,9 +83,6 @@ RUN /workspace/apps/source-collector/node_modules/.bin/playwright install \
 
 COPY --from=pruner /repo/out/full/ /workspace
 COPY configs/ingestion /workspace/configs/ingestion
-COPY configs/sources /workspace/configs/sources
-
-RUN install -d -o node -g node /workspace/apps/source-collector/storage
 
 USER node
 

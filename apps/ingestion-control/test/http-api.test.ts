@@ -1,5 +1,5 @@
 import { createIngestionTaskRegistryCatalog } from "ingest-core";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createIngestionControlHandler } from "../src/http";
 import { InMemoryIngestionTaskStore } from "../src/in-memory-store";
 import {
@@ -136,37 +136,6 @@ describe("ingestion-control HTTP", () => {
 		expect(await response.json()).toEqual({ status: "unavailable" });
 	});
 
-	it("exposes and immediately validates through the fixed portal auth maintenance schedule", async () => {
-		const status = maintenanceStatus("PAUSED");
-		const starter = new RecordingStarter();
-		starter.maintenanceStatus = status;
-		const handler = handlerFor(new InMemoryIngestionTaskStore(), starter);
-
-		const read = await handler(
-			new Request(
-				"http://ingestion-control/internal/ingestion/operations/internal-portal-auth-maintenance",
-				{ headers: { authorization: "Bearer ops-token" } },
-			),
-		);
-		expect(read.status).toBe(200);
-		expect(await read.json()).toMatchObject({ scheduleState: "PAUSED" });
-
-		const validation = await handler(
-			new Request(
-				"http://ingestion-control/internal/ingestion/operations/internal-portal-auth-maintenance/validate",
-				{
-					method: "POST",
-					headers: {
-						authorization: "Bearer ops-token",
-						"x-operator-id": "ops@example.edu",
-					},
-				},
-			),
-		);
-		expect(validation.status).toBe(202);
-		expect(starter.validationCount).toBe(1);
-	});
-
 	it("starts exact file release IDs and forwards the operator identity", async () => {
 		const starter = new RecordingStarter();
 		const handler = handlerFor(new InMemoryIngestionTaskStore(), starter);
@@ -187,23 +156,62 @@ describe("ingestion-control HTTP", () => {
 
 		expect(response.status).toBe(202);
 		expect(starter.fileReleaseStarts).toEqual([
-			{ createdBy: "ops@example.edu", fileReleaseId: 646, requestId: "batch-001:646" },
-			{ createdBy: "ops@example.edu", fileReleaseId: 647, requestId: "batch-001:647" },
+			{ createdBy: "ops@example.edu", fileReleaseId: 646, requestId: "batch-001" },
+			{ createdBy: "ops@example.edu", fileReleaseId: 647, requestId: "batch-001" },
 		]);
+		await expect(response.json()).resolves.toMatchObject({
+			request_id: "batch-001",
+			workflows: [
+				{ workflowId: "ingestion/internal-portal-file-release/batch-001/646" },
+				{ workflowId: "ingestion/internal-portal-file-release/batch-001/647" },
+			],
+		});
 	});
 
-	it("rejects the retired notice reconcile limit", async () => {
+	it("returns Temporal status for the submitted file-release workflow IDs", async () => {
+		const starter = new RecordingStarter();
+		const handler = handlerFor(new InMemoryIngestionTaskStore(), starter);
+		const workflowIds = [
+			"ingestion/internal-portal-file-release/batch-001/646",
+			"ingestion/internal-portal-file-release/batch-001/647",
+		];
+		const response = await handler(
+			new Request(
+				"http://ingestion-control/internal/ingestion/operations/internal-portal/file-releases/status",
+				{
+					body: JSON.stringify({ workflow_ids: workflowIds }),
+					headers: {
+						authorization: "Bearer ops-token",
+						"content-type": "application/json",
+					},
+					method: "POST",
+				},
+			),
+		);
+
+		expect(response.status).toBe(200);
+		expect(starter.statusWorkflowIds).toEqual(workflowIds);
+		await expect(response.json()).resolves.toEqual({
+			schema_version: "internal_portal_file_release_workflow_statuses.v1",
+			workflows: workflowIds.map((workflowId) => ({
+				workflowId,
+				workflowRunId: "run-file",
+				workflowStatus: "RUNNING",
+			})),
+		});
+	});
+
+	it("returns 400 for an invalid file-release workflow ID", async () => {
 		const starter = new RecordingStarter();
 		const handler = handlerFor(new InMemoryIngestionTaskStore(), starter);
 		const response = await handler(
 			new Request(
-				"http://ingestion-control/internal/ingestion/operations/internal-portal/notice-publication/reconcile",
+				"http://ingestion-control/internal/ingestion/operations/internal-portal/file-releases/status",
 				{
-					body: JSON.stringify({ max_notices: 100, request_id: "reconcile-001" }),
+					body: JSON.stringify({ workflow_ids: ["not-a-file-release-workflow"] }),
 					headers: {
 						authorization: "Bearer ops-token",
 						"content-type": "application/json",
-						"x-operator-id": "ops@example.edu",
 					},
 					method: "POST",
 				},
@@ -211,7 +219,35 @@ describe("ingestion-control HTTP", () => {
 		);
 
 		expect(response.status).toBe(400);
-		expect(starter.noticeReconcileStarts).toHaveLength(0);
+		expect(starter.statusWorkflowIds).toEqual([]);
+	});
+
+	it("returns 503 when Temporal status lookup is unavailable", async () => {
+		const starter = new RecordingStarter();
+		vi.spyOn(starter, "getInternalPortalFileReleaseStatuses").mockRejectedValueOnce(
+			new Error("transport disconnected"),
+		);
+		const handler = handlerFor(new InMemoryIngestionTaskStore(), starter);
+		const response = await handler(
+			new Request(
+				"http://ingestion-control/internal/ingestion/operations/internal-portal/file-releases/status",
+				{
+					body: JSON.stringify({
+						workflow_ids: ["ingestion/internal-portal-file-release/batch-001/646"],
+					}),
+					headers: {
+						authorization: "Bearer ops-token",
+						"content-type": "application/json",
+					},
+					method: "POST",
+				},
+			),
+		);
+
+		expect(response.status).toBe(503);
+		await expect(response.json()).resolves.toEqual({
+			error: "ingestion workflow dependency is unavailable",
+		});
 	});
 
 	it("decodes task IDs for operator detail and retry routes", async () => {
@@ -258,48 +294,12 @@ describe("ingestion-control HTTP", () => {
 		await expect(retry.json()).resolves.toMatchObject({ retry_of_task_id: "task:encoded:001" });
 	});
 
-	it("refuses standalone retry for a failed publication child task", async () => {
-		const store = new InMemoryIngestionTaskStore();
-		store.recordTaskStarted({
-			...testTaskStartMetadata,
-			pipelineWorkflowId: "ingestion/internal-portal-notice/run-001",
-			snapshot: testSnapshot(),
-			workflowId: "ingestion/task-curriculum-chunk-001",
-			workflowRunId: "temporal-run-001",
-		});
-		store.failTask({
-			errorCode: "collector_failed",
-			errorMessage: "provider unavailable",
-			taskId: testSnapshot().task.task_id,
-		});
-		const starter = new RecordingStarter();
-		const handler = handlerFor(store, starter);
-
-		const response = await handler(
-			new Request(
-				`http://ingestion-control/internal/ingestion/operations/tasks/${testSnapshot().task.task_id}/retry`,
-				{
-					headers: {
-						authorization: "Bearer ops-token",
-						"x-operator-id": "ops@example.edu",
-					},
-					method: "POST",
-				},
-			),
-		);
-
-		expect(response.status).toBe(409);
-		await expect(response.json()).resolves.toEqual({
-			error: "ingestion_pipeline_task_retry_unsupported",
-		});
-		expect(starter.snapshots).toHaveLength(0);
-	});
-
-	it("rejects portal auth operations without the dedicated ops token", async () => {
+	it("rejects file-release status operations without the dedicated ops token", async () => {
 		const handler = handlerFor(new InMemoryIngestionTaskStore(), new RecordingStarter());
 		const response = await handler(
 			new Request(
-				"http://ingestion-control/internal/ingestion/operations/internal-portal-auth-maintenance",
+				"http://ingestion-control/internal/ingestion/operations/internal-portal/file-releases/status",
+				{ body: JSON.stringify({ workflow_ids: [] }), method: "POST" },
 			),
 		);
 
@@ -313,20 +313,15 @@ class RecordingStarter implements IngestionWorkflowStarter {
 		fileReleaseId: number;
 		requestId: string;
 	}> = [];
-	readonly noticeReconcileStarts: Array<{
-		createdBy: string;
-		requestId: string;
-	}> = [];
-	maintenanceStatus = maintenanceStatus("ACTIVE");
-	validationCount = 0;
+	statusWorkflowIds: string[] = [];
 	readonly snapshots: unknown[] = [];
-	async getInternalPortalAuthMaintenanceStatus() {
-		return this.maintenanceStatus;
-	}
-	async validateInternalPortalAuthentication() {
-		this.validationCount += 1;
-		this.maintenanceStatus = maintenanceStatus("ACTIVE");
-		return this.maintenanceStatus;
+	async getInternalPortalFileReleaseStatuses(workflowIds: string[]) {
+		this.statusWorkflowIds = workflowIds;
+		return workflowIds.map((workflowId) => ({
+			workflowId,
+			workflowRunId: "run-file",
+			workflowStatus: "RUNNING" as const,
+		}));
 	}
 	async startInternalPortalFileRelease(input: {
 		createdBy: string;
@@ -336,17 +331,8 @@ class RecordingStarter implements IngestionWorkflowStarter {
 		this.fileReleaseStarts.push(input);
 		return {
 			alreadyStarted: false,
-			workflowId: `ingestion/file/${input.requestId}`,
+			workflowId: `ingestion/internal-portal-file-release/${input.requestId}/${input.fileReleaseId}`,
 			workflowRunId: "run-file",
-			workflowStatus: "RUNNING" as const,
-		};
-	}
-	async startInternalPortalNoticeReconcile(input: { createdBy: string; requestId: string }) {
-		this.noticeReconcileStarts.push(input);
-		return {
-			alreadyStarted: false,
-			workflowId: `ingestion/notice/${input.requestId}`,
-			workflowRunId: "run-notice",
 			workflowStatus: "RUNNING" as const,
 		};
 	}
@@ -359,22 +345,6 @@ class RecordingStarter implements IngestionWorkflowStarter {
 			workflowStatus: "RUNNING" as const,
 		};
 	}
-}
-
-function maintenanceStatus(scheduleState: "ACTIVE" | "PAUSED") {
-	return {
-		errorCode: null,
-		lastAttemptAt: "2026-07-16T00:00:00.000Z",
-		lastOutcome: "SUCCESS" as const,
-		lastSuccessAt: "2026-07-16T00:00:03.000Z",
-		nextRunAt: "2026-07-16T00:30:00.000Z",
-		noticeProbeSucceeded: true,
-		portalSessionEstablished: true,
-		scheduleState,
-		serviceTicketIssued: true,
-		workflowId: "ingestion/internal-portal-auth-maintenance-2026-07-16T00:00:00Z",
-		workflowRunId: "run-001",
-	};
 }
 
 function handlerFor(store: InMemoryIngestionTaskStore, workflowStarter: IngestionWorkflowStarter) {
