@@ -45,6 +45,27 @@ CAPTCHA 插件。staging 和 production 仍必须提供配套的 Turnstile site 
 Kubernetes、Cloudflare 和外部平台配置由环境仓及所属密钥存储交付。ConfigMap、Secret、平台变量
 和在线模型配置各自服务明确消费者，不能互相充当同步源。
 
+### 部署配置生命周期
+
+部署变量从实际消费者开始定义。应用配置解析器、Wrangler 配置、GitHub Actions workflow 或
+Kubernetes workload 必须先存在明确读取点，环境仓才能投递对应值；GitHub settings 不能作为
+待用配置或历史档案。
+
+- repository scope 只保存不随部署环境变化的仓库自动化配置；环境地址、资源标识和凭据使用实际
+  消费它们的 GitHub Environment；
+- 环境派生的非敏感值由环境仓 Terraform 投递，不能同时人工维护；Secret 值不进入 Terraform，
+  由所属密钥存储投递；
+- 一个变量只有一个消费合同和一个交付所有者。跨平台必须共享的认证值按同一轮换单元分别投递，
+  不建立同步源或别名；
+- 重命名直接切换消费合同并删除旧名称，不保留双读、fallback 或兼容变量；
+- 删除最后一个消费者时，同一治理任务必须删除配置解析、workflow 或 manifest 引用、环境仓投递
+  声明、远端 GitHub variable/secret、示例、测试和说明；
+- 完成变量变更前，应使用 GitHub CLI 只读列举 Source 与环境仓的 repository、Environment variable
+  和 secret 名称，并与当前可执行消费者及 Terraform 投影核对。远端值不进入输出。
+
+仓库不维护手写的全局变量表。变量名和必需性以所属消费者为准，环境仓只维护当前环境实际投递的
+集合，远端核对只用于确认配置生命周期已经闭合。
+
 ## 读取与覆盖
 
 本地开发统一使用“进程环境、应用 `.env.local`/`.dev.vars.local`、应用基础文件”的优先级。部署和一次性命令仍由各自解析器、Wrangler 配置或命令入口声明读取顺序。
