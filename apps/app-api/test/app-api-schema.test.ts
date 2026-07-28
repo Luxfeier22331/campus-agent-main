@@ -70,6 +70,8 @@ describe("app-api schema installer", () => {
 		);
 		expect(source).toContain("applyAppApiGrants");
 		expect(source).not.toContain("applyOpsWebGrantStatements");
+		expect(source).toContain("console.error(error)");
+		expect(source).not.toContain("error instanceof Error ? error.message");
 		expect(journal.entries.map(({ idx, tag, version }) => ({ idx, tag, version }))).toEqual([
 			{ idx: 0, tag: "0000_initial", version: "7" },
 			{ idx: 1, tag: "0001_docs_release_scope", version: "7" },

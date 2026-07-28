@@ -177,25 +177,15 @@ ALTER TABLE "app_auth"."verification" ALTER COLUMN "createdAt" DROP DEFAULT;
 --> statement-breakpoint
 ALTER TABLE "app_auth"."verification" ALTER COLUMN "updatedAt" DROP DEFAULT;
 --> statement-breakpoint
-ALTER TABLE "app_auth"."user" DROP CONSTRAINT IF EXISTS "user_email_key";
---> statement-breakpoint
-ALTER TABLE "app_auth"."session" DROP CONSTRAINT IF EXISTS "session_token_key";
---> statement-breakpoint
 ALTER TABLE "app_auth"."account" DROP CONSTRAINT IF EXISTS "account_userId_fkey";
 --> statement-breakpoint
-ALTER TABLE "app_auth"."oauthClient" DROP CONSTRAINT IF EXISTS "oauthClient_clientId_key";
---> statement-breakpoint
 ALTER TABLE "app_auth"."oauthClient" DROP CONSTRAINT IF EXISTS "oauthClient_userId_fkey";
---> statement-breakpoint
-ALTER TABLE "app_auth"."oauthRefreshToken" DROP CONSTRAINT IF EXISTS "oauthRefreshToken_token_key";
 --> statement-breakpoint
 ALTER TABLE "app_auth"."oauthRefreshToken" DROP CONSTRAINT IF EXISTS "oauthRefreshToken_clientId_fkey";
 --> statement-breakpoint
 ALTER TABLE "app_auth"."oauthRefreshToken" DROP CONSTRAINT IF EXISTS "oauthRefreshToken_sessionId_fkey";
 --> statement-breakpoint
 ALTER TABLE "app_auth"."oauthRefreshToken" DROP CONSTRAINT IF EXISTS "oauthRefreshToken_userId_fkey";
---> statement-breakpoint
-ALTER TABLE "app_auth"."oauthAccessToken" DROP CONSTRAINT IF EXISTS "oauthAccessToken_token_key";
 --> statement-breakpoint
 ALTER TABLE "app_auth"."oauthAccessToken" DROP CONSTRAINT IF EXISTS "oauthAccessToken_clientId_fkey";
 --> statement-breakpoint
@@ -208,6 +198,18 @@ ALTER TABLE "app_auth"."oauthAccessToken" DROP CONSTRAINT IF EXISTS "oauthAccess
 ALTER TABLE "app_auth"."oauthConsent" DROP CONSTRAINT IF EXISTS "oauthConsent_clientId_fkey";
 --> statement-breakpoint
 ALTER TABLE "app_auth"."oauthConsent" DROP CONSTRAINT IF EXISTS "oauthConsent_userId_fkey";
+--> statement-breakpoint
+ALTER TABLE "app_auth"."session" DROP CONSTRAINT IF EXISTS "session_userId_fkey";
+--> statement-breakpoint
+ALTER TABLE "app_auth"."user" DROP CONSTRAINT IF EXISTS "user_email_key";
+--> statement-breakpoint
+ALTER TABLE "app_auth"."session" DROP CONSTRAINT IF EXISTS "session_token_key";
+--> statement-breakpoint
+ALTER TABLE "app_auth"."oauthClient" DROP CONSTRAINT IF EXISTS "oauthClient_clientId_key";
+--> statement-breakpoint
+ALTER TABLE "app_auth"."oauthRefreshToken" DROP CONSTRAINT IF EXISTS "oauthRefreshToken_token_key";
+--> statement-breakpoint
+ALTER TABLE "app_auth"."oauthAccessToken" DROP CONSTRAINT IF EXISTS "oauthAccessToken_token_key";
 --> statement-breakpoint
 CREATE UNIQUE INDEX "oauthClient_clientId_uidx" ON "app_auth"."oauthClient" USING btree ("clientId");
 --> statement-breakpoint
@@ -232,8 +234,6 @@ ALTER TABLE "app_auth"."oauthAccessToken" ADD CONSTRAINT "oauthAccessToken_refre
 ALTER TABLE "app_auth"."oauthConsent" ADD CONSTRAINT "oauthConsent_clientId_oauthClient_clientId_fk" FOREIGN KEY ("clientId") REFERENCES "app_auth"."oauthClient"("clientId") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "app_auth"."oauthConsent" ADD CONSTRAINT "oauthConsent_userId_user_id_fk" FOREIGN KEY ("userId") REFERENCES "app_auth"."user"("id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "app_auth"."session" DROP CONSTRAINT IF EXISTS "session_userId_fkey";
 --> statement-breakpoint
 ALTER TABLE "app_auth"."session" ADD CONSTRAINT "session_userId_user_id_fk" FOREIGN KEY ("userId") REFERENCES "app_auth"."user"("id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint

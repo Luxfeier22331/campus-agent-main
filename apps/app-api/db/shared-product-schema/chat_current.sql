@@ -93,6 +93,10 @@ CREATE TABLE IF NOT EXISTS "chat"."turn_dispatches" (
     "updated_at" timestamp with time zone NOT NULL
 );
 
+ALTER TABLE "chat"."turn_dispatches" ADD COLUMN IF NOT EXISTS "memory_recall_enabled" boolean;
+ALTER TABLE "chat"."turn_dispatches" ADD COLUMN IF NOT EXISTS "memory_append_enabled" boolean;
+ALTER TABLE "chat"."turn_dispatches" ADD COLUMN IF NOT EXISTS "memory_owner_generation" bigint;
+ALTER TABLE "chat"."turn_dispatches" ADD COLUMN IF NOT EXISTS "memory_owner_sequence" bigint;
 ALTER TABLE "chat"."turn_dispatches" ADD COLUMN IF NOT EXISTS "assistant_message_id" text;
 UPDATE "chat"."turn_dispatches"
 SET "assistant_message_id" = "request_id" || ':assistant'

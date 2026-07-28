@@ -45,6 +45,9 @@ Better Auth 负责认证运行时，认证表定义由 `src/db/schema/auth.ts` �
 `app_auth.*` 的建表、升级和 migration ledger 只由 `apps/app-api/drizzle/` 与 schema Job 管理，
 运行时和部署脚本不调用 Better Auth `getMigrations()`。调整 Better Auth 核心字段或插件时，应先按
 Better Auth 官方 Drizzle adapter schema 更新 `auth.ts`，再使用 Drizzle Kit 生成并审查迁移。
+`test/fixtures/app-auth-pre-drizzle.sql` 是 Drizzle 接管前从已部署数据库导出的不可变 schema-only
+测试基线，不是当前 schema，也不得手工维护。修改 `drizzle/` 后应在提交 PR 前运行
+`pnpm ci:app-api-migration`，同时覆盖真实历史升级和空数据库安装。
 认证邮件要求 `AUTH_EMAIL_FROM` 和 `RESEND_API_KEY`；`AUTH_EMAIL_REPLY_TO` 可选。
 
 ## 相关文档

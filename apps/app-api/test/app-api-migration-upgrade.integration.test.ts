@@ -10,18 +10,126 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { migrateAppApiSchema } from "../ops/db/schema.ts";
+import { installAppApiSchema } from "../ops/db/schema.ts";
 import { appApiSchema } from "../src/db/schema";
 import { createPgProfileMemoryStore } from "../src/modules/profile-memory";
 
 const POSTGRES_IMAGE =
-	"postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193";
+	"postgres:18-alpine@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15";
 const RYUK_IMAGE =
 	"testcontainers/ryuk:0.14.0@sha256:7c1a8a9a47c780ed0f983770a662f80deb115d95cce3e2daa3d12115b8cd28f0";
 const MIGRATION_DATABASE_NAME = "campus_agent_migration_test";
+const DEPLOYMENT_ROLES = ["app_api", "docs_publish", "execution_control", "ops_web"] as const;
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const fullMigrationsFolder = resolve(appRoot, "drizzle");
-const chatCurrentSchemaPath = resolve(appRoot, "db/shared-product-schema/chat_current.sql");
+const legacyAuthSchemaPath = resolve(appRoot, "test/fixtures/app-auth-pre-drizzle.sql");
+// Exact chat_current.sql from e05c5a52, immediately before 0001_docs_release_scope.
+const legacyChatSchemaPath = resolve(appRoot, "test/fixtures/chat-pre-0001.sql");
+
+interface MigrationJournal {
+	dialect: string;
+	entries: Array<{ tag: string }>;
+	version: string;
+}
+
+const EXPECTED_AUTH_FOREIGN_KEYS = [
+	{
+		column_name: "userId",
+		constraint_name: "account_userId_user_id_fk",
+		delete_action: "CASCADE",
+		referenced_column: "id",
+		referenced_table: "user",
+		table_name: "account",
+	},
+	{
+		column_name: "clientId",
+		constraint_name: "oauthAccessToken_clientId_oauthClient_clientId_fk",
+		delete_action: "CASCADE",
+		referenced_column: "clientId",
+		referenced_table: "oauthClient",
+		table_name: "oauthAccessToken",
+	},
+	{
+		column_name: "refreshId",
+		constraint_name: "oauthAccessToken_refreshId_oauthRefreshToken_id_fk",
+		delete_action: "CASCADE",
+		referenced_column: "id",
+		referenced_table: "oauthRefreshToken",
+		table_name: "oauthAccessToken",
+	},
+	{
+		column_name: "sessionId",
+		constraint_name: "oauthAccessToken_sessionId_session_id_fk",
+		delete_action: "SET NULL",
+		referenced_column: "id",
+		referenced_table: "session",
+		table_name: "oauthAccessToken",
+	},
+	{
+		column_name: "userId",
+		constraint_name: "oauthAccessToken_userId_user_id_fk",
+		delete_action: "CASCADE",
+		referenced_column: "id",
+		referenced_table: "user",
+		table_name: "oauthAccessToken",
+	},
+	{
+		column_name: "userId",
+		constraint_name: "oauthClient_userId_user_id_fk",
+		delete_action: "CASCADE",
+		referenced_column: "id",
+		referenced_table: "user",
+		table_name: "oauthClient",
+	},
+	{
+		column_name: "clientId",
+		constraint_name: "oauthConsent_clientId_oauthClient_clientId_fk",
+		delete_action: "CASCADE",
+		referenced_column: "clientId",
+		referenced_table: "oauthClient",
+		table_name: "oauthConsent",
+	},
+	{
+		column_name: "userId",
+		constraint_name: "oauthConsent_userId_user_id_fk",
+		delete_action: "CASCADE",
+		referenced_column: "id",
+		referenced_table: "user",
+		table_name: "oauthConsent",
+	},
+	{
+		column_name: "clientId",
+		constraint_name: "oauthRefreshToken_clientId_oauthClient_clientId_fk",
+		delete_action: "CASCADE",
+		referenced_column: "clientId",
+		referenced_table: "oauthClient",
+		table_name: "oauthRefreshToken",
+	},
+	{
+		column_name: "sessionId",
+		constraint_name: "oauthRefreshToken_sessionId_session_id_fk",
+		delete_action: "SET NULL",
+		referenced_column: "id",
+		referenced_table: "session",
+		table_name: "oauthRefreshToken",
+	},
+	{
+		column_name: "userId",
+		constraint_name: "oauthRefreshToken_userId_user_id_fk",
+		delete_action: "CASCADE",
+		referenced_column: "id",
+		referenced_table: "user",
+		table_name: "oauthRefreshToken",
+	},
+	{
+		column_name: "userId",
+		constraint_name: "session_userId_user_id_fk",
+		delete_action: "CASCADE",
+		referenced_column: "id",
+		referenced_table: "user",
+		table_name: "session",
+	},
+] as const;
 
 async function resetDisposableDatabase(pool: Pool): Promise<void> {
 	const schemas = await pool.query<{ schema_name: string }>(
@@ -35,12 +143,24 @@ async function resetDisposableDatabase(pool: Pool): Promise<void> {
 	}
 }
 
-async function createMigrationFolderThrough(entryCount: number): Promise<string> {
+async function createDeploymentRoles(pool: Pool): Promise<void> {
+	for (const role of DEPLOYMENT_ROLES) {
+		await pool.query(`create role "${role}" nologin`);
+	}
+}
+
+async function readMigrationJournal(): Promise<MigrationJournal> {
+	return JSON.parse(
+		await readFile(resolve(fullMigrationsFolder, "meta/_journal.json"), "utf8"),
+	) as MigrationJournal;
+}
+
+async function createMigrationFolderThrough(
+	entryCount: number,
+	journal: MigrationJournal,
+): Promise<string> {
 	const root = await mkdtemp(resolve(tmpdir(), "app-api-migration-"));
 	await mkdir(resolve(root, "meta"));
-	const journal = JSON.parse(
-		await readFile(resolve(fullMigrationsFolder, "meta/_journal.json"), "utf8"),
-	) as { dialect: string; entries: Array<{ tag: string }>; version: string };
 	for (const entry of journal.entries.slice(0, entryCount)) {
 		await copyFile(
 			resolve(fullMigrationsFolder, `${entry.tag}.sql`),
@@ -54,82 +174,16 @@ async function createMigrationFolderThrough(entryCount: number): Promise<string>
 	return root;
 }
 
-async function applyLegacyChatSchema(pool: Pool): Promise<void> {
-	const currentSchema = await readFile(chatCurrentSchemaPath, "utf8");
-	let legacySchema = currentSchema.replace(
-		"    \"resolved_targets_json\" jsonb DEFAULT '[]'::jsonb NOT NULL,",
-		'    "requested_scope" text,\n    "version_query_json" jsonb,',
-	);
-	for (const column of [
-		'    "assistant_message_id" text NOT NULL,\n',
-		"    \"admission_status\" text DEFAULT 'pending_input' NOT NULL,\n",
-		'    "workflow_id" text,\n',
-		'    "workflow_input_json" jsonb,\n',
-		'    "workflow_input_sha256" text,\n',
-		'    "admitted_at" timestamp with time zone,\n',
-		'    "finalization_fingerprint" text,\n',
-	]) {
-		legacySchema = legacySchema.replace(column, "");
-	}
-	legacySchema = legacySchema.replace(
-		/ALTER TABLE "chat"\."turn_dispatches" ADD COLUMN IF NOT EXISTS "assistant_message_id"[\s\S]*?ALTER TABLE "chat"\."turn_dispatches" ADD COLUMN IF NOT EXISTS "finalization_fingerprint" text;\n/u,
-		"",
-	);
-	await pool.query(legacySchema);
+async function applyLegacyChatBaseline(pool: Pool): Promise<void> {
+	await pool.query(await readFile(legacyChatSchemaPath, "utf8"));
 }
 
-async function applyLegacyBetterAuthSchema(pool: Pool): Promise<void> {
+async function applyLegacyBetterAuthBaseline(pool: Pool): Promise<void> {
+	await pool.query(await readFile(legacyAuthSchemaPath, "utf8"));
+}
+
+async function seedLegacyBetterAuthData(pool: Pool): Promise<void> {
 	await pool.query(`
-		create schema "app_auth";
-		create table "app_auth"."user" (
-			"id" text primary key,
-			"name" text not null,
-			"email" text not null unique,
-			"emailVerified" boolean not null,
-			"image" text,
-			"createdAt" timestamptz default current_timestamp not null,
-			"updatedAt" timestamptz default current_timestamp not null,
-			"role" text,
-			"banned" boolean,
-			"banReason" text,
-			"banExpires" timestamptz
-		);
-		create table "app_auth"."session" (
-			"id" text primary key,
-			"expiresAt" timestamptz not null,
-			"token" text not null unique,
-			"createdAt" timestamptz default current_timestamp not null,
-			"updatedAt" timestamptz not null,
-			"ipAddress" text,
-			"userAgent" text,
-			"userId" text not null references "app_auth"."user"("id") on delete cascade
-		);
-		create index "session_userId_idx" on "app_auth"."session" ("userId");
-		create table "app_auth"."account" (
-			"id" text primary key,
-			"accountId" text not null,
-			"providerId" text not null,
-			"userId" text not null references "app_auth"."user"("id") on delete cascade,
-			"accessToken" text,
-			"refreshToken" text,
-			"idToken" text,
-			"accessTokenExpiresAt" timestamptz,
-			"refreshTokenExpiresAt" timestamptz,
-			"scope" text,
-			"password" text,
-			"createdAt" timestamptz default current_timestamp not null,
-			"updatedAt" timestamptz not null
-		);
-		create index "account_userId_idx" on "app_auth"."account" ("userId");
-		create table "app_auth"."verification" (
-			"id" text primary key,
-			"identifier" text not null,
-			"value" text not null,
-			"expiresAt" timestamptz not null,
-			"createdAt" timestamptz default current_timestamp not null,
-			"updatedAt" timestamptz default current_timestamp not null
-		);
-		create index "verification_identifier_idx" on "app_auth"."verification" ("identifier");
 		insert into "app_auth"."user"
 			("id", "name", "email", "emailVerified", "role", "banned")
 		values ('legacy-user', 'Legacy User', 'legacy@example.test', true, null, null);
@@ -139,6 +193,21 @@ async function applyLegacyBetterAuthSchema(pool: Pool): Promise<void> {
 		insert into "app_auth"."session"
 			("id", "expiresAt", "token", "updatedAt", "userId")
 		values ('legacy-session', now() + interval '1 day', 'legacy-token', now(), 'legacy-user');
+		insert into "app_auth"."oauthClient"
+			("id", "clientId", "userId", "redirectUris")
+		values ('legacy-client-row', 'legacy-client', 'legacy-user',
+			'["https://client.example/callback"]'::jsonb);
+		insert into "app_auth"."oauthRefreshToken"
+			("id", "token", "clientId", "sessionId", "userId", "expiresAt", "createdAt", "scopes")
+		values ('legacy-refresh-row', 'legacy-refresh-token', 'legacy-client', 'legacy-session',
+			'legacy-user', now() + interval '1 day', now(), '["openid"]'::jsonb);
+		insert into "app_auth"."oauthAccessToken"
+			("id", "token", "clientId", "sessionId", "userId", "refreshId", "expiresAt", "createdAt", "scopes")
+		values ('legacy-access-row', 'legacy-access-token', 'legacy-client', 'legacy-session',
+			'legacy-user', 'legacy-refresh-row', now() + interval '1 hour', now(), '["openid"]'::jsonb);
+		insert into "app_auth"."oauthConsent"
+			("id", "clientId", "userId", "scopes", "createdAt", "updatedAt")
+		values ('legacy-consent-row', 'legacy-client', 'legacy-user', '["openid"]'::jsonb, now(), now());
 	`);
 }
 
@@ -146,6 +215,9 @@ describe("app-api migration upgrade", () => {
 	let container: StartedPostgreSqlContainer;
 	let initialMigrationsFolder = "";
 	let mainMigrationsFolder = "";
+	let predecessorMigrationsFolder = "";
+	let fullMigrationCount = 0;
+	let predecessorMigrationCount = 0;
 	let pool: Pool;
 
 	beforeAll(async () => {
@@ -158,8 +230,16 @@ describe("app-api migration upgrade", () => {
 			.start();
 		pool = new Pool({ connectionString: container.getConnectionUri() });
 		await resetDisposableDatabase(pool);
-		initialMigrationsFolder = await createMigrationFolderThrough(1);
-		mainMigrationsFolder = await createMigrationFolderThrough(3);
+		await createDeploymentRoles(pool);
+		const journal = await readMigrationJournal();
+		fullMigrationCount = journal.entries.length;
+		predecessorMigrationCount = fullMigrationCount - 1;
+		initialMigrationsFolder = await createMigrationFolderThrough(1, journal);
+		mainMigrationsFolder = await createMigrationFolderThrough(3, journal);
+		predecessorMigrationsFolder = await createMigrationFolderThrough(
+			predecessorMigrationCount,
+			journal,
+		);
 	}, 180_000);
 
 	afterAll(async () => {
@@ -173,6 +253,9 @@ describe("app-api migration upgrade", () => {
 			if (mainMigrationsFolder) {
 				await rm(mainMigrationsFolder, { force: true, recursive: true });
 			}
+			if (predecessorMigrationsFolder) {
+				await rm(predecessorMigrationsFolder, { force: true, recursive: true });
+			}
 		} finally {
 			if (container) {
 				await container.stop();
@@ -180,17 +263,18 @@ describe("app-api migration upgrade", () => {
 		}
 	}, 60_000);
 
-	it("upgrades main 0002 directly to the production Hindsight schema", async () => {
+	it("upgrades deployed and historical schemas without losing product data", async () => {
 		const migrationOptions = {
 			migrationsSchema: "drizzle",
 			migrationsTable: "app_api_migrations",
 		};
-		await applyLegacyBetterAuthSchema(pool);
+		await applyLegacyBetterAuthBaseline(pool);
+		await seedLegacyBetterAuthData(pool);
 		await migrate(drizzle(pool), {
 			...migrationOptions,
 			migrationsFolder: initialMigrationsFolder,
 		});
-		await applyLegacyChatSchema(pool);
+		await applyLegacyChatBaseline(pool);
 		await pool.query(`
 			insert into "chat"."conversations"
 				("id", "owner_user_id", "title", "created_at", "updated_at")
@@ -239,8 +323,16 @@ describe("app-api migration upgrade", () => {
 				'先给结论', 'user_declared', 'low', 'user_visible',
 				'2026-07-15T08:00:00Z', '2026-07-15T08:00:00Z', '2026-07-15T08:00:00Z');
 		`);
+		await migrate(drizzle(pool), {
+			...migrationOptions,
+			migrationsFolder: predecessorMigrationsFolder,
+		});
+		const deployedPredecessorLedger = await pool.query<{ count: string }>(
+			`select count(*)::text as count from "drizzle"."app_api_migrations"`,
+		);
+		expect(deployedPredecessorLedger.rows[0]?.count).toBe(String(predecessorMigrationCount));
 
-		await migrateAppApiSchema({
+		await installAppApiSchema({
 			APP_API_DATABASE_SSLMODE: "disable",
 			APP_API_SCHEMA_DATABASE_URL: container.getConnectionUri(),
 		});
@@ -265,6 +357,26 @@ describe("app-api migration upgrade", () => {
 				chat_targets: [],
 				observation_targets: [],
 			},
+		]);
+		const upgradedChatColumns = await pool.query<{ column_name: string }>(`
+			select column_name
+			from information_schema.columns
+			where table_schema = 'chat'
+			  and table_name = 'turn_dispatches'
+			  and column_name in (
+				'assistant_message_id', 'memory_append_enabled', 'memory_owner_generation',
+				'memory_owner_sequence', 'memory_recall_enabled', 'requested_scope',
+				'resolved_targets_json', 'version_query_json'
+			  )
+			order by column_name
+		`);
+		expect(upgradedChatColumns.rows.map(({ column_name: columnName }) => columnName)).toEqual([
+			"assistant_message_id",
+			"memory_append_enabled",
+			"memory_owner_generation",
+			"memory_owner_sequence",
+			"memory_recall_enabled",
+			"resolved_targets_json",
 		]);
 
 		const retainedIdentity = await pool.query<{
@@ -294,6 +406,33 @@ describe("app-api migration upgrade", () => {
 				role: "user",
 				temporary_password_expires_at: null,
 				token: "legacy-token",
+			},
+		]);
+		const retainedOAuth = await pool.query<{
+			access_token: string;
+			client_id: string;
+			consent_id: string;
+			refresh_token: string;
+		}>(`
+			select client."clientId" as client_id,
+			       refresh."token" as refresh_token,
+			       access."token" as access_token,
+			       consent."id" as consent_id
+			from "app_auth"."oauthClient" client
+			join "app_auth"."oauthRefreshToken" refresh
+			  on refresh."clientId" = client."clientId"
+			join "app_auth"."oauthAccessToken" access
+			  on access."refreshId" = refresh."id"
+			join "app_auth"."oauthConsent" consent
+			  on consent."clientId" = client."clientId"
+			where client."id" = 'legacy-client-row'
+		`);
+		expect(retainedOAuth.rows).toEqual([
+			{
+				access_token: "legacy-access-token",
+				client_id: "legacy-client",
+				consent_id: "legacy-consent-row",
+				refresh_token: "legacy-refresh-token",
 			},
 		]);
 		const authShape = await pool.query<{
@@ -330,6 +469,49 @@ describe("app-api migration upgrade", () => {
 				rate_limit_ready: true,
 			},
 		]);
+		const authForeignKeys = await pool.query<{
+			column_name: string;
+			constraint_name: string;
+			delete_action: string;
+			referenced_column: string;
+			referenced_table: string;
+			table_name: string;
+		}>(`
+			select constraint_row.conname as constraint_name,
+			       relation.relname as table_name,
+			       source_attribute.attname as column_name,
+			       referenced_relation.relname as referenced_table,
+			       referenced_attribute.attname as referenced_column,
+			       case constraint_row.confdeltype
+			         when 'a' then 'NO ACTION'
+			         when 'r' then 'RESTRICT'
+			         when 'c' then 'CASCADE'
+			         when 'n' then 'SET NULL'
+			         when 'd' then 'SET DEFAULT'
+			       end as delete_action
+			from pg_constraint constraint_row
+			join pg_class relation on relation.oid = constraint_row.conrelid
+			join pg_namespace namespace on namespace.oid = relation.relnamespace
+			join pg_class referenced_relation on referenced_relation.oid = constraint_row.confrelid
+			join lateral unnest(constraint_row.conkey) with ordinality
+			  as source_key(attnum, position) on true
+			join lateral unnest(constraint_row.confkey) with ordinality
+			  as referenced_key(attnum, position) on referenced_key.position = source_key.position
+			join pg_attribute source_attribute
+			  on source_attribute.attrelid = relation.oid
+			 and source_attribute.attnum = source_key.attnum
+			join pg_attribute referenced_attribute
+			  on referenced_attribute.attrelid = referenced_relation.oid
+			 and referenced_attribute.attnum = referenced_key.attnum
+			where namespace.nspname = 'app_auth'
+			  and constraint_row.contype = 'f'
+			  and relation.relname in (
+				'account', 'oauthAccessToken', 'oauthClient', 'oauthConsent',
+				'oauthRefreshToken', 'session'
+			  )
+			order by constraint_row.conname collate "C", source_key.position
+		`);
+		expect(authForeignKeys.rows).toEqual(EXPECTED_AUTH_FOREIGN_KEYS);
 
 		const memory = await pool.query<{
 			command_sequence: string;
@@ -394,14 +576,14 @@ describe("app-api migration upgrade", () => {
 		`);
 		expect(retired.rows).toEqual([]);
 
-		await migrateAppApiSchema({
+		await installAppApiSchema({
 			APP_API_DATABASE_SSLMODE: "disable",
 			APP_API_SCHEMA_DATABASE_URL: container.getConnectionUri(),
 		});
 		const ledger = await pool.query<{ count: string }>(
 			`select count(*)::text as count from "drizzle"."app_api_migrations"`,
 		);
-		expect(ledger.rows[0]?.count).toBe("7");
+		expect(ledger.rows[0]?.count).toBe(String(fullMigrationCount));
 		const seededGroups = await pool.query<{
 			count: string;
 			discord_join_url: string | null;
@@ -435,7 +617,7 @@ describe("app-api migration upgrade", () => {
 		]);
 
 		await resetDisposableDatabase(pool);
-		await migrateAppApiSchema({
+		await installAppApiSchema({
 			APP_API_DATABASE_SSLMODE: "disable",
 			APP_API_SCHEMA_DATABASE_URL: container.getConnectionUri(),
 		});
