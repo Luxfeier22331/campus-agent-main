@@ -133,7 +133,8 @@ describe("app-api schema installer", () => {
 		expect(sql).not.toContain("GRANT INSERT");
 		expect(sql).not.toContain("GRANT UPDATE");
 		expect(sql).not.toContain("GRANT DELETE");
-		expect(sql).toContain("$retire_campus_services_roles$");
+		expect(sql).toContain("$retire_campus_services_ops_web$");
+		expect(sql).not.toContain("campus_services_publisher");
 		expect(sql).toContain("rolname = 'ops_web'");
 	});
 

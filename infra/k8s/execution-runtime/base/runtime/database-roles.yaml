@@ -66,19 +66,3 @@ spec:
   passwordSecret:
     name: execution-provider-config-admin-secrets
 ---
-apiVersion: postgresql.cnpg.io/v1
-kind: DatabaseRole
-metadata:
-  name: campus-agent-postgres-campus-services-publisher
-  labels:
-    app.kubernetes.io/name: campus-agent-postgres
-    app.kubernetes.io/part-of: campus-agent
-  annotations:
-    argocd.argoproj.io/sync-wave: "-2"
-spec:
-  cluster:
-    name: campus-agent-postgres
-  name: campus_services_publisher
-  login: false
-  disablePassword: true
-  databaseRoleReclaimPolicy: delete
