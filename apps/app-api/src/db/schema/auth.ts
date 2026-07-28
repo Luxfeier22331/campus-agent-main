@@ -124,7 +124,7 @@ export const oauthClient = auth.table(
 		enableEndSession: boolean("enableEndSession"),
 		subjectType: text("subjectType"),
 		scopes: jsonb("scopes"),
-		userId: text("userId").references(() => user.id),
+		userId: text("userId").references(() => user.id, { onDelete: "cascade" }),
 		createdAt: timestamp("createdAt", { withTimezone: true }),
 		updatedAt: timestamp("updatedAt", { withTimezone: true }),
 		name: text("name"),
@@ -160,11 +160,11 @@ export const oauthRefreshToken = auth.table(
 		token: text("token").notNull(),
 		clientId: text("clientId")
 			.notNull()
-			.references(() => oauthClient.clientId),
+			.references(() => oauthClient.clientId, { onDelete: "cascade" }),
 		sessionId: text("sessionId").references(() => session.id, { onDelete: "set null" }),
 		userId: text("userId")
 			.notNull()
-			.references(() => user.id),
+			.references(() => user.id, { onDelete: "cascade" }),
 		referenceId: text("referenceId"),
 		expiresAt: timestamp("expiresAt", { withTimezone: true }).notNull(),
 		createdAt: timestamp("createdAt", { withTimezone: true }).notNull(),
@@ -173,6 +173,7 @@ export const oauthRefreshToken = auth.table(
 		scopes: jsonb("scopes").notNull(),
 	},
 	(table) => ({
+		tokenUnique: uniqueIndex("oauthRefreshToken_token_uidx").on(table.token),
 		clientIdIndex: index("oauthRefreshToken_clientId_idx").on(table.clientId),
 		sessionIdIndex: index("oauthRefreshToken_sessionId_idx").on(table.sessionId),
 		userIdIndex: index("oauthRefreshToken_userId_idx").on(table.userId),
@@ -186,11 +187,13 @@ export const oauthAccessToken = auth.table(
 		token: text("token").notNull(),
 		clientId: text("clientId")
 			.notNull()
-			.references(() => oauthClient.clientId),
+			.references(() => oauthClient.clientId, { onDelete: "cascade" }),
 		sessionId: text("sessionId").references(() => session.id, { onDelete: "set null" }),
-		userId: text("userId").references(() => user.id),
+		userId: text("userId").references(() => user.id, { onDelete: "cascade" }),
 		referenceId: text("referenceId"),
-		refreshId: text("refreshId").references(() => oauthRefreshToken.id),
+		refreshId: text("refreshId").references(() => oauthRefreshToken.id, {
+			onDelete: "cascade",
+		}),
 		expiresAt: timestamp("expiresAt", { withTimezone: true }).notNull(),
 		createdAt: timestamp("createdAt", { withTimezone: true }).notNull(),
 		scopes: jsonb("scopes").notNull(),
@@ -210,8 +213,8 @@ export const oauthConsent = auth.table(
 		id: text("id").primaryKey(),
 		clientId: text("clientId")
 			.notNull()
-			.references(() => oauthClient.clientId),
-		userId: text("userId").references(() => user.id),
+			.references(() => oauthClient.clientId, { onDelete: "cascade" }),
+		userId: text("userId").references(() => user.id, { onDelete: "cascade" }),
 		referenceId: text("referenceId"),
 		scopes: jsonb("scopes").notNull(),
 		createdAt: timestamp("createdAt", { withTimezone: true }).notNull(),

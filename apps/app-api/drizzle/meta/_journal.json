@@ -47,8 +47,8 @@
     {
       "idx": 6,
       "version": "7",
-      "when": 1785154702221,
-      "tag": "0006_account_lifecycle",
+      "when": 1785264578376,
+      "tag": "0006_auth_ownership_and_account_lifecycle",
       "breakpoints": true
     }
   ]

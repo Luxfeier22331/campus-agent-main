@@ -10,12 +10,9 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { migrateAppApiSchema } from "../ops/db/schema.ts";
 import { appApiSchema } from "../src/db/schema";
 import { createPgProfileMemoryStore } from "../src/modules/profile-memory";
-import {
-	applySharedProductCurrentSchemaSql,
-	runBetterAuthMigrations,
-} from "../src/script-support/shared-db/shared-product-database-bootstrap.ts";
 
 const POSTGRES_IMAGE =
 	"postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193";
@@ -81,23 +78,68 @@ async function applyLegacyChatSchema(pool: Pool): Promise<void> {
 	await pool.query(legacySchema);
 }
 
-async function applyCurrentChatSchema(pool: Pool): Promise<void> {
-	await applySharedProductCurrentSchemaSql(pool, await readFile(chatCurrentSchemaPath, "utf8"));
-}
-
-async function applyCurrentBetterAuthSchema(
-	pool: Pool,
-	container: StartedPostgreSqlContainer,
-): Promise<void> {
-	await pool.query('create schema if not exists "app_auth"');
-	await runBetterAuthMigrations({
-		authSchema: "app_auth",
-		authShellOrigin: "http://127.0.0.1:27014",
-		betterAuthSecret: "migration-test-secret-migration-test-secret",
-		chatSchema: "chat",
-		databaseSslMode: "disable",
-		databaseUrl: container.getConnectionUri(),
-	});
+async function applyLegacyBetterAuthSchema(pool: Pool): Promise<void> {
+	await pool.query(`
+		create schema "app_auth";
+		create table "app_auth"."user" (
+			"id" text primary key,
+			"name" text not null,
+			"email" text not null unique,
+			"emailVerified" boolean not null,
+			"image" text,
+			"createdAt" timestamptz default current_timestamp not null,
+			"updatedAt" timestamptz default current_timestamp not null,
+			"role" text,
+			"banned" boolean,
+			"banReason" text,
+			"banExpires" timestamptz
+		);
+		create table "app_auth"."session" (
+			"id" text primary key,
+			"expiresAt" timestamptz not null,
+			"token" text not null unique,
+			"createdAt" timestamptz default current_timestamp not null,
+			"updatedAt" timestamptz not null,
+			"ipAddress" text,
+			"userAgent" text,
+			"userId" text not null references "app_auth"."user"("id") on delete cascade
+		);
+		create index "session_userId_idx" on "app_auth"."session" ("userId");
+		create table "app_auth"."account" (
+			"id" text primary key,
+			"accountId" text not null,
+			"providerId" text not null,
+			"userId" text not null references "app_auth"."user"("id") on delete cascade,
+			"accessToken" text,
+			"refreshToken" text,
+			"idToken" text,
+			"accessTokenExpiresAt" timestamptz,
+			"refreshTokenExpiresAt" timestamptz,
+			"scope" text,
+			"password" text,
+			"createdAt" timestamptz default current_timestamp not null,
+			"updatedAt" timestamptz not null
+		);
+		create index "account_userId_idx" on "app_auth"."account" ("userId");
+		create table "app_auth"."verification" (
+			"id" text primary key,
+			"identifier" text not null,
+			"value" text not null,
+			"expiresAt" timestamptz not null,
+			"createdAt" timestamptz default current_timestamp not null,
+			"updatedAt" timestamptz default current_timestamp not null
+		);
+		create index "verification_identifier_idx" on "app_auth"."verification" ("identifier");
+		insert into "app_auth"."user"
+			("id", "name", "email", "emailVerified", "role", "banned")
+		values ('legacy-user', 'Legacy User', 'legacy@example.test', true, null, null);
+		insert into "app_auth"."account"
+			("id", "accountId", "providerId", "userId", "password", "updatedAt")
+		values ('legacy-account', 'legacy-user', 'credential', 'legacy-user', 'legacy-password', now());
+		insert into "app_auth"."session"
+			("id", "expiresAt", "token", "updatedAt", "userId")
+		values ('legacy-session', now() + interval '1 day', 'legacy-token', now(), 'legacy-user');
+	`);
 }
 
 describe("app-api migration upgrade", () => {
@@ -143,7 +185,7 @@ describe("app-api migration upgrade", () => {
 			migrationsSchema: "drizzle",
 			migrationsTable: "app_api_migrations",
 		};
-		await applyCurrentBetterAuthSchema(pool, container);
+		await applyLegacyBetterAuthSchema(pool);
 		await migrate(drizzle(pool), {
 			...migrationOptions,
 			migrationsFolder: initialMigrationsFolder,
@@ -198,9 +240,9 @@ describe("app-api migration upgrade", () => {
 				'2026-07-15T08:00:00Z', '2026-07-15T08:00:00Z', '2026-07-15T08:00:00Z');
 		`);
 
-		await migrate(drizzle(pool), {
-			...migrationOptions,
-			migrationsFolder: fullMigrationsFolder,
+		await migrateAppApiSchema({
+			APP_API_DATABASE_SSLMODE: "disable",
+			APP_API_SCHEMA_DATABASE_URL: container.getConnectionUri(),
 		});
 
 		const retained = await pool.query<{
@@ -222,6 +264,70 @@ describe("app-api migration upgrade", () => {
 				assistant_message_id: "request-upgrade:assistant",
 				chat_targets: [],
 				observation_targets: [],
+			},
+		]);
+
+		const retainedIdentity = await pool.query<{
+			banned: boolean;
+			impersonated_by: string | null;
+			password: string | null;
+			password_change_required: boolean;
+			role: string | null;
+			temporary_password_expires_at: Date | null;
+			token: string;
+		}>(`
+			select u."role", u."banned",
+			       u."passwordChangeRequired" as password_change_required,
+			       u."temporaryPasswordExpiresAt" as temporary_password_expires_at,
+			       a."password", s."token", s."impersonatedBy" as impersonated_by
+			from "app_auth"."user" u
+			join "app_auth"."account" a on a."userId" = u."id"
+			join "app_auth"."session" s on s."userId" = u."id"
+			where u."id" = 'legacy-user'
+		`);
+		expect(retainedIdentity.rows).toEqual([
+			{
+				banned: false,
+				impersonated_by: null,
+				password: "legacy-password",
+				password_change_required: false,
+				role: "user",
+				temporary_password_expires_at: null,
+				token: "legacy-token",
+			},
+		]);
+		const authShape = await pool.query<{
+			new_index_count: string;
+			old_index_count: string;
+			password_change_nullable: string;
+			rate_limit_ready: boolean;
+		}>(`
+			select
+				to_regclass('app_auth."rateLimit"') is not null as rate_limit_ready,
+				(select is_nullable from information_schema.columns
+				 where table_schema = 'app_auth' and table_name = 'user'
+				   and column_name = 'passwordChangeRequired') as password_change_nullable,
+				(select count(*)::text from pg_indexes
+				 where schemaname = 'app_auth'
+				   and indexname in (
+					'account_userId_idx', 'oauthAccessToken_token_uidx',
+					'oauthClient_clientId_uidx', 'oauthRefreshToken_token_uidx',
+					'session_token_uidx', 'session_user_id_expires_at_idx', 'user_email_uidx'
+				   )) as new_index_count,
+				(select count(*)::text from pg_indexes
+				 where schemaname = 'app_auth'
+				   and indexname in (
+					'oauthAccessToken_token_key', 'oauthClient_clientId_key',
+					'oauthRefreshToken_token_key', 'session_token_key',
+					'session_userId_idx', 'user_email_key'
+				   )) as old_index_count
+		`);
+		expect(authShape.rows).toEqual([
+			{
+				new_index_count: "7",
+				old_index_count: "0",
+				password_change_nullable: "NO",
+				rate_limit_ready: true,
 			},
 		]);
 
@@ -288,9 +394,9 @@ describe("app-api migration upgrade", () => {
 		`);
 		expect(retired.rows).toEqual([]);
 
-		await migrate(drizzle(pool), {
-			...migrationOptions,
-			migrationsFolder: fullMigrationsFolder,
+		await migrateAppApiSchema({
+			APP_API_DATABASE_SSLMODE: "disable",
+			APP_API_SCHEMA_DATABASE_URL: container.getConnectionUri(),
 		});
 		const ledger = await pool.query<{ count: string }>(
 			`select count(*)::text as count from "drizzle"."app_api_migrations"`,
@@ -329,20 +435,24 @@ describe("app-api migration upgrade", () => {
 		]);
 
 		await resetDisposableDatabase(pool);
-		await applyCurrentChatSchema(pool);
-		await applyCurrentBetterAuthSchema(pool, container);
-		await migrate(drizzle(pool), {
-			...migrationOptions,
-			migrationsFolder: fullMigrationsFolder,
+		await migrateAppApiSchema({
+			APP_API_DATABASE_SSLMODE: "disable",
+			APP_API_SCHEMA_DATABASE_URL: container.getConnectionUri(),
 		});
 		const cleanInstall = await pool.query<{
 			assistant_message_id: string | null;
+			auth_rate_limit_ready: boolean;
+			auth_session_ready: boolean;
+			auth_user_ready: boolean;
 			campus_groups_ready: boolean;
 			campus_group_sections_ready: boolean;
 			memory_commands_ready: boolean;
 			resolved_targets_json: string | null;
 		}>(`
 				select
+					to_regclass('app_auth."user"') is not null as auth_user_ready,
+					to_regclass('app_auth."session"') is not null as auth_session_ready,
+					to_regclass('app_auth."rateLimit"') is not null as auth_rate_limit_ready,
 					to_regclass('campus_groups.groups') is not null as campus_groups_ready,
 					to_regclass('campus_groups.sections') is not null as campus_group_sections_ready,
 				to_regclass('profile.memory_commands') is not null as memory_commands_ready,
@@ -356,6 +466,9 @@ describe("app-api migration upgrade", () => {
 		expect(cleanInstall.rows).toEqual([
 			{
 				assistant_message_id: "assistant_message_id",
+				auth_rate_limit_ready: true,
+				auth_session_ready: true,
+				auth_user_ready: true,
 				campus_group_sections_ready: true,
 				campus_groups_ready: true,
 				memory_commands_ready: true,

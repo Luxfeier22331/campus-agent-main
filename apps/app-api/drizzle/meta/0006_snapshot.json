@@ -1,5 +1,5 @@
 {
-  "id": "2324ca96-0944-450a-bcc6-7f5882ff589f",
+  "id": "7f6076ac-825f-40f2-8fc5-92f411cb16a4",
   "prevId": "2bf58021-187b-429e-bc1b-581513b191df",
   "version": "7",
   "dialect": "postgresql",
@@ -222,6 +222,1307 @@
           "value": "\"app_auth\".\"account_admin_event\".\"outcome\" in ('started', 'succeeded', 'failed', 'indeterminate')"
         }
       },
+      "isRLSEnabled": false
+    },
+    "app_auth.account": {
+      "name": "account",
+      "schema": "app_auth",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "accountId": {
+          "name": "accountId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "providerId": {
+          "name": "providerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "userId": {
+          "name": "userId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "accessToken": {
+          "name": "accessToken",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "refreshToken": {
+          "name": "refreshToken",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "idToken": {
+          "name": "idToken",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "accessTokenExpiresAt": {
+          "name": "accessTokenExpiresAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "refreshTokenExpiresAt": {
+          "name": "refreshTokenExpiresAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scope": {
+          "name": "scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "password": {
+          "name": "password",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "account_userId_idx": {
+          "name": "account_userId_idx",
+          "columns": [
+            {
+              "expression": "userId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "account_userId_user_id_fk": {
+          "name": "account_userId_user_id_fk",
+          "tableFrom": "account",
+          "tableTo": "user",
+          "schemaTo": "app_auth",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "app_auth.jwks": {
+      "name": "jwks",
+      "schema": "app_auth",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "publicKey": {
+          "name": "publicKey",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "privateKey": {
+          "name": "privateKey",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expiresAt": {
+          "name": "expiresAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "app_auth.oauthAccessToken": {
+      "name": "oauthAccessToken",
+      "schema": "app_auth",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "token": {
+          "name": "token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "clientId": {
+          "name": "clientId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sessionId": {
+          "name": "sessionId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "userId": {
+          "name": "userId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "referenceId": {
+          "name": "referenceId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "refreshId": {
+          "name": "refreshId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expiresAt": {
+          "name": "expiresAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scopes": {
+          "name": "scopes",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "oauthAccessToken_token_uidx": {
+          "name": "oauthAccessToken_token_uidx",
+          "columns": [
+            {
+              "expression": "token",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "oauthAccessToken_clientId_idx": {
+          "name": "oauthAccessToken_clientId_idx",
+          "columns": [
+            {
+              "expression": "clientId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "oauthAccessToken_sessionId_idx": {
+          "name": "oauthAccessToken_sessionId_idx",
+          "columns": [
+            {
+              "expression": "sessionId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "oauthAccessToken_userId_idx": {
+          "name": "oauthAccessToken_userId_idx",
+          "columns": [
+            {
+              "expression": "userId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "oauthAccessToken_refreshId_idx": {
+          "name": "oauthAccessToken_refreshId_idx",
+          "columns": [
+            {
+              "expression": "refreshId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "oauthAccessToken_clientId_oauthClient_clientId_fk": {
+          "name": "oauthAccessToken_clientId_oauthClient_clientId_fk",
+          "tableFrom": "oauthAccessToken",
+          "tableTo": "oauthClient",
+          "schemaTo": "app_auth",
+          "columnsFrom": [
+            "clientId"
+          ],
+          "columnsTo": [
+            "clientId"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "oauthAccessToken_sessionId_session_id_fk": {
+          "name": "oauthAccessToken_sessionId_session_id_fk",
+          "tableFrom": "oauthAccessToken",
+          "tableTo": "session",
+          "schemaTo": "app_auth",
+          "columnsFrom": [
+            "sessionId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "oauthAccessToken_userId_user_id_fk": {
+          "name": "oauthAccessToken_userId_user_id_fk",
+          "tableFrom": "oauthAccessToken",
+          "tableTo": "user",
+          "schemaTo": "app_auth",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "oauthAccessToken_refreshId_oauthRefreshToken_id_fk": {
+          "name": "oauthAccessToken_refreshId_oauthRefreshToken_id_fk",
+          "tableFrom": "oauthAccessToken",
+          "tableTo": "oauthRefreshToken",
+          "schemaTo": "app_auth",
+          "columnsFrom": [
+            "refreshId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "app_auth.oauthClient": {
+      "name": "oauthClient",
+      "schema": "app_auth",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "clientId": {
+          "name": "clientId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "clientSecret": {
+          "name": "clientSecret",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "disabled": {
+          "name": "disabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "skipConsent": {
+          "name": "skipConsent",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "enableEndSession": {
+          "name": "enableEndSession",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "subjectType": {
+          "name": "subjectType",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scopes": {
+          "name": "scopes",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "userId": {
+          "name": "userId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "uri": {
+          "name": "uri",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "icon": {
+          "name": "icon",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contacts": {
+          "name": "contacts",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tos": {
+          "name": "tos",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "policy": {
+          "name": "policy",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "softwareId": {
+          "name": "softwareId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "softwareVersion": {
+          "name": "softwareVersion",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "softwareStatement": {
+          "name": "softwareStatement",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "redirectUris": {
+          "name": "redirectUris",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "postLogoutRedirectUris": {
+          "name": "postLogoutRedirectUris",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tokenEndpointAuthMethod": {
+          "name": "tokenEndpointAuthMethod",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "grantTypes": {
+          "name": "grantTypes",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "responseTypes": {
+          "name": "responseTypes",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "public": {
+          "name": "public",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "requirePKCE": {
+          "name": "requirePKCE",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "referenceId": {
+          "name": "referenceId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "oauthClient_clientId_uidx": {
+          "name": "oauthClient_clientId_uidx",
+          "columns": [
+            {
+              "expression": "clientId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "oauthClient_userId_idx": {
+          "name": "oauthClient_userId_idx",
+          "columns": [
+            {
+              "expression": "userId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "oauthClient_userId_user_id_fk": {
+          "name": "oauthClient_userId_user_id_fk",
+          "tableFrom": "oauthClient",
+          "tableTo": "user",
+          "schemaTo": "app_auth",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "app_auth.oauthConsent": {
+      "name": "oauthConsent",
+      "schema": "app_auth",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "clientId": {
+          "name": "clientId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "userId": {
+          "name": "userId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "referenceId": {
+          "name": "referenceId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scopes": {
+          "name": "scopes",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "oauthConsent_clientId_idx": {
+          "name": "oauthConsent_clientId_idx",
+          "columns": [
+            {
+              "expression": "clientId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "oauthConsent_userId_idx": {
+          "name": "oauthConsent_userId_idx",
+          "columns": [
+            {
+              "expression": "userId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "oauthConsent_clientId_oauthClient_clientId_fk": {
+          "name": "oauthConsent_clientId_oauthClient_clientId_fk",
+          "tableFrom": "oauthConsent",
+          "tableTo": "oauthClient",
+          "schemaTo": "app_auth",
+          "columnsFrom": [
+            "clientId"
+          ],
+          "columnsTo": [
+            "clientId"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "oauthConsent_userId_user_id_fk": {
+          "name": "oauthConsent_userId_user_id_fk",
+          "tableFrom": "oauthConsent",
+          "tableTo": "user",
+          "schemaTo": "app_auth",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "app_auth.oauthRefreshToken": {
+      "name": "oauthRefreshToken",
+      "schema": "app_auth",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "token": {
+          "name": "token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "clientId": {
+          "name": "clientId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sessionId": {
+          "name": "sessionId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "userId": {
+          "name": "userId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "referenceId": {
+          "name": "referenceId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expiresAt": {
+          "name": "expiresAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revoked": {
+          "name": "revoked",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "authTime": {
+          "name": "authTime",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scopes": {
+          "name": "scopes",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "oauthRefreshToken_token_uidx": {
+          "name": "oauthRefreshToken_token_uidx",
+          "columns": [
+            {
+              "expression": "token",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "oauthRefreshToken_clientId_idx": {
+          "name": "oauthRefreshToken_clientId_idx",
+          "columns": [
+            {
+              "expression": "clientId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "oauthRefreshToken_sessionId_idx": {
+          "name": "oauthRefreshToken_sessionId_idx",
+          "columns": [
+            {
+              "expression": "sessionId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "oauthRefreshToken_userId_idx": {
+          "name": "oauthRefreshToken_userId_idx",
+          "columns": [
+            {
+              "expression": "userId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "oauthRefreshToken_clientId_oauthClient_clientId_fk": {
+          "name": "oauthRefreshToken_clientId_oauthClient_clientId_fk",
+          "tableFrom": "oauthRefreshToken",
+          "tableTo": "oauthClient",
+          "schemaTo": "app_auth",
+          "columnsFrom": [
+            "clientId"
+          ],
+          "columnsTo": [
+            "clientId"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "oauthRefreshToken_sessionId_session_id_fk": {
+          "name": "oauthRefreshToken_sessionId_session_id_fk",
+          "tableFrom": "oauthRefreshToken",
+          "tableTo": "session",
+          "schemaTo": "app_auth",
+          "columnsFrom": [
+            "sessionId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "oauthRefreshToken_userId_user_id_fk": {
+          "name": "oauthRefreshToken_userId_user_id_fk",
+          "tableFrom": "oauthRefreshToken",
+          "tableTo": "user",
+          "schemaTo": "app_auth",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "app_auth.rateLimit": {
+      "name": "rateLimit",
+      "schema": "app_auth",
+      "columns": {
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "count": {
+          "name": "count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lastRequest": {
+          "name": "lastRequest",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "app_auth.session": {
+      "name": "session",
+      "schema": "app_auth",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "token": {
+          "name": "token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "userId": {
+          "name": "userId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expiresAt": {
+          "name": "expiresAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ipAddress": {
+          "name": "ipAddress",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "userAgent": {
+          "name": "userAgent",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "impersonatedBy": {
+          "name": "impersonatedBy",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "session_token_uidx": {
+          "name": "session_token_uidx",
+          "columns": [
+            {
+              "expression": "token",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "session_user_id_expires_at_idx": {
+          "name": "session_user_id_expires_at_idx",
+          "columns": [
+            {
+              "expression": "userId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "expiresAt",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "session_userId_user_id_fk": {
+          "name": "session_userId_user_id_fk",
+          "tableFrom": "session",
+          "tableTo": "user",
+          "schemaTo": "app_auth",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "app_auth.user": {
+      "name": "user",
+      "schema": "app_auth",
+      "columns": {
+        "banExpires": {
+          "name": "banExpires",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "banReason": {
+          "name": "banReason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "banned": {
+          "name": "banned",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "emailVerified": {
+          "name": "emailVerified",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "image": {
+          "name": "image",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "passwordChangeRequired": {
+          "name": "passwordChangeRequired",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'user'"
+        },
+        "temporaryPasswordExpiresAt": {
+          "name": "temporaryPasswordExpiresAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "user_banned_idx": {
+          "name": "user_banned_idx",
+          "columns": [
+            {
+              "expression": "banned",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "user_created_at_id_idx": {
+          "name": "user_created_at_id_idx",
+          "columns": [
+            {
+              "expression": "createdAt",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "user_email_prefix_idx": {
+          "name": "user_email_prefix_idx",
+          "columns": [
+            {
+              "expression": "lower(\"email\") text_pattern_ops",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "user_email_uidx": {
+          "name": "user_email_uidx",
+          "columns": [
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "user_name_prefix_idx": {
+          "name": "user_name_prefix_idx",
+          "columns": [
+            {
+              "expression": "lower(\"name\") text_pattern_ops",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "app_auth.verification": {
+      "name": "verification",
+      "schema": "app_auth",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "identifier": {
+          "name": "identifier",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "value": {
+          "name": "value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expiresAt": {
+          "name": "expiresAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "verification_identifier_idx": {
+          "name": "verification_identifier_idx",
+          "columns": [
+            {
+              "expression": "identifier",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "campus_groups.sections": {

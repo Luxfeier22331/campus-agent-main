@@ -277,11 +277,7 @@ async function main(argv: string[]): Promise<void> {
 	await waitForReadyz(args.execReadyzUrl, args.startupTimeoutMs);
 	runChecked(
 		"node",
-		[
-			`${appApiDir}/scripts/run-with-local-env.ts`,
-			"node",
-			"./ops/db/bootstrap-shared-product-database.ts",
-		],
+		[`${appApiDir}/scripts/run-with-local-env.ts`, "node", "./ops/db/prepare-local.ts"],
 		repoRoot,
 	);
 	runChecked(

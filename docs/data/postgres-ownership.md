@@ -49,6 +49,11 @@ Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，�
 ingestion registry 和来源事实由采集数据所有者维护，不并入产品 schema。各表字段、状态和保留
 规则由所属数据文档或 schema 唯一维护。
 
+`app_auth.*` 包含 Better Auth 核心表、启用插件的表以及 App API 账号生命周期表。Better Auth
+表由 `apps/app-api/src/db/schema/auth.ts` 描述，全部 App API 自有表由 `owned.ts` 汇总，并使用
+`drizzle.app_api_migrations` 这一条 ledger 迁移；Better Auth 运行时不执行 DDL，也不维护第二条
+migration 记录。
+
 ## 访问规则
 
 - 常驻运行时不使用 schema 管理或 migration 凭据；
@@ -76,7 +81,7 @@ ingestion registry 和来源事实由采集数据所有者维护，不并入产�
 
 ## 可执行来源
 
-- App API schema：`apps/app-api/db/`、`apps/app-api/drizzle/`
+- App API schema：`apps/app-api/src/db/schema/`、`apps/app-api/db/`、`apps/app-api/drizzle/`
 - 执行投影与配置：`apps/execution-control/internal/`
 - Ops Web 排查授权与 Dining schema：`apps/ops-web/ops/db/`
 - 校园服务读取表与授权：`apps/app-api/db/shared-product-schema/`、`apps/app-api/ops/db/`

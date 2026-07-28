@@ -46,9 +46,9 @@ describe("app-api shared product bootstrap contracts", () => {
 			"db/shared-product-schema/campus_services.sql",
 			"db/shared-product-schema/chat_current.sql",
 			"drizzle/0000_initial.sql",
-			"ops/db/bootstrap-shared-product-database.ts",
 			"ops/db/campus-services-grants.ts",
-			"ops/db/ensure-app-auth-role-search-path.ts",
+			"ops/db/prepare-local.ts",
+			"ops/db/schema.ts",
 			"src/script-support/shared-db/shared-product-database-bootstrap.ts",
 			"vitest.worker.config.mts",
 			"vitest.shared-db.config.mts",
@@ -175,7 +175,9 @@ describe("app-api shared product bootstrap contracts", () => {
 	});
 
 	it("keeps Dining bootstrap outside the app-api shared database bootstrap", () => {
-		const bootstrapSource = readAppFile("ops/db/bootstrap-shared-product-database.ts");
+		const bootstrapSource = readAppFile(
+			"src/script-support/shared-db/shared-product-database-bootstrap.ts",
+		);
 
 		expect(bootstrapSource).not.toContain("jobs/dining-sync");
 		expect(bootstrapSource).not.toContain("import-dev-seed");

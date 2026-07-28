@@ -41,8 +41,10 @@ Workers VPC binding 访问集群内对象存储，不持有 S3 凭据或使用�
 数据库 schema 与角色边界由 `docs/data/postgres-ownership.md` 维护，安装和迁移实现位于应用
 `ops/db/` 与 schema Job；README 不复制表清单和部署步骤。
 
-认证核心表由 Better Auth 官方 migration API 管理；邮箱准入、账号管理记录和注销任务由应用
-Drizzle 迁移管理。schema 安装和本地初始化均先执行 Better Auth 迁移，再执行 Drizzle 迁移。
+Better Auth 负责认证运行时，认证表定义由 `src/db/schema/auth.ts` 统一纳入应用 Drizzle schema。
+`app_auth.*` 的建表、升级和 migration ledger 只由 `apps/app-api/drizzle/` 与 schema Job 管理，
+运行时和部署脚本不调用 Better Auth `getMigrations()`。调整 Better Auth 核心字段或插件时，应先按
+Better Auth 官方 Drizzle adapter schema 更新 `auth.ts`，再使用 Drizzle Kit 生成并审查迁移。
 认证邮件要求 `AUTH_EMAIL_FROM` 和 `RESEND_API_KEY`；`AUTH_EMAIL_REPLY_TO` 可选。
 
 ## 相关文档

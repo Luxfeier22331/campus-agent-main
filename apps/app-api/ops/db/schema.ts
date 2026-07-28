@@ -5,8 +5,8 @@ import { fileURLToPath } from "node:url";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import {
-	bootstrapSharedProductDatabase,
 	createSharedProductPool,
+	prepareSharedProductSchemas,
 	readSharedProductBootstrapEnv,
 } from "../../src/script-support/shared-db/shared-product-database-bootstrap.ts";
 import { applyAppApiGrants } from "./app-api-grants.ts";
@@ -191,18 +191,11 @@ async function verifySchema(pool: ReturnType<typeof createSharedProductPool>): P
 	}
 }
 
-export async function installAppApiSchema(envOverrides: NodeJS.ProcessEnv = process.env): Promise<{
+export async function migrateAppApiSchema(envOverrides: NodeJS.ProcessEnv = process.env): Promise<{
 	schemaFiles: string[];
-	schemaReady: true;
 }> {
-	const bootstrapEnv = {
-		...envOverrides,
-		BETTER_AUTH_SECRET:
-			envOverrides.BETTER_AUTH_SECRET?.trim() || "schema-install-only-not-a-runtime-secret-2026",
-	};
-	const env = readSharedProductBootstrapEnv(bootstrapEnv);
-	const databaseName = decodeURIComponent(new URL(env.databaseUrl).pathname.slice(1));
-	const bootstrap = await bootstrapSharedProductDatabase(bootstrapEnv);
+	const env = readSharedProductBootstrapEnv(envOverrides);
+	const prepared = await prepareSharedProductSchemas(envOverrides);
 	const pool = createSharedProductPool(env);
 	try {
 		await migrate(drizzle(pool), {
@@ -210,6 +203,21 @@ export async function installAppApiSchema(envOverrides: NodeJS.ProcessEnv = proc
 			migrationsSchema: "drizzle",
 			migrationsTable: "app_api_migrations",
 		});
+		return { schemaFiles: prepared.schemaFiles.map((path) => resolve(path)) };
+	} finally {
+		await pool.end();
+	}
+}
+
+export async function installAppApiSchema(envOverrides: NodeJS.ProcessEnv = process.env): Promise<{
+	schemaFiles: string[];
+	schemaReady: true;
+}> {
+	const env = readSharedProductBootstrapEnv(envOverrides);
+	const databaseName = decodeURIComponent(new URL(env.databaseUrl).pathname.slice(1));
+	const migrated = await migrateAppApiSchema(envOverrides);
+	const pool = createSharedProductPool(env);
+	try {
 		await pool.query("BEGIN");
 		try {
 			await applyAppApiGrants(pool, databaseName);
@@ -221,7 +229,7 @@ export async function installAppApiSchema(envOverrides: NodeJS.ProcessEnv = proc
 		}
 		await verifySchema(pool);
 		return {
-			schemaFiles: bootstrap.schemaFiles.map((path) => resolve(path)),
+			schemaFiles: migrated.schemaFiles,
 			schemaReady: true,
 		};
 	} finally {

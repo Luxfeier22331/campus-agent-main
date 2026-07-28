@@ -31,7 +31,7 @@ describe("chat e2e package scripts", () => {
 
 		expect(scriptSource).toContain("isReadyzReady(args.execReadyzUrl)");
 		expect(scriptSource).toContain("Start the runtime through the platform-owned deployment path");
-		expect(scriptSource).toContain("bootstrap-shared-product-database.ts");
+		expect(scriptSource).toContain("prepare-local.ts");
 		expect(scriptSource).toContain("provision-smoke-identity.ts");
 		expect(scriptSource).toContain("CAMPUS_WEB_LIVE_SMOKE");
 		expect(scriptSource).toContain("node_modules/vite/bin/vite.js");

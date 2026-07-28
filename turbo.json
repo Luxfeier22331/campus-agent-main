@@ -26,8 +26,7 @@
 				"$TURBO_ROOT$/apps/app-api/db/shared-product-schema/**",
 				"$TURBO_ROOT$/apps/app-api/drizzle/**",
 				"$TURBO_ROOT$/apps/app-api/ops/db/**",
-				"$TURBO_ROOT$/apps/app-api/src/script-support/shared-db/**",
-				"$TURBO_ROOT$/apps/app-api/src/modules/auth/campus-access.ts"
+				"$TURBO_ROOT$/apps/app-api/src/script-support/shared-db/**"
 			]
 		},
 		"execution-control#build": {

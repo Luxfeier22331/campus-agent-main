@@ -64,8 +64,8 @@ describe("app-api schema installer", () => {
 		expect(source).toContain("await migrate(");
 		expect(source).toContain('migrationsSchema: "drizzle"');
 		expect(source).toContain('migrationsTable: "app_api_migrations"');
-		expect(source).toContain("bootstrapSharedProductDatabase");
-		expect(source.indexOf("bootstrapSharedProductDatabase(bootstrapEnv)")).toBeLessThan(
+		expect(source).toContain("prepareSharedProductSchemas");
+		expect(source.indexOf("prepareSharedProductSchemas(envOverrides)")).toBeLessThan(
 			source.indexOf("await migrate("),
 		);
 		expect(source).toContain("applyAppApiGrants");
@@ -77,13 +77,16 @@ describe("app-api schema installer", () => {
 			{ idx: 3, tag: "0003_hindsight_productionization", version: "7" },
 			{ idx: 4, tag: "0004_campus_groups", version: "7" },
 			{ idx: 5, tag: "0005_campus_groups_seed", version: "7" },
-			{ idx: 6, tag: "0006_account_lifecycle", version: "7" },
+			{ idx: 6, tag: "0006_auth_ownership_and_account_lifecycle", version: "7" },
 		]);
-		expect(readAppFile("drizzle/0006_account_lifecycle.sql")).toContain(
+		expect(readAppFile("drizzle/0006_auth_ownership_and_account_lifecycle.sql")).toContain(
+			'CREATE TABLE IF NOT EXISTS "app_auth"."user"',
+		);
+		expect(readAppFile("drizzle/0006_auth_ownership_and_account_lifecycle.sql")).toContain(
 			'CREATE TABLE "app_auth"."email_access_grant"',
 		);
-		expect(readAppFile("drizzle/0006_account_lifecycle.sql")).toContain(
-			'CREATE INDEX "user_created_at_id_idx"',
+		expect(readAppFile("drizzle/0006_auth_ownership_and_account_lifecycle.sql")).toContain(
+			'CREATE INDEX IF NOT EXISTS "user_created_at_id_idx"',
 		);
 		expect(appFileSha256("drizzle/0000_initial.sql")).toBe(
 			"3c2464d91d240212435818779898cf68fe72e59077b8833b4bfed023686cd0df",
@@ -165,11 +168,6 @@ describe("app-api schema installer", () => {
 		expect(dockerfile).toContain("--prod --no-optional");
 		expect(dockerfile).toContain("USER node");
 		expect(dockerfile).not.toContain("wrangler");
-		expect(Object.keys(packageManifest.dependencies).sort()).toEqual([
-			"@better-auth/oauth-provider",
-			"better-auth",
-			"drizzle-orm",
-			"pg",
-		]);
+		expect(Object.keys(packageManifest.dependencies).sort()).toEqual(["drizzle-orm", "pg"]);
 	});
 });

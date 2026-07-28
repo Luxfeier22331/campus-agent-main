@@ -6,8 +6,6 @@
 	"license": "Apache-2.0",
 	"type": "module",
 	"dependencies": {
-		"@better-auth/oauth-provider": "1.6.25",
-		"better-auth": "^1.6.25",
 		"drizzle-orm": "^0.45.2",
 		"pg": "^8.22.0"
 	}

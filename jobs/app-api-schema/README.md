@@ -6,6 +6,10 @@
 它不是常驻服务，也不维护第二份 migration 实现。运行时 app-api、Dining 同步和普通数据库角色不
 使用该镜像的管理凭据。
 
+Better Auth 核心表、插件表和 App API 自有认证表都由同一份 Drizzle schema 与
+`drizzle.app_api_migrations` ledger 管理。该 Job 不启动 Better Auth，也不需要
+`AUTH_SHELL_ORIGIN` 或 `BETTER_AUTH_SECRET`。
+
 ```bash
 docker build -f jobs/app-api-schema/Dockerfile -t app-api-schema .
 ```

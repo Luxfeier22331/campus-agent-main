@@ -15,7 +15,6 @@ export type RuntimeDatabase = NodePgDatabase<typeof appApiSchema>;
 export type RuntimeDbGetter = () => Promise<RuntimeDatabase>;
 export type RuntimeDatabaseConsistency = "cached" | "fresh";
 
-const IDENTIFIER = /^[a-z_][a-z0-9_]*$/;
 const DEVELOPMENT_POOL_MAX = 1;
 const PRODUCTION_POOL_MAX = 4;
 const DEVELOPMENT_IDLE_TIMEOUT_MS = 5_000;
@@ -40,34 +39,6 @@ export function normalizePostgresConnectionStringForExplicitSsl(connectionString
 
 	const nextUrl = new URL(normalized);
 	nextUrl.searchParams.delete("sslmode");
-	return nextUrl.toString();
-}
-
-export function assertPgIdentifier(label: string, value: string): string {
-	if (!IDENTIFIER.test(value)) {
-		throw new Error(`${label} must be a lowercase PostgreSQL identifier.`);
-	}
-
-	return value;
-}
-
-export function buildPostgresSearchPathConnectionString(
-	databaseUrl: string,
-	schemaNames: string[],
-): string {
-	const normalizedSchemaNames = schemaNames.map((schemaName) =>
-		assertPgIdentifier("schema", schemaName),
-	);
-	const nextUrl = new URL(databaseUrl);
-	const searchPath = normalizedSchemaNames.join(",");
-	const currentOptions = nextUrl.searchParams.get("options");
-	const searchPathOption = `-c search_path=${searchPath}`;
-
-	nextUrl.searchParams.set(
-		"options",
-		currentOptions ? `${currentOptions} ${searchPathOption}` : searchPathOption,
-	);
-
 	return nextUrl.toString();
 }
 
