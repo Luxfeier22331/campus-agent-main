@@ -7,6 +7,7 @@ const CAMPUS_RETURN_EXACT_PATHS = new Set([
 	"/",
 	"/map",
 	"/dining",
+	"/services",
 	"/groups",
 	"/feedback",
 	"/account",
@@ -14,6 +15,7 @@ const CAMPUS_RETURN_EXACT_PATHS = new Set([
 	"/account/register",
 	"/account/forgot-password",
 	"/account/reset-password",
+	"/account/deletion",
 	"/account/federation/consent",
 	"/account/federation/error",
 ]);
@@ -40,6 +42,9 @@ export function resolveAccountAuthReturnTarget(
 	const params = typeof search === "string" ? new URLSearchParams(search) : search;
 	const returnTo = params.get("redirectTo")?.trim();
 	if (!returnTo) {
+		return DEFAULT_RETURN_TARGET;
+	}
+	if (returnTo.includes("\\")) {
 		return DEFAULT_RETURN_TARGET;
 	}
 

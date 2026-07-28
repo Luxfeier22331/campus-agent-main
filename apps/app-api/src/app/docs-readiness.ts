@@ -3,7 +3,7 @@ import { count, eq } from "drizzle-orm";
 import { type Env, readAppAuthConfig } from "../config";
 import { probeRuntimeDatabase, withRuntimeDatabase } from "../db/runtime";
 import { docsCollections } from "../db/schema";
-import { buildBetterAuthConfig, probeAppAuthRuntime } from "../modules/auth";
+import { probeAppAuthRuntime } from "../modules/auth";
 
 export interface AppDocsReadinessResult {
 	dependencies: {
@@ -43,20 +43,7 @@ export async function defaultDocsReadinessProbe(
 	const failed: AppDocsReadinessResult["failed"] = {};
 
 	try {
-		const config = readAppAuthConfig(env);
-		buildBetterAuthConfig({
-			appName: config.appName,
-			authResetEmailFrom: config.authResetEmailFrom,
-			authTurnstileSecretKey: config.authTurnstileSecretKey,
-			betterAuthSecret: config.betterAuthSecret,
-			database: {},
-			endUserEmailAllowlist: config.endUserEmailAllowlist,
-			endUserEmailDomainAllowlist: config.endUserEmailDomainAllowlist,
-			environment: config.environment,
-			authShellOrigin: config.authShellOrigin,
-			resendApiKey: config.resendApiKey,
-			resendFetch: fetch,
-		});
+		readAppAuthConfig(env);
 	} catch (error) {
 		return {
 			dependencies,

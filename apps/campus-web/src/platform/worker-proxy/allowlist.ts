@@ -5,14 +5,23 @@ export const CAMPUS_ALLOWED_APP_API_PATHS = [
 	"/api/me/profile-memory",
 	"/api/me/profile-memory/items",
 	"/api/me/profile-memory/settings",
+	"/api/account/delete",
 	"/api/auth/sign-in/email",
 	"/api/auth/sign-up/email",
 	"/api/auth/sign-out",
 	"/api/auth/get-session",
+	"/api/auth/change-email",
+	"/api/auth/change-password",
 	"/api/auth/list-accounts",
 	"/api/auth/list-sessions",
 	"/api/auth/request-password-reset",
+	"/api/auth/revoke-other-sessions",
+	"/api/auth/revoke-session",
+	"/api/auth/revoke-sessions",
 	"/api/auth/reset-password",
+	"/api/auth/send-verification-email",
+	"/api/auth/update-user",
+	"/api/auth/verify-email",
 	"/api/federation/authorize",
 	"/api/federation/token",
 	"/api/federation/userinfo",
@@ -38,6 +47,7 @@ export function isAllowedCampusAppApiRequest(pathname: string): boolean {
 	}
 
 	return (
+		/^\/api\/auth\/reset-password\/[^/]+$/.test(pathname) ||
 		/^\/api\/chat\/conversations\/[^/]+$/.test(pathname) ||
 		/^\/api\/chat\/conversations\/[^/]+\/archive$/.test(pathname) ||
 		/^\/api\/chat\/conversations\/[^/]+\/pin$/.test(pathname) ||

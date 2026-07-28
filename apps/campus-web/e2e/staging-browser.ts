@@ -6,7 +6,7 @@ import { type BrowserContext, chromium, type Page } from "playwright";
 
 const DEFAULT_CAMPUS_BASE_URL = "https://campus-staging.mucwiki-edge.link";
 const DEFAULT_APP_API_BASE_URL = "https://api-staging.mucwiki-edge.link";
-const DEFAULT_EMAIL = "help_bot@outlook.com";
+const DEFAULT_EMAIL = "campus_agent_smoke@muc.edu.cn";
 const DEFAULT_NAME = "Campus Agent Smoke";
 const DEFAULT_PROMPT = "中央民族大学本科学生国家奖学金评审办法";
 

@@ -8,6 +8,7 @@ const jwksByIssuer = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 export interface OpsAdmissionEnv {
 	ACCESS_POLICY_AUD?: string;
 	ACCESS_TEAM_DOMAIN?: string;
+	DEPLOYMENT_ENVIRONMENT?: string;
 }
 
 export interface OpsOperatorContext {
@@ -29,6 +30,19 @@ export function createCloudflareAccessOpsAdmission(
 	env: OpsAdmissionEnv = process.env,
 ): OpsAdmission {
 	return { admit: async (request) => await validateCloudflareAccessRequest(request, env) };
+}
+
+export function createOpsAdmissionFromEnv(env: OpsAdmissionEnv = process.env): OpsAdmission {
+	const deploymentEnvironment = env.DEPLOYMENT_ENVIRONMENT?.trim().toLowerCase();
+	if (deploymentEnvironment === "local" || deploymentEnvironment === "development") {
+		return createAllowAllOpsAdmission({
+			displayName: "Local Operator",
+			email: "local@localhost",
+			operatorId: "local",
+			subject: "local",
+		});
+	}
+	return createCloudflareAccessOpsAdmission(env);
 }
 
 export function createAllowAllOpsAdmission(operator?: Partial<OpsOperatorContext>): OpsAdmission {

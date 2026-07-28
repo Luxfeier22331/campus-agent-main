@@ -1,4 +1,10 @@
-import { type Env, isDeployedEnvironment, resolveEnvironment } from "../config";
+import { type Env, isDeployedEnvironment, readAppAuthConfig, resolveEnvironment } from "../config";
+import { buildAccountAdminService, createPgAccountAdminStore } from "../modules/account-admin";
+import {
+	buildAccountLifecycleService,
+	createPgAccountLifecycleStore,
+} from "../modules/account-lifecycle";
+import { getOpsAccountAdminApi } from "../modules/auth/ops-account-admin-plugin";
 import { buildCampusExperienceService } from "../modules/campus-experience";
 import { buildCampusGroupsService, createPgCampusGroupsStore } from "../modules/campus-groups";
 import {
@@ -8,13 +14,18 @@ import {
 import { buildChatConversationService, createPgChatConversationStore } from "../modules/chat";
 import { createPgDiningContentService, createPgDiningMapReadService } from "../modules/dining";
 import { buildDocsService, createPgDocsReadModelStore } from "../modules/docs";
+import { buildEmailAccessService, createPgEmailAccessGrantStore } from "../modules/email-access";
 import {
 	createExecutionControlPersonalMemoryClient,
 	createExecutionControlRuntimeClient,
 	isExecutionControlRuntimeConfigured,
 } from "../modules/integration";
 import { buildProfileMemoryService, createPgProfileMemoryStore } from "../modules/profile-memory";
-import { buildChatCommandService, createPgChatCommandStore } from "../modules/runtime-command";
+import {
+	buildChatCommandService,
+	createPgChatCommandStore,
+	deriveSafetyIdentifierForUser,
+} from "../modules/runtime-command";
 import { buildRuntimeRunService, createPgRuntimeRunStore } from "../modules/runtime-run";
 import { createRequestRuntimeScope } from "../request-runtime-scope";
 import type { AppDependencies, AppRequestScope } from "./types";
@@ -32,6 +43,9 @@ export function createRequestScopeFactory(input: {
 	return {
 		createRequestScope(): AppRequestScope {
 			const runtime = createRequestRuntimeScope(input.env);
+			const getAppAuth = input.dependencies.getAppAuth ?? runtime.getAppAuth;
+			let accountAdmin = input.dependencies.accountAdminService ?? null;
+			let accountLifecycle = input.dependencies.accountLifecycleService ?? null;
 			let campusExperience = input.dependencies.campusExperienceService ?? null;
 			let campusGroups = input.dependencies.campusGroupsService ?? null;
 			let campusServices = input.dependencies.campusServicesTransportScheduleService ?? null;
@@ -40,6 +54,7 @@ export function createRequestScopeFactory(input: {
 			let dining = input.dependencies.diningMapReadService ?? null;
 			let diningContent = input.dependencies.diningContentService ?? null;
 			let docs = input.dependencies.docsService ?? null;
+			let emailAccess = input.dependencies.emailAccessService ?? null;
 			let memory = input.dependencies.profileMemoryService ?? null;
 			let runtimeRuns = input.dependencies.runtimeRunService ?? null;
 			const resolveProfileMemoryService = () =>
@@ -68,7 +83,27 @@ export function createRequestScopeFactory(input: {
 					telemetry: input.telemetry,
 				}));
 			return {
-				getAppAuth: input.dependencies.getAppAuth ?? runtime.getAppAuth,
+				getAppAuth,
+				resolveAccountAdminService: () =>
+					(accountAdmin ??= buildAccountAdminService({
+						authOrigin: new URL(readAppAuthConfig(input.env).authShellOrigin).origin,
+						getAppAuth,
+						store: createPgAccountAdminStore(input.env, { getDb: runtime.getFreshDb }),
+					})),
+				resolveAccountLifecycleService: () =>
+					(accountLifecycle ??= buildAccountLifecycleService({
+						profileMemoryService: resolveProfileMemoryService(),
+						removeAuthUser: async (userId) => {
+							const auth = await getAppAuth();
+							await getOpsAccountAdminApi(auth).opsRemoveUser({ body: { userId } });
+						},
+						safetyIdentifierForUser: (userId) =>
+							deriveSafetyIdentifierForUser(
+								userId,
+								input.env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET ?? "",
+							),
+						store: createPgAccountLifecycleStore(input.env, { getDb: runtime.getFreshDb }),
+					})),
 				resolveCampusExperienceService: () => (campusExperience ??= buildCampusExperienceService()),
 				resolveCampusGroupsService: () =>
 					(campusGroups ??= buildCampusGroupsService(
@@ -93,6 +128,11 @@ export function createRequestScopeFactory(input: {
 				resolveDocsService: () =>
 					(docs ??= buildDocsService({
 						store: createPgDocsReadModelStore(input.env, { getDb: runtime.getDb }),
+					})),
+				resolveEmailAccessService: () =>
+					(emailAccess ??= buildEmailAccessService({
+						environment: resolveEnvironment(input.env),
+						store: createPgEmailAccessGrantStore(input.env, { getDb: runtime.getDb }),
 					})),
 				resolveProfileMemoryService,
 				resolveRuntimeRunService: () =>

@@ -233,6 +233,19 @@ describe("local development lifecycle guards", () => {
 		assert.match(source, /\.env\.local/u);
 		assert.match(source, /\.dev\.vars\.local/u);
 	});
+
+	it("keeps the source collector local loader inside its adapter", () => {
+		const source = readFileSync(
+			resolve(
+				import.meta.dirname,
+				"../../apps/source-collector/adapters/internal-portal/src/config.ts",
+			),
+			"utf8",
+		);
+		assert.doesNotMatch(source, /repoRoot/u);
+		assert.match(source, /path\.join\(adapterRoot, "\.env\.local"\)/u);
+		assert.match(source, /path\.join\(adapterRoot, "\.env"\)/u);
+	});
 });
 
 function createRepositoryShape(): string {

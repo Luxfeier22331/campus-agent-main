@@ -98,7 +98,6 @@ export function renderLocalEnvironmentFiles(input: {
 		OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
 		OPS_WEB_DATABASE_SSLMODE: "disable",
 		OPS_WEB_DATABASE_URL: database.opsWeb,
-		OPS_WEB_FIXTURE_MODE: "1",
 		OPS_WEB_INTERNAL_TOKEN: opsWebInternalToken,
 		OPS_WEB_PUBLIC_ORIGIN: `http://127.0.0.1:${profile.ports.opsWeb}`,
 		PORT: String(profile.ports.opsWebApi),

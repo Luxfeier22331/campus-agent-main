@@ -93,7 +93,7 @@ const env = {
 	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 	AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
 	RESEND_API_KEY: "resend_test_key",
-	AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
+	AUTH_EMAIL_FROM: "Campus Agent <auth@example.com>",
 	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 	APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 	APP_API_ENVIRONMENT: "test" as const,
@@ -230,7 +230,7 @@ describe("app-api worker foundation", () => {
 		expect(uploadStagingVersionSource).toContain("OBJECT_STORE_VPC_SERVICE_ID");
 		expect(uploadStagingVersionSource).toContain("APP_API_DB_HYPERDRIVE_ID");
 		expect(uploadStagingVersionSource).toContain("APP_API_DB_FRESH_HYPERDRIVE_ID");
-		expect(uploadStagingVersionSource).toContain("AUTH_RESET_EMAIL_FROM");
+		expect(uploadStagingVersionSource).toContain("AUTH_EMAIL_FROM");
 		expect(uploadStagingVersionSource).toContain("STAGING_APP_API_EXECUTION_SHARED_SECRET");
 		expect(uploadStagingVersionSource).toContain("STAGING_OPS_WEB_INTERNAL_TOKEN");
 		expect(uploadStagingVersionSource).toContain("secretsFile: secretsPath");
@@ -298,7 +298,7 @@ describe("app-api worker foundation", () => {
 		expect(wranglerConfig).toContain("[env.local.secrets]");
 		expect(localVarsBlock).toContain('AUTH_SHELL_ORIGIN = "http://127.0.0.1:27014"');
 		expect(wranglerConfig).toContain('"RESEND_API_KEY"');
-		expect(localVarsBlock).toContain('AUTH_RESET_EMAIL_FROM = "Campus Agent <auth@example.com>"');
+		expect(localVarsBlock).toContain('AUTH_EMAIL_FROM = "Campus Agent <auth@example.com>"');
 		expect(wranglerConfig).toContain('"AUTH_TURNSTILE_SECRET_KEY"');
 		expect(localSecretsBlock).toContain('"OPS_WEB_INTERNAL_TOKEN"');
 		expect(localSecretsBlock).not.toContain('"APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN"');
@@ -307,7 +307,7 @@ describe("app-api worker foundation", () => {
 		expect(stagingSecretsBlock).toContain('"BETTER_AUTH_SECRET"');
 		expect(stagingSecretsBlock).toContain('"AUTH_TURNSTILE_SECRET_KEY"');
 		expect(stagingSecretsBlock).toContain('"RESEND_API_KEY"');
-		expect(stagingSecretsBlock).not.toContain('"AUTH_RESET_EMAIL_FROM"');
+		expect(stagingSecretsBlock).not.toContain('"AUTH_EMAIL_FROM"');
 		expect(stagingSecretsBlock).toContain('"APP_API_EXECUTION_SHARED_SECRET"');
 		expect(stagingSecretsBlock).toContain('"OPS_WEB_INTERNAL_TOKEN"');
 		expect(stagingSecretsBlock).not.toContain(
@@ -344,9 +344,9 @@ describe("app-api worker foundation", () => {
 		expect(localSmokeSecretsBlock).toContain('"BETTER_AUTH_SECRET"');
 		expect(localSmokeSecretsBlock).toContain('"AUTH_TURNSTILE_SECRET_KEY"');
 		expect(localSmokeSecretsBlock).toContain('"RESEND_API_KEY"');
-		expect(localSmokeSecretsBlock).not.toContain('"AUTH_RESET_EMAIL_FROM"');
+		expect(localSmokeSecretsBlock).not.toContain('"AUTH_EMAIL_FROM"');
 		expect(localSmokeWranglerConfig).toContain(
-			'AUTH_RESET_EMAIL_FROM = "Campus Agent <auth@example.com>"',
+			'AUTH_EMAIL_FROM = "Campus Agent <auth@example.com>"',
 		);
 		expect(localSmokeSecretsBlock).toContain('"APP_API_EXECUTION_SHARED_SECRET"');
 		expect(localSmokeSecretsBlock).not.toContain('"EXECUTION_CONTROL_BASE_URL"');

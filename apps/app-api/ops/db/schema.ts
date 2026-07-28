@@ -14,6 +14,8 @@ import { applyCampusServicesGrants } from "./campus-services-grants.ts";
 
 const migrationsFolder = fileURLToPath(new URL("../../drizzle", import.meta.url));
 const REQUIRED_TABLES = [
+	"app_auth.account_admin_event",
+	"app_auth.email_access_grant",
 	"app_auth.user",
 	"campus_groups.sections",
 	"campus_groups.groups",
@@ -24,6 +26,16 @@ const REQUIRED_TABLES = [
 	"chat.turn_dispatches",
 	"docs.releases",
 	"runtime.request_observability_fact",
+] as const;
+const REQUIRED_COLUMNS = [
+	"app_auth.rateLimit.key",
+	"app_auth.session.impersonatedBy",
+	"app_auth.user.banExpires",
+	"app_auth.user.banReason",
+	"app_auth.user.banned",
+	"app_auth.user.passwordChangeRequired",
+	"app_auth.user.role",
+	"app_auth.user.temporaryPasswordExpiresAt",
 ] as const;
 const RETIRED_TABLES = ["runtime.projection_outbox", "runtime.request_execution"] as const;
 const RETIRED_SCHEMAS = [
@@ -46,6 +58,26 @@ async function verifySchema(pool: ReturnType<typeof createSharedProductPool>): P
 	if (required.rows.length > 0) {
 		throw new Error(
 			`app-api schema is missing required tables: ${required.rows.map((row) => row.qualified_name).join(", ")}`,
+		);
+	}
+
+	const requiredColumns = await pool.query<{ qualified_name: string }>(
+		`select qualified_name
+		 from unnest($1::text[]) as required(qualified_name)
+		 where not exists (
+			select 1
+			from information_schema.columns
+			where table_schema = split_part(qualified_name, '.', 1)
+			  and table_name = split_part(qualified_name, '.', 2)
+			  and column_name = split_part(qualified_name, '.', 3)
+		 )`,
+		[REQUIRED_COLUMNS],
+	);
+	if (requiredColumns.rows.length > 0) {
+		throw new Error(
+			`app-api schema is missing required columns: ${requiredColumns.rows
+				.map((row) => row.qualified_name)
+				.join(", ")}`,
 		);
 	}
 

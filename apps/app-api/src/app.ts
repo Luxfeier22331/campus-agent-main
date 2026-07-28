@@ -44,6 +44,7 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 	});
 
 	registerAppRoutes({
+		accessInvitationEmailSender: dependencies.accessInvitationEmailSender,
 		app,
 		authHandler,
 		createRequestScope: scopedServices.createRequestScope,

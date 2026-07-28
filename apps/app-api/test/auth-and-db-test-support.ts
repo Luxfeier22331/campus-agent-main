@@ -67,7 +67,7 @@ export const APP_API_TEST_ENV = {
 	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 	AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
 	RESEND_API_KEY: "resend_test_key",
-	AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
+	AUTH_EMAIL_FROM: "Campus Agent <auth@example.com>",
 	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 	APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 	APP_API_DB: {
@@ -85,12 +85,13 @@ export const buildRuntimeDatabaseConfig = runtimeDbModule.buildRuntimeDatabaseCo
 export const createRuntimePool = runtimeDbModule.createRuntimePool;
 export const probeRuntimeDatabase = runtimeDbModule.probeRuntimeDatabase;
 export const buildBetterAuthConfig = authModule.buildBetterAuthConfig;
-export const buildEndUserEmailAdmissionPolicy = authModule.buildEndUserEmailAdmissionPolicy;
 export const enforceEndUserEmailAdmission = authModule.enforceEndUserEmailAdmission;
+export const enforcePasswordChangeSessionRevocation =
+	authModule.enforcePasswordChangeSessionRevocation;
 export const enforceSignupLegalConsent = authModule.enforceSignupLegalConsent;
 export const getAppAuth = authModule.getAppAuth;
 export const hashAppPassword = authModule.hashAppPassword;
-export const isEndUserEmailAllowedForAuth = authModule.isEndUserEmailAllowedForAuth;
+export { isCampusEmail } from "../src/modules/auth/campus-access";
 export const probeAppAuthRuntime = authModule.probeAppAuthRuntime;
 export const resolvePasswordResetRedirectTarget = authModule.resolvePasswordResetRedirectTarget;
 export const verifyAppPassword = authModule.verifyAppPassword;

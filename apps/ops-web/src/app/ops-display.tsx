@@ -1,7 +1,7 @@
 import { Badge, Button, Card, CardContent, cn } from "@campus-agent/ui";
 import { Check, CircleAlert, Clipboard, RefreshCw } from "lucide-react";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { OpsHealthStatus, OpsRequestSummary } from "../shared/ops-contract";
 import { formatTimestamp } from "./format";
 import { OpsApiError } from "./ops-api-client";
@@ -190,7 +190,7 @@ export function CopyableValue({
 	label: string;
 	value: string | null;
 }) {
-	const [copyStatus, setCopyStatus] = useState<"copied" | "failed" | "idle">("idle");
+	const [copyStatus, setCopyStatus] = useCopyStatus();
 	const displayValue = value ?? "未关联";
 	const canCopy = Boolean(value);
 	const statusText =
@@ -228,7 +228,6 @@ export function CopyableValue({
 						} catch {
 							setCopyStatus("failed");
 						}
-						window.setTimeout(() => setCopyStatus("idle"), 1600);
 					}}
 					title={statusText ?? copyButtonLabel(label, contextLabel)}
 					variant="ghost"
@@ -252,7 +251,7 @@ export function CopyIconButton({
 	label: string;
 	value: string;
 }) {
-	const [copyStatus, setCopyStatus] = useState<"copied" | "failed" | "idle">("idle");
+	const [copyStatus, setCopyStatus] = useCopyStatus();
 	const statusText =
 		copyStatus === "copied" ? "已复制" : copyStatus === "failed" ? "复制失败" : null;
 	return (
@@ -272,7 +271,6 @@ export function CopyIconButton({
 					} catch {
 						setCopyStatus("failed");
 					}
-					window.setTimeout(() => setCopyStatus("idle"), 1600);
 				}}
 				title={statusText ?? copyButtonLabel(label, contextLabel)}
 				variant="ghost"
@@ -284,6 +282,18 @@ export function CopyIconButton({
 			</span>
 		</div>
 	);
+}
+
+function useCopyStatus() {
+	const [status, setStatus] = useState<"copied" | "failed" | "idle">("idle");
+	useEffect(() => {
+		if (status === "idle") {
+			return;
+		}
+		const timeoutId = window.setTimeout(() => setStatus("idle"), 1600);
+		return () => window.clearTimeout(timeoutId);
+	}, [status]);
+	return [status, setStatus] as const;
 }
 
 function copyButtonLabel(label: string, contextLabel: string | undefined) {

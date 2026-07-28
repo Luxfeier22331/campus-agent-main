@@ -39,8 +39,21 @@ export function QAShell({
 	const [authDialogOpen, setAuthDialogOpen] = useState(false);
 	const session = campusAuthClient.useSession();
 	const hasSession = Boolean(session.data);
+	const passwordChangeRequired = session.data?.user.passwordChangeRequired === true;
 	const activePath = readBrowserPathname();
 	const openAuthDialog = useCallback(() => setAuthDialogOpen(true), []);
+
+	useEffect(() => {
+		if (!passwordChangeRequired) {
+			return;
+		}
+		const redirectTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+		void navigate({
+			replace: true,
+			search: { redirectTo },
+			to: "/account/settings/security",
+		});
+	}, [navigate, passwordChangeRequired]);
 
 	useEffect(() => {
 		if (loginRequested) {
@@ -65,6 +78,10 @@ export function QAShell({
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
 	}, [navigate]);
+
+	if (passwordChangeRequired) {
+		return null;
+	}
 
 	return (
 		<AssistantRemoteRuntimeFrame

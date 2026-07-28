@@ -20,6 +20,12 @@ export const APP_API_BROWSER_ROUTE_EXPOSURE_INVENTORY = [
 		admission: "better-auth provider request via campus-web same-origin seam",
 	},
 	{
+		method: "POST",
+		path: "/api/account/delete",
+		callerClass: "browser-surface",
+		admission: "session principal and current password required",
+	},
+	{
 		method: "DELETE",
 		path: "/api/chat",
 		callerClass: "browser-surface",

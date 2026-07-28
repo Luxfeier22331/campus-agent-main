@@ -5,6 +5,7 @@
 ## 职责
 
 - 组合产品路由、共享导航、认证界面和领域页面；
+- 提供邮箱验证、密码恢复、强制改密和账号注销流程；
 - 通过 Service Binding 或配置的来源调用 app-api；
 - 在 `/docs/*` 构建和交付 Rspress 阅读器；
 - 按明确 Dining release 加载完整地图和不可变 SVG 资源；
@@ -19,6 +20,7 @@
 - `src/components/ui/` 只维护 Campus 专属组合控件和共享状态；
 - `src/styles.css` 与 `theme/docs-ui.css` 只适配应用和 Rspress；
 - assistant-ui 负责问答交互，Better Auth UI 与 HeroUI 负责账号界面，Rspress 负责文档阅读；
+- 账号页复用 App API 的 Better Auth 与账号生命周期接口，不保存临时密码或注销凭据；
 - 普通共享控件使用仓库的 shadcn/Radix wrapper，单场景展示优先使用语义 HTML；
 - `src/components/ui/motion.tsx` 统一共享交互动效并处理 reduced motion；
 - `SurfaceState` 用于区域级读取、空状态、错误和降级状态。

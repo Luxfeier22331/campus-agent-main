@@ -38,6 +38,9 @@ export function resolveRouteMetadata(pathname: string): CampusRouteMetadata {
 	if (pathname === "/account/settings/security") {
 		return privateMetadata("账号安全", "管理当前校园问答账号的安全设置。");
 	}
+	if (pathname === "/account/deletion") {
+		return privateMetadata("注销请求已受理", "账号注销请求已经进入数据清理流程。");
+	}
 	if (pathname === "/account/settings/account") {
 		return privateMetadata("账号设置", "管理当前校园问答账号资料。");
 	}

@@ -4,7 +4,6 @@ import dotenv from "dotenv";
 import { parse as parseDomain } from "tldts";
 
 const adapterRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const repoRoot = path.resolve(adapterRoot, "../../../..");
 const DEFAULT_PORTAL_BASE_URL = "https://portal.example.edu";
 
 export interface InternalPortalConfig {
@@ -21,7 +20,6 @@ export interface InternalPortalConfig {
 export function loadInternalPortalEnv(processEnv: NodeJS.ProcessEnv = process.env): void {
 	dotenv.config({ path: path.join(adapterRoot, ".env.local"), processEnv, quiet: true });
 	dotenv.config({ path: path.join(adapterRoot, ".env"), processEnv, quiet: true });
-	dotenv.config({ path: path.join(repoRoot, ".env"), processEnv, quiet: true });
 }
 
 export function resolveInternalPortalConfig(

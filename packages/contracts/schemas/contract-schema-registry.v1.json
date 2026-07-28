@@ -20,6 +20,22 @@
 			"notes": "Private app-api -> execution-control wire contract; generated TS/Go artifacts remain checked by pnpm contracts:check."
 		},
 		{
+			"id": "email-access.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/email-access.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"notes": "App API 与 Ops Web 之间的邮箱准入管理合同。"
+		},
+		{
+			"id": "account-admin.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/account-admin.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"notes": "App API 与 Ops Web 之间的账号管理合同。"
+		},
+		{
 			"id": "campus-services-tool-result.v1",
 			"kind": "json_artifact",
 			"path": "packages/contracts/schemas/campus-services-tool-result.v1.schema.json",

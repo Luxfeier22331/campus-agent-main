@@ -7,7 +7,6 @@ import type {
 	OpsRequestSummary,
 	OpsRequestWindow,
 } from "../shared/ops-contract";
-import { createFixtureOpsStatusStore } from "./fixture-ops-status-store.ts";
 import { createPgOpsStatusStore, createPgOpsStatusStoreDatabase } from "./pg-ops-status-store.ts";
 import { resolvePostgresTlsConfig } from "./postgres-tls.ts";
 import { sentryTraceExplorerUrl } from "./sentry-client.ts";
@@ -67,7 +66,6 @@ export interface OpsStatusEnv {
 	OPS_WEB_DATABASE_URL?: string;
 	OPS_WEB_INTERNAL_TOKEN?: string;
 	OPS_WEB_EXECUTION_CONTROL_URL?: string;
-	OPS_WEB_FIXTURE_MODE?: string;
 	OPS_WEB_LANGFUSE_URL?: string;
 	OPS_WEB_SENTRY_BASE_URL?: string;
 	OPS_WEB_TEMPORAL_UI_URL?: string;
@@ -190,15 +188,11 @@ export function createUnavailableOpsStatusStore(
 }
 
 export function createOpsStatusStoreFromEnv(env: OpsStatusEnv = process.env): OpsStatusStore {
-	if (env.OPS_WEB_FIXTURE_MODE === "1") {
-		assertFixtureModeAllowed(env);
-		return createFixtureOpsStatusStore();
-	}
 	const databaseUrl = env.OPS_WEB_DATABASE_URL?.trim();
 	if (!databaseUrl) {
 		throw new OpsStatusStoreUnavailableError(
 			"OPS_WEB_DATABASE_URL_MISSING",
-			"OPS_WEB_DATABASE_URL is required unless OPS_WEB_FIXTURE_MODE=1.",
+			"OPS_WEB_DATABASE_URL is required.",
 		);
 	}
 	const databaseConfig = resolvePostgresTlsConfig({
@@ -250,22 +244,6 @@ export function resolveCampusWebPublicOrigin(value: string | undefined): string 
 	} catch {
 		return;
 	}
-}
-
-export function assertFixtureModeAllowed(env: OpsStatusEnv): void {
-	const nodeEnv = env.NODE_ENV?.trim().toLowerCase();
-	const deploymentEnvironment = env.DEPLOYMENT_ENVIRONMENT?.trim().toLowerCase();
-	if (
-		nodeEnv === "test" ||
-		deploymentEnvironment === "development" ||
-		deploymentEnvironment === "local"
-	) {
-		return;
-	}
-	throw new OpsStatusStoreUnavailableError(
-		"OPS_STATUS_STORE_UNAVAILABLE",
-		"OPS_WEB_FIXTURE_MODE is only allowed for tests or local development.",
-	);
 }
 
 export { createFixtureOpsStatusStore } from "./fixture-ops-status-store.ts";

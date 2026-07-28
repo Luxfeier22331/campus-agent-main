@@ -7,18 +7,21 @@ import type {
 	AppRequestScope,
 	AppRuntimeReadinessResult,
 } from "../types";
+import { registerAccountAdminRoutes } from "./account-admin";
 import { registerAuthRoutes } from "./auth";
 import { registerCampusExperienceRoutes } from "./campus-experience";
 import { registerCampusGroupsRoutes } from "./campus-groups";
 import { registerChatRoutes } from "./chat";
 import { registerDiningContentRoutes } from "./dining";
 import { registerDocsRoutes } from "./docs";
+import { registerEmailAccessAdminRoutes } from "./email-access-admin";
 import { registerFederationRoutes } from "./federation";
 import { registerInternalRoutes } from "./internal";
 import { registerProfileMemoryRoutes } from "./profile-memory";
 import { registerRuntimeRoutes } from "./runtime";
 
 export function registerAppRoutes(input: {
+	accessInvitationEmailSender?: AppDependencies["accessInvitationEmailSender"];
 	app: Hono<{ Bindings: Env }>;
 	authHandler: NonNullable<AppDependencies["authHandler"]>;
 	createRequestScope: () => AppRequestScope;
@@ -81,6 +84,17 @@ export function registerAppRoutes(input: {
 		getPrincipal: input.getPrincipal,
 	});
 	registerInternalRoutes({
+		app: input.app,
+		createRequestScope: input.createRequestScope,
+		env: input.env,
+	});
+	registerEmailAccessAdminRoutes({
+		accessInvitationEmailSender: input.accessInvitationEmailSender,
+		app: input.app,
+		createRequestScope: input.createRequestScope,
+		env: input.env,
+	});
+	registerAccountAdminRoutes({
 		app: input.app,
 		createRequestScope: input.createRequestScope,
 		env: input.env,

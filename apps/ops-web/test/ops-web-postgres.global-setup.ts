@@ -8,6 +8,7 @@ import { promisify } from "node:util";
 
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { Client } from "pg";
+import { Wait } from "testcontainers";
 import type { TestProject } from "vitest/node";
 import { installAppApiSchema } from "../../app-api/ops/db/schema.ts";
 
@@ -131,6 +132,7 @@ export default async function setup(project: TestProject): Promise<() => Promise
 			.withDatabase(DATABASE_NAME)
 			.withUsername("postgres")
 			.withPassword(randomUUID())
+			.withWaitStrategy(Wait.forLogMessage(/database system is ready to accept connections/u, 2))
 			.start();
 		project.provide("opsWebPostgres", await provisionDatabase(container));
 	} catch (error) {

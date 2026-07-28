@@ -17,13 +17,13 @@ function resolveTestConfig(source: Record<string, string | undefined> = {}) {
 }
 
 describe("internal portal source collector config", () => {
-	it("loads managed local, developer, and repository env without overriding process env", () => {
+	it("loads only adapter-owned env files without overriding process env", () => {
 		const config = vi.spyOn(dotenv, "config").mockReturnValue({ parsed: {} });
 		const processEnv = {};
 
 		loadInternalPortalEnv(processEnv);
 
-		expect(config).toHaveBeenCalledTimes(3);
+		expect(config).toHaveBeenCalledTimes(2);
 		expect(config.mock.calls[0]?.[0]).toMatchObject({
 			path: expect.stringMatching(/adapters\/internal-portal\/\.env\.local$/u),
 			quiet: true,
@@ -32,11 +32,6 @@ describe("internal portal source collector config", () => {
 			path: expect.stringMatching(/adapters\/internal-portal\/\.env$/u),
 			quiet: true,
 		});
-		expect(config.mock.calls[2]?.[0]).toMatchObject({
-			path: expect.stringMatching(/\/\.env$/u),
-			quiet: true,
-		});
-		expect(String(config.mock.calls[2]?.[0]?.path)).not.toContain("adapters/internal-portal");
 		expect(config.mock.calls.every(([options]) => options?.override !== true)).toBe(true);
 		expect(config.mock.calls.every(([options]) => options?.processEnv === processEnv)).toBe(true);
 		config.mockRestore();

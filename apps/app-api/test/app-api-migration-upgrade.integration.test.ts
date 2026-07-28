@@ -12,7 +12,10 @@ import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { appApiSchema } from "../src/db/schema";
 import { createPgProfileMemoryStore } from "../src/modules/profile-memory";
-import { applySharedProductCurrentSchemaSql } from "../src/script-support/shared-db/shared-product-database-bootstrap.ts";
+import {
+	applySharedProductCurrentSchemaSql,
+	runBetterAuthMigrations,
+} from "../src/script-support/shared-db/shared-product-database-bootstrap.ts";
 
 const POSTGRES_IMAGE =
 	"postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193";
@@ -82,6 +85,21 @@ async function applyCurrentChatSchema(pool: Pool): Promise<void> {
 	await applySharedProductCurrentSchemaSql(pool, await readFile(chatCurrentSchemaPath, "utf8"));
 }
 
+async function applyCurrentBetterAuthSchema(
+	pool: Pool,
+	container: StartedPostgreSqlContainer,
+): Promise<void> {
+	await pool.query('create schema if not exists "app_auth"');
+	await runBetterAuthMigrations({
+		authSchema: "app_auth",
+		authShellOrigin: "http://127.0.0.1:27014",
+		betterAuthSecret: "migration-test-secret-migration-test-secret",
+		chatSchema: "chat",
+		databaseSslMode: "disable",
+		databaseUrl: container.getConnectionUri(),
+	});
+}
+
 describe("app-api migration upgrade", () => {
 	let container: StartedPostgreSqlContainer;
 	let initialMigrationsFolder = "";
@@ -125,6 +143,7 @@ describe("app-api migration upgrade", () => {
 			migrationsSchema: "drizzle",
 			migrationsTable: "app_api_migrations",
 		};
+		await applyCurrentBetterAuthSchema(pool, container);
 		await migrate(drizzle(pool), {
 			...migrationOptions,
 			migrationsFolder: initialMigrationsFolder,
@@ -276,7 +295,7 @@ describe("app-api migration upgrade", () => {
 		const ledger = await pool.query<{ count: string }>(
 			`select count(*)::text as count from "drizzle"."app_api_migrations"`,
 		);
-		expect(ledger.rows[0]?.count).toBe("6");
+		expect(ledger.rows[0]?.count).toBe("7");
 		const seededGroups = await pool.query<{
 			count: string;
 			discord_join_url: string | null;
@@ -311,6 +330,7 @@ describe("app-api migration upgrade", () => {
 
 		await resetDisposableDatabase(pool);
 		await applyCurrentChatSchema(pool);
+		await applyCurrentBetterAuthSchema(pool, container);
 		await migrate(drizzle(pool), {
 			...migrationOptions,
 			migrationsFolder: fullMigrationsFolder,

@@ -3,8 +3,6 @@ export type DatabaseSslMode = "disable" | "prefer" | "require";
 export const APP_API_NAME = "campus-agent-app-api";
 export const EXECUTION_CONTROL_TIMEOUT_MS = 95_000;
 export const PROFILE_MEMORY_COMMAND_TIMEOUT_MS = 120_000;
-export const END_USER_EMAIL_DOMAIN_ALLOWLIST = ["muc.edu.cn"] as const;
-export const END_USER_EMAIL_ALLOWLIST = ["help_bot@outlook.com"] as const;
 
 export interface HyperdriveBindingLike {
 	connectionString?: string;
@@ -20,7 +18,8 @@ export interface Env {
 	AUTH_SHELL_ORIGIN?: string;
 	AUTH_TURNSTILE_SECRET_KEY?: string;
 	RESEND_API_KEY?: string;
-	AUTH_RESET_EMAIL_FROM?: string;
+	AUTH_EMAIL_FROM?: string;
+	AUTH_EMAIL_REPLY_TO?: string;
 	EXECUTION_CONTROL_BASE_URL?: string;
 	EXECUTION_CONTROL_PRIVATE?: WorkerFetchBindingLike;
 	EXECUTION_CONTROL_PRIVATE_ORIGIN?: string;
@@ -45,9 +44,8 @@ export interface AppAuthConfig {
 	authShellOrigin: string;
 	authTurnstileSecretKey: string;
 	resendApiKey: string;
-	authResetEmailFrom: string;
-	endUserEmailDomainAllowlist: string[];
-	endUserEmailAllowlist: string[];
+	authEmailFrom: string;
+	authEmailReplyTo?: string;
 }
 
 const MISSING_CONFIG_KEYS = [
@@ -59,7 +57,7 @@ const MISSING_AUTH_CONFIG_KEYS = [
 	"BETTER_AUTH_SECRET",
 	"AUTH_TURNSTILE_SECRET_KEY",
 	"RESEND_API_KEY",
-	"AUTH_RESET_EMAIL_FROM",
+	"AUTH_EMAIL_FROM",
 	"AUTH_SHELL_ORIGIN",
 ] as const;
 
@@ -134,7 +132,7 @@ export function getMissingAuthRuntimeConfig(env: Env): string[] {
 	if (!env.RESEND_API_KEY?.trim()) {
 		missing.push(MISSING_AUTH_CONFIG_KEYS[2]);
 	}
-	if (!env.AUTH_RESET_EMAIL_FROM?.trim()) {
+	if (!env.AUTH_EMAIL_FROM?.trim()) {
 		missing.push(MISSING_AUTH_CONFIG_KEYS[3]);
 	}
 	if (!env.AUTH_SHELL_ORIGIN?.trim()) {
@@ -176,11 +174,7 @@ export function readAppAuthConfig(env: Env): AppAuthConfig {
 			"AUTH_TURNSTILE_SECRET_KEY",
 		),
 		resendApiKey: readRequiredTrimmedValue(env.RESEND_API_KEY, "RESEND_API_KEY"),
-		authResetEmailFrom: readRequiredTrimmedValue(
-			env.AUTH_RESET_EMAIL_FROM,
-			"AUTH_RESET_EMAIL_FROM",
-		),
-		endUserEmailDomainAllowlist: [...END_USER_EMAIL_DOMAIN_ALLOWLIST],
-		endUserEmailAllowlist: [...END_USER_EMAIL_ALLOWLIST],
+		authEmailFrom: readRequiredTrimmedValue(env.AUTH_EMAIL_FROM, "AUTH_EMAIL_FROM"),
+		authEmailReplyTo: env.AUTH_EMAIL_REPLY_TO?.trim() || undefined,
 	};
 }

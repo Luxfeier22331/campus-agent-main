@@ -8,17 +8,15 @@ vi.mock("../src/db/runtime", () => ({
 }));
 
 vi.mock("../src/modules/auth", () => ({
-	buildBetterAuthConfig: vi.fn(),
 	probeAppAuthRuntime: vi.fn(),
 }));
 
 import { defaultDocsReadinessProbe } from "../src/app/docs-readiness";
 import { probeRuntimeDatabase, withRuntimeDatabase } from "../src/db/runtime";
-import { buildBetterAuthConfig, probeAppAuthRuntime } from "../src/modules/auth";
+import { probeAppAuthRuntime } from "../src/modules/auth";
 
 const mockedProbeRuntimeDatabase = vi.mocked(probeRuntimeDatabase);
 const mockedWithRuntimeDatabase = vi.mocked(withRuntimeDatabase);
-const mockedBuildBetterAuthConfig = vi.mocked(buildBetterAuthConfig);
 const mockedProbeAppAuthRuntime = vi.mocked(probeAppAuthRuntime);
 
 const env = {
@@ -27,7 +25,7 @@ const env = {
 	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 	AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
 	RESEND_API_KEY: "resend_test_key",
-	AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
+	AUTH_EMAIL_FROM: "Campus Agent <auth@example.com>",
 	APP_API_DB: {
 		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 	},
@@ -37,11 +35,9 @@ describe("docs readiness", () => {
 	beforeEach(() => {
 		mockedProbeRuntimeDatabase.mockReset();
 		mockedWithRuntimeDatabase.mockReset();
-		mockedBuildBetterAuthConfig.mockReset();
 		mockedProbeAppAuthRuntime.mockReset();
 		mockedProbeRuntimeDatabase.mockResolvedValue(undefined);
 		mockedWithRuntimeDatabase.mockResolvedValue(undefined as never);
-		mockedBuildBetterAuthConfig.mockReturnValue({} as never);
 		mockedProbeAppAuthRuntime.mockResolvedValue(undefined);
 	});
 
@@ -55,10 +51,6 @@ describe("docs readiness", () => {
 			failed: {},
 		});
 
-		expect(mockedBuildBetterAuthConfig).toHaveBeenCalledWith(
-			expect.objectContaining({
-				authShellOrigin: "https://campus.muc.wiki",
-			}),
-		);
+		expect(mockedProbeAppAuthRuntime).toHaveBeenCalledWith(env);
 	});
 });

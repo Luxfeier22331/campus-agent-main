@@ -205,9 +205,9 @@ describe("campus auth client", () => {
 
 	it.each([
 		[
-			"end_user_email_not_allowed",
-			"This email is not allowed for campus sign-in.",
-			"当前邮箱暂不支持注册或登录。请使用学校邮箱，或联系维护者确认账号开放范围。",
+			"EMAIL_ACCESS_REQUIRED",
+			"This email is not admitted.",
+			"请使用 @muc.edu.cn 校园邮箱，或管理员已邀请的邮箱。",
 		],
 		["MISSING_RESPONSE", "Missing CAPTCHA response", "安全验证还没有完成，请稍后再试。"],
 		["dependency_not_ready", "服务暂不可用，请稍后再试。", "服务暂不可用，请稍后再试。"],

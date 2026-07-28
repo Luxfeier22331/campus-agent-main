@@ -1,10 +1,11 @@
 import type { Hono } from "hono";
 
 import type { Env } from "../../config";
-import { jsonResponse, withNoStore } from "../../http";
+import { AppApiRouteError, jsonResponse, withNoStore } from "../../http";
 import { requireSessionPrincipal } from "../principal";
-import { dependencyNotReadyResponse } from "../responses";
+import { readJsonRequestBody, resolveWaitUntil } from "../request-utils";
 import type { AppRequestScope } from "../types";
+import { authenticationDependencyFailure } from "./auth-failure";
 
 const APP_AUTH_ROUTE_PREFIX = "/api/auth";
 
@@ -42,8 +43,13 @@ export function registerAuthRoutes(input: {
 					getAppAuth: scope.getAppAuth,
 				}),
 			);
-		} catch {
-			return dependencyNotReadyResponse();
+		} catch (error) {
+			return authenticationDependencyFailure({
+				error,
+				request: c.req.raw,
+				scope,
+				source: "auth_handler",
+			});
 		}
 	});
 
@@ -64,5 +70,57 @@ export function registerAuthRoutes(input: {
 			session: resolved.principal.session,
 			permissions: resolved.principal.permissions,
 		});
+	});
+
+	input.app.post("/api/account/delete", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireSessionPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+		const payload = await readJsonRequestBody(c.req.raw);
+		const password = typeof payload.password === "string" ? payload.password : "";
+		if (password.length === 0 || password.length > 128) {
+			throw new AppApiRouteError({
+				code: "REAUTHENTICATION_REQUIRED",
+				message: "Current password is required.",
+				retryable: false,
+				status: 400,
+			});
+		}
+		const verificationHeaders = new Headers(c.req.raw.headers);
+		verificationHeaders.delete("content-encoding");
+		verificationHeaders.delete("content-length");
+		verificationHeaders.delete("transfer-encoding");
+		verificationHeaders.set("content-type", "application/json");
+		const verificationResponse = await input.authHandler(
+			new Request(new URL("/verify-password", c.req.raw.url), {
+				body: JSON.stringify({ password }),
+				headers: verificationHeaders,
+				method: "POST",
+			}),
+			input.env,
+			{ getAppAuth: scope.getAppAuth },
+		);
+		if (verificationResponse.status === 429) {
+			return withNoStore(verificationResponse);
+		}
+		if (!verificationResponse.ok) {
+			throw new AppApiRouteError({
+				code: "REAUTHENTICATION_REQUIRED",
+				message: "Current password is invalid.",
+				retryable: false,
+				status: 401,
+			});
+		}
+		const service = scope.resolveAccountLifecycleService();
+		const receipt = await service.requestDeletion({ principal: resolved.principal });
+		resolveWaitUntil(c)?.(service.dispatchPending());
+		return jsonResponse(receipt, { status: 202 });
 	});
 }

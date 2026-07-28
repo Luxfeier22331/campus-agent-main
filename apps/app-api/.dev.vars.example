@@ -4,7 +4,9 @@ BETTER_AUTH_SECRET=replace-with-dev-secret
 AUTH_TURNSTILE_SECRET_KEY=replace-with-turnstile-secret-key
 RESEND_API_KEY=replace-with-resend-api-key
 OPS_WEB_INTERNAL_TOKEN=replace-with-ops-web-internal-token
-AUTH_RESET_EMAIL_FROM=Campus Agent <auth@example.com>
+AUTH_EMAIL_FROM=Campus Agent <auth@example.com>
+# Optional reply address for all authentication email.
+AUTH_EMAIL_REPLY_TO=
 # Generate a different high-entropy secret for anonymous safety identifier derivation.
 APP_API_SAFETY_IDENTIFIER_HMAC_SECRET=replace-with-safety-identifier-secret
 # Browser account shell origin. This is required.

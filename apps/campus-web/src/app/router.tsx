@@ -57,9 +57,19 @@ const AccountResetPasswordPage = lazy(() =>
 		default: () => <module.AccountAuthPage view="resetPassword" />,
 	})),
 );
+const AccountVerifyEmailPage = lazy(() =>
+	import("./routes/account-page").then((module) => ({
+		default: () => <module.AccountAuthPage view="verifyEmail" />,
+	})),
+);
 const AccountSignOutPage = lazy(() =>
 	import("./routes/account-page").then((module) => ({
 		default: () => <module.AccountAuthPage view="signOut" />,
+	})),
+);
+const AccountDeletionPage = lazy(() =>
+	import("./routes/account-deletion-page").then((module) => ({
+		default: module.AccountDeletionPage,
 	})),
 );
 const AccountSettingsPage = lazy(() =>
@@ -181,10 +191,22 @@ const accountResetPasswordRoute = createRoute({
 	path: "/account/reset-password",
 });
 
+const accountVerifyEmailRoute = createRoute({
+	component: AccountVerifyEmailPage,
+	getParentRoute: () => rootRoute,
+	path: "/account/verify-email",
+});
+
 const accountSignOutRoute = createRoute({
 	component: AccountSignOutPage,
 	getParentRoute: () => rootRoute,
 	path: "/account/sign-out",
+});
+
+const accountDeletionRoute = createRoute({
+	component: AccountDeletionPage,
+	getParentRoute: () => rootRoute,
+	path: "/account/deletion",
 });
 
 const accountSettingsRoute = createRoute({
@@ -197,6 +219,9 @@ const accountSecurityRoute = createRoute({
 	component: AccountSecurityPage,
 	getParentRoute: () => rootRoute,
 	path: "/account/settings/security",
+	validateSearch: (search: Record<string, unknown>) => ({
+		redirectTo: optionalAccountRedirect(search.redirectTo),
+	}),
 });
 
 const accountMemoryRoute = createRoute({
@@ -242,7 +267,9 @@ const routeTree = rootRoute.addChildren([
 	accountRegisterRoute,
 	accountForgotPasswordRoute,
 	accountResetPasswordRoute,
+	accountVerifyEmailRoute,
 	accountSignOutRoute,
+	accountDeletionRoute,
 	accountSettingsRoute,
 	accountSecurityRoute,
 	accountMemoryRoute,
@@ -272,4 +299,10 @@ export function AppRouter() {
 
 function optionalDiningSearchParam(value: unknown): string | undefined {
 	return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function optionalAccountRedirect(value: unknown): string | undefined {
+	return typeof value === "string" && value.startsWith("/") && !value.startsWith("//")
+		? value
+		: undefined;
 }

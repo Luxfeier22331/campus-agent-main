@@ -5,8 +5,9 @@ import { fileURLToPath } from "node:url";
 
 import { oauthProvider } from "@better-auth/oauth-provider";
 import { getMigrations } from "better-auth/db/migration";
-import { jwt } from "better-auth/plugins";
+import { admin, jwt } from "better-auth/plugins";
 import { Pool as PgPool, type Pool } from "pg";
+import { CAMPUS_AUTH_USER_ADDITIONAL_FIELDS } from "../../modules/auth/campus-access.ts";
 import { validateSharedProductCurrentSchemaSql } from "./shared-product-current-schema.ts";
 
 const IDENTIFIER = /^[a-z_][a-z0-9_]*$/;
@@ -19,6 +20,7 @@ export const BETTER_AUTH_TABLES = [
 	"session",
 	"account",
 	"verification",
+	"rateLimit",
 	"oauthClient",
 	"oauthRefreshToken",
 	"oauthAccessToken",
@@ -231,8 +233,15 @@ function buildBetterAuthOptions(env: SharedProductBootstrapEnv, pool: Pool) {
 		emailAndPassword: {
 			enabled: true,
 		},
+		rateLimit: {
+			storage: "database" as const,
+		},
+		user: {
+			additionalFields: CAMPUS_AUTH_USER_ADDITIONAL_FIELDS,
+		},
 		disabledPaths: ["/token"],
 		plugins: [
+			admin(),
 			jwt({
 				disableSettingJwtHeader: true,
 			}),
@@ -305,7 +314,7 @@ export async function compileBetterAuthMigrationSql(
 	}
 }
 
-async function runBetterAuthMigrations(env: SharedProductBootstrapEnv): Promise<void> {
+export async function runBetterAuthMigrations(env: SharedProductBootstrapEnv): Promise<void> {
 	const pool = createBetterAuthPool(env);
 
 	try {
@@ -343,14 +352,12 @@ export async function bootstrapSharedProductDatabase(
 
 	try {
 		await pool.query(buildSchemaSql(env));
-		const betterAuthState = classifyBetterAuthTableOwnership({
+		classifyBetterAuthTableOwnership({
 			authSchema: env.authSchema,
 			...(await listBetterAuthTables(pool, env.authSchema)),
 		});
 		await ensureBetterAuthRoleSearchPath(pool, env);
-		if (betterAuthState === "fresh" || betterAuthState === "target_schema_needs_migration") {
-			await runBetterAuthMigrations(env);
-		}
+		await runBetterAuthMigrations(env);
 		await verifyBetterAuthPoolSearchPath(env);
 		const schemaFiles = await applyCurrentSharedProductSchemas(pool);
 		return {

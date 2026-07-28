@@ -60,12 +60,64 @@ spec:
           ports:
             - name: http
               containerPort: 5178
-          envFrom:
-            - configMapRef:
-                name: ops-web-config
           env:
+            - name: DEPLOYMENT_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: ops-web-config
+                  key: DEPLOYMENT_ENVIRONMENT
             - name: PORT
               value: "5178"
+            - name: OPS_WEB_AGENT_RUNTIME_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: ops-web-config
+                  key: OPS_WEB_AGENT_RUNTIME_URL
+            - name: OPS_WEB_APP_API_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: ops-web-config
+                  key: OPS_WEB_APP_API_URL
+            - name: OPS_WEB_AXIOM_EDGE_DOMAIN
+              valueFrom:
+                configMapKeyRef:
+                  name: ops-web-config
+                  key: OPS_WEB_AXIOM_EDGE_DOMAIN
+            - name: OPS_WEB_AXIOM_LOGS_DATASET
+              valueFrom:
+                configMapKeyRef:
+                  name: ops-web-config
+                  key: OPS_WEB_AXIOM_LOGS_DATASET
+            - name: OPS_WEB_AXIOM_METRICS_DATASET
+              valueFrom:
+                configMapKeyRef:
+                  name: ops-web-config
+                  key: OPS_WEB_AXIOM_METRICS_DATASET
+            - name: OPS_WEB_AXIOM_TRACES_DATASET
+              valueFrom:
+                configMapKeyRef:
+                  name: ops-web-config
+                  key: OPS_WEB_AXIOM_TRACES_DATASET
+            - name: OPS_WEB_AXIOM_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: ops-web-config
+                  key: OPS_WEB_AXIOM_URL
+            - name: OPS_WEB_CAMPUS_WEB_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: ops-web-config
+                  key: OPS_WEB_CAMPUS_WEB_URL
+            - name: OPS_WEB_DATABASE_CA_CERT_PATH
+              valueFrom:
+                configMapKeyRef:
+                  name: ops-web-config
+                  key: OPS_WEB_DATABASE_CA_CERT_PATH
+            - name: OPS_WEB_DATABASE_SSLMODE
+              valueFrom:
+                configMapKeyRef:
+                  name: ops-web-config
+                  key: OPS_WEB_DATABASE_SSLMODE
             - name: OPS_WEB_DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -87,6 +139,26 @@ spec:
               value: http://execution-control:8000
             - name: OPS_WEB_EXECUTION_CONTROL_ADMIN_URL
               value: http://execution-control-admin:8000
+            - name: OPS_WEB_LANGFUSE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: ops-web-config
+                  key: OPS_WEB_LANGFUSE_URL
+            - name: OPS_WEB_PUBLIC_ORIGIN
+              valueFrom:
+                configMapKeyRef:
+                  name: ops-web-config
+                  key: OPS_WEB_PUBLIC_ORIGIN
+            - name: OPS_WEB_SENTRY_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: ops-web-config
+                  key: OPS_WEB_SENTRY_BASE_URL
+            - name: OPS_WEB_SENTRY_PROJECT_SLUGS
+              valueFrom:
+                configMapKeyRef:
+                  name: ops-web-config
+                  key: OPS_WEB_SENTRY_PROJECT_SLUGS
             - name: OPS_WEB_INTERNAL_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -114,6 +186,11 @@ spec:
                   name: observability-runtime-secrets
                   key: SENTRY_AUTH_TOKEN
                   optional: true
+            - name: SENTRY_ORG_SLUG
+              valueFrom:
+                configMapKeyRef:
+                  name: ops-web-config
+                  key: SENTRY_ORG_SLUG
           volumeMounts:
             - name: postgres-ca
               mountPath: /etc/campus-agent/postgres

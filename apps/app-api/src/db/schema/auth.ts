@@ -1,22 +1,57 @@
-import { boolean, index, jsonb, pgSchema, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import {
+	bigint,
+	boolean,
+	index,
+	integer,
+	jsonb,
+	pgSchema,
+	text,
+	timestamp,
+	uniqueIndex,
+} from "drizzle-orm/pg-core";
 
 const auth = pgSchema("app_auth");
 
 export const user = auth.table(
 	"user",
 	{
+		banExpires: timestamp("banExpires", { withTimezone: true }),
+		banReason: text("banReason"),
+		banned: boolean("banned").notNull().default(false),
 		id: text("id").primaryKey(),
 		name: text("name").notNull(),
 		email: text("email").notNull(),
 		emailVerified: boolean("emailVerified").notNull().default(false),
 		image: text("image"),
+		passwordChangeRequired: boolean("passwordChangeRequired").notNull().default(false),
+		role: text("role").default("user"),
+		temporaryPasswordExpiresAt: timestamp("temporaryPasswordExpiresAt", {
+			withTimezone: true,
+		}),
 		createdAt: timestamp("createdAt", { withTimezone: true }).notNull(),
 		updatedAt: timestamp("updatedAt", { withTimezone: true }).notNull(),
 	},
 	(table) => ({
+		bannedIndex: index("user_banned_idx").on(table.banned),
+		createdAtIdIndex: index("user_created_at_id_idx").on(table.createdAt.desc(), table.id.desc()),
+		emailPrefixIndex: index("user_email_prefix_idx").using(
+			"btree",
+			sql`lower(${table.email}) text_pattern_ops`,
+		),
 		emailUnique: uniqueIndex("user_email_uidx").on(table.email),
+		namePrefixIndex: index("user_name_prefix_idx").using(
+			"btree",
+			sql`lower(${table.name}) text_pattern_ops`,
+		),
 	}),
 );
+
+export const rateLimit = auth.table("rateLimit", {
+	key: text("key").primaryKey(),
+	count: integer("count").notNull(),
+	lastRequest: bigint("lastRequest", { mode: "number" }).notNull(),
+});
 
 export const session = auth.table(
 	"session",
@@ -29,12 +64,13 @@ export const session = auth.table(
 		expiresAt: timestamp("expiresAt", { withTimezone: true }).notNull(),
 		ipAddress: text("ipAddress"),
 		userAgent: text("userAgent"),
+		impersonatedBy: text("impersonatedBy"),
 		createdAt: timestamp("createdAt", { withTimezone: true }).notNull(),
 		updatedAt: timestamp("updatedAt", { withTimezone: true }).notNull(),
 	},
 	(table) => ({
 		tokenUnique: uniqueIndex("session_token_uidx").on(table.token),
-		userIdIndex: index("session_userId_idx").on(table.userId),
+		userExpiresAtIndex: index("session_user_id_expires_at_idx").on(table.userId, table.expiresAt),
 	}),
 );
 
@@ -197,6 +233,7 @@ export const jwks = auth.table("jwks", {
 
 export const appAuthSchema = {
 	user,
+	rateLimit,
 	session,
 	account,
 	verification,

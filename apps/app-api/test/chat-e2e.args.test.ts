@@ -22,7 +22,7 @@ describe("chat e2e args", () => {
 			appApiReadyzUrl: DEFAULT_CHAT_E2E_APP_API_READYZ_URL,
 			captchaToken: "",
 			chatBaseUrl: DEFAULT_CHAT_E2E_CHAT_BASE_URL,
-			email: "help_bot@outlook.com",
+			email: "campus_agent_smoke@muc.edu.cn",
 			execReadyzUrl: null,
 			expectModelExecutionState: null,
 			expectResultKind: "answer",

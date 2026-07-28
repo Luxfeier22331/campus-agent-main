@@ -14,6 +14,7 @@ export {
 	type ChatCommandServiceDependencies,
 	type ChatCommandStreamEvent,
 	deriveSafetyIdentifier,
+	deriveSafetyIdentifierForUser,
 } from "./service";
 export {
 	type AbuseControlState,

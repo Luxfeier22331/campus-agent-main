@@ -19,7 +19,7 @@ required = [
 [vars]
 APP_API_ENVIRONMENT = "development"
 EXECUTION_CONTROL_BASE_URL = "http://127.0.0.1:27051"
-AUTH_RESET_EMAIL_FROM = "Campus Agent <auth@example.com>"
+AUTH_EMAIL_FROM = "Campus Agent <auth@example.com>"
 
 [[hyperdrive]]
 binding = "APP_API_DB"

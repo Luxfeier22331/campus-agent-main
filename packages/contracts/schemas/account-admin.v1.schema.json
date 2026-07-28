@@ -1,0 +1,652 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"anyOf": [
+		{
+			"$ref": "#/$defs/userPage"
+		},
+		{
+			"$ref": "#/$defs/userDetail"
+		},
+		{
+			"$ref": "#/$defs/deletionPage"
+		},
+		{
+			"$ref": "#/$defs/eventPage"
+		},
+		{
+			"$ref": "#/$defs/temporaryPassword"
+		},
+		{
+			"$ref": "#/$defs/reasonCommand"
+		},
+		{
+			"$ref": "#/$defs/emptyCommand"
+		},
+		{
+			"$ref": "#/$defs/userQuery"
+		},
+		{
+			"$ref": "#/$defs/deletionQuery"
+		},
+		{
+			"$ref": "#/$defs/eventQuery"
+		}
+	],
+	"$defs": {
+		"userPage": {
+			"type": "object",
+			"properties": {
+				"items": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/userSummary"
+					}
+				},
+				"nextCursor": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["items", "nextCursor"],
+			"additionalProperties": false
+		},
+		"userSummary": {
+			"type": "object",
+			"properties": {
+				"accessSource": {
+					"anyOf": [
+						{
+							"type": "string",
+							"enum": ["campus_email", "email_grant"]
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"accessState": {
+					"type": "string",
+					"enum": ["allowed", "denied"]
+				},
+				"activeSessionCount": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				},
+				"createdAt": {
+					"type": "string",
+					"format": "date-time",
+					"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+				},
+				"email": {
+					"type": "string",
+					"format": "email",
+					"pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+				},
+				"emailVerified": {
+					"type": "boolean"
+				},
+				"id": {
+					"type": "string",
+					"minLength": 1
+				},
+				"name": {
+					"type": "string"
+				},
+				"state": {
+					"$ref": "#/$defs/state"
+				},
+				"updatedAt": {
+					"type": "string",
+					"format": "date-time",
+					"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+				}
+			},
+			"required": [
+				"accessSource",
+				"accessState",
+				"activeSessionCount",
+				"createdAt",
+				"email",
+				"emailVerified",
+				"id",
+				"name",
+				"state",
+				"updatedAt"
+			],
+			"additionalProperties": false
+		},
+		"state": {
+			"type": "string",
+			"enum": ["active", "unverified", "banned", "password_change_required", "deleting"]
+		},
+		"userDetail": {
+			"type": "object",
+			"properties": {
+				"accessSource": {
+					"anyOf": [
+						{
+							"type": "string",
+							"enum": ["campus_email", "email_grant"]
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"accessState": {
+					"type": "string",
+					"enum": ["allowed", "denied"]
+				},
+				"activeSessionCount": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				},
+				"createdAt": {
+					"type": "string",
+					"format": "date-time",
+					"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+				},
+				"email": {
+					"type": "string",
+					"format": "email",
+					"pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+				},
+				"emailVerified": {
+					"type": "boolean"
+				},
+				"id": {
+					"type": "string",
+					"minLength": 1
+				},
+				"name": {
+					"type": "string"
+				},
+				"state": {
+					"$ref": "#/$defs/state"
+				},
+				"updatedAt": {
+					"type": "string",
+					"format": "date-time",
+					"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+				},
+				"banReason": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"credentialAccount": {
+					"type": "boolean"
+				},
+				"deletion": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/deletion"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"events": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/event"
+					}
+				},
+				"passwordChangeRequired": {
+					"type": "boolean"
+				},
+				"sessions": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/session"
+					}
+				},
+				"temporaryPasswordExpiresAt": {
+					"anyOf": [
+						{
+							"type": "string",
+							"format": "date-time",
+							"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": [
+				"accessSource",
+				"accessState",
+				"activeSessionCount",
+				"createdAt",
+				"email",
+				"emailVerified",
+				"id",
+				"name",
+				"state",
+				"updatedAt",
+				"banReason",
+				"credentialAccount",
+				"deletion",
+				"events",
+				"passwordChangeRequired",
+				"sessions",
+				"temporaryPasswordExpiresAt"
+			],
+			"additionalProperties": false
+		},
+		"deletion": {
+			"type": "object",
+			"properties": {
+				"attemptCount": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				},
+				"completedAt": {
+					"anyOf": [
+						{
+							"type": "string",
+							"format": "date-time",
+							"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"lastAttemptAt": {
+					"anyOf": [
+						{
+							"type": "string",
+							"format": "date-time",
+							"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"lastErrorCode": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"nextAttemptAt": {
+					"type": "string",
+					"format": "date-time",
+					"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+				},
+				"ownerUserId": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"requestId": {
+					"type": "string"
+				},
+				"requestedAt": {
+					"type": "string",
+					"format": "date-time",
+					"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+				},
+				"retryAvailable": {
+					"type": "boolean"
+				},
+				"status": {
+					"type": "string",
+					"enum": ["pending", "completed"]
+				},
+				"updatedAt": {
+					"type": "string",
+					"format": "date-time",
+					"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+				}
+			},
+			"required": [
+				"attemptCount",
+				"completedAt",
+				"lastAttemptAt",
+				"lastErrorCode",
+				"nextAttemptAt",
+				"ownerUserId",
+				"requestId",
+				"requestedAt",
+				"retryAvailable",
+				"status",
+				"updatedAt"
+			],
+			"additionalProperties": false
+		},
+		"event": {
+			"type": "object",
+			"properties": {
+				"action": {
+					"$ref": "#/$defs/action"
+				},
+				"actorId": {
+					"type": "string"
+				},
+				"errorCode": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"eventId": {
+					"type": "string"
+				},
+				"occurredAt": {
+					"type": "string",
+					"format": "date-time",
+					"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+				},
+				"outcome": {
+					"$ref": "#/$defs/outcome"
+				},
+				"reason": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"targetUserId": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": [
+				"action",
+				"actorId",
+				"errorCode",
+				"eventId",
+				"occurredAt",
+				"outcome",
+				"reason",
+				"targetUserId"
+			],
+			"additionalProperties": false
+		},
+		"action": {
+			"type": "string",
+			"enum": [
+				"password_reset_email_sent",
+				"verification_email_sent",
+				"session_revoked",
+				"sessions_revoked",
+				"account_banned",
+				"account_unbanned",
+				"temporary_password_issued",
+				"deletion_retry_requested"
+			]
+		},
+		"outcome": {
+			"type": "string",
+			"enum": ["started", "succeeded", "failed", "indeterminate"]
+		},
+		"session": {
+			"type": "object",
+			"properties": {
+				"createdAt": {
+					"type": "string",
+					"format": "date-time",
+					"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+				},
+				"expiresAt": {
+					"type": "string",
+					"format": "date-time",
+					"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+				},
+				"id": {
+					"type": "string",
+					"minLength": 1
+				},
+				"ipAddress": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"updatedAt": {
+					"type": "string",
+					"format": "date-time",
+					"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+				},
+				"userAgent": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["createdAt", "expiresAt", "id", "ipAddress", "updatedAt", "userAgent"],
+			"additionalProperties": false
+		},
+		"deletionPage": {
+			"type": "object",
+			"properties": {
+				"items": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/deletion"
+					}
+				},
+				"nextCursor": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["items", "nextCursor"],
+			"additionalProperties": false
+		},
+		"eventPage": {
+			"type": "object",
+			"properties": {
+				"items": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/event"
+					}
+				},
+				"nextCursor": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["items", "nextCursor"],
+			"additionalProperties": false
+		},
+		"temporaryPassword": {
+			"type": "object",
+			"properties": {
+				"expiresAt": {
+					"type": "string",
+					"format": "date-time",
+					"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+				},
+				"issuedAt": {
+					"type": "string",
+					"format": "date-time",
+					"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+				},
+				"temporaryPassword": {
+					"type": "string",
+					"minLength": 1
+				}
+			},
+			"required": ["expiresAt", "issuedAt", "temporaryPassword"],
+			"additionalProperties": false
+		},
+		"reasonCommand": {
+			"type": "object",
+			"properties": {
+				"reason": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 500
+				}
+			},
+			"required": ["reason"],
+			"additionalProperties": false
+		},
+		"emptyCommand": {
+			"type": "object",
+			"properties": {},
+			"additionalProperties": false
+		},
+		"userQuery": {
+			"type": "object",
+			"properties": {
+				"access": {
+					"type": "string",
+					"enum": ["allowed", "denied"]
+				},
+				"cursor": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 512
+				},
+				"limit": {
+					"default": 50,
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 100
+				},
+				"query": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 320
+				},
+				"state": {
+					"$ref": "#/$defs/state"
+				}
+			},
+			"required": ["limit"],
+			"additionalProperties": false
+		},
+		"deletionQuery": {
+			"type": "object",
+			"properties": {
+				"cursor": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 512
+				},
+				"limit": {
+					"default": 50,
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 100
+				},
+				"status": {
+					"type": "string",
+					"enum": ["pending", "needs_attention", "completed"]
+				}
+			},
+			"required": ["limit"],
+			"additionalProperties": false
+		},
+		"eventQuery": {
+			"type": "object",
+			"properties": {
+				"action": {
+					"$ref": "#/$defs/action"
+				},
+				"actorId": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 200
+				},
+				"cursor": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 512
+				},
+				"limit": {
+					"default": 50,
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 100
+				},
+				"outcome": {
+					"$ref": "#/$defs/outcome"
+				},
+				"targetUserId": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 200
+				},
+				"window": {
+					"default": "7d",
+					"$ref": "#/$defs/eventWindow"
+				}
+			},
+			"required": ["limit", "window"],
+			"additionalProperties": false
+		},
+		"eventWindow": {
+			"type": "string",
+			"enum": ["24h", "7d", "30d", "90d"]
+		}
+	},
+	"$id": "https://campus-agent.local/schemas/account-admin.v1.schema.json",
+	"title": "Account administration contract"
+}

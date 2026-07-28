@@ -1,5 +1,8 @@
 import type { Env } from "../../config";
+import { resolveEnvironment } from "../../config";
+import { buildEmailAccessService, createPgEmailAccessGrantStore } from "../email-access";
 import { type AppAuthResolutionInput, getAppAuth } from "./auth";
+import { evaluateCampusAccess } from "./campus-access";
 
 export type AppPrincipalType = "campus_member" | "student" | "staff" | "faculty" | "service";
 
@@ -65,9 +68,12 @@ export type BetterAuthSessionPayload = {
 		expiresAt?: string | Date | null;
 	} | null;
 	user?: {
+		banned?: boolean | null;
 		id?: string;
 		email?: string | null;
+		emailVerified?: boolean | null;
 		name?: string | null;
+		passwordChangeRequired?: boolean | null;
 	} | null;
 } | null;
 
@@ -220,7 +226,21 @@ function buildCampusAuthorizationContext(input: {
 
 export function mapSessionToCampusMemberPrincipal(
 	session: BetterAuthSessionPayload,
+	admissionAllowed?: boolean,
 ): ResolvedAppPrincipal | null {
+	const allowed =
+		session?.user?.banned !== true &&
+		session?.user?.passwordChangeRequired !== true &&
+		(admissionAllowed ??
+			evaluateCampusAccess({
+				banned: session?.user?.banned,
+				email: session?.user?.email,
+				emailVerified: session?.user?.emailVerified,
+				passwordChangeRequired: session?.user?.passwordChangeRequired,
+			}).allowed);
+	if (!allowed) {
+		return null;
+	}
 	const userId = normalizeHeaderValue(session?.user?.id ?? null);
 	if (!userId) {
 		return null;
@@ -264,8 +284,9 @@ export function mapSessionToCampusMemberPrincipal(
 export function mapSessionToAppPrincipal(
 	session: BetterAuthSessionPayload,
 	campusIdentity?: CampusIdentityClaimsInput,
+	admissionAllowed?: boolean,
 ): ResolvedAppPrincipal | null {
-	const campusMemberPrincipal = mapSessionToCampusMemberPrincipal(session);
+	const campusMemberPrincipal = mapSessionToCampusMemberPrincipal(session, admissionAllowed);
 	if (!campusMemberPrincipal) {
 		return null;
 	}
@@ -324,6 +345,15 @@ export async function resolveRequestPrincipal(
 	const session = await auth.api.getSession({
 		headers: request.headers,
 	});
-
-	return mapSessionToAppPrincipal(session);
+	if (!session?.user) {
+		return null;
+	}
+	const emailAccessService =
+		input.emailAccessService ??
+		buildEmailAccessService({
+			environment: resolveEnvironment(env),
+			store: createPgEmailAccessGrantStore(env),
+		});
+	const decision = await emailAccessService.evaluateAccountAccess(session.user);
+	return mapSessionToAppPrincipal(session, undefined, decision.allowed);
 }

@@ -1,7 +1,10 @@
 // @vitest-environment node
 
 import { describe, expect, it } from "vitest";
-import { resolveCampusWebPublicOrigin } from "../src/server/ops-status-store";
+import {
+	createOpsStatusStoreFromEnv,
+	resolveCampusWebPublicOrigin,
+} from "../src/server/ops-status-store";
 import { createPgOpsStatusStore } from "../src/server/pg-ops-status-store";
 import { OpsRequestDetailResponseSchema } from "../src/shared/ops-contract";
 import {
@@ -16,6 +19,15 @@ import {
 const now = new Date("2026-07-09T07:30:00.000Z");
 
 describe("PostgreSQL ops status store", () => {
+	it("requires the runtime database in every deployment environment", () => {
+		expect(() => createOpsStatusStoreFromEnv({ DEPLOYMENT_ENVIRONMENT: "local" })).toThrow(
+			"OPS_WEB_DATABASE_URL is required.",
+		);
+		expect(() => createOpsStatusStoreFromEnv({ NODE_ENV: "test" })).toThrow(
+			"OPS_WEB_DATABASE_URL is required.",
+		);
+	});
+
 	it("accepts only canonical trusted Campus Web origins", () => {
 		expect(resolveCampusWebPublicOrigin("https://campus.example.test")).toBe(
 			"https://campus.example.test",

@@ -35,6 +35,20 @@ feature worktree -> pull request -> main
 - 合同、schema、数据所有权或架构边界变化时，同步更新所属文档；
 - 合入前确认仓库要求的聚合检查成功。
 
+### Squash 合并
+
+- squash commit 标题直接使用符合 Conventional Commit 的 Pull Request 标题；
+- 默认不写 commit 正文；
+- 仅在迁移、破坏性变更或必须长期保留的运行影响存在时写正文；
+- 正文中的独立变更或影响使用无序列表，不复制 Pull Request 的验证记录、检查清单或评审背景。
+
+```text
+<type>(<scope>): <简短变更>
+
+- <长期需要保留的变更或影响>
+- <迁移或操作影响>
+```
+
 发布、环境选择和紧急修复见 [发布流程](./docs/runbooks/release.md)。
 
 ## 验证

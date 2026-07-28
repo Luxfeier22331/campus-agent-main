@@ -8,7 +8,7 @@ const env = {
 	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 	AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
 	RESEND_API_KEY: "resend_test_key",
-	AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
+	AUTH_EMAIL_FROM: "Campus Agent <auth@example.com>",
 	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 	APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 	APP_API_ENVIRONMENT: "test" as const,
@@ -19,6 +19,11 @@ const env = {
 
 describe("app-api worker scheduled admission recovery", () => {
 	it("dispatches only frozen chat admissions through the product service", async () => {
+		const dispatchPendingDeletions = vi.fn(async () => ({
+			completed: 0,
+			failed: 0,
+			processed: 0,
+		}));
 		const dispatchPendingAdmissions = vi.fn(async () => ({
 			admitted: 1,
 			failed: 0,
@@ -30,6 +35,10 @@ describe("app-api worker scheduled admission recovery", () => {
 			processed: 0,
 		}));
 		const runtime = createWorkerRuntime(env, {
+			accountLifecycleService: {
+				dispatchPending: dispatchPendingDeletions,
+				requestDeletion: vi.fn(),
+			},
 			chatCommandService: {
 				dispatchPendingAdmissions,
 				submit: vi.fn(),
@@ -43,14 +52,20 @@ describe("app-api worker scheduled admission recovery", () => {
 
 		expect(dispatchPendingAdmissions).toHaveBeenCalledTimes(1);
 		expect(dispatchPendingMemoryCommands).toHaveBeenCalledTimes(1);
+		expect(dispatchPendingDeletions).toHaveBeenCalledTimes(1);
 	});
 
 	it("does not dispatch when execution-control admission is not configured", async () => {
 		const dispatchPendingAdmissions = vi.fn();
+		const dispatchPendingDeletions = vi.fn();
 		const dispatchPendingMemoryCommands = vi.fn();
 		const runtime = createWorkerRuntime(
 			{ ...env, APP_API_EXECUTION_SHARED_SECRET: "" },
 			{
+				accountLifecycleService: {
+					dispatchPending: dispatchPendingDeletions,
+					requestDeletion: vi.fn(),
+				},
 				chatCommandService: {
 					dispatchPendingAdmissions,
 					submit: vi.fn(),
@@ -65,5 +80,6 @@ describe("app-api worker scheduled admission recovery", () => {
 
 		expect(dispatchPendingAdmissions).not.toHaveBeenCalled();
 		expect(dispatchPendingMemoryCommands).not.toHaveBeenCalled();
+		expect(dispatchPendingDeletions).not.toHaveBeenCalled();
 	});
 });

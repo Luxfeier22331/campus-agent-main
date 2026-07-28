@@ -8,9 +8,24 @@ import {
 } from "@campus-agent/dining/domain";
 import type { DiningFloorplanBundleV1 } from "@campus-agent/dining/floorplans";
 import {
+	type AccountAdminAccessState,
+	type AccountAdminEvent,
+	AccountAdminEventPageSchema,
+	type AccountAdminState,
+	AccountAdminUserDetailSchema,
+	AccountAdminUserPageSchema,
+	AccountDeletionAdminPageSchema,
+	TemporaryPasswordResponseSchema,
+} from "campus-contracts/account-admin";
+import {
 	type CampusGroupsCatalog,
 	CampusGroupsCatalogSchema,
 } from "campus-contracts/campus-groups";
+import {
+	type CreateEmailAccessGrant,
+	EmailAccessGrantPageSchema,
+	EmailAccessGrantSchema,
+} from "campus-contracts/email-access";
 import {
 	DiningDraftResponseSchema,
 	DiningOpsStateResponseSchema,
@@ -50,6 +65,196 @@ export interface OpsRequestListParams {
 	view?: OpsRequestListView;
 	window?: OpsRequestWindow;
 	workflowId?: string;
+}
+
+export async function fetchAccountAdminUsers(
+	params: {
+		access?: AccountAdminAccessState;
+		cursor?: string;
+		limit?: number;
+		query?: string;
+		state?: AccountAdminState;
+	} = {},
+	input: { signal?: AbortSignal } = {},
+) {
+	const search = new URLSearchParams();
+	for (const [key, value] of Object.entries(params)) {
+		if (value !== undefined && value !== "") {
+			search.set(key, String(value));
+		}
+	}
+	return AccountAdminUserPageSchema.parse(
+		await fetchJson(`/api/ops/users${search.size > 0 ? `?${search}` : ""}`, {
+			signal: input.signal,
+		}),
+	);
+}
+
+export async function fetchAccountAdminUser(userId: string, input: { signal?: AbortSignal } = {}) {
+	return AccountAdminUserDetailSchema.parse(
+		await fetchJson(`/api/ops/users/${encodeURIComponent(userId)}`, { signal: input.signal }),
+	);
+}
+
+export async function fetchAccountAdminEvents(
+	params: {
+		action?: AccountAdminEvent["action"];
+		actorId?: string;
+		cursor?: string;
+		limit?: number;
+		outcome?: AccountAdminEvent["outcome"];
+		targetUserId?: string;
+		window?: "24h" | "7d" | "30d" | "90d";
+	} = {},
+	input: { signal?: AbortSignal } = {},
+) {
+	const search = new URLSearchParams();
+	for (const [key, value] of Object.entries(params)) {
+		if (value !== undefined && value !== "") {
+			search.set(key, String(value));
+		}
+	}
+	return AccountAdminEventPageSchema.parse(
+		await fetchJson(`/api/ops/account-events${search.size > 0 ? `?${search}` : ""}`, {
+			signal: input.signal,
+		}),
+	);
+}
+
+export async function commandAccountAdminUser(
+	userId: string,
+	action:
+		| "ban"
+		| "password-reset-email"
+		| "sessions-revoke-all"
+		| "temporary-password"
+		| "unban"
+		| "verification-email",
+	payload: Record<string, never> | { reason: string },
+	input: { idempotencyKey: string },
+) {
+	const response = await fetchJson(`/api/ops/users/${encodeURIComponent(userId)}/${action}`, {
+		body: JSON.stringify(payload),
+		headers: {
+			"content-type": "application/json",
+			"idempotency-key": input.idempotencyKey,
+		},
+		method: "POST",
+	});
+	return action === "temporary-password"
+		? TemporaryPasswordResponseSchema.parse(response)
+		: AccountAdminUserDetailSchema.parse(response);
+}
+
+export async function revokeAccountAdminSession(
+	userId: string,
+	sessionId: string,
+	input: { idempotencyKey: string },
+) {
+	return AccountAdminUserDetailSchema.parse(
+		await fetchJson(
+			`/api/ops/users/${encodeURIComponent(userId)}/sessions/${encodeURIComponent(sessionId)}/revoke`,
+			{
+				body: "{}",
+				headers: {
+					"content-type": "application/json",
+					"idempotency-key": input.idempotencyKey,
+				},
+				method: "POST",
+			},
+		),
+	);
+}
+
+export async function fetchAccountDeletions(
+	params: {
+		cursor?: string;
+		limit?: number;
+		status?: "completed" | "needs_attention" | "pending";
+	} = {},
+	input: { signal?: AbortSignal } = {},
+) {
+	const search = new URLSearchParams();
+	for (const [key, value] of Object.entries(params)) {
+		if (value !== undefined && value !== "") {
+			search.set(key, String(value));
+		}
+	}
+	return AccountDeletionAdminPageSchema.parse(
+		await fetchJson(`/api/ops/account-deletions${search.size > 0 ? `?${search}` : ""}`, {
+			signal: input.signal,
+		}),
+	);
+}
+
+export async function retryAccountDeletion(
+	requestId: string,
+	reason: string,
+	input: { idempotencyKey: string },
+) {
+	return fetchJson(`/api/ops/account-deletions/${encodeURIComponent(requestId)}/retry`, {
+		body: JSON.stringify({ reason }),
+		headers: {
+			"content-type": "application/json",
+			"idempotency-key": input.idempotencyKey,
+		},
+		method: "POST",
+	});
+}
+
+export async function fetchEmailAccessGrants(
+	params: {
+		cursor?: string;
+		email?: string;
+		kind?: "invitation" | "test";
+		state?: "pending" | "active" | "revoked" | "expired";
+	} = {},
+	input: { signal?: AbortSignal } = {},
+) {
+	const search = new URLSearchParams();
+	for (const [key, value] of Object.entries(params)) {
+		if (value) {
+			search.set(key, value);
+		}
+	}
+	return EmailAccessGrantPageSchema.parse(
+		await fetchJson(`/api/ops/email-access-grants${search.size > 0 ? `?${search}` : ""}`, {
+			signal: input.signal,
+		}),
+	);
+}
+
+export async function createEmailAccessGrant(
+	payload: CreateEmailAccessGrant,
+	input: { idempotencyKey: string },
+) {
+	return EmailAccessGrantSchema.parse(
+		await fetchJson("/api/ops/email-access-grants", {
+			body: JSON.stringify(payload),
+			headers: {
+				"content-type": "application/json",
+				"idempotency-key": input.idempotencyKey,
+			},
+			method: "POST",
+		}),
+	);
+}
+
+export async function commandEmailAccessGrant(
+	grantId: string,
+	action: "resend" | "revoke",
+	input: { idempotencyKey: string },
+) {
+	return EmailAccessGrantSchema.parse(
+		await fetchJson(`/api/ops/email-access-grants/${encodeURIComponent(grantId)}/${action}`, {
+			body: "{}",
+			headers: {
+				"content-type": "application/json",
+				"idempotency-key": input.idempotencyKey,
+			},
+			method: "POST",
+		}),
+	);
 }
 
 export async function fetchInternalPortalAuthStatus(input: { signal?: AbortSignal } = {}) {

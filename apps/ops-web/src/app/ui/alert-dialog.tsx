@@ -12,6 +12,18 @@ import {
 } from "@campus-agent/ui";
 import type { ReactNode } from "react";
 
+export {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+	AlertDialogTrigger,
+} from "@campus-agent/ui";
+
 export function ConfirmAction(props: {
 	confirmLabel: string;
 	confirmVariant?: "destructive" | "primary";

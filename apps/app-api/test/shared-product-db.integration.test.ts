@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
 import { createApp } from "../src/app";
 import type { Env } from "../src/config";
+import { createAppAuth } from "../src/modules/auth";
 import { createPgChatConversationStore } from "../src/modules/chat";
 import type {
 	ToolExecutionInput,
@@ -18,6 +19,12 @@ import { buildSharedDbIntegrationEnv } from "./shared-db-integration-helpers";
 
 const TURNSTILE_TEST_TOKEN = "XXXX.DUMMY.TOKEN.XXXX";
 const postgres = inject("appApiPostgres");
+
+interface CapturedEmail {
+	subject: string;
+	text: string;
+	to: string;
+}
 
 async function readJson(response: Response) {
 	return response.json();
@@ -51,17 +58,95 @@ function readIntegrationAuthShellOrigin(env: Env): string {
 	return origin;
 }
 
+function verificationUrl(emails: CapturedEmail[], email: string): URL {
+	const message = [...emails]
+		.reverse()
+		.find((candidate) => candidate.subject === "验证 Campus Agent 邮箱" && candidate.to === email);
+	if (!message) {
+		throw new Error(`Expected a verification email for ${email}.`);
+	}
+	const url = message.text
+		.split(/\s+/u)
+		.find((value) => value.includes("/api/auth/verify-email?token="));
+	if (!url) {
+		throw new Error(`Expected a verification URL for ${email}.`);
+	}
+	return new URL(url);
+}
+
 describe("app-api shared product DB integration", () => {
 	let app: ReturnType<typeof createApp>;
+	let auth: ReturnType<typeof createAppAuth>;
 	let client: Client | null = null;
 	let env: Env;
+	const emails: CapturedEmail[] = [];
+
+	async function registerAndSignIn(email: string): Promise<string> {
+		const authShellOrigin = readIntegrationAuthShellOrigin(env);
+		const signUpResponse = await app.fetch(
+			new Request("https://app-api.internal/api/auth/sign-up/email", {
+				method: "POST",
+				headers: {
+					"content-type": "application/json",
+					origin: authShellOrigin,
+					referer: `${authShellOrigin}/login`,
+					"x-campus-legal-accepted": "terms-and-privacy",
+					"x-captcha-response": TURNSTILE_TEST_TOKEN,
+				},
+				body: JSON.stringify({
+					email,
+					name: "Integration Student",
+					password: "password12345",
+				}),
+			}),
+		);
+		if (!signUpResponse.ok) {
+			throw new Error(
+				`Expected sign-up to succeed, received ${signUpResponse.status}: ${await signUpResponse.text()}`,
+			);
+		}
+
+		const verificationResponse = await app.fetch(new Request(verificationUrl(emails, email)));
+		if (verificationResponse.status !== 302) {
+			throw new Error(
+				`Expected verification to redirect, received ${verificationResponse.status}: ${await verificationResponse.text()}`,
+			);
+		}
+
+		const signInResponse = await app.fetch(
+			new Request("https://app-api.internal/api/auth/sign-in/email", {
+				method: "POST",
+				headers: {
+					"content-type": "application/json",
+					origin: authShellOrigin,
+					referer: `${authShellOrigin}/login`,
+					"x-captcha-response": TURNSTILE_TEST_TOKEN,
+				},
+				body: JSON.stringify({ email, password: "password12345" }),
+			}),
+		);
+		if (!signInResponse.ok) {
+			throw new Error(
+				`Expected sign-in to succeed, received ${signInResponse.status}: ${await signInResponse.text()}`,
+			);
+		}
+		return buildCookieHeader(signInResponse);
+	}
 
 	beforeAll(async () => {
 		env = buildSharedDbIntegrationEnv({
 			runtimeConnectionString: postgres.runtimeConnectionString,
 		});
 
-		app = createApp(env);
+		auth = createAppAuth(env, {
+			emailSender: {
+				async send(message) {
+					emails.push({ subject: message.subject, text: message.text, to: message.to });
+					return { id: `shared-db-email-${emails.length}` };
+				},
+			},
+		});
+		app = createApp(env, { getAppAuth: () => auth });
 		client = new Client({
 			connectionString: postgres.managementConnectionString,
 			ssl: false,
@@ -125,29 +210,8 @@ describe("app-api shared product DB integration", () => {
 	});
 
 	it("creates and reads owned conversations through app-api after Better Auth sign-in", async () => {
-		const createdEmail = `integration-${Date.now()}@example.edu`;
-		const authShellOrigin = readIntegrationAuthShellOrigin(env);
-
-		const authResponse = await app.fetch(
-			new Request("https://app-api.internal/api/auth/sign-up/email", {
-				method: "POST",
-				headers: {
-					"content-type": "application/json",
-					origin: authShellOrigin,
-					referer: `${authShellOrigin}/login`,
-					"x-campus-legal-accepted": "terms-and-privacy",
-					"x-captcha-response": TURNSTILE_TEST_TOKEN,
-				},
-				body: JSON.stringify({
-					email: createdEmail,
-					name: "Integration Student",
-					password: "password12345",
-				}),
-			}),
-		);
-
-		expect(authResponse.ok).toBe(true);
-		const cookieHeader = buildCookieHeader(authResponse);
+		const createdEmail = `integration-${Date.now()}@muc.edu.cn`;
+		const cookieHeader = await registerAndSignIn(createdEmail);
 
 		const createResponse = await app.fetch(
 			new Request("https://app-api.internal/api/chat/conversations", {
@@ -199,29 +263,8 @@ describe("app-api shared product DB integration", () => {
 	});
 
 	it("persists curriculum session slots in chat.session_slots after finalized curriculum completion", async () => {
-		const createdEmail = `integration-${Date.now()}@example.edu`;
-		const authShellOrigin = readIntegrationAuthShellOrigin(env);
-
-		const authResponse = await app.fetch(
-			new Request("https://app-api.internal/api/auth/sign-up/email", {
-				method: "POST",
-				headers: {
-					"content-type": "application/json",
-					origin: authShellOrigin,
-					referer: `${authShellOrigin}/login`,
-					"x-campus-legal-accepted": "terms-and-privacy",
-					"x-captcha-response": TURNSTILE_TEST_TOKEN,
-				},
-				body: JSON.stringify({
-					email: createdEmail,
-					name: "Integration Student",
-					password: "password12345",
-				}),
-			}),
-		);
-
-		expect(authResponse.ok).toBe(true);
-		const cookieHeader = buildCookieHeader(authResponse);
+		const createdEmail = `integration-${Date.now()}@muc.edu.cn`;
+		const cookieHeader = await registerAndSignIn(createdEmail);
 
 		const createResponse = await app.fetch(
 			new Request("https://app-api.internal/api/chat/conversations", {

@@ -3,6 +3,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { Client } from "pg";
+import { Wait } from "testcontainers";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
 	applyIngestionControlMigrations,
@@ -36,6 +37,7 @@ describe("ingestion-control PostgreSQL lifecycle", () => {
 			.withDatabase(DATABASE_NAME)
 			.withUsername("postgres")
 			.withPassword(randomUUID())
+			.withWaitStrategy(Wait.forLogMessage(/database system is ready to accept connections/u, 2))
 			.start();
 		adminConnectionString = container.getConnectionUri();
 		const password = randomBytes(24).toString("hex");

@@ -81,12 +81,12 @@ export async function prepareLocalAppApiSchema(
 			assertReadyLocalSchema(before);
 			return { schemaReady: true, status: "existing" };
 		}
+		await bootstrapSharedProductDatabase(bootstrapEnv);
 		await migrate(drizzle(pool), {
 			migrationsFolder,
 			migrationsSchema: "drizzle",
 			migrationsTable: "app_api_migrations",
 		});
-		await bootstrapSharedProductDatabase(bootstrapEnv);
 		assertReadyLocalSchema(await inspectLocalSchema(pool));
 		return { schemaReady: true, status: "installed" };
 	} finally {

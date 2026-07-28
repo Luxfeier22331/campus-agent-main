@@ -58,10 +58,37 @@ spec:
               drop: ["ALL"]
             readOnlyRootFilesystem: true
             runAsNonRoot: true
-          envFrom:
-            - configMapRef:
-                name: ingestion-runtime-rendered-config
           env:
+            - name: INGESTION_TEMPORAL_ADDRESS
+              valueFrom:
+                configMapKeyRef:
+                  name: ingestion-runtime-rendered-config
+                  key: INGESTION_TEMPORAL_ADDRESS
+            - name: INGESTION_TEMPORAL_NAMESPACE
+              valueFrom:
+                configMapKeyRef:
+                  name: ingestion-runtime-rendered-config
+                  key: INGESTION_TEMPORAL_NAMESPACE
+            - name: INGESTION_TEMPORAL_WORKFLOW_TASK_QUEUE
+              valueFrom:
+                configMapKeyRef:
+                  name: ingestion-runtime-rendered-config
+                  key: INGESTION_TEMPORAL_WORKFLOW_TASK_QUEUE
+            - name: INGESTION_TEMPORAL_CONTROL_ACTIVITY_TASK_QUEUE
+              valueFrom:
+                configMapKeyRef:
+                  name: ingestion-runtime-rendered-config
+                  key: INGESTION_TEMPORAL_CONTROL_ACTIVITY_TASK_QUEUE
+            - name: INGESTION_TEMPORAL_RUST_KERNEL_ACTIVITY_TASK_QUEUE
+              valueFrom:
+                configMapKeyRef:
+                  name: ingestion-runtime-rendered-config
+                  key: INGESTION_TEMPORAL_RUST_KERNEL_ACTIVITY_TASK_QUEUE
+            - name: INGESTION_TEMPORAL_SOURCE_COLLECTOR_ACTIVITY_TASK_QUEUE
+              valueFrom:
+                configMapKeyRef:
+                  name: ingestion-runtime-rendered-config
+                  key: INGESTION_TEMPORAL_SOURCE_COLLECTOR_ACTIVITY_TASK_QUEUE
             - name: INGESTION_CONTROL_DATABASE_URL
               valueFrom:
                 secretKeyRef:

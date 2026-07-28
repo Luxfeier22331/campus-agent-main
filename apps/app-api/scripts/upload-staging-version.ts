@@ -67,7 +67,10 @@ try {
 			wranglerOutdir: sentryArtifactDirectory,
 		},
 		variables: {
-			AUTH_RESET_EMAIL_FROM: requiredEnv("AUTH_RESET_EMAIL_FROM"),
+			AUTH_EMAIL_FROM: requiredEnv("AUTH_EMAIL_FROM"),
+			...(process.env.AUTH_EMAIL_REPLY_TO?.trim()
+				? { AUTH_EMAIL_REPLY_TO: process.env.AUTH_EMAIL_REPLY_TO.trim() }
+				: {}),
 			SENTRY_DSN: requiredEnv("SENTRY_APP_API_DSN"),
 			SENTRY_RELEASE: sentryRelease,
 		},

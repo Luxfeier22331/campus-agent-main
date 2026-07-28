@@ -19,7 +19,7 @@ describe("staging docs gated smoke args", () => {
 			appApiReadyzUrl: DEFAULT_STAGING_DOCS_GATED_APP_API_READYZ_URL,
 			chatBaseUrl: DEFAULT_STAGING_DOCS_GATED_CHAT_BASE_URL,
 			docsBaseUrl: DEFAULT_STAGING_DOCS_BASE_URL,
-			email: "help_bot@outlook.com",
+			email: "campus_agent_smoke@muc.edu.cn",
 			gatedCollectionNavigationPath: null,
 			gatedCollectionNavigationUnauthenticatedStatus: 404,
 			gatedReaderPath: null,

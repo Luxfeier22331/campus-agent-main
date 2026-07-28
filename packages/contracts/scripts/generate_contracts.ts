@@ -6,6 +6,7 @@ import {
 } from "./contracts/campus-groups-generate.ts";
 import { generateToolExecutionContracts } from "./contracts/tool-execution-generate.ts";
 import { runToolExecutionSelfTest } from "./contracts/tool-execution-self-test.ts";
+import { generateAccountContracts } from "./generate_account_admin_schema.ts";
 
 function parseArgs(argv: string[]): { check: boolean; selfTest: boolean } {
 	const args = { check: false, selfTest: false };
@@ -33,6 +34,7 @@ async function main(argv: string[]): Promise<number> {
 	}
 	generateToolExecutionContracts({ check: args.check });
 	generateCampusGroupsContract({ check: args.check });
+	generateAccountContracts({ check: args.check });
 	return 0;
 }
 

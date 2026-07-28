@@ -1,8 +1,4 @@
-import { END_USER_EMAIL_ALLOWLIST, END_USER_EMAIL_DOMAIN_ALLOWLIST } from "../../config.ts";
-import {
-	buildEndUserEmailAdmissionPolicy,
-	isEndUserEmailAllowedForAuth,
-} from "../../modules/auth/auth.ts";
+import { isCampusEmail } from "../../modules/auth/campus-access.ts";
 
 const DEFAULT_PASSWORD_ENV_KEY = "APP_API_SMOKE_IDENTITY_PASSWORD";
 const DEFAULT_AUTH_SHELL_ORIGIN = "https://campus-staging.mucwiki-edge.link";
@@ -12,7 +8,7 @@ const DEFAULT_BETTER_AUTH_SECRET = "smoke-identity-secret-smoke-identity-secret"
 const DEFAULT_TURNSTILE_TEST_SECRET_KEY = "1x0000000000000000000000000000000AA";
 const DEFAULT_TURNSTILE_TEST_TOKEN = "XXXX.DUMMY.TOKEN.XXXX";
 const DEFAULT_RESEND_API_KEY = "smoke-identity-resend-key";
-const DEFAULT_AUTH_RESET_EMAIL_FROM = "Campus Agent <auth@example.com>";
+const DEFAULT_AUTH_EMAIL_FROM = "Campus Agent <auth@example.com>";
 
 type DatabaseSslMode = "disable" | "prefer" | "require";
 
@@ -22,7 +18,7 @@ interface SqlResult {
 
 interface SmokeIdentityProvisionInput {
 	appApiEnvironment: string;
-	authResetEmailFrom?: string;
+	authEmailFrom?: string;
 	authShellOrigin: string;
 	authTurnstileSecretKey: string;
 	betterAuthSecret: string;
@@ -158,13 +154,9 @@ export function readSmokeIdentityProvisionInput(
 	);
 	const authShellOrigin = env.AUTH_SHELL_ORIGIN?.trim() || DEFAULT_AUTH_SHELL_ORIGIN;
 	const authTurnstileSecretKey = resolveTurnstileSecretKey(env, appApiEnvironment, authShellOrigin);
-	const policy = buildEndUserEmailAdmissionPolicy({
-		endUserEmailAllowlist: [...END_USER_EMAIL_ALLOWLIST],
-		endUserEmailDomainAllowlist: [...END_USER_EMAIL_DOMAIN_ALLOWLIST],
-	});
-	if (!isEndUserEmailAllowedForAuth(email, policy)) {
+	if (!isCampusEmail(email)) {
 		throw new Error(
-			`${email} is not admitted by the configured end-user auth allowlist. Refuse to provision a smoke identity that the deployed surface cannot sign in with.`,
+			`${email} is not a muc.edu.cn address. The smoke identity must use a campus email.`,
 		);
 	}
 	const schemaDatabaseUrl = normalizePostgresConnectionStringForExplicitSsl(
@@ -213,7 +205,7 @@ export function buildSmokeIdentityProvisionRuntimeEnv(
 		},
 		APP_API_EXECUTION_SHARED_SECRET: input.appApiExecutionSharedSecret,
 		APP_API_SCHEMA_DATABASE_URL: schemaDatabaseUrl,
-		AUTH_RESET_EMAIL_FROM: input.authResetEmailFrom || DEFAULT_AUTH_RESET_EMAIL_FROM,
+		AUTH_EMAIL_FROM: input.authEmailFrom || DEFAULT_AUTH_EMAIL_FROM,
 		AUTH_TURNSTILE_SECRET_KEY: input.authTurnstileSecretKey,
 		BETTER_AUTH_SECRET: input.betterAuthSecret,
 		AUTH_SHELL_ORIGIN: input.authShellOrigin,

@@ -134,6 +134,18 @@ export function deriveSafetyIdentifier(
 	return createHmac("sha256", normalizedSecret).update(source).digest("hex");
 }
 
+export function deriveSafetyIdentifierForUser(userId: string, secret: string): string | null {
+	const normalizedUserId = normalizeString(userId);
+	const normalizedSecret = normalizeString(secret);
+	if (!(normalizedUserId && normalizedSecret)) {
+		return null;
+	}
+
+	return createHmac("sha256", normalizedSecret)
+		.update(`principal:${normalizedUserId}`)
+		.digest("hex");
+}
+
 export function extractSourceDocIds(result: unknown): string[] {
 	if (!isRecord(result)) {
 		return [];

@@ -9,6 +9,8 @@
 
 - `GET /healthz`、`GET /readyz`；
 - Better Auth 和当前用户投影；
+- 校园邮箱准入、逐地址邀请、邮箱验证和认证邮件；
+- 封禁、会话撤销、临时密码、强制改密和异步账号注销；
 - 联邦登录接口；
 - 聊天提交与流式读取、运行事件与步骤读取、反馈写入；
 - 个人记忆设置、显式记忆项和 Hindsight 命令 outbox；
@@ -38,6 +40,10 @@ Workers VPC binding 访问集群内对象存储，不持有 S3 凭据或使用�
 
 数据库 schema 与角色边界由 `docs/data/postgres-ownership.md` 维护，安装和迁移实现位于应用
 `ops/db/` 与 schema Job；README 不复制表清单和部署步骤。
+
+认证核心表由 Better Auth 官方 migration API 管理；邮箱准入、账号管理记录和注销任务由应用
+Drizzle 迁移管理。schema 安装和本地初始化均先执行 Better Auth 迁移，再执行 Drizzle 迁移。
+认证邮件要求 `AUTH_EMAIL_FROM` 和 `RESEND_API_KEY`；`AUTH_EMAIL_REPLY_TO` 可选。
 
 ## 相关文档
 

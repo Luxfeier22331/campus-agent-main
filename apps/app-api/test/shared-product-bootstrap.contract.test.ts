@@ -136,13 +136,19 @@ describe("app-api shared product bootstrap contracts", () => {
 	it("keeps APP_API_DB_FRESH limited to explicit read-after-write paths", () => {
 		const requestScopeSource = readAppFile("src/app/request-scope.ts");
 		const freshDbReferences = requestScopeSource.match(/runtime\.getFreshDb/g) ?? [];
-		expect(freshDbReferences).toHaveLength(6);
+		expect(freshDbReferences).toHaveLength(8);
 
 		expect(requestScopeSource).toContain(
 			"store: createPgRuntimeRunStore(input.env, { getDb: runtime.getDb })",
 		);
 		expect(requestScopeSource).toContain(
 			"store: createPgProfileMemoryStore(input.env, { getDb: runtime.getFreshDb })",
+		);
+		expect(requestScopeSource).toContain(
+			"store: createPgAccountAdminStore(input.env, { getDb: runtime.getFreshDb })",
+		);
+		expect(requestScopeSource).toContain(
+			"store: createPgAccountLifecycleStore(input.env, { getDb: runtime.getFreshDb })",
 		);
 		expect(requestScopeSource).toContain("getDb: runtime.getFreshDb");
 		expect(requestScopeSource).toContain(

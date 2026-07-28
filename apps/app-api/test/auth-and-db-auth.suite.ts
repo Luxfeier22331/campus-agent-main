@@ -2,11 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import { appApiSchema } from "../src/db/schema";
 import {
 	buildBetterAuthConfig,
-	buildEndUserEmailAdmissionPolicy,
 	enforceEndUserEmailAdmission,
+	enforcePasswordChangeSessionRevocation,
 	enforceSignupLegalConsent,
 	hashAppPassword,
-	isEndUserEmailAllowedForAuth,
+	isCampusEmail,
 	migration0000,
 	resolvePasswordResetRedirectTarget,
 	verifyAppPassword,
@@ -15,25 +15,15 @@ import {
 export function registerAppApiAuthConfigSuite() {
 	describe("app-api auth config", () => {
 		it("freezes explicit auth/session policy for the shared app boundary", () => {
-			const resendFetch = vi.fn().mockResolvedValue(
-				new Response(JSON.stringify({ id: "email_01HQ" }), {
-					headers: {
-						"content-type": "application/json",
-					},
-					status: 200,
-				}),
-			);
 			const config = buildBetterAuthConfig({
 				appName: "campus-agent-app-api",
 				authShellOrigin: "https://campus.example.com",
 				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
 				environment: "production",
-				authResetEmailFrom: "Campus Agent <auth@example.com>",
+				authEmailFrom: "Campus Agent <account@auth.muc.wiki>",
+				authEmailReplyTo: "support@example.com",
 				authTurnstileSecretKey: "turnstile_secret_key",
 				resendApiKey: "resend_test_key",
-				resendFetch,
-				endUserEmailDomainAllowlist: ["example.edu"],
-				endUserEmailAllowlist: ["help_bot@outlook.com"],
 				database: {} as never,
 			} as never);
 
@@ -41,14 +31,15 @@ export function registerAppApiAuthConfigSuite() {
 			expect(config.trustedOrigins).toEqual(["https://campus.example.com"]);
 			expect(config.basePath).toBe("/");
 			expect(config.emailAndPassword).toMatchObject({
-				autoSignIn: true,
+				autoSignIn: false,
 				enabled: true,
 				maxPasswordLength: 128,
 				minPasswordLength: 10,
-				password: {
+				password: expect.objectContaining({
 					hash: hashAppPassword,
-					verify: verifyAppPassword,
-				},
+					verify: expect.any(Function),
+				}),
+				requireEmailVerification: true,
 				resetPasswordTokenExpiresIn: 60 * 60,
 				revokeSessionsOnPasswordReset: true,
 			});
@@ -60,7 +51,7 @@ export function registerAppApiAuthConfigSuite() {
 			expect(config.rateLimit).toMatchObject({
 				enabled: true,
 				max: 10,
-				storage: "memory",
+				storage: "database",
 				window: 60,
 			});
 			expect(config.plugins).toEqual(
@@ -107,6 +98,15 @@ export function registerAppApiAuthConfigSuite() {
 			expect(config.hooks?.before).toBeDefined();
 			expect(config.emailAndPassword.sendResetPassword).toEqual(expect.any(Function));
 			expect(config.emailAndPassword.onPasswordReset).toEqual(expect.any(Function));
+			expect(config.emailVerification).toMatchObject({
+				autoSignInAfterVerification: false,
+				sendOnSignIn: false,
+				sendOnSignUp: true,
+			});
+			expect(config.user?.changeEmail).toMatchObject({
+				enabled: true,
+				updateEmailWithoutVerification: false,
+			});
 		});
 
 		it("uses the campus browser auth shell origin as the only trusted browser origin", () => {
@@ -115,35 +115,14 @@ export function registerAppApiAuthConfigSuite() {
 				authShellOrigin: "https://campus.muc.wiki",
 				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
 				environment: "production",
-				authResetEmailFrom: "Campus Agent <auth@example.com>",
+				authEmailFrom: "Campus Agent <account@auth.muc.wiki>",
 				authTurnstileSecretKey: "turnstile_secret_key",
 				resendApiKey: "resend_test_key",
-				endUserEmailDomainAllowlist: ["example.edu"],
-				endUserEmailAllowlist: ["help_bot@outlook.com"],
 				database: {} as never,
 			} as never);
 
 			expect(config.baseURL).toBe("https://campus.muc.wiki");
 			expect(config.trustedOrigins).toEqual(["https://campus.muc.wiki"]);
-		});
-
-		it("disables CAPTCHA only for the managed local development sentinel", () => {
-			const config = buildBetterAuthConfig({
-				appName: "campus-agent-app-api",
-				authShellOrigin: "http://127.0.0.1:27114",
-				betterAuthSecret: "local-secret-local-secret-local-secret",
-				environment: "development",
-				authResetEmailFrom: "Campus Agent <auth@example.com>",
-				authTurnstileSecretKey: "local-turnstile-disabled",
-				resendApiKey: "local-resend-disabled",
-				endUserEmailDomainAllowlist: ["example.edu"],
-				endUserEmailAllowlist: [],
-				database: {} as never,
-			} as never);
-
-			expect(config.plugins).not.toEqual(
-				expect.arrayContaining([expect.objectContaining({ id: "captcha" })]),
-			);
 		});
 
 		it("keeps Better Auth as the only user and session persistence owner", () => {
@@ -152,95 +131,204 @@ export function registerAppApiAuthConfigSuite() {
 				authShellOrigin: "https://campus.muc.wiki",
 				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
 				environment: "production",
-				authResetEmailFrom: "Campus Agent <auth@example.com>",
+				authEmailFrom: "Campus Agent <account@auth.muc.wiki>",
 				authTurnstileSecretKey: "turnstile_secret_key",
 				resendApiKey: "resend_test_key",
-				endUserEmailDomainAllowlist: ["example.edu"],
-				endUserEmailAllowlist: ["help_bot@outlook.com"],
 				database: {} as never,
 			} as never);
 			expect(config).not.toHaveProperty("databaseHooks.user.create.after");
 		});
 
-		it("sends password reset and password-changed mail through Resend without exposing a repo-owned parallel auth path", async () => {
-			const resendFetch = vi.fn().mockResolvedValue(
-				new Response(JSON.stringify({ id: "email_01HQ" }), {
-					headers: {
-						"content-type": "application/json",
-					},
-					status: 200,
-				}),
-			);
+		it("builds a complete synthetic user for enumeration-safe sign-up", () => {
 			const config = buildBetterAuthConfig({
 				appName: "campus-agent-app-api",
 				authShellOrigin: "https://campus.muc.wiki",
 				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
 				environment: "production",
-				authResetEmailFrom: "Campus Agent <auth@example.com>",
+				authEmailFrom: "Campus Agent <account@auth.muc.wiki>",
 				authTurnstileSecretKey: "turnstile_secret_key",
 				resendApiKey: "resend_test_key",
-				resendFetch,
-				endUserEmailDomainAllowlist: ["example.edu"],
-				endUserEmailAllowlist: ["help_bot@outlook.com"],
+				database: {} as never,
+			} as never);
+			const now = new Date("2026-07-20T00:00:00.000Z");
+			expect(
+				config.emailAndPassword.customSyntheticUser?.({
+					additionalFields: {
+						passwordChangeRequired: false,
+						temporaryPasswordExpiresAt: null,
+					},
+					coreFields: {
+						createdAt: now,
+						email: "student@muc.edu.cn",
+						emailVerified: false,
+						image: null,
+						name: "Student",
+						updatedAt: now,
+					},
+					id: "synthetic_1",
+				}),
+			).toMatchObject({
+				banExpires: null,
+				banReason: null,
+				banned: false,
+				id: "synthetic_1",
+				passwordChangeRequired: false,
+				role: "user",
+				temporaryPasswordExpiresAt: null,
+			});
+		});
+
+		it("forces every password change request to revoke other sessions", () => {
+			expect(
+				enforcePasswordChangeSessionRevocation({
+					body: { currentPassword: "current", revokeOtherSessions: false },
+					path: "/change-password",
+				}),
+			).toEqual({ currentPassword: "current", revokeOtherSessions: true });
+		});
+
+		it("sends password and verified-email lifecycle mail through Resend", async () => {
+			const send = vi.fn().mockResolvedValue({ id: "email_01HQ" });
+			const config = buildBetterAuthConfig({
+				appName: "campus-agent-app-api",
+				authShellOrigin: "https://campus.muc.wiki",
+				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
+				environment: "production",
+				authEmailFrom: "Campus Agent <account@auth.muc.wiki>",
+				authEmailReplyTo: "support@example.com",
+				authTurnstileSecretKey: "turnstile_secret_key",
+				emailSender: { send },
+				resendApiKey: "resend_test_key",
 				database: {} as never,
 			} as never);
 
 			await config.emailAndPassword.sendResetPassword?.({
 				token: "reset_token_01HQ",
 				user: {
-					email: "jane@example.edu",
-					name: "Jane Doe",
+					email: "jane@muc.edu.cn",
+					name: "Jane <Admin>",
 				},
 			});
 
 			await config.emailAndPassword.onPasswordReset?.({
 				user: {
-					email: "jane@example.edu",
+					email: "jane@muc.edu.cn",
+					id: "user_01HQ",
+					name: "Jane Doe",
+				},
+			});
+			await config.emailVerification.sendVerificationEmail?.({
+				token: "verify_token_01HQ",
+				user: {
+					email: "jane@muc.edu.cn",
+					id: "user_01HQ",
+					name: "Jane Doe",
+				},
+			});
+			await config.user.changeEmail.sendChangeEmailConfirmation?.({
+				newEmail: "jane-new@muc.edu.cn",
+				token: "change_token_01HQ",
+				user: {
+					email: "jane@muc.edu.cn",
 					name: "Jane Doe",
 				},
 			});
 
-			expect(resendFetch).toHaveBeenCalledTimes(2);
-			expect(resendFetch).toHaveBeenNthCalledWith(
-				1,
-				"https://api.resend.com/emails",
-				expect.objectContaining({
-					headers: expect.objectContaining({
-						Authorization: "Bearer resend_test_key",
-					}),
-					method: "POST",
-				}),
-			);
-			const firstPayload = JSON.parse(String(resendFetch.mock.calls[0]?.[1]?.body ?? "{}")) as {
+			expect(send).toHaveBeenCalledTimes(4);
+			const firstPayload = send.mock.calls[0]?.[0] as {
 				from?: string;
 				html?: string;
-				reply_to?: string;
+				replyTo?: string;
 				subject?: string;
 				text?: string;
-				to?: string[];
+				to?: string;
 			};
 			expect(firstPayload).toMatchObject({
-				from: "Campus Agent <auth@example.com>",
-				subject: "Reset your Campus Agent password",
-				to: ["jane@example.edu"],
+				from: "Campus Agent <account@auth.muc.wiki>",
+				replyTo: "support@example.com",
+				subject: "重置 Campus Agent 密码",
+				to: "jane@muc.edu.cn",
 			});
-			expect(firstPayload).not.toHaveProperty("reply_to");
+			const resetOptions = send.mock.calls[0]?.[1] as {
+				idempotencyKey: string;
+				purpose: string;
+			};
+			expect(resetOptions).toMatchObject({ purpose: "password_reset" });
+			expect(resetOptions.idempotencyKey).toMatch(/^campus-auth\/password_reset\/[a-f0-9]{64}$/u);
+			expect(resetOptions.idempotencyKey).not.toContain("reset_token_01HQ");
 			expect(firstPayload.html).toContain(
 				"https://campus.muc.wiki/api/auth/reset-password/reset_token_01HQ",
 			);
 			expect(firstPayload.html).toContain(
 				"callbackURL=https%3A%2F%2Fcampus.muc.wiki%2Faccount%2Freset-password",
 			);
+			expect(firstPayload.html).toContain("Jane &lt;Admin&gt;");
+			expect(firstPayload.html).not.toContain("Jane <Admin>");
 			expect(firstPayload.text).toContain("Campus Agent");
 
-			const secondPayload = JSON.parse(String(resendFetch.mock.calls[1]?.[1]?.body ?? "{}")) as {
+			const secondPayload = send.mock.calls[1]?.[0] as {
 				subject?: string;
-				to?: string[];
+				to?: string;
 			};
 			expect(secondPayload).toMatchObject({
-				subject: "Your Campus Agent password was changed",
-				to: ["jane@example.edu"],
+				subject: "Campus Agent 密码已修改",
+				to: "jane@muc.edu.cn",
 			});
+			expect(send.mock.calls[1]?.[1]).toEqual({ purpose: "password_changed" });
+
+			const verificationPayload = send.mock.calls[2]?.[0] as {
+				html?: string;
+				subject?: string;
+				to?: string;
+			};
+			expect(verificationPayload).toMatchObject({
+				subject: "验证 Campus Agent 邮箱",
+				to: "jane@muc.edu.cn",
+			});
+			expect(send.mock.calls[2]?.[1]).toMatchObject({ purpose: "email_verification" });
+			expect(send.mock.calls[2]?.[1]?.idempotencyKey).not.toContain("verify_token_01HQ");
+			expect(verificationPayload.html).toContain(
+				"https://campus.muc.wiki/api/auth/verify-email?token=verify_token_01HQ",
+			);
+
+			const changeEmailPayload = send.mock.calls[3]?.[0] as {
+				html?: string;
+				subject?: string;
+				to?: string;
+			};
+			expect(changeEmailPayload).toMatchObject({
+				subject: "确认更换 Campus Agent 邮箱",
+				to: "jane@muc.edu.cn",
+			});
+			expect(send.mock.calls[3]?.[1]).toMatchObject({
+				purpose: "email_change_confirmation",
+			});
+			expect(send.mock.calls[3]?.[1]?.idempotencyKey).not.toContain("change_token_01HQ");
+			expect(changeEmailPayload.html).toContain("jane-new@muc.edu.cn");
+			expect(changeEmailPayload.html).toContain("change_token_01HQ");
+		});
+
+		it("reports a Resend rejection as an authentication email failure", async () => {
+			const config = buildBetterAuthConfig({
+				appName: "campus-agent-app-api",
+				authShellOrigin: "https://campus.muc.wiki",
+				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
+				environment: "production",
+				authEmailFrom: "Campus Agent <account@auth.muc.wiki>",
+				authTurnstileSecretKey: "turnstile_secret_key",
+				emailSender: {
+					send: vi.fn().mockRejectedValue(new Error("Resend rate limit exceeded")),
+				},
+				resendApiKey: "resend_test_key",
+				database: {} as never,
+			} as never);
+
+			await expect(
+				config.emailVerification.sendVerificationEmail?.({
+					token: "verify_token_01HQ",
+					user: { email: "jane@muc.edu.cn", id: "user_01HQ", name: "Jane" },
+				}),
+			).rejects.toThrow("Resend rate limit exceeded");
 		});
 
 		it("freezes reset redirect targets to /account/reset-password on the auth shell origin", () => {
@@ -273,34 +361,17 @@ export function registerAppApiAuthConfigSuite() {
 			).toThrowError(/reset-password/i);
 		});
 
-		it("hashes and verifies passwords with the app-owned PBKDF2 contract", async () => {
+		it("writes and verifies Better Auth scrypt passwords", async () => {
 			const hash = await hashAppPassword("StagingPass!2026");
 
-			expect(hash).toMatch(/^pbkdf2_sha256\$100000\$[A-Za-z0-9_-]+\$[A-Za-z0-9_-]+$/);
+			expect(hash).not.toMatch(/^pbkdf2_sha256\$/);
 			await expect(
 				verifyAppPassword({
 					hash,
 					password: "StagingPass!2026",
 				}),
 			).resolves.toBe(true);
-			await expect(
-				verifyAppPassword({
-					hash,
-					password: "WrongPass!2026",
-				}),
-			).resolves.toBe(false);
-		});
-
-		it("treats hashes above the deployed worker PBKDF2 ceiling as invalid input", async () => {
-			const hash = await hashAppPassword("StagingPass!2026");
-			const [version, , salt, key] = hash.split("$");
-
-			await expect(
-				verifyAppPassword({
-					hash: `${version}$210000$${salt}$${key}`,
-					password: "StagingPass!2026",
-				}),
-			).resolves.toBe(false);
+			await expect(verifyAppPassword({ hash, password: "WrongPass!2026" })).resolves.toBe(false);
 		});
 
 		it("exposes one unified runtime schema object for product-owned tables", () => {
@@ -343,62 +414,58 @@ export function registerAppApiAuthConfigSuite() {
 			}
 		});
 
-		it("admits campus-domain and explicitly allowlisted end-user emails for email/password auth", () => {
-			const policy = buildEndUserEmailAdmissionPolicy({
-				endUserEmailDomainAllowlist: [" example.edu ", "@students.example.edu"],
-				endUserEmailAllowlist: [" Help_Bot@Outlook.com "],
-			});
-
-			expect(isEndUserEmailAllowedForAuth("student@example.edu", policy)).toBe(true);
-			expect(isEndUserEmailAllowedForAuth("student@sub.example.edu", policy)).toBe(true);
-			expect(isEndUserEmailAllowedForAuth("freshman@students.example.edu", policy)).toBe(true);
-			expect(isEndUserEmailAllowedForAuth("help_bot@outlook.com", policy)).toBe(true);
-			expect(isEndUserEmailAllowedForAuth("student@example.com", policy)).toBe(false);
-			expect(isEndUserEmailAllowedForAuth("student@badexample.edu", policy)).toBe(false);
+		it("admits only the exact muc.edu.cn campus email domain", () => {
+			expect(isCampusEmail(" Student@MUC.EDU.CN ")).toBe(true);
+			expect(isCampusEmail("student@sub.muc.edu.cn")).toBe(false);
+			expect(isCampusEmail("student@muc.edu.cn.example.com")).toBe(false);
+			expect(isCampusEmail("help_bot@outlook.com")).toBe(false);
 		});
 
-		it("rejects non-campus emails on email/password auth routes, including password reset requests", () => {
-			const policy = buildEndUserEmailAdmissionPolicy({
-				endUserEmailDomainAllowlist: ["example.edu"],
-				endUserEmailAllowlist: ["help_bot@outlook.com"],
-			});
-
-			expect(() =>
-				enforceEndUserEmailAdmission({
-					email: "outsider@example.com",
-					path: "/sign-up/email",
-					policy,
-				}),
-			).toThrowError(/not allowed/i);
-			expect(() =>
-				enforceEndUserEmailAdmission({
-					email: "outsider@example.com",
-					path: "/sign-in/email",
-					policy,
-				}),
-			).toThrowError(/not allowed/i);
-			expect(() =>
-				enforceEndUserEmailAdmission({
-					email: "outsider@example.com",
-					path: "/request-password-reset",
-					policy,
-				}),
-			).toThrowError(/not allowed/i);
+		it("rejects emails denied by the shared admission service on email/password auth routes", async () => {
+			const deniedAccess = {
+				assertEmailEnrollment: async () => {
+					throw new Error("email access required");
+				},
+			};
+			await expect(
+				enforceEndUserEmailAdmission(
+					{
+						email: "outsider@example.com",
+						path: "/sign-up/email",
+					},
+					deniedAccess,
+				),
+			).rejects.toThrowError(/email access required/i);
+			await expect(
+				enforceEndUserEmailAdmission(
+					{
+						email: "outsider@example.com",
+						path: "/sign-in/email",
+					},
+					deniedAccess,
+				),
+			).rejects.toThrowError(/email access required/i);
+			await expect(
+				enforceEndUserEmailAdmission(
+					{
+						email: "outsider@example.com",
+						path: "/request-password-reset",
+					},
+					deniedAccess,
+				),
+			).rejects.toThrowError(/email access required/i);
 		});
 
-		it("does not apply end-user email admission checks to unrelated auth routes", () => {
-			const policy = buildEndUserEmailAdmissionPolicy({
-				endUserEmailDomainAllowlist: ["example.edu"],
-				endUserEmailAllowlist: [],
-			});
-
-			expect(() =>
-				enforceEndUserEmailAdmission({
-					email: "outsider@example.com",
-					path: "/get-session",
-					policy,
-				}),
-			).not.toThrow();
+		it("does not apply end-user email admission checks to unrelated auth routes", async () => {
+			await expect(
+				enforceEndUserEmailAdmission(
+					{
+						email: "outsider@example.com",
+						path: "/get-session",
+					},
+					{ assertEmailEnrollment: async () => undefined },
+				),
+			).resolves.toBeUndefined();
 		});
 
 		it("requires explicit legal consent only for email sign-up", () => {

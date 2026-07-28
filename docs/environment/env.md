@@ -24,12 +24,17 @@ status: active
 
 - App API：`.env.local` 和 `.dev.vars.local`；
 - Campus Web：`.dev.vars.local`；
-- Ops Web：`.env.local`。
+- Ops Web：`.env.local`；
+- Source Collector internal-portal adapter：`.env.local`。
 
 这些文件带有管理标记，不提交 Git，也不供人工编辑；命令拒绝覆盖同路径的开发者自有文件。重新初始化保留已生成的本地应用 secret，并按当前 profile 重写端口、数据库和 bucket 地址。进程环境优先于应用文件，因此外部供应商凭据应由 shell、`op run` 或其他可选 secret manager 注入，不写入 profile 或机器注册表。
 
 托管本地环境不连接 Turnstile：Campus Web 不渲染验证码，App API 只对本地禁用标记跳过
 CAPTCHA 插件。staging 和 production 仍必须提供配套的 Turnstile site key 与 secret key。
+
+Source Collector 的托管 `.env.local` 只保存当前 worktree 的本地对象存储配置。adapter 目录下未跟踪的
+`.env` 由开发者按照同目录 `.env.example` 维护门户地址、TGC 和代理配置；不使用托管本地环境的独立
+命令也可在其中提供对象存储配置。`dev:init` 不创建或覆盖该文件，进程环境仍具有最高优先级。
 
 一个应用不得读取其他应用或适配器的环境文件，也不得从根 `.env` 隐式扩散数据库或供应商凭据。
 
@@ -44,6 +49,9 @@ CAPTCHA 插件。staging 和 production 仍必须提供配套的 Turnstile site 
 
 Kubernetes、Cloudflare 和外部平台配置由环境仓及所属密钥存储交付。ConfigMap、Secret、平台变量
 和在线模型配置各自服务明确消费者，不能互相充当同步源。
+
+长期运行的 Kubernetes workload 从共享 ConfigMap 逐 key 投影实际消费字段。只服务单个一次性 Job
+且字段全部由该 Job 消费的专用 ConfigMap 可以整体注入。
 
 ### 部署配置生命周期
 

@@ -1,4 +1,5 @@
 import { oauthProviderClient } from "@better-auth/oauth-provider/client";
+import { inferAdditionalFields } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 
 import {
@@ -6,9 +7,30 @@ import {
 	SIGNUP_LEGAL_CONSENT_FIELD_NAME,
 	SIGNUP_LEGAL_CONSENT_REQUIRED_MESSAGE,
 } from "./legal-consent";
+import { resolveAccountAuthReturnTarget } from "./return-target";
 
 const betterAuthClient = createAuthClient({
-	plugins: [oauthProviderClient()],
+	fetchOptions: {
+		onError(context) {
+			context.error.message = resolveUserFacingAuthErrorMessage({
+				code: readAuthErrorCode(context.error),
+				message: readAuthErrorMessage(context.error),
+			});
+		},
+	},
+	plugins: [
+		oauthProviderClient(),
+		inferAdditionalFields({
+			user: {
+				passwordChangeRequired: {
+					defaultValue: false,
+					input: false,
+					required: true,
+					type: "boolean",
+				},
+			},
+		}),
+	],
 });
 
 export {
@@ -21,10 +43,14 @@ export {
 type BetterAuthClient = typeof betterAuthClient;
 type BetterAuthSignUpEmail = BetterAuthClient["signUp"]["email"];
 type BetterAuthSignInEmail = BetterAuthClient["signIn"]["email"];
+type BetterAuthChangePassword = BetterAuthClient["changePassword"];
 type CampusSignUpEmailInput = Parameters<BetterAuthSignUpEmail>[0] & {
 	[SIGNUP_LEGAL_CONSENT_FIELD_NAME]?: unknown;
 };
-type CampusAuthClient = Omit<BetterAuthClient, "signUp"> & {
+type CampusAuthClient = Omit<BetterAuthClient, "changePassword" | "signUp"> & {
+	changePassword: (
+		...args: Parameters<BetterAuthChangePassword>
+	) => ReturnType<BetterAuthChangePassword>;
 	signIn: Omit<BetterAuthClient["signIn"], "email"> & {
 		email: (...args: Parameters<BetterAuthSignInEmail>) => ReturnType<BetterAuthSignInEmail>;
 	};
@@ -34,12 +60,22 @@ type CampusAuthClient = Omit<BetterAuthClient, "signUp"> & {
 };
 
 const USER_FACING_AUTH_ERROR_MESSAGES = {
-	emailNotAllowed: "当前邮箱暂不支持注册或登录。请使用学校邮箱，或联系维护者确认账号开放范围。",
+	accountNotActive: "当前账号不可用，请联系维护者。",
+	emailAlreadyVerified: "这个邮箱已经完成验证。",
+	emailChangeUnavailable: "当前无法更换到这个邮箱。",
+	emailInvalid: "请输入有效的邮箱地址。",
+	emailNotAllowed: "请使用 @muc.edu.cn 校园邮箱，或管理员已邀请的邮箱。",
+	emailNotVerified: "请先完成邮箱验证。",
 	emailOrPasswordInvalid: "邮箱或密码不正确。",
 	emailRegistered: "这个邮箱已经注册，请直接登录。",
 	generic: "操作失败，请稍后重试。",
 	invalidOrigin: "登录请求来源无效，请刷新页面后重试。",
+	invalidPassword: "当前密码不正确，或新密码不符合要求。",
+	invalidToken: "操作链接无效或已经过期，请重新发起请求。",
 	missingCaptcha: "安全验证还没有完成，请稍后再试。",
+	passwordTooLong: "密码不能超过 128 个字符。",
+	passwordTooShort: "密码至少需要 10 个字符。",
+	temporaryPasswordExpired: "临时密码已经过期，请联系维护者重新签发。",
 } as const;
 
 function stringFromUnknown(value: unknown): string {
@@ -63,36 +99,57 @@ function readAuthErrorMessage(error: unknown): string {
 function resolveUserFacingAuthErrorMessage(input: { code?: unknown; message?: unknown }): string {
 	const code = stringFromUnknown(input.code);
 	const message = stringFromUnknown(input.message);
-	const normalized = `${code} ${message}`.toLowerCase();
 
-	if (code === "end_user_email_not_allowed" || normalized.includes("email is not allowed")) {
+	if (code === "EMAIL_ACCESS_REQUIRED") {
 		return USER_FACING_AUTH_ERROR_MESSAGES.emailNotAllowed;
 	}
-	if (code === "MISSING_RESPONSE" || normalized.includes("missing captcha")) {
+	if (code === "EMAIL_NOT_VERIFIED") {
+		return USER_FACING_AUTH_ERROR_MESSAGES.emailNotVerified;
+	}
+	if (code === "ACCOUNT_NOT_ACTIVE" || code === "BANNED_USER") {
+		return USER_FACING_AUTH_ERROR_MESSAGES.accountNotActive;
+	}
+	if (code === "TEMPORARY_PASSWORD_EXPIRED") {
+		return USER_FACING_AUTH_ERROR_MESSAGES.temporaryPasswordExpired;
+	}
+	if (code === "MISSING_RESPONSE") {
 		return USER_FACING_AUTH_ERROR_MESSAGES.missingCaptcha;
 	}
 	if (code === "dependency_not_ready") {
 		return message || USER_FACING_AUTH_ERROR_MESSAGES.generic;
 	}
-	if (code === "INVALID_ORIGIN" || normalized.includes("invalid origin")) {
+	if (code === "INVALID_ORIGIN") {
 		return USER_FACING_AUTH_ERROR_MESSAGES.invalidOrigin;
 	}
-	if (
-		code === "INVALID_EMAIL_OR_PASSWORD" ||
-		code === "UNAUTHORIZED" ||
-		normalized.includes("invalid email or password") ||
-		normalized.includes("invalid password") ||
-		normalized.includes("unauthorized")
-	) {
+	if (code === "INVALID_EMAIL_OR_PASSWORD" || code === "USER_EMAIL_NOT_FOUND") {
 		return USER_FACING_AUTH_ERROR_MESSAGES.emailOrPasswordInvalid;
+	}
+	if (code === "INVALID_PASSWORD") {
+		return USER_FACING_AUTH_ERROR_MESSAGES.invalidPassword;
+	}
+	if (code === "PASSWORD_TOO_SHORT") {
+		return USER_FACING_AUTH_ERROR_MESSAGES.passwordTooShort;
+	}
+	if (code === "PASSWORD_TOO_LONG") {
+		return USER_FACING_AUTH_ERROR_MESSAGES.passwordTooLong;
+	}
+	if (code === "INVALID_TOKEN") {
+		return USER_FACING_AUTH_ERROR_MESSAGES.invalidToken;
+	}
+	if (code === "INVALID_EMAIL") {
+		return USER_FACING_AUTH_ERROR_MESSAGES.emailInvalid;
+	}
+	if (code === "EMAIL_ALREADY_VERIFIED") {
+		return USER_FACING_AUTH_ERROR_MESSAGES.emailAlreadyVerified;
+	}
+	if (code === "EMAIL_MISMATCH" || code === "EMAIL_CAN_NOT_BE_UPDATED") {
+		return USER_FACING_AUTH_ERROR_MESSAGES.emailChangeUnavailable;
 	}
 	if (
 		code === "USER_ALREADY_EXISTS" ||
 		code === "USER_EXISTS" ||
 		code === "EMAIL_ALREADY_EXISTS" ||
-		code === "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL" ||
-		normalized.includes("already exists") ||
-		normalized.includes("already registered")
+		code === "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL"
 	) {
 		return USER_FACING_AUTH_ERROR_MESSAGES.emailRegistered;
 	}
@@ -237,6 +294,33 @@ async function campusSignInEmail(...args: Parameters<BetterAuthSignInEmail>) {
 	}
 }
 
+async function campusChangePassword(...args: Parameters<BetterAuthChangePassword>) {
+	const [input, fetchOptions] = args;
+	const result = await betterAuthClient.changePassword(
+		{ ...input, revokeOtherSessions: true },
+		fetchOptions,
+	);
+	if (!(result && typeof result === "object" && "error" in result && result.error)) {
+		returnFromRequiredPasswordChange();
+	}
+	return result;
+}
+
+function returnFromRequiredPasswordChange() {
+	if (typeof window === "undefined") {
+		return;
+	}
+	const search = new URLSearchParams(window.location.search);
+	if (!search.has("redirectTo")) {
+		return;
+	}
+	window.location.assign(
+		resolveAccountAuthReturnTarget(search, {
+			currentOrigin: window.location.origin,
+		}),
+	);
+}
+
 const campusSignIn = Object.assign(Object.create(betterAuthClient.signIn), {
 	email: campusSignInEmail,
 }) as CampusAuthClient["signIn"];
@@ -246,6 +330,7 @@ const campusSignUp = Object.assign(Object.create(betterAuthClient.signUp), {
 }) as CampusAuthClient["signUp"];
 
 export const campusAuthClient = Object.assign(Object.create(betterAuthClient), {
+	changePassword: campusChangePassword,
 	signIn: campusSignIn,
 	signUp: campusSignUp,
 }) as CampusAuthClient;

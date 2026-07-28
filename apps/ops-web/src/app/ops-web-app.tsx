@@ -8,13 +8,33 @@ import {
 	RouterProvider,
 	redirect,
 } from "@tanstack/react-router";
-import { Activity, ClipboardList, KeyRound, ServerCog, UsersRound, Utensils } from "lucide-react";
+import {
+	AccountAdminAccessStateSchema,
+	AccountAdminActionSchema,
+	AccountAdminEventWindowSchema,
+	AccountAdminOutcomeSchema,
+	AccountAdminStateSchema,
+} from "campus-contracts/account-admin";
+import {
+	Activity,
+	ClipboardList,
+	History,
+	KeyRound,
+	ServerCog,
+	UserRoundCheck,
+	UserRoundX,
+	UsersRound,
+	Utensils,
+} from "lucide-react";
 import { useMemo } from "react";
 import type { OpsOverviewWindow } from "../shared/ops-contract";
+import { AccountDeletionsPage } from "./account-deletions-page";
+import { AccountEventsPage } from "./account-events-page";
 import { DiningMenuPage } from "./dining-menu-page";
 import { DiningPage } from "./dining-page";
 import { DiningReportsPage } from "./dining-reports-page";
 import { DiningReviewsPage } from "./dining-reviews-page";
+import { EmailAccessPage } from "./email-access-page";
 import { GroupsPage } from "./groups-page";
 import { InternalPortalPage } from "./internal-portal-page";
 import { NotFoundPage } from "./not-found-page";
@@ -32,6 +52,8 @@ import { RequestDetailPage } from "./request-detail-page";
 import { RequestSystemPage } from "./request-system-page";
 import { RequestsPage as RequestsPageView } from "./requests-page";
 import { SidebarLayout } from "./ui/sidebar-layout";
+import { UserDetailPage } from "./user-detail-page";
+import { UsersPage } from "./users-page";
 
 function makeQueryClient() {
 	return new QueryClient({
@@ -118,6 +140,60 @@ const providerConfigRoute = createRoute({
 	component: ProviderConfigRoute,
 });
 
+const emailAccessRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/email-access",
+	component: EmailAccessPage,
+});
+
+const usersRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/users",
+	validateSearch: (search: Record<string, unknown>) => ({
+		access: AccountAdminAccessStateSchema.safeParse(search.access).data,
+		cursor: optionalBoundedSearchString(search.cursor, 512),
+		history: optionalBoundedSearchString(search.history, 4096),
+		q: optionalBoundedSearchString(search.q, 320),
+		state: AccountAdminStateSchema.safeParse(search.state).data,
+	}),
+	component: UsersRoute,
+});
+
+const userDetailRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/users/$userId",
+	validateSearch: (search: Record<string, unknown>) => ({
+		from: optionalBoundedSearchString(search.from, 4096),
+	}),
+	component: UserDetailRoute,
+});
+
+const accountEventsRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/users/activity",
+	validateSearch: (search: Record<string, unknown>) => ({
+		action: AccountAdminActionSchema.safeParse(search.action).data,
+		actorId: optionalBoundedSearchString(search.actorId, 200),
+		cursor: optionalBoundedSearchString(search.cursor, 512),
+		history: optionalBoundedSearchString(search.history, 4096),
+		outcome: AccountAdminOutcomeSchema.safeParse(search.outcome).data,
+		targetUserId: optionalBoundedSearchString(search.targetUserId, 200),
+		window: AccountAdminEventWindowSchema.safeParse(search.window).data ?? "7d",
+	}),
+	component: AccountEventsRoute,
+});
+
+const accountDeletionsRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/account-deletions",
+	validateSearch: (search: Record<string, unknown>) => ({
+		cursor: optionalBoundedSearchString(search.cursor, 512),
+		history: optionalBoundedSearchString(search.history, 4096),
+		status: optionalDeletionStatus(search.status) ?? "pending",
+	}),
+	component: AccountDeletionsRoute,
+});
+
 const internalPortalRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/internal-portal",
@@ -162,6 +238,11 @@ const routeTree = rootRoute.addChildren([
 	requestDetailRoute,
 	internalPortalRoute,
 	providerConfigRoute,
+	emailAccessRoute,
+	usersRoute,
+	accountEventsRoute,
+	userDetailRoute,
+	accountDeletionsRoute,
 	diningRoute,
 	diningMenuRoute,
 	diningReviewsRoute,
@@ -197,6 +278,10 @@ function RootLayout() {
 				{ href: "/requests", icon: ClipboardList, label: "运行记录" },
 				{ href: "/providers", icon: ServerCog, label: "模型配置" },
 				{ href: "/internal-portal", icon: KeyRound, label: "内部门户" },
+				{ href: "/email-access", icon: UserRoundCheck, label: "账号准入" },
+				{ href: "/users", icon: UsersRound, label: "用户管理" },
+				{ href: "/users/activity", icon: History, label: "账号操作记录" },
+				{ href: "/account-deletions", icon: UserRoundX, label: "注销任务" },
 				{ href: "/dining", icon: Utensils, label: "食堂" },
 				{ href: "/groups", icon: UsersRound, label: "同好群" },
 			]}
@@ -236,10 +321,39 @@ function ProviderConfigRoute() {
 	return <ProviderConfigPage />;
 }
 
+function UserDetailRoute() {
+	return (
+		<UserDetailPage
+			from={userDetailRoute.useSearch().from}
+			userId={userDetailRoute.useParams().userId}
+		/>
+	);
+}
+
+function UsersRoute() {
+	return <UsersPage search={usersRoute.useSearch()} />;
+}
+
+function AccountEventsRoute() {
+	return <AccountEventsPage search={accountEventsRoute.useSearch()} />;
+}
+
+function AccountDeletionsRoute() {
+	return <AccountDeletionsPage search={accountDeletionsRoute.useSearch()} />;
+}
+
 function DiningRoute() {
 	return <DiningPage />;
 }
 
 function optionalOverviewWindow(value: unknown): OpsOverviewWindow | undefined {
 	return value === "15m" || value === "1h" || value === "6h" || value === "24h" ? value : undefined;
+}
+
+function optionalDeletionStatus(value: unknown) {
+	return value === "pending" || value === "needs_attention" || value === "completed"
+		? value
+		: value === ""
+			? ""
+			: undefined;
 }

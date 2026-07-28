@@ -9,24 +9,27 @@ import {
 } from "../src/script-support/provisioning/provision-smoke-identity-lib.ts";
 
 describe("app-api smoke identity provisioning", () => {
-	it("requires an already-admitted email and a password env var", () => {
+	it("requires a campus email and a password env var", () => {
 		expect(() =>
 			readSmokeIdentityProvisionInput(
 				["--email", "not-allowed@example.com", "--name", "Smoke User"],
 				{} as NodeJS.ProcessEnv,
 			),
-		).toThrow("is not admitted by the configured end-user auth allowlist");
+		).toThrow("must use a campus email");
 
 		expect(() =>
-			readSmokeIdentityProvisionInput(["--email", "help_bot@outlook.com", "--name", "Smoke User"], {
-				APP_API_SCHEMA_DATABASE_URL: "postgresql://db.example/campus_agent",
-			} as NodeJS.ProcessEnv),
+			readSmokeIdentityProvisionInput(
+				["--email", "smoke_test@muc.edu.cn", "--name", "Smoke User"],
+				{
+					APP_API_SCHEMA_DATABASE_URL: "postgresql://db.example/campus_agent",
+				} as NodeJS.ProcessEnv,
+			),
 		).toThrow("APP_API_SMOKE_IDENTITY_PASSWORD is required");
 	});
 
 	it("builds a minimal app runtime env for canonical auth-route provisioning", () => {
 		const input = readSmokeIdentityProvisionInput(
-			["--email", "help_bot@outlook.com", "--name", "Smoke User"],
+			["--email", "smoke_test@muc.edu.cn", "--name", "Smoke User"],
 			{
 				APP_API_ENVIRONMENT: "development",
 				APP_API_SCHEMA_DATABASE_URL: "postgresql://db.example/campus_agent",
@@ -50,7 +53,7 @@ describe("app-api smoke identity provisioning", () => {
 				betterAuthSecret: "smoke-identity-secret-smoke-identity-secret",
 				captchaToken: "XXXX.DUMMY.TOKEN.XXXX",
 				databaseSslMode: "require",
-				email: "help_bot@outlook.com",
+				email: "smoke_test@muc.edu.cn",
 				appApiExecutionSharedSecret: "smoke-identity-execution-secret",
 				managementDatabaseUrl: "postgresql://legacy-management.example/campus_agent",
 				name: "Smoke User",
@@ -65,12 +68,15 @@ describe("app-api smoke identity provisioning", () => {
 
 	it("requires an explicit captcha token when not using the Cloudflare testing secret", () => {
 		expect(() =>
-			readSmokeIdentityProvisionInput(["--email", "help_bot@outlook.com", "--name", "Smoke User"], {
-				APP_API_ENVIRONMENT: "staging",
-				APP_API_SCHEMA_DATABASE_URL: "postgresql://db.example/campus_agent",
-				APP_API_SMOKE_IDENTITY_PASSWORD: "SmokePass!2026",
-				AUTH_TURNSTILE_SECRET_KEY: "cf-staging-secret",
-			} as NodeJS.ProcessEnv),
+			readSmokeIdentityProvisionInput(
+				["--email", "smoke_test@muc.edu.cn", "--name", "Smoke User"],
+				{
+					APP_API_ENVIRONMENT: "staging",
+					APP_API_SCHEMA_DATABASE_URL: "postgresql://db.example/campus_agent",
+					APP_API_SMOKE_IDENTITY_PASSWORD: "SmokePass!2026",
+					AUTH_TURNSTILE_SECRET_KEY: "cf-staging-secret",
+				} as NodeJS.ProcessEnv,
+			),
 		).toThrow("APP_API_SMOKE_IDENTITY_CAPTCHA_TOKEN is required");
 	});
 
@@ -85,7 +91,7 @@ describe("app-api smoke identity provisioning", () => {
 				JSON.stringify({
 					user: {
 						id: "user_123",
-						email: "help_bot@outlook.com",
+						email: "smoke_test@muc.edu.cn",
 					},
 				}),
 				{
@@ -97,7 +103,7 @@ describe("app-api smoke identity provisioning", () => {
 			),
 		);
 		const input = readSmokeIdentityProvisionInput(
-			["--email", "help_bot@outlook.com", "--name", "Help Bot"],
+			["--email", "smoke_test@muc.edu.cn", "--name", "Smoke User"],
 			{
 				APP_API_ENVIRONMENT: "development",
 				APP_API_SCHEMA_DATABASE_URL: "postgresql://db.example/campus_agent",
@@ -119,12 +125,12 @@ describe("app-api smoke identity provisioning", () => {
 		expect(executeSql).toHaveBeenNthCalledWith(
 			1,
 			expect.stringContaining('delete from "chat"."conversations"'),
-			["help_bot@outlook.com"],
+			["smoke_test@muc.edu.cn"],
 		);
 		expect(executeSql).toHaveBeenNthCalledWith(
 			2,
 			'delete from "app_auth"."user" where "email" = $1',
-			["help_bot@outlook.com"],
+			["smoke_test@muc.edu.cn"],
 		);
 		expect(appFetch).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -149,7 +155,7 @@ describe("app-api smoke identity provisioning", () => {
 			clearedConversationCount: 2,
 			clearedSessionCount: 1,
 			deletedUserCount: 1,
-			email: "help_bot@outlook.com",
+			email: "smoke_test@muc.edu.cn",
 			userId: "user_123",
 		});
 	});

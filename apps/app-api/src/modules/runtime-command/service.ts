@@ -49,7 +49,7 @@ import {
 } from "./service/writes";
 import { ChatFinalizationConflict } from "./store-types";
 
-export { deriveSafetyIdentifier } from "./service/normalize";
+export { deriveSafetyIdentifier, deriveSafetyIdentifierForUser } from "./service/normalize";
 export type {
 	ChatCommandPayload,
 	ChatCommandResponse,

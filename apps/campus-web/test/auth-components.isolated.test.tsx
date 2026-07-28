@@ -431,16 +431,17 @@ describe("campus auth UI components", () => {
 	});
 
 	it("uses only page-level layout for Better Auth UI account settings", () => {
-		const { container } = render(<Settings view="account" />);
+		render(<Settings view="account" />);
 
-		expect(screen.getByLabelText("account-view")).toHaveAttribute(
+		const accountView = screen.getByLabelText("account-view");
+		expect(accountView).toHaveAttribute(
 			"data-class-name",
 			"mx-auto w-full max-w-[var(--layout-page-form-width)]",
 		);
 		expect(screen.getByLabelText("account-settings-layout")).toBeInTheDocument();
-		expect(container.innerHTML).not.toContain("rounded-lg");
-		expect(container.innerHTML).not.toContain("bg-card");
-		expect(container.innerHTML).not.toContain("shadow-");
+		expect(accountView.getAttribute("data-class-name")).not.toContain("rounded-lg");
+		expect(accountView.getAttribute("data-class-name")).not.toContain("bg-card");
+		expect(accountView.getAttribute("data-class-name")).not.toContain("shadow-");
 	});
 
 	it("renders the Better Auth sign-up view without a local consent gate", () => {

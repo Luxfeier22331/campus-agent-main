@@ -54,8 +54,10 @@ const FORWARDED_HEADERS = [
 ] as const;
 const AUTH_FORWARDED_HEADERS = [
 	...FORWARDED_HEADERS,
+	"cf-connecting-ip",
 	"origin",
 	"referer",
+	"user-agent",
 	"x-campus-legal-accepted",
 	"x-captcha-response",
 ] as const;
@@ -92,7 +94,9 @@ const SHELL_EXACT_PATHS = new Set([
 	"/account/register",
 	"/account/forgot-password",
 	"/account/reset-password",
+	"/account/verify-email",
 	"/account/sign-out",
+	"/account/deletion",
 	"/account/settings/account",
 	"/account/settings/security",
 	"/account/settings/memory",

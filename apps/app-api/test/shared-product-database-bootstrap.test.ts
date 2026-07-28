@@ -20,6 +20,7 @@ describe("app-api shared product database bootstrap", () => {
 			"session",
 			"account",
 			"verification",
+			"rateLimit",
 			"oauthClient",
 			"oauthRefreshToken",
 			"oauthAccessToken",

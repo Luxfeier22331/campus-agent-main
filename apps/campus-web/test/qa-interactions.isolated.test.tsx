@@ -24,7 +24,7 @@ const conversationApiMock = vi.hoisted(() => ({
 }));
 const sessionState = vi.hoisted(() => ({
 	data: { user: { id: "user_01", name: "测试用户" } } as null | {
-		user: { id: string; name: string };
+		user: { id: string; name: string; passwordChangeRequired?: boolean };
 	},
 	isPending: false,
 }));
@@ -234,6 +234,28 @@ describe("Q&A product interactions", () => {
 		await user.keyboard("{Control>}{Shift>}o{/Shift}{/Control}");
 
 		expect(navigateMock).toHaveBeenCalledWith({ to: "/" });
+	});
+
+	it("redirects temporary-password accounts before rendering the Q&A surface", async () => {
+		sessionState.data = {
+			user: {
+				id: "user_01",
+				name: "测试用户",
+				passwordChangeRequired: true,
+			},
+		};
+		window.history.pushState({}, "", "/c/conv_01?view=latest#turn");
+
+		render(<QAShell assistantThreadId="conv_01" topTitle="会话" />);
+
+		expect(screen.queryByTestId("assistant-chat")).not.toBeInTheDocument();
+		await waitFor(() => {
+			expect(navigateMock).toHaveBeenCalledWith({
+				replace: true,
+				search: { redirectTo: "/c/conv_01?view=latest#turn" },
+				to: "/account/settings/security",
+			});
+		});
 	});
 
 	it("uses the assistant chat surface as the conversation control surface", async () => {

@@ -2,8 +2,9 @@ import { oauthProvider } from "@better-auth/oauth-provider";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware } from "better-auth/api";
-import { captcha, jwt } from "better-auth/plugins";
-import { decodeBase64UrlBytes, encodeBase64UrlBytes } from "../../base64url";
+import { hashPassword, verifyPassword } from "better-auth/crypto";
+import { admin, captcha, jwt } from "better-auth/plugins";
+import { and, eq } from "drizzle-orm";
 import {
 	type AppApiEnvironment,
 	type AppAuthConfig,
@@ -13,7 +14,22 @@ import {
 	resolveEnvironment,
 } from "../../config";
 import { createRuntimeDatabase, probeBetterAuthDatabase } from "../../db/runtime";
-import { appAuthSchema } from "../../db/schema";
+import {
+	account,
+	accountDeletionRequests,
+	appAuthSchema,
+	oauthAccessToken,
+	oauthConsent,
+	oauthRefreshToken,
+	session,
+	user,
+} from "../../db/schema";
+import { getAppApiExecutionContext } from "../../request-execution-context";
+import {
+	buildEmailAccessService,
+	createPgEmailAccessGrantStore,
+	type EmailAccessService,
+} from "../email-access";
 import { buildFederationProviderClaimSet } from "../federation-runtime/claims";
 import {
 	FEDERATION_CLAIMS,
@@ -22,27 +38,45 @@ import {
 	FEDERATION_JWKS_ROTATION_INTERVAL_SECONDS,
 	FEDERATION_SCOPES,
 } from "../federation-runtime/config";
+import { assertAccountReady, CAMPUS_AUTH_USER_ADDITIONAL_FIELDS } from "./campus-access";
 import {
+	type OpsAccountAdminPluginOptions,
+	opsAccountAdminPlugin,
+} from "./ops-account-admin-plugin";
+import {
+	type AuthEmailSender,
 	resolvePasswordResetRedirectTarget,
+	sendEmailChangeConfirmation,
 	sendPasswordChangedEmail,
 	sendPasswordResetEmail,
+	sendVerificationEmail,
 } from "./reset-mail";
 
 const AUTH_SESSION_EXPIRES_IN = 60 * 60 * 24 * 7;
 const AUTH_SESSION_UPDATE_AGE = 60 * 60 * 24;
 const AUTH_RATE_LIMIT_WINDOW = 60;
 const AUTH_RATE_LIMIT_MAX = 10;
-const APP_PASSWORD_HASH_VERSION = "pbkdf2_sha256";
-// Deployed workerd enforces a 100k PBKDF2 iteration ceiling.
-const APP_PASSWORD_PBKDF2_ITERATIONS = 100_000;
-const APP_PASSWORD_PBKDF2_MAX_ITERATIONS = 100_000;
-const APP_PASSWORD_SALT_BYTES = 16;
-const APP_PASSWORD_KEY_BYTES = 32;
 export const SIGNUP_LEGAL_CONSENT_HEADER_NAME = "x-campus-legal-accepted";
 export const SIGNUP_LEGAL_CONSENT_HEADER_VALUE = "terms-and-privacy";
 const LOCAL_TURNSTILE_DISABLED_SECRET_KEY = "local-turnstile-disabled";
 const appAuthCache = new WeakMap<Env, Promise<AppAuth>>();
-const passwordTextEncoder = new TextEncoder();
+const DISABLED_BETTER_AUTH_ADMIN_PATHS = [
+	"/admin/ban-user",
+	"/admin/create-user",
+	"/admin/get-user",
+	"/admin/has-permission",
+	"/admin/impersonate-user",
+	"/admin/list-user-sessions",
+	"/admin/list-users",
+	"/admin/remove-user",
+	"/admin/revoke-user-session",
+	"/admin/revoke-user-sessions",
+	"/admin/set-role",
+	"/admin/set-user-password",
+	"/admin/stop-impersonating",
+	"/admin/unban-user",
+	"/admin/update-user",
+] as const;
 
 function shouldCacheAppAuth(env: Env): boolean {
 	return resolveEnvironment(env) === "test";
@@ -51,77 +85,51 @@ function shouldCacheAppAuth(env: Env): boolean {
 export interface BetterAuthConfigInput {
 	appName: string;
 	authShellOrigin: string;
-	authResetEmailFrom: string;
+	authEmailFrom: string;
+	authEmailReplyTo?: string;
 	authTurnstileSecretKey: string;
 	betterAuthSecret: string;
 	environment: AppApiEnvironment;
 	resendApiKey: string;
-	resendFetch?: typeof fetch;
-	endUserEmailDomainAllowlist: string[];
-	endUserEmailAllowlist: string[];
+	emailSender?: AuthEmailSender;
+	backgroundTaskHandler?: (promise: Promise<unknown>) => void;
+	emailAccessService: Pick<
+		EmailAccessService,
+		"assertAccountAccess" | "assertEmailEnrollment" | "claimVerifiedUser"
+	>;
+	readCampusUser?: (userId: string) => Promise<{
+		banned: boolean;
+		email: string;
+		emailVerified: boolean;
+		id: string;
+		passwordChangeRequired: boolean;
+	} | null>;
+	revokeUserCredentials?: (userId: string) => Promise<void>;
+	clearTemporaryPasswordState?: (userId: string) => Promise<void>;
+	commitTemporaryPassword: OpsAccountAdminPluginOptions["commitTemporaryPassword"];
 	database: object;
 }
 
 export interface CreateAppAuthInput {
 	database?: Awaited<ReturnType<typeof createRuntimeDatabase>>;
 	config?: AppAuthConfig;
-}
-
-export interface EndUserEmailAdmissionPolicy {
-	endUserEmailAllowlist: string[];
-	endUserEmailDomainAllowlist: string[];
+	emailSender?: AuthEmailSender;
 }
 
 const END_USER_EMAIL_PASSWORD_AUTH_PATHS = new Set([
+	"/change-email",
 	"/sign-in/email",
 	"/sign-up/email",
+	"/send-verification-email",
 	"/request-password-reset",
 ]);
 
-function normalizeAllowedEmail(value: string | null | undefined): string | null {
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const normalized = value.trim().toLowerCase();
-	if (!normalized.includes("@")) {
-		return null;
-	}
-
-	const [localPart, domain] = normalized.split("@", 2);
-	if (!(localPart && domain)) {
-		return null;
-	}
-
-	return `${localPart}@${domain}`;
-}
-
-function normalizeAllowedEmailDomainSuffix(value: string | null | undefined): string | null {
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const normalized = value.trim().toLowerCase().replace(/^@+/, "");
-	return normalized.length > 0 ? normalized : null;
-}
-
-function dedupeNormalizedValues(
-	values: string[],
-	normalize: (value: string | null | undefined) => string | null,
-): string[] {
-	return [
-		...new Set(
-			values.map((value) => normalize(value)).filter((value): value is string => value !== null),
-		),
-	];
-}
-
 function extractAuthRequestEmail(body: unknown): string | null {
-	if (!body || typeof body !== "object" || !("email" in body)) {
+	if (!body || typeof body !== "object") {
 		return null;
 	}
 
-	const email = body.email;
+	const email = "newEmail" in body ? body.newEmail : "email" in body ? body.email : null;
 	return typeof email === "string" ? email : null;
 }
 
@@ -134,55 +142,23 @@ function extractAuthResetRedirect(body: unknown): string | null {
 	return typeof redirectTo === "string" ? redirectTo : null;
 }
 
-export function buildEndUserEmailAdmissionPolicy(
-	input: EndUserEmailAdmissionPolicy,
-): EndUserEmailAdmissionPolicy {
-	return {
-		endUserEmailAllowlist: dedupeNormalizedValues(
-			input.endUserEmailAllowlist,
-			normalizeAllowedEmail,
-		),
-		endUserEmailDomainAllowlist: dedupeNormalizedValues(
-			input.endUserEmailDomainAllowlist,
-			normalizeAllowedEmailDomainSuffix,
-		),
-	};
-}
-
-export function isEndUserEmailAllowedForAuth(
-	email: string,
-	policy: EndUserEmailAdmissionPolicy,
-): boolean {
-	const normalizedEmail = normalizeAllowedEmail(email);
-	if (!normalizedEmail) {
-		return false;
-	}
-	if (policy.endUserEmailAllowlist.includes(normalizedEmail)) {
-		return true;
-	}
-
-	const [, domain = ""] = normalizedEmail.split("@", 2);
-	return policy.endUserEmailDomainAllowlist.some(
-		(suffix) => domain === suffix || domain.endsWith(`.${suffix}`),
-	);
-}
-
-export function enforceEndUserEmailAdmission(input: {
-	path: string | undefined;
-	email: string | null;
-	policy: EndUserEmailAdmissionPolicy;
-}): void {
+export async function enforceEndUserEmailAdmission(
+	input: {
+		path: string | undefined;
+		email: string | null;
+	},
+	emailAccessService: Pick<EmailAccessService, "assertEmailEnrollment">,
+): Promise<void> {
 	if (!(input.path && END_USER_EMAIL_PASSWORD_AUTH_PATHS.has(input.path))) {
 		return;
 	}
-	if (input.email && isEndUserEmailAllowedForAuth(input.email, input.policy)) {
-		return;
+	if (!input.email) {
+		throw APIError.from("FORBIDDEN", {
+			code: "EMAIL_ACCESS_REQUIRED",
+			message: "This email is not admitted.",
+		});
 	}
-
-	throw APIError.from("FORBIDDEN", {
-		code: "end_user_email_not_allowed",
-		message: "This email is not allowed for campus sign-in.",
-	});
+	await emailAccessService.assertEmailEnrollment(input.email);
 }
 
 export function enforceSignupLegalConsent(input: {
@@ -204,32 +180,102 @@ export function enforceSignupLegalConsent(input: {
 	});
 }
 
+export function enforcePasswordChangeSessionRevocation(input: {
+	body: unknown;
+	path: string | undefined;
+}): Record<string, unknown> | null {
+	if (input.path !== "/change-password" || !input.body || typeof input.body !== "object") {
+		return null;
+	}
+	return { ...input.body, revokeOtherSessions: true };
+}
+
 export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 	const appOrigin = new URL(input.authShellOrigin).origin;
-	const endUserEmailAdmissionPolicy = buildEndUserEmailAdmissionPolicy({
-		endUserEmailAllowlist: input.endUserEmailAllowlist,
-		endUserEmailDomainAllowlist: input.endUserEmailDomainAllowlist,
-	});
-	const authResetMailConfig = {
-		authShellOrigin: appOrigin,
-		authResetEmailFrom: input.authResetEmailFrom,
-		fetchImplementation: input.resendFetch,
-		resendApiKey: input.resendApiKey,
-	};
 	const captchaEnabled = !(
 		input.environment === "development" &&
 		input.authTurnstileSecretKey === LOCAL_TURNSTILE_DISABLED_SECRET_KEY
 	);
+	const authResetMailConfig = {
+		authShellOrigin: appOrigin,
+		authEmailFrom: input.authEmailFrom,
+		authEmailReplyTo: input.authEmailReplyTo,
+		emailSender: input.emailSender,
+		resendApiKey: input.resendApiKey,
+	};
+	const runBackgroundOrAwait = async (promise: Promise<unknown>) => {
+		if (input.backgroundTaskHandler) {
+			input.backgroundTaskHandler(promise);
+			return;
+		}
+		await promise;
+	};
 
 	return {
 		appName: input.appName,
 		baseURL: appOrigin,
 		basePath: "/",
-		disabledPaths: ["/token"],
+		disabledPaths: ["/token", ...DISABLED_BETTER_AUTH_ADMIN_PATHS],
 		trustedOrigins: [appOrigin],
 		secret: input.betterAuthSecret,
+		emailVerification: {
+			autoSignInAfterVerification: false,
+			expiresIn: 60 * 60,
+			sendOnSignIn: false,
+			sendOnSignUp: true,
+			sendVerificationEmail: async ({
+				token,
+				user: authUser,
+			}: {
+				token: string;
+				user: { email?: string | null; id: string; name?: string | null };
+			}) => {
+				await sendVerificationEmail(authResetMailConfig, { token, user: authUser });
+			},
+			afterEmailVerification: async (authUser: {
+				email?: string | null;
+				emailVerified?: boolean | null;
+				id: string;
+			}) => {
+				const decision = await input.emailAccessService.claimVerifiedUser({
+					...authUser,
+					emailVerified: true,
+				});
+				await input.revokeUserCredentials?.(authUser.id);
+				if (!decision.allowed) {
+					throw APIError.from("FORBIDDEN", {
+						code: "EMAIL_ACCESS_REQUIRED",
+						message: "This email is not admitted.",
+					});
+				}
+			},
+		},
 		emailAndPassword: {
-			autoSignIn: true,
+			autoSignIn: false,
+			customSyntheticUser: ({
+				additionalFields,
+				coreFields,
+				id,
+			}: {
+				additionalFields: Record<string, unknown>;
+				coreFields: {
+					createdAt: Date;
+					email: string;
+					emailVerified: boolean;
+					image: string | null;
+					name: string;
+					updatedAt: Date;
+				};
+				id: string;
+			}) => ({
+				...coreFields,
+				role: "user",
+				banned: false,
+				banReason: null,
+				banExpires: null,
+				...additionalFields,
+				id,
+			}),
 			enabled: true,
 			maxPasswordLength: 128,
 			minPasswordLength: 10,
@@ -237,6 +283,7 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 				hash: hashAppPassword,
 				verify: verifyAppPassword,
 			},
+			requireEmailVerification: true,
 			resetPasswordTokenExpiresIn: 60 * 60,
 			revokeSessionsOnPasswordReset: true,
 			sendResetPassword: async ({
@@ -254,15 +301,41 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 			onPasswordReset: async ({
 				user,
 			}: {
-				user: { email?: string | null; name?: string | null };
+				user: { email?: string | null; id: string; name?: string | null };
 			}) => {
-				await sendPasswordChangedEmail(authResetMailConfig, {
-					user,
-				});
+				await input.clearTemporaryPasswordState?.(user.id);
+				await runBackgroundOrAwait(sendPasswordChangedEmail(authResetMailConfig, { user }));
+			},
+		},
+		user: {
+			additionalFields: CAMPUS_AUTH_USER_ADDITIONAL_FIELDS,
+			changeEmail: {
+				enabled: true,
+				sendChangeEmailConfirmation: async ({
+					newEmail,
+					token,
+					user: authUser,
+				}: {
+					newEmail: string;
+					token: string;
+					user: { email?: string | null; name?: string | null };
+				}) => {
+					await sendEmailChangeConfirmation(authResetMailConfig, {
+						newEmail,
+						token,
+						user: authUser,
+					});
+				},
+				updateEmailWithoutVerification: false,
 			},
 		},
 		database: input.database,
 		plugins: [
+			admin(),
+			opsAccountAdminPlugin({
+				commitTemporaryPassword: input.commitTemporaryPassword,
+				revokeOAuthTokens: input.revokeUserCredentials,
+			}),
 			jwt({
 				disableSettingJwtHeader: true,
 				jwks: {
@@ -279,8 +352,23 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 				},
 				cachedTrustedClients: new Set(["muc-wiki"]),
 				consentPage: "/account/federation/consent",
-				customIdTokenClaims: buildFederationProviderClaimSet,
-				customUserInfoClaims: buildFederationProviderClaimSet,
+				customAccessTokenClaims: async ({ user: authUser }) => {
+					if (authUser) {
+						assertAccountReady(authUser);
+						await input.emailAccessService.assertAccountAccess(authUser);
+					}
+					return {};
+				},
+				customIdTokenClaims: async (claimInput) => {
+					assertAccountReady(claimInput.user);
+					await input.emailAccessService.assertAccountAccess(claimInput.user);
+					return buildFederationProviderClaimSet(claimInput);
+				},
+				customUserInfoClaims: async (claimInput) => {
+					assertAccountReady(claimInput.user);
+					await input.emailAccessService.assertAccountAccess(claimInput.user);
+					return buildFederationProviderClaimSet(claimInput);
+				},
 				grantTypes: ["authorization_code", "refresh_token"],
 				loginPage: "/account/login",
 				scopes: [...FEDERATION_SCOPES],
@@ -297,7 +385,7 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 		rateLimit: {
 			enabled: isDeployedEnvironment(input.environment),
 			max: AUTH_RATE_LIMIT_MAX,
-			storage: "memory",
+			storage: "database",
 			window: AUTH_RATE_LIMIT_WINDOW,
 		},
 		session: {
@@ -306,9 +394,29 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 			updateAge: AUTH_SESSION_UPDATE_AGE,
 		},
 		advanced: {
+			...(input.backgroundTaskHandler
+				? { backgroundTasks: { handler: input.backgroundTaskHandler } }
+				: {}),
 			disableCSRFCheck: false,
 			disableOriginCheck: false,
+			ipAddress: {
+				ipAddressHeaders: ["cf-connecting-ip"],
+			},
 			useSecureCookies: appOrigin.startsWith("https://"),
+		},
+		databaseHooks: {
+			session: {
+				create: {
+					before: async (authSession: { userId: string }) => {
+						if (input.readCampusUser) {
+							const authUser = await input.readCampusUser(authSession.userId);
+							await input.emailAccessService.assertAccountAccess(
+								authUser ?? { email: null, id: authSession.userId },
+							);
+						}
+					},
+				},
+			},
 		},
 		hooks: {
 			before: createAuthMiddleware(async (ctx) => {
@@ -316,11 +424,13 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 					headers: ctx.headers,
 					path: ctx.path,
 				});
-				enforceEndUserEmailAdmission({
-					email: extractAuthRequestEmail(ctx.body),
-					path: ctx.path,
-					policy: endUserEmailAdmissionPolicy,
-				});
+				await enforceEndUserEmailAdmission(
+					{
+						email: extractAuthRequestEmail(ctx.body),
+						path: ctx.path,
+					},
+					input.emailAccessService,
+				);
 				if (ctx.path === "/request-password-reset") {
 					const redirectTo = extractAuthResetRedirect(ctx.body);
 					if (redirectTo) {
@@ -330,115 +440,160 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 						});
 					}
 				}
+				const passwordChangeBody = enforcePasswordChangeSessionRevocation({
+					body: ctx.body,
+					path: ctx.path,
+				});
+				if (passwordChangeBody) {
+					return {
+						context: {
+							...ctx,
+							body: passwordChangeBody,
+						},
+					};
+				}
 			}),
 		},
 	};
 }
 
-function normalizePassword(value: string): string {
-	return value.normalize("NFKC");
-}
-
-async function deriveAppPasswordKey(
-	password: string,
-	salt: Uint8Array,
-	iterations: number,
-): Promise<Uint8Array> {
-	const saltBytes = salt as unknown as BufferSource;
-	const key = await crypto.subtle.importKey(
-		"raw",
-		passwordTextEncoder.encode(normalizePassword(password)),
-		{ name: "PBKDF2" },
-		false,
-		["deriveBits"],
-	);
-	const derivedBits = await crypto.subtle.deriveBits(
-		{
-			hash: "SHA-256",
-			iterations,
-			name: "PBKDF2",
-			salt: saltBytes,
-		},
-		key,
-		APP_PASSWORD_KEY_BYTES * 8,
-	);
-
-	return new Uint8Array(derivedBits);
-}
-
-function constantTimeEqualBytes(left: Uint8Array, right: Uint8Array): boolean {
-	if (left.byteLength !== right.byteLength) {
-		return false;
-	}
-
-	let diff = 0;
-	for (let index = 0; index < left.byteLength; index += 1) {
-		diff |= (left[index] ?? 0) ^ (right[index] ?? 0);
-	}
-
-	return diff === 0;
-}
-
 export async function hashAppPassword(password: string): Promise<string> {
-	const salt = crypto.getRandomValues(new Uint8Array(APP_PASSWORD_SALT_BYTES));
-	const key = await deriveAppPasswordKey(password, salt, APP_PASSWORD_PBKDF2_ITERATIONS);
-
-	return [
-		APP_PASSWORD_HASH_VERSION,
-		String(APP_PASSWORD_PBKDF2_ITERATIONS),
-		encodeBase64UrlBytes(salt),
-		encodeBase64UrlBytes(key),
-	].join("$");
+	return hashPassword(password);
 }
 
 export async function verifyAppPassword(input: {
 	hash: string;
 	password: string;
 }): Promise<boolean> {
-	const [version, iterationsRaw, saltEncoded, keyEncoded] = input.hash.split("$");
-	if (version !== APP_PASSWORD_HASH_VERSION || !iterationsRaw || !saltEncoded || !keyEncoded) {
-		return false;
-	}
-
-	const iterations = Number.parseInt(iterationsRaw, 10);
-	if (
-		!Number.isFinite(iterations) ||
-		iterations < 1 ||
-		iterations > APP_PASSWORD_PBKDF2_MAX_ITERATIONS
-	) {
-		return false;
-	}
-
-	const salt = decodeBase64UrlBytes(saltEncoded);
-	const expectedKey = decodeBase64UrlBytes(keyEncoded);
-	if (
-		salt.byteLength !== APP_PASSWORD_SALT_BYTES ||
-		expectedKey.byteLength !== APP_PASSWORD_KEY_BYTES
-	) {
-		return false;
-	}
-
-	const derivedKey = await deriveAppPasswordKey(input.password, salt, iterations);
-
-	return constantTimeEqualBytes(derivedKey, expectedKey);
+	return verifyPassword(input);
 }
 
 export async function createAppAuth(env: Env, input: CreateAppAuthInput = {}) {
 	const config = input.config ?? readAppAuthConfig(env);
 	const database = input.database ?? (await createRuntimeDatabase(env, { consistency: "fresh" }));
+	const executionContext = getAppApiExecutionContext();
+	const emailAccessService = buildEmailAccessService({
+		environment: config.environment,
+		store: createPgEmailAccessGrantStore(env, { getDb: async () => database }),
+	});
 
 	return betterAuth(
 		buildBetterAuthConfig({
 			appName: config.appName,
-			authResetEmailFrom: config.authResetEmailFrom,
+			authEmailFrom: config.authEmailFrom,
+			authEmailReplyTo: config.authEmailReplyTo,
 			authTurnstileSecretKey: config.authTurnstileSecretKey,
 			authShellOrigin: config.authShellOrigin,
 			betterAuthSecret: config.betterAuthSecret,
+			emailSender: input.emailSender,
+			emailAccessService,
 			environment: config.environment,
 			resendApiKey: config.resendApiKey,
-			endUserEmailAllowlist: config.endUserEmailAllowlist,
-			endUserEmailDomainAllowlist: config.endUserEmailDomainAllowlist,
-			resendFetch: fetch,
+			backgroundTaskHandler: executionContext?.waitUntil.bind(executionContext),
+			clearTemporaryPasswordState: async (userId) => {
+				await database
+					.update(user)
+					.set({
+						passwordChangeRequired: false,
+						temporaryPasswordExpiresAt: null,
+						updatedAt: new Date(),
+					})
+					.where(eq(user.id, userId));
+			},
+			commitTemporaryPassword: async (temporaryPassword) =>
+				database.transaction(async (tx) => {
+					const users = await tx
+						.select({ id: user.id })
+						.from(user)
+						.where(eq(user.id, temporaryPassword.userId))
+						.limit(1)
+						.for("update");
+					if (!users[0]) {
+						return "not_found" as const;
+					}
+					const deletions = await tx
+						.select({ requestId: accountDeletionRequests.requestId })
+						.from(accountDeletionRequests)
+						.where(
+							and(
+								eq(accountDeletionRequests.ownerUserId, temporaryPassword.userId),
+								eq(accountDeletionRequests.status, "pending"),
+							),
+						)
+						.limit(1);
+					if (deletions[0]) {
+						return "deleting" as const;
+					}
+					const credentials = await tx
+						.select({ id: account.id })
+						.from(account)
+						.where(
+							and(
+								eq(account.userId, temporaryPassword.userId),
+								eq(account.providerId, "credential"),
+							),
+						)
+						.limit(1)
+						.for("update");
+					if (credentials[0]) {
+						await tx
+							.update(account)
+							.set({
+								password: temporaryPassword.passwordHash,
+								updatedAt: temporaryPassword.issuedAt,
+							})
+							.where(eq(account.id, credentials[0].id));
+					} else {
+						await tx.insert(account).values({
+							accountId: temporaryPassword.userId,
+							createdAt: temporaryPassword.issuedAt,
+							id: temporaryPassword.accountId,
+							password: temporaryPassword.passwordHash,
+							providerId: "credential",
+							updatedAt: temporaryPassword.issuedAt,
+							userId: temporaryPassword.userId,
+						});
+					}
+					await tx
+						.update(user)
+						.set({
+							passwordChangeRequired: true,
+							temporaryPasswordExpiresAt: temporaryPassword.expiresAt,
+							updatedAt: temporaryPassword.issuedAt,
+						})
+						.where(eq(user.id, temporaryPassword.userId));
+					await tx
+						.delete(oauthAccessToken)
+						.where(eq(oauthAccessToken.userId, temporaryPassword.userId));
+					await tx
+						.delete(oauthRefreshToken)
+						.where(eq(oauthRefreshToken.userId, temporaryPassword.userId));
+					await tx.delete(oauthConsent).where(eq(oauthConsent.userId, temporaryPassword.userId));
+					await tx.delete(session).where(eq(session.userId, temporaryPassword.userId));
+					return "updated" as const;
+				}),
+			readCampusUser: async (userId) => {
+				const rows = await database
+					.select({
+						banned: user.banned,
+						email: user.email,
+						emailVerified: user.emailVerified,
+						id: user.id,
+						passwordChangeRequired: user.passwordChangeRequired,
+					})
+					.from(user)
+					.where(eq(user.id, userId))
+					.limit(1);
+				return rows[0] ?? null;
+			},
+			revokeUserCredentials: async (userId) => {
+				await database.transaction(async (tx) => {
+					await tx.delete(oauthAccessToken).where(eq(oauthAccessToken.userId, userId));
+					await tx.delete(oauthRefreshToken).where(eq(oauthRefreshToken.userId, userId));
+					await tx.delete(oauthConsent).where(eq(oauthConsent.userId, userId));
+					await tx.delete(session).where(eq(session.userId, userId));
+				});
+			},
 			database: drizzleAdapter(database, {
 				camelCase: true,
 				provider: "pg",
@@ -454,6 +609,7 @@ export type AppAuth = Awaited<ReturnType<typeof createAppAuth>>;
 export type AppAuthGetter = () => Promise<AppAuth>;
 
 export interface AppAuthResolutionInput {
+	emailAccessService?: Pick<EmailAccessService, "evaluateAccountAccess">;
 	getAppAuth?: AppAuthGetter;
 }
 

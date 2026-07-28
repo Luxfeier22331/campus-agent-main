@@ -10,9 +10,19 @@ import {
 } from "@campus-agent/dining/domain";
 import { serveStatic } from "@hono/node-server/serve-static";
 import {
+	AccountAdminEmptyCommandSchema,
+	AccountAdminEventQuerySchema,
+	AccountAdminIdentifierSchema,
+	AccountAdminReasonSchema,
+	AccountAdminUserActionSchema,
+	AccountAdminUserQuerySchema,
+	AccountDeletionQuerySchema,
+} from "campus-contracts/account-admin";
+import {
 	type CampusGroupsCatalog,
 	CampusGroupsCatalogSchema,
 } from "campus-contracts/campus-groups";
+import { CreateEmailAccessGrantSchema } from "campus-contracts/email-access";
 import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
 import { z } from "zod";
@@ -31,6 +41,12 @@ import {
 	OpsRequestWindowSchema,
 	OpsSentryIssuesResponseSchema,
 } from "../shared/ops-contract.ts";
+import {
+	type AccountAdminEnv,
+	AccountAdminResponseError,
+	AccountAdminUnavailableError,
+	createAccountAdminClient,
+} from "./account-admin-client.ts";
 import {
 	type AxiomClient,
 	type AxiomEnv,
@@ -59,12 +75,18 @@ import {
 	DiningStoreValidationError,
 } from "./dining-store.ts";
 import {
+	createEmailAccessAdminClient,
+	type EmailAccessAdminEnv,
+	EmailAccessAdminResponseError,
+	EmailAccessAdminUnavailableError,
+} from "./email-access-client.ts";
+import {
 	createClusterInternalPortalAuthClient,
 	type InternalPortalAuthClient,
 	InternalPortalAuthUnavailableError,
 } from "./internal-portal-auth-client.ts";
 import {
-	createCloudflareAccessOpsAdmission,
+	createOpsAdmissionFromEnv,
 	getMissingAccessConfig,
 	type OpsAdmission,
 	type OpsAdmissionEnv,
@@ -104,20 +126,24 @@ interface OpsHealthEnv {
 }
 
 type OpsAppEnv = OpsAdmissionEnv &
+	AccountAdminEnv &
 	AxiomEnv &
 	CampusGroupsAdminEnv &
 	DiningStoreEnv &
 	OpsHealthEnv &
 	OpsStatusEnv &
+	EmailAccessAdminEnv &
 	ProviderConfigAdminEnv &
 	SentryEnv;
 
 interface OpsAppOptions {
+	accountAdminClient?: ReturnType<typeof createAccountAdminClient>;
 	admission?: OpsAdmission;
 	axiom?: AxiomClient;
 	env?: OpsAppEnv;
 	diningStore?: DiningStore;
 	diningContentStore?: DiningContentStore;
+	emailAccessClient?: ReturnType<typeof createEmailAccessAdminClient>;
 	overviewService?: OpsOverviewService;
 	sentry?: SentryClient;
 	staticRoot?: string;
@@ -160,6 +186,15 @@ const DiningReviewListQuerySchema = z
 		window_id: OpsPathIdSchema.optional(),
 	})
 	.strict();
+const EmailAccessQuerySchema = z
+	.object({
+		cursor: z.string().trim().min(1).max(512).optional(),
+		email: z.string().trim().min(1).max(320).optional(),
+		kind: z.enum(["invitation", "test"]).optional(),
+		limit: z.coerce.number().int().min(1).max(100).default(50),
+		state: z.enum(["pending", "active", "revoked", "expired"]).optional(),
+	})
+	.strict();
 
 class CampusGroupsRequestError extends Error {}
 const DiningReportListQuerySchema = z
@@ -176,7 +211,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	const publicOrigin = resolveOpsPublicOrigin(env);
 	const diningStore = options.diningStore ?? createDefaultDiningStore(env);
 	const diningContentStore = options.diningContentStore ?? createDefaultDiningContentStore(env);
-	const admission = options.admission ?? createCloudflareAccessOpsAdmission(env);
+	const admission = options.admission ?? createOpsAdmissionFromEnv(env);
 	const staticRoot = options.staticRoot ?? "dist";
 	const store = options.store ?? createDefaultOpsStatusStore(env);
 	const axiom = options.axiom ?? createDefaultAxiomClient(env);
@@ -205,6 +240,8 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 			OPS_WEB_APP_API_URL: env.OPS_WEB_APP_API_URL,
 			OPS_WEB_INTERNAL_TOKEN: env.OPS_WEB_INTERNAL_TOKEN,
 		});
+	const accountAdminClient = options.accountAdminClient ?? createAccountAdminClient(env);
+	const emailAccessClient = options.emailAccessClient ?? createEmailAccessAdminClient(env);
 
 	app.use(
 		"*",
@@ -241,11 +278,23 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		if (error instanceof SentryUnavailableError) {
 			return jsonError("OPS_SENTRY_UNAVAILABLE", "Sentry Issue 数据不可用。", 503);
 		}
+		if (error instanceof AccountAdminUnavailableError) {
+			return jsonError("OPS_ACCOUNT_ADMIN_UNAVAILABLE", "用户管理后端不可用。", 503);
+		}
+		if (error instanceof AccountAdminResponseError) {
+			return error.response;
+		}
 		if (error instanceof ProviderConfigAdminUnavailableError) {
 			return jsonError("OPS_PROVIDER_CONFIG_UNAVAILABLE", "在线模型配置服务暂不可用。", 503);
 		}
 		if (error instanceof ProviderConfigAdminResponseError) {
 			return providerConfigAdminErrorResponse(error);
+		}
+		if (error instanceof EmailAccessAdminUnavailableError) {
+			return jsonError("OPS_EMAIL_ACCESS_UNAVAILABLE", "账号准入后端不可用。", 503);
+		}
+		if (error instanceof EmailAccessAdminResponseError) {
+			return error.response;
 		}
 		if (error instanceof CampusGroupsAdminUnavailableError) {
 			return jsonError("OPS_CAMPUS_GROUPS_UNAVAILABLE", "同好群内容服务不可用。", 503);
@@ -456,6 +505,201 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 			return jsonError("OPS_API_ROUTE_NOT_FOUND", "未找到该运维接口。", 404);
 		}
 		return context.json(await providerConfigClient.validate(kind.data, operator.operatorId));
+	});
+
+	app.get("/api/ops/users", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const query = AccountAdminUserQuerySchema.safeParse(context.req.query());
+		if (!query.success) {
+			return jsonError("OPS_INVALID_QUERY", "用户查询参数无效。", 400);
+		}
+		return context.json(await accountAdminClient.listUsers(toSearchParams(query.data)));
+	});
+
+	app.get("/api/ops/users/:userId", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const userId = AccountAdminIdentifierSchema.safeParse(context.req.param("userId"));
+		if (!userId.success) {
+			return jsonError("OPS_INVALID_USER_ID", "用户 ID 无效。", 400);
+		}
+		return context.json(await accountAdminClient.getUser(userId.data));
+	});
+
+	app.post("/api/ops/users/:userId/sessions/:sessionId/revoke", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const write = validateAccountAdminWriteRequest(context.req.raw, publicOrigin);
+		if (write instanceof Response) {
+			return write;
+		}
+		const userId = AccountAdminIdentifierSchema.safeParse(context.req.param("userId"));
+		const sessionId = AccountAdminIdentifierSchema.safeParse(context.req.param("sessionId"));
+		if (!(userId.success && sessionId.success)) {
+			return jsonError("OPS_ACCOUNT_ADMIN_ROUTE_NOT_FOUND", "未找到该会话操作。", 404);
+		}
+		const body = AccountAdminEmptyCommandSchema.safeParse(
+			await context.req.json().catch(() => null),
+		);
+		if (!body.success) {
+			return jsonError("OPS_ACCOUNT_ADMIN_INPUT_INVALID", "会话操作内容无效。", 400);
+		}
+		return context.json(
+			await accountAdminClient.revokeSession(
+				userId.data,
+				sessionId.data,
+				operator.operatorId,
+				write.idempotencyKey,
+			),
+		);
+	});
+
+	app.post("/api/ops/users/:userId/:action", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const write = validateAccountAdminWriteRequest(context.req.raw, publicOrigin);
+		if (write instanceof Response) {
+			return write;
+		}
+		const userId = AccountAdminIdentifierSchema.safeParse(context.req.param("userId"));
+		const action = AccountAdminUserActionSchema.safeParse(context.req.param("action"));
+		if (!(userId.success && action.success)) {
+			return jsonError("OPS_ACCOUNT_ADMIN_ROUTE_NOT_FOUND", "未找到该用户操作。", 404);
+		}
+		const rawBody = await context.req.json().catch(() => null);
+		const body =
+			action.data === "password-reset-email" || action.data === "verification-email"
+				? AccountAdminEmptyCommandSchema.safeParse(rawBody)
+				: AccountAdminReasonSchema.safeParse(rawBody);
+		if (!body.success) {
+			return jsonError("OPS_ACCOUNT_ADMIN_INPUT_INVALID", "用户操作内容无效。", 400);
+		}
+		return context.json(
+			await accountAdminClient.commandUser(
+				userId.data,
+				action.data,
+				body.data,
+				operator.operatorId,
+				write.idempotencyKey,
+			),
+		);
+	});
+
+	app.get("/api/ops/account-events", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const query = AccountAdminEventQuerySchema.safeParse(context.req.query());
+		if (!query.success) {
+			return jsonError("OPS_INVALID_QUERY", "账号操作记录查询参数无效。", 400);
+		}
+		return context.json(await accountAdminClient.listEvents(toSearchParams(query.data)));
+	});
+
+	app.get("/api/ops/account-deletions", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const query = AccountDeletionQuerySchema.safeParse(context.req.query());
+		if (!query.success) {
+			return jsonError("OPS_INVALID_QUERY", "注销任务查询参数无效。", 400);
+		}
+		return context.json(await accountAdminClient.listDeletions(toSearchParams(query.data)));
+	});
+
+	app.post("/api/ops/account-deletions/:requestId/retry", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const write = validateAccountAdminWriteRequest(context.req.raw, publicOrigin);
+		if (write instanceof Response) {
+			return write;
+		}
+		const requestId = AccountAdminIdentifierSchema.safeParse(context.req.param("requestId"));
+		const body = AccountAdminReasonSchema.safeParse(await context.req.json().catch(() => null));
+		if (!(requestId.success && body.success)) {
+			return jsonError("OPS_ACCOUNT_ADMIN_INPUT_INVALID", "注销任务重试内容无效。", 400);
+		}
+		await accountAdminClient.retryDeletion(
+			requestId.data,
+			body.data,
+			operator.operatorId,
+			write.idempotencyKey,
+		);
+		return context.json({ accepted: true }, 202);
+	});
+
+	app.get("/api/ops/email-access-grants", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const query = EmailAccessQuerySchema.safeParse(context.req.query());
+		if (!query.success) {
+			return jsonError("OPS_INVALID_QUERY", "账号准入查询参数无效。", 400);
+		}
+		return context.json(await emailAccessClient.list(toSearchParams(query.data)));
+	});
+
+	app.post("/api/ops/email-access-grants", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const write = validateEmailAccessWriteRequest(context.req.raw, publicOrigin);
+		if (write instanceof Response) {
+			return write;
+		}
+		const body = CreateEmailAccessGrantSchema.safeParse(await context.req.json().catch(() => null));
+		if (!body.success) {
+			return jsonError("OPS_EMAIL_ACCESS_INPUT_INVALID", "账号准入信息无效。", 400);
+		}
+		return context.json(
+			await emailAccessClient.command("", body.data, operator.operatorId, write.idempotencyKey),
+			201,
+		);
+	});
+
+	app.post("/api/ops/email-access-grants/:grantId/:action", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const write = validateEmailAccessWriteRequest(context.req.raw, publicOrigin);
+		if (write instanceof Response) {
+			return write;
+		}
+		const grantId = z.string().uuid().safeParse(context.req.param("grantId"));
+		const action = z.enum(["resend", "revoke"]).safeParse(context.req.param("action"));
+		if (!(grantId.success && action.success)) {
+			return jsonError("OPS_API_ROUTE_NOT_FOUND", "未找到该账号准入操作。", 404);
+		}
+		const body = AccountAdminEmptyCommandSchema.safeParse(
+			await context.req.json().catch(() => null),
+		);
+		if (!body.success) {
+			return jsonError("OPS_EMAIL_ACCESS_INPUT_INVALID", "账号准入操作内容无效。", 400);
+		}
+		return context.json(
+			await emailAccessClient.command(
+				`/${grantId.data}/${action.data}`,
+				body.data,
+				operator.operatorId,
+				write.idempotencyKey,
+			),
+		);
 	});
 
 	app.get("/api/ops/requests", async (context) => {
@@ -1017,6 +1261,66 @@ function toDiningActor(operator: OpsOperatorContext) {
 		displayName: operator.displayName ?? operator.email ?? operator.operatorId,
 		principalId: operator.operatorId,
 	};
+}
+
+function toSearchParams(values: Record<string, unknown>): URLSearchParams {
+	const search = new URLSearchParams();
+	for (const [key, value] of Object.entries(values)) {
+		if (value !== undefined) {
+			search.set(key, String(value));
+		}
+	}
+	return search;
+}
+
+function validateAccountAdminWriteRequest(
+	request: Request,
+	publicOrigin: string | null,
+): Response | { idempotencyKey: string } {
+	if (!requestHasConfiguredOrigin(request, publicOrigin)) {
+		return jsonError("OPS_ACCOUNT_ADMIN_CSRF_REJECTED", "用户管理写请求未通过同源校验。", 403);
+	}
+	if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) {
+		return jsonError(
+			"OPS_ACCOUNT_ADMIN_CONTENT_TYPE_REQUIRED",
+			"Content-Type 必须是 application/json。",
+			400,
+		);
+	}
+	const idempotencyKey = request.headers.get("idempotency-key")?.trim();
+	if (!idempotencyKey || idempotencyKey.length > 200) {
+		return jsonError(
+			"OPS_ACCOUNT_ADMIN_IDEMPOTENCY_REQUIRED",
+			"用户管理写请求必须提供有效的 Idempotency-Key。",
+			400,
+		);
+	}
+	return { idempotencyKey };
+}
+
+function validateEmailAccessWriteRequest(
+	request: Request,
+	publicOrigin: string | null,
+): Response | { idempotencyKey: string } {
+	if (!requestHasConfiguredOrigin(request, publicOrigin)) {
+		return jsonError("OPS_EMAIL_ACCESS_CSRF_REJECTED", "账号准入写请求未通过同源校验。", 403);
+	}
+	if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) {
+		return jsonError(
+			"OPS_EMAIL_ACCESS_CONTENT_TYPE_REQUIRED",
+			"Content-Type 必须是 application/json。",
+			400,
+		);
+	}
+	const idempotencyKey = request.headers.get("idempotency-key")?.trim();
+	if (!idempotencyKey || idempotencyKey.length > 200) {
+		return jsonError(
+			"OPS_EMAIL_ACCESS_IDEMPOTENCY_REQUIRED",
+			"写请求必须提供有效的 Idempotency-Key。",
+			400,
+		);
+	}
+	return { idempotencyKey };
 }
 
 function parseCampusGroupsCatalog(value: unknown): CampusGroupsCatalog {

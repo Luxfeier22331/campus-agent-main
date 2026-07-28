@@ -44,7 +44,7 @@ APP_API_ENVIRONMENT = "development"
 AUTH_SHELL_ORIGIN = "http://127.0.0.1:27014"
 EXECUTION_CONTROL_BASE_URL = "http://127.0.0.1:27051"
 OBJECT_STORE_LOCAL_BASE_URL = "http://127.0.0.1:9000/campus-agent-derived/"
-AUTH_RESET_EMAIL_FROM = "Campus Agent <auth@example.com>"
+AUTH_EMAIL_FROM = "Campus Agent <auth@example.com>"
 
 [env.local.secrets]
 required = [

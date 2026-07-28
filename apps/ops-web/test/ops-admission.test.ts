@@ -4,6 +4,7 @@ import type { JWTPayload } from "jose";
 import { CompactSign, exportJWK, generateKeyPair } from "jose";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+	createOpsAdmissionFromEnv,
 	getMissingAccessConfig,
 	normalizeConfiguredAccessPolicyAud,
 	normalizeConfiguredAccessTeamDomain,
@@ -20,6 +21,38 @@ afterEach(() => {
 });
 
 describe("ops admission", () => {
+	it.each([
+		"local",
+		"development",
+	])("uses a local operator in the %s deployment environment", async (deploymentEnvironment) => {
+		const admission = createOpsAdmissionFromEnv({
+			DEPLOYMENT_ENVIRONMENT: deploymentEnvironment,
+		});
+		const result = await admission.admit(new Request("http://127.0.0.1/api"));
+
+		expect(result.response).toBeNull();
+		expect(result.operator).toMatchObject({
+			displayName: "Local Operator",
+			email: "local@localhost",
+			operatorId: "local",
+			subject: "local",
+		});
+	});
+
+	it.each([
+		undefined,
+		"staging",
+		"production",
+	])("keeps Cloudflare Access enabled outside local development (%s)", async (deploymentEnvironment) => {
+		const admission = createOpsAdmissionFromEnv({
+			DEPLOYMENT_ENVIRONMENT: deploymentEnvironment,
+		});
+		const result = await admission.admit(new Request("https://ops.example/api"));
+
+		expect(result.operator).toBeNull();
+		expect(result.response?.status).toBe(503);
+	});
+
 	it("requires only the Cloudflare Access issuer and audience", () => {
 		expect(getMissingAccessConfig({})).toEqual(["ACCESS_TEAM_DOMAIN", "ACCESS_POLICY_AUD"]);
 		expect(getMissingAccessConfig({ ACCESS_POLICY_AUD, ACCESS_TEAM_DOMAIN })).toEqual([]);

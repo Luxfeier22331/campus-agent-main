@@ -52,7 +52,7 @@ describe("POST /api/internal/staging-smoke/auth/session", () => {
 		const response = await app.fetch(
 			new Request("https://app-api.internal/api/internal/staging-smoke/auth/session", {
 				body: JSON.stringify({
-					email: "HELP_BOT@OUTLOOK.COM",
+					email: "SMOKE_TEST@MUC.EDU.CN",
 					password: "SmokePass!123456",
 				}),
 				headers: {
@@ -71,7 +71,7 @@ describe("POST /api/internal/staging-smoke/auth/session", () => {
 		expect(signInEmail).toHaveBeenCalledWith({
 			asResponse: true,
 			body: {
-				email: "help_bot@outlook.com",
+				email: "smoke_test@muc.edu.cn",
 				password: "SmokePass!123456",
 				rememberMe: true,
 			},
@@ -102,7 +102,7 @@ describe("POST /api/internal/staging-smoke/auth/session", () => {
 		const response = await app.fetch(
 			new Request("https://app-api.internal/api/internal/staging-smoke/auth/session", {
 				body: JSON.stringify({
-					email: "help_bot@outlook.com",
+					email: "smoke_test@muc.edu.cn",
 					password: "SmokePass!123456",
 				}),
 				headers: {
@@ -130,7 +130,7 @@ describe("POST /api/internal/staging-smoke/auth/session", () => {
 		const response = await app.fetch(
 			new Request("https://app-api.internal/api/internal/staging-smoke/auth/session", {
 				body: JSON.stringify({
-					email: "help_bot@outlook.com",
+					email: "smoke_test@muc.edu.cn",
 					password: "SmokePass!123456",
 				}),
 				headers: {
@@ -174,7 +174,7 @@ describe("POST /api/internal/staging-smoke/auth/session", () => {
 		const response = await app.fetch(
 			new Request("https://app-api.internal/api/internal/staging-smoke/auth/session", {
 				body: JSON.stringify({
-					email: "help_bot@outlook.com",
+					email: "smoke_test@muc.edu.cn",
 					name: "Campus Agent Smoke",
 					password: "SmokePass!123456",
 					resetIdentity: true,

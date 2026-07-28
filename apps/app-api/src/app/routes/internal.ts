@@ -3,13 +3,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { sql } from "drizzle-orm";
 import type { Hono } from "hono";
 
-import {
-	END_USER_EMAIL_ALLOWLIST,
-	END_USER_EMAIL_DOMAIN_ALLOWLIST,
-	type Env,
-	readAuthShellOrigin,
-	resolveEnvironment,
-} from "../../config";
+import { type Env, readAuthShellOrigin, resolveEnvironment } from "../../config";
 import { withRuntimeDatabase } from "../../db/runtime";
 import {
 	AppApiRouteError,
@@ -18,11 +12,8 @@ import {
 	routeErrorResponse,
 	withNoStore,
 } from "../../http";
-import {
-	buildEndUserEmailAdmissionPolicy,
-	hashAppPassword,
-	isEndUserEmailAllowedForAuth,
-} from "../../modules/auth";
+import { hashAppPassword } from "../../modules/auth";
+import { isCampusEmail } from "../../modules/auth/campus-access";
 import {
 	parseExecutionFinalizationResponsePayload,
 	type ToolExecutionResponse,
@@ -83,14 +74,10 @@ async function resetStagingSmokeIdentity(input: {
 	name: string;
 	password: string;
 }): Promise<void> {
-	const policy = buildEndUserEmailAdmissionPolicy({
-		endUserEmailAllowlist: [...END_USER_EMAIL_ALLOWLIST],
-		endUserEmailDomainAllowlist: [...END_USER_EMAIL_DOMAIN_ALLOWLIST],
-	});
-	if (!isEndUserEmailAllowedForAuth(input.email, policy)) {
+	if (!isCampusEmail(input.email)) {
 		throw new AppApiRouteError({
-			code: "end_user_email_not_allowed",
-			message: "This email is not allowed for campus sign-in.",
+			code: "campus_email_required",
+			message: "A muc.edu.cn email address is required for the smoke identity.",
 			retryable: false,
 			status: 403,
 		});
@@ -112,7 +99,7 @@ async function resetStagingSmokeIdentity(input: {
 			insert into "app_auth"."user" (
 				"id", "name", "email", "emailVerified", "image", "createdAt", "updatedAt"
 			)
-			values (${userId}, ${input.name}, ${input.email}, false, null, ${now}, ${now})
+			values (${userId}, ${input.name}, ${input.email}, true, null, ${now}, ${now})
 		`);
 		await db.execute(sql`
 			insert into "app_auth"."account" (

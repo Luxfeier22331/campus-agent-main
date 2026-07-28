@@ -43,11 +43,14 @@ export function SidebarLayout({
 		window.scrollTo({ behavior: "auto", left: 0, top: 0 });
 		window.requestAnimationFrame(() => mainRef.current?.focus());
 	}, [pathname]);
+	const activeHref = navItems
+		.filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
+		.sort((left, right) => right.href.length - left.href.length)[0]?.href;
 	const nav = (
 		<nav aria-label="运维导航" className="grid gap-1">
 			{navItems.map((item) => {
 				const Icon = item.icon;
-				const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+				const active = activeHref === item.href;
 				return (
 					<Link
 						aria-current={active ? "page" : undefined}

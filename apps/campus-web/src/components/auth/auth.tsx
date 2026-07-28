@@ -1,5 +1,6 @@
 import type { AuthView } from "@better-auth-ui/core";
 import { Auth as BetterAuthHeroUIAuth } from "@better-auth-ui/heroui";
+import { useEffect } from "react";
 
 import { ProductBrandLink } from "@/components/navigation/product-navigation";
 import { CampusAuthUIProvider } from "./auth-ui-provider";
@@ -18,6 +19,7 @@ export function AuthPanel({
 }
 
 export function Auth({ view }: { view?: CampusAuthView }) {
+	useInvitationEmailPrefill(view);
 	return (
 		<CampusAuthUIProvider>
 			<section
@@ -30,4 +32,46 @@ export function Auth({ view }: { view?: CampusAuthView }) {
 			</section>
 		</CampusAuthUIProvider>
 	);
+}
+
+function useInvitationEmailPrefill(view: CampusAuthView | undefined): void {
+	useEffect(() => {
+		if (view !== "signUp") {
+			return;
+		}
+		const email = new URLSearchParams(window.location.search).get("email")?.trim().toLowerCase();
+		if (!email || email.length > 320 || !/^[^@\s]+@[^@\s]+$/u.test(email)) {
+			return;
+		}
+		let attempts = 0;
+		let cancelled = false;
+		let timeoutId: number | undefined;
+		const prefill = () => {
+			if (cancelled) {
+				return;
+			}
+			const field = document.querySelector<HTMLInputElement>(
+				'[data-campus-account-surface="auth"] input[type="email"]',
+			);
+			if (!field && attempts < 20) {
+				attempts += 1;
+				timeoutId = window.setTimeout(prefill, 50);
+				return;
+			}
+			if (!field || field.value) {
+				return;
+			}
+			const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+			setter?.call(field, email);
+			field.dispatchEvent(new Event("input", { bubbles: true }));
+			field.dispatchEvent(new Event("change", { bubbles: true }));
+		};
+		prefill();
+		return () => {
+			cancelled = true;
+			if (timeoutId !== undefined) {
+				window.clearTimeout(timeoutId);
+			}
+		};
+	}, [view]);
 }

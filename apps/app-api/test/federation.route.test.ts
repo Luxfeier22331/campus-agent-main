@@ -4,7 +4,7 @@ import { createApp } from "../src/app";
 
 const env = {
 	APP_API_ENVIRONMENT: "test" as const,
-	AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
+	AUTH_EMAIL_FROM: "Campus Agent <auth@example.com>",
 	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 	AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",

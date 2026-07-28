@@ -3,6 +3,7 @@ import {
 	bigint,
 	check,
 	index,
+	integer,
 	pgSchema,
 	primaryKey,
 	text,
@@ -11,6 +12,50 @@ import {
 } from "drizzle-orm/pg-core";
 
 const profile = pgSchema("profile");
+
+export const accountDeletionRequests = profile.table(
+	"account_deletion_requests",
+	{
+		attemptCount: integer("attempt_count").notNull().default(0),
+		lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
+		requestId: text("request_id").primaryKey(),
+		ownerUserId: text("owner_user_id"),
+		status: text("status").notNull().default("pending"),
+		lastErrorCode: text("last_error_code"),
+		leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+		leaseToken: text("lease_token"),
+		nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull(),
+		requestedAt: timestamp("requested_at", { withTimezone: true }).notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+		completedAt: timestamp("completed_at", { withTimezone: true }),
+	},
+	(table) => ({
+		ownerStatusCheck: check(
+			"profile_account_deletion_owner_status_check",
+			sql`(${table.status} = 'pending' and ${table.ownerUserId} is not null)
+				or (${table.status} = 'completed' and ${table.ownerUserId} is null)`,
+		),
+		leaseShapeCheck: check(
+			"profile_account_deletion_lease_shape_check",
+			sql`(${table.leaseToken} is null and ${table.leaseExpiresAt} is null)
+				or (${table.leaseToken} is not null and ${table.leaseExpiresAt} is not null and ${table.status} = 'pending')`,
+		),
+		ownerUserUnique: uniqueIndex("profile_account_deletion_owner_uidx").on(table.ownerUserId),
+		statusCheck: check(
+			"profile_account_deletion_status_check",
+			sql`${table.status} in ('pending', 'completed')`,
+		),
+		statusUpdatedIndex: index("profile_account_deletion_status_updated_idx").on(
+			table.status,
+			table.updatedAt,
+		),
+		pendingLeaseIndex: index("profile_account_deletion_pending_lease_idx").on(
+			table.status,
+			table.nextAttemptAt,
+			table.leaseExpiresAt,
+		),
+	}),
+);
 
 export const profileMemorySettings = profile.table("memory_settings", {
 	ownerUserId: text("owner_user_id").primaryKey(),
