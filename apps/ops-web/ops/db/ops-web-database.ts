@@ -14,50 +14,9 @@ const DINING_TABLES = [
 	"review_reports",
 	"reviews",
 ] as const;
-const RETIRED_DINING_TABLES = [
-	"catalog_overrides",
-	"catalog_state",
-	"floorplan_document_revisions",
-	"floorplan_documents",
-	"floorplan_versions",
-	"floors",
-	"halls",
-	"operation_events",
-	"preview_sessions",
-	"publication",
-	"release_reviews",
-	"releases",
-	"review_overrides",
-	"review_recheck_requests",
-	"source_observations",
-	"source_sync_runs",
-	"source_window_bindings",
-	"windows",
-] as const;
 
 const DINING_SCHEMA_STATEMENTS = [
 	`CREATE SCHEMA IF NOT EXISTS "dining"`,
-	`DO $retire_legacy_dining_content$
-	BEGIN
-		IF pg_catalog.to_regclass('dining.menu_items') IS NOT NULL
-			AND NOT EXISTS (
-				SELECT 1 FROM information_schema.columns
-				WHERE table_schema = 'dining' AND table_name = 'menu_items' AND column_name = 'window_id'
-			)
-		THEN
-			DROP TABLE "dining"."menu_items" CASCADE;
-		END IF;
-		IF pg_catalog.to_regclass('dining.reviews') IS NOT NULL
-			AND NOT EXISTS (
-				SELECT 1 FROM information_schema.columns
-				WHERE table_schema = 'dining' AND table_name = 'reviews' AND column_name = 'author_kind'
-			)
-		THEN
-			DROP TABLE "dining"."reviews" CASCADE;
-		END IF;
-	END
-	$retire_legacy_dining_content$`,
-	`DROP TABLE IF EXISTS ${RETIRED_DINING_TABLES.map((table) => `"dining"."${table}"`).join(", ")} CASCADE`,
 	`CREATE TABLE IF NOT EXISTS "dining"."map_draft" (
 		"scope" text PRIMARY KEY CHECK ("scope" = 'global'),
 		"bundle_json" jsonb NOT NULL,

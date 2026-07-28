@@ -3,6 +3,7 @@ __pycache__/
 .venv/
 *.pyc
 dist/
+dist-ops/
 dist-server/
 build/
 target/

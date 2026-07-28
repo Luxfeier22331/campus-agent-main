@@ -42,7 +42,7 @@ spec:
                 process.stdout.write(url.toString());
               ')"
               node --experimental-strip-types ops/db/ops-web-database.ts apply
-              exec node --experimental-strip-types ops/db/bootstrap-dining.ts
+              exec node dist-ops/bootstrap-dining.js
           envFrom:
             - configMapRef:
                 name: ops-web-schema-database-config

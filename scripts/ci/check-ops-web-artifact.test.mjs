@@ -6,12 +6,16 @@ import test from "node:test";
 
 const checker = join(process.cwd(), "scripts/ci/check-ops-web-artifact.mjs");
 
-function artifact({ server = "export const ready = true;", dining = false } = {}) {
+function artifact({
+	bootstrap = "export const ready = true;",
+	server = "export const ready = true;",
+} = {}) {
 	const root = mkdtempSync("/tmp/ops-web-artifact-test-");
 	mkdirSync(join(root, "dist-server"), { recursive: true });
 	writeFileSync(join(root, "dist-server", "node.js"), server);
-	if (dining) {
-		mkdirSync(join(root, "node_modules/@campus-agent/dining"), { recursive: true });
+	if (bootstrap !== null) {
+		mkdirSync(join(root, "dist-ops"), { recursive: true });
+		writeFileSync(join(root, "dist-ops/bootstrap-dining.js"), bootstrap);
 	}
 	return root;
 }
@@ -31,10 +35,18 @@ test("rejects a workspace package import", () => {
 	);
 });
 
-test("rejects a development-only workspace dependency", () => {
-	const root = artifact({ dining: true });
+test("rejects a missing bootstrap artifact", () => {
+	const root = artifact({ bootstrap: null });
 	assert.throws(
 		() => execFileSync(process.execPath, [checker, root], { stdio: "pipe" }),
-		/production dependencies must not contain/u,
+		/production bootstrap entry is missing/u,
+	);
+});
+
+test("rejects an unresolved bootstrap runtime dependency", () => {
+	const root = artifact({ bootstrap: 'import "@campus-agent/dining/bootstrap";' });
+	assert.throws(
+		() => execFileSync(process.execPath, [checker, root], { stdio: "pipe" }),
+		/bootstrap entry cannot load its runtime dependencies/u,
 	);
 });

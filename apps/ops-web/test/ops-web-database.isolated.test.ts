@@ -113,7 +113,6 @@ describe("ops-web database verification", () => {
 		expect(allQueries).toContain('"dining"."menu_items"');
 		expect(allQueries).toContain('"dining"."review_reports"');
 		expect(allQueries).toContain('TO "app_api"');
-		expect(allQueries).toContain('DROP TABLE IF EXISTS "dining"."catalog_overrides"');
 		expect(allQueries).toContain("to_regnamespace('execution_config')");
 		expect(allQueries).not.toContain("ops_observability_read_audit");
 		expect(allQueries).not.toContain("ops_audit_maintenance");

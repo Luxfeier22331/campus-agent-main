@@ -1,5 +1,7 @@
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const root = process.argv[2];
 if (!root) {
@@ -24,10 +26,25 @@ if (typeScriptImport.test(serverSource)) {
 	);
 }
 
-if (existsSync(join(root, "node_modules", "@campus-agent", "dining"))) {
-	throw new Error(
-		"ops-web production dependencies must not contain the development-only dining workspace",
+const bootstrapEntry = join(root, "dist-ops", "bootstrap-dining.js");
+if (!existsSync(bootstrapEntry)) {
+	throw new Error(`ops-web production bootstrap entry is missing: ${bootstrapEntry}`);
+}
+
+try {
+	execFileSync(
+		process.execPath,
+		[
+			"--input-type=module",
+			"--eval",
+			`await import(${JSON.stringify(pathToFileURL(bootstrapEntry).href)})`,
+		],
+		{ cwd: root, stdio: "pipe" },
 	);
+} catch (error) {
+	throw new Error("ops-web production bootstrap entry cannot load its runtime dependencies", {
+		cause: error,
+	});
 }
 
 console.log("ops-web production artifact is self-contained");

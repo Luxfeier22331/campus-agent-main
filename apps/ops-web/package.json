@@ -5,11 +5,12 @@
 	"type": "module",
 	"files": [
 		"dist",
+		"dist-ops",
 		"dist-server",
 		"ops"
 	],
 	"scripts": {
-		"build": "vite build && vite build --ssr src/server/node.ts --outDir dist-server",
+		"build": "vite build && vite build --ssr src/server/node.ts --outDir dist-server && vite build --ssr ops/db/bootstrap-dining.ts --outDir dist-ops",
 		"check": "pnpm typecheck && pnpm test && pnpm build",
 		"dev": "pnpm --dir ../.. exec tsx scripts/dev/service.ts ops-web",
 		"start": "node --env-file-if-exists=.env dist-server/node.js",
