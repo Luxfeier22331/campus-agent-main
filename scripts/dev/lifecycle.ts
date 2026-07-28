@@ -197,6 +197,7 @@ function ensureDatabaseRoles(): void {
 		["campus_agent", LOCAL_DEV_DATABASE_PASSWORDS.owner, true],
 		["app_api", LOCAL_DEV_DATABASE_PASSWORDS.appApi, true],
 		["docs_publish", "", false],
+		["execution_control", "", false],
 		["ops_web", LOCAL_DEV_DATABASE_PASSWORDS.opsWeb, true],
 	] as const;
 	for (const [name, password, login] of roles) {
@@ -237,13 +238,6 @@ function createIsolatedResources(profile: LocalDevProfileV1): void {
 function installApplicationSchemas(repoRoot: string, profile: LocalDevProfileV1): void {
 	const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 	const database = localDatabaseUrls(profile);
-	runCommand("psql", [
-		database.owner,
-		"-v",
-		"ON_ERROR_STOP=1",
-		"-f",
-		resolve(repoRoot, "apps/app-api/db/shared-product-schema/campus_services.sql"),
-	]);
 	runCommand(
 		pnpm,
 		[

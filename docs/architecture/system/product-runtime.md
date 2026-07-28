@@ -71,8 +71,8 @@ app-api 保存用户轮次并创建持久 run；execution-control 和 Temporal �
 ## 校园服务
 
 `campus_services.*` 是班车状态页面和模型可见工具共享的读取模型。
-publisher 写一次，app-api status API 与 execution-control tool 分别读取；状态页不调用 tool，
-tool 也不通过 app-api。
+已有版本写入后，app-api status API 与 execution-control tool 分别读取；当前仓库没有班车写入运行时。
+状态页不调用 tool，tool 也不通过 app-api。
 
 当前 model-visible campus service 只有 `transport_schedule_lookup`。contract/schema 存在不
 代表其他 campus tool 已开放。

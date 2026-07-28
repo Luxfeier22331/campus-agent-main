@@ -10,7 +10,6 @@ spec:
         values:
           - agent-runtime
           - app-api-schema
-          - campus-services-schema
           - execution-agent
           - execution-control
           - execution-control-admin
@@ -48,7 +47,6 @@ spec:
         values:
           - agent-runtime
           - app-api-schema
-          - campus-services-schema
           - execution-agent
           - execution-control
           - execution-control-admin

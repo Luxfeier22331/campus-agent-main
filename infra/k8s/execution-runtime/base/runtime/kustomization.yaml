@@ -6,7 +6,6 @@ resources:
   - database-roles.yaml
   - network-policy.yaml
   - app-api-schema-job.yaml
-  - campus-services-schema-job.yaml
   - run-projection-schema-job.yaml
   - availability.yaml
   - agent-runtime.yaml

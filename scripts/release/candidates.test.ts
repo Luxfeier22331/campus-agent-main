@@ -72,13 +72,7 @@ test("manual full mode selects every active candidate without running Turbo", as
 	};
 	assert.deepEqual(await planCandidates({ ...options(root), full: true }, runner), {
 		base: BASE,
-		images: [
-			"agent-runtime",
-			"app-api-schema",
-			"execution-control",
-			"ops-web",
-			"transport-publisher",
-		],
+		images: ["agent-runtime", "app-api-schema", "execution-control", "ops-web"],
 		kubernetes: true,
 		validateOnly: false,
 		workers: ["app-api"],

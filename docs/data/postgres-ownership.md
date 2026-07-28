@@ -19,7 +19,6 @@ schema 定义，连接拓扑见 `../architecture/system/data-plane.md`，部署�
 | `campus_agent` | 数据库 bootstrap | schema 安装和授权，不用于常驻运行时 |
 | `app_api` | `apps/app-api` | 产品数据读写、文档发布只读和获准运行摘要读取 |
 | `execution_control` | `apps/execution-control` | 执行投影写入和获准校园服务读取 |
-| `campus_services_publisher` | `jobs/transport-publisher` | `campus_services.*` 发布写入 |
 | `docs_publish` | `jobs/docs-publish` | `docs.*` 发布写入 |
 | `ops_web` | `apps/ops-web` | 获准运行投影的列级只读访问，以及 Dining 内容维护 |
 | `execution_provider_config_reader` | `apps/execution-control` | 当前 `execution_config.model_settings` 只读 |
@@ -45,7 +44,7 @@ Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，�
 | `runtime.agent_*` | execution-control | execution-control |
 | `execution_config.*` | execution-control 配置管理 | execution-control |
 | `dining.*` | Ops Web | Ops Web、App API 公开读取 |
-| `campus_services.*` | 校园服务发布任务 | App API、execution-control |
+| `campus_services.*` | 当前无常驻写入方；`app-api-schema` 管理结构 | App API、execution-control |
 
 ingestion registry 和来源事实由采集数据所有者维护，不并入产品 schema。各表字段、状态和保留
 规则由所属数据文档或 schema 唯一维护。
@@ -80,7 +79,7 @@ ingestion registry 和来源事实由采集数据所有者维护，不并入产�
 - App API schema：`apps/app-api/db/`、`apps/app-api/drizzle/`
 - 执行投影与配置：`apps/execution-control/internal/`
 - Ops Web 排查授权与 Dining schema：`apps/ops-web/ops/db/`
-- 校园服务发布：`jobs/transport-publisher/`
+- 校园服务读取表与授权：`apps/app-api/db/shared-product-schema/`、`apps/app-api/ops/db/`
 
 ## 相关文档
 

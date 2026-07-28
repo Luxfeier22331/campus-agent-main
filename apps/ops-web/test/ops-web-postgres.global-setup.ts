@@ -9,7 +9,6 @@ import { promisify } from "node:util";
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { Client } from "pg";
 import type { TestProject } from "vitest/node";
-import { installCampusServicesSchema } from "../../../jobs/transport-publisher/src/schema.ts";
 import { installAppApiSchema } from "../../app-api/ops/db/schema.ts";
 
 const execFileAsync = promisify(execFile);
@@ -22,7 +21,6 @@ const SCHEMA_OWNER = "ops_web_schema_owner";
 const OPS_WEB_ROLE = "ops_web";
 const APP_API_ROLE = "app_api";
 const NOLOGIN_ROLES = [
-	"campus_services_publisher",
 	"docs_publish",
 	"execution_control",
 	"execution_provider_config_reader",
@@ -109,7 +107,6 @@ async function provisionDatabase(
 		APP_API_ROLE,
 		appApiPassword,
 	);
-	await installCampusServicesSchema({ connectionString: managementConnectionString, ssl: false });
 	await installAppApiSchema({
 		APP_API_DATABASE_SSLMODE: "disable",
 		APP_API_SCHEMA_DATABASE_URL: managementConnectionString,

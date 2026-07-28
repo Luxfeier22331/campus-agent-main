@@ -43,9 +43,11 @@ describe("app-api shared product bootstrap contracts", () => {
 
 	it("checks in explicit current shared product bootstrap artifacts under app-api", () => {
 		const requiredFiles = [
+			"db/shared-product-schema/campus_services.sql",
 			"db/shared-product-schema/chat_current.sql",
 			"drizzle/0000_initial.sql",
 			"ops/db/bootstrap-shared-product-database.ts",
+			"ops/db/campus-services-grants.ts",
 			"ops/db/ensure-app-auth-role-search-path.ts",
 			"src/script-support/shared-db/shared-product-database-bootstrap.ts",
 			"vitest.worker.config.mts",

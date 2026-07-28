@@ -22,6 +22,10 @@ describe("app-api shared product current schema", () => {
 			[...currentSpecs.keys()].filter((qualifiedName) => !drizzleSpecs.has(qualifiedName)),
 		).toEqual(
 			expect.arrayContaining([
+				"campus_services.transport_current",
+				"campus_services.transport_departures",
+				"campus_services.transport_releases",
+				"campus_services.transport_routes",
 				"chat.conversations",
 				"chat.message_feedback",
 				"chat.messages",

@@ -8,20 +8,20 @@ status: active
 
 ## 边界
 
-班车领域维护已经校验并发布的校园班车时刻表。它同时支持 Campus Web 状态页面和模型可见只读
-工具 `transport_schedule_lookup`，两个消费者读取同一发布版本的不同投影。
+班车领域读取 PostgreSQL 中已经存在的版本化校园班车时刻表。它同时支持 Campus Web 状态页面和
+模型可见只读工具 `transport_schedule_lookup`，两个消费者读取同一当前版本的不同投影。
 
 班车查询不扫描原始通知、HTML、对象存储或检索分块，也不提供通用校园服务查询、路线规划或
 任意日期浏览。
 
-## 发布与消费
+## 读取模型与消费
 
-`jobs/transport-publisher` 校验发布输入并原子创建不可变版本和当前版本选择。App API 读取面向
-浏览器的展示投影，execution-control 读取面向工具的结构化线路与发车信息；状态页面不调用模型
-工具，工具也不通过 App API 回环。
+`app-api-schema` 安装 `campus_services` 表并授予读取权限。App API 只读取面向浏览器的当前版本展示
+投影，execution-control 读取面向工具的结构化线路与发车信息；状态页面不调用模型工具，工具也不
+通过 App API 回环。
 
-更新时刻表只移动当前发布版本，不要求重新部署前端或执行服务。浏览器与工具可以使用不同的
-返回结构，但必须共享发布身份和来源。
+当前仓库不提供班车数据写入或发布命令。已有数据和当前版本选择独立于应用部署继续存在；浏览器与
+工具可以使用不同的返回结构，但必须共享版本身份和来源。
 
 ## 工具行为
 
@@ -33,11 +33,11 @@ status: active
 
 ## 来源与失败
 
-当前来源通道是需要认证的校园通知。自动化可以准备待发布输入，但查询代码不解释通知正文；
-原始通知继续由通知领域保存，班车领域只保存已经规范化并发布的时刻表事实和来源关联。
+查询代码不解释通知正文，原始通知继续由通知领域保存。当前没有从通知生成或更新班车读取模型的
+运行链路，`campus_services` 只保存已有的规范化时刻表事实和来源关联。
 
-发布失败时保持上一个当前版本不变。当前版本缺失或无效时，班车页面和工具分别显示不可用或拒绝
-执行；该状态不能使聊天、记忆、知识查询或其他产品能力整体不可用。
+当前版本缺失或无效时，班车页面和工具分别显示不可用或拒绝执行；该状态不能使聊天、记忆、知识
+查询或其他产品能力整体不可用。
 
 ## 相关文档
 
@@ -45,4 +45,3 @@ status: active
 - [工具读取合同](../contracts/tool-read-model.md)
 - `packages/contracts/schemas/campus-services-tool-contracts.v1.schema.json`
 - `packages/contracts/schemas/transport-schedule-status.v1.schema.json`
-- `jobs/transport-publisher/README.md`

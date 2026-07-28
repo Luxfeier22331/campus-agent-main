@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildAppApiGrantSql } from "../ops/db/app-api-grants.ts";
+import { buildCampusServicesGrantSql } from "../ops/db/campus-services-grants.ts";
 
 const appRoot = resolve(import.meta.dirname, "..");
 const repoRoot = resolve(appRoot, "../..");
@@ -116,14 +117,34 @@ describe("app-api schema installer", () => {
 		}
 	});
 
-	it("keeps campus-services schema installation with its publisher owner", () => {
+	it("grants each campus-services reader only its consumed tables", () => {
+		const sql = buildCampusServicesGrantSql();
+
+		expect(sql).toContain('REVOKE ALL ON SCHEMA "campus_services" FROM PUBLIC');
+		expect(sql).toContain(
+			'REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA "campus_services" FROM "app_api", "execution_control"',
+		);
+		expect(sql).toContain(
+			'"campus_services"."transport_releases",\n  "campus_services"."transport_current"\nTO "app_api"',
+		);
+		expect(sql).toContain('"campus_services"."transport_routes"');
+		expect(sql).toContain('"campus_services"."transport_departures"');
+		expect(sql).toContain('TO "execution_control"');
+		expect(sql).not.toContain("GRANT INSERT");
+		expect(sql).not.toContain("GRANT UPDATE");
+		expect(sql).not.toContain("GRANT DELETE");
+		expect(sql).toContain("$retire_campus_services_roles$");
+		expect(sql).toContain("rolname = 'ops_web'");
+	});
+
+	it("installs every current shared-product schema through app-api-schema", () => {
 		const bootstrap = readAppFile(
 			"src/script-support/shared-db/shared-product-database-bootstrap.ts",
 		);
 
 		expect(bootstrap).toContain('"chat_current.sql"');
 		expect(bootstrap).not.toContain("readdir(sharedProductSchemaRoot");
-		expect(bootstrap).not.toContain('"campus_services.sql"');
+		expect(bootstrap).toContain('"campus_services.sql"');
 	});
 
 	it("packages only the app-api schema entrypoint into the migration image", () => {

@@ -5,7 +5,6 @@ import { fileURLToPath } from "node:url";
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { Client } from "pg";
 import type { TestProject } from "vitest/node";
-import { installCampusServicesSchema } from "../../../jobs/transport-publisher/src/schema.ts";
 import { installAppApiSchema } from "../ops/db/schema.ts";
 
 const POSTGRES_IMAGE =
@@ -15,12 +14,7 @@ const RYUK_IMAGE =
 const DATABASE_NAME = "campus_agent";
 const SCHEMA_OWNER = "app_api_schema_owner";
 const RUNTIME_ROLE = "app_api";
-const SUPPORTING_ROLES = [
-	"campus_services_publisher",
-	"docs_publish",
-	"execution_control",
-	"ops_web",
-] as const;
+const SUPPORTING_ROLES = ["docs_publish", "execution_control", "ops_web"] as const;
 const transportFixturePath = fileURLToPath(
 	new URL("../db/shared-product-schema/testdata/transport_integration.sql", import.meta.url),
 );
@@ -74,10 +68,6 @@ async function provisionDatabase(
 		runtimePassword,
 	);
 
-	await installCampusServicesSchema({
-		connectionString: managementConnectionString,
-		ssl: false,
-	});
 	await installAppApiSchema({
 		APP_API_DATABASE_SSLMODE: "disable",
 		APP_API_SCHEMA_DATABASE_URL: managementConnectionString,

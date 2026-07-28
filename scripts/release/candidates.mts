@@ -10,7 +10,6 @@ const IMAGE_PACKAGES = new Map([
 	["app-api-schema", "app-api-schema"],
 	["execution-control", "execution-control"],
 	["ops-web", "ops-web"],
-	["transport-publisher", "transport-publisher"],
 ]);
 const ALL_IMAGES = [...IMAGE_PACKAGES.values()].sort();
 

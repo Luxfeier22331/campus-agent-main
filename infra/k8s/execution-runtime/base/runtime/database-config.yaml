@@ -13,5 +13,3 @@ data:
   APP_API_DATABASE_CA_CERT_PATH: /etc/campus-agent/postgres/ca.crt
   APP_API_DATABASE_SSLMODE: verify-full
   AUTH_SHELL_ORIGIN: https://example.invalid
-  TRANSPORT_PUBLISHER_DATABASE_CA_CERT_PATH: /etc/campus-agent/postgres/ca.crt
-  TRANSPORT_PUBLISHER_DATABASE_SSLMODE: verify-full

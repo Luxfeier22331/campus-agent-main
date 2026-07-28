@@ -79,6 +79,6 @@ spec:
   cluster:
     name: campus-agent-postgres
   name: campus_services_publisher
-  login: true
-  passwordSecret:
-    name: campus-services-publisher-database-secrets
+  login: false
+  disablePassword: true
+  databaseRoleReclaimPolicy: delete

@@ -10,12 +10,17 @@ import {
 	readSharedProductBootstrapEnv,
 } from "../../src/script-support/shared-db/shared-product-database-bootstrap.ts";
 import { applyAppApiGrants } from "./app-api-grants.ts";
+import { applyCampusServicesGrants } from "./campus-services-grants.ts";
 
 const migrationsFolder = fileURLToPath(new URL("../../drizzle", import.meta.url));
 const REQUIRED_TABLES = [
 	"app_auth.user",
 	"campus_groups.sections",
 	"campus_groups.groups",
+	"campus_services.transport_current",
+	"campus_services.transport_departures",
+	"campus_services.transport_releases",
+	"campus_services.transport_routes",
 	"chat.turn_dispatches",
 	"docs.releases",
 	"runtime.request_observability_fact",
@@ -73,15 +78,27 @@ async function verifySchema(pool: ReturnType<typeof createSharedProductPool>): P
 	const privileges = await pool.query<{
 		canMutateDispatches: boolean;
 		canReadAgentRuns: boolean;
+		canReadTransportCurrent: boolean;
+		canReadTransportDepartures: boolean;
+		canReadTransportReleases: boolean;
+		canReadTransportRoutes: boolean;
 		canReadDocs: boolean;
+		canWriteTransportCurrent: boolean;
 		canWriteDocs: boolean;
 		canWriteObservability: boolean;
 		canWriteGroupSections: boolean;
 		canWriteGroups: boolean;
 		docsPublisherCanWrite: boolean;
+		executionControlCanReadTransport: boolean;
+		opsWebCanReadTransport: boolean;
 	}>(
 		`select
 			has_table_privilege('app_api', 'chat.turn_dispatches', 'SELECT,INSERT,UPDATE,DELETE') as "canMutateDispatches",
+			has_table_privilege('app_api', 'campus_services.transport_releases', 'SELECT') as "canReadTransportReleases",
+			has_table_privilege('app_api', 'campus_services.transport_current', 'SELECT') as "canReadTransportCurrent",
+			has_table_privilege('app_api', 'campus_services.transport_routes', 'SELECT') as "canReadTransportRoutes",
+			has_table_privilege('app_api', 'campus_services.transport_departures', 'SELECT') as "canReadTransportDepartures",
+			has_table_privilege('app_api', 'campus_services.transport_current', 'INSERT,UPDATE,DELETE') as "canWriteTransportCurrent",
 			has_table_privilege('app_api', 'docs.releases', 'SELECT') as "canReadDocs",
 			has_table_privilege('app_api', 'docs.releases', 'INSERT,UPDATE,DELETE') as "canWriteDocs",
 			has_table_privilege('docs_publish', 'docs.releases', 'SELECT,INSERT,UPDATE,DELETE') as "docsPublisherCanWrite",
@@ -91,12 +108,27 @@ async function verifySchema(pool: ReturnType<typeof createSharedProductPool>): P
 			end as "canReadAgentRuns",
 				has_table_privilege('app_api', 'runtime.request_observability_fact', 'SELECT,INSERT,UPDATE,DELETE') as "canWriteObservability",
 				has_table_privilege('app_api', 'campus_groups.sections', 'SELECT,INSERT,UPDATE,DELETE') as "canWriteGroupSections",
-				has_table_privilege('app_api', 'campus_groups.groups', 'SELECT,INSERT,UPDATE,DELETE') as "canWriteGroups"`,
+				has_table_privilege('app_api', 'campus_groups.groups', 'SELECT,INSERT,UPDATE,DELETE') as "canWriteGroups",
+				has_table_privilege('execution_control', 'campus_services.transport_releases', 'SELECT')
+					and has_table_privilege('execution_control', 'campus_services.transport_current', 'SELECT')
+					and has_table_privilege('execution_control', 'campus_services.transport_routes', 'SELECT')
+					and has_table_privilege('execution_control', 'campus_services.transport_departures', 'SELECT')
+					as "executionControlCanReadTransport",
+				case
+					when exists (select 1 from pg_roles where rolname = 'ops_web') then
+						has_table_privilege('ops_web', 'campus_services.transport_releases', 'SELECT')
+						or has_table_privilege('ops_web', 'campus_services.transport_routes', 'SELECT')
+						or has_table_privilege('ops_web', 'campus_services.transport_departures', 'SELECT')
+						or has_table_privilege('ops_web', 'campus_services.transport_current', 'SELECT')
+					else false
+				end as "opsWebCanReadTransport"`,
 	);
 	const privilege = privileges.rows[0];
 	if (
 		!(
 			privilege?.canMutateDispatches &&
+			privilege.canReadTransportReleases &&
+			privilege.canReadTransportCurrent &&
 			privilege.canReadDocs &&
 			privilege.canWriteObservability &&
 			privilege.canWriteGroupSections &&
@@ -111,6 +143,19 @@ async function verifySchema(pool: ReturnType<typeof createSharedProductPool>): P
 	}
 	if (privilege.canReadAgentRuns) {
 		throw new Error("app_api role must not read execution-control run tables.");
+	}
+	if (
+		privilege.canReadTransportRoutes ||
+		privilege.canReadTransportDepartures ||
+		privilege.canWriteTransportCurrent
+	) {
+		throw new Error("app_api role exceeds its campus-services read boundary.");
+	}
+	if (!privilege.executionControlCanReadTransport) {
+		throw new Error("execution_control role is missing campus-services read privileges.");
+	}
+	if (privilege.opsWebCanReadTransport) {
+		throw new Error("ops_web role must not read campus-services tables.");
 	}
 }
 
@@ -136,6 +181,7 @@ export async function installAppApiSchema(envOverrides: NodeJS.ProcessEnv = proc
 		await pool.query("BEGIN");
 		try {
 			await applyAppApiGrants(pool, databaseName);
+			await applyCampusServicesGrants(pool);
 			await pool.query("COMMIT");
 		} catch (error) {
 			await pool.query("ROLLBACK");

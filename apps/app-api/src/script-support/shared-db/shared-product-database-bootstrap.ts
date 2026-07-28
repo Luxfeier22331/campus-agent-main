@@ -45,7 +45,10 @@ interface BetterAuthTableOwnershipInput {
 type BetterAuthTableOwnership = "fresh" | "target_schema" | "target_schema_needs_migration";
 
 const appRoot = fileURLToPath(new URL("../../..", import.meta.url));
-const chatCurrentSchemaPath = join(appRoot, "db", "shared-product-schema", "chat_current.sql");
+const sharedProductSchemaPaths = [
+	join(appRoot, "db", "shared-product-schema", "chat_current.sql"),
+	join(appRoot, "db", "shared-product-schema", "campus_services.sql"),
+] as const;
 
 function readRequiredEnv(key: string, env: NodeJS.ProcessEnv = process.env): string {
 	const value = env[key]?.trim();
@@ -313,10 +316,11 @@ async function runBetterAuthMigrations(env: SharedProductBootstrapEnv): Promise<
 	}
 }
 
-async function applyChatCurrentSchema(pool: Pool): Promise<string[]> {
-	const sql = await readFile(chatCurrentSchemaPath, "utf8");
-	await applySharedProductCurrentSchemaSql(pool, sql);
-	return [chatCurrentSchemaPath];
+async function applyCurrentSharedProductSchemas(pool: Pool): Promise<string[]> {
+	for (const schemaPath of sharedProductSchemaPaths) {
+		await applySharedProductCurrentSchemaSql(pool, await readFile(schemaPath, "utf8"));
+	}
+	return [...sharedProductSchemaPaths];
 }
 
 export async function applySharedProductCurrentSchemaSql(
@@ -348,7 +352,7 @@ export async function bootstrapSharedProductDatabase(
 			await runBetterAuthMigrations(env);
 		}
 		await verifyBetterAuthPoolSearchPath(env);
-		const schemaFiles = await applyChatCurrentSchema(pool);
+		const schemaFiles = await applyCurrentSharedProductSchemas(pool);
 		return {
 			authSchema: env.authSchema,
 			chatSchema: env.chatSchema,

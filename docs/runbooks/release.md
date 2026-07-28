@@ -42,7 +42,7 @@ Cloudflare version、配置和其他环境资源。候选物发布成功不表�
 发布基线来自环境仓 `releases/staging.json`，不是 workflow 触发事件的前一个提交。镜像和 Worker
 影响面由 Turbo package graph 与 package 外部 task input 计算，Kubernetes 由 `infra/k8s` 所有者范围
 计算。当前自动候选只包含 `agent-runtime`、`app-api-schema`、
-`execution-control`、`ops-web`、`transport-publisher`、App API Worker 与 Kubernetes source。
+`execution-control`、`ops-web`、App API Worker 与 Kubernetes source。
 `docker-bake.hcl` 仍声明其他可手动构建的镜像，但未部署或已暂停的 ingestion、Dining 和 docs
 镜像不因普通 `main` 变更自动发布或推广。
 

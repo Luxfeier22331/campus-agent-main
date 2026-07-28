@@ -17,7 +17,6 @@ group "default" {
     "ingestion-control-worker",
     "ops-web",
     "source-collector",
-    "transport-publisher",
   ]
 }
 
@@ -77,9 +76,4 @@ target "source-collector" {
   inherits   = ["_common"]
   dockerfile = "apps/source-collector/Dockerfile"
   target     = "runtime"
-}
-
-target "transport-publisher" {
-  inherits   = ["_common"]
-  dockerfile = "jobs/transport-publisher/Dockerfile"
 }

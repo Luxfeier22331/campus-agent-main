@@ -31,7 +31,6 @@ on:
           - ingestion-control-worker
           - ops-web
           - source-collector
-          - transport-publisher
 
 permissions:
   contents: read
@@ -260,7 +259,6 @@ jobs:
           --filter execution-control
           --filter 'ingestion-control...'
           --filter 'ops-web...'
-          --filter 'transport-publisher...'
 
       - name: Verify database tools
         run: |

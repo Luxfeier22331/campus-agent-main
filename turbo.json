@@ -56,13 +56,6 @@
 			],
 			"outputs": ["dist/**", ".tanstack/**"]
 		},
-		"transport-publisher#build": {
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"$TURBO_ROOT$/apps/app-api/db/shared-product-schema/campus_services.sql",
-				"$TURBO_ROOT$/packages/contracts/schemas/transport-schedule-status.v1.schema.json"
-			]
-		},
 		"typecheck": {
 			"dependsOn": ["^typecheck"],
 			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
@@ -252,26 +245,6 @@
 				"!README.md",
 				"!**/README.md",
 				"$TURBO_ROOT$/configs/sources/**"
-			],
-			"outputLogs": "new-only"
-		},
-		"transport-publisher#test": {
-			"dependsOn": ["^test"],
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"!README.md",
-				"!**/README.md",
-				"$TURBO_ROOT$/packages/contracts/schemas/transport-schedule-status.v1.schema.json"
-			],
-			"outputLogs": "new-only"
-		},
-		"transport-publisher#typecheck": {
-			"dependsOn": ["^typecheck"],
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"!README.md",
-				"!**/README.md",
-				"$TURBO_ROOT$/packages/contracts/schemas/transport-schedule-status.v1.schema.json"
 			],
 			"outputLogs": "new-only"
 		},
