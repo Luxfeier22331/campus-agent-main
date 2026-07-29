@@ -6,6 +6,7 @@ import {
 	type IngestionTaskResult,
 	validateCanonicalDocumentUnit,
 	validateCanonicalDocumentUnitsJsonl,
+	validateCanonicalDocumentUnitV2,
 	validateIngestionTaskEnvelope,
 	validateIngestionTaskRegistry,
 	validateIngestionTaskResult,
@@ -13,6 +14,7 @@ import {
 	validateInternalPortalFileReleaseSource,
 	validateInternalPortalNoticeSource,
 	validateInternalPortalNoticeSyncState,
+	validateRetrievalChunkSetV2,
 } from "../src/index.ts";
 
 const assertionRoot = join(import.meta.dirname, "..", "assertions");
@@ -43,6 +45,58 @@ describe("ingestion task contracts", () => {
 			).ok,
 		).toBe(true);
 		expect(validateCanonicalDocumentUnit({ metadata: {}, text: "legacy" }).ok).toBe(false);
+	});
+
+	it("validates the formal section-to-retrieval-chunk contract", () => {
+		const section = {
+			schema_version: "canonical_document_unit.v2",
+			document_scope: "regulations",
+			document_id: "student-handbook",
+			version_id: "2026",
+			section_id: "section-1",
+			parent_section_id: null,
+			ordinal: 0,
+			anchor: "#section-1",
+			document_title: "学生手册",
+			section_title: "第一章",
+			canonical_url: "https://example.test/handbook#section-1",
+			content: "hello",
+			content_sha256: digest,
+			metadata: {},
+		};
+		const chunk = {
+			schema_version: "retrieval_chunk.v2",
+			document_scope: section.document_scope,
+			document_id: section.document_id,
+			version_id: section.version_id,
+			section_id: section.section_id,
+			chunk_id: "retrieval:chunk-1",
+			ordinal: 0,
+			token_count: 1,
+			text: "hello",
+			text_sha256: digest,
+			metadata: {},
+		};
+
+		expect(validateCanonicalDocumentUnitV2(section).ok).toBe(true);
+		expect(
+			validateRetrievalChunkSetV2({
+				schema_version: "retrieval_chunk_set.v2",
+				chunk_count: 1,
+				chunks: [chunk],
+				error_count: 0,
+				errors: [],
+			}).ok,
+		).toBe(true);
+		expect(
+			validateRetrievalChunkSetV2({
+				schema_version: "retrieval_chunk_set.v2",
+				chunk_count: 2,
+				chunks: [chunk],
+				error_count: 0,
+				errors: [],
+			}).ok,
+		).toBe(false);
 	});
 
 	it("keeps the task envelope small and derives execution metadata from the registry", () => {

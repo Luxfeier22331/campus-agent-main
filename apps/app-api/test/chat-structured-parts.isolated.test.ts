@@ -278,7 +278,6 @@ describe("chat structured parts", () => {
 					],
 				},
 			},
-			selectedTool: "knowledge_query",
 			status: "completed",
 		});
 
@@ -305,7 +304,6 @@ describe("chat structured parts", () => {
 					},
 				],
 			},
-			selectedTool: "knowledge_query",
 			status: "completed",
 		});
 
@@ -344,7 +342,6 @@ describe("chat structured parts", () => {
 		expect(
 			normalizeSourceItemsPart({
 				result,
-				selectedTool: "knowledge_query",
 				status: "completed",
 			}),
 		).toEqual([]);
@@ -352,7 +349,6 @@ describe("chat structured parts", () => {
 			normalizeSourceItemsPart({
 				allowedPublicNoticeHosts: ["www.example.edu"],
 				result,
-				selectedTool: "knowledge_query",
 				status: "completed",
 			}),
 		).toMatchObject([
@@ -383,7 +379,6 @@ describe("chat structured parts", () => {
 					},
 				],
 			},
-			selectedTool: "knowledge_query",
 			status: "completed",
 		});
 

@@ -21,7 +21,6 @@ type personalMemoryExecutor interface {
 	) (memoryruntime.AppendConversationTurnResult, error)
 	HealthCheck(context.Context) error
 	Recall(context.Context, memoryruntime.RecallRequest) (memoryruntime.RecallResult, error)
-	Reflect(context.Context, memoryruntime.ReflectRequest) (memoryruntime.ReflectResult, error)
 }
 
 type hindsightClient interface {
@@ -31,7 +30,6 @@ type hindsightClient interface {
 	DeleteDocument(context.Context, string, string) error
 	HealthCheck(context.Context) error
 	RecallMemories(context.Context, string, hindsightRecallRequest) (hindsightRecallResponse, error)
-	Reflect(context.Context, string, hindsightReflectRequest) (hindsightReflectResponse, error)
 	RetainMemories(context.Context, string, hindsightRetainRequest) (hindsightRetainResponse, error)
 }
 
@@ -189,7 +187,7 @@ func (e hindsightExecutor) Recall(
 	if err != nil {
 		return memoryruntime.RecallResult{}, err
 	}
-	items := hindsightContextItems(response.Results, request.RequestedTool, e.recallLimit)
+	items := hindsightContextItems(response.Results, e.recallLimit)
 	result := memoryruntime.RecallResult{
 		ContextBlock:  hindsightContextBlock(items, e.contextCharBudget),
 		Items:         items,
@@ -247,42 +245,6 @@ func (e hindsightExecutor) AppendConversationTurn(
 		Status:               "completed",
 		ThreadID:             request.ThreadID,
 		UserID:               strings.TrimSpace(request.UserID),
-	})
-}
-
-func (e hindsightExecutor) Reflect(
-	ctx context.Context,
-	request memoryruntime.ReflectRequest,
-) (memoryruntime.ReflectResult, error) {
-	if err := memoryruntime.ValidateReflectRequest(request); err != nil {
-		return memoryruntime.ReflectResult{}, err
-	}
-	bankID := e.scopedBankIDForGeneration(request.TenantID, request.UserID, request.OwnerGeneration)
-	response, err := e.client.Reflect(ctx, bankID, hindsightReflectRequest{
-		Budget:       "mid",
-		Context:      strings.TrimSpace(request.Context),
-		FactTypes:    []string{"experience", "observation", "world"},
-		IncludeFacts: request.IncludeBasedOn,
-		MaxTokens:    e.recallMaxTokens,
-		Query:        hindsightReflectQuery(request),
-		Tags:         []string{"scope:private"},
-		TagsMatch:    "all_strict",
-	})
-	if err != nil {
-		return memoryruntime.ReflectResult{}, err
-	}
-	return memoryruntime.FinalizeReflectResult(memoryruntime.ReflectResult{
-		BasedOnMemoryItems: hindsightReflectContextItems(response.BasedOnMemories),
-		Provider:           "hindsight",
-		ReflectRef:         temporalProjectionRef(request.RunID, "memory/reflect"),
-		RunID:              strings.TrimSpace(request.RunID),
-		SchemaVersion:      "memory_reflect_result_v1",
-		Status:             "completed",
-		StructuredOutput:   copyAnyMap(response.StructuredOutput),
-		Text:               strings.TrimSpace(response.Text),
-		ThreadID:           strings.TrimSpace(request.ThreadID),
-		Usage:              response.Usage,
-		UserID:             strings.TrimSpace(request.UserID),
 	})
 }
 

@@ -38,7 +38,7 @@ describe("ingestion task projection store", () => {
 		});
 		expect(completed).toMatchObject({
 			status: "completed",
-			result_contract: "ingestion_chunk_set.v1",
+			result_contract: "retrieval_chunk_set.v2",
 		});
 		const projection = store.listOperatorTaskProjections({ corpus: "curriculum" }).tasks[0];
 		expect(projection).toMatchObject({ has_result: true, summary: { chunk_count: 12 } });

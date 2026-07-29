@@ -99,15 +99,15 @@ describe("chat durable staging e2e runner", () => {
 					if (input.url.endsWith("/api/chat/runs/run_01HQ/steps")) {
 						return jsonResult({
 							agentRuntimeEvalProjection: {
-								schema_version: "agent_runtime_eval_projection.v1",
+								schema_version: "agent_runtime_eval_projection.v3",
 								run: {
 									status: "completed",
 								},
 								trajectory: {
-									selected_tool: "knowledge_query",
+									tool_calls: [],
 								},
 								planning: {
-									planned_steps: ["agent.primary", "knowledge.search", "finalization.write"],
+									planned_steps: ["agent.primary", "finalization.write"],
 								},
 							},
 							attempts: [
@@ -120,7 +120,7 @@ describe("chat durable staging e2e runner", () => {
 								{
 									resultKind: "agent_final_output",
 									sanitizedPayload: {
-										selected_tools: ["knowledge_query", "knowledge_search"],
+										terminal_reason: "answer_completed",
 									},
 								},
 							],
@@ -134,17 +134,7 @@ describe("chat durable staging e2e runner", () => {
 							},
 							steps: [
 								{
-									stepId: "memory.recall",
-									status: "completed",
-								},
-								{
 									stepId: "agent.primary",
-									selectedTool: "knowledge_query",
-									status: "completed",
-								},
-								{
-									stepId: "knowledge.search.search-1",
-									selectedTool: "knowledge_search",
 									status: "completed",
 								},
 								{
@@ -230,9 +220,9 @@ describe("chat durable staging e2e runner", () => {
 		});
 		expect(result).toMatchObject({
 			agentRuntimeEvalProjection: {
-				schema_version: "agent_runtime_eval_projection.v1",
+				schema_version: "agent_runtime_eval_projection.v3",
 				planning: {
-					planned_steps: ["agent.primary", "knowledge.search", "finalization.write"],
+					planned_steps: ["agent.primary", "finalization.write"],
 				},
 			},
 			langfuseCloseout: {
@@ -247,23 +237,6 @@ describe("chat durable staging e2e runner", () => {
 				attemptCount: 1,
 				workflowId: "campus-agent.chat.run_01HQ",
 			},
-			workflowTraceSummary: {
-				selected_tool: "knowledge_query",
-				trace_steps: [
-					{ status: "completed", step_id: "memory.recall" },
-					{
-						selected_tool: "knowledge_query",
-						status: "completed",
-						step_id: "agent.primary",
-					},
-					{
-						selected_tool: "knowledge_search",
-						status: "completed",
-						step_id: "knowledge.search.search-1",
-					},
-					{ status: "completed", step_id: "finalization.write" },
-				],
-			},
 		});
 		expect(result.resume.events.map((event) => event.sequence)).toEqual([2, 3]);
 		expect(result.conversation?.assistantAnswerText).toBe("国家奖学金每学年评审一次。");
@@ -272,7 +245,7 @@ describe("chat durable staging e2e runner", () => {
 			{
 				resultKind: "agent_final_output",
 				sanitizedPayload: {
-					selected_tools: ["knowledge_query", "knowledge_search"],
+					terminal_reason: "answer_completed",
 				},
 			},
 		]);
@@ -511,7 +484,6 @@ describe("chat durable staging e2e runner", () => {
 			runId: "run_failed",
 			status: "failed",
 		});
-		expect(result.workflowTraceSummary).toBeNull();
 		expect(result.conversation).toBeNull();
 	});
 
@@ -551,7 +523,7 @@ describe("chat durable staging e2e runner", () => {
 								{
 									resultKind: "agent_final_output",
 									sanitizedPayload: {
-										selected_tools: [],
+										terminal_reason: "unsupported_by_evidence",
 									},
 								},
 							],
@@ -599,14 +571,11 @@ describe("chat durable staging e2e runner", () => {
 		);
 
 		expect(result.passed).toBe(false);
-		expect(result.workflowTraceSummary).toMatchObject({
-			selected_tool: "none",
-		});
 		expect(result.runtimeStepResults).toEqual([
 			{
 				resultKind: "agent_final_output",
 				sanitizedPayload: {
-					selected_tools: [],
+					terminal_reason: "unsupported_by_evidence",
 				},
 			},
 		]);

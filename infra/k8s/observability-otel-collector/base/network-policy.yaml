@@ -39,13 +39,6 @@ spec:
       ports:
         - protocol: TCP
           port: 4321
-    - from:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: otel-collector-agent
-      ports:
-        - protocol: TCP
-          port: 4318
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -82,36 +75,6 @@ spec:
       ports:
         - protocol: TCP
           port: 443
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: observability-otel-collector-agent-egress
-  labels:
-    app.kubernetes.io/name: otel-collector-agent
-    app.kubernetes.io/part-of: opentelemetry-collector
-spec:
-  podSelector:
-    matchLabels:
-      app.kubernetes.io/name: otel-collector-agent
-  policyTypes: ["Egress"]
-  egress:
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-      ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
-    - to:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: otel-collector
-      ports:
-        - protocol: TCP
-          port: 4318
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0

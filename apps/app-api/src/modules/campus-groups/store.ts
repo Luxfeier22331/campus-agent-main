@@ -12,7 +12,7 @@ export function createPgCampusGroupsStore(
 	env: Env,
 	input: { getDb?: RuntimeDbGetter } = {},
 ): CampusGroupsStore {
-	const getDb = input.getDb ?? createRuntimeDbGetter(env, { consistency: "fresh" });
+	const getDb = input.getDb ?? createRuntimeDbGetter(env);
 
 	return {
 		async getCatalog() {

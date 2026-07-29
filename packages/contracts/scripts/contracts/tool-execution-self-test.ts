@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import Ajv2020 from "ajv/dist/2020.js";
 import YAML from "yaml";
 import { repoPath } from "./common.ts";
 import { generateToolExecutionContracts } from "./tool-execution-generate.ts";
@@ -25,13 +26,13 @@ function checkOpenApiMetadata(): void {
 		"dialect mismatch",
 	);
 	const meta = asRecord(openapi["x-campus-contract"], "x-campus-contract");
-	expect(meta.execution_contract_version === "tool_execution_v2", "execution contract mismatch");
+	expect(meta.execution_contract_version === "tool_execution_v5", "execution contract mismatch");
 	expect(
-		meta.response_contract === "execution_finalization_response_v3",
+		meta.response_contract === "execution_finalization_response_v5",
 		"response contract mismatch",
 	);
 	expect(
-		meta.workflow_trace_summary_version === "workflow-trace-summary-v6",
+		meta.workflow_trace_summary_version === "workflow-trace-summary-v7",
 		"workflow trace version mismatch",
 	);
 	const policy = asRecord(meta.versioning_policy, "versioning_policy");
@@ -40,64 +41,122 @@ function checkOpenApiMetadata(): void {
 		new Set(["execution_contract_version", "response_contract", "workflow_trace_summary_version"]),
 		"version policy keys",
 	);
+	const components = asRecord(openapi.components, "components");
+	const componentSchemas = asRecord(components.schemas, "components.schemas");
+	const executionRunId = asRecord(componentSchemas.ExecutionRunId, "ExecutionRunId");
+	expect(executionRunId.type === "string", "ExecutionRunId must be a string");
+	expect(
+		executionRunId.pattern === "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+		"ExecutionRunId pattern mismatch",
+	);
+	const parameters = asRecord(components.parameters, "components.parameters");
+	const runIdParameter = asRecord(parameters.RunId, "RunId parameter");
+	expectEqualJson(
+		asRecord(runIdParameter.schema, "RunId parameter schema"),
+		{ $ref: "#/components/schemas/ExecutionRunId" },
+		"RunId parameter schema ref",
+	);
+	expectEqualJson(
+		properties(
+			asRecord(componentSchemas.ExecutionRunCreateRequest, "ExecutionRunCreateRequest"),
+			"ExecutionRunCreateRequest",
+		).run_id,
+		{ $ref: "#/components/schemas/ExecutionRunId" },
+		"execution run create run_id ref",
+	);
+	const componentResponses = asRecord(components.responses, "components.responses");
+	const appApiErrorResponse = asRecord(
+		componentResponses.AppApiErrorResponse,
+		"AppApiErrorResponse",
+	);
+	const errorHeaders = asRecord(appApiErrorResponse.headers, "AppApiErrorResponse headers");
+	const errorCacheControl = asRecord(
+		errorHeaders["Cache-Control"],
+		"AppApiErrorResponse Cache-Control",
+	);
+	expectEqualJson(
+		asRecord(errorCacheControl.schema, "AppApiErrorResponse Cache-Control schema"),
+		{ const: "no-store" },
+		"AppApiErrorResponse Cache-Control",
+	);
+	const errorContent = asRecord(appApiErrorResponse.content, "AppApiErrorResponse content");
+	const errorJSON = asRecord(errorContent["application/json"], "AppApiErrorResponse JSON");
+	expectEqualJson(
+		asRecord(errorJSON.schema, "AppApiErrorResponse JSON schema"),
+		{ $ref: "#/components/schemas/AppApiErrorEnvelope" },
+		"AppApiErrorResponse schema ref",
+	);
+	const paths = asRecord(openapi.paths, "paths");
+	const inputPath = asRecord(
+		paths["/api/internal/execution/runs/{runId}/input"],
+		"execution input path",
+	);
+	for (const [method, successStatus, expectedStatuses] of [
+		["get", "200", ["200", "400", "401", "404", "409", "503"]],
+		["delete", "204", ["204", "400", "401", "409", "503"]],
+	] as const) {
+		const operation = asRecord(inputPath[method], `execution input ${method}`);
+		const responses = asRecord(operation.responses, `execution input ${method} responses`);
+		expectEqualJson(
+			new Set(Object.keys(responses)),
+			new Set(expectedStatuses),
+			`execution input ${method} statuses`,
+		);
+		const response = asRecord(
+			responses[successStatus],
+			`execution input ${method} ${successStatus}`,
+		);
+		const headers = asRecord(
+			response.headers,
+			`execution input ${method} ${successStatus} headers`,
+		);
+		const cacheControl = asRecord(
+			headers["Cache-Control"],
+			`execution input ${method} Cache-Control`,
+		);
+		const headerSchema = asRecord(
+			cacheControl.schema,
+			`execution input ${method} Cache-Control schema`,
+		);
+		expect(headerSchema.const === "no-store", `execution input ${method} must declare no-store`);
+		for (const status of expectedStatuses.filter((value) => value !== successStatus)) {
+			expectEqualJson(
+				asRecord(responses[status], `execution input ${method} ${status}`),
+				{ $ref: "#/components/responses/AppApiErrorResponse" },
+				`execution input ${method} ${status} error response ref`,
+			);
+		}
+	}
 }
 
 function checkWorkflowTraceSummary(): void {
 	const summary = schema("WorkflowTraceSummary");
 	const summaryProperties = properties(summary, "WorkflowTraceSummary");
 	for (const field of [
-		"workflow_mode",
-		"selected_tool",
-		"selected_tools",
-		"first_decision_actor",
-		"planning_outcome",
-		"direct_vs_delegate_branch",
+		"execution_path",
 		"terminal_reason",
-		"answer_artifact_kinds",
 		"answer_artifact_refs",
-		"trace_steps",
-		"tool_call_summaries",
 		"runtime_versions",
 	]) {
 		expectIncludes(summary.required, field, `${field} required`);
 	}
 	expectEqualJson(
-		summaryProperties.workflow_mode,
-		{ $ref: "#/components/schemas/WorkflowMode" },
-		"workflow mode ref",
-	);
-	expectEqualJson(
-		asRecord(summaryProperties.answer_artifact_kinds, "answer_artifact_kinds").items,
-		{ $ref: "#/components/schemas/AnswerArtifactKind" },
-		"answer artifact kind items",
-	);
-	expectEqualJson(
-		schema("AnswerArtifactKind").enum,
-		["agent_final_output"],
-		"answer artifact kind enum",
+		summaryProperties.execution_path,
+		{ $ref: "#/components/schemas/ExecutionPath" },
+		"execution path ref",
 	);
 }
 
 function checkRuntimeBoundaries(): void {
 	expectEqualJson(
-		schema("WorkflowMode").enum,
-		["terminal", "single_step", "multi_step"],
-		"workflow modes",
-	);
-	expectEqualJson(
 		schema("ToolID").enum,
-		["knowledge_query", "knowledge_search", "transport_schedule_lookup"],
+		["transport_schedule_lookup", "personal_memory_recall"],
 		"tool id enum",
 	);
 	expectEqualJson(
 		schema("ModelVisibleToolName").enum,
-		["knowledge_query", "transport_schedule_lookup"],
-		"model-visible tool enum",
-	);
-	expectEqualJson(
-		schema("RequestedTool").enum,
-		["knowledge_query", "transport_schedule_lookup"],
-		"requested tool enum",
+		["transport_schedule_lookup", "personal_memory_recall"],
+		"model-visible tool vocabulary enum",
 	);
 	const payload = schema("ExecutionPayload");
 	const payloadProperties = properties(payload, "ExecutionPayload");
@@ -110,8 +169,8 @@ function checkRuntimeBoundaries(): void {
 			"user_goal",
 			"conversation_id",
 			"request_id",
+			"tenant_id",
 			"safety_identifier",
-			"requested_tool",
 			"trace",
 			"context",
 		]),
@@ -130,6 +189,33 @@ function checkRuntimeBoundaries(): void {
 		]),
 		"execution payload required fields",
 	);
+	const conversation = schema("ConversationContext");
+	const conversationProperties = properties(conversation, "ConversationContext");
+	expectEqualJson(
+		new Set(Object.keys(conversationProperties)),
+		new Set([
+			"schema_version",
+			"conversation_id",
+			"user_message_id",
+			"parent_message_id",
+			"current_user_message",
+			"recent_turns",
+			"session_state",
+		]),
+		"conversation context fields",
+	);
+	expectEqualJson(
+		new Set(conversation.required as string[]),
+		new Set([
+			"schema_version",
+			"conversation_id",
+			"user_message_id",
+			"current_user_message",
+			"recent_turns",
+			"session_state",
+		]),
+		"conversation context required fields",
+	);
 	const runCreate = schema("ExecutionRunCreateRequest");
 	const runCreateProperties = properties(runCreate, "ExecutionRunCreateRequest");
 	expect(runCreate.additionalProperties === false, "ExecutionRunCreateRequest must be closed");
@@ -142,6 +228,7 @@ function checkRuntimeBoundaries(): void {
 			"request_id",
 			"trace_id",
 			"owner_user_id",
+			"personal_memory_recall_allowed",
 			"surface",
 			"runtime_versions",
 			"metadata",
@@ -153,6 +240,44 @@ function checkRuntimeBoundaries(): void {
 		{ $ref: "#/components/schemas/ExecutionRunMetadata" },
 		"run metadata ref",
 	);
+	const runMetadata = schema("ExecutionRunMetadata");
+	const runMetadataProperties = properties(runMetadata, "ExecutionRunMetadata");
+	expect(runMetadata.additionalProperties === false, "ExecutionRunMetadata must be closed");
+	expectEqualJson(
+		new Set(Object.keys(runMetadataProperties)),
+		new Set(["execution_contract_version", "execution_input_ref", "execution_input_sha256"]),
+		"execution run metadata fields",
+	);
+	expectEqualJson(
+		new Set(runMetadata.required as string[]),
+		new Set(["execution_contract_version", "execution_input_ref", "execution_input_sha256"]),
+		"execution run metadata required fields",
+	);
+	expect(
+		!("execution_payload" in runMetadataProperties),
+		"ExecutionRunMetadata must not carry raw execution payload",
+	);
+	const eventPage = asRecord(
+		asRecord(
+			asRecord(
+				asRecord(
+					asRecord(loadOpenApi().paths, "paths")["/internal/execution/runs/{runId}/events"],
+					"events path",
+				).get,
+				"events get",
+			).responses,
+			"events responses",
+		)["200"],
+		"events 200",
+	);
+	const eventPageSchema = asRecord(
+		asRecord(
+			asRecord(eventPage.content, "events content")["application/json"],
+			"events application/json",
+		).schema,
+		"events page schema",
+	);
+	expectIncludes(eventPageSchema.required, "next_sequence", "event next_sequence required");
 	expectEqualJson(
 		schema("ExecutionRequestContext").not,
 		{ required: ["profile_memory"] },
@@ -163,15 +288,7 @@ function checkRuntimeBoundaries(): void {
 function checkExecutionResponseDiagnostics(): void {
 	const response = schema("ExecutionFinalizationResponse");
 	const responseProperties = properties(response, "ExecutionFinalizationResponse");
-	expectIncludes(response.required, "resolved_targets", "resolved targets required");
-	expectIncludes(response.required, "session_update", "session update required");
-	expectEqualJson(
-		properties(schema("SessionUpdateSlot"), "SessionUpdateSlot").name,
-		{
-			enum: ["curriculum_program", "curriculum_program_family", "curriculum_semester"],
-		},
-		"session update slot names",
-	);
+	expectIncludes(response.required, "model_usage", "model usage required");
 	expectEqualJson(
 		asRecord(responseProperties.stage_timing, "stage_timing").oneOf,
 		[{ $ref: "#/components/schemas/StageTiming" }, { type: "null" }],
@@ -184,15 +301,19 @@ function checkExecutionResponseDiagnostics(): void {
 		new Set(Object.keys(stageTimingProperties)),
 		new Set([
 			"request.total_ms",
-			"stream.browser_ttft_ms",
+			"execution.dispatch_ms",
+			"agent.schedule_to_start_ms",
+			"stream.first_delta_persist_ms",
+			"stream.app_api_ttft_ms",
+			"stream.orchestration_overhead_ms",
 			"execution.admission_ms",
+			"grounding.prepare_ms",
 			"memory.recall_ms",
 			"agent.primary_ms",
 			"agent.runtime_ms",
 			"agent.first_delta_ms",
 			"tool.total_ms",
 			"tool.transport_schedule_lookup_ms",
-			"knowledge.search_ms",
 			"finalization.write_ms",
 			"projection.closeout_ms",
 		]),
@@ -217,8 +338,8 @@ function checkGeneratedArtifacts(): void {
 	for (const requiredType of [
 		"interface TraceContextWire",
 		"interface ExecutionPayloadWire",
+		"interface ExecutionRunMetadataWire",
 		"interface ExecutionRunCreateRequestWire",
-		"interface SessionUpdateWire",
 	]) {
 		expect(tsContract.includes(requiredType), `TS generated contract missing ${requiredType}`);
 	}
@@ -237,9 +358,10 @@ function checkGeneratedArtifacts(): void {
 	for (const requiredSymbol of [
 		"type ExecutionPayloadWire struct",
 		"type ExecutionRunCreateRequestWire struct",
+		"ExecutionRunIDPattern",
+		"func ValidExecutionRunID",
 		"func DecodeExecutionPayloadWireJSON",
 		"func DecodeExecutionRunCreateRequestWireJSON",
-		"func (wire SessionUpdateWire) Validate() error",
 	]) {
 		expect(goContract.includes(requiredSymbol), `Go generated contract missing ${requiredSymbol}`);
 	}
@@ -248,17 +370,39 @@ function checkGeneratedArtifacts(): void {
 function checkFixtureMatrix(): void {
 	const delegate = loadFixture("execution_payload.valid.json");
 	expect(
-		delegate.execution_contract_version === "tool_execution_v2",
+		delegate.execution_contract_version === "tool_execution_v5",
 		"delegate execution contract",
 	);
 	expect(
-		delegate.response_contract === "execution_finalization_response_v3",
+		delegate.response_contract === "execution_finalization_response_v5",
 		"delegate response contract",
 	);
+	expectFixtureValidity("execution_payload.valid.json", "ExecutionPayload", true);
+	expectFixtureValidity("execution_run_create.valid.json", "ExecutionRunCreateRequest", true);
 	for (const fixtureName of [
 		"execution_payload_extra_field.invalid.json",
 		"execution_payload_invalid_enum.invalid.json",
 		"execution_payload_invalid_version.invalid.json",
+	]) {
+		expectFixtureValidity(fixtureName, "ExecutionPayload", false);
+	}
+	for (const fixtureName of [
+		"execution_run_create_raw_payload.invalid.json",
+		"execution_run_create_ref.invalid.json",
+		"execution_run_create_run_id.invalid.json",
+		"execution_run_create_sha.invalid.json",
+	]) {
+		expectFixtureValidity(fixtureName, "ExecutionRunCreateRequest", false);
+	}
+	for (const fixtureName of [
+		"execution_payload_extra_field.invalid.json",
+		"execution_payload_invalid_enum.invalid.json",
+		"execution_payload_invalid_version.invalid.json",
+		"execution_run_create_raw_payload.invalid.json",
+		"execution_run_create_ref.invalid.json",
+		"execution_run_create_run_id.invalid.json",
+		"execution_run_create_sha.invalid.json",
+		"execution_run_create.valid.json",
 		"response_camel_case.invalid.json",
 		"response_extra_field.invalid.json",
 	]) {
@@ -277,6 +421,27 @@ function checkFixtureMatrix(): void {
 			`${fixtureName} trace id mismatch`,
 		);
 	}
+}
+
+function expectFixtureValidity(
+	fixtureName: string,
+	schemaName: string,
+	expectedValid: boolean,
+): void {
+	const openapi = loadOpenApi();
+	const componentSchemas = asRecord(asRecord(openapi.components, "components").schemas, "schemas");
+	const validator = new Ajv2020({ allErrors: true, strict: false, validateFormats: false }).compile(
+		{
+			$schema: "https://json-schema.org/draft/2020-12/schema",
+			$ref: `#/components/schemas/${schemaName}`,
+			components: { schemas: componentSchemas },
+		},
+	);
+	const valid = validator(loadFixture(fixtureName));
+	expect(
+		valid === expectedValid,
+		`${fixtureName} validity mismatch for ${schemaName}: ${JSON.stringify(validator.errors)}`,
+	);
 }
 
 function schema(name: string): Record<string, unknown> {

@@ -23,7 +23,7 @@ pipeline、物化阶段、离线发布流或 derived 产物。通知采集和定
 | Schema bootstrap | `pnpm --filter ingestion-control schema:bootstrap` | 创建固定 schema 和 runtime role 权限。 |
 | Schema migration | `pnpm --filter ingestion-control migrate` | 按顺序执行 SQL migration 并校验 journal。 |
 
-生产 worker 通过 Temporal Worker Controller 部署。当前队列为：
+生产 API 与 worker 分别使用标准 Kubernetes Deployment。当前队列为：
 
 - `campus-agent.ingestion.workflow`
 - `campus-agent.ingestion.activity.control`
@@ -65,8 +65,7 @@ pnpm --filter source-collector start:temporal-worker
 ```
 
 数据库 TLS、对象存储和 Temporal 环境变量见
-`env/commands/ingestion-control-runtime.env.example`。本地 worker 可以不设置 Temporal deployment
-版本变量。
+`env/commands/ingestion-control-runtime.env.example`。worker 不设置 Temporal deployment 版本变量。
 
 ## 验证
 

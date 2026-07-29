@@ -1,4 +1,4 @@
-import type { IngestionTaskEnvelope } from "ingestion-contracts";
+import { type IngestionTaskEnvelope, validateRetrievalChunkSetV2 } from "ingestion-contracts";
 import { z } from "zod";
 
 import { encodeObjectKeySegment, formatZodIssues, parseJsonObjectBytes } from "./core.ts";
@@ -17,33 +17,8 @@ const DocumentUnitsValidationReportSchema = z
 		path: ["error_count"],
 	});
 
-const IngestionChunkSchema = z.object({
-	chunk_id: z.string().trim().min(1),
-	doc_id: z.string().trim().min(1),
-	text: z.string(),
-	unit_ids: z.array(z.string().trim().min(1)),
-});
-
-const IngestionChunkSetSchema = z
-	.object({
-		chunk_count: z.number().int().nonnegative(),
-		chunks: z.array(IngestionChunkSchema),
-		error_count: z.number().int().nonnegative(),
-		errors: z.array(z.string()),
-		schema_version: z.literal("ingestion_chunk_set.v1"),
-	})
-	.refine((value) => value.chunk_count === value.chunks.length, {
-		message: "chunk_count must match chunks length",
-		path: ["chunk_count"],
-	})
-	.refine((value) => value.error_count === value.errors.length, {
-		message: "error_count must match errors length",
-		path: ["error_count"],
-	});
-
 const KernelOutputSchemas = {
 	"document_units_validation_report.v1": DocumentUnitsValidationReportSchema,
-	"ingestion_chunk_set.v1": IngestionChunkSetSchema,
 } as const;
 
 export function buildIngestionKernelArtifactKey(input: {
@@ -122,6 +97,15 @@ function validateKernelOutputContract(input: {
 	kernelId: string;
 	value: Record<string, unknown>;
 }): void {
+	if (input.expectedSchemaVersion === "retrieval_chunk_set.v2") {
+		const result = validateRetrievalChunkSetV2(input.value);
+		if (!result.ok) {
+			throw new Error(
+				`ingestion kernel ${input.kernelId} stdout is invalid: ${result.errors.join("; ")}`,
+			);
+		}
+		return;
+	}
 	const schema =
 		KernelOutputSchemas[input.expectedSchemaVersion as keyof typeof KernelOutputSchemas];
 	if (!schema) {

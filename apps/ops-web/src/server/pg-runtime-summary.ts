@@ -6,9 +6,9 @@ const TASK_QUEUE_READY_THRESHOLD_MS = 30_000;
 const TASK_QUEUE_STALE_THRESHOLD_MS = 120_000;
 
 export const REQUIRED_TEMPORAL_TASK_QUEUES = [
-	{ kind: "WORKFLOW", name: "workflow", taskQueue: "campus-agent.workflow" },
-	{ kind: "ACTIVITY", name: "core", taskQueue: "campus-agent.activity.core" },
-	{ kind: "ACTIVITY", name: "agent", taskQueue: "campus-agent.activity.agent" },
+	{ kind: "WORKFLOW", name: "workflow", taskQueue: "campus-agent.workflow.v3" },
+	{ kind: "ACTIVITY", name: "core", taskQueue: "campus-agent.activity.core.v3" },
+	{ kind: "ACTIVITY", name: "agent", taskQueue: "campus-agent.activity.agent.v3" },
 ] as const;
 
 export function summarizeTemporalTaskQueues(

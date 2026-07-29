@@ -37,7 +37,6 @@ try {
 	writeFileSync(
 		configPath,
 		buildAppApiStagingUploadConfig(readFileSync(resolve(appDir, "wrangler.toml"), "utf8"), appDir, {
-			freshHyperdriveId: requiredEnv("APP_API_DB_FRESH_HYPERDRIVE_ID"),
 			hyperdriveId: requiredEnv("APP_API_DB_HYPERDRIVE_ID"),
 			objectStoreVpcServiceId: requiredEnv("OBJECT_STORE_VPC_SERVICE_ID"),
 			vpcServiceId: requiredEnv("EXECUTION_CONTROL_VPC_SERVICE_ID"),

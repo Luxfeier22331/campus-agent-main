@@ -54,12 +54,15 @@ function createResponse(overrides: Partial<ToolExecutionResponse> = {}): ToolExe
 		followUpQuestion: "",
 		observability: null,
 		result: null,
-		selectedTool: "knowledge_query",
 		status: "no_answer",
 		traceId: "trace_01HQ",
 		...overrides,
-		resolvedTargets: overrides.resolvedTargets ?? [],
-		sessionUpdate: overrides.sessionUpdate ?? null,
+		modelUsage: overrides.modelUsage ?? {
+			cachedInputTokens: 10,
+			inputTokens: 120,
+			outputTokens: 42,
+			totalTokens: 162,
+		},
 	};
 }
 
@@ -73,8 +76,6 @@ function buildFinalizedFact(
 		errorCode: null,
 		principal: createPrincipal(),
 		requestId: "req_01HQ",
-		requestedTool: "knowledge_query",
-		resolvedTargets: ["student_rules"],
 		response: createResponse(),
 		runId: "run_01HQ",
 		safetyIdentifier: null,
@@ -87,13 +88,12 @@ function buildFinalizedFact(
 }
 
 describe("request observability", () => {
-	it("carries request identity and resolved targets through acceptance and finalization", () => {
+	it("carries request identity and terminal facts without duplicating model usage", () => {
 		const safetyIdentifier = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 		const accepted = buildAcceptedRequestObservabilityFact({
 			conversationId: "conv_01HQ",
 			principal: createPrincipal(),
 			requestId: "req_01HQ",
-			requestedTool: "knowledge_query",
 			safetyIdentifier,
 			startedAt: "2026-04-05T08:00:00.000Z",
 			surface: "campus_web",
@@ -106,25 +106,26 @@ describe("request observability", () => {
 		});
 
 		expect(accepted).toMatchObject({
-			resolvedTargets: [],
 			safetyIdentifier,
 			status: "accepted",
 		});
 		expect(finalized).toMatchObject({
 			aclDecision: "allowed",
 			failClosed: false,
-			resolvedTargets: ["student_rules"],
 			safetyIdentifier,
 			semanticOutcome: "answer",
 			status: "completed",
 		});
+		expect(finalized).not.toHaveProperty("inputTokens");
+		expect(finalized).not.toHaveProperty("cachedInputTokens");
+		expect(finalized).not.toHaveProperty("outputTokens");
+		expect(finalized).not.toHaveProperty("totalTokens");
 	});
 
 	it("derives terminal policy facts from the final status", () => {
 		const noAnswer = buildFinalizedFact();
 		const rejected = buildFinalizedFact({
 			errorCode: "request_rejected",
-			resolvedTargets: [],
 			response: createResponse({ status: "rejected" }),
 			status: "rejected",
 		});
@@ -188,16 +189,10 @@ describe("request observability", () => {
 
 	it("persists official workflow and trace projections without raw runtime payloads", () => {
 		const workflowTraceSummary = {
-			answerArtifactKinds: ["agent_final_output"],
 			answerArtifactRefs: ["projection://run_01HQ/agent/final"],
-			directVsDelegateBranch: "knowledge_agent",
-			firstDecisionActor: "primary_agent",
-			planningOutcome: "primary_agent_completed",
+			executionPath: "tool_assisted" as const,
 			runtimeVersions: { agentRuntime: "openai_agents_sdk" },
-			selectedTool: "knowledge_query",
-			selectedTools: ["knowledge_query"],
 			terminalReason: "answer",
-			workflowMode: "single_step",
 		};
 		const fact = buildFinalizedFact({
 			response: createResponse({

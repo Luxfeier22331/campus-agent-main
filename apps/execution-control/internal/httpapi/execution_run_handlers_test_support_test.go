@@ -2,13 +2,43 @@ package httpapi
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/contracts"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
+
+var testExecutionInputs = struct {
+	sync.RWMutex
+	values map[string]contracts.ExecutionPayloadWire
+}{values: map[string]contracts.ExecutionPayloadWire{}}
+
+type mapExecutionInputLoader struct{}
+
+func (mapExecutionInputLoader) Load(_ context.Context, run execution.DurableRun) (contracts.ExecutionPayloadWire, error) {
+	testExecutionInputs.RLock()
+	wire, ok := testExecutionInputs.values[run.RunID]
+	testExecutionInputs.RUnlock()
+	if !ok {
+		return contracts.ExecutionPayloadWire{}, fmt.Errorf("test execution input %s not found", run.RunID)
+	}
+	return wire, nil
+}
+
+func (mapExecutionInputLoader) Delete(_ context.Context, run execution.DurableRun) error {
+	testExecutionInputs.Lock()
+	delete(testExecutionInputs.values, run.RunID)
+	testExecutionInputs.Unlock()
+	return nil
+}
 
 type fakeTemporalStarter struct {
 	cancelRunID  string
@@ -22,10 +52,10 @@ type fakeTemporalStarter struct {
 func (f *fakeTemporalStarter) StartToolExecutionWorkflow(
 	ctx context.Context,
 	input temporalruntime.ToolExecutionWorkflowInput,
-) error {
+) (string, error) {
 	f.ctx = ctx
 	f.input = input
-	return f.err
+	return "temporal-fake-run", f.err
 }
 
 func (f *fakeTemporalStarter) StartPersonalMemoryCommandWorkflow(
@@ -77,6 +107,37 @@ func publicRetrievalFilterForTest() map[string]any {
 	}
 }
 
+func v3ExecutionMetadataForHTTPTest(runID, _ string) map[string]any {
+	return map[string]any{
+		"execution_contract_version": contracts.ExecutionContractVersion,
+		"execution_input_ref":        "app-api://execution-inputs/" + runID,
+		"execution_input_sha256":     strings.Repeat("a", 64),
+	}
+}
+
+func executionPayloadWireForHTTPTest(
+	runID string,
+	conversationID string,
+	requestID string,
+	traceID string,
+	userGoal string,
+	_ string,
+	contextProjection map[string]any,
+) contracts.ExecutionPayloadWire {
+	if contextProjection == nil {
+		contextProjection = map[string]any{}
+	}
+	return contracts.ExecutionPayloadWire{
+		ExecutionContractVersion: contracts.ExecutionContractVersion,
+		ResponseContract:         contracts.ResponseContract,
+		UserGoal:                 userGoal,
+		ConversationID:           conversationID,
+		RequestID:                requestID,
+		Trace:                    contracts.TraceContextWire{TraceID: traceID},
+		Context:                  cloneAnyMapFromMetadata(contextProjection),
+	}
+}
+
 func setExecutionPayloadConversationContextForRunTest(
 	t *testing.T,
 	store *execution.InMemoryRunProjectionStore,
@@ -88,15 +149,11 @@ func setExecutionPayloadConversationContextForRunTest(
 	if err != nil {
 		t.Fatalf("get run projection: %v", err)
 	}
-	metadata := cloneAnyMapFromMetadata(run.Metadata)
-	executionPayload := cloneAnyMapFromMetadata(metadata["execution_payload"])
-	contextEnvelope := cloneAnyMapFromMetadata(executionPayload["context"])
+	wire := testExecutionInputForRun(t, runID)
+	contextEnvelope := cloneAnyMapFromMetadata(wire.Context)
 	contextEnvelope["conversation"] = conversationContext
-	executionPayload["context"] = contextEnvelope
-	metadata["execution_payload"] = executionPayload
-	if err := store.ReplaceRunMetadata(context.Background(), runID, metadata); err != nil {
-		t.Fatalf("replace run metadata: %v", err)
-	}
+	wire.Context = contextEnvelope
+	registerTestExecutionInput(t, store, run, wire)
 }
 
 func attachRunProjectionStoreForHandlerTest(
@@ -105,17 +162,21 @@ func attachRunProjectionStoreForHandlerTest(
 ) {
 	server.runProjectionStore = store
 	server.runProjectionStoreErr = nil
+	server.executionInputLoader = mapExecutionInputLoader{}
+	server.executionInputErr = nil
+	// Agent results and memory context are encrypted in the v3 projection. Test
+	// servers that inject the in-memory store must also provide the same
+	// bounded key dependency as a deployed server.
+	if server.config.ProtectedPayloadKeyring == nil {
+		server.config.ProtectedPayloadKeyring = protectedPayloadKeyringForTest()
+	}
 	server.productFinalizationWriter = func(context.Context, execution.DurableRun, time.Time, map[string]any) error {
 		return nil
 	}
 }
 
 func durableRunCreateBodyForTest(runID string, conversationID string) string {
-	return durableRunCreateBodyWithToolForTest(
-		runID,
-		conversationID,
-		"knowledge_query",
-	)
+	return durableRunCreateBodyWithToolForTest(runID, conversationID, "")
 }
 
 func durableRunCreateBodyWithToolForTest(
@@ -123,38 +184,48 @@ func durableRunCreateBodyWithToolForTest(
 	conversationID string,
 	requestedTool string,
 ) string {
-	executionPayload := map[string]any{
-		"execution_contract_version": "tool_execution_v2",
-		"response_contract":          "execution_finalization_response_v3",
-		"user_goal":                  "hello",
-		"request_id":                 "req-" + runID,
-		"conversation_id":            conversationID,
-		"trace":                      map[string]any{"trace_id": "trace-" + runID},
-		"context": map[string]any{
+	wire := executionPayloadWireForHTTPTest(
+		runID,
+		conversationID,
+		"req-"+runID,
+		"trace-"+runID,
+		"学生请假手续是什么？",
+		"",
+		map[string]any{
 			"actor": map[string]any{"user_id": "user-executor"},
 			"authorization": map[string]any{
-				"retrieval_filter": map[string]any{
-					"policy_projection_version": "phase1-authorization-projection-v1",
-					"visibility_level":          "public",
-				},
+				"retrieval_filter": publicRetrievalFilterForTest(),
 			},
 		},
+	)
+	encodedWire, err := json.Marshal(wire)
+	if err != nil {
+		panic(err)
 	}
+	digest := sha256.Sum256(encodedWire)
+	testExecutionInputs.Lock()
+	testExecutionInputs.values[runID] = wire
+	testExecutionInputs.Unlock()
 	body := map[string]any{
-		"run_id":          runID,
-		"conversation_id": conversationID,
-		"turn_id":         "turn-" + runID,
-		"request_id":      "req-" + runID,
-		"trace_id":        "trace-" + runID,
-		"owner_user_id":   "user-executor",
-		"surface":         "campus-web",
+		"run_id":                         runID,
+		"conversation_id":                conversationID,
+		"turn_id":                        "turn-" + runID,
+		"request_id":                     "req-" + runID,
+		"trace_id":                       "trace-" + runID,
+		"owner_user_id":                  "user-executor",
+		"personal_memory_recall_allowed": false,
+		"surface":                        "campus-web",
 		"runtime_versions": map[string]any{
 			"contract": "durable-agent-runtime-contract-v1",
 		},
-		"metadata": map[string]any{"execution_payload": executionPayload},
+		"metadata": map[string]any{
+			"execution_contract_version": "tool_execution_v5",
+			"execution_input_ref":        "app-api://execution-inputs/" + runID,
+			"execution_input_sha256":     hex.EncodeToString(digest[:]),
+		},
 	}
 	if requestedTool != "" {
-		executionPayload["requested_tool"] = requestedTool
+		body["metadata"].(map[string]any)["requested_tool"] = requestedTool
 	}
 	encoded, err := json.Marshal(body)
 	if err != nil {
@@ -169,36 +240,50 @@ func createHTTPAPIQueuedDurableRunForTest(
 	runID string,
 	conversationID string,
 	now time.Time,
-	handoff map[string]any,
+	agentRequest map[string]any,
 ) {
 	t.Helper()
 	userGoal := "hello"
-	if handoff != nil {
-		if payload, ok := handoff["payload"].(map[string]any); ok {
+	if agentRequest != nil {
+		if payload, ok := agentRequest["payload"].(map[string]any); ok {
 			userGoal = firstNonEmptyText(payload["query_text"], userGoal)
 		}
 	}
-	metadata := map[string]any{
-		"execution_payload": map[string]any{
-			"execution_contract_version": "tool_execution_v2",
-			"response_contract":          "execution_finalization_response_v3",
-			"user_goal":                  userGoal,
-			"request_id":                 "req-executor-001",
-			"conversation_id":            conversationID,
-			"trace":                      map[string]any{"trace_id": "trace-executor-001"},
-			"context": map[string]any{
-				"actor": map[string]any{"user_id": "user-executor"},
-				"authorization": map[string]any{
-					"retrieval_filter": publicRetrievalFilterForTest(),
-				},
-				"conversation": map[string]any{
-					"current_user_message": map[string]any{
-						"created_at": now.UTC().Format(time.RFC3339),
-					},
+	metadata := v3ExecutionMetadataForHTTPTest(runID, "")
+	executionPayload := map[string]any{
+		"execution_contract_version": contracts.ExecutionContractVersion,
+		"response_contract":          contracts.ResponseContract,
+		"user_goal":                  userGoal,
+		"request_id":                 "req-executor-001",
+		"conversation_id":            conversationID,
+		"trace":                      map[string]any{"trace_id": "trace-executor-001"},
+		"context": map[string]any{
+			"actor": map[string]any{"user_id": "user-executor"},
+			"authorization": map[string]any{
+				"retrieval_filter": publicRetrievalFilterForTest(),
+			},
+			"conversation": map[string]any{
+				"current_user_message": map[string]any{
+					"created_at": now.UTC().Format(time.RFC3339),
 				},
 			},
 		},
 	}
+	wire := executionPayloadWireForHTTPTest(
+		runID,
+		conversationID,
+		"req-executor-001",
+		"trace-executor-001",
+		userGoal,
+		"",
+		executionPayload["context"].(map[string]any),
+	)
+	encodedWire, err := json.Marshal(wire)
+	if err != nil {
+		t.Fatalf("encode test execution input: %v", err)
+	}
+	digest := sha256.Sum256(encodedWire)
+	metadata["execution_input_sha256"] = hex.EncodeToString(digest[:])
 	if _, err := store.CreateRun(context.Background(), execution.DurableRun{
 		RunID:          runID,
 		ConversationID: conversationID,
@@ -207,15 +292,14 @@ func createHTTPAPIQueuedDurableRunForTest(
 		TraceID:        "trace-executor-001",
 		OwnerUserID:    "user-executor",
 		Surface:        "campus-web",
-		RequestedTool:  handoffToolForDurableWorkerTest(handoff),
-		SelectedTool:   handoffSelectedToolForDurableWorkerTest(handoff),
-		TaskQueue:      "campus-agent.workflow",
+		TaskQueue:      "campus-agent.workflow.v3",
 		Status:         execution.DurableRunStatusCreated,
 		CreatedAt:      now,
 		Metadata:       metadata,
 	}); err != nil {
 		t.Fatalf("create run projection: %v", err)
 	}
+	registerTestExecutionInput(t, store, execution.DurableRun{RunID: runID}, wire)
 	if _, err := store.TransitionRun(
 		context.Background(),
 		runID,
@@ -227,31 +311,47 @@ func createHTTPAPIQueuedDurableRunForTest(
 	}
 }
 
-func ragHandoffForDurableWorkerTest(queryText string) map[string]any {
+func testExecutionInputForRun(t *testing.T, runID string) contracts.ExecutionPayloadWire {
+	t.Helper()
+	testExecutionInputs.RLock()
+	wire, ok := testExecutionInputs.values[runID]
+	testExecutionInputs.RUnlock()
+	if !ok {
+		t.Fatalf("test execution input %s not found", runID)
+	}
+	return wire
+}
+
+func registerTestExecutionInput(
+	t *testing.T,
+	store *execution.InMemoryRunProjectionStore,
+	run execution.DurableRun,
+	wire contracts.ExecutionPayloadWire,
+) {
+	t.Helper()
+	encoded, err := json.Marshal(wire)
+	if err != nil {
+		t.Fatalf("encode test execution input: %v", err)
+	}
+	digest := sha256.Sum256(encoded)
+	testExecutionInputs.Lock()
+	testExecutionInputs.values[run.RunID] = wire
+	testExecutionInputs.Unlock()
+	latest, err := store.GetRun(context.Background(), run.RunID)
+	if err != nil {
+		t.Fatalf("get run for execution input registration: %v", err)
+	}
+	metadata := cloneAnyMapFromMetadata(latest.Metadata)
+	metadata["execution_input_sha256"] = hex.EncodeToString(digest[:])
+	if err := store.ReplaceRunMetadata(context.Background(), run.RunID, metadata); err != nil {
+		t.Fatalf("update execution input digest: %v", err)
+	}
+}
+
+func agentRequestForDurableWorkerTest(queryText string) map[string]any {
 	return map[string]any{
-		"tool":          "knowledge_query",
-		"payload_kind":  "rag_request",
-		"allowed_tools": []any{"knowledge_query"},
-		"payload":       map[string]any{"query_text": queryText},
+		"payload": map[string]any{"query_text": queryText},
 	}
-}
-
-func handoffToolForDurableWorkerTest(handoff map[string]any) string {
-	if handoff == nil {
-		return ""
-	}
-	return firstNonEmptyText(handoff["tool"], "")
-}
-
-func handoffSelectedToolForDurableWorkerTest(handoff map[string]any) string {
-	if handoff == nil {
-		return ""
-	}
-	allowed, _ := handoff["allowed_tools"].([]any)
-	if len(allowed) == 1 {
-		return firstNonEmptyText(allowed[0], "")
-	}
-	return firstNonEmptyText(handoff["tool"], "")
 }
 
 func assertHTTPAPIDurableEventTypes(
@@ -302,23 +402,4 @@ func expectInternalFinalizationResponseForTest(
 		t.Fatal("internal finalization.completed event missing")
 	}
 	return finalizationResponse
-}
-
-func durableToolResponseBodyForTest(answerText string) json.RawMessage {
-	body, err := json.Marshal(map[string]any{
-		"tool":               "knowledge_query",
-		"status":             "completed",
-		"answer_text":        answerText,
-		"follow_up_question": "",
-		"confidence":         "high",
-		"result": map[string]any{
-			"evidence": map[string]any{
-				"sources": []map[string]any{{"doc_id": "student_rules:test"}},
-			},
-		},
-	})
-	if err != nil {
-		panic(err)
-	}
-	return body
 }

@@ -15,9 +15,9 @@
 		"agent-runtime#build": {
 			"inputs": [
 				"$TURBO_DEFAULT$",
-				"$TURBO_ROOT$/configs/runtime/tool-function-schemas.v2.json",
-				"$TURBO_ROOT$/configs/runtime/tools.v5.json",
-				"$TURBO_ROOT$/configs/runtime/workflow-artifacts.v2.json"
+				"$TURBO_ROOT$/configs/runtime/tool-function-schemas.v3.json",
+				"$TURBO_ROOT$/configs/runtime/tools.v6.json",
+				"$TURBO_ROOT$/configs/runtime/workflow-artifacts.v3.json"
 			]
 		},
 		"app-api-schema#build": {
@@ -33,10 +33,10 @@
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				"$TURBO_ROOT$/configs/ingestion/**",
-				"$TURBO_ROOT$/configs/runtime/query-serving-targets.v1.json",
-				"$TURBO_ROOT$/configs/runtime/tool-function-schemas.v2.json",
-				"$TURBO_ROOT$/configs/runtime/tools.v5.json",
-				"$TURBO_ROOT$/configs/runtime/workflow-artifacts.v2.json",
+				"$TURBO_ROOT$/configs/runtime/query-serving-targets.v3.json",
+				"$TURBO_ROOT$/configs/runtime/tool-function-schemas.v3.json",
+				"$TURBO_ROOT$/configs/runtime/tools.v6.json",
+				"$TURBO_ROOT$/configs/runtime/workflow-artifacts.v3.json",
 				"$TURBO_ROOT$/packages/contracts/fixtures/tool_execution_contract/**"
 			]
 		},

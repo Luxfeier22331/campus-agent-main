@@ -17,8 +17,8 @@ status: accepted
 - Kubernetes 内运行时通过 ClusterIP 和受验证的 TLS 直接连接。
 - Cloudflare Worker 通过 Hyperdrive、Workers VPC Service 和受控 tunnel 连接 CNPG，
   不绕行公共数据库地址。
-- 需要查询缓存和写后立即读取的路径使用独立绑定；两者指向同一数据库和同一应用角色，
-  不形成第二套权威数据来源。
+- App API 只使用一个关闭 query cache 的 Hyperdrive binding；连接池仍由 Hyperdrive 管理，不在
+  应用中建立第二条数据库路径。
 - 每个运行时使用独立登录角色和最小 schema/table/column 权限。schema 安装或迁移任务
   使用独立 schema 管理角色，不通过应用连接路径。
 - 缺少私网连接、CA、角色、schema 或权限时失败关闭，不回退到旧数据库、公共地址或

@@ -7,25 +7,67 @@ status: active
 
 ## 边界
 
-本文定义在线执行的有界逻辑投影。Temporal history 始终是执行事实；PostgreSQL 投影供
-app-api 产品读模型、Ops Web 运行记录和评测消费。
+本文定义在线执行的有界逻辑投影。Temporal history 始终是 workflow 执行事实；PostgreSQL 投影供
+app-api 产品读模型、Ops Web 运行记录、诊断和评测消费，并保存向 Temporal 投递所需的持久命令与
+幂等 receipt。跨系统产品终态由 app-api 产品行及其 finalization fingerprint 裁决。
 
 ## 核心记录
 
 ### 运行
 
 run 关联 conversation、turn、request、trace、`owner_user_id`、`surface`、生命周期、运行版本、
-所选工具或 handoff、终态原因与 finalization ref。
+终态原因与 finalization ref。具体工具调用属于 step/result 轨迹，不压缩为单个“所选工具”。
 
-内部状态依次使用 `created`、`queued`、`admitted`、`running` 和可选的 `streaming`；终态为
-`completed`、`failed`、`canceled` 或 `expired`。运行可以从 `running` 或 `streaming` 回到
-`queued` 等待 Temporal 重试，但任何终态都不可再次迁移。浏览器连接状态不能用于推断运行状态。
+内部状态依次使用 `created`、`queued`、`admitted`、`running` 和可选的 `streaming`；持久取消
+意图使用 `cancel_requested`，终态为 `completed`、`failed`、`canceled` 或 `expired`。可重试阶段
+可以回到等待状态，但 Primary Agent provider invocation 不重试；任何终态都不可再次迁移。浏览器连接
+状态不能用于推断运行状态。
 
 ### 运行事件
 
 run event 按顺序记录有界生命周期与 streaming 事实。同一 run 内 event sequence 单调递增。
 payload 只能包含 ref 和 summary，不得包含原始 prompt、transcript、provider response 或
 source body。
+
+内部与浏览器事件共享同一序列。事件查询的 `next_sequence` 是服务端已检查到的前向游标，可能
+大于本次返回的最后一个浏览器事件，也可能在返回空数组时前进；消费者不能从过滤后的事件自行
+推导游标。`run.canceled` 是浏览器事件，`run.cancel_requested` 只用于内部协调。
+
+### 生命周期命令
+
+run 与 workflow 启动命令在一个事务写入。启动命令固定 Workflow ID、队列、输入 ref/hash 和
+有界策略版本，并记录租约、租约次数、`dispatch_attempted`、Temporal Run ID 或低基数失败原因；
+reconciler 在外部 RPC 前用 lease token 原子置位 dispatch fence，重复执行不能创建第二个 workflow。
+升级前已有命令迁移为 `dispatch_attempted=true`，不能从租约次数反推从未投递。
+
+execution-control 的取消命令与 `cancel_requested` 一起持久化，再由 reconciler 幂等投递。它与
+app-api 自己的取消发件箱是两个所有者各自的提交点，不以一次 HTTP 成功假装跨库事务。只要启动命令
+已经置位 `dispatch_attempted`，Describe 的 `NotFound` 就不能作为未投递证明；取消命令以
+`temporal_start_identity_unresolved` 保持 pending，直到绑定并校验精确 Temporal Run ID，或确认存在
+不属于该 run 的身份冲突。只有未置位 dispatch fence 且没有 Temporal Run ID 的启动命令可以直接
+收敛为本地取消。
+
+若取消已把 start 置为 `superseded`，命令满足 `dispatch_attempted=true`、尚无 Temporal Run ID，且
+Describe 明确返回 `NotFound`，reconciler 使用原 canonical input 触发带一分钟 `StartDelay` 的 recovery
+start。只有 recovery root 通过 exact/latest 身份校验后，存储才允许对 superseded start 首写不可变
+Temporal Run ID；之后取消和 cleanup 继续使用该精确绑定。recovery 失败或身份未知时仍保持 pending，
+不得用 latest Run ID 补写绑定。
+
+`runtime.agent_run_cleanups` 与新 run 在同一事务创建，记录 pending、leased、confirmed、租约、
+尝试次数、下次尝试时间和有界错误码。它只表达两个载荷所有者是否都已完成幂等删除，不决定 run
+业务终态。只有本地 run 已终态，且 start command 满足以下条件之一，记录才可确认：dispatch fence
+能证明没有发起 RPC；`confirmed` 启动命令已绑定精确 Temporal Run ID；已 dispatch 的
+`superseded` 启动命令已首写不可变绑定精确 Temporal Run ID。后两种还要求该 execution 与同
+Workflow ID 的 latest execution 都通过 Memo 身份校验，明确提供没有 reset evidence 的 reset state，
+并且 Run ID 与 `first_run_id` 都等于持久绑定的 root Run ID，再确认该同一 execution 已关闭。Temporal
+的 `first_run_id` chain 包含 Continue-As-New、Workflow Retry、Cron 和 Reset；相同
+`first_run_id` 不能证明 successor 仍属于产品 run。当前在线回答不支持 successor，因此不同 latest
+Run、非 root `first_run_id`、reset state 未知、`last_reset_time` 非空或 `reset_run_id` 非空都不满足
+清理条件。
+
+schema 安装会为升级前已有 run 补建 pending cleanup 行，但不会伪造缺失的 start identity。没有
+`agent_workflow_starts` 对应行的历史记录保持 pending，直到独立迁移从可信来源补齐证明；不能仅凭
+`agent_runs.status` 批量确认或删除。
 
 ### Step、Attempt 与 Result
 
@@ -39,16 +81,54 @@ retry/cancel/timeout outcome、可公开的 provider/model 标识及 input/outpu
 `Usage.requests`，后者区分供应商明确上报为零与没有取得 usage。模型费用由 Langfuse 计算，
 不属于 PostgreSQL 持久投影字段。
 
-result 投影包含 status、result kind/ref、拒绝原因和有界 metadata。SDK 内部 handoff
-或 function call 不得由此形成第二套 workflow graph。
+result 投影包含 status、result kind/ref、拒绝原因和有界 metadata。SDK function call 不得由此
+形成第二套 workflow graph。
+
+StepResult 以 `result_id` 首次写入为准；全部字段与规范 JSON payload 相同的重放返回原记录，
+任一字段或 payload 不同都冲突且不能覆盖。内存与 PostgreSQL 存储在写入前都先锁定所属 run，
+与 run 终态投影保持相同锁顺序。活动 run 可以写入；run 进入终态后默认连相同重放也拒绝。
+唯一例外是产品 Finalization 已将 run 置为 `completed` 后的非关键记忆追加：只有
+`(memory.append, memory_conversation_append_result)` 这组 `step_id`、`result_kind` 可以首次写入或
+相同重放，仍不得覆盖已有结果。`failed`、`canceled`、`expired` 不适用该例外，Agent、知识查询和
+Finalization result 也不得在终态后补写。该例外不放宽受保护 Activity payload 的终态写入限制。
+
+### 受保护 Activity Payload
+
+Primary Agent provider invocation envelope、Primary Agent 完整结果和本轮完整 grounding context
+只进入 `runtime.agent_protected_payloads`，不进入普通 run、event、step、result 投影或 Temporal
+history。`personal_memory_recall` 的完整返回值作为 Agent 完整结果的一部分受保护，不建立独立 recall
+payload kind。
+
+存储值使用 AES-256-GCM envelope；envelope 固化 `version`、`key_id`、`nonce`、`ciphertext` 与
+明文 SHA-256，认证附加数据绑定 run、payload ref、kind、envelope version 和 key id。
+
+加密 keyring 是 execution-control 独立的轮换单元，不得从
+`APP_API_EXECUTION_INPUT_SHARED_SECRET`、`APP_API_EXECUTION_SHARED_SECRET` 或 Provider Config
+keyring 派生。写入只使用 keyring 声明的 active key；读取严格按 envelope 的 `key_id` 选择已配置
+历史 key。未知 key、缺失 keyring 或认证失败必须失败关闭，不能尝试当前 key 或认证 Secret。
+同一 run/ref/kind 的记录不可覆盖：相同明文 hash 的写入幂等返回原记录，不同 hash 冲突。存储层只
+允许 active run 写入，并与终态投影共用 run 行锁或内存临界区；因此 late Activity 不能在业务终态或
+cleanup 后重建载荷。业务终态后，这些记录只由上述 cleanup 发件箱按 run 批量删除；普通终态
+Activity 不拥有删除权。
+
+`grounding_context.v2` 绑定 run、完整 admission snapshot hash、冻结 grounding plan hash 和查询
+hash，并使用稳定 `grounding_context_ref`。检索路径的 `PrepareGroundingContextActivity` 在
+embedding 或 Qdrant 调用前先读取该记录；完整匹配时返回原 context 并修复有界投影，明确
+不存在时才可首次外呼。`none` 路径不执行该 Activity，由 Primary Agent Activity 在供应商调用前
+首次写入 `not_required` context。基础设施读取错误不能伪装成不存在；身份、摘要或规范化内容冲突
+也不能覆盖首写记录，必须失败关闭。
+
+个人记忆召回不单独建立外部调用 receipt。Primary Agent invocation receipt 绑定整个 SDK run 的
+精确请求和受保护 Agent 结果，防止 Activity 重投递再次执行模型或 `personal_memory_recall`。普通
+SDK tool 投影只保存工具身份、参数摘要、`outcome`、结果 hash/ref 和真实工具耗时，不保存
+`memory_text`。
 
 ## Agent Activity 投影
 
 Agent Activity 代表一次完整的 OpenAI Agents SDK run。其有界 metadata 可以包含：
 
-- primary/last-agent 标识；
-- 可用和已选的模型可见工具；
-- Knowledge Agent handoff 是否发生；
+- Primary Agent 标识；
+- 可用的模型可见工具；
 - SDK function-tool 调用摘要；
 - provider response id 与 model/provider 标识；
 - input、output 与 cached token 数量、模型请求数与 usage 是否已观测；
@@ -56,30 +136,60 @@ Agent Activity 代表一次完整的 OpenAI Agents SDK run。其有界 metadata 
 
 正式投影不存储 SDK state、raw message 或 raw function payload。
 
+Primary Agent 在供应商调用前先持久化 canonical provider invocation envelope。envelope 的规范 JSON
+SHA-256 是 invocation receipt 的 `InputSHA256`，绑定 run、invocation、Activity attempt、完整
+Activity input SHA、execution input SHA、完整 admission snapshot 及其 SHA、`tool_choice`、模型可见
+工具、最终模型上下文 SHA，以及实际发送给 agent-runtime 的 HTTP body SHA。HTTP 调用必须发送计算
+request SHA 时的同一份编码 bytes，不能在
+计算摘要后重新编码。重放必须加载并校验该 envelope；缺失、损坏或与当前输入不一致时失败关闭。
+
 运行级 Agent 模型用量只聚合 `step_id = 'agent.primary'` 的去重 attempt。每个已观测 attempt
 计算一次，重试已产生的用量不丢弃。`total_tokens` 按 input 与 output 相加，cached input 是 input
 子集，不重复计入总数。失败但已取得 SDK 结果的 attempt 仍保存 usage；调用前失败、网络中断或 SDK
 抛错且无法取得 usage 时保存 `usage_observed = false`，不用零伪装成真实用量。
 
-## 知识搜索投影
+invocation receipt 在供应商调用前持久化调用身份、上述 envelope fingerprint 和开始状态。完整
+receipt 只保存结果 ref、受保护结果 hash、结果 schema 和 receipt summary hash；受保护 Agent 结果
+同时保存 `provider_invocation_sha256` 与 `result_schema_version`，completed `agent.primary` StepResult
+再保存 `protected_result_sha256` 与 `protected_result_schema_version`。重放必须逐层核对 receipt、受保护
+结果和 StepResult 的 ref/schema/hash 及完整有界 payload，不能只相信任一单层记录。provider/model 与
+有界用量摘要保存在受保护结果及正式投影中，不在 receipt summary 内。“已开始但没有完整结果”只能
+投影为 `agent_attempt_uncertain`，不能重新调用供应商。receipt 不保存 prompt、对话、工具原始参数或
+供应商完整响应。
 
-每次内部 `knowledge_search` 调用都关联 run 与 SDK invocation id。有界投影包含：
+## Grounding 投影
 
-- 已准入的查询结构和 hash；
-- 已解析目标、历史模式和搜索序号；
-- 找到或无依据结果；
-- 有界依据引用与来源标识；
-- 结果引用、延迟和失败关闭原因。
+每个 run 有一份不可变 `grounding_context.v2`。`single_scope` 和 `multi_scope` 路径最多有一个
+`grounding.prepare` step；`none` 路径不创建该 step。检索路径的普通 StepResult 只保存 context ref、
+protected payload hash、路由与覆盖状态、候选数、证据数、token 数、准入与计划 hash、查询 hash 和
+四个 grounding 子阶段耗时；完整证据及正文只存在于受保护载荷。
 
-原始 query vector、Qdrant payload、provider response 和无限制 snippet 一律禁止。
+grounding 不派生 SDK tool call，不携带 `tool_name` 或 `eval_safe_args`。原始 query vector、Qdrant
+响应、Provider 凭据和正文不得进入普通投影。
 
 ## Finalization 投影
 
-Finalization 保存 SDK 终态答案和确定性校验结果。有证据支持时，还会保存从可信
-`knowledge_search` evidence 派生的浏览器可用 source。
+Finalization 保存 SDK 终态答案和确定性校验结果。有证据支持时，还会保存从本轮受保护 grounding
+中已引用 evidence 派生的浏览器可用 source。
 
 Finalization 可以拒绝格式错误或不受支持的 output，但不会创建或改写答案。app-api 可以在
-保留答案原文的前提下，把已验证 source 转换为产品 source-item 结构。
+保留答案原文的前提下，把已验证 source 转换为产品 source-item 结构。相同 fingerprint 的完成
+可以幂等重放；不同 fingerprint 与已提交的产品终态冲突，execution-control 不得用较晚结果覆盖。
+
+Finalization 读取 Agent 结果前必须验证 completed invocation receipt、receipt summary、受保护结果和
+completed `agent.primary` StepResult 的完整信任链。`finalization.write` 的 completed StepResult 保存
+由 agent result ref、最终响应、request/trace 生成的 `finalization_fingerprint_sha256`。
+`FinalizeRunProjection` 是该终态的唯一提交点：它在同一内存临界区或持有 PostgreSQL run-row lock 的
+单个事务中，校验并提交 completed `finalization.write` Step、Attempt、Result 与 completed run 四元组，
+同时释放 conversation active-run lock。已经存在的 pending 或 leased cancellation 在同一 CAS 中改为
+`confirmed` 并记录 `completion_won`；若取消终态先提交，则整个 Finalization 拒绝或回滚。任何消费者都
+不得再把独立 Result 写入与 run completion 拼成两阶段终态。
+
+已完成 run 的 Finalization 重放是只读一致性校验：请求的 `CompletedAt`、`TerminalReason`、
+`FinalResponseRef` 和 fingerprint 必须与 completed run 一致，且存储中必须存在唯一、
+内部引用和 schema 都有效的 canonical Step/Attempt/Result。校验成功只返回原 canonical 四元组，不采用
+较晚 candidate 的 ID、时间或 payload，不补写或修改任何 canonical 记录；后续 `run.completed` 事件在
+CAS 之外单独幂等补充。
 
 ## 终态与失败数据
 
@@ -97,6 +207,10 @@ run 或阶段结果。
 - auth token、cookie 或 credential；
 - 原始 source body、Qdrant point 或 object-store bytes；
 - 本地文件路径。
+
+完整 `tool_execution_v5` 输入由 app-api 以精确 UTF-8 文本拥有，execution-control 只持久化
+`execution_input_ref` 和 `execution_input_sha256`；ref 指向的数据也不得
+复制到 Temporal history 或上述投影。
 
 ## 消费
 

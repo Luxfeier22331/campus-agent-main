@@ -15,7 +15,7 @@ import (
 func TestFinalizeExecutionFailureActivityClosesProductRunAndReleasesConversation(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	now := time.Date(2026, 7, 16, 5, 0, 0, 0, time.UTC)
-	createHTTPAPIQueuedDurableRunForTest(t, store, "run-recall-failed", "conv-recall-failed", now, nil)
+	createHTTPAPIQueuedDurableRunForTest(t, store, "run-agent-failed", "conv-agent-failed", now, nil)
 	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
 	callbackCount := 0
@@ -25,36 +25,36 @@ func TestFinalizeExecutionFailureActivityClosesProductRunAndReleasesConversation
 		productResponse = response
 		return nil
 	}
-	run, err := store.GetRun(context.Background(), "run-recall-failed")
+	run, err := store.GetRun(context.Background(), "run-agent-failed")
 	if err != nil {
-		t.Fatalf("load run before recall attempts: %v", err)
+		t.Fatalf("load run before agent attempts: %v", err)
 	}
-	for attempt, marker := range []string{"recall-attempt-1", "recall-attempt-2"} {
+	for attempt, marker := range []string{"agent-attempt-1", "agent-attempt-2"} {
 		if err := server.projectTemporalStep(context.Background(), temporalStepProjection{
 			ActivityAttempt: attempt + 1,
 			ActivityID:      marker,
-			ActivityType:    temporalruntime.MemoryRecallActivityName,
+			ActivityType:    temporalruntime.ExecutePrimaryAgentActivityName,
 			Attempt:         attempt + 1,
 			CompletedAt:     now.Add(time.Duration(attempt+1) * time.Second),
 			Payload:         map[string]any{"attempt_marker": marker},
 			Run:             run,
 			StartedAt:       now,
 			Status:          "failed",
-			StepID:          "memory.recall",
-			StepKind:        "memory",
-			TaskQueue:       temporalruntime.ActivityTaskQueueCore,
+			StepID:          "agent.primary",
+			StepKind:        "agent",
+			TaskQueue:       temporalruntime.ActivityTaskQueueAgent,
 			UpdatedAt:       now.Add(time.Duration(attempt+1) * time.Second),
 		}); err != nil {
-			t.Fatalf("seed recall attempt %d: %v", attempt+1, err)
+			t.Fatalf("seed agent attempt %d: %v", attempt+1, err)
 		}
 	}
 
 	output, err := server.FinalizeExecutionFailureActivity(context.Background(), temporalruntime.FinalizeExecutionFailureActivityInput{
 		FailureHash: strings.Repeat("a", 64),
-		FailureKind: "memory_recall_failed",
+		FailureKind: "agent_runtime_failed",
 		FailedAt:    now.Add(3 * time.Second),
-		RunID:       "run-recall-failed",
-		Stage:       "memory.recall",
+		RunID:       "run-agent-failed",
+		Stage:       "agent.primary",
 		TraceID:     "trace-executor-001",
 	})
 	if err != nil {
@@ -63,12 +63,12 @@ func TestFinalizeExecutionFailureActivityClosesProductRunAndReleasesConversation
 	if output.Status != string(execution.DurableRunStatusFailed) {
 		t.Fatalf("finalization output = %#v", output)
 	}
-	run, err = store.GetRun(context.Background(), "run-recall-failed")
+	run, err = store.GetRun(context.Background(), "run-agent-failed")
 	if err != nil || run.Status != execution.DurableRunStatusFailed {
 		t.Fatalf("failed run = %#v err=%v", run, err)
 	}
 	errorBody, ok := productResponse["error"].(map[string]any)
-	if !ok || errorBody["message"] != "Personal memory could not be loaded for this request." {
+	if !ok || errorBody["message"] != "The answer provider is temporarily unavailable." {
 		t.Fatalf("product error = %#v", productResponse)
 	}
 	encoded, err := json.Marshal(productResponse)
@@ -81,10 +81,10 @@ func TestFinalizeExecutionFailureActivityClosesProductRunAndReleasesConversation
 
 	replay, err := server.FinalizeExecutionFailureActivity(context.Background(), temporalruntime.FinalizeExecutionFailureActivityInput{
 		FailureHash: strings.Repeat("a", 64),
-		FailureKind: "memory_recall_failed",
+		FailureKind: "agent_runtime_failed",
 		FailedAt:    now.Add(3 * time.Second),
-		RunID:       "run-recall-failed",
-		Stage:       "memory.recall",
+		RunID:       "run-agent-failed",
+		Stage:       "agent.primary",
 		TraceID:     "trace-executor-001",
 	})
 	if err != nil || replay.Status != string(execution.DurableRunStatusFailed) {
@@ -97,30 +97,30 @@ func TestFinalizeExecutionFailureActivityClosesProductRunAndReleasesConversation
 		context.Background(),
 		temporalruntime.FinalizeExecutionFailureActivityInput{
 			FailureHash: strings.Repeat("b", 64),
-			FailureKind: "memory_recall_failed",
+			FailureKind: "agent_runtime_failed",
 			FailedAt:    now.Add(3 * time.Second),
-			RunID:       "run-recall-failed",
-			Stage:       "memory.recall",
+			RunID:       "run-agent-failed",
+			Stage:       "agent.primary",
 			TraceID:     "trace-executor-001",
 		},
 	)
 	assertTemporalFailureSanitized(t, conflictErr, "execution_failure_terminal_conflict", true)
-	attempts, err := store.ListStepAttempts(context.Background(), "run-recall-failed")
+	attempts, err := store.ListStepAttempts(context.Background(), "run-agent-failed")
 	if err != nil {
-		t.Fatalf("list recall attempts after finalizer: %v", err)
+		t.Fatalf("list agent attempts after finalizer: %v", err)
 	}
 	if len(attempts) != 2 {
-		t.Fatalf("recall attempts = %#v, want two preserved attempts", attempts)
+		t.Fatalf("agent attempts = %#v, want two preserved attempts", attempts)
 	}
 	for _, attempt := range attempts {
-		marker := []string{"recall-attempt-1", "recall-attempt-2"}[attempt.Attempt-1]
-		if attempt.ActivityType != temporalruntime.MemoryRecallActivityName ||
+		marker := []string{"agent-attempt-1", "agent-attempt-2"}[attempt.Attempt-1]
+		if attempt.ActivityType != temporalruntime.ExecutePrimaryAgentActivityName ||
 			attempt.SanitizedPayload["attempt_marker"] != marker {
-			t.Fatalf("recall attempt %d was overwritten by finalizer: %#v", attempt.Attempt, attempt)
+			t.Fatalf("agent attempt %d was overwritten by finalizer: %#v", attempt.Attempt, attempt)
 		}
 	}
 
-	createHTTPAPIQueuedDurableRunForTest(t, store, "run-after-recall-failure", "conv-recall-failed", now.Add(time.Minute), nil)
+	createHTTPAPIQueuedDurableRunForTest(t, store, "run-after-agent-failure", "conv-agent-failed", now.Add(time.Minute), nil)
 }
 
 func TestFinalizeExecutionFailureActivityOwnsAllPreAnswerFailureStages(t *testing.T) {
@@ -182,6 +182,16 @@ func TestFinalizeExecutionFailureActivityOwnsAllPreAnswerFailureStages(t *testin
 				t.Fatalf("terminal events = %#v, want exactly one run.failed", events)
 			}
 		})
+	}
+}
+
+func TestTemporalFailureProjectionRejectsRetiredMemoryRecallStage(t *testing.T) {
+	_, ok := temporalFailureProjectionForStage(temporalruntime.FinalizeExecutionFailureActivityInput{
+		RunID: "run-retired-memory-recall",
+		Stage: "memory.recall",
+	})
+	if ok {
+		t.Fatal("retired memory.recall workflow stage must not be accepted")
 	}
 }
 

@@ -3,7 +3,6 @@ import { parse, stringify } from "smol-toml";
 
 export interface AppApiStagingResources {
 	hyperdriveId: string;
-	freshHyperdriveId: string;
 	objectStoreVpcServiceId: string;
 	vpcServiceId: string;
 }
@@ -73,12 +72,6 @@ export function buildAppApiStagingUploadConfig(
 		"APP_API_DB",
 		"id",
 		requireHyperdriveConfigurationId("APP_API_DB_HYPERDRIVE_ID", resources.hyperdriveId),
-	);
-	replaceBinding(
-		staging.hyperdrive,
-		"APP_API_DB_FRESH",
-		"id",
-		requireHyperdriveConfigurationId("APP_API_DB_FRESH_HYPERDRIVE_ID", resources.freshHyperdriveId),
 	);
 	config.main = resolve(appDir, "src/index.ts");
 	return stringify(config);

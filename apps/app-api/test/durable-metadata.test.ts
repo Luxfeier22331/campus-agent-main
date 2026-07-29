@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { ToolExecutionInput } from "../src/modules/integration";
-import { buildToolExecutionRunMetadata } from "../src/modules/runtime-command/service/durable-metadata";
+import {
+	freezeToolExecutionRunInput,
+	MAX_EXECUTION_INPUT_BYTES,
+	sha256Text,
+} from "../src/modules/runtime-command/service/durable-metadata";
 
 function executionInput(overrides: Partial<ToolExecutionInput> = {}): ToolExecutionInput {
 	return {
@@ -45,22 +49,24 @@ function executionInput(overrides: Partial<ToolExecutionInput> = {}): ToolExecut
 }
 
 describe("durable run metadata", () => {
-	it("forwards an explicit requested tool without local preplanning", () => {
-		const metadata = buildToolExecutionRunMetadata(
-			executionInput({ requestedTool: "transport_schedule_lookup" }),
-		);
+	it("freezes the user goal without local tool routing hints", () => {
+		const frozen = freezeToolExecutionRunInput(executionInput(), "run-001");
 
-		const payload = metadata.execution_payload as Record<string, unknown>;
+		const payload = JSON.parse(frozen.executionInputJson) as Record<string, unknown>;
 
-		expect(payload.requested_tool).toBe("transport_schedule_lookup");
+		expect(payload).not.toHaveProperty("requested_tool");
 		expect(payload.tenant_id).toBe("tenant-main");
-		expect(Object.keys(metadata)).toEqual(["execution_payload"]);
+		expect(frozen.executionInputSha256).toBe(sha256Text(frozen.executionInputJson));
+		expect(frozen.metadata).toEqual({
+			execution_contract_version: "tool_execution_v5",
+			execution_input_ref: "app-api://execution-inputs/run-001",
+			execution_input_sha256: frozen.executionInputSha256,
+		});
 		expect(Object.keys(payload).sort()).toEqual([
 			"context",
 			"conversation_id",
 			"execution_contract_version",
 			"request_id",
-			"requested_tool",
 			"response_contract",
 			"safety_identifier",
 			"tenant_id",
@@ -69,26 +75,8 @@ describe("durable run metadata", () => {
 		]);
 	});
 
-	it("serializes a trusted knowledge eval tool without retrieval targets", () => {
-		const metadata = buildToolExecutionRunMetadata(
-			executionInput({ requestedTool: "knowledge_query" }),
-		);
-
-		const payload = metadata.execution_payload as Record<string, unknown>;
-		expect(payload.requested_tool).toBe("knowledge_query");
-		expect(payload).not.toHaveProperty("scope");
-	});
-
-	it("does not apply tool admission while serializing metadata", () => {
-		for (const requestedTool of ["unpublished_tool", "unsupported_tool"]) {
-			const metadata = buildToolExecutionRunMetadata(executionInput({ requestedTool }));
-			const payload = metadata.execution_payload as Record<string, unknown>;
-			expect(payload.requested_tool).toBe(requestedTool);
-		}
-	});
-
 	it("projects selected notice context as an explicit session reference", () => {
-		const metadata = buildToolExecutionRunMetadata(
+		const frozen = freezeToolExecutionRunInput(
 			executionInput({
 				context: {
 					...executionInput().context,
@@ -103,11 +91,11 @@ describe("durable run metadata", () => {
 						turnCount: 3,
 					},
 				},
-				requestedTool: "transport_schedule_lookup",
 			}),
+			"run-001",
 		);
 
-		const payload = metadata.execution_payload as Record<string, unknown>;
+		const payload = JSON.parse(frozen.executionInputJson) as Record<string, unknown>;
 		expect(payload.context).toMatchObject({
 			session: {
 				selected_notice_ref: {
@@ -119,5 +107,14 @@ describe("durable run metadata", () => {
 				turn_count: 3,
 			},
 		});
+	});
+
+	it("rejects execution input larger than one MiB before admission is frozen", () => {
+		expect(() =>
+			freezeToolExecutionRunInput(
+				executionInput({ userGoal: "x".repeat(MAX_EXECUTION_INPUT_BYTES) }),
+				"run-oversized",
+			),
+		).toThrow("exceeds the 1048576-byte limit");
 	});
 });

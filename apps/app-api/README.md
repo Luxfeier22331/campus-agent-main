@@ -30,8 +30,8 @@ app-api 拥有认证、聊天、请求观测、用户资料和个人记忆产品
 - `docs/data/app-api/runtime.md`
 - `docs/data/postgres-ownership.md`
 
-`APP_API_DB` 与 `APP_API_DB_FRESH` 是指向同一共享 PostgreSQL 的两条 Hyperdrive 通道，不是
-两个逻辑数据库。只有数据所有者文档明确允许的路径才能使用写后立即读通道。
+`APP_API_DB` 是 app-api 唯一的 Hyperdrive 通道。部署配置关闭 Hyperdrive query cache，保留
+连接池能力，所有产品读写都通过同一数据库绑定完成。
 
 学生食堂接口只读取已发布的 `dining.map_releases` 和 `dining.map_publication`，并从统一
 derived bucket 读取按摘要命名的地图资源。staging 和 production 通过 `OBJECT_STORE_PRIVATE`

@@ -7,19 +7,81 @@ import (
 )
 
 type ToolExecutionWorkflowInput struct {
-	ConversationID               string            `json:"conversation_id"`
-	Namespace                    string            `json:"namespace"`
-	PayloadSHA256                string            `json:"payload_sha256"`
-	PolicyVersions               map[string]string `json:"policy_versions"`
-	PersonalMemoryTimeoutSeconds float64           `json:"personal_memory_timeout_seconds"`
-	RequestID                    string            `json:"request_id"`
-	RequestedTool                string            `json:"requested_tool"`
-	RunID                        string            `json:"run_id"`
-	TaskQueue                    string            `json:"task_queue"`
-	TraceID                      string            `json:"trace_id"`
-	TurnID                       string            `json:"turn_id"`
-	VisibleToolNames             []string          `json:"visible_tool_names"`
-	WorkflowID                   string            `json:"workflow_id"`
+	AdmissionSnapshot            AgentAdmissionSnapshot `json:"admission_snapshot"`
+	AdmissionSnapshotSHA256      string                 `json:"admission_snapshot_sha256"`
+	ConversationID               string                 `json:"conversation_id"`
+	GroundingContextRef          string                 `json:"grounding_context_ref"`
+	Namespace                    string                 `json:"namespace"`
+	PayloadSHA256                string                 `json:"payload_sha256"`
+	PolicyVersions               map[string]string      `json:"policy_versions"`
+	PersonalMemoryTimeoutSeconds float64                `json:"personal_memory_timeout_seconds"`
+	RequestID                    string                 `json:"request_id"`
+	RunID                        string                 `json:"run_id"`
+	TaskQueue                    string                 `json:"task_queue"`
+	TraceID                      string                 `json:"trace_id"`
+	TraceParent                  string                 `json:"traceparent,omitempty"`
+	TurnID                       string                 `json:"turn_id"`
+	WorkflowID                   string                 `json:"workflow_id"`
+}
+
+// AgentAdmissionSnapshot contains only bounded, non-secret execution policy
+// inputs. Provider credentials and model responses are deliberately excluded.
+type AgentAdmissionSnapshot struct {
+	AgentLimits                   AgentRuntimeLimitsSnapshot `json:"agent_limits"`
+	AgentLimitsSHA256             string                     `json:"agent_limits_sha256"`
+	EmbeddingProviderConfigSHA256 string                     `json:"embedding_provider_config_sha256"`
+	DocumentScopes                []DocumentScope            `json:"document_scopes"`
+	DocumentScopesSHA256          string                     `json:"document_scopes_sha256"`
+	ExecutionStrategy             ExecutionStrategySnapshot  `json:"execution_strategy"`
+	ExecutionStrategySHA256       string                     `json:"execution_strategy_sha256"`
+	GroundingPlan                 GroundingPlanSnapshot      `json:"grounding_plan"`
+	GroundingPlanSHA256           string                     `json:"grounding_plan_sha256"`
+	// ProviderConfigSHA256 fingerprints the active LLM setting used by the
+	// Primary Agent. It excludes credentials and storage identifiers.
+	ProviderConfigSHA256         string                         `json:"provider_config_sha256"`
+	ToolRuntimeFingerprint       ToolRuntimeFingerprintSnapshot `json:"tool_runtime_fingerprint"`
+	ToolRuntimeFingerprintSHA256 string                         `json:"tool_runtime_fingerprint_sha256"`
+}
+
+type GroundingPlanSnapshot struct {
+	Mode           string   `json:"mode"`
+	QuerySHA256    string   `json:"query_sha256"`
+	SchemaVersion  string   `json:"schema_version"`
+	SelectedScopes []string `json:"selected_scopes"`
+}
+
+type ExecutionStrategySnapshot struct {
+	AllowUngroundedAnswer bool     `json:"allow_ungrounded_answer"`
+	Kind                  string   `json:"kind"`
+	MaxModelTurns         int      `json:"max_model_turns"`
+	MaxToolCalls          int      `json:"max_tool_calls"`
+	MemoryRecall          string   `json:"memory_recall"`
+	SchemaVersion         string   `json:"schema_version"`
+	VisibleToolNames      []string `json:"visible_tool_names"`
+}
+
+// ToolRuntimeFingerprintSnapshot binds an admitted run to the exact tool
+// registry, function schemas, and workflow artifacts expected from
+// agent-runtime. It contains no credentials or model data.
+type ToolRuntimeFingerprintSnapshot struct {
+	CombinedSHA256                  string `json:"combined_sha256"`
+	FunctionSchemaSHA256            string `json:"function_schema_sha256"`
+	FunctionSchemaVersion           string `json:"function_schema_version"`
+	SchemaVersion                   string `json:"schema_version"`
+	ToolsRegistryVersion            string `json:"tools_registry_version"`
+	ToolsSchemaVersion              string `json:"tools_schema_version"`
+	ToolsSHA256                     string `json:"tools_sha256"`
+	WorkflowArtifactRegistryVersion string `json:"workflow_artifact_registry_version"`
+	WorkflowArtifactSchemaVersion   string `json:"workflow_artifact_schema_version"`
+	WorkflowArtifactSHA256          string `json:"workflow_artifact_sha256"`
+	RuntimeRelease                  string `json:"runtime_release"`
+}
+
+type AgentRuntimeLimitsSnapshot struct {
+	AgentDeadlineMS       int `json:"agent_deadline_ms"`
+	ContextCharLimit      int `json:"context_char_limit"`
+	CurrentInputCharLimit int `json:"current_input_char_limit"`
+	MaxOutputTokens       int `json:"max_output_tokens"`
 }
 
 type ToolExecutionWorkflowResult struct {
@@ -29,32 +91,10 @@ type ToolExecutionWorkflowResult struct {
 	Status        string    `json:"status"`
 }
 
-type MemoryRecallActivityInput struct {
-	RequestID     string `json:"request_id"`
-	RequestedTool string `json:"requested_tool"`
-	RunID         string `json:"run_id"`
-	TraceID       string `json:"trace_id"`
-}
-
-type MemoryRecallActivityOutput struct {
-	ContextBlock        string   `json:"context_block,omitempty"`
-	MemoryRef           string   `json:"memory_ref"`
-	Provider            string   `json:"provider,omitempty"`
-	RetrievalMode       string   `json:"retrieval_mode,omitempty"`
-	RunID               string   `json:"run_id"`
-	SchemaVersion       string   `json:"schema_version,omitempty"`
-	SelectedMemoryChars int      `json:"selected_memory_chars"`
-	SelectedMemoryCount int      `json:"selected_memory_count"`
-	SkipReasons         []string `json:"skip_reasons"`
-	SkippedCount        int      `json:"skipped_count"`
-	Status              string   `json:"status"`
-}
-
 type AppendConversationMemoryActivityInput struct {
-	RequestID     string `json:"request_id"`
-	RequestedTool string `json:"requested_tool"`
-	RunID         string `json:"run_id"`
-	TraceID       string `json:"trace_id"`
+	RequestID string `json:"request_id"`
+	RunID     string `json:"run_id"`
+	TraceID   string `json:"trace_id"`
 }
 
 type AppendConversationMemoryActivityOutput struct {
@@ -68,80 +108,76 @@ type AppendConversationMemoryActivityOutput struct {
 	ThreadID             string   `json:"thread_id,omitempty"`
 }
 
-type MemoryReflectActivityInput struct {
-	Context        string            `json:"context,omitempty"`
-	IncludeBasedOn bool              `json:"include_based_on"`
-	Query          string            `json:"query"`
-	RequestID      string            `json:"request_id"`
-	RunID          string            `json:"run_id"`
-	SessionSlots   map[string]string `json:"session_slots,omitempty"`
-	TraceID        string            `json:"trace_id"`
-}
-
-type MemoryReflectActivityOutput struct {
-	BasedOnMemoryItems []MemoryReflectContextItem `json:"based_on_memory_context_items,omitempty"`
-	PayloadSHA256      string                     `json:"payload_sha256"`
-	Provider           string                     `json:"provider,omitempty"`
-	ReflectRef         string                     `json:"reflect_ref"`
-	RunID              string                     `json:"run_id"`
-	SchemaVersion      string                     `json:"schema_version"`
-	Status             string                     `json:"status"`
-	StructuredOutput   map[string]any             `json:"structured_output,omitempty"`
-	Text               string                     `json:"text,omitempty"`
-	ThreadID           string                     `json:"thread_id,omitempty"`
-	Usage              MemoryReflectTokenUsage    `json:"usage,omitempty"`
-}
-
-type MemoryReflectContextItem struct {
-	Tool        string  `json:"tool"`
-	CompactText string  `json:"compact_text"`
-	MemoryID    string  `json:"memory_id"`
-	MemoryType  string  `json:"memory_type"`
-	Score       float64 `json:"score,omitempty"`
-	UpdatedAt   string  `json:"updated_at"`
-}
-
-type MemoryReflectTokenUsage struct {
-	CachedTokens int `json:"cached_tokens,omitempty"`
-	InputTokens  int `json:"input_tokens,omitempty"`
-	OutputTokens int `json:"output_tokens,omitempty"`
-	TotalTokens  int `json:"total_tokens,omitempty"`
-}
-
 type ExecutePrimaryAgentActivityInput struct {
-	ConversationID       string            `json:"conversation_id"`
-	KnowledgeTargets     []KnowledgeTarget `json:"knowledge_targets,omitempty"`
-	MemoryContext        *MemoryContext    `json:"memory_context,omitempty"`
-	MemoryProjectionRefs []string          `json:"memory_projection_refs"`
-	RequestID            string            `json:"request_id"`
-	RequestedTool        string            `json:"requested_tool"`
-	ToolChoice           string            `json:"tool_choice,omitempty"`
-	RunID                string            `json:"run_id"`
-	TraceID              string            `json:"trace_id"`
-	TurnID               string            `json:"turn_id"`
-	VisibleToolNames     []string          `json:"visible_tool_names"`
+	AdmissionSnapshot   AgentAdmissionSnapshot `json:"admission_snapshot"`
+	ConversationID      string                 `json:"conversation_id"`
+	GroundingContextRef string                 `json:"grounding_context_ref"`
+	RequestID           string                 `json:"request_id"`
+	RunID               string                 `json:"run_id"`
+	TraceID             string                 `json:"trace_id"`
+	TurnID              string                 `json:"turn_id"`
+	VisibleToolNames    []string               `json:"visible_tool_names"`
 }
 
-type KnowledgeTarget struct {
-	Description string `json:"description"`
-	Target      string `json:"target"`
+type PrepareGroundingContextActivityInput struct {
+	AdmissionSnapshot       AgentAdmissionSnapshot `json:"admission_snapshot"`
+	AdmissionSnapshotSHA256 string                 `json:"admission_snapshot_sha256"`
+	RunID                   string                 `json:"run_id"`
+	TraceID                 string                 `json:"trace_id"`
 }
 
-type MemoryContext struct {
-	ContextBlock        string `json:"context_block"`
-	MemoryRef           string `json:"memory_ref"`
-	Provider            string `json:"provider,omitempty"`
-	RetrievalMode       string `json:"retrieval_mode,omitempty"`
-	SchemaVersion       string `json:"schema_version"`
-	SelectedMemoryChars int    `json:"selected_memory_chars"`
-	SelectedMemoryCount int    `json:"selected_memory_count"`
+type PrepareGroundingContextActivityOutput struct {
+	CoveredScopes       []string `json:"covered_scopes"`
+	EvidenceCount       int      `json:"evidence_count"`
+	GroundingContextRef string   `json:"grounding_context_ref"`
+	Mode                string   `json:"mode"`
+	ModelContextChars   int      `json:"model_context_chars"`
+	PayloadSHA256       string   `json:"payload_sha256"`
+	RunID               string   `json:"run_id"`
+	SelectedScopes      []string `json:"selected_scopes"`
+	Status              string   `json:"status"`
+	TokenCount          int      `json:"token_count"`
+}
+
+type DocumentScope struct {
+	Collection          string                         `json:"collection"`
+	Corpus              string                         `json:"corpus"`
+	CandidateTopK       int                            `json:"candidate_top_k"`
+	Description         string                         `json:"description"`
+	MaxEvidenceSections int                            `json:"max_evidence_sections"`
+	QdrantCollection    string                         `json:"qdrant_collection"`
+	ReleaseID           string                         `json:"release_id"`
+	ServingConfig       KnowledgeServingConfigSnapshot `json:"serving_config"`
+	ServingConfigPath   string                         `json:"serving_config_path"`
+	ServingConfigSHA256 string                         `json:"serving_config_sha256"`
+	Scope               string                         `json:"scope"`
+}
+
+type KnowledgeServingConfigSnapshot struct {
+	Collection                string   `json:"collection"`
+	Corpus                    string   `json:"corpus"`
+	DensePrefetchLimit        int      `json:"dense_prefetch_limit"`
+	DenseVectorName           string   `json:"dense_vector_name"`
+	EmbeddingQueryInstruction string   `json:"embedding_query_instruction"`
+	EmbeddingDimensions       int      `json:"embedding_dimensions"`
+	EmbeddingModel            string   `json:"embedding_model"`
+	EmbeddingProvider         string   `json:"embedding_provider"`
+	EmbeddingVectorName       string   `json:"embedding_vector_name"`
+	RetrievalEnabled          bool     `json:"retrieval_enabled"`
+	ServingRevisionTracks     []string `json:"serving_revision_tracks"`
+	ServingStage              string   `json:"serving_stage"`
+	ServingVisibilityLevels   []string `json:"serving_visibility_levels"`
+	ServingVisibilityScopes   []string `json:"serving_visibility_scopes"`
+	SparsePrefetchLimit       int      `json:"sparse_prefetch_limit"`
+	SparseVectorName          string   `json:"sparse_vector_name"`
 }
 
 type AgentToolResult struct {
-	ArgumentsJSON   map[string]any `json:"arguments_json"`
+	ArgumentsJSON   map[string]any `json:"-"`
+	DurationMS      float64        `json:"duration_ms"`
 	FailCloseReason string         `json:"fail_close_reason"`
 	PayloadKind     string         `json:"payload_kind"`
-	Result          map[string]any `json:"result"`
+	Result          map[string]any `json:"-"`
 	ResultRef       string         `json:"result_ref"`
 	Status          string         `json:"status"`
 	ToolName        string         `json:"tool_name"`
@@ -149,19 +185,18 @@ type AgentToolResult struct {
 
 type ExecutePrimaryAgentActivityOutput struct {
 	AgentResultRef         string            `json:"agent_result_ref"`
-	FinalOutput            string            `json:"final_output"`
+	FinalOutput            string            `json:"-"`
 	ModelName              string            `json:"model_name"`
 	ModelProvider          string            `json:"model_provider"`
-	PromptTrace            map[string]any    `json:"prompt_trace,omitempty"`
+	PromptTrace            map[string]any    `json:"-"`
 	ProviderResponseID     string            `json:"provider_response_id"`
 	RunID                  string            `json:"run_id"`
-	SelectedTools          []string          `json:"selected_tools"`
 	StageTiming            map[string]any    `json:"stage_timing,omitempty"`
 	Status                 string            `json:"status"`
-	TerminalEnvelope       map[string]any    `json:"terminal_envelope,omitempty"`
+	TerminalEnvelope       map[string]any    `json:"-"`
 	TerminalReason         string            `json:"terminal_reason"`
-	ToolResults            []AgentToolResult `json:"tool_results"`
-	ToolRuntimeFingerprint map[string]any    `json:"tool_runtime_fingerprint,omitempty"`
+	ToolResults            []AgentToolResult `json:"-"`
+	ToolRuntimeFingerprint map[string]any    `json:"-"`
 	Usage                  AgentUsageSummary `json:"usage"`
 }
 
@@ -187,10 +222,23 @@ type WriteFinalizationActivityOutput struct {
 	Status        string    `json:"status"`
 }
 
+type FinalizeExecutionCancellationActivityOutput struct {
+	RunID  string `json:"run_id"`
+	Status string `json:"status"`
+}
+
+type FinalizeExecutionCancellationActivityInput struct {
+	CanceledAt time.Time `json:"canceled_at"`
+	Reason     string    `json:"reason"`
+	RunID      string    `json:"run_id"`
+	TraceID    string    `json:"trace_id"`
+}
+
 type ToolExecutionWorkflowCancelInput struct {
-	Reason     string `json:"reason"`
-	RunID      string `json:"run_id"`
-	WorkflowID string `json:"workflow_id"`
+	Reason        string `json:"reason"`
+	RunID         string `json:"run_id"`
+	TemporalRunID string `json:"temporal_run_id"`
+	WorkflowID    string `json:"workflow_id"`
 }
 
 type PersonalMemoryCommandWorkflowInput struct {

@@ -23,9 +23,14 @@ export function registerChatCommandServiceObservabilityTargetsSuite(): void {
 					answerText: "民族学本科人才培养方案总学分要求以培养方案正文为准。",
 					error: null,
 					followUpQuestion: "",
+					modelUsage: {
+						cachedInputTokens: 10,
+						inputTokens: 120,
+						outputTokens: 42,
+						totalTokens: 162,
+					},
 					observability: {
 						agentRuntime: "openai_agents_sdk",
-						selectedTools: ["knowledge_query"],
 						terminalReason: "answer",
 					},
 					result: {
@@ -39,9 +44,6 @@ export function registerChatCommandServiceObservabilityTargetsSuite(): void {
 							},
 						],
 					},
-					resolvedTargets: ["curriculum"],
-					selectedTool: "knowledge_query",
-					sessionUpdate: null,
 					status: "completed",
 					traceId: "trace_0001",
 				}),
@@ -57,19 +59,12 @@ export function registerChatCommandServiceObservabilityTargetsSuite(): void {
 		});
 
 		expect(acceptedWrites[0]).toMatchObject({
-			turnDispatch: {
-				resolvedTargets: [],
-			},
-			requestObservabilityFact: {
-				resolvedTargets: [],
-			},
+			turnDispatch: {},
+			requestObservabilityFact: {},
 		});
 		expect(finalWrites[0]).toMatchObject({
-			turnDispatch: {
-				resolvedTargets: ["curriculum"],
-			},
+			turnDispatch: {},
 			requestObservabilityFact: {
-				resolvedTargets: ["curriculum"],
 				supportingSources: [
 					{
 						canonicalUrl: "/docs/curriculum/curriculum_plan/ethnology",

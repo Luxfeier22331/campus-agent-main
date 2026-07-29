@@ -18,7 +18,6 @@ func TestBuildAgentRuntimeEvalProjectionIncludesToolTrajectory(t *testing.T) {
 			RequestID:      "req-tool-trajectory",
 			TraceID:        "trace-tool-trajectory",
 			Surface:        "campus-web",
-			SelectedTool:   "knowledge_query",
 			Status:         execution.DurableRunStatusCompleted,
 			TerminalReason: execution.DurableTerminalReasonAnswerCompleted,
 			RuntimeVersions: map[string]any{
@@ -36,7 +35,7 @@ func TestBuildAgentRuntimeEvalProjectionIncludesToolTrajectory(t *testing.T) {
 			CompletedAt:    now.Add(100 * time.Millisecond),
 			SanitizedPayload: map[string]any{
 				"raw_prompt":         "must not leak",
-				"visible_tool_names": []any{"knowledge_query", "transport_schedule_lookup"},
+				"visible_tool_names": []any{"personal_memory_recall"},
 			},
 		}},
 		[]execution.StepAttemptProjection{
@@ -52,8 +51,8 @@ func TestBuildAgentRuntimeEvalProjectionIncludesToolTrajectory(t *testing.T) {
 				ModelName:       "gpt-5-mini",
 			},
 			{
-				AttemptID:       temporalStepAttemptID("run-tool-trajectory", "knowledge.search.1", 1),
-				StepID:          "knowledge.search.1",
+				AttemptID:       temporalStepAttemptID("run-tool-trajectory", "sdk_tool.execute.personal_memory_recall.1", 1),
+				StepID:          "sdk_tool.execute.personal_memory_recall.1",
 				RunID:           "run-tool-trajectory",
 				Status:          "completed",
 				Attempt:         1,
@@ -74,53 +73,31 @@ func TestBuildAgentRuntimeEvalProjectionIncludesToolTrajectory(t *testing.T) {
 				SanitizedPayload: map[string]any{
 					"activity_attempt":    1,
 					"raw_provider_result": "must not leak",
-					"selected_tools":      []any{"knowledge_query"},
-					"tool_results": []any{
-						map[string]any{
-							"arguments_json_sha256":    "sha256:args",
-							"arguments_schema_sha256":  "sha256:schema",
-							"arguments_schema_version": "knowledge_search.args.v1",
-							"authorization":            "must not leak",
-							"payload_kind":             "knowledge_search",
-							"result": map[string]any{
-								"outcome":          "found",
-								"retrieval_target": "student_rules",
-								"include_history":  false,
-							},
-							"result_ref": "projection://runs/run-tool-trajectory/knowledge/search/1",
-							"status":     "completed",
-							"tool_name":  "knowledge_search",
-						},
-					},
 				},
 			},
 			{
-				ResultID:      "knowledge.search.1:result:1",
-				StepID:        "knowledge.search.1",
+				ResultID:      "sdk_tool.execute.personal_memory_recall.1:result:1",
+				StepID:        "sdk_tool.execute.personal_memory_recall.1",
 				RunID:         "run-tool-trajectory",
-				AttemptID:     temporalStepAttemptID("run-tool-trajectory", "knowledge.search.1", 1),
+				AttemptID:     temporalStepAttemptID("run-tool-trajectory", "sdk_tool.execute.personal_memory_recall.1", 1),
 				Status:        "completed",
-				ResultKind:    "knowledge_search_result",
-				ProjectionRef: "projection://runs/run-tool-trajectory/knowledge/search/1",
+				ResultKind:    "typed_tool_result",
+				ProjectionRef: "projection://runs/run-tool-trajectory/sdk-tools/personal_memory_recall/1",
 				CreatedAt:     now.Add(90 * time.Millisecond),
 				SanitizedPayload: map[string]any{
-					"activity_attempt": 1,
-					"candidate_count":  4,
-					"include_history":  false,
-					"invocation_id":    "search-1",
-					"outcome":          "found",
-					"query_sha256":     "sha256:query",
-					"retrieval_target": "student_rules",
-					"search_ordinal":   1,
+					"activity_attempt":      1,
+					"arguments_json_sha256": "sha256:args",
+					"authorization":         "must not leak",
+					"result":                map[string]any{"outcome": "recalled"},
+					"tool_name":             "personal_memory_recall",
 				},
 			},
 		},
 	)
 
 	trajectory := expectRecord(t, projection["tool_trajectory"], "tool_trajectory")
-	if trajectory["schema_version"] != "tool_trajectory.v2" ||
-		trajectory["decision_kind"] != "tool_call" ||
-		trajectory["selected_tool"] != "knowledge_query" ||
+	if trajectory["schema_version"] != "tool_trajectory.v3" ||
+		trajectory["decision_kind"] != "tool_assisted" ||
 		trajectory["request_id"] != "req-tool-trajectory" ||
 		trajectory["run_id"] != "run-tool-trajectory" ||
 		trajectory["trace_id"] != "trace-tool-trajectory" ||
@@ -133,27 +110,20 @@ func TestBuildAgentRuntimeEvalProjectionIncludesToolTrajectory(t *testing.T) {
 	if !ok || len(calls) != 1 {
 		t.Fatalf("tool calls = %#v, want one typed call", trajectory["tool_calls"])
 	}
-	if calls[0]["tool_name"] != "knowledge_query" ||
+	if calls[0]["tool_name"] != "personal_memory_recall" ||
 		calls[0]["status"] != "completed" ||
-		calls[0]["result_kind"] != "agent_handoff" ||
-		calls[0]["provider"] != "openai" ||
-		calls[0]["model"] != "gpt-5-mini" {
+		calls[0]["result_kind"] != "typed_tool_result" ||
+		calls[0]["duration_ms"] != int64(40) {
 		t.Fatalf("tool call = %#v", calls[0])
 	}
-	internalCalls, ok := trajectory["internal_tool_calls"].([]map[string]any)
-	if !ok || len(internalCalls) != 1 {
-		t.Fatalf("internal tool calls = %#v, want one search", trajectory["internal_tool_calls"])
+	if _, exists := calls[0]["eval_safe_args"]; exists {
+		t.Fatalf("personal memory call must not expose eval_safe_args: %#v", calls[0])
 	}
-	internalCall := internalCalls[0]
-	if internalCall["tool_name"] != "knowledge_search" ||
-		internalCall["search_ordinal"] != 1 ||
-		internalCall["duration_ms"] != int64(40) ||
-		internalCall["outcome"] != "found" {
-		t.Fatalf("internal tool call = %#v", internalCall)
+	if _, exists := trajectory["selected_tool"]; exists {
+		t.Fatalf("tool trajectory still publishes selected_tool: %#v", trajectory)
 	}
-	evalSafeArgs := expectRecord(t, internalCall["eval_safe_args"], "internal_tool_calls[0].eval_safe_args")
-	if evalSafeArgs["target"] != "student_rules" || evalSafeArgs["include_history"] != false {
-		t.Fatalf("eval_safe_args = %#v, want target and history intent", evalSafeArgs)
+	if _, exists := trajectory["internal_tool_calls"]; exists {
+		t.Fatalf("tool trajectory still publishes internal_tool_calls: %#v", trajectory)
 	}
 	serialized := stringifyForTest(projection)
 	for _, forbidden := range []string{"must not leak", "raw_prompt", "raw_provider_result", "authorization"} {
@@ -169,7 +139,6 @@ func TestBuildAgentRuntimeEvalProjectionExcludesPriorActivityAttempt(t *testing.
 		ConversationID: "conv-retried-agent",
 		RequestID:      "req-retried-agent",
 		TraceID:        "trace-retried-agent",
-		SelectedTool:   "knowledge_query",
 		Status:         execution.DurableRunStatusCompleted,
 		TerminalReason: execution.DurableTerminalReasonAnswerCompleted,
 	}
@@ -183,11 +152,27 @@ func TestBuildAgentRuntimeEvalProjectionExcludesPriorActivityAttempt(t *testing.
 			ResultKind: "agent_final_output",
 			SanitizedPayload: map[string]any{
 				"activity_attempt": 2,
-				"selected_tools":   []any{"knowledge_query"},
 			},
 		},
-		knowledgeSearchEvalResultForAttempt(run.RunID, 1, "student_rules", "prior context"),
-		knowledgeSearchEvalResultForAttempt(run.RunID, 2, "curriculum", "successful context"),
+		personalMemoryEvalResultForAttempt(run.RunID, 1),
+		personalMemoryEvalResultForAttempt(run.RunID, 2),
+		{
+			ResultID:   "finalization.write:result:1",
+			StepID:     "finalization.write",
+			RunID:      run.RunID,
+			Status:     "completed",
+			ResultKind: "final_answer_projection",
+			SanitizedPayload: map[string]any{
+				"finalized_response": map[string]any{
+					"result": map[string]any{
+						"sources": []any{map[string]any{
+							"document_id": "curriculum-document",
+							"snippet":     "successful context",
+						}},
+					},
+				},
+			},
+		},
 	}
 	attempts := []execution.StepAttemptProjection{
 		{
@@ -208,9 +193,9 @@ func TestBuildAgentRuntimeEvalProjectionExcludesPriorActivityAttempt(t *testing.
 
 	projection := buildAgentRuntimeEvalProjection(run, nil, attempts, results)
 	planning := expectRecord(t, projection["planning"], "planning")
-	resolvedTargets, _ := planning["resolved_targets"].([]any)
-	if len(resolvedTargets) != 1 || resolvedTargets[0] != "curriculum" {
-		t.Fatalf("planning.resolved_targets = %#v", planning["resolved_targets"])
+	toolSequence, _ := planning["tool_sequence"].([]any)
+	if len(toolSequence) != 1 || expectRecord(t, toolSequence[0], "planning.tool_sequence[0]")["tool_name"] != "personal_memory_recall" {
+		t.Fatalf("planning.tool_sequence = %#v", planning["tool_sequence"])
 	}
 	rag := expectRecord(t, projection["rag"], "rag")
 	contexts, _ := rag["retrieved_contexts"].([]any)
@@ -218,39 +203,30 @@ func TestBuildAgentRuntimeEvalProjectionExcludesPriorActivityAttempt(t *testing.
 		t.Fatalf("rag.retrieved_contexts = %#v", rag["retrieved_contexts"])
 	}
 	trajectory := expectRecord(t, projection["tool_trajectory"], "tool_trajectory")
-	internalCalls, _ := trajectory["internal_tool_calls"].([]map[string]any)
-	if len(internalCalls) != 1 {
-		t.Fatalf("internal_tool_calls = %#v", trajectory["internal_tool_calls"])
+	calls, _ := trajectory["tool_calls"].([]map[string]any)
+	if len(calls) != 1 {
+		t.Fatalf("tool_calls = %#v", trajectory["tool_calls"])
 	}
-	args := expectRecord(t, internalCalls[0]["eval_safe_args"], "eval_safe_args")
-	if args["target"] != "curriculum" {
-		t.Fatalf("eval_safe_args = %#v", args)
+	if _, exists := calls[0]["eval_safe_args"]; exists {
+		t.Fatalf("personal memory call must not expose eval_safe_args: %#v", calls[0])
 	}
 }
 
-func knowledgeSearchEvalResultForAttempt(
+func personalMemoryEvalResultForAttempt(
 	runID string,
 	activityAttempt int,
-	target string,
-	snippet string,
 ) execution.StepResultProjection {
 	return execution.StepResultProjection{
-		ResultID:   "knowledge.search.1:result:" + string(rune('0'+activityAttempt)),
-		StepID:     "knowledge.search.1",
+		ResultID:   "sdk_tool.execute.personal_memory_recall.1:result:" + string(rune('0'+activityAttempt)),
+		StepID:     "sdk_tool.execute.personal_memory_recall.1",
 		RunID:      runID,
-		AttemptID:  temporalStepAttemptID(runID, "knowledge.search.1", activityAttempt),
+		AttemptID:  temporalStepAttemptID(runID, "sdk_tool.execute.personal_memory_recall.1", activityAttempt),
 		Status:     "completed",
-		ResultKind: "knowledge_search_result",
+		ResultKind: "typed_tool_result",
 		SanitizedPayload: map[string]any{
 			"activity_attempt": activityAttempt,
-			"evidence": []any{map[string]any{
-				"document_id": target + "-document",
-				"snippet":     snippet,
-			}},
-			"invocation_id":    "search-1",
-			"outcome":          "found",
-			"retrieval_target": target,
-			"search_ordinal":   1,
+			"result":           map[string]any{"outcome": "recalled"},
+			"tool_name":        "personal_memory_recall",
 		},
 	}
 }
@@ -280,8 +256,11 @@ func TestBuildToolTrajectoryProjectionClassifiesDirectAnswerAndFailClosed(t *tes
 		}},
 	)
 	directTrajectory := expectRecord(t, direct["tool_trajectory"], "direct.tool_trajectory")
-	if directTrajectory["decision_kind"] != "direct_answer" || directTrajectory["selected_tool"] != "" {
+	if directTrajectory["decision_kind"] != "direct_answer" {
 		t.Fatalf("direct tool trajectory = %#v", directTrajectory)
+	}
+	if _, exists := directTrajectory["selected_tool"]; exists {
+		t.Fatalf("direct tool trajectory still publishes selected_tool: %#v", directTrajectory)
 	}
 
 	failClosed := buildAgentRuntimeEvalProjection(

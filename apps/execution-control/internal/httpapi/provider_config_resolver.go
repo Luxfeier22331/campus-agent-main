@@ -2,6 +2,9 @@ package httpapi
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -10,11 +13,14 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 )
 
+// Model settings are keyed by the two runtime consumers. They map directly to
+// execution_config.model_settings and do not carry historical profile or
+// revision identity.
 type providerConfigKind string
 
 const (
-	providerConfigKindLLM       providerConfigKind = "llm"
-	providerConfigKindEmbedding providerConfigKind = "embedding"
+	providerConfigKindLLM       providerConfigKind = providerConfigKind(providerconfig.KindLLM)
+	providerConfigKindEmbedding providerConfigKind = providerConfigKind(providerconfig.KindEmbedding)
 )
 
 type providerConfigSnapshot struct {
@@ -29,11 +35,6 @@ type providerConfigSnapshot struct {
 
 type providerConfigResolver interface {
 	ResolveActiveProviderConfig(context.Context, providerConfigKind) (providerConfigSnapshot, error)
-}
-
-type staticProviderConfigResolverForKind struct {
-	kind     providerConfigKind
-	snapshot providerConfigSnapshot
 }
 
 type postgresProviderConfigResolver struct{ store *providerconfig.Store }
@@ -53,19 +54,6 @@ func newProviderConfigResolver(cfg config.Config) (providerConfigResolver, error
 		return nil, err
 	}
 	return postgresProviderConfigResolver{store: store}, nil
-}
-
-func (resolver staticProviderConfigResolverForKind) ResolveActiveProviderConfig(
-	_ context.Context,
-	kind providerConfigKind,
-) (providerConfigSnapshot, error) {
-	if kind != resolver.kind {
-		return providerConfigSnapshot{}, fmt.Errorf("static provider config kind = %q, want %q", resolver.kind, kind)
-	}
-	if err := validateProviderConfigSnapshot(resolver.snapshot, kind); err != nil {
-		return providerConfigSnapshot{}, err
-	}
-	return resolver.snapshot, nil
 }
 
 func (resolver postgresProviderConfigResolver) ResolveActiveProviderConfig(
@@ -94,7 +82,12 @@ func (resolver postgresProviderConfigResolver) ResolveActiveProviderConfig(
 	return snapshot, nil
 }
 
-func (resolver postgresProviderConfigResolver) Close()                       { resolver.store.Close() }
+func (resolver postgresProviderConfigResolver) Close() {
+	if resolver.store != nil {
+		resolver.store.Close()
+	}
+}
+
 func (resolver postgresProviderConfigResolver) Store() *providerconfig.Store { return resolver.store }
 
 func validateProviderConfigSnapshot(snapshot providerConfigSnapshot, kind providerConfigKind) error {
@@ -116,8 +109,15 @@ func validateProviderConfigSnapshot(snapshot providerConfigSnapshot, kind provid
 	if snapshot.Kind != kind {
 		return fmt.Errorf("provider config snapshot kind = %q, want %q", snapshot.Kind, kind)
 	}
-	if kind == providerConfigKindEmbedding && snapshot.Dimensions <= 0 {
-		return errors.New("embedding provider config snapshot dimensions is required")
+	if kind == providerConfigKindEmbedding {
+		if snapshot.Dimensions <= 0 {
+			return errors.New("embedding provider config snapshot dimensions is required")
+		}
+		if snapshot.Transport != "embeddings" {
+			return errors.New("embedding provider config snapshot transport must be embeddings")
+		}
+	} else if kind == providerConfigKindLLM && snapshot.Transport != "responses" && snapshot.Transport != "chat_completions" {
+		return errors.New("llm provider config snapshot transport is invalid")
 	}
 	return nil
 }
@@ -133,4 +133,23 @@ func (s *Server) resolveProviderConfigSnapshot(
 		return providerConfigSnapshot{}, errProviderConfigResolverNotConfigured
 	}
 	return s.providerConfigResolver.ResolveActiveProviderConfig(ctx, kind)
+}
+
+// providerConfigAdmissionHash excludes secrets and storage identifiers. It is
+// the immutable non-secret model contract carried by an admitted run.
+func providerConfigAdmissionHash(snapshot providerConfigSnapshot) string {
+	payload := map[string]any{
+		"base_url":   strings.TrimSpace(snapshot.BaseURL),
+		"dimensions": snapshot.Dimensions,
+		"kind":       strings.TrimSpace(string(snapshot.Kind)),
+		"model":      strings.TrimSpace(snapshot.Model),
+		"provider":   strings.TrimSpace(snapshot.Provider),
+		"transport":  strings.TrimSpace(snapshot.Transport),
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return ""
+	}
+	digest := sha256.Sum256(encoded)
+	return hex.EncodeToString(digest[:])
 }

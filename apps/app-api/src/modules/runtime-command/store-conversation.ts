@@ -101,6 +101,7 @@ export function buildStoredIdempotentRequest(input: {
 						};
 
 	return {
+		acceptedAt: toIsoString(input.dispatchRow.createdAt),
 		requestFingerprintSha256,
 		response: {
 			answer: {
@@ -110,6 +111,7 @@ export function buildStoredIdempotentRequest(input: {
 			requestId: input.dispatchRow.requestId,
 			traceId: input.dispatchRow.traceId,
 		},
+		runId: input.dispatchRow.runId,
 		status: input.dispatchRow.status as TurnDispatchStatus,
 	};
 }

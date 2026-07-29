@@ -28,9 +28,9 @@ func TestReadyzDoesNotRequireRetiredPythonHandoffForOnlineRAGRuntime(t *testing.
 	if _, ok := body[retiredKey]; ok {
 		t.Fatalf("readyz must not publish retired runtime state in online path: %#v", body[retiredKey])
 	}
-	knowledgeSearchRuntime := expectRecord(t, body["knowledge_search_runtime"], "knowledge_search_runtime")
-	if knowledgeSearchRuntime["healthy"] != true {
-		t.Fatalf("knowledge_search_runtime = %#v, want healthy", knowledgeSearchRuntime)
+	documentEvidenceRuntime := expectRecord(t, body["document_evidence_runtime"], "document_evidence_runtime")
+	if documentEvidenceRuntime["healthy"] != true {
+		t.Fatalf("document_evidence_runtime = %#v, want healthy", documentEvidenceRuntime)
 	}
 	temporalRuntime := expectRecord(t, body["temporal_runtime"], "temporal_runtime")
 	if temporalRuntime["healthy"] != true {
@@ -125,9 +125,9 @@ func TestReadyzPublishesGoOwnedRuntimeStatus(t *testing.T) {
 	if _, ok := body[retiredKey]; ok {
 		t.Fatalf("readyz must not publish retired runtime state in online path")
 	}
-	knowledgeSearchRuntime := expectRecord(t, body["knowledge_search_runtime"], "knowledge_search_runtime")
-	if knowledgeSearchRuntime["healthy"] != true {
-		t.Fatalf("knowledge_search_runtime = %#v, want healthy", knowledgeSearchRuntime)
+	documentEvidenceRuntime := expectRecord(t, body["document_evidence_runtime"], "document_evidence_runtime")
+	if documentEvidenceRuntime["healthy"] != true {
+		t.Fatalf("document_evidence_runtime = %#v, want healthy", documentEvidenceRuntime)
 	}
 	if _, ok := body["prompt_config_gate"]; ok {
 		t.Fatalf("readyz must not publish retired prompt_config_gate: %#v", body["prompt_config_gate"])
@@ -390,9 +390,9 @@ func TestReadyzDoesNotRequireRAGEmbeddingProviderForCoreRuntime(t *testing.T) {
 	if providerConfigGate["configured"] != true {
 		t.Fatalf("provider_config_gate = %#v, want configured", providerConfigGate)
 	}
-	knowledgeSearchRuntime := expectRecord(t, body["knowledge_search_runtime"], "knowledge_search_runtime")
-	if knowledgeSearchRuntime["healthy"] != false || knowledgeSearchRuntime["embedding_provider_configured"] != false {
-		t.Fatalf("knowledge_search_runtime = %#v, want unavailable embedding diagnostic", knowledgeSearchRuntime)
+	documentEvidenceRuntime := expectRecord(t, body["document_evidence_runtime"], "document_evidence_runtime")
+	if documentEvidenceRuntime["healthy"] != false || documentEvidenceRuntime["embedding_provider_configured"] != false {
+		t.Fatalf("document_evidence_runtime = %#v, want unavailable embedding diagnostic", documentEvidenceRuntime)
 	}
 }
 
@@ -426,8 +426,8 @@ func TestReadyzReportsUnavailableOptionalRuntimesWithoutBlockingCoreRuntime(t *t
 	})
 	server.personalMemoryExecutor = nil
 	server.personalMemoryErr = errors.New("hindsight unavailable")
-	server.knowledgeSearchExecutor = nil
-	server.knowledgeSearchErr = errors.New("qdrant unavailable")
+	server.documentEvidenceExecutor = nil
+	server.documentEvidenceErr = errors.New("qdrant unavailable")
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
@@ -447,8 +447,8 @@ func TestReadyzReportsUnavailableOptionalRuntimesWithoutBlockingCoreRuntime(t *t
 	if personalMemoryRuntime["healthy"] != false || personalMemoryRuntime["last_error"] == "" {
 		t.Fatalf("personal_memory_runtime = %#v, want unhealthy diagnostic", personalMemoryRuntime)
 	}
-	knowledgeSearchRuntime := expectRecord(t, body["knowledge_search_runtime"], "knowledge_search_runtime")
-	if knowledgeSearchRuntime["healthy"] != false || knowledgeSearchRuntime["last_error"] == "" {
-		t.Fatalf("knowledge_search_runtime = %#v, want unhealthy diagnostic", knowledgeSearchRuntime)
+	documentEvidenceRuntime := expectRecord(t, body["document_evidence_runtime"], "document_evidence_runtime")
+	if documentEvidenceRuntime["healthy"] != false || documentEvidenceRuntime["last_error"] == "" {
+		t.Fatalf("document_evidence_runtime = %#v, want unhealthy diagnostic", documentEvidenceRuntime)
 	}
 }

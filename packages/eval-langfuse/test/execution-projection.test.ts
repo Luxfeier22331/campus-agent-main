@@ -8,46 +8,28 @@ import {
 function runStepsPayload() {
 	return {
 		agentRuntimeEvalProjection: {
-			planning: {
-				resolved_targets: ["student_rules", "institutional_rules"],
-			},
 			rag: {
 				answer: "奖学金评审同时受学生规则和学校通用规定约束。",
+				covered_scopes: ["student_rules", "institutional_rules"],
+				grounding_mode: "multi_scope",
+				grounding_status: "ready",
 				retrieved_context_ids: ["doc:student-scholarship", "doc:institution-awards"],
 				retrieved_contexts: ["学生奖学金评审条件。", "学校奖励管理通用规定。"],
+				selected_scopes: ["student_rules", "institutional_rules"],
 			},
 			run: {
 				run_id: "run-001",
 				trace_id: "trace-001",
 			},
-			schema_version: "agent_runtime_eval_projection.v2",
+			schema_version: "agent_runtime_eval_projection.v3",
 			tool_trajectory: {
-				available_tools: ["knowledge_query"],
+				available_tools: [],
 				conversation_id: "conv-001",
-				decision_kind: "tool_call",
-				internal_tool_calls: [
-					{
-						eval_safe_args: { include_history: false, target: "student_rules" },
-						outcome: "found",
-						result_kind: "knowledge_search_result",
-						search_ordinal: 1,
-						status: "completed",
-						tool_call_id: "search-001",
-						tool_name: "knowledge_search",
-					},
-				],
+				decision_kind: "direct_answer",
 				request_id: "req-001",
 				run_id: "run-001",
-				schema_version: "tool_trajectory.v2",
-				selected_tool: "knowledge_query",
-				tool_calls: [
-					{
-						result_kind: "agent_handoff",
-						status: "completed",
-						tool_call_id: "handoff-001",
-						tool_name: "knowledge_query",
-					},
-				],
+				schema_version: "tool_trajectory.v3",
+				tool_calls: [],
 				trace_id: "trace-001",
 			},
 		},
@@ -55,16 +37,18 @@ function runStepsPayload() {
 }
 
 describe("execution run eval projection", () => {
-	it("parses runtime RAG fields and public/internal trajectories", () => {
+	it("parses runtime RAG fields and the ordered public trajectory", () => {
 		const projection = parseExecutionRunEvalProjection(runStepsPayload());
 
-		expect(projection.resolvedTargets).toEqual(["student_rules", "institutional_rules"]);
 		expect(projection.retrievedContextIds).toEqual([
 			"doc:student-scholarship",
 			"doc:institution-awards",
 		]);
-		expect(projection.toolTrajectory.tool_calls).toHaveLength(1);
-		expect(projection.toolTrajectory.internal_tool_calls).toHaveLength(1);
+		expect(projection.toolTrajectory.tool_calls).toHaveLength(0);
+		expect(projection.groundingMode).toBe("multi_scope");
+		expect(projection.selectedScopes).toEqual(["student_rules", "institutional_rules"]);
+		expect(projection.coveredScopes).toEqual(["student_rules", "institutional_rules"]);
+		expect(projection).not.toHaveProperty("resolvedTargets");
 	});
 
 	it("materializes an official Ragas sample from run projection and dataset truth", () => {

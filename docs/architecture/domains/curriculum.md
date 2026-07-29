@@ -3,43 +3,48 @@ doc_type: architecture
 owner_boundary: domains/curriculum
 status: active
 ---
+
 # 培养方案
 
 ## 边界
 
-培养方案领域维护专业培养方案的版本化正文、章节和表格结构，支持专业要求、学期课程和培养环节等
-有学校依据的问题。
+培养方案领域维护专业培养方案的版本化正文、章节和表格结构。当前文档范围名为 `curriculum`，逻辑
+collection 为 `curriculum_plan`。
 
-当前模型可见目标名为 `curriculum`，映射到物理集合 `curriculum/curriculum_plan`。课程、专业族和
-学期派生事实用于领域检索与解析，不作为独立模型工具或独立查询目标开放。
+培养方案当前仍是文档，不维护独立课程事实读取模型。专业要求、课程、学期、学分和培养环节等
+问题都必须由同一文档 RAG 的当前 release 提供正文依据。
 
 ## 数据流
 
 ```text
 已核对的培养方案来源
--> 规范文档单元与版本
--> ingestion-control / Rust 内核校验与结构化分块
--> 索引与 release
--> curriculum 查询目标
--> Knowledge Agent 与文档阅读器
+-> canonical_document_unit.v2
+-> build-retrieval-chunks-v2
+-> retrieval_chunk_set.v2
+
+knowledge-serving-release.v1 + PostgreSQL current_releases + Qdrant
+-> execution-control grounding 消费接口
 ```
 
-仓库中的 split manifest 和 sample 是合成测试数据。当前集合任务从已经物化的规范文档单元开始，
-不负责来源下载、PDF 解析、索引发布或 alias 切换；这些步骤存在并完成后才能更新在线 release。
+仓库中的 split manifest 和 sample 是合成测试数据。当前没有把检索分块发布为 release 与 Qdrant
+索引的正式生产者，也没有可准入的发布数据，因此 `curriculum` grounding 当前不可用。来源采集和
+规范化不会自动开放在线能力。
 
 ## 读取边界
 
-- Knowledge Agent 只查询注册表准入并已发布的 `curriculum` 目标；
-- 文档阅读器按规范文档、版本和章节提供固定链接；
-- 历史版本只有在明确请求历史或比较时参与检索；
-- 在线请求不扫描原始文件、私有 artifact 或未发布派生集合。
+- Primary Agent 不获得培养方案专用工具；
+- execution-control 只使用准入快照中的当前 `curriculum` release 和物理 Qdrant collection；
+- Qdrant chunk 保存正文、token 数和引用 metadata；
+- Agent 只能引用本轮 `grounding_context.v2` 中的 `evidence://`；
+- 当前在线检索不查询历史培养方案 release；
+- 在线请求不扫描原始文件、私有 artifact 或未发布集合。
 
-目标映射由 `configs/runtime/query-serving-targets.v1.json` 维护，集合配置由
+范围映射与本地路由词由 `configs/runtime/query-serving-targets.v3.json` 维护，集合配置由
 `configs/ingestion/curriculum/` 维护。
 
 ## 相关文档
 
+- `../system/agentic-retrieval.md`
 - `../system/retrieval-serving.md`
 - `../system/document-site.md`
 - `../../data/document-reader.md`
-- `../../decisions/adr-0014-document-history.md`

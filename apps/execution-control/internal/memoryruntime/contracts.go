@@ -20,7 +20,6 @@ const PersonalMemoryCommandSchemaVersion = "personal_memory_command.v2"
 type RecallRequest struct {
 	OwnerGeneration int64             `json:"owner_generation"`
 	OwnerSequence   int64             `json:"owner_sequence"`
-	RequestedTool   string            `json:"requested_tool"`
 	QueryTimestamp  string            `json:"query_timestamp"`
 	RunID           string            `json:"run_id"`
 	SessionSlots    map[string]string `json:"session_slots,omitempty"`
@@ -31,7 +30,6 @@ type RecallRequest struct {
 }
 
 type ContextItem struct {
-	Tool            string  `json:"tool"`
 	CompactText     string  `json:"compact_text"`
 	MemoryID        string  `json:"memory_id"`
 	MemoryType      string  `json:"memory_type"`
@@ -84,41 +82,6 @@ type AppendConversationTurnResult struct {
 	Status               string   `json:"status"`
 	ThreadID             string   `json:"thread_id"`
 	UserID               string   `json:"user_id"`
-}
-
-type ReflectRequest struct {
-	Context         string            `json:"context,omitempty"`
-	IncludeBasedOn  bool              `json:"include_based_on"`
-	OwnerGeneration int64             `json:"owner_generation"`
-	OwnerSequence   int64             `json:"owner_sequence"`
-	Query           string            `json:"query"`
-	RunID           string            `json:"run_id"`
-	SessionSlots    map[string]string `json:"session_slots,omitempty"`
-	TenantID        string            `json:"tenant_id,omitempty"`
-	ThreadID        string            `json:"thread_id,omitempty"`
-	UserID          string            `json:"user_id"`
-}
-
-type TokenUsage struct {
-	CachedTokens int `json:"cached_tokens,omitempty"`
-	InputTokens  int `json:"input_tokens,omitempty"`
-	OutputTokens int `json:"output_tokens,omitempty"`
-	TotalTokens  int `json:"total_tokens,omitempty"`
-}
-
-type ReflectResult struct {
-	BasedOnMemoryItems []ContextItem  `json:"based_on_memory_context_items,omitempty"`
-	PayloadSHA256      string         `json:"payload_sha256"`
-	Provider           string         `json:"provider,omitempty"`
-	ReflectRef         string         `json:"reflect_ref"`
-	RunID              string         `json:"run_id"`
-	SchemaVersion      string         `json:"schema_version"`
-	Status             string         `json:"status"`
-	StructuredOutput   map[string]any `json:"structured_output,omitempty"`
-	Text               string         `json:"text,omitempty"`
-	ThreadID           string         `json:"thread_id,omitempty"`
-	Usage              TokenUsage     `json:"usage,omitempty"`
-	UserID             string         `json:"user_id"`
 }
 
 type PersonalMemoryCommandItem struct {
@@ -241,9 +204,6 @@ func ValidateRecallRequest(request RecallRequest) error {
 	if strings.TrimSpace(request.UserGoal) == "" {
 		return fmt.Errorf("%w: user_goal is required", ErrInvalidMemoryProjection)
 	}
-	if strings.TrimSpace(request.RequestedTool) == "" {
-		return fmt.Errorf("%w: requested_tool is required", ErrInvalidMemoryProjection)
-	}
 	if err := validateRFC3339Timestamp("query_timestamp", request.QueryTimestamp); err != nil {
 		return err
 	}
@@ -269,23 +229,6 @@ func ValidateAppendConversationTurnRequest(request AppendConversationTurnRequest
 	}
 	if err := validateRFC3339Timestamp("user_message_created_at", request.UserMessageCreatedAt); err != nil {
 		return err
-	}
-	return nil
-}
-
-func ValidateReflectRequest(request ReflectRequest) error {
-	if request.OwnerGeneration < 1 || request.OwnerSequence < 0 {
-		return fmt.Errorf("%w: valid owner generation and sequence are required", ErrInvalidMemoryProjection)
-	}
-	required := map[string]string{
-		"query":   request.Query,
-		"run_id":  request.RunID,
-		"user_id": request.UserID,
-	}
-	for field, value := range required {
-		if strings.TrimSpace(value) == "" {
-			return fmt.Errorf("%w: %s is required", ErrInvalidMemoryProjection, field)
-		}
 	}
 	return nil
 }
@@ -359,38 +302,6 @@ func FinalizeAppendConversationTurnResult(
 	return result, nil
 }
 
-func FinalizeReflectResult(result ReflectResult) (ReflectResult, error) {
-	if strings.TrimSpace(result.SchemaVersion) == "" {
-		result.SchemaVersion = "memory_reflect_result_v1"
-	}
-	if strings.TrimSpace(result.Status) == "" {
-		result.Status = "completed"
-	}
-	for index, item := range result.BasedOnMemoryItems {
-		if err := validateContextItem(index, item); err != nil {
-			return ReflectResult{}, err
-		}
-	}
-	required := map[string]string{
-		"reflect_ref": result.ReflectRef,
-		"run_id":      result.RunID,
-		"status":      result.Status,
-		"user_id":     result.UserID,
-	}
-	for field, value := range required {
-		if strings.TrimSpace(value) == "" {
-			return ReflectResult{}, fmt.Errorf("%w: %s is required", ErrInvalidMemoryProjection, field)
-		}
-	}
-	result.PayloadSHA256 = ""
-	hash, err := HashProjection(result)
-	if err != nil {
-		return ReflectResult{}, err
-	}
-	result.PayloadSHA256 = hash
-	return result, nil
-}
-
 func HashProjection(value any) (string, error) {
 	encoded, err := json.Marshal(value)
 	if err != nil {
@@ -404,7 +315,6 @@ func validateContextItem(index int, item ContextItem) error {
 	required := map[string]string{
 		"memory_id":    item.MemoryID,
 		"memory_type":  item.MemoryType,
-		"tool":         item.Tool,
 		"compact_text": item.CompactText,
 	}
 	for field, value := range required {

@@ -30,7 +30,6 @@ func TestHindsightRecallKeepsFactsWithoutTemporalFields(t *testing.T) {
 		OwnerGeneration: 1,
 		OwnerSequence:   0,
 		QueryTimestamp:  "2026-06-16T10:03:04Z",
-		RequestedTool:   "knowledge_query",
 		RunID:           "run-hindsight-recall-untimed",
 		TenantID:        "tenant-main",
 		ThreadID:        "conv-hindsight-recall-untimed",
@@ -53,43 +52,5 @@ func TestHindsightRecallKeepsFactsWithoutTemporalFields(t *testing.T) {
 	}
 	if !client.ensuredBankConfig.EnableObservations || !client.ensuredBankConfig.EnableAutoConsolidation {
 		t.Fatalf("ensured bank config = %#v", client.ensuredBankConfig)
-	}
-}
-
-func TestHindsightReflectKeepsBasedOnFactsWithoutTemporalFields(t *testing.T) {
-	client := &fakeHindsightClient{
-		reflectResponse: hindsightReflectResponse{
-			BasedOnMemories: []hindsightReflectFact{{
-				ID:   "fact-reflect-untimed-001",
-				Text: "用户希望回答直接引用校内原文",
-				Type: "observation",
-			}},
-			Text: "用户偏好有校内原文依据。",
-		},
-	}
-	executor := hindsightExecutor{
-		client:            client,
-		ownerSalt:         "test-salt",
-		recallMaxTokens:   2500,
-		contextCharBudget: 2500,
-	}
-
-	result, err := executor.Reflect(context.Background(), memoryruntime.ReflectRequest{
-		OwnerGeneration: 1,
-		OwnerSequence:   0,
-		IncludeBasedOn:  true,
-		Query:           "总结用户引用偏好",
-		RunID:           "run-hindsight-reflect-untimed",
-		TenantID:        "tenant-main",
-		ThreadID:        "conv-hindsight-reflect-untimed",
-		UserID:          "user-executor",
-	})
-	if err != nil {
-		t.Fatalf("reflect: %v", err)
-	}
-	if len(result.BasedOnMemoryItems) != 1 ||
-		result.BasedOnMemoryItems[0].MemoryID != "fact-reflect-untimed-001" ||
-		result.BasedOnMemoryItems[0].UpdatedAt != "" {
-		t.Fatalf("based on items = %#v, want untimed fact retained", result.BasedOnMemoryItems)
 	}
 }

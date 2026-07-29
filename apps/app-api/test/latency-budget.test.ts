@@ -9,7 +9,7 @@ describe("runtime latency budget", () => {
 	it("classifies canonical stage timing fields against repo-owned thresholds", () => {
 		const result = evaluateStageTimingBudget({
 			"agent.runtime_ms": 13_000,
-			"knowledge.search_ms": 4_000,
+			"grounding.prepare_ms": 4_000,
 			"request.total_ms": 900,
 		});
 
@@ -17,19 +17,19 @@ describe("runtime latency budget", () => {
 		expect(result.breaches).toEqual([
 			{
 				category: "model_provider_or_latency_budget_fix",
+				durationMs: 4_000,
+				field: "grounding.prepare_ms",
+				reason: "grounding_prepare_too_slow",
+				severity: "warn",
+				thresholdMs: 3_000,
+			},
+			{
+				category: "model_provider_or_latency_budget_fix",
 				durationMs: 13_000,
 				field: "agent.runtime_ms",
 				reason: "agent_runtime_too_slow",
 				severity: "critical",
 				thresholdMs: 12_000,
-			},
-			{
-				category: "model_provider_or_latency_budget_fix",
-				durationMs: 4_000,
-				field: "knowledge.search_ms",
-				reason: "knowledge_search_too_slow",
-				severity: "warn",
-				thresholdMs: 3_000,
 			},
 		]);
 		expect(result.worstBreach?.field).toBe("agent.runtime_ms");

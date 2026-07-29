@@ -1,0 +1,15 @@
+{
+	"run_id": "run-contract-raw-payload",
+	"conversation_id": "conv-contract-001",
+	"turn_id": "turn-contract-001",
+	"request_id": "req-contract-001",
+	"owner_user_id": "user-contract-001",
+	"personal_memory_recall_allowed": false,
+	"surface": "web",
+	"metadata": {
+		"execution_contract_version": "tool_execution_v5",
+		"execution_payload": {
+			"execution_contract_version": "tool_execution_v5"
+		}
+	}
+}

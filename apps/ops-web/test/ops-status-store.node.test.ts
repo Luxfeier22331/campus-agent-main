@@ -109,7 +109,7 @@ describe("PostgreSQL ops status store", () => {
 
 	it("does not degrade Temporal only because one task age metric is unsupported", async () => {
 		const rows = requiredTemporalQueueRows().map((row) =>
-			row.taskQueue === "campus-agent.activity.agent"
+			row.taskQueue === "campus-agent.activity.agent.v3"
 				? { ...row, oldestTaskAgeJson: { state: "unsupported_by_source" } }
 				: row,
 		);
@@ -131,7 +131,7 @@ describe("PostgreSQL ops status store", () => {
 
 	it("degrades Temporal when a task age metric is malformed", async () => {
 		const rows = requiredTemporalQueueRows().map((row) =>
-			row.taskQueue === "campus-agent.activity.agent"
+			row.taskQueue === "campus-agent.activity.agent.v3"
 				? { ...row, oldestTaskAgeJson: { ms: "not-a-number", state: "observed" } }
 				: row,
 		);
@@ -170,7 +170,7 @@ describe("PostgreSQL ops status store", () => {
 
 	it("marks Temporal unavailable when a required queue has no worker", async () => {
 		const rows = requiredTemporalQueueRows().map((row) =>
-			row.taskQueue === "campus-agent.activity.agent" ? { ...row, pollerCount: 0 } : row,
+			row.taskQueue === "campus-agent.activity.agent.v3" ? { ...row, pollerCount: 0 } : row,
 		);
 		const store = createPgOpsStatusStore({
 			db: createFakeOpsDb(),
@@ -183,7 +183,7 @@ describe("PostgreSQL ops status store", () => {
 		expect(temporal.status).toBe("OUTAGE");
 		expect(temporal.queues[2]).toMatchObject({
 			pollerCount: 0,
-			reason: "campus-agent.activity.agent 没有正在轮询的工作进程。",
+			reason: "campus-agent.activity.agent.v3 没有正在轮询的工作进程。",
 			status: "OUTAGE",
 		});
 	});

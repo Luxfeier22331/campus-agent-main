@@ -6,11 +6,40 @@ trusted_statements := [
 	"delete_matching_keys(instrumentation_scope.attributes, \"(?i)(authorization|cookie|credential|jwt|password|secret|api[._-]?key|access[._-]?token|refresh[._-]?token|observability[._-]?canary|(^|[._-])headers?([._-]|$))\")",
 ]
 
+grounding_attributes := [
+	"grounding_mode",
+	"grounding_status",
+	"grounding_selected_scopes",
+	"grounding_covered_scopes",
+	"grounding_candidate_count",
+	"grounding_evidence_count",
+	"grounding_token_count",
+	"grounding_model_context_chars",
+	"grounding.embedding_ms",
+	"grounding.search_ms",
+	"grounding.rerank_ms",
+	"grounding.pack_ms",
+]
+
 trusted_config := object.get(object.get(input, "processors", {}), "transform/trusted_credentials", null)
+orchestration_config := object.get(object.get(input, "processors", {}), "transform/orchestration_langfuse", null)
+
+grounding_allowlisted_attributes contains attribute if {
+	orchestration_config != null
+	statement := object.get(orchestration_config, "trace_statements", [])[_]
+	startswith(statement, "keep_keys(span.attributes")
+	attribute := grounding_attributes[_]
+	contains(statement, sprintf("\"%s\"", [attribute]))
+}
 
 violation contains "trusted OTLP receivers require the credential sanitizer" if {
 	object.get(object.get(input, "receivers", {}), "otlp/agent_trusted", null) != null
 	trusted_config == null
+}
+
+violation contains "orchestration Langfuse pipeline must retain the grounding summary attributes" if {
+	object.get(object.get(input, "receivers", {}), "otlp/orchestration", null) != null
+	count(grounding_allowlisted_attributes) != count(grounding_attributes)
 }
 
 violation contains "credential sanitizer must propagate failures" if {

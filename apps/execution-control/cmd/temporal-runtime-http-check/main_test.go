@@ -49,9 +49,9 @@ func TestHTTPCheckRejectsReadyzWithoutRequiredTaskQueues(t *testing.T) {
 				"configured":true,
 				"healthy":true,
 				"namespace":"campus-agent-staging",
-				"task_queue":"campus-agent.workflow",
-				"worker_id":"staging:execution-control:001",
-				"task_queues":["campus-agent.workflow","campus-agent.activity.core"]
+			"task_queue":"campus-agent.workflow.v3",
+			"worker_id":"staging:execution-control:001",
+			"task_queues":["campus-agent.workflow.v3","campus-agent.activity.core.v3"]
 			}
 		}`))
 	}))
@@ -84,12 +84,12 @@ func TestHTTPCheckWritesReadyzEvidenceForTemporalRuntime(t *testing.T) {
 				"configured":true,
 				"healthy":true,
 				"namespace":"campus-agent-staging",
-				"task_queue":"campus-agent.workflow",
-				"worker_id":"staging:execution-control:001",
+			"task_queue":"campus-agent.workflow.v3",
+			"worker_id":"staging:execution-control:001",
 					"task_queues":[
-						"campus-agent.workflow",
-						"campus-agent.activity.core",
-						"campus-agent.activity.agent"
+						"campus-agent.workflow.v3",
+						"campus-agent.activity.core.v3",
+						"campus-agent.activity.agent.v3"
 					]
 				}
 		}`))

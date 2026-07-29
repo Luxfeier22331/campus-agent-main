@@ -79,24 +79,24 @@ func (s *Server) checkProviderConfigCompatibility(
 	ctx context.Context,
 	snapshot providerConfigSnapshot,
 ) providerConfigCompatibilityResult {
-	if err := s.checkKnowledgeSearchEmbeddingCompatibility(ctx, snapshot); err != nil {
+	if err := s.checkDocumentEvidenceEmbeddingCompatibility(ctx, snapshot); err != nil {
 		return providerConfigCompatibilityResult{ok: false, reason: err.Error()}
 	}
 	return providerConfigCompatibilityResult{ok: true}
 }
 
-func (s *Server) checkKnowledgeSearchEmbeddingCompatibility(
+func (s *Server) checkDocumentEvidenceEmbeddingCompatibility(
 	ctx context.Context,
 	snapshot providerConfigSnapshot,
 ) error {
-	if s.knowledgeSearchErr != nil {
-		return s.knowledgeSearchErr
+	if s.documentEvidenceErr != nil {
+		return s.documentEvidenceErr
 	}
-	executor, ok := s.knowledgeSearchExecutor.(interface {
+	executor, ok := s.documentEvidenceExecutor.(interface {
 		CheckEmbeddingCompatibility(context.Context, providerConfigSnapshot) error
 	})
 	if !ok {
-		return fmt.Errorf("knowledge search executor does not support provider compatibility checks")
+		return fmt.Errorf("document evidence executor does not support provider compatibility checks")
 	}
 	return executor.CheckEmbeddingCompatibility(ctx, snapshot)
 }

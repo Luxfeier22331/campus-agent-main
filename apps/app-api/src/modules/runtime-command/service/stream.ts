@@ -254,10 +254,8 @@ export function executionFinalizationErrorResponse(input: {
 			retryable: input.retryable,
 		},
 		followUpQuestion: "",
-		resolvedTargets: [],
+		modelUsage: { cachedInputTokens: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0 },
 		result: null,
-		selectedTool: null,
-		sessionUpdate: null,
 		status: input.status ?? "error",
 		traceId: input.traceId,
 	};

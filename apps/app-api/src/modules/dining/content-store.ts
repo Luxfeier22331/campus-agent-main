@@ -65,7 +65,7 @@ export function createPgDiningContentService(
 	env: Env,
 	options: { getDb?: RuntimeDbGetter; now?: () => Date } = {},
 ): DiningContentService {
-	const getDb = options.getDb ?? createRuntimeDbGetter(env, { consistency: "fresh" });
+	const getDb = options.getDb ?? createRuntimeDbGetter(env);
 	const now = options.now ?? (() => new Date());
 
 	return {

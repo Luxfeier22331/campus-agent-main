@@ -19,18 +19,32 @@ func TestStageTimingForRunProjectsCanonicalExecutionFields(t *testing.T) {
 	now := time.Date(2026, 7, 4, 10, 0, 0, 0, time.UTC)
 	run := createStageTimingRun(t, store, now)
 	for index, attempt := range []struct {
-		stepID           string
-		durationMS       int64
-		sanitizedPayload map[string]any
+		stepID            string
+		durationMS        int64
+		scheduleToStartMS int64
+		sanitizedPayload  map[string]any
 	}{
-		{stepID: "memory.recall", durationMS: 110},
-		{stepID: "agent.primary", durationMS: 120},
+		{
+			stepID:           "sdk_tool.execute.personal_memory_recall.1",
+			durationMS:       110,
+			sanitizedPayload: map[string]any{"tool_name": "personal_memory_recall"},
+		},
+		{stepID: "agent.primary", durationMS: 120, scheduleToStartMS: 75},
 		{stepID: "sdk_tool.execute.transport_schedule_lookup.1", durationMS: 140, sanitizedPayload: map[string]any{"tool_name": "transport_schedule_lookup"}},
-		{stepID: "knowledge.search.1", durationMS: 170},
-		{stepID: "knowledge.search.2", durationMS: 180},
+		{stepID: "grounding.prepare", durationMS: 170},
 		{stepID: "finalization.write", durationMS: 230},
 	} {
-		upsertStageTimingAttempt(t, store, run.RunID, index+1, attempt.stepID, attempt.durationMS, attempt.sanitizedPayload, now)
+		upsertStageTimingAttemptWithSchedule(
+			t,
+			store,
+			run.RunID,
+			index+1,
+			attempt.stepID,
+			attempt.durationMS,
+			attempt.scheduleToStartMS,
+			attempt.sanitizedPayload,
+			now,
+		)
 	}
 
 	timing, err := server.stageTimingForRun(context.Background(), run, map[string]any{"agent.runtime_ms": float64(321)})
@@ -38,13 +52,16 @@ func TestStageTimingForRunProjectsCanonicalExecutionFields(t *testing.T) {
 		t.Fatalf("stage timing: %v", err)
 	}
 
+	assertStageTimingField(t, timing, "execution.dispatch_ms", 100)
 	assertStageTimingField(t, timing, "execution.admission_ms", 200)
+	assertStageTimingField(t, timing, "stream.first_delta_persist_ms", 500)
 	assertStageTimingField(t, timing, "memory.recall_ms", 110)
 	assertStageTimingField(t, timing, "agent.primary_ms", 120)
+	assertStageTimingField(t, timing, "agent.schedule_to_start_ms", 75)
 	assertStageTimingField(t, timing, "agent.runtime_ms", 321)
-	assertStageTimingField(t, timing, "tool.total_ms", 490)
+	assertStageTimingField(t, timing, "grounding.prepare_ms", 170)
+	assertStageTimingField(t, timing, "tool.total_ms", 250)
 	assertStageTimingField(t, timing, "tool.transport_schedule_lookup_ms", 140)
-	assertStageTimingField(t, timing, "knowledge.search_ms", 350)
 	if _, ok := timing["finalization.write_ms"]; ok {
 		t.Fatalf("stage_timing callback projection must exclude self-referential finalization.write_ms: %#v", timing)
 	}
@@ -65,15 +82,18 @@ func TestStageTimingForRunDoesNotSynthesizeUnexecutedStages(t *testing.T) {
 		t.Fatalf("stage timing: %v", err)
 	}
 
+	assertStageTimingField(t, timing, "execution.dispatch_ms", 100)
 	assertStageTimingField(t, timing, "execution.admission_ms", 200)
+	assertStageTimingField(t, timing, "stream.first_delta_persist_ms", 500)
 	assertStageTimingField(t, timing, "agent.primary_ms", 120)
 	for _, field := range []string{
+		"agent.schedule_to_start_ms",
 		"memory.recall_ms",
 		"agent.runtime_ms",
 		"agent.first_delta_ms",
+		"grounding.prepare_ms",
 		"tool.total_ms",
 		"tool.transport_schedule_lookup_ms",
-		"knowledge.search_ms",
 		"finalization.write_ms",
 	} {
 		if _, ok := timing[field]; ok {
@@ -102,7 +122,7 @@ func createStageTimingRun(
 		Surface:        "campus-web",
 		TaskQueue:      "campus-agent.workflow",
 		CreatedAt:      now,
-		Metadata:       map[string]any{},
+		Metadata:       v3ExecutionMetadataForHTTPTest("run-stage-timing", ""),
 	})
 	if err != nil {
 		t.Fatalf("create run: %v", err)
@@ -115,7 +135,45 @@ func createStageTimingRun(
 	if err != nil {
 		t.Fatalf("admit run: %v", err)
 	}
-	return admitted
+	running, err := store.TransitionRun(
+		context.Background(),
+		admitted.RunID,
+		execution.DurableRunStatusRunning,
+		"",
+		now.Add(400*time.Millisecond),
+	)
+	if err != nil {
+		t.Fatalf("start run: %v", err)
+	}
+	streaming, err := store.StartRunAnswerStream(
+		context.Background(),
+		execution.RunAnswerStreamStartRequest{
+			RunID: running.RunID,
+			Now:   now.Add(900 * time.Millisecond),
+			AnswerStartedEvent: execution.DurableRunEvent{
+				EventID: running.RunID + ":answer-started", RunID: running.RunID,
+				ConversationID:       running.ConversationID,
+				EventType:            execution.DurableRunEventTypeRunAnswerStarted,
+				OccurredAt:           now.Add(900 * time.Millisecond),
+				Visibility:           execution.DurableRunEventVisibilityBrowser,
+				PayloadSchemaVersion: "run-answer-event-v2",
+				Payload:              map[string]any{"status": "streaming"},
+			},
+			FirstDeltaEvent: execution.DurableRunEvent{
+				EventID: running.RunID + ":answer-delta:1", RunID: running.RunID,
+				ConversationID:       running.ConversationID,
+				EventType:            execution.DurableRunEventTypeRunAnswerDelta,
+				OccurredAt:           now.Add(900 * time.Millisecond),
+				Visibility:           execution.DurableRunEventVisibilityBrowser,
+				PayloadSchemaVersion: "run-answer-event-v2",
+				Payload:              map[string]any{"chunk_index": 1, "delta": "答"},
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("start answer stream: %v", err)
+	}
+	return streaming
 }
 
 func upsertStageTimingAttempt(
@@ -125,6 +183,31 @@ func upsertStageTimingAttempt(
 	index int,
 	stepID string,
 	durationMS int64,
+	sanitizedPayload map[string]any,
+	now time.Time,
+) {
+	t.Helper()
+	upsertStageTimingAttemptWithSchedule(
+		t,
+		store,
+		runID,
+		index,
+		stepID,
+		durationMS,
+		0,
+		sanitizedPayload,
+		now,
+	)
+}
+
+func upsertStageTimingAttemptWithSchedule(
+	t *testing.T,
+	store *execution.InMemoryRunProjectionStore,
+	runID string,
+	index int,
+	stepID string,
+	durationMS int64,
+	scheduleToStartMS int64,
 	sanitizedPayload map[string]any,
 	now time.Time,
 ) {
@@ -148,6 +231,7 @@ func upsertStageTimingAttempt(
 		ScheduledAt:           now.Add(time.Duration(index) * time.Second),
 		StartedAt:             now.Add(time.Duration(index) * time.Second),
 		CompletedAt:           now.Add(time.Duration(index)*time.Second + time.Duration(durationMS)*time.Millisecond),
+		ScheduleToStartMS:     scheduleToStartMS,
 		DurationMS:            durationMS,
 		CancelOutcome:         execution.CancelOutcomeNotRequested,
 		TimeoutOutcome:        execution.TimeoutOutcomeNotTimedOut,

@@ -295,7 +295,7 @@ func (s *Server) WritePersonalMemoryCommandResultActivity(
 	if timeout <= 0 {
 		timeout = 5 * time.Second
 	}
-	response, err := (&http.Client{Timeout: timeout}).Do(request)
+	response, err := noRedirectHTTPClient(&http.Client{Timeout: timeout}).Do(request)
 	if err != nil {
 		return sanitizedTemporalApplicationError("product_callback_unavailable", err, false)
 	}
@@ -339,7 +339,7 @@ func (s *Server) writeChatProductFinalization(
 	payload, err := json.Marshal(map[string]any{
 		"completed_at":             completedAt.UTC().Format(time.RFC3339Nano),
 		"finalization_fingerprint": hex.EncodeToString(sum[:]),
-		"response":                 finalizedResponse,
+		"response_json":            string(responseJSON),
 	})
 	if err != nil {
 		return sanitizedTemporalApplicationError("product_callback_invalid", err, true)
@@ -355,7 +355,7 @@ func (s *Server) writeChatProductFinalization(
 	if timeout <= 0 {
 		timeout = 5 * time.Second
 	}
-	response, err := (&http.Client{Timeout: timeout}).Do(request)
+	response, err := noRedirectHTTPClient(&http.Client{Timeout: timeout}).Do(request)
 	if err != nil {
 		return sanitizedTemporalApplicationError("product_callback_unavailable", err, false)
 	}
@@ -387,11 +387,9 @@ func productTerminalErrorResponse(
 		Confidence:       "low",
 		Error:            map[string]any{"code": code, "message": message, "retryable": retryable},
 		FollowUpQuestion: "",
+		ModelUsage:       ModelUsageWire{},
 		Observability:    nil,
-		ResolvedTargets:  []string{},
 		Result:           nil,
-		SelectedTool:     nil,
-		SessionUpdate:    nil,
 		Status:           status,
 		TraceID:          run.TraceID,
 	})

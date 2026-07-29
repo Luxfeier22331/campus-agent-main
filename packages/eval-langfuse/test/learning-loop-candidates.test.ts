@@ -9,10 +9,18 @@ import {
 const candidate = {
 	category: "retrieval_source_fix",
 	evidence: {
+		cachedInputTokens: 20,
+		durationMs: 1200,
+		errorCode: null,
 		failClosed: false,
+		inputTokens: 120,
+		modelName: "gpt-test",
+		modelProvider: "openai",
+		outputTokens: 40,
+		projectionLagMs: 100,
 		reasonCodes: ["missing_context"],
-		selectedTool: "knowledge_query",
 		status: "completed",
+		totalTokens: 160,
 		traceAvailable: true,
 	},
 	feedbackId: "feedback_01",
@@ -66,17 +74,17 @@ describe("learning loop candidate dataset items", () => {
 				budgetState: "warn",
 				budgetVersion: "latency-budget-v1",
 				durationMs: 2700,
-				stageField: "stream.browser_ttft_ms",
+				stageField: "stream.app_api_ttft_ms",
 			},
 			feedbackId: null,
 			feedbackUpdatedAt: null,
-			reason: "stream_ttft_too_slow",
+			reason: "stream_app_api_ttft_too_slow",
 			source: "runtime_observation",
 		});
 
 		expect(item).toMatchObject({
 			input: {
-				reason: "stream_ttft_too_slow",
+				reason: "stream_app_api_ttft_too_slow",
 				requestId: "req_01",
 			},
 			metadata: {
@@ -85,7 +93,7 @@ describe("learning loop candidate dataset items", () => {
 				durationMs: 2700,
 				feedback_id: null,
 				feedback_updated_at: null,
-				stageField: "stream.browser_ttft_ms",
+				stageField: "stream.app_api_ttft_ms",
 				source: "runtime_observation",
 			},
 		});
@@ -106,7 +114,7 @@ describe("learning loop candidate dataset items", () => {
 				budgetState: "warn",
 				budgetVersion: "latency-budget-v1",
 				durationMs: 2700,
-				stageField: "stream.browser_ttft_ms",
+				stageField: "stream.app_api_ttft_ms",
 			},
 		});
 		const second = buildLearningLoopCandidateDatasetItem({

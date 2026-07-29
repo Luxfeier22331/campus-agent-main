@@ -8,6 +8,12 @@ import {
 	isExecutionControlRuntimeConfigured,
 } from "../src/modules/integration/execution-control";
 
+const EXECUTION_RUN_METADATA = {
+	execution_contract_version: "tool_execution_v5",
+	execution_input_ref: "app-api://execution-inputs/run_durable_001",
+	execution_input_sha256: "a".repeat(64),
+} as const;
+
 function readMockRequestBody(fetchImplementation: ReturnType<typeof vi.fn>, index: number): string {
 	const body = fetchImplementation.mock.calls[index]?.[1]?.body;
 	if (typeof body !== "string") {
@@ -27,9 +33,7 @@ function durableRunPayload(overrides: Record<string, unknown> = {}): Record<stri
 		owner_user_id: "user_001",
 		queued_at: "2026-06-04T01:02:03Z",
 		request_id: "req_durable_001",
-		requested_tool: "knowledge_query",
 		run_id: "run_durable_001",
-		selected_tool: "knowledge_query",
 		started_at: "",
 		status: "queued",
 		streaming_started_at: "",
@@ -48,16 +52,14 @@ function durableRunStepsPayload(
 ): Record<string, unknown> {
 	return {
 		agent_runtime_eval_projection: {
-			schema_version: "agent_runtime_eval_projection.v1",
+			schema_version: "agent_runtime_eval_projection.v3",
 			run: {
 				run_id: "run_durable_001",
 				request_id: "req_durable_001",
 				trace_id: "trace_durable_001",
 				status: "completed",
 			},
-			trajectory: {
-				selected_tool: "knowledge_query",
-			},
+			trajectory: {},
 		},
 		attempts: [
 			{
@@ -99,7 +101,7 @@ function durableRunStepsPayload(
 		results: [],
 		steps: [
 			{
-				tool: "knowledge_query",
+				tool: "",
 				completed_at: "2026-06-04T01:02:04.100Z",
 				conversation_id: "conv_durable_001",
 				parent_step_id: "",
@@ -161,14 +163,9 @@ describe("execution control runtime adapter", () => {
 
 		const result = await client.createRun({
 			conversationId: "conv_durable_001",
-			metadata: {
-				execution_payload: {
-					conversation_id: "conv_durable_001",
-					request_id: "req_durable_001",
-					user_goal: "奖学金怎么评？",
-				},
-			},
+			metadata: EXECUTION_RUN_METADATA,
 			ownerUserId: "user_001",
+			personalMemoryRecallAllowed: false,
 			requestId: "req_durable_001",
 			runId: "run_durable_001",
 			runtimeVersions: {
@@ -192,14 +189,9 @@ describe("execution control runtime adapter", () => {
 		);
 		expect(JSON.parse(readMockRequestBody(fetchImplementation, 0))).toEqual({
 			conversation_id: "conv_durable_001",
-			metadata: {
-				execution_payload: {
-					conversation_id: "conv_durable_001",
-					request_id: "req_durable_001",
-					user_goal: "奖学金怎么评？",
-				},
-			},
+			metadata: EXECUTION_RUN_METADATA,
 			owner_user_id: "user_001",
+			personal_memory_recall_allowed: false,
 			request_id: "req_durable_001",
 			run_id: "run_durable_001",
 			runtime_versions: {
@@ -220,9 +212,7 @@ describe("execution control runtime adapter", () => {
 			ownerUserId: "user_001",
 			queuedAt: "2026-06-04T01:02:03Z",
 			requestId: "req_durable_001",
-			requestedTool: "knowledge_query",
 			runId: "run_durable_001",
-			selectedTool: "knowledge_query",
 			startedAt: "",
 			status: "queued",
 			streamingStartedAt: "",
@@ -256,6 +246,7 @@ describe("execution control runtime adapter", () => {
 								visibility: "internal",
 							},
 						],
+						next_sequence: 1,
 					}),
 					{ status: 200 },
 				),
@@ -302,24 +293,27 @@ describe("execution control runtime adapter", () => {
 			}),
 		);
 		expect(run.status).toBe("running");
-		expect(events).toEqual([
-			{
-				conversationId: "conv_durable_001",
-				eventId: "run_durable_001:run-created",
-				eventType: "run.created",
-				occurredAt: "2026-06-04T01:02:03Z",
-				payload: { status: "created" },
-				payloadSchemaVersion: "run-event-v1",
-				runId: "run_durable_001",
-				sequence: 1,
-				visibility: "internal",
-			},
-		]);
+		expect(events).toEqual({
+			events: [
+				{
+					conversationId: "conv_durable_001",
+					eventId: "run_durable_001:run-created",
+					eventType: "run.created",
+					occurredAt: "2026-06-04T01:02:03Z",
+					payload: { status: "created" },
+					payloadSchemaVersion: "run-event-v1",
+					runId: "run_durable_001",
+					sequence: 1,
+					visibility: "internal",
+				},
+			],
+			nextSequence: 1,
+		});
 	});
 
 	it("passes durable run event sequence cursor to execution-control events query", async () => {
 		const fetchImplementation = vi.fn().mockResolvedValue(
-			new Response(JSON.stringify({ events: [] }), {
+			new Response(JSON.stringify({ events: [], next_sequence: 7 }), {
 				status: 200,
 			}),
 		);
@@ -347,7 +341,7 @@ describe("execution control runtime adapter", () => {
 
 	it("passes bounded wait budget to execution-control events query", async () => {
 		const fetchImplementation = vi.fn().mockResolvedValue(
-			new Response(JSON.stringify({ events: [] }), {
+			new Response(JSON.stringify({ events: [], next_sequence: 7 }), {
 				status: 200,
 			}),
 		);
@@ -372,6 +366,72 @@ describe("execution control runtime adapter", () => {
 				method: "GET",
 			}),
 		);
+	});
+
+	it("preserves external cancellation as AbortError", async () => {
+		let upstreamSignal: AbortSignal | null | undefined;
+		const fetchImplementation = vi.fn(
+			(_request: RequestInfo | URL, init?: RequestInit) =>
+				new Promise<Response>((_resolve, reject) => {
+					upstreamSignal = init?.signal;
+					upstreamSignal?.addEventListener(
+						"abort",
+						() => reject(new DOMException("The operation was aborted.", "AbortError")),
+						{ once: true },
+					);
+				}),
+		);
+		const client = createExecutionControlRuntimeClient(
+			{
+				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
+				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
+			},
+			{ fetchImplementation },
+		);
+		const controller = new AbortController();
+
+		const request = client.listRunEvents({
+			runId: "run_durable_001",
+			signal: controller.signal,
+			waitMs: 25_000,
+		});
+		controller.abort();
+
+		await expect(request).rejects.toMatchObject({ name: "AbortError" });
+		expect(upstreamSignal?.aborted).toBe(true);
+	});
+
+	it("maps only the requester timeout to execution_timeout", async () => {
+		vi.useFakeTimers();
+		const fetchImplementation = vi.fn(
+			(_request: RequestInfo | URL, init?: RequestInit) =>
+				new Promise<Response>((_resolve, reject) => {
+					init?.signal?.addEventListener(
+						"abort",
+						() => reject(new DOMException("The operation was aborted.", "AbortError")),
+						{ once: true },
+					);
+				}),
+		);
+		const client = createExecutionControlRuntimeClient(
+			{
+				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
+				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
+			},
+			{ fetchImplementation },
+		);
+
+		try {
+			const request = client.listRunEvents({ runId: "run_durable_001" });
+			const rejection = expect(request).rejects.toMatchObject({
+				code: "execution_timeout",
+				status: 504,
+			});
+			await vi.advanceTimersByTimeAsync(95_000);
+			await rejection;
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("rejects invalid durable run event wait budgets", async () => {
@@ -414,14 +474,12 @@ describe("execution control runtime adapter", () => {
 			}),
 		);
 		expect(trajectory.agentRuntimeEvalProjection).toMatchObject({
-			schema_version: "agent_runtime_eval_projection.v1",
+			schema_version: "agent_runtime_eval_projection.v3",
 			run: {
 				run_id: "run_durable_001",
 				status: "completed",
 			},
-			trajectory: {
-				selected_tool: "knowledge_query",
-			},
+			trajectory: {},
 		});
 	});
 
@@ -588,8 +646,9 @@ describe("execution control runtime adapter", () => {
 		await expect(
 			client.createRun({
 				conversationId: "conv_durable_001",
-				metadata: { execution_payload: {} },
+				metadata: EXECUTION_RUN_METADATA,
 				ownerUserId: "user_001",
+				personalMemoryRecallAllowed: false,
 				requestId: "req_durable_001",
 				runId: "run_durable_001",
 				surface: "campus-web",
@@ -624,8 +683,9 @@ describe("execution control runtime adapter", () => {
 		await expect(
 			client.createRun({
 				conversationId: "conv_durable_001",
-				metadata: { execution_payload: {} },
+				metadata: EXECUTION_RUN_METADATA,
 				ownerUserId: "user_001",
+				personalMemoryRecallAllowed: false,
 				requestId: "req_durable_001",
 				runId: "run_durable_001",
 				surface: "campus-web",

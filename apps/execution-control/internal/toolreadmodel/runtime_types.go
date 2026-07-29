@@ -9,12 +9,14 @@ const (
 )
 
 type Options struct {
+	KnowledgeReadModelStore         KnowledgeReadModelStore
 	TransportScheduleReadModelStore TransportScheduleReadModelStore
 	StructuredProjectionDatabaseURL string
 	TrustedTimeRFC3339              string
 }
 
 type Runtime struct {
+	knowledgeReadModelStore         KnowledgeReadModelStore
 	transportScheduleReadModelStore TransportScheduleReadModelStore
 	transportScheduleBundleCache    projectionBundleCache
 	trustedTime                     time.Time

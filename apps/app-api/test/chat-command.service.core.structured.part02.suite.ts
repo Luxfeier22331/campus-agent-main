@@ -68,10 +68,13 @@ export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
 					answerText: currentCase.answerText,
 					error: null,
 					followUpQuestion: "",
-					resolvedTargets: [],
+					modelUsage: {
+						cachedInputTokens: 10,
+						inputTokens: 120,
+						outputTokens: 42,
+						totalTokens: 162,
+					},
 					result: currentCase.result,
-					selectedTool: "transport_schedule_lookup" as const,
-					sessionUpdate: null,
 					status: "completed" as const,
 					traceId: "trace_0001",
 				};
@@ -109,7 +112,6 @@ export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
 
 			const finalizedWrite = finalWrites[index] as FinalizeRequestWrite;
 			expect(finalizedWrite.assistantMessage.text).toBe(answerText);
-			expect(finalizedWrite.turnDispatch.selectedTool).toBe("transport_schedule_lookup");
 			const tracePart = finalizedWrite.assistantMessage.structuredParts.find(
 				(part) => part.type === "campus_service_trace_cards",
 			);

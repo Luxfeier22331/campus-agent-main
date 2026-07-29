@@ -52,12 +52,54 @@ export function loadSnapshot(entryOrTag: MigrationJournalEntry | string): Drizzl
 }
 
 export function splitCurrentSchemaStatements(sql: string): string[] {
-	return sql
-		.trim()
-		.split(";")
-		.map((item) => item.trim())
-		.filter(Boolean)
-		.map((item) => `${item};`);
+	const statements: string[] = [];
+	let statementStart = 0;
+	let singleQuote = false;
+	let dollarQuote: string | null = null;
+
+	for (let index = 0; index < sql.length; index += 1) {
+		const character = sql[index];
+		if (dollarQuote) {
+			if (sql.startsWith(dollarQuote, index)) {
+				index += dollarQuote.length - 1;
+				dollarQuote = null;
+			}
+			continue;
+		}
+		if (singleQuote) {
+			if (character === "'" && sql[index + 1] === "'") {
+				index += 1;
+			} else if (character === "'") {
+				singleQuote = false;
+			}
+			continue;
+		}
+		if (character === "'") {
+			singleQuote = true;
+			continue;
+		}
+		if (character === "$") {
+			const tag = sql.slice(index).match(/^\$[A-Za-z_0-9]*\$/u)?.[0];
+			if (tag) {
+				dollarQuote = tag;
+				index += tag.length - 1;
+				continue;
+			}
+		}
+		if (character === ";") {
+			const statement = sql.slice(statementStart, index + 1).trim();
+			if (statement) {
+				statements.push(statement);
+			}
+			statementStart = index + 1;
+		}
+	}
+
+	const trailing = sql.slice(statementStart).trim();
+	if (trailing) {
+		statements.push(`${trailing};`);
+	}
+	return statements;
 }
 
 export function loadCurrentDrizzleSnapshot(): DrizzleSnapshot {

@@ -200,7 +200,7 @@ export function createPgAccountAdminStore(
 	env: Env,
 	input: { getDb?: RuntimeDbGetter; now?: () => Date } = {},
 ): AccountAdminStore {
-	const getDb = input.getDb ?? (() => createRuntimeDatabase(env, { consistency: "fresh" }));
+	const getDb = input.getDb ?? (() => createRuntimeDatabase(env));
 	const now = input.now ?? (() => new Date());
 	const environment = resolveEnvironment(env);
 	return {

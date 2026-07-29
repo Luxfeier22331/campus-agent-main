@@ -2,7 +2,7 @@ use std::io::{self, Read};
 use std::path::PathBuf;
 
 use ingestion_kernels_rs::{
-    ChunkDocumentUnitsOptions, chunk_document_units_jsonl, validate_document_units_jsonl,
+    BuildRetrievalChunksV2Options, build_retrieval_chunks_v2_jsonl, validate_document_units_jsonl,
 };
 
 fn main() {
@@ -23,10 +23,10 @@ fn run() -> Result<(), String> {
         .map_err(|error| format!("failed to read stdin: {error}"))?;
     let output = match kernel_id.as_str() {
         "validate-document-units" => serde_json::to_string(&validate_document_units_jsonl(&input)),
-        "chunk-document-units" => {
+        "build-retrieval-chunks-v2" => {
             let options = parse_chunk_options(args)?;
-            let chunk_set = chunk_document_units_jsonl(&input, options)
-                .map_err(|error| format!("failed to chunk document units: {error}"))?;
+            let chunk_set = build_retrieval_chunks_v2_jsonl(&input, options)
+                .map_err(|error| format!("failed to build retrieval chunks: {error}"))?;
             serde_json::to_string(&chunk_set)
         }
         _ => return Err(format!("unsupported ingestion kernel: {kernel_id}")),
@@ -38,7 +38,7 @@ fn run() -> Result<(), String> {
 
 fn parse_chunk_options(
     mut args: impl Iterator<Item = String>,
-) -> Result<ChunkDocumentUnitsOptions, String> {
+) -> Result<BuildRetrievalChunksV2Options, String> {
     let mut tokenizer_json_path: Option<PathBuf> = None;
     let mut chunk_size: Option<usize> = None;
     let mut max_tokens: Option<usize> = None;
@@ -73,7 +73,11 @@ fn parse_chunk_options(
             "--max-chars" => {
                 return Err("--max-chars is retired; --tokenizer-json is required".to_string());
             }
-            _ => return Err(format!("unsupported chunk-document-units argument: {arg}")),
+            _ => {
+                return Err(format!(
+                    "unsupported build-retrieval-chunks-v2 argument: {arg}"
+                ));
+            }
         }
     }
     let tokenizer_json_path = tokenizer_json_path.ok_or("--tokenizer-json is required")?;
@@ -83,7 +87,7 @@ fn parse_chunk_options(
             tokenizer_json_path.display()
         ));
     }
-    Ok(ChunkDocumentUnitsOptions {
+    Ok(BuildRetrievalChunksV2Options {
         chunk_size: chunk_size.ok_or("--chunk-size is required")?,
         max_tokens: max_tokens.ok_or("--max-tokens is required")?,
         min_tokens: min_tokens.ok_or("--min-tokens is required")?,

@@ -30,9 +30,9 @@ alias。
 checked-in alias 配置在有已开放运行时消费前只是 offline data；文件存在不代表能力已经
 产品化。
 
-本决策不为 `knowledge_search` 增加 entity 字段。当前知识路径仍使用 ADR-0075 的
-target-based query contract。未来领域 resolver 如需结构化运行参数，必须显式引入并验证
-该合同。
+本决策不为 `grounding_context.v2` 或文档范围准入增加 entity 字段。当前 grounding 只消费冻结的
+用户问题和服务端文档范围。未来领域 resolver 如需新的运行参数，必须先引入可执行合同和评测，
+不能以别名配置存在推断在线能力。
 
 ## 后果
 
@@ -42,5 +42,5 @@ target-based query contract。未来领域 resolver 如需结构化运行参数�
 
 ## 相关文档
 
-- `docs/decisions/adr-0075-knowledge-search.md`
+- `docs/decisions/adr-0084-agent-knowledge-tools.md`
 - `docs/architecture/system/code-organization.md`

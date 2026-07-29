@@ -1,6 +1,6 @@
 {
 	"schema_version": "contract-schema-registry.v1",
-	"updated": "2026-07-11",
+	"updated": "2026-07-26",
 	"entries": [
 		{
 			"id": "contract-schema-registry.v1",
@@ -105,48 +105,64 @@
 			"notes": "Release-scoped app-api document reader projection materialized by jobs/docs-publish."
 		},
 		{
-			"id": "knowledge-tool-contracts.v2",
+			"id": "grounding-context.v2",
 			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/knowledge-tool-contracts.v2.schema.json",
+			"path": "packages/contracts/schemas/grounding-context.v2.schema.json",
 			"owner": "packages/contracts",
 			"status": "active",
-			"notes": "Canonical JSON Schema for knowledge workflow-signal and internal RAG payload/result packets."
+			"notes": "Run-bound evidence context prepared by execution-control before the Primary Agent call."
 		},
 		{
-			"id": "runtime-tools.v5",
+			"id": "runtime-tools.v6",
 			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/runtime-tools.v5.schema.json",
+			"path": "packages/contracts/schemas/runtime-tools.v6.schema.json",
 			"owner": "packages/contracts",
 			"status": "active",
-			"validates": ["configs/runtime/tools.v5.json"],
+			"validates": ["configs/runtime/tools.v6.json"],
 			"notes": "Tool-native runtime registry consumed by agent-runtime and execution-control."
 		},
 		{
-			"id": "runtime-tool-function-schemas.v2",
+			"id": "personal-memory-tool-contracts.v1",
 			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/runtime-tool-function-schemas.v2.schema.json",
+			"path": "packages/contracts/schemas/personal-memory-tool-contracts.v1.schema.json",
 			"owner": "packages/contracts",
 			"status": "active",
-			"validates": ["configs/runtime/tool-function-schemas.v2.json"],
+			"notes": "Bounded model-facing personal memory recall request and result contract."
+		},
+		{
+			"id": "runtime-tool-function-schemas.v3",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/runtime-tool-function-schemas.v3.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"validates": ["configs/runtime/tool-function-schemas.v3.json"],
 			"notes": "Strict model-facing function parameter schema artifact."
 		},
 		{
-			"id": "runtime-workflow-artifacts.v2",
+			"id": "runtime-workflow-artifacts.v3",
 			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/runtime-workflow-artifacts.v2.schema.json",
+			"path": "packages/contracts/schemas/runtime-workflow-artifacts.v3.schema.json",
 			"owner": "packages/contracts",
 			"status": "active",
-			"validates": ["configs/runtime/workflow-artifacts.v2.json"],
+			"validates": ["configs/runtime/workflow-artifacts.v3.json"],
 			"notes": "Workflow artifact registry consumed by execution-control runtime policy."
 		},
 		{
-			"id": "query-serving-targets.v1",
+			"id": "query-serving-targets.v3",
 			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/query-serving-targets.v1.schema.json",
+			"path": "packages/contracts/schemas/query-serving-targets.v3.schema.json",
 			"owner": "packages/contracts",
 			"status": "active",
-			"validates": ["configs/runtime/query-serving-targets.v1.json"],
-			"notes": "Knowledge query-serving target registry consumed by agent-runtime and execution-control."
+			"validates": ["configs/runtime/query-serving-targets.v3.json"],
+			"notes": "Admitted document-scope registry consumed by execution-control."
+		},
+		{
+			"id": "knowledge-serving-release.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/knowledge-serving-release.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"notes": "Release identity binding a formal PostgreSQL section projection to one immutable Qdrant collection."
 		},
 		{
 			"id": "runtime-latency-budgets.v1",
@@ -218,6 +234,30 @@
 			"owner": "packages/ingestion-contracts",
 			"status": "active",
 			"notes": "Canonical document-unit JSONL row contract for Rust kernels and ingestion task inputs."
+		},
+		{
+			"id": "canonical-document-units.v2",
+			"kind": "json_artifact",
+			"path": "packages/ingestion-contracts/schemas/canonical-document-units.v2.schema.json",
+			"owner": "packages/ingestion-contracts",
+			"status": "active",
+			"notes": "Strict formal document section contract consumed by knowledge serving publication."
+		},
+		{
+			"id": "retrieval-chunks.v2",
+			"kind": "json_artifact",
+			"path": "packages/ingestion-contracts/schemas/retrieval-chunks.v2.schema.json",
+			"owner": "packages/ingestion-contracts",
+			"status": "active",
+			"notes": "Strict release-scoped retrieval chunk contract for immutable Qdrant publication."
+		},
+		{
+			"id": "retrieval-chunk-set.v2",
+			"kind": "json_artifact",
+			"path": "packages/ingestion-contracts/schemas/retrieval-chunk-set.v2.schema.json",
+			"owner": "packages/ingestion-contracts",
+			"status": "active",
+			"notes": "Deterministic Rust kernel output containing retrieval_chunk.v2 records."
 		},
 		{
 			"id": "ingestion-task-envelope.v3",

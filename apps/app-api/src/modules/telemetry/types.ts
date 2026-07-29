@@ -9,8 +9,6 @@ export interface BaseRequestTelemetry {
 	conversationId: string;
 	principalType?: string | null;
 	requestId: string;
-	requestedTool: string | null;
-	resolvedTargets?: string[];
 	safetyIdentifier?: string | null;
 	surface: string;
 	traceId: string;
@@ -50,8 +48,13 @@ export interface AppTelemetry {
 		input: BaseRequestTelemetry & {
 			durationMs: number;
 			errorCode: string | null;
+			modelUsage: {
+				cachedInputTokens: number;
+				inputTokens: number;
+				outputTokens: number;
+				totalTokens: number;
+			};
 			retryable: boolean | null;
-			selectedTool: string | null;
 			sourceDocIds: string[];
 			stageTiming?: Record<string, unknown> | null;
 			status:

@@ -10,7 +10,6 @@ import type {
 	RuntimeRunSummary,
 	RuntimeStepTrajectory,
 	WorkflowIdentity,
-	WorkflowTraceSummary,
 } from "./support/chat-durable-e2e-staging.types";
 import {
 	DEFAULT_CHAT_E2E_PROMPT,
@@ -28,7 +27,6 @@ import {
 export type {
 	ChatDurableE2eDependencies,
 	ChatDurableE2eResult,
-	WorkflowTraceSummary,
 } from "./support/chat-durable-e2e-staging.types";
 
 function normalizeOptionalValue(value: string | undefined): string | null {
@@ -499,7 +497,6 @@ export async function runChatDurableE2eStaging(
 		submit: null,
 		submitStreamAbortedAfterAccepted: false,
 		workflow: null,
-		workflowTraceSummary: null,
 	};
 
 	result.readyz.appApi = await resolvedDeps.fetchReadyz(args.appApiReadyzUrl);
@@ -591,7 +588,6 @@ export async function runChatDurableE2eStaging(
 		).toString(),
 	});
 	result.workflow = readWorkflowIdentity(stepsResult.payload, submit.accepted);
-	result.workflowTraceSummary = summarizeWorkflowTrace(stepsResult.payload);
 	result.agentRuntimeEvalProjection = stepsResult.payload.agentRuntimeEvalProjection ?? null;
 	result.runtimeStepResults = stepsResult.payload.results ?? [];
 	result.langfuseCloseout = {
@@ -625,42 +621,6 @@ export async function runChatDurableE2eStaging(
 	}
 	result.passed = true;
 	return result;
-}
-
-function summarizeWorkflowTrace(trajectory: RuntimeStepTrajectory): WorkflowTraceSummary {
-	const traceSteps = (trajectory.steps ?? []).map((step) => {
-		const stepId = requireStepString(step, "stepId", "step_id");
-		const status = requireStepString(step, "status");
-		const selectedTool = optionalStepString(step, "selectedTool", "selected_tool");
-		return {
-			...(selectedTool ? { selected_tool: selectedTool } : {}),
-			status,
-			step_id: stepId,
-		};
-	});
-	const selectedTool = traceSteps.find((step) => step.selected_tool)?.selected_tool ?? "none";
-	return {
-		selected_tool: selectedTool,
-		trace_steps: traceSteps,
-	};
-}
-
-function requireStepString(step: Record<string, unknown>, ...keys: string[]): string {
-	const value = optionalStepString(step, ...keys);
-	if (!value) {
-		throw new Error(`durable run step must include ${keys.join(" or ")}.`);
-	}
-	return value;
-}
-
-function optionalStepString(step: Record<string, unknown>, ...keys: string[]): string {
-	for (const key of keys) {
-		const value = step[key];
-		if (typeof value === "string" && value.trim()) {
-			return value;
-		}
-	}
-	return "";
 }
 
 export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env) {

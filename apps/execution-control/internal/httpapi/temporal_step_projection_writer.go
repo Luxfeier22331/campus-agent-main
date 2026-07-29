@@ -2,7 +2,9 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -32,6 +34,7 @@ type temporalStepProjection struct {
 	UsageObserved         bool
 	ParentStepID          string
 	Payload               map[string]any
+	PreserveAttempt       bool
 	ProjectionRef         string
 	ProviderRequestRef    string
 	ProviderResponseID    string
@@ -65,6 +68,10 @@ func (s *Server) projectTemporalStep(ctx context.Context, projection temporalSte
 	if attempt <= 0 {
 		attempt = 1
 	}
+	// Activity evidence (attempt, workflow/activity identity and timing) is
+	// filled by withTemporalActivityEvidence. Build the sanitized payload only
+	// afterwards so the persisted contract carries the same evidence.
+	projection.Payload = temporalStepProjectionPayload(projection)
 	var completionErr error
 	if strings.TrimSpace(projection.Status) == "completed" &&
 		strings.TrimSpace(projection.StepID) != "finalization.write" {
@@ -85,6 +92,7 @@ func (s *Server) projectTemporalStep(ctx context.Context, projection temporalSte
 			Tool:                 projection.Tool,
 			ParentStepID:         projection.ParentStepID,
 			Status:               projection.Status,
+			ActivityAttempt:      projection.ActivityAttempt,
 			TaskQueue:            projection.TaskQueue,
 			WorkerID:             projection.WorkerID,
 			StartedAt:            projection.StartedAt,
@@ -93,7 +101,17 @@ func (s *Server) projectTemporalStep(ctx context.Context, projection temporalSte
 			PayloadSchemaVersion: "run-step-projection-v1",
 			SanitizedPayload:     projection.Payload,
 		}); err != nil {
-			return err
+			if !errors.Is(err, execution.ErrStaleRunStepProjection) {
+				return err
+			}
+			if temporalStepTerminal(projection.Status) {
+				markLateCompletionIgnored(
+					&projection,
+					execution.LateCompletionOutcomeIgnoredAfterTerminalProjection,
+					"stale_activity_attempt",
+				)
+				completionErr = fmt.Errorf("stale activity attempt completion: %w", err)
+			}
 		}
 	}
 	attemptID := temporalStepAttemptID(projection.Run.RunID, projection.StepID, attempt)
@@ -133,7 +151,20 @@ func (s *Server) projectTemporalStep(ctx context.Context, projection temporalSte
 		PayloadSchemaVersion:  "step-attempt-projection-v1",
 		SanitizedPayload:      projection.Payload,
 	}); err != nil {
-		return err
+		if !errors.Is(err, execution.ErrStaleStepAttemptProjection) {
+			return err
+		}
+		if !temporalStepTerminal(projection.Status) {
+			return err
+		}
+		if completionErr == nil {
+			markLateCompletionIgnored(
+				&projection,
+				execution.LateCompletionOutcomeIgnoredAfterTerminalProjection,
+				"stale_step_attempt",
+			)
+			completionErr = fmt.Errorf("stale terminal step attempt projection: %w", err)
+		}
 	}
 	if completionErr == nil && strings.TrimSpace(projection.ResultKind) != "" {
 		if _, err := s.runProjectionStore.UpsertStepResult(ctx, execution.StepResultProjection{
@@ -160,13 +191,22 @@ func (s *Server) projectTemporalStep(ctx context.Context, projection temporalSte
 	return nil
 }
 
+func temporalStepProjectionPayload(projection temporalStepProjection) map[string]any {
+	payload := cloneAnyMapFromMetadata(projection.Payload)
+	if projection.ActivityAttempt > 0 {
+		payload["activity_attempt"] = projection.ActivityAttempt
+	}
+	return payload
+}
+
 func (s *Server) emitTemporalStepObservation(ctx context.Context, projection temporalStepProjection) error {
 	if s == nil || s.telemetry == nil {
 		return nil
 	}
-	if err := s.telemetry.Emit(ctx, s.temporalStepObservationEvent(projection)); err != nil {
-		return fmt.Errorf("temporal step observation telemetry delivery failed: %w", err)
-	}
+	// The emitter records unavailable/exporter failures in its own status.
+	// Ordinary trace delivery is not part of the durable projection commit and
+	// must not turn a stored step into an Activity failure.
+	_ = s.telemetry.Emit(ctx, s.temporalStepObservationEvent(projection))
 	return nil
 }
 
@@ -182,7 +222,7 @@ func (s *Server) temporalStepObservationEvent(projection temporalStepProjection)
 }
 
 func temporalStepObservationEvent(projection temporalStepProjection) telemetry.Event {
-	return telemetry.Event{
+	event := telemetry.Event{
 		ActivityAttempt:       projection.ActivityAttempt,
 		ActivityType:          strings.TrimSpace(projection.ActivityType),
 		CachedInputTokens:     projection.CachedInputTokens,
@@ -200,7 +240,8 @@ func temporalStepObservationEvent(projection temporalStepProjection) telemetry.E
 		RequestID:             strings.TrimSpace(projection.Run.RequestID),
 		RunID:                 strings.TrimSpace(projection.Run.RunID),
 		ScheduleToStart:       time.Duration(projection.ScheduleToStartMS) * time.Millisecond,
-		SelectedTool:          temporalStepSelectedTool(projection),
+		StartedAt:             projection.StartedAt,
+		ToolName:              temporalStepToolName(projection),
 		Status:                strings.TrimSpace(projection.Status),
 		StepID:                strings.TrimSpace(projection.StepID),
 		StepKind:              strings.TrimSpace(projection.StepKind),
@@ -208,23 +249,82 @@ func temporalStepObservationEvent(projection temporalStepProjection) telemetry.E
 		TraceID:               strings.TrimSpace(projection.Run.TraceID),
 		UserID:                strings.TrimSpace(projection.Run.OwnerUserID),
 		WorkflowID:            strings.TrimSpace(projection.WorkflowID),
+		CompletedAt:           projection.CompletedAt,
 	}
+	if event.StepID == "grounding.prepare" {
+		event.GroundingMode = strings.TrimSpace(stringValue(projection.Payload["grounding_mode"]))
+		if event.GroundingMode != "" {
+			event.GroundingStatus = strings.TrimSpace(stringValue(projection.Payload["status"]))
+			event.GroundingSelectedScopes = stringSliceFromAny(projection.Payload["selected_scopes"])
+			event.GroundingCoveredScopes = stringSliceFromAny(projection.Payload["covered_scopes"])
+			if value, ok := nonNegativeProjectionInt64(projection.Payload["candidate_count"]); ok {
+				event.GroundingCandidateCount = value
+				event.GroundingCandidateCountSet = true
+			}
+			if value, ok := nonNegativeProjectionInt64(projection.Payload["evidence_count"]); ok {
+				event.GroundingEvidenceCount = value
+				event.GroundingEvidenceCountSet = true
+			}
+			if value, ok := nonNegativeProjectionInt64(projection.Payload["token_count"]); ok {
+				event.GroundingTokenCount = value
+				event.GroundingTokenCountSet = true
+			}
+			if value, ok := nonNegativeProjectionInt64(projection.Payload["model_context_chars"]); ok {
+				event.GroundingModelContextChars = value
+				event.GroundingModelContextCharsSet = true
+			}
+			stageTiming := cloneAnyMapFromMetadata(projection.Payload["stage_timing"])
+			if value, ok := numericProjectionValueIfPresent(stageTiming["grounding.embedding_ms"]); ok {
+				event.GroundingEmbeddingMS = value
+				event.GroundingEmbeddingMSSet = true
+			}
+			if value, ok := numericProjectionValueIfPresent(stageTiming["grounding.search_ms"]); ok {
+				event.GroundingSearchMS = value
+				event.GroundingSearchMSSet = true
+			}
+			if value, ok := numericProjectionValueIfPresent(stageTiming["grounding.rerank_ms"]); ok {
+				event.GroundingRerankMS = value
+				event.GroundingRerankMSSet = true
+			}
+			if value, ok := numericProjectionValueIfPresent(stageTiming["grounding.pack_ms"]); ok {
+				event.GroundingPackMS = value
+				event.GroundingPackMSSet = true
+			}
+		}
+	}
+	return event
 }
 
-func temporalStepSelectedTool(projection temporalStepProjection) string {
-	if projection.Payload == nil {
-		return ""
+func numericProjectionValueIfPresent(value any) (float64, bool) {
+	numeric, ok := numericValue(value)
+	if !ok || math.IsNaN(numeric) || math.IsInf(numeric, 0) || numeric < 0 {
+		return 0, false
 	}
-	tool, ok := projection.Payload["selected_tool"].(string)
+	return numeric, true
+}
+
+func nonNegativeProjectionInt64(value any) (int64, bool) {
+	numeric, ok := numericProjectionValueIfPresent(value)
+	if !ok || math.Trunc(numeric) != numeric || numeric >= float64(math.MaxInt64) {
+		return 0, false
+	}
+	return int64(numeric), true
+}
+
+func temporalStepToolName(projection temporalStepProjection) string {
+	if projection.Payload == nil {
+		return strings.TrimSpace(projection.Tool)
+	}
+	tool, ok := projection.Payload["tool_name"].(string)
 	if !ok {
-		return ""
+		return strings.TrimSpace(projection.Tool)
 	}
 	return strings.TrimSpace(tool)
 }
 
 func temporalPostFinalizationStepAllowed(stepID string) bool {
 	switch strings.TrimSpace(stepID) {
-	case "memory.append", "memory.reflect":
+	case "memory.append":
 		return true
 	default:
 		return false
@@ -267,6 +367,11 @@ func (s *Server) ensureTemporalStepNotTerminal(
 		if step.StepID != projection.StepID || !temporalStepTerminal(step.Status) {
 			continue
 		}
+		if strings.TrimSpace(step.Status) == strings.TrimSpace(projection.Status) &&
+			step.ActivityAttempt > 0 &&
+			step.ActivityAttempt == projection.ActivityAttempt {
+			return nil
+		}
 		attempts, err := s.runProjectionStore.ListStepAttempts(ctx, projection.Run.RunID)
 		if err != nil {
 			return err
@@ -297,7 +402,7 @@ func (s *Server) ensureTemporalStepNotTerminal(
 
 func temporalStepTerminal(status string) bool {
 	switch strings.TrimSpace(status) {
-	case "completed", "failed", "blocked", "canceled", "expired":
+	case "completed", "failed", "blocked", "canceled", "expired", "skipped":
 		return true
 	default:
 		return false
@@ -347,7 +452,10 @@ func (s *Server) withTemporalActivityEvidence(
 	if projection.LateCompletionOutcome == "" {
 		projection.LateCompletionOutcome = execution.LateCompletionOutcomeNotLate
 	}
-	if activity.IsActivity(ctx) {
+	// A receipt replay must use the exact evidence captured by the original
+	// Activity attempt. Mixing in the current retry's identity or timestamps
+	// makes an otherwise equivalent repair conflict with its durable rows.
+	if activity.IsActivity(ctx) && !projection.PreserveAttempt {
 		info := activity.GetInfo(ctx)
 		if projection.WorkflowID == "" {
 			projection.WorkflowID = info.WorkflowExecution.ID
@@ -416,12 +524,8 @@ func temporalActivityAttempt(ctx context.Context) int {
 func temporalActivityTypeForStep(stepID string) string {
 	normalized := strings.TrimSpace(stepID)
 	switch normalized {
-	case "memory.recall":
-		return temporalruntime.MemoryRecallActivityName
 	case "memory.append":
 		return temporalruntime.AppendConversationMemoryActivityName
-	case "memory.reflect":
-		return temporalruntime.MemoryReflectActivityName
 	case "agent.primary":
 		return temporalruntime.ExecutePrimaryAgentActivityName
 	case "finalization.write":

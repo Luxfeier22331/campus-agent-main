@@ -27,9 +27,13 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					answerText: "",
 					error: null,
 					followUpQuestion: "你要问哪个校区？",
+					modelUsage: {
+						cachedInputTokens: 10,
+						inputTokens: 120,
+						outputTokens: 42,
+						totalTokens: 162,
+					},
 					result: null,
-					resolvedTargets: [],
-					selectedTool: "knowledge_query",
 					status: "needs_clarification",
 					traceId: "trace_0001",
 				}),
@@ -45,9 +49,13 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					answerText: "当前没有足够依据回答这个问题。",
 					error: null,
 					followUpQuestion: "",
+					modelUsage: {
+						cachedInputTokens: 10,
+						inputTokens: 120,
+						outputTokens: 42,
+						totalTokens: 162,
+					},
 					result: null,
-					resolvedTargets: ["student_rules"],
-					selectedTool: "knowledge_query",
 					status: "no_answer",
 					traceId: "trace_0001",
 				}),
@@ -108,6 +116,12 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					answerText: "请说明班车方向。当前可查询：丰台至海淀通勤班车、海淀至丰台通勤班车。",
 					error: null,
 					followUpQuestion: "",
+					modelUsage: {
+						cachedInputTokens: 10,
+						inputTokens: 120,
+						outputTokens: 42,
+						totalTokens: 162,
+					},
 					result: {
 						payload_kind: "transport_schedule_lookup",
 						tool_result: {
@@ -119,8 +133,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 							outcome: "clarification_required",
 						},
 					},
-					resolvedTargets: [],
-					selectedTool: "transport_schedule_lookup",
 					status: "needs_clarification",
 					traceId: "trace_0001",
 				}),
@@ -136,6 +148,12 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					answerText: "为避免误导，当前来源信息存在冲突，暂时无法确认班车临时变更。",
 					error: null,
 					followUpQuestion: "",
+					modelUsage: {
+						cachedInputTokens: 10,
+						inputTokens: 120,
+						outputTokens: 42,
+						totalTokens: 162,
+					},
 					result: {
 						payload_kind: "transport_schedule_lookup",
 						tool_result: {
@@ -144,8 +162,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 							query_text: "班车临时变更",
 						},
 					},
-					resolvedTargets: [],
-					selectedTool: "transport_schedule_lookup",
 					status: "no_answer",
 					traceId: "trace_0001",
 				}),
@@ -162,6 +178,12 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 						"不能代你预约、提交、打电话或发邮件；如需继续，请先进入对应官方入口完成人工确认。",
 					error: null,
 					followUpQuestion: "",
+					modelUsage: {
+						cachedInputTokens: 10,
+						inputTokens: 120,
+						outputTokens: 42,
+						totalTokens: 162,
+					},
 					result: {
 						payload_kind: "transport_schedule_lookup",
 						tool_result: {
@@ -169,8 +191,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 							query_text: "地铁接驳车预约",
 						},
 					},
-					resolvedTargets: [],
-					selectedTool: "transport_schedule_lookup",
 					status: "approval_required",
 					traceId: "trace_0001",
 				}),
@@ -190,6 +210,12 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 						retryable: false,
 					},
 					followUpQuestion: "",
+					modelUsage: {
+						cachedInputTokens: 10,
+						inputTokens: 120,
+						outputTokens: 42,
+						totalTokens: 162,
+					},
 					result: {
 						payload_kind: "transport_schedule_lookup",
 						tool_result: {
@@ -197,8 +223,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 							query_text: "招生办电话",
 						},
 					},
-					resolvedTargets: [],
-					selectedTool: "transport_schedule_lookup",
 					status: "rejected",
 					traceId: "trace_0001",
 				}),
@@ -243,7 +267,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 		expectNoInternalLocators(clarification.answer.result.text);
 		expect(clarificationStore.finalWrites[0]).toMatchObject({
 			turnDispatch: {
-				selectedTool: "transport_schedule_lookup",
 				status: "needs_clarification",
 			},
 		});
@@ -258,7 +281,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 		expectNoInternalLocators(noAnswer.answer.result.text);
 		expect(noAnswerStore.finalWrites[0]).toMatchObject({
 			turnDispatch: {
-				selectedTool: "transport_schedule_lookup",
 				status: "no_answer",
 			},
 		});
@@ -272,7 +294,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 		);
 		expect(approvalStore.finalWrites[0]).toMatchObject({
 			turnDispatch: {
-				selectedTool: "transport_schedule_lookup",
 				status: "approval_required",
 			},
 		});
@@ -285,7 +306,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 		expect(rejectedStore.finalWrites[0]).toMatchObject({
 			turnDispatch: {
 				errorCode: "request_rejected",
-				selectedTool: "transport_schedule_lookup",
 				status: "rejected",
 			},
 		});
@@ -306,9 +326,13 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					answerText: "该请求涉及需要人工确认的操作，必须先经过审批。",
 					error: null,
 					followUpQuestion: "",
+					modelUsage: {
+						cachedInputTokens: 10,
+						inputTokens: 120,
+						outputTokens: 42,
+						totalTokens: 162,
+					},
 					result: null,
-					resolvedTargets: [],
-					selectedTool: null,
 					status: "approval_required",
 					traceId: "trace_0001",
 				}),
@@ -329,9 +353,13 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 						retryable: false,
 					},
 					followUpQuestion: "",
+					modelUsage: {
+						cachedInputTokens: 10,
+						inputTokens: 120,
+						outputTokens: 42,
+						totalTokens: 162,
+					},
 					result: null,
-					resolvedTargets: [],
-					selectedTool: null,
 					status: "rejected",
 					traceId: "trace_0001",
 				}),
@@ -364,14 +392,12 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 		});
 		expect(approvalStore.finalWrites[0]).toMatchObject({
 			turnDispatch: {
-				selectedTool: null,
 				status: "approval_required",
 			},
 		});
 		expect(approvalTelemetry.recordRequestFinalized).toHaveBeenCalledWith(
 			expect.objectContaining({
 				requestId: "req_0001",
-				selectedTool: null,
 				status: "approval_required",
 			}),
 		);
@@ -386,14 +412,12 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 		expect(rejectedStore.finalWrites[0]).toMatchObject({
 			turnDispatch: {
 				errorCode: "request_rejected",
-				selectedTool: null,
 				status: "rejected",
 			},
 		});
 		expect(rejectedTelemetry.recordRequestFinalized).toHaveBeenCalledWith(
 			expect.objectContaining({
 				requestId: "req_0001",
-				selectedTool: null,
 				status: "rejected",
 			}),
 		);

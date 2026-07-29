@@ -85,7 +85,6 @@ const CollectionRuntimeProfileSchema = z
 		serving_revision_tracks: z.array(z.enum(ALLOWED_REVISION_TRACKS)).default([]),
 		serving_visibility_levels: z.array(RequiredTextSchema).default([]),
 		serving_visibility_scopes: z.array(RequiredTextSchema).default([]),
-		required_metadata_fields: z.array(RequiredTextSchema).default([]),
 		primary_evidence_page_families: z.array(RequiredTextSchema).default([]),
 		listing_page_role: z.enum(ALLOWED_LISTING_PAGE_ROLES).nullable().optional(),
 		requires_freshness_gate: z.boolean().default(false),
@@ -94,7 +93,6 @@ const CollectionRuntimeProfileSchema = z
 		dense_prefetch_limit: PositiveIntegerSchema.default(DEFAULT_DENSE_PREFETCH_LIMIT),
 		sparse_prefetch_limit: PositiveIntegerSchema.default(DEFAULT_SPARSE_PREFETCH_LIMIT),
 		embedding_query_instruction: RequiredTextSchema.default(DEFAULT_EMBEDDING_QUERY_INSTRUCTION),
-		qdrant_alias_name: RequiredTextSchema.default("unconfigured"),
 		qdrant_collection_prefix: RequiredTextSchema.default("unconfigured"),
 		qdrant_dense_vector_name: RequiredTextSchema.default(DEFAULT_QDRANT_DENSE_VECTOR_NAME),
 		qdrant_sparse_vector_name: RequiredTextSchema.default(DEFAULT_QDRANT_SPARSE_VECTOR_NAME),
@@ -213,7 +211,6 @@ export interface CollectionSparseProfile {
 }
 
 export interface QdrantIndexBindingProfile {
-	aliasName: string;
 	collectionPrefix: string;
 	denseVectorName: string;
 	sparseVectorName: string;
@@ -240,7 +237,6 @@ export interface CollectionRuntimeProfile {
 	servingRevisionTracks: string[];
 	servingVisibilityLevels: string[];
 	servingVisibilityScopes: string[];
-	requiredMetadataFields: string[];
 	primaryEvidencePageFamilies: string[];
 	listingPageRole: string | null;
 	requiresFreshnessGate: boolean;
@@ -334,7 +330,6 @@ function toCollectionRuntimeProfile(
 		servingRevisionTracks: value.serving_revision_tracks,
 		servingVisibilityLevels: value.serving_visibility_levels,
 		servingVisibilityScopes: value.serving_visibility_scopes,
-		requiredMetadataFields: value.required_metadata_fields,
 		primaryEvidencePageFamilies: value.primary_evidence_page_families,
 		listingPageRole: value.listing_page_role ?? null,
 		requiresFreshnessGate: value.requires_freshness_gate,
@@ -344,7 +339,6 @@ function toCollectionRuntimeProfile(
 		sparsePrefetchLimit: value.sparse_prefetch_limit,
 		embeddingQueryInstruction: value.embedding_query_instruction,
 		qdrantIndexBinding: {
-			aliasName: value.qdrant_alias_name,
 			collectionPrefix: value.qdrant_collection_prefix,
 			denseVectorName: value.qdrant_dense_vector_name,
 			sparseVectorName: value.qdrant_sparse_vector_name,

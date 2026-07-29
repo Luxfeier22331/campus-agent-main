@@ -15,17 +15,6 @@ export type TurnDispatchStatus =
 	| "rejected"
 	| "cancelled";
 
-export interface PreviousToolResultRef {
-	tool: string;
-	contentHash: string;
-	projectionRef: string;
-	requestId: string;
-	resultKind: string;
-	runId: string;
-	status: string;
-	summary?: string;
-}
-
 export interface TurnDispatchPrincipalSnapshot {
 	actor: ResolvedAppPrincipal["actor"];
 	authorization: ResolvedAppPrincipal["authorization"] | null;
@@ -37,6 +26,14 @@ export interface TurnDispatchMemorySnapshot {
 	ownerGeneration: number;
 	ownerSequence: number;
 	recallEnabled: boolean;
+}
+
+export interface FrozenChatAdmissionWrite {
+	admissionInputJson: string;
+	admissionInputSha256: string;
+	executionInputJson: string;
+	executionInputSha256: string;
+	workflowId: string;
 }
 
 export interface TurnDispatchWrite {
@@ -54,9 +51,6 @@ export interface TurnDispatchWrite {
 	traceId: string;
 	runId: string | null;
 	safetyIdentifier?: string | null;
-	requestedTool: string | null;
-	resolvedTargets: string[];
-	selectedTool: string | null;
 	status: TurnDispatchStatus;
 	errorCode: string | null;
 	completedAt: string | null;
@@ -70,10 +64,8 @@ export type FinalizeTurnDispatchWrite = Omit<
 		| "completedAt"
 		| "errorCode"
 		| "requestId"
-		| "resolvedTargets"
 		| "runId"
 		| "safetyIdentifier"
-		| "selectedTool"
 		| "status"
 		| "turnSequence"
 		| "updatedAt"
@@ -93,9 +85,6 @@ export interface RequestObservabilityFactWrite {
 	entitlementSnapshotId: string | null;
 	policyProjectionVersion: string | null;
 	policyReason: string | null;
-	requestedTool: string | null;
-	resolvedTargets: string[];
-	selectedTool: string | null;
 	status: TurnDispatchStatus;
 	errorCode: string | null;
 	startedAt: string;
@@ -122,6 +111,13 @@ export interface RequestObservabilityFactWrite {
 
 export interface AcceptRequestWrite {
 	captureMemorySnapshot: boolean;
+	conversationBaseline: {
+		activeBranchId: string;
+		activeMessageId: string | null;
+		activeRunId: string | null;
+		activeTurnSequence: number;
+		updatedAt: string;
+	};
 	conversationSeed?: {
 		id: string;
 		ownerUserId: string;
@@ -130,6 +126,9 @@ export interface AcceptRequestWrite {
 		updatedAt: string;
 	};
 	conversationTitle: string;
+	freezeDurableAdmission: (
+		memorySnapshot: TurnDispatchMemorySnapshot | null,
+	) => FrozenChatAdmissionWrite;
 	ownerUserId: string;
 	requestObservabilityFact: RequestObservabilityFactWrite;
 	turnDispatch: TurnDispatchWrite;
@@ -137,10 +136,14 @@ export interface AcceptRequestWrite {
 }
 
 export interface AcceptRequestResult {
+	frozenAdmission: FrozenChatAdmissionWrite;
 	memorySnapshot: TurnDispatchMemorySnapshot | null;
 }
 
 export interface FinalizeRequestWrite {
+	admissionFailure?: {
+		workflowId: string;
+	};
 	assistantMessage: ChatMessage;
 	conversationTitle: string;
 	ownerUserId: string;
@@ -150,15 +153,23 @@ export interface FinalizeRequestWrite {
 	finalizationFingerprint?: string;
 }
 
+export interface FinalizeRequestResult {
+	conversation: import("../chat").ChatConversation;
+	outcome: "applied" | "replayed";
+}
+
 export interface StoredIdempotentRequest {
+	acceptedAt: string;
 	requestFingerprintSha256: string;
 	response: ChatCommandResponse;
+	runId: string | null;
 	status: TurnDispatchStatus;
 }
 
 export interface AcceptedDurableRequestCloseout {
 	acceptedAt: string;
 	assistantMessageId: string;
+	completedAt: string | null;
 	conversation: import("../chat").ChatConversation;
 	conversationTitle: string;
 	idempotencyKey: string | null;
@@ -166,7 +177,6 @@ export interface AcceptedDurableRequestCloseout {
 	questionPreview: string;
 	requestFingerprintSha256: string | null;
 	requestId: string;
-	requestedTool: string | null;
 	runId: string;
 	safetyIdentifier: string | null;
 	surface: string;
@@ -185,20 +195,28 @@ export interface AbuseControlState {
 }
 
 export interface PendingChatAdmission {
+	admissionInputJson: string;
+	admissionInputSha256: string;
 	requestId: string;
+	runId: string;
 	workflowId: string;
-	workflowInput: Record<string, unknown>;
-	workflowInputSha256: string;
 }
 
 export interface ChatCommandStore {
-	listPendingAdmissions(input?: { limit?: number }): Promise<PendingChatAdmission[]>;
-	recordAdmissionInput(input: {
+	listPendingAdmissions(input?: {
+		limit?: number;
+		staleBefore?: string;
+	}): Promise<PendingChatAdmission[]>;
+	claimAdmission(input: {
+		requestId: string;
+		staleBefore?: string;
+		updatedAt: string;
+		workflowId: string;
+	}): Promise<boolean>;
+	releaseAdmission(input: {
 		requestId: string;
 		updatedAt: string;
 		workflowId: string;
-		workflowInput: Record<string, unknown>;
-		workflowInputSha256: string;
 	}): Promise<boolean>;
 	markAdmitted(input: {
 		admittedAt: string;
@@ -215,23 +233,49 @@ export interface ChatCommandStore {
 		surface: string;
 	}): Promise<AbuseControlState>;
 	acceptRequest(input: AcceptRequestWrite): Promise<AcceptRequestResult>;
-	finalizeRequest(input: FinalizeRequestWrite): Promise<import("../chat").ChatConversation>;
+	finalizeRequest(input: FinalizeRequestWrite): Promise<FinalizeRequestResult>;
+	recordStreamAppApiTtft(input: {
+		durationMs: number;
+		observedAt: string;
+		requestId: string;
+	}): Promise<boolean>;
+	readRequestStageTiming(requestId: string): Promise<Record<string, unknown>>;
 	listAcceptedDurableRequestsForCloseout(input?: {
 		limit?: number;
 		runId?: string;
 		startedBefore?: string;
 	}): Promise<AcceptedDurableRequestCloseout[]>;
-	listPreviousToolResultRefs(input: {
-		beforeTurnSequence: number;
-		conversationId: string;
-		limit: number;
-		ownerUserId: string;
-	}): Promise<PreviousToolResultRef[]>;
+	readExecutionInput(runId: string): Promise<{
+		executionInputReleasedAt: string | null;
+		executionInputSha256: string | null;
+		executionInputJson: string | null;
+		requestId: string;
+		runId: string;
+		status: TurnDispatchStatus;
+	} | null>;
+	releaseExecutionInput(input: {
+		releasedAt: string;
+		runId: string;
+	}): Promise<"released" | "not_terminal">;
 }
 
 export class ChatFinalizationConflict extends Error {
 	constructor() {
 		super("chat finalization fingerprint conflict");
 		this.name = "ChatFinalizationConflict";
+	}
+}
+
+export class ChatAcceptanceConversationConflict extends Error {
+	constructor() {
+		super("chat conversation changed while accepting the request");
+		this.name = "ChatAcceptanceConversationConflict";
+	}
+}
+
+export class ChatAcceptanceIdempotencyConflict extends Error {
+	constructor() {
+		super("chat idempotency key was accepted concurrently");
+		this.name = "ChatAcceptanceIdempotencyConflict";
 	}
 }

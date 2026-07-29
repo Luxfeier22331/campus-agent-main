@@ -4,7 +4,8 @@
 
 ## 职责
 
-- 运行 Primary Agent、Knowledge Agent、handoff 和模型可见工具循环；
+- 运行单一 Primary Agent 与本轮准入的可选函数工具循环；当前只可能按本轮授权开放
+  `personal_memory_recall`；
 - 消费 execution-control 提供的模型配置、工具目录、上下文和截止时间；
 - 把工具调用交回 execution-control，不直接访问产品数据库或内部工具服务；
 - 返回结构化终态、工具轨迹、模型用量和调用链关联信息；

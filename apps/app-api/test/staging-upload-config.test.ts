@@ -9,7 +9,6 @@ import { buildAppApiStagingUploadConfig } from "../scripts/staging-upload-config
 const appDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const source = readFileSync(resolve(appDir, "wrangler.toml"), "utf8");
 const resources = {
-	freshHyperdriveId: "22222222222222222222222222222222",
 	hyperdriveId: "11111111111111111111111111111111",
 	objectStoreVpcServiceId: "44444444-4444-4444-8444-444444444444",
 	vpcServiceId: "33333333-3333-4333-8333-333333333333",
@@ -41,18 +40,12 @@ describe("app-api staging upload config", () => {
 				service_id: resources.objectStoreVpcServiceId,
 			}),
 		]);
-		expect(staging.hyperdrive).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({
-					binding: "APP_API_DB",
-					id: resources.hyperdriveId,
-				}),
-				expect.objectContaining({
-					binding: "APP_API_DB_FRESH",
-					id: resources.freshHyperdriveId,
-				}),
-			]),
-		);
+		expect(staging.hyperdrive).toEqual([
+			expect.objectContaining({
+				binding: "APP_API_DB",
+				id: resources.hyperdriveId,
+			}),
+		]);
 	});
 
 	it("rejects native invocation logs or traces in an upload config", () => {
@@ -85,10 +78,10 @@ describe("app-api staging upload config", () => {
 		expect(() =>
 			buildAppApiStagingUploadConfig(source, appDir, {
 				...resources,
-				freshHyperdriveId: "invalid",
+				hyperdriveId: "invalid",
 			}),
 		).toThrow(
-			"APP_API_DB_FRESH_HYPERDRIVE_ID must contain a 32-character lowercase hexadecimal Cloudflare Hyperdrive configuration ID.",
+			"APP_API_DB_HYPERDRIVE_ID must contain a 32-character lowercase hexadecimal Cloudflare Hyperdrive configuration ID.",
 		);
 	});
 

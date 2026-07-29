@@ -309,6 +309,19 @@ function deterministicScores(input: {
 			}),
 		);
 	}
+	if (input.item.expected_grounding_mode) {
+		scores.push(
+			booleanScore({
+				caseItem: input.item,
+				datasetRunId: input.datasetRunId,
+				evalKind: "routing",
+				evalRunId: input.evalRunId,
+				langfuseTraceId: input.langfuseTraceId,
+				name: "routing.grounding_mode_match",
+				passed: input.projection.groundingMode === input.item.expected_grounding_mode,
+			}),
+		);
+	}
 	if (input.item.forbidden_context_ids.length > 0) {
 		const retrieved = new Set(input.projection.retrievedContextIds);
 		const passed = input.item.forbidden_context_ids.every((contextId) => !retrieved.has(contextId));
@@ -384,7 +397,7 @@ function observedToolCalls(
 	trajectory: ToolTrajectory,
 	argumentMode: AgentToolEvalArgumentMode,
 ): AgentToolEvalToolCall[] {
-	return [...trajectory.tool_calls, ...trajectory.internal_tool_calls].map((call) => ({
+	return trajectory.tool_calls.map((call) => ({
 		args: argumentMode === "eval_safe_args" ? { ...(call.eval_safe_args ?? {}) } : {},
 		name: call.tool_name,
 	}));

@@ -12,7 +12,8 @@ func updateDurableRunStatusInTx(ctx context.Context, tx pgx.Tx, run DurableRun) 
 		ctx,
 		`update runtime.agent_runs
 		set status = $2, terminal_reason = $3, queued_at = $4, admitted_at = $5,
-			started_at = $6, streaming_started_at = $7, completed_at = $8, updated_at = $9
+			started_at = $6, streaming_started_at = $7, completed_at = $8, updated_at = $9,
+			retryable = $10
 		where run_id = $1`,
 		run.RunID,
 		string(run.Status),
@@ -23,6 +24,7 @@ func updateDurableRunStatusInTx(ctx context.Context, tx pgx.Tx, run DurableRun) 
 		nullableTime(run.StreamingStartedAt),
 		nullableTime(run.CompletedAt),
 		run.UpdatedAt,
+		run.Retryable,
 	)
 	return err
 }
@@ -76,6 +78,16 @@ func insertDurableRunEventInTx(
 	if err != nil && isUniqueViolation(err) {
 		return fmt.Errorf("%w: event_id or sequence conflict", ErrInvalidRunEvent)
 	}
+	if err != nil {
+		return err
+	}
+	return notifyRunEventInTx(ctx, tx, run.RunID)
+}
+
+const runEventNotificationChannel = "campus_agent_run_events"
+
+func notifyRunEventInTx(ctx context.Context, tx pgx.Tx, runID string) error {
+	_, err := tx.Exec(ctx, `select pg_notify($1, $2)`, runEventNotificationChannel, runID)
 	return err
 }
 
@@ -92,4 +104,17 @@ func durableRunEventByIDInTx(
 		where event_id = $1`,
 		eventID,
 	))
+}
+
+func runCancellationRequestedInTx(ctx context.Context, tx pgx.Tx, runID string) (bool, error) {
+	var requested bool
+	err := tx.QueryRow(
+		ctx,
+		`select exists(
+			select 1 from runtime.agent_run_cancellations
+			where run_id = $1 and state <> 'confirmed'
+		)`,
+		runID,
+	).Scan(&requested)
+	return requested, err
 }

@@ -116,6 +116,7 @@ describe("chat durable run routes", () => {
 			}),
 			afterSequence: 2,
 			runId: "run_01HQ",
+			signal: expect.any(AbortSignal),
 		});
 	});
 
@@ -204,11 +205,60 @@ describe("chat durable run routes", () => {
 			}),
 			afterSequence: 2,
 			runId: "run_01HQ",
+			signal: expect.any(AbortSignal),
 		});
 		expect(runtimeRunService.listEvents).not.toHaveBeenCalled();
 		expect(chatCommandService.reconcileDurableCloseouts).not.toHaveBeenCalled();
 		expect(chatCommandService.submit).not.toHaveBeenCalled();
 		expect(chatCommandService.submitStream).not.toHaveBeenCalled();
+	});
+
+	it("aborts durable event polling when the SSE reader is cancelled", async () => {
+		let subscriptionSignal: AbortSignal | undefined;
+		const returnIterator = vi.fn().mockResolvedValue({ done: true, value: undefined });
+		const events: AsyncIterable<never> = {
+			[Symbol.asyncIterator]() {
+				return {
+					next: () => new Promise<IteratorResult<never>>(() => undefined),
+					return: returnIterator,
+				};
+			},
+		};
+		const runtimeRunService = {
+			cancel: vi.fn(),
+			getStatus: vi.fn().mockResolvedValue({
+				run: {
+					conversationId: "conv_01HQ",
+					phase: "running",
+					requestId: "req_01HQ",
+					runId: "run_01HQ",
+					status: "running",
+					traceId: "trace_01HQ",
+				},
+			}),
+			listEvents: vi.fn(),
+			listSteps: vi.fn(),
+			subscribeEvents: vi.fn((input: { signal?: AbortSignal }) => {
+				subscriptionSignal = input.signal;
+				return events;
+			}),
+		};
+		const app = createApp(env, {
+			getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
+			runtimeRunService,
+		});
+
+		const response = await app.fetch(
+			new Request("https://app-api.internal/api/chat/runs/run_01HQ/events/stream", {
+				method: "GET",
+			}),
+		);
+		const reader = response.body?.getReader();
+		await reader?.read();
+		await reader?.cancel();
+
+		expect(subscriptionSignal?.aborted).toBe(true);
+		expect(returnIterator).toHaveBeenCalledOnce();
 	});
 
 	it("writes a keepalive comment before waiting for the next durable run event", async () => {
@@ -312,6 +362,44 @@ describe("chat durable run routes", () => {
 			}),
 			reason: "user_requested",
 			runId: "run_01HQ",
+		});
+	});
+
+	it("returns a typed conflict when cancellation loses to a terminal product run", async () => {
+		const runtimeRunService = {
+			cancel: vi.fn().mockRejectedValue(
+				new AppApiRouteError({
+					code: "run_already_terminal",
+					message: "Run is already terminal.",
+					retryable: false,
+					status: 409,
+				}),
+			),
+			getStatus: vi.fn(),
+			listEvents: vi.fn(),
+			listSteps: vi.fn(),
+			subscribeEvents: vi.fn(),
+		};
+		const app = createApp(env, {
+			getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
+			runtimeRunService,
+		});
+
+		const response = await app.fetch(
+			new Request("https://app-api.internal/api/chat/runs/run_01HQ/cancel", {
+				body: JSON.stringify({ reason: "user_requested" }),
+				headers: { "content-type": "application/json" },
+				method: "POST",
+			}),
+		);
+
+		expect(response.status).toBe(409);
+		await expect(response.json()).resolves.toMatchObject({
+			error: {
+				code: "run_already_terminal",
+				message: "Run is already terminal.",
+				retryable: false,
+			},
 		});
 	});
 
@@ -438,16 +526,17 @@ describe("chat durable run routes", () => {
 						attemptId: "attempt-memory",
 						createdAt: "2026-06-04T01:02:05.000Z",
 						payloadSchemaVersion: "step-result-projection-v1",
-						projectionRef: "projection://runs/run_01HQ/memory/recall",
+						projectionRef: "projection://runs/run_01HQ/sdk-tools/personal_memory_recall/1",
 						resultId: "result-memory",
-						resultKind: "memory_recall_result",
+						resultKind: "typed_tool_result",
 						runId: "run_01HQ",
 						sanitizedPayload: {
-							memory_ref: "projection://runs/run_01HQ/memory/recall",
-							selected_memory_count: 1,
+							outcome: "matched",
+							tool_name: "personal_memory_recall",
+							tool_status: "completed",
 						},
 						status: "completed",
-						stepId: "memory.recall",
+						stepId: "sdk_tool.execute.personal_memory_recall.1",
 					},
 				],
 				run: {
@@ -460,21 +549,22 @@ describe("chat durable run routes", () => {
 				},
 				steps: [
 					{
-						tool: "any",
+						tool: "personal_memory_recall",
 						completedAt: "2026-06-04T01:02:05.000Z",
 						conversationId: "conv_01HQ",
 						parentStepId: "",
 						payloadSchemaVersion: "run-step-projection-v1",
 						runId: "run_01HQ",
 						sanitizedPayload: {
-							memory_ref: "projection://runs/run_01HQ/memory/recall",
-							selected_memory_count: 1,
+							outcome: "matched",
+							tool_name: "personal_memory_recall",
+							tool_status: "completed",
 						},
 						startedAt: "2026-06-04T01:02:04.000Z",
 						status: "completed",
-						stepId: "memory.recall",
-						stepKind: "memory",
-						taskQueue: "context",
+						stepId: "sdk_tool.execute.personal_memory_recall.1",
+						stepKind: "tool",
+						taskQueue: "campus-agent.activity.agent.v3",
 						updatedAt: "2026-06-04T01:02:05.000Z",
 						workerId: "test-worker",
 					},
@@ -501,16 +591,17 @@ describe("chat durable run routes", () => {
 					attemptId: "attempt-memory",
 					createdAt: "2026-06-04T01:02:05.000Z",
 					payloadSchemaVersion: "step-result-projection-v1",
-					projectionRef: "projection://runs/run_01HQ/memory/recall",
+					projectionRef: "projection://runs/run_01HQ/sdk-tools/personal_memory_recall/1",
 					resultId: "result-memory",
-					resultKind: "memory_recall_result",
+					resultKind: "typed_tool_result",
 					runId: "run_01HQ",
 					sanitizedPayload: {
-						memory_ref: "projection://runs/run_01HQ/memory/recall",
-						selected_memory_count: 1,
+						outcome: "matched",
+						tool_name: "personal_memory_recall",
+						tool_status: "completed",
 					},
 					status: "completed",
-					stepId: "memory.recall",
+					stepId: "sdk_tool.execute.personal_memory_recall.1",
 				},
 			],
 			run: {
@@ -523,21 +614,22 @@ describe("chat durable run routes", () => {
 			},
 			steps: [
 				{
-					tool: "any",
+					tool: "personal_memory_recall",
 					completedAt: "2026-06-04T01:02:05.000Z",
 					conversationId: "conv_01HQ",
 					parentStepId: "",
 					payloadSchemaVersion: "run-step-projection-v1",
 					runId: "run_01HQ",
 					sanitizedPayload: {
-						memory_ref: "projection://runs/run_01HQ/memory/recall",
-						selected_memory_count: 1,
+						outcome: "matched",
+						tool_name: "personal_memory_recall",
+						tool_status: "completed",
 					},
 					startedAt: "2026-06-04T01:02:04.000Z",
 					status: "completed",
-					stepId: "memory.recall",
-					stepKind: "memory",
-					taskQueue: "context",
+					stepId: "sdk_tool.execute.personal_memory_recall.1",
+					stepKind: "tool",
+					taskQueue: "campus-agent.activity.agent.v3",
 					updatedAt: "2026-06-04T01:02:05.000Z",
 					workerId: "test-worker",
 				},

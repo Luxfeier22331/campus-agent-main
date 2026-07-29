@@ -6,7 +6,8 @@ export interface ToolRuntimeFingerprint {
 	combinedSha256: string;
 	functionSchemaSha256: string;
 	functionSchemaVersion: string;
-	schemaVersion: "tool_runtime_fingerprint.v1";
+	runtimeRelease: string;
+	schemaVersion: "tool_runtime_fingerprint.v2";
 	toolsRegistryVersion: string;
 	toolsSchemaVersion: string;
 	toolsSha256: string;
@@ -26,14 +27,6 @@ export interface ToolExecutionSessionSlot {
 	confirmed?: boolean;
 	name: string;
 	value: string;
-}
-
-export interface ToolExecutionSessionUpdate {
-	upsertSlots: Array<{
-		confirmed: true;
-		name: "curriculum_program" | "curriculum_program_family" | "curriculum_semester";
-		value: string;
-	}>;
 }
 
 export interface ToolExecutionSelectedNoticeRef {
@@ -63,33 +56,6 @@ export interface ToolExecutionConversationMessage {
 	role: "assistant" | "user";
 }
 
-export interface ToolExecutionPreviousEvidenceRef {
-	accessScope: string;
-	collection?: string;
-	contentHash: string;
-	documentId?: string;
-	evidenceId: string;
-	evidenceRole?: string;
-	sectionTitle?: string;
-	snapshotId?: string;
-	sourceId: string;
-	sourceKind?: string;
-	snippet?: string;
-	title?: string;
-	versionId?: string;
-}
-
-export interface ToolExecutionPreviousToolResultRef {
-	tool: string;
-	contentHash: string;
-	projectionRef: string;
-	requestId: string;
-	resultKind: string;
-	runId: string;
-	status: string;
-	summary?: string;
-}
-
 export interface ToolExecutionConversationContext {
 	conversationId: string;
 	currentUserMessage: {
@@ -98,8 +64,6 @@ export interface ToolExecutionConversationContext {
 		role: "user";
 	};
 	parentMessageId: string | null;
-	previousToolResults: ToolExecutionPreviousToolResultRef[];
-	previousEvidenceRefs: ToolExecutionPreviousEvidenceRef[];
 	recentTurns: ToolExecutionConversationMessage[];
 	schemaVersion: "conversation_context.v1";
 	sessionState: ToolExecutionSessionSummary;
@@ -118,7 +82,6 @@ export interface ToolExecutionInput {
 	context: ToolExecutionContextProjection;
 	conversationId: string;
 	requestId: string;
-	requestedTool?: string | null;
 	safetyIdentifier?: string | null;
 	surface?: string;
 	tenantId?: string | null;
@@ -132,23 +95,21 @@ export interface ToolExecutionObservability {
 	modelName: string | null;
 	modelProvider: string | null;
 	promptTrace: ToolExecutionPromptTrace | null;
-	selectedTools: string[];
 	terminalReason: string | null;
 }
 
 export interface ToolExecutionWorkflowTraceSummary {
-	answerArtifactKinds: string[];
 	answerArtifactRefs: string[];
-	directVsDelegateBranch: string | null;
-	firstDecisionActor: string | null;
-	planningOutcome: string | null;
+	executionPath: "direct" | "tool_assisted" | "clarification" | "rejected" | "unsupported";
 	runtimeVersions: Record<string, unknown>;
-	selectedTool: string | null;
-	selectedTools: string[];
-	terminalReason: string | null;
-	traceSteps?: Record<string, unknown>[];
-	toolCallSummaries?: Record<string, unknown>[];
-	workflowMode: string | null;
+	terminalReason: string;
+}
+
+export interface ToolExecutionModelUsage {
+	inputTokens: number;
+	cachedInputTokens: number;
+	outputTokens: number;
+	totalTokens: number;
 }
 
 export interface ToolExecutionResponse {
@@ -159,11 +120,9 @@ export interface ToolExecutionResponse {
 		retryable: boolean;
 	} | null;
 	followUpQuestion: string;
+	modelUsage: ToolExecutionModelUsage;
 	observability?: ToolExecutionObservability | null;
-	resolvedTargets: string[];
 	result: unknown;
-	selectedTool: string | null;
-	sessionUpdate: ToolExecutionSessionUpdate | null;
 	stageTiming?: Record<string, unknown>;
 	status: ExecutionFinalizationStatus;
 	traceId: string;

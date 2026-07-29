@@ -46,9 +46,11 @@ const (
 	DurableRunEventTypeRunAnswerStarted      DurableRunEventType = "run.answer_started"
 	DurableRunEventTypeRunAnswerDelta        DurableRunEventType = "run.answer_delta"
 	DurableRunEventTypeRunAnswerCompleted    DurableRunEventType = "run.answer_completed"
+	DurableRunEventTypeRunCancelRequested    DurableRunEventType = "run.cancel_requested"
 	DurableRunEventTypeRunCompleted          DurableRunEventType = "run.completed"
 	DurableRunEventTypeRunFailed             DurableRunEventType = "run.failed"
 	DurableRunEventTypeRunCanceled           DurableRunEventType = "run.canceled"
+	DurableRunEventTypeRunExpired            DurableRunEventType = "run.expired"
 	DurableRunEventTypeWorkflowStarted       DurableRunEventType = "workflow.started"
 	DurableRunEventTypeActivityFailed        DurableRunEventType = "activity.failed"
 	DurableRunEventTypeAgentCompleted        DurableRunEventType = "agent.completed"
@@ -64,30 +66,29 @@ const (
 )
 
 type DurableRun struct {
-	RunID              string
-	ConversationID     string
-	TurnID             string
-	RequestID          string
-	TraceID            string
-	OwnerUserID        string
-	Surface            string
-	RequestedTool      string
-	SelectedTool       string
-	TaskQueue          string
-	Status             DurableRunStatus
-	TerminalReason     DurableTerminalReason
-	FailCloseReason    string
-	Retryable          bool
-	CreatedAt          time.Time
-	QueuedAt           time.Time
-	AdmittedAt         time.Time
-	StartedAt          time.Time
-	StreamingStartedAt time.Time
-	CompletedAt        time.Time
-	UpdatedAt          time.Time
-	RuntimeVersions    map[string]any
-	FinalResponseRef   string
-	Metadata           map[string]any
+	RunID                    string
+	ConversationID           string
+	TurnID                   string
+	RequestID                string
+	TraceID                  string
+	OwnerUserID              string
+	Surface                  string
+	TaskQueue                string
+	Status                   DurableRunStatus
+	TerminalReason           DurableTerminalReason
+	FailCloseReason          string
+	Retryable                bool
+	CreatedAt                time.Time
+	QueuedAt                 time.Time
+	AdmittedAt               time.Time
+	StartedAt                time.Time
+	StreamingStartedAt       time.Time
+	CompletedAt              time.Time
+	UpdatedAt                time.Time
+	RuntimeVersions          map[string]any
+	FinalResponseRef         string
+	Metadata                 map[string]any
+	RequestFingerprintSHA256 string
 }
 
 type DurableRunEvent struct {
@@ -102,6 +103,13 @@ type DurableRunEvent struct {
 	PayloadSchemaVersion string
 }
 
+type RunAnswerStreamStartRequest struct {
+	RunID              string
+	Now                time.Time
+	AnswerStartedEvent DurableRunEvent
+	FirstDeltaEvent    DurableRunEvent
+}
+
 type RunStepProjection struct {
 	StepID               string
 	RunID                string
@@ -110,6 +118,7 @@ type RunStepProjection struct {
 	Tool                 string
 	ParentStepID         string
 	Status               string
+	ActivityAttempt      int
 	TaskQueue            string
 	WorkerID             string
 	StartedAt            time.Time
@@ -175,20 +184,45 @@ type DurableRunCancelRequest struct {
 	Now    time.Time
 }
 
+type DurableRunCancellationRequest struct {
+	RunID  string
+	Reason string
+	Now    time.Time
+}
+
 type DurableRunCompleteRequest struct {
 	RunID            string
 	TerminalReason   DurableTerminalReason
 	FinalResponseRef string
-	SelectedTool     string
 	Now              time.Time
 }
 
+type RunProjectionFinalizeRequest struct {
+	Completion                    DurableRunCompleteRequest
+	Step                          RunStepProjection
+	Attempt                       StepAttemptProjection
+	Result                        StepResultProjection
+	FinalizationFingerprintSHA256 string
+}
+
+type RunProjectionFinalizeResult struct {
+	Run     DurableRun
+	Step    RunStepProjection
+	Attempt StepAttemptProjection
+	Result  StepResultProjection
+}
+
 type DurableRunFailRequest struct {
-	RunID          string
-	TerminalReason DurableTerminalReason
-	SelectedTool   string
-	Now            time.Time
-	TerminalEvent  DurableRunEvent
+	RunID           string
+	TerminalReason  DurableTerminalReason
+	FailCloseReason string
+	Now             time.Time
+	TerminalEvent   DurableRunEvent
+}
+
+type DurableRunExpireRequest struct {
+	RunID string
+	Now   time.Time
 }
 
 type CancelOutcome string

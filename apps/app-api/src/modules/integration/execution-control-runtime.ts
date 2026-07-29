@@ -6,6 +6,7 @@ import {
 import { DEFAULT_PERSONAL_MEMORY_TENANT_ID } from "../personalization/tenant";
 import type { TracePropagationHeaders } from "../telemetry/trace";
 import {
+	assertExecutionControlResponseNotRedirect,
 	createExecutionControlRequestHeaders,
 	ExecutionControlTransportError,
 	parseExecutionControlErrorEnvelope,
@@ -13,6 +14,7 @@ import {
 	resolveExecutionControlUpstream,
 	selectExecutionControlFetchImplementation,
 } from "./execution-control-transport";
+import type { ExecutionRunMetadataWire } from "./generated/tool-execution-contract";
 
 type ExecutionControlRuntimeEnv = Pick<
 	Env,
@@ -27,8 +29,9 @@ export type JsonRecord = Record<string, unknown>;
 
 export interface ExecutionControlRunCreateInput {
 	conversationId: string;
-	metadata: JsonRecord;
+	metadata: ExecutionRunMetadataWire;
 	ownerUserId: string;
+	personalMemoryRecallAllowed: boolean;
 	requestId: string;
 	runId: string;
 	runtimeVersions?: JsonRecord | null;
@@ -40,6 +43,7 @@ export interface ExecutionControlRunCreateInput {
 
 export interface ExecutionControlRunQuery {
 	runId: string;
+	signal?: AbortSignal;
 	traceHeaders?: TracePropagationHeaders;
 	traceId?: string | null;
 }
@@ -47,6 +51,7 @@ export interface ExecutionControlRunQuery {
 export interface ExecutionControlRunEventQuery {
 	afterSequence?: number;
 	runId: string;
+	signal?: AbortSignal;
 	traceHeaders?: TracePropagationHeaders;
 	traceId?: string | null;
 	waitMs?: number;
@@ -69,9 +74,7 @@ export interface ExecutionControlRun {
 	ownerUserId: string;
 	queuedAt: string;
 	requestId: string;
-	requestedTool: string;
 	runId: string;
-	selectedTool: string;
 	startedAt: string;
 	status: string;
 	streamingStartedAt: string;
@@ -93,6 +96,11 @@ export interface ExecutionControlRunEvent {
 	runId: string;
 	sequence: number;
 	visibility: string;
+}
+
+export interface ExecutionControlRunEventPage {
+	events: ExecutionControlRunEvent[];
+	nextSequence: number;
 }
 
 export interface ExecutionControlRunStep {
@@ -171,7 +179,7 @@ export interface ExecutionControlRuntimeClient {
 	cancelRun(input: ExecutionControlRunCancelInput): Promise<ExecutionControlRun>;
 	createRun(input: ExecutionControlRunCreateInput): Promise<ExecutionControlRun>;
 	getRun(input: ExecutionControlRunQuery): Promise<ExecutionControlRun>;
-	listRunEvents(input: ExecutionControlRunEventQuery): Promise<ExecutionControlRunEvent[]>;
+	listRunEvents(input: ExecutionControlRunEventQuery): Promise<ExecutionControlRunEventPage>;
 	listRunSteps(input: ExecutionControlRunQuery): Promise<ExecutionControlRunStepTrajectory>;
 }
 
@@ -231,15 +239,23 @@ export function createExecutionControlRuntimeClient(
 			const parsed = await requestExecutionControl(`/internal/execution/runs/${query.runId}`, {
 				expectedStatus: 200,
 				method: "GET",
+				signal: query.signal,
 				traceHeaders: query.traceHeaders,
 				traceId: query.traceId,
 			});
 			return parseDurableRun(parsed);
 		},
-		async listRunEvents(query: ExecutionControlRunEventQuery): Promise<ExecutionControlRunEvent[]> {
+		async listRunEvents(
+			query: ExecutionControlRunEventQuery,
+		): Promise<ExecutionControlRunEventPage> {
 			const parsed = await requestExecutionControl(durableRunEventsPath(query), {
 				expectedStatus: 200,
 				method: "GET",
+				signal: query.signal,
+				timeoutMs:
+					query.waitMs === undefined
+						? undefined
+						: Math.max(EXECUTION_CONTROL_TIMEOUT_MS, query.waitMs + 5_000),
 				traceHeaders: query.traceHeaders,
 				traceId: query.traceId,
 			});
@@ -313,6 +329,7 @@ export function createExecutionControlRequester(
 		body?: JsonRecord;
 		expectedStatus: number;
 		method: "GET" | "POST";
+		signal?: AbortSignal;
 		traceHeaders?: TracePropagationHeaders;
 		traceId?: string | null;
 		timeoutMs?: number;
@@ -324,6 +341,7 @@ export function createExecutionControlRequester(
 			body?: JsonRecord;
 			expectedStatus: number;
 			method: "GET" | "POST";
+			signal?: AbortSignal;
 			traceHeaders?: TracePropagationHeaders;
 			traceId?: string | null;
 			timeoutMs?: number;
@@ -348,54 +366,61 @@ export function createExecutionControlRequester(
 		const timeoutMs = options.timeoutMs ?? EXECUTION_CONTROL_TIMEOUT_MS;
 		let response: Response;
 		try {
-			response = await new Promise<Response>((resolve, reject) => {
-				const controller = new AbortController();
-				const timeoutId = setTimeout(() => {
-					controller.abort();
-					reject(
-						new ExecutionControlTransportError({
-							code: "execution_timeout",
-							message: `Execution control runtime request exceeded ${timeoutMs}ms timeout.`,
-							retryable: true,
-							status: 504,
+			let timeoutId: ReturnType<typeof setTimeout> | null = null;
+			let removeExternalAbortListener: (() => void) | undefined;
+			try {
+				response = await new Promise<Response>((resolve, reject) => {
+					const controller = new AbortController();
+					const rejectExternalAbort = () => {
+						controller.abort();
+						reject(new DOMException("The operation was aborted.", "AbortError"));
+					};
+					if (options.signal?.aborted) {
+						rejectExternalAbort();
+						return;
+					}
+					if (options.signal) {
+						options.signal.addEventListener("abort", rejectExternalAbort, { once: true });
+						removeExternalAbortListener = () =>
+							options.signal?.removeEventListener("abort", rejectExternalAbort);
+					}
+					timeoutId = setTimeout(() => {
+						controller.abort();
+						reject(
+							new ExecutionControlTransportError({
+								code: "execution_timeout",
+								message: `Execution control runtime request exceeded ${timeoutMs}ms timeout.`,
+								retryable: true,
+								status: 504,
+							}),
+						);
+					}, timeoutMs);
+
+					fetchImplementation(`${upstream.baseUrl}${path}`, {
+						body: options.body ? JSON.stringify(options.body) : undefined,
+						headers: createExecutionControlRequestHeaders({
+							payload: {
+								traceHeaders: options.traceHeaders,
+								traceId: options.traceId?.trim() || "",
+							},
+							sharedSecret,
 						}),
-					);
-				}, timeoutMs);
-
-				fetchImplementation(`${upstream.baseUrl}${path}`, {
-					body: options.body ? JSON.stringify(options.body) : undefined,
-					headers: createExecutionControlRequestHeaders({
-						payload: {
-							traceHeaders: options.traceHeaders,
-							traceId: options.traceId?.trim() || "",
-						},
-						sharedSecret,
-					}),
-					method: options.method,
-					signal: controller.signal,
-				})
-					.then(resolve)
-					.catch((error) => {
-						if (error instanceof Error && error.name === "AbortError") {
-							reject(
-								new ExecutionControlTransportError({
-									code: "execution_timeout",
-									message: `Execution control runtime request exceeded ${timeoutMs}ms timeout.`,
-									retryable: true,
-									status: 504,
-								}),
-							);
-							return;
-						}
-
-						reject(error);
-					})
-					.finally(() => {
-						clearTimeout(timeoutId);
-					});
-			});
+						method: options.method,
+						redirect: "manual",
+						signal: controller.signal,
+					}).then(resolve, reject);
+				});
+			} finally {
+				if (timeoutId) {
+					clearTimeout(timeoutId);
+				}
+				removeExternalAbortListener?.();
+			}
 		} catch (error) {
 			if (error instanceof ExecutionControlTransportError) {
+				throw error;
+			}
+			if (error instanceof Error && error.name === "AbortError") {
 				throw error;
 			}
 
@@ -407,6 +432,7 @@ export function createExecutionControlRequester(
 				status: 502,
 			});
 		}
+		assertExecutionControlResponseNotRedirect(response);
 
 		const parsed = await parseExecutionControlJsonResponse(response);
 		if (response.status !== options.expectedStatus) {
@@ -461,6 +487,7 @@ function toDurableRunCreateBody(input: ExecutionControlRunCreateInput): JsonReco
 		conversation_id: input.conversationId,
 		metadata: input.metadata,
 		owner_user_id: input.ownerUserId,
+		personal_memory_recall_allowed: input.personalMemoryRecallAllowed,
 		request_id: input.requestId,
 		run_id: input.runId,
 		runtime_versions: input.runtimeVersions ?? {},
@@ -481,9 +508,7 @@ function parseDurableRun(payload: JsonRecord): ExecutionControlRun {
 		ownerUserId: readRequiredString(payload, "owner_user_id"),
 		queuedAt: readRequiredString(payload, "queued_at"),
 		requestId: readRequiredString(payload, "request_id"),
-		requestedTool: readRequiredString(payload, "requested_tool"),
 		runId: readRequiredString(payload, "run_id"),
-		selectedTool: readRequiredString(payload, "selected_tool"),
 		startedAt: readRequiredString(payload, "started_at"),
 		status: readRequiredString(payload, "status"),
 		streamingStartedAt: readRequiredString(payload, "streaming_started_at"),
@@ -496,28 +521,35 @@ function parseDurableRun(payload: JsonRecord): ExecutionControlRun {
 	};
 }
 
-function parseDurableRunEvents(payload: JsonRecord): ExecutionControlRunEvent[] {
+function parseDurableRunEvents(payload: JsonRecord): ExecutionControlRunEventPage {
 	const events = payload.events;
 	if (!Array.isArray(events)) {
 		throw invalidDurableResponse("events must be an array.");
 	}
-	return events.map((event, index) => {
-		if (!event || typeof event !== "object" || Array.isArray(event)) {
-			throw invalidDurableResponse(`events[${index}] must be an object.`);
-		}
-		const record = event as JsonRecord;
-		return {
-			conversationId: readRequiredString(record, "conversation_id"),
-			eventId: readRequiredString(record, "event_id"),
-			eventType: readRequiredString(record, "event_type"),
-			occurredAt: readRequiredString(record, "occurred_at"),
-			payload: readRequiredRecord(record, "payload"),
-			payloadSchemaVersion: readRequiredString(record, "payload_schema_version"),
-			runId: readRequiredString(record, "run_id"),
-			sequence: readRequiredNumber(record, "sequence"),
-			visibility: readRequiredString(record, "visibility"),
-		};
-	});
+	const nextSequence = readRequiredNumber(payload, "next_sequence");
+	if (!Number.isInteger(nextSequence) || nextSequence < 0) {
+		throw invalidDurableResponse("next_sequence must be a non-negative integer.");
+	}
+	return {
+		events: events.map((event, index) => {
+			if (!event || typeof event !== "object" || Array.isArray(event)) {
+				throw invalidDurableResponse(`events[${index}] must be an object.`);
+			}
+			const record = event as JsonRecord;
+			return {
+				conversationId: readRequiredString(record, "conversation_id"),
+				eventId: readRequiredString(record, "event_id"),
+				eventType: readRequiredString(record, "event_type"),
+				occurredAt: readRequiredString(record, "occurred_at"),
+				payload: readRequiredRecord(record, "payload"),
+				payloadSchemaVersion: readRequiredString(record, "payload_schema_version"),
+				runId: readRequiredString(record, "run_id"),
+				sequence: readRequiredNumber(record, "sequence"),
+				visibility: readRequiredString(record, "visibility"),
+			};
+		}),
+		nextSequence,
+	};
 }
 
 function parseRunStepTrajectory(payload: JsonRecord): ExecutionControlRunStepTrajectory {

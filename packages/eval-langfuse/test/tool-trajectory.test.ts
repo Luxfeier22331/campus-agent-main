@@ -1,90 +1,109 @@
 import { describe, expect, it } from "vitest";
 
 import {
-	expectedToolFromTrajectory,
 	parseToolTrajectory,
-	scoreToolSelection,
+	scoreToolSequence,
+	toolSequenceFromTrajectory,
 } from "../src/tool-trajectory";
 
 describe("tool trajectory projection", () => {
-	it("parses sanitized tool trajectory and scores tool selection", () => {
+	it("parses the ordered public tool trajectory and scores the complete sequence", () => {
 		const trajectory = parseToolTrajectory({
-			available_tools: ["knowledge_query", "transport_schedule_lookup"],
+			available_tools: ["personal_memory_recall"],
 			conversation_id: "conv_1",
-			decision_kind: "tool_call",
+			decision_kind: "tool_assisted",
 			environment: "staging",
-			internal_tool_calls: [
-				{
-					candidate_count: 4,
-					duration_ms: 42,
-					eval_safe_args: { include_history: false, target: "student_rules" },
-					outcome: "found",
-					query_hash: "sha256:query",
-					result_kind: "knowledge_search_result",
-					search_ordinal: 1,
-					status: "completed",
-					tool_call_id: "search_1",
-					tool_name: "knowledge_search",
-				},
-			],
 			release: "release-1",
 			request_id: "req_1",
 			run_id: "run_1",
-			schema_version: "tool_trajectory.v2",
-			selected_tool: "knowledge_query",
+			schema_version: "tool_trajectory.v3",
 			surface: "campus-web",
 			tool_calls: [
 				{
 					arguments_hash: "sha256:args",
-					result_kind: "knowledge_query",
+					duration_ms: 42,
+					result_kind: "typed_tool_result",
 					status: "completed",
 					tool_call_id: "call_1",
-					tool_name: "knowledge_query",
+					tool_name: "personal_memory_recall",
 				},
 			],
 			trace_id: "trace_1",
 		});
 
-		expect(expectedToolFromTrajectory(trajectory)).toBe("knowledge_query");
-		expect(scoreToolSelection(trajectory, "knowledge_query")).toBe(true);
-		expect(scoreToolSelection(trajectory, "transport_schedule_lookup")).toBe(false);
-		expect(trajectory.internal_tool_calls).toEqual([
-			expect.objectContaining({
-				search_ordinal: 1,
-				outcome: "found",
-				eval_safe_args: { include_history: false, target: "student_rules" },
-			}),
-		]);
+		expect(toolSequenceFromTrajectory(trajectory)).toEqual(["personal_memory_recall"]);
+		expect(scoreToolSequence(trajectory, ["personal_memory_recall"])).toBe(true);
+		expect(scoreToolSequence(trajectory, [])).toBe(false);
 	});
 
-	it("rejects forbidden payload fields instead of sanitizing in eval", () => {
+	it("rejects retired routing fields and tools", () => {
 		expect(() =>
 			parseToolTrajectory({
-				decision_kind: "tool_call",
-				raw_provider_response: "must not enter eval",
+				available_tools: ["personal_memory_recall"],
+				decision_kind: "tool_assisted",
 				request_id: "req_1",
 				run_id: "run_1",
-				schema_version: "tool_trajectory.v2",
+				schema_version: "tool_trajectory.v3",
 				selected_tool: "knowledge_query",
 				tool_calls: [],
 				trace_id: "trace_1",
 			}),
 		).toThrow(/forbidden/i);
+		expect(() =>
+			parseToolTrajectory({
+				available_tools: ["retrieve_document_evidence"],
+				decision_kind: "fail_closed",
+				request_id: "req_1",
+				run_id: "run_1",
+				schema_version: "tool_trajectory.v3",
+				tool_calls: [],
+				trace_id: "trace_1",
+			}),
+		).toThrow(/active agent runtime tool/i);
 	});
 
 	it("does not count fail closed as a direct answer", () => {
 		const trajectory = parseToolTrajectory({
-			available_tools: ["knowledge_query", "transport_schedule_lookup"],
+			available_tools: ["transport_schedule_lookup"],
 			decision_kind: "fail_closed",
 			fail_close_reason: "tool_contract_missing",
-			internal_tool_calls: [],
 			request_id: "req_1",
 			run_id: "run_1",
-			schema_version: "tool_trajectory.v2",
+			schema_version: "tool_trajectory.v3",
 			tool_calls: [],
 			trace_id: "trace_1",
 		});
 
-		expect(scoreToolSelection(trajectory, "direct_answer")).toBe(false);
+		expect(trajectory.decision_kind).toBe("fail_closed");
+		expect(scoreToolSequence(trajectory, [])).toBe(true);
+	});
+
+	it("parses a bounded personal memory call without accepting memory content", () => {
+		const trajectory = parseToolTrajectory({
+			available_tools: ["personal_memory_recall"],
+			decision_kind: "tool_assisted",
+			request_id: "req_memory",
+			run_id: "run_memory",
+			schema_version: "tool_trajectory.v3",
+			tool_calls: [
+				{
+					arguments_hash: "sha256:memory-query",
+					duration_ms: 18,
+					result_kind: "typed_tool_result",
+					status: "completed",
+					tool_call_id: "call_memory",
+					tool_name: "personal_memory_recall",
+				},
+			],
+			trace_id: "trace_memory",
+		});
+
+		expect(toolSequenceFromTrajectory(trajectory)).toEqual(["personal_memory_recall"]);
+		expect(() =>
+			parseToolTrajectory({
+				...trajectory,
+				tool_calls: [{ ...trajectory.tool_calls[0], memory_text: "不得进入评测轨迹" }],
+			}),
+		).toThrow(/forbidden/i);
 	});
 });

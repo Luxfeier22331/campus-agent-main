@@ -6,7 +6,8 @@ import {
 	useExternalStoreRuntime,
 } from "@assistant-ui/react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { UnauthorizedError } from "@/platform/api/client";
+import { createIdempotencyKey, UnauthorizedError } from "@/platform/api/client";
+import { recordChatBrowserTtft } from "@/platform/telemetry/sentry-browser-loader";
 import {
 	ChatStreamRequestError,
 	cancelRun,
@@ -23,6 +24,8 @@ type RuntimeMessages = ThreadMessageLike[];
 const TYPEWRITER_INITIAL_CHARS = 3;
 const TYPEWRITER_CHUNK_CHARS = 2;
 const TYPEWRITER_INTERVAL_MS = 24;
+const RESUME_INITIAL_DELAY_MS = 250;
+const RESUME_MAX_DELAY_MS = 5_000;
 
 interface ActiveRun {
 	conversationId?: string;
@@ -32,12 +35,27 @@ interface ActiveRun {
 	traceId: string;
 }
 
+interface RuntimeOperationIdentity {
+	id: number;
+	controller: AbortController;
+}
+
+interface RuntimeOperation extends RuntimeOperationIdentity {
+	browserTtftRecorded: boolean;
+	browserTtftStartedAt: number | null;
+}
+
+type RunCancellationState =
+	| { phase: "idle" }
+	| { operationId: number; phase: "awaiting_run_id" }
+	| { operationId: number; phase: "requesting"; promise: Promise<void>; runId: string }
+	| { operationId: number; phase: "acknowledged"; runId: string };
+
 interface TypewriterState {
 	fullText: string;
 	intervalId: number | null;
 	messageId: string;
 	occurredAt: string;
-	pendingTerminalMessages: RuntimeMessages | null;
 	visibleLength: number;
 }
 
@@ -65,19 +83,61 @@ function useCampusAssistantRuntimeState({
 	const [isLoading, setIsLoading] = useState(false);
 	const [isRunning, setIsRunning] = useState(false);
 	const [messages, setMessages] = useState<RuntimeMessages>([]);
-	const [activeRun, setActiveRun] = useState<ActiveRun | null>(null);
+	const activeRunRef = useRef<ActiveRun | null>(null);
 	const abortControllerRef = useRef<AbortController | null>(null);
+	const cancellationStateRef = useRef<RunCancellationState>({ phase: "idle" });
+	const operationIdRef = useRef(0);
 	const locallyInitializedRunConversationIdRef = useRef<string | null>(null);
-	const pendingCancelBeforeRunRef = useRef(false);
+	const provisionalAssistantMessageIdsRef = useRef(new Set<string>());
+	const streamedAnswerTextRef = useRef(new Map<string, string>());
 	const typewriterRef = useRef<TypewriterState | null>(null);
 
-	const fetchConversationMessages = useCallback(async (conversationId: string) => {
-		const conversation = await getConversationDetail(conversationId);
-		return toAssistantThreadMessages(conversation);
+	const replaceActiveRun = useCallback((run: ActiveRun | null) => {
+		activeRunRef.current = run;
 	}, []);
+
+	const updateActiveRun = useCallback(
+		(update: (current: ActiveRun | null) => ActiveRun | null) => {
+			replaceActiveRun(update(activeRunRef.current));
+		},
+		[replaceActiveRun],
+	);
+
+	const fetchConversationMessages = useCallback(
+		async (conversationId: string, signal?: AbortSignal) => {
+			const conversation = await getConversationDetail(conversationId, signal);
+			return toAssistantThreadMessages(conversation);
+		},
+		[],
+	);
+
+	const startOperation = useCallback((measureBrowserTtft = false): RuntimeOperation => {
+		abortControllerRef.current?.abort();
+		cancellationStateRef.current = { phase: "idle" };
+		if (measureBrowserTtft) {
+			streamedAnswerTextRef.current.clear();
+		}
+		const controller = new AbortController();
+		const operation = {
+			browserTtftRecorded: false,
+			browserTtftStartedAt: measureBrowserTtft ? performance.now() : null,
+			controller,
+			id: ++operationIdRef.current,
+		};
+		abortControllerRef.current = controller;
+		return operation;
+	}, []);
+
+	const ownsOperation = useCallback(
+		(operation: RuntimeOperationIdentity): boolean =>
+			operationIdRef.current === operation.id &&
+			abortControllerRef.current === operation.controller,
+		[],
+	);
 
 	const revealAssistantText = useCallback(
 		(input: { messageId: string; occurredAt: string; text: string }) => {
+			provisionalAssistantMessageIdsRef.current.add(input.messageId);
 			setMessages((current) => {
 				const nextMessage: ThreadMessageLike = {
 					content: input.text ? [{ text: input.text, type: "text" }] : [],
@@ -110,6 +170,23 @@ function useCampusAssistantRuntimeState({
 		typewriterRef.current = null;
 	}, []);
 
+	const clearProvisionalAssistantMessages = useCallback(() => {
+		const provisionalIds = new Set(provisionalAssistantMessageIdsRef.current);
+		if (provisionalIds.size > 0) {
+			setMessages((current) =>
+				current.filter((message) => !(message.id && provisionalIds.has(message.id))),
+			);
+		}
+		provisionalAssistantMessageIdsRef.current.clear();
+		streamedAnswerTextRef.current.clear();
+	}, []);
+
+	const replaceWithCanonicalMessages = useCallback((nextMessages: RuntimeMessages) => {
+		provisionalAssistantMessageIdsRef.current.clear();
+		streamedAnswerTextRef.current.clear();
+		setMessages(nextMessages);
+	}, []);
+
 	const appendLocalErrorMessage = useCallback((error: ChatStreamRequestError) => {
 		const messageId = error.requestId
 			? `local-error-${error.requestId}`
@@ -126,6 +203,83 @@ function useCampusAssistantRuntimeState({
 		]);
 	}, []);
 
+	const appendCancellationFailure = useCallback(
+		(run: ActiveRun) => {
+			appendLocalErrorMessage(
+				new ChatStreamRequestError({
+					code: "run_cancel_failed",
+					message: "取消请求失败，当前回答仍在继续。",
+					retryable: true,
+					traceId: run.traceId,
+				}),
+			);
+		},
+		[appendLocalErrorMessage],
+	);
+
+	const requestRunCancellation = useCallback(
+		(run: ActiveRun, operation: RuntimeOperationIdentity): Promise<void> => {
+			const current = cancellationStateRef.current;
+			if (
+				current.phase !== "idle" &&
+				current.operationId === operation.id &&
+				"runId" in current &&
+				current.runId === run.runId
+			) {
+				return current.phase === "requesting" ? current.promise : Promise.resolve();
+			}
+
+			const request: Extract<RunCancellationState, { phase: "requesting" }> = {
+				operationId: operation.id,
+				phase: "requesting",
+				promise: Promise.resolve(),
+				runId: run.runId,
+			};
+			request.promise = Promise.resolve()
+				.then(() => cancelRun(run.runId))
+				.then(
+					() => {
+						if (
+							cancellationStateRef.current === request &&
+							ownsOperation(operation) &&
+							activeRunRef.current?.runId === run.runId
+						) {
+							cancellationStateRef.current = {
+								operationId: operation.id,
+								phase: "acknowledged",
+								runId: run.runId,
+							};
+						}
+					},
+					(error: unknown) => {
+						if (cancellationStateRef.current !== request) {
+							return;
+						}
+						if (isRunAlreadyTerminalError(error)) {
+							cancellationStateRef.current = {
+								operationId: operation.id,
+								phase: "acknowledged",
+								runId: run.runId,
+							};
+							return;
+						}
+						cancellationStateRef.current = { phase: "idle" };
+						if (!ownsOperation(operation) || activeRunRef.current?.runId !== run.runId) {
+							return;
+						}
+						if (error instanceof UnauthorizedError) {
+							onLoginRequired();
+							return;
+						}
+						appendCancellationFailure(run);
+					},
+				);
+			cancellationStateRef.current = request;
+			return request.promise;
+		},
+		[appendCancellationFailure, onLoginRequired, ownsOperation],
+	);
+
 	const finishTypewriter = useCallback(() => {
 		const current = typewriterRef.current;
 		if (!current) {
@@ -136,10 +290,6 @@ function useCampusAssistantRuntimeState({
 			current.intervalId = null;
 		}
 		typewriterRef.current = null;
-		if (current.pendingTerminalMessages) {
-			setMessages(current.pendingTerminalMessages);
-			return;
-		}
 		revealAssistantText({
 			messageId: current.messageId,
 			occurredAt: current.occurredAt,
@@ -187,48 +337,80 @@ function useCampusAssistantRuntimeState({
 			return;
 		}
 
+		const operationId = ++operationIdRef.current;
 		abortControllerRef.current?.abort();
 		clearTypewriter();
-		pendingCancelBeforeRunRef.current = false;
-		setActiveRun(null);
+		clearProvisionalAssistantMessages();
+		cancellationStateRef.current = { phase: "idle" };
+		replaceActiveRun(null);
 		setIsRunning(false);
 		if (!remoteId) {
+			abortControllerRef.current = null;
 			setMessages([]);
 			return;
 		}
+		const controller = new AbortController();
+		abortControllerRef.current = controller;
 
 		let cancelled = false;
 		setIsLoading(true);
-		fetchConversationMessages(remoteId)
+		fetchConversationMessages(remoteId, controller.signal)
 			.then((nextMessages) => {
-				if (!cancelled) {
-					setMessages(nextMessages);
+				if (!cancelled && operationIdRef.current === operationId) {
+					replaceWithCanonicalMessages(nextMessages);
 				}
 			})
 			.catch((error: unknown) => {
+				if (cancelled || operationIdRef.current !== operationId || isAbortError(error)) {
+					return;
+				}
 				if (error instanceof UnauthorizedError) {
 					onLoginRequired();
 					return;
 				}
-				throw error;
 			})
 			.finally(() => {
-				if (!cancelled) {
+				if (!cancelled && operationIdRef.current === operationId) {
 					setIsLoading(false);
 				}
 			});
 
 		return () => {
 			cancelled = true;
+			controller.abort();
+			if (operationIdRef.current === operationId) {
+				operationIdRef.current += 1;
+				if (abortControllerRef.current === controller) {
+					abortControllerRef.current = null;
+				}
+			}
 		};
-	}, [clearTypewriter, fetchConversationMessages, onLoginRequired, remoteId]);
+	}, [
+		clearProvisionalAssistantMessages,
+		clearTypewriter,
+		fetchConversationMessages,
+		onLoginRequired,
+		remoteId,
+		replaceActiveRun,
+		replaceWithCanonicalMessages,
+	]);
 
 	const applyTerminalEvent = useCallback(
-		async (event: ChatRequestStreamEvent) => {
+		async (event: ChatRequestStreamEvent, operation: RuntimeOperation) => {
+			if (!ownsOperation(operation)) {
+				return;
+			}
 			const conversationId =
-				event.data.answer?.conversation.id ?? activeRun?.conversationId ?? remoteId;
+				event.data.answer?.conversation.id ?? activeRunRef.current?.conversationId ?? remoteId;
+			cancellationStateRef.current = { phase: "idle" };
+			setIsRunning(false);
+			replaceActiveRun(null);
+			if (conversationId && locallyInitializedRunConversationIdRef.current === conversationId) {
+				locallyInitializedRunConversationIdRef.current = null;
+			}
 			if (event.event === "request.failed" && event.data.error) {
 				clearTypewriter();
+				clearProvisionalAssistantMessages();
 				appendLocalErrorMessage(
 					new ChatStreamRequestError({
 						code: event.data.error.code,
@@ -238,52 +420,71 @@ function useCampusAssistantRuntimeState({
 						traceId: event.data.traceId,
 					}),
 				);
-				setIsRunning(false);
-				if (conversationId && locallyInitializedRunConversationIdRef.current === conversationId) {
-					locallyInitializedRunConversationIdRef.current = null;
-				}
-				setActiveRun(null);
 				return;
 			}
 			if (event.data.answer) {
 				const terminalMessages = toAssistantThreadMessages(event.data.answer.conversation);
-				const activeTypewriter = typewriterRef.current;
-				if (
-					activeTypewriter &&
-					terminalMessages.some((message) => message.id === activeTypewriter.messageId)
-				) {
-					activeTypewriter.pendingTerminalMessages = terminalMessages;
-				} else {
-					clearTypewriter();
-					setMessages(terminalMessages);
-				}
+				clearTypewriter();
+				replaceWithCanonicalMessages(terminalMessages);
 			} else if (conversationId) {
 				clearTypewriter();
-				setMessages(await fetchConversationMessages(conversationId));
+				clearProvisionalAssistantMessages();
+				try {
+					const nextMessages = await fetchConversationMessagesWithRetry(
+						conversationId,
+						operation.controller.signal,
+						fetchConversationMessages,
+					);
+					if (ownsOperation(operation)) {
+						replaceWithCanonicalMessages(nextMessages);
+					}
+				} catch (error) {
+					if (error instanceof UnauthorizedError || isAbortError(error)) {
+						throw error;
+					}
+					if (ownsOperation(operation)) {
+						appendLocalErrorMessage(
+							new ChatStreamRequestError({
+								code: "conversation_refresh_failed",
+								message: "回答已完成，但会话内容暂时无法刷新。",
+								retryable: true,
+								requestId: event.data.requestId,
+								traceId: event.data.traceId,
+							}),
+						);
+					}
+				}
 			}
-			setIsRunning(false);
-			if (conversationId && locallyInitializedRunConversationIdRef.current === conversationId) {
-				locallyInitializedRunConversationIdRef.current = null;
-			}
-			setActiveRun(null);
 		},
 		[
-			activeRun?.conversationId,
 			appendLocalErrorMessage,
+			clearProvisionalAssistantMessages,
 			clearTypewriter,
 			fetchConversationMessages,
+			ownsOperation,
 			remoteId,
+			replaceActiveRun,
+			replaceWithCanonicalMessages,
 		],
 	);
 
 	const applyAnswerDelta = useCallback(
-		(event: ChatRequestStreamEvent) => {
+		(event: ChatRequestStreamEvent, operation: RuntimeOperation) => {
+			if (!ownsOperation(operation)) {
+				return;
+			}
 			const messageId = event.data.messageId?.trim();
-			const text = event.data.accumulatedText;
-			if (!messageId || typeof text !== "string") {
+			const delta = event.data.delta;
+			if (!messageId || typeof delta !== "string" || delta.length === 0) {
 				return;
 			}
 			const current = typewriterRef.current;
+			const text = (streamedAnswerTextRef.current.get(messageId) ?? "") + delta;
+			streamedAnswerTextRef.current.set(messageId, text);
+			if (!operation.browserTtftRecorded && operation.browserTtftStartedAt !== null) {
+				operation.browserTtftRecorded = true;
+				recordChatBrowserTtft(performance.now() - operation.browserTtftStartedAt);
+			}
 			const visibleLength =
 				current?.messageId === messageId
 					? Math.min(current.visibleLength, text.length)
@@ -296,8 +497,6 @@ function useCampusAssistantRuntimeState({
 				intervalId: current?.messageId === messageId ? current.intervalId : null,
 				messageId,
 				occurredAt: event.data.occurredAt,
-				pendingTerminalMessages:
-					current?.messageId === messageId ? current.pendingTerminalMessages : null,
 				visibleLength,
 			};
 			typewriterRef.current = nextState;
@@ -308,12 +507,21 @@ function useCampusAssistantRuntimeState({
 			});
 			startTypewriterInterval(nextState);
 		},
-		[clearTypewriter, revealAssistantText, startTypewriterInterval],
+		[clearTypewriter, ownsOperation, revealAssistantText, startTypewriterInterval],
 	);
 
 	const consumeLifecycleStream = useCallback(
-		async (events: AsyncIterable<ChatRequestStreamEvent>, conversationId?: string) => {
+		async (
+			events: AsyncIterable<ChatRequestStreamEvent>,
+			conversationId: string | undefined,
+			operation: RuntimeOperation,
+		) => {
+			let eventCount = 0;
 			for await (const event of events) {
+				if (!ownsOperation(operation)) {
+					return { eventCount, terminal: true };
+				}
+				eventCount += 1;
 				if (event.event === "request.accepted" && event.data.runId) {
 					const acceptedRun = {
 						conversationId,
@@ -322,22 +530,19 @@ function useCampusAssistantRuntimeState({
 						sequence: event.data.sequence,
 						traceId: event.data.traceId,
 					};
-					setActiveRun(acceptedRun);
-					if (pendingCancelBeforeRunRef.current) {
-						pendingCancelBeforeRunRef.current = false;
-						await cancelRun(acceptedRun.runId);
-						abortControllerRef.current?.abort();
-						clearTypewriter();
-						locallyInitializedRunConversationIdRef.current = null;
-						setIsRunning(false);
-						setActiveRun(null);
-						return;
+					replaceActiveRun(acceptedRun);
+					const cancellation = cancellationStateRef.current;
+					if (
+						cancellation.phase === "awaiting_run_id" &&
+						cancellation.operationId === operation.id
+					) {
+						void requestRunCancellation(acceptedRun, operation);
 					}
 					continue;
 				}
 				if (event.data.runId) {
 					const runId = event.data.runId;
-					setActiveRun((current) => ({
+					updateActiveRun((current) => ({
 						conversationId: current?.conversationId ?? conversationId,
 						requestId: event.data.requestId,
 						runId,
@@ -346,7 +551,7 @@ function useCampusAssistantRuntimeState({
 					}));
 				}
 				if (event.event === "answer.delta") {
-					applyAnswerDelta(event);
+					applyAnswerDelta(event, operation);
 					continue;
 				}
 				if (
@@ -354,11 +559,88 @@ function useCampusAssistantRuntimeState({
 					event.event === "request.failed" ||
 					event.event === "request.cancelled"
 				) {
-					await applyTerminalEvent(event);
+					await applyTerminalEvent(event, operation);
+					return { eventCount, terminal: true };
 				}
 			}
+			return { eventCount, terminal: false };
 		},
-		[applyAnswerDelta, applyTerminalEvent, clearTypewriter],
+		[
+			applyAnswerDelta,
+			applyTerminalEvent,
+			ownsOperation,
+			replaceActiveRun,
+			requestRunCancellation,
+			updateActiveRun,
+		],
+	);
+
+	const followLifecycleStream = useCallback(
+		async (input: {
+			conversationId?: string;
+			controller: AbortController;
+			operation: RuntimeOperation;
+			initialEvents: AsyncIterable<ChatRequestStreamEvent>;
+			retryInitialEvents?: () => AsyncIterable<ChatRequestStreamEvent>;
+		}) => {
+			let delayMs = RESUME_INITIAL_DELAY_MS;
+			let events = input.initialEvents;
+			for (;;) {
+				if (!ownsOperation(input.operation)) {
+					return;
+				}
+				try {
+					const consumed = await consumeLifecycleStream(
+						events,
+						input.conversationId,
+						input.operation,
+					);
+					if (consumed.terminal || input.controller.signal.aborted) {
+						return;
+					}
+					if (consumed.eventCount > 0) {
+						delayMs = RESUME_INITIAL_DELAY_MS;
+					}
+				} catch (error) {
+					if (!ownsOperation(input.operation)) {
+						return;
+					}
+					if (
+						error instanceof UnauthorizedError ||
+						isAbortError(error) ||
+						(error instanceof ChatStreamRequestError && !error.retryable)
+					) {
+						throw error;
+					}
+					if (!(activeRunRef.current || input.retryInitialEvents)) {
+						throw error;
+					}
+				}
+
+				const run = ownsOperation(input.operation) ? activeRunRef.current : null;
+				if (!run) {
+					if (!input.retryInitialEvents) {
+						throw new ChatStreamRequestError({
+							code: "stream_closed_before_acceptance",
+							message: "回答连接在运行被接受前关闭。",
+							retryable: true,
+						});
+					}
+					await waitForResumeDelay(delayMs, input.controller.signal);
+					events = input.retryInitialEvents();
+					delayMs = Math.min(delayMs * 2, RESUME_MAX_DELAY_MS);
+					continue;
+				}
+				await waitForResumeDelay(delayMs, input.controller.signal);
+				events = resumeRunEventsStream({
+					afterSequence: run.sequence,
+					runId: run.runId,
+					signal: input.controller.signal,
+				});
+				delayMs = Math.min(delayMs * 2, RESUME_MAX_DELAY_MS);
+			}
+		},
+		[consumeLifecycleStream, ownsOperation],
 	);
 
 	const runPrompt = useCallback(
@@ -376,10 +658,12 @@ function useCampusAssistantRuntimeState({
 				onLoginRequired();
 				return;
 			}
-			abortControllerRef.current?.abort();
-			const controller = new AbortController();
-			abortControllerRef.current = controller;
-			pendingCancelBeforeRunRef.current = false;
+			const operation = startOperation(true);
+			const controller = operation.controller;
+			clearTypewriter();
+			clearProvisionalAssistantMessages();
+			replaceActiveRun(null);
+			cancellationStateRef.current = { phase: "idle" };
 			if (input.truncateFromMessageId) {
 				setMessages((current) =>
 					current.slice(
@@ -401,34 +685,64 @@ function useCampusAssistantRuntimeState({
 						messageId: input.truncateFromMessageId,
 					});
 				}
-				await consumeLifecycleStream(
+				const idempotencyKey = createIdempotencyKey();
+				const submitEvents = () =>
 					submitChatRequestStream({
 						conversationId: input.conversationId,
+						idempotencyKey,
 						prompt,
 						signal: controller.signal,
-					}),
-					input.conversationId,
-				);
+					});
+				await followLifecycleStream({
+					conversationId: input.conversationId,
+					controller,
+					operation,
+					initialEvents: submitEvents(),
+					retryInitialEvents: submitEvents,
+				});
 			} catch (error) {
+				if (!ownsOperation(operation)) {
+					return;
+				}
 				setIsRunning(false);
-				setActiveRun(null);
 				if (error instanceof UnauthorizedError) {
+					replaceActiveRun(null);
+					clearTypewriter();
+					clearProvisionalAssistantMessages();
 					onLoginRequired();
 					return;
 				}
 				if (isAbortError(error)) {
+					clearTypewriter();
+					clearProvisionalAssistantMessages();
 					return;
 				}
 				if (error instanceof ChatStreamRequestError) {
+					replaceActiveRun(null);
 					clearTypewriter();
-					pendingCancelBeforeRunRef.current = false;
+					clearProvisionalAssistantMessages();
+					cancellationStateRef.current = { phase: "idle" };
 					appendLocalErrorMessage(error);
 					return;
 				}
 				throw error;
+			} finally {
+				if (ownsOperation(operation) && abortControllerRef.current === controller) {
+					abortControllerRef.current = null;
+				}
 			}
 		},
-		[appendLocalErrorMessage, clearTypewriter, consumeLifecycleStream, hasSession, onLoginRequired],
+		[
+			appendLocalErrorMessage,
+			clearProvisionalAssistantMessages,
+			clearTypewriter,
+			followLifecycleStream,
+			hasSession,
+			onLoginRequired,
+			ownsOperation,
+			replaceActiveRun,
+			startOperation,
+		],
 	);
 
 	const onNew = useCallback(
@@ -487,54 +801,94 @@ function useCampusAssistantRuntimeState({
 	);
 
 	const onCancel = useCallback(async () => {
+		const currentRun = activeRunRef.current;
+		const controller = abortControllerRef.current;
+		if (currentRun?.runId && controller) {
+			return requestRunCancellation(currentRun, {
+				controller,
+				id: operationIdRef.current,
+			});
+		}
+		if (isRunning && controller) {
+			const cancellation = cancellationStateRef.current;
+			if (cancellation.phase === "idle" || cancellation.operationId !== operationIdRef.current) {
+				cancellationStateRef.current = {
+					operationId: operationIdRef.current,
+					phase: "awaiting_run_id",
+				};
+			}
+			return;
+		}
+		cancellationStateRef.current = { phase: "idle" };
 		clearTypewriter();
+		clearProvisionalAssistantMessages();
 		locallyInitializedRunConversationIdRef.current = null;
-		if (activeRun?.runId) {
-			abortControllerRef.current?.abort();
-			pendingCancelBeforeRunRef.current = false;
-			await cancelRun(activeRun.runId);
-			setIsRunning(false);
-			setActiveRun(null);
-			return;
-		}
-		if (isRunning && abortControllerRef.current) {
-			pendingCancelBeforeRunRef.current = true;
-			return;
-		}
-		pendingCancelBeforeRunRef.current = false;
+		abortControllerRef.current?.abort();
+		abortControllerRef.current = null;
+		operationIdRef.current += 1;
 		setIsRunning(false);
-		setActiveRun(null);
-	}, [activeRun?.runId, clearTypewriter, isRunning]);
+		replaceActiveRun(null);
+	}, [
+		clearProvisionalAssistantMessages,
+		clearTypewriter,
+		isRunning,
+		replaceActiveRun,
+		requestRunCancellation,
+	]);
 
 	const onResume = useCallback(async () => {
-		if (!activeRun?.runId) {
+		const currentRun = activeRunRef.current;
+		if (!currentRun?.runId) {
 			return;
 		}
-		abortControllerRef.current?.abort();
-		const controller = new AbortController();
-		abortControllerRef.current = controller;
+		const operation = startOperation();
+		const controller = operation.controller;
 		setIsRunning(true);
 		try {
-			await consumeLifecycleStream(
-				resumeRunEventsStream({
-					afterSequence: activeRun.sequence,
-					runId: activeRun.runId,
+			await followLifecycleStream({
+				conversationId: currentRun.conversationId,
+				controller,
+				operation,
+				initialEvents: resumeRunEventsStream({
+					afterSequence: currentRun.sequence,
+					runId: currentRun.runId,
 					signal: controller.signal,
 				}),
-				activeRun.conversationId,
-			);
+			});
 		} catch (error) {
+			if (!ownsOperation(operation)) {
+				return;
+			}
 			setIsRunning(false);
 			if (error instanceof UnauthorizedError) {
+				replaceActiveRun(null);
+				clearTypewriter();
+				clearProvisionalAssistantMessages();
 				onLoginRequired();
 				return;
 			}
 			if (isAbortError(error)) {
+				clearTypewriter();
+				clearProvisionalAssistantMessages();
 				return;
 			}
+			clearTypewriter();
+			clearProvisionalAssistantMessages();
 			throw error;
+		} finally {
+			if (ownsOperation(operation) && abortControllerRef.current === controller) {
+				abortControllerRef.current = null;
+			}
 		}
-	}, [activeRun, consumeLifecycleStream, onLoginRequired]);
+	}, [
+		clearProvisionalAssistantMessages,
+		clearTypewriter,
+		followLifecycleStream,
+		onLoginRequired,
+		ownsOperation,
+		replaceActiveRun,
+		startOperation,
+	]);
 
 	const runtime = useExternalStoreRuntime({
 		convertMessage: (message) => message,
@@ -578,4 +932,46 @@ function readTextContent(message: AppendMessage): string {
 
 function isAbortError(error: unknown): boolean {
 	return error instanceof DOMException && error.name === "AbortError";
+}
+
+async function fetchConversationMessagesWithRetry(
+	conversationId: string,
+	signal: AbortSignal,
+	fetchMessages: (conversationId: string, signal?: AbortSignal) => Promise<RuntimeMessages>,
+): Promise<RuntimeMessages> {
+	let lastError: unknown;
+	for (let attempt = 0; attempt < 3; attempt += 1) {
+		try {
+			return await fetchMessages(conversationId, signal);
+		} catch (error) {
+			lastError = error;
+			if (error instanceof UnauthorizedError || isAbortError(error) || attempt === 2) {
+				throw error;
+			}
+			await waitForResumeDelay((attempt + 1) * RESUME_INITIAL_DELAY_MS, signal);
+		}
+	}
+	throw lastError instanceof Error ? lastError : new Error("Conversation refresh failed.");
+}
+
+function waitForResumeDelay(delayMs: number, signal: AbortSignal): Promise<void> {
+	return new Promise((resolve, reject) => {
+		if (signal.aborted) {
+			reject(new DOMException("The operation was aborted.", "AbortError"));
+			return;
+		}
+		const timeoutId = window.setTimeout(() => {
+			signal.removeEventListener("abort", onAbort);
+			resolve();
+		}, delayMs);
+		const onAbort = () => {
+			window.clearTimeout(timeoutId);
+			reject(new DOMException("The operation was aborted.", "AbortError"));
+		};
+		signal.addEventListener("abort", onAbort, { once: true });
+	});
+}
+
+function isRunAlreadyTerminalError(error: unknown): boolean {
+	return error instanceof ChatStreamRequestError && error.code === "run_already_terminal";
 }

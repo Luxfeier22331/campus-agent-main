@@ -4,7 +4,11 @@ import type { ExecutionControlRuntimeClient, ToolExecutionResponse } from "../..
 import type { ProfileMemoryStore } from "../../profile-memory";
 import type { RuntimeRunPhase } from "../../runtime-run";
 import type { AppTelemetry, TracePropagationHeaders } from "../../telemetry";
-import type { TurnDispatchMemorySnapshot } from "../store-types";
+import type {
+	ChatCommandStore,
+	FrozenChatAdmissionWrite,
+	TurnDispatchMemorySnapshot,
+} from "../store-types";
 
 export const NEW_CONVERSATION_FINGERPRINT_SCOPE = "__new__";
 
@@ -13,9 +17,7 @@ export interface ChatCommandPayload {
 	prompt?: unknown;
 }
 
-export interface InternalEvalChatCommandPayload extends ChatCommandPayload {
-	requestedTool?: unknown;
-}
+export type InternalEvalChatCommandPayload = ChatCommandPayload;
 
 export type ChatCommandRequestKind = "public_chat" | "internal_eval";
 
@@ -62,7 +64,6 @@ export interface ChatCommandStreamEvent {
 			message: string;
 			retryable?: boolean;
 		};
-		accumulatedText?: string;
 		delta?: string;
 		messageId?: string;
 		occurredAt: string;
@@ -91,6 +92,7 @@ export interface AcceptedChatCommandContext {
 	branchId: string;
 	conversation: ChatConversation;
 	conversationTitle: string;
+	frozenAdmission: FrozenChatAdmissionWrite | null;
 	idempotencyKey: string | null;
 	input: ChatCommandSubmitInput;
 	memorySnapshot: TurnDispatchMemorySnapshot | null;
@@ -114,27 +116,31 @@ export interface ChatCommandService {
 		response: ToolExecutionResponse;
 		runId: string;
 	}): Promise<{ outcome: "applied" | "replayed" }>;
+	finalizeLocalCancellation?(input: {
+		completedAt: string;
+		runId: string;
+	}): Promise<{ outcome: "applied" | "replayed" }>;
 	dispatchPendingAdmissions?(): Promise<{
 		admitted: number;
 		failed: number;
 		processed: number;
 	}>;
+	readExecutionInput?(runId: string): ReturnType<ChatCommandStore["readExecutionInput"]>;
+	releaseExecutionInput?(input: {
+		releasedAt: string;
+		runId: string;
+	}): ReturnType<ChatCommandStore["releaseExecutionInput"]>;
 	submit(input: ChatCommandSubmitInput): Promise<ChatCommandResponse>;
 	submitStream?(input: ChatCommandSubmitInput): AsyncIterable<ChatCommandStreamEvent>;
 }
 
 export interface DurableEventPollingPolicy {
 	maxAttempts: number;
-	pollIntervalMs: number;
-	sleep?: (durationMs: number) => Promise<void>;
+	waitMs?: number;
 }
 
 export interface ChatCommandServiceDependencies {
-	computeFingerprint?: (input: {
-		conversationDiscriminator: string;
-		prompt: string;
-		requestedTool: string | null;
-	}) => string;
+	computeFingerprint?: (input: { conversationDiscriminator: string; prompt: string }) => string;
 	conversationStore: ChatConversationStore;
 	deriveSafetyIdentifier?: (principal: ResolvedAppPrincipal) => string | null;
 	generateId?: (prefix: string) => string;
@@ -142,7 +148,6 @@ export interface ChatCommandServiceDependencies {
 	now?: () => Date;
 	profileMemoryStore?: Pick<ProfileMemoryStore, "loadSummary">;
 	publicNoticeURLAllowlist?: string[];
-	requireExecutionRuntime?: boolean;
 	safetyIdentifierHmacSecret?: string;
 	store: import("../store").ChatCommandStore;
 	durableEventPolling?: DurableEventPollingPolicy;
@@ -153,5 +158,4 @@ export interface ChatCommandServiceDependencies {
 export interface ValidatedChatCommandPayload {
 	conversationId: string | null;
 	prompt: string;
-	requestedTool: string | null;
 }

@@ -51,8 +51,8 @@ describe("ingestion projection activities", () => {
 	it("verifies the digest and Rust output contract before completing", async () => {
 		const store = new InMemoryIngestionTaskStore();
 		const snapshot = testSnapshot({
-			kernel_id: "chunk-document-units",
-			output_contract: "ingestion_chunk_set.v1",
+			kernel_id: "build-retrieval-chunks-v2",
+			output_contract: "retrieval_chunk_set.v2",
 		});
 		store.recordTaskStarted({
 			...testTaskStartMetadata,
@@ -66,7 +66,7 @@ describe("ingestion projection activities", () => {
 				chunks: [],
 				error_count: 0,
 				errors: [],
-				schema_version: "ingestion_chunk_set.v1",
+				schema_version: "retrieval_chunk_set.v2",
 			}),
 		);
 		const result = {
@@ -74,7 +74,7 @@ describe("ingestion projection activities", () => {
 			result_ref: {
 				byte_size: bytes.byteLength,
 				kind: "object_store" as const,
-				uri: "s3://campus-agent-derived/ingestion-kernels/curriculum.curriculum_plan.chunk_prepare/runs/run-curriculum-001/attempts/1/task-curriculum-chunk-001/chunk-document-units.json",
+				uri: "s3://campus-agent-derived/ingestion-kernels/curriculum.curriculum_plan.chunk_prepare/runs/run-curriculum-001/attempts/1/task-curriculum-chunk-001/build-retrieval-chunks-v2.json",
 				digest: `sha256:${sha256Hex(bytes)}`,
 			},
 		};

@@ -3,9 +3,11 @@
 package postgres_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -29,10 +31,16 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 		if err != nil {
 			t.Fatalf("create run: %v", err)
 		}
-		if created.Status != execution.DurableRunStatusCreated || created.Metadata["source"] != "integration" {
+		if created.Status != execution.DurableRunStatusCreated ||
+			created.Metadata["execution_contract_version"] != "tool_execution_v5" {
 			t.Fatalf("created run = %#v", created)
 		}
-		if err := store.ReplaceRunMetadata(t.Context(), created.RunID, map[string]any{"phase": "updated"}); err != nil {
+		updatedMetadata := map[string]any{
+			"execution_contract_version": "tool_execution_v5",
+			"execution_input_ref":        "app-api://execution-inputs/" + created.RunID,
+			"execution_input_sha256":     strings.Repeat("b", 64),
+		}
+		if err := store.ReplaceRunMetadata(t.Context(), created.RunID, updatedMetadata); err != nil {
 			t.Fatalf("replace run metadata: %v", err)
 		}
 		for index, status := range []execution.DurableRunStatus{
@@ -58,8 +66,267 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 		if err != nil {
 			t.Fatalf("get run: %v", err)
 		}
-		if loaded.Metadata["phase"] != "updated" {
+		if loaded.Metadata["execution_input_sha256"] != strings.Repeat("b", 64) {
 			t.Fatalf("run metadata = %#v", loaded.Metadata)
+		}
+	})
+
+	t.Run("answer stream transaction and LISTEN NOTIFY wakeups", func(t *testing.T) {
+		_, databaseURL := harness.ownerDatabase(t)
+		store := newRunProjectionStore(t, databaseURL, true)
+		if err := store.HealthCheck(t.Context()); err != nil {
+			t.Fatalf("run projection health check: %v", err)
+		}
+
+		now := time.Date(2026, 7, 25, 8, 0, 0, 0, time.UTC)
+		run := createPostgresRunningRun(t, store, "run-answer-stream", now)
+		conflict := postgresAnswerStreamStartRequest(run, now.Add(4*time.Second))
+		conflict.FirstDeltaEvent.EventID = conflict.AnswerStartedEvent.EventID
+		if _, err := store.StartRunAnswerStream(t.Context(), conflict); !errors.Is(
+			err,
+			execution.ErrInvalidRunEvent,
+		) {
+			t.Fatalf("conflicting answer stream error = %v, want ErrInvalidRunEvent", err)
+		}
+		unchanged, err := store.GetRun(t.Context(), run.RunID)
+		if err != nil {
+			t.Fatalf("get run after rolled back answer stream: %v", err)
+		}
+		if unchanged.Status != execution.DurableRunStatusRunning ||
+			!unchanged.StreamingStartedAt.IsZero() {
+			t.Fatalf("run changed after rolled back answer stream: %#v", unchanged)
+		}
+		unchangedEvents, err := store.ListRunEvents(t.Context(), run.RunID)
+		if err != nil || len(unchangedEvents) != 0 {
+			t.Fatalf("events after rolled back answer stream = %#v, err=%v", unchangedEvents, err)
+		}
+
+		type waitResult struct {
+			events []execution.DurableRunEvent
+			err    error
+		}
+		waitCtx, cancelWait := context.WithTimeout(t.Context(), 2*time.Second)
+		defer cancelWait()
+		waitResults := make(chan waitResult, 2)
+		for range 2 {
+			go func() {
+				events, waitErr := store.WaitForRunEventsAfter(waitCtx, run.RunID, 0)
+				waitResults <- waitResult{events: events, err: waitErr}
+			}()
+		}
+		time.Sleep(50 * time.Millisecond)
+
+		request := postgresAnswerStreamStartRequest(run, now.Add(4*time.Second))
+		streaming, err := store.StartRunAnswerStream(t.Context(), request)
+		if err != nil {
+			t.Fatalf("start answer stream: %v", err)
+		}
+		if streaming.Status != execution.DurableRunStatusStreaming ||
+			!streaming.StreamingStartedAt.Equal(request.Now) {
+			t.Fatalf("streaming run = %#v", streaming)
+		}
+		for range 2 {
+			select {
+			case result := <-waitResults:
+				if result.err != nil || len(result.events) != 2 ||
+					result.events[0].EventType != execution.DurableRunEventTypeRunAnswerStarted ||
+					result.events[1].EventType != execution.DurableRunEventTypeRunAnswerDelta {
+					t.Fatalf("LISTEN NOTIFY wait result = %#v, err=%v", result.events, result.err)
+				}
+			case <-waitCtx.Done():
+				t.Fatalf("LISTEN NOTIFY waiter timed out: %v", waitCtx.Err())
+			}
+		}
+
+		closeRun := createPostgresRunningRun(t, store, "run-listener-close", now.Add(time.Minute))
+		closeResult := make(chan error, 1)
+		go func() {
+			_, waitErr := store.WaitForRunEventsAfter(context.Background(), closeRun.RunID, 0)
+			closeResult <- waitErr
+		}()
+		time.Sleep(50 * time.Millisecond)
+		store.Close()
+		select {
+		case closeErr := <-closeResult:
+			if closeErr == nil {
+				t.Fatal("closing the store did not fail the active run event waiter")
+			}
+		case <-time.After(time.Second):
+			t.Fatal("closing the store did not release the active run event waiter")
+		}
+	})
+
+	t.Run("schema health rejects catalog drift", func(t *testing.T) {
+		testCases := []struct {
+			name          string
+			mutationSQL   string
+			wantErrorPart string
+		}{
+			{
+				name:          "missing added column",
+				mutationSQL:   "alter table runtime.agent_runs drop column request_fingerprint_sha256",
+				wantErrorPart: "column runtime.agent_runs.request_fingerprint_sha256",
+			},
+			{
+				name:          "wrong dispatch fence default",
+				mutationSQL:   "alter table runtime.agent_workflow_starts alter column dispatch_attempted set default true",
+				wantErrorPart: "column runtime.agent_workflow_starts.dispatch_attempted",
+			},
+			{
+				name:          "missing lifecycle foreign key",
+				mutationSQL:   "alter table runtime.agent_run_cleanups drop constraint agent_run_cleanups_run_id_fkey",
+				wantErrorPart: "constraint runtime.agent_run_cleanups",
+			},
+			{
+				name:          "missing step attempt uniqueness fence",
+				mutationSQL:   "alter table runtime.agent_step_attempts drop constraint agent_step_attempts_run_id_step_id_attempt_key",
+				wantErrorPart: "constraint runtime.agent_step_attempts (u run_id,step_id,attempt)",
+			},
+			{
+				name:          "missing lifecycle lease index",
+				mutationSQL:   "drop index runtime.agent_workflow_starts_lease_idx",
+				wantErrorPart: "index runtime.agent_workflow_starts_lease_idx",
+			},
+			{
+				name: "wrong active run predicate",
+				mutationSQL: `
+					drop index runtime.agent_runs_active_conversation_idx;
+					create unique index agent_runs_active_conversation_idx
+						on runtime.agent_runs (conversation_id)
+						where status in ('created', 'queued')`,
+				wantErrorPart: "index runtime.agent_runs_active_conversation_idx",
+			},
+		}
+		for _, testCase := range testCases {
+			t.Run(testCase.name, func(t *testing.T) {
+				_, databaseURL := harness.ownerDatabase(t)
+				store := newRunProjectionStore(t, databaseURL, true)
+				conn := connect(t, databaseURL)
+				defer closeConn(t, conn)
+				if _, err := conn.Exec(t.Context(), testCase.mutationSQL); err != nil {
+					t.Fatalf("mutate run projection schema: %v", err)
+				}
+				err := store.HealthCheck(t.Context())
+				if err == nil || !strings.Contains(err.Error(), testCase.wantErrorPart) {
+					t.Fatalf("schema health error = %v, want part %q", err, testCase.wantErrorPart)
+				}
+			})
+		}
+	})
+
+	t.Run("superseded workflow execution binding is immutable and cleanup eligible", func(t *testing.T) {
+		_, databaseURL := harness.ownerDatabase(t)
+		store := newRunProjectionStore(t, databaseURL, true)
+		now := time.Date(2026, 7, 23, 7, 30, 0, 0, time.UTC)
+		run := durableRun("run-superseded-binding", "conversation-superseded-binding", now)
+		workflowID := "campus-agent.chat." + run.RunID
+		request := execution.DurableRunCreateIntent{
+			Run:                      run,
+			RequestFingerprintSHA256: strings.Repeat("a", 64),
+			WorkflowID:               workflowID,
+			PayloadSHA256:            strings.Repeat("b", 64),
+			TaskQueue:                run.TaskQueue,
+			WorkflowInputJSON:        []byte(`{"run_id":"run-superseded-binding"}`),
+			CreatedEvent: execution.DurableRunEvent{
+				EventID: run.RunID + ":run-created", RunID: run.RunID,
+				ConversationID: run.ConversationID, EventType: execution.DurableRunEventTypeRunCreated,
+				OccurredAt: now, Visibility: execution.DurableRunEventVisibilityInternal,
+				PayloadSchemaVersion: "run-event-v1", Payload: map[string]any{"status": "created"},
+			},
+		}
+		if _, err := store.CreateRunWithStartIntent(t.Context(), request); err != nil {
+			t.Fatalf("create run with start: %v", err)
+		}
+		starts, err := store.LeaseWorkflowStartIntents(t.Context(), execution.LifecycleLeaseRequest{
+			LeaseToken: "postgres-start-binding", Now: now, LeaseUntil: now.Add(time.Minute), Limit: 1,
+		})
+		if err != nil || len(starts) != 1 {
+			t.Fatalf("lease start = %#v, err=%v", starts, err)
+		}
+		if err := store.MarkWorkflowStartDispatchAttempt(t.Context(), execution.WorkflowStartIntentResult{
+			RunID: run.RunID, LeaseToken: starts[0].LeaseToken, Now: now.Add(time.Second),
+		}); err != nil {
+			t.Fatalf("mark dispatch: %v", err)
+		}
+		if _, err := store.RequestRunCancellation(t.Context(), execution.DurableRunCancellationRequest{
+			RunID: run.RunID, Reason: "user_requested", Now: now.Add(2 * time.Second),
+		}); err != nil {
+			t.Fatalf("request cancellation: %v", err)
+		}
+		boundAt := now.Add(3 * time.Second)
+		binding := execution.WorkflowStartExecutionBinding{
+			RunID: run.RunID, WorkflowID: workflowID,
+			TemporalRunID: "temporal-postgres-bound", Now: boundAt,
+		}
+		bound, err := store.BindSupersededWorkflowStartExecution(t.Context(), binding)
+		if err != nil || bound.State != execution.LifecycleIntentStateSuperseded ||
+			bound.TemporalRunID != binding.TemporalRunID {
+			t.Fatalf("bound start = %#v, err=%v", bound, err)
+		}
+		replayed := binding
+		replayed.Now = boundAt.Add(time.Minute)
+		if got, err := store.BindSupersededWorkflowStartExecution(t.Context(), replayed); err != nil ||
+			!got.UpdatedAt.Equal(boundAt) {
+			t.Fatalf("idempotent binding = %#v, err=%v", got, err)
+		}
+		conflict := binding
+		conflict.TemporalRunID = "temporal-postgres-conflict"
+		if _, err := store.BindSupersededWorkflowStartExecution(t.Context(), conflict); !errors.Is(
+			err,
+			execution.ErrWorkflowStartExecutionBindingConflict,
+		) {
+			t.Fatalf("conflicting binding error = %v", err)
+		}
+		if _, err := store.CancelRunProjection(t.Context(), execution.DurableRunCancelRequest{
+			RunID: run.RunID, Reason: "user_requested", Now: now.Add(4 * time.Second),
+		}); err != nil {
+			t.Fatalf("cancel bound run: %v", err)
+		}
+		cleanups, err := store.LeaseRunCleanups(t.Context(), execution.LifecycleLeaseRequest{
+			LeaseToken: "postgres-bound-cleanup", Now: now.Add(time.Minute),
+			LeaseUntil: now.Add(2 * time.Minute), Limit: 1,
+		})
+		if err != nil || len(cleanups) != 1 || cleanups[0].RunID != run.RunID {
+			t.Fatalf("lease bound cleanup = %#v, err=%v", cleanups, err)
+		}
+	})
+
+	t.Run("undispatched superseded workflow rejects execution binding", func(t *testing.T) {
+		_, databaseURL := harness.ownerDatabase(t)
+		store := newRunProjectionStore(t, databaseURL, true)
+		now := time.Date(2026, 7, 23, 7, 40, 0, 0, time.UTC)
+		run := durableRun("run-undispatched-binding", "conversation-undispatched-binding", now)
+		workflowID := "campus-agent.chat." + run.RunID
+		request := execution.DurableRunCreateIntent{
+			Run:                      run,
+			RequestFingerprintSHA256: strings.Repeat("a", 64),
+			WorkflowID:               workflowID,
+			PayloadSHA256:            strings.Repeat("b", 64),
+			TaskQueue:                run.TaskQueue,
+			WorkflowInputJSON:        []byte(`{"run_id":"run-undispatched-binding"}`),
+			CreatedEvent: execution.DurableRunEvent{
+				EventID: run.RunID + ":run-created", RunID: run.RunID,
+				ConversationID: run.ConversationID, EventType: execution.DurableRunEventTypeRunCreated,
+				OccurredAt: now, Visibility: execution.DurableRunEventVisibilityInternal,
+				PayloadSchemaVersion: "run-event-v1", Payload: map[string]any{"status": "created"},
+			},
+		}
+		if _, err := store.CreateRunWithStartIntent(t.Context(), request); err != nil {
+			t.Fatalf("create run with start: %v", err)
+		}
+		if _, err := store.RequestRunCancellation(t.Context(), execution.DurableRunCancellationRequest{
+			RunID: run.RunID, Reason: "user_requested", Now: now.Add(time.Second),
+		}); err != nil {
+			t.Fatalf("request cancellation: %v", err)
+		}
+		if _, err := store.BindSupersededWorkflowStartExecution(
+			t.Context(),
+			execution.WorkflowStartExecutionBinding{
+				RunID: run.RunID, WorkflowID: workflowID,
+				TemporalRunID: "temporal-without-dispatch", Now: now.Add(2 * time.Second),
+			},
+		); !errors.Is(err, execution.ErrWorkflowStartExecutionBindingConflict) {
+			t.Fatalf("undispatched binding error = %v, want binding conflict", err)
 		}
 	})
 
@@ -113,6 +380,20 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 		if _, err := store.CreateRun(t.Context(), run); err != nil {
 			t.Fatalf("create running run: %v", err)
 		}
+		if _, err := store.UpsertStepResult(t.Context(), execution.StepResultProjection{
+			ResultID:             run.RunID + ":finalization.write:result-1",
+			StepID:               "finalization.write",
+			RunID:                run.RunID,
+			AttemptID:            run.RunID + ":finalization.write:attempt-1",
+			Status:               "completed",
+			ResultKind:           "final_answer_projection",
+			ProjectionRef:        "app-api:response:terminal-race",
+			CreatedAt:            now,
+			PayloadSchemaVersion: "step-result-projection-v1",
+			SanitizedPayload:     map[string]any{"activity_attempt": 1},
+		}); err != nil {
+			t.Fatalf("create finalization proof: %v", err)
+		}
 
 		start := make(chan struct{})
 		result := make(chan error, 2)
@@ -155,7 +436,7 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 			switch {
 			case err == nil:
 				succeeded++
-			case errors.Is(err, execution.ErrInvalidRunTransition):
+			case errors.Is(err, execution.ErrDurableRunTerminalConflict):
 				rejected++
 			default:
 				t.Fatalf("terminal transition error = %v", err)
@@ -186,7 +467,6 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 		run := durableRun("run-atomic-failure", "conversation-atomic-failure", now)
 		run.Status = execution.DurableRunStatusRunning
 		run.StartedAt = now
-		run.SelectedTool = "knowledge_query"
 		if _, err := store.CreateRun(t.Context(), run); err != nil {
 			t.Fatalf("create running run: %v", err)
 		}
@@ -213,7 +493,7 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 		if err != nil {
 			t.Fatalf("fail run projection: %v", err)
 		}
-		if failed.Status != execution.DurableRunStatusFailed || failed.SelectedTool != "knowledge_query" {
+		if failed.Status != execution.DurableRunStatusFailed {
 			t.Fatalf("failed run = %#v", failed)
 		}
 		var lockCount int
@@ -360,6 +640,64 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 		}
 	})
 
+	t.Run("expiry transition and browser event are atomic", func(t *testing.T) {
+		_, databaseURL := harness.ownerDatabase(t)
+		store := newRunProjectionStore(t, databaseURL, true)
+		now := time.Date(2026, 7, 23, 10, 0, 0, 0, time.UTC)
+		run := durableRun("run-expiry-atomic", "conversation-expiry-atomic", now)
+		run.Status = execution.DurableRunStatusRunning
+		run.StartedAt = now
+		if _, err := store.CreateRun(t.Context(), run); err != nil {
+			t.Fatal(err)
+		}
+		expiredAt := now.Add(15 * time.Minute)
+		request := execution.DurableRunExpireRequest{RunID: run.RunID, Now: expiredAt}
+		expired, err := store.ExpireRunProjection(t.Context(), request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if expired.Status != execution.DurableRunStatusExpired || !expired.Retryable ||
+			expired.TerminalReason != execution.DurableTerminalReasonRunTimeout {
+			t.Fatalf("expired run = %#v", expired)
+		}
+		events, err := store.ListRunEvents(t.Context(), run.RunID)
+		if err != nil || len(events) != 1 || events[0].EventType != execution.DurableRunEventTypeRunExpired {
+			t.Fatalf("expiry events = %#v, err=%v", events, err)
+		}
+		if _, err := store.ExpireRunProjection(t.Context(), request); err != nil {
+			t.Fatalf("replay expiry: %v", err)
+		}
+		if _, err := store.CreateRun(t.Context(), durableRun(
+			"run-after-expiry", run.ConversationID, expiredAt.Add(time.Second),
+		)); err != nil {
+			t.Fatalf("create next run after expiry: %v", err)
+		}
+
+		collision := durableRun("run-expiry-collision", "conversation-expiry-collision", now)
+		collision.Status = execution.DurableRunStatusRunning
+		collision.StartedAt = now
+		if _, err := store.CreateRun(t.Context(), collision); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.AppendRunEvent(t.Context(), execution.DurableRunEvent{
+			EventID: collision.RunID + ":run-expired", RunID: collision.RunID,
+			ConversationID: collision.ConversationID, EventType: execution.DurableRunEventTypeActivityFailed,
+			OccurredAt: now, Visibility: execution.DurableRunEventVisibilityInternal,
+			PayloadSchemaVersion: "run-event-v1", Payload: map[string]any{"failure_kind": "earlier"},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.ExpireRunProjection(t.Context(), execution.DurableRunExpireRequest{
+			RunID: collision.RunID, Now: expiredAt,
+		}); !errors.Is(err, execution.ErrDurableRunExpiryConflict) {
+			t.Fatalf("expiry collision error = %v", err)
+		}
+		stored, err := store.GetRun(t.Context(), collision.RunID)
+		if err != nil || stored.Status != execution.DurableRunStatusRunning {
+			t.Fatalf("collision run after rollback = %#v, err=%v", stored, err)
+		}
+	})
+
 	t.Run("step trajectory upserts and cascades", func(t *testing.T) {
 		databaseName, databaseURL := harness.ownerDatabase(t)
 		store := newRunProjectionStore(t, databaseURL, true)
@@ -421,16 +759,34 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 			Status:               "completed",
 			ResultKind:           "answer",
 			ProjectionRef:        "projection:answer:1",
-			CreatedAt:            now.Add(3 * time.Second),
+			CreatedAt:            now.Add(3*time.Second + 789*time.Nanosecond),
 			PayloadSchemaVersion: "step-result-v1",
-			SanitizedPayload:     map[string]any{"shape": "answer"},
+			SanitizedPayload: map[string]any{
+				"large_counter": int64(9007199254740993),
+				"shape":         "answer",
+			},
 		}
-		if _, err := store.UpsertStepResult(t.Context(), result); err != nil {
+		createdResult, err := store.UpsertStepResult(t.Context(), result)
+		if err != nil {
 			t.Fatalf("upsert step result: %v", err)
 		}
+		wantCreatedAt := result.CreatedAt.UTC().Truncate(time.Microsecond)
+		if !createdResult.CreatedAt.Equal(wantCreatedAt) {
+			t.Fatalf("created result time = %s, want %s", createdResult.CreatedAt, wantCreatedAt)
+		}
+		replayedResult, err := store.UpsertStepResult(t.Context(), result)
+		if err != nil {
+			t.Fatalf("replay identical step result: %v", err)
+		}
+		if !replayedResult.CreatedAt.Equal(wantCreatedAt) || replayedResult.Status != result.Status {
+			t.Fatalf("replayed result = %#v, want the original result", replayedResult)
+		}
 		result.Status = "published"
-		if _, err := store.UpsertStepResult(t.Context(), result); err != nil {
-			t.Fatalf("update step result: %v", err)
+		if _, err := store.UpsertStepResult(t.Context(), result); !errors.Is(
+			err,
+			execution.ErrStepResultProjectionConflict,
+		) {
+			t.Fatalf("changed step result replay error = %v, want ErrStepResultProjectionConflict", err)
 		}
 
 		steps, err := store.ListRunSteps(t.Context(), run.RunID)
@@ -442,8 +798,39 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 			t.Fatalf("attempts = %#v, error = %v", attempts, err)
 		}
 		results, err := store.ListStepResults(t.Context(), run.RunID)
-		if err != nil || len(results) != 1 || results[0].Status != "published" {
+		if err != nil || len(results) != 1 || results[0].Status != "completed" ||
+			!results[0].CreatedAt.Equal(wantCreatedAt) {
 			t.Fatalf("results = %#v, error = %v", results, err)
+		}
+		if _, err := store.CancelRunProjection(t.Context(), execution.DurableRunCancelRequest{
+			RunID:  run.RunID,
+			Reason: "integration terminal write fence",
+			Now:    now.Add(4 * time.Second),
+		}); err != nil {
+			t.Fatalf("cancel trajectory run: %v", err)
+		}
+		result.Status = "completed"
+		for name, terminalResult := range map[string]execution.StepResultProjection{
+			"identical replay": result,
+			"new result": {
+				ResultID:             "result-primary-after-terminal",
+				StepID:               step.StepID,
+				RunID:                run.RunID,
+				AttemptID:            attempt.AttemptID,
+				Status:               "completed",
+				ResultKind:           "answer",
+				ProjectionRef:        "projection:answer:after-terminal",
+				CreatedAt:            now.Add(5 * time.Second),
+				PayloadSchemaVersion: "step-result-v1",
+				SanitizedPayload:     map[string]any{"shape": "late-answer"},
+			},
+		} {
+			if _, err := store.UpsertStepResult(t.Context(), terminalResult); !errors.Is(
+				err,
+				execution.ErrDurableRunTerminalConflict,
+			) {
+				t.Fatalf("%s error = %v, want ErrDurableRunTerminalConflict", name, err)
+			}
 		}
 
 		if err := store.DeleteRun(t.Context(), run.RunID); err != nil {
@@ -466,6 +853,118 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 			if count != 0 {
 				t.Fatalf("%s rows after run delete = %d, want 0", table, count)
 			}
+		}
+	})
+
+	t.Run("completed runs accept only post-answer memory results", func(t *testing.T) {
+		_, databaseURL := harness.ownerDatabase(t)
+		store := newRunProjectionStore(t, databaseURL, true)
+		now := time.Date(2026, 7, 23, 15, 0, 0, 0, time.UTC)
+		run := durableRun("run-post-answer-memory", "conversation-post-answer-memory", now)
+		if _, err := store.CreateRun(t.Context(), run); err != nil {
+			t.Fatalf("create post-answer memory run: %v", err)
+		}
+		for index, status := range []execution.DurableRunStatus{
+			execution.DurableRunStatusQueued,
+			execution.DurableRunStatusAdmitted,
+			execution.DurableRunStatusRunning,
+		} {
+			if _, err := store.TransitionRun(
+				t.Context(),
+				run.RunID,
+				status,
+				"",
+				now.Add(time.Duration(index+1)*time.Second),
+			); err != nil {
+				t.Fatalf("transition post-answer memory run to %s: %v", status, err)
+			}
+		}
+		finalResponseRef := "projection://runs/run-post-answer-memory/finalization/write"
+		if _, err := store.UpsertStepResult(t.Context(), execution.StepResultProjection{
+			ResultID:             run.RunID + ":finalization.write:result:1",
+			StepID:               "finalization.write",
+			RunID:                run.RunID,
+			AttemptID:            run.RunID + ":finalization.write:attempt:1",
+			Status:               "completed",
+			ResultKind:           "final_answer_projection",
+			ProjectionRef:        finalResponseRef,
+			CreatedAt:            now.Add(3500 * time.Millisecond),
+			PayloadSchemaVersion: "step-result-v1",
+			SanitizedPayload:     map[string]any{"status": "completed"},
+		}); err != nil {
+			t.Fatalf("create finalization result before completion: %v", err)
+		}
+		if _, err := store.CompleteRunProjection(t.Context(), execution.DurableRunCompleteRequest{
+			RunID:            run.RunID,
+			TerminalReason:   execution.DurableTerminalReasonAnswerCompleted,
+			FinalResponseRef: finalResponseRef,
+			Now:              now.Add(4 * time.Second),
+		}); err != nil {
+			t.Fatalf("complete post-answer memory run: %v", err)
+		}
+
+		memoryResults := []execution.StepResultProjection{{
+			ResultID:             run.RunID + ":memory.append:result:1",
+			StepID:               "memory.append",
+			RunID:                run.RunID,
+			AttemptID:            run.RunID + ":memory.append:attempt:1",
+			Status:               "completed",
+			ResultKind:           "memory_conversation_append_result",
+			ProjectionRef:        "projection://runs/run-post-answer-memory/memory/append",
+			CreatedAt:            now.Add(5 * time.Second),
+			PayloadSchemaVersion: "step-result-v1",
+			SanitizedPayload:     map[string]any{"status": "completed"},
+		}}
+		for _, result := range memoryResults {
+			if _, err := store.UpsertStepResult(t.Context(), result); err != nil {
+				t.Fatalf("create %s post-completion result: %v", result.StepID, err)
+			}
+			if _, err := store.UpsertStepResult(t.Context(), result); err != nil {
+				t.Fatalf("replay %s post-completion result: %v", result.StepID, err)
+			}
+		}
+		conflict := memoryResults[0]
+		conflict.SanitizedPayload = map[string]any{"status": "changed"}
+		if _, err := store.UpsertStepResult(t.Context(), conflict); !errors.Is(
+			err,
+			execution.ErrStepResultProjectionConflict,
+		) {
+			t.Fatalf("post-completion memory conflict error = %v", err)
+		}
+		mismatched := memoryResults[0]
+		mismatched.ResultID = run.RunID + ":memory.append:wrong-kind:result:1"
+		mismatched.ResultKind = "agent_final_output"
+		if _, err := store.UpsertStepResult(t.Context(), mismatched); !errors.Is(
+			err,
+			execution.ErrDurableRunTerminalConflict,
+		) {
+			t.Fatalf("mismatched post-completion memory result error = %v", err)
+		}
+		results, err := store.ListStepResults(t.Context(), run.RunID)
+		if err != nil || len(results) != len(memoryResults)+1 ||
+			results[0].SanitizedPayload["status"] != "completed" {
+			t.Fatalf("post-completion memory results = %#v, error = %v", results, err)
+		}
+
+		canceled := durableRun("run-canceled-memory", "conversation-canceled-memory", now)
+		if _, err := store.CreateRun(t.Context(), canceled); err != nil {
+			t.Fatalf("create canceled memory run: %v", err)
+		}
+		if _, err := store.CancelRunProjection(t.Context(), execution.DurableRunCancelRequest{
+			RunID:  canceled.RunID,
+			Reason: "integration terminal memory fence",
+			Now:    now.Add(time.Second),
+		}); err != nil {
+			t.Fatalf("cancel memory run: %v", err)
+		}
+		lateMemoryResult := memoryResults[0]
+		lateMemoryResult.ResultID = canceled.RunID + ":memory.append:result:1"
+		lateMemoryResult.RunID = canceled.RunID
+		if _, err := store.UpsertStepResult(t.Context(), lateMemoryResult); !errors.Is(
+			err,
+			execution.ErrDurableRunTerminalConflict,
+		) {
+			t.Fatalf("canceled memory result error = %v", err)
 		}
 	})
 }
@@ -506,7 +1005,71 @@ func durableRun(runID, conversationID string, now time.Time) execution.DurableRu
 		RuntimeVersions: map[string]any{
 			"execution_control": "integration",
 		},
-		Metadata: map[string]any{"source": "integration"},
+		Metadata: map[string]any{
+			"execution_contract_version": "tool_execution_v5",
+			"execution_input_ref":        "app-api://execution-inputs/" + runID,
+			"execution_input_sha256":     strings.Repeat("a", 64),
+		},
+	}
+}
+
+func createPostgresRunningRun(
+	t *testing.T,
+	store *execution.PostgresRunProjectionStore,
+	runID string,
+	now time.Time,
+) execution.DurableRun {
+	t.Helper()
+	run, err := store.CreateRun(t.Context(), durableRun(runID, "conversation-"+runID, now))
+	if err != nil {
+		t.Fatalf("create run %s: %v", runID, err)
+	}
+	for index, status := range []execution.DurableRunStatus{
+		execution.DurableRunStatusQueued,
+		execution.DurableRunStatusAdmitted,
+		execution.DurableRunStatusRunning,
+	} {
+		run, err = store.TransitionRun(
+			t.Context(),
+			run.RunID,
+			status,
+			"",
+			now.Add(time.Duration(index+1)*time.Second),
+		)
+		if err != nil {
+			t.Fatalf("transition run %s to %s: %v", runID, status, err)
+		}
+	}
+	return run
+}
+
+func postgresAnswerStreamStartRequest(
+	run execution.DurableRun,
+	now time.Time,
+) execution.RunAnswerStreamStartRequest {
+	return execution.RunAnswerStreamStartRequest{
+		RunID: run.RunID,
+		Now:   now,
+		AnswerStartedEvent: execution.DurableRunEvent{
+			EventID:              run.RunID + ":answer-started",
+			RunID:                run.RunID,
+			ConversationID:       run.ConversationID,
+			EventType:            execution.DurableRunEventTypeRunAnswerStarted,
+			OccurredAt:           now,
+			Visibility:           execution.DurableRunEventVisibilityBrowser,
+			PayloadSchemaVersion: "run-answer-event-v2",
+			Payload:              map[string]any{"status": "streaming"},
+		},
+		FirstDeltaEvent: execution.DurableRunEvent{
+			EventID:              run.RunID + ":answer-delta:1",
+			RunID:                run.RunID,
+			ConversationID:       run.ConversationID,
+			EventType:            execution.DurableRunEventTypeRunAnswerDelta,
+			OccurredAt:           now,
+			Visibility:           execution.DurableRunEventVisibilityBrowser,
+			PayloadSchemaVersion: "run-answer-event-v2",
+			Payload:              map[string]any{"chunk_index": 1, "delta": "first"},
+		},
 	}
 }
 

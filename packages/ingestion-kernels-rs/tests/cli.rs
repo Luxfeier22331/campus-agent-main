@@ -40,10 +40,10 @@ fn validate_document_units_reads_jsonl_from_stdin_and_writes_report_json() {
 }
 
 #[test]
-fn chunk_document_units_requires_tokenizer_and_token_budget_arguments() {
+fn build_retrieval_chunks_v2_writes_formal_chunks() {
     let output = run_kernel(
         &[
-            "chunk-document-units",
+            "build-retrieval-chunks-v2",
             "--tokenizer-json",
             tokenizer_json_path().to_str().expect("tokenizer path utf8"),
             "--chunk-size",
@@ -55,30 +55,31 @@ fn chunk_document_units_requires_tokenizer_and_token_budget_arguments() {
             "--min-tokens",
             "1",
         ],
-        r#"{"doc_id":"doc1","version_id":"v1","chunk_id":"u1","root_unit_id":"u1","text":"hello","clean_text":"hello","metadata":{},"anchor":{}}
-{"doc_id":"doc1","version_id":"v1","chunk_id":"u2","root_unit_id":"u2","text":"world","clean_text":"world","metadata":{},"anchor":{}}
-"#,
+        r##"{"schema_version":"canonical_document_unit.v2","document_scope":"regulations","document_id":"doc1","version_id":"v1","section_id":"section-1","parent_section_id":null,"ordinal":0,"anchor":"#section-1","document_title":"Handbook","section_title":"Section 1","canonical_url":"https://example.test/handbook#section-1","content":"hello","content_sha256":"sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824","metadata":{}}
+"##,
     );
 
     assert!(output.status.success(), "stderr={}", stderr(&output));
     let payload: serde_json::Value = serde_json::from_slice(&output.stdout).expect("json stdout");
-    assert_eq!(payload["schema_version"], "ingestion_chunk_set.v1");
-    assert_eq!(payload["chunk_count"], 2);
+    assert_eq!(payload["schema_version"], "retrieval_chunk_set.v2");
+    assert_eq!(payload["chunk_count"], 1);
+    assert_eq!(payload["chunks"][0]["schema_version"], "retrieval_chunk.v2");
+    assert_eq!(payload["chunks"][0]["token_count"], 1);
 }
 
 #[test]
-fn chunk_document_units_rejects_retired_max_chars_argument() {
-    let output = run_kernel(&["chunk-document-units", "--max-chars", "8"], "");
+fn build_retrieval_chunks_v2_rejects_retired_max_chars_argument() {
+    let output = run_kernel(&["build-retrieval-chunks-v2", "--max-chars", "8"], "");
 
     assert!(!output.status.success());
-    assert!(stderr(&output).contains("--tokenizer-json is required"));
+    assert!(stderr(&output).contains("--max-chars is retired"));
 }
 
 #[test]
-fn chunk_document_units_fails_closed_when_tokenizer_is_missing() {
+fn build_retrieval_chunks_v2_fails_closed_when_tokenizer_is_missing() {
     let output = run_kernel(
         &[
-            "chunk-document-units",
+            "build-retrieval-chunks-v2",
             "--tokenizer-json",
             "/missing/tokenizer.json",
             "--chunk-size",

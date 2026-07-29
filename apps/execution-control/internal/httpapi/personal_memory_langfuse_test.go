@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -106,6 +107,57 @@ func TestLangfuseTraceMaintenanceRequiresAnOriginBaseURL(t *testing.T) {
 	)
 	if err != nil || client.baseURL.String() != "https://langfuse.example" {
 		t.Fatalf("client=%#v error=%v", client, err)
+	}
+}
+
+func TestLangfuseTraceMaintenanceDoesNotFollowRedirects(t *testing.T) {
+	for _, testCase := range []struct {
+		name     string
+		location func(targetURL string) string
+	}{
+		{
+			name: "same origin",
+			location: func(_ string) string {
+				return "/redirect-target"
+			},
+		},
+		{
+			name: "cross origin",
+			location: func(targetURL string) string {
+				return targetURL
+			},
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			var targetRequests atomic.Int32
+			target := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
+				targetRequests.Add(1)
+				response.WriteHeader(http.StatusOK)
+			}))
+			defer target.Close()
+
+			source := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+				if request.URL.Path == "/redirect-target" {
+					targetRequests.Add(1)
+					response.WriteHeader(http.StatusOK)
+					return
+				}
+				response.Header().Set("location", testCase.location(target.URL))
+				response.WriteHeader(http.StatusTemporaryRedirect)
+			}))
+			defer source.Close()
+
+			client, err := newLangfuseTraceMaintenanceClient(source.URL, "pk-runtime", "sk-runtime")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := client.CountUserTraces(context.Background(), "user-1"); err == nil {
+				t.Fatal("Langfuse trace count succeeded through redirect")
+			}
+			if got := targetRequests.Load(); got != 0 {
+				t.Fatalf("redirect target received %d requests, want 0", got)
+			}
+		})
 	}
 }
 

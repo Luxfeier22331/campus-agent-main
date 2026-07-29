@@ -17,14 +17,12 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 			answerText: "图书馆开放到 22:00。",
 			error: null,
 			followUpQuestion: "",
+			modelUsage: { cachedInputTokens: 10, inputTokens: 120, outputTokens: 42, totalTokens: 162 },
 			result: {
 				evidence: {
 					sources: [{ doc_id: "handbook:library-hours" }],
 				},
 			},
-			resolvedTargets: ["student_rules"],
-			selectedTool: "knowledge_query",
-			sessionUpdate: null,
 			status: "completed" as const,
 			traceId: "",
 		};
@@ -73,13 +71,17 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 					answerText: "图书馆开放到 22:00。",
 					error: null,
 					followUpQuestion: "",
+					modelUsage: {
+						cachedInputTokens: 10,
+						inputTokens: 120,
+						outputTokens: 42,
+						totalTokens: 162,
+					},
 					result: {
 						evidence: {
 							sources: [{ doc_id: "handbook:library-hours" }],
 						},
 					},
-					resolvedTargets: ["student_rules"],
-					selectedTool: "knowledge_query",
 					status: "completed",
 					traceId: "trace_0001",
 				}),

@@ -1,5 +1,4 @@
 export {
-	buildDefaultRuntimeRunService,
 	buildRuntimeRunService,
 	createPgRuntimeRunStore,
 	type RuntimeRunEventProjection,

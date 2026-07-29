@@ -185,7 +185,7 @@ export function createPgProfileMemoryStore(
 	env: Env,
 	input: { getDb?: RuntimeDbGetter } = {},
 ): ProfileMemoryStore {
-	const getDb = input.getDb ?? createRuntimeDbGetter(env, { consistency: "fresh" });
+	const getDb = input.getDb ?? createRuntimeDbGetter(env);
 
 	async function readSettings(ownerUserId: string): Promise<SettingsRow> {
 		const db = await getDb();

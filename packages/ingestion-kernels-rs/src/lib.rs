@@ -1,6 +1,7 @@
 use jsonschema::Validator;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use std::error::Error;
 use std::path::{Path, PathBuf};
 use text_splitter::{ChunkCapacity, ChunkConfig, TextSplitter};
@@ -8,6 +9,10 @@ use tokenizers::Tokenizer;
 
 const CANONICAL_DOCUMENT_UNIT_SCHEMA_JSON: &str =
     include_str!("../../ingestion-contracts/schemas/canonical-document-units.v1.schema.json");
+const CANONICAL_DOCUMENT_UNIT_V2_SCHEMA_JSON: &str =
+    include_str!("../../ingestion-contracts/schemas/canonical-document-units.v2.schema.json");
+const RETRIEVAL_CHUNK_V2_SCHEMA_JSON: &str =
+    include_str!("../../ingestion-contracts/schemas/retrieval-chunks.v2.schema.json");
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DocumentUnitsValidationReport {
@@ -18,23 +23,30 @@ pub struct DocumentUnitsValidationReport {
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct IngestionChunkSet {
+pub struct RetrievalChunkSetV2 {
     pub schema_version: String,
     pub chunk_count: usize,
-    pub chunks: Vec<IngestionChunk>,
+    pub chunks: Vec<RetrievalChunkV2>,
     pub error_count: usize,
     pub errors: Vec<String>,
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct IngestionChunk {
+pub struct RetrievalChunkV2 {
+    pub schema_version: String,
+    pub document_scope: String,
+    pub document_id: String,
+    pub version_id: String,
+    pub section_id: String,
     pub chunk_id: String,
-    pub doc_id: String,
-    pub unit_ids: Vec<String>,
+    pub ordinal: usize,
+    pub token_count: usize,
     pub text: String,
+    pub text_sha256: String,
+    pub metadata: serde_json::Map<String, Value>,
 }
 
-pub struct ChunkDocumentUnitsOptions {
+pub struct BuildRetrievalChunksV2Options {
     pub chunk_size: usize,
     pub max_tokens: usize,
     pub min_tokens: usize,
@@ -73,10 +85,10 @@ pub fn validate_document_units_jsonl(input: &str) -> DocumentUnitsValidationRepo
     }
 }
 
-pub fn chunk_document_units_jsonl(
+pub fn build_retrieval_chunks_v2_jsonl(
     input: &str,
-    options: ChunkDocumentUnitsOptions,
-) -> Result<IngestionChunkSet, Box<dyn Error + Send + Sync>> {
+    options: BuildRetrievalChunksV2Options,
+) -> Result<RetrievalChunkSetV2, Box<dyn Error + Send + Sync>> {
     validate_chunk_options(&options)?;
     let mut tokenizer = Tokenizer::from_file(&options.tokenizer_json_path)?;
     tokenizer.with_truncation(None)?;
@@ -84,8 +96,10 @@ pub fn chunk_document_units_jsonl(
 
     let mut errors = Vec::new();
     let mut chunks = Vec::new();
-    let validator = validator_for_schema(document_unit_schema())
-        .expect("embedded document unit schema must compile");
+    let validator = validator_for_schema(canonical_document_unit_v2_schema())
+        .expect("embedded canonical document unit v2 schema must compile");
+    let chunk_validator = validator_for_schema(retrieval_chunk_v2_schema())
+        .expect("embedded retrieval chunk v2 schema must compile");
     let splitter = TextSplitter::new(
         ChunkConfig::new(
             ChunkCapacity::new(options.chunk_size)
@@ -95,6 +109,7 @@ pub fn chunk_document_units_jsonl(
         .with_sizer(tokenizer.clone())
         .with_overlap(options.overlap)?,
     );
+    let mut sections = Vec::new();
 
     for (index, line) in input.lines().enumerate() {
         let line_number = index + 1;
@@ -114,38 +129,81 @@ pub fn chunk_document_units_jsonl(
             errors.extend(schema_errors);
             continue;
         };
-        let object = parsed.as_object().expect("schema validates object");
-        let unit_id = object
-            .get("chunk_id")
-            .and_then(Value::as_str)
-            .expect("schema validates chunk_id");
-        let doc_id = object
-            .get("doc_id")
-            .and_then(Value::as_str)
-            .expect("schema validates doc_id");
-        let text = object
-            .get("clean_text")
-            .and_then(Value::as_str)
-            .expect("schema validates clean_text");
-
-        for text_chunk in splitter.chunks(text) {
-            if token_count(&tokenizer, text_chunk)? > options.max_tokens {
-                errors.push(format!("line {line_number} chunk exceeds max_tokens"));
+        let section: CanonicalDocumentUnitV2 = match serde_json::from_value(parsed) {
+            Ok(section) => section,
+            Err(error) => {
+                errors.push(format!(
+                    "line {line_number} cannot be represented by the kernel: {error}"
+                ));
                 continue;
             }
-            push_or_merge_chunk(
-                &mut chunks,
-                &tokenizer,
-                &options,
-                doc_id,
-                unit_id,
-                text_chunk,
-            )?;
+        };
+        if sha256_ref(&section.content) != section.content_sha256 {
+            errors.push(format!(
+                "line {line_number} content_sha256 does not match content"
+            ));
+            continue;
+        }
+        sections.push(ParsedSection {
+            line_number,
+            section,
+        });
+    }
+
+    sections.sort_by(|left, right| {
+        section_sort_key(&left.section).cmp(&section_sort_key(&right.section))
+    });
+    for pair in sections.windows(2) {
+        if section_identity(&pair[0].section) == section_identity(&pair[1].section) {
+            errors.push(format!(
+                "line {} duplicates document_id/version_id/section_id from line {}",
+                pair[1].line_number, pair[0].line_number
+            ));
         }
     }
 
-    Ok(IngestionChunkSet {
-        schema_version: "ingestion_chunk_set.v1".to_string(),
+    if errors.is_empty() {
+        for parsed in sections {
+            let spans = section_chunk_spans(
+                &splitter,
+                &tokenizer,
+                &parsed.section.content,
+                options.min_tokens,
+                options.max_tokens,
+            )?;
+            if spans.is_empty() {
+                errors.push(format!(
+                    "line {} content produced no retrieval chunks",
+                    parsed.line_number
+                ));
+                continue;
+            }
+            for (ordinal, span) in spans.into_iter().enumerate() {
+                let text = parsed.section.content[span.start..span.end].to_string();
+                let count = token_count(&tokenizer, &text)?;
+                if count == 0 || count > options.max_tokens {
+                    errors.push(format!(
+                        "line {} chunk {ordinal} has invalid token_count {count}",
+                        parsed.line_number
+                    ));
+                    continue;
+                }
+                let chunk = retrieval_chunk(&parsed.section, ordinal, count, text);
+                let value = serde_json::to_value(&chunk)?;
+                let schema_errors = validation_errors(&chunk_validator, &value, None);
+                if schema_errors.is_empty() {
+                    chunks.push(chunk);
+                } else {
+                    errors.extend(schema_errors.into_iter().map(|error| {
+                        format!("line {} chunk {ordinal} {error}", parsed.line_number)
+                    }));
+                }
+            }
+        }
+    }
+
+    Ok(RetrievalChunkSetV2 {
+        schema_version: "retrieval_chunk_set.v2".to_string(),
         chunk_count: chunks.len(),
         chunks,
         error_count: errors.len(),
@@ -167,48 +225,117 @@ fn token_count(tokenizer: &Tokenizer, text: &str) -> Result<usize, Box<dyn Error
     Ok(encoding.len())
 }
 
-fn push_chunk(chunks: &mut Vec<IngestionChunk>, doc_id: &str, unit_ids: &[String], text: &str) {
-    let chunk_number = chunks.iter().filter(|chunk| chunk.doc_id == doc_id).count() + 1;
-    chunks.push(IngestionChunk {
-        chunk_id: format!("{doc_id}::chunk::{chunk_number:06}"),
-        doc_id: doc_id.to_string(),
-        unit_ids: unit_ids.to_vec(),
-        text: text.to_string(),
-    });
+#[derive(Debug, Deserialize)]
+struct CanonicalDocumentUnitV2 {
+    document_scope: String,
+    document_id: String,
+    version_id: String,
+    section_id: String,
+    ordinal: usize,
+    content: String,
+    content_sha256: String,
 }
 
-fn push_or_merge_chunk(
-    chunks: &mut Vec<IngestionChunk>,
+struct ParsedSection {
+    line_number: usize,
+    section: CanonicalDocumentUnitV2,
+}
+
+#[derive(Clone, Copy)]
+struct ChunkSpan {
+    start: usize,
+    end: usize,
+}
+
+fn section_chunk_spans(
+    splitter: &TextSplitter<Tokenizer>,
     tokenizer: &Tokenizer,
-    options: &ChunkDocumentUnitsOptions,
-    doc_id: &str,
-    unit_id: &str,
     text: &str,
-) -> Result<(), Box<dyn Error + Send + Sync>> {
-    let unit_id_string = unit_id.to_string();
-    let can_merge = match chunks.last() {
-        Some(chunk) if chunk.doc_id == doc_id => {
-            token_count(tokenizer, &chunk.text)? < options.min_tokens
-        }
-        _ => false,
-    };
-    if can_merge {
-        let previous = chunks
-            .last_mut()
-            .expect("can_merge requires previous chunk");
-        let merged_text = format!("{}\n{}", previous.text, text);
-        if token_count(tokenizer, &merged_text)? <= options.max_tokens {
-            previous.text = merged_text;
-            previous.unit_ids.push(unit_id_string);
-            return Ok(());
+    min_tokens: usize,
+    max_tokens: usize,
+) -> Result<Vec<ChunkSpan>, Box<dyn Error + Send + Sync>> {
+    let mut spans = splitter
+        .chunk_indices(text)
+        .map(|(start, chunk)| ChunkSpan {
+            start,
+            end: start + chunk.len(),
+        })
+        .collect::<Vec<_>>();
+    if spans.len() > 1 {
+        let last = *spans.last().expect("span length checked");
+        let last_count = token_count(tokenizer, &text[last.start..last.end])?;
+        if last_count < min_tokens {
+            let previous = spans[spans.len() - 2];
+            let merged_count = token_count(tokenizer, &text[previous.start..last.end])?;
+            if merged_count <= max_tokens {
+                spans.pop();
+                spans.last_mut().expect("previous span exists").end = last.end;
+            }
         }
     }
-    push_chunk(chunks, doc_id, &[unit_id_string], text);
-    Ok(())
+    Ok(spans)
+}
+
+fn retrieval_chunk(
+    section: &CanonicalDocumentUnitV2,
+    ordinal: usize,
+    token_count: usize,
+    text: String,
+) -> RetrievalChunkV2 {
+    let text_sha256 = sha256_ref(&text);
+    let identity = format!(
+        "{}\0{}\0{}\0{}\0{}\0{}",
+        section.document_scope,
+        section.document_id,
+        section.version_id,
+        section.section_id,
+        ordinal,
+        text_sha256
+    );
+    RetrievalChunkV2 {
+        schema_version: "retrieval_chunk.v2".to_string(),
+        document_scope: section.document_scope.clone(),
+        document_id: section.document_id.clone(),
+        version_id: section.version_id.clone(),
+        section_id: section.section_id.clone(),
+        chunk_id: format!("retrieval:{}", sha256_hex(&identity)),
+        ordinal,
+        token_count,
+        text,
+        text_sha256,
+        metadata: serde_json::Map::new(),
+    }
+}
+
+fn section_sort_key(section: &CanonicalDocumentUnitV2) -> (&str, &str, &str, usize, &str) {
+    (
+        &section.document_scope,
+        &section.document_id,
+        &section.version_id,
+        section.ordinal,
+        &section.section_id,
+    )
+}
+
+fn section_identity(section: &CanonicalDocumentUnitV2) -> (&str, &str, &str, &str) {
+    (
+        &section.document_scope,
+        &section.document_id,
+        &section.version_id,
+        &section.section_id,
+    )
+}
+
+fn sha256_ref(value: &str) -> String {
+    format!("sha256:{}", sha256_hex(value))
+}
+
+fn sha256_hex(value: &str) -> String {
+    format!("{:x}", Sha256::digest(value.as_bytes()))
 }
 
 fn validate_chunk_options(
-    options: &ChunkDocumentUnitsOptions,
+    options: &BuildRetrievalChunksV2Options,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     if options.chunk_size == 0 {
         return Err("chunk_size must be greater than zero".into());
@@ -310,12 +437,23 @@ fn document_unit_schema() -> Value {
         .expect("canonical document unit schema must be valid JSON")
 }
 
+fn canonical_document_unit_v2_schema() -> Value {
+    serde_json::from_str(CANONICAL_DOCUMENT_UNIT_V2_SCHEMA_JSON)
+        .expect("canonical document unit v2 schema must be valid JSON")
+}
+
+fn retrieval_chunk_v2_schema() -> Value {
+    serde_json::from_str(RETRIEVAL_CHUNK_V2_SCHEMA_JSON)
+        .expect("retrieval chunk v2 schema must be valid JSON")
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        ChunkDocumentUnitsOptions, chunk_document_units_jsonl, count_tokens_from_tokenizer_json,
-        validate_document_units_jsonl,
+        BuildRetrievalChunksV2Options, build_retrieval_chunks_v2_jsonl,
+        count_tokens_from_tokenizer_json, sha256_ref, validate_document_units_jsonl,
     };
+    use serde_json::json;
     use std::fs;
     use std::path::Path;
 
@@ -337,87 +475,77 @@ mod tests {
     }
 
     #[test]
-    fn chunks_document_units_jsonl_into_traceable_chunk_set() {
-        let chunk_set = chunk_document_units_jsonl(
-            r#"{"doc_id":"doc1","version_id":"v1","chunk_id":"u1","root_unit_id":"u1","text":"第一段内容","clean_text":"第一段内容","metadata":{"heading":"总则"},"anchor":{}}
-{"doc_id":"doc1","version_id":"v1","chunk_id":"u2","root_unit_id":"u2","text":"第二段内容","clean_text":"第二段内容","metadata":{"heading":"细则"},"anchor":{}}
-"#,
-            ChunkDocumentUnitsOptions {
-                chunk_size: 4,
-                max_tokens: 4,
-                min_tokens: 1,
-                overlap: 0,
-                tokenizer_json_path: test_tokenizer_json_path(),
-            },
-        )
-        .unwrap();
+    fn builds_schema_valid_retrieval_chunks_with_exact_token_counts() {
+        let input = format!(
+            "{}\n",
+            section_json("section-b", 1, "hello world alpha beta")
+        );
+        let chunk_set = build_retrieval_chunks_v2_jsonl(&input, chunk_options()).unwrap();
 
-        assert_eq!(chunk_set.schema_version, "ingestion_chunk_set.v1");
+        assert_eq!(chunk_set.schema_version, "retrieval_chunk_set.v2");
         assert_eq!(chunk_set.chunk_count, 2);
-        assert_eq!(chunk_set.chunks[0].chunk_id, "doc1::chunk::000001");
-        assert_eq!(chunk_set.chunks[0].doc_id, "doc1");
-        assert_eq!(chunk_set.chunks[0].unit_ids, vec!["u1"]);
+        assert_eq!(chunk_set.chunks[0].schema_version, "retrieval_chunk.v2");
+        assert_eq!(chunk_set.chunks[0].document_scope, "regulations");
+        assert_eq!(chunk_set.chunks[0].document_id, "doc-1");
+        assert_eq!(chunk_set.chunks[0].version_id, "version-1");
+        assert_eq!(chunk_set.chunks[0].section_id, "section-b");
+        assert_eq!(chunk_set.chunks[0].ordinal, 0);
+        assert_eq!(chunk_set.chunks[0].token_count, 2);
+        assert_eq!(
+            chunk_set.chunks[0].text_sha256,
+            sha256_ref(&chunk_set.chunks[0].text)
+        );
+        assert!(chunk_set.chunks[0].chunk_id.starts_with("retrieval:"));
+        assert!(chunk_set.chunks[0].metadata.is_empty());
         assert_eq!(chunk_set.error_count, 0);
     }
 
     #[test]
-    fn chunks_merge_adjacent_short_units_until_min_tokens_without_crossing_documents() {
-        let chunk_set = chunk_document_units_jsonl(
-            r#"{"doc_id":"doc1","version_id":"v1","chunk_id":"u1","root_unit_id":"u1","text":"hello","clean_text":"hello","metadata":{},"anchor":{}}
-{"doc_id":"doc1","version_id":"v1","chunk_id":"u2","root_unit_id":"u2","text":"world","clean_text":"world","metadata":{},"anchor":{}}
-{"doc_id":"doc2","version_id":"v1","chunk_id":"u3","root_unit_id":"u3","text":"alpha","clean_text":"alpha","metadata":{},"anchor":{}}
-"#,
-            ChunkDocumentUnitsOptions {
-                chunk_size: 4,
-                max_tokens: 4,
-                min_tokens: 2,
-                overlap: 0,
-                tokenizer_json_path: test_tokenizer_json_path(),
-            },
-        )
-        .unwrap();
+    fn never_merges_chunks_across_sections() {
+        let input = format!(
+            "{}\n{}\n",
+            section_json("section-a", 0, "hello"),
+            section_json("section-b", 1, "world")
+        );
+        let mut options = chunk_options();
+        options.min_tokens = 2;
+        let chunk_set = build_retrieval_chunks_v2_jsonl(&input, options).unwrap();
 
         assert_eq!(chunk_set.chunk_count, 2);
-        assert_eq!(chunk_set.chunks[0].doc_id, "doc1");
-        assert_eq!(chunk_set.chunks[0].unit_ids, vec!["u1", "u2"]);
-        assert_eq!(chunk_set.chunks[0].text, "hello\nworld");
-        assert_eq!(chunk_set.chunks[1].doc_id, "doc2");
-        assert_eq!(chunk_set.chunks[1].unit_ids, vec!["u3"]);
+        assert_eq!(chunk_set.chunks[0].section_id, "section-a");
+        assert_eq!(chunk_set.chunks[0].text, "hello");
+        assert_eq!(chunk_set.chunks[1].section_id, "section-b");
+        assert_eq!(chunk_set.chunks[1].text, "world");
     }
 
     #[test]
-    fn chunk_ids_are_numbered_within_each_document() {
-        let chunk_set = chunk_document_units_jsonl(
-            r#"{"doc_id":"doc1","version_id":"v1","chunk_id":"u1","root_unit_id":"u1","text":"hello","clean_text":"hello","metadata":{},"anchor":{}}
-{"doc_id":"doc1","version_id":"v1","chunk_id":"u2","root_unit_id":"u2","text":"world","clean_text":"world","metadata":{},"anchor":{}}
-{"doc_id":"doc2","version_id":"v1","chunk_id":"u3","root_unit_id":"u3","text":"alpha","clean_text":"alpha","metadata":{},"anchor":{}}
-{"doc_id":"doc2","version_id":"v1","chunk_id":"u4","root_unit_id":"u4","text":"beta","clean_text":"beta","metadata":{},"anchor":{}}
-"#,
-            ChunkDocumentUnitsOptions {
-                chunk_size: 4,
-                max_tokens: 4,
-                min_tokens: 1,
-                overlap: 0,
-                tokenizer_json_path: test_tokenizer_json_path(),
-            },
-        )
-        .unwrap();
+    fn chunk_order_and_ids_are_independent_of_input_line_order() {
+        let first = section_json("section-a", 0, "hello world");
+        let second = section_json("section-b", 1, "alpha beta");
+        let forward =
+            build_retrieval_chunks_v2_jsonl(&format!("{first}\n{second}\n"), chunk_options())
+                .unwrap();
+        let reversed =
+            build_retrieval_chunks_v2_jsonl(&format!("{second}\n{first}\n"), chunk_options())
+                .unwrap();
 
-        let chunk_ids: Vec<&str> = chunk_set
-            .chunks
-            .iter()
-            .map(|chunk| chunk.chunk_id.as_str())
-            .collect();
+        assert_eq!(forward, reversed);
+        assert_eq!(forward.chunks[0].section_id, "section-a");
+        assert_ne!(forward.chunks[0].chunk_id, forward.chunks[1].chunk_id);
+    }
 
-        assert_eq!(
-            chunk_ids,
-            vec![
-                "doc1::chunk::000001",
-                "doc1::chunk::000002",
-                "doc2::chunk::000001",
-                "doc2::chunk::000002"
-            ]
-        );
+    #[test]
+    fn rejects_mismatched_content_digest_without_emitting_partial_chunks() {
+        let mut section: serde_json::Value =
+            serde_json::from_str(&section_json("section-a", 0, "hello")).unwrap();
+        section["content_sha256"] = json!(format!("sha256:{}", "0".repeat(64)));
+
+        let chunk_set =
+            build_retrieval_chunks_v2_jsonl(&format!("{section}\n"), chunk_options()).unwrap();
+
+        assert_eq!(chunk_set.chunk_count, 0);
+        assert_eq!(chunk_set.error_count, 1);
+        assert!(chunk_set.errors[0].contains("content_sha256 does not match"));
     }
 
     #[test]
@@ -469,5 +597,35 @@ mod tests {
 
     fn test_tokenizer_json_path() -> std::path::PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/tokenizer.json")
+    }
+
+    fn chunk_options() -> BuildRetrievalChunksV2Options {
+        BuildRetrievalChunksV2Options {
+            chunk_size: 2,
+            max_tokens: 2,
+            min_tokens: 1,
+            overlap: 0,
+            tokenizer_json_path: test_tokenizer_json_path(),
+        }
+    }
+
+    fn section_json(section_id: &str, ordinal: usize, content: &str) -> String {
+        json!({
+            "schema_version": "canonical_document_unit.v2",
+            "document_scope": "regulations",
+            "document_id": "doc-1",
+            "version_id": "version-1",
+            "section_id": section_id,
+            "parent_section_id": null,
+            "ordinal": ordinal,
+            "anchor": format!("#{section_id}"),
+            "document_title": "学生手册",
+            "section_title": section_id,
+            "canonical_url": format!("https://example.test/handbook#{section_id}"),
+            "content": content,
+            "content_sha256": sha256_ref(content),
+            "metadata": {}
+        })
+        .to_string()
     }
 }

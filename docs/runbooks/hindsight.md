@@ -39,7 +39,7 @@ Hindsight 在服务启动时读取 LLM、Embedding 和 Rerank 配置。模型 en
 - Memory Defense 对敏感数据使用 redaction；
 - 没有仓库自定义 `observations_mission`。
 
-bootstrap 或 policy 校验失败时，本次 retain、recall、reflect 或 profile mutation 必须失败，不能
+bootstrap 或 policy 校验失败时，本次 retain、recall 或 profile mutation 必须失败，不能
 继续访问未满足 policy 的 bank。
 
 ## 功能冒烟
@@ -49,9 +49,11 @@ bootstrap 或 policy 校验失败时，本次 retain、recall、reflect 或 prof
 1. GET 个人记忆，确认 lifecycle 和 sync status 可读。
 2. 使用 `Idempotency-Key` 新增 item，确认返回 `202`、item 为 `saving`，随后 GET 收敛为
    `synced`。
-3. 完成一轮聊天，确认 recall 在 Agent Activity 前执行，append 在 finalization 后同步 retain
-   accepted user message。
-4. pause 后发起新 turn，确认 recall 和 append 都投影 skipped；resume 后新 turn 恢复调用。
+3. 使用必须引用上述合成记忆的问题完成一轮聊天，确认 Agent Activity 内出现
+   `sdk_tool.execute.personal_memory_recall.1`，append 在 finalization 后同步 retain accepted user
+   message。
+4. pause 后发起同类新 turn，确认 `personal_memory_recall` 不可见且没有 recall step，append 投影
+   skipped；resume 后新 turn 恢复工具准入和 append。
 5. 删除 item，等待 sync 收敛后确认对应 profile document 不再通过 recall 返回。
 6. 执行账号全量删除，确认状态先进入 `erasing`，在代次隔离、bank 删除和 Langfuse 删除检查
    点全部完成后才进入 `erased`。
@@ -92,7 +94,7 @@ Langfuse 查询、分页、时间边界、等待和失败语义由
 | --- | --- |
 | `/version` 或 health 失败 | 服务地址、tenant API secret、网络和实际镜像版本 |
 | bank bootstrap 失败 | observations、consolidation、Memory Defense 配置和 provider 可用性 |
-| recall/append timeout | Temporal activity attempt、Hindsight provider latency 和 worker backlog |
+| recall/append timeout | recall 对应 Agent Activity 与 SDK tool attempt；append 对应 core Activity；同时检查 Hindsight provider latency 和 worker backlog |
 | item 长期 `saving`/`deleting` | app-api outbox、execution-control command admission 和 receipt callback |
 | 账号长期 `erasing` | 代次租约、bank 删除、Langfuse 两类身份的删除与复核 |
 | 已删来源仍被 recall | document identity 是否一致、删除结果和 consolidation 是否完成 |

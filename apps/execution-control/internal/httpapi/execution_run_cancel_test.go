@@ -12,7 +12,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
-func TestExecutionRunCancelPublishesTerminalStateOnlyAfterProductCallback(t *testing.T) {
+func TestExecutionRunCancelPersistsCommandBeforeTemporalFinalization(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{}
 	server := newWorkerAuthServerForTest()
@@ -26,12 +26,14 @@ func TestExecutionRunCancelPublishesTerminalStateOnlyAfterProductCallback(t *tes
 		time.Date(2026, 6, 4, 1, 2, 3, 0, time.UTC),
 		nil,
 	)
+	callbackCalled := false
 	server.productFinalizationWriter = func(
 		_ context.Context,
 		_ execution.DurableRun,
 		_ time.Time,
 		_ map[string]any,
 	) error {
+		callbackCalled = true
 		events, err := store.ListRunEvents(context.Background(), "run-callback-before-cancel")
 		if err != nil {
 			t.Fatalf("list events in product callback: %v", err)
@@ -53,17 +55,31 @@ func TestExecutionRunCancelPublishesTerminalStateOnlyAfterProductCallback(t *tes
 	request.Header.Set("x-worker-origin-auth", "secret")
 	server.ServeHTTP(response, request)
 
-	assertError(t, response, http.StatusBadGateway, "product_finalization_callback_failed")
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202; body: %s", response.Code, response.Body.String())
+	}
 	run, err := store.GetRun(context.Background(), "run-callback-before-cancel")
 	if err != nil {
 		t.Fatalf("get run after callback failure: %v", err)
 	}
-	if run.Status == execution.DurableRunStatusCanceled {
-		t.Fatal("callback failure must leave run projection nonterminal")
+	if run.Status != execution.DurableRunStatusQueued {
+		t.Fatalf("cancel request must not publish terminal state: %q", run.Status)
+	}
+	if callbackCalled {
+		t.Fatal("HTTP cancel handler must defer product callback to Temporal finalization")
+	}
+	events, err := store.ListRunEvents(context.Background(), "run-callback-before-cancel")
+	if err != nil {
+		t.Fatalf("list cancel command events: %v", err)
+	}
+	for _, event := range events {
+		if event.EventType == execution.DurableRunEventTypeRunCanceled {
+			t.Fatal("run.canceled became visible before Temporal finalization")
+		}
 	}
 }
 
-func TestExecutionRunCancelDelegatesToTemporalCancellation(t *testing.T) {
+func TestExecutionRunCancelDefersCancellationUntilReconcilerCanVerifyIdentity(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{}
 	server := newWorkerAuthServerForTest()
@@ -76,7 +92,7 @@ func TestExecutionRunCancelDelegatesToTemporalCancellation(t *testing.T) {
 		"run-temporal-cancel",
 		"conv-temporal-cancel",
 		now,
-		ragHandoffForDurableWorkerTest("hello"),
+		agentRequestForDurableWorkerTest("hello"),
 	)
 
 	response := httptest.NewRecorder()
@@ -92,11 +108,12 @@ func TestExecutionRunCancelDelegatesToTemporalCancellation(t *testing.T) {
 	if response.Code != http.StatusAccepted {
 		t.Fatalf("status = %d, want 202; body: %s", response.Code, response.Body.String())
 	}
-	if starter.cancelRunID != "run-temporal-cancel" {
-		t.Fatalf("Temporal cancel run id = %q, want run-temporal-cancel", starter.cancelRunID)
+	if starter.cancelRunID != "" {
+		t.Fatalf("Temporal cancel must be deferred to the reconciler: run=%q", starter.cancelRunID)
 	}
-	if starter.cancelReason != "user_requested" {
-		t.Fatalf("Temporal cancel reason = %q, want user_requested", starter.cancelReason)
+	server.ReconcileTemporalRunsOnce(context.Background())
+	if starter.cancelRunID != "" || starter.cancelReason != "" {
+		t.Fatalf("Temporal cancel used unverified legacy identity: run=%q reason=%q", starter.cancelRunID, starter.cancelReason)
 	}
 }
 
@@ -113,7 +130,7 @@ func TestExecutionRunCancelRejectsUnsupportedReasonCodes(t *testing.T) {
 		"run-temporal-cancel-invalid-reason",
 		"conv-temporal-cancel-invalid-reason",
 		now,
-		ragHandoffForDurableWorkerTest("hello"),
+		agentRequestForDurableWorkerTest("hello"),
 	)
 
 	response := httptest.NewRecorder()
@@ -139,7 +156,7 @@ func TestExecutionRunCancelRejectsUnsupportedReasonCodes(t *testing.T) {
 	}
 }
 
-func TestExecutionRunCancelFailsClosedWhenTemporalCancelFails(t *testing.T) {
+func TestExecutionRunCancelRetriesWhenTemporalIdentityIsUnavailable(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{cancelErr: context.DeadlineExceeded}
 	server := newWorkerAuthServerForTest()
@@ -152,7 +169,7 @@ func TestExecutionRunCancelFailsClosedWhenTemporalCancelFails(t *testing.T) {
 		"run-temporal-cancel-fail",
 		"conv-temporal-cancel-fail",
 		now,
-		ragHandoffForDurableWorkerTest("hello"),
+		agentRequestForDurableWorkerTest("hello"),
 	)
 
 	response := httptest.NewRecorder()
@@ -165,12 +182,59 @@ func TestExecutionRunCancelFailsClosedWhenTemporalCancelFails(t *testing.T) {
 
 	server.ServeHTTP(response, request)
 
-	assertError(t, response, http.StatusBadGateway, "temporal_workflow_cancel_failed")
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202; body: %s", response.Code, response.Body.String())
+	}
+	server.ReconcileTemporalRunsOnce(context.Background())
+	if starter.cancelRunID != "" {
+		t.Fatalf("Temporal cancel used unverified identity: run=%q", starter.cancelRunID)
+	}
 	run, err := store.GetRun(context.Background(), "run-temporal-cancel-fail")
 	if err != nil {
 		t.Fatalf("get run after failed cancel: %v", err)
 	}
-	if run.Status == execution.DurableRunStatusCanceled {
-		t.Fatal("failed Temporal cancel must not mark projection canceled")
+	if run.Status != execution.DurableRunStatusQueued {
+		t.Fatalf("failed Temporal cancel must leave run nonterminal, got %q", run.Status)
+	}
+	leaseNow := time.Now().UTC().Add(time.Minute)
+	commands, err := store.LeaseRunCancellationCommands(context.Background(), execution.LifecycleLeaseRequest{
+		LeaseToken: "test-cancel-retry",
+		Now:        leaseNow,
+		LeaseUntil: leaseNow.Add(time.Minute),
+		Limit:      1,
+	})
+	if err != nil {
+		t.Fatalf("lease retriable cancellation command: %v", err)
+	}
+	if len(commands) != 1 || commands[0].LastErrorCode != "temporal_cancel_identity_unavailable" {
+		t.Fatalf("retriable cancellation commands = %#v, want one identity-unavailable command", commands)
+	}
+}
+
+func TestExecutionRunCancelDoesNotDependOnStaleGetRunSnapshot(t *testing.T) {
+	base := execution.NewInMemoryRunProjectionStore()
+	server := newWorkerAuthServerForTest()
+	now := time.Date(2026, 7, 23, 11, 0, 0, 0, time.UTC)
+	createHTTPAPIQueuedDurableRunForTest(t, base, "run-cancel-atomic-store", "conv-cancel-atomic-store", now, nil)
+	store := failingGetRunProjectionStore{RunProjectionStore: base, err: errors.New("stale read unavailable")}
+	attachRunProjectionStoreForHandlerTest(server, store)
+
+	response := httptest.NewRecorder()
+	request := newTestRequest(
+		http.MethodPost,
+		"/internal/execution/runs/run-cancel-atomic-store/cancel",
+		strings.NewReader(`{"reason":"user_requested"}`),
+	)
+	request.Header.Set("x-worker-origin-auth", "secret")
+	server.ServeHTTP(response, request)
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202; body: %s", response.Code, response.Body.String())
+	}
+	commands, err := base.LeaseRunCancellationCommands(context.Background(), execution.LifecycleLeaseRequest{
+		LeaseToken: "cancel-atomic-store", Now: time.Now().UTC().Add(time.Minute),
+		LeaseUntil: time.Now().UTC().Add(2 * time.Minute), Limit: 1,
+	})
+	if err != nil || len(commands) != 1 {
+		t.Fatalf("atomic cancellation command = %#v, err=%v", commands, err)
 	}
 }

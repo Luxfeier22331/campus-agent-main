@@ -37,6 +37,9 @@ func ExtractIncomingContext(ctx context.Context, headers http.Header) context.Co
 }
 
 func InjectExecutionTraceHeaders(ctx context.Context, requestID string, traceID string) map[string]string {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	headers := http.Header{}
 	runtimeTextMapPropagator.Inject(ctx, propagation.HeaderCarrier(headers))
 

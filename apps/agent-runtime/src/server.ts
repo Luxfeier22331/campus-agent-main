@@ -1,6 +1,5 @@
-import { createServer } from "node:http";
 import { createAgentRuntimeHandler } from "./http-server.ts";
-import { nodeClientDisconnectSignal } from "./node-http.ts";
+import { createAgentRuntimeNodeServer } from "./node-http.ts";
 import { createPrimaryAgentRuntime } from "./primary-agent.ts";
 import {
 	createRequestScopedOpenAIAgentsRunner,
@@ -13,7 +12,11 @@ import { createExecutionControlToolExecutor } from "./tool-executor.ts";
 const port = 27062;
 const host = "0.0.0.0";
 const executionAgentRuntimeSharedSecret = process.env.EXECUTION_AGENT_RUNTIME_SHARED_SECRET ?? "";
-const catalogPath = "configs/runtime/tools.v5.json";
+const catalogPath = "configs/runtime/tools.v6.json";
+const deploymentRelease = requiredDeploymentRelease(
+	process.env.DEPLOYMENT_ENVIRONMENT,
+	process.env.DEPLOYMENT_RELEASE,
+);
 const executionControlBaseUrl =
 	process.env.AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL ?? "http://127.0.0.1:27051";
 
@@ -26,7 +29,7 @@ const telemetry = (() => {
 	}
 })();
 
-const catalog = loadToolCatalog(catalogPath);
+const catalog = loadToolCatalog(catalogPath, { runtimeRelease: deploymentRelease });
 const runtime = createPrimaryAgentRuntime({
 	catalog,
 	runner: createRequestScopedOpenAIAgentsRunner(),
@@ -41,41 +44,10 @@ const handler = createAgentRuntimeHandler({
 	runtime,
 });
 
-const server = createServer(async (request, response) => {
-	const chunks: Buffer[] = [];
-	for await (const chunk of request) {
-		chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-	}
-	const url = `http://${request.headers.host ?? "agent-runtime"}${request.url ?? "/"}`;
-	const webRequest = new Request(url, {
-		method: request.method,
-		headers: request.headers as HeadersInit,
-		body: chunks.length > 0 ? Buffer.concat(chunks) : undefined,
-		signal: nodeClientDisconnectSignal(request, response),
-	});
-	const webResponse = await runWithExtractedTraceContext(webRequest.headers, () =>
-		handler(webRequest),
-	);
-	response.writeHead(webResponse.status, Object.fromEntries(webResponse.headers.entries()));
-	if (!webResponse.body) {
-		response.end();
-		return;
-	}
-	const reader = webResponse.body.getReader();
-	try {
-		for (;;) {
-			const chunk = await reader.read();
-			if (chunk.done) {
-				break;
-			}
-			response.write(Buffer.from(chunk.value));
-		}
-		response.end();
-	} catch (error) {
-		response.destroy(error instanceof Error ? error : new Error(String(error)));
-	} finally {
-		reader.releaseLock();
-	}
+const server = createAgentRuntimeNodeServer({
+	handler: (request) => runWithExtractedTraceContext(request.headers, () => handler(request)),
+	onError: () => console.error("agent-runtime request failed"),
+	sharedSecret: executionAgentRuntimeSharedSecret,
 });
 
 server.listen(port, host, () => {
@@ -88,4 +60,13 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 			void telemetry.shutdown().finally(() => process.exit(0));
 		});
 	});
+}
+
+function requiredDeploymentRelease(environment: string | undefined, release: string | undefined) {
+	const normalizedRelease = release?.trim();
+	const deployed = ["staging", "production"].includes(environment?.trim().toLowerCase() ?? "");
+	if (deployed && !normalizedRelease) {
+		throw new Error("DEPLOYMENT_RELEASE is required in deployed environments");
+	}
+	return normalizedRelease || "unversioned-local";
 }

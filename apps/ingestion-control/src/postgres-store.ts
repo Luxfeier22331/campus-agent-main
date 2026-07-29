@@ -19,7 +19,7 @@ export interface PgQueryable {
 }
 
 export interface PgClientLike extends PgQueryable {
-	release(): void;
+	release(error?: Error | boolean): void;
 }
 
 export interface PgPoolLike {

@@ -28,9 +28,8 @@ const (
 )
 
 type Metadata struct {
-	RequestID     string
-	TraceID       string
-	RequestedTool string
+	RequestID string
+	TraceID   string
 }
 
 type Execution struct {

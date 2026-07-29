@@ -44,15 +44,6 @@ func (e fencedPersonalMemoryExecutor) AppendConversationTurn(ctx context.Context
 	return e.personalMemoryExecutor.AppendConversationTurn(ctx, request)
 }
 
-func (e fencedPersonalMemoryExecutor) Reflect(ctx context.Context, request memoryruntime.ReflectRequest) (memoryruntime.ReflectResult, error) {
-	ownerHash, callID, err := e.beginCall(ctx, request.TenantID, request.UserID, request.RunID, request.ThreadID, request.OwnerGeneration, request.OwnerSequence, "reflect")
-	if err != nil {
-		return memoryruntime.ReflectResult{}, err
-	}
-	defer func() { _ = e.state.EndCall(context.Background(), ownerHash, callID) }()
-	return e.personalMemoryExecutor.Reflect(ctx, request)
-}
-
 func (e fencedPersonalMemoryExecutor) beginCall(ctx context.Context, tenantID string, userID string, runID string, subjectID string, generation int64, sequence int64, kind string) (string, string, error) {
 	ownerHash := personalMemoryOwnerScopeHash(e.ownerSalt, tenantID, userID)
 	subjectHash := personalMemorySubjectScopeHash(ownerHash, subjectID)

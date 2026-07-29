@@ -25,23 +25,32 @@ func ToolExecutionWorkflow(
 	input ToolExecutionWorkflowInput,
 ) (ToolExecutionWorkflowResult, error) {
 	activityOptions := defaultActivityOptions()
-	requestedTool := strings.TrimSpace(input.RequestedTool)
-	memory, err := executeMemoryRecall(ctx, activityOptions, input, requestedTool)
-	if err != nil {
-		if finalizeErr := finalizeExecutionFailure(
-			ctx,
-			activityOptions,
-			input,
-			"memory.recall",
-			"memory_recall_failed",
-			err,
-		); finalizeErr != nil {
-			return ToolExecutionWorkflowResult{}, finalizeErr
+	groundingContextRef := input.GroundingContextRef
+	if input.AdmissionSnapshot.GroundingPlan.Mode != "none" {
+		grounding, err := prepareGroundingContext(ctx, activityOptions, input)
+		if err != nil {
+			if workflowExecutionCanceled(ctx, err) {
+				return finalizeWorkflowCancellation(ctx, activityOptions, input, "user_requested")
+			}
+			if finalizeErr := finalizeExecutionFailure(
+				ctx,
+				activityOptions,
+				input,
+				"grounding.prepare",
+				"retrieval_unavailable",
+				err,
+			); finalizeErr != nil {
+				return ToolExecutionWorkflowResult{}, finalizeErr
+			}
+			return ToolExecutionWorkflowResult{}, err
 		}
-		return ToolExecutionWorkflowResult{}, err
+		groundingContextRef = grounding.GroundingContextRef
 	}
-	agent, err := executePrimaryAgent(ctx, activityOptions, input, memory, requestedTool)
+	agent, err := executePrimaryAgent(ctx, activityOptions, input, groundingContextRef)
 	if err != nil {
+		if workflowExecutionCanceled(ctx, err) {
+			return finalizeWorkflowCancellation(ctx, activityOptions, input, "user_requested")
+		}
 		if finalizeErr := finalizeExecutionFailure(
 			ctx,
 			activityOptions,
@@ -61,6 +70,9 @@ func ToolExecutionWorkflow(
 		TraceID:        input.TraceID,
 	})
 	if err != nil {
+		if workflowExecutionCanceled(ctx, err) {
+			return finalizeWorkflowCancellation(ctx, activityOptions, input, "user_requested")
+		}
 		if finalizeErr := finalizeExecutionFailure(
 			ctx,
 			activityOptions,
@@ -73,7 +85,14 @@ func ToolExecutionWorkflow(
 		}
 		return ToolExecutionWorkflowResult{}, err
 	}
-	executeMemoryAppend(ctx, activityOptions, input, requestedTool)
+	// Memory append is a post-answer side effect. Its own activity records a
+	// failure without changing the already completed product run. Once product
+	// finalization has succeeded, this post-answer work continues even if a
+	// cancellation request raced with the finalization activity. Payload cleanup
+	// is owned separately by the reconciler after the workflow closes.
+	cleanupCtx, cleanupCancel := workflow.NewDisconnectedContext(ctx)
+	defer cleanupCancel()
+	_ = executeMemoryAppend(cleanupCtx, activityOptions, input)
 	return workflowResultFromFinalization(finalization), nil
 }
 
@@ -273,6 +292,43 @@ func finalizeExecutionFailure(
 	}).Get(ctx, nil)
 }
 
+func workflowExecutionCanceled(ctx workflow.Context, cause error) bool {
+	return temporal.IsCanceledError(cause) || temporal.IsCanceledError(ctx.Err())
+}
+
+func finalizeWorkflowCancellation(
+	ctx workflow.Context,
+	activityOptions workflow.ActivityOptions,
+	input ToolExecutionWorkflowInput,
+	reason string,
+) (ToolExecutionWorkflowResult, error) {
+	disconnectedCtx, cancel := workflow.NewDisconnectedContext(ctx)
+	defer cancel()
+	options := activityOptions
+	options.TaskQueue = ActivityTaskQueueCore
+	options.StartToCloseTimeout = 30 * time.Second
+	options.RetryPolicy = &temporal.RetryPolicy{
+		InitialInterval:    time.Second,
+		BackoffCoefficient: 2,
+		MaximumInterval:    30 * time.Second,
+		MaximumAttempts:    0,
+	}
+	err := workflow.ExecuteActivity(
+		workflow.WithActivityOptions(disconnectedCtx, options),
+		FinalizeExecutionCancellationActivityName,
+		FinalizeExecutionCancellationActivityInput{
+			CanceledAt: workflow.Now(disconnectedCtx).UTC(),
+			Reason:     reason,
+			RunID:      input.RunID,
+			TraceID:    input.TraceID,
+		},
+	).Get(disconnectedCtx, nil)
+	if err != nil {
+		return ToolExecutionWorkflowResult{}, err
+	}
+	return ToolExecutionWorkflowResult{}, temporal.NewCanceledError(reason)
+}
+
 func workflowFailureKind(cause error, fallback string) string {
 	kind := ""
 	var applicationError *temporal.ApplicationError
@@ -330,62 +386,56 @@ func validFailureHash(value string) bool {
 	return true
 }
 
-func executeMemoryRecall(
-	ctx workflow.Context,
-	activityOptions workflow.ActivityOptions,
-	input ToolExecutionWorkflowInput,
-	requestedTool string,
-) (MemoryRecallActivityOutput, error) {
-	contextCtx := workflow.WithActivityOptions(
-		ctx,
-		memoryActivityOptions(activityOptions, input.PersonalMemoryTimeoutSeconds),
-	)
-	var memory MemoryRecallActivityOutput
-	err := workflow.ExecuteActivity(contextCtx, MemoryRecallActivityName, MemoryRecallActivityInput{
-		RequestID:     input.RequestID,
-		RequestedTool: requestedTool,
-		RunID:         input.RunID,
-		TraceID:       input.TraceID,
-	}).Get(ctx, &memory)
-	return memory, err
-}
-
 func executePrimaryAgent(
 	ctx workflow.Context,
 	activityOptions workflow.ActivityOptions,
 	input ToolExecutionWorkflowInput,
-	memory MemoryRecallActivityOutput,
-	requestedTool string,
+	groundingContextRef string,
 ) (ExecutePrimaryAgentActivityOutput, error) {
 	agentCtx := workflow.WithActivityOptions(ctx, primaryAgentActivityOptions(activityOptions))
 	agentInput := ExecutePrimaryAgentActivityInput{
-		ConversationID:       input.ConversationID,
-		KnowledgeTargets:     nil,
-		MemoryContext:        memoryContext(memory),
-		MemoryProjectionRefs: memoryProjectionRefs(memory),
-		RequestID:            input.RequestID,
-		RequestedTool:        requestedTool,
-		RunID:                input.RunID,
-		ToolChoice:           primaryAgentToolChoice(requestedTool),
-		TraceID:              input.TraceID,
-		TurnID:               input.TurnID,
-		VisibleToolNames:     append([]string{}, input.VisibleToolNames...),
+		AdmissionSnapshot:   input.AdmissionSnapshot,
+		ConversationID:      input.ConversationID,
+		GroundingContextRef: groundingContextRef,
+		RequestID:           input.RequestID,
+		RunID:               input.RunID,
+		TraceID:             input.TraceID,
+		TurnID:              input.TurnID,
+		VisibleToolNames:    append([]string{}, input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames...),
 	}
 	var agent ExecutePrimaryAgentActivityOutput
 	err := workflow.ExecuteActivity(agentCtx, ExecutePrimaryAgentActivityName, agentInput).Get(ctx, &agent)
 	return agent, err
 }
 
-func primaryAgentToolChoice(requestedTool string) string {
-	if strings.TrimSpace(requestedTool) == "knowledge_query" {
-		return "knowledge_query"
-	}
-	return ""
+func prepareGroundingContext(
+	ctx workflow.Context,
+	activityOptions workflow.ActivityOptions,
+	input ToolExecutionWorkflowInput,
+) (PrepareGroundingContextActivityOutput, error) {
+	options := activityOptions
+	options.TaskQueue = ActivityTaskQueueAgent
+	options.StartToCloseTimeout = 90 * time.Second
+	options.HeartbeatTimeout = 30 * time.Second
+	groundingCtx := workflow.WithActivityOptions(ctx, options)
+	var output PrepareGroundingContextActivityOutput
+	err := workflow.ExecuteActivity(
+		groundingCtx,
+		PrepareGroundingContextActivityName,
+		PrepareGroundingContextActivityInput{
+			AdmissionSnapshot:       input.AdmissionSnapshot,
+			AdmissionSnapshotSHA256: input.AdmissionSnapshotSHA256,
+			RunID:                   input.RunID,
+			TraceID:                 input.TraceID,
+		},
+	).Get(ctx, &output)
+	return output, err
 }
 
 func defaultActivityOptions() workflow.ActivityOptions {
 	return workflow.ActivityOptions{
 		StartToCloseTimeout: 60 * time.Second,
+		WaitForCancellation: true,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:    time.Second,
 			BackoffCoefficient: 2,
@@ -399,21 +449,19 @@ func executeMemoryAppend(
 	ctx workflow.Context,
 	activityOptions workflow.ActivityOptions,
 	input ToolExecutionWorkflowInput,
-	requestedTool string,
-) {
+) error {
 	contextCtx := workflow.WithActivityOptions(
 		ctx,
 		memoryActivityOptions(activityOptions, input.PersonalMemoryTimeoutSeconds),
 	)
 	var appendResult AppendConversationMemoryActivityOutput
-	_ = workflow.ExecuteActivity(
+	return workflow.ExecuteActivity(
 		contextCtx,
 		AppendConversationMemoryActivityName,
 		AppendConversationMemoryActivityInput{
-			RequestID:     input.RequestID,
-			RequestedTool: requestedTool,
-			RunID:         input.RunID,
-			TraceID:       input.TraceID,
+			RequestID: input.RequestID,
+			RunID:     input.RunID,
+			TraceID:   input.TraceID,
 		},
 	).Get(ctx, &appendResult)
 }
@@ -423,6 +471,21 @@ func primaryAgentActivityOptions(base workflow.ActivityOptions) workflow.Activit
 	options.TaskQueue = ActivityTaskQueueAgent
 	options.StartToCloseTimeout = 180 * time.Second
 	options.HeartbeatTimeout = 30 * time.Second
+	if options.RetryPolicy == nil {
+		options.RetryPolicy = &temporal.RetryPolicy{}
+	} else {
+		// ActivityOptions is copied by value, but RetryPolicy is a pointer. Keep
+		// the provider-specific single-attempt policy from mutating the base
+		// options later used by finalization and other activities.
+		policy := *options.RetryPolicy
+		policy.NonRetryableErrorTypes = append([]string{}, options.RetryPolicy.NonRetryableErrorTypes...)
+		options.RetryPolicy = &policy
+	}
+	// Receipt fencing makes provider invocation single-shot. Retries are kept
+	// unlimited so a completed receipt can repair downstream projections;
+	// uncertain or deterministic failures are returned as non-retryable by the
+	// activity implementation.
+	options.RetryPolicy.MaximumAttempts = 0
 	return options
 }
 
@@ -443,33 +506,10 @@ func memoryActivityOptions(base workflow.ActivityOptions, timeoutSeconds float64
 		NonRetryableErrorTypes: []string{
 			"memory_append_request_invalid",
 			"memory_projection_invalid",
-			"memory_recall_request_invalid",
 			"personal_memory_not_configured",
 		},
 	}
 	return options
-}
-
-func memoryProjectionRefs(memory MemoryRecallActivityOutput) []string {
-	if strings.TrimSpace(memory.MemoryRef) == "" {
-		return nil
-	}
-	return []string{memory.MemoryRef}
-}
-
-func memoryContext(memory MemoryRecallActivityOutput) *MemoryContext {
-	if strings.TrimSpace(memory.ContextBlock) == "" || strings.TrimSpace(memory.MemoryRef) == "" {
-		return nil
-	}
-	return &MemoryContext{
-		ContextBlock:        memory.ContextBlock,
-		MemoryRef:           memory.MemoryRef,
-		Provider:            memory.Provider,
-		RetrievalMode:       memory.RetrievalMode,
-		SchemaVersion:       memory.SchemaVersion,
-		SelectedMemoryChars: memory.SelectedMemoryChars,
-		SelectedMemoryCount: memory.SelectedMemoryCount,
-	}
 }
 
 func executeFinalization(
@@ -477,9 +517,7 @@ func executeFinalization(
 	activityOptions workflow.ActivityOptions,
 	input WriteFinalizationActivityInput,
 ) (WriteFinalizationActivityOutput, error) {
-	finalizationOptions := activityOptions
-	finalizationOptions.StartToCloseTimeout = 30 * time.Second
-	finalizationOptions.TaskQueue = ActivityTaskQueueCore
+	finalizationOptions := unlimitedFinalizerActivityOptions(30 * time.Second)
 	finalizationCtx := workflow.WithActivityOptions(ctx, finalizationOptions)
 	var finalization WriteFinalizationActivityOutput
 	err := workflow.ExecuteActivity(finalizationCtx, WriteFinalizationActivityName, input).Get(ctx, &finalization)

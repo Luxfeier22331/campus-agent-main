@@ -35,8 +35,6 @@ func TestTemporalActivitySetsExposeOnlyTheirQueueMethods(t *testing.T) {
 		"AppendConversationMemoryActivity",
 		"ExecutePersonalMemoryCommandActivity",
 		"FinalizePersonalMemoryCommandReceiptActivity",
-		"MemoryReflectActivity",
-		"MemoryRecallActivity",
 		"PurgePersonalMemoryTracesActivity",
 		"VerifyPersonalMemoryTracesActivity",
 		"WritePersonalMemoryCommandResultActivity",
@@ -75,6 +73,9 @@ func TestTemporalActivitySetsExposeOnlyTheirQueueMethods(t *testing.T) {
 		if _, ok := finalizationType.MethodByName(method); ok {
 			t.Fatalf("finalization activities expose %s", method)
 		}
+	}
+	if _, ok := contextType.MethodByName("MemoryRecallActivity"); ok {
+		t.Fatal("context activities expose retired MemoryRecallActivity")
 	}
 }
 

@@ -21,38 +21,73 @@ func (s *Server) callAgentRuntime(
 	ctx context.Context,
 	run execution.DurableRun,
 	input temporalruntime.ExecutePrimaryAgentActivityInput,
+	inputText string,
 	providerConfig providerConfigSnapshot,
 	finalModelContext map[string]any,
+	grounding groundingContext,
 	limits primaryAgentRuntimeLimits,
 	activityAttempt int,
 ) (temporalruntime.ExecutePrimaryAgentActivityOutput, error) {
-	timeout := primaryAgentTransportTimeout(limits.AgentDeadlineMS)
-	requestCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	payload := map[string]any{
-		"activity_attempt":   activityAttempt,
-		"user_id":            run.OwnerUserID,
-		"run_id":             input.RunID,
-		"request_id":         run.RequestID,
-		"conversation_id":    input.ConversationID,
-		"turn_id":            input.TurnID,
-		"trace_id":           input.TraceID,
-		"input":              primaryAgentInputText(run),
-		"visible_tool_names": append([]string{}, input.VisibleToolNames...),
-		"knowledge_targets":  knowledgeTargetsProjectionPayload(input.KnowledgeTargets),
-		"limits":             primaryAgentRuntimeLimitsPayload(limits),
-		"provider_config":    primaryAgentProviderConfigPayload(providerConfig),
-	}
-	if strings.TrimSpace(input.ToolChoice) != "" {
-		payload["tool_choice"] = strings.TrimSpace(input.ToolChoice)
-	}
-	if len(finalModelContext) > 0 {
-		payload["final_model_context"] = finalModelContext
-	}
+	payload := primaryAgentRuntimeRequestPayload(
+		run,
+		input,
+		inputText,
+		providerConfig,
+		finalModelContext,
+		grounding,
+		limits,
+		activityAttempt,
+	)
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, fmt.Errorf("encode agent runtime request: %w", err)
 	}
+	return s.callAgentRuntimeRequest(ctx, run, body, limits.AgentDeadlineMS)
+}
+
+func primaryAgentRuntimeRequestPayload(
+	run execution.DurableRun,
+	input temporalruntime.ExecutePrimaryAgentActivityInput,
+	inputText string,
+	providerConfig providerConfigSnapshot,
+	finalModelContext map[string]any,
+	grounding groundingContext,
+	limits primaryAgentRuntimeLimits,
+	activityAttempt int,
+) map[string]any {
+	payload := map[string]any{
+		"activity_attempt":        activityAttempt,
+		"allow_ungrounded_answer": input.AdmissionSnapshot.ExecutionStrategy.AllowUngroundedAnswer,
+		"user_id":                 run.OwnerUserID,
+		"run_id":                  input.RunID,
+		"request_id":              run.RequestID,
+		"conversation_id":         input.ConversationID,
+		"turn_id":                 input.TurnID,
+		"trace_id":                input.TraceID,
+		"input":                   strings.TrimSpace(inputText),
+		"visible_tool_names":      append([]string{}, input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames...),
+		"limits":                  primaryAgentRuntimeLimitsPayload(limits),
+		"provider_config":         primaryAgentProviderConfigPayload(providerConfig),
+		"grounding_context":       grounding,
+	}
+	if expected := toolRuntimeFingerprintSnapshotMap(input.AdmissionSnapshot.ToolRuntimeFingerprint); expected != nil {
+		payload["expected_tool_runtime_fingerprint"] = expected
+	}
+	if len(finalModelContext) > 0 {
+		payload["final_model_context"] = finalModelContext
+	}
+	return payload
+}
+
+func (s *Server) callAgentRuntimeRequest(
+	ctx context.Context,
+	run execution.DurableRun,
+	body []byte,
+	deadlineMS int,
+) (temporalruntime.ExecutePrimaryAgentActivityOutput, error) {
+	timeout := primaryAgentTransportTimeout(deadlineMS)
+	requestCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	url := strings.TrimRight(s.config.AgentRuntimeBaseURL, "/") + "/internal/agent-runs/stream"
 	request, err := http.NewRequestWithContext(requestCtx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
@@ -63,7 +98,7 @@ func (s *Server) callAgentRuntime(
 	for key, value := range telemetry.InjectExecutionTraceHeaders(requestCtx, run.RequestID, run.TraceID) {
 		request.Header.Set(key, value)
 	}
-	response, err := http.DefaultClient.Do(request)
+	response, err := noRedirectHTTPClient(http.DefaultClient).Do(request)
 	if err != nil {
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 	}
@@ -108,52 +143,169 @@ func (s *Server) consumeAgentRuntimeStream(
 	run execution.DurableRun,
 	body io.Reader,
 ) (temporalruntime.ExecutePrimaryAgentActivityOutput, error) {
+	const (
+		streamEventQueueCapacity = 64
+		deltaFlushBytes          = 1024
+		deltaFlushInterval       = 50 * time.Millisecond
+	)
 	messageID := run.RunID + ":answer"
 	var completed *agentRuntimeResponse
-	var accumulatedText string
-	if err := readAgentRuntimeSSEEvents(body, func(event agentRuntimeSSEEvent) error {
+	state := agentRuntimeStreamState{}
+	var streamError error
+	streamCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	events := make(chan agentRuntimeSSEEvent, streamEventQueueCapacity)
+	readDone := make(chan error, 1)
+	go func() {
+		err := readAgentRuntimeSSEEvents(body, func(event agentRuntimeSSEEvent) error {
+			select {
+			case events <- event:
+				return nil
+			case <-streamCtx.Done():
+				return streamCtx.Err()
+			}
+		})
+		close(events)
+		readDone <- err
+	}()
+
+	var pendingDelta strings.Builder
+	persistedChunkIndex := 0
+	var flushTimer *time.Timer
+	var flushTimerC <-chan time.Time
+	stopFlushTimer := func() {
+		if flushTimer == nil {
+			return
+		}
+		if !flushTimer.Stop() {
+			select {
+			case <-flushTimer.C:
+			default:
+			}
+		}
+		flushTimerC = nil
+	}
+	startFlushTimer := func() {
+		if flushTimer == nil {
+			flushTimer = time.NewTimer(deltaFlushInterval)
+		} else {
+			flushTimer.Reset(deltaFlushInterval)
+		}
+		flushTimerC = flushTimer.C
+	}
+	flushPendingDelta := func() error {
+		if pendingDelta.Len() == 0 {
+			return nil
+		}
+		stopFlushTimer()
+		persistedChunkIndex++
+		delta := agentRuntimeAnswerDelta{
+			SchemaVersion: "agent_runtime_answer_delta.v2",
+			ChunkIndex:    persistedChunkIndex,
+			Delta:         pendingDelta.String(),
+		}
+		if err := s.projectPrimaryAgentAnswerDelta(ctx, run, messageID, delta); err != nil {
+			return err
+		}
+		pendingDelta.Reset()
+		return nil
+	}
+	processEvent := func(event agentRuntimeSSEEvent) error {
+		if state.terminalEvent != "" {
+			return fmt.Errorf(
+				"agent runtime stream event %q appears after terminal event %q",
+				event.Event,
+				state.terminalEvent,
+			)
+		}
 		switch event.Event {
 		case "answer_delta":
 			var delta agentRuntimeAnswerDelta
 			if err := json.Unmarshal(event.Data, &delta); err != nil {
 				return fmt.Errorf("decode agent runtime answer_delta event: %w", err)
 			}
-			if err := s.projectPrimaryAgentAnswerDelta(ctx, run, messageID, delta); err != nil {
+			if err := state.validateDelta(delta); err != nil {
 				return err
 			}
-			accumulatedText = delta.AccumulatedText
+			state.recordDelta(delta)
+			pendingDelta.WriteString(delta.Delta)
+			if state.lastChunkIndex == 1 || pendingDelta.Len() >= deltaFlushBytes {
+				return flushPendingDelta()
+			}
+			if flushTimerC == nil {
+				startFlushTimer()
+			}
 		case "completed":
+			if err := flushPendingDelta(); err != nil {
+				return err
+			}
 			var decoded agentRuntimeResponse
 			if err := json.Unmarshal(event.Data, &decoded); err != nil {
 				return fmt.Errorf("decode agent runtime completed event: %w", err)
 			}
+			if err := state.validateCompleted(run, decoded); err != nil {
+				return err
+			}
 			completed = &decoded
+			state.terminalEvent = "completed"
 		case "error":
+			if err := flushPendingDelta(); err != nil {
+				return err
+			}
 			var runtimeErr agentRuntimeError
 			if err := json.Unmarshal(event.Data, &runtimeErr); err != nil {
 				return fmt.Errorf("decode agent runtime error event: %w", err)
 			}
-			return agentRuntimeHTTPError{
+			streamError = agentRuntimeHTTPError{
 				StatusCode: http.StatusBadGateway,
 				Code:       strings.TrimSpace(runtimeErr.Code),
 				Message:    strings.TrimSpace(runtimeErr.Message),
 			}
+			state.terminalEvent = "error"
 		default:
 			return fmt.Errorf("agent runtime stream event %q is not supported", event.Event)
 		}
 		return nil
-	}); err != nil {
-		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 	}
-	if completed == nil {
-		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, fmt.Errorf("agent runtime stream completed without completed event")
-	}
-	if accumulatedText != "" {
-		if err := s.projectPrimaryAgentAnswerCompleted(ctx, run, messageID, accumulatedText); err != nil {
-			return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
+
+	for {
+		select {
+		case <-ctx.Done():
+			stopFlushTimer()
+			return temporalruntime.ExecutePrimaryAgentActivityOutput{}, ctx.Err()
+		case <-flushTimerC:
+			flushTimerC = nil
+			if err := flushPendingDelta(); err != nil {
+				return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
+			}
+		case event, ok := <-events:
+			if ok {
+				if err := processEvent(event); err != nil {
+					return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
+				}
+				continue
+			}
+			stopFlushTimer()
+			if err := flushPendingDelta(); err != nil {
+				return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
+			}
+			if err := <-readDone; err != nil {
+				return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
+			}
+			if streamError != nil {
+				return temporalruntime.ExecutePrimaryAgentActivityOutput{}, streamError
+			}
+			if completed == nil {
+				return temporalruntime.ExecutePrimaryAgentActivityOutput{}, fmt.Errorf("agent runtime stream completed without completed event")
+			}
+			if state.accumulatedText != "" {
+				if err := s.projectPrimaryAgentAnswerCompleted(ctx, run, messageID, state.accumulatedText); err != nil {
+					return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
+				}
+			}
+			return completed.toTemporalOutput(), nil
 		}
 	}
-	return completed.toTemporalOutput(), nil
 }
 
 type agentRuntimeSSEEvent struct {
@@ -162,10 +314,72 @@ type agentRuntimeSSEEvent struct {
 }
 
 type agentRuntimeAnswerDelta struct {
-	SchemaVersion   string `json:"schema_version"`
-	AccumulatedText string `json:"accumulated_text"`
-	ChunkIndex      int    `json:"chunk_index"`
-	Delta           string `json:"delta"`
+	SchemaVersion string `json:"schema_version"`
+	ChunkIndex    int    `json:"chunk_index"`
+	Delta         string `json:"delta"`
+}
+
+// agentRuntimeStreamState tracks the cross-event invariants that cannot be
+// checked from one SSE frame in isolation.
+type agentRuntimeStreamState struct {
+	accumulatedText string
+	lastChunkIndex  int
+	terminalEvent   string
+}
+
+func (state agentRuntimeStreamState) validateDelta(delta agentRuntimeAnswerDelta) error {
+	if strings.TrimSpace(delta.SchemaVersion) != "agent_runtime_answer_delta.v2" {
+		return fmt.Errorf("agent runtime answer_delta schema_version drift")
+	}
+	if delta.Delta == "" {
+		return fmt.Errorf("agent runtime answer_delta delta is required")
+	}
+	if delta.ChunkIndex <= 0 {
+		return fmt.Errorf("agent runtime answer_delta chunk_index is required")
+	}
+	if state.lastChunkIndex == 0 {
+		if delta.ChunkIndex != 1 {
+			return fmt.Errorf(
+				"agent runtime answer_delta chunk_index = %d, want first chunk index 1",
+				delta.ChunkIndex,
+			)
+		}
+		return nil
+	}
+	wantChunkIndex := state.lastChunkIndex + 1
+	if delta.ChunkIndex != wantChunkIndex {
+		return fmt.Errorf(
+			"agent runtime answer_delta chunk_index = %d, want %d",
+			delta.ChunkIndex,
+			wantChunkIndex,
+		)
+	}
+	return nil
+}
+
+func (state *agentRuntimeStreamState) recordDelta(delta agentRuntimeAnswerDelta) {
+	state.lastChunkIndex = delta.ChunkIndex
+	state.accumulatedText += delta.Delta
+}
+
+func (state agentRuntimeStreamState) validateCompleted(
+	run execution.DurableRun,
+	response agentRuntimeResponse,
+) error {
+	if strings.TrimSpace(response.RunID) == "" {
+		return fmt.Errorf("agent runtime completed run_id is required")
+	}
+	if strings.TrimSpace(response.RunID) != strings.TrimSpace(run.RunID) {
+		return fmt.Errorf(
+			"agent runtime completed run_id %q does not match run %q",
+			strings.TrimSpace(response.RunID),
+			strings.TrimSpace(run.RunID),
+		)
+	}
+	if state.lastChunkIndex > 0 && response.FinalOutput != state.accumulatedText {
+		return fmt.Errorf("agent runtime completed final_output does not match answer_delta accumulated_text")
+	}
+	return nil
 }
 
 func readAgentRuntimeSSEEvents(
@@ -231,74 +445,64 @@ func (s *Server) projectPrimaryAgentAnswerDelta(
 	messageID string,
 	delta agentRuntimeAnswerDelta,
 ) error {
-	if strings.TrimSpace(delta.SchemaVersion) != "agent_runtime_answer_delta.v1" {
+	if strings.TrimSpace(delta.SchemaVersion) != "agent_runtime_answer_delta.v2" {
 		return fmt.Errorf("agent runtime answer_delta schema_version drift")
 	}
-	if strings.TrimSpace(delta.Delta) == "" {
+	if delta.Delta == "" {
 		return fmt.Errorf("agent runtime answer_delta delta is required")
-	}
-	if strings.TrimSpace(delta.AccumulatedText) == "" {
-		return fmt.Errorf("agent runtime answer_delta accumulated_text is required")
 	}
 	if delta.ChunkIndex <= 0 {
 		return fmt.Errorf("agent runtime answer_delta chunk_index is required")
 	}
 	now := time.Now().UTC()
-	latest, err := s.runProjectionStore.GetRun(ctx, run.RunID)
-	if err != nil {
-		return err
-	}
-	if latest.Status == execution.DurableRunStatusRunning {
-		streaming, err := s.runProjectionStore.TransitionRun(
-			ctx,
-			run.RunID,
-			execution.DurableRunStatusStreaming,
-			"",
-			now,
-		)
-		if err != nil {
-			return err
-		}
-		latest = streaming
-		if err := s.appendTemporalRunEvent(ctx, execution.DurableRunEvent{
-			EventID:              run.RunID + ":answer-started",
-			RunID:                run.RunID,
-			ConversationID:       run.ConversationID,
-			EventType:            execution.DurableRunEventTypeRunAnswerStarted,
-			OccurredAt:           now,
-			Visibility:           execution.DurableRunEventVisibilityBrowser,
-			PayloadSchemaVersion: "run-answer-event-v1",
-			Payload: map[string]any{
-				"message_id": messageID,
-				"request_id": run.RequestID,
-				"status":     string(execution.DurableRunStatusStreaming),
-				"trace_id":   run.TraceID,
-			},
-		}); err != nil {
-			return err
-		}
-	}
-	if latest.Status != execution.DurableRunStatusStreaming {
-		return fmt.Errorf("run %s status %s cannot project answer delta", run.RunID, latest.Status)
-	}
-	eventID := fmt.Sprintf("%s:answer-delta:%d", run.RunID, delta.ChunkIndex)
-	return s.appendTemporalRunEvent(ctx, execution.DurableRunEvent{
-		EventID:              eventID,
+	deltaEvent := execution.DurableRunEvent{
+		EventID:              fmt.Sprintf("%s:answer-delta:%d", run.RunID, delta.ChunkIndex),
 		RunID:                run.RunID,
 		ConversationID:       run.ConversationID,
 		EventType:            execution.DurableRunEventTypeRunAnswerDelta,
 		OccurredAt:           now,
 		Visibility:           execution.DurableRunEventVisibilityBrowser,
-		PayloadSchemaVersion: "run-answer-event-v1",
+		PayloadSchemaVersion: "run-answer-event-v2",
 		Payload: map[string]any{
-			"accumulated_text": delta.AccumulatedText,
-			"chunk_index":      delta.ChunkIndex,
-			"delta":            delta.Delta,
-			"message_id":       messageID,
-			"request_id":       run.RequestID,
-			"trace_id":         run.TraceID,
+			"chunk_index": delta.ChunkIndex,
+			"delta":       delta.Delta,
+			"message_id":  messageID,
+			"request_id":  run.RequestID,
+			"trace_id":    run.TraceID,
 		},
-	})
+	}
+	if delta.ChunkIndex == 1 {
+		_, err := s.runProjectionStore.StartRunAnswerStream(ctx, execution.RunAnswerStreamStartRequest{
+			RunID: run.RunID,
+			Now:   now,
+			AnswerStartedEvent: execution.DurableRunEvent{
+				EventID:              run.RunID + ":answer-started",
+				RunID:                run.RunID,
+				ConversationID:       run.ConversationID,
+				EventType:            execution.DurableRunEventTypeRunAnswerStarted,
+				OccurredAt:           now,
+				Visibility:           execution.DurableRunEventVisibilityBrowser,
+				PayloadSchemaVersion: "run-answer-event-v2",
+				Payload: map[string]any{
+					"message_id": messageID,
+					"request_id": run.RequestID,
+					"status":     string(execution.DurableRunStatusStreaming),
+					"trace_id":   run.TraceID,
+				},
+			},
+			FirstDeltaEvent: deltaEvent,
+		})
+		return err
+	}
+	latest, err := s.runProjectionStore.GetRun(ctx, run.RunID)
+	if err != nil {
+		return err
+	}
+	if latest.Status != execution.DurableRunStatusStreaming {
+		return fmt.Errorf("run %s status %s cannot project answer delta", run.RunID, latest.Status)
+	}
+	_, err = s.runProjectionStore.AppendRunEvent(ctx, deltaEvent)
+	return err
 }
 
 func (s *Server) projectPrimaryAgentAnswerCompleted(
@@ -374,6 +578,7 @@ func (response agentRuntimeResponse) toTemporalOutput() temporalruntime.ExecuteP
 	for _, result := range response.ToolResults {
 		toolResults = append(toolResults, temporalruntime.AgentToolResult{
 			ArgumentsJSON:   cloneAnyMapFromMetadata(result.ArgumentsJSON),
+			DurationMS:      result.DurationMS,
 			FailCloseReason: result.FailCloseReason,
 			PayloadKind:     result.PayloadKind,
 			Result:          result.Result,
@@ -389,7 +594,6 @@ func (response agentRuntimeResponse) toTemporalOutput() temporalruntime.ExecuteP
 		PromptTrace:            cloneAnyMapFromMetadata(response.PromptTrace),
 		ProviderResponseID:     strings.TrimSpace(response.ProviderResponseID),
 		RunID:                  strings.TrimSpace(response.RunID),
-		SelectedTools:          append([]string{}, response.SelectedTools...),
 		StageTiming:            cloneAnyMapFromMetadata(response.StageTiming),
 		Status:                 strings.TrimSpace(response.Status),
 		TerminalEnvelope:       cloneAnyMapFromMetadata(response.TerminalEnvelope),

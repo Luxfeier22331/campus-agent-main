@@ -17,20 +17,9 @@ export function createPreAcceptError(input: {
 	});
 }
 
-export function toHandledErrorTransportOutcome(error: unknown): {
-	answerText: string;
-	error: {
-		code: string;
-		message: string;
-		retryable: boolean;
-	};
-	followUpQuestion: string;
-	resolvedTargets: [];
-	result: null;
-	selectedTool: null;
-	sessionUpdate: null;
+export function toHandledErrorTransportOutcome(error: unknown): ToolExecutionResponse & {
+	error: NonNullable<ToolExecutionResponse["error"]>;
 	status: "error";
-	traceId: string;
 } {
 	if (error instanceof ExecutionControlTransportError) {
 		const publicMessage = publicTransportErrorMessage(error);
@@ -42,10 +31,8 @@ export function toHandledErrorTransportOutcome(error: unknown): {
 				retryable: error.retryable,
 			},
 			followUpQuestion: "",
-			resolvedTargets: [],
+			modelUsage: zeroModelUsage(),
 			result: null,
-			selectedTool: null,
-			sessionUpdate: null,
 			status: "error",
 			traceId: "",
 		};
@@ -59,10 +46,8 @@ export function toHandledErrorTransportOutcome(error: unknown): {
 			retryable: false,
 		},
 		followUpQuestion: "",
-		resolvedTargets: [],
+		modelUsage: zeroModelUsage(),
 		result: null,
-		selectedTool: null,
-		sessionUpdate: null,
 		status: "error",
 		traceId: "",
 	};
@@ -91,14 +76,15 @@ export function buildAbuseThrottleRejectedResponse(input: {
 			modelName: null,
 			modelProvider: null,
 			promptTrace: null,
-			selectedTools: [],
 			terminalReason: "rate_limit_exceeded",
 		},
-		resolvedTargets: [],
+		modelUsage: zeroModelUsage(),
 		result: null,
-		selectedTool: null,
-		sessionUpdate: null,
 		status: "rejected",
 		traceId: input.traceId,
 	};
+}
+
+function zeroModelUsage(): ToolExecutionResponse["modelUsage"] {
+	return { cachedInputTokens: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0 };
 }

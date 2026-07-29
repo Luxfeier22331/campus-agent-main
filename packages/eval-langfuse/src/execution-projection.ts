@@ -3,10 +3,13 @@ import { parseToolTrajectory, type ToolTrajectory } from "./tool-trajectory";
 
 export interface ExecutionRunEvalProjection {
 	answer?: string;
-	resolvedTargets: string[];
+	coveredScopes: string[];
+	groundingMode?: "none" | "single_scope" | "multi_scope";
+	groundingStatus?: "not_required" | "empty" | "partial" | "ready";
 	retrievedContextIds: string[];
 	retrievedContexts: string[];
 	runId: string;
+	selectedScopes: string[];
 	toolTrajectory: ToolTrajectory;
 	traceId: string;
 }
@@ -17,12 +20,11 @@ export function parseExecutionRunEvalProjection(value: unknown): ExecutionRunEva
 		payload.agentRuntimeEvalProjection ?? payload.agent_runtime_eval_projection ?? payload,
 		"agent runtime eval projection",
 	);
-	if (projection.schema_version !== "agent_runtime_eval_projection.v2") {
-		throw new Error("agent runtime eval projection must use agent_runtime_eval_projection.v2");
+	if (projection.schema_version !== "agent_runtime_eval_projection.v3") {
+		throw new Error("agent runtime eval projection must use agent_runtime_eval_projection.v3");
 	}
 	const run = mapping(projection.run, "agent runtime eval projection.run");
 	const rag = mapping(projection.rag ?? {}, "agent runtime eval projection.rag");
-	const planning = mapping(projection.planning ?? {}, "agent runtime eval projection.planning");
 	const toolTrajectory = parseToolTrajectory(projection.tool_trajectory);
 	const runId = stringField(run.run_id, "agent runtime eval projection.run.run_id");
 	const traceId = stringField(run.trace_id, "agent runtime eval projection.run.trace_id");
@@ -31,13 +33,43 @@ export function parseExecutionRunEvalProjection(value: unknown): ExecutionRunEva
 	}
 	return {
 		answer: optionalString(rag.answer) ?? undefined,
-		resolvedTargets: stringList(planning.resolved_targets),
+		coveredScopes: stringList(rag.covered_scopes),
+		groundingMode: groundingMode(rag.grounding_mode),
+		groundingStatus: groundingStatus(rag.grounding_status),
 		retrievedContextIds: stringList(rag.retrieved_context_ids),
 		retrievedContexts: stringList(rag.retrieved_contexts),
 		runId,
+		selectedScopes: stringList(rag.selected_scopes),
 		toolTrajectory,
 		traceId,
 	};
+}
+
+function groundingMode(value: unknown): ExecutionRunEvalProjection["groundingMode"] {
+	const mode = optionalString(value);
+	if (!mode) {
+		return;
+	}
+	if (mode === "none" || mode === "single_scope" || mode === "multi_scope") {
+		return mode;
+	}
+	throw new Error("agent runtime eval projection.rag.grounding_mode is invalid");
+}
+
+function groundingStatus(value: unknown): ExecutionRunEvalProjection["groundingStatus"] {
+	const status = optionalString(value);
+	if (!status) {
+		return;
+	}
+	if (
+		status === "not_required" ||
+		status === "empty" ||
+		status === "partial" ||
+		status === "ready"
+	) {
+		return status;
+	}
+	throw new Error("agent runtime eval projection.rag.grounding_status is invalid");
 }
 
 export function buildRagasSampleFromExecutionRun(input: {
@@ -61,10 +93,7 @@ export function buildRagasSampleFromExecutionRun(input: {
 		answer,
 		case_id: caseId,
 		contexts: projection.retrievedContexts,
-		metadata: {
-			resolved_targets: projection.resolvedTargets,
-			run_id: projection.runId,
-		},
+		metadata: { run_id: projection.runId },
 		question,
 		retrieved_context_ids: projection.retrievedContextIds,
 		trace_id: projection.traceId,

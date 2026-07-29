@@ -8,7 +8,6 @@ import (
 
 type QueryRequest struct {
 	DenseEmbedding  []float64
-	IncludeHistory  bool
 	ServingConfig   ServingConfig
 	QueryText       string
 	RetrievalAccess RetrievalAccess
@@ -85,9 +84,7 @@ func BuildQdrantFilter(request QueryRequest) (map[string]any, error) {
 	if len(request.ServingConfig.ServingRevisionTracks) > 0 {
 		must = append(must, qdrantMatchAnyCondition("revision_track", request.ServingConfig.ServingRevisionTracks))
 	}
-	if !request.IncludeHistory {
-		must = append(must, qdrantMatchCondition("is_current", true))
-	}
+	must = append(must, qdrantMatchCondition("is_current", true))
 	return map[string]any{"must": must}, nil
 }
 

@@ -161,11 +161,11 @@ function runSelfTest(): number {
 		alert_version: "observability-alerts-test",
 		rules: [
 			{
-				id: "stage.stream_ttft.p95.warn",
+				id: "stage.stream_app_api_ttft.p95.warn",
 				signal: "stage_latency_p95",
 				severity: "ticket",
 				window: "15m",
-				stage_field: "stream.browser_ttft_ms",
+				stage_field: "stream.app_api_ttft_ms",
 				threshold: { operator: "gte", value: 2500, unit: "ms" },
 				runbook_anchor: "#stage-latency",
 				enabled: true,
@@ -198,7 +198,7 @@ function runSelfTest(): number {
 		result.monitors[0]?.query.includes("campus.app_api.stage_duration_ms"),
 		"stage metric missing",
 	);
-	expect(result.monitors[0]?.query.includes("stream.browser_ttft_ms"), "stage field missing");
+	expect(result.monitors[0]?.query.includes("stream.app_api_ttft_ms"), "stage field missing");
 	expect(result.monitors[0]?.query.includes("percentile"), "percentile query missing");
 	expect(result.monitors[1]?.severity === "page", "severity mismatch");
 	expect(

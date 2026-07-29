@@ -22,8 +22,10 @@ import type {
 	ChatCommandStore,
 	ChatConversationStore,
 	FinalizeRequestWrite,
+	FrozenChatAdmissionWrite,
 } from "../src/modules/runtime-command";
 import { buildChatCommandService as buildProductionChatCommandService } from "../src/modules/runtime-command";
+import { ChatFinalizationConflict } from "../src/modules/runtime-command/store-types";
 import type { AppTelemetry } from "../src/modules/telemetry";
 
 export { createHmac } from "node:crypto";
@@ -34,10 +36,13 @@ export interface ToolExecutionClient {
 }
 export type {
 	ChatCommandStore,
+	ChatCommandStreamEvent,
 	ChatConversationStore,
 	FinalizeRequestWrite,
 } from "../src/modules/runtime-command";
 export {
+	ChatAcceptanceConversationConflict,
+	ChatAcceptanceIdempotencyConflict,
 	DRAFT_CONVERSATION_TITLE,
 	deriveSafetyIdentifier,
 	ExecutionControlTransportError,
@@ -53,9 +58,33 @@ const pendingProductCallbacks = new Map<
 	string,
 	(response: ToolExecutionResponse, completedAt: string) => Promise<void>
 >();
+// Durable admission now carries only a reference to the frozen execution input.
+// Keep the test transport's copy keyed by run id so the fake execution worker
+// exercises the same v3 boundary as production.
+const frozenExecutionInputsByRun = new Map<string, string>();
 const finalizedConversations = new Map<string, ChatConversation>();
 const testServicesByStore = new WeakMap<ChatCommandStore, ChatCommandService>();
 const runtimeHandlesProductCallback = Symbol("runtimeHandlesProductCallback");
+
+function rememberFrozenExecutionInput(input: {
+	admissionInputJson: string;
+	executionInputJson: string;
+}): void {
+	const admissionInput = JSON.parse(input.admissionInputJson) as Record<string, unknown>;
+	const runId = typeof admissionInput.runId === "string" ? admissionInput.runId : "";
+	if (runId) {
+		frozenExecutionInputsByRun.set(runId, input.executionInputJson);
+	}
+}
+
+export function getFrozenExecutionPayload(runId: string): Record<string, unknown> {
+	const frozenJson = frozenExecutionInputsByRun.get(runId);
+	if (!frozenJson) {
+		throw new Error(`Missing frozen execution input for ${runId}.`);
+	}
+	const parsed = JSON.parse(frozenJson) as unknown;
+	return getRecordOrThrow(parsed, "frozen execution payload");
+}
 
 export function buildChatCommandService(
 	dependencies: ChatCommandServiceDependencies,
@@ -68,9 +97,9 @@ export function buildChatCommandService(
 	if (runtime && !runtime[runtimeHandlesProductCallback]) {
 		const listRunEvents = runtime.listRunEvents.bind(runtime);
 		runtime.listRunEvents = vi.fn(async (input) => {
-			const events = await listRunEvents(input);
-			await applyTestProductCallback(input.runId, input.traceId, events);
-			return events;
+			const page = await listRunEvents(input);
+			await applyTestProductCallback(input.runId, input.traceId, page.events);
+			return page;
 		});
 	}
 	return service;
@@ -202,15 +231,33 @@ export function createCommandStore(options?: {
 	const conversation = options?.conversation ?? createConversation();
 	const acceptedWrites: AcceptRequestWrite[] = [];
 	const finalWrites: FinalizeRequestWrite[] = [];
+	const requestStageTiming = new Map<string, Record<string, unknown>>();
+	const frozenAdmissions: FrozenChatAdmissionWrite[] = [];
+	const frozenAdmissionMemorySnapshots: Parameters<
+		AcceptRequestWrite["freezeDurableAdmission"]
+	>[0][] = [];
 	finalizedConversations.delete(conversation.id);
 	let store: ChatCommandStore;
 	store = {
 		listPendingAdmissions: vi.fn(async () => []),
-		recordAdmissionInput: vi.fn(async (input) => {
-			const runId = typeof input.workflowInput.runId === "string" ? input.workflowInput.runId : "";
+		claimAdmission: vi.fn(async () => true),
+		releaseAdmission: vi.fn(async () => true),
+		markAdmitted: vi.fn(async () => true),
+		readExecutionInput: vi.fn(async () => null),
+		releaseExecutionInput: vi.fn(async () => "released" as const),
+		acceptRequest: vi.fn(async (input) => {
+			const memorySnapshot = options?.memorySnapshot ?? null;
+			frozenAdmissionMemorySnapshots.push(memorySnapshot ? { ...memorySnapshot } : null);
+			const frozenAdmission = input.freezeDurableAdmission(memorySnapshot);
+			const admissionInput = JSON.parse(frozenAdmission.admissionInputJson) as Record<
+				string,
+				unknown
+			>;
+			const runId = typeof admissionInput.runId === "string" ? admissionInput.runId : "";
 			if (!runId) {
-				return false;
+				throw new Error("Frozen admission is missing its run id.");
 			}
+			rememberFrozenExecutionInput(frozenAdmission);
 			pendingProductCallbacks.set(runId, async (response, completedAt) => {
 				const service = testServicesByStore.get(store);
 				if (!service?.applyProductFinalization) {
@@ -224,11 +271,11 @@ export function createCommandStore(options?: {
 				});
 				finalizedConversations.set(conversation.id, structuredClone(conversation));
 			});
-			return true;
-		}),
-		markAdmitted: vi.fn(async () => true),
-		acceptRequest: vi.fn(async (input) => {
+			frozenAdmissions.push(frozenAdmission);
 			acceptedWrites.push(input);
+			requestStageTiming.set(input.turnDispatch.requestId, {
+				...(input.requestObservabilityFact.stageTiming ?? {}),
+			});
 			if (input.conversationSeed) {
 				conversation.id = input.conversationSeed.id;
 				conversation.ownerUserId = input.conversationSeed.ownerUserId;
@@ -252,10 +299,37 @@ export function createCommandStore(options?: {
 				retryable: null,
 				structuredParts: [],
 			});
-			return { memorySnapshot: options?.memorySnapshot ?? null };
+			return { frozenAdmission, memorySnapshot };
 		}),
 		finalizeRequest: vi.fn(async (input: FinalizeRequestWrite) => {
+			const existing = finalWrites.find(
+				(write) => write.turnDispatch.requestId === input.turnDispatch.requestId,
+			);
+			if (
+				input.finalizationFingerprint &&
+				(existing?.finalizationFingerprint || existing?.turnDispatch.completedAt)
+			) {
+				const existingCompletedAt = existing.turnDispatch.completedAt
+					? new Date(existing.turnDispatch.completedAt).valueOf()
+					: Number.NaN;
+				const requestedCompletedAt = input.turnDispatch.completedAt
+					? new Date(input.turnDispatch.completedAt).valueOf()
+					: Number.NaN;
+				if (
+					!existing.finalizationFingerprint ||
+					existing.finalizationFingerprint !== input.finalizationFingerprint ||
+					!Number.isFinite(existingCompletedAt) ||
+					!Number.isFinite(requestedCompletedAt) ||
+					existingCompletedAt !== requestedCompletedAt
+				) {
+					throw new ChatFinalizationConflict();
+				}
+				return { conversation: structuredClone(conversation), outcome: "replayed" as const };
+			}
 			finalWrites.push(input);
+			requestStageTiming.set(input.turnDispatch.requestId, {
+				...(input.requestObservabilityFact.stageTiming ?? {}),
+			});
 			const isActiveRun =
 				conversation.activeRunId === input.turnDispatch.runId &&
 				conversation.activeTurnSequence === input.turnDispatch.turnSequence;
@@ -282,9 +356,33 @@ export function createCommandStore(options?: {
 				...input.assistantMessage,
 				isActiveBranchHead: isActiveRun,
 			});
-			return structuredClone(conversation);
+			return { conversation: structuredClone(conversation), outcome: "applied" as const };
 		}),
 		findIdempotentRequest: vi.fn(async () => null),
+		recordStreamAppApiTtft: vi.fn(async (input) => {
+			if (
+				finalWrites.some((write) => write.turnDispatch.requestId === input.requestId) ||
+				!requestStageTiming.has(input.requestId)
+			) {
+				return false;
+			}
+			const current = requestStageTiming.get(input.requestId) ?? {};
+			if ("stream.app_api_ttft_ms" in current) {
+				return false;
+			}
+			requestStageTiming.set(input.requestId, {
+				...current,
+				"stream.app_api_ttft_ms": input.durationMs,
+			});
+			return true;
+		}),
+		readRequestStageTiming: vi.fn(async (requestId) => {
+			const timing = requestStageTiming.get(requestId);
+			if (!timing) {
+				throw new Error(`Request observability fact ${requestId} was not found.`);
+			}
+			return { ...timing };
+		}),
 		getAbuseControlState: vi.fn(async () => ({
 			activeThrottleUntil: null,
 			requestCountLastMinute: 0,
@@ -310,6 +408,7 @@ export function createCommandStore(options?: {
 				{
 					acceptedAt: accepted.turnDispatch.createdAt,
 					assistantMessageId: accepted.turnDispatch.assistantMessageId,
+					completedAt: finalized?.turnDispatch.completedAt ?? null,
 					conversation: structuredClone(conversation),
 					conversationTitle: accepted.conversationTitle,
 					finalizationFingerprint: finalized?.finalizationFingerprint ?? null,
@@ -324,7 +423,6 @@ export function createCommandStore(options?: {
 					questionPreview: accepted.userMessage.text,
 					requestFingerprintSha256: accepted.turnDispatch.requestFingerprintSha256,
 					requestId: accepted.turnDispatch.requestId,
-					requestedTool: accepted.turnDispatch.requestedTool,
 					runId: accepted.turnDispatch.runId,
 					safetyIdentifier: accepted.turnDispatch.safetyIdentifier ?? null,
 					surface: accepted.turnDispatch.surface,
@@ -334,13 +432,14 @@ export function createCommandStore(options?: {
 				},
 			];
 		}),
-		listPreviousToolResultRefs: vi.fn(async () => []),
 	};
 
 	return {
 		acceptedWrites,
 		conversation,
 		finalWrites,
+		frozenAdmissionMemorySnapshots,
+		frozenAdmissions,
 		store,
 	};
 }
@@ -375,6 +474,7 @@ export function expectNoInternalLocators(text: string) {
 export function createExecutionRuntimeFromToolClient(
 	client: ToolExecutionClient,
 	options: {
+		loadExecutionInput?: (runId: string) => Promise<string | null>;
 		onProductFinalization?: (input: {
 			completedAt: string;
 			response: ToolExecutionResponse;
@@ -388,6 +488,12 @@ export function createExecutionRuntimeFromToolClient(
 	const runsById = new Map<string, ExecutionControlRun>();
 
 	async function createRun(input: ExecutionControlRunCreateInput): Promise<ExecutionControlRun> {
+		if (!frozenExecutionInputsByRun.has(input.runId) && options.loadExecutionInput) {
+			const frozenExecutionInput = await options.loadExecutionInput(input.runId);
+			if (frozenExecutionInput) {
+				frozenExecutionInputsByRun.set(input.runId, frozenExecutionInput);
+			}
+		}
 		const executionInput = toolExecutionInputFromRunCreate(input);
 		const run = durableRunFromCreateInput(input);
 		runsById.set(input.runId, run);
@@ -442,11 +548,15 @@ export function createExecutionRuntimeFromToolClient(
 			}
 			return existing;
 		}),
-		listRunEvents: vi.fn(async (input) =>
-			(eventsByRun.get(input.runId) ?? []).filter(
+		listRunEvents: vi.fn(async (input) => {
+			const events = (eventsByRun.get(input.runId) ?? []).filter(
 				(event) => event.sequence > (input.afterSequence ?? 0),
-			),
-		),
+			);
+			return {
+				events,
+				nextSequence: events.at(-1)?.sequence ?? input.afterSequence ?? 0,
+			};
+		}),
 		listRunSteps: vi.fn(async () => ({
 			attempts: [],
 			results: [],
@@ -520,8 +630,11 @@ async function applyTestProductCallback(
 function toolExecutionInputFromRunCreate(
 	input: ExecutionControlRunCreateInput,
 ): ToolExecutionInput {
-	const metadata = getRecordOrThrow(input.metadata, "run metadata");
-	const payload = getRecordOrThrow(metadata.execution_payload, "execution payload");
+	const frozenJson = frozenExecutionInputsByRun.get(input.runId);
+	if (!frozenJson) {
+		throw new Error(`Missing frozen execution input for ${input.runId}.`);
+	}
+	const payload = getRecordOrThrow(JSON.parse(frozenJson), "frozen execution payload");
 	const context = internalContextFromWire(
 		getRecordOrThrow(payload.context, "execution payload context"),
 	);
@@ -529,7 +642,6 @@ function toolExecutionInputFromRunCreate(
 		context: context as ToolExecutionInput["context"],
 		conversationId: getString(payload.conversation_id) ?? input.conversationId,
 		requestId: getString(payload.request_id) ?? input.requestId,
-		requestedTool: getString(payload.requested_tool),
 		safetyIdentifier: getString(payload.safety_identifier),
 		surface: input.surface,
 		tenantId: getString(payload.tenant_id),
@@ -618,8 +730,11 @@ function internalActorFromWire(
 
 function durableRunFromCreateInput(input: ExecutionControlRunCreateInput): ExecutionControlRun {
 	const now = "2026-06-04T01:02:03.000Z";
-	const metadata = getRecordOrThrow(input.metadata, "run metadata");
-	const payload = getRecordOrThrow(metadata.execution_payload, "execution payload");
+	const frozenJson = frozenExecutionInputsByRun.get(input.runId);
+	if (!frozenJson) {
+		throw new Error(`Missing frozen execution input for ${input.runId}.`);
+	}
+	getRecordOrThrow(JSON.parse(frozenJson), "frozen execution payload");
 	return {
 		admittedAt: "",
 		completedAt: "",
@@ -630,9 +745,7 @@ function durableRunFromCreateInput(input: ExecutionControlRunCreateInput): Execu
 		ownerUserId: input.ownerUserId,
 		queuedAt: now,
 		requestId: input.requestId,
-		requestedTool: getString(payload.requested_tool) ?? "",
 		runId: input.runId,
-		selectedTool: "",
 		startedAt: "",
 		status: "queued",
 		streamingStartedAt: "",
@@ -831,21 +944,16 @@ function responseWireFromToolResponse(response: ToolExecutionResponse): Record<s
 				}
 			: null,
 		follow_up_question: response.followUpQuestion,
+		model_usage: {
+			cached_input_tokens: response.modelUsage.cachedInputTokens,
+			input_tokens: response.modelUsage.inputTokens,
+			output_tokens: response.modelUsage.outputTokens,
+			total_tokens: response.modelUsage.totalTokens,
+		},
 		...(response.observability
 			? { observability: observabilityWireFromToolResponse(response.observability) }
 			: {}),
-		resolved_targets: response.resolvedTargets,
 		result: response.result ?? null,
-		selected_tool: response.selectedTool,
-		session_update: response.sessionUpdate
-			? {
-					upsert_slots: response.sessionUpdate.upsertSlots.map((slot) => ({
-						confirmed: slot.confirmed,
-						name: slot.name,
-						value: slot.value,
-					})),
-				}
-			: null,
 		status: response.status,
 		trace_id: response.traceId,
 		...(response.workflowTraceSummary
@@ -890,10 +998,8 @@ function executionErrorResponse(input: {
 			retryable: input.retryable,
 		},
 		followUpQuestion: "",
-		resolvedTargets: [],
+		modelUsage: { cachedInputTokens: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0 },
 		result: null,
-		selectedTool: null,
-		sessionUpdate: null,
 		status: input.status ?? "error",
 		traceId: input.traceId,
 	};

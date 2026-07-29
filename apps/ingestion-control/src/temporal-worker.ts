@@ -20,7 +20,6 @@ import { createDefaultRustKernelRegistry } from "./rust-kernel-runner";
 import { assertRustKernelRegistryCoversTasks } from "./task-executor";
 import { buildIngestionTemporalConfig } from "./temporal-config";
 import { buildIngestionTemporalWorkerRuntimeConfig } from "./temporal-worker-config";
-import { resolveWorkerDeploymentOptions } from "./worker-versioning";
 
 const WORKER_DATABASE_CONNECTION_TIMEOUT_MS = 10_000;
 const WORKER_DATABASE_QUERY_TIMEOUT_MS = 4 * 60_000;
@@ -65,7 +64,6 @@ export async function startIngestionTemporalWorkers(
 					]
 				: [],
 			shutdownGraceTime: "50 seconds" as const,
-			workerDeploymentOptions: resolveWorkerDeploymentOptions(env),
 		};
 		await createAndRunWorker(workers, runs, {
 			...common,

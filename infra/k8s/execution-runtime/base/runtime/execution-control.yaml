@@ -13,6 +13,21 @@ spec:
   selector:
     app.kubernetes.io/name: execution-control
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: execution-control-admin
+  labels:
+    app.kubernetes.io/name: execution-control
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  ports:
+    - name: http
+      port: 8000
+      targetPort: admin
+  selector:
+    app.kubernetes.io/name: execution-control
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -38,6 +53,7 @@ spec:
         app.kubernetes.io/part-of: campus-agent
     spec:
       serviceAccountName: execution-runtime
+      terminationGracePeriodSeconds: 160
       securityContext:
         fsGroup: 10001
       containers:
@@ -47,6 +63,8 @@ spec:
           ports:
             - name: http
               containerPort: 8000
+            - name: admin
+              containerPort: 8001
           env:
             - name: DEPLOYMENT_ENVIRONMENT
               valueFrom:
@@ -73,6 +91,11 @@ spec:
                 configMapKeyRef:
                   name: execution-runtime-rendered-config
                   key: EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL
+            - name: EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: execution-runtime-rendered-config
+                  key: EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL
             - name: EXECUTION_CONTROL_PROVIDER_CONFIG_KEYRING_PATH
               valueFrom:
                 configMapKeyRef:
@@ -111,6 +134,8 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+            - name: EXECUTION_CONTROL_TEMPORAL_WORKFLOW_EXECUTION_TIMEOUT_SECONDS
+              value: "900"
             - name: OTEL_SERVICE_NAME
               value: execution-control
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
@@ -155,12 +180,32 @@ spec:
                 secretKeyRef:
                   name: execution-provider-config-runtime-secrets
                   key: EXECUTION_CONTROL_PROVIDER_CONFIG_READER_DATABASE_URL
+            - name: EXECUTION_CONTROL_PROVIDER_CONFIG_ADMIN_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: execution-provider-config-admin-secrets
+                  key: EXECUTION_CONTROL_PROVIDER_CONFIG_ADMIN_DATABASE_URL
+            - name: LANGFUSE_MAINTENANCE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: langfuse-secrets
+                  key: LANGFUSE_SECRET_KEY
             - name: APP_API_EXECUTION_SHARED_SECRET
               valueFrom:
                 secretKeyRef:
                   name: execution-app-api-internal-secrets
                   key: APP_API_EXECUTION_SHARED_SECRET
+            - name: APP_API_EXECUTION_INPUT_SHARED_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: execution-app-api-internal-secrets
+                  key: APP_API_EXECUTION_INPUT_SHARED_SECRET
+            - name: EXECUTION_CONTROL_PROTECTED_PAYLOAD_KEYRING_PATH
+              value: /run/campus-agent/protected-payload/keyring.json
           volumeMounts:
+            - name: protected-payload-keyring
+              mountPath: /run/campus-agent/protected-payload
+              readOnly: true
             - name: provider-config-keyring
               mountPath: /run/campus-agent/provider-config
               readOnly: true
@@ -196,8 +241,15 @@ spec:
               cpu: 250m
               memory: 512Mi
             limits:
-              memory: 2Gi
+              memory: 1Gi
       volumes:
+        - name: protected-payload-keyring
+          secret:
+            secretName: execution-protected-payload-keyring
+            defaultMode: 0440
+            items:
+              - key: keyring.json
+                path: keyring.json
         - name: provider-config-keyring
           secret:
             secretName: execution-provider-config-keyring

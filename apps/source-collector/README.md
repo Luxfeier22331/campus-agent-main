@@ -81,7 +81,7 @@ pnpm --filter source-collector start:temporal-worker
 ```
 
 worker 只轮询 `campus-agent.ingestion.activity.source-collector`，处理文件发布 Activity。生产使用
-`infra/k8s/ingestion-runtime/base/runtime` 中的版本化 `WorkerDeployment`。
+`infra/k8s/ingestion-runtime/base/runtime` 中的标准 Kubernetes Deployment。
 
 ## 验证
 

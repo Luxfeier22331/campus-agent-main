@@ -2,7 +2,10 @@ import { expect, it, vi } from "vitest";
 
 import {
 	buildChatCommandService,
+	ChatAcceptanceConversationConflict,
+	ChatAcceptanceIdempotencyConflict,
 	type ChatCommandStore,
+	type ChatCommandStreamEvent,
 	createCommandStore,
 	createConversation,
 	createConversationStore,
@@ -95,26 +98,30 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 		);
 	});
 
-	it("keeps a retryable execution admission failure pending", async () => {
+	it("recovers a durable run after a retryable create response loss", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
+		const executionRuntime = createExecutionRuntimeFromToolClient({
+			execute: vi.fn().mockRejectedValue(
+				new ExecutionControlTransportError({
+					code: "execution_timeout",
+					message: "Execution timed out.",
+					retryable: true,
+					status: 504,
+				}),
+			),
+		});
 		const service = buildChatCommandService({
+			durableEventPolling: {
+				maxAttempts: 1,
+			},
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
 			telemetry,
-			executionRuntime: createExecutionRuntimeFromToolClient({
-				execute: vi.fn().mockRejectedValue(
-					new ExecutionControlTransportError({
-						code: "execution_timeout",
-						message: "Execution timed out.",
-						retryable: true,
-						status: 504,
-					}),
-				),
-			}),
+			executionRuntime,
 		});
 
 		await expect(
@@ -125,13 +132,21 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 				},
 				principal: createPrincipal(),
 			}),
-		).rejects.toMatchObject({ code: "admission_pending", retryable: true });
+		).rejects.toMatchObject({ code: "execution_status_pending", retryable: true });
 
+		expect(executionRuntime.getRun).toHaveBeenCalledWith(
+			expect.objectContaining({
+				runId: "run_0001",
+				traceId: "trace_0001",
+			}),
+		);
+		expect(store.markAdmitted).toHaveBeenCalledOnce();
+		expect(store.releaseAdmission).not.toHaveBeenCalled();
 		expect(finalWrites).toHaveLength(0);
 		expect(telemetry.recordRequestFinalized).not.toHaveBeenCalled();
 	});
 
-	it("finalizes unexpected execution exceptions as non-retryable internal errors", async () => {
+	it("releases unexpected admission exceptions for idempotent retry", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
@@ -146,40 +161,19 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			}),
 		});
 
-		const response = await service.submit({
-			payload: {
-				conversationId: "conv_01HQ",
-				prompt: "图书馆开放到几点？",
-			},
-			principal: createPrincipal(),
-		});
-
-		expect(finalWrites[0]).toMatchObject({
-			assistantMessage: {
-				kind: "error",
-				retryable: false,
-				text: "The request could not be completed.",
-			},
-			turnDispatch: {
-				errorCode: "internal_error",
-				status: "error",
-			},
-		});
-		expect(response.answer.result).toEqual({
-			errorCode: "internal_error",
-			kind: "error",
-			message: "The request could not be completed.",
-			requestId: "req_0001",
-			retryable: false,
-			traceId: "trace_0001",
-		});
-		expect(telemetry.recordRequestTransportError).toHaveBeenCalledWith(
-			expect.objectContaining({
-				errorCode: "internal_error",
-				requestId: "req_0001",
-				retryable: false,
+		await expect(
+			service.submit({
+				payload: {
+					conversationId: "conv_01HQ",
+					prompt: "图书馆开放到几点？",
+				},
+				principal: createPrincipal(),
 			}),
-		);
+		).rejects.toMatchObject({ code: "admission_pending", retryable: true, status: 503 });
+
+		expect(store.releaseAdmission).toHaveBeenCalledOnce();
+		expect(finalWrites).toHaveLength(0);
+		expect(telemetry.recordRequestTransportError).not.toHaveBeenCalled();
 	});
 
 	it("replays a completed idempotent request and blocks conflicts or in-flight duplicates", async () => {
@@ -230,18 +224,24 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 		const findIdempotentRequest = vi
 			.fn()
 			.mockResolvedValueOnce({
+				acceptedAt: "2026-03-28T07:59:00.000Z",
 				requestFingerprintSha256: "fingerprint:图书馆开放到几点？",
 				response: replayResponse,
+				runId: "run_prev",
 				status: "completed",
 			})
 			.mockResolvedValueOnce({
+				acceptedAt: "2026-03-28T08:00:00.000Z",
 				requestFingerprintSha256: "fingerprint:图书馆开放到几点？",
 				response: replayResponse,
+				runId: "run_pending",
 				status: "accepted",
 			})
 			.mockResolvedValueOnce({
+				acceptedAt: "2026-03-28T07:59:00.000Z",
 				requestFingerprintSha256: "fingerprint:other",
 				response: replayResponse,
+				runId: "run_prev",
 				status: "completed",
 			});
 		store.findIdempotentRequest = findIdempotentRequest;
@@ -281,6 +281,8 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			}),
 		).rejects.toMatchObject({
 			code: "request_in_progress",
+			details: { requestId: "req_prev", runId: "run_pending" },
+			retryable: true,
 			status: 409,
 		});
 
@@ -299,6 +301,181 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 		});
 	});
 
+	it("replays request.accepted with the durable resume handle after the first stream event is lost", async () => {
+		const { store } = createCommandStore();
+		store.findIdempotentRequest = vi.fn().mockResolvedValue({
+			acceptedAt: "2026-03-28T08:00:00.000Z",
+			requestFingerprintSha256: "fingerprint:图书馆开放到几点？",
+			response: {
+				answer: {
+					conversation: createConversation(),
+					result: {
+						kind: "answer",
+						requestId: "req_pending",
+						text: "",
+						traceId: "trace_pending",
+					},
+				},
+				requestId: "req_pending",
+				traceId: "trace_pending",
+			},
+			runId: "run_pending",
+			status: "accepted",
+		});
+		const { store: conversationStore } = createConversationStore();
+		const executionRuntime = createExecutionRuntimeFromToolClient({ execute: vi.fn() });
+		const createRun = vi.spyOn(executionRuntime, "createRun");
+		const service = buildChatCommandService({
+			computeFingerprint: () => "fingerprint:图书馆开放到几点？",
+			conversationStore,
+			executionRuntime,
+			store,
+		});
+
+		const events: ChatCommandStreamEvent[] = [];
+		for await (const event of service.submitStream?.({
+			idempotencyKey: "idem-001",
+			payload: { conversationId: "conv_01HQ", prompt: "图书馆开放到几点？" },
+			principal: createPrincipal(),
+		}) ?? []) {
+			events.push(event);
+		}
+
+		expect(events).toEqual([
+			{
+				data: {
+					occurredAt: "2026-03-28T08:00:00.000Z",
+					requestId: "req_pending",
+					runId: "run_pending",
+					status: "accepted",
+					traceId: "trace_pending",
+				},
+				event: "request.accepted",
+			},
+		]);
+		expect(store.acceptRequest).not.toHaveBeenCalled();
+		expect(createRun).not.toHaveBeenCalled();
+	});
+
+	it("re-reads the accepted winner after a concurrent idempotency insert conflict", async () => {
+		const { store } = createCommandStore();
+		store.findIdempotentRequest = vi
+			.fn()
+			.mockResolvedValueOnce(null)
+			.mockResolvedValueOnce({
+				acceptedAt: "2026-03-28T08:00:00.000Z",
+				requestFingerprintSha256: "fingerprint:图书馆开放到几点？",
+				response: {
+					answer: {
+						conversation: createConversation(),
+						result: {
+							kind: "answer",
+							requestId: "req_winner",
+							text: "",
+							traceId: "trace_winner",
+						},
+					},
+					requestId: "req_winner",
+					traceId: "trace_winner",
+				},
+				runId: "run_winner",
+				status: "accepted",
+			});
+		store.acceptRequest = vi.fn().mockRejectedValue(new ChatAcceptanceIdempotencyConflict());
+		const { store: conversationStore } = createConversationStore();
+		const executionRuntime = createExecutionRuntimeFromToolClient({ execute: vi.fn() });
+		const createRun = vi.spyOn(executionRuntime, "createRun");
+		const service = buildChatCommandService({
+			computeFingerprint: () => "fingerprint:图书馆开放到几点？",
+			conversationStore,
+			executionRuntime,
+			store,
+		});
+
+		await expect(
+			service.submit({
+				idempotencyKey: "idem-race",
+				payload: { conversationId: "conv_01HQ", prompt: "图书馆开放到几点？" },
+				principal: createPrincipal(),
+			}),
+		).rejects.toMatchObject({
+			code: "request_in_progress",
+			details: { requestId: "req_winner", runId: "run_winner" },
+			retryable: true,
+			status: 409,
+		});
+		expect(store.findIdempotentRequest).toHaveBeenCalledTimes(2);
+		expect(createRun).not.toHaveBeenCalled();
+	});
+
+	it("returns a stable fingerprint conflict after a concurrent idempotency winner differs", async () => {
+		const { store } = createCommandStore();
+		store.findIdempotentRequest = vi
+			.fn()
+			.mockResolvedValueOnce(null)
+			.mockResolvedValueOnce({
+				acceptedAt: "2026-03-28T08:00:00.000Z",
+				requestFingerprintSha256: "fingerprint:other",
+				response: {
+					answer: {
+						conversation: createConversation(),
+						result: {
+							kind: "answer",
+							requestId: "req_winner",
+							text: "",
+							traceId: "trace_winner",
+						},
+					},
+					requestId: "req_winner",
+					traceId: "trace_winner",
+				},
+				runId: "run_winner",
+				status: "accepted",
+			});
+		store.acceptRequest = vi.fn().mockRejectedValue(new ChatAcceptanceIdempotencyConflict());
+		const { store: conversationStore } = createConversationStore();
+		const service = buildChatCommandService({
+			computeFingerprint: () => "fingerprint:图书馆开放到几点？",
+			conversationStore,
+			executionRuntime: createExecutionRuntimeFromToolClient({ execute: vi.fn() }),
+			store,
+		});
+
+		await expect(
+			service.submit({
+				idempotencyKey: "idem-race",
+				payload: { conversationId: "conv_01HQ", prompt: "图书馆开放到几点？" },
+				principal: createPrincipal(),
+			}),
+		).rejects.toMatchObject({ code: "idempotency_conflict", status: 409 });
+		expect(store.findIdempotentRequest).toHaveBeenCalledTimes(2);
+	});
+
+	it("returns a retryable conflict when the locked conversation baseline changed", async () => {
+		const { store } = createCommandStore();
+		store.acceptRequest = vi.fn().mockRejectedValue(new ChatAcceptanceConversationConflict());
+		const { store: conversationStore } = createConversationStore();
+		const executionRuntime = createExecutionRuntimeFromToolClient({ execute: vi.fn() });
+		const createRun = vi.spyOn(executionRuntime, "createRun");
+		const service = buildChatCommandService({
+			conversationStore,
+			executionRuntime,
+			store,
+		});
+
+		await expect(
+			service.submit({
+				payload: { conversationId: "conv_01HQ", prompt: "图书馆开放到几点？" },
+				principal: createPrincipal(),
+			}),
+		).rejects.toMatchObject({
+			code: "conversation_changed",
+			retryable: true,
+			status: 409,
+		});
+		expect(createRun).not.toHaveBeenCalled();
+	});
+
 	it("creates a first-turn conversation with the caller-provided conversation id", async () => {
 		const { store, acceptedWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
@@ -307,13 +484,12 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 				answerText: "图书馆开放到 22:00。",
 				error: null,
 				followUpQuestion: "",
+				modelUsage: { cachedInputTokens: 10, inputTokens: 120, outputTokens: 42, totalTokens: 162 },
 				result: {
 					evidence: {
 						sources: [],
 					},
 				},
-				resolvedTargets: ["student_rules"],
-				selectedTool: "knowledge_query",
 				status: "completed",
 				traceId: "trace_0001",
 			}),
@@ -369,13 +545,12 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 				answerText: "图书馆开放到 22:00。",
 				error: null,
 				followUpQuestion: "",
+				modelUsage: { cachedInputTokens: 10, inputTokens: 120, outputTokens: 42, totalTokens: 162 },
 				result: {
 					evidence: {
 						sources: [],
 					},
 				},
-				resolvedTargets: ["student_rules"],
-				selectedTool: "knowledge_query",
 				status: "completed",
 				traceId: "trace_0001",
 			}),
@@ -427,6 +602,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 	it("uses a stable new-conversation fingerprint scope for idempotent first-turn retries", async () => {
 		const { store } = createCommandStore();
 		store.findIdempotentRequest = vi.fn().mockResolvedValue({
+			acceptedAt: "2026-03-28T07:59:00.000Z",
 			requestFingerprintSha256: "fingerprint:__new__:图书馆开放到几点？",
 			response: {
 				answer: {
@@ -447,6 +623,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 				requestId: "req_prev",
 				traceId: "trace_prev",
 			},
+			runId: "run_prev",
 			status: "completed",
 		});
 		const service = buildChatCommandService({

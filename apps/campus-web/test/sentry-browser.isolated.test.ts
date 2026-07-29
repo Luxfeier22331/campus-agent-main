@@ -3,13 +3,17 @@ import { describe, expect, it, vi } from "vitest";
 const sentryMocks = vi.hoisted(() => ({
 	ErrorBoundary: vi.fn(),
 	init: vi.fn(),
+	metrics: { distribution: vi.fn() },
 	reactErrorHandler: vi.fn(() => vi.fn()),
 	tanstackRouterBrowserTracingIntegration: vi.fn(() => ({ name: "TanstackRouterBrowserTracing" })),
 }));
 
 vi.mock("@sentry/react", () => sentryMocks);
 
-import { initializeCampusBrowserSentry } from "../src/platform/telemetry/sentry-browser";
+import {
+	initializeCampusBrowserSentry,
+	recordChatBrowserTtft,
+} from "../src/platform/telemetry/sentry-browser";
 
 describe("campus browser Sentry options", () => {
 	it("uses the browser project with no replay or default PII and route-aware production sampling", () => {
@@ -45,5 +49,9 @@ describe("campus browser Sentry options", () => {
 			});
 		expect(sample("/c/conv_secret")).toBe(0.1);
 		expect(sample("/map")).toBe(0.05);
+		expect(recordChatBrowserTtft(725)).toBe(true);
+		expect(sentryMocks.metrics.distribution).toHaveBeenCalledWith("chat.browser_ttft_ms", 725, {
+			unit: "millisecond",
+		});
 	});
 });

@@ -17,12 +17,19 @@ export interface LearningLoopCandidate {
 	evidence: {
 		budgetState?: "within_budget" | "warn" | "critical";
 		budgetVersion?: string;
+		cachedInputTokens: number;
 		durationMs?: number;
+		errorCode: string | null;
 		failClosed: boolean | null;
+		inputTokens: number;
+		modelName: string | null;
+		modelProvider: string | null;
+		outputTokens: number;
+		projectionLagMs: number | null;
 		reasonCodes: readonly string[];
-		selectedTool: string | null;
 		stageField?: string;
 		status: string;
+		totalTokens: number;
 		traceAvailable: boolean;
 	};
 	feedbackId: string | null;

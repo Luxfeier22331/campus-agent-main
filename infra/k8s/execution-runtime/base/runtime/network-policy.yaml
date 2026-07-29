@@ -10,12 +10,8 @@ spec:
         values:
           - agent-runtime
           - app-api-schema
-          - execution-agent
           - execution-control
-          - execution-control-admin
-          - execution-core
           - execution-run-projection-schema
-          - execution-workflow
   policyTypes: ["Ingress"]
   ingress:
     - from:
@@ -25,11 +21,7 @@ spec:
                 operator: In
                 values:
                   - agent-runtime
-                  - execution-agent
                   - execution-control
-                  - execution-control-admin
-                  - execution-core
-                  - execution-workflow
                   - ops-web
         - podSelector:
             matchLabels:
@@ -47,12 +39,8 @@ spec:
         values:
           - agent-runtime
           - app-api-schema
-          - execution-agent
           - execution-control
-          - execution-control-admin
-          - execution-core
           - execution-run-projection-schema
-          - execution-workflow
   policyTypes: ["Egress"]
   egress:
     - to:
@@ -72,7 +60,6 @@ spec:
                 values:
                   - agent-runtime
                   - execution-control
-                  - execution-control-admin
       ports:
         - protocol: TCP
           port: 8000
@@ -114,30 +101,6 @@ spec:
       ports:
         - protocol: TCP
           port: 443
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: execution-runtime-general-observability-egress
-spec:
-  podSelector:
-    matchExpressions:
-      - key: app.kubernetes.io/name
-        operator: In
-        values:
-          - execution-agent
-          - execution-control-admin
-          - execution-core
-          - execution-workflow
-  policyTypes: ["Egress"]
-  egress:
-    - to:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: otel-collector
-      ports:
-        - protocol: TCP
-          port: 4318
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

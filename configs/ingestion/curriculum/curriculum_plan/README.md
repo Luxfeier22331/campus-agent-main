@@ -11,7 +11,7 @@
 - `task-registry.v3.json`：本目录可执行的采集任务；
 - `samples/`：公开合成的规范文档样例。
 
-查询目标名称、开放状态和物理映射由 `configs/runtime/query-serving-targets.v1.json` 维护。字段和
+文档范围名称、开放状态、路由词和逻辑映射由 `configs/runtime/query-serving-targets.v3.json` 维护。字段和
 任务以本目录 JSON、所属 schema 及测试为准，不在 README 复制。
 
 领域边界见 `docs/architecture/domains/curriculum.md`，采集与在线查询边界见

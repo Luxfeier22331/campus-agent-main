@@ -6,6 +6,7 @@ export {
 	type ExecutionControlRunCancelInput,
 	type ExecutionControlRunCreateInput,
 	type ExecutionControlRunEvent,
+	type ExecutionControlRunEventPage,
 	type ExecutionControlRunEventQuery,
 	type ExecutionControlRunQuery,
 	type ExecutionControlRunStep,
@@ -15,23 +16,13 @@ export {
 	type ExecutionControlStepResult,
 	isExecutionControlRuntimeConfigured,
 } from "./execution-control-runtime";
-export type {
-	ExecutionControlCampusServicesProductPathPreflight,
-	ExecutionControlReadinessProbeResult,
-	ExecutionControlRuntimePreflight,
-} from "./execution-control-transport";
-export {
-	ExecutionControlTransportError,
-	probeExecutionControlReady,
-} from "./execution-control-transport";
+export { ExecutionControlTransportError } from "./execution-control-transport";
 export { parseExecutionFinalizationResponsePayload } from "./execution-finalization-response";
 export type {
 	ToolExecutionContextProjection,
 	ToolExecutionConversationContext,
 	ToolExecutionInput,
 	ToolExecutionObservability,
-	ToolExecutionPreviousEvidenceRef,
-	ToolExecutionPreviousToolResultRef,
 	ToolExecutionPromptTrace,
 	ToolExecutionResponse,
 	ToolExecutionSelectedNoticeRef,

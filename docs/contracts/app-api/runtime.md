@@ -19,51 +19,25 @@ status: active
 
 ## `GET /readyz`
 
-检查 app-api 必需配置、认证、数据库和 execution-control。成功响应：
+检查 app-api 必需配置、认证和数据库。成功响应：
 
 ```json
 {
   "status": "ready",
   "dependencies": {
     "auth": "ready",
-    "authShellOrigin": "configured",
-    "database": "ready",
-    "executionControl": "ready",
-    "executionRuntime": "ready"
-  },
-  "preflight": {
-    "executionRuntime": {
-      "status": "ready",
-      "runtimeRelease": "<release>",
-      "checks": {
-        "runProjectionStore": "ready",
-        "temporalRuntime": "ready"
-      },
-      "blockers": {}
-    },
-    "campusServicesProductPath": {
-      "status": "ready",
-      "toolGate": "open",
-      "projectionSource": "postgres",
-      "checks": {
-        "transportSchedule": "ready",
-        "transportScheduleReadModel": "ready",
-        "toolReadModelRuntime": "ready"
-      },
-      "blockers": {}
-    }
+    "database": "ready"
   }
 }
 ```
 
 规则：
 
-- `auth`、`database` 和 `executionControl` 为 `ready|not_ready`；
-- `authShellOrigin` 固定为 `configured`，缺少配置会在检查前返回错误；
-- `executionRuntime` 在已部署环境为 `ready|not_ready`，其他环境可以为 `not_required`；
-- `preflight.executionRuntime` 报告运行投影与 Temporal，并可携带 `runtimeRelease`；
-- `preflight.campusServicesProductPath` 是班车产品路径的独立状态，阻塞时不影响其他产品能力；
-- `preflight` 没有内容时可以省略。
+- `auth` 和 `database` 为 `ready|not_ready`；
+- Better Auth、数据库 binding 和其他必需配置缺失时，在依赖探测前失败；
+- execution-control 的运行投影、Temporal 和工具状态由 execution-control 自己的 `/readyz` 拥有，
+  App API 不把这些内部状态重新包装为产品 readiness；
+- 班车状态页面使用 App API 自己的产品读取模型，不由关闭的模型工具决定 readiness。
 
 必需配置缺失时返回 `503 dependency_not_ready`，`details.missing` 列出缺失配置。依赖检查失败
 时同样返回 `503 dependency_not_ready`，`details.failed` 保存不含凭据的摘要，并可附带

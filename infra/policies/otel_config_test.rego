@@ -17,9 +17,37 @@ valid_gateway := {
 	}},
 }
 
+valid_orchestration_gateway := {
+	"receivers": {"otlp/orchestration": {}},
+	"processors": {"transform/orchestration_langfuse": {
+		"error_mode": "propagate",
+		"trace_statements": ["keep_keys(span.attributes, [\"grounding_mode\", \"grounding_status\", \"grounding_selected_scopes\", \"grounding_covered_scopes\", \"grounding_candidate_count\", \"grounding_evidence_count\", \"grounding_token_count\", \"grounding_model_context_chars\", \"grounding.embedding_ms\", \"grounding.search_ms\", \"grounding.rerank_ms\", \"grounding.pack_ms\"])"],
+	}},
+}
+
 test_valid_gateway_is_allowed if {
 	violations := violation with input as valid_gateway
 	count(violations) == 0
+}
+
+test_orchestration_requires_grounding_allowlist if {
+	violations := violation with input as valid_orchestration_gateway
+	count(violations) == 0
+}
+
+test_orchestration_without_grounding_allowlist_is_rejected if {
+	config := object.union(valid_orchestration_gateway, {"processors": {"transform/orchestration_langfuse": {
+		"error_mode": "propagate",
+		"trace_statements": ["keep_keys(span.attributes, [\"step_id\"])"],
+	}}})
+	violations := violation with input as config
+	"orchestration Langfuse pipeline must retain the grounding summary attributes" in violations
+}
+
+test_orchestration_without_transform_is_rejected if {
+	config := object.remove(valid_orchestration_gateway, ["processors"])
+	violations := violation with input as config
+	"orchestration Langfuse pipeline must retain the grounding summary attributes" in violations
 }
 
 test_missing_sanitizer_is_rejected if {

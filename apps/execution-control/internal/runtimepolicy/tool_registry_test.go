@@ -10,8 +10,6 @@ import (
 const (
 	transportPayloadSchemaRef = "https://muc.wiki/campus-agent/schemas/campus-services-tool-contracts.v1.schema.json#/$defs/TransportScheduleLookupPayload"
 	transportResultSchemaRef  = "https://muc.wiki/campus-agent/schemas/campus-services-tool-contracts.v1.schema.json#/$defs/TransportScheduleLookupResult"
-	knowledgePayloadSchemaRef = "https://muc.wiki/campus-agent/schemas/knowledge-tool-contracts.v2.schema.json#/$defs/KnowledgeQueryPayload"
-	knowledgeResultSchemaRef  = "https://muc.wiki/campus-agent/schemas/knowledge-tool-contracts.v2.schema.json#/$defs/KnowledgeAgentTerminalResult"
 )
 
 func TestLoadToolSpecRegistryLoadsDefaultToolInventory(t *testing.T) {
@@ -23,12 +21,37 @@ func TestLoadToolSpecRegistryLoadsDefaultToolInventory(t *testing.T) {
 	if registry.SchemaVersion != ToolRegistrySchemaVersion {
 		t.Fatalf("schema_version = %q, want %q", registry.SchemaVersion, ToolRegistrySchemaVersion)
 	}
-	wantVisible := []string{
-		"transport_schedule_lookup",
-		"knowledge_query",
+	if got := registry.ModelVisibleToolNames(); !sameStrings(got, []string{"personal_memory_recall"}) {
+		t.Fatalf("model-visible tools = %#v, want personal_memory_recall", got)
 	}
-	if got := registry.ModelVisibleToolNames(); !sameStrings(got, wantVisible) {
-		t.Fatalf("model-visible tools = %#v, want %#v", got, wantVisible)
+	wantTools := map[string]struct {
+		endpoint string
+		exposure string
+	}{
+		"personal_memory_recall": {
+			endpoint: "/internal/memory/personal/recall",
+			exposure: "model_visible",
+		},
+		"transport_schedule_lookup": {
+			endpoint: "/internal/query/campus-services/transport-schedule",
+			exposure: "closed",
+		},
+	}
+	for name, expected := range wantTools {
+		tool, ok := registry.ToolByName(name)
+		if !ok {
+			t.Fatalf("registered tool %s is missing", name)
+		}
+		if tool.Exposure != expected.exposure {
+			t.Fatalf("registered tool %s exposure = %q, want %q", name, tool.Exposure, expected.exposure)
+		}
+		if tool.Handler.Type != "execution_control_internal_query" ||
+			tool.Handler.Target != "" || tool.Handler.Endpoint != expected.endpoint {
+			t.Fatalf("registered tool %s handler = %#v", name, tool.Handler)
+		}
+	}
+	if _, visible := registry.ModelVisibleToolByName("transport_schedule_lookup"); visible {
+		t.Fatal("transport_schedule_lookup must not be model-visible")
 	}
 	if got := registry.ToolNamesByHandlerEndpoint("/internal/query/campus-services/transport-schedule"); !sameStrings(got, []string{"transport_schedule_lookup"}) {
 		t.Fatalf("transport endpoint tools = %#v, want transport_schedule_lookup", got)
@@ -36,14 +59,10 @@ func TestLoadToolSpecRegistryLoadsDefaultToolInventory(t *testing.T) {
 	if _, ok := registry.ToolByName("retrieval.query"); ok {
 		t.Fatal("retrieval.query must not be registered as a tool")
 	}
-	knowledgeTool, ok := registry.ModelVisibleToolByName("knowledge_query")
-	if !ok {
-		t.Fatal("knowledge_query must be model-visible")
-	}
-	if knowledgeTool.Handler.Type != "agent_handoff" ||
-		knowledgeTool.Handler.Target != "knowledge_agent" ||
-		knowledgeTool.Handler.Endpoint != "" {
-		t.Fatalf("knowledge_query handler = %#v, want handoff without endpoint", knowledgeTool.Handler)
+	for _, retired := range []string{"curriculum_lookup", "retrieve_document_evidence", "read_document_section"} {
+		if _, ok := registry.ToolByName(retired); ok {
+			t.Fatalf("retired knowledge tool %s must not be registered", retired)
+		}
 	}
 }
 
@@ -61,7 +80,7 @@ func TestToolSpecRegistryValidationRejectsDuplicateTools(t *testing.T) {
 	path := writeToolRegistryFixture(
 		t,
 		`{
-		  "schema_version": "tool-registry-v5",
+		  "schema_version": "tool-registry-v6",
 		  "registry_version": "test",
 		  "tools": [`+validToolJSON("transport_schedule_lookup", "model_visible", true, false, "execution_control_internal_query", "/internal/query/campus-services/transport-schedule")+`,
 		            `+validToolJSON("transport_schedule_lookup", "model_visible", true, false, "execution_control_internal_query", "/internal/query/campus-services/transport-schedule")+`]
@@ -87,7 +106,7 @@ func TestToolSpecRegistryValidationRejectsInvalidToolShape(t *testing.T) {
 		{
 			name: "unregistered schema ref",
 			body: `{
-			  "schema_version": "tool-registry-v5",
+			  "schema_version": "tool-registry-v6",
 			  "registry_version": "test",
 			  "tools": [{
 			    "name": "bad_tool",
@@ -110,9 +129,14 @@ func TestToolSpecRegistryValidationRejectsInvalidToolShape(t *testing.T) {
 			want: "handler.endpoint must be an /internal/ path",
 		},
 		{
-			name: "handoff endpoint present",
-			body: registryJSON(validKnowledgeHandoffToolJSON("knowledge_query", "/internal/query/knowledge")),
-			want: "handler.endpoint must be empty for agent_handoff",
+			name: "internal query target present",
+			body: strings.Replace(
+				registryJSON(validToolJSON("bad_tool", "model_visible", true, false, "execution_control_internal_query", "/internal/query/test")),
+				`"endpoint":"/internal/query/test"`,
+				`"endpoint":"/internal/query/test","target":"retired_agent"`,
+				1,
+			),
+			want: "handler.target must be empty for execution_control_internal_query",
 		},
 		{
 			name: "unsupported retired internal route handler",
@@ -149,27 +173,8 @@ func TestToolSpecRegistryValidationRejectsInvalidToolShape(t *testing.T) {
 	}
 }
 
-func validKnowledgeHandoffToolJSON(name string, endpoint string) string {
-	handler := `{"type":"agent_handoff","target":"knowledge_agent"}`
-	if endpoint != "" {
-		handler = `{"type":"agent_handoff","target":"knowledge_agent","endpoint":"` + endpoint + `"}`
-	}
-	return `{
-	  "name": "` + name + `",
-	  "description": "Handoff campus knowledge questions to governed RAG.",
-	  "exposure": "model_visible",
-	  "read_only": true,
-	  "requires_approval": false,
-	  "payload_schema_ref": "` + knowledgePayloadSchemaRef + `",
-	  "result_schema_ref": "` + knowledgeResultSchemaRef + `",
-	  "handler": ` + handler + `,
-	  "timeout_ms": 1000,
-	  "result_projection_policy": "bounded_json"
-	}`
-}
-
 func registryJSON(toolJSON string) string {
-	return `{"schema_version":"tool-registry-v5","registry_version":"test","tools":[` + toolJSON + `]}`
+	return `{"schema_version":"tool-registry-v6","registry_version":"test","tools":[` + toolJSON + `]}`
 }
 
 func validToolJSON(
@@ -207,7 +212,7 @@ func boolJSON(value bool) string {
 
 func writeToolRegistryFixture(t *testing.T, body string) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "tools.v5.json")
+	path := filepath.Join(t.TempDir(), "tools.v6.json")
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatalf("write fixture: %v", err)
 	}

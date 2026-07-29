@@ -7,6 +7,7 @@ import type { ExecutionControlRuntimeClient } from "../src/modules/integration/e
 import {
 	answerResponsePayload,
 	durableEvent,
+	durableEventPage,
 	durableRun,
 	emptyRunStepTrajectory,
 } from "./chat-command.service.durable-cutover.test-support";
@@ -16,6 +17,7 @@ import {
 	createConversationStore,
 	createDeterministicIdGenerator,
 	createPrincipal,
+	getFrozenExecutionPayload,
 } from "./chat-command.service.test-support";
 
 describe("chat command context envelope assembly", () => {
@@ -101,24 +103,24 @@ describe("chat command context envelope assembly", () => {
 			createRun: vi.fn().mockResolvedValue(
 				durableRun({
 					taskQueue: "campus-agent.workflow",
-					requestedTool: "knowledge_query",
-					selectedTool: "knowledge_query",
 				}),
 			),
 			getRun: vi.fn(),
-			listRunEvents: vi.fn().mockResolvedValue([
-				durableEvent({
-					eventId: "event-final",
-					eventType: "finalization.completed",
-					payload: {
-						request_id: "req_0001",
-						response: answerResponsePayload("大一是否可申请需要看转专业办法的年级条件。"),
-						trace_id: "trace_0001",
-					},
-					sequence: 1,
-					visibility: "internal",
-				}),
-			]),
+			listRunEvents: vi.fn().mockResolvedValue(
+				durableEventPage([
+					durableEvent({
+						eventId: "event-final",
+						eventType: "finalization.completed",
+						payload: {
+							request_id: "req_0001",
+							response: answerResponsePayload("大一是否可申请需要看转专业办法的年级条件。"),
+							trace_id: "trace_0001",
+						},
+						sequence: 1,
+						visibility: "internal",
+					}),
+				]),
+			),
 			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
 		};
 		const service = buildChatCommandService({
@@ -153,8 +155,7 @@ describe("chat command context envelope assembly", () => {
 				turnSequence: 3,
 			},
 		});
-		const metadata = createRunInput?.metadata as Record<string, unknown>;
-		const executionPayload = metadata.execution_payload as Record<string, unknown>;
+		const executionPayload = getFrozenExecutionPayload(createRunInput?.runId ?? "run_0001");
 		const context = executionPayload.context as Record<string, unknown>;
 
 		expect(context).not.toHaveProperty("profile_memory");
@@ -177,17 +178,9 @@ describe("chat command context envelope assembly", () => {
 					content: "转专业通常需要满足成绩、名额、学院审核等条件。",
 				}),
 			],
-			previous_evidence_refs: [
-				expect.objectContaining({
-					access_scope: "public_student_rule",
-					collection: "regulations/student_rules",
-					content_hash: "sha256:transfer-major-evidence-example",
-					evidence_id: "ev_transfer_rule_01",
-					source_id: "regulations/student_rules/transfer-major/v2026",
-					version_id: "rule-transfer-major-2026",
-				}),
-			],
 		});
+		expect(conversationContext).not.toHaveProperty("previous_evidence_refs");
+		expect(conversationContext).not.toHaveProperty("previous_tool_results");
 		for (const retiredField of [
 			"budget",
 			"context_summary",
@@ -201,7 +194,7 @@ describe("chat command context envelope assembly", () => {
 		}
 	});
 
-	it("adds sanitized previous tool result refs from runtime projection truth", async () => {
+	it("does not carry previous tool result refs into the execution contract", async () => {
 		const conversation: ChatConversation = {
 			id: "conv_services",
 			ownerUserId: "user_01HQ",
@@ -245,42 +238,30 @@ describe("chat command context envelope assembly", () => {
 			],
 		};
 		const { acceptedWrites, store } = createCommandStore({ conversation });
-		store.listPreviousToolResultRefs = vi.fn(async () => [
-			{
-				tool: "transport_schedule_lookup",
-				contentHash: "sha256:previous-service-result",
-				projectionRef: "projection://runs/run_previous/finalization",
-				requestId: "req_previous",
-				resultKind: "final_response",
-				runId: "run_previous",
-				status: "completed",
-				summary: "图书馆今天正常开放。",
-			},
-		]);
 		const { store: conversationStore } = createConversationStore({ conversation });
 		const executionRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockResolvedValue(
 				durableRun({
 					taskQueue: "campus-agent.workflow",
-					requestedTool: "transport_schedule_lookup",
-					selectedTool: "transport_schedule_lookup",
 				}),
 			),
 			getRun: vi.fn(),
-			listRunEvents: vi.fn().mockResolvedValue([
-				durableEvent({
-					eventId: "event-final",
-					eventType: "finalization.completed",
-					payload: {
-						request_id: "req_0001",
-						response: answerResponsePayload("闭馆前半小时不能入馆。"),
-						trace_id: "trace_0001",
-					},
-					sequence: 1,
-					visibility: "internal",
-				}),
-			]),
+			listRunEvents: vi.fn().mockResolvedValue(
+				durableEventPage([
+					durableEvent({
+						eventId: "event-final",
+						eventType: "finalization.completed",
+						payload: {
+							request_id: "req_0001",
+							response: answerResponsePayload("闭馆前半小时不能入馆。"),
+							trace_id: "trace_0001",
+						},
+						sequence: 1,
+						visibility: "internal",
+					}),
+				]),
+			),
 			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
 		};
 		const service = buildChatCommandService({
@@ -301,31 +282,12 @@ describe("chat command context envelope assembly", () => {
 			requestKind: "public_chat",
 		});
 
-		expect(store.listPreviousToolResultRefs).toHaveBeenCalledWith({
-			conversationId: "conv_services",
-			limit: 3,
-			ownerUserId: "user_01HQ",
-			beforeTurnSequence: 3,
-		});
 		const createRunInput = (executionRuntime.createRun as ReturnType<typeof vi.fn>).mock
 			.calls[0]?.[0];
-		const metadata = createRunInput?.metadata as Record<string, unknown>;
-		const executionPayload = metadata.execution_payload as Record<string, unknown>;
+		const executionPayload = getFrozenExecutionPayload(createRunInput?.runId ?? "run_0001");
 		const context = executionPayload.context as Record<string, unknown>;
-		expect(context.conversation).toMatchObject({
-			previous_tool_results: [
-				{
-					tool: "transport_schedule_lookup",
-					content_hash: "sha256:previous-service-result",
-					projection_ref: "projection://runs/run_previous/finalization",
-					request_id: "req_previous",
-					result_kind: "final_response",
-					run_id: "run_previous",
-					status: "completed",
-					summary: "图书馆今天正常开放。",
-				},
-			],
-		});
+		expect(context.conversation).not.toHaveProperty("previous_tool_results");
+		expect(context.conversation).not.toHaveProperty("previous_evidence_refs");
 		expect(context.conversation).not.toHaveProperty("visibility");
 		expect(acceptedWrites[0]).toMatchObject({
 			turnDispatch: {

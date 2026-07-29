@@ -1,25 +1,15 @@
 export function goDecodeHelpers({
-	answerArtifactKinds,
-	requestedTools,
+	executionPaths,
 	stageTimingFields,
 	toolIds,
-	workflowModes,
 }: {
-	answerArtifactKinds: string[];
-	requestedTools: string[];
+	executionPaths: string[];
 	stageTimingFields: string[];
 	toolIds: string[];
-	workflowModes: string[];
 }): string {
 	const toolIdCases = toolIds.map((value) => `ToolID${goConstSuffix(value)}`).join(", ");
-	const requestedToolCases = requestedTools
-		.map((value) => `RequestedTool${goConstSuffix(value)}`)
-		.join(", ");
-	const workflowModeCases = workflowModes
-		.map((value) => `WorkflowMode${goConstSuffix(value)}`)
-		.join(", ");
-	const answerArtifactKindCases = answerArtifactKinds
-		.map((value) => `AnswerArtifactKind${goConstSuffix(value)}`)
+	const executionPathCases = executionPaths
+		.map((value) => `ExecutionPath${goConstSuffix(value)}`)
 		.join(", ");
 	const stageTimingFieldCases = stageTimingFields
 		.map((value) => `StageTimingField${goConstSuffix(value)}`)
@@ -38,6 +28,9 @@ func DecodeExecutionPayloadWireJSON(data []byte) (ExecutionPayloadWire, error) {
 
 func DecodeExecutionRunCreateRequestWireJSON(data []byte) (ExecutionRunCreateRequestWire, error) {
 \tvar wire ExecutionRunCreateRequestWire
+\tif err := requireJSONObjectFields(data, []string{"personal_memory_recall_allowed"}); err != nil {
+\t\treturn wire, err
+\t}
 \tif err := decodeStrictJSON(data, &wire); err != nil {
 \t\treturn wire, err
 \t}
@@ -50,15 +43,13 @@ func DecodeExecutionRunCreateRequestWireJSON(data []byte) (ExecutionRunCreateReq
 func DecodeToolExecutionResponseWireJSON(data []byte) (ToolExecutionResponseWire, error) {
 \tvar wire ToolExecutionResponseWire
 \tif err := requireJSONObjectFields(data, []string{
-\t\t"selected_tool",
 \t\t"status",
 \t\t"answer_text",
 \t\t"follow_up_question",
 \t\t"confidence",
 \t\t"result",
 \t\t"error",
-\t\t"resolved_targets",
-\t\t"session_update",
+\t\t"model_usage",
 \t\t"trace_id",
 \t}); err != nil {
 \t\treturn wire, err
@@ -117,9 +108,6 @@ func (wire ExecutionPayloadWire) Validate() error {
 \tif wire.ConversationID == "" {
 \t\treturn fmt.Errorf("conversation_id is required")
 \t}
-\tif wire.RequestedTool != "" && !wire.RequestedTool.Valid() {
-\t\treturn fmt.Errorf("requested_tool is invalid")
-\t}
 \tif wire.Trace.TraceID == "" {
 \t\treturn fmt.Errorf("trace.trace_id is required")
 \t}
@@ -136,6 +124,9 @@ func (wire ExecutionRunCreateRequestWire) Validate() error {
 \tif wire.RunID == "" {
 \t\treturn fmt.Errorf("run_id is required")
 \t}
+\tif !ValidExecutionRunID(wire.RunID) {
+\t\treturn fmt.Errorf("run_id must match %s", ExecutionRunIDPattern)
+\t}
 \tif wire.ConversationID == "" {
 \t\treturn fmt.Errorf("conversation_id is required")
 \t}
@@ -151,68 +142,50 @@ func (wire ExecutionRunCreateRequestWire) Validate() error {
 \tif wire.Surface == "" {
 \t\treturn fmt.Errorf("surface is required")
 \t}
-\tif err := wire.Metadata.ExecutionPayload.Validate(); err != nil {
-\t\treturn fmt.Errorf("metadata.execution_payload: %w", err)
-\t}
-\tif wire.Metadata.ExecutionPayload.RequestID != wire.RequestID {
-\t\treturn fmt.Errorf("metadata.execution_payload.request_id must match request_id")
-\t}
-\tif wire.Metadata.ExecutionPayload.ConversationID != wire.ConversationID {
-\t\treturn fmt.Errorf("metadata.execution_payload.conversation_id must match conversation_id")
-\t}
-\tif wire.TraceID != "" &&
-\t\twire.Metadata.ExecutionPayload.Trace.TraceID != wire.TraceID {
-\t\treturn fmt.Errorf("metadata.execution_payload.trace.trace_id must match trace_id")
+\tif err := wire.Metadata.Validate(wire.RunID); err != nil {
+\t\treturn fmt.Errorf("metadata: %w", err)
 \t}
 \treturn nil
 }
 
-func (wire WorkflowTraceSummaryWire) Validate() error {
-\tif wire.WorkflowMode == "" {
-\t\treturn fmt.Errorf("workflow_mode is required")
+func (wire ExecutionRunMetadataWire) Validate(runID string) error {
+\tif !ValidExecutionRunID(runID) {
+\t\treturn fmt.Errorf("run_id must match %s", ExecutionRunIDPattern)
 \t}
-\tif !wire.WorkflowMode.Valid() {
-\t\treturn fmt.Errorf("workflow_mode is invalid")
+\tif wire.ExecutionContractVersion != ExecutionContractVersion {
+\t\treturn fmt.Errorf("execution_contract_version must be %s", ExecutionContractVersion)
 \t}
-\tif wire.SelectedTool != nil && *wire.SelectedTool != "" && !ToolID(*wire.SelectedTool).Valid() {
-\t\treturn fmt.Errorf("selected_tool is invalid")
+\texpectedRef := "app-api://execution-inputs/" + runID
+\tif wire.ExecutionInputRef != expectedRef {
+\t\treturn fmt.Errorf("execution_input_ref must be %s", expectedRef)
 \t}
-\tif wire.SelectedTools == nil {
-\t\treturn fmt.Errorf("selected_tools is required")
+\tif !isLowerHexSHA256(wire.ExecutionInputSHA256) {
+\t\treturn fmt.Errorf("execution_input_sha256 must be 64 lowercase hexadecimal characters")
 \t}
-\tfor index, tool := range wire.SelectedTools {
-\t\tif tool == "" {
-\t\t\treturn fmt.Errorf("selected_tools[%d] is required", index)
+\treturn nil
+}
+
+func isLowerHexSHA256(value string) bool {
+\tif len(value) != 64 {
+\t\treturn false
+\t}
+\tfor _, character := range value {
+\t\tif (character < '0' || character > '9') && (character < 'a' || character > 'f') {
+\t\t\treturn false
 \t\t}
 \t}
-\tif wire.FirstDecisionActor == "" {
-\t\treturn fmt.Errorf("first_decision_actor is required")
-\t}
-\tif wire.PlanningOutcome == "" {
-\t\treturn fmt.Errorf("planning_outcome is required")
-\t}
-\tif wire.DirectVsDelegateBranch == "" {
-\t\treturn fmt.Errorf("direct_vs_delegate_branch is required")
+\treturn true
+}
+
+func (wire WorkflowTraceSummaryWire) Validate() error {
+\tif !wire.ExecutionPath.Valid() {
+\t\treturn fmt.Errorf("execution_path is invalid")
 \t}
 \tif wire.TerminalReason == "" {
 \t\treturn fmt.Errorf("terminal_reason is required")
 \t}
-\tif wire.AnswerArtifactKinds == nil {
-\t\treturn fmt.Errorf("answer_artifact_kinds is required")
-\t}
-\tfor index, kind := range wire.AnswerArtifactKinds {
-\t\tif !kind.Valid() {
-\t\t\treturn fmt.Errorf("answer_artifact_kinds[%d] is invalid", index)
-\t\t}
-\t}
 \tif wire.AnswerArtifactRefs == nil {
 \t\treturn fmt.Errorf("answer_artifact_refs is required")
-\t}
-\tif wire.TraceSteps == nil {
-\t\treturn fmt.Errorf("trace_steps is required")
-\t}
-\tif wire.ToolCallSummaries == nil {
-\t\treturn fmt.Errorf("tool_call_summaries is required")
 \t}
 \tif wire.RuntimeVersions == nil {
 \t\treturn fmt.Errorf("runtime_versions is required")
@@ -221,9 +194,6 @@ func (wire WorkflowTraceSummaryWire) Validate() error {
 }
 
 func (wire ToolExecutionResponseWire) Validate() error {
-\tif wire.SelectedTool != nil && !wire.SelectedTool.Valid() {
-\t\treturn fmt.Errorf("selected_tool is invalid")
-\t}
 \tif !wire.Status.Valid() {
 \t\treturn fmt.Errorf("status is invalid")
 \t}
@@ -233,18 +203,11 @@ func (wire ToolExecutionResponseWire) Validate() error {
 \tif wire.TraceID == "" {
 \t\treturn fmt.Errorf("trace_id is required")
 \t}
-\tif wire.ResolvedTargets == nil {
-\t\treturn fmt.Errorf("resolved_targets is required")
-\t}
-\tseenTargets := map[string]bool{}
-\tfor index, target := range wire.ResolvedTargets {
-\t\tif target == "" {
-\t\t\treturn fmt.Errorf("resolved_targets[%d] is required", index)
-\t\t}
-\t\tif seenTargets[target] {
-\t\t\treturn fmt.Errorf("resolved_targets[%d] is duplicated", index)
-\t\t}
-\t\tseenTargets[target] = true
+\tif wire.ModelUsage.InputTokens < 0 || wire.ModelUsage.CachedInputTokens < 0 ||
+\t\twire.ModelUsage.OutputTokens < 0 || wire.ModelUsage.TotalTokens < 0 ||
+\t\twire.ModelUsage.CachedInputTokens > wire.ModelUsage.InputTokens ||
+\t\twire.ModelUsage.TotalTokens != wire.ModelUsage.InputTokens+wire.ModelUsage.OutputTokens {
+\t\treturn fmt.Errorf("model_usage is invalid")
 \t}
 \tif wire.Error != nil {
 \t\tif code, ok := wire.Error["code"].(string); !ok || code == "" {
@@ -257,11 +220,6 @@ func (wire ToolExecutionResponseWire) Validate() error {
 \t\t\treturn fmt.Errorf("error.retryable is required")
 \t\t}
 \t}
-\tif wire.SessionUpdate != nil {
-\t\tif err := wire.SessionUpdate.Validate(); err != nil {
-\t\t\treturn fmt.Errorf("session_update: %w", err)
-\t\t}
-\t}
 \tif wire.WorkflowTraceSummary != nil {
 \t\tif err := wire.WorkflowTraceSummary.Validate(); err != nil {
 \t\t\treturn fmt.Errorf("workflow_trace_summary: %w", err)
@@ -270,26 +228,6 @@ func (wire ToolExecutionResponseWire) Validate() error {
 \tif wire.StageTiming != nil {
 \t\tif err := wire.StageTiming.Validate(); err != nil {
 \t\t\treturn fmt.Errorf("stage_timing: %w", err)
-\t\t}
-\t}
-\treturn nil
-}
-
-func (wire SessionUpdateWire) Validate() error {
-\tif wire.UpsertSlots == nil {
-\t\treturn fmt.Errorf("upsert_slots is required")
-\t}
-\tfor index, slot := range wire.UpsertSlots {
-\t\tif !slot.Confirmed {
-\t\t\treturn fmt.Errorf("upsert_slots[%d].confirmed must be true", index)
-\t\t}
-\t\tswitch slot.Name {
-\t\tcase "curriculum_program", "curriculum_program_family", "curriculum_semester":
-\t\tdefault:
-\t\t\treturn fmt.Errorf("upsert_slots[%d].name is invalid", index)
-\t\t}
-\t\tif slot.Value == "" {
-\t\t\treturn fmt.Errorf("upsert_slots[%d].value is required", index)
 \t\t}
 \t}
 \treturn nil
@@ -316,15 +254,6 @@ func (value ToolID) Valid() bool {
 \t}
 }
 
-func (value RequestedTool) Valid() bool {
-\tswitch value {
-\tcase __REQUESTED_TOOL_CASES__:
-\t\treturn true
-\tdefault:
-\t\treturn false
-\t}
-}
-
 func (value ConfidenceLevel) Valid() bool {
 \tswitch value {
 \tcase ConfidenceLevelHigh, ConfidenceLevelMedium, ConfidenceLevelLow:
@@ -343,18 +272,9 @@ func (value ExecutionStatus) Valid() bool {
 \t}
 }
 
-func (value WorkflowMode) Valid() bool {
+func (value ExecutionPath) Valid() bool {
 \tswitch value {
-\tcase __WORKFLOW_MODE_CASES__:
-\t\treturn true
-\tdefault:
-\t\treturn false
-\t}
-}
-
-func (value AnswerArtifactKind) Valid() bool {
-\tswitch value {
-\tcase __ANSWER_ARTIFACT_KIND_CASES__:
+\tcase __EXECUTION_PATH_CASES__:
 \t\treturn true
 \tdefault:
 \t\treturn false
@@ -373,9 +293,7 @@ func (value StageTimingField) Valid() bool {
 `;
 	const result = template
 		.replace("__TOOL_ID_CASES__", toolIdCases)
-		.replace("__REQUESTED_TOOL_CASES__", requestedToolCases)
-		.replace("__WORKFLOW_MODE_CASES__", workflowModeCases)
-		.replace("__ANSWER_ARTIFACT_KIND_CASES__", answerArtifactKindCases)
+		.replace("__EXECUTION_PATH_CASES__", executionPathCases)
 		.replace("__STAGE_TIMING_FIELD_CASES__", stageTimingFieldCases);
 	return result;
 }

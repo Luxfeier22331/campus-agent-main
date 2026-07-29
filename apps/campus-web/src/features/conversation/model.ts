@@ -111,12 +111,11 @@ export interface ChatRequestStreamEvent {
 			message: string;
 			retryable?: boolean;
 		};
-		accumulatedText?: string;
 		delta?: string;
 		messageId?: string;
 		occurredAt: string;
 		requestId: string;
-		runId?: string;
+		runId?: string | null;
 		sequence?: number;
 		status: string;
 		traceId: string;

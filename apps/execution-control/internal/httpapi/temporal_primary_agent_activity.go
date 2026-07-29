@@ -2,14 +2,17 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/retrievalruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimepolicy"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
+	"go.temporal.io/sdk/activity"
 )
 
 func (s *Server) ExecutePrimaryAgentActivity(
@@ -21,6 +24,93 @@ func (s *Server) ExecutePrimaryAgentActivity(
 	run, err := s.temporalActivityRun(ctx, input.RunID, input.TraceID)
 	if err != nil {
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
+	}
+	inputMetadata, err := executionInputMetadata(run)
+	if err != nil {
+		return s.failPrimaryAgentActivity(ctx, run, "execution_input_metadata_invalid", err)
+	}
+	invocationID := run.RunID + ":agent.primary"
+	existingReceipt, receiptErr := s.runProjectionStore.GetAgentInvocationReceipt(ctx, invocationID)
+	var persistedInvocationEnvelope *primaryAgentProviderInvocationEnvelope
+	var persistedInvocationSHA256 string
+	if receiptErr == nil {
+		envelope, loadErr := s.loadPrimaryAgentProviderInvocationEnvelope(ctx, run)
+		if loadErr != nil {
+			return temporalruntime.ExecutePrimaryAgentActivityOutput{}, sanitizedTemporalApplicationError(
+				"agent_invocation_receipt_invalid",
+				receiptIntegrityError("provider invocation envelope is unavailable"),
+				true,
+			)
+		}
+		invocationSHA256, validateErr := validatePrimaryAgentProviderInvocationReplay(
+			envelope,
+			run,
+			input,
+			inputMetadata.ExecutionInputSHA256,
+		)
+		if validateErr != nil || existingReceipt.InputSHA256 != invocationSHA256 {
+			if validateErr == nil {
+				validateErr = receiptIntegrityError("receipt provider invocation hash differs")
+			}
+			return temporalruntime.ExecutePrimaryAgentActivityOutput{}, sanitizedTemporalApplicationError(
+				"agent_invocation_receipt_invalid",
+				validateErr,
+				true,
+			)
+		}
+		if existingReceipt.State == execution.AgentInvocationReceiptStateStarted {
+			return s.failPrimaryAgentActivity(
+				ctx,
+				run,
+				"agent_attempt_uncertain",
+				errors.New("agent invocation receipt is already started without a complete result"),
+			)
+		}
+		if existingReceipt.State != execution.AgentInvocationReceiptStateCompleted {
+			return temporalruntime.ExecutePrimaryAgentActivityOutput{}, sanitizedTemporalApplicationError(
+				"agent_invocation_receipt_invalid",
+				receiptIntegrityError("agent invocation receipt state is invalid"),
+				true,
+			)
+		}
+		return s.replayPrimaryAgentReceipt(
+			ctx,
+			run,
+			input,
+			invocationSHA256,
+			existingReceipt,
+		)
+	}
+	if !errors.Is(receiptErr, execution.ErrAgentInvocationNotFound) {
+		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, receiptErr
+	}
+	if envelope, loadErr := s.loadPrimaryAgentProviderInvocationEnvelope(ctx, run); loadErr == nil {
+		invocationSHA256, validateErr := validatePrimaryAgentProviderInvocationReplay(
+			envelope,
+			run,
+			input,
+			inputMetadata.ExecutionInputSHA256,
+		)
+		if validateErr != nil {
+			return temporalruntime.ExecutePrimaryAgentActivityOutput{}, sanitizedTemporalApplicationError(
+				"agent_invocation_receipt_invalid",
+				validateErr,
+				true,
+			)
+		}
+		persistedInvocationEnvelope = &envelope
+		persistedInvocationSHA256 = invocationSHA256
+	} else if !errors.Is(loadErr, execution.ErrProtectedPayloadNotFound) {
+		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, loadErr
+	}
+	executionPayload, err := s.loadExecutionPayload(ctx, run)
+	if err != nil {
+		return s.failPrimaryAgentActivity(
+			ctx,
+			run,
+			executionInputFailureKind(err, "execution_input_unavailable"),
+			err,
+		)
 	}
 	startedAt := time.Now().UTC()
 	run, err = s.beginPrimaryAgentRun(ctx, run, startedAt)
@@ -36,30 +126,119 @@ func (s *Server) ExecutePrimaryAgentActivity(
 			fmt.Errorf("agent runtime base URL and shared secret are required"),
 		)
 	}
-	providerConfig, err := s.resolveProviderConfigSnapshot(ctx, providerConfigKindLLM)
-	if err != nil {
-		return s.failPrimaryAgentActivity(ctx, run, "model_setting_missing", err)
+	var providerConfig providerConfigSnapshot
+	limits := s.primaryAgentRuntimeLimits()
+	snapshot := input.AdmissionSnapshot
+	visibleToolNames := input.VisibleToolNames
+	if err := validateAdmissionSnapshotForVisibleTools(snapshot, visibleToolNames); err != nil {
+		return s.failPrimaryAgentActivity(ctx, run, "admission_snapshot_invalid", err)
 	}
-	input.KnowledgeTargets, err = s.knowledgeTargetsForAgent(input.VisibleToolNames)
-	if err != nil {
-		return s.failPrimaryAgentActivity(ctx, run, "knowledge_target_registry_unavailable", err)
+	if err := s.validateLocalToolRuntimeFingerprint(snapshot.ToolRuntimeFingerprint); err != nil {
+		return s.failPrimaryAgentActivity(ctx, run, "admission_snapshot_mismatch", err)
 	}
+	providerConfig, err = s.resolveProviderConfigSnapshot(ctx, providerConfigKindLLM)
+	if err != nil {
+		return s.failPrimaryAgentActivity(ctx, run, "provider_config_missing", err)
+	}
+	if providerConfigAdmissionHash(providerConfig) != snapshot.ProviderConfigSHA256 {
+		return s.failPrimaryAgentActivity(ctx, run, "admission_snapshot_mismatch", errors.New("active llm setting does not match admission"))
+	}
+	grounding, groundingSHA256, err := s.loadGroundingContextForPrimaryAgent(
+		ctx,
+		run,
+		input,
+	)
+	if err != nil {
+		return s.failPrimaryAgentActivity(ctx, run, "grounding_context_invalid", err)
+	}
+	limits = limitsFromAdmissionSnapshot(snapshot.AgentLimits)
+	limits.MaxTurns = snapshot.ExecutionStrategy.MaxModelTurns
+	limits.MaxToolCalls = snapshot.ExecutionStrategy.MaxToolCalls
 	agentResultRef := temporalProjectionRef(run.RunID, "agent/primary/result")
 	attempt := temporalActivityAttempt(ctx)
-	limits := s.primaryAgentRuntimeLimits()
-	finalModelContext, err := primaryAgentFinalModelContextForRun(run, input, limits)
+	if persistedInvocationEnvelope != nil {
+		attempt = persistedInvocationEnvelope.ActivityAttempt
+	}
+	finalModelContext, err := primaryAgentFinalModelContextForRun(
+		executionPayload,
+		limits,
+		grounding,
+	)
 	if err != nil {
 		return s.failPrimaryAgentActivity(ctx, run, "context_budget_exceeded", err)
 	}
-	agentStepPayload := map[string]any{
-		"context_usage":          primaryAgentContextUsageSummary(finalModelContext),
-		"knowledge_targets":      knowledgeTargetsProjectionPayload(input.KnowledgeTargets),
-		"memory_context_summary": temporalMemoryContextProjectionPayload(input.MemoryContext),
-		"memory_projection_refs": append([]string{}, input.MemoryProjectionRefs...),
-		"requested_tool":         input.RequestedTool,
-		"visible_tool_names":     append([]string{}, input.VisibleToolNames...),
+	providerRequestPayload := primaryAgentRuntimeRequestPayload(
+		run,
+		input,
+		strings.TrimSpace(stringValue(executionPayload["user_goal"])),
+		providerConfig,
+		finalModelContext,
+		grounding,
+		limits,
+		attempt,
+	)
+	providerRequestBody, err := json.Marshal(providerRequestPayload)
+	if err != nil {
+		return s.failPrimaryAgentActivity(ctx, run, "agent_invocation_envelope_invalid", err)
 	}
-	if err := s.projectTemporalStep(ctx, temporalStepProjection{
+	invocationEnvelope, err := newPrimaryAgentProviderInvocationEnvelope(
+		run,
+		input,
+		inputMetadata.ExecutionInputSHA256,
+		finalModelContext,
+		providerRequestBody,
+		attempt,
+	)
+	if err != nil {
+		return s.failPrimaryAgentActivity(ctx, run, "agent_invocation_envelope_invalid", err)
+	}
+	invocationSHA256 := sha256AnyValue(invocationEnvelope)
+	if persistedInvocationEnvelope != nil {
+		if invocationSHA256 != persistedInvocationSHA256 {
+			return temporalruntime.ExecutePrimaryAgentActivityOutput{}, sanitizedTemporalApplicationError(
+				"agent_invocation_receipt_invalid",
+				receiptIntegrityError("persisted provider invocation envelope differs from rebuilt request"),
+				true,
+			)
+		}
+		invocationSHA256 = persistedInvocationSHA256
+	} else if err := s.putProtectedJSON(
+		ctx,
+		run,
+		primaryAgentInvocationRef(run.RunID),
+		protectedPayloadKindAgentInvocation,
+		invocationEnvelope,
+	); err != nil {
+		return s.failPrimaryAgentActivity(ctx, run, "agent_invocation_envelope_persistence_failed", err)
+	}
+	receiptNow := time.Now().UTC().Truncate(time.Microsecond)
+	receipt, disposition, err := s.runProjectionStore.BeginAgentInvocation(
+		ctx,
+		execution.AgentInvocationReceipt{
+			InvocationID: invocationID,
+			RunID:        run.RunID,
+			InputSHA256:  invocationSHA256,
+			CreatedAt:    receiptNow,
+			UpdatedAt:    receiptNow,
+		},
+	)
+	if err != nil {
+		return s.failPrimaryAgentActivity(ctx, run, "agent_invocation_receipt_failed", err)
+	}
+	if disposition == execution.AgentInvocationDispositionAmbiguous {
+		return s.failPrimaryAgentActivity(ctx, run, "agent_attempt_uncertain", errors.New("agent invocation receipt is already started without a complete result"))
+	}
+	if disposition == execution.AgentInvocationDispositionReplay {
+		return s.replayPrimaryAgentReceipt(
+			ctx,
+			run,
+			input,
+			invocationSHA256,
+			receipt,
+		)
+	}
+	startedAt = receipt.CreatedAt
+	startedProjection := s.withTemporalActivityEvidence(ctx, temporalStepProjection{
 		Attempt:       attempt,
 		Tool:          "",
 		Run:           run,
@@ -71,47 +250,41 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		StartedAt:     startedAt,
 		UpdatedAt:     startedAt,
 		ProjectionRef: agentResultRef,
-		Payload:       agentStepPayload,
-	}); err != nil {
+		Payload: map[string]any{
+			"context_usage":                primaryAgentContextUsageSummary(finalModelContext),
+			"embedding_provider_admission": embeddingProviderAdmissionPin(snapshot).projectionPayload(),
+			"grounding_context_ref":        input.GroundingContextRef,
+			"grounding_context_sha256":     groundingSHA256,
+			"grounding_evidence_count":     len(grounding.Evidence),
+			"grounding_status":             grounding.Status,
+			"grounding_token_count":        grounding.TokenCount,
+			"execution_strategy":           executionStrategyProjectionPayload(snapshot.ExecutionStrategy),
+			"tool_runtime_fingerprint":     toolRuntimeFingerprintSnapshotMap(snapshot.ToolRuntimeFingerprint),
+			"visible_tool_names":           append([]string{}, visibleToolNames...),
+		},
+	}, attempt)
+	attempt = startedProjection.Attempt
+	if err := s.projectTemporalStep(ctx, startedProjection); err != nil {
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 	}
-	output, err := s.callAgentRuntime(
-		ctx,
-		run,
-		input,
-		providerConfig,
-		finalModelContext,
-		limits,
-		attempt,
+	invocationEvidence := primaryAgentActivityEvidenceFromProjection(
+		startedProjection,
+		activity.IsActivity(ctx),
 	)
+	output, err := s.callAgentRuntimeRequest(ctx, run, providerRequestBody, limits.AgentDeadlineMS)
 	if err != nil {
-		return s.failPrimaryAgentActivity(ctx, run, primaryAgentRuntimeFailureKind(err), err)
+		return s.failPrimaryAgentActivity(ctx, run, "agent_attempt_uncertain", err)
+	}
+	if snapshot.ToolRuntimeFingerprintSHA256 != "" {
+		if err := validateAgentRuntimeToolFingerprint(
+			snapshot.ToolRuntimeFingerprint,
+			output.ToolRuntimeFingerprint,
+		); err != nil {
+			return s.failPrimaryAgentActivity(ctx, run, "agent_runtime_fingerprint_mismatch", err, output)
+		}
 	}
 	output.RunID = run.RunID
 	output.AgentResultRef = agentResultRef
-	if err := s.projectTemporalStep(ctx, temporalStepProjection{
-		Attempt:            attempt,
-		Run:                run,
-		Status:             "started",
-		StepID:             "agent.primary",
-		StepKind:           "agent",
-		TaskQueue:          temporalruntime.ActivityTaskQueueAgent,
-		WorkerID:           s.config.TemporalWorkerIdentity,
-		StartedAt:          startedAt,
-		UpdatedAt:          time.Now().UTC(),
-		ProjectionRef:      agentResultRef,
-		ProviderResponseID: output.ProviderResponseID,
-		ModelProvider:      output.ModelProvider,
-		ModelName:          output.ModelName,
-		ModelRequestCount:  output.Usage.ModelRequestCount,
-		InputTokens:        output.Usage.InputTokens,
-		OutputTokens:       output.Usage.OutputTokens,
-		CachedInputTokens:  output.Usage.CachedInputTokens,
-		UsageObserved:      output.Usage.UsageObserved,
-		Payload:            agentStepPayload,
-	}); err != nil {
-		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
-	}
 	if toolName, failCloseReason, failed := primaryAgentFailedToolResult(output); failed {
 		completedAt := time.Now().UTC()
 		if err := s.projectPrimaryAgentToolResults(
@@ -120,12 +293,12 @@ func (s *Server) ExecutePrimaryAgentActivity(
 			startedAt,
 			completedAt,
 			attempt,
-			input.VisibleToolNames,
+			visibleToolNames,
 			output,
 		); err != nil {
 			return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 		}
-		return s.failPrimaryAgentActivityAfterResponse(
+		return s.failPrimaryAgentActivity(
 			ctx,
 			run,
 			"tool_execution_failed",
@@ -141,12 +314,12 @@ func (s *Server) ExecutePrimaryAgentActivity(
 			startedAt,
 			completedAt,
 			attempt,
-			input.VisibleToolNames,
+			visibleToolNames,
 			output,
 		); err != nil {
 			return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 		}
-		return s.failPrimaryAgentActivityAfterResponse(
+		return s.failPrimaryAgentActivity(
 			ctx,
 			run,
 			"agent_runtime_incomplete",
@@ -157,20 +330,8 @@ func (s *Server) ExecutePrimaryAgentActivity(
 	if output.TerminalReason == "" {
 		output.TerminalReason = primaryAgentActivityTerminalReason(output)
 	}
-	completedAt := time.Now().UTC()
-	if err := s.projectPrimaryAgentToolResults(
-		ctx,
-		run,
-		startedAt,
-		completedAt,
-		attempt,
-		input.VisibleToolNames,
-		output,
-	); err != nil {
-		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
-	}
 	if !validPrimaryAgentTerminalEnvelope(output.TerminalEnvelope) {
-		return s.failPrimaryAgentActivityAfterResponse(
+		return s.failPrimaryAgentActivity(
 			ctx,
 			run,
 			"agent_runtime_missing_terminal_envelope",
@@ -179,107 +340,202 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		)
 	}
 	payload, err := primaryAgentResultPayload(primaryAgentResultInput{
-		activityAttempt: attempt,
-		activityInput:   input,
-		run:             run,
+		activityAttempt:        attempt,
+		activityInput:          input,
+		groundingContextSHA256: groundingSHA256,
+		run:                    run,
 	}, output)
 	if err != nil {
-		return s.failPrimaryAgentActivityAfterResponse(
+		projectionErr := s.projectPrimaryAgentToolResults(
 			ctx,
 			run,
-			"agent_runtime_result_invalid",
-			err,
+			startedAt,
+			time.Now().UTC(),
+			attempt,
+			visibleToolNames,
 			output,
 		)
-	}
-	if err := s.replaceTemporalAgentMetadata(ctx, run, func(metadata map[string]any) {
-		for key, value := range payload {
-			metadata[key] = value
+		if projectionErr != nil {
+			if activity.IsActivity(ctx) {
+				return temporalruntime.ExecutePrimaryAgentActivityOutput{}, sanitizedTemporalApplicationError(
+					"agent_runtime_result_invalid",
+					projectionErr,
+					true,
+				)
+			}
+			return temporalruntime.ExecutePrimaryAgentActivityOutput{}, projectionErr
 		}
-	}); err != nil {
+		return s.failPrimaryAgentActivity(ctx, run, "agent_runtime_result_invalid", err, output)
+	}
+	payload["grounding_mode"] = grounding.Mode
+	payload["grounding_selected_scopes"] = append([]string{}, grounding.SelectedScopes...)
+	payload["grounding_covered_scopes"] = append([]string{}, grounding.CoveredScopes...)
+	payload["grounding_status"] = grounding.Status
+	payload["activity_evidence"] = invocationEvidence.protectedPayload()
+	payload["activity_worker_id"] = invocationEvidence.WorkerID
+	payload["provider_invocation_sha256"] = invocationSHA256
+	payload["result_schema_version"] = protectedPayloadKindAgentResult
+	if contextUsage := primaryAgentContextUsageSummary(finalModelContext); contextUsage != nil {
+		payload["context_usage"] = contextUsage
+	}
+	if err := s.putProtectedJSON(ctx, run, agentResultRef, protectedPayloadKindAgentResult, payload); err != nil {
+		return s.failPrimaryAgentActivity(ctx, run, "agent_result_persistence_failed", err, output)
+	}
+	outputSummary, err := encodeAgentInvocationOutputSummary(agentResultRef, invocationSHA256, payload)
+	if err != nil {
+		return s.failPrimaryAgentActivity(ctx, run, "agent_result_persistence_failed", err, output)
+	}
+	completedReceiptAt := time.Now().UTC().Truncate(time.Microsecond)
+	outputDigest := sha256Bytes(outputSummary)
+	completedReceipt, err := s.runProjectionStore.CompleteAgentInvocation(ctx, execution.AgentInvocationReceipt{
+		InvocationID: invocationID,
+		RunID:        run.RunID,
+		InputSHA256:  invocationSHA256,
+		State:        execution.AgentInvocationReceiptStateCompleted,
+		OutputJSON:   outputSummary,
+		OutputSHA256: outputDigest,
+		CreatedAt:    receiptNow,
+		CompletedAt:  completedReceiptAt,
+		UpdatedAt:    completedReceiptAt,
+	})
+	if err != nil {
+		// The transaction outcome can be unknown. Retrying lets the next attempt
+		// observe either the completed receipt or the fail-closed started receipt;
+		// it must never invoke the model again.
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 	}
-	if err := s.projectTemporalStep(ctx, temporalStepProjection{
-		Attempt:            attempt,
-		Tool:               "",
-		Run:                run,
-		Status:             "completed",
-		StepID:             "agent.primary",
-		StepKind:           "agent",
-		TaskQueue:          temporalruntime.ActivityTaskQueueAgent,
-		WorkerID:           s.config.TemporalWorkerIdentity,
-		StartedAt:          startedAt,
-		CompletedAt:        completedAt,
-		UpdatedAt:          completedAt,
-		ResultKind:         "agent_final_output",
-		ProjectionRef:      agentResultRef,
-		ProviderResponseID: output.ProviderResponseID,
-		ModelProvider:      output.ModelProvider,
-		ModelName:          output.ModelName,
-		ModelRequestCount:  output.Usage.ModelRequestCount,
-		InputTokens:        output.Usage.InputTokens,
-		OutputTokens:       output.Usage.OutputTokens,
-		CachedInputTokens:  output.Usage.CachedInputTokens,
-		UsageObserved:      output.Usage.UsageObserved,
-		Payload:            withPrimaryAgentContextUsage(payload, finalModelContext),
-	}); err != nil {
-		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
-	}
-	if err := s.appendTemporalRunEvent(ctx, execution.DurableRunEvent{
-		EventID:              run.RunID + ":agent-completed",
-		RunID:                run.RunID,
-		ConversationID:       run.ConversationID,
-		EventType:            execution.DurableRunEventTypeAgentCompleted,
-		OccurredAt:           completedAt,
-		Visibility:           execution.DurableRunEventVisibilityInternal,
-		PayloadSchemaVersion: "run-event-v1",
-		Payload: map[string]any{
-			"agent_result_ref":     agentResultRef,
-			"provider_response_id": output.ProviderResponseID,
-			"selected_tools":       append([]string{}, output.SelectedTools...),
-			"stage_timing":         cloneAnyMapFromMetadata(output.StageTiming),
-			"terminal_reason":      output.TerminalReason,
-		},
-	}); err != nil {
-		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
-	}
-	return output, nil
+	return s.replayPrimaryAgentReceipt(
+		ctx,
+		run,
+		input,
+		invocationSHA256,
+		completedReceipt,
+	)
 }
 
-func (s *Server) knowledgeTargetsForAgent(
-	visibleToolNames []string,
-) ([]temporalruntime.KnowledgeTarget, error) {
-	if !containsPrimaryAgentVisibleTool(visibleToolNames, "knowledge_query") {
-		return nil, nil
+func (s *Server) replayPrimaryAgentReceipt(
+	ctx context.Context,
+	run execution.DurableRun,
+	input temporalruntime.ExecutePrimaryAgentActivityInput,
+	expectedInputSHA256 string,
+	receipt execution.AgentInvocationReceipt,
+) (temporalruntime.ExecutePrimaryAgentActivityOutput, error) {
+	output, err := s.completePrimaryAgentFromReceipt(
+		ctx,
+		run,
+		input,
+		expectedInputSHA256,
+		receipt,
+	)
+	if err != nil {
+		if errors.Is(err, errAgentInvocationReceiptIntegrity) {
+			return temporalruntime.ExecutePrimaryAgentActivityOutput{}, sanitizedTemporalApplicationError(
+				"agent_invocation_receipt_invalid",
+				err,
+				true,
+			)
+		}
+		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 	}
-	policies, err := runtimepolicy.QueryServingTargets(
+	if !activity.IsActivity(ctx) {
+		return output, nil
+	}
+	return primaryAgentActivityWireOutput(output), nil
+}
+
+func primaryAgentActivityWireOutput(
+	output temporalruntime.ExecutePrimaryAgentActivityOutput,
+) temporalruntime.ExecutePrimaryAgentActivityOutput {
+	// Only bounded identifiers/status are returned through the Temporal
+	// result. The complete response is addressed by AgentResultRef in the
+	// protected payload store.
+	return temporalruntime.ExecutePrimaryAgentActivityOutput{
+		AgentResultRef:     output.AgentResultRef,
+		ModelName:          output.ModelName,
+		ModelProvider:      output.ModelProvider,
+		ProviderResponseID: output.ProviderResponseID,
+		RunID:              output.RunID,
+		Status:             output.Status,
+		TerminalReason:     output.TerminalReason,
+		Usage:              output.Usage,
+	}
+}
+
+func (s *Server) documentScopesForAgent(
+	ctx context.Context,
+	selectedScopes []string,
+) ([]temporalruntime.DocumentScope, error) {
+	policies, err := runtimepolicy.QueryServingScopes(
 		strings.TrimSpace(s.config.QueryServingTargetsPath),
 	)
 	if err != nil {
 		return nil, err
 	}
-	targets := make([]temporalruntime.KnowledgeTarget, 0, len(policies))
+	selected := make(map[string]struct{}, len(selectedScopes))
+	for _, scope := range selectedScopes {
+		selected[strings.TrimSpace(scope)] = struct{}{}
+	}
+	targets := make([]temporalruntime.DocumentScope, 0, len(selectedScopes))
 	for _, policy := range policies {
-		targets = append(targets, temporalruntime.KnowledgeTarget{
-			Description: policy.Description,
-			Target:      policy.Target,
+		if _, ok := selected[policy.Scope]; !ok {
+			continue
+		}
+		servingConfig, err := retrievalruntime.LoadServingConfigPath(
+			retrievalServingConfigRoot(),
+			policy.ServingConfigPath,
+		)
+		if err != nil {
+			return nil, err
+		}
+		if servingConfig.Collection != policy.Collection {
+			return nil, fmt.Errorf(
+				"document scope %s collection = %q, serving config collection = %q",
+				policy.Scope,
+				policy.Collection,
+				servingConfig.Collection,
+			)
+		}
+		topK := policy.CandidateTopK
+		if s.config.RAGTopKMax > 0 && topK > s.config.RAGTopKMax {
+			topK = s.config.RAGTopKMax
+		}
+		servingSnapshot := knowledgeServingConfigSnapshotFromRuntime(servingConfig)
+		if s.toolReadModel == nil {
+			return nil, errors.New("knowledge read model is not configured")
+		}
+		release, found, err := s.toolReadModel.CurrentKnowledgeRelease(ctx, policy.Scope)
+		if err != nil {
+			return nil, fmt.Errorf("resolve current knowledge release for %s: %w", policy.Scope, err)
+		}
+		if !found {
+			return nil, fmt.Errorf("document scope %s does not have a current knowledge release", policy.Scope)
+		}
+		if release.DocumentScope != policy.Scope || release.Corpus != policy.Corpus ||
+			release.Collection != policy.Collection ||
+			release.EmbeddingModel != servingConfig.EmbeddingModel ||
+			release.EmbeddingDimensions != servingConfig.EmbeddingDimensions ||
+			strings.TrimSpace(release.ReleaseID) == "" || strings.TrimSpace(release.QdrantCollection) == "" {
+			return nil, fmt.Errorf("document scope %s current release is incompatible with serving config", policy.Scope)
+		}
+		targets = append(targets, temporalruntime.DocumentScope{
+			CandidateTopK:       topK,
+			Collection:          policy.Collection,
+			Corpus:              policy.Corpus,
+			Description:         policy.Description,
+			MaxEvidenceSections: policy.MaxEvidenceSections,
+			QdrantCollection:    release.QdrantCollection,
+			ReleaseID:           release.ReleaseID,
+			ServingConfig:       servingSnapshot,
+			ServingConfigPath:   policy.ServingConfigPath,
+			ServingConfigSHA256: hashAdmissionJSON(servingSnapshot),
+			Scope:               policy.Scope,
 		})
+		delete(selected, policy.Scope)
+	}
+	if len(selected) > 0 {
+		return nil, errors.New("grounding plan contains an unknown document scope")
 	}
 	return targets, nil
-}
-
-func knowledgeTargetsProjectionPayload(targets []temporalruntime.KnowledgeTarget) []map[string]any {
-	if len(targets) == 0 {
-		return nil
-	}
-	payload := make([]map[string]any, 0, len(targets))
-	for _, target := range targets {
-		payload = append(payload, map[string]any{
-			"description": target.Description,
-			"target":      target.Target,
-		})
-	}
-	return payload
 }
 
 func containsPrimaryAgentVisibleTool(values []string, want string) bool {
@@ -367,9 +623,18 @@ func (s *Server) projectPrimaryAgentToolResults(
 	attempt int,
 	visibleToolNames []string,
 	output temporalruntime.ExecutePrimaryAgentActivityOutput,
+	identities ...primaryAgentProjectionIdentity,
 ) error {
+	identity := primaryAgentProjectionIdentity{WorkerID: s.config.TemporalWorkerIdentity}
+	if len(identities) > 0 {
+		identity = identities[0]
+	}
 	visible := stringSet(visibleToolNames)
 	for index, result := range output.ToolResults {
+		durationMS, err := primaryAgentToolDurationMS(result.DurationMS)
+		if err != nil {
+			return err
+		}
 		toolName := strings.TrimSpace(result.ToolName)
 		if toolName == "" {
 			return fmt.Errorf("agent runtime tool result tool_name is required")
@@ -387,8 +652,7 @@ func (s *Server) projectPrimaryAgentToolResults(
 			return err
 		}
 		_, modelVisible := visible[toolName]
-		_, knowledgeHandoffVisible := visible["knowledge_query"]
-		if !modelVisible && (toolName != "knowledge_search" || !knowledgeHandoffVisible) {
+		if !modelVisible {
 			return fmt.Errorf(
 				"agent runtime tool %s was not visible for this turn",
 				toolName,
@@ -408,38 +672,37 @@ func (s *Server) projectPrimaryAgentToolResults(
 				"arguments_schema_version": argumentMetadata.ArgumentsSchemaVersion,
 				"fail_close_reason":        "schema_contract_drift",
 				"payload_kind":             payloadKind,
-				"result":                   cloneAnyMapFromMetadata(result.Result),
+				"result_sha256":            sha256AnyValue(result.Result),
 				"runtime_surface":          "openai_agents_sdk_tool",
 				"sdk_result_ref":           strings.TrimSpace(result.ResultRef),
-				"selected_tool":            toolName,
+				"tool_name":                toolName,
 				"tool_status":              status,
 			}
-			if err := s.projectTemporalStep(ctx, temporalStepProjection{
+			if err := s.projectTemporalStep(ctx, identity.apply(temporalStepProjection{
 				Attempt:         attempt,
+				ActivityAttempt: attempt,
+				PreserveAttempt: identity.PreserveAttempt,
 				Tool:            projectionClass,
 				Run:             run,
 				Status:          "failed",
 				StepID:          stepID,
 				StepKind:        "tool",
-				ParentStepID:    "agent.primary",
 				TaskQueue:       temporalruntime.ActivityTaskQueueForToolTarget(projectionClass),
-				WorkerID:        s.config.TemporalWorkerIdentity,
+				WorkerID:        identity.WorkerID,
 				StartedAt:       startedAt,
 				CompletedAt:     completedAt,
+				DurationMS:      durationMS,
 				UpdatedAt:       completedAt,
 				ResultKind:      "activity_failure",
 				ProjectionRef:   resultRef,
 				FailCloseReason: "schema_contract_drift",
 				Payload:         payload,
-			}); err != nil {
+			})); err != nil {
 				return err
 			}
 			return fmt.Errorf("agent runtime tool %s arguments invalid fail_close_reason=schema_contract_drift: %w", toolName, err)
 		}
 		resultPayload := cloneAnyMapFromMetadata(result.Result)
-		if toolName == "knowledge_search" {
-			continue
-		}
 		resultEnvelope, err := sdkToolResultEnvelopeForProjection(
 			toolName,
 			payloadKind,
@@ -454,72 +717,127 @@ func (s *Server) projectPrimaryAgentToolResults(
 				"arguments_schema_version": argumentMetadata.ArgumentsSchemaVersion,
 				"fail_close_reason":        "result_contract_drift",
 				"payload_kind":             payloadKind,
-				"result":                   resultPayload,
+				"result_sha256":            sha256AnyValue(resultPayload),
 				"runtime_surface":          "openai_agents_sdk_tool",
 				"sdk_result_ref":           strings.TrimSpace(result.ResultRef),
-				"selected_tool":            toolName,
+				"tool_name":                toolName,
 				"tool_status":              status,
 			}
-			if err := s.projectTemporalStep(ctx, temporalStepProjection{
+			if err := s.projectTemporalStep(ctx, identity.apply(temporalStepProjection{
 				Attempt:         attempt,
+				ActivityAttempt: attempt,
+				PreserveAttempt: identity.PreserveAttempt,
 				Tool:            projectionClass,
 				Run:             run,
 				Status:          "failed",
 				StepID:          stepID,
 				StepKind:        "tool",
-				ParentStepID:    "agent.primary",
 				TaskQueue:       temporalruntime.ActivityTaskQueueForToolTarget(projectionClass),
-				WorkerID:        s.config.TemporalWorkerIdentity,
+				WorkerID:        identity.WorkerID,
 				StartedAt:       startedAt,
 				CompletedAt:     completedAt,
+				DurationMS:      durationMS,
 				UpdatedAt:       completedAt,
 				ResultKind:      "activity_failure",
 				ProjectionRef:   resultRef,
 				FailCloseReason: "result_contract_drift",
 				Payload:         payload,
-			}); err != nil {
+			})); err != nil {
 				return err
 			}
 			return fmt.Errorf("agent runtime tool %s result invalid fail_close_reason=result_contract_drift: %w", toolName, err)
 		}
+		_ = resultEnvelope
 		payload := map[string]any{
 			"arguments_json_sha256":    argumentMetadata.ArgumentsJSONSHA256,
 			"arguments_schema_sha256":  argumentMetadata.ArgumentsSchemaSHA256,
 			"arguments_schema_version": argumentMetadata.ArgumentsSchemaVersion,
 			"fail_close_reason":        strings.TrimSpace(result.FailCloseReason),
-			"outcome":                  resultPayload["outcome"],
+			"outcome":                  boundedToolOutcome(resultPayload["outcome"]),
 			"payload_kind":             payloadKind,
-			"result":                   resultPayload,
+			"result_sha256":            sha256AnyValue(resultPayload),
 			"runtime_surface":          "openai_agents_sdk_tool",
 			"sdk_result_ref":           strings.TrimSpace(result.ResultRef),
-			"selected_tool":            toolName,
+			"tool_name":                toolName,
 			"tool_status":              status,
 		}
-		if len(resultEnvelope) > 0 {
-			payload["result_envelope"] = resultEnvelope
-		}
-		if err := s.projectTemporalStep(ctx, temporalStepProjection{
+		// The raw tool result is kept only in the encrypted agent result
+		// payload. Step/event projections carry hashes and bounded outcomes.
+		if err := s.projectTemporalStep(ctx, identity.apply(temporalStepProjection{
 			Attempt:         attempt,
+			ActivityAttempt: attempt,
+			PreserveAttempt: identity.PreserveAttempt,
 			Tool:            projectionClass,
 			Run:             run,
 			Status:          temporalSDKToolStepStatus(status),
 			StepID:          stepID,
 			StepKind:        "tool",
-			ParentStepID:    "agent.primary",
 			TaskQueue:       temporalruntime.ActivityTaskQueueForToolTarget(projectionClass),
-			WorkerID:        s.config.TemporalWorkerIdentity,
+			WorkerID:        identity.WorkerID,
 			StartedAt:       startedAt,
 			CompletedAt:     completedAt,
+			DurationMS:      durationMS,
 			UpdatedAt:       completedAt,
 			ResultKind:      temporalSDKToolResultKind(status),
 			ProjectionRef:   resultRef,
 			FailCloseReason: strings.TrimSpace(result.FailCloseReason),
 			Payload:         payload,
-		}); err != nil {
+		})); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+type primaryAgentProjectionIdentity struct {
+	ActivityAttempt   int
+	ActivityID        string
+	ActivityType      string
+	Attempt           int
+	PreserveAttempt   bool
+	ScheduledAt       time.Time
+	ScheduleToStartMS int64
+	StartedAt         time.Time
+	TemporalRunID     string
+	WorkerID          string
+	WorkflowID        string
+}
+
+func (identity primaryAgentProjectionIdentity) apply(
+	projection temporalStepProjection,
+) temporalStepProjection {
+	projection.PreserveAttempt = identity.PreserveAttempt
+	if identity.ActivityAttempt > 0 {
+		projection.ActivityAttempt = identity.ActivityAttempt
+	}
+	if identity.Attempt > 0 {
+		projection.Attempt = identity.Attempt
+	}
+	if identity.ActivityID != "" {
+		projection.ActivityID = identity.ActivityID
+	}
+	if identity.ActivityType != "" {
+		projection.ActivityType = identity.ActivityType
+	}
+	if !identity.ScheduledAt.IsZero() {
+		projection.ScheduledAt = identity.ScheduledAt
+	}
+	if identity.ScheduleToStartMS > 0 {
+		projection.ScheduleToStartMS = identity.ScheduleToStartMS
+	}
+	if !identity.StartedAt.IsZero() {
+		projection.StartedAt = identity.StartedAt
+	}
+	if identity.TemporalRunID != "" {
+		projection.TemporalRunID = identity.TemporalRunID
+	}
+	if identity.WorkerID != "" {
+		projection.WorkerID = identity.WorkerID
+	}
+	if identity.WorkflowID != "" {
+		projection.WorkflowID = identity.WorkflowID
+	}
+	return projection
 }
 
 func stringSet(values []string) map[string]struct{} {
@@ -541,16 +859,15 @@ func primaryAgentAttempt(attempt int) int {
 }
 
 func projectionClassForToolName(toolName string) string {
-	switch strings.TrimSpace(toolName) {
-	case "transport_schedule_lookup":
-		return "transport_schedule_lookup"
-	case "knowledge_query":
-		return "knowledge_query"
-	case "knowledge_search":
-		return "knowledge_search"
-	default:
-		return "tool"
+	toolName = strings.TrimSpace(toolName)
+	registry, ok := runtimepolicy.DefaultToolSpecRegistry()
+	if ok {
+		tool, registered := registry.ToolByName(toolName)
+		if registered && tool.ReadOnly {
+			return toolName
+		}
 	}
+	return "tool"
 }
 
 func validatePrimaryAgentSDKToolResult(toolName string, payloadKind string) error {
@@ -558,10 +875,12 @@ func validatePrimaryAgentSDKToolResult(toolName string, payloadKind string) erro
 	if !ok {
 		return fmt.Errorf("tool registry is not available")
 	}
+	// Exposure controls whether a new run can offer the tool to the model. A
+	// completed result may be replayed after that exposure is closed, so result
+	// projection is bound to the registered read-only contract and the turn's
+	// frozen visible_tool_names instead.
 	tool, ok := registry.ToolByName(toolName)
-	if !ok || !tool.ReadOnly ||
-		(tool.Exposure != "model_visible" &&
-			(toolName != "knowledge_search" || tool.Exposure != "internal_only")) {
+	if !ok || !tool.ReadOnly {
 		return fmt.Errorf("agent runtime tool %s is not admitted", toolName)
 	}
 	if tool.Name != payloadKind {
@@ -577,10 +896,21 @@ func sdkToolResultEnvelopeForProjection(
 	result map[string]any,
 	projectionRef string,
 ) (map[string]any, error) {
-	if strings.TrimSpace(toolName) != "transport_schedule_lookup" {
+	toolName = strings.TrimSpace(toolName)
+	status = strings.TrimSpace(status)
+	if toolName == personalMemoryRecallToolName {
+		if status != "completed" {
+			return nil, nil
+		}
+		if err := validatePersonalMemoryRecallToolResult(result); err != nil {
+			return nil, err
+		}
 		return nil, nil
 	}
-	if strings.TrimSpace(status) != "completed" {
+	if toolName != "transport_schedule_lookup" {
+		return nil, nil
+	}
+	if status != "completed" {
 		return nil, nil
 	}
 	envelope := cloneAnyMapFromMetadata(result["result_envelope"])
@@ -609,6 +939,20 @@ func sdkToolResultEnvelopeForProjection(
 	return envelope, nil
 }
 
+func validatePersonalMemoryRecallToolResult(result map[string]any) error {
+	if len(result) != 2 {
+		return fmt.Errorf("personal_memory_recall result must contain only outcome and memory_text")
+	}
+	outcome, outcomeOK := result["outcome"].(string)
+	if !outcomeOK || (outcome != "matched" && outcome != "no_match") {
+		return fmt.Errorf("personal_memory_recall result outcome is invalid")
+	}
+	if _, ok := result["memory_text"].(string); !ok {
+		return fmt.Errorf("personal_memory_recall result memory_text must be a string")
+	}
+	return nil
+}
+
 func temporalSDKToolStepStatus(status string) string {
 	switch strings.TrimSpace(status) {
 	case "completed":
@@ -632,26 +976,7 @@ func (s *Server) failPrimaryAgentActivity(
 	run execution.DurableRun,
 	failureKind string,
 	cause error,
-) (temporalruntime.ExecutePrimaryAgentActivityOutput, error) {
-	return s.failPrimaryAgentActivityWithOutput(ctx, run, failureKind, cause, nil)
-}
-
-func (s *Server) failPrimaryAgentActivityAfterResponse(
-	ctx context.Context,
-	run execution.DurableRun,
-	failureKind string,
-	cause error,
-	output temporalruntime.ExecutePrimaryAgentActivityOutput,
-) (temporalruntime.ExecutePrimaryAgentActivityOutput, error) {
-	return s.failPrimaryAgentActivityWithOutput(ctx, run, failureKind, cause, &output)
-}
-
-func (s *Server) failPrimaryAgentActivityWithOutput(
-	ctx context.Context,
-	run execution.DurableRun,
-	failureKind string,
-	cause error,
-	output *temporalruntime.ExecutePrimaryAgentActivityOutput,
+	outputs ...temporalruntime.ExecutePrimaryAgentActivityOutput,
 ) (temporalruntime.ExecutePrimaryAgentActivityOutput, error) {
 	failCloseReason := ""
 	timeoutOutcome := execution.TimeoutOutcomeNotTimedOut
@@ -686,30 +1011,31 @@ func (s *Server) failPrimaryAgentActivityWithOutput(
 			payload["agent_runtime_error_code"] = stableCode
 		}
 	}
-	projection := temporalStepFailureProjection{
-		Tool:            "",
-		FailureHash:     summary.Hash,
-		FailureKind:     summary.Kind,
-		ProjectionRef:   temporalProjectionRef(run.RunID, "agent/primary/result"),
-		ResultKind:      "activity_failure",
-		StepID:          "agent.primary",
-		StepKind:        "agent",
-		TaskQueue:       temporalruntime.ActivityTaskQueueAgent,
-		FailCloseReason: failCloseReason,
-		Payload:         payload,
-		TimeoutOutcome:  timeoutOutcome,
+	var output temporalruntime.ExecutePrimaryAgentActivityOutput
+	if len(outputs) > 0 {
+		output = outputs[0]
 	}
-	if output != nil {
-		projection.ProviderResponseID = output.ProviderResponseID
-		projection.ModelProvider = output.ModelProvider
-		projection.ModelName = output.ModelName
-		projection.ModelRequestCount = output.Usage.ModelRequestCount
-		projection.InputTokens = output.Usage.InputTokens
-		projection.OutputTokens = output.Usage.OutputTokens
-		projection.CachedInputTokens = output.Usage.CachedInputTokens
-		projection.UsageObserved = output.Usage.UsageObserved
-	}
-	err := s.projectTemporalFailureStep(ctx, run, projection, cause)
+	err := s.projectTemporalFailureStep(ctx, run, temporalStepFailureProjection{
+		Tool:               "",
+		FailureHash:        summary.Hash,
+		FailureKind:        summary.Kind,
+		ModelName:          output.ModelName,
+		ModelProvider:      output.ModelProvider,
+		ModelRequestCount:  output.Usage.ModelRequestCount,
+		InputTokens:        output.Usage.InputTokens,
+		OutputTokens:       output.Usage.OutputTokens,
+		CachedInputTokens:  output.Usage.CachedInputTokens,
+		UsageObserved:      output.Usage.UsageObserved,
+		ProviderResponseID: output.ProviderResponseID,
+		ProjectionRef:      temporalProjectionRef(run.RunID, "agent/primary/result"),
+		ResultKind:         "activity_failure",
+		StepID:             "agent.primary",
+		StepKind:           "agent",
+		TaskQueue:          temporalruntime.ActivityTaskQueueAgent,
+		FailCloseReason:    failCloseReason,
+		Payload:            payload,
+		TimeoutOutcome:     timeoutOutcome,
+	}, cause)
 	if err != nil {
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, sanitizedTemporalApplicationError(
 			"activity_projection_failed",
@@ -717,7 +1043,7 @@ func (s *Server) failPrimaryAgentActivityWithOutput(
 			false,
 		)
 	}
-	return temporalruntime.ExecutePrimaryAgentActivityOutput{}, temporalApplicationError(summary, false)
+	return temporalruntime.ExecutePrimaryAgentActivityOutput{}, temporalApplicationError(summary, true)
 }
 
 type primaryAgentToolFailureError struct {
@@ -778,41 +1104,4 @@ func primaryAgentActivityTerminalReason(output temporalruntime.ExecutePrimaryAge
 	default:
 		return string(execution.DurableTerminalReasonAnswerCompleted)
 	}
-}
-
-func (s *Server) replaceTemporalAgentMetadata(
-	ctx context.Context,
-	run execution.DurableRun,
-	mutate func(map[string]any),
-) error {
-	latest, err := s.runProjectionStore.GetRun(ctx, run.RunID)
-	if err != nil {
-		return err
-	}
-	metadata := cloneTemporalMetadata(latest.Metadata)
-	agentMetadata := cloneAnyMapFromMetadata(metadata["temporal_agent"])
-	mutate(agentMetadata)
-	metadata["temporal_agent"] = agentMetadata
-	return s.runProjectionStore.ReplaceRunMetadata(ctx, run.RunID, metadata)
-}
-
-func (s *Server) replaceExecutionPayloadMetadata(
-	ctx context.Context,
-	run execution.DurableRun,
-	mutate func(map[string]any),
-) error {
-	latest, err := s.runProjectionStore.GetRun(ctx, run.RunID)
-	if err != nil {
-		return err
-	}
-	metadata := cloneTemporalMetadata(latest.Metadata)
-	payload := cloneAnyMapFromMetadata(metadata["execution_payload"])
-	mutate(payload)
-	metadata["execution_payload"] = payload
-	return s.runProjectionStore.ReplaceRunMetadata(ctx, run.RunID, metadata)
-}
-
-func primaryAgentInputText(run execution.DurableRun) string {
-	executionPayload := cloneAnyMapFromMetadata(run.Metadata["execution_payload"])
-	return strings.TrimSpace(stringValue(executionPayload["user_goal"]))
 }

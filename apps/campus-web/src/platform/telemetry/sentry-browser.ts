@@ -63,3 +63,13 @@ export function initializeCampusBrowserSentry(
 
 export const campusReactErrorHandler = Sentry.reactErrorHandler;
 export const CampusSentryErrorBoundary = Sentry.ErrorBoundary;
+
+export function recordChatBrowserTtft(durationMs: number): boolean {
+	if (!(initialized && Number.isFinite(durationMs)) || durationMs < 0) {
+		return false;
+	}
+	Sentry.metrics.distribution("chat.browser_ttft_ms", durationMs, {
+		unit: "millisecond",
+	});
+	return true;
+}

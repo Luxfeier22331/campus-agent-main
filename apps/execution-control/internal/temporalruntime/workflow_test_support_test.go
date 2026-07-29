@@ -16,12 +16,12 @@ type workflowTestActivityRegistrar interface {
 
 func registerWorkflowTestActivities(env workflowTestActivityRegistrar, activities *Activities) {
 	env.RegisterActivityWithOptions(
-		activities.MemoryRecallActivity,
-		activity.RegisterOptions{Name: MemoryRecallActivityName},
-	)
-	env.RegisterActivityWithOptions(
 		activities.AppendConversationMemoryActivity,
 		activity.RegisterOptions{Name: AppendConversationMemoryActivityName},
+	)
+	env.RegisterActivityWithOptions(
+		activities.PrepareGroundingContextActivity,
+		activity.RegisterOptions{Name: PrepareGroundingContextActivityName},
 	)
 	env.RegisterActivityWithOptions(
 		activities.ExecutePrimaryAgentActivity,
@@ -30,6 +30,10 @@ func registerWorkflowTestActivities(env workflowTestActivityRegistrar, activitie
 	env.RegisterActivityWithOptions(
 		activities.WriteFinalizationActivity,
 		activity.RegisterOptions{Name: WriteFinalizationActivityName},
+	)
+	env.RegisterActivityWithOptions(
+		activities.FinalizeExecutionCancellationActivity,
+		activity.RegisterOptions{Name: FinalizeExecutionCancellationActivityName},
 	)
 	env.RegisterActivityWithOptions(
 		activities.ExecutePersonalMemoryCommandActivity,
@@ -57,6 +61,18 @@ func registerWorkflowTestActivities(env workflowTestActivityRegistrar, activitie
 	)
 }
 
+func (Activities) PrepareGroundingContextActivity(
+	_ context.Context,
+	input PrepareGroundingContextActivityInput,
+) (PrepareGroundingContextActivityOutput, error) {
+	return PrepareGroundingContextActivityOutput{
+		GroundingContextRef: "projection://runs/" + input.RunID + "/grounding/context",
+		PayloadSHA256:       "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+		RunID:               input.RunID,
+		Status:              "empty",
+	}, nil
+}
+
 func (Activities) FinalizePersonalMemoryCommandReceiptActivity(
 	_ context.Context,
 	input FinalizePersonalMemoryCommandReceiptActivityInput,
@@ -69,6 +85,13 @@ func (Activities) FinalizeExecutionFailureActivity(
 	FinalizeExecutionFailureActivityInput,
 ) (FinalizeExecutionFailureActivityOutput, error) {
 	return FinalizeExecutionFailureActivityOutput{}, nil
+}
+
+func (Activities) FinalizeExecutionCancellationActivity(
+	_ context.Context,
+	input FinalizeExecutionCancellationActivityInput,
+) (FinalizeExecutionCancellationActivityOutput, error) {
+	return FinalizeExecutionCancellationActivityOutput{RunID: input.RunID, Status: "canceled"}, nil
 }
 
 func (Activities) ExecutePersonalMemoryCommandActivity(
@@ -102,17 +125,6 @@ func (Activities) WritePersonalMemoryCommandResultActivity(
 	return nil
 }
 
-func (Activities) MemoryRecallActivity(
-	_ context.Context,
-	input MemoryRecallActivityInput,
-) (MemoryRecallActivityOutput, error) {
-	return MemoryRecallActivityOutput{
-		MemoryRef: "projection://runs/" + input.RunID + "/memory/recall",
-		RunID:     input.RunID,
-		Status:    "completed",
-	}, nil
-}
-
 func (Activities) AppendConversationMemoryActivity(
 	_ context.Context,
 	input AppendConversationMemoryActivityInput,
@@ -124,13 +136,6 @@ func (Activities) AppendConversationMemoryActivity(
 		SchemaVersion:        "memory_conversation_append_result_v2",
 		Status:               "completed",
 	}, nil
-}
-
-func (Activities) MemoryReflectActivity(
-	_ context.Context,
-	_ MemoryReflectActivityInput,
-) (MemoryReflectActivityOutput, error) {
-	return MemoryReflectActivityOutput{}, nil
 }
 
 func (Activities) ExecutePrimaryAgentActivity(

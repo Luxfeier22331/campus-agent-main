@@ -5,6 +5,43 @@ import { describe, expect, it } from "vitest";
 import { __chatRunRoutesTestables } from "../src/app/routes/chat-run-routes";
 
 describe("chat run routes", () => {
+	it("maps durable queued events into resume stream queued events", () => {
+		const event = __chatRunRoutesTestables.toChatRunResumeStreamEvent({
+			event: {
+				eventId: "event-run-queued",
+				eventType: "run.queued",
+				occurredAt: "2026-06-04T01:02:03.000Z",
+				payload: {
+					request_id: "req_0001",
+					status: "queued",
+					trace_id: "trace_0001",
+				},
+				runId: "run_0001",
+				sequence: 1,
+				visibility: "browser",
+			},
+			run: {
+				conversationId: "conv_01HQ",
+				phase: "queued",
+				requestId: "req_0001",
+				runId: "run_0001",
+				status: "queued",
+				traceId: "trace_0001",
+			},
+		});
+
+		expect(event).toMatchObject({
+			data: {
+				requestId: "req_0001",
+				runId: "run_0001",
+				sequence: 1,
+				status: "queued",
+				traceId: "trace_0001",
+			},
+			event: "execution.queued",
+		});
+	});
+
 	it("maps durable answer deltas into resume stream answer delta events", () => {
 		const event = __chatRunRoutesTestables.toChatRunResumeStreamEvent({
 			event: {
@@ -39,7 +76,6 @@ describe("chat run routes", () => {
 
 		expect(event).toMatchObject({
 			data: {
-				accumulatedText: "国家奖学金每学年评审一次。",
 				delta: "每学年评审一次。",
 				messageId: "msg_answer_stream",
 				requestId: "req_0001",

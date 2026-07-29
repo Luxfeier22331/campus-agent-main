@@ -71,6 +71,12 @@ Kubernetes CronJob 每 30 分钟直接执行 source-collector `auth:check`。该
 - source bucket：门户通知、通知边界、文件发布原文件和来源 metadata；
 - derived bucket：注册 Rust kernel 的确定性输出，不保存内部门户文件发布或通知产物。
 
+## 在线检索边界
+
+规范文档单元可以通过注册的 `build-retrieval-chunks-v2` 任务生成确定性的
+`retrieval_chunk_set.v2`。当前没有把该产物写入 Qdrant 与 PostgreSQL release 的正式生产者；
+采集和分块止于离线产物，不会自动开放在线查询范围。
+
 部署清单存在只表示期望状态；实际运行以环境仓选择和控制器状态为准。
 
 ## 相关文档

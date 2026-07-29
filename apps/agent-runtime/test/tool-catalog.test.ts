@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-	buildInternalToolDefinitions,
 	buildVisibleToolDefinitions,
 	loadToolCatalog,
 	loadToolCatalogFromObject,
@@ -14,7 +13,7 @@ describe("tool catalog", () => {
 	it("exposes only model-visible read-only tools to the SDK surface", () => {
 		const catalog = loadToolCatalogFromObject(
 			{
-				schema_version: "tool-registry-v5",
+				schema_version: "tool-registry-v6",
 				registry_version: "test",
 				tools: [
 					{
@@ -41,7 +40,7 @@ describe("tool catalog", () => {
 					{
 						name: "internal_fixture_tool",
 						description: "Internal fixture tool.",
-						exposure: "internal_only",
+						exposure: "closed",
 						read_only: true,
 						requires_approval: false,
 						payload_schema_ref: schemaRef(
@@ -78,7 +77,7 @@ describe("tool catalog", () => {
 	it("rejects model-visible tools that are not read-only", () => {
 		expect(() =>
 			loadToolCatalogFromObject({
-				schema_version: "tool-registry-v5",
+				schema_version: "tool-registry-v6",
 				registry_version: "test",
 				tools: [
 					{
@@ -110,7 +109,7 @@ describe("tool catalog", () => {
 	it("requires a tool function schema config", () => {
 		expect(() =>
 			loadToolCatalogFromObject({
-				schema_version: "tool-registry-v5",
+				schema_version: "tool-registry-v6",
 				registry_version: "test",
 				tools: [rawTransportScheduleTool()],
 			}),
@@ -121,7 +120,7 @@ describe("tool catalog", () => {
 		expect(() =>
 			loadToolCatalogFromObject(
 				{
-					schema_version: "tool-registry-v5",
+					schema_version: "tool-registry-v6",
 					registry_version: "test",
 					tools: [rawTransportScheduleTool()],
 				},
@@ -134,20 +133,48 @@ describe("tool catalog", () => {
 		expect(() =>
 			loadToolCatalogFromObject(
 				{
-					schema_version: "tool-registry-v5",
+					schema_version: "tool-registry-v6",
 					registry_version: "test",
 					tools: [rawUnsupportedWorkflowSignalTool()],
 				},
-				{ toolFunctionSchemaPath: testSchemaPath("knowledge_query") },
+				{ toolFunctionSchemaPath: testSchemaPath("retired_workflow_signal") },
 			),
 		).toThrow();
+	});
+
+	it("rejects non-canonical execution-control query endpoints", () => {
+		for (const endpoint of [
+			"https://evil.example/internal/query",
+			"//evil.example/internal/query",
+			"/public/query",
+			"/internal/../public/query",
+			"/internal/%2e%2e/public/query",
+			"/internal/query/%252e%252e/public",
+			"/internal/query?next=/public/query",
+		]) {
+			const tool = rawTransportScheduleTool();
+			tool.handler.endpoint = endpoint;
+			expect(() =>
+				loadToolCatalogFromObject(
+					{
+						schema_version: "tool-registry-v6",
+						registry_version: "test",
+						tools: [tool],
+					},
+					{
+						runtimeFingerprint: testToolRuntimeFingerprint(),
+						toolFunctionSchemaPath: testSchemaPath("transport_schedule_lookup"),
+					},
+				),
+			).toThrow("endpoint must be a canonical /internal/ path");
+		}
 	});
 
 	it("requires explicit runtime attestation when loading a catalog from an object", () => {
 		expect(() =>
 			loadToolCatalogFromObject(
 				{
-					schema_version: "tool-registry-v5",
+					schema_version: "tool-registry-v6",
 					registry_version: "test",
 					tools: [rawTransportScheduleTool()],
 				},
@@ -156,68 +183,56 @@ describe("tool catalog", () => {
 		).toThrow("tool runtime fingerprint is required");
 	});
 
-	it("loads the checked-in catalog and exposes only model-facing tools", () => {
-		const catalog = loadToolCatalog("../../configs/runtime/tools.v5.json");
+	it("exposes only personal memory while keeping institutional tools closed", () => {
+		const catalog = loadToolCatalog("../../configs/runtime/tools.v6.json");
 
-		expect(buildVisibleToolDefinitions(catalog).map((tool) => tool.name)).toEqual([
+		expect(catalog.tools.map((tool) => tool.name)).toEqual([
+			"personal_memory_recall",
 			"transport_schedule_lookup",
-			"knowledge_query",
+		]);
+		expect(Object.fromEntries(catalog.tools.map((tool) => [tool.name, tool.exposure]))).toEqual({
+			personal_memory_recall: "model_visible",
+			transport_schedule_lookup: "closed",
+		});
+		expect(buildVisibleToolDefinitions(catalog).map((tool) => tool.name)).toEqual([
+			"personal_memory_recall",
 		]);
 	});
 
-	it("exposes knowledge_query as a handoff-only model-visible tool", () => {
-		const catalog = loadToolCatalog("../../configs/runtime/tools.v5.json");
-		const visibleTools = buildVisibleToolDefinitions(catalog);
+	it("keeps every registered tool on a canonical execution-control endpoint", () => {
+		const catalog = loadToolCatalog("../../configs/runtime/tools.v6.json");
 
-		const knowledge = catalog.tools.find((tool) => tool.name === "knowledge_query");
-
-		expect(knowledge).toMatchObject({
-			name: "knowledge_query",
-			exposure: "model_visible",
-			readOnly: true,
-			requiresApproval: false,
-			handler: { type: "agent_handoff", target: "knowledge_agent" },
-		});
-		expect(visibleTools.some((tool) => tool.name === "knowledge_query")).toBe(true);
-		expect(visibleTools.some((tool) => tool.name === "service_guide_lookup")).toBe(false);
+		for (const tool of catalog.tools) {
+			expect(tool).toMatchObject({
+				readOnly: true,
+				requiresApproval: false,
+				handler: {
+					type: "execution_control_internal_query",
+					endpoint: expect.stringMatching(/^\/internal\//),
+				},
+			});
+		}
 	});
 
-	it("keeps knowledge_search internal to specialist agents", () => {
-		const catalog = loadToolCatalog("../../configs/runtime/tools.v5.json");
+	it("retains strict parameter schemas for the closed registered tools", () => {
+		const catalog = loadToolCatalog("../../configs/runtime/tools.v6.json");
 
-		expect(
-			buildVisibleToolDefinitions(catalog).some((tool) => tool.name === "knowledge_search"),
-		).toBe(false);
-		expect(
-			buildInternalToolDefinitions(catalog).find((tool) => tool.name === "knowledge_search"),
-		).toMatchObject({
-			name: "knowledge_search",
-			handler: {
-				type: "execution_control_internal_query",
-				endpoint: "/internal/query/knowledge/search",
-			},
-		});
-	});
-
-	it("exposes strict SDK parameter schemas with explicit required fields", () => {
-		const catalog = loadToolCatalog("../../configs/runtime/tools.v5.json");
-
-		for (const tool of buildVisibleToolDefinitions(catalog)) {
+		for (const tool of catalog.tools) {
 			expect(tool.parameterSchema).toMatchObject({
 				type: "object",
 				additionalProperties: false,
 			});
-			expect(Array.isArray(tool.parameterSchema.required)).toBe(true);
+			expect(Array.isArray(tool.parameterSchema?.required)).toBe(true);
 		}
 	});
 
-	it("uses the canonical tool function schema config for model-visible tools", () => {
-		const catalog = loadToolCatalog("../../configs/runtime/tools.v5.json");
-		const tools = buildVisibleToolDefinitions(catalog);
+	it("uses the canonical tool function schema config for registered tools", () => {
+		const catalog = loadToolCatalog("../../configs/runtime/tools.v6.json");
+		const tools = catalog.tools;
 
 		const transport = tools.find((tool) => tool.name === "transport_schedule_lookup");
 
-		expect(transport?.parameterSchema.required).toEqual([
+		expect(transport?.parameterSchema?.required).toEqual([
 			"query_text",
 			"intent",
 			"route_selector",
@@ -225,43 +240,23 @@ describe("tool catalog", () => {
 			"service_time_query",
 			"result_limit",
 		]);
-		expect(transport?.parameterSchema.properties).toHaveProperty("route_selector");
-		expect(transport?.parameterSchema.properties).not.toHaveProperty("route_query");
-
-		const knowledge = tools.find((tool) => tool.name === "knowledge_query");
-		expect(knowledge?.parameterSchema.required).toEqual(["query_text"]);
-		expect(knowledge?.parameterSchema.properties).toEqual({
-			query_text: expect.any(Object),
-		});
-
-		const knowledgeSearch = buildInternalToolDefinitions(catalog).find(
-			(tool) => tool.name === "knowledge_search",
-		);
-		expect(knowledgeSearch?.parameterSchema.required).toEqual([
-			"query_text",
-			"target",
-			"include_history",
-		]);
-		expect(knowledgeSearch?.parameterSchema.properties).toMatchObject({
-			query_text: expect.objectContaining({ type: "string" }),
-			target: expect.objectContaining({ type: "string" }),
-			include_history: expect.objectContaining({ type: "boolean" }),
-		});
+		expect(transport?.parameterSchema?.properties).toHaveProperty("route_selector");
+		expect(transport?.parameterSchema?.properties).not.toHaveProperty("route_query");
 	});
 
 	it("attests the actual registry, function schema, and workflow artifact files loaded at runtime", () => {
 		const dir = mkdtempSync(join(tmpdir(), "agent-runtime-tool-attestation-"));
-		const toolRegistryPath = join(dir, "tools.v5.json");
-		const toolFunctionSchemaPath = join(dir, "tool-function-schemas.v2.json");
-		const workflowArtifactRegistryPath = join(dir, "workflow-artifacts.v2.json");
+		const toolRegistryPath = join(dir, "tools.v6.json");
+		const toolFunctionSchemaPath = join(dir, "tool-function-schemas.v3.json");
+		const workflowArtifactRegistryPath = join(dir, "workflow-artifacts.v3.json");
 		const toolRegistry = {
-			schema_version: "tool-registry-v5",
+			schema_version: "tool-registry-v6",
 			registry_version: "attestation-test",
 			tools: [rawTransportScheduleTool()],
 		};
 		const functionSchemas = strictFunctionSchemaConfig("transport_schedule_lookup");
 		const workflowArtifacts = {
-			schema_version: "workflow-artifact-registry-v2",
+			schema_version: "workflow-artifact-registry-v3",
 			registry_version: "artifact-test",
 			artifacts: [],
 			forbidden_raw_key_tokens: [],
@@ -273,19 +268,21 @@ describe("tool catalog", () => {
 		writeFileSync(workflowArtifactRegistryPath, JSON.stringify(workflowArtifacts), "utf8");
 
 		const catalog = loadToolCatalog(toolRegistryPath, {
+			runtimeRelease: "test-release",
 			toolFunctionSchemaPath,
 			workflowArtifactRegistryPath,
 		});
 		const expectedCombined = sha256(
 			JSON.stringify({
 				function_schema_sha256: sha256CanonicalJson(functionSchemas),
-				function_schema_version: "tool-function-schemas-v2",
-				schema_version: "tool_runtime_fingerprint.v1",
+				function_schema_version: "tool-function-schemas-v3",
+				runtime_release: "test-release",
+				schema_version: "tool_runtime_fingerprint.v2",
 				tools_registry_version: "attestation-test",
-				tools_schema_version: "tool-registry-v5",
+				tools_schema_version: "tool-registry-v6",
 				tools_sha256: sha256CanonicalJson(toolRegistry),
 				workflow_artifact_registry_version: "artifact-test",
-				workflow_artifact_schema_version: "workflow-artifact-registry-v2",
+				workflow_artifact_schema_version: "workflow-artifact-registry-v3",
 				workflow_artifact_sha256: sha256CanonicalJson(workflowArtifacts),
 			}),
 		);
@@ -293,13 +290,14 @@ describe("tool catalog", () => {
 		expect(catalog.runtimeFingerprint).toEqual({
 			combinedSha256: expectedCombined,
 			functionSchemaSha256: sha256CanonicalJson(functionSchemas),
-			functionSchemaVersion: "tool-function-schemas-v2",
-			schemaVersion: "tool_runtime_fingerprint.v1",
+			functionSchemaVersion: "tool-function-schemas-v3",
+			runtimeRelease: "test-release",
+			schemaVersion: "tool_runtime_fingerprint.v2",
 			toolsRegistryVersion: "attestation-test",
-			toolsSchemaVersion: "tool-registry-v5",
+			toolsSchemaVersion: "tool-registry-v6",
 			toolsSha256: sha256CanonicalJson(toolRegistry),
 			workflowArtifactRegistryVersion: "artifact-test",
-			workflowArtifactSchemaVersion: "workflow-artifact-registry-v2",
+			workflowArtifactSchemaVersion: "workflow-artifact-registry-v3",
 			workflowArtifactSha256: sha256CanonicalJson(workflowArtifacts),
 		});
 
@@ -320,16 +318,16 @@ describe("tool catalog", () => {
 		const dir = mkdtempSync(join(tmpdir(), "agent-runtime-tool-canonical-attestation-"));
 		const prettyToolRegistryPath = join(dir, "tools.pretty.json");
 		const compactToolRegistryPath = join(dir, "tools.compact.json");
-		const toolFunctionSchemaPath = join(dir, "tool-function-schemas.v2.json");
-		const workflowArtifactRegistryPath = join(dir, "workflow-artifacts.v2.json");
+		const toolFunctionSchemaPath = join(dir, "tool-function-schemas.v3.json");
+		const workflowArtifactRegistryPath = join(dir, "workflow-artifacts.v3.json");
 		const toolRegistry = {
-			schema_version: "tool-registry-v5",
+			schema_version: "tool-registry-v6",
 			registry_version: "attestation-test",
 			tools: [rawTransportScheduleTool()],
 		};
 		const functionSchemas = strictFunctionSchemaConfig("transport_schedule_lookup");
 		const workflowArtifacts = {
-			schema_version: "workflow-artifact-registry-v2",
+			schema_version: "workflow-artifact-registry-v3",
 			registry_version: "artifact-test",
 			artifacts: [],
 			forbidden_raw_key_tokens: [],
@@ -380,13 +378,16 @@ function rawTransportScheduleTool() {
 
 function rawUnsupportedWorkflowSignalTool() {
 	return {
-		name: "knowledge_query",
-		description: "Route this turn to the governed knowledge workflow.",
-		exposure: "internal_only",
+		name: "retired_workflow_signal",
+		description: "Retired workflow signal fixture.",
+		exposure: "closed",
 		read_only: true,
 		requires_approval: false,
-		payload_schema_ref: schemaRef("knowledge-tool-contracts.v2", "KnowledgeQueryPayload"),
-		result_schema_ref: schemaRef("knowledge-tool-contracts.v2", "KnowledgeQueryPayload"),
+		payload_schema_ref: schemaRef(
+			"personal-memory-tool-contracts.v1",
+			"PersonalMemoryRecallPayload",
+		),
+		result_schema_ref: schemaRef("personal-memory-tool-contracts.v1", "PersonalMemoryRecallResult"),
 		handler: {
 			type: "workflow_signal",
 		},
@@ -402,14 +403,14 @@ function schemaRef(schemaName: string, definitionName: string): string {
 function testSchemaPath(...toolNames: string[]): string {
 	const dir = mkdtempSync(join(tmpdir(), "agent-runtime-tool-schema-"));
 	const schema = strictFunctionSchemaConfig(...toolNames);
-	const path = join(dir, "tool-function-schemas.v2.json");
+	const path = join(dir, "tool-function-schemas.v3.json");
 	writeFileSync(path, JSON.stringify(schema), "utf8");
 	return path;
 }
 
 function strictFunctionSchemaConfig(...toolNames: string[]) {
 	return {
-		schema_version: "tool-function-schemas-v2",
+		schema_version: "tool-function-schemas-v3",
 		tools: toolNames.map((name) => ({
 			type: "function",
 			name,
@@ -454,13 +455,14 @@ function testToolRuntimeFingerprint() {
 	return {
 		combinedSha256: sha256("combined-tool-runtime"),
 		functionSchemaSha256: sha256("function-schema"),
-		functionSchemaVersion: "tool-function-schemas-v2" as const,
-		schemaVersion: "tool_runtime_fingerprint.v1" as const,
+		functionSchemaVersion: "tool-function-schemas-v3" as const,
+		runtimeRelease: "test-release",
+		schemaVersion: "tool_runtime_fingerprint.v2" as const,
 		toolsRegistryVersion: "test",
-		toolsSchemaVersion: "tool-registry-v5" as const,
+		toolsSchemaVersion: "tool-registry-v6" as const,
 		toolsSha256: sha256("tool-registry"),
 		workflowArtifactRegistryVersion: "test",
-		workflowArtifactSchemaVersion: "workflow-artifact-registry-v2" as const,
+		workflowArtifactSchemaVersion: "workflow-artifact-registry-v3" as const,
 		workflowArtifactSha256: sha256("workflow-artifacts"),
 	};
 }

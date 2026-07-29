@@ -5,19 +5,17 @@ import { z } from "zod";
 
 const schemaRefPattern =
 	/^https:\/\/muc\.wiki\/campus-agent\/schemas\/[A-Za-z0-9.-]+\.schema\.json#\/\$defs\/[A-Za-z0-9_]+$/;
-const exposureSchema = z.enum(["model_visible", "internal_only", "closed"]);
+const exposureSchema = z.enum(["model_visible", "closed"]);
+const executionControlInternalQueryEndpointSchema = z
+	.string()
+	.min(1)
+	.refine(isCanonicalExecutionControlInternalEndpoint, {
+		message: "endpoint must be a canonical /internal/ path",
+	});
 const executionControlInternalQueryHandlerSchema = z.object({
 	type: z.literal("execution_control_internal_query"),
-	endpoint: z.string().min(1),
+	endpoint: executionControlInternalQueryEndpointSchema,
 });
-const agentHandoffHandlerSchema = z.object({
-	type: z.literal("agent_handoff"),
-	target: z.literal("knowledge_agent"),
-});
-const toolCatalogHandlerSchema = z.union([
-	executionControlInternalQueryHandlerSchema,
-	agentHandoffHandlerSchema,
-]);
 const rawToolSchema = z.object({
 	name: z.string().min(1),
 	description: z.string().min(1),
@@ -26,12 +24,12 @@ const rawToolSchema = z.object({
 	requires_approval: z.boolean(),
 	payload_schema_ref: z.string().regex(schemaRefPattern),
 	result_schema_ref: z.string().regex(schemaRefPattern),
-	handler: toolCatalogHandlerSchema,
+	handler: executionControlInternalQueryHandlerSchema,
 	timeout_ms: z.number().int().positive(),
 	result_projection_policy: z.literal("bounded_json"),
 });
 const rawCatalogSchema = z.object({
-	schema_version: z.literal("tool-registry-v5"),
+	schema_version: z.literal("tool-registry-v6"),
 	registry_version: z.string().min(1),
 	tools: z.array(rawToolSchema).min(1),
 });
@@ -43,12 +41,7 @@ export interface ExecutionControlInternalQueryHandler {
 	endpoint: string;
 }
 
-export interface AgentHandoffHandler {
-	type: "agent_handoff";
-	target: "knowledge_agent";
-}
-
-export type ToolCatalogHandler = ExecutionControlInternalQueryHandler | AgentHandoffHandler;
+export type ToolCatalogHandler = ExecutionControlInternalQueryHandler;
 
 export interface ToolCatalogEntry {
 	name: string;
@@ -65,7 +58,7 @@ export interface ToolCatalogEntry {
 }
 
 export interface ToolCatalog {
-	schemaVersion: "tool-registry-v5";
+	schemaVersion: "tool-registry-v6";
 	registryVersion: string;
 	runtimeFingerprint: ToolRuntimeFingerprint;
 	tools: ToolCatalogEntry[];
@@ -74,13 +67,14 @@ export interface ToolCatalog {
 export interface ToolRuntimeFingerprint {
 	combinedSha256: string;
 	functionSchemaSha256: string;
-	functionSchemaVersion: "tool-function-schemas-v2";
-	schemaVersion: "tool_runtime_fingerprint.v1";
+	functionSchemaVersion: "tool-function-schemas-v3";
+	runtimeRelease: string;
+	schemaVersion: "tool_runtime_fingerprint.v2";
 	toolsRegistryVersion: string;
-	toolsSchemaVersion: "tool-registry-v5";
+	toolsSchemaVersion: "tool-registry-v6";
 	toolsSha256: string;
 	workflowArtifactRegistryVersion: string;
-	workflowArtifactSchemaVersion: "workflow-artifact-registry-v2";
+	workflowArtifactSchemaVersion: "workflow-artifact-registry-v3";
 	workflowArtifactSha256: string;
 }
 
@@ -99,9 +93,33 @@ export interface JsonObjectSchema {
 	required: string[];
 }
 
+export function isCanonicalExecutionControlInternalEndpoint(value: string): boolean {
+	const endpoint = value.trim();
+	if (
+		endpoint !== value ||
+		!endpoint.startsWith("/internal/") ||
+		endpoint.includes("\\") ||
+		endpoint.includes("%") ||
+		endpoint.includes("?") ||
+		endpoint.includes("#")
+	) {
+		return false;
+	}
+	try {
+		const parsed = new URL(endpoint, "http://execution-control.invalid");
+		return parsed.origin === "http://execution-control.invalid" && parsed.pathname === endpoint;
+	} catch {
+		return false;
+	}
+}
+
 export function loadToolCatalog(
 	path: string,
-	options: { toolFunctionSchemaPath?: string; workflowArtifactRegistryPath?: string } = {},
+	options: {
+		runtimeRelease?: string;
+		toolFunctionSchemaPath?: string;
+		workflowArtifactRegistryPath?: string;
+	} = {},
 ): ToolCatalog {
 	const rawToolCatalog = readFileSync(path, "utf8");
 	const toolFunctionSchemaPath =
@@ -119,6 +137,9 @@ export function loadToolCatalog(
 	const workflowArtifactRegistry = parseWorkflowArtifactRegistry(workflowArtifactRegistryRaw);
 	return loadToolCatalogFromObject(JSON.parse(rawToolCatalog), {
 		runtimeFingerprint: buildToolRuntimeFingerprint({
+			runtimeRelease: normalizedRuntimeRelease(
+				options.runtimeRelease ?? process.env.DEPLOYMENT_RELEASE,
+			),
 			toolCatalogRaw: rawToolCatalog,
 			toolFunctionSchemaRaw,
 			toolsRegistryVersion: registryVersionFromRawToolCatalog(rawToolCatalog),
@@ -179,13 +200,9 @@ export function buildVisibleToolDefinitions(catalog: ToolCatalog): VisibleToolDe
 	return buildToolDefinitions(catalog, "model_visible");
 }
 
-export function buildInternalToolDefinitions(catalog: ToolCatalog): VisibleToolDefinition[] {
-	return buildToolDefinitions(catalog, "internal_only");
-}
-
 function buildToolDefinitions(
 	catalog: ToolCatalog,
-	exposure: "model_visible" | "internal_only",
+	exposure: "model_visible",
 ): VisibleToolDefinition[] {
 	return catalog.tools
 		.filter((tool) => tool.exposure === exposure && tool.readOnly)
@@ -216,8 +233,8 @@ function loadToolFunctionSchemas(path: string | undefined): Map<string, JsonObje
 		throw new Error(`tool function schema config not found: ${path}`);
 	}
 	const parsed = JSON.parse(readFileSync(path, "utf8")) as ToolFunctionSchemaFile;
-	if (parsed.schema_version !== "tool-function-schemas-v2" || !Array.isArray(parsed.tools)) {
-		throw new Error("tool function schema config must use tool-function-schemas-v2");
+	if (parsed.schema_version !== "tool-function-schemas-v3" || !Array.isArray(parsed.tools)) {
+		throw new Error("tool function schema config must use tool-function-schemas-v3");
 	}
 	const result = new Map<string, JsonObjectSchema>();
 	for (const rawTool of parsed.tools) {
@@ -245,6 +262,7 @@ function loadToolFunctionSchemas(path: string | undefined): Map<string, JsonObje
 }
 
 function buildToolRuntimeFingerprint(input: {
+	runtimeRelease: string;
 	toolCatalogRaw: string;
 	toolFunctionSchemaRaw: string;
 	toolsRegistryVersion: string;
@@ -258,31 +276,38 @@ function buildToolRuntimeFingerprint(input: {
 		combinedSha256: sha256(
 			JSON.stringify({
 				function_schema_sha256: functionSchemaSha256,
-				function_schema_version: "tool-function-schemas-v2",
-				schema_version: "tool_runtime_fingerprint.v1",
+				function_schema_version: "tool-function-schemas-v3",
+				runtime_release: input.runtimeRelease,
+				schema_version: "tool_runtime_fingerprint.v2",
 				tools_registry_version: input.toolsRegistryVersion,
-				tools_schema_version: "tool-registry-v5",
+				tools_schema_version: "tool-registry-v6",
 				tools_sha256: toolsSha256,
 				workflow_artifact_registry_version: input.workflowArtifactRegistry.registryVersion,
-				workflow_artifact_schema_version: "workflow-artifact-registry-v2",
+				workflow_artifact_schema_version: "workflow-artifact-registry-v3",
 				workflow_artifact_sha256: workflowArtifactSha256,
 			}),
 		),
 		functionSchemaSha256,
-		functionSchemaVersion: "tool-function-schemas-v2",
-		schemaVersion: "tool_runtime_fingerprint.v1",
+		functionSchemaVersion: "tool-function-schemas-v3",
+		runtimeRelease: input.runtimeRelease,
+		schemaVersion: "tool_runtime_fingerprint.v2",
 		toolsRegistryVersion: input.toolsRegistryVersion,
-		toolsSchemaVersion: "tool-registry-v5",
+		toolsSchemaVersion: "tool-registry-v6",
 		toolsSha256,
 		workflowArtifactRegistryVersion: input.workflowArtifactRegistry.registryVersion,
-		workflowArtifactSchemaVersion: "workflow-artifact-registry-v2",
+		workflowArtifactSchemaVersion: "workflow-artifact-registry-v3",
 		workflowArtifactSha256,
 	};
 }
 
+function normalizedRuntimeRelease(value: string | undefined): string {
+	const release = value?.trim();
+	return release ? release : "unversioned-local";
+}
+
 interface WorkflowArtifactRegistryMetadata {
 	registryVersion: string;
-	schemaVersion: "workflow-artifact-registry-v2";
+	schemaVersion: "workflow-artifact-registry-v3";
 }
 
 function requireToolRuntimeFingerprint(
@@ -300,11 +325,11 @@ function parseWorkflowArtifactRegistry(raw: string): WorkflowArtifactRegistryMet
 		schema_version?: unknown;
 	};
 	if (
-		parsed.schema_version !== "workflow-artifact-registry-v2" ||
+		parsed.schema_version !== "workflow-artifact-registry-v3" ||
 		typeof parsed.registry_version !== "string" ||
 		parsed.registry_version.trim() === ""
 	) {
-		throw new Error("workflow artifact registry config must use workflow-artifact-registry-v2");
+		throw new Error("workflow artifact registry config must use workflow-artifact-registry-v3");
 	}
 	return {
 		registryVersion: parsed.registry_version,
@@ -351,7 +376,7 @@ function stableJsonStringify(value: unknown): string {
 
 function defaultToolFunctionSchemaPath(toolCatalogPath: string): string | undefined {
 	for (let dir = dirname(toolCatalogPath); ; dir = dirname(dir)) {
-		const candidate = join(dir, "configs", "runtime", "tool-function-schemas.v2.json");
+		const candidate = join(dir, "configs", "runtime", "tool-function-schemas.v3.json");
 		if (existsSync(candidate)) {
 			return candidate;
 		}
@@ -364,7 +389,7 @@ function defaultToolFunctionSchemaPath(toolCatalogPath: string): string | undefi
 
 function defaultWorkflowArtifactRegistryPath(toolCatalogPath: string): string | undefined {
 	for (let dir = dirname(toolCatalogPath); ; dir = dirname(dir)) {
-		const candidate = join(dir, "configs", "runtime", "workflow-artifacts.v2.json");
+		const candidate = join(dir, "configs", "runtime", "workflow-artifacts.v3.json");
 		if (existsSync(candidate)) {
 			return candidate;
 		}

@@ -90,9 +90,9 @@ func newLangfuseTraceMaintenanceClient(
 	}
 	return &langfuseTraceMaintenanceClient{
 		baseURL: parsed,
-		httpClient: &http.Client{
+		httpClient: noRedirectHTTPClient(&http.Client{
 			Timeout: 15 * time.Second,
-		},
+		}),
 		publicKey: strings.TrimSpace(publicKey),
 		secretKey: strings.TrimSpace(secretKey),
 	}, nil

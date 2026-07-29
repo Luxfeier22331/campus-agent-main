@@ -64,6 +64,9 @@ func TestPostgresIntegration(t *testing.T) {
 	t.Run("run projection store", func(t *testing.T) {
 		testRunProjectionStore(t, harness)
 	})
+	t.Run("run projection finalization", func(t *testing.T) {
+		testRunProjectionFinalizationStore(t, harness)
+	})
 	t.Run("personal memory state store", func(t *testing.T) {
 		testPersonalMemoryStateStore(t, harness)
 	})

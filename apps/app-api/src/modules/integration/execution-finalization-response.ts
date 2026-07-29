@@ -32,11 +32,9 @@ const EXECUTION_FINALIZATION_RESPONSE_WIRE_KEYS = new Set([
 	"confidence",
 	"error",
 	"follow_up_question",
+	"model_usage",
 	"observability",
-	"resolved_targets",
 	"result",
-	"selected_tool",
-	"session_update",
 	"stage_timing",
 	"status",
 	"trace_id",
@@ -48,10 +46,8 @@ const REQUIRED_EXECUTION_FINALIZATION_RESPONSE_WIRE_KEYS = [
 	"confidence",
 	"error",
 	"follow_up_question",
-	"resolved_targets",
+	"model_usage",
 	"result",
-	"selected_tool",
-	"session_update",
 	"status",
 	"trace_id",
 ] as const;
@@ -147,22 +143,7 @@ function assertExecutionFinalizationResponseWire(
 	) {
 		throw new ExecutionFinalizationResponseContractError("confidence must be high, medium, or low");
 	}
-	if (!(record.selected_tool === null || typeof record.selected_tool === "string")) {
-		throw new ExecutionFinalizationResponseContractError("selected_tool must be a string or null");
-	}
-	if (!Array.isArray(record.resolved_targets)) {
-		throw new ExecutionFinalizationResponseContractError("resolved_targets must be an array");
-	}
-	const resolvedTargets = stringArray(record.resolved_targets);
-	if (
-		resolvedTargets.length !== record.resolved_targets.length ||
-		new Set(resolvedTargets).size !== resolvedTargets.length
-	) {
-		throw new ExecutionFinalizationResponseContractError(
-			"resolved_targets must contain unique non-empty strings",
-		);
-	}
-	assertSessionUpdate(record.session_update);
+	assertModelUsage(record.model_usage);
 	if (!(record.result === null || getRecord(record.result))) {
 		throw new ExecutionFinalizationResponseContractError("result must be an object or null");
 	}
@@ -203,58 +184,41 @@ function assertExecutionFinalizationResponseWire(
 	assertStageTiming(record.stage_timing);
 }
 
-const SESSION_UPDATE_SLOT_NAMES = new Set([
-	"curriculum_program",
-	"curriculum_program_family",
-	"curriculum_semester",
-]);
-
-function assertSessionUpdate(
+function assertModelUsage(
 	value: unknown,
-): asserts value is ExecutionFinalizationResponseWire["session_update"] {
-	if (value === null) {
-		return;
-	}
+): asserts value is ExecutionFinalizationResponseWire["model_usage"] {
 	const record = getRecord(value);
-	if (!record || Object.keys(record).some((key) => key !== "upsert_slots")) {
+	const keys = ["cached_input_tokens", "input_tokens", "output_tokens", "total_tokens"];
+	if (
+		!record ||
+		Object.keys(record).length !== keys.length ||
+		keys.some((key) => !(key in record))
+	) {
 		throw new ExecutionFinalizationResponseContractError(
-			"session_update must contain only upsert_slots",
+			"model_usage must contain cached_input_tokens, input_tokens, output_tokens, and total_tokens",
 		);
 	}
-	if (!Array.isArray(record.upsert_slots)) {
-		throw new ExecutionFinalizationResponseContractError(
-			"session_update.upsert_slots must be an array",
-		);
-	}
-	const seenNames = new Set<string>();
-	for (const [index, value] of record.upsert_slots.entries()) {
-		const slot = getRecord(value);
-		if (
-			!slot ||
-			Object.keys(slot).some((key) => !["confirmed", "name", "value"].includes(key)) ||
-			slot.confirmed !== true ||
-			typeof slot.name !== "string" ||
-			!SESSION_UPDATE_SLOT_NAMES.has(slot.name) ||
-			!normalizeNullableString(slot.value) ||
-			seenNames.has(slot.name)
-		) {
+	for (const key of keys) {
+		const count = record[key];
+		if (!(typeof count === "number" && Number.isSafeInteger(count) && count >= 0)) {
 			throw new ExecutionFinalizationResponseContractError(
-				`session_update.upsert_slots[${index}] is invalid`,
+				`model_usage.${key} must be a non-negative safe integer`,
 			);
 		}
-		seenNames.add(slot.name);
 	}
-}
-
-function normalizeRecordString(
-	record: Record<string, unknown>,
-	snakeCaseKey: string,
-): string | null {
-	return normalizeNullableString(record[snakeCaseKey]);
-}
-
-function recordValue(record: Record<string, unknown>, snakeCaseKey: string): unknown {
-	return record[snakeCaseKey];
+	if ((record.cached_input_tokens as number) > (record.input_tokens as number)) {
+		throw new ExecutionFinalizationResponseContractError(
+			"model_usage.cached_input_tokens must not exceed input_tokens",
+		);
+	}
+	if (
+		(record.total_tokens as number) !==
+		(record.input_tokens as number) + (record.output_tokens as number)
+	) {
+		throw new ExecutionFinalizationResponseContractError(
+			"model_usage.total_tokens must equal input_tokens plus output_tokens",
+		);
+	}
 }
 
 function containsForbiddenWorkflowTraceKey(value: unknown): boolean {
@@ -340,7 +304,6 @@ function parseExecutionObservability(value: unknown): ToolExecutionObservability
 		"model_name",
 		"model_provider",
 		"prompt_trace",
-		"selected_tools",
 		"terminal_reason",
 	]);
 	for (const key of Object.keys(record)) {
@@ -348,13 +311,11 @@ function parseExecutionObservability(value: unknown): ToolExecutionObservability
 			throw new ExecutionFinalizationResponseContractError(`observability.${key} is not allowed`);
 		}
 	}
-	const selectedTools = stringArray(record.selected_tools);
 	const parsed: ToolExecutionObservability = {
 		agentRuntime: normalizeNullableString(record.agent_runtime),
 		modelName: normalizeNullableString(record.model_name),
 		modelProvider: normalizeNullableString(record.model_provider),
 		promptTrace: parsePromptTrace(record.prompt_trace),
-		selectedTools,
 		terminalReason: normalizeNullableString(record.terminal_reason),
 	};
 
@@ -370,70 +331,69 @@ function parseExecutionObservability(value: unknown): ToolExecutionObservability
 }
 
 function parseWorkflowTraceSummary(value: unknown): ToolExecutionWorkflowTraceSummary | null {
+	if (value === null || value === undefined) {
+		return null;
+	}
 	const record = getRecord(value);
 	if (!record || containsForbiddenWorkflowTraceKey(record)) {
-		return null;
+		throw new ExecutionFinalizationResponseContractError(
+			"workflow_trace_summary must be a safe object or null",
+		);
 	}
-	const selectedToolsValue = recordValue(record, "selected_tools");
-	const selectedTools = Array.isArray(selectedToolsValue)
-		? selectedToolsValue.filter(
-				(item): item is string => typeof item === "string" && item.trim().length > 0,
-			)
-		: [];
-	const answerArtifactKinds = stringArray(recordValue(record, "answer_artifact_kinds"));
-	const answerArtifactRefs = stringArray(recordValue(record, "answer_artifact_refs"));
-	const traceStepsValue = recordValue(record, "trace_steps");
-	const traceSteps = Array.isArray(traceStepsValue)
-		? traceStepsValue.flatMap((item) => {
-				const step = getRecord(item);
-				return step ? [step] : [];
-			})
-		: [];
-	const toolCallSummariesValue = recordValue(record, "tool_call_summaries");
-	const toolCallSummaries = Array.isArray(toolCallSummariesValue)
-		? toolCallSummariesValue.flatMap((item) => {
-				const summary = getRecord(item);
-				return summary ? [summary] : [];
-			})
-		: [];
-	const parsed: ToolExecutionWorkflowTraceSummary = {
-		answerArtifactKinds,
-		answerArtifactRefs,
-		directVsDelegateBranch: normalizeRecordString(record, "direct_vs_delegate_branch"),
-		firstDecisionActor: normalizeRecordString(record, "first_decision_actor"),
-		planningOutcome: normalizeRecordString(record, "planning_outcome"),
-		runtimeVersions: normalizeWorkflowRecord(recordValue(record, "runtime_versions")),
-		selectedTool: normalizeRecordString(record, "selected_tool"),
-		selectedTools,
-		terminalReason: normalizeRecordString(record, "terminal_reason"),
-		traceSteps,
-		toolCallSummaries,
-		workflowMode: normalizeRecordString(record, "workflow_mode"),
-	};
-
+	const allowedKeys = new Set([
+		"answer_artifact_refs",
+		"execution_path",
+		"runtime_versions",
+		"terminal_reason",
+	]);
+	for (const key of Object.keys(record)) {
+		if (!allowedKeys.has(key)) {
+			throw new ExecutionFinalizationResponseContractError(
+				`workflow_trace_summary.${key} is not allowed`,
+			);
+		}
+	}
+	if ([...allowedKeys].some((key) => !(key in record))) {
+		throw new ExecutionFinalizationResponseContractError(
+			"workflow_trace_summary is missing required fields",
+		);
+	}
+	const executionPath = normalizeNullableString(record.execution_path);
 	if (
 		!(
-			parsed.directVsDelegateBranch ||
-			parsed.firstDecisionActor ||
-			parsed.planningOutcome ||
-			parsed.selectedTool ||
-			parsed.terminalReason ||
-			parsed.workflowMode
-		) &&
-		parsed.answerArtifactKinds.length === 0 &&
-		parsed.answerArtifactRefs.length === 0 &&
-		parsed.selectedTools.length === 0 &&
-		Object.values(parsed).every(
-			(item) =>
-				item === null ||
-				(Array.isArray(item) && item.length === 0) ||
-				(typeof item === "object" && item !== null && Object.keys(item).length === 0),
+			executionPath &&
+			["direct", "tool_assisted", "clarification", "rejected", "unsupported"].includes(
+				executionPath,
+			)
 		)
 	) {
-		return null;
+		throw new ExecutionFinalizationResponseContractError(
+			"workflow_trace_summary.execution_path is invalid",
+		);
 	}
-
-	return parsed;
+	const terminalReason = normalizeNullableString(record.terminal_reason);
+	if (!terminalReason) {
+		throw new ExecutionFinalizationResponseContractError(
+			"workflow_trace_summary.terminal_reason is required",
+		);
+	}
+	if (!Array.isArray(record.answer_artifact_refs)) {
+		throw new ExecutionFinalizationResponseContractError(
+			"workflow_trace_summary.answer_artifact_refs must be an array",
+		);
+	}
+	const answerArtifactRefs = stringArray(record.answer_artifact_refs);
+	if (answerArtifactRefs.length !== record.answer_artifact_refs.length) {
+		throw new ExecutionFinalizationResponseContractError(
+			"workflow_trace_summary.answer_artifact_refs must contain non-empty strings",
+		);
+	}
+	return {
+		answerArtifactRefs,
+		executionPath: executionPath as ToolExecutionWorkflowTraceSummary["executionPath"],
+		runtimeVersions: normalizeWorkflowRecord(record.runtime_versions),
+		terminalReason,
+	};
 }
 
 function stringArray(value: unknown): string[] {
@@ -467,19 +427,14 @@ export function parseExecutionFinalizationResponsePayload(
 					}
 				: null,
 		followUpQuestion: parsed.follow_up_question,
+		modelUsage: {
+			cachedInputTokens: parsed.model_usage.cached_input_tokens,
+			inputTokens: parsed.model_usage.input_tokens,
+			outputTokens: parsed.model_usage.output_tokens,
+			totalTokens: parsed.model_usage.total_tokens,
+		},
 		observability: parseExecutionObservability(parsed.observability),
-		resolvedTargets: [...parsed.resolved_targets],
 		result: parsed.result ?? null,
-		selectedTool: parsed.selected_tool,
-		sessionUpdate: parsed.session_update
-			? {
-					upsertSlots: parsed.session_update.upsert_slots.map((slot) => ({
-						confirmed: true,
-						name: slot.name,
-						value: slot.value.trim(),
-					})),
-				}
-			: null,
 		...(stageTiming ? { stageTiming } : {}),
 		status: parsed.status,
 		traceId: parsed.trace_id,

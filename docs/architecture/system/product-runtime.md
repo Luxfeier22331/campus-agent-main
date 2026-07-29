@@ -18,8 +18,8 @@ status: active
 | `campus-web` | 学生问答、账号、文档、地图、食堂和校园状态页面 | 运维运行记录、数据库或内部运行时访问 |
 | `app-api` | 浏览器认证、聊天接收与终结、产品 API 和状态 API | Temporal worker、内部检索、在线模型配置、通用运维数据 API |
 | `ops-web` | 自托管运行记录、运行概况、在线模型配置、固定内部门户 TGC 替换和 Dining 内容运营 | 学生账号、聊天和请求写入，任意工作流控制或通用 Secret 管理 |
-| `execution-control` | 持久运行准入、Temporal workflow、内部查询、终态投影和在线模型配置 | 浏览器认证和页面合同 |
-| `agent-runtime` | Primary/Knowledge Agent 与工具循环 | 持久编排和产品数据持久化 |
+| `execution-control` | 持久运行准入、工作流业务逻辑、内部查询、执行投影和在线模型配置 | 浏览器认证和页面合同 |
+| `agent-runtime` | 单次 Primary Agent SDK run 与获准工具调用 | 持久编排和产品数据持久化 |
 
 ## 浏览器路径
 
@@ -37,7 +37,6 @@ flowchart LR
   ProductDB[(chat + request observability)]
   Control[execution-control]
   Temporal[Temporal]
-  Workers[workflow/activity workers]
   Agent[agent-runtime]
   RunDB[(runtime.agent projections)]
 
@@ -45,9 +44,9 @@ flowchart LR
   AppAPI --> ProductDB
   AppAPI --> Control
   Control --> Temporal
-  Temporal --> Workers
-  Workers --> Agent
-  Workers --> RunDB
+  Temporal --> Control
+  Control --> Agent
+  Control --> RunDB
 ```
 
 app-api 保存用户轮次并创建持久 run；execution-control 和 Temporal 推进执行并写入
@@ -74,8 +73,8 @@ app-api 保存用户轮次并创建持久 run；execution-control 和 Temporal �
 已有版本写入后，app-api status API 与 execution-control tool 分别读取；当前仓库没有班车写入运行时。
 状态页不调用 tool，tool 也不通过 app-api。
 
-当前 model-visible campus service 只有 `transport_schedule_lookup`。contract/schema 存在不
-代表其他 campus tool 已开放。
+`transport_schedule_lookup` 当前已注册但关闭，不向模型开放。班车状态页面直接读取 App API
+产品读取模型，不调用该工具；contract/schema 存在不代表模型能力已经开放。
 
 ## 配置与运行记录
 
@@ -94,7 +93,7 @@ app-api 保存用户轮次并创建持久 run；execution-control 和 Temporal �
 
 - browser-facing Worker 应用由源码 workflow 上传不可变版本，环境仓 Terraform 管理
   custom domain、cron 与流量版本。
-- execution-control、workers、ops-web、PostgreSQL 和依赖平台由 Kubernetes/GitOps 管理。
+- execution-control、agent-runtime、ops-web、PostgreSQL 和依赖平台由 Kubernetes/GitOps 管理。
 - app-api Worker 通过 Hyperdrive/Workers VPC 访问私有 CNPG，不公开 PostgreSQL。
 - 源码仓的 base 和镜像不表示已经部署；实际环境状态由环境仓 revision 和运行检查确定。
 

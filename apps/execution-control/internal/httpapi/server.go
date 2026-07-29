@@ -2,15 +2,18 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/admission"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/contracts"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/lifecycle"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
@@ -30,20 +33,26 @@ type Server struct {
 	toolReadModel             *toolreadmodel.Runtime
 	runProjectionStore        execution.RunProjectionStore
 	runProjectionStoreErr     error
+	executionInputLoader      ExecutionInputLoader
+	executionInputErr         error
 	personalMemoryExecutor    personalMemoryExecutor
 	personalMemoryErr         error
 	personalMemoryStateStore  memoryruntime.StateStore
 	personalMemoryStateErr    error
 	langfuseTraceStore        langfuseTraceMaintenance
 	langfuseTraceErr          error
-	knowledgeSearchExecutor   knowledgeSearchExecutor
-	knowledgeSearchErr        error
+	documentEvidenceExecutor  documentEvidenceExecutor
+	documentEvidenceErr       error
+	groundingExecutor         groundingExecutor
+	groundingErr              error
 	providerConfigResolver    providerConfigResolver
 	providerConfigErr         error
 	temporalStarter           temporalruntime.ChatWorkflowStarter
 	temporalStarterErr        error
 	temporalTaskQueueSampler  temporalTaskQueueSampler
 	temporalWorkersStarted    bool
+	temporalReconcilerMu      sync.Mutex
+	temporalReconciler        *temporalReconciler
 	productFinalizationWriter func(context.Context, execution.DurableRun, time.Time, map[string]any) error
 }
 
@@ -55,25 +64,11 @@ func (s *Server) TemporalContextActivities() TemporalContextActivities {
 	return TemporalContextActivities{server: s}
 }
 
-func (a TemporalContextActivities) MemoryRecallActivity(
-	ctx context.Context,
-	input temporalruntime.MemoryRecallActivityInput,
-) (temporalruntime.MemoryRecallActivityOutput, error) {
-	return a.server.MemoryRecallActivity(ctx, input)
-}
-
 func (a TemporalContextActivities) AppendConversationMemoryActivity(
 	ctx context.Context,
 	input temporalruntime.AppendConversationMemoryActivityInput,
 ) (temporalruntime.AppendConversationMemoryActivityOutput, error) {
 	return a.server.AppendConversationMemoryActivity(ctx, input)
-}
-
-func (a TemporalContextActivities) MemoryReflectActivity(
-	ctx context.Context,
-	input temporalruntime.MemoryReflectActivityInput,
-) (temporalruntime.MemoryReflectActivityOutput, error) {
-	return a.server.MemoryReflectActivity(ctx, input)
 }
 
 func (a TemporalContextActivities) ExecutePersonalMemoryCommandActivity(
@@ -126,6 +121,13 @@ func (a TemporalAgentActivities) ExecutePrimaryAgentActivity(
 	return a.server.ExecutePrimaryAgentActivity(ctx, input)
 }
 
+func (a TemporalAgentActivities) PrepareGroundingContextActivity(
+	ctx context.Context,
+	input temporalruntime.PrepareGroundingContextActivityInput,
+) (temporalruntime.PrepareGroundingContextActivityOutput, error) {
+	return a.server.PrepareGroundingContextActivity(ctx, input)
+}
+
 type TemporalFinalizationActivities struct {
 	server *Server
 }
@@ -139,6 +141,13 @@ const (
 
 func (s *Server) TemporalFinalizationActivities() TemporalFinalizationActivities {
 	return TemporalFinalizationActivities{server: s}
+}
+
+func (a TemporalFinalizationActivities) FinalizeExecutionCancellationActivity(
+	ctx context.Context,
+	input temporalruntime.FinalizeExecutionCancellationActivityInput,
+) (temporalruntime.FinalizeExecutionCancellationActivityOutput, error) {
+	return a.server.FinalizeExecutionCancellationActivity(ctx, input)
 }
 
 func (a TemporalFinalizationActivities) WriteFinalizationActivity(
@@ -191,6 +200,7 @@ func NewServerWithDependencies(
 	telemetryEmitter := telemetry.NewEmitter(context.Background(), cfg, logger)
 	toolReadModelRuntime := toolreadmodel.NewRuntime(toolreadmodel.Options{
 		StructuredProjectionDatabaseURL: cfg.StructuredProjectionDatabaseURL,
+		TrustedTimeRFC3339:              cfg.ToolReadModelTrustedTimeRFC3339,
 	})
 	runProjectionStore, runProjectionStoreErr := newRunProjectionStore(cfg)
 	providerConfigResolver, providerConfigErr := newProviderConfigResolver(cfg)
@@ -200,7 +210,16 @@ func NewServerWithDependencies(
 	if personalMemoryErr == nil && personalMemoryStateErr == nil {
 		personalMemoryExecutor = newFencedPersonalMemoryExecutor(personalMemoryExecutor, personalMemoryStateStore, cfg.PersonalMemoryOwnerSalt, cfg.PersonalMemoryTimeoutSeconds)
 	}
-	knowledgeSearchExecutor, knowledgeSearchErr := newKnowledgeSearchExecutor(cfg, providerConfigResolver)
+	documentEvidenceExecutor, documentEvidenceErr := newDocumentEvidenceExecutor(
+		cfg,
+		providerConfigResolver,
+		toolReadModelRuntime,
+	)
+	groundingExecutor, groundingErr := groundingExecutorFromDocumentEvidence(
+		documentEvidenceExecutor,
+		documentEvidenceErr,
+	)
+	executionInputLoader, executionInputErr := newExecutionInputLoader(cfg)
 	temporalStarter, temporalStarterErr := newTemporalStarter(cfg)
 	taskQueueSampler := newTemporalTaskQueueSampler(cfg, temporalStarter)
 
@@ -214,14 +233,18 @@ func NewServerWithDependencies(
 		toolReadModel:            toolReadModelRuntime,
 		runProjectionStore:       runProjectionStore,
 		runProjectionStoreErr:    runProjectionStoreErr,
+		executionInputLoader:     executionInputLoader,
+		executionInputErr:        executionInputErr,
 		personalMemoryExecutor:   personalMemoryExecutor,
 		personalMemoryErr:        personalMemoryErr,
 		personalMemoryStateStore: personalMemoryStateStore,
 		personalMemoryStateErr:   personalMemoryStateErr,
 		langfuseTraceStore:       langfuseTraceStore,
 		langfuseTraceErr:         langfuseTraceErr,
-		knowledgeSearchExecutor:  knowledgeSearchExecutor,
-		knowledgeSearchErr:       knowledgeSearchErr,
+		documentEvidenceExecutor: documentEvidenceExecutor,
+		documentEvidenceErr:      documentEvidenceErr,
+		groundingExecutor:        groundingExecutor,
+		groundingErr:             groundingErr,
 		providerConfigResolver:   providerConfigResolver,
 		providerConfigErr:        providerConfigErr,
 		temporalStarter:          temporalStarter,
@@ -236,6 +259,13 @@ func NewTemporalActivityServer(
 	role TemporalActivityRuntimeRole,
 ) (*Server, error) {
 	cfg = normalizeServerConfig(cfg)
+	if cfg.ProtectedPayloadKeyring == nil {
+		return nil, errors.New("protected payload keyring is not configured")
+	}
+	executionInputLoader, err := newExecutionInputLoader(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("initialize execution input loader: %w", err)
+	}
 	runProjectionStore, err := newRunProjectionStore(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("initialize run projection store: %w", err)
@@ -250,10 +280,11 @@ func NewTemporalActivityServer(
 	}
 
 	server := &Server{
-		config:             cfg,
-		logger:             slog.New(slog.NewTextHandler(io.Discard, nil)),
-		metrics:            observability.NewMetrics(),
-		runProjectionStore: runProjectionStore,
+		config:               cfg,
+		logger:               slog.New(slog.NewTextHandler(io.Discard, nil)),
+		metrics:              observability.NewMetrics(),
+		runProjectionStore:   runProjectionStore,
+		executionInputLoader: executionInputLoader,
 	}
 	switch role {
 	case TemporalActivityRuntimeRoleCore:
@@ -269,12 +300,59 @@ func NewTemporalActivityServer(
 			closeRunProjectionStore()
 			return nil, fmt.Errorf("initialize provider config resolver: %w", err)
 		}
+		server.toolReadModel = toolreadmodel.NewRuntime(toolreadmodel.Options{
+			StructuredProjectionDatabaseURL: cfg.StructuredProjectionDatabaseURL,
+			TrustedTimeRFC3339:              cfg.ToolReadModelTrustedTimeRFC3339,
+		})
+		documentExecutor, documentErr := newDocumentEvidenceExecutor(
+			cfg,
+			server.providerConfigResolver,
+			server.toolReadModel,
+		)
+		server.groundingExecutor, server.groundingErr =
+			groundingExecutorFromDocumentEvidence(documentExecutor, documentErr)
+		if server.groundingErr != nil {
+			closeRunProjectionStore()
+			server.toolReadModel.Close()
+			return nil, fmt.Errorf("initialize grounding executor: %w", server.groundingErr)
+		}
 	default:
 		closeRunProjectionStore()
 		return nil, fmt.Errorf("unsupported temporal activity runtime role %q", role)
 	}
 	server.telemetry = telemetry.NewEmitter(context.Background(), cfg, server.logger)
 	return server, nil
+}
+
+func (s *Server) loadExecutionInput(
+	ctx context.Context,
+	run execution.DurableRun,
+) (contracts.ExecutionPayloadWire, error) {
+	if s.executionInputLoader == nil {
+		cause := s.executionInputErr
+		if cause == nil {
+			cause = errors.New("execution input loader is not configured")
+		}
+		return contracts.ExecutionPayloadWire{}, newExecutionInputError(
+			"load",
+			"execution_input_not_configured",
+			false,
+			cause,
+		)
+	}
+	return s.executionInputLoader.Load(ctx, run)
+}
+
+func (s *Server) deleteExecutionInput(ctx context.Context, run execution.DurableRun) error {
+	if s.executionInputLoader == nil {
+		return newExecutionInputError(
+			"delete",
+			"execution_input_release_not_configured",
+			true,
+			errors.New("execution input loader is not configured"),
+		)
+	}
+	return s.executionInputLoader.Delete(ctx, run)
 }
 
 func normalizeServerConfig(cfg config.Config) config.Config {
@@ -296,11 +374,26 @@ func normalizeServerConfig(cfg config.Config) config.Config {
 	return cfg
 }
 
-func newKnowledgeSearchExecutor(
+func newDocumentEvidenceExecutor(
 	cfg config.Config,
 	configResolver providerConfigResolver,
-) (knowledgeSearchExecutor, error) {
-	return newQdrantKnowledgeSearchExecutor(cfg, configResolver)
+	knowledgeReadModel *toolreadmodel.Runtime,
+) (documentEvidenceExecutor, error) {
+	return newQdrantDocumentEvidenceExecutor(cfg, configResolver, knowledgeReadModel)
+}
+
+func groundingExecutorFromDocumentEvidence(
+	executor documentEvidenceExecutor,
+	executorErr error,
+) (groundingExecutor, error) {
+	if executorErr != nil {
+		return nil, executorErr
+	}
+	qdrant, ok := executor.(qdrantDocumentEvidenceExecutor)
+	if !ok {
+		return nil, errors.New("qdrant grounding executor is not configured")
+	}
+	return newQdrantGroundingExecutor(qdrant), nil
 }
 
 func newTemporalStarter(cfg config.Config) (temporalruntime.ChatWorkflowStarter, error) {
@@ -319,8 +412,9 @@ func newTemporalStarter(cfg config.Config) (temporalruntime.ChatWorkflowStarter,
 			OTelEndpoint: cfg.OTelEndpoint,
 			ServiceName:  cfg.OTelServiceName,
 		},
-		WorkerID:     cfg.TemporalWorkerIdentity,
-		StartTimeout: time.Duration(cfg.TemporalStartTimeoutMS) * time.Millisecond,
+		WorkerID:                 cfg.TemporalWorkerIdentity,
+		StartTimeout:             time.Duration(cfg.TemporalStartTimeoutMS) * time.Millisecond,
+		WorkflowExecutionTimeout: time.Duration(cfg.TemporalWorkflowExecutionTimeoutSeconds) * time.Second,
 	})
 }
 
@@ -373,6 +467,7 @@ func (s *Server) TelemetryStatus() telemetry.Status {
 
 func (s *Server) Shutdown(ctx context.Context) error {
 	var firstErr error
+	s.StopTemporalReconciler()
 	if s.telemetry != nil {
 		firstErr = s.telemetry.Shutdown(ctx)
 	}
@@ -460,12 +555,10 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleProfileMemoryAppend(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/memory/personal/graph:recall":
 		s.handleProfileMemoryRecall(writer, request)
-	case request.Method == http.MethodPost && path == "/internal/memory/personal/graph:reflect":
-		s.handleProfileMemoryReflect(writer, request)
+	case request.Method == http.MethodPost && path == "/internal/memory/personal/recall":
+		s.handlePersonalMemoryRecallTool(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/query/campus-services/transport-schedule":
 		s.handleToolReadModel(writer, request, toolreadmodel.ToolTransportScheduleLookup)
-	case request.Method == http.MethodPost && path == "/internal/query/knowledge/search":
-		s.handleKnowledgeSearch(writer, request)
 	default:
 		setOutcome(writer, "not_found")
 		writeError(

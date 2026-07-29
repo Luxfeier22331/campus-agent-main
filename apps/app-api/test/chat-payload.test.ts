@@ -22,29 +22,21 @@ describe("chat payload boundary", () => {
 
 	it("keeps public chat limited to conversation and prompt fields", () => {
 		expect(() =>
-			resolveValidatedPayload(
-				{
-					prompt: "校车几点发车？",
-					requestedTool: "transport_schedule_lookup",
-				},
-				{ requestKind: "public_chat" },
-			),
+			resolveValidatedPayload({
+				prompt: "校车几点发车？",
+				requestedTool: "transport_schedule_lookup",
+			} as never),
 		).toThrow("requestedTool is not supported.");
 	});
 
-	it("normalizes trusted internal hints without owning runtime admission", () => {
+	it("uses the same route-free payload for internal evaluation", () => {
 		expect(
-			resolveValidatedPayload(
-				{
-					prompt: "测试一个未开放工具",
-					requestedTool: "unpublished_tool",
-				},
-				{ requestKind: "internal_eval" },
-			),
+			resolveValidatedPayload({
+				prompt: "测试一个未开放工具",
+			}),
 		).toEqual({
 			conversationId: null,
 			prompt: "测试一个未开放工具",
-			requestedTool: "unpublished_tool",
 		});
 	});
 });

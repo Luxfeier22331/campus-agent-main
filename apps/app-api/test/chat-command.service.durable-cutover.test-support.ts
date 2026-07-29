@@ -1,6 +1,7 @@
 import type {
 	ExecutionControlRun,
 	ExecutionControlRunEvent,
+	ExecutionControlRunEventPage,
 	ExecutionControlRunStepTrajectory,
 } from "../src/modules/integration/execution-control";
 
@@ -16,9 +17,7 @@ export function durableRun(overrides: Partial<ExecutionControlRun> = {}): Execut
 		ownerUserId: "user_01HQ",
 		queuedAt: "2026-06-04T01:02:04Z",
 		requestId: "req_0001",
-		requestedTool: "knowledge_query",
 		runId: "run_0001",
-		selectedTool: "knowledge_query",
 		startedAt: "",
 		status: "queued",
 		streamingStartedAt: "",
@@ -45,11 +44,14 @@ export function answerResponsePayload(text = "国家奖学金每学年评审一�
 		confidence: "high",
 		error: null,
 		follow_up_question: "",
-		resolved_targets: ["student_rules"],
-		session_update: null,
+		model_usage: {
+			cached_input_tokens: 10,
+			input_tokens: 120,
+			output_tokens: 42,
+			total_tokens: 162,
+		},
 		observability: {
 			agent_runtime: "openai_agents_sdk",
-			selected_tools: ["knowledge_query"],
 			terminal_reason: "answer",
 		},
 		result: {
@@ -62,9 +64,14 @@ export function answerResponsePayload(text = "国家奖学金每学年评审一�
 				},
 			],
 		},
-		selected_tool: "knowledge_query",
 		status: "completed",
 		trace_id: "trace_0001",
+		workflow_trace_summary: {
+			execution_path: "tool_assisted",
+			terminal_reason: "answer",
+			answer_artifact_refs: ["projection://runs/run_0001/agent/primary/result"],
+			runtime_versions: { agent_runtime: "openai_agents_sdk" },
+		},
 	};
 }
 
@@ -87,4 +94,11 @@ export function durableEvent(
 		visibility: "browser",
 		...rest,
 	};
+}
+
+export function durableEventPage(
+	events: ExecutionControlRunEvent[],
+	nextSequence = events.at(-1)?.sequence ?? 0,
+): ExecutionControlRunEventPage {
+	return { events, nextSequence };
 }

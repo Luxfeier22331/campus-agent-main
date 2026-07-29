@@ -7,8 +7,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/retrievalruntime"
 )
 
 func TestProviderConfigCompatibilityEndpointRequiresWorkerAuth(t *testing.T) {
@@ -26,8 +24,8 @@ func TestProviderConfigCompatibilityEndpointRequiresWorkerAuth(t *testing.T) {
 func TestProviderConfigCompatibilityEndpointChecksRAGEmbedding(t *testing.T) {
 	checker := &fakeRAGCompatibilityChecker{}
 	server := newWorkerAuthServerForTest()
-	server.knowledgeSearchExecutor = checker
-	server.knowledgeSearchErr = nil
+	server.documentEvidenceExecutor = checker
+	server.documentEvidenceErr = nil
 	request := newTestRequest(
 		http.MethodPost,
 		"/internal/provider-config/embedding:check-compatibility",
@@ -52,8 +50,8 @@ func TestProviderConfigCompatibilityEndpointChecksRAGEmbedding(t *testing.T) {
 
 func TestProviderConfigCompatibilityEndpointReportsRAGDrift(t *testing.T) {
 	server := newWorkerAuthServerForTest()
-	server.knowledgeSearchExecutor = &fakeRAGCompatibilityChecker{err: errProviderCompatibilityDriftForTest{}}
-	server.knowledgeSearchErr = nil
+	server.documentEvidenceExecutor = &fakeRAGCompatibilityChecker{err: errProviderCompatibilityDriftForTest{}}
+	server.documentEvidenceErr = nil
 	request := newTestRequest(
 		http.MethodPost,
 		"/internal/provider-config/embedding:check-compatibility",
@@ -95,13 +93,6 @@ type fakeRAGCompatibilityChecker struct {
 
 func (f *fakeRAGCompatibilityChecker) HealthCheck(context.Context) error {
 	return nil
-}
-
-func (f *fakeRAGCompatibilityChecker) Search(
-	context.Context,
-	retrievalruntime.SearchRequest,
-) (retrievalruntime.SearchResult, error) {
-	return retrievalruntime.SearchResult{}, nil
 }
 
 func (f *fakeRAGCompatibilityChecker) CheckEmbeddingCompatibility(

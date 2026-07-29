@@ -11,9 +11,9 @@
 			"question": "学校奖励管理的一般原则是什么？",
 			"reference": "应依据示例学校奖励管理办法说明学校层面的一般原则。",
 			"reference_context_ids": ["institution:synthetic-awards-policy"],
-			"expected_targets": ["institutional_rules"],
+			"expected_document_scopes": ["institutional_rules"],
 			"expected_outcome": "answer",
-			"expected_search_count": 1
+			"minimum_relevant_context_count": 1
 		},
 		{
 			"case_id": "institutional-appeal-policy",
@@ -22,9 +22,9 @@
 			"question": "学校层面的申诉程序由哪份办法规定？",
 			"reference": "应依据示例学校申诉管理办法回答。",
 			"reference_context_ids": ["institution:synthetic-appeal-policy"],
-			"expected_targets": ["institutional_rules"],
+			"expected_document_scopes": ["institutional_rules"],
 			"expected_outcome": "answer",
-			"expected_search_count": 1
+			"minimum_relevant_context_count": 1
 		},
 		{
 			"case_id": "institutional-student-rule-hard-negative",
@@ -34,9 +34,9 @@
 			"reference": "应回答学校层面的奖励管理办法，不得用学生奖学金评定办法替代。",
 			"reference_context_ids": ["institution:synthetic-awards-policy"],
 			"forbidden_context_ids": ["handbook:synthetic-scholarship-policy"],
-			"expected_targets": ["institutional_rules"],
+			"expected_document_scopes": ["institutional_rules"],
 			"expected_outcome": "answer",
-			"expected_search_count": 1
+			"minimum_relevant_context_count": 1
 		},
 		{
 			"case_id": "institutional-conversation-follow-up",
@@ -46,23 +46,20 @@
 			"question": "它的适用范围呢？",
 			"reference": "结合上一轮已确认的学校奖励管理办法回答适用范围。",
 			"reference_context_ids": ["institution:synthetic-awards-policy"],
-			"expected_targets": ["institutional_rules"],
+			"expected_document_scopes": ["institutional_rules"],
 			"expected_outcome": "answer",
-			"expected_search_count": 1,
-			"include_history": false
+			"minimum_relevant_context_count": 1
 		},
 		{
-			"case_id": "institutional-awards-previous-version",
-			"case_family": "historical_version",
+			"case_id": "institutional-awards-current-scope",
+			"case_family": "current_release",
 			"split": "regression",
-			"question": "学校奖励管理办法上一版的适用范围是什么？",
-			"reference": "应检索上一版学校奖励管理办法，并明确其适用范围属于历史版本。",
-			"reference_context_ids": ["institution:synthetic-awards-policy:v0"],
-			"reference_contexts": ["示例学校奖励管理办法上一版：适用于校级集体和个人奖励。"],
-			"expected_targets": ["institutional_rules"],
+			"question": "当前学校奖励管理办法的适用范围是什么？",
+			"reference": "应依据当前发布的示例学校奖励管理办法回答适用范围。",
+			"reference_context_ids": ["institution:synthetic-awards-policy"],
+			"expected_document_scopes": ["institutional_rules"],
 			"expected_outcome": "answer",
-			"expected_search_count": 1,
-			"include_history": true
+			"minimum_relevant_context_count": 1
 		},
 		{
 			"case_id": "institutional-no-answer",
@@ -71,9 +68,9 @@
 			"question": "学校量子航站楼管理办法是什么？",
 			"reference": "现有学校制度中没有该办法，应明确无法回答。",
 			"reference_context_ids": [],
-			"expected_targets": ["institutional_rules"],
+			"expected_document_scopes": ["institutional_rules"],
 			"expected_outcome": "no_answer",
-			"expected_search_count": 1
+			"minimum_relevant_context_count": 0
 		}
 	]
 }

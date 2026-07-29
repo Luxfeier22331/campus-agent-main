@@ -181,6 +181,46 @@ func TestAppendConversationMemoryActivityRejectsTraceMismatchForTerminalRun(t *t
 	}
 }
 
+func TestPostFinalizationMemoryAppendRejectsNonCompletedTerminalRuns(t *testing.T) {
+	tests := []struct {
+		status execution.DurableRunStatus
+		reason execution.DurableTerminalReason
+	}{
+		{status: execution.DurableRunStatusCanceled, reason: execution.DurableTerminalReasonUserCanceled},
+		{status: execution.DurableRunStatusFailed, reason: execution.DurableTerminalReasonProviderUnavailable},
+		{status: execution.DurableRunStatusExpired, reason: execution.DurableTerminalReasonRunTimeout},
+	}
+	for _, test := range tests {
+		t.Run(string(test.status), func(t *testing.T) {
+			store := execution.NewInMemoryRunProjectionStore()
+			now := time.Date(2026, 7, 23, 12, 0, 0, 0, time.UTC)
+			runID := "run-memory-terminal-" + string(test.status)
+			if _, err := store.CreateRun(context.Background(), execution.DurableRun{
+				RunID: runID, ConversationID: "conv-" + runID, TurnID: "turn-" + runID,
+				RequestID: "req-" + runID, TraceID: "trace-" + runID,
+				OwnerUserID: "user-executor", Surface: "campus-web", TaskQueue: "campus-agent.workflow.v3",
+				Status: test.status, TerminalReason: test.reason, CreatedAt: now, UpdatedAt: now, CompletedAt: now,
+				Metadata: v3ExecutionMetadataForHTTPTest(runID, ""),
+			}); err != nil {
+				t.Fatal(err)
+			}
+			executor := &fakePersonalMemoryExecutor{}
+			server := NewServer(config.Config{TemporalWorkerIdentity: "test:memory-terminal"})
+			server.personalMemoryExecutor = executor
+			server.personalMemoryErr = nil
+			attachRunProjectionStoreForHandlerTest(server, store)
+			if _, err := server.AppendConversationMemoryActivity(context.Background(), temporalruntime.AppendConversationMemoryActivityInput{
+				RunID: runID, TraceID: "trace-" + runID,
+			}); err == nil {
+				t.Fatalf("append accepted %s run", test.status)
+			}
+			if executor.appendCount != 0 {
+				t.Fatalf("terminal %s invoked memory append", test.status)
+			}
+		})
+	}
+}
+
 func TestAppendConversationMemoryActivityProjectionDoesNotStoreConversationText(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	now := time.Date(2026, 6, 15, 12, 10, 0, 0, time.UTC)
@@ -288,34 +328,35 @@ func createMemoryAppendRunForTest(
 	if memoryEnabled != nil {
 		contextProjection["memory"] = map[string]any{"append_enabled": *memoryEnabled, "recall_enabled": *memoryEnabled, "owner_generation": 1, "owner_sequence": 0}
 	}
+	wire := executionPayloadWireForHTTPTest(
+		runID,
+		"conv-"+runID,
+		"req-"+runID,
+		memoryAppendTraceID(runID),
+		userGoal,
+		"",
+		contextProjection,
+	)
+	wire.TenantID = "tenant-main"
 	_, err := store.CreateRun(context.Background(), execution.DurableRun{
-		RunID:            runID,
-		ConversationID:   "conv-" + runID,
-		TurnID:           "turn-" + runID,
-		RequestID:        "req-" + runID,
-		TraceID:          "trace-" + runID,
-		OwnerUserID:      "user-executor",
-		Surface:          "campus-web",
-		TaskQueue:        "campus-agent.workflow",
-		Status:           execution.DurableRunStatusCompleted,
-		TerminalReason:   execution.DurableTerminalReasonAnswerCompleted,
-		CreatedAt:        now,
-		UpdatedAt:        now,
-		CompletedAt:      now,
-		FinalResponseRef: temporalProjectionRef(runID, "finalization/write"),
-		Metadata: map[string]any{
-			"execution_payload": map[string]any{
-				"context":    contextProjection,
-				"request_id": "req-" + runID,
-				"tenant_id":  "tenant-main",
-				"trace":      map[string]any{"trace_id": "trace-" + runID},
-				"user_goal":  userGoal,
-			},
-		},
+		RunID:          runID,
+		ConversationID: "conv-" + runID,
+		TurnID:         "turn-" + runID,
+		RequestID:      "req-" + runID,
+		TraceID:        "trace-" + runID,
+		OwnerUserID:    "user-executor",
+		Surface:        "campus-web",
+		TaskQueue:      "campus-agent.workflow",
+		Status:         execution.DurableRunStatusRunning,
+		CreatedAt:      now,
+		StartedAt:      now,
+		UpdatedAt:      now,
+		Metadata:       v3ExecutionMetadataForHTTPTest(runID, ""),
 	})
 	if err != nil {
 		t.Fatalf("create memory append run: %v", err)
 	}
+	registerTestExecutionInput(t, store, execution.DurableRun{RunID: runID}, wire)
 	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
 		ResultID:             runID + ":finalization.write",
 		RunID:                runID,
@@ -332,6 +373,14 @@ func createMemoryAppendRunForTest(
 		CreatedAt: now,
 	}); err != nil {
 		t.Fatalf("put finalization result: %v", err)
+	}
+	if _, err := store.CompleteRunProjection(context.Background(), execution.DurableRunCompleteRequest{
+		RunID:            runID,
+		TerminalReason:   execution.DurableTerminalReasonAnswerCompleted,
+		FinalResponseRef: temporalProjectionRef(runID, "finalization/write"),
+		Now:              now,
+	}); err != nil {
+		t.Fatalf("complete memory append run: %v", err)
 	}
 }
 

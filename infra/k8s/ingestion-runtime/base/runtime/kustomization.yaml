@@ -9,5 +9,4 @@ resources:
   - availability.yaml
   - ingestion-control.yaml
   - temporal-connection.yaml
-  - workers.yaml
-  - worker-resources.yaml
+  - deployments.yaml

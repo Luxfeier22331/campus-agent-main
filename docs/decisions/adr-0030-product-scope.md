@@ -25,8 +25,8 @@ primary agent 可以直接回答问候、产品问题和普通对话，但不得
 - `unsupported_by_evidence`：属于范围内，但没有已开放证据支持；
 - `policy_refusal`：被策略禁止。
 
-校园搜索失败时不得自动触发开放网页搜索。未来开放域能力需要独立产品决策、可见工具或
-handoff、policy 和 evaluation，不能伪装成 retrieval tuning 或 best-effort recovery。
+校园搜索失败时不得自动触发开放网页搜索。未来开放域能力需要独立产品决策、可见工具、policy
+和 evaluation，不能伪装成 retrieval tuning 或 best-effort recovery。
 
 ## 后果
 
@@ -38,4 +38,4 @@ handoff、policy 和 evaluation，不能伪装成 retrieval tuning 或 best-effo
 
 - `docs/architecture/product.md`
 - `docs/architecture/system/prompt.md`
-- `docs/decisions/adr-0075-knowledge-search.md`
+- `docs/decisions/adr-0084-agent-knowledge-tools.md`

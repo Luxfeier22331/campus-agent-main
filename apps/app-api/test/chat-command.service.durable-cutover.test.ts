@@ -9,6 +9,7 @@ import { deriveLangfuseTraceId } from "../src/modules/telemetry/trace";
 import {
 	answerResponsePayload,
 	durableEvent,
+	durableEventPage,
 	durableRun,
 	emptyRunStepTrajectory,
 } from "./chat-command.service.durable-cutover.test-support";
@@ -19,6 +20,7 @@ import {
 	createDeterministicIdGenerator,
 	createPrincipal,
 	createTelemetryMock,
+	getFrozenExecutionPayload,
 	type ToolExecutionClient,
 } from "./chat-command.service.test-support";
 
@@ -37,7 +39,6 @@ describe("chat command durable runtime cutover", () => {
 			isExecutionRuntimeConfigured: false,
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,
-			requireExecutionRuntime: true,
 			store,
 		});
 
@@ -73,7 +74,6 @@ describe("chat command durable runtime cutover", () => {
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,
-			requireExecutionRuntime: true,
 			store,
 		});
 
@@ -127,7 +127,6 @@ describe("chat command durable runtime cutover", () => {
 			isExecutionRuntimeConfigured: false,
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,
-			requireExecutionRuntime: true,
 			store,
 		});
 
@@ -171,9 +170,7 @@ describe("chat command durable runtime cutover", () => {
 				ownerUserId: "user_01HQ",
 				queuedAt: "2026-06-04T01:02:03Z",
 				requestId: "req_0001",
-				requestedTool: "knowledge_query",
 				runId: "run_0001",
-				selectedTool: "knowledge_query",
 				startedAt: "",
 				status: "queued",
 				streamingStartedAt: "",
@@ -185,23 +182,25 @@ describe("chat command durable runtime cutover", () => {
 				updatedAt: "2026-06-04T01:02:04Z",
 			}),
 			getRun: vi.fn(),
-			listRunEvents: vi.fn().mockResolvedValue([
-				{
-					conversationId: "conv_01HQ",
-					eventId: "event-final",
-					eventType: "finalization.completed",
-					occurredAt: "2026-06-04T01:02:06.000Z",
-					payload: {
-						request_id: "req_0001",
-						trace_id: "trace_0001",
-						response: answerResponsePayload(),
+			listRunEvents: vi.fn().mockResolvedValue(
+				durableEventPage([
+					{
+						conversationId: "conv_01HQ",
+						eventId: "event-final",
+						eventType: "finalization.completed",
+						occurredAt: "2026-06-04T01:02:06.000Z",
+						payload: {
+							request_id: "req_0001",
+							trace_id: "trace_0001",
+							response: answerResponsePayload(),
+						},
+						payloadSchemaVersion: "run-event-v1",
+						runId: "run_0001",
+						sequence: 1,
+						visibility: "internal",
 					},
-					payloadSchemaVersion: "run-event-v1",
-					runId: "run_0001",
-					sequence: 1,
-					visibility: "internal",
-				},
-			]),
+				]),
+			),
 			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
 		};
 		const service = buildChatCommandService({
@@ -231,8 +230,7 @@ describe("chat command durable runtime cutover", () => {
 		expect(executionRuntime.createRun).toHaveBeenCalledOnce();
 		const createRunInput = (executionRuntime.createRun as ReturnType<typeof vi.fn>).mock
 			.calls[0]?.[0];
-		const metadata = createRunInput?.metadata as Record<string, unknown>;
-		const executionPayload = metadata.execution_payload as Record<string, unknown>;
+		const executionPayload = getFrozenExecutionPayload(createRunInput?.runId ?? "run_0001");
 		expect(Object.keys(executionPayload).sort()).toEqual([
 			"context",
 			"conversation_id",
@@ -245,8 +243,8 @@ describe("chat command durable runtime cutover", () => {
 			"user_goal",
 		]);
 		expect(executionPayload).toMatchObject({
-			execution_contract_version: "tool_execution_v2",
-			response_contract: "execution_finalization_response_v3",
+			execution_contract_version: "tool_execution_v5",
+			response_contract: "execution_finalization_response_v5",
 			tenant_id: "tenant-main",
 			trace: {
 				trace_id: "trace_0001",
@@ -260,21 +258,9 @@ describe("chat command durable runtime cutover", () => {
 			expect.objectContaining({
 				conversationId: "conv_01HQ",
 				metadata: expect.objectContaining({
-					execution_payload: expect.objectContaining({
-						context: expect.objectContaining({
-							actor: expect.objectContaining({
-								user_id: "user_01HQ",
-							}),
-						}),
-						conversation_id: "conv_01HQ",
-						request_id: "req_0001",
-						safety_identifier: expect.any(String),
-						tenant_id: "tenant-main",
-						trace: {
-							trace_id: "trace_0001",
-						},
-						user_goal: "示例大学本科学生国家奖学金评审办法",
-					}),
+					execution_contract_version: "tool_execution_v5",
+					execution_input_ref: "app-api://execution-inputs/run_0001",
+					execution_input_sha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
 				}),
 				ownerUserId: "user_01HQ",
 				requestId: "req_0001",
@@ -319,33 +305,33 @@ describe("chat command durable runtime cutover", () => {
 			getRun: vi.fn(),
 			listRunEvents: vi
 				.fn()
-				.mockResolvedValueOnce([
-					durableEvent({
-						eventType: "run.failed",
-						payload: {
-							error: {
-								code: "agent_runtime_timeout",
-								message: "Agent runtime request timed out.",
-								retryable: true,
+				.mockResolvedValueOnce(
+					durableEventPage([
+						durableEvent({
+							eventType: "run.failed",
+							payload: {
+								error: {
+									code: "agent_runtime_timeout",
+									message: "Agent runtime request timed out.",
+									retryable: true,
+								},
+								failure_kind: "agent_runtime_timeout",
+								request_id: "req_0001",
+								status: "failed",
+								terminal_reason: "worker_unavailable",
+								trace_id: "trace_0001",
 							},
-							failure_kind: "agent_runtime_timeout",
-							request_id: "req_0001",
-							status: "failed",
-							terminal_reason: "worker_unavailable",
-							trace_id: "trace_0001",
-						},
-						sequence: 1,
-					}),
-				])
-				.mockResolvedValue([]),
+							sequence: 1,
+						}),
+					]),
+				)
+				.mockResolvedValue(durableEventPage([], 1)),
 			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
 		};
 		const service = buildChatCommandService({
 			deriveSafetyIdentifier: () => "safety_0001",
 			durableEventPolling: {
 				maxAttempts: 1,
-				pollIntervalMs: 0,
-				sleep: vi.fn(async () => undefined),
 			},
 			executionRuntime,
 			generateId: createDeterministicIdGenerator(),
@@ -380,9 +366,7 @@ describe("chat command durable runtime cutover", () => {
 				ownerUserId: "user_01HQ",
 				queuedAt: "2026-06-04T01:02:03Z",
 				requestId: "req_0001",
-				requestedTool: "knowledge_query",
 				runId: "run_0001",
-				selectedTool: "knowledge_query",
 				startedAt: "",
 				status: "queued",
 				streamingStartedAt: "",
@@ -394,18 +378,20 @@ describe("chat command durable runtime cutover", () => {
 				updatedAt: "2026-06-04T01:02:04Z",
 			}),
 			getRun: vi.fn(),
-			listRunEvents: vi.fn().mockResolvedValue([
-				durableEvent({
-					eventType: "finalization.completed",
-					sequence: 1,
-					payload: {
-						request_id: "req_0001",
-						trace_id: "trace_0001",
-						response: answerResponsePayload("国家奖学金每学年评审一次。"),
-					},
-					visibility: "internal",
-				}),
-			]),
+			listRunEvents: vi.fn().mockResolvedValue(
+				durableEventPage([
+					durableEvent({
+						eventType: "finalization.completed",
+						sequence: 1,
+						payload: {
+							request_id: "req_0001",
+							trace_id: "trace_0001",
+							response: answerResponsePayload("国家奖学金每学年评审一次。"),
+						},
+						visibility: "internal",
+					}),
+				]),
+			),
 			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
 		};
 		const service = buildChatCommandService({
@@ -445,7 +431,7 @@ describe("chat command durable runtime cutover", () => {
 		);
 	});
 
-	it("rejects explicit campus service tools on public chat", async () => {
+	it("rejects retired client routing hints on public chat", async () => {
 		const { store, acceptedWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const executionRuntime: ExecutionControlRuntimeClient = {
@@ -470,7 +456,7 @@ describe("chat command durable runtime cutover", () => {
 					conversationId: "conv_01HQ",
 					prompt: "海淀校区图书馆现在开门吗？",
 					requestedTool: "transport_schedule_lookup",
-				},
+				} as never,
 				principal: createPrincipal(),
 				requestKind: "public_chat",
 			}),
@@ -483,7 +469,7 @@ describe("chat command durable runtime cutover", () => {
 		expect(acceptedWrites).toHaveLength(0);
 	});
 
-	it("keeps omitted requested tool unset instead of defaulting to knowledge", async () => {
+	it("keeps durable input free of client routing hints", async () => {
 		const { store } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const executionRuntime: ExecutionControlRuntimeClient = {
@@ -491,27 +477,26 @@ describe("chat command durable runtime cutover", () => {
 			createRun: vi.fn().mockResolvedValue(
 				durableRun({
 					taskQueue: "campus-agent.workflow",
-					requestedTool: "",
-					selectedTool: "",
 				}),
 			),
 			getRun: vi.fn(),
-			listRunEvents: vi.fn().mockResolvedValue([
-				durableEvent({
-					eventId: "event-final",
-					eventType: "finalization.completed",
-					payload: {
-						request_id: "req_0001",
-						response: {
-							...answerResponsePayload("图书馆在海淀校区主教学区西侧。"),
-							selected_tool: "knowledge_query",
+			listRunEvents: vi.fn().mockResolvedValue(
+				durableEventPage([
+					durableEvent({
+						eventId: "event-final",
+						eventType: "finalization.completed",
+						payload: {
+							request_id: "req_0001",
+							response: {
+								...answerResponsePayload("图书馆在海淀校区主教学区西侧。"),
+							},
+							trace_id: "trace_0001",
 						},
-						trace_id: "trace_0001",
-					},
-					sequence: 1,
-					visibility: "internal",
-				}),
-			]),
+						sequence: 1,
+						visibility: "internal",
+					}),
+				]),
+			),
 			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
 		};
 		const service = buildChatCommandService({
@@ -537,8 +522,7 @@ describe("chat command durable runtime cutover", () => {
 			.calls[0]?.[0];
 		expect(createRunInput).not.toHaveProperty("requestedTool");
 		expect(createRunInput).not.toHaveProperty("taskQueue");
-		const metadata = createRunInput?.metadata as Record<string, unknown>;
-		const executionPayload = metadata.execution_payload as Record<string, unknown>;
+		const executionPayload = getFrozenExecutionPayload(createRunInput?.runId ?? "run_0001");
 		expect(executionPayload).not.toHaveProperty("requested_tool");
 		expect(executionPayload).toMatchObject({ user_goal: "图书馆在哪里" });
 	});
@@ -552,27 +536,31 @@ describe("chat command durable runtime cutover", () => {
 		};
 		const listRunEvents = vi
 			.fn()
-			.mockResolvedValueOnce([
-				durableEvent({
-					eventType: "run.queued",
-					payload: { status: "queued" },
-					sequence: 1,
-				}),
-			])
-			.mockResolvedValueOnce([
-				durableEvent({
-					eventId: "event-final",
-					eventType: "finalization.completed",
-					occurredAt: "2026-06-04T01:02:06.000Z",
-					payload: {
-						request_id: "req_0001",
-						response: answerResponsePayload(),
-						trace_id: "trace_0001",
-					},
-					sequence: 2,
-					visibility: "internal",
-				}),
-			]);
+			.mockResolvedValueOnce(
+				durableEventPage([
+					durableEvent({
+						eventType: "run.queued",
+						payload: { status: "queued" },
+						sequence: 1,
+					}),
+				]),
+			)
+			.mockResolvedValueOnce(
+				durableEventPage([
+					durableEvent({
+						eventId: "event-final",
+						eventType: "finalization.completed",
+						occurredAt: "2026-06-04T01:02:06.000Z",
+						payload: {
+							request_id: "req_0001",
+							response: answerResponsePayload(),
+							trace_id: "trace_0001",
+						},
+						sequence: 2,
+						visibility: "internal",
+					}),
+				]),
+			);
 		const executionRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockResolvedValue(durableRun()),
@@ -584,8 +572,6 @@ describe("chat command durable runtime cutover", () => {
 			deriveSafetyIdentifier: () => "safety_0001",
 			durableEventPolling: {
 				maxAttempts: 2,
-				pollIntervalMs: 0,
-				sleep: vi.fn(async () => undefined),
 			},
 			executionRuntime,
 			generateId: createDeterministicIdGenerator(),

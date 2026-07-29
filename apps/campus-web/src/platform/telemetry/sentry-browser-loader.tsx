@@ -5,6 +5,7 @@ import type { CampusRuntimeConfig } from "../runtime/config";
 type SentryBrowserModule = typeof import("./sentry-browser");
 
 let modulePromise: Promise<SentryBrowserModule> | null = null;
+let telemetryEnabled = false;
 
 function loadSentryBrowser(): Promise<SentryBrowserModule> {
 	if (!modulePromise) {
@@ -20,7 +21,15 @@ export async function initializeCampusBrowserSentry(
 	if (!config.dsn) {
 		return false;
 	}
+	telemetryEnabled = true;
 	return (await loadSentryBrowser()).initializeCampusBrowserSentry(config, router);
+}
+
+export function recordChatBrowserTtft(durationMs: number): void {
+	if (!telemetryEnabled) {
+		return;
+	}
+	void loadSentryBrowser().then((sentry) => sentry.recordChatBrowserTtft(durationMs));
 }
 
 export function campusReactErrorHandler() {

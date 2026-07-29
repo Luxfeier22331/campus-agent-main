@@ -86,7 +86,6 @@ func validRecallRequestForTest() RecallRequest {
 		OwnerGeneration: 1,
 		OwnerSequence:   0,
 		QueryTimestamp:  "2026-06-16T10:00:00Z",
-		RequestedTool:   "knowledge_query",
 		RunID:           "run-memory-test",
 		TenantID:        "tenant-main",
 		ThreadID:        "conv-memory-test",

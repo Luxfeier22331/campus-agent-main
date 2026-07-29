@@ -1,5 +1,6 @@
-import type { ToolExecutionRequest, ToolExecutionResult } from "./primary-agent.ts";
+import type { ToolExecutionRequest, UntimedToolExecutionResult } from "./primary-agent.ts";
 import { injectTraceContext } from "./telemetry.ts";
+import { isCanonicalExecutionControlInternalEndpoint } from "./tool-catalog.ts";
 
 export interface ExecutionControlToolExecutorOptions {
 	baseUrl: string;
@@ -9,7 +10,7 @@ export interface ExecutionControlToolExecutorOptions {
 
 export function createExecutionControlToolExecutor(options: ExecutionControlToolExecutorOptions) {
 	const fetchImpl = options.fetchImpl ?? fetch;
-	return async (request: ToolExecutionRequest): Promise<ToolExecutionResult> => {
+	return async (request: ToolExecutionRequest): Promise<UntimedToolExecutionResult> => {
 		const baseUrl = options.baseUrl.trim();
 		const sharedSecret = options.sharedSecret.trim();
 		if (request.tool.handler.type !== "execution_control_internal_query") {
@@ -22,6 +23,37 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 				error: "execution-control query base URL and shared secret are required",
 			});
 		}
+		const endpoint = request.tool.handler.endpoint;
+		if (!isCanonicalExecutionControlInternalEndpoint(endpoint)) {
+			return failedToolResult(request, "tool_handler_invalid_endpoint", {
+				error: "execution-control query endpoint must be a canonical /internal/ path",
+			});
+		}
+		let target: URL;
+		try {
+			const base = new URL(baseUrl);
+			if (
+				(base.protocol !== "http:" && base.protocol !== "https:") ||
+				base.username !== "" ||
+				base.password !== ""
+			) {
+				throw new Error("invalid execution-control base URL");
+			}
+			target = new URL(endpoint, base);
+			if (target.origin !== base.origin || !target.pathname.startsWith("/internal/")) {
+				throw new Error("execution-control endpoint escaped its configured origin");
+			}
+		} catch {
+			return failedToolResult(request, "tool_executor_not_configured", {
+				error: "execution-control query base URL is invalid",
+			});
+		}
+		const timeoutSignal = AbortSignal.timeout(request.tool.timeoutMs);
+		const executionSignal = AbortSignal.any(
+			[request.signal, timeoutSignal].filter(
+				(signal): signal is AbortSignal => signal !== undefined,
+			),
+		);
 		let response: Response;
 		try {
 			const headers = injectTraceContext(
@@ -30,7 +62,7 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 					"content-type": "application/json",
 				}),
 			);
-			response = await fetchImpl(new URL(request.tool.handler.endpoint, baseUrl), {
+			response = await fetchImpl(target, {
 				method: "POST",
 				headers,
 				body: JSON.stringify({
@@ -43,21 +75,43 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 						search_ordinal: request.searchOrdinal,
 					},
 				}),
-				signal: composedAbortSignal([request.signal, AbortSignal.timeout(request.tool.timeoutMs)]),
+				redirect: "manual",
+				signal: executionSignal,
 			});
 		} catch (error) {
+			throwIfRunAborted(request.signal, error);
+			if (timeoutSignal.aborted) {
+				return timedOutToolResult(request, timeoutSignal);
+			}
 			return failedToolResult(request, "transient_internal_query_failed", {
 				error: "execution-control query request failed",
 				detail: errorMessage(error),
 			});
 		}
+		throwIfRunAborted(request.signal, new Error("Agent run was cancelled during tool execution."));
+		if (timeoutSignal.aborted) {
+			return timedOutToolResult(request, timeoutSignal);
+		}
+		if (response.status >= 300 && response.status < 400) {
+			return failedToolResult(request, "tool_handler_redirected", {
+				error: "execution-control query returned a redirect",
+			});
+		}
 		let result: Record<string, unknown>;
 		try {
 			result = (await response.json()) as Record<string, unknown>;
-		} catch {
+		} catch (error) {
+			throwIfRunAborted(request.signal, error);
+			if (timeoutSignal.aborted) {
+				return timedOutToolResult(request, timeoutSignal);
+			}
 			return failedToolResult(request, "tool_handler_invalid_response", {
 				error: "execution-control query returned invalid JSON",
 			});
+		}
+		throwIfRunAborted(request.signal, new Error("Agent run was cancelled during tool execution."));
+		if (timeoutSignal.aborted) {
+			return timedOutToolResult(request, timeoutSignal);
 		}
 		if (!response.ok) {
 			return failedToolResult(request, "tool_handler_failed", result);
@@ -73,11 +127,21 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 	};
 }
 
+function timedOutToolResult(
+	request: ToolExecutionRequest,
+	timeoutSignal: AbortSignal,
+): UntimedToolExecutionResult {
+	return failedToolResult(request, "transient_internal_query_failed", {
+		error: "execution-control query timed out",
+		detail: errorMessage(timeoutSignal.reason),
+	});
+}
+
 function failedToolResult(
 	request: ToolExecutionRequest,
 	failCloseReason: string,
 	result: Record<string, unknown>,
-): ToolExecutionResult {
+): UntimedToolExecutionResult {
 	return {
 		status: "failed",
 		toolName: request.tool.name,
@@ -100,23 +164,8 @@ function errorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
 }
 
-function composedAbortSignal(signals: Array<AbortSignal | undefined>): AbortSignal {
-	const activeSignals = signals.filter((signal): signal is AbortSignal => signal !== undefined);
-	if (activeSignals.length === 1) {
-		return activeSignals[0];
+function throwIfRunAborted(signal: AbortSignal | undefined, fallback: unknown): void {
+	if (signal?.aborted) {
+		throw signal.reason ?? fallback;
 	}
-	const controller = new AbortController();
-	const abort = (signal: AbortSignal) => {
-		if (!controller.signal.aborted) {
-			controller.abort(signal.reason);
-		}
-	};
-	for (const signal of activeSignals) {
-		if (signal.aborted) {
-			abort(signal);
-			break;
-		}
-		signal.addEventListener("abort", () => abort(signal), { once: true });
-	}
-	return controller.signal;
 }

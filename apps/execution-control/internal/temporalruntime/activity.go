@@ -1,11 +1,11 @@
 package temporalruntime
 
 const (
-	MemoryRecallActivityName                         = "MemoryRecallActivity"
 	AppendConversationMemoryActivityName             = "AppendConversationMemoryActivity"
-	MemoryReflectActivityName                        = "MemoryReflectActivity"
+	PrepareGroundingContextActivityName              = "PrepareGroundingContextActivity"
 	ExecutePrimaryAgentActivityName                  = "ExecutePrimaryAgentActivity"
 	WriteFinalizationActivityName                    = "WriteFinalizationActivity"
+	FinalizeExecutionCancellationActivityName        = "FinalizeExecutionCancellationActivity"
 	ExecutePersonalMemoryCommandActivityName         = "ExecutePersonalMemoryCommandActivity"
 	PurgePersonalMemoryTracesActivityName            = "PurgePersonalMemoryTracesActivity"
 	VerifyPersonalMemoryTracesActivityName           = "VerifyPersonalMemoryTracesActivity"

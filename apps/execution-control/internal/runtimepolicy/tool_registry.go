@@ -10,9 +10,9 @@ import (
 )
 
 const (
-	ToolRegistrySchemaVersion = "tool-registry-v5"
-	defaultToolRegistryPath   = "configs/runtime/tools.v5.json"
-	packagedToolRegistryPath  = "/etc/campus-agent/tools.v5.json"
+	ToolRegistrySchemaVersion = "tool-registry-v6"
+	defaultToolRegistryPath   = "configs/runtime/tools.v6.json"
+	packagedToolRegistryPath  = "/etc/campus-agent/tools.v6.json"
 )
 
 var toolSchemaRefPattern = regexp.MustCompile(
@@ -21,12 +21,10 @@ var toolSchemaRefPattern = regexp.MustCompile(
 
 var supportedToolExposures = map[string]struct{}{
 	"model_visible": {},
-	"internal_only": {},
 	"closed":        {},
 }
 
 var supportedToolHandlerTypes = map[string]struct{}{
-	"agent_handoff":                    {},
 	"execution_control_internal_query": {},
 }
 
@@ -123,13 +121,6 @@ func (t ToolSpec) Validate() error {
 		}
 		if strings.TrimSpace(t.Handler.Target) != "" {
 			return fmt.Errorf("%s handler.target must be empty for execution_control_internal_query", t.Name)
-		}
-	case "agent_handoff":
-		if strings.TrimSpace(t.Handler.Endpoint) != "" {
-			return fmt.Errorf("%s handler.endpoint must be empty for agent_handoff", t.Name)
-		}
-		if strings.TrimSpace(t.Handler.Target) != "knowledge_agent" {
-			return fmt.Errorf("%s handler.target must be knowledge_agent for agent_handoff", t.Name)
 		}
 	}
 	if t.Exposure == "model_visible" && !t.ReadOnly {

@@ -1,16 +1,44 @@
 package httpapi
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"math"
+	"strings"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
+func sha256AnyValue(value any) string {
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return ""
+	}
+	digest := sha256.Sum256(encoded)
+	return hex.EncodeToString(digest[:])
+}
+
+func sha256Bytes(value []byte) string {
+	digest := sha256.Sum256(value)
+	return hex.EncodeToString(digest[:])
+}
+
+func boundedToolOutcome(value any) string {
+	outcome := strings.TrimSpace(stringValue(value))
+	if len(outcome) > 128 {
+		return outcome[:128]
+	}
+	return outcome
+}
+
 type primaryAgentResultInput struct {
-	activityAttempt int
-	activityInput   temporalruntime.ExecutePrimaryAgentActivityInput
-	run             execution.DurableRun
+	activityAttempt        int
+	activityInput          temporalruntime.ExecutePrimaryAgentActivityInput
+	groundingContextSHA256 string
+	run                    execution.DurableRun
 }
 
 func primaryAgentResultPayload(
@@ -19,6 +47,10 @@ func primaryAgentResultPayload(
 ) (map[string]any, error) {
 	toolResults := make([]map[string]any, 0, len(output.ToolResults))
 	for index, result := range output.ToolResults {
+		durationMS, err := primaryAgentToolDurationMS(result.DurationMS)
+		if err != nil {
+			return nil, err
+		}
 		argumentMetadata, err := validateSDKToolArguments(result.ToolName, result.ArgumentsJSON)
 		if err != nil {
 			return nil, err
@@ -38,9 +70,11 @@ func primaryAgentResultPayload(
 			resultBody["result_envelope"] = envelope
 		}
 		toolResults = append(toolResults, map[string]any{
+			"arguments_json":           cloneAnyMapFromMetadata(result.ArgumentsJSON),
 			"arguments_json_sha256":    argumentMetadata.ArgumentsJSONSHA256,
 			"arguments_schema_sha256":  argumentMetadata.ArgumentsSchemaSHA256,
 			"arguments_schema_version": argumentMetadata.ArgumentsSchemaVersion,
+			"duration_ms":              durationMS,
 			"fail_close_reason":        result.FailCloseReason,
 			"payload_kind":             result.PayloadKind,
 			"result":                   resultBody,
@@ -49,21 +83,27 @@ func primaryAgentResultPayload(
 			"tool_name":                result.ToolName,
 		})
 	}
-	return map[string]any{
-		"activity_attempt":       input.activityAttempt,
-		"agent_result_ref":       output.AgentResultRef,
-		"final_output":           output.FinalOutput,
-		"memory_context_summary": temporalMemoryContextProjectionPayload(input.activityInput.MemoryContext),
-		"model_name":             output.ModelName,
-		"model_provider":         output.ModelProvider,
-		"prompt_trace":           cloneAnyMapFromMetadata(output.PromptTrace),
-		"provider_response_id":   output.ProviderResponseID,
-		"selected_tools":         append([]string{}, output.SelectedTools...),
-		"stage_timing":           cloneAnyMapFromMetadata(output.StageTiming),
-		"status":                 output.Status,
-		"terminal_envelope":      cloneAnyMapFromMetadata(output.TerminalEnvelope),
-		"terminal_reason":        output.TerminalReason,
-		"tool_results":           toolResults,
+	payload := map[string]any{
+		"activity_attempt":          input.activityAttempt,
+		"admission_snapshot_sha256": sha256JSONRef(input.activityInput.AdmissionSnapshot),
+		"allow_ungrounded_answer": input.activityInput.AdmissionSnapshot.ExecutionStrategy.
+			AllowUngroundedAnswer,
+		"embedding_provider_admission": embeddingProviderAdmissionPin(
+			input.activityInput.AdmissionSnapshot,
+		).projectionPayload(),
+		"agent_result_ref":         output.AgentResultRef,
+		"final_output":             output.FinalOutput,
+		"grounding_context_ref":    input.activityInput.GroundingContextRef,
+		"grounding_context_sha256": input.groundingContextSHA256,
+		"model_name":               output.ModelName,
+		"model_provider":           output.ModelProvider,
+		"prompt_trace":             cloneAnyMapFromMetadata(output.PromptTrace),
+		"provider_response_id":     output.ProviderResponseID,
+		"stage_timing":             cloneAnyMapFromMetadata(output.StageTiming),
+		"status":                   output.Status,
+		"terminal_envelope":        cloneAnyMapFromMetadata(output.TerminalEnvelope),
+		"terminal_reason":          output.TerminalReason,
+		"tool_results":             toolResults,
 		"tool_runtime_fingerprint": cloneAnyMapFromMetadata(
 			output.ToolRuntimeFingerprint,
 		),
@@ -74,7 +114,110 @@ func primaryAgentResultPayload(
 			"output_tokens":       output.Usage.OutputTokens,
 			"usage_observed":      output.Usage.UsageObserved,
 		},
-	}, nil
+	}
+	if expected := toolRuntimeFingerprintSnapshotMap(
+		input.activityInput.AdmissionSnapshot.ToolRuntimeFingerprint,
+	); expected != nil {
+		payload["admitted_tool_runtime_fingerprint"] = expected
+	}
+	return payload, nil
+}
+
+// primaryAgentResultProjectionPayload is the bounded, non-sensitive view that
+// may be copied to run steps and attempts. The complete value is stored only
+// through putProtectedJSON and addressed by AgentResultRef.
+func primaryAgentResultProjectionPayload(raw map[string]any) map[string]any {
+	result := map[string]any{}
+	for _, key := range []string{
+		"activity_attempt", "agent_result_ref", "model_name", "model_provider",
+		"admission_snapshot_sha256", "context_usage", "embedding_provider_admission",
+		"grounding_context_ref", "grounding_context_sha256",
+		"grounding_mode", "grounding_selected_scopes", "grounding_covered_scopes", "grounding_status",
+		"provider_response_id", "stage_timing", "status",
+		"terminal_reason", "tool_runtime_fingerprint", "admitted_tool_runtime_fingerprint",
+		"usage", "provider_invocation_sha256", "result_schema_version",
+	} {
+		if value, ok := raw[key]; ok {
+			result[key] = value
+		}
+	}
+	result["protected_result"] = true
+	if finalOutput, ok := raw["final_output"].(string); ok {
+		result["final_output_sha256"] = sha256AnyValue(finalOutput)
+	}
+	if envelope, ok := raw["terminal_envelope"]; ok {
+		result["terminal_envelope_sha256"] = sha256AnyValue(envelope)
+	}
+	if tools, ok := raw["tool_results"]; ok {
+		result["tool_results_sha256"] = sha256AnyValue(tools)
+	}
+	if trace, ok := raw["prompt_trace"]; ok {
+		result["prompt_trace_sha256"] = sha256AnyValue(trace)
+	}
+	return result
+}
+
+func primaryAgentOutputFromResultPayload(payload map[string]any) (temporalruntime.ExecutePrimaryAgentActivityOutput, error) {
+	if payload == nil {
+		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, fmt.Errorf("agent result payload is empty")
+	}
+	output := temporalruntime.ExecutePrimaryAgentActivityOutput{
+		AgentResultRef:     strings.TrimSpace(stringValue(payload["agent_result_ref"])),
+		FinalOutput:        strings.TrimSpace(stringValue(payload["final_output"])),
+		ModelName:          strings.TrimSpace(stringValue(payload["model_name"])),
+		ModelProvider:      strings.TrimSpace(stringValue(payload["model_provider"])),
+		ProviderResponseID: strings.TrimSpace(stringValue(payload["provider_response_id"])),
+		RunID:              strings.TrimSpace(stringValue(payload["run_id"])),
+		Status:             strings.TrimSpace(stringValue(payload["status"])),
+		TerminalReason:     strings.TrimSpace(stringValue(payload["terminal_reason"])),
+		PromptTrace:        cloneAnyMapFromMetadata(payload["prompt_trace"]),
+		StageTiming:        cloneAnyMapFromMetadata(payload["stage_timing"]),
+		TerminalEnvelope:   cloneAnyMapFromMetadata(payload["terminal_envelope"]),
+		ToolRuntimeFingerprint: cloneAnyMapFromMetadata(
+			payload["tool_runtime_fingerprint"],
+		),
+	}
+	usage, ok := payload["usage"].(map[string]any)
+	if ok {
+		output.Usage.CachedInputTokens = int64(intFromAny(usage["cached_input_tokens"]))
+		output.Usage.InputTokens = int64(intFromAny(usage["input_tokens"]))
+		output.Usage.OutputTokens = int64(intFromAny(usage["output_tokens"]))
+	}
+	if output.AgentResultRef == "" || output.Status == "" {
+		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, fmt.Errorf("agent result payload identity is incomplete")
+	}
+	if rawTools, ok := payload["tool_results"].([]any); ok {
+		output.ToolResults = make([]temporalruntime.AgentToolResult, 0, len(rawTools))
+		for _, raw := range rawTools {
+			item, ok := raw.(map[string]any)
+			if !ok {
+				return temporalruntime.ExecutePrimaryAgentActivityOutput{}, fmt.Errorf("agent tool result payload is invalid")
+			}
+			output.ToolResults = append(output.ToolResults, temporalruntime.AgentToolResult{
+				ArgumentsJSON:   cloneAnyMapFromMetadata(item["arguments_json"]),
+				DurationMS:      numericProjectionValue(item["duration_ms"]),
+				FailCloseReason: strings.TrimSpace(stringValue(item["fail_close_reason"])),
+				PayloadKind:     strings.TrimSpace(stringValue(item["payload_kind"])),
+				Result:          cloneAnyMapFromMetadata(item["result"]),
+				ResultRef:       strings.TrimSpace(stringValue(item["result_ref"])),
+				Status:          strings.TrimSpace(stringValue(item["status"])),
+				ToolName:        strings.TrimSpace(stringValue(item["tool_name"])),
+			})
+		}
+	}
+	return output, nil
+}
+
+func primaryAgentToolDurationMS(value float64) (int64, error) {
+	if math.IsNaN(value) || math.IsInf(value, 0) || value <= 0 || value > float64((1<<63)-1) {
+		return 0, fmt.Errorf("agent runtime tool duration_ms is invalid")
+	}
+	return int64(math.Ceil(value)), nil
+}
+
+func numericProjectionValue(value any) float64 {
+	numeric, _ := numericValue(value)
+	return numeric
 }
 
 func primaryAgentSDKToolProjectionRef(runID string, toolName string, callIndex int) string {

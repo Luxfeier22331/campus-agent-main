@@ -10,7 +10,7 @@
 - `serving-config.json`：索引与查询兼容配置；
 - `task-registry.v3.json`：本目录可执行的采集任务。
 
-查询开放状态和物理映射由 `configs/runtime/query-serving-targets.v1.json` 维护，任务能力由本目录
+查询开放状态、路由词和逻辑映射由 `configs/runtime/query-serving-targets.v3.json` 维护，任务能力由本目录
 注册表维护。真实来源数据不由公开合成 fixture 替代。
 
 领域边界见 `docs/architecture/domains/regulations.md`，学生手册处理规则见

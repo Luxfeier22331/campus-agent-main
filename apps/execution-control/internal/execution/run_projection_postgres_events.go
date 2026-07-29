@@ -84,6 +84,9 @@ func (s *PostgresRunProjectionStore) AppendRunEvent(
 		}
 		return DurableRunEvent{}, err
 	}
+	if err := notifyRunEventInTx(ctx, tx, event.RunID); err != nil {
+		return DurableRunEvent{}, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return DurableRunEvent{}, err
 	}

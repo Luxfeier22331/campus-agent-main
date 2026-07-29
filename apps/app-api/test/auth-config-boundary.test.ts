@@ -35,19 +35,11 @@ describe("app-api auth config boundary", () => {
 		).toThrow("Missing auth runtime configuration: AUTH_SHELL_ORIGIN");
 	});
 
-	it("requires APP_API_DB_FRESH for fresh runtime access instead of falling back to APP_API_DB", () => {
+	it("requires the single APP_API_DB runtime binding", () => {
 		expect(() =>
-			buildRuntimeDatabaseConfig(
-				{
-					APP_API_ENVIRONMENT: "test",
-					APP_API_DB: {
-						connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
-					},
-				},
-				{
-					consistency: "fresh",
-				},
-			),
-		).toThrow("APP_API_DB_FRESH.connectionString is required for fresh runtime access.");
+			buildRuntimeDatabaseConfig({
+				APP_API_ENVIRONMENT: "test",
+			}),
+		).toThrow("APP_API_DB.connectionString is required.");
 	});
 });

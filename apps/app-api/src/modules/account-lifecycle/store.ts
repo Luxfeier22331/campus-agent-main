@@ -69,7 +69,7 @@ export function createPgAccountLifecycleStore(
 	env: Env,
 	input: { getDb?: RuntimeDbGetter } = {},
 ): AccountLifecycleStore {
-	const getDb = input.getDb ?? (() => createRuntimeDatabase(env, { consistency: "fresh" }));
+	const getDb = input.getDb ?? (() => createRuntimeDatabase(env));
 	return {
 		async requestDeletion(request) {
 			const db = await getDb();

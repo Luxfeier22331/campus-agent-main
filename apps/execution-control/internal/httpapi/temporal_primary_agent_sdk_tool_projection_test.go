@@ -2,6 +2,8 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -13,63 +15,259 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
-func TestExecutePrimaryAgentActivityProjectsSdkTypedToolResult(t *testing.T) {
+func TestExecutePrimaryAgentActivityProjectsPersonalMemoryToolResult(t *testing.T) {
+	runID := "run-primary-agent-memory-tool"
+	store, err := executePrimaryAgentSDKToolFixture(t, runID, "completed", map[string]any{
+		"status":         "completed",
+		"tool_name":      personalMemoryRecallToolName,
+		"payload_kind":   personalMemoryRecallToolName,
+		"arguments_json": map[string]any{"query": "我上次说过喜欢哪个食堂？"},
+		"result_ref":     "agent-runtime://" + runID + "/tools/personal_memory_recall/1",
+		"result": map[string]any{
+			"outcome": "matched", "memory_text": "用户喜欢一食堂。",
+		},
+	})
+	if err != nil {
+		t.Fatalf("execute primary agent: %v", err)
+	}
+
+	stepID := "sdk_tool.execute.personal_memory_recall.1"
+	steps, err := store.ListRunSteps(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("list run steps: %v", err)
+	}
+	var toolStep *execution.RunStepProjection
+	for index := range steps {
+		if steps[index].StepID == stepID {
+			toolStep = &steps[index]
+		}
+	}
+	if toolStep == nil || toolStep.Tool != personalMemoryRecallToolName ||
+		toolStep.StepKind != "tool" || toolStep.Status != "completed" {
+		t.Fatalf("personal memory tool step = %#v; all steps = %#v", toolStep, steps)
+	}
+	assertSDKToolAttemptDuration(t, store, runID, stepID, 18)
+
+	results, err := store.ListStepResults(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("list step results: %v", err)
+	}
+	var toolResult *execution.StepResultProjection
+	for index := range results {
+		if results[index].StepID == stepID {
+			toolResult = &results[index]
+		}
+	}
+	if toolResult == nil || toolResult.ResultKind != "typed_tool_result" ||
+		toolResult.ProjectionRef != "projection://runs/"+runID+"/sdk-tools/personal_memory_recall/1" ||
+		toolResult.SanitizedPayload["tool_name"] != personalMemoryRecallToolName ||
+		toolResult.SanitizedPayload["outcome"] != "matched" {
+		t.Fatalf("personal memory tool result = %#v; all results = %#v", toolResult, results)
+	}
+	assertSDKToolArgumentIdentityForTest(t, toolResult.SanitizedPayload)
+	for _, field := range []string{"arguments_json", "memory_text", "result"} {
+		if _, exists := toolResult.SanitizedPayload[field]; exists {
+			t.Fatalf("tool result leaked %s: %#v", field, toolResult.SanitizedPayload)
+		}
+	}
+	if resultHash, ok := toolResult.SanitizedPayload["result_sha256"].(string); !ok || !validSHA256Ref(resultHash) {
+		t.Fatalf("result_sha256 = %#v", toolResult.SanitizedPayload["result_sha256"])
+	}
+
+	run, err := store.GetRun(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("get run: %v", err)
+	}
+	protected := map[string]any{}
+	server := NewServer(config.Config{})
+	attachRunProjectionStoreForHandlerTest(server, store)
+	if err := server.getProtectedJSON(
+		context.Background(),
+		run,
+		temporalProjectionRef(runID, "agent/primary/result"),
+		protectedPayloadKindAgentResult,
+		&protected,
+	); err != nil {
+		t.Fatalf("get protected agent result: %v", err)
+	}
+	rawTools, ok := protected["tool_results"].([]any)
+	if !ok || len(rawTools) != 1 {
+		t.Fatalf("protected tool_results = %#v", protected["tool_results"])
+	}
+	tool := expectMetadataMapForTest(t, rawTools[0], "tool_results[0]")
+	result := expectMetadataMapForTest(t, tool["result"], "tool_results[0].result")
+	if result["memory_text"] != "用户喜欢一食堂。" {
+		t.Fatalf("protected personal memory result = %#v", result)
+	}
+}
+
+func TestExecutePrimaryAgentActivityProjectsFailedPersonalMemoryToolResult(t *testing.T) {
+	runID := "run-primary-agent-memory-tool-failed"
+	store, err := executePrimaryAgentSDKToolFixture(t, runID, "failed", map[string]any{
+		"status":            "failed",
+		"tool_name":         personalMemoryRecallToolName,
+		"payload_kind":      personalMemoryRecallToolName,
+		"arguments_json":    map[string]any{"query": "我上次说过喜欢哪个食堂？"},
+		"result_ref":        "agent-runtime://" + runID + "/tools/personal_memory_recall/1",
+		"fail_close_reason": "tool_handler_failed",
+		"result":            map[string]any{"error": map[string]any{"code": "memory_unavailable"}},
+	})
+	if err == nil {
+		t.Fatal("expected failed SDK tool to fail primary agent activity")
+	}
+	assertTemporalFailureSanitized(t, err, "tool_execution_failed", true)
+
+	steps, listErr := store.ListRunSteps(context.Background(), runID)
+	if listErr != nil {
+		t.Fatalf("list run steps: %v", listErr)
+	}
+	for _, step := range steps {
+		if step.StepID == "sdk_tool.execute.personal_memory_recall.1" {
+			if step.Status != "failed" || step.Tool != personalMemoryRecallToolName ||
+				step.SanitizedPayload["fail_close_reason"] != "tool_handler_failed" {
+				t.Fatalf("failed personal memory tool step = %#v", step)
+			}
+			return
+		}
+	}
+	t.Fatalf("failed personal memory tool step missing: %#v", steps)
+}
+
+func TestExecutePrimaryAgentActivityFailsClosedOnPersonalMemoryArgumentDrift(t *testing.T) {
+	tests := []struct {
+		name      string
+		arguments map[string]any
+		message   string
+	}{
+		{name: "extra field", arguments: map[string]any{"query": "食堂", "unexpected": true}, message: "not allowed"},
+		{name: "empty query", arguments: map[string]any{"query": ""}, message: "shorter than minLength"},
+		{name: "long query", arguments: map[string]any{"query": strings.Repeat("记", 401)}, message: "longer than maxLength"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runID := "run-primary-agent-memory-args-" + strings.ReplaceAll(test.name, " ", "-")
+			store, err := executePrimaryAgentSDKToolFixture(t, runID, "completed", map[string]any{
+				"status":         "completed",
+				"tool_name":      personalMemoryRecallToolName,
+				"payload_kind":   personalMemoryRecallToolName,
+				"arguments_json": test.arguments,
+				"result_ref":     "agent-runtime://" + runID + "/tools/personal_memory_recall/1",
+				"result":         map[string]any{"outcome": "no_match", "memory_text": ""},
+			})
+			if err == nil || !strings.Contains(err.Error(), "fail_close_reason=schema_contract_drift") ||
+				!strings.Contains(err.Error(), test.message) {
+				t.Fatalf("argument drift error = %v", err)
+			}
+			assertSDKToolProjectionFailure(t, store, runID, "schema_contract_drift")
+		})
+	}
+}
+
+func TestExecutePrimaryAgentActivityFailsClosedOnPersonalMemoryResultDrift(t *testing.T) {
+	tests := []struct {
+		name   string
+		result map[string]any
+	}{
+		{name: "missing memory text", result: map[string]any{"outcome": "matched"}},
+		{name: "invalid outcome", result: map[string]any{"outcome": "unknown", "memory_text": ""}},
+		{name: "extra field", result: map[string]any{"outcome": "no_match", "memory_text": "", "extra": true}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runID := "run-primary-agent-memory-result-" + strings.ReplaceAll(test.name, " ", "-")
+			store, err := executePrimaryAgentSDKToolFixture(t, runID, "completed", map[string]any{
+				"status":         "completed",
+				"tool_name":      personalMemoryRecallToolName,
+				"payload_kind":   personalMemoryRecallToolName,
+				"arguments_json": map[string]any{"query": "食堂"},
+				"result_ref":     "agent-runtime://" + runID + "/tools/personal_memory_recall/1",
+				"result":         test.result,
+			})
+			if err == nil || !strings.Contains(err.Error(), "fail_close_reason=result_contract_drift") {
+				t.Fatalf("result drift error = %v", err)
+			}
+			assertSDKToolProjectionFailure(t, store, runID, "result_contract_drift")
+		})
+	}
+}
+
+func TestExecutePrimaryAgentActivityRejectsUnadmittedSDKToolResult(t *testing.T) {
+	tests := []struct {
+		name        string
+		toolName    string
+		payloadKind string
+		want        string
+	}{
+		{name: "closed institutional tool", toolName: "transport_schedule_lookup", payloadKind: "transport_schedule_lookup", want: "was not visible for this turn"},
+		{name: "unknown tool", toolName: "unregistered_fixture_tool", payloadKind: "unregistered_fixture_tool", want: "is not admitted"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runID := "run-primary-agent-unadmitted-" + strings.ReplaceAll(test.name, " ", "-")
+			store, err := executePrimaryAgentSDKToolFixture(t, runID, "completed", map[string]any{
+				"status":         "completed",
+				"tool_name":      test.toolName,
+				"payload_kind":   test.payloadKind,
+				"arguments_json": map[string]any{},
+				"result_ref":     "agent-runtime://" + runID + "/tools/" + test.toolName + "/1",
+				"result":         map[string]any{},
+			})
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("unadmitted tool error = %v", err)
+			}
+			steps, listErr := store.ListRunSteps(context.Background(), runID)
+			if listErr != nil {
+				t.Fatalf("list run steps: %v", listErr)
+			}
+			for _, step := range steps {
+				if strings.HasPrefix(step.StepID, "sdk_tool.execute."+test.toolName) {
+					t.Fatalf("unadmitted tool was projected: %#v", step)
+				}
+			}
+		})
+	}
+}
+
+func executePrimaryAgentSDKToolFixture(
+	t *testing.T,
+	runID string,
+	runtimeStatus string,
+	toolResult map[string]any,
+) (*execution.InMemoryRunProjectionStore, error) {
+	t.Helper()
+	toolResult["duration_ms"] = 17.25
 	store := execution.NewInMemoryRunProjectionStore()
-	now := time.Date(2026, 6, 12, 11, 10, 0, 0, time.UTC)
 	createHTTPAPIQueuedDurableRunForTest(
 		t,
 		store,
-		"run-primary-agent-sdk-tool",
-		"conv-primary-agent-sdk-tool",
-		now,
-		ragHandoffForDurableWorkerTest("今晚六点还有丰台去海淀的班车吗"),
+		runID,
+		"conv-"+runID,
+		time.Date(2026, 7, 25, 12, 0, 0, 0, time.UTC),
+		agentRequestForDurableWorkerTest("我上次说过喜欢哪个食堂？"),
 	)
-	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
-			"status":               "completed",
-			"run_id":               "run-primary-agent-sdk-tool",
-			"final_output":         "今晚六点的丰台到海淀班车暂时无法用结构化来源确认，请人工校对。",
-			"terminal_envelope":    map[string]any{"kind": "answer", "answer_text": "今晚六点的丰台到海淀班车暂时无法用结构化来源确认，请人工校对。"},
-			"provider_response_id": "resp-primary-agent-sdk-tool",
-			"selected_tools":       []string{"transport_schedule_lookup", "transport_schedule_lookup"},
-			"tool_results": []map[string]any{{
-				"status":       "completed",
-				"tool_name":    "transport_schedule_lookup",
-				"tool":         "transport_schedule_lookup",
-				"payload_kind": "transport_schedule_lookup",
-				"arguments_json": validTransportScheduleLookupArguments(
-					"今晚六点还有丰台去海淀的班车吗",
-				),
-				"result_ref": "agent-runtime://run-primary-agent-sdk-tool/tools/transport_schedule_lookup",
-				"result": campusServicesToolResultForTest(
-					"transport_schedule_lookup",
-					"temporarily_unverifiable",
-					"agent-runtime://run-primary-agent-sdk-tool/tools/transport_schedule_lookup",
-				),
-			}, {
-				"status":       "completed",
-				"tool_name":    "transport_schedule_lookup",
-				"tool":         "transport_schedule_lookup",
-				"payload_kind": "transport_schedule_lookup",
-				"arguments_json": validTransportScheduleLookupArguments(
-					"今晚六点还有丰台去海淀的班车吗",
-				),
-				"result_ref": "agent-runtime://run-primary-agent-sdk-tool/tools/transport_schedule_lookup/2",
-				"result": campusServicesToolResultForTest(
-					"transport_schedule_lookup",
-					"resolved_current",
-					"agent-runtime://run-primary-agent-sdk-tool/tools/transport_schedule_lookup/2",
-				),
-			}},
-			"terminal_reason": "answer_completed",
+	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
+		payload := map[string]any{
+			"status":               runtimeStatus,
+			"run_id":               runID,
+			"final_output":         "你之前提到喜欢一食堂。",
+			"provider_response_id": "resp-" + runID,
+			"tool_results":         []map[string]any{toolResult},
+			"terminal_reason":      "answer_completed",
 			"usage": map[string]any{
-				"input_tokens":        28,
-				"output_tokens":       16,
-				"cached_input_tokens": 0,
+				"input_tokens": 12, "output_tokens": 6, "cached_input_tokens": 0,
 			},
-		})
+		}
+		if runtimeStatus == "completed" {
+			payload["terminal_envelope"] = map[string]any{
+				"kind": "answer", "answer_text": "你之前提到喜欢一食堂。",
+			}
+		} else {
+			payload["final_output"] = ""
+			payload["terminal_reason"] = "agent_runtime_failed"
+		}
+		writeAgentRuntimeSSEEvent(t, response, "completed", payload)
 	}))
-	defer agentRuntime.Close()
+	t.Cleanup(agentRuntime.Close)
 	server := NewServer(config.Config{
 		AgentRuntimeBaseURL:      agentRuntime.URL,
 		AgentRuntimeSharedSecret: "agent-secret",
@@ -78,502 +276,93 @@ func TestExecutePrimaryAgentActivityProjectsSdkTypedToolResult(t *testing.T) {
 	})
 	attachPrimaryAgentProviderConfigForTest(server)
 	attachRunProjectionStoreForHandlerTest(server, store)
-
-	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
-		ConversationID:   "conv-primary-agent-sdk-tool",
-		RequestID:        "req-primary-agent-sdk-tool",
-		RunID:            "run-primary-agent-sdk-tool",
+	input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
+		ConversationID:   "conv-" + runID,
+		RequestID:        "req-" + runID,
+		RunID:            runID,
 		TraceID:          "trace-executor-001",
-		TurnID:           "turn-primary-agent-sdk-tool",
-		VisibleToolNames: []string{"transport_schedule_lookup", "knowledge_query"},
+		TurnID:           "turn-" + runID,
+		VisibleToolNames: []string{personalMemoryRecallToolName},
 	})
+	_, err := server.ExecutePrimaryAgentActivity(context.Background(), input)
+	return store, err
+}
+
+func assertSDKToolProjectionFailure(
+	t *testing.T,
+	store *execution.InMemoryRunProjectionStore,
+	runID string,
+	wantReason string,
+) {
+	t.Helper()
+	attempts, err := store.ListStepAttempts(context.Background(), runID)
 	if err != nil {
-		t.Fatalf("execute primary agent: %v", err)
+		t.Fatalf("list attempts: %v", err)
 	}
-	steps, err := store.ListRunSteps(context.Background(), "run-primary-agent-sdk-tool")
+	for _, attempt := range attempts {
+		if attempt.StepID == "sdk_tool.execute.personal_memory_recall.1" {
+			if attempt.Status != "failed" || attempt.FailCloseReason != wantReason {
+				t.Fatalf("tool attempt = %#v, want failed %s", attempt, wantReason)
+			}
+			if attempt.DurationMS != 18 {
+				t.Fatalf("tool attempt duration_ms = %d, want 18", attempt.DurationMS)
+			}
+			assertSDKToolArgumentIdentityForTest(t, attempt.SanitizedPayload)
+			return
+		}
+	}
+	t.Fatalf("personal memory tool failure attempt missing: %#v", attempts)
+}
+
+func assertSDKToolAttemptDuration(
+	t *testing.T,
+	store *execution.InMemoryRunProjectionStore,
+	runID string,
+	stepID string,
+	want int64,
+) {
+	t.Helper()
+	attempts, err := store.ListStepAttempts(context.Background(), runID)
 	if err != nil {
-		t.Fatalf("list run steps: %v", err)
+		t.Fatalf("list attempts: %v", err)
 	}
-	var firstToolStep *execution.RunStepProjection
-	var secondToolStep *execution.RunStepProjection
-	for index := range steps {
-		if steps[index].StepID == "sdk_tool.execute.transport_schedule_lookup.1" {
-			firstToolStep = &steps[index]
-		}
-		if steps[index].StepID == "sdk_tool.execute.transport_schedule_lookup.2" {
-			secondToolStep = &steps[index]
+	for _, attempt := range attempts {
+		if attempt.StepID == stepID {
+			if attempt.DurationMS != want {
+				t.Fatalf("tool attempt duration_ms = %d, want %d", attempt.DurationMS, want)
+			}
+			return
 		}
 	}
-	if firstToolStep == nil {
-		t.Fatalf("first sdk typed tool step missing: %#v", steps)
-		return
-	}
-	if secondToolStep == nil {
-		t.Fatalf("second sdk typed tool step missing: %#v", steps)
-		return
-	}
-	if firstToolStep.Tool != "transport_schedule_lookup" ||
-		firstToolStep.StepKind != "tool" ||
-		firstToolStep.Status != "completed" ||
-		secondToolStep.Status != "completed" {
-		t.Fatalf("sdk typed tool steps = %#v / %#v", firstToolStep, secondToolStep)
-	}
-	results, err := store.ListStepResults(context.Background(), "run-primary-agent-sdk-tool")
-	if err != nil {
-		t.Fatalf("list step results: %v", err)
-	}
-	var firstToolResult *execution.StepResultProjection
-	var secondToolResult *execution.StepResultProjection
-	for index := range results {
-		if results[index].StepID == "sdk_tool.execute.transport_schedule_lookup.1" {
-			firstToolResult = &results[index]
-		}
-		if results[index].StepID == "sdk_tool.execute.transport_schedule_lookup.2" {
-			secondToolResult = &results[index]
-		}
-	}
-	if firstToolResult == nil {
-		t.Fatalf("first sdk typed tool result missing: %#v", results)
-		return
-	}
-	if secondToolResult == nil {
-		t.Fatalf("second sdk typed tool result missing: %#v", results)
-		return
-	}
-	if firstToolResult.ResultKind != "typed_tool_result" ||
-		firstToolResult.ProjectionRef != "projection://runs/run-primary-agent-sdk-tool/sdk-tools/transport_schedule_lookup/1" ||
-		secondToolResult.ProjectionRef != "projection://runs/run-primary-agent-sdk-tool/sdk-tools/transport_schedule_lookup/2" {
-		t.Fatalf("sdk typed tool results = %#v / %#v", firstToolResult, secondToolResult)
-	}
-	if firstToolResult.SanitizedPayload["selected_tool"] != "transport_schedule_lookup" ||
-		firstToolResult.SanitizedPayload["outcome"] != "temporarily_unverifiable" ||
-		secondToolResult.SanitizedPayload["outcome"] != "resolved_current" {
-		t.Fatalf("sdk typed tool result payloads = %#v / %#v", firstToolResult.SanitizedPayload, secondToolResult.SanitizedPayload)
-	}
-	assertSDKToolArgumentIdentityForTest(t, firstToolResult.SanitizedPayload)
-	assertSDKToolArgumentIdentityForTest(t, secondToolResult.SanitizedPayload)
-	if _, exists := firstToolResult.SanitizedPayload["arguments_json"]; exists {
-		t.Fatalf("sdk typed tool result leaked raw arguments_json: %#v", firstToolResult.SanitizedPayload)
-	}
-	secondEnvelope, ok := secondToolResult.SanitizedPayload["result_envelope"].(map[string]any)
-	if !ok {
-		t.Fatalf("second sdk typed tool result_envelope = %#v", secondToolResult.SanitizedPayload["result_envelope"])
-	}
-	if secondEnvelope["schema_version"] != "campus_services_tool_result.v1" ||
-		secondEnvelope["tool"] != "transport_schedule_lookup" ||
-		secondEnvelope["tool_name"] != "transport_schedule_lookup" ||
-		secondEnvelope["query_kind"] != "transport_schedule" ||
-		secondEnvelope["projection_ref"] != secondToolResult.ProjectionRef ||
-		secondEnvelope["outcome"] != "resolved_current" {
-		t.Fatalf("second sdk typed tool result_envelope = %#v", secondEnvelope)
-	}
-	if secondEnvelope["content_hash"] == "" {
-		t.Fatalf("second sdk typed tool result_envelope missing content_hash: %#v", secondEnvelope)
-	}
-	run, err := store.GetRun(context.Background(), "run-primary-agent-sdk-tool")
-	if err != nil {
-		t.Fatalf("get run: %v", err)
-	}
-	agentMetadata := cloneAnyMapFromMetadata(run.Metadata["temporal_agent"])
-	toolResults, ok := agentMetadata["tool_results"].([]map[string]any)
-	if !ok || len(toolResults) != 2 {
-		t.Fatalf("agent metadata tool_results = %#v", agentMetadata["tool_results"])
-	}
-	secondMetadataResult := expectMetadataMapForTest(t, toolResults[1]["result"], "tool_results[1].result")
-	secondMetadataEnvelope := expectMetadataMapForTest(
-		t,
-		secondMetadataResult["result_envelope"],
-		"tool_results[1].result.result_envelope",
-	)
-	if secondMetadataEnvelope["projection_ref"] != secondToolResult.ProjectionRef {
-		t.Fatalf("metadata result_envelope.projection_ref = %v, want %s", secondMetadataEnvelope["projection_ref"], secondToolResult.ProjectionRef)
-	}
+	t.Fatalf("tool attempt %s missing: %#v", stepID, attempts)
 }
 
-func TestExecutePrimaryAgentActivityProjectsFailedSdkTypedToolResult(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
-	now := time.Date(2026, 6, 12, 11, 20, 0, 0, time.UTC)
-	createHTTPAPIQueuedDurableRunForTest(
-		t,
-		store,
-		"run-primary-agent-sdk-tool-failed",
-		"conv-primary-agent-sdk-tool-failed",
-		now,
-		ragHandoffForDurableWorkerTest("最近有什么通知"),
-	)
-	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
-			"status":               "failed",
-			"run_id":               "run-primary-agent-sdk-tool-failed",
-			"final_output":         "",
-			"provider_response_id": "resp-primary-agent-sdk-tool-failed",
-			"selected_tools":       []string{"transport_schedule_lookup"},
-			"tool_results": []map[string]any{{
-				"status":            "failed",
-				"tool_name":         "transport_schedule_lookup",
-				"tool":              "transport_schedule_lookup",
-				"payload_kind":      "transport_schedule_lookup",
-				"arguments_json":    validTransportScheduleLookupArguments("今晚六点还有丰台去海淀的班车吗"),
-				"result_ref":        "agent-runtime://run-primary-agent-sdk-tool-failed/tools/transport_schedule_lookup/failed",
-				"fail_close_reason": "tool_handler_failed",
-				"result":            map[string]any{"error": map[string]any{"code": "source_truth_unavailable"}},
-			}},
-			"terminal_reason": "agent_runtime_failed",
-			"usage": map[string]any{
-				"input_tokens":        20,
-				"output_tokens":       3,
-				"cached_input_tokens": 0,
-			},
+func TestPrimaryAgentToolDurationMSRejectsInvalidRuntimeValues(t *testing.T) {
+	var missing agentToolResult
+	if err := json.Unmarshal([]byte(`{}`), &missing); err != nil {
+		t.Fatalf("decode missing duration fixture: %v", err)
+	}
+	tests := []struct {
+		name  string
+		value float64
+	}{
+		{name: "missing", value: missing.DurationMS},
+		{name: "zero", value: 0},
+		{name: "negative", value: -1},
+		{name: "NaN", value: math.NaN()},
+		{name: "positive infinity", value: math.Inf(1)},
+		{name: "negative infinity", value: math.Inf(-1)},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := primaryAgentToolDurationMS(test.value); err == nil {
+				t.Fatalf("duration_ms %v unexpectedly accepted", test.value)
+			}
 		})
-	}))
-	defer agentRuntime.Close()
-	server := NewServer(config.Config{
-		AgentRuntimeBaseURL:      agentRuntime.URL,
-		AgentRuntimeSharedSecret: "agent-secret",
-		AgentRuntimeDeadlineMS:   1000,
-		TemporalWorkerIdentity:   "test:agent:sdk-tool-failed",
-	})
-	attachPrimaryAgentProviderConfigForTest(server)
-	attachRunProjectionStoreForHandlerTest(server, store)
+	}
 
-	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
-		ConversationID:   "conv-primary-agent-sdk-tool-failed",
-		RequestID:        "req-primary-agent-sdk-tool-failed",
-		RunID:            "run-primary-agent-sdk-tool-failed",
-		TraceID:          "trace-executor-001",
-		TurnID:           "turn-primary-agent-sdk-tool-failed",
-		VisibleToolNames: []string{"transport_schedule_lookup"},
-	})
-	if err == nil {
-		t.Fatal("expected failed SDK tool to fail primary agent activity")
-	}
-	assertTemporalFailureSanitized(t, err, "tool_execution_failed", false)
-	steps, listErr := store.ListRunSteps(context.Background(), "run-primary-agent-sdk-tool-failed")
-	if listErr != nil {
-		t.Fatalf("list run steps: %v", listErr)
-	}
-	var toolStep *execution.RunStepProjection
-	for index := range steps {
-		if steps[index].StepID == "sdk_tool.execute.transport_schedule_lookup.1" {
-			toolStep = &steps[index]
-		}
-	}
-	if toolStep == nil {
-		t.Fatalf("failed sdk typed tool step missing: %#v", steps)
-		return
-	}
-	if toolStep.Status != "failed" ||
-		toolStep.Tool != "transport_schedule_lookup" ||
-		toolStep.SanitizedPayload["fail_close_reason"] != "tool_handler_failed" {
-		t.Fatalf("failed sdk typed tool step = %#v", toolStep)
-	}
-	results, listResultsErr := store.ListStepResults(context.Background(), "run-primary-agent-sdk-tool-failed")
-	if listResultsErr != nil {
-		t.Fatalf("list step results: %v", listResultsErr)
-	}
-	var toolResult *execution.StepResultProjection
-	for index := range results {
-		if results[index].StepID == "sdk_tool.execute.transport_schedule_lookup.1" {
-			toolResult = &results[index]
-		}
-	}
-	if toolResult == nil {
-		t.Fatalf("failed sdk typed tool result missing: %#v", results)
-		return
-	}
-	if toolResult.ResultKind != "activity_failure" ||
-		toolResult.SanitizedPayload["selected_tool"] != "transport_schedule_lookup" {
-		t.Fatalf("failed sdk typed tool result = %#v", toolResult)
-	}
-}
-
-func TestExecutePrimaryAgentActivityFailsClosedOnInvalidSdkToolArguments(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
-	now := time.Date(2026, 6, 12, 12, 5, 0, 0, time.UTC)
-	createHTTPAPIQueuedDurableRunForTest(
-		t,
-		store,
-		"run-primary-agent-sdk-tool-bad-args",
-		"conv-primary-agent-sdk-tool-bad-args",
-		now,
-		ragHandoffForDurableWorkerTest("今晚六点还有丰台去海淀的班车吗"),
-	)
-	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
-			"status":               "completed",
-			"run_id":               "run-primary-agent-sdk-tool-bad-args",
-			"final_output":         "不应在非法参数后完成。",
-			"provider_response_id": "resp-primary-agent-sdk-tool-bad-args",
-			"selected_tools":       []string{"transport_schedule_lookup"},
-			"tool_results": []map[string]any{{
-				"status":         "completed",
-				"tool_name":      "transport_schedule_lookup",
-				"tool":           "transport_schedule_lookup",
-				"payload_kind":   "transport_schedule_lookup",
-				"arguments_json": map[string]any{"query_text": "校车", "unexpected": "field"},
-				"result_ref":     "agent-runtime://run-primary-agent-sdk-tool-bad-args/tools/transport_schedule_lookup",
-				"result":         map[string]any{"outcome": "resolved_current"},
-			}},
-			"terminal_reason": "answer_completed",
-		})
-	}))
-	defer agentRuntime.Close()
-	server := NewServer(config.Config{
-		AgentRuntimeBaseURL:      agentRuntime.URL,
-		AgentRuntimeSharedSecret: "agent-secret",
-		AgentRuntimeDeadlineMS:   1000,
-		TemporalWorkerIdentity:   "test:agent:sdk-tool-bad-args",
-	})
-	attachPrimaryAgentProviderConfigForTest(server)
-	attachRunProjectionStoreForHandlerTest(server, store)
-
-	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
-		ConversationID:   "conv-primary-agent-sdk-tool-bad-args",
-		RequestID:        "req-primary-agent-sdk-tool-bad-args",
-		RunID:            "run-primary-agent-sdk-tool-bad-args",
-		TraceID:          "trace-executor-001",
-		TurnID:           "turn-primary-agent-sdk-tool-bad-args",
-		VisibleToolNames: []string{"transport_schedule_lookup"},
-	})
-	if err == nil {
-		t.Fatal("execute primary agent accepted invalid SDK tool arguments")
-	}
-	if !strings.Contains(err.Error(), "fail_close_reason=schema_contract_drift") {
-		t.Fatalf("error = %q, want schema_contract_drift fail close", err.Error())
-	}
-	attempts, listErr := store.ListStepAttempts(context.Background(), "run-primary-agent-sdk-tool-bad-args")
-	if listErr != nil {
-		t.Fatalf("list attempts: %v", listErr)
-	}
-	var toolAttempt *execution.StepAttemptProjection
-	for index := range attempts {
-		if attempts[index].StepID == "sdk_tool.execute.transport_schedule_lookup.1" {
-			toolAttempt = &attempts[index]
-			break
-		}
-	}
-	if toolAttempt == nil {
-		t.Fatalf("sdk tool failure attempt missing: %#v", attempts)
-		return
-	}
-	if toolAttempt.Status != "failed" ||
-		toolAttempt.FailCloseReason != "schema_contract_drift" {
-		t.Fatalf("tool attempt = %#v, want failed schema_contract_drift", toolAttempt)
-	}
-	if toolAttempt.SanitizedPayload["argument_validation"] == "" {
-		t.Fatalf("tool attempt payload = %#v, want argument_validation", toolAttempt.SanitizedPayload)
-	}
-	assertSDKToolArgumentIdentityForTest(t, toolAttempt.SanitizedPayload)
-	if _, exists := toolAttempt.SanitizedPayload["arguments_json"]; exists {
-		t.Fatalf("invalid sdk tool payload leaked raw arguments_json: %#v", toolAttempt.SanitizedPayload)
-	}
-}
-
-func TestExecutePrimaryAgentActivityFailsClosedOnSdkToolArgumentMinimumDrift(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
-	now := time.Date(2026, 6, 12, 12, 6, 0, 0, time.UTC)
-	createHTTPAPIQueuedDurableRunForTest(
-		t,
-		store,
-		"run-primary-agent-sdk-tool-max-drift",
-		"conv-primary-agent-sdk-tool-max-drift",
-		now,
-		ragHandoffForDurableWorkerTest("今晚六点还有丰台去海淀的班车吗"),
-	)
-	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
-			"status":               "completed",
-			"run_id":               "run-primary-agent-sdk-tool-max-drift",
-			"final_output":         "不应在非法参数后完成。",
-			"provider_response_id": "resp-primary-agent-sdk-tool-max-drift",
-			"selected_tools":       []string{"transport_schedule_lookup"},
-			"tool_results": []map[string]any{{
-				"status":         "completed",
-				"tool_name":      "transport_schedule_lookup",
-				"tool":           "transport_schedule_lookup",
-				"payload_kind":   "transport_schedule_lookup",
-				"arguments_json": transportScheduleArgumentsWithResultLimitForTest(0),
-				"result_ref":     "agent-runtime://run-primary-agent-sdk-tool-max-drift/tools/transport_schedule_lookup",
-				"result":         map[string]any{"outcome": "resolved_current"},
-			}},
-			"terminal_reason": "answer_completed",
-		})
-	}))
-	defer agentRuntime.Close()
-	server := NewServer(config.Config{
-		AgentRuntimeBaseURL:      agentRuntime.URL,
-		AgentRuntimeSharedSecret: "agent-secret",
-		AgentRuntimeDeadlineMS:   1000,
-		TemporalWorkerIdentity:   "test:agent:sdk-tool-max-drift",
-	})
-	attachPrimaryAgentProviderConfigForTest(server)
-	attachRunProjectionStoreForHandlerTest(server, store)
-
-	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
-		ConversationID:   "conv-primary-agent-sdk-tool-max-drift",
-		RequestID:        "req-primary-agent-sdk-tool-max-drift",
-		RunID:            "run-primary-agent-sdk-tool-max-drift",
-		TraceID:          "trace-executor-001",
-		TurnID:           "turn-primary-agent-sdk-tool-max-drift",
-		VisibleToolNames: []string{"transport_schedule_lookup"},
-	})
-	if err == nil {
-		t.Fatal("execute primary agent accepted SDK tool arguments below schema minimum")
-	}
-	if !strings.Contains(err.Error(), "below minimum") ||
-		!strings.Contains(err.Error(), "fail_close_reason=schema_contract_drift") {
-		t.Fatalf("error = %q, want minimum schema_contract_drift", err.Error())
-	}
-}
-
-func transportScheduleArgumentsWithResultLimitForTest(resultLimit int) map[string]any {
-	arguments := validTransportScheduleLookupArguments("今晚六点还有丰台去海淀的班车吗")
-	arguments["result_limit"] = resultLimit
-	return arguments
-}
-
-func TestExecutePrimaryAgentActivityRejectsCampusServicesSdkToolResultWithoutEnvelope(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
-	now := time.Date(2026, 6, 12, 12, 10, 0, 0, time.UTC)
-	createHTTPAPIQueuedDurableRunForTest(
-		t,
-		store,
-		"run-primary-agent-sdk-tool-missing-envelope",
-		"conv-primary-agent-sdk-tool-missing-envelope",
-		now,
-		ragHandoffForDurableWorkerTest("今晚六点还有丰台去海淀的班车吗"),
-	)
-	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
-			"status":               "completed",
-			"run_id":               "run-primary-agent-sdk-tool-missing-envelope",
-			"final_output":         "不应在缺少标准结果 envelope 后完成。",
-			"provider_response_id": "resp-primary-agent-sdk-tool-missing-envelope",
-			"selected_tools":       []string{"transport_schedule_lookup"},
-			"tool_results": []map[string]any{{
-				"status":       "completed",
-				"tool_name":    "transport_schedule_lookup",
-				"tool":         "transport_schedule_lookup",
-				"payload_kind": "transport_schedule_lookup",
-				"arguments_json": validTransportScheduleLookupArguments(
-					"今晚六点还有丰台去海淀的班车吗",
-				),
-				"result_ref": "agent-runtime://run-primary-agent-sdk-tool-missing-envelope/tools/transport_schedule_lookup",
-				"result":     map[string]any{"outcome": "resolved_current"},
-			}},
-			"terminal_reason": "answer_completed",
-		})
-	}))
-	defer agentRuntime.Close()
-	server := NewServer(config.Config{
-		AgentRuntimeBaseURL:      agentRuntime.URL,
-		AgentRuntimeSharedSecret: "agent-secret",
-		AgentRuntimeDeadlineMS:   1000,
-		TemporalWorkerIdentity:   "test:agent:sdk-tool-missing-envelope",
-	})
-	attachPrimaryAgentProviderConfigForTest(server)
-	attachRunProjectionStoreForHandlerTest(server, store)
-
-	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
-		ConversationID:   "conv-primary-agent-sdk-tool-missing-envelope",
-		RequestID:        "req-primary-agent-sdk-tool-missing-envelope",
-		RunID:            "run-primary-agent-sdk-tool-missing-envelope",
-		TraceID:          "trace-executor-001",
-		TurnID:           "turn-primary-agent-sdk-tool-missing-envelope",
-		VisibleToolNames: []string{"transport_schedule_lookup"},
-	})
-	if err == nil {
-		t.Fatal("execute primary agent accepted transport_schedule_lookup SDK tool result without envelope")
-	}
-	if !strings.Contains(err.Error(), "fail_close_reason=result_contract_drift") {
-		t.Fatalf("error = %q, want result_contract_drift fail close", err.Error())
-	}
-	attempts, listErr := store.ListStepAttempts(context.Background(), "run-primary-agent-sdk-tool-missing-envelope")
-	if listErr != nil {
-		t.Fatalf("list attempts: %v", listErr)
-	}
-	var toolAttempt *execution.StepAttemptProjection
-	for index := range attempts {
-		if attempts[index].StepID == "sdk_tool.execute.transport_schedule_lookup.1" {
-			toolAttempt = &attempts[index]
-			break
-		}
-	}
-	if toolAttempt == nil {
-		t.Fatalf("sdk tool failure attempt missing: %#v", attempts)
-		return
-	}
-	if toolAttempt.Status != "failed" ||
-		toolAttempt.FailCloseReason != "result_contract_drift" {
-		t.Fatalf("tool attempt = %#v, want failed result_contract_drift", toolAttempt)
-	}
-}
-
-func TestExecutePrimaryAgentActivityRejectsUnadmittedSdkToolResult(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
-	now := time.Date(2026, 6, 12, 11, 25, 0, 0, time.UTC)
-	createHTTPAPIQueuedDurableRunForTest(
-		t,
-		store,
-		"run-primary-agent-sdk-tool-unadmitted",
-		"conv-primary-agent-sdk-tool-unadmitted",
-		now,
-		ragHandoffForDurableWorkerTest("查看通知正文"),
-	)
-	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
-			"status":               "completed",
-			"run_id":               "run-primary-agent-sdk-tool-unadmitted",
-			"final_output":         "不应使用 internal-only 工具回答。",
-			"provider_response_id": "resp-primary-agent-sdk-tool-unadmitted",
-			"selected_tools":       []string{"unregistered_fixture_tool"},
-			"tool_results": []map[string]any{{
-				"status":       "completed",
-				"tool_name":    "unregistered_fixture_tool",
-				"tool":         "unregistered_fixture_tool",
-				"payload_kind": "unregistered_fixture_tool",
-				"result_ref":   "agent-runtime://run-primary-agent-sdk-tool-unadmitted/tools/unregistered_fixture_tool",
-				"result":       map[string]any{"outcome": "resolved_current"},
-			}},
-			"terminal_reason": "answer_completed",
-			"usage": map[string]any{
-				"input_tokens":        18,
-				"output_tokens":       9,
-				"cached_input_tokens": 0,
-			},
-		})
-	}))
-	defer agentRuntime.Close()
-	server := NewServer(config.Config{
-		AgentRuntimeBaseURL:      agentRuntime.URL,
-		AgentRuntimeSharedSecret: "agent-secret",
-		AgentRuntimeDeadlineMS:   1000,
-		TemporalWorkerIdentity:   "test:agent:sdk-tool-unadmitted",
-	})
-	attachPrimaryAgentProviderConfigForTest(server)
-	attachRunProjectionStoreForHandlerTest(server, store)
-
-	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
-		ConversationID:   "conv-primary-agent-sdk-tool-unadmitted",
-		RequestID:        "req-primary-agent-sdk-tool-unadmitted",
-		RunID:            "run-primary-agent-sdk-tool-unadmitted",
-		TraceID:          "trace-executor-001",
-		TurnID:           "turn-primary-agent-sdk-tool-unadmitted",
-		VisibleToolNames: []string{"transport_schedule_lookup"},
-	})
-	if err == nil {
-		t.Fatal("expected unadmitted SDK tool result to fail closed")
-	}
-	if !strings.Contains(err.Error(), "agent runtime tool unregistered_fixture_tool is not admitted") {
-		t.Fatalf("error = %q, want unadmitted tool failure", err.Error())
-	}
-	steps, listErr := store.ListRunSteps(context.Background(), "run-primary-agent-sdk-tool-unadmitted")
-	if listErr != nil {
-		t.Fatalf("list run steps: %v", listErr)
-	}
-	for _, step := range steps {
-		if strings.HasPrefix(step.StepID, "sdk_tool.execute.unregistered_fixture_tool") {
-			t.Fatalf("unadmitted SDK tool was projected as typed step: %#v", step)
-		}
+	durationMS, err := primaryAgentToolDurationMS(17.25)
+	if err != nil || durationMS != 18 {
+		t.Fatalf("duration_ms = %d, err = %v, want 18", durationMS, err)
 	}
 }

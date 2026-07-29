@@ -9,6 +9,7 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
+	"go.temporal.io/sdk/activity"
 )
 
 func (s *Server) WriteFinalizationActivity(
@@ -42,9 +43,36 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 	if run.Status == execution.DurableRunStatusCompleted {
 		return s.repairCompletedPrimaryAgentFinalization(ctx, run, input, finalizedAt)
 	}
-	agentResult, err := temporalAgentResultFromRun(run, input.AgentResultRef)
+	replayEvidence, err := s.completedFinalizationProjectionEvidence(ctx, run)
+	if err != nil {
+		return temporalruntime.WriteFinalizationActivityOutput{}, err
+	}
+	agentResult, err := s.temporalAgentResultFromRun(ctx, run, input.AgentResultRef)
 	if err != nil {
 		return s.failFinalizationActivity(ctx, run, "", "agent_result_missing", "", err)
+	}
+	expectedToolRuntime := cloneAnyMapFromMetadata(agentResult["admitted_tool_runtime_fingerprint"])
+	if len(expectedToolRuntime) == 0 && activity.IsActivity(ctx) {
+		return s.failFinalizationActivity(
+			ctx,
+			run,
+			"",
+			"agent_runtime_fingerprint_mismatch",
+			"agent_runtime_fingerprint_mismatch",
+			errors.New("admitted tool runtime fingerprint is unavailable"),
+		)
+	}
+	if len(expectedToolRuntime) > 0 {
+		if err := s.validateLocalToolRuntimeFingerprintMap(expectedToolRuntime); err != nil {
+			return s.failFinalizationActivity(
+				ctx,
+				run,
+				"",
+				"agent_runtime_fingerprint_mismatch",
+				"agent_runtime_fingerprint_mismatch",
+				err,
+			)
+		}
 	}
 	if toolName, failCloseReason, err := validatePrimaryAgentResultSucceeded(agentResult); err != nil {
 		return s.failFinalizationActivity(
@@ -57,25 +85,10 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 		)
 	}
 	finalizationStartedAt := time.Now().UTC()
-	finalizationRef := temporalProjectionRef(run.RunID, "finalization/write")
-	if err := s.projectTemporalStep(ctx, temporalStepProjection{
-		Attempt:       1,
-		Tool:          "",
-		Run:           run,
-		Status:        "started",
-		StepID:        "finalization.write",
-		StepKind:      "finalization",
-		TaskQueue:     temporalruntime.ActivityTaskQueueCore,
-		WorkerID:      s.config.TemporalWorkerIdentity,
-		StartedAt:     finalizationStartedAt,
-		UpdatedAt:     finalizationStartedAt,
-		ProjectionRef: finalizationRef,
-		Payload: map[string]any{
-			"agent_result_ref": input.AgentResultRef,
-		},
-	}); err != nil {
-		return temporalruntime.WriteFinalizationActivityOutput{}, err
+	if replayEvidence != nil {
+		finalizationStartedAt = replayEvidence.StartedAt
 	}
+	finalizationRef := temporalProjectionRef(run.RunID, "finalization/write")
 	completedAt := finalizedAt
 	finalizedResponse, err := s.primaryAgentFinalizedResponse(
 		ctx,
@@ -100,31 +113,22 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
 	terminalReason := primaryAgentTerminalReason(agentResult)
-	selectedTool := primaryAgentSelectedTool(stringSliceFromAny(agentResult["selected_tools"]))
 	projectionCompletedAt := time.Now().UTC()
+	if replayEvidence != nil {
+		projectionCompletedAt = replayEvidence.CompletedAt
+	}
 	projectionRun := run
 	projectionRun.FinalResponseRef = finalizationRef
-	projectionRun.SelectedTool = selectedTool
 	projectionRun.TerminalReason = terminalReason
-	if err := s.projectPrimaryAgentFinalizationStep(
+	completedRun, err := s.commitPrimaryAgentFinalizationStep(
 		ctx,
 		projectionRun,
 		input,
 		finalizationStartedAt,
 		projectionCompletedAt,
+		completedAt,
 		finalizedResponse,
-	); err != nil {
-		return temporalruntime.WriteFinalizationActivityOutput{}, err
-	}
-	completedRun, err := s.runProjectionStore.CompleteRunProjection(
-		ctx,
-		execution.DurableRunCompleteRequest{
-			FinalResponseRef: finalizationRef,
-			Now:              completedAt,
-			RunID:            run.RunID,
-			SelectedTool:     selectedTool,
-			TerminalReason:   terminalReason,
-		},
+		replayEvidence,
 	)
 	if err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
@@ -140,6 +144,139 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 	}, nil
 }
 
+func (s *Server) commitPrimaryAgentFinalizationStep(
+	ctx context.Context,
+	run execution.DurableRun,
+	input temporalruntime.WriteFinalizationActivityInput,
+	startedAt time.Time,
+	projectionCompletedAt time.Time,
+	runCompletedAt time.Time,
+	finalizedResponse map[string]any,
+	replayEvidence ...*finalizationProjectionEvidence,
+) (execution.DurableRun, error) {
+	projection := temporalStepProjection{
+		Attempt:       1,
+		Tool:          "",
+		Run:           run,
+		Status:        "completed",
+		StepID:        "finalization.write",
+		StepKind:      "finalization",
+		TaskQueue:     temporalruntime.ActivityTaskQueueCore,
+		WorkerID:      s.config.TemporalWorkerIdentity,
+		StartedAt:     startedAt,
+		CompletedAt:   projectionCompletedAt,
+		UpdatedAt:     projectionCompletedAt,
+		ResultKind:    "final_answer_projection",
+		ProjectionRef: run.FinalResponseRef,
+		Payload:       temporalFinalizationResultPayload(finalizedResponse, input, run),
+	}
+	if len(replayEvidence) > 0 && replayEvidence[0] != nil {
+		projection = replayEvidence[0].apply(projection)
+	}
+	projection = s.withTemporalActivityEvidence(ctx, projection, projection.Attempt)
+	projection.Payload = temporalStepProjectionPayload(projection)
+	attempt := projection.Attempt
+	if attempt <= 0 {
+		attempt = 1
+	}
+	updatedAt := projection.UpdatedAt
+	if updatedAt.IsZero() {
+		updatedAt = time.Now().UTC()
+	}
+	attemptID := temporalStepAttemptID(run.RunID, projection.StepID, attempt)
+	finalizationFingerprint := strings.TrimSpace(
+		stringValue(projection.Payload["finalization_fingerprint_sha256"]),
+	)
+	finalized, err := s.runProjectionStore.FinalizeRunProjection(
+		ctx,
+		execution.RunProjectionFinalizeRequest{
+			Completion: execution.DurableRunCompleteRequest{
+				FinalResponseRef: run.FinalResponseRef,
+				Now:              runCompletedAt,
+				RunID:            run.RunID,
+				TerminalReason:   run.TerminalReason,
+			},
+			Step: execution.RunStepProjection{
+				StepID:               projection.StepID,
+				RunID:                run.RunID,
+				ConversationID:       run.ConversationID,
+				StepKind:             projection.StepKind,
+				Tool:                 projection.Tool,
+				Status:               projection.Status,
+				ActivityAttempt:      projection.ActivityAttempt,
+				TaskQueue:            projection.TaskQueue,
+				WorkerID:             projection.WorkerID,
+				StartedAt:            projection.StartedAt,
+				CompletedAt:          projection.CompletedAt,
+				UpdatedAt:            updatedAt,
+				PayloadSchemaVersion: "run-step-projection-v1",
+				SanitizedPayload:     projection.Payload,
+			},
+			Attempt: execution.StepAttemptProjection{
+				AttemptID:             attemptID,
+				StepID:                projection.StepID,
+				RunID:                 run.RunID,
+				Attempt:               attempt,
+				Status:                projection.Status,
+				TaskQueue:             projection.TaskQueue,
+				WorkerID:              projection.WorkerID,
+				WorkflowID:            projection.WorkflowID,
+				TemporalRunID:         projection.TemporalRunID,
+				ActivityID:            projection.ActivityID,
+				ActivityType:          projection.ActivityType,
+				ActivityAttempt:       projection.ActivityAttempt,
+				ScheduledAt:           projection.ScheduledAt,
+				StartedAt:             projection.StartedAt,
+				CompletedAt:           projection.CompletedAt,
+				ScheduleToStartMS:     projection.ScheduleToStartMS,
+				DurationMS:            projection.DurationMS,
+				ProviderRequestRef:    projection.ProviderRequestRef,
+				ProviderResponseID:    projection.ProviderResponseID,
+				ModelProvider:         projection.ModelProvider,
+				ModelName:             projection.ModelName,
+				InputTokens:           projection.InputTokens,
+				OutputTokens:          projection.OutputTokens,
+				CachedInputTokens:     projection.CachedInputTokens,
+				CancelOutcome:         projection.CancelOutcome,
+				TimeoutOutcome:        projection.TimeoutOutcome,
+				LateCompletionOutcome: projection.LateCompletionOutcome,
+				FailCloseReason:       projection.FailCloseReason,
+				TerminalReason:        projection.TerminalReason,
+				UpdatedAt:             updatedAt,
+				PayloadSchemaVersion:  "step-attempt-projection-v1",
+				SanitizedPayload:      projection.Payload,
+			},
+			Result: execution.StepResultProjection{
+				ResultID:             temporalStepResultID(run.RunID, projection.StepID, attempt),
+				StepID:               projection.StepID,
+				RunID:                run.RunID,
+				AttemptID:            attemptID,
+				Status:               projection.Status,
+				ResultKind:           projection.ResultKind,
+				ProjectionRef:        projection.ProjectionRef,
+				CreatedAt:            updatedAt,
+				PayloadSchemaVersion: "step-result-projection-v1",
+				SanitizedPayload:     projection.Payload,
+			},
+			FinalizationFingerprintSHA256: finalizationFingerprint,
+		},
+	)
+	if err != nil {
+		if errors.Is(err, execution.ErrRunFinalizationConflict) {
+			return execution.DurableRun{}, sanitizedTemporalApplicationError(
+				"finalization_replay_conflict",
+				err,
+				true,
+			)
+		}
+		return execution.DurableRun{}, err
+	}
+	if err := s.emitTemporalStepObservation(ctx, projection); err != nil {
+		return execution.DurableRun{}, err
+	}
+	return finalized.Run, nil
+}
+
 func (s *Server) projectPrimaryAgentFinalizationStep(
 	ctx context.Context,
 	run execution.DurableRun,
@@ -147,8 +284,9 @@ func (s *Server) projectPrimaryAgentFinalizationStep(
 	startedAt time.Time,
 	completedAt time.Time,
 	finalizedResponse map[string]any,
+	replayEvidence ...*finalizationProjectionEvidence,
 ) error {
-	return s.projectTemporalStep(ctx, temporalStepProjection{
+	projection := temporalStepProjection{
 		Attempt:       1,
 		Tool:          "",
 		Run:           run,
@@ -163,7 +301,106 @@ func (s *Server) projectPrimaryAgentFinalizationStep(
 		ResultKind:    "final_answer_projection",
 		ProjectionRef: run.FinalResponseRef,
 		Payload:       temporalFinalizationResultPayload(finalizedResponse, input, run),
-	})
+	}
+	if len(replayEvidence) > 0 && replayEvidence[0] != nil {
+		projection = replayEvidence[0].apply(projection)
+	}
+	return s.projectTemporalStep(ctx, projection)
+}
+
+type finalizationProjectionEvidence struct {
+	ActivityAttempt   int
+	ActivityID        string
+	ActivityType      string
+	Attempt           int
+	CompletedAt       time.Time
+	DurationMS        int64
+	ScheduledAt       time.Time
+	ScheduleToStartMS int64
+	StartedAt         time.Time
+	TemporalRunID     string
+	UpdatedAt         time.Time
+	WorkerID          string
+	WorkflowID        string
+}
+
+func (e *finalizationProjectionEvidence) apply(
+	projection temporalStepProjection,
+) temporalStepProjection {
+	projection.ActivityAttempt = e.ActivityAttempt
+	projection.ActivityID = e.ActivityID
+	projection.ActivityType = e.ActivityType
+	projection.Attempt = e.Attempt
+	projection.CompletedAt = e.CompletedAt
+	projection.DurationMS = e.DurationMS
+	projection.PreserveAttempt = true
+	projection.ScheduledAt = e.ScheduledAt
+	projection.ScheduleToStartMS = e.ScheduleToStartMS
+	projection.StartedAt = e.StartedAt
+	projection.TemporalRunID = e.TemporalRunID
+	projection.UpdatedAt = e.UpdatedAt
+	projection.WorkerID = e.WorkerID
+	projection.WorkflowID = e.WorkflowID
+	return projection
+}
+
+func (s *Server) completedFinalizationProjectionEvidence(
+	ctx context.Context,
+	run execution.DurableRun,
+) (*finalizationProjectionEvidence, error) {
+	steps, err := s.runProjectionStore.ListRunSteps(ctx, run.RunID)
+	if err != nil {
+		return nil, err
+	}
+	activityAttempt := 0
+	for _, step := range steps {
+		if step.StepID == "finalization.write" && step.Status == "completed" {
+			activityAttempt = step.ActivityAttempt
+			break
+		}
+	}
+	if activityAttempt <= 0 {
+		return nil, nil
+	}
+	attempts, err := s.runProjectionStore.ListStepAttempts(ctx, run.RunID)
+	if err != nil {
+		return nil, err
+	}
+	var selected *execution.StepAttemptProjection
+	for index := range attempts {
+		attempt := attempts[index]
+		if attempt.StepID != "finalization.write" || attempt.Status != "completed" ||
+			projectionActivityAttempt(attempt) != activityAttempt {
+			continue
+		}
+		if selected == nil || attempt.Attempt > selected.Attempt {
+			candidate := attempt
+			selected = &candidate
+		}
+	}
+	if selected == nil || selected.Attempt <= 0 || selected.StartedAt.IsZero() ||
+		selected.CompletedAt.IsZero() || selected.UpdatedAt.IsZero() {
+		return nil, sanitizedTemporalApplicationError(
+			"finalization_replay_incomplete",
+			errors.New("completed finalization attempt evidence is missing"),
+			true,
+		)
+	}
+	return &finalizationProjectionEvidence{
+		ActivityAttempt:   projectionActivityAttempt(*selected),
+		ActivityID:        selected.ActivityID,
+		ActivityType:      selected.ActivityType,
+		Attempt:           selected.Attempt,
+		CompletedAt:       selected.CompletedAt,
+		DurationMS:        selected.DurationMS,
+		ScheduledAt:       selected.ScheduledAt,
+		ScheduleToStartMS: selected.ScheduleToStartMS,
+		StartedAt:         selected.StartedAt,
+		TemporalRunID:     selected.TemporalRunID,
+		UpdatedAt:         selected.UpdatedAt,
+		WorkerID:          selected.WorkerID,
+		WorkflowID:        selected.WorkflowID,
+	}, nil
 }
 
 func (s *Server) repairCompletedPrimaryAgentFinalization(
@@ -184,17 +421,68 @@ func (s *Server) repairCompletedPrimaryAgentFinalization(
 			true,
 		)
 	}
-	if err := s.repairPrimaryAgentFinalizationStep(ctx, run, input, completedAt); err != nil {
+	finalizedResponse, err := s.completedPrimaryAgentFinalizedResponse(ctx, run)
+	if err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
-	if err := s.appendPrimaryAgentRunCompletedEvent(ctx, run, completedAt); err != nil {
+	if err := s.validateCompletedPrimaryAgentFinalizationStep(ctx, run, input, finalizedResponse); err != nil {
+		return temporalruntime.WriteFinalizationActivityOutput{}, err
+	}
+	replayEvidence, err := s.completedFinalizationProjectionEvidence(ctx, run)
+	if err != nil {
+		return temporalruntime.WriteFinalizationActivityOutput{}, err
+	}
+	if replayEvidence == nil {
+		return temporalruntime.WriteFinalizationActivityOutput{}, sanitizedTemporalApplicationError(
+			"finalization_replay_incomplete",
+			errors.New("completed finalization step and attempt evidence is missing"),
+			true,
+		)
+	}
+	agentResult, err := s.temporalAgentResultFromRun(ctx, run, input.AgentResultRef)
+	if err != nil {
+		return temporalruntime.WriteFinalizationActivityOutput{}, sanitizedTemporalApplicationError(
+			"finalization_replay_conflict",
+			err,
+			true,
+		)
+	}
+	if _, _, err := validatePrimaryAgentResultSucceeded(agentResult); err != nil {
+		return temporalruntime.WriteFinalizationActivityOutput{}, sanitizedTemporalApplicationError(
+			"finalization_replay_conflict",
+			err,
+			true,
+		)
+	}
+	expectedTerminalReason := primaryAgentTerminalReason(agentResult)
+	if run.TerminalReason != expectedTerminalReason {
+		return temporalruntime.WriteFinalizationActivityOutput{}, sanitizedTemporalApplicationError(
+			"finalization_replay_conflict",
+			errors.New("completed run terminal identity differs from the protected agent result"),
+			true,
+		)
+	}
+	canonicalRun, err := s.commitPrimaryAgentFinalizationStep(
+		ctx,
+		run,
+		input,
+		replayEvidence.StartedAt,
+		replayEvidence.CompletedAt,
+		completedAt,
+		finalizedResponse,
+		replayEvidence,
+	)
+	if err != nil {
+		return temporalruntime.WriteFinalizationActivityOutput{}, err
+	}
+	if err := s.appendPrimaryAgentRunCompletedEvent(ctx, canonicalRun, completedAt); err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
 	return temporalruntime.WriteFinalizationActivityOutput{
 		CompletedAt:   completedAt,
-		ProjectionRef: run.FinalResponseRef,
-		RunID:         run.RunID,
-		Status:        string(run.Status),
+		ProjectionRef: canonicalRun.FinalResponseRef,
+		RunID:         canonicalRun.RunID,
+		Status:        string(canonicalRun.Status),
 	}, nil
 }
 
@@ -246,32 +534,23 @@ func (s *Server) appendPrimaryAgentRunCompletedEvent(
 	return errors.New("run.completed event is missing after append")
 }
 
-func (s *Server) repairPrimaryAgentFinalizationStep(
+func (s *Server) validateCompletedPrimaryAgentFinalizationStep(
 	ctx context.Context,
 	run execution.DurableRun,
 	input temporalruntime.WriteFinalizationActivityInput,
-	completedAt time.Time,
+	finalizedResponse map[string]any,
 ) error {
+	finalizationRef := temporalProjectionRef(run.RunID, "finalization/write")
+	if run.FinalResponseRef != finalizationRef || strings.TrimSpace(input.AgentResultRef) == "" {
+		return sanitizedTemporalApplicationError(
+			"finalization_replay_conflict",
+			errors.New("completed run finalization identity differs"),
+			true,
+		)
+	}
 	results, err := s.runProjectionStore.ListStepResults(ctx, run.RunID)
 	if err != nil {
 		return err
-	}
-	for _, result := range results {
-		if result.StepID == "finalization.write" && result.Status == "completed" {
-			return nil
-		}
-	}
-	events, err := s.runProjectionStore.ListRunEvents(ctx, run.RunID)
-	if err != nil {
-		return err
-	}
-	var finalizedResponse map[string]any
-	for _, event := range events {
-		if event.EventID != run.RunID+":finalization-completed-internal" {
-			continue
-		}
-		finalizedResponse = cloneAnyMapFromMetadata(event.Payload["response"])
-		break
 	}
 	if len(finalizedResponse) == 0 {
 		return sanitizedTemporalApplicationError(
@@ -280,13 +559,84 @@ func (s *Server) repairPrimaryAgentFinalizationStep(
 			true,
 		)
 	}
-	return s.projectPrimaryAgentFinalizationStep(ctx, run, input, completedAt, completedAt, finalizedResponse)
+	expectedPayload := temporalFinalizationResultPayload(finalizedResponse, input, run)
+	completedResults := 0
+	for _, result := range results {
+		if result.StepID != "finalization.write" || result.Status != "completed" {
+			continue
+		}
+		completedResults++
+		activityAttempt, valid := positiveIntValue(result.SanitizedPayload["activity_attempt"])
+		if !valid || result.ResultID != temporalStepResultID(run.RunID, result.StepID, activityAttempt) ||
+			result.AttemptID != temporalStepAttemptID(run.RunID, result.StepID, activityAttempt) ||
+			result.RunID != run.RunID || result.ResultKind != "final_answer_projection" ||
+			result.ProjectionRef != finalizationRef ||
+			result.PayloadSchemaVersion != "step-result-projection-v1" {
+			return sanitizedTemporalApplicationError(
+				"finalization_replay_conflict",
+				errors.New("completed finalization result identity differs"),
+				true,
+			)
+		}
+		expected := cloneAnyMapFromMetadata(expectedPayload)
+		expected["activity_attempt"] = activityAttempt
+		if sha256AnyValue(result.SanitizedPayload) != sha256AnyValue(expected) {
+			return sanitizedTemporalApplicationError(
+				"finalization_replay_conflict",
+				errors.New("completed finalization result fingerprint differs"),
+				true,
+			)
+		}
+	}
+	if completedResults != 1 {
+		return sanitizedTemporalApplicationError(
+			"finalization_replay_incomplete",
+			fmt.Errorf("completed finalization result count is %d", completedResults),
+			true,
+		)
+	}
+	return nil
+}
+
+func (s *Server) completedPrimaryAgentFinalizedResponse(
+	ctx context.Context,
+	run execution.DurableRun,
+) (map[string]any, error) {
+	events, err := s.runProjectionStore.ListRunEvents(ctx, run.RunID)
+	if err != nil {
+		return nil, err
+	}
+	for _, event := range events {
+		if event.EventID != run.RunID+":finalization-completed-internal" {
+			continue
+		}
+		response := cloneAnyMapFromMetadata(event.Payload["response"])
+		if len(response) > 0 {
+			return response, nil
+		}
+		break
+	}
+	return nil, sanitizedTemporalApplicationError(
+		"finalization_replay_incomplete",
+		errors.New("completed run finalization response projection is missing"),
+		true,
+	)
 }
 
 func validatePrimaryAgentResultSucceeded(agentResult map[string]any) (string, string, error) {
 	status := strings.TrimSpace(stringValue(agentResult["status"]))
 	if status != "completed" {
 		return "", "agent_runtime_incomplete", fmt.Errorf("agent result status is %q", status)
+	}
+	expectedFingerprint := cloneAnyMapFromMetadata(agentResult["admitted_tool_runtime_fingerprint"])
+	if len(expectedFingerprint) > 0 {
+		actualFingerprint := cloneAnyMapFromMetadata(agentResult["tool_runtime_fingerprint"])
+		if len(actualFingerprint) == 0 ||
+			hashAdmissionJSON(expectedFingerprint) != hashAdmissionJSON(actualFingerprint) {
+			return "", "agent_runtime_fingerprint_mismatch", errors.New(
+				"persisted agent runtime tool fingerprint does not match admission",
+			)
+		}
 	}
 	for _, toolResult := range primaryAgentToolResultMaps(agentResult["tool_results"]) {
 		if primaryAgentToolResultStatus(toolResult) != "failed" {
@@ -316,25 +666,18 @@ func (s *Server) primaryAgentFinalizedResponse(
 	if !validPrimaryAgentTerminalEnvelope(envelope) {
 		return nil, fmt.Errorf("agent terminal_envelope is required")
 	}
-	stepResults, err := s.runProjectionStore.ListStepResults(ctx, run.RunID)
-	if err != nil {
-		return nil, err
-	}
-	evidenceClosure, err := primaryAgentEvidenceClosureForFinalization(
+	evidenceClosure, err := s.primaryAgentEvidenceClosureForFinalization(
+		ctx,
+		run,
 		agentResult,
 		envelope,
-		stepResults,
 	)
 	if err != nil {
 		return nil, err
 	}
-	runtimeSelectedTools := stringSliceFromAny(agentResult["selected_tools"])
-	selectedTools := primaryAgentPublicSelectedTools(runtimeSelectedTools)
-	selectedTool := primaryAgentSelectedTool(selectedTools)
 	terminalKind := primaryAgentTerminalKind(envelope)
 	answerText := primaryAgentEnvelopeAnswerText(envelope)
 	status, followUpQuestion, confidence := primaryAgentResponseFields(terminalKind, answerText)
-	traceSelectedTool := primaryAgentTraceSelectedTool(selectedTool)
 	stageTiming, err := s.stageTimingForRun(
 		ctx,
 		run,
@@ -344,50 +687,71 @@ func (s *Server) primaryAgentFinalizedResponse(
 	if err != nil {
 		return nil, err
 	}
-	workflowMode := primaryAgentWorkflowMode(selectedTools)
+	toolAssisted := len(primaryAgentToolResultMaps(agentResult["tool_results"])) > 0
 	workflowTraceSummary := map[string]any{
-		"workflow_mode":             workflowMode,
-		"selected_tool":             traceSelectedTool,
-		"selected_tools":            selectedTools,
-		"first_decision_actor":      "primary_agent",
-		"planning_outcome":          "primary_agent_completed",
-		"direct_vs_delegate_branch": primaryAgentTraceBranch(terminalKind, selectedTools),
-		"terminal_reason":           terminalKind,
-		"answer_artifact_kinds":     []string{"agent_final_output"},
-		"answer_artifact_refs":      []string{strings.TrimSpace(stringValue(agentResult["agent_result_ref"]))},
-		"trace_steps":               primaryAgentTraceSteps(selectedTools, selectedTool, agentResult, status),
-		"tool_call_summaries":       primaryAgentToolCallSummaries(agentResult),
-		"runtime_versions":          map[string]any{"agent_runtime": "openai_agents_sdk"},
+		"execution_path":       primaryAgentExecutionPath(terminalKind, toolAssisted),
+		"terminal_reason":      terminalKind,
+		"answer_artifact_refs": []string{temporalProjectionRef(run.RunID, "finalization/write")},
+		"runtime_versions":     map[string]any{"agent_runtime": "openai_agents_sdk"},
 	}
 	observability := map[string]any{
 		"agent_runtime":   "openai_agents_sdk",
 		"model_name":      agentResult["model_name"],
 		"model_provider":  agentResult["model_provider"],
-		"prompt_trace":    cloneAnyMapFromMetadata(agentResult["prompt_trace"]),
-		"selected_tools":  selectedTools,
 		"terminal_reason": terminalKind,
 	}
 	result := map[string]any{
-		"provider_response_id": agentResult["provider_response_id"],
-		"selected_tools":       selectedTools,
-		"sources":              evidenceClosure.Sources,
-		"terminal_reason":      terminalKind,
+		"sources":         evidenceClosure.Sources,
+		"terminal_reason": terminalKind,
+	}
+	modelUsage, err := primaryAgentModelUsage(agentResult)
+	if err != nil {
+		return nil, err
 	}
 	return executionFinalizationResponseWireMap(ExecutionFinalizationResponseWire{
-		SelectedTool:         primaryAgentResponseSelectedTool(selectedTool),
 		Status:               status,
 		AnswerText:           primaryAgentAnswerText(status, answerText),
 		Error:                primaryAgentErrorBody(status, terminalKind),
 		FollowUpQuestion:     followUpQuestion,
 		Confidence:           confidence,
+		ModelUsage:           modelUsage,
 		StageTiming:          stageTiming,
-		ResolvedTargets:      append([]string{}, evidenceClosure.ResolvedTargets...),
 		Result:               result,
-		SessionUpdate:        evidenceClosure.SessionUpdate,
 		Observability:        observability,
 		WorkflowTraceSummary: workflowTraceSummary,
 		TraceID:              run.TraceID,
 	}), nil
+}
+
+func primaryAgentExecutionPath(terminalReason string, toolAssisted bool) string {
+	switch terminalReason {
+	case "clarification_required":
+		return "clarification"
+	case "out_of_scope", "policy_refusal":
+		return "rejected"
+	case "unsupported_by_evidence":
+		return "unsupported"
+	default:
+		if toolAssisted {
+			return "tool_assisted"
+		}
+		return "direct"
+	}
+}
+
+func primaryAgentModelUsage(agentResult map[string]any) (ModelUsageWire, error) {
+	usage := cloneAnyMapFromMetadata(agentResult["usage"])
+	result := ModelUsageWire{
+		InputTokens:       int64(intFromAny(usage["input_tokens"])),
+		CachedInputTokens: int64(intFromAny(usage["cached_input_tokens"])),
+		OutputTokens:      int64(intFromAny(usage["output_tokens"])),
+	}
+	result.TotalTokens = result.InputTokens + result.OutputTokens
+	if result.InputTokens < 0 || result.CachedInputTokens < 0 || result.OutputTokens < 0 ||
+		result.CachedInputTokens > result.InputTokens {
+		return ModelUsageWire{}, errors.New("agent model usage is invalid")
+	}
+	return result, nil
 }
 
 func primaryAgentTerminalReason(agentResult map[string]any) execution.DurableTerminalReason {
@@ -439,24 +803,6 @@ func primaryAgentAnswerText(status string, answerText string) string {
 	return answerText
 }
 
-func primaryAgentTraceBranch(terminalReason string, selectedTools []string) string {
-	if len(selectedTools) > 0 {
-		return "tool"
-	}
-	switch terminalReason {
-	case "clarification_required":
-		return "clarification"
-	case "out_of_scope":
-		return "out_of_scope"
-	case "policy_refusal":
-		return "policy_refusal"
-	case "unsupported_by_evidence":
-		return "unsupported"
-	default:
-		return "direct_answer"
-	}
-}
-
 func primaryAgentTerminalKind(envelope map[string]any) string {
 	kind := strings.TrimSpace(stringValue(envelope["kind"]))
 	if kind == "" {
@@ -483,155 +829,6 @@ func primaryAgentEnvelopeAnswerText(envelope map[string]any) string {
 	}
 }
 
-func primaryAgentSelectedTool(selectedTools []string) string {
-	if len(selectedTools) == 0 {
-		return ""
-	}
-	for _, tool := range selectedTools {
-		switch tool {
-		case "transport_schedule_lookup":
-			return "transport_schedule_lookup"
-		case "knowledge_query":
-			return "knowledge_query"
-		case "knowledge_search":
-			return "knowledge_query"
-		}
-	}
-	return ""
-}
-
-func primaryAgentPublicSelectedTools(selectedTools []string) []string {
-	result := make([]string, 0, len(selectedTools))
-	seen := map[string]struct{}{}
-	for _, tool := range selectedTools {
-		publicTool := strings.TrimSpace(tool)
-		if publicTool == "knowledge_search" {
-			publicTool = "knowledge_query"
-		}
-		if publicTool == "" {
-			continue
-		}
-		if _, exists := seen[publicTool]; exists {
-			continue
-		}
-		seen[publicTool] = struct{}{}
-		result = append(result, publicTool)
-	}
-	return result
-}
-
-func primaryAgentResponseSelectedTool(selectedTool string) *string {
-	selectedTool = strings.TrimSpace(selectedTool)
-	if selectedTool == "" {
-		return nil
-	}
-	return &selectedTool
-}
-
-func primaryAgentTraceSelectedTool(selectedTool string) string {
-	selectedTool = strings.TrimSpace(selectedTool)
-	if selectedTool == "" {
-		return "none"
-	}
-	return selectedTool
-}
-
-func primaryAgentWorkflowMode(selectedTools []string) string {
-	if len(selectedTools) == 0 {
-		return "terminal"
-	}
-	return "single_step"
-}
-
-func primaryAgentTraceSteps(
-	selectedTools []string,
-	selectedTool string,
-	agentResult map[string]any,
-	status string,
-) []map[string]any {
-	steps := []map[string]any{{
-		"step_id":        "agent.primary",
-		"span_kind":      "agent",
-		"parent_step_id": "",
-		"outcome":        defaultString(primaryAgentTerminalKind(cloneAnyMapFromMetadata(agentResult["terminal_envelope"])), status),
-		"result_status":  status,
-	}}
-	toolResults := primaryAgentToolResultMaps(agentResult["tool_results"])
-	for index, tool := range selectedTools {
-		toolResult := map[string]any{}
-		if index < len(toolResults) {
-			toolResult = toolResults[index]
-		}
-		resultStatus := primaryAgentToolResultStatus(toolResult)
-		if resultStatus == "" {
-			resultStatus = status
-		}
-		steps = append(steps, map[string]any{
-			"step_id":        primaryAgentToolStepID(tool, index),
-			"span_kind":      "tool_call",
-			"parent_step_id": "agent.primary",
-			"tool_name":      tool,
-			"tool":           defaultString(strings.TrimSpace(stringValue(toolResult["tool"])), selectedTool),
-			"outcome":        resultStatus,
-			"result_status":  resultStatus,
-			"retry_count":    0,
-		})
-	}
-	finalizationParent := "agent.primary"
-	if len(selectedTools) > 0 {
-		finalizationParent = primaryAgentToolStepID(selectedTools[len(selectedTools)-1], len(selectedTools)-1)
-	}
-	steps = append(steps, map[string]any{
-		"step_id":        "finalization.write",
-		"span_kind":      "finalization",
-		"parent_step_id": finalizationParent,
-		"outcome":        status,
-		"result_status":  status,
-	})
-	return steps
-}
-
-func primaryAgentToolCallSummaries(agentResult map[string]any) []map[string]any {
-	toolResults := primaryAgentToolResultMaps(agentResult["tool_results"])
-	if len(toolResults) == 0 {
-		return []map[string]any{}
-	}
-	summaries := make([]map[string]any, 0, len(toolResults))
-	for index, toolResult := range toolResults {
-		toolName := strings.TrimSpace(stringValue(toolResult["tool_name"]))
-		tool := strings.TrimSpace(stringValue(toolResult["tool"]))
-		resultStatus := primaryAgentToolResultStatus(toolResult)
-		result := cloneAnyMapFromMetadata(toolResult["result"])
-		summary := map[string]any{
-			"schema_version":      "tool-call-summary-v1",
-			"tool_call_id":        primaryAgentToolCallID(agentResult, toolName, index),
-			"workflow_run_ref":    strings.TrimSpace(stringValue(agentResult["agent_result_ref"])),
-			"step_id":             primaryAgentToolStepID(toolName, index),
-			"lifecycle_state":     workflowToolLifecycleState(resultStatus),
-			"result_projection":   "bounded_summary",
-			"raw_result_included": false,
-			"tool_name":           toolName,
-			"tool":                tool,
-			"payload_kind":        strings.TrimSpace(stringValue(toolResult["payload_kind"])),
-			"result_status":       resultStatus,
-			"argument_summary": map[string]any{
-				"arguments_json_sha256":    strings.TrimSpace(stringValue(toolResult["arguments_json_sha256"])),
-				"arguments_schema_sha256":  strings.TrimSpace(stringValue(toolResult["arguments_schema_sha256"])),
-				"arguments_schema_version": strings.TrimSpace(stringValue(toolResult["arguments_schema_version"])),
-			},
-			"source_ids": workflowSourceIDs(result),
-		}
-		if businessOutcome := strings.TrimSpace(stringValue(result["outcome"])); businessOutcome != "" {
-			summary["business_outcome"] = businessOutcome
-		}
-		if failCloseReason := strings.TrimSpace(stringValue(toolResult["fail_close_reason"])); failCloseReason != "" {
-			summary["fail_close_reason"] = failCloseReason
-		}
-		summaries = append(summaries, summary)
-	}
-	return summaries
-}
-
 func primaryAgentToolResultMaps(value any) []map[string]any {
 	switch typed := value.(type) {
 	case []map[string]any:
@@ -656,22 +853,6 @@ func primaryAgentToolResultStatus(toolResult map[string]any) string {
 		return outcome
 	}
 	return strings.TrimSpace(stringValue(toolResult["status"]))
-}
-
-func primaryAgentToolCallID(agentResult map[string]any, toolName string, index int) string {
-	workflowRunRef := strings.TrimSpace(stringValue(agentResult["agent_result_ref"]))
-	if workflowRunRef == "" {
-		workflowRunRef = "agent.primary"
-	}
-	return workflowRunRef + ":" + primaryAgentToolStepID(toolName, index)
-}
-
-func primaryAgentToolStepID(toolName string, index int) string {
-	normalizedToolName := strings.TrimSpace(toolName)
-	if normalizedToolName == "" {
-		normalizedToolName = "tool"
-	}
-	return fmt.Sprintf("sdk_tool.execute.%s.%d", normalizedToolName, index+1)
 }
 
 func stringSliceFromAny(value any) []string {

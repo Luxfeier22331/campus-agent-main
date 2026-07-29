@@ -3,122 +3,128 @@ doc_type: reference
 owner_boundary: docs/reference
 status: active
 ---
-# 在线查询与索引术语
 
-本文解释代码和配置中使用的查询、检索与索引术语。实现状态仍以注册表、合同和代码为准。
+# 服务术语
+
+## 边界
+
+本文统一文档、检索、发布和 Agent 运行中的名称。实现状态仍以注册表、合同和代码为准。
 
 ## 产品与数据
 
 ### 阅读器固定链接
 
-面向用户的稳定文档 URL，例如 `/docs/:corpus/:collection/:docSlug`。链接中不包含分块标识
-或对象存储位置。
+面向用户的稳定文档 URL，例如 `/docs/:corpus/:collection/:docSlug`。链接中不包含分块标识、
+Qdrant collection 或对象存储位置。
 
 ### 来源通道
 
-`source channel` 表示一类来源的采集适配器和来源记录边界。一个来源通道可以向多个语料域
-或集合提供资料。
+一类来源的采集适配器和来源记录边界。一个来源通道可以向多个语料域或集合提供资料。
 
 ### 语料域
 
-`corpus` 表示一类广义机构知识，例如 `regulations` 或 `curriculum`。
+`corpus` 表示一类机构知识，例如 `regulations` 或 `curriculum`。
 
 ### 集合
 
-`collection` 是语料域内规范文档和索引的所有权单元，例如
-`regulations/student_rules`。集合名不是模型可选择的工具参数。
+语料域内规范文档和索引的所有权单元，例如 `regulations/student_rules`。集合名不是模型可选择的
+工具参数。
 
-### 查询目标
+### 文档范围
 
-`target` 是 Knowledge Agent 可选择的语义目标，例如 `student_rules`。查询目标注册表把
-它映射到服务端控制的集合和检索配置。目标、语料域、集合和 Qdrant 别名不是同一个概念。
+`document_scope` 是在线 grounding 的领域准入范围，例如 `student_rules`。范围注册表把它映射到
+语料域、逻辑集合和服务端检索配置。范围、语料域、逻辑集合和 Qdrant 物理集合不是同一个概念。
 
 ### 工具读取模型
 
-结构化工具使用的有类型读取模型。它不经过通用知识检索。例如
-`transport_schedule_lookup` 读取班车时刻表模型。
+结构化工具使用的类型化读取模型，不经过文档 RAG。当前注册的机构工具只有
+`transport_schedule_lookup`，并且处于关闭状态。
 
-## Agent 与工具
+## Agent 与 Grounding
 
 ### 模型可见工具
 
-当前运行中通过 `tools.v5.json` 向 Primary Agent 暴露的函数工具或移交目标。
+当前运行中通过 `tools.v6.json` 和本轮授权向 Primary Agent 暴露的函数工具。知识检索不是模型
+工具。
 
-### 内部工具
+### Grounding Context
 
-只向所属 Agent 开放的已注册工具。例如 `knowledge_search` 只向 Knowledge Agent 开放。
+`grounding_context.v2` 是 execution-control 在模型调用前准备的、绑定单个 run 和冻结 grounding
+plan 的依据合同。它以 `not_required`、`empty`、`partial` 或 `ready` 区分无需检索、无依据、范围
+覆盖不完整和依据就绪。完整正文只保存在受保护载荷，Temporal history 和普通投影只携带 ref、hash
+和有界摘要。
 
-### 知识移交
+### Evidence 引用
 
-Primary Agent 通过 OpenAI Agents SDK 的 `handoff()` 把问题交给 Knowledge Agent。当前载荷
-只包含完整的 `query_text`。
+`evidence://` 标识 grounding 中的一条已验证依据。Primary Agent 只能引用本轮 context 中出现的
+标识；finalization 用同一受保护 context 校验并派生公开来源。
 
-### 知识搜索
+### 工具调用上限
 
-Knowledge Agent 对一个查询目标执行的一次有界搜索。它在同一个 SDK Agent Activity 中完成，
-不会新增 Temporal 阶段。
-
-### 搜索次数上限
-
-一次 SDK 运行允许的最大内部搜索次数。该值由 execution-control 配置维护，与 Temporal
-重试次数和 SDK `maxTurns` 分开计算。
+一次 SDK run 允许的最大真实函数工具调用次数。它与 grounding 的候选数量、Temporal retry 和
+SDK `maxTurns` 分开计算。
 
 ## 检索
 
-### 当前版本搜索
-
-`include_history=false`。只保留标记为当前版本的文档。
-
-### 含历史版本搜索
-
-`include_history=true`。允许返回已准入的历史版本，但不能用它任意解析内部版本标识。
-
 ### 候选结果
 
-Qdrant 返回且尚未经过来源校验和数量限制的内部结果。候选结果不会自动成为答案依据。
+Qdrant 返回且已带 dense+sparse RRF 分数、尚未经过跨 scope 合并、去重和总预算裁剪的内部 chunk。
+候选不会自动成为答案依据。
 
 ### 混合检索
 
-先执行 Qdrant 稠密和稀疏向量预取，再使用倒数排名融合（RRF）合并排序。
+在冻结的物理 collection 中执行稠密和稀疏候选召回，并由 Qdrant 以 RRF 融合；最终 grounding 还需要
+跨 scope 合并、校验和裁剪。
 
 ### 有界检索依据
 
-返回给 Knowledge Agent 的已验证结果。它包含稳定的依据、文档和分块标识，查询目标，安全
-摘要，来源 URL，可选版本以及排名信息。代码字段仍使用 `evidence`。
+返回给 Primary Agent 的已验证结果。它绑定 scope、release、chunk、section、文档、公开 URL、
+正文 hash、token 数和 RRF retrieval score。该分数只用于候选排序和预算选择，不是答案置信度或充分性
+证明；当前 JSON 字段仍使用 `rerank_score`，但不代表调用了外部 reranker，代码字段使用 `evidence`。
 
-### 已使用目标
+### 当前发布搜索
 
-`resolved_targets[]` 表示最终运行中确实完成搜索并支持答案的去重查询目标。它是终结和评测
-记录，不是调用方输入。
+在线 grounding 只使用 PostgreSQL `current_releases` 指向的 release。历史 release 可以被离线保留，
+但当前不参与 Agent 在线检索。
 
-## 索引
+## 发布与索引
 
-### 分块准备
+### Knowledge Release
 
-写入向量索引前，对文档单元执行离线清理、分块和校验。
+`knowledge_serving` 中一组不可变章节身份和对应 Qdrant 物理 collection 的发布记录。release 记录
+包含物理 collection 与 embedding 身份。
+
+### 当前发布指针
+
+PostgreSQL `current_releases` 是每个 scope 的唯一激活指针。execution-control 在 run 准入时解析并
+冻结它，运行中不跟随后续变化。
+
+### 检索分块
+
+`retrieval_chunk.v2` 是同一 section 内按本地 tokenizer 预算确定性生成的在线检索单元。它包含正文、
+正文 hash、token 数和引用 metadata；分块不能跨 section。
 
 ### 物理集合
 
-一次索引发布写入的带版本 Qdrant collection。运行时不应直接依赖它的名称。
-
-### 服务别名
-
-检索配置引用的稳定 Qdrant alias，由离线发布操作切换。
+一次知识发布写入的不可变 Qdrant collection。模型不接收其名称；execution-control 在准入时冻结
+该名称。
 
 ### 查询配置
 
-服务端维护的语料域、集合、别名、向量名称、返回上限、版本轨道和可见性规则。
+服务端维护的语料域、集合、向量名称、embedding instruction、候选限制、版本轨道和可见性规则。
+它不向模型或客户端暴露。
 
 ### 索引发布
 
-写入经过验证的物理集合并切换服务别名。文档阅读器发布完成，不代表索引已经发布或查询
-目标已经开放。
+把在线检索 chunk 写入不可变 Qdrant collection、记录 PostgreSQL release 并推进
+`current_releases` 的离线过程。当前只有消费合同，没有正式索引生产者和发布数据。文档阅读器
+发布完成不等于知识 release 已激活。
 
 ## 常见混淆
 
-- 工具开放不等于查询目标开放；
-- 查询目标不等于集合或 Qdrant 别名；
+- 工具开放不等于文档 grounding 可用；
+- 文档范围不等于集合、release 或物理 collection；
+- grounding 不属于工具轨迹；
 - 文档阅读器发布不等于检索索引发布；
-- 查询配置不向模型暴露；
-- 评测用例不是来源资料，也不能自动开放运行能力；
-- Langfuse 中存在轨迹不代表 Temporal 工作流已经成功结束。
+- 配置、schema 或评测用例存在不代表环境已经部署该能力；
+- Langfuse 中存在 trace 不代表 Temporal workflow 已经成功结束。

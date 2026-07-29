@@ -146,7 +146,7 @@ export function createPgEmailAccessGrantStore(
 	env: Env,
 	input: { getDb?: RuntimeDbGetter } = {},
 ): EmailAccessGrantStore {
-	const getDb = input.getDb ?? (() => createRuntimeDatabase(env, { consistency: "fresh" }));
+	const getDb = input.getDb ?? (() => createRuntimeDatabase(env));
 	return {
 		async findEmailGrant(query) {
 			const db = await getDb();

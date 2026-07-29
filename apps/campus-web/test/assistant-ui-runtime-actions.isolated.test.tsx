@@ -191,7 +191,10 @@ describe("assistant-ui runtime message actions", () => {
 
 		render(<RuntimeProbe onLoginRequired={vi.fn()} />);
 		await waitFor(() =>
-			expect(conversationApiMock.getConversationDetail).toHaveBeenCalledWith("conv_history"),
+			expect(conversationApiMock.getConversationDetail).toHaveBeenCalledWith(
+				"conv_history",
+				expect.any(AbortSignal),
+			),
 		);
 
 		await act(async () => {
@@ -207,6 +210,7 @@ describe("assistant-ui runtime message actions", () => {
 		});
 		expect(conversationApiMock.submitChatRequestStream).toHaveBeenCalledWith({
 			conversationId: "conv_history",
+			idempotencyKey: expect.any(String),
 			prompt: "编辑后的问题",
 			signal: expect.any(AbortSignal),
 		});
@@ -234,7 +238,10 @@ describe("assistant-ui runtime message actions", () => {
 
 		render(<RuntimeProbe onLoginRequired={vi.fn()} />);
 		await waitFor(() =>
-			expect(conversationApiMock.getConversationDetail).toHaveBeenCalledWith("conv_history"),
+			expect(conversationApiMock.getConversationDetail).toHaveBeenCalledWith(
+				"conv_history",
+				expect.any(AbortSignal),
+			),
 		);
 
 		await act(async () => {
@@ -247,6 +254,7 @@ describe("assistant-ui runtime message actions", () => {
 		});
 		expect(conversationApiMock.submitChatRequestStream).toHaveBeenCalledWith({
 			conversationId: "conv_history",
+			idempotencyKey: expect.any(String),
 			prompt: "原问题",
 			signal: expect.any(AbortSignal),
 		});

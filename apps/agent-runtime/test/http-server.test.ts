@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createAgentRuntimeHandler } from "../src/http-server.ts";
 import type { AgentRunner } from "../src/primary-agent.ts";
 import { createPrimaryAgentRuntime } from "../src/primary-agent.ts";
@@ -24,7 +24,7 @@ const transportResultSchemaRef = schemaRef(
 );
 
 const catalog: ToolCatalog = {
-	schemaVersion: "tool-registry-v5",
+	schemaVersion: "tool-registry-v6",
 	registryVersion: "test",
 	runtimeFingerprint: testToolRuntimeFingerprint(),
 	tools: [
@@ -100,17 +100,53 @@ describe("agent runtime HTTP handler", () => {
 		expect(response.status).toBe(401);
 	});
 
+	it("rejects an admitted tool runtime fingerprint before invoking the model", async () => {
+		let modelInvoked = false;
+		const handler = createAgentRuntimeHandler({
+			sharedSecret: "secret",
+			runtime: createPrimaryAgentRuntime({
+				catalog,
+				runner: async (input) => {
+					modelInvoked = true;
+					return noToolRunner(input);
+				},
+			}),
+		});
+		const body = validRunBody();
+		body.provider_config = validPromptProviderConfig();
+		body.expected_tool_runtime_fingerprint = {
+			...wireToolRuntimeFingerprint(catalog.runtimeFingerprint),
+			combined_sha256: `sha256:${"0".repeat(64)}`,
+		};
+
+		const response = await handler(
+			new Request("http://agent-runtime/internal/agent-runs", {
+				method: "POST",
+				headers: { authorization: "Bearer secret" },
+				body: JSON.stringify(body),
+			}),
+		);
+
+		expect(response.status).toBe(500);
+		expect(await response.json()).toMatchObject({
+			error: { code: "invalid_request", retryable: false },
+		});
+		expect(modelInvoked).toBe(false);
+	});
+
 	it("runs a primary agent turn with worker authorization", async () => {
+		let observedAllowUngroundedAnswer: unknown;
 		let observedProvider: unknown;
 		let observedFinalModelContext: unknown;
-		let observedKnowledgeTargets: unknown;
+		let observedGroundingContext: unknown;
 		const handler = createAgentRuntimeHandler({
 			sharedSecret: "secret",
 			runtime: {
 				async run(input) {
+					observedAllowUngroundedAnswer = input.allowUngroundedAnswer;
 					observedProvider = input.providerConfig;
 					observedFinalModelContext = input.finalModelContext;
-					observedKnowledgeTargets = input.knowledgeTargets;
+					observedGroundingContext = input.groundingContext;
 					return createPrimaryAgentRuntime({ catalog, runner: noToolRunner }).run(input);
 				},
 				stream(input) {
@@ -126,7 +162,7 @@ describe("agent runtime HTTP handler", () => {
 				body: JSON.stringify({
 					...validRunBody(),
 					final_model_context: {
-						schema_version: "final_model_context.v2",
+						schema_version: "final_model_context.v3",
 						recent_turns: [
 							{
 								message_id: "msg_user_001",
@@ -139,29 +175,6 @@ describe("agent runtime HTTP handler", () => {
 								content: "上一轮回答的是转专业申请条件。",
 							},
 						],
-						previous_evidence: [
-							{
-								access_scope: "public_student_rule",
-								content_hash: "sha256:transfer-major-evidence-example",
-								document_id: "transfer-major-policy",
-								evidence_id: "ev_transfer_rule_01",
-								source_id: "regulations/student_rules/transfer-major/v2026",
-								title: "本科生转专业管理办法",
-								version_id: "rule-transfer-major-2026",
-							},
-						],
-						previous_tool_results: [
-							{
-								content_hash: "sha256:previous-service-result",
-								projection_ref: "projection://runs/run_previous_services/finalization",
-								request_id: "req_previous_services",
-								result_kind: "final_response",
-								run_id: "run_previous_services",
-								status: "completed",
-								summary: "上一轮查询了图书馆开放状态。",
-								tool: "transport_schedule_lookup",
-							},
-						],
 						session_state: {
 							confirmed_slots: [
 								{ confirmed: true, name: "curriculum_program", value: "计算机科学与技术" },
@@ -169,28 +182,15 @@ describe("agent runtime HTTP handler", () => {
 							selected_notice_ref: null,
 							turn_count: 2,
 						},
-						memory_context: {
-							context_block: "用户记忆:\n- 用户偏好先给结论",
-							memory_ref: "projection://runs/run_01HQ/memory/recall",
-							schema_version: "memory_recall_result_v1",
-							selected_memory_chars: 18,
-							selected_memory_count: 1,
-						},
 						usage_summary: {
 							context_chars: 680,
-							current_input_chars: 9,
-							memory_recall_state: "completed",
-							model_visible_item_count: 6,
-							runtime_only_item_count: 8,
+							current_input_chars: 6,
+							grounding_context_chars: 39,
+							model_visible_item_count: 3,
+							runtime_only_item_count: 0,
 						},
 					},
 					provider_config: validPromptProviderConfig(),
-					knowledge_targets: [
-						{
-							target: "student_rules",
-							description: "学生规则、学籍、奖助处分等正式制度。",
-						},
-					],
 				}),
 			}),
 		);
@@ -206,7 +206,6 @@ describe("agent runtime HTTP handler", () => {
 				rendered_prompt_sha256?: string;
 				schema_version?: string;
 			};
-			selected_tools?: string[];
 			terminal_envelope?: { kind?: string; answer_text?: string };
 			tool_runtime_fingerprint?: {
 				combined_sha256?: string;
@@ -221,7 +220,6 @@ describe("agent runtime HTTP handler", () => {
 		expect(body.final_output).toBe("我是校园问答助手。");
 		expect(body.model_name).toBe("gpt-5-mini");
 		expect(body.model_provider).toBe("openai");
-		expect(body.selected_tools).toEqual([]);
 		expect(body.terminal_envelope).toEqual({
 			kind: "answer",
 			answer_text: "我是校园问答助手。",
@@ -233,7 +231,8 @@ describe("agent runtime HTTP handler", () => {
 		});
 		expect(body.tool_runtime_fingerprint).toMatchObject({
 			combined_sha256: catalog.runtimeFingerprint.combinedSha256,
-			schema_version: "tool_runtime_fingerprint.v1",
+			runtime_release: "test-release",
+			schema_version: "tool_runtime_fingerprint.v2",
 			tools_registry_version: "test",
 		});
 		expect(body.usage).toMatchObject({
@@ -244,26 +243,15 @@ describe("agent runtime HTTP handler", () => {
 			/rawPrompt|rawAnswer|rawTranscript|rawProvider|providerPayload|rawSdk|sdkSpan|spanData|traceBody|modelInput|modelOutput/i,
 		);
 		expect(JSON.stringify(body)).not.toContain("用户偏好先给结论");
+		expect(observedAllowUngroundedAnswer).toBe(true);
 		expect(observedProvider).toEqual(validRuntimePromptProviderConfig());
 		expect(observedFinalModelContext).toMatchObject({
-			schemaVersion: "final_model_context.v2",
+			schemaVersion: "final_model_context.v3",
 			recentTurns: [
 				expect.objectContaining({ content: "转专业条件是什么？", role: "user" }),
 				expect.objectContaining({
 					content: "上一轮回答的是转专业申请条件。",
 					role: "assistant",
-				}),
-			],
-			previousEvidence: [
-				expect.objectContaining({
-					evidenceId: "ev_transfer_rule_01",
-					contentHash: "sha256:transfer-major-evidence-example",
-				}),
-			],
-			previousToolResults: [
-				expect.objectContaining({
-					projectionRef: "projection://runs/run_previous_services/finalization",
-					tool: "transport_schedule_lookup",
 				}),
 			],
 			sessionState: {
@@ -275,22 +263,13 @@ describe("agent runtime HTTP handler", () => {
 			},
 			usageSummary: {
 				contextChars: 680,
-				currentInputChars: 9,
-				memoryRecallState: "completed",
-				modelVisibleItemCount: 6,
-				runtimeOnlyItemCount: 8,
-			},
-			memoryContext: {
-				contextBlock: "用户记忆:\n- 用户偏好先给结论",
-				memoryRef: "projection://runs/run_01HQ/memory/recall",
+				currentInputChars: 6,
+				groundingContextChars: 39,
+				modelVisibleItemCount: 3,
+				runtimeOnlyItemCount: 0,
 			},
 		});
-		expect(observedKnowledgeTargets).toEqual([
-			{
-				description: "学生规则、学籍、奖助处分等正式制度。",
-				target: "student_rules",
-			},
-		]);
+		expect(observedGroundingContext).toEqual(validRuntimeGroundingContext("run-1"));
 	});
 
 	it("accepts chat-completions LLM settings at the HTTP boundary", async () => {
@@ -331,6 +310,8 @@ describe("agent runtime HTTP handler", () => {
 	});
 
 	it("streams primary agent answer deltas before the terminal result", async () => {
+		let postTerminalPulled = false;
+		let streamClosed = false;
 		const handler = createAgentRuntimeHandler({
 			sharedSecret: "secret",
 			runtime: {
@@ -338,52 +319,65 @@ describe("agent runtime HTTP handler", () => {
 					throw new Error("blocking run should not be used by the streaming endpoint");
 				},
 				async *stream(input) {
-					yield {
-						event: "answer_delta",
-						data: {
-							accumulatedText: "国家奖学金",
-							chunkIndex: 1,
-							delta: "国家奖学金",
-						},
-					};
-					yield {
-						event: "answer_delta",
-						data: {
-							accumulatedText: "国家奖学金每学年评审一次。",
-							chunkIndex: 2,
-							delta: "每学年评审一次。",
-						},
-					};
-					yield {
-						event: "completed",
-						data: {
-							status: "completed",
-							runId: input.runId,
-							finalOutput: "国家奖学金每学年评审一次。",
-							modelName: input.providerConfig.model,
-							modelProvider: input.providerConfig.provider,
-							promptTrace: testPromptTrace(),
-							terminalEnvelope: {
-								kind: "answer",
-								answerText: "国家奖学金每学年评审一次。",
+					try {
+						yield {
+							event: "answer_delta",
+							data: {
+								accumulatedText: "国家奖学金",
+								chunkIndex: 1,
+								delta: "国家奖学金",
 							},
-							providerResponseId: "resp_stream",
-							stageTiming: {
-								"agent.runtime_ms": 12,
-								"agent.first_delta_ms": 4,
+						};
+						yield {
+							event: "answer_delta",
+							data: {
+								accumulatedText: "国家奖学金每学年评审一次。",
+								chunkIndex: 2,
+								delta: "每学年评审一次。",
 							},
-							selectedTools: [],
-							toolRuntimeFingerprint: testToolRuntimeFingerprint(),
-							toolResults: [],
-							terminalReason: "answer_completed",
-							usage: {
-								modelRequestCount: 1,
-								inputTokens: 11,
-								outputTokens: 7,
-								usageObserved: true,
+						};
+						yield {
+							event: "completed",
+							data: {
+								status: "completed",
+								runId: input.runId,
+								finalOutput: "国家奖学金每学年评审一次。",
+								modelName: input.providerConfig.model,
+								modelProvider: input.providerConfig.provider,
+								promptTrace: testPromptTrace(),
+								terminalEnvelope: {
+									kind: "answer",
+									answerText: "国家奖学金每学年评审一次。",
+								},
+								providerResponseId: "resp_stream",
+								stageTiming: {
+									"agent.runtime_ms": 12,
+									"agent.first_delta_ms": 4,
+								},
+								selectedTools: [],
+								toolRuntimeFingerprint: testToolRuntimeFingerprint(),
+								toolResults: [],
+								terminalReason: "answer_completed",
+								usage: {
+									modelRequestCount: 1,
+									inputTokens: 11,
+									outputTokens: 7,
+									usageObserved: true,
+								},
 							},
-						},
-					};
+						};
+						postTerminalPulled = true;
+						yield {
+							event: "answer_delta",
+							data: {
+								accumulatedText: "must not be emitted",
+								chunkIndex: 3,
+								delta: "must not be emitted",
+							},
+						};
+					} finally {
+						streamClosed = true;
+					}
 				},
 			},
 		});
@@ -408,10 +402,9 @@ describe("agent runtime HTTP handler", () => {
 			"completed",
 		]);
 		expect(events[0]?.data).toMatchObject({
-			accumulated_text: "国家奖学金",
 			chunk_index: 1,
 			delta: "国家奖学金",
-			schema_version: "agent_runtime_answer_delta.v1",
+			schema_version: "agent_runtime_answer_delta.v2",
 		});
 		expect(events[2]?.data).toMatchObject({
 			final_output: "国家奖学金每学年评审一次。",
@@ -429,6 +422,8 @@ describe("agent runtime HTTP handler", () => {
 		expect(JSON.stringify(events[2]?.data)).not.toMatch(
 			/rawPrompt|rawAnswer|rawTranscript|rawProvider|providerPayload|rawSdk|sdkSpan|spanData|traceBody|modelInput|modelOutput/i,
 		);
+		expect(postTerminalPulled).toBe(false);
+		await vi.waitFor(() => expect(streamClosed).toBe(true));
 	});
 
 	it("fails closed when provider config is missing from an agent run request", async () => {
@@ -464,6 +459,75 @@ describe("agent runtime HTTP handler", () => {
 				method: "POST",
 				headers: { authorization: "Bearer secret" },
 				body: JSON.stringify({ ...body, provider_config: validPromptProviderConfig() }),
+			}),
+		);
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toMatchObject({
+			error: { code: "invalid_request", retryable: false },
+		});
+	});
+
+	it("requires the frozen ungrounded-answer policy", async () => {
+		const handler = createAgentRuntimeHandler({
+			sharedSecret: "secret",
+			runtime: createPrimaryAgentRuntime({ catalog, runner: noToolRunner }),
+		});
+		const body = validRunBody();
+		delete body.allow_ungrounded_answer;
+
+		const response = await handler(
+			new Request("http://agent-runtime/internal/agent-runs", {
+				method: "POST",
+				headers: { authorization: "Bearer secret" },
+				body: JSON.stringify({ ...body, provider_config: validPromptProviderConfig() }),
+			}),
+		);
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toMatchObject({
+			error: { code: "invalid_request", retryable: false },
+		});
+	});
+
+	it("accepts a valid partial grounding context at the HTTP boundary", async () => {
+		const handler = createAgentRuntimeHandler({
+			sharedSecret: "secret",
+			runtime: createPrimaryAgentRuntime({ catalog, runner: noToolRunner }),
+		});
+
+		const response = await handler(
+			new Request("http://agent-runtime/internal/agent-runs", {
+				method: "POST",
+				headers: { authorization: "Bearer secret" },
+				body: JSON.stringify({
+					...validRunBody(),
+					grounding_context: validPartialGroundingContext("run-1"),
+					provider_config: validPromptProviderConfig(),
+				}),
+			}),
+		);
+
+		expect(response.status).toBe(200);
+	});
+
+	it("rejects a grounding context whose covered scopes do not match its evidence", async () => {
+		const handler = createAgentRuntimeHandler({
+			sharedSecret: "secret",
+			runtime: createPrimaryAgentRuntime({ catalog, runner: noToolRunner }),
+		});
+		const groundingContext = validPartialGroundingContext("run-1");
+		groundingContext.covered_scopes = ["curriculum"];
+
+		const response = await handler(
+			new Request("http://agent-runtime/internal/agent-runs", {
+				method: "POST",
+				headers: { authorization: "Bearer secret" },
+				body: JSON.stringify({
+					...validRunBody(),
+					grounding_context: groundingContext,
+					provider_config: validPromptProviderConfig(),
+				}),
 			}),
 		);
 
@@ -511,14 +575,12 @@ describe("agent runtime HTTP handler", () => {
 				body: JSON.stringify({
 					...validRunBody(),
 					final_model_context: {
-						schema_version: "final_model_context.v2",
+						schema_version: "final_model_context.v3",
 						recent_turns: [{ role: "user", content: "很长的历史上下文".repeat(40) }],
-						previous_evidence: [],
-						previous_tool_results: [],
 						usage_summary: {
 							context_chars: 400,
 							current_input_chars: 6,
-							memory_recall_state: "skipped",
+							grounding_context_chars: 39,
 							model_visible_item_count: 1,
 							runtime_only_item_count: 0,
 						},
@@ -552,7 +614,6 @@ describe("agent runtime HTTP handler", () => {
 						promptTrace: testPromptTrace(),
 						terminalEnvelope: { kind: "answer", answerText: "ok" },
 						providerResponseId: "resp_signal",
-						selectedTools: [],
 						stageTiming: {},
 						toolRuntimeFingerprint: testToolRuntimeFingerprint(),
 						toolResults: [],
@@ -588,18 +649,21 @@ describe("agent runtime HTTP handler", () => {
 	});
 
 	it("returns a failed runtime result when a selected tool fails closed", async () => {
-		const runner: AgentRunner = async ({ tools }) => ({
-			finalOutput: "工具失败。",
-			providerResponseId: "resp_tool_failed",
-			toolCalls: [
-				{
-					name: "transport_schedule_lookup",
-					argumentsSummary: {},
-					result: await tools[0]?.execute({ query_text: "校车" }),
-				},
-			],
-			usage: { modelRequestCount: 1, inputTokens: 1, outputTokens: 1, usageObserved: true },
-		});
+		const runner: AgentRunner = async ({ tools }) => {
+			const result = await tools[0]?.execute({ query_text: "校车" });
+			return {
+				finalOutput: "工具失败。",
+				providerResponseId: "resp_tool_failed",
+				toolCalls: [
+					{
+						name: "transport_schedule_lookup",
+						argumentsSummary: {},
+						result: result === undefined ? undefined : { ...result, durationMs: 12 },
+					},
+				],
+				usage: { modelRequestCount: 1, inputTokens: 1, outputTokens: 1, usageObserved: true },
+			};
+		};
 		const handler = createAgentRuntimeHandler({
 			sharedSecret: "secret",
 			runtime: createPrimaryAgentRuntime({
@@ -634,6 +698,7 @@ describe("agent runtime HTTP handler", () => {
 			terminal_reason?: string;
 			tool_results?: Array<{
 				arguments_json?: Record<string, unknown>;
+				duration_ms?: number;
 				fail_close_reason?: string;
 			}>;
 		};
@@ -642,6 +707,7 @@ describe("agent runtime HTTP handler", () => {
 		expect(body.terminal_reason).toBe("agent_runtime_failed");
 		expect(body.tool_results?.[0]?.fail_close_reason).toBe("source_truth_unavailable");
 		expect(body.tool_results?.[0]?.arguments_json).toEqual({ query_text: "校车" });
+		expect(body.tool_results?.[0]?.duration_ms).toBe(12);
 	});
 
 	it("fails closed with a diagnostic response when the primary agent runtime throws", async () => {
@@ -709,6 +775,94 @@ describe("agent runtime HTTP handler", () => {
 		});
 	});
 
+	it("classifies the configured agent deadline on the streaming route", async () => {
+		const handler = createAgentRuntimeHandler({
+			sharedSecret: "secret",
+			runtime: {
+				async run() {
+					throw new Error("blocking endpoint should not be used");
+				},
+				async *stream(input) {
+					await waitForAbort(input.signal);
+					if (input.signal?.aborted) {
+						throw input.signal.reason;
+					}
+					yield* throwingAgentRuntimeStream();
+				},
+			},
+		});
+
+		const response = await handler(
+			new Request("http://agent-runtime/internal/agent-runs/stream", {
+				method: "POST",
+				headers: { authorization: "Bearer secret" },
+				body: JSON.stringify({
+					...validRunBody(),
+					limits: { ...validRuntimeLimits(), agent_deadline_ms: 5 },
+					provider_config: validPromptProviderConfig(),
+				}),
+			}),
+		);
+
+		expect(parseSseEvents(await response.text())).toEqual([
+			{
+				event: "error",
+				data: {
+					code: "agent_deadline_exceeded",
+					message: "Agent run exceeded its configured deadline.",
+					retryable: false,
+				},
+			},
+		]);
+	});
+
+	it("emits an SSE error when the runtime ends without a terminal event", async () => {
+		const handler = createAgentRuntimeHandler({
+			sharedSecret: "secret",
+			runtime: {
+				async run() {
+					throw new Error("blocking endpoint should not be used");
+				},
+				async *stream() {
+					yield {
+						event: "answer_delta",
+						data: { accumulatedText: "partial", chunkIndex: 1, delta: "partial" },
+					};
+				},
+			},
+		});
+
+		const response = await handler(
+			new Request("http://agent-runtime/internal/agent-runs/stream", {
+				method: "POST",
+				headers: { authorization: "Bearer secret" },
+				body: JSON.stringify({
+					...validRunBody(),
+					provider_config: validPromptProviderConfig(),
+				}),
+			}),
+		);
+
+		expect(parseSseEvents(await response.text())).toEqual([
+			{
+				event: "answer_delta",
+				data: {
+					chunk_index: 1,
+					delta: "partial",
+					schema_version: "agent_runtime_answer_delta.v2",
+				},
+			},
+			{
+				event: "error",
+				data: {
+					code: "run_failed",
+					message: "Agent runtime stream ended without a terminal event.",
+					retryable: false,
+				},
+			},
+		]);
+	});
+
 	it("emits a non-retryable terminal SSE error", async () => {
 		const handler = createAgentRuntimeHandler({
 			sharedSecret: "secret",
@@ -742,6 +896,47 @@ describe("agent runtime HTTP handler", () => {
 				},
 			},
 		]);
+	});
+
+	it("rejects tool runtime drift on the streaming route before invoking the model", async () => {
+		let modelInvoked = false;
+		const handler = createAgentRuntimeHandler({
+			sharedSecret: "secret",
+			runtime: createPrimaryAgentRuntime({
+				catalog,
+				runner: noToolRunner,
+				streamingRunner: async function* (input) {
+					modelInvoked = true;
+					yield await noToolRunner(input);
+				},
+			}),
+		});
+		const body = validRunBody();
+		body.provider_config = validPromptProviderConfig();
+		body.expected_tool_runtime_fingerprint = {
+			...wireToolRuntimeFingerprint(catalog.runtimeFingerprint),
+			combined_sha256: `sha256:${"0".repeat(64)}`,
+		};
+
+		const response = await handler(
+			new Request("http://agent-runtime/internal/agent-runs/stream", {
+				method: "POST",
+				headers: { authorization: "Bearer secret" },
+				body: JSON.stringify(body),
+			}),
+		);
+
+		expect(parseSseEvents(await response.text())).toEqual([
+			{
+				event: "error",
+				data: {
+					code: "invalid_request",
+					message: "Admitted tool runtime fingerprint does not match this agent runtime.",
+					retryable: false,
+				},
+			},
+		]);
+		expect(modelInvoked).toBe(false);
 	});
 });
 
@@ -781,6 +976,7 @@ function waitForAbort(signal: AbortSignal | undefined): Promise<void> {
 function validRunBody(): Record<string, unknown> {
 	return {
 		activity_attempt: 1,
+		allow_ungrounded_answer: true,
 		user_id: "user-1",
 		request_id: "req-1",
 		run_id: "run-1",
@@ -788,8 +984,26 @@ function validRunBody(): Record<string, unknown> {
 		turn_id: "turn-1",
 		trace_id: "trace-1",
 		input: "hi 你是谁",
+		grounding_context: validGroundingContext("run-1"),
 		visible_tool_names: ["transport_schedule_lookup"],
+		expected_tool_runtime_fingerprint: wireToolRuntimeFingerprint(catalog.runtimeFingerprint),
 		limits: validRuntimeLimits(),
+	};
+}
+
+function wireToolRuntimeFingerprint(fingerprint: ToolCatalog["runtimeFingerprint"]) {
+	return {
+		combined_sha256: fingerprint.combinedSha256,
+		function_schema_sha256: fingerprint.functionSchemaSha256,
+		function_schema_version: fingerprint.functionSchemaVersion,
+		runtime_release: fingerprint.runtimeRelease,
+		schema_version: fingerprint.schemaVersion,
+		tools_registry_version: fingerprint.toolsRegistryVersion,
+		tools_schema_version: fingerprint.toolsSchemaVersion,
+		tools_sha256: fingerprint.toolsSha256,
+		workflow_artifact_registry_version: fingerprint.workflowArtifactRegistryVersion,
+		workflow_artifact_schema_version: fingerprint.workflowArtifactSchemaVersion,
+		workflow_artifact_sha256: fingerprint.workflowArtifactSha256,
 	};
 }
 
@@ -798,9 +1012,80 @@ function validRuntimeLimits(): Record<string, number> {
 		agent_deadline_ms: 90_000,
 		context_char_limit: 16_000,
 		current_input_char_limit: 8_000,
-		max_knowledge_searches: 3,
 		max_output_tokens: 2_048,
+		max_tool_calls: 3,
 		max_turns: 6,
+	};
+}
+
+function validGroundingContext(runId: string): Record<string, unknown> {
+	return {
+		schema_version: "grounding_context.v2",
+		run_id: runId,
+		admission_sha256: `sha256:${"1".repeat(64)}`,
+		plan_sha256: "3".repeat(64),
+		query_sha256: `sha256:${"2".repeat(64)}`,
+		prepared_at: "2026-07-26T08:00:00.000Z",
+		mode: "none",
+		selected_scopes: [],
+		covered_scopes: [],
+		status: "not_required",
+		token_count: 0,
+		model_context_chars: 39,
+		evidence: [],
+	};
+}
+
+function validPartialGroundingContext(runId: string): Record<string, unknown> {
+	return {
+		schema_version: "grounding_context.v2",
+		run_id: runId,
+		admission_sha256: `sha256:${"1".repeat(64)}`,
+		plan_sha256: "3".repeat(64),
+		query_sha256: `sha256:${"2".repeat(64)}`,
+		prepared_at: "2026-07-26T08:00:00.000Z",
+		mode: "multi_scope",
+		selected_scopes: ["student_rules", "curriculum"],
+		covered_scopes: ["student_rules"],
+		status: "partial",
+		token_count: 3,
+		model_context_chars: 120,
+		evidence: [
+			{
+				evidence_ref: `evidence://${"4".repeat(64)}`,
+				document_scope: "student_rules",
+				release_id: "release-1",
+				chunk_id: "chunk-1",
+				section_ref: "section-ref-1",
+				document_id: "document-1",
+				section_id: "section-1",
+				document_title: "学生管理规定",
+				section_title: "缓考",
+				canonical_url: "https://example.edu/rules/student",
+				text: "缓考申请应符合规定条件。",
+				text_sha256: `sha256:${"5".repeat(64)}`,
+				token_count: 3,
+				rerank_score: 0.9,
+			},
+		],
+	};
+}
+
+function validRuntimeGroundingContext(runId: string): Record<string, unknown> {
+	return {
+		admissionSha256: `sha256:${"1".repeat(64)}`,
+		coveredScopes: [],
+		evidence: [],
+		mode: "none",
+		modelContextChars: 39,
+		planSha256: "3".repeat(64),
+		preparedAt: "2026-07-26T08:00:00.000Z",
+		querySha256: `sha256:${"2".repeat(64)}`,
+		runId,
+		schemaVersion: "grounding_context.v2",
+		selectedScopes: [],
+		status: "not_required",
+		tokenCount: 0,
 	};
 }
 

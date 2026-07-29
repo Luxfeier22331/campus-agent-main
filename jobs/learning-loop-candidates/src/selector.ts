@@ -49,6 +49,24 @@ function shouldSelect(row: CandidateSourceRow): boolean {
 	return row.vote !== "helpful" || row.failClosed === true || latency.worstBreach?.severity === "critical";
 }
 
+function candidateEvidence(row: CandidateSourceRow) {
+	return {
+		cachedInputTokens: row.cachedInputTokens,
+		durationMs: row.durationMs ?? undefined,
+		errorCode: row.errorCode,
+		failClosed: row.failClosed,
+		inputTokens: row.inputTokens,
+		modelName: row.modelName,
+		modelProvider: row.modelProvider,
+		outputTokens: row.outputTokens,
+		projectionLagMs: row.projectionLagMs,
+		reasonCodes: row.reasonCodes,
+		status: row.status,
+		totalTokens: row.totalTokens,
+		traceAvailable: row.traceAvailable,
+	};
+}
+
 export function buildLearningLoopCandidates(rows: CandidateSourceRow[]): LearningLoopCandidate[] {
 	return rows.flatMap((row) => {
 		const latency = evaluateStageTimingBudget(row.stageTiming);
@@ -58,15 +76,11 @@ export function buildLearningLoopCandidates(rows: CandidateSourceRow[]): Learnin
 				(breach): LearningLoopCandidate => ({
 					category: breach.category,
 					evidence: {
+						...candidateEvidence(row),
 						budgetState: breach.severity,
 						budgetVersion: LATENCY_BUDGET_VERSION,
 						durationMs: breach.durationMs,
-						failClosed: row.failClosed,
-						reasonCodes: row.reasonCodes,
-						selectedTool: row.selectedTool ?? row.requestedTool,
 						stageField: breach.field,
-						status: row.status,
-						traceAvailable: row.traceAvailable,
 					},
 					feedbackId: null,
 					feedbackUpdatedAt: null,
@@ -83,13 +97,7 @@ export function buildLearningLoopCandidates(rows: CandidateSourceRow[]): Learnin
 		}
 		const feedbackOrFailureCandidate: LearningLoopCandidate = {
 			category: classifyCandidate(row),
-			evidence: {
-				failClosed: row.failClosed,
-				reasonCodes: row.reasonCodes,
-				selectedTool: row.selectedTool ?? row.requestedTool,
-				status: row.status,
-				traceAvailable: row.traceAvailable,
-			},
+			evidence: candidateEvidence(row),
 			feedbackId: row.feedbackId,
 			feedbackUpdatedAt: row.feedbackUpdatedAt,
 			reason: firstReason(row),

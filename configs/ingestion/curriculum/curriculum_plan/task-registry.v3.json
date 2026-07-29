@@ -12,9 +12,9 @@
 		{
 			"registry_task_id": "curriculum.curriculum_plan.chunk_prepare",
 			"executor_kind": "rust_kernel",
-			"kernel_id": "chunk-document-units",
-			"input_contract": "canonical_document_units.v1",
-			"output_contract": "ingestion_chunk_set.v1",
+			"kernel_id": "build-retrieval-chunks-v2",
+			"input_contract": "canonical_document_units.v2",
+			"output_contract": "retrieval_chunk_set.v2",
 			"target": { "corpus": "curriculum", "collection": "curriculum_plan" }
 		}
 	]

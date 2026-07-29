@@ -9,7 +9,6 @@
 	"retrieval_enabled": false,
 	"tool_read_model_enabled": true,
 	"tool_read_model_tools": ["transport_schedule_lookup"],
-	"qdrant_alias_name": "transport_schedule",
 	"qdrant_collection_prefix": "transport_schedule",
 	"qdrant_dense_vector_name": "dense",
 	"qdrant_sparse_vector_name": "sparse"

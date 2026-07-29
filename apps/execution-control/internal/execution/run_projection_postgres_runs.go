@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -30,17 +31,22 @@ func (s *PostgresRunProjectionStore) CreateRun(
 	if err != nil {
 		return DurableRun{}, err
 	}
-	_, err = s.pool.Exec(
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return DurableRun{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	_, err = tx.Exec(
 		ctx,
 		`insert into runtime.agent_runs (
 			run_id, conversation_id, turn_id, request_id, trace_id, owner_user_id, surface,
-			requested_tool, selected_tool, task_queue, status, terminal_reason,
+			task_queue, status, terminal_reason,
 			fail_close_reason, retryable, created_at, queued_at, admitted_at, started_at,
 			streaming_started_at, completed_at, updated_at, runtime_versions_json,
-			final_response_ref, metadata_json
+			final_response_ref, request_fingerprint_sha256, metadata_json
 		) values (
-			$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,
-			$22::jsonb,$23,$24::jsonb
+			$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
+			$20::jsonb,$21,$22,$23::jsonb
 		)`,
 		run.RunID,
 		run.ConversationID,
@@ -49,8 +55,6 @@ func (s *PostgresRunProjectionStore) CreateRun(
 		run.TraceID,
 		run.OwnerUserID,
 		run.Surface,
-		run.RequestedTool,
-		run.SelectedTool,
 		run.TaskQueue,
 		string(run.Status),
 		string(run.TerminalReason),
@@ -65,12 +69,20 @@ func (s *PostgresRunProjectionStore) CreateRun(
 		run.UpdatedAt,
 		runtimeVersionsJSON,
 		run.FinalResponseRef,
+		run.RequestFingerprintSHA256,
 		metadataJSON,
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
+			_ = tx.Rollback(ctx)
 			return DurableRun{}, mapDurableRunUniqueViolation(ctx, s, run)
 		}
+		return DurableRun{}, err
+	}
+	if err := insertRunCleanupInTx(ctx, tx, run); err != nil {
+		return DurableRun{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return DurableRun{}, err
 	}
 	return s.GetRun(ctx, run.RunID)
@@ -191,6 +203,77 @@ func (s *PostgresRunProjectionStore) TransitionRun(
 	return s.GetRun(ctx, runID)
 }
 
+func (s *PostgresRunProjectionStore) ExpireRunProjection(
+	ctx context.Context,
+	request DurableRunExpireRequest,
+) (DurableRun, error) {
+	if err := validateDurableRunExpireRequest(request); err != nil {
+		return DurableRun{}, err
+	}
+	request.RunID = strings.TrimSpace(request.RunID)
+	request.Now = request.Now.UTC().Truncate(time.Microsecond)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return DurableRun{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	run, err := scanDurableRun(tx.QueryRow(ctx, durableRunSelectSQL+" where run_id = $1 for update", request.RunID))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return DurableRun{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, request.RunID)
+		}
+		return DurableRun{}, err
+	}
+	if run.Status == DurableRunStatusExpired {
+		event, eventErr := durableRunEventByIDInTx(ctx, tx, run.RunID+":run-expired")
+		if eventErr != nil {
+			if errors.Is(eventErr, pgx.ErrNoRows) {
+				return DurableRun{}, fmt.Errorf("%w: terminal event is missing", ErrDurableRunExpiryConflict)
+			}
+			return DurableRun{}, eventErr
+		}
+		if err := validateDurableRunExpiryReplay(run, request, event); err != nil {
+			return DurableRun{}, err
+		}
+		return run, nil
+	}
+	if durableRunStatusIsTerminal(run.Status) {
+		return DurableRun{}, fmt.Errorf("%w: run status is %s", ErrDurableRunTerminalConflict, run.Status)
+	}
+	if requested, err := runCancellationRequestedInTx(ctx, tx, run.RunID); err != nil {
+		return DurableRun{}, err
+	} else if requested {
+		return DurableRun{}, fmt.Errorf("%w: cancellation was requested", ErrDurableRunTerminalConflict)
+	}
+	if !durableRunTransitionAllowed(run.Status, DurableRunStatusExpired) {
+		return DurableRun{}, fmt.Errorf("%w: %s -> %s", ErrInvalidRunTransition, run.Status, DurableRunStatusExpired)
+	}
+	run.Status = DurableRunStatusExpired
+	run.TerminalReason = DurableTerminalReasonRunTimeout
+	run.Retryable = true
+	run.UpdatedAt = request.Now
+	recordDurableRunStatusTimestamp(&run, DurableRunStatusExpired, request.Now)
+	if err := validateDurableRun(run); err != nil {
+		return DurableRun{}, err
+	}
+	if err := updateDurableRunStatusInTx(ctx, tx, run); err != nil {
+		return DurableRun{}, err
+	}
+	if err := insertDurableRunEventInTx(ctx, tx, run, durableRunExpiredEvent(run, request.Now)); err != nil {
+		return DurableRun{}, fmt.Errorf("%w: %v", ErrDurableRunExpiryConflict, err)
+	}
+	if _, err := tx.Exec(ctx,
+		`delete from runtime.conversation_run_locks where conversation_id = $1 and run_id = $2`,
+		run.ConversationID, run.RunID,
+	); err != nil {
+		return DurableRun{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return DurableRun{}, err
+	}
+	return run, nil
+}
+
 func (s *PostgresRunProjectionStore) CompleteRunProjection(
 	ctx context.Context,
 	request DurableRunCompleteRequest,
@@ -214,6 +297,22 @@ func (s *PostgresRunProjectionStore) CompleteRunProjection(
 		}
 		return DurableRun{}, err
 	}
+	if run.Status == DurableRunStatusCompleted &&
+		run.TerminalReason == request.TerminalReason &&
+		run.FinalResponseRef == request.FinalResponseRef {
+		if err := requireFinalizationResultInTx(ctx, tx, request); err != nil {
+			return DurableRun{}, err
+		}
+		return run, nil
+	}
+	if durableRunStatusIsTerminal(run.Status) {
+		return DurableRun{}, fmt.Errorf("%w: run status is %s", ErrDurableRunTerminalConflict, run.Status)
+	}
+	if requested, err := runCancellationRequestedInTx(ctx, tx, run.RunID); err != nil {
+		return DurableRun{}, err
+	} else if requested {
+		return DurableRun{}, fmt.Errorf("%w: cancellation was requested", ErrDurableRunTerminalConflict)
+	}
 	if !durableRunTransitionAllowed(run.Status, DurableRunStatusCompleted) {
 		return DurableRun{}, fmt.Errorf(
 			"%w: %s -> %s",
@@ -222,12 +321,12 @@ func (s *PostgresRunProjectionStore) CompleteRunProjection(
 			DurableRunStatusCompleted,
 		)
 	}
+	if err := requireFinalizationResultInTx(ctx, tx, request); err != nil {
+		return DurableRun{}, err
+	}
 	run.Status = DurableRunStatusCompleted
 	run.TerminalReason = request.TerminalReason
 	run.FinalResponseRef = request.FinalResponseRef
-	if request.SelectedTool != "" {
-		run.SelectedTool = request.SelectedTool
-	}
 	run.UpdatedAt = request.Now
 	recordDurableRunStatusTimestamp(&run, DurableRunStatusCompleted, request.Now)
 	if err := validateDurableRun(run); err != nil {
@@ -238,7 +337,7 @@ func (s *PostgresRunProjectionStore) CompleteRunProjection(
 		`update runtime.agent_runs
 		set status = $2, terminal_reason = $3, queued_at = $4, admitted_at = $5,
 			started_at = $6, streaming_started_at = $7, completed_at = $8, updated_at = $9,
-			final_response_ref = $10, selected_tool = $11
+			final_response_ref = $10
 		where run_id = $1`,
 		run.RunID,
 		string(run.Status),
@@ -250,7 +349,6 @@ func (s *PostgresRunProjectionStore) CompleteRunProjection(
 		nullableTime(run.CompletedAt),
 		run.UpdatedAt,
 		run.FinalResponseRef,
-		run.SelectedTool,
 	)
 	if err != nil {
 		return DurableRun{}, err
@@ -259,6 +357,28 @@ func (s *PostgresRunProjectionStore) CompleteRunProjection(
 		return DurableRun{}, err
 	}
 	return s.GetRun(ctx, request.RunID)
+}
+
+func requireFinalizationResultInTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	request DurableRunCompleteRequest,
+) error {
+	var exists bool
+	if err := tx.QueryRow(ctx, `select exists (
+		select 1 from runtime.agent_step_results
+		where run_id = $1 and step_id = 'finalization.write' and status = 'completed'
+			and result_kind = 'final_answer_projection' and projection_ref = $2
+	)`, request.RunID, request.FinalResponseRef).Scan(&exists); err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf(
+			"%w: matching completed finalization result is required",
+			ErrInvalidDurableRunComplete,
+		)
+	}
+	return nil
 }
 
 func (s *PostgresRunProjectionStore) CancelRunProjection(
@@ -284,6 +404,12 @@ func (s *PostgresRunProjectionStore) CancelRunProjection(
 		}
 		return DurableRun{}, err
 	}
+	if run.Status == DurableRunStatusCanceled {
+		return run, nil
+	}
+	if durableRunStatusIsTerminal(run.Status) {
+		return DurableRun{}, fmt.Errorf("%w: run status is %s", ErrDurableRunTerminalConflict, run.Status)
+	}
 	if !durableRunTransitionAllowed(run.Status, DurableRunStatusCanceled) {
 		return DurableRun{}, fmt.Errorf(
 			"%w: %s -> %s",
@@ -308,15 +434,23 @@ func (s *PostgresRunProjectionStore) CancelRunProjection(
 		ConversationID:       run.ConversationID,
 		EventType:            DurableRunEventTypeRunCanceled,
 		OccurredAt:           request.Now,
-		Visibility:           DurableRunEventVisibilityInternal,
+		Visibility:           DurableRunEventVisibilityBrowser,
 		PayloadSchemaVersion: "run-event-v1",
 		Payload: map[string]any{
+			"request_id":      run.RequestID,
+			"trace_id":        run.TraceID,
 			"status":          string(DurableRunStatusCanceled),
 			"terminal_reason": string(DurableTerminalReasonUserCanceled),
-			"reason":          request.Reason,
-			"projection_only": true,
 		},
 	}); err != nil {
+		return DurableRun{}, err
+	}
+	if _, err := tx.Exec(
+		ctx,
+		`delete from runtime.conversation_run_locks where conversation_id = $1 and run_id = $2`,
+		run.ConversationID,
+		run.RunID,
+	); err != nil {
 		return DurableRun{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -369,6 +503,14 @@ func (s *PostgresRunProjectionStore) FailRunProjection(
 		}
 		return run, nil
 	}
+	if durableRunStatusIsTerminal(run.Status) {
+		return DurableRun{}, fmt.Errorf("%w: run status is %s", ErrDurableRunTerminalConflict, run.Status)
+	}
+	if requested, err := runCancellationRequestedInTx(ctx, tx, run.RunID); err != nil {
+		return DurableRun{}, err
+	} else if requested {
+		return DurableRun{}, fmt.Errorf("%w: cancellation was requested", ErrDurableRunTerminalConflict)
+	}
 	if !durableRunTransitionAllowed(run.Status, DurableRunStatusFailed) {
 		return DurableRun{}, fmt.Errorf(
 			"%w: %s -> %s",
@@ -379,9 +521,7 @@ func (s *PostgresRunProjectionStore) FailRunProjection(
 	}
 	run.Status = DurableRunStatusFailed
 	run.TerminalReason = request.TerminalReason
-	if request.SelectedTool != "" {
-		run.SelectedTool = request.SelectedTool
-	}
+	run.FailCloseReason = request.FailCloseReason
 	run.UpdatedAt = request.Now
 	recordDurableRunStatusTimestamp(&run, DurableRunStatusFailed, request.Now)
 	if err := validateDurableRun(run); err != nil {
@@ -392,7 +532,7 @@ func (s *PostgresRunProjectionStore) FailRunProjection(
 		`update runtime.agent_runs
 		set status = $2, terminal_reason = $3, queued_at = $4, admitted_at = $5,
 			started_at = $6, streaming_started_at = $7, completed_at = $8, updated_at = $9,
-			selected_tool = $10
+			fail_close_reason = $10
 		where run_id = $1`,
 		run.RunID,
 		string(run.Status),
@@ -403,7 +543,7 @@ func (s *PostgresRunProjectionStore) FailRunProjection(
 		nullableTime(run.StreamingStartedAt),
 		nullableTime(run.CompletedAt),
 		run.UpdatedAt,
-		run.SelectedTool,
+		run.FailCloseReason,
 	)
 	if err != nil {
 		return DurableRun{}, err
@@ -472,8 +612,6 @@ func scanDurableRun(row pgx.Row) (DurableRun, error) {
 		&run.TraceID,
 		&run.OwnerUserID,
 		&run.Surface,
-		&run.RequestedTool,
-		&run.SelectedTool,
 		&taskQueue,
 		&status,
 		&terminalReason,
@@ -488,6 +626,7 @@ func scanDurableRun(row pgx.Row) (DurableRun, error) {
 		&run.UpdatedAt,
 		&runtimeVersionsRaw,
 		&run.FinalResponseRef,
+		&run.RequestFingerprintSHA256,
 		&metadataRaw,
 	); err != nil {
 		return DurableRun{}, err
@@ -532,7 +671,7 @@ func nullableTime(value time.Time) *time.Time {
 
 const durableRunSelectSQL = `select
 	run_id, conversation_id, turn_id, request_id, trace_id, owner_user_id, surface,
-	requested_tool, selected_tool, task_queue, status, terminal_reason, fail_close_reason,
+	task_queue, status, terminal_reason, fail_close_reason,
 	retryable, created_at, queued_at, admitted_at, started_at, streaming_started_at, completed_at,
-	updated_at, runtime_versions_json, final_response_ref, metadata_json
+	updated_at, runtime_versions_json, final_response_ref, request_fingerprint_sha256, metadata_json
 from runtime.agent_runs`

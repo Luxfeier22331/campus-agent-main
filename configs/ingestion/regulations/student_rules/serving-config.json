@@ -13,7 +13,6 @@
 	"dense_prefetch_limit": 20,
 	"sparse_prefetch_limit": 20,
 	"embedding_query_instruction": "Given a campus policy or handbook question, retrieve relevant passages that answer the query.",
-	"qdrant_alias_name": "student_rules",
 	"qdrant_collection_prefix": "student_rules",
 	"qdrant_dense_vector_name": "dense",
 	"qdrant_sparse_vector_name": "sparse",

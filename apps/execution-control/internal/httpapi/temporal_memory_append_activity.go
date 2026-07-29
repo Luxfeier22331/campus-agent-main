@@ -21,12 +21,20 @@ func (s *Server) AppendConversationMemoryActivity(
 	stopHeartbeat := startTemporalActivityHeartbeat(ctx, "memory.append", 10*time.Second)
 	defer stopHeartbeat()
 	recordTemporalActivityHeartbeat(ctx, "memory.append.started")
-	run, err := s.temporalActivityRunAllowTerminal(ctx, input.RunID, input.TraceID)
+	run, err := s.temporalCompletedFinalizationRun(ctx, input.RunID, input.TraceID)
 	if err != nil {
 		return temporalruntime.AppendConversationMemoryActivityOutput{}, err
 	}
 	startedAt := time.Now().UTC()
-	payload, _ := run.Metadata["execution_payload"].(map[string]any)
+	payload, err := s.loadExecutionPayload(ctx, run)
+	if err != nil {
+		failureKind := executionInputFailureKind(err, "memory_append_request_invalid")
+		output, projectErr := s.projectMemoryAppendFailure(ctx, run, failureKind, err)
+		if output.Status == "failed" {
+			s.recordPersonalMemoryOperation("append", "failed", failureKind, startedAt, 0, 0)
+		}
+		return output, projectErr
+	}
 	enabled, known := memoryEnabledFromExecutionPayload(payload)
 	if !known {
 		output, err := s.projectMemoryAppendResult(ctx, run, skippedMemoryAppendOutput(run.RunID, "memory_enabled_unknown"))
@@ -195,12 +203,6 @@ func memoryEnabledFromExecutionPayload(payload map[string]any) (bool, bool) {
 	return enabled, ok
 }
 
-func memoryRecallEnabledFromExecutionPayload(payload map[string]any) (bool, bool) {
-	value := nestedAny(payload, "context", "memory", "recall_enabled")
-	enabled, ok := value.(bool)
-	return enabled, ok
-}
-
 func skippedMemoryAppendOutput(
 	runID string,
 	reason string,
@@ -257,13 +259,16 @@ func (s *Server) projectMemoryAppendResult(
 	return output, nil
 }
 
-func (s *Server) temporalActivityRunAllowTerminal(
+func (s *Server) temporalCompletedFinalizationRun(
 	ctx context.Context,
 	runID string,
 	traceID string,
 ) (execution.DurableRun, error) {
 	if s == nil || s.runProjectionStore == nil {
 		return execution.DurableRun{}, execution.ErrRunProjectionStoreNotConfigured
+	}
+	if err := s.ensureTemporalActivityOwnsRootExecution(ctx, runID, false); err != nil {
+		return execution.DurableRun{}, err
 	}
 	run, err := s.runProjectionStore.GetRun(ctx, strings.TrimSpace(runID))
 	if err != nil {
@@ -276,7 +281,31 @@ func (s *Server) temporalActivityRunAllowTerminal(
 			run.TraceID,
 		)
 	}
-	return run, nil
+	if run.Status != execution.DurableRunStatusCompleted {
+		if temporalRunTerminal(run.Status) {
+			return execution.DurableRun{}, sanitizedTemporalApplicationError(
+				"post_finalization_activity_terminal_conflict",
+				fmt.Errorf("post-finalization activity is not allowed for run status %s", run.Status),
+				true,
+			)
+		}
+		return execution.DurableRun{}, errors.New("post-finalization activity cannot run before completed projection")
+	}
+	results, err := s.runProjectionStore.ListStepResults(ctx, run.RunID)
+	if err != nil {
+		return execution.DurableRun{}, err
+	}
+	for _, result := range results {
+		if result.StepID == "finalization.write" && result.Status == "completed" &&
+			strings.TrimSpace(result.ProjectionRef) == strings.TrimSpace(run.FinalResponseRef) {
+			return run, nil
+		}
+	}
+	return execution.DurableRun{}, sanitizedTemporalApplicationError(
+		"post_finalization_activity_identity_invalid",
+		errors.New("completed run is not bound to a completed finalization projection"),
+		true,
+	)
 }
 
 func startPersonalMemoryHeartbeat(ctx context.Context, detail string) func() {

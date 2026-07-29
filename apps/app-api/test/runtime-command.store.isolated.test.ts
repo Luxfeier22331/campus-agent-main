@@ -12,8 +12,17 @@ vi.mock("../src/db/runtime", () => ({
 	createRuntimeDbGetter,
 }));
 
-import { createPgChatCommandStore } from "../src/modules/runtime-command/store";
-import type { FinalizeRequestWrite } from "../src/modules/runtime-command/store-types";
+import { conversations } from "../src/db/schema";
+import {
+	ChatAcceptanceConversationConflict,
+	ChatAcceptanceIdempotencyConflict,
+	createPgChatCommandStore,
+} from "../src/modules/runtime-command/store";
+import type {
+	AcceptRequestWrite,
+	FinalizeRequestWrite,
+} from "../src/modules/runtime-command/store-types";
+import { ChatFinalizationConflict } from "../src/modules/runtime-command/store-types";
 
 function finalizedWrite(): FinalizeRequestWrite {
 	return {
@@ -39,10 +48,8 @@ function finalizedWrite(): FinalizeRequestWrite {
 			completedAt: "2026-06-04T01:02:06.000Z",
 			errorCode: null,
 			requestId: "req_01HQ",
-			resolvedTargets: ["student_rules"],
 			runId: "run_01HQ",
 			safetyIdentifier: "safety_01HQ",
-			selectedTool: "knowledge_query",
 			status: "completed",
 			turnSequence: 1,
 			updatedAt: "2026-06-04T01:02:06.000Z",
@@ -66,11 +73,8 @@ function finalizedWrite(): FinalizeRequestWrite {
 			promptId: null,
 			promptVersion: null,
 			refusalClass: null,
-			requestedTool: "knowledge_query",
 			requestId: "req_01HQ",
-			resolvedTargets: ["student_rules"],
 			safetyIdentifier: "safety_01HQ",
-			selectedTool: "knowledge_query",
 			semanticOutcome: null,
 			startedAt: "2026-06-04T01:02:03.000Z",
 			status: "completed",
@@ -88,11 +92,187 @@ function finalizedWrite(): FinalizeRequestWrite {
 	};
 }
 
+function conversationReadSelect() {
+	const limit = vi.fn().mockResolvedValue([
+		{
+			activeBranchId: "branch_active",
+			activeMessageId: "msg_assistant_01HQ",
+			activeRunId: "run_01HQ",
+			activeTurnSequence: 1,
+			createdAt: new Date("2026-06-04T01:02:00.000Z"),
+			id: "conv_01HQ",
+			ownerUserId: "user_01HQ",
+			title: "示例大学本科学生国家奖学金评审办法",
+			updatedAt: new Date("2026-06-04T01:02:06.000Z"),
+		},
+	]);
+	const orderBy = vi.fn().mockResolvedValue([]);
+	const where = vi.fn(() => ({ limit, orderBy }));
+	const from = vi.fn(() => ({ where }));
+	return vi.fn(() => ({ from }));
+}
+
 describe("pg chat command store", () => {
 	beforeEach(() => {
 		createRuntimeDatabase.mockReset();
 		createRuntimeDbGetter.mockClear();
 		createRuntimeDbGetter.mockImplementation(() => () => createRuntimeDatabase());
+	});
+
+	it("rejects a stale conversation baseline before freezing or writing the accepted turn", async () => {
+		const forUpdate = vi.fn().mockResolvedValue([
+			{
+				activeBranchId: "branch_active",
+				activeMessageId: "msg_newer",
+				activeRunId: "run_newer",
+				activeTurnSequence: 2,
+				id: "conv_01HQ",
+				updatedAt: new Date("2026-06-04T01:02:04.000Z"),
+			},
+		]);
+		const limit = vi.fn(() => ({ for: forUpdate }));
+		const where = vi.fn(() => ({ limit }));
+		const from = vi.fn(() => ({ where }));
+		const select = vi.fn(() => ({ from }));
+		const insert = vi.fn();
+		const update = vi.fn();
+		const transaction = vi.fn(async (callback: (tx: unknown) => Promise<unknown>) =>
+			callback({ insert, select, update }),
+		);
+		createRuntimeDatabase.mockResolvedValue({ transaction });
+		const freezeDurableAdmission = vi.fn();
+		const store = createPgChatCommandStore({} as never);
+
+		await expect(
+			store.acceptRequest({
+				captureMemorySnapshot: false,
+				conversationBaseline: {
+					activeBranchId: "branch_active",
+					activeMessageId: null,
+					activeRunId: null,
+					activeTurnSequence: 1,
+					updatedAt: "2026-06-04T01:02:03.000Z",
+				},
+				freezeDurableAdmission,
+				ownerUserId: "user_01HQ",
+				turnDispatch: { idempotencyKey: null },
+				userMessage: { conversationId: "conv_01HQ" },
+			} as unknown as AcceptRequestWrite),
+		).rejects.toBeInstanceOf(ChatAcceptanceConversationConflict);
+		expect(freezeDurableAdmission).not.toHaveBeenCalled();
+		expect(insert).not.toHaveBeenCalled();
+		expect(update).not.toHaveBeenCalled();
+	});
+
+	it("prefers the committed idempotency winner when it also advanced the conversation baseline", async () => {
+		const seedOnConflictDoNothing = vi.fn().mockResolvedValue(undefined);
+		const seedValues = vi.fn(() => ({ onConflictDoNothing: seedOnConflictDoNothing }));
+		const conversationForUpdate = vi.fn().mockResolvedValue([
+			{
+				activeBranchId: "branch_active",
+				activeMessageId: "msg_winner",
+				activeRunId: "run_winner",
+				activeTurnSequence: 2,
+				id: "conv_01HQ",
+				updatedAt: new Date("2026-06-04T01:02:04.000Z"),
+			},
+		]);
+		const conversationLimit = vi.fn(() => ({ for: conversationForUpdate }));
+		const conversationWhere = vi.fn(() => ({ limit: conversationLimit }));
+		const conversationFrom = vi.fn(() => ({ where: conversationWhere }));
+		const winnerLimit = vi.fn().mockResolvedValue([{ requestId: "req_winner" }]);
+		const winnerWhere = vi.fn(() => ({ limit: winnerLimit }));
+		const winnerFrom = vi.fn(() => ({ where: winnerWhere }));
+		const select = vi
+			.fn()
+			.mockReturnValueOnce({ from: conversationFrom })
+			.mockReturnValueOnce({ from: winnerFrom });
+		const insert = vi.fn(() => ({ values: seedValues }));
+		const update = vi.fn();
+		const transaction = vi.fn(async (callback: (tx: unknown) => Promise<unknown>) =>
+			callback({ insert, select, update }),
+		);
+		createRuntimeDatabase.mockResolvedValue({ transaction });
+		const freezeDurableAdmission = vi.fn();
+		const store = createPgChatCommandStore({} as never);
+
+		await expect(
+			store.acceptRequest({
+				captureMemorySnapshot: false,
+				conversationSeed: {
+					createdAt: "2026-06-04T01:02:03.000Z",
+					id: "conv_01HQ",
+					ownerUserId: "user_01HQ",
+					title: "国家奖学金",
+					updatedAt: "2026-06-04T01:02:03.000Z",
+				},
+				conversationBaseline: {
+					activeBranchId: "branch_active",
+					activeMessageId: null,
+					activeRunId: null,
+					activeTurnSequence: 1,
+					updatedAt: "2026-06-04T01:02:03.000Z",
+				},
+				freezeDurableAdmission,
+				ownerUserId: "user_01HQ",
+				turnDispatch: {
+					actorUserId: "user_01HQ",
+					idempotencyKey: "idem-race",
+				},
+				userMessage: { conversationId: "conv_01HQ" },
+			} as unknown as AcceptRequestWrite),
+		).rejects.toBeInstanceOf(ChatAcceptanceIdempotencyConflict);
+		expect(seedOnConflictDoNothing).toHaveBeenCalledWith({ target: conversations.id });
+		expect(winnerLimit).toHaveBeenCalledWith(1);
+		expect(freezeDurableAdmission).not.toHaveBeenCalled();
+		expect(insert).toHaveBeenCalledTimes(1);
+		expect(update).not.toHaveBeenCalled();
+	});
+
+	it("fails closed when a concurrent conversation seed belongs to another owner", async () => {
+		const seedOnConflictDoNothing = vi.fn().mockResolvedValue(undefined);
+		const seedValues = vi.fn(() => ({ onConflictDoNothing: seedOnConflictDoNothing }));
+		const conversationForUpdate = vi.fn().mockResolvedValue([]);
+		const conversationLimit = vi.fn(() => ({ for: conversationForUpdate }));
+		const conversationWhere = vi.fn(() => ({ limit: conversationLimit }));
+		const conversationFrom = vi.fn(() => ({ where: conversationWhere }));
+		const select = vi.fn(() => ({ from: conversationFrom }));
+		const insert = vi.fn(() => ({ values: seedValues }));
+		const update = vi.fn();
+		const transaction = vi.fn(async (callback: (tx: unknown) => Promise<unknown>) =>
+			callback({ insert, select, update }),
+		);
+		createRuntimeDatabase.mockResolvedValue({ transaction });
+		const freezeDurableAdmission = vi.fn();
+		const store = createPgChatCommandStore({} as never);
+
+		await expect(
+			store.acceptRequest({
+				captureMemorySnapshot: false,
+				conversationSeed: {
+					createdAt: "2026-06-04T01:02:03.000Z",
+					id: "conv_01HQ",
+					ownerUserId: "user_01HQ",
+					title: "国家奖学金",
+					updatedAt: "2026-06-04T01:02:03.000Z",
+				},
+				conversationBaseline: {
+					activeBranchId: "branch_active",
+					activeMessageId: null,
+					activeRunId: null,
+					activeTurnSequence: 0,
+					updatedAt: "2026-06-04T01:02:03.000Z",
+				},
+				freezeDurableAdmission,
+				ownerUserId: "user_01HQ",
+				turnDispatch: { idempotencyKey: "idem-race" },
+				userMessage: { conversationId: "conv_01HQ" },
+			} as unknown as AcceptRequestWrite),
+		).rejects.toBeInstanceOf(ChatAcceptanceConversationConflict);
+		expect(seedOnConflictDoNothing).toHaveBeenCalledWith({ target: conversations.id });
+		expect(freezeDurableAdmission).not.toHaveBeenCalled();
+		expect(insert).toHaveBeenCalledTimes(1);
+		expect(update).not.toHaveBeenCalled();
 	});
 
 	it("uses a non-persistent runtime getter so sequential idempotency lookups do not share a db handle by default", async () => {
@@ -232,6 +412,115 @@ describe("pg chat command store", () => {
 		expect(insert).not.toHaveBeenCalled();
 	});
 
+	it("returns an exact finalization tuple replay without issuing writes", async () => {
+		const completedAt = new Date("2026-06-04T01:02:06.000Z");
+		const forUpdate = vi.fn().mockResolvedValue([
+			{
+				completedAt,
+				finalizationFingerprint: "finalization-01",
+				status: "completed",
+			},
+		]);
+		const transactionSelect = vi.fn(() => ({
+			from: () => ({ where: () => ({ limit: () => ({ for: forUpdate }) }) }),
+		}));
+		const update = vi.fn();
+		const insert = vi.fn();
+		const deleteFn = vi.fn();
+		const transaction = vi.fn(async (callback: (tx: unknown) => Promise<void>) =>
+			callback({ delete: deleteFn, insert, select: transactionSelect, update }),
+		);
+		createRuntimeDatabase.mockResolvedValue({
+			select: conversationReadSelect(),
+			transaction,
+		});
+		const write = finalizedWrite();
+		write.finalizationFingerprint = "finalization-01";
+		const store = createPgChatCommandStore({} as never);
+
+		await expect(store.finalizeRequest(write)).resolves.toMatchObject({
+			outcome: "replayed",
+		});
+		expect(update).not.toHaveBeenCalled();
+		expect(insert).not.toHaveBeenCalled();
+		expect(deleteFn).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		{
+			completedAt: new Date("2026-06-04T01:02:07.000Z"),
+			finalizationFingerprint: "finalization-01",
+			label: "a different completion time",
+		},
+		{
+			completedAt: new Date("2026-06-04T01:02:06.000Z"),
+			finalizationFingerprint: null,
+			label: "a partial stored identity",
+		},
+	])("rejects $label for a fingerprinted finalization", async (existing) => {
+		const forUpdate = vi.fn().mockResolvedValue([
+			{
+				completedAt: existing.completedAt,
+				finalizationFingerprint: existing.finalizationFingerprint,
+				status: "completed",
+			},
+		]);
+		const select = vi.fn(() => ({
+			from: () => ({ where: () => ({ limit: () => ({ for: forUpdate }) }) }),
+		}));
+		const update = vi.fn();
+		const transaction = vi.fn(async (callback: (tx: unknown) => Promise<void>) =>
+			callback({ select, update }),
+		);
+		createRuntimeDatabase.mockResolvedValue({ transaction });
+		const write = finalizedWrite();
+		write.finalizationFingerprint = "finalization-01";
+		const store = createPgChatCommandStore({} as never);
+
+		await expect(store.finalizeRequest(write)).rejects.toBeInstanceOf(ChatFinalizationConflict);
+		expect(update).not.toHaveBeenCalled();
+	});
+
+	it("fences explicit admission failure and normalizes ordinary finalization admission state", async () => {
+		const forUpdate = vi.fn().mockResolvedValue([
+			{
+				admissionStatus: "dispatching",
+				finalizationFingerprint: null,
+				status: "accepted",
+				workflowId: "campus-agent.chat.run_01HQ",
+			},
+		]);
+		const selectLimit = vi.fn(() => ({ for: forUpdate }));
+		const selectWhere = vi.fn(() => ({ limit: selectLimit }));
+		const selectFrom = vi.fn(() => ({ where: selectWhere }));
+		const select = vi.fn(() => ({ from: selectFrom }));
+		const stopAfterDispatchUpdate = new Error("captured dispatch update");
+		const set = vi.fn((_values: unknown) => {
+			throw stopAfterDispatchUpdate;
+		});
+		const update = vi.fn(() => ({ set }));
+		const transaction = vi.fn(async (callback: (tx: unknown) => Promise<void>) =>
+			callback({ select, update }),
+		);
+		createRuntimeDatabase.mockResolvedValue({ transaction });
+		const write = finalizedWrite();
+		write.admissionFailure = { workflowId: "campus-agent.chat.run_01HQ" };
+		const store = createPgChatCommandStore({} as never);
+
+		await expect(store.finalizeRequest(write)).rejects.toBe(stopAfterDispatchUpdate);
+		expect(set).toHaveBeenCalledWith(
+			expect.objectContaining({ admissionStatus: "admission_failed" }),
+		);
+
+		set.mockClear();
+		const ordinaryWrite = finalizedWrite();
+		await expect(store.finalizeRequest(ordinaryWrite)).rejects.toBe(stopAfterDispatchUpdate);
+		expect(set).toHaveBeenCalledOnce();
+		expect(set).toHaveBeenCalledWith(
+			expect.objectContaining({ admissionStatus: expect.anything() }),
+		);
+	});
+
 	it("keeps session slots and active branch state when a stale run finalizes after a newer turn", async () => {
 		const forUpdate = vi
 			.fn()
@@ -296,18 +585,21 @@ describe("pg chat command store", () => {
 		});
 
 		const store = createPgChatCommandStore({} as never);
-		const conversation = await store.finalizeRequest(finalizedWrite());
+		const result = await store.finalizeRequest(finalizedWrite());
 
-		expect(conversation).toMatchObject({
-			activeMessageId: "msg_newer",
-			activeRunId: "run_newer",
-			activeTurnSequence: 2,
-			sessionSlots: [
-				expect.objectContaining({
-					name: "policy_topic",
-					value: "newer topic",
-				}),
-			],
+		expect(result).toMatchObject({
+			outcome: "applied",
+			conversation: {
+				activeMessageId: "msg_newer",
+				activeRunId: "run_newer",
+				activeTurnSequence: 2,
+				sessionSlots: [
+					expect.objectContaining({
+						name: "policy_topic",
+						value: "newer topic",
+					}),
+				],
+			},
 		});
 		expect(update).toHaveBeenCalledTimes(2);
 		expect(insert).toHaveBeenCalledTimes(2);
@@ -322,7 +614,6 @@ describe("pg chat command store", () => {
 		);
 		expect(insertValues).toHaveBeenCalledWith(
 			expect.objectContaining({
-				resolvedTargetsJson: ["student_rules"],
 				stageTimingJson: {
 					"agent.runtime_ms": 320,
 				},

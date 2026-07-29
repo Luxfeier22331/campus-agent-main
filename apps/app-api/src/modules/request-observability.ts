@@ -32,7 +32,7 @@ function addOptionalStageTimingField(
 	field: StageTimingField,
 	value: number | null | undefined,
 ) {
-	if (!(typeof value === "number" && Number.isFinite(value) && value > 0)) {
+	if (!(typeof value === "number" && Number.isFinite(value) && value >= 0)) {
 		return;
 	}
 	timing[field] = value;
@@ -43,7 +43,7 @@ function mergeStageTiming(input: {
 	appApiStageTiming?: Record<string, unknown> | null;
 	requestTotalMs: number;
 	projectionCloseoutMs?: number | null;
-	streamBrowserTtftMs?: number | null;
+	streamAppApiTtftMs?: number | null;
 }): Partial<Record<StageTimingField, number>> {
 	const timing: Partial<Record<StageTimingField, number>> = {};
 	for (const [field, value] of Object.entries(input.executionStageTiming ?? {})) {
@@ -53,7 +53,22 @@ function mergeStageTiming(input: {
 		addStageTimingField(timing, field, value);
 	}
 	addOptionalStageTimingField(timing, "request.total_ms", input.requestTotalMs);
-	addOptionalStageTimingField(timing, "stream.browser_ttft_ms", input.streamBrowserTtftMs);
+	if (timing["stream.app_api_ttft_ms"] === undefined) {
+		addOptionalStageTimingField(timing, "stream.app_api_ttft_ms", input.streamAppApiTtftMs);
+	}
+	const streamAppApiTtftMs = timing["stream.app_api_ttft_ms"];
+	const agentFirstDeltaMs = timing["agent.first_delta_ms"];
+	if (
+		typeof streamAppApiTtftMs === "number" &&
+		Number.isFinite(streamAppApiTtftMs) &&
+		streamAppApiTtftMs >= 0 &&
+		typeof agentFirstDeltaMs === "number" &&
+		Number.isFinite(agentFirstDeltaMs) &&
+		agentFirstDeltaMs >= 0 &&
+		streamAppApiTtftMs >= agentFirstDeltaMs
+	) {
+		timing["stream.orchestration_overhead_ms"] = streamAppApiTtftMs - agentFirstDeltaMs;
+	}
 	addOptionalStageTimingField(timing, "projection.closeout_ms", input.projectionCloseoutMs);
 	return timing;
 }
@@ -121,7 +136,6 @@ export function buildAcceptedRequestObservabilityFact(input: {
 	conversationId: string;
 	principal: ResolvedAppPrincipal;
 	requestId: string;
-	requestedTool: string | null;
 	safetyIdentifier?: string | null;
 	surface: string;
 	startedAt: string;
@@ -148,13 +162,10 @@ export function buildAcceptedRequestObservabilityFact(input: {
 		principalType: input.principal.principal.type,
 		projectionLagMs: null,
 		requestId: input.requestId,
-		requestedTool: input.requestedTool,
-		resolvedTargets: [],
 		refusalClass: null,
 		semanticOutcome: null,
 		safetyIdentifier: input.safetyIdentifier ?? null,
 		templateSha256: null,
-		selectedTool: null,
 		startedAt: input.startedAt,
 		status: "accepted",
 		surface: input.surface,
@@ -173,15 +184,13 @@ export function buildFinalizedRequestObservabilityFact(input: {
 	principal: ResolvedAppPrincipal;
 	projectionCloseoutMs?: number | null;
 	requestId: string;
-	requestedTool: string | null;
-	resolvedTargets: string[];
 	response: ToolExecutionResponse;
 	runId: string;
 	safetyIdentifier?: string | null;
 	startedAt: string;
 	stageTiming?: Record<string, unknown> | null;
 	status: TurnDispatchStatus;
-	streamBrowserTtftMs?: number | null;
+	streamAppApiTtftMs?: number | null;
 	surface: string;
 	traceId: string;
 	conversationId: string;
@@ -211,13 +220,10 @@ export function buildFinalizedRequestObservabilityFact(input: {
 		principalType: input.principal.principal.type,
 		projectionLagMs: null,
 		requestId: input.requestId,
-		requestedTool: input.requestedTool,
-		resolvedTargets: [...input.resolvedTargets],
 		refusalClass: normalizeRefusalClass(input.status),
 		semanticOutcome: normalizeSemanticOutcome(input.status),
 		safetyIdentifier: input.safetyIdentifier ?? null,
 		templateSha256: promptTrace?.promptTemplateSha256 ?? null,
-		selectedTool: input.response.selectedTool,
 		startedAt: input.startedAt,
 		status: input.status,
 		surface: input.surface,
@@ -230,7 +236,7 @@ export function buildFinalizedRequestObservabilityFact(input: {
 			executionStageTiming: input.response.stageTiming,
 			projectionCloseoutMs: input.projectionCloseoutMs,
 			requestTotalMs: input.durationMs,
-			streamBrowserTtftMs: input.streamBrowserTtftMs,
+			streamAppApiTtftMs: input.streamAppApiTtftMs,
 		}),
 	};
 }

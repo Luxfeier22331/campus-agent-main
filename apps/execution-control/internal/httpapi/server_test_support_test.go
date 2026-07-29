@@ -13,6 +13,7 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/protectedpayload"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/retrievalruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/toolreadmodel"
@@ -34,21 +35,37 @@ func newTestRequest(method string, target string, body io.Reader) *http.Request 
 
 func newServerForTest() *Server {
 	return NewServer(config.Config{
-		RAGTopKMax: 8,
+		RAGTopKMax:                       8,
+		AppAPIExecutionInputSharedSecret: "test-execution-input-secret",
+		ProtectedPayloadKeyring:          protectedPayloadKeyringForTest(),
 	})
 }
 
 func newWorkerAuthServerForTest() *Server {
 	server := newServerForTest()
 	server.config.AppAPIExecutionSharedSecret = "secret"
+	server.config.AppAPIExecutionInputSharedSecret = "test-execution-input-secret"
 	return server
 }
 
 func newToolReadModelAuthServerForTest() *Server {
 	return NewServer(config.Config{
-		AgentRuntimeSharedSecret: "query-secret",
-		RAGTopKMax:               8,
+		AgentRuntimeSharedSecret:         "query-secret",
+		AppAPIExecutionInputSharedSecret: "test-protected-payload-secret",
+		ProtectedPayloadKeyring:          protectedPayloadKeyringForTest(),
+		RAGTopKMax:                       8,
+		ToolReadModelTrustedTimeRFC3339:  "2026-04-24T10:30:00+08:00",
 	})
+}
+
+func protectedPayloadKeyringForTest() *protectedpayload.Keyring {
+	keyring, err := protectedpayload.NewKeyring("test-key-v1", map[string][]byte{
+		"test-key-v1": []byte("0123456789abcdef0123456789abcdef"),
+	})
+	if err != nil {
+		panic(err)
+	}
+	return keyring
 }
 
 func delegateAnswerBody(requestID string) io.Reader {
@@ -61,7 +78,7 @@ type readyTemporalStarter struct {
 	readiness temporalruntime.RuntimeReadiness
 }
 
-type readyKnowledgeSearchExecutor struct{}
+type readyDocumentEvidenceExecutor struct{}
 
 func publicRetrievalAccessProjectionForTest() retrievalruntime.RetrievalAccess {
 	return retrievalruntime.RetrievalAccess{
@@ -95,22 +112,6 @@ func (readyPersonalMemoryExecutor) Recall(
 	})
 }
 
-func (readyPersonalMemoryExecutor) Reflect(
-	_ context.Context,
-	request memoryruntime.ReflectRequest,
-) (memoryruntime.ReflectResult, error) {
-	return memoryruntime.FinalizeReflectResult(memoryruntime.ReflectResult{
-		Provider:      "hindsight",
-		ReflectRef:    "projection://runs/" + request.RunID + "/memory/reflect",
-		RunID:         request.RunID,
-		SchemaVersion: "memory_reflect_result_v1",
-		Status:        "completed",
-		Text:          "memory reflection",
-		ThreadID:      request.ThreadID,
-		UserID:        request.UserID,
-	})
-}
-
 func (readyPersonalMemoryExecutor) AppendConversationTurn(
 	_ context.Context,
 	request memoryruntime.AppendConversationTurnRequest,
@@ -125,22 +126,15 @@ func (readyPersonalMemoryExecutor) AppendConversationTurn(
 	})
 }
 
-func (readyKnowledgeSearchExecutor) HealthCheck(context.Context) error {
+func (readyDocumentEvidenceExecutor) HealthCheck(context.Context) error {
 	return nil
-}
-
-func (readyKnowledgeSearchExecutor) Search(
-	context.Context,
-	retrievalruntime.SearchRequest,
-) (retrievalruntime.SearchResult, error) {
-	return retrievalruntime.SearchResult{}, nil
 }
 
 func (readyTemporalStarter) StartToolExecutionWorkflow(
 	context.Context,
 	temporalruntime.ToolExecutionWorkflowInput,
-) error {
-	return nil
+) (string, error) {
+	return "temporal-ready-run", nil
 }
 
 func (readyTemporalStarter) StartPersonalMemoryCommandWorkflow(
@@ -194,8 +188,8 @@ func markTemporalReadyForTest(server *Server) {
 func markKnowledgeRuntimeReadyForTest(server *Server) {
 	server.personalMemoryExecutor = readyPersonalMemoryExecutor{}
 	server.personalMemoryErr = nil
-	server.knowledgeSearchExecutor = readyKnowledgeSearchExecutor{}
-	server.knowledgeSearchErr = nil
+	server.documentEvidenceExecutor = readyDocumentEvidenceExecutor{}
+	server.documentEvidenceErr = nil
 }
 
 func readyServerConfigForTest(t *testing.T, mutators ...func(*config.Config)) config.Config {
@@ -208,11 +202,12 @@ func readyServerConfigForTest(t *testing.T, mutators ...func(*config.Config)) co
 	}))
 	t.Cleanup(agentRuntime.Close)
 	cfg := config.Config{
-		AppName:                  "campus-agent",
-		AgentRuntimeBaseURL:      agentRuntime.URL,
-		AgentRuntimeSharedSecret: "agent-runtime-secret",
-		MaxConcurrentAnswers:     8,
-		RAGTopKMax:               8,
+		AppName:                          "campus-agent",
+		AgentRuntimeBaseURL:              agentRuntime.URL,
+		AgentRuntimeSharedSecret:         "agent-runtime-secret",
+		AppAPIExecutionInputSharedSecret: "test-execution-input-secret",
+		MaxConcurrentAnswers:             8,
+		RAGTopKMax:                       8,
 	}
 	for _, mutate := range mutators {
 		mutate(&cfg)

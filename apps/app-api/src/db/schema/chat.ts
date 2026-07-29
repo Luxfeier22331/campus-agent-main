@@ -1,6 +1,8 @@
+import { sql } from "drizzle-orm";
 import {
 	bigint,
 	boolean,
+	check,
 	index,
 	integer,
 	jsonb,
@@ -114,16 +116,23 @@ export const turnDispatches = chat.table(
 		requestFingerprintSha256: text("request_fingerprint_sha256"),
 		traceId: text("trace_id").notNull(),
 		runId: text("run_id"),
-		admissionStatus: text("admission_status").notNull().default("pending_input"),
+		admissionStatus: text("admission_status").notNull().default("pending_admission"),
 		workflowId: text("workflow_id"),
-		workflowInputJson: jsonb("workflow_input_json").$type<Record<string, unknown>>(),
-		workflowInputSha256: text("workflow_input_sha256"),
+		admissionInputJson: text("admission_input_json"),
+		admissionInputSha256: text("admission_input_sha256"),
+		executionInputJson: text("execution_input_json"),
+		executionInputSha256: text("execution_input_sha256"),
+		executionInputReleasedAt: timestamp("execution_input_released_at", { withTimezone: true }),
 		admittedAt: timestamp("admitted_at", { withTimezone: true }),
+		cancelOutboxStatus: text("cancel_outbox_status").notNull().default("not_requested"),
+		cancelReason: text("cancel_reason"),
+		cancelRequestedAt: timestamp("cancel_requested_at", { withTimezone: true }),
+		cancelAttemptCount: integer("cancel_attempt_count").notNull().default(0),
+		cancelLastAttemptAt: timestamp("cancel_last_attempt_at", { withTimezone: true }),
+		cancelLastErrorCode: text("cancel_last_error_code"),
+		cancelDeliveredAt: timestamp("cancel_delivered_at", { withTimezone: true }),
 		finalizationFingerprint: text("finalization_fingerprint"),
 		safetyIdentifier: text("safety_identifier"),
-		requestedTool: text("requested_tool"),
-		resolvedTargetsJson: jsonb("resolved_targets_json").$type<string[]>().notNull().default([]),
-		selectedTool: text("selected_tool"),
 		status: text("status").notNull(),
 		errorCode: text("error_code"),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
@@ -131,9 +140,111 @@ export const turnDispatches = chat.table(
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 	},
 	(table) => ({
+		cancelOutboxStatusCheck: check(
+			"chat_turn_dispatches_cancel_outbox_status_check",
+			sql`${table.cancelOutboxStatus} in (
+				'not_requested',
+				'local_finalization_pending',
+				'pending_delivery',
+				'delivered',
+				'closed'
+			)`,
+		),
+		admissionStatusCheck: check(
+			"chat_turn_dispatches_admission_status_check",
+			sql`${table.admissionStatus} in (
+				'pending_admission',
+				'dispatching',
+				'admitted',
+				'admission_failed',
+				'cancelled'
+			)`,
+		),
+		admissionInputPairCheck: check(
+			"chat_turn_dispatches_admission_input_pair_check",
+			sql`(${table.admissionInputJson} is null) = (${table.admissionInputSha256} is null)`,
+		),
+		executionInputPairCheck: check(
+			"chat_turn_dispatches_execution_input_pair_check",
+			sql`(${table.executionInputJson} is null) = (${table.executionInputSha256} is null)`,
+		),
+		executionInputReleaseCheck: check(
+			"chat_turn_dispatches_execution_input_release_check",
+			sql`${table.executionInputReleasedAt} is null
+				or (
+					${table.executionInputJson} is null
+					and ${table.executionInputSha256} is null
+				)`,
+		),
+		inputLifecycleCheck: check(
+			"chat_turn_dispatches_input_lifecycle_check",
+			sql`(
+					${table.status} = 'accepted'
+					and ${table.runId} is not null
+					and ${table.workflowId} is not null
+					and (
+						(
+							${table.admissionStatus} in ('pending_admission', 'dispatching')
+							and ${table.admissionInputJson} is not null
+							and ${table.admissionInputSha256} is not null
+							and ${table.executionInputJson} is not null
+							and ${table.executionInputSha256} is not null
+							and ${table.executionInputReleasedAt} is null
+						)
+						or (
+							${table.admissionStatus} = 'admitted'
+							and ${table.admissionInputJson} is null
+							and ${table.admissionInputSha256} is null
+							and ${table.executionInputJson} is not null
+							and ${table.executionInputSha256} is not null
+							and ${table.executionInputReleasedAt} is null
+						)
+						or (
+							${table.admissionStatus} = 'cancelled'
+							and ${table.cancelOutboxStatus} = 'local_finalization_pending'
+							and ${table.admissionInputJson} is null
+							and ${table.admissionInputSha256} is null
+							and ${table.executionInputJson} is null
+							and ${table.executionInputSha256} is null
+							and ${table.executionInputReleasedAt} is not null
+						)
+					)
+				)
+				or (
+					${table.status} in (
+						'completed',
+						'needs_clarification',
+						'no_answer',
+						'error',
+						'approval_required',
+						'rejected',
+						'cancelled'
+					)
+					and ${table.admissionInputJson} is null
+					and ${table.admissionInputSha256} is null
+					and (
+						(
+							${table.admissionStatus} = 'admitted'
+							and ${table.executionInputJson} is not null
+							and ${table.executionInputSha256} is not null
+							and ${table.executionInputReleasedAt} is null
+						)
+						or (
+							${table.admissionStatus} in ('admitted', 'admission_failed', 'cancelled')
+							and ${table.executionInputJson} is null
+							and ${table.executionInputSha256} is null
+							and ${table.executionInputReleasedAt} is not null
+						)
+					)
+				)`,
+		),
 		actorIdempotencyUnique: uniqueIndex("chat_turn_dispatches_actor_idempotency_uidx").on(
 			table.actorUserId,
 			table.idempotencyKey,
+		),
+		cancelOutboxIndex: index("chat_turn_dispatches_cancel_outbox_idx").on(
+			table.cancelOutboxStatus,
+			table.updatedAt,
 		),
 		conversationTurnSequenceIndex: index("chat_turn_dispatches_conversation_turn_sequence_idx").on(
 			table.conversationId,
@@ -143,7 +254,9 @@ export const turnDispatches = chat.table(
 			table.createdAt.desc(),
 			table.requestId.desc(),
 		),
-		runIdIndex: index("chat_turn_dispatches_run_id_idx").on(table.runId),
+		runIdUnique: uniqueIndex("chat_turn_dispatches_run_id_uidx")
+			.on(table.runId)
+			.where(sql`${table.runId} is not null`),
 		safetyIdentifierCreatedAtIndex: index(
 			"chat_turn_dispatches_safety_identifier_created_at_idx",
 		).on(table.safetyIdentifier, table.createdAt),

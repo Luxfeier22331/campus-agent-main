@@ -1,15 +1,17 @@
 {
-	"selected_tool": "knowledge_query",
 	"status": "completed",
 	"answer_text": "示例奖学金按照现行评审办法执行。",
 	"error": null,
 	"follow_up_question": "",
 	"confidence": "high",
-	"resolved_targets": ["student_rules"],
-	"session_update": null,
+	"model_usage": {
+		"input_tokens": 510,
+		"cached_input_tokens": 100,
+		"output_tokens": 110,
+		"total_tokens": 620
+	},
 	"result": {
 		"provider_response_id": "resp_temporal_finalization",
-		"selected_tools": ["knowledge_query"],
 		"sources": [
 			{
 				"canonical_url": "/docs/regulations/student_rules/national-scholarship",
@@ -25,63 +27,12 @@
 	},
 	"observability": {
 		"agent_runtime": "openai_agents_sdk",
-		"selected_tools": ["knowledge_query"],
 		"terminal_reason": "answer"
 	},
 	"workflow_trace_summary": {
-		"workflow_mode": "single_step",
-		"selected_tool": "knowledge_query",
-		"selected_tools": ["knowledge_query"],
-		"first_decision_actor": "primary_agent",
-		"planning_outcome": "primary_agent_completed",
-		"direct_vs_delegate_branch": "tool",
+		"execution_path": "tool_assisted",
 		"terminal_reason": "answer",
-		"answer_artifact_kinds": ["agent_final_output"],
 		"answer_artifact_refs": ["projection://runs/run_temporal_finalization/agent/primary/result"],
-		"trace_steps": [
-			{
-				"step_id": "agent.primary",
-				"span_kind": "agent",
-				"parent_step_id": "",
-				"outcome": "answer",
-				"result_status": "completed"
-			},
-			{
-				"step_id": "sdk_tool.execute.knowledge_query.1",
-				"span_kind": "tool_call",
-				"parent_step_id": "agent.primary",
-				"tool_name": "knowledge_query",
-				"tool": "knowledge_query",
-				"outcome": "found",
-				"result_status": "found",
-				"retry_count": 0
-			},
-			{
-				"step_id": "finalization.write",
-				"span_kind": "finalization",
-				"parent_step_id": "sdk_tool.execute.knowledge_query.1",
-				"outcome": "completed",
-				"result_status": "completed"
-			}
-		],
-		"tool_call_summaries": [
-			{
-				"schema_version": "tool-call-summary-v1",
-				"tool_call_id": "projection://runs/run_temporal_finalization/agent/primary/result:sdk_tool.execute.knowledge_search.1",
-				"workflow_run_ref": "projection://runs/run_temporal_finalization/agent/primary/result",
-				"step_id": "sdk_tool.execute.knowledge_search.1",
-				"lifecycle_state": "completed",
-				"result_projection": "bounded_summary",
-				"raw_result_included": false,
-				"tool_name": "knowledge_search",
-				"tool": "",
-				"payload_kind": "knowledge_search",
-				"result_status": "found",
-				"argument_summary": {},
-				"source_ids": [],
-				"business_outcome": "found"
-			}
-		],
 		"runtime_versions": {
 			"agent_runtime": "openai_agents_sdk"
 		}

@@ -33,7 +33,7 @@ describe("ingestion-control PostgreSQL lifecycle", () => {
 	beforeAll(async () => {
 		process.env.RYUK_CONTAINER_IMAGE = RYUK_IMAGE;
 		container = await new PostgreSqlContainer(POSTGRES_IMAGE)
-			.withResourcesQuota({ cpu: 1, memory: 512 * 1024 * 1024 })
+			.withResourcesQuota({ cpu: 1, memory: 0.5 })
 			.withDatabase(DATABASE_NAME)
 			.withUsername("postgres")
 			.withPassword(randomUUID())

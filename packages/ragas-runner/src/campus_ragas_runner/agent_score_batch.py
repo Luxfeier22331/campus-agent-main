@@ -355,7 +355,7 @@ def _argument_mode(value: object, case_id: str) -> str:
 
 def _require_eval_safe_args(tool_calls: tuple[dict[str, object], ...], field: str) -> None:
     for item in tool_calls:
-        if item["name"] != "knowledge_query" and not item["args"]:
+        if not item["args"]:
             raise ValueError(f"{field} eval_safe_args requires non-empty tool args")
 
 

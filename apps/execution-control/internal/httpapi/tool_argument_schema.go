@@ -7,9 +7,9 @@ import (
 	"strings"
 )
 
-const toolFunctionSchemaVersion = "tool-function-schemas-v2"
+const toolFunctionSchemaVersion = "tool-function-schemas-v3"
 
-const packagedToolFunctionSchemaPath = "/etc/campus-agent/tool-function-schemas.v2.json"
+const packagedToolFunctionSchemaPath = "/etc/campus-agent/tool-function-schemas.v3.json"
 
 type toolFunctionSchemaFile struct {
 	SchemaVersion string               `json:"schema_version"`
@@ -38,6 +38,8 @@ type toolJSONSchema struct {
 	Items                *toolJSONSchema           `json:"items,omitempty"`
 	Minimum              *float64                  `json:"minimum,omitempty"`
 	Maximum              *float64                  `json:"maximum,omitempty"`
+	MinLength            *int                      `json:"minLength,omitempty"`
+	MaxLength            *int                      `json:"maxLength,omitempty"`
 }
 
 func validateSDKToolArguments(
@@ -167,6 +169,15 @@ func (schema toolJSONSchema) validateScalar(path string, value any) error {
 			return fmt.Errorf("%s is above maximum", path)
 		}
 	}
+	if text, ok := value.(string); ok {
+		length := len([]rune(text))
+		if schema.MinLength != nil && length < *schema.MinLength {
+			return fmt.Errorf("%s is shorter than minLength", path)
+		}
+		if schema.MaxLength != nil && length > *schema.MaxLength {
+			return fmt.Errorf("%s is longer than maxLength", path)
+		}
+	}
 	return nil
 }
 
@@ -178,7 +189,9 @@ func validateSupportedToolJSONSchema(path string, schema toolJSONSchema) error {
 		len(schema.Enum) == 0 &&
 		schema.Items == nil &&
 		schema.Minimum == nil &&
-		schema.Maximum == nil {
+		schema.Maximum == nil &&
+		schema.MinLength == nil &&
+		schema.MaxLength == nil {
 		return fmt.Errorf("%s is empty", path)
 	}
 	if !supportedToolSchemaTypeValue(schema.Type) {
@@ -255,7 +268,7 @@ func validateSupportedToolFunctionSchemaKeywords(raw []byte) error {
 func validateSupportedToolJSONSchemaKeywords(path string, schema map[string]any) error {
 	for key := range schema {
 		switch key {
-		case "type", "additionalProperties", "properties", "required", "enum", "items", "minimum", "maximum", "description":
+		case "type", "additionalProperties", "properties", "required", "enum", "items", "minimum", "maximum", "minLength", "maxLength", "description":
 		default:
 			return fmt.Errorf("%s.%s is not a supported tool argument schema keyword", path, key)
 		}

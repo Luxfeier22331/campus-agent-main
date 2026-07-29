@@ -1,10 +1,14 @@
 package httpapi
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
 func TestToolReadModelTransportScheduleUsesConfiguredProjectionBundle(t *testing.T) {
@@ -51,16 +55,25 @@ func TestToolReadModelTransportScheduleUsesConfiguredProjectionBundle(t *testing
 		projectionFixture,
 		"2026-04-24T20:30:00+08:00",
 	)
+	prepareTransportScheduleReadModelRunForTest(t, server)
 
 	request := newTestRequest(
 		http.MethodPost,
 		"/internal/query/campus-services/transport-schedule",
 		strings.NewReader(`{
-			"query_text":"我明天早上要去丰台上课，最早的班车是几点",
-			"intent":"first_departure",
-			"route_selector":{"destination_campus":"fengtai"},
-			"snapshot_query":{"mode":"current"},
-			"service_time_query":{"date_mode":"tomorrow","daypart":"morning"}
+			"payload":{
+				"query_text":"我明天早上要去丰台上课，最早的班车是几点",
+				"intent":"first_departure",
+				"route_selector":{"destination_campus":"fengtai"},
+				"snapshot_query":{"mode":"current"},
+				"service_time_query":{"date_mode":"tomorrow","daypart":"morning"}
+			},
+			"access_context":{
+				"activity_attempt":1,
+				"invocation_id":"call-transport-1",
+				"run_id":"run-transport-read-model",
+				"trace_id":"trace-transport-read-model"
+			}
 		}`),
 	)
 	request.Header.Set("x-execution-query-auth", "query-secret")
@@ -114,14 +127,23 @@ func TestToolReadModelTransportScheduleUsesConfiguredProjectionBundle(t *testing
 
 func TestToolReadModelTransportScheduleFailsClosedWhenProjectionUnavailable(t *testing.T) {
 	server := newToolReadModelAuthServerForTest()
+	prepareTransportScheduleReadModelRunForTest(t, server)
 
 	request := newTestRequest(
 		http.MethodPost,
 		"/internal/query/campus-services/transport-schedule",
 		strings.NewReader(`{
-			"query_text":"最近的校车时刻表是什么",
-			"intent":"schedule_snapshot_metadata",
-			"snapshot_query":{"mode":"current"}
+			"payload":{
+				"query_text":"最近的校车时刻表是什么",
+				"intent":"schedule_snapshot_metadata",
+				"snapshot_query":{"mode":"current"}
+			},
+			"access_context":{
+				"activity_attempt":1,
+				"invocation_id":"call-transport-unavailable",
+				"run_id":"run-transport-read-model",
+				"trace_id":"trace-transport-read-model"
+			}
 		}`),
 	)
 	request.Header.Set("x-execution-query-auth", "query-secret")
@@ -140,5 +162,51 @@ func TestToolReadModelTransportScheduleFailsClosedWhenProjectionUnavailable(t *t
 	}
 	if body["queried_time_anchor"] != "2026-04-24T10:30:00+08:00" {
 		t.Fatalf("queried_time_anchor = %v", body["queried_time_anchor"])
+	}
+}
+
+func prepareTransportScheduleReadModelRunForTest(t *testing.T, server *Server) {
+	t.Helper()
+	store := execution.NewInMemoryRunProjectionStore()
+	attachRunProjectionStoreForHandlerTest(server, store)
+	now := time.Date(2026, 4, 24, 10, 30, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	const runID = "run-transport-read-model"
+	const conversationID = "conversation-transport-read-model"
+	if _, err := store.CreateRun(context.Background(), execution.DurableRun{
+		RunID:          runID,
+		ConversationID: conversationID,
+		TurnID:         "turn-transport-read-model",
+		RequestID:      "req-transport-read-model",
+		TraceID:        "trace-transport-read-model",
+		OwnerUserID:    "user-transport-read-model",
+		Surface:        "campus-web",
+		TaskQueue:      "campus-agent.workflow.v3",
+		Status:         execution.DurableRunStatusRunning,
+		CreatedAt:      now,
+		QueuedAt:       now,
+		AdmittedAt:     now,
+		StartedAt:      now,
+		UpdatedAt:      now,
+		Metadata:       v3ExecutionMetadataForHTTPTest(runID, "transport_schedule_lookup"),
+	}); err != nil {
+		t.Fatalf("create transport read model run: %v", err)
+	}
+	if _, err := store.UpsertRunStep(context.Background(), execution.RunStepProjection{
+		StepID:               "agent.primary",
+		RunID:                runID,
+		ConversationID:       conversationID,
+		StepKind:             "agent",
+		Status:               "running",
+		ActivityAttempt:      1,
+		TaskQueue:            "campus-agent.activity.agent.v3",
+		StartedAt:            now,
+		UpdatedAt:            now,
+		PayloadSchemaVersion: "run-step-projection-v1",
+		SanitizedPayload: map[string]any{
+			"activity_attempt":   1,
+			"visible_tool_names": []any{"transport_schedule_lookup"},
+		},
+	}); err != nil {
+		t.Fatalf("seed transport read model admission projection: %v", err)
 	}
 }

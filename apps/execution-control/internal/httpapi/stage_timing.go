@@ -25,7 +25,13 @@ func (s *Server) stageTimingForRun(
 	if timing == nil {
 		timing = map[string]any{}
 	}
+	addStageTimingDuration(timing, "execution.dispatch_ms", durationBetween(run.CreatedAt, run.QueuedAt))
 	addStageTimingDuration(timing, "execution.admission_ms", durationBetween(run.QueuedAt, run.AdmittedAt))
+	addStageTimingDuration(
+		timing,
+		"stream.first_delta_persist_ms",
+		durationBetween(run.StartedAt, run.StreamingStartedAt),
+	)
 	attempts, err := s.runProjectionStore.ListStepAttempts(ctx, run.RunID)
 	if err != nil {
 		return nil, fmt.Errorf("stage timing step attempts unavailable: %w", err)
@@ -34,18 +40,20 @@ func (s *Server) stageTimingForRun(
 		duration := stepAttemptDuration(attempt)
 		stepID := strings.TrimSpace(attempt.StepID)
 		switch {
-		case strings.HasPrefix(stepID, "knowledge.search."):
-			addStageTimingDuration(timing, "knowledge.search_ms", duration)
-			addStageTimingDuration(timing, "tool.total_ms", duration)
+		case stepID == "grounding.prepare":
+			addStageTimingDuration(timing, "grounding.prepare_ms", duration)
 		case strings.HasPrefix(stepID, "sdk_tool.execute."):
 			addStageTimingDuration(timing, "tool.total_ms", duration)
 			if field := stageTimingToolField(attempt); field != "" {
 				addStageTimingDuration(timing, field, duration)
 			}
-		case stepID == "memory.recall":
-			addStageTimingDuration(timing, "memory.recall_ms", duration)
 		case stepID == "agent.primary":
 			addStageTimingDuration(timing, "agent.primary_ms", duration)
+			addStageTimingDuration(
+				timing,
+				"agent.schedule_to_start_ms",
+				time.Duration(attempt.ScheduleToStartMS)*time.Millisecond,
+			)
 		}
 	}
 	for _, item := range additional {
@@ -55,10 +63,7 @@ func (s *Server) stageTimingForRun(
 }
 
 func stageTimingToolField(attempt execution.StepAttemptProjection) string {
-	tool := stringValue(attempt.SanitizedPayload["selected_tool"])
-	if tool == "" {
-		tool = stringValue(attempt.SanitizedPayload["tool_name"])
-	}
+	tool := stringValue(attempt.SanitizedPayload["tool_name"])
 	if tool == "" {
 		parts := strings.Split(strings.TrimSpace(attempt.StepID), ".")
 		if len(parts) >= 4 && parts[0] == "sdk_tool" && parts[1] == "execute" {
@@ -66,6 +71,8 @@ func stageTimingToolField(attempt execution.StepAttemptProjection) string {
 		}
 	}
 	switch tool {
+	case "personal_memory_recall":
+		return "memory.recall_ms"
 	case "transport_schedule_lookup":
 		return "tool.transport_schedule_lookup_ms"
 	default:

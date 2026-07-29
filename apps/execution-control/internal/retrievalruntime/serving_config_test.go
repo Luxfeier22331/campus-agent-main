@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestLoadServingConfigUsesCollectionAliasAndHybridSettings(t *testing.T) {
+func TestLoadServingConfigUsesCollectionAndHybridSettings(t *testing.T) {
 	config, err := LoadServingConfigPath(
 		filepath.Join("..", "..", "..", "..", "configs", "ingestion"),
 		filepath.Join("regulations", "student_rules", "serving-config.json"),
@@ -14,9 +14,6 @@ func TestLoadServingConfigUsesCollectionAliasAndHybridSettings(t *testing.T) {
 		t.Fatalf("load serving config: %v", err)
 	}
 
-	if config.QdrantAliasName != "student_rules" {
-		t.Fatalf("alias = %q, want student_rules", config.QdrantAliasName)
-	}
 	if config.DenseVectorName != "dense" {
 		t.Fatalf("dense vector = %q, want dense", config.DenseVectorName)
 	}

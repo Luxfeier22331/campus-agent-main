@@ -9,9 +9,9 @@ import (
 )
 
 const (
-	WorkflowArtifactRegistrySchemaVersion = "workflow-artifact-registry-v2"
-	defaultWorkflowArtifactRegistryPath   = "configs/runtime/workflow-artifacts.v2.json"
-	packagedWorkflowArtifactRegistryPath  = "/etc/campus-agent/workflow-artifacts.v2.json"
+	WorkflowArtifactRegistrySchemaVersion = "workflow-artifact-registry-v3"
+	defaultWorkflowArtifactRegistryPath   = "configs/runtime/workflow-artifacts.v3.json"
+	packagedWorkflowArtifactRegistryPath  = "/etc/campus-agent/workflow-artifacts.v3.json"
 )
 
 var supportedArtifactProjectionStatuses = map[string]struct{}{
@@ -322,11 +322,8 @@ func ValidateWorkflowArtifactBindings(
 
 func registeredToolOrRouteReadOnly(toolRegistry ToolSpecRegistry, name string) bool {
 	name = strings.TrimSpace(name)
-	switch name {
-	case "":
+	if name == "" {
 		return false
-	case "knowledge_query":
-		return true
 	}
 	tool, ok := toolRegistry.ToolByName(name)
 	return ok && tool.ReadOnly

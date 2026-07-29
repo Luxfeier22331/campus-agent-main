@@ -189,7 +189,6 @@ jobs:
     timeout-minutes: 5
     environment: staging
     env:
-      APP_API_DB_FRESH_HYPERDRIVE_ID: ${{ vars.APP_API_DB_FRESH_HYPERDRIVE_ID }}
       APP_API_DB_HYPERDRIVE_ID: ${{ vars.APP_API_DB_HYPERDRIVE_ID }}
       AUTH_EMAIL_FROM: ${{ vars.AUTH_EMAIL_FROM }}
       AUTH_EMAIL_REPLY_TO: ${{ vars.AUTH_EMAIL_REPLY_TO }}

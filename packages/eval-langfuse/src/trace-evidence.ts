@@ -15,7 +15,6 @@ const REQUIRED_OBSERVATION_ATTRIBUTES = [
 	"fail_close_reason",
 	"projection_ref",
 	"schedule_to_start_ms",
-	"selected_tool",
 	"status",
 	"step_id",
 	"step_kind",
@@ -136,6 +135,9 @@ function assertObservationAttributeContract(observations: unknown[]): unknown[] 
 		);
 		if (missing.length > 0) {
 			throw new Error(`repo-owned observation missing attributes: ${missing.join(", ")}`);
+		}
+		if (optionalString(attributes.step_kind) === "tool" && !optionalString(attributes.tool_name)) {
+			throw new Error("repo-owned tool observation missing attributes: tool_name");
 		}
 	}
 	return repoOwned;

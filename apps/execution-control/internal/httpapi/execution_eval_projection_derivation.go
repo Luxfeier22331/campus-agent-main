@@ -11,29 +11,23 @@ func projectedPlanningForEval(results []execution.StepResultProjection) map[stri
 	if plannedSteps := projectedPlanningStepsFromRuntimeResults(results); len(plannedSteps) > 0 {
 		planning["planned_steps"] = stringsToAny(plannedSteps)
 	}
-	if searchSequence := projectedKnowledgeSearchCalls(results, nil); len(searchSequence) > 0 {
-		planning["search_sequence"] = mapsToAny(searchSequence)
-		resolvedTargets := []string{}
-		for _, search := range searchSequence {
-			evalSafeArgs := optionalMapFromMap(search, "eval_safe_args")
-			appendUniqueProjectionString(&resolvedTargets, firstNonEmptyText(evalSafeArgs["target"]))
-		}
-		if len(resolvedTargets) > 0 {
-			planning["resolved_targets"] = stringsToAny(resolvedTargets)
-		}
+	if toolSequence := projectedPublicToolCalls(results, nil); len(toolSequence) > 0 {
+		planning["tool_sequence"] = mapsToAny(toolSequence)
 	}
 	return planning
 }
 
 func projectedPlanningStepsFromRuntimeResults(results []execution.StepResultProjection) []string {
 	steps := []string{}
+	if hasStepResult(results, "grounding.prepare") {
+		appendUniqueProjectionString(&steps, "grounding.prepare")
+	}
 	if hasStepResult(results, "agent.primary") {
 		appendUniqueProjectionString(&steps, "agent.primary")
 	}
 	for _, result := range results {
-		if strings.HasPrefix(result.StepID, "knowledge.search.") {
-			appendUniqueProjectionString(&steps, "knowledge.search")
-			break
+		if strings.HasPrefix(result.StepID, "sdk_tool.execute.") {
+			appendUniqueProjectionString(&steps, "sdk_tool.execute")
 		}
 	}
 	if hasStepResult(results, "finalization.write") {
@@ -53,6 +47,11 @@ func hasStepResult(results []execution.StepResultProjection, stepID string) bool
 
 func projectedRAGForEval(results []execution.StepResultProjection) map[string]any {
 	rag := map[string]any{}
+	if grounding := projectedGroundingForEval(results); len(grounding) > 0 {
+		for key, value := range grounding {
+			rag[key] = value
+		}
+	}
 	if answer := projectedRAGAnswer(results); answer != "" {
 		rag["answer"] = answer
 	}
@@ -70,6 +69,36 @@ func projectedRAGForEval(results []execution.StepResultProjection) map[string]an
 		rag["source_refs"] = refs
 	}
 	return rag
+}
+
+func projectedGroundingForEval(results []execution.StepResultProjection) map[string]any {
+	for _, stepID := range []string{"grounding.prepare", "agent.primary"} {
+		for _, result := range results {
+			if result.StepID != stepID || result.Status != "completed" {
+				continue
+			}
+			payload := sanitizeProjectionPayload(result.SanitizedPayload)
+			mode := firstNonEmptyText(payload["grounding_mode"])
+			if mode == "" {
+				continue
+			}
+			selectedKey := "selected_scopes"
+			coveredKey := "covered_scopes"
+			statusKey := "status"
+			if stepID == "agent.primary" {
+				selectedKey = "grounding_selected_scopes"
+				coveredKey = "grounding_covered_scopes"
+				statusKey = "grounding_status"
+			}
+			return map[string]any{
+				"grounding_mode":   mode,
+				"grounding_status": firstNonEmptyText(payload[statusKey]),
+				"selected_scopes":  stringsToAny(stringSliceFromAny(payload[selectedKey])),
+				"covered_scopes":   stringsToAny(stringSliceFromAny(payload[coveredKey])),
+			}
+		}
+	}
+	return map[string]any{}
 }
 
 func projectedRAGAnswer(results []execution.StepResultProjection) string {
@@ -90,13 +119,16 @@ func projectedRAGRetrievedContexts(results []execution.StepResultProjection) ([]
 	contexts := []string{}
 	contextIDs := []string{}
 	for _, result := range results {
-		if !strings.HasPrefix(result.StepID, "knowledge.search.") || result.Status != "completed" {
+		if result.StepID != "finalization.write" || result.Status != "completed" {
 			continue
 		}
 		payload := sanitizeProjectionPayload(result.SanitizedPayload)
-		for _, evidence := range mapListFromAny(payload["evidence"]) {
-			appendUniqueProjectionString(&contexts, firstNonEmptyText(evidence["snippet"]))
-			appendUniqueProjectionString(&contextIDs, firstNonEmptyText(evidence["document_id"]))
+		for _, source := range projectedRAGSourcesFromPayload(payload) {
+			appendUniqueProjectionString(&contexts, firstNonEmptyText(source["snippet"]))
+			appendUniqueProjectionString(&contextIDs, firstNonEmptyText(
+				source["document_id"],
+				source["evidence_ref"],
+			))
 		}
 	}
 	return contexts, contextIDs
@@ -172,31 +204,6 @@ func projectedMemoryForEval(results []execution.StepResultProjection) map[string
 	if len(projected) > 0 {
 		return projected
 	}
-	for _, result := range results {
-		payload := sanitizeProjectionPayload(result.SanitizedPayload)
-		contextUsage := optionalMapFromMap(payload, "context_usage")
-		if len(contextUsage) == 0 && result.StepID == "agent.primary" {
-			contextUsage = payload
-		}
-		if len(contextUsage) == 0 {
-			continue
-		}
-		observedTokens := []string{}
-		if intFromProjection(contextUsage["previous_evidence_count"]) > 0 {
-			observedTokens = append(observedTokens, "previous_evidence_ref")
-		}
-		if intFromProjection(contextUsage["previous_evidence_source_hash_count"]) > 0 ||
-			intFromProjection(contextUsage["previous_evidence_count"]) > 0 {
-			observedTokens = append(observedTokens, "source_hash")
-		}
-		if len(observedTokens) == 0 {
-			continue
-		}
-		return map[string]any{
-			"behavior":        "previous_evidence_reuse",
-			"observed_tokens": stringsToAny(observedTokens),
-		}
-	}
 	return map[string]any{}
 }
 
@@ -204,13 +211,11 @@ func projectedPersonalMemoryForEval(results []execution.StepResultProjection) ma
 	memory := map[string]any{}
 	observedTokens := []string{}
 	for _, result := range results {
-		payload := sanitizeProjectionPayload(result.SanitizedPayload)
-		switch result.StepID {
-		case "memory.recall":
-			projectMemoryRecallEvalSummary(memory, &observedTokens, result, payload)
-		case "memory.reflect":
-			projectMemoryReflectEvalSummary(memory, &observedTokens, result, payload)
+		if !strings.HasPrefix(result.StepID, "sdk_tool.execute.personal_memory_recall.") {
+			continue
 		}
+		payload := sanitizeProjectionPayload(result.SanitizedPayload)
+		projectMemoryRecallEvalSummary(memory, &observedTokens, result, payload)
 	}
 	if len(memory) == 0 {
 		return map[string]any{}
@@ -225,41 +230,18 @@ func projectedPersonalMemoryForEval(results []execution.StepResultProjection) ma
 }
 
 func projectMemoryRecallEvalSummary(memory map[string]any, observedTokens *[]string, result execution.StepResultProjection, payload map[string]any) {
-	status := firstNonEmptyText(payload["status"], result.Status)
+	status := firstNonEmptyText(payload["tool_status"], result.Status)
 	if status == "" {
 		return
 	}
 	memory["behavior"] = "personal_memory_recall"
 	memory["recall_status"] = status
 	appendUniqueProjectionString(observedTokens, "memory_recall")
-	selectedCount := intFromProjection(payload["selected_memory_count"])
-	selectedChars := intFromProjection(payload["selected_memory_chars"])
-	if selectedCount > 0 {
-		memory["selected_memory_count"] = selectedCount
-		appendUniqueProjectionString(observedTokens, "selected_memory")
-	}
-	if selectedChars > 0 {
-		memory["selected_memory_chars"] = selectedChars
-	}
-	if skippedCount := intFromProjection(payload["skipped_count"]); skippedCount > 0 {
-		memory["skipped_memory_count"] = skippedCount
-	}
-}
-
-func projectMemoryReflectEvalSummary(memory map[string]any, observedTokens *[]string, result execution.StepResultProjection, payload map[string]any) {
-	status := firstNonEmptyText(payload["status"], result.Status)
-	if status == "" {
-		return
-	}
-	if _, exists := memory["behavior"]; !exists {
-		memory["behavior"] = "personal_memory_reflect"
-	}
-	memory["reflect_status"] = status
-	appendUniqueProjectionString(observedTokens, "memory_reflect")
-	basedOnCount := len(mapListFromAny(payload["based_on_memory_context_items"]))
-	if basedOnCount > 0 {
-		memory["reflect_based_on_count"] = basedOnCount
-		appendUniqueProjectionString(observedTokens, "reflect_based_on_facts")
+	if outcome := firstNonEmptyText(payload["outcome"]); outcome != "" {
+		memory["recall_outcome"] = outcome
+		if outcome == "matched" {
+			appendUniqueProjectionString(observedTokens, "selected_memory")
+		}
 	}
 }
 

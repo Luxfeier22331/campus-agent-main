@@ -66,7 +66,7 @@ export function createDefaultRustKernelRegistry(
 	const commandRunner = options.commandRunner ?? runRustKernelCommand;
 	const defaultChunkOptions = resolveChunkOptions(options);
 	for (const kernelId of DEFAULT_EXECUTABLE_RUST_KERNEL_IDS) {
-		if (kernelId === "chunk-document-units" && !defaultChunkOptions) {
+		if (kernelId === "build-retrieval-chunks-v2" && !defaultChunkOptions) {
 			continue;
 		}
 		registry.register(
@@ -222,9 +222,9 @@ function kernelArgs(input: {
 	chunkOptions: RustChunkKernelOptions | null;
 	kernelId: DefaultExecutableRustKernelId;
 }): string[] {
-	if (input.kernelId === "chunk-document-units") {
+	if (input.kernelId === "build-retrieval-chunks-v2") {
 		if (!input.chunkOptions) {
-			throw new Error("chunk-document-units requires tokenizer options");
+			throw new Error("build-retrieval-chunks-v2 requires tokenizer options");
 		}
 		return [
 			input.kernelId,

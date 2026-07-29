@@ -8,13 +8,13 @@ status: active
 
 ## 范围
 
-本文说明如何校验、调试和排查仓库拥有的 Collector Gateway 与 Agent。当前配置文件、receiver、
+本文说明如何校验、调试和排查仓库拥有的单个 Collector DaemonSet。当前配置文件、receiver、
 端口和 pipeline 见 `../../infra/otel/README.md`；事件、指标和字段见
 `../reference/telemetry.md`。环境 endpoint、dataset、Secret、节点准备、保留期和启用状态由环境
 仓管理。
 
-这里的 Collector Agent 是 OpenTelemetry Collector DaemonSet，不是 `apps/source-collector`。
-Cloudflare Worker application-log destination 不经过本 Collector，按 `worker-otel.md` 验证。
+这里的 Collector 不是 `apps/source-collector`。Cloudflare Worker application-log destination 不经过
+本 Collector，按 `worker-otel.md` 验证。
 
 ## 配置校验
 
@@ -24,10 +24,9 @@ Cloudflare Worker application-log destination 不经过本 Collector，按 `work
 pnpm ci:otel
 ```
 
-该命令先检查受信任链路清理规则和 Agent 生产认证不变量，再使用固定 digest 的
-`otelcol-contrib` 镜像依次校验本地 debug、prodlike、Gateway 和 Agent 配置。Agent 的容器校验
-仅通过命令行临时关闭集群认证，生产文件仍必须使用 ServiceAccount、挂载 CA 并开启 TLS 校验。
-它不证明目标环境已部署或外部平台已收到数据。
+该命令先检查受信任链路清理规则，再使用固定 digest 的 `otelcol-contrib` 镜像校验本地 debug 和
+prodlike 配置。环境仓负责对 DaemonSet Helm values 执行 render、schema 与策略检查。源码检查不
+证明目标环境已部署或外部平台已收到数据。
 
 手工校验必须使用 contrib distribution，不能使用缺少处理器和 exporter 的 core distribution。
 真实 endpoint、dataset 和凭据只能来自本地未跟踪环境或 Secret manager，不得写回仓库。
@@ -46,7 +45,11 @@ debug 与集群 receiver 都不使用 bearer token；集群内生产者由固定
 本地检查至少确认：
 
 - 只有预期生产者能够访问对应 receiver；
-- execution-control 产生受控编排 span 和低基数 metric；
+- execution-control 产生受控编排 span 和低基数 metric；`grounding.prepare` span 包含
+  `grounding_mode`、`grounding_status`、证据/token/context 计数；本次检索提供诊断时还包含候选
+  数和四个阶段耗时，重放已有 context 不以零值补齐缺失诊断；
+- Agent Runtime 的 model generation/token usage 与 `grounding.prepare` span 位于同一产品 trace，
+  但不由 execution-control 重复发送；
 - `memory.call` 不包含 URL、document、正文或原始 bank identity；
 - metric label 不包含请求、用户、会话、run、trace、bank 或文档 ID；
 - 通用清理副本不包含 prompt、回答、检索正文、memory、认证材料或 secret。
@@ -55,20 +58,21 @@ debug 与集群 receiver 都不使用 bearer token；集群内生产者由固定
 
 发起不包含真实认证材料的受控请求，记录产品 `requestId`、`runId` 和 `traceId`：
 
-1. 在 Gateway 自身指标确认各 receiver 接收量、内存队列和 exporter failure。
+1. 在 Collector 自身指标确认各 receiver 接收量、内存队列和 exporter failure。
 2. 在 Axiom 分别查询 Collector 写入的 log、trace 和 metric，确认字段符合白名单，并通过
    `campus.request_id`、`campus.trace_id` 关联请求级 runtime trace。
 3. 在单一 Langfuse project 查询 Agent、model generation、tool observation 与受控编排 span，
-   确认编排 span 没有被标记为 generation。
+   确认 `grounding.prepare` 是 `span`，grounding 摘要可见，且编排 span 没有被标记为 generation。
 4. 执行一次 Hindsight retain/recall，确认 `memory.call` 与下游 span 关联，派生 bank identity 只
    存在于 Langfuse 受信任链路。
 5. 使用合成哨兵覆盖 query、header、正文、用户标识和 credential 位置：
    - Axiom 和其他通用信号中，正文与认证字段必须零匹配；
-   - Langfuse 受信任链路可以保存经过准入的模型输入输出，但结构化 header、Cookie、token、
-     数据库地址和其他认证 key 必须零匹配。
+   - Langfuse 运行 trace 中，模型输入输出、对话、memory/retrieval 正文、工具原始载荷、结构化
+     header、Cookie、token、数据库地址和其他认证内容都必须零匹配。
 
-Langfuse producer 清理的是结构化认证字段，不扫描模型输入输出中的每个字面值，因此上述检查
-不构成内容级 DLP 承诺。正文边界以 `docs/contracts/langfuse-runtime.md` 为准。
+合成哨兵只验证代表性路径，不构成内容级 DLP 承诺；producer 的
+`traceIncludeSensitiveData=false` 和字段白名单才是主要边界。正文规则以
+`docs/contracts/langfuse-runtime.md` 为准。
 
 需要核对 runtime Langfuse trace 时使用：
 
@@ -95,10 +99,10 @@ Collector 收到信号但下游没有记录时，依次检查：
 3. `telemetry.drop`、入口过滤器、字段 transform 和采样比例；
 4. Axiom endpoint、三个 dataset 和统一 ingest token，或 Langfuse endpoint 与 Basic auth；
 5. 受信任 trace 是否被错误发送到通用入口，或输出路由是否交叉；
-6. Agent 是否因 kubelet CA/SAN、checkpoint 目录权限或 filelog 路径失败；
+6. Collector 是否因 kubelet CA/SAN、checkpoint 目录权限或 filelog 路径失败；
 7. 环境仓是否实际选择了预期配置和不可变版本。
 
-Cloudflare application-log destination 问题按 `worker-otel.md` 排查，不能从 Gateway 指标推断。
+Cloudflare application-log destination 问题按 `worker-otel.md` 排查，不能从 Collector 指标推断。
 任何观测输出失败都不得改写 PostgreSQL 产品状态。
 
 ## 参考

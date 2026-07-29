@@ -11,5 +11,3 @@ resources:
   - agent-runtime.yaml
   - execution-control.yaml
   - temporal-connection.yaml
-  - workers.yaml
-  - worker-resources.yaml

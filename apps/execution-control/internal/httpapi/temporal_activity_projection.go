@@ -11,7 +11,70 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
+	"go.temporal.io/sdk/activity"
 )
+
+func (s *Server) ensureTemporalActivityOwnsRootExecution(
+	ctx context.Context,
+	runID string,
+	allowSuperseded bool,
+) error {
+	if !activity.IsActivity(ctx) {
+		return nil
+	}
+	if s == nil || s.runProjectionStore == nil {
+		return execution.ErrRunProjectionStoreNotConfigured
+	}
+	intent, err := s.runProjectionStore.GetWorkflowStartIntent(ctx, strings.TrimSpace(runID))
+	if err != nil {
+		return sanitizedTemporalApplicationError(
+			"temporal_execution_binding_unavailable",
+			err,
+			false,
+		)
+	}
+	info := activity.GetInfo(ctx)
+	workflowID := strings.TrimSpace(info.WorkflowExecution.ID)
+	temporalRunID := strings.TrimSpace(info.WorkflowExecution.RunID)
+	if workflowID == "" || temporalRunID == "" || strings.TrimSpace(intent.WorkflowID) != workflowID {
+		return sanitizedTemporalApplicationError(
+			"temporal_execution_binding_mismatch",
+			errors.New("activity workflow execution does not match its durable workflow identity"),
+			true,
+		)
+	}
+	boundRunID := strings.TrimSpace(intent.TemporalRunID)
+	if boundRunID == "" {
+		return sanitizedTemporalApplicationError(
+			"temporal_execution_binding_pending",
+			errors.New("durable root Temporal Run ID is not confirmed yet"),
+			false,
+		)
+	}
+	if boundRunID != temporalRunID {
+		return sanitizedTemporalApplicationError(
+			"temporal_execution_binding_mismatch",
+			errors.New("activity Temporal Run ID is not the durable root execution"),
+			true,
+		)
+	}
+	if intent.State == execution.LifecycleIntentStateSuperseded && !allowSuperseded {
+		return sanitizedTemporalApplicationError(
+			"temporal_execution_cancellation_pending",
+			errors.New("durable workflow execution was superseded by cancellation"),
+			false,
+		)
+	}
+	if intent.State != execution.LifecycleIntentStateConfirmed &&
+		(!allowSuperseded || intent.State != execution.LifecycleIntentStateSuperseded) {
+		return sanitizedTemporalApplicationError(
+			"temporal_execution_binding_pending",
+			errors.New("durable workflow execution binding is not active"),
+			false,
+		)
+	}
+	return nil
+}
 
 func (s *Server) temporalActivityRun(
 	ctx context.Context,
@@ -20,6 +83,9 @@ func (s *Server) temporalActivityRun(
 ) (execution.DurableRun, error) {
 	if s == nil || s.runProjectionStore == nil {
 		return execution.DurableRun{}, execution.ErrRunProjectionStoreNotConfigured
+	}
+	if err := s.ensureTemporalActivityOwnsRootExecution(ctx, runID, false); err != nil {
+		return execution.DurableRun{}, err
 	}
 	run, err := s.runProjectionStore.GetRun(ctx, runID)
 	if err != nil {
@@ -47,6 +113,9 @@ func (s *Server) temporalActivityRunAllowCompletedAgentFinalization(
 	if s == nil || s.runProjectionStore == nil {
 		return execution.DurableRun{}, execution.ErrRunProjectionStoreNotConfigured
 	}
+	if err := s.ensureTemporalActivityOwnsRootExecution(ctx, runID, false); err != nil {
+		return execution.DurableRun{}, err
+	}
 	run, err := s.runProjectionStore.GetRun(ctx, runID)
 	if err != nil {
 		return execution.DurableRun{}, err
@@ -59,7 +128,7 @@ func (s *Server) temporalActivityRunAllowCompletedAgentFinalization(
 		)
 	}
 	if run.Status == execution.DurableRunStatusCompleted {
-		if _, err := temporalAgentResultFromRun(run, agentResultRef); err != nil {
+		if _, err := s.temporalAgentResultFromRun(ctx, run, agentResultRef); err != nil {
 			return execution.DurableRun{}, err
 		}
 		return run, nil
@@ -122,14 +191,14 @@ type temporalStepFailureProjection struct {
 	FailureKind        string
 	CancelOutcome      execution.CancelOutcome
 	FailCloseReason    string
-	ProviderResponseID string
-	ModelProvider      string
 	ModelName          string
+	ModelProvider      string
 	ModelRequestCount  int64
 	InputTokens        int64
 	OutputTokens       int64
 	CachedInputTokens  int64
 	UsageObserved      bool
+	ProviderResponseID string
 	Payload            map[string]any
 	ProjectionRef      string
 	ResultKind         string
@@ -145,7 +214,10 @@ func (s *Server) projectTemporalFailureStep(
 	projection temporalStepFailureProjection,
 	cause error,
 ) error {
-	now := time.Now().UTC()
+	now := projection.FailedAt.UTC()
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
 	projection.FailureKind = boundedTemporalFailureKind(projection.FailureKind)
 	payload := temporalFailurePayload(projection, cause)
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
@@ -153,6 +225,14 @@ func (s *Server) projectTemporalFailureStep(
 		Tool:               temporalFailureTool(projection),
 		CancelOutcome:      temporalFailureCancelOutcome(ctx, projection.CancelOutcome),
 		FailCloseReason:    temporalFailureFailCloseReason(projection),
+		ModelName:          projection.ModelName,
+		ModelProvider:      projection.ModelProvider,
+		ModelRequestCount:  projection.ModelRequestCount,
+		InputTokens:        projection.InputTokens,
+		OutputTokens:       projection.OutputTokens,
+		CachedInputTokens:  projection.CachedInputTokens,
+		UsageObserved:      projection.UsageObserved,
+		ProviderResponseID: projection.ProviderResponseID,
 		Run:                run,
 		Status:             "failed",
 		StepID:             projection.StepID,
@@ -164,14 +244,6 @@ func (s *Server) projectTemporalFailureStep(
 		UpdatedAt:          now,
 		ResultKind:         projection.ResultKind,
 		ProjectionRef:      projection.ProjectionRef,
-		ProviderResponseID: projection.ProviderResponseID,
-		ModelProvider:      projection.ModelProvider,
-		ModelName:          projection.ModelName,
-		ModelRequestCount:  projection.ModelRequestCount,
-		InputTokens:        projection.InputTokens,
-		OutputTokens:       projection.OutputTokens,
-		CachedInputTokens:  projection.CachedInputTokens,
-		UsageObserved:      projection.UsageObserved,
 		TimeoutOutcome:     temporalFailureTimeoutOutcome(ctx, projection.TimeoutOutcome, cause),
 		Payload:            payload,
 	}); err != nil {
@@ -255,7 +327,7 @@ func (s *Server) failTemporalRun(
 	terminalError := temporalRunFailureErrorPayload(failureKind, projection.FailureHash, cause)
 	terminalReason := temporalFailureTerminalReason(projection, failureKind)
 	if run.Status != execution.DurableRunStatusFailed {
-		_, _ = s.runProjectionStore.AppendRunEvent(ctx, execution.DurableRunEvent{
+		if err := s.appendTemporalRunEvent(ctx, execution.DurableRunEvent{
 			EventID:              run.RunID + ":activity-failed:" + failureKind,
 			RunID:                run.RunID,
 			ConversationID:       run.ConversationID,
@@ -268,7 +340,9 @@ func (s *Server) failTemporalRun(
 				"failure_kind": summary.Kind,
 				"message":      summary.Message,
 			},
-		})
+		}); err != nil {
+			return execution.DurableRun{}, err
+		}
 		writeProductFinalization := s.productFinalizationWriter
 		if writeProductFinalization == nil {
 			writeProductFinalization = s.writeChatProductFinalization
@@ -291,10 +365,10 @@ func (s *Server) failTemporalRun(
 	failedRun, transitionErr := s.runProjectionStore.FailRunProjection(
 		ctx,
 		execution.DurableRunFailRequest{
-			Now:            failedAt,
-			RunID:          run.RunID,
-			SelectedTool:   temporalFailureTool(projection),
-			TerminalReason: terminalReason,
+			Now:             failedAt,
+			RunID:           run.RunID,
+			FailCloseReason: temporalFailureFailCloseReason(projection),
+			TerminalReason:  terminalReason,
 			TerminalEvent: execution.DurableRunEvent{
 				EventID:              run.RunID + ":run-failed",
 				RunID:                run.RunID,
@@ -330,11 +404,20 @@ func temporalFailureTerminalReason(
 	if projection.TimeoutOutcome == execution.TimeoutOutcomeActivityTimeout {
 		return execution.DurableTerminalReasonRunTimeout
 	}
+	if projection.TimeoutOutcome == execution.TimeoutOutcomeWorkflowTimeout {
+		return execution.DurableTerminalReasonRunTimeout
+	}
 	switch strings.TrimSpace(failureKind) {
-	case "agent_runtime_failed", "memory_recall_failed", "model_setting_missing", "personal_memory_not_configured", "provider_unavailable":
+	case "agent_runtime_failed", "personal_memory_not_configured", "provider_config_missing", "provider_unavailable":
 		return execution.DurableTerminalReasonProviderUnavailable
-	case "knowledge_search_failed", "retrieval_lookup_failed", "tool_execution_failed":
+	case "retrieval_lookup_failed", "tool_execution_failed":
 		return execution.DurableTerminalReasonRetrievalUnavailable
+	case "workflow_completed_without_terminal_projection",
+		"workflow_failed_without_terminal_projection",
+		"workflow_canceled_without_terminal_projection",
+		"workflow_terminated_without_terminal_projection",
+		workflowUnauthorizedSuccessorFailure:
+		return execution.DurableTerminalReasonRuntimeInvariant
 	default:
 		return execution.DurableTerminalReasonWorkerUnavailable
 	}
@@ -350,18 +433,103 @@ func temporalRunFailureErrorPayload(failureKind string, failureHash string, caus
 	}
 }
 
-func temporalAgentResultFromRun(
+func (s *Server) temporalAgentResultFromRun(
+	ctx context.Context,
 	run execution.DurableRun,
 	agentResultRef string,
 ) (map[string]any, error) {
-	raw, ok := run.Metadata["temporal_agent"].(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("run metadata.temporal_agent is required")
+	invocationID := run.RunID + ":agent.primary"
+	receipt, err := s.runProjectionStore.GetAgentInvocationReceipt(ctx, invocationID)
+	if err != nil {
+		return nil, fmt.Errorf("completed agent invocation receipt is required: %w", err)
 	}
-	if strings.TrimSpace(fmt.Sprint(raw["agent_result_ref"])) != agentResultRef {
+	if receipt.State != execution.AgentInvocationReceiptStateCompleted ||
+		receipt.InvocationID != invocationID || receipt.RunID != run.RunID ||
+		!lowercaseSHA256Pattern.MatchString(receipt.InputSHA256) ||
+		receipt.CreatedAt.IsZero() || receipt.CompletedAt.IsZero() ||
+		receipt.CompletedAt.Before(receipt.CreatedAt) {
+		return nil, receiptIntegrityError("completed receipt identity is invalid")
+	}
+	summary, err := decodeAgentInvocationOutputSummary(receipt.OutputJSON)
+	if err != nil {
+		return nil, receiptIntegrityError(err.Error())
+	}
+	canonicalSummary, err := json.Marshal(summary)
+	if err != nil || sha256Bytes(canonicalSummary) != receipt.OutputSHA256 {
+		return nil, receiptIntegrityError("receipt output hash mismatch")
+	}
+	if summary.ResultRef != strings.TrimSpace(agentResultRef) ||
+		summary.ProviderInvocationSHA256 != receipt.InputSHA256 {
+		return nil, receiptIntegrityError("receipt result identity differs")
+	}
+	results, err := s.runProjectionStore.ListStepResults(ctx, run.RunID)
+	if err != nil {
+		return nil, err
+	}
+	steps, err := s.runProjectionStore.ListRunSteps(ctx, run.RunID)
+	if err != nil {
+		return nil, err
+	}
+	agentStep, latestAttempt, ok := latestPrimaryAgentStep(steps)
+	if !ok || agentStep.Status != "completed" {
+		return nil, fmt.Errorf("agent.primary aggregate projection is required")
+	}
+	var selected *execution.StepResultProjection
+	selectedAttempt := 0
+	for index := range results {
+		result := results[index]
+		if result.StepID != "agent.primary" || result.Status != "completed" ||
+			result.ResultKind != "agent_final_output" ||
+			strings.TrimSpace(result.ProjectionRef) != strings.TrimSpace(agentResultRef) {
+			continue
+		}
+		activityAttempt, valid := positiveIntValue(result.SanitizedPayload["activity_attempt"])
+		if !valid || result.AttemptID != temporalStepAttemptID(result.RunID, result.StepID, activityAttempt) {
+			continue
+		}
+		if activityAttempt > selectedAttempt {
+			copy := result
+			selected = &copy
+			selectedAttempt = activityAttempt
+		}
+	}
+	if selected == nil {
+		return nil, fmt.Errorf("agent result projection is required")
+	}
+	if selectedAttempt != latestAttempt {
+		return nil, fmt.Errorf(
+			"agent result activity attempt %d does not match aggregate attempt %d",
+			selectedAttempt,
+			latestAttempt,
+		)
+	}
+	if selected.ResultID != temporalStepResultID(run.RunID, "agent.primary", selectedAttempt) ||
+		selected.RunID != run.RunID || selected.PayloadSchemaVersion != "step-result-projection-v1" {
+		return nil, fmt.Errorf("completed agent result projection identity differs")
+	}
+	result := map[string]any{}
+	if err := s.getProtectedJSON(ctx, run, agentResultRef, protectedPayloadKindAgentResult, &result); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(stringValue(result["agent_result_ref"])) != strings.TrimSpace(agentResultRef) {
 		return nil, fmt.Errorf("agent result ref drift")
 	}
-	return raw, nil
+	protectedAttempt, valid := positiveIntValue(result["activity_attempt"])
+	if !valid || protectedAttempt != selectedAttempt {
+		return nil, fmt.Errorf("agent result activity attempt drift")
+	}
+	if sha256AnyValue(result) != summary.OutputSHA256 ||
+		strings.TrimSpace(stringValue(result["provider_invocation_sha256"])) != receipt.InputSHA256 ||
+		strings.TrimSpace(stringValue(result["result_schema_version"])) != summary.ResultSchemaVersion {
+		return nil, receiptIntegrityError("protected agent result differs from completed receipt")
+	}
+	expectedProjection := primaryAgentResultProjectionPayload(result)
+	expectedProjection["protected_result_sha256"] = summary.OutputSHA256
+	expectedProjection["protected_result_schema_version"] = summary.ResultSchemaVersion
+	if sha256AnyValue(selected.SanitizedPayload) != sha256AnyValue(expectedProjection) {
+		return nil, receiptIntegrityError("completed agent step result differs from protected result")
+	}
+	return result, nil
 }
 
 func temporalProjectionRef(runID string, suffix string) string {
@@ -401,14 +569,6 @@ func temporalEventPayloadEquivalent(left map[string]any, right map[string]any) b
 		return string(leftJSON) == string(rightJSON)
 	}
 	return reflect.DeepEqual(left, right)
-}
-
-func cloneTemporalMetadata(metadata map[string]any) map[string]any {
-	cloned := make(map[string]any, len(metadata)+1)
-	for key, value := range metadata {
-		cloned[key] = value
-	}
-	return cloned
 }
 
 func cloneAnyMapFromMetadata(value any) map[string]any {

@@ -3,7 +3,6 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { registerChatCommandServiceCoreSuite } from "./chat-command.service.core.suite";
-import { registerChatCommandServiceCurriculumSuite } from "./chat-command.service.curriculum.suite";
 import { registerChatCommandServiceIdempotencySuite } from "./chat-command.service.idempotency.suite";
 import { registerChatCommandServiceObservabilitySuite } from "./chat-command.service.observability.suite";
 import {
@@ -15,15 +14,15 @@ import {
 	createExecutionRuntimeFromToolClient,
 	createPrincipal,
 	type FinalizeRequestWrite,
+	getFrozenExecutionPayload,
 } from "./chat-command.service.test-support";
 
 describe("chat command service", () => {
 	registerChatCommandServiceCoreSuite();
 	registerChatCommandServiceObservabilitySuite();
 	registerChatCommandServiceIdempotencySuite();
-	registerChatCommandServiceCurriculumSuite();
 
-	it("fails closed instead of using a legacy direct execution path", async () => {
+	it("fails before accept instead of creating an unrecoverable turn without durable runtime", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const legacyExecutionClient = {
@@ -53,7 +52,7 @@ describe("chat command service", () => {
 		});
 		expect(legacyExecutionClient.execute).not.toHaveBeenCalled();
 		expect(legacyExecutionClient.executeStream).not.toHaveBeenCalled();
-		expect(acceptedWrites).toHaveLength(1);
+		expect(acceptedWrites).toHaveLength(0);
 		expect(finalWrites).toHaveLength(0);
 	});
 
@@ -69,6 +68,7 @@ describe("chat command service", () => {
 				answerText: "国家奖学金要求学习成绩排名和综合测评排名均在前10%。",
 				error: null,
 				followUpQuestion: "",
+				modelUsage: { cachedInputTokens: 10, inputTokens: 120, outputTokens: 42, totalTokens: 162 },
 				result: {
 					sources: [
 						{
@@ -81,8 +81,6 @@ describe("chat command service", () => {
 						},
 					],
 				},
-				resolvedTargets: ["student_rules"],
-				selectedTool: "knowledge_query",
 				status: "completed",
 				traceId: "trace_0001",
 			})
@@ -90,9 +88,8 @@ describe("chat command service", () => {
 				answerText: "第二条指单科成绩不能低于80分。",
 				error: null,
 				followUpQuestion: "",
+				modelUsage: { cachedInputTokens: 10, inputTokens: 120, outputTokens: 42, totalTokens: 162 },
 				result: {},
-				resolvedTargets: [],
-				selectedTool: null,
 				status: "completed",
 				traceId: "trace_0002",
 			});
@@ -138,11 +135,10 @@ describe("chat command service", () => {
 			},
 		]);
 		const secondCreateRunInput = vi.mocked(executionRuntime.createRun).mock.calls[1]?.[0];
-		const executionPayload = secondCreateRunInput?.metadata.execution_payload as
-			| Record<string, unknown>
-			| undefined;
-		const context = executionPayload?.context as Record<string, unknown> | undefined;
-		const conversationPayload = context?.conversation as Record<string, unknown> | undefined;
-		expect(conversationPayload?.previous_evidence_refs).toEqual([]);
+		const executionPayload = getFrozenExecutionPayload(secondCreateRunInput?.runId ?? "run_0002");
+		const context = executionPayload.context as Record<string, unknown>;
+		const conversationPayload = context.conversation as Record<string, unknown>;
+		expect(conversationPayload).not.toHaveProperty("previous_evidence_refs");
+		expect(conversationPayload).not.toHaveProperty("previous_tool_results");
 	});
 });

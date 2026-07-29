@@ -44,6 +44,7 @@ test("maps Turbo affected package tasks to release candidates", async (t) => {
 					tasks: [
 						{ package: "agent-runtime", task: "build" },
 						{ package: "app-api", task: "build:worker" },
+						{ package: "ingestion-control", task: "build" },
 						{ package: "source-collector", task: "build" },
 					],
 				}),
@@ -56,7 +57,7 @@ test("maps Turbo affected package tasks to release candidates", async (t) => {
 	};
 	assert.deepEqual(await planCandidates(options(root), runner), {
 		base: BASE,
-		images: ["agent-runtime"],
+		images: ["agent-runtime", "ingestion-control", "ingestion-control-worker", "source-collector"],
 		kubernetes: true,
 		validateOnly: false,
 		workers: ["app-api"],
@@ -72,7 +73,15 @@ test("manual full mode selects every active candidate without running Turbo", as
 	};
 	assert.deepEqual(await planCandidates({ ...options(root), full: true }, runner), {
 		base: BASE,
-		images: ["agent-runtime", "app-api-schema", "execution-control", "ops-web"],
+		images: [
+			"agent-runtime",
+			"app-api-schema",
+			"execution-control",
+			"ingestion-control",
+			"ingestion-control-worker",
+			"ops-web",
+			"source-collector",
+		],
 		kubernetes: true,
 		validateOnly: false,
 		workers: ["app-api"],

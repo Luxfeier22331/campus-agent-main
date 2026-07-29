@@ -28,16 +28,16 @@ describe("Rust kernel worker runtime", () => {
 				[
 					{
 						executor_kind: "rust_kernel",
-						input_contract: "canonical_document_units.v1",
-						kernel_id: "chunk-document-units",
-						output_contract: "ingestion_chunk_set.v1",
+						input_contract: "canonical_document_units.v2",
+						kernel_id: "build-retrieval-chunks-v2",
+						output_contract: "retrieval_chunk_set.v2",
 						registry_task_id: "regulations.student_rules.chunk_prepare",
 						target: { collection: "student_rules", corpus: "regulations" },
 					},
 				],
 				registry,
 			),
-		).toThrow("regulations.student_rules.chunk_prepare:chunk-document-units");
+		).toThrow("regulations.student_rules.chunk_prepare:build-retrieval-chunks-v2");
 	});
 
 	it("registers chunking only with a readable local tokenizer", () => {
@@ -47,7 +47,7 @@ describe("Rust kernel worker runtime", () => {
 		);
 		const registry = createDefaultRustKernelRegistry({ objectStore, tokenizerJsonPath });
 
-		expect(registry.has("chunk-document-units")).toBe(true);
+		expect(registry.has("build-retrieval-chunks-v2")).toBe(true);
 		expect(() =>
 			createDefaultRustKernelRegistry({
 				objectStore,

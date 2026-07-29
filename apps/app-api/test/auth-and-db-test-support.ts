@@ -73,9 +73,6 @@ export const APP_API_TEST_ENV = {
 	APP_API_DB: {
 		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 	},
-	APP_API_DB_FRESH: {
-		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent_fresh",
-	},
 };
 
 export const createApp = appModule.createApp;

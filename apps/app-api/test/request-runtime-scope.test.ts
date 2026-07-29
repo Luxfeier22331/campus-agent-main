@@ -9,9 +9,6 @@ const env = {
 	APP_API_DB: {
 		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 	},
-	APP_API_DB_FRESH: {
-		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent_fresh",
-	},
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
 	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
@@ -33,31 +30,21 @@ describe("request runtime scope", () => {
 
 		const firstDb = await scope.getDb();
 		const secondDb = await scope.getDb();
-		const firstFreshDb = await scope.getFreshDb();
-		const secondFreshDb = await scope.getFreshDb();
 		const firstAuth = await scope.getAppAuth();
 		const secondAuth = await scope.getAppAuth();
 
 		expect(firstDb).toBe(secondDb);
-		expect(firstFreshDb).toBe(secondFreshDb);
 		expect(firstAuth).toBe(secondAuth);
-		expect(createRuntimeDatabase).toHaveBeenCalledTimes(2);
-		expect(createRuntimeDatabase).toHaveBeenNthCalledWith(1, env, {
-			consistency: "cached",
-		});
-		expect(createRuntimeDatabase).toHaveBeenNthCalledWith(2, env, {
-			consistency: "fresh",
-		});
+		expect(createRuntimeDatabase).toHaveBeenCalledOnce();
+		expect(createRuntimeDatabase).toHaveBeenCalledWith(env);
 		expect(createAppAuth).toHaveBeenCalledTimes(1);
 	});
 
 	it("does not reuse db or auth across staging request scopes", async () => {
 		const createRuntimeDatabase = vi
 			.fn()
-			.mockResolvedValueOnce({ scope: "first-cached-db" })
-			.mockResolvedValueOnce({ scope: "first-fresh-db" })
-			.mockResolvedValueOnce({ scope: "second-cached-db" })
-			.mockResolvedValueOnce({ scope: "second-fresh-db" });
+			.mockResolvedValueOnce({ scope: "first-db" })
+			.mockResolvedValueOnce({ scope: "second-db" });
 		const createAppAuth = vi
 			.fn()
 			.mockResolvedValueOnce({ scope: "first-auth" })
@@ -74,15 +61,12 @@ describe("request runtime scope", () => {
 
 		const firstDb = await firstScope.getDb();
 		const secondDb = await secondScope.getDb();
-		const firstFreshDb = await firstScope.getFreshDb();
-		const secondFreshDb = await secondScope.getFreshDb();
 		const firstAuth = await firstScope.getAppAuth();
 		const secondAuth = await secondScope.getAppAuth();
 
 		expect(firstDb).not.toBe(secondDb);
-		expect(firstFreshDb).not.toBe(secondFreshDb);
 		expect(firstAuth).not.toBe(secondAuth);
-		expect(createRuntimeDatabase).toHaveBeenCalledTimes(4);
+		expect(createRuntimeDatabase).toHaveBeenCalledTimes(2);
 		expect(createAppAuth).toHaveBeenCalledTimes(2);
 	});
 });

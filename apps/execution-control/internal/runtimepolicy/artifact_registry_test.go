@@ -91,6 +91,7 @@ func TestValidateModelVisibleToolArtifactGateRejectsOpenUnsupportedProjection(t 
 	if !ok {
 		t.Fatal("transport_schedule_lookup missing from tool registry")
 	}
+	tool.Exposure = "model_visible"
 
 	err := ValidateModelVisibleToolArtifactGate(tool, artifacts)
 	if err == nil {
@@ -107,6 +108,7 @@ func TestValidateModelVisibleToolArtifactGateAllowsOpenSupportedProjection(t *te
 	if !ok {
 		t.Fatal("transport_schedule_lookup missing from tool registry")
 	}
+	tool.Exposure = "model_visible"
 
 	if err := ValidateModelVisibleToolArtifactGate(tool, artifacts); err != nil {
 		t.Fatalf("ValidateModelVisibleToolArtifactGate() failed: %v", err)

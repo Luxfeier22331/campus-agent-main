@@ -20,8 +20,8 @@ function checkContractSchemasPass(): void {
 function checkRegistryCoverage(): void {
 	const entries = registryEntries();
 	const expectedValidates: Record<string, string[]> = {
-		"runtime-tools.v5": ["configs/runtime/tools.v5.json"],
-		"query-serving-targets.v1": ["configs/runtime/query-serving-targets.v1.json"],
+		"runtime-tools.v6": ["configs/runtime/tools.v6.json"],
+		"query-serving-targets.v3": ["configs/runtime/query-serving-targets.v3.json"],
 		"runtime-latency-budgets.v1": ["configs/runtime/latency-budgets.v1.json"],
 	};
 	for (const [entryId, validates] of Object.entries(expectedValidates)) {
@@ -82,7 +82,7 @@ function checkRuntimeToolSchemaRefs(): void {
 		const schema = readJson(String(entry.path));
 		schemaDocs[String(schema.$id)] = schema;
 	}
-	const config = readJson("configs/runtime/tools.v5.json");
+	const config = readJson("configs/runtime/tools.v6.json");
 	for (const tool of config.tools as Record<string, unknown>[]) {
 		for (const fieldName of ["payload_schema_ref", "result_schema_ref"]) {
 			const ref = String(tool[fieldName]);

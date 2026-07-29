@@ -450,11 +450,10 @@ export function resultSources(result: unknown): unknown[] {
 
 export function normalizeSourceItemsPart(input: {
 	allowedPublicNoticeHosts?: readonly string[];
-	selectedTool: string | null;
 	status: ToolExecutionResponse["status"];
 	result: unknown;
 }): ChatMessageStructuredPart[] {
-	if (input.selectedTool !== "knowledge_query" || input.status !== "completed") {
+	if (input.status !== "completed") {
 		return [];
 	}
 

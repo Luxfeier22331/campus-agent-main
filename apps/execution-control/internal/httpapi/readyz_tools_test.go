@@ -122,7 +122,7 @@ func TestReadyzDoesNotRequireUnregisteredCampusServicesServiceStatusToolToBeMode
 	}
 }
 
-func TestReadyzDoesNotPublishRetiredToolGates(t *testing.T) {
+func TestReadyzPublishesOnlyModelVisibleToolGates(t *testing.T) {
 	server := newReadyServerForTest(t, func(*config.Config) {})
 	response := httptest.NewRecorder()
 
@@ -133,9 +133,12 @@ func TestReadyzDoesNotPublishRetiredToolGates(t *testing.T) {
 	}
 	body := decodeBody(t, response)
 	toolGates := expectRecord(t, body["tool_gates"], "tool_gates")
-	knowledgeGate := expectRecord(t, toolGates["knowledge_query"], "tool_gates.knowledge_query")
-	if knowledgeGate["open"] != true || knowledgeGate["gate"] != "openai_agents_handoff" {
-		t.Fatalf("knowledge gate = %#v, want OpenAI Agents handoff", knowledgeGate)
+	if len(toolGates) != 1 {
+		t.Fatalf("tool gates = %#v, want only personal_memory_recall", toolGates)
+	}
+	memoryGate := expectRecord(t, toolGates["personal_memory_recall"], "personal_memory_recall")
+	if memoryGate["open"] != true {
+		t.Fatalf("personal_memory_recall gate = %#v, want open", memoryGate)
 	}
 }
 

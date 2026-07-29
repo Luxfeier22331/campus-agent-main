@@ -3,15 +3,19 @@ import type { ImprovementCategory, LatencyBudgetBreach } from "./types";
 
 const STAGE_TIMING_FIELDS = [
 	"request.total_ms",
-	"stream.browser_ttft_ms",
+	"execution.dispatch_ms",
+	"agent.schedule_to_start_ms",
+	"stream.first_delta_persist_ms",
+	"stream.app_api_ttft_ms",
+	"stream.orchestration_overhead_ms",
 	"execution.admission_ms",
+	"grounding.prepare_ms",
 	"memory.recall_ms",
 	"agent.primary_ms",
 	"agent.runtime_ms",
 	"agent.first_delta_ms",
 	"tool.total_ms",
 	"tool.transport_schedule_lookup_ms",
-	"knowledge.search_ms",
 	"finalization.write_ms",
 	"projection.closeout_ms",
 ] as const;

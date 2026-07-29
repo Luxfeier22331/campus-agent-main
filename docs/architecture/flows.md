@@ -19,7 +19,7 @@ status: active
 | 产品运行 | `docs/architecture/system/product-runtime.md`、`docs/contracts/app-api/request-lifecycle.md` |
 | 在线回答 | `docs/architecture/system/durable-runtime.md`、`docs/architecture/system/agent-framework.md` |
 | 采集数据面 | `docs/architecture/system/data-plane.md`、领域 source 文档、`docs/runbooks/ingestion.md` |
-| Knowledge Agent 检索 | `docs/architecture/system/retrieval-serving.md`、`docs/architecture/system/agentic-retrieval.md` |
+| Agent 知识读取 | `docs/architecture/system/retrieval-serving.md`、`docs/architecture/system/agentic-retrieval.md` |
 | 可观测性与评测 | `docs/architecture/system/ops-observability.md`、`docs/architecture/system/langfuse.md` |
 
 ## 产品运行
@@ -49,14 +49,15 @@ flowchart LR
   AppAPI["app-api\n会话与请求接纳"]
   Exec["execution-control\n运行准入"]
   Temporal["Temporal workflow"]
-  Memory["记忆召回 activity"]
   Agent["单个 Agent Activity\n完整 Agents SDK run"]
+  Memory["execution-control\n个人记忆 handler"]
+  Hindsight["Hindsight"]
   Final["终结\n证据校验与来源生成"]
   Append["记忆追加 activity"]
 
   Browser --> AppAPI --> Exec --> Temporal
-  Temporal --> Memory --> Temporal
   Temporal --> Agent --> Temporal
+  Agent -. 获准调用 .-> Memory --> Hindsight --> Memory --> Agent
   Agent --> Exec
   Temporal --> Final --> Temporal
   Temporal --> Append --> Temporal
@@ -81,21 +82,23 @@ flowchart LR
   Temporal --> Projection
 ```
 
-## Knowledge Agent 检索
+## Agent 知识读取
 
 ```mermaid
 flowchart LR
+  Route["execution-control\n确定性 grounding 路由"]
+  Admission["execution-control\n不可变范围与 release 准入"]
+  Current["PostgreSQL\ncurrent_releases"]
+  Retrieval["Qdrant\n并发候选召回"]
+  RRF["Qdrant RRF 合并与裁剪"]
+  Context["受保护\ngrounding_context.v2"]
   Primary["Primary Agent"]
-  Handoff["官方 handoff()"]
-  Knowledge["Knowledge Agent"]
-  Search["内部 knowledge_search"]
-  Admission["execution-control\n知识目标与访问准入"]
-  Retrieval["向量化 + Qdrant 稠密/稀疏 RRF"]
-  Evidence["有界回答证据"]
   Final["终结\n校验引用并生成来源"]
 
-  Primary --> Handoff --> Knowledge --> Search --> Admission --> Retrieval
-  Retrieval --> Evidence --> Knowledge --> Final
+  Route -->|single/multi scope| Admission
+  Current --> Admission --> Retrieval --> RRF --> Context
+  Route -->|none| Context
+  Context --> Primary --> Final
 ```
 
 ## 可观测性与评测

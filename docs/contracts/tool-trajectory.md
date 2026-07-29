@@ -3,76 +3,73 @@ doc_type: contract
 owner_boundary: apps/execution-control
 status: active
 ---
+
 # 工具轨迹合同
 
 ## 边界
 
-`tool_trajectory.v2` 是供执行诊断和评测消费的工具决策投影。它不是 Langfuse DTO、浏览器
-合同、Temporal history 结构或 provider response。
+`tool_trajectory.v3` 是执行诊断和评测消费的真实 SDK 工具调用投影。它不是 Langfuse DTO、浏览器
+合同、Temporal history 或 Provider response。
 
 ## 顶层结构
 
 投影包含：
 
-- `schema_version=tool_trajectory.v2`；
+- `schema_version=tool_trajectory.v3`；
 - request、run 与 trace 标识；
-- 可选的 conversation、`surface`、environment 与 release 标识；
+- 可选 conversation、`surface`、environment 与 release 标识；
 - `available_tools`；
-- `decision_kind=direct_answer|tool_call|fail_closed`；
-- 适用时的 selected tool 或拒绝原因；
-- 对外的 `tool_calls[]`；
-- 内部的 `internal_tool_calls[]`。
+- `decision_kind=direct_answer|tool_assisted|fail_closed`；
+- 适用时的失败关闭原因；
+- 同一个 Primary Agent 实际执行的有序 `tool_calls[]`。
 
-该投影从有界 run/step/result 数据派生，不需要原始 prompt、provider response、source body 或
-Temporal history replay。
+该投影从有界 run/step/result 数据派生，不读取原始 prompt、Provider response、grounding 正文或
+Temporal history。
 
-## 模型可见调用
+## 当前工具词汇
 
-`tool_calls[]` 记录 Primary Agent 可见的 function call 与 handoff。知识 handoff 记为
-result kind 是 `agent_handoff` 的 `knowledge_query`；内部搜索不进入该列表。
+v3 只接受当前注册表中的两个名称：
 
-每次调用可以携带 tool call id、tool name、status、result kind、duration、argument
-shape/hash、拒绝原因和可公开的 provider/model 标识。
+- `personal_memory_recall`；
+- `transport_schedule_lookup`。
 
-## 内部搜索调用
+`personal_memory_recall` 只有本轮冻结授权允许时才进入 `available_tools`，并且最多产生一次调用。
+`transport_schedule_lookup` 当前关闭，新运行不得把它写入 `available_tools` 或 `tool_calls[]`。
 
-`internal_tool_calls[]` 按顺序记录 Knowledge Agent 的 `knowledge_search`。除通用字段外，每次
-搜索还包含：
+培养方案和规章知识由 `grounding.prepare` 预取，不是模型工具，不得派生工具调用、`tool_name`、
+`eval_safe_args` 或 `selected_tool`。
 
-- 正整数 `search_ordinal`；
-- 可用于评测的 `{target, include_history}` arguments；
-- 可选 query hash；
-- outcome；
-- candidate 与 discarded 数量。
+## 工具调用
 
-搜索 query 原文与 evidence snippet 不属于 trajectory 字段。获准评测所需的 RAG 文本来自
-`agent_runtime_eval_projection.v2`。
+每次调用可以携带 tool call id、tool name、status、result kind、duration、argument shape/hash、失败
+关闭原因和允许公开的 Provider/model 标识。
+
+个人记忆 query、`memory_text`、Hindsight 标识和原始结果均不属于轨迹。记忆工具只保留参数 hash、
+状态、结果种类、调用标识和耗时。
 
 ## 决策语义
 
-- `direct_answer`：未选择模型可见工具；
-- `tool_call`：已准入的 SDK function tool 或 handoff 已执行；
+- `direct_answer`：没有执行模型可见工具；即使消费了 grounding，仍属于直接答案；
+- `tool_assisted`：至少一个已准入 SDK function tool 已执行；
 - `fail_closed`：合同、配置、策略或执行条件拒绝了本次 run。
 
-澄清、拒绝和普通直接回答不得伪装成工具。
+澄清、拒绝、知识 grounding 和普通直接回答不得伪装成工具。
 
 ## 禁止数据
 
-trajectory 必须在写入前拒绝以下数据，不能事后再脱敏：
+trajectory 必须在写入前拒绝：
 
-- 原始 prompt、transcript、provider response 或 model output；
-- 原始 tool arguments、retrieval query 或 source body；
+- 原始 prompt、transcript、Provider response 或 model output；
+- 原始工具参数、检索 query、grounding 或 source body；
 - 原始 memory content 或 Hindsight identifier；
 - credential、auth header、cookie、database URL 或 object-store location。
 
 ## 评测消费
 
-`packages/eval-langfuse` 只解析 v2。它使用对外调用判断 Primary Agent 的工具选择，并使用内部
-搜索序列计算 Ragas tool-call metric 及 target/history 诊断。答案质量和检索质量仍通过
-execution eval projection 上相互独立的 Ragas metric 评估。
+`packages/eval-langfuse` 只解析 v3。工具评测只覆盖真实 SDK 工具；答案与 RAG 质量通过 execution
+eval projection 中独立的 grounding、上下文和答案字段评测。
 
 ## 可执行来源
 
-- `apps/execution-control/internal/httpapi/execution_projection_handlers.go`
 - `apps/execution-control/internal/httpapi/tool_trajectory_projection_test.go`
 - `packages/eval-langfuse/src/tool-trajectory.ts`

@@ -33,7 +33,7 @@ describe("chat memory staging e2e runner", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("proves explicit memory write and Temporal memory recall through sanitized run steps", async () => {
+	it("proves explicit memory write and SDK personal memory recall through sanitized run steps", async () => {
 		const calls: Array<{
 			body?: unknown;
 			method?: string;
@@ -121,16 +121,17 @@ describe("chat memory staging e2e runner", () => {
 									attemptId: "attempt-memory",
 									createdAt: "2026-06-04T01:02:05.000Z",
 									payloadSchemaVersion: "step-result-projection-v1",
-									projectionRef: "projection://runs/run_01HQ/memory/recall",
+									projectionRef: "projection://runs/run_01HQ/sdk-tools/personal_memory_recall/1",
 									resultId: "result-memory",
-									resultKind: "memory_recall_result",
+									resultKind: "typed_tool_result",
 									runId: "run_01HQ",
 									sanitizedPayload: {
-										memory_ref: "projection://runs/run_01HQ/memory/recall",
-										selected_memory_count: 1,
+										outcome: "matched",
+										tool_name: "personal_memory_recall",
+										tool_status: "completed",
 									},
 									status: "completed",
-									stepId: "memory.recall",
+									stepId: "sdk_tool.execute.personal_memory_recall.1",
 								},
 							],
 							run: {
@@ -143,21 +144,22 @@ describe("chat memory staging e2e runner", () => {
 							},
 							steps: [
 								{
-									tool: "any",
+									tool: "personal_memory_recall",
 									completedAt: "2026-06-04T01:02:05.000Z",
 									conversationId: "conv_01HQ",
 									parentStepId: "",
 									payloadSchemaVersion: "run-step-projection-v1",
 									runId: "run_01HQ",
 									sanitizedPayload: {
-										memory_ref: "projection://runs/run_01HQ/memory/recall",
-										selected_memory_count: 1,
+										outcome: "matched",
+										tool_name: "personal_memory_recall",
+										tool_status: "completed",
 									},
 									startedAt: "2026-06-04T01:02:04.000Z",
 									status: "completed",
-									stepId: "memory.recall",
-									stepKind: "memory",
-									taskQueue: "context",
+									stepId: "sdk_tool.execute.personal_memory_recall.1",
+									stepKind: "tool",
+									taskQueue: "campus-agent.activity.agent.v3",
 									updatedAt: "2026-06-04T01:02:05.000Z",
 									workerId: "test-worker",
 								},
@@ -203,9 +205,9 @@ describe("chat memory staging e2e runner", () => {
 		});
 		expect(mintedName).toBe("user-sentinel-0001");
 		expect(result.recall).toEqual({
-			memoryRef: "projection://runs/run_01HQ/memory/recall",
-			selectedMemoryCount: 1,
-			stepId: "memory.recall",
+			outcome: "matched",
+			projectionRef: "projection://runs/run_01HQ/sdk-tools/personal_memory_recall/1",
+			stepId: "sdk_tool.execute.personal_memory_recall.1",
 			status: "completed",
 		});
 		expect(calls).toEqual(

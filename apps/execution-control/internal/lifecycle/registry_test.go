@@ -23,9 +23,8 @@ func TestRegistryRejectsDuplicateActiveRequestID(t *testing.T) {
 func TestRegistryCancelMarksExecutionAndCancelsContext(t *testing.T) {
 	registry := NewRegistry()
 	_, ctx, err := registry.Register(context.Background(), Metadata{
-		RequestID:     "req-cancel",
-		TraceID:       "trace-cancel",
-		RequestedTool: "knowledge_query",
+		RequestID: "req-cancel",
+		TraceID:   "trace-cancel",
 	})
 	if err != nil {
 		t.Fatalf("register returned error: %v", err)

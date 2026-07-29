@@ -3,29 +3,24 @@ package httpapi
 import "encoding/json"
 
 type ExecutionFinalizationResponseWire struct {
-	AnswerText           string             `json:"answer_text"`
-	Confidence           string             `json:"confidence"`
-	Error                any                `json:"error"`
-	FollowUpQuestion     string             `json:"follow_up_question"`
-	Observability        map[string]any     `json:"observability"`
-	ResolvedTargets      []string           `json:"resolved_targets"`
-	Result               map[string]any     `json:"result"`
-	SelectedTool         *string            `json:"selected_tool"`
-	SessionUpdate        *SessionUpdateWire `json:"session_update"`
-	StageTiming          map[string]any     `json:"stage_timing,omitempty"`
-	Status               string             `json:"status"`
-	TraceID              string             `json:"trace_id"`
-	WorkflowTraceSummary map[string]any     `json:"workflow_trace_summary"`
+	AnswerText           string         `json:"answer_text"`
+	Confidence           string         `json:"confidence"`
+	Error                any            `json:"error"`
+	FollowUpQuestion     string         `json:"follow_up_question"`
+	ModelUsage           ModelUsageWire `json:"model_usage"`
+	Observability        map[string]any `json:"observability"`
+	Result               map[string]any `json:"result"`
+	StageTiming          map[string]any `json:"stage_timing,omitempty"`
+	Status               string         `json:"status"`
+	TraceID              string         `json:"trace_id"`
+	WorkflowTraceSummary map[string]any `json:"workflow_trace_summary"`
 }
 
-type SessionUpdateWire struct {
-	UpsertSlots []SessionUpdateSlotWire `json:"upsert_slots"`
-}
-
-type SessionUpdateSlotWire struct {
-	Confirmed bool   `json:"confirmed"`
-	Name      string `json:"name"`
-	Value     string `json:"value"`
+type ModelUsageWire struct {
+	InputTokens       int64 `json:"input_tokens"`
+	CachedInputTokens int64 `json:"cached_input_tokens"`
+	OutputTokens      int64 `json:"output_tokens"`
+	TotalTokens       int64 `json:"total_tokens"`
 }
 
 func executionFinalizationResponseWireMap(response ExecutionFinalizationResponseWire) map[string]any {
@@ -38,8 +33,4 @@ func executionFinalizationResponseWireMap(response ExecutionFinalizationResponse
 		panic(err)
 	}
 	return payload
-}
-
-func ptrString(value string) *string {
-	return &value
 }

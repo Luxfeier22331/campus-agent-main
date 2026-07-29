@@ -7,7 +7,6 @@ import { isRecord, normalizeOptionalString } from "./normalize-record-utils";
 import { resultSources } from "./normalize-source-items";
 import type {
 	ChatCommandPayload,
-	ChatCommandRequestKind,
 	InternalEvalChatCommandPayload,
 	ValidatedChatCommandPayload,
 } from "./types";
@@ -30,14 +29,12 @@ export function defaultGenerateId(prefix: string): string {
 export function defaultComputeFingerprint(input: {
 	conversationDiscriminator: string;
 	prompt: string;
-	requestedTool: string | null;
 }): string {
 	return createHash("sha256")
 		.update(
 			JSON.stringify({
 				conversationDiscriminator: input.conversationDiscriminator,
 				prompt: input.prompt,
-				requestedTool: input.requestedTool,
 			}),
 		)
 		.digest("hex");
@@ -81,19 +78,10 @@ export function sanitizePublicAssistantText(input: {
 	return input.text;
 }
 
-function normalizeRequestedTool(value: unknown): string | null {
-	const tool = normalizeString(value);
-	return tool || null;
-}
-
 function assertSupportedPayloadFields(
 	payload: ChatCommandPayload | InternalEvalChatCommandPayload,
-	requestKind: ChatCommandRequestKind,
 ): void {
 	const supportedFields = new Set(["conversationId", "prompt"]);
-	if (requestKind === "internal_eval") {
-		supportedFields.add("requestedTool");
-	}
 	for (const field of Object.keys(payload as Record<string, unknown>)) {
 		if (supportedFields.has(field)) {
 			continue;
@@ -171,9 +159,8 @@ export function extractSourceDocIds(result: unknown): string[] {
 
 export function resolveValidatedPayload(
 	payload: ChatCommandPayload | InternalEvalChatCommandPayload,
-	input: { requestKind: ChatCommandRequestKind },
 ): ValidatedChatCommandPayload {
-	assertSupportedPayloadFields(payload, input.requestKind);
+	assertSupportedPayloadFields(payload);
 	const conversationId = normalizeString(payload.conversationId) || null;
 
 	const prompt = normalizeString(payload.prompt);
@@ -186,15 +173,8 @@ export function resolveValidatedPayload(
 		});
 	}
 
-	const internalPayload = payload as InternalEvalChatCommandPayload;
-	const requestedTool =
-		input.requestKind === "internal_eval"
-			? normalizeRequestedTool(internalPayload.requestedTool)
-			: null;
-
 	return {
 		conversationId,
 		prompt,
-		requestedTool,
 	};
 }

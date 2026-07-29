@@ -28,6 +28,8 @@ func routeLabelFor(method string, path string) string {
 		return "/internal/execution/runs/:runId"
 	case method == http.MethodPost && path == "/internal/query/campus-services/transport-schedule":
 		return "/internal/query/campus-services/transport-schedule"
+	case method == http.MethodPost && path == "/internal/memory/personal/recall":
+		return "/internal/memory/personal/recall"
 	default:
 		return "/__unknown__"
 	}

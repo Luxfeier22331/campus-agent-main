@@ -4,7 +4,6 @@ package temporalruntime
 
 import (
 	"context"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -13,6 +12,7 @@ import (
 	enumspb "go.temporal.io/api/enums/v1"
 	historypb "go.temporal.io/api/history/v1"
 	"go.temporal.io/sdk/client"
+	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/testsuite"
 	"go.temporal.io/sdk/worker"
 	"go.temporal.io/sdk/workflow"
@@ -134,7 +134,6 @@ func TestTemporalDevServerRunsExplicitKnowledgeChoiceThroughLinearWorkflow(t *te
 
 	runID := "run-temporal-devserver-rag"
 	input := devServerWorkflowInput(runID)
-	input.RequestedTool = "knowledge_query"
 	input.WorkflowID = "campus-agent.temporal-e2e." + runID
 	workflowRun, err := temporalClient.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
 		ID:        input.WorkflowID,
@@ -156,7 +155,6 @@ func TestTemporalDevServerRunsExplicitKnowledgeChoiceThroughLinearWorkflow(t *te
 		t.Fatalf("workflow history: %v", err)
 	}
 	for _, activityName := range []string{
-		MemoryRecallActivityName,
 		ExecutePrimaryAgentActivityName,
 		WriteFinalizationActivityName,
 		AppendConversationMemoryActivityName,
@@ -283,7 +281,6 @@ func TestTemporalDevServerCancelWorkflow(t *testing.T) {
 	}
 	runID := "run-temporal-devserver-cancel"
 	input := devServerWorkflowInput(runID)
-	input.RequestedTool = ""
 	input.WorkflowID = "campus-agent.temporal-e2e." + runID
 	workflowRun, err := temporalClient.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
 		ID:        input.WorkflowID,
@@ -304,15 +301,14 @@ func TestTemporalDevServerCancelWorkflow(t *testing.T) {
 		startTimeout: 5 * time.Second,
 	}
 	if err := starter.CancelToolExecutionWorkflow(ctx, ToolExecutionWorkflowCancelInput{
-		RunID:      runID,
-		WorkflowID: input.WorkflowID,
+		RunID:         runID,
+		TemporalRunID: workflowRun.GetRunID(),
+		WorkflowID:    input.WorkflowID,
 	}); err != nil {
 		t.Fatalf("cancel workflow: %v", err)
 	}
-	var result ToolExecutionWorkflowResult
-	err = workflowRun.Get(ctx, &result)
-	if err == nil || !strings.Contains(err.Error(), "canceled") {
-		t.Fatalf("workflow get err = %v, want canceled", err)
+	if err := workflowRun.Get(ctx, nil); !temporal.IsCanceledError(err) {
+		t.Fatalf("get canceled workflow error = %v, want canceled error", err)
 	}
 	history, err := workflowHistory(ctx, temporalClient, input.WorkflowID, workflowRun.GetRunID())
 	if err != nil {
@@ -320,6 +316,9 @@ func TestTemporalDevServerCancelWorkflow(t *testing.T) {
 	}
 	if !historyContains(history, enumspb.EVENT_TYPE_WORKFLOW_EXECUTION_CANCELED) {
 		t.Fatal("workflow history did not contain canceled event")
+	}
+	if !historyContainsCompletedActivity(history, FinalizeExecutionCancellationActivityName) {
+		t.Fatalf("workflow history missing completed activity %s", FinalizeExecutionCancellationActivityName)
 	}
 }
 
@@ -336,10 +335,6 @@ func devServerWorkflowInput(runID string) ToolExecutionWorkflowInput {
 		RunID:          runID,
 		TraceID:        "trace-" + runID,
 		TurnID:         "turn-" + runID,
-		VisibleToolNames: []string{
-			"knowledge_query",
-			"transport_schedule_lookup",
-		},
 	}
 }
 

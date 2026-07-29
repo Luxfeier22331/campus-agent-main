@@ -48,7 +48,10 @@ Sentry tag 搜索，不替代 OTel `trace_id`/`span_id` 或 Sentry SDK 的原生
 `apps/execution-control/internal/httpapi/temporal_step_projection_writer.go` 当前发出：
 
 - `execution_control.temporal.step_observation`：一次已写入步骤投影的受控观测，包含步骤、
-  activity、队列、耗时、模型用量和终态摘要。
+  activity、队列、耗时和终态摘要。`grounding.prepare` 额外包含受控的 grounding 路由、计数与
+  阶段耗时摘要；候选数和阶段耗时只在本次检索提供对应诊断时发送，重放已有 context 时不补
+  写缺失值；grounding 的非负计数和阶段耗时若缺失或非法则直接省略，不以 `0` 代替；
+  execution-control 不发送模型用量。
 
 新增事件必须先增加真实调用点、字段白名单和测试，再更新本文。
 
@@ -58,8 +61,8 @@ Temporal OpenTelemetry integration，不在本文伪装成仓库自有事件族�
 ### agent-runtime
 
 `apps/agent-runtime` 使用 OpenAI Agents SDK、Langfuse span processor 和 OTLP exporter 记录
-受信任的模型执行 trace。它属于 Langfuse/SDK 观测面，不把模型输入输出复制到 app-api
-的受控产品事件中。具体边界见 `../architecture/system/langfuse.md` 和
+受控的模型执行 trace，并保持 `traceIncludeSensitiveData=false`。它属于 Langfuse/SDK 观测面，
+只发送模型、用量、阶段结果和关联元数据。具体边界见 `../architecture/system/langfuse.md` 和
 `../contracts/langfuse-runtime.md`。
 
 Agent instrumentation 唯一拥有 model generation。execution-control 的聚合 span 只记录编排和
@@ -86,7 +89,7 @@ Agent instrumentation 唯一拥有 model generation。execution-control 的聚�
 app-api 的允许字段由 `RUNTIME_EVENT_ALLOWED_FIELDS_BY_EVENT_TYPE` 唯一维护。主要类别包括：
 
 - 关联标识：`campus.request_id`、`campus.trace_id`；
-- 产品边界：`surface`、`principal_type`、`requested_tool`、`selected_tool`；
+- 产品边界：`surface`、`principal_type`；
 - 结果摘要：`status`、`error_code`、`retryable` 和有界数量；
 - 性能：`duration_ms`、固定 stage timing 字段和汇总 budget state；
 - 发布信息：`environment`、`release`、`occurred_at`。
@@ -96,7 +99,10 @@ execution-control 的允许字段由 `telemetry.Event` 到 OTel attribute 的显
 - `request_id`、`trace_id`、`run_id`、`workflow_id`、`step_id`；
 - `activity_type`、`task_queue`、`activity_attempt`、`step_kind`；
 - `duration_ms`、`schedule_to_start_ms`、`status`、`failure_kind`；
-- `selected_tool`、`fail_close_reason`、`projection_ref`；
+- `tool_name`、`fail_close_reason`、`projection_ref`；
+- `grounding_mode`、`grounding_status`、受控 scope、候选/证据/token/context 计数和
+  `grounding.embedding_ms`、`grounding.search_ms`、`grounding.rerank_ms`、`grounding.pack_ms`；其中
+  `grounding.rerank_ms` 当前固定为零，仅为既有字段兼容，不表示外部 reranker；
 - 编排 release、session/user 与 Langfuse request/run/trace/workflow metadata。
 
 文档不复制完整字段清单；字段增删以 producer 映射和测试为准。
@@ -111,8 +117,8 @@ execution-control 的允许字段由 `telemetry.Event` 到 OTel attribute 的显
 - Cookie、Authorization、JWT、session token、API key 或对象存储凭据；
 - 通过动态属性名绕过白名单的嵌套 payload。
 
-Langfuse 受信任 trace 可以按其合同保存诊断所需的模型输入输出，但仍不得包含认证材料和
-secret。两类数据不能相互复制或混称。
+上述禁止内容同样适用于 Langfuse 运行 trace；Agent receiver 的独立网络边界不授权发送模型
+输入输出、对话、工具原始载荷、记忆/检索正文、认证材料或 secret。
 
 ## Collector 与下游
 
@@ -121,8 +127,9 @@ execution-control 编排 trace 按白名单进入 Axiom 和环境唯一的 Langf
 Hindsight 受信任 trace 只进入该 project。入口通过 NetworkPolicy 隔离，不使用集群内 bearer
 token；Collector 不向 Sentry 导出。
 
-Collector Agent 采集第一方容器日志与 kubelet 指标，并排除 Collector 和 Hindsight stdout。
-Gateway 对 Axiom log、trace 和 metric 使用同一个 ingest token 与三个 dataset；exporter 使用
+同一个 Collector DaemonSet 采集第一方容器日志与 kubelet 指标，并排除 Collector 和 Hindsight
+stdout，同时承担四个受控 OTLP/HTTP 入口与下游路由。Collector 对 Axiom log、trace 和 metric
+使用同一个 ingest token 与三个 dataset；exporter 使用
 内存发送队列和最长 300 秒重试，不依赖 node-local 持久存储。Worker application log 与 Sentry
 SDK 链路不经过 Collector。
 

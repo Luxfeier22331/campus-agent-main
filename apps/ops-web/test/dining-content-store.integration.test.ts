@@ -88,8 +88,8 @@ describe("Dining content PostgreSQL stores", () => {
 	function createAppApiService() {
 		return createPgDiningContentService(
 			{
+				APP_API_DB: { connectionString: postgres.appApiConnectionString },
 				APP_API_DATABASE_SSLMODE: "disable",
-				APP_API_DB_FRESH: { connectionString: postgres.appApiConnectionString },
 				APP_API_ENVIRONMENT: "test",
 			} as Env,
 			{ now },

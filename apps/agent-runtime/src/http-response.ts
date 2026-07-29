@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from "node:crypto";
 import type { PrimaryAgentRunResult, PrimaryAgentRuntime } from "./primary-agent.ts";
 import { agentRuntimeErrorPayload } from "./runtime-errors.ts";
 
@@ -5,15 +6,41 @@ export function agentRunStreamResponse(
 	events: ReturnType<PrimaryAgentRuntime["stream"]>,
 	options: { deadlineSignal?: AbortSignal } = {},
 ): Response {
+	const iterator = events[Symbol.asyncIterator]();
+	let cancelled = false;
+	let iteratorReturnStarted = false;
+	const returnIterator = () => {
+		if (iteratorReturnStarted) {
+			return;
+		}
+		iteratorReturnStarted = true;
+		try {
+			const returned = iterator.return?.();
+			if (returned) {
+				void Promise.resolve(returned).catch(() => undefined);
+			}
+		} catch {
+			// The downstream transport is already gone; iterator cleanup is best effort.
+		}
+	};
 	const stream = new ReadableStream<Uint8Array>({
 		async start(controller) {
+			let exhausted = false;
 			try {
-				for await (const event of events) {
+				for (;;) {
+					const item = await iterator.next();
+					if (cancelled) {
+						return;
+					}
+					if (item.done) {
+						exhausted = true;
+						throw new Error("Agent runtime stream ended without a terminal event.");
+					}
+					const event = item.value;
 					if (event.event === "answer_delta") {
 						controller.enqueue(
 							encodeSseEvent("answer_delta", {
-								schema_version: "agent_runtime_answer_delta.v1",
-								accumulated_text: event.data.accumulatedText,
+								schema_version: "agent_runtime_answer_delta.v2",
 								chunk_index: event.data.chunkIndex,
 								delta: event.data.delta,
 							}),
@@ -21,17 +48,29 @@ export function agentRunStreamResponse(
 						continue;
 					}
 					controller.enqueue(encodeSseEvent("completed", agentRunResultWire(event.data)));
+					return;
 				}
 			} catch (error) {
-				controller.enqueue(
-					encodeSseEvent(
-						"error",
-						agentRuntimeErrorPayload(error, { deadlineSignal: options.deadlineSignal }),
-					),
-				);
+				if (!cancelled) {
+					controller.enqueue(
+						encodeSseEvent(
+							"error",
+							agentRuntimeErrorPayload(error, { deadlineSignal: options.deadlineSignal }),
+						),
+					);
+				}
 			} finally {
-				controller.close();
+				if (!exhausted) {
+					returnIterator();
+				}
+				if (!cancelled) {
+					controller.close();
+				}
 			}
+		},
+		cancel() {
+			cancelled = true;
+			returnIterator();
 		},
 	});
 	return new Response(stream, {
@@ -59,9 +98,9 @@ export function agentRunResultWire(result: PrimaryAgentRunResult) {
 		},
 		terminal_envelope: terminalEnvelopeWire(result.terminalEnvelope),
 		provider_response_id: result.providerResponseId,
-		selected_tools: result.selectedTools,
 		stage_timing: result.stageTiming,
 		tool_results: result.toolResults.map((toolResult) => ({
+			duration_ms: toolResult.durationMs,
 			status: toolResult.status,
 			tool_name: toolResult.toolName,
 			payload_kind: toolResult.payloadKind,
@@ -77,6 +116,7 @@ export function agentRunResultWire(result: PrimaryAgentRunResult) {
 			tools_sha256: result.toolRuntimeFingerprint.toolsSha256,
 			function_schema_version: result.toolRuntimeFingerprint.functionSchemaVersion,
 			function_schema_sha256: result.toolRuntimeFingerprint.functionSchemaSha256,
+			runtime_release: result.toolRuntimeFingerprint.runtimeRelease,
 			workflow_artifact_schema_version: result.toolRuntimeFingerprint.workflowArtifactSchemaVersion,
 			workflow_artifact_registry_version:
 				result.toolRuntimeFingerprint.workflowArtifactRegistryVersion,
@@ -95,11 +135,16 @@ export function agentRunResultWire(result: PrimaryAgentRunResult) {
 }
 
 export function authorized(request: Request, sharedSecret: string): boolean {
+	return authorizedBearerValue(request.headers.get("authorization") ?? "", sharedSecret);
+}
+
+export function authorizedBearerValue(headerValue: string, sharedSecret: string): boolean {
 	if (sharedSecret.trim() === "") {
 		return false;
 	}
-	const header = request.headers.get("authorization") ?? "";
-	return header === `Bearer ${sharedSecret}`;
+	const actual = createHash("sha256").update(headerValue, "utf8").digest();
+	const expected = createHash("sha256").update(`Bearer ${sharedSecret}`, "utf8").digest();
+	return timingSafeEqual(actual, expected);
 }
 
 export function jsonResponse(status: number, body: unknown): Response {
@@ -127,14 +172,5 @@ function terminalEnvelopeWire(envelope: PrimaryAgentRunResult["terminalEnvelope"
 		follow_up_question: envelope.followUpQuestion,
 		reason: envelope.reason,
 		evidence_refs: envelope.evidenceRefs,
-		session_update: envelope.sessionUpdate
-			? {
-					upsert_slots: envelope.sessionUpdate.upsertSlots.map((slot) => ({
-						confirmed: slot.confirmed,
-						name: slot.name,
-						value: slot.value,
-					})),
-				}
-			: undefined,
 	};
 }

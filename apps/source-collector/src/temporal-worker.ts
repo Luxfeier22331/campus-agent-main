@@ -3,7 +3,6 @@ import { OpenTelemetryPlugin } from "@temporalio/interceptors-opentelemetry-v2";
 import { NativeConnection, Worker } from "@temporalio/worker";
 import { createSourceCollectorActivities } from "./activities.ts";
 import { createSourceCollectorObjectStoreFromEnv } from "./object-store.ts";
-import { resolveWorkerDeploymentOptions } from "./worker-versioning.ts";
 
 const DEFAULT_TASK_QUEUE = "campus-agent.ingestion.activity.source-collector";
 
@@ -32,7 +31,6 @@ export async function startSourceCollectorTemporalWorker(
 			shutdownGraceTime: "80 seconds",
 			taskQueue:
 				env.INGESTION_TEMPORAL_SOURCE_COLLECTOR_ACTIVITY_TASK_QUEUE?.trim() || DEFAULT_TASK_QUEUE,
-			workerDeploymentOptions: resolveWorkerDeploymentOptions(env),
 		});
 		await worker.run();
 	} finally {

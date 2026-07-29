@@ -23,9 +23,14 @@ export function registerChatCommandServiceObservabilityRuntimeFactsSuite(): void
 					answerText: "图书馆开放到 22:00。",
 					error: null,
 					followUpQuestion: "",
+					modelUsage: {
+						cachedInputTokens: 10,
+						inputTokens: 120,
+						outputTokens: 42,
+						totalTokens: 162,
+					},
 					observability: {
 						agentRuntime: "openai_agents_sdk",
-						selectedTools: ["knowledge_query"],
 						terminalReason: "answer",
 					},
 					result: {
@@ -46,8 +51,6 @@ export function registerChatCommandServiceObservabilityRuntimeFactsSuite(): void
 							},
 						],
 					},
-					resolvedTargets: ["student_rules"],
-					selectedTool: "knowledge_query",
 					status: "completed",
 					traceId: "trace_0001",
 				}),
@@ -68,7 +71,6 @@ export function registerChatCommandServiceObservabilityRuntimeFactsSuite(): void
 				conversationId: "conv_01HQ",
 				failClosed: null,
 				requestId: "req_0001",
-				selectedTool: null,
 				status: "accepted",
 				supportingSources: [],
 				traceAvailable: true,
@@ -80,7 +82,6 @@ export function registerChatCommandServiceObservabilityRuntimeFactsSuite(): void
 				aclDecision: "allowed",
 				failClosed: false,
 				requestId: "req_0001",
-				selectedTool: "knowledge_query",
 				status: "completed",
 				supportingSources: [
 					{

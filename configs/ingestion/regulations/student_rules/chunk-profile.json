@@ -12,9 +12,9 @@
 	},
 	"cleaning_policy_version": "student_rules_cleaning_v1",
 	"notes": [
-		"Chunk clean_text from canonical document-units.jsonl rows.",
+		"Chunk content from canonical_document_unit.v2 JSONL rows.",
 		"Use a local Qwen3-Embedding-4B tokenizer.json for token budgeting.",
-		"The current Rust kernel performs generic token splitting and same-document short-chunk merging.",
+		"The Rust kernel splits within one section and only merges a short tail within that same section.",
 		"Profile names and notes do not imply structure-specific splitting or answer-role metadata."
 	]
 }

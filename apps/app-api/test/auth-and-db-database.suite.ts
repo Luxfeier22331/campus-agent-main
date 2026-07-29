@@ -32,27 +32,6 @@ export function registerAppApiDatabaseConfigSuite() {
 			});
 		});
 
-		it("uses the fresh Hyperdrive binding for auth-sensitive read-after-write paths when available", () => {
-			const config = buildRuntimeDatabaseConfig(
-				{
-					APP_API_ENVIRONMENT: "staging",
-					APP_API_DB: {
-						connectionString: "postgres://postgres:secret@example.com:5432/campus_agent_cached",
-					},
-					APP_API_DB_FRESH: {
-						connectionString: "postgres://postgres:secret@example.com:5432/campus_agent_fresh",
-					},
-				},
-				{
-					consistency: "fresh",
-				},
-			);
-
-			expect(config.connectionString).toBe(
-				"postgres://postgres:secret@example.com:5432/campus_agent_fresh",
-			);
-		});
-
 		it("preserves Hyperdrive sslmode hints for staging runtime bindings", () => {
 			const config = buildRuntimeDatabaseConfig({
 				APP_API_ENVIRONMENT: "staging",
@@ -208,9 +187,6 @@ export function registerAppApiDatabaseConfigSuite() {
 				APP_API_DB: {
 					connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 				},
-				APP_API_DB_FRESH: {
-					connectionString: "postgres://postgres:secret@example.com:5432/campus_agent_fresh",
-				},
 			};
 
 			const auth = await getAppAuth(env);
@@ -220,9 +196,7 @@ export function registerAppApiDatabaseConfigSuite() {
 			expect(poolErrorHandlers).toHaveLength(1);
 
 			const connectionString = String(createdPoolOptions[0]?.connectionString ?? "");
-			expect(connectionString).toBe(
-				"postgres://postgres:secret@example.com:5432/campus_agent_fresh",
-			);
+			expect(connectionString).toBe("postgres://postgres:secret@example.com:5432/campus_agent");
 			expect(new URL(connectionString).searchParams.get("options")).toBeNull();
 		});
 
@@ -259,9 +233,6 @@ export function registerAppApiDatabaseConfigSuite() {
 				APP_API_DB: {
 					connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 				},
-				APP_API_DB_FRESH: {
-					connectionString: "postgres://postgres:secret@example.com:5432/campus_agent_fresh",
-				},
 			};
 
 			const first = await getAppAuth(env);
@@ -286,9 +257,6 @@ export function registerAppApiDatabaseConfigSuite() {
 				APP_API_DB: {
 					connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 				},
-				APP_API_DB_FRESH: {
-					connectionString: "postgres://postgres:secret@example.com:5432/campus_agent_fresh",
-				},
 			};
 
 			const first = await getAppAuth(env);
@@ -312,9 +280,6 @@ export function registerAppApiDatabaseConfigSuite() {
 				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 				APP_API_DB: {
 					connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
-				},
-				APP_API_DB_FRESH: {
-					connectionString: "postgres://postgres:secret@example.com:5432/campus_agent_fresh",
 				},
 			};
 
@@ -366,9 +331,6 @@ export function registerAppApiDatabaseConfigSuite() {
 				APP_API_DB: {
 					connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 				},
-				APP_API_DB_FRESH: {
-					connectionString: "postgres://postgres:secret@example.com:5432/campus_agent_fresh",
-				},
 			};
 
 			await probeAppAuthRuntime(env);
@@ -381,7 +343,7 @@ export function registerAppApiDatabaseConfigSuite() {
 				connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 			});
 			expect(createdPoolOptions[1]).toMatchObject({
-				connectionString: "postgres://postgres:secret@example.com:5432/campus_agent_fresh",
+				connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 			});
 		});
 	});

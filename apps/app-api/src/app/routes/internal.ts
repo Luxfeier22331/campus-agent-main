@@ -18,20 +18,36 @@ import {
 	parseExecutionFinalizationResponsePayload,
 	type ToolExecutionResponse,
 } from "../../modules/integration";
+import {
+	MAX_EXECUTION_INPUT_BYTES,
+	sha256Text,
+} from "../../modules/runtime-command/service/durable-metadata";
 import { ChatFinalizationConflict } from "../../modules/runtime-command/store-types";
 import { readJsonRequestBody } from "../request-utils";
 import type { AppRequestScope } from "../types";
 
+function hasMatchingSecret(
+	expectedValue: string | null | undefined,
+	providedValue: string | null,
+): boolean {
+	const expected = expectedValue?.trim() ?? "";
+	const provided = providedValue?.trim() ?? "";
+	const expectedDigest = createHash("sha256").update(expected, "utf8").digest();
+	const providedDigest = createHash("sha256").update(provided, "utf8").digest();
+	return Boolean(expected && provided) && timingSafeEqual(expectedDigest, providedDigest);
+}
+
 function authorized(request: Request, env: Env): boolean {
-	const expected = env.APP_API_EXECUTION_SHARED_SECRET?.trim();
-	const provided = request.headers.get("x-app-product-callback-auth")?.trim();
-	if (!(expected && provided)) {
-		return false;
-	}
-	const expectedBytes = Buffer.from(expected);
-	const providedBytes = Buffer.from(provided);
-	return (
-		expectedBytes.length === providedBytes.length && timingSafeEqual(expectedBytes, providedBytes)
+	return hasMatchingSecret(
+		env.APP_API_EXECUTION_SHARED_SECRET,
+		request.headers.get("x-app-product-callback-auth"),
+	);
+}
+
+function executionInputAuthorized(request: Request, env: Env): boolean {
+	return hasMatchingSecret(
+		env.APP_API_EXECUTION_INPUT_SHARED_SECRET,
+		request.headers.get("x-app-execution-auth"),
 	);
 }
 
@@ -115,6 +131,136 @@ export function registerInternalRoutes(input: {
 	createRequestScope: () => AppRequestScope;
 	env: Env;
 }) {
+	input.app.get("/api/internal/execution/runs/:runId/input", async (c) => {
+		if (!executionInputAuthorized(c.req.raw, input.env)) {
+			return jsonResponse(
+				errorEnvelope({
+					code: "internal_auth_required",
+					message: "Execution input credential required.",
+					retryable: false,
+				}),
+				{ status: 401 },
+			);
+		}
+		const runId = c.req.param("runId").trim();
+		if (!runId) {
+			return jsonResponse(
+				errorEnvelope({
+					code: "invalid_request",
+					message: "run_id is required.",
+					retryable: false,
+				}),
+				{ status: 400 },
+			);
+		}
+		const service = input.createRequestScope().resolveChatCommandService();
+		if (!service.readExecutionInput) {
+			return jsonResponse(
+				errorEnvelope({
+					code: "dependency_not_ready",
+					message: "Execution input storage is not configured.",
+					retryable: true,
+				}),
+				{ status: 503 },
+			);
+		}
+		const frozen = await service.readExecutionInput(runId);
+		if (
+			!frozen ||
+			frozen.executionInputReleasedAt ||
+			(frozen.executionInputJson === null && frozen.executionInputSha256 === null)
+		) {
+			return jsonResponse(
+				errorEnvelope({
+					code: "execution_input_not_found",
+					message: "Execution input not found.",
+					retryable: false,
+				}),
+				{ status: 404 },
+			);
+		}
+		const size =
+			frozen.executionInputJson === null
+				? 0
+				: new TextEncoder().encode(frozen.executionInputJson).byteLength;
+		if (
+			frozen.executionInputJson === null ||
+			frozen.executionInputSha256 === null ||
+			!/^[a-f0-9]{64}$/u.test(frozen.executionInputSha256) ||
+			size > MAX_EXECUTION_INPUT_BYTES ||
+			sha256Text(frozen.executionInputJson) !== frozen.executionInputSha256
+		) {
+			return jsonResponse(
+				errorEnvelope({
+					code: "execution_input_conflict",
+					message: "Frozen execution input is unavailable or inconsistent.",
+					retryable: false,
+				}),
+				{ status: 409 },
+			);
+		}
+		return new Response(frozen.executionInputJson, {
+			headers: {
+				"cache-control": "no-store",
+				"content-type": "application/json; charset=utf-8",
+			},
+			status: 200,
+		});
+	});
+
+	input.app.delete("/api/internal/execution/runs/:runId/input", async (c) => {
+		if (!executionInputAuthorized(c.req.raw, input.env)) {
+			return jsonResponse(
+				errorEnvelope({
+					code: "internal_auth_required",
+					message: "Execution input credential required.",
+					retryable: false,
+				}),
+				{ status: 401 },
+			);
+		}
+		const runId = c.req.param("runId").trim();
+		if (!runId) {
+			return jsonResponse(
+				errorEnvelope({
+					code: "invalid_request",
+					message: "run_id is required.",
+					retryable: false,
+				}),
+				{ status: 400 },
+			);
+		}
+		const service = input.createRequestScope().resolveChatCommandService();
+		if (!service.releaseExecutionInput) {
+			return jsonResponse(
+				errorEnvelope({
+					code: "dependency_not_ready",
+					message: "Execution input storage is not configured.",
+					retryable: true,
+				}),
+				{ status: 503 },
+			);
+		}
+		const outcome = await service.releaseExecutionInput({
+			releasedAt: new Date().toISOString(),
+			runId,
+		});
+		if (outcome === "not_terminal") {
+			return jsonResponse(
+				errorEnvelope({
+					code: "execution_input_not_terminal",
+					message: "Execution input cannot be released before product finalization.",
+					retryable: true,
+				}),
+				{ status: 409 },
+			);
+		}
+		return new Response(null, {
+			headers: { "cache-control": "no-store" },
+			status: 204,
+		});
+	});
+
 	input.app.post("/api/internal/staging-smoke/auth/session", async (c) => {
 		if (resolveEnvironment(input.env) !== "staging") {
 			return routeErrorResponse(
@@ -201,21 +347,39 @@ export function registerInternalRoutes(input: {
 		const body = requireObject(await c.req.json().catch(() => null));
 		const completedAt = body?.completed_at;
 		const finalizationFingerprint = body?.finalization_fingerprint;
-		const response = requireObject(body?.response);
+		const responseJson = body?.response_json;
 		const runId = c.req.param("runId").trim();
 		if (
 			typeof completedAt !== "string" ||
 			Number.isNaN(Date.parse(completedAt)) ||
 			typeof finalizationFingerprint !== "string" ||
 			!finalizationFingerprint.trim() ||
-			!response ||
+			typeof responseJson !== "string" ||
+			responseJson.length === 0 ||
+			(body !== null && "response" in body) ||
 			!runId ||
-			finalizationFingerprint.trim() !== sha256(`${runId}\0${JSON.stringify(response)}`)
+			finalizationFingerprint.trim() !== sha256(`${runId}\0${responseJson}`)
 		) {
 			return jsonResponse(
 				errorEnvelope({
 					code: "invalid_request",
 					message: "Chat product finalization is invalid.",
+					retryable: false,
+				}),
+				{ status: 400 },
+			);
+		}
+		let response: Record<string, unknown> | null;
+		try {
+			response = requireObject(JSON.parse(responseJson));
+		} catch {
+			response = null;
+		}
+		if (!response) {
+			return jsonResponse(
+				errorEnvelope({
+					code: "invalid_request",
+					message: "Chat product finalization response is invalid JSON object.",
 					retryable: false,
 				}),
 				{ status: 400 },

@@ -34,36 +34,8 @@ func hindsightRecallQuery(request memoryruntime.RecallRequest) string {
 	return builder.String()
 }
 
-func hindsightReflectQuery(request memoryruntime.ReflectRequest) string {
-	query := strings.TrimSpace(request.Query)
-	if len(request.SessionSlots) == 0 {
-		return query
-	}
-	keys := make([]string, 0, len(request.SessionSlots))
-	for key, value := range request.SessionSlots {
-		if strings.TrimSpace(key) != "" && strings.TrimSpace(value) != "" {
-			keys = append(keys, key)
-		}
-	}
-	sort.Strings(keys)
-	if len(keys) == 0 {
-		return query
-	}
-	var builder strings.Builder
-	builder.WriteString(query)
-	builder.WriteString("\n\n已确认上下文:")
-	for _, key := range keys {
-		builder.WriteString("\n- ")
-		builder.WriteString(strings.TrimSpace(key))
-		builder.WriteString(": ")
-		builder.WriteString(strings.TrimSpace(request.SessionSlots[key]))
-	}
-	return builder.String()
-}
-
 func hindsightContextItems(
 	results []hindsightRecallResult,
-	tool string,
 	limit int,
 ) []memoryruntime.ContextItem {
 	items := make([]memoryruntime.ContextItem, 0, len(results))
@@ -77,7 +49,6 @@ func hindsightContextItems(
 		updatedAt := firstNonEmpty(result.OccurredEnd, result.OccurredStart, result.MentionedAt)
 		memoryType := defaultString(strings.TrimSpace(result.Type), "experience")
 		items = append(items, memoryruntime.ContextItem{
-			Tool:            tool,
 			CompactText:     truncateUTF8Bytes(strings.TrimSpace(result.Text), memoryruntime.MaxCompactTextBytes),
 			MemoryID:        strings.TrimSpace(result.ID),
 			MemoryType:      memoryType,
@@ -99,24 +70,6 @@ func truncateUTF8Bytes(value string, limit int) string {
 		end--
 	}
 	return string(bytes[:end])
-}
-
-func hindsightReflectContextItems(results []hindsightReflectFact) []memoryruntime.ContextItem {
-	items := make([]memoryruntime.ContextItem, 0, len(results))
-	for _, result := range results {
-		if strings.TrimSpace(result.ID) == "" || strings.TrimSpace(result.Text) == "" {
-			continue
-		}
-		updatedAt := firstNonEmpty(result.OccurredEnd, result.OccurredStart)
-		items = append(items, memoryruntime.ContextItem{
-			Tool:        "memory_reflect",
-			CompactText: strings.TrimSpace(result.Text),
-			MemoryID:    strings.TrimSpace(result.ID),
-			MemoryType:  defaultString(strings.TrimSpace(result.Type), "experience"),
-			UpdatedAt:   updatedAt,
-		})
-	}
-	return items
 }
 
 func hindsightContextBlock(items []memoryruntime.ContextItem, maxChars int) string {

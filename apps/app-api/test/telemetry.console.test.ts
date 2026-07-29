@@ -43,7 +43,6 @@ describe("console runtime event sink", () => {
 				actor: { principalType: "campus_member", subject: "user_01" },
 				conversationId: "conv_01",
 				requestId: "req_01",
-				requestedTool: null,
 				status: "accepted",
 				surface: "campus_web",
 				traceId: "trace_01",

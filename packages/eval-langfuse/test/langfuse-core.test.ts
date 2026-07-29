@@ -67,7 +67,7 @@ function repoObservation(input: { id?: string; metadata?: Record<string, unknown
 			request_id: "req-001",
 			run_id: "run-001",
 			schedule_to_start_ms: 1,
-			selected_tool: "",
+			tool_name: "",
 			status: "completed",
 			step_id: "agent.primary",
 			step_kind: "agent",
@@ -349,16 +349,12 @@ describe("eval dataset manifest builder", () => {
 			items.find((item) => metadataCaseId(item) === "routing-knowledge-student-rules"),
 		).toMatchObject({
 			expectedOutput: {
-				reference_tool_calls: [
-					{ args: {}, name: "knowledge_query" },
-					{
-						args: { include_history: false, target: "student_rules" },
-						name: "knowledge_search",
-					},
-				],
+				expected_grounding_mode: "single_scope",
+				expected_outcome: "answer",
+				reference_tool_calls: [],
 			},
 			input: { query: "学生申请缓考需要满足什么条件？" },
-			metadata: { argument_mode: "eval_safe_args" },
+			metadata: { argument_mode: "name_only" },
 		});
 	});
 
@@ -391,18 +387,15 @@ describe("eval dataset manifest builder", () => {
 			datasetName: "campus/rag/student_rules",
 			expectedOutput: {
 				expected_outcome: "answer",
-				expected_targets: ["student_rules"],
+				expected_document_scopes: ["student_rules"],
+				expected_grounding: {
+					document_scopes: ["student_rules"],
+					minimum_relevant_context_count: 1,
+				},
 				metric_applicability: {
 					context_recall: true,
 				},
 				reference_context_ids: ["handbook:synthetic-medical-policy"],
-				reference_tool_calls: [
-					{ args: {}, name: "knowledge_query" },
-					{
-						args: { include_history: false, target: "student_rules" },
-						name: "knowledge_search",
-					},
-				],
 			},
 			input: {
 				case_id: "student-rules-medical-version",
@@ -411,7 +404,7 @@ describe("eval dataset manifest builder", () => {
 				user_input: "示例学生医疗报销按什么办法办理？",
 			},
 			metadata: {
-				argument_mode: "eval_safe_args",
+				argument_mode: "name_only",
 				case_id: "student-rules-medical-version",
 				asset_hash: "asset-hash",
 				source_git_head: "test-head",
@@ -736,11 +729,10 @@ describe("Langfuse trace evidence", () => {
 						repoObservation({
 							id: "obs-001",
 							metadata: {
-								activity_type: "knowledge",
-								selected_tool: "knowledge_query",
-								step_id: "step-001",
+								activity_type: "retrieval",
+								step_id: "grounding.prepare",
 								step_kind: "activity",
-								task_queue: "knowledge",
+								task_queue: "agent",
 							},
 						}),
 					],

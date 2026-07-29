@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"go.opentelemetry.io/otel"
@@ -76,6 +77,57 @@ func TestHindsightHTTPClientHealthRejectsMissingNativeLLMTracing(t *testing.T) {
 	err := client.HealthCheck(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "llm_trace=false") {
 		t.Fatalf("error = %v, want missing native tracing diagnostic", err)
+	}
+}
+
+func TestHindsightHTTPClientDoesNotFollowRedirects(t *testing.T) {
+	for _, testCase := range []struct {
+		name     string
+		location func(targetURL string) string
+	}{
+		{
+			name: "same origin",
+			location: func(_ string) string {
+				return "/redirect-target"
+			},
+		},
+		{
+			name: "cross origin",
+			location: func(targetURL string) string {
+				return targetURL
+			},
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			var targetRequests atomic.Int32
+			target := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
+				targetRequests.Add(1)
+				response.WriteHeader(http.StatusOK)
+			}))
+			defer target.Close()
+
+			source := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+				if request.URL.Path == "/redirect-target" {
+					targetRequests.Add(1)
+					response.WriteHeader(http.StatusOK)
+					return
+				}
+				response.Header().Set("location", testCase.location(target.URL))
+				response.WriteHeader(http.StatusTemporaryRedirect)
+			}))
+			defer source.Close()
+
+			client := newHindsightHTTPClient(hindsightClientOptions{
+				apiSecret: "hindsight-secret",
+				baseURL:   source.URL,
+			})
+			if err := client.HealthCheck(context.Background()); err == nil {
+				t.Fatal("hindsight health check succeeded through redirect")
+			}
+			if got := targetRequests.Load(); got != 0 {
+				t.Fatalf("redirect target received %d requests, want 0", got)
+			}
+		})
 	}
 }
 

@@ -3,6 +3,7 @@ import type {
 	AcceptRequestWrite,
 	FinalizeRequestWrite,
 	FinalizeTurnDispatchWrite,
+	FrozenChatAdmissionWrite,
 	RequestObservabilityFactWrite,
 	TurnDispatchMemorySnapshot,
 	TurnDispatchWrite,
@@ -44,6 +45,7 @@ export function buildChatMessageInsertValues(
 export function buildAcceptTurnDispatchInsertValues(
 	input: TurnDispatchWrite,
 	memorySnapshot: TurnDispatchMemorySnapshot | null,
+	frozenAdmission: FrozenChatAdmissionWrite,
 ) {
 	return {
 		assistantMessageId: input.assistantMessageId,
@@ -63,10 +65,14 @@ export function buildAcceptTurnDispatchInsertValues(
 		requestFingerprintSha256: input.requestFingerprintSha256,
 		traceId: input.traceId,
 		runId: input.runId,
+		admissionStatus: "pending_admission",
+		workflowId: frozenAdmission.workflowId,
+		admissionInputJson: frozenAdmission.admissionInputJson,
+		admissionInputSha256: frozenAdmission.admissionInputSha256,
+		executionInputJson: frozenAdmission.executionInputJson,
+		executionInputSha256: frozenAdmission.executionInputSha256,
+		executionInputReleasedAt: null,
 		safetyIdentifier: input.safetyIdentifier ?? null,
-		requestedTool: input.requestedTool,
-		resolvedTargetsJson: input.resolvedTargets,
-		selectedTool: null,
 		status: input.status,
 		errorCode: null,
 		completedAt: null,
@@ -77,10 +83,8 @@ export function buildAcceptTurnDispatchInsertValues(
 
 export function buildFinalizeTurnDispatchUpdateValues(input: FinalizeTurnDispatchWrite) {
 	return {
-		selectedTool: input.selectedTool,
 		status: input.status,
 		errorCode: input.errorCode,
-		resolvedTargetsJson: input.resolvedTargets,
 		runId: input.runId,
 		safetyIdentifier: input.safetyIdentifier ?? null,
 		completedAt: input.completedAt ? new Date(input.completedAt) : null,
@@ -113,11 +117,8 @@ function buildRequestObservabilityFactRecord(input: RequestObservabilityFactWrit
 		projectionLagMs: input.projectionLagMs,
 		requestId: input.requestId,
 		safetyIdentifier: input.safetyIdentifier ?? null,
-		requestedTool: input.requestedTool,
-		resolvedTargetsJson: input.resolvedTargets,
 		refusalClass: input.refusalClass,
 		semanticOutcome: input.semanticOutcome,
-		selectedTool: input.selectedTool,
 		startedAt: new Date(input.startedAt),
 		status: input.status,
 		surface: input.surface,

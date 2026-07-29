@@ -13,12 +13,14 @@ func temporalFinalizationResultPayload(
 	input temporalruntime.WriteFinalizationActivityInput,
 	run execution.DurableRun,
 ) map[string]any {
-	return map[string]any{
+	payload := map[string]any{
 		"agent_result_ref":   input.AgentResultRef,
 		"finalized_response": finalizedResponse,
 		"request_id":         run.RequestID,
 		"trace_id":           run.TraceID,
 	}
+	payload["finalization_fingerprint_sha256"] = sha256AnyValue(payload)
+	return payload
 }
 
 func (s *Server) appendTemporalFinalizationCompletedEvents(

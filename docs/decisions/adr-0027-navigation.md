@@ -13,7 +13,7 @@ status: accepted
 
 ## 决策
 
-navigation 是独立的未来领域，不属于 knowledge search。仓库拥有权威校园地点与路线事实；
+navigation 是独立的未来领域，不属于机构知识检索。仓库拥有权威校园地点与路线事实；
 外部地图供应商只能提供可替换的 geocoding、display 或 secondary-route adapter。
 
 用户提供的位置是 request-scoped input。原始坐标不得成为 identity、authorization 或

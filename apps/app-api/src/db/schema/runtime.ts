@@ -16,9 +16,6 @@ export const requestObservabilityFact = runtime.table(
 		entitlementSnapshotId: text("entitlement_snapshot_id"),
 		policyProjectionVersion: text("policy_projection_version"),
 		policyReason: text("policy_reason"),
-		requestedTool: text("requested_tool"),
-		resolvedTargetsJson: jsonb("resolved_targets_json").$type<string[]>().notNull().default([]),
-		selectedTool: text("selected_tool"),
 		status: text("status").notNull(),
 		errorCode: text("error_code"),
 		startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
@@ -60,9 +57,6 @@ export const requestObservabilityFact = runtime.table(
 			table.surface,
 			table.startedAt,
 		),
-		selectedToolStartedAtIndex: index(
-			"runtime_request_observability_selected_tool_started_at_idx",
-		).on(table.selectedTool, table.startedAt),
 		principalTypeStartedAtIndex: index(
 			"runtime_request_observability_principal_type_started_at_idx",
 		).on(table.principalType, table.startedAt),

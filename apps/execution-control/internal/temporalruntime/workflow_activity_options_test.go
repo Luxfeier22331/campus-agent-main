@@ -5,6 +5,24 @@ import (
 	"time"
 )
 
+func TestActivityOptionsWaitForCancellationBeforeFinalization(t *testing.T) {
+	base := defaultActivityOptions()
+	if !base.WaitForCancellation {
+		t.Fatal("base activities must wait for cancellation confirmation")
+	}
+	for name, options := range map[string]struct {
+		wait bool
+	}{
+		"primary-agent": {wait: primaryAgentActivityOptions(base).WaitForCancellation},
+		"memory":        {wait: memoryActivityOptions(base, 90).WaitForCancellation},
+		"finalizer":     {wait: unlimitedFinalizerActivityOptions(15 * time.Second).WaitForCancellation},
+	} {
+		if !options.wait {
+			t.Fatalf("%s activity dropped WaitForCancellation", name)
+		}
+	}
+}
+
 func TestPrimaryAgentActivityUsesRealProviderTimeoutWindow(t *testing.T) {
 	base := defaultActivityOptions()
 	base.TaskQueue = "default"
@@ -18,6 +36,12 @@ func TestPrimaryAgentActivityUsesRealProviderTimeoutWindow(t *testing.T) {
 	}
 	if options.HeartbeatTimeout != 30*time.Second {
 		t.Fatalf("primary agent HeartbeatTimeout = %s, want 30s", options.HeartbeatTimeout)
+	}
+	if options.RetryPolicy == nil || options.RetryPolicy.MaximumAttempts != 0 {
+		t.Fatalf("primary agent retry policy = %#v, want receipt-fenced unlimited repair", options.RetryPolicy)
+	}
+	if base.RetryPolicy == nil || base.RetryPolicy.MaximumAttempts != 3 {
+		t.Fatalf("base retry policy = %#v, want isolated three-attempt policy", base.RetryPolicy)
 	}
 }
 

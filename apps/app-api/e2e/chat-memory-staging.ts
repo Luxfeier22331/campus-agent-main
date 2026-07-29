@@ -82,8 +82,8 @@ export interface ChatMemoryE2eStagingResult {
 		chat: ReadyzProbe | null;
 	};
 	recall: {
-		memoryRef: string;
-		selectedMemoryCount: number;
+		outcome: "matched";
+		projectionRef: string;
 		status: string;
 		stepId: string;
 	} | null;
@@ -368,44 +368,36 @@ async function submitStream(input: {
 	throw new Error("Memory chat submit stream ended before request.completed.");
 }
 
-function readNumber(value: Record<string, unknown>, field: string): number | null {
-	const raw = value[field];
-	return typeof raw === "number" && Number.isFinite(raw) ? raw : null;
-}
-
 function readMemoryRecallProof(
 	trajectory: RuntimeStepTrajectory,
 ): NonNullable<ChatMemoryE2eStagingResult["recall"]> {
-	const step = trajectory.steps.find((candidate) => candidate.stepId === "memory.recall");
+	const stepId = "sdk_tool.execute.personal_memory_recall.1";
+	const step = trajectory.steps.find((candidate) => candidate.stepId === stepId);
 	if (!step) {
-		throw new Error("Run steps are missing memory.recall.");
+		throw new Error(`Run steps are missing ${stepId}.`);
 	}
 	if (step.status !== "completed") {
-		throw new Error(`memory.recall status is ${step.status}, expected completed.`);
+		throw new Error(`${stepId} status is ${step.status}, expected completed.`);
 	}
 	const result = trajectory.results.find(
-		(candidate) =>
-			candidate.stepId === "memory.recall" && candidate.resultKind === "memory_recall_result",
+		(candidate) => candidate.stepId === stepId && candidate.resultKind === "typed_tool_result",
 	);
 	if (!result) {
-		throw new Error("Run steps are missing memory_recall_result.");
+		throw new Error("Run steps are missing the personal memory typed_tool_result.");
 	}
-	const memoryRef =
-		typeof result.sanitizedPayload.memory_ref === "string"
-			? result.sanitizedPayload.memory_ref.trim()
-			: "";
-	if (!memoryRef) {
-		throw new Error("memory_recall_result is missing memory_ref.");
+	if (result.sanitizedPayload.tool_name !== "personal_memory_recall") {
+		throw new Error("Personal memory tool result has an invalid tool_name.");
 	}
-	const selectedMemoryCount =
-		readNumber(result.sanitizedPayload, "selected_memory_count") ??
-		readNumber(step.sanitizedPayload, "selected_memory_count");
-	if (!(typeof selectedMemoryCount === "number" && selectedMemoryCount > 0)) {
-		throw new Error("memory_recall_result did not select any memory.");
+	if (result.sanitizedPayload.outcome !== "matched") {
+		throw new Error("Personal memory tool did not match the staged memory.");
+	}
+	const projectionRef = result.projectionRef.trim();
+	if (!projectionRef) {
+		throw new Error("Personal memory tool result is missing projectionRef.");
 	}
 	return {
-		memoryRef,
-		selectedMemoryCount,
+		outcome: "matched",
+		projectionRef,
 		status: step.status,
 		stepId: step.stepId,
 	};

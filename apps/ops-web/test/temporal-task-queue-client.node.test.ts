@@ -11,7 +11,7 @@ describe("Temporal task queue client", () => {
 				queues: [
 					{
 						backlogCount: 2,
-						name: "campus-agent.workflow",
+						name: "campus-agent.workflow.v3",
 						oldestTaskAgeSeconds: 1.25,
 						pollerCount: 1,
 						type: "workflow",
@@ -42,7 +42,7 @@ describe("Temporal task queue client", () => {
 			backlogJson: { count: 2, state: "observed" },
 			oldestTaskAgeJson: { ms: 1250, state: "observed" },
 			pollerCount: 1,
-			taskQueue: "campus-agent.workflow",
+			taskQueue: "campus-agent.workflow.v3",
 		});
 	});
 

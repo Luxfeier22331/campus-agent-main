@@ -18,7 +18,13 @@ PostgreSQL run projection、Hindsight bank 或仓库 dataset 真相。
 ## Runtime 集成
 
 execution-control 使用 Go OTel SDK，并把 trace/metric 发送到 Collector orchestration receiver
-`4319`。Collector 只把名称匹配 `execution_control.*` 的有界 trace 属性发送到环境 project。
+`4319`。Temporal workflow、core activity 和 agent activity worker 均使用该入口。Collector 只把
+名称匹配 `execution_control.*` 的有界 trace 属性发送到环境 project。
+
+`grounding.prepare` 是 execution-control 的编排 span，不是 SDK tool 或 model generation。它可以
+包含 grounding mode/status、受控 scope、候选/证据/token/context 计数和 embedding/search/RRF/pack
+阶段耗时；这些字段只描述检索准备摘要，不包含 query、正文、证据内容或 provider 原始响应。
+历史 `grounding.rerank_ms` 字段仅作为零值兼容观测，不表示外部 reranker。
 
 agent-runtime 使用：
 
@@ -49,27 +55,30 @@ NetworkPolicy、Pod selector 和目标端口共同约束，NetworkPolicy 不匹�
 
 ## Trace 数据
 
-启用后，官方 Agent instrumentation 可以记录模型输入输出。W3C trace ID 是产品投影和评测任务
+Agent producer 必须保持 `traceIncludeSensitiveData=false`。W3C trace ID 是产品投影和评测任务
 使用的关联键，但关联字段不证明 Langfuse 已成功接收。
 
-Agent 与 execution-control 的受信任 trace 可以包含：
+Agent 与 execution-control 的受信任 trace 可以包含不同范围的数据：
 
-- user/session 关联；
-- model input/output；
-- 有界 memory context；
-- 已授权 retrieval facts；
-- tool/agent observation 和 usage。
+- Agent Runtime：user/session 关联、model/provider 标识、token usage、agent/tool observation 和阶段结果；
+- execution-control：编排关联标识、步骤状态、耗时、grounding 摘要和有界 metadata；
+- execution-control 不声明 model、token 或 generation 语义，避免复制 Agent Runtime 的 generation。
 
 同一 project 可以包含 Hindsight 处理所需的受信任记忆 trace，但 `memory.call` 父 span 只
 允许 `memory.provider` 与 `http.request.method`。不得将 URL、bank/document/operation ID 或正文
 添加到该父 span。
 
-任何 trace 都不得包含 Authorization、Cookie、API key、密码、数据库凭据、对象存储 secret
-或其他认证材料。Collector 至少按 credential 名称模式删除属性；producer 仍必须在源头避免发送。
+任何运行 trace 都不得包含 prompt、模型输入输出、对话、工具原始载荷、memory/retrieval 正文、
+provider 原始响应、Authorization、Cookie、API key、密码、数据库凭据、对象存储 secret 或其他
+认证材料。Collector 的属性清理只是纵深防御，producer 必须在源头阻止正文进入 span。
 
-app-api、Ops Web、Axiom 和 Sentry 不复制 trace 正文；它们只保存关联标识、model/provider
-identity、prompt version 摘要和 stage timing。`tool_trajectory.v2` 与
-`agent_runtime_eval_projection.v2` 仍由仓库合同拥有。
+app-api、Ops Web、Axiom 和 Sentry 也只保存关联标识、model/provider identity、prompt version
+摘要和 stage timing。`tool_trajectory.v3` 与
+`agent_runtime_eval_projection.v3` 仍由仓库合同拥有。
+
+Langfuse dataset 是独立评测数据生命周期。经评审导入的版本化 case 可以按评测合同包含必要
+输入和 reference；不得从生产 trace 正文隐式生成 dataset item，也不得借 dataset API 绕过运行
+trace 的正文禁令。
 
 ## Hindsight 用户关联
 
@@ -102,8 +111,8 @@ execution-control core worker 通过以下配置访问环境 project 的 Public 
 maintenance client 使用 HTTP Basic auth。owner erase 在同一 project 中先执行精确
 `GET /api/public/traces?userId=<command.UserID>&toTimestamp=<command.source_updated_at>`，再执行
 精确 `GET /api/public/traces?userId=<retired-generation-bank-id>`。
-runtime 查询故意覆盖该 user 在 command 上界内的全部 trace，因为任一 Agent trace 都可能包含
-memory context；不得按 conversation、request、tag 或 observation 名称缩窄删除范围，也不得
+runtime 查询故意覆盖该 user 在 command 上界内的全部 trace，因为这些 trace 仍是用户关联数据；
+不得按 conversation、request、tag 或 observation 名称缩窄删除范围，也不得
 省略时间上界而删除命令之后的新 trace。Hindsight 查询不加时间上界，因为 generation fence 已
 阻止已退役 bank 接收新调用，验收目标是该 bank 全部清空。
 purge 使用 `fields=core`、`orderBy=timestamp.asc`，每页最多取 100 个 trace ID，最多读取 1000 页；
@@ -134,7 +143,7 @@ endpoint、credential、derived userId、trace ID 或 response body 序列化到
 评测通过真实产品路径执行。每个目标 turn：
 
 1. 可选 setup turn 在同一 conversation 中依次执行；
-2. runner 读取完成 run 的 `agent_runtime_eval_projection.v2`；
+2. runner 读取完成 run 的 `agent_runtime_eval_projection.v3`；
 3. 从 product trace identity 解析 runtime Langfuse trace；
 4. 调用 `/api/public/dataset-run-items` 关联真实 trace；
 5. 保留 Langfuse 返回的 dataset run identity；
@@ -153,6 +162,7 @@ observation，若无 observation 则指向一个 trace。dataset item/run ID 不
 - Ragas Agent 与工具指标；
 - `execution.outcome_match`；
 - `retrieval.forbidden_context_absent`。
+- `routing.grounding_mode_match`。
 
 未知名称、缺失关联、非有限数值或 Langfuse 写入失败必须使发布命令失败。metadata 只允许标量
 白名单，答案和 context text 不进入 score metadata。

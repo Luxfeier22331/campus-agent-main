@@ -125,9 +125,13 @@ type ChatRequest = {
 
 规则：
 
-- accept transaction 和 durable run 创建完成后才能发送 `request.accepted`，并携带 `runId`；
+- 产品 accept transaction 提交并取得可管理的稳定 `runId` 后发送 `request.accepted`；该事件不
+  表示 Temporal 已排队，app-api 只把持久 `run.queued` 证据转换为 `execution.queued`，不能自行
+  合成排队状态；
 - `answer.delta` 只来自持久 `run.answer_delta` 投影，用于显示，不代表最终答案；
 - finalization transaction 完成后才能发送 terminal event；
+- execution-control 的浏览器 `run.canceled` 只有在产品取消终态提交后才转换为
+  `request.cancelled`；
 - 浏览器断开只停止消费，不取消 finalization；
 - 已发送 delta 后，终态不得再次把完整答案伪造成 delta。
 
@@ -135,8 +139,11 @@ type ChatRequest = {
 
 ### 取消
 
-`POST /api/chat/runs/:runId/cancel` 只允许当前用户取消未终态 run。终态返回类型化、不可重试的
-错误；成功请求不生成答案。
+`POST /api/chat/runs/:runId/cancel` 只允许当前用户取消未终态 run。终态返回
+`run_already_terminal` 类型化、不可重试错误；成功固定返回 `202`，只表示取消命令已被产品侧持久
+接收，不表示 run 已取消。客户端必须保留 active run 与事件订阅，只有
+`request.cancelled`、`request.completed` 或 `request.failed` 才能结束本地运行状态；成功请求不生成
+答案。
 
 ### 摘要
 
@@ -146,14 +153,15 @@ type ChatRequest = {
 ### 事件列表
 
 `GET /api/chat/runs/:runId/events?after_sequence=<n>` 返回 cursor 后 browser-visible 持久事件，
-不创建请求或重新执行。
+不创建请求或重新执行。app-api 使用 execution-control 的 `next_sequence` 推进内部读取位置，
+不能以过滤后最后一个 browser event 的 sequence 代替。
 
 ### 事件续传
 
 `GET /api/chat/runs/:runId/events/stream?after_sequence=<n>` 对既有 run 建立有界连续订阅：
 
 - 不创建请求、不重新执行或重新 finalization；
-- 浏览器从最后已消费 sequence 恢复；
+- 浏览器从服务端返回的持久 sequence 恢复；
 - terminal completed 只通知完成，最终答案从 conversation detail 的 app-owned projection 读取；
 - 空流表示订阅预算内没有新事件，是合法结果。
 

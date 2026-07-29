@@ -8,57 +8,63 @@ import (
 	"strings"
 )
 
-const defaultQueryServingTargetsPath = "configs/runtime/query-serving-targets.v1.json"
-const queryServingTargetsSchemaVersion = "query-serving-targets-v1"
+const defaultQueryServingTargetsPath = "configs/runtime/query-serving-targets.v3.json"
+const queryServingTargetsSchemaVersion = "query-serving-targets-v3"
 
-type QueryTarget struct {
-	Collection        string
-	Description       string
-	RetrievalTopK     int
-	ServingConfigPath string
-	Target            string
+type DocumentScope struct {
+	CandidateTopK       int
+	Collection          string
+	Corpus              string
+	Description         string
+	MaxEvidenceSections int
+	RoutingTerms        []string
+	Scope               string
+	ServingConfigPath   string
 }
 
 type queryServingTargetsDocument struct {
 	SchemaVersion string                     `json:"schema_version"`
-	Targets       []queryServingTargetPolicy `json:"targets"`
+	Targets       []queryServingTargetPolicy `json:"scopes"`
 }
 
 type queryServingTargetPolicy struct {
-	Collection        string `json:"collection"`
-	Description       string `json:"description"`
-	RetrievalTopK     int    `json:"retrieval_top_k"`
-	ServingConfigPath string `json:"serving_config_path"`
-	Target            string `json:"target"`
+	CandidateTopK       int      `json:"candidate_top_k"`
+	Collection          string   `json:"collection"`
+	Corpus              string   `json:"corpus"`
+	Description         string   `json:"description"`
+	MaxEvidenceSections int      `json:"max_evidence_sections"`
+	RoutingTerms        []string `json:"routing_terms"`
+	Scope               string   `json:"scope"`
+	ServingConfigPath   string   `json:"serving_config_path"`
 }
 
-func QueryServingTargets(policyPath string) ([]QueryTarget, error) {
+func QueryServingScopes(policyPath string) ([]DocumentScope, error) {
 	document, err := loadQueryServingTargets(policyPath)
 	if err != nil {
 		return nil, err
 	}
-	targets := make([]QueryTarget, 0, len(document.Targets))
+	targets := make([]DocumentScope, 0, len(document.Targets))
 	for _, policy := range document.Targets {
-		targets = append(targets, QueryTarget(policy))
+		targets = append(targets, DocumentScope(policy))
 	}
 	return targets, nil
 }
 
-func ResolveQueryTarget(target string, policyPath string) (QueryTarget, error) {
-	targets, err := QueryServingTargets(policyPath)
+func ResolveDocumentScope(scope string, policyPath string) (DocumentScope, error) {
+	targets, err := QueryServingScopes(policyPath)
 	if err != nil {
-		return QueryTarget{}, err
+		return DocumentScope{}, err
 	}
-	normalizedTarget := strings.TrimSpace(target)
-	if normalizedTarget == "" {
-		return QueryTarget{}, fmt.Errorf("knowledge search target is required")
+	normalizedScope := strings.TrimSpace(scope)
+	if normalizedScope == "" {
+		return DocumentScope{}, fmt.Errorf("document scope is required")
 	}
 	for _, candidate := range targets {
-		if candidate.Target == normalizedTarget {
+		if candidate.Scope == normalizedScope {
 			return candidate, nil
 		}
 	}
-	return QueryTarget{}, fmt.Errorf("knowledge search target %s is not query-enabled", normalizedTarget)
+	return DocumentScope{}, fmt.Errorf("document scope %s is not query-enabled", normalizedScope)
 }
 
 func loadQueryServingTargets(policyPath string) (queryServingTargetsDocument, error) {
@@ -90,16 +96,22 @@ func loadQueryServingTargets(policyPath string) (queryServingTargetsDocument, er
 	seen := map[string]bool{}
 	for index, target := range document.Targets {
 		target = normalizeTargetPolicy(target)
-		if target.Target == "" || target.Collection == "" || target.Description == "" || target.ServingConfigPath == "" {
+		if target.Scope == "" || target.Corpus == "" || target.Collection == "" || target.Description == "" || target.ServingConfigPath == "" || len(target.RoutingTerms) == 0 {
 			return queryServingTargetsDocument{}, fmt.Errorf(
 				"query-serving target registry targets[%d] is incomplete",
 				index,
 			)
 		}
-		if target.RetrievalTopK <= 0 || target.RetrievalTopK > 20 {
+		if target.CandidateTopK <= 0 || target.CandidateTopK > 20 {
 			return queryServingTargetsDocument{}, fmt.Errorf(
-				"query-serving target registry %s retrieval_top_k must be between 1 and 20",
-				target.Target,
+				"query-serving target registry %s candidate_top_k must be between 1 and 20",
+				target.Scope,
+			)
+		}
+		if target.MaxEvidenceSections <= 0 || target.MaxEvidenceSections > 6 {
+			return queryServingTargetsDocument{}, fmt.Errorf(
+				"query-serving target registry %s max_evidence_sections must be between 1 and 6",
+				target.Scope,
 			)
 		}
 		if filepath.IsAbs(target.ServingConfigPath) ||
@@ -107,16 +119,26 @@ func loadQueryServingTargets(policyPath string) (queryServingTargetsDocument, er
 			strings.Contains(target.ServingConfigPath, "..") {
 			return queryServingTargetsDocument{}, fmt.Errorf(
 				"query-serving target registry %s serving_config_path is invalid",
-				target.Target,
+				target.Scope,
 			)
 		}
-		if seen[target.Target] {
+		if seen[target.Scope] {
 			return queryServingTargetsDocument{}, fmt.Errorf(
 				"query-serving target registry duplicates target %s",
-				target.Target,
+				target.Scope,
 			)
 		}
-		seen[target.Target] = true
+		seenTerm := map[string]bool{}
+		for _, term := range target.RoutingTerms {
+			if term == "" || len([]rune(term)) > 64 || seenTerm[term] {
+				return queryServingTargetsDocument{}, fmt.Errorf(
+					"query-serving target registry %s routing_terms is invalid",
+					target.Scope,
+				)
+			}
+			seenTerm[term] = true
+		}
+		seen[target.Scope] = true
 		document.Targets[index] = target
 	}
 	return document, nil
@@ -124,12 +146,23 @@ func loadQueryServingTargets(policyPath string) (queryServingTargetsDocument, er
 
 func normalizeTargetPolicy(target queryServingTargetPolicy) queryServingTargetPolicy {
 	return queryServingTargetPolicy{
-		Collection:        strings.TrimSpace(target.Collection),
-		Description:       strings.TrimSpace(target.Description),
-		RetrievalTopK:     target.RetrievalTopK,
-		ServingConfigPath: filepath.ToSlash(filepath.Clean(strings.TrimSpace(target.ServingConfigPath))),
-		Target:            strings.TrimSpace(target.Target),
+		CandidateTopK:       target.CandidateTopK,
+		Collection:          strings.TrimSpace(target.Collection),
+		Corpus:              strings.TrimSpace(target.Corpus),
+		Description:         strings.TrimSpace(target.Description),
+		MaxEvidenceSections: target.MaxEvidenceSections,
+		RoutingTerms:        canonicalTerms(target.RoutingTerms),
+		Scope:               strings.TrimSpace(target.Scope),
+		ServingConfigPath:   filepath.ToSlash(filepath.Clean(strings.TrimSpace(target.ServingConfigPath))),
 	}
+}
+
+func canonicalTerms(values []string) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		result = append(result, strings.TrimSpace(value))
+	}
+	return result
 }
 
 func resolveQueryServingTargetsPath(policyPath string) string {

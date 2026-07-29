@@ -18,9 +18,17 @@ function loadFixture(name: string): Record<string, unknown> {
 }
 
 describe("execution finalization canonical response fixtures", () => {
-	it("parses resolved targets and typed session updates", () => {
+	it("parses model usage and rejects retired session updates", () => {
 		const payload = loadFixture("response_temporal_finalization.valid.json");
-		payload.resolved_targets = ["curriculum"];
+		expect(parseExecutionFinalizationResponsePayload(payload)).toMatchObject({
+			modelUsage: {
+				cachedInputTokens: 100,
+				inputTokens: 510,
+				outputTokens: 110,
+				totalTokens: 620,
+			},
+		});
+
 		payload.session_update = {
 			upsert_slots: [
 				{
@@ -31,18 +39,9 @@ describe("execution finalization canonical response fixtures", () => {
 			],
 		};
 
-		expect(parseExecutionFinalizationResponsePayload(payload)).toMatchObject({
-			resolvedTargets: ["curriculum"],
-			sessionUpdate: {
-				upsertSlots: [
-					{
-						confirmed: true,
-						name: "curriculum_program",
-						value: "历史学强基计划",
-					},
-				],
-			},
-		});
+		expect(() => parseExecutionFinalizationResponsePayload(payload)).toThrow(
+			"unexpected top-level field session_update",
+		);
 	});
 
 	it("parses canonical terminal state fixtures", () => {
@@ -51,14 +50,20 @@ describe("execution finalization canonical response fixtures", () => {
 				loadFixture("response_completed_delegate.valid.json"),
 			),
 		).toMatchObject({
-			selectedTool: "knowledge_query",
+			modelUsage: {
+				cachedInputTokens: 120,
+				inputTokens: 420,
+				outputTokens: 96,
+				totalTokens: 516,
+			},
 			status: "completed",
 			traceId: "trace-contract-completed",
 			workflowTraceSummary: {
-				directVsDelegateBranch: "tool",
-				firstDecisionActor: "primary_agent",
-				selectedTool: "knowledge_query",
-				selectedTools: ["knowledge_query"],
+				answerArtifactRefs: ["projection://runs/run_contract_completed/agent/primary/result"],
+				executionPath: "tool_assisted",
+				runtimeVersions: {
+					agent_runtime: "openai_agents_sdk",
+				},
 				terminalReason: "answer",
 			},
 		});
@@ -69,7 +74,6 @@ describe("execution finalization canonical response fixtures", () => {
 		).toMatchObject({
 			answerText: "示例奖学金按照现行评审办法执行。",
 			error: null,
-			selectedTool: "knowledge_query",
 			status: "completed",
 			traceId: "trace-temporal-finalization",
 		});
@@ -79,7 +83,6 @@ describe("execution finalization canonical response fixtures", () => {
 			),
 		).toMatchObject({
 			error: { code: "execution_cancelled", retryable: false },
-			selectedTool: null,
 			status: "cancelled",
 		});
 		expect(

@@ -5,8 +5,6 @@ export function buildRuntimeEventEnvelope(
 		occurredAt?: string | null;
 		principalType?: string | null;
 		requestId?: string | null;
-		requestedTool?: string | null;
-		selectedTool?: string | null;
 		status?: string | null;
 		surface?: string | null;
 		traceId?: string | null;
@@ -25,8 +23,6 @@ export function buildRuntimeEventEnvelope(
 		principal_type: input.principalType ?? null,
 		release: metadata.release,
 		"campus.request_id": input.requestId ?? null,
-		requested_tool: input.requestedTool ?? null,
-		selected_tool: input.selectedTool ?? null,
 		status: input.status ?? null,
 		surface: input.surface ?? null,
 		"campus.trace_id": input.traceId ?? null,

@@ -26,6 +26,8 @@ export interface Env {
 	OBJECT_STORE_PRIVATE?: WorkerFetchBindingLike;
 	OBJECT_STORE_LOCAL_BASE_URL?: string;
 	APP_API_EXECUTION_SHARED_SECRET?: string;
+	APP_API_EXECUTION_INPUT_SHARED_SECRET?: string;
+	APP_API_PUBLIC_NOTICE_URL_ALLOWLIST?: string;
 	OPS_WEB_INTERNAL_TOKEN?: string;
 	APP_API_DATABASE_SSLMODE?: DatabaseSslMode;
 	APP_API_STAGING_SMOKE_AUTH_SECRET?: string;
@@ -34,7 +36,6 @@ export interface Env {
 	SENTRY_ENVIRONMENT?: string;
 	SENTRY_RELEASE?: string;
 	APP_API_DB?: HyperdriveBindingLike;
-	APP_API_DB_FRESH?: HyperdriveBindingLike;
 }
 
 export interface AppAuthConfig {
@@ -48,11 +49,7 @@ export interface AppAuthConfig {
 	authEmailReplyTo?: string;
 }
 
-const MISSING_CONFIG_KEYS = [
-	"APP_API_DB.connectionString",
-	"APP_API_DB_FRESH.connectionString",
-	"BETTER_AUTH_SECRET",
-] as const;
+const MISSING_CONFIG_KEYS = ["APP_API_DB.connectionString", "BETTER_AUTH_SECRET"] as const;
 const MISSING_AUTH_CONFIG_KEYS = [
 	"BETTER_AUTH_SECRET",
 	"AUTH_TURNSTILE_SECRET_KEY",
@@ -105,17 +102,20 @@ export function parseCsvList(value?: string): string[] {
 		.filter(Boolean);
 }
 
+export function readPublicNoticeURLAllowlist(
+	env: Pick<Env, "APP_API_PUBLIC_NOTICE_URL_ALLOWLIST">,
+): string[] {
+	return parseCsvList(env.APP_API_PUBLIC_NOTICE_URL_ALLOWLIST).map((item) => item.toLowerCase());
+}
+
 export function getMissingRuntimeConfig(env: Env): string[] {
 	const missing: string[] = [];
 
 	if (!env.APP_API_DB?.connectionString?.trim()) {
 		missing.push(MISSING_CONFIG_KEYS[0]);
 	}
-	if (!env.APP_API_DB_FRESH?.connectionString?.trim()) {
-		missing.push(MISSING_CONFIG_KEYS[1]);
-	}
 	if (!env.BETTER_AUTH_SECRET?.trim()) {
-		missing.push(MISSING_CONFIG_KEYS[2]);
+		missing.push(MISSING_CONFIG_KEYS[1]);
 	}
 	return missing;
 }

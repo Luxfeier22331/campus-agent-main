@@ -1,8 +1,8 @@
+import { isDeepStrictEqual } from "node:util";
 import {
 	Agent,
 	type AgentInputItem,
 	type AgentOutputType,
-	handoff,
 	type ModelProvider,
 	Runner,
 	type Tool,
@@ -13,18 +13,13 @@ import type {
 	AgentRunner,
 	AgentRunnerAnswerDelta,
 	AgentRunnerInput,
-	KnowledgeHandoff,
-	KnowledgeTarget,
 	PromptProviderRuntimeConfig,
 	RunnerToolCall,
 	StreamingAgentRunner,
 	ToolExecutionResult,
+	UntimedToolExecutionResult,
 } from "./primary-agent.ts";
-import {
-	finalOutputFromTerminalEnvelope,
-	knowledgeTerminalEnvelopeFromUnknown,
-	terminalEnvelopeFromUnknown,
-} from "./primary-agent.ts";
+import { finalOutputFromTerminalEnvelope, terminalEnvelopeFromUnknown } from "./primary-agent.ts";
 import type { JsonObjectSchema } from "./tool-catalog.ts";
 
 const emptyParametersSchema = {
@@ -46,59 +41,16 @@ const primaryAgentTerminalOutputSchema = z.object({
 	followUpQuestion: z.string().optional(),
 	reason: z.string().optional(),
 	evidenceRefs: z.array(z.string().min(1)).optional(),
-	sessionUpdate: z
-		.object({
-			upsertSlots: z.array(
-				z.object({
-					confirmed: z.literal(true),
-					name: z.enum(["curriculum_program", "curriculum_program_family", "curriculum_semester"]),
-					value: z.string().min(1),
-				}),
-			),
-		})
-		.optional(),
 });
-
-const knowledgeSessionUpdateSchema = z
-	.object({
-		upsert_slots: z.array(
-			z
-				.object({
-					confirmed: z.literal(true),
-					name: z.enum(["curriculum_program", "curriculum_program_family", "curriculum_semester"]),
-					value: z.string().min(1),
-				})
-				.strict(),
-		),
-	})
-	.strict();
-
-const uniqueEvidenceRefs = z
-	.array(z.string().min(1))
-	.refine((items) => new Set(items).size === items.length, "evidence_refs must be unique");
-
-const knowledgeAgentTerminalOutputSchema = z
-	.object({
-		kind: z.enum(["answer", "clarification_required", "unsupported_by_evidence"]),
-		answer_text: z.string().min(1).nullable(),
-		follow_up_question: z.string().min(1).nullable(),
-		reason: z.string().min(1).nullable(),
-		evidence_refs: uniqueEvidenceRefs,
-		session_update: knowledgeSessionUpdateSchema.nullable(),
-	})
-	.strict();
 
 interface AgentSdkContext {
 	runId: string;
 	requestId: string;
 	traceId: string;
-	knowledgeTargets: KnowledgeTarget[];
-	knowledge?: KnowledgeHandoff;
-	searchBudget: {
+	toolBudget: {
 		limit: number;
 		reserved: number;
 	};
-	seenKnowledgeSearches: Set<string>;
 }
 
 export interface OpenAIAgentsRunnerOptions {
@@ -159,7 +111,9 @@ interface OpenAIAgentsRunResultLike {
 }
 
 interface OpenAIAgentsStreamRunResultLike extends OpenAIAgentsRunResultLike {
+	cancelled?: boolean;
 	completed: Promise<void>;
+	error?: unknown;
 	toTextStream(): ReadableStream<string>;
 }
 
@@ -188,7 +142,7 @@ export function createOpenAIAgentsRunner(options: OpenAIAgentsRunnerOptions = {}
 			traceId: input.traceId,
 			traceMetadata: agentTraceMetadata(input),
 			workflowName: "campus-agent.primary-agent",
-			traceIncludeSensitiveData: true,
+			traceIncludeSensitiveData: false,
 			signal: input.signal,
 		});
 		return agentRunnerResultFromSDKResult(result);
@@ -214,7 +168,7 @@ export function createStreamingOpenAIAgentsRunner(
 			traceId: input.traceId,
 			traceMetadata: agentTraceMetadata(input),
 			workflowName: "campus-agent.primary-agent",
-			traceIncludeSensitiveData: true,
+			traceIncludeSensitiveData: false,
 			signal: input.signal,
 		});
 		let rawOutputText = "";
@@ -225,10 +179,7 @@ export function createStreamingOpenAIAgentsRunner(
 				continue;
 			}
 			rawOutputText += delta;
-			const nextVisibleText = visibleTextFromPartialTerminalOutput(
-				rawOutputText,
-				isKnowledgeAgent(result.currentAgent),
-			);
+			const nextVisibleText = visibleTextFromPartialTerminalOutput(rawOutputText);
 			if (nextVisibleText === accumulatedVisibleText) {
 				continue;
 			}
@@ -240,9 +191,6 @@ export function createStreamingOpenAIAgentsRunner(
 			if (visibleDelta.trim() === "" || nextVisibleText.trim() === "") {
 				continue;
 			}
-			if (isKnowledgeAgent(result.currentAgent)) {
-				continue;
-			}
 			chunkIndex += 1;
 			yield {
 				accumulatedText: accumulatedVisibleText,
@@ -251,13 +199,14 @@ export function createStreamingOpenAIAgentsRunner(
 			} satisfies AgentRunnerAnswerDelta;
 		}
 		await result.completed;
+		throwIfStreamRunDidNotComplete(result, input.signal);
 		const finalResult = agentRunnerResultFromSDKResult(result);
 		if (accumulatedVisibleText !== "") {
 			if (!finalResult.finalOutput.startsWith(accumulatedVisibleText)) {
 				throw new Error("streamed answer text drifted from final output");
 			}
 			const tail = finalResult.finalOutput.slice(accumulatedVisibleText.length);
-			if (tail.trim() !== "" && !isKnowledgeAgent(result.lastAgent ?? result.currentAgent)) {
+			if (tail.trim() !== "") {
 				chunkIndex += 1;
 				yield {
 					accumulatedText: finalResult.finalOutput,
@@ -270,6 +219,22 @@ export function createStreamingOpenAIAgentsRunner(
 	};
 }
 
+function throwIfStreamRunDidNotComplete(
+	result: OpenAIAgentsStreamRunResultLike,
+	signal: AbortSignal | undefined,
+): void {
+	if (result.error !== undefined && result.error !== null) {
+		throw result.error;
+	}
+	if (result.cancelled === false) {
+		return;
+	}
+	if (result.cancelled !== true && signal?.aborted !== true) {
+		return;
+	}
+	throw signal?.reason ?? new Error("Agent SDK stream was cancelled before completion.");
+}
+
 function agentTraceMetadata(input: AgentRunnerInput): Record<string, string> {
 	return {
 		"campus.trace_id": input.traceId,
@@ -278,216 +243,74 @@ function agentTraceMetadata(input: AgentRunnerInput): Record<string, string> {
 	};
 }
 
-function isKnowledgeAgent(agent: { name?: string } | undefined): boolean {
-	return agent?.name?.trim() === "Campus knowledge agent";
-}
-
 function createSdkRuntime(input: AgentRunnerInput, model: string | undefined) {
 	const context: AgentSdkContext = {
 		runId: input.runId,
 		requestId: input.requestId,
 		traceId: input.traceId,
-		knowledgeTargets: input.knowledgeTargets ?? [],
-		searchBudget: {
-			limit: input.limits.maxKnowledgeSearches,
+		toolBudget: {
+			limit: input.limits.maxToolCalls,
 			reserved: 0,
 		},
-		seenKnowledgeSearches: new Set<string>(),
 	};
 	const sdkTools = input.tools.map((runtimeTool) => sdkTool(runtimeTool));
-	const knowledgeAgentRuntime = input.knowledgeAgent;
-	const knowledgeHandoff = (() => {
-		if (knowledgeAgentRuntime === undefined) {
-			return;
-		}
-		const knowledgeAgent = new Agent<AgentSdkContext, typeof knowledgeAgentTerminalOutputSchema>({
-			name: "Campus knowledge agent",
-			handoffDescription: knowledgeAgentRuntime.handoff.description,
-			instructions: (runContext) =>
-				knowledgeInstructions(
-					knowledgeAgentRuntime.instructions,
-					runContext.context.knowledge,
-					runContext.context.knowledgeTargets,
-				),
-			model,
-			modelSettings: { maxTokens: input.limits.maxOutputTokens },
-			outputType: knowledgeAgentTerminalOutputSchema,
-			tools: [sdkTool(knowledgeAgentRuntime.searchTool, { knowledgeSearch: true })],
-		});
-		return handoff(knowledgeAgent, {
-			toolNameOverride: knowledgeAgentRuntime.handoff.name,
-			toolDescriptionOverride: knowledgeAgentRuntime.handoff.description,
-			inputType: knowledgeAgentRuntime.handoff.parameters,
-			onHandoff(runContext, rawInput) {
-				runContext.context.knowledge = knowledgeHandoffFromUnknown(rawInput);
-			},
-		});
-	})();
-	const toolChoice = input.toolChoice?.trim();
-	if (toolChoice !== undefined && toolChoice !== "" && toolChoice !== "knowledge_query") {
-		throw new Error(`unsupported primary agent tool choice: ${toolChoice}`);
-	}
-	if (toolChoice === "knowledge_query" && knowledgeHandoff === undefined) {
-		throw new Error("knowledge_query tool choice requires the knowledge handoff");
-	}
-	const handoffs = knowledgeHandoff ? ([knowledgeHandoff] as const) : ([] as const);
 	const agent = Agent.create({
 		name: "Campus primary assistant",
 		instructions: input.instructions,
 		model,
-		modelSettings: {
-			maxTokens: input.limits.maxOutputTokens,
-			...(toolChoice ? { toolChoice } : {}),
-		},
+		modelSettings: { maxTokens: input.limits.maxOutputTokens },
 		outputType: primaryAgentTerminalOutputSchema,
-		// Agent.create in SDK 0.13.0 fixes handoff output inference but hard-codes unknown context.
+		// Agent.create in SDK 0.13.0 hard-codes unknown context.
 		tools: sdkTools as unknown as Tool<unknown>[],
-		handoffs,
-	}) as Agent<
-		AgentSdkContext,
-		typeof primaryAgentTerminalOutputSchema | typeof knowledgeAgentTerminalOutputSchema
-	>;
+	}) as Agent<AgentSdkContext, typeof primaryAgentTerminalOutputSchema>;
 	return { agent, context };
 }
 
-function sdkTool(
-	runtimeTool: AgentRunnerInput["tools"][number],
-	options: { knowledgeSearch?: boolean } = {},
-) {
+function sdkTool(runtimeTool: AgentRunnerInput["tools"][number]) {
 	return tool<JsonObjectSchema, AgentSdkContext>({
 		name: runtimeTool.name,
 		description: runtimeTool.description,
 		parameters: runtimeTool.parameters ?? emptyParametersSchema,
 		strict: true,
-		isEnabled: options.knowledgeSearch
-			? ({ runContext }) =>
-					runContext.context.searchBudget.reserved < runContext.context.searchBudget.limit
-			: true,
+		isEnabled: ({ runContext }) =>
+			runContext.context.toolBudget.reserved < runContext.context.toolBudget.limit,
 		async execute(argumentsJson, runContext, details) {
+			const startedAt = performance.now();
+			const complete = (result: UntimedToolExecutionResult): ToolExecutionResult => ({
+				...result,
+				durationMs: Math.max(0.001, performance.now() - startedAt),
+			});
 			const parsedArguments = recordFromToolArguments(argumentsJson);
-			if (options.knowledgeSearch) {
-				const context = runContext?.context;
-				if (context === undefined) {
-					throw new Error("knowledge_search requires SDK run context");
-				}
-				const searchOrdinal = reserveKnowledgeSearch(context);
-				if (searchOrdinal === undefined) {
-					return searchBudgetExhaustedResult(runtimeTool.name, parsedArguments, context);
-				}
-				const searchKey = normalizedKnowledgeSearchKey(parsedArguments);
-				if (context.seenKnowledgeSearches.has(searchKey)) {
-					return duplicateKnowledgeSearchResult(runtimeTool.name, parsedArguments, context);
-				}
-				context.seenKnowledgeSearches.add(searchKey);
-				return runtimeTool.execute(parsedArguments, {
-					invocationId: details?.toolCall?.callId,
-					searchOrdinal,
-				});
+			const context = runContext?.context;
+			if (context === undefined) {
+				throw new Error(`${runtimeTool.name} requires SDK run context`);
 			}
-			return runtimeTool.execute(parsedArguments, {
+			if (context.toolBudget.reserved >= context.toolBudget.limit) {
+				return complete(toolCallBudgetExhaustedResult(runtimeTool.name, parsedArguments, context));
+			}
+			context.toolBudget.reserved += 1;
+			const result = await runtimeTool.execute(parsedArguments, {
 				invocationId: details?.toolCall?.callId,
 			});
+			return complete(result);
 		},
 	});
 }
 
-function normalizedKnowledgeSearchKey(argumentsJson: Record<string, unknown>): string {
-	const query = stringFromUnknown(argumentsJson.query_text)
-		.toLowerCase()
-		.replace(/\s+/g, " ")
-		.trim();
-	const target = stringFromUnknown(argumentsJson.target).trim();
-	return `${target}\u0000${argumentsJson.include_history === true}\u0000${query}`;
-}
-
-function duplicateKnowledgeSearchResult(
+function toolCallBudgetExhaustedResult(
 	toolName: string,
 	argumentsJson: Record<string, unknown>,
 	context: AgentSdkContext,
-): ToolExecutionResult {
-	const target = stringFromUnknown(argumentsJson.target) || "unknown";
+): UntimedToolExecutionResult {
 	return {
-		status: "completed",
+		status: "failed",
 		toolName,
 		payloadKind: toolName,
 		argumentsJson,
-		result: {
-			outcome: "duplicate_query",
-			search_ref: `agent-runtime://${context.runId}/knowledge/search/duplicate`,
-			retrieval_target: target,
-			include_history: argumentsJson.include_history === true,
-			candidate_count: 0,
-			discarded_count: 0,
-			retriever_modes: [],
-			evidence: [],
-		},
-		resultRef: `agent-runtime://${context.runId}/tools/${toolName}/duplicate-query`,
-	};
-}
-
-function reserveKnowledgeSearch(context: AgentSdkContext): number | undefined {
-	if (context.searchBudget.reserved >= context.searchBudget.limit) {
-		return;
-	}
-	context.searchBudget.reserved += 1;
-	return context.searchBudget.reserved;
-}
-
-function searchBudgetExhaustedResult(
-	toolName: string,
-	argumentsJson: Record<string, unknown>,
-	context: AgentSdkContext,
-): ToolExecutionResult {
-	const target = stringFromUnknown(argumentsJson.target) || "unknown";
-	return {
-		status: "completed",
-		toolName,
-		payloadKind: toolName,
-		argumentsJson,
-		result: {
-			outcome: "search_budget_exhausted",
-			search_ref: `agent-runtime://${context.runId}/knowledge/search/budget`,
-			retrieval_target: target,
-			include_history: argumentsJson.include_history === true,
-			candidate_count: 0,
-			discarded_count: 0,
-			retriever_modes: [],
-			evidence: [],
-		},
+		failCloseReason: "tool_call_budget_exhausted",
+		result: { error: "The admitted tool call budget is exhausted." },
 		resultRef: `agent-runtime://${context.runId}/tools/${toolName}/budget-exhausted`,
 	};
-}
-
-function knowledgeHandoffFromUnknown(value: unknown): KnowledgeHandoff {
-	const record = recordFromUnknown(value);
-	const queryText = stringFromUnknown(record?.query_text);
-	if (queryText === "") {
-		throw new Error("knowledge_query requires query_text");
-	}
-	return { queryText };
-}
-
-function knowledgeInstructions(
-	base: string,
-	selection: KnowledgeHandoff | undefined,
-	targets: KnowledgeTarget[],
-): string {
-	if (selection === undefined) {
-		throw new Error("knowledge agent requires an admitted handoff context");
-	}
-	if (targets.length === 0) {
-		throw new Error("knowledge agent requires query-serving targets");
-	}
-	const lines = [
-		base,
-		"<knowledge_targets>",
-		"Use only these target ids when calling knowledge_search:",
-	];
-	for (const target of targets) {
-		lines.push(`- ${target.target}: ${target.description}`);
-	}
-	lines.push("</knowledge_targets>");
-	return lines.join("\n");
 }
 
 function recordFromToolArguments(value: unknown): Record<string, unknown> {
@@ -527,9 +350,7 @@ const defaultRunSdkStream: OpenAIAgentsStreamRunFunction = async (agent, input, 
 };
 
 function agentRunnerResultFromSDKResult(result: OpenAIAgentsRunResultLike) {
-	const terminalEnvelope = isKnowledgeAgent(result.lastAgent ?? result.currentAgent)
-		? knowledgeTerminalEnvelopeFromUnknown(result.finalOutput)
-		: terminalEnvelopeFromUnknown(result.finalOutput);
+	const terminalEnvelope = terminalEnvelopeFromUnknown(result.finalOutput);
 	const toolCalls = toolCallsFromItems(result.newItems ?? []);
 	return {
 		finalOutput:
@@ -538,17 +359,14 @@ function agentRunnerResultFromSDKResult(result: OpenAIAgentsRunResultLike) {
 				: finalOutputFromTerminalEnvelope(terminalEnvelope),
 		providerResponseId: providerResponseIDFromResult(result),
 		terminalEnvelope,
-		toolCalls: toolCalls.publicCalls,
-		internalToolCalls: toolCalls.internalCalls,
+		toolCalls,
 		usage: usageFromResult(result),
 	};
 }
 
-function visibleTextFromPartialTerminalOutput(value: string, knowledgeAgent: boolean): string {
+function visibleTextFromPartialTerminalOutput(value: string): string {
 	try {
-		const envelope = knowledgeAgent
-			? knowledgeTerminalEnvelopeFromUnknown(JSON.parse(value))
-			: terminalEnvelopeFromUnknown(JSON.parse(value));
+		const envelope = terminalEnvelopeFromUnknown(JSON.parse(value));
 		return envelope === undefined ? "" : finalOutputFromTerminalEnvelope(envelope);
 	} catch {
 		// Continue with bounded partial extraction below.
@@ -559,21 +377,13 @@ function visibleTextFromPartialTerminalOutput(value: string, knowledgeAgent: boo
 	}
 	switch (kind) {
 		case "answer":
-			return trimStringValue(
-				extractJsonStringFieldPrefix(value, [knowledgeAgent ? "answer_text" : "answerText"]).value,
-			);
+			return trimStringValue(extractJsonStringFieldPrefix(value, ["answerText"]).value);
 		case "clarification_required":
-			return trimStringValue(
-				extractJsonStringFieldPrefix(value, [
-					knowledgeAgent ? "follow_up_question" : "followUpQuestion",
-				]).value,
-			);
+			return trimStringValue(extractJsonStringFieldPrefix(value, ["followUpQuestion"]).value);
 		case "out_of_scope":
 		case "policy_refusal":
 		case "unsupported_by_evidence":
-			return trimStringValue(
-				extractJsonStringFieldPrefix(value, [knowledgeAgent ? "answer_text" : "answerText"]).value,
-			);
+			return trimStringValue(extractJsonStringFieldPrefix(value, ["answerText"]).value);
 		default:
 			return "";
 	}
@@ -710,28 +520,11 @@ function cachedInputTokensFromUsage(usage: UsageLike): number {
 	return integerOrZero(details?.cached_tokens);
 }
 
-function toolCallsFromItems(items: unknown[]): {
-	publicCalls: RunnerToolCall[];
-	internalCalls: RunnerToolCall[];
-} {
-	const publicCalls: RunnerToolCall[] = [];
-	const internalCalls: RunnerToolCall[] = [];
-	let knowledgeHandoffRecorded = false;
-	for (let index = 0; index < items.length; index++) {
-		const item = recordFromUnknown(items[index]);
-		if (item?.type === "handoff_call_item") {
-			const rawItem = recordFromUnknown(item.rawItem);
-			const name = stringFromUnknown(rawItem?.name);
-			if (name === "knowledge_query" && !knowledgeHandoffRecorded) {
-				publicCalls.push({
-					name,
-					argumentsSummary: argumentsSummaryFromRawItem(rawItem),
-					result: undefined,
-				});
-				knowledgeHandoffRecorded = true;
-			}
-			continue;
-		}
+function toolCallsFromItems(items: unknown[]): RunnerToolCall[] {
+	const calls: RunnerToolCall[] = [];
+	const seenInvocationIDs = new Set<string>();
+	for (const rawItemValue of items) {
+		const item = recordFromUnknown(rawItemValue);
 		if (item?.type !== "tool_call_item") {
 			continue;
 		}
@@ -741,47 +534,60 @@ function toolCallsFromItems(items: unknown[]): {
 			continue;
 		}
 		const callID = stringFromUnknown(rawItem?.callId);
-		const call = {
-			name,
-			argumentsSummary: argumentsSummaryFromRawItem(rawItem),
-			result: outputResultForCall(items, index, callID),
-		};
-		if (name === "knowledge_search") {
-			internalCalls.push(call);
-		} else {
-			publicCalls.push(call);
+		if (callID === "") {
+			throw new Error(`SDK tool call ${name} is missing its invocation ID`);
 		}
+		if (seenInvocationIDs.has(callID)) {
+			throw new Error(`SDK tool invocation ${callID} is duplicated`);
+		}
+		seenInvocationIDs.add(callID);
+		const argumentsSummary = argumentsSummaryFromRawItem(rawItem);
+		const result = outputResultForCall(items, callID);
+		if (result === undefined) {
+			throw new Error(`SDK tool call ${name} has no exact result for invocation ${callID}`);
+		}
+		if (result.toolName !== name || result.payloadKind !== name) {
+			throw new Error(`SDK tool call ${name} result identity does not match invocation ${callID}`);
+		}
+		if (
+			result.argumentsJson === undefined ||
+			!isDeepStrictEqual(result.argumentsJson, argumentsSummary)
+		) {
+			throw new Error(`SDK tool call ${name} result arguments do not match invocation ${callID}`);
+		}
+		calls.push({
+			name,
+			argumentsSummary,
+			result,
+		});
 	}
-	return { publicCalls, internalCalls };
+	return calls;
 }
 
-function outputResultForCall(
-	items: unknown[],
-	startIndex: number,
-	callID: string,
-): ToolExecutionResult | undefined {
-	if (callID !== "") {
-		for (const item of items) {
-			const candidate = recordFromUnknown(item);
-			if (candidate?.type !== "tool_call_output_item") {
-				continue;
-			}
-			const rawItem = recordFromUnknown(candidate.rawItem);
-			if (stringFromUnknown(rawItem?.callId) !== callID) {
-				continue;
-			}
-			const result = toolResultFromOutput(rawItem);
-			if (result !== undefined) {
-				return result;
-			}
-		}
-	}
-	for (const item of items.slice(startIndex + 1)) {
+function outputResultForCall(items: unknown[], callID: string): ToolExecutionResult | undefined {
+	let matchedOutput: Record<string, unknown> | undefined;
+	for (const item of items) {
 		const candidate = recordFromUnknown(item);
 		if (candidate?.type !== "tool_call_output_item") {
 			continue;
 		}
-		const result = toolResultFromOutput(candidate.rawItem);
+		const rawItem = recordFromUnknown(candidate.rawItem);
+		if (stringFromUnknown(rawItem?.callId) !== callID) {
+			continue;
+		}
+		if (matchedOutput !== undefined) {
+			throw new Error(`SDK tool invocation ${callID} has multiple result items`);
+		}
+		matchedOutput = candidate;
+	}
+	return matchedOutput === undefined ? undefined : toolResultFromOutput(matchedOutput);
+}
+
+function toolResultFromOutput(value: unknown): ToolExecutionResult | undefined {
+	const item = recordFromUnknown(value);
+	const rawItem = recordFromUnknown(item?.rawItem);
+	for (const output of [item?.output, rawItem?.output]) {
+		const result = toolResultFromValue(output);
 		if (result !== undefined) {
 			return result;
 		}
@@ -789,9 +595,7 @@ function outputResultForCall(
 	return;
 }
 
-function toolResultFromOutput(value: unknown): ToolExecutionResult | undefined {
-	const rawItem = recordFromUnknown(value);
-	const output = rawItem?.output;
+function toolResultFromValue(output: unknown): ToolExecutionResult | undefined {
 	if (isToolExecutionResult(output)) {
 		return output;
 	}
@@ -804,15 +608,15 @@ function toolResultFromOutput(value: unknown): ToolExecutionResult | undefined {
 		}
 	}
 	const textOutput = recordFromUnknown(output);
-	if (typeof textOutput?.text === "string") {
-		try {
-			const parsed = JSON.parse(textOutput.text);
-			return isToolExecutionResult(parsed) ? parsed : undefined;
-		} catch {
-			return;
-		}
+	if (typeof textOutput?.text !== "string") {
+		return;
 	}
-	return;
+	try {
+		const parsed = JSON.parse(textOutput.text);
+		return isToolExecutionResult(parsed) ? parsed : undefined;
+	} catch {
+		return;
+	}
 }
 
 function argumentsSummaryFromRawItem(
@@ -838,12 +642,16 @@ function isToolExecutionResult(value: unknown): value is ToolExecutionResult {
 	return (
 		candidate !== undefined &&
 		(candidate.status === "completed" || candidate.status === "failed") &&
-		typeof candidate.toolName === "string" &&
-		typeof candidate.payloadKind === "string" &&
+		typeof candidate.durationMs === "number" &&
+		Number.isFinite(candidate.durationMs) &&
+		candidate.durationMs > 0 &&
+		stringFromUnknown(candidate.toolName) !== "" &&
+		stringFromUnknown(candidate.payloadKind) !== "" &&
 		(candidate.argumentsJson === undefined ||
 			recordFromUnknown(candidate.argumentsJson) !== undefined) &&
 		recordFromUnknown(candidate.result) !== undefined &&
-		typeof candidate.resultRef === "string"
+		stringFromUnknown(candidate.resultRef) !== "" &&
+		(candidate.status !== "failed" || stringFromUnknown(candidate.failCloseReason) !== "")
 	);
 }
 

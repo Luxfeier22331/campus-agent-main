@@ -35,10 +35,13 @@ describe("agent runtime errors", () => {
 	});
 
 	it("classifies the official SDK tool-call error", () => {
-		const error = new ToolCallError("knowledge_search failed", new Error("backend unavailable"));
+		const error = new ToolCallError(
+			"personal_memory_recall failed",
+			new Error("backend unavailable"),
+		);
 		expect(agentRuntimeErrorPayload(error)).toEqual({
 			code: "tool_execution_failed",
-			message: "knowledge_search failed",
+			message: "personal_memory_recall failed",
 			retryable: false,
 		});
 	});

@@ -22,19 +22,31 @@ type checkedInToolFunctionSchema struct {
 	Parameters map[string]any `json:"parameters"`
 }
 
-func TestModelVisibleExecutionControlToolsMatchGoRuntimeAndRoutes(t *testing.T) {
+func TestCheckedInExecutionControlToolsRetainCurrentExposure(t *testing.T) {
 	toolRegistry, err := runtimepolicy.LoadToolSpecRegistry("")
 	if err != nil {
 		t.Fatalf("load Go tool registry: %v", err)
 	}
 	registeredEndpoints := toolReadModelEndpointsByPath()
+	wantEndpoints := map[string]string{
+		"personal_memory_recall":    "/internal/memory/personal/recall",
+		"transport_schedule_lookup": "/internal/query/campus-services/transport-schedule",
+	}
 
 	for _, tool := range toolRegistry.Tools {
-		if tool.Exposure != "model_visible" || tool.Handler.Type != "execution_control_internal_query" {
-			continue
+		endpoint, ok := wantEndpoints[tool.Name]
+		if !ok {
+			t.Fatalf("unexpected registered tool %s", tool.Name)
 		}
-		if !tool.ReadOnly {
-			t.Fatalf("model-visible tool %s must be read-only", tool.Name)
+		wantExposure := "closed"
+		if tool.Name == personalMemoryRecallToolName {
+			wantExposure = "model_visible"
+		}
+		if tool.Exposure != wantExposure || !tool.ReadOnly || tool.RequiresApproval {
+			t.Fatalf("registered tool %s exposure/read policy drifted: %#v", tool.Name, tool)
+		}
+		if tool.Handler.Type != "execution_control_internal_query" || tool.Handler.Endpoint != endpoint {
+			t.Fatalf("tool %s handler = %#v, want endpoint %q", tool.Name, tool.Handler, endpoint)
 		}
 		if registeredEndpoints[tool.Handler.Endpoint] != tool.Name {
 			t.Fatalf(
@@ -44,10 +56,14 @@ func TestModelVisibleExecutionControlToolsMatchGoRuntimeAndRoutes(t *testing.T) 
 				registeredEndpoints[tool.Handler.Endpoint],
 			)
 		}
+		delete(wantEndpoints, tool.Name)
+	}
+	if len(wantEndpoints) != 0 {
+		t.Fatalf("registered tools are missing: %#v", wantEndpoints)
 	}
 }
 
-func TestModelVisibleToolCatalogHasCanonicalStrictFunctionSchemas(t *testing.T) {
+func TestRegisteredToolCatalogRetainsCanonicalStrictFunctionSchemas(t *testing.T) {
 	toolRegistry, err := runtimepolicy.LoadToolSpecRegistry("")
 	if err != nil {
 		t.Fatalf("load Go tool registry: %v", err)
@@ -59,7 +75,7 @@ func TestModelVisibleToolCatalogHasCanonicalStrictFunctionSchemas(t *testing.T) 
 		"..",
 		"configs",
 		"runtime",
-		"tool-function-schemas.v2.json",
+		"tool-function-schemas.v3.json",
 	))
 	if err != nil {
 		t.Fatalf("read tool function schemas: %v", err)
@@ -78,12 +94,9 @@ func TestModelVisibleToolCatalogHasCanonicalStrictFunctionSchemas(t *testing.T) 
 		}
 	}
 	for _, tool := range toolRegistry.Tools {
-		if tool.Exposure != "model_visible" {
-			continue
-		}
 		schema, ok := strictSchemas[tool.Name]
 		if !ok {
-			t.Fatalf("model-visible tool %s missing canonical strict function schema", tool.Name)
+			t.Fatalf("registered tool %s missing canonical strict function schema", tool.Name)
 		}
 		if schema.Parameters["additionalProperties"] != false {
 			t.Fatalf("tool %s schema must set additionalProperties=false", tool.Name)
@@ -151,6 +164,7 @@ func isObjectOrNullableObject(value any) bool {
 
 func toolReadModelEndpointsByPath() map[string]string {
 	return map[string]string{
+		"/internal/memory/personal/recall":                   personalMemoryRecallToolName,
 		"/internal/query/campus-services/transport-schedule": toolreadmodel.ToolTransportScheduleLookup,
 	}
 }

@@ -9,6 +9,7 @@ import {
 import type { PrimaryAgentRunResult, PrimaryAgentRuntime } from "./primary-agent.ts";
 import { agentRuntimeErrorPayload } from "./runtime-errors.ts";
 import { bindAsyncIterableToActiveContext } from "./telemetry.ts";
+import type { ToolRuntimeFingerprint } from "./tool-catalog.ts";
 
 const providerConfigSchema = z.object({
 	provider: z.string().min(1),
@@ -18,20 +19,127 @@ const providerConfigSchema = z.object({
 	api_key: z.string().min(1),
 });
 
-const memoryContextSchema = z.object({
-	context_block: z.string().min(1),
-	memory_ref: z.string().min(1),
-	provider: z.string().min(1).optional(),
-	retrieval_mode: z.string().min(1).optional(),
-	schema_version: z.literal("memory_recall_result_v1"),
-	selected_memory_chars: z.number().int().nonnegative(),
-	selected_memory_count: z.number().int().nonnegative(),
-});
+const toolRuntimeFingerprintSchema = z
+	.object({
+		combined_sha256: z.string().regex(/^sha256:[0-9a-f]{64}$/),
+		function_schema_sha256: z.string().regex(/^sha256:[0-9a-f]{64}$/),
+		function_schema_version: z.string().min(1),
+		runtime_release: z.string().min(1),
+		schema_version: z.literal("tool_runtime_fingerprint.v2"),
+		tools_registry_version: z.string().min(1),
+		tools_schema_version: z.string().min(1),
+		tools_sha256: z.string().regex(/^sha256:[0-9a-f]{64}$/),
+		workflow_artifact_registry_version: z.string().min(1),
+		workflow_artifact_schema_version: z.string().min(1),
+		workflow_artifact_sha256: z.string().regex(/^sha256:[0-9a-f]{64}$/),
+	})
+	.strict();
 
-const knowledgeTargetSchema = z.object({
-	target: z.string().min(1),
-	description: z.string().min(1),
-});
+const sha256RefSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/);
+
+const groundingEvidenceSchema = z
+	.object({
+		evidence_ref: z.string().regex(/^evidence:\/\/[0-9a-f]{64}$/),
+		document_scope: z.string().trim().min(1),
+		release_id: z.string().trim().min(1),
+		chunk_id: z.string().trim().min(1),
+		section_ref: z.string().trim().min(1),
+		document_id: z.string().trim().min(1),
+		section_id: z.string().trim().min(1),
+		document_title: z.string().trim().min(1),
+		section_title: z.string().trim().min(1),
+		canonical_url: z.string().trim().min(1),
+		text: z.string().trim().min(1),
+		text_sha256: sha256RefSchema,
+		token_count: z.number().int().positive().max(4096),
+		rerank_score: z.number().min(0).max(1),
+	})
+	.strict();
+
+const groundingContextSchema = z
+	.object({
+		schema_version: z.literal("grounding_context.v2"),
+		run_id: z.string().trim().min(1),
+		admission_sha256: sha256RefSchema,
+		plan_sha256: z.string().regex(/^[0-9a-f]{64}$/),
+		query_sha256: sha256RefSchema,
+		prepared_at: z.string().datetime(),
+		mode: z.enum(["none", "single_scope", "multi_scope"]),
+		selected_scopes: z.array(z.string().trim().min(1)).max(32),
+		covered_scopes: z.array(z.string().trim().min(1)).max(32),
+		status: z.enum(["not_required", "ready", "partial", "empty"]),
+		token_count: z.number().int().nonnegative().max(4096),
+		model_context_chars: z.number().int().nonnegative(),
+		evidence: z.array(groundingEvidenceSchema).max(8),
+	})
+	.strict()
+	.superRefine((value, context) => {
+		if (new Set(value.selected_scopes).size !== value.selected_scopes.length) {
+			context.addIssue({
+				code: "custom",
+				message: "selected_scopes values must be unique",
+				path: ["selected_scopes"],
+			});
+		}
+		const coveredScopes = value.selected_scopes.filter((scope) =>
+			value.evidence.some((item) => item.document_scope === scope),
+		);
+		if (JSON.stringify(value.covered_scopes) !== JSON.stringify(coveredScopes)) {
+			context.addIssue({
+				code: "custom",
+				message: "covered_scopes does not match evidence",
+				path: ["covered_scopes"],
+			});
+		}
+		const expectedStatus =
+			value.mode === "none"
+				? "not_required"
+				: coveredScopes.length === 0
+					? "empty"
+					: coveredScopes.length < value.selected_scopes.length
+						? "partial"
+						: "ready";
+		if (value.status !== expectedStatus) {
+			context.addIssue({
+				code: "custom",
+				message: "status does not match evidence",
+				path: ["status"],
+			});
+		}
+		const tokenCount = value.evidence.reduce((total, item) => total + item.token_count, 0);
+		if (value.token_count !== tokenCount) {
+			context.addIssue({
+				code: "custom",
+				message: "token_count does not match evidence",
+				path: ["token_count"],
+			});
+		}
+		if (new Set(value.evidence.map((item) => item.evidence_ref)).size !== value.evidence.length) {
+			context.addIssue({
+				code: "custom",
+				message: "evidence_ref values must be unique",
+				path: ["evidence"],
+			});
+		}
+		if (
+			(value.mode === "none" && value.selected_scopes.length > 0) ||
+			(value.mode === "single_scope" && value.selected_scopes.length !== 1) ||
+			(value.mode === "multi_scope" && value.selected_scopes.length < 2)
+		) {
+			context.addIssue({
+				code: "custom",
+				message: "mode does not match selected_scopes",
+				path: ["mode"],
+			});
+		}
+		if (value.evidence.some((item) => !value.selected_scopes.includes(item.document_scope))) {
+			context.addIssue({
+				code: "custom",
+				message: "evidence document_scope must be selected",
+				path: ["evidence"],
+			});
+		}
+	});
 
 const truncationSummarySchema = z.object({
 	schema_version: z.literal("truncation_summary.v2"),
@@ -47,29 +155,13 @@ const truncationSummarySchema = z.object({
 });
 
 const finalModelContextSchema = z.object({
-	schema_version: z.literal("final_model_context.v2"),
+	schema_version: z.literal("final_model_context.v3"),
 	recent_turns: z
 		.array(
 			z.object({
 				message_id: z.string().min(1).optional(),
 				role: z.enum(["assistant", "user"]),
 				content: z.string().min(1),
-			}),
-		)
-		.default([]),
-	previous_evidence: z
-		.array(
-			z.object({
-				access_scope: z.string().min(1),
-				content_hash: z.string().min(1),
-				document_id: z.string().min(1).optional(),
-				evidence_id: z.string().min(1),
-				section_title: z.string().min(1).optional(),
-				snapshot_id: z.string().min(1).optional(),
-				snippet: z.string().optional(),
-				source_id: z.string().min(1),
-				title: z.string().optional(),
-				version_id: z.string().min(1).optional(),
 			}),
 		)
 		.default([]),
@@ -96,25 +188,10 @@ const finalModelContextSchema = z.object({
 			turn_count: z.number().int().nonnegative(),
 		})
 		.optional(),
-	previous_tool_results: z
-		.array(
-			z.object({
-				content_hash: z.string().min(1),
-				projection_ref: z.string().min(1),
-				request_id: z.string().min(1),
-				result_kind: z.string().min(1),
-				run_id: z.string().min(1),
-				status: z.string().min(1),
-				summary: z.string().optional(),
-				tool: z.string().min(1),
-			}),
-		)
-		.default([]),
-	memory_context: memoryContextSchema.optional(),
 	usage_summary: z.object({
 		context_chars: z.number().int().nonnegative(),
 		current_input_chars: z.number().int().nonnegative(),
-		memory_recall_state: z.enum(["completed", "skipped"]),
+		grounding_context_chars: z.number().int().nonnegative(),
 		model_visible_item_count: z.number().int().nonnegative(),
 		runtime_only_item_count: z.number().int().nonnegative(),
 		truncation_reason: z.string().min(1).optional(),
@@ -127,8 +204,8 @@ const runtimeLimitsSchema = z
 		agent_deadline_ms: z.number().int().positive(),
 		context_char_limit: z.number().int().positive(),
 		current_input_char_limit: z.number().int().positive(),
-		max_knowledge_searches: z.number().int().positive().max(3),
 		max_output_tokens: z.number().int().positive(),
+		max_tool_calls: z.number().int().nonnegative(),
 		max_turns: z.number().int().positive(),
 	})
 	.strict();
@@ -136,6 +213,7 @@ const runtimeLimitsSchema = z
 const runRequestSchema = z
 	.object({
 		activity_attempt: z.number().int().positive(),
+		allow_ungrounded_answer: z.boolean(),
 		user_id: z.string().min(1),
 		run_id: z.string().min(1),
 		request_id: z.string().min(1),
@@ -144,14 +222,21 @@ const runRequestSchema = z
 		trace_id: z.string().min(1),
 		input: z.string().min(1),
 		visible_tool_names: z.array(z.string().min(1)).default([]),
-		knowledge_targets: z.array(knowledgeTargetSchema).optional(),
-		tool_choice: z.literal("knowledge_query").optional(),
+		grounding_context: groundingContextSchema,
+		expected_tool_runtime_fingerprint: toolRuntimeFingerprintSchema,
 		provider_config: providerConfigSchema,
 		limits: runtimeLimitsSchema,
 		final_model_context: finalModelContextSchema.optional(),
 	})
 	.strict()
 	.superRefine((value, context) => {
+		if (value.grounding_context.run_id !== value.run_id) {
+			context.addIssue({
+				code: "custom",
+				message: "grounding_context.run_id must match run_id",
+				path: ["grounding_context", "run_id"],
+			});
+		}
 		if ([...value.input].length > value.limits.current_input_char_limit) {
 			context.addIssue({
 				code: "custom",
@@ -159,9 +244,25 @@ const runRequestSchema = z
 				path: ["input"],
 			});
 		}
+		const currentInputChars = [...value.input].length;
 		if (
 			value.final_model_context &&
-			finalModelContextCharacterCount(value.final_model_context) > value.limits.context_char_limit
+			(value.final_model_context.usage_summary.current_input_chars !== currentInputChars ||
+				value.final_model_context.usage_summary.grounding_context_chars !==
+					value.grounding_context.model_context_chars)
+		) {
+			context.addIssue({
+				code: "custom",
+				message: "final_model_context usage does not match current input and grounding",
+				path: ["final_model_context", "usage_summary"],
+			});
+		}
+		if (
+			value.final_model_context &&
+			finalModelContextCharacterCount(value.final_model_context) +
+				currentInputChars +
+				value.grounding_context.model_context_chars >
+				value.limits.context_char_limit
 		) {
 			context.addIssue({
 				code: "custom",
@@ -194,11 +295,58 @@ function mapTruncationSummary(summary: z.infer<typeof truncationSummarySchema> |
 	};
 }
 
-function mapKnowledgeTargets(targets: z.infer<typeof knowledgeTargetSchema>[] | undefined) {
-	return targets?.map((target) => ({
-		description: target.description,
-		target: target.target,
-	}));
+function mapGroundingContext(value: z.infer<typeof groundingContextSchema>) {
+	return {
+		admissionSha256: value.admission_sha256,
+		coveredScopes: value.covered_scopes,
+		evidence: value.evidence.map((item) => ({
+			canonicalUrl: item.canonical_url,
+			chunkId: item.chunk_id,
+			documentId: item.document_id,
+			documentScope: item.document_scope,
+			documentTitle: item.document_title,
+			evidenceRef: item.evidence_ref,
+			releaseId: item.release_id,
+			rerankScore: item.rerank_score,
+			sectionId: item.section_id,
+			sectionRef: item.section_ref,
+			sectionTitle: item.section_title,
+			text: item.text,
+			textSha256: item.text_sha256,
+			tokenCount: item.token_count,
+		})),
+		mode: value.mode,
+		modelContextChars: value.model_context_chars,
+		planSha256: value.plan_sha256,
+		preparedAt: value.prepared_at,
+		querySha256: value.query_sha256,
+		runId: value.run_id,
+		schemaVersion: value.schema_version,
+		selectedScopes: value.selected_scopes,
+		status: value.status,
+		tokenCount: value.token_count,
+	};
+}
+
+function mapToolRuntimeFingerprint(
+	fingerprint: z.infer<typeof toolRuntimeFingerprintSchema>,
+): ToolRuntimeFingerprint {
+	return {
+		combinedSha256: fingerprint.combined_sha256,
+		functionSchemaSha256: fingerprint.function_schema_sha256,
+		functionSchemaVersion:
+			fingerprint.function_schema_version as ToolRuntimeFingerprint["functionSchemaVersion"],
+		runtimeRelease: fingerprint.runtime_release,
+		schemaVersion: fingerprint.schema_version,
+		toolsRegistryVersion: fingerprint.tools_registry_version,
+		toolsSchemaVersion:
+			fingerprint.tools_schema_version as ToolRuntimeFingerprint["toolsSchemaVersion"],
+		toolsSha256: fingerprint.tools_sha256,
+		workflowArtifactRegistryVersion: fingerprint.workflow_artifact_registry_version,
+		workflowArtifactSchemaVersion:
+			fingerprint.workflow_artifact_schema_version as ToolRuntimeFingerprint["workflowArtifactSchemaVersion"],
+		workflowArtifactSha256: fingerprint.workflow_artifact_sha256,
+	};
 }
 
 export interface AgentRuntimeHandlerOptions {
@@ -321,6 +469,7 @@ function runtimeInputFromParsedRunRequest(
 ): Parameters<PrimaryAgentRuntime["run"]>[0] {
 	return {
 		activityAttempt: parsed.activity_attempt,
+		allowUngroundedAnswer: parsed.allow_ungrounded_answer,
 		runId: parsed.run_id,
 		requestId: parsed.request_id,
 		conversationId: parsed.conversation_id,
@@ -328,8 +477,10 @@ function runtimeInputFromParsedRunRequest(
 		traceId: parsed.trace_id,
 		input: parsed.input,
 		visibleToolNames: parsed.visible_tool_names,
-		knowledgeTargets: mapKnowledgeTargets(parsed.knowledge_targets),
-		toolChoice: parsed.tool_choice,
+		groundingContext: mapGroundingContext(parsed.grounding_context),
+		expectedToolRuntimeFingerprint: mapToolRuntimeFingerprint(
+			parsed.expected_tool_runtime_fingerprint,
+		),
 		providerConfig: {
 			provider: parsed.provider_config.provider,
 			transport: parsed.provider_config.transport,
@@ -341,8 +492,8 @@ function runtimeInputFromParsedRunRequest(
 			agentDeadlineMs: parsed.limits.agent_deadline_ms,
 			contextCharLimit: parsed.limits.context_char_limit,
 			currentInputCharLimit: parsed.limits.current_input_char_limit,
-			maxKnowledgeSearches: parsed.limits.max_knowledge_searches,
 			maxOutputTokens: parsed.limits.max_output_tokens,
+			maxToolCalls: parsed.limits.max_tool_calls,
 			maxTurns: parsed.limits.max_turns,
 		},
 		finalModelContext: parsed.final_model_context
@@ -352,28 +503,6 @@ function runtimeInputFromParsedRunRequest(
 						messageId: turn.message_id,
 						role: turn.role,
 						content: turn.content,
-					})),
-					previousEvidence: parsed.final_model_context.previous_evidence.map((evidence) => ({
-						accessScope: evidence.access_scope,
-						contentHash: evidence.content_hash,
-						documentId: evidence.document_id,
-						evidenceId: evidence.evidence_id,
-						sectionTitle: evidence.section_title,
-						snapshotId: evidence.snapshot_id,
-						snippet: evidence.snippet,
-						sourceId: evidence.source_id,
-						title: evidence.title,
-						versionId: evidence.version_id,
-					})),
-					previousToolResults: parsed.final_model_context.previous_tool_results.map((result) => ({
-						contentHash: result.content_hash,
-						projectionRef: result.projection_ref,
-						requestId: result.request_id,
-						resultKind: result.result_kind,
-						runId: result.run_id,
-						status: result.status,
-						summary: result.summary,
-						tool: result.tool,
 					})),
 					sessionState: parsed.final_model_context.session_state
 						? {
@@ -398,23 +527,10 @@ function runtimeInputFromParsedRunRequest(
 								turnCount: parsed.final_model_context.session_state.turn_count,
 							}
 						: undefined,
-					memoryContext: parsed.final_model_context.memory_context
-						? {
-								contextBlock: parsed.final_model_context.memory_context.context_block,
-								memoryRef: parsed.final_model_context.memory_context.memory_ref,
-								provider: parsed.final_model_context.memory_context.provider,
-								retrievalMode: parsed.final_model_context.memory_context.retrieval_mode,
-								schemaVersion: parsed.final_model_context.memory_context.schema_version,
-								selectedMemoryChars:
-									parsed.final_model_context.memory_context.selected_memory_chars,
-								selectedMemoryCount:
-									parsed.final_model_context.memory_context.selected_memory_count,
-							}
-						: undefined,
 					usageSummary: {
 						contextChars: parsed.final_model_context.usage_summary.context_chars,
 						currentInputChars: parsed.final_model_context.usage_summary.current_input_chars,
-						memoryRecallState: parsed.final_model_context.usage_summary.memory_recall_state,
+						groundingContextChars: parsed.final_model_context.usage_summary.grounding_context_chars,
 						modelVisibleItemCount:
 							parsed.final_model_context.usage_summary.model_visible_item_count,
 						runtimeOnlyItemCount: parsed.final_model_context.usage_summary.runtime_only_item_count,

@@ -12,8 +12,11 @@ Campus Web 在 `/docs/*` 提供 Rspress 阅读器。文档站与知识检索共�
 
 ```text
 规范文档 -> 阅读器模型 -> 已发布阅读器资产 -> Campus Web 文档站
-规范文档 -> 文档单元 -> 分块与索引 -> Knowledge Agent
+knowledge-serving-release.v1 + current_releases + Qdrant -> Agent grounding 消费接口
 ```
+
+阅读器发布由 `jobs/docs-publish` 实现。聊天检索只保留消费接口，当前没有正式索引生产者和发布
+数据，因此文档 grounding 不可用；阅读器发布不会自动补齐该缺口。
 
 ## 组件职责
 

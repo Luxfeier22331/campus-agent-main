@@ -41,9 +41,9 @@ valid_ops_web_egress_policy := {
 			},
 			{
 				"to": [{"podSelector": {"matchLabels": {
-					"app.kubernetes.io/name": "execution-control-admin",
+					"app.kubernetes.io/name": "execution-control",
 				}}}],
-				"ports": [{"protocol": "TCP", "port": 8000}],
+				"ports": [{"protocol": "TCP", "port": 8001}],
 			},
 			{
 				"to": [{"podSelector": {"matchLabels": {

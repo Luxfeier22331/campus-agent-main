@@ -4,7 +4,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
+
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/contracts"
 )
 
 func validateDurableRun(run DurableRun) error {
@@ -29,6 +32,12 @@ func validateDurableRun(run DurableRun) error {
 	if run.TaskQueue == "" {
 		return fmt.Errorf("%w: task_queue is required", ErrInvalidDurableRun)
 	}
+	if err := validateDurableRunMetadata(run); err != nil {
+		return err
+	}
+	if run.RequestFingerprintSHA256 != "" && !validLowerHexSHA256(run.RequestFingerprintSHA256) {
+		return fmt.Errorf("%w: request fingerprint must be a lowercase SHA-256", ErrInvalidDurableRun)
+	}
 	if !durableRunStatusValid(run.Status) {
 		return fmt.Errorf("%w: unsupported status %q", ErrInvalidDurableRun, run.Status)
 	}
@@ -37,6 +46,40 @@ func validateDurableRun(run DurableRun) error {
 	}
 	if !durableRunStatusIsTerminal(run.Status) && !run.CompletedAt.IsZero() {
 		return fmt.Errorf("%w: active run must not set completed_at", ErrInvalidDurableRun)
+	}
+	return nil
+}
+
+func validateDurableRunMetadata(run DurableRun) error {
+	if len(run.Metadata) != 3 {
+		return fmt.Errorf("%w: metadata must contain only execution input references", ErrInvalidDurableRun)
+	}
+	for key := range run.Metadata {
+		switch key {
+		case "execution_contract_version", "execution_input_ref", "execution_input_sha256":
+		default:
+			return fmt.Errorf("%w: metadata field %s is forbidden", ErrInvalidDurableRun, key)
+		}
+	}
+	contractVersion, ok := run.Metadata["execution_contract_version"].(string)
+	if !ok {
+		return fmt.Errorf("%w: metadata.execution_contract_version must be a string", ErrInvalidDurableRun)
+	}
+	inputRef, ok := run.Metadata["execution_input_ref"].(string)
+	if !ok {
+		return fmt.Errorf("%w: metadata.execution_input_ref must be a string", ErrInvalidDurableRun)
+	}
+	inputSHA256, ok := run.Metadata["execution_input_sha256"].(string)
+	if !ok {
+		return fmt.Errorf("%w: metadata.execution_input_sha256 must be a string", ErrInvalidDurableRun)
+	}
+	metadata := contracts.ExecutionRunMetadataWire{
+		ExecutionContractVersion: contractVersion,
+		ExecutionInputRef:        inputRef,
+		ExecutionInputSHA256:     inputSHA256,
+	}
+	if err := metadata.Validate(run.RunID); err != nil {
+		return fmt.Errorf("%w: metadata: %v", ErrInvalidDurableRun, err)
 	}
 	return nil
 }
@@ -74,7 +117,30 @@ func validateDurableRunEventBase(event DurableRunEvent) error {
 			}
 		}
 	}
+	if event.EventType == DurableRunEventTypeRunCanceled &&
+		event.Visibility == DurableRunEventVisibilityBrowser {
+		for key := range event.Payload {
+			switch key {
+			case "request_id", "trace_id", "status", "terminal_reason":
+			default:
+				return fmt.Errorf("%w: browser run.canceled payload contains forbidden field %s", ErrInvalidRunEvent, key)
+			}
+		}
+	}
 	return nil
+}
+
+func validLowerHexSHA256(value string) bool {
+	if len(value) != sha256.Size*2 {
+		return false
+	}
+	for _, char := range value {
+		if (char >= '0' && char <= '9') || (char >= 'a' && char <= 'f') {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func validateDurableRunCancelRequest(request DurableRunCancelRequest) error {
@@ -146,9 +212,66 @@ func validateDurableRunFailRequest(request DurableRunFailRequest) error {
 }
 
 func canonicalizeDurableRunFailRequest(request DurableRunFailRequest) DurableRunFailRequest {
+	request.FailCloseReason = strings.TrimSpace(request.FailCloseReason)
 	request.Now = request.Now.UTC().Truncate(time.Microsecond)
 	request.TerminalEvent.OccurredAt = request.TerminalEvent.OccurredAt.UTC().Truncate(time.Microsecond)
 	return request
+}
+
+func validateDurableRunExpireRequest(request DurableRunExpireRequest) error {
+	if strings.TrimSpace(request.RunID) == "" {
+		return fmt.Errorf("%w: run_id is required", ErrInvalidDurableRun)
+	}
+	if request.Now.IsZero() {
+		return fmt.Errorf("%w: now is required", ErrInvalidDurableRun)
+	}
+	return nil
+}
+
+func durableRunExpiredEvent(run DurableRun, expiredAt time.Time) DurableRunEvent {
+	return DurableRunEvent{
+		EventID:              run.RunID + ":run-expired",
+		RunID:                run.RunID,
+		ConversationID:       run.ConversationID,
+		EventType:            DurableRunEventTypeRunExpired,
+		OccurredAt:           expiredAt,
+		Visibility:           DurableRunEventVisibilityBrowser,
+		PayloadSchemaVersion: "run-event-v1",
+		Payload: map[string]any{
+			"error": map[string]any{
+				"code": "execution_timeout", "message": "The execution exceeded its workflow timeout.", "retryable": true,
+			},
+			"request_id":      run.RequestID,
+			"status":          string(DurableRunStatusExpired),
+			"terminal_reason": string(DurableTerminalReasonRunTimeout),
+			"timeout_outcome": string(TimeoutOutcomeWorkflowTimeout),
+			"trace_id":        run.TraceID,
+		},
+	}
+}
+
+func validateDurableRunExpiryReplay(
+	run DurableRun,
+	request DurableRunExpireRequest,
+	storedEvent DurableRunEvent,
+) error {
+	expected := durableRunExpiredEvent(run, request.Now)
+	if run.Status != DurableRunStatusExpired ||
+		run.TerminalReason != DurableTerminalReasonRunTimeout ||
+		!run.CompletedAt.Equal(request.Now) ||
+		storedEvent.EventID != expected.EventID || storedEvent.RunID != expected.RunID ||
+		storedEvent.ConversationID != expected.ConversationID || storedEvent.EventType != expected.EventType ||
+		storedEvent.Visibility != expected.Visibility ||
+		storedEvent.PayloadSchemaVersion != expected.PayloadSchemaVersion ||
+		!storedEvent.OccurredAt.Equal(expected.OccurredAt) {
+		return fmt.Errorf("%w: terminal run or event identity differs", ErrDurableRunExpiryConflict)
+	}
+	storedFingerprint, storedErr := durableRunEventPayloadFingerprint(storedEvent.Payload)
+	expectedFingerprint, expectedErr := durableRunEventPayloadFingerprint(expected.Payload)
+	if storedErr != nil || expectedErr != nil || storedFingerprint != expectedFingerprint {
+		return fmt.Errorf("%w: terminal event payload differs", ErrDurableRunExpiryConflict)
+	}
+	return nil
 }
 
 func validateDurableRunFailureEventForRun(run DurableRun, event DurableRunEvent) error {
@@ -167,13 +290,9 @@ func validateDurableRunFailureReplay(
 	storedEvent DurableRunEvent,
 ) error {
 	requestedEvent := request.TerminalEvent
-	expectedSelectedTool := run.SelectedTool
-	if request.SelectedTool != "" {
-		expectedSelectedTool = request.SelectedTool
-	}
 	if run.Status != DurableRunStatusFailed ||
 		run.TerminalReason != request.TerminalReason ||
-		run.SelectedTool != expectedSelectedTool ||
+		run.FailCloseReason != request.FailCloseReason ||
 		storedEvent.EventID != requestedEvent.EventID ||
 		storedEvent.RunID != requestedEvent.RunID ||
 		storedEvent.ConversationID != requestedEvent.ConversationID ||

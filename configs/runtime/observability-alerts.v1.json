@@ -3,11 +3,11 @@
 	"alert_version": "observability-alerts-v1",
 	"rules": [
 		{
-			"id": "stage.stream_ttft.p95.warn",
+			"id": "stage.stream_app_api_ttft.p95.warn",
 			"signal": "stage_latency_p95",
 			"severity": "ticket",
 			"window": "15m",
-			"stage_field": "stream.browser_ttft_ms",
+			"stage_field": "stream.app_api_ttft_ms",
 			"threshold": {
 				"operator": "gte",
 				"value": 2500,

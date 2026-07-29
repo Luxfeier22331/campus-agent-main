@@ -28,7 +28,7 @@ const legacyChatSchemaPath = resolve(appRoot, "test/fixtures/chat-pre-0001.sql")
 
 interface MigrationJournal {
 	dialect: string;
-	entries: Array<{ tag: string }>;
+	entries: Array<{ tag: string; when: number }>;
 	version: string;
 }
 
@@ -211,6 +211,20 @@ async function seedLegacyBetterAuthData(pool: Pool): Promise<void> {
 	`);
 }
 
+function errorChainText(error: unknown): string {
+	const messages: string[] = [];
+	const seen = new Set<unknown>();
+	let current = error;
+	while (current && typeof current === "object" && !seen.has(current)) {
+		seen.add(current);
+		if ("message" in current && typeof current.message === "string") {
+			messages.push(current.message);
+		}
+		current = "cause" in current ? current.cause : undefined;
+	}
+	return messages.join("\n");
+}
+
 describe("app-api migration upgrade", () => {
 	let container: StartedPostgreSqlContainer;
 	let initialMigrationsFolder = "";
@@ -285,9 +299,10 @@ describe("app-api migration upgrade", () => {
 			insert into "chat"."turn_dispatches"
 				("request_id", "conversation_id", "user_message_id", "turn_sequence", "surface",
 				 "owner_user_id", "actor_user_id", "principal_snapshot_json", "trace_id", "status",
-				 "created_at", "updated_at")
+				 "created_at", "completed_at", "updated_at")
 			values ('request-upgrade', 'conversation-upgrade', 'message-upgrade', 1, 'web',
-				'user-upgrade', 'user-upgrade', '{}'::jsonb, 'trace-upgrade', 'running', now(), now());
+				'user-upgrade', 'user-upgrade', '{}'::jsonb, 'trace-upgrade', 'completed',
+				'2026-07-23T00:00:00Z', '2026-07-23T00:02:00Z', '2026-07-23T00:03:00Z');
 			insert into "runtime"."request_observability_fact"
 				("request_id", "trace_id", "conversation_id", "surface", "principal_type", "status",
 				 "started_at", "measured_at", "updated_at")
@@ -331,6 +346,12 @@ describe("app-api migration upgrade", () => {
 			`select count(*)::text as count from "drizzle"."app_api_migrations"`,
 		);
 		expect(deployedPredecessorLedger.rows[0]?.count).toBe(String(predecessorMigrationCount));
+		await pool.query(`
+			update "chat"."turn_dispatches"
+			set "workflow_input_json" = '{"legacy_v2_secret":"must-be-discarded"}'::jsonb,
+			    "workflow_input_sha256" = repeat('d', 64)
+			where "request_id" = 'request-upgrade'
+		`);
 
 		await installAppApiSchema({
 			APP_API_DATABASE_SSLMODE: "disable",
@@ -338,24 +359,45 @@ describe("app-api migration upgrade", () => {
 		});
 
 		const retained = await pool.query<{
+			admission_input_json: string | null;
 			admission_status: string;
 			assistant_message_id: string;
-			chat_targets: unknown;
-			observation_targets: unknown;
+			conversation_id: string;
+			execution_input_json: string | null;
+			execution_input_release_matches_completion: boolean;
+			legacy_payload_retained: boolean;
+			observation_status: string;
+			request_id: string;
+			status: string;
+			trace_id: string;
+			user_message_id: string;
 		}>(`
-			select dispatch."resolved_targets_json" as chat_targets,
-			       dispatch."assistant_message_id", dispatch."admission_status",
-			       fact."resolved_targets_json" as observation_targets
+			select dispatch."request_id", dispatch."conversation_id", dispatch."user_message_id",
+			       dispatch."assistant_message_id", dispatch."admission_status", dispatch."status",
+			       dispatch."admission_input_json", dispatch."execution_input_json",
+			       dispatch."execution_input_released_at" = dispatch."completed_at"
+			           as execution_input_release_matches_completion,
+			       position('must-be-discarded' in to_jsonb(dispatch)::text) > 0
+			           as legacy_payload_retained,
+			       fact."trace_id", fact."status" as observation_status
 			from "chat"."turn_dispatches" dispatch
 			join "runtime"."request_observability_fact" fact using (request_id)
 			where dispatch."request_id" = 'request-upgrade'
 		`);
 		expect(retained.rows).toEqual([
 			{
-				admission_status: "pending_input",
+				admission_input_json: null,
+				admission_status: "admitted",
 				assistant_message_id: "request-upgrade:assistant",
-				chat_targets: [],
-				observation_targets: [],
+				conversation_id: "conversation-upgrade",
+				execution_input_json: null,
+				execution_input_release_matches_completion: true,
+				legacy_payload_retained: false,
+				observation_status: "running",
+				request_id: "request-upgrade",
+				status: "completed",
+				trace_id: "trace-upgrade",
+				user_message_id: "message-upgrade",
 			},
 		]);
 		const upgradedChatColumns = await pool.query<{ column_name: string }>(`
@@ -376,8 +418,24 @@ describe("app-api migration upgrade", () => {
 			"memory_owner_generation",
 			"memory_owner_sequence",
 			"memory_recall_enabled",
-			"resolved_targets_json",
 		]);
+		const retiredExecutionColumns = await pool.query<{ qualified_name: string }>(`
+			select table_schema || '.' || table_name || '.' || column_name as qualified_name
+			from information_schema.columns
+			where (table_schema, table_name) in (
+			        ('chat', 'turn_dispatches'),
+			        ('runtime', 'request_observability_fact')
+			      )
+			  and column_name in (
+			    'requested_tool',
+			    'resolved_targets_json',
+			    'selected_tool',
+			    'workflow_input_json',
+			    'workflow_input_sha256'
+			  )
+			order by qualified_name
+		`);
+		expect(retiredExecutionColumns.rows).toEqual([]);
 
 		const retainedIdentity = await pool.query<{
 			banned: boolean;
@@ -629,7 +687,7 @@ describe("app-api migration upgrade", () => {
 			campus_groups_ready: boolean;
 			campus_group_sections_ready: boolean;
 			memory_commands_ready: boolean;
-			resolved_targets_json: string | null;
+			retired_execution_column_count: string;
 		}>(`
 				select
 					to_regclass('app_auth."user"') is not null as auth_user_ready,
@@ -641,9 +699,13 @@ describe("app-api migration upgrade", () => {
 				(select column_name from information_schema.columns
 				 where table_schema = 'chat' and table_name = 'turn_dispatches'
 				   and column_name = 'assistant_message_id') as assistant_message_id,
-				(select column_name from information_schema.columns
-				 where table_schema = 'chat' and table_name = 'turn_dispatches'
-				   and column_name = 'resolved_targets_json') as resolved_targets_json
+				(select count(*)::text from information_schema.columns
+				 where (table_schema, table_name) in (
+				         ('chat', 'turn_dispatches'),
+				         ('runtime', 'request_observability_fact')
+				       )
+				   and column_name in ('requested_tool', 'resolved_targets_json', 'selected_tool'))
+				     as retired_execution_column_count
 		`);
 		expect(cleanInstall.rows).toEqual([
 			{
@@ -654,7 +716,7 @@ describe("app-api migration upgrade", () => {
 				campus_group_sections_ready: true,
 				campus_groups_ready: true,
 				memory_commands_ready: true,
-				resolved_targets_json: "resolved_targets_json",
+				retired_execution_column_count: "0",
 			},
 		]);
 		const groupPrimaryKey = await pool.query<{ column_name: string }>(`
@@ -687,5 +749,95 @@ describe("app-api migration upgrade", () => {
 				set name = excluded.name
 			`),
 		).resolves.toMatchObject({ rowCount: 1 });
+	});
+
+	it("rejects the ownership migration while a v2 run is nonterminal", async () => {
+		const migrationOptions = {
+			migrationsSchema: "drizzle",
+			migrationsTable: "app_api_migrations",
+		};
+		await resetDisposableDatabase(pool);
+		await applyLegacyBetterAuthBaseline(pool);
+		await migrate(drizzle(pool), {
+			...migrationOptions,
+			migrationsFolder: initialMigrationsFolder,
+		});
+		await applyLegacyChatBaseline(pool);
+		await pool.query(`
+			insert into "chat"."conversations"
+				("id", "owner_user_id", "title", "created_at", "updated_at")
+			values ('conversation-pending-v2', 'user-pending-v2', 'Pending v2', now(), now());
+			insert into "chat"."messages"
+				("id", "conversation_id", "role", "text", "created_at")
+			values ('message-pending-v2', 'conversation-pending-v2', 'user', 'test', now());
+			insert into "chat"."turn_dispatches"
+				("request_id", "conversation_id", "user_message_id", "turn_sequence", "surface",
+				 "owner_user_id", "actor_user_id", "principal_snapshot_json", "trace_id", "status",
+				 "created_at", "updated_at")
+			values ('request-pending-v2', 'conversation-pending-v2', 'message-pending-v2', 1, 'web',
+				'user-pending-v2', 'user-pending-v2', '{}'::jsonb, 'trace-pending-v2', 'running',
+				now(), now());
+		`);
+		await migrate(drizzle(pool), {
+			...migrationOptions,
+			migrationsFolder: predecessorMigrationsFolder,
+		});
+		await pool.query(`
+			update "chat"."turn_dispatches"
+			set "workflow_input_json" = '{"request_id":"request-pending-v2"}'::jsonb,
+			    "workflow_input_sha256" = repeat('a', 64)
+			where "request_id" = 'request-pending-v2'
+		`);
+
+		let migrationError: unknown;
+		try {
+			await migrate(drizzle(pool), {
+				...migrationOptions,
+				migrationsFolder: fullMigrationsFolder,
+			});
+		} catch (error) {
+			migrationError = error;
+		}
+		expect(errorChainText(migrationError)).toContain(
+			"tool_execution_v3 migration requires all v2 chat runs to be in a contract terminal status",
+		);
+
+		const journal = await readMigrationJournal();
+		const ownershipMigration = journal.entries.find(
+			(entry) => entry.tag === "0007_execution_runtime_ownership",
+		);
+		expect(ownershipMigration).toBeDefined();
+		const rollbackState = await pool.query<{
+			admission_input_present: boolean;
+			admission_status: string;
+			nonterminal_rows: string;
+			ownership_migration_rows: string;
+			workflow_input_present: boolean;
+		}>(
+			`select
+				(select count(*)::text from "chat"."turn_dispatches"
+				 where "request_id" = 'request-pending-v2' and "status" = 'running')
+				   as nonterminal_rows,
+				(select "admission_status" from "chat"."turn_dispatches"
+				 where "request_id" = 'request-pending-v2') as admission_status,
+				exists(select 1 from information_schema.columns
+				 where table_schema = 'chat' and table_name = 'turn_dispatches'
+				   and column_name = 'workflow_input_json') as workflow_input_present,
+				exists(select 1 from information_schema.columns
+				 where table_schema = 'chat' and table_name = 'turn_dispatches'
+				   and column_name = 'admission_input_json') as admission_input_present,
+				(select count(*)::text from "drizzle"."app_api_migrations"
+				 where created_at = $1::bigint) as ownership_migration_rows`,
+			[ownershipMigration?.when],
+		);
+		expect(rollbackState.rows).toEqual([
+			{
+				admission_input_present: false,
+				admission_status: "pending_input",
+				nonterminal_rows: "1",
+				ownership_migration_rows: "0",
+				workflow_input_present: true,
+			},
+		]);
 	});
 });

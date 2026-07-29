@@ -8,34 +8,33 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"regexp"
 )
 
 const (
-	ExecutionContractVersion    = "tool_execution_v2"
-	ResponseContract            = "execution_finalization_response_v3"
-	WorkflowTraceSummaryVersion = "workflow-trace-summary-v6"
+	ExecutionContractVersion    = "tool_execution_v5"
+	ExecutionRunIDPattern       = "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+	ResponseContract            = "execution_finalization_response_v5"
+	WorkflowTraceSummaryVersion = "workflow-trace-summary-v7"
 )
+
+var executionRunIDRegexp = regexp.MustCompile(ExecutionRunIDPattern)
+
+func ValidExecutionRunID(value string) bool {
+	return executionRunIDRegexp.MatchString(value)
+}
 
 type ToolID string
 
 const (
-	ToolIDKnowledgeQuery          ToolID = "knowledge_query"
-	ToolIDKnowledgeSearch         ToolID = "knowledge_search"
 	ToolIDTransportScheduleLookup ToolID = "transport_schedule_lookup"
+	ToolIDPersonalMemoryRecall    ToolID = "personal_memory_recall"
 )
 
 type ModelVisibleToolName string
 
 const (
-	ModelVisibleToolNameKnowledgeQuery          ModelVisibleToolName = "knowledge_query"
-	ModelVisibleToolNameTransportScheduleLookup ModelVisibleToolName = "transport_schedule_lookup"
-)
-
-type RequestedTool string
-
-const (
-	RequestedToolKnowledgeQuery          RequestedTool = "knowledge_query"
-	RequestedToolTransportScheduleLookup RequestedTool = "transport_schedule_lookup"
+	ModelVisibleToolNamePersonalMemoryRecall ModelVisibleToolName = "personal_memory_recall"
 )
 
 type ConfidenceLevel string
@@ -58,47 +57,45 @@ const (
 	ExecutionStatusCancelled          ExecutionStatus = "cancelled"
 )
 
-type WorkflowMode string
+type ExecutionPath string
 
 const (
-	WorkflowModeTerminal   WorkflowMode = "terminal"
-	WorkflowModeSingleStep WorkflowMode = "single_step"
-	WorkflowModeMultiStep  WorkflowMode = "multi_step"
-)
-
-type AnswerArtifactKind string
-
-const (
-	AnswerArtifactKindAgentFinalOutput AnswerArtifactKind = "agent_final_output"
+	ExecutionPathDirect        ExecutionPath = "direct"
+	ExecutionPathToolAssisted  ExecutionPath = "tool_assisted"
+	ExecutionPathClarification ExecutionPath = "clarification"
+	ExecutionPathRejected      ExecutionPath = "rejected"
+	ExecutionPathUnsupported   ExecutionPath = "unsupported"
 )
 
 type StageTimingField string
 
 const (
 	StageTimingFieldRequestTotalMs                StageTimingField = "request.total_ms"
-	StageTimingFieldStreamBrowserTtftMs           StageTimingField = "stream.browser_ttft_ms"
+	StageTimingFieldExecutionDispatchMs           StageTimingField = "execution.dispatch_ms"
+	StageTimingFieldAgentScheduleToStartMs        StageTimingField = "agent.schedule_to_start_ms"
+	StageTimingFieldStreamFirstDeltaPersistMs     StageTimingField = "stream.first_delta_persist_ms"
+	StageTimingFieldStreamAppApiTtftMs            StageTimingField = "stream.app_api_ttft_ms"
+	StageTimingFieldStreamOrchestrationOverheadMs StageTimingField = "stream.orchestration_overhead_ms"
 	StageTimingFieldExecutionAdmissionMs          StageTimingField = "execution.admission_ms"
+	StageTimingFieldGroundingPrepareMs            StageTimingField = "grounding.prepare_ms"
 	StageTimingFieldMemoryRecallMs                StageTimingField = "memory.recall_ms"
 	StageTimingFieldAgentPrimaryMs                StageTimingField = "agent.primary_ms"
 	StageTimingFieldAgentRuntimeMs                StageTimingField = "agent.runtime_ms"
 	StageTimingFieldAgentFirstDeltaMs             StageTimingField = "agent.first_delta_ms"
 	StageTimingFieldToolTotalMs                   StageTimingField = "tool.total_ms"
 	StageTimingFieldToolTransportScheduleLookupMs StageTimingField = "tool.transport_schedule_lookup_ms"
-	StageTimingFieldKnowledgeSearchMs             StageTimingField = "knowledge.search_ms"
 	StageTimingFieldFinalizationWriteMs           StageTimingField = "finalization.write_ms"
 	StageTimingFieldProjectionCloseoutMs          StageTimingField = "projection.closeout_ms"
 )
 
 type ConversationContextWire struct {
-	SchemaVersion        string           `json:"schema_version"`
-	ConversationID       string           `json:"conversation_id"`
-	UserMessageID        string           `json:"user_message_id"`
-	ParentMessageID      *string          `json:"parent_message_id,omitempty"`
-	CurrentUserMessage   map[string]any   `json:"current_user_message"`
-	RecentTurns          []map[string]any `json:"recent_turns"`
-	PreviousEvidenceRefs []map[string]any `json:"previous_evidence_refs"`
-	PreviousToolResults  []map[string]any `json:"previous_tool_results"`
-	SessionState         map[string]any   `json:"session_state"`
+	SchemaVersion      string           `json:"schema_version"`
+	ConversationID     string           `json:"conversation_id"`
+	UserMessageID      string           `json:"user_message_id"`
+	ParentMessageID    *string          `json:"parent_message_id,omitempty"`
+	CurrentUserMessage map[string]any   `json:"current_user_message"`
+	RecentTurns        []map[string]any `json:"recent_turns"`
+	SessionState       map[string]any   `json:"session_state"`
 }
 
 type TraceContextWire struct {
@@ -113,62 +110,51 @@ type ExecutionPayloadWire struct {
 	TenantID                 string           `json:"tenant_id,omitempty"`
 	RequestID                string           `json:"request_id"`
 	SafetyIdentifier         *string          `json:"safety_identifier,omitempty"`
-	RequestedTool            RequestedTool    `json:"requested_tool,omitempty"`
 	Trace                    TraceContextWire `json:"trace"`
 	Context                  map[string]any   `json:"context"`
 }
 
 type ExecutionRunMetadataWire struct {
-	ExecutionPayload ExecutionPayloadWire `json:"execution_payload"`
+	ExecutionContractVersion string `json:"execution_contract_version"`
+	ExecutionInputRef        string `json:"execution_input_ref"`
+	ExecutionInputSHA256     string `json:"execution_input_sha256"`
 }
 
 type ExecutionRunCreateRequestWire struct {
-	RunID           string                   `json:"run_id"`
-	ConversationID  string                   `json:"conversation_id"`
-	TurnID          string                   `json:"turn_id"`
-	RequestID       string                   `json:"request_id"`
-	TraceID         string                   `json:"trace_id,omitempty"`
-	OwnerUserID     string                   `json:"owner_user_id"`
-	Surface         string                   `json:"surface"`
-	RuntimeVersions map[string]any           `json:"runtime_versions,omitempty"`
-	Metadata        ExecutionRunMetadataWire `json:"metadata"`
+	RunID                       string                   `json:"run_id"`
+	ConversationID              string                   `json:"conversation_id"`
+	TurnID                      string                   `json:"turn_id"`
+	RequestID                   string                   `json:"request_id"`
+	TraceID                     string                   `json:"trace_id,omitempty"`
+	OwnerUserID                 string                   `json:"owner_user_id"`
+	PersonalMemoryRecallAllowed bool                     `json:"personal_memory_recall_allowed"`
+	Surface                     string                   `json:"surface"`
+	RuntimeVersions             map[string]any           `json:"runtime_versions,omitempty"`
+	Metadata                    ExecutionRunMetadataWire `json:"metadata"`
 }
 
 type WorkflowTraceSummaryWire struct {
-	WorkflowMode           WorkflowMode         `json:"workflow_mode"`
-	SelectedTool           *string              `json:"selected_tool"`
-	SelectedTools          []string             `json:"selected_tools"`
-	FirstDecisionActor     string               `json:"first_decision_actor"`
-	PlanningOutcome        string               `json:"planning_outcome"`
-	DirectVsDelegateBranch string               `json:"direct_vs_delegate_branch"`
-	TerminalReason         string               `json:"terminal_reason"`
-	AnswerArtifactKinds    []AnswerArtifactKind `json:"answer_artifact_kinds"`
-	AnswerArtifactRefs     []string             `json:"answer_artifact_refs"`
-	TraceSteps             []map[string]any     `json:"trace_steps"`
-	ToolCallSummaries      []map[string]any     `json:"tool_call_summaries"`
-	RuntimeVersions        map[string]any       `json:"runtime_versions"`
+	ExecutionPath      ExecutionPath  `json:"execution_path"`
+	TerminalReason     string         `json:"terminal_reason"`
+	AnswerArtifactRefs []string       `json:"answer_artifact_refs"`
+	RuntimeVersions    map[string]any `json:"runtime_versions"`
+}
+
+type ModelUsageWire struct {
+	InputTokens       int64 `json:"input_tokens"`
+	CachedInputTokens int64 `json:"cached_input_tokens"`
+	OutputTokens      int64 `json:"output_tokens"`
+	TotalTokens       int64 `json:"total_tokens"`
 }
 
 type StageTimingWire map[StageTimingField]float64
 
-type SessionUpdateSlotWire struct {
-	Confirmed bool   `json:"confirmed"`
-	Name      string `json:"name"`
-	Value     string `json:"value"`
-}
-
-type SessionUpdateWire struct {
-	UpsertSlots []SessionUpdateSlotWire `json:"upsert_slots"`
-}
-
 type ToolExecutionResponseWire struct {
-	SelectedTool         *ToolID                   `json:"selected_tool"`
 	Status               ExecutionStatus           `json:"status"`
 	AnswerText           string                    `json:"answer_text"`
 	FollowUpQuestion     string                    `json:"follow_up_question"`
 	Confidence           ConfidenceLevel           `json:"confidence"`
-	ResolvedTargets      []string                  `json:"resolved_targets"`
-	SessionUpdate        *SessionUpdateWire        `json:"session_update"`
+	ModelUsage           ModelUsageWire            `json:"model_usage"`
 	Result               map[string]any            `json:"result"`
 	Error                map[string]any            `json:"error"`
 	Observability        map[string]any            `json:"observability,omitempty"`
@@ -190,6 +176,9 @@ func DecodeExecutionPayloadWireJSON(data []byte) (ExecutionPayloadWire, error) {
 
 func DecodeExecutionRunCreateRequestWireJSON(data []byte) (ExecutionRunCreateRequestWire, error) {
 	var wire ExecutionRunCreateRequestWire
+	if err := requireJSONObjectFields(data, []string{"personal_memory_recall_allowed"}); err != nil {
+		return wire, err
+	}
 	if err := decodeStrictJSON(data, &wire); err != nil {
 		return wire, err
 	}
@@ -202,15 +191,13 @@ func DecodeExecutionRunCreateRequestWireJSON(data []byte) (ExecutionRunCreateReq
 func DecodeToolExecutionResponseWireJSON(data []byte) (ToolExecutionResponseWire, error) {
 	var wire ToolExecutionResponseWire
 	if err := requireJSONObjectFields(data, []string{
-		"selected_tool",
 		"status",
 		"answer_text",
 		"follow_up_question",
 		"confidence",
 		"result",
 		"error",
-		"resolved_targets",
-		"session_update",
+		"model_usage",
 		"trace_id",
 	}); err != nil {
 		return wire, err
@@ -269,9 +256,6 @@ func (wire ExecutionPayloadWire) Validate() error {
 	if wire.ConversationID == "" {
 		return fmt.Errorf("conversation_id is required")
 	}
-	if wire.RequestedTool != "" && !wire.RequestedTool.Valid() {
-		return fmt.Errorf("requested_tool is invalid")
-	}
 	if wire.Trace.TraceID == "" {
 		return fmt.Errorf("trace.trace_id is required")
 	}
@@ -288,6 +272,9 @@ func (wire ExecutionRunCreateRequestWire) Validate() error {
 	if wire.RunID == "" {
 		return fmt.Errorf("run_id is required")
 	}
+	if !ValidExecutionRunID(wire.RunID) {
+		return fmt.Errorf("run_id must match %s", ExecutionRunIDPattern)
+	}
 	if wire.ConversationID == "" {
 		return fmt.Errorf("conversation_id is required")
 	}
@@ -303,68 +290,50 @@ func (wire ExecutionRunCreateRequestWire) Validate() error {
 	if wire.Surface == "" {
 		return fmt.Errorf("surface is required")
 	}
-	if err := wire.Metadata.ExecutionPayload.Validate(); err != nil {
-		return fmt.Errorf("metadata.execution_payload: %w", err)
-	}
-	if wire.Metadata.ExecutionPayload.RequestID != wire.RequestID {
-		return fmt.Errorf("metadata.execution_payload.request_id must match request_id")
-	}
-	if wire.Metadata.ExecutionPayload.ConversationID != wire.ConversationID {
-		return fmt.Errorf("metadata.execution_payload.conversation_id must match conversation_id")
-	}
-	if wire.TraceID != "" &&
-		wire.Metadata.ExecutionPayload.Trace.TraceID != wire.TraceID {
-		return fmt.Errorf("metadata.execution_payload.trace.trace_id must match trace_id")
+	if err := wire.Metadata.Validate(wire.RunID); err != nil {
+		return fmt.Errorf("metadata: %w", err)
 	}
 	return nil
 }
 
-func (wire WorkflowTraceSummaryWire) Validate() error {
-	if wire.WorkflowMode == "" {
-		return fmt.Errorf("workflow_mode is required")
+func (wire ExecutionRunMetadataWire) Validate(runID string) error {
+	if !ValidExecutionRunID(runID) {
+		return fmt.Errorf("run_id must match %s", ExecutionRunIDPattern)
 	}
-	if !wire.WorkflowMode.Valid() {
-		return fmt.Errorf("workflow_mode is invalid")
+	if wire.ExecutionContractVersion != ExecutionContractVersion {
+		return fmt.Errorf("execution_contract_version must be %s", ExecutionContractVersion)
 	}
-	if wire.SelectedTool != nil && *wire.SelectedTool != "" && !ToolID(*wire.SelectedTool).Valid() {
-		return fmt.Errorf("selected_tool is invalid")
+	expectedRef := "app-api://execution-inputs/" + runID
+	if wire.ExecutionInputRef != expectedRef {
+		return fmt.Errorf("execution_input_ref must be %s", expectedRef)
 	}
-	if wire.SelectedTools == nil {
-		return fmt.Errorf("selected_tools is required")
+	if !isLowerHexSHA256(wire.ExecutionInputSHA256) {
+		return fmt.Errorf("execution_input_sha256 must be 64 lowercase hexadecimal characters")
 	}
-	for index, tool := range wire.SelectedTools {
-		if tool == "" {
-			return fmt.Errorf("selected_tools[%d] is required", index)
+	return nil
+}
+
+func isLowerHexSHA256(value string) bool {
+	if len(value) != 64 {
+		return false
+	}
+	for _, character := range value {
+		if (character < '0' || character > '9') && (character < 'a' || character > 'f') {
+			return false
 		}
 	}
-	if wire.FirstDecisionActor == "" {
-		return fmt.Errorf("first_decision_actor is required")
-	}
-	if wire.PlanningOutcome == "" {
-		return fmt.Errorf("planning_outcome is required")
-	}
-	if wire.DirectVsDelegateBranch == "" {
-		return fmt.Errorf("direct_vs_delegate_branch is required")
+	return true
+}
+
+func (wire WorkflowTraceSummaryWire) Validate() error {
+	if !wire.ExecutionPath.Valid() {
+		return fmt.Errorf("execution_path is invalid")
 	}
 	if wire.TerminalReason == "" {
 		return fmt.Errorf("terminal_reason is required")
 	}
-	if wire.AnswerArtifactKinds == nil {
-		return fmt.Errorf("answer_artifact_kinds is required")
-	}
-	for index, kind := range wire.AnswerArtifactKinds {
-		if !kind.Valid() {
-			return fmt.Errorf("answer_artifact_kinds[%d] is invalid", index)
-		}
-	}
 	if wire.AnswerArtifactRefs == nil {
 		return fmt.Errorf("answer_artifact_refs is required")
-	}
-	if wire.TraceSteps == nil {
-		return fmt.Errorf("trace_steps is required")
-	}
-	if wire.ToolCallSummaries == nil {
-		return fmt.Errorf("tool_call_summaries is required")
 	}
 	if wire.RuntimeVersions == nil {
 		return fmt.Errorf("runtime_versions is required")
@@ -373,9 +342,6 @@ func (wire WorkflowTraceSummaryWire) Validate() error {
 }
 
 func (wire ToolExecutionResponseWire) Validate() error {
-	if wire.SelectedTool != nil && !wire.SelectedTool.Valid() {
-		return fmt.Errorf("selected_tool is invalid")
-	}
 	if !wire.Status.Valid() {
 		return fmt.Errorf("status is invalid")
 	}
@@ -385,18 +351,11 @@ func (wire ToolExecutionResponseWire) Validate() error {
 	if wire.TraceID == "" {
 		return fmt.Errorf("trace_id is required")
 	}
-	if wire.ResolvedTargets == nil {
-		return fmt.Errorf("resolved_targets is required")
-	}
-	seenTargets := map[string]bool{}
-	for index, target := range wire.ResolvedTargets {
-		if target == "" {
-			return fmt.Errorf("resolved_targets[%d] is required", index)
-		}
-		if seenTargets[target] {
-			return fmt.Errorf("resolved_targets[%d] is duplicated", index)
-		}
-		seenTargets[target] = true
+	if wire.ModelUsage.InputTokens < 0 || wire.ModelUsage.CachedInputTokens < 0 ||
+		wire.ModelUsage.OutputTokens < 0 || wire.ModelUsage.TotalTokens < 0 ||
+		wire.ModelUsage.CachedInputTokens > wire.ModelUsage.InputTokens ||
+		wire.ModelUsage.TotalTokens != wire.ModelUsage.InputTokens+wire.ModelUsage.OutputTokens {
+		return fmt.Errorf("model_usage is invalid")
 	}
 	if wire.Error != nil {
 		if code, ok := wire.Error["code"].(string); !ok || code == "" {
@@ -409,11 +368,6 @@ func (wire ToolExecutionResponseWire) Validate() error {
 			return fmt.Errorf("error.retryable is required")
 		}
 	}
-	if wire.SessionUpdate != nil {
-		if err := wire.SessionUpdate.Validate(); err != nil {
-			return fmt.Errorf("session_update: %w", err)
-		}
-	}
 	if wire.WorkflowTraceSummary != nil {
 		if err := wire.WorkflowTraceSummary.Validate(); err != nil {
 			return fmt.Errorf("workflow_trace_summary: %w", err)
@@ -422,26 +376,6 @@ func (wire ToolExecutionResponseWire) Validate() error {
 	if wire.StageTiming != nil {
 		if err := wire.StageTiming.Validate(); err != nil {
 			return fmt.Errorf("stage_timing: %w", err)
-		}
-	}
-	return nil
-}
-
-func (wire SessionUpdateWire) Validate() error {
-	if wire.UpsertSlots == nil {
-		return fmt.Errorf("upsert_slots is required")
-	}
-	for index, slot := range wire.UpsertSlots {
-		if !slot.Confirmed {
-			return fmt.Errorf("upsert_slots[%d].confirmed must be true", index)
-		}
-		switch slot.Name {
-		case "curriculum_program", "curriculum_program_family", "curriculum_semester":
-		default:
-			return fmt.Errorf("upsert_slots[%d].name is invalid", index)
-		}
-		if slot.Value == "" {
-			return fmt.Errorf("upsert_slots[%d].value is required", index)
 		}
 	}
 	return nil
@@ -461,16 +395,7 @@ func (wire StageTimingWire) Validate() error {
 
 func (value ToolID) Valid() bool {
 	switch value {
-	case ToolIDKnowledgeQuery, ToolIDKnowledgeSearch, ToolIDTransportScheduleLookup:
-		return true
-	default:
-		return false
-	}
-}
-
-func (value RequestedTool) Valid() bool {
-	switch value {
-	case RequestedToolKnowledgeQuery, RequestedToolTransportScheduleLookup:
+	case ToolIDTransportScheduleLookup, ToolIDPersonalMemoryRecall:
 		return true
 	default:
 		return false
@@ -495,18 +420,9 @@ func (value ExecutionStatus) Valid() bool {
 	}
 }
 
-func (value WorkflowMode) Valid() bool {
+func (value ExecutionPath) Valid() bool {
 	switch value {
-	case WorkflowModeTerminal, WorkflowModeSingleStep, WorkflowModeMultiStep:
-		return true
-	default:
-		return false
-	}
-}
-
-func (value AnswerArtifactKind) Valid() bool {
-	switch value {
-	case AnswerArtifactKindAgentFinalOutput:
+	case ExecutionPathDirect, ExecutionPathToolAssisted, ExecutionPathClarification, ExecutionPathRejected, ExecutionPathUnsupported:
 		return true
 	default:
 		return false
@@ -516,15 +432,19 @@ func (value AnswerArtifactKind) Valid() bool {
 func (value StageTimingField) Valid() bool {
 	switch value {
 	case StageTimingFieldRequestTotalMs,
-		StageTimingFieldStreamBrowserTtftMs,
+		StageTimingFieldExecutionDispatchMs,
+		StageTimingFieldAgentScheduleToStartMs,
+		StageTimingFieldStreamFirstDeltaPersistMs,
+		StageTimingFieldStreamAppApiTtftMs,
+		StageTimingFieldStreamOrchestrationOverheadMs,
 		StageTimingFieldExecutionAdmissionMs,
+		StageTimingFieldGroundingPrepareMs,
 		StageTimingFieldMemoryRecallMs,
 		StageTimingFieldAgentPrimaryMs,
 		StageTimingFieldAgentRuntimeMs,
 		StageTimingFieldAgentFirstDeltaMs,
 		StageTimingFieldToolTotalMs,
 		StageTimingFieldToolTransportScheduleLookupMs,
-		StageTimingFieldKnowledgeSearchMs,
 		StageTimingFieldFinalizationWriteMs,
 		StageTimingFieldProjectionCloseoutMs:
 		return true

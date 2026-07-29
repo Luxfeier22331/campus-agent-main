@@ -87,15 +87,31 @@ describe("agent runtime Langfuse telemetry", () => {
 function validRunBody() {
 	return {
 		activity_attempt: 2,
+		allow_ungrounded_answer: true,
 		conversation_id: "conversation-1",
+		grounding_context: {
+			admission_sha256: `sha256:${"1".repeat(64)}`,
+			covered_scopes: [],
+			evidence: [],
+			mode: "none",
+			model_context_chars: 39,
+			plan_sha256: "3".repeat(64),
+			prepared_at: "2026-07-26T08:00:00.000Z",
+			query_sha256: `sha256:${"2".repeat(64)}`,
+			run_id: "run-1",
+			schema_version: "grounding_context.v2",
+			selected_scopes: [],
+			status: "not_required",
+			token_count: 0,
+		},
 		input: "你好",
 		limits: {
 			agent_deadline_ms: 10_000,
 			context_char_limit: 16_000,
 			current_input_char_limit: 4_000,
-			max_knowledge_searches: 2,
 			max_output_tokens: 1_000,
-			max_turns: 4,
+			max_tool_calls: 0,
+			max_turns: 1,
 		},
 		provider_config: {
 			api_key: "test-key",
@@ -109,6 +125,20 @@ function validRunBody() {
 		turn_id: "turn-1",
 		user_id: "user-1",
 		visible_tool_names: [],
+		expected_tool_runtime_fingerprint: {
+			combined_sha256: testToolRuntimeFingerprint().combinedSha256,
+			function_schema_sha256: testToolRuntimeFingerprint().functionSchemaSha256,
+			function_schema_version: testToolRuntimeFingerprint().functionSchemaVersion,
+			runtime_release: testToolRuntimeFingerprint().runtimeRelease,
+			schema_version: testToolRuntimeFingerprint().schemaVersion,
+			tools_registry_version: testToolRuntimeFingerprint().toolsRegistryVersion,
+			tools_schema_version: testToolRuntimeFingerprint().toolsSchemaVersion,
+			tools_sha256: testToolRuntimeFingerprint().toolsSha256,
+			workflow_artifact_registry_version:
+				testToolRuntimeFingerprint().workflowArtifactRegistryVersion,
+			workflow_artifact_schema_version: testToolRuntimeFingerprint().workflowArtifactSchemaVersion,
+			workflow_artifact_sha256: testToolRuntimeFingerprint().workflowArtifactSha256,
+		},
 	};
 }
 
@@ -125,7 +155,6 @@ function completedResult(runId: string) {
 		},
 		providerResponseId: "response-1",
 		runId,
-		selectedTools: [],
 		stageTiming: {},
 		status: "completed" as const,
 		terminalReason: "answer_completed" as const,

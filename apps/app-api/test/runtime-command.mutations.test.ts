@@ -30,13 +30,10 @@ function turnDispatchWrite(overrides: Partial<TurnDispatchWrite> = {}): TurnDisp
 				type: "student",
 			},
 		},
-		requestedTool: "knowledge_query",
-		resolvedTargets: [],
 		requestFingerprintSha256: "f".repeat(64),
 		requestId: "req_001",
 		runId: "run_001",
 		safetyIdentifier: "safety_001",
-		selectedTool: null,
 		status: "accepted",
 		surface: "campus_web",
 		traceId: "trace_001",
@@ -48,15 +45,40 @@ function turnDispatchWrite(overrides: Partial<TurnDispatchWrite> = {}): TurnDisp
 }
 
 describe("runtime command mutations", () => {
-	it("persists the durable run id in chat turn dispatch truth", () => {
-		const values = buildAcceptTurnDispatchInsertValues(turnDispatchWrite(), null);
+	it("persists both frozen inputs and memory snapshot in the accepted turn insert", () => {
+		const values = buildAcceptTurnDispatchInsertValues(
+			turnDispatchWrite(),
+			{
+				appendEnabled: true,
+				ownerGeneration: 3,
+				ownerSequence: 7,
+				recallEnabled: false,
+			},
+			{
+				admissionInputJson: '{"runId":"run_001"}',
+				admissionInputSha256: "a".repeat(64),
+				executionInputJson: '{"request_id":"req_001"}',
+				executionInputSha256: "b".repeat(64),
+				workflowId: "campus-agent.chat.run_001",
+			},
+		);
 
 		expect(values).toMatchObject({
+			admissionInputJson: '{"runId":"run_001"}',
+			admissionInputSha256: "a".repeat(64),
+			admissionStatus: "pending_admission",
+			executionInputJson: '{"request_id":"req_001"}',
+			executionInputReleasedAt: null,
+			executionInputSha256: "b".repeat(64),
+			memoryAppendEnabled: true,
+			memoryOwnerGeneration: 3,
+			memoryOwnerSequence: 7,
+			memoryRecallEnabled: false,
 			requestId: "req_001",
-			resolvedTargetsJson: [],
 			runId: "run_001",
 			status: "accepted",
 			turnSequence: 1,
+			workflowId: "campus-agent.chat.run_001",
 		});
 	});
 });

@@ -181,7 +181,9 @@ describe("campus app-api client", () => {
 			new Response(
 				[
 					'event: request.accepted\ndata: {"runId":"run_01","requestId":"req_01","traceId":"trace_01","sequence":1,"status":"accepted","occurredAt":"2026-06-08T00:00:00.000Z"}',
-					'event: answer.delta\ndata: {"runId":"run_01","requestId":"req_01","traceId":"trace_01","sequence":2,"status":"streaming","occurredAt":"2026-06-08T00:00:01.000Z","messageId":"msg_answer","delta":"图书馆开放到","accumulatedText":"图书馆开放到"}',
+					'event: execution.queued\ndata: {"requestId":"req_01","traceId":"trace_01","status":"queued","occurredAt":"2026-06-08T00:00:00.250Z"}',
+					'event: execution.running\ndata: {"requestId":"req_01","traceId":"trace_01","status":"running","occurredAt":"2026-06-08T00:00:00.500Z"}',
+					'event: answer.delta\ndata: {"runId":"run_01","requestId":"req_01","traceId":"trace_01","sequence":2,"status":"streaming","occurredAt":"2026-06-08T00:00:01.000Z","messageId":"msg_answer","delta":"图书馆开放到"}',
 					'event: request.completed\ndata: {"runId":"run_01","requestId":"req_01","traceId":"trace_01","sequence":3,"status":"completed","occurredAt":"2026-06-08T00:00:02.000Z"}',
 					"",
 				].join("\n\n"),
@@ -201,12 +203,13 @@ describe("campus app-api client", () => {
 
 		expect(events.map((event) => event.event)).toEqual([
 			"request.accepted",
+			"execution.queued",
+			"execution.running",
 			"answer.delta",
 			"request.completed",
 		]);
-		expect(events[1]).toMatchObject({
+		expect(events[3]).toMatchObject({
 			data: {
-				accumulatedText: "图书馆开放到",
 				delta: "图书馆开放到",
 				messageId: "msg_answer",
 			},
@@ -266,6 +269,107 @@ describe("campus app-api client", () => {
 		});
 	});
 
+	it("preserves the typed terminal conflict from run cancellation", async () => {
+		vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					error: {
+						code: "run_already_terminal",
+						message: "Run is already terminal.",
+						retryable: false,
+					},
+				}),
+				{
+					headers: { "content-type": "application/json" },
+					status: 409,
+					statusText: "Conflict",
+				},
+			),
+		);
+
+		await expect(cancelRun("run_terminal")).rejects.toMatchObject({
+			code: "run_already_terminal",
+			message: "Run is already terminal.",
+			retryable: false,
+			status: 409,
+		});
+	});
+
+	it("maps submit, resume, and cancel authentication expiry without retrying", async () => {
+		const fetchMock = vi
+			.spyOn(globalThis, "fetch")
+			.mockResolvedValueOnce(new Response(null, { status: 401 }))
+			.mockResolvedValueOnce(new Response(null, { status: 401 }))
+			.mockResolvedValueOnce(new Response(null, { status: 401 }));
+
+		await expect(async () => {
+			for await (const _event of submitChatRequestStream({ prompt: "需要重新登录" })) {
+				throw new Error("unauthorized submit must not yield events");
+			}
+		}).rejects.toBeInstanceOf(UnauthorizedError);
+		await expect(async () => {
+			for await (const _event of resumeRunEventsStream({ runId: "run_01" })) {
+				throw new Error("unauthorized resume must not yield events");
+			}
+		}).rejects.toBeInstanceOf(UnauthorizedError);
+		await expect(cancelRun("run_01")).rejects.toBeInstanceOf(UnauthorizedError);
+		expect(fetchMock).toHaveBeenCalledTimes(3);
+	});
+
+	it("fails closed on malformed or unknown lifecycle events", async () => {
+		vi.spyOn(globalThis, "fetch")
+			.mockResolvedValueOnce(
+				new Response("event: request.accepted\ndata: {not-json}\n\n", {
+					headers: { "content-type": "text/event-stream" },
+				}),
+			)
+			.mockResolvedValueOnce(
+				new Response("event: request.future-state\ndata: {}\n\n", {
+					headers: { "content-type": "text/event-stream" },
+				}),
+			)
+			.mockResolvedValueOnce(
+				new Response(
+					'event: request.completed\ndata: {"requestId":"req_01","traceId":"trace_01","status":"completed","occurredAt":"2026-06-08T00:00:02.000Z"}\n\n',
+					{ headers: { "content-type": "text/event-stream" } },
+				),
+			);
+
+		for (const prompt of ["损坏事件", "未知事件", "错形终态"]) {
+			await expect(async () => {
+				for await (const _event of submitChatRequestStream({ prompt })) {
+					throw new Error("invalid stream must not yield events");
+				}
+			}).rejects.toMatchObject({
+				code: "invalid_stream_event",
+				retryable: false,
+			});
+		}
+	});
+
+	it("discards an unterminated SSE tail so the stable run can be resumed", async () => {
+		vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+			new Response(
+				[
+					'event: request.accepted\ndata: {"runId":"run_01","requestId":"req_01","traceId":"trace_01","status":"accepted","occurredAt":"2026-06-08T00:00:00.000Z"}',
+					'event: request.completed\ndata: {"runId":"run_01","requestId":"req_01"',
+				].join("\n\n"),
+				{ headers: { "content-type": "text/event-stream" } },
+			),
+		);
+
+		const events: ChatRequestStreamEvent[] = [];
+		for await (const event of submitChatRequestStream({ prompt: "继续当前运行" })) {
+			events.push(event);
+		}
+
+		expect(events).toHaveLength(1);
+		expect(events[0]).toMatchObject({
+			data: { runId: "run_01" },
+			event: "request.accepted",
+		});
+	});
+
 	it("uses a default structured request error for failed non-json chat stream startup", async () => {
 		vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
 			new Response("upstream unavailable", {
@@ -302,7 +406,7 @@ describe("campus app-api client", () => {
 			.mockResolvedValueOnce(new Response(null, { status: 204 }))
 			.mockResolvedValueOnce(
 				new Response(
-					'event: execution.running\ndata: {"runId":"run_01","requestId":"req_01","traceId":"trace_01","status":"running","occurredAt":"2026-06-08T00:00:00.000Z"}\n\n',
+					'event: execution.running\ndata: {"runId":"run_01","requestId":"req_01","traceId":"trace_01","status":"running","sequence":4,"occurredAt":"2026-06-08T00:00:00.000Z"}\n\n',
 					{
 						headers: { "content-type": "text/event-stream" },
 					},

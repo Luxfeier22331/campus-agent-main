@@ -9,5 +9,6 @@ license = "Apache-2.0"
 jsonschema = { version = "0.46.10", default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+sha2 = "0.10.9"
 text-splitter = { version = "0.32.0", features = ["tokenizers"] }
 tokenizers = "0.23.1"

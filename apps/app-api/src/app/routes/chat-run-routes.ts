@@ -68,31 +68,58 @@ function encodeSseComment(comment: string): Uint8Array {
 }
 
 function createRunEventsSseResponse(input: {
+	abortController: AbortController;
 	events: AsyncIterable<RuntimeRunEventProjection>;
 	run: RuntimeRunSummary;
 }): Response {
+	const iterator = input.events[Symbol.asyncIterator]();
+	let cancelled = false;
+	let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+
+	function clearHeartbeat() {
+		if (heartbeatInterval) {
+			clearInterval(heartbeatInterval);
+			heartbeatInterval = null;
+		}
+	}
+
 	const stream = new ReadableStream<Uint8Array>({
+		async cancel() {
+			cancelled = true;
+			clearHeartbeat();
+			input.abortController.abort();
+			await iterator.return?.();
+		},
 		async start(controller) {
-			let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+			let failed = false;
 			try {
 				controller.enqueue(encodeSseComment("keepalive"));
 				heartbeatInterval = setInterval(() => {
 					controller.enqueue(encodeSseComment("keepalive"));
 				}, 15_000);
-				for await (const event of input.events) {
+				while (!input.abortController.signal.aborted) {
+					const next = await iterator.next();
+					if (next.done) {
+						break;
+					}
 					const productEvent = toChatRunResumeStreamEvent({
-						event,
+						event: next.value,
 						run: input.run,
 					});
 					if (productEvent) {
 						controller.enqueue(encodeSseMessage(productEvent));
 					}
 				}
-			} finally {
-				if (heartbeatInterval) {
-					clearInterval(heartbeatInterval);
+			} catch (error) {
+				if (!input.abortController.signal.aborted) {
+					failed = true;
+					controller.error(error);
 				}
-				controller.close();
+			} finally {
+				clearHeartbeat();
+				if (!(cancelled || failed)) {
+					controller.close();
+				}
 			}
 		},
 	});
@@ -181,15 +208,14 @@ function toChatRunResumeStreamEvent(input: {
 	}
 	if (input.event.eventType === "run.answer_delta") {
 		const messageId = getStringPayloadValue(input.event.payload, "message_id");
-		const delta = getStringPayloadValue(input.event.payload, "delta");
-		const accumulatedText = getStringPayloadValue(input.event.payload, "accumulated_text");
-		if (!messageId || delta === null || accumulatedText === null) {
+		const rawDelta = input.event.payload.delta;
+		const delta = typeof rawDelta === "string" && rawDelta.length > 0 ? rawDelta : null;
+		if (!messageId || delta === null) {
 			return null;
 		}
 		return {
 			data: {
 				...baseData,
-				accumulatedText,
 				delta,
 				messageId,
 				status: "streaming",
@@ -314,6 +340,7 @@ export function registerChatRunRoutes(input: {
 				afterSequence: readAfterSequenceQuery(c.req.query("after_sequence")),
 				principal: resolved.principal,
 				runId: c.req.param("runId"),
+				signal: c.req.raw.signal,
 			});
 			return jsonResponse(response);
 		} catch (error) {
@@ -344,12 +371,15 @@ export function registerChatRunRoutes(input: {
 				principal: resolved.principal,
 				runId: c.req.param("runId"),
 			});
+			const abortController = new AbortController();
 			const events = runtimeRunService.subscribeEvents({
 				afterSequence: readAfterSequenceQuery(c.req.query("after_sequence")),
 				principal: resolved.principal,
 				runId: c.req.param("runId"),
+				signal: abortController.signal,
 			});
 			return createRunEventsSseResponse({
+				abortController,
 				events,
 				run: runStatus.run,
 			});

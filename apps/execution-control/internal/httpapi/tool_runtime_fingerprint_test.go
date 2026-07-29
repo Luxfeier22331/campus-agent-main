@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 )
 
 func TestToolRuntimeFingerprintUsesRuntimeConfigContent(t *testing.T) {
@@ -18,9 +20,9 @@ func TestToolRuntimeFingerprintUsesRuntimeConfigContent(t *testing.T) {
 	if first.CombinedSHA256 == "" || first.CombinedSHA256 != second.CombinedSHA256 {
 		t.Fatalf("combined hash is not stable: %#v / %#v", first, second)
 	}
-	if first.ToolsSchemaVersion != "tool-registry-v5" ||
-		first.FunctionSchemaVersion != "tool-function-schemas-v2" ||
-		first.WorkflowArtifactSchemaVersion != "workflow-artifact-registry-v2" {
+	if first.ToolsSchemaVersion != "tool-registry-v6" ||
+		first.FunctionSchemaVersion != "tool-function-schemas-v3" ||
+		first.WorkflowArtifactSchemaVersion != "workflow-artifact-registry-v3" {
 		t.Fatalf("unexpected runtime fingerprint versions: %#v", first)
 	}
 	if !validSHA256Ref(first.ToolsSHA256) ||
@@ -33,8 +35,8 @@ func TestToolRuntimeFingerprintUsesRuntimeConfigContent(t *testing.T) {
 
 func TestToolRuntimeFingerprintChangesWhenConfigContentChanges(t *testing.T) {
 	dir := t.TempDir()
-	writeRuntimeFingerprintFixture(t, dir, "tools.v5.json", `{
-		"schema_version":"tool-registry-v5",
+	writeRuntimeFingerprintFixture(t, dir, "tools.v6.json", `{
+		"schema_version":"tool-registry-v6",
 		"registry_version":"2026-01-01",
 		"tools":[{
 			"name":"transport_schedule_lookup",
@@ -49,8 +51,8 @@ func TestToolRuntimeFingerprintChangesWhenConfigContentChanges(t *testing.T) {
 			"result_projection_policy":"bounded_json"
 		}]
 	}`)
-	writeRuntimeFingerprintFixture(t, dir, "tool-function-schemas.v2.json", `{
-		"schema_version":"tool-function-schemas-v2",
+	writeRuntimeFingerprintFixture(t, dir, "tool-function-schemas.v3.json", `{
+		"schema_version":"tool-function-schemas-v3",
 		"tools":[{
 			"type":"function",
 			"name":"transport_schedule_lookup",
@@ -59,8 +61,8 @@ func TestToolRuntimeFingerprintChangesWhenConfigContentChanges(t *testing.T) {
 			"parameters":{"type":"object","additionalProperties":false,"properties":{"query_text":{"type":"string"}},"required":["query_text"]}
 		}]
 	}`)
-	writeRuntimeFingerprintFixture(t, dir, "workflow-artifacts.v2.json", `{
-		"schema_version":"workflow-artifact-registry-v2",
+	writeRuntimeFingerprintFixture(t, dir, "workflow-artifacts.v3.json", `{
+		"schema_version":"workflow-artifact-registry-v3",
 		"registry_version":"2026-01-01",
 		"visibility_values":["tool_private"],
 		"support_status_values":["supported_go_runtime"],
@@ -95,15 +97,15 @@ func TestToolRuntimeFingerprintChangesWhenConfigContentChanges(t *testing.T) {
 
 	first, err := buildToolRuntimeFingerprintWithPaths(
 		"",
-		filepath.Join(dir, "tools.v5.json"),
-		filepath.Join(dir, "tool-function-schemas.v2.json"),
-		filepath.Join(dir, "workflow-artifacts.v2.json"),
+		filepath.Join(dir, "tools.v6.json"),
+		filepath.Join(dir, "tool-function-schemas.v3.json"),
+		filepath.Join(dir, "workflow-artifacts.v3.json"),
 	)
 	if err != nil {
 		t.Fatalf("build fixture fingerprint: %v", err)
 	}
-	writeRuntimeFingerprintFixture(t, dir, "tool-function-schemas.v2.json", `{
-		"schema_version":"tool-function-schemas-v2",
+	writeRuntimeFingerprintFixture(t, dir, "tool-function-schemas.v3.json", `{
+		"schema_version":"tool-function-schemas-v3",
 		"tools":[{
 			"type":"function",
 			"name":"transport_schedule_lookup",
@@ -114,9 +116,9 @@ func TestToolRuntimeFingerprintChangesWhenConfigContentChanges(t *testing.T) {
 	}`)
 	second, err := buildToolRuntimeFingerprintWithPaths(
 		"",
-		filepath.Join(dir, "tools.v5.json"),
-		filepath.Join(dir, "tool-function-schemas.v2.json"),
-		filepath.Join(dir, "workflow-artifacts.v2.json"),
+		filepath.Join(dir, "tools.v6.json"),
+		filepath.Join(dir, "tool-function-schemas.v3.json"),
+		filepath.Join(dir, "workflow-artifacts.v3.json"),
 	)
 	if err != nil {
 		t.Fatalf("build changed fixture fingerprint: %v", err)
@@ -137,8 +139,8 @@ func TestToolRuntimeFingerprintUsesCanonicalJSONContent(t *testing.T) {
 	if err := os.Mkdir(compactDir, 0o700); err != nil {
 		t.Fatalf("mkdir compact: %v", err)
 	}
-	writeRuntimeFingerprintFixture(t, prettyDir, "tools.v5.json", `{
-		"schema_version":"tool-registry-v5",
+	writeRuntimeFingerprintFixture(t, prettyDir, "tools.v6.json", `{
+		"schema_version":"tool-registry-v6",
 		"registry_version":"2026-01-01",
 		"tools":[{
 			"name":"transport_schedule_lookup",
@@ -153,10 +155,10 @@ func TestToolRuntimeFingerprintUsesCanonicalJSONContent(t *testing.T) {
 			"result_projection_policy":"bounded_json"
 		}]
 	}`)
-	writeRuntimeFingerprintFixture(t, compactDir, "tools.v5.json", `{"tools":[{"timeout_ms":1000,"result_projection_policy":"bounded_json","result_schema_ref":"https://muc.wiki/campus-agent/schemas/campus-services-tool-contracts.v1.schema.json#/$defs/TransportScheduleLookupResult","requires_approval":false,"read_only":true,"payload_schema_ref":"https://muc.wiki/campus-agent/schemas/campus-services-tool-contracts.v1.schema.json#/$defs/TransportScheduleLookupPayload","name":"transport_schedule_lookup","handler":{"type":"execution_control_internal_query","endpoint":"/internal/query/campus-services/transport-schedule"},"exposure":"model_visible","description":"Transport schedule lookup."}],"schema_version":"tool-registry-v5","registry_version":"2026-01-01"}`)
+	writeRuntimeFingerprintFixture(t, compactDir, "tools.v6.json", `{"tools":[{"timeout_ms":1000,"result_projection_policy":"bounded_json","result_schema_ref":"https://muc.wiki/campus-agent/schemas/campus-services-tool-contracts.v1.schema.json#/$defs/TransportScheduleLookupResult","requires_approval":false,"read_only":true,"payload_schema_ref":"https://muc.wiki/campus-agent/schemas/campus-services-tool-contracts.v1.schema.json#/$defs/TransportScheduleLookupPayload","name":"transport_schedule_lookup","handler":{"type":"execution_control_internal_query","endpoint":"/internal/query/campus-services/transport-schedule"},"exposure":"model_visible","description":"Transport schedule lookup."}],"schema_version":"tool-registry-v6","registry_version":"2026-01-01"}`)
 	for _, runtimeDir := range []string{prettyDir, compactDir} {
-		writeRuntimeFingerprintFixture(t, runtimeDir, "tool-function-schemas.v2.json", `{
-			"schema_version":"tool-function-schemas-v2",
+		writeRuntimeFingerprintFixture(t, runtimeDir, "tool-function-schemas.v3.json", `{
+			"schema_version":"tool-function-schemas-v3",
 			"tools":[{
 				"type":"function",
 				"name":"transport_schedule_lookup",
@@ -165,8 +167,8 @@ func TestToolRuntimeFingerprintUsesCanonicalJSONContent(t *testing.T) {
 				"parameters":{"type":"object","additionalProperties":false,"properties":{"query_text":{"type":"string"}},"required":["query_text"]}
 			}]
 		}`)
-		writeRuntimeFingerprintFixture(t, runtimeDir, "workflow-artifacts.v2.json", `{
-			"schema_version":"workflow-artifact-registry-v2",
+		writeRuntimeFingerprintFixture(t, runtimeDir, "workflow-artifacts.v3.json", `{
+			"schema_version":"workflow-artifact-registry-v3",
 			"registry_version":"2026-01-01",
 			"visibility_values":["tool_private"],
 			"support_status_values":["supported_go_runtime"],
@@ -202,18 +204,18 @@ func TestToolRuntimeFingerprintUsesCanonicalJSONContent(t *testing.T) {
 
 	pretty, err := buildToolRuntimeFingerprintWithPaths(
 		"execution-control@pretty",
-		filepath.Join(prettyDir, "tools.v5.json"),
-		filepath.Join(prettyDir, "tool-function-schemas.v2.json"),
-		filepath.Join(prettyDir, "workflow-artifacts.v2.json"),
+		filepath.Join(prettyDir, "tools.v6.json"),
+		filepath.Join(prettyDir, "tool-function-schemas.v3.json"),
+		filepath.Join(prettyDir, "workflow-artifacts.v3.json"),
 	)
 	if err != nil {
 		t.Fatalf("build pretty fingerprint: %v", err)
 	}
 	compact, err := buildToolRuntimeFingerprintWithPaths(
-		"execution-control@compact",
-		filepath.Join(compactDir, "tools.v5.json"),
-		filepath.Join(compactDir, "tool-function-schemas.v2.json"),
-		filepath.Join(compactDir, "workflow-artifacts.v2.json"),
+		"execution-control@pretty",
+		filepath.Join(compactDir, "tools.v6.json"),
+		filepath.Join(compactDir, "tool-function-schemas.v3.json"),
+		filepath.Join(compactDir, "workflow-artifacts.v3.json"),
 	)
 	if err != nil {
 		t.Fatalf("build compact fingerprint: %v", err)
@@ -221,21 +223,44 @@ func TestToolRuntimeFingerprintUsesCanonicalJSONContent(t *testing.T) {
 	if pretty != compact {
 		t.Fatalf("fingerprint changed with formatting: %#v / %#v", pretty, compact)
 	}
+	otherRelease, err := buildToolRuntimeFingerprintWithPaths(
+		"execution-control@next",
+		filepath.Join(compactDir, "tools.v6.json"),
+		filepath.Join(compactDir, "tool-function-schemas.v3.json"),
+		filepath.Join(compactDir, "workflow-artifacts.v3.json"),
+	)
+	if err != nil {
+		t.Fatalf("build other release fingerprint: %v", err)
+	}
+	if otherRelease.CombinedSHA256 == compact.CombinedSHA256 {
+		t.Fatalf("runtime release change did not affect fingerprint: %#v / %#v", compact, otherRelease)
+	}
 }
 
 func TestToolRuntimeFingerprintFailsClosedOnMalformedConfig(t *testing.T) {
 	dir := t.TempDir()
-	writeRuntimeFingerprintFixture(t, dir, "tools.v5.json", `{"schema_version":"wrong","registry_version":"2026-01-01","tools":[]}`)
-	writeRuntimeFingerprintFixture(t, dir, "tool-function-schemas.v2.json", `{"schema_version":"tool-function-schemas-v2","tools":[]}`)
-	writeRuntimeFingerprintFixture(t, dir, "workflow-artifacts.v2.json", `{"schema_version":"workflow-artifact-registry-v2","registry_version":"2026-01-01","artifacts":[],"bindings":[]}`)
+	writeRuntimeFingerprintFixture(t, dir, "tools.v6.json", `{"schema_version":"wrong","registry_version":"2026-01-01","tools":[]}`)
+	writeRuntimeFingerprintFixture(t, dir, "tool-function-schemas.v3.json", `{"schema_version":"tool-function-schemas-v3","tools":[]}`)
+	writeRuntimeFingerprintFixture(t, dir, "workflow-artifacts.v3.json", `{"schema_version":"workflow-artifact-registry-v3","registry_version":"2026-01-01","artifacts":[],"bindings":[]}`)
 
 	if _, err := buildToolRuntimeFingerprintWithPaths(
 		"",
-		filepath.Join(dir, "tools.v5.json"),
-		filepath.Join(dir, "tool-function-schemas.v2.json"),
-		filepath.Join(dir, "workflow-artifacts.v2.json"),
+		filepath.Join(dir, "tools.v6.json"),
+		filepath.Join(dir, "tool-function-schemas.v3.json"),
+		filepath.Join(dir, "workflow-artifacts.v3.json"),
 	); err == nil {
 		t.Fatal("buildToolRuntimeFingerprint accepted malformed tool registry")
+	}
+}
+
+func TestExecutionControlLocalToolRuntimeFingerprintRejectsReleaseDrift(t *testing.T) {
+	admitted, err := buildToolRuntimeFingerprint("admitted-release")
+	if err != nil {
+		t.Fatalf("build admitted fingerprint: %v", err)
+	}
+	server := NewServer(config.Config{DeploymentRelease: "worker-release"})
+	if err := server.validateLocalToolRuntimeFingerprintMap(admitted.toMap()); err == nil {
+		t.Fatal("local execution-control release drift was accepted")
 	}
 }
 

@@ -1,6 +1,4 @@
-import { createHash } from "node:crypto";
-
-import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, or, sql } from "drizzle-orm";
 
 import type { Env } from "../../config";
 import { type createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
@@ -31,26 +29,33 @@ import type {
 	ChatCommandStore,
 	TurnDispatchMemorySnapshot,
 } from "./store-types";
-import { ChatFinalizationConflict } from "./store-types";
+import {
+	ChatAcceptanceConversationConflict,
+	ChatAcceptanceIdempotencyConflict,
+	ChatFinalizationConflict,
+} from "./store-types";
 
 type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
-
-function stableContextHash(values: string[]): string {
-	return `sha256:${createHash("sha256").update(JSON.stringify(values)).digest("hex")}`;
-}
 
 export type {
 	AbuseControlState,
 	AcceptedDurableRequestCloseout,
 	AcceptRequestWrite,
 	ChatCommandStore,
+	FinalizeRequestResult,
 	FinalizeRequestWrite,
 	FinalizeTurnDispatchWrite,
+	FrozenChatAdmissionWrite,
 	RequestObservabilityFactWrite,
 	StoredIdempotentRequest,
+	TurnDispatchMemorySnapshot,
 	TurnDispatchPrincipalSnapshot,
 	TurnDispatchStatus,
 	TurnDispatchWrite,
+} from "./store-types";
+export {
+	ChatAcceptanceConversationConflict,
+	ChatAcceptanceIdempotencyConflict,
 } from "./store-types";
 
 export function createPgChatCommandStore(
@@ -91,21 +96,59 @@ export function createPgChatCommandStore(
 	}
 
 	return {
-		async recordAdmissionInput(input) {
+		async claimAdmission(input) {
 			const db = await getDb();
+			const admissionCondition = input.staleBefore
+				? or(
+						eq(turnDispatches.admissionStatus, "pending_admission"),
+						and(
+							eq(turnDispatches.admissionStatus, "dispatching"),
+							lt(turnDispatches.updatedAt, new Date(input.staleBefore)),
+						),
+					)
+				: eq(turnDispatches.admissionStatus, "pending_admission");
 			const rows = await db
 				.update(turnDispatches)
 				.set({
-					admissionStatus: "pending_admission",
+					admissionStatus: "dispatching",
 					updatedAt: new Date(input.updatedAt),
-					workflowId: input.workflowId,
-					workflowInputJson: input.workflowInput,
-					workflowInputSha256: input.workflowInputSha256,
 				})
 				.where(
 					and(
 						eq(turnDispatches.requestId, input.requestId),
-						eq(turnDispatches.admissionStatus, "pending_input"),
+						eq(turnDispatches.workflowId, input.workflowId),
+						eq(turnDispatches.status, "accepted"),
+						admissionCondition,
+						inArray(turnDispatches.cancelOutboxStatus, ["not_requested", "pending_delivery"]),
+					),
+				)
+				.returning({ requestId: turnDispatches.requestId });
+			return rows.length === 1;
+		},
+
+		async releaseAdmission(input) {
+			const db = await getDb();
+			const rows = await db
+				.update(turnDispatches)
+				.set({
+					admissionStatus: sql<string>`case
+						when ${turnDispatches.cancelOutboxStatus} in ('local_finalization_pending', 'closed')
+							then 'cancelled'
+						else 'pending_admission'
+					end`,
+					updatedAt: new Date(input.updatedAt),
+				})
+				.where(
+					and(
+						eq(turnDispatches.requestId, input.requestId),
+						eq(turnDispatches.workflowId, input.workflowId),
+						eq(turnDispatches.status, "accepted"),
+						eq(turnDispatches.admissionStatus, "dispatching"),
+						inArray(turnDispatches.cancelOutboxStatus, [
+							"not_requested",
+							"pending_delivery",
+							"local_finalization_pending",
+						]),
 					),
 				)
 				.returning({ requestId: turnDispatches.requestId });
@@ -118,14 +161,18 @@ export function createPgChatCommandStore(
 				.update(turnDispatches)
 				.set({
 					admissionStatus: "admitted",
+					admissionInputJson: null,
+					admissionInputSha256: null,
 					admittedAt: new Date(input.admittedAt),
 					workflowId: input.workflowId,
 				})
 				.where(
 					and(
 						eq(turnDispatches.requestId, input.requestId),
-						eq(turnDispatches.admissionStatus, "pending_admission"),
+						eq(turnDispatches.status, "accepted"),
+						inArray(turnDispatches.admissionStatus, ["dispatching", "admitted"]),
 						eq(turnDispatches.workflowId, input.workflowId),
+						inArray(turnDispatches.cancelOutboxStatus, ["not_requested", "pending_delivery"]),
 					),
 				)
 				.returning({ requestId: turnDispatches.requestId });
@@ -134,90 +181,120 @@ export function createPgChatCommandStore(
 		async listPendingAdmissions(input = {}) {
 			const db = await getDb();
 			const limit = Math.max(1, Math.min(input.limit ?? 25, 100));
+			const admissionCondition = input.staleBefore
+				? or(
+						and(
+							eq(turnDispatches.admissionStatus, "pending_admission"),
+							inArray(turnDispatches.cancelOutboxStatus, ["not_requested", "pending_delivery"]),
+						),
+						and(
+							eq(turnDispatches.admissionStatus, "dispatching"),
+							lt(turnDispatches.updatedAt, new Date(input.staleBefore)),
+							inArray(turnDispatches.cancelOutboxStatus, ["not_requested", "pending_delivery"]),
+						),
+					)
+				: and(
+						eq(turnDispatches.admissionStatus, "pending_admission"),
+						inArray(turnDispatches.cancelOutboxStatus, ["not_requested", "pending_delivery"]),
+					);
 			const rows = await db
 				.select({
+					admissionInputJson: turnDispatches.admissionInputJson,
+					admissionInputSha256: turnDispatches.admissionInputSha256,
 					requestId: turnDispatches.requestId,
+					runId: turnDispatches.runId,
 					workflowId: turnDispatches.workflowId,
-					workflowInput: turnDispatches.workflowInputJson,
-					workflowInputSha256: turnDispatches.workflowInputSha256,
 				})
 				.from(turnDispatches)
 				.where(
 					and(
 						eq(turnDispatches.status, "accepted"),
-						eq(turnDispatches.admissionStatus, "pending_admission"),
+						admissionCondition,
 						isNotNull(turnDispatches.workflowId),
-						isNotNull(turnDispatches.workflowInputJson),
-						isNotNull(turnDispatches.workflowInputSha256),
+						isNotNull(turnDispatches.runId),
+						isNotNull(turnDispatches.admissionInputJson),
+						isNotNull(turnDispatches.admissionInputSha256),
 					),
 				)
 				.orderBy(asc(turnDispatches.updatedAt))
 				.limit(limit);
 			return rows.flatMap((row) =>
-				row.workflowId && row.workflowInput && row.workflowInputSha256
+				row.workflowId && row.runId && row.admissionInputJson && row.admissionInputSha256
 					? [
 							{
+								admissionInputJson: row.admissionInputJson,
+								admissionInputSha256: row.admissionInputSha256,
 								requestId: row.requestId,
+								runId: row.runId,
 								workflowId: row.workflowId,
-								workflowInput: row.workflowInput,
-								workflowInputSha256: row.workflowInputSha256,
 							},
 						]
 					: [],
 			);
 		},
-		async listPreviousToolResultRefs(input) {
+		async readExecutionInput(runId) {
+			const normalizedRunId = runId.trim();
+			if (!normalizedRunId) {
+				return null;
+			}
 			const db = await getDb();
-			const limit = Math.max(1, Math.min(input.limit, 10));
 			const rows = await db
 				.select({
-					answerText: messages.text,
+					executionInputJson: turnDispatches.executionInputJson,
+					executionInputReleasedAt: turnDispatches.executionInputReleasedAt,
+					executionInputSha256: turnDispatches.executionInputSha256,
 					requestId: turnDispatches.requestId,
 					runId: turnDispatches.runId,
-					selectedTool: turnDispatches.selectedTool,
 					status: turnDispatches.status,
-					turnSequence: turnDispatches.turnSequence,
 				})
 				.from(turnDispatches)
-				.leftJoin(
-					messages,
-					and(eq(messages.requestId, turnDispatches.requestId), eq(messages.role, "assistant")),
-				)
-				.where(
-					and(
-						eq(turnDispatches.ownerUserId, input.ownerUserId),
-						eq(turnDispatches.conversationId, input.conversationId),
-						eq(turnDispatches.status, "completed"),
-						isNotNull(turnDispatches.runId),
-						isNotNull(turnDispatches.selectedTool),
-						lte(turnDispatches.turnSequence, input.beforeTurnSequence - 1),
-					),
-				)
-				.orderBy(desc(turnDispatches.turnSequence))
-				.limit(limit);
-			return rows.flatMap((row) => {
-				if (!(row.runId && row.selectedTool)) {
-					return [];
+				.where(eq(turnDispatches.runId, normalizedRunId))
+				.limit(1);
+			const row = rows[0];
+			if (!row?.runId) {
+				return null;
+			}
+			return {
+				executionInputJson: row.executionInputJson,
+				executionInputReleasedAt: row.executionInputReleasedAt?.toISOString() ?? null,
+				executionInputSha256: row.executionInputSha256,
+				requestId: row.requestId,
+				runId: row.runId,
+				status: row.status as import("./store-types").TurnDispatchStatus,
+			};
+		},
+
+		async releaseExecutionInput(input) {
+			const db = await getDb();
+			return db.transaction(async (tx) => {
+				const rows = await tx
+					.select({
+						executionInputReleasedAt: turnDispatches.executionInputReleasedAt,
+						status: turnDispatches.status,
+					})
+					.from(turnDispatches)
+					.where(eq(turnDispatches.runId, input.runId.trim()))
+					.limit(1)
+					.for("update");
+				const row = rows[0];
+				if (!row) {
+					return "released" as const;
 				}
-				const projectionRef = `projection://runs/${row.runId}/finalization`;
-				return [
-					{
-						tool: row.selectedTool,
-						contentHash: stableContextHash([
-							row.requestId,
-							row.runId,
-							row.selectedTool,
-							row.status,
-							row.answerText ?? "",
-						]),
-						projectionRef,
-						requestId: row.requestId,
-						resultKind: "final_response",
-						runId: row.runId,
-						status: row.status,
-						...(row.answerText ? { summary: row.answerText } : {}),
-					},
-				];
+				if (row.status === "accepted") {
+					return "not_terminal" as const;
+				}
+				if (row.executionInputReleasedAt) {
+					return "released" as const;
+				}
+				await tx
+					.update(turnDispatches)
+					.set({
+						executionInputJson: null,
+						executionInputReleasedAt: new Date(input.releasedAt),
+						executionInputSha256: null,
+					})
+					.where(eq(turnDispatches.runId, input.runId.trim()));
+				return "released" as const;
 			});
 		},
 
@@ -258,6 +335,7 @@ export function createPgChatCommandStore(
 				candidates.push({
 					acceptedAt: row.createdAt.toISOString(),
 					assistantMessageId: row.assistantMessageId,
+					completedAt: row.completedAt?.toISOString() ?? null,
 					conversation,
 					conversationTitle: conversation.title,
 					idempotencyKey: row.idempotencyKey,
@@ -280,7 +358,6 @@ export function createPgChatCommandStore(
 					questionPreview: userMessage.text,
 					requestFingerprintSha256: row.requestFingerprintSha256,
 					requestId: row.requestId,
-					requestedTool: row.requestedTool,
 					runId: row.runId,
 					safetyIdentifier: row.safetyIdentifier,
 					surface: row.surface,
@@ -367,11 +444,19 @@ export function createPgChatCommandStore(
 				if (input.conversationSeed) {
 					await tx
 						.insert(conversations)
-						.values(buildConversationSeedInsertValues(input.conversationSeed));
+						.values(buildConversationSeedInsertValues(input.conversationSeed))
+						.onConflictDoNothing({ target: conversations.id });
 				}
 
 				const lockedConversations = await tx
-					.select({ id: conversations.id })
+					.select({
+						activeBranchId: conversations.activeBranchId,
+						activeMessageId: conversations.activeMessageId,
+						activeRunId: conversations.activeRunId,
+						activeTurnSequence: conversations.activeTurnSequence,
+						id: conversations.id,
+						updatedAt: conversations.updatedAt,
+					})
 					.from(conversations)
 					.where(
 						and(
@@ -382,8 +467,33 @@ export function createPgChatCommandStore(
 					)
 					.limit(1)
 					.for("update");
-				if (!lockedConversations[0]) {
-					throw new Error("Cannot accept a request for a missing or deleted conversation.");
+				const lockedConversation = lockedConversations[0];
+				if (!lockedConversation) {
+					throw new ChatAcceptanceConversationConflict();
+				}
+				if (
+					lockedConversation.activeBranchId !== input.conversationBaseline.activeBranchId ||
+					lockedConversation.activeMessageId !== input.conversationBaseline.activeMessageId ||
+					lockedConversation.activeRunId !== input.conversationBaseline.activeRunId ||
+					lockedConversation.activeTurnSequence !== input.conversationBaseline.activeTurnSequence ||
+					lockedConversation.updatedAt.toISOString() !== input.conversationBaseline.updatedAt
+				) {
+					if (input.turnDispatch.idempotencyKey) {
+						const idempotencyWinner = await tx
+							.select({ requestId: turnDispatches.requestId })
+							.from(turnDispatches)
+							.where(
+								and(
+									eq(turnDispatches.actorUserId, input.turnDispatch.actorUserId),
+									eq(turnDispatches.idempotencyKey, input.turnDispatch.idempotencyKey),
+								),
+							)
+							.limit(1);
+						if (idempotencyWinner[0]) {
+							throw new ChatAcceptanceIdempotencyConflict();
+						}
+					}
+					throw new ChatAcceptanceConversationConflict();
 				}
 
 				let memorySnapshot: TurnDispatchMemorySnapshot | null = null;
@@ -404,6 +514,7 @@ export function createPgChatCommandStore(
 						recallEnabled: lifecycleState === "active" && syncStatus === "synced",
 					};
 				}
+				const frozenAdmission = input.freezeDurableAdmission(memorySnapshot);
 
 				await tx
 					.update(messages)
@@ -418,9 +529,22 @@ export function createPgChatCommandStore(
 
 				await tx.insert(messages).values(buildChatMessageInsertValues(input.userMessage));
 
-				await tx
+				const acceptedDispatchRows = await tx
 					.insert(turnDispatches)
-					.values(buildAcceptTurnDispatchInsertValues(input.turnDispatch, memorySnapshot));
+					.values(
+						buildAcceptTurnDispatchInsertValues(
+							input.turnDispatch,
+							memorySnapshot,
+							frozenAdmission,
+						),
+					)
+					.onConflictDoNothing({
+						target: [turnDispatches.actorUserId, turnDispatches.idempotencyKey],
+					})
+					.returning({ requestId: turnDispatches.requestId });
+				if (acceptedDispatchRows.length !== 1) {
+					throw new ChatAcceptanceIdempotencyConflict();
+				}
 
 				await tx
 					.insert(requestObservabilityFact)
@@ -449,7 +573,7 @@ export function createPgChatCommandStore(
 				if (updatedConversations.length !== 1) {
 					throw new Error("Conversation changed while accepting the request.");
 				}
-				return { memorySnapshot };
+				return { frozenAdmission, memorySnapshot };
 			});
 		},
 
@@ -460,16 +584,30 @@ export function createPgChatCommandStore(
 			await db.transaction(async (tx) => {
 				const existingRows = await tx
 					.select({
+						admissionStatus: turnDispatches.admissionStatus,
+						completedAt: turnDispatches.completedAt,
 						finalizationFingerprint: turnDispatches.finalizationFingerprint,
 						status: turnDispatches.status,
+						workflowId: turnDispatches.workflowId,
 					})
 					.from(turnDispatches)
 					.where(eq(turnDispatches.requestId, input.turnDispatch.requestId))
 					.limit(1)
 					.for("update");
 				const existing = existingRows[0];
-				if (input.finalizationFingerprint && existing?.finalizationFingerprint) {
-					if (existing.finalizationFingerprint !== input.finalizationFingerprint) {
+				if (
+					input.finalizationFingerprint &&
+					(existing?.finalizationFingerprint || existing?.completedAt)
+				) {
+					const requestedCompletedAt = input.turnDispatch.completedAt
+						? new Date(input.turnDispatch.completedAt)
+						: null;
+					if (
+						!(existing.finalizationFingerprint && existing.completedAt && requestedCompletedAt) ||
+						Number.isNaN(requestedCompletedAt.valueOf()) ||
+						existing.finalizationFingerprint !== input.finalizationFingerprint ||
+						existing.completedAt.valueOf() !== requestedCompletedAt.valueOf()
+					) {
 						throw new ChatFinalizationConflict();
 					}
 					replayed = true;
@@ -479,12 +617,62 @@ export function createPgChatCommandStore(
 					.update(turnDispatches)
 					.set({
 						...buildFinalizeTurnDispatchUpdateValues(input.turnDispatch),
+						...(input.admissionFailure
+							? {
+									admissionStatus: "admission_failed",
+									workflowId: sql<string>`coalesce(
+											${turnDispatches.workflowId},
+											${input.admissionFailure.workflowId}
+											)`,
+								}
+							: {
+									admissionStatus: sql<string>`case
+											when ${turnDispatches.admissionStatus} = 'cancelled'
+												then 'cancelled'
+											when ${turnDispatches.admissionStatus} in ('dispatching', 'admitted')
+												then 'admitted'
+											else 'admission_failed'
+										end`,
+								}),
+						admissionInputJson: null,
+						admissionInputSha256: null,
+						cancelOutboxStatus: sql<string>`case
+							when ${turnDispatches.cancelOutboxStatus} = 'not_requested'
+								then 'not_requested'
+							else 'closed'
+						end`,
+						executionInputJson: sql<string | null>`case
+							when ${turnDispatches.admissionStatus} = 'admitted'
+								then ${turnDispatches.executionInputJson}
+							else null
+						end`,
+						executionInputReleasedAt: sql<Date | null>`case
+							when ${turnDispatches.admissionStatus} = 'admitted'
+								then ${turnDispatches.executionInputReleasedAt}
+							else coalesce(
+								${turnDispatches.executionInputReleasedAt},
+								${new Date(input.turnDispatch.completedAt ?? input.turnDispatch.updatedAt)}
+							)
+						end`,
+						executionInputSha256: sql<string | null>`case
+							when ${turnDispatches.admissionStatus} = 'admitted'
+								then ${turnDispatches.executionInputSha256}
+							else null
+						end`,
 						finalizationFingerprint: input.finalizationFingerprint ?? null,
 					})
 					.where(
 						and(
 							eq(turnDispatches.requestId, input.turnDispatch.requestId),
 							eq(turnDispatches.status, "accepted"),
+							...(input.admissionFailure
+								? [
+										and(
+											eq(turnDispatches.admissionStatus, "dispatching"),
+											eq(turnDispatches.workflowId, input.admissionFailure.workflowId),
+										),
+									]
+								: []),
 						),
 					)
 					.returning({ requestId: turnDispatches.requestId });
@@ -577,8 +765,47 @@ export function createPgChatCommandStore(
 				throw new Error("Conversation disappeared after finalize.");
 			}
 
-			void replayed;
-			return conversation;
+			return {
+				conversation,
+				outcome: replayed ? "replayed" : "applied",
+			};
+		},
+
+		async recordStreamAppApiTtft(input) {
+			const db = await getDb();
+			const updated = await db
+				.update(requestObservabilityFact)
+				.set({
+					stageTimingJson: sql<Record<string, unknown>>`jsonb_set(
+						${requestObservabilityFact.stageTimingJson},
+						array['stream.app_api_ttft_ms'],
+						to_jsonb(${input.durationMs}::double precision),
+						true
+					)`,
+					updatedAt: new Date(input.observedAt),
+				})
+				.where(
+					and(
+						eq(requestObservabilityFact.requestId, input.requestId),
+						eq(requestObservabilityFact.status, "accepted"),
+						sql`not (${requestObservabilityFact.stageTimingJson} ? 'stream.app_api_ttft_ms')`,
+					),
+				)
+				.returning({ requestId: requestObservabilityFact.requestId });
+			return updated.length === 1;
+		},
+
+		async readRequestStageTiming(requestId) {
+			const db = await getDb();
+			const rows = await db
+				.select({ stageTiming: requestObservabilityFact.stageTimingJson })
+				.from(requestObservabilityFact)
+				.where(eq(requestObservabilityFact.requestId, requestId))
+				.limit(1);
+			if (!rows[0]) {
+				throw new Error(`Request observability fact ${requestId} was not found.`);
+			}
+			return rows[0].stageTiming;
 		},
 	};
 }

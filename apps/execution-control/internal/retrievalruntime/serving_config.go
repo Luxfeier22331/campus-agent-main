@@ -25,7 +25,6 @@ type ServingConfig struct {
 	EmbeddingModel            string
 	EmbeddingProvider         string
 	EmbeddingVectorName       string
-	QdrantAliasName           string
 	RetrievalEnabled          bool
 	ServingRevisionTracks     []string
 	ServingStage              string
@@ -46,7 +45,6 @@ type servingConfigPayload struct {
 		Model           string `json:"model"`
 		Provider        string `json:"provider"`
 	} `json:"embedding_profile"`
-	QdrantAliasName         string   `json:"qdrant_alias_name"`
 	QdrantDenseVectorName   string   `json:"qdrant_dense_vector_name"`
 	QdrantSparseVectorName  string   `json:"qdrant_sparse_vector_name"`
 	RetrievalEnabled        bool     `json:"retrieval_enabled"`
@@ -85,7 +83,6 @@ func LoadServingConfigPath(configRoot string, relativePath string) (ServingConfi
 		EmbeddingModel:            strings.TrimSpace(payload.EmbeddingProfile.Model),
 		EmbeddingProvider:         strings.TrimSpace(payload.EmbeddingProfile.Provider),
 		EmbeddingVectorName:       strings.TrimSpace(payload.EmbeddingProfile.DenseVectorName),
-		QdrantAliasName:           strings.TrimSpace(payload.QdrantAliasName),
 		RetrievalEnabled:          payload.RetrievalEnabled,
 		ServingRevisionTracks:     normalizeStringSlice(payload.ServingRevisionTracks),
 		ServingStage:              strings.TrimSpace(payload.ServingStage),
@@ -132,9 +129,6 @@ func validateServingConfig(config ServingConfig, relativePath string) error {
 	}
 	if !config.RetrievalEnabled {
 		return fmt.Errorf("serving config %s retrieval is disabled", relativePath)
-	}
-	if config.QdrantAliasName == "" {
-		return fmt.Errorf("serving config %s qdrant_alias_name is required", relativePath)
 	}
 	if config.DenseVectorName == "" || config.SparseVectorName == "" {
 		return fmt.Errorf("serving config %s qdrant vector names are required", relativePath)

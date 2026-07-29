@@ -13,10 +13,12 @@ status: active
 ## 信号
 
 - `chat.turn_dispatches`：`safety_identifier`、状态、错误和时间；
-- `runtime.request_observability_fact`：ACL、resolved targets、refusal、semantic outcome
-  和 trace correlation；
+- `runtime.agent_runs`：运行终态、`terminal_reason`、`fail_close_reason` 和 trace 关联；
 - Axiom：脱敏辅助日志和调用链，不是限流状态依据；
 - Sentry：经过清理的应用异常，不是用户身份、请求正文或限流状态依据。
+
+`runtime.request_observability_fact` 是 App API 内部投影，Ops Web 当前没有列读取权限，不能作为本
+runbook 的排查入口。
 
 ## 阈值所有权
 
@@ -28,8 +30,7 @@ abuse throttle 与 safety alert 阈值由
 
 1. 在 Ops Web 按时间、状态、requestId、traceId 或 safety 关联摘要定位请求。
 2. 确认 turn dispatch 的 terminal 状态和 `error_code`。
-3. 使用 observability fact 判断 ACL、resolved targets、remote-content suspicion 或
-   provider filter。
+3. 确认 Agent run 的 `terminal_reason`、`fail_close_reason` 和 trace 关联。
 4. 需要深入排查时由 Ops Web 按固定 `requestId` 和有界窗口读取 Axiom；partial response、查询
    失败或审计失败时不返回原始记录。
 5. 只记录 sanitized request/trace id、pattern code、时间窗口和结论。

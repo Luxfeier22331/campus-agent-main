@@ -147,18 +147,12 @@ function expectedPayload(dataset: JsonObject, item: JsonObject): JsonObject {
 	if (dataset.kind === "rag_eval") {
 		const referenceContextIds = stringList(item.reference_context_ids);
 		const expectedOutcome = stringField(item.expected_outcome, "expected_outcome");
-		const expectedTargets = stringList(item.expected_targets);
-		const includeHistory = item.include_history === true;
+		const expectedDocumentScopes = stringList(item.expected_document_scopes);
 		return {
 			case_id: item.case_id,
 			expected_outcome: expectedOutcome,
-			expected_search_count: requiredPositiveInteger(
-				item.expected_search_count,
-				"expected_search_count",
-			),
-			expected_targets: expectedTargets,
+			expected_document_scopes: expectedDocumentScopes,
 			forbidden_context_ids: stringList(item.forbidden_context_ids),
-			include_history: includeHistory,
 			metric_applicability: {
 				answer_relevancy: expectedOutcome === "answer",
 				context_precision: expectedOutcome === "answer" && referenceContextIds.length > 0,
@@ -168,19 +162,21 @@ function expectedPayload(dataset: JsonObject, item: JsonObject): JsonObject {
 			reference: stringField(item.reference, "reference"),
 			reference_context_ids: referenceContextIds,
 			reference_contexts: stringList(item.reference_contexts),
-			reference_tool_calls: [
-				{ args: {}, name: "knowledge_query" },
-				...expectedTargets.map((target) => ({
-					args: { include_history: includeHistory, target },
-					name: "knowledge_search",
-				})),
-			],
+			expected_grounding: {
+				document_scopes: expectedDocumentScopes,
+				minimum_relevant_context_count: requiredNonNegativeInteger(
+					item.minimum_relevant_context_count,
+					"minimum_relevant_context_count",
+				),
+			},
 			split: optionalString(item.split),
 		};
 	}
 	if (dataset.kind === "agent_tool_eval") {
+		const expectedGroundingMode = optionalString(item.expected_grounding_mode);
 		return {
 			case_id: item.case_id,
+			...(expectedGroundingMode ? { expected_grounding_mode: expectedGroundingMode } : {}),
 			expected_outcome: stringField(item.expected_outcome, "expected_outcome"),
 			forbidden_context_ids: stringList(item.forbidden_context_ids),
 			reference: stringField(item.reference, "reference"),
@@ -215,7 +211,7 @@ function datasetItem(input: {
 		id: `campus-${slug(slugValue)}-${sha256Text(caseId).slice(0, 16)}`,
 		input: input.inputPayload,
 		metadata: {
-			argument_mode: optionalString(input.caseItem.argument_mode) ?? "eval_safe_args",
+			argument_mode: optionalString(input.caseItem.argument_mode) ?? "name_only",
 			case_id: caseId,
 			case_family: optionalString(input.caseItem.case_family),
 			dataset_slug: slugValue,
@@ -229,9 +225,9 @@ function datasetItem(input: {
 	};
 }
 
-function requiredPositiveInteger(value: unknown, field: string): number {
-	if (!(typeof value === "number" && Number.isInteger(value) && value > 0)) {
-		throw new Error(`${field} must be a positive integer`);
+function requiredNonNegativeInteger(value: unknown, field: string): number {
+	if (!(typeof value === "number" && Number.isInteger(value) && value >= 0)) {
+		throw new Error(`${field} must be a non-negative integer`);
 	}
 	return value;
 }

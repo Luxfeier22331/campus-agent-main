@@ -64,12 +64,15 @@ function createResponse(overrides: Partial<ToolExecutionResponse> = {}): ToolExe
 		followUpQuestion: "",
 		observability: null,
 		result: null,
-		selectedTool: "knowledge_query",
 		status: "completed",
 		traceId: "trace_accepted",
 		...overrides,
-		resolvedTargets: overrides.resolvedTargets ?? [],
-		sessionUpdate: overrides.sessionUpdate ?? null,
+		modelUsage: overrides.modelUsage ?? {
+			cachedInputTokens: 10,
+			inputTokens: 120,
+			outputTokens: 42,
+			totalTokens: 162,
+		},
 	};
 }
 
@@ -85,7 +88,6 @@ describe("buildFinalizedWrite trace integrity", () => {
 				durationMs: 3000,
 				principal: createPrincipal(),
 				requestId: "req_01HQ",
-				requestedTool: "knowledge_query",
 				response: createResponse({
 					traceId: "trace_drifted",
 				}),

@@ -94,7 +94,6 @@ export function createAppTelemetry(
 				applyRequestTags({
 					principalType: input.actor.principalType,
 					requestId: input.requestId,
-					requestedTool: input.requestedTool,
 					status: "accepted",
 					surface: input.surface,
 					traceId: input.traceId,
@@ -131,7 +130,6 @@ export function createAppTelemetry(
 				applyRequestTags({
 					principalType: input.actor.principalType,
 					requestId: input.requestId,
-					requestedTool: input.requestedTool,
 					status: input.status,
 					surface: input.surface,
 					traceId: input.traceId,
@@ -145,7 +143,6 @@ export function createAppTelemetry(
 							eventType: "request.accepted",
 							principalType: input.actor.principalType,
 							requestId: input.requestId,
-							requestedTool: input.requestedTool,
 							status: input.status,
 							surface: input.surface,
 							traceId: input.traceId,
@@ -162,9 +159,6 @@ export function createAppTelemetry(
 					errorCode: input.errorCode,
 					principalType: input.principalType,
 					requestId: input.requestId,
-					requestedTool: input.requestedTool,
-					resolvedTargets: input.resolvedTargets,
-					selectedTool: input.selectedTool,
 					status: input.status,
 					surface: input.surface,
 					traceId: input.traceId,
@@ -173,10 +167,13 @@ export function createAppTelemetry(
 
 			await runTelemetryAsyncSideEffectWithoutRequestFailure(() =>
 				runtimeEventSink.emit({
+					cached_input_tokens: input.modelUsage.cachedInputTokens,
 					duration_ms: input.durationMs,
-					resolved_targets_count: input.resolvedTargets?.length ?? 0,
+					input_tokens: input.modelUsage.inputTokens,
+					output_tokens: input.modelUsage.outputTokens,
 					retryable: input.retryable,
 					source_doc_ids_count: input.sourceDocIds.length,
+					total_tokens: input.modelUsage.totalTokens,
 					...projectStageTimingFields(input.stageTiming),
 					...buildRuntimeEventEnvelope(
 						{
@@ -184,8 +181,6 @@ export function createAppTelemetry(
 							eventType: "request.finalized",
 							principalType: input.principalType,
 							requestId: input.requestId,
-							requestedTool: input.requestedTool,
-							selectedTool: input.selectedTool,
 							status: input.status,
 							surface: input.surface,
 							traceId: input.traceId,
@@ -202,7 +197,6 @@ export function createAppTelemetry(
 					errorCode: input.errorCode,
 					principalType: input.principalType,
 					requestId: input.requestId,
-					requestedTool: input.requestedTool,
 					status: "error",
 					surface: input.surface,
 					traceId: input.traceId,
@@ -218,7 +212,6 @@ export function createAppTelemetry(
 							eventType: "request.transport_error",
 							principalType: input.principalType,
 							requestId: input.requestId,
-							requestedTool: input.requestedTool,
 							status: "error",
 							surface: input.surface,
 							traceId: input.traceId,

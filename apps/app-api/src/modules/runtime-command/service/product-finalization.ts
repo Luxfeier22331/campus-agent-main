@@ -10,6 +10,7 @@ export function acceptedCloseoutContext(
 		branchId: candidate.conversation.activeBranchId ?? "branch_active",
 		conversation: candidate.conversation,
 		conversationTitle: candidate.conversationTitle,
+		frozenAdmission: null,
 		idempotencyKey: candidate.idempotencyKey,
 		input: {
 			payload: {
@@ -33,7 +34,6 @@ export function acceptedCloseoutContext(
 		validatedPayload: {
 			conversationId: candidate.conversation.id,
 			prompt: candidate.questionPreview,
-			requestedTool: candidate.requestedTool,
 		},
 	};
 }

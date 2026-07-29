@@ -23,8 +23,8 @@ embedding profile、dimension、vector name、analyzer、prefetch limit 和 resu
 reranking、HyDE、multi-query expansion 和自动 query rewriting 不作为默认阶段。只有评测
 或 production failure 证明现有 hybrid path 存在具体缺口时，才增加其中一项。
 
-target admission、history mode 和 Knowledge Agent 工具参数由 ADR-0075 维护。各 collection
-的 chunking 和 embedding compatibility 属于对应配置与 policy。
+文档范围准入、历史模式、正式正文所有权和不可变 release 由 ADR-0084 维护。各 collection 的
+chunking 和 embedding compatibility 属于对应配置与 policy。
 
 ## 后果
 
@@ -36,5 +36,5 @@ target admission、history mode 和 Knowledge Agent 工具参数由 ADR-0075 维
 ## 相关文档
 
 - `docs/architecture/system/retrieval-serving.md`
-- `docs/decisions/adr-0075-knowledge-search.md`
+- `docs/decisions/adr-0084-agent-knowledge-tools.md`
 - `docs/policies/student-rules-chunking.md`

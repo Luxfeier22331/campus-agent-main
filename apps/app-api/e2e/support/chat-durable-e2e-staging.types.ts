@@ -76,15 +76,6 @@ export interface LangfuseCloseoutIdentity {
 	workflowId: string;
 }
 
-export interface WorkflowTraceSummary {
-	selected_tool: string;
-	trace_steps: Array<{
-		selected_tool?: string;
-		status: string;
-		step_id: string;
-	}>;
-}
-
 export interface ChatDurableE2eResult {
 	agentRuntimeEvalProjection: Record<string, unknown> | null;
 	conversation: {
@@ -117,7 +108,6 @@ export interface ChatDurableE2eResult {
 	submit: AcceptedRunIdentity | null;
 	submitStreamAbortedAfterAccepted: boolean;
 	workflow: WorkflowIdentity | null;
-	workflowTraceSummary: WorkflowTraceSummary | null;
 }
 
 export interface ChatDurableE2eDependencies {

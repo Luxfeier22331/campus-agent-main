@@ -47,7 +47,7 @@ func TestBuildHybridQueryBodyRequiresExplicitTopK(t *testing.T) {
 	}
 }
 
-func TestBuildQdrantFilterDefaultsToCurrentVersions(t *testing.T) {
+func TestBuildQdrantFilterRequiresCurrentRelease(t *testing.T) {
 	filter, err := BuildQdrantFilter(QueryRequest{
 		ServingConfig: validServingConfigForQueryTest(),
 		RetrievalAccess: RetrievalAccess{
@@ -60,24 +60,6 @@ func TestBuildQdrantFilterDefaultsToCurrentVersions(t *testing.T) {
 	}
 	must := qdrantMustConditionsFromFilterForQueryTest(t, filter)
 	assertQdrantMatchValueForQueryTest(t, must, "is_current", true)
-}
-
-func TestBuildQdrantFilterIncludesAllVersionsWhenRequested(t *testing.T) {
-	filter, err := BuildQdrantFilter(QueryRequest{
-		IncludeHistory: true,
-		ServingConfig:  validServingConfigForQueryTest(),
-		RetrievalAccess: RetrievalAccess{
-			PolicyProjectionVersion: "phase1-authorization-projection-v1",
-			VisibilityLevel:         "public",
-		},
-	})
-	if err != nil {
-		t.Fatalf("build history filter: %v", err)
-	}
-	must := qdrantMustConditionsFromFilterForQueryTest(t, filter)
-	if _, ok := must["is_current"]; ok {
-		t.Fatalf("history filter must not require is_current: %#v", must)
-	}
 }
 
 func TestBuildQdrantFilterUsesRestrictedCampusAccess(t *testing.T) {
@@ -158,7 +140,6 @@ func validServingConfigForQueryTest() ServingConfig {
 		Corpus:                  "regulations",
 		DensePrefetchLimit:      20,
 		DenseVectorName:         "dense",
-		QdrantAliasName:         "student_rules",
 		RetrievalEnabled:        true,
 		ServingRevisionTracks:   []string{"current-effective", "source-faithful"},
 		ServingStage:            "query_serving",

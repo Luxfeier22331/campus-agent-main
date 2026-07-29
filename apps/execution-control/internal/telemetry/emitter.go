@@ -23,32 +23,54 @@ import (
 )
 
 type Event struct {
-	ActivityAttempt       int
-	ActivityType          string
-	CachedInputTokens     int64
-	ConversationID        string
-	DeploymentEnvironment string
-	Duration              time.Duration
-	FailCloseReason       string
-	FailureKind           string
-	InputTokens           int64
-	ModelName             string
-	ModelProvider         string
-	Name                  string
-	OutputTokens          int64
-	ProjectionRef         string
-	Release               string
-	RequestID             string
-	RunID                 string
-	ScheduleToStart       time.Duration
-	SelectedTool          string
-	Status                string
-	StepID                string
-	StepKind              string
-	TaskQueue             string
-	TraceID               string
-	UserID                string
-	WorkflowID            string
+	ActivityAttempt               int
+	ActivityType                  string
+	CachedInputTokens             int64
+	ConversationID                string
+	DeploymentEnvironment         string
+	Duration                      time.Duration
+	FailCloseReason               string
+	FailureKind                   string
+	GroundingMode                 string
+	GroundingStatus               string
+	GroundingSelectedScopes       []string
+	GroundingCoveredScopes        []string
+	GroundingCandidateCount       int64
+	GroundingCandidateCountSet    bool
+	GroundingEvidenceCount        int64
+	GroundingEvidenceCountSet     bool
+	GroundingTokenCount           int64
+	GroundingTokenCountSet        bool
+	GroundingModelContextChars    int64
+	GroundingModelContextCharsSet bool
+	GroundingEmbeddingMS          float64
+	GroundingEmbeddingMSSet       bool
+	GroundingSearchMS             float64
+	GroundingSearchMSSet          bool
+	GroundingRerankMS             float64
+	GroundingRerankMSSet          bool
+	GroundingPackMS               float64
+	GroundingPackMSSet            bool
+	InputTokens                   int64
+	ModelName                     string
+	ModelProvider                 string
+	Name                          string
+	OutputTokens                  int64
+	ProjectionRef                 string
+	Release                       string
+	RequestID                     string
+	RunID                         string
+	ScheduleToStart               time.Duration
+	ToolName                      string
+	Status                        string
+	StartedAt                     time.Time
+	StepID                        string
+	StepKind                      string
+	TaskQueue                     string
+	TraceID                       string
+	UserID                        string
+	WorkflowID                    string
+	CompletedAt                   time.Time
 }
 type Status struct {
 	Enabled                   bool   `json:"enabled"`
@@ -202,6 +224,7 @@ func (e *Emitter) Emit(ctx context.Context, event Event) error {
 	attributes := []attribute.KeyValue{
 		attribute.String("telemetry.allowed_attributes_version", e.allowedVersion),
 		attribute.String("langfuse.trace.name", "online-answer"),
+		attribute.String("langfuse.observation.type", "span"),
 		attribute.String("langfuse.session.id", event.ConversationID),
 		attribute.String("langfuse.user.id", event.UserID),
 		attribute.String("langfuse.release", event.Release),
@@ -221,23 +244,64 @@ func (e *Emitter) Emit(ctx context.Context, event Event) error {
 		attribute.String("workflow_id", event.WorkflowID),
 		attribute.String("step_kind", event.StepKind),
 		attribute.Int64("schedule_to_start_ms", event.ScheduleToStart.Milliseconds()),
-		attribute.String("selected_tool", event.SelectedTool),
 		attribute.String("step_id", event.StepID),
 		attribute.String("fail_close_reason", event.FailCloseReason),
 		attribute.String("status", event.Status),
 		attribute.String("projection_ref", event.ProjectionRef),
 		attribute.Int64("duration_ms", event.Duration.Milliseconds()),
 	}
+	if strings.TrimSpace(event.GroundingMode) != "" {
+		attributes = append(attributes,
+			attribute.String("grounding_mode", event.GroundingMode),
+			attribute.String("grounding_status", event.GroundingStatus),
+			attribute.StringSlice("grounding_selected_scopes", event.GroundingSelectedScopes),
+			attribute.StringSlice("grounding_covered_scopes", event.GroundingCoveredScopes),
+		)
+		if event.GroundingEvidenceCountSet || event.GroundingEvidenceCount != 0 {
+			attributes = append(attributes, attribute.Int64("grounding_evidence_count", event.GroundingEvidenceCount))
+		}
+		if event.GroundingTokenCountSet || event.GroundingTokenCount != 0 {
+			attributes = append(attributes, attribute.Int64("grounding_token_count", event.GroundingTokenCount))
+		}
+		if event.GroundingModelContextCharsSet || event.GroundingModelContextChars != 0 {
+			attributes = append(attributes, attribute.Int64("grounding_model_context_chars", event.GroundingModelContextChars))
+		}
+		if event.GroundingCandidateCountSet || event.GroundingCandidateCount != 0 {
+			attributes = append(attributes, attribute.Int64("grounding_candidate_count", event.GroundingCandidateCount))
+		}
+		if event.GroundingEmbeddingMSSet || event.GroundingEmbeddingMS != 0 {
+			attributes = append(attributes, attribute.Float64("grounding.embedding_ms", event.GroundingEmbeddingMS))
+		}
+		if event.GroundingSearchMSSet || event.GroundingSearchMS != 0 {
+			attributes = append(attributes, attribute.Float64("grounding.search_ms", event.GroundingSearchMS))
+		}
+		if event.GroundingRerankMSSet || event.GroundingRerankMS != 0 {
+			attributes = append(attributes, attribute.Float64("grounding.rerank_ms", event.GroundingRerankMS))
+		}
+		if event.GroundingPackMSSet || event.GroundingPackMS != 0 {
+			attributes = append(attributes, attribute.Float64("grounding.pack_ms", event.GroundingPackMS))
+		}
+	}
+	if toolName := strings.TrimSpace(event.ToolName); toolName != "" {
+		attributes = append(attributes, attribute.String("tool_name", toolName))
+	}
 	name := strings.TrimSpace(event.Name)
 	if name == "" {
 		name = "execution.event"
 	}
-	_, span := e.tracer.Start(
-		ctx,
-		"execution_control."+normalizeEventName(name),
-		trace.WithAttributes(attributes...),
-	)
-	span.End()
+	startOptions := []trace.SpanStartOption{trace.WithAttributes(attributes...)}
+	withProjectionTimestamp := !event.StartedAt.IsZero() &&
+		!event.CompletedAt.IsZero() &&
+		!event.CompletedAt.Before(event.StartedAt)
+	if withProjectionTimestamp {
+		startOptions = append(startOptions, trace.WithTimestamp(event.StartedAt))
+	}
+	_, span := e.tracer.Start(ctx, "execution_control."+normalizeEventName(name), startOptions...)
+	if withProjectionTimestamp {
+		span.End(trace.WithTimestamp(event.CompletedAt))
+	} else {
+		span.End()
+	}
 	e.recordMetric(event)
 	e.recordSubmitted()
 	return nil
@@ -403,7 +467,7 @@ func (e *Emitter) recordMetric(event Event) {
 		attribute.String("task_queue", defaultString(event.TaskQueue, "unknown")),
 		attribute.String("step_kind", defaultString(event.StepKind, "unknown")),
 		attribute.String("activity_type", defaultString(event.ActivityType, "unknown")),
-		attribute.String("selected_tool", defaultString(event.SelectedTool, "unknown")),
+		attribute.String("tool_name", defaultString(event.ToolName, "unknown")),
 		attribute.String("status", defaultString(event.Status, "unknown")),
 		attribute.String("failure_kind", defaultString(event.FailureKind, "none")),
 	}
@@ -474,8 +538,8 @@ func (e *Emitter) shouldSample(event Event) bool {
 
 func langfuseTraceTags(event Event) []string {
 	tags := []string{"surface:execution-control"}
-	if target := strings.TrimSpace(event.SelectedTool); target != "" {
-		tags = append(tags, "target:"+target)
+	if toolName := strings.TrimSpace(event.ToolName); toolName != "" {
+		tags = append(tags, "tool:"+toolName)
 	}
 	if environment := strings.TrimSpace(event.DeploymentEnvironment); environment != "" {
 		tags = append(tags, "env:"+environment)

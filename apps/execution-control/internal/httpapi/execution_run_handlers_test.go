@@ -13,10 +13,11 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
-func TestExecutionRunCreateQueuesProjectionAndStartsTemporalWorkflow(t *testing.T) {
+func TestExecutionRunCreatePersistsStartIntentBeforeTemporalReconciliation(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{}
 	server := newWorkerAuthServerForTest()
+	attachAgentAdmissionProviderConfigsForTest(server)
 	server.config.PersonalMemoryTimeoutSeconds = 10
 	attachRunProjectionStoreForHandlerTest(server, store)
 	server.temporalStarter = starter
@@ -38,9 +39,15 @@ func TestExecutionRunCreateQueuesProjectionAndStartsTemporalWorkflow(t *testing.
 	if err != nil {
 		t.Fatalf("get run projection: %v", err)
 	}
-	if run.Status != execution.DurableRunStatusQueued {
-		t.Fatalf("projection status = %q, want queued", run.Status)
+	if run.Status != execution.DurableRunStatusCreated {
+		t.Fatalf("projection status = %q, want created before reconciliation", run.Status)
 	}
+	if starter.input.RunID != "" {
+		t.Fatalf("Temporal start must be deferred to the reconciler: %#v", starter.input)
+	}
+
+	server.ReconcileTemporalRunsOnce(context.Background())
+
 	if starter.input.RunID != "run-temporal-001" {
 		t.Fatalf("workflow input run id = %q", starter.input.RunID)
 	}
@@ -56,8 +63,16 @@ func TestExecutionRunCreateQueuesProjectionAndStartsTemporalWorkflow(t *testing.
 	if strings.Contains(starter.input.PayloadSHA256, "hello") {
 		t.Fatalf("workflow payload hash must not contain raw prompt: %q", starter.input.PayloadSHA256)
 	}
-	if len(starter.input.VisibleToolNames) != 1 || starter.input.VisibleToolNames[0] != "knowledge_query" {
-		t.Fatalf("visible tools = %#v, want knowledge_query handoff", starter.input.VisibleToolNames)
+	if len(starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames) != 0 {
+		t.Fatalf("visible tools = %#v, want none", starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames)
+	}
+	snapshot := starter.input.AdmissionSnapshot
+	if len(snapshot.DocumentScopes) == 0 || snapshot.EmbeddingProviderConfigSHA256 == "" {
+		t.Fatalf("grounding admission state is incomplete: %#v", snapshot)
+	}
+	if snapshot.ToolRuntimeFingerprintSHA256 == "" ||
+		validateToolRuntimeFingerprintSnapshot(snapshot.ToolRuntimeFingerprint) != nil {
+		t.Fatalf("tool runtime admission snapshot = %#v", snapshot)
 	}
 }
 
@@ -91,8 +106,8 @@ func TestExecutionRunCreateRejectsUnknownExecutionPayloadField(t *testing.T) {
 	server.temporalStarter = &fakeTemporalStarter{}
 	body := strings.Replace(
 		durableRunCreateBodyForTest("run-unknown-payload", "conv-unknown-payload"),
-		`"user_goal":"hello"`,
-		`"user_goal":"hello","unexpected":true`,
+		`"surface":"campus-web"`,
+		`"surface":"campus-web","execution_payload":{"unexpected":true}`,
 		1,
 	)
 	response := httptest.NewRecorder()
@@ -107,7 +122,7 @@ func TestExecutionRunCreateRejectsUnknownExecutionPayloadField(t *testing.T) {
 	}
 }
 
-func TestExecutionRunCreateRejectsUnknownExplicitToolHint(t *testing.T) {
+func TestExecutionRunCreateRejectsCallerToolHint(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{}
 	server := newWorkerAuthServerForTest()
@@ -127,17 +142,18 @@ func TestExecutionRunCreateRejectsUnknownExplicitToolHint(t *testing.T) {
 
 	assertError(t, response, http.StatusBadRequest, "invalid_request")
 	if starter.input.RunID != "" {
-		t.Fatalf("unsupported tool hint must not start workflow: %#v", starter.input)
+		t.Fatalf("caller tool hint must not start workflow: %#v", starter.input)
 	}
 	if _, err := store.GetRun(context.Background(), "run-campus-closed"); err == nil {
-		t.Fatal("unsupported tool hint must not create a run projection")
+		t.Fatal("caller tool hint must not create a run projection")
 	}
 }
 
-func TestExecutionRunCreateStartsExplicitModelVisibleToolWithBoundedVisibleSet(t *testing.T) {
+func TestExecutionRunCreateRejectsKnownCallerToolHint(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{}
 	server := newWorkerAuthServerForTest()
+	attachAgentAdmissionProviderConfigsForTest(server)
 	attachRunProjectionStoreForHandlerTest(server, store)
 	server.temporalStarter = starter
 
@@ -152,14 +168,9 @@ func TestExecutionRunCreateStartsExplicitModelVisibleToolWithBoundedVisibleSet(t
 
 	server.ServeHTTP(response, request)
 
-	if response.Code != http.StatusAccepted {
-		t.Fatalf("status = %d, want 202; body: %s", response.Code, response.Body.String())
-	}
-	if starter.input.RequestedTool != "transport_schedule_lookup" {
-		t.Fatalf("requested tool = %q, want transport_schedule_lookup", starter.input.RequestedTool)
-	}
-	if len(starter.input.VisibleToolNames) != 1 || starter.input.VisibleToolNames[0] != "transport_schedule_lookup" {
-		t.Fatalf("visible tools = %#v, want transport_schedule_lookup only", starter.input.VisibleToolNames)
+	assertError(t, response, http.StatusBadRequest, "invalid_request")
+	if starter.input.RunID != "" {
+		t.Fatalf("caller tool hint must not start workflow: %#v", starter.input)
 	}
 }
 
@@ -167,6 +178,7 @@ func TestExecutionRunCreatePropagatesInboundTraceContextToTemporalStart(t *testi
 	store := execution.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{}
 	server := newWorkerAuthServerForTest()
+	attachAgentAdmissionProviderConfigsForTest(server)
 	attachRunProjectionStoreForHandlerTest(server, store)
 	server.temporalStarter = starter
 
@@ -178,26 +190,24 @@ func TestExecutionRunCreatePropagatesInboundTraceContextToTemporalStart(t *testi
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
 	request.Header.Set("traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
-	request.Header.Set("baggage", "release=2026.06.18")
 
 	server.ServeHTTP(response, request)
 
 	if response.Code != http.StatusAccepted {
 		t.Fatalf("status = %d, want 202; body: %s", response.Code, response.Body.String())
 	}
+	server.ReconcileTemporalRunsOnce(context.Background())
 	traceHeaders := telemetry.InjectExecutionTraceHeaders(starter.ctx, "req-traceparent-001", "trace-traceparent-001")
 	if traceHeaders["traceparent"] != "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01" {
 		t.Fatalf("Temporal starter context traceparent = %q", traceHeaders["traceparent"])
 	}
-	if traceHeaders["baggage"] != "release=2026.06.18" {
-		t.Fatalf("Temporal starter context baggage = %q", traceHeaders["baggage"])
-	}
 }
 
-func TestExecutionRunCreateKeepsNeutralToolForPrimaryAgentWorkflow(t *testing.T) {
+func TestExecutionRunCreateKeepsClosedToolsOutOfPrimaryAgent(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{}
 	server := newWorkerAuthServerForTest()
+	attachAgentAdmissionProviderConfigsForTest(server)
 	attachRunProjectionStoreForHandlerTest(server, store)
 	server.temporalStarter = starter
 
@@ -205,27 +215,10 @@ func TestExecutionRunCreateKeepsNeutralToolForPrimaryAgentWorkflow(t *testing.T)
 	request := newTestRequest(
 		http.MethodPost,
 		"/internal/execution/runs",
-		strings.NewReader(`{
-			"run_id":"run-temporal-neutral",
-			"conversation_id":"conv-temporal-neutral",
-			"turn_id":"turn-temporal-neutral",
-			"request_id":"req-temporal-neutral",
-			"trace_id":"trace-temporal-neutral",
-			"owner_user_id":"user-temporal-neutral",
-			"surface":"campus-web",
-			"runtime_versions":{"contract":"durable-agent-runtime-contract-v1"},
-			"metadata":{
-				"execution_payload":{
-					"execution_contract_version":"tool_execution_v2",
-					"response_contract":"execution_finalization_response_v3",
-					"user_goal":"hi 你是谁",
-					"request_id":"req-temporal-neutral",
-					"conversation_id":"conv-temporal-neutral",
-					"trace":{"trace_id":"trace-temporal-neutral"},
-					"context":{"actor":{"user_id":"user-temporal-neutral"}}
-					}
-				}
-			}`),
+		strings.NewReader(durableRunCreateBodyForTest(
+			"run-temporal-neutral",
+			"conv-temporal-neutral",
+		)),
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
 
@@ -234,32 +227,16 @@ func TestExecutionRunCreateKeepsNeutralToolForPrimaryAgentWorkflow(t *testing.T)
 	if response.Code != http.StatusAccepted {
 		t.Fatalf("status = %d, want 202; body: %s", response.Code, response.Body.String())
 	}
-	if starter.input.RequestedTool != "" {
-		t.Fatalf(
-			"workflow requested tool = %q, want empty before primary agent",
-			starter.input.RequestedTool,
-		)
-	}
-	if len(starter.input.VisibleToolNames) != 2 ||
-		starter.input.VisibleToolNames[0] != "transport_schedule_lookup" ||
-		starter.input.VisibleToolNames[1] != "knowledge_query" {
-		t.Fatalf(
-			"visible tools = %#v, want registry model-visible tools",
-			starter.input.VisibleToolNames,
-		)
-	}
-	run, err := store.GetRun(context.Background(), "run-temporal-neutral")
-	if err != nil {
-		t.Fatalf("get run projection: %v", err)
-	}
-	if run.RequestedTool != "" {
-		t.Fatalf("run requested tool = %q, want empty", run.RequestedTool)
+	server.ReconcileTemporalRunsOnce(context.Background())
+	if len(starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames) != 0 {
+		t.Fatalf("visible tools = %#v, want none", starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames)
 	}
 }
 
-func TestExecutionRunCreateFailsClosedWhenTemporalStarterMissing(t *testing.T) {
+func TestExecutionRunCreateAcceptsWhenTemporalStarterMissing(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	server := newWorkerAuthServerForTest()
+	attachAgentAdmissionProviderConfigsForTest(server)
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	response := httptest.NewRecorder()
@@ -272,13 +249,29 @@ func TestExecutionRunCreateFailsClosedWhenTemporalStarterMissing(t *testing.T) {
 
 	server.ServeHTTP(response, request)
 
-	assertError(t, response, http.StatusServiceUnavailable, "temporal_runtime_not_configured")
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202; body: %s", response.Code, response.Body.String())
+	}
+	run, err := store.GetRun(context.Background(), "run-temporal-missing")
+	if err != nil {
+		t.Fatalf("get run projection: %v", err)
+	}
+	if run.Status != execution.DurableRunStatusCreated {
+		t.Fatalf("projection status = %q, want created", run.Status)
+	}
+	server.ReconcileTemporalRunsOnce(context.Background())
+	if run, err = store.GetRun(context.Background(), "run-temporal-missing"); err != nil {
+		t.Fatalf("get run after no-op reconciliation: %v", err)
+	} else if run.Status != execution.DurableRunStatusCreated {
+		t.Fatalf("projection status after no-op reconciliation = %q, want created", run.Status)
+	}
 }
 
-func TestExecutionRunCreateFailsClosedWhenTemporalStartFails(t *testing.T) {
+func TestExecutionRunCreateRetriesWhenTemporalStartFails(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{err: context.DeadlineExceeded}
 	server := newWorkerAuthServerForTest()
+	attachAgentAdmissionProviderConfigsForTest(server)
 	attachRunProjectionStoreForHandlerTest(server, store)
 	server.temporalStarter = starter
 
@@ -292,9 +285,24 @@ func TestExecutionRunCreateFailsClosedWhenTemporalStartFails(t *testing.T) {
 
 	server.ServeHTTP(response, request)
 
-	assertError(t, response, http.StatusBadGateway, "temporal_workflow_start_failed")
-	if _, err := store.GetRun(context.Background(), "run-temporal-fail"); err == nil {
-		t.Fatal("failed Temporal start must not leave an admitted run projection")
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202; body: %s", response.Code, response.Body.String())
+	}
+	server.ReconcileTemporalRunsOnce(context.Background())
+	if _, err := store.GetRun(context.Background(), "run-temporal-fail"); err != nil {
+		t.Fatalf("failed Temporal start must retain the durable run: %v", err)
+	}
+	intents, err := store.LeaseWorkflowStartIntents(context.Background(), execution.LifecycleLeaseRequest{
+		LeaseToken: "test-start-retry",
+		Now:        time.Now().UTC().Add(time.Minute),
+		LeaseUntil: time.Now().UTC().Add(2 * time.Minute),
+		Limit:      1,
+	})
+	if err != nil {
+		t.Fatalf("lease retriable start intent: %v", err)
+	}
+	if len(intents) != 1 || intents[0].LastErrorCode != "temporal_workflow_start_uncertain" {
+		t.Fatalf("retriable start intents = %#v, want one uncertain intent", intents)
 	}
 }
 
@@ -365,7 +373,7 @@ func TestExecutionRunEventsRejectsInvalidWaitBudget(t *testing.T) {
 	assertError(t, response, http.StatusBadRequest, "invalid_request")
 }
 
-func TestExecutionRunCancelProjectsIncompleteStepOutcomes(t *testing.T) {
+func TestExecutionRunCancelDefersStepProjectionToTemporalFinalizer(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{}
 	server := newWorkerAuthServerForTest()
@@ -380,7 +388,7 @@ func TestExecutionRunCancelProjectsIncompleteStepOutcomes(t *testing.T) {
 		runID,
 		conversationID,
 		now,
-		ragHandoffForDurableWorkerTest("hello"),
+		agentRequestForDurableWorkerTest("hello"),
 	)
 	if _, err := store.TransitionRun(
 		context.Background(),
@@ -402,20 +410,30 @@ func TestExecutionRunCancelProjectsIncompleteStepOutcomes(t *testing.T) {
 	}
 	seedCancelProjectionStep := func(stepID string, status string, startedAt time.Time, completedAt time.Time) {
 		t.Helper()
+		stepKind := "agent"
+		tool := ""
+		taskQueue := temporalruntime.ActivityTaskQueueAgent
+		payload := map[string]any{"step_id": stepID}
+		if strings.HasPrefix(stepID, "sdk_tool.execute.personal_memory_recall.") {
+			stepKind = "tool"
+			tool = personalMemoryRecallToolName
+			taskQueue = temporalruntime.ActivityTaskQueueForToolTarget(tool)
+			payload["tool_name"] = tool
+		}
 		if _, err := store.UpsertRunStep(context.Background(), execution.RunStepProjection{
 			StepID:               stepID,
 			RunID:                runID,
 			ConversationID:       conversationID,
-			StepKind:             "agent",
-			Tool:                 "",
+			StepKind:             stepKind,
+			Tool:                 tool,
 			Status:               status,
-			TaskQueue:            temporalruntime.ActivityTaskQueueAgent,
+			TaskQueue:            taskQueue,
 			WorkerID:             "test:agent:001",
 			StartedAt:            startedAt,
 			CompletedAt:          completedAt,
 			UpdatedAt:            now.Add(4 * time.Second),
 			PayloadSchemaVersion: "run-step-projection-v1",
-			SanitizedPayload:     map[string]any{"step_id": stepID},
+			SanitizedPayload:     payload,
 		}); err != nil {
 			t.Fatalf("seed step %s: %v", stepID, err)
 		}
@@ -425,7 +443,7 @@ func TestExecutionRunCancelProjectsIncompleteStepOutcomes(t *testing.T) {
 			RunID:                 runID,
 			Attempt:               1,
 			Status:                status,
-			TaskQueue:             temporalruntime.ActivityTaskQueueAgent,
+			TaskQueue:             taskQueue,
 			WorkerID:              "test:agent:001",
 			WorkflowID:            "campus-agent.chat." + runID,
 			ActivityID:            stepID + ":activity",
@@ -439,13 +457,14 @@ func TestExecutionRunCancelProjectsIncompleteStepOutcomes(t *testing.T) {
 			LateCompletionOutcome: execution.LateCompletionOutcomeNotLate,
 			UpdatedAt:             now.Add(4 * time.Second),
 			PayloadSchemaVersion:  "step-attempt-projection-v1",
-			SanitizedPayload:      map[string]any{"step_id": stepID},
+			SanitizedPayload:      payload,
 		}); err != nil {
 			t.Fatalf("seed attempt %s: %v", stepID, err)
 		}
 	}
+	memoryStepID := "sdk_tool.execute.personal_memory_recall.1"
 	seedCancelProjectionStep(
-		"memory.recall",
+		memoryStepID,
 		"completed",
 		now.Add(3*time.Second),
 		now.Add(3500*time.Millisecond),
@@ -466,6 +485,10 @@ func TestExecutionRunCancelProjectsIncompleteStepOutcomes(t *testing.T) {
 	if response.Code != http.StatusAccepted {
 		t.Fatalf("status = %d, want 202; body: %s", response.Code, response.Body.String())
 	}
+	server.ReconcileTemporalRunsOnce(context.Background())
+	if starter.cancelRunID != "" {
+		t.Fatalf("reconciler must not cancel without verified workflow identity: run=%q", starter.cancelRunID)
+	}
 	steps, err := store.ListRunSteps(context.Background(), runID)
 	if err != nil {
 		t.Fatalf("list steps: %v", err)
@@ -474,12 +497,12 @@ func TestExecutionRunCancelProjectsIncompleteStepOutcomes(t *testing.T) {
 	for _, step := range steps {
 		stepByID[step.StepID] = step
 	}
-	if stepByID["memory.recall"].Status != "completed" {
-		t.Fatalf("completed step changed after cancel: %#v", stepByID["memory.recall"])
+	if stepByID[memoryStepID].Status != "completed" {
+		t.Fatalf("completed step changed after cancel: %#v", stepByID[memoryStepID])
 	}
-	if stepByID["agent.primary"].Status != "canceled" ||
-		stepByID["finalization.write"].Status != "canceled" {
-		t.Fatalf("incomplete steps were not canceled: %#v", stepByID)
+	if stepByID["agent.primary"].Status != "running" ||
+		stepByID["finalization.write"].Status != "scheduled" {
+		t.Fatalf("HTTP cancel must not project step terminal state: %#v", stepByID)
 	}
 	attempts, err := store.ListStepAttempts(context.Background(), runID)
 	if err != nil {
@@ -489,19 +512,17 @@ func TestExecutionRunCancelProjectsIncompleteStepOutcomes(t *testing.T) {
 	for _, attempt := range attempts {
 		attemptByStep[attempt.StepID] = attempt
 	}
-	if attemptByStep["memory.recall"].Status != "completed" ||
-		attemptByStep["memory.recall"].CancelOutcome != execution.CancelOutcomeNotRequested {
-		t.Fatalf("completed attempt changed after cancel: %#v", attemptByStep["memory.recall"])
+	if attemptByStep[memoryStepID].Status != "completed" ||
+		attemptByStep[memoryStepID].CancelOutcome != execution.CancelOutcomeNotRequested {
+		t.Fatalf("completed attempt changed after cancel: %#v", attemptByStep[memoryStepID])
 	}
-	if attemptByStep["agent.primary"].Status != "canceled" ||
-		attemptByStep["agent.primary"].CancelOutcome != execution.CancelOutcomeActivityContextCanceled ||
-		attemptByStep["agent.primary"].TerminalReason != string(execution.DurableTerminalReasonUserCanceled) {
-		t.Fatalf("started attempt cancel evidence = %#v", attemptByStep["agent.primary"])
+	if attemptByStep["agent.primary"].Status != "running" ||
+		attemptByStep["agent.primary"].CancelOutcome != execution.CancelOutcomeNotRequested {
+		t.Fatalf("HTTP cancel must not project started attempt terminal state: %#v", attemptByStep["agent.primary"])
 	}
-	if attemptByStep["finalization.write"].Status != "canceled" ||
-		attemptByStep["finalization.write"].CancelOutcome != execution.CancelOutcomeRequestedBeforeStart ||
-		attemptByStep["finalization.write"].TerminalReason != string(execution.DurableTerminalReasonUserCanceled) {
-		t.Fatalf("scheduled attempt cancel evidence = %#v", attemptByStep["finalization.write"])
+	if attemptByStep["finalization.write"].Status != "scheduled" ||
+		attemptByStep["finalization.write"].CancelOutcome != execution.CancelOutcomeNotRequested {
+		t.Fatalf("HTTP cancel must not project scheduled attempt terminal state: %#v", attemptByStep["finalization.write"])
 	}
 }
 
@@ -516,7 +537,7 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		"run-temporal-trajectory",
 		"conv-temporal-trajectory",
 		now,
-		ragHandoffForDurableWorkerTest("hello"),
+		agentRequestForDurableWorkerTest("hello"),
 	)
 	if _, err := store.UpsertRunStep(context.Background(), execution.RunStepProjection{
 		StepID:               "agent.primary",
@@ -533,7 +554,7 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		SanitizedPayload: map[string]any{
 			"payload_ref":        "projection://runs/run-temporal-trajectory/agent/primary/input",
 			"raw_prompt":         "must not leak",
-			"visible_tool_names": []any{"knowledge_query"},
+			"visible_tool_names": []any{"personal_memory_recall"},
 		},
 	}); err != nil {
 		t.Fatalf("upsert step: %v", err)
@@ -591,20 +612,19 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 			"activity_attempt":    1,
 			"result_ref":          "projection://runs/run-temporal-trajectory/agent/primary/result",
 			"raw_provider_result": "must not leak",
-			"selected_tools":      []any{"knowledge_query"},
 			"tool_results": []any{
 				map[string]any{
-					"arguments_json_sha256": "sha256:knowledge-search",
+					"arguments_json_sha256": "sha256:personal-memory-recall",
 					"authorization":         "nested authorization must not leak",
-					"payload_kind":          "knowledge_search",
+					"payload_kind":          "personal_memory_recall",
 					"result": map[string]any{
-						"outcome":          "found",
-						"retrieval_target": "student_rules",
-						"source_body":      "nested source body must not leak",
+						"outcome":     "matched",
+						"memory_text": "nested memory text must not leak",
+						"source_body": "nested source body must not leak",
 					},
-					"result_ref": "projection://runs/run-temporal-trajectory/knowledge/search/1",
+					"result_ref": "projection://runs/run-temporal-trajectory/sdk-tools/personal_memory_recall/1",
 					"status":     "completed",
-					"tool_name":  "knowledge_search",
+					"tool_name":  "personal_memory_recall",
 				},
 			},
 		},
@@ -669,7 +689,7 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		t.Fatalf("results = %#v, want one result", body["results"])
 	}
 	evalProjection := expectRecord(t, body["agent_runtime_eval_projection"], "agent_runtime_eval_projection")
-	if evalProjection["schema_version"] != "agent_runtime_eval_projection.v2" {
+	if evalProjection["schema_version"] != "agent_runtime_eval_projection.v3" {
 		t.Fatalf("eval projection schema = %#v", evalProjection["schema_version"])
 	}
 	evalRun := expectRecord(t, evalProjection["run"], "agent_runtime_eval_projection.run")
@@ -679,16 +699,12 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		t.Fatalf("eval projection run identity = %#v", evalRun)
 	}
 	evalTrajectory := expectRecord(t, evalProjection["trajectory"], "agent_runtime_eval_projection.trajectory")
-	if evalTrajectory["selected_tool"] != "knowledge_query" {
-		t.Fatalf("eval trajectory = %#v", evalTrajectory)
+	if _, exists := evalTrajectory["selected_tool"]; exists {
+		t.Fatalf("eval trajectory must not expose selected_tool: %#v", evalTrajectory)
 	}
 	toolCalls, ok := evalTrajectory["tool_calls"].([]any)
-	if !ok || len(toolCalls) != 1 {
-		t.Fatalf("eval tool calls = %#v, want one tool call", evalTrajectory["tool_calls"])
-	}
-	toolCall := expectRecord(t, toolCalls[0], "agent_runtime_eval_projection.trajectory.tool_calls[0]")
-	if toolCall["tool_name"] != "knowledge_query" || toolCall["result_kind"] != "agent_handoff" {
-		t.Fatalf("eval tool call = %#v", toolCall)
+	if !ok || len(toolCalls) != 0 {
+		t.Fatalf("eval tool calls = %#v, want only durable SDK tool projections", evalTrajectory["tool_calls"])
 	}
 	serialized := response.Body.String()
 	for _, forbidden := range []string{

@@ -470,7 +470,7 @@ export async function verifyAppPassword(input: {
 
 export async function createAppAuth(env: Env, input: CreateAppAuthInput = {}) {
 	const config = input.config ?? readAppAuthConfig(env);
-	const database = input.database ?? (await createRuntimeDatabase(env, { consistency: "fresh" }));
+	const database = input.database ?? (await createRuntimeDatabase(env));
 	const executionContext = getAppApiExecutionContext();
 	const emailAccessService = buildEmailAccessService({
 		environment: config.environment,

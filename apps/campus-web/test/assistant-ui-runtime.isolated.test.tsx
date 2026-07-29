@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ChatStreamRequestError } from "../src/features/conversation/api";
 import { createCampusAssistantRuntimeHook } from "../src/features/conversation/assistant-ui-runtime";
 import type { ChatRequestStreamEvent } from "../src/features/conversation/model";
+import { UnauthorizedError } from "../src/platform/api/client";
 
 const assistantUiMock = vi.hoisted(() => ({
 	externalStoreInput: null as null | {
@@ -16,6 +17,7 @@ const assistantUiMock = vi.hoisted(() => ({
 		}) => Promise<void>;
 		onNew: (message: { content: { text: string; type: "text" }[] }) => Promise<void>;
 		onReload?: (parentId: string | null) => Promise<void>;
+		onResume?: () => Promise<void>;
 	},
 	initialize: vi.fn(),
 	remoteId: undefined as string | undefined,
@@ -50,6 +52,10 @@ const conversationApiMock = vi.hoisted(() => ({
 	submitChatRequestStream: vi.fn(),
 }));
 
+const telemetryMock = vi.hoisted(() => ({
+	recordChatBrowserTtft: vi.fn(),
+}));
+
 vi.mock("@assistant-ui/react", () => ({
 	useAui: () => ({
 		threadListItem: () => ({
@@ -65,6 +71,7 @@ vi.mock("@assistant-ui/react", () => ({
 }));
 
 vi.mock("../src/features/conversation/api", () => conversationApiMock);
+vi.mock("@/platform/telemetry/sentry-browser-loader", () => telemetryMock);
 
 function RuntimeProbe({
 	hasSession = true,
@@ -85,6 +92,39 @@ async function* streamEvents(events: ChatRequestStreamEvent[]) {
 	}
 }
 
+function cancellationTerminalEvent(): ChatRequestStreamEvent {
+	return {
+		data: {
+			answer: {
+				conversation: {
+					archivedAt: null,
+					createdAt: "2026-06-24T01:00:00.000Z",
+					id: "conv_created",
+					messages: [],
+					pinnedAt: null,
+					title: "",
+					updatedAt: "2026-06-24T01:00:02.000Z",
+				},
+				result: {
+					errorCode: "execution_cancelled",
+					kind: "error",
+					message: "The request was cancelled.",
+					requestId: "req_01",
+					retryable: false,
+					traceId: "trace_01",
+				},
+			},
+			occurredAt: "2026-06-24T01:00:02.000Z",
+			requestId: "req_01",
+			runId: "run_01",
+			sequence: 2,
+			status: "cancelled",
+			traceId: "trace_01",
+		},
+		event: "request.cancelled",
+	};
+}
+
 function readAssistantText(): string {
 	const message = assistantUiMock.externalStoreInput?.messages.find(
 		(item): item is { content: { text: string; type: "text" }[]; role: "assistant" } =>
@@ -98,6 +138,18 @@ function readAssistantText(): string {
 	return message?.content.find((part) => part.type === "text")?.text ?? "";
 }
 
+function hasMessageId(messageId: string): boolean {
+	return Boolean(
+		assistantUiMock.externalStoreInput?.messages.some(
+			(message) =>
+				typeof message === "object" &&
+				message !== null &&
+				"id" in message &&
+				message.id === messageId,
+		),
+	);
+}
+
 describe("assistant-ui runtime lifecycle bridge", () => {
 	beforeEach(() => {
 		assistantUiMock.externalStoreInput = null;
@@ -109,6 +161,7 @@ describe("assistant-ui runtime lifecycle bridge", () => {
 		conversationApiMock.getConversationDetail.mockReset();
 		conversationApiMock.resumeRunEventsStream.mockReset();
 		conversationApiMock.submitChatRequestStream.mockReset();
+		telemetryMock.recordChatBrowserTtft.mockReset();
 	});
 
 	it("submits new assistant-ui messages through the durable lifecycle SSE contract", async () => {
@@ -190,6 +243,7 @@ describe("assistant-ui runtime lifecycle bridge", () => {
 		expect(assistantUiMock.initialize).toHaveBeenCalledOnce();
 		expect(conversationApiMock.submitChatRequestStream).toHaveBeenCalledWith({
 			conversationId: "conv_created",
+			idempotencyKey: expect.any(String),
 			prompt: "奖学金怎么申请？",
 			signal: expect.any(AbortSignal),
 		});
@@ -201,6 +255,216 @@ describe("assistant-ui runtime lifecycle bridge", () => {
 				expect.objectContaining({ id: "msg_answer", role: "assistant" }),
 			]);
 		});
+	});
+
+	it("replays a submit that closes before acceptance with the same idempotency key", async () => {
+		vi.useFakeTimers();
+		conversationApiMock.submitChatRequestStream
+			.mockImplementationOnce(() => streamEvents([]))
+			.mockImplementationOnce(() =>
+				streamEvents([
+					{
+						data: {
+							occurredAt: "2026-06-24T01:00:00.000Z",
+							requestId: "req_replay",
+							runId: "run_replay",
+							sequence: 1,
+							status: "accepted",
+							traceId: "trace_replay",
+						},
+						event: "request.accepted",
+					},
+					{
+						data: {
+							error: {
+								code: "execution_failed",
+								message: "重放后取得同一运行。",
+								retryable: false,
+							},
+							occurredAt: "2026-06-24T01:00:01.000Z",
+							requestId: "req_replay",
+							runId: "run_replay",
+							sequence: 2,
+							status: "failed",
+							traceId: "trace_replay",
+						},
+						event: "request.failed",
+					},
+				]),
+			);
+
+		try {
+			render(<RuntimeProbe onLoginRequired={vi.fn()} />);
+			let submitPromise: Promise<void> | undefined;
+			await act(async () => {
+				submitPromise = assistantUiMock.externalStoreInput?.onNew({
+					content: [{ text: "恢复提交", type: "text" }],
+				});
+				await Promise.resolve();
+				await Promise.resolve();
+			});
+
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(250);
+				await submitPromise;
+			});
+
+			expect(conversationApiMock.submitChatRequestStream).toHaveBeenCalledTimes(2);
+			const firstInput = conversationApiMock.submitChatRequestStream.mock.calls[0]?.[0];
+			const replayInput = conversationApiMock.submitChatRequestStream.mock.calls[1]?.[0];
+			expect(firstInput?.idempotencyKey).toEqual(expect.any(String));
+			expect(replayInput?.idempotencyKey).toBe(firstInput?.idempotencyKey);
+			expect(readAssistantText()).toBe("重放后取得同一运行。");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("automatically resumes the accepted run when the submit stream ends before terminal", async () => {
+		vi.useFakeTimers();
+		conversationApiMock.submitChatRequestStream.mockImplementation(() =>
+			streamEvents([
+				{
+					data: {
+						occurredAt: "2026-06-24T01:00:00.000Z",
+						requestId: "req_resume",
+						runId: "run_resume",
+						sequence: 7,
+						status: "accepted",
+						traceId: "trace_resume",
+					},
+					event: "request.accepted",
+				},
+			]),
+		);
+		conversationApiMock.resumeRunEventsStream.mockImplementation(() =>
+			streamEvents([
+				{
+					data: {
+						error: {
+							code: "execution_failed",
+							message: "恢复后的终态。",
+							retryable: false,
+						},
+						occurredAt: "2026-06-24T01:00:01.000Z",
+						requestId: "req_resume",
+						runId: "run_resume",
+						sequence: 9,
+						status: "failed",
+						traceId: "trace_resume",
+					},
+					event: "request.failed",
+				},
+			]),
+		);
+
+		try {
+			render(<RuntimeProbe onLoginRequired={vi.fn()} />);
+			let submitPromise: Promise<void> | undefined;
+			await act(async () => {
+				submitPromise = assistantUiMock.externalStoreInput?.onNew({
+					content: [{ text: "继续回答", type: "text" }],
+				});
+				await Promise.resolve();
+				await Promise.resolve();
+			});
+
+			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
+			expect(conversationApiMock.resumeRunEventsStream).not.toHaveBeenCalled();
+
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(250);
+				await submitPromise;
+			});
+
+			expect(conversationApiMock.resumeRunEventsStream).toHaveBeenCalledWith({
+				afterSequence: 7,
+				runId: "run_resume",
+				signal: expect.any(AbortSignal),
+			});
+			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
+			expect(readAssistantText()).toBe("恢复后的终态。");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("does not record a new browser TTFT when resuming an existing run", async () => {
+		vi.useFakeTimers();
+		conversationApiMock.submitChatRequestStream.mockImplementation(() =>
+			streamEvents([
+				{
+					data: {
+						occurredAt: "2026-06-24T01:00:00.000Z",
+						requestId: "req_manual_resume",
+						runId: "run_manual_resume",
+						sequence: 4,
+						status: "accepted",
+						traceId: "trace_manual_resume",
+					},
+					event: "request.accepted",
+				},
+			]),
+		);
+		conversationApiMock.resumeRunEventsStream.mockImplementation(() =>
+			streamEvents([
+				{
+					data: {
+						delta: "恢复中的回答",
+						messageId: "msg_manual_resume",
+						occurredAt: "2026-06-24T01:00:01.000Z",
+						requestId: "req_manual_resume",
+						runId: "run_manual_resume",
+						sequence: 5,
+						status: "streaming",
+						traceId: "trace_manual_resume",
+					},
+					event: "answer.delta",
+				},
+				{
+					data: {
+						error: {
+							code: "execution_failed",
+							message: "恢复订阅结束。",
+							retryable: false,
+						},
+						occurredAt: "2026-06-24T01:00:02.000Z",
+						requestId: "req_manual_resume",
+						runId: "run_manual_resume",
+						sequence: 6,
+						status: "failed",
+						traceId: "trace_manual_resume",
+					},
+					event: "request.failed",
+				},
+			]),
+		);
+
+		try {
+			render(<RuntimeProbe onLoginRequired={vi.fn()} />);
+			let submitPromise: Promise<void> | undefined;
+			await act(async () => {
+				submitPromise = assistantUiMock.externalStoreInput?.onNew({
+					content: [{ text: "继续已有运行", type: "text" }],
+				});
+				await Promise.resolve();
+				await Promise.resolve();
+			});
+
+			await act(async () => {
+				await assistantUiMock.externalStoreInput?.onResume?.();
+				await submitPromise;
+			});
+
+			expect(conversationApiMock.resumeRunEventsStream).toHaveBeenCalledWith({
+				afterSequence: 4,
+				runId: "run_manual_resume",
+				signal: expect.any(AbortSignal),
+			});
+			expect(telemetryMock.recordChatBrowserTtft).not.toHaveBeenCalled();
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("opens login without initializing a conversation when a prompt is submitted anonymously", async () => {
@@ -239,7 +503,6 @@ describe("assistant-ui runtime lifecycle bridge", () => {
 			} satisfies ChatRequestStreamEvent;
 			yield {
 				data: {
-					accumulatedText: finalAnswer,
 					delta: finalAnswer,
 					messageId: "msg_answer",
 					occurredAt: "2026-06-24T01:00:01.000Z",
@@ -324,14 +587,6 @@ describe("assistant-ui runtime lifecycle bridge", () => {
 
 			releaseTerminal();
 			await act(async () => {
-				await Promise.resolve();
-				await Promise.resolve();
-			});
-
-			expect(readAssistantText().length).toBeLessThan(finalAnswer.length);
-
-			await act(async () => {
-				vi.runAllTimers();
 				await submitPromise;
 			});
 
@@ -348,7 +603,251 @@ describe("assistant-ui runtime lifecycle bridge", () => {
 		}
 	});
 
-	it("aborts the active stream and requests durable run cancellation", async () => {
+	it("accumulates raw deltas after the typewriter catches up and records TTFT once", async () => {
+		vi.useFakeTimers();
+		let releaseSecondDelta: () => void = () => {
+			throw new Error("second delta release was not initialized");
+		};
+		let releaseTerminal: () => void = () => {
+			throw new Error("terminal release was not initialized");
+		};
+		conversationApiMock.submitChatRequestStream.mockImplementation(async function* () {
+			yield {
+				data: {
+					occurredAt: "2026-06-24T01:00:00.000Z",
+					requestId: "req_delta",
+					runId: "run_delta",
+					sequence: 1,
+					status: "accepted",
+					traceId: "trace_delta",
+				},
+				event: "request.accepted",
+			} satisfies ChatRequestStreamEvent;
+			yield {
+				data: {
+					delta: "按学校",
+					messageId: "msg_delta",
+					occurredAt: "2026-06-24T01:00:01.000Z",
+					requestId: "req_delta",
+					runId: "run_delta",
+					sequence: 2,
+					status: "streaming",
+					traceId: "trace_delta",
+				},
+				event: "answer.delta",
+			} satisfies ChatRequestStreamEvent;
+			await new Promise<void>((resolve) => {
+				releaseSecondDelta = resolve;
+			});
+			yield {
+				data: {
+					delta: "奖学金通知",
+					messageId: "msg_delta",
+					occurredAt: "2026-06-24T01:00:02.000Z",
+					requestId: "req_delta",
+					runId: "run_delta",
+					sequence: 3,
+					status: "streaming",
+					traceId: "trace_delta",
+				},
+				event: "answer.delta",
+			} satisfies ChatRequestStreamEvent;
+			await new Promise<void>((resolve) => {
+				releaseTerminal = resolve;
+			});
+			yield {
+				data: {
+					error: { code: "execution_failed", message: "测试结束。", retryable: false },
+					occurredAt: "2026-06-24T01:00:03.000Z",
+					requestId: "req_delta",
+					runId: "run_delta",
+					sequence: 4,
+					status: "failed",
+					traceId: "trace_delta",
+				},
+				event: "request.failed",
+			} satisfies ChatRequestStreamEvent;
+		});
+
+		try {
+			render(<RuntimeProbe onLoginRequired={vi.fn()} />);
+			let submitPromise: Promise<void> | undefined;
+			await act(async () => {
+				submitPromise = assistantUiMock.externalStoreInput?.onNew({
+					content: [{ text: "奖学金通知", type: "text" }],
+				});
+				await Promise.resolve();
+				await Promise.resolve();
+			});
+
+			await act(async () => {
+				vi.runAllTimers();
+			});
+			expect(readAssistantText()).toBe("按学校");
+
+			await act(async () => {
+				releaseSecondDelta();
+				await vi.advanceTimersByTimeAsync(250);
+			});
+			expect(readAssistantText()).toBe("按学校奖学金通知");
+			expect(telemetryMock.recordChatBrowserTtft).toHaveBeenCalledTimes(1);
+			expect(telemetryMock.recordChatBrowserTtft).toHaveBeenCalledWith(expect.any(Number));
+
+			await act(async () => {
+				releaseTerminal();
+				await submitPromise;
+			});
+			expect(hasMessageId("msg_delta")).toBe(false);
+			expect(readAssistantText()).toBe("测试结束。");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("removes provisional text when an accepted run resumes into a non-retryable stream error", async () => {
+		vi.useFakeTimers();
+		conversationApiMock.submitChatRequestStream.mockImplementation(() =>
+			streamEvents([
+				{
+					data: {
+						occurredAt: "2026-06-24T01:00:00.000Z",
+						requestId: "req_resume_failed",
+						runId: "run_resume_failed",
+						sequence: 1,
+						status: "accepted",
+						traceId: "trace_resume_failed",
+					},
+					event: "request.accepted",
+				},
+				{
+					data: {
+						delta: "不完整草稿",
+						messageId: "msg_resume_draft",
+						occurredAt: "2026-06-24T01:00:01.000Z",
+						requestId: "req_resume_failed",
+						runId: "run_resume_failed",
+						sequence: 2,
+						status: "streaming",
+						traceId: "trace_resume_failed",
+					},
+					event: "answer.delta",
+				},
+			]),
+		);
+		conversationApiMock.resumeRunEventsStream.mockImplementation(async function* () {
+			yield* [] as ChatRequestStreamEvent[];
+			throw new ChatStreamRequestError({
+				code: "execution_failed",
+				message: "恢复回答失败。",
+				requestId: "req_resume_failed",
+				retryable: false,
+				traceId: "trace_resume_failed",
+			});
+		});
+
+		try {
+			render(<RuntimeProbe onLoginRequired={vi.fn()} />);
+			let submitPromise: Promise<void> | undefined;
+			await act(async () => {
+				submitPromise = assistantUiMock.externalStoreInput?.onNew({
+					content: [{ text: "恢复回答", type: "text" }],
+				});
+				await Promise.resolve();
+				await Promise.resolve();
+			});
+			expect(hasMessageId("msg_resume_draft")).toBe(true);
+
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(250);
+				await submitPromise;
+			});
+
+			expect(hasMessageId("msg_resume_draft")).toBe(false);
+			expect(readAssistantText()).toBe("恢复回答失败。");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("waits for durable cancellation confirmation and merges duplicate stop requests", async () => {
+		let observedSignal: AbortSignal | undefined;
+		let resolveCancellation: () => void = () => {
+			throw new Error("cancellation resolution was not initialized");
+		};
+		let releaseStream: () => void = () => {
+			throw new Error("stream release was not initialized");
+		};
+		conversationApiMock.submitChatRequestStream.mockImplementation(async function* (input: {
+			signal?: AbortSignal;
+		}) {
+			observedSignal = input.signal;
+			yield {
+				data: {
+					occurredAt: "2026-06-24T01:00:00.000Z",
+					requestId: "req_01",
+					runId: "run_01",
+					sequence: 1,
+					status: "accepted",
+					traceId: "trace_01",
+				},
+				event: "request.accepted",
+			} satisfies ChatRequestStreamEvent;
+			await new Promise<void>((resolve) => {
+				releaseStream = resolve;
+			});
+			yield cancellationTerminalEvent();
+		});
+		conversationApiMock.cancelRun.mockImplementation(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveCancellation = resolve;
+				}),
+		);
+
+		render(<RuntimeProbe onLoginRequired={vi.fn()} />);
+
+		let submitPromise: Promise<void> | undefined;
+		await act(async () => {
+			submitPromise = assistantUiMock.externalStoreInput?.onNew({
+				content: [{ text: "hi 你是谁", type: "text" }],
+			});
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+
+		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
+		expect(observedSignal?.aborted).toBe(false);
+
+		let firstCancellation: Promise<void> | undefined;
+		let duplicateCancellation: Promise<void> | undefined;
+		await act(async () => {
+			firstCancellation = assistantUiMock.externalStoreInput?.onCancel();
+			duplicateCancellation = assistantUiMock.externalStoreInput?.onCancel();
+			await Promise.resolve();
+		});
+
+		expect(observedSignal?.aborted).toBe(false);
+		expect(conversationApiMock.cancelRun).toHaveBeenCalledWith("run_01");
+		expect(conversationApiMock.cancelRun).toHaveBeenCalledTimes(1);
+		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
+
+		await act(async () => {
+			resolveCancellation();
+			await Promise.all([firstCancellation, duplicateCancellation]);
+		});
+
+		expect(observedSignal?.aborted).toBe(false);
+		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
+
+		releaseStream();
+		await act(async () => {
+			await submitPromise;
+		});
+		expect(observedSignal?.aborted).toBe(false);
+		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
+	});
+
+	it("keeps the active run consumable when cancellation fails and allows retry", async () => {
 		let observedSignal: AbortSignal | undefined;
 		let releaseStream: () => void = () => {
 			throw new Error("stream release was not initialized");
@@ -371,8 +870,11 @@ describe("assistant-ui runtime lifecycle bridge", () => {
 			await new Promise<void>((resolve) => {
 				releaseStream = resolve;
 			});
+			yield cancellationTerminalEvent();
 		});
-		conversationApiMock.cancelRun.mockResolvedValue(undefined);
+		conversationApiMock.cancelRun
+			.mockRejectedValueOnce(new Error("cancel transport failed"))
+			.mockResolvedValueOnce(undefined);
 
 		render(<RuntimeProbe onLoginRequired={vi.fn()} />);
 
@@ -385,27 +887,269 @@ describe("assistant-ui runtime lifecycle bridge", () => {
 			await Promise.resolve();
 		});
 
-		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
+		await act(async () => {
+			await assistantUiMock.externalStoreInput?.onCancel();
+		});
+
 		expect(observedSignal?.aborted).toBe(false);
+		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
+		expect(readAssistantText()).toBe("取消请求失败，当前回答仍在继续。");
+		expect(conversationApiMock.cancelRun).toHaveBeenNthCalledWith(1, "run_01");
 
 		await act(async () => {
 			await assistantUiMock.externalStoreInput?.onCancel();
 		});
 
-		expect(observedSignal?.aborted).toBe(true);
-		expect(conversationApiMock.cancelRun).toHaveBeenCalledWith("run_01");
-		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
+		expect(conversationApiMock.cancelRun).toHaveBeenNthCalledWith(2, "run_01");
+		expect(observedSignal?.aborted).toBe(false);
+		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
 
 		releaseStream();
 		await act(async () => {
 			await submitPromise;
 		});
+		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
+	});
+
+	it("keeps a terminal result when it wins the race with cancellation confirmation", async () => {
+		let observedSignal: AbortSignal | undefined;
+		let releaseTerminal: () => void = () => {
+			throw new Error("terminal release was not initialized");
+		};
+		let resolveCancellation: () => void = () => {
+			throw new Error("cancellation resolution was not initialized");
+		};
+		conversationApiMock.submitChatRequestStream.mockImplementation(async function* (input: {
+			signal?: AbortSignal;
+		}) {
+			observedSignal = input.signal;
+			yield {
+				data: {
+					occurredAt: "2026-06-24T01:00:00.000Z",
+					requestId: "req_01",
+					runId: "run_01",
+					sequence: 1,
+					status: "accepted",
+					traceId: "trace_01",
+				},
+				event: "request.accepted",
+			} satisfies ChatRequestStreamEvent;
+			await new Promise<void>((resolve) => {
+				releaseTerminal = resolve;
+			});
+			yield {
+				data: {
+					error: {
+						code: "execution_failed",
+						message: "运行已自然结束。",
+						retryable: false,
+					},
+					occurredAt: "2026-06-24T01:00:01.000Z",
+					requestId: "req_01",
+					runId: "run_01",
+					sequence: 2,
+					status: "failed",
+					traceId: "trace_01",
+				},
+				event: "request.failed",
+			} satisfies ChatRequestStreamEvent;
+		});
+		conversationApiMock.cancelRun.mockImplementation(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveCancellation = resolve;
+				}),
+		);
+
+		render(<RuntimeProbe onLoginRequired={vi.fn()} />);
+
+		let submitPromise: Promise<void> | undefined;
+		await act(async () => {
+			submitPromise = assistantUiMock.externalStoreInput?.onNew({
+				content: [{ text: "hi 你是谁", type: "text" }],
+			});
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+
+		let cancellationPromise: Promise<void> | undefined;
+		await act(async () => {
+			cancellationPromise = assistantUiMock.externalStoreInput?.onCancel();
+			await Promise.resolve();
+		});
+		expect(observedSignal?.aborted).toBe(false);
+		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
+
+		await act(async () => {
+			releaseTerminal();
+			await submitPromise;
+		});
+
+		expect(readAssistantText()).toBe("运行已自然结束。");
+		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
+		expect(observedSignal?.aborted).toBe(false);
+
+		await act(async () => {
+			resolveCancellation();
+			await cancellationPromise;
+		});
+
+		expect(readAssistantText()).toBe("运行已自然结束。");
+		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
+		expect(observedSignal?.aborted).toBe(false);
+	});
+
+	it("continues consuming the natural terminal result when cancel reports it already won", async () => {
+		let observedSignal: AbortSignal | undefined;
+		let releaseTerminal: () => void = () => {
+			throw new Error("terminal release was not initialized");
+		};
+		conversationApiMock.submitChatRequestStream.mockImplementation(async function* (input: {
+			signal?: AbortSignal;
+		}) {
+			observedSignal = input.signal;
+			yield {
+				data: {
+					occurredAt: "2026-06-24T01:00:00.000Z",
+					requestId: "req_01",
+					runId: "run_01",
+					sequence: 1,
+					status: "accepted",
+					traceId: "trace_01",
+				},
+				event: "request.accepted",
+			} satisfies ChatRequestStreamEvent;
+			await new Promise<void>((resolve) => {
+				releaseTerminal = resolve;
+			});
+			yield {
+				data: {
+					error: {
+						code: "execution_failed",
+						message: "运行已自然结束。",
+						retryable: false,
+					},
+					occurredAt: "2026-06-24T01:00:01.000Z",
+					requestId: "req_01",
+					runId: "run_01",
+					sequence: 2,
+					status: "failed",
+					traceId: "trace_01",
+				},
+				event: "request.failed",
+			} satisfies ChatRequestStreamEvent;
+		});
+		conversationApiMock.cancelRun.mockRejectedValue(
+			new ChatStreamRequestError({
+				code: "run_already_terminal",
+				message: "Run is already terminal.",
+				retryable: false,
+			}),
+		);
+
+		render(<RuntimeProbe onLoginRequired={vi.fn()} />);
+
+		let submitPromise: Promise<void> | undefined;
+		await act(async () => {
+			submitPromise = assistantUiMock.externalStoreInput?.onNew({
+				content: [{ text: "hi 你是谁", type: "text" }],
+			});
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+
+		await act(async () => {
+			await assistantUiMock.externalStoreInput?.onCancel();
+		});
+		await act(async () => {
+			await assistantUiMock.externalStoreInput?.onCancel();
+		});
+		expect(conversationApiMock.cancelRun).toHaveBeenCalledTimes(1);
+		expect(observedSignal?.aborted).toBe(false);
+		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
+		expect(readAssistantText()).toBe("");
+
+		await act(async () => {
+			releaseTerminal();
+			await submitPromise;
+		});
+
+		expect(readAssistantText()).toBe("运行已自然结束。");
+		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
+		expect(observedSignal?.aborted).toBe(false);
+	});
+
+	it("keeps the active stream when cancellation requires a fresh login", async () => {
+		let observedSignal: AbortSignal | undefined;
+		let releaseTerminal: () => void = () => {
+			throw new Error("terminal release was not initialized");
+		};
+		conversationApiMock.submitChatRequestStream.mockImplementation(async function* (input: {
+			signal?: AbortSignal;
+		}) {
+			observedSignal = input.signal;
+			yield {
+				data: {
+					occurredAt: "2026-06-24T01:00:00.000Z",
+					requestId: "req_01",
+					runId: "run_01",
+					sequence: 1,
+					status: "accepted",
+					traceId: "trace_01",
+				},
+				event: "request.accepted",
+			} satisfies ChatRequestStreamEvent;
+			await new Promise<void>((resolve) => {
+				releaseTerminal = resolve;
+			});
+			yield {
+				data: {
+					error: { code: "execution_failed", message: "运行已结束。", retryable: false },
+					occurredAt: "2026-06-24T01:00:01.000Z",
+					requestId: "req_01",
+					runId: "run_01",
+					sequence: 2,
+					status: "failed",
+					traceId: "trace_01",
+				},
+				event: "request.failed",
+			} satisfies ChatRequestStreamEvent;
+		});
+		conversationApiMock.cancelRun.mockRejectedValue(new UnauthorizedError());
+		const onLoginRequired = vi.fn();
+		render(<RuntimeProbe onLoginRequired={onLoginRequired} />);
+
+		let submitPromise: Promise<void> | undefined;
+		await act(async () => {
+			submitPromise = assistantUiMock.externalStoreInput?.onNew({
+				content: [{ text: "hi 你是谁", type: "text" }],
+			});
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+		await act(async () => {
+			await assistantUiMock.externalStoreInput?.onCancel();
+		});
+
+		expect(onLoginRequired).toHaveBeenCalledTimes(1);
+		expect(observedSignal?.aborted).toBe(false);
+		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
+
+		await act(async () => {
+			releaseTerminal();
+			await submitPromise;
+		});
+		expect(readAssistantText()).toBe("运行已结束。");
+		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
 	});
 
 	it("cancels the durable run after accepted when stop is clicked before run identity arrives", async () => {
 		let observedSignal: AbortSignal | undefined;
 		let releaseAccepted: () => void = () => {
 			throw new Error("accepted release was not initialized");
+		};
+		let releaseTerminal: () => void = () => {
+			throw new Error("terminal release was not initialized");
 		};
 		conversationApiMock.submitChatRequestStream.mockImplementation(async function* (input: {
 			signal?: AbortSignal;
@@ -425,7 +1169,10 @@ describe("assistant-ui runtime lifecycle bridge", () => {
 				},
 				event: "request.accepted",
 			} satisfies ChatRequestStreamEvent;
-			throw new Error("stream should stop after pending cancellation consumes accepted run id");
+			await new Promise<void>((resolve) => {
+				releaseTerminal = resolve;
+			});
+			yield cancellationTerminalEvent();
 		});
 		conversationApiMock.cancelRun.mockResolvedValue(undefined);
 
@@ -457,12 +1204,154 @@ describe("assistant-ui runtime lifecycle bridge", () => {
 		});
 
 		expect(conversationApiMock.cancelRun).toHaveBeenCalledWith("run_01");
-		expect(observedSignal?.aborted).toBe(true);
-		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
+		expect(observedSignal?.aborted).toBe(false);
+		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
 
 		await act(async () => {
+			releaseTerminal();
 			await submitPromise;
 		});
+		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
+	});
+
+	it("keeps consuming when pending cancellation requires a fresh login", async () => {
+		let observedSignal: AbortSignal | undefined;
+		let releaseAccepted: () => void = () => {
+			throw new Error("accepted release was not initialized");
+		};
+		let releaseTerminal: () => void = () => {
+			throw new Error("terminal release was not initialized");
+		};
+		conversationApiMock.submitChatRequestStream.mockImplementation(async function* (input: {
+			signal?: AbortSignal;
+		}) {
+			observedSignal = input.signal;
+			await new Promise<void>((resolve) => {
+				releaseAccepted = resolve;
+			});
+			yield {
+				data: {
+					occurredAt: "2026-06-24T01:00:00.000Z",
+					requestId: "req_01",
+					runId: "run_01",
+					sequence: 1,
+					status: "accepted",
+					traceId: "trace_01",
+				},
+				event: "request.accepted",
+			} satisfies ChatRequestStreamEvent;
+			await new Promise<void>((resolve) => {
+				releaseTerminal = resolve;
+			});
+			yield {
+				data: {
+					error: { code: "execution_failed", message: "运行已结束。", retryable: false },
+					occurredAt: "2026-06-24T01:00:01.000Z",
+					requestId: "req_01",
+					runId: "run_01",
+					sequence: 2,
+					status: "failed",
+					traceId: "trace_01",
+				},
+				event: "request.failed",
+			} satisfies ChatRequestStreamEvent;
+		});
+		conversationApiMock.cancelRun.mockRejectedValue(new UnauthorizedError());
+		const onLoginRequired = vi.fn();
+		render(<RuntimeProbe onLoginRequired={onLoginRequired} />);
+
+		let submitPromise: Promise<void> | undefined;
+		await act(async () => {
+			submitPromise = assistantUiMock.externalStoreInput?.onNew({
+				content: [{ text: "hi 你是谁", type: "text" }],
+			});
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+		await act(async () => {
+			await assistantUiMock.externalStoreInput?.onCancel();
+			releaseAccepted();
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+
+		expect(conversationApiMock.cancelRun).toHaveBeenCalledWith("run_01");
+		expect(onLoginRequired).toHaveBeenCalledTimes(1);
+		expect(observedSignal?.aborted).toBe(false);
+		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
+
+		await act(async () => {
+			releaseTerminal();
+			await submitPromise;
+		});
+		expect(readAssistantText()).toBe("运行已结束。");
+		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
+		expect(observedSignal?.aborted).toBe(false);
+	});
+
+	it("requests login when the initial lifecycle stream is unauthorized", async () => {
+		conversationApiMock.submitChatRequestStream.mockImplementation(async function* () {
+			yield* [] as ChatRequestStreamEvent[];
+			throw new UnauthorizedError();
+		});
+		const onLoginRequired = vi.fn();
+		render(<RuntimeProbe onLoginRequired={onLoginRequired} />);
+
+		await act(async () => {
+			await expect(
+				assistantUiMock.externalStoreInput?.onNew({
+					content: [{ text: "登录状态是否有效？", type: "text" }],
+				}),
+			).resolves.toBeUndefined();
+		});
+
+		expect(onLoginRequired).toHaveBeenCalledTimes(1);
+		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
+		expect(conversationApiMock.submitChatRequestStream).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not retry a resume stream after authentication expires", async () => {
+		vi.useFakeTimers();
+		conversationApiMock.submitChatRequestStream.mockImplementation(async function* () {
+			yield {
+				data: {
+					occurredAt: "2026-06-24T01:00:00.000Z",
+					requestId: "req_01",
+					runId: "run_01",
+					sequence: 1,
+					status: "accepted",
+					traceId: "trace_01",
+				},
+				event: "request.accepted",
+			} satisfies ChatRequestStreamEvent;
+		});
+		conversationApiMock.resumeRunEventsStream.mockImplementation(async function* () {
+			yield* [] as ChatRequestStreamEvent[];
+			throw new UnauthorizedError();
+		});
+		const onLoginRequired = vi.fn();
+		render(<RuntimeProbe onLoginRequired={onLoginRequired} />);
+
+		try {
+			let submitPromise: Promise<void> | undefined;
+			await act(async () => {
+				submitPromise = assistantUiMock.externalStoreInput?.onNew({
+					content: [{ text: "断线后继续", type: "text" }],
+				});
+				await Promise.resolve();
+				await Promise.resolve();
+			});
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(250);
+				await submitPromise;
+			});
+
+			expect(onLoginRequired).toHaveBeenCalledTimes(1);
+			expect(conversationApiMock.resumeRunEventsStream).toHaveBeenCalledTimes(1);
+			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("renders failed stream startup as an assistant error message without throwing", async () => {
@@ -472,7 +1361,7 @@ describe("assistant-ui runtime lifecycle bridge", () => {
 				code: "execution_failed",
 				message: "请求失败。",
 				requestId: "req_failed",
-				retryable: true,
+				retryable: false,
 				traceId: "trace_failed",
 			});
 		});
@@ -583,7 +1472,6 @@ describe("assistant-ui runtime lifecycle bridge", () => {
 			} satisfies ChatRequestStreamEvent;
 			yield {
 				data: {
-					accumulatedText: finalAnswer,
 					delta: finalAnswer,
 					messageId: "msg_answer",
 					occurredAt: "2026-06-24T01:00:01.000Z",

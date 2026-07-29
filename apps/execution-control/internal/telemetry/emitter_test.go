@@ -206,7 +206,7 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 		RequestID:             "req-attrs",
 		RunID:                 "run-attrs",
 		ScheduleToStart:       7 * time.Millisecond,
-		SelectedTool:          "knowledge_query",
+		ToolName:              "personal_memory_recall",
 		Status:                "failed",
 		StepID:                "agent.primary",
 		StepKind:              "agent",
@@ -230,6 +230,7 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 		"fail_close_reason":                    true,
 		"failure_kind":                         true,
 		"langfuse.release":                     true,
+		"langfuse.observation.type":            true,
 		"langfuse.session.id":                  true,
 		"langfuse.trace.metadata.request_id":   true,
 		"langfuse.trace.metadata.run_id":       true,
@@ -242,7 +243,7 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 		"request_id":                           true,
 		"run_id":                               true,
 		"schedule_to_start_ms":                 true,
-		"selected_tool":                        true,
+		"tool_name":                            true,
 		"status":                               true,
 		"step_id":                              true,
 		"step_kind":                            true,
@@ -259,16 +260,17 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 		found[string(attr.Key)] = attr.Value.AsString()
 	}
 	for key, want := range map[string]string{
-		"activity_type":     "ExecutePrimaryAgentActivity",
-		"fail_close_reason": "agent_runtime_timeout",
-		"failure_kind":      "agent_runtime_timeout",
-		"projection_ref":    "projection://runs/run-attrs/agent/primary/result",
-		"run_id":            "run-attrs",
-		"status":            "failed",
-		"step_id":           "agent.primary",
-		"step_kind":         "agent",
-		"task_queue":        "campus-agent.activity.agent",
-		"workflow_id":       "campus-agent.chat.run-attrs",
+		"activity_type":             "ExecutePrimaryAgentActivity",
+		"fail_close_reason":         "agent_runtime_timeout",
+		"failure_kind":              "agent_runtime_timeout",
+		"projection_ref":            "projection://runs/run-attrs/agent/primary/result",
+		"run_id":                    "run-attrs",
+		"status":                    "failed",
+		"step_id":                   "agent.primary",
+		"step_kind":                 "agent",
+		"task_queue":                "campus-agent.activity.agent",
+		"workflow_id":               "campus-agent.chat.run-attrs",
+		"langfuse.observation.type": "span",
 	} {
 		if found[key] != want {
 			t.Fatalf("telemetry attribute %s = %q, want %q", key, found[key], want)
@@ -313,13 +315,118 @@ func TestEmitterDoesNotDuplicateAgentModelGeneration(t *testing.T) {
 		found[string(attr.Key)] = true
 	}
 	for _, key := range []string{
-		"langfuse.observation.type",
 		"langfuse.observation.model.name",
 		"langfuse.observation.usage_details",
 		"langfuse.observation.cost_details",
 	} {
 		if found[key] {
 			t.Fatalf("orchestration span must not publish model generation attribute %q", key)
+		}
+	}
+	if got := spans[0].Attributes(); len(got) == 0 {
+		t.Fatal("orchestration span must include its observation type")
+	}
+	for _, attr := range spans[0].Attributes() {
+		if attr.Key == "langfuse.observation.type" && attr.Value.AsString() != "span" {
+			t.Fatalf("observation type = %q, want span", attr.Value.AsString())
+		}
+	}
+}
+
+func TestEmitterAddsGroundingSummaryWithoutGenerationUsage(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	emitter := &Emitter{enabled: true, sampleRatio: 1, tracer: provider.Tracer("test")}
+	startedAt := time.Date(2026, 7, 26, 9, 0, 0, 0, time.UTC)
+	completedAt := startedAt.Add(2750 * time.Millisecond)
+
+	if err := emitter.Emit(context.Background(), Event{
+		Name:                          "temporal.step_observation",
+		GroundingMode:                 "multi_scope",
+		GroundingStatus:               "ready",
+		GroundingSelectedScopes:       []string{"student_rules", "curriculum"},
+		GroundingCoveredScopes:        []string{"student_rules"},
+		GroundingCandidateCount:       6,
+		GroundingCandidateCountSet:    true,
+		GroundingEvidenceCount:        2,
+		GroundingEvidenceCountSet:     true,
+		GroundingTokenCount:           512,
+		GroundingTokenCountSet:        true,
+		GroundingModelContextChars:    2048,
+		GroundingModelContextCharsSet: true,
+		GroundingEmbeddingMS:          11.5,
+		GroundingEmbeddingMSSet:       true,
+		GroundingSearchMS:             12,
+		GroundingSearchMSSet:          true,
+		GroundingRerankMS:             13.25,
+		GroundingRerankMSSet:          true,
+		GroundingPackMS:               14,
+		GroundingPackMSSet:            true,
+		StartedAt:                     startedAt,
+		CompletedAt:                   completedAt,
+	}); err != nil {
+		t.Fatalf("Emit returned error: %v", err)
+	}
+
+	spans := recorder.Ended()
+	if len(spans) != 1 {
+		t.Fatalf("ended spans = %d, want 1", len(spans))
+	}
+	span := spans[0]
+	if !span.StartTime().Equal(startedAt) || !span.EndTime().Equal(completedAt) {
+		t.Fatalf("span timestamps = %s..%s, want %s..%s", span.StartTime(), span.EndTime(), startedAt, completedAt)
+	}
+	attrs := map[attribute.Key]attribute.Value{}
+	for _, item := range span.Attributes() {
+		attrs[item.Key] = item.Value
+	}
+	if attrs[attribute.Key("langfuse.observation.type")].AsString() != "span" {
+		t.Fatalf("observation type = %q, want span", attrs[attribute.Key("langfuse.observation.type")].AsString())
+	}
+	if attrs[attribute.Key("grounding_mode")].AsString() != "multi_scope" ||
+		attrs[attribute.Key("grounding_status")].AsString() != "ready" {
+		t.Fatalf("grounding routing attrs = %#v", attrs)
+	}
+	if got := attrs[attribute.Key("grounding_selected_scopes")].AsStringSlice(); !reflect.DeepEqual(got, []string{"student_rules", "curriculum"}) {
+		t.Fatalf("selected scopes = %#v", got)
+	}
+	if got := attrs[attribute.Key("grounding_candidate_count")].AsInt64(); got != 6 {
+		t.Fatalf("candidate count = %d, want 6", got)
+	}
+	if got := attrs[attribute.Key("grounding.embedding_ms")].AsFloat64(); got != 11.5 {
+		t.Fatalf("embedding ms = %v, want 11.5", got)
+	}
+	for _, key := range []attribute.Key{
+		"langfuse.observation.model.name",
+		"langfuse.observation.usage_details",
+		"langfuse.observation.cost_details",
+	} {
+		if _, exists := attrs[key]; exists {
+			t.Fatalf("grounding span must not publish generation attribute %q", key)
+		}
+	}
+}
+
+func TestEmitterOmitsUnavailableGroundingDiagnostics(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	emitter := &Emitter{enabled: true, sampleRatio: 1, tracer: provider.Tracer("test")}
+
+	if err := emitter.Emit(context.Background(), Event{
+		GroundingMode:   "multi_scope",
+		GroundingStatus: "ready",
+		Name:            "temporal.step_observation",
+	}); err != nil {
+		t.Fatalf("Emit returned error: %v", err)
+	}
+	spans := recorder.Ended()
+	if len(spans) != 1 {
+		t.Fatalf("ended spans = %d, want 1", len(spans))
+	}
+	for _, attr := range spans[0].Attributes() {
+		switch string(attr.Key) {
+		case "grounding_candidate_count", "grounding_evidence_count", "grounding_token_count", "grounding_model_context_chars", "grounding.embedding_ms", "grounding.search_ms", "grounding.rerank_ms", "grounding.pack_ms":
+			t.Fatalf("unavailable grounding diagnostic %q was emitted as zero", attr.Key)
 		}
 	}
 }
@@ -342,7 +449,7 @@ func TestEmitterAddsLangfuseTraceSessionAttributes(t *testing.T) {
 		RequestID:             "req-langfuse-001",
 		RunID:                 "run-langfuse-001",
 		TraceID:               "trace-langfuse-001",
-		SelectedTool:          "knowledge_query",
+		ToolName:              "personal_memory_recall",
 		DeploymentEnvironment: "staging",
 		WorkflowID:            "campus-agent.chat.run-langfuse-001",
 	}); err != nil {
@@ -374,7 +481,7 @@ func TestEmitterAddsLangfuseTraceSessionAttributes(t *testing.T) {
 		"request_id":                          "req-langfuse-001",
 		"run_id":                              "run-langfuse-001",
 		"trace_id":                            "trace-langfuse-001",
-		"selected_tool":                       "knowledge_query",
+		"tool_name":                           "personal_memory_recall",
 		"deployment.environment":              "staging",
 	}
 	for key, want := range expectedValues {
@@ -382,7 +489,7 @@ func TestEmitterAddsLangfuseTraceSessionAttributes(t *testing.T) {
 			t.Fatalf("telemetry attribute %s = %q, want %q", key, found[key], want)
 		}
 	}
-	wantTags := []string{"surface:execution-control", "target:knowledge_query", "env:staging"}
+	wantTags := []string{"surface:execution-control", "tool:personal_memory_recall", "env:staging"}
 	if !reflect.DeepEqual(tags, wantTags) {
 		t.Fatalf("langfuse trace tags = %#v, want %#v", tags, wantTags)
 	}
@@ -421,7 +528,7 @@ func TestEmitterRecordsBoundedRuntimeMetrics(t *testing.T) {
 		FailureKind:     "none",
 		Name:            "temporal.step_observation",
 		ScheduleToStart: 18 * time.Millisecond,
-		SelectedTool:    "knowledge_query",
+		ToolName:        "personal_memory_recall",
 		Status:          "completed",
 		StepKind:        "agent",
 		TaskQueue:       "campus-agent.activity.agent",
@@ -465,7 +572,7 @@ func assertMetricAttributesAreBounded(t *testing.T, metric metricdata.Metrics) {
 		"failure_kind":  true,
 		"operation":     true,
 		"outcome":       true,
-		"selected_tool": true,
+		"tool_name":     true,
 		"status":        true,
 		"step_kind":     true,
 		"task_queue":    true,

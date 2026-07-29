@@ -18,14 +18,15 @@ framing 和措辞。它不能决定身份、授权、来源信任、工具开放
 
 | 所有者 | 职责 |
 | --- | --- |
-| Hindsight | retain、recall、reflect、extraction、graph、dedupe/merge 和 bank lifecycle |
+| Hindsight | retain、recall、extraction、graph、dedupe/merge 和 bank lifecycle |
 | execution-control | ID 派生、bank policy、SDK 调用、边界裁剪、内部命令、generation fence 和 receipt |
-| Temporal | recall、append、个人记忆命令和删除检查点的 durable execution |
+| Temporal | Agent Activity、append、个人记忆命令和删除检查点的 durable execution |
 | app-api | 用户可见接口、consent、desired state、outbox 和 PostgreSQL 产品投影 |
-| agent-runtime | 只消费 core activity 产生的有界 memory context |
+| agent-runtime | 向模型暴露获准的 `personal_memory_recall`，不持有 Hindsight credential |
 
-app-api 不直连 Hindsight；agent-runtime 不持有 Hindsight credential 或 direct tool。运行配置归属见
-[Provider 与模型配置](../../environment/providers.md)，本文件不复制环境变量。
+app-api 不直连 Hindsight；agent-runtime 只调用 execution-control 的有界内部 handler，不直连
+Hindsight 或暴露其原始 API。运行配置归属见 [Provider 与模型配置](../../environment/providers.md)，
+本文件不复制环境变量。
 
 ## Identity 与隔离
 
@@ -37,15 +38,21 @@ app-api 不直连 Hindsight；agent-runtime 不持有 Hindsight credential 或 d
 - 产品 user、conversation 和 message ID 不直接作为 Hindsight object ID；
 - salt 在同一环境必须稳定，不跨环境共享。
 
-每次 retain、recall、reflect 或 profile mutation 前，execution-control 创建或更新 scoped bank，
+每次 retain、recall 或 profile mutation 前，execution-control 创建或更新 scoped bank，
 并确认 Memory Defense `sensitive_data -> redact` 已启用。bootstrap 或校验失败时不继续本次 memory
 operation。
 
 ## 在线执行
 
 在持久回答开始时，execution-control 冻结 `recall_enabled`、`append_enabled` 和用户代次。
-召回 activity 在 Agent 运行前调用 Hindsight 并裁剪上下文；追加 activity 在产品终态写入后，以
-确定性文档标识同步保留已接受的用户消息。完整阶段和队列关系由
+`recall_enabled=true` 时，冻结的 `execution_strategy.v2` 向 Primary Agent 开放一次
+`personal_memory_recall`，模型只在当前问题需要跨会话个人上下文时调用；handler 重新校验运行身份、
+策略和用户代次后调用 Hindsight，并返回裁剪后的 `memory_text`。`recall_enabled=false` 时该工具对
+模型不可见，不创建独立 recall Activity 或 skipped step。
+
+追加 activity 只有在 app-api 已接受同一 `finalization_fingerprint`，且 execution-control 的
+`completed` run 已绑定 `completed` `finalization.write` 投影后，才以确定性文档标识同步保留已接受
+的用户消息。取消、失败、过期、终态冲突或缺少该绑定时不得追加。完整阶段和队列关系由
 [持久 Agent 运行时](./durable-runtime.md) 维护。
 
 recall 使用 accepted user message 时间作为 `query_timestamp`。返回 fact 即使缺少 `occurred_*` 或
@@ -55,8 +62,8 @@ append 使用确定性 document ID、`update_mode=replace` 和 private observati
 同步返回后本次 activity 才成功；仓库不代理其内部 operation。append 失败不回滚已经完成的回答，
 但必须记录 failed step 和有界指标。
 
-gate 在 chat 准入时冻结，后续 activity 不重读可变设置。关闭 recall 或 append 时分别投影 skipped
-step，不调用 Hindsight，也不从 PostgreSQL、Qdrant 或供应商抽取记忆。
+gate 在 chat 准入时冻结，后续执行不重读可变设置。关闭 recall 时不开放工具、不创建 recall step；
+关闭 append 时追加 activity 投影 skipped step。两者都不能从 PostgreSQL、Qdrant 或供应商抽取记忆。
 
 ## 用户管理与删除
 
@@ -74,29 +81,24 @@ app-api 在 PostgreSQL 中维护 lifecycle、item desired state 和 command outb
 conversation prune/delete 在删除产品 message 前捕获 message ID，并派生与 retain 相同的 document
 ID。删除后需要等待 Hindsight consolidation 生效，再确认来源不再通过 recall 返回。
 
-## Reflect
-
-`MemoryReflectActivity` 和内部 reflect endpoint 提供 memory-grounded reasoning，返回受控文本、
-structured output 和 `based_on` fact；它不负责生成默认最终回答。Hindsight 后台 operation 属于
-其内部实现，campus-agent 不接收 webhook，也不提供 status/list/cancel/retry 接口。
-
 ## 投影与遥测
 
 execution-control 可以保存 bank/document identity、generation fence 和 command receipt。浏览器、
 student run-step 和通用 Axiom 信号不得保存原始 bank/document/operation ID、provider payload 或
 memory 正文；允许保存公共状态、计数、hash、timing 和 failure kind。
 
-Langfuse 是受信任模型 trace，可以观察有界 memory context 和 Hindsight 原生模型调用。它不得被
-复制到 Axiom 或 Sentry；具体内容与认证字段清理边界见 [Langfuse](./langfuse.md)。
+Langfuse 可以观察 Hindsight 与 Agent 的受控调用 metadata、模型标识、用量和阶段结果，但不记录
+`memory_text` 或模型输入输出。它不得被复制到 Axiom 或 Sentry；具体字段边界见
+[Langfuse](./langfuse.md)。
 
 ## Temporal 与失败语义
 
-- recall 和 append 位于 core activity queue；
-- timeout、heartbeat、retry 和 non-retryable error 由明确 activity policy 管理；
+- recall 工具位于同一次 Agent Activity 和 SDK run 内，不是独立 Temporal Activity；
+- Agent Activity 的 timeout、cancellation 和 invocation receipt 同时约束模型与 recall 工具；
+- append 位于 core activity queue，其 heartbeat、retry 和 non-retryable error 由明确 activity policy 管理；
 - deterministic config、request、bank policy 和 projection error 不 retry；
-- 临时 Hindsight transport error 使用有界 retry；
 - Temporal 不充当 memory database，也不保存 raw recall/retain payload；
-- recall gate 开启但 recall 最终失败时，当前 workflow 以失败终结；
+- recall 工具失败形成失败的 SDK tool result，当前 Agent run 和 workflow 失败关闭；
 - append 是回答完成后的 side effect，失败不回滚回答。
 
 ## 数据边界
@@ -110,11 +112,12 @@ Langfuse 是受信任模型 trace，可以观察有界 memory context 和 Hindsi
 
 ## 禁止形态
 
-- Hindsight MCP 或 direct tool 暴露给 Primary Agent；
+- Hindsight MCP、原始 API 或供应商类型直接暴露给 Primary Agent；
+- 调用 Hindsight reflect 形成独立的记忆推理路径；
 - app-api 或 agent-runtime 直接调用 Hindsight；
 - personal memory 写入 Qdrant；
 - raw memory、bank 或 operation payload 进入浏览器或 model-visible tool；
-- memory 影响 tool/target admission 或授权；
+- memory 影响工具/文档范围准入或授权；
 - 使用 Zep 或供应商抽取维护第二条个人记忆路径。
 
 ## 相关文档

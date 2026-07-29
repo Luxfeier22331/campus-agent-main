@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 	enumspb "go.temporal.io/api/enums/v1"
 	historypb "go.temporal.io/api/history/v1"
@@ -43,7 +44,6 @@ func TestExecutionRunHTTPStartsTemporalWorkflowAndProjectsCompletion(t *testing.
 		temporalruntime.NewCoreActivityWorkerWithOptions(
 			temporalClient,
 			temporalruntime.ActivityTaskQueueCore,
-			activities,
 			activities,
 			activities,
 			worker.Options{},
@@ -145,7 +145,6 @@ func TestExecutionRunHTTPCancelsTemporalWorkflowAndProjectsCancellation(t *testi
 			temporalruntime.ActivityTaskQueueCore,
 			activities,
 			activities,
-			activities,
 			worker.Options{},
 		),
 		temporalruntime.NewAgentActivityWorker(temporalClient, temporalruntime.ActivityTaskQueueAgent, activities),
@@ -222,19 +221,6 @@ type httpTemporalE2EActivities struct {
 	store *execution.InMemoryRunProjectionStore
 }
 
-func (httpTemporalE2EActivities) MemoryRecallActivity(
-	_ context.Context,
-	input temporalruntime.MemoryRecallActivityInput,
-) (temporalruntime.MemoryRecallActivityOutput, error) {
-	return temporalruntime.MemoryRecallActivityOutput{
-		MemoryRef:           "projection://runs/" + input.RunID + "/memory/recall",
-		RunID:               input.RunID,
-		SelectedMemoryChars: 0,
-		SelectedMemoryCount: 0,
-		Status:              "completed",
-	}, nil
-}
-
 func (httpTemporalE2EActivities) AppendConversationMemoryActivity(
 	_ context.Context,
 	input temporalruntime.AppendConversationMemoryActivityInput,
@@ -246,6 +232,44 @@ func (httpTemporalE2EActivities) AppendConversationMemoryActivity(
 		SchemaVersion:        "memory_conversation_append_result_v1",
 		Status:               "completed",
 	}, nil
+}
+
+func (httpTemporalE2EActivities) ExecutePersonalMemoryCommandActivity(
+	_ context.Context,
+	input memoryruntime.PersonalMemoryCommandRequest,
+) (temporalruntime.PersonalMemoryCommandActivityOutput, error) {
+	return temporalruntime.PersonalMemoryCommandActivityOutput{
+		CommandID: input.CommandID,
+		Status:    "succeeded",
+	}, nil
+}
+
+func (httpTemporalE2EActivities) PurgePersonalMemoryTracesActivity(
+	context.Context,
+	temporalruntime.PersonalMemoryTraceMaintenanceActivityInput,
+) (temporalruntime.PersonalMemoryTraceMaintenanceActivityOutput, error) {
+	return temporalruntime.PersonalMemoryTraceMaintenanceActivityOutput{}, nil
+}
+
+func (httpTemporalE2EActivities) VerifyPersonalMemoryTracesActivity(
+	context.Context,
+	temporalruntime.PersonalMemoryTraceMaintenanceActivityInput,
+) (temporalruntime.PersonalMemoryTraceMaintenanceActivityOutput, error) {
+	return temporalruntime.PersonalMemoryTraceMaintenanceActivityOutput{}, nil
+}
+
+func (httpTemporalE2EActivities) FinalizePersonalMemoryCommandReceiptActivity(
+	_ context.Context,
+	input temporalruntime.FinalizePersonalMemoryCommandReceiptActivityInput,
+) (temporalruntime.PersonalMemoryCommandActivityOutput, error) {
+	return input.Result, nil
+}
+
+func (httpTemporalE2EActivities) WritePersonalMemoryCommandResultActivity(
+	context.Context,
+	temporalruntime.PersonalMemoryCommandActivityOutput,
+) error {
+	return nil
 }
 
 func (a httpTemporalE2EActivities) ExecutePrimaryAgentActivity(
@@ -290,11 +314,24 @@ func (a httpTemporalE2EActivities) WriteFinalizationActivity(
 	}); err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
+	if _, err := a.store.UpsertStepResult(ctx, execution.StepResultProjection{
+		ResultID:             temporalStepResultID(input.RunID, "finalization.write", 1),
+		StepID:               "finalization.write",
+		RunID:                input.RunID,
+		AttemptID:            temporalStepAttemptID(input.RunID, "finalization.write", 1),
+		Status:               "completed",
+		ResultKind:           "final_answer_projection",
+		ProjectionRef:        finalizationRef,
+		CreatedAt:            completedAt,
+		PayloadSchemaVersion: "step-result-projection-v1",
+		SanitizedPayload:     map[string]any{"activity_attempt": 1},
+	}); err != nil {
+		return temporalruntime.WriteFinalizationActivityOutput{}, err
+	}
 	if _, err := a.store.CompleteRunProjection(ctx, execution.DurableRunCompleteRequest{
 		FinalResponseRef: finalizationRef,
 		Now:              completedAt,
 		RunID:            input.RunID,
-		SelectedTool:     "primary_agent",
 		TerminalReason:   execution.DurableTerminalReasonAnswerCompleted,
 	}); err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
@@ -320,7 +357,7 @@ func (a httpTemporalE2EActivities) WriteFinalizationActivity(
 		RunID:                input.RunID,
 		ConversationID:       run.ConversationID,
 		StepKind:             "finalization",
-		Tool:                 "primary_agent",
+		Tool:                 "",
 		Status:               "completed",
 		TaskQueue:            temporalruntime.ActivityTaskQueueCore,
 		WorkerID:             "http-temporal-e2e",
@@ -340,6 +377,35 @@ func (a httpTemporalE2EActivities) WriteFinalizationActivity(
 		ProjectionRef: finalizationRef,
 		RunID:         input.RunID,
 		Status:        "completed",
+	}, nil
+}
+
+func (a httpTemporalE2EActivities) FinalizeExecutionCancellationActivity(
+	ctx context.Context,
+	input temporalruntime.FinalizeExecutionCancellationActivityInput,
+) (temporalruntime.FinalizeExecutionCancellationActivityOutput, error) {
+	run, err := a.store.CancelRunProjection(ctx, execution.DurableRunCancelRequest{
+		RunID:  input.RunID,
+		Reason: input.Reason,
+		Now:    input.CanceledAt,
+	})
+	if err != nil {
+		return temporalruntime.FinalizeExecutionCancellationActivityOutput{}, err
+	}
+	return temporalruntime.FinalizeExecutionCancellationActivityOutput{
+		RunID:  run.RunID,
+		Status: string(run.Status),
+	}, nil
+}
+
+func (httpTemporalE2EActivities) FinalizeExecutionFailureActivity(
+	_ context.Context,
+	input temporalruntime.FinalizeExecutionFailureActivityInput,
+) (temporalruntime.FinalizeExecutionFailureActivityOutput, error) {
+	return temporalruntime.FinalizeExecutionFailureActivityOutput{
+		CompletedAt: input.FailedAt,
+		RunID:       input.RunID,
+		Status:      "failed",
 	}, nil
 }
 

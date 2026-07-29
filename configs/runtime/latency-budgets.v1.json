@@ -11,10 +11,42 @@
 			"enabled": true
 		},
 		{
-			"field": "stream.browser_ttft_ms",
+			"field": "execution.dispatch_ms",
+			"warn_ms": 250,
+			"critical_ms": 1000,
+			"candidate_reason": "execution_dispatch_too_slow",
+			"candidate_category": "model_provider_or_latency_budget_fix",
+			"enabled": true
+		},
+		{
+			"field": "agent.schedule_to_start_ms",
+			"warn_ms": 500,
+			"critical_ms": 1500,
+			"candidate_reason": "agent_schedule_to_start_too_slow",
+			"candidate_category": "model_provider_or_latency_budget_fix",
+			"enabled": true
+		},
+		{
+			"field": "stream.first_delta_persist_ms",
 			"warn_ms": 2500,
 			"critical_ms": 5000,
-			"candidate_reason": "stream_ttft_too_slow",
+			"candidate_reason": "stream_first_delta_persist_too_slow",
+			"candidate_category": "model_provider_or_latency_budget_fix",
+			"enabled": true
+		},
+		{
+			"field": "stream.app_api_ttft_ms",
+			"warn_ms": 2500,
+			"critical_ms": 5000,
+			"candidate_reason": "stream_app_api_ttft_too_slow",
+			"candidate_category": "model_provider_or_latency_budget_fix",
+			"enabled": true
+		},
+		{
+			"field": "stream.orchestration_overhead_ms",
+			"warn_ms": 750,
+			"critical_ms": 2000,
+			"candidate_reason": "stream_orchestration_overhead_too_slow",
 			"candidate_category": "model_provider_or_latency_budget_fix",
 			"enabled": true
 		},
@@ -23,6 +55,14 @@
 			"warn_ms": 500,
 			"critical_ms": 1500,
 			"candidate_reason": "execution_admission_too_slow",
+			"candidate_category": "model_provider_or_latency_budget_fix",
+			"enabled": true
+		},
+		{
+			"field": "grounding.prepare_ms",
+			"warn_ms": 3000,
+			"critical_ms": 7000,
+			"candidate_reason": "grounding_prepare_too_slow",
 			"candidate_category": "model_provider_or_latency_budget_fix",
 			"enabled": true
 		},
@@ -71,14 +111,6 @@
 			"warn_ms": 3000,
 			"critical_ms": 8000,
 			"candidate_reason": "transport_schedule_lookup_too_slow",
-			"candidate_category": "model_provider_or_latency_budget_fix",
-			"enabled": true
-		},
-		{
-			"field": "knowledge.search_ms",
-			"warn_ms": 3000,
-			"critical_ms": 7000,
-			"candidate_reason": "knowledge_search_too_slow",
 			"candidate_category": "model_provider_or_latency_budget_fix",
 			"enabled": true
 		},

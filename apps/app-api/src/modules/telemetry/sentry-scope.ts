@@ -6,10 +6,7 @@ export function applyRequestTags(input: {
 	errorCode?: string | null;
 	principalType?: string | null;
 	requestId?: string | null;
-	requestedTool?: string | null;
-	resolvedTargets?: string[];
 	route?: string | null;
-	selectedTool?: string | null;
 	status?: string | null;
 	surface?: string | null;
 	traceId?: string | null;

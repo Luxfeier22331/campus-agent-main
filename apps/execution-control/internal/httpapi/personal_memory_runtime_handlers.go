@@ -89,46 +89,6 @@ func (s *Server) handleProfileMemoryRecall(response http.ResponseWriter, request
 	writeJSON(response, http.StatusOK, result)
 }
 
-func (s *Server) handleProfileMemoryReflect(response http.ResponseWriter, request *http.Request) {
-	if !s.internalWorkerAuthorized(request) {
-		setOutcome(response, "unauthorized")
-		writeError(response, http.StatusUnauthorized, "unauthorized", "Internal worker authorization failed.", false)
-		return
-	}
-	body, ok := s.readJSONBody(response, request)
-	if !ok {
-		return
-	}
-	var input memoryruntime.ReflectRequest
-	if err := json.Unmarshal(body, &input); err != nil {
-		setOutcome(response, "invalid_request")
-		writeError(response, http.StatusBadRequest, "invalid_request", "Profile memory reflect request is invalid.", false)
-		return
-	}
-	if err := memoryruntime.ValidateReflectRequest(input); err != nil {
-		setOutcome(response, "invalid_request")
-		writeError(response, http.StatusBadRequest, "invalid_request", err.Error(), false)
-		return
-	}
-	executor, ok := s.profileMemoryExecutorForCommand(response)
-	if !ok {
-		return
-	}
-	startedAt := time.Now().UTC()
-	ctx, cancel := contextWithPersonalMemoryTimeout(s, request)
-	defer cancel()
-	result, err := executor.Reflect(ctx, input)
-	if err != nil {
-		s.recordPersonalMemoryOperation("reflect", "failed", "profile_memory_reflect_failed", startedAt, 0, 0)
-		setOutcome(response, "profile_memory_reflect_failed")
-		writeError(response, http.StatusBadGateway, "profile_memory_reflect_failed", err.Error(), true)
-		return
-	}
-	s.recordPersonalMemoryOperation("reflect", result.Status, "none", startedAt, len(result.BasedOnMemoryItems), len([]rune(result.Text)))
-	setOutcome(response, "profile_memory_reflected")
-	writeJSON(response, http.StatusOK, result)
-}
-
 func (s *Server) profileMemoryExecutorForCommand(response http.ResponseWriter) (personalMemoryExecutor, bool) {
 	if s.personalMemoryErr != nil {
 		setOutcome(response, "profile_memory_not_configured")

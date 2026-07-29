@@ -24,11 +24,10 @@ func TestCallAgentRuntimeForwardsExecutionTraceHeaders(t *testing.T) {
 	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		seenHeaders = request.Header.Clone()
 		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
-			"status":         "completed",
-			"run_id":         "run-trace-propagation-001",
-			"final_output":   "ok",
-			"selected_tools": []string{},
-			"tool_results":   []any{},
+			"status":       "completed",
+			"run_id":       "run-trace-propagation-001",
+			"final_output": "ok",
+			"tool_results": []any{},
 		})
 	}))
 	defer agentRuntime.Close()
@@ -47,8 +46,15 @@ func TestCallAgentRuntimeForwardsExecutionTraceHeaders(t *testing.T) {
 		requestContext,
 		run,
 		temporalruntime.ExecutePrimaryAgentActivityInput{RunID: run.RunID},
+		"hello",
 		providerConfigSnapshot{},
 		nil,
+		groundingContext{
+			SchemaVersion: groundingContextSchemaVersion,
+			RunID:         run.RunID,
+			Status:        "empty",
+			Evidence:      []groundingEvidence{},
+		},
 		server.primaryAgentRuntimeLimits(),
 		1,
 	)

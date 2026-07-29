@@ -69,7 +69,7 @@ func expectMetadataMapForTest(t *testing.T, value any, name string) map[string]a
 
 func assertSDKToolArgumentIdentityForTest(t *testing.T, payload map[string]any) {
 	t.Helper()
-	if payload["arguments_schema_version"] != "tool-function-schemas-v2" {
+	if payload["arguments_schema_version"] != "tool-function-schemas-v3" {
 		t.Fatalf("arguments_schema_version = %#v", payload["arguments_schema_version"])
 	}
 	for _, field := range []string{"arguments_schema_sha256", "arguments_json_sha256"} {

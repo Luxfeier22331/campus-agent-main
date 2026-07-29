@@ -64,11 +64,10 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 				answerText: "图书馆开放到 22:00。",
 				error: null,
 				followUpQuestion: "",
+				modelUsage: { cachedInputTokens: 10, inputTokens: 120, outputTokens: 42, totalTokens: 162 },
 				result: {
 					sources: [{ doc_id: "handbook:library-hours" }],
 				},
-				resolvedTargets: ["student_rules"],
-				selectedTool: "knowledge_query",
 				status: "completed",
 				traceId: "trace_0001",
 			}),
@@ -106,7 +105,6 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 					},
 				}),
 				requestId: "req_0001",
-				requestedTool: null,
 				safetyIdentifier: expectedSafetyIdentifier,
 				surface: "campus_web",
 				tenantId: "tenant-main",
@@ -118,7 +116,6 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 		expect(telemetry.configureChatRequestScope).toHaveBeenCalledWith(
 			expect.objectContaining({
 				requestId: "req_0001",
-				requestedTool: null,
 				safetyIdentifier: expectedSafetyIdentifier,
 				traceId: "trace_0001",
 			}),
@@ -172,7 +169,6 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			turnDispatch: {
 				requestId: "req_0001",
 				safetyIdentifier: expectedSafetyIdentifier,
-				selectedTool: "knowledge_query",
 				status: "completed",
 			},
 			requestObservabilityFact: {
@@ -223,7 +219,6 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			expect.objectContaining({
 				requestId: "req_0001",
 				safetyIdentifier: expectedSafetyIdentifier,
-				selectedTool: "knowledge_query",
 				sourceDocIds: ["handbook:library-hours"],
 				status: "completed",
 			}),
@@ -239,9 +234,8 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 				answerText: "可以，先看培养方案和学院通知。",
 				error: null,
 				followUpQuestion: "",
+				modelUsage: { cachedInputTokens: 10, inputTokens: 120, outputTokens: 42, totalTokens: 162 },
 				result: {},
-				resolvedTargets: [],
-				selectedTool: "knowledge_query",
 				status: "completed",
 				traceId: "trace_0001",
 			}),

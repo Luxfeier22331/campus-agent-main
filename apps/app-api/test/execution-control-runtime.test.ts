@@ -123,4 +123,36 @@ describe("execution control requester", () => {
 			status: 503,
 		});
 	});
+
+	it("rejects redirects without forwarding the worker secret", async () => {
+		const fetchImplementation = vi.fn().mockResolvedValue(
+			new Response(null, {
+				headers: { location: "https://attacker.example/internal/probe" },
+				status: 307,
+			}),
+		);
+		const requestExecutionControl = createExecutionControlRequester(
+			{
+				EXECUTION_CONTROL_BASE_URL: "http://execution-control.local",
+				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
+			},
+			{ fetchImplementation },
+		);
+
+		await expect(
+			requestExecutionControl("/internal/probe", {
+				expectedStatus: 200,
+				method: "GET",
+			}),
+		).rejects.toMatchObject({
+			code: "execution_control_invalid_response",
+			retryable: false,
+			status: 502,
+		});
+		expect(fetchImplementation).toHaveBeenCalledTimes(1);
+		expect(fetchImplementation).toHaveBeenCalledWith(
+			"http://execution-control.local/internal/probe",
+			expect.objectContaining({ redirect: "manual" }),
+		);
+	});
 });

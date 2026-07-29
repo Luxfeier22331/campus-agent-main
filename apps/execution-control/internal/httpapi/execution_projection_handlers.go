@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -109,11 +108,18 @@ func (s *Server) handleExecutionRunEvents(response http.ResponseWriter, request 
 		return
 	}
 	body := make([]map[string]any, 0, len(events))
+	nextSequence := afterSequence
 	for _, event := range events {
 		body = append(body, durableRunEventResponse(event))
+		if event.Sequence > nextSequence {
+			nextSequence = event.Sequence
+		}
 	}
 	setOutcome(response, "durable_run_events")
-	writeJSON(response, http.StatusOK, map[string]any{"events": body})
+	writeJSON(response, http.StatusOK, map[string]any{
+		"events":        body,
+		"next_sequence": nextSequence,
+	})
 }
 
 func (s *Server) listRunEventsAfterWithOptionalWait(
@@ -122,24 +128,17 @@ func (s *Server) listRunEventsAfterWithOptionalWait(
 	afterSequence int64,
 	waitBudget time.Duration,
 ) ([]execution.DurableRunEvent, error) {
-	deadline := time.Now().Add(waitBudget)
-	for {
-		events, err := s.runProjectionStore.ListRunEventsAfter(ctx, runID, afterSequence)
-		if err != nil {
-			return nil, err
-		}
-		if len(events) > 0 || waitBudget <= 0 || !time.Now().Before(deadline) {
-			return events, nil
-		}
-
-		timer := time.NewTimer(200 * time.Millisecond)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return nil, ctx.Err()
-		case <-timer.C:
-		}
+	events, err := s.runProjectionStore.ListRunEventsAfter(ctx, runID, afterSequence)
+	if err != nil || len(events) > 0 || waitBudget <= 0 {
+		return events, err
 	}
+	waitCtx, cancel := context.WithTimeout(ctx, waitBudget)
+	defer cancel()
+	events, err = s.runProjectionStore.WaitForRunEventsAfter(waitCtx, runID, afterSequence)
+	if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
+		return []execution.DurableRunEvent{}, nil
+	}
+	return events, err
 }
 
 func (s *Server) handleExecutionRunSteps(response http.ResponseWriter, request *http.Request, runID string) {
@@ -251,18 +250,14 @@ func durableRunFromCreateBody(
 	body json.RawMessage,
 	now time.Time,
 	taskQueue string,
-) (execution.DurableRun, error) {
+) (execution.DurableRun, bool, error) {
 	wire, err := contracts.DecodeExecutionRunCreateRequestWireJSON(body)
 	if err != nil {
-		return execution.DurableRun{}, fmt.Errorf("invalid execution run create request: %w", err)
-	}
-	metadataPayload, err := executionPayloadMetadataMap(wire.Metadata.ExecutionPayload)
-	if err != nil {
-		return execution.DurableRun{}, err
+		return execution.DurableRun{}, false, fmt.Errorf("invalid execution run create request: %w", err)
 	}
 	taskQueue = strings.TrimSpace(taskQueue)
 	if taskQueue == "" {
-		return execution.DurableRun{}, errors.New("execution task queue is not configured")
+		return execution.DurableRun{}, false, errors.New("execution task queue is not configured")
 	}
 	return execution.DurableRun{
 		RunID:           wire.RunID,
@@ -272,26 +267,17 @@ func durableRunFromCreateBody(
 		TraceID:         wire.TraceID,
 		OwnerUserID:     wire.OwnerUserID,
 		Surface:         wire.Surface,
-		RequestedTool:   string(wire.Metadata.ExecutionPayload.RequestedTool),
 		Status:          execution.DurableRunStatusCreated,
 		TaskQueue:       taskQueue,
 		CreatedAt:       now,
 		UpdatedAt:       now,
 		RuntimeVersions: wire.RuntimeVersions,
-		Metadata:        map[string]any{"execution_payload": metadataPayload},
-	}, nil
-}
-
-func executionPayloadMetadataMap(payload contracts.ExecutionPayloadWire) (map[string]any, error) {
-	payloadJSON, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("metadata.execution_payload cannot be encoded: %w", err)
-	}
-	var metadata map[string]any
-	if err := json.Unmarshal(payloadJSON, &metadata); err != nil {
-		return nil, fmt.Errorf("metadata.execution_payload cannot be materialized: %w", err)
-	}
-	return metadata, nil
+		Metadata: map[string]any{
+			"execution_contract_version": wire.Metadata.ExecutionContractVersion,
+			"execution_input_ref":        wire.Metadata.ExecutionInputRef,
+			"execution_input_sha256":     wire.Metadata.ExecutionInputSHA256,
+		},
+	}, wire.PersonalMemoryRecallAllowed, nil
 }
 
 func durableRunResponse(run execution.DurableRun) map[string]any {
@@ -303,8 +289,6 @@ func durableRunResponse(run execution.DurableRun) map[string]any {
 		"trace_id":             run.TraceID,
 		"owner_user_id":        run.OwnerUserID,
 		"surface":              run.Surface,
-		"requested_tool":       run.RequestedTool,
-		"selected_tool":        run.SelectedTool,
 		"status":               string(run.Status),
 		"task_queue":           run.TaskQueue,
 		"terminal_reason":      string(run.TerminalReason),
@@ -316,7 +300,6 @@ func durableRunResponse(run execution.DurableRun) map[string]any {
 		"streaming_started_at": formatOptionalTime(run.StreamingStartedAt),
 		"completed_at":         formatOptionalTime(run.CompletedAt),
 		"updated_at":           formatOptionalTime(run.UpdatedAt),
-		"final_response_ref":   run.FinalResponseRef,
 	}
 }
 
@@ -413,14 +396,10 @@ func buildAgentRuntimeEvalProjection(
 	attempts []execution.StepAttemptProjection,
 	results []execution.StepResultProjection,
 ) map[string]any {
-	results, attempts = successfulPrimaryAgentActivityProjections(results, attempts)
-	selectedTool := firstNonEmptyText(
-		run.SelectedTool,
-		firstStepTool(steps),
-		projectedSelectedTool(results),
-	)
+	results, attempts = successfulPrimaryAgentActivityProjections(steps, results, attempts)
+	toolCalls := projectedPublicToolCalls(results, attempts)
 	return map[string]any{
-		"schema_version": "agent_runtime_eval_projection.v2",
+		"schema_version": "agent_runtime_eval_projection.v3",
 		"run": map[string]any{
 			"run_id":            run.RunID,
 			"request_id":        run.RequestID,
@@ -430,13 +409,11 @@ func buildAgentRuntimeEvalProjection(
 			"fail_close_reason": run.FailCloseReason,
 		},
 		"trajectory": map[string]any{
-			"selected_tool":          selectedTool,
-			"tool_calls":             projectedPublicToolCalls(results, attempts),
-			"internal_tool_calls":    projectedKnowledgeSearchCalls(results, attempts),
+			"tool_calls":             toolCalls,
 			"direct_answer":          projectedBoolFromResults(results, "direct_answer"),
 			"requires_clarification": projectedBoolFromResults(results, "requires_clarification"),
 		},
-		"tool_trajectory": buildToolTrajectoryProjection(run, steps, attempts, results, selectedTool),
+		"tool_trajectory": buildToolTrajectoryProjection(run, steps, results, toolCalls),
 		"planning":        projectedPlanningForEval(results),
 		"rag":             projectedRAGForEval(results),
 		"memory":          projectedMemoryForEval(results),
@@ -444,6 +421,7 @@ func buildAgentRuntimeEvalProjection(
 }
 
 func successfulPrimaryAgentActivityProjections(
+	steps []execution.RunStepProjection,
 	results []execution.StepResultProjection,
 	attempts []execution.StepAttemptProjection,
 ) ([]execution.StepResultProjection, []execution.StepAttemptProjection) {
@@ -461,6 +439,10 @@ func successfulPrimaryAgentActivityProjections(
 			successfulAttempt = activityAttempt
 		}
 	}
+	aggregateMismatch := successfulAttempt > 0 && !primaryAgentAggregateMatchesAttempt(steps, successfulAttempt)
+	if aggregateMismatch {
+		successfulAttempt = 0
+	}
 	filteredResults := make([]execution.StepResultProjection, 0, len(results))
 	for _, result := range results {
 		if !primaryAgentActivityStep(result.StepID) {
@@ -475,16 +457,39 @@ func successfulPrimaryAgentActivityProjections(
 	filteredAttempts := make([]execution.StepAttemptProjection, 0, len(attempts))
 	for _, attempt := range attempts {
 		if !primaryAgentActivityStep(attempt.StepID) ||
-			successfulAttempt > 0 && projectionActivityAttempt(attempt) == successfulAttempt {
+			(!aggregateMismatch && successfulAttempt == 0 ||
+				successfulAttempt > 0 && projectionActivityAttempt(attempt) == successfulAttempt) {
 			filteredAttempts = append(filteredAttempts, attempt)
 		}
 	}
 	return filteredResults, filteredAttempts
 }
 
+func primaryAgentAggregateMatchesAttempt(
+	steps []execution.RunStepProjection,
+	activityAttempt int,
+) bool {
+	for _, step := range steps {
+		if step.StepID != "agent.primary" {
+			continue
+		}
+		if step.Status != "completed" {
+			return false
+		}
+		aggregateAttempt := step.ActivityAttempt
+		if aggregateAttempt <= 0 {
+			aggregateAttempt, _ = positiveIntValue(step.SanitizedPayload["activity_attempt"])
+		}
+		if aggregateAttempt <= 0 {
+			return true
+		}
+		return aggregateAttempt == activityAttempt
+	}
+	return true
+}
+
 func primaryAgentActivityStep(stepID string) bool {
-	return stepID == "agent.primary" || strings.HasPrefix(stepID, "knowledge.search.") ||
-		strings.HasPrefix(stepID, "sdk_tool.execute.")
+	return stepID == "agent.primary" || strings.HasPrefix(stepID, "sdk_tool.execute.")
 }
 
 func projectionActivityAttempt(attempt execution.StepAttemptProjection) int {
@@ -497,34 +502,29 @@ func projectionActivityAttempt(attempt execution.StepAttemptProjection) int {
 func buildToolTrajectoryProjection(
 	run execution.DurableRun,
 	steps []execution.RunStepProjection,
-	attempts []execution.StepAttemptProjection,
 	results []execution.StepResultProjection,
-	selectedTool string,
+	toolCalls []map[string]any,
 ) map[string]any {
-	toolCalls := projectedPublicToolCalls(results, attempts)
-	internalToolCalls := projectedKnowledgeSearchCalls(results, attempts)
 	decisionKind := "direct_answer"
 	if run.FailCloseReason != "" || run.TerminalReason == execution.DurableTerminalReasonPolicyRejected ||
 		run.TerminalReason == execution.DurableTerminalReasonToolClosed ||
 		run.TerminalReason == execution.DurableTerminalReasonRuntimeInvariant {
 		decisionKind = "fail_closed"
-	} else if len(toolCalls) > 0 || selectedTool != "" && selectedTool != "none" {
-		decisionKind = "tool_call"
+	} else if len(toolCalls) > 0 {
+		decisionKind = "tool_assisted"
 	}
 	projection := map[string]any{
-		"schema_version":      "tool_trajectory.v2",
-		"request_id":          run.RequestID,
-		"run_id":              run.RunID,
-		"trace_id":            run.TraceID,
-		"conversation_id":     run.ConversationID,
-		"surface":             run.Surface,
-		"environment":         firstNonEmptyText(run.Metadata["environment"], run.RuntimeVersions["environment"]),
-		"release":             firstNonEmptyText(run.Metadata["release"], run.RuntimeVersions["release"]),
-		"available_tools":     projectedAvailableTools(steps, results),
-		"decision_kind":       decisionKind,
-		"selected_tool":       selectedTool,
-		"tool_calls":          toolCalls,
-		"internal_tool_calls": internalToolCalls,
+		"schema_version":  "tool_trajectory.v3",
+		"request_id":      run.RequestID,
+		"run_id":          run.RunID,
+		"trace_id":        run.TraceID,
+		"conversation_id": run.ConversationID,
+		"surface":         run.Surface,
+		"environment":     firstNonEmptyText(run.Metadata["environment"], run.RuntimeVersions["environment"]),
+		"release":         firstNonEmptyText(run.Metadata["release"], run.RuntimeVersions["release"]),
+		"available_tools": projectedAvailableTools(steps, results),
+		"decision_kind":   decisionKind,
+		"tool_calls":      toolCalls,
 	}
 	if run.FailCloseReason != "" {
 		projection["fail_close_reason"] = run.FailCloseReason
@@ -541,12 +541,6 @@ func projectedAvailableTools(
 		appendPublicProjectionTool(&values, step.Tool)
 		payload := sanitizeProjectionPayload(step.SanitizedPayload)
 		for _, tool := range stringSliceFromAny(payload["visible_tool_names"]) {
-			appendPublicProjectionTool(&values, tool)
-		}
-	}
-	for _, result := range results {
-		payload := sanitizeProjectionPayload(result.SanitizedPayload)
-		for _, tool := range stringSliceFromAny(payload["selected_tools"]) {
 			appendPublicProjectionTool(&values, tool)
 		}
 	}
@@ -569,174 +563,46 @@ func projectedPublicToolCalls(
 		}
 	}
 	for _, result := range results {
-		if result.StepID != "agent.primary" {
+		if !strings.HasPrefix(result.StepID, "sdk_tool.execute.") {
 			continue
 		}
 		payload := sanitizeProjectionPayload(result.SanitizedPayload)
-		agentAttempt := attemptByID[result.AttemptID]
-		for _, selectedTool := range primaryAgentPublicSelectedTools(stringSliceFromAny(payload["selected_tools"])) {
-			if selectedTool != "knowledge_query" {
-				continue
-			}
-			call := map[string]any{
-				"tool_name":    "knowledge_query",
-				"tool_call_id": result.ResultID + ":handoff:knowledge_query",
-				"status":       result.Status,
-				"result_kind":  "agent_handoff",
-			}
-			if provider := strings.TrimSpace(agentAttempt.ModelProvider); provider != "" {
-				call["provider"] = provider
-			}
-			if model := strings.TrimSpace(agentAttempt.ModelName); model != "" {
-				call["model"] = model
-			}
-			calls = append(calls, sanitizeProjectionPayload(call))
-			break
-		}
-		for index, toolResult := range knowledgeEvidenceMaps(payload["tool_results"]) {
-			internalToolName := firstNonEmptyText(toolResult["tool_name"])
-			if internalToolName == "knowledge_search" {
-				continue
-			}
-			toolName := internalToolName
-			if toolName == "" {
-				continue
-			}
-			resultRef := firstNonEmptyText(toolResult["result_ref"])
-			call := map[string]any{
-				"tool_name":    toolName,
-				"tool_call_id": firstNonEmptyText(resultRef, fmt.Sprintf("%s:tool-call:%d", result.ResultID, index+1)),
-				"status":       firstNonEmptyText(toolResult["status"], result.Status),
-				"result_kind":  firstNonEmptyText(toolResult["payload_kind"], internalToolName),
-			}
-			if argumentsHash := firstNonEmptyText(toolResult["arguments_json_sha256"]); argumentsHash != "" {
-				call["arguments_hash"] = argumentsHash
-			}
-			if reason := firstNonEmptyText(toolResult["fail_close_reason"]); reason != "" {
-				call["fail_close_reason"] = reason
-			}
-			if evalSafeArgs := projectedEvalSafeToolArgs(toolName, toolResult); len(evalSafeArgs) > 0 {
-				call["eval_safe_args"] = evalSafeArgs
-			}
-			if toolAttempt, ok := resultAttemptByProjectionRef[resultRef]; ok && toolAttempt.DurationMS > 0 {
-				call["duration_ms"] = toolAttempt.DurationMS
-			}
-			if provider := strings.TrimSpace(agentAttempt.ModelProvider); provider != "" {
-				call["provider"] = provider
-			}
-			if model := strings.TrimSpace(agentAttempt.ModelName); model != "" {
-				call["model"] = model
-			}
-			calls = append(calls, sanitizeProjectionPayload(call))
-		}
-	}
-	return calls
-}
-
-func projectedKnowledgeSearchCalls(
-	results []execution.StepResultProjection,
-	attempts []execution.StepAttemptProjection,
-) []map[string]any {
-	attemptByID := map[string]execution.StepAttemptProjection{}
-	for _, attempt := range attempts {
-		attemptByID[attempt.AttemptID] = attempt
-	}
-	calls := []map[string]any{}
-	for _, result := range results {
-		if !strings.HasPrefix(result.StepID, "knowledge.search.") {
-			continue
-		}
-		payload := sanitizeProjectionPayload(result.SanitizedPayload)
-		ordinal, ok := positiveIntValue(payload["search_ordinal"])
-		if !ok {
+		toolName := firstNonEmptyText(payload["tool_name"], toolNameFromSDKStepID(result.StepID))
+		if toolName == "" {
 			continue
 		}
 		call := map[string]any{
-			"tool_name":      "knowledge_search",
-			"tool_call_id":   firstNonEmptyText(payload["invocation_id"], result.ProjectionRef, result.ResultID),
-			"status":         result.Status,
-			"result_kind":    result.ResultKind,
-			"search_ordinal": ordinal,
+			"tool_name":    toolName,
+			"tool_call_id": firstNonEmptyText(result.ProjectionRef, result.ResultID),
+			"status":       result.Status,
+			"result_kind":  result.ResultKind,
 		}
-		if queryHash := firstNonEmptyText(payload["query_sha256"]); queryHash != "" {
-			call["query_hash"] = queryHash
+		if argumentsHash := firstNonEmptyText(payload["arguments_json_sha256"]); argumentsHash != "" {
+			call["arguments_hash"] = argumentsHash
 		}
-		if outcome := firstNonEmptyText(payload["outcome"]); outcome != "" {
-			call["outcome"] = outcome
+		if reason := firstNonEmptyText(payload["fail_close_reason"]); reason != "" {
+			call["fail_close_reason"] = reason
 		}
-		for _, key := range []string{"candidate_count", "discarded_count"} {
-			if value, ok := positiveIntValue(payload[key]); ok {
-				call[key] = value
-			}
-		}
-		if evalSafeArgs := projectedEvalSafeToolArgs("knowledge_search", payload); len(evalSafeArgs) > 0 {
-			call["eval_safe_args"] = evalSafeArgs
-		}
-		if attempt, ok := attemptByID[result.AttemptID]; ok && attempt.DurationMS > 0 {
+		if toolAttempt, ok := resultAttemptByProjectionRef[result.ProjectionRef]; ok && toolAttempt.DurationMS > 0 {
+			call["duration_ms"] = toolAttempt.DurationMS
+		} else if attempt, ok := attemptByID[result.AttemptID]; ok && attempt.DurationMS > 0 {
 			call["duration_ms"] = attempt.DurationMS
 		}
 		calls = append(calls, sanitizeProjectionPayload(call))
 	}
-	sort.SliceStable(calls, func(left int, right int) bool {
-		leftOrdinal, _ := positiveIntValue(calls[left]["search_ordinal"])
-		rightOrdinal, _ := positiveIntValue(calls[right]["search_ordinal"])
-		return leftOrdinal < rightOrdinal
-	})
 	return calls
 }
 
-func projectedEvalSafeToolArgs(toolName string, toolResult map[string]any) map[string]any {
-	if strings.TrimSpace(toolName) != "knowledge_search" {
-		return map[string]any{}
+func toolNameFromSDKStepID(stepID string) string {
+	parts := strings.Split(strings.TrimSpace(stepID), ".")
+	if len(parts) < 4 || parts[0] != "sdk_tool" || parts[1] != "execute" {
+		return ""
 	}
-	result := optionalMapFromMap(toolResult, "result")
-	if len(result) == 0 {
-		result = toolResult
-	}
-	args := map[string]any{}
-	if target := firstNonEmptyText(result["retrieval_target"], result["target"]); target != "" {
-		args["target"] = target
-	}
-	if includeHistory, ok := result["include_history"].(bool); ok {
-		args["include_history"] = includeHistory
-	}
-	return args
-}
-
-func projectedSelectedTool(results []execution.StepResultProjection) string {
-	for _, result := range results {
-		if result.StepID != "agent.primary" {
-			continue
-		}
-		selectedTools := primaryAgentPublicSelectedTools(
-			stringSliceFromAny(sanitizeProjectionPayload(result.SanitizedPayload)["selected_tools"]),
-		)
-		if selectedTool := primaryAgentSelectedTool(selectedTools); selectedTool != "" {
-			return selectedTool
-		}
-	}
-	return ""
+	return strings.TrimSpace(parts[2])
 }
 
 func appendPublicProjectionTool(values *[]string, tool string) {
-	appendUniqueProjectionString(values, publicProjectionToolName(tool))
-}
-
-func publicProjectionToolName(tool string) string {
-	tool = strings.TrimSpace(tool)
-	if tool == "knowledge_search" {
-		return "knowledge_query"
-	}
-	return tool
-}
-
-func firstStepTool(steps []execution.RunStepProjection) string {
-	for _, step := range steps {
-		if tool := publicProjectionToolName(step.Tool); tool != "" {
-			return tool
-		}
-	}
-	return ""
+	appendUniqueProjectionString(values, strings.TrimSpace(tool))
 }
 
 func stringFromProjectionPayload(payload map[string]any, key string) string {
@@ -801,7 +667,8 @@ func sanitizeProjectionValue(value any) any {
 
 func unsafeProjectionKey(key string) bool {
 	normalizedKey := strings.ToLower(strings.TrimSpace(key))
-	return strings.Contains(normalizedKey, "raw_prompt") ||
+	return normalizedKey == "memory_text" ||
+		strings.Contains(normalizedKey, "raw_prompt") ||
 		strings.Contains(normalizedKey, "raw_answer") ||
 		strings.Contains(normalizedKey, "raw_provider") ||
 		strings.Contains(normalizedKey, "raw_source") ||

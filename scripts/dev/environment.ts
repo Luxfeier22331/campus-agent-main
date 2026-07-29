@@ -56,7 +56,6 @@ export function renderLocalEnvironmentFiles(input: {
 		APP_API_DATABASE_SSLMODE: "disable",
 		APP_API_SCHEMA_DATABASE_URL: database.owner,
 		CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB: database.appApi,
-		CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH: database.appApi,
 	});
 	writeManagedEnv(appApiVarsPath, {
 		APP_API_ENVIRONMENT: "development",

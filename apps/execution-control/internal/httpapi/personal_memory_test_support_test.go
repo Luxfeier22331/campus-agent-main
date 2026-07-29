@@ -13,10 +13,8 @@ type fakePersonalMemoryExecutor struct {
 	commandErr    error
 	commandResult memoryruntime.PersonalMemoryCommandResult
 	recallCount   int
-	reflectCount  int
 	seenAppend    memoryruntime.AppendConversationTurnRequest
 	seenRequest   memoryruntime.RecallRequest
-	seenReflect   memoryruntime.ReflectRequest
 }
 
 func (f *fakePersonalMemoryExecutor) ExecuteCommand(
@@ -47,10 +45,9 @@ func (f *fakePersonalMemoryExecutor) Recall(
 ) (memoryruntime.RecallResult, error) {
 	f.recallCount++
 	f.seenRequest = request
-	return memoryruntime.RecallResult{
+	return memoryruntime.FinalizeRecallResult(memoryruntime.RecallResult{
 		ContextBlock: "用户记忆:\n相关事实:\n- 用户关注保研和培养方案。",
 		Items: []memoryruntime.ContextItem{{
-			Tool:        "knowledge_query",
 			CompactText: "用户关注保研和培养方案。",
 			MemoryID:    "mem-test-1",
 			MemoryType:  "preference",
@@ -62,23 +59,6 @@ func (f *fakePersonalMemoryExecutor) Recall(
 		RetrievalMode: "recall",
 		RunID:         request.RunID,
 		SchemaVersion: "memory_recall_result_v1",
-		ThreadID:      request.ThreadID,
-	}, nil
-}
-
-func (f *fakePersonalMemoryExecutor) Reflect(
-	_ context.Context,
-	request memoryruntime.ReflectRequest,
-) (memoryruntime.ReflectResult, error) {
-	f.reflectCount++
-	f.seenReflect = request
-	return memoryruntime.FinalizeReflectResult(memoryruntime.ReflectResult{
-		Provider:      "hindsight",
-		ReflectRef:    "projection://runs/" + request.RunID + "/memory/reflect",
-		RunID:         request.RunID,
-		SchemaVersion: "memory_reflect_result_v1",
-		Status:        "completed",
-		Text:          "用户偏好先给结论。",
 		ThreadID:      request.ThreadID,
 		UserID:        request.UserID,
 	})

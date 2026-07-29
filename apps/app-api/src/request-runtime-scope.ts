@@ -1,41 +1,26 @@
 import type { Env } from "./config";
-import {
-	createScopedRuntimeDbGetter,
-	type RuntimeDatabase,
-	type RuntimeDatabaseConsistency,
-	type RuntimeDbGetter,
-} from "./db/runtime";
+import { createScopedRuntimeDbGetter, type RuntimeDatabase } from "./db/runtime";
 import { type AppAuth, createAppAuth } from "./modules/auth";
 
 export interface RequestRuntimeScope {
 	getAppAuth(): Promise<AppAuth>;
 	getDb(): Promise<RuntimeDatabase>;
-	getFreshDb(): Promise<RuntimeDatabase>;
 }
 
 export interface RequestRuntimeScopeDependencies {
 	createAppAuth?: (input: { database: RuntimeDatabase; env: Env }) => Promise<AppAuth>;
-	createRuntimeDatabase?: (
-		env: Env,
-		input?: {
-			consistency?: RuntimeDatabaseConsistency;
-		},
-	) => Promise<RuntimeDatabase>;
+	createRuntimeDatabase?: (env: Env) => Promise<RuntimeDatabase>;
 }
 
-function createScopedDbGetter(
-	env: Env,
-	input: RequestRuntimeScopeDependencies,
-	consistency: RuntimeDatabaseConsistency,
-): RuntimeDbGetter {
+function createScopedDbGetter(env: Env, input: RequestRuntimeScopeDependencies) {
 	const createRuntimeDatabase = input.createRuntimeDatabase;
 	if (!createRuntimeDatabase) {
-		return createScopedRuntimeDbGetter(env, { consistency });
+		return createScopedRuntimeDbGetter(env);
 	}
 
 	let dbPromise: Promise<RuntimeDatabase> | null = null;
 	return () => {
-		dbPromise ??= createRuntimeDatabase(env, { consistency });
+		dbPromise ??= createRuntimeDatabase(env);
 		return dbPromise;
 	};
 }
@@ -44,16 +29,14 @@ export function createRequestRuntimeScope(
 	env: Env,
 	input: RequestRuntimeScopeDependencies = {},
 ): RequestRuntimeScope {
-	const getDb = createScopedDbGetter(env, input, "cached");
-	const getFreshDb = createScopedDbGetter(env, input, "fresh");
+	const getDb = createScopedDbGetter(env, input);
 	let authPromise: Promise<AppAuth> | null = null;
 
 	return {
 		getDb,
-		getFreshDb,
 		async getAppAuth() {
 			authPromise ??= (async () => {
-				const database = await getFreshDb();
+				const database = await getDb();
 				if (input.createAppAuth) {
 					return input.createAppAuth({
 						database,

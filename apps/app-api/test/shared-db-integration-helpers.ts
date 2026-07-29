@@ -14,9 +14,6 @@ export function buildSharedDbIntegrationEnv(input: {
 		APP_API_DB: {
 			connectionString: input.runtimeConnectionString,
 		},
-		APP_API_DB_FRESH: {
-			connectionString: input.runtimeConnectionString,
-		},
 		AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 		AUTH_EMAIL_FROM: "Campus Agent <auth@example.com>",
 		AUTH_TURNSTILE_SECRET_KEY: TURNSTILE_TEST_SECRET_KEY,

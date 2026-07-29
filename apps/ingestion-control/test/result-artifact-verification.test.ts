@@ -17,11 +17,11 @@ describe("ingestion result artifact verification", () => {
 	it.each([
 		[
 			"bucket",
-			"s3://foreign/ingestion-kernels/curriculum.curriculum_plan.chunk_prepare/runs/run-curriculum-001/attempts/1/task-curriculum-chunk-001/chunk-document-units.json",
+			"s3://foreign/ingestion-kernels/curriculum.curriculum_plan.chunk_prepare/runs/run-curriculum-001/attempts/1/task-curriculum-chunk-001/build-retrieval-chunks-v2.json",
 		],
 		[
 			"key",
-			"s3://derived/ingestion-kernels/foreign-task/runs/run-curriculum-001/attempts/1/task-curriculum-chunk-001/chunk-document-units.json",
+			"s3://derived/ingestion-kernels/foreign-task/runs/run-curriculum-001/attempts/1/task-curriculum-chunk-001/build-retrieval-chunks-v2.json",
 		],
 	])("rejects a result_ref outside its Rust kernel %s namespace", async (_label, uri) => {
 		const fixture = kernelFixture();
@@ -87,7 +87,7 @@ function kernelFixture(
 		chunks: [],
 		error_count: 0,
 		errors: [],
-		schema_version: "ingestion_chunk_set.v1",
+		schema_version: "retrieval_chunk_set.v2",
 	},
 ): {
 	objectStore: MemoryObjectStore;
@@ -98,13 +98,13 @@ function kernelFixture(
 	const snapshot = testSnapshot();
 	const resultRef = objectStore.writeJson(
 		"derived",
-		"ingestion-kernels/curriculum.curriculum_plan.chunk_prepare/runs/run-curriculum-001/attempts/1/task-curriculum-chunk-001/chunk-document-units.json",
+		"ingestion-kernels/curriculum.curriculum_plan.chunk_prepare/runs/run-curriculum-001/attempts/1/task-curriculum-chunk-001/build-retrieval-chunks-v2.json",
 		output,
 	);
 	return {
 		objectStore,
 		result: {
-			output_contract: "ingestion_chunk_set.v1",
+			output_contract: "retrieval_chunk_set.v2",
 			registry_task_id: snapshot.task.registry_task_id,
 			result_ref: resultRef,
 			run_id: snapshot.task.run_id,

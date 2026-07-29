@@ -100,9 +100,6 @@ const env = {
 	APP_API_DB: {
 		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 	},
-	APP_API_DB_FRESH: {
-		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
-	},
 };
 
 function createExecutionContext(waitUntil = vi.fn()): ExecutionContext {
@@ -229,7 +226,6 @@ describe("app-api worker foundation", () => {
 		expect(uploadStagingVersionSource).toContain("EXECUTION_CONTROL_VPC_SERVICE_ID");
 		expect(uploadStagingVersionSource).toContain("OBJECT_STORE_VPC_SERVICE_ID");
 		expect(uploadStagingVersionSource).toContain("APP_API_DB_HYPERDRIVE_ID");
-		expect(uploadStagingVersionSource).toContain("APP_API_DB_FRESH_HYPERDRIVE_ID");
 		expect(uploadStagingVersionSource).toContain("AUTH_EMAIL_FROM");
 		expect(uploadStagingVersionSource).toContain("STAGING_APP_API_EXECUTION_SHARED_SECRET");
 		expect(uploadStagingVersionSource).toContain("STAGING_OPS_WEB_INTERNAL_TOKEN");
@@ -437,11 +433,7 @@ describe("app-api worker foundation", () => {
 				traceId: null,
 				requestId: null,
 				details: {
-					missing: [
-						"APP_API_DB.connectionString",
-						"APP_API_DB_FRESH.connectionString",
-						"BETTER_AUTH_SECRET",
-					],
+					missing: ["APP_API_DB.connectionString", "BETTER_AUTH_SECRET"],
 				},
 			},
 		});

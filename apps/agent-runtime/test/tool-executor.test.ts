@@ -1,3 +1,5 @@
+import { createServer, type Server } from "node:http";
+
 import { describe, expect, it } from "vitest";
 import type { ToolExecutionRequest } from "../src/primary-agent.ts";
 import { createExecutionControlToolExecutor } from "../src/tool-executor.ts";
@@ -12,45 +14,6 @@ const transportResultSchemaRef = schemaRef(
 );
 
 describe("execution-control tool executor", () => {
-	it("does not execute agent handoffs through the internal query client", async () => {
-		let fetchCalled = false;
-		const executor = createExecutionControlToolExecutor({
-			baseUrl: "",
-			sharedSecret: "",
-			fetchImpl: async () => {
-				fetchCalled = true;
-				throw new Error("fetch must not be called for handoff");
-			},
-		});
-		const argumentsJson = {
-			query_text: "学籍管理规定是什么",
-		};
-
-		const result = await executor({
-			...toolRequest(),
-			argumentsJson,
-			tool: {
-				...toolRequest().tool,
-				name: "knowledge_query",
-				description: "Handoff this turn to governed RAG.",
-				payloadSchemaRef: schemaRef("knowledge-tool-contracts.v2", "KnowledgeQueryPayload"),
-				resultSchemaRef: schemaRef("knowledge-tool-contracts.v2", "KnowledgeAgentTerminalResult"),
-				handler: {
-					type: "agent_handoff",
-					target: "knowledge_agent",
-				},
-				timeoutMs: 1000,
-			},
-		});
-
-		expect(fetchCalled).toBe(false);
-		expect(result).toMatchObject({
-			status: "failed",
-			toolName: "knowledge_query",
-			failCloseReason: "tool_handler_not_supported",
-		});
-	});
-
 	it("fails closed when execution-control query config is missing", async () => {
 		const executor = createExecutionControlToolExecutor({
 			baseUrl: "",
@@ -68,6 +31,81 @@ describe("execution-control tool executor", () => {
 			failCloseReason: "tool_executor_not_configured",
 			result: {
 				error: "execution-control query base URL and shared secret are required",
+			},
+		});
+	});
+
+	it("does not follow execution-control redirects", async () => {
+		let targetRequests = 0;
+		const target = createServer((_request, response) => {
+			targetRequests += 1;
+			response.writeHead(500, { "content-type": "application/json" });
+			response.end(JSON.stringify({ error: "redirect target must not be reached" }));
+		});
+		await listenToolExecutorTestServer(target);
+		const targetAddress = target.address() as { port: number };
+		const redirect = createServer((_request, response) => {
+			response.writeHead(307, {
+				location: `http://127.0.0.1:${targetAddress.port}/internal/query/campus-services/transport-schedule`,
+			});
+			response.end();
+		});
+		await listenToolExecutorTestServer(redirect);
+
+		try {
+			const redirectAddress = redirect.address() as { port: number };
+			const executor = createExecutionControlToolExecutor({
+				baseUrl: `http://127.0.0.1:${redirectAddress.port}`,
+				sharedSecret: "query-secret",
+			});
+			const request = toolRequest();
+			request.tool.timeoutMs = 5_000;
+			const result = await executor(request);
+
+			expect(result).toMatchObject({
+				status: "failed",
+				failCloseReason: "tool_handler_redirected",
+				result: { error: "execution-control query returned a redirect" },
+			});
+			expect(targetRequests).toBe(0);
+		} finally {
+			await closeToolExecutorTestServer(redirect);
+			await closeToolExecutorTestServer(target);
+		}
+	});
+
+	it.each([
+		"/internal/../public/query",
+		"/internal/query/%252e%252e/public",
+		" /internal/query/knowledge/search",
+	])("rejects non-canonical execution-control query endpoint %s before fetching", async (endpoint) => {
+		let fetchCalled = false;
+		const executor = createExecutionControlToolExecutor({
+			baseUrl: "http://execution-control:8000",
+			sharedSecret: "query-secret",
+			fetchImpl: async () => {
+				fetchCalled = true;
+				throw new Error("fetch must not be called for an absolute endpoint");
+			},
+		});
+
+		const result = await executor({
+			...toolRequest(),
+			tool: {
+				...toolRequest().tool,
+				handler: {
+					type: "execution_control_internal_query",
+					endpoint,
+				},
+			},
+		});
+
+		expect(fetchCalled).toBe(false);
+		expect(result).toMatchObject({
+			status: "failed",
+			failCloseReason: "tool_handler_invalid_endpoint",
+			result: {
+				error: "execution-control query endpoint must be a canonical /internal/ path",
 			},
 		});
 	});
@@ -196,6 +234,66 @@ describe("execution-control tool executor", () => {
 		expect(result.result.detail).toBe("network down");
 	});
 
+	it("classifies the tool request timeout as a transient query failure", async () => {
+		const executor = createExecutionControlToolExecutor({
+			baseUrl: "http://execution-control:8000",
+			sharedSecret: "query-secret",
+			fetchImpl: async (_request, init) =>
+				new Promise<Response>((_resolve, reject) => {
+					const signal = init?.signal;
+					if (signal?.aborted) {
+						reject(signal.reason);
+						return;
+					}
+					signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+				}),
+		});
+		const request = toolRequest();
+		request.tool.timeoutMs = 10;
+
+		const result = await executor(request);
+
+		expect(result).toMatchObject({
+			status: "failed",
+			failCloseReason: "transient_internal_query_failed",
+			result: { error: "execution-control query timed out" },
+		});
+	});
+
+	it("does not misclassify a response body timeout as invalid JSON", async () => {
+		const executor = createExecutionControlToolExecutor({
+			baseUrl: "http://execution-control:8000",
+			sharedSecret: "query-secret",
+			fetchImpl: async (_request, init) => {
+				const signal = init?.signal;
+				return new Response(
+					new ReadableStream({
+						start(controller) {
+							if (signal?.aborted) {
+								controller.error(signal.reason);
+								return;
+							}
+							signal?.addEventListener("abort", () => controller.error(signal.reason), {
+								once: true,
+							});
+						},
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			},
+		});
+		const request = toolRequest();
+		request.tool.timeoutMs = 10;
+
+		const result = await executor(request);
+
+		expect(result).toMatchObject({
+			status: "failed",
+			failCloseReason: "transient_internal_query_failed",
+			result: { error: "execution-control query timed out" },
+		});
+	});
+
 	it("passes run cancellation signal into tool read model fetch timeout envelope", async () => {
 		const controller = new AbortController();
 		let observedSignal: AbortSignal | undefined;
@@ -221,6 +319,56 @@ describe("execution-control tool executor", () => {
 		controller.abort();
 
 		expect(observedSignal?.aborted).toBe(true);
+	});
+
+	it("propagates parent run cancellation instead of converting it to a tool failure", async () => {
+		const controller = new AbortController();
+		const cancellation = new Error("agent activity cancelled");
+		let fetchStarted: () => void = () => undefined;
+		const started = new Promise<void>((resolve) => {
+			fetchStarted = resolve;
+		});
+		const executor = createExecutionControlToolExecutor({
+			baseUrl: "http://execution-control:8000",
+			sharedSecret: "query-secret",
+			fetchImpl: async (_request, init) => {
+				const signal = init?.signal;
+				fetchStarted();
+				return new Promise<Response>((_resolve, reject) => {
+					if (signal?.aborted) {
+						reject(signal.reason);
+						return;
+					}
+					signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+				});
+			},
+		});
+		const result = executor({ ...toolRequest(), signal: controller.signal });
+		await started;
+
+		controller.abort(cancellation);
+
+		await expect(result).rejects.toBe(cancellation);
+	});
+
+	it("rejects a tool response that races with parent run cancellation", async () => {
+		const controller = new AbortController();
+		const cancellation = new Error("agent activity deadline reached");
+		const executor = createExecutionControlToolExecutor({
+			baseUrl: "http://execution-control:8000",
+			sharedSecret: "query-secret",
+			fetchImpl: async () => {
+				controller.abort(cancellation);
+				return new Response(JSON.stringify({ outcome: "resolved_current" }), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				});
+			},
+		});
+
+		await expect(executor({ ...toolRequest(), signal: controller.signal })).rejects.toBe(
+			cancellation,
+		);
 	});
 });
 
@@ -250,4 +398,21 @@ function toolRequest(): ToolExecutionRequest {
 
 function schemaRef(schemaName: string, definitionName: string): string {
 	return `https://muc.wiki/campus-agent/schemas/${schemaName}.schema.json#/$defs/${definitionName}`;
+}
+
+function listenToolExecutorTestServer(server: Server): Promise<void> {
+	return new Promise((resolve, reject) => {
+		server.once("error", reject);
+		server.listen(0, "127.0.0.1", () => {
+			server.off("error", reject);
+			resolve();
+		});
+	});
+}
+
+function closeToolExecutorTestServer(server: Server): Promise<void> {
+	return new Promise((resolve, reject) => {
+		server.close((error) => (error ? reject(error) : resolve()));
+		server.closeAllConnections();
+	});
 }

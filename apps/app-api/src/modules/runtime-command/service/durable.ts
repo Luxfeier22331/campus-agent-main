@@ -1,5 +1,6 @@
 import {
 	type ExecutionControlRunEvent,
+	type ExecutionControlRunEventPage,
 	ExecutionControlTransportError,
 	parseExecutionFinalizationResponsePayload,
 	type ToolExecutionResponse,
@@ -7,11 +8,14 @@ import {
 import { createDurableCloseoutQueue } from "./durable-closeout-queue";
 import { toHandledErrorTransportOutcome } from "./errors";
 import { executionFinalizationErrorResponse, toTerminalChatStreamEvent } from "./stream";
-import type { ChatCommandResponse, ChatCommandStreamEvent } from "./types";
+import type {
+	ChatCommandResponse,
+	ChatCommandStreamEvent,
+	DurableEventPollingPolicy,
+} from "./types";
 
 export const DEFAULT_DURABLE_EVENT_POLLING_POLICY = {
 	maxAttempts: 4,
-	pollIntervalMs: 1000,
 	waitMs: 25_000,
 } as const;
 
@@ -31,13 +35,6 @@ interface DurableTerminalRunOutcome {
 	response: ToolExecutionResponse;
 	sourceEvent: DurableTerminalSourceEvent;
 	transportError: TransportErrorRecord | null;
-}
-
-export interface DurableEventPollingPolicy {
-	maxAttempts: number;
-	pollIntervalMs: number;
-	sleep?: (durationMs: number) => Promise<void>;
-	waitMs?: number;
 }
 
 function asJsonRecord(value: unknown): Record<string, unknown> | null {
@@ -73,7 +70,6 @@ function answerDeltaEvent(input: {
 	}
 	return {
 		data: {
-			accumulatedText: assistantMessage.text,
 			delta: assistantMessage.text,
 			messageId: assistantMessage.id,
 			occurredAt: input.occurredAt,
@@ -153,19 +149,17 @@ function answerDeltaEventFromDurableRunEvent(
 		"message_id",
 		"Durable answer delta event message_id is required.",
 	);
-	const delta = getRequiredString(
-		event.payload,
-		"delta",
-		"Durable answer delta event delta is required.",
-	);
-	const accumulatedText = getRequiredString(
-		event.payload,
-		"accumulated_text",
-		"Durable answer delta event accumulated_text is required.",
-	);
+	const delta = event.payload.delta;
+	if (typeof delta !== "string" || delta.length === 0) {
+		throw new ExecutionControlTransportError({
+			code: "execution_control_invalid_response",
+			message: "Durable answer delta event delta is required.",
+			retryable: true,
+			status: 502,
+		});
+	}
 	return {
 		data: {
-			accumulatedText,
 			delta,
 			messageId,
 			occurredAt: event.occurredAt,
@@ -413,20 +407,10 @@ function validatePollingPolicy(
 	policy?: DurableEventPollingPolicy,
 ): Required<DurableEventPollingPolicy> {
 	const maxAttempts = policy?.maxAttempts ?? DEFAULT_DURABLE_EVENT_POLLING_POLICY.maxAttempts;
-	const pollIntervalMs =
-		policy?.pollIntervalMs ?? DEFAULT_DURABLE_EVENT_POLLING_POLICY.pollIntervalMs;
 	if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
 		throw new ExecutionControlTransportError({
 			code: "runtime_invariant_failed",
 			message: "Durable event polling maxAttempts must be a positive integer.",
-			retryable: false,
-			status: 500,
-		});
-	}
-	if (!Number.isInteger(pollIntervalMs) || pollIntervalMs < 0) {
-		throw new ExecutionControlTransportError({
-			code: "runtime_invariant_failed",
-			message: "Durable event polling pollIntervalMs must be a non-negative integer.",
 			retryable: false,
 			status: 500,
 		});
@@ -442,10 +426,6 @@ function validatePollingPolicy(
 	}
 	return {
 		maxAttempts,
-		pollIntervalMs,
-		sleep:
-			policy?.sleep ??
-			((durationMs) => new Promise<void>((resolve) => setTimeout(resolve, durationMs))),
 		waitMs,
 	};
 }
@@ -471,6 +451,18 @@ function updateLastSequence(
 	return runEvent.sequence;
 }
 
+function nextSequenceFromPage(lastSequence: number, page: ExecutionControlRunEventPage): number {
+	if (!Number.isInteger(page.nextSequence) || page.nextSequence < lastSequence) {
+		throw new ExecutionControlTransportError({
+			code: "execution_control_invalid_response",
+			message: "Durable run event page returned a stale next_sequence.",
+			retryable: true,
+			status: 502,
+		});
+	}
+	return page.nextSequence;
+}
+
 function durableEventWaitTimeoutResponse(context: DurableRunEventContext): ToolExecutionResponse {
 	return executionFinalizationErrorResponse({
 		code: "execution_timeout",
@@ -493,7 +485,7 @@ export async function waitForDurableFinalizationResponse<
 	Context extends DurableRunEventContext,
 >(input: {
 	context: Context;
-	listRunEvents(afterSequence: number, waitMs?: number): Promise<ExecutionControlRunEvent[]>;
+	listRunEvents(afterSequence: number, waitMs?: number): Promise<ExecutionControlRunEventPage>;
 	polling?: DurableEventPollingPolicy;
 }): Promise<{
 	response: ToolExecutionResponse;
@@ -505,13 +497,13 @@ export async function waitForDurableFinalizationResponse<
 	let emptyPollAttempts = 0;
 
 	while (emptyPollAttempts < polling.maxAttempts) {
-		const runEvents = await input.listRunEvents(lastSequence, polling.waitMs);
-		if (runEvents.length === 0) {
+		const page = await input.listRunEvents(lastSequence, polling.waitMs);
+		if (page.events.length === 0) {
 			emptyPollAttempts += 1;
 		} else {
 			emptyPollAttempts = 0;
 		}
-		for (const runEvent of runEvents) {
+		for (const runEvent of page.events) {
 			lastSequence = updateLastSequence(input.context, lastSequence, runEvent);
 			const terminalOutcome = durableTerminalOutcomeFromDurableRunEvent(input.context, runEvent);
 			if (terminalOutcome) {
@@ -522,9 +514,7 @@ export async function waitForDurableFinalizationResponse<
 				};
 			}
 		}
-		if (emptyPollAttempts < polling.maxAttempts && polling.pollIntervalMs > 0) {
-			await polling.sleep(polling.pollIntervalMs);
-		}
+		lastSequence = nextSequenceFromPage(lastSequence, page);
 	}
 
 	return {
@@ -545,10 +535,10 @@ export async function* streamDurableRunEventsUntilTerminal<
 		context: Context;
 		executionResponse: ToolExecutionResponse;
 		executionFinalizationReceivedAt?: string | null;
-		streamBrowserTtftMs?: number | null;
+		streamAppApiTtftMs?: number | null;
 		transportError?: TransportErrorRecord | null;
 	}): Promise<ChatCommandResponse>;
-	listRunEvents(afterSequence: number, waitMs?: number): Promise<ExecutionControlRunEvent[]>;
+	listRunEvents(afterSequence: number, waitMs?: number): Promise<ExecutionControlRunEventPage>;
 	now: () => Date;
 	polling?: DurableEventPollingPolicy;
 }): AsyncIterable<ChatCommandStreamEvent> {
@@ -557,16 +547,16 @@ export async function* streamDurableRunEventsUntilTerminal<
 	let lastSequence = 0;
 	let emptyPollAttempts = 0;
 	let hasStreamedAnswerDelta = false;
-	let streamBrowserTtftMs: number | null = null;
+	let streamAppApiTtftMs: number | null = null;
 	try {
 		while (emptyPollAttempts < polling.maxAttempts) {
-			const runEvents = await input.listRunEvents(lastSequence, polling.waitMs);
-			if (runEvents.length === 0) {
+			const page = await input.listRunEvents(lastSequence, polling.waitMs);
+			if (page.events.length === 0) {
 				emptyPollAttempts += 1;
 			} else {
 				emptyPollAttempts = 0;
 			}
-			for (const runEvent of runEvents) {
+			for (const runEvent of page.events) {
 				lastSequence = updateLastSequence(context, lastSequence, runEvent);
 				const lifecycleEvent = lifecycleEventFromDurableRunEvent(context, runEvent);
 				if (lifecycleEvent) {
@@ -575,8 +565,8 @@ export async function* streamDurableRunEventsUntilTerminal<
 				}
 				const answerDelta = answerDeltaEventFromDurableRunEvent(context, runEvent);
 				if (answerDelta) {
-					if (streamBrowserTtftMs === null) {
-						streamBrowserTtftMs = durationMsBetween(context.acceptedAt, runEvent.occurredAt);
+					if (streamAppApiTtftMs === null) {
+						streamAppApiTtftMs = durationMsBetween(context.acceptedAt, now().toISOString());
 					}
 					hasStreamedAnswerDelta = true;
 					yield answerDelta;
@@ -590,7 +580,7 @@ export async function* streamDurableRunEventsUntilTerminal<
 					context,
 					executionResponse: terminalOutcome.response,
 					executionFinalizationReceivedAt: runEvent.occurredAt,
-					streamBrowserTtftMs,
+					streamAppApiTtftMs,
 					transportError: terminalOutcome.transportError,
 				});
 				for (const event of chatStreamEventsForFinalized({
@@ -605,16 +595,14 @@ export async function* streamDurableRunEventsUntilTerminal<
 				}
 				return;
 			}
-			if (emptyPollAttempts < polling.maxAttempts && polling.pollIntervalMs > 0) {
-				await polling.sleep(polling.pollIntervalMs);
-			}
+			lastSequence = nextSequenceFromPage(lastSequence, page);
 		}
 	} catch (error) {
 		const handled = toHandledErrorTransportOutcome(error);
 		const finalized = await input.finalizeAcceptedCommand({
 			context,
 			executionResponse: handled,
-			streamBrowserTtftMs,
+			streamAppApiTtftMs,
 			transportError: {
 				code: handled.error.code,
 				retryable: handled.error.retryable,
@@ -633,7 +621,7 @@ export async function* streamDurableRunEventsUntilTerminal<
 	const finalized = await input.finalizeAcceptedCommand({
 		context,
 		executionResponse: durableEventWaitTimeoutResponse(context),
-		streamBrowserTtftMs,
+		streamAppApiTtftMs,
 		transportError: {
 			code: "execution_timeout",
 			retryable: true,
@@ -655,12 +643,13 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 		context: Context;
 		executionResponse: ToolExecutionResponse;
 		executionFinalizationReceivedAt?: string | null;
-		streamBrowserTtftMs?: number | null;
+		streamAppApiTtftMs?: number | null;
 		transportError?: TransportErrorRecord | null;
 	}): Promise<ChatCommandResponse>;
-	listRunEvents(afterSequence: number, waitMs?: number): Promise<ExecutionControlRunEvent[]>;
+	listRunEvents(afterSequence: number, waitMs?: number): Promise<ExecutionControlRunEventPage>;
 	now: () => Date;
 	polling?: DurableEventPollingPolicy;
+	recordStreamAppApiTtft(input: { durationMs: number; observedAt: string }): Promise<unknown>;
 }): {
 	completion: Promise<ChatCommandResponse>;
 	streamEvents(): AsyncIterable<ChatCommandStreamEvent>;
@@ -673,15 +662,15 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 		let lastSequence = 0;
 		let emptyPollAttempts = 0;
 		let hasStreamedAnswerDelta = false;
-		let streamBrowserTtftMs: number | null = null;
+		let streamAppApiTtftMs: number | null = null;
 		while (emptyPollAttempts < polling.maxAttempts) {
-			const runEvents = await input.listRunEvents(lastSequence, polling.waitMs);
-			if (runEvents.length === 0) {
+			const page = await input.listRunEvents(lastSequence, polling.waitMs);
+			if (page.events.length === 0) {
 				emptyPollAttempts += 1;
 			} else {
 				emptyPollAttempts = 0;
 			}
-			for (const runEvent of runEvents) {
+			for (const runEvent of page.events) {
 				lastSequence = updateLastSequence(context, lastSequence, runEvent);
 				const lifecycleEvent = lifecycleEventFromDurableRunEvent(context, runEvent);
 				if (lifecycleEvent) {
@@ -690,8 +679,15 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 				}
 				const answerDelta = answerDeltaEventFromDurableRunEvent(context, runEvent);
 				if (answerDelta) {
-					if (streamBrowserTtftMs === null) {
-						streamBrowserTtftMs = durationMsBetween(context.acceptedAt, runEvent.occurredAt);
+					if (streamAppApiTtftMs === null) {
+						const observedAt = input.now().toISOString();
+						streamAppApiTtftMs = durationMsBetween(context.acceptedAt, observedAt);
+						if (streamAppApiTtftMs !== null) {
+							await input.recordStreamAppApiTtft({
+								durationMs: streamAppApiTtftMs,
+								observedAt,
+							});
+						}
 					}
 					hasStreamedAnswerDelta = true;
 					queue.push({ event: answerDelta, kind: "event" });
@@ -705,7 +701,7 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 					context,
 					executionResponse: terminalOutcome.response,
 					executionFinalizationReceivedAt: runEvent.occurredAt,
-					streamBrowserTtftMs,
+					streamAppApiTtftMs,
 					transportError: terminalOutcome.transportError,
 				});
 				for (const event of chatStreamEventsForFinalized({
@@ -721,9 +717,7 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 				queue.push({ kind: "done" });
 				return finalized;
 			}
-			if (emptyPollAttempts < polling.maxAttempts && polling.pollIntervalMs > 0) {
-				await polling.sleep(polling.pollIntervalMs);
-			}
+			lastSequence = nextSequenceFromPage(lastSequence, page);
 		}
 
 		throw new ExecutionControlTransportError({

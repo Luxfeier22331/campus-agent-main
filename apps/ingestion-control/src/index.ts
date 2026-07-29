@@ -85,4 +85,3 @@ export type {
 	IngestionTaskStore,
 	IngestionWorkflowStatus,
 } from "./types";
-export { resolveWorkerDeploymentOptions } from "./worker-versioning";

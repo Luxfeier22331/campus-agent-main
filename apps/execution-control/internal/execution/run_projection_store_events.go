@@ -50,6 +50,7 @@ func (s *InMemoryRunProjectionStore) AppendRunEvent(
 	}
 	eventClone := cloneDurableRunEvent(event)
 	s.runEvents[event.RunID] = append(events, eventClone)
+	s.notifyRunEventWaitersLocked(event.RunID)
 	return cloneDurableRunEvent(eventClone), nil
 }
 
@@ -76,6 +77,7 @@ func (s *InMemoryRunProjectionStore) appendRunEventLocked(
 		}
 	}
 	s.runEvents[run.RunID] = append(events, cloneDurableRunEvent(event))
+	s.notifyRunEventWaitersLocked(run.RunID)
 	return nil
 }
 
@@ -105,4 +107,65 @@ func (s *InMemoryRunProjectionStore) ListRunEventsAfter(
 		cloned = append(cloned, cloneDurableRunEvent(event))
 	}
 	return cloned, nil
+}
+
+func (s *InMemoryRunProjectionStore) WaitForRunEventsAfter(
+	ctx context.Context,
+	runID string,
+	afterSequence int64,
+) ([]DurableRunEvent, error) {
+	waiter := make(chan struct{}, 1)
+	s.mu.Lock()
+	if _, exists := s.runs[runID]; !exists {
+		s.mu.Unlock()
+		return nil, fmt.Errorf("%w: %s", ErrDurableRunNotFound, runID)
+	}
+	if events := cloneRunEventsAfter(s.runEvents[runID], afterSequence); len(events) > 0 {
+		s.mu.Unlock()
+		return events, nil
+	}
+	if s.runEventWaiters[runID] == nil {
+		s.runEventWaiters[runID] = map[chan struct{}]struct{}{}
+	}
+	s.runEventWaiters[runID][waiter] = struct{}{}
+	s.mu.Unlock()
+	defer func() {
+		s.mu.Lock()
+		delete(s.runEventWaiters[runID], waiter)
+		if len(s.runEventWaiters[runID]) == 0 {
+			delete(s.runEventWaiters, runID)
+		}
+		s.mu.Unlock()
+	}()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-waiter:
+			events, err := s.ListRunEventsAfter(ctx, runID, afterSequence)
+			if err != nil || len(events) > 0 {
+				return events, err
+			}
+		}
+	}
+}
+
+func cloneRunEventsAfter(events []DurableRunEvent, afterSequence int64) []DurableRunEvent {
+	cloned := make([]DurableRunEvent, 0, len(events))
+	for _, event := range events {
+		if event.Sequence > afterSequence {
+			cloned = append(cloned, cloneDurableRunEvent(event))
+		}
+	}
+	return cloned
+}
+
+func (s *InMemoryRunProjectionStore) notifyRunEventWaitersLocked(runID string) {
+	for waiter := range s.runEventWaiters[runID] {
+		select {
+		case waiter <- struct{}{}:
+		default:
+		}
+	}
 }

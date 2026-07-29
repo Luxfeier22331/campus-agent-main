@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"sync"
 	"time"
 
 	"go.temporal.io/sdk/client"
@@ -26,81 +27,106 @@ const (
 	temporalWorkerStopTimeout = 50 * time.Second
 )
 
-func Run(role Role) {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	if err := run(role, logger); err != nil {
-		logger.Error("campus execution worker stopped", "role", string(role), "error", err.Error())
-		os.Exit(1)
-	}
+type RuntimeWorkers struct {
+	client   client.Client
+	errors   chan error
+	stopOnce sync.Once
+	workers  []worker.Worker
 }
 
-func run(role Role, logger *slog.Logger) error {
-	cfg, err := loadRoleConfig(role)
-	if err != nil {
-		return fmt.Errorf("load worker config: %w", err)
+func StartRuntimeWorkers(
+	ctx context.Context,
+	cfg config.Config,
+	activityServer *httpapi.Server,
+	logger *slog.Logger,
+) (*RuntimeWorkers, error) {
+	if activityServer == nil {
+		return nil, fmt.Errorf("activity server is required for the combined runtime")
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	var activityServer *httpapi.Server
-	var workflowTelemetry *telemetry.Emitter
-	if roleNeedsActivityServer(role) {
-		activityServer, err = newActivityRuntime(ctx, cfg, role)
-	} else {
-		workflowTelemetry, err = newWorkflowTelemetry(ctx, cfg, logger)
+	if logger == nil {
+		logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	}
-	if err != nil {
-		return err
+	if err := ensureTemporalTracingExporter(cfg, activityServer.TelemetryStatus()); err != nil {
+		return nil, err
 	}
-	defer shutdownWorkerRuntime(activityServer, workflowTelemetry, cfg, logger)
 	tracing, err := temporalruntime.NewTracingInterceptors(temporalruntime.TracingOptions{
 		Enabled:      cfg.TemporalTracingEnabled,
 		OTelEndpoint: cfg.OTelEndpoint,
 		ServiceName:  cfg.OTelServiceName,
 	})
 	if err != nil {
-		return fmt.Errorf("configure worker tracing: %w", err)
+		return nil, fmt.Errorf("configure worker tracing: %w", err)
 	}
 	temporalClient, err := client.DialContext(ctx, temporalClientOptions(cfg, tracing))
 	if err != nil {
-		return fmt.Errorf("connect temporal client: %w", err)
+		return nil, fmt.Errorf("connect temporal client: %w", err)
 	}
-	defer temporalClient.Close()
-	runtimeWorker, err := buildWorker(
-		role,
-		cfg,
-		temporalClient,
-		tracing,
-		activityServer,
-		func(fatalErr error) {
-			logger.Error(
-				"campus execution worker fatal error",
-				"role", string(role),
-				"error", fatalErr.Error(),
-			)
-		},
-	)
-	if err != nil {
-		return fmt.Errorf("build temporal worker: %w", err)
+
+	runtimeWorkers := &RuntimeWorkers{
+		client:  temporalClient,
+		errors:  make(chan error, 1),
+		workers: make([]worker.Worker, 0, 3),
 	}
-	logger.Info("campus execution worker starting", "role", string(role), "worker_id", cfg.TemporalWorkerIdentity)
-	if err := runtimeWorker.Run(worker.InterruptCh()); err != nil {
-		return fmt.Errorf("run temporal worker: %w", err)
+	for _, role := range []Role{RoleWorkflow, RoleCore, RoleAgent} {
+		role := role
+		runtimeWorker, buildErr := buildWorker(
+			role,
+			cfg,
+			temporalClient,
+			tracing,
+			activityServer,
+			func(fatalErr error) {
+				logger.Error(
+					"campus execution worker fatal error",
+					"role", string(role),
+					"error", fatalErr.Error(),
+				)
+				select {
+				case runtimeWorkers.errors <- fmt.Errorf("%s worker: %w", role, fatalErr):
+				default:
+				}
+			},
+		)
+		if buildErr != nil {
+			runtimeWorkers.Stop()
+			return nil, fmt.Errorf("build %s worker: %w", role, buildErr)
+		}
+		if startErr := runtimeWorker.Start(); startErr != nil {
+			runtimeWorkers.Stop()
+			return nil, fmt.Errorf("start %s worker: %w", role, startErr)
+		}
+		runtimeWorkers.workers = append(runtimeWorkers.workers, runtimeWorker)
+		logger.Info(
+			"campus execution worker started",
+			"role", string(role),
+			"worker_id", cfg.TemporalWorkerIdentity,
+		)
 	}
-	logger.Info("campus execution worker stopped", "role", string(role))
-	return nil
+	return runtimeWorkers, nil
 }
 
-func loadRoleConfig(role Role) (config.Config, error) {
-	switch role {
-	case RoleWorkflow:
-		return config.LoadWorkflowWorkerFromEnv()
-	case RoleCore:
-		return config.LoadCoreActivityWorkerFromEnv()
-	case RoleAgent:
-		return config.LoadAgentActivityWorkerFromEnv()
-	default:
-		return config.Config{}, fmt.Errorf("unsupported worker target %q", role)
+func (runtimeWorkers *RuntimeWorkers) Errors() <-chan error {
+	return runtimeWorkers.errors
+}
+
+func (runtimeWorkers *RuntimeWorkers) Stop() {
+	if runtimeWorkers == nil {
+		return
 	}
+	runtimeWorkers.stopOnce.Do(func() {
+		var waitGroup sync.WaitGroup
+		for _, runtimeWorker := range runtimeWorkers.workers {
+			waitGroup.Add(1)
+			go func() {
+				defer waitGroup.Done()
+				runtimeWorker.Stop()
+			}()
+		}
+		waitGroup.Wait()
+		if runtimeWorkers.client != nil {
+			runtimeWorkers.client.Close()
+		}
+	})
 }
 
 func buildWorker(
@@ -172,11 +198,7 @@ func workerOptionsForRole(
 	options = temporalruntime.ApplyTracingToWorkerOptions(options, tracing)
 	options.OnFatalError = onFatalError
 	options.WorkerStopTimeout = temporalWorkerStopTimeout
-	return temporalruntime.ApplyWorkerDeploymentVersioning(
-		options,
-		os.Getenv("TEMPORAL_DEPLOYMENT_NAME"),
-		os.Getenv("TEMPORAL_WORKER_BUILD_ID"),
-	)
+	return options, nil
 }
 
 func temporalWorkerProfile(cfg config.Config, role string) temporalruntime.WorkerProfile {
@@ -191,78 +213,9 @@ func temporalWorkerProfile(cfg config.Config, role string) temporalruntime.Worke
 	}
 }
 
-func newActivityRuntime(
-	ctx context.Context,
-	cfg config.Config,
-	role Role,
-) (*httpapi.Server, error) {
-	var activityRole httpapi.TemporalActivityRuntimeRole
-	switch role {
-	case RoleCore:
-		activityRole = httpapi.TemporalActivityRuntimeRoleCore
-	case RoleAgent:
-		activityRole = httpapi.TemporalActivityRuntimeRoleAgent
-	default:
-		return nil, fmt.Errorf("unsupported activity runtime role %q", role)
-	}
-	server, err := httpapi.NewTemporalActivityServer(cfg, activityRole)
-	if err != nil {
-		return nil, err
-	}
-	if err := ensureTemporalTracingExporter(cfg, server.TelemetryStatus()); err != nil {
-		_ = server.Shutdown(ctx)
-		return nil, err
-	}
-	return server, nil
-}
-
-func newWorkflowTelemetry(
-	ctx context.Context,
-	cfg config.Config,
-	logger *slog.Logger,
-) (*telemetry.Emitter, error) {
-	if logger == nil {
-		logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	}
-	emitter := telemetry.NewEmitter(ctx, cfg, logger)
-	if err := ensureTemporalTracingExporter(cfg, emitter.Status()); err != nil {
-		_ = emitter.Shutdown(ctx)
-		return nil, err
-	}
-	return emitter, nil
-}
-
-func roleNeedsActivityServer(role Role) bool {
-	return role != RoleWorkflow
-}
-
 func ensureTemporalTracingExporter(cfg config.Config, status telemetry.Status) error {
 	if cfg.TemporalTracingEnabled && !status.ExporterConfigured {
 		return fmt.Errorf("temporal tracing requires configured OTel trace exporter")
 	}
 	return nil
-}
-
-func shutdownWorkerRuntime(
-	activityServer *httpapi.Server,
-	workflowTelemetry *telemetry.Emitter,
-	cfg config.Config,
-	logger *slog.Logger,
-) {
-	timeout := time.Duration(cfg.ShutdownGraceMS) * time.Millisecond
-	if timeout <= 0 {
-		timeout = 5 * time.Second
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	if activityServer != nil {
-		if err := activityServer.Shutdown(ctx); err != nil && logger != nil {
-			logger.Warn("campus execution worker server shutdown failed", "error", err.Error())
-		}
-	}
-	if workflowTelemetry != nil {
-		if err := workflowTelemetry.Shutdown(ctx); err != nil && logger != nil {
-			logger.Warn("campus execution worker telemetry shutdown failed", "error", err.Error())
-		}
-	}
 }

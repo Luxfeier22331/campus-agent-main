@@ -35,7 +35,8 @@ NetworkPolicy 隔离，不在集群内重复增加 bearer token。通用运行�
 Hindsight 和受控 execution-control trace 进入 Langfuse。
 
 Agent SDK instrumentation 唯一产生 model generation 与 tool observation。execution-control 只
-记录编排和跨系统关联，不重复声明 generation、model 或 token usage。
+记录编排和跨系统关联；`grounding.prepare` 以普通 span 记录受控的检索路由、结果计数和阶段
+耗时，不重复声明 generation、model 或 token usage，也不作为 Agent tool 展示。
 
 Langfuse 不可用不得阻塞普通在线回答。执行生命周期由 Temporal 保存，产品状态由 PostgreSQL
 投影保存。
@@ -46,10 +47,13 @@ Langfuse 不可用不得阻塞普通在线回答。执行生命周期由 Tempora
 用户身份；Hindsight trace 使用 execution-control 派生的 bank identity。两类 identity 位于同一
 project，但含义和删除条件不同。
 
-Langfuse Cloud project 是受信任模型观测面。采样 trace 可以包含 user/session 关联、模型输入输出、
-memory context、已授权 retrieval facts、tool observation 和 usage。producer 不得主动写入结构化
-认证材料、数据库凭据、对象存储 secret 或 provider credential；Collector 按认证类 attribute key
-清理，但不会扫描 trusted model I/O 的每个字面值，因此当前没有内容级 DLP 承诺。
+Langfuse Cloud project 是受信任模型观测面。采样 trace 可以包含 user/session 关联、模型/工具
+标识、usage、阶段结果和有界关联 metadata。Agent producer 关闭 SDK sensitive data 导出；运行
+trace 不包含模型输入输出、对话、memory/retrieval 正文、工具原始载荷、供应商原始响应或认证
+材料。Collector 的属性清理是纵深防御，不代替 producer 的源头限制。
+
+dataset、experiment、score 和 annotation 保持独立评测生命周期。需要正文的 case 必须经版本化
+输入和显式评审导入，不能从运行 trace 正文自动生成。
 
 ## 生命周期
 

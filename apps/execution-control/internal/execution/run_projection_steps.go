@@ -1,10 +1,13 @@
 package execution
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
+	"time"
 )
 
 func (s *InMemoryRunProjectionStore) UpsertRunStep(
@@ -19,7 +22,20 @@ func (s *InMemoryRunProjectionStore) UpsertRunStep(
 	if _, exists := s.runs[step.RunID]; !exists {
 		return RunStepProjection{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, step.RunID)
 	}
-	s.runSteps[runStepKey(step.RunID, step.StepID)] = cloneRunStepProjection(step)
+	key := runStepKey(step.RunID, step.StepID)
+	if current, exists := s.runSteps[key]; exists && !runStepProjectionUpdateAllowed(current, step) {
+		return cloneRunStepProjection(current), fmt.Errorf(
+			"%w: run=%s step=%s status=%s activity_attempt=%d current_status=%s current_activity_attempt=%d",
+			ErrStaleRunStepProjection,
+			step.RunID,
+			step.StepID,
+			step.Status,
+			step.ActivityAttempt,
+			current.Status,
+			current.ActivityAttempt,
+		)
+	}
+	s.runSteps[key] = cloneRunStepProjection(step)
 	return cloneRunStepProjection(step), nil
 }
 
@@ -35,8 +51,113 @@ func (s *InMemoryRunProjectionStore) UpsertStepAttempt(
 	if _, exists := s.runs[attempt.RunID]; !exists {
 		return StepAttemptProjection{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, attempt.RunID)
 	}
-	s.stepAttempts[stepAttemptKey(attempt.RunID, attempt.AttemptID)] = cloneStepAttemptProjection(attempt)
+	for _, current := range s.stepAttempts {
+		if current.AttemptID == attempt.AttemptID &&
+			(current.RunID != attempt.RunID || current.StepID != attempt.StepID) {
+			return StepAttemptProjection{}, fmt.Errorf(
+				"%w: attempt_id=%s is already bound to run=%s step=%s",
+				ErrStaleStepAttemptProjection,
+				attempt.AttemptID,
+				current.RunID,
+				current.StepID,
+			)
+		}
+		if current.RunID == attempt.RunID && current.StepID == attempt.StepID &&
+			current.Attempt == attempt.Attempt && current.AttemptID != attempt.AttemptID {
+			return StepAttemptProjection{}, fmt.Errorf(
+				"%w: run=%s step=%s attempt=%d is already bound to attempt_id=%s",
+				ErrStaleStepAttemptProjection,
+				attempt.RunID,
+				attempt.StepID,
+				attempt.Attempt,
+				current.AttemptID,
+			)
+		}
+	}
+	key := stepAttemptKey(attempt.RunID, attempt.AttemptID)
+	if current, exists := s.stepAttempts[key]; exists && !stepAttemptProjectionUpdateAllowed(current, attempt) {
+		return cloneStepAttemptProjection(current), fmt.Errorf(
+			"%w: run=%s step=%s attempt_id=%s status=%s activity_attempt=%d current_status=%s current_activity_attempt=%d",
+			ErrStaleStepAttemptProjection,
+			attempt.RunID,
+			attempt.StepID,
+			attempt.AttemptID,
+			attempt.Status,
+			attempt.ActivityAttempt,
+			current.Status,
+			current.ActivityAttempt,
+		)
+	}
+	s.stepAttempts[key] = cloneStepAttemptProjection(attempt)
 	return cloneStepAttemptProjection(attempt), nil
+}
+
+func runStepProjectionUpdateAllowed(current RunStepProjection, incoming RunStepProjection) bool {
+	if current.ActivityAttempt > 0 &&
+		(incoming.ActivityAttempt == 0 || incoming.ActivityAttempt < current.ActivityAttempt) {
+		return false
+	}
+	if current.ActivityAttempt == incoming.ActivityAttempt && stepProjectionStatusTerminal(current.Status) {
+		return runStepProjectionEquivalent(current, incoming)
+	}
+	return true
+}
+
+func stepAttemptProjectionUpdateAllowed(current StepAttemptProjection, incoming StepAttemptProjection) bool {
+	if current.RunID != incoming.RunID ||
+		current.StepID != incoming.StepID ||
+		current.AttemptID != incoming.AttemptID ||
+		current.Attempt != incoming.Attempt ||
+		(stepProjectionStatusTerminal(current.Status) && !stepAttemptProjectionEquivalent(current, incoming)) {
+		return false
+	}
+	return current.ActivityAttempt == 0 ||
+		incoming.ActivityAttempt >= current.ActivityAttempt
+}
+
+func runStepProjectionEquivalent(left RunStepProjection, right RunStepProjection) bool {
+	return left.StepID == right.StepID && left.RunID == right.RunID &&
+		left.ConversationID == right.ConversationID && left.StepKind == right.StepKind &&
+		left.Tool == right.Tool && left.ParentStepID == right.ParentStepID &&
+		left.Status == right.Status && left.ActivityAttempt == right.ActivityAttempt &&
+		left.TaskQueue == right.TaskQueue && left.WorkerID == right.WorkerID &&
+		left.StartedAt.Equal(right.StartedAt) && left.CompletedAt.Equal(right.CompletedAt) &&
+		left.UpdatedAt.Equal(right.UpdatedAt) && left.PayloadSchemaVersion == right.PayloadSchemaVersion &&
+		jsonMapsEquivalent(left.SanitizedPayload, right.SanitizedPayload)
+}
+
+func stepAttemptProjectionEquivalent(left StepAttemptProjection, right StepAttemptProjection) bool {
+	return left.AttemptID == right.AttemptID && left.StepID == right.StepID && left.RunID == right.RunID &&
+		left.Attempt == right.Attempt && left.Status == right.Status && left.TaskQueue == right.TaskQueue &&
+		left.WorkerID == right.WorkerID && left.WorkflowID == right.WorkflowID &&
+		left.TemporalRunID == right.TemporalRunID && left.ActivityID == right.ActivityID &&
+		left.ActivityType == right.ActivityType && left.ActivityAttempt == right.ActivityAttempt &&
+		left.ScheduledAt.Equal(right.ScheduledAt) && left.StartedAt.Equal(right.StartedAt) &&
+		left.CompletedAt.Equal(right.CompletedAt) && left.ScheduleToStartMS == right.ScheduleToStartMS &&
+		left.DurationMS == right.DurationMS && left.ProviderRequestRef == right.ProviderRequestRef &&
+		left.ProviderResponseID == right.ProviderResponseID && left.ModelProvider == right.ModelProvider &&
+		left.ModelName == right.ModelName && left.InputTokens == right.InputTokens &&
+		left.OutputTokens == right.OutputTokens && left.CachedInputTokens == right.CachedInputTokens &&
+		left.CancelOutcome == right.CancelOutcome && left.TimeoutOutcome == right.TimeoutOutcome &&
+		left.LateCompletionOutcome == right.LateCompletionOutcome &&
+		left.FailCloseReason == right.FailCloseReason && left.TerminalReason == right.TerminalReason &&
+		left.UpdatedAt.Equal(right.UpdatedAt) && left.PayloadSchemaVersion == right.PayloadSchemaVersion &&
+		jsonMapsEquivalent(left.SanitizedPayload, right.SanitizedPayload)
+}
+
+func jsonMapsEquivalent(left map[string]any, right map[string]any) bool {
+	leftJSON, leftErr := jsonMapToBytes(left)
+	rightJSON, rightErr := jsonMapToBytes(right)
+	return leftErr == nil && rightErr == nil && bytes.Equal(leftJSON, rightJSON)
+}
+
+func stepProjectionStatusTerminal(status string) bool {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "completed", "failed", "blocked", "canceled", "expired", "skipped":
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *InMemoryRunProjectionStore) UpsertStepResult(
@@ -46,13 +167,86 @@ func (s *InMemoryRunProjectionStore) UpsertStepResult(
 	if err := validateStepResultProjection(result); err != nil {
 		return StepResultProjection{}, err
 	}
+	var err error
+	result, err = canonicalStepResultProjection(result)
+	if err != nil {
+		return StepResultProjection{}, err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, exists := s.runs[result.RunID]; !exists {
+	run, exists := s.runs[result.RunID]
+	if !exists {
 		return StepResultProjection{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, result.RunID)
 	}
-	s.stepResults[stepResultKey(result.RunID, result.ResultID)] = cloneStepResultProjection(result)
+	if !stepResultProjectionWriteAllowed(run.Status, result) {
+		return StepResultProjection{}, fmt.Errorf(
+			"%w: run=%s status=%s",
+			ErrDurableRunTerminalConflict,
+			result.RunID,
+			run.Status,
+		)
+	}
+	for _, current := range s.stepResults {
+		if current.ResultID == result.ResultID &&
+			(current.RunID != result.RunID || current.StepID != result.StepID) {
+			return StepResultProjection{}, fmt.Errorf(
+				"%w: result_id=%s is already bound to run=%s step=%s",
+				ErrStepResultProjectionConflict,
+				result.ResultID,
+				current.RunID,
+				current.StepID,
+			)
+		}
+	}
+	key := stepResultKey(result.RunID, result.ResultID)
+	if current, exists := s.stepResults[key]; exists {
+		if stepResultProjectionEquivalent(current, result) {
+			return cloneStepResultProjection(current), nil
+		}
+		return cloneStepResultProjection(current), fmt.Errorf(
+			"%w: run=%s result=%s",
+			ErrStepResultProjectionConflict,
+			result.RunID,
+			result.ResultID,
+		)
+	}
+	s.stepResults[key] = cloneStepResultProjection(result)
 	return cloneStepResultProjection(result), nil
+}
+
+func canonicalStepResultProjection(result StepResultProjection) (StepResultProjection, error) {
+	result.CreatedAt = result.CreatedAt.UTC().Truncate(time.Microsecond)
+	if _, err := jsonMapToBytes(result.SanitizedPayload); err != nil {
+		return StepResultProjection{}, fmt.Errorf(
+			"%w: sanitized_payload must be valid JSON: %v",
+			ErrInvalidStepResult,
+			err,
+		)
+	}
+	return result, nil
+}
+
+func stepResultProjectionEquivalent(left StepResultProjection, right StepResultProjection) bool {
+	return stepResultProjectionFieldsEquivalent(left, right) &&
+		jsonMapsEquivalent(left.SanitizedPayload, right.SanitizedPayload)
+}
+
+func stepResultProjectionFieldsEquivalent(left StepResultProjection, right StepResultProjection) bool {
+	return left.ResultID == right.ResultID && left.StepID == right.StepID && left.RunID == right.RunID &&
+		left.AttemptID == right.AttemptID && left.Status == right.Status &&
+		left.ResultKind == right.ResultKind && left.ProjectionRef == right.ProjectionRef &&
+		left.CreatedAt.Equal(right.CreatedAt) && left.PayloadSchemaVersion == right.PayloadSchemaVersion
+}
+
+func stepResultProjectionWriteAllowed(status DurableRunStatus, result StepResultProjection) bool {
+	if durableRunStatusIsActive(status) {
+		return true
+	}
+	if status != DurableRunStatusCompleted {
+		return false
+	}
+	// Product finalization completes the run before this non-critical memory stage.
+	return result.StepID == "memory.append" && result.ResultKind == "memory_conversation_append_result"
 }
 
 func (s *InMemoryRunProjectionStore) ListRunSteps(
@@ -142,6 +336,8 @@ func validateRunStepProjection(step RunStepProjection) error {
 		return fmt.Errorf("%w: step_kind is required", ErrInvalidRunStep)
 	case strings.TrimSpace(step.Status) == "":
 		return fmt.Errorf("%w: status is required", ErrInvalidRunStep)
+	case step.ActivityAttempt < 0:
+		return fmt.Errorf("%w: activity_attempt must be non-negative", ErrInvalidRunStep)
 	case strings.TrimSpace(step.PayloadSchemaVersion) == "":
 		return fmt.Errorf("%w: payload_schema_version is required", ErrInvalidRunStep)
 	case step.UpdatedAt.IsZero():
@@ -285,6 +481,76 @@ func cloneStepAttemptProjection(attempt StepAttemptProjection) StepAttemptProjec
 }
 
 func cloneStepResultProjection(result StepResultProjection) StepResultProjection {
-	result.SanitizedPayload = cloneAnyMap(result.SanitizedPayload)
+	result.SanitizedPayload = cloneStepResultJSONMap(result.SanitizedPayload)
 	return result
+}
+
+func cloneStepResultJSONMap(source map[string]any) map[string]any {
+	if source == nil {
+		return map[string]any{}
+	}
+	return cloneStepResultJSONReflect(reflect.ValueOf(source)).Interface().(map[string]any)
+}
+
+func cloneStepResultJSONReflect(value reflect.Value) reflect.Value {
+	if !value.IsValid() {
+		return value
+	}
+	switch value.Kind() {
+	case reflect.Interface:
+		if value.IsNil() {
+			return reflect.Zero(value.Type())
+		}
+		result := reflect.New(value.Type()).Elem()
+		result.Set(cloneStepResultJSONReflect(value.Elem()))
+		return result
+	case reflect.Pointer:
+		if value.IsNil() {
+			return reflect.Zero(value.Type())
+		}
+		result := reflect.New(value.Type().Elem())
+		result.Elem().Set(cloneStepResultJSONReflect(value.Elem()))
+		return result
+	case reflect.Map:
+		if value.IsNil() {
+			return reflect.Zero(value.Type())
+		}
+		result := reflect.MakeMapWithSize(value.Type(), value.Len())
+		iterator := value.MapRange()
+		for iterator.Next() {
+			result.SetMapIndex(
+				cloneStepResultJSONReflect(iterator.Key()),
+				cloneStepResultJSONReflect(iterator.Value()),
+			)
+		}
+		return result
+	case reflect.Slice:
+		if value.IsNil() {
+			return reflect.Zero(value.Type())
+		}
+		result := reflect.MakeSlice(value.Type(), value.Len(), value.Len())
+		for index := range value.Len() {
+			result.Index(index).Set(cloneStepResultJSONReflect(value.Index(index)))
+		}
+		return result
+	case reflect.Array:
+		result := reflect.New(value.Type()).Elem()
+		for index := range value.Len() {
+			result.Index(index).Set(cloneStepResultJSONReflect(value.Index(index)))
+		}
+		return result
+	case reflect.Struct:
+		for index := range value.NumField() {
+			if value.Type().Field(index).PkgPath != "" {
+				return value
+			}
+		}
+		result := reflect.New(value.Type()).Elem()
+		for index := range value.NumField() {
+			result.Field(index).Set(cloneStepResultJSONReflect(value.Field(index)))
+		}
+		return result
+	default:
+		return value
+	}
 }

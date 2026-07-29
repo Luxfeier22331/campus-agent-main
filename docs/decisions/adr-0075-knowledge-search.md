@@ -2,9 +2,13 @@
 doc_type: decision
 owner_boundary: docs/decisions
 decision_id: ADR-0075
-status: accepted
+status: superseded
+superseded_by: ADR-0084
 ---
 # ADR-0075 基于目标的知识搜索
+
+本决策已由 ADR-0084 取代。本文只保留当时选择 Knowledge Agent、handoff 和目标搜索的历史理由，
+不描述当前运行方式。
 
 ## 背景
 

@@ -13,7 +13,7 @@ func TestMetricsPrometheusIncludesCountersAndDurations(t *testing.T) {
 	finish(200, "execution_response", 120*time.Millisecond)
 	metrics.RecordAdmissionDecision("queue_full", 0)
 	metrics.RecordAdmissionDecision("admitted_queued", 12*time.Millisecond)
-	metrics.RecordAdmissionDecisionForGroup("knowledge_query", "admitted_queued", 8*time.Millisecond)
+	metrics.RecordAdmissionDecisionForGroup("primary_agent", "admitted_queued", 8*time.Millisecond)
 	metrics.RecordToolGate("transport_schedule_lookup", "tool_read_model_runtime", "closed")
 	metrics.RecordPersonalMemoryOperation("recall", "completed", "none", 34*time.Millisecond, 2, 128)
 	metrics.RecordPersonalMemoryOperation("append", "failed", "hindsight_append_failed", 42*time.Millisecond, 0, 0)
@@ -42,9 +42,9 @@ func TestMetricsPrometheusIncludesCountersAndDurations(t *testing.T) {
 		`campus_execution_control_request_duration_ms_count{route="/internal/execution/runs"} 1`,
 		`campus_execution_control_inflight_requests{route="/internal/execution/runs"} 0`,
 		`campus_execution_control_admission_decisions_total{decision="queue_full"} 1`,
-		`campus_execution_control_admission_group_decisions_total{group="knowledge_query",decision="admitted_queued"} 1`,
+		`campus_execution_control_admission_group_decisions_total{group="primary_agent",decision="admitted_queued"} 1`,
 		`campus_execution_control_admission_queue_wait_ms_count 2`,
-		`campus_execution_control_admission_group_queue_wait_ms_count{group="knowledge_query"} 1`,
+		`campus_execution_control_admission_group_queue_wait_ms_count{group="primary_agent"} 1`,
 		`campus_execution_control_tool_gate_decisions_total{tool="transport_schedule_lookup",gate="tool_read_model_runtime",decision="closed"} 1`,
 		`campus_execution_control_personal_memory_operations_total{operation="append",outcome="failed",failure_kind="hindsight_append_failed"} 1`,
 		`campus_execution_control_personal_memory_operations_total{operation="recall",outcome="completed",failure_kind="none"} 1`,

@@ -97,36 +97,43 @@ describe("ingestion kernel artifacts", () => {
 
 		expect(() =>
 			parseIngestionKernelJsonOutput({
-				expectedSchemaVersion: "ingestion_chunk_set.v1",
-				kernelId: "chunk-document-units",
+				expectedSchemaVersion: "retrieval_chunk_set.v2",
+				kernelId: "build-retrieval-chunks-v2",
 				stdout: new TextEncoder().encode(
-					'{"schema_version":"ingestion_chunk_set.v1","chunk_count":1,"chunks":[],"error_count":0,"errors":[]}\n',
+					'{"schema_version":"retrieval_chunk_set.v2","chunk_count":1,"chunks":[],"error_count":0,"errors":[]}\n',
 				),
 			}),
 		).toThrow("chunk_count must match chunks length");
 	});
 
-	it("requires chunk output to use doc_id instead of legacy document_id", () => {
+	it("requires formal retrieval_chunk.v2 records", () => {
 		expect(() =>
 			parseIngestionKernelJsonOutput({
-				expectedSchemaVersion: "ingestion_chunk_set.v1",
-				kernelId: "chunk-document-units",
+				expectedSchemaVersion: "retrieval_chunk_set.v2",
+				kernelId: "build-retrieval-chunks-v2",
 				stdout: new TextEncoder().encode(
-					'{"schema_version":"ingestion_chunk_set.v1","chunk_count":1,"chunks":[{"chunk_id":"chunk-1","document_id":"doc-1","unit_ids":["unit-1"],"text":"hello"}],"error_count":0,"errors":[]}\n',
+					'{"schema_version":"retrieval_chunk_set.v2","chunk_count":1,"chunks":[{"chunk_id":"chunk-1","document_id":"doc-1","text":"hello"}],"error_count":0,"errors":[]}\n',
 				),
 			}),
-		).toThrow("doc_id");
+		).toThrow("schema_version");
 
 		expect(
 			parseIngestionKernelJsonOutput({
-				expectedSchemaVersion: "ingestion_chunk_set.v1",
-				kernelId: "chunk-document-units",
+				expectedSchemaVersion: "retrieval_chunk_set.v2",
+				kernelId: "build-retrieval-chunks-v2",
 				stdout: new TextEncoder().encode(
-					'{"schema_version":"ingestion_chunk_set.v1","chunk_count":1,"chunks":[{"chunk_id":"chunk-1","doc_id":"doc-1","unit_ids":["unit-1"],"text":"hello"}],"error_count":0,"errors":[]}\n',
+					'{"schema_version":"retrieval_chunk_set.v2","chunk_count":1,"chunks":[{"schema_version":"retrieval_chunk.v2","document_scope":"regulations","document_id":"doc-1","version_id":"version-1","section_id":"section-1","chunk_id":"chunk-1","ordinal":0,"token_count":1,"text":"hello","text_sha256":"sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824","metadata":{}}],"error_count":0,"errors":[]}\n',
 				),
 			}).value,
 		).toMatchObject({
-			chunks: [{ chunk_id: "chunk-1", doc_id: "doc-1", unit_ids: ["unit-1"] }],
+			chunks: [
+				{
+					chunk_id: "chunk-1",
+					document_id: "doc-1",
+					section_id: "section-1",
+					token_count: 1,
+				},
+			],
 		});
 	});
 

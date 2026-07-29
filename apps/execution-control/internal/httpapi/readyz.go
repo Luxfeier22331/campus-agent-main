@@ -42,7 +42,7 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 	providerConfigGate := s.evaluateProviderConfigGate()
 	agentRuntimeStatus := s.agentRuntimeStatus(request.Context())
 	personalMemoryStatus := s.personalMemoryRuntimeStatus(request.Context())
-	knowledgeSearchStatus := s.knowledgeSearchRuntimeStatus(request.Context())
+	documentEvidenceStatus := s.documentEvidenceRuntimeStatus(request.Context())
 	runProjectionStoreStatus := s.runProjectionStoreStatus(request.Context())
 	ready := transportStatus.Healthy &&
 		agentRuntimeStatus["healthy"] == true &&
@@ -56,19 +56,19 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 	}
 
 	responseBody := map[string]any{
-		"status":                   statusText,
-		"runtime_release":          strings.TrimSpace(s.config.DeploymentRelease),
-		"transport_runtime":        transportStatus,
-		"lifecycle_runtime":        s.lifecycle.Snapshot(),
-		"telemetry_runtime":        telemetryStatus,
-		"tool_read_model_runtime":  toolReadModelStatus,
-		"run_projection_store":     runProjectionStoreStatus,
-		"temporal_runtime":         temporalRuntimeStatus,
-		"personal_memory_runtime":  personalMemoryStatus,
-		"knowledge_search_runtime": knowledgeSearchStatus,
-		"tool_gates":               s.toolGateStatus(),
-		"provider_config_gate":     providerConfigGate,
-		"agent_runtime":            agentRuntimeStatus,
+		"status":                    statusText,
+		"runtime_release":           strings.TrimSpace(s.config.DeploymentRelease),
+		"transport_runtime":         transportStatus,
+		"lifecycle_runtime":         s.lifecycle.Snapshot(),
+		"telemetry_runtime":         telemetryStatus,
+		"tool_read_model_runtime":   toolReadModelStatus,
+		"run_projection_store":      runProjectionStoreStatus,
+		"temporal_runtime":          temporalRuntimeStatus,
+		"personal_memory_runtime":   personalMemoryStatus,
+		"document_evidence_runtime": documentEvidenceStatus,
+		"tool_gates":                s.toolGateStatus(),
+		"provider_config_gate":      providerConfigGate,
+		"agent_runtime":             agentRuntimeStatus,
 	}
 
 	writeJSON(response, statusCode, responseBody)
@@ -148,38 +148,38 @@ func (s *Server) temporalRuntimeStatus(ctx context.Context) map[string]any {
 	return status
 }
 
-func (s *Server) knowledgeSearchRuntimeStatus(ctx context.Context) map[string]any {
+func (s *Server) documentEvidenceRuntimeStatus(ctx context.Context) map[string]any {
 	status := map[string]any{
-		"configured":                    s.knowledgeSearchExecutor != nil,
+		"configured":                    s.documentEvidenceExecutor != nil,
 		"embedding_provider_configured": false,
 		"healthy":                       false,
 		"last_error":                    "",
 		"retrieval_adapter":             "qdrant_native",
 	}
-	if s.knowledgeSearchErr != nil {
-		status["last_error"] = "knowledge search executor could not be initialized"
+	if s.documentEvidenceErr != nil {
+		status["last_error"] = "document evidence executor could not be initialized"
 		return status
 	}
-	if s.knowledgeSearchExecutor == nil {
-		status["last_error"] = "knowledge search executor is not configured"
+	if s.documentEvidenceExecutor == nil {
+		status["last_error"] = "document evidence executor is not configured"
 		return status
 	}
 	checkCtx, cancel := context.WithTimeout(ctx, time.Duration(s.config.ToolReadModelTimeoutMS)*time.Millisecond)
 	defer cancel()
 	if s.providerConfigErr != nil || s.providerConfigResolver == nil {
-		status["last_error"] = "knowledge search embedding provider config is not available"
+		status["last_error"] = "document evidence embedding provider config is not available"
 		return status
 	}
 	if _, err := s.providerConfigResolver.ResolveActiveProviderConfig(
 		checkCtx,
 		providerConfigKindEmbedding,
 	); err != nil {
-		status["last_error"] = "knowledge search embedding provider config is not available"
+		status["last_error"] = "document evidence embedding provider config is not available"
 		return status
 	}
 	status["embedding_provider_configured"] = true
-	if err := s.knowledgeSearchExecutor.HealthCheck(checkCtx); err != nil {
-		status["last_error"] = "knowledge search health check failed: " + err.Error()
+	if err := s.documentEvidenceExecutor.HealthCheck(checkCtx); err != nil {
+		status["last_error"] = "document evidence health check failed: " + err.Error()
 		return status
 	}
 	status["healthy"] = true
@@ -244,7 +244,7 @@ func formatReadinessError(err error) string {
 
 func requiredTemporalTaskQueueNames(cfg config.Config) []string {
 	return append([]string{
-		defaultString(strings.TrimSpace(cfg.TemporalTaskQueue), "campus-agent.workflow"),
+		defaultString(strings.TrimSpace(cfg.TemporalTaskQueue), temporalruntime.WorkflowTaskQueue),
 	}, requiredTemporalActivityTaskQueueNames(cfg)...)
 }
 
@@ -340,16 +340,14 @@ func (s *Server) runProjectionStoreStatus(ctx context.Context) map[string]any {
 }
 
 func (s *Server) toolGateStatus() map[string]any {
-	return map[string]any{
-		"knowledge_query": map[string]any{
-			"open": true,
-			"gate": "openai_agents_handoff",
-		},
-		"transport_schedule_lookup": map[string]any{
-			"open": modelVisibleToolConfigured("transport_schedule_lookup"),
-			"gate": "tool_read_model_runtime_and_activity_worker",
-		},
+	status := make(map[string]any)
+	for _, toolName := range runtimepolicy.ModelVisibleToolNames() {
+		status[toolName] = map[string]any{
+			"open": modelVisibleToolConfigured(toolName),
+			"gate": "execution_control_internal_query",
+		}
 	}
+	return status
 }
 
 func modelVisibleToolConfigured(toolName string) bool {

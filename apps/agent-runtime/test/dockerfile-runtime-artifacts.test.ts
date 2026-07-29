@@ -8,9 +8,9 @@ const dockerfile = readFileSync(join(repoRoot, "apps/agent-runtime/Dockerfile"),
 describe("agent-runtime Dockerfile", () => {
 	it("packages every runtime registry file loaded by the tool catalog", () => {
 		for (const configPath of [
-			"configs/runtime/tools.v5.json",
-			"configs/runtime/tool-function-schemas.v2.json",
-			"configs/runtime/workflow-artifacts.v2.json",
+			"configs/runtime/tools.v6.json",
+			"configs/runtime/tool-function-schemas.v3.json",
+			"configs/runtime/workflow-artifacts.v3.json",
 		]) {
 			expect(dockerfile).toContain(`${configPath} ./${configPath}`);
 		}

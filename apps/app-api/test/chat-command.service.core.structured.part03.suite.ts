@@ -26,6 +26,12 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 					answerText: "计算机类培养方案要求学生完成对应课程模块和毕业要求。",
 					error: null,
 					followUpQuestion: "",
+					modelUsage: {
+						cachedInputTokens: 10,
+						inputTokens: 120,
+						outputTokens: 42,
+						totalTokens: 162,
+					},
 					result: {
 						sources: [
 							{
@@ -124,8 +130,6 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 							},
 						],
 					},
-					resolvedTargets: ["student_rules"],
-					selectedTool: "knowledge_query",
 					status: "completed",
 					traceId: "trace_0001",
 				}),
@@ -228,6 +232,12 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 					answerText: "转专业申请需要按规定提交材料并完成审核。",
 					error: null,
 					followUpQuestion: "",
+					modelUsage: {
+						cachedInputTokens: 10,
+						inputTokens: 120,
+						outputTokens: 42,
+						totalTokens: 162,
+					},
 					result: {
 						sources: [
 							{
@@ -246,8 +256,6 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 							},
 						],
 					},
-					resolvedTargets: ["student_rules"],
-					selectedTool: "knowledge_query",
 					status: "completed",
 					traceId: "trace_0001",
 				}),

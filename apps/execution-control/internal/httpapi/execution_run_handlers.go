@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimepolicy"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/telemetry"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
@@ -33,22 +33,11 @@ func (s *Server) handleExecutionRunCreate(response http.ResponseWriter, request 
 		)
 		return
 	}
-	if s.temporalStarter == nil {
-		setOutcome(response, "temporal_runtime_not_configured")
-		writeError(
-			response,
-			http.StatusServiceUnavailable,
-			"temporal_runtime_not_configured",
-			"Temporal runtime is not configured.",
-			true,
-		)
-		return
-	}
 	body, ok := s.readJSONBody(response, request)
 	if !ok {
 		return
 	}
-	run, err := durableRunFromCreateBody(
+	run, personalMemoryRecallAllowed, err := durableRunFromCreateBody(
 		body,
 		time.Now().UTC(),
 		defaultString(strings.TrimSpace(s.config.TemporalTaskQueue), temporalruntime.WorkflowTaskQueue),
@@ -58,13 +47,49 @@ func (s *Server) handleExecutionRunCreate(response http.ResponseWriter, request 
 		writeError(response, http.StatusBadRequest, "invalid_request", err.Error(), false)
 		return
 	}
-	visibleToolNames, err := s.visibleToolNamesForRun(run.RequestedTool)
+	workflowInput, err := s.workflowInputForRun(
+		request.Context(),
+		run,
+		personalMemoryRecallAllowed,
+	)
 	if err != nil {
-		setOutcome(response, "unsupported_tool_hint")
-		writeError(response, http.StatusBadRequest, "unsupported_tool_hint", err.Error(), false)
+		setOutcome(response, "execution_workflow_input_invalid")
+		writeError(response, http.StatusBadRequest, "execution_workflow_input_invalid", err.Error(), false)
 		return
 	}
-	created, err := s.runProjectionStore.CreateRun(request.Context(), run)
+	workflowInputJSON, err := json.Marshal(workflowInput)
+	if err != nil {
+		setOutcome(response, "execution_workflow_input_invalid")
+		writeError(response, http.StatusBadRequest, "execution_workflow_input_invalid", err.Error(), false)
+		return
+	}
+	requestFingerprint, err := durableRunCreateFingerprint(run, personalMemoryRecallAllowed)
+	if err != nil {
+		setOutcome(response, "execution_workflow_input_invalid")
+		writeError(response, http.StatusBadRequest, "execution_workflow_input_invalid", err.Error(), false)
+		return
+	}
+	result, err := s.runProjectionStore.CreateRunWithStartIntent(
+		request.Context(),
+		execution.DurableRunCreateIntent{
+			Run:                      run,
+			RequestFingerprintSHA256: requestFingerprint,
+			WorkflowID:               workflowInput.WorkflowID,
+			PayloadSHA256:            workflowInput.PayloadSHA256,
+			TaskQueue:                workflowInput.TaskQueue,
+			WorkflowInputJSON:        workflowInputJSON,
+			CreatedEvent: execution.DurableRunEvent{
+				EventID:              run.RunID + ":run-created",
+				RunID:                run.RunID,
+				ConversationID:       run.ConversationID,
+				EventType:            execution.DurableRunEventTypeRunCreated,
+				OccurredAt:           run.CreatedAt,
+				Visibility:           execution.DurableRunEventVisibilityInternal,
+				PayloadSchemaVersion: "run-event-v1",
+				Payload:              map[string]any{"status": string(execution.DurableRunStatusCreated)},
+			},
+		},
+	)
 	if err != nil {
 		if errors.Is(err, execution.ErrConversationActiveRun) {
 			setOutcome(response, "conversation_active_run")
@@ -77,126 +102,106 @@ func (s *Server) handleExecutionRunCreate(response http.ResponseWriter, request 
 			)
 			return
 		}
+		if errors.Is(err, execution.ErrDurableRunFingerprintConflict) {
+			setOutcome(response, "execution_run_fingerprint_conflict")
+			writeError(
+				response,
+				http.StatusConflict,
+				"execution_run_fingerprint_conflict",
+				"run_id is already bound to a different request fingerprint.",
+				false,
+			)
+			return
+		}
 		setOutcome(response, "execution_run_create_failed")
 		writeError(response, http.StatusBadRequest, "execution_run_create_failed", err.Error(), false)
 		return
 	}
-	queuedAt := time.Now().UTC()
-	queued, err := s.runProjectionStore.TransitionRun(
-		request.Context(),
-		created.RunID,
-		execution.DurableRunStatusQueued,
-		"",
-		queuedAt,
+	s.wakeTemporalReconciler()
+	setOutcome(response, "execution_run_committed")
+	writeJSON(response, http.StatusAccepted, durableRunResponse(result.Run))
+}
+
+func (s *Server) workflowInputForRun(
+	ctx context.Context,
+	run execution.DurableRun,
+	personalMemoryRecallAllowed bool,
+) (temporalruntime.ToolExecutionWorkflowInput, error) {
+	workflowID := "campus-agent.chat." + strings.TrimSpace(run.RunID)
+	inputMetadata, err := executionInputMetadata(run)
+	if err != nil {
+		return temporalruntime.ToolExecutionWorkflowInput{}, err
+	}
+	wire, err := s.loadExecutionInput(ctx, run)
+	if err != nil {
+		return temporalruntime.ToolExecutionWorkflowInput{}, err
+	}
+	groundingPlan, err := s.buildGroundingPlan(wire)
+	if err != nil {
+		return temporalruntime.ToolExecutionWorkflowInput{}, err
+	}
+	admissionSnapshot, err := s.buildAgentAdmissionSnapshot(
+		ctx,
+		personalMemoryRecallAllowed,
+		allowsUngroundedAnswer(wire.UserGoal),
+		groundingPlan,
 	)
 	if err != nil {
-		_ = s.runProjectionStore.DeleteRun(context.Background(), created.RunID)
-		setOutcome(response, "execution_run_queue_failed")
-		writeError(response, http.StatusInternalServerError, "execution_run_queue_failed", err.Error(), true)
-		return
+		return temporalruntime.ToolExecutionWorkflowInput{}, err
 	}
-	if err := s.appendExecutionRunStartEvents(request.Context(), created, queued, queuedAt); err != nil {
-		_ = s.runProjectionStore.DeleteRun(context.Background(), created.RunID)
-		setOutcome(response, "execution_run_event_failed")
-		writeError(response, http.StatusInternalServerError, "execution_run_event_failed", err.Error(), true)
-		return
-	}
-	workflowInput, err := s.workflowInputForQueuedRun(body, queued, visibleToolNames)
-	if err != nil {
-		_ = s.runProjectionStore.DeleteRun(context.Background(), queued.RunID)
-		setOutcome(response, "execution_workflow_input_invalid")
-		writeError(response, http.StatusBadRequest, "execution_workflow_input_invalid", err.Error(), false)
-		return
-	}
-	if err := s.temporalStarter.StartToolExecutionWorkflow(request.Context(), workflowInput); err != nil {
-		_ = s.runProjectionStore.DeleteRun(context.Background(), queued.RunID)
-		setOutcome(response, "temporal_workflow_start_failed")
-		writeError(
-			response,
-			http.StatusBadGateway,
-			"temporal_workflow_start_failed",
-			"Temporal workflow start failed.",
-			true,
-		)
-		return
-	}
-	setOutcome(response, "execution_run_started")
-	writeJSON(response, http.StatusAccepted, durableRunResponse(queued))
-}
-
-func (s *Server) appendExecutionRunStartEvents(
-	ctx context.Context,
-	created execution.DurableRun,
-	queued execution.DurableRun,
-	queuedAt time.Time,
-) error {
-	if _, err := s.runProjectionStore.AppendRunEvent(ctx, execution.DurableRunEvent{
-		EventID:              created.RunID + ":workflow-started",
-		RunID:                created.RunID,
-		ConversationID:       created.ConversationID,
-		EventType:            execution.DurableRunEventTypeWorkflowStarted,
-		OccurredAt:           created.CreatedAt,
-		Visibility:           execution.DurableRunEventVisibilityInternal,
-		PayloadSchemaVersion: "run-event-v1",
-		Payload:              map[string]any{"status": string(execution.DurableRunStatusCreated)},
-	}); err != nil {
-		return err
-	}
-	if _, err := s.runProjectionStore.AppendRunEvent(ctx, execution.DurableRunEvent{
-		EventID:              created.RunID + ":run-queued",
-		RunID:                queued.RunID,
-		ConversationID:       queued.ConversationID,
-		EventType:            execution.DurableRunEventTypeRunQueued,
-		OccurredAt:           queuedAt,
-		Visibility:           execution.DurableRunEventVisibilityInternal,
-		PayloadSchemaVersion: "run-event-v1",
-		Payload:              map[string]any{"status": string(execution.DurableRunStatusQueued)},
-	}); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *Server) workflowInputForQueuedRun(
-	rawBody json.RawMessage,
-	run execution.DurableRun,
-	visibleToolNames []string,
-) (temporalruntime.ToolExecutionWorkflowInput, error) {
-	payloadHash := sha256.Sum256(rawBody)
-	workflowID := "campus-agent.chat." + strings.TrimSpace(run.RunID)
+	admissionSHA256 := sha256JSONRef(admissionSnapshot)
 	return temporalruntime.ToolExecutionWorkflowInput{
-		ConversationID: run.ConversationID,
-		Namespace:      s.config.TemporalNamespace,
-		PayloadSHA256:  hex.EncodeToString(payloadHash[:]),
+		AdmissionSnapshot:       admissionSnapshot,
+		AdmissionSnapshotSHA256: admissionSHA256,
+		ConversationID:          run.ConversationID,
+		GroundingContextRef:     groundingContextRef(run.RunID),
+		Namespace:               s.config.TemporalNamespace,
+		PayloadSHA256:           inputMetadata.ExecutionInputSHA256,
 		PolicyVersions: map[string]string{
-			"knowledge_target_registry": "query-serving-targets-v1",
-			"tool_registry":             "tools.v5",
+			"document_scope_registry": "query-serving-targets-v3",
+			"tool_registry":           "tools.v6",
 		},
 		PersonalMemoryTimeoutSeconds: s.config.PersonalMemoryTimeoutSeconds,
 		RequestID:                    run.RequestID,
-		RequestedTool:                strings.TrimSpace(run.RequestedTool),
 		RunID:                        run.RunID,
 		TaskQueue:                    defaultString(strings.TrimSpace(s.config.TemporalTaskQueue), temporalruntime.WorkflowTaskQueue),
 		TraceID:                      run.TraceID,
+		TraceParent:                  telemetry.InjectExecutionTraceHeaders(ctx, run.RequestID, run.TraceID)["traceparent"],
 		TurnID:                       run.TurnID,
-		VisibleToolNames:             append([]string{}, visibleToolNames...),
 		WorkflowID:                   workflowID,
 	}, nil
 }
 
-func (s *Server) visibleToolNamesForRun(requestedTool string) ([]string, error) {
-	normalized := strings.TrimSpace(requestedTool)
-	switch normalized {
-	case "":
-		return runtimepolicy.ModelVisibleToolNames(), nil
-	case "knowledge_query":
-		return []string{"knowledge_query"}, nil
-	default:
-		if _, ok := runtimepolicy.ModelVisibleToolByName(normalized); ok {
-			return []string{normalized}, nil
-		}
-		return nil, fmt.Errorf("requested tool %s is not supported by the model-visible tool registry", normalized)
+func durableRunCreateFingerprint(run execution.DurableRun, personalMemoryRecallAllowed bool) (string, error) {
+	canonical := struct {
+		ConversationID              string         `json:"conversation_id"`
+		Metadata                    map[string]any `json:"metadata"`
+		OwnerUserID                 string         `json:"owner_user_id"`
+		PersonalMemoryRecallAllowed bool           `json:"personal_memory_recall_allowed"`
+		RequestID                   string         `json:"request_id"`
+		RunID                       string         `json:"run_id"`
+		RuntimeVersions             map[string]any `json:"runtime_versions"`
+		Surface                     string         `json:"surface"`
+		TraceID                     string         `json:"trace_id"`
+		TurnID                      string         `json:"turn_id"`
+	}{
+		ConversationID:              run.ConversationID,
+		Metadata:                    cloneAnyMapFromMetadata(run.Metadata),
+		OwnerUserID:                 run.OwnerUserID,
+		PersonalMemoryRecallAllowed: personalMemoryRecallAllowed,
+		RequestID:                   run.RequestID,
+		RunID:                       run.RunID,
+		RuntimeVersions:             cloneAnyMapFromMetadata(run.RuntimeVersions),
+		Surface:                     run.Surface,
+		TraceID:                     run.TraceID,
+		TurnID:                      run.TurnID,
 	}
+	encoded, err := json.Marshal(canonical)
+	if err != nil {
+		return "", fmt.Errorf("encode execution run fingerprint: %w", err)
+	}
+	digest := sha256.Sum256(encoded)
+	return hex.EncodeToString(digest[:]), nil
 }
 
 func (s *Server) handleExecutionRunCancel(
@@ -216,17 +221,6 @@ func (s *Server) handleExecutionRunCancel(
 			http.StatusServiceUnavailable,
 			"projection_store_not_configured",
 			"Execution projection store is not configured.",
-			true,
-		)
-		return
-	}
-	if s.temporalStarter == nil {
-		setOutcome(response, "temporal_runtime_not_configured")
-		writeError(
-			response,
-			http.StatusServiceUnavailable,
-			"temporal_runtime_not_configured",
-			"Temporal runtime is not configured.",
 			true,
 		)
 		return
@@ -253,88 +247,35 @@ func (s *Server) handleExecutionRunCancel(
 		writeError(response, http.StatusBadRequest, "invalid_request", "run_id is required.", false)
 		return
 	}
-	run, err := s.runProjectionStore.GetRun(request.Context(), runID)
+	// PostgreSQL timestamptz stores microsecond precision. Persist and reuse one
+	// canonical timestamp so retries produce the same product fingerprint.
+	canceledAt := time.Now().UTC().Truncate(time.Microsecond)
+	requested, err := s.runProjectionStore.RequestRunCancellation(
+		request.Context(),
+		execution.DurableRunCancellationRequest{
+			RunID:  runID,
+			Reason: reason,
+			Now:    canceledAt,
+		},
+	)
 	if err != nil {
 		if errors.Is(err, execution.ErrDurableRunNotFound) {
 			setOutcome(response, "execution_run_not_found")
 			writeError(response, http.StatusNotFound, "execution_run_not_found", "Execution run not found.", false)
 			return
 		}
-		setOutcome(response, "execution_run_query_failed")
-		writeError(response, http.StatusInternalServerError, "execution_run_query_failed", err.Error(), true)
+		if errors.Is(err, execution.ErrDurableRunTerminalConflict) {
+			setOutcome(response, "execution_run_cancel_conflict")
+			writeError(response, http.StatusConflict, "execution_run_cancel_conflict", err.Error(), false)
+			return
+		}
+		setOutcome(response, "execution_run_cancel_request_failed")
+		writeError(response, http.StatusInternalServerError, "execution_run_cancel_request_failed", err.Error(), true)
 		return
 	}
-	if err := s.temporalStarter.CancelToolExecutionWorkflow(
-		request.Context(),
-		temporalruntime.ToolExecutionWorkflowCancelInput{
-			Reason:     reason,
-			RunID:      run.RunID,
-			WorkflowID: "campus-agent.chat." + run.RunID,
-		},
-	); err != nil {
-		setOutcome(response, "temporal_workflow_cancel_failed")
-		writeError(
-			response,
-			http.StatusBadGateway,
-			"temporal_workflow_cancel_failed",
-			"Temporal workflow cancel failed.",
-			true,
-		)
-		return
-	}
-	canceledAt := time.Now().UTC()
-	writeProductFinalization := s.productFinalizationWriter
-	if writeProductFinalization == nil {
-		writeProductFinalization = s.writeChatProductFinalization
-	}
-	if err := writeProductFinalization(
-		request.Context(),
-		run,
-		canceledAt,
-		productTerminalErrorResponse(
-			run,
-			"cancelled",
-			"execution_cancelled",
-			"Execution was cancelled before completion.",
-			false,
-		),
-	); err != nil {
-		setOutcome(response, "product_finalization_callback_failed")
-		writeError(
-			response,
-			http.StatusBadGateway,
-			"product_finalization_callback_failed",
-			"Product finalization callback failed.",
-			true,
-		)
-		return
-	}
-	canceled, err := s.runProjectionStore.CancelRunProjection(
-		request.Context(),
-		execution.DurableRunCancelRequest{
-			RunID:  run.RunID,
-			Reason: reason,
-			Now:    canceledAt,
-		},
-	)
-	if err != nil {
-		setOutcome(response, "execution_run_cancel_failed")
-		writeError(response, http.StatusConflict, "execution_run_cancel_failed", err.Error(), false)
-		return
-	}
-	if err := s.projectCanceledRunSteps(request.Context(), canceled, reason, canceledAt); err != nil {
-		setOutcome(response, "execution_run_cancel_step_projection_failed")
-		writeError(
-			response,
-			http.StatusInternalServerError,
-			"execution_run_cancel_step_projection_failed",
-			err.Error(),
-			true,
-		)
-		return
-	}
-	setOutcome(response, "execution_run_canceled")
-	writeJSON(response, http.StatusAccepted, durableRunResponse(canceled))
+	s.wakeTemporalReconciler()
+	setOutcome(response, "execution_run_cancel_requested")
+	writeJSON(response, http.StatusAccepted, durableRunResponse(requested))
 }
 
 func (s *Server) projectCanceledRunSteps(

@@ -23,8 +23,8 @@ main 中已验证的源码
 -> production 选择
 ```
 
-源码仓负责构建、测试、扫描并发布带完整源码身份的候选物。环境仓负责选择镜像、Worker version、
-Cloudflare version、配置和其他环境资源。候选物发布成功不表示环境已经部署。
+源码仓负责构建、测试、扫描并发布带完整源码身份的候选物。环境仓负责选择镜像、Cloudflare
+Worker version、配置和其他环境资源。候选物发布成功不表示环境已经部署。
 
 ## 候选物发布
 
@@ -39,12 +39,12 @@ Cloudflare version、配置和其他环境资源。候选物发布成功不表�
    Application，再更新唯一 `deploy/staging` PR。环境仓 PR 负责渲染、schema 与策略检查；确认只含
    机器版本字段后由受信任 GitHub App 自动 squash merge。
 
-发布基线来自环境仓 `releases/staging.json`，不是 workflow 触发事件的前一个提交。镜像和 Worker
+发布基线来自环境仓 `releases/staging.json`，不是 workflow 触发事件的前一个提交。镜像和 Cloudflare Worker
 影响面由 Turbo package graph 与 package 外部 task input 计算，Kubernetes 由 `infra/k8s` 所有者范围
-计算。当前自动候选只包含 `agent-runtime`、`app-api-schema`、
-`execution-control`、`ops-web`、App API Worker 与 Kubernetes source。
-`docker-bake.hcl` 仍声明其他可手动构建的镜像，但未部署或已暂停的 ingestion、Dining 和 docs
-镜像不因普通 `main` 变更自动发布或推广。
+计算。当前自动候选包含 `agent-runtime`、`app-api-schema`、`execution-control`、
+`ingestion-control`、`ingestion-control-worker`、`source-collector`、`ops-web`、App API Worker 与
+Kubernetes source。`docker-bake.hcl` 中未进入候选映射的 Dining 和 docs 镜像只按明确发布需求手动
+构建。
 
 发布 workflow、路径配置、Bake 文件或发布适配器本身的变化只运行静态检查、适配器测试和 Bake
 解析，不自动重建所有运行时镜像。需要让这些治理变化重新产生全部活跃候选时，合入后手动运行
@@ -62,7 +62,7 @@ Campus Web 的 staging 候选发布当前冻结，环境继续选择已有 Worke
 
 ## 环境交接
 
-常规 staging 版本 PR 只允许修改 Source ref、镜像 digest、Worker version、发布标识、Application
+常规 staging 版本 PR 只允许修改 Source ref、镜像 digest、Cloudflare Worker version、发布标识、Application
 Source SHA 注解和 staging 游标；这些字段由环境仓策略检查并自动合并。以下变化必须使用普通短期分支
 并由人员审查：Secret、权限、资源、网络、Terraform、workflow、Application 拓扑和 production。
 

@@ -20,39 +20,40 @@ func TestToolRegistryKeepsUnregisteredToolsOutOfModelVisibleSet(t *testing.T) {
 	}
 }
 
-func TestQueryServingTargetsExposePublishedTargets(t *testing.T) {
-	targets, err := QueryServingTargets("")
+func TestQueryServingScopesExposePublishedScopes(t *testing.T) {
+	targets, err := QueryServingScopes("")
 	if err != nil {
 		t.Fatalf("query serving targets: %v", err)
 	}
-	got := map[string]QueryTarget{}
+	got := map[string]DocumentScope{}
 	for _, target := range targets {
-		got[target.Target] = target
+		got[target.Scope] = target
 	}
 	for _, targetID := range []string{"curriculum", "student_rules", "institutional_rules"} {
-		if got[targetID].Target == "" || got[targetID].Description == "" {
+		if got[targetID].Scope == "" || got[targetID].Description == "" {
 			t.Fatalf("query target %s missing: %#v", targetID, got)
 		}
 	}
-	curriculum, err := ResolveQueryTarget("curriculum", "")
+	curriculum, err := ResolveDocumentScope("curriculum", "")
 	if err != nil {
 		t.Fatalf("resolve curriculum target: %v", err)
 	}
 	if curriculum.ServingConfigPath != "curriculum/curriculum_plan/serving-config.json" ||
-		curriculum.Collection != "curriculum_plan" || curriculum.RetrievalTopK != 8 {
+		curriculum.Collection != "curriculum_plan" || curriculum.CandidateTopK != 8 ||
+		curriculum.MaxEvidenceSections != 6 {
 		t.Fatalf("curriculum target = %#v", curriculum)
 	}
 }
 
-func TestQueryServingTargetsRejectClosedTargets(t *testing.T) {
+func TestQueryServingScopesRejectClosedScopes(t *testing.T) {
 	for _, target := range []string{"official_web", "campus_services"} {
-		if _, err := ResolveQueryTarget(target, ""); err == nil {
+		if _, err := ResolveDocumentScope(target, ""); err == nil {
 			t.Fatalf("target %s must remain closed", target)
 		}
 	}
 }
 
-func TestQueryServingTargetsFailWhenDefaultRegistryIsMissing(t *testing.T) {
+func TestQueryServingScopesFailWhenDefaultRegistryIsMissing(t *testing.T) {
 	originalWorkingDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("getwd: %v", err)
@@ -65,12 +66,12 @@ func TestQueryServingTargetsFailWhenDefaultRegistryIsMissing(t *testing.T) {
 	if err := os.Chdir(t.TempDir()); err != nil {
 		t.Fatalf("chdir temp dir: %v", err)
 	}
-	if _, err := QueryServingTargets(""); err == nil {
+	if _, err := QueryServingScopes(""); err == nil {
 		t.Fatal("expected missing query-serving target registry to fail")
 	}
 }
 
-func TestQueryServingTargetsRejectInvalidSchemaVersion(t *testing.T) {
+func TestQueryServingScopesRejectInvalidSchemaVersion(t *testing.T) {
 	path := writeTargetRegistry(t, `{
 		"schema_version":"unsupported-query-serving-targets",
 			"targets":[{
@@ -81,38 +82,41 @@ func TestQueryServingTargetsRejectInvalidSchemaVersion(t *testing.T) {
 			"retrieval_top_k":8
 		}]
 	}`)
-	_, err := QueryServingTargets(path)
+	_, err := QueryServingScopes(path)
 	if err == nil || !strings.Contains(err.Error(), "schema_version") {
 		t.Fatalf("error = %v, want schema_version failure", err)
 	}
 }
 
-func TestQueryServingTargetsRejectDuplicateTargets(t *testing.T) {
+func TestQueryServingScopesRejectDuplicateScopes(t *testing.T) {
 	path := writeTargetRegistry(t, `{
-		"schema_version":"query-serving-targets-v1",
-		"targets":[
-				{"target":"student_rules","collection":"student_rules","description":"A","serving_config_path":"regulations/student_rules/serving-config.json","retrieval_top_k":8},
-				{"target":"student_rules","collection":"institutional_rules","description":"B","serving_config_path":"regulations/institutional_rules/serving-config.json","retrieval_top_k":8}
-		]
-	}`)
-	_, err := QueryServingTargets(path)
+			"schema_version":"query-serving-targets-v3",
+			"scopes":[
+					{"scope":"student_rules","corpus":"regulations","collection":"student_rules","description":"A","routing_terms":["请假"],"serving_config_path":"regulations/student_rules/serving-config.json","candidate_top_k":8,"max_evidence_sections":6},
+					{"scope":"student_rules","corpus":"regulations","collection":"institutional_rules","description":"B","routing_terms":["制度"],"serving_config_path":"regulations/institutional_rules/serving-config.json","candidate_top_k":8,"max_evidence_sections":6}
+			]
+		}`)
+	_, err := QueryServingScopes(path)
 	if err == nil || !strings.Contains(err.Error(), "duplicates target") {
 		t.Fatalf("error = %v, want duplicate target failure", err)
 	}
 }
 
-func TestQueryServingTargetsRejectInvalidServingConfigPath(t *testing.T) {
+func TestQueryServingScopesRejectInvalidServingConfigPath(t *testing.T) {
 	path := writeTargetRegistry(t, `{
-		"schema_version":"query-serving-targets-v1",
-			"targets":[{
-				"target":"student_rules",
-				"collection":"student_rules",
-				"description":"学生规则",
-			"serving_config_path":"../student_rules/serving-config.json",
-			"retrieval_top_k":8
-		}]
-	}`)
-	_, err := QueryServingTargets(path)
+			"schema_version":"query-serving-targets-v3",
+				"scopes":[{
+					"scope":"student_rules",
+					"corpus":"regulations",
+					"collection":"student_rules",
+					"description":"学生规则",
+				"routing_terms":["请假"],
+				"serving_config_path":"../student_rules/serving-config.json",
+				"candidate_top_k":8,
+				"max_evidence_sections":6
+			}]
+		}`)
+	_, err := QueryServingScopes(path)
 	if err == nil || !strings.Contains(err.Error(), "serving_config_path") {
 		t.Fatalf("error = %v, want serving_config_path failure", err)
 	}
@@ -120,7 +124,7 @@ func TestQueryServingTargetsRejectInvalidServingConfigPath(t *testing.T) {
 
 func writeTargetRegistry(t *testing.T, value string) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "query-serving-targets.v1.json")
+	path := filepath.Join(t.TempDir(), "query-serving-targets.v3.json")
 	if err := os.WriteFile(path, []byte(value), 0o600); err != nil {
 		t.Fatalf("write target registry: %v", err)
 	}

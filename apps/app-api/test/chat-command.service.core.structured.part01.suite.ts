@@ -24,6 +24,12 @@ export function registerChatCommandServiceCoreStructuredPart01Suite(): void {
 					answerText: "第四学期有合同法、人格权法、侵权责任法。\n\n课程以培养方案原文为准。",
 					error: null,
 					followUpQuestion: "",
+					modelUsage: {
+						cachedInputTokens: 10,
+						inputTokens: 120,
+						outputTokens: 42,
+						totalTokens: 162,
+					},
 					result: {
 						sources: [
 							{
@@ -35,8 +41,6 @@ export function registerChatCommandServiceCoreStructuredPart01Suite(): void {
 							},
 						],
 					},
-					resolvedTargets: ["student_rules"],
-					selectedTool: "knowledge_query",
 					status: "completed",
 					traceId: "trace_0001",
 				}),

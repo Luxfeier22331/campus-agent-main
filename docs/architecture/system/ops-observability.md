@@ -36,8 +36,7 @@ flowchart LR
   Axiom[Axiom]
   Sentry[Sentry]
   Langfuse[Langfuse environment project]
-  CollectorAgent[Collector Agent]
-  Gateway[Collector Gateway]
+  Collector[OpenTelemetry Collector]
   Runtime[Kubernetes workloads]
   AgentRuntime[agent-runtime]
   Hindsight[Hindsight]
@@ -54,12 +53,11 @@ flowchart LR
   Ops -. 受控入口 .-> TemporalUI
 
   Control --> Temporal
-  CollectorAgent -->|容器日志与 kubelet 指标| Gateway
-  Runtime -->|通用或编排 OTLP| Gateway
-  AgentRuntime -->|受信任 trace| Gateway
-  Hindsight -->|受信任 trace| Gateway
-  Gateway -->|清理后的 log/trace/metric| Axiom
-  Gateway -->|Agent、编排与 Hindsight trace| Langfuse
+  Runtime -->|容器日志、指标与通用 OTLP| Collector
+  AgentRuntime -->|受信任 trace| Collector
+  Hindsight -->|受信任 trace| Collector
+  Collector -->|清理后的 log/trace/metric| Axiom
+  Collector -->|Agent、编排与 Hindsight trace| Langfuse
 ```
 
 该图描述源码职责，不证明任一环境已经部署或收到可查询数据。
@@ -72,8 +70,7 @@ flowchart LR
 | Ops Web 服务端 | 人员身份校验、固定查询、外部入口和受控管理调用 | 通用代理、产品执行或任意工作流控制 |
 | 产品与执行投影 | 请求、运行和有界结果摘要 | 原始日志、模型 trace 或 Temporal history |
 | Temporal | workflow history、任务队列、重试、timer 和取消 | 产品请求摘要或日志存储 |
-| Collector Agent | 第一方容器日志和 kubelet 指标采集、Kubernetes 元数据补充 | 长期存储或采集 Collector/Hindsight stdout |
-| Collector Gateway | 固定入口、字段清理、路由、采样、批处理、内存队列和有界下游重试 | 决定产品请求状态或查询历史数据 |
+| OpenTelemetry Collector | 在同一 DaemonSet 中采集第一方容器日志和 kubelet 指标，并负责固定入口、字段清理、路由、批处理和有界下游重试 | 长期存储、采集自身或 Hindsight stdout、决定产品请求状态 |
 | Axiom | 清理后的日志、调用链和指标 | 模型正文、产品状态或工作流执行状态 |
 | Sentry | 浏览器和边缘错误、性能摘要、release 与 Issue | 通用日志存储或模型 trace |
 | Langfuse environment project | Agent、模型、工具、受控编排、记忆 trace、数据集、评分和人工评审 | 产品状态或 Temporal history |
@@ -168,7 +165,7 @@ OpenTelemetry Collector 接收 Kubernetes 通用信号和受信任运行 trace�
 采样、批处理与下游路由。Cloudflare Worker 和浏览器使用各自支持的日志或 Sentry 集成；这些
 例外不能变成绕过字段治理的通用出口。
 
-Gateway 使用四个固定 OTLP/HTTP receiver：`4318` 接收通用信号，`4319` 接收 execution-control
+Collector 使用四个固定 OTLP/HTTP receiver：`4318` 接收通用信号，`4319` 接收 execution-control
 编排信号，`4320` 接收 Agent 受信任 trace，`4321` 接收 Hindsight 受信任 trace。入口由精确
 NetworkPolicy 隔离，不使用集群内 bearer token。Axiom 的 log、trace 和 metric 共用一个 ingest
 token、使用不同 dataset；所有 exporter 使用内存发送队列和最长 300 秒重试，不依赖持久队列。
@@ -195,7 +192,7 @@ Ops Web 使用服务端固定、最小权限的 Axiom 和 Sentry 读取能力。
 ## 部署边界
 
 源码仓拥有 Ops Web 代码、镜像、namespace-neutral Kubernetes base、遥测字段策略和本地 Collector
-配置。环境仓拥有 staging Collector Helm values、地址、Secret、网络目标、Ingress、保留策略和
+配置。环境仓拥有 staging Collector DaemonSet 的 Helm values、地址、Secret、网络目标、Ingress、保留策略和
 不可变版本选择。源码文件、manifest 或 Secret 键存在不表示某个环境已经部署成功。
 
 网络出站按 workload 的实际依赖由 Kubernetes 配置声明；环境特定地址和供应商解析结果不得写入

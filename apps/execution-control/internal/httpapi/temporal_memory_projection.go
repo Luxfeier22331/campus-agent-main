@@ -5,31 +5,21 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
-	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
 func memoryRecallRequestForRun(
 	run execution.DurableRun,
-	requestedTool string,
+	payload map[string]any,
 ) (memoryruntime.RecallRequest, error) {
-	payload, ok := run.Metadata["execution_payload"].(map[string]any)
-	if !ok {
-		return memoryruntime.RecallRequest{}, errors.New("run metadata.execution_payload must be an object")
+	if payload == nil {
+		return memoryruntime.RecallRequest{}, errors.New("execution input is required")
 	}
 	userGoal := strings.TrimSpace(optionalStringFromAny(payload["user_goal"]))
 	if userGoal == "" {
 		return memoryruntime.RecallRequest{}, errors.New("memory recall user_goal is required")
-	}
-	tool := strings.TrimSpace(requestedTool)
-	if tool == "" {
-		tool = firstNonEmptyText(payload["requested_tool"], run.RequestedTool)
-	}
-	if tool == "" {
-		tool = "any"
 	}
 	userID := firstNonEmptyText(
 		nestedAny(payload, "actor", "user_id"),
@@ -47,7 +37,6 @@ func memoryRecallRequestForRun(
 		OwnerGeneration: ownerGeneration,
 		OwnerSequence:   ownerSequence,
 		QueryTimestamp:  queryTimestamp,
-		RequestedTool:   tool,
 		RunID:           run.RunID,
 		SessionSlots:    memorySessionSlotsFromPayload(payload),
 		TenantID:        firstNonEmptyText(payload["tenant_id"], nestedAny(payload, "context", "tenant_id")),
@@ -90,18 +79,6 @@ func exactInt64(value any) (int64, bool) {
 	}
 }
 
-func memoryRecallToolForRun(run execution.DurableRun, requestedTool string) string {
-	payload, _ := run.Metadata["execution_payload"].(map[string]any)
-	tool := strings.TrimSpace(requestedTool)
-	if tool == "" {
-		tool = firstNonEmptyText(payload["requested_tool"], run.RequestedTool)
-	}
-	if tool == "" {
-		tool = "any"
-	}
-	return tool
-}
-
 func memorySessionSlotsFromPayload(payload map[string]any) map[string]string {
 	rawSlots := nestedAny(payload, "context", "session", "confirmed_slots")
 	items, ok := rawSlots.([]any)
@@ -139,67 +116,10 @@ func (s *Server) recallPersonalMemory(
 	return s.personalMemoryExecutor.Recall(ctx, request)
 }
 
-func (s *Server) replaceTemporalMemoryMetadata(
-	ctx context.Context,
-	run execution.DurableRun,
-	mutate func(map[string]any),
-) error {
-	latest, err := s.runProjectionStore.GetRun(ctx, run.RunID)
-	if err != nil {
-		return err
-	}
-	metadata := cloneTemporalMetadata(latest.Metadata)
-	memoryMetadata := cloneAnyMapFromMetadata(metadata["temporal_memory"])
-	mutate(memoryMetadata)
-	metadata["temporal_memory"] = memoryMetadata
-	return s.runProjectionStore.ReplaceRunMetadata(ctx, latest.RunID, metadata)
-}
-
-func (s *Server) failMemoryRecallActivity(
-	ctx context.Context,
-	run execution.DurableRun,
-	failureKind string,
-	cause error,
-) (temporalruntime.MemoryRecallActivityOutput, error) {
-	summary := summarizeTemporalFailure(failureKind, "", cause)
-	now := time.Now().UTC()
-	if err := s.projectTemporalStep(ctx, temporalStepProjection{
-		Attempt:       temporalActivityAttempt(ctx),
-		Tool:          "memory",
-		Run:           run,
-		Status:        "failed",
-		StepID:        "memory.recall",
-		StepKind:      "memory",
-		TaskQueue:     temporalruntime.ActivityTaskQueueCore,
-		WorkerID:      s.config.TemporalWorkerIdentity,
-		StartedAt:     now,
-		CompletedAt:   now,
-		UpdatedAt:     now,
-		ResultKind:    "activity_failure",
-		ProjectionRef: temporalProjectionRef(run.RunID, "memory/recall"),
-		Payload: map[string]any{
-			"failure_hash": summary.Hash,
-			"failure_kind": summary.Kind,
-			"message":      summary.Message,
-		},
-	}); err != nil {
-		return temporalruntime.MemoryRecallActivityOutput{}, sanitizedTemporalApplicationError(
-			"activity_projection_failed",
-			err,
-			false,
-		)
-	}
-	return temporalruntime.MemoryRecallActivityOutput{}, temporalApplicationError(
-		summary,
-		memoryFailureKindIsNonRetryable(summary.Kind),
-	)
-}
-
 func memoryFailureKindIsNonRetryable(failureKind string) bool {
 	switch strings.TrimSpace(failureKind) {
 	case "memory_append_request_invalid",
 		"memory_projection_invalid",
-		"memory_recall_request_invalid",
 		"personal_memory_not_configured":
 		return true
 	default:

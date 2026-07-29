@@ -21,7 +21,7 @@ func TestExecutePrimaryAgentActivityFailsClosedWhenDirectAnswerMissingTerminalEn
 		"run-primary-agent-missing-envelope",
 		"conv-primary-agent-missing-envelope",
 		now,
-		ragHandoffForDurableWorkerTest("hi 你是谁"),
+		agentRequestForDurableWorkerTest("hi 你是谁"),
 	)
 	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
@@ -29,7 +29,6 @@ func TestExecutePrimaryAgentActivityFailsClosedWhenDirectAnswerMissingTerminalEn
 			"run_id":               "run-primary-agent-missing-envelope",
 			"final_output":         "你好，我是校园问答助手。",
 			"provider_response_id": "resp-primary-agent-missing-envelope",
-			"selected_tools":       []string{},
 			"tool_results":         []any{},
 			"terminal_reason":      "answer_completed",
 			"usage": map[string]any{
@@ -51,14 +50,15 @@ func TestExecutePrimaryAgentActivityFailsClosedWhenDirectAnswerMissingTerminalEn
 	attachPrimaryAgentProviderConfigForTest(server)
 	attachRunProjectionStoreForHandlerTest(server, store)
 
-	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
+	input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
 		ConversationID:   "conv-primary-agent-missing-envelope",
 		RequestID:        "req-primary-agent-missing-envelope",
 		RunID:            "run-primary-agent-missing-envelope",
 		TraceID:          "trace-executor-001",
 		TurnID:           "turn-primary-agent-missing-envelope",
-		VisibleToolNames: []string{"transport_schedule_lookup"},
+		VisibleToolNames: []string{},
 	})
+	_, err := server.ExecutePrimaryAgentActivity(context.Background(), input)
 	if err == nil {
 		t.Fatal("expected direct primary agent answer without terminal envelope to fail")
 	}
@@ -109,7 +109,6 @@ func TestWriteFinalizationActivityKeepsDirectPrimaryAgentToolNullableWithAgentPr
 			"final_output":         "legacy string that must not be consumed",
 			"terminal_envelope":    map[string]any{"kind": "answer", "answer_text": "你好，我是校园问答助手。"},
 			"provider_response_id": "resp-primary-agent-direct-finalization",
-			"selected_tools":       []string{},
 			"status":               "completed",
 			"tool_results":         []map[string]any{},
 			"terminal_reason":      "answer_completed",
@@ -133,36 +132,23 @@ func TestWriteFinalizationActivityKeepsDirectPrimaryAgentToolNullableWithAgentPr
 		t.Fatalf("list events: %v", err)
 	}
 	finalizationResponse := expectInternalFinalizationResponseForTest(t, events)
-	if finalizationResponse["selected_tool"] != nil {
-		t.Fatalf("selected_tool = %#v, want nil for direct no-tool branch", finalizationResponse["selected_tool"])
+	if _, exists := finalizationResponse["selected_tool"]; exists {
+		t.Fatalf("direct product response must not expose selected_tool: %#v", finalizationResponse)
 	}
 	if finalizationResponse["answer_text"] != "你好，我是校园问答助手。" {
 		t.Fatalf("answer_text = %#v", finalizationResponse["answer_text"])
 	}
 	workflowTrace := finalizationResponse["workflow_trace_summary"].(map[string]any)
-	if workflowTrace["selected_tool"] != "none" ||
-		workflowTrace["workflow_mode"] != "terminal" ||
-		workflowTrace["first_decision_actor"] != "primary_agent" ||
-		workflowTrace["direct_vs_delegate_branch"] != "direct_answer" {
+	if workflowTrace["execution_path"] != "direct" ||
+		workflowTrace["terminal_reason"] != "answer" {
 		t.Fatalf("workflow trace = %#v", workflowTrace)
 	}
-	traceSteps := expectRecordList(t, workflowTrace["trace_steps"], "trace_steps")
-	if len(traceSteps) != 2 {
-		t.Fatalf("trace_steps = %#v, want agent.primary and finalization.write", workflowTrace["trace_steps"])
-	}
-	if traceSteps[0]["step_id"] != "agent.primary" ||
-		traceSteps[0]["span_kind"] != "agent" ||
-		traceSteps[0]["parent_step_id"] != "" {
-		t.Fatalf("agent.primary trace step = %#v", traceSteps[0])
-	}
-	if traceSteps[1]["step_id"] != "finalization.write" ||
-		traceSteps[1]["span_kind"] != "finalization" ||
-		traceSteps[1]["parent_step_id"] != "agent.primary" {
-		t.Fatalf("finalization.write trace step = %#v", traceSteps[1])
+	if _, exists := workflowTrace["trace_steps"]; exists {
+		t.Fatalf("product workflow trace must not expose internal steps: %#v", workflowTrace)
 	}
 }
 
-func TestWriteFinalizationActivityProjectsPrimaryAgentToolCallTrace(t *testing.T) {
+func TestWriteFinalizationActivityKeepsToolCallTraceInternal(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	now := time.Date(2026, 6, 12, 12, 10, 0, 0, time.UTC)
 	createHTTPAPIQueuedDurableRunForTest(
@@ -188,7 +174,6 @@ func TestWriteFinalizationActivityProjectsPrimaryAgentToolCallTrace(t *testing.T
 		map[string]any{
 			"agent_result_ref":     agentResultRef,
 			"provider_response_id": "resp-primary-agent-tool-finalization",
-			"selected_tools":       []string{"transport_schedule_lookup"},
 			"status":               "completed",
 			"terminal_envelope": map[string]any{
 				"kind":        "answer",
@@ -227,44 +212,18 @@ func TestWriteFinalizationActivityProjectsPrimaryAgentToolCallTrace(t *testing.T
 		t.Fatalf("list events: %v", err)
 	}
 	finalizationResponse := expectInternalFinalizationResponseForTest(t, events)
-	if finalizationResponse["selected_tool"] != "transport_schedule_lookup" {
-		t.Fatalf("selected_tool = %#v, want transport_schedule_lookup", finalizationResponse["selected_tool"])
+	if _, exists := finalizationResponse["selected_tool"]; exists {
+		t.Fatalf("product response must not expose selected_tool: %#v", finalizationResponse)
 	}
 	workflowTrace := finalizationResponse["workflow_trace_summary"].(map[string]any)
-	if workflowTrace["selected_tool"] != "transport_schedule_lookup" ||
-		workflowTrace["workflow_mode"] != "single_step" ||
-		workflowTrace["first_decision_actor"] != "primary_agent" ||
-		workflowTrace["direct_vs_delegate_branch"] != "tool" {
+	if workflowTrace["execution_path"] != "tool_assisted" ||
+		workflowTrace["terminal_reason"] != "answer" {
 		t.Fatalf("workflow trace = %#v", workflowTrace)
 	}
-	toolCalls := expectRecordList(t, workflowTrace["tool_call_summaries"], "tool_call_summaries")
-	if len(toolCalls) != 1 {
-		t.Fatalf("tool_call_summaries = %#v, want one bounded tool summary", workflowTrace["tool_call_summaries"])
-	}
-	toolCall := toolCalls[0]
-	if toolCall["tool_name"] != "transport_schedule_lookup" ||
-		toolCall["tool"] != "transport_schedule_lookup" ||
-		toolCall["payload_kind"] != "transport_schedule_lookup" ||
-		toolCall["result_status"] != "temporarily_unverifiable" ||
-		toolCall["fail_close_reason"] != "source_truth_unavailable" ||
-		toolCall["result_projection"] != "bounded_summary" ||
-		toolCall["raw_result_included"] != false {
-		t.Fatalf("tool call summary = %#v, want bounded transport schedule failure summary", toolCall)
-	}
-	if _, exists := toolCall["result"]; exists {
-		t.Fatalf("tool call summary leaked raw result: %#v", toolCall)
-	}
-	traceSteps := expectRecordList(t, workflowTrace["trace_steps"], "trace_steps")
-	if len(traceSteps) != 3 {
-		t.Fatalf("trace_steps = %#v, want agent/tool/finalization steps", workflowTrace["trace_steps"])
-	}
-	retryCount, ok := numericValue(traceSteps[1]["retry_count"])
-	if !ok ||
-		traceSteps[1]["span_kind"] != "tool_call" ||
-		traceSteps[1]["parent_step_id"] != "agent.primary" ||
-		traceSteps[1]["result_status"] != "temporarily_unverifiable" ||
-		retryCount != 0 {
-		t.Fatalf("tool trace step = %#v, want bounded tool_call timeline fields", traceSteps[1])
+	for _, field := range []string{"tool_call_summaries", "trace_steps", "selected_tool"} {
+		if _, exists := workflowTrace[field]; exists {
+			t.Fatalf("product workflow trace must not expose %s: %#v", field, workflowTrace)
+		}
 	}
 }
 
@@ -277,7 +236,7 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentOutOfScopeAsRejected(t *t
 		"run-primary-agent-out-of-scope",
 		"conv-primary-agent-out-of-scope",
 		now,
-		ragHandoffForDurableWorkerTest("帮我订一张机票"),
+		agentRequestForDurableWorkerTest("帮我订一张机票"),
 	)
 	server := NewServer(config.Config{TemporalWorkerIdentity: "test:finalization:002"})
 	attachRunProjectionStoreForHandlerTest(server, store)
@@ -293,7 +252,6 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentOutOfScopeAsRejected(t *t
 			"final_output":         "这个请求不属于校园问答助手当前可处理的范围。",
 			"terminal_envelope":    map[string]any{"kind": "out_of_scope", "reason": "这个请求不属于校园问答助手当前可处理的范围。"},
 			"provider_response_id": "resp-primary-agent-out-of-scope",
-			"selected_tools":       []string{},
 			"status":               "completed",
 			"tool_results":         []map[string]any{},
 			"terminal_reason":      "out_of_scope",
@@ -340,7 +298,8 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentOutOfScopeAsRejected(t *t
 		t.Fatalf("error = %#v", errorBody)
 	}
 	traceSummary, ok := finalizationResponse["workflow_trace_summary"].(map[string]any)
-	if !ok || traceSummary["direct_vs_delegate_branch"] != "out_of_scope" {
+	if !ok || traceSummary["execution_path"] != "rejected" ||
+		traceSummary["terminal_reason"] != "out_of_scope" {
 		t.Fatalf("workflow trace summary = %#v", finalizationResponse["workflow_trace_summary"])
 	}
 	steps, err := store.ListRunSteps(context.Background(), "run-primary-agent-out-of-scope")

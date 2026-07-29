@@ -32,7 +32,7 @@ status: active
   "sampledAt": "2026-07-12T12:00:00Z",
   "queues": [
     {
-      "name": "campus-agent.activity.agent",
+      "name": "campus-agent.activity.agent.v3",
       "type": "activity",
       "backlogCount": 3,
       "oldestTaskAgeSeconds": 2.5,
@@ -42,7 +42,9 @@ status: active
 }
 ```
 
-查询当前配置的 workflow queue，以及固定的 core activity 和 agent activity queue。来源不支持
+在线回答 v3 的固定队列是 `campus-agent.workflow.v3`、`campus-agent.activity.core.v3` 和
+`campus-agent.activity.agent.v3`；示例中的 queue name 必须与当前合同一致。查询当前配置的
+workflow queue，以及固定的 core activity 和 agent activity queue。来源不支持
 backlog 或最久等待时间时，相应字段为 `null`，不能伪造为零；`pollerCount` 始终为非负整数。
 
 ## 错误
@@ -54,7 +56,8 @@ backlog 或最久等待时间时，相应字段为 `null`，不能伪造为零�
 execution-control 每次请求实时查询，不写 PostgreSQL，也不返回旧数据。Ops Web 的查询超时、
 进程内缓存和旧数据展示由 [ops-web/runtime.md](./ops-web/runtime.md) 定义。
 
-## 扩缩容边界
+## 容量边界
 
-该接口只服务人工诊断。KEDA Temporal scaler 直接读取 Temporal 并控制 Worker Controller 生成的
-Deployment；本接口不参与副本决策，也不调用 Kubernetes API。
+该接口只服务人工诊断。execution-control 和 ingestion worker 使用环境仓声明的标准 Kubernetes
+Deployment 与固定副本数；本接口不参与副本决策，也不调用 Kubernetes API。操作者可以结合 backlog
+和 poller 数调整所属 Deployment，但应用不会据此自动扩缩。

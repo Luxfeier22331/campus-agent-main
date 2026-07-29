@@ -16,11 +16,13 @@ export interface CandidateSourceRow {
 	feedbackUpdatedAt: string | null;
 	status: string;
 	errorCode: string | null;
-	selectedTool: string | null;
-	requestedTool: string | null;
 	failClosed: boolean | null;
 	modelProvider: string | null;
 	modelName: string | null;
+	inputTokens: number;
+	cachedInputTokens: number;
+	outputTokens: number;
+	totalTokens: number;
 	durationMs: number | null;
 	stageTiming?: Record<string, unknown> | null;
 	traceAvailable: boolean;

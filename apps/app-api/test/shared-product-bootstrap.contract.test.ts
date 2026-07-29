@@ -67,7 +67,7 @@ describe("app-api shared product bootstrap contracts", () => {
 
 	it("keeps the current schema snapshot free of retired routing state", () => {
 		const chatSchema = readAppFile("db/shared-product-schema/chat_current.sql");
-		const snapshot = readAppFile("drizzle/meta/0001_snapshot.json");
+		const snapshot = readAppFile("drizzle/meta/0007_snapshot.json");
 
 		for (const retiredField of [
 			"intent_classifier_version",
@@ -78,11 +78,13 @@ describe("app-api shared product bootstrap contracts", () => {
 			"version_query_json",
 			"answer_eval_fingerprint_json",
 			"llm_io_fingerprint_json",
+			"requested_tool",
+			"resolved_targets_json",
+			"selected_tool",
 		]) {
 			expect(snapshot).not.toContain(retiredField);
 			expect(chatSchema).not.toContain(retiredField);
 		}
-		expect(chatSchema).toContain('"resolved_targets_json" jsonb');
 	});
 
 	it("keeps retired replay and observability configuration out of the initial schema", () => {
@@ -133,35 +135,26 @@ describe("app-api shared product bootstrap contracts", () => {
 		);
 	});
 
-	it("keeps APP_API_DB_FRESH limited to explicit read-after-write paths", () => {
+	it("uses one request-scoped database binding across product stores", () => {
 		const requestScopeSource = readAppFile("src/app/request-scope.ts");
-		const freshDbReferences = requestScopeSource.match(/runtime\.getFreshDb/g) ?? [];
-		expect(freshDbReferences).toHaveLength(8);
 
 		expect(requestScopeSource).toContain(
 			"store: createPgRuntimeRunStore(input.env, { getDb: runtime.getDb })",
 		);
 		expect(requestScopeSource).toContain(
-			"store: createPgProfileMemoryStore(input.env, { getDb: runtime.getFreshDb })",
+			"store: createPgProfileMemoryStore(input.env, { getDb: runtime.getDb })",
 		);
 		expect(requestScopeSource).toContain(
-			"store: createPgAccountAdminStore(input.env, { getDb: runtime.getFreshDb })",
+			"store: createPgAccountAdminStore(input.env, { getDb: runtime.getDb })",
 		);
 		expect(requestScopeSource).toContain(
-			"store: createPgAccountLifecycleStore(input.env, { getDb: runtime.getFreshDb })",
-		);
-		expect(requestScopeSource).toContain("getDb: runtime.getFreshDb");
-		expect(requestScopeSource).toContain(
-			"createPgCampusGroupsStore(input.env, { getDb: runtime.getFreshDb })",
+			"store: createPgAccountLifecycleStore(input.env, { getDb: runtime.getDb })",
 		);
 		expect(requestScopeSource).toContain(
-			"detailStore: createPgChatConversationStore(input.env, { getDb: runtime.getFreshDb })",
+			"createPgCampusGroupsStore(input.env, { getDb: runtime.getDb })",
 		);
 		expect(requestScopeSource).toContain(
-			"dining ??= createPgDiningMapReadService(input.env, {\n\t\t\t\t\t\tgetDb: runtime.getFreshDb",
-		);
-		expect(requestScopeSource).toContain(
-			"diningContent ??= createPgDiningContentService(input.env, {\n\t\t\t\t\t\tgetDb: runtime.getFreshDb",
+			"detailStore: createPgChatConversationStore(input.env, { getDb: runtime.getDb })",
 		);
 		expect(requestScopeSource).toContain(
 			"store: createPgChatConversationStore(input.env, { getDb: runtime.getDb })",

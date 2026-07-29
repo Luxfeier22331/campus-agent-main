@@ -14,6 +14,7 @@ required = [
   "AUTH_TURNSTILE_SECRET_KEY",
   "RESEND_API_KEY",
   "APP_API_EXECUTION_SHARED_SECRET",
+  "APP_API_EXECUTION_INPUT_SHARED_SECRET",
 ]
 
 [vars]
@@ -23,9 +24,4 @@ AUTH_EMAIL_FROM = "Campus Agent <auth@example.com>"
 
 [[hyperdrive]]
 binding = "APP_API_DB"
-id = "00000000-0000-0000-0000-000000000000"
-
-[[hyperdrive]]
-binding = "APP_API_DB_FRESH"
-# Local smoke uses the dedicated fresh-read binding explicitly.
 id = "00000000-0000-0000-0000-000000000000"

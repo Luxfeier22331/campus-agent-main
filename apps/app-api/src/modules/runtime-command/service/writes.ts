@@ -6,18 +6,19 @@ import {
 	DRAFT_CONVERSATION_TITLE,
 	toConversationResponse,
 } from "../../chat";
-import type {
-	ToolExecutionConversationContext,
-	ToolExecutionPreviousEvidenceRef,
-	ToolExecutionPreviousToolResultRef,
-	ToolExecutionResponse,
-} from "../../integration";
+import type { ToolExecutionConversationContext, ToolExecutionResponse } from "../../integration";
 import {
 	buildAcceptedRequestObservabilityFact,
 	buildFinalizedRequestObservabilityFact,
 } from "../../request-observability";
 import { buildExecutionSessionProjection } from "../curriculum-session";
-import type { AcceptRequestWrite, FinalizeRequestWrite, TurnDispatchStatus } from "../store";
+import type {
+	AcceptRequestWrite,
+	FinalizeRequestWrite,
+	FrozenChatAdmissionWrite,
+	TurnDispatchMemorySnapshot,
+	TurnDispatchStatus,
+} from "../store";
 import { normalizeChatResponseStructuredParts, sanitizePublicAssistantText } from "./normalize";
 import type { ChatCommandResponse, ChatCommandResult } from "./types";
 
@@ -42,7 +43,6 @@ export function buildToolExecutionContextProjection(input: {
 		ownerSequence: number;
 		recallEnabled: boolean;
 	} | null;
-	previousToolResults?: ToolExecutionPreviousToolResultRef[];
 	sessionSlots: ChatConversation["sessionSlots"];
 	turnCount: number;
 }) {
@@ -58,7 +58,6 @@ export function buildToolExecutionContextProjection(input: {
 			currentUserMessageContent: input.currentUserMessageContent,
 			currentUserMessageCreatedAt: input.currentUserMessageCreatedAt,
 			currentUserMessageId: input.currentUserMessageId,
-			previousToolResults: input.previousToolResults ?? [],
 			session,
 		}),
 		...(input.memory ? { memory: input.memory } : {}),
@@ -71,17 +70,10 @@ function buildConversationContextProjection(input: {
 	currentUserMessageContent: string;
 	currentUserMessageCreatedAt: string;
 	currentUserMessageId: string;
-	previousToolResults: ToolExecutionPreviousToolResultRef[];
 	session: ReturnType<typeof buildExecutionSessionProjection>;
 }): ToolExecutionConversationContext {
 	const priorMessages = input.conversation.messages;
 	const parentMessage = priorMessages.at(-1) ?? null;
-	const previousAssistant = [...input.conversation.messages]
-		.reverse()
-		.find((message) => message.role === "assistant");
-	const previousEvidenceRefs = previousAssistant
-		? extractPreviousEvidenceRefs(previousAssistant)
-		: [];
 	const recentTurns: ToolExecutionConversationContext["recentTurns"] = priorMessages.map(
 		(message) => ({
 			content: message.text,
@@ -99,8 +91,6 @@ function buildConversationContextProjection(input: {
 			createdAt: input.currentUserMessageCreatedAt,
 		},
 		parentMessageId: parentMessage?.id ?? null,
-		previousToolResults: input.previousToolResults,
-		previousEvidenceRefs,
 		recentTurns,
 		schemaVersion: "conversation_context.v1",
 		sessionState: input.session,
@@ -108,55 +98,10 @@ function buildConversationContextProjection(input: {
 	};
 }
 
-function extractPreviousEvidenceRefs(message: ChatMessage): ToolExecutionPreviousEvidenceRef[] {
-	const refs: ToolExecutionPreviousEvidenceRef[] = [];
-	for (const part of message.structuredParts) {
-		if (part.type !== "source_items") {
-			continue;
-		}
-		for (const [index, sourceItem] of part.sourceItems.entries()) {
-			const record = sourceItem as unknown as Record<string, unknown>;
-			const sourceId = readString(record, "sourceId", "source_id");
-			const versionId = readString(record, "versionId", "version_id");
-			const snapshotId = readString(record, "snapshotId", "snapshot_id");
-			const accessScope = readString(record, "accessScope", "access_scope");
-			const contentHash = readString(record, "contentHash", "content_hash");
-			if (!(sourceId && (versionId || snapshotId) && accessScope && contentHash)) {
-				continue;
-			}
-			refs.push({
-				accessScope,
-				collection: readString(record, "collection"),
-				contentHash,
-				documentId: readString(record, "documentId", "document_id"),
-				evidenceId:
-					readString(record, "evidenceId", "evidence_id") ?? `${message.id}:source_items:${index}`,
-				evidenceRole: readString(record, "evidenceRole", "evidence_role"),
-				sectionTitle: sourceItem.sectionTitle || undefined,
-				snapshotId: snapshotId ?? undefined,
-				sourceId,
-				sourceKind: sourceItem.sourceKind,
-				snippet: sourceItem.snippet ?? undefined,
-				title: sourceItem.title || undefined,
-				versionId: versionId ?? undefined,
-			});
-		}
-	}
-	return refs;
-}
-
-function readString(record: Record<string, unknown>, ...keys: string[]): string | undefined {
-	for (const key of keys) {
-		const value = record[key];
-		if (typeof value === "string" && value.trim()) {
-			return value.trim();
-		}
-	}
-	return;
-}
-
 const BOUNDED_EXECUTION_ERROR_CODE = /^[a-z0-9_-]{1,64}$/u;
 const PUBLIC_EXECUTION_ERROR_CODES = new Set([
+	"admission_confirmation_uncertain",
+	"admission_identity_conflict",
 	"admission_pending",
 	"agent_deadline_exceeded",
 	"agent_runtime_failed",
@@ -176,13 +121,10 @@ const PUBLIC_EXECUTION_ERROR_CODES = new Set([
 	"idempotency_conflict",
 	"internal_error",
 	"invalid_request",
-	"knowledge_search_failed",
 	"max_turns_exceeded",
-	"memory_recall_failed",
-	"memory_recall_request_invalid",
 	"personal_memory_not_configured",
 	"product_finalization_missing",
-	"provider_profile_missing",
+	"provider_config_missing",
 	"provider_unavailable",
 	"rate_limit_exceeded",
 	"request_in_progress",
@@ -225,27 +167,17 @@ export function publicExecutionFailure(input: {
 		message = "The request was cancelled.";
 	} else if (errorCode === "rate_limit_exceeded") {
 		message = "Too many requests. Please wait a few minutes and try again.";
-	} else if (
-		[
-			"memory_recall_failed",
-			"memory_recall_request_invalid",
-			"personal_memory_not_configured",
-		].includes(errorCode)
-	) {
+	} else if (["personal_memory_not_configured"].includes(errorCode)) {
 		message = "Personal memory could not be loaded for this request.";
 	} else if (
 		["agent_runtime_timeout", "agent_deadline_exceeded", "execution_timeout"].includes(errorCode)
 	) {
 		message = "The agent runtime did not complete before its deadline.";
 	} else if (
-		["agent_runtime_failed", "provider_profile_missing", "provider_unavailable"].includes(errorCode)
+		["agent_runtime_failed", "provider_config_missing", "provider_unavailable"].includes(errorCode)
 	) {
 		message = "The answer provider is temporarily unavailable.";
-	} else if (
-		["knowledge_search_failed", "retrieval_lookup_failed", "tool_execution_failed"].includes(
-			errorCode,
-		)
-	) {
+	} else if (["retrieval_lookup_failed", "tool_execution_failed"].includes(errorCode)) {
 		message = "Required campus information could not be retrieved.";
 	} else if (errorCode === "context_budget_exceeded") {
 		message = "The conversation is too large to process safely.";
@@ -270,13 +202,15 @@ export function buildAcceptedWrite(input: {
 		updatedAt: string;
 	};
 	conversationTitle: string;
+	freezeDurableAdmission: (
+		memorySnapshot: TurnDispatchMemorySnapshot | null,
+	) => FrozenChatAdmissionWrite;
 	idempotencyKey: string | null;
 	now: string;
 	principal: ResolvedAppPrincipal;
 	prompt: string;
 	requestFingerprintSha256: string | null;
 	requestId: string;
-	requestedTool: string | null;
 	runId: string | null;
 	safetyIdentifier: string | null;
 	surface: string;
@@ -304,8 +238,16 @@ export function buildAcceptedWrite(input: {
 
 	return {
 		captureMemorySnapshot: input.captureMemorySnapshot,
+		conversationBaseline: {
+			activeBranchId: input.conversation.activeBranchId ?? "branch_active",
+			activeMessageId: input.conversation.activeMessageId ?? null,
+			activeRunId: input.conversation.activeRunId ?? null,
+			activeTurnSequence: input.conversation.activeTurnSequence ?? 0,
+			updatedAt: input.conversation.updatedAt,
+		},
 		...(input.conversationSeed ? { conversationSeed: input.conversationSeed } : {}),
 		conversationTitle: input.conversationTitle,
+		freezeDurableAdmission: input.freezeDurableAdmission,
 		ownerUserId: input.conversation.ownerUserId,
 		userMessage,
 		turnDispatch: {
@@ -331,9 +273,6 @@ export function buildAcceptedWrite(input: {
 			traceId: input.traceId,
 			runId: input.runId,
 			safetyIdentifier: input.safetyIdentifier,
-			requestedTool: input.requestedTool,
-			resolvedTargets: [],
-			selectedTool: null,
 			status: "accepted",
 			errorCode: null,
 			completedAt: null,
@@ -344,7 +283,6 @@ export function buildAcceptedWrite(input: {
 			conversationId: input.conversation.id,
 			principal: input.principal,
 			requestId: input.requestId,
-			requestedTool: input.requestedTool,
 			safetyIdentifier: input.safetyIdentifier,
 			startedAt: input.now,
 			surface: input.surface,
@@ -394,13 +332,13 @@ export function buildFinalizedWrite(input: {
 	principal: ResolvedAppPrincipal;
 	projectionCloseoutMs?: number | null;
 	requestId: string;
-	requestedTool: string | null;
 	response: ToolExecutionResponse;
 	runId: string | null;
 	safetyIdentifier: string | null;
+	stageTiming?: Record<string, unknown> | null;
 	surface: string;
 	startedAt: string;
-	streamBrowserTtftMs?: number | null;
+	streamAppApiTtftMs?: number | null;
 	traceId: string;
 	turnSequence: number;
 	userMessageId: string;
@@ -421,10 +359,8 @@ export function buildFinalizedWrite(input: {
 	const structuredParts = normalizeChatResponseStructuredParts({
 		allowedPublicNoticeHosts: input.allowedPublicNoticeHosts,
 		result: input.response.result,
-		selectedTool: input.response.selectedTool,
 		status: input.response.status,
 	});
-	const resolvedTargets = [...normalizedExecutionResponse.resolvedTargets];
 	let assistantKind: ChatMessage["kind"];
 	let assistantText: string;
 	let errorCode: string | null = null;
@@ -528,8 +464,6 @@ export function buildFinalizedWrite(input: {
 			requestId: input.requestId,
 			runId,
 			safetyIdentifier: input.safetyIdentifier,
-			resolvedTargets,
-			selectedTool: input.response.selectedTool,
 			status,
 			errorCode,
 			turnSequence: input.turnSequence,
@@ -544,26 +478,17 @@ export function buildFinalizedWrite(input: {
 			principal: input.principal,
 			projectionCloseoutMs: input.projectionCloseoutMs,
 			requestId: input.requestId,
-			requestedTool: input.requestedTool,
-			resolvedTargets,
 			response: normalizedExecutionResponse,
 			runId,
 			safetyIdentifier: input.safetyIdentifier,
 			startedAt: input.startedAt,
+			stageTiming: input.stageTiming,
 			status,
-			streamBrowserTtftMs: input.streamBrowserTtftMs,
+			streamAppApiTtftMs: input.streamAppApiTtftMs,
 			surface: input.surface,
 			traceId: normalizedTraceId,
 		}),
-		sessionSlots:
-			status === "completed"
-				? (input.response.sessionUpdate?.upsertSlots ?? []).map((slot) => ({
-						confirmed: slot.confirmed,
-						name: slot.name,
-						updatedAt: input.completedAt,
-						value: slot.value,
-					}))
-				: [],
+		sessionSlots: [],
 	};
 
 	return {

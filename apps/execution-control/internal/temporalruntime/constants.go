@@ -1,9 +1,9 @@
 package temporalruntime
 
 const (
-	WorkflowTaskQueue      = "campus-agent.workflow"
-	ActivityTaskQueueCore  = "campus-agent.activity.core"
-	ActivityTaskQueueAgent = "campus-agent.activity.agent"
+	WorkflowTaskQueue      = "campus-agent.workflow.v3"
+	ActivityTaskQueueCore  = "campus-agent.activity.core.v3"
+	ActivityTaskQueueAgent = "campus-agent.activity.agent.v3"
 
 	ToolExecutionWorkflowType         = "ToolExecutionWorkflow"
 	PersonalMemoryCommandWorkflowType = "PersonalMemoryCommandWorkflow"

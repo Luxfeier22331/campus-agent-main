@@ -294,7 +294,7 @@ export async function fulfillChatStream(route: Route, input: { delayMs?: number 
 				traceId: "trace_e2e",
 			}),
 			sse("answer.delta", {
-				accumulatedText: answerText,
+				delta: answerText,
 				messageId: "msg_assistant_e2e",
 				occurredAt: now,
 				requestId: "req_e2e",
@@ -422,7 +422,7 @@ function routeMocks(input: {
 								},
 							}
 						: null,
-					status: 200,
+					status: 202,
 				}),
 		},
 		{

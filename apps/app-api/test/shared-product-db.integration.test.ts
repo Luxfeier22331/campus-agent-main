@@ -1,20 +1,13 @@
 // @vitest-environment node
 
-import { createHash } from "node:crypto";
 import { Client } from "pg";
-import { afterAll, beforeAll, describe, expect, inject, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 
 import { createApp } from "../src/app";
 import type { Env } from "../src/config";
 import { createAppAuth } from "../src/modules/auth";
 import { createPgChatConversationStore } from "../src/modules/chat";
-import type {
-	ToolExecutionInput,
-	ToolExecutionResponse,
-} from "../src/modules/integration/execution-control";
 import { createPgProfileMemoryStore } from "../src/modules/profile-memory";
-import { buildChatCommandService, createPgChatCommandStore } from "../src/modules/runtime-command";
-import { createExecutionRuntimeFromToolClient } from "./chat-command.service.test-support";
 import { buildSharedDbIntegrationEnv } from "./shared-db-integration-helpers";
 
 const TURNSTILE_TEST_TOKEN = "XXXX.DUMMY.TOKEN.XXXX";
@@ -260,175 +253,6 @@ describe("app-api shared product DB integration", () => {
 		expect(detailResponse.status).toBe(200);
 		expect(detailPayload.conversation.id).toBe(createPayload.conversation.id);
 		expect(detailPayload.conversation.messages).toEqual([]);
-	});
-
-	it("persists curriculum session slots in chat.session_slots after finalized curriculum completion", async () => {
-		const createdEmail = `integration-${Date.now()}@muc.edu.cn`;
-		const cookieHeader = await registerAndSignIn(createdEmail);
-
-		const createResponse = await app.fetch(
-			new Request("https://app-api.internal/api/chat/conversations", {
-				method: "POST",
-				headers: {
-					cookie: cookieHeader,
-				},
-			}),
-		);
-		const createPayload = (await readJson(createResponse)) as {
-			conversation: { id: string };
-		};
-		expect(createResponse.status).toBe(201);
-
-		const executionClient: {
-			execute(input: ToolExecutionInput): Promise<ToolExecutionResponse>;
-		} = {
-			execute: vi
-				.fn()
-				.mockImplementationOnce(async (input: ToolExecutionInput) => ({
-					answerText: "第四学期有中国少数民族文字学、侵权责任法、翻译学导论。",
-					error: null,
-					followUpQuestion: "",
-					resolvedTargets: ["curriculum"],
-					sessionUpdate: {
-						upsertSlots: [
-							{ confirmed: true, name: "curriculum_program_family", value: "民族实验班" },
-							{ confirmed: true, name: "curriculum_program", value: "法学民族实验班" },
-							{ confirmed: true, name: "curriculum_semester", value: "第四学期" },
-						],
-					},
-					result: {
-						diagnostics: {
-							resolved_program_family_title: "民族班",
-							resolved_entity_type: "program",
-							rewritten_query: "法学民族实验班培养方案里第四学期有什么课",
-							session_program_family: "民族实验班",
-							session_program: "法学民族实验班",
-							session_semester: "第四学期",
-						},
-						evidence: {
-							sources: [{ doc_id: "curriculum:法学（民族实验班）本科人才培养方案" }],
-						},
-					},
-					selectedTool: "knowledge_query",
-					status: "completed",
-					traceId: input.traceId,
-				}))
-				.mockImplementationOnce(async (input: ToolExecutionInput) => ({
-					answerText: "第二学期有中国法制史。",
-					error: null,
-					followUpQuestion: "",
-					resolvedTargets: ["curriculum"],
-					sessionUpdate: {
-						upsertSlots: [
-							{ confirmed: true, name: "curriculum_program_family", value: "民族实验班" },
-							{ confirmed: true, name: "curriculum_program", value: "法学民族实验班" },
-							{ confirmed: true, name: "curriculum_semester", value: "第二学期" },
-						],
-					},
-					result: {
-						diagnostics: {
-							resolved_program_family_title: "民族班",
-							resolved_entity_type: "program",
-							rewritten_query: "法学民族实验班培养方案里第二学期有什么课",
-							session_program_family: "民族实验班",
-							session_program: "法学民族实验班",
-							session_semester: "第二学期",
-						},
-						evidence: {
-							sources: [{ doc_id: "curriculum:法学（民族实验班）本科人才培养方案" }],
-						},
-					},
-					selectedTool: "knowledge_query",
-					status: "completed",
-					traceId: input.traceId,
-				})),
-		};
-		let chatCommandService: ReturnType<typeof buildChatCommandService>;
-		const executionRuntime = createExecutionRuntimeFromToolClient(executionClient, {
-			onProductFinalization: async ({ response, runId, traceId }) => {
-				const finalizedResponse = { ...response, traceId };
-				const finalizationFingerprint = createHash("sha256")
-					.update(`${runId}\0${JSON.stringify(finalizedResponse)}`, "utf8")
-					.digest("hex");
-				await chatCommandService.applyProductFinalization?.({
-					completedAt: new Date().toISOString(),
-					finalizationFingerprint,
-					response: finalizedResponse,
-					runId,
-				});
-			},
-		});
-		chatCommandService = buildChatCommandService({
-			conversationStore: createPgChatConversationStore(env),
-			store: createPgChatCommandStore(env),
-			executionRuntime,
-		});
-		const appWithRealCommand = createApp(env, {
-			chatCommandService,
-		});
-
-		const firstRequestResponse = await appWithRealCommand.fetch(
-			new Request("https://app-api.internal/api/chat/requests", {
-				method: "POST",
-				headers: {
-					"content-type": "application/json",
-					cookie: cookieHeader,
-				},
-				body: JSON.stringify({
-					conversationId: createPayload.conversation.id,
-					prompt: "法学民族班培养方案里大二下有什么课",
-				}),
-			}),
-		);
-		const firstRequestPayload = await readJson(firstRequestResponse);
-
-		expect(firstRequestResponse.status, JSON.stringify(firstRequestPayload)).toBe(200);
-
-		const secondRequestResponse = await appWithRealCommand.fetch(
-			new Request("https://app-api.internal/api/chat/requests", {
-				method: "POST",
-				headers: {
-					"content-type": "application/json",
-					cookie: cookieHeader,
-				},
-				body: JSON.stringify({
-					conversationId: createPayload.conversation.id,
-					prompt: "那大一下呢",
-				}),
-			}),
-		);
-		const secondRequestPayload = await readJson(secondRequestResponse);
-
-		expect(secondRequestResponse.status, JSON.stringify(secondRequestPayload)).toBe(200);
-
-		const dbClient = requireClient(client);
-		const slotRows = await dbClient.query(
-			`
-        select "name", "value", "confirmed"
-        from "chat"."session_slots"
-        where "conversation_id" = $1
-        order by "name" asc
-      `,
-			[createPayload.conversation.id],
-		);
-
-		expect(slotRows.rows).toEqual([
-			{
-				confirmed: true,
-				name: "curriculum_program",
-				value: "法学民族实验班",
-			},
-			{
-				confirmed: true,
-				name: "curriculum_program_family",
-				value: "民族实验班",
-			},
-			{
-				confirmed: true,
-				name: "curriculum_semester",
-				value: "第二学期",
-			},
-		]);
 	});
 
 	it("serializes profile-memory idempotency, dispatch and scope-head reconciliation", async () => {

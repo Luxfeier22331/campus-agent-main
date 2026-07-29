@@ -32,6 +32,9 @@ func (s *Server) FinalizeExecutionFailureActivity(
 	if s == nil || s.runProjectionStore == nil {
 		return temporalruntime.FinalizeExecutionFailureActivityOutput{}, execution.ErrRunProjectionStoreNotConfigured
 	}
+	if err := s.ensureTemporalActivityOwnsRootExecution(ctx, input.RunID, false); err != nil {
+		return temporalruntime.FinalizeExecutionFailureActivityOutput{}, err
+	}
 	run, err := s.runProjectionStore.GetRun(ctx, strings.TrimSpace(input.RunID))
 	if err != nil {
 		return temporalruntime.FinalizeExecutionFailureActivityOutput{}, sanitizedTemporalApplicationError(
@@ -81,14 +84,6 @@ func temporalFailureProjectionForStage(
 	input temporalruntime.FinalizeExecutionFailureActivityInput,
 ) (temporalStepFailureProjection, bool) {
 	switch strings.TrimSpace(input.Stage) {
-	case "memory.recall":
-		return temporalStepFailureProjection{
-			ProjectionRef: temporalProjectionRef(input.RunID, "memory/recall"),
-			ResultKind:    "activity_failure",
-			StepID:        "memory.recall",
-			StepKind:      "memory",
-			TaskQueue:     temporalruntime.ActivityTaskQueueCore,
-		}, true
 	case "agent.primary":
 		return temporalStepFailureProjection{
 			ProjectionRef: temporalProjectionRef(input.RunID, "agent/primary/result"),

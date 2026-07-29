@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	MaxSearchEvidence  = 20
-	MaxEvidenceSnippet = 1200
+	MaxSearchEvidence  = 6
+	MaxEvidenceContent = 16000
 )
 
 type SearchRequest struct {
@@ -22,39 +22,38 @@ type SearchRequest struct {
 	InvocationID      string
 	SearchOrdinal     int
 	QueryText         string
-	Target            string
+	DocumentScope     string
 	ServingConfigPath string
-	IncludeHistory    bool
-	TopK              int
+	CandidateTopK     int
 	RetrievalAccess   RetrievalAccess
 }
 
 type Evidence struct {
-	EvidenceRef     string  `json:"evidence_ref"`
-	RetrievalTarget string  `json:"retrieval_target"`
-	DocumentID      string  `json:"document_id"`
-	ChunkID         string  `json:"chunk_id"`
-	Title           string  `json:"title"`
-	Snippet         string  `json:"snippet"`
-	CanonicalURL    string  `json:"canonical_url"`
-	VersionID       string  `json:"version_id"`
-	Rank            int     `json:"rank"`
-	FusionScore     float64 `json:"fusion_score"`
+	EvidenceRef   string `json:"evidence_ref"`
+	SectionRef    string `json:"section_ref"`
+	DocumentScope string `json:"document_scope"`
+	DocumentID    string `json:"document_id"`
+	VersionID     string `json:"version_id"`
+	Anchor        string `json:"anchor"`
+	DocumentTitle string `json:"document_title"`
+	SectionTitle  string `json:"section_title"`
+	Content       string `json:"content"`
+	ContentSHA256 string `json:"content_sha256"`
+	CanonicalURL  string `json:"canonical_url"`
 }
 
 type SearchResult struct {
-	Outcome         string     `json:"outcome"`
-	SearchRef       string     `json:"search_ref"`
-	RunID           string     `json:"-"`
-	InvocationID    string     `json:"-"`
-	SearchOrdinal   int        `json:"-"`
-	RetrievalTarget string     `json:"retrieval_target"`
-	IncludeHistory  bool       `json:"include_history"`
-	CandidateCount  int        `json:"candidate_count"`
-	DiscardedCount  int        `json:"discarded_count"`
-	RetrieverModes  []string   `json:"retriever_modes"`
-	Evidence        []Evidence `json:"evidence"`
-	QueryLatencyMS  int64      `json:"-"`
+	Outcome        string     `json:"outcome"`
+	SearchRef      string     `json:"-"`
+	RunID          string     `json:"-"`
+	InvocationID   string     `json:"-"`
+	SearchOrdinal  int        `json:"-"`
+	DocumentScope  string     `json:"document_scope"`
+	CandidateCount int        `json:"candidate_count"`
+	DiscardedCount int        `json:"discarded_count"`
+	RetrieverModes []string   `json:"retriever_modes"`
+	Evidence       []Evidence `json:"evidence"`
+	QueryLatencyMS int64      `json:"-"`
 }
 
 func ValidateSearchRequest(request SearchRequest) error {
@@ -64,18 +63,18 @@ func ValidateSearchRequest(request SearchRequest) error {
 		"trace_id":            request.TraceID,
 		"invocation_id":       request.InvocationID,
 		"query_text":          request.QueryText,
-		"target":              request.Target,
+		"document_scope":      request.DocumentScope,
 		"serving_config_path": request.ServingConfigPath,
 	} {
 		if strings.TrimSpace(value) == "" {
-			return fmt.Errorf("knowledge search %s is required", name)
+			return fmt.Errorf("document evidence %s is required", name)
 		}
 	}
 	if request.SearchOrdinal <= 0 {
-		return errors.New("knowledge search search_ordinal must be positive")
+		return errors.New("document evidence search_ordinal must be positive")
 	}
-	if request.TopK <= 0 || request.TopK > MaxSearchEvidence {
-		return fmt.Errorf("knowledge search top_k must be between 1 and %d", MaxSearchEvidence)
+	if request.CandidateTopK <= 0 || request.CandidateTopK > 20 {
+		return errors.New("document evidence candidate_top_k must be between 1 and 20")
 	}
 	return nil
 }
@@ -83,24 +82,21 @@ func ValidateSearchRequest(request SearchRequest) error {
 func FinalizeSearchResult(result SearchResult) (SearchResult, error) {
 	result.RunID = strings.TrimSpace(result.RunID)
 	result.InvocationID = strings.TrimSpace(result.InvocationID)
-	result.RetrievalTarget = strings.TrimSpace(result.RetrievalTarget)
-	if result.RunID == "" || result.InvocationID == "" || result.RetrievalTarget == "" {
-		return SearchResult{}, errors.New("knowledge search result run, invocation, and target are required")
+	result.DocumentScope = strings.TrimSpace(result.DocumentScope)
+	if result.RunID == "" || result.InvocationID == "" || result.DocumentScope == "" {
+		return SearchResult{}, errors.New("document evidence result run_id, invocation_id, and document_scope are required")
 	}
 	if result.CandidateCount < 0 || result.DiscardedCount < 0 {
-		return SearchResult{}, errors.New("knowledge search candidate and discarded counts must be non-negative")
+		return SearchResult{}, errors.New("document evidence candidate and discarded counts must be non-negative")
 	}
 	if len(result.Evidence) > MaxSearchEvidence {
-		return SearchResult{}, fmt.Errorf("knowledge search evidence exceeds %d items", MaxSearchEvidence)
+		return SearchResult{}, fmt.Errorf("document evidence exceeds %d items", MaxSearchEvidence)
 	}
 	for index := range result.Evidence {
-		if result.Evidence[index].RetrievalTarget == "" {
-			result.Evidence[index].RetrievalTarget = result.RetrievalTarget
+		if result.Evidence[index].DocumentScope == "" {
+			result.Evidence[index].DocumentScope = result.DocumentScope
 		}
-		if result.Evidence[index].Rank == 0 {
-			result.Evidence[index].Rank = index + 1
-		}
-		if err := validateEvidence(index, result.Evidence[index], result.RetrievalTarget); err != nil {
+		if err := validateEvidence(index, result.Evidence[index], result.DocumentScope); err != nil {
 			return SearchResult{}, err
 		}
 	}
@@ -111,10 +107,10 @@ func FinalizeSearchResult(result SearchResult) (SearchResult, error) {
 		result.RetrieverModes = []string{}
 	}
 	if result.SearchOrdinal <= 0 {
-		return SearchResult{}, errors.New("knowledge search result search ordinal is required")
+		return SearchResult{}, errors.New("document evidence result search ordinal is required")
 	}
 	result.SearchRef = fmt.Sprintf(
-		"projection://runs/%s/knowledge/search/%d",
+		"projection://runs/%s/knowledge/evidence/%d",
 		url.PathEscape(result.RunID),
 		result.SearchOrdinal,
 	)
@@ -127,32 +123,36 @@ func FinalizeSearchResult(result SearchResult) (SearchResult, error) {
 	return result, nil
 }
 
-func validateEvidence(index int, evidence Evidence, target string) error {
+func validateEvidence(index int, evidence Evidence, documentScope string) error {
 	for name, value := range map[string]string{
-		"evidence_ref":     evidence.EvidenceRef,
-		"retrieval_target": evidence.RetrievalTarget,
-		"document_id":      evidence.DocumentID,
-		"chunk_id":         evidence.ChunkID,
-		"title":            evidence.Title,
-		"snippet":          evidence.Snippet,
-		"canonical_url":    evidence.CanonicalURL,
+		"evidence_ref":   evidence.EvidenceRef,
+		"section_ref":    evidence.SectionRef,
+		"document_scope": evidence.DocumentScope,
+		"document_id":    evidence.DocumentID,
+		"version_id":     evidence.VersionID,
+		"anchor":         evidence.Anchor,
+		"document_title": evidence.DocumentTitle,
+		"section_title":  evidence.SectionTitle,
+		"content":        evidence.Content,
+		"content_sha256": evidence.ContentSHA256,
+		"canonical_url":  evidence.CanonicalURL,
 	} {
 		if strings.TrimSpace(value) == "" {
-			return fmt.Errorf("knowledge search evidence[%d].%s is required", index, name)
+			return fmt.Errorf("document evidence[%d].%s is required", index, name)
 		}
 	}
-	if evidence.RetrievalTarget != target {
-		return fmt.Errorf("knowledge search evidence[%d].retrieval_target does not match result target", index)
+	if evidence.DocumentScope != documentScope {
+		return fmt.Errorf("knowledge evidence[%d].document_scope does not match result scope", index)
 	}
-	if evidence.Rank <= 0 {
-		return fmt.Errorf("knowledge search evidence[%d].rank must be positive", index)
+	if len(evidence.Content) > MaxEvidenceContent {
+		return fmt.Errorf("knowledge evidence[%d].content exceeds %d bytes", index, MaxEvidenceContent)
 	}
-	if len(evidence.Snippet) > MaxEvidenceSnippet {
-		return fmt.Errorf("knowledge search evidence[%d].snippet exceeds %d bytes", index, MaxEvidenceSnippet)
+	if !strings.HasPrefix(evidence.ContentSHA256, "sha256:") || len(evidence.ContentSHA256) != 71 {
+		return fmt.Errorf("knowledge evidence[%d].content_sha256 is invalid", index)
 	}
 	parsed, err := url.ParseRequestURI(evidence.CanonicalURL)
 	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https" && !strings.HasPrefix(evidence.CanonicalURL, "/docs/")) {
-		return fmt.Errorf("knowledge search evidence[%d].canonical_url is invalid", index)
+		return fmt.Errorf("document evidence[%d].canonical_url is invalid", index)
 	}
 	return nil
 }

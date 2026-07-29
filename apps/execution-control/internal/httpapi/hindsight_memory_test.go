@@ -60,7 +60,6 @@ type fakeHindsightClient struct {
 	ensuredBankConfig  hindsightBankConfig
 	ensuredBankID      string
 	recallResponse     hindsightRecallResponse
-	reflectResponse    hindsightReflectResponse
 	retainedAsync      bool
 	retainedBankID     string
 	retainedItems      []hindsightMemoryItem
@@ -82,9 +81,6 @@ func (f *fakeHindsightClient) RetainMemories(_ context.Context, bankID string, r
 }
 func (f *fakeHindsightClient) RecallMemories(_ context.Context, _ string, _ hindsightRecallRequest) (hindsightRecallResponse, error) {
 	return f.recallResponse, nil
-}
-func (f *fakeHindsightClient) Reflect(_ context.Context, _ string, _ hindsightReflectRequest) (hindsightReflectResponse, error) {
-	return f.reflectResponse, nil
 }
 func (f *fakeHindsightClient) DeleteDocument(_ context.Context, _ string, documentID string) error {
 	f.deletedDocumentIDs = append(f.deletedDocumentIDs, documentID)

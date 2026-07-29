@@ -41,9 +41,10 @@ OpenTelemetry Collector 为不同信任级别的运行信号提供独立 receive
 Langfuse，但必须删除认证材料。集群内入口不重复增加 bearer token；不同来源不能获得可绕过
 NetworkPolicy、处理器或输出规则的网络权限。
 
-节点级 Collector 采集第一方容器日志和基础指标，集中式 Collector 执行跨服务路由与发送。
-execution-control 调用 Hindsight 时传播标准调用链上下文，并创建不含原始用户标识、记忆正文、
-文档标识或供应商地址的父 span。精确入口、属性和发送配置由可执行 Collector 配置维护。
+每个 Kubernetes 节点运行一个 Collector DaemonSet 实例。该实例同时采集第一方容器日志和基础
+指标，并为本节点工作负载提供固定 OTLP 入口、字段清理、路由与发送；不再维护独立 Gateway
+Deployment。execution-control 调用 Hindsight 时传播标准调用链上下文，并创建不含原始用户标识、
+记忆正文、文档标识或供应商地址的父 span。精确入口、属性和发送配置由可执行 Collector 配置维护。
 
 ### Cloudflare application log 例外
 
@@ -59,8 +60,8 @@ Cloudflare Worker 使用平台支持的日志目标和 Sentry 集成。由于平
 - 每个环境使用单一 Langfuse project，生产者通过独立 receiver、NetworkPolicy、来源属性和固定
   tag 隔离；
 - 账号清除必须按稳定产品身份和记忆代次删除对应 Langfuse 数据，并在异步删除完成后复查；
-- credential、Cookie、JWT、数据库地址、原始用户问题、回答、检索正文和记忆正文不得进入
-  Axiom 或 Sentry。Langfuse 可以按 ADR-0076 保存受信任模型诊断正文，但仍不得保存认证材料。
+- credential、Cookie、JWT、数据库地址、原始用户问题、回答、检索正文、记忆正文和工具原始
+  载荷不得进入任何运行 trace；Langfuse 按 ADR-0076 只保存受控模型/用量/关联元数据。
 
 ## 后果
 

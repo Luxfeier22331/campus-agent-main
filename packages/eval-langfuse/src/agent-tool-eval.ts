@@ -7,13 +7,14 @@ import {
 	stringField,
 	stringList,
 } from "./shared";
+import { type AgentRuntimeToolName, parseAgentRuntimeToolName } from "./tool-trajectory";
 
 export const AGENT_TOOL_EVAL_DATASET_SCHEMA_VERSION = "agent_tool_eval_dataset.v1";
 export type AgentToolEvalArgumentMode = "eval_safe_args" | "name_only";
 
 export interface AgentToolEvalToolCall extends JsonObject {
 	args: JsonObject;
-	name: string;
+	name: AgentRuntimeToolName;
 }
 
 export interface AgentToolEvalCase extends JsonObject {
@@ -22,6 +23,7 @@ export interface AgentToolEvalCase extends JsonObject {
 	case_id: string;
 	dataset_item_id: string;
 	expected_outcome?: "answer" | "clarification" | "no_answer";
+	expected_grounding_mode?: "none" | "single_scope" | "multi_scope";
 	forbidden_context_ids: string[];
 	query: string;
 	reference?: string;
@@ -83,7 +85,7 @@ function parseDatasetItem(item: JsonObject, index: number): AgentToolEvalCase {
 	);
 	if (argumentMode === "eval_safe_args") {
 		for (const toolCall of referenceToolCalls) {
-			if (toolCall.name !== "knowledge_query" && Object.keys(toolCall.args).length === 0) {
+			if (Object.keys(toolCall.args).length === 0) {
 				throw new Error(`${caseId} eval_safe_args requires non-empty reference tool args`);
 			}
 		}
@@ -94,6 +96,10 @@ function parseDatasetItem(item: JsonObject, index: number): AgentToolEvalCase {
 		case_id: caseId,
 		dataset_item_id: stringField(item.id, `${caseId}.dataset_item_id`),
 		expected_outcome: parseExpectedOutcome(expectedOutput.expected_outcome, caseId),
+		expected_grounding_mode: parseExpectedGroundingMode(
+			expectedOutput.expected_grounding_mode,
+			caseId,
+		),
 		forbidden_context_ids: stringList(expectedOutput.forbidden_context_ids),
 		query: stringField(input.query ?? input.user_input, `${caseId}.input.query`),
 		reference: optionalString(expectedOutput.reference) ?? undefined,
@@ -103,6 +109,20 @@ function parseDatasetItem(item: JsonObject, index: number): AgentToolEvalCase {
 		setup_turns: parseSetupTurns(input.setup_turns, caseId),
 		surface_key: optionalString(metadata.surface_key) ?? undefined,
 	};
+}
+
+function parseExpectedGroundingMode(
+	value: unknown,
+	caseId: string,
+): AgentToolEvalCase["expected_grounding_mode"] {
+	const mode = optionalString(value);
+	if (!mode) {
+		return;
+	}
+	if (mode === "none" || mode === "single_scope" || mode === "multi_scope") {
+		return mode;
+	}
+	throw new Error(`${caseId}.expected_grounding_mode must be none, single_scope, or multi_scope`);
 }
 
 function parseExpectedOutcome(
@@ -144,6 +164,6 @@ function parseToolCall(value: JsonObject, field: string): AgentToolEvalToolCall 
 	}
 	return {
 		args: { ...args },
-		name: stringField(value.name, `${field}.name`),
+		name: parseAgentRuntimeToolName(value.name, `${field}.name`),
 	};
 }

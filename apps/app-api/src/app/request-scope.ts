@@ -1,4 +1,9 @@
-import { type Env, isDeployedEnvironment, readAppAuthConfig, resolveEnvironment } from "../config";
+import {
+	type Env,
+	readAppAuthConfig,
+	readPublicNoticeURLAllowlist,
+	resolveEnvironment,
+} from "../config";
 import { buildAccountAdminService, createPgAccountAdminStore } from "../modules/account-admin";
 import {
 	buildAccountLifecycleService,
@@ -35,7 +40,6 @@ export function createRequestScopeFactory(input: {
 	env: Env;
 	telemetry: import("../modules/telemetry").AppTelemetry;
 }) {
-	const requireExecutionRuntime = isDeployedEnvironment(resolveEnvironment(input.env));
 	const executionRuntimeConfigured = isExecutionControlRuntimeConfigured(input.env);
 	const executionRuntime = executionRuntimeConfigured
 		? createExecutionControlRuntimeClient(input.env)
@@ -60,24 +64,23 @@ export function createRequestScopeFactory(input: {
 			const resolveProfileMemoryService = () =>
 				(memory ??= buildProfileMemoryService({
 					commandAdmitter: createExecutionControlPersonalMemoryClient(input.env),
-					store: createPgProfileMemoryStore(input.env, { getDb: runtime.getFreshDb }),
+					store: createPgProfileMemoryStore(input.env, { getDb: runtime.getDb }),
 				}));
 			const resolveChatConversationService = () =>
 				(chat ??= buildChatConversationService({
-					detailStore: createPgChatConversationStore(input.env, { getDb: runtime.getFreshDb }),
+					detailStore: createPgChatConversationStore(input.env, { getDb: runtime.getDb }),
 					dispatchMemoryCommands: () => resolveProfileMemoryService().dispatchPending(),
 					store: createPgChatConversationStore(input.env, { getDb: runtime.getDb }),
 				}));
 			const resolveChatCommandService = () =>
 				(command ??= buildChatCommandService({
 					conversationStore: createPgChatConversationStore(input.env, {
-						getDb: runtime.getFreshDb,
+						getDb: runtime.getDb,
 					}),
 					executionRuntime,
 					isExecutionRuntimeConfigured: executionRuntimeConfigured,
 					profileMemoryStore: createPgProfileMemoryStore(input.env, { getDb: runtime.getDb }),
-					publicNoticeURLAllowlist: [],
-					requireExecutionRuntime,
+					publicNoticeURLAllowlist: readPublicNoticeURLAllowlist(input.env),
 					safetyIdentifierHmacSecret: input.env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET,
 					store: createPgChatCommandStore(input.env, { getDb: runtime.getDb }),
 					telemetry: input.telemetry,
@@ -88,7 +91,7 @@ export function createRequestScopeFactory(input: {
 					(accountAdmin ??= buildAccountAdminService({
 						authOrigin: new URL(readAppAuthConfig(input.env).authShellOrigin).origin,
 						getAppAuth,
-						store: createPgAccountAdminStore(input.env, { getDb: runtime.getFreshDb }),
+						store: createPgAccountAdminStore(input.env, { getDb: runtime.getDb }),
 					})),
 				resolveAccountLifecycleService: () =>
 					(accountLifecycle ??= buildAccountLifecycleService({
@@ -102,12 +105,12 @@ export function createRequestScopeFactory(input: {
 								userId,
 								input.env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET ?? "",
 							),
-						store: createPgAccountLifecycleStore(input.env, { getDb: runtime.getFreshDb }),
+						store: createPgAccountLifecycleStore(input.env, { getDb: runtime.getDb }),
 					})),
 				resolveCampusExperienceService: () => (campusExperience ??= buildCampusExperienceService()),
 				resolveCampusGroupsService: () =>
 					(campusGroups ??= buildCampusGroupsService(
-						createPgCampusGroupsStore(input.env, { getDb: runtime.getFreshDb }),
+						createPgCampusGroupsStore(input.env, { getDb: runtime.getDb }),
 					)),
 				resolveCampusServicesTransportScheduleService: () =>
 					(campusServices ??= buildCampusServicesTransportScheduleService({
@@ -119,11 +122,11 @@ export function createRequestScopeFactory(input: {
 				resolveChatConversationService,
 				resolveDiningMapReadService: () =>
 					(dining ??= createPgDiningMapReadService(input.env, {
-						getDb: runtime.getFreshDb,
+						getDb: runtime.getDb,
 					})),
 				resolveDiningContentService: () =>
 					(diningContent ??= createPgDiningContentService(input.env, {
-						getDb: runtime.getFreshDb,
+						getDb: runtime.getDb,
 					})),
 				resolveDocsService: () =>
 					(docs ??= buildDocsService({
@@ -138,6 +141,13 @@ export function createRequestScopeFactory(input: {
 				resolveRuntimeRunService: () =>
 					(runtimeRuns ??= buildRuntimeRunService({
 						executionRuntime: createExecutionControlRuntimeClient(input.env),
+						finalizeLocalCancellation: async (cancellation) => {
+							const service = resolveChatCommandService();
+							if (!service.finalizeLocalCancellation) {
+								throw new Error("Local chat cancellation finalization is not configured.");
+							}
+							await service.finalizeLocalCancellation(cancellation);
+						},
 						store: createPgRuntimeRunStore(input.env, { getDb: runtime.getDb }),
 					})),
 				telemetry: input.telemetry,

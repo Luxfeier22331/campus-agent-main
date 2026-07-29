@@ -1,11 +1,14 @@
 {
-	"selected_tool": null,
 	"status": "error",
 	"answer_text": "",
 	"follow_up_question": "",
 	"confidence": "low",
-	"resolved_targets": [],
-	"session_update": null,
+	"model_usage": {
+		"input_tokens": 0,
+		"cached_input_tokens": 0,
+		"output_tokens": 0,
+		"total_tokens": 0
+	},
 	"result": null,
 	"error": {
 		"code": "execution_control_unavailable",
@@ -13,17 +16,9 @@
 		"retryable": true
 	},
 	"workflow_trace_summary": {
-		"workflow_mode": "terminal",
-		"selected_tool": null,
-		"selected_tools": [],
-		"first_decision_actor": "execution_control",
-		"planning_outcome": "execution_control_unavailable",
-		"direct_vs_delegate_branch": "terminal",
+		"execution_path": "rejected",
 		"terminal_reason": "execution_control_unavailable",
-		"answer_artifact_kinds": [],
 		"answer_artifact_refs": [],
-		"trace_steps": [],
-		"tool_call_summaries": [],
 		"runtime_versions": {}
 	},
 	"trace_id": "trace-contract-execution-unavailable"

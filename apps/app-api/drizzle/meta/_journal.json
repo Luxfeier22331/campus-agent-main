@@ -50,6 +50,13 @@
       "when": 1785264578376,
       "tag": "0006_auth_ownership_and_account_lifecycle",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1785282377105,
+      "tag": "0007_execution_runtime_ownership",
+      "breakpoints": true
     }
   ]
 }

@@ -89,6 +89,13 @@
 			"description": "Whether the product execution terminal outcome matches the dataset expectation."
 		},
 		{
+			"name": "routing.grounding_mode_match",
+			"data_type": "BOOLEAN",
+			"owner": "packages/eval-langfuse",
+			"eval_kinds": ["routing"],
+			"description": "Whether the frozen grounding mode matches the dataset routing expectation."
+		},
+		{
 			"name": "retrieval.forbidden_context_absent",
 			"data_type": "BOOLEAN",
 			"owner": "packages/eval-langfuse",

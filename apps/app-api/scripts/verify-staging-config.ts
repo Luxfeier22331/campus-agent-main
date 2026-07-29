@@ -53,11 +53,6 @@ async function main(): Promise<void> {
 	);
 	expectNotContains(source, "APP_API_OTEL_INGEST_", "Retired app-api OTLP ingest config remains.");
 	expectContains(source, 'binding = "APP_API_DB"', "Missing APP_API_DB Hyperdrive binding.");
-	expectContains(
-		source,
-		'binding = "APP_API_DB_FRESH"',
-		"Missing APP_API_DB_FRESH Hyperdrive binding.",
-	);
 	expectNotContains(
 		source,
 		'SENTRY_RELEASE = "',

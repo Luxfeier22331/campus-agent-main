@@ -1,4 +1,6 @@
+import { isIP } from "node:net";
 import { type ModelProvider, OpenAIProvider } from "@openai/agents";
+import OpenAI from "openai";
 import type {
 	AgentRunner,
 	PromptProviderRuntimeConfig,
@@ -49,7 +51,15 @@ export function openAIAgentsRunnerOptionsFromProviderConfig(
 ): OpenAIAgentsRunnerOptions {
 	const createProvider =
 		dependencies.createProvider ??
-		((providerConfig: OpenAIProviderConfig): ModelProvider => new OpenAIProvider(providerConfig));
+		((providerConfig: OpenAIProviderConfig): ModelProvider =>
+			new OpenAIProvider({
+				openAIClient: new OpenAI({
+					apiKey: providerConfig.apiKey,
+					baseURL: providerConfig.baseURL,
+					fetch: fetchWithoutRedirects,
+				}),
+				useResponses: providerConfig.useResponses,
+			}));
 	const apiKey = trimmed(config.apiKey);
 	if (apiKey === undefined) {
 		throw new Error("provider api key is required for agent-runtime");
@@ -66,15 +76,56 @@ export function openAIAgentsRunnerOptionsFromProviderConfig(
 	if (provider !== undefined && provider !== "openai" && provider !== "openai-compatible") {
 		throw new Error("provider must be openai or openai-compatible for agent-runtime");
 	}
+	const baseURL = normalizeProviderBaseURL(config.baseUrl);
 	return {
 		model,
 		modelProvider: createProvider({
 			apiKey,
-			baseURL: trimmed(config.baseUrl),
+			baseURL,
 			useResponses: transport === "responses",
 		}),
 	};
 }
+
+export function normalizeProviderBaseURL(value: string | undefined): string {
+	const raw = trimmed(value);
+	if (raw === undefined) {
+		throw new Error("provider base url is required for agent-runtime");
+	}
+	if (raw.includes("\\") || raw.includes("?") || raw.includes("#")) {
+		throw new Error("provider base url is invalid for agent-runtime");
+	}
+	let parsed: URL;
+	try {
+		parsed = new URL(raw);
+	} catch {
+		throw new Error("provider base url is invalid for agent-runtime");
+	}
+	if (
+		(parsed.protocol !== "https:" && parsed.protocol !== "http:") ||
+		!parsed.hostname ||
+		parsed.username !== "" ||
+		parsed.password !== ""
+	) {
+		throw new Error("provider base url is invalid for agent-runtime");
+	}
+	if (parsed.protocol === "http:" && !isLoopbackHostname(parsed.hostname)) {
+		throw new Error("provider base url must use https outside loopback");
+	}
+	return parsed.toString();
+}
+
+function isLoopbackHostname(hostname: string): boolean {
+	const normalized = hostname.toLowerCase().replace(/^\[|\]$/gu, "");
+	if (normalized === "localhost") {
+		return true;
+	}
+	const family = isIP(normalized);
+	return (family === 4 && normalized.startsWith("127.")) || (family === 6 && normalized === "::1");
+}
+
+const fetchWithoutRedirects: typeof fetch = (input, init) =>
+	globalThis.fetch(input, { ...init, redirect: "manual" });
 
 function trimmed(value: string | undefined): string | undefined {
 	const result = value?.trim();

@@ -18,9 +18,8 @@ function createCompletedExecutionClient(): ToolExecutionClient {
 			answerText: "可以，先看培养方案和学院通知。",
 			error: null,
 			followUpQuestion: "",
+			modelUsage: { cachedInputTokens: 10, inputTokens: 120, outputTokens: 42, totalTokens: 162 },
 			result: {},
-			resolvedTargets: [],
-			selectedTool: "knowledge_query",
 			status: "completed",
 			traceId: "trace_0001",
 		}),
@@ -29,7 +28,7 @@ function createCompletedExecutionClient(): ToolExecutionClient {
 
 describe("chat command service memory gate projection", () => {
 	it("projects the immutable memory snapshot returned by accept", async () => {
-		const { store } = createCommandStore({
+		const { frozenAdmissionMemorySnapshots, store } = createCommandStore({
 			memorySnapshot: {
 				appendEnabled: true,
 				ownerGeneration: 3,
@@ -56,6 +55,14 @@ describe("chat command service memory gate projection", () => {
 			principal: createPrincipal(),
 			requestKind: "public_chat",
 		});
+		expect(frozenAdmissionMemorySnapshots).toEqual([
+			{
+				appendEnabled: true,
+				ownerGeneration: 3,
+				ownerSequence: 7,
+				recallEnabled: false,
+			},
+		]);
 
 		expect(executionClient.execute).toHaveBeenCalledWith(
 			expect.objectContaining({

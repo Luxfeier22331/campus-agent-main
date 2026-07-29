@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { createIdempotencyKey, requestJson, UnauthorizedError } from "@/platform/api/client";
 import type {
 	ChatAnswerPayload,
@@ -72,9 +73,13 @@ export async function searchConversations(input: {
 	});
 }
 
-export async function getConversationDetail(conversationId: string): Promise<ConversationDetail> {
+export async function getConversationDetail(
+	conversationId: string,
+	signal?: AbortSignal,
+): Promise<ConversationDetail> {
 	const payload = await requestJson<{ conversation: ConversationDetail }>({
 		path: `/api/chat/conversations/${encodeURIComponent(conversationId)}`,
+		signal,
 	});
 	return normalizeConversationDetail(payload.conversation);
 }
@@ -230,18 +235,26 @@ export async function deleteTrailingMessages(input: {
 }
 
 export async function cancelRun(runId: string): Promise<void> {
-	await requestJson({
+	const response = await fetch(`/api/chat/runs/${encodeURIComponent(runId)}/cancel`, {
 		body: JSON.stringify({ reason: "user_requested" }),
+		credentials: "same-origin",
 		headers: {
+			accept: "application/json",
 			"content-type": "application/json",
 		},
 		method: "POST",
-		path: `/api/chat/runs/${encodeURIComponent(runId)}/cancel`,
 	});
+	if (response.status === 401) {
+		throw new UnauthorizedError();
+	}
+	if (!response.ok) {
+		throw await createChatStreamRequestError(response);
+	}
 }
 
 export async function* submitChatRequestStream(input: {
 	conversationId?: string;
+	idempotencyKey?: string;
 	prompt: string;
 	signal?: AbortSignal;
 }): AsyncIterable<ChatRequestStreamEvent> {
@@ -254,7 +267,7 @@ export async function* submitChatRequestStream(input: {
 		headers: {
 			accept: "text/event-stream",
 			"content-type": "application/json",
-			"idempotency-key": createIdempotencyKey(),
+			"idempotency-key": input.idempotencyKey ?? createIdempotencyKey(),
 		},
 		method: "POST",
 		signal: input.signal,
@@ -266,6 +279,7 @@ export async function* submitChatRequestStream(input: {
 	if (!response.ok) {
 		throw await createChatStreamRequestError(response);
 	}
+	assertEventStreamContentType(response);
 	if (!response.body) {
 		throw new Error("Lifecycle stream response body is empty.");
 	}
@@ -301,8 +315,9 @@ export async function* resumeRunEventsStream(input: {
 		throw new UnauthorizedError();
 	}
 	if (!response.ok) {
-		throw new Error(response.statusText || "恢复回答失败。");
+		throw await createChatStreamRequestError(response);
 	}
+	assertEventStreamContentType(response);
 	if (!response.body) {
 		throw new Error("Run event stream response body is empty.");
 	}
@@ -352,37 +367,148 @@ async function* parseProductSse(response: Response): AsyncIterable<ChatRequestSt
 				boundary = buffer.search(/\r?\n\r?\n/);
 			}
 		}
-		buffer += decoder.decode();
-		const parsed = parseSseBlock(buffer.trim());
-		if (parsed) {
-			yield parsed;
-		}
+		void decoder.decode();
+		// SSE events are committed only by a blank line. A truncated tail is replayed on resume.
 	} finally {
 		reader.releaseLock();
 	}
 }
 
 function parseSseBlock(block: string): ChatRequestStreamEvent | null {
-	let event: ChatRequestStreamEventName | null = null;
+	let eventName: string | null = null;
 	const dataLines: string[] = [];
+	let meaningfulLine = false;
 	for (const line of block.split(/\r?\n/)) {
-		if (line.startsWith("event:")) {
-			const name = line.slice("event:".length).trim();
-			if (isProductStreamEventName(name)) {
-				event = name;
-			}
+		if (line === "" || line.startsWith(":")) {
+			continue;
 		}
-		if (line.startsWith("data:")) {
+		if (line.startsWith("event:")) {
+			meaningfulLine = true;
+			eventName = line.slice("event:".length).trim();
+		} else if (line.startsWith("data:")) {
+			meaningfulLine = true;
 			dataLines.push(line.slice("data:".length).trimStart());
+		} else {
+			throw invalidProductStreamEvent();
 		}
 	}
-	if (!(event && dataLines.length > 0)) {
+	if (!meaningfulLine) {
 		return null;
 	}
+	if (!(eventName && dataLines.length > 0 && isProductStreamEventName(eventName))) {
+		throw invalidProductStreamEvent();
+	}
+	let data: unknown;
+	try {
+		data = JSON.parse(dataLines.join("\n"));
+	} catch {
+		throw invalidProductStreamEvent();
+	}
+	if (!(data && typeof data === "object" && !Array.isArray(data))) {
+		throw invalidProductStreamEvent();
+	}
+	if (!validateProductStreamEvent(eventName, data)) {
+		throw invalidProductStreamEvent();
+	}
 	return {
-		data: JSON.parse(dataLines.join("\n")) as ChatRequestStreamEvent["data"],
-		event,
+		data: data as ChatRequestStreamEvent["data"],
+		event: eventName,
 	};
+}
+
+const nonEmptyString = z.string().min(1);
+const sequence = z.number().int().nonnegative();
+const streamBase = z
+	.object({
+		occurredAt: nonEmptyString,
+		requestId: nonEmptyString,
+		status: nonEmptyString,
+		traceId: nonEmptyString,
+	})
+	.passthrough();
+const answerPayload = z
+	.object({
+		conversation: z.object({ id: nonEmptyString }).passthrough(),
+		result: z
+			.object({
+				kind: z.enum(["answer", "clarification", "error", "no_answer"]),
+				requestId: nonEmptyString,
+				traceId: nonEmptyString,
+			})
+			.passthrough(),
+	})
+	.passthrough();
+const optionalRunCursor = {
+	runId: nonEmptyString.nullable().optional(),
+	sequence: sequence.optional(),
+};
+const acceptedEventData = streamBase.extend({ runId: nonEmptyString });
+const queuedEventData = streamBase.extend(optionalRunCursor);
+const runningEventData = streamBase.extend(optionalRunCursor);
+const deltaEventData = streamBase.extend({
+	delta: z.string().min(1),
+	messageId: nonEmptyString,
+	runId: nonEmptyString,
+	sequence,
+});
+const completedEventData = streamBase
+	.extend({
+		answer: answerPayload.optional(),
+		runId: nonEmptyString.optional(),
+		sequence: sequence.optional(),
+	})
+	.refine((value) => value.answer !== undefined || value.runId !== undefined);
+const failedEventData = streamBase.extend({
+	error: z
+		.object({ code: nonEmptyString, message: nonEmptyString, retryable: z.boolean().optional() })
+		.passthrough(),
+	runId: nonEmptyString.optional(),
+	sequence: sequence.optional(),
+});
+const cancelledEventData = streamBase
+	.extend({
+		answer: answerPayload.optional(),
+		runId: nonEmptyString.optional(),
+		sequence: sequence.optional(),
+	})
+	.refine((value) => value.answer !== undefined || value.runId !== undefined);
+
+function validateProductStreamEvent(eventName: ChatRequestStreamEventName, data: unknown): boolean {
+	const schema =
+		eventName === "request.accepted"
+			? acceptedEventData
+			: eventName === "execution.queued"
+				? queuedEventData
+				: eventName === "execution.running"
+					? runningEventData
+					: eventName === "answer.delta"
+						? deltaEventData
+						: eventName === "request.completed"
+							? completedEventData
+							: eventName === "request.failed"
+								? failedEventData
+								: cancelledEventData;
+	return schema.safeParse(data).success;
+}
+
+function assertEventStreamContentType(response: Response): void {
+	const mediaType = response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
+	if (mediaType !== "text/event-stream") {
+		throw new ChatStreamRequestError({
+			code: "invalid_stream_content_type",
+			message: "回答连接返回了无效内容类型。",
+			retryable: false,
+			status: response.status,
+		});
+	}
+}
+
+function invalidProductStreamEvent(): ChatStreamRequestError {
+	return new ChatStreamRequestError({
+		code: "invalid_stream_event",
+		message: "回答连接返回了无效事件。",
+		retryable: false,
+	});
 }
 
 function isProductStreamEventName(value: string): value is ChatRequestStreamEventName {

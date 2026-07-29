@@ -14,39 +14,41 @@ namespace、不可变镜像、环境配置、凭据对象和实际资源额度�
 ## 运行时基础
 
 `infra/k8s/execution-runtime/base` 与 `infra/k8s/ingestion-runtime/base` 分别提供 execution 和
-ingestion 的完整聚合视图。环境仓按故障域消费其中的子单元：常驻运行时分别位于 `runtime/`，
-provider 配置管理面位于 `execution-runtime/base/admin/`，Temporal schedule 同步位于
-`ingestion-runtime/base/schedule/`。聚合 base 必须与全部子单元的并集等价，供本地验证和不需要
-故障隔离的消费者使用。
+ingestion 的完整聚合视图。常驻 workload 位于各自 `runtime/`，采集认证检查位于
+`ingestion-runtime/base/schedule/`。聚合 base 必须与这些子单元的并集等价，供本地验证和环境仓
+选择。
 
 精确资源、标签、探针和配置引用以 Kustomize 清单为准，不在架构文档维护副本。源码 base 不选择
 具体环境或可变镜像标签。子单元可以引用同 namespace 中由运行时或 foundation 唯一拥有的
 ServiceAccount、ConfigMap 和 Secret，不得复制共享资源所有权。
 
-Temporal Server、Worker Controller、KEDA 与 cert-manager 属于平台前置条件。它们的版本和
-配置由环境仓维护，并必须支持源码 base 使用的 API。
+当前稳定进程形态是：
 
-## Worker 版本
+- `execution-control`：一个标准 Deployment，同时提供执行 API、Provider Config 管理 API 和三类
+  Temporal poller；
+- `agent-runtime`：一个独立 Deployment；
+- `ingestion-control` API、`ingestion-control-worker` 与 `source-collector-worker`：三个标准
+  Deployment；
+- OpenTelemetry Collector：环境仓部署的一个 DaemonSet。
 
-生产 worker 使用 Temporal Worker Deployment Versioning。Worker Controller 根据 worker 模板
-创建构建版本，注入运行身份并管理版本路由；应用只读取该身份，不自行生成或覆盖。
+Temporal Server 是运行前置条件。源码 base 只声明标准 Deployment，不声明 Worker Controller、
+WorkerDeployment、WorkerResourceTemplate 或 KEDA 资源。
 
-新版本先启动 poller 并注册为可用构建，旧版本在已有任务完成前继续服务。版本切换、保留时间和
-清理由 Temporal 与环境配置共同控制，Argo CD 不直接接管 controller 创建的版本 Deployment。
+## 发布与容量
 
-## 自动扩缩
+标准 Deployment 由 Argo CD 选择不可变镜像并执行滚动更新。workflow 代码变更必须保持 Temporal
+replay 兼容；确实不兼容的执行合同使用维护窗口排空，不通过第二套长期 worker 路由兼容旧合同。
+应用不自行部署、重启或修改 Kubernetes 资源。
 
-Worker Controller 为活动构建物化 KEDA 扩缩资源。KEDA 读取 Temporal backlog，副本数不经过
-应用进程、数据库投影或仓库自研扩缩器决定。
-
-单个 worker 的并发由 SDK 配置限制，整个 worker 组的容量由 KEDA 调整。具体阈值、最小副本和
-故障可用性要求属于环境配置。
+当前小规模环境使用明确副本数和 SDK 并发上限，不为这些 poller 维护 KEDA/HPA。容量调整由环境仓
+修改所属 Deployment 的副本与资源；Temporal task queue backlog 只作为运行观测，不进入应用
+数据库或自研扩缩器。
 
 ## 状态职责
 
 - Argo CD 选择源码声明的基础资源、不可变镜像和环境配置；
-- Temporal 保存 workflow/activity history 并管理版本路由；
-- KEDA/HPA 管理副本数；
+- Temporal 保存 workflow/activity history、任务投递、retry、timeout 和 cancellation；
+- Kubernetes Deployment 管理进程副本与滚动更新；
 - PostgreSQL 只保存产品或采集投影。
 
 workflow 代码不得部署、重启或修改自己的 Kubernetes 资源。
@@ -71,15 +73,15 @@ key，不创建按消费者复制的影子 Secret。非敏感 ConfigMap 不受�
 
 ## 不允许的形态
 
-- production Temporal worker 使用不受版本控制的静态 Deployment；
-- 为单一 worker Deployment 维护静态扩缩资源；
-- 使用自研 task queue 采样器或副本执行器替代 Temporal 与 KEDA；
+- 为 workflow、core activity 和 agent activity 各维护一个长期独立 Deployment；
+- 引入 Worker Controller、WorkerDeployment、WorkerResourceTemplate 或 KEDA 作为应用发布或扩缩容
+  机制；
+- 使用自研 task queue 采样器或副本执行器；
 - workflow 调用 Kubernetes 或 Argo CD；
-- 应用自行维护 worker build identity。
+- 应用自行维护 worker build routing。
 
 ## 相关文档
 
-- `docs/decisions/adr-0078-worker-versioning.md`
 - `docs/runbooks/temporal.md`
 - `docs/runbooks/release.md`
 - `docs/architecture/system/durable-runtime.md`

@@ -14,8 +14,6 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
-
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 )
 
 type hindsightHTTPClient struct {
@@ -106,33 +104,6 @@ type hindsightConversationTurn struct {
 	Role    string `json:"role"`
 }
 
-type hindsightReflectRequest struct {
-	Budget       string   `json:"budget,omitempty"`
-	Context      string   `json:"context,omitempty"`
-	FactTypes    []string `json:"fact_types,omitempty"`
-	IncludeFacts bool     `json:"include_facts"`
-	MaxTokens    int      `json:"max_tokens,omitempty"`
-	Query        string   `json:"query"`
-	Tags         []string `json:"tags,omitempty"`
-	TagsMatch    string   `json:"tags_match,omitempty"`
-}
-
-type hindsightReflectResponse struct {
-	BasedOnMemories  []hindsightReflectFact   `json:"based_on_memories,omitempty"`
-	StructuredOutput map[string]any           `json:"structured_output,omitempty"`
-	Text             string                   `json:"text"`
-	Usage            memoryruntime.TokenUsage `json:"usage,omitempty"`
-}
-
-type hindsightReflectFact struct {
-	Context       string `json:"context,omitempty"`
-	ID            string `json:"id,omitempty"`
-	OccurredEnd   string `json:"occurred_end,omitempty"`
-	OccurredStart string `json:"occurred_start,omitempty"`
-	Text          string `json:"text"`
-	Type          string `json:"type,omitempty"`
-}
-
 func newHindsightHTTPClient(options hindsightClientOptions) hindsightHTTPClient {
 	timeout := options.timeout
 	if timeout <= 0 {
@@ -144,12 +115,12 @@ func newHindsightHTTPClient(options hindsightClientOptions) hindsightHTTPClient 
 	clientConfig.UserAgent = hindsight.DefaultUserAgent
 	clientConfig.Servers = hindsight.ServerConfigurations{{URL: baseURL}}
 	clientConfig.AddDefaultHeader("Authorization", "Bearer "+apiSecret)
-	clientConfig.HTTPClient = &http.Client{
+	clientConfig.HTTPClient = noRedirectHTTPClient(&http.Client{
 		Timeout: timeout,
 		Transport: hindsightPropagationTransport{
 			base: http.DefaultTransport,
 		},
-	}
+	})
 	return hindsightHTTPClient{
 		apiSecret: apiSecret,
 		baseURL:   baseURL,

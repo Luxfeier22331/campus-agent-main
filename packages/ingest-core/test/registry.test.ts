@@ -7,9 +7,9 @@ const registry: IngestionTaskRegistry = {
 	tasks: [
 		{
 			executor_kind: "rust_kernel",
-			input_contract: "canonical_document_units.v1",
-			kernel_id: "chunk-document-units",
-			output_contract: "ingestion_chunk_set.v1",
+			input_contract: "canonical_document_units.v2",
+			kernel_id: "build-retrieval-chunks-v2",
+			output_contract: "retrieval_chunk_set.v2",
 			registry_task_id: "curriculum.curriculum_plan.chunk_prepare",
 			target: { collection: "curriculum_plan", corpus: "curriculum" },
 		},

@@ -14,8 +14,8 @@ status: active
 
 | 所有者 | 负责 |
 | --- | --- |
-| 源码仓 | 构建镜像、上传不可变 Worker 候选版本、产出 schema 和环境无关清单 |
-| 环境仓 | 选择镜像摘要和 Worker 版本，维护环境配置并发起实际发布 |
+| 源码仓 | 构建镜像、上传不可变 Cloudflare Worker 候选版本、产出 schema 和环境无关清单 |
+| 环境仓 | 选择镜像摘要和 Cloudflare Worker 版本，维护环境配置并发起实际发布 |
 | Cloudflare Terraform | Worker 绑定、域名、路由、非密配置和流量版本 |
 | Argo CD | Kubernetes 资源和镜像摘要 |
 | schema Job | 在依赖新结构的服务接收流量前完成数据库迁移和授权 |
@@ -27,9 +27,9 @@ status: active
 
 ```text
 源码 main
--> 构建不可变镜像并上传 Worker 候选版本
+-> 构建不可变镜像并上传 Cloudflare Worker 候选版本
 -> 从环境仓 staging 游标计算累计受影响范围
--> 环境仓滚动 PR 选择镜像摘要和 Worker 版本
+-> 环境仓滚动 PR 选择镜像摘要和 Cloudflare Worker 版本
 -> 机器字段校验通过后自动合并
 -> 数据库 schema 与平台配置收敛
 -> Argo CD 同步 Kubernetes
@@ -39,7 +39,7 @@ status: active
 
 规则如下：
 
-- Worker 上传使用版本接口，不在源码仓直接修改路由或流量；
+- Cloudflare Worker 上传使用版本接口，不在源码仓直接修改路由或流量；
 - Kubernetes 使用镜像摘要，不用可变标签表达环境目标；
 - 依赖新 schema 的运行时必须在迁移成功后才能接收流量；
 - 一个应用失败不能被其他应用的健康状态掩盖；
@@ -60,6 +60,11 @@ Worker 还必须记录数据 release identity 和二者组合的 build identity�
 环境仓变更应使用这些不可变标识定位同一次发布，不在源码仓中长期写死某个环境发布号。环境仓用
 已选择 Source SHA 作为下一次候选计算基线；Argo CD 和 Cloudflare 状态写回该 Source SHA，分别表达
 对应部署单元的结果。
+
+`DEPLOYMENT_RELEASE` 是 execution runtime 的非密发布身份，并进入
+`tool_runtime_fingerprint.v2` 的 `runtime_release`。staging 与 production 的 execution-control 和
+agent-runtime 必须取得环境仓选择的同一非空值；任一进程缺失时启动失败，不能以本地默认值或环境
+名称补齐。精确指纹合同见 `../../contracts/tool-execution.md`。
 
 ## 配置与密钥
 
@@ -92,5 +97,4 @@ runbook，不在架构文档保存某次验收输出。
 - [环境配置](../../environment/README.md)
 - [发布操作](../../runbooks/release.md)
 - [ADR-0065](../../decisions/adr-0065-gitops.md)
-- [ADR-0078](../../decisions/adr-0078-worker-versioning.md)
 - [ADR-0083](../../decisions/adr-0083-promotion.md)

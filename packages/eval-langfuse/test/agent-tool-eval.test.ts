@@ -30,7 +30,7 @@ function runStepsResponse(toolTrajectory: JsonObject, rag: JsonObject = {}): Res
 				run_id: toolTrajectory.run_id,
 				trace_id: toolTrajectory.trace_id,
 			},
-			schema_version: "agent_runtime_eval_projection.v2",
+			schema_version: "agent_runtime_eval_projection.v3",
 			tool_trajectory: toolTrajectory,
 		},
 		attempts: [],
@@ -176,19 +176,11 @@ describe("agent tool eval runner", () => {
 						{
 							expectedOutput: {
 								expected_outcome: "answer",
+								expected_grounding_mode: "single_scope",
 								forbidden_context_ids: ["handbook:wrong-policy"],
 								reference: "应依据示例学位授予规定第十条回答。",
 								reference_context_ids: ["handbook:degree-policy"],
-								reference_tool_calls: [
-									{
-										args: {},
-										name: "knowledge_query",
-									},
-									{
-										args: { include_history: false, target: "student_rules" },
-										name: "knowledge_search",
-									},
-								],
+								reference_tool_calls: [],
 							},
 							id: "dataset-item-001",
 							input: {
@@ -196,7 +188,7 @@ describe("agent tool eval runner", () => {
 								setup_turns: ["请帮我查一下示例学位授予规定。"],
 							},
 							metadata: {
-								argument_mode: "eval_safe_args",
+								argument_mode: "name_only",
 								case_family: "conversation_follow_up",
 								case_id: "student-rules-conversation-follow-up",
 								surface_key: "rag/student_rules",
@@ -249,38 +241,24 @@ describe("agent tool eval runner", () => {
 			if (url.endsWith("/api/chat/runs/run-001/steps")) {
 				return runStepsResponse(
 					{
-						available_tools: ["knowledge_query", "transport_schedule_lookup"],
+						available_tools: [],
 						conversation_id: "conv-001",
-						decision_kind: "tool_call",
-						internal_tool_calls: [
-							{
-								eval_safe_args: { include_history: false, target: "student_rules" },
-								result_kind: "knowledge_search_result",
-								search_ordinal: 1,
-								status: "completed",
-								tool_call_id: "search-001",
-								tool_name: "knowledge_search",
-							},
-						],
+						decision_kind: "direct_answer",
 						request_id: "req-001",
 						run_id: "run-001",
-						schema_version: "tool_trajectory.v2",
-						selected_tool: "knowledge_query",
+						schema_version: "tool_trajectory.v3",
 						surface: "campus-web",
-						tool_calls: [
-							{
-								result_kind: "agent_handoff",
-								status: "completed",
-								tool_call_id: "call-001",
-								tool_name: "knowledge_query",
-							},
-						],
+						tool_calls: [],
 						trace_id: productTraceId,
 					},
 					{
 						answer: "第十条规定了学位授予条件。",
+						covered_scopes: ["student_rules"],
+						grounding_mode: "single_scope",
+						grounding_status: "ready",
 						retrieved_context_ids: ["handbook:degree-policy"],
 						retrieved_contexts: ["第十条规定申请人应满足学位授予条件。"],
+						selected_scopes: ["student_rules"],
 					},
 				);
 			}
@@ -331,12 +309,12 @@ describe("agent tool eval runner", () => {
 								dataset_run_id: sample.dataset_run_id,
 								errors: [],
 								metadata: {
-									argument_mode: "eval_safe_args",
+									argument_mode: "name_only",
 									surface_key: "app-api.chat",
 								},
 								observation_id: null,
 								scores: {
-									"ragas.tool_call_accuracy.args": 1,
+									"ragas.tool_call_accuracy.name_only": 1,
 								},
 								trace_id: sample.trace_id,
 							},
@@ -383,25 +361,13 @@ describe("agent tool eval runner", () => {
 		expect(writtenAgentSamples[0]).toMatchObject({
 			items: [
 				{
-					argument_mode: "eval_safe_args",
+					argument_mode: "name_only",
 					case_id: "student-rules-conversation-follow-up",
 					dataset_item_id: "dataset-item-001",
 					dataset_run_id: "dataset-run-official",
 					query: "那第十条呢？",
-					reference_tool_calls: [
-						{ args: {}, name: "knowledge_query" },
-						{
-							args: { include_history: false, target: "student_rules" },
-							name: "knowledge_search",
-						},
-					],
-					tool_calls: [
-						{ args: {}, name: "knowledge_query" },
-						{
-							args: { include_history: false, target: "student_rules" },
-							name: "knowledge_search",
-						},
-					],
+					reference_tool_calls: [],
+					tool_calls: [],
 					trace_id: langfuseTraceId,
 				},
 			],
@@ -448,8 +414,9 @@ describe("agent tool eval runner", () => {
 		expect(scoreRequests.map((request) => (request.body as JsonObject).name).sort()).toEqual([
 			"execution.outcome_match",
 			"ragas.faithfulness",
-			"ragas.tool_call_accuracy.args",
+			"ragas.tool_call_accuracy.name_only",
 			"retrieval.forbidden_context_absent",
+			"routing.grounding_mode_match",
 		]);
 		for (const request of scoreRequests) {
 			expect(request).toMatchObject({

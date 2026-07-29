@@ -62,42 +62,6 @@ func TestPersonalMemoryCommandWorkflowRetriesCallbackWithoutRepeatingProviderMut
 	env.AssertActivityNumberOfCalls(t, WritePersonalMemoryCommandResultActivityName, 2)
 }
 
-func TestToolExecutionWorkflowFinalizesRunAfterMemoryRecallRetriesExhausted(t *testing.T) {
-	var suite testsuite.WorkflowTestSuite
-	env := suite.NewTestWorkflowEnvironment()
-	registerWorkflowTestActivities(env, &Activities{})
-	input := ToolExecutionWorkflowInput{
-		ConversationID: "conv-memory-failure",
-		RequestID:      "req-memory-failure",
-		RunID:          "run-memory-failure",
-		TraceID:        "trace-memory-failure",
-		TurnID:         "turn-memory-failure",
-	}
-	env.OnActivity(MemoryRecallActivityName, mock.Anything, mock.Anything).
-		Return(MemoryRecallActivityOutput{}, errors.New("secret provider diagnostic"))
-	env.OnActivity(
-		FinalizeExecutionFailureActivityName,
-		mock.Anything,
-		mock.MatchedBy(func(finalization FinalizeExecutionFailureActivityInput) bool {
-			return finalization.RunID == input.RunID &&
-				finalization.TraceID == input.TraceID &&
-				finalization.Stage == "memory.recall" &&
-				finalization.FailureKind == "memory_recall_failed" &&
-				len(finalization.FailureHash) == 64 &&
-				!finalization.FailedAt.IsZero()
-		}),
-	).Return(FinalizeExecutionFailureActivityOutput{RunID: input.RunID, Status: "failed"}, nil).Once()
-
-	env.ExecuteWorkflow(ToolExecutionWorkflow, input)
-
-	if env.GetWorkflowError() == nil {
-		t.Fatal("workflow error is nil, want exhausted recall failure")
-	}
-	env.AssertActivityNumberOfCalls(t, MemoryRecallActivityName, 3)
-	env.AssertActivityNumberOfCalls(t, FinalizeExecutionFailureActivityName, 1)
-	env.AssertActivityNumberOfCalls(t, ExecutePrimaryAgentActivityName, 0)
-}
-
 func TestToolExecutionWorkflowFreezesFailureTimestampAcrossFinalizerRetries(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
@@ -109,8 +73,8 @@ func TestToolExecutionWorkflowFreezesFailureTimestampAcrossFinalizerRetries(t *t
 		TraceID:        "trace-frozen-failure-time",
 		TurnID:         "turn-frozen-failure-time",
 	}
-	env.OnActivity(MemoryRecallActivityName, mock.Anything, mock.Anything).
-		Return(MemoryRecallActivityOutput{}, temporal.NewNonRetryableApplicationError("recall failed", "memory_recall_failed", nil)).Once()
+	env.OnActivity(ExecutePrimaryAgentActivityName, mock.Anything, mock.Anything).
+		Return(ExecutePrimaryAgentActivityOutput{}, temporal.NewNonRetryableApplicationError("agent failed", "agent_runtime_failed", nil)).Once()
 	failedAt := make([]time.Time, 0, 2)
 	captureFailedAt := func(arguments mock.Arguments) {
 		finalization, ok := arguments.Get(1).(FinalizeExecutionFailureActivityInput)
@@ -129,7 +93,7 @@ func TestToolExecutionWorkflowFreezesFailureTimestampAcrossFinalizerRetries(t *t
 	env.ExecuteWorkflow(ToolExecutionWorkflow, input)
 
 	if env.GetWorkflowError() == nil {
-		t.Fatal("workflow error is nil, want original recall failure")
+		t.Fatal("workflow error is nil, want original agent failure")
 	}
 	if len(failedAt) != 2 || failedAt[0].IsZero() || !failedAt[0].Equal(failedAt[1]) {
 		t.Fatalf("failure finalizer timestamps = %#v, want one frozen non-zero value", failedAt)
@@ -148,10 +112,12 @@ func TestToolExecutionWorkflowFinalizesRunAfterPrimaryAgentFailure(t *testing.T)
 		TraceID:        "trace-agent-failure",
 		TurnID:         "turn-agent-failure",
 	}
-	env.OnActivity(MemoryRecallActivityName, mock.Anything, mock.Anything).
-		Return(MemoryRecallActivityOutput{RunID: input.RunID, Status: "skipped"}, nil).Once()
 	env.OnActivity(ExecutePrimaryAgentActivityName, mock.Anything, mock.Anything).
-		Return(ExecutePrimaryAgentActivityOutput{}, errors.New("agent transport unavailable"))
+		Return(ExecutePrimaryAgentActivityOutput{}, temporal.NewNonRetryableApplicationError(
+			"agent transport unavailable",
+			"agent_attempt_uncertain",
+			nil,
+		))
 	env.OnActivity(
 		FinalizeExecutionFailureActivityName,
 		mock.Anything,
@@ -159,7 +125,7 @@ func TestToolExecutionWorkflowFinalizesRunAfterPrimaryAgentFailure(t *testing.T)
 			return finalization.RunID == input.RunID &&
 				finalization.TraceID == input.TraceID &&
 				finalization.Stage == "agent.primary" &&
-				finalization.FailureKind == "agent_runtime_failed" &&
+				finalization.FailureKind == "agent_attempt_uncertain" &&
 				len(finalization.FailureHash) == 64 &&
 				!finalization.FailedAt.IsZero()
 		}),
@@ -170,12 +136,12 @@ func TestToolExecutionWorkflowFinalizesRunAfterPrimaryAgentFailure(t *testing.T)
 	if env.GetWorkflowError() == nil {
 		t.Fatal("workflow error is nil, want exhausted primary agent failure")
 	}
-	env.AssertActivityNumberOfCalls(t, ExecutePrimaryAgentActivityName, 3)
+	env.AssertActivityNumberOfCalls(t, ExecutePrimaryAgentActivityName, 1)
 	env.AssertActivityNumberOfCalls(t, FinalizeExecutionFailureActivityName, 1)
 	env.AssertActivityNumberOfCalls(t, WriteFinalizationActivityName, 0)
 }
 
-func TestToolExecutionWorkflowFinalizesRunAfterFinalizationFailure(t *testing.T) {
+func TestToolExecutionWorkflowFinalizesRunAfterNonRetryableFinalizationFailure(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
 	registerWorkflowTestActivities(env, &Activities{})
@@ -186,8 +152,6 @@ func TestToolExecutionWorkflowFinalizesRunAfterFinalizationFailure(t *testing.T)
 		TraceID:        "trace-finalization-failure",
 		TurnID:         "turn-finalization-failure",
 	}
-	env.OnActivity(MemoryRecallActivityName, mock.Anything, mock.Anything).
-		Return(MemoryRecallActivityOutput{RunID: input.RunID, Status: "skipped"}, nil).Once()
 	env.OnActivity(ExecutePrimaryAgentActivityName, mock.Anything, mock.Anything).
 		Return(ExecutePrimaryAgentActivityOutput{
 			AgentResultRef: "projection://runs/" + input.RunID + "/agent/primary/result",
@@ -195,7 +159,11 @@ func TestToolExecutionWorkflowFinalizesRunAfterFinalizationFailure(t *testing.T)
 			Status:         "completed",
 		}, nil).Once()
 	env.OnActivity(WriteFinalizationActivityName, mock.Anything, mock.Anything).
-		Return(WriteFinalizationActivityOutput{}, errors.New("finalization storage unavailable"))
+		Return(WriteFinalizationActivityOutput{}, temporal.NewNonRetryableApplicationError(
+			"finalization input invalid",
+			"finalization_input_invalid",
+			nil,
+		)).Once()
 	env.OnActivity(
 		FinalizeExecutionFailureActivityName,
 		mock.Anything,
@@ -203,7 +171,7 @@ func TestToolExecutionWorkflowFinalizesRunAfterFinalizationFailure(t *testing.T)
 			return finalization.RunID == input.RunID &&
 				finalization.TraceID == input.TraceID &&
 				finalization.Stage == "finalization.write" &&
-				finalization.FailureKind == "finalization_failed" &&
+				finalization.FailureKind == "finalization_input_invalid" &&
 				len(finalization.FailureHash) == 64 &&
 				!finalization.FailedAt.IsZero()
 		}),
@@ -214,9 +182,47 @@ func TestToolExecutionWorkflowFinalizesRunAfterFinalizationFailure(t *testing.T)
 	if env.GetWorkflowError() == nil {
 		t.Fatal("workflow error is nil, want exhausted finalization failure")
 	}
-	env.AssertActivityNumberOfCalls(t, WriteFinalizationActivityName, 3)
+	env.AssertActivityNumberOfCalls(t, WriteFinalizationActivityName, 1)
 	env.AssertActivityNumberOfCalls(t, FinalizeExecutionFailureActivityName, 1)
 	env.AssertActivityNumberOfCalls(t, AppendConversationMemoryActivityName, 0)
+}
+
+func TestToolExecutionWorkflowRetriesFinalizationProjectionWithoutFailureFinalizer(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	registerWorkflowTestActivities(env, &Activities{})
+	input := ToolExecutionWorkflowInput{
+		ConversationID: "conv-finalization-repair",
+		RequestID:      "req-finalization-repair",
+		RunID:          "run-finalization-repair",
+		TraceID:        "trace-finalization-repair",
+		TurnID:         "turn-finalization-repair",
+	}
+	completedAt := time.Date(2026, 7, 23, 8, 0, 0, 0, time.UTC)
+	env.OnActivity(ExecutePrimaryAgentActivityName, mock.Anything, mock.Anything).
+		Return(ExecutePrimaryAgentActivityOutput{
+			AgentResultRef: "projection://runs/" + input.RunID + "/agent/primary/result",
+			RunID:          input.RunID,
+			Status:         "completed",
+		}, nil).Once()
+	env.OnActivity(WriteFinalizationActivityName, mock.Anything, mock.Anything).
+		Return(WriteFinalizationActivityOutput{}, errors.New("internal finalization projection unavailable")).Once()
+	env.OnActivity(WriteFinalizationActivityName, mock.Anything, mock.Anything).
+		Return(WriteFinalizationActivityOutput{
+			CompletedAt:   completedAt,
+			ProjectionRef: "projection://runs/" + input.RunID + "/finalization/write",
+			RunID:         input.RunID,
+			Status:        "completed",
+		}, nil).Once()
+	env.OnActivity(AppendConversationMemoryActivityName, mock.Anything, mock.Anything).
+		Return(AppendConversationMemoryActivityOutput{RunID: input.RunID, Status: "completed"}, nil).Once()
+	env.ExecuteWorkflow(ToolExecutionWorkflow, input)
+
+	if err := env.GetWorkflowError(); err != nil {
+		t.Fatalf("workflow error after finalization repair: %v", err)
+	}
+	env.AssertActivityNumberOfCalls(t, WriteFinalizationActivityName, 2)
+	env.AssertActivityNumberOfCalls(t, FinalizeExecutionFailureActivityName, 0)
 }
 
 func TestToolExecutionWorkflowReturnsFailureFinalizerErrorBeforeStageError(t *testing.T) {
@@ -230,8 +236,8 @@ func TestToolExecutionWorkflowReturnsFailureFinalizerErrorBeforeStageError(t *te
 		TraceID:        "trace-finalizer-failure",
 		TurnID:         "turn-finalizer-failure",
 	}
-	env.OnActivity(MemoryRecallActivityName, mock.Anything, mock.Anything).
-		Return(MemoryRecallActivityOutput{}, temporal.NewNonRetryableApplicationError("recall failed", "memory_recall_failed", nil)).Once()
+	env.OnActivity(ExecutePrimaryAgentActivityName, mock.Anything, mock.Anything).
+		Return(ExecutePrimaryAgentActivityOutput{}, temporal.NewNonRetryableApplicationError("agent failed", "agent_runtime_failed", nil)).Once()
 	env.OnActivity(FinalizeExecutionFailureActivityName, mock.Anything, mock.Anything).
 		Return(FinalizeExecutionFailureActivityOutput{}, temporal.NewNonRetryableApplicationError("failure finalizer rejected", "execution_failure_finalizer_invalid", nil)).Once()
 
@@ -241,7 +247,7 @@ func TestToolExecutionWorkflowReturnsFailureFinalizerErrorBeforeStageError(t *te
 	if err == nil || !strings.Contains(err.Error(), "failure finalizer rejected") {
 		t.Fatalf("workflow error = %v, want failure finalizer error", err)
 	}
-	if strings.Contains(err.Error(), "recall failed") {
+	if strings.Contains(err.Error(), "agent failed") {
 		t.Fatalf("workflow error = %v, finalizer error must take precedence", err)
 	}
 }
@@ -394,37 +400,43 @@ func TestPersonalMemoryEraseFailsAfterBoundedVerificationRounds(t *testing.T) {
 	env.AssertActivityNumberOfCalls(t, VerifyPersonalMemoryTracesActivityName, personalMemoryEraseMaxRounds)
 }
 
-func TestToolExecutionWorkflowOwnsOnlyTheDurableFourStageShell(t *testing.T) {
+func TestToolExecutionWorkflowCompletesDurableLifecycleInOrder(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
 	registerWorkflowTestActivities(env, &Activities{})
-	sequence := make([]string, 0, 4)
+	sequence := make([]string, 0, 3)
 	runID := "run-linear-knowledge"
 	traceID := "trace-linear-knowledge"
 	agentResultRef := "projection://runs/" + runID + "/agent/primary/result"
 	completedAt := time.Date(2026, 7, 11, 1, 2, 3, 0, time.UTC)
+	groundingContextRef := "projection://runs/" + runID + "/grounding/context"
 
-	env.OnActivity(MemoryRecallActivityName, mock.Anything, mock.Anything).
-		Run(func(mock.Arguments) { sequence = append(sequence, "memory_recall") }).
-		Return(MemoryRecallActivityOutput{
-			MemoryRef: "projection://runs/" + runID + "/memory/recall",
-			RunID:     runID,
-			Status:    "completed",
+	env.OnActivity(
+		PrepareGroundingContextActivityName,
+		mock.Anything,
+		mock.MatchedBy(func(input PrepareGroundingContextActivityInput) bool {
+			return input.RunID == runID && input.TraceID == traceID
+		}),
+	).
+		Run(func(mock.Arguments) { sequence = append(sequence, "grounding") }).
+		Return(PrepareGroundingContextActivityOutput{
+			GroundingContextRef: groundingContextRef,
+			RunID:               runID,
+			Status:              "ready",
 		}, nil)
+
 	env.OnActivity(
 		ExecutePrimaryAgentActivityName,
 		mock.Anything,
 		mock.MatchedBy(func(input ExecutePrimaryAgentActivityInput) bool {
 			return input.RunID == runID &&
-				input.TraceID == traceID &&
-				input.ToolChoice == "knowledge_query"
+				input.TraceID == traceID
 		}),
 	).
 		Run(func(mock.Arguments) { sequence = append(sequence, "agent") }).
 		Return(ExecutePrimaryAgentActivityOutput{
 			AgentResultRef: agentResultRef,
 			RunID:          runID,
-			SelectedTools:  []string{"knowledge_query"},
 			Status:         "completed",
 			TerminalEnvelope: map[string]any{
 				"answer_text":   "毕业最低学分要求为 160 学分。",
@@ -458,23 +470,148 @@ func TestToolExecutionWorkflowOwnsOnlyTheDurableFourStageShell(t *testing.T) {
 			SchemaVersion: "memory_conversation_append_result_v1",
 			Status:        "completed",
 		}, nil)
-
 	env.ExecuteWorkflow(ToolExecutionWorkflow, ToolExecutionWorkflowInput{
-		ConversationID: "conv-linear-knowledge",
-		RequestID:      "req-linear-knowledge",
-		RequestedTool:  "knowledge_query",
-		RunID:          runID,
-		TraceID:        traceID,
-		TurnID:         "turn-linear-knowledge",
+		AdmissionSnapshot: AgentAdmissionSnapshot{GroundingPlan: GroundingPlanSnapshot{
+			Mode:           "single_scope",
+			SelectedScopes: []string{"curriculum"},
+		}},
+		ConversationID:      "conv-linear-knowledge",
+		GroundingContextRef: groundingContextRef,
+		RequestID:           "req-linear-knowledge",
+		RunID:               runID,
+		TraceID:             traceID,
+		TurnID:              "turn-linear-knowledge",
 	})
 
 	if err := env.GetWorkflowError(); err != nil {
 		t.Fatalf("workflow error: %v", err)
 	}
-	if got, want := sequence, []string{"memory_recall", "agent", "finalization", "memory_append"}; !equalStrings(got, want) {
+	if got, want := sequence, []string{"grounding", "agent", "finalization", "memory_append"}; !equalStrings(got, want) {
 		t.Fatalf("activity sequence = %#v, want %#v", got, want)
 	}
 	env.AssertActivityNumberOfCalls(t, ExecutePrimaryAgentActivityName, 1)
+	env.AssertActivityNumberOfCalls(t, PrepareGroundingContextActivityName, 1)
+}
+
+func TestToolExecutionWorkflowSkipsGroundingForDirectPlan(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	registerWorkflowTestActivities(env, &Activities{})
+	runID := "run-linear-direct"
+	groundingContextRef := "projection://runs/" + runID + "/grounding/context"
+	env.OnActivity(ExecutePrimaryAgentActivityName, mock.Anything, mock.MatchedBy(
+		func(input ExecutePrimaryAgentActivityInput) bool {
+			return input.GroundingContextRef == groundingContextRef
+		},
+	)).Return(ExecutePrimaryAgentActivityOutput{
+		AgentResultRef: "projection://runs/" + runID + "/agent/primary/result",
+		RunID:          runID,
+		Status:         "completed",
+	}, nil)
+	env.OnActivity(WriteFinalizationActivityName, mock.Anything, mock.Anything).
+		Return(WriteFinalizationActivityOutput{RunID: runID, Status: "completed"}, nil)
+	env.OnActivity(AppendConversationMemoryActivityName, mock.Anything, mock.Anything).
+		Return(AppendConversationMemoryActivityOutput{RunID: runID, Status: "completed"}, nil)
+
+	env.ExecuteWorkflow(ToolExecutionWorkflow, ToolExecutionWorkflowInput{
+		AdmissionSnapshot:   AgentAdmissionSnapshot{GroundingPlan: GroundingPlanSnapshot{Mode: "none"}},
+		GroundingContextRef: groundingContextRef,
+		RunID:               runID,
+	})
+
+	if err := env.GetWorkflowError(); err != nil {
+		t.Fatalf("direct workflow error: %v", err)
+	}
+	env.AssertActivityNumberOfCalls(t, PrepareGroundingContextActivityName, 0)
+	env.AssertActivityNumberOfCalls(t, ExecutePrimaryAgentActivityName, 1)
+}
+
+func TestToolExecutionWorkflowFinalizesCancellationOnDisconnectedContext(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	registerWorkflowTestActivities(env, &Activities{})
+	input := ToolExecutionWorkflowInput{
+		ConversationID: "conv-canceled-agent",
+		RequestID:      "req-canceled-agent",
+		RunID:          "run-canceled-agent",
+		TraceID:        "trace-canceled-agent",
+		TurnID:         "turn-canceled-agent",
+	}
+	env.OnActivity(ExecutePrimaryAgentActivityName, mock.Anything, mock.Anything).
+		After(time.Hour).
+		Return(ExecutePrimaryAgentActivityOutput{RunID: input.RunID, Status: "completed"}, nil).Once()
+	env.OnActivity(
+		FinalizeExecutionCancellationActivityName,
+		mock.Anything,
+		mock.MatchedBy(func(finalization FinalizeExecutionCancellationActivityInput) bool {
+			return finalization.RunID == input.RunID &&
+				finalization.TraceID == input.TraceID &&
+				finalization.Reason == "user_requested" &&
+				!finalization.CanceledAt.IsZero()
+		}),
+	).Return(FinalizeExecutionCancellationActivityOutput{RunID: input.RunID, Status: "canceled"}, nil).Once()
+	env.RegisterDelayedCallback(env.CancelWorkflow, time.Minute)
+
+	env.ExecuteWorkflow(ToolExecutionWorkflow, input)
+
+	if err := env.GetWorkflowError(); !temporal.IsCanceledError(err) {
+		t.Fatalf("workflow error = %v, want canceled error", err)
+	}
+	env.AssertActivityNumberOfCalls(t, FinalizeExecutionCancellationActivityName, 1)
+	env.AssertActivityNumberOfCalls(t, FinalizeExecutionFailureActivityName, 0)
+	env.AssertActivityNumberOfCalls(t, WriteFinalizationActivityName, 0)
+}
+
+func TestToolExecutionWorkflowKeepsCompletedResultWhenCancellationRacesCleanup(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	registerWorkflowTestActivities(env, &Activities{})
+	input := ToolExecutionWorkflowInput{
+		ConversationID: "conv-completed-cancel-race",
+		RequestID:      "req-completed-cancel-race",
+		RunID:          "run-completed-cancel-race",
+		TraceID:        "trace-completed-cancel-race",
+		TurnID:         "turn-completed-cancel-race",
+	}
+	completedAt := time.Date(2026, 7, 23, 1, 2, 3, 0, time.UTC)
+	sequence := make([]string, 0, 2)
+	env.OnActivity(ExecutePrimaryAgentActivityName, mock.Anything, mock.Anything).
+		Return(ExecutePrimaryAgentActivityOutput{
+			AgentResultRef: "projection://runs/" + input.RunID + "/agent/primary/result",
+			RunID:          input.RunID,
+			Status:         "completed",
+		}, nil).Once()
+	env.OnActivity(WriteFinalizationActivityName, mock.Anything, mock.Anything).
+		Run(func(mock.Arguments) { sequence = append(sequence, "finalization") }).
+		Return(WriteFinalizationActivityOutput{
+			CompletedAt:   completedAt,
+			ProjectionRef: "projection://runs/" + input.RunID + "/finalization/write",
+			RunID:         input.RunID,
+			Status:        "completed",
+		}, nil).Once()
+	env.OnActivity(AppendConversationMemoryActivityName, mock.Anything, mock.Anything).
+		After(time.Hour).
+		Run(func(mock.Arguments) { sequence = append(sequence, "memory_append") }).
+		Return(AppendConversationMemoryActivityOutput{RunID: input.RunID, Status: "completed"}, nil).Once()
+	env.RegisterDelayedCallback(env.CancelWorkflow, time.Minute)
+
+	env.ExecuteWorkflow(ToolExecutionWorkflow, input)
+
+	if err := env.GetWorkflowError(); err != nil {
+		t.Fatalf("workflow error: %v", err)
+	}
+	var result ToolExecutionWorkflowResult
+	if err := env.GetWorkflowResult(&result); err != nil {
+		t.Fatalf("workflow result: %v", err)
+	}
+	if result.RunID != input.RunID || result.Status != "completed" || !result.CompletedAt.Equal(completedAt) {
+		t.Fatalf("workflow result = %#v, want completed finalization", result)
+	}
+	if got, want := sequence, []string{"finalization", "memory_append"}; !equalStrings(got, want) {
+		t.Fatalf("cleanup sequence = %#v, want %#v", got, want)
+	}
+	env.AssertActivityNumberOfCalls(t, AppendConversationMemoryActivityName, 1)
+	env.AssertActivityNumberOfCalls(t, FinalizeExecutionCancellationActivityName, 0)
 }
 
 func equalStrings(left []string, right []string) bool {

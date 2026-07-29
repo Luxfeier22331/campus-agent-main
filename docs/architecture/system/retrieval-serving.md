@@ -3,58 +3,101 @@ doc_type: architecture
 owner_boundary: retrieval-serving
 status: active
 ---
+
 # 检索服务
 
 ## 边界
 
-本文定义服务端知识目标准入和索引依据检索，不负责顶层工具选择或答案生成。
+本文定义 execution-control 拥有的文档范围准入、不可变知识 release、候选召回和 grounding
+准备。它不负责来源采集、答案生成或个人记忆。
 
-## 目标注册表
+## 文档范围
 
-`configs/runtime/query-serving-targets.v1.json` 是 Knowledge Agent target 到一个 `collection`、
-一份 server-owned serving config 和一个 retrieval limit 的权威映射，不声明 `corpus`。
+`configs/runtime/query-serving-targets.v3.json` 是 `document_scope` 到 corpus、逻辑 collection、
+server-owned serving config、候选限制和本地路由词的权威映射。当前范围为：
 
-target 是语义查询目标，不是 corpus alias。registry 中的 `collection` 用于校验所引用 serving
-config，不是模型可见的向量库控制参数。两个文件都通过验证且 collection 一致时 target 才可用。
-当前目标清单只以 registry 为准。
+- `student_rules`；
+- `institutional_rules`；
+- `curriculum`。
 
-## 搜索流程
+范围是领域准入标识，不是模型工具参数、Qdrant alias 或物理 collection 名。execution-control
+根据冻结问题选择零个、一个或多个范围；app-api 和浏览器不能选择或缩小范围。
+
+## 消费合同与当前缺口
+
+`knowledge-serving-release.v1` 定义不可变 `release_id`、Qdrant 物理 collection 和 embedding
+身份。PostgreSQL `knowledge_serving.current_releases` 是 execution-control 唯一接受的激活指针。
+
+在线运行不解析 Qdrant alias，也不在执行途中重新读取激活状态。采集任务、schema、serving config
+或物理 collection 单独存在都不表示范围可用。
+
+当前没有写入这些 release、索引和激活指针的正式生产者，也没有可供准入的发布数据。因此文档
+grounding 当前不可用；本节其余内容描述已经实现的消费合同，不代表发布链已经存在。
+
+## 运行准入
+
+execution-control 先形成 `grounding_plan.v1`，再在创建 workflow 前一次性解析并冻结：
+
+- 每个选中 scope 的 corpus、逻辑 collection、`release_id` 和物理 Qdrant collection；
+- 完整归一化 serving config、hash 和候选限制；
+- 所有路径的 `llm` 模型设置 hash；检索路径额外冻结 `embedding` 模型设置 hash；
+- `tool_runtime_fingerprint.v2` 与 Agent 运行限制。
+
+缺少 current release、配置不兼容、配置 hash 不一致或 collection 身份冲突时拒绝准入。整个 run 只消费
+该快照，不跟随后续发布或模型设置变更。
+
+准入快照是有界 workflow input，不含凭据、文档正文或 Provider 响应。Provider 凭据只按冻结
+kind 在 Activity 内解析，并用准入 hash 做 rotation fence。
+
+## Grounding 流程
 
 ```text
-运行与访问校验
--> 解析知识目标
--> 校验查询配置
--> 查询向量化
--> Qdrant 稠密与稀疏预取
--> Qdrant 原生 RRF 融合
--> 当前或历史版本与可见性过滤
--> 形成有界回答证据
--> 有界搜索投影
+冻结查询与所选范围
+-> 按 serving instruction 执行一次 embedding
+-> 并发查询各准入物理 collection
+-> 校验 scope、release、chunk、正文 hash 和 token_count
+-> 跨 scope 去重
+-> 使用 Qdrant dense+sparse RRF 分数统一排序
+-> 范围保底、section 去重并按 grounding_context.v2 的数量和 token 预算裁剪
+-> 写入受保护载荷
 ```
 
-该查询位于 SDK Agent Activity 内，不是 Temporal 工作流阶段。
+Qdrant collection 保存在线检索所需的 chunk 正文、token 数和引用元数据，因此 grounding 不再回
+PostgreSQL 读取章节正文。PostgreSQL 仍拥有 release、激活指针和发布审计身份。
 
-`include_history=false` 要求 `is_current=true`；`include_history=true` 允许同 target 中已开放
-历史 document version。evidence 可以包含 source `version_id` 供引用和比较。
+每个范围的查询相互独立并发执行；任一范围查询、embedding 或载荷校验失败都会使
+`grounding.prepare` 失败关闭，不返回部分 grounding，也不回退到旧 release、旧缓存或模型记忆。
+`partial` 只表示多范围检索成功完成但部分范围没有合格依据，不表示依赖调用部分成功。
+`ready` 只表示全部所选范围都有合格依据；两者都不是答案充分性判断，Primary Agent 仍需按用户
+问题逐项确认现有正文能否支持回答。
 
-## Serving 事实
+Qdrant RRF 分数只用于候选排序和预算选择，不是答案正确性的证明，也不是答案置信度。当前实现不调用
+外部 reranker；历史 `grounding.rerank_ms` 观测字段保留为零值以维持现有 telemetry 合同。
 
-target registry 引用的 serving config 拥有 offline `corpus` metadata、collection、Qdrant
-alias、embedding provider/model/dimension、dense/sparse vector name、retrieval enablement、
-revision track 和 visibility policy。execution-control 查询前校验完整 profile；这些字段只在
-runtime 内部使用。
+## 受保护载荷
 
-索引构建、schema 声明或阅读器发布都不会自动开放 target。目标未知、配置关闭、向量不兼容或
-缺少访问投影时拒绝查询。
+完整 `grounding_context.v2` 绑定 run、准入 hash、计划 hash、查询 hash、所选范围与覆盖范围。首次
+成功写入后，同一 Activity 重放
+必须读取并验证该记录，不能再次调用 embedding 或 Qdrant，也不能覆盖首写结果。
 
-## Evidence 与观测
+普通 step/result 投影只保存 `grounding_context_ref`、payload hash、路由与覆盖状态、候选数、证据数、
+token 数，以及 embedding、search、RRF 合并、pack 的耗时；不保存查询或正文。现有
+`grounding.rerank_ms` 键固定为零，仅为 telemetry 兼容。
+Temporal history 不携带正文。Agent 结果再次绑定相同 ref/hash，finalization 据此验证
+`evidence://`，防止跨 run、跨 release 或伪造引用。
 
-搜索返回有界依据和稳定引用。运行投影可以包含 target、历史模式、搜索序号、耗时、候选与依据
-数量、文档标识和有界片段。原始查询向量、来源正文、凭据和后端响应保持内部。
+## 当前限制
+
+- 当前没有正式索引生产者和发布数据，文档 grounding 不可用；
+- 只查询 `current_releases` 指向的当前发布，不提供历史版本检索；
+- 不执行远程模型查询改写、模型 scope 路由或迭代检索；
+- 不把 `ready` 当作答案充分性，不把 RRF 分数当作答案置信度；
+- official web 和班车不在当前文档范围；
+- grounding 不进入 SDK 工具轨迹。
 
 ## 相关文档
 
 - `agentic-retrieval.md`
 - `data-plane.md`
 - `../../contracts/tool-read-model.md`
-- `../../decisions/adr-0075-knowledge-search.md`
+- `../../data/durable-runtime.md`

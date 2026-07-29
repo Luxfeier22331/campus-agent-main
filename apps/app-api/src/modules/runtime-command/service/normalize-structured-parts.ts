@@ -150,11 +150,10 @@ function buildCampusServiceTraceCards(input: {
 }
 
 export function normalizeCampusServiceTracePart(input: {
-	selectedTool: string | null;
 	status: ToolExecutionResponse["status"];
 	result: unknown;
 }): ChatMessageStructuredPart[] {
-	if (input.selectedTool !== "transport_schedule_lookup" || input.status !== "completed") {
+	if (input.status !== "completed") {
 		return [];
 	}
 
@@ -188,7 +187,6 @@ export function normalizeCampusServiceTracePart(input: {
 
 export function normalizeChatResponseStructuredParts(input: {
 	allowedPublicNoticeHosts?: readonly string[];
-	selectedTool: string | null;
 	status: ToolExecutionResponse["status"];
 	result: unknown;
 }): ChatMessageStructuredPart[] {

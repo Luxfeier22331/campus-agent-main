@@ -5,13 +5,15 @@ import { pathToFileURL } from "node:url";
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const SOURCE_REPOSITORY = "MUC-WIKI/campus-agent";
-const IMAGE_PACKAGES = new Map([
-	["agent-runtime", "agent-runtime"],
-	["app-api-schema", "app-api-schema"],
-	["execution-control", "execution-control"],
-	["ops-web", "ops-web"],
+const IMAGE_PACKAGES = new Map<string, readonly string[]>([
+	["agent-runtime", ["agent-runtime"]],
+	["app-api-schema", ["app-api-schema"]],
+	["execution-control", ["execution-control"]],
+	["ingestion-control", ["ingestion-control", "ingestion-control-worker"]],
+	["ops-web", ["ops-web"]],
+	["source-collector", ["source-collector"]],
 ]);
-const ALL_IMAGES = [...IMAGE_PACKAGES.values()].sort();
+const ALL_IMAGES = [...new Set([...IMAGE_PACKAGES.values()].flat())].sort();
 
 export interface CandidatePlan {
 	base: string;
@@ -170,8 +172,7 @@ export async function planCandidates(
 	let appApiWorker = false;
 	for (const task of tasks) {
 		if (task.task === "build") {
-			const image = IMAGE_PACKAGES.get(task.package);
-			if (image) {
+			for (const image of IMAGE_PACKAGES.get(task.package) ?? []) {
 				images.add(image);
 			}
 		}

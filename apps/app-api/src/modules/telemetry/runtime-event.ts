@@ -35,8 +35,6 @@ const RUNTIME_EVENT_BASE_ALLOWED_FIELDS = [
 	"occurred_at",
 	"principal_type",
 	"release",
-	"requested_tool",
-	"selected_tool",
 	"status",
 	"surface",
 ] as const;
@@ -46,8 +44,6 @@ const MAX_RUNTIME_EVENT_STRING_LENGTH_BY_FIELD = new Map<string, number>([
 	["error_code", 64],
 	["event_type", 64],
 	["principal_type", 64],
-	["requested_tool", 64],
-	["selected_tool", 64],
 	["status", 64],
 	["surface", 64],
 ]);
@@ -58,11 +54,14 @@ const RUNTIME_EVENT_ALLOWED_FIELDS_BY_EVENT_TYPE = new Map<string, ReadonlySet<s
 		"request.finalized",
 		new Set([
 			...RUNTIME_EVENT_BASE_ALLOWED_FIELDS,
+			"cached_input_tokens",
 			"duration_ms",
-			"resolved_targets_count",
+			"input_tokens",
+			"output_tokens",
 			"retryable",
 			"source_doc_ids_count",
 			"stage_timing_budget_state",
+			"total_tokens",
 			...STAGE_TIMING_FIELDS,
 		]),
 	],

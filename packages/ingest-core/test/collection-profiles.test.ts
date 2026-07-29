@@ -16,7 +16,6 @@ describe("collection ingestion profiles", () => {
 			cleaning_policy_version: "student_rules_cleaning_v1",
 			chunk_profile_version: "student_rules_semantic_v3",
 			retrieval_enabled: true,
-			qdrant_alias_name: "student_rules",
 			qdrant_collection_prefix: "student_rules",
 			qdrant_dense_vector_name: "dense",
 			qdrant_sparse_vector_name: "sparse",
@@ -41,7 +40,6 @@ describe("collection ingestion profiles", () => {
 			servingStage: "query_serving",
 			retrievalEnabled: true,
 			qdrantIndexBinding: {
-				aliasName: "student_rules",
 				collectionPrefix: "student_rules",
 				denseVectorName: "dense",
 				sparseVectorName: "sparse",
@@ -62,6 +60,14 @@ describe("collection ingestion profiles", () => {
 		});
 	});
 
+	it("keeps scoped rules offline until its serving scope is explicitly opened", () => {
+		const profile = parseCollectionRuntimeProfile(
+			readConfigJson("regulations", "scoped_rules", "serving-config.json"),
+		);
+		expect(profile.servingStage).toBe("offline_preparation");
+		expect(profile.retrievalEnabled).toBe(false);
+	});
+
 	it("rejects retrieval profiles without matching embedding and sparse vector names", () => {
 		expect(() =>
 			parseCollectionRuntimeProfile({
@@ -73,7 +79,6 @@ describe("collection ingestion profiles", () => {
 				cleaning_policy_version: "student_rules_cleaning_v1",
 				chunk_profile_version: "student_rules_semantic_v3",
 				retrieval_enabled: true,
-				qdrant_alias_name: "student_rules",
 				qdrant_collection_prefix: "student_rules",
 				qdrant_dense_vector_name: "dense",
 				qdrant_sparse_vector_name: "sparse",

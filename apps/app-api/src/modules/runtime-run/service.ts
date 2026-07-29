@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 
 import type { Env } from "../../config";
 import { type createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
@@ -6,7 +6,6 @@ import { turnDispatches } from "../../db/schema";
 import { AppApiRouteError } from "../../http";
 import type { ResolvedAppPrincipal } from "../auth";
 import {
-	createExecutionControlRuntimeClient,
 	type ExecutionControlRun,
 	type ExecutionControlRunEvent,
 	type ExecutionControlRunStepTrajectory,
@@ -17,17 +16,51 @@ import {
 type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
 
 export interface RuntimeRunOwnershipRecord {
+	admissionStatus: string;
+	cancelOutboxStatus: string;
+	cancelReason: string | null;
+	cancelRequestedAt: string | null;
+	completedAt: string | null;
 	conversationId: string;
 	requestId: string;
 	runId: string;
+	status: string;
 	traceId: string;
 }
+
+export interface RuntimeRunCancellationRecord extends RuntimeRunOwnershipRecord {
+	requestedAt: string;
+}
+
+export type RuntimeRunCancellationDecision =
+	| { kind: "local_finalization"; run: RuntimeRunCancellationRecord }
+	| { kind: "remote_delivery"; run: RuntimeRunCancellationRecord }
+	| { kind: "remote_delivered"; run: RuntimeRunCancellationRecord }
+	| { kind: "terminal"; run: RuntimeRunCancellationRecord };
 
 export interface RuntimeRunStore {
 	getOwnedRun(input: {
 		ownerUserId: string;
 		runId: string;
 	}): Promise<RuntimeRunOwnershipRecord | null>;
+	listPendingCancellations(input?: { limit?: number }): Promise<
+		Array<{
+			kind: "local_finalization" | "remote_delivery";
+			run: RuntimeRunCancellationRecord;
+		}>
+	>;
+	markCancellationDelivered(input: { deliveredAt: string; runId: string }): Promise<boolean>;
+	recordCancellationFailure(input: {
+		errorCode: string;
+		failedAt: string;
+		runId: string;
+	}): Promise<boolean>;
+	requestCancellation(input: {
+		ownerUserId: string;
+		reason: string;
+		requestedAt: string;
+		runId: string;
+	}): Promise<RuntimeRunCancellationDecision | null>;
 }
 
 export interface RuntimeRunSummary {
@@ -97,8 +130,7 @@ export interface RuntimeRunStepTrajectory extends ExecutionControlRunStepTraject
 
 export interface RuntimeRunEventSubscriptionPolicy {
 	maxAttempts: number;
-	pollIntervalMs: number;
-	sleep?: (durationMs: number) => Promise<void>;
+	waitMs?: number;
 }
 
 export interface RuntimeRunService {
@@ -107,6 +139,12 @@ export interface RuntimeRunService {
 		reason: string;
 		runId: string;
 	}): Promise<{ run: RuntimeRunSummary }>;
+	dispatchPendingCancellations?(input?: { limit?: number }): Promise<{
+		delivered: number;
+		failed: number;
+		finalized: number;
+		processed: number;
+	}>;
 	getStatus(input: {
 		principal: ResolvedAppPrincipal;
 		runId: string;
@@ -115,7 +153,12 @@ export interface RuntimeRunService {
 		afterSequence?: number;
 		principal: ResolvedAppPrincipal;
 		runId: string;
-	}): Promise<{ events: RuntimeRunEventProjection[]; run: RuntimeRunSummary }>;
+		signal?: AbortSignal;
+	}): Promise<{
+		events: RuntimeRunEventProjection[];
+		nextSequence: number;
+		run: RuntimeRunSummary;
+	}>;
 	listSteps(input: {
 		principal: ResolvedAppPrincipal;
 		runId: string;
@@ -125,12 +168,13 @@ export interface RuntimeRunService {
 		polling?: RuntimeRunEventSubscriptionPolicy;
 		principal: ResolvedAppPrincipal;
 		runId: string;
+		signal?: AbortSignal;
 	}): AsyncIterable<RuntimeRunEventProjection>;
 }
 
 const DEFAULT_RUN_EVENT_SUBSCRIPTION_POLICY = {
 	maxAttempts: 180,
-	pollIntervalMs: 1000,
+	waitMs: 25_000,
 } as const;
 
 const STUDENT_FORBIDDEN_MEMORY_REF_KEYS = new Set([
@@ -219,7 +263,6 @@ function sanitizeBrowserRunEventPayload(event: ExecutionControlRunEvent): Record
 			return pickStringPayloadFields(payload, ["message_id", "request_id", "status", "trace_id"]);
 		case "run.answer_delta": {
 			const result = pickStringPayloadFields(payload, [
-				"accumulated_text",
 				"delta",
 				"message_id",
 				"request_id",
@@ -308,6 +351,33 @@ function sanitizeStudentRuntimeValue(value: unknown): unknown {
 	return value;
 }
 
+function toRuntimeRunOwnershipRecord(
+	row: typeof turnDispatches.$inferSelect | undefined,
+): RuntimeRunOwnershipRecord | null {
+	if (!(row?.runId && row.conversationId && row.requestId && row.traceId)) {
+		return null;
+	}
+	return {
+		admissionStatus: row.admissionStatus,
+		cancelOutboxStatus: row.cancelOutboxStatus,
+		cancelReason: row.cancelReason,
+		cancelRequestedAt: row.cancelRequestedAt?.toISOString() ?? null,
+		completedAt: row.completedAt?.toISOString() ?? null,
+		conversationId: row.conversationId,
+		requestId: row.requestId,
+		runId: row.runId,
+		status: row.status,
+		traceId: row.traceId,
+	};
+}
+
+function toCancellationRecord(record: RuntimeRunOwnershipRecord): RuntimeRunCancellationRecord {
+	if (!record.cancelRequestedAt) {
+		throw new Error(`Run ${record.runId} has cancellation state without requested_at.`);
+	}
+	return { ...record, requestedAt: record.cancelRequestedAt };
+}
+
 export function createPgRuntimeRunStore(
 	env: Env,
 	input: {
@@ -320,12 +390,7 @@ export function createPgRuntimeRunStore(
 		async getOwnedRun(query) {
 			const db = await getDb();
 			const rows = await db
-				.select({
-					conversationId: turnDispatches.conversationId,
-					requestId: turnDispatches.requestId,
-					runId: turnDispatches.runId,
-					traceId: turnDispatches.traceId,
-				})
+				.select()
 				.from(turnDispatches)
 				.where(
 					and(
@@ -334,30 +399,168 @@ export function createPgRuntimeRunStore(
 					),
 				)
 				.limit(1);
-			const row = rows[0];
-			if (!(row?.runId && row.conversationId && row.requestId && row.traceId)) {
-				return null;
-			}
-			return {
-				conversationId: row.conversationId,
-				requestId: row.requestId,
-				runId: row.runId,
-				traceId: row.traceId,
-			};
+			return toRuntimeRunOwnershipRecord(rows[0]);
+		},
+
+		async listPendingCancellations(input = {}) {
+			const db = await getDb();
+			const limit = Math.max(1, Math.min(input.limit ?? 25, 100));
+			const rows = await db
+				.select()
+				.from(turnDispatches)
+				.where(
+					inArray(turnDispatches.cancelOutboxStatus, [
+						"local_finalization_pending",
+						"pending_delivery",
+					]),
+				)
+				.orderBy(asc(turnDispatches.updatedAt))
+				.limit(limit);
+			return rows.flatMap((row) => {
+				const record = toRuntimeRunOwnershipRecord(row);
+				if (!record?.cancelRequestedAt) {
+					return [];
+				}
+				return [
+					{
+						kind:
+							row.cancelOutboxStatus === "local_finalization_pending"
+								? ("local_finalization" as const)
+								: ("remote_delivery" as const),
+						run: toCancellationRecord(record),
+					},
+				];
+			});
+		},
+
+		async markCancellationDelivered(input) {
+			const db = await getDb();
+			const deliveredAt = new Date(input.deliveredAt);
+			const rows = await db
+				.update(turnDispatches)
+				.set({
+					cancelAttemptCount: sql<number>`${turnDispatches.cancelAttemptCount} + 1`,
+					cancelDeliveredAt: deliveredAt,
+					cancelLastAttemptAt: deliveredAt,
+					cancelLastErrorCode: null,
+					cancelOutboxStatus: "delivered",
+					updatedAt: deliveredAt,
+				})
+				.where(
+					and(
+						eq(turnDispatches.runId, input.runId),
+						eq(turnDispatches.cancelOutboxStatus, "pending_delivery"),
+					),
+				)
+				.returning({ runId: turnDispatches.runId });
+			return rows.length === 1;
+		},
+
+		async recordCancellationFailure(input) {
+			const db = await getDb();
+			const failedAt = new Date(input.failedAt);
+			const rows = await db
+				.update(turnDispatches)
+				.set({
+					cancelAttemptCount: sql<number>`${turnDispatches.cancelAttemptCount} + 1`,
+					cancelLastAttemptAt: failedAt,
+					cancelLastErrorCode: input.errorCode.slice(0, 64),
+					updatedAt: failedAt,
+				})
+				.where(
+					and(
+						eq(turnDispatches.runId, input.runId),
+						eq(turnDispatches.cancelOutboxStatus, "pending_delivery"),
+					),
+				)
+				.returning({ runId: turnDispatches.runId });
+			return rows.length === 1;
+		},
+
+		async requestCancellation(input) {
+			const db = await getDb();
+			return db.transaction(async (tx) => {
+				const rows = await tx
+					.select()
+					.from(turnDispatches)
+					.where(
+						and(
+							eq(turnDispatches.actorUserId, input.ownerUserId),
+							eq(turnDispatches.runId, input.runId),
+						),
+					)
+					.limit(1)
+					.for("update");
+				const current = toRuntimeRunOwnershipRecord(rows[0]);
+				if (!current) {
+					return null;
+				}
+				if (current.status !== "accepted" || current.cancelOutboxStatus === "closed") {
+					return {
+						kind: "terminal" as const,
+						run: toCancellationRecord({
+							...current,
+							cancelRequestedAt: current.cancelRequestedAt ?? input.requestedAt,
+						}),
+					};
+				}
+				if (current.cancelOutboxStatus !== "not_requested") {
+					const kind =
+						current.cancelOutboxStatus === "local_finalization_pending"
+							? ("local_finalization" as const)
+							: current.cancelOutboxStatus === "delivered"
+								? ("remote_delivered" as const)
+								: ("remote_delivery" as const);
+					return { kind, run: toCancellationRecord(current) };
+				}
+
+				const requestedAt = new Date(input.requestedAt);
+				const local = current.admissionStatus === "pending_admission";
+				const updatedRows = await tx
+					.update(turnDispatches)
+					.set({
+						...(local
+							? {
+									admissionInputJson: null,
+									admissionInputSha256: null,
+									admissionStatus: "cancelled",
+									executionInputJson: null,
+									executionInputReleasedAt: requestedAt,
+									executionInputSha256: null,
+								}
+							: {}),
+						cancelOutboxStatus: local ? "local_finalization_pending" : "pending_delivery",
+						cancelReason: input.reason,
+						cancelRequestedAt: requestedAt,
+						updatedAt: requestedAt,
+					})
+					.where(eq(turnDispatches.requestId, current.requestId))
+					.returning();
+				const updated = toRuntimeRunOwnershipRecord(updatedRows[0]);
+				if (!updated) {
+					throw new Error(`Run ${current.runId} disappeared while recording cancellation.`);
+				}
+				return {
+					kind: local ? ("local_finalization" as const) : ("remote_delivery" as const),
+					run: toCancellationRecord(updated),
+				};
+			});
 		},
 	};
 }
 
 export function buildRuntimeRunService(input: {
 	executionRuntime: ExecutionControlRuntimeClient;
+	finalizeLocalCancellation?: (input: { completedAt: string; runId: string }) => Promise<void>;
+	now?: () => Date;
 	store: RuntimeRunStore;
 }): RuntimeRunService {
+	const now = input.now ?? (() => new Date());
 	function validateSubscriptionPolicy(
 		policy?: RuntimeRunEventSubscriptionPolicy,
 	): Required<RuntimeRunEventSubscriptionPolicy> {
 		const maxAttempts = policy?.maxAttempts ?? DEFAULT_RUN_EVENT_SUBSCRIPTION_POLICY.maxAttempts;
-		const pollIntervalMs =
-			policy?.pollIntervalMs ?? DEFAULT_RUN_EVENT_SUBSCRIPTION_POLICY.pollIntervalMs;
+		const waitMs = policy?.waitMs ?? DEFAULT_RUN_EVENT_SUBSCRIPTION_POLICY.waitMs;
 		if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
 			throw new AppApiRouteError({
 				code: "invalid_request",
@@ -366,20 +569,17 @@ export function buildRuntimeRunService(input: {
 				status: 400,
 			});
 		}
-		if (!Number.isInteger(pollIntervalMs) || pollIntervalMs < 0) {
+		if (!Number.isInteger(waitMs) || waitMs < 0) {
 			throw new AppApiRouteError({
 				code: "invalid_request",
-				message: "run event subscription pollIntervalMs must be a non-negative integer.",
+				message: "run event subscription waitMs must be a non-negative integer.",
 				retryable: false,
 				status: 400,
 			});
 		}
 		return {
 			maxAttempts,
-			pollIntervalMs,
-			sleep:
-				policy?.sleep ??
-				((durationMs) => new Promise<void>((resolve) => setTimeout(resolve, durationMs))),
+			waitMs,
 		};
 	}
 
@@ -451,8 +651,110 @@ export function buildRuntimeRunService(input: {
 		};
 	}
 
+	function toLocalRunSummary(
+		run: RuntimeRunOwnershipRecord,
+		override: { status?: string; terminalReason?: string } = {},
+	): RuntimeRunSummary {
+		let status = override.status;
+		if (!status) {
+			switch (run.status) {
+				case "accepted":
+					status = "pending_admission";
+					break;
+				case "completed":
+				case "needs_clarification":
+				case "no_answer":
+				case "approval_required":
+				case "rejected":
+					status = "completed";
+					break;
+				case "error":
+					status = "failed";
+					break;
+				case "cancelled":
+					status = "canceled";
+					break;
+				default:
+					throw new ExecutionControlTransportError({
+						code: "runtime_invariant_failed",
+						message: "Product run status is not supported.",
+						retryable: false,
+						status: 500,
+					});
+			}
+		}
+		const phase: RuntimeRunPhase =
+			status === "canceled"
+				? "canceled"
+				: status === "completed"
+					? "completed"
+					: status === "failed"
+						? "failed"
+						: "queued";
+		return {
+			conversationId: run.conversationId,
+			phase,
+			requestId: run.requestId,
+			runId: run.runId,
+			status,
+			...(override.terminalReason || run.cancelReason
+				? { terminalReason: override.terminalReason ?? run.cancelReason ?? undefined }
+				: {}),
+			traceId: run.traceId,
+		};
+	}
+
+	async function finalizeLocalCancellation(
+		run: RuntimeRunCancellationRecord,
+	): Promise<RuntimeRunSummary> {
+		if (!input.finalizeLocalCancellation) {
+			throw new ExecutionControlTransportError({
+				code: "dependency_not_ready",
+				message: "Local run cancellation finalization is not configured.",
+				retryable: true,
+				status: 503,
+			});
+		}
+		await input.finalizeLocalCancellation({
+			completedAt: run.requestedAt,
+			runId: run.runId,
+		});
+		return toLocalRunSummary(run, {
+			status: "canceled",
+			terminalReason: run.cancelReason ?? "user_requested",
+		});
+	}
+
+	async function deliverRemoteCancellation(
+		run: RuntimeRunCancellationRecord,
+	): Promise<ExecutionControlRun> {
+		try {
+			const remote = await input.executionRuntime.cancelRun({
+				reason: run.cancelReason ?? "user_requested",
+				runId: run.runId,
+				traceId: run.traceId,
+			});
+			assertRunMatchesOwnership(run, remote);
+			await input.store.markCancellationDelivered({
+				deliveredAt: now().toISOString(),
+				runId: run.runId,
+			});
+			return remote;
+		} catch (error) {
+			await input.store.recordCancellationFailure({
+				errorCode:
+					error instanceof ExecutionControlTransportError
+						? error.code
+						: "execution_control_unavailable",
+				failedAt: now().toISOString(),
+				runId: run.runId,
+			});
+			throw error;
+		}
+	}
+
 	function toBrowserRunEvent(event: ExecutionControlRunEvent): RuntimeRunEventProjection | null {
-		if (event.visibility !== "browser") {
+		if (event.visibility !== "browser" || event.eventType === "execution.queued") {
 			return null;
 		}
 		return {
@@ -495,21 +797,30 @@ export function buildRuntimeRunService(input: {
 		afterSequence?: number;
 		principal: ResolvedAppPrincipal;
 		runId: string;
-	}): Promise<{ events: RuntimeRunEventProjection[]; run: RuntimeRunSummary }> {
+		signal?: AbortSignal;
+		waitMs?: number;
+	}): Promise<{
+		events: RuntimeRunEventProjection[];
+		nextSequence: number;
+		run: RuntimeRunSummary;
+	}> {
 		const owned = await requireOwnedRun(eventsInput.principal, eventsInput.runId);
 		const run = await input.executionRuntime.getRun({
 			runId: owned.runId,
+			signal: eventsInput.signal,
 			traceId: owned.traceId,
 		});
 		assertRunMatchesOwnership(owned, run);
-		const events = await input.executionRuntime.listRunEvents({
+		const page = await input.executionRuntime.listRunEvents({
 			afterSequence: eventsInput.afterSequence,
 			runId: owned.runId,
+			signal: eventsInput.signal,
 			traceId: owned.traceId,
+			waitMs: eventsInput.waitMs,
 		});
 		let lastSequence = eventsInput.afterSequence ?? 0;
 		const browserEvents: RuntimeRunEventProjection[] = [];
-		for (const event of events) {
+		for (const event of page.events) {
 			if (event.runId !== owned.runId) {
 				throw new ExecutionControlTransportError({
 					code: "execution_control_invalid_response",
@@ -524,25 +835,91 @@ export function buildRuntimeRunService(input: {
 				browserEvents.push(browserEvent);
 			}
 		}
+		if (!Number.isInteger(page.nextSequence) || page.nextSequence < lastSequence) {
+			throw new ExecutionControlTransportError({
+				code: "execution_control_invalid_response",
+				message: "Execution durable run event page returned a stale next_sequence.",
+				retryable: true,
+				status: 502,
+			});
+		}
 		return {
 			events: browserEvents,
+			nextSequence: page.nextSequence,
 			run: toRunSummary(run),
 		};
 	}
 
 	return {
 		async cancel(cancelInput) {
-			const owned = await requireOwnedRun(cancelInput.principal, cancelInput.runId);
-			const run = await input.executionRuntime.cancelRun({
+			await requireOwnedRun(cancelInput.principal, cancelInput.runId);
+			const decision = await input.store.requestCancellation({
+				ownerUserId: cancelInput.principal.actor.userId,
 				reason: cancelInput.reason.trim(),
-				runId: owned.runId,
-				traceId: owned.traceId,
+				requestedAt: now().toISOString(),
+				runId: cancelInput.runId.trim(),
 			});
-			assertRunMatchesOwnership(owned, run);
-			return { run: toRunSummary(run) };
+			if (!decision) {
+				throw new AppApiRouteError({
+					code: "run_not_found",
+					message: "Run not found.",
+					retryable: false,
+					status: 404,
+				});
+			}
+			if (decision.kind === "local_finalization") {
+				return { run: await finalizeLocalCancellation(decision.run) };
+			}
+			if (decision.kind === "terminal") {
+				throw new AppApiRouteError({
+					code: "run_already_terminal",
+					message: "Run is already terminal.",
+					retryable: false,
+					status: 409,
+				});
+			}
+			if (decision.kind === "remote_delivered") {
+				const remote = await input.executionRuntime.getRun({
+					runId: decision.run.runId,
+					traceId: decision.run.traceId,
+				});
+				assertRunMatchesOwnership(decision.run, remote);
+				return { run: toRunSummary(remote) };
+			}
+			return { run: toRunSummary(await deliverRemoteCancellation(decision.run)) };
+		},
+		async dispatchPendingCancellations(dispatchInput = {}) {
+			const candidates = await input.store.listPendingCancellations({
+				limit: dispatchInput.limit ?? 25,
+			});
+			let delivered = 0;
+			let failed = 0;
+			let finalized = 0;
+			for (const candidate of candidates) {
+				try {
+					if (candidate.kind === "local_finalization") {
+						await finalizeLocalCancellation(candidate.run);
+						finalized += 1;
+					} else {
+						await deliverRemoteCancellation(candidate.run);
+						delivered += 1;
+					}
+				} catch {
+					failed += 1;
+				}
+			}
+			return { delivered, failed, finalized, processed: candidates.length };
 		},
 		async getStatus(statusInput) {
 			const owned = await requireOwnedRun(statusInput.principal, statusInput.runId);
+			if (
+				owned.status !== "accepted" ||
+				owned.admissionStatus === "pending_admission" ||
+				owned.admissionStatus === "cancelled" ||
+				(owned.admissionStatus === "dispatching" && owned.cancelOutboxStatus !== "not_requested")
+			) {
+				return { run: toLocalRunSummary(owned) };
+			}
 			const run = await input.executionRuntime.getRun({
 				runId: owned.runId,
 				traceId: owned.traceId,
@@ -571,10 +948,15 @@ export function buildRuntimeRunService(input: {
 			const polling = validateSubscriptionPolicy(eventsInput.polling);
 			let lastSequence = eventsInput.afterSequence ?? 0;
 			for (let attempt = 0; attempt < polling.maxAttempts; attempt += 1) {
+				if (eventsInput.signal?.aborted) {
+					throw new DOMException("The operation was aborted.", "AbortError");
+				}
 				const result = await listEvents({
 					afterSequence: lastSequence,
 					principal: eventsInput.principal,
 					runId: eventsInput.runId,
+					signal: eventsInput.signal,
+					waitMs: polling.waitMs,
 				});
 				for (const event of result.events) {
 					lastSequence = assertSequenceAdvances(lastSequence, event);
@@ -583,17 +965,8 @@ export function buildRuntimeRunService(input: {
 						return;
 					}
 				}
-				if (attempt + 1 < polling.maxAttempts && polling.pollIntervalMs > 0) {
-					await polling.sleep(polling.pollIntervalMs);
-				}
+				lastSequence = result.nextSequence;
 			}
 		},
 	};
-}
-
-export function buildDefaultRuntimeRunService(env: Env): RuntimeRunService {
-	return buildRuntimeRunService({
-		executionRuntime: createExecutionControlRuntimeClient(env),
-		store: createPgRuntimeRunStore(env),
-	});
 }

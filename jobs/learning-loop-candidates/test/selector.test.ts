@@ -14,11 +14,13 @@ const baseRow: CandidateSourceRow = {
 	feedbackUpdatedAt: "2026-06-20T08:00:00.000Z",
 	status: "completed",
 	errorCode: null,
-	selectedTool: "knowledge_query",
-	requestedTool: "knowledge_query",
 	failClosed: false,
 	modelProvider: "openai",
 	modelName: "gpt-test",
+	inputTokens: 120,
+	cachedInputTokens: 20,
+	outputTokens: 40,
+	totalTokens: 160,
 	durationMs: 1200,
 	traceAvailable: true,
 	projectionLagMs: 100,
@@ -104,7 +106,7 @@ describe("learning loop candidate selector", () => {
 				reasonCodes: [],
 				stageTiming: {
 					"agent.runtime_ms": 13_000,
-					"stream.browser_ttft_ms": 5_500,
+					"stream.app_api_ttft_ms": 5_500,
 				},
 				vote: null,
 			},
@@ -113,7 +115,7 @@ describe("learning loop candidate selector", () => {
 		expect(candidates).toHaveLength(2);
 		expect(candidates.map((item) => item.evidence.stageField).sort()).toEqual([
 			"agent.runtime_ms",
-			"stream.browser_ttft_ms",
+			"stream.app_api_ttft_ms",
 		]);
 	});
 
@@ -131,7 +133,6 @@ describe("learning loop candidate selector", () => {
 				feedbackId: "feedback_03",
 				requestId: "req_03",
 				reasonCodes: ["wrong_tool"],
-				selectedTool: "campus_notice_discover",
 			},
 		]);
 

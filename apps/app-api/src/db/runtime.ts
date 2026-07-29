@@ -13,20 +13,13 @@ import { appApiSchema } from "./schema";
 export const APP_AUTH_SCHEMA = "app_auth";
 export type RuntimeDatabase = NodePgDatabase<typeof appApiSchema>;
 export type RuntimeDbGetter = () => Promise<RuntimeDatabase>;
-export type RuntimeDatabaseConsistency = "cached" | "fresh";
 
 const DEVELOPMENT_POOL_MAX = 1;
 const PRODUCTION_POOL_MAX = 4;
 const DEVELOPMENT_IDLE_TIMEOUT_MS = 5_000;
 const PRODUCTION_IDLE_TIMEOUT_MS = 30_000;
-const runtimeDatabaseCache = {
-	cached: new WeakMap<Env, Promise<NodePgDatabase<typeof appApiSchema>>>(),
-	fresh: new WeakMap<Env, Promise<NodePgDatabase<typeof appApiSchema>>>(),
-} as const;
-const runtimePoolCache = {
-	cached: new WeakMap<Env, Promise<Pool>>(),
-	fresh: new WeakMap<Env, Promise<Pool>>(),
-} as const;
+const runtimeDatabaseCache = new WeakMap<Env, Promise<NodePgDatabase<typeof appApiSchema>>>();
+const runtimePoolCache = new WeakMap<Env, Promise<Pool>>();
 const cacheHost = globalThis as typeof globalThis & {
 	__appApiPoolCache?: Map<string, Pool>;
 };
@@ -62,15 +55,7 @@ function getPoolCache(): Map<string, Pool> {
 	return cacheHost.__appApiPoolCache;
 }
 
-function resolveRuntimeConnectionString(env: Env, consistency: RuntimeDatabaseConsistency): string {
-	if (consistency === "fresh") {
-		const freshConnectionString = env.APP_API_DB_FRESH?.connectionString?.trim();
-		if (freshConnectionString) {
-			return freshConnectionString;
-		}
-		throw new Error("APP_API_DB_FRESH.connectionString is required for fresh runtime access.");
-	}
-
+function resolveRuntimeConnectionString(env: Env): string {
 	const connectionString = env.APP_API_DB?.connectionString?.trim();
 	if (!connectionString) {
 		throw new Error("APP_API_DB.connectionString is required.");
@@ -79,17 +64,9 @@ function resolveRuntimeConnectionString(env: Env, consistency: RuntimeDatabaseCo
 	return connectionString;
 }
 
-export function buildRuntimeDatabaseConfig(
-	env: Env,
-	input: {
-		consistency?: RuntimeDatabaseConsistency;
-	} = {},
-) {
-	const consistency = input.consistency ?? "cached";
-	const connectionString = resolveRuntimeConnectionString(env, consistency);
-
+export function buildRuntimeDatabaseConfig(env: Env) {
 	return {
-		connectionString,
+		connectionString: resolveRuntimeConnectionString(env),
 		ssl: resolveSslConfig(resolveDatabaseSslMode(env)),
 	};
 }
@@ -206,14 +183,8 @@ async function withIsolatedProbePool<T>(
 	}
 }
 
-export async function createRuntimePool(
-	env: Env,
-	input: {
-		consistency?: RuntimeDatabaseConsistency;
-	} = {},
-): Promise<Pool> {
-	const consistency = input.consistency ?? "cached";
-	const config = buildRuntimeDatabaseConfig(env, { consistency });
+export async function createRuntimePool(env: Env): Promise<Pool> {
+	const config = buildRuntimeDatabaseConfig(env);
 	const databaseSslMode = resolveDatabaseSslMode(env);
 	const environment = resolveEnvironment(env);
 	if (!shouldCacheRuntimeState(env)) {
@@ -224,8 +195,7 @@ export async function createRuntimePool(
 		});
 	}
 
-	const cache = runtimePoolCache[consistency];
-	const cached = cache.get(env);
+	const cached = runtimePoolCache.get(env);
 	if (cached) {
 		return cached;
 	}
@@ -235,59 +205,42 @@ export async function createRuntimePool(
 		databaseSslMode,
 		environment,
 	});
-	cache.set(env, poolPromise);
+	runtimePoolCache.set(env, poolPromise);
 	return poolPromise;
 }
 
-export async function createRuntimeDatabase(
-	env: Env,
-	input: {
-		consistency?: RuntimeDatabaseConsistency;
-	} = {},
-): Promise<RuntimeDatabase> {
-	const consistency = input.consistency ?? "cached";
+export async function createRuntimeDatabase(env: Env): Promise<RuntimeDatabase> {
 	if (!shouldCacheRuntimeState(env)) {
 		const { drizzle } = await import("drizzle-orm/node-postgres");
-		return drizzle(await createRuntimePool(env, { consistency }), {
+		return drizzle(await createRuntimePool(env), {
 			schema: appApiSchema,
 		});
 	}
 
-	const cache = runtimeDatabaseCache[consistency];
-	const cached = cache.get(env);
+	const cached = runtimeDatabaseCache.get(env);
 	if (cached) {
 		return cached;
 	}
 
 	const databasePromise = (async () => {
 		const { drizzle } = await import("drizzle-orm/node-postgres");
-		return drizzle(await createRuntimePool(env, { consistency }), {
+		return drizzle(await createRuntimePool(env), {
 			schema: appApiSchema,
 		});
 	})();
-	cache.set(env, databasePromise);
+	runtimeDatabaseCache.set(env, databasePromise);
 	return databasePromise;
 }
 
-export function createRuntimeDbGetter(
-	env: Env,
-	input: {
-		consistency?: RuntimeDatabaseConsistency;
-	} = {},
-): RuntimeDbGetter {
-	return () => createRuntimeDatabase(env, input);
+export function createRuntimeDbGetter(env: Env): RuntimeDbGetter {
+	return () => createRuntimeDatabase(env);
 }
 
-export function createScopedRuntimeDbGetter(
-	env: Env,
-	input: {
-		consistency?: RuntimeDatabaseConsistency;
-	} = {},
-): RuntimeDbGetter {
+export function createScopedRuntimeDbGetter(env: Env): RuntimeDbGetter {
 	let dbPromise: Promise<RuntimeDatabase> | null = null;
 
 	return () => {
-		dbPromise ??= createRuntimeDatabase(env, input);
+		dbPromise ??= createRuntimeDatabase(env);
 		return dbPromise;
 	};
 }

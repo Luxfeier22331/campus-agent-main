@@ -1,14 +1,16 @@
 {
-	"selected_tool": "knowledge_query",
 	"status": "completed",
 	"answer_text": "请假制度以学生手册当前版本为准。",
 	"follow_up_question": "",
 	"confidence": "high",
-	"resolved_targets": ["student_rules"],
-	"session_update": null,
+	"model_usage": {
+		"input_tokens": 420,
+		"cached_input_tokens": 120,
+		"output_tokens": 96,
+		"total_tokens": 516
+	},
 	"result": {
 		"provider_response_id": "resp_contract_completed",
-		"selected_tools": ["knowledge_query"],
 		"sources": [
 			{
 				"canonical_url": "/docs/regulations/student_rules/leave-policy",
@@ -24,36 +26,12 @@
 	"error": null,
 	"observability": {
 		"agent_runtime": "openai_agents_sdk",
-		"selected_tools": ["knowledge_query"],
 		"terminal_reason": "answer"
 	},
 	"workflow_trace_summary": {
-		"workflow_mode": "single_step",
-		"selected_tool": "knowledge_query",
-		"selected_tools": ["knowledge_query"],
-		"first_decision_actor": "primary_agent",
-		"planning_outcome": "primary_agent_completed",
-		"direct_vs_delegate_branch": "tool",
+		"execution_path": "tool_assisted",
 		"terminal_reason": "answer",
-		"answer_artifact_kinds": ["agent_final_output"],
 		"answer_artifact_refs": ["projection://runs/run_contract_completed/agent/primary/result"],
-		"trace_steps": [
-			{
-				"step_id": "agent.primary",
-				"span_kind": "agent",
-				"parent_step_id": "",
-				"outcome": "answer",
-				"result_status": "completed"
-			},
-			{
-				"step_id": "finalization.write",
-				"span_kind": "finalization",
-				"parent_step_id": "agent.primary",
-				"outcome": "completed",
-				"result_status": "completed"
-			}
-		],
-		"tool_call_summaries": [],
 		"runtime_versions": {
 			"agent_runtime": "openai_agents_sdk"
 		}

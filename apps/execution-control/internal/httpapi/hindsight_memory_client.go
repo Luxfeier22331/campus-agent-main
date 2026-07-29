@@ -9,8 +9,6 @@ import (
 	"time"
 
 	hindsight "github.com/vectorize-io/hindsight/hindsight-clients/go"
-
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 )
 
 func (c hindsightHTTPClient) EnsureBank(ctx context.Context, bankID string, cfg hindsightBankConfig) error {
@@ -199,50 +197,6 @@ func (c hindsightHTTPClient) RecallMemories(
 		return hindsightRecallResponse{}, err
 	}
 	return fromHindsightSDKRecallResponse(responseBody), nil
-}
-
-func (c hindsightHTTPClient) Reflect(
-	ctx context.Context,
-	bankID string,
-	request hindsightReflectRequest,
-) (hindsightReflectResponse, error) {
-	trimmedBankID := strings.TrimSpace(bankID)
-	ctx = withHindsightBankContext(ctx, trimmedBankID)
-	payload := hindsight.NewReflectRequest(strings.TrimSpace(request.Query))
-	if strings.TrimSpace(request.Budget) != "" {
-		budget := hindsight.Budget(strings.TrimSpace(request.Budget))
-		payload.Budget = &budget
-	}
-	if strings.TrimSpace(request.Context) != "" {
-		payload.SetContext(strings.TrimSpace(request.Context))
-	}
-	if request.MaxTokens > 0 {
-		maxTokens := int32(request.MaxTokens)
-		payload.MaxTokens = &maxTokens
-	}
-	if request.IncludeFacts {
-		payload.Include = &hindsight.ReflectIncludeOptions{Facts: map[string]any{}}
-	}
-	payload.FactTypes = append([]string{}, request.FactTypes...)
-	payload.Tags = append([]string{}, request.Tags...)
-	if strings.TrimSpace(request.TagsMatch) != "" {
-		tagsMatch := strings.TrimSpace(request.TagsMatch)
-		payload.TagsMatch = &tagsMatch
-	}
-	responseBody, response, err := c.client.MemoryAPI.
-		Reflect(ctx, trimmedBankID).
-		ReflectRequest(*payload).
-		Execute()
-	if err != nil {
-		return hindsightReflectResponse{}, err
-	}
-	if response != nil && response.Body != nil {
-		defer func() { _ = response.Body.Close() }()
-	}
-	if err := requireHindsightSuccess(response, "reflect memories"); err != nil {
-		return hindsightReflectResponse{}, err
-	}
-	return fromHindsightSDKReflectResponse(responseBody), nil
 }
 
 func (c hindsightHTTPClient) DeleteDocument(ctx context.Context, bankID string, documentID string) error {
@@ -450,38 +404,4 @@ func hindsightFinalScore(item hindsight.RecallResult) float64 {
 
 func int32Pointer(value int32) *int32 {
 	return &value
-}
-
-func fromHindsightSDKReflectResponse(response *hindsight.ReflectResponse) hindsightReflectResponse {
-	if response == nil {
-		return hindsightReflectResponse{}
-	}
-	reflectResponse := hindsightReflectResponse{
-		StructuredOutput: copyAnyMap(response.GetStructuredOutput()),
-		Text:             strings.TrimSpace(response.GetText()),
-	}
-	if response.HasBasedOn() {
-		basedOn := response.GetBasedOn()
-		reflectResponse.BasedOnMemories = make([]hindsightReflectFact, 0, len(basedOn.Memories))
-		for _, fact := range basedOn.Memories {
-			reflectResponse.BasedOnMemories = append(reflectResponse.BasedOnMemories, hindsightReflectFact{
-				Context:       strings.TrimSpace(fact.GetContext()),
-				ID:            strings.TrimSpace(fact.GetId()),
-				OccurredEnd:   fact.GetOccurredEnd(),
-				OccurredStart: fact.GetOccurredStart(),
-				Text:          strings.TrimSpace(fact.GetText()),
-				Type:          strings.TrimSpace(fact.GetType()),
-			})
-		}
-	}
-	if response.HasUsage() {
-		usage := response.GetUsage()
-		reflectResponse.Usage = memoryruntime.TokenUsage{
-			CachedTokens: int(usage.GetCachedTokens()),
-			InputTokens:  int(usage.GetInputTokens()),
-			OutputTokens: int(usage.GetOutputTokens()),
-			TotalTokens:  int(usage.GetTotalTokens()),
-		}
-	}
-	return reflectResponse
 }

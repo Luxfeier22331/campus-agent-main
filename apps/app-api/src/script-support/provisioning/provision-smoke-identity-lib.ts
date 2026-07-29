@@ -38,7 +38,6 @@ interface SmokeIdentityProvisionInput {
 interface SmokeIdentityProvisionRuntimeEnv {
 	APP_API_EXECUTION_SHARED_SECRET: string;
 	APP_API_DB: { connectionString: string };
-	APP_API_DB_FRESH: { connectionString: string };
 	[key: string]: unknown;
 }
 
@@ -198,9 +197,6 @@ export function buildSmokeIdentityProvisionRuntimeEnv(
 		APP_API_ENVIRONMENT: input.appApiEnvironment,
 		APP_API_DATABASE_SSLMODE: input.databaseSslMode,
 		APP_API_DB: {
-			connectionString: schemaDatabaseUrl,
-		},
-		APP_API_DB_FRESH: {
 			connectionString: schemaDatabaseUrl,
 		},
 		APP_API_EXECUTION_SHARED_SECRET: input.appApiExecutionSharedSecret,

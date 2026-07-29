@@ -80,6 +80,7 @@ describe("app-api schema installer", () => {
 			{ idx: 4, tag: "0004_campus_groups", version: "7" },
 			{ idx: 5, tag: "0005_campus_groups_seed", version: "7" },
 			{ idx: 6, tag: "0006_auth_ownership_and_account_lifecycle", version: "7" },
+			{ idx: 7, tag: "0007_execution_runtime_ownership", version: "7" },
 		]);
 		expect(readAppFile("drizzle/0006_auth_ownership_and_account_lifecycle.sql")).toContain(
 			'CREATE TABLE IF NOT EXISTS "app_auth"."user"',
@@ -89,6 +90,9 @@ describe("app-api schema installer", () => {
 		);
 		expect(readAppFile("drizzle/0006_auth_ownership_and_account_lifecycle.sql")).toContain(
 			'CREATE INDEX IF NOT EXISTS "user_created_at_id_idx"',
+		);
+		expect(readAppFile("drizzle/0007_execution_runtime_ownership.sql")).toContain(
+			'ALTER TABLE "runtime"."request_observability_fact" DROP COLUMN IF EXISTS "requested_tool"',
 		);
 		expect(appFileSha256("drizzle/0000_initial.sql")).toBe(
 			"3c2464d91d240212435818779898cf68fe72e59077b8833b4bfed023686cd0df",

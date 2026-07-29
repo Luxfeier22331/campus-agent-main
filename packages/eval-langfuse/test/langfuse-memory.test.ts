@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { verifyLangfuseOnlineTraceEvidence } from "../src/index";
 
 describe("Langfuse Hindsight memory trace evidence", () => {
-	it("verifies sanitized runtime trace evidence with required memory steps", async () => {
+	it("verifies sanitized runtime trace evidence with the required personal memory tool step", async () => {
 		const evidence = await verifyLangfuseOnlineTraceEvidence({
 			expectedRelease: "execution-control@abc123",
 			expectedRequestId: "req-001",
@@ -12,7 +12,7 @@ describe("Langfuse Hindsight memory trace evidence", () => {
 			expectedTags: ["surface:execution-control", "env:staging"],
 			expectedUserId: "user-001",
 			expectedWorkflowId: "workflow-001",
-			requiredStepIds: ["memory.recall", "agent.primary"],
+			requiredStepIds: ["sdk_tool.execute.personal_memory_recall.1", "agent.primary"],
 			fetchImpl: async () =>
 				new Response(
 					JSON.stringify({
@@ -33,18 +33,18 @@ describe("Langfuse Hindsight memory trace evidence", () => {
 								id: "obs-001",
 								metadata: {
 									activity_attempt: 1,
-									activity_type: "memory",
+									activity_type: "ExecutePrimaryAgentActivity",
 									duration_ms: 12,
 									fail_close_reason: "",
 									projection_ref: "projection-001",
 									request_id: "req-001",
 									run_id: "run-001",
 									schedule_to_start_ms: 1,
-									selected_tool: "any",
+									tool_name: "personal_memory_recall",
 									status: "completed",
-									step_id: "memory.recall",
-									step_kind: "activity",
-									task_queue: "context",
+									step_id: "sdk_tool.execute.personal_memory_recall.1",
+									step_kind: "tool",
+									task_queue: "campus-agent.activity.agent.v3",
 									trace_id: "trace-product-001",
 									workflow_id: "workflow-001",
 								},
@@ -60,7 +60,6 @@ describe("Langfuse Hindsight memory trace evidence", () => {
 									request_id: "req-001",
 									run_id: "run-001",
 									schedule_to_start_ms: 2,
-									selected_tool: "knowledge_query",
 									status: "completed",
 									step_id: "agent.primary",
 									step_kind: "activity",
@@ -83,7 +82,10 @@ describe("Langfuse Hindsight memory trace evidence", () => {
 
 		expect(evidence.repo_owned_observation_count).toBe(2);
 		expect((evidence.trace_identity as { request_id: string }).request_id).toBe("req-001");
-		expect(evidence.required_step_ids).toEqual(["memory.recall", "agent.primary"]);
+		expect(evidence.required_step_ids).toEqual([
+			"sdk_tool.execute.personal_memory_recall.1",
+			"agent.primary",
+		]);
 	});
 
 	it("rejects missing required memory trace steps", async () => {
@@ -93,7 +95,7 @@ describe("Langfuse Hindsight memory trace evidence", () => {
 				expectedSessionId: "session",
 				expectedTags: [],
 				expectedUserId: "user",
-				requiredStepIds: ["memory.recall"],
+				requiredStepIds: ["sdk_tool.execute.personal_memory_recall.1"],
 				fetchImpl: async () =>
 					new Response(
 						JSON.stringify({
@@ -120,7 +122,6 @@ describe("Langfuse Hindsight memory trace evidence", () => {
 										request_id: "req-001",
 										run_id: "run-001",
 										schedule_to_start_ms: 1,
-										selected_tool: "knowledge_query",
 										status: "completed",
 										step_id: "agent.primary",
 										step_kind: "activity",
@@ -140,7 +141,9 @@ describe("Langfuse Hindsight memory trace evidence", () => {
 				},
 				traceId: "trace-001",
 			}),
-		).rejects.toThrow("trace evidence missing required steps: memory.recall");
+		).rejects.toThrow(
+			"trace evidence missing required steps: sdk_tool.execute.personal_memory_recall.1",
+		);
 	});
 
 	it("allows memory identifiers in the trusted Langfuse trace", async () => {
@@ -176,7 +179,7 @@ describe("Langfuse Hindsight memory trace evidence", () => {
 									request_id: "req-001",
 									run_id: "run-001",
 									schedule_to_start_ms: 1,
-									selected_tool: "any",
+									tool_name: "",
 									status: "completed",
 									step_id: "memory.append",
 									step_kind: "activity",

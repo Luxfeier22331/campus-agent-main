@@ -31,7 +31,7 @@ describe("contract schema registry", () => {
 		expect(() => checkContractSchemas()).not.toThrow();
 	}, 60_000);
 
-	it("keeps model-visible runtime tool schemas on registered JSON Schema refs", () => {
+	it("keeps registered runtime tool schemas on registered JSON Schema refs", () => {
 		const registry = readJson("packages/contracts/schemas/contract-schema-registry.v1.json");
 		const registryEntries = (registry.entries as Record<string, unknown>[] | undefined) ?? [];
 		expect(registryEntries.map((entry) => entry.id)).not.toContain("public-web-tool-contracts.v1");
@@ -42,7 +42,7 @@ describe("contract schema registry", () => {
 				.map((path) => readJson(path).$id)
 				.filter((id): id is string => typeof id === "string"),
 		);
-		const tools = readJson("configs/runtime/tools.v5.json").tools as Record<string, unknown>[];
+		const tools = readJson("configs/runtime/tools.v6.json").tools as Record<string, unknown>[];
 
 		for (const tool of tools) {
 			for (const fieldName of ["payload_schema_ref", "result_schema_ref"]) {
@@ -56,29 +56,24 @@ describe("contract schema registry", () => {
 		}
 	});
 
-	it("keeps the runtime tool catalog aligned with model-visible schemas", () => {
-		const tools = readJson("configs/runtime/tools.v5.json").tools as Record<string, unknown>[];
-		const functionSchemas = readJson("configs/runtime/tool-function-schemas.v2.json")
+	it("keeps registered tool artifacts aligned with current exposure", () => {
+		const tools = readJson("configs/runtime/tools.v6.json").tools as Record<string, unknown>[];
+		const functionSchemas = readJson("configs/runtime/tool-function-schemas.v3.json")
 			.tools as Record<string, unknown>[];
 		const toolIds = readToolContractEnum("ToolID");
 		const modelVisibleToolNames = readToolContractEnum("ModelVisibleToolName");
-		const requestedTools = readToolContractEnum("RequestedTool");
-		const catalogNames = tools.map((tool) => String(tool.name));
+		const catalogNames = tools.map((tool) => String(tool.name)).sort();
 		const modelVisibleNames = tools
 			.filter((tool) => tool.exposure === "model_visible")
 			.map((tool) => String(tool.name))
 			.sort();
-		const requestableNames = tools
-			.filter((tool) => tool.exposure === "model_visible")
-			.map((tool) => String(tool.name));
 		const functionSchemaNames = functionSchemas.map((tool) => String(tool.name)).sort();
+		const expectedRegisteredTools = ["personal_memory_recall", "transport_schedule_lookup"];
 
-		expect(toolIds).toEqual(expect.arrayContaining(catalogNames));
-		expect(requestedTools).toEqual(expect.arrayContaining(requestableNames));
+		expect(catalogNames).toEqual(expectedRegisteredTools);
+		expect(toolIds.sort()).toEqual(catalogNames);
+		expect(modelVisibleNames).toEqual(["personal_memory_recall"]);
 		expect(modelVisibleToolNames.sort()).toEqual(modelVisibleNames);
-		expect(functionSchemaNames).toEqual(expect.arrayContaining(modelVisibleNames));
-		expect(functionSchemaNames).toContain("knowledge_search");
-		expect(modelVisibleNames).not.toContain("knowledge_search");
-		expect(modelVisibleNames).not.toContain("public_web_search");
+		expect(functionSchemaNames).toEqual(catalogNames);
 	});
 });

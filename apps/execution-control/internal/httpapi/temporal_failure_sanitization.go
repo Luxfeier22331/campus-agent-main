@@ -57,13 +57,13 @@ func validTemporalFailureHash(value string) bool {
 
 func temporalFailurePublicMessage(kind string) string {
 	switch boundedTemporalFailureKind(kind) {
-	case "memory_recall_failed", "memory_recall_request_invalid", "personal_memory_not_configured":
+	case "personal_memory_not_configured":
 		return "Personal memory could not be loaded for this request."
 	case "agent_runtime_timeout", "agent_deadline_exceeded":
 		return "The agent runtime did not complete before its deadline."
 	case "agent_runtime_failed", "model_setting_missing", "provider_unavailable":
 		return "The answer provider is temporarily unavailable."
-	case "knowledge_search_failed", "retrieval_lookup_failed", "tool_execution_failed":
+	case "retrieval_lookup_failed", "tool_execution_failed":
 		return "Required campus information could not be retrieved."
 	default:
 		return defaultExecutionFailureMessage

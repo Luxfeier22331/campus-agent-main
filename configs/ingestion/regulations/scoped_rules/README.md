@@ -10,6 +10,6 @@
 - `serving-config.json`：索引与查询兼容配置；
 - `task-registry.v3.json`：本目录可执行的采集任务。
 
-在线查询是否开放只由 `configs/runtime/query-serving-targets.v1.json` 决定；本目录文件存在不自动
+在线查询是否开放只由 `configs/runtime/query-serving-targets.v3.json` 决定；本目录文件存在不自动
 建立查询目标。规则语义见 `docs/decisions/adr-0037-scoped-rules.md`，来源提升边界见
 `docs/decisions/adr-0035-regulation-promotion.md`。
