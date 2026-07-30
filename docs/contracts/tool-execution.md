@@ -23,9 +23,9 @@ status: active
   `DELETE` 释放输入。
 
 前一组接口使用 execution-control 的内部认证，后一组接口只接受
-`x-app-execution-auth`，其值来自独立的 `APP_API_EXECUTION_INPUT_SHARED_SECRET`。该 Secret 只授予
-execution-control 读取和释放冻结输入的方向性权限，不能复用
-`APP_API_EXECUTION_SHARED_SECRET`，也不能用于其他 app-api 内部接口。输入响应必须带
+`x-app-execution-auth`，其值来自双方共享的 `APP_API_EXECUTION_SHARED_SECRET`。该 Secret 只用于
+execution-control 与 app-api 之间的执行输入读取/释放及产品回调通道，不能用于浏览器或其他内部
+接口。输入响应必须带
 `Cache-Control: no-store`，删除操作幂等。工具执行请求和成功响应严格使用 `snake_case`；app-api
 错误响应复用标准错误信封，其中关联字段保持 `traceId` 和 `requestId`。精确路径、状态码和响应结构
 只由 OpenAPI 维护。
@@ -97,22 +97,21 @@ execution-control 在调用 agent-runtime 前校验本地指纹并把完整准�
 serving config、候选限制以及 `embedding` 模型设置 hash 的冻结与执行约束见
 `../architecture/system/retrieval-serving.md`。
 
-## 受保护 Grounding 与结果重放
+## Grounding 与结果传递
 
-`grounding_context.v2` 以受保护载荷作为本轮知识准备的 canonical 记录，并在 embedding 或 Qdrant
-调用前读取和验证稳定 context ref 对应的结果。完整且匹配的记录只用于补齐或精确重放
-普通 StepResult 投影，不得再次调用外部系统。
+`grounding_context.v2` 是 Grounding Activity 的有界结果，包含本轮 run、admission hash、计划 hash、
+查询 hash 和最多 8 条 evidence / 4096 token。workflow 将它传给 Primary Agent，再随有界 Agent result
+传给 Finalization；这些内容进入 Temporal history。普通 StepResult 投影只保存 ref、hash、计数和摘要。
 
-只有受保护载荷存储明确返回不存在时，执行方才可发起首次外部调用。存储读取、解密或依赖连接错误
-属于可重试基础设施失败，不能当作未命中继续外呼。已存记录的 run、ref、admission hash、query
-hash 或规范化结果与当前请求冲突时必须以非重试错误失败关闭；不得覆盖首写结果、生成替代 ref 或
-重新外呼。
+Grounding Activity 重试时重新执行只读 embedding/Qdrant 查询，不从 PostgreSQL 读取或重放 canonical
+正文。`none` 路径由 Primary Agent 建立 `not_required` context。
 StepResult 自身首写不可变，终态写入 fence 及 completed 后仅 `memory.append` 可写的例外由
 `../data/durable-runtime.md` 定义。
 
 `personal_memory_recall` 是 Primary Agent 同一次 SDK run 内的有界工具调用，不使用独立 memory ref
-或 protected recall payload。它的完整结果只进入受保护 Agent 结果；Primary Agent invocation receipt
-约束整个 SDK run 不得因 Activity 重投递而再次执行。
+或独立 payload。它的完整结果只进入有界 Agent result；Primary Agent invocation receipt 约束整个 SDK
+run 不得因 Activity 重投递而再次执行。已有 `started` 或 `completed` receipt 而没有可用 Activity result
+时，必须以 `agent_attempt_uncertain` 失败关闭。
 
 ## Temporal 与终态处理
 
@@ -120,22 +119,23 @@ StepResult 自身首写不可变，终态写入 fence 及 completed 后仅 `memo
 `../architecture/system/durable-runtime.md` 定义。SDK 函数调用不创建额外 Temporal
 Activity。
 
-Workflow 输入和 Temporal history 只携带运行标识、输入 ref/hash 与有界策略版本，不携带冻结输入
-正文。app-api 产品终态及其 `finalization_fingerprint` 是跨系统重复完成、取消和较晚结果的最终
-裁决；execution-control 的终态投影必须与该结果一致，不能先向浏览器发布相冲突的终态。
+Workflow 输入只携带运行标识、输入 ref/hash 与有界策略版本，不携带冻结输入正文。Temporal history
+另携带有界 Grounding 与 Agent Activity result；app-api 产品终态及其 `finalization_fingerprint` 是跨系统
+重复完成、取消和较晚结果的最终裁决；execution-control 的终态投影必须与该结果一致，不能先向浏览器
+发布相冲突的终态。
 
 所有 source-side Temporal Activity 在处理业务输入前，必须从当前 Activity context 读取 Workflow ID
 和精确 Temporal Run ID，并与持久 start intent 的 Workflow ID/root Run ID 绑定比较。绑定尚未确认是
 可重试失败；任一 ID 不同，包括 Reset successor，都是非重试身份失败。start 已 `superseded` 时只有
 cancellation finalizer 可使用已绑定 root，其他 Activity 不得继续执行或写投影。
 
-执行输入与 protected payload 的删除不属于 Workflow 终态 Activity。execution-control 在 run 创建
+执行输入的删除不属于 Workflow 终态 Activity。execution-control 在 run 创建
 时写入持久 cleanup 记录，业务终态提交后由 reconciler 校验绑定的精确 Temporal Run、同 Workflow
 ID 的 latest Run、完整 Memo 身份、reset state 和关闭时间。两次 Describe 的 Run ID 与
 `first_run_id` 都必须等于持久绑定的 root Run ID，reset state 必须已知且没有 `last_reset_time` 或
 `reset_run_id`；任何不同 latest Run 都保持 pending。`first_run_id` chain 同时包含
 Continue-As-New、Workflow Retry、Cron 和 Reset，不能单独证明 ownership。当前在线回答不支持任何
-successor，验证通过后才依次幂等删除两个所有者的数据并确认 cleanup。启动前的持久
+successor，验证通过后才幂等删除 app-api 执行输入并确认 cleanup。启动前的持久
 `dispatch_attempted=false` fence 可证明本地失败或 supersede 没有跨过 RPC 边界；若 fence 已提交、
 start 已 `superseded` 且没有 Run ID，取消 reconciler 必须使用原 canonical input 和一分钟
 `StartDelay` 的 recovery starter 创建或取得 root，完成 exact/latest 校验并首写精确绑定后才能取消。

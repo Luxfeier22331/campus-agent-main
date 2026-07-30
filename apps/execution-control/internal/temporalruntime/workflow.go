@@ -25,7 +25,7 @@ func ToolExecutionWorkflow(
 	input ToolExecutionWorkflowInput,
 ) (ToolExecutionWorkflowResult, error) {
 	activityOptions := defaultActivityOptions()
-	groundingContextRef := input.GroundingContextRef
+	groundingContext := GroundingContext{}
 	if input.AdmissionSnapshot.GroundingPlan.Mode != "none" {
 		grounding, err := prepareGroundingContext(ctx, activityOptions, input)
 		if err != nil {
@@ -44,9 +44,9 @@ func ToolExecutionWorkflow(
 			}
 			return ToolExecutionWorkflowResult{}, err
 		}
-		groundingContextRef = grounding.GroundingContextRef
+		groundingContext = grounding.GroundingContext
 	}
-	agent, err := executePrimaryAgent(ctx, activityOptions, input, groundingContextRef)
+	agent, err := executePrimaryAgent(ctx, activityOptions, input, groundingContext)
 	if err != nil {
 		if workflowExecutionCanceled(ctx, err) {
 			return finalizeWorkflowCancellation(ctx, activityOptions, input, "user_requested")
@@ -64,10 +64,11 @@ func ToolExecutionWorkflow(
 		return ToolExecutionWorkflowResult{}, err
 	}
 	finalization, err := executeFinalization(ctx, activityOptions, WriteFinalizationActivityInput{
-		AgentResultRef: agent.AgentResultRef,
-		FinalizedAt:    workflow.Now(ctx).UTC(),
-		RunID:          input.RunID,
-		TraceID:        input.TraceID,
+		AgentResult:       agent,
+		AdmissionSnapshot: input.AdmissionSnapshot,
+		FinalizedAt:       workflow.Now(ctx).UTC(),
+		RunID:             input.RunID,
+		TraceID:           input.TraceID,
 	})
 	if err != nil {
 		if workflowExecutionCanceled(ctx, err) {
@@ -390,18 +391,18 @@ func executePrimaryAgent(
 	ctx workflow.Context,
 	activityOptions workflow.ActivityOptions,
 	input ToolExecutionWorkflowInput,
-	groundingContextRef string,
+	groundingContext GroundingContext,
 ) (ExecutePrimaryAgentActivityOutput, error) {
 	agentCtx := workflow.WithActivityOptions(ctx, primaryAgentActivityOptions(activityOptions))
 	agentInput := ExecutePrimaryAgentActivityInput{
-		AdmissionSnapshot:   input.AdmissionSnapshot,
-		ConversationID:      input.ConversationID,
-		GroundingContextRef: groundingContextRef,
-		RequestID:           input.RequestID,
-		RunID:               input.RunID,
-		TraceID:             input.TraceID,
-		TurnID:              input.TurnID,
-		VisibleToolNames:    append([]string{}, input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames...),
+		AdmissionSnapshot: input.AdmissionSnapshot,
+		ConversationID:    input.ConversationID,
+		GroundingContext:  groundingContext,
+		RequestID:         input.RequestID,
+		RunID:             input.RunID,
+		TraceID:           input.TraceID,
+		TurnID:            input.TurnID,
+		VisibleToolNames:  append([]string{}, input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames...),
 	}
 	var agent ExecutePrimaryAgentActivityOutput
 	err := workflow.ExecuteActivity(agentCtx, ExecutePrimaryAgentActivityName, agentInput).Get(ctx, &agent)

@@ -11,12 +11,7 @@ import {
 	type ProductStreamEvent,
 	parseSse,
 } from "./support/http-smoke";
-import { DEFAULT_SMOKE_EMAIL, DEFAULT_SMOKE_NAME } from "./support/smoke-identity-defaults";
-import {
-	buildSmokePassword,
-	fetchReadyz,
-	mintStagingSmokeSession,
-} from "./support/staging-smoke-support";
+import { fetchReadyz, signInE2eIdentity } from "./support/staging-smoke-support";
 
 interface ReadyzProbe {
 	payload: unknown;
@@ -25,13 +20,13 @@ interface ReadyzProbe {
 
 interface ChatMemoryE2eStagingArgs {
 	appApiReadyzUrl: string;
+	captchaToken: string;
 	chatBaseUrl: string;
 	email: string;
 	memoryValue: string;
-	name: string;
 	observabilityCanary: ObservabilityCanarySubmitHeaders | null;
+	password: string;
 	prompt: string;
-	smokeAuthSecret: string;
 }
 
 interface ObservabilityCanarySubmitHeaders {
@@ -68,7 +63,6 @@ interface RuntimeStepTrajectory {
 export interface ChatMemoryE2eStagingResult {
 	identity: {
 		email: string;
-		resetViaDeployedRuntime: true;
 	};
 	memory: {
 		deleted: boolean;
@@ -88,20 +82,18 @@ export interface ChatMemoryE2eStagingResult {
 		stepId: string;
 	} | null;
 	session: unknown | null;
-	sessionMintAttempted: boolean;
+	signInAttempted: boolean;
 	submit: SubmitIdentity | null;
 }
 
 export interface ChatMemoryE2eStagingDependencies {
 	fetchJsonWithCookie?: typeof fetchJsonWithCookie;
 	fetchReadyz?: (url: string) => Promise<ReadyzProbe>;
-	mintSmokeSession?: (input: {
-		appApiReadyzUrl: string;
+	signInIdentity?: (input: {
+		captchaToken: string;
+		chatBaseUrl: string;
 		email: string;
-		name?: string;
 		password: string;
-		resetIdentity?: boolean;
-		smokeAuthSecret: string;
 	}) => Promise<string>;
 	openSubmitStream?: (input: {
 		body: unknown;
@@ -123,16 +115,16 @@ function normalizeOptionalValue(value: string | undefined): string | null {
 	return trimmed ? trimmed : null;
 }
 
-function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): ChatMemoryE2eStagingArgs {
+function parseArgs(argv: string[]): ChatMemoryE2eStagingArgs {
 	let appApiReadyzUrl = DEFAULT_STAGING_CHAT_E2E_APP_API_READYZ_URL;
+	let captchaToken = "";
 	let chatBaseUrl = DEFAULT_STAGING_CHAT_E2E_CHAT_BASE_URL;
-	let email = DEFAULT_SMOKE_EMAIL;
+	let email = "";
 	let memoryValue = `smoke memory sentinel ${Date.now()}`;
-	let name = DEFAULT_SMOKE_NAME;
 	let observabilityCanaryApiKeySentinel: string | null = null;
 	let observabilityCanaryHeaderSentinel: string | null = null;
+	let password = "";
 	let prompt = "请根据你记住的 smoke memory sentinel 回答我。";
-	let smokeAuthSecret = normalizeOptionalValue(env.APP_API_STAGING_SMOKE_AUTH_SECRET) ?? "";
 
 	for (let index = 0; index < argv.length; index += 1) {
 		const token = argv[index];
@@ -157,6 +149,15 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): ChatMe
 			index += 1;
 			continue;
 		}
+		if (token === "--captcha-token") {
+			const value = normalizeOptionalValue(argv[index + 1]);
+			if (!value) {
+				throw new Error("--captcha-token requires a non-empty value.");
+			}
+			captchaToken = value;
+			index += 1;
+			continue;
+		}
 		if (token === "--email") {
 			const value = normalizeOptionalValue(argv[index + 1]);
 			if (!value) {
@@ -166,12 +167,12 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): ChatMe
 			index += 1;
 			continue;
 		}
-		if (token === "--name") {
+		if (token === "--password") {
 			const value = normalizeOptionalValue(argv[index + 1]);
 			if (!value) {
-				throw new Error("--name requires a non-empty value.");
+				throw new Error("--password requires a non-empty value.");
 			}
-			name = value;
+			password = value;
 			index += 1;
 			continue;
 		}
@@ -190,15 +191,6 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): ChatMe
 				throw new Error("--prompt requires a non-empty value.");
 			}
 			prompt = value;
-			index += 1;
-			continue;
-		}
-		if (token === "--smoke-auth-secret") {
-			const value = normalizeOptionalValue(argv[index + 1]);
-			if (!value) {
-				throw new Error("--smoke-auth-secret requires a non-empty value.");
-			}
-			smokeAuthSecret = value;
 			index += 1;
 			continue;
 		}
@@ -232,8 +224,14 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): ChatMe
 		throw new Error(`Unknown argument: ${token}`);
 	}
 
-	if (!smokeAuthSecret) {
-		throw new Error("APP_API_STAGING_SMOKE_AUTH_SECRET is required.");
+	if (!email) {
+		throw new Error("--email is required.");
+	}
+	if (!password) {
+		throw new Error("--password is required.");
+	}
+	if (!captchaToken) {
+		throw new Error("--captcha-token is required.");
 	}
 	if (
 		(observabilityCanaryHeaderSentinel === null) !==
@@ -250,10 +248,10 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): ChatMe
 
 	return {
 		appApiReadyzUrl,
+		captchaToken,
 		chatBaseUrl,
 		email,
 		memoryValue,
-		name,
 		observabilityCanary:
 			observabilityCanaryHeaderSentinel === null || observabilityCanaryApiKeySentinel === null
 				? null
@@ -261,8 +259,8 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): ChatMe
 						apiKeySentinel: observabilityCanaryApiKeySentinel,
 						headerSentinel: observabilityCanaryHeaderSentinel,
 					},
+		password,
 		prompt,
-		smokeAuthSecret,
 	};
 }
 
@@ -405,20 +403,18 @@ function readMemoryRecallProof(
 
 export async function runChatMemoryE2eStaging(
 	argv: string[],
-	env: NodeJS.ProcessEnv = process.env,
 	deps: ChatMemoryE2eStagingDependencies = {},
 ): Promise<ChatMemoryE2eStagingResult> {
-	const args = parseArgs(argv, env);
+	const args = parseArgs(argv);
 	const resolvedDeps = {
 		fetchJsonWithCookie: deps.fetchJsonWithCookie ?? fetchJsonWithCookie,
 		fetchReadyz: deps.fetchReadyz ?? fetchReadyz,
-		mintSmokeSession: deps.mintSmokeSession ?? mintStagingSmokeSession,
+		signInIdentity: deps.signInIdentity ?? signInE2eIdentity,
 		openSubmitStream: deps.openSubmitStream ?? openChatMemorySubmitStream,
 	};
 	const result: ChatMemoryE2eStagingResult = {
 		identity: {
 			email: args.email,
-			resetViaDeployedRuntime: true,
 		},
 		memory: {
 			deleted: false,
@@ -433,7 +429,7 @@ export async function runChatMemoryE2eStaging(
 		},
 		recall: null,
 		session: null,
-		sessionMintAttempted: false,
+		signInAttempted: false,
 		submit: null,
 	};
 
@@ -442,15 +438,12 @@ export async function runChatMemoryE2eStaging(
 		new URL("/readyz", args.chatBaseUrl).toString(),
 	);
 
-	const smokePassword = buildSmokePassword();
-	result.sessionMintAttempted = true;
-	const cookieHeader = await resolvedDeps.mintSmokeSession({
-		appApiReadyzUrl: args.appApiReadyzUrl,
+	result.signInAttempted = true;
+	const cookieHeader = await resolvedDeps.signInIdentity({
+		captchaToken: args.captchaToken,
+		chatBaseUrl: args.chatBaseUrl,
 		email: args.email,
-		name: args.name,
-		password: smokePassword,
-		resetIdentity: true,
-		smokeAuthSecret: args.smokeAuthSecret,
+		password: args.password,
 	});
 
 	const meResult = await resolvedDeps.fetchJsonWithCookie<{
@@ -467,7 +460,7 @@ export async function runChatMemoryE2eStaging(
 	result.principal = meResult.payload.principal;
 	result.session = meResult.payload.session;
 	if (!meResult.payload.permissions.chat) {
-		throw new Error("staging smoke identity does not have chat permission.");
+		throw new Error("E2E identity does not have chat permission.");
 	}
 
 	await resolvedDeps.fetchJsonWithCookie({
@@ -533,8 +526,8 @@ export async function runChatMemoryE2eStaging(
 	}
 }
 
-export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env) {
-	const result = await runChatMemoryE2eStaging(argv, env);
+export async function main(argv: string[]) {
+	const result = await runChatMemoryE2eStaging(argv);
 	console.log(JSON.stringify(result, null, 2));
 	if (!result.passed) {
 		process.exitCode = 1;

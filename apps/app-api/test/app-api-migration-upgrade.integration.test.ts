@@ -354,7 +354,7 @@ describe("app-api migration upgrade", () => {
 		`);
 
 		await installAppApiSchema({
-			APP_API_DATABASE_SSLMODE: "disable",
+			APP_API_SCHEMA_DATABASE_SSLMODE: "disable",
 			APP_API_SCHEMA_DATABASE_URL: container.getConnectionUri(),
 		});
 
@@ -635,7 +635,7 @@ describe("app-api migration upgrade", () => {
 		expect(retired.rows).toEqual([]);
 
 		await installAppApiSchema({
-			APP_API_DATABASE_SSLMODE: "disable",
+			APP_API_SCHEMA_DATABASE_SSLMODE: "disable",
 			APP_API_SCHEMA_DATABASE_URL: container.getConnectionUri(),
 		});
 		const ledger = await pool.query<{ count: string }>(
@@ -676,7 +676,7 @@ describe("app-api migration upgrade", () => {
 
 		await resetDisposableDatabase(pool);
 		await installAppApiSchema({
-			APP_API_DATABASE_SSLMODE: "disable",
+			APP_API_SCHEMA_DATABASE_SSLMODE: "disable",
 			APP_API_SCHEMA_DATABASE_URL: container.getConnectionUri(),
 		});
 		const cleanInstall = await pool.query<{

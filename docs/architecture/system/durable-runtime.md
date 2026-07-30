@@ -19,8 +19,7 @@ status: active
 - `ToolExecutionWorkflow`：一个 run 的 Temporal workflow；
 - `WorkflowStartCommand`、`CancellationCommand`：将已提交的 PostgreSQL 意图投递给 Temporal
   的持久命令；
-- `RunCleanup`：在业务终态之后释放 app-api 执行输入与 execution-control 受保护载荷的持久
-  清理发件箱；
+- `RunCleanup`：在业务终态之后释放 app-api 执行输入的持久清理发件箱；
 - `AgentInvocationReceipt`：约束具有外部副作用的 Primary Agent 调用只能开始一次；
 - `RunEvent`、`RunStep`、`StepAttempt`、`StepResult`：有界投影，不是 workflow
   history；
@@ -32,33 +31,27 @@ PostgreSQL 保存产品读取、运维和评测所需的有界投影，不是执
 
 1. **Grounding Prepare（可选）**：仅在本地 grounding plan 选中一个或多个文档范围时，在 agent queue
    读取冻结准入，对当前问题执行一次 embedding，并发查询已准入文档范围，使用 Qdrant dense+sparse
-   RRF 分数统一排序后写入受保护
-   `grounding_context.v2`。`none` 路径跳过该 Activity，并由 Agent Activity 建立 `not_required`
-   context。
+   RRF 分数统一排序后，将有界 `grounding_context.v2` 作为 Activity result 交给 workflow。`none`
+   路径跳过该 Activity，并由 Agent Activity 建立 `not_required` context。
 2. **Agent Activity**：在 agent queue 只调用一次 `apps/agent-runtime`，完成 Primary Agent、可选的
    单次个人记忆工具调用和结构化终态输出。
 3. **Finalization**：在 core queue 校验终态输出与本轮 grounding 引用、生成来源并写入最终投影。
 4. **Memory Append**：在 core queue 提交有界的回答后记忆追加。
 
 Temporal 不把每个 scope 查询、候选、RRF 合并或 SDK tool call 展开成额外阶段，也不存在工作流
-重新规划状态。grounding 是否执行在 admission 时确定，完整正文只通过 protected payload 传递。
+重新规划状态。grounding 是否执行在 admission 时确定。`GroundingContext` 最多包含 8 条 evidence 和
+4096 token；它从 Grounding Activity 传给 Agent Activity，随后与有界 Agent 结果一起由 workflow
+传给 Finalization。上述内容会进入 Temporal history；当前合同不要求对 Temporal history 加密或按 run
+删除正文。
 
-跨 Activity 传递的完整 Agent 结果和知识 evidence 通过 PostgreSQL 的加密 protected payload
-保存，只在 Temporal history 和普通投影中传递 ref/hash。其版本化 AES keyring
-由 execution-control 网关、core worker 和 agent worker 共同持有，与输入读取认证 Secret 独立轮换；
-envelope 固化 key id，读取时不回退其他 key。同一 run/ref/kind 首次写入后不可变；相同明文 hash 的
-重放只返回原记录，不同 hash 冲突。run 进入业务终态后存储层拒绝任何新写入，避免晚到 Activity 在
-cleanup 确认后重新生成敏感载荷。
+PostgreSQL 只保存 ref、hash、计数、用量和产品终态等有界投影，不保存 canonical grounding 或完整
+Agent 结果。Grounding Activity 重试时重新执行只读 embedding/Qdrant 查询；它不通过另一份运行时
+存储重放旧结果。
 
-Grounding Activity 在生成 embedding 或查询 Qdrant 前，必须按当前 run 和稳定 ref 读取 canonical
-protected payload。读取到完整结果时校验 run、admission hash、query hash 和内容规范性，只用该结果
-修复缺失的普通投影并返回，不重复外部调用。只有存储层明确返回“记录不存在”才可继续首次外呼；
-读取超时、连接失败或解密依赖不可用不能降级成“未命中”。已存结果冲突时失败关闭，不能覆盖或
-重新外呼。
-
-`personal_memory_recall` 不建立独立 protected recall payload。它的完整返回值只存在于受保护的 Agent
-结果中；Primary Agent invocation receipt 约束包含模型和工具调用的整个 SDK run 只能开始一次。
-精确绑定字段和 StepResult 写入边界见 `../../data/durable-runtime.md`。
+`personal_memory_recall` 不建立独立载荷。它的完整返回值是有界 Agent result 的一部分；Primary Agent
+invocation receipt 约束包含模型和工具调用的整个 SDK run 只能开始一次。若 receipt 已是 `started` 或
+`completed`，但本次 Activity 没有可用的 Temporal result，执行以 `agent_attempt_uncertain` 失败关闭，
+不再次调用 Provider。精确绑定字段和 StepResult 写入边界见 `../../data/durable-runtime.md`。
 
 ## 启动与取消命令
 
@@ -120,7 +113,7 @@ Continue-As-New、Workflow Retry、Cron 和 Reset，因而“相同 `first_run_i
 ## 终态清理发件箱
 
 run 创建事务同时写入 `runtime.agent_run_cleanups` 的 pending 记录。Workflow 和终态 Activity 只负责
-提交产品回调与 execution-control 终态，不直接删除执行输入或受保护载荷；后台 reconciler 租约清理
+提交产品回调与 execution-control 终态，不直接删除执行输入；后台 reconciler 租约清理
 记录，避免删除故障反过来阻止 Temporal workflow 关闭，也避免任意 Activity 用空身份绕过清理证明。
 
 清理只接受以下两类证明：已确认启动命令，或取消竞争中已跨过 dispatch fence 的 superseded
@@ -135,9 +128,8 @@ fence 前将命令 supersede。已 dispatch 但尚未绑定 Run ID 的 supersede
 `first_run_id` 以及任意不同 latest Run 都保持 pending。Continue-As-New、Retry、Cron 或 Reset 的
 successor 即使与 root 共享 `first_run_id`，也不属于当前产品绑定。
 
-每次清理先调用 app-api 的幂等输入删除接口，再删除该 run 的全部 protected payload，二者都成功后
-才以同一 cleanup lease token 确认发件箱。任一步骤或确认结果不确定时重新租约并重复幂等删除；业务
-终态不回滚，也不能把清理失败伪装成已完成。
+每次清理调用 app-api 的幂等输入删除接口，成功后以同一 cleanup lease token 确认发件箱。删除或确认
+结果不确定时重新租约并重复幂等删除；业务终态不回滚，也不能把清理失败伪装成已完成。
 
 在线回答从启动绑定到取消、超时、终态和 cleanup 的整个生命周期都不支持 Temporal Reset。两次
 Describe 只证明观察时刻的 execution 状态，不是跨 Temporal 与 PostgreSQL 的原子锁；Describe 后到
@@ -177,17 +169,17 @@ root execution，Agent、查询和普通 Finalization Activity 都必须停止�
 input 中携带的产品 run ID。
 
 Primary Agent Activity 的 Temporal `MaximumAttempts` 为 `0`，允许在 workflow 生命周期内重试
-Activity 调度和投影修复，但供应商调用仍然只能开始一次。Activity 在调用供应商前先持久化 canonical
-provider invocation envelope，再写入 invocation receipt；重试只有在 receipt 明确不存在时才可进入
-首次调用路径，completed receipt 只能校验并修复下游投影。receipt 表明供应商调用已经开始却没有完整
-结果时，执行以非重试的 `agent_attempt_uncertain` 失败关闭，不能再次调用供应商。该约束承认 Activity
-dispatch 和外部模型 API 之间不存在原子事务，同时允许已持久化结果在瞬时投影故障后完成收敛。
+Activity 调度和投影修复，但供应商调用仍然只能开始一次。Activity 在调用供应商前计算 canonical
+provider invocation envelope 的摘要并写入 invocation receipt；只有 receipt 不存在时可进入首次调用。
+receipt 为 `started` 或 `completed` 时都不能重放模型调用或从 PostgreSQL 复原模型正文，而是以
+`agent_attempt_uncertain` 失败关闭。该约束承认 Activity dispatch 和外部模型 API 之间不存在原子
+事务。
 
 provider invocation envelope 的摘要是 receipt 的输入 fingerprint。它绑定 execution input、完整
-admission snapshot、可见工具与 tool choice、最终模型上下文，以及实际发送给 agent-runtime 的精确
-HTTP body；请求摘要和网络发送复用同一份编码 bytes。completed receipt 再绑定
-受保护 Agent 结果的 ref/schema/hash，completed `agent.primary` StepResult 绑定该受保护结果的
-schema/hash 和完整有界投影。任一层缺失、被修改或跨层不一致都必须失败关闭。
+admission snapshot、可见工具、最终模型上下文，以及实际发送给 agent-runtime 的精确 HTTP body；请求
+摘要和网络发送复用同一份编码 bytes。completed receipt 只保存该输入摘要、Agent result ref 和 schema
+version，不保存模型结果。`agent.primary` StepResult 保存有界摘要和正文 hash；完整 Agent result 仅由
+workflow 的 Activity result 交给 Finalization。
 
 ## 取消、超时与终态处理
 
@@ -215,12 +207,11 @@ Memo 一致、reset state 已知且没有 reset evidence，并确认该 executio
 提交 app-api 产品终态，再以同一事务写入 `expired` 状态、`run_timeout` 原因、浏览器可见的
 `run.expired` 事件并释放 conversation active-run 锁。产品回调失败时保持原活动状态重试；终态事件
 写入冲突时整个投影事务回滚，不能留下缺少 `run.expired` 的半终态。终态提交后由清理发件箱按上节
-规则释放原始输入和 protected payload，删除失败不撤销已经成立的超时终态。
+规则释放原始输入，删除失败不撤销已经成立的超时终态。
 
 Finalization 执行确定性校验：
 
-- 要求 completed invocation receipt，并核对 receipt summary、受保护 Agent 结果和 completed
-  `agent.primary` StepResult 的 ref/schema/hash 与完整有界 payload；
+- 校验 workflow 传入的 Agent result 身份、冻结准入快照、grounding 绑定和完整有界 payload；
 - 校验终态 schema 和允许的结果；
 - 根据绑定当前 run 的 grounding context 校验 `evidence://` 引用；
 - 从 grounding 的可信 metadata 生成浏览器可用来源；

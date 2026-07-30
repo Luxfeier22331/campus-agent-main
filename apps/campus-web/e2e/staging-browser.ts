@@ -5,23 +5,19 @@ import { fileURLToPath } from "node:url";
 import { type BrowserContext, chromium, type Page } from "playwright";
 
 const DEFAULT_CAMPUS_BASE_URL = "https://campus-staging.mucwiki-edge.link";
-const DEFAULT_APP_API_BASE_URL = "https://api-staging.mucwiki-edge.link";
-const DEFAULT_EMAIL = "campus_agent_smoke@muc.edu.cn";
-const DEFAULT_NAME = "Campus Agent Smoke";
 const DEFAULT_PROMPT = "中央民族大学本科学生国家奖学金评审办法";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "../../..");
 
 interface Args {
-	appApiBaseUrl: string;
+	captchaToken: string;
 	campusBaseUrl: string;
 	email: string;
 	evidenceDir: string;
 	headed: boolean;
-	name: string;
+	password: string;
 	prompt: string;
-	smokeAuthSecret: string;
 	timeoutMs: number;
 }
 
@@ -36,19 +32,16 @@ function optionalValue(value: string | undefined): string | null {
 	return trimmed ? trimmed : null;
 }
 
-function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): Args {
+function parseArgs(argv: string[]): Args {
 	const args: Args = {
-		appApiBaseUrl: optionalValue(env.APP_API_BASE_URL) ?? DEFAULT_APP_API_BASE_URL,
-		campusBaseUrl: optionalValue(env.CAMPUS_WEB_BASE_URL) ?? DEFAULT_CAMPUS_BASE_URL,
-		email: optionalValue(env.APP_API_SMOKE_IDENTITY_EMAIL)?.toLowerCase() ?? DEFAULT_EMAIL,
-		evidenceDir:
-			optionalValue(env.E2E_QA_EVIDENCE_DIR) ??
-			resolve(repoRoot, "var/staging-evidence/campus-browser-e2e"),
+		captchaToken: "",
+		campusBaseUrl: DEFAULT_CAMPUS_BASE_URL,
+		email: "",
+		evidenceDir: resolve(repoRoot, "var/staging-evidence/campus-browser-e2e"),
 		headed: false,
-		name: optionalValue(env.APP_API_SMOKE_IDENTITY_NAME) ?? DEFAULT_NAME,
-		prompt: optionalValue(env.CAMPUS_BROWSER_E2E_PROMPT) ?? DEFAULT_PROMPT,
-		smokeAuthSecret: optionalValue(env.APP_API_STAGING_SMOKE_AUTH_SECRET) ?? "",
-		timeoutMs: Number.parseInt(optionalValue(env.CAMPUS_BROWSER_E2E_TIMEOUT_MS) ?? "120000", 10),
+		password: "",
+		prompt: DEFAULT_PROMPT,
+		timeoutMs: 120_000,
 	};
 	for (let index = 0; index < argv.length; index += 1) {
 		const token = argv[index];
@@ -57,8 +50,8 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): Args {
 			continue;
 		}
 		const next = optionalValue(argv[index + 1]);
-		if (token === "--app-api-base-url" && next) {
-			args.appApiBaseUrl = next;
+		if (token === "--captcha-token" && next) {
+			args.captchaToken = next;
 			index += 1;
 			continue;
 		}
@@ -72,20 +65,39 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): Args {
 			index += 1;
 			continue;
 		}
+		if (token === "--email" && next) {
+			args.email = next.toLowerCase();
+			index += 1;
+			continue;
+		}
+		if (token === "--password" && next) {
+			args.password = next;
+			index += 1;
+			continue;
+		}
 		if (token === "--prompt" && next) {
 			args.prompt = next;
 			index += 1;
 			continue;
 		}
-		if (token === "--smoke-auth-secret" && next) {
-			args.smokeAuthSecret = next;
+		if (token === "--timeout-ms" && next) {
+			args.timeoutMs = Number.parseInt(next, 10);
 			index += 1;
 			continue;
 		}
 		throw new Error(`Unknown or incomplete argument: ${token}`);
 	}
-	if (!args.smokeAuthSecret) {
-		throw new Error("APP_API_STAGING_SMOKE_AUTH_SECRET is required.");
+	if (!args.email) {
+		throw new Error("--email is required.");
+	}
+	if (!args.password) {
+		throw new Error("--password is required.");
+	}
+	if (!args.captchaToken) {
+		throw new Error("--captcha-token is required.");
+	}
+	if (!Number.isInteger(args.timeoutMs) || args.timeoutMs <= 0) {
+		throw new Error("--timeout-ms must be a positive integer.");
 	}
 	return args;
 }
@@ -102,29 +114,25 @@ async function readJson(response: Response): Promise<unknown> {
 	}
 }
 
-async function mintSmokeCookie(args: Args): Promise<string> {
-	const password = `BrowserE2E!${Date.now().toString(36)}`;
-	const response = await fetch(
-		new URL("/api/internal/staging-smoke/auth/session", args.appApiBaseUrl),
-		{
-			body: JSON.stringify({
-				email: args.email,
-				name: args.name,
-				password,
-				resetIdentity: true,
-			}),
-			headers: {
-				accept: "application/json",
-				"content-type": "application/json",
-				"x-app-staging-smoke-auth": args.smokeAuthSecret,
-			},
-			method: "POST",
-			signal: AbortSignal.timeout(30_000),
+async function signInIdentity(args: Args): Promise<string> {
+	const response = await fetch(new URL("/api/auth/sign-in/email", args.campusBaseUrl), {
+		body: JSON.stringify({
+			email: args.email,
+			password: args.password,
+		}),
+		headers: {
+			accept: "application/json",
+			"content-type": "application/json",
+			origin: new URL(args.campusBaseUrl).origin,
+			referer: new URL("/login", args.campusBaseUrl).toString(),
+			"x-captcha-response": args.captchaToken,
 		},
-	);
+		method: "POST",
+		signal: AbortSignal.timeout(30_000),
+	});
 	if (!response.ok) {
 		throw new Error(
-			`Smoke session mint failed (${response.status}): ${JSON.stringify(await readJson(response))}`,
+			`E2E identity sign-in failed (${response.status}): ${JSON.stringify(await readJson(response))}`,
 		);
 	}
 	return response.headers.get("set-cookie") ?? "";
@@ -226,7 +234,7 @@ async function main() {
 		});
 	});
 	try {
-		const cookieHeader = await mintSmokeCookie(args);
+		const cookieHeader = await signInIdentity(args);
 		await seedBrowserSession(context, args.campusBaseUrl, cookieHeader);
 		const page = await context.newPage();
 		await page.goto("/", { waitUntil: "domcontentloaded" });

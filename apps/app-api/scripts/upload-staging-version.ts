@@ -3,12 +3,10 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadRepoStagingEnvFile } from "../../../scripts/deploy/lib/repo-env.ts";
 import { resolveStagingSentryRelease } from "../../../scripts/deploy/staging-release.ts";
 import { uploadStagingWorkerVersion } from "../../../scripts/deploy/worker-version.ts";
 import { buildAppApiStagingUploadConfig } from "./staging-upload-config.ts";
 
-loadRepoStagingEnvFile(import.meta.url, "../../..");
 const appDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 function requiredEnv(name: string): string {
@@ -46,8 +44,8 @@ try {
 	writeFileSync(
 		secretsPath,
 		`${JSON.stringify({
-			APP_API_EXECUTION_SHARED_SECRET: requiredEnv("STAGING_APP_API_EXECUTION_SHARED_SECRET"),
-			OPS_WEB_INTERNAL_TOKEN: requiredEnv("STAGING_OPS_WEB_INTERNAL_TOKEN"),
+			APP_API_EXECUTION_SHARED_SECRET: requiredEnv("APP_API_EXECUTION_SHARED_SECRET"),
+			OPS_WEB_INTERNAL_TOKEN: requiredEnv("OPS_WEB_INTERNAL_TOKEN"),
 		})}\n`,
 		{ encoding: "utf8", mode: 0o600 },
 	);
@@ -71,7 +69,7 @@ try {
 				? { AUTH_EMAIL_REPLY_TO: process.env.AUTH_EMAIL_REPLY_TO.trim() }
 				: {}),
 			SENTRY_DSN: requiredEnv("SENTRY_APP_API_DSN"),
-			SENTRY_RELEASE: sentryRelease,
+			DEPLOYMENT_RELEASE: sentryRelease,
 		},
 	});
 } finally {

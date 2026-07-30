@@ -62,7 +62,7 @@ export function resetPoolMockState() {
 }
 
 export const APP_API_TEST_ENV = {
-	APP_API_ENVIRONMENT: "test" as const,
+	DEPLOYMENT_ENVIRONMENT: "test" as const,
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
 	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 	AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
@@ -70,6 +70,7 @@ export const APP_API_TEST_ENV = {
 	AUTH_EMAIL_FROM: "Campus Agent <auth@example.com>",
 	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 	APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
+	APP_API_SAFETY_IDENTIFIER_HMAC_SECRET: "safety-identifier-secret",
 	APP_API_DB: {
 		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 	},
@@ -77,7 +78,6 @@ export const APP_API_TEST_ENV = {
 
 export const createApp = appModule.createApp;
 export const resolveEnvironment = configModule.resolveEnvironment;
-export const buildSchemaDatabaseConfig = runtimeDbModule.buildSchemaDatabaseConfig;
 export const buildRuntimeDatabaseConfig = runtimeDbModule.buildRuntimeDatabaseConfig;
 export const createRuntimePool = runtimeDbModule.createRuntimePool;
 export const probeRuntimeDatabase = runtimeDbModule.probeRuntimeDatabase;

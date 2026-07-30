@@ -14,12 +14,6 @@ export const APP_API_MACHINE_ROUTE_EXPOSURE_INVENTORY = [
 		admission: "readiness probe",
 	},
 	{
-		method: "POST",
-		path: "/api/internal/staging-smoke/auth/session",
-		callerClass: "machine-internal",
-		admission: "staging-only x-app-staging-smoke-auth release verification credential",
-	},
-	{
 		method: "GET",
 		path: "/api/internal/execution/runs/:runId/input",
 		callerClass: "machine-internal",

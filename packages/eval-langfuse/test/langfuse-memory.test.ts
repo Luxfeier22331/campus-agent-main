@@ -73,7 +73,6 @@ describe("Langfuse Hindsight memory trace evidence", () => {
 				),
 			settings: {
 				baseUrl: "https://langfuse.example",
-				environment: "staging",
 				publicKey: "pk-test",
 				secretKey: "sk-test",
 			},
@@ -135,7 +134,6 @@ describe("Langfuse Hindsight memory trace evidence", () => {
 					),
 				settings: {
 					baseUrl: "https://langfuse.example",
-					environment: "staging",
 					publicKey: "pk-test",
 					secretKey: "sk-test",
 				},
@@ -193,7 +191,6 @@ describe("Langfuse Hindsight memory trace evidence", () => {
 				),
 			settings: {
 				baseUrl: "https://langfuse.example",
-				environment: "staging",
 				publicKey: "pk-test",
 				secretKey: "sk-test",
 			},

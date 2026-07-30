@@ -24,8 +24,9 @@ status: active
 
 ## Tokenizer 与预算
 
-内核从 `INGESTION_KERNEL_TOKENIZER_JSON_PATH` 指向的本地 `tokenizer.json` 计算精确 token 数。
-文件缺失或无效时失败关闭，不在运行时下载模型。
+ingestion-control 使用源码固定的镜像内路径
+`/opt/campus-agent/models/qwen3-embedding-4b/tokenizer.json` 加载 tokenizer，并据此计算精确 token 数。
+文件缺失或无效时失败关闭，不在运行时下载模型，也不通过部署变量覆盖该路径。
 
 精确预算只在
 [`chunk-profile.json`](../../configs/ingestion/regulations/student_rules/chunk-profile.json) 维护。分块

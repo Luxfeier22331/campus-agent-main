@@ -29,7 +29,7 @@ function createTestApp() {
 	});
 	const app = createApp(
 		{
-			APP_API_ENVIRONMENT: "test",
+			DEPLOYMENT_ENVIRONMENT: "test",
 			OPS_WEB_INTERNAL_TOKEN: "ops-admin-token",
 		} as never,
 		{
@@ -98,7 +98,7 @@ describe("email access admin routes", () => {
 		};
 		const app = createApp(
 			{
-				APP_API_ENVIRONMENT: "test",
+				DEPLOYMENT_ENVIRONMENT: "test",
 				AUTH_EMAIL_FROM: "Campus Agent <account@auth.muc.wiki>",
 				AUTH_SHELL_ORIGIN: "https://campus.example.test",
 				AUTH_TURNSTILE_SECRET_KEY: "turnstile-test-key",
@@ -158,7 +158,7 @@ describe("email access admin routes", () => {
 		const sender = { send: vi.fn() };
 		const app = createApp(
 			{
-				APP_API_ENVIRONMENT: "test",
+				DEPLOYMENT_ENVIRONMENT: "test",
 				AUTH_EMAIL_FROM: "Campus Agent <account@auth.muc.wiki>",
 				AUTH_SHELL_ORIGIN: "https://campus.example.test",
 				AUTH_TURNSTILE_SECRET_KEY: "turnstile-test-key",

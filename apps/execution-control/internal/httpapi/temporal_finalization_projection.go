@@ -14,7 +14,7 @@ func temporalFinalizationResultPayload(
 	run execution.DurableRun,
 ) map[string]any {
 	payload := map[string]any{
-		"agent_result_ref":   input.AgentResultRef,
+		"agent_result_ref":   input.AgentResult.AgentResultRef,
 		"finalized_response": finalizedResponse,
 		"request_id":         run.RequestID,
 		"trace_id":           run.TraceID,

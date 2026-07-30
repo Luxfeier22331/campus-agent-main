@@ -1,6 +1,7 @@
 import { createSourceCollectorObjectStoreFromEnv } from "../../../src/object-store.js";
 import { fetchNoticeDetail, fetchNoticePage } from "./api.js";
 import {
+	loadInternalPortalDescriptor,
 	loadInternalPortalEnv,
 	resolveInternalPortalConfig,
 	resolveInternalPortalSiteId,
@@ -27,7 +28,7 @@ type NoticeCommand =
 export async function main(argv: string[] = process.argv.slice(2)): Promise<void> {
 	loadInternalPortalEnv();
 	const command = parseCommand(argv);
-	const siteId = resolveInternalPortalSiteId(process.env);
+	const siteId = resolveInternalPortalSiteId(loadInternalPortalDescriptor());
 	const objectStore = createSourceCollectorObjectStoreFromEnv(process.env);
 	const stateStore = createObjectStoreInternalPortalNoticeSyncStateStore({ objectStore });
 	try {

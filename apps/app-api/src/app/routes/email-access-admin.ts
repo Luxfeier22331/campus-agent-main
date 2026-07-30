@@ -1,7 +1,12 @@
 import type { Hono } from "hono";
 import { z } from "zod";
 
-import { type Env, readAppAuthConfig, resolveEnvironment } from "../../config";
+import {
+	type Env,
+	readAppAuthConfig,
+	readAppAuthEmailConfig,
+	resolveEnvironment,
+} from "../../config";
 import { AppApiRouteError, jsonResponse, withNoStore } from "../../http";
 import { type AuthEmailSender, sendAccessInvitationEmail } from "../../modules/auth/reset-mail";
 import type { EmailAccessGrantRecord } from "../../modules/email-access";
@@ -65,14 +70,15 @@ async function sendInvitation(input: {
 }): Promise<void> {
 	const deliveryKey = `${input.idempotencyKey}:invitation`;
 	try {
-		const config = readAppAuthConfig(input.env);
+		const authConfig = readAppAuthConfig(input.env);
+		const emailConfig = readAppAuthEmailConfig(input.env);
 		await sendAccessInvitationEmail(
 			{
-				authShellOrigin: config.authShellOrigin,
-				authEmailFrom: config.authEmailFrom,
-				authEmailReplyTo: config.authEmailReplyTo,
+				authShellOrigin: authConfig.authShellOrigin,
+				authEmailFrom: emailConfig.authEmailFrom,
+				authEmailReplyTo: emailConfig.authEmailReplyTo,
 				emailSender: input.emailSender,
-				resendApiKey: config.resendApiKey,
+				resendApiKey: emailConfig.resendApiKey,
 			},
 			{ email: input.grant.email, idempotencyKey: deliveryKey, kind: input.grant.kind },
 		);

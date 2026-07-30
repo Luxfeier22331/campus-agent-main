@@ -11,7 +11,7 @@ const (
 type Options struct {
 	KnowledgeReadModelStore         KnowledgeReadModelStore
 	TransportScheduleReadModelStore TransportScheduleReadModelStore
-	StructuredProjectionDatabaseURL string
+	DatabaseURL                     string
 	TrustedTimeRFC3339              string
 }
 

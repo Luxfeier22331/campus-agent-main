@@ -9,8 +9,7 @@ export function buildSharedDbIntegrationEnv(input: {
 	overrides?: Partial<Env>;
 }): Env {
 	const baseEnv: Env = {
-		APP_API_ENVIRONMENT: "test",
-		APP_API_DATABASE_SSLMODE: "disable",
+		DEPLOYMENT_ENVIRONMENT: "test",
 		APP_API_DB: {
 			connectionString: input.runtimeConnectionString,
 		},

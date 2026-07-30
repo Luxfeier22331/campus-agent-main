@@ -1,10 +1,21 @@
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 import { parse as parseDomain } from "tldts";
 
 const adapterRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const DEFAULT_PORTAL_BASE_URL = "https://portal.example.edu";
+export const INTERNAL_PORTAL_DESCRIPTOR_PATH = fileURLToPath(
+	new URL("../../../../../configs/sources/internal-portal.json", import.meta.url),
+);
+
+export interface InternalPortalDescriptor {
+	portalBaseUrl: string;
+	portalPageUrl: string;
+	siteId: string;
+	sourceHomeUrl: string;
+	ssoCookieDomain: string;
+}
 
 export interface InternalPortalConfig {
 	authSsoCookieDomain: string | null;
@@ -24,17 +35,10 @@ export function loadInternalPortalEnv(processEnv: NodeJS.ProcessEnv = process.en
 
 export function resolveInternalPortalConfig(
 	source: NodeJS.ProcessEnv | Record<string, string | undefined>,
+	descriptor: InternalPortalDescriptor = loadInternalPortalDescriptor(),
 ): InternalPortalConfig {
-	const portalBaseUrl = resolveHttpsUrl(
-		String(source.INTERNAL_PORTAL_BASE_URL || DEFAULT_PORTAL_BASE_URL).trim(),
-		"INTERNAL_PORTAL_BASE_URL",
-	);
-	const portalPageUrl = resolvePortalPageUrl(
-		String(
-			source.INTERNAL_PORTAL_PAGE_URL || new URL("/page/11#/", portalBaseUrl).toString(),
-		).trim(),
-		portalBaseUrl,
-	);
+	const portalBaseUrl = resolveHttpsUrl(descriptor.portalBaseUrl, "portal_base_url");
+	const portalPageUrl = resolvePortalPageUrl(descriptor.portalPageUrl, portalBaseUrl);
 	const authSsoTgc = normalizeOptionalSecret(source.INTERNAL_PORTAL_SSO_TGC);
 	const authSsoTgcFile = resolveOptionalPath(source.INTERNAL_PORTAL_SSO_TGC_FILE);
 	if (authSsoTgc && authSsoTgcFile) {
@@ -45,28 +49,45 @@ export function resolveInternalPortalConfig(
 	return {
 		authSsoCookieDomain: resolveSsoCookieDomain({
 			portalBaseUrl,
-			rawDomain: source.INTERNAL_PORTAL_SSO_COOKIE_DOMAIN,
+			rawDomain: descriptor.ssoCookieDomain,
 		}),
 		authSsoTgc,
 		authSsoTgcFile,
 		portalBaseUrl,
 		portalPageUrl,
-		sourceHomeUrl: resolveHttpsUrl(
-			String(source.INTERNAL_PORTAL_SOURCE_HOME_URL || portalBaseUrl).trim(),
-			"INTERNAL_PORTAL_SOURCE_HOME_URL",
-		),
-		siteId: resolveInternalPortalSiteId(source),
+		sourceHomeUrl: resolveHttpsUrl(descriptor.sourceHomeUrl, "source_home_url"),
+		siteId: resolveInternalPortalSiteId(descriptor),
 		portalProxyServer: normalizeOptionalSecret(source.INTERNAL_PORTAL_PROXY_SERVER),
 	};
 }
 
-export function resolveInternalPortalSiteId(
-	source: NodeJS.ProcessEnv | Record<string, string | undefined>,
-): string {
-	return (
-		String(source.INTERNAL_PORTAL_SITE_ID || "synthetic_internal_portal").trim() ||
-		"synthetic_internal_portal"
-	);
+export function loadInternalPortalDescriptor(
+	path = INTERNAL_PORTAL_DESCRIPTOR_PATH,
+): InternalPortalDescriptor {
+	const payload = JSON.parse(readFileSync(path, "utf8")) as unknown;
+	if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+		throw new Error("internal portal descriptor must be a JSON object");
+	}
+	const source = payload as Record<string, unknown>;
+	return {
+		portalBaseUrl: requiredDescriptorString(source, "portal_base_url"),
+		portalPageUrl: requiredDescriptorString(source, "portal_page_url"),
+		siteId: requiredDescriptorString(source, "site_id"),
+		sourceHomeUrl: requiredDescriptorString(source, "source_home_url"),
+		ssoCookieDomain: requiredDescriptorString(source, "sso_cookie_domain"),
+	};
+}
+
+export function resolveInternalPortalSiteId(descriptor: InternalPortalDescriptor): string {
+	return descriptor.siteId.trim();
+}
+
+function requiredDescriptorString(source: Record<string, unknown>, key: string): string {
+	const value = source[key];
+	if (typeof value !== "string" || !value.trim()) {
+		throw new Error(`${key} is required in the internal portal descriptor`);
+	}
+	return value.trim();
 }
 
 function resolveOptionalPath(raw: string | undefined): string | null {
@@ -88,9 +109,9 @@ function resolveHttpsUrl(raw: string, key: string): string {
 }
 
 function resolvePortalPageUrl(raw: string, portalBaseUrl: string): string {
-	const normalized = resolveHttpsUrl(raw, "INTERNAL_PORTAL_PAGE_URL");
+	const normalized = resolveHttpsUrl(raw, "portal_page_url");
 	if (new URL(normalized).hostname !== new URL(portalBaseUrl).hostname) {
-		throw new Error("INTERNAL_PORTAL_PAGE_URL must use the portal host");
+		throw new Error("portal_page_url must use the portal host");
 	}
 	return normalized;
 }
@@ -102,7 +123,7 @@ function normalizeOptionalSecret(raw: string | undefined): string | null {
 
 function resolveSsoCookieDomain(input: {
 	portalBaseUrl: string;
-	rawDomain: string | undefined;
+	rawDomain: string;
 }): string | null {
 	const normalized = normalizeOptionalSecret(input.rawDomain);
 	if (!normalized) {
@@ -112,10 +133,10 @@ function resolveSsoCookieDomain(input: {
 	const cookieHost = normalized.replace(/^\./, "").toLowerCase();
 	const parsed = parseDomain(cookieHost);
 	if (!parsed.domain || parsed.domain !== cookieHost) {
-		throw new Error("INTERNAL_PORTAL_SSO_COOKIE_DOMAIN must be a registrable parent domain");
+		throw new Error("sso_cookie_domain must be a registrable parent domain");
 	}
 	if (!(portalHost === cookieHost || portalHost.endsWith(`.${cookieHost}`))) {
-		throw new Error("INTERNAL_PORTAL_SSO_COOKIE_DOMAIN must match or parent the portal host");
+		throw new Error("sso_cookie_domain must match or parent the portal host");
 	}
 	return normalized.startsWith(".") ? `.${cookieHost}` : cookieHost;
 }

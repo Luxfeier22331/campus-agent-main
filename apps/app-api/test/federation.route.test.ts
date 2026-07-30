@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createApp } from "../src/app";
 
 const env = {
-	APP_API_ENVIRONMENT: "test" as const,
+	DEPLOYMENT_ENVIRONMENT: "test" as const,
 	AUTH_EMAIL_FROM: "Campus Agent <auth@example.com>",
 	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 	AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",

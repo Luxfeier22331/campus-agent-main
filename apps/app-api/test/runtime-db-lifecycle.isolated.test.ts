@@ -82,11 +82,10 @@ describe("withRuntimeDatabase", () => {
 		globalScope.WebSocketPair = class MockWebSocketPair {};
 
 		const env = {
-			APP_API_DATABASE_SSLMODE: "require" as const,
 			APP_API_DB: {
 				connectionString: "postgres://postgres:secret@example.com:5432/campus_agent_worker",
 			},
-			APP_API_ENVIRONMENT: "test" as const,
+			DEPLOYMENT_ENVIRONMENT: "test" as const,
 		};
 
 		const firstDatabase = await withRuntimeDatabase(env, async (database) => database);
@@ -104,15 +103,9 @@ describe("withRuntimeDatabase", () => {
 		expect(secondClient.end).toHaveBeenCalledTimes(1);
 		expect(firstClient.options).toMatchObject({
 			connectionString: "postgres://postgres:secret@example.com:5432/campus_agent_worker",
-			ssl: {
-				rejectUnauthorized: false,
-			},
 		});
 		expect(secondClient.options).toMatchObject({
 			connectionString: "postgres://postgres:secret@example.com:5432/campus_agent_worker",
-			ssl: {
-				rejectUnauthorized: false,
-			},
 		});
 
 		expect(firstDatabase).toEqual({
@@ -135,11 +128,10 @@ describe("withRuntimeDatabase", () => {
 		delete globalScope.WebSocketPair;
 
 		const env = {
-			APP_API_DATABASE_SSLMODE: "require" as const,
 			APP_API_DB: {
 				connectionString: "postgres://postgres:secret@example.com:5432/campus_agent_node",
 			},
-			APP_API_ENVIRONMENT: "test" as const,
+			DEPLOYMENT_ENVIRONMENT: "test" as const,
 		};
 
 		const firstDatabase = await withRuntimeDatabase(env, async (database) => database);
@@ -156,9 +148,6 @@ describe("withRuntimeDatabase", () => {
 			connectionTimeoutMillis: 5_000,
 			idleTimeoutMillis: 5_000,
 			max: 1,
-			ssl: {
-				rejectUnauthorized: false,
-			},
 		});
 		expect(firstDatabase).toEqual({
 			client: pool,

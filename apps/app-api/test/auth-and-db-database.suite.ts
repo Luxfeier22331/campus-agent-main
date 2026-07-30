@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
 	buildRuntimeDatabaseConfig,
-	buildSchemaDatabaseConfig,
 	createdPoolOptions,
 	createRuntimePool,
 	endedPoolOptions,
@@ -18,7 +17,7 @@ export function registerAppApiDatabaseConfigSuite() {
 	describe("app-api database config", () => {
 		it("uses Hyperdrive connectionString for runtime database access", () => {
 			const config = buildRuntimeDatabaseConfig({
-				APP_API_ENVIRONMENT: "test",
+				DEPLOYMENT_ENVIRONMENT: "test",
 				APP_API_DB: {
 					connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 				},
@@ -27,15 +26,11 @@ export function registerAppApiDatabaseConfigSuite() {
 			expect(config.connectionString).toBe(
 				"postgres://postgres:secret@example.com:5432/campus_agent",
 			);
-			expect(config.ssl).toEqual({
-				rejectUnauthorized: false,
-			});
 		});
 
 		it("preserves Hyperdrive sslmode hints for staging runtime bindings", () => {
 			const config = buildRuntimeDatabaseConfig({
-				APP_API_ENVIRONMENT: "staging",
-				APP_API_DATABASE_SSLMODE: "require",
+				DEPLOYMENT_ENVIRONMENT: "staging",
 				APP_API_DB: {
 					connectionString:
 						"postgres://postgres:secret@example.com:5432/campus_agent?sslmode=disable",
@@ -45,41 +40,13 @@ export function registerAppApiDatabaseConfigSuite() {
 			expect(config.connectionString).toBe(
 				"postgres://postgres:secret@example.com:5432/campus_agent?sslmode=disable",
 			);
-			expect(config.ssl).toEqual({
-				rejectUnauthorized: false,
-			});
-		});
-
-		it("uses the canonical schema-admin connection for app-api schema management", () => {
-			const config = buildSchemaDatabaseConfig({
-				APP_API_DATABASE_SSLMODE: "require",
-				APP_API_SCHEMA_DATABASE_URL:
-					"postgres://schema-owner:secret@postgres.example.internal:5432/campus_agent?sslmode=require",
-			});
-
-			expect(config.connectionString).toBe(
-				"postgres://schema-owner:secret@postgres.example.internal:5432/campus_agent",
-			);
-			expect(config.ssl).toEqual({
-				rejectUnauthorized: false,
-			});
-		});
-
-		it("rejects the legacy management env key for schema administration", () => {
-			expect(() =>
-				buildSchemaDatabaseConfig({
-					APP_API_DATABASE_SSLMODE: "require",
-					APP_API_MANAGEMENT_DATABASE_URL:
-						"postgres://postgres:secret@example.com:5432/campus_agent_admin",
-				} as never),
-			).toThrow("APP_API_SCHEMA_DATABASE_URL is required.");
 		});
 
 		it("reuses one runtime pool for repeated calls under the same env", async () => {
 			resetPoolMockState();
 
 			const env = {
-				APP_API_ENVIRONMENT: "test" as const,
+				DEPLOYMENT_ENVIRONMENT: "test" as const,
 				APP_API_DB: {
 					connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 				},
@@ -95,9 +62,6 @@ export function registerAppApiDatabaseConfigSuite() {
 				connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 				idleTimeoutMillis: 5_000,
 				max: 1,
-				ssl: {
-					rejectUnauthorized: false,
-				},
 			});
 			expect(poolErrorHandlers).toHaveLength(1);
 		});
@@ -106,7 +70,7 @@ export function registerAppApiDatabaseConfigSuite() {
 			resetPoolMockState();
 
 			const env = {
-				APP_API_ENVIRONMENT: "development" as const,
+				DEPLOYMENT_ENVIRONMENT: "development" as const,
 				APP_API_DB: {
 					connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 				},
@@ -123,7 +87,7 @@ export function registerAppApiDatabaseConfigSuite() {
 		it("preserves staging as an explicit deployed environment instead of collapsing it into development", () => {
 			expect(
 				resolveEnvironment({
-					APP_API_ENVIRONMENT: "staging" as never,
+					DEPLOYMENT_ENVIRONMENT: "staging" as never,
 				}),
 			).toBe("staging");
 		});
@@ -132,7 +96,7 @@ export function registerAppApiDatabaseConfigSuite() {
 			resetPoolMockState();
 
 			const env = {
-				APP_API_ENVIRONMENT: "staging" as never,
+				DEPLOYMENT_ENVIRONMENT: "staging" as never,
 				APP_API_DB: {
 					connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 				},
@@ -148,9 +112,6 @@ export function registerAppApiDatabaseConfigSuite() {
 				connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 				idleTimeoutMillis: 30_000,
 				max: 4,
-				ssl: {
-					rejectUnauthorized: false,
-				},
 			});
 		});
 
@@ -158,7 +119,7 @@ export function registerAppApiDatabaseConfigSuite() {
 			resetPoolMockState();
 
 			const env = {
-				APP_API_ENVIRONMENT: "staging" as never,
+				DEPLOYMENT_ENVIRONMENT: "staging" as never,
 				APP_API_DB: {
 					connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 				},
@@ -176,7 +137,7 @@ export function registerAppApiDatabaseConfigSuite() {
 			resetPoolMockState();
 
 			const env = {
-				APP_API_ENVIRONMENT: "test" as const,
+				DEPLOYMENT_ENVIRONMENT: "test" as const,
 				BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
 				AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 				AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
@@ -204,7 +165,7 @@ export function registerAppApiDatabaseConfigSuite() {
 			resetPoolMockState();
 
 			const env = {
-				APP_API_ENVIRONMENT: "test" as const,
+				DEPLOYMENT_ENVIRONMENT: "test" as const,
 				APP_API_DB: {
 					connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 				},
@@ -222,7 +183,7 @@ export function registerAppApiDatabaseConfigSuite() {
 			resetPoolMockState();
 
 			const env = {
-				APP_API_ENVIRONMENT: "test" as const,
+				DEPLOYMENT_ENVIRONMENT: "test" as const,
 				BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
 				AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 				AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
@@ -246,7 +207,7 @@ export function registerAppApiDatabaseConfigSuite() {
 			resetPoolMockState();
 
 			const env = {
-				APP_API_ENVIRONMENT: "development" as const,
+				DEPLOYMENT_ENVIRONMENT: "development" as const,
 				BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
 				AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 				AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
@@ -270,7 +231,7 @@ export function registerAppApiDatabaseConfigSuite() {
 			resetPoolMockState();
 
 			const env = {
-				APP_API_ENVIRONMENT: "staging" as never,
+				DEPLOYMENT_ENVIRONMENT: "staging" as never,
 				BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
 				AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 				AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
@@ -294,7 +255,7 @@ export function registerAppApiDatabaseConfigSuite() {
 			resetPoolMockState();
 
 			const env = {
-				APP_API_ENVIRONMENT: "test" as const,
+				DEPLOYMENT_ENVIRONMENT: "test" as const,
 				APP_API_DB: {
 					connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 				},
@@ -320,7 +281,7 @@ export function registerAppApiDatabaseConfigSuite() {
 			resetPoolMockState();
 
 			const env = {
-				APP_API_ENVIRONMENT: "test" as const,
+				DEPLOYMENT_ENVIRONMENT: "test" as const,
 				BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
 				AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 				AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",

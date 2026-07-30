@@ -51,13 +51,13 @@ Qdrant collection 或对象存储位置。
 
 `grounding_context.v2` 是 execution-control 在模型调用前准备的、绑定单个 run 和冻结 grounding
 plan 的依据合同。它以 `not_required`、`empty`、`partial` 或 `ready` 区分无需检索、无依据、范围
-覆盖不完整和依据就绪。完整正文只保存在受保护载荷，Temporal history 和普通投影只携带 ref、hash
-和有界摘要。
+覆盖不完整和依据就绪。完整正文作为有界 Activity result 保存在 Temporal history；普通投影只携带
+ref、hash 和有界摘要。
 
 ### Evidence 引用
 
 `evidence://` 标识 grounding 中的一条已验证依据。Primary Agent 只能引用本轮 context 中出现的
-标识；finalization 用同一受保护 context 校验并派生公开来源。
+标识；finalization 用 workflow 传入的同一 context 校验并派生公开来源。
 
 ### 工具调用上限
 

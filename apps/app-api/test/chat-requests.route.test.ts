@@ -10,7 +10,7 @@ import {
 } from "../src/modules/runtime-command";
 
 const env = {
-	APP_API_ENVIRONMENT: "test" as const,
+	DEPLOYMENT_ENVIRONMENT: "test" as const,
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
 	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",

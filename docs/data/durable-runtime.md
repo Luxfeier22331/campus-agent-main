@@ -54,7 +54,7 @@ Temporal Run ID；之后取消和 cleanup 继续使用该精确绑定。recovery
 不得用 latest Run ID 补写绑定。
 
 `runtime.agent_run_cleanups` 与新 run 在同一事务创建，记录 pending、leased、confirmed、租约、
-尝试次数、下次尝试时间和有界错误码。它只表达两个载荷所有者是否都已完成幂等删除，不决定 run
+尝试次数、下次尝试时间和有界错误码。它只表达 app-api 执行输入是否已完成幂等删除，不决定 run
 业务终态。只有本地 run 已终态，且 start command 满足以下条件之一，记录才可确认：dispatch fence
 能证明没有发起 RPC；`confirmed` 启动命令已绑定精确 Temporal Run ID；已 dispatch 的
 `superseded` 启动命令已首写不可变绑定精确 Temporal Run ID。后两种还要求该 execution 与同
@@ -90,38 +90,22 @@ StepResult 以 `result_id` 首次写入为准；全部字段与规范 JSON paylo
 唯一例外是产品 Finalization 已将 run 置为 `completed` 后的非关键记忆追加：只有
 `(memory.append, memory_conversation_append_result)` 这组 `step_id`、`result_kind` 可以首次写入或
 相同重放，仍不得覆盖已有结果。`failed`、`canceled`、`expired` 不适用该例外，Agent、知识查询和
-Finalization result 也不得在终态后补写。该例外不放宽受保护 Activity payload 的终态写入限制。
+Finalization result 也不得在终态后补写。该例外不放宽其他 Activity 的终态写入限制。
 
-### 受保护 Activity Payload
-
-Primary Agent provider invocation envelope、Primary Agent 完整结果和本轮完整 grounding context
-只进入 `runtime.agent_protected_payloads`，不进入普通 run、event、step、result 投影或 Temporal
-history。`personal_memory_recall` 的完整返回值作为 Agent 完整结果的一部分受保护，不建立独立 recall
-payload kind。
-
-存储值使用 AES-256-GCM envelope；envelope 固化 `version`、`key_id`、`nonce`、`ciphertext` 与
-明文 SHA-256，认证附加数据绑定 run、payload ref、kind、envelope version 和 key id。
-
-加密 keyring 是 execution-control 独立的轮换单元，不得从
-`APP_API_EXECUTION_INPUT_SHARED_SECRET`、`APP_API_EXECUTION_SHARED_SECRET` 或 Provider Config
-keyring 派生。写入只使用 keyring 声明的 active key；读取严格按 envelope 的 `key_id` 选择已配置
-历史 key。未知 key、缺失 keyring 或认证失败必须失败关闭，不能尝试当前 key 或认证 Secret。
-同一 run/ref/kind 的记录不可覆盖：相同明文 hash 的写入幂等返回原记录，不同 hash 冲突。存储层只
-允许 active run 写入，并与终态投影共用 run 行锁或内存临界区；因此 late Activity 不能在业务终态或
-cleanup 后重建载荷。业务终态后，这些记录只由上述 cleanup 发件箱按 run 批量删除；普通终态
-Activity 不拥有删除权。
+### Activity Result 与 Receipt
 
 `grounding_context.v2` 绑定 run、完整 admission snapshot hash、冻结 grounding plan hash 和查询
-hash，并使用稳定 `grounding_context_ref`。检索路径的 `PrepareGroundingContextActivity` 在
-embedding 或 Qdrant 调用前先读取该记录；完整匹配时返回原 context 并修复有界投影，明确
-不存在时才可首次外呼。`none` 路径不执行该 Activity，由 Primary Agent Activity 在供应商调用前
-首次写入 `not_required` context。基础设施读取错误不能伪装成不存在；身份、摘要或规范化内容冲突
-也不能覆盖首写记录，必须失败关闭。
+hash。它最多包含 8 条 evidence 和 4096 token，作为 Grounding Activity 的有界 result 写入 Temporal
+history，再传给 Primary Agent 与 Finalization。Primary Agent 的完整有界结果同样经由 Temporal
+history 传递；当前合同不要求加密 Temporal history，也不要求按 run 删除这些正文。
 
-个人记忆召回不单独建立外部调用 receipt。Primary Agent invocation receipt 绑定整个 SDK run 的
-精确请求和受保护 Agent 结果，防止 Activity 重投递再次执行模型或 `personal_memory_recall`。普通
-SDK tool 投影只保存工具身份、参数摘要、`outcome`、结果 hash/ref 和真实工具耗时，不保存
-`memory_text`。
+普通 run、event、step、result 投影不保存上述 canonical 正文，只保存 ref、hash、计数、用量和公开
+终态。`none` 路径不执行 Grounding Activity，由 Primary Agent Activity 建立 `not_required` context。
+Grounding Activity 的重试会重新执行只读 embedding/Qdrant 查询，而不是从 PostgreSQL 重放先前结果。
+
+个人记忆召回不单独建立外部调用 receipt。Primary Agent invocation receipt 绑定整个 SDK run 的精确
+请求摘要，防止 Activity 重投递再次执行模型或 `personal_memory_recall`。普通 SDK tool 投影只保存
+工具身份、参数摘要、`outcome`、结果 hash/ref 和真实工具耗时，不保存 `memory_text`。
 
 ## Agent Activity 投影
 
@@ -136,49 +120,46 @@ Agent Activity 代表一次完整的 OpenAI Agents SDK run。其有界 metadata 
 
 正式投影不存储 SDK state、raw message 或 raw function payload。
 
-Primary Agent 在供应商调用前先持久化 canonical provider invocation envelope。envelope 的规范 JSON
+Primary Agent 在供应商调用前构造 canonical provider invocation envelope。envelope 的规范 JSON
 SHA-256 是 invocation receipt 的 `InputSHA256`，绑定 run、invocation、Activity attempt、完整
-Activity input SHA、execution input SHA、完整 admission snapshot 及其 SHA、`tool_choice`、模型可见
-工具、最终模型上下文 SHA，以及实际发送给 agent-runtime 的 HTTP body SHA。HTTP 调用必须发送计算
-request SHA 时的同一份编码 bytes，不能在
-计算摘要后重新编码。重放必须加载并校验该 envelope；缺失、损坏或与当前输入不一致时失败关闭。
+Activity input SHA、execution input SHA、完整 admission snapshot 及其 SHA、模型可见工具、最终模型
+上下文 SHA，以及实际发送给 agent-runtime 的 HTTP body SHA。HTTP 调用必须发送计算 request SHA 时的
+同一份编码 bytes，不能在计算摘要后重新编码。envelope 只在本次 Activity 内存中用于生成 receipt
+fingerprint，不持久化为单独载荷。
 
 运行级 Agent 模型用量只聚合 `step_id = 'agent.primary'` 的去重 attempt。每个已观测 attempt
 计算一次，重试已产生的用量不丢弃。`total_tokens` 按 input 与 output 相加，cached input 是 input
 子集，不重复计入总数。失败但已取得 SDK 结果的 attempt 仍保存 usage；调用前失败、网络中断或 SDK
 抛错且无法取得 usage 时保存 `usage_observed = false`，不用零伪装成真实用量。
 
-invocation receipt 在供应商调用前持久化调用身份、上述 envelope fingerprint 和开始状态。完整
-receipt 只保存结果 ref、受保护结果 hash、结果 schema 和 receipt summary hash；受保护 Agent 结果
-同时保存 `provider_invocation_sha256` 与 `result_schema_version`，completed `agent.primary` StepResult
-再保存 `protected_result_sha256` 与 `protected_result_schema_version`。重放必须逐层核对 receipt、受保护
-结果和 StepResult 的 ref/schema/hash 及完整有界 payload，不能只相信任一单层记录。provider/model 与
-有界用量摘要保存在受保护结果及正式投影中，不在 receipt summary 内。“已开始但没有完整结果”只能
-投影为 `agent_attempt_uncertain`，不能重新调用供应商。receipt 不保存 prompt、对话、工具原始参数或
-供应商完整响应。
+invocation receipt 在供应商调用前持久化调用身份、上述 envelope fingerprint 和开始状态。完成时它只
+保存 `provider_invocation_sha256`、Agent result ref 与 schema version 的摘要，不保存模型正文、prompt、
+对话、工具原始参数或供应商完整响应。完整有界 Agent result 由 Temporal Activity result 传给下一阶段；
+provider/model 与有界用量摘要保存于正式投影中。已开始或已完成 receipt 但没有可用 Activity result 时，
+只能以 `agent_attempt_uncertain` 失败关闭，不能重新调用供应商。
 
 ## Grounding 投影
 
-每个 run 有一份不可变 `grounding_context.v2`。`single_scope` 和 `multi_scope` 路径最多有一个
-`grounding.prepare` step；`none` 路径不创建该 step。检索路径的普通 StepResult 只保存 context ref、
-protected payload hash、路由与覆盖状态、候选数、证据数、token 数、准入与计划 hash、查询 hash 和
-四个 grounding 子阶段耗时；完整证据及正文只存在于受保护载荷。
+每个 run 至多生成一份 `grounding_context.v2` Activity result。`single_scope` 和 `multi_scope` 路径
+最多有一个 `grounding.prepare` step；`none` 路径不创建该 step。检索路径的普通 StepResult 只保存
+context ref、路由与覆盖状态、候选数、证据数、token 数、准入与计划 hash、查询 hash 和四个 grounding
+子阶段耗时；完整证据及正文只存在于该 run 的 Temporal history。
 
 grounding 不派生 SDK tool call，不携带 `tool_name` 或 `eval_safe_args`。原始 query vector、Qdrant
 响应、Provider 凭据和正文不得进入普通投影。
 
 ## Finalization 投影
 
-Finalization 保存 SDK 终态答案和确定性校验结果。有证据支持时，还会保存从本轮受保护 grounding
+Finalization 保存 SDK 终态答案和确定性校验结果。有证据支持时，还会保存从本轮 workflow grounding
 中已引用 evidence 派生的浏览器可用 source。
 
 Finalization 可以拒绝格式错误或不受支持的 output，但不会创建或改写答案。app-api 可以在
 保留答案原文的前提下，把已验证 source 转换为产品 source-item 结构。相同 fingerprint 的完成
 可以幂等重放；不同 fingerprint 与已提交的产品终态冲突，execution-control 不得用较晚结果覆盖。
 
-Finalization 读取 Agent 结果前必须验证 completed invocation receipt、receipt summary、受保护结果和
-completed `agent.primary` StepResult 的完整信任链。`finalization.write` 的 completed StepResult 保存
-由 agent result ref、最终响应、request/trace 生成的 `finalization_fingerprint_sha256`。
+Finalization 读取 workflow 传入的 Agent result 后，必须验证 result 身份、冻结准入快照、grounding
+绑定、终态 schema 与 evidence 引用。`finalization.write` 的 completed StepResult 保存由 agent result
+ref、最终响应、request/trace 生成的 `finalization_fingerprint_sha256`。
 `FinalizeRunProjection` 是该终态的唯一提交点：它在同一内存临界区或持有 PostgreSQL run-row lock 的
 单个事务中，校验并提交 completed `finalization.write` Step、Attempt、Result 与 completed run 四元组，
 同时释放 conversation active-run lock。已经存在的 pending 或 leased cancellation 在同一 CAS 中改为

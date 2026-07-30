@@ -109,27 +109,35 @@ function resolveSafetyIdentifierSource(principal: ResolvedAppPrincipal): string 
 	return null;
 }
 
+function requireSafetyIdentifierSecret(secret: string): string {
+	const normalizedSecret = normalizeString(secret);
+	if (!normalizedSecret) {
+		throw new Error(
+			"APP_API_SAFETY_IDENTIFIER_HMAC_SECRET is required when deriving a safety identifier.",
+		);
+	}
+	return normalizedSecret;
+}
+
 export function deriveSafetyIdentifier(
 	principal: ResolvedAppPrincipal,
 	secret: string,
 ): string | null {
 	const source = resolveSafetyIdentifierSource(principal);
-	const normalizedSecret = normalizeString(secret);
-	if (!(source && normalizedSecret)) {
+	if (!source) {
 		return null;
 	}
 
-	return createHmac("sha256", normalizedSecret).update(source).digest("hex");
+	return createHmac("sha256", requireSafetyIdentifierSecret(secret)).update(source).digest("hex");
 }
 
 export function deriveSafetyIdentifierForUser(userId: string, secret: string): string | null {
 	const normalizedUserId = normalizeString(userId);
-	const normalizedSecret = normalizeString(secret);
-	if (!(normalizedUserId && normalizedSecret)) {
+	if (!normalizedUserId) {
 		return null;
 	}
 
-	return createHmac("sha256", normalizedSecret)
+	return createHmac("sha256", requireSafetyIdentifierSecret(secret))
 		.update(`principal:${normalizedUserId}`)
 		.digest("hex");
 }

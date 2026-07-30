@@ -29,8 +29,7 @@ export async function startSourceCollectorTemporalWorker(
 					]
 				: [],
 			shutdownGraceTime: "80 seconds",
-			taskQueue:
-				env.INGESTION_TEMPORAL_SOURCE_COLLECTOR_ACTIVITY_TASK_QUEUE?.trim() || DEFAULT_TASK_QUEUE,
+			taskQueue: DEFAULT_TASK_QUEUE,
 		});
 		await worker.run();
 	} finally {

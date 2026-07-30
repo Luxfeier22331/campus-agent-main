@@ -53,12 +53,11 @@ export function renderLocalEnvironmentFiles(input: {
 	const opsWebInternalToken = existingSecrets.OPS_WEB_INTERNAL_TOKEN || randomSecret();
 
 	writeManagedEnv(appApiEnvPath, {
-		APP_API_DATABASE_SSLMODE: "disable",
+		APP_API_SCHEMA_DATABASE_SSLMODE: "disable",
 		APP_API_SCHEMA_DATABASE_URL: database.owner,
 		CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB: database.appApi,
 	});
 	writeManagedEnv(appApiVarsPath, {
-		APP_API_ENVIRONMENT: "development",
 		APP_API_EXECUTION_SHARED_SECRET:
 			existingSecrets.APP_API_EXECUTION_SHARED_SECRET || randomSecret(),
 		APP_API_SAFETY_IDENTIFIER_HMAC_SECRET:
@@ -70,27 +69,21 @@ export function renderLocalEnvironmentFiles(input: {
 		OPS_WEB_INTERNAL_TOKEN: opsWebInternalToken,
 		RESEND_API_KEY: existingSecrets.RESEND_API_KEY || "local-resend-disabled",
 		SENTRY_DSN: "",
-		SENTRY_ENVIRONMENT: "development",
-		SENTRY_RELEASE: `app-api@${profile.instanceId}`,
+		DEPLOYMENT_ENVIRONMENT: "development",
+		DEPLOYMENT_RELEASE: `app-api@${profile.instanceId}`,
 	});
 	writeManagedEnv(campusVarsPath, {
 		APP_API_BASE_URL: `http://127.0.0.1:${profile.ports.appApi}`,
-		AUTH_TURNSTILE_APPEARANCE: "interaction-only",
-		AUTH_TURNSTILE_EXECUTION: "render",
 		AUTH_TURNSTILE_SITE_KEY: "",
-		CAMPUS_WEB_HOSTNAME: `127.0.0.1:${profile.ports.campusWeb}`,
-		SENTRY_BROWSER_DSN: "",
 		SENTRY_DSN: "",
-		SENTRY_ENVIRONMENT: "development",
-		SENTRY_RELEASE: `campus-web@${profile.instanceId}`,
+		DEPLOYMENT_ENVIRONMENT: "development",
+		DEPLOYMENT_RELEASE: `campus-web@${profile.instanceId}`,
 	});
 	writeManagedEnv(opsEnvPath, {
 		DEPLOYMENT_ENVIRONMENT: "local",
 		NODE_ENV: "development",
-		OPS_WEB_API_DEV_PORT: String(profile.ports.opsWebApi),
 		OPS_WEB_APP_API_URL: `http://127.0.0.1:${profile.ports.appApi}`,
 		OPS_WEB_CAMPUS_WEB_URL: `http://127.0.0.1:${profile.ports.campusWeb}`,
-		OPS_WEB_DEV_PORT: String(profile.ports.opsWeb),
 		OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
 		OBJECT_STORE_DERIVED_ACCESS_KEY: "minioadmin",
 		OBJECT_STORE_DERIVED_SECRET_KEY: "minioadmin",

@@ -23,7 +23,7 @@ describe("chat e2e package scripts", () => {
 		expect(publicEntry).toContain("chat-e2e-local-dev.ts");
 		expect(publicEntry).toContain("chat-e2e-local-provider.ts");
 		expect(publicEntry).toContain("chat-durable-staging.ts");
-		expect(publicEntry).toContain("run-with-staging-smoke-env.ts");
+		expect(publicEntry).not.toContain("run-with-staging-smoke-env.ts");
 	});
 
 	it("keeps local dev e2e on pre-existing runtime readiness instead of starting runtime", () => {
@@ -32,12 +32,16 @@ describe("chat e2e package scripts", () => {
 		expect(scriptSource).toContain("isReadyzReady(args.execReadyzUrl)");
 		expect(scriptSource).toContain("Start the runtime through the platform-owned deployment path");
 		expect(scriptSource).toContain("prepare-local.ts");
-		expect(scriptSource).toContain("provision-smoke-identity.ts");
+		expect(scriptSource).not.toContain("provision-smoke-identity.ts");
 		expect(scriptSource).toContain("CAMPUS_WEB_LIVE_SMOKE");
 		expect(scriptSource).toContain("node_modules/vite/bin/vite.js");
 		expect(scriptSource).toContain("waitForReadyzWhileChildAlive");
 		expect(scriptSource).toContain('"--profile"');
 		expect(scriptSource).toContain('"dev"');
+		expect(scriptSource).toContain('"--email"');
+		expect(scriptSource).toContain('"--password"');
+		expect(scriptSource).toContain('"--captcha-token"');
+		expect(scriptSource).not.toContain("CHAT_E2E_LOCAL_DEV_STARTUP_TIMEOUT_MS");
 	});
 
 	it("keeps local provider e2e behind the root smoke dispatcher", () => {
@@ -48,11 +52,12 @@ describe("chat e2e package scripts", () => {
 
 		expect(scriptSource).toContain("chat-e2e-local-dev.ts");
 		expect(scriptSource).not.toContain("EXECUTION_CONTROL_TIMEOUT_MS");
+		expect(scriptSource).not.toContain("EXECUTION_AGENT_RUNTIME_SHARED_SECRET");
 		expect(scriptSource).not.toContain("CHAT_E2E_LOCAL_PROVIDER_TIMEOUT_MS");
+		expect(scriptSource).not.toContain("CHAT_E2E_LOCAL_PROVIDER_PROMPT");
 		expect(scriptSource).toContain('"--restart-campus-web"');
 		expect(scriptSource).toContain('"--expect-model-execution-state"');
 		expect(scriptSource).toContain('"go_provider_synthesis_completed"');
 		expect(scriptSource).toContain("process.argv.slice(2)");
-		expect(scriptSource).toContain("示例大学本科学生国家奖学金评审办法");
 	});
 });

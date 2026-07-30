@@ -34,32 +34,28 @@ async function handleCommand(command: string, args: ParsedArgs): Promise<JsonObj
 	if (command === "agent-eval") {
 		const projectionPath = stringArg(args, "provider-config-projection");
 		return runAgentToolEval({
-			appApiBaseUrl:
-				optionalArg(args, "app-api-base-url") ??
-				required(optionalEnv("APP_API_BASE_URL"), "app-api-base-url"),
-			cookieHeader: optionalArg(args, "cookie-header") ?? optionalEnv("CAMPUS_EVAL_COOKIE_HEADER"),
+			appApiBaseUrl: stringArg(args, "app-api-base-url"),
+			cookieHeader: stringArg(args, "cookie-header"),
 			datasetName: stringArg(args, "dataset"),
 			datasetVersion: optionalArg(args, "dataset-version"),
 			dryRun: Boolean(args["dry-run"]),
-			environment: environmentFromEnv(),
+			environment: stringArg(args, "environment"),
 			limit: numberArg(args, "limit") ?? undefined,
 			runPythonRagasAgentScoreBatch: (input) =>
 				runPythonRagasAgentScoreBatch(input, projectionPath),
 			runPythonRagasScoreBatch: (input) => runPythonRagasScoreBatch(input, projectionPath),
-			settings: settingsFromEnv(),
-			stagingSmokeAuthSecret: optionalEnv("APP_API_STAGING_SMOKE_AUTH_SECRET"),
-			stagingSmokeEmail: optionalEnv("CAMPUS_EVAL_SMOKE_EMAIL"),
+			settings: settingsFromArgs(args),
 			validateOnly: Boolean(args["validate-only"]),
 		});
 	}
 	if (command === "ragas-score-traces") {
 		const projectionPath = stringArg(args, "provider-config-projection");
 		return runRagasTraceScoring({
-			environment: environmentFromEnv(),
+			environment: stringArg(args, "environment"),
 			limit: numberArg(args, "limit") ?? undefined,
 			release: optionalArg(args, "release"),
 			runPythonRagasScoreBatch: (input) => runPythonRagasScoreBatch(input, projectionPath),
-			settings: settingsFromEnv(),
+			settings: settingsFromArgs(args),
 			tag: arrayArg(args, "tag"),
 			traceName: optionalArg(args, "trace-name") ?? undefined,
 			validateOnly: Boolean(args["validate-only"]),
@@ -70,10 +66,10 @@ async function handleCommand(command: string, args: ParsedArgs): Promise<JsonObj
 		return runRagasDatasetScoring({
 			datasetName: stringArg(args, "dataset"),
 			datasetVersion: optionalArg(args, "dataset-version"),
-			environment: environmentFromEnv(),
+			environment: stringArg(args, "environment"),
 			limit: numberArg(args, "limit") ?? undefined,
 			runPythonRagasScoreBatch: (input) => runPythonRagasScoreBatch(input, projectionPath),
-			settings: settingsFromEnv(),
+			settings: settingsFromArgs(args),
 			validateOnly: Boolean(args["validate-only"]),
 		});
 	}
@@ -90,7 +86,7 @@ async function handleCommand(command: string, args: ParsedArgs): Promise<JsonObj
 			expectedTags: arrayArg(args, "tag"),
 			expectedUserId: stringArg(args, "user-id"),
 			expectedWorkflowId: optionalArg(args, "workflow-id"),
-			settings: settingsFromEnv(),
+			settings: settingsFromArgs(args),
 			traceId,
 		});
 	}
@@ -100,14 +96,14 @@ async function handleCommand(command: string, args: ParsedArgs): Promise<JsonObj
 			registryPath:
 				optionalArg(args, "registry") ??
 				resolve(import.meta.dirname, "../assets/registries/langfuse_score_registry.v1.json"),
-			settings: settingsFromEnv(),
+			settings: settingsFromArgs(args),
 		});
 	}
 	if (command === "sync-datasets") {
 		return syncLangfuseDatasets({
 			dryRun: Boolean(args["dry-run"]),
 			manifestPath: stringArg(args, "dataset-manifest"),
-			settings: settingsFromEnv(),
+			settings: settingsFromArgs(args),
 		});
 	}
 	if (command === "build-dataset-manifest") {
@@ -263,18 +259,10 @@ function required(value: string | null, field: string): string {
 	return value;
 }
 
-function optionalEnv(...names: string[]): string | null {
-	for (const name of names) {
-		const value = process.env[name]?.trim();
-		if (value) {
-			return value;
-		}
-	}
-	return null;
-}
-
-function environmentFromEnv(env: NodeJS.ProcessEnv = process.env): string {
-	return required(env.LANGFUSE_ENVIRONMENT?.trim() || null, "LANGFUSE_ENVIRONMENT");
+function settingsFromArgs(args: ParsedArgs) {
+	return settingsFromEnv({
+		timeoutSeconds: numberArg(args, "timeout-seconds") ?? 10,
+	});
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

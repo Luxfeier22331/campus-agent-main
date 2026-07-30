@@ -13,7 +13,7 @@ export function createCampusEdgeSentryOptions(env: Env): CloudflareOptions | und
 	if (!dsn) {
 		return;
 	}
-	const environment = env.SENTRY_ENVIRONMENT?.trim() || "development";
+	const environment = env.DEPLOYMENT_ENVIRONMENT?.trim() || "development";
 	return {
 		beforeSend: sanitizeCampusSentryEvent,
 		beforeSendSpan: sanitizeCampusSentrySpan,
@@ -55,7 +55,7 @@ export function createCampusEdgeSentryOptions(env: Env): CloudflareOptions | und
 				}),
 			];
 		},
-		release: env.SENTRY_RELEASE?.trim() || undefined,
+		release: env.DEPLOYMENT_RELEASE?.trim() || undefined,
 		sendDefaultPii: false,
 		tracesSampler(context) {
 			return context.inheritOrSampleWith(environment === "production" ? 0.02 : 1);

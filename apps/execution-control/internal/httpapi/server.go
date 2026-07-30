@@ -199,8 +199,7 @@ func NewServerWithDependencies(
 	registry := lifecycle.NewRegistry()
 	telemetryEmitter := telemetry.NewEmitter(context.Background(), cfg, logger)
 	toolReadModelRuntime := toolreadmodel.NewRuntime(toolreadmodel.Options{
-		StructuredProjectionDatabaseURL: cfg.StructuredProjectionDatabaseURL,
-		TrustedTimeRFC3339:              cfg.ToolReadModelTrustedTimeRFC3339,
+		DatabaseURL: cfg.DatabaseURL,
 	})
 	runProjectionStore, runProjectionStoreErr := newRunProjectionStore(cfg)
 	providerConfigResolver, providerConfigErr := newProviderConfigResolver(cfg)
@@ -259,9 +258,6 @@ func NewTemporalActivityServer(
 	role TemporalActivityRuntimeRole,
 ) (*Server, error) {
 	cfg = normalizeServerConfig(cfg)
-	if cfg.ProtectedPayloadKeyring == nil {
-		return nil, errors.New("protected payload keyring is not configured")
-	}
 	executionInputLoader, err := newExecutionInputLoader(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("initialize execution input loader: %w", err)
@@ -301,8 +297,7 @@ func NewTemporalActivityServer(
 			return nil, fmt.Errorf("initialize provider config resolver: %w", err)
 		}
 		server.toolReadModel = toolreadmodel.NewRuntime(toolreadmodel.Options{
-			StructuredProjectionDatabaseURL: cfg.StructuredProjectionDatabaseURL,
-			TrustedTimeRFC3339:              cfg.ToolReadModelTrustedTimeRFC3339,
+			DatabaseURL: cfg.DatabaseURL,
 		})
 		documentExecutor, documentErr := newDocumentEvidenceExecutor(
 			cfg,
@@ -419,13 +414,13 @@ func newTemporalStarter(cfg config.Config) (temporalruntime.ChatWorkflowStarter,
 }
 
 func newRunProjectionStore(cfg config.Config) (execution.RunProjectionStore, error) {
-	if strings.TrimSpace(cfg.RunProjectionDatabaseURL) == "" {
+	if strings.TrimSpace(cfg.DatabaseURL) == "" {
 		return nil, nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	store, err := execution.NewPostgresRunProjectionStore(ctx, execution.PostgresRunProjectionStoreOptions{
-		DatabaseURL: strings.TrimSpace(cfg.RunProjectionDatabaseURL),
+		DatabaseURL: strings.TrimSpace(cfg.DatabaseURL),
 		AutoMigrate: false,
 	})
 	if err != nil {
@@ -435,14 +430,14 @@ func newRunProjectionStore(cfg config.Config) (execution.RunProjectionStore, err
 }
 
 func newPersonalMemoryStateStore(cfg config.Config) (memoryruntime.StateStore, error) {
-	if strings.TrimSpace(cfg.RunProjectionDatabaseURL) == "" {
+	if strings.TrimSpace(cfg.DatabaseURL) == "" {
 		return memoryruntime.NewInMemoryStateStore(), nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	return memoryruntime.NewPostgresStateStore(ctx, memoryruntime.PostgresStateStoreOptions{
 		AutoMigrate: false,
-		DatabaseURL: strings.TrimSpace(cfg.RunProjectionDatabaseURL),
+		DatabaseURL: strings.TrimSpace(cfg.DatabaseURL),
 	})
 }
 

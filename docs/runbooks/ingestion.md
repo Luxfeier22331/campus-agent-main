@@ -40,7 +40,7 @@ advisory lock，并在 `ingestion_control.schema_migrations` 校验已应用 SQL
 
 ```bash
 curl -fsS \
-  -H "Authorization: Bearer ${INGESTION_CONTROL_ADMIN_TOKEN}" \
+  -H "Authorization: Bearer ${OPS_WEB_INTERNAL_TOKEN}" \
   -H "Content-Type: application/json" \
   --data-binary "@${INGESTION_TASK_ENVELOPE_PATH}" \
   http://127.0.0.1:8000/internal/ingestion/tasks

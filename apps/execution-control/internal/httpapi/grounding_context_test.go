@@ -29,7 +29,7 @@ func (executor *groundingExecutorForTest) Prepare(
 	return result, nil
 }
 
-func TestPrepareGroundingContextActivityPersistsOneBoundContext(t *testing.T) {
+func TestPrepareGroundingContextActivityCarriesOneBoundContext(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	const runID = "run-grounding-activity"
 	const query = "学生请假手续是什么？"
@@ -81,32 +81,10 @@ func TestPrepareGroundingContextActivityPersistsOneBoundContext(t *testing.T) {
 	if output.Status != "ready" || output.EvidenceCount != 1 || output.TokenCount != evidence.TokenCount {
 		t.Fatalf("grounding output = %#v", output)
 	}
-	run, err := store.GetRun(t.Context(), runID)
-	if err != nil {
-		t.Fatalf("get run: %v", err)
-	}
-	var persisted groundingContext
-	if err := server.getProtectedJSON(
-		t.Context(),
-		run,
-		output.GroundingContextRef,
-		protectedPayloadKindGroundingContext,
-		&persisted,
-	); err != nil {
-		t.Fatalf("load protected grounding: %v", err)
-	}
-	if persisted.AdmissionSHA256 != input.AdmissionSnapshotSHA256 ||
-		persisted.QuerySHA256 != sha256TextRef(query) ||
-		sha256JSONRef(persisted) != output.PayloadSHA256 {
-		t.Fatalf("persisted grounding is not bound to the run: %#v", persisted)
-	}
-
-	replayed, err := server.PrepareGroundingContextActivity(t.Context(), input)
-	if err != nil {
-		t.Fatalf("replay grounding context: %v", err)
-	}
-	if sha256JSONRef(replayed) != sha256JSONRef(output) || executor.calls != 1 {
-		t.Fatalf("grounding replay = %#v, calls = %d", replayed, executor.calls)
+	if output.GroundingContext.AdmissionSHA256 != input.AdmissionSnapshotSHA256 ||
+		output.GroundingContext.QuerySHA256 != sha256TextRef(query) ||
+		sha256JSONRef(output.GroundingContext) != output.PayloadSHA256 {
+		t.Fatalf("workflow grounding is not bound to the run: %#v", output.GroundingContext)
 	}
 	results, err := store.ListStepResults(t.Context(), runID)
 	if err != nil || len(results) != 1 {
@@ -122,135 +100,6 @@ func TestPrepareGroundingContextActivityPersistsOneBoundContext(t *testing.T) {
 		t.Fatalf("grounding diagnostics = %#v", payload)
 	}
 
-	mutations := []struct {
-		name string
-		edit func(*temporalruntime.PrepareGroundingContextActivityOutput) string
-	}{
-		{name: "mode", edit: func(value *temporalruntime.PrepareGroundingContextActivityOutput) string {
-			value.Mode = "multi_scope"
-			return input.AdmissionSnapshot.GroundingPlanSHA256
-		}},
-		{name: "plan", edit: func(value *temporalruntime.PrepareGroundingContextActivityOutput) string {
-			return strings.Repeat("0", 64)
-		}},
-		{name: "selected scopes", edit: func(value *temporalruntime.PrepareGroundingContextActivityOutput) string {
-			value.SelectedScopes = []string{"curriculum"}
-			return input.AdmissionSnapshot.GroundingPlanSHA256
-		}},
-		{name: "covered scopes", edit: func(value *temporalruntime.PrepareGroundingContextActivityOutput) string {
-			value.CoveredScopes = []string{}
-			return input.AdmissionSnapshot.GroundingPlanSHA256
-		}},
-		{name: "model context chars", edit: func(value *temporalruntime.PrepareGroundingContextActivityOutput) string {
-			value.ModelContextChars++
-			return input.AdmissionSnapshot.GroundingPlanSHA256
-		}},
-	}
-	for _, mutation := range mutations {
-		t.Run(mutation.name, func(t *testing.T) {
-			mutated := output
-			mutated.SelectedScopes = append([]string{}, output.SelectedScopes...)
-			mutated.CoveredScopes = append([]string{}, output.CoveredScopes...)
-			planSHA256 := mutation.edit(&mutated)
-			projected, err := server.completedGroundingProjectionExists(
-				t.Context(),
-				runID,
-				output.GroundingContextRef,
-				input.AdmissionSnapshotSHA256,
-				sha256TextRef(query),
-				planSHA256,
-				mutated,
-			)
-			if err != nil {
-				t.Fatalf("check grounding projection: %v", err)
-			}
-			if projected {
-				t.Fatalf("projection accepted mutated %s", mutation.name)
-			}
-		})
-	}
-}
-
-func TestPrepareGroundingContextActivityRepairsProjectionFromProtectedContext(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
-	const runID = "run-grounding-projection-repair"
-	const query = "学生请假手续是什么？"
-	createHTTPAPIQueuedDurableRunForTest(
-		t,
-		store,
-		runID,
-		"conv-grounding-projection-repair",
-		time.Date(2026, 7, 26, 8, 15, 0, 0, time.UTC),
-		agentRequestForDurableWorkerTest(query),
-	)
-	server := NewServer(config.Config{TemporalWorkerIdentity: "test:grounding-repair"})
-	attachRunProjectionStoreForHandlerTest(server, store)
-	attachAgentAdmissionProviderConfigsForTest(server)
-	snapshot, err := server.buildAgentAdmissionSnapshot(
-		t.Context(),
-		false,
-		false,
-		groundingPlanForTest(query, "student_rules"),
-	)
-	if err != nil {
-		t.Fatalf("build admission snapshot: %v", err)
-	}
-	run, err := store.GetRun(t.Context(), runID)
-	if err != nil {
-		t.Fatalf("get run: %v", err)
-	}
-	evidence := groundingEvidenceForTest()
-	grounding := groundingContext{
-		AdmissionSHA256: sha256JSONRef(snapshot),
-		CoveredScopes:   []string{"student_rules"},
-		Evidence:        []groundingEvidence{evidence},
-		Mode:            snapshot.GroundingPlan.Mode,
-		PlanSHA256:      snapshot.GroundingPlanSHA256,
-		PreparedAt:      time.Date(2026, 7, 26, 8, 15, 1, 0, time.UTC),
-		QuerySHA256:     snapshot.GroundingPlan.QuerySHA256,
-		RunID:           runID,
-		SchemaVersion:   groundingContextSchemaVersion,
-		SelectedScopes:  append([]string{}, snapshot.GroundingPlan.SelectedScopes...),
-		Status:          "ready",
-		TokenCount:      evidence.TokenCount,
-	}
-	grounding.ModelContextChars = groundingModelContextCharacterCount(grounding.Status, grounding.Evidence)
-	contextRef := groundingContextRef(runID)
-	if err := server.putProtectedJSON(
-		t.Context(),
-		run,
-		contextRef,
-		protectedPayloadKindGroundingContext,
-		grounding,
-	); err != nil {
-		t.Fatalf("seed protected grounding context: %v", err)
-	}
-	executor := &groundingExecutorForTest{}
-	server.groundingExecutor = executor
-	server.groundingErr = nil
-	input := temporalruntime.PrepareGroundingContextActivityInput{
-		AdmissionSnapshot:       snapshot,
-		AdmissionSnapshotSHA256: sha256JSONRef(snapshot),
-		RunID:                   runID,
-		TraceID:                 "trace-executor-001",
-	}
-
-	output, err := server.PrepareGroundingContextActivity(t.Context(), input)
-	if err != nil {
-		t.Fatalf("repair grounding projection: %v", err)
-	}
-	if executor.calls != 0 || output.PayloadSHA256 != sha256JSONRef(grounding) {
-		t.Fatalf("repair called retrieval or changed payload: calls=%d output=%#v", executor.calls, output)
-	}
-	results, err := store.ListStepResults(t.Context(), runID)
-	if err != nil {
-		t.Fatalf("list repaired results: %v", err)
-	}
-	if len(results) != 1 || results[0].StepID != "grounding.prepare" ||
-		results[0].ProjectionRef != contextRef ||
-		results[0].SanitizedPayload["payload_sha256"] != output.PayloadSHA256 {
-		t.Fatalf("repaired grounding result = %#v", results)
-	}
 }
 
 func TestSelectGroundingEvidenceAppliesThresholdAndTokenBudget(t *testing.T) {
@@ -374,15 +223,6 @@ func TestPrimaryAgentEvidenceClosureUsesOnlyBoundGrounding(t *testing.T) {
 	}
 	grounding.ModelContextChars = groundingModelContextCharacterCount(grounding.Status, grounding.Evidence)
 	contextRef := groundingContextRef(runID)
-	if err := server.putProtectedJSON(
-		t.Context(),
-		run,
-		contextRef,
-		protectedPayloadKindGroundingContext,
-		grounding,
-	); err != nil {
-		t.Fatalf("write grounding context: %v", err)
-	}
 	agentResult := map[string]any{
 		"admission_snapshot_sha256": admissionSHA256,
 		"allow_ungrounded_answer":   false,
@@ -396,9 +236,9 @@ func TestPrimaryAgentEvidenceClosureUsesOnlyBoundGrounding(t *testing.T) {
 	}
 
 	closure, err := server.primaryAgentEvidenceClosureForFinalization(
-		t.Context(),
 		run,
 		agentResult,
+		grounding,
 		envelope,
 	)
 	if err != nil {
@@ -411,9 +251,9 @@ func TestPrimaryAgentEvidenceClosureUsesOnlyBoundGrounding(t *testing.T) {
 
 	envelope["evidence_refs"] = []any{}
 	_, err = server.primaryAgentEvidenceClosureForFinalization(
-		t.Context(),
 		run,
 		agentResult,
+		grounding,
 		envelope,
 	)
 	if err == nil || !strings.Contains(err.Error(), "requires evidence_refs") {
@@ -422,9 +262,9 @@ func TestPrimaryAgentEvidenceClosureUsesOnlyBoundGrounding(t *testing.T) {
 
 	envelope["evidence_refs"] = []any{"evidence://" + strings.Repeat("f", 64)}
 	if _, err := server.primaryAgentEvidenceClosureForFinalization(
-		t.Context(),
 		run,
 		agentResult,
+		grounding,
 		envelope,
 	); err == nil || !strings.Contains(err.Error(), "not present in this run's grounding context") {
 		t.Fatalf("forged evidence ref error = %v", err)
@@ -466,15 +306,6 @@ func TestPrimaryAgentEvidenceClosureRequiresFrozenUngroundedAnswerAuthorization(
 		Status:            "not_required",
 	}
 	contextRef := groundingContextRef(runID)
-	if err := server.putProtectedJSON(
-		t.Context(),
-		run,
-		contextRef,
-		protectedPayloadKindGroundingContext,
-		grounding,
-	); err != nil {
-		t.Fatalf("write grounding context: %v", err)
-	}
 	agentResult := map[string]any{
 		"admission_snapshot_sha256": admissionSHA256,
 		"allow_ungrounded_answer":   false,
@@ -486,14 +317,14 @@ func TestPrimaryAgentEvidenceClosureRequiresFrozenUngroundedAnswerAuthorization(
 		"answer_text": "下一班校车九点发车。",
 	}
 	if _, err := server.primaryAgentEvidenceClosureForFinalization(
-		t.Context(), run, agentResult, envelope,
+		run, agentResult, grounding, envelope,
 	); err == nil || !strings.Contains(err.Error(), "not allowed by the execution strategy") {
 		t.Fatalf("unauthorized ungrounded answer error = %v", err)
 	}
 
 	agentResult["allow_ungrounded_answer"] = true
 	closure, err := server.primaryAgentEvidenceClosureForFinalization(
-		t.Context(), run, agentResult, envelope,
+		run, agentResult, grounding, envelope,
 	)
 	if err != nil {
 		t.Fatalf("authorized ungrounded answer: %v", err)

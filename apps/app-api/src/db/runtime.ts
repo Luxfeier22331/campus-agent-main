@@ -1,13 +1,7 @@
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Pool } from "pg";
 
-import {
-	type DatabaseSslMode,
-	type Env,
-	isDeployedEnvironment,
-	resolveDatabaseSslMode,
-	resolveEnvironment,
-} from "../config";
+import { type Env, isDeployedEnvironment, resolveEnvironment } from "../config";
 import { appApiSchema } from "./schema";
 
 export const APP_AUTH_SCHEMA = "app_auth";
@@ -24,27 +18,8 @@ const cacheHost = globalThis as typeof globalThis & {
 	__appApiPoolCache?: Map<string, Pool>;
 };
 
-export function normalizePostgresConnectionStringForExplicitSsl(connectionString: string): string {
-	const normalized = connectionString.trim();
-	if (!normalized) {
-		throw new Error("PostgreSQL connection string is required.");
-	}
-
-	const nextUrl = new URL(normalized);
-	nextUrl.searchParams.delete("sslmode");
-	return nextUrl.toString();
-}
-
 function shouldCacheRuntimeState(env: Env): boolean {
 	return resolveEnvironment(env) === "test";
-}
-
-function resolveSslConfig(databaseSslMode: DatabaseSslMode): false | { rejectUnauthorized: false } {
-	return databaseSslMode === "disable"
-		? false
-		: {
-				rejectUnauthorized: false,
-			};
 }
 
 function getPoolCache(): Map<string, Pool> {
@@ -67,33 +42,14 @@ function resolveRuntimeConnectionString(env: Env): string {
 export function buildRuntimeDatabaseConfig(env: Env) {
 	return {
 		connectionString: resolveRuntimeConnectionString(env),
-		ssl: resolveSslConfig(resolveDatabaseSslMode(env)),
-	};
-}
-
-export interface SchemaDatabaseEnv {
-	APP_API_DATABASE_CA_CERT_PATH?: string;
-	APP_API_DATABASE_SSLMODE?: Env["APP_API_DATABASE_SSLMODE"];
-	APP_API_SCHEMA_DATABASE_URL?: string;
-}
-
-export function buildSchemaDatabaseConfig(env: SchemaDatabaseEnv) {
-	const connectionString = env.APP_API_SCHEMA_DATABASE_URL?.trim();
-	if (!connectionString) {
-		throw new Error("APP_API_SCHEMA_DATABASE_URL is required.");
-	}
-	return {
-		connectionString: normalizePostgresConnectionStringForExplicitSsl(connectionString),
-		ssl: resolveSslConfig(resolveDatabaseSslMode(env)),
 	};
 }
 
 function buildPoolOptions(input: {
 	connectionString: string;
-	databaseSslMode: DatabaseSslMode;
-	environment: Env["APP_API_ENVIRONMENT"];
+	environment: Env["DEPLOYMENT_ENVIRONMENT"];
 }) {
-	const environment = resolveEnvironment({ APP_API_ENVIRONMENT: input.environment });
+	const environment = resolveEnvironment({ DEPLOYMENT_ENVIRONMENT: input.environment });
 	const isDeployed = isDeployedEnvironment(environment);
 
 	return {
@@ -102,28 +58,24 @@ function buildPoolOptions(input: {
 		connectionTimeoutMillis: 5_000,
 		idleTimeoutMillis: isDeployed ? PRODUCTION_IDLE_TIMEOUT_MS : DEVELOPMENT_IDLE_TIMEOUT_MS,
 		max: isDeployed ? PRODUCTION_POOL_MAX : DEVELOPMENT_POOL_MAX,
-		ssl: resolveSslConfig(input.databaseSslMode),
 	};
 }
 
-function buildClientOptions(input: { connectionString: string; databaseSslMode: DatabaseSslMode }) {
+function buildClientOptions(input: { connectionString: string }) {
 	return {
 		connectionString: input.connectionString,
 		connectionTimeoutMillis: 5_000,
-		ssl: resolveSslConfig(input.databaseSslMode),
 	};
 }
 
 async function createPool(input: {
 	connectionString: string;
-	databaseSslMode: DatabaseSslMode;
-	environment: Env["APP_API_ENVIRONMENT"];
+	environment: Env["DEPLOYMENT_ENVIRONMENT"];
 }): Promise<Pool> {
 	const { Pool } = await import("pg");
 	const pool = new Pool(
 		buildPoolOptions({
 			connectionString: input.connectionString,
-			databaseSslMode: input.databaseSslMode,
 			environment: input.environment,
 		}),
 	);
@@ -140,8 +92,7 @@ async function createPool(input: {
 async function createCachedPool(input: {
 	cacheKey: string;
 	connectionString: string;
-	databaseSslMode: DatabaseSslMode;
-	environment: Env["APP_API_ENVIRONMENT"];
+	environment: Env["DEPLOYMENT_ENVIRONMENT"];
 }): Promise<Pool> {
 	const poolCache = getPoolCache();
 	const existingPool = poolCache.get(input.cacheKey);
@@ -151,7 +102,6 @@ async function createCachedPool(input: {
 
 	const pool = await createPool({
 		connectionString: input.connectionString,
-		databaseSslMode: input.databaseSslMode,
 		environment: input.environment,
 	});
 	poolCache.set(input.cacheKey, pool);
@@ -172,7 +122,6 @@ async function withIsolatedProbePool<T>(
 	const config = buildRuntimeDatabaseConfig(env);
 	const pool = await createPool({
 		connectionString: config.connectionString,
-		databaseSslMode: resolveDatabaseSslMode(env),
 		environment: resolveEnvironment(env),
 	});
 
@@ -185,12 +134,10 @@ async function withIsolatedProbePool<T>(
 
 export async function createRuntimePool(env: Env): Promise<Pool> {
 	const config = buildRuntimeDatabaseConfig(env);
-	const databaseSslMode = resolveDatabaseSslMode(env);
 	const environment = resolveEnvironment(env);
 	if (!shouldCacheRuntimeState(env)) {
 		return createPool({
 			connectionString: config.connectionString,
-			databaseSslMode,
 			environment,
 		});
 	}
@@ -202,7 +149,6 @@ export async function createRuntimePool(env: Env): Promise<Pool> {
 
 	const poolPromise = createPool({
 		connectionString: config.connectionString,
-		databaseSslMode,
 		environment,
 	});
 	runtimePoolCache.set(env, poolPromise);
@@ -262,15 +208,13 @@ export async function withRuntimeDatabase<T>(
 	execute: (database: NodePgDatabase<typeof appApiSchema>) => Promise<T>,
 ): Promise<T> {
 	const config = buildRuntimeDatabaseConfig(env);
-	const databaseSslMode = resolveDatabaseSslMode(env);
 	const environment = resolveEnvironment(env);
 	const { drizzle } = await import("drizzle-orm/node-postgres");
 
 	if (!isWorkerRuntimeDatabaseContext()) {
 		const pool = await createCachedPool({
-			cacheKey: `runtime:${config.connectionString}|${databaseSslMode}|${environment}`,
+			cacheKey: `runtime:${config.connectionString}|${environment}`,
 			connectionString: config.connectionString,
-			databaseSslMode,
 			environment,
 		});
 		const database = drizzle(pool, {
@@ -284,7 +228,6 @@ export async function withRuntimeDatabase<T>(
 	const client = new Client(
 		buildClientOptions({
 			connectionString: config.connectionString,
-			databaseSslMode,
 		}),
 	);
 	await client.connect();

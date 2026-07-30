@@ -10,7 +10,6 @@ type ToolExecutionWorkflowInput struct {
 	AdmissionSnapshot            AgentAdmissionSnapshot `json:"admission_snapshot"`
 	AdmissionSnapshotSHA256      string                 `json:"admission_snapshot_sha256"`
 	ConversationID               string                 `json:"conversation_id"`
-	GroundingContextRef          string                 `json:"grounding_context_ref"`
 	Namespace                    string                 `json:"namespace"`
 	PayloadSHA256                string                 `json:"payload_sha256"`
 	PolicyVersions               map[string]string      `json:"policy_versions"`
@@ -48,6 +47,42 @@ type GroundingPlanSnapshot struct {
 	QuerySHA256    string   `json:"query_sha256"`
 	SchemaVersion  string   `json:"schema_version"`
 	SelectedScopes []string `json:"selected_scopes"`
+}
+
+// GroundingContext is the bounded retrieval result consumed by the Primary
+// Agent and terminal finalization. It is carried through the workflow history
+// rather than persisted in a separate runtime-owned payload store.
+type GroundingContext struct {
+	AdmissionSHA256   string              `json:"admission_sha256"`
+	CoveredScopes     []string            `json:"covered_scopes"`
+	Evidence          []GroundingEvidence `json:"evidence"`
+	Mode              string              `json:"mode"`
+	ModelContextChars int                 `json:"model_context_chars"`
+	PlanSHA256        string              `json:"plan_sha256"`
+	PreparedAt        time.Time           `json:"prepared_at"`
+	QuerySHA256       string              `json:"query_sha256"`
+	RunID             string              `json:"run_id"`
+	SchemaVersion     string              `json:"schema_version"`
+	SelectedScopes    []string            `json:"selected_scopes"`
+	Status            string              `json:"status"`
+	TokenCount        int                 `json:"token_count"`
+}
+
+type GroundingEvidence struct {
+	EvidenceRef   string  `json:"evidence_ref"`
+	DocumentScope string  `json:"document_scope"`
+	ReleaseID     string  `json:"release_id"`
+	ChunkID       string  `json:"chunk_id"`
+	SectionRef    string  `json:"section_ref"`
+	DocumentID    string  `json:"document_id"`
+	SectionID     string  `json:"section_id"`
+	DocumentTitle string  `json:"document_title"`
+	SectionTitle  string  `json:"section_title"`
+	CanonicalURL  string  `json:"canonical_url"`
+	Text          string  `json:"text"`
+	TextSHA256    string  `json:"text_sha256"`
+	TokenCount    int     `json:"token_count"`
+	RerankScore   float64 `json:"rerank_score"`
 }
 
 type ExecutionStrategySnapshot struct {
@@ -109,14 +144,14 @@ type AppendConversationMemoryActivityOutput struct {
 }
 
 type ExecutePrimaryAgentActivityInput struct {
-	AdmissionSnapshot   AgentAdmissionSnapshot `json:"admission_snapshot"`
-	ConversationID      string                 `json:"conversation_id"`
-	GroundingContextRef string                 `json:"grounding_context_ref"`
-	RequestID           string                 `json:"request_id"`
-	RunID               string                 `json:"run_id"`
-	TraceID             string                 `json:"trace_id"`
-	TurnID              string                 `json:"turn_id"`
-	VisibleToolNames    []string               `json:"visible_tool_names"`
+	AdmissionSnapshot AgentAdmissionSnapshot `json:"admission_snapshot"`
+	ConversationID    string                 `json:"conversation_id"`
+	GroundingContext  GroundingContext       `json:"grounding_context"`
+	RequestID         string                 `json:"request_id"`
+	RunID             string                 `json:"run_id"`
+	TraceID           string                 `json:"trace_id"`
+	TurnID            string                 `json:"turn_id"`
+	VisibleToolNames  []string               `json:"visible_tool_names"`
 }
 
 type PrepareGroundingContextActivityInput struct {
@@ -127,16 +162,17 @@ type PrepareGroundingContextActivityInput struct {
 }
 
 type PrepareGroundingContextActivityOutput struct {
-	CoveredScopes       []string `json:"covered_scopes"`
-	EvidenceCount       int      `json:"evidence_count"`
-	GroundingContextRef string   `json:"grounding_context_ref"`
-	Mode                string   `json:"mode"`
-	ModelContextChars   int      `json:"model_context_chars"`
-	PayloadSHA256       string   `json:"payload_sha256"`
-	RunID               string   `json:"run_id"`
-	SelectedScopes      []string `json:"selected_scopes"`
-	Status              string   `json:"status"`
-	TokenCount          int      `json:"token_count"`
+	CoveredScopes       []string         `json:"covered_scopes"`
+	EvidenceCount       int              `json:"evidence_count"`
+	GroundingContext    GroundingContext `json:"grounding_context"`
+	GroundingContextRef string           `json:"grounding_context_ref"`
+	Mode                string           `json:"mode"`
+	ModelContextChars   int              `json:"model_context_chars"`
+	PayloadSHA256       string           `json:"payload_sha256"`
+	RunID               string           `json:"run_id"`
+	SelectedScopes      []string         `json:"selected_scopes"`
+	Status              string           `json:"status"`
+	TokenCount          int              `json:"token_count"`
 }
 
 type DocumentScope struct {
@@ -173,11 +209,11 @@ type KnowledgeServingConfigSnapshot struct {
 }
 
 type AgentToolResult struct {
-	ArgumentsJSON   map[string]any `json:"-"`
+	ArgumentsJSON   map[string]any `json:"arguments_json"`
 	DurationMS      float64        `json:"duration_ms"`
 	FailCloseReason string         `json:"fail_close_reason"`
 	PayloadKind     string         `json:"payload_kind"`
-	Result          map[string]any `json:"-"`
+	Result          map[string]any `json:"result"`
 	ResultRef       string         `json:"result_ref"`
 	Status          string         `json:"status"`
 	ToolName        string         `json:"tool_name"`
@@ -185,18 +221,19 @@ type AgentToolResult struct {
 
 type ExecutePrimaryAgentActivityOutput struct {
 	AgentResultRef         string            `json:"agent_result_ref"`
-	FinalOutput            string            `json:"-"`
+	FinalOutput            string            `json:"final_output"`
+	GroundingContext       GroundingContext  `json:"grounding_context"`
 	ModelName              string            `json:"model_name"`
 	ModelProvider          string            `json:"model_provider"`
-	PromptTrace            map[string]any    `json:"-"`
+	PromptTrace            map[string]any    `json:"prompt_trace"`
 	ProviderResponseID     string            `json:"provider_response_id"`
 	RunID                  string            `json:"run_id"`
 	StageTiming            map[string]any    `json:"stage_timing,omitempty"`
 	Status                 string            `json:"status"`
-	TerminalEnvelope       map[string]any    `json:"-"`
+	TerminalEnvelope       map[string]any    `json:"terminal_envelope"`
 	TerminalReason         string            `json:"terminal_reason"`
-	ToolResults            []AgentToolResult `json:"-"`
-	ToolRuntimeFingerprint map[string]any    `json:"-"`
+	ToolResults            []AgentToolResult `json:"tool_results"`
+	ToolRuntimeFingerprint map[string]any    `json:"tool_runtime_fingerprint"`
 	Usage                  AgentUsageSummary `json:"usage"`
 }
 
@@ -209,10 +246,11 @@ type AgentUsageSummary struct {
 }
 
 type WriteFinalizationActivityInput struct {
-	AgentResultRef string    `json:"agent_result_ref"`
-	FinalizedAt    time.Time `json:"finalized_at"`
-	RunID          string    `json:"run_id"`
-	TraceID        string    `json:"trace_id"`
+	AgentResult       ExecutePrimaryAgentActivityOutput `json:"agent_result"`
+	AdmissionSnapshot AgentAdmissionSnapshot            `json:"admission_snapshot"`
+	FinalizedAt       time.Time                         `json:"finalized_at"`
+	RunID             string                            `json:"run_id"`
+	TraceID           string                            `json:"trace_id"`
 }
 
 type WriteFinalizationActivityOutput struct {

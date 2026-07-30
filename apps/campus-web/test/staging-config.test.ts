@@ -50,7 +50,8 @@ describe("campus web staging config", () => {
 
 	it("keeps traffic ownership out of Wrangler and injects Turnstile at upload time", () => {
 		expect(wranglerConfig).not.toContain("[[env.staging.routes]]");
-		expect(wranglerConfig).toContain('CAMPUS_WEB_HOSTNAME = "campus-staging.mucwiki-edge.link"');
+		expect(wranglerConfig).not.toContain("CAMPUS_WEB_HOSTNAME");
+		expect(wranglerConfig).toContain('DEPLOYMENT_ENVIRONMENT = "staging"');
 		expect(wranglerConfig).not.toContain("AUTH_TURNSTILE_SITE_KEY");
 		expect(wranglerConfig).toContain('bucket_name = "campus-agent-derived-unconfigured"');
 		expect(wranglerConfig).not.toContain('bucket_name = "campus-agent-derived-staging"');
@@ -62,7 +63,8 @@ describe("campus web staging config", () => {
 		expect(wranglerConfig).not.toContain("axiom-staging-traces");
 
 		expect(verifyStagingConfigSource).toContain("CAMPUS_AUTH_TURNSTILE_SITE_KEY");
-		expect(verifyStagingConfigSource).toContain("campus-staging.mucwiki-edge.link");
+		expect(verifyStagingConfigSource).not.toContain("CAMPUS_WEB_HOSTNAME");
+		expect(verifyStagingConfigSource).toContain("DEPLOYMENT_ENVIRONMENT");
 		expect(verifyStagingConfigSource).toContain("AUTH_TURNSTILE_SITE_KEY must not remain");
 		expect(verifyStagingConfigSource).toContain("DOCS_RELEASE_ID must be injected");
 
@@ -101,7 +103,7 @@ describe("campus web staging config", () => {
 		expect(publishWorkflowSource).not.toContain("deploy-staging.yml");
 		expect(stagingPreflightSource).not.toContain('"build:staging"');
 		expect(stagingPreflightSource).not.toContain('"build:app:staging"');
-		expect(stagingPreflightSource).toContain("check-worker-secret-presence.ts");
+		expect(stagingPreflightSource).not.toContain("check-worker-secret-presence.ts");
 		expect(stagingPreflightSource).toContain("apps/campus-web/scripts/verify-staging-config.ts");
 		expect(stagingPreflightSource).toContain("apps/campus-web/dist/campus_web/wrangler.json");
 		expect(viteConfigSource).toContain("sentryVitePlugin");
@@ -117,10 +119,12 @@ describe("campus web staging config", () => {
 
 	it("keeps staging browser e2e credentialed and evidence-producing", () => {
 		expect(stagingBrowserE2ESource).toContain('from "playwright"');
-		expect(stagingBrowserE2ESource).toContain("APP_API_STAGING_SMOKE_AUTH_SECRET");
-		expect(stagingBrowserE2ESource).not.toContain("STAGING_APP_API_SMOKE_AUTH_SECRET");
-		expect(stagingBrowserE2ESource).toContain("/api/internal/staging-smoke/auth/session");
-		expect(stagingBrowserE2ESource).toContain("E2E_QA_EVIDENCE_DIR");
+		expect(stagingBrowserE2ESource).toContain('"--email is required."');
+		expect(stagingBrowserE2ESource).toContain('"--password is required."');
+		expect(stagingBrowserE2ESource).toContain('"--captcha-token is required."');
+		expect(stagingBrowserE2ESource).toContain("/api/auth/sign-in/email");
+		expect(stagingBrowserE2ESource).not.toContain("/api/internal/staging-smoke/auth/session");
+		expect(stagingBrowserE2ESource).toContain("var/staging-evidence/campus-browser-e2e");
 		expect(stagingBrowserE2ESource).toContain("campus-browser-e2e.json");
 		expect(stagingBrowserE2ESource).toContain('page.goto("/",');
 		expect(stagingBrowserE2ESource).not.toContain('page.goto("/chat"');

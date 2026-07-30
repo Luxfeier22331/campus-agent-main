@@ -5,11 +5,7 @@ import {
 	parseStagingDocsGatedSmokeArgs,
 	resolveStagingDocsGatedSmokeTargets,
 } from "./support/staging-docs-gated-smoke.args";
-import {
-	buildSmokePassword,
-	fetchReadyz,
-	mintStagingSmokeSession,
-} from "./support/staging-smoke-support";
+import { fetchReadyz, signInE2eIdentity } from "./support/staging-smoke-support";
 
 function buildGatedReaderUrl(input: { docsBaseUrl: string; gatedReaderPath: string }): string {
 	return new URL(input.gatedReaderPath, input.docsBaseUrl).toString();
@@ -151,18 +147,15 @@ function assertExpectedGatedNavigationResponse(input: {
 	}
 }
 
-export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env) {
-	const args = resolveStagingDocsGatedSmokeTargets(parseStagingDocsGatedSmokeArgs(argv, env));
+export async function main(argv: string[]) {
+	const args = resolveStagingDocsGatedSmokeTargets(parseStagingDocsGatedSmokeArgs(argv));
 	const gatedReaderUrl = buildGatedReaderUrl(args);
 	const gatedCollectionNavigationUrl = buildGatedCollectionNavigationUrl(args);
-	const smokePassword = buildSmokePassword();
-	const cookieHeader = await mintStagingSmokeSession({
-		appApiReadyzUrl: args.appApiReadyzUrl,
+	const cookieHeader = await signInE2eIdentity({
+		captchaToken: args.captchaToken,
+		chatBaseUrl: args.chatBaseUrl,
 		email: args.email,
-		name: args.name,
-		password: smokePassword,
-		resetIdentity: true,
-		smokeAuthSecret: args.smokeAuthSecret,
+		password: args.password,
 	});
 
 	const appApiReadyz = await fetchReadyz(args.appApiReadyzUrl);
@@ -225,7 +218,6 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env)
 				},
 				identity: {
 					email: args.email,
-					resetViaDeployedRuntime: true,
 				},
 				surfaceChecks: {
 					appApiReadyz: {

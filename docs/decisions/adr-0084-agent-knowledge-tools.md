@@ -36,7 +36,8 @@ ADR-0075 把机构知识查询包装为 Primary Agent 到 Knowledge Agent 的 ha
   `PrepareGroundingContextActivity`；
 - 对冻结查询只做一次 embedding，并发查询选中的已准入 scope，再用 Qdrant dense+sparse RRF 分数全局
   排序、去重和裁剪；
-- 完整 `grounding_context.v2` 只写入受保护载荷，Primary Agent 只能引用本轮 `evidence://`；
+- 完整且有界的 `grounding_context.v2` 经由 Temporal Activity result 传递，Primary Agent 只能引用本轮
+  `evidence://`；
 - 知识 grounding 不注册为模型工具，不进入 SDK 工具轨迹。
 
 类型化工具只保留确实拥有独立读取模型的能力。当前 `transport_schedule_lookup` 已注册但关闭；

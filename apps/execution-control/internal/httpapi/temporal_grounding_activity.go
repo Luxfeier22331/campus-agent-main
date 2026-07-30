@@ -63,69 +63,6 @@ func (s *Server) PrepareGroundingContextActivity(
 			)
 	}
 	contextRef := groundingContextRef(run.RunID)
-	var existing groundingContext
-	if err := s.getProtectedJSON(
-		ctx,
-		run,
-		contextRef,
-		protectedPayloadKindGroundingContext,
-		&existing,
-	); err == nil {
-		if validationErr := validateGroundingContextForRun(
-			existing,
-			run.RunID,
-			input.AdmissionSnapshotSHA256,
-		); validationErr != nil {
-			return temporalruntime.PrepareGroundingContextActivityOutput{},
-				sanitizedTemporalApplicationError(
-					"retrieval_unavailable",
-					validationErr,
-					true,
-				)
-		}
-		if existing.PlanSHA256 != snapshot.GroundingPlanSHA256 ||
-			existing.QuerySHA256 != snapshot.GroundingPlan.QuerySHA256 {
-			return temporalruntime.PrepareGroundingContextActivityOutput{},
-				sanitizedTemporalApplicationError(
-					"retrieval_unavailable",
-					errors.New("grounding context differs from the frozen plan"),
-					true,
-				)
-		}
-		output := groundingActivityOutput(run.RunID, contextRef, existing)
-		projected, projectionErr := s.completedGroundingProjectionExists(
-			ctx,
-			run.RunID,
-			contextRef,
-			input.AdmissionSnapshotSHA256,
-			querySHA256,
-			input.AdmissionSnapshot.GroundingPlanSHA256,
-			output,
-		)
-		if projectionErr != nil {
-			return temporalruntime.PrepareGroundingContextActivityOutput{}, projectionErr
-		}
-		if !projected {
-			startedAt := time.Now().UTC()
-			if projectionErr := s.projectCompletedGroundingContext(
-				ctx,
-				run,
-				input,
-				querySHA256,
-				contextRef,
-				output,
-				startedAt,
-				temporalActivityAttempt(ctx),
-				nil,
-			); projectionErr != nil {
-				return temporalruntime.PrepareGroundingContextActivityOutput{}, projectionErr
-			}
-		}
-		return output, nil
-	} else if !errors.Is(err, execution.ErrProtectedPayloadNotFound) {
-		return temporalruntime.PrepareGroundingContextActivityOutput{},
-			sanitizedTemporalApplicationError("retrieval_unavailable", err, true)
-	}
 	if s.groundingErr != nil {
 		return temporalruntime.PrepareGroundingContextActivityOutput{},
 			sanitizedTemporalApplicationError("retrieval_unavailable", s.groundingErr, false)
@@ -203,16 +140,6 @@ func (s *Server) PrepareGroundingContextActivity(
 		return temporalruntime.PrepareGroundingContextActivityOutput{},
 			sanitizedTemporalApplicationError("retrieval_unavailable", err, true)
 	}
-	if err := s.putProtectedJSON(
-		ctx,
-		run,
-		contextRef,
-		protectedPayloadKindGroundingContext,
-		grounding,
-	); err != nil {
-		return temporalruntime.PrepareGroundingContextActivityOutput{},
-			sanitizedTemporalApplicationError("retrieval_unavailable", err, false)
-	}
 	output := groundingActivityOutput(run.RunID, contextRef, grounding)
 	if err := s.projectCompletedGroundingContext(
 		ctx,
@@ -283,43 +210,6 @@ func (s *Server) projectCompletedGroundingContext(
 	))
 }
 
-func (s *Server) completedGroundingProjectionExists(
-	ctx context.Context,
-	runID string,
-	contextRef string,
-	admissionSHA256 string,
-	querySHA256 string,
-	groundingPlanSHA256 string,
-	output temporalruntime.PrepareGroundingContextActivityOutput,
-) (bool, error) {
-	results, err := s.runProjectionStore.ListStepResults(ctx, runID)
-	if err != nil {
-		return false, err
-	}
-	for _, result := range results {
-		payload := result.SanitizedPayload
-		if result.StepID == "grounding.prepare" &&
-			result.Status == "completed" &&
-			result.ResultKind == "grounding_context" &&
-			result.ProjectionRef == contextRef &&
-			stringValue(payload["admission_snapshot_sha256"]) == admissionSHA256 &&
-			stringValue(payload["query_sha256"]) == querySHA256 &&
-			stringValue(payload["grounding_context_ref"]) == contextRef &&
-			stringValue(payload["grounding_mode"]) == output.Mode &&
-			stringValue(payload["grounding_plan_sha256"]) == groundingPlanSHA256 &&
-			equalStringSlices(stringSliceFromAny(payload["selected_scopes"]), output.SelectedScopes) &&
-			equalStringSlices(stringSliceFromAny(payload["covered_scopes"]), output.CoveredScopes) &&
-			stringValue(payload["payload_sha256"]) == output.PayloadSHA256 &&
-			stringValue(payload["status"]) == output.Status &&
-			intFromAny(payload["evidence_count"]) == output.EvidenceCount &&
-			intFromAny(payload["token_count"]) == output.TokenCount &&
-			intFromAny(payload["model_context_chars"]) == output.ModelContextChars {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
 func groundingActivityOutput(
 	runID string,
 	contextRef string,
@@ -328,6 +218,7 @@ func groundingActivityOutput(
 	return temporalruntime.PrepareGroundingContextActivityOutput{
 		CoveredScopes:       append([]string{}, grounding.CoveredScopes...),
 		EvidenceCount:       len(grounding.Evidence),
+		GroundingContext:    grounding,
 		GroundingContextRef: contextRef,
 		Mode:                grounding.Mode,
 		ModelContextChars:   grounding.ModelContextChars,
@@ -355,24 +246,12 @@ func validateGroundingContextForRun(
 }
 
 func (s *Server) loadGroundingContextForPrimaryAgent(
-	ctx context.Context,
+	_ context.Context,
 	run execution.DurableRun,
 	input temporalruntime.ExecutePrimaryAgentActivityInput,
 ) (groundingContext, string, error) {
-	contextRef := strings.TrimSpace(input.GroundingContextRef)
-	if contextRef != groundingContextRef(run.RunID) {
-		return groundingContext{}, "", errors.New("grounding context ref does not match the run")
-	}
-	var grounding groundingContext
-	err := s.getProtectedJSON(
-		ctx,
-		run,
-		contextRef,
-		protectedPayloadKindGroundingContext,
-		&grounding,
-	)
-	if errors.Is(err, execution.ErrProtectedPayloadNotFound) &&
-		input.AdmissionSnapshot.GroundingPlan.Mode == "none" {
+	grounding := input.GroundingContext
+	if grounding.SchemaVersion == "" && input.AdmissionSnapshot.GroundingPlan.Mode == "none" {
 		grounding = groundingContext{
 			AdmissionSHA256: sha256JSONRef(input.AdmissionSnapshot),
 			CoveredScopes:   []string{},
@@ -391,20 +270,6 @@ func (s *Server) loadGroundingContextForPrimaryAgent(
 			grounding.Status,
 			grounding.Evidence,
 		)
-		if err := validateGroundingContext(grounding); err != nil {
-			return groundingContext{}, "", err
-		}
-		if err := s.putProtectedJSON(
-			ctx,
-			run,
-			contextRef,
-			protectedPayloadKindGroundingContext,
-			grounding,
-		); err != nil {
-			return groundingContext{}, "", err
-		}
-	} else if err != nil {
-		return groundingContext{}, "", err
 	}
 	if err := validateGroundingContextForRun(
 		grounding,

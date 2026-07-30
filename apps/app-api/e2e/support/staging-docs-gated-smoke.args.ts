@@ -2,7 +2,6 @@ import {
 	DEFAULT_STAGING_CHAT_E2E_APP_API_READYZ_URL,
 	DEFAULT_STAGING_CHAT_E2E_CHAT_BASE_URL,
 } from "./chat-e2e.args";
-import { DEFAULT_SMOKE_EMAIL, DEFAULT_SMOKE_NAME } from "./smoke-identity-defaults";
 
 export const DEFAULT_STAGING_DOCS_BASE_URL = "https://docs-staging.mucwiki-edge.link";
 export const DEFAULT_STAGING_DOCS_GATED_APP_API_READYZ_URL =
@@ -12,14 +11,14 @@ export const DEFAULT_GATED_NAVIGATION_UNAUTHENTICATED_STATUS = 404;
 
 export interface StagingDocsGatedSmokeArgs {
 	appApiReadyzUrl: string;
+	captchaToken: string;
 	chatBaseUrl: string;
 	docsBaseUrl: string;
 	email: string;
 	gatedCollectionNavigationPath: string | null;
 	gatedCollectionNavigationUnauthenticatedStatus: 200 | 404;
 	gatedReaderPath: string | null;
-	name: string;
-	smokeAuthSecret: string;
+	password: string;
 }
 
 function normalizeOptionalValue(value: string | undefined): string | null {
@@ -53,12 +52,9 @@ export function resolveStagingDocsGatedSmokeTargets(
 	};
 }
 
-export function parseStagingDocsGatedSmokeArgs(
-	argv: string[],
-	env: NodeJS.ProcessEnv = process.env,
-): StagingDocsGatedSmokeArgs {
-	let email = DEFAULT_SMOKE_EMAIL;
-	let name = DEFAULT_SMOKE_NAME;
+export function parseStagingDocsGatedSmokeArgs(argv: string[]): StagingDocsGatedSmokeArgs {
+	let captchaToken = "";
+	let email = "";
 	let chatBaseUrl = DEFAULT_STAGING_DOCS_GATED_CHAT_BASE_URL;
 	let appApiReadyzUrl = DEFAULT_STAGING_DOCS_GATED_APP_API_READYZ_URL;
 	let docsBaseUrl = DEFAULT_STAGING_DOCS_BASE_URL;
@@ -66,7 +62,7 @@ export function parseStagingDocsGatedSmokeArgs(
 	let gatedCollectionNavigationUnauthenticatedStatus: 200 | 404 =
 		DEFAULT_GATED_NAVIGATION_UNAUTHENTICATED_STATUS;
 	let gatedReaderPath: string | null = null;
-	let smokeAuthSecret = normalizeOptionalValue(env.APP_API_STAGING_SMOKE_AUTH_SECRET) ?? "";
+	let password = "";
 
 	for (let index = 0; index < argv.length; index += 1) {
 		const token = argv[index];
@@ -82,12 +78,12 @@ export function parseStagingDocsGatedSmokeArgs(
 			index += 1;
 			continue;
 		}
-		if (token === "--name") {
+		if (token === "--captcha-token") {
 			const value = normalizeOptionalValue(argv[index + 1]);
 			if (!value) {
-				throw new Error("--name requires a non-empty value.");
+				throw new Error("--captcha-token requires a non-empty value.");
 			}
-			name = value;
+			captchaToken = value;
 			index += 1;
 			continue;
 		}
@@ -145,31 +141,37 @@ export function parseStagingDocsGatedSmokeArgs(
 			index += 1;
 			continue;
 		}
-		if (token === "--smoke-auth-secret") {
+		if (token === "--password") {
 			const value = normalizeOptionalValue(argv[index + 1]);
 			if (!value) {
-				throw new Error("--smoke-auth-secret requires a non-empty value.");
+				throw new Error("--password requires a non-empty value.");
 			}
-			smokeAuthSecret = value;
+			password = value;
 			index += 1;
 			continue;
 		}
 
 		throw new Error(`Unknown argument: ${token}`);
 	}
-	if (!smokeAuthSecret) {
-		throw new Error("APP_API_STAGING_SMOKE_AUTH_SECRET is required.");
+	if (!email) {
+		throw new Error("--email is required.");
+	}
+	if (!password) {
+		throw new Error("--password is required.");
+	}
+	if (!captchaToken) {
+		throw new Error("--captcha-token is required.");
 	}
 
 	return {
 		appApiReadyzUrl,
+		captchaToken,
 		chatBaseUrl,
 		docsBaseUrl,
 		email,
 		gatedCollectionNavigationPath,
 		gatedCollectionNavigationUnauthenticatedStatus,
 		gatedReaderPath,
-		name,
-		smokeAuthSecret,
+		password,
 	};
 }

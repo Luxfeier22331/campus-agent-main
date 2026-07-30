@@ -351,7 +351,6 @@ describe("agent tool eval runner", () => {
 			},
 			settings: {
 				baseUrl: "https://langfuse.example",
-				environment: "test",
 				publicKey: "pk-test",
 				secretKey: "sk-test",
 			},

@@ -50,35 +50,3 @@ export function buildCookieHeader(response: Response): string {
 		.filter((cookie): cookie is string => typeof cookie === "string" && cookie.length > 0)
 		.join("; ");
 }
-
-export async function signInSmokeIdentity(input: {
-	appFetch: (request: Request) => Promise<Response> | Response;
-	captchaToken: string;
-	email: string;
-	password: string;
-	authShellOrigin: string;
-}): Promise<string> {
-	const response = await input.appFetch(
-		new Request("https://app-api.internal/api/auth/sign-in/email", {
-			body: JSON.stringify({
-				email: input.email,
-				password: input.password,
-			}),
-			headers: {
-				"content-type": "application/json",
-				origin: input.authShellOrigin,
-				referer: `${input.authShellOrigin.replace(/\/$/, "")}/login`,
-				"x-captcha-response": input.captchaToken,
-			},
-			method: "POST",
-		}),
-	);
-	const payload = await readJsonResponse(response);
-	if (!response.ok) {
-		throw new Error(
-			`Smoke identity sign-in failed (${response.status}): ${JSON.stringify(payload)}`,
-		);
-	}
-
-	return buildCookieHeader(response);
-}

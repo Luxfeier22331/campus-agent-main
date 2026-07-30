@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -98,7 +99,7 @@ func TestWriteFinalizationActivityKeepsDirectPrimaryAgentToolNullableWithAgentPr
 	server := NewServer(config.Config{TemporalWorkerIdentity: "test:finalization:direct"})
 	attachRunProjectionStoreForHandlerTest(server, store)
 	agentResultRef := temporalProjectionRef("run-primary-agent-direct-finalization", "agent/primary/result")
-	preparePrimaryAgentFinalizationRunForTest(
+	input := preparePrimaryAgentFinalizationRunForTest(
 		t,
 		server,
 		store,
@@ -115,15 +116,7 @@ func TestWriteFinalizationActivityKeepsDirectPrimaryAgentToolNullableWithAgentPr
 		},
 	)
 
-	_, err := server.WriteFinalizationActivity(
-		context.Background(),
-		temporalruntime.WriteFinalizationActivityInput{
-			AgentResultRef: agentResultRef,
-			FinalizedAt:    now.Add(4 * time.Second),
-			RunID:          "run-primary-agent-direct-finalization",
-			TraceID:        "trace-executor-001",
-		},
-	)
+	_, err := server.WriteFinalizationActivity(context.Background(), input)
 	if err != nil {
 		t.Fatalf("write finalization: %v", err)
 	}
@@ -165,7 +158,7 @@ func TestWriteFinalizationActivityKeepsToolCallTraceInternal(t *testing.T) {
 		"run-primary-agent-tool-finalization",
 		"agent/primary/result",
 	)
-	preparePrimaryAgentFinalizationRunForTest(
+	input := preparePrimaryAgentFinalizationRunForTest(
 		t,
 		server,
 		store,
@@ -195,15 +188,7 @@ func TestWriteFinalizationActivityKeepsToolCallTraceInternal(t *testing.T) {
 		},
 	)
 
-	_, err := server.WriteFinalizationActivity(
-		context.Background(),
-		temporalruntime.WriteFinalizationActivityInput{
-			AgentResultRef: agentResultRef,
-			FinalizedAt:    now.Add(4 * time.Second),
-			RunID:          "run-primary-agent-tool-finalization",
-			TraceID:        "trace-executor-001",
-		},
-	)
+	_, err := server.WriteFinalizationActivity(context.Background(), input)
 	if err != nil {
 		t.Fatalf("write finalization: %v", err)
 	}
@@ -241,7 +226,7 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentOutOfScopeAsRejected(t *t
 	server := NewServer(config.Config{TemporalWorkerIdentity: "test:finalization:002"})
 	attachRunProjectionStoreForHandlerTest(server, store)
 	agentResultRef := temporalProjectionRef("run-primary-agent-out-of-scope", "agent/primary/result")
-	preparePrimaryAgentFinalizationRunForTest(
+	input := preparePrimaryAgentFinalizationRunForTest(
 		t,
 		server,
 		store,
@@ -263,15 +248,7 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentOutOfScopeAsRejected(t *t
 		},
 	)
 
-	_, err := server.WriteFinalizationActivity(
-		context.Background(),
-		temporalruntime.WriteFinalizationActivityInput{
-			AgentResultRef: agentResultRef,
-			FinalizedAt:    now.Add(4 * time.Second),
-			RunID:          "run-primary-agent-out-of-scope",
-			TraceID:        "trace-executor-001",
-		},
-	)
+	_, err := server.WriteFinalizationActivity(context.Background(), input)
 	if err != nil {
 		t.Fatalf("write finalization: %v", err)
 	}
@@ -350,30 +327,75 @@ func preparePrimaryAgentFinalizationRunForTest(
 	runID string,
 	now time.Time,
 	agentMetadata map[string]any,
-) {
+) temporalruntime.WriteFinalizationActivityInput {
 	t.Helper()
 	run, err := store.GetRun(context.Background(), runID)
 	if err != nil {
 		t.Fatalf("get run: %v", err)
 	}
-	if err := server.replaceTemporalAgentMetadata(context.Background(), run, func(metadata map[string]any) {
-		if _, exists := agentMetadata["activity_attempt"]; !exists {
-			agentMetadata["activity_attempt"] = 1
-		}
-		if _, exists := agentMetadata["model_name"]; !exists {
-			agentMetadata["model_name"] = "gpt-4.1"
-		}
-		if _, exists := agentMetadata["model_provider"]; !exists {
-			agentMetadata["model_provider"] = "openai"
-		}
-		if _, exists := agentMetadata["prompt_trace"]; !exists {
-			agentMetadata["prompt_trace"] = primaryAgentPromptTraceForFinalizationTest()
-		}
-		for key, value := range agentMetadata {
-			metadata[key] = value
-		}
-	}); err != nil {
-		t.Fatalf("replace temporal agent metadata: %v", err)
+	plan := groundingPlanForTest("finalization:" + runID)
+	snapshot := temporalruntime.AgentAdmissionSnapshot{
+		ExecutionStrategy: temporalruntime.ExecutionStrategySnapshot{
+			AllowUngroundedAnswer: true,
+		},
+		GroundingPlan: plan,
+	}
+	snapshot.GroundingPlanSHA256 = hashAdmissionJSON(plan)
+	grounding := groundingContext{
+		AdmissionSHA256: sha256JSONRef(snapshot),
+		CoveredScopes:   []string{},
+		Evidence:        []groundingEvidence{},
+		Mode:            plan.Mode,
+		PlanSHA256:      snapshot.GroundingPlanSHA256,
+		PreparedAt:      now.UTC().Truncate(time.Microsecond),
+		QuerySHA256:     plan.QuerySHA256,
+		RunID:           runID,
+		SchemaVersion:   groundingContextSchemaVersion,
+		SelectedScopes:  []string{},
+		Status:          "not_required",
+		TokenCount:      0,
+	}
+	grounding.ModelContextChars = groundingModelContextCharacterCount(
+		grounding.Status,
+		grounding.Evidence,
+	)
+	usageObserved, _ := nestedAny(agentMetadata, "usage", "usage_observed").(bool)
+	output := temporalruntime.ExecutePrimaryAgentActivityOutput{
+		AgentResultRef:     strings.TrimSpace(stringValue(agentMetadata["agent_result_ref"])),
+		FinalOutput:        strings.TrimSpace(stringValue(agentMetadata["final_output"])),
+		GroundingContext:   grounding,
+		ModelName:          firstNonEmptyText(stringValue(agentMetadata["model_name"]), "gpt-4.1"),
+		ModelProvider:      firstNonEmptyText(stringValue(agentMetadata["model_provider"]), "openai"),
+		PromptTrace:        cloneAnyMapFromMetadata(agentMetadata["prompt_trace"]),
+		ProviderResponseID: strings.TrimSpace(stringValue(agentMetadata["provider_response_id"])),
+		RunID:              runID,
+		StageTiming:        cloneAnyMapFromMetadata(agentMetadata["stage_timing"]),
+		Status:             firstNonEmptyText(stringValue(agentMetadata["status"]), "completed"),
+		TerminalEnvelope:   cloneAnyMapFromMetadata(agentMetadata["terminal_envelope"]),
+		TerminalReason:     strings.TrimSpace(stringValue(agentMetadata["terminal_reason"])),
+		ToolResults:        []temporalruntime.AgentToolResult{},
+		Usage: temporalruntime.AgentUsageSummary{
+			ModelRequestCount: int64(intFromAny(nestedAny(agentMetadata, "usage", "model_request_count"))),
+			CachedInputTokens: int64(intFromAny(nestedAny(agentMetadata, "usage", "cached_input_tokens"))),
+			InputTokens:       int64(intFromAny(nestedAny(agentMetadata, "usage", "input_tokens"))),
+			OutputTokens:      int64(intFromAny(nestedAny(agentMetadata, "usage", "output_tokens"))),
+			UsageObserved:     usageObserved,
+		},
+	}
+	if len(output.PromptTrace) == 0 {
+		output.PromptTrace = primaryAgentPromptTraceForFinalizationTest()
+	}
+	for _, result := range primaryAgentToolResultMaps(agentMetadata["tool_results"]) {
+		output.ToolResults = append(output.ToolResults, temporalruntime.AgentToolResult{
+			ArgumentsJSON:   cloneAnyMapFromMetadata(result["arguments_json"]),
+			DurationMS:      numericProjectionValue(result["duration_ms"]),
+			FailCloseReason: strings.TrimSpace(stringValue(result["fail_close_reason"])),
+			PayloadKind:     strings.TrimSpace(stringValue(result["payload_kind"])),
+			Result:          cloneAnyMapFromMetadata(result["result"]),
+			ResultRef:       strings.TrimSpace(stringValue(result["result_ref"])),
+			Status:          strings.TrimSpace(stringValue(result["status"])),
+			ToolName:        strings.TrimSpace(stringValue(result["tool_name"])),
+		})
 	}
 	if _, err := store.TransitionRun(
 		context.Background(),
@@ -392,5 +414,12 @@ func preparePrimaryAgentFinalizationRunForTest(
 		now.Add(3*time.Second),
 	); err != nil {
 		t.Fatalf("run run: %v", err)
+	}
+	return temporalruntime.WriteFinalizationActivityInput{
+		AdmissionSnapshot: snapshot,
+		AgentResult:       output,
+		FinalizedAt:       now.Add(4 * time.Second),
+		RunID:             runID,
+		TraceID:           run.TraceID,
 	}
 }

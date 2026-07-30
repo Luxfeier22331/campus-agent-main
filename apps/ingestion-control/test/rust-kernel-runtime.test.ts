@@ -53,7 +53,7 @@ describe("Rust kernel worker runtime", () => {
 				objectStore,
 				tokenizerJsonPath: "/missing/tokenizer.json",
 			}),
-		).toThrow("INGESTION_KERNEL_TOKENIZER_JSON_PATH is not a file");
+		).toThrow("tokenizer JSON path is not a file");
 	});
 
 	it("propagates Temporal cancellation through object I/O and the Rust process", async () => {

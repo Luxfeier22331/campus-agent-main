@@ -17,7 +17,6 @@ function createEnv(appApi?: Env["APP_API"], assets?: Env["ASSETS"]): Env {
 					headers: { "content-type": "text/html" },
 				}),
 		},
-		CAMPUS_WEB_HOSTNAME: "campus.muc.wiki",
 		DOCS_RELEASE_ID,
 	};
 }
@@ -861,9 +860,9 @@ describe("campus worker boundary", () => {
 	it("injects public runtime config from worker env into the shell", async () => {
 		const env = {
 			...createEnv(),
-			SENTRY_BROWSER_DSN: "https://public@example.ingest.sentry.io/1",
-			SENTRY_ENVIRONMENT: "staging",
-			SENTRY_RELEASE: "campus-web@0123456789abcdef0123456789abcdef01234567",
+			SENTRY_DSN: "https://public@example.ingest.sentry.io/1",
+			DEPLOYMENT_ENVIRONMENT: "staging",
+			DEPLOYMENT_RELEASE: "campus-web@0123456789abcdef0123456789abcdef01234567",
 		};
 		const response = await worker.fetch(
 			new Request("https://campus.muc.wiki/", {

@@ -74,31 +74,6 @@ func TestExecutePrimaryAgentActivityProjectsPersonalMemoryToolResult(t *testing.
 		t.Fatalf("result_sha256 = %#v", toolResult.SanitizedPayload["result_sha256"])
 	}
 
-	run, err := store.GetRun(context.Background(), runID)
-	if err != nil {
-		t.Fatalf("get run: %v", err)
-	}
-	protected := map[string]any{}
-	server := NewServer(config.Config{})
-	attachRunProjectionStoreForHandlerTest(server, store)
-	if err := server.getProtectedJSON(
-		context.Background(),
-		run,
-		temporalProjectionRef(runID, "agent/primary/result"),
-		protectedPayloadKindAgentResult,
-		&protected,
-	); err != nil {
-		t.Fatalf("get protected agent result: %v", err)
-	}
-	rawTools, ok := protected["tool_results"].([]any)
-	if !ok || len(rawTools) != 1 {
-		t.Fatalf("protected tool_results = %#v", protected["tool_results"])
-	}
-	tool := expectMetadataMapForTest(t, rawTools[0], "tool_results[0]")
-	result := expectMetadataMapForTest(t, tool["result"], "tool_results[0].result")
-	if result["memory_text"] != "用户喜欢一食堂。" {
-		t.Fatalf("protected personal memory result = %#v", result)
-	}
 }
 
 func TestExecutePrimaryAgentActivityProjectsFailedPersonalMemoryToolResult(t *testing.T) {

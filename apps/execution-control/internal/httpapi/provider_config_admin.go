@@ -34,7 +34,7 @@ func NewProviderConfigAdminServer(cfg config.Config) (*ProviderConfigAdminServer
 	}
 	store, err := providerconfig.NewStore(
 		context.Background(),
-		cfg.ProviderConfigAdminDatabaseURL,
+		cfg.DatabaseURL,
 		keyring,
 	)
 	if err != nil {

@@ -9,7 +9,7 @@ import { loadDiningFloorplanAsset } from "../src/app/routes/campus-experience";
 import type { CampusExperienceService } from "../src/modules/campus-experience";
 
 const env = {
-	APP_API_ENVIRONMENT: "test" as const,
+	DEPLOYMENT_ENVIRONMENT: "test" as const,
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
 	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
@@ -170,7 +170,7 @@ describe("campus experience routes", () => {
 			loadDiningFloorplanAsset(
 				{
 					...env,
-					APP_API_ENVIRONMENT: "staging",
+					DEPLOYMENT_ENVIRONMENT: "staging",
 					OBJECT_STORE_PRIVATE: { fetch: privateFetch },
 				},
 				digest,
@@ -185,7 +185,7 @@ describe("campus experience routes", () => {
 
 	it("requires the private object-store binding in a deployed environment", async () => {
 		await expect(
-			loadDiningFloorplanAsset({ ...env, APP_API_ENVIRONMENT: "staging" }, "0".repeat(64)),
+			loadDiningFloorplanAsset({ ...env, DEPLOYMENT_ENVIRONMENT: "staging" }, "0".repeat(64)),
 		).rejects.toMatchObject({ code: "service_unavailable", status: 503 });
 	});
 

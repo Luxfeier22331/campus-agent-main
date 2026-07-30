@@ -6,7 +6,7 @@ import type { ResolvedAppPrincipal } from "../src/modules/auth";
 import type { DiningContentService } from "../src/modules/dining";
 
 const env = {
-	APP_API_ENVIRONMENT: "test" as const,
+	DEPLOYMENT_ENVIRONMENT: "test" as const,
 	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
 	APP_API_DB: { connectionString: "postgres://postgres:secret@example.com:5432/campus_agent" },

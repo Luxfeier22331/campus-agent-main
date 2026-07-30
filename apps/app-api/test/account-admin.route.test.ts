@@ -53,7 +53,7 @@ function createTestApp() {
 	const dispatchPending = vi.fn().mockResolvedValue({ completed: 0, failed: 0, processed: 0 });
 	const app = createApp(
 		{
-			APP_API_ENVIRONMENT: "test",
+			DEPLOYMENT_ENVIRONMENT: "test",
 			OPS_WEB_INTERNAL_TOKEN: "ops-admin-token",
 		} as never,
 		{

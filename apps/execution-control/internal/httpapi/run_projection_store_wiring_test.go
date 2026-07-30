@@ -23,7 +23,7 @@ func TestNewRunProjectionStoreIsNilWhenDatabaseURLIsNotConfigured(t *testing.T) 
 
 func TestNewRunProjectionStoreDefersConnectionErrorToHealthCheck(t *testing.T) {
 	store, err := newRunProjectionStore(config.Config{
-		RunProjectionDatabaseURL: "postgresql://postgres:postgres@127.0.0.1:1/campus_agent",
+		DatabaseURL: "postgresql://postgres:postgres@127.0.0.1:1/campus_agent",
 	})
 	if err != nil {
 		t.Fatalf("new run projection store: %v", err)
@@ -43,7 +43,7 @@ func TestNewRunProjectionStoreDefersConnectionErrorToHealthCheck(t *testing.T) {
 
 func TestNewRunProjectionStoreRejectsMalformedDatabaseURL(t *testing.T) {
 	store, err := newRunProjectionStore(config.Config{
-		RunProjectionDatabaseURL: "://malformed",
+		DatabaseURL: "://malformed",
 	})
 	if store != nil || err == nil {
 		t.Fatalf("new run projection store = (%#v, %v), want malformed URL error", store, err)

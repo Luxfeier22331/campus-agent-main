@@ -1282,9 +1282,6 @@ func decodeAndValidateWorkflowStartInput(
 	if input.PayloadSHA256 != intent.PayloadSHA256 || !validTemporalFailureHash(input.PayloadSHA256) {
 		return input, errors.New("workflow input payload hash is invalid")
 	}
-	if input.GroundingContextRef != groundingContextRef(run.RunID) {
-		return input, errors.New("workflow grounding context reference is not canonical")
-	}
 	if err := validateAdmissionSnapshotForVisibleTools(
 		input.AdmissionSnapshot,
 		input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames,

@@ -246,10 +246,10 @@ export function uploadStagingWorkerVersion(options: {
 	const tag = resolveWorkerVersionTag(options.buildIdentity, sourceSha);
 	if (
 		options.sentrySourceMaps &&
-		options.variables.SENTRY_RELEASE !== options.sentrySourceMaps.release
+		options.variables.DEPLOYMENT_RELEASE !== options.sentrySourceMaps.release
 	) {
 		return fail(
-			`Sentry source-map release for ${options.workerName} must match the Worker SENTRY_RELEASE variable.`,
+			`Sentry source-map release for ${options.workerName} must match the Worker DEPLOYMENT_RELEASE variable.`,
 		);
 	}
 	const deploymentBefore = readCurrentDeploymentId(options.cwd, options.workerName);

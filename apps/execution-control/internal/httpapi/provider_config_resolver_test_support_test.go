@@ -72,9 +72,6 @@ func withGroundingContextForTest(
 	if err != nil {
 		t.Fatalf("load run for grounding fixture: %v", err)
 	}
-	if server.config.ProtectedPayloadKeyring == nil {
-		server.config.ProtectedPayloadKeyring = protectedPayloadKeyringForTest()
-	}
 	grounding := groundingContext{
 		AdmissionSHA256: sha256JSONRef(input.AdmissionSnapshot),
 		CoveredScopes:   []string{},
@@ -93,16 +90,7 @@ func withGroundingContextForTest(
 		),
 	}
 	grounding.ModelContextChars = groundingModelContextCharacterCount(grounding.Status, grounding.Evidence)
-	input.GroundingContextRef = groundingContextRef(run.RunID)
-	if err := server.putProtectedJSON(
-		t.Context(),
-		run,
-		input.GroundingContextRef,
-		protectedPayloadKindGroundingContext,
-		grounding,
-	); err != nil {
-		t.Fatalf("write grounding fixture: %v", err)
-	}
+	input.GroundingContext = grounding
 	return input
 }
 

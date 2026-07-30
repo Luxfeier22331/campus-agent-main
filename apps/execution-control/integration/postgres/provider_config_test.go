@@ -14,24 +14,23 @@ import (
 	"testing"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func testProviderSchemaRejectsMissingRoles(t *testing.T, harness *postgresHarness) {
 	databaseName := harness.createDatabase(t, "")
 	databaseURL := harness.databaseURL(t, databaseName, adminUser, adminPassword)
 	err := providerconfig.EnsureDatabaseSchema(t.Context(), databaseURL)
-	if err == nil || !strings.Contains(err.Error(), "database role "+readerRole+" is not installed") {
+	if err == nil || !strings.Contains(err.Error(), "database role "+executionRole+" is not installed") {
 		t.Fatalf("missing-role schema error = %v", err)
 	}
 }
 
 func testProviderConfig(t *testing.T, harness *postgresHarness) {
 	t.Run("current settings encryption validation and grants", func(t *testing.T) {
-		databaseName, ownerURL, adminURL, readerURL, keyring := newProviderDatabase(t, harness)
-		adminStore := newProviderStore(t, adminURL, keyring)
+		databaseName, ownerURL, runtimeURL, keyring := newProviderDatabase(t, harness)
+		runtimeStore := newProviderStore(t, runtimeURL, keyring)
 
-		empty, err := adminStore.Status(t.Context())
+		empty, err := runtimeStore.Status(t.Context())
 		if err != nil {
 			t.Fatalf("read empty model settings: %v", err)
 		}
@@ -47,7 +46,7 @@ func testProviderConfig(t *testing.T, harness *postgresHarness) {
 			Provider:  "openai-compatible",
 			Transport: "responses",
 		}
-		status, err := adminStore.Put(
+		status, err := runtimeStore.Put(
 			t.Context(),
 			"ops:integration",
 			empty.ETag,
@@ -66,7 +65,7 @@ func testProviderConfig(t *testing.T, harness *postgresHarness) {
 			Provider:   "openai-compatible",
 			Transport:  "embeddings",
 		}
-		status, err = adminStore.Put(
+		status, err = runtimeStore.Put(
 			t.Context(),
 			"ops:integration",
 			status.ETag,
@@ -93,15 +92,14 @@ func testProviderConfig(t *testing.T, harness *postgresHarness) {
 			t.Fatal("model credential was not stored as ciphertext")
 		}
 
-		readerStore := newProviderStore(t, readerURL, keyring)
-		if err := readerStore.HealthCheck(t.Context()); err != nil {
-			t.Fatalf("reader store health check: %v", err)
+		if err := runtimeStore.HealthCheck(t.Context()); err != nil {
+			t.Fatalf("runtime store health check: %v", err)
 		}
-		resolvedLLM, err := readerStore.Resolve(t.Context(), providerconfig.KindLLM)
+		resolvedLLM, err := runtimeStore.Resolve(t.Context(), providerconfig.KindLLM)
 		if err != nil || resolvedLLM.APIKey != llm.APIKey || resolvedLLM.Model != llm.Model {
 			t.Fatalf("resolved llm setting = %#v error=%v", resolvedLLM, err)
 		}
-		retained, err := adminStore.Candidate(t.Context(), providerconfig.SettingInput{
+		retained, err := runtimeStore.Candidate(t.Context(), providerconfig.SettingInput{
 			BaseURL:   llm.BaseURL,
 			Kind:      providerconfig.KindLLM,
 			Model:     "integration-primary-next",
@@ -113,7 +111,7 @@ func testProviderConfig(t *testing.T, harness *postgresHarness) {
 		}
 
 		const rawProviderMessage = "upstream https://private-provider.example rejected secret"
-		if err := adminStore.RecordValidation(
+		if err := runtimeStore.RecordValidation(
 			t.Context(),
 			"ops:integration",
 			providerconfig.KindLLM,
@@ -122,7 +120,7 @@ func testProviderConfig(t *testing.T, harness *postgresHarness) {
 		); err != nil {
 			t.Fatalf("record failed validation: %v", err)
 		}
-		status, err = adminStore.Status(t.Context())
+		status, err = runtimeStore.Status(t.Context())
 		if err != nil {
 			t.Fatalf("read status after failed validation: %v", err)
 		}
@@ -138,12 +136,12 @@ func testProviderConfig(t *testing.T, harness *postgresHarness) {
 				t.Fatalf("model settings status exposed forbidden value %q", forbidden)
 			}
 		}
-		assertProviderRoleGrants(t, harness, databaseName, readerURL, adminURL)
+		assertProviderRoleGrants(t, harness, databaseName, runtimeURL)
 	})
 
 	t.Run("schema removes retired timeout column without deleting settings", func(t *testing.T) {
-		_, ownerURL, adminURL, _, keyring := newProviderDatabase(t, harness)
-		store := newProviderStore(t, adminURL, keyring)
+		_, ownerURL, runtimeURL, keyring := newProviderDatabase(t, harness)
+		store := newProviderStore(t, runtimeURL, keyring)
 		empty, err := store.Status(t.Context())
 		if err != nil {
 			t.Fatal(err)
@@ -177,8 +175,8 @@ func testProviderConfig(t *testing.T, harness *postgresHarness) {
 	})
 
 	t.Run("concurrent updates reject stale etag", func(t *testing.T) {
-		_, _, adminURL, _, keyring := newProviderDatabase(t, harness)
-		store := newProviderStore(t, adminURL, keyring)
+		_, _, runtimeURL, keyring := newProviderDatabase(t, harness)
+		store := newProviderStore(t, runtimeURL, keyring)
 		status, err := store.Status(t.Context())
 		if err != nil {
 			t.Fatal(err)
@@ -228,8 +226,8 @@ func testProviderConfig(t *testing.T, harness *postgresHarness) {
 	})
 
 	t.Run("late validation cannot update a newer setting", func(t *testing.T) {
-		_, _, adminURL, _, keyring := newProviderDatabase(t, harness)
-		store := newProviderStore(t, adminURL, keyring)
+		_, _, runtimeURL, keyring := newProviderDatabase(t, harness)
+		store := newProviderStore(t, runtimeURL, keyring)
 		initial, err := store.Status(t.Context())
 		if err != nil {
 			t.Fatal(err)
@@ -270,7 +268,7 @@ func testProviderConfig(t *testing.T, harness *postgresHarness) {
 func newProviderDatabase(
 	t *testing.T,
 	harness *postgresHarness,
-) (databaseName, ownerURL, adminURL, readerURL string, keyring *providerconfig.Keyring) {
+) (databaseName, ownerURL, runtimeURL string, keyring *providerconfig.Keyring) {
 	t.Helper()
 	databaseName, ownerURL = harness.ownerDatabase(t)
 	if err := providerconfig.EnsureDatabaseSchema(t.Context(), ownerURL); err != nil {
@@ -282,10 +280,9 @@ func newProviderDatabase(
 	if err := providerconfig.CheckDatabaseSchema(t.Context(), ownerURL); err != nil {
 		t.Fatalf("check model settings schema: %v", err)
 	}
-	adminURL = harness.databaseURL(t, databaseName, adminRole, providerAdminPassword)
-	readerURL = harness.databaseURL(t, databaseName, readerRole, readerPassword)
+	runtimeURL = harness.databaseURL(t, databaseName, executionRole, executionPassword)
 	keyring = loadIntegrationKeyring(t)
-	return databaseName, ownerURL, adminURL, readerURL, keyring
+	return databaseName, ownerURL, runtimeURL, keyring
 }
 
 func loadIntegrationKeyring(t *testing.T) *providerconfig.Keyring {
@@ -327,24 +324,15 @@ func assertProviderRoleGrants(
 	t *testing.T,
 	harness *postgresHarness,
 	databaseName string,
-	readerURL string,
-	adminURL string,
+	runtimeURL string,
 ) {
 	t.Helper()
-	readerConn := connect(t, readerURL)
-	defer closeConn(t, readerConn)
+	runtimeConn := connect(t, runtimeURL)
+	defer closeConn(t, runtimeConn)
 	var count int
-	if err := readerConn.QueryRow(t.Context(), "select count(*) from execution_config.model_settings").Scan(&count); err != nil {
-		t.Fatalf("reader select model settings: %v", err)
+	if err := runtimeConn.QueryRow(t.Context(), "select count(*) from execution_config.model_settings").Scan(&count); err != nil {
+		t.Fatalf("runtime select model settings: %v", err)
 	}
-	_, err := readerConn.Exec(
-		t.Context(),
-		`insert into execution_config.model_settings
-		(kind,provider,base_url,model,transport,secret_key_id,secret_nonce,secret_ciphertext,
-		 secret_fingerprint,secret_last4,validation_status,validated_at,validated_by,updated_at,updated_by)
-		values ('llm','openai','https://example.test','model','responses','key','x','x','x','last','passed',now(),'reader',now(),'reader')`,
-	)
-	assertSQLState(t, err, "42501")
 
 	ownerURL := harness.databaseURL(t, databaseName, ownerRole, ownerPassword)
 	ownerConn := connect(t, ownerURL)
@@ -354,10 +342,10 @@ func assertProviderRoleGrants(
 		privilege string
 		want      bool
 	}{
-		{role: readerRole, privilege: "SELECT", want: true},
-		{role: readerRole, privilege: "INSERT", want: false},
-		{role: adminRole, privilege: "SELECT", want: true},
-		{role: adminRole, privilege: "UPDATE", want: true},
+		{role: executionRole, privilege: "SELECT", want: true},
+		{role: executionRole, privilege: "INSERT", want: true},
+		{role: executionRole, privilege: "UPDATE", want: true},
+		{role: executionRole, privilege: "DELETE", want: true},
 	}
 	for _, check := range checks {
 		var granted bool
@@ -372,19 +360,5 @@ func assertProviderRoleGrants(
 		if granted != check.want {
 			t.Fatalf("%s %s = %t, want %t", check.role, check.privilege, granted, check.want)
 		}
-	}
-
-	adminConn := connect(t, adminURL)
-	defer closeConn(t, adminConn)
-	if err := adminConn.QueryRow(t.Context(), "select count(*) from execution_config.model_settings").Scan(&count); err != nil {
-		t.Fatalf("admin select model settings: %v", err)
-	}
-}
-
-func assertSQLState(t *testing.T, err error, want string) {
-	t.Helper()
-	var pgError *pgconn.PgError
-	if !errors.As(err, &pgError) || pgError.Code != want {
-		t.Fatalf("PostgreSQL error = %v, want SQLSTATE %s", err, want)
 	}
 }

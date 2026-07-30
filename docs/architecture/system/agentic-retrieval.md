@@ -60,7 +60,7 @@ collection、Provider、top-k、release 或可见性策略。在线查询只消�
 
 ## 依据使用
 
-- 完整 grounding 正文只保存在 execution-control 的受保护载荷；
+- 完整且有界的 grounding 正文经由 Temporal Activity result 传递；
 - Agent 只能引用本次 run 的 grounding 中精确出现的 `evidence://`；
 - 每个依据绑定 scope、release、chunk、section、文档、正文摘要和公开 URL；
 - 个人记忆、上一轮依据和模型记忆不能成为本轮正式来源；

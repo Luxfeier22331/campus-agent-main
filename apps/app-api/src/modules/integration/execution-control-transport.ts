@@ -113,7 +113,7 @@ export interface ExecutionControlUpstream {
 }
 
 export function selectExecutionControlFetchImplementation(
-	env: Pick<Env, "APP_API_ENVIRONMENT">,
+	env: Pick<Env, "DEPLOYMENT_ENVIRONMENT">,
 	upstream: ExecutionControlUpstream,
 	override?: typeof fetch,
 ): typeof fetch {
@@ -126,7 +126,7 @@ export function selectExecutionControlFetchImplementation(
 export function resolveExecutionControlUpstream(
 	env: Pick<
 		Env,
-		| "APP_API_ENVIRONMENT"
+		| "DEPLOYMENT_ENVIRONMENT"
 		| "EXECUTION_CONTROL_BASE_URL"
 		| "EXECUTION_CONTROL_PRIVATE"
 		| "EXECUTION_CONTROL_PRIVATE_ORIGIN"

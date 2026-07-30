@@ -30,79 +30,6 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		return s.failPrimaryAgentActivity(ctx, run, "execution_input_metadata_invalid", err)
 	}
 	invocationID := run.RunID + ":agent.primary"
-	existingReceipt, receiptErr := s.runProjectionStore.GetAgentInvocationReceipt(ctx, invocationID)
-	var persistedInvocationEnvelope *primaryAgentProviderInvocationEnvelope
-	var persistedInvocationSHA256 string
-	if receiptErr == nil {
-		envelope, loadErr := s.loadPrimaryAgentProviderInvocationEnvelope(ctx, run)
-		if loadErr != nil {
-			return temporalruntime.ExecutePrimaryAgentActivityOutput{}, sanitizedTemporalApplicationError(
-				"agent_invocation_receipt_invalid",
-				receiptIntegrityError("provider invocation envelope is unavailable"),
-				true,
-			)
-		}
-		invocationSHA256, validateErr := validatePrimaryAgentProviderInvocationReplay(
-			envelope,
-			run,
-			input,
-			inputMetadata.ExecutionInputSHA256,
-		)
-		if validateErr != nil || existingReceipt.InputSHA256 != invocationSHA256 {
-			if validateErr == nil {
-				validateErr = receiptIntegrityError("receipt provider invocation hash differs")
-			}
-			return temporalruntime.ExecutePrimaryAgentActivityOutput{}, sanitizedTemporalApplicationError(
-				"agent_invocation_receipt_invalid",
-				validateErr,
-				true,
-			)
-		}
-		if existingReceipt.State == execution.AgentInvocationReceiptStateStarted {
-			return s.failPrimaryAgentActivity(
-				ctx,
-				run,
-				"agent_attempt_uncertain",
-				errors.New("agent invocation receipt is already started without a complete result"),
-			)
-		}
-		if existingReceipt.State != execution.AgentInvocationReceiptStateCompleted {
-			return temporalruntime.ExecutePrimaryAgentActivityOutput{}, sanitizedTemporalApplicationError(
-				"agent_invocation_receipt_invalid",
-				receiptIntegrityError("agent invocation receipt state is invalid"),
-				true,
-			)
-		}
-		return s.replayPrimaryAgentReceipt(
-			ctx,
-			run,
-			input,
-			invocationSHA256,
-			existingReceipt,
-		)
-	}
-	if !errors.Is(receiptErr, execution.ErrAgentInvocationNotFound) {
-		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, receiptErr
-	}
-	if envelope, loadErr := s.loadPrimaryAgentProviderInvocationEnvelope(ctx, run); loadErr == nil {
-		invocationSHA256, validateErr := validatePrimaryAgentProviderInvocationReplay(
-			envelope,
-			run,
-			input,
-			inputMetadata.ExecutionInputSHA256,
-		)
-		if validateErr != nil {
-			return temporalruntime.ExecutePrimaryAgentActivityOutput{}, sanitizedTemporalApplicationError(
-				"agent_invocation_receipt_invalid",
-				validateErr,
-				true,
-			)
-		}
-		persistedInvocationEnvelope = &envelope
-		persistedInvocationSHA256 = invocationSHA256
-	} else if !errors.Is(loadErr, execution.ErrProtectedPayloadNotFound) {
-		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, loadErr
-	}
 	executionPayload, err := s.loadExecutionPayload(ctx, run)
 	if err != nil {
 		return s.failPrimaryAgentActivity(
@@ -156,9 +83,6 @@ func (s *Server) ExecutePrimaryAgentActivity(
 	limits.MaxToolCalls = snapshot.ExecutionStrategy.MaxToolCalls
 	agentResultRef := temporalProjectionRef(run.RunID, "agent/primary/result")
 	attempt := temporalActivityAttempt(ctx)
-	if persistedInvocationEnvelope != nil {
-		attempt = persistedInvocationEnvelope.ActivityAttempt
-	}
 	finalModelContext, err := primaryAgentFinalModelContextForRun(
 		executionPayload,
 		limits,
@@ -193,24 +117,6 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		return s.failPrimaryAgentActivity(ctx, run, "agent_invocation_envelope_invalid", err)
 	}
 	invocationSHA256 := sha256AnyValue(invocationEnvelope)
-	if persistedInvocationEnvelope != nil {
-		if invocationSHA256 != persistedInvocationSHA256 {
-			return temporalruntime.ExecutePrimaryAgentActivityOutput{}, sanitizedTemporalApplicationError(
-				"agent_invocation_receipt_invalid",
-				receiptIntegrityError("persisted provider invocation envelope differs from rebuilt request"),
-				true,
-			)
-		}
-		invocationSHA256 = persistedInvocationSHA256
-	} else if err := s.putProtectedJSON(
-		ctx,
-		run,
-		primaryAgentInvocationRef(run.RunID),
-		protectedPayloadKindAgentInvocation,
-		invocationEnvelope,
-	); err != nil {
-		return s.failPrimaryAgentActivity(ctx, run, "agent_invocation_envelope_persistence_failed", err)
-	}
 	receiptNow := time.Now().UTC().Truncate(time.Microsecond)
 	receipt, disposition, err := s.runProjectionStore.BeginAgentInvocation(
 		ctx,
@@ -226,15 +132,17 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		return s.failPrimaryAgentActivity(ctx, run, "agent_invocation_receipt_failed", err)
 	}
 	if disposition == execution.AgentInvocationDispositionAmbiguous {
-		return s.failPrimaryAgentActivity(ctx, run, "agent_attempt_uncertain", errors.New("agent invocation receipt is already started without a complete result"))
+		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, sanitizedTemporalApplicationError(
+			"agent_attempt_uncertain",
+			errors.New("agent invocation receipt is already started without a Temporal activity result"),
+			true,
+		)
 	}
 	if disposition == execution.AgentInvocationDispositionReplay {
-		return s.replayPrimaryAgentReceipt(
-			ctx,
-			run,
-			input,
-			invocationSHA256,
-			receipt,
+		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, sanitizedTemporalApplicationError(
+			"agent_attempt_uncertain",
+			errors.New("agent invocation receipt is already completed without a Temporal activity result"),
+			true,
 		)
 	}
 	startedAt = receipt.CreatedAt
@@ -253,7 +161,7 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		Payload: map[string]any{
 			"context_usage":                primaryAgentContextUsageSummary(finalModelContext),
 			"embedding_provider_admission": embeddingProviderAdmissionPin(snapshot).projectionPayload(),
-			"grounding_context_ref":        input.GroundingContextRef,
+			"grounding_context_ref":        groundingContextRef(run.RunID),
 			"grounding_context_sha256":     groundingSHA256,
 			"grounding_evidence_count":     len(grounding.Evidence),
 			"grounding_status":             grounding.Status,
@@ -339,6 +247,7 @@ func (s *Server) ExecutePrimaryAgentActivity(
 			output,
 		)
 	}
+	output.GroundingContext = grounding
 	payload, err := primaryAgentResultPayload(primaryAgentResultInput{
 		activityAttempt:        attempt,
 		activityInput:          input,
@@ -371,23 +280,19 @@ func (s *Server) ExecutePrimaryAgentActivity(
 	payload["grounding_selected_scopes"] = append([]string{}, grounding.SelectedScopes...)
 	payload["grounding_covered_scopes"] = append([]string{}, grounding.CoveredScopes...)
 	payload["grounding_status"] = grounding.Status
-	payload["activity_evidence"] = invocationEvidence.protectedPayload()
+	payload["activity_evidence"] = invocationEvidence.payload()
 	payload["activity_worker_id"] = invocationEvidence.WorkerID
 	payload["provider_invocation_sha256"] = invocationSHA256
-	payload["result_schema_version"] = protectedPayloadKindAgentResult
 	if contextUsage := primaryAgentContextUsageSummary(finalModelContext); contextUsage != nil {
 		payload["context_usage"] = contextUsage
 	}
-	if err := s.putProtectedJSON(ctx, run, agentResultRef, protectedPayloadKindAgentResult, payload); err != nil {
-		return s.failPrimaryAgentActivity(ctx, run, "agent_result_persistence_failed", err, output)
-	}
-	outputSummary, err := encodeAgentInvocationOutputSummary(agentResultRef, invocationSHA256, payload)
+	outputSummary, err := encodeAgentInvocationOutputSummary(agentResultRef, invocationSHA256)
 	if err != nil {
-		return s.failPrimaryAgentActivity(ctx, run, "agent_result_persistence_failed", err, output)
+		return s.failPrimaryAgentActivity(ctx, run, "agent_invocation_receipt_failed", err, output)
 	}
 	completedReceiptAt := time.Now().UTC().Truncate(time.Microsecond)
 	outputDigest := sha256Bytes(outputSummary)
-	completedReceipt, err := s.runProjectionStore.CompleteAgentInvocation(ctx, execution.AgentInvocationReceipt{
+	if _, err := s.runProjectionStore.CompleteAgentInvocation(ctx, execution.AgentInvocationReceipt{
 		InvocationID: invocationID,
 		RunID:        run.RunID,
 		InputSHA256:  invocationSHA256,
@@ -397,68 +302,83 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		CreatedAt:    receiptNow,
 		CompletedAt:  completedReceiptAt,
 		UpdatedAt:    completedReceiptAt,
-	})
-	if err != nil {
+	}); err != nil {
 		// The transaction outcome can be unknown. Retrying lets the next attempt
 		// observe either the completed receipt or the fail-closed started receipt;
 		// it must never invoke the model again.
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 	}
-	return s.replayPrimaryAgentReceipt(
+	completedAt := time.Now().UTC().Truncate(time.Microsecond)
+	identity := primaryAgentProjectionIdentity{
+		ActivityAttempt:   startedProjection.ActivityAttempt,
+		ActivityID:        startedProjection.ActivityID,
+		ActivityType:      startedProjection.ActivityType,
+		Attempt:           startedProjection.Attempt,
+		PreserveAttempt:   true,
+		ScheduledAt:       startedProjection.ScheduledAt,
+		ScheduleToStartMS: startedProjection.ScheduleToStartMS,
+		StartedAt:         startedProjection.StartedAt,
+		TemporalRunID:     startedProjection.TemporalRunID,
+		WorkerID:          startedProjection.WorkerID,
+		WorkflowID:        startedProjection.WorkflowID,
+	}
+	if err := s.projectPrimaryAgentToolResults(
 		ctx,
 		run,
-		input,
-		invocationSHA256,
-		completedReceipt,
-	)
-}
-
-func (s *Server) replayPrimaryAgentReceipt(
-	ctx context.Context,
-	run execution.DurableRun,
-	input temporalruntime.ExecutePrimaryAgentActivityInput,
-	expectedInputSHA256 string,
-	receipt execution.AgentInvocationReceipt,
-) (temporalruntime.ExecutePrimaryAgentActivityOutput, error) {
-	output, err := s.completePrimaryAgentFromReceipt(
-		ctx,
-		run,
-		input,
-		expectedInputSHA256,
-		receipt,
-	)
-	if err != nil {
-		if errors.Is(err, errAgentInvocationReceiptIntegrity) {
-			return temporalruntime.ExecutePrimaryAgentActivityOutput{}, sanitizedTemporalApplicationError(
-				"agent_invocation_receipt_invalid",
-				err,
-				true,
-			)
-		}
+		startedAt,
+		completedAt,
+		attempt,
+		visibleToolNames,
+		output,
+		identity,
+	); err != nil {
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 	}
-	if !activity.IsActivity(ctx) {
-		return output, nil
-	}
-	return primaryAgentActivityWireOutput(output), nil
-}
-
-func primaryAgentActivityWireOutput(
-	output temporalruntime.ExecutePrimaryAgentActivityOutput,
-) temporalruntime.ExecutePrimaryAgentActivityOutput {
-	// Only bounded identifiers/status are returned through the Temporal
-	// result. The complete response is addressed by AgentResultRef in the
-	// protected payload store.
-	return temporalruntime.ExecutePrimaryAgentActivityOutput{
-		AgentResultRef:     output.AgentResultRef,
-		ModelName:          output.ModelName,
-		ModelProvider:      output.ModelProvider,
+	projectionPayload := primaryAgentResultProjectionPayload(payload)
+	if err := s.projectTemporalStep(ctx, identity.apply(temporalStepProjection{
+		Attempt:            attempt,
+		ActivityAttempt:    attempt,
+		PreserveAttempt:    true,
+		Tool:               "",
+		Run:                run,
+		Status:             "completed",
+		StepID:             "agent.primary",
+		StepKind:           "agent",
+		TaskQueue:          temporalruntime.ActivityTaskQueueAgent,
+		WorkerID:           identity.WorkerID,
+		StartedAt:          startedAt,
+		CompletedAt:        completedAt,
+		UpdatedAt:          completedAt,
+		ResultKind:         "agent_final_output",
+		ProjectionRef:      agentResultRef,
 		ProviderResponseID: output.ProviderResponseID,
-		RunID:              output.RunID,
-		Status:             output.Status,
-		TerminalReason:     output.TerminalReason,
-		Usage:              output.Usage,
+		ModelProvider:      output.ModelProvider,
+		ModelName:          output.ModelName,
+		InputTokens:        output.Usage.InputTokens,
+		OutputTokens:       output.Usage.OutputTokens,
+		CachedInputTokens:  output.Usage.CachedInputTokens,
+		Payload:            projectionPayload,
+	})); err != nil {
+		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 	}
+	if err := s.appendTemporalRunEvent(ctx, execution.DurableRunEvent{
+		EventID:              run.RunID + ":agent-completed",
+		RunID:                run.RunID,
+		ConversationID:       run.ConversationID,
+		EventType:            execution.DurableRunEventTypeAgentCompleted,
+		OccurredAt:           completedAt,
+		Visibility:           execution.DurableRunEventVisibilityInternal,
+		PayloadSchemaVersion: "run-event-v1",
+		Payload: map[string]any{
+			"agent_result_ref":     agentResultRef,
+			"provider_response_id": output.ProviderResponseID,
+			"stage_timing":         cloneAnyMapFromMetadata(output.StageTiming),
+			"terminal_reason":      output.TerminalReason,
+		},
+	}); err != nil {
+		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
+	}
+	return output, nil
 }
 
 func (s *Server) documentScopesForAgent(
@@ -761,8 +681,8 @@ func (s *Server) projectPrimaryAgentToolResults(
 			"tool_name":                toolName,
 			"tool_status":              status,
 		}
-		// The raw tool result is kept only in the encrypted agent result
-		// payload. Step/event projections carry hashes and bounded outcomes.
+		// The raw tool result stays in the bounded Temporal Activity result.
+		// Step and event projections carry hashes and bounded outcomes.
 		if err := s.projectTemporalStep(ctx, identity.apply(temporalStepProjection{
 			Attempt:         attempt,
 			ActivityAttempt: attempt,

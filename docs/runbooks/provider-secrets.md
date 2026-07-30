@@ -32,8 +32,8 @@ status: active
    推理超时；Agent 与 RAG 分别使用所属运行策略的时限。
 4. 保存时由 execution-control 调用真实供应商进行验证。验证失败不覆盖当前设置；
    页面返回 `409` 时先重新读取，再由操作者决定是否重新提交。
-5. 在线运行面确认 reader DSN 和 keyring 可用；admin 服务使用独立 admin DSN 和
-   `OPS_WEB_INTERNAL_TOKEN`。
+5. 确认 execution-control 的 `EXECUTION_CONTROL_DATABASE_URL` 和 keyring 可用；同一 Deployment
+   的 admin 监听器使用 `OPS_WEB_INTERNAL_TOKEN` 鉴权。
 6. keyring 本地文件权限使用 `0600`；Kubernetes Secret 投影使用 `0440`，由 Pod `fsGroup` 授予
    运行时组只读权限。Kubernetes 使用目录挂载，不使用 `subPath`。
 7. 运行所属环境检查和受控冒烟测试。
@@ -56,29 +56,18 @@ Embedding。只配置其中一项时，后续 schema install 仍保持幂等；�
 
 ## 本地开发
 
-1. 启动 execution-control 本地管理和读取接口，并提供独立 PostgreSQL 管理/读取 DSN
-   与版本化 keyring。
+1. 启动 execution-control 本地运行与管理监听器，并提供一个 PostgreSQL DSN 与版本化 keyring。
 2. 通过 `OPS_WEB_EXECUTION_CONTROL_ADMIN_URL` 和 `OPS_WEB_INTERNAL_TOKEN` 将 Ops Web 指向该
    admin 接口。
 3. 启动 Ops Web 后通过同一页面保存并验证当前设置。
-4. 确认 execution-control runtime reader 能解密并解析当前设置。
+4. 确认 execution-control runtime 能解密并解析当前设置。
 
 只确认文件是否存在、解析了哪个配置所有者以及请求是否成功。不得打印原始密钥。
 
-## Worker 平台 Secret 检查
-
-```bash
-pnpm exec tsx scripts/deploy/check-worker-secret-presence.ts --env staging --json
-```
-
-该命令读取目标环境最新 Worker version 的 Secret 名称，不读取值。远端名称必须与
-`wrangler.toml` 的 `[env.<name>.secrets].required` 精确一致；缺失或多余字段都会使检查失败。
-修正命令使用 `wrangler versions secret put/delete` 创建新的候选 version，不通过
-`wrangler secret put/delete` 直接切换流量。该检查不证明在线模型当前设置已配置或可用。
 在线模型必须另行确认：
 
 1. 目标 kind 的当前设置存在，最后验证通过；
-2. execution-control 只用 reader role 读取当前设置，并能解密对应 key ID；
+2. execution-control 使用 `execution_control` 角色读取当前设置，并能解密对应 key ID；
 3. Ops Web 服务端使用 `OPS_WEB_INTERNAL_TOKEN`，浏览器不获得该 token 或数据库凭据；
 4. 受控在线请求使用预期 endpoint 和 model。
 

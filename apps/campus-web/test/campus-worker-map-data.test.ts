@@ -10,7 +10,6 @@ function createEnv(mapData?: Env["MAP_DATA"]): Env {
 					headers: { "content-type": "text/html" },
 				}),
 		},
-		CAMPUS_WEB_HOSTNAME: "campus.muc.wiki",
 		MAP_DATA: mapData,
 	};
 }

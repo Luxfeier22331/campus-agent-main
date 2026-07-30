@@ -18,11 +18,9 @@ schema 定义，连接拓扑见 `../architecture/system/data-plane.md`，部署�
 | --- | --- | --- |
 | `campus_agent` | 数据库 bootstrap | schema 安装和授权，不用于常驻运行时 |
 | `app_api` | `apps/app-api` | 产品数据读写、文档发布只读和获准运行摘要读取 |
-| `execution_control` | `apps/execution-control` | 执行投影写入和获准校园服务读取 |
+| `execution_control` | `apps/execution-control` | 执行投影、模型配置读写和获准校园服务读取 |
 | `docs_publish` | `jobs/docs-publish` | `docs.*` 发布写入 |
 | `ops_web` | `apps/ops-web` | 获准运行投影的列级只读访问，以及 Dining 内容维护 |
-| `execution_provider_config_reader` | `apps/execution-control` | 当前 `execution_config.model_settings` 只读 |
-| `execution_provider_config_admin` | `apps/execution-control` | 当前模型设置、凭据和验证结果读写 |
 
 Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，不共享产品运行时角色。外部
 观测平台不获得产品 PostgreSQL 角色。
@@ -61,7 +59,7 @@ migration 记录。
 - 在线模型配置只能通过 execution-control 管理接口修改，Ops Web 不直连其 schema；
 - `execution_config.model_settings` 的首次安装由低 wave 的 `run-projection-schema` Job 执行。
   该 Job 使用环境仓交付的 schema-install DSN 和现有 provider keyring；常驻 runtime 只使用
-  reader/admin DSN，不执行迁移。
+  `execution_control` DSN，不执行迁移。
 - 从旧 `active_bundle`、`profiles` 和 `connection_revisions` 切换时，Job 在单一事务和 advisory
   lock 下解密旧 AAD，以 `execution_config.model_settings:<kind>` 重加密当前 LLM 与 Embedding，
   验证写入结果后删除七张旧表并应用当前权限。任一步失败都会连同新表和权限变化整体回滚。

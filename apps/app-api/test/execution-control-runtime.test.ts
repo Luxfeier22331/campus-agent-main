@@ -25,6 +25,7 @@ describe("execution control requester", () => {
 		};
 		const requestExecutionControl = createExecutionControlRequester(
 			{
+				DEPLOYMENT_ENVIRONMENT: "test",
 				EXECUTION_CONTROL_BASE_URL: "http://execution-control.local",
 				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 			},
@@ -51,7 +52,7 @@ describe("execution control requester", () => {
 		);
 		const requestExecutionControl = createExecutionControlRequester(
 			{
-				APP_API_ENVIRONMENT: "staging",
+				DEPLOYMENT_ENVIRONMENT: "staging",
 				EXECUTION_CONTROL_PRIVATE: { fetch: privateFetch },
 				EXECUTION_CONTROL_PRIVATE_ORIGIN: "http://execution-control.internal:8000",
 				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
@@ -83,7 +84,7 @@ describe("execution control requester", () => {
 		);
 		const requestExecutionControl = createExecutionControlRequester(
 			{
-				APP_API_ENVIRONMENT: "staging",
+				DEPLOYMENT_ENVIRONMENT: "staging",
 				EXECUTION_CONTROL_PRIVATE: { fetch: privateFetch },
 				EXECUTION_CONTROL_PRIVATE_ORIGIN: "http://execution-control.internal:8000",
 				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
@@ -106,7 +107,7 @@ describe("execution control requester", () => {
 	it("fails closed in staging when the private service binding is missing", async () => {
 		const requestExecutionControl = createExecutionControlRequester(
 			{
-				APP_API_ENVIRONMENT: "staging",
+				DEPLOYMENT_ENVIRONMENT: "staging",
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.example.invalid",
 				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 			},
@@ -133,6 +134,7 @@ describe("execution control requester", () => {
 		);
 		const requestExecutionControl = createExecutionControlRequester(
 			{
+				DEPLOYMENT_ENVIRONMENT: "test",
 				EXECUTION_CONTROL_BASE_URL: "http://execution-control.local",
 				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 			},

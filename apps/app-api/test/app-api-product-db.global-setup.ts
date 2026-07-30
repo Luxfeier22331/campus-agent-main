@@ -69,7 +69,7 @@ async function provisionDatabase(
 	);
 
 	await installAppApiSchema({
-		APP_API_DATABASE_SSLMODE: "disable",
+		APP_API_SCHEMA_DATABASE_SSLMODE: "disable",
 		APP_API_SCHEMA_DATABASE_URL: managementConnectionString,
 		AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 		BETTER_AUTH_SECRET: "testcontainers-app-api-product-database-secret",

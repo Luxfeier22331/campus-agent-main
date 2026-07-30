@@ -41,9 +41,7 @@ service = "app-api"
 
 [env.local.vars]
 APP_API_BASE_URL = "http://127.0.0.1:27031"
-AUTH_TURNSTILE_APPEARANCE = "interaction-only"
-AUTH_TURNSTILE_EXECUTION = "render"
-CAMPUS_WEB_HOSTNAME = "127.0.0.1:27014"
+DEPLOYMENT_ENVIRONMENT = "development"
 DOCS_RELEASE_ID = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
 
 [[env.local.services]]
@@ -52,10 +50,7 @@ service = "app-api-local"
 
 [env.staging.vars]
 APP_API_BASE_URL = "https://app-api.internal"
-AUTH_TURNSTILE_APPEARANCE = "interaction-only"
-AUTH_TURNSTILE_EXECUTION = "render"
-CAMPUS_WEB_HOSTNAME = "campus-staging.mucwiki-edge.link"
-SENTRY_ENVIRONMENT = "staging"
+DEPLOYMENT_ENVIRONMENT = "staging"
 
 [[env.staging.services]]
 binding = "APP_API"

@@ -409,7 +409,6 @@ func TestToolExecutionWorkflowCompletesDurableLifecycleInOrder(t *testing.T) {
 	traceID := "trace-linear-knowledge"
 	agentResultRef := "projection://runs/" + runID + "/agent/primary/result"
 	completedAt := time.Date(2026, 7, 11, 1, 2, 3, 0, time.UTC)
-	groundingContextRef := "projection://runs/" + runID + "/grounding/context"
 
 	env.OnActivity(
 		PrepareGroundingContextActivityName,
@@ -420,9 +419,9 @@ func TestToolExecutionWorkflowCompletesDurableLifecycleInOrder(t *testing.T) {
 	).
 		Run(func(mock.Arguments) { sequence = append(sequence, "grounding") }).
 		Return(PrepareGroundingContextActivityOutput{
-			GroundingContextRef: groundingContextRef,
-			RunID:               runID,
-			Status:              "ready",
+			GroundingContext: GroundingContext{RunID: runID},
+			RunID:            runID,
+			Status:           "ready",
 		}, nil)
 
 	env.OnActivity(
@@ -430,7 +429,7 @@ func TestToolExecutionWorkflowCompletesDurableLifecycleInOrder(t *testing.T) {
 		mock.Anything,
 		mock.MatchedBy(func(input ExecutePrimaryAgentActivityInput) bool {
 			return input.RunID == runID &&
-				input.TraceID == traceID
+				input.TraceID == traceID && input.GroundingContext.RunID == runID
 		}),
 	).
 		Run(func(mock.Arguments) { sequence = append(sequence, "agent") }).
@@ -451,7 +450,7 @@ func TestToolExecutionWorkflowCompletesDurableLifecycleInOrder(t *testing.T) {
 		mock.MatchedBy(func(input WriteFinalizationActivityInput) bool {
 			return input.RunID == runID &&
 				input.TraceID == traceID &&
-				input.AgentResultRef == agentResultRef &&
+				input.AgentResult.AgentResultRef == agentResultRef &&
 				!input.FinalizedAt.IsZero()
 		}),
 	).
@@ -475,12 +474,11 @@ func TestToolExecutionWorkflowCompletesDurableLifecycleInOrder(t *testing.T) {
 			Mode:           "single_scope",
 			SelectedScopes: []string{"curriculum"},
 		}},
-		ConversationID:      "conv-linear-knowledge",
-		GroundingContextRef: groundingContextRef,
-		RequestID:           "req-linear-knowledge",
-		RunID:               runID,
-		TraceID:             traceID,
-		TurnID:              "turn-linear-knowledge",
+		ConversationID: "conv-linear-knowledge",
+		RequestID:      "req-linear-knowledge",
+		RunID:          runID,
+		TraceID:        traceID,
+		TurnID:         "turn-linear-knowledge",
 	})
 
 	if err := env.GetWorkflowError(); err != nil {
@@ -498,10 +496,9 @@ func TestToolExecutionWorkflowSkipsGroundingForDirectPlan(t *testing.T) {
 	env := suite.NewTestWorkflowEnvironment()
 	registerWorkflowTestActivities(env, &Activities{})
 	runID := "run-linear-direct"
-	groundingContextRef := "projection://runs/" + runID + "/grounding/context"
 	env.OnActivity(ExecutePrimaryAgentActivityName, mock.Anything, mock.MatchedBy(
 		func(input ExecutePrimaryAgentActivityInput) bool {
-			return input.GroundingContextRef == groundingContextRef
+			return input.GroundingContext.SchemaVersion == ""
 		},
 	)).Return(ExecutePrimaryAgentActivityOutput{
 		AgentResultRef: "projection://runs/" + runID + "/agent/primary/result",
@@ -514,9 +511,8 @@ func TestToolExecutionWorkflowSkipsGroundingForDirectPlan(t *testing.T) {
 		Return(AppendConversationMemoryActivityOutput{RunID: runID, Status: "completed"}, nil)
 
 	env.ExecuteWorkflow(ToolExecutionWorkflow, ToolExecutionWorkflowInput{
-		AdmissionSnapshot:   AgentAdmissionSnapshot{GroundingPlan: GroundingPlanSnapshot{Mode: "none"}},
-		GroundingContextRef: groundingContextRef,
-		RunID:               runID,
+		AdmissionSnapshot: AgentAdmissionSnapshot{GroundingPlan: GroundingPlanSnapshot{Mode: "none"}},
+		RunID:             runID,
 	})
 
 	if err := env.GetWorkflowError(); err != nil {

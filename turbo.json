@@ -1,11 +1,7 @@
 {
 	"$schema": "https://turborepo.com/schema.json",
 	"futureFlags": {
-		"affectedUsingTaskInputs": true,
-		"longerSignatureKey": true
-	},
-	"remoteCache": {
-		"signature": true
+		"affectedUsingTaskInputs": true
 	},
 	"tasks": {
 		"build": {
@@ -266,8 +262,7 @@
 			]
 		},
 		"deploy": {
-			"cache": false,
-			"passThroughEnv": ["WORKER_SECRET_AUDIT_MAX_ATTEMPTS", "WORKER_SECRET_AUDIT_TIMEOUT_SECONDS"]
+			"cache": false
 		}
 	}
 }

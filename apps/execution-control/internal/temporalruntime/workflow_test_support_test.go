@@ -66,6 +66,7 @@ func (Activities) PrepareGroundingContextActivity(
 	input PrepareGroundingContextActivityInput,
 ) (PrepareGroundingContextActivityOutput, error) {
 	return PrepareGroundingContextActivityOutput{
+		GroundingContext:    GroundingContext{RunID: input.RunID},
 		GroundingContextRef: "projection://runs/" + input.RunID + "/grounding/context",
 		PayloadSHA256:       "sha256:0000000000000000000000000000000000000000000000000000000000000000",
 		RunID:               input.RunID,

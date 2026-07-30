@@ -108,7 +108,6 @@ func (s *Server) temporalActivityRunAllowCompletedAgentFinalization(
 	ctx context.Context,
 	runID string,
 	traceID string,
-	agentResultRef string,
 ) (execution.DurableRun, error) {
 	if s == nil || s.runProjectionStore == nil {
 		return execution.DurableRun{}, execution.ErrRunProjectionStoreNotConfigured
@@ -128,9 +127,6 @@ func (s *Server) temporalActivityRunAllowCompletedAgentFinalization(
 		)
 	}
 	if run.Status == execution.DurableRunStatusCompleted {
-		if _, err := s.temporalAgentResultFromRun(ctx, run, agentResultRef); err != nil {
-			return execution.DurableRun{}, err
-		}
 		return run, nil
 	}
 	if temporalRunTerminal(run.Status) {
@@ -431,105 +427,6 @@ func temporalRunFailureErrorPayload(failureKind string, failureHash string, caus
 		"message":      summary.Message,
 		"retryable":    false,
 	}
-}
-
-func (s *Server) temporalAgentResultFromRun(
-	ctx context.Context,
-	run execution.DurableRun,
-	agentResultRef string,
-) (map[string]any, error) {
-	invocationID := run.RunID + ":agent.primary"
-	receipt, err := s.runProjectionStore.GetAgentInvocationReceipt(ctx, invocationID)
-	if err != nil {
-		return nil, fmt.Errorf("completed agent invocation receipt is required: %w", err)
-	}
-	if receipt.State != execution.AgentInvocationReceiptStateCompleted ||
-		receipt.InvocationID != invocationID || receipt.RunID != run.RunID ||
-		!lowercaseSHA256Pattern.MatchString(receipt.InputSHA256) ||
-		receipt.CreatedAt.IsZero() || receipt.CompletedAt.IsZero() ||
-		receipt.CompletedAt.Before(receipt.CreatedAt) {
-		return nil, receiptIntegrityError("completed receipt identity is invalid")
-	}
-	summary, err := decodeAgentInvocationOutputSummary(receipt.OutputJSON)
-	if err != nil {
-		return nil, receiptIntegrityError(err.Error())
-	}
-	canonicalSummary, err := json.Marshal(summary)
-	if err != nil || sha256Bytes(canonicalSummary) != receipt.OutputSHA256 {
-		return nil, receiptIntegrityError("receipt output hash mismatch")
-	}
-	if summary.ResultRef != strings.TrimSpace(agentResultRef) ||
-		summary.ProviderInvocationSHA256 != receipt.InputSHA256 {
-		return nil, receiptIntegrityError("receipt result identity differs")
-	}
-	results, err := s.runProjectionStore.ListStepResults(ctx, run.RunID)
-	if err != nil {
-		return nil, err
-	}
-	steps, err := s.runProjectionStore.ListRunSteps(ctx, run.RunID)
-	if err != nil {
-		return nil, err
-	}
-	agentStep, latestAttempt, ok := latestPrimaryAgentStep(steps)
-	if !ok || agentStep.Status != "completed" {
-		return nil, fmt.Errorf("agent.primary aggregate projection is required")
-	}
-	var selected *execution.StepResultProjection
-	selectedAttempt := 0
-	for index := range results {
-		result := results[index]
-		if result.StepID != "agent.primary" || result.Status != "completed" ||
-			result.ResultKind != "agent_final_output" ||
-			strings.TrimSpace(result.ProjectionRef) != strings.TrimSpace(agentResultRef) {
-			continue
-		}
-		activityAttempt, valid := positiveIntValue(result.SanitizedPayload["activity_attempt"])
-		if !valid || result.AttemptID != temporalStepAttemptID(result.RunID, result.StepID, activityAttempt) {
-			continue
-		}
-		if activityAttempt > selectedAttempt {
-			copy := result
-			selected = &copy
-			selectedAttempt = activityAttempt
-		}
-	}
-	if selected == nil {
-		return nil, fmt.Errorf("agent result projection is required")
-	}
-	if selectedAttempt != latestAttempt {
-		return nil, fmt.Errorf(
-			"agent result activity attempt %d does not match aggregate attempt %d",
-			selectedAttempt,
-			latestAttempt,
-		)
-	}
-	if selected.ResultID != temporalStepResultID(run.RunID, "agent.primary", selectedAttempt) ||
-		selected.RunID != run.RunID || selected.PayloadSchemaVersion != "step-result-projection-v1" {
-		return nil, fmt.Errorf("completed agent result projection identity differs")
-	}
-	result := map[string]any{}
-	if err := s.getProtectedJSON(ctx, run, agentResultRef, protectedPayloadKindAgentResult, &result); err != nil {
-		return nil, err
-	}
-	if strings.TrimSpace(stringValue(result["agent_result_ref"])) != strings.TrimSpace(agentResultRef) {
-		return nil, fmt.Errorf("agent result ref drift")
-	}
-	protectedAttempt, valid := positiveIntValue(result["activity_attempt"])
-	if !valid || protectedAttempt != selectedAttempt {
-		return nil, fmt.Errorf("agent result activity attempt drift")
-	}
-	if sha256AnyValue(result) != summary.OutputSHA256 ||
-		strings.TrimSpace(stringValue(result["provider_invocation_sha256"])) != receipt.InputSHA256 ||
-		strings.TrimSpace(stringValue(result["result_schema_version"])) != summary.ResultSchemaVersion {
-		return nil, receiptIntegrityError("protected agent result differs from completed receipt")
-	}
-	expectedProjection := primaryAgentResultProjectionPayload(result)
-	expectedProjection["protected_result_sha256"] = summary.OutputSHA256
-	expectedProjection["protected_result_schema_version"] = summary.ResultSchemaVersion
-	if sha256AnyValue(selected.SanitizedPayload) != sha256AnyValue(expectedProjection) {
-		return nil, receiptIntegrityError("completed agent step result differs from protected result")
-	}
-	return result, nil
 }
 
 func temporalProjectionRef(runID string, suffix string) string {

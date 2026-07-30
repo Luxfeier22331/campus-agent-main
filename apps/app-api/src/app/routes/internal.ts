@@ -1,19 +1,9 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 
-import { sql } from "drizzle-orm";
 import type { Hono } from "hono";
 
-import { type Env, readAuthShellOrigin, resolveEnvironment } from "../../config";
-import { withRuntimeDatabase } from "../../db/runtime";
-import {
-	AppApiRouteError,
-	errorEnvelope,
-	jsonResponse,
-	routeErrorResponse,
-	withNoStore,
-} from "../../http";
-import { hashAppPassword } from "../../modules/auth";
-import { isCampusEmail } from "../../modules/auth/campus-access";
+import type { Env } from "../../config";
+import { errorEnvelope, jsonResponse } from "../../http";
 import {
 	parseExecutionFinalizationResponsePayload,
 	type ToolExecutionResponse,
@@ -23,7 +13,6 @@ import {
 	sha256Text,
 } from "../../modules/runtime-command/service/durable-metadata";
 import { ChatFinalizationConflict } from "../../modules/runtime-command/store-types";
-import { readJsonRequestBody } from "../request-utils";
 import type { AppRequestScope } from "../types";
 
 function hasMatchingSecret(
@@ -46,7 +35,7 @@ function authorized(request: Request, env: Env): boolean {
 
 function executionInputAuthorized(request: Request, env: Env): boolean {
 	return hasMatchingSecret(
-		env.APP_API_EXECUTION_INPUT_SHARED_SECRET,
+		env.APP_API_EXECUTION_SHARED_SECRET,
 		request.headers.get("x-app-execution-auth"),
 	);
 }
@@ -59,71 +48,6 @@ function requireObject(value: unknown): Record<string, unknown> | null {
 
 function sha256(value: string): string {
 	return createHash("sha256").update(value, "utf8").digest("hex");
-}
-
-function normalizeHeaderValue(value: string | null | undefined): string | null {
-	const normalized = value?.trim();
-	return normalized ? normalized : null;
-}
-
-function hasMatchingStagingSmokeAuthSecret(request: Request, env: Env): boolean {
-	const expected = normalizeHeaderValue(env.APP_API_STAGING_SMOKE_AUTH_SECRET);
-	const provided = normalizeHeaderValue(request.headers.get("x-app-staging-smoke-auth"));
-	if (!(expected && provided)) {
-		return false;
-	}
-	const expectedBytes = Buffer.from(expected);
-	const providedBytes = Buffer.from(provided);
-	return (
-		expectedBytes.length === providedBytes.length && timingSafeEqual(expectedBytes, providedBytes)
-	);
-}
-
-function readStringField(payload: Record<string, unknown>, fieldName: string): string | null {
-	const value = payload[fieldName];
-	return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-async function resetStagingSmokeIdentity(input: {
-	email: string;
-	env: Env;
-	name: string;
-	password: string;
-}): Promise<void> {
-	if (!isCampusEmail(input.email)) {
-		throw new AppApiRouteError({
-			code: "campus_email_required",
-			message: "A muc.edu.cn email address is required for the smoke identity.",
-			retryable: false,
-			status: 403,
-		});
-	}
-
-	const userId = crypto.randomUUID();
-	const accountRowId = crypto.randomUUID();
-	const passwordHash = await hashAppPassword(input.password);
-	const now = new Date();
-	await withRuntimeDatabase(input.env, async (db) => {
-		await db.execute(sql`
-			delete from "chat"."conversations"
-			where "owner_user_id" in (
-				select "id" from "app_auth"."user" where "email" = ${input.email}
-			)
-		`);
-		await db.execute(sql`delete from "app_auth"."user" where "email" = ${input.email}`);
-		await db.execute(sql`
-			insert into "app_auth"."user" (
-				"id", "name", "email", "emailVerified", "image", "createdAt", "updatedAt"
-			)
-			values (${userId}, ${input.name}, ${input.email}, true, null, ${now}, ${now})
-		`);
-		await db.execute(sql`
-			insert into "app_auth"."account" (
-				"id", "accountId", "providerId", "userId", "password", "createdAt", "updatedAt"
-			)
-			values (${accountRowId}, ${userId}, 'credential', ${userId}, ${passwordHash}, ${now}, ${now})
-		`);
-	});
 }
 
 export function registerInternalRoutes(input: {
@@ -259,78 +183,6 @@ export function registerInternalRoutes(input: {
 			headers: { "cache-control": "no-store" },
 			status: 204,
 		});
-	});
-
-	input.app.post("/api/internal/staging-smoke/auth/session", async (c) => {
-		if (resolveEnvironment(input.env) !== "staging") {
-			return routeErrorResponse(
-				new AppApiRouteError({
-					code: "not_found",
-					message: "Route not found.",
-					retryable: false,
-					status: 404,
-				}),
-			);
-		}
-		if (!input.env.APP_API_STAGING_SMOKE_AUTH_SECRET?.trim()) {
-			return jsonResponse(
-				errorEnvelope({
-					code: "staging_smoke_auth_not_configured",
-					message: "Staging smoke auth secret is not configured.",
-					retryable: false,
-				}),
-				{ status: 503 },
-			);
-		}
-		if (!hasMatchingStagingSmokeAuthSecret(c.req.raw, input.env)) {
-			return jsonResponse(
-				errorEnvelope({
-					code: "staging_smoke_auth_required",
-					message: "Staging smoke auth secret required.",
-					retryable: false,
-				}),
-				{ status: 401 },
-			);
-		}
-
-		const payload = await readJsonRequestBody(c.req.raw);
-		const email = readStringField(payload, "email")?.toLowerCase() ?? null;
-		const password = readStringField(payload, "password");
-		const name = readStringField(payload, "name") ?? "Campus Agent Smoke";
-		if (!(email && password)) {
-			return routeErrorResponse(
-				new AppApiRouteError({
-					code: "invalid_request",
-					message: "email and password are required.",
-					retryable: false,
-					status: 400,
-				}),
-			);
-		}
-
-		if (payload.resetIdentity === true) {
-			await resetStagingSmokeIdentity({ email, env: input.env, name, password });
-		}
-
-		const authShellOrigin = readAuthShellOrigin(input.env);
-		const signInRequest = new Request(new URL("/api/auth/sign-in/email", authShellOrigin), {
-			body: JSON.stringify({ email, password, rememberMe: true }),
-			headers: {
-				"content-type": "application/json",
-				origin: authShellOrigin,
-				referer: `${authShellOrigin.replace(/\/$/, "")}/account/login`,
-			},
-			method: "POST",
-		});
-		const auth = await input.createRequestScope().getAppAuth();
-		return withNoStore(
-			await auth.api.signInEmail({
-				asResponse: true,
-				body: { email, password, rememberMe: true },
-				headers: signInRequest.headers,
-				request: signInRequest,
-			}),
-		);
 	});
 
 	input.app.put("/api/internal/execution/runs/:runId/product-finalization", async (c) => {

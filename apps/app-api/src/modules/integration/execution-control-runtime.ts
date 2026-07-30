@@ -18,7 +18,7 @@ import type { ExecutionRunMetadataWire } from "./generated/tool-execution-contra
 
 type ExecutionControlRuntimeEnv = Pick<
 	Env,
-	| "APP_API_ENVIRONMENT"
+	| "DEPLOYMENT_ENVIRONMENT"
 	| "EXECUTION_CONTROL_BASE_URL"
 	| "EXECUTION_CONTROL_PRIVATE"
 	| "EXECUTION_CONTROL_PRIVATE_ORIGIN"

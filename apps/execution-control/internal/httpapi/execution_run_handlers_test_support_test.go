@@ -164,12 +164,6 @@ func attachRunProjectionStoreForHandlerTest(
 	server.runProjectionStoreErr = nil
 	server.executionInputLoader = mapExecutionInputLoader{}
 	server.executionInputErr = nil
-	// Agent results and memory context are encrypted in the v3 projection. Test
-	// servers that inject the in-memory store must also provide the same
-	// bounded key dependency as a deployed server.
-	if server.config.ProtectedPayloadKeyring == nil {
-		server.config.ProtectedPayloadKeyring = protectedPayloadKeyringForTest()
-	}
 	server.productFinalizationWriter = func(context.Context, execution.DurableRun, time.Time, map[string]any) error {
 		return nil
 	}

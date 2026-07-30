@@ -12,57 +12,52 @@ import {
 	parseChatE2eArgs,
 } from "../e2e/support/chat-e2e.args";
 
+const E2E_CREDENTIAL_ARGS = [
+	"--email",
+	"smoke-user@example.edu",
+	"--password",
+	"dev-smoke-password",
+	"--captcha-token",
+	"dev-captcha-token",
+];
+
 describe("chat e2e args", () => {
 	it("uses canonical staging profile defaults", () => {
-		expect(
-			parseChatE2eArgs(["--profile", "staging"], {
-				APP_API_STAGING_SMOKE_AUTH_SECRET: "smoke-secret",
-			} as NodeJS.ProcessEnv),
-		).toEqual({
+		expect(parseChatE2eArgs(["--profile", "staging", ...E2E_CREDENTIAL_ARGS])).toEqual({
 			appApiReadyzUrl: DEFAULT_CHAT_E2E_APP_API_READYZ_URL,
-			captchaToken: "",
+			captchaToken: "dev-captcha-token",
 			chatBaseUrl: DEFAULT_CHAT_E2E_CHAT_BASE_URL,
-			email: "campus_agent_smoke@muc.edu.cn",
+			email: "smoke-user@example.edu",
 			execReadyzUrl: null,
 			expectModelExecutionState: null,
 			expectResultKind: "answer",
-			name: "Campus Agent Smoke",
-			password: "",
+			password: "dev-smoke-password",
 			profile: "staging",
 			prompt: DEFAULT_CHAT_E2E_PROMPT,
-			smokeAuthSecret: "smoke-secret",
 			transport: "stream",
 		});
 	});
 
 	it("uses local endpoints for the local-provider profile", () => {
-		expect(
-			parseChatE2eArgs(["--profile", "local-provider"], {
-				APP_API_SMOKE_IDENTITY_CAPTCHA_TOKEN: "smoke-captcha-token",
-				APP_API_SMOKE_IDENTITY_PASSWORD: "smoke-password",
-			} as NodeJS.ProcessEnv),
-		).toMatchObject({
-			appApiReadyzUrl: DEFAULT_LOCAL_CHAT_E2E_APP_API_READYZ_URL,
-			captchaToken: "smoke-captcha-token",
-			chatBaseUrl: DEFAULT_LOCAL_CHAT_E2E_CHAT_BASE_URL,
-			execReadyzUrl: DEFAULT_LOCAL_CHAT_E2E_EXEC_READYZ_URL,
-			expectModelExecutionState: null,
-			profile: "local-provider",
-			transport: "stream",
-		});
+		expect(parseChatE2eArgs(["--profile", "local-provider", ...E2E_CREDENTIAL_ARGS])).toMatchObject(
+			{
+				appApiReadyzUrl: DEFAULT_LOCAL_CHAT_E2E_APP_API_READYZ_URL,
+				captchaToken: "dev-captcha-token",
+				chatBaseUrl: DEFAULT_LOCAL_CHAT_E2E_CHAT_BASE_URL,
+				execReadyzUrl: DEFAULT_LOCAL_CHAT_E2E_EXEC_READYZ_URL,
+				expectModelExecutionState: null,
+				profile: "local-provider",
+				transport: "stream",
+			},
+		);
 	});
 
 	it("uses campus-web readiness instead of direct app-api readiness for dev by default", () => {
-		expect(
-			parseChatE2eArgs(["--profile", "dev"], {
-				AUTH_TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA",
-				APP_API_SMOKE_IDENTITY_PASSWORD: "smoke-password",
-			} as NodeJS.ProcessEnv),
-		).toMatchObject({
+		expect(parseChatE2eArgs(["--profile", "dev", ...E2E_CREDENTIAL_ARGS])).toMatchObject({
 			appApiReadyzUrl: null,
 			chatBaseUrl: DEFAULT_LOCAL_CHAT_E2E_CHAT_BASE_URL,
 			execReadyzUrl: DEFAULT_LOCAL_CHAT_E2E_EXEC_READYZ_URL,
-			captchaToken: "XXXX.DUMMY.TOKEN.XXXX",
+			captchaToken: "dev-captcha-token",
 			expectModelExecutionState: null,
 			profile: "dev",
 			transport: "stream",
@@ -71,35 +66,30 @@ describe("chat e2e args", () => {
 
 	it("accepts explicit target overrides without changing the profile contract", () => {
 		expect(
-			parseChatE2eArgs(
-				[
-					"--profile",
-					"dev",
-					"--email",
-					"smoke-user@example.edu",
-					"--name",
-					"Smoke User",
-					"--prompt",
-					"民族学本科人才培养方案总学分要求是多少？",
-					"--chat-base-url",
-					"http://127.0.0.1:27014",
-					"--app-api-readyz-url",
-					"http://127.0.0.1:27031/readyz",
-					"--exec-readyz-url",
-					"http://127.0.0.1:27051/readyz",
-					"--expect-result-kind",
-					"any",
-					"--expect-model-execution-state",
-					"rag_sdk_completed",
-					"--transport",
-					"sync",
-					"--password",
-					"dev-smoke-password",
-					"--captcha-token",
-					"dev-captcha-token",
-				],
-				{} as NodeJS.ProcessEnv,
-			),
+			parseChatE2eArgs([
+				"--profile",
+				"dev",
+				"--email",
+				"smoke-user@example.edu",
+				"--prompt",
+				"民族学本科人才培养方案总学分要求是多少？",
+				"--chat-base-url",
+				"http://127.0.0.1:27014",
+				"--app-api-readyz-url",
+				"http://127.0.0.1:27031/readyz",
+				"--exec-readyz-url",
+				"http://127.0.0.1:27051/readyz",
+				"--expect-result-kind",
+				"any",
+				"--expect-model-execution-state",
+				"rag_sdk_completed",
+				"--transport",
+				"sync",
+				"--password",
+				"dev-smoke-password",
+				"--captcha-token",
+				"dev-captcha-token",
+			]),
 		).toEqual({
 			appApiReadyzUrl: "http://127.0.0.1:27031/readyz",
 			captchaToken: "dev-captcha-token",
@@ -108,49 +98,39 @@ describe("chat e2e args", () => {
 			execReadyzUrl: "http://127.0.0.1:27051/readyz",
 			expectModelExecutionState: "rag_sdk_completed",
 			expectResultKind: "any",
-			name: "Smoke User",
 			password: "dev-smoke-password",
 			profile: "dev",
 			prompt: "民族学本科人才培养方案总学分要求是多少？",
-			smokeAuthSecret: "",
 			transport: "sync",
 		});
 	});
 
 	it("rejects unsupported transports", () => {
 		expect(() =>
-			parseChatE2eArgs(["--profile", "staging", "--transport", "poll"], {
-				APP_API_STAGING_SMOKE_AUTH_SECRET: "smoke-secret",
-			} as NodeJS.ProcessEnv),
+			parseChatE2eArgs(["--profile", "staging", "--transport", "poll", ...E2E_CREDENTIAL_ARGS]),
 		).toThrow("--transport must be one of: stream, sync.");
 	});
 
 	it("rejects unsupported profiles", () => {
-		expect(() =>
-			parseChatE2eArgs(["--profile", "prod"], {
-				APP_API_STAGING_SMOKE_AUTH_SECRET: "smoke-secret",
-			} as NodeJS.ProcessEnv),
-		).toThrow("--profile must be one of: dev, local-provider, staging.");
-	});
-
-	it("fails closed when no smoke auth secret is available", () => {
-		expect(() => parseChatE2eArgs(["--profile", "staging"], {} as NodeJS.ProcessEnv)).toThrow(
-			"APP_API_STAGING_SMOKE_AUTH_SECRET",
+		expect(() => parseChatE2eArgs(["--profile", "prod", ...E2E_CREDENTIAL_ARGS])).toThrow(
+			"--profile must be one of: dev, local-provider, staging.",
 		);
 	});
 
-	it("fails closed when dev lacks a smoke identity password", () => {
-		expect(() => parseChatE2eArgs(["--profile", "dev"], {} as NodeJS.ProcessEnv)).toThrow(
-			"APP_API_SMOKE_IDENTITY_PASSWORD",
-		);
-	});
-
-	it("fails closed when dev lacks captcha token outside the Turnstile test secret", () => {
+	it("requires explicit login credentials", () => {
+		expect(() => parseChatE2eArgs(["--profile", "staging"])).toThrow("--email is required.");
 		expect(() =>
-			parseChatE2eArgs(["--profile", "dev"], {
-				APP_API_SMOKE_IDENTITY_PASSWORD: "smoke-password",
-				AUTH_TURNSTILE_SECRET_KEY: "cf-real-secret",
-			} as NodeJS.ProcessEnv),
-		).toThrow("APP_API_SMOKE_IDENTITY_CAPTCHA_TOKEN");
+			parseChatE2eArgs(["--profile", "staging", "--email", "smoke-user@example.edu"]),
+		).toThrow("--password is required.");
+		expect(() =>
+			parseChatE2eArgs([
+				"--profile",
+				"staging",
+				"--email",
+				"smoke-user@example.edu",
+				"--password",
+				"dev-smoke-password",
+			]),
+		).toThrow("--captcha-token is required.");
 	});
 });

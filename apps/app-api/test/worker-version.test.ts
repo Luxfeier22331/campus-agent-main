@@ -17,7 +17,7 @@ describe("Worker version upload arguments", () => {
 			{
 				appName: "campus-web",
 				config: "dist/campus_web/wrangler.json",
-				variables: { SENTRY_RELEASE: "campus-web@sha" },
+				variables: { DEPLOYMENT_RELEASE: "campus-web@sha" },
 			},
 			sourceSha,
 		);
@@ -41,7 +41,7 @@ describe("Worker version upload arguments", () => {
 					release: "app-api@sha",
 					wranglerOutdir: sourceMapDirectory,
 				},
-				variables: { SENTRY_RELEASE: "app-api@sha" },
+				variables: { DEPLOYMENT_RELEASE: "app-api@sha" },
 			},
 			sourceSha,
 		);
@@ -65,7 +65,7 @@ describe("Worker version upload arguments", () => {
 						release: "app-api@sha",
 						wranglerOutdir: "dist/sentry/app-api-edge",
 					},
-					variables: { SENTRY_RELEASE: "app-api@sha" },
+					variables: { DEPLOYMENT_RELEASE: "app-api@sha" },
 				},
 				sourceSha,
 			),

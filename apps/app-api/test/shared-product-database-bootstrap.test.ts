@@ -17,7 +17,7 @@ describe("app-api shared product database bootstrap", () => {
 
 	it("reads bootstrap env from the app-api schema-admin connection only", () => {
 		const env = readSharedProductBootstrapEnv({
-			APP_API_DATABASE_SSLMODE: "require",
+			APP_API_SCHEMA_DATABASE_SSLMODE: "require",
 			APP_API_SCHEMA_DATABASE_URL: "postgresql://db.example/campus_agent",
 		} as NodeJS.ProcessEnv);
 

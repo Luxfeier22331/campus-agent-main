@@ -84,8 +84,8 @@ bootstrap 或 policy 校验失败时，本次 retain、recall 或 profile mutati
 Langfuse 查询、分页、时间边界、等待和失败语义由
 [Langfuse 运行合同](../contracts/langfuse-runtime.md) 唯一维护。
 
-`activity-core` 使用 `LANGFUSE_MAINTENANCE_BASE_URL`、`LANGFUSE_MAINTENANCE_PUBLIC_KEY` 和
-`LANGFUSE_MAINTENANCE_SECRET_KEY` 访问当前环境 project；缺少任一项时必须启动失败。DELETE
+`activity-core` 使用 `LANGFUSE_BASE_URL`、`LANGFUSE_PUBLIC_KEY` 和
+`LANGFUSE_SECRET_KEY` 访问当前环境 project；缺少任一项时必须启动失败。DELETE
 成功不代表异步删除完成，不能省略后续精确查询复核。
 
 ## 排障

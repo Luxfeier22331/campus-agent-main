@@ -115,8 +115,7 @@ kubectl get pod
 - Memo 与持久命令明确冲突时保留该 execution，由应用把本地 run 失败关闭；不得将冲突 execution
   当作目标 run 强制取消；
 - execution 为 `TIMED_OUT` 但尚无 `run.expired` 时，检查产品终态回调和投影存储错误；产品终态与
-  `run.expired` 提交后，cleanup 才独立重试原始输入与 protected payload 删除，删除失败不回滚或
-  阻塞已成立的浏览器终态；
+  `run.expired` 提交后，cleanup 才独立重试原始输入删除，删除失败不回滚或阻塞已成立的浏览器终态；
 - cleanup pending 时同时检查已绑定 Run 与空 Run ID 返回的 latest Run、完整 Memo、reset state、
   `first_run_id`、关闭时间和状态。两次 Run ID 与 `first_run_id` 都必须等于持久绑定的 root，且
   `last_reset_time`、`reset_run_id` 为空；任意不同 latest Run 都不能手工确认清理。不要只比较

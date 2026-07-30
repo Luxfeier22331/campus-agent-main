@@ -82,10 +82,7 @@ if (service === "app-api") {
 		["exec", "vite", "--host", "127.0.0.1", "--port", String(profile.ports.opsWeb), "--strictPort"],
 		{
 			cwd: appDir,
-			env: {
-				...env,
-				OPS_WEB_API_ORIGIN: `http://127.0.0.1:${profile.ports.opsWebApi}`,
-			},
+			env,
 			stdio: "inherit",
 		},
 	);

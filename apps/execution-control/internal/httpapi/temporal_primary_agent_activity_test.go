@@ -129,61 +129,43 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 	if run.AdmittedAt.IsZero() || run.StartedAt.IsZero() {
 		t.Fatalf("run admission timestamps were not projected: %#v", run)
 	}
-	invocationEnvelope, err := server.loadPrimaryAgentProviderInvocationEnvelope(context.Background(), run)
-	if err != nil {
-		t.Fatalf("load provider invocation envelope: %v", err)
-	}
 	receipt, err := store.GetAgentInvocationReceipt(context.Background(), run.RunID+":agent.primary")
 	if err != nil {
 		t.Fatalf("get provider invocation receipt: %v", err)
 	}
+	finalModelContext, ok := seenBody["final_model_context"].(map[string]any)
+	if !ok {
+		t.Fatalf("final_model_context = %#v", seenBody["final_model_context"])
+	}
+	invocationEnvelope, err := newPrimaryAgentProviderInvocationEnvelope(
+		run,
+		input,
+		stringValue(run.Metadata["execution_input_sha256"]),
+		finalModelContext,
+		seenBodyBytes,
+		1,
+	)
+	if err != nil {
+		t.Fatalf("rebuild provider invocation envelope: %v", err)
+	}
 	if receipt.InputSHA256 != sha256AnyValue(invocationEnvelope) ||
 		receipt.InputSHA256 == stringValue(run.Metadata["execution_input_sha256"]) {
-		t.Fatalf("receipt input hash does not bind canonical provider invocation: receipt=%#v envelope=%#v", receipt, invocationEnvelope)
+		t.Fatalf("receipt input hash does not bind canonical provider invocation: receipt=%#v", receipt)
 	}
-	if invocationEnvelope.ExecutionInputSHA256 != stringValue(run.Metadata["execution_input_sha256"]) {
-		t.Fatalf("provider invocation execution input drifted: %#v", invocationEnvelope)
+	var summary agentInvocationOutputSummary
+	if err := json.Unmarshal(receipt.OutputJSON, &summary); err != nil {
+		t.Fatalf("decode receipt summary: %v", err)
 	}
-	if invocationEnvelope.AdmissionSnapshotSHA256 != hashAdmissionJSON(input.AdmissionSnapshot) {
-		t.Fatalf("provider invocation admission snapshot drifted: %#v", invocationEnvelope)
+	if summary.SchemaVersion != agentInvocationReceiptSchemaVersion ||
+		summary.ResultRef != output.AgentResultRef ||
+		summary.ProviderInvocationSHA256 != receipt.InputSHA256 {
+		t.Fatalf("receipt summary = %#v, output=%#v", summary, output)
 	}
-	if invocationEnvelope.ExecutionStrategySHA256 != input.AdmissionSnapshot.ExecutionStrategySHA256 {
-		t.Fatalf("provider invocation execution strategy drifted: %#v", invocationEnvelope)
+	if output.GroundingContext.RunID != run.RunID || output.GroundingContext.Status != "not_required" {
+		t.Fatalf("workflow agent output lost grounding context: %#v", output.GroundingContext)
 	}
-	if invocationEnvelope.ProviderRequestSHA256 != sha256Bytes(seenBodyBytes) {
-		t.Fatalf("provider invocation request drifted: %#v", invocationEnvelope)
-	}
-	if invocationEnvelope.FinalModelContextSHA256 != sha256AnyValue(seenBody["final_model_context"]) {
-		t.Fatalf("provider invocation model context drifted: %#v", invocationEnvelope)
-	}
-	agentMetadata := map[string]any{}
-	if err := server.getProtectedJSON(
-		context.Background(),
-		run,
-		output.AgentResultRef,
-		protectedPayloadKindAgentResult,
-		&agentMetadata,
-	); err != nil {
-		t.Fatalf("get protected agent result: %v", err)
-	}
-	if agentMetadata["agent_result_ref"] != output.AgentResultRef {
-		t.Fatalf("agent metadata = %#v", agentMetadata)
-	}
-	if agentMetadata["allow_ungrounded_answer"] != true {
-		t.Fatalf("agent result lost frozen ungrounded-answer policy: %#v", agentMetadata)
-	}
-	envelope, ok := agentMetadata["terminal_envelope"].(map[string]any)
-	if !ok || envelope["kind"] != "answer" {
-		t.Fatalf("agent metadata missing terminal envelope: %#v", agentMetadata)
-	}
-	if intFromAny(agentMetadata["activity_attempt"]) != 1 || agentMetadata["model_name"] != "gpt-test" ||
-		agentMetadata["model_provider"] != "openai" {
-		t.Fatalf("agent metadata observability = %#v", agentMetadata)
-	}
-	promptTrace, ok := agentMetadata["prompt_trace"].(map[string]any)
-	if !ok || promptTrace["schema_version"] != "agent_runtime_prompt_trace.v1" ||
-		promptTrace["prompt_id"] != "primary_agent" {
-		t.Fatalf("agent metadata prompt_trace = %#v", agentMetadata["prompt_trace"])
+	if output.TerminalEnvelope["kind"] != "answer" || output.PromptTrace["prompt_id"] != "primary_agent" {
+		t.Fatalf("workflow agent output is incomplete: %#v", output)
 	}
 	steps, err := store.ListRunSteps(context.Background(), "run-primary-agent-001")
 	if err != nil {
@@ -197,6 +179,11 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 	}
 	if _, exists := steps[0].SanitizedPayload["memory_context_summary"]; exists {
 		t.Fatalf("agent step payload contains retired memory_context_summary: %#v", steps[0].SanitizedPayload)
+	}
+	for _, field := range []string{"final_output", "terminal_envelope", "tool_results", "prompt_trace"} {
+		if _, exists := steps[0].SanitizedPayload[field]; exists {
+			t.Fatalf("agent step payload must not contain workflow result %s: %#v", field, steps[0].SanitizedPayload)
+		}
 	}
 	attempts, err := store.ListStepAttempts(context.Background(), "run-primary-agent-001")
 	if err != nil {

@@ -22,16 +22,12 @@ export interface Env {
 	ASSETS?: {
 		fetch(request: Request): Promise<Response> | Response;
 	};
-	AUTH_TURNSTILE_APPEARANCE?: string;
-	AUTH_TURNSTILE_EXECUTION?: string;
 	AUTH_TURNSTILE_SITE_KEY?: string;
-	CAMPUS_WEB_HOSTNAME?: string;
 	DOCS_RELEASE_ID?: string;
 	MAP_DATA?: R2Bucket;
 	SENTRY_DSN?: string;
-	SENTRY_BROWSER_DSN?: string;
-	SENTRY_ENVIRONMENT?: string;
-	SENTRY_RELEASE?: string;
+	DEPLOYMENT_ENVIRONMENT?: string;
+	DEPLOYMENT_RELEASE?: string;
 }
 
 const SECURITY_HEADERS = {
@@ -137,7 +133,6 @@ const worker = {
 					appApiBinding: "configured",
 					assets: "configured",
 				},
-				public_hostname: env.CAMPUS_WEB_HOSTNAME || "",
 				runtime: "cloudflare-worker",
 				status: "ready",
 			});
@@ -252,9 +247,6 @@ function getMissingRuntimeConfig(env: Env): string[] {
 	}
 	if (!env.APP_API_BASE_URL?.trim()) {
 		missing.push("APP_API_BASE_URL");
-	}
-	if (!env.CAMPUS_WEB_HOSTNAME?.trim()) {
-		missing.push("CAMPUS_WEB_HOSTNAME");
 	}
 	return missing;
 }
@@ -705,15 +697,13 @@ function injectCampusRuntimeConfig(html: string, request: Request, env: Env): st
 		accountUrl: new URL("/account", campusOrigin).toString(),
 		loginUrl: new URL("/account/login", campusOrigin).toString(),
 		sentry: {
-			dsn: env.SENTRY_BROWSER_DSN?.trim() || null,
-			environment: env.SENTRY_ENVIRONMENT?.trim() || null,
-			release: env.SENTRY_RELEASE?.trim() || null,
+			dsn: env.SENTRY_DSN?.trim() || null,
+			environment: env.DEPLOYMENT_ENVIRONMENT?.trim() || null,
+			release: env.DEPLOYMENT_RELEASE?.trim() || null,
 		},
 	}).replace(/</g, "\\u003c");
 	const authRuntimeConfig = JSON.stringify(
 		resolveTurnstileRuntimeConfig({
-			turnstileAppearance: env.AUTH_TURNSTILE_APPEARANCE,
-			turnstileExecution: env.AUTH_TURNSTILE_EXECUTION,
 			turnstileSiteKey: env.AUTH_TURNSTILE_SITE_KEY,
 		}),
 	).replace(/</g, "\\u003c");

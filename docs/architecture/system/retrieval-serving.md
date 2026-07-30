@@ -59,13 +59,13 @@ kind 在 Activity 内解析，并用准入 hash 做 rotation fence。
 -> 跨 scope 去重
 -> 使用 Qdrant dense+sparse RRF 分数统一排序
 -> 范围保底、section 去重并按 grounding_context.v2 的数量和 token 预算裁剪
--> 写入受保护载荷
+-> 返回有界 Grounding Activity result
 ```
 
 Qdrant collection 保存在线检索所需的 chunk 正文、token 数和引用元数据，因此 grounding 不再回
 PostgreSQL 读取章节正文。PostgreSQL 仍拥有 release、激活指针和发布审计身份。
 
-每个范围的查询相互独立并发执行；任一范围查询、embedding 或载荷校验失败都会使
+每个范围的查询相互独立并发执行；任一范围查询、embedding 或结果校验失败都会使
 `grounding.prepare` 失败关闭，不返回部分 grounding，也不回退到旧 release、旧缓存或模型记忆。
 `partial` 只表示多范围检索成功完成但部分范围没有合格依据，不表示依赖调用部分成功。
 `ready` 只表示全部所选范围都有合格依据；两者都不是答案充分性判断，Primary Agent 仍需按用户
@@ -74,17 +74,16 @@ PostgreSQL 读取章节正文。PostgreSQL 仍拥有 release、激活指针和�
 Qdrant RRF 分数只用于候选排序和预算选择，不是答案正确性的证明，也不是答案置信度。当前实现不调用
 外部 reranker；历史 `grounding.rerank_ms` 观测字段保留为零值以维持现有 telemetry 合同。
 
-## 受保护载荷
+## Activity 结果
 
-完整 `grounding_context.v2` 绑定 run、准入 hash、计划 hash、查询 hash、所选范围与覆盖范围。首次
-成功写入后，同一 Activity 重放
-必须读取并验证该记录，不能再次调用 embedding 或 Qdrant，也不能覆盖首写结果。
+完整 `grounding_context.v2` 绑定 run、准入 hash、计划 hash、查询 hash、所选范围与覆盖范围。它是有界
+Grounding Activity result，由 Temporal history 传给 Agent 和 Finalization；当前合同允许其中包含完整
+evidence 正文。Activity 重试会重新执行只读 embedding 与 Qdrant 查询，不从 PostgreSQL 重放旧 context。
 
 普通 step/result 投影只保存 `grounding_context_ref`、payload hash、路由与覆盖状态、候选数、证据数、
 token 数，以及 embedding、search、RRF 合并、pack 的耗时；不保存查询或正文。现有
-`grounding.rerank_ms` 键固定为零，仅为 telemetry 兼容。
-Temporal history 不携带正文。Agent 结果再次绑定相同 ref/hash，finalization 据此验证
-`evidence://`，防止跨 run、跨 release 或伪造引用。
+`grounding.rerank_ms` 键固定为零，仅为 telemetry 兼容。Agent 结果携带相同 context，Finalization 据此
+验证 `evidence://`，防止跨 run、跨 release 或伪造引用。
 
 ## 当前限制
 

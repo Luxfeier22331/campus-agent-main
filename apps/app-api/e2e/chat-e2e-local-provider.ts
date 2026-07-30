@@ -7,8 +7,6 @@ const args = [
 	"exec",
 	"tsx",
 	"./e2e/chat-e2e-local-dev.ts",
-	"--prompt",
-	process.env.CHAT_E2E_LOCAL_PROVIDER_PROMPT?.trim() || "示例大学本科学生国家奖学金评审办法",
 	"--expect-model-execution-state",
 	"go_provider_synthesis_completed",
 	"--restart-campus-web",
@@ -17,11 +15,6 @@ const args = [
 
 const child = spawn("pnpm", args, {
 	cwd: new URL("..", import.meta.url),
-	env: {
-		...process.env,
-		EXECUTION_AGENT_RUNTIME_SHARED_SECRET:
-			process.env.EXECUTION_AGENT_RUNTIME_SHARED_SECRET || "agent-runtime-local-placeholder",
-	},
 	stdio: "inherit",
 });
 

@@ -14,8 +14,7 @@ import type { IngestionTaskStore } from "./types";
 export type IngestionControlHandler = (request: Request) => Promise<Response>;
 
 export interface IngestionControlServiceTokens {
-	adminToken?: string | null;
-	opsToken?: string | null;
+	internalToken?: string | null;
 }
 
 export function createIngestionControlHandler(input: {
@@ -25,10 +24,7 @@ export function createIngestionControlHandler(input: {
 	serviceTokens?: IngestionControlServiceTokens;
 	workflowStarter?: IngestionWorkflowStarter;
 }): IngestionControlHandler {
-	const tokens = {
-		admin: input.serviceTokens?.adminToken?.trim() || null,
-		ops: input.serviceTokens?.opsToken?.trim() || null,
-	};
+	const internalToken = input.serviceTokens?.internalToken?.trim() || null;
 	return async (request): Promise<Response> => {
 		const url = new URL(request.url);
 		try {
@@ -47,7 +43,7 @@ export function createIngestionControlHandler(input: {
 				request.method === "POST" &&
 				url.pathname === "/internal/ingestion/operations/internal-portal/file-releases/status"
 			) {
-				requireToken(request, tokens.ops, "ops");
+				requireToken(request, internalToken, "internal");
 				const workflowStarter = input.workflowStarter;
 				const getFileReleaseStatuses = workflowStarter?.getInternalPortalFileReleaseStatuses;
 				if (!getFileReleaseStatuses) {
@@ -66,7 +62,7 @@ export function createIngestionControlHandler(input: {
 				request.method === "POST" &&
 				url.pathname === "/internal/ingestion/operations/internal-portal/file-releases"
 			) {
-				requireToken(request, tokens.ops, "ops");
+				requireToken(request, internalToken, "internal");
 				const createdBy = requireOperatorId(request);
 				const workflowStarter = input.workflowStarter;
 				const startFileRelease = workflowStarter?.startInternalPortalFileRelease;
@@ -98,7 +94,7 @@ export function createIngestionControlHandler(input: {
 				);
 			}
 			if (request.method === "POST" && url.pathname === "/internal/ingestion/tasks") {
-				requireToken(request, tokens.admin, "admin");
+				requireToken(request, internalToken, "internal");
 				const workflowStarter = input.workflowStarter;
 				if (!workflowStarter) {
 					return jsonResponse({ error: "ingestion workflow starter is required" }, 503);
@@ -144,7 +140,7 @@ export function createIngestionControlHandler(input: {
 				);
 			}
 			if (request.method === "GET" && url.pathname === "/internal/ingestion/operations/tasks") {
-				requireToken(request, tokens.ops, "ops");
+				requireToken(request, internalToken, "internal");
 				return jsonResponse(
 					await input.store.listOperatorTaskProjections({
 						collection: url.searchParams.get("collection"),
@@ -163,7 +159,7 @@ export function createIngestionControlHandler(input: {
 				/^\/internal\/ingestion\/operations\/tasks\/([^/]+)$/u,
 			);
 			if (request.method === "GET" && opsTaskMatch) {
-				requireToken(request, tokens.ops, "ops");
+				requireToken(request, internalToken, "internal");
 				const task = await input.store.getTask(parseTaskPathId(opsTaskMatch[1]));
 				return task ? jsonResponse(task) : jsonResponse({ error: "not_found" }, 404);
 			}
@@ -171,7 +167,7 @@ export function createIngestionControlHandler(input: {
 				/^\/internal\/ingestion\/operations\/tasks\/([^/]+)\/retry$/u,
 			);
 			if (request.method === "POST" && retryTaskMatch) {
-				requireToken(request, tokens.ops, "ops");
+				requireToken(request, internalToken, "internal");
 				const createdBy = requireOperatorId(request);
 				const workflowStarter = input.workflowStarter;
 				if (!workflowStarter) {
@@ -224,7 +220,7 @@ export function createIngestionControlHandler(input: {
 			}
 			const taskMatch = url.pathname.match(/^\/internal\/ingestion\/tasks\/([^/]+)$/u);
 			if (request.method === "GET" && taskMatch) {
-				requireToken(request, tokens.admin, "admin");
+				requireToken(request, internalToken, "internal");
 				const task = await input.store.getTask(parseTaskPathId(taskMatch[1]));
 				return task ? jsonResponse(task) : jsonResponse({ error: "not_found" }, 404);
 			}

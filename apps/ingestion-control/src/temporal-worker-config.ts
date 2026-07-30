@@ -1,4 +1,5 @@
 import { type PostgresConnectionConfig, readPostgresConnectionConfig } from "./postgres-config";
+import { INGESTION_TASK_REGISTRY_ROOT } from "./runtime-paths";
 
 export interface IngestionTemporalWorkerRuntimeConfig {
 	database: PostgresConnectionConfig;
@@ -14,14 +15,6 @@ export function buildIngestionTemporalWorkerRuntimeConfig(
 			connectionString: "INGESTION_CONTROL_DATABASE_URL",
 			sslMode: "INGESTION_CONTROL_DATABASE_SSLMODE",
 		}),
-		registryRoot: requiredEnv(env, "INGESTION_TASK_REGISTRY_ROOT"),
+		registryRoot: INGESTION_TASK_REGISTRY_ROOT,
 	};
-}
-
-function requiredEnv(env: Record<string, string | undefined>, key: string): string {
-	const value = env[key]?.trim();
-	if (!value) {
-		throw new Error(`${key} is required`);
-	}
-	return value;
 }

@@ -73,7 +73,7 @@ func executionInputErrorKind(err error) string {
 
 func newExecutionInputLoader(cfg config.Config) (ExecutionInputLoader, error) {
 	baseURL := strings.TrimRight(strings.TrimSpace(cfg.ProductCallbackBaseURL), "/")
-	sharedSecret := strings.TrimSpace(cfg.AppAPIExecutionInputSharedSecret)
+	sharedSecret := strings.TrimSpace(cfg.AppAPIExecutionSharedSecret)
 	if baseURL == "" || sharedSecret == "" {
 		return nil, errors.New("app-api execution input endpoint is not configured")
 	}

@@ -29,7 +29,7 @@ RUN corepack enable pnpm \
   && pnpm install --frozen-lockfile --filter source-collector...
 
 COPY --from=pruner /repo/out/full/ ./
-COPY configs/ingestion ./configs/ingestion
+COPY configs/sources/internal-portal.json ./configs/sources/internal-portal.json
 
 RUN pnpm --filter source-collector typecheck \
   && touch /check-complete
@@ -53,7 +53,6 @@ FROM node:24-bookworm-slim AS runtime
 WORKDIR /workspace
 
 ENV NODE_ENV=production
-ENV INGESTION_TASK_REGISTRY_ROOT=/workspace/configs/ingestion
 
 COPY --from=production-dependencies /workspace /workspace
 
@@ -82,7 +81,7 @@ RUN rm -rf \
     /usr/local/bin/pnpx
 
 COPY --from=pruner /repo/out/full/ /workspace
-COPY configs/ingestion /workspace/configs/ingestion
+COPY configs/sources/internal-portal.json /workspace/configs/sources/internal-portal.json
 
 USER node
 

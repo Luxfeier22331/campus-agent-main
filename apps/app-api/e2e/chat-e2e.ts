@@ -1,6 +1,8 @@
 import process from "node:process";
-import { Client, type ClientConfig } from "pg";
-import { buildSchemaDatabaseConfig } from "../src/db/runtime";
+import {
+	createSharedProductPool,
+	readSharedProductBootstrapEnv,
+} from "../src/script-support/shared-db/shared-product-database-bootstrap";
 import { type ChatE2eArgs, type ChatE2eProfile, parseChatE2eArgs } from "./support/chat-e2e.args";
 import { assertExpectedChatE2eResultKind } from "./support/chat-e2e.result-kind";
 import {
@@ -9,8 +11,8 @@ import {
 	type ProductStreamEvent,
 	parseSse,
 } from "./support/http-smoke";
-import { buildCookieHeader, readJsonResponse } from "./support/smoke-auth-runtime";
-import { buildSmokePassword, mintStagingSmokeSession } from "./support/staging-smoke-support";
+import { readJsonResponse } from "./support/smoke-auth-runtime";
+import { signInE2eIdentity } from "./support/staging-smoke-support";
 
 type ReadyzName = "appApi" | "chat" | "exec";
 
@@ -28,16 +30,8 @@ type ChatE2eBlockedBy =
 export interface ChatE2eDependencies {
 	fetchJsonWithCookie?: typeof fetchJsonWithCookie;
 	fetchReadyz?: (url: string) => Promise<ReadyzProbe>;
-	mintSmokeSession?: (input: {
-		appApiReadyzUrl: string;
-		email: string;
-		name?: string;
-		password: string;
-		resetIdentity?: boolean;
-		smokeAuthSecret: string;
-	}) => Promise<string>;
 	readModelExecutionState?: (requestId: string) => Promise<string | null>;
-	signInSmokeIdentity?: (input: {
+	signInIdentity?: (input: {
 		captchaToken: string;
 		chatBaseUrl: string;
 		email: string;
@@ -75,7 +69,6 @@ export interface ChatE2eResult {
 	chat_request_attempted: boolean;
 	identity: {
 		email: string;
-		resetViaDeployedRuntime: boolean;
 	};
 	passed: boolean;
 	principal: unknown | null;
@@ -83,7 +76,6 @@ export interface ChatE2eResult {
 	readyz: ChatE2eReadyzSummary;
 	request: ChatE2eSuccessSummary | null;
 	session: unknown | null;
-	session_mint_attempted: boolean;
 	sign_in_attempted: boolean;
 }
 
@@ -121,17 +113,15 @@ async function openSubmitStream(input: {
 }
 
 async function defaultReadModelExecutionState(requestId: string): Promise<string | null> {
-	const client = new Client(buildSchemaDatabaseConfig(process.env) as ClientConfig);
-
-	await client.connect();
+	const pool = createSharedProductPool(readSharedProductBootstrapEnv(process.env));
 	try {
-		const result = await client.query<{ model_execution_state: string | null }>(
+		const result = await pool.query<{ model_execution_state: string | null }>(
 			'select "model_execution_state" from "runtime"."request_observability_fact" where "request_id" = $1',
 			[requestId],
 		);
 		return result.rows[0]?.model_execution_state ?? null;
 	} finally {
-		await client.end();
+		await pool.end();
 	}
 }
 
@@ -168,7 +158,6 @@ function emptyResult(args: ChatE2eArgs): ChatE2eResult {
 		chat_request_attempted: false,
 		identity: {
 			email: args.email,
-			resetViaDeployedRuntime: args.profile === "staging",
 		},
 		passed: false,
 		principal: null,
@@ -180,7 +169,6 @@ function emptyResult(args: ChatE2eArgs): ChatE2eResult {
 		},
 		request: null,
 		session: null,
-		session_mint_attempted: false,
 		sign_in_attempted: false,
 	};
 }
@@ -292,59 +280,13 @@ async function submitStreamAndReadTerminal(input: {
 	throw new Error("Submit stream ended before a terminal request event.");
 }
 
-async function defaultSignInSmokeIdentity(input: {
-	captchaToken: string;
-	chatBaseUrl: string;
-	email: string;
-	password: string;
-}): Promise<string> {
-	const response = await fetch(new URL("/api/auth/sign-in/email", input.chatBaseUrl).toString(), {
-		body: JSON.stringify({
-			email: input.email,
-			password: input.password,
-		}),
-		headers: {
-			accept: "application/json",
-			"content-type": "application/json",
-			origin: input.chatBaseUrl,
-			referer: new URL("/login", input.chatBaseUrl).toString(),
-			"x-captcha-response": input.captchaToken,
-		},
-		method: "POST",
-		signal: AbortSignal.timeout(30_000),
-	});
-	const payload = await readJsonResponse(response);
-	if (!response.ok) {
-		throw new Error(
-			`Dev smoke identity sign-in failed (${response.status}): ${JSON.stringify(payload)}`,
-		);
-	}
-	return buildCookieHeader(response);
-}
-
 async function resolveCookieHeader(
 	args: ChatE2eArgs,
 	result: ChatE2eResult,
-	deps: Required<Pick<ChatE2eDependencies, "mintSmokeSession" | "signInSmokeIdentity">>,
+	deps: Required<Pick<ChatE2eDependencies, "signInIdentity">>,
 ): Promise<string> {
-	if (args.profile === "staging") {
-		if (!args.appApiReadyzUrl) {
-			throw new Error("Staging chat e2e requires --app-api-readyz-url.");
-		}
-		const smokePassword = buildSmokePassword();
-		result.session_mint_attempted = true;
-		return deps.mintSmokeSession({
-			appApiReadyzUrl: args.appApiReadyzUrl,
-			email: args.email,
-			name: args.name,
-			password: smokePassword,
-			resetIdentity: true,
-			smokeAuthSecret: args.smokeAuthSecret,
-		});
-	}
-
 	result.sign_in_attempted = true;
-	return deps.signInSmokeIdentity({
+	return deps.signInIdentity({
 		captchaToken: args.captchaToken,
 		chatBaseUrl: args.chatBaseUrl,
 		email: args.email,
@@ -402,18 +344,16 @@ async function runReadyzChecks(
 
 export async function runChatE2e(
 	argv: string[],
-	env: NodeJS.ProcessEnv = process.env,
 	deps: ChatE2eDependencies = {},
 ): Promise<ChatE2eResult> {
-	const args = parseChatE2eArgs(argv, env);
+	const args = parseChatE2eArgs(argv);
 	const result = emptyResult(args);
 	const resolvedDeps = {
 		fetchJsonWithCookie: deps.fetchJsonWithCookie ?? fetchJsonWithCookie,
 		fetchReadyz: deps.fetchReadyz ?? defaultFetchReadyz,
-		mintSmokeSession: deps.mintSmokeSession ?? mintStagingSmokeSession,
 		openSubmitStream: deps.openSubmitStream ?? openSubmitStream,
 		readModelExecutionState: deps.readModelExecutionState ?? defaultReadModelExecutionState,
-		signInSmokeIdentity: deps.signInSmokeIdentity ?? defaultSignInSmokeIdentity,
+		signInIdentity: deps.signInIdentity ?? signInE2eIdentity,
 	};
 	const readyzResult = await runReadyzChecks(args, resolvedDeps);
 	result.readyz = readyzResult.readyz;
@@ -595,8 +535,8 @@ async function submitSync(input: {
 	};
 }
 
-export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env) {
-	const result = await runChatE2e(argv, env);
+export async function main(argv: string[]) {
+	const result = await runChatE2e(argv);
 	console.log(JSON.stringify(result, null, 2));
 	if (!result.passed) {
 		process.exitCode = 1;

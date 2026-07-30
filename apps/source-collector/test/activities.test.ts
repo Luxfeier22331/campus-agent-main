@@ -50,7 +50,7 @@ describe("source collector Temporal activities", () => {
 		).resolves.toEqual(result);
 		expect(captureInternalPortalFileRelease).toHaveBeenCalledWith({
 			abortSignal: temporal.signal,
-			config: expect.objectContaining({ siteId: "synthetic_internal_portal" }),
+			config: expect.objectContaining({ siteId: "muc_internal_portal" }),
 			fileReleaseId: 646,
 			objectStore,
 		});

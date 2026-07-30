@@ -12,6 +12,16 @@ import {
 	verifyAppPassword,
 } from "./auth-and-db-test-support";
 
+const AUTH_EMAIL_CONFIG = {
+	authEmailFrom: "Campus Agent <account@auth.muc.wiki>",
+	authEmailReplyTo: "support@example.com",
+	resendApiKey: "resend_test_key",
+};
+
+function readAuthEmailConfig() {
+	return { ...AUTH_EMAIL_CONFIG };
+}
+
 export function registerAppApiAuthConfigSuite() {
 	describe("app-api auth config", () => {
 		it("freezes explicit auth/session policy for the shared app boundary", () => {
@@ -20,10 +30,8 @@ export function registerAppApiAuthConfigSuite() {
 				authShellOrigin: "https://campus.example.com",
 				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
 				environment: "production",
-				authEmailFrom: "Campus Agent <account@auth.muc.wiki>",
-				authEmailReplyTo: "support@example.com",
 				authTurnstileSecretKey: "turnstile_secret_key",
-				resendApiKey: "resend_test_key",
+				readAuthEmailConfig,
 				database: {} as never,
 			} as never);
 
@@ -115,14 +123,37 @@ export function registerAppApiAuthConfigSuite() {
 				authShellOrigin: "https://campus.muc.wiki",
 				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
 				environment: "production",
-				authEmailFrom: "Campus Agent <account@auth.muc.wiki>",
 				authTurnstileSecretKey: "turnstile_secret_key",
-				resendApiKey: "resend_test_key",
+				readAuthEmailConfig,
 				database: {} as never,
 			} as never);
 
 			expect(config.baseURL).toBe("https://campus.muc.wiki");
 			expect(config.trustedOrigins).toEqual(["https://campus.muc.wiki"]);
+		});
+
+		it("defers mail delivery configuration until an email flow is invoked", async () => {
+			const readMissingEmailConfig = vi.fn(() => {
+				throw new Error("Missing auth email configuration: RESEND_API_KEY, AUTH_EMAIL_FROM");
+			});
+			const config = buildBetterAuthConfig({
+				appName: "campus-agent-app-api",
+				authShellOrigin: "https://campus.muc.wiki",
+				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
+				environment: "production",
+				authTurnstileSecretKey: "turnstile_secret_key",
+				readAuthEmailConfig: readMissingEmailConfig,
+				database: {} as never,
+			} as never);
+
+			expect(readMissingEmailConfig).not.toHaveBeenCalled();
+			await expect(
+				config.emailVerification.sendVerificationEmail?.({
+					token: "verify_token_01HQ",
+					user: { email: "jane@muc.edu.cn", id: "user_01HQ", name: "Jane" },
+				}),
+			).rejects.toThrow("Missing auth email configuration: RESEND_API_KEY, AUTH_EMAIL_FROM");
+			expect(readMissingEmailConfig).toHaveBeenCalledTimes(1);
 		});
 
 		it("keeps Better Auth as the only user and session persistence owner", () => {
@@ -131,9 +162,8 @@ export function registerAppApiAuthConfigSuite() {
 				authShellOrigin: "https://campus.muc.wiki",
 				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
 				environment: "production",
-				authEmailFrom: "Campus Agent <account@auth.muc.wiki>",
 				authTurnstileSecretKey: "turnstile_secret_key",
-				resendApiKey: "resend_test_key",
+				readAuthEmailConfig,
 				database: {} as never,
 			} as never);
 			expect(config).not.toHaveProperty("databaseHooks.user.create.after");
@@ -145,9 +175,8 @@ export function registerAppApiAuthConfigSuite() {
 				authShellOrigin: "https://campus.muc.wiki",
 				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
 				environment: "production",
-				authEmailFrom: "Campus Agent <account@auth.muc.wiki>",
 				authTurnstileSecretKey: "turnstile_secret_key",
-				resendApiKey: "resend_test_key",
+				readAuthEmailConfig,
 				database: {} as never,
 			} as never);
 			const now = new Date("2026-07-20T00:00:00.000Z");
@@ -194,11 +223,9 @@ export function registerAppApiAuthConfigSuite() {
 				authShellOrigin: "https://campus.muc.wiki",
 				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
 				environment: "production",
-				authEmailFrom: "Campus Agent <account@auth.muc.wiki>",
-				authEmailReplyTo: "support@example.com",
 				authTurnstileSecretKey: "turnstile_secret_key",
 				emailSender: { send },
-				resendApiKey: "resend_test_key",
+				readAuthEmailConfig,
 				database: {} as never,
 			} as never);
 
@@ -314,12 +341,11 @@ export function registerAppApiAuthConfigSuite() {
 				authShellOrigin: "https://campus.muc.wiki",
 				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
 				environment: "production",
-				authEmailFrom: "Campus Agent <account@auth.muc.wiki>",
 				authTurnstileSecretKey: "turnstile_secret_key",
 				emailSender: {
 					send: vi.fn().mockRejectedValue(new Error("Resend rate limit exceeded")),
 				},
-				resendApiKey: "resend_test_key",
+				readAuthEmailConfig,
 				database: {} as never,
 			} as never);
 

@@ -83,9 +83,6 @@ FROM node:24-bookworm-slim AS runtime-base
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV INGESTION_CONTROL_HOST=0.0.0.0
-ENV INGESTION_CONTROL_PORT=8000
-ENV INGESTION_TASK_REGISTRY_ROOT=/app/configs/ingestion
 ENV HOME=/tmp/ingestion-control-home
 ENV XDG_CACHE_HOME=/tmp/ingestion-control-home/.cache
 
@@ -109,7 +106,6 @@ USER node
 FROM runtime-base AS worker
 
 LABEL org.opencontainers.image.description="ingestion-control Temporal worker"
-ENV INGESTION_KERNEL_TOKENIZER_JSON_PATH=/opt/campus-agent/models/qwen3-embedding-4b/tokenizer.json
 
 USER root
 

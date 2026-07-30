@@ -144,7 +144,7 @@ describe("account administration PostgreSQL integration", () => {
 		);
 
 		const database = drizzle(pool, { schema: appApiSchema });
-		const store = createPgAccountAdminStore({ APP_API_ENVIRONMENT: "test" } as never, {
+		const store = createPgAccountAdminStore({ DEPLOYMENT_ENVIRONMENT: "test" } as never, {
 			getDb: async () => database,
 			now: () => now,
 		});
@@ -209,7 +209,7 @@ describe("account administration PostgreSQL integration", () => {
 		}
 
 		const database = drizzle(pool, { schema: appApiSchema });
-		const store = createPgAccountAdminStore({ APP_API_ENVIRONMENT: "test" } as never, {
+		const store = createPgAccountAdminStore({ DEPLOYMENT_ENVIRONMENT: "test" } as never, {
 			getDb: async () => database,
 			now: () => now,
 		});
@@ -241,7 +241,7 @@ describe("account administration PostgreSQL integration", () => {
 			[now, userId, `unban-request-${suffix}`],
 		);
 		const database = drizzle(pool, { schema: appApiSchema });
-		const store = createPgAccountAdminStore({ APP_API_ENVIRONMENT: "test" } as never, {
+		const store = createPgAccountAdminStore({ DEPLOYMENT_ENVIRONMENT: "test" } as never, {
 			getDb: async () => database,
 		});
 

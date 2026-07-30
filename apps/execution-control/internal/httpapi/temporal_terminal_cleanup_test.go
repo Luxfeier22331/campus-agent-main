@@ -35,21 +35,6 @@ func (l *cleanupInputLoaderForTest) Delete(context.Context, execution.DurableRun
 	return nil
 }
 
-type cleanupProjectionStoreForTest struct {
-	*execution.InMemoryRunProjectionStore
-	deleteCalls    int
-	deleteFailures int
-}
-
-func (s *cleanupProjectionStoreForTest) DeleteProtectedPayloads(ctx context.Context, runID string) error {
-	s.deleteCalls++
-	if s.deleteFailures > 0 {
-		s.deleteFailures--
-		return errors.New("protected payload delete unavailable")
-	}
-	return s.InMemoryRunProjectionStore.DeleteProtectedPayloads(ctx, runID)
-}
-
 func TestTemporalRunCleanupRequiresClosedTerminalWorkflowChain(t *testing.T) {
 	store, intent, run := confirmedTerminalCleanupForTest(t)
 	inputLoader := &cleanupInputLoaderForTest{}
@@ -66,7 +51,7 @@ func TestTemporalRunCleanupRequiresClosedTerminalWorkflowChain(t *testing.T) {
 
 	cleanup := leaseRunCleanupForTest(t, store, "cleanup-running")
 	reconciler.reconcileRunCleanup(context.Background(), store, cleanup)
-	assertCleanupPendingWithoutDeletes(t, store, run.RunID, inputLoader.deleteCalls, store.deleteCalls)
+	assertCleanupPendingWithoutDeletes(t, store, run.RunID, inputLoader.deleteCalls)
 
 	info.Status = enumspb.WORKFLOW_EXECUTION_STATUS_CONTINUED_AS_NEW
 	info.CloseTime = time.Now().UTC()
@@ -75,7 +60,7 @@ func TestTemporalRunCleanupRequiresClosedTerminalWorkflowChain(t *testing.T) {
 	starter.mu.Unlock()
 	cleanup = leaseRunCleanupForTest(t, store, "cleanup-continued")
 	reconciler.reconcileRunCleanup(context.Background(), store, cleanup)
-	assertCleanupPendingWithoutDeletes(t, store, run.RunID, inputLoader.deleteCalls, store.deleteCalls)
+	assertCleanupPendingWithoutDeletes(t, store, run.RunID, inputLoader.deleteCalls)
 
 	conflict := info
 	conflict.Status = enumspb.WORKFLOW_EXECUTION_STATUS_COMPLETED
@@ -85,7 +70,7 @@ func TestTemporalRunCleanupRequiresClosedTerminalWorkflowChain(t *testing.T) {
 	starter.mu.Unlock()
 	cleanup = leaseRunCleanupForTest(t, store, "cleanup-conflict")
 	reconciler.reconcileRunCleanup(context.Background(), store, cleanup)
-	assertCleanupPendingWithoutDeletes(t, store, run.RunID, inputLoader.deleteCalls, store.deleteCalls)
+	assertCleanupPendingWithoutDeletes(t, store, run.RunID, inputLoader.deleteCalls)
 
 	info.Status = enumspb.WORKFLOW_EXECUTION_STATUS_COMPLETED
 	info.CloseTime = time.Now().UTC()
@@ -98,8 +83,8 @@ func TestTemporalRunCleanupRequiresClosedTerminalWorkflowChain(t *testing.T) {
 	if err != nil || confirmed.State != execution.LifecycleIntentStateConfirmed {
 		t.Fatalf("confirmed cleanup = %#v, err=%v", confirmed, err)
 	}
-	if inputLoader.deleteCalls != 1 || store.deleteCalls != 1 {
-		t.Fatalf("delete calls input=%d protected=%d, want 1/1", inputLoader.deleteCalls, store.deleteCalls)
+	if inputLoader.deleteCalls != 1 {
+		t.Fatalf("execution input delete calls = %d, want 1", inputLoader.deleteCalls)
 	}
 	if described := starter.describedTemporalRunIDs(); len(described) != 5 ||
 		described[0] != "temporal-cleanup-owned" ||
@@ -133,7 +118,7 @@ func TestTemporalRunCleanupRejectsDifferentLatestExecution(t *testing.T) {
 
 	cleanup := leaseRunCleanupForTest(t, store, "cleanup-reset-running")
 	reconciler.reconcileRunCleanup(context.Background(), store, cleanup)
-	assertCleanupPendingWithoutDeletes(t, store, run.RunID, inputLoader.deleteCalls, store.deleteCalls)
+	assertCleanupPendingWithoutDeletes(t, store, run.RunID, inputLoader.deleteCalls)
 
 	differentChainLatest := latest
 	differentChainLatest.RunID = "temporal-different-chain-closed"
@@ -145,7 +130,7 @@ func TestTemporalRunCleanupRejectsDifferentLatestExecution(t *testing.T) {
 	starter.mu.Unlock()
 	cleanup = leaseRunCleanupForTest(t, store, "cleanup-different-chain")
 	reconciler.reconcileRunCleanup(context.Background(), store, cleanup)
-	assertCleanupPendingWithoutDeletes(t, store, run.RunID, inputLoader.deleteCalls, store.deleteCalls)
+	assertCleanupPendingWithoutDeletes(t, store, run.RunID, inputLoader.deleteCalls)
 
 	sameFirstLatest := differentChainLatest
 	sameFirstLatest.RunID = "temporal-same-first-run-closed"
@@ -155,7 +140,7 @@ func TestTemporalRunCleanupRejectsDifferentLatestExecution(t *testing.T) {
 	starter.mu.Unlock()
 	cleanup = leaseRunCleanupForTest(t, store, "cleanup-same-first-run-closed")
 	reconciler.reconcileRunCleanup(context.Background(), store, cleanup)
-	assertCleanupPendingWithoutDeletes(t, store, run.RunID, inputLoader.deleteCalls, store.deleteCalls)
+	assertCleanupPendingWithoutDeletes(t, store, run.RunID, inputLoader.deleteCalls)
 	if described := starter.describedTemporalRunIDs(); len(described) != 6 {
 		t.Fatalf("different-latest describe run ids = %#v", described)
 	} else {
@@ -203,7 +188,7 @@ func TestTemporalRunCleanupRejectsResetEvidenceAndUnknownResetState(t *testing.T
 			}
 			cleanup := leaseRunCleanupForTest(t, store, "cleanup-reset-state")
 			(&temporalReconciler{server: server}).reconcileRunCleanup(context.Background(), store, cleanup)
-			assertCleanupPendingWithoutDeletes(t, store, run.RunID, inputLoader.deleteCalls, store.deleteCalls)
+			assertCleanupPendingWithoutDeletes(t, store, run.RunID, inputLoader.deleteCalls)
 		})
 	}
 }
@@ -236,7 +221,7 @@ func TestTemporalRunCleanupVerifiesSupersededBoundExecutionChain(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := &cleanupProjectionStoreForTest{InMemoryRunProjectionStore: base}
+	store := base
 	inputLoader := &cleanupInputLoaderForTest{}
 	exact := reconcilerWorkflowInfoForIntent(t, intent, "temporal-superseded-cleanup")
 	exact.FirstRunID = exact.RunID
@@ -254,8 +239,8 @@ func TestTemporalRunCleanupVerifiesSupersededBoundExecutionChain(t *testing.T) {
 	cleanup := leaseRunCleanupForTest(t, store, "cleanup-superseded-bound")
 	(&temporalReconciler{server: server}).reconcileRunCleanup(ctx, store, cleanup)
 	assertCleanupStateForTest(t, store, run.RunID, execution.LifecycleIntentStateConfirmed)
-	if inputLoader.deleteCalls != 1 || store.deleteCalls != 1 {
-		t.Fatalf("superseded-bound deletes input=%d protected=%d, want 1/1", inputLoader.deleteCalls, store.deleteCalls)
+	if inputLoader.deleteCalls != 1 {
+		t.Fatalf("superseded-bound input deletes = %d, want 1", inputLoader.deleteCalls)
 	}
 	if described := starter.describedTemporalRunIDs(); len(described) != 2 ||
 		described[0] != "temporal-superseded-cleanup" || described[1] != "" {
@@ -309,7 +294,7 @@ func TestTemporalRunCleanupRejectsUnresolvedLatestChainIdentity(t *testing.T) {
 
 			cleanup := leaseRunCleanupForTest(t, store, "cleanup-latest-identity")
 			(&temporalReconciler{server: server}).reconcileRunCleanup(context.Background(), store, cleanup)
-			assertCleanupPendingWithoutDeletes(t, store, run.RunID, inputLoader.deleteCalls, store.deleteCalls)
+			assertCleanupPendingWithoutDeletes(t, store, run.RunID, inputLoader.deleteCalls)
 			if described := starter.describedTemporalRunIDs(); len(described) != 2 ||
 				described[0] != "temporal-cleanup-owned" || described[1] != "" {
 				t.Fatalf("cleanup exact/latest describe run ids = %#v", described)
@@ -318,10 +303,9 @@ func TestTemporalRunCleanupRejectsUnresolvedLatestChainIdentity(t *testing.T) {
 	}
 }
 
-func TestTemporalRunCleanupRetriesBothPayloadOwnersBeforeConfirmation(t *testing.T) {
+func TestTemporalRunCleanupRetriesExecutionInputDeletionBeforeConfirmation(t *testing.T) {
 	store, intent, run := confirmedTerminalCleanupForTest(t)
 	inputLoader := &cleanupInputLoaderForTest{deleteFailures: 1}
-	store.deleteFailures = 1
 	info := reconcilerWorkflowInfoForIntent(t, intent, "temporal-cleanup-owned")
 	info.Status = enumspb.WORKFLOW_EXECUTION_STATUS_FAILED
 	info.CloseTime = time.Now().UTC()
@@ -336,44 +320,21 @@ func TestTemporalRunCleanupRetriesBothPayloadOwnersBeforeConfirmation(t *testing
 	cleanup := leaseRunCleanupForTest(t, store, "cleanup-input-failure")
 	reconciler.reconcileRunCleanup(context.Background(), store, cleanup)
 	assertCleanupStateForTest(t, store, run.RunID, execution.LifecycleIntentStatePending)
-	if inputLoader.deleteCalls != 1 || store.deleteCalls != 0 {
-		t.Fatalf("first delete calls input=%d protected=%d, want 1/0", inputLoader.deleteCalls, store.deleteCalls)
-	}
-
-	cleanup = leaseRunCleanupForTest(t, store, "cleanup-protected-failure")
-	reconciler.reconcileRunCleanup(context.Background(), store, cleanup)
-	assertCleanupStateForTest(t, store, run.RunID, execution.LifecycleIntentStatePending)
-	if inputLoader.deleteCalls != 2 || store.deleteCalls != 1 {
-		t.Fatalf("second delete calls input=%d protected=%d, want 2/1", inputLoader.deleteCalls, store.deleteCalls)
-	}
-	if _, err := store.GetProtectedPayload(
-		context.Background(),
-		run.RunID,
-		"projection://cleanup-test",
-		"cleanup_test",
-	); err != nil {
-		t.Fatalf("protected payload disappeared before successful delete: %v", err)
+	if inputLoader.deleteCalls != 1 {
+		t.Fatalf("first execution input delete calls = %d, want 1", inputLoader.deleteCalls)
 	}
 
 	cleanup = leaseRunCleanupForTest(t, store, "cleanup-success")
 	reconciler.reconcileRunCleanup(context.Background(), store, cleanup)
 	assertCleanupStateForTest(t, store, run.RunID, execution.LifecycleIntentStateConfirmed)
-	if inputLoader.deleteCalls != 3 || store.deleteCalls != 2 {
-		t.Fatalf("final delete calls input=%d protected=%d, want 3/2", inputLoader.deleteCalls, store.deleteCalls)
-	}
-	if _, err := store.GetProtectedPayload(
-		context.Background(),
-		run.RunID,
-		"projection://cleanup-test",
-		"cleanup_test",
-	); !errors.Is(err, execution.ErrProtectedPayloadNotFound) {
-		t.Fatalf("protected payload after cleanup error = %v", err)
+	if inputLoader.deleteCalls != 2 {
+		t.Fatalf("final execution input delete calls = %d, want 2", inputLoader.deleteCalls)
 	}
 }
 
 func confirmedTerminalCleanupForTest(
 	t *testing.T,
-) (*cleanupProjectionStoreForTest, execution.WorkflowStartIntent, execution.DurableRun) {
+) (*execution.InMemoryRunProjectionStore, execution.WorkflowStartIntent, execution.DurableRun) {
 	t.Helper()
 	base, intent := createReconcilerStartIntentForTest(t)
 	ctx := context.Background()
@@ -395,20 +356,13 @@ func confirmedTerminalCleanupForTest(
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := base.PutProtectedPayload(ctx, execution.ProtectedPayload{
-		RunID: intent.RunID, PayloadRef: "projection://cleanup-test", Kind: "cleanup_test",
-		Ciphertext: []byte("ciphertext"), PayloadSHA256: strings.Repeat("d", 64),
-		CreatedAt: intent.CreatedAt.Add(time.Second),
-	}); err != nil {
-		t.Fatal(err)
-	}
 	run, err := base.CancelRunProjection(ctx, execution.DurableRunCancelRequest{
 		RunID: intent.RunID, Reason: "cleanup_test", Now: intent.CreatedAt.Add(2 * time.Second),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &cleanupProjectionStoreForTest{InMemoryRunProjectionStore: base}, intent, run
+	return base, intent, run
 }
 
 func leaseRunCleanupForTest(
@@ -439,12 +393,11 @@ func assertCleanupPendingWithoutDeletes(
 	store execution.RunProjectionStore,
 	runID string,
 	inputDeletes int,
-	protectedDeletes int,
 ) {
 	t.Helper()
 	assertCleanupStateForTest(t, store, runID, execution.LifecycleIntentStatePending)
-	if inputDeletes != 0 || protectedDeletes != 0 {
-		t.Fatalf("unsafe cleanup deletes input=%d protected=%d", inputDeletes, protectedDeletes)
+	if inputDeletes != 0 {
+		t.Fatalf("unsafe execution input deletion count=%d", inputDeletes)
 	}
 }
 

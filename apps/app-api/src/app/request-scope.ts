@@ -1,9 +1,4 @@
-import {
-	type Env,
-	readAppAuthConfig,
-	readPublicNoticeURLAllowlist,
-	resolveEnvironment,
-} from "../config";
+import { type Env, readAppAuthConfig, resolveEnvironment } from "../config";
 import { buildAccountAdminService, createPgAccountAdminStore } from "../modules/account-admin";
 import {
 	buildAccountLifecycleService,
@@ -80,7 +75,6 @@ export function createRequestScopeFactory(input: {
 					executionRuntime,
 					isExecutionRuntimeConfigured: executionRuntimeConfigured,
 					profileMemoryStore: createPgProfileMemoryStore(input.env, { getDb: runtime.getDb }),
-					publicNoticeURLAllowlist: readPublicNoticeURLAllowlist(input.env),
 					safetyIdentifierHmacSecret: input.env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET,
 					store: createPgChatCommandStore(input.env, { getDb: runtime.getDb }),
 					telemetry: input.telemetry,

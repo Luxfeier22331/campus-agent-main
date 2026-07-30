@@ -49,7 +49,7 @@ interface TerminalAnswer {
 
 export interface AgentToolEvalInput {
 	appApiBaseUrl: string;
-	cookieHeader?: string | null;
+	cookieHeader: string;
 	datasetName: string;
 	datasetVersion?: string | null;
 	dryRun?: boolean;
@@ -59,8 +59,6 @@ export interface AgentToolEvalInput {
 	runPythonRagasAgentScoreBatch: (input: { inputPath: string; outputPath: string }) => void;
 	runPythonRagasScoreBatch: (input: { inputPath: string; outputPath: string }) => void;
 	settings: LangfuseSettings;
-	stagingSmokeAuthSecret?: string | null;
-	stagingSmokeEmail?: string | null;
 	validateOnly?: boolean;
 }
 
@@ -76,14 +74,7 @@ export async function runAgentToolEval(input: AgentToolEvalInput): Promise<JsonO
 	});
 	const validation = validateAgentToolEvalDataset(dataset);
 	const cases = validation.cases.slice(0, input.limit ?? validation.cases.length);
-	const cookieHeader =
-		optionalString(input.cookieHeader) ??
-		(await mintCookieIfRequested({
-			baseUrl: appApiBaseUrl,
-			fetchImpl,
-			smokeAuthSecret: input.stagingSmokeAuthSecret,
-			smokeEmail: input.stagingSmokeEmail,
-		}));
+	const cookieHeader = stringField(input.cookieHeader, "cookieHeader");
 	const evalRunId = stableId("agent-tool-eval", input.environment, randomUUID());
 	const agentSampleItems: JsonObject[] = [];
 	const ragSampleItems: JsonObject[] = [];
@@ -411,51 +402,6 @@ function toolCallsForArgumentMode(
 		args: argumentMode === "eval_safe_args" ? { ...call.args } : {},
 		name: call.name,
 	}));
-}
-
-async function mintCookieIfRequested(input: {
-	baseUrl: string;
-	fetchImpl: typeof fetch;
-	smokeAuthSecret?: string | null;
-	smokeEmail?: string | null;
-}): Promise<string> {
-	const secret = optionalString(input.smokeAuthSecret);
-	if (!secret) {
-		throw new Error("cookie-header or staging-smoke-auth-secret is required");
-	}
-	const email = optionalString(input.smokeEmail) ?? "agent-tool-eval@muc.wiki";
-	const response = await input.fetchImpl(
-		new URL("/api/internal/staging-smoke/auth/session", input.baseUrl),
-		{
-			body: JSON.stringify({
-				email,
-				name: "Agent Tool Eval",
-				password: `EvalPass!${randomUUID()}`,
-				resetIdentity: true,
-			}),
-			headers: {
-				accept: "application/json",
-				"content-type": "application/json",
-				"x-app-staging-smoke-auth": secret,
-			},
-			method: "POST",
-			signal: AbortSignal.timeout(30_000),
-		},
-	);
-	if (!response.ok) {
-		throw new Error(
-			`staging smoke session mint failed (${response.status}): ${await response.text()}`,
-		);
-	}
-	const cookie = response.headers.get("set-cookie");
-	if (!cookie) {
-		throw new Error("staging smoke session mint did not return set-cookie");
-	}
-	return cookie
-		.split(/,(?=\s*[^;,=\s]+=[^;]+)/u)
-		.map((item) => item.split(";", 1)[0]?.trim())
-		.filter((item): item is string => Boolean(item))
-		.join("; ");
 }
 
 async function submitChatStream(input: {

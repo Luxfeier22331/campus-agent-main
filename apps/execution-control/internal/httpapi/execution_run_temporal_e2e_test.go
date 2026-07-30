@@ -307,7 +307,7 @@ func (a httpTemporalE2EActivities) WriteFinalizationActivity(
 		Visibility:           execution.DurableRunEventVisibilityBrowser,
 		PayloadSchemaVersion: "run-event-v1",
 		Payload: map[string]any{
-			"agent_result_ref": input.AgentResultRef,
+			"agent_result_ref": input.AgentResult.AgentResultRef,
 			"request_id":       run.RequestID,
 			"trace_id":         run.TraceID,
 		},
@@ -366,7 +366,7 @@ func (a httpTemporalE2EActivities) WriteFinalizationActivity(
 		UpdatedAt:            completedAt,
 		PayloadSchemaVersion: "run-step-projection-v1",
 		SanitizedPayload: map[string]any{
-			"agent_result_ref": input.AgentResultRef,
+			"agent_result_ref": input.AgentResult.AgentResultRef,
 			"projection_ref":   finalizationRef,
 		},
 	}); err != nil {

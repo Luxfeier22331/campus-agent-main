@@ -54,7 +54,10 @@ function appWithCallbacks(input: {
 	applyProductFinalization?: NonNullable<ChatCommandService["applyProductFinalization"]>;
 }) {
 	return createApp(
-		{ APP_API_EXECUTION_SHARED_SECRET: callbackSecret },
+		{
+			DEPLOYMENT_ENVIRONMENT: "test",
+			APP_API_EXECUTION_SHARED_SECRET: callbackSecret,
+		},
 		{
 			chatCommandService: {
 				applyProductFinalization:

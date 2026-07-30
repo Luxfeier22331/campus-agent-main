@@ -23,9 +23,9 @@ status: active
 
 两份内容都使用 PostgreSQL `text` 保存，hash 必须对保存的同一 UTF-8 字节计算。不得使用
 `jsonb` 保存后再序列化校验，因为 key 规范化会改变字节序列。完整执行输入最多 1 MiB，只能由
-execution-control 通过独立 `x-app-execution-auth` 读取；该 header 由
-`APP_API_EXECUTION_INPUT_SHARED_SECRET` 提供，只授予读取/释放输入的方向性权限，不得复用
-`APP_API_EXECUTION_SHARED_SECRET`。响应禁止缓存，不进入普通 app-api、Ops Web 或浏览器读取
+execution-control 通过内部 `x-app-execution-auth` 读取；该 header 使用双方共享的
+`APP_API_EXECUTION_SHARED_SECRET`，只授予 execution-control 与 app-api 之间的执行输入读取/释放
+方向性权限，不用于浏览器或其他内部接口。响应禁止缓存，不进入普通 app-api、Ops Web 或浏览器读取
 路径。run 进入产品终态后，内部删除接口清空输入并记录释放时间；重复删除成功，非终态删除失败
 关闭。释放时间只由 `execution_input_released_at` 表示，不能把空正文或空 hash 解释为另一种
 生命周期。

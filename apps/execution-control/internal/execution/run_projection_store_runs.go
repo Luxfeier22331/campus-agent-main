@@ -51,11 +51,6 @@ func (s *InMemoryRunProjectionStore) DeleteRun(_ context.Context, runID string) 
 	}
 	delete(s.runs, runID)
 	delete(s.runEvents, runID)
-	for key, payload := range s.protectedPayloads {
-		if payload.RunID == runID {
-			delete(s.protectedPayloads, key)
-		}
-	}
 	delete(s.workflowStartIntents, runID)
 	delete(s.cancellationCommands, runID)
 	delete(s.runCleanups, runID)

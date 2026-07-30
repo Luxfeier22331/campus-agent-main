@@ -1,4 +1,4 @@
-APP_API_ENVIRONMENT=development
+DEPLOYMENT_ENVIRONMENT=development
 # Generate a high-entropy secret with at least 32 characters.
 BETTER_AUTH_SECRET=replace-with-dev-secret
 AUTH_TURNSTILE_SECRET_KEY=replace-with-turnstile-secret-key
@@ -15,14 +15,8 @@ AUTH_SHELL_ORIGIN=https://campus.example.com
 OBJECT_STORE_LOCAL_BASE_URL=http://127.0.0.1:9000/campus-agent-derived/
 EXECUTION_CONTROL_BASE_URL=https://execution-control.internal
 APP_API_EXECUTION_SHARED_SECRET=replace-with-execution-control-shared-secret
-# Use a distinct high-entropy secret for execution-control input reads and releases.
-APP_API_EXECUTION_INPUT_SHARED_SECRET=replace-with-execution-input-shared-secret
-# Comma-separated exact public notice hosts admitted into browser-facing source links.
-APP_API_PUBLIC_NOTICE_URL_ALLOWLIST=www.example.edu
-APP_API_DATABASE_SSLMODE=prefer
 SENTRY_DSN=
-SENTRY_ENVIRONMENT=development
-SENTRY_RELEASE=app-api@dev-local
+DEPLOYMENT_RELEASE=app-api@dev-local
 # APP_API_DB is a Worker binding and is not configured in .dev.vars.
 # For local Wrangler / Drizzle commands, place the process-level database URLs in
 # `apps/app-api/.env` instead. `pnpm dev` and direct

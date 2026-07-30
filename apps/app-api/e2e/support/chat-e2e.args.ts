@@ -2,8 +2,6 @@ import {
 	type ChatE2eExpectedResultKind,
 	parseChatE2eExpectedResultKind,
 } from "./chat-e2e.result-kind";
-import { DEFAULT_SMOKE_EMAIL, DEFAULT_SMOKE_NAME } from "./smoke-identity-defaults";
-
 export const CHAT_E2E_PROFILES = ["dev", "local-provider", "staging"] as const;
 export type ChatE2eProfile = (typeof CHAT_E2E_PROFILES)[number];
 export const CHAT_E2E_TRANSPORTS = ["stream", "sync"] as const;
@@ -20,9 +18,6 @@ export const DEFAULT_LOCAL_CHAT_E2E_EXEC_READYZ_URL = "http://127.0.0.1:27051/re
 export const DEFAULT_CHAT_E2E_CHAT_BASE_URL = DEFAULT_STAGING_CHAT_E2E_CHAT_BASE_URL;
 export const DEFAULT_CHAT_E2E_APP_API_READYZ_URL = DEFAULT_STAGING_CHAT_E2E_APP_API_READYZ_URL;
 export const DEFAULT_CHAT_E2E_EXEC_READYZ_URL = DEFAULT_STAGING_CHAT_E2E_EXEC_READYZ_URL;
-export const DEFAULT_TURNSTILE_TEST_SECRET_KEY = "1x0000000000000000000000000000000AA";
-export const DEFAULT_TURNSTILE_TEST_TOKEN = "XXXX.DUMMY.TOKEN.XXXX";
-
 export interface ChatE2eArgs {
 	appApiReadyzUrl: string | null;
 	captchaToken: string;
@@ -31,11 +26,9 @@ export interface ChatE2eArgs {
 	execReadyzUrl: string | null;
 	expectModelExecutionState: string | null;
 	expectResultKind: ChatE2eExpectedResultKind;
-	name: string;
 	password: string;
 	profile: ChatE2eProfile;
 	prompt: string;
-	smokeAuthSecret: string;
 	transport: ChatE2eTransport;
 }
 
@@ -64,12 +57,8 @@ function parseChatE2eTransport(value: string): ChatE2eTransport {
 	throw new Error(`--transport must be one of: ${CHAT_E2E_TRANSPORTS.join(", ")}.`);
 }
 
-export function parseChatE2eArgs(
-	argv: string[],
-	env: NodeJS.ProcessEnv = process.env,
-): ChatE2eArgs {
-	let email = DEFAULT_SMOKE_EMAIL;
-	let name = DEFAULT_SMOKE_NAME;
+export function parseChatE2eArgs(argv: string[]): ChatE2eArgs {
+	let email = "";
 	let prompt = DEFAULT_CHAT_E2E_PROMPT;
 	let chatBaseUrl = DEFAULT_CHAT_E2E_CHAT_BASE_URL;
 	let appApiReadyzUrl: string | null = DEFAULT_CHAT_E2E_APP_API_READYZ_URL;
@@ -78,9 +67,8 @@ export function parseChatE2eArgs(
 	let expectResultKind: ChatE2eExpectedResultKind = "answer";
 	let profile: ChatE2eProfile = "staging";
 	let transport: ChatE2eTransport = "stream";
-	let password = normalizeOptionalValue(env.APP_API_SMOKE_IDENTITY_PASSWORD) ?? "";
-	let captchaToken = normalizeOptionalValue(env.APP_API_SMOKE_IDENTITY_CAPTCHA_TOKEN) ?? "";
-	let smokeAuthSecret = normalizeOptionalValue(env.APP_API_STAGING_SMOKE_AUTH_SECRET) ?? "";
+	let password = "";
+	let captchaToken = "";
 	let explicitChatBaseUrl = false;
 	let explicitAppApiReadyzUrl = false;
 	let explicitExecReadyzUrl = false;
@@ -105,15 +93,6 @@ export function parseChatE2eArgs(
 				throw new Error("--email requires a non-empty value.");
 			}
 			email = value.toLowerCase();
-			index += 1;
-			continue;
-		}
-		if (token === "--name") {
-			const value = normalizeOptionalValue(argv[index + 1]);
-			if (!value) {
-				throw new Error("--name requires a non-empty value.");
-			}
-			name = value;
 			index += 1;
 			continue;
 		}
@@ -183,15 +162,6 @@ export function parseChatE2eArgs(
 			index += 1;
 			continue;
 		}
-		if (token === "--smoke-auth-secret") {
-			const value = normalizeOptionalValue(argv[index + 1]);
-			if (!value) {
-				throw new Error("--smoke-auth-secret requires a non-empty value.");
-			}
-			smokeAuthSecret = value;
-			index += 1;
-			continue;
-		}
 		if (token === "--password") {
 			const value = normalizeOptionalValue(argv[index + 1]);
 			if (!value) {
@@ -236,20 +206,14 @@ export function parseChatE2eArgs(
 			execReadyzUrl = DEFAULT_LOCAL_CHAT_E2E_EXEC_READYZ_URL;
 		}
 	}
-	if (profile === "staging" && !smokeAuthSecret) {
-		throw new Error("APP_API_STAGING_SMOKE_AUTH_SECRET is required.");
+	if (!email) {
+		throw new Error("--email is required.");
 	}
-	if (profile !== "staging" && !password) {
-		throw new Error("APP_API_SMOKE_IDENTITY_PASSWORD is required.");
+	if (!password) {
+		throw new Error("--password is required.");
 	}
-	if (profile !== "staging" && !captchaToken) {
-		if (
-			normalizeOptionalValue(env.AUTH_TURNSTILE_SECRET_KEY) === DEFAULT_TURNSTILE_TEST_SECRET_KEY
-		) {
-			captchaToken = DEFAULT_TURNSTILE_TEST_TOKEN;
-		} else {
-			throw new Error("APP_API_SMOKE_IDENTITY_CAPTCHA_TOKEN is required.");
-		}
+	if (!captchaToken) {
+		throw new Error("--captcha-token is required.");
 	}
 
 	return {
@@ -260,11 +224,9 @@ export function parseChatE2eArgs(
 		execReadyzUrl,
 		expectModelExecutionState,
 		expectResultKind,
-		name,
 		password,
 		profile,
 		prompt,
-		smokeAuthSecret,
 		transport,
 	};
 }

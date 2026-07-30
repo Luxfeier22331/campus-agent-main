@@ -38,18 +38,24 @@ spec:
           args:
             - --mode
             - install
-            - --database-url
-            - $(EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL)
             - --evidence-path
             - /tmp/run-projection-schema.json
             - --provider-config-keyring-path
             - /run/campus-agent/provider-config/keyring.json
+          envFrom:
+            - configMapRef:
+                name: execution-schema-database-config
           env:
-            - name: EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL
+            - name: PGUSER
               valueFrom:
                 secretKeyRef:
-                  name: execution-run-projection-secrets
-                  key: EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL
+                  name: campus-agent-postgres-campus-agent-owner
+                  key: username
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: campus-agent-postgres-campus-agent-owner
+                  key: password
           resources:
             requests:
               cpu: 25m
@@ -67,6 +73,9 @@ spec:
             - name: provider-config-keyring
               mountPath: /run/campus-agent/provider-config
               readOnly: true
+            - name: postgres-ca
+              mountPath: /etc/campus-agent/postgres
+              readOnly: true
       volumes:
         - name: evidence
           emptyDir:
@@ -78,3 +87,9 @@ spec:
             items:
               - key: keyring.json
                 path: keyring.json
+        - name: postgres-ca
+          secret:
+            secretName: campus-agent-postgres-origin-server
+            items:
+              - key: ca.crt
+                path: ca.crt

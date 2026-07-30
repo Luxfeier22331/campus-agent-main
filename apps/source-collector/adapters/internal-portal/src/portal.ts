@@ -150,7 +150,7 @@ async function bootstrapPortalSession(input: {
 	const cookieDomain = input.config.authSsoCookieDomain;
 	if (!cookieDomain) {
 		throw new PortalCredentialUnavailableError(
-			"INTERNAL_PORTAL_SSO_COOKIE_DOMAIN is required for internal portal authentication",
+			"sso_cookie_domain is required in the internal portal descriptor",
 		);
 	}
 	const jar = new fetchCookie.toughCookie.CookieJar(undefined, {

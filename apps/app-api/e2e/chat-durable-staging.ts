@@ -17,12 +17,7 @@ import {
 	DEFAULT_STAGING_CHAT_E2E_CHAT_BASE_URL,
 } from "./support/chat-e2e.args";
 import { expectEventStreamResponse, fetchJsonWithCookie, parseSse } from "./support/http-smoke";
-import { DEFAULT_SMOKE_EMAIL, DEFAULT_SMOKE_NAME } from "./support/smoke-identity-defaults";
-import {
-	buildSmokePassword,
-	fetchReadyz,
-	mintStagingSmokeSession,
-} from "./support/staging-smoke-support";
+import { fetchReadyz, signInE2eIdentity } from "./support/staging-smoke-support";
 
 export type {
 	ChatDurableE2eDependencies,
@@ -38,16 +33,14 @@ function normalizeOptionalValue(value: string | undefined): string | null {
 	return trimmed ? trimmed : null;
 }
 
-function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): ChatDurableE2eArgs {
+function parseArgs(argv: string[]): ChatDurableE2eArgs {
 	let appApiReadyzUrl = DEFAULT_STAGING_CHAT_E2E_APP_API_READYZ_URL;
+	let captchaToken = "";
 	let chatBaseUrl = DEFAULT_STAGING_CHAT_E2E_CHAT_BASE_URL;
 	let conversationId: string | null = null;
-	let email = DEFAULT_SMOKE_EMAIL;
-	let name = DEFAULT_SMOKE_NAME;
-	let password: string | null = null;
+	let email = "";
+	let password = "";
 	let prompt = DEFAULT_CHAT_E2E_PROMPT;
-	let resetIdentity = true;
-	let smokeAuthSecret = normalizeOptionalValue(env.APP_API_STAGING_SMOKE_AUTH_SECRET) ?? "";
 
 	for (let index = 0; index < argv.length; index += 1) {
 		const token = argv[index];
@@ -72,6 +65,15 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): ChatDu
 			index += 1;
 			continue;
 		}
+		if (token === "--captcha-token") {
+			const value = normalizeOptionalValue(argv[index + 1]);
+			if (!value) {
+				throw new Error("--captcha-token requires a non-empty value.");
+			}
+			captchaToken = value;
+			index += 1;
+			continue;
+		}
 		if (token === "--email") {
 			const value = normalizeOptionalValue(argv[index + 1]);
 			if (!value) {
@@ -87,15 +89,6 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): ChatDu
 				throw new Error("--conversation-id requires a non-empty value.");
 			}
 			conversationId = value;
-			index += 1;
-			continue;
-		}
-		if (token === "--name") {
-			const value = normalizeOptionalValue(argv[index + 1]);
-			if (!value) {
-				throw new Error("--name requires a non-empty value.");
-			}
-			name = value;
 			index += 1;
 			continue;
 		}
@@ -117,37 +110,27 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): ChatDu
 			index += 1;
 			continue;
 		}
-		if (token === "--no-reset-identity") {
-			resetIdentity = false;
-			continue;
-		}
-		if (token === "--smoke-auth-secret") {
-			const value = normalizeOptionalValue(argv[index + 1]);
-			if (!value) {
-				throw new Error("--smoke-auth-secret requires a non-empty value.");
-			}
-			smokeAuthSecret = value;
-			index += 1;
-			continue;
-		}
-
 		throw new Error(`Unknown argument: ${token}`);
 	}
 
-	if (!smokeAuthSecret) {
-		throw new Error("APP_API_STAGING_SMOKE_AUTH_SECRET is required.");
+	if (!email) {
+		throw new Error("--email is required.");
+	}
+	if (!password) {
+		throw new Error("--password is required.");
+	}
+	if (!captchaToken) {
+		throw new Error("--captcha-token is required.");
 	}
 
 	return {
 		appApiReadyzUrl,
+		captchaToken,
 		chatBaseUrl,
 		conversationId,
 		email,
-		name,
 		password,
 		prompt,
-		resetIdentity,
-		smokeAuthSecret,
 	};
 }
 
@@ -454,10 +437,9 @@ function summarizeConversation(
 
 export async function runChatDurableE2eStaging(
 	argv: string[],
-	env: NodeJS.ProcessEnv = process.env,
 	deps: ChatDurableE2eDependencies = {},
 ): Promise<ChatDurableE2eResult> {
-	const args = parseArgs(argv, env);
+	const args = parseArgs(argv);
 	const resolvedDeps = {
 		abortSubmitStream:
 			deps.abortSubmitStream ??
@@ -466,7 +448,7 @@ export async function runChatDurableE2eStaging(
 			}),
 		fetchJsonWithCookie: deps.fetchJsonWithCookie ?? fetchJsonWithCookie,
 		fetchReadyz: deps.fetchReadyz ?? fetchReadyz,
-		mintSmokeSession: deps.mintSmokeSession ?? mintStagingSmokeSession,
+		signInIdentity: deps.signInIdentity ?? signInE2eIdentity,
 		openRunEventStream: deps.openRunEventStream ?? openRunEventStream,
 		openSubmitStream: deps.openSubmitStream ?? openSubmitStream,
 	};
@@ -476,7 +458,6 @@ export async function runChatDurableE2eStaging(
 		conversation: null,
 		identity: {
 			email: args.email,
-			resetViaDeployedRuntime: true,
 		},
 		langfuseCloseout: null,
 		passed: false,
@@ -493,7 +474,7 @@ export async function runChatDurableE2eStaging(
 		run: null,
 		runtimeStepResults: [],
 		session: null,
-		sessionMintAttempted: false,
+		signInAttempted: false,
 		submit: null,
 		submitStreamAbortedAfterAccepted: false,
 		workflow: null,
@@ -504,15 +485,12 @@ export async function runChatDurableE2eStaging(
 		new URL("/readyz", args.chatBaseUrl).toString(),
 	);
 
-	const smokePassword = args.password ?? buildSmokePassword();
-	result.sessionMintAttempted = true;
-	const cookieHeader = await resolvedDeps.mintSmokeSession({
-		appApiReadyzUrl: args.appApiReadyzUrl,
+	result.signInAttempted = true;
+	const cookieHeader = await resolvedDeps.signInIdentity({
+		captchaToken: args.captchaToken,
+		chatBaseUrl: args.chatBaseUrl,
 		email: args.email,
-		name: args.name,
-		password: smokePassword,
-		resetIdentity: args.resetIdentity,
-		smokeAuthSecret: args.smokeAuthSecret,
+		password: args.password,
 	});
 
 	const meResult = await resolvedDeps.fetchJsonWithCookie<{
@@ -530,7 +508,7 @@ export async function runChatDurableE2eStaging(
 	result.session = meResult.payload.session;
 	const principalId = readPrincipalId(meResult.payload.principal);
 	if (!meResult.payload.permissions.chat) {
-		throw new Error("staging smoke identity does not have chat permission.");
+		throw new Error("E2E identity does not have chat permission.");
 	}
 
 	const submit = await readAcceptedEvent({
@@ -623,8 +601,8 @@ export async function runChatDurableE2eStaging(
 	return result;
 }
 
-export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env) {
-	const result = await runChatDurableE2eStaging(argv, env);
+export async function main(argv: string[]) {
+	const result = await runChatDurableE2eStaging(argv);
 	console.log(JSON.stringify(result, null, 2));
 	if (!result.passed) {
 		process.exitCode = 1;

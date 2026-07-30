@@ -19,17 +19,13 @@ import (
 )
 
 const (
-	postgresImage         = "postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193"
-	adminUser             = "postgres"
-	adminPassword         = "postgres-integration-admin"
-	ownerRole             = "execution_schema_owner"
-	ownerPassword         = "execution-schema-owner-password"
-	readerRole            = "execution_provider_config_reader"
-	readerPassword        = "execution-provider-reader-password"
-	adminRole             = "execution_provider_config_admin"
-	providerAdminPassword = "execution-provider-admin-password"
-	executionRole         = "execution_control"
-	executionPassword     = "execution-control-password"
+	postgresImage     = "postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193"
+	adminUser         = "postgres"
+	adminPassword     = "postgres-integration-admin"
+	ownerRole         = "execution_schema_owner"
+	ownerPassword     = "execution-schema-owner-password"
+	executionRole     = "execution_control"
+	executionPassword = "execution-control-password"
 )
 
 type postgresHarness struct {
@@ -99,8 +95,6 @@ func (h *postgresHarness) installClusterRoles(t *testing.T) {
 	defer closeConn(t, conn)
 	statements := []string{
 		fmt.Sprintf("create role %s login password '%s'", pgx.Identifier{ownerRole}.Sanitize(), ownerPassword),
-		fmt.Sprintf("create role %s login password '%s'", pgx.Identifier{readerRole}.Sanitize(), readerPassword),
-		fmt.Sprintf("create role %s login password '%s'", pgx.Identifier{adminRole}.Sanitize(), providerAdminPassword),
 		fmt.Sprintf("create role %s login password '%s'", pgx.Identifier{executionRole}.Sanitize(), executionPassword),
 	}
 	for _, statement := range statements {

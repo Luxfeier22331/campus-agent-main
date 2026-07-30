@@ -10,5 +10,7 @@ data:
   PGHOST: postgres.example.invalid
   PGPORT: "5432"
   PGDATABASE: campus_agent
-  APP_API_DATABASE_CA_CERT_PATH: /etc/campus-agent/postgres/ca.crt
-  APP_API_DATABASE_SSLMODE: verify-full
+  PGSSLMODE: verify-full
+  PGSSLROOTCERT: /etc/campus-agent/postgres/ca.crt
+  APP_API_SCHEMA_DATABASE_CA_CERT_PATH: /etc/campus-agent/postgres/ca.crt
+  APP_API_SCHEMA_DATABASE_SSLMODE: verify-full

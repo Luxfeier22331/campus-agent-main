@@ -9,7 +9,7 @@ import (
 )
 
 func NewRuntime(options Options) *Runtime {
-	structuredProjectionDatabaseURL := strings.TrimSpace(options.StructuredProjectionDatabaseURL)
+	structuredProjectionDatabaseURL := strings.TrimSpace(options.DatabaseURL)
 	knowledgeReadModelStore := options.KnowledgeReadModelStore
 	if knowledgeReadModelStore == nil {
 		knowledgeReadModelStore = NewPostgresKnowledgeReadModelStore(structuredProjectionDatabaseURL)

@@ -14,7 +14,7 @@ const uploadArgs = buildWorkerVersionUploadArgs(
 		environment: "staging",
 		secretsFile: "/tmp/app-api/secrets.json",
 		variables: {
-			SENTRY_RELEASE: "app-api@sha",
+			DEPLOYMENT_RELEASE: "app-api@sha",
 			SENTRY_DSN: "https://example.invalid/1",
 		},
 	},

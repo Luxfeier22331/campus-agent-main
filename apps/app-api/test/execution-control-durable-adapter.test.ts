@@ -121,27 +121,31 @@ function durableRunStepsPayload(
 }
 
 describe("execution control runtime adapter", () => {
-	it("reports execution control configured only when new base URL and shared secret are present", () => {
+	it("reports execution control configured only with an environment, base URL, and shared secret", () => {
 		expect(
 			isExecutionControlRuntimeConfigured({
+				DEPLOYMENT_ENVIRONMENT: "test",
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 			}),
 		).toBe(true);
 		expect(
 			isExecutionControlRuntimeConfigured({
+				DEPLOYMENT_ENVIRONMENT: "test",
 				EXECUTION_CONTROL_BASE_URL: " ",
 				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 			}),
 		).toBe(false);
 		expect(
 			isExecutionControlRuntimeConfigured({
+				DEPLOYMENT_ENVIRONMENT: "test",
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 				APP_API_EXECUTION_SHARED_SECRET: "",
 			}),
 		).toBe(false);
 		expect(
 			isExecutionControlRuntimeConfigured({
+				DEPLOYMENT_ENVIRONMENT: "test",
 				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 			} as never),
 		).toBe(false);
@@ -155,6 +159,7 @@ describe("execution control runtime adapter", () => {
 		);
 		const client = createExecutionControlRuntimeClient(
 			{
+				DEPLOYMENT_ENVIRONMENT: "test",
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 			},
@@ -253,6 +258,7 @@ describe("execution control runtime adapter", () => {
 			);
 		const client = createExecutionControlRuntimeClient(
 			{
+				DEPLOYMENT_ENVIRONMENT: "test",
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 			},
@@ -319,6 +325,7 @@ describe("execution control runtime adapter", () => {
 		);
 		const client = createExecutionControlRuntimeClient(
 			{
+				DEPLOYMENT_ENVIRONMENT: "test",
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 			},
@@ -347,6 +354,7 @@ describe("execution control runtime adapter", () => {
 		);
 		const client = createExecutionControlRuntimeClient(
 			{
+				DEPLOYMENT_ENVIRONMENT: "test",
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 			},
@@ -383,6 +391,7 @@ describe("execution control runtime adapter", () => {
 		);
 		const client = createExecutionControlRuntimeClient(
 			{
+				DEPLOYMENT_ENVIRONMENT: "test",
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 			},
@@ -415,6 +424,7 @@ describe("execution control runtime adapter", () => {
 		);
 		const client = createExecutionControlRuntimeClient(
 			{
+				DEPLOYMENT_ENVIRONMENT: "test",
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 			},
@@ -436,6 +446,7 @@ describe("execution control runtime adapter", () => {
 
 	it("rejects invalid durable run event wait budgets", async () => {
 		const client = createExecutionControlRuntimeClient({
+			DEPLOYMENT_ENVIRONMENT: "test",
 			EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 			APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 		});
@@ -456,6 +467,7 @@ describe("execution control runtime adapter", () => {
 		);
 		const client = createExecutionControlRuntimeClient(
 			{
+				DEPLOYMENT_ENVIRONMENT: "test",
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 			},
@@ -494,6 +506,7 @@ describe("execution control runtime adapter", () => {
 		);
 		const client = createExecutionControlRuntimeClient(
 			{
+				DEPLOYMENT_ENVIRONMENT: "test",
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 			},
@@ -520,6 +533,7 @@ describe("execution control runtime adapter", () => {
 		);
 		const client = createExecutionControlRuntimeClient(
 			{
+				DEPLOYMENT_ENVIRONMENT: "test",
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 			},
@@ -557,6 +571,7 @@ describe("execution control runtime adapter", () => {
 		);
 		const client = createExecutionControlPersonalMemoryClient(
 			{
+				DEPLOYMENT_ENVIRONMENT: "test",
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 			},
@@ -608,7 +623,7 @@ describe("execution control runtime adapter", () => {
 	});
 
 	it("fails closed when durable runtime configuration is missing", async () => {
-		const client = createExecutionControlRuntimeClient({});
+		const client = createExecutionControlRuntimeClient({ DEPLOYMENT_ENVIRONMENT: "test" });
 
 		await expect(
 			client.getRun({
@@ -637,6 +652,7 @@ describe("execution control runtime adapter", () => {
 		);
 		const client = createExecutionControlRuntimeClient(
 			{
+				DEPLOYMENT_ENVIRONMENT: "test",
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 			},
@@ -674,6 +690,7 @@ describe("execution control runtime adapter", () => {
 		);
 		const client = createExecutionControlRuntimeClient(
 			{
+				DEPLOYMENT_ENVIRONMENT: "test",
 				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
 			},

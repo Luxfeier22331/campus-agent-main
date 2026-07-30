@@ -36,7 +36,7 @@ describe("console runtime event sink", () => {
 
 	it("does not require an outbound ingest endpoint in deployed environments", async () => {
 		const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
-		const telemetry = createAppTelemetry({ APP_API_ENVIRONMENT: "staging" });
+		const telemetry = createAppTelemetry({ DEPLOYMENT_ENVIRONMENT: "staging" });
 
 		await expect(
 			telemetry.recordRequestAccepted({

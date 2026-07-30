@@ -40,7 +40,7 @@ workers_dev = false
 preview_urls = false
 
 [env.local.vars]
-APP_API_ENVIRONMENT = "development"
+DEPLOYMENT_ENVIRONMENT = "development"
 AUTH_SHELL_ORIGIN = "http://127.0.0.1:27014"
 EXECUTION_CONTROL_BASE_URL = "http://127.0.0.1:27051"
 OBJECT_STORE_LOCAL_BASE_URL = "http://127.0.0.1:9000/campus-agent-derived/"
@@ -53,15 +53,13 @@ required = [
   "RESEND_API_KEY",
   "OPS_WEB_INTERNAL_TOKEN",
   "APP_API_EXECUTION_SHARED_SECRET",
-  "APP_API_EXECUTION_INPUT_SHARED_SECRET",
   "APP_API_SAFETY_IDENTIFIER_HMAC_SECRET",
 ]
 
 [env.staging.vars]
-APP_API_ENVIRONMENT = "staging"
+DEPLOYMENT_ENVIRONMENT = "staging"
 AUTH_SHELL_ORIGIN = "https://campus-staging.mucwiki-edge.link"
 EXECUTION_CONTROL_PRIVATE_ORIGIN = "http://execution-control.campus-agent-staging.svc.cluster.local:8000"
-SENTRY_ENVIRONMENT = "staging"
 
 [env.staging.secrets]
 required = [
@@ -70,9 +68,7 @@ required = [
   "RESEND_API_KEY",
   "OPS_WEB_INTERNAL_TOKEN",
   "APP_API_EXECUTION_SHARED_SECRET",
-  "APP_API_EXECUTION_INPUT_SHARED_SECRET",
   "APP_API_SAFETY_IDENTIFIER_HMAC_SECRET",
-  "APP_API_STAGING_SMOKE_AUTH_SECRET",
 ]
 
 [[env.staging.vpc_services]]

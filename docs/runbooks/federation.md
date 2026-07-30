@@ -21,7 +21,7 @@ APP_API_FEDERATION_MUC_WIKI_CLIENT_SECRET='<secret>' \
 APP_API_FEDERATION_MUC_WIKI_REDIRECT_URI='https://muc.wiki/wiki/Special:PluggableAuthLogin' \
 APP_API_FEDERATION_MUC_WIKI_POST_LOGOUT_REDIRECT_URI='https://muc.wiki/wiki/Special:UserLogout' \
 APP_API_SCHEMA_DATABASE_URL='postgresql://<staging-schema-admin-url>' \
-APP_API_DATABASE_SSLMODE=require \
+APP_API_SCHEMA_DATABASE_SSLMODE=require \
 pnpm --dir apps/app-api exec tsx ./ops/identity/provision-muc-wiki-federation-client.ts
 ```
 

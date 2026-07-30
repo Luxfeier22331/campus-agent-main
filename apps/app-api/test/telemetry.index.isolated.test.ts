@@ -35,6 +35,8 @@ interface LangfuseTraceIdVector {
 	traceparent: string;
 }
 
+const TEST_TELEMETRY_ENV = { DEPLOYMENT_ENVIRONMENT: "test" };
+
 function langfuseTraceIdVectors(): LangfuseTraceIdVector[] {
 	const fixturePath = resolve(
 		process.cwd(),
@@ -70,7 +72,9 @@ describe("app telemetry", () => {
 			throw new Error("sentry setTag failed");
 		});
 
-		const telemetry = createAppTelemetry({}, { runtimeEventSink: { emit: vi.fn() } });
+		const telemetry = createAppTelemetry(TEST_TELEMETRY_ENV, {
+			runtimeEventSink: { emit: vi.fn() },
+		});
 
 		expect(() =>
 			telemetry.configureChatRequestScope({
@@ -91,7 +95,9 @@ describe("app telemetry", () => {
 			throw new Error("trace data failed");
 		});
 
-		const telemetry = createAppTelemetry({}, { runtimeEventSink: { emit: vi.fn() } });
+		const telemetry = createAppTelemetry(TEST_TELEMETRY_ENV, {
+			runtimeEventSink: { emit: vi.fn() },
+		});
 
 		expect(telemetry.getTraceHeaders()).toEqual({
 			baggage: null,
@@ -101,7 +107,9 @@ describe("app telemetry", () => {
 	});
 
 	it("prefers W3C traceparent while preserving Sentry propagation headers", () => {
-		const telemetry = createAppTelemetry({}, { runtimeEventSink: { emit: vi.fn() } });
+		const telemetry = createAppTelemetry(TEST_TELEMETRY_ENV, {
+			runtimeEventSink: { emit: vi.fn() },
+		});
 		const request = new Request("https://app-api.internal/api/chat", {
 			headers: {
 				baggage: "session=conv_01",
@@ -146,8 +154,8 @@ describe("app telemetry", () => {
 		const runtimeEventSink = { emit: vi.fn().mockResolvedValue(undefined) };
 		const telemetry = createAppTelemetry(
 			{
-				APP_API_ENVIRONMENT: "staging",
-				SENTRY_RELEASE: "app-api@2026.04.20",
+				DEPLOYMENT_ENVIRONMENT: "staging",
+				DEPLOYMENT_RELEASE: "app-api@2026.04.20",
 			},
 			{
 				runtimeEventSink,
@@ -206,7 +214,7 @@ describe("app telemetry", () => {
 	it("does not fail request-path telemetry when runtime event ingest fails", async () => {
 		const telemetry = createAppTelemetry(
 			{
-				APP_API_ENVIRONMENT: "test",
+				DEPLOYMENT_ENVIRONMENT: "test",
 			},
 			{
 				runtimeEventSink: {
@@ -235,8 +243,8 @@ describe("app telemetry", () => {
 		const runtimeEventSink = { emit: vi.fn().mockResolvedValue(undefined) };
 		const telemetry = createAppTelemetry(
 			{
-				APP_API_ENVIRONMENT: "staging",
-				SENTRY_RELEASE: "app-api@2026.07.04",
+				DEPLOYMENT_ENVIRONMENT: "staging",
+				DEPLOYMENT_RELEASE: "app-api@2026.07.04",
 			},
 			{
 				runtimeEventSink,

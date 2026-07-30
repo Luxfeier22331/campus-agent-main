@@ -6,7 +6,7 @@ describe("campus edge Sentry options", () => {
 	it("uses the edge project with bounded collection and production sampling", () => {
 		const options = createCampusEdgeSentryOptions({
 			SENTRY_DSN: "https://public@example.ingest.sentry.io/1",
-			SENTRY_ENVIRONMENT: "production",
+			DEPLOYMENT_ENVIRONMENT: "production",
 		});
 		expect(options?.dataCollection).toMatchObject({
 			cookies: false,

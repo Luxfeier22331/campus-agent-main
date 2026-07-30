@@ -30,9 +30,19 @@ alter table execution_config.model_settings drop column if exists timeout_ms;
 `
 
 const GrantSQL = `
-revoke all privileges on execution_config.model_settings from execution_provider_config_reader, execution_provider_config_admin;
+grant usage on schema execution_config to execution_control;
+grant select, insert, update, delete on execution_config.model_settings to execution_control;
 
-grant usage on schema execution_config to execution_provider_config_reader, execution_provider_config_admin;
-grant select on execution_config.model_settings to execution_provider_config_reader;
-grant select, insert, update, delete on execution_config.model_settings to execution_provider_config_admin;
+do $$
+begin
+	if exists (select 1 from pg_roles where rolname = 'execution_provider_config_reader') then
+		revoke all privileges on execution_config.model_settings from execution_provider_config_reader;
+		revoke usage on schema execution_config from execution_provider_config_reader;
+	end if;
+	if exists (select 1 from pg_roles where rolname = 'execution_provider_config_admin') then
+		revoke all privileges on execution_config.model_settings from execution_provider_config_admin;
+		revoke usage on schema execution_config from execution_provider_config_admin;
+	end if;
+end
+$$;
 `

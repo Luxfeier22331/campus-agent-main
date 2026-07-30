@@ -8,9 +8,11 @@ import { and, eq } from "drizzle-orm";
 import {
 	type AppApiEnvironment,
 	type AppAuthConfig,
+	type AppAuthEmailConfig,
 	type Env,
 	isDeployedEnvironment,
 	readAppAuthConfig,
+	readAppAuthEmailConfig,
 	resolveEnvironment,
 } from "../../config";
 import { createRuntimeDatabase, probeBetterAuthDatabase } from "../../db/runtime";
@@ -85,12 +87,10 @@ function shouldCacheAppAuth(env: Env): boolean {
 export interface BetterAuthConfigInput {
 	appName: string;
 	authShellOrigin: string;
-	authEmailFrom: string;
-	authEmailReplyTo?: string;
 	authTurnstileSecretKey: string;
 	betterAuthSecret: string;
 	environment: AppApiEnvironment;
-	resendApiKey: string;
+	readAuthEmailConfig: () => AppAuthEmailConfig;
 	emailSender?: AuthEmailSender;
 	backgroundTaskHandler?: (promise: Promise<unknown>) => void;
 	emailAccessService: Pick<
@@ -196,12 +196,15 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 		input.environment === "development" &&
 		input.authTurnstileSecretKey === LOCAL_TURNSTILE_DISABLED_SECRET_KEY
 	);
-	const authResetMailConfig = {
-		authShellOrigin: appOrigin,
-		authEmailFrom: input.authEmailFrom,
-		authEmailReplyTo: input.authEmailReplyTo,
-		emailSender: input.emailSender,
-		resendApiKey: input.resendApiKey,
+	const createAuthMailConfig = () => {
+		const emailConfig = input.readAuthEmailConfig();
+		return {
+			authShellOrigin: appOrigin,
+			authEmailFrom: emailConfig.authEmailFrom,
+			authEmailReplyTo: emailConfig.authEmailReplyTo,
+			emailSender: input.emailSender,
+			resendApiKey: emailConfig.resendApiKey,
+		};
 	};
 	const runBackgroundOrAwait = async (promise: Promise<unknown>) => {
 		if (input.backgroundTaskHandler) {
@@ -230,7 +233,7 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 				token: string;
 				user: { email?: string | null; id: string; name?: string | null };
 			}) => {
-				await sendVerificationEmail(authResetMailConfig, { token, user: authUser });
+				await sendVerificationEmail(createAuthMailConfig(), { token, user: authUser });
 			},
 			afterEmailVerification: async (authUser: {
 				email?: string | null;
@@ -293,7 +296,7 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 				token: string;
 				user: { email?: string | null; name?: string | null };
 			}) => {
-				await sendPasswordResetEmail(authResetMailConfig, {
+				await sendPasswordResetEmail(createAuthMailConfig(), {
 					token,
 					user,
 				});
@@ -304,7 +307,7 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 				user: { email?: string | null; id: string; name?: string | null };
 			}) => {
 				await input.clearTemporaryPasswordState?.(user.id);
-				await runBackgroundOrAwait(sendPasswordChangedEmail(authResetMailConfig, { user }));
+				await runBackgroundOrAwait(sendPasswordChangedEmail(createAuthMailConfig(), { user }));
 			},
 		},
 		user: {
@@ -320,7 +323,7 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 					token: string;
 					user: { email?: string | null; name?: string | null };
 				}) => {
-					await sendEmailChangeConfirmation(authResetMailConfig, {
+					await sendEmailChangeConfirmation(createAuthMailConfig(), {
 						newEmail,
 						token,
 						user: authUser,
@@ -480,15 +483,13 @@ export async function createAppAuth(env: Env, input: CreateAppAuthInput = {}) {
 	return betterAuth(
 		buildBetterAuthConfig({
 			appName: config.appName,
-			authEmailFrom: config.authEmailFrom,
-			authEmailReplyTo: config.authEmailReplyTo,
 			authTurnstileSecretKey: config.authTurnstileSecretKey,
 			authShellOrigin: config.authShellOrigin,
 			betterAuthSecret: config.betterAuthSecret,
 			emailSender: input.emailSender,
 			emailAccessService,
 			environment: config.environment,
-			resendApiKey: config.resendApiKey,
+			readAuthEmailConfig: () => readAppAuthEmailConfig(env),
 			backgroundTaskHandler: executionContext?.waitUntil.bind(executionContext),
 			clearTemporaryPasswordState: async (userId) => {
 				await database

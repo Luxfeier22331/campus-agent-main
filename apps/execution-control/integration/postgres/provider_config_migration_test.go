@@ -122,8 +122,8 @@ func testLegacyProviderConfigMigration(t *testing.T, harness *postgresHarness) {
 		assertLegacyTablesAbsent(t, ownerURL)
 		assertModelSettingsCount(t, ownerURL, 2)
 
-		adminURL := databaseURLForOwner(t, harness, ownerURL, adminRole, providerAdminPassword)
-		store := newProviderStore(t, adminURL, keyring)
+		runtimeURL := databaseURLForOwner(t, harness, ownerURL, executionRole, executionPassword)
+		store := newProviderStore(t, runtimeURL, keyring)
 		llm, err := store.Resolve(t.Context(), providerconfig.KindLLM)
 		if err != nil {
 			t.Fatalf("resolve migrated llm: %v", err)

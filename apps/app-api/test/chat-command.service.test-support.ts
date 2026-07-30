@@ -65,6 +65,7 @@ const frozenExecutionInputsByRun = new Map<string, string>();
 const finalizedConversations = new Map<string, ChatConversation>();
 const testServicesByStore = new WeakMap<ChatCommandStore, ChatCommandService>();
 const runtimeHandlesProductCallback = Symbol("runtimeHandlesProductCallback");
+const TEST_SAFETY_IDENTIFIER_HMAC_SECRET = "test-safety-identifier-secret";
 
 function rememberFrozenExecutionInput(input: {
 	admissionInputJson: string;
@@ -89,7 +90,11 @@ export function getFrozenExecutionPayload(runId: string): Record<string, unknown
 export function buildChatCommandService(
 	dependencies: ChatCommandServiceDependencies,
 ): ChatCommandService {
-	const service = buildProductionChatCommandService(dependencies);
+	const service = buildProductionChatCommandService({
+		...dependencies,
+		safetyIdentifierHmacSecret:
+			dependencies.safetyIdentifierHmacSecret ?? TEST_SAFETY_IDENTIFIER_HMAC_SECRET,
+	});
 	testServicesByStore.set(dependencies.store, service);
 	const runtime = dependencies.executionRuntime as
 		| (ExecutionControlRuntimeClient & { [runtimeHandlesProductCallback]?: boolean })

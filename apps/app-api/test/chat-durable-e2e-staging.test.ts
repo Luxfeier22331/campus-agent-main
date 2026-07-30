@@ -7,6 +7,15 @@ import {
 	runChatDurableE2eStaging,
 } from "../e2e/chat-durable-staging";
 
+const E2E_CREDENTIAL_ARGS = [
+	"--email",
+	"smoke-user@example.edu",
+	"--password",
+	"dev-smoke-password",
+	"--captcha-token",
+	"dev-captcha-token",
+];
+
 function jsonResult<T>(
 	payload: T,
 	response = new Response(JSON.stringify(payload), {
@@ -45,13 +54,8 @@ describe("chat durable staging e2e runner", () => {
 				"https://api.example.com/readyz",
 				"--conversation-id",
 				"conv_existing",
-				"--no-reset-identity",
-				"--password",
-				"StableSmokePass!123",
+				...E2E_CREDENTIAL_ARGS,
 			],
-			{
-				APP_API_STAGING_SMOKE_AUTH_SECRET: "smoke-secret",
-			} as NodeJS.ProcessEnv,
 			{
 				abortSubmitStream,
 				async fetchReadyz(url) {
@@ -176,11 +180,11 @@ describe("chat durable staging e2e runner", () => {
 					}
 					throw new Error(`unexpected json request: ${input.url}`);
 				},
-				async mintSmokeSession(input) {
+				async signInIdentity(input) {
 					calls.push({
-						body: { resetIdentity: input.resetIdentity },
+						body: { captchaToken: input.captchaToken, email: input.email },
 						password: input.password,
-						url: "mintSmokeSession",
+						url: "signInIdentity",
 					});
 					return "session=staging";
 				},
@@ -254,9 +258,12 @@ describe("chat durable staging e2e runner", () => {
 				{ url: "https://api.example.com/readyz" },
 				{ url: "https://campus.example.com/readyz" },
 				{
-					body: { resetIdentity: false },
-					password: "StableSmokePass!123",
-					url: "mintSmokeSession",
+					body: {
+						captchaToken: "dev-captcha-token",
+						email: "smoke-user@example.edu",
+					},
+					password: "dev-smoke-password",
+					url: "signInIdentity",
 				},
 				expect.objectContaining({
 					body: {
@@ -291,8 +298,7 @@ describe("chat durable staging e2e runner", () => {
 		let resumeOpenCount = 0;
 
 		const result = await runChatDurableE2eStaging(
-			["--chat-base-url", "https://campus.example.com"],
-			{ APP_API_STAGING_SMOKE_AUTH_SECRET: "smoke-secret" } as NodeJS.ProcessEnv,
+			["--chat-base-url", "https://campus.example.com", ...E2E_CREDENTIAL_ARGS],
 			{
 				async fetchReadyz() {
 					return { payload: { ok: true }, status: 200 };
@@ -342,7 +348,7 @@ describe("chat durable staging e2e runner", () => {
 					}
 					throw new Error(`unexpected json request: ${input.url}`);
 				},
-				async mintSmokeSession() {
+				async signInIdentity() {
 					return "session=staging";
 				},
 				async openRunEventStream(input) {
@@ -382,8 +388,7 @@ describe("chat durable staging e2e runner", () => {
 		let resumeOpenCount = 0;
 		await expect(
 			runChatDurableE2eStaging(
-				["--chat-base-url", "https://campus.example.com"],
-				{ APP_API_STAGING_SMOKE_AUTH_SECRET: "smoke-secret" } as NodeJS.ProcessEnv,
+				["--chat-base-url", "https://campus.example.com", ...E2E_CREDENTIAL_ARGS],
 				{
 					async fetchReadyz() {
 						return { payload: { ok: true }, status: 200 };
@@ -400,7 +405,7 @@ describe("chat durable staging e2e runner", () => {
 						}
 						throw new Error(`unexpected json request: ${input.url}`);
 					},
-					async mintSmokeSession() {
+					async signInIdentity() {
 						return "session=staging";
 					},
 					async openRunEventStream() {
@@ -426,8 +431,7 @@ describe("chat durable staging e2e runner", () => {
 
 	it("returns failed terminal durable runs as diagnostic artifacts", async () => {
 		const result = await runChatDurableE2eStaging(
-			["--chat-base-url", "https://campus.example.com"],
-			{ APP_API_STAGING_SMOKE_AUTH_SECRET: "smoke-secret" } as NodeJS.ProcessEnv,
+			["--chat-base-url", "https://campus.example.com", ...E2E_CREDENTIAL_ARGS],
 			{
 				async fetchReadyz() {
 					return { payload: { ok: true }, status: 200 };
@@ -455,7 +459,7 @@ describe("chat durable staging e2e runner", () => {
 					}
 					throw new Error(`unexpected json request: ${input.url}`);
 				},
-				async mintSmokeSession() {
+				async signInIdentity() {
 					return "session=staging";
 				},
 				async openRunEventStream() {
@@ -489,8 +493,7 @@ describe("chat durable staging e2e runner", () => {
 
 	it("returns completed runs without assistant answers as diagnostic artifacts", async () => {
 		const result = await runChatDurableE2eStaging(
-			["--chat-base-url", "https://campus.example.com"],
-			{ APP_API_STAGING_SMOKE_AUTH_SECRET: "smoke-secret" } as NodeJS.ProcessEnv,
+			["--chat-base-url", "https://campus.example.com", ...E2E_CREDENTIAL_ARGS],
 			{
 				async fetchReadyz() {
 					return { payload: { ok: true }, status: 200 };
@@ -554,7 +557,7 @@ describe("chat durable staging e2e runner", () => {
 					}
 					throw new Error(`unexpected json request: ${input.url}`);
 				},
-				async mintSmokeSession() {
+				async signInIdentity() {
 					return "session=staging";
 				},
 				async openRunEventStream() {
@@ -590,10 +593,8 @@ describe("chat durable staging e2e runner", () => {
 					"https://campus.example.com",
 					"--app-api-readyz-url",
 					"https://api.example.com/readyz",
+					...E2E_CREDENTIAL_ARGS,
 				],
-				{
-					APP_API_STAGING_SMOKE_AUTH_SECRET: "smoke-secret",
-				} as NodeJS.ProcessEnv,
 				{
 					async fetchReadyz() {
 						return {
@@ -617,7 +618,7 @@ describe("chat durable staging e2e runner", () => {
 						}
 						throw new Error(`unexpected json request: ${input.url}`);
 					},
-					async mintSmokeSession() {
+					async signInIdentity() {
 						return "session=staging";
 					},
 					async openRunEventStream() {

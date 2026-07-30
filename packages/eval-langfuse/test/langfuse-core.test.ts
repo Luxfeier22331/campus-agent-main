@@ -50,7 +50,6 @@ function validRagasScoreBatch() {
 
 const TEST_LANGFUSE_SETTINGS = {
 	baseUrl: "https://langfuse.example",
-	environment: "staging",
 	publicKey: "pk-test",
 	secretKey: "sk-test",
 } as const;
@@ -212,7 +211,6 @@ describe("Langfuse score publisher", () => {
 			scoreItems: plan.scoreItems,
 			settings: {
 				baseUrl: "https://langfuse.example",
-				environment: "staging",
 				publicKey: "pk-test",
 				secretKey: "sk-test",
 			},
@@ -480,7 +478,6 @@ describe("Ragas Langfuse official pipeline", () => {
 			},
 			settings: {
 				baseUrl: "https://langfuse.example",
-				environment: "staging",
 				publicKey: "pk-test",
 				secretKey: "sk-test",
 			},
@@ -584,7 +581,6 @@ describe("Ragas Langfuse official pipeline", () => {
 			},
 			settings: {
 				baseUrl: "https://langfuse.example",
-				environment: "staging",
 				publicKey: "pk-test",
 				secretKey: "sk-test",
 			},
@@ -643,7 +639,6 @@ describe("Ragas Langfuse official pipeline", () => {
 				},
 				settings: {
 					baseUrl: "https://langfuse.example",
-					environment: "staging",
 					publicKey: "pk-test",
 					secretKey: "sk-test",
 				},
@@ -702,7 +697,6 @@ describe("Ragas Langfuse official pipeline", () => {
 				},
 				settings: {
 					baseUrl: "https://langfuse.example",
-					environment: "staging",
 					publicKey: "pk-test",
 					secretKey: "sk-test",
 				},

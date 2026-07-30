@@ -11,64 +11,55 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
-func TestWriteFinalizationActivityRequiresMatchingCompletedAgentReceipt(t *testing.T) {
+type finalizationResultMutatingStore struct {
+	*execution.InMemoryRunProjectionStore
+	mutateStepResults func([]execution.StepResultProjection) []execution.StepResultProjection
+}
+
+func (s *finalizationResultMutatingStore) ListStepResults(
+	ctx context.Context,
+	runID string,
+) ([]execution.StepResultProjection, error) {
+	results, err := s.InMemoryRunProjectionStore.ListStepResults(ctx, runID)
+	if err == nil && s.mutateStepResults != nil {
+		results = s.mutateStepResults(results)
+	}
+	return results, err
+}
+
+func TestWriteFinalizationActivityRejectsInvalidWorkflowAgentResult(t *testing.T) {
 	tests := []struct {
 		name   string
-		mutate func(*tamperedAgentReceiptStore)
+		mutate func(*temporalruntime.WriteFinalizationActivityInput)
 	}{
 		{
-			name: "missing receipt",
-			mutate: func(store *tamperedAgentReceiptStore) {
-				store.hideReceipt = true
-			},
-		},
-		{
-			name: "started receipt",
-			mutate: func(store *tamperedAgentReceiptStore) {
-				store.mutateReceipt = func(receipt execution.AgentInvocationReceipt) execution.AgentInvocationReceipt {
-					receipt.State = execution.AgentInvocationReceiptStateStarted
-					return receipt
-				}
-			},
-		},
-		{
 			name: "agent result ref drift",
-			mutate: func(store *tamperedAgentReceiptStore) {
-				store.mutateStepResults = func(results []execution.StepResultProjection) []execution.StepResultProjection {
-					for index := range results {
-						if results[index].StepID == "agent.primary" {
-							results[index].ProjectionRef = "projection://runs/other/agent/primary/result"
-						}
-					}
-					return results
-				}
+			mutate: func(input *temporalruntime.WriteFinalizationActivityInput) {
+				input.AgentResult.AgentResultRef = "projection://runs/other/agent/primary/result"
 			},
 		},
 		{
-			name: "agent result hash drift",
-			mutate: func(store *tamperedAgentReceiptStore) {
-				store.mutateStepResults = func(results []execution.StepResultProjection) []execution.StepResultProjection {
-					for index := range results {
-						if results[index].StepID == "agent.primary" {
-							results[index].SanitizedPayload["protected_result_sha256"] = strings.Repeat("0", 64)
-						}
-					}
-					return results
-				}
+			name: "agent run id drift",
+			mutate: func(input *temporalruntime.WriteFinalizationActivityInput) {
+				input.AgentResult.RunID = "other-run"
+			},
+		},
+		{
+			name: "grounding admission drift",
+			mutate: func(input *temporalruntime.WriteFinalizationActivityInput) {
+				input.AgentResult.GroundingContext.AdmissionSHA256 = ""
 			},
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			server, baseStore, input := primaryAgentFinalizationTrustChainFixture(t, test.name)
-			store := &tamperedAgentReceiptStore{InMemoryRunProjectionStore: baseStore}
-			test.mutate(store)
-			server.runProjectionStore = store
+			server, store, input := primaryAgentFinalizationTrustChainFixture(t, test.name)
+			test.mutate(&input)
 
 			if _, err := server.WriteFinalizationActivity(context.Background(), input); err == nil {
-				t.Fatal("finalization unexpectedly accepted invalid agent receipt/result identity")
+				t.Fatal("finalization unexpectedly accepted invalid workflow agent result")
 			}
-			run, err := baseStore.GetRun(context.Background(), input.RunID)
+			run, err := store.GetRun(context.Background(), input.RunID)
 			if err != nil {
 				t.Fatalf("get run after rejected finalization: %v", err)
 			}
@@ -140,7 +131,7 @@ func TestCompletedFinalizationReplayOnlyValidatesCanonicalResult(t *testing.T) {
 			if err != nil {
 				t.Fatalf("list finalization results before replay: %v", err)
 			}
-			server.runProjectionStore = &tamperedAgentReceiptStore{
+			server.runProjectionStore = &finalizationResultMutatingStore{
 				InMemoryRunProjectionStore: baseStore,
 				mutateStepResults:          test.mutate,
 			}
@@ -177,7 +168,7 @@ func primaryAgentFinalizationTrustChainFixture(
 	server := NewServer(config.Config{TemporalWorkerIdentity: "test:finalization:trust"})
 	attachRunProjectionStoreForHandlerTest(server, store)
 	agentResultRef := temporalProjectionRef(runID, "agent/primary/result")
-	preparePrimaryAgentFinalizationRunForTest(t, server, store, runID, now, map[string]any{
+	input := preparePrimaryAgentFinalizationRunForTest(t, server, store, runID, now, map[string]any{
 		"agent_result_ref":  agentResultRef,
 		"final_output":      "这是受信任的最终答案。",
 		"status":            "completed",
@@ -193,10 +184,5 @@ func primaryAgentFinalizationTrustChainFixture(
 	) error {
 		return nil
 	}
-	return server, store, temporalruntime.WriteFinalizationActivityInput{
-		AgentResultRef: agentResultRef,
-		FinalizedAt:    now.Add(4 * time.Second),
-		RunID:          runID,
-		TraceID:        "trace-executor-001",
-	}
+	return server, store, input
 }

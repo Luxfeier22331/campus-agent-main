@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createRequestRuntimeScope } from "../src/request-runtime-scope";
 
 const env = {
-	APP_API_ENVIRONMENT: "staging" as const,
+	DEPLOYMENT_ENVIRONMENT: "staging" as const,
 	APP_API_DB: {
 		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 	},

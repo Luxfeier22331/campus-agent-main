@@ -942,7 +942,6 @@ func TestTemporalReconcilerFailClosesResetSuccessorWithoutFollowingIt(t *testing
 
 type pagedActiveWorkflowStore struct {
 	execution.RunProjectionStore
-	execution.ProtectedPayloadStore
 	bindings []execution.ActiveWorkflowRun
 	cursors  []string
 }
@@ -1002,7 +1001,7 @@ func TestTemporalReconcilerTimeoutScanPaginatesPastFailedBatchAndWraps(t *testin
 	}
 	bindings = append(bindings, execution.ActiveWorkflowRun{Run: run, StartIntent: confirmedIntent})
 	store := &pagedActiveWorkflowStore{
-		RunProjectionStore: base, ProtectedPayloadStore: base, bindings: bindings,
+		RunProjectionStore: base, bindings: bindings,
 	}
 	closedAt := time.Date(2026, 7, 23, 10, 11, 12, 123456000, time.UTC)
 	info := reconcilerWorkflowInfoForIntent(t, intent, "temporal-paginated-timeout")
@@ -2097,7 +2096,6 @@ func createReconcilerStartIntentForTest(t *testing.T) (*execution.InMemoryRunPro
 		AdmissionSnapshot:       snapshot,
 		AdmissionSnapshotSHA256: sha256JSONRef(snapshot),
 		ConversationID:          conversationID,
-		GroundingContextRef:     groundingContextRef(runID),
 		PayloadSHA256:           payloadHash,
 		RequestID:               "request-reconciler-test",
 		RunID:                   runID,

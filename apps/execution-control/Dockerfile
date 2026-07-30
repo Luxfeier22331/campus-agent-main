@@ -45,6 +45,5 @@ COPY configs/ingestion /configs/ingestion
 
 USER appuser
 EXPOSE 8000 8001
-ENV CAMPUS_AGENT_HTTP_HOST=0.0.0.0
 
 ENTRYPOINT ["/usr/local/bin/execution-control"]

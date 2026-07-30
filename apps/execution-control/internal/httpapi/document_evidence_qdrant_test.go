@@ -315,7 +315,7 @@ func writeServingConfigForCompatibilityTest(
 func TestNewQdrantDocumentEvidenceExecutorRejectsHTTPOutsideLocal(t *testing.T) {
 	_, err := newQdrantDocumentEvidenceExecutor(config.Config{
 		DeploymentEnvironment: "staging",
-		QdrantQueryAPIKey:     "readonly-key",
+		QdrantReadOnlyAPIKey:  "readonly-key",
 		QdrantTLSCACertPath:   "/srv/qdrant/tls/ca.pem",
 		QdrantURL:             "http://qdrant:6333",
 	}, defaultDocumentEvidenceEmbeddingResolverForTest(), knowledgeReadModelForTest())
@@ -327,7 +327,7 @@ func TestNewQdrantDocumentEvidenceExecutorRejectsHTTPOutsideLocal(t *testing.T) 
 func TestNewQdrantDocumentEvidenceExecutorAllowsLocalHTTP(t *testing.T) {
 	executor, err := newQdrantDocumentEvidenceExecutor(config.Config{
 		DeploymentEnvironment: "local",
-		QdrantQueryAPIKey:     "readonly-key",
+		QdrantReadOnlyAPIKey:  "readonly-key",
 		QdrantURL:             "http://qdrant:6333",
 	}, defaultDocumentEvidenceEmbeddingResolverForTest(), knowledgeReadModelForTest())
 	if err != nil || executor == nil {
@@ -344,9 +344,9 @@ func TestNewQdrantDocumentEvidenceExecutorUsesQueryKeyAndTLSCA(t *testing.T) {
 	}))
 	defer qdrant.Close()
 	executor, err := newQdrantDocumentEvidenceExecutor(config.Config{
-		QdrantQueryAPIKey:   "readonly-key",
-		QdrantTLSCACertPath: writeTestCACert(t, qdrant),
-		QdrantURL:           qdrant.URL,
+		QdrantReadOnlyAPIKey: "readonly-key",
+		QdrantTLSCACertPath:  writeTestCACert(t, qdrant),
+		QdrantURL:            qdrant.URL,
 	}, defaultDocumentEvidenceEmbeddingResolverForTest(), knowledgeReadModelForTest())
 	if err != nil {
 		t.Fatalf("new qdrant executor: %v", err)
@@ -362,7 +362,7 @@ func TestNewQdrantDocumentEvidenceExecutorUsesSplitTimeouts(t *testing.T) {
 	}))
 	defer qdrant.Close()
 	lookupExecutor, err := newQdrantDocumentEvidenceExecutor(config.Config{
-		QdrantQueryAPIKey:     "readonly-key",
+		QdrantReadOnlyAPIKey:  "readonly-key",
 		QdrantTLSCACertPath:   writeTestCACert(t, qdrant),
 		QdrantURL:             qdrant.URL,
 		RAGEmbeddingTimeoutMS: 2500,
@@ -380,8 +380,8 @@ func TestNewQdrantDocumentEvidenceExecutorUsesSplitTimeouts(t *testing.T) {
 
 func TestNewQdrantDocumentEvidenceExecutorFailsWithoutTLSCA(t *testing.T) {
 	_, err := newQdrantDocumentEvidenceExecutor(config.Config{
-		QdrantQueryAPIKey: "readonly-key",
-		QdrantURL:         "https://qdrant:6333",
+		QdrantReadOnlyAPIKey: "readonly-key",
+		QdrantURL:            "https://qdrant:6333",
 	}, defaultDocumentEvidenceEmbeddingResolverForTest(), knowledgeReadModelForTest())
 	if err == nil || !strings.Contains(err.Error(), "QDRANT_TLS_CA_CERT_PATH") {
 		t.Fatalf("error = %v, want TLS CA diagnostic", err)

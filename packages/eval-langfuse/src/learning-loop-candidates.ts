@@ -155,7 +155,7 @@ export function createLearningLoopCandidatePublisher(
 	const client =
 		input.client ??
 		createLangfuseEvalClient({
-			settings: settingsFromEnv(input.env),
+			settings: settingsFromEnv({ env: input.env }),
 		});
 	return {
 		async publish(candidates: LearningLoopCandidate[]) {

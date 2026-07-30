@@ -71,10 +71,10 @@ selected scopes: PrepareGroundingContextActivity
 ```
 
 execution-control 仅在选中范围时读取本轮冻结的文档范围和检索 Provider Config，执行一次查询向量化，
-并发查询选中范围的不可变 Qdrant collection，再使用 Qdrant RRF 分数合并、去重和裁剪。完整
-`grounding_context.v2` 只写入受保护载荷；Temporal history、普通运行投影和产品响应只携带引用、
-摘要、计数和 hash。`none` 路径建立 `not_required` context，不执行检索。Primary Agent 必须消费本轮
-context，只能引用其中出现的 `evidence://` 标识，并只生成一次最终答案。
+并发查询选中范围的不可变 Qdrant collection，再使用 Qdrant RRF 分数合并、去重和裁剪。完整且有界的
+`grounding_context.v2` 经由 Temporal history 传给 Primary Agent 和 Finalization；普通运行投影和产品
+响应只携带引用、摘要、计数和 hash。`none` 路径建立 `not_required` context，不执行检索。Primary Agent
+必须消费本轮 context，只能引用其中出现的 `evidence://` 标识，并只生成一次最终答案。
 
 当前文档范围为 `student_rules`、`institutional_rules` 和 `curriculum`。培养方案、规章和普通正式
 文档共用同一文档 RAG，不再作为课程事实、文档召回或章节读取模型工具。范围准入只接受

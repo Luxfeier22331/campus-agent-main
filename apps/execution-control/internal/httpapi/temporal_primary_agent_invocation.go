@@ -1,7 +1,6 @@
 package httpapi
 
 import (
-	"context"
 	"strings"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
@@ -83,25 +82,6 @@ func validatePrimaryAgentProviderInvocationEnvelope(
 	return nil
 }
 
-func validatePrimaryAgentProviderInvocationReplay(
-	envelope primaryAgentProviderInvocationEnvelope,
-	run execution.DurableRun,
-	input temporalruntime.ExecutePrimaryAgentActivityInput,
-	executionInputSHA256 string,
-) (string, error) {
-	if err := validatePrimaryAgentProviderInvocationEnvelope(envelope); err != nil {
-		return "", err
-	}
-	if envelope.RunID != run.RunID || envelope.InvocationID != run.RunID+":agent.primary" ||
-		envelope.ExecutionInputSHA256 != strings.TrimSpace(executionInputSHA256) ||
-		envelope.ActivityInputSHA256 != hashAdmissionJSON(canonicalPrimaryAgentActivityInput(input)) ||
-		envelope.AdmissionSnapshotSHA256 != hashAdmissionJSON(input.AdmissionSnapshot) ||
-		envelope.ExecutionStrategySHA256 != input.AdmissionSnapshot.ExecutionStrategySHA256 {
-		return "", receiptIntegrityError("provider invocation replay input differs")
-	}
-	return sha256AnyValue(envelope), nil
-}
-
 func canonicalPrimaryAgentActivityInput(
 	input temporalruntime.ExecutePrimaryAgentActivityInput,
 ) temporalruntime.ExecutePrimaryAgentActivityInput {
@@ -126,23 +106,4 @@ func equalStringSlices(left []string, right []string) bool {
 		}
 	}
 	return true
-}
-
-func primaryAgentInvocationRef(runID string) string {
-	return temporalProjectionRef(runID, "agent/primary/invocation")
-}
-
-func (s *Server) loadPrimaryAgentProviderInvocationEnvelope(
-	ctx context.Context,
-	run execution.DurableRun,
-) (primaryAgentProviderInvocationEnvelope, error) {
-	var envelope primaryAgentProviderInvocationEnvelope
-	err := s.getProtectedJSON(
-		ctx,
-		run,
-		primaryAgentInvocationRef(run.RunID),
-		protectedPayloadKindAgentInvocation,
-		&envelope,
-	)
-	return envelope, err
 }

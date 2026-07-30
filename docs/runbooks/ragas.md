@@ -71,14 +71,19 @@ pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
 pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
   agent-eval \
   --app-api-base-url <app-api-url> \
+  --cookie-header '<cookie-header>' \
   --dataset <dataset-name> \
+  --environment <environment> \
+  --provider-config-projection <provider-config-projection.json> \
   --limit <count> \
   --json
 ```
 
 命令通过 App API 执行 Langfuse dataset item，把目标 turn 关联到真实 product trace，再发布适用
 的 Ragas 和确定性 score。认证输入来自批准的评测环境，不能写入仓库。setup turn 与目标 turn
-使用同一 conversation，dataset run identity 只用于关联。
+使用同一 conversation，dataset run identity 只用于关联。`--app-api-base-url`、`--cookie-header`、
+`--dataset`、`--environment` 和 `--provider-config-projection` 都是该命令的显式必填参数；命令不会
+从其他环境变量推断它们。
 
 ## 评分现有 Trace
 
@@ -88,6 +93,8 @@ pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
 pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
   ragas-score-traces \
   --trace-name <trace-name> \
+  --environment <environment> \
+  --provider-config-projection <provider-config-projection.json> \
   --release <release> \
   --limit <count> \
   --validate-only \
@@ -103,6 +110,8 @@ TypeScript 适配器读取 Langfuse trace、构造受控 Ragas sample 并校验�
 pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
   ragas-score-dataset \
   --dataset <dataset-name> \
+  --environment <environment> \
+  --provider-config-projection <provider-config-projection.json> \
   --limit <count> \
   --validate-only \
   --json

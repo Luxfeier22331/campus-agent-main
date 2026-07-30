@@ -2,18 +2,33 @@ import dotenv from "dotenv";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+	type InternalPortalDescriptor,
+	loadInternalPortalDescriptor,
 	loadInternalPortalEnv,
 	resolveInternalPortalConfig,
 	resolveInternalPortalSiteId,
 } from "../src/config.js";
 
 const TEST_SSO_TGC_FILE = "/tmp/internal-portal-sso-tgc";
+const TEST_DESCRIPTOR: InternalPortalDescriptor = {
+	portalBaseUrl: "https://portal.example.edu",
+	portalPageUrl: "https://portal.example.edu/page/11#/",
+	siteId: "synthetic_internal_portal",
+	sourceHomeUrl: "https://portal.example.edu",
+	ssoCookieDomain: ".example.edu",
+};
 
-function resolveTestConfig(source: Record<string, string | undefined> = {}) {
-	return resolveInternalPortalConfig({
-		INTERNAL_PORTAL_SSO_TGC_FILE: TEST_SSO_TGC_FILE,
-		...source,
-	});
+function resolveTestConfig(
+	source: Record<string, string | undefined> = {},
+	descriptor: InternalPortalDescriptor = TEST_DESCRIPTOR,
+) {
+	return resolveInternalPortalConfig(
+		{
+			INTERNAL_PORTAL_SSO_TGC_FILE: TEST_SSO_TGC_FILE,
+			...source,
+		},
+		descriptor,
+	);
 }
 
 describe("internal portal source collector config", () => {
@@ -37,13 +52,12 @@ describe("internal portal source collector config", () => {
 		config.mockRestore();
 	});
 
-	it("resolves site identity without parsing unrelated portal configuration", () => {
-		expect(
-			resolveInternalPortalSiteId({
-				INTERNAL_PORTAL_BASE_URL: "not-a-url",
-				INTERNAL_PORTAL_SITE_ID: "muc_internal_portal",
-			}),
-		).toBe("muc_internal_portal");
+	it("loads the repository-owned portal descriptor", () => {
+		expect(loadInternalPortalDescriptor()).toMatchObject({
+			portalBaseUrl: "https://my.muc.edu.cn",
+			siteId: "muc_internal_portal",
+		});
+		expect(resolveInternalPortalSiteId(TEST_DESCRIPTOR)).toBe("synthetic_internal_portal");
 	});
 
 	it("uses authenticated portal defaults", () => {
@@ -65,14 +79,17 @@ describe("internal portal source collector config", () => {
 		expect(config.authSsoTgcFile).toBeNull();
 	});
 
-	it("accepts explicit overrides from env-like input", () => {
-		const config = resolveTestConfig({
-			INTERNAL_PORTAL_BASE_URL: "https://portal.example.edu",
-			INTERNAL_PORTAL_PAGE_URL: "https://portal.example.edu/page/99#/",
-			INTERNAL_PORTAL_PROXY_SERVER: "http://127.0.0.1:10808",
-			INTERNAL_PORTAL_SSO_COOKIE_DOMAIN: ".example.edu",
-			INTERNAL_PORTAL_SSO_TGC_FILE: "/run/secrets/internal-portal/sso_tgc",
-		});
+	it("keeps credentials and the local proxy as environment inputs", () => {
+		const config = resolveTestConfig(
+			{
+				INTERNAL_PORTAL_PROXY_SERVER: "http://127.0.0.1:10808",
+				INTERNAL_PORTAL_SSO_TGC_FILE: "/run/secrets/internal-portal/sso_tgc",
+			},
+			{
+				...TEST_DESCRIPTOR,
+				portalPageUrl: "https://portal.example.edu/page/99#/",
+			},
+		);
 
 		expect(config.portalBaseUrl).toBe("https://portal.example.edu");
 		expect(config.portalPageUrl).toBe("https://portal.example.edu/page/99#/");
@@ -103,29 +120,41 @@ describe("internal portal source collector config", () => {
 
 	it("rejects SSO cookie domains outside the configured portal host", () => {
 		expect(() =>
-			resolveTestConfig({
-				INTERNAL_PORTAL_BASE_URL: "https://portal.example.edu.cn",
-				INTERNAL_PORTAL_SSO_COOKIE_DOMAIN: ".edu.cn",
-			}),
-		).toThrow("INTERNAL_PORTAL_SSO_COOKIE_DOMAIN must be a registrable parent domain");
+			resolveTestConfig(
+				{},
+				{
+					...TEST_DESCRIPTOR,
+					portalBaseUrl: "https://portal.example.edu.cn",
+					portalPageUrl: "https://portal.example.edu.cn/page/11#/",
+					ssoCookieDomain: ".edu.cn",
+				},
+			),
+		).toThrow("sso_cookie_domain must be a registrable parent domain");
 		expect(() =>
-			resolveTestConfig({
-				INTERNAL_PORTAL_BASE_URL: "https://portal.example.edu.cn",
-				INTERNAL_PORTAL_SSO_COOKIE_DOMAIN: ".other.edu.cn",
-			}),
-		).toThrow("INTERNAL_PORTAL_SSO_COOKIE_DOMAIN must match or parent the portal host");
+			resolveTestConfig(
+				{},
+				{
+					...TEST_DESCRIPTOR,
+					portalBaseUrl: "https://portal.example.edu.cn",
+					portalPageUrl: "https://portal.example.edu.cn/page/11#/",
+					ssoCookieDomain: ".other.edu.cn",
+				},
+			),
+		).toThrow("sso_cookie_domain must match or parent the portal host");
 	});
 
 	it("requires credential-free HTTPS portal URLs on one portal host", () => {
 		expect(() =>
-			resolveTestConfig({
-				INTERNAL_PORTAL_BASE_URL: "http://portal.example.edu",
-			}),
-		).toThrow("INTERNAL_PORTAL_BASE_URL must be a credential-free HTTPS URL");
+			resolveTestConfig({}, { ...TEST_DESCRIPTOR, portalBaseUrl: "http://portal.example.edu" }),
+		).toThrow("portal_base_url must be a credential-free HTTPS URL");
 		expect(() =>
-			resolveTestConfig({
-				INTERNAL_PORTAL_PAGE_URL: "https://other.example.edu/page/11#/",
-			}),
-		).toThrow("INTERNAL_PORTAL_PAGE_URL must use the portal host");
+			resolveTestConfig(
+				{},
+				{
+					...TEST_DESCRIPTOR,
+					portalPageUrl: "https://other.example.edu/page/11#/",
+				},
+			),
+		).toThrow("portal_page_url must use the portal host");
 	});
 });

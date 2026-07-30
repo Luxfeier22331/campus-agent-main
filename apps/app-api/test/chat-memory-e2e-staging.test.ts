@@ -9,6 +9,15 @@ import {
 } from "../e2e/chat-memory-staging";
 import { deriveLangfuseTraceId } from "../src/modules/telemetry/trace";
 
+const E2E_CREDENTIAL_ARGS = [
+	"--email",
+	"smoke-user@example.edu",
+	"--password",
+	"dev-smoke-password",
+	"--captcha-token",
+	"dev-captcha-token",
+];
+
 function jsonResult<T>(
 	payload: T,
 	response = new Response(JSON.stringify(payload), {
@@ -40,7 +49,7 @@ describe("chat memory staging e2e runner", () => {
 			observabilityCanary?: unknown;
 			url: string;
 		}> = [];
-		let mintedName: string | undefined;
+		let signedInEmail: string | undefined;
 		const result = await runChatMemoryE2eStaging(
 			[
 				"--chat-base-url",
@@ -49,18 +58,14 @@ describe("chat memory staging e2e runner", () => {
 				"https://api.example.com/readyz",
 				"--memory-value",
 				"body-sentinel-0001",
-				"--name",
-				"user-sentinel-0001",
 				"--observability-canary-header-sentinel",
 				"header-sentinel-0001",
 				"--observability-canary-api-key-sentinel",
 				"credential-sentinel-0001",
 				"--prompt",
 				"query-sentinel-0001",
+				...E2E_CREDENTIAL_ARGS,
 			],
-			{
-				APP_API_STAGING_SMOKE_AUTH_SECRET: "smoke-secret",
-			} as NodeJS.ProcessEnv,
 			{
 				async fetchReadyz(url) {
 					calls.push({ url });
@@ -174,8 +179,8 @@ describe("chat memory staging e2e runner", () => {
 					}
 					throw new Error(`unexpected json request: ${input.url}`);
 				},
-				async mintSmokeSession(input) {
-					mintedName = input.name;
+				async signInIdentity(input) {
+					signedInEmail = input.email;
 					return "session=staging";
 				},
 				async openSubmitStream(input) {
@@ -203,7 +208,7 @@ describe("chat memory staging e2e runner", () => {
 			runtimeTraceId: await deriveLangfuseTraceId("trace_01HQ"),
 			traceId: "trace_01HQ",
 		});
-		expect(mintedName).toBe("user-sentinel-0001");
+		expect(signedInEmail).toBe("smoke-user@example.edu");
 		expect(result.recall).toEqual({
 			outcome: "matched",
 			projectionRef: "projection://runs/run_01HQ/sdk-tools/personal_memory_recall/1",
@@ -282,8 +287,7 @@ describe("chat memory staging e2e runner", () => {
 	});
 
 	it("rejects partial, duplicate, invalid, or aliased canary header inputs before I/O", async () => {
-		const env = { APP_API_STAGING_SMOKE_AUTH_SECRET: "smoke-secret" } as NodeJS.ProcessEnv;
-		const run = (...args: string[]) => runChatMemoryE2eStaging(args, env);
+		const run = (...args: string[]) => runChatMemoryE2eStaging([...args, ...E2E_CREDENTIAL_ARGS]);
 
 		await expect(
 			run("--observability-canary-header-sentinel", "header-sentinel-0001"),

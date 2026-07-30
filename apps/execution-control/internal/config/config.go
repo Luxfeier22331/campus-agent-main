@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/protectedpayload"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 	env "github.com/caarlos0/env/v11"
 )
 
@@ -31,7 +31,10 @@ const (
 	defaultRequestTimeoutMS            = 95_000
 	defaultShutdownGraceMS             = 95_000
 	defaultToolReadModelTimeoutMS      = 1_000
-	defaultTemporalWorkflowTimeoutSec  = 900
+	fixedHTTPHost                      = "0.0.0.0"
+	fixedHTTPPort                      = 8000
+	fixedProviderConfigKeyringPath     = "/run/campus-agent/provider-config/keyring.json"
+	fixedTemporalWorkflowTimeoutSec    = 900
 	packagedQueryServingTargetsPath    = "/etc/campus-agent/query-serving-targets.v3.json"
 )
 
@@ -42,7 +45,6 @@ type Config struct {
 	Host                                    string
 	Port                                    int
 	AppAPIExecutionSharedSecret             string
-	AppAPIExecutionInputSharedSecret        string
 	MaxConcurrentAnswers                    int
 	QueueCapacity                           int
 	QueueTimeoutMS                          int
@@ -60,7 +62,7 @@ type Config struct {
 	OTelSampleRatio                         float64
 	OTelAllowedAttributesVersion            string
 	TemporalTracingEnabled                  bool
-	RunProjectionDatabaseURL                string
+	DatabaseURL                             string
 	TemporalAddress                         string
 	TemporalNamespace                       string
 	TemporalTaskQueue                       string
@@ -77,17 +79,11 @@ type Config struct {
 	AgentRuntimeContextCharLimit            int
 	ProductCallbackBaseURL                  string
 	ProductCallbackTimeoutMS                int
-	ProviderConfigReaderDatabaseURL         string
-	ProviderConfigAdminDatabaseURL          string
 	ProviderConfigKeyringPath               string
-	ProtectedPayloadKeyringPath             string
-	ProtectedPayloadKeyring                 *protectedpayload.Keyring
 	QueryServingTargetsPath                 string
-	ToolReadModelTrustedTimeRFC3339         string
 	ToolReadModelTimeoutMS                  int
-	StructuredProjectionDatabaseURL         string
 	QdrantURL                               string
-	QdrantQueryAPIKey                       string
+	QdrantReadOnlyAPIKey                    string
 	QdrantTLSCACertPath                     string
 	RAGTopKMax                              int
 	RAGEmbeddingTimeoutMS                   int
@@ -101,9 +97,9 @@ type Config struct {
 	PersonalMemoryRecallLimit               int
 	PersonalMemoryRecallMaxTokens           int
 	PersonalMemoryContextCharBudget         int
-	LangfuseMaintenanceBaseURL              string
-	LangfuseMaintenancePublicKey            string
-	LangfuseMaintenanceSecretKey            string
+	LangfuseBaseURL                         string
+	LangfusePublicKey                       string
+	LangfuseSecretKey                       string
 }
 
 type WorkerProfile struct {
@@ -123,36 +119,26 @@ const (
 )
 
 type envValues struct {
-	DeploymentEnvironment                   string `env:"DEPLOYMENT_ENVIRONMENT" envDefault:"local"`
-	DeploymentRelease                       string `env:"DEPLOYMENT_RELEASE"`
-	Host                                    string `env:"CAMPUS_AGENT_HTTP_HOST" envDefault:"127.0.0.1"`
-	Port                                    int    `env:"CAMPUS_AGENT_HTTP_PORT" envDefault:"8000"`
-	AppAPIExecutionSharedSecret             string `env:"APP_API_EXECUTION_SHARED_SECRET"`
-	AppAPIExecutionInputSharedSecret        string `env:"APP_API_EXECUTION_INPUT_SHARED_SECRET"`
-	OpsWebInternalToken                     string `env:"OPS_WEB_INTERNAL_TOKEN"`
-	RunProjectionDatabaseURL                string `env:"EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL"`
-	TemporalAddress                         string `env:"EXECUTION_CONTROL_TEMPORAL_ADDRESS"`
-	TemporalNamespace                       string `env:"EXECUTION_CONTROL_TEMPORAL_NAMESPACE"`
-	TemporalWorkerIdentity                  string `env:"EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY"`
-	TemporalWorkflowExecutionTimeoutSeconds int    `env:"EXECUTION_CONTROL_TEMPORAL_WORKFLOW_EXECUTION_TIMEOUT_SECONDS"`
-	AgentRuntimeBaseURL                     string `env:"EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL"`
-	AgentRuntimeSharedSecret                string `env:"EXECUTION_AGENT_RUNTIME_SHARED_SECRET"`
-	ProductCallbackBaseURL                  string `env:"EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL"`
-	ProviderConfigReaderDatabaseURL         string `env:"EXECUTION_CONTROL_PROVIDER_CONFIG_READER_DATABASE_URL"`
-	ProviderConfigAdminDatabaseURL          string `env:"EXECUTION_CONTROL_PROVIDER_CONFIG_ADMIN_DATABASE_URL"`
-	ProviderConfigKeyringPath               string `env:"EXECUTION_CONTROL_PROVIDER_CONFIG_KEYRING_PATH"`
-	ProtectedPayloadKeyringPath             string `env:"EXECUTION_CONTROL_PROTECTED_PAYLOAD_KEYRING_PATH"`
-	ToolReadModelTrustedTimeRFC3339         string `env:"EXECUTION_CONTROL_TOOL_READ_MODEL_TRUSTED_TIME_RFC3339"`
-	ToolReadDatabaseURL                     string `env:"EXECUTION_CONTROL_TOOL_READ_DATABASE_URL"`
-	QdrantURL                               string `env:"QDRANT_URL"`
-	QdrantQueryAPIKey                       string `env:"QDRANT_QUERY_API_KEY"`
-	QdrantTLSCACertPath                     string `env:"QDRANT_TLS_CA_CERT_PATH"`
-	PersonalMemoryBaseURL                   string `env:"PERSONAL_MEMORY_BASE_URL"`
-	PersonalMemoryAPISecret                 string `env:"PERSONAL_MEMORY_API_SECRET"`
-	PersonalMemoryOwnerSalt                 string `env:"PERSONAL_MEMORY_OWNER_SALT"`
-	LangfuseMaintenanceBaseURL              string `env:"LANGFUSE_MAINTENANCE_BASE_URL"`
-	LangfuseMaintenancePublicKey            string `env:"LANGFUSE_MAINTENANCE_PUBLIC_KEY"`
-	LangfuseMaintenanceSecretKey            string `env:"LANGFUSE_MAINTENANCE_SECRET_KEY"`
+	DeploymentEnvironment       string `env:"DEPLOYMENT_ENVIRONMENT" envDefault:"local"`
+	DeploymentRelease           string `env:"DEPLOYMENT_RELEASE"`
+	AppAPIExecutionSharedSecret string `env:"APP_API_EXECUTION_SHARED_SECRET"`
+	OpsWebInternalToken         string `env:"OPS_WEB_INTERNAL_TOKEN"`
+	DatabaseURL                 string `env:"EXECUTION_CONTROL_DATABASE_URL"`
+	TemporalAddress             string `env:"EXECUTION_CONTROL_TEMPORAL_ADDRESS"`
+	TemporalNamespace           string `env:"EXECUTION_CONTROL_TEMPORAL_NAMESPACE"`
+	TemporalWorkerIdentity      string `env:"EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY"`
+	AgentRuntimeBaseURL         string `env:"EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL"`
+	AgentRuntimeSharedSecret    string `env:"EXECUTION_AGENT_RUNTIME_SHARED_SECRET"`
+	ProductCallbackBaseURL      string `env:"EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL"`
+	QdrantURL                   string `env:"QDRANT_URL"`
+	QdrantReadOnlyAPIKey        string `env:"QDRANT_READ_ONLY_API_KEY"`
+	QdrantTLSCACertPath         string `env:"QDRANT_TLS_CA_CERT_PATH"`
+	PersonalMemoryBaseURL       string `env:"HINDSIGHT_API_BASE_URL"`
+	PersonalMemoryAPISecret     string `env:"HINDSIGHT_API_TENANT_API_KEY"`
+	PersonalMemoryOwnerSalt     string `env:"HINDSIGHT_OWNER_SALT"`
+	LangfuseBaseURL             string `env:"LANGFUSE_BASE_URL"`
+	LangfusePublicKey           string `env:"LANGFUSE_PUBLIC_KEY"`
+	LangfuseSecretKey           string `env:"LANGFUSE_SECRET_KEY"`
 }
 
 func LoadRuntimeFromEnv() (Config, error) {
@@ -172,29 +158,9 @@ func loadFromEnv(role runtimeRole) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	if values.Port <= 0 || values.Port > 65_535 {
-		return Config{}, fmt.Errorf("CAMPUS_AGENT_HTTP_PORT must be a valid TCP port")
-	}
-	if values.TemporalWorkflowExecutionTimeoutSeconds == 0 {
-		values.TemporalWorkflowExecutionTimeoutSeconds = defaultTemporalWorkflowTimeoutSec
-	}
-	if values.TemporalWorkflowExecutionTimeoutSeconds < 0 {
-		return Config{}, fmt.Errorf("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_EXECUTION_TIMEOUT_SECONDS must be positive")
-	}
 	if isDeployedEnvironment(environment) {
 		if err := validateDeployedRole(values, role); err != nil {
 			return Config{}, err
-		}
-	}
-	protectedPayloadKeyringPath := strings.TrimSpace(values.ProtectedPayloadKeyringPath)
-	var protectedPayloadKeyring *protectedpayload.Keyring
-	if roleNeedsProtectedPayloadKeyring(role) {
-		if protectedPayloadKeyringPath == "" {
-			return Config{}, fmt.Errorf("EXECUTION_CONTROL_PROTECTED_PAYLOAD_KEYRING_PATH is required for %s", role)
-		}
-		protectedPayloadKeyring, err = protectedpayload.LoadKeyring(protectedPayloadKeyringPath)
-		if err != nil {
-			return Config{}, fmt.Errorf("load protected payload keyring: %w", err)
 		}
 	}
 	commonOTLPEndpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
@@ -216,10 +182,9 @@ func loadFromEnv(role runtimeRole) (Config, error) {
 		AppName:                                 "campus-agent",
 		DeploymentEnvironment:                   environment,
 		DeploymentRelease:                       strings.TrimSpace(values.DeploymentRelease),
-		Host:                                    strings.TrimSpace(values.Host),
-		Port:                                    values.Port,
+		Host:                                    fixedHTTPHost,
+		Port:                                    fixedHTTPPort,
 		AppAPIExecutionSharedSecret:             strings.TrimSpace(values.AppAPIExecutionSharedSecret),
-		AppAPIExecutionInputSharedSecret:        strings.TrimSpace(values.AppAPIExecutionInputSharedSecret),
 		MaxConcurrentAnswers:                    defaultMaxConcurrentAnswers,
 		QueueCapacity:                           defaultQueueCapacity,
 		QueueTimeoutMS:                          defaultQueueTimeoutMS,
@@ -237,13 +202,13 @@ func loadFromEnv(role runtimeRole) (Config, error) {
 		OTelSampleRatio:                         1,
 		OTelAllowedAttributesVersion:            "execution-control-otel-attrs-v1",
 		TemporalTracingEnabled:                  tracesEnabled,
-		RunProjectionDatabaseURL:                normalizePostgresDatabaseURL(values.RunProjectionDatabaseURL),
+		DatabaseURL:                             normalizePostgresDatabaseURL(values.DatabaseURL),
 		TemporalAddress:                         strings.TrimSpace(values.TemporalAddress),
 		TemporalNamespace:                       strings.TrimSpace(values.TemporalNamespace),
-		TemporalTaskQueue:                       "campus-agent.workflow",
+		TemporalTaskQueue:                       temporalruntime.WorkflowTaskQueue,
 		TemporalWorkerIdentity:                  strings.TrimSpace(values.TemporalWorkerIdentity),
 		TemporalStartTimeoutMS:                  5_000,
-		TemporalWorkflowExecutionTimeoutSeconds: values.TemporalWorkflowExecutionTimeoutSeconds,
+		TemporalWorkflowExecutionTimeoutSeconds: fixedTemporalWorkflowTimeoutSec,
 		AgentRuntimeBaseURL:                     strings.TrimRight(strings.TrimSpace(values.AgentRuntimeBaseURL), "/"),
 		AgentRuntimeSharedSecret:                strings.TrimSpace(values.AgentRuntimeSharedSecret),
 		AgentRuntimeDeadlineMS:                  defaultAgentRuntimeDeadlineMS,
@@ -254,17 +219,11 @@ func loadFromEnv(role runtimeRole) (Config, error) {
 		AgentRuntimeContextCharLimit:            16_000,
 		ProductCallbackBaseURL:                  strings.TrimRight(strings.TrimSpace(values.ProductCallbackBaseURL), "/"),
 		ProductCallbackTimeoutMS:                1_000,
-		ProviderConfigReaderDatabaseURL:         strings.TrimSpace(values.ProviderConfigReaderDatabaseURL),
-		ProviderConfigAdminDatabaseURL:          strings.TrimSpace(values.ProviderConfigAdminDatabaseURL),
-		ProviderConfigKeyringPath:               strings.TrimSpace(values.ProviderConfigKeyringPath),
-		ProtectedPayloadKeyringPath:             protectedPayloadKeyringPath,
-		ProtectedPayloadKeyring:                 protectedPayloadKeyring,
+		ProviderConfigKeyringPath:               fixedProviderConfigKeyringPath,
 		QueryServingTargetsPath:                 packagedQueryServingTargetsPath,
-		ToolReadModelTrustedTimeRFC3339:         strings.TrimSpace(values.ToolReadModelTrustedTimeRFC3339),
 		ToolReadModelTimeoutMS:                  defaultToolReadModelTimeoutMS,
-		StructuredProjectionDatabaseURL:         normalizePostgresDatabaseURL(values.ToolReadDatabaseURL),
 		QdrantURL:                               strings.TrimRight(strings.TrimSpace(values.QdrantURL), "/"),
-		QdrantQueryAPIKey:                       strings.TrimSpace(values.QdrantQueryAPIKey),
+		QdrantReadOnlyAPIKey:                    strings.TrimSpace(values.QdrantReadOnlyAPIKey),
 		QdrantTLSCACertPath:                     strings.TrimSpace(values.QdrantTLSCACertPath),
 		RAGTopKMax:                              defaultRAGTopKMax,
 		RAGEmbeddingTimeoutMS:                   defaultRAGEmbeddingTimeoutMS,
@@ -278,9 +237,9 @@ func loadFromEnv(role runtimeRole) (Config, error) {
 		PersonalMemoryRecallLimit:               defaultMemoryRecallLimit,
 		PersonalMemoryRecallMaxTokens:           defaultMemoryRecallMaxTokens,
 		PersonalMemoryContextCharBudget:         defaultMemoryContextCharBudget,
-		LangfuseMaintenanceBaseURL:              strings.TrimRight(strings.TrimSpace(values.LangfuseMaintenanceBaseURL), "/"),
-		LangfuseMaintenancePublicKey:            strings.TrimSpace(values.LangfuseMaintenancePublicKey),
-		LangfuseMaintenanceSecretKey:            strings.TrimSpace(values.LangfuseMaintenanceSecretKey),
+		LangfuseBaseURL:                         strings.TrimRight(strings.TrimSpace(values.LangfuseBaseURL), "/"),
+		LangfusePublicKey:                       strings.TrimSpace(values.LangfusePublicKey),
+		LangfuseSecretKey:                       strings.TrimSpace(values.LangfuseSecretKey),
 	}, nil
 }
 
@@ -305,24 +264,18 @@ func validateDeployedRole(values envValues, role runtimeRole) error {
 	switch role {
 	case roleRuntime:
 		required = append(required,
-			struct{ name, value string }{"EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL", values.RunProjectionDatabaseURL},
+			struct{ name, value string }{"EXECUTION_CONTROL_DATABASE_URL", values.DatabaseURL},
 			struct{ name, value string }{"APP_API_EXECUTION_SHARED_SECRET", values.AppAPIExecutionSharedSecret},
 			struct{ name, value string }{"EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL", values.ProductCallbackBaseURL},
-			struct{ name, value string }{"APP_API_EXECUTION_INPUT_SHARED_SECRET", values.AppAPIExecutionInputSharedSecret},
 			struct{ name, value string }{"EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL", values.AgentRuntimeBaseURL},
 			struct{ name, value string }{"EXECUTION_AGENT_RUNTIME_SHARED_SECRET", values.AgentRuntimeSharedSecret},
-			struct{ name, value string }{"EXECUTION_CONTROL_PROVIDER_CONFIG_READER_DATABASE_URL", values.ProviderConfigReaderDatabaseURL},
-			struct{ name, value string }{"EXECUTION_CONTROL_PROVIDER_CONFIG_ADMIN_DATABASE_URL", values.ProviderConfigAdminDatabaseURL},
-			struct{ name, value string }{"EXECUTION_CONTROL_PROVIDER_CONFIG_KEYRING_PATH", values.ProviderConfigKeyringPath},
-			struct{ name, value string }{"EXECUTION_CONTROL_PROTECTED_PAYLOAD_KEYRING_PATH", values.ProtectedPayloadKeyringPath},
-			struct{ name, value string }{"EXECUTION_CONTROL_TOOL_READ_DATABASE_URL", values.ToolReadDatabaseURL},
 			struct{ name, value string }{"OPS_WEB_INTERNAL_TOKEN", values.OpsWebInternalToken},
 		)
 	case rolePersonalMemoryCommand:
 		required = append(required,
-			struct{ name, value string }{"PERSONAL_MEMORY_BASE_URL", values.PersonalMemoryBaseURL},
-			struct{ name, value string }{"PERSONAL_MEMORY_API_SECRET", values.PersonalMemoryAPISecret},
-			struct{ name, value string }{"PERSONAL_MEMORY_OWNER_SALT", values.PersonalMemoryOwnerSalt},
+			struct{ name, value string }{"HINDSIGHT_API_BASE_URL", values.PersonalMemoryBaseURL},
+			struct{ name, value string }{"HINDSIGHT_API_TENANT_API_KEY", values.PersonalMemoryAPISecret},
+			struct{ name, value string }{"HINDSIGHT_OWNER_SALT", values.PersonalMemoryOwnerSalt},
 		)
 	}
 	for _, item := range required {
@@ -334,10 +287,6 @@ func validateDeployedRole(values envValues, role runtimeRole) error {
 }
 
 func roleNeedsTemporal(role runtimeRole) bool {
-	return role == roleRuntime
-}
-
-func roleNeedsProtectedPayloadKeyring(role runtimeRole) bool {
 	return role == roleRuntime
 }
 

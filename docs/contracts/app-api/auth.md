@@ -17,7 +17,8 @@ status: active
 - `muc.edu.cn` 邮箱直接通过注册准入；其他邮箱必须存在当前环境的待领取或有效逐地址授权。
 - 注册后必须完成邮箱验证。未验证、已封禁、正在注销或缺少邮箱授权的账号不能获得产品会话权限。
 - 密码重置、邮箱验证和邀请邮件统一使用 `AUTH_EMAIL_FROM`，可选回复地址为
-  `AUTH_EMAIL_REPLY_TO`。
+  `AUTH_EMAIL_REPLY_TO`，并在发送时使用 `RESEND_API_KEY`。邮件投递配置缺失或投递失败只使对应
+  邮件操作失败，不改变已验证账号的登录和会话合同。
 - 使用临时密码登录的账号必须先完成改密，Campus Web 将其导向改密界面后再返回原页面。
 
 ## `POST /api/account/delete`

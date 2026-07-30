@@ -59,10 +59,7 @@ export function createDefaultRustKernelRegistry(
 	if (!options.objectStore) {
 		return registry;
 	}
-	const runnerPath =
-		options.runnerPath?.trim() ||
-		process.env.INGESTION_KERNEL_RUNNER_PATH?.trim() ||
-		DEFAULT_RUNNER_PATH;
+	const runnerPath = options.runnerPath?.trim() || DEFAULT_RUNNER_PATH;
 	const commandRunner = options.commandRunner ?? runRustKernelCommand;
 	const defaultChunkOptions = resolveChunkOptions(options);
 	for (const kernelId of DEFAULT_EXECUTABLE_RUST_KERNEL_IDS) {
@@ -246,13 +243,12 @@ function kernelArgs(input: {
 function resolveChunkOptions(
 	options: DefaultRustKernelRegistryOptions,
 ): RustChunkKernelOptions | null {
-	const tokenizerJsonPath =
-		options.tokenizerJsonPath?.trim() || process.env.INGESTION_KERNEL_TOKENIZER_JSON_PATH?.trim();
+	const tokenizerJsonPath = options.tokenizerJsonPath?.trim();
 	if (!tokenizerJsonPath) {
 		return null;
 	}
 	if (!statSync(tokenizerJsonPath, { throwIfNoEntry: false })?.isFile()) {
-		throw new Error(`INGESTION_KERNEL_TOKENIZER_JSON_PATH is not a file: ${tokenizerJsonPath}`);
+		throw new Error(`tokenizer JSON path is not a file: ${tokenizerJsonPath}`);
 	}
 	const chunkSize = requiredPositiveInteger(options.chunkSize ?? DEFAULT_CHUNK_SIZE, "chunkSize");
 	const maxTokens = requiredPositiveInteger(options.maxTokens ?? DEFAULT_MAX_TOKENS, "maxTokens");

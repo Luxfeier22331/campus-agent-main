@@ -12,7 +12,6 @@ function createEnv(appApi?: Env["APP_API"]): Env {
 					headers: { "content-type": "text/html" },
 				}),
 		},
-		CAMPUS_WEB_HOSTNAME: "campus.muc.wiki",
 		DOCS_RELEASE_ID: `sha256:${"a".repeat(64)}`,
 	};
 }

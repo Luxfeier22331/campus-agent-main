@@ -21,12 +21,7 @@ const DATABASE_NAME = "campus_agent";
 const SCHEMA_OWNER = "ops_web_schema_owner";
 const OPS_WEB_ROLE = "ops_web";
 const APP_API_ROLE = "app_api";
-const NOLOGIN_ROLES = [
-	"docs_publish",
-	"execution_control",
-	"execution_provider_config_reader",
-	"execution_provider_config_admin",
-] as const;
+const NOLOGIN_ROLES = ["docs_publish", "execution_control"] as const;
 const executionControlRoot = fileURLToPath(new URL("../../execution-control", import.meta.url));
 
 export interface OpsWebPostgresContext {
@@ -109,7 +104,7 @@ async function provisionDatabase(
 		appApiPassword,
 	);
 	await installAppApiSchema({
-		APP_API_DATABASE_SSLMODE: "disable",
+		APP_API_SCHEMA_DATABASE_SSLMODE: "disable",
 		APP_API_SCHEMA_DATABASE_URL: managementConnectionString,
 		AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 		BETTER_AUTH_SECRET: "testcontainers-ops-web-product-database-secret",

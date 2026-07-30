@@ -101,9 +101,9 @@ Hindsight trace 使用完全相同的派生函数计算已退役 generation 的 
 
 execution-control core worker 通过以下配置访问环境 project 的 Public API：
 
-- `LANGFUSE_MAINTENANCE_BASE_URL`
-- `LANGFUSE_MAINTENANCE_PUBLIC_KEY`
-- `LANGFUSE_MAINTENANCE_SECRET_KEY`
+- `LANGFUSE_BASE_URL`
+- `LANGFUSE_PUBLIC_KEY`
+- `LANGFUSE_SECRET_KEY`
 
 部署的 `activity-core` 必须同时配置三项；任何一项缺失都是启动配置错误。key 必须属于
 `campus-agent` project，base URL 必须是没有内嵌 credential 的 Langfuse Cloud HTTP(S) origin。

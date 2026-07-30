@@ -5,13 +5,4 @@ metadata:
 data:
   INGESTION_TEMPORAL_ADDRESS: temporal.default.svc.cluster.local:7233
   INGESTION_TEMPORAL_NAMESPACE: default
-  INGESTION_TEMPORAL_WORKFLOW_TASK_QUEUE: campus-agent.ingestion.workflow
-  INGESTION_TEMPORAL_CONTROL_ACTIVITY_TASK_QUEUE: campus-agent.ingestion.activity.control
-  INGESTION_TEMPORAL_RUST_KERNEL_ACTIVITY_TASK_QUEUE: campus-agent.ingestion.activity.rust-kernel
-  INGESTION_TEMPORAL_SOURCE_COLLECTOR_ACTIVITY_TASK_QUEUE: campus-agent.ingestion.activity.source-collector
   OBJECT_STORE_ENDPOINT: http://object-store:9000
-  INTERNAL_PORTAL_BASE_URL: https://my.muc.edu.cn
-  INTERNAL_PORTAL_PAGE_URL: "https://my.muc.edu.cn/page/11#/"
-  INTERNAL_PORTAL_SOURCE_HOME_URL: https://my.muc.edu.cn
-  INTERNAL_PORTAL_SITE_ID: muc_internal_portal
-  INTERNAL_PORTAL_SSO_COOKIE_DOMAIN: .muc.edu.cn

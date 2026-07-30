@@ -44,8 +44,11 @@ async function main(): Promise<void> {
 		'AUTH_SHELL_ORIGIN = "https://campus-staging.mucwiki-edge.link"',
 		"Missing staging auth shell origin.",
 	);
-	expectContains(source, 'APP_API_ENVIRONMENT = "staging"', "Missing APP_API_ENVIRONMENT=staging.");
-	expectContains(source, 'SENTRY_ENVIRONMENT = "staging"', "Missing SENTRY_ENVIRONMENT=staging.");
+	expectContains(
+		source,
+		'DEPLOYMENT_ENVIRONMENT = "staging"',
+		"Missing DEPLOYMENT_ENVIRONMENT=staging.",
+	);
 	expectNotContains(
 		source,
 		"axiom-staging-traces",
@@ -55,8 +58,8 @@ async function main(): Promise<void> {
 	expectContains(source, 'binding = "APP_API_DB"', "Missing APP_API_DB Hyperdrive binding.");
 	expectNotContains(
 		source,
-		'SENTRY_RELEASE = "',
-		"Static SENTRY_RELEASE must not remain in app-api staging config.",
+		'DEPLOYMENT_RELEASE = "',
+		"Static DEPLOYMENT_RELEASE must not remain in app-api staging config.",
 	);
 }
 

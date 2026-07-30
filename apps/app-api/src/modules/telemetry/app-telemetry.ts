@@ -48,7 +48,7 @@ function projectStageTimingFields(
 }
 
 export function createAppTelemetry(
-	env: Pick<Env, "APP_API_ENVIRONMENT" | "SENTRY_ENVIRONMENT" | "SENTRY_RELEASE">,
+	env: Pick<Env, "DEPLOYMENT_ENVIRONMENT" | "DEPLOYMENT_RELEASE">,
 	input: {
 		runtimeEventSink?: RuntimeEventSink;
 		now?: () => Date;
@@ -59,9 +59,9 @@ export function createAppTelemetry(
 	const now = input.now ?? (() => new Date());
 	const traceDataProvider = input.traceDataProvider ?? (() => Sentry.getTraceData());
 	const telemetryMetadata = {
-		environment: normalizeString(env.SENTRY_ENVIRONMENT) ?? resolveEnvironment(env),
+		environment: resolveEnvironment(env),
 		now,
-		release: normalizeString(env.SENTRY_RELEASE),
+		release: normalizeString(env.DEPLOYMENT_RELEASE),
 	};
 
 	return {

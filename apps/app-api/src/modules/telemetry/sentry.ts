@@ -45,7 +45,7 @@ export function createAppApiSentryOptions(env: Env): CloudflareOptions | undefin
 			userInfo: false,
 		},
 		dsn,
-		environment: env.SENTRY_ENVIRONMENT?.trim() || environment,
+		environment,
 		initialScope: {
 			tags: {
 				app: resolveAppName(),
@@ -71,7 +71,7 @@ export function createAppApiSentryOptions(env: Env): CloudflareOptions | undefin
 				}),
 			];
 		},
-		release: env.SENTRY_RELEASE?.trim() || undefined,
+		release: env.DEPLOYMENT_RELEASE?.trim() || undefined,
 		sendDefaultPii: false,
 		tracesSampler(context) {
 			if (environment !== "production") {

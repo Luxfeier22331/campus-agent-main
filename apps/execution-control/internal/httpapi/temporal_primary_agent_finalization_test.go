@@ -13,7 +13,6 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
 func TestWriteFinalizationActivityCompletesPrimaryAgentResult(t *testing.T) {
@@ -30,13 +29,13 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentResult(t *testing.T) {
 	server := NewServer(config.Config{TemporalWorkerIdentity: "test:finalization:001"})
 	attachRunProjectionStoreForHandlerTest(server, store)
 	agentResultRef := temporalProjectionRef("run-primary-agent-finalization", "agent/primary/result")
-	run, err := store.GetRun(context.Background(), "run-primary-agent-finalization")
-	if err != nil {
-		t.Fatalf("get run: %v", err)
-	}
-	if err := server.replaceTemporalAgentMetadata(context.Background(), run, func(metadata map[string]any) {
-		for key, value := range map[string]any{
-			"activity_attempt":      1,
+	input := preparePrimaryAgentFinalizationRunForTest(
+		t,
+		server,
+		store,
+		"run-primary-agent-finalization",
+		now,
+		map[string]any{
 			"agent_result_ref":      agentResultRef,
 			"final_output":          "你好，我是校园问答助手。",
 			"terminal_envelope":     map[string]any{"kind": "answer", "answer_text": "你好，我是校园问答助手。"},
@@ -64,40 +63,10 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentResult(t *testing.T) {
 				"output_tokens":       8,
 				"cached_input_tokens": 0,
 			},
-		} {
-			metadata[key] = value
-		}
-	}); err != nil {
-		t.Fatalf("replace temporal agent metadata: %v", err)
-	}
-	if _, err := store.TransitionRun(
-		context.Background(),
-		"run-primary-agent-finalization",
-		execution.DurableRunStatusAdmitted,
-		"",
-		now.Add(2*time.Second),
-	); err != nil {
-		t.Fatalf("admit run: %v", err)
-	}
-	if _, err := store.TransitionRun(
-		context.Background(),
-		"run-primary-agent-finalization",
-		execution.DurableRunStatusRunning,
-		"",
-		now.Add(3*time.Second),
-	); err != nil {
-		t.Fatalf("run run: %v", err)
-	}
-
-	output, err := server.WriteFinalizationActivity(
-		context.Background(),
-		temporalruntime.WriteFinalizationActivityInput{
-			AgentResultRef: agentResultRef,
-			FinalizedAt:    now.Add(4 * time.Second),
-			RunID:          "run-primary-agent-finalization",
-			TraceID:        "trace-executor-001",
 		},
 	)
+
+	output, err := server.WriteFinalizationActivity(context.Background(), input)
 	if err != nil {
 		t.Fatalf("write finalization: %v", err)
 	}
@@ -205,13 +174,13 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentClarification(t *testing.
 	server := NewServer(config.Config{TemporalWorkerIdentity: "test:finalization:001"})
 	attachRunProjectionStoreForHandlerTest(server, store)
 	agentResultRef := temporalProjectionRef("run-primary-agent-clarification", "agent/primary/result")
-	run, err := store.GetRun(context.Background(), "run-primary-agent-clarification")
-	if err != nil {
-		t.Fatalf("get run: %v", err)
-	}
-	if err := server.replaceTemporalAgentMetadata(context.Background(), run, func(metadata map[string]any) {
-		for key, value := range map[string]any{
-			"activity_attempt":     1,
+	input := preparePrimaryAgentFinalizationRunForTest(
+		t,
+		server,
+		store,
+		"run-primary-agent-clarification",
+		now,
+		map[string]any{
 			"agent_result_ref":     agentResultRef,
 			"final_output":         "请问你要查询哪条校车线路或哪个校区？",
 			"terminal_envelope":    map[string]any{"kind": "clarification_required", "follow_up_question": "请问你要查询哪条校车线路或哪个校区？"},
@@ -227,40 +196,10 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentClarification(t *testing.
 				"output_tokens":       9,
 				"cached_input_tokens": 0,
 			},
-		} {
-			metadata[key] = value
-		}
-	}); err != nil {
-		t.Fatalf("replace temporal agent metadata: %v", err)
-	}
-	if _, err := store.TransitionRun(
-		context.Background(),
-		"run-primary-agent-clarification",
-		execution.DurableRunStatusAdmitted,
-		"",
-		now.Add(2*time.Second),
-	); err != nil {
-		t.Fatalf("admit run: %v", err)
-	}
-	if _, err := store.TransitionRun(
-		context.Background(),
-		"run-primary-agent-clarification",
-		execution.DurableRunStatusRunning,
-		"",
-		now.Add(3*time.Second),
-	); err != nil {
-		t.Fatalf("run run: %v", err)
-	}
-
-	output, err := server.WriteFinalizationActivity(
-		context.Background(),
-		temporalruntime.WriteFinalizationActivityInput{
-			AgentResultRef: agentResultRef,
-			FinalizedAt:    now.Add(4 * time.Second),
-			RunID:          "run-primary-agent-clarification",
-			TraceID:        "trace-executor-001",
 		},
 	)
+
+	output, err := server.WriteFinalizationActivity(context.Background(), input)
 	if err != nil {
 		t.Fatalf("write finalization: %v", err)
 	}
@@ -307,7 +246,7 @@ func TestWriteFinalizationActivityFailsClosedOnFailedAgentToolResult(t *testing.
 	server := NewServer(config.Config{TemporalWorkerIdentity: "test:finalization:failed-tool"})
 	attachRunProjectionStoreForHandlerTest(server, store)
 	agentResultRef := temporalProjectionRef(runID, "agent/primary/result")
-	preparePrimaryAgentFinalizationRunForTest(t, server, store, runID, now, map[string]any{
+	input := preparePrimaryAgentFinalizationRunForTest(t, server, store, runID, now, map[string]any{
 		"agent_result_ref":  agentResultRef,
 		"final_output":      "不应完成此答案。",
 		"status":            "completed",
@@ -320,15 +259,7 @@ func TestWriteFinalizationActivityFailsClosedOnFailedAgentToolResult(t *testing.
 		}},
 	})
 
-	_, err := server.WriteFinalizationActivity(
-		context.Background(),
-		temporalruntime.WriteFinalizationActivityInput{
-			AgentResultRef: agentResultRef,
-			FinalizedAt:    now.Add(4 * time.Second),
-			RunID:          runID,
-			TraceID:        "trace-executor-001",
-		},
-	)
+	_, err := server.WriteFinalizationActivity(context.Background(), input)
 	assertTemporalFailureSanitized(t, err, "agent_tool_result_failed", true)
 	failedRun, getErr := store.GetRun(context.Background(), runID)
 	if getErr != nil {
@@ -373,7 +304,7 @@ func TestWriteFinalizationActivityRetryKeepsProductCallbackStable(t *testing.T) 
 	server := NewServer(config.Config{TemporalWorkerIdentity: "test:finalization:retry"})
 	attachRunProjectionStoreForHandlerTest(server, store)
 	agentResultRef := temporalProjectionRef(runID, "agent/primary/result")
-	preparePrimaryAgentFinalizationRunForTest(t, server, store, runID, now, map[string]any{
+	input := preparePrimaryAgentFinalizationRunForTest(t, server, store, runID, now, map[string]any{
 		"agent_result_ref":  agentResultRef,
 		"final_output":      "今晚 22:00 还有一班校车。",
 		"status":            "completed",
@@ -381,12 +312,6 @@ func TestWriteFinalizationActivityRetryKeepsProductCallbackStable(t *testing.T) 
 		"terminal_reason":   "answer_completed",
 		"tool_results":      []map[string]any{},
 	})
-	input := temporalruntime.WriteFinalizationActivityInput{
-		AgentResultRef: agentResultRef,
-		FinalizedAt:    now.Add(4 * time.Second),
-		RunID:          runID,
-		TraceID:        "trace-executor-001",
-	}
 	var callbackTimes []time.Time
 	var callbackResponses []map[string]any
 	server.productFinalizationWriter = func(
@@ -445,7 +370,7 @@ func TestWriteFinalizationActivityRepairsCompletedRunEventWithVerifiedStep(t *te
 	server := NewServer(config.Config{TemporalWorkerIdentity: "test:finalization:repair"})
 	attachRunProjectionStoreForHandlerTest(server, store)
 	agentResultRef := temporalProjectionRef(runID, "agent/primary/result")
-	preparePrimaryAgentFinalizationRunForTest(t, server, store, runID, now, map[string]any{
+	input := preparePrimaryAgentFinalizationRunForTest(t, server, store, runID, now, map[string]any{
 		"agent_result_ref":  agentResultRef,
 		"final_output":      "今晚 22:00 还有一班校车。",
 		"status":            "completed",
@@ -453,18 +378,12 @@ func TestWriteFinalizationActivityRepairsCompletedRunEventWithVerifiedStep(t *te
 		"terminal_reason":   "answer_completed",
 		"tool_results":      []map[string]any{},
 	})
-	finalizedAt := now.Add(4 * time.Second)
+	finalizedAt := input.FinalizedAt
 	run, err := store.GetRun(context.Background(), runID)
 	if err != nil {
 		t.Fatalf("get run: %v", err)
 	}
 	finalizedResponse := map[string]any{"status": "completed", "trace_id": run.TraceID}
-	input := temporalruntime.WriteFinalizationActivityInput{
-		AgentResultRef: agentResultRef,
-		FinalizedAt:    finalizedAt,
-		RunID:          runID,
-		TraceID:        run.TraceID,
-	}
 	if err := server.appendTemporalFinalizationCompletedEvents(
 		context.Background(),
 		run,
@@ -548,7 +467,7 @@ func TestWriteFinalizationActivityKeepsRunActiveWhenStepProjectionFails(t *testi
 	store := &finalizationResultFailingStore{RunProjectionStore: baseStore}
 	attachRunProjectionStoreForHandlerTest(server, store)
 	agentResultRef := temporalProjectionRef(runID, "agent/primary/result")
-	preparePrimaryAgentFinalizationRunForTest(t, server, baseStore, runID, now, map[string]any{
+	input := preparePrimaryAgentFinalizationRunForTest(t, server, baseStore, runID, now, map[string]any{
 		"agent_result_ref":  agentResultRef,
 		"final_output":      "今晚 22:00 还有一班校车。",
 		"status":            "completed",
@@ -556,12 +475,7 @@ func TestWriteFinalizationActivityKeepsRunActiveWhenStepProjectionFails(t *testi
 		"terminal_reason":   "answer_completed",
 		"tool_results":      []map[string]any{},
 	})
-	_, err := server.WriteFinalizationActivity(context.Background(), temporalruntime.WriteFinalizationActivityInput{
-		AgentResultRef: agentResultRef,
-		FinalizedAt:    now.Add(4 * time.Second),
-		RunID:          runID,
-		TraceID:        "trace-executor-001",
-	})
+	_, err := server.WriteFinalizationActivity(context.Background(), input)
 	if err == nil || !strings.Contains(err.Error(), "finalization result storage unavailable") {
 		t.Fatalf("finalization error = %v, want step projection failure", err)
 	}
@@ -601,7 +515,7 @@ func TestWriteFinalizationActivityRepairsTransientInternalProjectionFailure(t *t
 	}
 	attachRunProjectionStoreForHandlerTest(server, store)
 	agentResultRef := temporalProjectionRef(runID, "agent/primary/result")
-	preparePrimaryAgentFinalizationRunForTest(t, server, baseStore, runID, now, map[string]any{
+	input := preparePrimaryAgentFinalizationRunForTest(t, server, baseStore, runID, now, map[string]any{
 		"agent_result_ref":  agentResultRef,
 		"final_output":      "今晚 22:00 还有一班校车。",
 		"status":            "completed",
@@ -609,12 +523,6 @@ func TestWriteFinalizationActivityRepairsTransientInternalProjectionFailure(t *t
 		"terminal_reason":   "answer_completed",
 		"tool_results":      []map[string]any{},
 	})
-	input := temporalruntime.WriteFinalizationActivityInput{
-		AgentResultRef: agentResultRef,
-		FinalizedAt:    now.Add(4 * time.Second),
-		RunID:          runID,
-		TraceID:        "trace-executor-001",
-	}
 	callbackCount := 0
 	server.productFinalizationWriter = func(
 		_ context.Context,
@@ -704,41 +612,6 @@ func (s *finalizationResultFailOnceStore) UpsertStepResult(
 		return execution.StepResultProjection{}, errors.New("finalization result storage unavailable")
 	}
 	return s.RunProjectionStore.UpsertStepResult(ctx, result)
-}
-
-func (s *finalizationResultFailingStore) PutProtectedPayload(
-	ctx context.Context,
-	payload execution.ProtectedPayload,
-) (execution.ProtectedPayload, error) {
-	store, ok := s.RunProjectionStore.(execution.ProtectedPayloadStore)
-	if !ok {
-		return execution.ProtectedPayload{}, errors.New("protected payload store unavailable")
-	}
-	return store.PutProtectedPayload(ctx, payload)
-}
-
-func (s *finalizationResultFailingStore) GetProtectedPayload(
-	ctx context.Context,
-	runID string,
-	payloadRef string,
-	kind string,
-) (execution.ProtectedPayload, error) {
-	store, ok := s.RunProjectionStore.(execution.ProtectedPayloadStore)
-	if !ok {
-		return execution.ProtectedPayload{}, errors.New("protected payload store unavailable")
-	}
-	return store.GetProtectedPayload(ctx, runID, payloadRef, kind)
-}
-
-func (s *finalizationResultFailingStore) DeleteProtectedPayloads(
-	ctx context.Context,
-	runID string,
-) error {
-	store, ok := s.RunProjectionStore.(execution.ProtectedPayloadStore)
-	if !ok {
-		return errors.New("protected payload store unavailable")
-	}
-	return store.DeleteProtectedPayloads(ctx, runID)
 }
 
 func (s *finalizationResultFailingStore) FinalizeRunProjection(

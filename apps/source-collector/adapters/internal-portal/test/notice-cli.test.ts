@@ -12,6 +12,7 @@ vi.mock("../../../src/object-store.js", () => ({
 	createSourceCollectorObjectStoreFromEnv: mocks.createObjectStore,
 }));
 vi.mock("../src/config.js", () => ({
+	loadInternalPortalDescriptor: () => ({}),
 	loadInternalPortalEnv: vi.fn(),
 	resolveInternalPortalConfig: mocks.resolveInternalPortalConfig,
 	resolveInternalPortalSiteId: () => "muc_internal_portal",

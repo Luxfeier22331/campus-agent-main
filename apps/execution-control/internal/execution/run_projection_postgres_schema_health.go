@@ -11,7 +11,6 @@ with expected_tables(table_name) as (
 		('agent_run_steps'),
 		('agent_step_attempts'),
 		('agent_step_results'),
-		('agent_protected_payloads'),
 		('conversation_run_locks'),
 		('agent_workflow_starts'),
 		('agent_run_cancellations'),
@@ -30,13 +29,6 @@ expected_columns(table_name, column_name, data_type, not_null, default_expressio
 		('agent_runs', 'request_fingerprint_sha256', 'text', true, $$''::text$$),
 		('agent_run_steps', 'activity_attempt', 'integer', true, '0'),
 		('agent_step_attempts', 'activity_attempt', 'integer', true, '0'),
-
-		('agent_protected_payloads', 'run_id', 'text', true, ''),
-		('agent_protected_payloads', 'payload_ref', 'text', true, ''),
-		('agent_protected_payloads', 'kind', 'text', true, ''),
-		('agent_protected_payloads', 'ciphertext', 'bytea', true, ''),
-		('agent_protected_payloads', 'payload_sha256', 'text', true, ''),
-		('agent_protected_payloads', 'created_at', 'timestamp with time zone', true, ''),
 
 		('agent_workflow_starts', 'run_id', 'text', true, ''),
 		('agent_workflow_starts', 'workflow_id', 'text', true, ''),
@@ -127,8 +119,6 @@ expected_constraints(
 			('agent_step_attempts', 'f', array['run_id']::text[], 'runtime', 'agent_runs', array['run_id']::text[], 'c'),
 			('agent_step_results', 'p', array['result_id']::text[], '', '', array[]::text[], ''),
 			('agent_step_results', 'f', array['run_id']::text[], 'runtime', 'agent_runs', array['run_id']::text[], 'c'),
-			('agent_protected_payloads', 'p', array['run_id', 'payload_ref', 'kind']::text[], '', '', array[]::text[], ''),
-		('agent_protected_payloads', 'f', array['run_id']::text[], 'runtime', 'agent_runs', array['run_id']::text[], 'c'),
 		('agent_workflow_starts', 'p', array['run_id']::text[], '', '', array[]::text[], ''),
 		('agent_workflow_starts', 'u', array['workflow_id']::text[], '', '', array[]::text[], ''),
 		('agent_workflow_starts', 'f', array['run_id']::text[], 'runtime', 'agent_runs', array['run_id']::text[], 'c'),
@@ -183,7 +173,6 @@ expected_indexes(table_name, index_name, unique_index, columns, method, predicat
 			'btree',
 			$$status=anyarray['created'::text,'queued'::text,'admitted'::text,'running'::text,'streaming'::text]$$
 		),
-		('agent_protected_payloads', 'agent_protected_payloads_run_idx', false, array['run_id', 'created_at']::text[], 'btree', ''),
 		('agent_workflow_starts', 'agent_workflow_starts_lease_idx', false, array['state', 'next_attempt_at', 'lease_until']::text[], 'btree', ''),
 		('agent_run_cancellations', 'agent_run_cancellations_lease_idx', false, array['state', 'next_attempt_at', 'lease_until']::text[], 'btree', ''),
 		('agent_run_cleanups', 'agent_run_cleanups_lease_idx', false, array['state', 'next_attempt_at', 'lease_until']::text[], 'btree', ''),

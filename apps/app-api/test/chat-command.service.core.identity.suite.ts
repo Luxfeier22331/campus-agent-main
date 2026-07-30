@@ -51,6 +51,13 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			),
 		).toBeNull();
 	});
+
+	it("fails closed when an authenticated principal lacks the safety HMAC secret", () => {
+		expect(() => deriveSafetyIdentifier(createPrincipal(), "")).toThrow(
+			"APP_API_SAFETY_IDENTIFIER_HMAC_SECRET is required",
+		);
+	});
+
 	it("accepts a chat request, calls executionClient with explicit actor, and finalizes a completed answer", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();

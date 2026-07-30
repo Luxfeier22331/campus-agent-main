@@ -55,26 +55,6 @@ spec:
                 configMapKeyRef:
                   name: ingestion-runtime-rendered-config
                   key: INGESTION_TEMPORAL_NAMESPACE
-            - name: INGESTION_TEMPORAL_WORKFLOW_TASK_QUEUE
-              valueFrom:
-                configMapKeyRef:
-                  name: ingestion-runtime-rendered-config
-                  key: INGESTION_TEMPORAL_WORKFLOW_TASK_QUEUE
-            - name: INGESTION_TEMPORAL_CONTROL_ACTIVITY_TASK_QUEUE
-              valueFrom:
-                configMapKeyRef:
-                  name: ingestion-runtime-rendered-config
-                  key: INGESTION_TEMPORAL_CONTROL_ACTIVITY_TASK_QUEUE
-            - name: INGESTION_TEMPORAL_RUST_KERNEL_ACTIVITY_TASK_QUEUE
-              valueFrom:
-                configMapKeyRef:
-                  name: ingestion-runtime-rendered-config
-                  key: INGESTION_TEMPORAL_RUST_KERNEL_ACTIVITY_TASK_QUEUE
-            - name: INGESTION_TEMPORAL_SOURCE_COLLECTOR_ACTIVITY_TASK_QUEUE
-              valueFrom:
-                configMapKeyRef:
-                  name: ingestion-runtime-rendered-config
-                  key: INGESTION_TEMPORAL_SOURCE_COLLECTOR_ACTIVITY_TASK_QUEUE
             - name: OBJECT_STORE_ENDPOINT
               valueFrom:
                 configMapKeyRef:
@@ -85,6 +65,10 @@ spec:
                 secretKeyRef:
                   name: ingestion-control-secrets
                   key: INGESTION_CONTROL_DATABASE_URL
+            - name: INGESTION_CONTROL_DATABASE_CA_CERT_PATH
+              value: /etc/campus-agent/postgres/ca.crt
+            - name: INGESTION_CONTROL_DATABASE_SSLMODE
+              value: verify-full
             - name: OBJECT_STORE_SOURCE_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
@@ -105,8 +89,6 @@ spec:
                 secretKeyRef:
                   name: object-store-secrets
                   key: OBJECT_STORE_DERIVED_SECRET_KEY
-            - name: INGESTION_TASK_REGISTRY_ROOT
-              value: /app/configs/ingestion
           volumeMounts:
             - name: postgres-ca
               mountPath: /etc/campus-agent/postgres
@@ -186,41 +168,11 @@ spec:
                 configMapKeyRef:
                   name: ingestion-runtime-rendered-config
                   key: INGESTION_TEMPORAL_NAMESPACE
-            - name: INGESTION_TEMPORAL_SOURCE_COLLECTOR_ACTIVITY_TASK_QUEUE
-              valueFrom:
-                configMapKeyRef:
-                  name: ingestion-runtime-rendered-config
-                  key: INGESTION_TEMPORAL_SOURCE_COLLECTOR_ACTIVITY_TASK_QUEUE
             - name: OBJECT_STORE_ENDPOINT
               valueFrom:
                 configMapKeyRef:
                   name: ingestion-runtime-rendered-config
                   key: OBJECT_STORE_ENDPOINT
-            - name: INTERNAL_PORTAL_BASE_URL
-              valueFrom:
-                configMapKeyRef:
-                  name: ingestion-runtime-rendered-config
-                  key: INTERNAL_PORTAL_BASE_URL
-            - name: INTERNAL_PORTAL_PAGE_URL
-              valueFrom:
-                configMapKeyRef:
-                  name: ingestion-runtime-rendered-config
-                  key: INTERNAL_PORTAL_PAGE_URL
-            - name: INTERNAL_PORTAL_SOURCE_HOME_URL
-              valueFrom:
-                configMapKeyRef:
-                  name: ingestion-runtime-rendered-config
-                  key: INTERNAL_PORTAL_SOURCE_HOME_URL
-            - name: INTERNAL_PORTAL_SITE_ID
-              valueFrom:
-                configMapKeyRef:
-                  name: ingestion-runtime-rendered-config
-                  key: INTERNAL_PORTAL_SITE_ID
-            - name: INTERNAL_PORTAL_SSO_COOKIE_DOMAIN
-              valueFrom:
-                configMapKeyRef:
-                  name: ingestion-runtime-rendered-config
-                  key: INTERNAL_PORTAL_SSO_COOKIE_DOMAIN
             - name: OBJECT_STORE_SOURCE_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
@@ -231,8 +183,6 @@ spec:
                 secretKeyRef:
                   name: object-store-secrets
                   key: OBJECT_STORE_SOURCE_SECRET_KEY
-            - name: INGESTION_TASK_REGISTRY_ROOT
-              value: /workspace/configs/ingestion
             - name: INTERNAL_PORTAL_SSO_TGC_FILE
               value: /var/run/secrets/campus-agent/internal-portal/sso_tgc
           volumeMounts:

@@ -303,8 +303,8 @@ func TestExecutionInputLoaderRejectsAmbiguousBaseURLSuffixes(t *testing.T) {
 	for _, suffix := range []string{"?", "#"} {
 		t.Run(suffix, func(t *testing.T) {
 			_, err := newExecutionInputLoader(config.Config{
-				AppAPIExecutionInputSharedSecret: "input-secret",
-				ProductCallbackBaseURL:           "https://app-api.internal" + suffix,
+				AppAPIExecutionSharedSecret: "input-secret",
+				ProductCallbackBaseURL:      "https://app-api.internal" + suffix,
 			})
 			if err == nil {
 				t.Fatalf("base URL suffix %q must be rejected", suffix)
@@ -316,8 +316,8 @@ func TestExecutionInputLoaderRejectsAmbiguousBaseURLSuffixes(t *testing.T) {
 func TestReadyzDoesNotExposeExecutionInputCredential(t *testing.T) {
 	const secret = "execution-input-secret-must-not-appear"
 	server := NewServer(config.Config{
-		AppAPIExecutionInputSharedSecret: secret,
-		DeploymentEnvironment:            "local",
+		AppAPIExecutionSharedSecret: secret,
+		DeploymentEnvironment:       "local",
 	})
 	t.Cleanup(func() { _ = server.Shutdown(context.Background()) })
 	response := httptest.NewRecorder()
@@ -332,9 +332,9 @@ func TestReadyzDoesNotExposeExecutionInputCredential(t *testing.T) {
 func executionInputTestLoader(t *testing.T, baseURL string) ExecutionInputLoader {
 	t.Helper()
 	loader, err := newExecutionInputLoader(config.Config{
-		AppAPIExecutionInputSharedSecret: "input-secret",
-		ProductCallbackBaseURL:           baseURL,
-		ProductCallbackTimeoutMS:         2_000,
+		AppAPIExecutionSharedSecret: "input-secret",
+		ProductCallbackBaseURL:      baseURL,
+		ProductCallbackTimeoutMS:    2_000,
 	})
 	if err != nil {
 		t.Fatalf("newExecutionInputLoader returned error: %v", err)

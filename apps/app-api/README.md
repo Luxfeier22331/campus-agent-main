@@ -48,7 +48,10 @@ Better Auth 官方 Drizzle adapter schema 更新 `auth.ts`，再使用 Drizzle K
 `test/fixtures/app-auth-pre-drizzle.sql` 是 Drizzle 接管前从已部署数据库导出的不可变 schema-only
 测试基线，不是当前 schema，也不得手工维护。修改 `drizzle/` 后应在提交 PR 前运行
 `pnpm ci:app-api-migration`，同时覆盖真实历史升级和空数据库安装。
-认证邮件要求 `AUTH_EMAIL_FROM` 和 `RESEND_API_KEY`；`AUTH_EMAIL_REPLY_TO` 可选。
+Better Auth 核心运行时要求 `DEPLOYMENT_ENVIRONMENT`、`BETTER_AUTH_SECRET`、`AUTH_SHELL_ORIGIN` 和
+`AUTH_TURNSTILE_SECRET_KEY`；`APP_API_SAFETY_IDENTIFIER_HMAC_SECRET` 是聊天准入和就绪检查的核心
+输入。认证邮件仅在实际发送时读取 `AUTH_EMAIL_FROM`、`RESEND_API_KEY` 和可选
+`AUTH_EMAIL_REPLY_TO`，缺失这些值不会阻止已验证用户登录或刷新会话，但相应邮件操作会明确失败。
 
 ## 相关文档
 

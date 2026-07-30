@@ -3,8 +3,6 @@ package execution
 import (
 	"context"
 	"errors"
-	"fmt"
-	"strings"
 	"sync"
 	"time"
 )
@@ -89,7 +87,6 @@ type InMemoryRunProjectionStore struct {
 	runSteps                map[string]RunStepProjection
 	stepAttempts            map[string]StepAttemptProjection
 	stepResults             map[string]StepResultProjection
-	protectedPayloads       map[string]ProtectedPayload
 	activeRunByConversation map[string]string
 	workflowStartIntents    map[string]WorkflowStartIntent
 	cancellationCommands    map[string]RunCancellationCommand
@@ -105,7 +102,6 @@ func NewInMemoryRunProjectionStore() *InMemoryRunProjectionStore {
 		runSteps:                map[string]RunStepProjection{},
 		stepAttempts:            map[string]StepAttemptProjection{},
 		stepResults:             map[string]StepResultProjection{},
-		protectedPayloads:       map[string]ProtectedPayload{},
 		activeRunByConversation: map[string]string{},
 		workflowStartIntents:    map[string]WorkflowStartIntent{},
 		cancellationCommands:    map[string]RunCancellationCommand{},
@@ -113,77 +109,4 @@ func NewInMemoryRunProjectionStore() *InMemoryRunProjectionStore {
 		agentInvocationReceipts: map[string]AgentInvocationReceipt{},
 		runEventWaiters:         map[string]map[chan struct{}]struct{}{},
 	}
-}
-
-func (s *InMemoryRunProjectionStore) PutProtectedPayload(
-	_ context.Context,
-	payload ProtectedPayload,
-) (ProtectedPayload, error) {
-	if err := validateProtectedPayload(payload); err != nil {
-		return ProtectedPayload{}, err
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	run, exists := s.runs[payload.RunID]
-	if !exists {
-		return ProtectedPayload{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, payload.RunID)
-	}
-	if !durableRunStatusIsActive(run.Status) {
-		return ProtectedPayload{}, fmt.Errorf("%w: %s", ErrProtectedPayloadRunClosed, payload.RunID)
-	}
-	key := protectedPayloadKey(payload.RunID, payload.PayloadRef, payload.Kind)
-	if existing, exists := s.protectedPayloads[key]; exists {
-		if !strings.EqualFold(existing.PayloadSHA256, payload.PayloadSHA256) {
-			return ProtectedPayload{}, fmt.Errorf("%w: %s", ErrProtectedPayloadConflict, payload.PayloadRef)
-		}
-		return cloneProtectedPayload(existing), nil
-	}
-	copyPayload := cloneProtectedPayload(payload)
-	s.protectedPayloads[key] = copyPayload
-	return cloneProtectedPayload(copyPayload), nil
-}
-
-func (s *InMemoryRunProjectionStore) GetProtectedPayload(
-	_ context.Context,
-	runID string,
-	payloadRef string,
-	kind string,
-) (ProtectedPayload, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	payload, exists := s.protectedPayloads[protectedPayloadKey(runID, payloadRef, kind)]
-	if !exists {
-		if _, runExists := s.runs[runID]; !runExists {
-			return ProtectedPayload{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, runID)
-		}
-		return ProtectedPayload{}, fmt.Errorf("%w: %s", ErrProtectedPayloadNotFound, payloadRef)
-	}
-	return cloneProtectedPayload(payload), nil
-}
-
-func (s *InMemoryRunProjectionStore) DeleteProtectedPayloads(
-	_ context.Context,
-	runID string,
-) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, exists := s.runs[runID]; !exists {
-		return fmt.Errorf("%w: %s", ErrDurableRunNotFound, runID)
-	}
-	prefix := strings.TrimSpace(runID) + "\x00"
-	for key := range s.protectedPayloads {
-		if strings.HasPrefix(key, prefix) {
-			delete(s.protectedPayloads, key)
-		}
-	}
-	return nil
-}
-
-func protectedPayloadKey(runID, payloadRef, kind string) string {
-	return strings.TrimSpace(runID) + "\x00" + strings.TrimSpace(payloadRef) + "\x00" + strings.TrimSpace(kind)
-}
-
-func cloneProtectedPayload(payload ProtectedPayload) ProtectedPayload {
-	payload.Ciphertext = append([]byte(nil), payload.Ciphertext...)
-	return payload
 }

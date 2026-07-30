@@ -8,8 +8,9 @@ import { createApp } from "../src/app";
 import type { ChatCommandService } from "../src/modules/runtime-command";
 import { createTelemetryMock } from "./chat-command.service.test-support";
 
-const callbackSecret = "product-callback-secret";
-const executionInputSecret = "execution-input-secret";
+const callbackSecret = "execution-shared-secret";
+const executionInputSecret = callbackSecret;
+const wrongExecutionSecret = "wrong-execution-secret";
 
 function sha256(value: string): string {
 	return createHash("sha256").update(value, "utf8").digest("hex");
@@ -21,7 +22,6 @@ function appWithExecutionInput(input: {
 }) {
 	return createApp(
 		{
-			APP_API_EXECUTION_INPUT_SHARED_SECRET: executionInputSecret,
 			APP_API_EXECUTION_SHARED_SECRET: callbackSecret,
 		},
 		{
@@ -37,7 +37,7 @@ function appWithExecutionInput(input: {
 }
 
 describe("execution input routes", () => {
-	it("returns the exact frozen bytes with independent auth and no-store", async () => {
+	it("returns the exact frozen bytes with shared execution auth and no-store", async () => {
 		const executionInputJson = '{"z":1,"a":{"second":2,"first":1}}';
 		const readExecutionInput = vi.fn(async () => ({
 			executionInputJson,
@@ -50,7 +50,7 @@ describe("execution input routes", () => {
 		const app = appWithExecutionInput({ readExecutionInput });
 
 		const denied = await app.request("/api/internal/execution/runs/run_1/input", {
-			headers: { "x-app-execution-auth": callbackSecret },
+			headers: { "x-app-execution-auth": wrongExecutionSecret },
 		});
 		expect(denied.status).toBe(401);
 		expect(denied.headers.get("cache-control")).toBe("no-store");

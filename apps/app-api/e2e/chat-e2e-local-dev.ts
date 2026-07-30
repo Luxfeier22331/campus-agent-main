@@ -8,29 +8,18 @@ const appApiDir = resolve(scriptDir, "..");
 const repoRoot = resolve(appApiDir, "../..");
 const campusWebDir = resolve(repoRoot, "apps/campus-web");
 const campusWebViteBin = resolve(campusWebDir, "node_modules/vite/bin/vite.js");
-const defaultEmail = "campus_agent_smoke@muc.edu.cn";
-const defaultName = "Campus Agent Smoke";
 const defaultPrompt = "示例大学本科学生国家奖学金评审办法";
 const defaultChatBaseUrl = "http://127.0.0.1:27014";
 const defaultExecReadyzUrl = "http://127.0.0.1:27051/readyz";
 
-for (const envPath of [resolve(appApiDir, ".env"), resolve(appApiDir, ".dev.vars")]) {
-	try {
-		process.loadEnvFile(envPath);
-	} catch (error) {
-		if (!(error instanceof Error && "code" in error) || error.code !== "ENOENT") {
-			throw error;
-		}
-	}
-}
-
 interface LocalDevChatE2eArgs {
+	captchaToken: string;
 	chatBaseUrl: string;
 	email: string;
 	execReadyzUrl: string;
 	expectModelExecutionState: string | null;
 	expectResultKind: string;
-	name: string;
+	password: string;
 	prompt: string;
 	restartCampusWeb: boolean;
 	startupTimeoutMs: number;
@@ -44,11 +33,6 @@ function readArgValue(argv: string[], flag: string): string | null {
 	return argv[index + 1]?.trim() || null;
 }
 
-function readOptionalValue(value: string | undefined): string | null {
-	const trimmed = value?.trim();
-	return trimmed ? trimmed : null;
-}
-
 function readPositiveInteger(value: string | null, defaultValue: number): number {
 	if (!value) {
 		return defaultValue;
@@ -60,21 +44,30 @@ function readPositiveInteger(value: string | null, defaultValue: number): number
 	return parsed;
 }
 
-function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): LocalDevChatE2eArgs {
+function parseArgs(argv: string[]): LocalDevChatE2eArgs {
+	const captchaToken = readArgValue(argv, "--captcha-token");
+	const email = readArgValue(argv, "--email");
+	const password = readArgValue(argv, "--password");
+	if (!captchaToken) {
+		throw new Error("--captcha-token is required.");
+	}
+	if (!email) {
+		throw new Error("--email is required.");
+	}
+	if (!password) {
+		throw new Error("--password is required.");
+	}
 	return {
+		captchaToken,
 		chatBaseUrl: readArgValue(argv, "--chat-base-url") ?? defaultChatBaseUrl,
-		email: (readArgValue(argv, "--email") ?? defaultEmail).toLowerCase(),
+		email: email.toLowerCase(),
 		execReadyzUrl: readArgValue(argv, "--exec-readyz-url") ?? defaultExecReadyzUrl,
 		expectModelExecutionState: readArgValue(argv, "--expect-model-execution-state"),
 		expectResultKind: readArgValue(argv, "--expect-result-kind") ?? "answer",
-		name: readArgValue(argv, "--name") ?? defaultName,
+		password,
 		prompt: readArgValue(argv, "--prompt") ?? defaultPrompt,
 		restartCampusWeb: argv.includes("--restart-campus-web"),
-		startupTimeoutMs: readPositiveInteger(
-			readArgValue(argv, "--startup-timeout-ms") ??
-				readOptionalValue(env.CHAT_E2E_LOCAL_DEV_STARTUP_TIMEOUT_MS),
-			180_000,
-		),
+		startupTimeoutMs: readPositiveInteger(readArgValue(argv, "--startup-timeout-ms"), 180_000),
 	};
 }
 
@@ -201,13 +194,6 @@ function startCampusWebLiveSmoke(): ChildProcess {
 	);
 }
 
-function buildLocalAuthEnv(args: LocalDevChatE2eArgs): NodeJS.ProcessEnv {
-	return {
-		...process.env,
-		AUTH_SHELL_ORIGIN: new URL(args.chatBaseUrl).origin,
-	};
-}
-
 export async function waitForReadyzWhileChildAlive(
 	url: string,
 	timeoutMs: number,
@@ -264,10 +250,6 @@ async function stopChild(child: ChildProcess): Promise<void> {
 
 async function main(argv: string[]): Promise<void> {
 	const args = parseArgs(argv);
-	const localAuthEnv = buildLocalAuthEnv(args);
-	if (!readOptionalValue(process.env.APP_API_SMOKE_IDENTITY_PASSWORD)) {
-		throw new Error("APP_API_SMOKE_IDENTITY_PASSWORD is required for local dev chat E2E.");
-	}
 
 	if (!(await isReadyzReady(args.execReadyzUrl))) {
 		throw new Error(
@@ -280,23 +262,6 @@ async function main(argv: string[]): Promise<void> {
 		[`${appApiDir}/scripts/run-with-local-env.ts`, "node", "./ops/db/prepare-local.ts"],
 		repoRoot,
 	);
-	runChecked(
-		"node",
-		[
-			`${appApiDir}/scripts/run-with-local-env.ts`,
-			"pnpm",
-			"exec",
-			"tsx",
-			"./e2e/support/provision-smoke-identity.ts",
-			"--email",
-			args.email,
-			"--name",
-			args.name,
-		],
-		repoRoot,
-		localAuthEnv,
-	);
-
 	const chatE2eArgs = [
 		"--dir",
 		appApiDir,
@@ -307,8 +272,10 @@ async function main(argv: string[]): Promise<void> {
 		"dev",
 		"--email",
 		args.email,
-		"--name",
-		args.name,
+		"--password",
+		args.password,
+		"--captcha-token",
+		args.captchaToken,
 		"--prompt",
 		args.prompt,
 		"--chat-base-url",

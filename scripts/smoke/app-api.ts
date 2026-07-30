@@ -17,51 +17,16 @@ const profiles = {
 		command: ["pnpm", "exec", "tsx", "./e2e/chat-e2e-local-provider.ts"],
 	},
 	"chat-staging": {
-		cwd: ".",
-		command: [
-			"pnpm",
-			"exec",
-			"tsx",
-			"./scripts/deploy/run-with-staging-smoke-env.ts",
-			"--cwd",
-			"apps/app-api",
-			"pnpm",
-			"exec",
-			"tsx",
-			"./e2e/chat-durable-staging.ts",
-			"--chat-base-url",
-			"https://api-staging.mucwiki-edge.link",
-		],
+		cwd: "apps/app-api",
+		command: ["pnpm", "exec", "tsx", "./e2e/chat-durable-staging.ts"],
 	},
 	"chat-memory-staging": {
-		cwd: ".",
-		command: [
-			"pnpm",
-			"exec",
-			"tsx",
-			"./scripts/deploy/run-with-staging-smoke-env.ts",
-			"--cwd",
-			"apps/app-api",
-			"pnpm",
-			"exec",
-			"tsx",
-			"./e2e/chat-memory-staging.ts",
-		],
+		cwd: "apps/app-api",
+		command: ["pnpm", "exec", "tsx", "./e2e/chat-memory-staging.ts"],
 	},
 	"docs-gated-staging": {
-		cwd: ".",
-		command: [
-			"pnpm",
-			"exec",
-			"tsx",
-			"./scripts/deploy/run-with-staging-smoke-env.ts",
-			"--cwd",
-			"apps/app-api",
-			"pnpm",
-			"exec",
-			"tsx",
-			"./e2e/docs-gated-staging.ts",
-		],
+		cwd: "apps/app-api",
+		command: ["pnpm", "exec", "tsx", "./e2e/docs-gated-staging.ts"],
 	},
 } as const;
 
@@ -94,7 +59,6 @@ const [profileArg, ...forwardedArgs] = process.argv.slice(2);
 const profile = profiles[parseProfile(profileArg)];
 const result = spawnSync(profile.command[0], [...profile.command.slice(1), ...forwardedArgs], {
 	cwd: resolve(repoRoot, profile.cwd),
-	env: process.env,
 	stdio: "inherit",
 });
 

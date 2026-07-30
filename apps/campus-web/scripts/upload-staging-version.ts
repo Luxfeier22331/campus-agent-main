@@ -3,15 +3,12 @@ import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadRepoStagingEnvFile } from "../../../scripts/deploy/lib/repo-env.ts";
 import {
 	resolveGitSha,
 	resolveStagingSentryRelease,
 } from "../../../scripts/deploy/staging-release.ts";
 import { uploadStagingWorkerVersion } from "../../../scripts/deploy/worker-version.ts";
 
-const TURNSTILE_APPEARANCE = "interaction-only";
-const TURNSTILE_EXECUTION = "render";
 const TURNSTILE_TEST_SITE_KEY = "1x00000000000000000000AA";
 
 function requiredEnv(name: string): string {
@@ -22,7 +19,6 @@ function requiredEnv(name: string): string {
 	return value;
 }
 
-loadRepoStagingEnvFile(import.meta.url, "../../..");
 const appDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const turnstileSiteKey = requiredEnv("CAMPUS_AUTH_TURNSTILE_SITE_KEY");
 if (turnstileSiteKey === TURNSTILE_TEST_SITE_KEY) {
@@ -46,12 +42,6 @@ const config = JSON.parse(readFileSync(configPath, "utf8")) as {
 	r2_buckets?: Array<{ binding?: string; bucket_name?: string }>;
 	vars?: Record<string, unknown>;
 };
-if (config.vars?.AUTH_TURNSTILE_APPEARANCE !== TURNSTILE_APPEARANCE) {
-	throw new Error(`Staging AUTH_TURNSTILE_APPEARANCE must be ${TURNSTILE_APPEARANCE}.`);
-}
-if (config.vars?.AUTH_TURNSTILE_EXECUTION !== TURNSTILE_EXECUTION) {
-	throw new Error(`Staging AUTH_TURNSTILE_EXECUTION must be ${TURNSTILE_EXECUTION}.`);
-}
 const mapBinding = config.r2_buckets?.find((binding) => binding.binding === "MAP_DATA");
 if (!mapBinding) {
 	throw new Error("Missing staging MAP_DATA binding.");
@@ -85,12 +75,9 @@ uploadStagingWorkerVersion({
 		release: sentryRelease,
 	},
 	variables: {
-		AUTH_TURNSTILE_APPEARANCE: TURNSTILE_APPEARANCE,
-		AUTH_TURNSTILE_EXECUTION: TURNSTILE_EXECUTION,
 		AUTH_TURNSTILE_SITE_KEY: turnstileSiteKey,
 		DOCS_RELEASE_ID: docsReleaseId,
-		SENTRY_BROWSER_DSN: sentryDsn,
 		SENTRY_DSN: sentryDsn,
-		SENTRY_RELEASE: sentryRelease,
+		DEPLOYMENT_RELEASE: sentryRelease,
 	},
 });

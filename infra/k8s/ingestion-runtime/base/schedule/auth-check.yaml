@@ -38,31 +38,6 @@ spec:
                 - /workspace/apps/source-collector/node_modules/.bin/tsx
                 - /workspace/apps/source-collector/adapters/internal-portal/src/auth-check.ts
               env:
-                - name: INTERNAL_PORTAL_BASE_URL
-                  valueFrom:
-                    configMapKeyRef:
-                      name: ingestion-runtime-rendered-config
-                      key: INTERNAL_PORTAL_BASE_URL
-                - name: INTERNAL_PORTAL_PAGE_URL
-                  valueFrom:
-                    configMapKeyRef:
-                      name: ingestion-runtime-rendered-config
-                      key: INTERNAL_PORTAL_PAGE_URL
-                - name: INTERNAL_PORTAL_SOURCE_HOME_URL
-                  valueFrom:
-                    configMapKeyRef:
-                      name: ingestion-runtime-rendered-config
-                      key: INTERNAL_PORTAL_SOURCE_HOME_URL
-                - name: INTERNAL_PORTAL_SITE_ID
-                  valueFrom:
-                    configMapKeyRef:
-                      name: ingestion-runtime-rendered-config
-                      key: INTERNAL_PORTAL_SITE_ID
-                - name: INTERNAL_PORTAL_SSO_COOKIE_DOMAIN
-                  valueFrom:
-                    configMapKeyRef:
-                      name: ingestion-runtime-rendered-config
-                      key: INTERNAL_PORTAL_SSO_COOKIE_DOMAIN
                 - name: INTERNAL_PORTAL_SSO_TGC_FILE
                   value: /var/run/secrets/campus-agent/internal-portal/sso_tgc
               securityContext:

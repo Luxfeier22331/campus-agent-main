@@ -9,10 +9,10 @@ export async function prepareLocalAppApiSchema(
 ): Promise<{ schemaReady: true }> {
 	const localEnv = {
 		...envOverrides,
-		APP_API_DATABASE_SSLMODE:
-			envOverrides.APP_API_DATABASE_SSLMODE?.trim() === "prefer"
+		APP_API_SCHEMA_DATABASE_SSLMODE:
+			envOverrides.APP_API_SCHEMA_DATABASE_SSLMODE?.trim() === "prefer"
 				? "disable"
-				: envOverrides.APP_API_DATABASE_SSLMODE,
+				: envOverrides.APP_API_SCHEMA_DATABASE_SSLMODE,
 	};
 	await migrateAppApiSchema(localEnv);
 	return { schemaReady: true };

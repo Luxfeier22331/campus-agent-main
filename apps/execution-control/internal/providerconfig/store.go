@@ -62,14 +62,13 @@ type databaseRoleQuerier interface {
 }
 
 func ensureDatabaseRoles(ctx context.Context, querier databaseRoleQuerier) error {
-	for _, role := range []string{"execution_provider_config_reader", "execution_provider_config_admin"} {
-		var exists bool
-		if err := querier.QueryRow(ctx, "select exists(select 1 from pg_roles where rolname=$1)", role).Scan(&exists); err != nil {
-			return err
-		}
-		if !exists {
-			return fmt.Errorf("database role %s is not installed", role)
-		}
+	const role = "execution_control"
+	var exists bool
+	if err := querier.QueryRow(ctx, "select exists(select 1 from pg_roles where rolname=$1)", role).Scan(&exists); err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("database role %s is not installed", role)
 	}
 	return nil
 }
@@ -109,10 +108,10 @@ func CheckDatabaseSchema(ctx context.Context, databaseURL string) error {
 		role      string
 		want      bool
 	}{
-		{privilege: "SELECT", role: "execution_provider_config_reader", want: true},
-		{privilege: "INSERT", role: "execution_provider_config_reader", want: false},
-		{privilege: "SELECT", role: "execution_provider_config_admin", want: true},
-		{privilege: "UPDATE", role: "execution_provider_config_admin", want: true},
+		{privilege: "SELECT", role: "execution_control", want: true},
+		{privilege: "INSERT", role: "execution_control", want: true},
+		{privilege: "UPDATE", role: "execution_control", want: true},
+		{privilege: "DELETE", role: "execution_control", want: true},
 	}
 	for _, check := range checks {
 		var granted bool

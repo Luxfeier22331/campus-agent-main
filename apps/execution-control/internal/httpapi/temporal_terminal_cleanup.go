@@ -30,9 +30,6 @@ func (s *Server) completeTerminalRunCleanup(
 	if err := s.deleteExecutionInput(ctx, run); err != nil {
 		return err
 	}
-	if err := s.deleteProtectedPayloads(ctx, run); err != nil {
-		return err
-	}
 	if now.IsZero() {
 		now = time.Now().UTC()
 	}

@@ -42,14 +42,14 @@ type postgresProviderConfigResolver struct{ store *providerconfig.Store }
 var errProviderConfigResolverNotConfigured = errors.New("provider config resolver is not configured")
 
 func newProviderConfigResolver(cfg config.Config) (providerConfigResolver, error) {
-	if strings.TrimSpace(cfg.ProviderConfigReaderDatabaseURL) == "" || strings.TrimSpace(cfg.ProviderConfigKeyringPath) == "" {
+	if strings.TrimSpace(cfg.DatabaseURL) == "" || strings.TrimSpace(cfg.ProviderConfigKeyringPath) == "" {
 		return nil, errProviderConfigResolverNotConfigured
 	}
 	keyring, err := providerconfig.LoadKeyring(cfg.ProviderConfigKeyringPath)
 	if err != nil {
 		return nil, err
 	}
-	store, err := providerconfig.NewStore(context.Background(), cfg.ProviderConfigReaderDatabaseURL, keyring)
+	store, err := providerconfig.NewStore(context.Background(), cfg.DatabaseURL, keyring)
 	if err != nil {
 		return nil, err
 	}

@@ -54,13 +54,13 @@ func newPersonalMemoryExecutor(
 
 func newHindsightMemoryExecutor(cfg config.Config) (personalMemoryExecutor, error) {
 	if strings.TrimSpace(cfg.PersonalMemoryBaseURL) == "" {
-		return nil, errors.New("PERSONAL_MEMORY_BASE_URL is required for Hindsight memory runtime")
+		return nil, errors.New("HINDSIGHT_API_BASE_URL is required for Hindsight memory runtime")
 	}
 	if strings.TrimSpace(cfg.PersonalMemoryAPISecret) == "" {
-		return nil, errors.New("PERSONAL_MEMORY_API_SECRET is required for Hindsight memory runtime")
+		return nil, errors.New("HINDSIGHT_API_TENANT_API_KEY is required for Hindsight memory runtime")
 	}
 	if strings.TrimSpace(cfg.PersonalMemoryOwnerSalt) == "" {
-		return nil, errors.New("PERSONAL_MEMORY_OWNER_SALT is required for Hindsight memory runtime")
+		return nil, errors.New("HINDSIGHT_OWNER_SALT is required for Hindsight memory runtime")
 	}
 	timeout := time.Duration(cfg.PersonalMemoryTimeoutSeconds * float64(time.Second))
 	limit := cfg.PersonalMemoryRecallLimit
@@ -337,13 +337,13 @@ func hindsightConfigSummary(cfg config.Config) map[string]any {
 
 func hindsightConfigError(cfg config.Config) string {
 	if strings.TrimSpace(cfg.PersonalMemoryBaseURL) == "" {
-		return "PERSONAL_MEMORY_BASE_URL is required"
+		return "HINDSIGHT_API_BASE_URL is required"
 	}
 	if strings.TrimSpace(cfg.PersonalMemoryAPISecret) == "" {
-		return "PERSONAL_MEMORY_API_SECRET is required"
+		return "HINDSIGHT_API_TENANT_API_KEY is required"
 	}
 	if strings.TrimSpace(cfg.PersonalMemoryOwnerSalt) == "" {
-		return "PERSONAL_MEMORY_OWNER_SALT is required"
+		return "HINDSIGHT_OWNER_SALT is required"
 	}
 	return ""
 }

@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -101,12 +102,45 @@ func parseOptions(args []string) (schemaOptions, error) {
 		return schemaOptions{}, fmt.Errorf("%w: --mode must be install or check", errInvalidOptions)
 	}
 	if options.DatabaseURL == "" {
-		return schemaOptions{}, fmt.Errorf("%w: --database-url is required", errInvalidOptions)
+		var err error
+		options.DatabaseURL, err = postgresURLFromEnvironment(os.Getenv)
+		if err != nil {
+			return schemaOptions{}, fmt.Errorf("%w: %v", errInvalidOptions, err)
+		}
 	}
 	if options.EvidencePath == "" {
 		return schemaOptions{}, fmt.Errorf("%w: --evidence-path is required", errInvalidOptions)
 	}
 	return options, nil
+}
+
+func postgresURLFromEnvironment(getenv func(string) string) (string, error) {
+	host := strings.TrimSpace(getenv("PGHOST"))
+	database := strings.TrimSpace(getenv("PGDATABASE"))
+	user := strings.TrimSpace(getenv("PGUSER"))
+	password := getenv("PGPASSWORD")
+	if host == "" || database == "" || user == "" || password == "" {
+		return "", fmt.Errorf("--database-url or PGHOST, PGDATABASE, PGUSER, and PGPASSWORD is required")
+	}
+	port := strings.TrimSpace(getenv("PGPORT"))
+	if port == "" {
+		port = "5432"
+	}
+	databaseURL := &url.URL{
+		Scheme: "postgresql",
+		Host:   net.JoinHostPort(host, port),
+		Path:   "/" + database,
+		User:   url.UserPassword(user, password),
+	}
+	query := databaseURL.Query()
+	if sslMode := strings.TrimSpace(getenv("PGSSLMODE")); sslMode != "" {
+		query.Set("sslmode", sslMode)
+	}
+	if sslRootCert := strings.TrimSpace(getenv("PGSSLROOTCERT")); sslRootCert != "" {
+		query.Set("sslrootcert", sslRootCert)
+	}
+	databaseURL.RawQuery = query.Encode()
+	return databaseURL.String(), nil
 }
 
 func runSchemaCommand(ctx context.Context, options schemaOptions) (schemaReport, error) {

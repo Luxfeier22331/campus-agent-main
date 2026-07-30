@@ -1,12 +1,7 @@
 import * as Sentry from "@sentry/cloudflare";
 
 import { type AppDependencies, createApp } from "./app";
-import {
-	type Env,
-	isDeployedEnvironment,
-	readPublicNoticeURLAllowlist,
-	resolveEnvironment,
-} from "./config";
+import { type Env, isDeployedEnvironment, resolveEnvironment } from "./config";
 import { createPgAccountAdminStore } from "./modules/account-admin";
 import {
 	buildAccountLifecycleService,
@@ -114,7 +109,6 @@ export function createWorkerRuntime(
 			executionRuntime,
 			isExecutionRuntimeConfigured: true,
 			profileMemoryStore: createPgProfileMemoryStore(env),
-			publicNoticeURLAllowlist: readPublicNoticeURLAllowlist(env),
 			safetyIdentifierHmacSecret: env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET,
 			store: createPgChatCommandStore(env),
 			telemetry,

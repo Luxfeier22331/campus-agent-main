@@ -144,6 +144,8 @@ func scanJSONMap(raw []byte) (map[string]any, error) {
 const runProjectionSchemaSQL = `
 create schema if not exists runtime;
 
+drop table if exists runtime.agent_protected_payloads;
+
 create table if not exists runtime.agent_runs (
 	run_id text primary key,
 	conversation_id text not null,
@@ -290,16 +292,6 @@ create table if not exists runtime.agent_step_results (
 	sanitized_payload_json jsonb not null default '{}'::jsonb
 );
 
-create table if not exists runtime.agent_protected_payloads (
-	run_id text not null references runtime.agent_runs(run_id) on delete cascade,
-	payload_ref text not null,
-	kind text not null,
-	ciphertext bytea not null,
-	payload_sha256 text not null,
-	created_at timestamptz not null,
-	primary key (run_id, payload_ref, kind)
-);
-
 create table if not exists runtime.conversation_run_locks (
 	conversation_id text primary key,
 	run_id text not null references runtime.agent_runs(run_id) on delete cascade,
@@ -409,9 +401,6 @@ create index if not exists agent_step_attempts_run_step_idx
 
 create index if not exists agent_step_results_run_step_idx
 	on runtime.agent_step_results (run_id, step_id, created_at);
-
-create index if not exists agent_protected_payloads_run_idx
-	on runtime.agent_protected_payloads (run_id, created_at);
 
 create index if not exists agent_workflow_starts_lease_idx
 	on runtime.agent_workflow_starts (state, next_attempt_at, lease_until);

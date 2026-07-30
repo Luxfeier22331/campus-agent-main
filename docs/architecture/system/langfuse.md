@@ -62,7 +62,8 @@ workflow 使用 command 冻结的产品用户和 `source_updated_at` 上界删�
 bank identity 删除全部 Hindsight trace。等待 Collector 最大重试窗口后，删除和复核按有界轮次
 执行；两类查询都为零后才能完成产品删除状态。
 
-execution-control core worker 只使用 `LANGFUSE_MAINTENANCE_*` 凭据执行 owner erase。普通 trace
+execution-control core worker 只使用 `LANGFUSE_BASE_URL`、`LANGFUSE_PUBLIC_KEY` 和
+`LANGFUSE_SECRET_KEY` 执行 owner erase。普通 trace
 保留期由 Langfuse 部署策略拥有，不再由自研 Temporal retention workflow 维护。精确分页、批量、
 等待、重试和失败语义由运行合同维护。
 

@@ -69,24 +69,9 @@ async function main(): Promise<void> {
 		"Built staging config must keep APP_API_BASE_URL fixed.",
 	);
 	expectEqual(
-		vars.CAMPUS_WEB_HOSTNAME,
-		"campus-staging.mucwiki-edge.link",
-		"Built staging config must keep CAMPUS_WEB_HOSTNAME fixed.",
-	);
-	expectEqual(
-		vars.AUTH_TURNSTILE_APPEARANCE,
-		"interaction-only",
-		"Built staging config must keep AUTH_TURNSTILE_APPEARANCE fixed.",
-	);
-	expectEqual(
-		vars.AUTH_TURNSTILE_EXECUTION,
-		"render",
-		"Built staging config must keep AUTH_TURNSTILE_EXECUTION fixed.",
-	);
-	expectEqual(
-		vars.SENTRY_ENVIRONMENT,
+		vars.DEPLOYMENT_ENVIRONMENT,
 		"staging",
-		"Built staging config must keep SENTRY_ENVIRONMENT fixed.",
+		"Built staging config must keep DEPLOYMENT_ENVIRONMENT fixed.",
 	);
 	expectAbsent(
 		vars,
@@ -100,8 +85,8 @@ async function main(): Promise<void> {
 	);
 	expectAbsent(
 		vars,
-		"SENTRY_RELEASE",
-		"SENTRY_RELEASE must not remain as a static staging var in built config.",
+		"DEPLOYMENT_RELEASE",
+		"DEPLOYMENT_RELEASE must not remain as a static staging var in built config.",
 	);
 
 	if (Array.isArray(config.routes) && config.routes.length > 0) {

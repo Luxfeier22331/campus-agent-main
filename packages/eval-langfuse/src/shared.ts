@@ -6,7 +6,6 @@ export interface LangfuseSettings {
 	baseUrl: string;
 	publicKey: string;
 	secretKey: string;
-	environment: string;
 	timeoutSeconds?: number;
 }
 
@@ -21,13 +20,15 @@ export class LangfuseRequestError extends Error {
 	}
 }
 
-export function settingsFromEnv(env: NodeJS.ProcessEnv = process.env): LangfuseSettings {
+export function settingsFromEnv(
+	input: { env?: NodeJS.ProcessEnv; timeoutSeconds?: number } = {},
+): LangfuseSettings {
+	const env = input.env ?? process.env;
 	return {
 		baseUrl: stringField(env.LANGFUSE_BASE_URL, "LANGFUSE_BASE_URL"),
-		environment: stringField(env.LANGFUSE_ENVIRONMENT, "LANGFUSE_ENVIRONMENT"),
 		publicKey: stringField(env.LANGFUSE_PUBLIC_KEY, "LANGFUSE_PUBLIC_KEY"),
 		secretKey: stringField(env.LANGFUSE_SECRET_KEY, "LANGFUSE_SECRET_KEY"),
-		timeoutSeconds: Number(env.LANGFUSE_TIMEOUT_SECONDS || 10),
+		timeoutSeconds: input.timeoutSeconds ?? 10,
 	};
 }
 

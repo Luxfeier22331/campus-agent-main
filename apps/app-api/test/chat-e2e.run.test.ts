@@ -4,6 +4,15 @@ import { describe, expect, it } from "vitest";
 
 import { type ChatE2eDependencies, runChatE2e } from "../e2e/chat-e2e";
 
+const E2E_CREDENTIAL_ARGS = [
+	"--email",
+	"smoke-user@example.edu",
+	"--password",
+	"dev-smoke-password",
+	"--captcha-token",
+	"dev-captcha-token",
+];
+
 function jsonResult<T>(
 	payload: T,
 	response = new Response("{}"),
@@ -33,10 +42,8 @@ describe("chat e2e runner", () => {
 				"https://campus.example.com",
 				"--app-api-readyz-url",
 				"https://api.example.com/readyz",
+				...E2E_CREDENTIAL_ARGS,
 			],
-			{
-				APP_API_STAGING_SMOKE_AUTH_SECRET: "smoke-secret",
-			} as NodeJS.ProcessEnv,
 			{
 				async fetchReadyz() {
 					return {
@@ -86,7 +93,7 @@ describe("chat e2e runner", () => {
 					}
 					throw new Error(`unexpected json request: ${input.url}`);
 				},
-				async mintSmokeSession() {
+				async signInIdentity() {
 					return "session=staging";
 				},
 				async openSubmitStream(input) {
@@ -142,10 +149,8 @@ describe("chat e2e runner", () => {
 				"https://campus.example.com",
 				"--app-api-readyz-url",
 				"https://api.example.com/readyz",
+				...E2E_CREDENTIAL_ARGS,
 			],
-			{
-				APP_API_STAGING_SMOKE_AUTH_SECRET: "smoke-secret",
-			} as NodeJS.ProcessEnv,
 			{
 				async fetchReadyz(url) {
 					readyzUrls.push(url);
@@ -202,7 +207,7 @@ describe("chat e2e runner", () => {
 						}),
 					);
 				},
-				async mintSmokeSession() {
+				async signInIdentity() {
 					return "session=staging";
 				},
 			},
@@ -217,8 +222,8 @@ describe("chat e2e runner", () => {
 		]);
 	});
 
-	it("classifies explicit exec readiness failure before minting a smoke session", async () => {
-		let sessionMintCount = 0;
+	it("classifies explicit exec readiness failure before signing in", async () => {
+		let signInCount = 0;
 		const result = await runChatE2e(
 			[
 				"--profile",
@@ -229,10 +234,8 @@ describe("chat e2e runner", () => {
 				"https://api.example.com/readyz",
 				"--exec-readyz-url",
 				"https://exec.example.com/readyz",
+				...E2E_CREDENTIAL_ARGS,
 			],
-			{
-				APP_API_STAGING_SMOKE_AUTH_SECRET: "smoke-secret",
-			} as NodeJS.ProcessEnv,
 			{
 				async fetchReadyz(url) {
 					if (url === "https://exec.example.com/readyz") {
@@ -254,23 +257,22 @@ describe("chat e2e runner", () => {
 				async fetchJsonWithCookie() {
 					throw new Error("chat request should not run when readiness is blocked.");
 				},
-				async mintSmokeSession() {
-					sessionMintCount += 1;
+				async signInIdentity() {
+					signInCount += 1;
 					return "session=unexpected";
 				},
 			},
 		);
 
-		expect(sessionMintCount).toBe(0);
+		expect(signInCount).toBe(0);
 		expect(result.passed).toBe(false);
 		expect(result.blocked_by).toBe("execution_control_tunnel_unreachable");
 		expect(result.chat_request_attempted).toBe(false);
-		expect(result.session_mint_attempted).toBe(false);
+		expect(result.sign_in_attempted).toBe(false);
 		expect(result.readyz.exec?.status).toBe(530);
 	});
 
-	it("signs into a pre-provisioned dev smoke identity without using staging mint", async () => {
-		let sessionMintCount = 0;
+	it("signs into the explicit dev identity", async () => {
 		let signInCount = 0;
 		let signInCaptchaToken = "";
 		const result = await runChatE2e(
@@ -283,11 +285,8 @@ describe("chat e2e runner", () => {
 				"http://127.0.0.1:27014",
 				"--exec-readyz-url",
 				"http://127.0.0.1:27051/readyz",
+				...E2E_CREDENTIAL_ARGS,
 			],
-			{
-				APP_API_SMOKE_IDENTITY_CAPTCHA_TOKEN: "dev-captcha-token",
-				APP_API_SMOKE_IDENTITY_PASSWORD: "dev-smoke-password",
-			} as NodeJS.ProcessEnv,
 			{
 				async fetchReadyz() {
 					return {
@@ -343,11 +342,7 @@ describe("chat e2e runner", () => {
 						}),
 					);
 				},
-				async mintSmokeSession() {
-					sessionMintCount += 1;
-					return "session=unexpected";
-				},
-				async signInSmokeIdentity(input) {
+				async signInIdentity(input) {
 					signInCount += 1;
 					signInCaptchaToken = input.captchaToken;
 					return "session=dev";
@@ -356,11 +351,9 @@ describe("chat e2e runner", () => {
 		);
 
 		expect(result.passed).toBe(true);
-		expect(result.identity.resetViaDeployedRuntime).toBe(false);
-		expect(result.session_mint_attempted).toBe(false);
+		expect(result.identity).toEqual({ email: "smoke-user@example.edu" });
 		expect(result.sign_in_attempted).toBe(true);
 		expect(result.readyz.appApi).toBe(null);
-		expect(sessionMintCount).toBe(0);
 		expect(signInCount).toBe(1);
 		expect(signInCaptchaToken).toBe("dev-captcha-token");
 	});
@@ -379,11 +372,8 @@ describe("chat e2e runner", () => {
 				"http://127.0.0.1:27051/readyz",
 				"--expect-model-execution-state",
 				"rag_sdk_completed",
+				...E2E_CREDENTIAL_ARGS,
 			],
-			{
-				APP_API_SMOKE_IDENTITY_CAPTCHA_TOKEN: "dev-captcha-token",
-				APP_API_SMOKE_IDENTITY_PASSWORD: "dev-smoke-password",
-			} as NodeJS.ProcessEnv,
 			{
 				async fetchReadyz() {
 					return {
@@ -443,7 +433,7 @@ describe("chat e2e runner", () => {
 					observedRequestIds.push(requestId);
 					return "rag_sdk_completed";
 				},
-				async signInSmokeIdentity() {
+				async signInIdentity() {
 					return "session=dev";
 				},
 			},
@@ -468,11 +458,8 @@ describe("chat e2e runner", () => {
 					"http://127.0.0.1:27051/readyz",
 					"--expect-model-execution-state",
 					"rag_sdk_completed",
+					...E2E_CREDENTIAL_ARGS,
 				],
-				{
-					APP_API_SMOKE_IDENTITY_CAPTCHA_TOKEN: "dev-captcha-token",
-					APP_API_SMOKE_IDENTITY_PASSWORD: "dev-smoke-password",
-				} as NodeJS.ProcessEnv,
 				{
 					async fetchReadyz() {
 						return {
@@ -531,7 +518,7 @@ describe("chat e2e runner", () => {
 					async readModelExecutionState() {
 						return null;
 					},
-					async signInSmokeIdentity() {
+					async signInIdentity() {
 						return "session=dev";
 					},
 				},

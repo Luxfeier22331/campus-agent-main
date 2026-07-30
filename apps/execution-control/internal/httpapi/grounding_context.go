@@ -22,40 +22,8 @@ const (
 	groundingTokenBudget            = 4096
 )
 
-type groundingContext struct {
-	AdmissionSHA256   string              `json:"admission_sha256"`
-	CoveredScopes     []string            `json:"covered_scopes"`
-	Evidence          []groundingEvidence `json:"evidence"`
-	Mode              string              `json:"mode"`
-	ModelContextChars int                 `json:"model_context_chars"`
-	PlanSHA256        string              `json:"plan_sha256"`
-	PreparedAt        time.Time           `json:"prepared_at"`
-	QuerySHA256       string              `json:"query_sha256"`
-	RunID             string              `json:"run_id"`
-	SchemaVersion     string              `json:"schema_version"`
-	SelectedScopes    []string            `json:"selected_scopes"`
-	Status            string              `json:"status"`
-	TokenCount        int                 `json:"token_count"`
-}
-
-type groundingEvidence struct {
-	EvidenceRef   string `json:"evidence_ref"`
-	DocumentScope string `json:"document_scope"`
-	ReleaseID     string `json:"release_id"`
-	ChunkID       string `json:"chunk_id"`
-	SectionRef    string `json:"section_ref"`
-	DocumentID    string `json:"document_id"`
-	SectionID     string `json:"section_id"`
-	DocumentTitle string `json:"document_title"`
-	SectionTitle  string `json:"section_title"`
-	CanonicalURL  string `json:"canonical_url"`
-	Text          string `json:"text"`
-	TextSHA256    string `json:"text_sha256"`
-	TokenCount    int    `json:"token_count"`
-	// RerankScore keeps the grounding_context.v2 wire key for now. The value is
-	// Qdrant's dense+sparse RRF retrieval score; no external reranker is called.
-	RerankScore float64 `json:"rerank_score"`
-}
+type groundingContext = temporalruntime.GroundingContext
+type groundingEvidence = temporalruntime.GroundingEvidence
 
 type groundingExecutor interface {
 	Prepare(

@@ -56,7 +56,7 @@ function resolveSsl(
 	if (env.databaseSslMode === "verify-full") {
 		if (!env.databaseCa) {
 			throw new Error(
-				"APP_API_DATABASE_CA_CERT_PATH is required when APP_API_DATABASE_SSLMODE=verify-full.",
+				"APP_API_SCHEMA_DATABASE_CA_CERT_PATH is required when APP_API_SCHEMA_DATABASE_SSLMODE=verify-full.",
 			);
 		}
 		return { ca: env.databaseCa, rejectUnauthorized: true };
@@ -64,7 +64,7 @@ function resolveSsl(
 	if (env.databaseSslMode === "require") {
 		return { rejectUnauthorized: false };
 	}
-	throw new Error("APP_API_DATABASE_SSLMODE must be verify-full, require, or disable.");
+	throw new Error("APP_API_SCHEMA_DATABASE_SSLMODE must be verify-full, require, or disable.");
 }
 
 export function readSharedProductBootstrapEnv(
@@ -76,12 +76,12 @@ export function readSharedProductBootstrapEnv(
 	}
 	const normalizedDatabaseUrl = new URL(databaseUrl);
 	normalizedDatabaseUrl.searchParams.delete("sslmode");
-	const databaseCaCertPath = readOptionalEnv("APP_API_DATABASE_CA_CERT_PATH", env);
+	const databaseCaCertPath = readOptionalEnv("APP_API_SCHEMA_DATABASE_CA_CERT_PATH", env);
 
 	return {
 		authSchema: APP_AUTH_SCHEMA,
 		chatSchema: APP_CHAT_SCHEMA,
-		databaseSslMode: env.APP_API_DATABASE_SSLMODE?.trim() || "require",
+		databaseSslMode: env.APP_API_SCHEMA_DATABASE_SSLMODE?.trim() || "require",
 		databaseUrl: normalizedDatabaseUrl.toString(),
 		databaseCa: databaseCaCertPath ? readFileSync(databaseCaCertPath, "utf8") : undefined,
 	};

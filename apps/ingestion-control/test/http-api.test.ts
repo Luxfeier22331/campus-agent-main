@@ -9,8 +9,7 @@ import {
 import { testSnapshot, testTaskStartMetadata } from "./fixtures";
 
 const tokens = {
-	adminToken: "admin-token",
-	opsToken: "ops-token",
+	internalToken: "internal-token",
 };
 
 describe("ingestion-control HTTP", () => {
@@ -84,7 +83,7 @@ describe("ingestion-control HTTP", () => {
 		const response = await handler(
 			new Request("http://ingestion-control/internal/ingestion/tasks", {
 				method: "POST",
-				headers: { authorization: "Bearer admin-token", "content-type": "application/json" },
+				headers: { authorization: "Bearer internal-token", "content-type": "application/json" },
 				body: JSON.stringify({ ...request, run_id: "different-run" }),
 			}),
 		);
@@ -145,7 +144,7 @@ describe("ingestion-control HTTP", () => {
 				{
 					body: JSON.stringify({ file_release_ids: [646, 647], request_id: "batch-001" }),
 					headers: {
-						authorization: "Bearer ops-token",
+						authorization: "Bearer internal-token",
 						"content-type": "application/json",
 						"x-operator-id": "ops@example.edu",
 					},
@@ -181,7 +180,7 @@ describe("ingestion-control HTTP", () => {
 				{
 					body: JSON.stringify({ workflow_ids: workflowIds }),
 					headers: {
-						authorization: "Bearer ops-token",
+						authorization: "Bearer internal-token",
 						"content-type": "application/json",
 					},
 					method: "POST",
@@ -210,7 +209,7 @@ describe("ingestion-control HTTP", () => {
 				{
 					body: JSON.stringify({ workflow_ids: ["not-a-file-release-workflow"] }),
 					headers: {
-						authorization: "Bearer ops-token",
+						authorization: "Bearer internal-token",
 						"content-type": "application/json",
 					},
 					method: "POST",
@@ -236,7 +235,7 @@ describe("ingestion-control HTTP", () => {
 						workflow_ids: ["ingestion/internal-portal-file-release/batch-001/646"],
 					}),
 					headers: {
-						authorization: "Bearer ops-token",
+						authorization: "Bearer internal-token",
 						"content-type": "application/json",
 					},
 					method: "POST",
@@ -272,7 +271,7 @@ describe("ingestion-control HTTP", () => {
 		const detail = await handler(
 			new Request(
 				"http://ingestion-control/internal/ingestion/operations/tasks/task%3Aencoded%3A001",
-				{ headers: { authorization: "Bearer ops-token" } },
+				{ headers: { authorization: "Bearer internal-token" } },
 			),
 		);
 		const retry = await handler(
@@ -280,7 +279,7 @@ describe("ingestion-control HTTP", () => {
 				"http://ingestion-control/internal/ingestion/operations/tasks/task%3Aencoded%3A001/retry",
 				{
 					headers: {
-						authorization: "Bearer ops-token",
+						authorization: "Bearer internal-token",
 						"x-operator-id": "ops@example.edu",
 					},
 					method: "POST",
@@ -361,7 +360,7 @@ function handlerFor(store: InMemoryIngestionTaskStore, workflowStarter: Ingestio
 function taskRequest(): Request {
 	return new Request("http://ingestion-control/internal/ingestion/tasks", {
 		method: "POST",
-		headers: { authorization: "Bearer admin-token", "content-type": "application/json" },
+		headers: { authorization: "Bearer internal-token", "content-type": "application/json" },
 		body: JSON.stringify(testSnapshot().task),
 	});
 }

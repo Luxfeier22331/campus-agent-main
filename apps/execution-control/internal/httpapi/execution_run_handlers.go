@@ -154,7 +154,6 @@ func (s *Server) workflowInputForRun(
 		AdmissionSnapshot:       admissionSnapshot,
 		AdmissionSnapshotSHA256: admissionSHA256,
 		ConversationID:          run.ConversationID,
-		GroundingContextRef:     groundingContextRef(run.RunID),
 		Namespace:               s.config.TemporalNamespace,
 		PayloadSHA256:           inputMetadata.ExecutionInputSHA256,
 		PolicyVersions: map[string]string{

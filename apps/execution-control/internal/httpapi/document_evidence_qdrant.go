@@ -59,8 +59,8 @@ func newQdrantDocumentEvidenceExecutor(
 	if parsedQdrantURL.Scheme == "http" && isDeployedEnvironment(cfg.DeploymentEnvironment) {
 		return nil, errors.New("QDRANT_URL must use https for authenticated Qdrant data-plane")
 	}
-	if strings.TrimSpace(cfg.QdrantQueryAPIKey) == "" {
-		return nil, errors.New("QDRANT_QUERY_API_KEY is required for online Qdrant lookup")
+	if strings.TrimSpace(cfg.QdrantReadOnlyAPIKey) == "" {
+		return nil, errors.New("QDRANT_READ_ONLY_API_KEY is required for online Qdrant lookup")
 	}
 	qdrantTimeout := time.Duration(cfg.RAGQdrantTimeoutMS) * time.Millisecond
 	if qdrantTimeout <= 0 {
@@ -81,7 +81,7 @@ func newQdrantDocumentEvidenceExecutor(
 		httpClient:          httpClient,
 		knowledgeReadModel:  knowledgeReadModel,
 		queryTargetsPath:    strings.TrimSpace(cfg.QueryServingTargetsPath),
-		qdrantQueryAPIKey:   strings.TrimSpace(cfg.QdrantQueryAPIKey),
+		qdrantQueryAPIKey:   strings.TrimSpace(cfg.QdrantReadOnlyAPIKey),
 		qdrantURL:           qdrantURL,
 		servingConfigRoot:   retrievalServingConfigRoot(),
 		timeout:             qdrantTimeout,

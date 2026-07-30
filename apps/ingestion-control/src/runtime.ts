@@ -11,6 +11,7 @@ import {
 	assertIngestionControlPostgresSchema,
 	createPostgresIngestionTaskStore,
 } from "./postgres-store";
+import { INGESTION_TASK_REGISTRY_ROOT } from "./runtime-paths";
 import {
 	type ClosableIngestionWorkflowStarter,
 	createTemporalIngestionWorkflowStarter,
@@ -48,12 +49,11 @@ export function buildIngestionControlRuntimeConfig(
 			connectionString: "INGESTION_CONTROL_DATABASE_URL",
 			sslMode: "INGESTION_CONTROL_DATABASE_SSLMODE",
 		}),
-		registryRoot: requiredEnv(env, "INGESTION_TASK_REGISTRY_ROOT"),
-		host: env.INGESTION_CONTROL_HOST?.trim() || "0.0.0.0",
-		port: readPort(env.INGESTION_CONTROL_PORT),
+		registryRoot: INGESTION_TASK_REGISTRY_ROOT,
+		host: "0.0.0.0",
+		port: 8000,
 		serviceTokens: {
-			adminToken: env.INGESTION_CONTROL_ADMIN_TOKEN?.trim() || null,
-			opsToken: env.OPS_WEB_INTERNAL_TOKEN?.trim() || null,
+			internalToken: env.OPS_WEB_INTERNAL_TOKEN?.trim() || null,
 		},
 		temporal: buildIngestionTemporalConfig(env),
 	};
@@ -140,25 +140,6 @@ async function createIngestionControlRuntime(
 		await pool.end();
 		throw error;
 	}
-}
-
-function requiredEnv(env: Record<string, string | undefined>, key: string): string {
-	const value = env[key]?.trim();
-	if (!value) {
-		throw new Error(`${key} is required`);
-	}
-	return value;
-}
-
-function readPort(value: string | undefined): number {
-	if (!value?.trim()) {
-		return 8000;
-	}
-	const parsed = Number.parseInt(value, 10);
-	if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
-		throw new Error("INGESTION_CONTROL_PORT must be a valid TCP port");
-	}
-	return parsed;
 }
 
 export async function readRequestBody(

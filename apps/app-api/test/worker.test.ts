@@ -96,7 +96,8 @@ const env = {
 	AUTH_EMAIL_FROM: "Campus Agent <auth@example.com>",
 	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 	APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
-	APP_API_ENVIRONMENT: "test" as const,
+	APP_API_SAFETY_IDENTIFIER_HMAC_SECRET: "safety-identifier-secret",
+	DEPLOYMENT_ENVIRONMENT: "test" as const,
 	APP_API_DB: {
 		connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 	},
@@ -180,7 +181,7 @@ describe("app-api worker foundation", () => {
 		expect(wranglerConfig).not.toContain("[[env.staging.routes]]");
 		expect(wranglerConfig).toContain("[[env.staging.hyperdrive]]");
 		expect(wranglerConfig).toContain("[env.staging.vars]");
-		expect(wranglerConfig).toContain('APP_API_ENVIRONMENT = "staging"');
+		expect(wranglerConfig).toContain('DEPLOYMENT_ENVIRONMENT = "staging"');
 		expect(stagingVarsBlock).toContain(
 			'AUTH_SHELL_ORIGIN = "https://campus-staging.mucwiki-edge.link"',
 		);
@@ -197,8 +198,8 @@ describe("app-api worker foundation", () => {
 		expect(wranglerConfig).toContain('service_id = "00000000-0000-0000-0000-000000000000"');
 		expect(wranglerConfig).toContain("remote = true");
 		expect(stagingVarsBlock).not.toContain("CHATKIT_ADAPTER_BASE_URL");
-		expect(stagingVarsBlock).toContain('SENTRY_ENVIRONMENT = "staging"');
-		expect(stagingVarsBlock).not.toContain("SENTRY_RELEASE = ");
+		expect(stagingVarsBlock).toContain('DEPLOYMENT_ENVIRONMENT = "staging"');
+		expect(stagingVarsBlock).not.toContain("DEPLOYMENT_RELEASE = ");
 		expect(stagingVarsBlock).not.toContain("APP_API_OTEL_INGEST_");
 		expect(stagingVarsBlock).not.toContain("AXIOM_ENDPOINT");
 		expect(stagingVarsBlock).not.toContain("AXIOM_DATASET");
@@ -215,7 +216,7 @@ describe("app-api worker foundation", () => {
 		expect(packageManifest.scripts?.["deploy:preflight:staging"]).toBeUndefined();
 		expect(packageManifest.scripts?.["deploy:check-secrets:staging"]).toBeUndefined();
 		expect(uploadStagingVersionSource).toContain("uploadStagingWorkerVersion");
-		expect(uploadStagingVersionSource).toContain("loadRepoStagingEnvFile");
+		expect(uploadStagingVersionSource).not.toContain("loadRepoStagingEnvFile");
 		expect(uploadStagingVersionSource).toContain("resolveStagingSentryRelease");
 		expect(uploadStagingVersionSource).toContain("SENTRY_APP_API_PROJECT_SLUG");
 		expect(uploadStagingVersionSource).toContain(
@@ -227,16 +228,14 @@ describe("app-api worker foundation", () => {
 		expect(uploadStagingVersionSource).toContain("OBJECT_STORE_VPC_SERVICE_ID");
 		expect(uploadStagingVersionSource).toContain("APP_API_DB_HYPERDRIVE_ID");
 		expect(uploadStagingVersionSource).toContain("AUTH_EMAIL_FROM");
-		expect(uploadStagingVersionSource).toContain("STAGING_APP_API_EXECUTION_SHARED_SECRET");
-		expect(uploadStagingVersionSource).toContain("STAGING_OPS_WEB_INTERNAL_TOKEN");
+		expect(uploadStagingVersionSource).toContain('requiredEnv("APP_API_EXECUTION_SHARED_SECRET")');
+		expect(uploadStagingVersionSource).toContain('requiredEnv("OPS_WEB_INTERNAL_TOKEN")');
 		expect(uploadStagingVersionSource).toContain("secretsFile: secretsPath");
 		expect(uploadStagingVersionSource).toContain("mode: 0o600");
-		expect(stagingPublishWorkflowSource).toContain("STAGING_APP_API_EXECUTION_SHARED_SECRET:");
-		expect(stagingPublishWorkflowSource).toContain(
-			"secrets.STAGING_APP_API_EXECUTION_SHARED_SECRET",
-		);
-		expect(stagingPublishWorkflowSource).toContain("STAGING_OPS_WEB_INTERNAL_TOKEN:");
-		expect(stagingPublishWorkflowSource).toContain("secrets.STAGING_OPS_WEB_INTERNAL_TOKEN");
+		expect(stagingPublishWorkflowSource).toContain("APP_API_EXECUTION_SHARED_SECRET:");
+		expect(stagingPublishWorkflowSource).toContain("secrets.APP_API_EXECUTION_SHARED_SECRET");
+		expect(stagingPublishWorkflowSource).toContain("OPS_WEB_INTERNAL_TOKEN:");
+		expect(stagingPublishWorkflowSource).toContain("secrets.OPS_WEB_INTERNAL_TOKEN");
 		expect(stagingPublishWorkflowSource).toContain("OBJECT_STORE_VPC_SERVICE_ID:");
 		expect(stagingPublishWorkflowSource).toContain("vars.OBJECT_STORE_VPC_SERVICE_ID");
 		expect(uploadStagingVersionSource).toContain("preflight-staging.ts");
@@ -257,12 +256,14 @@ describe("app-api worker foundation", () => {
 		expect(packageManifest.scripts?.["test:worker"]).toContain(
 			"WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1",
 		);
-		expect(appApiSmokeEntrypointSource).toContain("./scripts/deploy/run-with-staging-smoke-env.ts");
+		expect(appApiSmokeEntrypointSource).not.toContain(
+			"./scripts/deploy/run-with-staging-smoke-env.ts",
+		);
 		expect(appApiSmokeEntrypointSource).toContain("apps/app-api");
 		expect(stagingPreflightSource).not.toContain(retiredExecutionControlPublicUrlKey);
 		expect(stagingPreflightSource).not.toContain(retiredExecutionControlAccessClientIdKey);
 		expect(stagingPreflightSource).not.toContain(retiredExecutionControlAccessClientSecretKey);
-		expect(stagingPreflightSource).toContain("loadRepoStagingEnvFile");
+		expect(stagingPreflightSource).not.toContain("loadRepoStagingEnvFile");
 		expect(stagingPreflightSource).not.toContain("check-worker-secret-presence.ts");
 		expect(stagingPreflightSource).toContain("apps/app-api/scripts/verify-staging-config.ts");
 		expect(stagingPreflightSource).not.toContain('new URL("/readyz", baseUrl)');
@@ -312,7 +313,7 @@ describe("app-api worker foundation", () => {
 		expect(stagingSecretsBlock).not.toContain(
 			JSON.stringify(retiredExecutionControlAccessClientSecretKeyLocal),
 		);
-		expect(stagingSecretsBlock).toContain('"APP_API_STAGING_SMOKE_AUTH_SECRET"');
+		expect(stagingSecretsBlock).not.toContain('"APP_API_STAGING_SMOKE_AUTH_SECRET"');
 		expect(stagingSecretsBlock).not.toContain('"APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN"');
 		expect(stagingSecretsBlock).not.toContain('"SENTRY_DSN"');
 		expect(stagingSecretsBlock).not.toContain("APP_API_OTEL_INGEST_");
@@ -346,7 +347,7 @@ describe("app-api worker foundation", () => {
 		);
 		expect(localSmokeSecretsBlock).toContain('"APP_API_EXECUTION_SHARED_SECRET"');
 		expect(localSmokeSecretsBlock).not.toContain('"EXECUTION_CONTROL_BASE_URL"');
-		expect(localSmokeWranglerConfig).toContain('APP_API_ENVIRONMENT = "development"');
+		expect(localSmokeWranglerConfig).toContain('DEPLOYMENT_ENVIRONMENT = "development"');
 		expect(localSmokeWranglerConfig).not.toContain("APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST");
 	});
 
@@ -413,7 +414,7 @@ describe("app-api worker foundation", () => {
 	it("fails readyz closed when required config is missing", async () => {
 		const runtime = createWorkerRuntime(
 			{
-				APP_API_ENVIRONMENT: "test",
+				DEPLOYMENT_ENVIRONMENT: "test",
 			},
 			{
 				runtimeReadinessProbe: vi.fn(),
@@ -433,7 +434,13 @@ describe("app-api worker foundation", () => {
 				traceId: null,
 				requestId: null,
 				details: {
-					missing: ["APP_API_DB.connectionString", "BETTER_AUTH_SECRET"],
+					missing: [
+						"APP_API_DB.connectionString",
+						"BETTER_AUTH_SECRET",
+						"AUTH_TURNSTILE_SECRET_KEY",
+						"AUTH_SHELL_ORIGIN",
+						"APP_API_SAFETY_IDENTIFIER_HMAC_SECRET",
+					],
 				},
 			},
 		});

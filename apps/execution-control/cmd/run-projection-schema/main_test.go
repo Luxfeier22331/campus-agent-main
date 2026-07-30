@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"net"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +15,9 @@ import (
 )
 
 func TestParseOptionsRequiresModeDatabaseURLAndEvidencePath(t *testing.T) {
+	for _, key := range []string{"PGHOST", "PGDATABASE", "PGUSER", "PGPASSWORD"} {
+		t.Setenv(key, "")
+	}
 	_, err := parseOptions([]string{
 		"--mode", "check",
 		"--database-url", "postgres://example",
@@ -36,6 +40,33 @@ func TestParseOptionsRequiresModeDatabaseURLAndEvidencePath(t *testing.T) {
 	})
 	if !errors.Is(err, errInvalidOptions) {
 		t.Fatalf("parse missing mode error = %v, want errInvalidOptions", err)
+	}
+}
+
+func TestParseOptionsBuildsSchemaOwnerURLFromStandardPostgresEnvironment(t *testing.T) {
+	t.Setenv("PGHOST", "postgres.internal")
+	t.Setenv("PGPORT", "5433")
+	t.Setenv("PGDATABASE", "campus agent")
+	t.Setenv("PGUSER", "schema-owner")
+	t.Setenv("PGPASSWORD", "secret:/ value")
+	t.Setenv("PGSSLMODE", "verify-full")
+	t.Setenv("PGSSLROOTCERT", "/etc/postgres/ca.crt")
+	options, err := parseOptions([]string{"--mode", "check", "--evidence-path", "schema.json"})
+	if err != nil {
+		t.Fatalf("parse schema owner environment: %v", err)
+	}
+	parsed, err := url.Parse(options.DatabaseURL)
+	if err != nil {
+		t.Fatalf("parse resolved database URL: %v", err)
+	}
+	if parsed.Host != "postgres.internal:5433" || parsed.Path != "/campus agent" {
+		t.Fatalf("resolved database URL = %s", parsed.Redacted())
+	}
+	if password, _ := parsed.User.Password(); parsed.User.Username() != "schema-owner" || password != "secret:/ value" {
+		t.Fatalf("resolved credentials were not URL encoded")
+	}
+	if parsed.Query().Get("sslmode") != "verify-full" || parsed.Query().Get("sslrootcert") != "/etc/postgres/ca.crt" {
+		t.Fatalf("resolved TLS query = %v", parsed.Query())
 	}
 }
 

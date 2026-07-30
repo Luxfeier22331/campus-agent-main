@@ -49,9 +49,9 @@ func TestLangfuseTraceMaintenancePurgesOnlyTheRequestedUser(t *testing.T) {
 	defer server.Close()
 
 	maintenance, err := newLangfuseTraceMaintenance(config.Config{
-		LangfuseMaintenanceBaseURL:   server.URL,
-		LangfuseMaintenancePublicKey: "pk-staging",
-		LangfuseMaintenanceSecretKey: "sk-staging",
+		LangfuseBaseURL:   server.URL,
+		LangfusePublicKey: "pk-staging",
+		LangfuseSecretKey: "sk-staging",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -168,9 +168,9 @@ func TestLangfuseTraceMaintenanceSanitizesServerFailures(t *testing.T) {
 	}))
 	defer server.Close()
 	maintenance, err := newLangfuseTraceMaintenance(config.Config{
-		LangfuseMaintenanceBaseURL:   server.URL,
-		LangfuseMaintenancePublicKey: "pk-staging",
-		LangfuseMaintenanceSecretKey: "sk-staging",
+		LangfuseBaseURL:   server.URL,
+		LangfusePublicKey: "pk-staging",
+		LangfuseSecretKey: "sk-staging",
 	})
 	if err != nil {
 		t.Fatal(err)

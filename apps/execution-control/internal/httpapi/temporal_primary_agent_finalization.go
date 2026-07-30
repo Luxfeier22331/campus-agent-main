@@ -31,11 +31,19 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 			true,
 		)
 	}
+	agentResult := primaryAgentFinalizationResultMap(input)
+	if strings.TrimSpace(input.AgentResult.AgentResultRef) != temporalProjectionRef(input.RunID, "agent/primary/result") ||
+		strings.TrimSpace(input.AgentResult.RunID) != strings.TrimSpace(input.RunID) {
+		return temporalruntime.WriteFinalizationActivityOutput{}, sanitizedTemporalApplicationError(
+			"finalization_input_invalid",
+			errors.New("agent result identity is invalid"),
+			true,
+		)
+	}
 	run, err := s.temporalActivityRunAllowCompletedAgentFinalization(
 		ctx,
 		input.RunID,
 		input.TraceID,
-		input.AgentResultRef,
 	)
 	if err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
@@ -46,10 +54,6 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 	replayEvidence, err := s.completedFinalizationProjectionEvidence(ctx, run)
 	if err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
-	}
-	agentResult, err := s.temporalAgentResultFromRun(ctx, run, input.AgentResultRef)
-	if err != nil {
-		return s.failFinalizationActivity(ctx, run, "", "agent_result_missing", "", err)
 	}
 	expectedToolRuntime := cloneAnyMapFromMetadata(agentResult["admitted_tool_runtime_fingerprint"])
 	if len(expectedToolRuntime) == 0 && activity.IsActivity(ctx) {
@@ -94,6 +98,7 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 		ctx,
 		run,
 		agentResult,
+		input.AgentResult.GroundingContext,
 	)
 	if err != nil {
 		return s.failFinalizationActivity(ctx, run, "", "agent_finalization_invalid", "", err)
@@ -106,7 +111,7 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
 	if err := s.appendTemporalFinalizationCompletedEvents(ctx, run, completedAt, finalizedResponse, map[string]any{
-		"agent_result_ref": input.AgentResultRef,
+		"agent_result_ref": input.AgentResult.AgentResultRef,
 		"request_id":       run.RequestID,
 		"trace_id":         run.TraceID,
 	}); err != nil {
@@ -439,14 +444,7 @@ func (s *Server) repairCompletedPrimaryAgentFinalization(
 			true,
 		)
 	}
-	agentResult, err := s.temporalAgentResultFromRun(ctx, run, input.AgentResultRef)
-	if err != nil {
-		return temporalruntime.WriteFinalizationActivityOutput{}, sanitizedTemporalApplicationError(
-			"finalization_replay_conflict",
-			err,
-			true,
-		)
-	}
+	agentResult := primaryAgentFinalizationResultMap(input)
 	if _, _, err := validatePrimaryAgentResultSucceeded(agentResult); err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, sanitizedTemporalApplicationError(
 			"finalization_replay_conflict",
@@ -458,7 +456,7 @@ func (s *Server) repairCompletedPrimaryAgentFinalization(
 	if run.TerminalReason != expectedTerminalReason {
 		return temporalruntime.WriteFinalizationActivityOutput{}, sanitizedTemporalApplicationError(
 			"finalization_replay_conflict",
-			errors.New("completed run terminal identity differs from the protected agent result"),
+			errors.New("completed run terminal identity differs from the workflow agent result"),
 			true,
 		)
 	}
@@ -541,7 +539,7 @@ func (s *Server) validateCompletedPrimaryAgentFinalizationStep(
 	finalizedResponse map[string]any,
 ) error {
 	finalizationRef := temporalProjectionRef(run.RunID, "finalization/write")
-	if run.FinalResponseRef != finalizationRef || strings.TrimSpace(input.AgentResultRef) == "" {
+	if run.FinalResponseRef != finalizationRef || strings.TrimSpace(input.AgentResult.AgentResultRef) == "" {
 		return sanitizedTemporalApplicationError(
 			"finalization_replay_conflict",
 			errors.New("completed run finalization identity differs"),
@@ -660,6 +658,7 @@ func (s *Server) primaryAgentFinalizedResponse(
 	ctx context.Context,
 	run execution.DurableRun,
 	agentResult map[string]any,
+	grounding groundingContext,
 	additionalStageTiming ...stageTimingDuration,
 ) (map[string]any, error) {
 	envelope := cloneAnyMapFromMetadata(agentResult["terminal_envelope"])
@@ -667,9 +666,9 @@ func (s *Server) primaryAgentFinalizedResponse(
 		return nil, fmt.Errorf("agent terminal_envelope is required")
 	}
 	evidenceClosure, err := s.primaryAgentEvidenceClosureForFinalization(
-		ctx,
 		run,
 		agentResult,
+		grounding,
 		envelope,
 	)
 	if err != nil {

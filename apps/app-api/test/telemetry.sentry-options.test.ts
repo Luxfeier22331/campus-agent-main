@@ -7,7 +7,7 @@ import { createAppApiSentryOptions } from "../src/modules/telemetry/sentry";
 describe("app-api Sentry options", () => {
 	it("turns off all default PII collection and applies production route sampling", () => {
 		const options = createAppApiSentryOptions({
-			APP_API_ENVIRONMENT: "production",
+			DEPLOYMENT_ENVIRONMENT: "production",
 			SENTRY_DSN: "https://public@example.ingest.sentry.io/1",
 		});
 		expect(options?.dataCollection).toEqual({

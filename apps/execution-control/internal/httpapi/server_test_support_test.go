@@ -13,7 +13,6 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/protectedpayload"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/retrievalruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/toolreadmodel"
@@ -35,37 +34,27 @@ func newTestRequest(method string, target string, body io.Reader) *http.Request 
 
 func newServerForTest() *Server {
 	return NewServer(config.Config{
-		RAGTopKMax:                       8,
-		AppAPIExecutionInputSharedSecret: "test-execution-input-secret",
-		ProtectedPayloadKeyring:          protectedPayloadKeyringForTest(),
+		RAGTopKMax:                  8,
+		AppAPIExecutionSharedSecret: "test-execution-input-secret",
 	})
 }
 
 func newWorkerAuthServerForTest() *Server {
 	server := newServerForTest()
 	server.config.AppAPIExecutionSharedSecret = "secret"
-	server.config.AppAPIExecutionInputSharedSecret = "test-execution-input-secret"
 	return server
 }
 
 func newToolReadModelAuthServerForTest() *Server {
-	return NewServer(config.Config{
-		AgentRuntimeSharedSecret:         "query-secret",
-		AppAPIExecutionInputSharedSecret: "test-protected-payload-secret",
-		ProtectedPayloadKeyring:          protectedPayloadKeyringForTest(),
-		RAGTopKMax:                       8,
-		ToolReadModelTrustedTimeRFC3339:  "2026-04-24T10:30:00+08:00",
+	server := NewServer(config.Config{
+		AgentRuntimeSharedSecret:    "query-secret",
+		AppAPIExecutionSharedSecret: "test-execution-input-secret",
+		RAGTopKMax:                  8,
 	})
-}
-
-func protectedPayloadKeyringForTest() *protectedpayload.Keyring {
-	keyring, err := protectedpayload.NewKeyring("test-key-v1", map[string][]byte{
-		"test-key-v1": []byte("0123456789abcdef0123456789abcdef"),
+	server.toolReadModel = toolreadmodel.NewRuntime(toolreadmodel.Options{
+		TrustedTimeRFC3339: "2026-04-24T10:30:00+08:00",
 	})
-	if err != nil {
-		panic(err)
-	}
-	return keyring
+	return server
 }
 
 func delegateAnswerBody(requestID string) io.Reader {
@@ -202,12 +191,12 @@ func readyServerConfigForTest(t *testing.T, mutators ...func(*config.Config)) co
 	}))
 	t.Cleanup(agentRuntime.Close)
 	cfg := config.Config{
-		AppName:                          "campus-agent",
-		AgentRuntimeBaseURL:              agentRuntime.URL,
-		AgentRuntimeSharedSecret:         "agent-runtime-secret",
-		AppAPIExecutionInputSharedSecret: "test-execution-input-secret",
-		MaxConcurrentAnswers:             8,
-		RAGTopKMax:                       8,
+		AppName:                     "campus-agent",
+		AgentRuntimeBaseURL:         agentRuntime.URL,
+		AgentRuntimeSharedSecret:    "agent-runtime-secret",
+		AppAPIExecutionSharedSecret: "test-execution-input-secret",
+		MaxConcurrentAnswers:        8,
+		RAGTopKMax:                  8,
 	}
 	for _, mutate := range mutators {
 		mutate(&cfg)

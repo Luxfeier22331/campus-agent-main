@@ -69,49 +69,20 @@ spec:
                 configMapKeyRef:
                   name: ingestion-runtime-rendered-config
                   key: INGESTION_TEMPORAL_NAMESPACE
-            - name: INGESTION_TEMPORAL_WORKFLOW_TASK_QUEUE
-              valueFrom:
-                configMapKeyRef:
-                  name: ingestion-runtime-rendered-config
-                  key: INGESTION_TEMPORAL_WORKFLOW_TASK_QUEUE
-            - name: INGESTION_TEMPORAL_CONTROL_ACTIVITY_TASK_QUEUE
-              valueFrom:
-                configMapKeyRef:
-                  name: ingestion-runtime-rendered-config
-                  key: INGESTION_TEMPORAL_CONTROL_ACTIVITY_TASK_QUEUE
-            - name: INGESTION_TEMPORAL_RUST_KERNEL_ACTIVITY_TASK_QUEUE
-              valueFrom:
-                configMapKeyRef:
-                  name: ingestion-runtime-rendered-config
-                  key: INGESTION_TEMPORAL_RUST_KERNEL_ACTIVITY_TASK_QUEUE
-            - name: INGESTION_TEMPORAL_SOURCE_COLLECTOR_ACTIVITY_TASK_QUEUE
-              valueFrom:
-                configMapKeyRef:
-                  name: ingestion-runtime-rendered-config
-                  key: INGESTION_TEMPORAL_SOURCE_COLLECTOR_ACTIVITY_TASK_QUEUE
             - name: INGESTION_CONTROL_DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: ingestion-control-secrets
                   key: INGESTION_CONTROL_DATABASE_URL
-            - name: INGESTION_CONTROL_ADMIN_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: ingestion-control-secrets
-                  key: INGESTION_CONTROL_ADMIN_TOKEN
-                  optional: true
+            - name: INGESTION_CONTROL_DATABASE_CA_CERT_PATH
+              value: /etc/campus-agent/postgres/ca.crt
+            - name: INGESTION_CONTROL_DATABASE_SSLMODE
+              value: verify-full
             - name: OPS_WEB_INTERNAL_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: ops-web-internal-secrets
                   key: OPS_WEB_INTERNAL_TOKEN
-                  optional: true
-            - name: INGESTION_CONTROL_HOST
-              value: 0.0.0.0
-            - name: INGESTION_CONTROL_PORT
-              value: "8000"
-            - name: INGESTION_TASK_REGISTRY_ROOT
-              value: /app/configs/ingestion
           ports:
             - name: http
               containerPort: 8000

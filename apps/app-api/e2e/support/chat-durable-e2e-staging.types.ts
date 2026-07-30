@@ -5,14 +5,12 @@ export interface ReadyzProbe {
 
 export interface ChatDurableE2eArgs {
 	appApiReadyzUrl: string;
+	captchaToken: string;
 	chatBaseUrl: string;
 	conversationId: string | null;
 	email: string;
-	name: string;
-	password: string | null;
+	password: string;
 	prompt: string;
-	resetIdentity: boolean;
-	smokeAuthSecret: string;
 }
 
 import type { FetchJsonWithCookie } from "./http-smoke";
@@ -87,7 +85,6 @@ export interface ChatDurableE2eResult {
 	} | null;
 	identity: {
 		email: string;
-		resetViaDeployedRuntime: true;
 	};
 	langfuseCloseout: LangfuseCloseoutIdentity | null;
 	passed: boolean;
@@ -104,7 +101,7 @@ export interface ChatDurableE2eResult {
 	run: RuntimeRunSummary | null;
 	runtimeStepResults: Record<string, unknown>[];
 	session: unknown | null;
-	sessionMintAttempted: boolean;
+	signInAttempted: boolean;
 	submit: AcceptedRunIdentity | null;
 	submitStreamAbortedAfterAccepted: boolean;
 	workflow: WorkflowIdentity | null;
@@ -114,13 +111,11 @@ export interface ChatDurableE2eDependencies {
 	abortSubmitStream?: (controller: AbortController) => void;
 	fetchJsonWithCookie?: FetchJsonWithCookie;
 	fetchReadyz?: (url: string) => Promise<ReadyzProbe>;
-	mintSmokeSession?: (input: {
-		appApiReadyzUrl: string;
+	signInIdentity?: (input: {
+		captchaToken: string;
+		chatBaseUrl: string;
 		email: string;
-		name?: string;
 		password: string;
-		resetIdentity?: boolean;
-		smokeAuthSecret: string;
 	}) => Promise<string>;
 	openRunEventStream?: (input: {
 		afterSequence: number;

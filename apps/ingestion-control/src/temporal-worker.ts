@@ -16,6 +16,7 @@ import {
 	assertIngestionControlPostgresSchema,
 	createPostgresIngestionTaskStore,
 } from "./postgres-store";
+import { INGESTION_KERNEL_TOKENIZER_JSON_PATH } from "./runtime-paths";
 import { createDefaultRustKernelRegistry } from "./rust-kernel-runner";
 import { assertRustKernelRegistryCoversTasks } from "./task-executor";
 import { buildIngestionTemporalConfig } from "./temporal-config";
@@ -47,8 +48,7 @@ export async function startIngestionTemporalWorkers(
 		const rustKernels = createDefaultRustKernelRegistry({
 			chunkProfiles: loadCollectionChunkProfilesFromRoot(runtimeConfig.registryRoot),
 			objectStore,
-			runnerPath: env.INGESTION_KERNEL_RUNNER_PATH,
-			tokenizerJsonPath: env.INGESTION_KERNEL_TOKENIZER_JSON_PATH,
+			tokenizerJsonPath: INGESTION_KERNEL_TOKENIZER_JSON_PATH,
 		});
 		assertRustKernelRegistryCoversTasks(registryCatalog.registeredTasks(), rustKernels);
 		connection = await NativeConnection.connect({ address: temporalConfig.address });

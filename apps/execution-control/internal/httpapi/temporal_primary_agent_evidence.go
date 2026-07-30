@@ -1,7 +1,6 @@
 package httpapi
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/url"
@@ -15,15 +14,15 @@ type primaryAgentEvidenceClosure struct {
 }
 
 func (s *Server) primaryAgentEvidenceClosureForFinalization(
-	ctx context.Context,
 	run execution.DurableRun,
 	agentResult map[string]any,
+	grounding groundingContext,
 	envelope map[string]any,
 ) (primaryAgentEvidenceClosure, error) {
 	if err := validatePublicTerminalText(envelope); err != nil {
 		return primaryAgentEvidenceClosure{}, err
 	}
-	grounding, err := s.groundingContextBoundToAgentResult(ctx, run, agentResult)
+	grounding, err := groundingContextBoundToAgentResult(run, agentResult, grounding)
 	if err != nil {
 		return primaryAgentEvidenceClosure{}, err
 	}
@@ -75,10 +74,10 @@ func (s *Server) primaryAgentEvidenceClosureForFinalization(
 	return primaryAgentEvidenceClosure{Sources: sources}, nil
 }
 
-func (s *Server) groundingContextBoundToAgentResult(
-	ctx context.Context,
+func groundingContextBoundToAgentResult(
 	run execution.DurableRun,
 	agentResult map[string]any,
+	grounding groundingContext,
 ) (groundingContext, error) {
 	contextRef := strings.TrimSpace(stringValue(agentResult["grounding_context_ref"]))
 	contextSHA256 := strings.TrimSpace(stringValue(agentResult["grounding_context_sha256"]))
@@ -86,16 +85,6 @@ func (s *Server) groundingContextBoundToAgentResult(
 	if contextRef != groundingContextRef(run.RunID) ||
 		!validSHA256Ref(contextSHA256) || !validSHA256Ref(admissionSHA256) {
 		return groundingContext{}, errors.New("agent result grounding binding is invalid")
-	}
-	var grounding groundingContext
-	if err := s.getProtectedJSON(
-		ctx,
-		run,
-		contextRef,
-		protectedPayloadKindGroundingContext,
-		&grounding,
-	); err != nil {
-		return groundingContext{}, fmt.Errorf("load grounding context for finalization: %w", err)
 	}
 	if err := validateGroundingContextForRun(
 		grounding,
@@ -105,7 +94,7 @@ func (s *Server) groundingContextBoundToAgentResult(
 		return groundingContext{}, err
 	}
 	if sha256JSONRef(grounding) != contextSHA256 {
-		return groundingContext{}, errors.New("agent result grounding hash does not match protected context")
+		return groundingContext{}, errors.New("agent result grounding hash does not match workflow context")
 	}
 	return grounding, nil
 }

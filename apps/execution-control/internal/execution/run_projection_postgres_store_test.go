@@ -42,6 +42,7 @@ func TestPostgresRunProjectionStoreDefersConnectivityToHealthCheck(t *testing.T)
 func TestPostgresRunProjectionStoreSchemaIncludesProjectionAndLifecycleTables(t *testing.T) {
 	requiredSnippets := []string{
 		"create schema if not exists runtime",
+		"drop table if exists runtime.agent_protected_payloads",
 		"create table if not exists runtime.agent_runs",
 		"create table if not exists runtime.agent_run_events",
 		"create table if not exists runtime.agent_run_steps",
@@ -102,6 +103,9 @@ func TestPostgresRunProjectionStoreSchemaIncludesProjectionAndLifecycleTables(t 
 			t.Fatalf("run projection schema must not include retired artifact %q", snippet)
 		}
 	}
+	if strings.Contains(runProjectionSchemaSQL, "create table if not exists runtime.agent_protected_payloads") {
+		t.Fatal("run projection schema must not recreate the retired protected payload table")
+	}
 	for _, snippet := range []string{
 		"drop table runtime.agent_step_attempts",
 		"drop table if exists runtime.agent_step_attempts",
@@ -138,7 +142,6 @@ func TestPostgresRunProjectionHealthCheckInspectsRequiredSchemaShape(t *testing.
 		"('agent_step_attempts', 'f', array['run_id']::text[], 'runtime', 'agent_runs'",
 		"('agent_step_results', 'p', array['result_id']::text[]",
 		"('agent_step_results', 'f', array['run_id']::text[], 'runtime', 'agent_runs'",
-		"('agent_protected_payloads', 'p', array['run_id', 'payload_ref', 'kind']::text[]",
 		"('agent_workflow_starts', 'u', array['workflow_id']::text[]",
 		"('agent_run_cleanups', 'f', array['run_id']::text[], 'runtime', 'agent_runs'",
 		"'agent_runs_active_conversation_idx'",

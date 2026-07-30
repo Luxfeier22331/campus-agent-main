@@ -2,9 +2,6 @@ import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { loadRepoStagingEnvFile } from "../../../scripts/deploy/lib/repo-env.ts";
-
-loadRepoStagingEnvFile(import.meta.url, "../../..");
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
 function fail(message: string): never {

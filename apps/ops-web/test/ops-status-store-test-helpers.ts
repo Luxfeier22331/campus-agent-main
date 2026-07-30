@@ -213,7 +213,7 @@ export function temporalQueueRow(
 		oldestTaskAgeJson: { backlogCount: 3, ms: 2400, state: "observed" },
 		pollerCount: 4,
 		projectedAt: new Date("2026-07-09T07:29:06.000Z"),
-		taskQueue: "campus-agent.activity.agent",
+		taskQueue: "campus-agent.activity.agent.v3",
 		taskQueueKind: "activity",
 		...overrides,
 	};
@@ -221,9 +221,9 @@ export function temporalQueueRow(
 
 export function requiredTemporalQueueRows(): OpsTemporalTaskQueueRow[] {
 	return [
-		temporalQueueRow({ taskQueue: "campus-agent.workflow", taskQueueKind: "workflow" }),
-		temporalQueueRow({ taskQueue: "campus-agent.activity.core" }),
-		temporalQueueRow({ taskQueue: "campus-agent.activity.agent" }),
+		temporalQueueRow({ taskQueue: "campus-agent.workflow.v3", taskQueueKind: "workflow" }),
+		temporalQueueRow({ taskQueue: "campus-agent.activity.core.v3" }),
+		temporalQueueRow({ taskQueue: "campus-agent.activity.agent.v3" }),
 	];
 }
 

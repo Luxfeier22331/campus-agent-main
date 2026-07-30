@@ -65,9 +65,9 @@ type langfuseTracePageWire struct {
 func newLangfuseTraceMaintenance(
 	cfg config.Config,
 ) (langfuseTraceMaintenance, error) {
-	baseURL := strings.TrimSpace(cfg.LangfuseMaintenanceBaseURL)
-	publicKey := strings.TrimSpace(cfg.LangfuseMaintenancePublicKey)
-	secretKey := strings.TrimSpace(cfg.LangfuseMaintenanceSecretKey)
+	baseURL := strings.TrimSpace(cfg.LangfuseBaseURL)
+	publicKey := strings.TrimSpace(cfg.LangfusePublicKey)
+	secretKey := strings.TrimSpace(cfg.LangfuseSecretKey)
 	if baseURL == "" && publicKey == "" && secretKey == "" {
 		return nil, nil
 	}
@@ -86,7 +86,7 @@ func newLangfuseTraceMaintenanceClient(
 	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") ||
 		parsed.User != nil || parsed.Opaque != "" || parsed.Path != "" || parsed.RawPath != "" ||
 		parsed.RawQuery != "" || parsed.Fragment != "" {
-		return nil, errors.New("LANGFUSE_MAINTENANCE_BASE_URL must be an http(s) origin without credentials, path, query, or fragment")
+		return nil, errors.New("LANGFUSE_BASE_URL must be an http(s) origin without credentials, path, query, or fragment")
 	}
 	return &langfuseTraceMaintenanceClient{
 		baseURL: parsed,
