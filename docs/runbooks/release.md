@@ -101,6 +101,7 @@ production 只选择已合入 `main` 的提交或其 release tag。发布前确�
 ## 失败处理
 
 - 候选物发布中断：对同一源码提交重试缺失步骤，不覆盖已存在的不可变产物；
+- Worker version 操作失败时，发布脚本保留 Wrangler 的退出码、signal 和脱敏后的 stderr；先按该错误区分凭据、网络或响应格式问题，不切换旧 Token，也不把失败伪装成候选物成功；
 - 某次 `main` 发布在产物或 GitOps 交接前失败：从当前 `main` 手动重跑
   `staging-candidate-publish`，设置 `validate_only=false`；workflow 始终从环境仓游标重新计算，不接受
   人工基线；

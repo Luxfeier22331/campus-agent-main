@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { formatWranglerFailure } from "../../../scripts/deploy/run-wrangler-command";
 import { resolveStagingSentryRelease } from "../../../scripts/deploy/staging-release";
 import {
 	buildSentrySourceMapUploadArgs,
@@ -8,6 +9,25 @@ import {
 const sourceSha = "0123456789abcdef0123456789abcdef01234567";
 
 describe("Worker version upload arguments", () => {
+	it("reports Wrangler failures without exposing credentials", () => {
+		const message = formatWranglerFailure(
+			{
+				status: 1,
+				signal: null,
+				stdout: null,
+				stderr: "request failed: Bearer secret-token",
+				error: undefined,
+			} as unknown as ReturnType<typeof import("node:child_process").spawnSync>,
+			"Reading current deployment",
+			{ CLOUDFLARE_API_TOKEN: "secret-token" },
+		);
+
+		expect(message).toContain("Reading current deployment failed");
+		expect(message).toContain("exit 1");
+		expect(message).not.toContain("secret-token");
+		expect(message).toContain("Bearer [redacted]");
+	});
+
 	it("uses an app-scoped full source SHA for the Sentry release", () => {
 		expect(resolveStagingSentryRelease("app-api")).toMatch(/^app-api@[0-9a-f]{40}$/u);
 		expect(resolveStagingSentryRelease("campus-web")).toMatch(/^campus-web@[0-9a-f]{40}$/u);

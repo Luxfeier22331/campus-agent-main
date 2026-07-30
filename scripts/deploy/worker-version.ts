@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { runWranglerCommand } from "./run-wrangler-command.ts";
+import { formatWranglerFailure, runWranglerCommand } from "./run-wrangler-command.ts";
 import { resolveGitSha } from "./staging-release.ts";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -97,7 +97,12 @@ export function readWorkerVersionPlainTextVariable(options: {
 		{ cwd: options.cwd, stdio: "pipe" },
 	);
 	if (result.status !== 0) {
-		return fail(`Unable to read Worker version ${options.versionId} for ${options.workerName}.`);
+		return fail(
+			formatWranglerFailure(
+				result,
+				`Reading Worker version ${options.versionId} for ${options.workerName}`,
+			),
+		);
 	}
 	return resolveWorkerPlainTextVariable(
 		parseJsonOutput<unknown>(result.stdout, "wrangler versions view"),
@@ -111,9 +116,16 @@ function readCurrentDeploymentId(cwd: string, workerName: string): string {
 		stdio: "pipe",
 	});
 	if (result.status !== 0) {
-		return fail(`Unable to read the current deployment for ${workerName}.`);
+		return fail(formatWranglerFailure(result, `Reading current deployment for ${workerName}`));
 	}
-	return parseJsonOutput<WorkerDeploymentSummary>(result.stdout, "wrangler deployments status").id;
+	const deployment = parseJsonOutput<WorkerDeploymentSummary>(
+		result.stdout,
+		"wrangler deployments status",
+	);
+	if (!deployment.id) {
+		return fail(`wrangler deployments status returned no deployment id for ${workerName}.`);
+	}
+	return deployment.id;
 }
 
 export function selectUploadedVersion(
@@ -257,7 +269,9 @@ export function uploadStagingWorkerVersion(options: {
 
 	const upload = runWranglerCommand(args, { cwd: options.cwd, stdio: "inherit" });
 	if (upload.status !== 0) {
-		return fail(`Unable to upload a Worker version for ${options.workerName}.`);
+		return fail(
+			formatWranglerFailure(upload, `Uploading Worker version for ${options.workerName}`),
+		);
 	}
 
 	const list = runWranglerCommand(["versions", "list", "--name", options.workerName, "--json"], {
@@ -265,7 +279,7 @@ export function uploadStagingWorkerVersion(options: {
 		stdio: "pipe",
 	});
 	if (list.status !== 0) {
-		return fail(`Unable to resolve the uploaded version for ${options.workerName}.`);
+		return fail(formatWranglerFailure(list, `Listing Worker versions for ${options.workerName}`));
 	}
 	const version = selectUploadedVersion(
 		parseJsonOutput<WorkerVersionSummary[]>(list.stdout, "wrangler versions list"),
