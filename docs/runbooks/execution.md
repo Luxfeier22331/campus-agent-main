@@ -29,6 +29,8 @@ SQL 和 schema 错误立即失败，DDL 本身不自动重放。
 - 环境仓 commit；
 - root/child Application sync 与 health；
 - schema Job 返回 `passed=true`、`schema_ready=true`、`store=postgres`；
+- schema Job 已确认 `execution_control` 对所属 `runtime` 表具有精确读写权限，且不具有 schema
+  创建、表维护或 App API 产品终态表访问权限；
 - first-party Deployment rollout 和不可变 image digest；
 - 没有 `CrashLoopBackOff`、`ImagePullBackOff` 或无法解释的 `Pending` Pod。
 
@@ -144,6 +146,12 @@ execution-control readiness 降级时，根据顶层核心状态定位回答准�
 PostgreSQL 或 execution runtime Application。Provider Config、Hindsight、Qdrant、OTel 和工具读取
 投影状态是局部能力诊断，不单独阻断顶层 readiness。通过环境仓修复期望状态，
 不以本地 Docker、临时环境渲染器或宿主机修改代替 GitOps。
+
+`run_projection_store` 与 `personal_memory_runtime` 的 PostgreSQL 健康检查会使用常驻运行角色实际
+读取所属表。出现 SQLSTATE `42501` 时，应修复并重新发布 schema Job 所有的精确授权；不得切回
+schema owner DSN、手工在线 `GRANT`、扩大到 `runtime` 全表权限或直接修改运行数据。部署验收还需
+确认 start、cancel、cleanup reconciler 不再产生新的 `42501`，并处理既有命令，不以 readiness
+单项恢复代替业务收敛证据。
 
 相关入口：`../architecture/system/durable-runtime.md`、`../architecture/system/k8s-runtime.md`、
 `../contracts/tool-execution.md`、`temporal.md`、`release.md`、`e2e.md`。

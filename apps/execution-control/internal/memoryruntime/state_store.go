@@ -461,12 +461,8 @@ func (s *PostgresStateStore) MarkCommandRetryable(ctx context.Context, commandID
 
 func (s *PostgresStateStore) HealthCheck(ctx context.Context) error {
 	for _, table := range []string{"runtime.personal_memory_owner_fences", "runtime.personal_memory_call_leases", "runtime.personal_memory_command_receipts"} {
-		var exists bool
-		if err := s.pool.QueryRow(ctx, "select to_regclass($1) is not null", table).Scan(&exists); err != nil {
-			return err
-		}
-		if !exists {
-			return fmt.Errorf("%s table is not installed", table)
+		if _, err := s.pool.Exec(ctx, "select 1 from "+table+" limit 0"); err != nil {
+			return fmt.Errorf("read personal memory state table %s: %w", table, err)
 		}
 	}
 	return nil

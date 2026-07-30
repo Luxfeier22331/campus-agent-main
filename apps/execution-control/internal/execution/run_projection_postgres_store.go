@@ -92,6 +92,11 @@ func (s *PostgresRunProjectionStore) HealthCheck(ctx context.Context) error {
 	if len(issues) > 0 {
 		return fmt.Errorf("run projection schema is not ready: %s", strings.Join(issues, "; "))
 	}
+	for _, table := range runProjectionRuntimeTables {
+		if _, err := s.pool.Exec(ctx, "select 1 from "+table+" limit 0"); err != nil {
+			return fmt.Errorf("read run projection table %s: %w", table, err)
+		}
+	}
 	if err := s.ensureRunEventListener(ctx); err != nil {
 		return fmt.Errorf("run projection event listener is not ready: %w", err)
 	}

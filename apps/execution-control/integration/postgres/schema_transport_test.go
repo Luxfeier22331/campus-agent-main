@@ -4,12 +4,18 @@ package postgres_test
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/toolreadmodel"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type schemaEvidence struct {
@@ -21,7 +27,18 @@ type schemaEvidence struct {
 }
 
 func testSchemaCommand(t *testing.T, harness *postgresHarness) {
-	_, databaseURL := harness.ownerDatabase(t)
+	databaseName, databaseURL := harness.ownerDatabase(t)
+	ownerConn := connect(t, databaseURL)
+	if _, err := ownerConn.Exec(t.Context(), `
+		create schema runtime;
+		create table runtime.request_observability_fact (request_id text primary key);
+		revoke all privileges on table runtime.request_observability_fact from execution_control;
+	`); err != nil {
+		closeConn(t, ownerConn)
+		t.Fatalf("install app-api runtime fact fixture: %v", err)
+	}
+	closeConn(t, ownerConn)
+
 	binaryPath := filepath.Join(t.TempDir(), "run-projection-schema")
 	build := exec.CommandContext(t.Context(), "go", "build", "-o", binaryPath, "./cmd/run-projection-schema")
 	build.Dir = harness.moduleDir
@@ -55,6 +72,129 @@ func testSchemaCommand(t *testing.T, harness *postgresHarness) {
 			t.Fatalf("schema evidence = %#v", evidence)
 		}
 	}
+
+	runtimeURL := harness.databaseURL(t, databaseName, executionRole, executionPassword)
+	runtimeStore := newRunProjectionStore(t, runtimeURL, false)
+	if err := runtimeStore.HealthCheck(t.Context()); err != nil {
+		t.Fatalf("runtime run projection health check: %v", err)
+	}
+	memoryStore, err := memoryruntime.NewPostgresStateStore(
+		t.Context(),
+		memoryruntime.PostgresStateStoreOptions{DatabaseURL: runtimeURL},
+	)
+	if err != nil {
+		t.Fatalf("create runtime personal memory state store: %v", err)
+	}
+	t.Cleanup(memoryStore.Close)
+	if err := memoryStore.HealthCheck(t.Context()); err != nil {
+		t.Fatalf("runtime personal memory state health check: %v", err)
+	}
+	assertExecutionControlRuntimeAccess(t, runtimeURL)
+
+	ownerConn = connect(t, databaseURL)
+	if _, err := ownerConn.Exec(
+		t.Context(),
+		"revoke select on table runtime.agent_runs from execution_control",
+	); err != nil {
+		closeConn(t, ownerConn)
+		t.Fatalf("remove required runtime grant: %v", err)
+	}
+	closeConn(t, ownerConn)
+	failedEvidencePath := filepath.Join(t.TempDir(), "missing-grant-evidence.json")
+	command := exec.CommandContext(
+		t.Context(),
+		binaryPath,
+		"--mode", "check",
+		"--database-url", databaseURL,
+		"--evidence-path", failedEvidencePath,
+	)
+	command.Dir = harness.moduleDir
+	if output, err := command.CombinedOutput(); err == nil {
+		t.Fatalf("schema check succeeded without required runtime grant: %s", output)
+	}
+	if _, err := os.Stat(failedEvidencePath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("failed schema check evidence stat error = %v, want not exist", err)
+	}
+}
+
+func assertExecutionControlRuntimeAccess(t *testing.T, runtimeURL string) {
+	t.Helper()
+	conn := connect(t, runtimeURL)
+	defer closeConn(t, conn)
+
+	tables := []struct {
+		name         string
+		updateColumn string
+	}{
+		{name: "runtime.agent_runs", updateColumn: "run_id"},
+		{name: "runtime.agent_run_events", updateColumn: "event_id"},
+		{name: "runtime.agent_run_steps", updateColumn: "step_id"},
+		{name: "runtime.agent_step_attempts", updateColumn: "attempt_id"},
+		{name: "runtime.agent_step_results", updateColumn: "result_id"},
+		{name: "runtime.conversation_run_locks", updateColumn: "conversation_id"},
+		{name: "runtime.agent_workflow_starts", updateColumn: "run_id"},
+		{name: "runtime.agent_run_cancellations", updateColumn: "run_id"},
+		{name: "runtime.agent_run_cleanups", updateColumn: "run_id"},
+		{name: "runtime.agent_invocation_receipts", updateColumn: "invocation_id"},
+		{name: "runtime.personal_memory_owner_fences", updateColumn: "owner_scope_hash"},
+		{name: "runtime.personal_memory_call_leases", updateColumn: "call_id"},
+		{name: "runtime.personal_memory_command_receipts", updateColumn: "command_id"},
+	}
+	for _, table := range tables {
+		statements := []string{
+			"select 1 from " + table.name + " limit 0",
+			"insert into " + table.name + " select * from " + table.name + " where false",
+			fmt.Sprintf("update %s set %s=%s where false", table.name, table.updateColumn, table.updateColumn),
+			"delete from " + table.name + " where false",
+		}
+		for _, statement := range statements {
+			if _, err := conn.Exec(t.Context(), statement); err != nil {
+				t.Fatalf("runtime statement %q: %v", statement, err)
+			}
+		}
+	}
+
+	_, err := conn.Exec(t.Context(), "select 1 from runtime.request_observability_fact limit 0")
+	var postgresError *pgconn.PgError
+	if !errors.As(err, &postgresError) || postgresError.Code != "42501" {
+		t.Fatalf("request observability fact access error = %v, want SQLSTATE 42501", err)
+	}
+
+	for _, statement := range []string{
+		"create table runtime.execution_control_must_not_create (id text)",
+		"truncate table runtime.personal_memory_call_leases",
+	} {
+		_, err := conn.Exec(t.Context(), statement)
+		postgresError = nil
+		if !errors.As(err, &postgresError) || postgresError.Code != "42501" {
+			t.Fatalf("forbidden runtime statement %q error = %v, want SQLSTATE 42501", statement, err)
+		}
+	}
+
+	if err := runtimeStoreCRUD(t, runtimeURL); err != nil {
+		t.Fatalf("runtime store CRUD: %v", err)
+	}
+}
+
+func runtimeStoreCRUD(t *testing.T, runtimeURL string) error {
+	t.Helper()
+	store, err := execution.NewPostgresRunProjectionStore(
+		t.Context(),
+		execution.PostgresRunProjectionStoreOptions{DatabaseURL: runtimeURL},
+	)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	now := time.Date(2026, 7, 30, 8, 0, 0, 0, time.UTC)
+	run := durableRun("run-runtime-role-crud", "conversation-runtime-role-crud", now)
+	if _, err := store.CreateRun(t.Context(), run); err != nil {
+		return err
+	}
+	if err := store.ReplaceRunMetadata(t.Context(), run.RunID, run.Metadata); err != nil {
+		return err
+	}
+	return store.DeleteRun(t.Context(), run.RunID)
 }
 
 func testTransportScheduleReadModel(t *testing.T, harness *postgresHarness) {

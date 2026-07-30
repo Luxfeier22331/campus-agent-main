@@ -180,6 +180,9 @@ func runSchemaCommand(ctx context.Context, options schemaOptions) (schemaReport,
 		if err := memoryStore.EnsureSchema(ctx); err != nil {
 			return schemaReport{}, err
 		}
+		if err := store.InstallRuntimeRoleGrants(ctx); err != nil {
+			return schemaReport{}, err
+		}
 		var keyring *providerconfig.Keyring
 		if options.KeyringPath != "" {
 			keyring, err = providerconfig.LoadKeyring(options.KeyringPath)
@@ -195,6 +198,9 @@ func runSchemaCommand(ctx context.Context, options schemaOptions) (schemaReport,
 		return schemaReport{}, err
 	}
 	if err := memoryStore.HealthCheck(ctx); err != nil {
+		return schemaReport{}, err
+	}
+	if err := store.CheckRuntimeRoleGrants(ctx); err != nil {
 		return schemaReport{}, err
 	}
 	if err := providerconfig.CheckDatabaseSchema(ctx, options.DatabaseURL); err != nil {

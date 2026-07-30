@@ -56,6 +56,12 @@ migration 记录。
 
 - 常驻运行时不使用 schema 管理或 migration 凭据；
 - 每个运行时只获得完成其职责所需的表、列和操作权限；
+- `run-projection-schema` 在执行投影和个人记忆状态表全部安装后，将 `execution_control` 的
+  `runtime` 权限收敛为 schema `USAGE`，以及所属十三张表的 `SELECT`、`INSERT`、`UPDATE`、
+  `DELETE`。该角色不获得 schema `CREATE`、表 `TRUNCATE`、`REFERENCES`、`TRIGGER`，也不能访问
+  App API 所有的 `runtime.request_observability_fact`；
+- schema Job 必须校验上述固定角色的有效权限。常驻 execution-control 的运行投影和个人记忆
+  状态健康检查必须实际读取所属表，不能用 PostgreSQL catalog 可见性代替运行角色的数据访问能力；
 - 在线模型配置只能通过 execution-control 管理接口修改，Ops Web 不直连其 schema；
 - `execution_config.model_settings` 的首次安装由低 wave 的 `run-projection-schema` Job 执行。
   该 Job 使用环境仓交付的 schema-install DSN 和现有 provider keyring；常驻 runtime 只使用
