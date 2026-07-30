@@ -9,9 +9,7 @@ const IMAGE_PACKAGES = new Map<string, readonly string[]>([
 	["agent-runtime", ["agent-runtime"]],
 	["app-api-schema", ["app-api-schema"]],
 	["execution-control", ["execution-control"]],
-	["ingestion-control", ["ingestion-control", "ingestion-control-worker"]],
 	["ops-web", ["ops-web"]],
-	["source-collector", ["source-collector"]],
 ]);
 const ALL_IMAGES = [...new Set([...IMAGE_PACKAGES.values()].flat())].sort();
 

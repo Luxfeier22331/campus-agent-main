@@ -41,10 +41,11 @@ Worker version、配置和其他环境资源。候选物发布成功不表示环
 
 发布基线来自环境仓 `releases/staging.json`，不是 workflow 触发事件的前一个提交。镜像和 Cloudflare Worker
 影响面由 Turbo package graph 与 package 外部 task input 计算，Kubernetes 由 `infra/k8s` 所有者范围
-计算。当前自动候选包含 `agent-runtime`、`app-api-schema`、`execution-control`、
-`ingestion-control`、`ingestion-control-worker`、`source-collector`、`ops-web`、App API Worker 与
-Kubernetes source。`docker-bake.hcl` 中未进入候选映射的 Dining 和 docs 镜像只按明确发布需求手动
-构建。
+计算。当前 staging 自动候选只包含已注册活跃 Application 消费的 `agent-runtime`、
+`app-api-schema`、`execution-control`、`ops-web`、App API Worker 与 Kubernetes source。采集运行时
+当前未部署到 staging，因此 `ingestion-control`、`ingestion-control-worker` 和 `source-collector`
+不会被候选发布自动构建。`docker-bake.hcl` 中未进入候选映射的 Dining 和 docs 镜像只按明确发布需求
+手动构建。
 
 发布 workflow、路径配置、Bake 文件或发布适配器本身的变化只运行静态检查、适配器测试和 Bake
 解析，不自动重建所有运行时镜像。需要让这些治理变化重新产生全部活跃候选时，合入后手动运行
