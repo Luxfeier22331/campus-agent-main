@@ -17,6 +17,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/schemamigrations"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -156,9 +157,33 @@ func runSchemaCommand(ctx context.Context, options schemaOptions) (schemaReport,
 	); err != nil {
 		return schemaReport{}, err
 	}
+	var keyring *providerconfig.Keyring
+	if options.KeyringPath != "" {
+		var loadErr error
+		keyring, loadErr = providerconfig.LoadKeyring(options.KeyringPath)
+		if loadErr != nil {
+			return schemaReport{}, loadErr
+		}
+	}
+	migrator, err := schemamigrations.New(options.DatabaseURL, keyring)
+	if err != nil {
+		return schemaReport{}, err
+	}
+	defer func() { _ = migrator.Close() }()
+	if options.Mode == schemaModeInstall {
+		if err := migrator.Up(ctx); err != nil {
+			return schemaReport{}, err
+		}
+		if err := migrator.InstallGrants(ctx); err != nil {
+			return schemaReport{}, err
+		}
+	}
+	if err := migrator.Check(ctx); err != nil {
+		return schemaReport{}, err
+	}
+
 	store, err := execution.NewPostgresRunProjectionStore(ctx, execution.PostgresRunProjectionStoreOptions{
 		DatabaseURL: options.DatabaseURL,
-		AutoMigrate: false,
 	})
 	if err != nil {
 		return schemaReport{}, err
@@ -166,41 +191,19 @@ func runSchemaCommand(ctx context.Context, options schemaOptions) (schemaReport,
 	defer store.Close()
 	memoryStore, err := memoryruntime.NewPostgresStateStore(ctx, memoryruntime.PostgresStateStoreOptions{
 		DatabaseURL: options.DatabaseURL,
-		AutoMigrate: false,
 	})
 	if err != nil {
 		return schemaReport{}, err
 	}
 	defer memoryStore.Close()
 
-	if options.Mode == schemaModeInstall {
-		if err := store.EnsureSchema(ctx); err != nil {
-			return schemaReport{}, err
-		}
-		if err := memoryStore.EnsureSchema(ctx); err != nil {
-			return schemaReport{}, err
-		}
-		if err := store.InstallRuntimeRoleGrants(ctx); err != nil {
-			return schemaReport{}, err
-		}
-		var keyring *providerconfig.Keyring
-		if options.KeyringPath != "" {
-			keyring, err = providerconfig.LoadKeyring(options.KeyringPath)
-			if err != nil {
-				return schemaReport{}, err
-			}
-		}
-		if err := providerconfig.InstallDatabaseSchema(ctx, options.DatabaseURL, keyring); err != nil {
-			return schemaReport{}, err
-		}
-	}
 	if err := store.HealthCheck(ctx); err != nil {
 		return schemaReport{}, err
 	}
 	if err := memoryStore.HealthCheck(ctx); err != nil {
 		return schemaReport{}, err
 	}
-	if err := store.CheckRuntimeRoleGrants(ctx); err != nil {
+	if err := migrator.CheckGrants(ctx); err != nil {
 		return schemaReport{}, err
 	}
 	if err := providerconfig.CheckDatabaseSchema(ctx, options.DatabaseURL); err != nil {

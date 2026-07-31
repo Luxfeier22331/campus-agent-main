@@ -34,12 +34,6 @@ const routeBudgets = [
 	},
 	{
 		cssLimit: 24 * 1024,
-		facades: ["/src/app/routes/services-page.tsx"],
-		jsLimit: 250 * 1024,
-		name: "services",
-	},
-	{
-		cssLimit: 24 * 1024,
 		facades: ["/src/app/routes/interest-groups-page.tsx"],
 		jsLimit: 175 * 1024,
 		name: "groups",

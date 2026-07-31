@@ -64,7 +64,7 @@ describe("tool trajectory projection", () => {
 
 	it("does not count fail closed as a direct answer", () => {
 		const trajectory = parseToolTrajectory({
-			available_tools: ["transport_schedule_lookup"],
+			available_tools: ["personal_memory_recall"],
 			decision_kind: "fail_closed",
 			fail_close_reason: "tool_contract_missing",
 			request_id: "req_1",

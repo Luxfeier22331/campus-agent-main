@@ -61,7 +61,6 @@ func (s *InMemoryRunProjectionStore) CreateRunWithStartIntent(
 	s.runs[run.RunID] = cloneDurableRun(run)
 	s.runEvents[run.RunID] = []DurableRunEvent{event}
 	s.workflowStartIntents[run.RunID] = cloneWorkflowStartIntent(intent)
-	s.runCleanups[run.RunID] = newPendingRunCleanup(run)
 	s.activeRunByConversation[run.ConversationID] = run.RunID
 	return DurableRunCreateResult{Run: cloneDurableRun(run), Created: true}, nil
 }

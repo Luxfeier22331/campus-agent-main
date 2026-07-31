@@ -17,13 +17,7 @@ export type ChatSourceTargetKind =
 	| "public_web_url"
 	| "restricted_notice";
 
-export type ChatSourceKind =
-	| "campus_service"
-	| "curriculum"
-	| "document"
-	| "notice"
-	| "public_web"
-	| "regulation";
+export type ChatSourceKind = "curriculum" | "document" | "notice" | "public_web" | "regulation";
 
 export interface ChatSourceAction {
 	label: "原通知" | "打开网页" | "打开原通知" | "查看文档" | "查看整理版" | "需登录查看";
@@ -62,19 +56,7 @@ export interface ChatSourceItemsStructuredPart {
 	sourceItems: ChatSourceItem[];
 }
 
-export interface ChatCampusServiceTraceCard {
-	title: string;
-	refs: string[];
-}
-
-export interface ChatCampusServiceTraceCardsStructuredPart {
-	type: "campus_service_trace_cards";
-	traceCards: ChatCampusServiceTraceCard[];
-}
-
-export type ChatMessageStructuredPart =
-	| ChatSourceItemsStructuredPart
-	| ChatCampusServiceTraceCardsStructuredPart;
+export type ChatMessageStructuredPart = ChatSourceItemsStructuredPart;
 
 export interface ChatSessionSlot {
 	confirmed: boolean;
@@ -203,16 +185,6 @@ function normalizeOptionalString(value: unknown): string | null {
 	return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function normalizeStringArray(value: unknown): string[] {
-	if (!Array.isArray(value)) {
-		return [];
-	}
-
-	return value
-		.map((item) => normalizeOptionalString(item))
-		.filter((item): item is string => item !== null);
-}
-
 function isBrowserSafeDocsHref(value: string): boolean {
 	return (
 		value.startsWith("/docs/") &&
@@ -225,7 +197,6 @@ function isBrowserSafeDocsHref(value: string): boolean {
 function normalizeSourceKind(value: unknown): ChatSourceKind | null {
 	const normalized = normalizeOptionalString(value);
 	if (
-		normalized === "campus_service" ||
 		normalized === "curriculum" ||
 		normalized === "document" ||
 		normalized === "notice" ||
@@ -441,51 +412,6 @@ function normalizeSourceItems(value: unknown): ChatSourceItem[] {
 		.slice(0, 5);
 }
 
-const UNSAFE_TRACE_TOKEN_PATTERN =
-	/(?:release[_-]?id|ingestion_projection|table_parser_state|debug[_-]?only|s3:\/\/|postgres)/iu;
-
-function isSafeTraceLabel(value: string): boolean {
-	if (!value.trim()) {
-		return false;
-	}
-	if (value.length > 160) {
-		return false;
-	}
-	return !UNSAFE_TRACE_TOKEN_PATTERN.test(value);
-}
-
-function normalizeCampusServiceTraceCard(value: unknown): ChatCampusServiceTraceCard | null {
-	if (!isRecord(value)) {
-		return null;
-	}
-
-	const title = normalizeOptionalString(value.title);
-	if (!(title && isSafeTraceLabel(title))) {
-		return null;
-	}
-
-	const refs = normalizeStringArray(value.refs).filter(isSafeTraceLabel).slice(0, 8);
-	if (refs.length === 0) {
-		return null;
-	}
-
-	return {
-		title,
-		refs,
-	};
-}
-
-function normalizeCampusServiceTraceCards(value: unknown): ChatCampusServiceTraceCard[] {
-	if (!Array.isArray(value)) {
-		return [];
-	}
-
-	return value
-		.map((item) => normalizeCampusServiceTraceCard(item))
-		.filter((item): item is ChatCampusServiceTraceCard => item !== null)
-		.slice(0, 3);
-}
-
 function normalizeStructuredPart(value: unknown): ChatMessageStructuredPart | null {
 	if (!isRecord(value)) {
 		return null;
@@ -500,18 +426,6 @@ function normalizeStructuredPart(value: unknown): ChatMessageStructuredPart | nu
 		return {
 			type: "source_items",
 			sourceItems,
-		};
-	}
-
-	if (value.type === "campus_service_trace_cards") {
-		const traceCards = normalizeCampusServiceTraceCards(value.traceCards);
-		if (traceCards.length === 0) {
-			return null;
-		}
-
-		return {
-			type: "campus_service_trace_cards",
-			traceCards,
 		};
 	}
 

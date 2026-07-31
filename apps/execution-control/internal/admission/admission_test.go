@@ -212,7 +212,7 @@ func TestControllerDispatchesQueuedGroupsRoundRobin(t *testing.T) {
 		QueueCapacity: 4,
 		QueueTimeout:  time.Second,
 		Groups: map[string]GroupConfig{
-			"campus_services": {
+			"knowledge": {
 				MaxConcurrent: 1,
 				QueueCapacity: 4,
 				QueueTimeout:  time.Second,
@@ -235,31 +235,31 @@ func TestControllerDispatchesQueuedGroupsRoundRobin(t *testing.T) {
 		t.Fatalf("initial rag decision = %s, want %s", decision, DecisionAdmittedImmediate)
 	}
 
-	firstCampus := queueGroup(t, controller, "campus_services")
+	firstKnowledge := queueGroup(t, controller, "knowledge")
 	notice := queueGroup(t, controller, "notice")
 	waitForStatus(t, controller, func(status Status) bool {
-		return status.Groups["campus_services"].Queued == 1 && status.Groups["notice"].Queued == 1
+		return status.Groups["knowledge"].Queued == 1 && status.Groups["notice"].Queued == 1
 	})
 
 	ragLease.Release()
-	firstCampusLease := firstCampus.expectDecision(t, DecisionAdmittedQueued)
+	firstKnowledgeLease := firstKnowledge.expectDecision(t, DecisionAdmittedQueued)
 
-	secondCampus := queueGroup(t, controller, "campus_services")
+	secondKnowledge := queueGroup(t, controller, "knowledge")
 	waitForStatus(t, controller, func(status Status) bool {
-		return status.Groups["campus_services"].Queued == 1 && status.Groups["notice"].Queued == 1
+		return status.Groups["knowledge"].Queued == 1 && status.Groups["notice"].Queued == 1
 	})
 
-	firstCampusLease.Release()
+	firstKnowledgeLease.Release()
 	noticeLease := notice.expectDecision(t, DecisionAdmittedQueued)
 
 	select {
-	case decision := <-secondCampus.decisions:
-		t.Fatalf("second campus_services was admitted before notice: %s", decision)
+	case decision := <-secondKnowledge.decisions:
+		t.Fatalf("second knowledge request was admitted before notice: %s", decision)
 	default:
 	}
 
 	noticeLease.Release()
-	secondCampus.expectDecision(t, DecisionAdmittedQueued).Release()
+	secondKnowledge.expectDecision(t, DecisionAdmittedQueued).Release()
 }
 
 type queuedGroupRequest struct {

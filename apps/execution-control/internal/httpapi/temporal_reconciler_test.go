@@ -437,13 +437,6 @@ func TestTemporalReconcilerPermanentlyFailsDescribeIdentityConflictWithoutCancel
 		failedIntent.LastErrorCode != workflowStartRemoteConflictFailure {
 		t.Fatalf("identity conflict intent = %#v, err=%v", failedIntent, err)
 	}
-	cleanups, err := store.LeaseRunCleanups(context.Background(), execution.LifecycleLeaseRequest{
-		LeaseToken: "remote-conflict-cleanup", Now: time.Now().UTC().Add(time.Minute),
-		LeaseUntil: time.Now().UTC().Add(2 * time.Minute), Limit: 1,
-	})
-	if err != nil || len(cleanups) != 0 {
-		t.Fatalf("remote identity conflict cleanup = %#v, err=%v", cleanups, err)
-	}
 }
 
 func TestTemporalReconcilerMarksLocalStartValidationFailureAsNotDispatched(t *testing.T) {
@@ -490,18 +483,6 @@ func TestTemporalReconcilerMarksLocalStartValidationFailureAsNotDispatched(t *te
 	if err != nil || failedIntent.State != execution.LifecycleIntentStatePermanentFailed ||
 		failedIntent.LastErrorCode != workflowStartNotDispatchedFailure {
 		t.Fatalf("local validation failure intent = %#v, err=%v", failedIntent, err)
-	}
-	cleanups, err := store.LeaseRunCleanups(context.Background(), execution.LifecycleLeaseRequest{
-		LeaseToken: "local-validation-cleanup", Now: time.Now().UTC().Add(time.Minute),
-		LeaseUntil: time.Now().UTC().Add(2 * time.Minute), Limit: 1,
-	})
-	if err != nil || len(cleanups) != 1 {
-		t.Fatalf("not-dispatched cleanup = %#v, err=%v", cleanups, err)
-	}
-	(&temporalReconciler{server: server}).reconcileRunCleanup(context.Background(), store, cleanups[0])
-	cleanup, err := store.GetRunCleanup(context.Background(), intent.RunID)
-	if err != nil || cleanup.State != execution.LifecycleIntentStateConfirmed {
-		t.Fatalf("not-dispatched cleanup confirmation = %#v, err=%v", cleanup, err)
 	}
 }
 
@@ -553,13 +534,6 @@ func TestTemporalReconcilerRetainsPayloadAfterPostDispatchValidationFailure(t *t
 	if err != nil || !failedIntent.DispatchAttempted ||
 		failedIntent.LastErrorCode != workflowStartPostDispatchFailure {
 		t.Fatalf("post-dispatch validation failure intent = %#v, err=%v", failedIntent, err)
-	}
-	cleanups, err := store.LeaseRunCleanups(context.Background(), execution.LifecycleLeaseRequest{
-		LeaseToken: "post-dispatch-cleanup", Now: time.Now().UTC().Add(time.Minute),
-		LeaseUntil: time.Now().UTC().Add(2 * time.Minute), Limit: 1,
-	})
-	if err != nil || len(cleanups) != 0 {
-		t.Fatalf("post-dispatch cleanup = %#v, err=%v", cleanups, err)
 	}
 }
 
@@ -632,13 +606,6 @@ func TestTemporalReconcilerRecoversNotDispatchedStartRetirementAfterLeaseExpiry(
 	if err != nil || retired.State != execution.LifecycleIntentStatePermanentFailed ||
 		retired.LastErrorCode != workflowStartNotDispatchedFailure {
 		t.Fatalf("recovered start retirement = %#v, err=%v", retired, err)
-	}
-	cleanups, err := store.LeaseRunCleanups(context.Background(), execution.LifecycleLeaseRequest{
-		LeaseToken: "cleanup-after-recovered-retirement", Now: time.Now().UTC().Add(3 * time.Minute),
-		LeaseUntil: time.Now().UTC().Add(4 * time.Minute), Limit: 1,
-	})
-	if err != nil || len(cleanups) != 1 {
-		t.Fatalf("cleanup after recovered retirement = %#v, err=%v", cleanups, err)
 	}
 }
 
@@ -751,16 +718,6 @@ func TestTemporalReconcilerConvergesTerminatedWorkflowBeforePublishingFailed(t *
 		attempts[0].FailCloseReason != workflowExecutionTerminatedFailure {
 		t.Fatalf("termination attempts = %#v, err=%v", attempts, err)
 	}
-	cleanups, err := store.LeaseRunCleanups(context.Background(), execution.LifecycleLeaseRequest{
-		LeaseToken: "cleanup-after-termination",
-		Now:        lifecycleNow().Add(time.Minute),
-		LeaseUntil: lifecycleNow().Add(2 * time.Minute),
-		Limit:      1,
-	})
-	if err != nil || len(cleanups) != 1 {
-		t.Fatalf("termination cleanup = %#v, err=%v", cleanups, err)
-	}
-
 	conflictingCloseTime := closedAt.Add(time.Second)
 	if err := reconciler.finalizeTerminatedWorkflow(context.Background(), store, run, conflictingCloseTime); !errors.Is(err, execution.ErrDurableRunFailureConflict) {
 		t.Fatalf("conflicting termination replay error = %v, want ErrDurableRunFailureConflict", err)
@@ -822,20 +779,11 @@ func TestTemporalReconcilerFailClosesClosedWorkflowWithoutProductTerminalProject
 			if callbackCalls != 1 {
 				t.Fatalf("closed workflow callback calls = %d, want 1", callbackCalls)
 			}
-			cleanups, err := store.LeaseRunCleanups(context.Background(), execution.LifecycleLeaseRequest{
-				LeaseToken: "cleanup-closed-workflow",
-				Now:        lifecycleNow().Add(time.Minute),
-				LeaseUntil: lifecycleNow().Add(2 * time.Minute),
-				Limit:      1,
-			})
-			if err != nil || len(cleanups) != 1 {
-				t.Fatalf("closed workflow cleanup = %#v, err=%v", cleanups, err)
-			}
 		})
 	}
 }
 
-func TestTemporalReconcilerFailClosesUnauthorizedSuccessorWithoutCleaningPayload(t *testing.T) {
+func TestTemporalReconcilerFailClosesUnauthorizedSuccessor(t *testing.T) {
 	store, intent := createReconcilerStartIntentForTest(t)
 	callbackCalls := 0
 	now := confirmAndStartReconcilerRunForTest(t, store, intent, "temporal-timeout-chain-first")
@@ -878,21 +826,6 @@ func TestTemporalReconcilerFailClosesUnauthorizedSuccessorWithoutCleaningPayload
 	bound, err := store.GetWorkflowStartIntent(context.Background(), intent.RunID)
 	if err != nil || bound.TemporalRunID != exact.RunID {
 		t.Fatalf("unauthorized successor changed root binding = %#v, err=%v", bound, err)
-	}
-	cleanupStarter := &reconcilerStarterForTest{
-		describe:       latest,
-		describeSeries: []temporalruntime.WorkflowExecutionInfo{exact, latest},
-	}
-	cleanupServer := &Server{
-		config:             server.config,
-		runProjectionStore: store,
-		temporalStarter:    cleanupStarter,
-	}
-	(&temporalReconciler{server: cleanupServer}).reconcileRunCleanups(context.Background())
-	cleanup, err := store.GetRunCleanup(context.Background(), intent.RunID)
-	if err != nil || cleanup.State != execution.LifecycleIntentStatePending ||
-		cleanup.LastErrorCode != "cleanup_workflow_not_closed" {
-		t.Fatalf("unauthorized successor cleanup = %#v, err=%v", cleanup, err)
 	}
 }
 
@@ -1043,8 +976,6 @@ type noOpExecutionInputLoader struct{}
 func (noOpExecutionInputLoader) Load(context.Context, execution.DurableRun) (contracts.ExecutionPayloadWire, error) {
 	return contracts.ExecutionPayloadWire{}, errors.New("not used")
 }
-
-func (noOpExecutionInputLoader) Delete(context.Context, execution.DurableRun) error { return nil }
 
 func TestTemporalReconcilerRetriesUncertainStartWithoutQueueing(t *testing.T) {
 	store, intent := createReconcilerStartIntentForTest(t)
@@ -1492,19 +1423,6 @@ func TestTemporalReconcilerDoesNotBindRecoveryStartWithSuccessor(t *testing.T) {
 		t.Fatalf("successor recovery product run = %#v, err=%v", run, err)
 	}
 	assertReconcilerCancellationConfirmedForTest(t, store, intent.RunID, intent.CreatedAt.Add(time.Second))
-	cleanup, err := store.GetRunCleanup(context.Background(), intent.RunID)
-	if err != nil || cleanup.State != execution.LifecycleIntentStatePending {
-		t.Fatalf("successor recovery cleanup = %#v, err=%v", cleanup, err)
-	}
-	cleanups, err := store.LeaseRunCleanups(context.Background(), execution.LifecycleLeaseRequest{
-		LeaseToken: "cleanup-recovery-successor",
-		Now:        lifecycleNow().Add(time.Minute),
-		LeaseUntil: lifecycleNow().Add(2 * time.Minute),
-		Limit:      1,
-	})
-	if err != nil || len(cleanups) != 0 {
-		t.Fatalf("unbound successor cleanup became leaseable = %#v, err=%v", cleanups, err)
-	}
 }
 
 func TestTemporalReconcilerDoesNotBindResetMarkedSupersededExecution(t *testing.T) {

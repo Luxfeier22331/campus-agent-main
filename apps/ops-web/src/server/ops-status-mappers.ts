@@ -14,7 +14,6 @@ import {
 } from "./ops-external-links.ts";
 import type {
 	OpsAgentUsageRow,
-	OpsProductActionRow,
 	OpsRequestDetailRow,
 	OpsRequestListQuery,
 	OpsRequestRow,
@@ -53,7 +52,6 @@ const ProductSourcePartSchema = z.object({
 
 export async function toRequestDetail(
 	row: OpsRequestDetailRow,
-	actionRows: OpsProductActionRow[] | null,
 	usageRow: OpsAgentUsageRow | null | undefined,
 	observabilityLinks?: OpsObservabilityLinkAllowlist,
 	generatedAt = new Date(),
@@ -64,8 +62,6 @@ export async function toRequestDetail(
 	return {
 		generatedAt: generatedAt.toISOString(),
 		journey: {
-			actions: toProductActions(actionRows ?? []),
-			actionsDataState: actionDataState(actionRows),
 			entry: normalizeJourneyEntry(row.surface),
 		},
 		question: {
@@ -104,7 +100,6 @@ export async function toRequestDetail(
 
 export function toRequestSummary(
 	row: OpsRequestRow,
-	actionRows: OpsProductActionRow[] | null,
 	usageRow: OpsAgentUsageRow | null | undefined,
 ): OpsRequestSummary {
 	const status = normalizeRequestStatus(row.status);
@@ -114,8 +109,6 @@ export function toRequestSummary(
 		completedAt: row.completedAt?.toISOString() ?? null,
 		durationMs: row.durationMs ?? null,
 		journey: {
-			actions: toProductActions(actionRows ?? []),
-			actionsDataState: actionDataState(actionRows),
 			entry: normalizeJourneyEntry(row.surface),
 			result: toJourneyResult(row, status),
 		},
@@ -132,15 +125,6 @@ export function toRequestSummary(
 			totalTokens: usage.totalTokens,
 		},
 	};
-}
-
-function actionDataState(
-	rows: OpsProductActionRow[] | null,
-): OpsRequestDetailResponse["journey"]["actionsDataState"] {
-	if (rows === null) {
-		return "UNAVAILABLE";
-	}
-	return rows.length === 0 ? "NO_DATA" : "FRESH";
 }
 
 export function matchesRequestQuery(
@@ -454,62 +438,6 @@ function normalizeProductSources(
 		}
 	}
 	return sources;
-}
-
-function toProductActions(
-	rows: OpsProductActionRow[],
-): OpsRequestDetailResponse["journey"]["actions"] {
-	const grouped = new Map<
-		OpsRequestDetailResponse["journey"]["actions"][number]["capability"],
-		{ firstSeen: number; statuses: string[] }
-	>();
-	for (const row of rows) {
-		const capability = normalizeProductCapability(row.toolName);
-		const firstSeen = (row.startedAt ?? row.updatedAt).valueOf();
-		const current = grouped.get(capability) ?? { firstSeen, statuses: [] };
-		current.firstSeen = Math.min(current.firstSeen, firstSeen);
-		current.statuses.push(row.status);
-		grouped.set(capability, current);
-	}
-	return [...grouped.entries()]
-		.sort((left, right) => left[1].firstSeen - right[1].firstSeen)
-		.map(([capability, value]) => ({
-			capability,
-			status: aggregateActionStatus(value.statuses),
-		}));
-}
-
-function normalizeProductCapability(
-	toolName: string,
-): OpsRequestDetailResponse["journey"]["actions"][number]["capability"] {
-	const normalized = toolName.trim().toLowerCase();
-	if (normalized === "knowledge_query" || normalized === "knowledge_search") {
-		return "CAMPUS_KNOWLEDGE";
-	}
-	if (normalized === "transport_schedule_lookup") {
-		return "TRANSPORT_SCHEDULE";
-	}
-	return "OTHER";
-}
-
-function aggregateActionStatus(
-	statuses: string[],
-): OpsRequestDetailResponse["journey"]["actions"][number]["status"] {
-	const normalized = statuses.map((status) => status.trim().toLowerCase());
-	if (normalized.some((status) => status === "running" || status === "started")) {
-		return "RUNNING";
-	}
-	if (normalized.some((status) => ["completed", "complete", "found", "ok"].includes(status))) {
-		return "COMPLETED";
-	}
-	if (
-		normalized.some((status) =>
-			["failed", "error", "rejected", "no_answer", "fail_closed"].includes(status),
-		)
-	) {
-		return "FAILED";
-	}
-	return "PENDING";
 }
 
 function toAgentUsage(

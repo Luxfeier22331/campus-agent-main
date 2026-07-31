@@ -827,36 +827,7 @@ func sdkToolResultEnvelopeForProjection(
 		}
 		return nil, nil
 	}
-	if toolName != "transport_schedule_lookup" {
-		return nil, nil
-	}
-	if status != "completed" {
-		return nil, nil
-	}
-	envelope := cloneAnyMapFromMetadata(result["result_envelope"])
-	if len(envelope) == 0 {
-		return nil, fmt.Errorf("campus_services typed tool result_envelope is required")
-	}
-	if stringValue(envelope["schema_version"]) != "campus_services_tool_result.v1" {
-		return nil, fmt.Errorf("campus_services typed tool result_envelope schema_version drift")
-	}
-	if stringValue(envelope["tool_name"]) != toolName {
-		return nil, fmt.Errorf("campus_services typed tool result_envelope tool identity drift")
-	}
-	if stringValue(envelope["query_kind"]) == "" ||
-		stringValue(envelope["outcome"]) == "" ||
-		stringValue(envelope["content_hash"]) == "" {
-		return nil, fmt.Errorf("campus_services typed tool result_envelope missing required fields")
-	}
-	if stringValue(envelope["outcome"]) != stringValue(result["outcome"]) {
-		return nil, fmt.Errorf("campus_services typed tool result_envelope outcome drift")
-	}
-	if payloadKind == "transport_schedule_lookup" &&
-		stringValue(envelope["query_kind"]) != "transport_schedule" {
-		return nil, fmt.Errorf("campus_services typed tool result_envelope query_kind drift")
-	}
-	envelope["projection_ref"] = projectionRef
-	return envelope, nil
+	return nil, nil
 }
 
 func validatePersonalMemoryRecallToolResult(result map[string]any) error {

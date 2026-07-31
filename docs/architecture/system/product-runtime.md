@@ -67,15 +67,6 @@ app-api 保存用户轮次并创建持久 run；execution-control 和 Temporal �
 这些数据通过 `request_id`、`run_id`、`trace_id` 和 `conversation_id` 关联，不建立第二套请求
 关联投影。
 
-## 校园服务
-
-`campus_services.*` 是班车状态页面和模型可见工具共享的读取模型。
-已有版本写入后，app-api status API 与 execution-control tool 分别读取；当前仓库没有班车写入运行时。
-状态页不调用 tool，tool 也不通过 app-api。
-
-`transport_schedule_lookup` 当前已注册但关闭，不向模型开放。班车状态页面直接读取 App API
-产品读取模型，不调用该工具；contract/schema 存在不代表模型能力已经开放。
-
 ## 配置与运行记录
 
 - `ops-web -> execution-control` 通过同源 BFF 管理在线模型配置；浏览器不持有
@@ -111,4 +102,3 @@ app-api 保存用户轮次并创建持久 run；execution-control 和 Temporal �
 - `docs/architecture/system/ops-observability.md`
 - `docs/contracts/ops-web/README.md`
 - `docs/data/postgres-ownership.md`
-- `docs/domains/transport.md`

@@ -105,6 +105,25 @@ async function openDiningProperties(page: Page): Promise<void> {
 	await expect(properties).toBeVisible();
 }
 
+async function navigateFromSidebar(page: Page, name: string): Promise<void> {
+	const navigation = page.getByRole("navigation", { name: "运维导航" });
+	if ((page.viewportSize()?.width ?? 0) < 768) {
+		await page.getByRole("button", { name: "打开导航" }).click();
+		await expect(navigation.last()).toBeVisible();
+		await navigation.last().getByRole("link", { name }).click();
+		return;
+	}
+	await navigation.first().getByRole("link", { name }).click();
+}
+
+async function startKeyboardDrag(page: Page, handle: Locator): Promise<void> {
+	await handle.focus();
+	await page.keyboard.press("Space");
+	await expect(handle).toHaveAttribute("aria-pressed", "true");
+	// Dnd Kit installs its document-level keyboard listener after the activation event.
+	await page.evaluate(() => new Promise<void>((resolve) => window.setTimeout(resolve, 0)));
+}
+
 async function routeCampusGroupsCatalog(
 	page: Page,
 	getCatalog: () => CampusGroupsCatalog,
@@ -161,16 +180,17 @@ test("运行记录沿用户旅途进入详情和独立系统记录", async ({ pa
 	await page.goto("/requests");
 
 	await expect(page.getByRole("heading", { name: "运行记录" })).toBeVisible();
-	const recentResults =
-		(page.viewportSize()?.width ?? 0) < 768
-			? page.getByTestId("request-mobile-list")
-			: page.getByRole("table", { name: "运行记录" });
-	await expect(recentResults).toContainText("今天班车什么时候发车？");
-	await expect(
-		recentResults.getByText("产品处理：Campus Web，在线问答 Agent，查询班车时刻，回答已写入会话", {
-			exact: true,
-		}),
-	).toBeAttached();
+	const compactLayout = (page.viewportSize()?.width ?? 0) < 768;
+	const recentResults = compactLayout
+		? page.getByTestId("request-mobile-list")
+		: page.getByRole("table", { name: "运行记录" });
+	await expect(recentResults).toContainText("缓考申请需要哪些材料？");
+	const completedRequest = recentResults
+		.getByRole("link", { name: "缓考申请需要哪些材料？" })
+		.locator(compactLayout ? "xpath=ancestor::article[1]" : "xpath=ancestor::tr[1]");
+	await expect(completedRequest).toContainText(
+		"产品处理：Campus Web，在线问答 Agent，回答已写入会话",
+	);
 	await expect(recentResults).toContainText("2,400");
 	await expect(recentResults).not.toContainText("执行步骤");
 	await expect(recentResults).not.toContainText("模型请求");
@@ -206,15 +226,15 @@ test("运行记录沿用户旅途进入详情和独立系统记录", async ({ pa
 	await expect(page.getByRole("link", { name: "奖学金申请截止到哪一天？" })).toBeVisible();
 
 	await page.getByRole("link", { name: "最近运行" }).click();
-	await page.getByRole("link", { name: "今天班车什么时候发车？" }).first().click();
+	await page.getByRole("link", { name: "缓考申请需要哪些材料？" }).first().click();
 	await expect(page.getByRole("heading", { name: "运行详情" })).toBeVisible();
-	await expect(page.getByTestId("request-question")).toContainText("今天班车什么时候发车？");
-	await expect(page.getByTestId("request-journey")).toContainText("查询班车时刻");
+	await expect(page.getByTestId("request-question")).toContainText("缓考申请需要哪些材料？");
+	await expect(page.getByTestId("request-journey")).not.toContainText("查询校园信息");
 	await expect(page.getByTestId("request-journey")).toContainText("回答已写入会话");
 	await expect(page.getByTestId("request-result")).toContainText(
-		"今天主校区前往东校区的下一班车是 14:30，预计 15:05 到达。",
+		"缓考申请需要在规定期限内提交书面材料并说明原因。",
 	);
-	await expect(page.getByTestId("request-sources")).toContainText("班车时刻表");
+	await expect(page.getByTestId("request-sources")).toContainText("学生管理规定");
 	await expect(page.getByTestId("request-usage")).toContainText("2,400");
 	await expect(page.getByTestId("request-usage")).toContainText("Token 只统计主 Agent");
 	await expect(page.getByText(/执行步骤|模型请求|工具调用|已解析目标/u)).toHaveCount(0);
@@ -278,7 +298,7 @@ test("六类运行记录保留产品状态、会话结果和 Agent 用量语义"
 	await expect(page.getByTestId("request-question")).toContainText("帮我查一下最近的校园通知");
 	await expect(page.getByTestId("request-context")).toContainText("运行中");
 	await expect(page.getByTestId("request-context")).toContainText("输出中");
-	await expect(page.getByTestId("request-journey")).toContainText("正在查询");
+	await expect(page.getByTestId("request-journey")).toContainText("等待会话结果");
 	await expect(page.getByTestId("request-result")).toContainText("请求仍在处理中");
 	await expect(page.getByTestId("request-usage")).toContainText("当前为运行快照");
 	await expect(page.getByTestId("request-usage")).toContainText("1,130");
@@ -292,10 +312,10 @@ test("六类运行记录保留产品状态、会话结果和 Agent 用量语义"
 	await expect(page.getByText("模型服务超时")).toHaveCount(0);
 
 	await page.goto("/requests/req_ops_005");
-	await expect(page.getByTestId("request-question")).toContainText("请帮我查询班车时间");
+	await expect(page.getByTestId("request-question")).toContainText("请帮我查询申请条件");
 	await expect(page.getByTestId("request-context")).toContainText("等待用户");
 	await expect(page.getByTestId("request-journey")).toContainText("回答已写入会话");
-	await expect(page.getByTestId("request-result")).toContainText("请告诉我出发校区、目的校区");
+	await expect(page.getByTestId("request-result")).toContainText("请说明你要办理的具体事项");
 	await expect(page.getByTestId("request-usage")).toContainText("未取得用量数据");
 
 	await page.goto("/requests/req_ops_006");
@@ -399,9 +419,11 @@ test("同好群目录可以排序、跨组移动和删除", async ({ page }) => 
 			new URL(request.url()).pathname === "/api/ops/groups/catalog" && request.method() === "PUT",
 	);
 	const sectionReorderHandle = page.getByRole("button", { name: "调整分组“同好群”的顺序" });
-	await sectionReorderHandle.focus();
-	await page.keyboard.press("Space");
+	await startKeyboardDrag(page, sectionReorderHandle);
 	await page.keyboard.press("ArrowDown");
+	await expect(page.getByRole("status").filter({ hasText: "Draggable item" })).toContainText(
+		"section:clubs",
+	);
 	await page.keyboard.press("Space");
 	const sectionsReordered = (await sectionReorderRequest).postDataJSON() as CampusGroupsCatalog;
 	expect(sectionsReordered.sections.map(({ id }) => id)).toEqual(["clubs", "interest-groups"]);
@@ -412,9 +434,12 @@ test("同好群目录可以排序、跨组移动和删除", async ({ page }) => 
 			new URL(request.url()).pathname === "/api/ops/groups/catalog" && request.method() === "PUT",
 	);
 	const reorderHandle = page.getByRole("button", { name: "调整“央民二匹马俱乐部”的顺序" });
-	await reorderHandle.focus();
-	await page.keyboard.press("Space");
+	await reorderHandle.scrollIntoViewIfNeeded();
+	await startKeyboardDrag(page, reorderHandle);
 	await page.keyboard.press("ArrowDown");
+	await expect(page.getByRole("status").filter({ hasText: "Draggable item" })).toContainText(
+		`group:${browserSecondCampusGroup.id}`,
+	);
 	await page.keyboard.press("Space");
 	const reordered = (await reorderRequest).postDataJSON() as CampusGroupsCatalog;
 	expect(
@@ -685,12 +710,12 @@ test("未保存模型配置时确认离开", async ({ page }) => {
 	await page.goto("/providers");
 
 	await page.getByLabel("模型", { exact: true }).fill("unsaved-model");
-	await page.getByRole("link", { name: "运行概览" }).click();
+	await navigateFromSidebar(page, "运行概览");
 	await expect(page.getByRole("dialog")).toBeVisible();
 	await page.getByRole("button", { name: "继续编辑" }).click();
 	await expect(page.getByLabel("模型", { exact: true })).toHaveValue("unsaved-model");
 
-	await page.getByRole("link", { name: "运行概览" }).click();
+	await navigateFromSidebar(page, "运行概览");
 	await page.getByRole("button", { name: "放弃修改并离开" }).click();
 	await expect(page).toHaveURL(/\/overview/u);
 	await expectStableViewport(page, errors);

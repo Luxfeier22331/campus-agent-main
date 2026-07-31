@@ -89,11 +89,7 @@ export function registerInternalRoutes(input: {
 			);
 		}
 		const frozen = await service.readExecutionInput(runId);
-		if (
-			!frozen ||
-			frozen.executionInputReleasedAt ||
-			(frozen.executionInputJson === null && frozen.executionInputSha256 === null)
-		) {
+		if (!frozen || (frozen.executionInputJson === null && frozen.executionInputSha256 === null)) {
 			return jsonResponse(
 				errorEnvelope({
 					code: "execution_input_not_found",
@@ -129,59 +125,6 @@ export function registerInternalRoutes(input: {
 				"content-type": "application/json; charset=utf-8",
 			},
 			status: 200,
-		});
-	});
-
-	input.app.delete("/api/internal/execution/runs/:runId/input", async (c) => {
-		if (!executionInputAuthorized(c.req.raw, input.env)) {
-			return jsonResponse(
-				errorEnvelope({
-					code: "internal_auth_required",
-					message: "Execution input credential required.",
-					retryable: false,
-				}),
-				{ status: 401 },
-			);
-		}
-		const runId = c.req.param("runId").trim();
-		if (!runId) {
-			return jsonResponse(
-				errorEnvelope({
-					code: "invalid_request",
-					message: "run_id is required.",
-					retryable: false,
-				}),
-				{ status: 400 },
-			);
-		}
-		const service = input.createRequestScope().resolveChatCommandService();
-		if (!service.releaseExecutionInput) {
-			return jsonResponse(
-				errorEnvelope({
-					code: "dependency_not_ready",
-					message: "Execution input storage is not configured.",
-					retryable: true,
-				}),
-				{ status: 503 },
-			);
-		}
-		const outcome = await service.releaseExecutionInput({
-			releasedAt: new Date().toISOString(),
-			runId,
-		});
-		if (outcome === "not_terminal") {
-			return jsonResponse(
-				errorEnvelope({
-					code: "execution_input_not_terminal",
-					message: "Execution input cannot be released before product finalization.",
-					retryable: true,
-				}),
-				{ status: 409 },
-			);
-		}
-		return new Response(null, {
-			headers: { "cache-control": "no-store" },
-			status: 204,
 		});
 	});
 

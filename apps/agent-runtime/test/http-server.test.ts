@@ -15,12 +15,12 @@ const testParameterSchema = {
 };
 
 const transportPayloadSchemaRef = schemaRef(
-	"campus-services-tool-contracts.v1",
-	"TransportScheduleLookupPayload",
+	"personal-memory-tool-contracts.v1",
+	"PersonalMemoryRecallPayload",
 );
 const transportResultSchemaRef = schemaRef(
-	"campus-services-tool-contracts.v1",
-	"TransportScheduleLookupResult",
+	"personal-memory-tool-contracts.v1",
+	"PersonalMemoryRecallResult",
 );
 
 const catalog: ToolCatalog = {
@@ -29,8 +29,8 @@ const catalog: ToolCatalog = {
 	runtimeFingerprint: testToolRuntimeFingerprint(),
 	tools: [
 		{
-			name: "transport_schedule_lookup",
-			description: "Lookup campus shuttle schedule snapshots.",
+			name: "test_lookup",
+			description: "Lookup test record schedule snapshots.",
 			exposure: "model_visible",
 			readOnly: true,
 			requiresApproval: false,
@@ -38,7 +38,7 @@ const catalog: ToolCatalog = {
 			resultSchemaRef: transportResultSchemaRef,
 			handler: {
 				type: "execution_control_internal_query",
-				endpoint: "/internal/query/campus-services/transport-schedule",
+				endpoint: "/internal/query/fixture/test",
 			},
 			timeoutMs: 1000,
 			resultProjectionPolicy: "bounded_json",
@@ -650,13 +650,13 @@ describe("agent runtime HTTP handler", () => {
 
 	it("returns a failed runtime result when a selected tool fails closed", async () => {
 		const runner: AgentRunner = async ({ tools }) => {
-			const result = await tools[0]?.execute({ query_text: "校车" });
+			const result = await tools[0]?.execute({ query_text: "通知" });
 			return {
 				finalOutput: "工具失败。",
 				providerResponseId: "resp_tool_failed",
 				toolCalls: [
 					{
-						name: "transport_schedule_lookup",
+						name: "test_lookup",
 						argumentsSummary: {},
 						result: result === undefined ? undefined : { ...result, durationMs: 12 },
 					},
@@ -674,7 +674,7 @@ describe("agent runtime HTTP handler", () => {
 					toolName: tool.name,
 					payloadKind: tool.name,
 					result: { error: "source truth unavailable" },
-					resultRef: "agent-runtime://run-1/tools/transport_schedule_lookup/failed",
+					resultRef: "agent-runtime://run-1/tools/test_lookup/failed",
 					failCloseReason: "source_truth_unavailable",
 				}),
 			}),
@@ -706,7 +706,7 @@ describe("agent runtime HTTP handler", () => {
 		expect(body.final_output).toBe("");
 		expect(body.terminal_reason).toBe("agent_runtime_failed");
 		expect(body.tool_results?.[0]?.fail_close_reason).toBe("source_truth_unavailable");
-		expect(body.tool_results?.[0]?.arguments_json).toEqual({ query_text: "校车" });
+		expect(body.tool_results?.[0]?.arguments_json).toEqual({ query_text: "通知" });
 		expect(body.tool_results?.[0]?.duration_ms).toBe(12);
 	});
 
@@ -985,7 +985,7 @@ function validRunBody(): Record<string, unknown> {
 		trace_id: "trace-1",
 		input: "hi 你是谁",
 		grounding_context: validGroundingContext("run-1"),
-		visible_tool_names: ["transport_schedule_lookup"],
+		visible_tool_names: ["test_lookup"],
 		expected_tool_runtime_fingerprint: wireToolRuntimeFingerprint(catalog.runtimeFingerprint),
 		limits: validRuntimeLimits(),
 	};
@@ -1001,9 +1001,6 @@ function wireToolRuntimeFingerprint(fingerprint: ToolCatalog["runtimeFingerprint
 		tools_registry_version: fingerprint.toolsRegistryVersion,
 		tools_schema_version: fingerprint.toolsSchemaVersion,
 		tools_sha256: fingerprint.toolsSha256,
-		workflow_artifact_registry_version: fingerprint.workflowArtifactRegistryVersion,
-		workflow_artifact_schema_version: fingerprint.workflowArtifactSchemaVersion,
-		workflow_artifact_sha256: fingerprint.workflowArtifactSha256,
 	};
 }
 

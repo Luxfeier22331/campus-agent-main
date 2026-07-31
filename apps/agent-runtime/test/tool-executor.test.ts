@@ -5,12 +5,12 @@ import type { ToolExecutionRequest } from "../src/primary-agent.ts";
 import { createExecutionControlToolExecutor } from "../src/tool-executor.ts";
 
 const transportPayloadSchemaRef = schemaRef(
-	"campus-services-tool-contracts.v1",
-	"TransportScheduleLookupPayload",
+	"personal-memory-tool-contracts.v1",
+	"PersonalMemoryRecallPayload",
 );
 const transportResultSchemaRef = schemaRef(
-	"campus-services-tool-contracts.v1",
-	"TransportScheduleLookupResult",
+	"personal-memory-tool-contracts.v1",
+	"PersonalMemoryRecallResult",
 );
 
 describe("execution-control tool executor", () => {
@@ -27,7 +27,7 @@ describe("execution-control tool executor", () => {
 
 		expect(result).toMatchObject({
 			status: "failed",
-			toolName: "transport_schedule_lookup",
+			toolName: "test_lookup",
 			failCloseReason: "tool_executor_not_configured",
 			result: {
 				error: "execution-control query base URL and shared secret are required",
@@ -46,7 +46,7 @@ describe("execution-control tool executor", () => {
 		const targetAddress = target.address() as { port: number };
 		const redirect = createServer((_request, response) => {
 			response.writeHead(307, {
-				location: `http://127.0.0.1:${targetAddress.port}/internal/query/campus-services/transport-schedule`,
+				location: `http://127.0.0.1:${targetAddress.port}/internal/query/fixture/test`,
 			});
 			response.end();
 		});
@@ -132,7 +132,7 @@ describe("execution-control tool executor", () => {
 		expect(requests[0]?.headers.get("authorization")).toBeNull();
 	});
 
-	it("preserves campus services result envelopes from execution-control", async () => {
+	it("preserves result envelopes from execution-control", async () => {
 		const executor = createExecutionControlToolExecutor({
 			baseUrl: "http://execution-control:8000",
 			sharedSecret: "query-secret",
@@ -141,18 +141,18 @@ describe("execution-control tool executor", () => {
 					JSON.stringify({
 						outcome: "resolved_current",
 						result_envelope: {
-							schema_version: "campus_services_tool_result.v1",
-							tool: "transport_schedule_lookup",
-							tool_name: "transport_schedule_lookup",
-							query_kind: "transport_schedule",
+							schema_version: "test_tool_result.v1",
+							tool: "test_lookup",
+							tool_name: "test_lookup",
+							query_kind: "test_lookup",
 							outcome: "resolved_current",
 							facts: {
 								kind: "schedule_facts",
 								result: { outcome: "resolved_current" },
 							},
 							source_refs: ["notice:bus-schedule-2026-04-20"],
-							projection_ref: "projection:campus_services:transport_schedule:test",
-							content_hash: "sha256:transport-schedule-test",
+							projection_ref: "projection:test_lookup:test",
+							content_hash: "sha256:test-record-test",
 							clarification_options: [],
 						},
 					}),
@@ -167,21 +167,21 @@ describe("execution-control tool executor", () => {
 			...toolRequest(),
 			tool: {
 				...toolRequest().tool,
-				name: "transport_schedule_lookup",
+				name: "test_lookup",
 				payloadSchemaRef: transportPayloadSchemaRef,
 				resultSchemaRef: transportResultSchemaRef,
 				handler: {
 					type: "execution_control_internal_query",
-					endpoint: "/internal/query/campus-services/transport-schedule",
+					endpoint: "/internal/query/fixture/test",
 				},
 			},
 		});
 
 		expect(result.status).toBe("completed");
 		expect(result.result.result_envelope).toMatchObject({
-			schema_version: "campus_services_tool_result.v1",
-			tool_name: "transport_schedule_lookup",
-			query_kind: "transport_schedule",
+			schema_version: "test_tool_result.v1",
+			tool_name: "test_lookup",
+			query_kind: "test_lookup",
 		});
 	});
 
@@ -377,9 +377,9 @@ function toolRequest(): ToolExecutionRequest {
 		activityAttempt: 1,
 		runId: "run-tool-executor",
 		traceId: "trace-tool-executor",
-		argumentsJson: { query_text: "校车下一班几点", intent: "next_departure" },
+		argumentsJson: { query_text: "通知下一班几点", intent: "next_departure" },
 		tool: {
-			name: "transport_schedule_lookup",
+			name: "test_lookup",
 			description: "Lookup transport schedule.",
 			exposure: "model_visible",
 			readOnly: true,
@@ -388,7 +388,7 @@ function toolRequest(): ToolExecutionRequest {
 			resultSchemaRef: transportResultSchemaRef,
 			handler: {
 				type: "execution_control_internal_query",
-				endpoint: "/internal/query/campus-services/transport-schedule",
+				endpoint: "/internal/query/fixture/test",
 			},
 			timeoutMs: 1000,
 			resultProjectionPolicy: "bounded_json",

@@ -274,7 +274,7 @@ func TestPrimaryAgentEvidenceClosureUsesOnlyBoundGrounding(t *testing.T) {
 func TestPrimaryAgentEvidenceClosureRequiresFrozenUngroundedAnswerAuthorization(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	const runID = "run-ungrounded-finalization"
-	const query = "今天下一班校车几点发？"
+	const query = "今天天气怎么样？"
 	createHTTPAPIQueuedDurableRunForTest(
 		t,
 		store,
@@ -314,7 +314,7 @@ func TestPrimaryAgentEvidenceClosureRequiresFrozenUngroundedAnswerAuthorization(
 	}
 	envelope := map[string]any{
 		"kind":        "answer",
-		"answer_text": "下一班校车九点发车。",
+		"answer_text": "今天是晴天。",
 	}
 	if _, err := server.primaryAgentEvidenceClosureForFinalization(
 		run, agentResult, grounding, envelope,

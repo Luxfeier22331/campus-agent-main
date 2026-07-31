@@ -10,6 +10,9 @@ Better Auth 核心表、插件表和 App API 自有认证表都由同一份 Driz
 `drizzle.app_api_migrations` ledger 管理。该 Job 不启动 Better Auth，也不需要
 `AUTH_SHELL_ORIGIN` 或 `BETTER_AUTH_SECRET`。
 
+Job 只接受空库或已识别的 pre-Drizzle 基线，并在迁移前核对已应用 migration hash；未知部分状态
+或被修改的历史 migration 会直接失败。授权在 migration 完成后独立应用。
+
 ```bash
 docker build -f jobs/app-api-schema/Dockerfile -t app-api-schema .
 ```

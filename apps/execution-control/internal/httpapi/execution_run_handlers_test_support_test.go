@@ -33,13 +33,6 @@ func (mapExecutionInputLoader) Load(_ context.Context, run execution.DurableRun)
 	return wire, nil
 }
 
-func (mapExecutionInputLoader) Delete(_ context.Context, run execution.DurableRun) error {
-	testExecutionInputs.Lock()
-	delete(testExecutionInputs.values, run.RunID)
-	testExecutionInputs.Unlock()
-	return nil
-}
-
 type fakeTemporalStarter struct {
 	cancelRunID  string
 	cancelReason string

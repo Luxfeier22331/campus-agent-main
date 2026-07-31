@@ -60,8 +60,8 @@ Agent/tool 评测使用：
 ## 数据集
 
 Primary Agent 路由使用 `campus/agent/routing`，并与当前工具 exposure 保持一致。当前覆盖直接回答、
-基于 grounding 的课程与规章回答、班车和官网能力不可用、跟进、多意图、过期上下文和 prompt
-injection。知识案例不期待函数工具调用。
+基于 grounding 的课程与规章回答、跟进、多意图、过期上下文和 prompt injection。知识案例不期待函数
+工具调用。
 
 RAG 数据集包括：
 

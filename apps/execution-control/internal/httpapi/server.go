@@ -338,18 +338,6 @@ func (s *Server) loadExecutionInput(
 	return s.executionInputLoader.Load(ctx, run)
 }
 
-func (s *Server) deleteExecutionInput(ctx context.Context, run execution.DurableRun) error {
-	if s.executionInputLoader == nil {
-		return newExecutionInputError(
-			"delete",
-			"execution_input_release_not_configured",
-			true,
-			errors.New("execution input loader is not configured"),
-		)
-	}
-	return s.executionInputLoader.Delete(ctx, run)
-}
-
 func normalizeServerConfig(cfg config.Config) config.Config {
 	if cfg.AppName == "" {
 		cfg.AppName = "campus-agent"
@@ -421,7 +409,6 @@ func newRunProjectionStore(cfg config.Config) (execution.RunProjectionStore, err
 	defer cancel()
 	store, err := execution.NewPostgresRunProjectionStore(ctx, execution.PostgresRunProjectionStoreOptions{
 		DatabaseURL: strings.TrimSpace(cfg.DatabaseURL),
-		AutoMigrate: false,
 	})
 	if err != nil {
 		return nil, err
@@ -436,7 +423,6 @@ func newPersonalMemoryStateStore(cfg config.Config) (memoryruntime.StateStore, e
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	return memoryruntime.NewPostgresStateStore(ctx, memoryruntime.PostgresStateStoreOptions{
-		AutoMigrate: false,
 		DatabaseURL: strings.TrimSpace(cfg.DatabaseURL),
 	})
 }
@@ -552,8 +538,6 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleProfileMemoryRecall(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/memory/personal/recall":
 		s.handlePersonalMemoryRecallTool(writer, request)
-	case request.Method == http.MethodPost && path == "/internal/query/campus-services/transport-schedule":
-		s.handleToolReadModel(writer, request, toolreadmodel.ToolTransportScheduleLookup)
 	default:
 		setOutcome(writer, "not_found")
 		writeError(

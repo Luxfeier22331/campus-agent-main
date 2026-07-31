@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/schemamigrations"
 	"github.com/jackc/pgx/v5"
 	"github.com/testcontainers/testcontainers-go"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -74,9 +76,6 @@ func TestPostgresIntegration(t *testing.T) {
 	})
 	t.Run("schema command", func(t *testing.T) {
 		testSchemaCommand(t, harness)
-	})
-	t.Run("transport schedule read model", func(t *testing.T) {
-		testTransportScheduleReadModel(t, harness)
 	})
 }
 
@@ -160,5 +159,24 @@ func closeConn(t *testing.T, conn *pgx.Conn) {
 	t.Helper()
 	if err := conn.Close(context.Background()); err != nil {
 		t.Errorf("close PostgreSQL connection: %v", err)
+	}
+}
+
+func migrateSchema(ctx context.Context, databaseURL string, keyring *providerconfig.Keyring) error {
+	migrator, err := schemamigrations.New(databaseURL, keyring)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = migrator.Close() }()
+	if err := migrator.Up(ctx); err != nil {
+		return err
+	}
+	return migrator.InstallGrants(ctx)
+}
+
+func requireSchema(t *testing.T, databaseURL string, keyring *providerconfig.Keyring) {
+	t.Helper()
+	if err := migrateSchema(t.Context(), databaseURL, keyring); err != nil {
+		t.Fatalf("migrate execution-control schema: %v", err)
 	}
 }

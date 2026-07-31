@@ -12,11 +12,7 @@ import type {
 } from "./types";
 
 export { normalizeSourceItemsPart } from "./normalize-source-items";
-
-export {
-	normalizeCampusServiceTracePart,
-	normalizeChatResponseStructuredParts,
-} from "./normalize-structured-parts";
+export { normalizeChatResponseStructuredParts } from "./normalize-structured-parts";
 
 function normalizeString(value: unknown): string {
 	return typeof value === "string" ? value.trim() : "";
@@ -46,7 +42,7 @@ export function previewText(text: string, maxLength = 160): string {
 
 const INTERNAL_LOCATOR_PATTERNS = [
 	/source-faithful/iu,
-	/\b(?:program_semester_facts|program_family_facts|course_facts|curriculum|handbook|official_web|student_rules|service_catalog|campus_services|authenticated_notice|internal_notice|notice):/iu,
+	/\b(?:program_semester_facts|program_family_facts|course_facts|curriculum|handbook|official_web|student_rules|service_catalog|authenticated_notice|internal_notice|notice):/iu,
 	/\bchunk-[a-z0-9_-]+\b/iu,
 	/\[[^\]\n]*#[^\]\n]*\]/u,
 	/(?:release[_-]?id|projection(?:_id|_table)?|table_parser_state|debug[_-]?only)\s*[:=]/iu,

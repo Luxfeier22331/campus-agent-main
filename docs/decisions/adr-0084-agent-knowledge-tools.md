@@ -40,9 +40,8 @@ ADR-0075 把机构知识查询包装为 Primary Agent 到 Knowledge Agent 的 ha
   `evidence://`；
 - 知识 grounding 不注册为模型工具，不进入 SDK 工具轨迹。
 
-类型化工具只保留确实拥有独立读取模型的能力。当前 `transport_schedule_lookup` 已注册但关闭；
-`personal_memory_recall` 按本轮授权可选开放。课程、文档召回和章节读取旧工具合同直接删除，不保留
-兼容 route 或 fallback。
+类型化工具只保留确实拥有独立读取模型的能力。当前只有 `personal_memory_recall` 按本轮授权可选开放。
+课程、文档召回和章节读取旧工具合同直接删除，不保留兼容 route 或 fallback。
 
 ### 不可变发布消费边界
 
@@ -66,8 +65,8 @@ Temporal history。缺少 release、配置不兼容或身份不一致时失败�
 
 ### 轨迹与评测
 
-`tool_trajectory.v3` 只保存同一个 Agent 实际执行的 SDK `tool_calls[]`，当前词汇为个人记忆和关闭的
-班车工具。RAG 评测单独使用 grounding 范围、上下文、答案和引用，不把知识预取伪造成工具调用。
+`tool_trajectory.v3` 只保存同一个 Agent 实际执行的 SDK `tool_calls[]`，当前词汇为个人记忆。RAG
+评测单独使用 grounding 范围、上下文、答案和引用，不把知识预取伪造成工具调用。
 
 标准数据集只评测当前 release；无答案用例的 `minimum_relevant_context_count` 为 0。产品终态不
 暴露内部 collection、release 选择或路由标签。
@@ -96,4 +95,3 @@ Temporal history。缺少 release、配置不兼容或身份不一致时失败�
 - `../architecture/system/agent-framework.md`
 - `../architecture/system/agentic-retrieval.md`
 - `../architecture/system/retrieval-serving.md`
-- `../contracts/tool-read-model.md`

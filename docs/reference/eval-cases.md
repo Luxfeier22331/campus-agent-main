@@ -49,8 +49,8 @@ Agent routing 用例还必须声明 `expected_grounding_mode`，取值为 `none`
 `multi_scope`。它评测 execution-control 的确定性 grounding 路由，不表示检索调用次数、工具调用次数
 或最终答案状态；需要机构依据但当前没有合格证据的用例仍可使用 `single_scope` 或 `multi_scope`。
 
-路由用例必须与 checked-in 工具注册表的当前 exposure 一致。关闭的班车工具不得作为预期调用；
-知识回答也不得恢复已退役的课程、文档召回或章节读取工具名称。
+路由用例必须与 checked-in 工具注册表的当前 exposure 一致。知识回答不得恢复已退役的课程、文档召回或
+章节读取工具名称。
 
 ## 编写规则
 

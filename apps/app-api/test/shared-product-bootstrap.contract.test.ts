@@ -5,7 +5,6 @@ import { join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 import { appApiSchema } from "../src/db/schema";
-import { APP_API_KNOWN_SCHEMAS } from "../src/script-support/shared-db/shared-product-schema-shared.ts";
 
 const appRoot = resolve(import.meta.dirname, "..");
 
@@ -39,17 +38,19 @@ describe("app-api shared product bootstrap contracts", () => {
 			"vitest.shared-db.config.mts",
 		);
 		expect(packageJson.scripts["test:official-web-shared-db-integration"]).toBeUndefined();
+		expect(packageJson.scripts["db:generate"]).toContain("drizzle-kit generate");
+		expect(packageJson.scripts["db:check"]).toContain("drizzle-kit check");
 	});
 
-	it("checks in explicit current shared product bootstrap artifacts under app-api", () => {
+	it("keeps the Drizzle schema installer inputs under app-api", () => {
 		const requiredFiles = [
-			"db/shared-product-schema/campus_services.sql",
-			"db/shared-product-schema/chat_current.sql",
 			"drizzle/0000_initial.sql",
-			"ops/db/campus-services-grants.ts",
+			"drizzle/baseline/app_auth_pre_0006.sql",
+			"drizzle/baseline/chat_pre_0001.sql",
 			"ops/db/prepare-local.ts",
 			"ops/db/schema.ts",
-			"src/script-support/shared-db/shared-product-database-bootstrap.ts",
+			"src/db/schema/managed.ts",
+			"src/script-support/shared-db/database.ts",
 			"vitest.worker.config.mts",
 			"vitest.shared-db.config.mts",
 			"test/shared-product-db.integration.test.ts",
@@ -58,7 +59,7 @@ describe("app-api shared product bootstrap contracts", () => {
 		for (const relativePath of requiredFiles) {
 			expect(existsSync(join(appRoot, relativePath)), relativePath).toBe(true);
 		}
-		expect(existsSync(join(appRoot, "db/shared-product-migrations"))).toBe(false);
+		expect(existsSync(join(appRoot, "db/shared-product-schema/chat_current.sql"))).toBe(false);
 	});
 
 	it("exports chat message feedback from the unified app-api schema object", () => {
@@ -66,8 +67,14 @@ describe("app-api shared product bootstrap contracts", () => {
 	});
 
 	it("keeps the current schema snapshot free of retired routing state", () => {
-		const chatSchema = readAppFile("db/shared-product-schema/chat_current.sql");
-		const snapshot = readAppFile("drizzle/meta/0007_snapshot.json");
+		const journal = JSON.parse(readAppFile("drizzle/meta/_journal.json")) as {
+			entries: Array<{ idx: number }>;
+		};
+		const latestIndex = journal.entries.at(-1)?.idx;
+		expect(latestIndex).toBeTypeOf("number");
+		const snapshot = readAppFile(
+			`drizzle/meta/${String(latestIndex).padStart(4, "0")}_snapshot.json`,
+		);
 
 		for (const retiredField of [
 			"intent_classifier_version",
@@ -83,8 +90,9 @@ describe("app-api shared product bootstrap contracts", () => {
 			"selected_tool",
 		]) {
 			expect(snapshot).not.toContain(retiredField);
-			expect(chatSchema).not.toContain(retiredField);
 		}
+		expect(snapshot).not.toContain("execution_input_released_at");
+		expect(snapshot).toContain('"chat.turn_dispatches"');
 	});
 
 	it("keeps retired replay and observability configuration out of the initial schema", () => {
@@ -102,15 +110,6 @@ describe("app-api shared product bootstrap contracts", () => {
 			expect(snapshot).not.toContain(retiredName);
 		}
 		expect(baseline).toContain('CREATE TABLE "observability"."ops_observability_read_audit"');
-	});
-
-	it("keeps app-owned schema inventory aligned with the current schema baseline", () => {
-		expect(APP_API_KNOWN_SCHEMAS).toEqual(
-			expect.arrayContaining(["campus_groups", "docs", "dining", "profile", "runtime"]),
-		);
-		expect(APP_API_KNOWN_SCHEMAS).not.toEqual(
-			expect.arrayContaining(["identity", "observability"]),
-		);
 	});
 
 	it("links app-api database ownership and installation documentation", () => {
@@ -165,15 +164,6 @@ describe("app-api shared product bootstrap contracts", () => {
 		expect(requestScopeSource).toContain(
 			"store: createPgChatCommandStore(input.env, { getDb: runtime.getDb })",
 		);
-	});
-
-	it("keeps Dining bootstrap outside the app-api shared database bootstrap", () => {
-		const bootstrapSource = readAppFile(
-			"src/script-support/shared-db/shared-product-database-bootstrap.ts",
-		);
-
-		expect(bootstrapSource).not.toContain("jobs/dining-sync");
-		expect(bootstrapSource).not.toContain("import-dev-seed");
 	});
 
 	it("cuts the worker app shell through app-local submodules instead of keeping helpers inline", () => {

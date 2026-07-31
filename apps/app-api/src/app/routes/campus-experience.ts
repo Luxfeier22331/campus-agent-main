@@ -36,24 +36,6 @@ export function registerCampusExperienceRoutes(input: {
 		}
 	});
 
-	input.app.get("/api/campus-services/transport-schedule/status", async () => {
-		const scope = input.createRequestScope();
-		try {
-			const result = await scope.resolveCampusServicesTransportScheduleService().getPublicStatus();
-			return jsonResponse(result.projection, {
-				headers: {
-					"cache-control": "public, max-age=60, s-maxage=300",
-					...(result.etag ? { etag: result.etag } : {}),
-				},
-			});
-		} catch (error) {
-			if (error instanceof AppApiRouteError) {
-				return routeErrorResponse(error);
-			}
-			throw error;
-		}
-	});
-
 	input.app.get("/api/dining", async () => {
 		const scope = input.createRequestScope();
 		try {

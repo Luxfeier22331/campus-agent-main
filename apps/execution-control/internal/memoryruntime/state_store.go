@@ -237,7 +237,6 @@ func (s *InMemoryStateStore) HealthCheck(context.Context) error { return nil }
 type PostgresStateStore struct{ pool *pgxpool.Pool }
 
 type PostgresStateStoreOptions struct {
-	AutoMigrate bool
 	DatabaseURL string
 }
 
@@ -254,22 +253,7 @@ func NewPostgresStateStore(ctx context.Context, options PostgresStateStoreOption
 	if err != nil {
 		return nil, fmt.Errorf("create personal memory state pool: %w", err)
 	}
-	store := &PostgresStateStore{pool: pool}
-	if options.AutoMigrate {
-		if err := store.EnsureSchema(ctx); err != nil {
-			pool.Close()
-			return nil, err
-		}
-	}
-	return store, nil
-}
-
-func (s *PostgresStateStore) EnsureSchema(ctx context.Context) error {
-	_, err := s.pool.Exec(ctx, personalMemoryStateSchemaSQL)
-	if err != nil {
-		return fmt.Errorf("ensure personal memory state schema: %w", err)
-	}
-	return nil
+	return &PostgresStateStore{pool: pool}, nil
 }
 
 func (s *PostgresStateStore) BeginCall(ctx context.Context, ownerHash string, callID string, generation int64, sequence int64, subjectHash string, kind string, ttl time.Duration) error {
@@ -566,27 +550,3 @@ func commandLeaseDeadline(ttl time.Duration) *time.Time {
 	deadline := time.Now().Add(ttl)
 	return &deadline
 }
-
-const personalMemoryStateSchemaSQL = `
-create schema if not exists runtime;
-create table if not exists runtime.personal_memory_owner_fences (
- owner_scope_hash text primary key, generation bigint not null, lifecycle_state text not null,
- last_owner_sequence bigint not null, updated_at timestamptz not null
-);
-create table if not exists runtime.personal_memory_call_leases (
- call_id text primary key, owner_scope_hash text not null, generation bigint not null, owner_sequence bigint not null,
- subject_scope_hash text not null, operation_kind text not null,
- expires_at timestamptz not null, created_at timestamptz not null default now()
-);
-create table if not exists runtime.personal_memory_command_receipts (
-	 command_id text primary key, owner_scope_hash text not null, generation bigint not null, sequence bigint not null,
-	 kind text not null, status text not null, error_code text not null default '', lease_expires_at timestamptz,
-	 result_fingerprint text not null default '',
-	 subject_scope_hash text not null, supersession_scope text not null, created_at timestamptz not null,
-	 updated_at timestamptz not null, terminal_at timestamptz, unique(owner_scope_hash,sequence)
-);
-alter table runtime.personal_memory_command_receipts
-	add column if not exists supersession_scope text not null default '';
-alter table runtime.personal_memory_command_receipts
-	add column if not exists result_fingerprint text not null default '';
-`

@@ -13,6 +13,4 @@ status: active
   [internal-portal.md](./internal-portal.md)；
 - 数据库所有权：[postgres-ownership.md](./postgres-ownership.md)。
 
-班车的人类可读事实由 [transport.md](../domains/transport.md) 维护；机器 schema 位于
-`packages/contracts/schemas/`。食堂的数据边界由
-[dining.md](../product/dining.md) 集中维护。迁移历史和操作步骤不在本目录重复。
+食堂的数据边界由 [dining.md](../product/dining.md) 集中维护。迁移历史和操作步骤不在本目录重复。

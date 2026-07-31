@@ -1,10 +1,11 @@
 // @vitest-environment node
 
-import type { TabularQueryResult } from "@axiomhq/js";
+import type { MetricsResult, TabularQueryResult } from "@axiomhq/js";
 import { describe, expect, it, vi } from "vitest";
 import {
 	type AxiomSdkQueryClient,
 	AxiomUnavailableError,
+	buildAxiomMetricsMpl,
 	buildAxiomRequestApl,
 	createAxiomClient,
 	createAxiomClientFromEnv,
@@ -139,15 +140,29 @@ describe("Axiom client", () => {
 	});
 
 	it("summarizes the fixed logs, traces, and metrics datasets", async () => {
+		const metricsFixture = {
+			metadata: {},
+			series: [
+				{
+					data: [null, 33_584_167, null],
+					resolution: 1,
+					start: 1_785_417_763,
+				},
+			],
+		} satisfies MetricsResult;
+		const query = vi.fn(async (_query: string, options: { format?: string }) => {
+			if (options.format === "metrics-v2") {
+				return metricsFixture;
+			}
+			return tabularResult([
+				{
+					last_seen_at: "2026-07-09T06:29:59.000Z",
+					record_count: 3,
+				},
+			]);
+		});
 		const sdkClient: AxiomSdkQueryClient = {
-			query: vi.fn(async (apl) =>
-				tabularResult([
-					{
-						last_seen_at: "2026-07-09T06:29:59.000Z",
-						record_count: apl.includes("metrics") ? 12 : 3,
-					},
-				]),
-			),
+			query: query as AxiomSdkQueryClient["query"],
 		};
 		const client = createAxiomClient({ ...queryConfig, sdkClient });
 		const telemetry = await client.getTelemetrySnapshot("15m", {
@@ -157,6 +172,19 @@ describe("Axiom client", () => {
 		expect(sdkClient.query).toHaveBeenCalledTimes(3);
 		expect(telemetry).toMatchObject({ dataState: "FRESH", status: "HEALTHY" });
 		expect(telemetry.signals.map((signal) => signal.kind)).toEqual(["LOGS", "METRICS", "TRACES"]);
+		expect(telemetry.signals[1]).toMatchObject({
+			recordCount: 1,
+			updatedAt: new Date(1_785_417_764_000).toISOString(),
+		});
+		expect(query.mock.calls[1]).toEqual([
+			buildAxiomMetricsMpl("campus-agent-staging-metrics"),
+			{
+				endTime: "2026-07-09T06:30:00.000Z",
+				format: "metrics-v2",
+				startTime: "2026-07-09T06:15:00.000Z",
+				type: "mpl",
+			},
+		]);
 	});
 
 	it("fails when Axiom marks an SDK result partial", async () => {
@@ -212,7 +240,7 @@ describe("Axiom client", () => {
 				const pending = deferred<TabularQueryResult>();
 				pendingQueries.push(pending);
 				return pending.promise;
-			}),
+			}) as unknown as AxiomSdkQueryClient["query"],
 		};
 		const client = createAxiomClient({ ...queryConfig, sdkClient });
 		const controller = new AbortController();
@@ -236,7 +264,7 @@ describe("Axiom client", () => {
 				const pending = deferred<TabularQueryResult>();
 				pendingQueries.push(pending);
 				return pending.promise;
-			}),
+			}) as unknown as AxiomSdkQueryClient["query"],
 		};
 		const client = createAxiomClient({ ...queryConfig, sdkClient });
 		const controllers = Array.from({ length: 5 }, () => new AbortController());
@@ -343,7 +371,9 @@ function fakeSdk(
 	status: { isPartial?: boolean; rowsMatched?: number } = {},
 ): AxiomSdkQueryClient {
 	return {
-		query: vi.fn(async () => tabularResult(records, status)),
+		query: vi.fn(async () =>
+			tabularResult(records, status),
+		) as unknown as AxiomSdkQueryClient["query"],
 	};
 }
 

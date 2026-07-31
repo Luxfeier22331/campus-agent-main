@@ -47,6 +47,8 @@ pnpm --dir apps/ops-web start
 pnpm --dir apps/ops-web check
 pnpm --dir apps/ops-web test:browser
 pnpm --dir apps/ops-web test:database-integration
+pnpm --dir apps/ops-web db:check
+pnpm --dir apps/ops-web db:generate
 pnpm --dir apps/ops-web db:apply-dining
 pnpm --dir apps/ops-web db:bootstrap-dining
 ```
@@ -62,7 +64,11 @@ namespace；该依赖不可用不影响 Ops Web readiness。
 `.env.local`。Ops Web 使用统一 `ops_web` 角色和 `object-store-secrets`；Dining 不创建专属
 角色、连接、桶或凭据。
 
-数据库 schema、授权和首次 Dining 草稿由模块自有命令幂等维护：
+Dining 的声明式 schema 位于 `packages/domains/dining/src/schema.ts`，生成的 migration 位于
+`apps/ops-web/drizzle/`，并使用 `drizzle.ops_web_dining_migrations`。结构变化先运行
+`db:generate` 并审查新增 SQL；不得修改已应用 migration。`db:apply-dining` 按顺序执行 migration
+和 Dining grants，`db:bootstrap-dining` 之后才写入首次草稿。授权和 bootstrap 不建表，也不维护
+第二份 schema。
 
 ```bash
 pnpm --dir apps/ops-web db:apply-dining

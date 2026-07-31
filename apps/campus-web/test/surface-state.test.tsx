@@ -4,11 +4,11 @@ import { SurfaceState } from "../src/components/ui/surface-state";
 
 describe("surface state", () => {
 	it("marks loading states as busy status regions", () => {
-		render(<SurfaceState description="正在读取班车数据" kind="loading" title="正在加载" />);
+		render(<SurfaceState description="正在读取页面数据" kind="loading" title="正在加载" />);
 
 		const status = screen.getByRole("status", { name: "正在加载" });
 		expect(status).toHaveAttribute("aria-busy", "true");
-		expect(status).toHaveTextContent("正在读取班车数据");
+		expect(status).toHaveTextContent("正在读取页面数据");
 	});
 
 	it("uses the shared reduced-motion aware entrance treatment", () => {

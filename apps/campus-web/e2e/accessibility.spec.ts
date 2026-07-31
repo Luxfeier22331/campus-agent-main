@@ -25,11 +25,6 @@ const surfaces: ReadonlyArray<{
 		ready: (page) => page.getByRole("region", { name: "校园地图" }),
 	},
 	{
-		name: "班车时刻表",
-		path: "/services",
-		ready: (page) => page.getByRole("heading", { level: 1, name: "班车时刻表" }),
-	},
-	{
 		name: "同好群",
 		path: "/groups",
 		ready: (page) => page.getByRole("heading", { level: 1, name: "同好群" }),

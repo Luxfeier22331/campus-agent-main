@@ -15,7 +15,6 @@ const STAGE_TIMING_FIELDS = [
 	"agent.runtime_ms",
 	"agent.first_delta_ms",
 	"tool.total_ms",
-	"tool.transport_schedule_lookup_ms",
 	"finalization.write_ms",
 	"projection.closeout_ms",
 ] as const;

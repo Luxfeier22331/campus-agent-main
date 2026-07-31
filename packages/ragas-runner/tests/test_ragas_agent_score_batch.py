@@ -47,17 +47,17 @@ class RagasAgentScoreBatchTest(unittest.TestCase):
                                 "trace_id": "trace-001",
                                 "dataset_item_id": "dataset-item-001",
                                 "dataset_run_id": "dataset-run-001",
-                                "query": "校车现在能到海淀校区吗？",
-                                "answer": "我查询一下校车班次。",
+                                "query": "你记得我偏好先看结论吗？",
+                                "answer": "我查询一下你的回答偏好。",
                                 "tool_calls": [
                                     {
-                                        "name": "transport_schedule_lookup",
+                                        "name": "personal_memory_recall",
                                         "args": {},
                                     }
                                 ],
                                 "reference_tool_calls": [
                                     {
-                                        "name": "transport_schedule_lookup",
+                                        "name": "personal_memory_recall",
                                         "args": {},
                                     }
                                 ],
@@ -86,10 +86,8 @@ class RagasAgentScoreBatchTest(unittest.TestCase):
 
             self.assertEqual(summary, {"items": 1, "output_path": str(output_path)})
             self.assertEqual(captured[0].case_id, "transport-route")
-            self.assertEqual(captured[0].tool_calls[0]["name"], "transport_schedule_lookup")
-            self.assertEqual(
-                captured[0].reference_tool_calls[0]["name"], "transport_schedule_lookup"
-            )
+            self.assertEqual(captured[0].tool_calls[0]["name"], "personal_memory_recall")
+            self.assertEqual(captured[0].reference_tool_calls[0]["name"], "personal_memory_recall")
             self.assertEqual(captured[0].argument_mode, "name_only")
             payload = json.loads(output_path.read_text(encoding="utf-8"))
             self.assertEqual(payload["schema_version"], "ragas_agent_score_batch.v1")
@@ -173,17 +171,17 @@ class RagasAgentScoreBatchTest(unittest.TestCase):
                             {
                                 "case_id": "transport-route",
                                 "trace_id": "trace-001",
-                                "query": "校车现在能到海淀校区吗？",
-                                "answer": "我查询一下校车班次。",
+                                "query": "你记得我偏好先看结论吗？",
+                                "answer": "我查询一下你的回答偏好。",
                                 "tool_calls": [
                                     {
-                                        "name": "transport_schedule_lookup",
+                                        "name": "personal_memory_recall",
                                         "args": {},
                                     }
                                 ],
                                 "reference_tool_calls": [
                                     {
-                                        "name": "transport_schedule_lookup",
+                                        "name": "personal_memory_recall",
                                         "args": {"route": "海淀"},
                                     }
                                 ],

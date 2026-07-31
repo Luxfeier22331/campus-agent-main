@@ -180,3 +180,30 @@ func (s *Server) validateAgentToolRun(
 	}
 	return run, nil
 }
+
+func latestPrimaryAgentStep(
+	steps []execution.RunStepProjection,
+) (execution.RunStepProjection, int, bool) {
+	var latest execution.RunStepProjection
+	latestAttempt := 0
+	found := false
+	for _, step := range steps {
+		if step.StepID != "agent.primary" {
+			continue
+		}
+		attempt := step.ActivityAttempt
+		if attempt <= 0 {
+			attempt, _ = positiveIntValue(step.SanitizedPayload["activity_attempt"])
+		}
+		if attempt <= 0 {
+			continue
+		}
+		if !found || attempt > latestAttempt ||
+			(attempt == latestAttempt && step.UpdatedAt.After(latest.UpdatedAt)) {
+			latest = step
+			latestAttempt = attempt
+			found = true
+		}
+	}
+	return latest, latestAttempt, found
+}

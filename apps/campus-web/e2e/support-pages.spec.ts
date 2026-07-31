@@ -7,25 +7,6 @@ test.describe("support page browser flows", () => {
 		await mockCampusApi(page);
 	});
 
-	test("renders transport schedule and surfaces API failures", async ({ page }) => {
-		await page.goto("/services");
-
-		await expect(page.getByRole("heading", { name: "班车时刻表" }).first()).toBeVisible();
-		await expect(page.getByText("海淀校区 -> 丰台校区")).toBeVisible();
-		await expect(page.getByText("07:30")).toBeVisible();
-
-		await page.route("**/api/campus-services/transport-schedule/status", async (route) => {
-			await route.fulfill({
-				contentType: "application/json",
-				json: { error: { code: "transport_unavailable", message: "unavailable" } },
-				status: 500,
-			});
-		});
-		await page.reload();
-
-		await expect(page.getByText("班车时刻表暂时无法读取。")).toBeVisible();
-	});
-
 	test("submits feedback with route context and handles submit failure", async ({ page }) => {
 		let submittedBody: unknown = null;
 		await page.route("**/api/feedback", async (route) => {

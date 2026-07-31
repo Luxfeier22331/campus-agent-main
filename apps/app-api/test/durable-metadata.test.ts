@@ -43,7 +43,7 @@ function executionInput(overrides: Partial<ToolExecutionInput> = {}): ToolExecut
 		conversationId: "conv-001",
 		requestId: "req-001",
 		traceId: "trace-001",
-		userGoal: "校车今天运行吗？",
+		userGoal: "你记得我的回答偏好吗？",
 		...overrides,
 	};
 }
@@ -85,8 +85,8 @@ describe("durable run metadata", () => {
 						selectedNoticeRef: {
 							noticeId: "notice:transport:353903",
 							sourceFamily: "internal_notice_restricted",
-							targetSurface: "campus_services/service_status_candidate",
-							title: "关于通勤班车丰台校区乘车点调整的通知",
+							targetSurface: "authenticated_notice/current",
+							title: "关于通勤学生规定丰台校区乘车点调整的通知",
 						},
 						turnCount: 3,
 					},
@@ -101,8 +101,8 @@ describe("durable run metadata", () => {
 				selected_notice_ref: {
 					notice_id: "notice:transport:353903",
 					source_family: "internal_notice_restricted",
-					target_surface: "campus_services/service_status_candidate",
-					title: "关于通勤班车丰台校区乘车点调整的通知",
+					target_surface: "authenticated_notice/current",
+					title: "关于通勤学生规定丰台校区乘车点调整的通知",
 				},
 				turn_count: 3,
 			},

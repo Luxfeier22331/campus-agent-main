@@ -8,11 +8,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const connect = vi.fn();
 const end = vi.fn();
 const query = vi.fn();
+const migrateDiningSchema = vi.fn().mockResolvedValue(undefined);
 const clientConstructor = vi.fn(function Client(config: { connectionString: string }) {
 	return { config, connect, end, query };
 });
 
 vi.mock("pg", () => ({ default: { Client: clientConstructor } }));
+vi.mock("../ops/db/dining-migrations.ts", () => ({ migrateDiningSchema }));
 
 const localTlsEnv = {
 	DEPLOYMENT_ENVIRONMENT: "local",
@@ -63,6 +65,7 @@ describe("ops-web database verification", () => {
 		end.mockReset().mockResolvedValue(undefined);
 		query.mockReset();
 		clientConstructor.mockClear();
+		migrateDiningSchema.mockClear();
 		installSuccessfulQueries();
 	});
 
@@ -93,7 +96,7 @@ describe("ops-web database verification", () => {
 		expect(allQueries).toContain('from "dining"."menu_items"');
 		expect(allQueries).toContain('from "dining"."reviews"');
 		expect(allQueries).toContain('from "chat"."turn_dispatches"');
-		expect(allQueries).toContain('from "runtime"."agent_run_steps"');
+		expect(allQueries).not.toContain('from "runtime"."agent_run_steps"');
 		expect(allQueries).toContain('from "runtime"."agent_step_attempts"');
 		expect(allQueries).not.toContain("ops_observability_read_audit");
 		expect(allQueries).not.toContain('"owner_user_id"');
@@ -108,7 +111,6 @@ describe("ops-web database verification", () => {
 		});
 		const allQueries = query.mock.calls.map(([sql]) => String(sql)).join("\n");
 		expect(allQueries).toContain('GRANT USAGE ON SCHEMA "chat", "runtime" TO "ops_web"');
-		expect(allQueries).toContain('CREATE SCHEMA IF NOT EXISTS "dining"');
 		expect(allQueries).toContain('"dining"."map_draft"');
 		expect(allQueries).toContain('"dining"."menu_items"');
 		expect(allQueries).toContain('"dining"."review_reports"');
@@ -117,17 +119,18 @@ describe("ops-web database verification", () => {
 		expect(allQueries).not.toContain("ops_observability_read_audit");
 		expect(allQueries).not.toContain("ops_audit_maintenance");
 		expect(query).toHaveBeenCalledWith("commit");
+		expect(migrateDiningSchema).toHaveBeenCalledTimes(1);
 	});
 
 	it("applies Dining independently from the Ops read model", async () => {
 		const { applyDiningDatabase } = await import("../ops/db/ops-web-database.ts");
 		await expect(applyDiningDatabase(validEnv())).resolves.toEqual({ diningMap: "ready" });
 		const allQueries = query.mock.calls.map(([sql]) => String(sql)).join("\n");
-		expect(allQueries).toContain('CREATE SCHEMA IF NOT EXISTS "dining"');
 		expect(allQueries).toContain('TO "app_api"');
 		expect(allQueries).not.toContain('"runtime"."agent_runs"');
 		expect(allQueries).not.toContain("execution_config");
 		expect(query).toHaveBeenCalledWith("commit");
+		expect(migrateDiningSchema).toHaveBeenCalledTimes(1);
 	});
 
 	it("rejects a runtime DSN that does not connect as ops_web", async () => {

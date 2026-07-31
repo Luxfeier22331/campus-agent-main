@@ -71,7 +71,6 @@ export function buildAcceptTurnDispatchInsertValues(
 		admissionInputSha256: frozenAdmission.admissionInputSha256,
 		executionInputJson: frozenAdmission.executionInputJson,
 		executionInputSha256: frozenAdmission.executionInputSha256,
-		executionInputReleasedAt: null,
 		safetyIdentifier: input.safetyIdentifier ?? null,
 		status: input.status,
 		errorCode: null,

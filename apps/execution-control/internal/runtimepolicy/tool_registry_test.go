@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	transportPayloadSchemaRef = "https://muc.wiki/campus-agent/schemas/campus-services-tool-contracts.v1.schema.json#/$defs/TransportScheduleLookupPayload"
-	transportResultSchemaRef  = "https://muc.wiki/campus-agent/schemas/campus-services-tool-contracts.v1.schema.json#/$defs/TransportScheduleLookupResult"
+	testPayloadSchemaRef = "https://muc.wiki/campus-agent/schemas/personal-memory-tool-contracts.v1.schema.json#/$defs/PersonalMemoryRecallPayload"
+	testResultSchemaRef  = "https://muc.wiki/campus-agent/schemas/personal-memory-tool-contracts.v1.schema.json#/$defs/PersonalMemoryRecallResult"
 )
 
 func TestLoadToolSpecRegistryLoadsDefaultToolInventory(t *testing.T) {
@@ -32,10 +32,6 @@ func TestLoadToolSpecRegistryLoadsDefaultToolInventory(t *testing.T) {
 			endpoint: "/internal/memory/personal/recall",
 			exposure: "model_visible",
 		},
-		"transport_schedule_lookup": {
-			endpoint: "/internal/query/campus-services/transport-schedule",
-			exposure: "closed",
-		},
 	}
 	for name, expected := range wantTools {
 		tool, ok := registry.ToolByName(name)
@@ -49,12 +45,6 @@ func TestLoadToolSpecRegistryLoadsDefaultToolInventory(t *testing.T) {
 			tool.Handler.Target != "" || tool.Handler.Endpoint != expected.endpoint {
 			t.Fatalf("registered tool %s handler = %#v", name, tool.Handler)
 		}
-	}
-	if _, visible := registry.ModelVisibleToolByName("transport_schedule_lookup"); visible {
-		t.Fatal("transport_schedule_lookup must not be model-visible")
-	}
-	if got := registry.ToolNamesByHandlerEndpoint("/internal/query/campus-services/transport-schedule"); !sameStrings(got, []string{"transport_schedule_lookup"}) {
-		t.Fatalf("transport endpoint tools = %#v, want transport_schedule_lookup", got)
 	}
 	if _, ok := registry.ToolByName("retrieval.query"); ok {
 		t.Fatal("retrieval.query must not be registered as a tool")
@@ -82,8 +72,8 @@ func TestToolSpecRegistryValidationRejectsDuplicateTools(t *testing.T) {
 		`{
 		  "schema_version": "tool-registry-v6",
 		  "registry_version": "test",
-		  "tools": [`+validToolJSON("transport_schedule_lookup", "model_visible", true, false, "execution_control_internal_query", "/internal/query/campus-services/transport-schedule")+`,
-		            `+validToolJSON("transport_schedule_lookup", "model_visible", true, false, "execution_control_internal_query", "/internal/query/campus-services/transport-schedule")+`]
+		  "tools": [`+validToolJSON("test_lookup", "model_visible", true, false, "execution_control_internal_query", "/internal/query/fixture/test")+`,
+		            `+validToolJSON("test_lookup", "model_visible", true, false, "execution_control_internal_query", "/internal/query/fixture/test")+`]
 		}`,
 	)
 
@@ -115,7 +105,7 @@ func TestToolSpecRegistryValidationRejectsInvalidToolShape(t *testing.T) {
 			    "read_only": true,
 			    "requires_approval": false,
 			    "payload_schema_ref": "https://campus-agent.local/schemas/unregistered.v1.schema.json#/$defs/BadPayload",
-			    "result_schema_ref": "` + transportResultSchemaRef + `",
+			    "result_schema_ref": "` + testResultSchemaRef + `",
 			    "handler": {"type": "execution_control_internal_query", "endpoint": "/internal/query/test"},
 			    "timeout_ms": 1000,
 			    "result_projection_policy": "bounded_json"
@@ -195,8 +185,8 @@ func validToolJSON(
 	  "exposure": "` + exposure + `",
 	  "read_only": ` + boolJSON(readOnly) + `,
 	  "requires_approval": ` + boolJSON(requiresApproval) + `,
-	  "payload_schema_ref": "` + transportPayloadSchemaRef + `",
-	  "result_schema_ref": "` + transportResultSchemaRef + `",
+	  "payload_schema_ref": "` + testPayloadSchemaRef + `",
+	  "result_schema_ref": "` + testResultSchemaRef + `",
 	  "handler": ` + handler + `,
 	  "timeout_ms": 1000,
 	  "result_projection_policy": "bounded_json"

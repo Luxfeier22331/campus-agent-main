@@ -48,10 +48,10 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentResult(t *testing.T) {
 			"status":                "completed",
 			"tool_results": []map[string]any{{
 				"status":       "completed",
-				"tool_name":    "transport_schedule_lookup",
-				"tool":         "transport_schedule_lookup",
-				"payload_kind": "transport_schedule_lookup",
-				"result_ref":   "agent-runtime://run-primary-agent-finalization/tools/transport_schedule_lookup",
+				"tool_name":    "personal_memory_recall",
+				"tool":         "personal_memory_recall",
+				"payload_kind": "personal_memory_recall",
+				"result_ref":   "agent-runtime://run-primary-agent-finalization/tools/personal_memory_recall",
 				"result":       map[string]any{"outcome": "resolved_current"},
 			}},
 			"terminal_reason": "answer_completed",
@@ -169,7 +169,7 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentClarification(t *testing.
 		"run-primary-agent-clarification",
 		"conv-primary-agent-clarification",
 		now,
-		agentRequestForDurableWorkerTest("校车怎么走"),
+		agentRequestForDurableWorkerTest("这个申请怎么办"),
 	)
 	server := NewServer(config.Config{TemporalWorkerIdentity: "test:finalization:001"})
 	attachRunProjectionStoreForHandlerTest(server, store)
@@ -182,8 +182,8 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentClarification(t *testing.
 		now,
 		map[string]any{
 			"agent_result_ref":     agentResultRef,
-			"final_output":         "请问你要查询哪条校车线路或哪个校区？",
-			"terminal_envelope":    map[string]any{"kind": "clarification_required", "follow_up_question": "请问你要查询哪条校车线路或哪个校区？"},
+			"final_output":         "请问你要办理哪一类申请？",
+			"terminal_envelope":    map[string]any{"kind": "clarification_required", "follow_up_question": "请问你要办理哪一类申请？"},
 			"provider_response_id": "resp-primary-agent-clarification",
 			"model_name":           "gpt-4.1",
 			"model_provider":       "openai",
@@ -221,7 +221,7 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentClarification(t *testing.
 	if finalizationResponse["status"] != "needs_clarification" {
 		t.Fatalf("status = %#v", finalizationResponse["status"])
 	}
-	if finalizationResponse["follow_up_question"] != "请问你要查询哪条校车线路或哪个校区？" {
+	if finalizationResponse["follow_up_question"] != "请问你要办理哪一类申请？" {
 		t.Fatalf("follow_up_question = %#v", finalizationResponse["follow_up_question"])
 	}
 	traceSummary, ok := finalizationResponse["workflow_trace_summary"].(map[string]any)
@@ -241,7 +241,7 @@ func TestWriteFinalizationActivityFailsClosedOnFailedAgentToolResult(t *testing.
 		runID,
 		"conv-primary-agent-failed-tool-finalization",
 		now,
-		agentRequestForDurableWorkerTest("今晚还有校车吗"),
+		agentRequestForDurableWorkerTest("你还记得我的回答偏好吗"),
 	)
 	server := NewServer(config.Config{TemporalWorkerIdentity: "test:finalization:failed-tool"})
 	attachRunProjectionStoreForHandlerTest(server, store)
@@ -255,7 +255,7 @@ func TestWriteFinalizationActivityFailsClosedOnFailedAgentToolResult(t *testing.
 		"tool_results": []map[string]any{{
 			"fail_close_reason": "tool_handler_failed",
 			"status":            "failed",
-			"tool_name":         "transport_schedule_lookup",
+			"tool_name":         "personal_memory_recall",
 		}},
 	})
 
@@ -299,16 +299,16 @@ func TestWriteFinalizationActivityRetryKeepsProductCallbackStable(t *testing.T) 
 		runID,
 		"conv-primary-agent-finalization-retry",
 		now,
-		agentRequestForDurableWorkerTest("今晚还有校车吗"),
+		agentRequestForDurableWorkerTest("你还记得我的回答偏好吗"),
 	)
 	server := NewServer(config.Config{TemporalWorkerIdentity: "test:finalization:retry"})
 	attachRunProjectionStoreForHandlerTest(server, store)
 	agentResultRef := temporalProjectionRef(runID, "agent/primary/result")
 	input := preparePrimaryAgentFinalizationRunForTest(t, server, store, runID, now, map[string]any{
 		"agent_result_ref":  agentResultRef,
-		"final_output":      "今晚 22:00 还有一班校车。",
+		"final_output":      "你偏好先看结论。",
 		"status":            "completed",
-		"terminal_envelope": map[string]any{"kind": "answer", "answer_text": "今晚 22:00 还有一班校车。"},
+		"terminal_envelope": map[string]any{"kind": "answer", "answer_text": "你偏好先看结论。"},
 		"terminal_reason":   "answer_completed",
 		"tool_results":      []map[string]any{},
 	})
@@ -365,16 +365,16 @@ func TestWriteFinalizationActivityRepairsCompletedRunEventWithVerifiedStep(t *te
 		runID,
 		"conv-primary-agent-finalization-repair",
 		now,
-		agentRequestForDurableWorkerTest("今晚还有校车吗"),
+		agentRequestForDurableWorkerTest("你还记得我的回答偏好吗"),
 	)
 	server := NewServer(config.Config{TemporalWorkerIdentity: "test:finalization:repair"})
 	attachRunProjectionStoreForHandlerTest(server, store)
 	agentResultRef := temporalProjectionRef(runID, "agent/primary/result")
 	input := preparePrimaryAgentFinalizationRunForTest(t, server, store, runID, now, map[string]any{
 		"agent_result_ref":  agentResultRef,
-		"final_output":      "今晚 22:00 还有一班校车。",
+		"final_output":      "你偏好先看结论。",
 		"status":            "completed",
-		"terminal_envelope": map[string]any{"kind": "answer", "answer_text": "今晚 22:00 还有一班校车。"},
+		"terminal_envelope": map[string]any{"kind": "answer", "answer_text": "你偏好先看结论。"},
 		"terminal_reason":   "answer_completed",
 		"tool_results":      []map[string]any{},
 	})
@@ -461,7 +461,7 @@ func TestWriteFinalizationActivityKeepsRunActiveWhenStepProjectionFails(t *testi
 		runID,
 		"conv-primary-agent-finalization-step-failure",
 		now,
-		agentRequestForDurableWorkerTest("今晚还有校车吗"),
+		agentRequestForDurableWorkerTest("你还记得我的回答偏好吗"),
 	)
 	server := NewServer(config.Config{TemporalWorkerIdentity: "test:finalization:step-failure"})
 	store := &finalizationResultFailingStore{RunProjectionStore: baseStore}
@@ -469,9 +469,9 @@ func TestWriteFinalizationActivityKeepsRunActiveWhenStepProjectionFails(t *testi
 	agentResultRef := temporalProjectionRef(runID, "agent/primary/result")
 	input := preparePrimaryAgentFinalizationRunForTest(t, server, baseStore, runID, now, map[string]any{
 		"agent_result_ref":  agentResultRef,
-		"final_output":      "今晚 22:00 还有一班校车。",
+		"final_output":      "你偏好先看结论。",
 		"status":            "completed",
-		"terminal_envelope": map[string]any{"kind": "answer", "answer_text": "今晚 22:00 还有一班校车。"},
+		"terminal_envelope": map[string]any{"kind": "answer", "answer_text": "你偏好先看结论。"},
 		"terminal_reason":   "answer_completed",
 		"tool_results":      []map[string]any{},
 	})
@@ -507,7 +507,7 @@ func TestWriteFinalizationActivityRepairsTransientInternalProjectionFailure(t *t
 		runID,
 		"conv-primary-agent-finalization-internal-repair",
 		now,
-		agentRequestForDurableWorkerTest("今晚还有校车吗"),
+		agentRequestForDurableWorkerTest("你还记得我的回答偏好吗"),
 	)
 	server := NewServer(config.Config{TemporalWorkerIdentity: "test:finalization:internal-repair"})
 	store := &finalizationResultFailOnceStore{
@@ -517,9 +517,9 @@ func TestWriteFinalizationActivityRepairsTransientInternalProjectionFailure(t *t
 	agentResultRef := temporalProjectionRef(runID, "agent/primary/result")
 	input := preparePrimaryAgentFinalizationRunForTest(t, server, baseStore, runID, now, map[string]any{
 		"agent_result_ref":  agentResultRef,
-		"final_output":      "今晚 22:00 还有一班校车。",
+		"final_output":      "你偏好先看结论。",
 		"status":            "completed",
-		"terminal_envelope": map[string]any{"kind": "answer", "answer_text": "今晚 22:00 还有一班校车。"},
+		"terminal_envelope": map[string]any{"kind": "answer", "answer_text": "你偏好先看结论。"},
 		"terminal_reason":   "answer_completed",
 		"tool_results":      []map[string]any{},
 	})

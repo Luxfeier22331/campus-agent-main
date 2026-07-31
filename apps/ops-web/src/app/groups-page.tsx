@@ -115,19 +115,17 @@ function getCatalogKeyboardCoordinates(
 		const sections = originalContainers
 			.getEnabled()
 			.filter((container) => container.data.current?.type === "section")
-			.sort(
-				(left, right) =>
-					Number(left.data.current?.sortable?.index ?? 0) -
-					Number(right.data.current?.sortable?.index ?? 0),
-			);
+			.sort((left, right) => (left.rect.current?.top ?? 0) - (right.rect.current?.top ?? 0));
 		const activeIndex = sections.findIndex((container) => container.id === args.active);
 		const target = sections[activeIndex + (event.code === KeyboardCode.Down ? 1 : -1)];
-		const targetRect = target ? args.context.droppableRects.get(target.id) : null;
+		setPreferredTarget(target?.id ?? null);
+		const targetRect = target
+			? (args.context.droppableRects.get(target.id) ?? target.rect.current)
+			: null;
 		const collisionRect = args.context.collisionRect;
 		if (!(targetRect && collisionRect)) {
 			return;
 		}
-		setPreferredTarget(target.id);
 		return {
 			x:
 				args.currentCoordinates.x +
@@ -156,18 +154,19 @@ function getCatalogKeyboardCoordinates(
 					container.data.current?.type === "group" &&
 					container.data.current?.sortable?.containerId === activeSortable?.containerId,
 			)
-			.sort(
-				(left, right) =>
-					Number(left.data.current?.sortable?.index ?? 0) -
-					Number(right.data.current?.sortable?.index ?? 0),
-			);
+			.sort((left, right) => (left.rect.current?.top ?? 0) - (right.rect.current?.top ?? 0));
 		const activeIndex = groups.findIndex((container) => container.id === args.active);
 		const target = groups[activeIndex + (event.code === KeyboardCode.Down ? 1 : -1)];
-		const targetRect = target ? args.context.droppableRects.get(target.id) : null;
+		const targetRect = target
+			? (args.context.droppableRects.get(target.id) ?? target.rect.current)
+			: null;
 		const collisionRect = args.context.collisionRect;
-		if (targetRect && collisionRect) {
+		if (target) {
 			event.preventDefault();
 			setPreferredTarget(target.id);
+			if (!(targetRect && collisionRect)) {
+				return;
+			}
 			return {
 				x:
 					args.currentCoordinates.x +
@@ -332,9 +331,6 @@ export function GroupsPage() {
 							if (next) {
 								persist(next, "reorder");
 							}
-						}}
-						onDragStart={() => {
-							preferredDragTarget.current = null;
 						}}
 						sensors={sensors}
 					>

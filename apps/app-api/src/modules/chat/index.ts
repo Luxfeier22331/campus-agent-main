@@ -1,7 +1,5 @@
 export type {
 	AssistantMessageKind,
-	ChatCampusServiceTraceCard,
-	ChatCampusServiceTraceCardsStructuredPart,
 	ChatConversation,
 	ChatConversationResponse,
 	ChatConversationSummary,

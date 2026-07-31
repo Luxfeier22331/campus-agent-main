@@ -27,8 +27,7 @@ func ValidExecutionRunID(value string) bool {
 type ToolID string
 
 const (
-	ToolIDTransportScheduleLookup ToolID = "transport_schedule_lookup"
-	ToolIDPersonalMemoryRecall    ToolID = "personal_memory_recall"
+	ToolIDPersonalMemoryRecall ToolID = "personal_memory_recall"
 )
 
 type ModelVisibleToolName string
@@ -83,7 +82,6 @@ const (
 	StageTimingFieldAgentRuntimeMs                StageTimingField = "agent.runtime_ms"
 	StageTimingFieldAgentFirstDeltaMs             StageTimingField = "agent.first_delta_ms"
 	StageTimingFieldToolTotalMs                   StageTimingField = "tool.total_ms"
-	StageTimingFieldToolTransportScheduleLookupMs StageTimingField = "tool.transport_schedule_lookup_ms"
 	StageTimingFieldFinalizationWriteMs           StageTimingField = "finalization.write_ms"
 	StageTimingFieldProjectionCloseoutMs          StageTimingField = "projection.closeout_ms"
 )
@@ -395,7 +393,7 @@ func (wire StageTimingWire) Validate() error {
 
 func (value ToolID) Valid() bool {
 	switch value {
-	case ToolIDTransportScheduleLookup, ToolIDPersonalMemoryRecall:
+	case ToolIDPersonalMemoryRecall:
 		return true
 	default:
 		return false
@@ -444,7 +442,6 @@ func (value StageTimingField) Valid() bool {
 		StageTimingFieldAgentRuntimeMs,
 		StageTimingFieldAgentFirstDeltaMs,
 		StageTimingFieldToolTotalMs,
-		StageTimingFieldToolTransportScheduleLookupMs,
 		StageTimingFieldFinalizationWriteMs,
 		StageTimingFieldProjectionCloseoutMs:
 		return true

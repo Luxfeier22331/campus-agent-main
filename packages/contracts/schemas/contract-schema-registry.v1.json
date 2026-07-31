@@ -36,51 +36,6 @@
 			"notes": "App API 与 Ops Web 之间的账号管理合同。"
 		},
 		{
-			"id": "campus-services-tool-result.v1",
-			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/campus-services-tool-result.v1.schema.json",
-			"owner": "packages/contracts",
-			"status": "active",
-			"fixture_groups": [
-				{
-					"path": "packages/contracts/fixtures/campus_services_tool_result",
-					"valid_glob": "*.valid.json",
-					"invalid_glob": "*.invalid.json"
-				}
-			],
-			"notes": "Canonical cross-language envelope consumed by finalization for campus_services typed tool results."
-		},
-		{
-			"id": "campus-services-tool-contracts.v1",
-			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/campus-services-tool-contracts.v1.schema.json",
-			"owner": "packages/contracts",
-			"status": "active",
-			"fixture_groups": [
-				{
-					"path": "packages/contracts/fixtures/campus_services_tool_contracts",
-					"valid_glob": "*.valid.json",
-					"invalid_glob": "*.invalid.json"
-				}
-			],
-			"notes": "Canonical JSON Schema for currently opened campus_services typed tool payload/result packets. Current active scope is transport_schedule_lookup only."
-		},
-		{
-			"id": "transport-schedule-status.v1",
-			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/transport-schedule-status.v1.schema.json",
-			"owner": "packages/contracts",
-			"status": "active",
-			"fixture_groups": [
-				{
-					"path": "packages/contracts/fixtures/transport_status",
-					"valid_glob": "*.valid.json",
-					"invalid_glob": "*.invalid.json"
-				}
-			],
-			"notes": "Browser-facing current effective transport status projection consumed by campus-web through app-api facade."
-		},
-		{
 			"id": "campus-docs-release-ref.v1",
 			"kind": "json_artifact",
 			"path": "packages/contracts/schemas/campus-docs-release-ref.v1.schema.json",
@@ -137,15 +92,6 @@
 			"status": "active",
 			"validates": ["configs/runtime/tool-function-schemas.v3.json"],
 			"notes": "Strict model-facing function parameter schema artifact."
-		},
-		{
-			"id": "runtime-workflow-artifacts.v3",
-			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/runtime-workflow-artifacts.v3.schema.json",
-			"owner": "packages/contracts",
-			"status": "active",
-			"validates": ["configs/runtime/workflow-artifacts.v3.json"],
-			"notes": "Workflow artifact registry consumed by execution-control runtime policy."
 		},
 		{
 			"id": "query-serving-targets.v3",

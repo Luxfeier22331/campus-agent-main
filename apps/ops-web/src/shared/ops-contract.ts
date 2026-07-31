@@ -124,8 +124,6 @@ const OpsRequestLifecyclePhaseSchema = z.enum([
 	"FINALIZING",
 	"FINISHED",
 ]);
-const OpsProductActionStatusSchema = z.enum(["COMPLETED", "FAILED", "RUNNING", "PENDING"]);
-
 const AgentUsageStateSchema = z.enum([
 	"NOT_STARTED",
 	"IN_PROGRESS",
@@ -133,13 +131,6 @@ const AgentUsageStateSchema = z.enum([
 	"PARTIAL",
 	"UNAVAILABLE",
 ]);
-
-const OpsProductCapabilitySchema = z.enum(["CAMPUS_KNOWLEDGE", "TRANSPORT_SCHEDULE", "OTHER"]);
-
-const OpsProductActionSchema = z.object({
-	capability: OpsProductCapabilitySchema,
-	status: OpsProductActionStatusSchema,
-});
 
 const OpsJourneyEntrySchema = z.enum(["CAMPUS_WEB", "OTHER"]);
 const OpsAssistantMessageKindSchema = z.enum(["answer", "clarification", "no_answer", "error"]);
@@ -150,8 +141,6 @@ const OpsJourneyResultSchema = z.discriminatedUnion("state", [
 ]);
 
 const OpsRequestJourneySchema = z.object({
-	actions: z.array(OpsProductActionSchema),
-	actionsDataState: OpsDataStateSchema,
 	entry: OpsJourneyEntrySchema,
 	result: OpsJourneyResultSchema,
 });
@@ -241,8 +230,6 @@ const OpsProductResultSchema = z.discriminatedUnion("state", [
 export const OpsRequestDetailResponseSchema = z.object({
 	generatedAt: IsoDateTimeSchema,
 	journey: z.object({
-		actions: z.array(OpsProductActionSchema),
-		actionsDataState: OpsDataStateSchema,
 		entry: OpsJourneyEntrySchema,
 	}),
 	question: z.object({

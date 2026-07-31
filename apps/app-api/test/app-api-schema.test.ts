@@ -1,23 +1,15 @@
 // @vitest-environment node
 
-import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildAppApiGrantSql } from "../ops/db/app-api-grants.ts";
-import { buildCampusServicesGrantSql } from "../ops/db/campus-services-grants.ts";
 
 const appRoot = resolve(import.meta.dirname, "..");
 const repoRoot = resolve(appRoot, "../..");
 
 function readAppFile(relativePath: string): string {
 	return readFileSync(resolve(appRoot, relativePath), "utf8");
-}
-
-function appFileSha256(relativePath: string): string {
-	return createHash("sha256")
-		.update(readFileSync(resolve(appRoot, relativePath)))
-		.digest("hex");
 }
 
 describe("app-api schema installer", () => {
@@ -64,15 +56,12 @@ describe("app-api schema installer", () => {
 		expect(source).toContain("await migrate(");
 		expect(source).toContain('migrationsSchema: "drizzle"');
 		expect(source).toContain('migrationsTable: "app_api_migrations"');
-		expect(source).toContain("prepareSharedProductSchemas");
-		expect(source.indexOf("prepareSharedProductSchemas(envOverrides)")).toBeLessThan(
-			source.indexOf("await migrate("),
-		);
+		expect(source).not.toContain("prepareSharedProductSchemas");
 		expect(source).toContain("applyAppApiGrants");
 		expect(source).not.toContain("applyOpsWebGrantStatements");
 		expect(source).toContain("console.error(error)");
 		expect(source).not.toContain("error instanceof Error ? error.message");
-		expect(journal.entries.map(({ idx, tag, version }) => ({ idx, tag, version }))).toEqual([
+		const expectedEntries = [
 			{ idx: 0, tag: "0000_initial", version: "7" },
 			{ idx: 1, tag: "0001_docs_release_scope", version: "7" },
 			{ idx: 2, tag: "0002_provider_config_handoff", version: "7" },
@@ -81,7 +70,30 @@ describe("app-api schema installer", () => {
 			{ idx: 5, tag: "0005_campus_groups_seed", version: "7" },
 			{ idx: 6, tag: "0006_auth_ownership_and_account_lifecycle", version: "7" },
 			{ idx: 7, tag: "0007_execution_runtime_ownership", version: "7" },
-		]);
+			{ idx: 8, tag: "0008_retain_execution_input", version: "7" },
+		];
+		expect(journal.entries.map(({ idx, tag, version }) => ({ idx, tag, version }))).toEqual(
+			expectedEntries,
+		);
+		const migrationFiles = readdirSync(resolve(appRoot, "drizzle"))
+			.filter((file) => /^\d{4}_.+\.sql$/u.test(file))
+			.sort();
+		const snapshotFiles = readdirSync(resolve(appRoot, "drizzle/meta"))
+			.filter((file) => /^\d{4}_snapshot\.json$/u.test(file))
+			.sort();
+		expect(migrationFiles).toEqual(expectedEntries.map(({ tag }) => `${tag}.sql`));
+		expect(snapshotFiles).toEqual(
+			expectedEntries.map(({ idx }) => `${String(idx).padStart(4, "0")}_snapshot.json`),
+		);
+		let previousSnapshotId = "00000000-0000-0000-0000-000000000000";
+		for (const snapshotFile of snapshotFiles) {
+			const snapshot = JSON.parse(readAppFile(`drizzle/meta/${snapshotFile}`)) as {
+				id: string;
+				prevId: string;
+			};
+			expect(snapshot.prevId, snapshotFile).toBe(previousSnapshotId);
+			previousSnapshotId = snapshot.id;
+		}
 		expect(readAppFile("drizzle/0006_auth_ownership_and_account_lifecycle.sql")).toContain(
 			'CREATE TABLE IF NOT EXISTS "app_auth"."user"',
 		);
@@ -94,22 +106,20 @@ describe("app-api schema installer", () => {
 		expect(readAppFile("drizzle/0007_execution_runtime_ownership.sql")).toContain(
 			'ALTER TABLE "runtime"."request_observability_fact" DROP COLUMN IF EXISTS "requested_tool"',
 		);
-		expect(appFileSha256("drizzle/0000_initial.sql")).toBe(
-			"3c2464d91d240212435818779898cf68fe72e59077b8833b4bfed023686cd0df",
+		const retainExecutionInputMigration = readAppFile("drizzle/0008_retain_execution_input.sql");
+		expect(retainExecutionInputMigration).toContain(
+			'DROP COLUMN IF EXISTS "execution_input_released_at"',
 		);
-		expect(appFileSha256("drizzle/meta/0000_snapshot.json")).toBe(
-			"fd859daff27fa64bd7ec2c78438bb0e3b2343a71d6bae8578473f4a00a4621f5",
+		expect(retainExecutionInputMigration).not.toContain('dispatch."execution_input_released_at"');
+		expect(retainExecutionInputMigration).toContain(
+			'ALTER TABLE "chat"."conversations" DROP COLUMN "context_summary"',
 		);
-		expect(journal.entries[0]).toEqual({
-			breakpoints: true,
-			idx: 0,
-			tag: "0000_initial",
-			version: "7",
-			when: 1784181304800,
-		});
-		expect(readAppFile("drizzle/0000_initial.sql")).toContain(
-			'CREATE TABLE "runtime"."request_observability_fact"',
+		const initialMigration = readAppFile("drizzle/0000_initial.sql");
+		expect(initialMigration).not.toContain('CREATE SCHEMA IF NOT EXISTS "chat"');
+		expect(readAppFile("drizzle/baseline/chat_pre_0001.sql")).toContain(
+			'CREATE TABLE IF NOT EXISTS "chat"."turn_dispatches"',
 		);
+		expect(initialMigration).toContain('CREATE TABLE "runtime"."request_observability_fact"');
 		const productionization = readAppFile("drizzle/0003_hindsight_productionization.sql");
 		expect(productionization).toContain(
 			'ALTER TABLE "chat"."turn_dispatches" ADD COLUMN IF NOT EXISTS "admission_status"',
@@ -133,35 +143,16 @@ describe("app-api schema installer", () => {
 		}
 	});
 
-	it("grants each campus-services reader only its consumed tables", () => {
-		const sql = buildCampusServicesGrantSql();
+	it("uses Drizzle as the only app-api schema migration source", () => {
+		const config = readAppFile("drizzle.config.ts");
+		const managedSchema = readAppFile("src/db/schema/managed.ts");
 
-		expect(sql).toContain('REVOKE ALL ON SCHEMA "campus_services" FROM PUBLIC');
-		expect(sql).toContain(
-			'REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA "campus_services" FROM "app_api", "execution_control"',
-		);
-		expect(sql).toContain(
-			'"campus_services"."transport_releases",\n  "campus_services"."transport_current"\nTO "app_api"',
-		);
-		expect(sql).toContain('"campus_services"."transport_routes"');
-		expect(sql).toContain('"campus_services"."transport_departures"');
-		expect(sql).toContain('TO "execution_control"');
-		expect(sql).not.toContain("GRANT INSERT");
-		expect(sql).not.toContain("GRANT UPDATE");
-		expect(sql).not.toContain("GRANT DELETE");
-		expect(sql).toContain("$retire_campus_services_ops_web$");
-		expect(sql).not.toContain("campus_services_publisher");
-		expect(sql).toContain("rolname = 'ops_web'");
-	});
-
-	it("installs every current shared-product schema through app-api-schema", () => {
-		const bootstrap = readAppFile(
-			"src/script-support/shared-db/shared-product-database-bootstrap.ts",
-		);
-
-		expect(bootstrap).toContain('"chat_current.sql"');
-		expect(bootstrap).not.toContain("readdir(sharedProductSchemaRoot");
-		expect(bootstrap).toContain('"campus_services.sql"');
+		expect(config).toContain('schema: "./src/db/schema/managed.ts"');
+		expect(managedSchema).toContain('export * from "./chat"');
+		expect(existsSync(resolve(appRoot, "db/shared-product-schema/chat_current.sql"))).toBe(false);
+		expect(existsSync(resolve(appRoot, "drizzle/baseline/chat_pre_0001.sql"))).toBe(true);
+		expect(existsSync(resolve(appRoot, "test/fixtures/chat-pre-0001.sql"))).toBe(false);
+		expect(existsSync(resolve(appRoot, "src/db/schema/owned.ts"))).toBe(false);
 	});
 
 	it("packages only the app-api schema entrypoint into the migration image", () => {

@@ -1,9 +1,17 @@
 // @vitest-environment node
 
+import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
+
+import { readMigrationFiles } from "drizzle-orm/migrator";
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 
-import { applyOpsWebDatabaseGrants, verifyOpsWebDatabase } from "../ops/db/ops-web-database.ts";
+import {
+	applyDiningDatabase,
+	applyOpsWebDatabaseGrants,
+	verifyOpsWebDatabase,
+} from "../ops/db/ops-web-database.ts";
 
 const postgres = inject("opsWebPostgres");
 const databaseEnv = {
@@ -13,6 +21,7 @@ const databaseEnv = {
 	OPS_WEB_SCHEMA_DATABASE_SSLMODE: "disable",
 	OPS_WEB_SCHEMA_DATABASE_URL: postgres.managementConnectionString,
 } as const;
+const diningMigrationsFolder = fileURLToPath(new URL("../drizzle", import.meta.url));
 
 async function connect(connectionString: string) {
 	const client = new Client({ connectionString, ssl: false });
@@ -38,6 +47,33 @@ function requiredClient(client: Client | undefined, name: string): Client {
 	return client;
 }
 
+function databaseUrl(connectionString: string, databaseName: string): string {
+	const url = new URL(connectionString);
+	url.pathname = `/${databaseName}`;
+	return url.toString();
+}
+
+async function withIsolatedDatabase(
+	management: Client,
+	run: (context: { env: NodeJS.ProcessEnv; managementUrl: string }) => Promise<void>,
+): Promise<void> {
+	const databaseName = `ops_web_migration_${randomUUID().replaceAll("-", "")}`;
+	await management.query(`create database "${databaseName}"`);
+	const managementUrl = databaseUrl(postgres.managementConnectionString, databaseName);
+	try {
+		await run({
+			env: {
+				...databaseEnv,
+				OPS_WEB_DATABASE_URL: databaseUrl(postgres.opsWebConnectionString, databaseName),
+				OPS_WEB_SCHEMA_DATABASE_URL: managementUrl,
+			},
+			managementUrl,
+		});
+	} finally {
+		await management.query(`drop database "${databaseName}" with (force)`);
+	}
+}
+
 describe("ops-web PostgreSQL grants", () => {
 	let applyResult: Awaited<ReturnType<typeof applyOpsWebDatabaseGrants>>;
 	let management: Client;
@@ -49,6 +85,7 @@ describe("ops-web PostgreSQL grants", () => {
 		await management.query(`
 			grant usage on schema execution_config to ops_web;
 			grant select on execution_config.model_settings to ops_web;
+			grant select (run_id) on runtime.agent_run_steps to ops_web;
 		`);
 		applyResult = await applyOpsWebDatabaseGrants(databaseEnv);
 		verifyResult = await verifyOpsWebDatabase(databaseEnv);
@@ -162,6 +199,77 @@ describe("ops-web PostgreSQL grants", () => {
 		expect(counts.rows[0]).toEqual({ edits: 1, menu: 1, reports: 1, reviews: 1 });
 	});
 
+	it("adopts the exact pre-Drizzle Dining schema", async () => {
+		await withIsolatedDatabase(management, async ({ env, managementUrl }) => {
+			const legacy = await connect(managementUrl);
+			try {
+				const [initialMigration] = readMigrationFiles({
+					migrationsFolder: diningMigrationsFolder,
+				});
+				if (!initialMigration) {
+					throw new Error("Dining initial migration is missing");
+				}
+				for (const statement of initialMigration.sql) {
+					await legacy.query(statement);
+				}
+			} finally {
+				await legacy.end();
+			}
+
+			await expect(applyDiningDatabase(env)).resolves.toEqual({ diningMap: "ready" });
+			const adopted = await connect(managementUrl);
+			try {
+				const ledger = await adopted.query<{ count: number }>(`
+					select count(*)::int as count from drizzle.ops_web_dining_migrations
+				`);
+				expect(ledger.rows[0]?.count).toBe(1);
+			} finally {
+				await adopted.end();
+			}
+		});
+	});
+
+	it("rejects unknown partial Dining schemas without a migration ledger", async () => {
+		await withIsolatedDatabase(management, async ({ env, managementUrl }) => {
+			const partial = await connect(managementUrl);
+			try {
+				await partial.query(`
+					create schema dining;
+					create table dining.map_draft (scope text primary key)
+				`);
+			} finally {
+				await partial.end();
+			}
+			await expect(applyDiningDatabase(env)).rejects.toThrow(
+				"refusing an unknown partial bootstrap",
+			);
+		});
+	});
+
+	it("rejects modified applied Dining migrations", async () => {
+		const migration = await management.query<{ hash: string; id: number }>(`
+			select id, hash from drizzle.ops_web_dining_migrations order by created_at limit 1
+		`);
+		const applied = migration.rows[0];
+		if (!applied) {
+			throw new Error("Applied Dining migration is missing");
+		}
+		await management.query("update drizzle.ops_web_dining_migrations set hash = $1 where id = $2", [
+			"tampered",
+			applied.id,
+		]);
+		try {
+			await expect(applyDiningDatabase(databaseEnv)).rejects.toThrow(
+				"migration was modified after apply",
+			);
+		} finally {
+			await management.query(
+				"update drizzle.ops_web_dining_migrations set hash = $1 where id = $2",
+				[applied.hash, applied.id],
+			);
+		}
+	});
+
 	it("allows only the declared read-model columns", async () => {
 		const runtime = requiredClient(opsWeb, "ops_web");
 		await expect(
@@ -184,12 +292,6 @@ describe("ops-web PostgreSQL grants", () => {
 		).resolves.toBeDefined();
 		await expect(
 			runtime.query(
-				`select run_id, started_at, status, step_kind, tool, updated_at
-				 from runtime.agent_run_steps limit 0`,
-			),
-		).resolves.toBeDefined();
-		await expect(
-			runtime.query(
 				`select cached_input_tokens, input_tokens, output_tokens, run_id, step_id,
 					usage_observed
 				 from runtime.agent_step_attempts limit 0`,
@@ -201,7 +303,7 @@ describe("ops-web PostgreSQL grants", () => {
 			"select owner_user_id from chat.turn_dispatches limit 0",
 			"select * from chat.messages limit 0",
 			"select * from runtime.agent_runs limit 0",
-			"select * from runtime.agent_run_steps limit 0",
+			"select run_id from runtime.agent_run_steps limit 0",
 			"select * from runtime.agent_step_attempts limit 0",
 		]) {
 			expect(await postgresErrorCode(runtime.query(query))).toBe("42501");

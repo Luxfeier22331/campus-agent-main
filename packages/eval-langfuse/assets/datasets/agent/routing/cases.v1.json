@@ -37,28 +37,6 @@
 			"reference_tool_calls": []
 		},
 		{
-			"case_id": "routing-transport-departure",
-			"case_family": "transport",
-			"split": "smoke",
-			"query": "今天下一班校车几点发？",
-			"argument_mode": "name_only",
-			"expected_grounding_mode": "none",
-			"expected_outcome": "no_answer",
-			"reference": "班车工具当前关闭，不能使用模型记忆推测时刻表。",
-			"reference_tool_calls": []
-		},
-		{
-			"case_id": "routing-transport-window",
-			"case_family": "transport",
-			"split": "regression",
-			"query": "周末校车的运营时段是什么？",
-			"argument_mode": "name_only",
-			"expected_grounding_mode": "none",
-			"expected_outcome": "no_answer",
-			"reference": "班车工具当前关闭，不能用知识检索或模型记忆替代官方时刻表。",
-			"reference_tool_calls": []
-		},
-		{
 			"case_id": "routing-knowledge-student-rules",
 			"case_family": "grounded_answer",
 			"split": "smoke",
@@ -101,17 +79,6 @@
 			"expected_grounding_mode": "single_scope",
 			"expected_outcome": "answer",
 			"reference": "应结合会话指代和本轮预取的当前学生规则证据回答。",
-			"reference_tool_calls": []
-		},
-		{
-			"case_id": "routing-mixed-intent",
-			"case_family": "mixed_intent",
-			"split": "regression",
-			"query": "查一下下一班校车，再告诉我缓考条件。",
-			"argument_mode": "name_only",
-			"expected_grounding_mode": "single_scope",
-			"expected_outcome": "answer",
-			"reference": "应依据本轮学生规则证据回答缓考条件，并明确班车能力当前不可用。",
 			"reference_tool_calls": []
 		},
 		{

@@ -353,14 +353,6 @@ describe("campus routes", () => {
 		expect(rootLayoutSource).toContain('aria-label="正在加载页面"');
 	});
 
-	it("registers the campus services status page as a React route", () => {
-		const routerSource = readFileSync("src/app/router.tsx", "utf8");
-
-		expect(routerSource).toContain("ServicesPage");
-		expect(routerSource).toContain('path: "/services"');
-		expect(routerSource).toContain("./routes/services-page");
-	});
-
 	it("keeps product pages on mature UI primitives instead of bespoke controls", () => {
 		expect(feedbackPageSource).toContain("react-hook-form");
 		expect(feedbackPageSource).toContain("zod");

@@ -14,7 +14,6 @@ with expected_tables(table_name) as (
 		('conversation_run_locks'),
 		('agent_workflow_starts'),
 		('agent_run_cancellations'),
-		('agent_run_cleanups'),
 		('agent_invocation_receipts')
 ),
 actual_tables as (
@@ -57,17 +56,6 @@ expected_columns(table_name, column_name, data_type, not_null, default_expressio
 		('agent_run_cancellations', 'last_error_code', 'text', true, $$''::text$$),
 		('agent_run_cancellations', 'created_at', 'timestamp with time zone', true, ''),
 		('agent_run_cancellations', 'updated_at', 'timestamp with time zone', true, ''),
-
-		('agent_run_cleanups', 'run_id', 'text', true, ''),
-		('agent_run_cleanups', 'state', 'text', true, ''),
-		('agent_run_cleanups', 'attempt_count', 'integer', true, '0'),
-		('agent_run_cleanups', 'next_attempt_at', 'timestamp with time zone', true, ''),
-		('agent_run_cleanups', 'lease_token', 'text', true, $$''::text$$),
-		('agent_run_cleanups', 'lease_until', 'timestamp with time zone', false, ''),
-		('agent_run_cleanups', 'last_error_code', 'text', true, $$''::text$$),
-		('agent_run_cleanups', 'created_at', 'timestamp with time zone', true, ''),
-		('agent_run_cleanups', 'confirmed_at', 'timestamp with time zone', false, ''),
-		('agent_run_cleanups', 'updated_at', 'timestamp with time zone', true, ''),
 
 		('agent_invocation_receipts', 'invocation_id', 'text', true, ''),
 		('agent_invocation_receipts', 'run_id', 'text', true, ''),
@@ -124,8 +112,6 @@ expected_constraints(
 		('agent_workflow_starts', 'f', array['run_id']::text[], 'runtime', 'agent_runs', array['run_id']::text[], 'c'),
 		('agent_run_cancellations', 'p', array['run_id']::text[], '', '', array[]::text[], ''),
 		('agent_run_cancellations', 'f', array['run_id']::text[], 'runtime', 'agent_runs', array['run_id']::text[], 'c'),
-		('agent_run_cleanups', 'p', array['run_id']::text[], '', '', array[]::text[], ''),
-		('agent_run_cleanups', 'f', array['run_id']::text[], 'runtime', 'agent_runs', array['run_id']::text[], 'c'),
 		('agent_invocation_receipts', 'p', array['invocation_id']::text[], '', '', array[]::text[], ''),
 		('agent_invocation_receipts', 'f', array['run_id']::text[], 'runtime', 'agent_runs', array['run_id']::text[], 'c')
 ),
@@ -175,7 +161,6 @@ expected_indexes(table_name, index_name, unique_index, columns, method, predicat
 		),
 		('agent_workflow_starts', 'agent_workflow_starts_lease_idx', false, array['state', 'next_attempt_at', 'lease_until']::text[], 'btree', ''),
 		('agent_run_cancellations', 'agent_run_cancellations_lease_idx', false, array['state', 'next_attempt_at', 'lease_until']::text[], 'btree', ''),
-		('agent_run_cleanups', 'agent_run_cleanups_lease_idx', false, array['state', 'next_attempt_at', 'lease_until']::text[], 'btree', ''),
 		('agent_invocation_receipts', 'agent_invocation_receipts_run_idx', false, array['run_id', 'created_at']::text[], 'btree', '')
 ),
 actual_indexes as (

@@ -17,7 +17,7 @@ func TestBuildGroundingPlanRoutesWithoutModelCalls(t *testing.T) {
 	}{
 		{name: "greeting", query: "你好", wantMode: "none", wantScopes: []string{}},
 		{name: "explicit rewrite", query: "请润色：明天开会", wantMode: "none", wantScopes: []string{}},
-		{name: "closed transport scope", query: "今天下一班校车几点发？", wantMode: "none", wantScopes: []string{}},
+		{name: "unmatched external scope", query: "今天天气怎么样？", wantMode: "none", wantScopes: []string{}},
 		{name: "closed official web scope", query: "学校官网今天刚发布的通知有哪些？", wantMode: "none", wantScopes: []string{}},
 		{name: "student rule", query: "学生请假手续是什么？", wantMode: "single_scope", wantScopes: []string{"student_rules"}},
 		{name: "major transfer rule", query: "大一可以转专业吗？", wantMode: "single_scope", wantScopes: []string{"student_rules"}},
@@ -54,7 +54,7 @@ func TestAllowsUngroundedAnswerOnlyForBoundedDirectRequests(t *testing.T) {
 		{query: "请翻译: tomorrow morning", want: true},
 		{query: "请翻译这句话", want: false},
 		{query: "总结：明天开会", want: false},
-		{query: "今天下一班校车几点发？", want: false},
+		{query: "今天天气怎么样？", want: false},
 		{query: "学校官网今天刚发布的通知有哪些？", want: false},
 	} {
 		if got := allowsUngroundedAnswer(test.query); got != test.want {

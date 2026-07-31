@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimepolicy"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/toolreadmodel"
 )
 
 type checkedInToolFunctionSchemas struct {
@@ -29,8 +28,7 @@ func TestCheckedInExecutionControlToolsRetainCurrentExposure(t *testing.T) {
 	}
 	registeredEndpoints := toolReadModelEndpointsByPath()
 	wantEndpoints := map[string]string{
-		"personal_memory_recall":    "/internal/memory/personal/recall",
-		"transport_schedule_lookup": "/internal/query/campus-services/transport-schedule",
+		"personal_memory_recall": "/internal/memory/personal/recall",
 	}
 
 	for _, tool := range toolRegistry.Tools {
@@ -38,10 +36,7 @@ func TestCheckedInExecutionControlToolsRetainCurrentExposure(t *testing.T) {
 		if !ok {
 			t.Fatalf("unexpected registered tool %s", tool.Name)
 		}
-		wantExposure := "closed"
-		if tool.Name == personalMemoryRecallToolName {
-			wantExposure = "model_visible"
-		}
+		wantExposure := "model_visible"
 		if tool.Exposure != wantExposure || !tool.ReadOnly || tool.RequiresApproval {
 			t.Fatalf("registered tool %s exposure/read policy drifted: %#v", tool.Name, tool)
 		}
@@ -164,7 +159,6 @@ func isObjectOrNullableObject(value any) bool {
 
 func toolReadModelEndpointsByPath() map[string]string {
 	return map[string]string{
-		"/internal/memory/personal/recall":                   personalMemoryRecallToolName,
-		"/internal/query/campus-services/transport-schedule": toolreadmodel.ToolTransportScheduleLookup,
+		"/internal/memory/personal/recall": personalMemoryRecallToolName,
 	}
 }

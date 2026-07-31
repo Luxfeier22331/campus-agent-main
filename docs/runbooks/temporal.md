@@ -115,25 +115,18 @@ kubectl get pod
 - Memo 与持久命令明确冲突时保留该 execution，由应用把本地 run 失败关闭；不得将冲突 execution
   当作目标 run 强制取消；
 - execution 为 `TIMED_OUT` 但尚无 `run.expired` 时，检查产品终态回调和投影存储错误；产品终态与
-  `run.expired` 提交后，cleanup 才独立重试原始输入删除，删除失败不回滚或阻塞已成立的浏览器终态；
-- cleanup pending 时同时检查已绑定 Run 与空 Run ID 返回的 latest Run、完整 Memo、reset state、
-  `first_run_id`、关闭时间和状态。两次 Run ID 与 `first_run_id` 都必须等于持久绑定的 root，且
-  `last_reset_time`、`reset_run_id` 为空；任意不同 latest Run 都不能手工确认清理。不要只比较
-  `first_run_id`，Temporal 的同一 chain 包含 Continue-As-New、Workflow Retry、Cron 和 Reset；
-- start 为 `superseded` 且 `dispatch_attempted=true` 时，必须先存在不可变的 Temporal Run ID 绑定，
-  cleanup 才能进入与 confirmed start 相同的 exact/latest 双 Describe 证明；不得将 superseded 本身
-  当作“没有 execution”的证明；
+  `run.expired` 必须在同一投影事务中提交，app-api 持有的执行输入不随该终态清空；
+- start 为 `superseded` 且 `dispatch_attempted=true` 时，必须先存在不可变的 Temporal Run ID 绑定再
+  投递取消；不得将 superseded 本身当作“没有 execution”的证明；
 - 当前在线回答没有 Workflow RetryPolicy、Cron 或 Continue-As-New 路径，不支持 successor；未来引入
   任一机制前必须先设计持久 chain binding，不能直接放宽 exact-run 校验；
 - `COMPLETED`、`FAILED`、`CANCELED`、`TERMINATED`、`CONTINUED_AS_NEW` 和 `TIMED_OUT` 都是
   closed 状态。若对应产品 run 仍为 active，检查 active-run reconciler、产品终态回调和投影事务；
   超时应收敛为 `expired`，其余缺失产品终态的关闭应收敛为失败。不同 latest Run 或
   `CONTINUED_AS_NEW` 应以 `workflow_successor_without_authorization` 失败关闭产品 root，successor
-  不得被绑定或取消，cleanup 应保持 pending；
-- 在线回答从启动绑定开始的整个生命周期都禁止 Reset。Temporal Describe 只表示观察时刻，平台运维
-  不得用 Reset 绕过应用的产品终态、输入所有权或清理边界。环境仓必须在部署前证明 Temporal
-  Authorizer 或等价 guard 已禁止平台身份 Reset 在线回答 Workflow ID；本 source repo 不证明该环境
-  状态。exact/latest Describe 与取消、超时或 cleanup 操作之间仍存在非原子的残余竞态。
+  不得被绑定或取消；
+- 在线回答不支持 Reset。平台运维不得用 Reset 绕过应用的产品终态和运行绑定；应用会拒绝把 Reset
+  successor 重新绑定到原产品 run。
 
 ## 回滚与持久化
 

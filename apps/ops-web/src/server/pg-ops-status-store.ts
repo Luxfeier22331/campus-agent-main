@@ -13,7 +13,6 @@ import {
 } from "./ops-status-mappers.ts";
 import type {
 	OpsAgentUsageRow,
-	OpsProductActionRow,
 	OpsRequestDetailRow,
 	OpsRequestOverviewRow,
 	OpsRequestRow,
@@ -26,7 +25,6 @@ import { OPS_REQUEST_PAGE_SIZE } from "./ops-status-store.ts";
 import {
 	agentUsageSql,
 	buildRequestFilter,
-	productActionsSql,
 	requestDetailSql,
 	requestRowsCte,
 	requestSql,
@@ -93,13 +91,9 @@ export function createPgOpsStatusStore(input: {
 				return null;
 			}
 			const runIds = request.runId ? [request.runId] : [];
-			const [actionsResult, usagesResult] = await Promise.allSettled([
-				input.db.getProductActions(runIds),
-				input.db.getAgentUsages(runIds),
-			]);
+			const [usagesResult] = await Promise.allSettled([input.db.getAgentUsages(runIds)]);
 			return await toRequestDetail(
 				request,
-				actionsResult.status === "fulfilled" ? actionsResult.value : null,
 				usagesResult.status === "fulfilled" ? (usagesResult.value[0] ?? null) : undefined,
 				input.observabilityLinks,
 				generatedAt,
@@ -113,14 +107,7 @@ export function createPgOpsStatusStore(input: {
 			const rows = await input.db.listRequests(query, since);
 			const visibleRows = rows.slice(0, OPS_REQUEST_PAGE_SIZE);
 			const runIds = [...new Set(visibleRows.flatMap((row) => (row.runId ? [row.runId] : [])))];
-			const [actionRowsResult, usageRowsResult] = await Promise.allSettled([
-				input.db.getProductActions(runIds),
-				input.db.getAgentUsages(runIds),
-			]);
-			const actionsByRun =
-				actionRowsResult.status === "fulfilled"
-					? groupProductActions(actionRowsResult.value)
-					: null;
+			const [usageRowsResult] = await Promise.allSettled([input.db.getAgentUsages(runIds)]);
 			const usageByRun =
 				usageRowsResult.status === "fulfilled"
 					? new Map(usageRowsResult.value.map((row) => [row.runId, row]))
@@ -128,7 +115,6 @@ export function createPgOpsStatusStore(input: {
 			const data = visibleRows.map((row) =>
 				toRequestSummary(
 					row,
-					row.runId ? (actionsByRun === null ? null : (actionsByRun.get(row.runId) ?? [])) : [],
 					row.runId
 						? usageByRun === null
 							? undefined
@@ -183,20 +169,6 @@ export function createPgOpsStatusStoreDatabase(
 	pool.on("error", (error) => logOpsError("postgres pool error", error, { source: "requests" }));
 
 	return {
-		async getProductActions(runIds) {
-			if (runIds.length === 0) {
-				return [];
-			}
-			return classifyDbError(async () => {
-				const result = await pool.query(
-					productActionsSql(
-						'and "run_id" = any($1::text[]) order by "run_id", "started_at" nulls last, "updated_at"',
-					),
-					[runIds],
-				);
-				return result.rows as OpsProductActionRow[];
-			});
-		},
 		async getAgentUsages(runIds) {
 			if (runIds.length === 0) {
 				return [];
@@ -310,22 +282,11 @@ export function createPgOpsStatusStoreDatabase(
 				await Promise.all([
 					pool.query(requestSql("limit 0")),
 					pool.query(requestDetailSql("limit 0")),
-					pool.query(productActionsSql("limit 0")),
 					pool.query(agentUsageSql("and false")),
 				]);
 			});
 		},
 	};
-}
-
-function groupProductActions(rows: OpsProductActionRow[]): Map<string, OpsProductActionRow[]> {
-	const grouped = new Map<string, OpsProductActionRow[]>();
-	for (const row of rows) {
-		const current = grouped.get(row.runId) ?? [];
-		current.push(row);
-		grouped.set(row.runId, current);
-	}
-	return grouped;
 }
 
 function toRequestOverview(row: OpsRequestOverviewRow): OpsOverviewResponse["requests"] {

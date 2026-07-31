@@ -19,9 +19,7 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 	t.Run("schema health CRUD and idempotent install", func(t *testing.T) {
 		_, databaseURL := harness.ownerDatabase(t)
 		store := newRunProjectionStore(t, databaseURL, true)
-		if err := store.EnsureSchema(t.Context()); err != nil {
-			t.Fatalf("reinstall run projection schema: %v", err)
-		}
+		requireSchema(t, databaseURL, nil)
 		if err := store.HealthCheck(t.Context()); err != nil {
 			t.Fatalf("run projection health check: %v", err)
 		}
@@ -173,11 +171,6 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 				wantErrorPart: "column runtime.agent_workflow_starts.dispatch_attempted",
 			},
 			{
-				name:          "missing lifecycle foreign key",
-				mutationSQL:   "alter table runtime.agent_run_cleanups drop constraint agent_run_cleanups_run_id_fkey",
-				wantErrorPart: "constraint runtime.agent_run_cleanups",
-			},
-			{
 				name:          "missing step attempt uniqueness fence",
 				mutationSQL:   "alter table runtime.agent_step_attempts drop constraint agent_step_attempts_run_id_step_id_attempt_key",
 				wantErrorPart: "constraint runtime.agent_step_attempts (u run_id,step_id,attempt)",
@@ -214,7 +207,7 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 		}
 	})
 
-	t.Run("superseded workflow execution binding is immutable and cleanup eligible", func(t *testing.T) {
+	t.Run("superseded workflow execution binding is immutable for cancellation", func(t *testing.T) {
 		_, databaseURL := harness.ownerDatabase(t)
 		store := newRunProjectionStore(t, databaseURL, true)
 		now := time.Date(2026, 7, 23, 7, 30, 0, 0, time.UTC)
@@ -281,13 +274,6 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 			RunID: run.RunID, Reason: "user_requested", Now: now.Add(4 * time.Second),
 		}); err != nil {
 			t.Fatalf("cancel bound run: %v", err)
-		}
-		cleanups, err := store.LeaseRunCleanups(t.Context(), execution.LifecycleLeaseRequest{
-			LeaseToken: "postgres-bound-cleanup", Now: now.Add(time.Minute),
-			LeaseUntil: now.Add(2 * time.Minute), Limit: 1,
-		})
-		if err != nil || len(cleanups) != 1 || cleanups[0].RunID != run.RunID {
-			t.Fatalf("lease bound cleanup = %#v, err=%v", cleanups, err)
 		}
 	})
 
@@ -972,14 +958,16 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 func newRunProjectionStore(
 	t *testing.T,
 	databaseURL string,
-	autoMigrate bool,
+	prepareSchema bool,
 ) *execution.PostgresRunProjectionStore {
 	t.Helper()
+	if prepareSchema {
+		requireSchema(t, databaseURL, nil)
+	}
 	store, err := execution.NewPostgresRunProjectionStore(
 		t.Context(),
 		execution.PostgresRunProjectionStoreOptions{
 			DatabaseURL: databaseURL,
-			AutoMigrate: autoMigrate,
 		},
 	)
 	if err != nil {

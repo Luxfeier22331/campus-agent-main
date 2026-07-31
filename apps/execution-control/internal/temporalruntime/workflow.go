@@ -89,11 +89,10 @@ func ToolExecutionWorkflow(
 	// Memory append is a post-answer side effect. Its own activity records a
 	// failure without changing the already completed product run. Once product
 	// finalization has succeeded, this post-answer work continues even if a
-	// cancellation request raced with the finalization activity. Payload cleanup
-	// is owned separately by the reconciler after the workflow closes.
-	cleanupCtx, cleanupCancel := workflow.NewDisconnectedContext(ctx)
-	defer cleanupCancel()
-	_ = executeMemoryAppend(cleanupCtx, activityOptions, input)
+	// cancellation request raced with the finalization activity.
+	postFinalizationCtx, postFinalizationCancel := workflow.NewDisconnectedContext(ctx)
+	defer postFinalizationCancel()
+	_ = executeMemoryAppend(postFinalizationCtx, activityOptions, input)
 	return workflowResultFromFinalization(finalization), nil
 }
 

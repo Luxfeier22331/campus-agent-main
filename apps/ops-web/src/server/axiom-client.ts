@@ -1,4 +1,9 @@
-import { AxiomWithoutBatching, type TabularQueryResult } from "@axiomhq/js";
+import {
+	AxiomWithoutBatching,
+	type MetricsQueryOptions,
+	type MetricsResult,
+	type TabularQueryResult,
+} from "@axiomhq/js";
 
 import {
 	type OpsObservabilityResponse,
@@ -52,6 +57,7 @@ export interface AxiomSdkQueryClient {
 		apl: string,
 		options: { endTime: string; format: "tabular"; startTime: string },
 	): Promise<TabularQueryResult>;
+	query(mpl: string, options: MetricsQueryOptions): Promise<MetricsResult>;
 }
 
 export class AxiomUnavailableError extends Error {
@@ -89,7 +95,7 @@ export function createAxiomClient(input: {
 		traces: normalizeDatasetName(input.tracesDataset),
 	};
 	const queryToken = normalizeQueryToken(input.queryToken);
-	const sdkClient =
+	const sdkClient: AxiomSdkQueryClient =
 		input.sdkClient ??
 		new AxiomWithoutBatching({
 			axiomClient: "campus-agent-ops-web",
@@ -103,16 +109,10 @@ export function createAxiomClient(input: {
 		});
 	let activeQueryCount = 0;
 
-	async function runQuery(query: {
-		apl: string;
-		dataset: string;
-		from: Date;
-		signal?: AbortSignal;
-		to: Date;
-	}): Promise<ParsedTabularResponse> {
-		if (query.signal?.aborted) {
+	async function runSdkQuery<T>(operation: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+		if (signal?.aborted) {
 			throw new AxiomUnavailableError("Axiom query was aborted before it started.", {
-				cause: query.signal.reason,
+				cause: signal.reason,
 			});
 		}
 		if (activeQueryCount >= MAX_ACTIVE_AXIOM_QUERIES) {
@@ -121,22 +121,33 @@ export function createAxiomClient(input: {
 		activeQueryCount += 1;
 		// The SDK has no caller-provided AbortSignal, so retain the slot until its request settles.
 		const sdkQuery = Promise.resolve()
-			.then(() =>
+			.then(operation)
+			.finally(() => {
+				activeQueryCount -= 1;
+			});
+		try {
+			return await raceWithSignal(sdkQuery, signal);
+		} catch (error) {
+			throw new AxiomUnavailableError("Axiom query failed.", { cause: error });
+		}
+	}
+
+	async function runAplQuery(query: {
+		apl: string;
+		dataset: string;
+		from: Date;
+		signal?: AbortSignal;
+		to: Date;
+	}): Promise<ParsedTabularResponse> {
+		const result = await runSdkQuery(
+			() =>
 				sdkClient.query(query.apl, {
 					endTime: query.to.toISOString(),
 					format: "tabular",
 					startTime: query.from.toISOString(),
 				}),
-			)
-			.finally(() => {
-				activeQueryCount -= 1;
-			});
-		let result: TabularQueryResult;
-		try {
-			result = await raceWithSignal(sdkQuery, query.signal);
-		} catch (error) {
-			throw new AxiomUnavailableError("Axiom query failed.", { cause: error });
-		}
+			query.signal,
+		);
 		if (result.status.isPartial !== false) {
 			throw new AxiomUnavailableError("Axiom returned a partial query result.");
 		}
@@ -160,18 +171,53 @@ export function createAxiomClient(input: {
 		};
 	}
 
+	async function runMetricsQuery(query: {
+		dataset: string;
+		from: Date;
+		signal?: AbortSignal;
+		to: Date;
+	}) {
+		const startedAt = Date.now();
+		const result = await runSdkQuery(
+			() =>
+				sdkClient.query(buildAxiomMetricsMpl(query.dataset), {
+					endTime: query.to.toISOString(),
+					format: "metrics-v2",
+					startTime: query.from.toISOString(),
+					type: "mpl",
+				}),
+			query.signal,
+		);
+		const snapshot = parseMetricsSnapshot(result);
+		onQueryComplete({
+			blocksExamined: null,
+			dataset: query.dataset,
+			elapsedTime: Date.now() - startedAt,
+			rowsExamined: snapshot.recordCount,
+		});
+		return snapshot;
+	}
+
 	return {
 		async getTelemetrySnapshot(window, queryInput = {}) {
 			const requestedNow = queryInput.now ?? new Date();
 			const from = new Date(requestedNow.valueOf() - overviewWindowMs(window));
 			const specs = [
-				{ dataset: datasets.logs, kind: "LOGS" as const },
-				{ dataset: datasets.metrics, kind: "METRICS" as const },
-				{ dataset: datasets.traces, kind: "TRACES" as const },
+				{ dataset: datasets.logs, kind: "LOGS" as const, queryType: "apl" as const },
+				{ dataset: datasets.metrics, kind: "METRICS" as const, queryType: "mpl" as const },
+				{ dataset: datasets.traces, kind: "TRACES" as const, queryType: "apl" as const },
 			];
 			const results = await Promise.allSettled(
 				specs.map(async (spec) => {
-					const payload = await runQuery({
+					if (spec.queryType === "mpl") {
+						return runMetricsQuery({
+							dataset: spec.dataset,
+							from,
+							signal: queryInput.signal,
+							to: requestedNow,
+						});
+					}
+					const payload = await runAplQuery({
 						apl: buildAxiomOverviewApl(spec.dataset),
 						dataset: spec.dataset,
 						from,
@@ -249,7 +295,7 @@ export function createAxiomClient(input: {
 				});
 			}
 			const startedAt = Date.now();
-			const payload = await runQuery({
+			const payload = await runAplQuery({
 				apl: buildAxiomRequestApl({
 					dataset,
 					kind: queryInput.kind,
@@ -315,6 +361,11 @@ export function buildAxiomOverviewApl(dataset: string) {
 		"| summarize record_count = count(), last_seen_at = max(_time)",
 		"| project record_count, last_seen_at",
 	].join("\n");
+}
+
+export function buildAxiomMetricsMpl(dataset: string) {
+	const normalizedDataset = normalizeDatasetName(dataset);
+	return `\`${normalizedDataset}\`:\`otelcol_exporter_sent_metric_points\``;
 }
 
 export function buildAxiomRequestApl(input: {
@@ -412,6 +463,42 @@ function normalizeQueryToken(value: string) {
 		throw new Error("Axiom personal tokens are not allowed.");
 	}
 	return normalized;
+}
+
+function parseMetricsSnapshot(result: MetricsResult) {
+	if (!result || typeof result !== "object" || !Array.isArray(result.series)) {
+		throw new AxiomUnavailableError("Axiom returned an invalid metrics result.");
+	}
+	let recordCount = 0;
+	let lastSeenSeconds: number | null = null;
+	for (const value of result.series) {
+		if (!value || typeof value !== "object") {
+			throw new AxiomUnavailableError("Axiom returned an invalid metrics series.");
+		}
+		const series = value as Record<string, unknown>;
+		if (
+			typeof series.start !== "number" ||
+			!Number.isFinite(series.start) ||
+			typeof series.resolution !== "number" ||
+			!Number.isFinite(series.resolution) ||
+			series.resolution <= 0 ||
+			!Array.isArray(series.data)
+		) {
+			throw new AxiomUnavailableError("Axiom returned an invalid metrics series.");
+		}
+		for (const [index, sample] of series.data.entries()) {
+			if (typeof sample !== "number" || !Number.isFinite(sample)) {
+				continue;
+			}
+			recordCount += 1;
+			const timestamp = series.start + index * series.resolution;
+			lastSeenSeconds = lastSeenSeconds === null ? timestamp : Math.max(lastSeenSeconds, timestamp);
+		}
+	}
+	return {
+		lastSeenAt: lastSeenSeconds === null ? null : new Date(lastSeenSeconds * 1_000).toISOString(),
+		recordCount,
+	};
 }
 
 function mapAxiomRecord(kind: OpsObservabilityKind, record: Record<string, unknown>) {

@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -10,117 +9,7 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/admission"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/toolreadmodel"
 )
-
-func TestReadyzReportsUnavailableToolReadModelWithoutBlockingCoreRuntime(t *testing.T) {
-	server := newReadyServerForTest(t)
-	server.toolReadModel = toolreadmodel.NewRuntime(toolreadmodel.Options{})
-	response := httptest.NewRecorder()
-
-	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200, body: %s", response.Code, response.Body.String())
-	}
-	body := decodeBody(t, response)
-	toolReadModelRuntime := expectRecord(t, body["tool_read_model_runtime"], "tool_read_model_runtime")
-	if toolReadModelRuntime["configured"] != false {
-		t.Fatalf("tool_read_model_runtime.configured = %v, want false", toolReadModelRuntime["configured"])
-	}
-}
-
-func TestReadyzKeepsRuntimeReadyWhenTransportProjectionHasNoCurrentRelease(t *testing.T) {
-	emptyTransportFixture := `{
-		"schema_version":"campus_services_projection_bundle.v1",
-		"transport_schedule_snapshots":[]
-	}`
-	server := newReadyServerForTest(t)
-	useToolReadModelRuntimeFixtures(
-		t,
-		server,
-		emptyTransportFixture,
-		"",
-	)
-	response := httptest.NewRecorder()
-
-	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200, body: %s", response.Code, response.Body.String())
-	}
-	body := decodeBody(t, response)
-	toolReadModelRuntime := expectRecord(t, body["tool_read_model_runtime"], "tool_read_model_runtime")
-	if toolReadModelRuntime["transport_schedule_implemented"] != false {
-		t.Fatalf("unexpected tool_read_model_runtime: %#v", toolReadModelRuntime)
-	}
-	if toolReadModelRuntime["transport_schedule_read_model_healthy"] != true {
-		t.Fatalf("unexpected tool_read_model_runtime: %#v", toolReadModelRuntime)
-	}
-}
-
-func TestReadyzReportsUnhealthyTransportReadModelWithoutBlockingCoreRuntime(t *testing.T) {
-	server := newReadyServerForTest(t)
-	server.toolReadModel = toolreadmodel.NewRuntime(toolreadmodel.Options{
-		TransportScheduleReadModelStore: &fakeStructuredReadModelStore{
-			healthCheckErr: errors.New("database unavailable"),
-		},
-	})
-	response := httptest.NewRecorder()
-
-	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200, body: %s", response.Code, response.Body.String())
-	}
-	body := decodeBody(t, response)
-	toolReadModelRuntime := expectRecord(t, body["tool_read_model_runtime"], "tool_read_model_runtime")
-	if toolReadModelRuntime["transport_schedule_read_model_healthy"] != false {
-		t.Fatalf("unexpected tool_read_model_runtime: %#v", toolReadModelRuntime)
-	}
-}
-
-func TestReadyzDoesNotRequireUnregisteredCampusServicesServiceStatusToolToBeModelVisible(t *testing.T) {
-	projectionFixture := `{
-		"schema_version":"campus_services_projection_bundle.v1",
-		"service_status_records":[
-			{
-				"subject_id":"library-haidian",
-				"display_name":"海淀校区图书馆",
-				"aliases":["图书馆"],
-				"campus_scope":"haidian",
-				"observed_status":"open",
-				"effective_from":"2026-04-24T08:00:00+08:00",
-				"effective_until":"2026-04-24T22:00:00+08:00",
-				"override_source_refs":["notice:library-hours"],
-				"related_notice_refs":["notice:library-hours"]
-			}
-		],
-		"transport_schedule_snapshots":[
-			{
-				"snapshot_id":"snapshot:bus:2026-04-20",
-				"published_at":"2026-04-20T18:00:00+08:00",
-				"effective_from":"2026-04-21T00:00:00+08:00",
-				"source_ref":"notice:bus-schedule-2026-04-20",
-				"is_current":true
-			}
-		]
-	}`
-	server := newReadyServerForTest(t)
-	useToolReadModelRuntimeFixture(t, server, projectionFixture, "2026-04-24T10:30:00+08:00")
-	response := httptest.NewRecorder()
-
-	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200, body: %s", response.Code, response.Body.String())
-	}
-	body := decodeBody(t, response)
-	toolReadModelRuntime := expectRecord(t, body["tool_read_model_runtime"], "tool_read_model_runtime")
-	if toolReadModelRuntime["transport_schedule_implemented"] != true {
-		t.Fatalf("unexpected tool_read_model_runtime: %#v", toolReadModelRuntime)
-	}
-}
 
 func TestReadyzPublishesOnlyModelVisibleToolGates(t *testing.T) {
 	server := newReadyServerForTest(t, func(*config.Config) {})
@@ -171,8 +60,6 @@ func TestReadyzKeepsTransportReadyWhenAllSlotsAreBusyButQueueCanAccept(t *testin
 		providerConfigKindEmbedding: embeddingProviderConfigSnapshotForTest(providerConfigKindEmbedding, "https://embedding.example/v1", "embedding-test", 2560),
 	}
 	server.providerConfigErr = nil
-	useReadyTransportReadModelRuntimeFixture(t, server)
-
 	response := httptest.NewRecorder()
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
 

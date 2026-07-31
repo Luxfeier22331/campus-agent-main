@@ -241,7 +241,6 @@ export function createPgChatCommandStore(
 			const rows = await db
 				.select({
 					executionInputJson: turnDispatches.executionInputJson,
-					executionInputReleasedAt: turnDispatches.executionInputReleasedAt,
 					executionInputSha256: turnDispatches.executionInputSha256,
 					requestId: turnDispatches.requestId,
 					runId: turnDispatches.runId,
@@ -256,46 +255,11 @@ export function createPgChatCommandStore(
 			}
 			return {
 				executionInputJson: row.executionInputJson,
-				executionInputReleasedAt: row.executionInputReleasedAt?.toISOString() ?? null,
 				executionInputSha256: row.executionInputSha256,
 				requestId: row.requestId,
 				runId: row.runId,
 				status: row.status as import("./store-types").TurnDispatchStatus,
 			};
-		},
-
-		async releaseExecutionInput(input) {
-			const db = await getDb();
-			return db.transaction(async (tx) => {
-				const rows = await tx
-					.select({
-						executionInputReleasedAt: turnDispatches.executionInputReleasedAt,
-						status: turnDispatches.status,
-					})
-					.from(turnDispatches)
-					.where(eq(turnDispatches.runId, input.runId.trim()))
-					.limit(1)
-					.for("update");
-				const row = rows[0];
-				if (!row) {
-					return "released" as const;
-				}
-				if (row.status === "accepted") {
-					return "not_terminal" as const;
-				}
-				if (row.executionInputReleasedAt) {
-					return "released" as const;
-				}
-				await tx
-					.update(turnDispatches)
-					.set({
-						executionInputJson: null,
-						executionInputReleasedAt: new Date(input.releasedAt),
-						executionInputSha256: null,
-					})
-					.where(eq(turnDispatches.runId, input.runId.trim()));
-				return "released" as const;
-			});
 		},
 
 		async listAcceptedDurableRequestsForCloseout(input = {}) {
@@ -640,24 +604,6 @@ export function createPgChatCommandStore(
 							when ${turnDispatches.cancelOutboxStatus} = 'not_requested'
 								then 'not_requested'
 							else 'closed'
-						end`,
-						executionInputJson: sql<string | null>`case
-							when ${turnDispatches.admissionStatus} = 'admitted'
-								then ${turnDispatches.executionInputJson}
-							else null
-						end`,
-						executionInputReleasedAt: sql<Date | null>`case
-							when ${turnDispatches.admissionStatus} = 'admitted'
-								then ${turnDispatches.executionInputReleasedAt}
-							else coalesce(
-								${turnDispatches.executionInputReleasedAt},
-								${new Date(input.turnDispatch.completedAt ?? input.turnDispatch.updatedAt)}
-							)
-						end`,
-						executionInputSha256: sql<string | null>`case
-							when ${turnDispatches.admissionStatus} = 'admitted'
-								then ${turnDispatches.executionInputSha256}
-							else null
 						end`,
 						finalizationFingerprint: input.finalizationFingerprint ?? null,
 					})

@@ -16,8 +16,8 @@ func testPersonalMemoryStateStore(t *testing.T, harness *postgresHarness) {
 		conflictingFingerprint = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 	)
 	_, databaseURL := harness.ownerDatabase(t)
+	requireSchema(t, databaseURL, nil)
 	store, err := memoryruntime.NewPostgresStateStore(t.Context(), memoryruntime.PostgresStateStoreOptions{
-		AutoMigrate: true,
 		DatabaseURL: databaseURL,
 	})
 	if err != nil {

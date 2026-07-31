@@ -126,10 +126,6 @@ export interface ChatCommandService {
 		processed: number;
 	}>;
 	readExecutionInput?(runId: string): ReturnType<ChatCommandStore["readExecutionInput"]>;
-	releaseExecutionInput?(input: {
-		releasedAt: string;
-		runId: string;
-	}): ReturnType<ChatCommandStore["releaseExecutionInput"]>;
 	submit(input: ChatCommandSubmitInput): Promise<ChatCommandResponse>;
 	submitStream?(input: ChatCommandSubmitInput): AsyncIterable<ChatCommandStreamEvent>;
 }

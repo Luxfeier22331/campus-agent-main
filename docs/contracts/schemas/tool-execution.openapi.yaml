@@ -137,26 +137,6 @@ paths:
           $ref: "#/components/responses/AppApiErrorResponse"
         "503":
           $ref: "#/components/responses/AppApiErrorResponse"
-    delete:
-      summary: Delete a terminal run's execution input after durable closeout.
-      parameters:
-        - $ref: "#/components/parameters/RunId"
-        - $ref: "#/components/parameters/ExecutionAuth"
-      responses:
-        "204":
-          description: The execution input is absent after this idempotent operation.
-          headers:
-            Cache-Control:
-              schema:
-                const: no-store
-        "400":
-          $ref: "#/components/responses/AppApiErrorResponse"
-        "401":
-          $ref: "#/components/responses/AppApiErrorResponse"
-        "409":
-          $ref: "#/components/responses/AppApiErrorResponse"
-        "503":
-          $ref: "#/components/responses/AppApiErrorResponse"
 components:
   responses:
     AppApiErrorResponse:
@@ -579,7 +559,6 @@ components:
     ToolID:
       type: string
       enum:
-        - transport_schedule_lookup
         - personal_memory_recall
     ModelVisibleToolName:
       type: string
@@ -678,9 +657,6 @@ components:
           type: number
           minimum: 0
         tool.total_ms:
-          type: number
-          minimum: 0
-        tool.transport_schedule_lookup_ms:
           type: number
           minimum: 0
         finalization.write_ms:

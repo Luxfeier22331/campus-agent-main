@@ -173,7 +173,6 @@ func TestExecutePrimaryAgentActivityRejectsUnadmittedSDKToolResult(t *testing.T)
 		payloadKind string
 		want        string
 	}{
-		{name: "closed institutional tool", toolName: "transport_schedule_lookup", payloadKind: "transport_schedule_lookup", want: "was not visible for this turn"},
 		{name: "unknown tool", toolName: "unregistered_fixture_tool", payloadKind: "unregistered_fixture_tool", want: "is not admitted"},
 	}
 	for _, test := range tests {

@@ -6,7 +6,7 @@ export const TOOL_EXECUTION_CONTRACT = {
 	workflowTraceSummaryVersion: "workflow-trace-summary-v7",
 } as const;
 
-export const TOOL_IDS = ["transport_schedule_lookup", "personal_memory_recall"] as const;
+export const TOOL_IDS = ["personal_memory_recall"] as const;
 export const MODEL_VISIBLE_TOOL_NAMES = ["personal_memory_recall"] as const;
 export const CONFIDENCE_LEVELS = ["high", "medium", "low"] as const;
 export const EXECUTION_STATUSES = [
@@ -39,7 +39,6 @@ export const STAGE_TIMING_FIELDS = [
 	"agent.runtime_ms",
 	"agent.first_delta_ms",
 	"tool.total_ms",
-	"tool.transport_schedule_lookup_ms",
 	"finalization.write_ms",
 	"projection.closeout_ms",
 ] as const;

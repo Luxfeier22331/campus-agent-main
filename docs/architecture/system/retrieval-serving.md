@@ -91,12 +91,11 @@ token 数，以及 embedding、search、RRF 合并、pack 的耗时；不保存�
 - 只查询 `current_releases` 指向的当前发布，不提供历史版本检索；
 - 不执行远程模型查询改写、模型 scope 路由或迭代检索；
 - 不把 `ready` 当作答案充分性，不把 RRF 分数当作答案置信度；
-- official web 和班车不在当前文档范围；
+- official web 不在当前文档范围；
 - grounding 不进入 SDK 工具轨迹。
 
 ## 相关文档
 
 - `agentic-retrieval.md`
 - `data-plane.md`
-- `../../contracts/tool-read-model.md`
 - `../../data/durable-runtime.md`

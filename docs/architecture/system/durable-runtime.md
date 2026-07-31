@@ -19,7 +19,6 @@ status: active
 - `ToolExecutionWorkflow`：一个 run 的 Temporal workflow；
 - `WorkflowStartCommand`、`CancellationCommand`：将已提交的 PostgreSQL 意图投递给 Temporal
   的持久命令；
-- `RunCleanup`：在业务终态之后释放 app-api 执行输入的持久清理发件箱；
 - `AgentInvocationReceipt`：约束具有外部副作用的 Primary Agent 调用只能开始一次；
 - `RunEvent`、`RunStep`、`StepAttempt`、`StepResult`：有界投影，不是 workflow
   history；
@@ -110,38 +109,14 @@ Continue-As-New、Workflow Retry、Cron 和 Reset，因而“相同 `first_run_i
 恢复条件时必须创建或取得 delayed recovery root；其他情况保持命令重试。只有
 `dispatch_attempted=false` 且没有 Temporal Run ID 时，才允许在没有 execution 的情况下完成本地取消。
 
-## 终态清理发件箱
+## 执行输入所有权
 
-run 创建事务同时写入 `runtime.agent_run_cleanups` 的 pending 记录。Workflow 和终态 Activity 只负责
-提交产品回调与 execution-control 终态，不直接删除执行输入；后台 reconciler 租约清理
-记录，避免删除故障反过来阻止 Temporal workflow 关闭，也避免任意 Activity 用空身份绕过清理证明。
+app-api 为已经分配 run 的产品请求保留完整执行输入及其 hash，产品终态不会改变这份数据。
+execution-control 只保存 ref/hash，不维护输入清理发件箱，也不在 Workflow、Activity 或 reconciler
+中调用删除接口。执行输入随 app-api 的会话和用户数据生命周期删除。
 
-清理只接受以下两类证明：已确认启动命令，或取消竞争中已跨过 dispatch fence 的 superseded
-启动命令，已通过首写不可变绑定获得非空 Temporal Run ID；reconciler 先 Describe 该精确
-execution，再用空 Run ID Describe 同 Workflow ID 的 latest execution；两者都必须通过完整 Memo
-身份校验、明确提供无 reset evidence 的 reset state，且 Run ID 与 `first_run_id` 都等于持久绑定的
-root Run ID；同一个精确/latest execution 必须带关闭时间，并处于 `COMPLETED`、`FAILED`、
-`CANCELED`、`TERMINATED` 或 `TIMED_OUT`。另一类证明是启动命令的
-`dispatch_attempted=false`，并以 `workflow_start_not_dispatched_invalid` 结束，或取消在 dispatch
-fence 前将命令 supersede。已 dispatch 但尚未绑定 Run ID 的 superseded 命令、`RUNNING`、身份未知、
-身份冲突、reset state 未知、存在 `last_reset_time` 或 `reset_run_id`、空 Run ID、非 root
-`first_run_id` 以及任意不同 latest Run 都保持 pending。Continue-As-New、Retry、Cron 或 Reset 的
-successor 即使与 root 共享 `first_run_id`，也不属于当前产品绑定。
-
-每次清理调用 app-api 的幂等输入删除接口，成功后以同一 cleanup lease token 确认发件箱。删除或确认
-结果不确定时重新租约并重复幂等删除；业务终态不回滚，也不能把清理失败伪装成已完成。
-
-在线回答从启动绑定到取消、超时、终态和 cleanup 的整个生命周期都不支持 Temporal Reset。两次
-Describe 只证明观察时刻的 execution 状态，不是跨 Temporal 与 PostgreSQL 的原子锁；Describe 后到
-操作前仍存在 Reset 竞态。部署前置条件是在环境仓为在线回答 Workflow ID 配置
-[Temporal Authorizer](https://docs.temporal.io/self-hosted-guide/security#authorizer-plugin) 或等价管理面
-guard，禁止平台身份执行 Reset。该 guard 的真实部署状态不由本 source repo 证明。
-终态写入 fence 和已释放输入保证管理面误操作不能把旧 run 恢复为可成功执行的产品请求。
-
-升级前的历史 `agent_runs` 会补建 pending cleanup 记录；已有 start command 的
-`dispatch_attempted` 迁移为 true，缺少 start command、Temporal Run ID、Memo 或 chain 身份的记录
-也保持 pending。只有另一个迁移从可信执行索引或 Temporal history 补齐完整证明后，才可按同一规则
-处理；运维人员不能仅凭本地 terminal 状态手工确认清理。
+当前在线回答不支持 Temporal Reset。Activity、取消和超时收敛始终使用持久绑定的精确 root Run ID；
+Reset 或其他 successor 不能改写产品终态或被重新绑定到原产品 run。
 
 ## Temporal poller
 
@@ -196,7 +171,7 @@ reconciler 将 Temporal 的 `COMPLETED`、`FAILED`、`CANCELED`、`TERMINATED`�
 后收敛为产品终态：超时投影为 `expired`，终止投影为失败，缺少 canonical 产品终态的完成、失败或
 取消也失败关闭；`CONTINUED_AS_NEW` 或任何不同 latest Run 表示不受支持的 successor，产品 root run
 以 `workflow_successor_without_authorization` 失败关闭。该路径不得把 successor 绑定到产品 run，也
-不得向 successor 发送取消；其 cleanup 保持 pending。visibility 或身份暂不可验证时继续重试，不能
+不得向 successor 发送取消。visibility 或身份暂不可验证时继续重试，不能
 留下一个已确认 closed 但永久 active 的产品 run，也不能靠猜测写终态。
 
 在线回答在启动时设置 Temporal `WorkflowExecutionTimeout`。Temporal 报告 `TIMED_OUT` 后，
@@ -206,8 +181,8 @@ Memo 一致、reset state 已知且没有 reset evidence，并确认该 executio
 单条 visibility 或身份错误不能阻塞后续页。随后
 提交 app-api 产品终态，再以同一事务写入 `expired` 状态、`run_timeout` 原因、浏览器可见的
 `run.expired` 事件并释放 conversation active-run 锁。产品回调失败时保持原活动状态重试；终态事件
-写入冲突时整个投影事务回滚，不能留下缺少 `run.expired` 的半终态。终态提交后由清理发件箱按上节
-规则释放原始输入，删除失败不撤销已经成立的超时终态。
+写入冲突时整个投影事务回滚，不能留下缺少 `run.expired` 的半终态。产品终态不清空 app-api
+持有的执行输入。
 
 Finalization 执行确定性校验：
 

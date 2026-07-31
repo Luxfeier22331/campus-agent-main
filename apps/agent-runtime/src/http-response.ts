@@ -117,10 +117,6 @@ export function agentRunResultWire(result: PrimaryAgentRunResult) {
 			function_schema_version: result.toolRuntimeFingerprint.functionSchemaVersion,
 			function_schema_sha256: result.toolRuntimeFingerprint.functionSchemaSha256,
 			runtime_release: result.toolRuntimeFingerprint.runtimeRelease,
-			workflow_artifact_schema_version: result.toolRuntimeFingerprint.workflowArtifactSchemaVersion,
-			workflow_artifact_registry_version:
-				result.toolRuntimeFingerprint.workflowArtifactRegistryVersion,
-			workflow_artifact_sha256: result.toolRuntimeFingerprint.workflowArtifactSha256,
 			combined_sha256: result.toolRuntimeFingerprint.combinedSha256,
 		},
 		terminal_reason: result.terminalReason,

@@ -58,35 +58,13 @@ func TestExecutionInputLoaderRejectsInvalidRunIDBeforeRequest(t *testing.T) {
 	defer server.Close()
 	loader := executionInputTestLoader(t, server.URL)
 
-	tests := []struct {
-		name string
-		call func() error
-	}{
-		{
-			name: "load",
-			call: func() error {
-				_, err := loader.Load(context.Background(), run)
-				return err
-			},
-		},
-		{
-			name: "delete",
-			call: func() error {
-				return loader.Delete(context.Background(), run)
-			},
-		},
+	_, err := loader.Load(context.Background(), run)
+	if err == nil || executionInputErrorKind(err) != "execution_input_run_id_invalid" ||
+		executionInputErrorIsRetryable(err) {
+		t.Fatalf("error = %v, want non-retryable run_id rejection", err)
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			err := test.call()
-			if err == nil || executionInputErrorKind(err) != "execution_input_run_id_invalid" ||
-				executionInputErrorIsRetryable(err) {
-				t.Fatalf("error = %v, want non-retryable run_id rejection", err)
-			}
-			if requests.Load() != 0 {
-				t.Fatalf("HTTP requests = %d, want 0", requests.Load())
-			}
-		})
+	if requests.Load() != 0 {
+		t.Fatalf("HTTP requests = %d, want 0", requests.Load())
 	}
 }
 
@@ -244,58 +222,6 @@ func TestExecutionInputLoaderNeverIncludesErrorResponseBody(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), "sensitive-upstream-body") {
 		t.Fatalf("error leaked response body: %v", err)
-	}
-}
-
-func TestExecutionInputLoaderDeleteIsIdempotentAndRetryableOnRejection(t *testing.T) {
-	run, _ := executionInputTestRun(t)
-	var calls atomic.Int32
-	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		if request.Method != http.MethodDelete {
-			t.Fatalf("method = %s, want DELETE", request.Method)
-		}
-		if request.Header.Get("x-app-execution-auth") != "input-secret" {
-			t.Fatal("execution input credential was not sent")
-		}
-		response.Header().Set("Cache-Control", "no-store")
-		if calls.Add(1) <= 2 {
-			response.WriteHeader(http.StatusNoContent)
-			return
-		}
-		response.WriteHeader(http.StatusConflict)
-		_, _ = response.Write([]byte("sensitive-not-terminal-detail"))
-	}))
-	defer server.Close()
-	loader := executionInputTestLoader(t, server.URL)
-
-	for attempt := 0; attempt < 2; attempt++ {
-		if err := loader.Delete(context.Background(), run); err != nil {
-			t.Fatalf("idempotent Delete attempt %d returned error: %v", attempt+1, err)
-		}
-	}
-	err := loader.Delete(context.Background(), run)
-	if err == nil || !executionInputErrorIsRetryable(err) {
-		t.Fatalf("error = %v, want retryable release rejection", err)
-	}
-	if strings.Contains(err.Error(), "sensitive-not-terminal-detail") {
-		t.Fatalf("error leaked response body: %v", err)
-	}
-}
-
-func TestExecutionInputLoaderDeleteDoesNotDependOnDamagedMetadata(t *testing.T) {
-	run, _ := executionInputTestRun(t)
-	run.Metadata = map[string]any{"execution_input_ref": "damaged"}
-	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		if request.Method != http.MethodDelete || request.URL.Path != "/api/internal/execution/runs/run-input-001/input" {
-			t.Fatalf("unexpected release request: %s %s", request.Method, request.URL.Path)
-		}
-		response.Header().Set("Cache-Control", "no-store")
-		response.WriteHeader(http.StatusNoContent)
-	}))
-	defer server.Close()
-
-	if err := executionInputTestLoader(t, server.URL).Delete(context.Background(), run); err != nil {
-		t.Fatalf("Delete returned error for damaged metadata: %v", err)
 	}
 }
 

@@ -79,9 +79,6 @@ func (s *PostgresRunProjectionStore) CreateRun(
 		}
 		return DurableRun{}, err
 	}
-	if err := insertRunCleanupInTx(ctx, tx, run); err != nil {
-		return DurableRun{}, err
-	}
 	if err := tx.Commit(ctx); err != nil {
 		return DurableRun{}, err
 	}

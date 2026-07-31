@@ -11,9 +11,6 @@ export interface ToolRuntimeFingerprint {
 	toolsRegistryVersion: string;
 	toolsSchemaVersion: string;
 	toolsSha256: string;
-	workflowArtifactRegistryVersion: string;
-	workflowArtifactSchemaVersion: string;
-	workflowArtifactSha256: string;
 }
 
 export interface ToolExecutionPromptTrace {

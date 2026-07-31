@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -136,14 +135,14 @@ func TestExecutePrimaryAgentActivityPassesAuthorizedPersonalMemoryTool(t *testin
 	}
 }
 
-func TestExecutePrimaryAgentActivityRejectsClosedInstitutionalTool(t *testing.T) {
+func TestExecutePrimaryAgentActivityRejectsMismatchedVisibleToolSet(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	now := time.Date(2026, 6, 12, 10, 34, 0, 0, time.UTC)
 	createHTTPAPIQueuedDurableRunForTest(
 		t,
 		store,
-		"run-primary-agent-explicit-services",
-		"conv-primary-agent-explicit-services",
+		"run-primary-agent-visible-tool-mismatch",
+		"conv-primary-agent-visible-tool-mismatch",
 		now,
 		agentRequestForDurableWorkerTest("校园网密码怎么改？"),
 	)
@@ -156,23 +155,22 @@ func TestExecutePrimaryAgentActivityRejectsClosedInstitutionalTool(t *testing.T)
 		AgentRuntimeBaseURL:      agentRuntime.URL,
 		AgentRuntimeSharedSecret: "agent-secret",
 		AgentRuntimeDeadlineMS:   1000,
-		TemporalWorkerIdentity:   "test:agent:explicit-services",
+		TemporalWorkerIdentity:   "test:agent:visible-tool-mismatch",
 	})
 	attachPrimaryAgentProviderConfigForTest(server)
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
-		ConversationID:   "conv-primary-agent-explicit-services",
-		RequestID:        "req-primary-agent-explicit-services",
-		RunID:            "run-primary-agent-explicit-services",
+		ConversationID:   "conv-primary-agent-visible-tool-mismatch",
+		RequestID:        "req-primary-agent-visible-tool-mismatch",
+		RunID:            "run-primary-agent-visible-tool-mismatch",
 		TraceID:          "trace-executor-001",
 		TurnID:           "turn-primary-agent-explicit-services",
-		VisibleToolNames: []string{"transport_schedule_lookup"},
+		VisibleToolNames: []string{},
 	})
+	input.VisibleToolNames = []string{personalMemoryRecallToolName}
 	_, err := server.ExecutePrimaryAgentActivity(context.Background(), input)
-	if err == nil || !strings.Contains(err.Error(), "admission_snapshot_invalid") {
-		t.Fatalf("closed tool admission error = %v", err)
-	}
+	assertTemporalFailureSanitized(t, err, "admission_snapshot_invalid", true)
 	if requests != 0 {
 		t.Fatalf("agent runtime requests = %d, want none", requests)
 	}

@@ -41,36 +41,13 @@ func NewStore(ctx context.Context, databaseURL string, keyring *Keyring) (*Store
 	return &Store{keyring: keyring, pool: pool}, nil
 }
 
-func EnsureDatabaseSchema(ctx context.Context, databaseURL string) error {
-	pool, err := pgxpool.New(ctx, strings.TrimSpace(databaseURL))
-	if err != nil {
-		return err
-	}
-	defer pool.Close()
-	if err := ensureDatabaseRoles(ctx, pool); err != nil {
-		return err
-	}
-	if _, err := pool.Exec(ctx, SchemaSQL); err != nil {
-		return err
-	}
-	_, err = pool.Exec(ctx, GrantSQL)
-	return err
-}
-
 type databaseRoleQuerier interface {
 	QueryRow(context.Context, string, ...any) pgx.Row
 }
 
-func ensureDatabaseRoles(ctx context.Context, querier databaseRoleQuerier) error {
-	const role = "execution_control"
-	var exists bool
-	if err := querier.QueryRow(ctx, "select exists(select 1 from pg_roles where rolname=$1)", role).Scan(&exists); err != nil {
-		return err
-	}
-	if !exists {
-		return fmt.Errorf("database role %s is not installed", role)
-	}
-	return nil
+func lockModelSettings(ctx context.Context, tx pgx.Tx) error {
+	_, err := tx.Exec(ctx, `select pg_advisory_xact_lock(hashtextextended($1,0))`, modelSettingsLockName)
+	return err
 }
 
 func CheckDatabaseSchema(ctx context.Context, databaseURL string) error {
@@ -121,14 +98,6 @@ func CheckDatabaseSchema(ctx context.Context, databaseURL string) error {
 		if granted != check.want {
 			return fmt.Errorf("database role %s %s on execution_config.model_settings = %t, want %t", check.role, check.privilege, granted, check.want)
 		}
-	}
-	return nil
-}
-
-func (s *Store) EnsureSchema(ctx context.Context) error {
-	_, err := s.pool.Exec(ctx, SchemaSQL)
-	if err != nil {
-		return fmt.Errorf("ensure model settings schema: %w", err)
 	}
 	return nil
 }

@@ -88,9 +88,6 @@ func (s *PostgresRunProjectionStore) CreateRunWithStartIntent(
 	if err != nil {
 		return DurableRunCreateResult{}, err
 	}
-	if err := insertRunCleanupInTx(ctx, tx, run); err != nil {
-		return DurableRunCreateResult{}, err
-	}
 	if err := tx.Commit(ctx); err != nil {
 		return DurableRunCreateResult{}, err
 	}

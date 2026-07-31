@@ -246,17 +246,12 @@ export interface ChatCommandStore {
 		startedBefore?: string;
 	}): Promise<AcceptedDurableRequestCloseout[]>;
 	readExecutionInput(runId: string): Promise<{
-		executionInputReleasedAt: string | null;
 		executionInputSha256: string | null;
 		executionInputJson: string | null;
 		requestId: string;
 		runId: string;
 		status: TurnDispatchStatus;
 	} | null>;
-	releaseExecutionInput(input: {
-		releasedAt: string;
-		runId: string;
-	}): Promise<"released" | "not_terminal">;
 }
 
 export class ChatFinalizationConflict extends Error {

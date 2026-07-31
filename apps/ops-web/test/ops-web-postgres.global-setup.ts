@@ -77,7 +77,9 @@ async function provisionDatabase(
 	const admin = new Client({ connectionString: adminConnectionString, ssl: false });
 	await admin.connect();
 	try {
-		await admin.query(`create role "${SCHEMA_OWNER}" login password '${schemaOwnerPassword}'`);
+		await admin.query(
+			`create role "${SCHEMA_OWNER}" login createdb password '${schemaOwnerPassword}'`,
+		);
 		await admin.query(`create role "${OPS_WEB_ROLE}" login password '${opsWebPassword}'`);
 		await admin.query(`create role "${APP_API_ROLE}" login password '${appApiPassword}'`);
 		for (const role of NOLOGIN_ROLES) {

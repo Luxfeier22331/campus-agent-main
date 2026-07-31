@@ -30,11 +30,9 @@ Temporal history。
 
 v3 只接受当前注册表中的两个名称：
 
-- `personal_memory_recall`；
-- `transport_schedule_lookup`。
+- `personal_memory_recall`。
 
 `personal_memory_recall` 只有本轮冻结授权允许时才进入 `available_tools`，并且最多产生一次调用。
-`transport_schedule_lookup` 当前关闭，新运行不得把它写入 `available_tools` 或 `tool_calls[]`。
 
 培养方案和规章知识由 `grounding.prepare` 预取，不是模型工具，不得派生工具调用、`tool_name`、
 `eval_safe_args` 或 `selected_tool`。

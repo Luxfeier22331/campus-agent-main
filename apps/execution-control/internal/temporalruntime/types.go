@@ -96,20 +96,17 @@ type ExecutionStrategySnapshot struct {
 }
 
 // ToolRuntimeFingerprintSnapshot binds an admitted run to the exact tool
-// registry, function schemas, and workflow artifacts expected from
-// agent-runtime. It contains no credentials or model data.
+// registry and function schemas expected from agent-runtime. It contains no
+// credentials or model data.
 type ToolRuntimeFingerprintSnapshot struct {
-	CombinedSHA256                  string `json:"combined_sha256"`
-	FunctionSchemaSHA256            string `json:"function_schema_sha256"`
-	FunctionSchemaVersion           string `json:"function_schema_version"`
-	SchemaVersion                   string `json:"schema_version"`
-	ToolsRegistryVersion            string `json:"tools_registry_version"`
-	ToolsSchemaVersion              string `json:"tools_schema_version"`
-	ToolsSHA256                     string `json:"tools_sha256"`
-	WorkflowArtifactRegistryVersion string `json:"workflow_artifact_registry_version"`
-	WorkflowArtifactSchemaVersion   string `json:"workflow_artifact_schema_version"`
-	WorkflowArtifactSHA256          string `json:"workflow_artifact_sha256"`
-	RuntimeRelease                  string `json:"runtime_release"`
+	CombinedSHA256        string `json:"combined_sha256"`
+	FunctionSchemaSHA256  string `json:"function_schema_sha256"`
+	FunctionSchemaVersion string `json:"function_schema_version"`
+	SchemaVersion         string `json:"schema_version"`
+	ToolsRegistryVersion  string `json:"tools_registry_version"`
+	ToolsSchemaVersion    string `json:"tools_schema_version"`
+	ToolsSHA256           string `json:"tools_sha256"`
+	RuntimeRelease        string `json:"runtime_release"`
 }
 
 type AgentRuntimeLimitsSnapshot struct {

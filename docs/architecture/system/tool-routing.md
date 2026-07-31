@@ -18,10 +18,8 @@ timeout 由以下可执行注册表维护：
 
 ## 当前状态
 
-当前注册表只有两个工具：
-
-- `personal_memory_recall` 为 `model_visible`，但只有本轮冻结授权允许时才进入 SDK 工具数组；
-- `transport_schedule_lookup` 为 `closed`，不会进入新运行的 `visible_tool_names`。
+当前注册表只有 `personal_memory_recall`；它为 `model_visible`，但只有本轮冻结授权允许时才进入 SDK
+工具数组。
 
 培养方案、规章和其他正式文档统一由 execution-control 在需要时准备
 `grounding_context.v2`。知识检索不是模型工具，不进入 `visible_tool_names`、SDK 工具轮次或
@@ -47,8 +45,7 @@ timeout 由以下可执行注册表维护：
 读取接口。个人记忆 handler 重新校验冻结策略和运行身份后调用 Hindsight，只向 Agent 返回受限结果；
 它不创建额外 Temporal Activity，也不把记忆正文写入普通投影。
 
-班车工具保持关闭，在线 Agent 不以文档 RAG、模型记忆或现场网页搜索替代时刻表读取模型。工具
-失败也不得回退到未注册数据源。
+工具失败不得回退到未注册数据源。
 
 ## 投影
 

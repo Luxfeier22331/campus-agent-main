@@ -45,11 +45,11 @@ describe("agent tool eval dataset", () => {
 			items: [
 				{
 					expectedOutput: {
-						reference_tool_calls: [{ args: {}, name: "transport_schedule_lookup" }],
+						reference_tool_calls: [{ args: {}, name: "personal_memory_recall" }],
 					},
 					id: "dataset-item-001",
 					input: {
-						query: "校车现在能到海淀校区吗？",
+						query: "你记得我偏好先看结论吗？",
 					},
 					metadata: {
 						argument_mode: "name_only",
@@ -80,7 +80,7 @@ describe("agent tool eval dataset", () => {
 			schema_version: "agent_tool_eval_dataset.v1",
 			tool_counts: {
 				direct_answer: 1,
-				transport_schedule_lookup: 1,
+				personal_memory_recall: 1,
 			},
 		});
 	});
@@ -91,11 +91,11 @@ describe("agent tool eval dataset", () => {
 				items: [
 					{
 						expectedOutput: {
-							reference_tool_calls: [{ args: {}, name: "transport_schedule_lookup" }],
+							reference_tool_calls: [{ args: {}, name: "personal_memory_recall" }],
 						},
 						id: "dataset-item-001",
 						input: {
-							query: "校车现在能到海淀校区吗？",
+							query: "你记得我偏好先看结论吗？",
 						},
 						metadata: {
 							argument_mode: "eval_safe_args",

@@ -11,7 +11,6 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharin
   corepack enable pnpm \
   && pnpm install --frozen-lockfile --prod --no-optional --filter app-api-schema...
 
-COPY apps/app-api/db/shared-product-schema ./apps/app-api/db/shared-product-schema
 COPY apps/app-api/drizzle ./apps/app-api/drizzle
 COPY apps/app-api/ops/db ./apps/app-api/ops/db
 COPY apps/app-api/package.json ./apps/app-api/package.json
@@ -36,7 +35,6 @@ RUN apt-get update \
 
 COPY --from=dependencies --chown=node:node /app/node_modules ./node_modules
 COPY --from=dependencies --chown=node:node /app/jobs/app-api-schema ./jobs/app-api-schema
-COPY --chown=node:node apps/app-api/db/shared-product-schema ./apps/app-api/db/shared-product-schema
 COPY --chown=node:node apps/app-api/drizzle ./apps/app-api/drizzle
 COPY --chown=node:node apps/app-api/ops/db ./apps/app-api/ops/db
 COPY --chown=node:node apps/app-api/package.json ./apps/app-api/package.json

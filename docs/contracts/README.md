@@ -8,8 +8,7 @@ status: active
 `docs/contracts/` 保存稳定的 HTTP、运行时、DTO 和工具边界。
 
 - 浏览器与 App API：[app-api/README.md](./app-api/README.md)；
-- 工具执行：[tool-execution.md](./tool-execution.md)、
-  [tool-read-model.md](./tool-read-model.md)、[tool-trajectory.md](./tool-trajectory.md)；
+- 工具执行：[tool-execution.md](./tool-execution.md)、[tool-trajectory.md](./tool-trajectory.md)；
 - Temporal 队列诊断：[temporal-queues.md](./temporal-queues.md)；
 - 观测与评测：[langfuse-runtime.md](./langfuse-runtime.md)、
   [stage-timing.md](./stage-timing.md)、[ops-web/README.md](./ops-web/README.md)；

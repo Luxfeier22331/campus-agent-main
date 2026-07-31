@@ -39,83 +39,6 @@ func TestPostgresRunProjectionStoreDefersConnectivityToHealthCheck(t *testing.T)
 	}
 }
 
-func TestPostgresRunProjectionStoreSchemaIncludesProjectionAndLifecycleTables(t *testing.T) {
-	requiredSnippets := []string{
-		"create schema if not exists runtime",
-		"drop table if exists runtime.agent_protected_payloads",
-		"create table if not exists runtime.agent_runs",
-		"create table if not exists runtime.agent_run_events",
-		"create table if not exists runtime.agent_run_steps",
-		"create table if not exists runtime.agent_step_attempts",
-		"create table if not exists runtime.agent_step_results",
-		"create table if not exists runtime.conversation_run_locks",
-		"create table if not exists runtime.agent_workflow_starts",
-		"create table if not exists runtime.agent_run_cancellations",
-		"create table if not exists runtime.agent_run_cleanups",
-		"create table if not exists runtime.agent_invocation_receipts",
-		"insert into runtime.agent_run_cleanups",
-		"create index if not exists agent_run_cleanups_lease_idx",
-		"workflow_id text not null default ''",
-		"temporal_run_id text not null default ''",
-		"activity_id text not null default ''",
-		"activity_type text not null default ''",
-		"activity_attempt integer not null default 0",
-		"scheduled_at timestamptz",
-		"schedule_to_start_ms bigint not null default 0",
-		"duration_ms bigint not null default 0",
-		"provider_request_ref text not null default ''",
-		"provider_response_id text not null default ''",
-		"model_provider text not null default ''",
-		"model_name text not null default ''",
-		"model_request_count bigint not null default 0",
-		"input_tokens bigint not null default 0",
-		"output_tokens bigint not null default 0",
-		"cached_input_tokens bigint not null default 0",
-		"usage_observed boolean not null default false",
-		"set usage_observed = true",
-		"input_tokens > 0 or output_tokens > 0 or cached_input_tokens > 0",
-		"drop column if exists estimated_cost_microusd",
-		"cancel_outcome text not null default ''",
-		"timeout_outcome text not null default ''",
-		"late_completion_outcome text not null default 'not_late'",
-		"fail_close_reason text not null default ''",
-		"terminal_reason text not null default ''",
-		"create unique index agent_runs_active_conversation_idx",
-		"unique index if not exists agent_run_events_run_sequence_idx",
-	}
-	for _, snippet := range requiredSnippets {
-		if !strings.Contains(runProjectionSchemaSQL, snippet) {
-			t.Fatalf("run projection schema missing %q", snippet)
-		}
-	}
-	forbiddenSnippets := []string{
-		"runtime.execution_leases",
-		"runtime.lane_budgets",
-		"runtime.worker_heartbeats",
-		"execution_leases_active_run_step_idx",
-		"requested_capability",
-		"selected_capability",
-		"column_name = 'lane'",
-		"rename column capability to tool",
-	}
-	for _, snippet := range forbiddenSnippets {
-		if strings.Contains(runProjectionSchemaSQL, snippet) {
-			t.Fatalf("run projection schema must not include retired artifact %q", snippet)
-		}
-	}
-	if strings.Contains(runProjectionSchemaSQL, "create table if not exists runtime.agent_protected_payloads") {
-		t.Fatal("run projection schema must not recreate the retired protected payload table")
-	}
-	for _, snippet := range []string{
-		"drop table runtime.agent_step_attempts",
-		"drop table if exists runtime.agent_step_attempts",
-	} {
-		if strings.Contains(runProjectionSchemaSQL, snippet) {
-			t.Fatalf("run projection schema must not destructively drop %q", snippet)
-		}
-	}
-}
-
 func TestPostgresRunProjectionHealthCheckInspectsRequiredSchemaShape(t *testing.T) {
 	requiredSnippets := []string{
 		"join pg_attribute as attribute",
@@ -143,11 +66,9 @@ func TestPostgresRunProjectionHealthCheckInspectsRequiredSchemaShape(t *testing.
 		"('agent_step_results', 'p', array['result_id']::text[]",
 		"('agent_step_results', 'f', array['run_id']::text[], 'runtime', 'agent_runs'",
 		"('agent_workflow_starts', 'u', array['workflow_id']::text[]",
-		"('agent_run_cleanups', 'f', array['run_id']::text[], 'runtime', 'agent_runs'",
 		"'agent_runs_active_conversation_idx'",
 		"'agent_workflow_starts_lease_idx'",
 		"'agent_run_cancellations_lease_idx'",
-		"'agent_run_cleanups_lease_idx'",
 		"'agent_invocation_receipts_run_idx'",
 		"status=anyarray['created'::text,'queued'::text,'admitted'::text,'running'::text,'streaming'::text]",
 	}

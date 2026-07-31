@@ -52,11 +52,9 @@ Workflow Execution 或 Sentry Issue。操作者可以按时间、状态、关键
 总量和一次总耗时为主。“需要关注”另外明确显示产品失败、等待用户或终态缺少会话结果。终态缺少
 结果是数据完整性异常，不能把产品状态改写成失败，也不能伪装成普通空结果。
 
-产品处理路径只表达用户可理解的产品节点，例如“Campus Web → 在线问答 Agent → 查询班车时刻 →
-回答已写入会话”。同一能力的内部调用和重试合并为一个业务动作；memory、finalization、原始 step、
-attempt 和工具 ID 不进入默认路径。没有业务能力调用时表达为 Agent 直接处理，不制造工具步骤。
-业务动作投影查询失败时必须显示“记录不可用”，不能以空数组冒充“未调用业务能力”；
-同样，Agent 用量投影查询失败时显示用量不可用，不影响请求和会话结果的展示。
+产品处理路径只表达用户可理解的产品节点，例如“Campus Web → 在线问答 Agent → 回答已写入会话”。
+memory、finalization、原始 step、attempt、工具调用和工具 ID 不进入默认路径；完整执行轨迹由
+Langfuse、Temporal 等所属平台展示。Agent 用量投影查询失败时显示用量不可用，不影响请求和会话结果的展示。
 
 Agent token 只表示主 Agent run 已上报的 input、output 和 cached input token，不代表 Hindsight、
 Embedding 或其他组件的全链路总量。列表只显示 total token，详情显示 input、cached input、output 和

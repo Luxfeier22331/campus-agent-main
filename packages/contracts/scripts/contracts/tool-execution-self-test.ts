@@ -91,41 +91,26 @@ function checkOpenApiMetadata(): void {
 		paths["/api/internal/execution/runs/{runId}/input"],
 		"execution input path",
 	);
-	for (const [method, successStatus, expectedStatuses] of [
-		["get", "200", ["200", "400", "401", "404", "409", "503"]],
-		["delete", "204", ["204", "400", "401", "409", "503"]],
-	] as const) {
-		const operation = asRecord(inputPath[method], `execution input ${method}`);
-		const responses = asRecord(operation.responses, `execution input ${method} responses`);
+	expect(inputPath.delete === undefined, "execution input must not expose a DELETE operation");
+	const operation = asRecord(inputPath.get, "execution input get");
+	const responses = asRecord(operation.responses, "execution input get responses");
+	const expectedStatuses = ["200", "400", "401", "404", "409", "503"];
+	expectEqualJson(
+		new Set(Object.keys(responses)),
+		new Set(expectedStatuses),
+		"execution input get statuses",
+	);
+	const response = asRecord(responses["200"], "execution input get 200");
+	const headers = asRecord(response.headers, "execution input get 200 headers");
+	const cacheControl = asRecord(headers["Cache-Control"], "execution input get Cache-Control");
+	const headerSchema = asRecord(cacheControl.schema, "execution input get Cache-Control schema");
+	expect(headerSchema.const === "no-store", "execution input get must declare no-store");
+	for (const status of expectedStatuses.filter((value) => value !== "200")) {
 		expectEqualJson(
-			new Set(Object.keys(responses)),
-			new Set(expectedStatuses),
-			`execution input ${method} statuses`,
+			asRecord(responses[status], `execution input get ${status}`),
+			{ $ref: "#/components/responses/AppApiErrorResponse" },
+			`execution input get ${status} error response ref`,
 		);
-		const response = asRecord(
-			responses[successStatus],
-			`execution input ${method} ${successStatus}`,
-		);
-		const headers = asRecord(
-			response.headers,
-			`execution input ${method} ${successStatus} headers`,
-		);
-		const cacheControl = asRecord(
-			headers["Cache-Control"],
-			`execution input ${method} Cache-Control`,
-		);
-		const headerSchema = asRecord(
-			cacheControl.schema,
-			`execution input ${method} Cache-Control schema`,
-		);
-		expect(headerSchema.const === "no-store", `execution input ${method} must declare no-store`);
-		for (const status of expectedStatuses.filter((value) => value !== successStatus)) {
-			expectEqualJson(
-				asRecord(responses[status], `execution input ${method} ${status}`),
-				{ $ref: "#/components/responses/AppApiErrorResponse" },
-				`execution input ${method} ${status} error response ref`,
-			);
-		}
 	}
 }
 
@@ -148,14 +133,10 @@ function checkWorkflowTraceSummary(): void {
 }
 
 function checkRuntimeBoundaries(): void {
-	expectEqualJson(
-		schema("ToolID").enum,
-		["transport_schedule_lookup", "personal_memory_recall"],
-		"tool id enum",
-	);
+	expectEqualJson(schema("ToolID").enum, ["personal_memory_recall"], "tool id enum");
 	expectEqualJson(
 		schema("ModelVisibleToolName").enum,
-		["transport_schedule_lookup", "personal_memory_recall"],
+		["personal_memory_recall"],
 		"model-visible tool vocabulary enum",
 	);
 	const payload = schema("ExecutionPayload");
@@ -313,7 +294,6 @@ function checkExecutionResponseDiagnostics(): void {
 			"agent.runtime_ms",
 			"agent.first_delta_ms",
 			"tool.total_ms",
-			"tool.transport_schedule_lookup_ms",
 			"finalization.write_ms",
 			"projection.closeout_ms",
 		]),

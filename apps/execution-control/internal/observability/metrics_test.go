@@ -14,7 +14,7 @@ func TestMetricsPrometheusIncludesCountersAndDurations(t *testing.T) {
 	metrics.RecordAdmissionDecision("queue_full", 0)
 	metrics.RecordAdmissionDecision("admitted_queued", 12*time.Millisecond)
 	metrics.RecordAdmissionDecisionForGroup("primary_agent", "admitted_queued", 8*time.Millisecond)
-	metrics.RecordToolGate("transport_schedule_lookup", "tool_read_model_runtime", "closed")
+	metrics.RecordToolGate("personal_memory_recall", "tool_read_model_runtime", "closed")
 	metrics.RecordPersonalMemoryOperation("recall", "completed", "none", 34*time.Millisecond, 2, 128)
 	metrics.RecordPersonalMemoryOperation("append", "failed", "hindsight_append_failed", 42*time.Millisecond, 0, 0)
 
@@ -45,7 +45,7 @@ func TestMetricsPrometheusIncludesCountersAndDurations(t *testing.T) {
 		`campus_execution_control_admission_group_decisions_total{group="primary_agent",decision="admitted_queued"} 1`,
 		`campus_execution_control_admission_queue_wait_ms_count 2`,
 		`campus_execution_control_admission_group_queue_wait_ms_count{group="primary_agent"} 1`,
-		`campus_execution_control_tool_gate_decisions_total{tool="transport_schedule_lookup",gate="tool_read_model_runtime",decision="closed"} 1`,
+		`campus_execution_control_tool_gate_decisions_total{tool="personal_memory_recall",gate="tool_read_model_runtime",decision="closed"} 1`,
 		`campus_execution_control_personal_memory_operations_total{operation="append",outcome="failed",failure_kind="hindsight_append_failed"} 1`,
 		`campus_execution_control_personal_memory_operations_total{operation="recall",outcome="completed",failure_kind="none"} 1`,
 		`campus_execution_control_personal_memory_operation_duration_ms_count{operation="recall"} 1`,

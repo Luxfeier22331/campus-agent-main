@@ -8,5 +8,4 @@ resources:
   - migration-job.yaml
   - availability.yaml
   - ingestion-control.yaml
-  - temporal-connection.yaml
   - deployments.yaml

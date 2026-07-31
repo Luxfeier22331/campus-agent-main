@@ -94,17 +94,42 @@ create table execution_config.audit_events (
 );
 `
 
+const currentProviderConfigSchemaSQL = `
+create schema if not exists execution_config;
+create table execution_config.model_settings (
+	kind text primary key check (kind in ('llm','embedding')),
+	provider text not null,
+	base_url text not null,
+	model text not null,
+	transport text not null,
+	dimensions integer,
+	secret_key_id text not null,
+	secret_nonce bytea not null,
+	secret_ciphertext bytea not null,
+	secret_fingerprint text not null,
+	secret_last4 text not null,
+	validation_status text not null check (validation_status in ('passed','failed')),
+	validation_error_code text not null default '',
+	validation_message text not null default '',
+	validation_observed_dimensions integer,
+	validated_at timestamptz not null,
+	validated_by text not null,
+	updated_at timestamptz not null,
+	updated_by text not null
+);
+`
+
 func testLegacyProviderConfigMigration(t *testing.T, harness *postgresHarness) {
 	t.Run("clean and partially configured current schemas are idempotent", func(t *testing.T) {
 		_, ownerURL := harness.ownerDatabase(t)
-		if err := providerconfig.InstallDatabaseSchema(t.Context(), ownerURL, nil); err != nil {
+		if err := migrateSchema(t.Context(), ownerURL, nil); err != nil {
 			t.Fatalf("install empty current schema: %v", err)
 		}
 		assertLegacyTablesAbsent(t, ownerURL)
 		assertModelSettingsCount(t, ownerURL, 0)
 		keyring := loadIntegrationKeyring(t)
 		insertCurrentModelSetting(t, ownerURL, keyring, providerconfig.KindLLM, "current-llm")
-		if err := providerconfig.InstallDatabaseSchema(t.Context(), ownerURL, nil); err != nil {
+		if err := migrateSchema(t.Context(), ownerURL, nil); err != nil {
 			t.Fatalf("repeat install with one current setting: %v", err)
 		}
 		assertModelSettingsCount(t, ownerURL, 1)
@@ -116,7 +141,7 @@ func testLegacyProviderConfigMigration(t *testing.T, harness *postgresHarness) {
 	t.Run("successful install migrates settings and removes legacy schema", func(t *testing.T) {
 		_, ownerURL := installLegacyProviderFixture(t, harness, legacyFixtureOptions{})
 		keyring := loadIntegrationKeyring(t)
-		if err := providerconfig.InstallDatabaseSchema(t.Context(), ownerURL, keyring); err != nil {
+		if err := migrateSchema(t.Context(), ownerURL, keyring); err != nil {
 			t.Fatalf("migrate legacy schema: %v", err)
 		}
 		assertLegacyTablesAbsent(t, ownerURL)
@@ -138,7 +163,7 @@ func testLegacyProviderConfigMigration(t *testing.T, harness *postgresHarness) {
 		if embedding.APIKey != "legacy-provider-secret" || embedding.Dimensions != 2560 {
 			t.Fatalf("migrated embedding = %#v", embedding)
 		}
-		if err := providerconfig.InstallDatabaseSchema(t.Context(), ownerURL, nil); err != nil {
+		if err := migrateSchema(t.Context(), ownerURL, nil); err != nil {
 			t.Fatalf("repeat current schema install: %v", err)
 		}
 		if err := providerconfig.CheckDatabaseSchema(t.Context(), ownerURL); err != nil {
@@ -147,13 +172,22 @@ func testLegacyProviderConfigMigration(t *testing.T, harness *postgresHarness) {
 	})
 
 	t.Run("current and legacy settings cannot coexist", func(t *testing.T) {
-		_, ownerURL := installLegacyProviderFixture(t, harness, legacyFixtureOptions{})
+		_, ownerURL := harness.ownerDatabase(t)
 		keyring := loadIntegrationKeyring(t)
-		if err := providerconfig.EnsureDatabaseSchema(t.Context(), ownerURL); err != nil {
-			t.Fatalf("install current schema: %v", err)
+		conn := connect(t, ownerURL)
+		if _, err := conn.Exec(t.Context(), currentProviderConfigSchemaSQL); err != nil {
+			closeConn(t, conn)
+			t.Fatalf("install current schema fixture: %v", err)
 		}
+		closeConn(t, conn)
 		insertCurrentModelSetting(t, ownerURL, keyring, providerconfig.KindLLM, "conflicting-llm")
-		if err := providerconfig.InstallDatabaseSchema(t.Context(), ownerURL, keyring); err == nil {
+		conn = connect(t, ownerURL)
+		if _, err := conn.Exec(t.Context(), legacyProviderConfigSchemaSQL); err != nil {
+			closeConn(t, conn)
+			t.Fatalf("install coexisting legacy schema: %v", err)
+		}
+		closeConn(t, conn)
+		if err := migrateSchema(t.Context(), ownerURL, keyring); err == nil {
 			t.Fatal("coexisting current and legacy settings unexpectedly migrated")
 		}
 		assertLegacyTablesPresent(t, ownerURL)
@@ -173,7 +207,7 @@ func testLegacyProviderConfigMigration(t *testing.T, harness *postgresHarness) {
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
 				_, ownerURL := installLegacyProviderFixture(t, harness, test.options)
-				if err := providerconfig.InstallDatabaseSchema(t.Context(), ownerURL, loadIntegrationKeyring(t)); err == nil {
+				if err := migrateSchema(t.Context(), ownerURL, loadIntegrationKeyring(t)); err == nil {
 					t.Fatal("invalid legacy provider config unexpectedly migrated")
 				}
 				assertLegacyTablesPresent(t, ownerURL)
@@ -191,7 +225,7 @@ func testLegacyProviderConfigMigration(t *testing.T, harness *postgresHarness) {
 			t.Fatalf("create unknown legacy dependency: %v", err)
 		}
 		closeConn(t, conn)
-		if err := providerconfig.InstallDatabaseSchema(t.Context(), ownerURL, loadIntegrationKeyring(t)); err == nil {
+		if err := migrateSchema(t.Context(), ownerURL, loadIntegrationKeyring(t)); err == nil {
 			t.Fatal("migration with unknown dependency unexpectedly succeeded")
 		}
 		assertLegacyTablesPresent(t, ownerURL)
@@ -206,11 +240,41 @@ func testLegacyProviderConfigMigration(t *testing.T, harness *postgresHarness) {
 		if _, err := conn.Exec(t.Context(), `create schema if not exists execution_config; create table execution_config.active_bundle (singleton boolean primary key)`); err != nil {
 			t.Fatalf("install partial schema: %v", err)
 		}
-		if err := providerconfig.InstallDatabaseSchema(t.Context(), ownerURL, loadIntegrationKeyring(t)); err == nil {
+		if err := migrateSchema(t.Context(), ownerURL, loadIntegrationKeyring(t)); err == nil {
 			t.Fatal("partial schema unexpectedly migrated")
 		}
 		assertTablePresent(t, ownerURL, "execution_config.active_bundle")
 		assertTableAbsent(t, ownerURL, "execution_config.model_settings")
+	})
+
+	t.Run("partial current schema fails before recording the provider migration", func(t *testing.T) {
+		_, ownerURL := harness.ownerDatabase(t)
+		conn := connect(t, ownerURL)
+		if _, err := conn.Exec(t.Context(), `
+			create schema execution_config;
+			create table execution_config.model_settings (kind text primary key)
+		`); err != nil {
+			closeConn(t, conn)
+			t.Fatalf("install partial current schema: %v", err)
+		}
+		closeConn(t, conn)
+		if err := migrateSchema(t.Context(), ownerURL, nil); err == nil {
+			t.Fatal("partial current schema unexpectedly migrated")
+		}
+		assertTablePresent(t, ownerURL, "execution_config.model_settings")
+		conn = connect(t, ownerURL)
+		defer closeConn(t, conn)
+		var applied int
+		if err := conn.QueryRow(t.Context(), `
+			select count(*)::int
+			from public.execution_control_migrations
+			where version_id = 3 and is_applied
+		`).Scan(&applied); err != nil {
+			t.Fatalf("inspect provider migration ledger: %v", err)
+		}
+		if applied != 0 {
+			t.Fatalf("provider migration ledger count = %d, want 0", applied)
+		}
 	})
 }
 

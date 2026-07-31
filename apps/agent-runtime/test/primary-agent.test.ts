@@ -92,12 +92,12 @@ const testParameterSchema = {
 };
 
 const transportPayloadSchemaRef = schemaRef(
-	"campus-services-tool-contracts.v1",
-	"TransportScheduleLookupPayload",
+	"personal-memory-tool-contracts.v1",
+	"PersonalMemoryRecallPayload",
 );
 const transportResultSchemaRef = schemaRef(
-	"campus-services-tool-contracts.v1",
-	"TransportScheduleLookupResult",
+	"personal-memory-tool-contracts.v1",
+	"PersonalMemoryRecallResult",
 );
 
 const catalog: ToolCatalog = {
@@ -106,8 +106,8 @@ const catalog: ToolCatalog = {
 	runtimeFingerprint: testToolRuntimeFingerprint(),
 	tools: [
 		{
-			name: "transport_schedule_lookup",
-			description: "Lookup campus shuttle schedule snapshots.",
+			name: "test_lookup",
+			description: "Lookup test record schedule snapshots.",
 			exposure: "model_visible",
 			readOnly: true,
 			requiresApproval: false,
@@ -115,7 +115,7 @@ const catalog: ToolCatalog = {
 			resultSchemaRef: transportResultSchemaRef,
 			handler: {
 				type: "execution_control_internal_query",
-				endpoint: "/internal/query/campus-services/transport-schedule",
+				endpoint: "/internal/query/fixture/test",
 			},
 			timeoutMs: 1000,
 			resultProjectionPolicy: "bounded_json",
@@ -163,7 +163,7 @@ describe("primary agent runtime", () => {
 			input: "hi 你是谁",
 			providerConfig,
 			limits,
-			visibleToolNames: ["transport_schedule_lookup"],
+			visibleToolNames: ["test_lookup"],
 		});
 
 		expect(result.status).toBe("completed");
@@ -214,14 +214,14 @@ describe("primary agent runtime", () => {
 			conversationId: "conversation-1",
 			turnId: "turn-closed-tools",
 			traceId: "trace-closed-tools",
-			input: "今天下一班校车几点发？",
+			input: "今天下一班通知几点发？",
 			providerConfig,
 			limits,
-			visibleToolNames: ["transport_schedule_lookup"],
+			visibleToolNames: ["test_lookup"],
 		});
 
 		expect(observedToolNames).toEqual([]);
-		expect(observedInstructions).not.toContain("transport_schedule_lookup");
+		expect(observedInstructions).not.toContain("test_lookup");
 		expect(observedInstructions).toContain(
 			"Use only the function tools made available in this run.",
 		);
@@ -262,7 +262,7 @@ describe("primary agent runtime", () => {
 			input: "hi 你是谁",
 			providerConfig,
 			limits,
-			visibleToolNames: ["transport_schedule_lookup"],
+			visibleToolNames: ["test_lookup"],
 		});
 
 		expect(result.status).toBe("failed");
@@ -296,7 +296,7 @@ describe("primary agent runtime", () => {
 			input: "hi",
 			providerConfig,
 			limits,
-			visibleToolNames: ["transport_schedule_lookup"],
+			visibleToolNames: ["test_lookup"],
 		});
 
 		await expect(events[Symbol.asyncIterator]().next()).rejects.toThrow(
@@ -547,7 +547,7 @@ describe("primary agent runtime", () => {
 			input: "之后回答能不能先给结论？",
 			providerConfig,
 			limits,
-			visibleToolNames: ["transport_schedule_lookup"],
+			visibleToolNames: ["test_lookup"],
 			finalModelContext: emptyFinalModelContext(),
 		});
 
@@ -591,7 +591,7 @@ describe("primary agent runtime", () => {
 			input: "那大一能不能申请？",
 			providerConfig,
 			limits,
-			visibleToolNames: ["transport_schedule_lookup"],
+			visibleToolNames: ["test_lookup"],
 			finalModelContext: {
 				schemaVersion: "final_model_context.v3" as const,
 				recentTurns: [
@@ -696,17 +696,17 @@ describe("primary agent runtime", () => {
 		const runner: AgentRunner = async ({ tools }) => {
 			const toolResult = timedToolResult(
 				await tools[0]?.execute({
-					query_text: "校车今天几点",
+					query_text: "通知今天几点",
 					intent: "next_departure",
 				}),
 			);
 			return {
-				finalOutput: "校车查询完成。",
-				terminalEnvelope: { kind: "answer", answerText: "校车查询完成。" },
+				finalOutput: "通知查询完成。",
+				terminalEnvelope: { kind: "answer", answerText: "通知查询完成。" },
 				providerResponseId: "resp_2",
 				toolCalls: [
 					{
-						name: "transport_schedule_lookup",
+						name: "test_lookup",
 						argumentsSummary: { intent: "next_departure" },
 						result: toolResult,
 					},
@@ -725,7 +725,7 @@ describe("primary agent runtime", () => {
 					outcome: "resolved_current",
 					echo: argumentsJson,
 				},
-				resultRef: "agent-runtime://run-tool/tools/transport_schedule_lookup",
+				resultRef: "agent-runtime://run-tool/tools/test_lookup",
 			}),
 		});
 
@@ -737,19 +737,17 @@ describe("primary agent runtime", () => {
 			conversationId: "conversation-1",
 			turnId: "turn-2",
 			traceId: "trace-2",
-			input: "校车今天几点",
+			input: "通知今天几点",
 			providerConfig,
 			limits,
-			visibleToolNames: ["transport_schedule_lookup"],
+			visibleToolNames: ["test_lookup"],
 		});
 
 		expect(result.status).toBe("completed");
 		expect(result.terminalReason).toBe("answer_completed");
-		expect(result.toolResults[0]?.resultRef).toBe(
-			"agent-runtime://run-tool/tools/transport_schedule_lookup",
-		);
+		expect(result.toolResults[0]?.resultRef).toBe("agent-runtime://run-tool/tools/test_lookup");
 		expect(result.toolResults[0]?.argumentsJson).toEqual({
-			query_text: "校车今天几点",
+			query_text: "通知今天几点",
 			intent: "next_departure",
 		});
 		expect(result.toolResults[0]?.durationMs).toBe(12);
@@ -758,14 +756,14 @@ describe("primary agent runtime", () => {
 
 	it("fails closed when a model-visible typed tool has no executor", async () => {
 		const runner: AgentRunner = async ({ tools }) => {
-			const toolResult = timedToolResult(await tools[0]?.execute({ query_text: "校车今天几点" }));
+			const toolResult = timedToolResult(await tools[0]?.execute({ query_text: "通知今天几点" }));
 			return {
 				finalOutput: "",
 				providerResponseId: "resp_missing_tool_executor",
 				toolCalls: [
 					{
-						name: "transport_schedule_lookup",
-						argumentsSummary: { query_text: "校车今天几点" },
+						name: "test_lookup",
+						argumentsSummary: { query_text: "通知今天几点" },
 						result: toolResult,
 					},
 				],
@@ -782,10 +780,10 @@ describe("primary agent runtime", () => {
 			conversationId: "conversation-1",
 			turnId: "turn-4",
 			traceId: "trace-4",
-			input: "校车今天几点",
+			input: "通知今天几点",
 			providerConfig,
 			limits,
-			visibleToolNames: ["transport_schedule_lookup"],
+			visibleToolNames: ["test_lookup"],
 		});
 
 		expect(result.status).toBe("failed");
@@ -794,12 +792,11 @@ describe("primary agent runtime", () => {
 		expect(result.toolResults).toEqual([
 			{
 				status: "failed",
-				toolName: "transport_schedule_lookup",
-				payloadKind: "transport_schedule_lookup",
-				argumentsJson: { query_text: "校车今天几点" },
+				toolName: "test_lookup",
+				payloadKind: "test_lookup",
+				argumentsJson: { query_text: "通知今天几点" },
 				result: { error: "tool executor is not configured" },
-				resultRef:
-					"agent-runtime://run-missing-tool-executor/tools/transport_schedule_lookup/failed",
+				resultRef: "agent-runtime://run-missing-tool-executor/tools/test_lookup/failed",
 				failCloseReason: "tool_executor_not_configured",
 				durationMs: 12,
 			},
@@ -810,16 +807,16 @@ describe("primary agent runtime", () => {
 		const runner: AgentRunner = async ({ tools }) => {
 			const toolResult = timedToolResult(
 				await tools[0]?.execute({
-					query_text: "校车今天几点",
+					query_text: "通知今天几点",
 					intent: "next_departure",
 				}),
 			);
 			return {
-				finalOutput: "校车查询失败。",
+				finalOutput: "通知查询失败。",
 				providerResponseId: "resp_failed_tool",
 				toolCalls: [
 					{
-						name: "transport_schedule_lookup",
+						name: "test_lookup",
 						argumentsSummary: { intent: "next_departure" },
 						result: toolResult,
 					},
@@ -837,7 +834,7 @@ describe("primary agent runtime", () => {
 				result: {
 					error: "source truth unavailable",
 				},
-				resultRef: "agent-runtime://run-tool/tools/transport_schedule_lookup/failed",
+				resultRef: "agent-runtime://run-tool/tools/test_lookup/failed",
 				failCloseReason: "source_truth_unavailable",
 			}),
 		});
@@ -850,10 +847,10 @@ describe("primary agent runtime", () => {
 			conversationId: "conversation-1",
 			turnId: "turn-3",
 			traceId: "trace-3",
-			input: "校车今天几点",
+			input: "通知今天几点",
 			providerConfig,
 			limits,
-			visibleToolNames: ["transport_schedule_lookup"],
+			visibleToolNames: ["test_lookup"],
 		});
 
 		expect(result.status).toBe("failed");
@@ -862,7 +859,7 @@ describe("primary agent runtime", () => {
 		expect(result.toolResults[0]?.failCloseReason).toBe("source_truth_unavailable");
 		expect(result.toolResults[0]?.durationMs).toBe(12);
 		expect(result.toolResults[0]?.argumentsJson).toEqual({
-			query_text: "校车今天几点",
+			query_text: "通知今天几点",
 			intent: "next_departure",
 		});
 	});
@@ -875,17 +872,17 @@ describe("primary agent runtime", () => {
 			runnerSignal = signal;
 			const toolResult = timedToolResult(
 				await tools[0]?.execute({
-					query_text: "校车今天几点",
+					query_text: "通知今天几点",
 				}),
 			);
 			return {
-				finalOutput: "校车查询完成。",
-				terminalEnvelope: { kind: "answer", answerText: "校车查询完成。" },
+				finalOutput: "通知查询完成。",
+				terminalEnvelope: { kind: "answer", answerText: "通知查询完成。" },
 				providerResponseId: "resp_signal",
 				toolCalls: [
 					{
-						name: "transport_schedule_lookup",
-						argumentsSummary: { query_text: "校车今天几点" },
+						name: "test_lookup",
+						argumentsSummary: { query_text: "通知今天几点" },
 						result: toolResult,
 					},
 				],
@@ -903,7 +900,7 @@ describe("primary agent runtime", () => {
 					payloadKind: tool.name,
 					argumentsJson,
 					result: { outcome: "resolved_current" },
-					resultRef: "agent-runtime://run-tool/tools/transport_schedule_lookup",
+					resultRef: "agent-runtime://run-tool/tools/test_lookup",
 				};
 			},
 		});
@@ -916,10 +913,10 @@ describe("primary agent runtime", () => {
 			conversationId: "conversation-1",
 			turnId: "turn-signal",
 			traceId: "trace-signal",
-			input: "校车今天几点",
+			input: "通知今天几点",
 			providerConfig,
 			limits,
-			visibleToolNames: ["transport_schedule_lookup"],
+			visibleToolNames: ["test_lookup"],
 			signal: controller.signal,
 		});
 
@@ -957,8 +954,5 @@ function testToolRuntimeFingerprint() {
 		toolsRegistryVersion: "test",
 		toolsSchemaVersion: "tool-registry-v6" as const,
 		toolsSha256: sha256("tool-registry"),
-		workflowArtifactRegistryVersion: "test",
-		workflowArtifactSchemaVersion: "workflow-artifact-registry-v3" as const,
-		workflowArtifactSha256: sha256("workflow-artifacts"),
 	};
 }

@@ -1,3 +1,4 @@
 apps/app-api/drizzle/
+apps/ops-web/drizzle/
 apps/app-api/test/fixtures/app-auth-pre-drizzle.sql
 apps/app-api/test/fixtures/chat-pre-0001.sql

@@ -524,9 +524,6 @@ export function createPgRuntimeRunStore(
 									admissionInputJson: null,
 									admissionInputSha256: null,
 									admissionStatus: "cancelled",
-									executionInputJson: null,
-									executionInputReleasedAt: requestedAt,
-									executionInputSha256: null,
 								}
 							: {}),
 						cancelOutboxStatus: local ? "local_finalization_pending" : "pending_delivery",

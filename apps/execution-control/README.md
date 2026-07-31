@@ -30,12 +30,17 @@ rerank 和 Agents SDK 函数工具不再分别展开成 Temporal activity。
 - `execution-control`：生产入口；`8000` 提供内部执行、查询、记忆和健康接口，`8001` 提供
   Provider Config 管理接口，同时运行三类 Temporal poller；
 - `personal-memory-runtime`：个人记忆命令入口；
-- `run-projection-schema`：安装和验证运行投影与 Provider Config schema。
+- `run-projection-schema`：通过 Goose 安装和验证运行投影、个人记忆状态与 Provider Config
+  schema，再独立应用运行角色授权。
+
+Migration 位于 `internal/schemamigrations/`，统一记录在
+`public.execution_control_migrations`。运行时 Store 只连接和读写，不自动建表。普通结构变化新增
+SQL migration；需要解密并重加密旧 Provider 配置的数据转换使用同一版本序列中的事务型 Go
+migration。修改后运行 `pnpm ci:execution-control-postgres`。
 
 具体 HTTP 路径、字段和枚举不在 README 复制：
 
 - 执行接口：`docs/contracts/tool-execution.md`；
-- 工具读取：`docs/contracts/tool-read-model.md`；
 - 队列诊断：`docs/contracts/temporal-queues.md`；
 - 个人记忆：`docs/architecture/system/memory-plane.md` 与 `docs/contracts/app-api/memory.md`；
 - Provider Config：`docs/contracts/ops-web/providers.md` 与 `docs/environment/providers.md`。

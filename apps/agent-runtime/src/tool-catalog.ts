@@ -73,9 +73,6 @@ export interface ToolRuntimeFingerprint {
 	toolsRegistryVersion: string;
 	toolsSchemaVersion: "tool-registry-v6";
 	toolsSha256: string;
-	workflowArtifactRegistryVersion: string;
-	workflowArtifactSchemaVersion: "workflow-artifact-registry-v3";
-	workflowArtifactSha256: string;
 }
 
 export interface VisibleToolDefinition {
@@ -118,23 +115,15 @@ export function loadToolCatalog(
 	options: {
 		runtimeRelease?: string;
 		toolFunctionSchemaPath?: string;
-		workflowArtifactRegistryPath?: string;
 	} = {},
 ): ToolCatalog {
 	const rawToolCatalog = readFileSync(path, "utf8");
 	const toolFunctionSchemaPath =
 		options.toolFunctionSchemaPath ?? defaultToolFunctionSchemaPath(path);
-	const workflowArtifactRegistryPath =
-		options.workflowArtifactRegistryPath ?? defaultWorkflowArtifactRegistryPath(path);
 	const toolFunctionSchemaRaw = readRequiredRuntimeArtifact(
 		toolFunctionSchemaPath,
 		"tool function schema config",
 	);
-	const workflowArtifactRegistryRaw = readRequiredRuntimeArtifact(
-		workflowArtifactRegistryPath,
-		"workflow artifact registry config",
-	);
-	const workflowArtifactRegistry = parseWorkflowArtifactRegistry(workflowArtifactRegistryRaw);
 	return loadToolCatalogFromObject(JSON.parse(rawToolCatalog), {
 		runtimeFingerprint: buildToolRuntimeFingerprint({
 			runtimeRelease: normalizedRuntimeRelease(
@@ -143,8 +132,6 @@ export function loadToolCatalog(
 			toolCatalogRaw: rawToolCatalog,
 			toolFunctionSchemaRaw,
 			toolsRegistryVersion: registryVersionFromRawToolCatalog(rawToolCatalog),
-			workflowArtifactRegistry,
-			workflowArtifactRegistryRaw,
 		}),
 		toolFunctionSchemaPath,
 	});
@@ -266,12 +253,9 @@ function buildToolRuntimeFingerprint(input: {
 	toolCatalogRaw: string;
 	toolFunctionSchemaRaw: string;
 	toolsRegistryVersion: string;
-	workflowArtifactRegistry: WorkflowArtifactRegistryMetadata;
-	workflowArtifactRegistryRaw: string;
 }): ToolRuntimeFingerprint {
 	const toolsSha256 = sha256CanonicalJson(input.toolCatalogRaw);
 	const functionSchemaSha256 = sha256CanonicalJson(input.toolFunctionSchemaRaw);
-	const workflowArtifactSha256 = sha256CanonicalJson(input.workflowArtifactRegistryRaw);
 	return {
 		combinedSha256: sha256(
 			JSON.stringify({
@@ -282,9 +266,6 @@ function buildToolRuntimeFingerprint(input: {
 				tools_registry_version: input.toolsRegistryVersion,
 				tools_schema_version: "tool-registry-v6",
 				tools_sha256: toolsSha256,
-				workflow_artifact_registry_version: input.workflowArtifactRegistry.registryVersion,
-				workflow_artifact_schema_version: "workflow-artifact-registry-v3",
-				workflow_artifact_sha256: workflowArtifactSha256,
 			}),
 		),
 		functionSchemaSha256,
@@ -294,20 +275,12 @@ function buildToolRuntimeFingerprint(input: {
 		toolsRegistryVersion: input.toolsRegistryVersion,
 		toolsSchemaVersion: "tool-registry-v6",
 		toolsSha256,
-		workflowArtifactRegistryVersion: input.workflowArtifactRegistry.registryVersion,
-		workflowArtifactSchemaVersion: "workflow-artifact-registry-v3",
-		workflowArtifactSha256,
 	};
 }
 
 function normalizedRuntimeRelease(value: string | undefined): string {
 	const release = value?.trim();
 	return release ? release : "unversioned-local";
-}
-
-interface WorkflowArtifactRegistryMetadata {
-	registryVersion: string;
-	schemaVersion: "workflow-artifact-registry-v3";
 }
 
 function requireToolRuntimeFingerprint(
@@ -317,24 +290,6 @@ function requireToolRuntimeFingerprint(
 		throw new Error("tool runtime fingerprint is required");
 	}
 	return fingerprint;
-}
-
-function parseWorkflowArtifactRegistry(raw: string): WorkflowArtifactRegistryMetadata {
-	const parsed = JSON.parse(raw) as {
-		registry_version?: unknown;
-		schema_version?: unknown;
-	};
-	if (
-		parsed.schema_version !== "workflow-artifact-registry-v3" ||
-		typeof parsed.registry_version !== "string" ||
-		parsed.registry_version.trim() === ""
-	) {
-		throw new Error("workflow artifact registry config must use workflow-artifact-registry-v3");
-	}
-	return {
-		registryVersion: parsed.registry_version,
-		schemaVersion: parsed.schema_version,
-	};
 }
 
 function registryVersionFromRawToolCatalog(raw: string): string {
@@ -377,19 +332,6 @@ function stableJsonStringify(value: unknown): string {
 function defaultToolFunctionSchemaPath(toolCatalogPath: string): string | undefined {
 	for (let dir = dirname(toolCatalogPath); ; dir = dirname(dir)) {
 		const candidate = join(dir, "configs", "runtime", "tool-function-schemas.v3.json");
-		if (existsSync(candidate)) {
-			return candidate;
-		}
-		const parent = dirname(dir);
-		if (parent === dir) {
-			return;
-		}
-	}
-}
-
-function defaultWorkflowArtifactRegistryPath(toolCatalogPath: string): string | undefined {
-	for (let dir = dirname(toolCatalogPath); ; dir = dirname(dir)) {
-		const candidate = join(dir, "configs", "runtime", "workflow-artifacts.v3.json");
 		if (existsSync(candidate)) {
 			return candidate;
 		}

@@ -73,8 +73,6 @@ func stageTimingToolField(attempt execution.StepAttemptProjection) string {
 	switch tool {
 	case "personal_memory_recall":
 		return "memory.recall_ms"
-	case "transport_schedule_lookup":
-		return "tool.transport_schedule_lookup_ms"
 	default:
 		return ""
 	}

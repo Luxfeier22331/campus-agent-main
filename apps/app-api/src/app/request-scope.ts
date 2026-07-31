@@ -7,10 +7,6 @@ import {
 import { getOpsAccountAdminApi } from "../modules/auth/ops-account-admin-plugin";
 import { buildCampusExperienceService } from "../modules/campus-experience";
 import { buildCampusGroupsService, createPgCampusGroupsStore } from "../modules/campus-groups";
-import {
-	buildCampusServicesTransportScheduleService,
-	createPgCampusServicesTransportScheduleStore,
-} from "../modules/campus-services-transport-schedule";
 import { buildChatConversationService, createPgChatConversationStore } from "../modules/chat";
 import { createPgDiningContentService, createPgDiningMapReadService } from "../modules/dining";
 import { buildDocsService, createPgDocsReadModelStore } from "../modules/docs";
@@ -47,7 +43,6 @@ export function createRequestScopeFactory(input: {
 			let accountLifecycle = input.dependencies.accountLifecycleService ?? null;
 			let campusExperience = input.dependencies.campusExperienceService ?? null;
 			let campusGroups = input.dependencies.campusGroupsService ?? null;
-			let campusServices = input.dependencies.campusServicesTransportScheduleService ?? null;
 			let chat = input.dependencies.chatConversationService ?? null;
 			let command = input.dependencies.chatCommandService ?? null;
 			let dining = input.dependencies.diningMapReadService ?? null;
@@ -106,12 +101,6 @@ export function createRequestScopeFactory(input: {
 					(campusGroups ??= buildCampusGroupsService(
 						createPgCampusGroupsStore(input.env, { getDb: runtime.getDb }),
 					)),
-				resolveCampusServicesTransportScheduleService: () =>
-					(campusServices ??= buildCampusServicesTransportScheduleService({
-						store: createPgCampusServicesTransportScheduleStore(input.env, {
-							getDb: runtime.getDb,
-						}),
-					})),
 				resolveChatCommandService,
 				resolveChatConversationService,
 				resolveDiningMapReadService: () =>

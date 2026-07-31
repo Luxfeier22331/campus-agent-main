@@ -86,7 +86,6 @@ release，也不跟随 Qdrant alias。
 | 名称 | 暴露范围 | 用途 |
 | --- | --- | --- |
 | `personal_memory_recall` | 按本轮授权开放 | 有界读取当前用户的个人记忆 |
-| `transport_schedule_lookup` | 关闭 | 班车时刻表内部读取合同 |
 
 未获个人记忆召回授权的运行没有模型可见工具；获授权的运行最多调用一次
 `personal_memory_recall`。知识 grounding 不是模型工具，也不进入工具轨迹。
@@ -106,8 +105,7 @@ tokenizer 计算精确 token 数，并校验内容摘要。
 
 ## 产品与离线数据
 
-文档阅读器、校园地图、Dining 和班车状态分别消费已经发布的产品读取模型。班车的内部工具读取
-合同仍保留但未向模型开放；Dining 当前也不提供模型工具。
+文档阅读器、校园地图和 Dining 分别消费已经发布的产品读取模型；Dining 当前也不提供模型工具。
 
 注册的离线任务由 ingestion-control、Temporal 和 Rust 内核执行。内部门户文件发布使用独立
 workflow 调用 source-collector，通知则由 source-collector 本地命令直接写入来源对象；两者都

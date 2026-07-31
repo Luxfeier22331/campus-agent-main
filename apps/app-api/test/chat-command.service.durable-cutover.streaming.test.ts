@@ -289,9 +289,8 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 		store.readExecutionInput = vi.fn(async (runId) =>
 			finalWrites.length > 0
 				? {
-						executionInputJson: null,
-						executionInputReleasedAt: "2026-06-04T01:02:03.000Z",
-						executionInputSha256: null,
+						executionInputJson: '{"request_id":"req_0001"}',
+						executionInputSha256: "b".repeat(64),
 						requestId: "req_0001",
 						runId,
 						status: "completed" as const,

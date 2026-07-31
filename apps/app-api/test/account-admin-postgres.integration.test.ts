@@ -8,6 +8,7 @@ import { appApiSchema } from "../src/db/schema";
 import { createPgAccountAdminStore } from "../src/modules/account-admin";
 
 const postgres = inject("appApiPostgres");
+const testEnv = { DEPLOYMENT_ENVIRONMENT: "test" } as const;
 
 describe("account administration PostgreSQL integration", () => {
 	let pool: Pool;
@@ -51,7 +52,7 @@ describe("account administration PostgreSQL integration", () => {
 			],
 		);
 		const database = drizzle(pool, { schema: appApiSchema });
-		const store = createPgAccountAdminStore({} as never, { getDb: async () => database });
+		const store = createPgAccountAdminStore(testEnv, { getDb: async () => database });
 
 		await expect(store.listUsers({ limit: 10, query: userId })).resolves.toMatchObject({
 			items: [{ activeSessionCount: 1, id: userId }],
@@ -89,7 +90,7 @@ describe("account administration PostgreSQL integration", () => {
 			);
 		}
 		const database = drizzle(pool, { schema: appApiSchema });
-		const store = createPgAccountAdminStore({} as never, { getDb: async () => database });
+		const store = createPgAccountAdminStore(testEnv, { getDb: async () => database });
 		const first = await store.listUsers({ limit: 2, query: `page-${suffix}` });
 		expect(first.items.map((item) => item.id)).toEqual([`page-${suffix}-c`, `page-${suffix}-b`]);
 		expect(first.nextCursor).not.toBeNull();
@@ -144,7 +145,7 @@ describe("account administration PostgreSQL integration", () => {
 		);
 
 		const database = drizzle(pool, { schema: appApiSchema });
-		const store = createPgAccountAdminStore({ DEPLOYMENT_ENVIRONMENT: "test" } as never, {
+		const store = createPgAccountAdminStore(testEnv, {
 			getDb: async () => database,
 			now: () => now,
 		});
@@ -209,7 +210,7 @@ describe("account administration PostgreSQL integration", () => {
 		}
 
 		const database = drizzle(pool, { schema: appApiSchema });
-		const store = createPgAccountAdminStore({ DEPLOYMENT_ENVIRONMENT: "test" } as never, {
+		const store = createPgAccountAdminStore(testEnv, {
 			getDb: async () => database,
 			now: () => now,
 		});
@@ -241,7 +242,7 @@ describe("account administration PostgreSQL integration", () => {
 			[now, userId, `unban-request-${suffix}`],
 		);
 		const database = drizzle(pool, { schema: appApiSchema });
-		const store = createPgAccountAdminStore({ DEPLOYMENT_ENVIRONMENT: "test" } as never, {
+		const store = createPgAccountAdminStore(testEnv, {
 			getDb: async () => database,
 		});
 
@@ -271,7 +272,7 @@ describe("account administration PostgreSQL integration", () => {
 			],
 		);
 		const database = drizzle(pool, { schema: appApiSchema });
-		const store = createPgAccountAdminStore({} as never, { getDb: async () => database });
+		const store = createPgAccountAdminStore(testEnv, { getDb: async () => database });
 		await expect(
 			store.markStaleCommandsIndeterminate(new Date("2026-07-20T00:30:00.000Z")),
 		).resolves.toBe(1);

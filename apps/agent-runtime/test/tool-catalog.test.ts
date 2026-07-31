@@ -17,22 +17,22 @@ describe("tool catalog", () => {
 				registry_version: "test",
 				tools: [
 					{
-						name: "transport_schedule_lookup",
-						description: "Lookup campus shuttle schedule snapshots.",
+						name: "test_lookup",
+						description: "Look up a test record.",
 						exposure: "model_visible",
 						read_only: true,
 						requires_approval: false,
 						payload_schema_ref: schemaRef(
-							"campus-services-tool-contracts.v1",
-							"TransportScheduleLookupPayload",
+							"personal-memory-tool-contracts.v1",
+							"PersonalMemoryRecallPayload",
 						),
 						result_schema_ref: schemaRef(
-							"campus-services-tool-contracts.v1",
-							"TransportScheduleLookupResult",
+							"personal-memory-tool-contracts.v1",
+							"PersonalMemoryRecallResult",
 						),
 						handler: {
 							type: "execution_control_internal_query",
-							endpoint: "/internal/query/campus-services/transport-schedule",
+							endpoint: "/internal/query/fixture/test",
 						},
 						timeout_ms: 1000,
 						result_projection_policy: "bounded_json",
@@ -44,12 +44,12 @@ describe("tool catalog", () => {
 						read_only: true,
 						requires_approval: false,
 						payload_schema_ref: schemaRef(
-							"campus-services-tool-contracts.v1",
-							"TransportScheduleLookupPayload",
+							"personal-memory-tool-contracts.v1",
+							"PersonalMemoryRecallPayload",
 						),
 						result_schema_ref: schemaRef(
-							"campus-services-tool-contracts.v1",
-							"TransportScheduleLookupResult",
+							"personal-memory-tool-contracts.v1",
+							"PersonalMemoryRecallResult",
 						),
 						handler: {
 							type: "execution_control_internal_query",
@@ -62,16 +62,11 @@ describe("tool catalog", () => {
 			},
 			{
 				runtimeFingerprint: testToolRuntimeFingerprint(),
-				toolFunctionSchemaPath: testSchemaPath(
-					"transport_schedule_lookup",
-					"internal_fixture_tool",
-				),
+				toolFunctionSchemaPath: testSchemaPath("test_lookup", "internal_fixture_tool"),
 			},
 		);
 
-		expect(buildVisibleToolDefinitions(catalog).map((tool) => tool.name)).toEqual([
-			"transport_schedule_lookup",
-		]);
+		expect(buildVisibleToolDefinitions(catalog).map((tool) => tool.name)).toEqual(["test_lookup"]);
 	});
 
 	it("rejects model-visible tools that are not read-only", () => {
@@ -87,12 +82,12 @@ describe("tool catalog", () => {
 						read_only: false,
 						requires_approval: true,
 						payload_schema_ref: schemaRef(
-							"campus-services-tool-contracts.v1",
-							"TransportScheduleLookupPayload",
+							"personal-memory-tool-contracts.v1",
+							"PersonalMemoryRecallPayload",
 						),
 						result_schema_ref: schemaRef(
-							"campus-services-tool-contracts.v1",
-							"TransportScheduleLookupResult",
+							"personal-memory-tool-contracts.v1",
+							"PersonalMemoryRecallResult",
 						),
 						handler: {
 							type: "execution_control_internal_query",
@@ -111,7 +106,7 @@ describe("tool catalog", () => {
 			loadToolCatalogFromObject({
 				schema_version: "tool-registry-v6",
 				registry_version: "test",
-				tools: [rawTransportScheduleTool()],
+				tools: [rawTestLookupTool()],
 			}),
 		).toThrow("tool function schema path is required");
 	});
@@ -122,11 +117,11 @@ describe("tool catalog", () => {
 				{
 					schema_version: "tool-registry-v6",
 					registry_version: "test",
-					tools: [rawTransportScheduleTool()],
+					tools: [rawTestLookupTool()],
 				},
 				{ toolFunctionSchemaPath: testSchemaPath("unrelated_fixture_tool") },
 			),
-		).toThrow("model_visible tool transport_schedule_lookup missing strict function schema");
+		).toThrow("model_visible tool test_lookup missing strict function schema");
 	});
 
 	it("rejects retired internal route handlers", () => {
@@ -152,7 +147,7 @@ describe("tool catalog", () => {
 			"/internal/query/%252e%252e/public",
 			"/internal/query?next=/public/query",
 		]) {
-			const tool = rawTransportScheduleTool();
+			const tool = rawTestLookupTool();
 			tool.handler.endpoint = endpoint;
 			expect(() =>
 				loadToolCatalogFromObject(
@@ -163,7 +158,7 @@ describe("tool catalog", () => {
 					},
 					{
 						runtimeFingerprint: testToolRuntimeFingerprint(),
-						toolFunctionSchemaPath: testSchemaPath("transport_schedule_lookup"),
+						toolFunctionSchemaPath: testSchemaPath("test_lookup"),
 					},
 				),
 			).toThrow("endpoint must be a canonical /internal/ path");
@@ -176,23 +171,19 @@ describe("tool catalog", () => {
 				{
 					schema_version: "tool-registry-v6",
 					registry_version: "test",
-					tools: [rawTransportScheduleTool()],
+					tools: [rawTestLookupTool()],
 				},
-				{ toolFunctionSchemaPath: testSchemaPath("transport_schedule_lookup") },
+				{ toolFunctionSchemaPath: testSchemaPath("test_lookup") },
 			),
 		).toThrow("tool runtime fingerprint is required");
 	});
 
-	it("exposes only personal memory while keeping institutional tools closed", () => {
+	it("exposes the registered personal memory tool", () => {
 		const catalog = loadToolCatalog("../../configs/runtime/tools.v6.json");
 
-		expect(catalog.tools.map((tool) => tool.name)).toEqual([
-			"personal_memory_recall",
-			"transport_schedule_lookup",
-		]);
+		expect(catalog.tools.map((tool) => tool.name)).toEqual(["personal_memory_recall"]);
 		expect(Object.fromEntries(catalog.tools.map((tool) => [tool.name, tool.exposure]))).toEqual({
 			personal_memory_recall: "model_visible",
-			transport_schedule_lookup: "closed",
 		});
 		expect(buildVisibleToolDefinitions(catalog).map((tool) => tool.name)).toEqual([
 			"personal_memory_recall",
@@ -214,7 +205,7 @@ describe("tool catalog", () => {
 		}
 	});
 
-	it("retains strict parameter schemas for the closed registered tools", () => {
+	it("retains strict parameter schemas for registered tools", () => {
 		const catalog = loadToolCatalog("../../configs/runtime/tools.v6.json");
 
 		for (const tool of catalog.tools) {
@@ -230,47 +221,28 @@ describe("tool catalog", () => {
 		const catalog = loadToolCatalog("../../configs/runtime/tools.v6.json");
 		const tools = catalog.tools;
 
-		const transport = tools.find((tool) => tool.name === "transport_schedule_lookup");
+		const personalMemory = tools.find((tool) => tool.name === "personal_memory_recall");
 
-		expect(transport?.parameterSchema?.required).toEqual([
-			"query_text",
-			"intent",
-			"route_selector",
-			"snapshot_query",
-			"service_time_query",
-			"result_limit",
-		]);
-		expect(transport?.parameterSchema?.properties).toHaveProperty("route_selector");
-		expect(transport?.parameterSchema?.properties).not.toHaveProperty("route_query");
+		expect(personalMemory?.parameterSchema?.required).toEqual(["query"]);
+		expect(personalMemory?.parameterSchema?.properties).toHaveProperty("query");
 	});
 
-	it("attests the actual registry, function schema, and workflow artifact files loaded at runtime", () => {
+	it("attests the actual registry and function schema files loaded at runtime", () => {
 		const dir = mkdtempSync(join(tmpdir(), "agent-runtime-tool-attestation-"));
 		const toolRegistryPath = join(dir, "tools.v6.json");
 		const toolFunctionSchemaPath = join(dir, "tool-function-schemas.v3.json");
-		const workflowArtifactRegistryPath = join(dir, "workflow-artifacts.v3.json");
 		const toolRegistry = {
 			schema_version: "tool-registry-v6",
 			registry_version: "attestation-test",
-			tools: [rawTransportScheduleTool()],
+			tools: [rawTestLookupTool()],
 		};
-		const functionSchemas = strictFunctionSchemaConfig("transport_schedule_lookup");
-		const workflowArtifacts = {
-			schema_version: "workflow-artifact-registry-v3",
-			registry_version: "artifact-test",
-			artifacts: [],
-			forbidden_raw_key_tokens: [],
-			support_status_values: [],
-			visibility_values: [],
-		};
+		const functionSchemas = strictFunctionSchemaConfig("test_lookup");
 		writeFileSync(toolRegistryPath, JSON.stringify(toolRegistry), "utf8");
 		writeFileSync(toolFunctionSchemaPath, JSON.stringify(functionSchemas), "utf8");
-		writeFileSync(workflowArtifactRegistryPath, JSON.stringify(workflowArtifacts), "utf8");
 
 		const catalog = loadToolCatalog(toolRegistryPath, {
 			runtimeRelease: "test-release",
 			toolFunctionSchemaPath,
-			workflowArtifactRegistryPath,
 		});
 		const expectedCombined = sha256(
 			JSON.stringify({
@@ -281,9 +253,6 @@ describe("tool catalog", () => {
 				tools_registry_version: "attestation-test",
 				tools_schema_version: "tool-registry-v6",
 				tools_sha256: sha256CanonicalJson(toolRegistry),
-				workflow_artifact_registry_version: "artifact-test",
-				workflow_artifact_schema_version: "workflow-artifact-registry-v3",
-				workflow_artifact_sha256: sha256CanonicalJson(workflowArtifacts),
 			}),
 		);
 
@@ -296,22 +265,7 @@ describe("tool catalog", () => {
 			toolsRegistryVersion: "attestation-test",
 			toolsSchemaVersion: "tool-registry-v6",
 			toolsSha256: sha256CanonicalJson(toolRegistry),
-			workflowArtifactRegistryVersion: "artifact-test",
-			workflowArtifactSchemaVersion: "workflow-artifact-registry-v3",
-			workflowArtifactSha256: sha256CanonicalJson(workflowArtifacts),
 		});
-
-		writeFileSync(
-			workflowArtifactRegistryPath,
-			JSON.stringify({ ...workflowArtifacts, registry_version: "artifact-test-2" }),
-			"utf8",
-		);
-		const updatedCatalog = loadToolCatalog(toolRegistryPath, {
-			toolFunctionSchemaPath,
-			workflowArtifactRegistryPath,
-		});
-
-		expect(updatedCatalog.runtimeFingerprint.combinedSha256).not.toBe(expectedCombined);
 	});
 
 	it("hashes runtime artifacts using canonical JSON content rather than file formatting", () => {
@@ -319,57 +273,42 @@ describe("tool catalog", () => {
 		const prettyToolRegistryPath = join(dir, "tools.pretty.json");
 		const compactToolRegistryPath = join(dir, "tools.compact.json");
 		const toolFunctionSchemaPath = join(dir, "tool-function-schemas.v3.json");
-		const workflowArtifactRegistryPath = join(dir, "workflow-artifacts.v3.json");
 		const toolRegistry = {
 			schema_version: "tool-registry-v6",
 			registry_version: "attestation-test",
-			tools: [rawTransportScheduleTool()],
+			tools: [rawTestLookupTool()],
 		};
-		const functionSchemas = strictFunctionSchemaConfig("transport_schedule_lookup");
-		const workflowArtifacts = {
-			schema_version: "workflow-artifact-registry-v3",
-			registry_version: "artifact-test",
-			artifacts: [],
-			forbidden_raw_key_tokens: [],
-			support_status_values: [],
-			visibility_values: [],
-		};
+		const functionSchemas = strictFunctionSchemaConfig("test_lookup");
 		writeFileSync(prettyToolRegistryPath, JSON.stringify(toolRegistry, null, 2), "utf8");
 		writeFileSync(compactToolRegistryPath, JSON.stringify(toolRegistry), "utf8");
 		writeFileSync(toolFunctionSchemaPath, JSON.stringify(functionSchemas, null, 2), "utf8");
-		writeFileSync(workflowArtifactRegistryPath, JSON.stringify(workflowArtifacts, null, 2), "utf8");
 
 		const prettyCatalog = loadToolCatalog(prettyToolRegistryPath, {
 			toolFunctionSchemaPath,
-			workflowArtifactRegistryPath,
 		});
 		const compactCatalog = loadToolCatalog(compactToolRegistryPath, {
 			toolFunctionSchemaPath,
-			workflowArtifactRegistryPath,
 		});
 
 		expect(prettyCatalog.runtimeFingerprint).toEqual(compactCatalog.runtimeFingerprint);
 	});
 });
 
-function rawTransportScheduleTool() {
+function rawTestLookupTool() {
 	return {
-		name: "transport_schedule_lookup",
-		description: "Lookup campus shuttle schedule snapshots.",
+		name: "test_lookup",
+		description: "Look up a test record.",
 		exposure: "model_visible",
 		read_only: true,
 		requires_approval: false,
 		payload_schema_ref: schemaRef(
-			"campus-services-tool-contracts.v1",
-			"TransportScheduleLookupPayload",
+			"personal-memory-tool-contracts.v1",
+			"PersonalMemoryRecallPayload",
 		),
-		result_schema_ref: schemaRef(
-			"campus-services-tool-contracts.v1",
-			"TransportScheduleLookupResult",
-		),
+		result_schema_ref: schemaRef("personal-memory-tool-contracts.v1", "PersonalMemoryRecallResult"),
 		handler: {
 			type: "execution_control_internal_query",
-			endpoint: "/internal/query/campus-services/transport-schedule",
+			endpoint: "/internal/query/fixture/test",
 		},
 		timeout_ms: 1000,
 		result_projection_policy: "bounded_json",
@@ -461,8 +400,5 @@ function testToolRuntimeFingerprint() {
 		toolsRegistryVersion: "test",
 		toolsSchemaVersion: "tool-registry-v6" as const,
 		toolsSha256: sha256("tool-registry"),
-		workflowArtifactRegistryVersion: "test",
-		workflowArtifactSchemaVersion: "workflow-artifact-registry-v3" as const,
-		workflowArtifactSha256: sha256("workflow-artifacts"),
 	};
 }

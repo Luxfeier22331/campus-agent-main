@@ -16,21 +16,6 @@
 			},
 			"timeout_ms": 12000,
 			"result_projection_policy": "bounded_json"
-		},
-		{
-			"name": "transport_schedule_lookup",
-			"description": "Use only for official campus shuttle routes, departures, timetables, and service windows.",
-			"exposure": "closed",
-			"read_only": true,
-			"requires_approval": false,
-			"payload_schema_ref": "https://muc.wiki/campus-agent/schemas/campus-services-tool-contracts.v1.schema.json#/$defs/TransportScheduleLookupPayload",
-			"result_schema_ref": "https://muc.wiki/campus-agent/schemas/campus-services-tool-contracts.v1.schema.json#/$defs/TransportScheduleLookupResult",
-			"handler": {
-				"type": "execution_control_internal_query",
-				"endpoint": "/internal/query/campus-services/transport-schedule"
-			},
-			"timeout_ms": 1000,
-			"result_projection_policy": "bounded_json"
 		}
 	]
 }

@@ -101,7 +101,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 		});
 	});
 
-	it("passes through campus-services public guardrail text for clarification, fail-close, and no-action statuses", async () => {
+	it("passes through public guardrail text for clarification, fail-close, and no-action statuses", async () => {
 		const clarificationStore = createCommandStore();
 		const noAnswerStore = createCommandStore();
 		const approvalStore = createCommandStore();
@@ -113,7 +113,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 			store: clarificationStore.store,
 			executionRuntime: createExecutionRuntimeFromToolClient({
 				execute: vi.fn().mockResolvedValue({
-					answerText: "请说明班车方向。当前可查询：丰台至海淀通勤班车、海淀至丰台通勤班车。",
+					answerText: "请说明学生规定方向。当前可查询：缓考申请、转专业申请。",
 					error: null,
 					followUpQuestion: "",
 					modelUsage: {
@@ -123,12 +123,9 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 						totalTokens: 162,
 					},
 					result: {
-						payload_kind: "transport_schedule_lookup",
+						payload_kind: "knowledge_query",
 						tool_result: {
-							candidate_routes: [
-								{ display_name: "丰台至海淀通勤班车" },
-								{ display_name: "海淀至丰台通勤班车" },
-							],
+							candidate_routes: [{ display_name: "缓考申请" }, { display_name: "转专业申请" }],
 							clarification_reason: "route_direction_required",
 							outcome: "clarification_required",
 						},
@@ -145,7 +142,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 			store: noAnswerStore.store,
 			executionRuntime: createExecutionRuntimeFromToolClient({
 				execute: vi.fn().mockResolvedValue({
-					answerText: "为避免误导，当前来源信息存在冲突，暂时无法确认班车临时变更。",
+					answerText: "为避免误导，当前来源信息存在冲突，暂时无法确认学生规定临时变更。",
 					error: null,
 					followUpQuestion: "",
 					modelUsage: {
@@ -155,11 +152,11 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 						totalTokens: 162,
 					},
 					result: {
-						payload_kind: "transport_schedule_lookup",
+						payload_kind: "knowledge_query",
 						tool_result: {
 							fail_close_reason: "source_conflict",
 							outcome: "temporarily_unverifiable",
-							query_text: "班车临时变更",
+							query_text: "学生规定临时变更",
 						},
 					},
 					status: "no_answer",
@@ -185,10 +182,10 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 						totalTokens: 162,
 					},
 					result: {
-						payload_kind: "transport_schedule_lookup",
+						payload_kind: "knowledge_query",
 						tool_result: {
 							outcome: "resolved_current",
-							query_text: "地铁接驳车预约",
+							query_text: "地铁校内规定预约",
 						},
 					},
 					status: "approval_required",
@@ -217,7 +214,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 						totalTokens: 162,
 					},
 					result: {
-						payload_kind: "transport_schedule_lookup",
+						payload_kind: "knowledge_query",
 						tool_result: {
 							outcome: "resolved_current",
 							query_text: "招生办电话",
@@ -232,21 +229,21 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 		const clarification = await clarificationService.submit({
 			payload: {
 				conversationId: "conv_01HQ",
-				prompt: "班车最早几点发车",
+				prompt: "学生规定最早几点发车",
 			},
 			principal: createPrincipal(),
 		});
 		const noAnswer = await noAnswerService.submit({
 			payload: {
 				conversationId: "conv_01HQ",
-				prompt: "班车临时变更",
+				prompt: "学生规定临时变更",
 			},
 			principal: createPrincipal(),
 		});
 		const approval = await approvalService.submit({
 			payload: {
 				conversationId: "conv_01HQ",
-				prompt: "帮我预约地铁接驳车",
+				prompt: "帮我预约地铁校内规定",
 			},
 			principal: createPrincipal(),
 		});
@@ -262,8 +259,8 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 		if (clarification.answer.result.kind !== "clarification") {
 			throw new Error("expected clarification result");
 		}
-		expect(clarification.answer.result.text).toContain("请说明班车方向");
-		expect(clarification.answer.result.text).toContain("丰台至海淀通勤班车");
+		expect(clarification.answer.result.text).toContain("请说明学生规定方向");
+		expect(clarification.answer.result.text).toContain("缓考申请");
 		expectNoInternalLocators(clarification.answer.result.text);
 		expect(clarificationStore.finalWrites[0]).toMatchObject({
 			turnDispatch: {
@@ -277,7 +274,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 		}
 		expect(noAnswer.answer.result.text).toContain("为避免误导");
 		expect(noAnswer.answer.result.text).toContain("来源信息存在冲突");
-		expect(noAnswer.answer.result.text).toContain("班车临时变更");
+		expect(noAnswer.answer.result.text).toContain("学生规定临时变更");
 		expectNoInternalLocators(noAnswer.answer.result.text);
 		expect(noAnswerStore.finalWrites[0]).toMatchObject({
 			turnDispatch: {

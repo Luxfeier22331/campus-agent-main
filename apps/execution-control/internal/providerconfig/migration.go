@@ -2,14 +2,12 @@ package providerconfig
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
-
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func legacyConnectionAAD(connectionID string, revision int64) string {
@@ -42,40 +40,13 @@ var legacyProviderConfigDropStatements = []string{
 	"drop table execution_config.audit_events",
 }
 
-// InstallDatabaseSchema installs the current schema. If the previous provider
-// schema is present, its active settings are migrated and the old tables are
-// removed in the same transaction.
-func InstallDatabaseSchema(ctx context.Context, databaseURL string, keyring *Keyring) error {
-	pool, err := pgxpool.New(ctx, strings.TrimSpace(databaseURL))
-	if err != nil {
+// MigrateAndRemoveLegacyModelSettings moves the one supported legacy provider
+// configuration into model_settings. The schema migrator owns the transaction.
+func MigrateAndRemoveLegacyModelSettings(ctx context.Context, tx *sql.Tx, keyring *Keyring) error {
+	if err := lockModelSettingsMigration(ctx, tx); err != nil {
 		return err
 	}
-	defer pool.Close()
-	tx, err := pool.BeginTx(ctx, pgx.TxOptions{})
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-	if err := ensureDatabaseRoles(ctx, tx); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(ctx, SchemaSQL); err != nil {
-		return err
-	}
-	if err := lockModelSettings(ctx, tx); err != nil {
-		return err
-	}
-	if err := migrateAndRemoveLegacyModelSettings(ctx, tx, keyring); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(ctx, GrantSQL); err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
-}
-
-func migrateAndRemoveLegacyModelSettings(ctx context.Context, tx pgx.Tx, keyring *Keyring) error {
-	present, err := legacyProviderConfigTablePresence(ctx, tx)
+	present, err := legacyProviderConfigTablePresenceSQL(ctx, tx)
 	if err != nil {
 		return err
 	}
@@ -98,11 +69,11 @@ func migrateAndRemoveLegacyModelSettings(ctx context.Context, tx pgx.Tx, keyring
 	var profilesJSON []byte
 	var activatedAt time.Time
 	var activatedBy string
-	err = tx.QueryRow(ctx, `select b.profiles_json,b.activated_at,b.activated_by
+	err = tx.QueryRowContext(ctx, `select b.profiles_json,b.activated_at,b.activated_by
 		from execution_config.active_bundle a
 		join execution_config.activation_bundles b on b.bundle_id=a.bundle_id
 		where a.singleton=true and a.revision=b.revision`).Scan(&profilesJSON, &activatedAt, &activatedBy)
-	if errors.Is(err, pgx.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
 		return errors.New("legacy provider config active bundle is missing")
 	}
 	if err != nil {
@@ -129,24 +100,34 @@ func migrateAndRemoveLegacyModelSettings(ctx context.Context, tx pgx.Tx, keyring
 		return fmt.Errorf("migrated model settings count = %d, want 2", count)
 	}
 	for _, statement := range legacyProviderConfigDropStatements {
-		if _, err := tx.Exec(ctx, statement); err != nil {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
 			return fmt.Errorf("remove legacy provider config schema: %w", err)
 		}
 	}
 	return nil
 }
 
-func lockModelSettings(ctx context.Context, tx pgx.Tx) error {
-	_, err := tx.Exec(ctx, `select pg_advisory_xact_lock(hashtextextended($1,0))`, modelSettingsLockName)
+func lockModelSettingsMigration(ctx context.Context, tx *sql.Tx) error {
+	_, err := tx.ExecContext(ctx, `select pg_advisory_xact_lock(hashtextextended($1,0))`, modelSettingsLockName)
 	return err
 }
 
-func currentModelSettingsCount(ctx context.Context, tx pgx.Tx) (int, error) {
+func currentModelSettingsCount(ctx context.Context, tx *sql.Tx) (int, error) {
 	var count int
-	if err := tx.QueryRow(ctx, "select count(*) from execution_config.model_settings").Scan(&count); err != nil {
+	if err := tx.QueryRowContext(ctx, "select count(*) from execution_config.model_settings").Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
+}
+
+func legacyProviderConfigTablePresenceSQL(ctx context.Context, tx *sql.Tx) ([]bool, error) {
+	present := make([]bool, len(legacyProviderConfigTables))
+	for index, table := range legacyProviderConfigTables {
+		if err := tx.QueryRowContext(ctx, `select to_regclass($1) is not null`, table).Scan(&present[index]); err != nil {
+			return nil, err
+		}
+	}
+	return present, nil
 }
 
 func legacyProviderConfigTablePresence(ctx context.Context, querier databaseRoleQuerier) ([]bool, error) {
@@ -177,7 +158,7 @@ func allTrue(values []bool) bool {
 	return true
 }
 
-func migrateLegacyProfile(ctx context.Context, tx pgx.Tx, keyring *Keyring, role, profileID string, activatedAt time.Time, activatedBy string) error {
+func migrateLegacyProfile(ctx context.Context, tx *sql.Tx, keyring *Keyring, role, profileID string, activatedAt time.Time, activatedBy string) error {
 	var (
 		storedRole, kind, model, transport, connectionID, provider, baseURL string
 		dimensions                                                          int
@@ -188,7 +169,7 @@ func migrateLegacyProfile(ctx context.Context, tx pgx.Tx, keyring *Keyring, role
 		validatedAt                                                         time.Time
 		validatedBy                                                         string
 	)
-	err := tx.QueryRow(ctx, `select p.role,p.kind,p.model,p.transport,coalesce(p.dimensions,0),
+	err := tx.QueryRowContext(ctx, `select p.role,p.kind,p.model,p.transport,coalesce(p.dimensions,0),
 		p.connection_id,p.connection_revision,c.provider,c.base_url,c.secret_key_id,c.secret_nonce,c.secret_ciphertext,
 		coalesce(v.status,''),coalesce(v.error_code,''),coalesce(v.message,''),coalesce(v.observed_dimensions,0),
 		coalesce(v.validated_at,$2::timestamptz),coalesce(v.validated_by,$3::text)
@@ -239,7 +220,7 @@ func migrateLegacyProfile(ctx context.Context, tx pgx.Tx, keyring *Keyring, role
 	if err != nil {
 		return fmt.Errorf("encrypt migrated provider profile %s: %w", profileID, err)
 	}
-	_, err = tx.Exec(ctx, `insert into execution_config.model_settings
+	_, err = tx.ExecContext(ctx, `insert into execution_config.model_settings
 		(kind,provider,base_url,model,transport,dimensions,secret_key_id,secret_nonce,secret_ciphertext,
 		 secret_fingerprint,secret_last4,validation_status,validation_error_code,validation_message,
 		 validation_observed_dimensions,validated_at,validated_by,updated_at,updated_by)

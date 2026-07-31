@@ -116,13 +116,9 @@ describe("OpsWebApp", () => {
 		expect(await screen.findByRole("heading", { name: "运行记录" })).toBeInTheDocument();
 		expect(screen.getByRole("navigation", { name: "运维导航" })).toBeInTheDocument();
 		expect((await screen.findAllByText("req_ops_001")).length).toBeGreaterThan(0);
-		expect((await screen.findAllByText("今天班车什么时候发车？")).length).toBeGreaterThan(0);
+		expect((await screen.findAllByText("缓考申请需要哪些材料？")).length).toBeGreaterThan(0);
 		expect(
-			(
-				await screen.findAllByText(
-					"产品处理：Campus Web，在线问答 Agent，查询班车时刻，回答已写入会话",
-				)
-			).length,
+			(await screen.findAllByText("产品处理：Campus Web，在线问答 Agent，回答已写入会话")).length,
 		).toBeGreaterThan(0);
 		expect(screen.getByRole("link", { name: "最近运行" })).toHaveAttribute("aria-current", "page");
 		expect(screen.getByRole("link", { name: "需要关注" })).toHaveAttribute(
@@ -139,7 +135,7 @@ describe("OpsWebApp", () => {
 		expect(screen.getByRole("columnheader", { name: "发起时间" })).toBeInTheDocument();
 		expect(screen.getByRole("columnheader", { name: "耗时" })).toBeInTheDocument();
 		expect(
-			within(requestTable).getByRole("rowheader", { name: /今天班车什么时候发车？/u }),
+			within(requestTable).getByRole("rowheader", { name: /缓考申请需要哪些材料？/u }),
 		).toHaveAttribute("scope", "row");
 		expect((await screen.findAllByText("4.28 秒")).length).toBeGreaterThan(0);
 		expect((await screen.findAllByText("已运行 1 分 48 秒")).length).toBeGreaterThan(0);
@@ -152,7 +148,7 @@ describe("OpsWebApp", () => {
 		expect(completedRequestCard).toBeDefined();
 		expect(
 			within(completedRequestCard as HTMLElement).getByRole("link", {
-				name: "今天班车什么时候发车？",
+				name: "缓考申请需要哪些材料？",
 			}),
 		).toHaveAttribute("href", "/requests/req_ops_001?from=%2Frequests");
 		expect(
@@ -273,7 +269,7 @@ describe("OpsWebApp", () => {
 	it("shows runs waiting for user input as a completed attention journey", async () => {
 		render(<OpsWebApp initialPath="/requests?view=attention" />);
 
-		const [requestLink] = await screen.findAllByRole("link", { name: "请帮我查询班车时间" });
+		const [requestLink] = await screen.findAllByRole("link", { name: "请帮我查询申请条件" });
 		if (!requestLink) {
 			throw new Error("ACTION_REQUIRED fixture link is missing");
 		}
@@ -281,11 +277,11 @@ describe("OpsWebApp", () => {
 		expect(screen.getAllByText("等待用户").length).toBeGreaterThan(0);
 		fireEvent.click(requestLink);
 
-		expect(await screen.findByText("请帮我查询班车时间")).toBeInTheDocument();
+		expect(await screen.findByText("请帮我查询申请条件")).toBeInTheDocument();
 		expect(
 			within(await screen.findByTestId("request-context")).getByText("等待用户"),
 		).toBeInTheDocument();
-		expect(await screen.findByText(/请告诉我出发校区、目的校区/)).toBeInTheDocument();
+		expect(await screen.findByText(/请说明你要办理的具体事项/)).toBeInTheDocument();
 		expect(await screen.findByText("回答已写入会话")).toBeInTheDocument();
 		expect(screen.getByRole("link", { name: "返回运行记录" })).toHaveAttribute(
 			"href",
@@ -556,7 +552,7 @@ describe("OpsWebApp", () => {
 		);
 
 		expect(await screen.findByRole("heading", { name: "运行详情" })).toBeInTheDocument();
-		expect(await screen.findByText("今天班车什么时候发车？")).toBeInTheDocument();
+		expect(await screen.findByText("缓考申请需要哪些材料？")).toBeInTheDocument();
 		expect(await screen.findByRole("link", { name: "返回运行记录" })).toHaveAttribute(
 			"href",
 			"/requests?status=RUNNING&q=trace_ops_003",
@@ -567,9 +563,10 @@ describe("OpsWebApp", () => {
 		).not.toBeInTheDocument();
 		expect(await screen.findByRole("heading", { name: "产品处理" })).toBeInTheDocument();
 		expect(screen.getByText("在线问答 Agent")).toBeInTheDocument();
-		expect(screen.getByText("查询班车时刻")).toBeInTheDocument();
-		expect(screen.getByText(/今天主校区前往东校区的下一班车/u)).toBeInTheDocument();
-		expect(await screen.findByText("班车时刻表")).toBeInTheDocument();
+		expect(screen.getByText("回答已写入会话")).toBeInTheDocument();
+		expect(screen.queryByText("查询校园信息")).not.toBeInTheDocument();
+		expect(screen.getByText(/缓考申请需要在规定期限内/u)).toBeInTheDocument();
+		expect(await screen.findByText("学生管理规定")).toBeInTheDocument();
 		expect(screen.getByTestId("request-usage")).toHaveTextContent("2,400");
 		expect(screen.getByTestId("request-usage")).toHaveTextContent("缓存输入 token");
 		expect(screen.queryByText("用量已完整记录")).not.toBeInTheDocument();
@@ -613,40 +610,6 @@ describe("OpsWebApp", () => {
 		);
 	}, 10_000);
 
-	it("shows unavailable business-action projection without hiding the product result", async () => {
-		const originalFetch = globalThis.fetch;
-		globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-			const url =
-				typeof input === "string" ? input : input instanceof URL ? input.pathname : input.url;
-			if (url.includes("/api/ops/requests/req_actions_unavailable")) {
-				return Response.json({
-					...opsRequestDetailFixture,
-					journey: {
-						...opsRequestDetailFixture.journey,
-						actions: [],
-						actionsDataState: "UNAVAILABLE",
-					},
-					request: {
-						...opsRequestDetailFixture.request,
-						requestId: "req_actions_unavailable",
-					},
-				});
-			}
-			return originalFetch(input, init);
-		}) as typeof fetch;
-
-		try {
-			render(<OpsWebApp initialPath="/requests/req_actions_unavailable" />);
-
-			expect(await screen.findByText("业务处理记录不可用")).toBeInTheDocument();
-			expect(screen.getByText(/未能读取业务能力投影/u)).toBeInTheDocument();
-			expect(screen.getByRole("heading", { name: "会话回答" })).toBeInTheDocument();
-			expect(screen.getByText(/今天主校区前往东校区/u)).toBeInTheDocument();
-		} finally {
-			globalThis.fetch = originalFetch;
-		}
-	});
-
 	it("renders duplicate source metadata without duplicate React keys", async () => {
 		const originalFetch = globalThis.fetch;
 		const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
@@ -676,7 +639,7 @@ describe("OpsWebApp", () => {
 		try {
 			render(<OpsWebApp initialPath="/requests/req_duplicate_sources" />);
 
-			expect(await screen.findAllByText("班车时刻表")).toHaveLength(2);
+			expect(await screen.findAllByText("学生管理规定")).toHaveLength(2);
 			expect(consoleError.mock.calls.flat().join(" ")).not.toContain(
 				"Encountered two children with the same key",
 			);
@@ -750,7 +713,7 @@ describe("OpsWebApp", () => {
 		const requestContext = await screen.findByTestId("request-context");
 		expect(within(requestContext).getByText("运行中")).toBeInTheDocument();
 		expect(within(requestContext).getByText("输出中")).toBeInTheDocument();
-		expect(screen.getByTestId("request-journey")).toHaveTextContent("正在查询");
+		expect(screen.getByTestId("request-journey")).toHaveTextContent("等待会话结果");
 		expect(screen.getByTestId("request-result")).toHaveTextContent("请求仍在处理中");
 		expect(screen.queryByText("agent.primary")).not.toBeInTheDocument();
 	});

@@ -98,27 +98,6 @@ type RunCancellationCommandResult struct {
 	ErrorCode     string
 }
 
-type RunCleanup struct {
-	RunID         string
-	State         LifecycleIntentState
-	AttemptCount  int
-	NextAttemptAt time.Time
-	LeaseToken    string
-	LeaseUntil    time.Time
-	LastErrorCode string
-	CreatedAt     time.Time
-	ConfirmedAt   time.Time
-	UpdatedAt     time.Time
-}
-
-type RunCleanupResult struct {
-	RunID         string
-	LeaseToken    string
-	Now           time.Time
-	NextAttemptAt time.Time
-	ErrorCode     string
-}
-
 type AgentInvocationReceiptState string
 
 const (

@@ -20,9 +20,6 @@ export function resolveRouteMetadata(pathname: string): CampusRouteMetadata {
 	if (pathname === "/dining") {
 		return publicMetadata("食堂地图", "查看校园食堂、楼层和窗口分布。", "/dining");
 	}
-	if (pathname === "/services") {
-		return publicMetadata("校园服务", "查看校车等已发布的校园服务信息。", "/services");
-	}
 	if (pathname === "/groups") {
 		return publicMetadata("同好群", "查找面向本校学生公开的兴趣交流群。", "/groups");
 	}

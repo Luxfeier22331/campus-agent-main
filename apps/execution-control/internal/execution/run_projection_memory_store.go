@@ -61,10 +61,6 @@ type RunProjectionStore interface {
 	LeaseRunCancellationCommands(context.Context, LifecycleLeaseRequest) ([]RunCancellationCommand, error)
 	ConfirmRunCancellationCommand(context.Context, RunCancellationCommandResult) error
 	RetryRunCancellationCommand(context.Context, RunCancellationCommandResult) error
-	GetRunCleanup(context.Context, string) (RunCleanup, error)
-	LeaseRunCleanups(context.Context, LifecycleLeaseRequest) ([]RunCleanup, error)
-	ConfirmRunCleanup(context.Context, RunCleanupResult) error
-	RetryRunCleanup(context.Context, RunCleanupResult) error
 	GetAgentInvocationReceipt(context.Context, string) (AgentInvocationReceipt, error)
 	BeginAgentInvocation(context.Context, AgentInvocationReceipt) (AgentInvocationReceipt, AgentInvocationDisposition, error)
 	CompleteAgentInvocation(context.Context, AgentInvocationReceipt) (AgentInvocationReceipt, error)
@@ -90,7 +86,6 @@ type InMemoryRunProjectionStore struct {
 	activeRunByConversation map[string]string
 	workflowStartIntents    map[string]WorkflowStartIntent
 	cancellationCommands    map[string]RunCancellationCommand
-	runCleanups             map[string]RunCleanup
 	agentInvocationReceipts map[string]AgentInvocationReceipt
 	runEventWaiters         map[string]map[chan struct{}]struct{}
 }
@@ -105,7 +100,6 @@ func NewInMemoryRunProjectionStore() *InMemoryRunProjectionStore {
 		activeRunByConversation: map[string]string{},
 		workflowStartIntents:    map[string]WorkflowStartIntent{},
 		cancellationCommands:    map[string]RunCancellationCommand{},
-		runCleanups:             map[string]RunCleanup{},
 		agentInvocationReceipts: map[string]AgentInvocationReceipt{},
 		runEventWaiters:         map[string]map[chan struct{}]struct{}{},
 	}

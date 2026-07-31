@@ -14,7 +14,7 @@
 - 联邦登录接口；
 - 聊天提交与流式读取、运行事件与步骤读取、反馈写入；
 - 个人记忆设置、显式记忆项和 Hindsight 命令 outbox；
-- 食堂、班车等校园产品公开读取接口；
+- 食堂校园产品公开读取接口；
 - 文档导航、摘要、版本、解析和访问准入接口。
 
 HTTP 字段以 `docs/contracts/app-api/` 为准；本文只作为应用入口。
@@ -45,9 +45,14 @@ Better Auth 负责认证运行时，认证表定义由 `src/db/schema/auth.ts` �
 `app_auth.*` 的建表、升级和 migration ledger 只由 `apps/app-api/drizzle/` 与 schema Job 管理，
 运行时和部署脚本不调用 Better Auth `getMigrations()`。调整 Better Auth 核心字段或插件时，应先按
 Better Auth 官方 Drizzle adapter schema 更新 `auth.ts`，再使用 Drizzle Kit 生成并审查迁移。
-`test/fixtures/app-auth-pre-drizzle.sql` 是 Drizzle 接管前从已部署数据库导出的不可变 schema-only
-测试基线，不是当前 schema，也不得手工维护。修改 `drizzle/` 后应在提交 PR 前运行
-`pnpm ci:app-api-migration`，同时覆盖真实历史升级和空数据库安装。
+`drizzle/baseline/chat_pre_0001.sql` 是聊天表接管前的不可变结构，
+`drizzle/baseline/app_auth_pre_0006.sql` 只补齐当时已存在的 `app_auth` namespace；两者都不是
+当前 schema。`test/fixtures/app-auth-pre-drizzle.sql` 只用于验证更早的认证表升级。修改声明式
+schema 后运行
+`pnpm --dir apps/app-api db:generate` 生成下一条 migration，并用
+`pnpm --dir apps/app-api db:check` 检查 journal 与 snapshot；
+不得修改已应用 SQL。提交 PR 前运行 `pnpm ci:app-api-migration`，同时覆盖历史升级、空数据库、
+未知部分状态和 migration hash 校验。
 Better Auth 核心运行时要求 `DEPLOYMENT_ENVIRONMENT`、`BETTER_AUTH_SECRET`、`AUTH_SHELL_ORIGIN` 和
 `AUTH_TURNSTILE_SECRET_KEY`；`APP_API_SAFETY_IDENTIFIER_HMAC_SECRET` 是聊天准入和就绪检查的核心
 输入。认证邮件仅在实际发送时读取 `AUTH_EMAIL_FROM`、`RESEND_API_KEY` 和可选

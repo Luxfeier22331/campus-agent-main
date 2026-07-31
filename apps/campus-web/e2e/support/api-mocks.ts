@@ -204,9 +204,6 @@ interface CampusApiMockOptions {
 	mapPlacesFailure?: boolean;
 	requests?: CampusApiRequestRecord[];
 	sessionState?: CampusApiSessionState;
-	transportFailures?: {
-		statusFailure?: boolean;
-	};
 }
 
 export interface CampusApiRequestRecord {
@@ -630,48 +627,6 @@ function routeMocks(input: {
 					json: { ok: true },
 					status: 200,
 				}),
-		},
-		{
-			method: "GET",
-			path: "/api/campus-services/transport-schedule/status",
-			response: (route) =>
-				options.transportFailures?.statusFailure
-					? route.fulfill({
-							contentType: "application/json",
-							json: { error: { code: "transport_unavailable", message: "unavailable" } },
-							status: 500,
-						})
-					: route.fulfill({
-							contentType: "application/json",
-							json: {
-								groups: [
-									{
-										kind: "weekday",
-										routes: [
-											{
-												departures: [
-													{
-														departureTime: "07:30",
-														kind: "student",
-														note: "工作日运行",
-														sourceRefs: ["https://example.edu/transport"],
-														status: "normal",
-													},
-												],
-												displayName: "海淀校区 -> 丰台校区",
-												routeId: "haidian-fengtai",
-											},
-										],
-									},
-								],
-								release: {
-									publishedAt: now,
-									releaseId: "transport_e2e",
-									sourceRefs: ["https://example.edu/transport"],
-								},
-							},
-							status: 200,
-						}),
 		},
 		{
 			method: "GET",

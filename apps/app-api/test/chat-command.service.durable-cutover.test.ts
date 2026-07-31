@@ -455,7 +455,7 @@ describe("chat command durable runtime cutover", () => {
 				payload: {
 					conversationId: "conv_01HQ",
 					prompt: "海淀校区图书馆现在开门吗？",
-					requestedTool: "transport_schedule_lookup",
+					requestedTool: "knowledge_query",
 				} as never,
 				principal: createPrincipal(),
 				requestKind: "public_chat",

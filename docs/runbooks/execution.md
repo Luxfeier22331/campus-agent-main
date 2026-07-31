@@ -36,6 +36,12 @@ SQL 和 schema 错误立即失败，DDL 本身不自动重放。
 
 具体集群命令只放环境仓 runbook，不在这里复制。
 
+## 破坏性 Schema 变更
+
+涉及删除表或列、重建数据，或不可逆转换的 execution-control schema 变更，只能在环境仓已隔离
+私有连接器、暂停新的产品请求准入的维护窗口执行。Schema Job 仍是唯一的 DDL 入口；不得通过
+常驻进程、手工数据库命令或伪造 migration ledger 绕过该合同。
+
 ## v5 单向切换
 
 `tool_execution_v5` 冻结 `execution_strategy.v2`，并将获准的个人记忆召回改为模型按需调用的
@@ -76,7 +82,7 @@ SQL 和 schema 错误立即失败，DDL 本身不自动重放。
    分别为 `campus-agent.workflow.v3`、`campus-agent.activity.core.v3`、
    `campus-agent.activity.agent.v3`；
 3. 确认每个 `.v3` 队列已有目标 poller，start/cancel reconciler 可租约并完成命令，内部输入
-   API 使用 `APP_API_EXECUTION_SHARED_SECRET` 完成读取/释放 smoke，readiness 正常；缺少或
+   API 使用 `APP_API_EXECUTION_SHARED_SECRET` 完成读取 smoke，readiness 正常；缺少或
    误用该 Secret 时不得恢复准入；
 4. 关闭旧 poller 和旧配置，确认没有组件在同一服务边界同时读取 v4/v5 payload；
 5. 恢复产品准入。第一个 v5 请求被接受后，切换成为单向事实，故障只能在 v5 合同上向前修复，
@@ -93,19 +99,14 @@ SQL 和 schema 错误立即失败，DDL 本身不自动重放。
 - 完成与取消的重复 closeout 保持同一 fingerprint，较晚的不同终态不能覆盖；
 - Temporal history 可包含有界 grounding 与 Agent result；execution-control metadata/event/step、应用日志和
   trace 不含合成 prompt、对话、工具原始载荷或认证材料；
-- 产品终态后对应 cleanup 记录最终为 `confirmed`，app-api 执行输入已释放；验证期间注入删除失败时，
-  业务终态保持不变，cleanup 重租约后收敛；
-- cleanup 对 confirmed start 同时 Describe 持久 Temporal Run ID 与同 Workflow ID 的 latest Run；
-  两次结果必须是同一个持久绑定的 root Run，完整 Memo 一致，reset state 已知且没有
-  `last_reset_time` 或 `reset_run_id`，并确认该同一 Run 已关闭；任意不同 latest Run、身份未知或冲突
-  都不发生删除。验收不能只比较 `first_run_id`，因为同一 chain 也包含 Reset；
-- start RPC 前已经持久化 `dispatch_attempted`；本地校验失败和 dispatch 前取消可以安全清理，曾跨过
-  dispatch fence 的不确定命令保留执行输入；
+- 已经分配 run 的 app-api 执行输入在完成、失败、取消和超时后仍可按同一 ref/hash 读取，不存在
+  execution-control 清理记录或释放回调；
+- start RPC 前已经持久化 `dispatch_attempted`；该 fence 只裁决启动和取消，不控制执行输入生命周期；
 - Primary Agent 的故障注入结果与源码测试一致：已有 `started` 或 `completed` receipt 但没有可用
   Activity result 时关闭为 `agent_attempt_uncertain`，不产生第二次供应商调用；
 - 当前新运行不含 `selected_tool` 或 handoff。关闭个人记忆召回时 `visible_tool_names` 和
   `available_tools` 为空；允许召回时只包含 `personal_memory_recall`，工具轨迹最多产生一次对应 SDK
-  调用。关闭的 `transport_schedule_lookup` 不得出现；
+  调用；
 - 准入快照包含 `student_rules`、`institutional_rules`、`curriculum` 的 current release、物理 Qdrant
   collection，以及 `llm` 和检索路径 `embedding` 模型设置 hash；
 - Temporal 顺序包含 `grounding.prepare`、`agent.primary`、`finalization.write` 和 `memory.append`；完整
@@ -120,11 +121,8 @@ render、Deployment 清单或队列配置存在都不能证明 staging/productio
 schema migration 或 v5 部署开始后保持准入暂停，优先修复并重新部署同一 v5 合同。不要通过
 恢复 v4 读取、双写、旧工具语义、手工插入终态或删除 Temporal history 恢复服务。数据库
 灾难恢复只按环境仓既有流程整体执行，不能作为应用级回滚捷径。
-在线回答从启动绑定开始的整个生命周期都禁止 Temporal Reset；若必须进行管理面恢复，先停止产品
-准入并由应用所有者制定独立数据恢复方案，不能把 Reset 当成普通重试或清理恢复手段。恢复准入前，
-环境仓必须证明 Temporal Authorizer 或等价 guard 已阻止平台身份 Reset 在线回答 Workflow ID；本
-source repo 的配置和测试不等于该环境证据。exact/latest Describe 与后续操作不是原子事务，仍应把
-Describe 后 Reset 竞态记录为残余风险。
+在线回答不支持 Temporal Reset；若必须进行管理面恢复，先停止产品准入并由应用所有者制定独立数据
+恢复方案，不能把 Reset 当成普通重试。应用会拒绝把 Reset successor 重新绑定到原产品 run。
 
 ## 配置和 Secret
 
@@ -150,7 +148,7 @@ PostgreSQL 或 execution runtime Application。Provider Config、Hindsight、Qdr
 `run_projection_store` 与 `personal_memory_runtime` 的 PostgreSQL 健康检查会使用常驻运行角色实际
 读取所属表。出现 SQLSTATE `42501` 时，应修复并重新发布 schema Job 所有的精确授权；不得切回
 schema owner DSN、手工在线 `GRANT`、扩大到 `runtime` 全表权限或直接修改运行数据。部署验收还需
-确认 start、cancel、cleanup reconciler 不再产生新的 `42501`，并处理既有命令，不以 readiness
+确认 start、cancel reconciler 不再产生新的 `42501`，并处理既有命令，不以 readiness
 单项恢复代替业务收敛证据。
 
 相关入口：`../architecture/system/durable-runtime.md`、`../architecture/system/k8s-runtime.md`、

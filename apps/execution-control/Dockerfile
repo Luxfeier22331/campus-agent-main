@@ -19,7 +19,6 @@ COPY apps/execution-control ./
 COPY configs/runtime/query-serving-targets.v3.json /src/configs/runtime/query-serving-targets.v3.json
 COPY configs/runtime/tool-function-schemas.v3.json /src/configs/runtime/tool-function-schemas.v3.json
 COPY configs/runtime/tools.v6.json /src/configs/runtime/tools.v6.json
-COPY configs/runtime/workflow-artifacts.v3.json /src/configs/runtime/workflow-artifacts.v3.json
 COPY configs/ingestion /src/configs/ingestion
 COPY packages/contracts/fixtures/tool_execution_contract /src/packages/contracts/fixtures/tool_execution_contract
 
@@ -40,7 +39,6 @@ COPY --from=build /out/run-projection-schema /usr/local/bin/run-projection-schem
 COPY configs/runtime/query-serving-targets.v3.json /etc/campus-agent/query-serving-targets.v3.json
 COPY configs/runtime/tool-function-schemas.v3.json /etc/campus-agent/tool-function-schemas.v3.json
 COPY configs/runtime/tools.v6.json /etc/campus-agent/tools.v6.json
-COPY configs/runtime/workflow-artifacts.v3.json /etc/campus-agent/workflow-artifacts.v3.json
 COPY configs/ingestion /configs/ingestion
 
 USER appuser

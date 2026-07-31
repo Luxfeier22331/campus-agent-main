@@ -46,7 +46,7 @@ type ChatWorkflowStarter interface {
 
 // WorkflowControl is separate from ChatWorkflowStarter so command-only test
 // doubles do not need to implement Temporal visibility. The lifecycle
-// reconciler uses it to verify cancellation, timeout, and cleanup ownership.
+// reconciler uses it to verify cancellation and timeout ownership.
 type WorkflowControl interface {
 	DescribeToolExecutionWorkflow(context.Context, string, string) (WorkflowExecutionInfo, error)
 }

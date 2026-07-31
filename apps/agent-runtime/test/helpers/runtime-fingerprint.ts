@@ -17,9 +17,5 @@ export function testToolRuntimeFingerprint() {
 		toolsRegistryVersion: "test",
 		toolsSchemaVersion: "tool-registry-v6" as const,
 		toolsSha256: "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
-		workflowArtifactRegistryVersion: "test",
-		workflowArtifactSchemaVersion: "workflow-artifact-registry-v3" as const,
-		workflowArtifactSha256:
-			"sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
 	};
 }

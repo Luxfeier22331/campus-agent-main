@@ -107,14 +107,6 @@
 			"enabled": true
 		},
 		{
-			"field": "tool.transport_schedule_lookup_ms",
-			"warn_ms": 3000,
-			"critical_ms": 8000,
-			"candidate_reason": "transport_schedule_lookup_too_slow",
-			"candidate_category": "model_provider_or_latency_budget_fix",
-			"enabled": true
-		},
-		{
 			"field": "finalization.write_ms",
 			"warn_ms": 500,
 			"critical_ms": 1500,

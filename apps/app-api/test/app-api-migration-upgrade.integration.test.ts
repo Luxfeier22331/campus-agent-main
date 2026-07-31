@@ -22,9 +22,10 @@ const MIGRATION_DATABASE_NAME = "campus_agent_migration_test";
 const DEPLOYMENT_ROLES = ["app_api", "docs_publish", "execution_control", "ops_web"] as const;
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const fullMigrationsFolder = resolve(appRoot, "drizzle");
+const OWNERSHIP_MIGRATION_TAG = "0007_execution_runtime_ownership";
 const legacyAuthSchemaPath = resolve(appRoot, "test/fixtures/app-auth-pre-drizzle.sql");
 // Exact chat_current.sql from e05c5a52, immediately before 0001_docs_release_scope.
-const legacyChatSchemaPath = resolve(appRoot, "test/fixtures/chat-pre-0001.sql");
+const legacyChatSchemaPath = resolve(appRoot, "drizzle/baseline/chat_pre_0001.sql");
 
 interface MigrationJournal {
 	dialect: string;
@@ -229,6 +230,7 @@ describe("app-api migration upgrade", () => {
 	let container: StartedPostgreSqlContainer;
 	let initialMigrationsFolder = "";
 	let mainMigrationsFolder = "";
+	let ownershipPredecessorMigrationsFolder = "";
 	let predecessorMigrationsFolder = "";
 	let fullMigrationCount = 0;
 	let predecessorMigrationCount = 0;
@@ -247,9 +249,19 @@ describe("app-api migration upgrade", () => {
 		await createDeploymentRoles(pool);
 		const journal = await readMigrationJournal();
 		fullMigrationCount = journal.entries.length;
-		predecessorMigrationCount = fullMigrationCount - 1;
+		const ownershipMigrationIndex = journal.entries.findIndex(
+			({ tag }) => tag === OWNERSHIP_MIGRATION_TAG,
+		);
+		if (ownershipMigrationIndex < 0) {
+			throw new Error(`Missing ownership migration ${OWNERSHIP_MIGRATION_TAG}.`);
+		}
+		predecessorMigrationCount = ownershipMigrationIndex + 1;
 		initialMigrationsFolder = await createMigrationFolderThrough(1, journal);
 		mainMigrationsFolder = await createMigrationFolderThrough(3, journal);
+		ownershipPredecessorMigrationsFolder = await createMigrationFolderThrough(
+			ownershipMigrationIndex,
+			journal,
+		);
 		predecessorMigrationsFolder = await createMigrationFolderThrough(
 			predecessorMigrationCount,
 			journal,
@@ -267,6 +279,9 @@ describe("app-api migration upgrade", () => {
 			if (mainMigrationsFolder) {
 				await rm(mainMigrationsFolder, { force: true, recursive: true });
 			}
+			if (ownershipPredecessorMigrationsFolder) {
+				await rm(ownershipPredecessorMigrationsFolder, { force: true, recursive: true });
+			}
 			if (predecessorMigrationsFolder) {
 				await rm(predecessorMigrationsFolder, { force: true, recursive: true });
 			}
@@ -277,7 +292,7 @@ describe("app-api migration upgrade", () => {
 		}
 	}, 60_000);
 
-	it("upgrades deployed and historical schemas without losing product data", async () => {
+	it("upgrades historical schemas and removes unrecoverable execution records", async () => {
 		const migrationOptions = {
 			migrationsSchema: "drizzle",
 			migrationsTable: "app_api_migrations",
@@ -348,9 +363,33 @@ describe("app-api migration upgrade", () => {
 		expect(deployedPredecessorLedger.rows[0]?.count).toBe(String(predecessorMigrationCount));
 		await pool.query(`
 			update "chat"."turn_dispatches"
-			set "workflow_input_json" = '{"legacy_v2_secret":"must-be-discarded"}'::jsonb,
-			    "workflow_input_sha256" = repeat('d', 64)
-			where "request_id" = 'request-upgrade'
+			set "run_id" = 'run-upgrade',
+			    "workflow_id" = 'workflow-upgrade',
+			    "admission_status" = 'admitted',
+			    "execution_input_json" = '{"goal":"retained"}',
+			    "execution_input_sha256" = repeat('d', 64),
+			    "execution_input_released_at" = null
+			where "request_id" = 'request-upgrade';
+
+			insert into "chat"."messages"
+				("id", "conversation_id", "role", "text", "created_at", "turn_sequence")
+			values ('message-invalid', 'conversation-upgrade', 'user', 'invalid dispatch', now(), 2);
+			insert into "chat"."turn_dispatches"
+				("request_id", "conversation_id", "user_message_id", "assistant_message_id",
+				 "turn_sequence", "surface", "owner_user_id", "actor_user_id",
+				 "principal_snapshot_json", "trace_id", "run_id", "workflow_id",
+				 "admission_status", "execution_input_released_at", "status", "created_at", "completed_at", "updated_at")
+			values ('request-invalid', 'conversation-upgrade', 'message-invalid', 'assistant-invalid',
+				2, 'web', 'user-upgrade', 'user-upgrade', '{}'::jsonb, 'trace-invalid',
+				'run-invalid', 'workflow-invalid', 'admitted', now(), 'completed', now(), now(), now());
+			insert into "runtime"."request_observability_fact"
+				("request_id", "trace_id", "conversation_id", "surface", "principal_type", "status",
+				 "started_at", "measured_at", "updated_at")
+			values ('request-invalid', 'trace-invalid', 'conversation-upgrade', 'web', 'user', 'completed',
+				now(), now(), now());
+			update "chat"."conversations"
+			set "active_run_id" = 'run-invalid'
+			where "id" = 'conversation-upgrade';
 		`);
 
 		await installAppApiSchema({
@@ -358,46 +397,30 @@ describe("app-api migration upgrade", () => {
 			APP_API_SCHEMA_DATABASE_URL: container.getConnectionUri(),
 		});
 
-		const retained = await pool.query<{
-			admission_input_json: string | null;
-			admission_status: string;
-			assistant_message_id: string;
-			conversation_id: string;
-			execution_input_json: string | null;
-			execution_input_release_matches_completion: boolean;
-			legacy_payload_retained: boolean;
-			observation_status: string;
-			request_id: string;
-			status: string;
-			trace_id: string;
-			user_message_id: string;
+		const migratedExecutionRecords = await pool.query<{
+			active_run_id: string | null;
+			invalid_dispatch_count: string;
+			invalid_fact_count: string;
+			retained_conversation_count: string;
+			retained_dispatch_count: string;
+			retained_message_count: string;
 		}>(`
-			select dispatch."request_id", dispatch."conversation_id", dispatch."user_message_id",
-			       dispatch."assistant_message_id", dispatch."admission_status", dispatch."status",
-			       dispatch."admission_input_json", dispatch."execution_input_json",
-			       dispatch."execution_input_released_at" = dispatch."completed_at"
-			           as execution_input_release_matches_completion,
-			       position('must-be-discarded' in to_jsonb(dispatch)::text) > 0
-			           as legacy_payload_retained,
-			       fact."trace_id", fact."status" as observation_status
-			from "chat"."turn_dispatches" dispatch
-			join "runtime"."request_observability_fact" fact using (request_id)
-			where dispatch."request_id" = 'request-upgrade'
+			select
+				(select "active_run_id" from "chat"."conversations" where "id" = 'conversation-upgrade') as active_run_id,
+				(select count(*)::text from "chat"."conversations" where "id" = 'conversation-upgrade') as retained_conversation_count,
+				(select count(*)::text from "chat"."messages" where "id" in ('message-upgrade', 'message-invalid')) as retained_message_count,
+				(select count(*)::text from "chat"."turn_dispatches" where "request_id" = 'request-upgrade') as retained_dispatch_count,
+				(select count(*)::text from "chat"."turn_dispatches" where "request_id" = 'request-invalid') as invalid_dispatch_count,
+				(select count(*)::text from "runtime"."request_observability_fact" where "request_id" = 'request-invalid') as invalid_fact_count
 		`);
-		expect(retained.rows).toEqual([
+		expect(migratedExecutionRecords.rows).toEqual([
 			{
-				admission_input_json: null,
-				admission_status: "admitted",
-				assistant_message_id: "request-upgrade:assistant",
-				conversation_id: "conversation-upgrade",
-				execution_input_json: null,
-				execution_input_release_matches_completion: true,
-				legacy_payload_retained: false,
-				observation_status: "running",
-				request_id: "request-upgrade",
-				status: "completed",
-				trace_id: "trace-upgrade",
-				user_message_id: "message-upgrade",
+				active_run_id: null,
+				invalid_dispatch_count: "0",
+				invalid_fact_count: "0",
+				retained_conversation_count: "1",
+				retained_dispatch_count: "1",
+				retained_message_count: "2",
 			},
 		]);
 		const upgradedChatColumns = await pool.query<{ column_name: string }>(`
@@ -419,23 +442,26 @@ describe("app-api migration upgrade", () => {
 			"memory_owner_sequence",
 			"memory_recall_enabled",
 		]);
-		const retiredExecutionColumns = await pool.query<{ qualified_name: string }>(`
+		const retiredColumns = await pool.query<{ qualified_name: string }>(`
 			select table_schema || '.' || table_name || '.' || column_name as qualified_name
 			from information_schema.columns
 			where (table_schema, table_name) in (
+			        ('chat', 'conversations'),
 			        ('chat', 'turn_dispatches'),
 			        ('runtime', 'request_observability_fact')
 			      )
 			  and column_name in (
+			    'context_summary',
 			    'requested_tool',
 			    'resolved_targets_json',
 			    'selected_tool',
+			    'execution_input_released_at',
 			    'workflow_input_json',
 			    'workflow_input_sha256'
 			  )
 			order by qualified_name
 		`);
-		expect(retiredExecutionColumns.rows).toEqual([]);
+		expect(retiredColumns.rows).toEqual([]);
 
 		const retainedIdentity = await pool.query<{
 			banned: boolean;
@@ -629,7 +655,7 @@ describe("app-api migration upgrade", () => {
 
 		const retired = await pool.query<{ schema_name: string }>(`
 			select schema_name
-			from unnest(array['campus_services_ops', 'identity', 'observability', 'official_web', 'operator', 'provider_config', 'wechat_official_account']) schema_name
+			from unnest(array['campus_services', 'campus_services_ops', 'identity', 'observability', 'official_web', 'operator', 'provider_config', 'wechat_official_account']) schema_name
 			where to_regnamespace(schema_name) is not null
 		`);
 		expect(retired.rows).toEqual([]);
@@ -687,7 +713,7 @@ describe("app-api migration upgrade", () => {
 			campus_groups_ready: boolean;
 			campus_group_sections_ready: boolean;
 			memory_commands_ready: boolean;
-			retired_execution_column_count: string;
+			retired_column_count: string;
 		}>(`
 				select
 					to_regclass('app_auth."user"') is not null as auth_user_ready,
@@ -701,11 +727,13 @@ describe("app-api migration upgrade", () => {
 				   and column_name = 'assistant_message_id') as assistant_message_id,
 				(select count(*)::text from information_schema.columns
 				 where (table_schema, table_name) in (
+				         ('chat', 'conversations'),
 				         ('chat', 'turn_dispatches'),
 				         ('runtime', 'request_observability_fact')
 				       )
-				   and column_name in ('requested_tool', 'resolved_targets_json', 'selected_tool'))
-				     as retired_execution_column_count
+				   and column_name in (
+				     'context_summary', 'requested_tool', 'resolved_targets_json', 'selected_tool'
+				   )) as retired_column_count
 		`);
 		expect(cleanInstall.rows).toEqual([
 			{
@@ -716,7 +744,7 @@ describe("app-api migration upgrade", () => {
 				campus_group_sections_ready: true,
 				campus_groups_ready: true,
 				memory_commands_ready: true,
-				retired_execution_column_count: "0",
+				retired_column_count: "0",
 			},
 		]);
 		const groupPrimaryKey = await pool.query<{ column_name: string }>(`
@@ -751,6 +779,41 @@ describe("app-api migration upgrade", () => {
 		).resolves.toMatchObject({ rowCount: 1 });
 	});
 
+	it("rejects app-owned partial state before creating a migration ledger", async () => {
+		await resetDisposableDatabase(pool);
+		await pool.query('create schema "chat"');
+
+		await expect(
+			installAppApiSchema({
+				APP_API_SCHEMA_DATABASE_SSLMODE: "disable",
+				APP_API_SCHEMA_DATABASE_URL: container.getConnectionUri(),
+			}),
+		).rejects.toThrow("refusing an unknown partial bootstrap");
+		await expect(
+			pool.query(`select to_regclass('drizzle.app_api_migrations') as ledger`),
+		).resolves.toMatchObject({ rows: [{ ledger: null }] });
+	});
+
+	it("rejects an applied migration whose SQL content changed", async () => {
+		await resetDisposableDatabase(pool);
+		await installAppApiSchema({
+			APP_API_SCHEMA_DATABASE_SSLMODE: "disable",
+			APP_API_SCHEMA_DATABASE_URL: container.getConnectionUri(),
+		});
+		await pool.query(
+			`update drizzle.app_api_migrations
+			 set hash = repeat('0', 64)
+			 where created_at = (select min(created_at) from drizzle.app_api_migrations)`,
+		);
+
+		await expect(
+			installAppApiSchema({
+				APP_API_SCHEMA_DATABASE_SSLMODE: "disable",
+				APP_API_SCHEMA_DATABASE_URL: container.getConnectionUri(),
+			}),
+		).rejects.toThrow("app-api migration was modified after apply");
+	});
+
 	it("rejects the ownership migration while a v2 run is nonterminal", async () => {
 		const migrationOptions = {
 			migrationsSchema: "drizzle",
@@ -780,7 +843,7 @@ describe("app-api migration upgrade", () => {
 		`);
 		await migrate(drizzle(pool), {
 			...migrationOptions,
-			migrationsFolder: predecessorMigrationsFolder,
+			migrationsFolder: ownershipPredecessorMigrationsFolder,
 		});
 		await pool.query(`
 			update "chat"."turn_dispatches"

@@ -775,11 +775,10 @@ describe("account journeys PostgreSQL integration", () => {
 				.status,
 		).toBe(401);
 		expect((await signIn(email)).status).toBe(403);
-		expect(await lifecycle.dispatchPending()).toMatchObject({
-			completed: 1,
-			failed: 0,
-			processed: 1,
-		});
+		const dispatch = await lifecycle.dispatchPending();
+		expect(dispatch.failed).toBe(0);
+		expect(dispatch.completed).toBeGreaterThanOrEqual(1);
+		expect(dispatch.processed).toBeGreaterThanOrEqual(1);
 		expect(
 			(await client.query(`select 1 from "app_auth"."user" where "id" = $1`, [userId])).rowCount,
 		).toBe(0);

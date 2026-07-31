@@ -20,12 +20,6 @@ export const APP_API_MACHINE_ROUTE_EXPOSURE_INVENTORY = [
 		admission: "x-app-execution-auth from execution-control",
 	},
 	{
-		method: "DELETE",
-		path: "/api/internal/execution/runs/:runId/input",
-		callerClass: "machine-internal",
-		admission: "x-app-execution-auth from execution-control",
-	},
-	{
 		method: "PUT",
 		path: "/api/internal/ops/campus-groups/catalog",
 		callerClass: "machine-internal",

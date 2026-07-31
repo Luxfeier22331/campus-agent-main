@@ -26,7 +26,6 @@ var errExecutionInputRedirect = errors.New("execution input redirects are disabl
 
 type ExecutionInputLoader interface {
 	Load(context.Context, execution.DurableRun) (contracts.ExecutionPayloadWire, error)
-	Delete(context.Context, execution.DurableRun) error
 }
 
 type appAPIExecutionInputLoader struct {
@@ -114,7 +113,7 @@ func (loader *appAPIExecutionInputLoader) Load(
 	if err != nil {
 		return contracts.ExecutionPayloadWire{}, newExecutionInputError("load", "execution_input_metadata_invalid", false, err)
 	}
-	response, err := loader.do(ctx, http.MethodGet, run.RunID)
+	response, err := loader.do(ctx, run.RunID)
 	if err != nil {
 		return contracts.ExecutionPayloadWire{}, newExecutionInputError("load", "execution_input_unavailable", true, err)
 	}
@@ -163,36 +162,12 @@ func (loader *appAPIExecutionInputLoader) Load(
 	return wire, nil
 }
 
-func (loader *appAPIExecutionInputLoader) Delete(ctx context.Context, run execution.DurableRun) error {
-	if !contracts.ValidExecutionRunID(run.RunID) {
-		return newExecutionInputError("delete", "execution_input_run_id_invalid", false, errors.New("run_id is invalid"))
-	}
-	response, err := loader.do(ctx, http.MethodDelete, run.RunID)
-	if err != nil {
-		return newExecutionInputError("delete", "execution_input_release_unavailable", true, err)
-	}
-	defer func() { _ = response.Body.Close() }()
-	if response.StatusCode != http.StatusNoContent {
-		return newExecutionInputError(
-			"delete",
-			"execution_input_release_rejected",
-			true,
-			fmt.Errorf("unexpected HTTP status %d", response.StatusCode),
-		)
-	}
-	if err := validateExecutionInputResponseHeaders(response.Header, false); err != nil {
-		return newExecutionInputError("delete", "execution_input_release_response_invalid", true, err)
-	}
-	return nil
-}
-
 func (loader *appAPIExecutionInputLoader) do(
 	ctx context.Context,
-	method string,
 	runID string,
 ) (*http.Response, error) {
 	requestURL := loader.baseURL + "/api/internal/execution/runs/" + url.PathEscape(runID) + "/input"
-	request, err := http.NewRequestWithContext(ctx, method, requestURL, nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 	if err != nil {
 		return nil, err
 	}

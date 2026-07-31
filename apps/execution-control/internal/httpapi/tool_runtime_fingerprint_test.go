@@ -21,13 +21,11 @@ func TestToolRuntimeFingerprintUsesRuntimeConfigContent(t *testing.T) {
 		t.Fatalf("combined hash is not stable: %#v / %#v", first, second)
 	}
 	if first.ToolsSchemaVersion != "tool-registry-v6" ||
-		first.FunctionSchemaVersion != "tool-function-schemas-v3" ||
-		first.WorkflowArtifactSchemaVersion != "workflow-artifact-registry-v3" {
+		first.FunctionSchemaVersion != "tool-function-schemas-v3" {
 		t.Fatalf("unexpected runtime fingerprint versions: %#v", first)
 	}
 	if !validSHA256Ref(first.ToolsSHA256) ||
 		!validSHA256Ref(first.FunctionSchemaSHA256) ||
-		!validSHA256Ref(first.WorkflowArtifactSHA256) ||
 		!validSHA256Ref(first.CombinedSHA256) {
 		t.Fatalf("runtime fingerprint hash fields must be sha256 refs: %#v", first)
 	}
@@ -39,14 +37,14 @@ func TestToolRuntimeFingerprintChangesWhenConfigContentChanges(t *testing.T) {
 		"schema_version":"tool-registry-v6",
 		"registry_version":"2026-01-01",
 		"tools":[{
-			"name":"transport_schedule_lookup",
+			"name":"personal_memory_recall",
 			"description":"Transport schedule lookup.",
 			"exposure":"model_visible",
 			"read_only":true,
 			"requires_approval":false,
-			"payload_schema_ref":"https://muc.wiki/campus-agent/schemas/campus-services-tool-contracts.v1.schema.json#/$defs/TransportScheduleLookupPayload",
-			"result_schema_ref":"https://muc.wiki/campus-agent/schemas/campus-services-tool-contracts.v1.schema.json#/$defs/TransportScheduleLookupResult",
-			"handler":{"type":"execution_control_internal_query","endpoint":"/internal/query/campus-services/transport-schedule"},
+			"payload_schema_ref":"https://muc.wiki/campus-agent/schemas/personal-memory-tool-contracts.v1.schema.json#/$defs/PersonalMemoryRecallPayload",
+			"result_schema_ref":"https://muc.wiki/campus-agent/schemas/personal-memory-tool-contracts.v1.schema.json#/$defs/PersonalMemoryRecallResult",
+			"handler":{"type":"execution_control_internal_query","endpoint":"/internal/memory/personal/recall"},
 			"timeout_ms":1000,
 			"result_projection_policy":"bounded_json"
 		}]
@@ -55,51 +53,16 @@ func TestToolRuntimeFingerprintChangesWhenConfigContentChanges(t *testing.T) {
 		"schema_version":"tool-function-schemas-v3",
 		"tools":[{
 			"type":"function",
-			"name":"transport_schedule_lookup",
+			"name":"personal_memory_recall",
 			"description":"Transport schedule lookup.",
 			"strict":true,
 			"parameters":{"type":"object","additionalProperties":false,"properties":{"query_text":{"type":"string"}},"required":["query_text"]}
 		}]
 	}`)
-	writeRuntimeFingerprintFixture(t, dir, "workflow-artifacts.v3.json", `{
-		"schema_version":"workflow-artifact-registry-v3",
-		"registry_version":"2026-01-01",
-		"visibility_values":["tool_private"],
-		"support_status_values":["supported_go_runtime"],
-		"forbidden_raw_key_tokens":["raw_prompt"],
-		"artifacts":[{
-			"kind":"schedule_baseline",
-			"display_name":"ScheduleBaseline",
-			"owner_tool_boundary":"transport_schedule_lookup",
-			"producer_tools":["transport_schedule_lookup"],
-			"source_truth_owner":"campus_services_transport_schedule_read_model",
-			"visibility":"tool_private",
-			"current_projection_support":"supported_go_runtime",
-			"answer_eligible":true,
-			"requires_grounding":true,
-			"freshness_policy":"query_mode_bound",
-			"allowed_consumers":["execution-control-finalizer"],
-			"forbidden_raw_payload_keys":["raw_prompt"]
-		}],
-		"bindings":[{
-			"binding_id":"transport_schedule_lookup.schedule_baseline.lookup",
-			"owner_tool_boundary":"transport_schedule_lookup",
-			"tool_name":"transport_schedule_lookup",
-			"produces":["schedule_baseline"],
-			"consumes":[],
-			"required_inputs":["request:query_text"],
-			"state_changing":false,
-			"opening_gate":"open",
-			"eval_denominator":["tool_selection"],
-			"priority":10
-		}]
-	}`)
-
 	first, err := buildToolRuntimeFingerprintWithPaths(
 		"",
 		filepath.Join(dir, "tools.v6.json"),
 		filepath.Join(dir, "tool-function-schemas.v3.json"),
-		filepath.Join(dir, "workflow-artifacts.v3.json"),
 	)
 	if err != nil {
 		t.Fatalf("build fixture fingerprint: %v", err)
@@ -108,7 +71,7 @@ func TestToolRuntimeFingerprintChangesWhenConfigContentChanges(t *testing.T) {
 		"schema_version":"tool-function-schemas-v3",
 		"tools":[{
 			"type":"function",
-			"name":"transport_schedule_lookup",
+			"name":"personal_memory_recall",
 			"description":"Transport schedule lookup changed.",
 			"strict":true,
 			"parameters":{"type":"object","additionalProperties":false,"properties":{"query_text":{"type":"string"},"intent":{"type":["string","null"]}},"required":["query_text","intent"]}
@@ -118,7 +81,6 @@ func TestToolRuntimeFingerprintChangesWhenConfigContentChanges(t *testing.T) {
 		"",
 		filepath.Join(dir, "tools.v6.json"),
 		filepath.Join(dir, "tool-function-schemas.v3.json"),
-		filepath.Join(dir, "workflow-artifacts.v3.json"),
 	)
 	if err != nil {
 		t.Fatalf("build changed fixture fingerprint: %v", err)
@@ -143,61 +105,28 @@ func TestToolRuntimeFingerprintUsesCanonicalJSONContent(t *testing.T) {
 		"schema_version":"tool-registry-v6",
 		"registry_version":"2026-01-01",
 		"tools":[{
-			"name":"transport_schedule_lookup",
+			"name":"personal_memory_recall",
 			"description":"Transport schedule lookup.",
 			"exposure":"model_visible",
 			"read_only":true,
 			"requires_approval":false,
-			"payload_schema_ref":"https://muc.wiki/campus-agent/schemas/campus-services-tool-contracts.v1.schema.json#/$defs/TransportScheduleLookupPayload",
-			"result_schema_ref":"https://muc.wiki/campus-agent/schemas/campus-services-tool-contracts.v1.schema.json#/$defs/TransportScheduleLookupResult",
-			"handler":{"type":"execution_control_internal_query","endpoint":"/internal/query/campus-services/transport-schedule"},
+			"payload_schema_ref":"https://muc.wiki/campus-agent/schemas/personal-memory-tool-contracts.v1.schema.json#/$defs/PersonalMemoryRecallPayload",
+			"result_schema_ref":"https://muc.wiki/campus-agent/schemas/personal-memory-tool-contracts.v1.schema.json#/$defs/PersonalMemoryRecallResult",
+			"handler":{"type":"execution_control_internal_query","endpoint":"/internal/memory/personal/recall"},
 			"timeout_ms":1000,
 			"result_projection_policy":"bounded_json"
 		}]
 	}`)
-	writeRuntimeFingerprintFixture(t, compactDir, "tools.v6.json", `{"tools":[{"timeout_ms":1000,"result_projection_policy":"bounded_json","result_schema_ref":"https://muc.wiki/campus-agent/schemas/campus-services-tool-contracts.v1.schema.json#/$defs/TransportScheduleLookupResult","requires_approval":false,"read_only":true,"payload_schema_ref":"https://muc.wiki/campus-agent/schemas/campus-services-tool-contracts.v1.schema.json#/$defs/TransportScheduleLookupPayload","name":"transport_schedule_lookup","handler":{"type":"execution_control_internal_query","endpoint":"/internal/query/campus-services/transport-schedule"},"exposure":"model_visible","description":"Transport schedule lookup."}],"schema_version":"tool-registry-v6","registry_version":"2026-01-01"}`)
+	writeRuntimeFingerprintFixture(t, compactDir, "tools.v6.json", `{"tools":[{"timeout_ms":1000,"result_projection_policy":"bounded_json","result_schema_ref":"https://muc.wiki/campus-agent/schemas/personal-memory-tool-contracts.v1.schema.json#/$defs/PersonalMemoryRecallResult","requires_approval":false,"read_only":true,"payload_schema_ref":"https://muc.wiki/campus-agent/schemas/personal-memory-tool-contracts.v1.schema.json#/$defs/PersonalMemoryRecallPayload","name":"personal_memory_recall","handler":{"type":"execution_control_internal_query","endpoint":"/internal/memory/personal/recall"},"exposure":"model_visible","description":"Transport schedule lookup."}],"schema_version":"tool-registry-v6","registry_version":"2026-01-01"}`)
 	for _, runtimeDir := range []string{prettyDir, compactDir} {
 		writeRuntimeFingerprintFixture(t, runtimeDir, "tool-function-schemas.v3.json", `{
 			"schema_version":"tool-function-schemas-v3",
 			"tools":[{
 				"type":"function",
-				"name":"transport_schedule_lookup",
+				"name":"personal_memory_recall",
 				"description":"Transport schedule lookup.",
 				"strict":true,
 				"parameters":{"type":"object","additionalProperties":false,"properties":{"query_text":{"type":"string"}},"required":["query_text"]}
-			}]
-		}`)
-		writeRuntimeFingerprintFixture(t, runtimeDir, "workflow-artifacts.v3.json", `{
-			"schema_version":"workflow-artifact-registry-v3",
-			"registry_version":"2026-01-01",
-			"visibility_values":["tool_private"],
-			"support_status_values":["supported_go_runtime"],
-			"forbidden_raw_key_tokens":["raw_prompt"],
-			"artifacts":[{
-				"kind":"schedule_baseline",
-				"display_name":"ScheduleBaseline",
-				"owner_tool_boundary":"transport_schedule_lookup",
-				"producer_tools":["transport_schedule_lookup"],
-				"source_truth_owner":"campus_services_transport_schedule_read_model",
-				"visibility":"tool_private",
-				"current_projection_support":"supported_go_runtime",
-				"answer_eligible":true,
-				"requires_grounding":true,
-				"freshness_policy":"query_mode_bound",
-				"allowed_consumers":["execution-control-finalizer"],
-				"forbidden_raw_payload_keys":["raw_prompt"]
-			}],
-			"bindings":[{
-				"binding_id":"transport_schedule_lookup.schedule_baseline.lookup",
-				"owner_tool_boundary":"transport_schedule_lookup",
-				"tool_name":"transport_schedule_lookup",
-				"produces":["schedule_baseline"],
-				"consumes":[],
-				"required_inputs":["request:query_text"],
-				"state_changing":false,
-				"opening_gate":"open",
-				"eval_denominator":["tool_selection"],
-				"priority":10
 			}]
 		}`)
 	}
@@ -206,7 +135,6 @@ func TestToolRuntimeFingerprintUsesCanonicalJSONContent(t *testing.T) {
 		"execution-control@pretty",
 		filepath.Join(prettyDir, "tools.v6.json"),
 		filepath.Join(prettyDir, "tool-function-schemas.v3.json"),
-		filepath.Join(prettyDir, "workflow-artifacts.v3.json"),
 	)
 	if err != nil {
 		t.Fatalf("build pretty fingerprint: %v", err)
@@ -215,7 +143,6 @@ func TestToolRuntimeFingerprintUsesCanonicalJSONContent(t *testing.T) {
 		"execution-control@pretty",
 		filepath.Join(compactDir, "tools.v6.json"),
 		filepath.Join(compactDir, "tool-function-schemas.v3.json"),
-		filepath.Join(compactDir, "workflow-artifacts.v3.json"),
 	)
 	if err != nil {
 		t.Fatalf("build compact fingerprint: %v", err)
@@ -227,7 +154,6 @@ func TestToolRuntimeFingerprintUsesCanonicalJSONContent(t *testing.T) {
 		"execution-control@next",
 		filepath.Join(compactDir, "tools.v6.json"),
 		filepath.Join(compactDir, "tool-function-schemas.v3.json"),
-		filepath.Join(compactDir, "workflow-artifacts.v3.json"),
 	)
 	if err != nil {
 		t.Fatalf("build other release fingerprint: %v", err)
@@ -241,13 +167,10 @@ func TestToolRuntimeFingerprintFailsClosedOnMalformedConfig(t *testing.T) {
 	dir := t.TempDir()
 	writeRuntimeFingerprintFixture(t, dir, "tools.v6.json", `{"schema_version":"wrong","registry_version":"2026-01-01","tools":[]}`)
 	writeRuntimeFingerprintFixture(t, dir, "tool-function-schemas.v3.json", `{"schema_version":"tool-function-schemas-v3","tools":[]}`)
-	writeRuntimeFingerprintFixture(t, dir, "workflow-artifacts.v3.json", `{"schema_version":"workflow-artifact-registry-v3","registry_version":"2026-01-01","artifacts":[],"bindings":[]}`)
-
 	if _, err := buildToolRuntimeFingerprintWithPaths(
 		"",
 		filepath.Join(dir, "tools.v6.json"),
 		filepath.Join(dir, "tool-function-schemas.v3.json"),
-		filepath.Join(dir, "workflow-artifacts.v3.json"),
 	); err == nil {
 		t.Fatal("buildToolRuntimeFingerprint accepted malformed tool registry")
 	}

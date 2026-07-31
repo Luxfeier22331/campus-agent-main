@@ -249,7 +249,6 @@ export function createCommandStore(options?: {
 		releaseAdmission: vi.fn(async () => true),
 		markAdmitted: vi.fn(async () => true),
 		readExecutionInput: vi.fn(async () => null),
-		releaseExecutionInput: vi.fn(async () => "released" as const),
 		acceptRequest: vi.fn(async (input) => {
 			const memorySnapshot = options?.memorySnapshot ?? null;
 			frozenAdmissionMemorySnapshots.push(memorySnapshot ? { ...memorySnapshot } : null);

@@ -23,8 +23,8 @@ describe("chat payload boundary", () => {
 	it("keeps public chat limited to conversation and prompt fields", () => {
 		expect(() =>
 			resolveValidatedPayload({
-				prompt: "校车几点发车？",
-				requestedTool: "transport_schedule_lookup",
+				prompt: "缓考需要什么材料？",
+				requestedTool: "knowledge_query",
 			} as never),
 		).toThrow("requestedTool is not supported.");
 	});

@@ -68,7 +68,7 @@ describe("contract schema registry", () => {
 			.map((tool) => String(tool.name))
 			.sort();
 		const functionSchemaNames = functionSchemas.map((tool) => String(tool.name)).sort();
-		const expectedRegisteredTools = ["personal_memory_recall", "transport_schedule_lookup"];
+		const expectedRegisteredTools = ["personal_memory_recall"];
 
 		expect(catalogNames).toEqual(expectedRegisteredTools);
 		expect(toolIds.sort()).toEqual(catalogNames);

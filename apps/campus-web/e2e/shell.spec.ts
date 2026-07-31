@@ -9,7 +9,6 @@ test.describe("campus web shell", () => {
 	for (const route of [
 		{ heading: "中央民族大学校园问答", path: "/" },
 		{ heading: "登录", path: "/account/login" },
-		{ heading: "班车时刻表", path: "/services" },
 		{ heading: "反馈", path: "/feedback" },
 		{ heading: "校园地图", path: "/map" },
 	]) {

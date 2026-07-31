@@ -134,7 +134,7 @@ function eventPage(events: ExecutionControlRunEvent[], nextSequence?: number) {
 }
 
 describe("pg runtime run store", () => {
-	it("atomically releases frozen inputs when pending admission is locally cancelled", async () => {
+	it("retains frozen execution input when pending admission is locally cancelled", async () => {
 		const { set, store } = pgRuntimeRunStoreHarness("pending_admission");
 		const requestedAt = "2026-06-04T01:02:05.000Z";
 
@@ -159,9 +159,6 @@ describe("pg runtime run store", () => {
 			cancelOutboxStatus: "local_finalization_pending",
 			cancelReason: "user_requested",
 			cancelRequestedAt: new Date(requestedAt),
-			executionInputJson: null,
-			executionInputReleasedAt: new Date(requestedAt),
-			executionInputSha256: null,
 			updatedAt: new Date(requestedAt),
 		});
 	});

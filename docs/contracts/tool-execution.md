@@ -19,21 +19,20 @@ status: active
 
 - app-api 调用 execution-control 的运行创建、状态、事件、步骤和取消接口；
 - execution-control 调用 app-api 的
-  `GET /api/internal/execution/runs/{runId}/input` 读取冻结输入，并在终态持久化完成后通过同一路径的
-  `DELETE` 释放输入。
+  `GET /api/internal/execution/runs/{runId}/input` 读取冻结输入。
 
 前一组接口使用 execution-control 的内部认证，后一组接口只接受
 `x-app-execution-auth`，其值来自双方共享的 `APP_API_EXECUTION_SHARED_SECRET`。该 Secret 只用于
-execution-control 与 app-api 之间的执行输入读取/释放及产品回调通道，不能用于浏览器或其他内部
+execution-control 与 app-api 之间的执行输入读取及产品回调通道，不能用于浏览器或其他内部
 接口。输入响应必须带
-`Cache-Control: no-store`，删除操作幂等。工具执行请求和成功响应严格使用 `snake_case`；app-api
+`Cache-Control: no-store`。工具执行请求和成功响应严格使用 `snake_case`；app-api
 错误响应复用标准错误信封，其中关联字段保持 `traceId` 和 `requestId`。精确路径、状态码和响应结构
 只由 OpenAPI 维护。
 
 路径参数 `{runId}` 与创建请求的 `run_id` 使用同一标识合同：必须匹配
 `^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`。当前 GET 输入接口只声明 `200` 以及
-`400/401/404/409/503`，DELETE 释放接口只声明 `204` 以及 `400/401/409/503`；所有错误状态复用
-同一个 app-api 错误响应并带 `Cache-Control: no-store`。这些集合的可执行事实仍以 OpenAPI 为准。
+`400/401/404/409/503`；所有错误状态复用同一个 app-api 错误响应并带
+`Cache-Control: no-store`。这些集合的可执行事实仍以 OpenAPI 为准。
 
 ## 创建运行
 
@@ -66,12 +65,10 @@ hash。execution-control 读取输入时必须校验 ref、run、hash 与 1 MiB 
 `configs/runtime/tools.v6.json` 与
 `configs/runtime/tool-function-schemas.v3.json` 是运行时工具事实。当前登记的内部合同为：
 
-- `personal_memory_recall`：按获准用户身份读取有界个人记忆；
-- `transport_schedule_lookup`：班车时刻表内部查询。
+- `personal_memory_recall`：按获准用户身份读取有界个人记忆。
 
-`transport_schedule_lookup` 当前 exposure 为 `closed`。`personal_memory_recall` 为 `model_visible`，但只在
-execution-control 冻结的本轮授权允许召回时注册到 Agent Runtime，且预算固定为一次调用；未获授权
-时 `visible_tool_names` 为空。
+`personal_memory_recall` 为 `model_visible`，但只在 execution-control 冻结的本轮授权允许召回时注册到
+Agent Runtime，且预算固定为一次调用；未获授权时 `visible_tool_names` 为空。
 
 机构文档知识不作为工具开放。execution-control 从
 `configs/runtime/query-serving-targets.v3.json` 注入文档范围和本地路由词，先在 admission 前确定
@@ -83,8 +80,8 @@ collection、完整 serving config，以及 `embedding` 模型设置的 hash。�
 
 ## 工具运行时指纹
 
-Agent 准入使用 `tool_runtime_fingerprint.v2` 绑定工具注册表、函数 schema、workflow artifact
-注册表及实际运行发布。指纹包含三类产物的 schema/registry version 与规范化 JSON SHA-256、
+Agent 准入使用 `tool_runtime_fingerprint.v2` 绑定工具注册表与函数 schema
+注册表及实际运行发布。指纹包含两类产物的 schema/registry version 与规范化 JSON SHA-256、
 `runtime_release` 和覆盖全部字段的 `combined_sha256`；`runtime_release` 来自同一部署选择的
 `DEPLOYMENT_RELEASE`，不能用可变环境名称代替。
 
@@ -129,28 +126,20 @@ Workflow 输入只携带运行标识、输入 ref/hash 与有界策略版本，�
 可重试失败；任一 ID 不同，包括 Reset successor，都是非重试身份失败。start 已 `superseded` 时只有
 cancellation finalizer 可使用已绑定 root，其他 Activity 不得继续执行或写投影。
 
-执行输入的删除不属于 Workflow 终态 Activity。execution-control 在 run 创建
-时写入持久 cleanup 记录，业务终态提交后由 reconciler 校验绑定的精确 Temporal Run、同 Workflow
-ID 的 latest Run、完整 Memo 身份、reset state 和关闭时间。两次 Describe 的 Run ID 与
-`first_run_id` 都必须等于持久绑定的 root Run ID，reset state 必须已知且没有 `last_reset_time` 或
-`reset_run_id`；任何不同 latest Run 都保持 pending。`first_run_id` chain 同时包含
-Continue-As-New、Workflow Retry、Cron 和 Reset，不能单独证明 ownership。当前在线回答不支持任何
-successor，验证通过后才幂等删除 app-api 执行输入并确认 cleanup。启动前的持久
-`dispatch_attempted=false` fence 可证明本地失败或 supersede 没有跨过 RPC 边界；若 fence 已提交、
-start 已 `superseded` 且没有 Run ID，取消 reconciler 必须使用原 canonical input 和一分钟
-`StartDelay` 的 recovery starter 创建或取得 root，完成 exact/latest 校验并首写精确绑定后才能取消。
-身份未知、冲突、reset state 未知或存在 reset evidence 都不得删除；完整条件和历史数据边界见
-`../architecture/system/durable-runtime.md`。
+app-api 为已经分配 `run_id` 的产品请求保留完整执行输入和 hash；业务终态不会删除或清空它。
+execution-control 不维护输入清理发件箱，也不提供释放回调。输入随 app-api 所有的会话和用户数据
+生命周期删除，不能由 Temporal Activity、reconciler 或运行终态单独处置。
+
+启动前的持久 `dispatch_attempted=false` fence 可证明本地失败或 supersede 没有跨过 RPC 边界；若
+fence 已提交、start 已 `superseded` 且没有 Run ID，取消 reconciler 必须使用原 canonical input 和
+一分钟 `StartDelay` 的 recovery starter 创建或取得 root，完成 exact/latest 校验并首写精确绑定后
+才能取消。
 
 Temporal 的 `COMPLETED`、`FAILED`、`CANCELED`、`TERMINATED`、`CONTINUED_AS_NEW` 与
 `TIMED_OUT` 都是 closed 状态，reconciler 不得让对应产品 run 继续保持 active。正常终态按产品投影
 收敛；缺少产品终态的 closed execution 失败关闭。`CONTINUED_AS_NEW`、Reset 或其他不同 latest Run
 属于 unauthorized successor：只以 `workflow_successor_without_authorization` 失败关闭产品 root run，
 不得将 successor Run ID 写入 start binding，也不得向 successor 发送取消。
-
-exact/latest Describe 不能消除检查与操作之间的 Reset 竞态，因此环境仓在部署前必须证明 Temporal
-Authorizer 或等价管理面 guard 已禁止平台身份 Reset 在线回答 Workflow ID。本 source repo 只能声明并
-测试应用侧约束，不能证明环境 guard 已实际部署；运维检查见 `../runbooks/temporal.md`。
 
 `ExecutionFinalizationResponse` 包含状态、答案、追问、置信度、模型用量、结果、错误和
 trace 标识；可选字段包括观测摘要、工作流调用链摘要和阶段耗时。它不返回路由标签、外部平台引用

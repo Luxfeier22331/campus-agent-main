@@ -52,7 +52,7 @@ status: accepted
 - 每个通知 ID 的来源对象和同步边界都保存在 source bucket；
 - 文件发布只保存原文件与来源 metadata，workflow result 返回 `source.json` 引用；
 - 本地认证状态只进入忽略文件，线上认证状态只使用固定 Secret annotation 与 CronJob 状态；
-- 下游规章、班车、校历等领域必须通过自己的校验和发布入口消费通知来源。
+- 下游规章、校历等领域必须通过自己的校验和发布入口消费通知来源。
 
 ## 相关文档
 

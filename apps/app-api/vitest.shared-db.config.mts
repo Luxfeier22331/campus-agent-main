@@ -16,7 +16,6 @@ export default defineProject({
 			"test/campus-groups-postgres.integration.test.ts",
 			"test/email-access-postgres.integration.test.ts",
 			"test/shared-product-db.integration.test.ts",
-			"test/transport-schedule-postgres.integration.test.ts",
 		],
 	},
 });

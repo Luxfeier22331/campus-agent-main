@@ -19,7 +19,7 @@ import (
 func testProviderSchemaRejectsMissingRoles(t *testing.T, harness *postgresHarness) {
 	databaseName := harness.createDatabase(t, "")
 	databaseURL := harness.databaseURL(t, databaseName, adminUser, adminPassword)
-	err := providerconfig.EnsureDatabaseSchema(t.Context(), databaseURL)
+	err := migrateSchema(t.Context(), databaseURL, nil)
 	if err == nil || !strings.Contains(err.Error(), "database role "+executionRole+" is not installed") {
 		t.Fatalf("missing-role schema error = %v", err)
 	}
@@ -139,7 +139,7 @@ func testProviderConfig(t *testing.T, harness *postgresHarness) {
 		assertProviderRoleGrants(t, harness, databaseName, runtimeURL)
 	})
 
-	t.Run("schema removes retired timeout column without deleting settings", func(t *testing.T) {
+	t.Run("schema check rejects drift after an applied migration", func(t *testing.T) {
 		_, ownerURL, runtimeURL, keyring := newProviderDatabase(t, harness)
 		store := newProviderStore(t, runtimeURL, keyring)
 		empty, err := store.Status(t.Context())
@@ -162,15 +162,15 @@ func testProviderConfig(t *testing.T, harness *postgresHarness) {
 		}
 		closeConn(t, ownerConn)
 
-		if err := providerconfig.EnsureDatabaseSchema(t.Context(), ownerURL); err != nil {
-			t.Fatalf("remove retired timeout column: %v", err)
+		if err := migrateSchema(t.Context(), ownerURL, nil); err != nil {
+			t.Fatalf("repeat applied migrations: %v", err)
 		}
-		if err := providerconfig.CheckDatabaseSchema(t.Context(), ownerURL); err != nil {
-			t.Fatalf("check schema after timeout removal: %v", err)
+		if err := providerconfig.CheckDatabaseSchema(t.Context(), ownerURL); err == nil {
+			t.Fatal("schema check accepted a retired timeout column added after migration")
 		}
 		resolved, err := store.Resolve(t.Context(), providerconfig.KindLLM)
 		if err != nil || resolved.Model != "existing-model" || resolved.APIKey != "sk-existing" {
-			t.Fatalf("setting after timeout removal = %#v error=%v", resolved, err)
+			t.Fatalf("setting after schema drift = %#v error=%v", resolved, err)
 		}
 	})
 
@@ -271,10 +271,10 @@ func newProviderDatabase(
 ) (databaseName, ownerURL, runtimeURL string, keyring *providerconfig.Keyring) {
 	t.Helper()
 	databaseName, ownerURL = harness.ownerDatabase(t)
-	if err := providerconfig.EnsureDatabaseSchema(t.Context(), ownerURL); err != nil {
+	if err := migrateSchema(t.Context(), ownerURL, nil); err != nil {
 		t.Fatalf("install model settings schema: %v", err)
 	}
-	if err := providerconfig.EnsureDatabaseSchema(t.Context(), ownerURL); err != nil {
+	if err := migrateSchema(t.Context(), ownerURL, nil); err != nil {
 		t.Fatalf("reinstall model settings schema: %v", err)
 	}
 	if err := providerconfig.CheckDatabaseSchema(t.Context(), ownerURL); err != nil {

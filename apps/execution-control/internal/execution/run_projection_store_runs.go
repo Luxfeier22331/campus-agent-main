@@ -35,7 +35,6 @@ func (s *InMemoryRunProjectionStore) CreateRun(
 		)
 	}
 	s.runs[run.RunID] = cloneDurableRun(run)
-	s.runCleanups[run.RunID] = newPendingRunCleanup(run)
 	if durableRunStatusIsActive(run.Status) {
 		s.activeRunByConversation[run.ConversationID] = run.RunID
 	}
@@ -53,7 +52,6 @@ func (s *InMemoryRunProjectionStore) DeleteRun(_ context.Context, runID string) 
 	delete(s.runEvents, runID)
 	delete(s.workflowStartIntents, runID)
 	delete(s.cancellationCommands, runID)
-	delete(s.runCleanups, runID)
 	for invocationID, receipt := range s.agentInvocationReceipts {
 		if receipt.RunID == runID {
 			delete(s.agentInvocationReceipts, invocationID)

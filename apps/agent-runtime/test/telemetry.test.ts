@@ -134,10 +134,6 @@ function validRunBody() {
 			tools_registry_version: testToolRuntimeFingerprint().toolsRegistryVersion,
 			tools_schema_version: testToolRuntimeFingerprint().toolsSchemaVersion,
 			tools_sha256: testToolRuntimeFingerprint().toolsSha256,
-			workflow_artifact_registry_version:
-				testToolRuntimeFingerprint().workflowArtifactRegistryVersion,
-			workflow_artifact_schema_version: testToolRuntimeFingerprint().workflowArtifactSchemaVersion,
-			workflow_artifact_sha256: testToolRuntimeFingerprint().workflowArtifactSha256,
 		},
 	};
 }

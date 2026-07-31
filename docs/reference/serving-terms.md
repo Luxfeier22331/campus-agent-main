@@ -35,11 +35,6 @@ Qdrant collection 或对象存储位置。
 `document_scope` 是在线 grounding 的领域准入范围，例如 `student_rules`。范围注册表把它映射到
 语料域、逻辑集合和服务端检索配置。范围、语料域、逻辑集合和 Qdrant 物理集合不是同一个概念。
 
-### 工具读取模型
-
-结构化工具使用的类型化读取模型，不经过文档 RAG。当前注册的机构工具只有
-`transport_schedule_lookup`，并且处于关闭状态。
-
 ## Agent 与 Grounding
 
 ### 模型可见工具

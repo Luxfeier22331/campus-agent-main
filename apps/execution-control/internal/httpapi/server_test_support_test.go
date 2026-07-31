@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
@@ -15,7 +14,6 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/retrievalruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/toolreadmodel"
 )
 
 type failingReadCloser struct{}
@@ -42,18 +40,6 @@ func newServerForTest() *Server {
 func newWorkerAuthServerForTest() *Server {
 	server := newServerForTest()
 	server.config.AppAPIExecutionSharedSecret = "secret"
-	return server
-}
-
-func newToolReadModelAuthServerForTest() *Server {
-	server := NewServer(config.Config{
-		AgentRuntimeSharedSecret:    "query-secret",
-		AppAPIExecutionSharedSecret: "test-execution-input-secret",
-		RAGTopKMax:                  8,
-	})
-	server.toolReadModel = toolreadmodel.NewRuntime(toolreadmodel.Options{
-		TrustedTimeRFC3339: "2026-04-24T10:30:00+08:00",
-	})
 	return server
 }
 
@@ -219,113 +205,7 @@ func newReadyServerForTest(t *testing.T, mutators ...func(*config.Config)) *Serv
 	server.providerConfigErr = nil
 	markTemporalReadyForTest(server)
 	markKnowledgeRuntimeReadyForTest(server)
-	useReadyTransportReadModelRuntimeFixture(t, server)
 	return server
-}
-
-func useReadyTransportReadModelRuntimeFixture(t *testing.T, server *Server) {
-	t.Helper()
-	useToolReadModelRuntimeFixture(
-		t,
-		server,
-		`{
-			"schema_version":"campus_services_projection_bundle.v1",
-			"transport_schedule_snapshots":[
-				{
-					"snapshot_id":"snapshot:bus:ready-test",
-					"published_at":"2026-04-20T18:00:00+08:00",
-					"effective_from":"2026-04-21T00:00:00+08:00",
-					"source_ref":"ready-test:transport-schedule",
-					"is_current":true
-				}
-			]
-		}`,
-		"2026-04-24T10:30:00+08:00",
-	)
-}
-
-func writeToolReadModelProjectionFixture(t *testing.T, body string) string {
-	t.Helper()
-	path := t.TempDir() + "/campus-services-projection.json"
-	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
-		t.Fatalf("write projection fixture: %v", err)
-	}
-	return path
-}
-
-func useToolReadModelRuntimeFixture(
-	t *testing.T,
-	server *Server,
-	body string,
-	trustedTime string,
-) {
-	t.Helper()
-	bundle := decodeProjectionBundleFixture(t, body)
-	server.toolReadModel = toolreadmodel.NewRuntime(toolreadmodel.Options{
-		TransportScheduleReadModelStore: &fakeStructuredReadModelStore{
-			bundle: bundle,
-		},
-		TrustedTimeRFC3339: trustedTime,
-	})
-}
-
-func useToolReadModelRuntimeFixtures(
-	t *testing.T,
-	server *Server,
-	transportScheduleBody string,
-	trustedTime string,
-) {
-	t.Helper()
-	server.toolReadModel = toolreadmodel.NewRuntime(toolreadmodel.Options{
-		TransportScheduleReadModelStore: &fakeStructuredReadModelStore{
-			bundle: decodeProjectionBundleFixture(t, transportScheduleBody),
-		},
-		TrustedTimeRFC3339: trustedTime,
-	})
-}
-
-func decodeProjectionBundleFixture(t *testing.T, body string) toolreadmodel.ProjectionBundle {
-	t.Helper()
-	var bundle toolreadmodel.ProjectionBundle
-	if err := json.Unmarshal([]byte(body), &bundle); err != nil {
-		t.Fatalf("decode projection fixture: %v", err)
-	}
-	return bundle
-}
-
-type fakeStructuredReadModelStore struct {
-	bundle             toolreadmodel.ProjectionBundle
-	healthCheckErr     error
-	loadCount          int
-	projectionReady    bool
-	projectionReadySet bool
-	projectionReadyErr error
-}
-
-func (s *fakeStructuredReadModelStore) HealthCheck(context.Context) error {
-	return s.healthCheckErr
-}
-
-func (s *fakeStructuredReadModelStore) CurrentReleaseID(context.Context) (string, error) {
-	return "test-release", nil
-}
-
-func (s *fakeStructuredReadModelStore) ProjectionReady(context.Context) (bool, error) {
-	if s.projectionReadyErr != nil {
-		return false, s.projectionReadyErr
-	}
-	if s.projectionReadySet {
-		return s.projectionReady, nil
-	}
-	return len(s.bundle.TransportScheduleSnapshots) > 0, nil
-}
-
-func (s *fakeStructuredReadModelStore) LoadBundleForRelease(
-	context.Context,
-	string,
-) (toolreadmodel.ProjectionBundle, error) {
-	s.loadCount++
-	return s.bundle, nil
 }
 
 func anySlice(values []string) []any {

@@ -102,16 +102,16 @@ describe("collection ingestion profiles", () => {
 	it("rejects tool read-model profiles that also open generic retrieval", () => {
 		expect(() =>
 			parseCollectionRuntimeProfile({
-				corpus: "campus_services",
-				collection: "transport_schedule",
+				corpus: "operational",
+				collection: "service_projection",
 				serving_stage: "tool_read_model_serving",
 				allowed_artifact_modes: ["source_truth_only"],
 				split_manifest_required: false,
-				cleaning_policy_version: "transport_schedule_projection_v1",
-				chunk_profile_version: "transport_schedule_projection_v1",
+				cleaning_policy_version: "service_projection_v1",
+				chunk_profile_version: "service_projection_v1",
 				retrieval_enabled: true,
 				tool_read_model_enabled: true,
-				tool_read_model_tools: ["transport_schedule_lookup"],
+				tool_read_model_tools: ["test_lookup"],
 			}),
 		).toThrow("tool_read_model_serving requires retrieval_enabled=false");
 	});

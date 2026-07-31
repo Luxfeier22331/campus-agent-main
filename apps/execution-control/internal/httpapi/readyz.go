@@ -32,12 +32,6 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 	}
 	transportStatus := s.admission.Status()
 	telemetryStatus := s.telemetry.Status()
-	toolReadModelCtx, toolReadModelCancel := context.WithTimeout(
-		request.Context(),
-		time.Duration(s.config.ToolReadModelTimeoutMS)*time.Millisecond,
-	)
-	defer toolReadModelCancel()
-	toolReadModelStatus := s.toolReadModel.Status(toolReadModelCtx)
 	temporalRuntimeStatus := s.temporalRuntimeStatus(request.Context())
 	providerConfigGate := s.evaluateProviderConfigGate()
 	agentRuntimeStatus := s.agentRuntimeStatus(request.Context())
@@ -61,7 +55,6 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 		"transport_runtime":         transportStatus,
 		"lifecycle_runtime":         s.lifecycle.Snapshot(),
 		"telemetry_runtime":         telemetryStatus,
-		"tool_read_model_runtime":   toolReadModelStatus,
 		"run_projection_store":      runProjectionStoreStatus,
 		"temporal_runtime":          temporalRuntimeStatus,
 		"personal_memory_runtime":   personalMemoryStatus,

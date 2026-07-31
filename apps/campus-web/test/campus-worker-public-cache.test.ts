@@ -36,7 +36,6 @@ describe("campus worker public app-api cache", () => {
 	});
 
 	it.each([
-		"/api/campus-services/transport-schedule/status",
 		"/api/dining",
 		"/api/dining/windows/hall:floor:window-01/menu",
 		`/api/dining/floorplans/${"a".repeat(64)}.svg`,

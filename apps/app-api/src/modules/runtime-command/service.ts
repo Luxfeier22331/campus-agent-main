@@ -930,9 +930,6 @@ export function buildChatCommandService(
 		async readExecutionInput(runId) {
 			return dependencies.store.readExecutionInput(runId);
 		},
-		async releaseExecutionInput(input) {
-			return dependencies.store.releaseExecutionInput(input);
-		},
 		async dispatchPendingAdmissions() {
 			if (!dependencies.executionRuntime) {
 				return { admitted: 0, failed: 0, processed: 0 };

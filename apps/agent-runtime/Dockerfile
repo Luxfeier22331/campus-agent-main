@@ -14,7 +14,6 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharin
 COPY apps/agent-runtime ./apps/agent-runtime
 COPY configs/runtime/tools.v6.json ./configs/runtime/tools.v6.json
 COPY configs/runtime/tool-function-schemas.v3.json ./configs/runtime/tool-function-schemas.v3.json
-COPY configs/runtime/workflow-artifacts.v3.json ./configs/runtime/workflow-artifacts.v3.json
 
 FROM node:24.15-bookworm-slim AS runtime
 

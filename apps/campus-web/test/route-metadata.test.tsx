@@ -31,16 +31,13 @@ describe("campus-web route metadata", () => {
 	});
 
 	it("renders route metadata through React-managed head elements", () => {
-		render(<RouteMetadata pathname="/services" />);
+		render(<RouteMetadata pathname="/dining" />);
 
-		expect(document.title).toBe("校园服务 | 中央民族大学校园问答");
+		expect(document.title).toBe("食堂地图 | 中央民族大学校园问答");
 		expect(document.head.querySelector('meta[name="description"]')).toHaveAttribute(
 			"content",
-			expect.stringContaining("校园服务"),
+			expect.stringContaining("食堂"),
 		);
-		expect(document.head.querySelector('link[rel="canonical"]')).toHaveAttribute(
-			"href",
-			"/services",
-		);
+		expect(document.head.querySelector('link[rel="canonical"]')).toHaveAttribute("href", "/dining");
 	});
 });

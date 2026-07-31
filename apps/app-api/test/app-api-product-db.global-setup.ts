@@ -1,6 +1,4 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
 
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { Client } from "pg";
@@ -15,9 +13,6 @@ const DATABASE_NAME = "campus_agent";
 const SCHEMA_OWNER = "app_api_schema_owner";
 const RUNTIME_ROLE = "app_api";
 const SUPPORTING_ROLES = ["docs_publish", "execution_control", "ops_web"] as const;
-const transportFixturePath = fileURLToPath(
-	new URL("../db/shared-product-schema/testdata/transport_integration.sql", import.meta.url),
-);
 
 export interface AppApiPostgresContext {
 	managementConnectionString: string;
@@ -74,14 +69,6 @@ async function provisionDatabase(
 		AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 		BETTER_AUTH_SECRET: "testcontainers-app-api-product-database-secret",
 	});
-
-	const owner = new Client({ connectionString: managementConnectionString, ssl: false });
-	await owner.connect();
-	try {
-		await owner.query(await readFile(transportFixturePath, "utf8"));
-	} finally {
-		await owner.end();
-	}
 
 	return { managementConnectionString, runtimeConnectionString };
 }

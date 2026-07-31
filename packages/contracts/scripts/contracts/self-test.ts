@@ -6,7 +6,6 @@ import { checkContractSchemas } from "./schema-registry.ts";
 export function runContractSchemaSelfTest(): void {
 	checkContractSchemasPass();
 	checkRegistryCoverage();
-	checkStructuredToolContractFixtures();
 	checkObservabilityFixtures();
 	checkRuntimeToolSchemaRefs();
 	checkObservabilityAlertMaterialization();
@@ -37,22 +36,6 @@ function checkRegistryCoverage(): void {
 			throw new Error(`${entryId} fixture groups missing`);
 		}
 		expect(fixtureGroups.length > 0, `${entryId} fixture groups empty`);
-	}
-}
-
-function checkStructuredToolContractFixtures(): void {
-	const entries = registryEntries();
-	for (const [entryId, fixturePath] of [
-		[
-			"campus-services-tool-contracts.v1",
-			"packages/contracts/fixtures/campus_services_tool_contracts",
-		],
-	]) {
-		expectEqualJson(
-			entries[entryId]?.fixture_groups,
-			[{ path: fixturePath, valid_glob: "*.valid.json", invalid_glob: "*.invalid.json" }],
-			`${entryId} fixture groups`,
-		);
 	}
 }
 

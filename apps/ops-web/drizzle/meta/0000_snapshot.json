@@ -1,0 +1,824 @@
+{
+	"id": "edb2599a-1fe9-4ff8-9435-4434125324eb",
+	"prevId": "00000000-0000-0000-0000-000000000000",
+	"version": "7",
+	"dialect": "postgresql",
+	"tables": {
+		"dining.map_draft": {
+			"name": "map_draft",
+			"schema": "dining",
+			"columns": {
+				"bundle_json": {
+					"name": "bundle_json",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"fingerprint": {
+					"name": "fingerprint",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"revision": {
+					"name": "revision",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"scope": {
+					"name": "scope",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"updated_by": {
+					"name": "updated_by",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {
+				"dining_map_draft_fingerprint_check": {
+					"name": "dining_map_draft_fingerprint_check",
+					"value": "\"dining\".\"map_draft\".\"fingerprint\" ~ '^sha256:[0-9a-f]{64}$'"
+				},
+				"dining_map_draft_scope_check": {
+					"name": "dining_map_draft_scope_check",
+					"value": "\"dining\".\"map_draft\".\"scope\" = 'global'"
+				},
+				"dining_map_draft_revision_check": {
+					"name": "dining_map_draft_revision_check",
+					"value": "\"dining\".\"map_draft\".\"revision\" > 0"
+				}
+			},
+			"isRLSEnabled": false
+		},
+		"dining.map_publication": {
+			"name": "map_publication",
+			"schema": "dining",
+			"columns": {
+				"release_id": {
+					"name": "release_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"scope": {
+					"name": "scope",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"updated_by": {
+					"name": "updated_by",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {
+				"map_publication_release_id_map_releases_release_id_fk": {
+					"name": "map_publication_release_id_map_releases_release_id_fk",
+					"tableFrom": "map_publication",
+					"tableTo": "map_releases",
+					"schemaTo": "dining",
+					"columnsFrom": ["release_id"],
+					"columnsTo": ["release_id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {
+				"dining_map_publication_scope_check": {
+					"name": "dining_map_publication_scope_check",
+					"value": "\"dining\".\"map_publication\".\"scope\" = 'global'"
+				}
+			},
+			"isRLSEnabled": false
+		},
+		"dining.map_releases": {
+			"name": "map_releases",
+			"schema": "dining",
+			"columns": {
+				"bundle_json": {
+					"name": "bundle_json",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"created_by": {
+					"name": "created_by",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"draft_revision": {
+					"name": "draft_revision",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"kind": {
+					"name": "kind",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"public_payload_json": {
+					"name": "public_payload_json",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"release_id": {
+					"name": "release_id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"restored_from_release_id": {
+					"name": "restored_from_release_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"snapshot_hash": {
+					"name": "snapshot_hash",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {
+				"dining_map_releases_created_idx": {
+					"name": "dining_map_releases_created_idx",
+					"columns": [
+						{
+							"expression": "created_at",
+							"isExpression": false,
+							"asc": false,
+							"nulls": "last"
+						},
+						{
+							"expression": "release_id",
+							"isExpression": false,
+							"asc": false,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"dining_map_releases_restored_from_release_id_fkey": {
+					"name": "dining_map_releases_restored_from_release_id_fkey",
+					"tableFrom": "map_releases",
+					"tableTo": "map_releases",
+					"schemaTo": "dining",
+					"columnsFrom": ["restored_from_release_id"],
+					"columnsTo": ["release_id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {
+				"dining_map_releases_revision_check": {
+					"name": "dining_map_releases_revision_check",
+					"value": "\"dining\".\"map_releases\".\"draft_revision\" > 0"
+				},
+				"dining_map_releases_kind_check": {
+					"name": "dining_map_releases_kind_check",
+					"value": "\"dining\".\"map_releases\".\"kind\" in ('publish', 'restore')"
+				},
+				"dining_map_releases_snapshot_hash_check": {
+					"name": "dining_map_releases_snapshot_hash_check",
+					"value": "\"dining\".\"map_releases\".\"snapshot_hash\" ~ '^sha256:[0-9a-f]{64}$'"
+				}
+			},
+			"isRLSEnabled": false
+		},
+		"dining.menu_items": {
+			"name": "menu_items",
+			"schema": "dining",
+			"columns": {
+				"archived_at": {
+					"name": "archived_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"created_by": {
+					"name": "created_by",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"menu_item_id": {
+					"name": "menu_item_id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"name": {
+					"name": "name",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"price_text": {
+					"name": "price_text",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"sort_order": {
+					"name": "sort_order",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"updated_by": {
+					"name": "updated_by",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"window_id": {
+					"name": "window_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {
+				"dining_menu_items_window_sort_idx": {
+					"name": "dining_menu_items_window_sort_idx",
+					"columns": [
+						{
+							"expression": "window_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "archived_at",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "sort_order",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "menu_item_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {
+				"dining_menu_items_name_check": {
+					"name": "dining_menu_items_name_check",
+					"value": "length(btrim(\"dining\".\"menu_items\".\"name\")) between 1 and 80"
+				},
+				"dining_menu_items_price_check": {
+					"name": "dining_menu_items_price_check",
+					"value": "\"dining\".\"menu_items\".\"price_text\" is null or length(btrim(\"dining\".\"menu_items\".\"price_text\")) between 1 and 40"
+				},
+				"dining_menu_items_sort_order_check": {
+					"name": "dining_menu_items_sort_order_check",
+					"value": "\"dining\".\"menu_items\".\"sort_order\" >= 0"
+				}
+			},
+			"isRLSEnabled": false
+		},
+		"dining.review_edits": {
+			"name": "review_edits",
+			"schema": "dining",
+			"columns": {
+				"edit_id": {
+					"name": "edit_id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"edited_at": {
+					"name": "edited_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"edited_by": {
+					"name": "edited_by",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"next_body": {
+					"name": "next_body",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"previous_body": {
+					"name": "previous_body",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"review_id": {
+					"name": "review_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {
+				"dining_review_edits_review_idx": {
+					"name": "dining_review_edits_review_idx",
+					"columns": [
+						{
+							"expression": "review_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "edited_at",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "edit_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"review_edits_review_id_reviews_review_id_fk": {
+					"name": "review_edits_review_id_reviews_review_id_fk",
+					"tableFrom": "review_edits",
+					"tableTo": "reviews",
+					"schemaTo": "dining",
+					"columnsFrom": ["review_id"],
+					"columnsTo": ["review_id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"dining.review_reports": {
+			"name": "review_reports",
+			"schema": "dining",
+			"columns": {
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"details": {
+					"name": "details",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"reason": {
+					"name": "reason",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"report_id": {
+					"name": "report_id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"reporter_user_id": {
+					"name": "reporter_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"resolution": {
+					"name": "resolution",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"resolved_at": {
+					"name": "resolved_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"resolved_by": {
+					"name": "resolved_by",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"review_id": {
+					"name": "review_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {
+				"dining_review_reports_reporter_uidx": {
+					"name": "dining_review_reports_reporter_uidx",
+					"columns": [
+						{
+							"expression": "review_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "reporter_user_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": true,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"dining_review_reports_pending_idx": {
+					"name": "dining_review_reports_pending_idx",
+					"columns": [
+						{
+							"expression": "resolved_at",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "created_at",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "report_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"review_reports_review_id_reviews_review_id_fk": {
+					"name": "review_reports_review_id_reviews_review_id_fk",
+					"tableFrom": "review_reports",
+					"tableTo": "reviews",
+					"schemaTo": "dining",
+					"columnsFrom": ["review_id"],
+					"columnsTo": ["review_id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {
+				"dining_review_reports_reason_check": {
+					"name": "dining_review_reports_reason_check",
+					"value": "\"dining\".\"review_reports\".\"reason\" in ('spam', 'inappropriate', 'privacy', 'other')"
+				},
+				"dining_review_reports_details_check": {
+					"name": "dining_review_reports_details_check",
+					"value": "\"dining\".\"review_reports\".\"details\" is null or length(\"dining\".\"review_reports\".\"details\") <= 300"
+				},
+				"dining_review_reports_resolution_check": {
+					"name": "dining_review_reports_resolution_check",
+					"value": "\"dining\".\"review_reports\".\"resolution\" is null or \"dining\".\"review_reports\".\"resolution\" in ('keep', 'hide')"
+				},
+				"dining_review_reports_resolution_state_check": {
+					"name": "dining_review_reports_resolution_state_check",
+					"value": "(\"dining\".\"review_reports\".\"resolution\" is null and \"dining\".\"review_reports\".\"resolved_at\" is null and \"dining\".\"review_reports\".\"resolved_by\" is null)\n\t\t\t\tor (\"dining\".\"review_reports\".\"resolution\" is not null and \"dining\".\"review_reports\".\"resolved_at\" is not null and \"dining\".\"review_reports\".\"resolved_by\" is not null)"
+				}
+			},
+			"isRLSEnabled": false
+		},
+		"dining.reviews": {
+			"name": "reviews",
+			"schema": "dining",
+			"columns": {
+				"anonymous": {
+					"name": "anonymous",
+					"type": "boolean",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"author_display_name": {
+					"name": "author_display_name",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"author_id": {
+					"name": "author_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"author_kind": {
+					"name": "author_kind",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"body": {
+					"name": "body",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"deleted_at": {
+					"name": "deleted_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"deleted_by": {
+					"name": "deleted_by",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"edited_at": {
+					"name": "edited_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"hidden_at": {
+					"name": "hidden_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"hidden_by": {
+					"name": "hidden_by",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"idempotency_key": {
+					"name": "idempotency_key",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"menu_item_id": {
+					"name": "menu_item_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"review_id": {
+					"name": "review_id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"submission_date": {
+					"name": "submission_date",
+					"type": "date",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"updated_by": {
+					"name": "updated_by",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {
+				"dining_reviews_menu_created_idx": {
+					"name": "dining_reviews_menu_created_idx",
+					"columns": [
+						{
+							"expression": "menu_item_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "created_at",
+							"isExpression": false,
+							"asc": false,
+							"nulls": "last"
+						},
+						{
+							"expression": "review_id",
+							"isExpression": false,
+							"asc": false,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"dining_reviews_member_limit_idx": {
+					"name": "dining_reviews_member_limit_idx",
+					"columns": [
+						{
+							"expression": "author_kind",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "author_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "menu_item_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "submission_date",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"dining_reviews_idempotency_uidx": {
+					"name": "dining_reviews_idempotency_uidx",
+					"columns": [
+						{
+							"expression": "author_kind",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "author_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "idempotency_key",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": true,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"reviews_menu_item_id_menu_items_menu_item_id_fk": {
+					"name": "reviews_menu_item_id_menu_items_menu_item_id_fk",
+					"tableFrom": "reviews",
+					"tableTo": "menu_items",
+					"schemaTo": "dining",
+					"columnsFrom": ["menu_item_id"],
+					"columnsTo": ["menu_item_id"],
+					"onDelete": "restrict",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {
+				"dining_reviews_author_kind_check": {
+					"name": "dining_reviews_author_kind_check",
+					"value": "\"dining\".\"reviews\".\"author_kind\" in ('member', 'operator')"
+				},
+				"dining_reviews_body_check": {
+					"name": "dining_reviews_body_check",
+					"value": "length(btrim(\"dining\".\"reviews\".\"body\")) between 1 and 500"
+				}
+			},
+			"isRLSEnabled": false
+		}
+	},
+	"enums": {},
+	"schemas": {
+		"dining": "dining"
+	},
+	"sequences": {},
+	"roles": {},
+	"policies": {},
+	"views": {},
+	"_meta": {
+		"columns": {},
+		"schemas": {},
+		"tables": {}
+	}
+}

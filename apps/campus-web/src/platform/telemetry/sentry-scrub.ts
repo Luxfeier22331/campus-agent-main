@@ -16,7 +16,6 @@ const CAMPUS_ROUTE_TEMPLATES = [
 	"/c/:conversationId",
 	"/map",
 	"/dining",
-	"/services",
 	"/groups",
 	"/feedback",
 	"/account",

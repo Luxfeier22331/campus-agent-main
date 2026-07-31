@@ -410,11 +410,6 @@ function questionPreview(request: OpsRequestSummary) {
 }
 
 function productJourneyNodes(request: OpsRequestSummary) {
-	const actions = request.journey.actions.map((action, actionIndex) => ({
-		key: `action:${actionIndex}:${action.capability}`,
-		label: formatOpsDomainValue(action.capability),
-	}));
-	const actionState = journeyActionStateNode(request.journey.actionsDataState);
 	const result =
 		request.journey.result.state === "WRITTEN"
 			? "回答已写入会话"
@@ -427,22 +422,8 @@ function productJourneyNodes(request: OpsRequestSummary) {
 			label: formatOpsDomainValue(request.journey.entry),
 		},
 		{ key: "agent:online-qa", label: "在线问答 Agent" },
-		...actions,
-		...(actionState ? [actionState] : []),
 		{ key: `result:${request.journey.result.state}`, label: result },
 	];
-}
-
-function journeyActionStateNode(state: OpsRequestSummary["journey"]["actionsDataState"]) {
-	const labels = {
-		PARTIAL: "业务处理记录不完整",
-		STALE: "业务处理记录为旧数据",
-		UNAVAILABLE: "业务处理记录不可用",
-	} as const;
-	if (state === "FRESH" || state === "NO_DATA") {
-		return null;
-	}
-	return { key: `action-state:${state}`, label: labels[state] };
 }
 
 function ProductJourney({

@@ -29,9 +29,6 @@ const toolRuntimeFingerprintSchema = z
 		tools_registry_version: z.string().min(1),
 		tools_schema_version: z.string().min(1),
 		tools_sha256: z.string().regex(/^sha256:[0-9a-f]{64}$/),
-		workflow_artifact_registry_version: z.string().min(1),
-		workflow_artifact_schema_version: z.string().min(1),
-		workflow_artifact_sha256: z.string().regex(/^sha256:[0-9a-f]{64}$/),
 	})
 	.strict();
 
@@ -342,10 +339,6 @@ function mapToolRuntimeFingerprint(
 		toolsSchemaVersion:
 			fingerprint.tools_schema_version as ToolRuntimeFingerprint["toolsSchemaVersion"],
 		toolsSha256: fingerprint.tools_sha256,
-		workflowArtifactRegistryVersion: fingerprint.workflow_artifact_registry_version,
-		workflowArtifactSchemaVersion:
-			fingerprint.workflow_artifact_schema_version as ToolRuntimeFingerprint["workflowArtifactSchemaVersion"],
-		workflowArtifactSha256: fingerprint.workflow_artifact_sha256,
 	};
 }
 

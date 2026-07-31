@@ -3,6 +3,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 import pg, { type Client } from "pg";
+import { migrateDiningSchema } from "./dining-migrations.ts";
 import { type DatabaseSslConfig, readDatabaseConnectionConfig } from "./postgres-tls.ts";
 
 const DINING_TABLES = [
@@ -13,102 +14,6 @@ const DINING_TABLES = [
 	"review_edits",
 	"review_reports",
 	"reviews",
-] as const;
-
-const DINING_SCHEMA_STATEMENTS = [
-	`CREATE SCHEMA IF NOT EXISTS "dining"`,
-	`CREATE TABLE IF NOT EXISTS "dining"."map_draft" (
-		"scope" text PRIMARY KEY CHECK ("scope" = 'global'),
-		"bundle_json" jsonb NOT NULL,
-		"fingerprint" text NOT NULL CHECK ("fingerprint" ~ '^sha256:[0-9a-f]{64}$'),
-		"revision" integer NOT NULL CHECK ("revision" > 0),
-		"updated_at" timestamptz NOT NULL,
-		"updated_by" text NOT NULL
-	)`,
-	`CREATE TABLE IF NOT EXISTS "dining"."map_releases" (
-		"release_id" text PRIMARY KEY,
-		"snapshot_hash" text NOT NULL CHECK ("snapshot_hash" ~ '^sha256:[0-9a-f]{64}$'),
-		"draft_revision" integer NOT NULL CHECK ("draft_revision" > 0),
-		"kind" text NOT NULL CHECK ("kind" IN ('publish', 'restore')),
-		"restored_from_release_id" text REFERENCES "dining"."map_releases" ("release_id"),
-		"bundle_json" jsonb NOT NULL,
-		"public_payload_json" jsonb NOT NULL,
-		"created_at" timestamptz NOT NULL,
-		"created_by" text NOT NULL
-	)`,
-	`CREATE INDEX IF NOT EXISTS "dining_map_releases_created_idx"
-	 ON "dining"."map_releases" ("created_at" DESC, "release_id" DESC)`,
-	`CREATE TABLE IF NOT EXISTS "dining"."map_publication" (
-		"scope" text PRIMARY KEY CHECK ("scope" = 'global'),
-		"release_id" text NOT NULL REFERENCES "dining"."map_releases" ("release_id"),
-		"updated_at" timestamptz NOT NULL,
-		"updated_by" text NOT NULL
-	)`,
-	`CREATE TABLE IF NOT EXISTS "dining"."menu_items" (
-		"menu_item_id" text PRIMARY KEY,
-		"window_id" text NOT NULL,
-		"name" text NOT NULL CHECK (length(btrim("name")) BETWEEN 1 AND 80),
-		"price_text" text CHECK ("price_text" IS NULL OR length(btrim("price_text")) BETWEEN 1 AND 40),
-		"sort_order" integer NOT NULL CHECK ("sort_order" >= 0),
-		"archived_at" timestamptz,
-		"created_at" timestamptz NOT NULL,
-		"created_by" text NOT NULL,
-		"updated_at" timestamptz NOT NULL,
-		"updated_by" text NOT NULL
-	)`,
-	`CREATE INDEX IF NOT EXISTS "dining_menu_items_window_sort_idx"
-	 ON "dining"."menu_items" ("window_id", "archived_at", "sort_order", "menu_item_id")`,
-	`CREATE TABLE IF NOT EXISTS "dining"."reviews" (
-		"review_id" text PRIMARY KEY,
-		"menu_item_id" text NOT NULL REFERENCES "dining"."menu_items" ("menu_item_id") ON DELETE RESTRICT,
-		"author_kind" text NOT NULL CHECK ("author_kind" IN ('member', 'operator')),
-		"author_id" text NOT NULL,
-		"author_display_name" text NOT NULL,
-		"anonymous" boolean NOT NULL,
-		"body" text NOT NULL CHECK (length(btrim("body")) BETWEEN 1 AND 500),
-		"idempotency_key" text NOT NULL,
-		"submission_date" date NOT NULL,
-		"created_at" timestamptz NOT NULL,
-		"updated_at" timestamptz NOT NULL,
-		"updated_by" text NOT NULL,
-		"edited_at" timestamptz,
-		"hidden_at" timestamptz,
-		"hidden_by" text,
-		"deleted_at" timestamptz,
-		"deleted_by" text
-	)`,
-	`CREATE INDEX IF NOT EXISTS "dining_reviews_menu_created_idx"
-	 ON "dining"."reviews" ("menu_item_id", "created_at" DESC, "review_id" DESC)`,
-	`CREATE INDEX IF NOT EXISTS "dining_reviews_member_limit_idx"
-	 ON "dining"."reviews" ("author_kind", "author_id", "menu_item_id", "submission_date")`,
-	`CREATE UNIQUE INDEX IF NOT EXISTS "dining_reviews_idempotency_uidx"
-	 ON "dining"."reviews" ("author_kind", "author_id", "idempotency_key")`,
-	`CREATE TABLE IF NOT EXISTS "dining"."review_reports" (
-		"report_id" text PRIMARY KEY,
-		"review_id" text NOT NULL REFERENCES "dining"."reviews" ("review_id") ON DELETE CASCADE,
-		"reporter_user_id" text NOT NULL,
-		"reason" text NOT NULL CHECK ("reason" IN ('spam', 'inappropriate', 'privacy', 'other')),
-		"details" text CHECK ("details" IS NULL OR length("details") <= 300),
-		"created_at" timestamptz NOT NULL,
-		"resolution" text CHECK ("resolution" IS NULL OR "resolution" IN ('keep', 'hide')),
-		"resolved_at" timestamptz,
-		"resolved_by" text,
-		CHECK (("resolution" IS NULL AND "resolved_at" IS NULL AND "resolved_by" IS NULL)
-			OR ("resolution" IS NOT NULL AND "resolved_at" IS NOT NULL AND "resolved_by" IS NOT NULL)),
-		UNIQUE ("review_id", "reporter_user_id")
-	)`,
-	`CREATE INDEX IF NOT EXISTS "dining_review_reports_pending_idx"
-	 ON "dining"."review_reports" ("resolved_at", "created_at", "report_id")`,
-	`CREATE TABLE IF NOT EXISTS "dining"."review_edits" (
-		"edit_id" text PRIMARY KEY,
-		"review_id" text NOT NULL REFERENCES "dining"."reviews" ("review_id") ON DELETE CASCADE,
-		"previous_body" text NOT NULL,
-		"next_body" text NOT NULL,
-		"edited_at" timestamptz NOT NULL,
-		"edited_by" text NOT NULL
-	)`,
-	`CREATE INDEX IF NOT EXISTS "dining_review_edits_review_idx"
-	 ON "dining"."review_edits" ("review_id", "edited_at", "edit_id")`,
 ] as const;
 
 const DINING_GRANT_STATEMENTS = [
@@ -240,19 +145,13 @@ const OPS_WEB_GRANT_STATEMENTS = [
 		"terminal_reason", "trace_id", "updated_at"
 	) ON TABLE "runtime"."agent_runs" TO "ops_web"`,
 	`GRANT SELECT (
-		"run_id", "started_at", "status", "step_kind", "tool", "updated_at"
-	) ON TABLE "runtime"."agent_run_steps" TO "ops_web"`,
-	`GRANT SELECT (
 		"cached_input_tokens", "input_tokens", "output_tokens", "run_id", "step_id", "usage_observed"
 	) ON TABLE "runtime"."agent_step_attempts" TO "ops_web"`,
 ] as const;
 
-async function applyDiningDatabaseStatements(client: {
+async function applyDiningGrantStatements(client: {
 	query(sql: string): Promise<unknown>;
 }): Promise<void> {
-	for (const statement of DINING_SCHEMA_STATEMENTS) {
-		await client.query(statement);
-	}
 	for (const statement of DINING_GRANT_STATEMENTS) {
 		await client.query(statement);
 	}
@@ -261,7 +160,7 @@ async function applyDiningDatabaseStatements(client: {
 export async function applyOpsWebGrantStatements(client: {
 	query(sql: string): Promise<unknown>;
 }): Promise<void> {
-	await applyDiningDatabaseStatements(client);
+	await applyDiningGrantStatements(client);
 	for (const statement of OPS_WEB_GRANT_STATEMENTS) {
 		await client.query(statement);
 	}
@@ -386,15 +285,6 @@ const REQUIRED_SELECTS = [
 				"trace_id",
 				"updated_at"
 			from "runtime"."agent_runs"
-			limit 0
-		`,
-	},
-	{
-		label: "runtime.agent_run_steps",
-		sql: `
-			select
-					"run_id", "started_at", "status", "step_kind", "tool", "updated_at"
-			from "runtime"."agent_run_steps"
 			limit 0
 		`,
 	},
@@ -691,6 +581,7 @@ export async function applyOpsWebDatabaseGrants(env: NodeJS.ProcessEnv = process
 	await withClient(config.schemaAdmin, async (client) => {
 		await assertDatabaseRole(client, "ops_web");
 		await assertDatabaseRole(client, "app_api");
+		await migrateDiningSchema(client);
 		await client.query("begin");
 		try {
 			await applyOpsWebGrantStatements(client);
@@ -716,9 +607,10 @@ export async function applyDiningDatabase(env: NodeJS.ProcessEnv = process.env):
 	await withClient(config.schemaAdmin, async (client) => {
 		await assertDatabaseRole(client, "ops_web");
 		await assertDatabaseRole(client, "app_api");
+		await migrateDiningSchema(client);
 		await client.query("begin");
 		try {
-			await applyDiningDatabaseStatements(client);
+			await applyDiningGrantStatements(client);
 			await client.query("commit");
 		} catch (error) {
 			await client.query("rollback");

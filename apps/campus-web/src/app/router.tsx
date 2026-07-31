@@ -26,9 +26,6 @@ const HomePage = lazy(() =>
 const MapPage = lazy(() =>
 	import("./routes/map-page").then((module) => ({ default: module.MapPage })),
 );
-const ServicesPage = lazy(() =>
-	import("./routes/services-page").then((module) => ({ default: module.ServicesPage })),
-);
 const InterestGroupsPage = lazy(() =>
 	import("./routes/interest-groups-page").then((module) => ({
 		default: module.InterestGroupsPage,
@@ -137,12 +134,6 @@ const diningRoute = createRoute({
 		item: optionalDiningSearchParam(search.item),
 		window: optionalDiningSearchParam(search.window),
 	}),
-});
-
-const servicesRoute = createRoute({
-	component: ServicesPage,
-	getParentRoute: () => rootRoute,
-	path: "/services",
 });
 
 const interestGroupsRoute = createRoute({
@@ -259,7 +250,6 @@ const routeTree = rootRoute.addChildren([
 	conversationRoute,
 	mapRoute,
 	diningRoute,
-	servicesRoute,
 	interestGroupsRoute,
 	feedbackRoute,
 	accountRoute,

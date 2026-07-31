@@ -13,6 +13,14 @@ function artifact({
 	const root = mkdtempSync("/tmp/ops-web-artifact-test-");
 	mkdirSync(join(root, "dist-server"), { recursive: true });
 	writeFileSync(join(root, "dist-server", "node.js"), server);
+	mkdirSync(join(root, "ops", "db"), { recursive: true });
+	writeFileSync(join(root, "ops", "db", "ops-web-database.ts"), "export {};\n");
+	mkdirSync(join(root, "drizzle", "meta"), { recursive: true });
+	writeFileSync(
+		join(root, "drizzle", "meta", "_journal.json"),
+		JSON.stringify({ entries: [{ tag: "0000_initial" }] }),
+	);
+	writeFileSync(join(root, "drizzle", "0000_initial.sql"), "select 1;\n");
 	if (bootstrap !== null) {
 		mkdirSync(join(root, "dist-ops"), { recursive: true });
 		writeFileSync(join(root, "dist-ops/bootstrap-dining.js"), bootstrap);

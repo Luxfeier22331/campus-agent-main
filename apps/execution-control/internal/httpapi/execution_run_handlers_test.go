@@ -160,7 +160,7 @@ func TestExecutionRunCreateRejectsKnownCallerToolHint(t *testing.T) {
 	body := durableRunCreateBodyWithToolForTest(
 		"run-campus-open",
 		"conv-campus-open",
-		"transport_schedule_lookup",
+		"personal_memory_recall",
 	)
 	response := httptest.NewRecorder()
 	request := newTestRequest(http.MethodPost, "/internal/execution/runs", strings.NewReader(body))

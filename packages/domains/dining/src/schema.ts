@@ -3,6 +3,7 @@ import {
 	boolean,
 	check,
 	date,
+	foreignKey,
 	index,
 	integer,
 	jsonb,
@@ -27,6 +28,10 @@ export const diningMapDraft = dining.table(
 		updatedBy: text("updated_by").notNull(),
 	},
 	(table) => [
+		check(
+			"dining_map_draft_fingerprint_check",
+			sql`${table.fingerprint} ~ '^sha256:[0-9a-f]{64}$'`,
+		),
 		check("dining_map_draft_scope_check", sql`${table.scope} = 'global'`),
 		check("dining_map_draft_revision_check", sql`${table.revision} > 0`),
 	],
@@ -48,6 +53,16 @@ export const diningMapReleases = dining.table(
 	(table) => [
 		check("dining_map_releases_revision_check", sql`${table.draftRevision} > 0`),
 		check("dining_map_releases_kind_check", sql`${table.kind} in ('publish', 'restore')`),
+		check(
+			"dining_map_releases_snapshot_hash_check",
+			sql`${table.snapshotHash} ~ '^sha256:[0-9a-f]{64}$'`,
+		),
+		foreignKey({
+			columns: [table.restoredFromReleaseId],
+			foreignColumns: [table.releaseId],
+			name: "dining_map_releases_restored_from_release_id_fkey",
+		}),
+		index("dining_map_releases_created_idx").on(table.createdAt.desc(), table.releaseId.desc()),
 	],
 );
 
@@ -120,7 +135,11 @@ export const diningReviews = dining.table(
 	(table) => [
 		check("dining_reviews_author_kind_check", sql`${table.authorKind} in ('member', 'operator')`),
 		check("dining_reviews_body_check", sql`length(btrim(${table.body})) between 1 and 500`),
-		index("dining_reviews_menu_created_idx").on(table.menuItemId, table.createdAt, table.reviewId),
+		index("dining_reviews_menu_created_idx").on(
+			table.menuItemId,
+			table.createdAt.desc(),
+			table.reviewId.desc(),
+		),
 		index("dining_reviews_member_limit_idx").on(
 			table.authorKind,
 			table.authorId,
@@ -189,5 +208,7 @@ export const diningReviewEdits = dining.table(
 			.notNull()
 			.references(() => diningReviews.reviewId, { onDelete: "cascade" }),
 	},
-	(table) => [index("dining_review_edits_review_idx").on(table.reviewId, table.editedAt)],
+	(table) => [
+		index("dining_review_edits_review_idx").on(table.reviewId, table.editedAt, table.editId),
+	],
 );

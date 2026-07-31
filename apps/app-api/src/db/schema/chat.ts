@@ -122,7 +122,6 @@ export const turnDispatches = chat.table(
 		admissionInputSha256: text("admission_input_sha256"),
 		executionInputJson: text("execution_input_json"),
 		executionInputSha256: text("execution_input_sha256"),
-		executionInputReleasedAt: timestamp("execution_input_released_at", { withTimezone: true }),
 		admittedAt: timestamp("admitted_at", { withTimezone: true }),
 		cancelOutboxStatus: text("cancel_outbox_status").notNull().default("not_requested"),
 		cancelReason: text("cancel_reason"),
@@ -168,14 +167,6 @@ export const turnDispatches = chat.table(
 			"chat_turn_dispatches_execution_input_pair_check",
 			sql`(${table.executionInputJson} is null) = (${table.executionInputSha256} is null)`,
 		),
-		executionInputReleaseCheck: check(
-			"chat_turn_dispatches_execution_input_release_check",
-			sql`${table.executionInputReleasedAt} is null
-				or (
-					${table.executionInputJson} is null
-					and ${table.executionInputSha256} is null
-				)`,
-		),
 		inputLifecycleCheck: check(
 			"chat_turn_dispatches_input_lifecycle_check",
 			sql`(
@@ -189,7 +180,6 @@ export const turnDispatches = chat.table(
 							and ${table.admissionInputSha256} is not null
 							and ${table.executionInputJson} is not null
 							and ${table.executionInputSha256} is not null
-							and ${table.executionInputReleasedAt} is null
 						)
 						or (
 							${table.admissionStatus} = 'admitted'
@@ -197,16 +187,14 @@ export const turnDispatches = chat.table(
 							and ${table.admissionInputSha256} is null
 							and ${table.executionInputJson} is not null
 							and ${table.executionInputSha256} is not null
-							and ${table.executionInputReleasedAt} is null
 						)
 						or (
 							${table.admissionStatus} = 'cancelled'
 							and ${table.cancelOutboxStatus} = 'local_finalization_pending'
 							and ${table.admissionInputJson} is null
 							and ${table.admissionInputSha256} is null
-							and ${table.executionInputJson} is null
-							and ${table.executionInputSha256} is null
-							and ${table.executionInputReleasedAt} is not null
+							and ${table.executionInputJson} is not null
+							and ${table.executionInputSha256} is not null
 						)
 					)
 				)
@@ -224,16 +212,16 @@ export const turnDispatches = chat.table(
 					and ${table.admissionInputSha256} is null
 					and (
 						(
-							${table.admissionStatus} = 'admitted'
-							and ${table.executionInputJson} is not null
-							and ${table.executionInputSha256} is not null
-							and ${table.executionInputReleasedAt} is null
-						)
-						or (
-							${table.admissionStatus} in ('admitted', 'admission_failed', 'cancelled')
+							${table.runId} is null
+							and ${table.workflowId} is null
 							and ${table.executionInputJson} is null
 							and ${table.executionInputSha256} is null
-							and ${table.executionInputReleasedAt} is not null
+						)
+						or (
+							${table.runId} is not null
+							and ${table.workflowId} is not null
+							and ${table.executionInputJson} is not null
+							and ${table.executionInputSha256} is not null
 						)
 					)
 				)`,

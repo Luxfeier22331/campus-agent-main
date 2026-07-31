@@ -326,15 +326,12 @@ func validateToolRuntimeFingerprintSnapshot(snapshot temporalruntime.ToolRuntime
 		strings.TrimSpace(snapshot.ToolsSchemaVersion) == "" ||
 		strings.TrimSpace(snapshot.ToolsRegistryVersion) == "" ||
 		strings.TrimSpace(snapshot.FunctionSchemaVersion) == "" ||
-		strings.TrimSpace(snapshot.RuntimeRelease) == "" ||
-		strings.TrimSpace(snapshot.WorkflowArtifactSchemaVersion) == "" ||
-		strings.TrimSpace(snapshot.WorkflowArtifactRegistryVersion) == "" {
+		strings.TrimSpace(snapshot.RuntimeRelease) == "" {
 		return errors.New("tool runtime admission snapshot identity is invalid")
 	}
 	for _, value := range []string{
 		snapshot.ToolsSHA256,
 		snapshot.FunctionSchemaSHA256,
-		snapshot.WorkflowArtifactSHA256,
 		snapshot.CombinedSHA256,
 	} {
 		if !sha256RefPattern.MatchString(value) {
@@ -342,16 +339,13 @@ func validateToolRuntimeFingerprintSnapshot(snapshot temporalruntime.ToolRuntime
 		}
 	}
 	wantCombined := sha256JSONRef(map[string]any{
-		"function_schema_sha256":             snapshot.FunctionSchemaSHA256,
-		"function_schema_version":            snapshot.FunctionSchemaVersion,
-		"runtime_release":                    snapshot.RuntimeRelease,
-		"schema_version":                     snapshot.SchemaVersion,
-		"tools_registry_version":             snapshot.ToolsRegistryVersion,
-		"tools_schema_version":               snapshot.ToolsSchemaVersion,
-		"tools_sha256":                       snapshot.ToolsSHA256,
-		"workflow_artifact_registry_version": snapshot.WorkflowArtifactRegistryVersion,
-		"workflow_artifact_schema_version":   snapshot.WorkflowArtifactSchemaVersion,
-		"workflow_artifact_sha256":           snapshot.WorkflowArtifactSHA256,
+		"function_schema_sha256":  snapshot.FunctionSchemaSHA256,
+		"function_schema_version": snapshot.FunctionSchemaVersion,
+		"runtime_release":         snapshot.RuntimeRelease,
+		"schema_version":          snapshot.SchemaVersion,
+		"tools_registry_version":  snapshot.ToolsRegistryVersion,
+		"tools_schema_version":    snapshot.ToolsSchemaVersion,
+		"tools_sha256":            snapshot.ToolsSHA256,
 	})
 	if snapshot.CombinedSHA256 != wantCombined {
 		return errors.New("tool runtime admission snapshot combined hash mismatch")
@@ -364,17 +358,14 @@ func toolRuntimeFingerprintSnapshotMap(snapshot temporalruntime.ToolRuntimeFinge
 		return nil
 	}
 	return map[string]any{
-		"combined_sha256":                    snapshot.CombinedSHA256,
-		"function_schema_sha256":             snapshot.FunctionSchemaSHA256,
-		"function_schema_version":            snapshot.FunctionSchemaVersion,
-		"runtime_release":                    snapshot.RuntimeRelease,
-		"schema_version":                     snapshot.SchemaVersion,
-		"tools_registry_version":             snapshot.ToolsRegistryVersion,
-		"tools_schema_version":               snapshot.ToolsSchemaVersion,
-		"tools_sha256":                       snapshot.ToolsSHA256,
-		"workflow_artifact_registry_version": snapshot.WorkflowArtifactRegistryVersion,
-		"workflow_artifact_schema_version":   snapshot.WorkflowArtifactSchemaVersion,
-		"workflow_artifact_sha256":           snapshot.WorkflowArtifactSHA256,
+		"combined_sha256":         snapshot.CombinedSHA256,
+		"function_schema_sha256":  snapshot.FunctionSchemaSHA256,
+		"function_schema_version": snapshot.FunctionSchemaVersion,
+		"runtime_release":         snapshot.RuntimeRelease,
+		"schema_version":          snapshot.SchemaVersion,
+		"tools_registry_version":  snapshot.ToolsRegistryVersion,
+		"tools_schema_version":    snapshot.ToolsSchemaVersion,
+		"tools_sha256":            snapshot.ToolsSHA256,
 	}
 }
 

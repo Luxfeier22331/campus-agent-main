@@ -5,7 +5,6 @@ import {
 } from "../src/server/ops-status-mappers";
 import type {
 	OpsAgentUsageRow,
-	OpsProductActionRow,
 	OpsRequestDetailRow,
 	OpsRequestListQuery,
 	OpsRequestRow,
@@ -16,24 +15,15 @@ import type {
 import { OPS_REQUEST_PAGE_SIZE } from "../src/server/ops-status-store";
 
 export function createFakeOpsDb(
-	overrides: {
-		actionRows?: OpsProductActionRow[];
-		requestRows?: OpsRequestDetailRow[];
-		usageRows?: OpsAgentUsageRow[];
-	} = {},
+	overrides: { requestRows?: OpsRequestDetailRow[]; usageRows?: OpsAgentUsageRow[] } = {},
 ): PgOpsStatusStoreDatabase {
 	const requestRows = overrides.requestRows ?? [requestRow()];
-	const actionRows = overrides.actionRows ?? [productActionRow()];
 	const usageRows = overrides.usageRows ?? [agentUsageRow()];
 
 	return {
 		async getAgentUsages(runIds) {
 			const runIdSet = new Set(runIds);
 			return usageRows.filter((row) => runIdSet.has(row.runId));
-		},
-		async getProductActions(runIds) {
-			const runIdSet = new Set(runIds);
-			return actionRows.filter((row) => runIdSet.has(row.runId));
 		},
 		async getRequestOverview(since) {
 			const visible = requestRows.filter((row) => row.startedAt >= since);
@@ -132,24 +122,24 @@ export function requestRow(overrides: Partial<OpsRequestDetailRow> = {}): OpsReq
 		admissionStatus: "accepted",
 		assistantKind: "answer",
 		assistantMessagePresent: true,
-		assistantMessageText: "下一班车将于 14:30 发车。",
+		assistantMessageText: "缓考申请需提交书面材料。",
 		assistantStructuredPartsJson: [
 			{
 				sourceItems: [
 					{
-						collectionLabel: "校园交通",
+						collectionLabel: "学生规定",
 						pageLabel: "运行状态",
 						primaryAction: {
 							disabledReason: null,
 							external: false,
-							href: "/status/transport",
-							label: "查看班车状态",
+							href: "/documents/student-rules",
+							label: "查看学生规定",
 						},
 						publisherLabel: "校园服务中心",
-						sectionTitle: "工作日班车",
-						snippet: "下一班 14:30 发车。",
-						title: "班车时刻表",
-						versionLabel: "今日班次",
+						sectionTitle: "缓考申请",
+						snippet: "申请人需提交书面材料。",
+						title: "学生管理规定",
+						versionLabel: "当前版本",
 					},
 				],
 				type: "source_items",
@@ -162,8 +152,8 @@ export function requestRow(overrides: Partial<OpsRequestDetailRow> = {}): OpsReq
 		dataUpdatedAt: new Date("2026-07-09T07:29:05.000Z"),
 		durationMs: 4_200,
 		errorCode: null,
-		questionPreview: "今天班车什么时候发车？",
-		questionText: "今天班车什么时候发车？",
+		questionPreview: "缓考申请需要哪些材料？",
+		questionText: "缓考申请需要哪些材料？",
 		questionTruncated: false,
 		requestId: "req_pg_001",
 		runId: "run_pg_001",
@@ -176,19 +166,6 @@ export function requestRow(overrides: Partial<OpsRequestDetailRow> = {}): OpsReq
 		traceId: "trace_pg_001",
 		turnSequence: 3,
 		workflowId: "campus-agent.chat.run_pg_001",
-		...overrides,
-	};
-}
-
-export function productActionRow(
-	overrides: Partial<OpsProductActionRow> = {},
-): OpsProductActionRow {
-	return {
-		runId: "run_pg_001",
-		startedAt: new Date("2026-07-09T07:29:01.000Z"),
-		status: "completed",
-		toolName: "transport_schedule_lookup",
-		updatedAt: new Date("2026-07-09T07:29:02.000Z"),
 		...overrides,
 	};
 }

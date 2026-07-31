@@ -108,13 +108,10 @@ test.describe("campus web worker app-api boundary", () => {
 		await expectWorkerUnknownApi(await request.get("/api/chat/admin"));
 	});
 
-	test("routes admitted campus support API paths to app-api and keeps unknown support paths closed", async ({
+	test("routes admitted feedback API paths to app-api and keeps unknown support paths closed", async ({
 		request,
 	}) => {
-		for (const { method, path } of [
-			{ method: "GET", path: "/api/campus-services/transport-schedule/status" },
-			{ method: "POST", path: "/api/feedback" },
-		]) {
+		for (const { method, path } of [{ method: "POST", path: "/api/feedback" }]) {
 			const response = await request.fetch(path, {
 				data: method === "GET" ? undefined : {},
 				method,
@@ -122,8 +119,6 @@ test.describe("campus web worker app-api boundary", () => {
 
 			await expectNotWorkerUnknownApi(response);
 		}
-
-		await expectWorkerUnknownApi(await request.get("/api/campus-services/admin"));
 	});
 
 	test("routes admitted docs API paths to app-api and keeps unknown docs paths closed", async ({

@@ -82,7 +82,6 @@ const SHELL_EXACT_PATHS = new Set([
 	"/",
 	"/map",
 	"/dining",
-	"/services",
 	"/groups",
 	"/feedback",
 	"/account",

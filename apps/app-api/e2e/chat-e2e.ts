@@ -1,8 +1,8 @@
 import process from "node:process";
 import {
-	createSharedProductPool,
-	readSharedProductBootstrapEnv,
-} from "../src/script-support/shared-db/shared-product-database-bootstrap";
+	createAppApiDatabasePool,
+	readAppApiDatabaseEnv,
+} from "../src/script-support/shared-db/database";
 import { type ChatE2eArgs, type ChatE2eProfile, parseChatE2eArgs } from "./support/chat-e2e.args";
 import { assertExpectedChatE2eResultKind } from "./support/chat-e2e.result-kind";
 import {
@@ -113,7 +113,7 @@ async function openSubmitStream(input: {
 }
 
 async function defaultReadModelExecutionState(requestId: string): Promise<string | null> {
-	const pool = createSharedProductPool(readSharedProductBootstrapEnv(process.env));
+	const pool = createAppApiDatabasePool(readAppApiDatabaseEnv(process.env));
 	try {
 		const result = await pool.query<{ model_execution_state: string | null }>(
 			'select "model_execution_state" from "runtime"."request_observability_fact" where "request_id" = $1',

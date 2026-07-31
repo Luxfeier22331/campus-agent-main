@@ -43,14 +43,12 @@ function technical(requestId: string, index: number, errorCode: string | null = 
 	};
 }
 
-const transportDetail = {
+const knowledgeDetail = {
 	generatedAt: now,
 	journey: {
-		actions: [{ capability: "TRANSPORT_SCHEDULE", status: "COMPLETED" }],
-		actionsDataState: "FRESH",
 		entry: "CAMPUS_WEB",
 	},
-	question: { text: "今天班车什么时候发车？", turnSequence: 3 },
+	question: { text: "缓考申请需要哪些材料？", turnSequence: 3 },
 	request: {
 		completedAt: "2026-07-09T06:29:04.280Z",
 		durationMs: 4_280,
@@ -63,23 +61,23 @@ const transportDetail = {
 		kind: "answer",
 		sources: [
 			{
-				collectionLabel: "校园交通",
+				collectionLabel: "学生规定",
 				pageLabel: "运行状态",
 				primaryAction: {
 					disabledReason: null,
 					external: false,
-					href: "/status/transport",
-					label: "查看班车状态",
+					href: "/documents/student-rules",
+					label: "查看学生规定",
 				},
 				publisherLabel: "校园服务中心",
-				sectionTitle: "工作日班车",
-				snippet: "主校区下一班 14:30 发车，预计 15:05 到达东校区。",
-				title: "班车时刻表",
-				versionLabel: "今日班次",
+				sectionTitle: "缓考申请",
+				snippet: "申请人应在规定期限内提交书面材料并说明原因。",
+				title: "学生管理规定",
+				versionLabel: "当前版本",
 			},
 		],
 		state: "WRITTEN",
-		text: "今天主校区前往东校区的下一班车是 **14:30**，预计 **15:05** 到达。\n\n建议提前 10 分钟到候车点；临时调整请以班车状态页为准。",
+		text: "缓考申请需要在规定期限内提交书面材料并说明原因。",
 	},
 	technical: technical("req_ops_001", 1),
 	usage: {
@@ -93,7 +91,7 @@ const transportDetail = {
 
 const directDetail = {
 	generatedAt: now,
-	journey: { actions: [], actionsDataState: "NO_DATA", entry: "CAMPUS_WEB" },
+	journey: { entry: "CAMPUS_WEB" },
 	question: { text: "你好，你能帮我做什么？", turnSequence: 1 },
 	request: {
 		completedAt: "2026-07-09T06:28:43.600Z",
@@ -107,7 +105,7 @@ const directDetail = {
 		kind: "answer",
 		sources: [],
 		state: "WRITTEN",
-		text: "我可以帮助查询校园通知、班车、办事规则等信息，也可以结合当前对话继续回答。你可以直接告诉我想了解什么。",
+		text: "我可以帮助查询校园通知、校园信息、办事规则等信息，也可以结合当前对话继续回答。你可以直接告诉我想了解什么。",
 	},
 	technical: technical("req_ops_002", 2),
 	usage: {
@@ -122,8 +120,6 @@ const directDetail = {
 const runningDetail = {
 	generatedAt: now,
 	journey: {
-		actions: [{ capability: "CAMPUS_KNOWLEDGE", status: "RUNNING" }],
-		actionsDataState: "FRESH",
 		entry: "CAMPUS_WEB",
 	},
 	question: { text: "帮我查一下最近的校园通知", turnSequence: 5 },
@@ -148,7 +144,7 @@ const runningDetail = {
 
 const failedDetail = {
 	generatedAt: now,
-	journey: { actions: [], actionsDataState: "NO_DATA", entry: "CAMPUS_WEB" },
+	journey: { entry: "CAMPUS_WEB" },
 	question: { text: "帮我看看本周有哪些重要通知", turnSequence: 2 },
 	request: {
 		completedAt: "2026-07-09T06:27:43.320Z",
@@ -176,8 +172,8 @@ const failedDetail = {
 
 const clarificationDetail = {
 	generatedAt: now,
-	journey: { actions: [], actionsDataState: "NO_DATA", entry: "CAMPUS_WEB" },
-	question: { text: "请帮我查询班车时间", turnSequence: 4 },
+	journey: { entry: "CAMPUS_WEB" },
+	question: { text: "请帮我查询申请条件", turnSequence: 4 },
 	request: {
 		completedAt: "2026-07-09T06:26:04.100Z",
 		durationMs: 4_100,
@@ -190,7 +186,7 @@ const clarificationDetail = {
 		kind: "clarification",
 		sources: [],
 		state: "WRITTEN",
-		text: "请告诉我出发校区、目的校区以及大致出发时间，我再为你查询合适的班次。",
+		text: "请说明你要办理的具体事项和已经了解的条件，我再继续帮你查询。",
 	},
 	technical: {
 		...technical("req_ops_005", 5),
@@ -208,8 +204,6 @@ const clarificationDetail = {
 const missingResultDetail = {
 	generatedAt: now,
 	journey: {
-		actions: [{ capability: "CAMPUS_KNOWLEDGE", status: "COMPLETED" }],
-		actionsDataState: "FRESH",
 		entry: "CAMPUS_WEB",
 	},
 	question: { text: "奖学金申请截止到哪一天？", turnSequence: 6 },
@@ -233,7 +227,7 @@ const missingResultDetail = {
 } satisfies OpsRequestDetailResponse;
 
 export const opsRequestDetailFixtures = [
-	transportDetail,
+	knowledgeDetail,
 	directDetail,
 	runningDetail,
 	failedDetail,
@@ -265,7 +259,7 @@ function requestSummary(
 
 export const opsRequestListFixture = {
 	data: [
-		requestSummary(transportDetail, null),
+		requestSummary(knowledgeDetail, null),
 		requestSummary(directDetail, null),
 		requestSummary(runningDetail, null),
 		requestSummary(failedDetail, "REQUEST_FAILED"),
@@ -287,7 +281,7 @@ export const opsRequestListFixture = {
 	window: "1h",
 } satisfies OpsRequestListResponse;
 
-export const opsRequestDetailFixture = transportDetail;
+export const opsRequestDetailFixture = knowledgeDetail;
 
 export const opsOverviewFixture = {
 	cache: { ageMs: 0, status: "FRESH" },

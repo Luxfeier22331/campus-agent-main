@@ -46,7 +46,7 @@ func TestQueryServingScopesExposePublishedScopes(t *testing.T) {
 }
 
 func TestQueryServingScopesRejectClosedScopes(t *testing.T) {
-	for _, target := range []string{"official_web", "campus_services"} {
+	for _, target := range []string{"official_web"} {
 		if _, err := ResolveDocumentScope(target, ""); err == nil {
 			t.Fatalf("target %s must remain closed", target)
 		}

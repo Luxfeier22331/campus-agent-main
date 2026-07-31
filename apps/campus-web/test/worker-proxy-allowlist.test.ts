@@ -29,12 +29,6 @@ describe("campus worker app-api proxy allowlist", () => {
 		expect(isAllowedCampusAppApiRequest("/api/me/authorized-apps")).toBe(false);
 	});
 
-	it("allows the public campus services transport schedule projection", () => {
-		expect(isAllowedCampusAppApiRequest("/api/campus-services/transport-schedule/status")).toBe(
-			true,
-		);
-	});
-
 	it("allows only the public campus groups catalog", () => {
 		expect(isAllowedCampusAppApiRequest("/api/campus-groups/catalog")).toBe(true);
 		expect(isAllowedCampusAppApiRequest("/api/internal/ops/campus-groups/state")).toBe(false);

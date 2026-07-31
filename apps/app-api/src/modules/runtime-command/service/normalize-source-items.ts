@@ -84,7 +84,6 @@ function normalizeSectionTitle(
 function normalizeSourceKind(source: Record<string, unknown>): ChatSourceItem["sourceKind"] {
 	const explicit = recordString(source, "source_kind", "sourceKind");
 	if (
-		explicit === "campus_service" ||
 		explicit === "curriculum" ||
 		explicit === "document" ||
 		explicit === "notice" ||

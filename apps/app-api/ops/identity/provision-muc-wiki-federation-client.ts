@@ -3,13 +3,13 @@ import {
 	readMucWikiFederationClientProvisionInput,
 } from "../../src/script-support/provisioning/provision-muc-wiki-federation-client-lib.ts";
 import {
-	createSharedProductPool,
-	readSharedProductBootstrapEnv,
-} from "../../src/script-support/shared-db/shared-product-database-bootstrap.ts";
+	createAppApiDatabasePool,
+	readAppApiDatabaseEnv,
+} from "../../src/script-support/shared-db/database.ts";
 
 async function main() {
 	const input = readMucWikiFederationClientProvisionInput(process.env, process.argv.slice(2));
-	const pool = createSharedProductPool(readSharedProductBootstrapEnv(process.env));
+	const pool = createAppApiDatabasePool(readAppApiDatabaseEnv(process.env));
 
 	try {
 		const summary = await provisionMucWikiFederationClient(input, {

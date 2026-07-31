@@ -50,24 +50,8 @@ app-api 自己的取消发件箱是两个所有者各自的提交点，不以一
 若取消已把 start 置为 `superseded`，命令满足 `dispatch_attempted=true`、尚无 Temporal Run ID，且
 Describe 明确返回 `NotFound`，reconciler 使用原 canonical input 触发带一分钟 `StartDelay` 的 recovery
 start。只有 recovery root 通过 exact/latest 身份校验后，存储才允许对 superseded start 首写不可变
-Temporal Run ID；之后取消和 cleanup 继续使用该精确绑定。recovery 失败或身份未知时仍保持 pending，
+Temporal Run ID；之后取消继续使用该精确绑定。recovery 失败或身份未知时仍保持 pending，
 不得用 latest Run ID 补写绑定。
-
-`runtime.agent_run_cleanups` 与新 run 在同一事务创建，记录 pending、leased、confirmed、租约、
-尝试次数、下次尝试时间和有界错误码。它只表达 app-api 执行输入是否已完成幂等删除，不决定 run
-业务终态。只有本地 run 已终态，且 start command 满足以下条件之一，记录才可确认：dispatch fence
-能证明没有发起 RPC；`confirmed` 启动命令已绑定精确 Temporal Run ID；已 dispatch 的
-`superseded` 启动命令已首写不可变绑定精确 Temporal Run ID。后两种还要求该 execution 与同
-Workflow ID 的 latest execution 都通过 Memo 身份校验，明确提供没有 reset evidence 的 reset state，
-并且 Run ID 与 `first_run_id` 都等于持久绑定的 root Run ID，再确认该同一 execution 已关闭。Temporal
-的 `first_run_id` chain 包含 Continue-As-New、Workflow Retry、Cron 和 Reset；相同
-`first_run_id` 不能证明 successor 仍属于产品 run。当前在线回答不支持 successor，因此不同 latest
-Run、非 root `first_run_id`、reset state 未知、`last_reset_time` 非空或 `reset_run_id` 非空都不满足
-清理条件。
-
-schema 安装会为升级前已有 run 补建 pending cleanup 行，但不会伪造缺失的 start identity。没有
-`agent_workflow_starts` 对应行的历史记录保持 pending，直到独立迁移从可信来源补齐证明；不能仅凭
-`agent_runs.status` 批量确认或删除。
 
 ### Step、Attempt 与 Result
 
@@ -191,7 +175,8 @@ run 或阶段结果。
 
 完整 `tool_execution_v5` 输入由 app-api 以精确 UTF-8 文本拥有，execution-control 只持久化
 `execution_input_ref` 和 `execution_input_sha256`；ref 指向的数据也不得
-复制到 Temporal history 或上述投影。
+复制到上述投影。已经分配 run 的输入在产品终态后仍由 app-api 保留，随 app-api 的会话和用户数据
+生命周期删除；execution-control 不维护对应清理记录。
 
 ## 消费
 

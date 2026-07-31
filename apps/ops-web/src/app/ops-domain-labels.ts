@@ -12,16 +12,14 @@ const LIFECYCLE_LABELS: Record<OpsRequestSummary["lifecyclePhase"], string> = {
 
 const VALUE_LABELS: Record<string, string> = {
 	ACTION_REQUIRED: "等待用户",
-	CAMPUS_KNOWLEDGE: "查询校园信息",
 	CAMPUS_WEB: "Campus Web",
 	CANCELLED: "已取消",
 	COMPLETED: "已完成",
 	FAILED: "失败",
 	MODEL_PROVIDER_TIMEOUT: "模型服务超时",
-	OTHER: "其他业务能力",
+	OTHER: "其他入口",
 	PENDING: "待处理",
 	RUNNING: "运行中",
-	TRANSPORT_SCHEDULE: "查询班车时刻",
 	allowed: "允许",
 	answer: "已生成回答",
 	answer_completed: "回答已完成",
@@ -52,8 +50,6 @@ const VALUE_LABELS: Record<string, string> = {
 	terminal: "终态处理",
 	tool: "工具调用",
 	tool_call: "工具调用",
-	knowledge_query: "检索校园知识",
-	transport_schedule_lookup: "查询班车时刻",
 	unresolved: "未解决",
 };
 

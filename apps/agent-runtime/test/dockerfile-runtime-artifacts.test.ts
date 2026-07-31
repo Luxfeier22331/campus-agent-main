@@ -10,7 +10,6 @@ describe("agent-runtime Dockerfile", () => {
 		for (const configPath of [
 			"configs/runtime/tools.v6.json",
 			"configs/runtime/tool-function-schemas.v3.json",
-			"configs/runtime/workflow-artifacts.v3.json",
 		]) {
 			expect(dockerfile).toContain(`${configPath} ./${configPath}`);
 		}

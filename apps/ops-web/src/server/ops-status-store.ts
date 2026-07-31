@@ -74,7 +74,6 @@ export interface OpsStatusEnv {
 
 export interface PgOpsStatusStoreDatabase {
 	getAgentUsages(runIds: string[]): Promise<OpsAgentUsageRow[]>;
-	getProductActions(runIds: string[]): Promise<OpsProductActionRow[]>;
 	getRequestOverview(since: Date): Promise<OpsRequestOverviewRow>;
 	getRequest(requestId: string): Promise<OpsRequestDetailRow | null>;
 	getRequestTrends(since: Date, bucketMinutes: number): Promise<OpsRequestTrendRow[]>;
@@ -136,14 +135,6 @@ export interface OpsRequestDetailRow extends OpsRequestRow {
 	assistantMessageText: string | null;
 	assistantStructuredPartsJson: unknown;
 	questionText: string;
-}
-
-export interface OpsProductActionRow {
-	runId: string;
-	startedAt: Date | null;
-	status: string;
-	toolName: string;
-	updatedAt: Date;
 }
 
 export interface OpsAgentUsageRow {

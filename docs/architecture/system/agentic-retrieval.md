@@ -91,5 +91,4 @@ Primary Agent 不接收 Qdrant 响应、内部 collection 名、检索 Provider 
 - `agent-framework.md`
 - `tool-routing.md`
 - `retrieval-serving.md`
-- `../../contracts/tool-read-model.md`
 - `../../reference/eval-cases.md`

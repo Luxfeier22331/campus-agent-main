@@ -125,12 +125,12 @@ describe("OpenAI Agents SDK runner adapter", () => {
 				}
 				const runContext = new RunContext(options.context);
 				const invoke = (callId: string) =>
-					runtimeTool.invoke(runContext, JSON.stringify({ query_text: "校车" }), {
+					runtimeTool.invoke(runContext, JSON.stringify({ query_text: "通知" }), {
 						toolCall: {
 							type: "function_call",
 							callId,
-							name: "transport_schedule_lookup",
-							arguments: JSON.stringify({ query_text: "校车" }),
+							name: "test_lookup",
+							arguments: JSON.stringify({ query_text: "通知" }),
 						},
 					});
 				await invoke("call-transport-1");
@@ -144,16 +144,16 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		});
 
 		await runner({
-			input: [{ role: "user", content: "查询校车" }],
+			input: [{ role: "user", content: "查询通知" }],
 			instructions: "Use admitted tools when needed.",
 			tools: [
 				{
-					name: "transport_schedule_lookup",
+					name: "test_lookup",
 					description: "Lookup shuttle schedules.",
 					parameters: queryParameters(),
 					execute: async () => {
 						executeCount += 1;
-						return completedToolResult("transport_schedule_lookup");
+						return completedToolResult("test_lookup");
 					},
 				},
 			],
@@ -168,7 +168,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		expect(exhaustedResult).toMatchObject({
 			failCloseReason: "tool_call_budget_exhausted",
 			status: "failed",
-			toolName: "transport_schedule_lookup",
+			toolName: "test_lookup",
 		});
 	});
 
@@ -277,11 +277,11 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		const toolResult: ToolExecutionResult = {
 			durationMs: 17.5,
 			status: "completed",
-			toolName: "transport_schedule_lookup",
-			payloadKind: "transport_schedule_lookup",
+			toolName: "test_lookup",
+			payloadKind: "test_lookup",
 			argumentsJson: { intent: "next_departure" },
 			result: { outcome: "resolved_current" },
-			resultRef: "agent-runtime://run-sdk/tools/transport_schedule_lookup",
+			resultRef: "agent-runtime://run-sdk/tools/test_lookup",
 		};
 		const runner = createOpenAIAgentsRunner({
 			runSdk: async (_agent, input) => {
@@ -304,7 +304,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 						{
 							type: "tool_call_item",
 							rawItem: {
-								name: "transport_schedule_lookup",
+								name: "test_lookup",
 								callId: "call-transport",
 								arguments: { intent: "next_departure" },
 							},
@@ -322,12 +322,12 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		});
 
 		const result = await runner({
-			input: [{ role: "user", content: "校车今天几点" }],
+			input: [{ role: "user", content: "通知今天几点" }],
 			instructions: "Answer with tools when needed.",
 			tools: [
 				{
-					name: "transport_schedule_lookup",
-					description: "Lookup campus shuttle schedule snapshots.",
+					name: "test_lookup",
+					description: "Lookup test record schedule snapshots.",
 					execute: async () => toolResult,
 				},
 			],
@@ -338,11 +338,11 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			providerConfig,
 		});
 
-		expect(result.finalOutput).toBe("final:校车今天几点");
+		expect(result.finalOutput).toBe("final:通知今天几点");
 		expect(result.providerResponseId).toBe("resp-sdk-001");
 		expect(result.toolCalls).toEqual([
 			{
-				name: "transport_schedule_lookup",
+				name: "test_lookup",
 				argumentsSummary: { intent: "next_departure" },
 				result: toolResult,
 			},
@@ -392,18 +392,18 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			status: "completed",
 			toolName: "fixture_lookup",
 			payloadKind: "fixture_lookup",
-			argumentsJson: { query_text: "班车通知" },
+			argumentsJson: { query_text: "校内通知" },
 			result: { outcome: "resolved_current" },
 			resultRef: "agent-runtime://run-sdk/tools/fixture_lookup",
 		};
 		const secondResult: ToolExecutionResult = {
 			durationMs: 13,
 			status: "completed",
-			toolName: "transport_schedule_lookup",
-			payloadKind: "transport_schedule_lookup",
+			toolName: "test_lookup",
+			payloadKind: "test_lookup",
 			argumentsJson: { intent: "next_departure" },
 			result: { outcome: "next_departure" },
-			resultRef: "agent-runtime://run-sdk/tools/transport_schedule_lookup",
+			resultRef: "agent-runtime://run-sdk/tools/test_lookup",
 		};
 		const runner = createOpenAIAgentsRunner({
 			runSdk: async () => ({
@@ -415,13 +415,13 @@ describe("OpenAI Agents SDK runner adapter", () => {
 						rawItem: {
 							name: "fixture_lookup",
 							callId: "call-fixture",
-							arguments: JSON.stringify({ query_text: "班车通知" }),
+							arguments: JSON.stringify({ query_text: "校内通知" }),
 						},
 					},
 					{
 						type: "tool_call_item",
 						rawItem: {
-							name: "transport_schedule_lookup",
+							name: "test_lookup",
 							callId: "call-transport",
 							arguments: JSON.stringify({ intent: "next_departure" }),
 						},
@@ -445,7 +445,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		});
 
 		const result = await runner({
-			input: [{ role: "user", content: "校内服务状态和班车" }],
+			input: [{ role: "user", content: "校内通知状态" }],
 			instructions: "Use tools.",
 			tools: [],
 			requestId: "req-sdk-interleaved",
@@ -465,11 +465,11 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		const unrelatedResult: ToolExecutionResult = {
 			durationMs: 9,
 			status: "completed",
-			toolName: "transport_schedule_lookup",
-			payloadKind: "transport_schedule_lookup",
+			toolName: "test_lookup",
+			payloadKind: "test_lookup",
 			argumentsJson: { intent: "next_departure" },
 			result: { outcome: "next_departure" },
-			resultRef: "agent-runtime://run-sdk/tools/transport_schedule_lookup/call-transport",
+			resultRef: "agent-runtime://run-sdk/tools/test_lookup/call-transport",
 		};
 		const runner = createOpenAIAgentsRunner({
 			runSdk: async () => ({
@@ -481,7 +481,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 						rawItem: {
 							name: "fixture_lookup",
 							callId: "call-fixture",
-							arguments: JSON.stringify({ query_text: "班车通知" }),
+							arguments: JSON.stringify({ query_text: "校内通知" }),
 						},
 					},
 					{
@@ -520,7 +520,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 						rawItem: {
 							name: "fixture_lookup",
 							callId: "call-fixture",
-							arguments: JSON.stringify({ query_text: "班车通知" }),
+							arguments: JSON.stringify({ query_text: "校内通知" }),
 						},
 					},
 					{
@@ -530,11 +530,11 @@ describe("OpenAI Agents SDK runner adapter", () => {
 							output: {
 								durationMs: 7,
 								status: "completed",
-								toolName: "transport_schedule_lookup",
-								payloadKind: "transport_schedule_lookup",
-								argumentsJson: { query_text: "班车通知" },
+								toolName: "test_lookup",
+								payloadKind: "test_lookup",
+								argumentsJson: { query_text: "校内通知" },
 								result: { outcome: "resolved_current" },
-								resultRef: "agent-runtime://run-sdk/tools/transport_schedule_lookup",
+								resultRef: "agent-runtime://run-sdk/tools/test_lookup",
 							},
 						},
 					},
@@ -568,7 +568,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			status: "completed",
 			toolName: "fixture_lookup",
 			payloadKind: "fixture_lookup",
-			argumentsJson: { query_text: "班车通知" },
+			argumentsJson: { query_text: "校内通知" },
 			result: { outcome: "resolved_current" },
 			resultRef: "agent-runtime://run-sdk/tools/fixture_lookup",
 		};
@@ -585,7 +585,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 						rawItem: {
 							name: "fixture_lookup",
 							callId: "call-fixture",
-							arguments: JSON.stringify({ query_text: "班车通知" }),
+							arguments: JSON.stringify({ query_text: "校内通知" }),
 						},
 					},
 					{
@@ -624,12 +624,12 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		});
 
 		await runner({
-			input: [{ role: "user", content: "校车今天几点" }],
+			input: [{ role: "user", content: "通知今天几点" }],
 			instructions: "Use tools.",
 			tools: [
 				{
-					name: "transport_schedule_lookup",
-					description: "Lookup campus shuttle schedule snapshots.",
+					name: "test_lookup",
+					description: "Lookup test record schedule snapshots.",
 					parameters: {
 						type: "object",
 						additionalProperties: false,
@@ -644,10 +644,10 @@ describe("OpenAI Agents SDK runner adapter", () => {
 					},
 					execute: async () => ({
 						status: "completed",
-						toolName: "transport_schedule_lookup",
-						payloadKind: "transport_schedule_lookup",
+						toolName: "test_lookup",
+						payloadKind: "test_lookup",
 						result: { outcome: "resolved_current" },
-						resultRef: "agent-runtime://run-sdk/tools/transport_schedule_lookup",
+						resultRef: "agent-runtime://run-sdk/tools/test_lookup",
 					}),
 				},
 			],

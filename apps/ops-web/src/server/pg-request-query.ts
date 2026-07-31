@@ -182,19 +182,6 @@ export function buildRequestFilter(
 	};
 }
 
-export function productActionsSql(suffix: string): string {
-	return `
-			select
-				"run_id" as "runId",
-				"started_at" as "startedAt",
-				"status",
-				"tool" as "toolName",
-				"updated_at" as "updatedAt"
-			from "runtime"."agent_run_steps"
-			where "step_kind" = 'tool' and btrim("tool") <> '' ${suffix}
-		`;
-}
-
 export function agentUsageSql(suffix: string): string {
 	return `
 			select

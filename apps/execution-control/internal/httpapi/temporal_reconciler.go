@@ -142,7 +142,6 @@ func (r *temporalReconciler) reconcile(ctx context.Context) {
 	r.reconcileCancellations(ctx)
 	r.reconcileStarts(ctx)
 	r.reconcileWorkflowTimeouts(ctx)
-	r.reconcileRunCleanups(ctx)
 }
 
 func (r *temporalReconciler) reconcileWorkflowTimeouts(ctx context.Context) {
@@ -344,9 +343,6 @@ func (r *temporalReconciler) finalizeTimedOutWorkflow(
 	if err != nil {
 		return err
 	}
-	// The terminal projection makes the pending cleanup outbox leaseable. The
-	// cleanup phase verifies the exact closed Temporal execution before deleting
-	// either payload owner.
 	return nil
 }
 
@@ -1223,8 +1219,7 @@ func (r *temporalReconciler) permanentlyFailStartIntent(
 	cause error,
 ) {
 	// Both local corruption and a durable remote identity conflict terminalize
-	// the product run. Only the local marker proves no RPC was dispatched; the
-	// cleanup store deliberately refuses the remote-conflict marker.
+	// the product run. Only the local marker proves no RPC was dispatched.
 	now := lifecycleNow()
 	failureHash := lifecycleErrorHash(failureKind)
 	if run.Status != execution.DurableRunStatusFailed {

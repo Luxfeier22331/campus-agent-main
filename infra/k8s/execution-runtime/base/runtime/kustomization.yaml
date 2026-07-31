@@ -10,4 +10,3 @@ resources:
   - availability.yaml
   - agent-runtime.yaml
   - execution-control.yaml
-  - temporal-connection.yaml

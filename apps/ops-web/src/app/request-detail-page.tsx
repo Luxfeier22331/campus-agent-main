@@ -10,7 +10,6 @@ import {
 	Globe2,
 	MessageSquareText,
 	RefreshCw,
-	Search,
 	ServerCog,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -171,13 +170,6 @@ function JourneySection({ detail }: { detail: OpsRequestDetailResponse }) {
 			key: "agent:online-qa",
 			label: "在线问答 Agent",
 		},
-		...detail.journey.actions.map((action, actionIndex) => ({
-			detail: actionStatusLabel(action.status),
-			icon: Search,
-			key: `action:${actionIndex}:${action.capability}`,
-			label: formatOpsDomainValue(action.capability),
-		})),
-		...journeyActionStateNodes(detail.journey.actionsDataState),
 		journeyResultNode(detail.result),
 	];
 	return (
@@ -218,29 +210,6 @@ interface JourneyNodeData {
 	label: string;
 }
 
-function journeyActionStateNodes(
-	state: OpsRequestDetailResponse["journey"]["actionsDataState"],
-): JourneyNodeData[] {
-	if (state === "FRESH" || state === "NO_DATA") {
-		return [];
-	}
-	const content = {
-		PARTIAL: {
-			detail: "当前只读取到部分业务能力投影",
-			label: "业务处理记录不完整",
-		},
-		STALE: {
-			detail: "当前显示上一次成功读取的业务能力投影",
-			label: "业务处理记录为旧数据",
-		},
-		UNAVAILABLE: {
-			detail: "未能读取业务能力投影，请求与会话结果仍按产品记录展示",
-			label: "业务处理记录不可用",
-		},
-	} as const;
-	return [{ ...content[state], icon: CircleAlert, key: `action-state:${state}` }];
-}
-
 function journeyResultNode(result: OpsRequestDetailResponse["result"]): JourneyNodeData {
 	if (result.state === "WRITTEN") {
 		return {
@@ -264,17 +233,6 @@ function journeyResultNode(result: OpsRequestDetailResponse["result"]): JourneyN
 		key: "result:pending",
 		label: "等待会话结果",
 	};
-}
-
-function actionStatusLabel(
-	status: OpsRequestDetailResponse["journey"]["actions"][number]["status"],
-) {
-	return {
-		COMPLETED: "业务查询已完成",
-		FAILED: "业务查询失败",
-		PENDING: "等待业务查询",
-		RUNNING: "正在查询",
-	}[status];
 }
 
 function ResultSection({ detail }: { detail: OpsRequestDetailResponse }) {

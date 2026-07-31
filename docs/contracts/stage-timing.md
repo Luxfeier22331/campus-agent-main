@@ -58,7 +58,6 @@ Temporal history。告警阈值由 `configs/runtime/latency-budgets.v1.json` 与
 | `agent.runtime_ms` | `apps/agent-runtime` | 完整 OpenAI Agents SDK run 耗时。 |
 | `agent.first_delta_ms` | `apps/agent-runtime` | agent-runtime 接受请求到第一个可见 answer delta。 |
 | `tool.total_ms` | `apps/execution-control` | 本次 run 中所有已投影 SDK tool call 的总耗时。 |
-| `tool.transport_schedule_lookup_ms` | `apps/execution-control` | `transport_schedule_lookup` 调用耗时之和。 |
 | `finalization.write_ms` | `apps/execution-control` | 写入有界 finalization projection 的耗时。 |
 | `projection.closeout_ms` | `apps/app-api` | 接收 execution finalization 到完成 app-api observability fact。 |
 

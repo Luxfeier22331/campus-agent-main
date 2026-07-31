@@ -68,7 +68,6 @@ describe("runtime command mutations", () => {
 			admissionInputSha256: "a".repeat(64),
 			admissionStatus: "pending_admission",
 			executionInputJson: '{"request_id":"req_001"}',
-			executionInputReleasedAt: null,
 			executionInputSha256: "b".repeat(64),
 			memoryAppendEnabled: true,
 			memoryOwnerGeneration: 3,

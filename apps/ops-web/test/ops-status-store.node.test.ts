@@ -11,7 +11,6 @@ import {
 	agentUsageRow,
 	createFakeOpsDb,
 	createFakeTemporalTaskQueueSource,
-	productActionRow,
 	requestRow,
 	requiredTemporalQueueRows,
 } from "./ops-status-store-test-helpers";
@@ -196,21 +195,19 @@ describe("PostgreSQL ops status store", () => {
 		});
 		const detail = OpsRequestDetailResponseSchema.parse(await store.getRequestDetail("req_pg_001"));
 
-		expect(detail.question).toEqual({ text: "今天班车什么时候发车？", turnSequence: 3 });
+		expect(detail.question).toEqual({ text: "缓考申请需要哪些材料？", turnSequence: 3 });
 		expect(detail.journey).toEqual({
-			actions: [{ capability: "TRANSPORT_SCHEDULE", status: "COMPLETED" }],
-			actionsDataState: "FRESH",
 			entry: "CAMPUS_WEB",
 		});
 		expect(detail.result).toMatchObject({
 			kind: "answer",
 			state: "WRITTEN",
-			text: "下一班车将于 14:30 发车。",
+			text: "缓考申请需提交书面材料。",
 		});
 		expect(detail.result.state === "WRITTEN" ? detail.result.sources : []).toHaveLength(1);
 		expect(
 			detail.result.state === "WRITTEN" ? detail.result.sources[0]?.primaryAction.href : null,
-		).toBe("https://campus.example.test/status/transport");
+		).toBe("https://campus.example.test/documents/student-rules");
 		expect(detail.usage).toEqual({
 			cachedInputTokens: 200,
 			inputTokens: 1_200,
@@ -233,23 +230,7 @@ describe("PostgreSQL ops status store", () => {
 		expect(detail).not.toHaveProperty("retrievalSummary");
 	});
 
-	it("keeps request detail when actions or usage projections fail", async () => {
-		const actionsUnavailable = createPgOpsStatusStore({
-			db: {
-				...createFakeOpsDb(),
-				getProductActions: async () => {
-					throw new Error("actions unavailable");
-				},
-			},
-			now: () => now,
-		});
-		const withoutActions = await actionsUnavailable.getRequestDetail("req_pg_001");
-		expect(withoutActions).toMatchObject({
-			journey: { actions: [], actionsDataState: "UNAVAILABLE" },
-			request: { requestId: "req_pg_001" },
-			usage: { state: "COMPLETE", totalTokens: 1_440 },
-		});
-
+	it("keeps request detail when Agent usage projection fails", async () => {
 		const usageUnavailable = createPgOpsStatusStore({
 			db: {
 				...createFakeOpsDb(),
@@ -261,7 +242,7 @@ describe("PostgreSQL ops status store", () => {
 		});
 		const withoutUsage = await usageUnavailable.getRequestDetail("req_pg_001");
 		expect(withoutUsage).toMatchObject({
-			journey: { actionsDataState: "FRESH" },
+			journey: { entry: "CAMPUS_WEB" },
 			request: { requestId: "req_pg_001" },
 			usage: { state: "UNAVAILABLE", totalTokens: null },
 		});
@@ -277,13 +258,13 @@ describe("PostgreSQL ops status store", () => {
 						primaryAction: {
 							disabledReason: null,
 							external: false,
-							href: "/status/transport",
+							href: "/documents/student-rules",
 							label: "打开",
 						},
 						publisherLabel: "校园服务中心",
 						sectionTitle: "状态",
 						snippet: null,
-						title: "班车",
+						title: "校园信息",
 						versionLabel: "当前",
 					},
 					{
@@ -421,7 +402,7 @@ describe("PostgreSQL ops status store", () => {
 		expect(explicitZero.data[0]?.usage).toEqual({ state: "COMPLETE", totalTokens: 0 });
 	});
 
-	it("keeps list rows when actions and usage projections fail independently", async () => {
+	it("keeps list rows when Agent usage projection fails", async () => {
 		const db = createFakeOpsDb({
 			requestRows: [
 				requestRow(),
@@ -434,9 +415,6 @@ describe("PostgreSQL ops status store", () => {
 				getAgentUsages: async () => {
 					throw new Error("usage unavailable");
 				},
-				getProductActions: async () => {
-					throw new Error("actions unavailable");
-				},
 			},
 			now: () => now,
 		});
@@ -445,43 +423,16 @@ describe("PostgreSQL ops status store", () => {
 
 		expect(result.data).toHaveLength(2);
 		expect(result.data.find((request) => request.requestId === "req_pg_001")).toMatchObject({
-			journey: { actions: [], actionsDataState: "UNAVAILABLE" },
+			journey: { entry: "CAMPUS_WEB" },
 			requestId: "req_pg_001",
 			usage: { state: "UNAVAILABLE", totalTokens: null },
 		});
 		expect(result.data.find((request) => request.requestId === "req_pg_without_run")).toMatchObject(
 			{
-				journey: { actions: [], actionsDataState: "NO_DATA" },
+				journey: { entry: "CAMPUS_WEB" },
 				usage: { state: "NOT_STARTED", totalTokens: null },
 			},
 		);
-	});
-
-	it("deduplicates internal calls into ordered product capabilities", async () => {
-		const store = createPgOpsStatusStore({
-			db: createFakeOpsDb({
-				actionRows: [
-					productActionRow({
-						startedAt: new Date("2026-07-09T07:29:00.800Z"),
-						toolName: "knowledge_query",
-					}),
-					productActionRow(),
-					productActionRow({
-						startedAt: new Date("2026-07-09T07:29:03.000Z"),
-						toolName: "transport_schedule_lookup",
-					}),
-				],
-			}),
-			now: () => now,
-		});
-
-		const result = await store.listRequests({ window: "1h" });
-
-		expect(result.data[0]?.journey.actions).toEqual([
-			{ capability: "CAMPUS_KNOWLEDGE", status: "COMPLETED" },
-			{ capability: "TRANSPORT_SCHEDULE", status: "COMPLETED" },
-		]);
-		expect(result.data[0]).not.toHaveProperty("executionSummary");
 	});
 
 	it("returns the selected request window with list results", async () => {

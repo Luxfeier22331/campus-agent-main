@@ -447,9 +447,6 @@ function stableFingerprintJSON(fingerprint: ToolRuntimeFingerprint): string {
 		toolsRegistryVersion: fingerprint.toolsRegistryVersion,
 		toolsSchemaVersion: fingerprint.toolsSchemaVersion,
 		toolsSha256: fingerprint.toolsSha256,
-		workflowArtifactRegistryVersion: fingerprint.workflowArtifactRegistryVersion,
-		workflowArtifactSchemaVersion: fingerprint.workflowArtifactSchemaVersion,
-		workflowArtifactSha256: fingerprint.workflowArtifactSha256,
 	});
 }
 

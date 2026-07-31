@@ -604,7 +604,7 @@ func TestToolExecutionWorkflowKeepsCompletedResultWhenCancellationRacesCleanup(t
 		t.Fatalf("workflow result = %#v, want completed finalization", result)
 	}
 	if got, want := sequence, []string{"finalization", "memory_append"}; !equalStrings(got, want) {
-		t.Fatalf("cleanup sequence = %#v, want %#v", got, want)
+		t.Fatalf("post-finalization sequence = %#v, want %#v", got, want)
 	}
 	env.AssertActivityNumberOfCalls(t, AppendConversationMemoryActivityName, 1)
 	env.AssertActivityNumberOfCalls(t, FinalizeExecutionCancellationActivityName, 0)

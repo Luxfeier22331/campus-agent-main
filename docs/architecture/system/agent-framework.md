@@ -23,8 +23,7 @@ status: active
 
 - 未获个人记忆授权时，最多一次模型调用且没有模型工具；
 - 获授权时，最多两次模型调用和一次 `personal_memory_recall`；
-- 知识 grounding 已在模型调用前完成，不消耗 SDK 工具轮次；
-- `transport_schedule_lookup` 已注册但关闭。
+- 知识 grounding 已在模型调用前完成，不消耗 SDK 工具轮次。
 
 重复 Activity 投递只能读取并返回身份一致的完整 invocation receipt。供应商调用已经开始但完整
 结果尚未落盘时必须返回 `agent_attempt_uncertain`，不得再次调用供应商。agent-runtime 不自行实现
