@@ -111,7 +111,7 @@ jobs:
       needs.release-plan.outputs.validate_only != 'true' &&
       fromJSON(needs.release-plan.outputs.images)[0] != null
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 15
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write
