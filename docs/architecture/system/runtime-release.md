@@ -48,9 +48,9 @@ status: active
   production 变化不进入自动合并。
 
 Kubernetes 发布以实际故障域为 Application 边界。强依赖 schema 的运行时在同一 Application 内
-依次同步配置与身份、数据库角色、migration、workload 和 schedule。嵌入宿主的可选领域能力可以由
+依次同步配置、身份、所需 NetworkPolicy 与 DatabaseRole、migration、workload 和 schedule。嵌入宿主的可选领域能力可以由
 独立 Application 拥有 schema、专用角色和授权，宿主必须通过 optional 引用局部降级。migration 使用
-`Sync` hook，并在本单元的 Secret 与 DatabaseRole 健康后执行。不同 child Application 的 wave 只帮助
+`Sync` hook，并在本单元的上述前置资源健康后执行。不同 child Application 的 wave 只帮助
 组织资源，不能承诺跨应用事务。
 
 ## 发布标识

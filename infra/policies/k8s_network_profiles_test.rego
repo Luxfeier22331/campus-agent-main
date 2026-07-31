@@ -1,5 +1,24 @@
 package campus.k8s.config_secrets
 
+test_pre_workload_egress_policy_requires_earlier_wave if {
+	violations := violation with input as {
+		"kind": "NetworkPolicy",
+		"metadata": {"name": "execution-runtime-platform-egress"},
+	}
+	"NetworkPolicy execution-runtime-platform-egress must be ready in sync wave -2 before database hooks" in violations
+}
+
+test_pre_workload_egress_policy_accepts_declared_wave if {
+	violations := violation with input as {
+		"kind": "NetworkPolicy",
+		"metadata": {
+			"name": "ops-web-database-grants-egress",
+			"annotations": {"argocd.argoproj.io/sync-wave": "-2"},
+		},
+	}
+	count(violations) == 0
+}
+
 allowing_network_policy(name, selector) := policy if {
 	policy := {
 		"kind": "NetworkPolicy",

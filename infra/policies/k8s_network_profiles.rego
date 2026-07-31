@@ -2,6 +2,11 @@ package campus.k8s.config_secrets
 
 dedicated_profile_key := "campus-agent.muc.wiki/network-policy-profile"
 
+pre_workload_egress_waves := {
+	"execution-runtime-platform-egress": "-2",
+	"ops-web-database-grants-egress": "-2",
+}
+
 ops_web_canonical_labels := {
 	"app.kubernetes.io/name": "ops-web",
 	"app.kubernetes.io/part-of": "campus-agent",
@@ -10,6 +15,15 @@ ops_web_canonical_labels := {
 
 label_key_exists(labels, key) if {
 	_ := labels[key]
+}
+
+violation contains msg if {
+	input.kind == "NetworkPolicy"
+	name := object.get(input.metadata, "name", "")
+	expected_wave := pre_workload_egress_waves[name]
+	annotations := object.get(input.metadata, "annotations", {})
+	object.get(annotations, "argocd.argoproj.io/sync-wave", "") != expected_wave
+	msg := sprintf("NetworkPolicy %s must be ready in sync wave %s before database hooks", [name, expected_wave])
 }
 
 label_has_value(labels, key, value) if {
