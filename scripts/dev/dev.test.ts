@@ -80,8 +80,8 @@ describe("local development profiles", () => {
 		const linked = resolve(repository, "linked");
 		execFileSync("git", ["worktree", "add", "-qb", "linked-test", linked], { cwd: repository });
 		const stateDirectory = resolve(repository, "state");
-		const previousStateDirectory = process.env.CAMPUS_AGENT_DEV_STATE_DIR;
-		process.env.CAMPUS_AGENT_DEV_STATE_DIR = stateDirectory;
+		const previousStateHome = process.env.XDG_STATE_HOME;
+		process.env.XDG_STATE_HOME = stateDirectory;
 		try {
 			const main = ensureLocalDevProfile(repository);
 			const worktree = ensureLocalDevProfile(linked);
@@ -91,15 +91,15 @@ describe("local development profiles", () => {
 			assert.notEqual(main.bucketName, worktree.bucketName);
 			assert.notDeepEqual(main.ports, worktree.ports);
 			assert.equal(listLocalDevProfiles(repository).length, 2);
-			rmSync(resolve(stateDirectory, main.repoKey, "instances.v1.json"));
+			rmSync(resolve(stateDirectory, "campus-agent", main.repoKey, "instances.v1.json"));
 			assert.equal(ensureLocalDevProfile(repository).instanceId, main.instanceId);
 			assert.equal(ensureLocalDevProfile(linked).instanceId, worktree.instanceId);
 			assert.equal(listLocalDevProfiles(repository).length, 2);
 		} finally {
-			if (previousStateDirectory === undefined) {
-				delete process.env.CAMPUS_AGENT_DEV_STATE_DIR;
+			if (previousStateHome === undefined) {
+				delete process.env.XDG_STATE_HOME;
 			} else {
-				process.env.CAMPUS_AGENT_DEV_STATE_DIR = previousStateDirectory;
+				process.env.XDG_STATE_HOME = previousStateHome;
 			}
 		}
 	});

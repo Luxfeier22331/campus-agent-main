@@ -43,7 +43,7 @@ spec:
                 url.password = process.env.PGPASSWORD;
                 process.stdout.write(url.toString());
               ')"
-              exec node apps/app-api/ops/db/schema.ts
+              exec node apps/app-api/ops/db/schema.js
           envFrom:
             - configMapRef:
                 name: execution-schema-database-config

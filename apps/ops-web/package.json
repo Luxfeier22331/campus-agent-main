@@ -7,11 +7,10 @@
 		"dist",
 		"dist-ops",
 		"dist-server",
-		"drizzle",
-		"ops"
+		"drizzle"
 	],
 	"scripts": {
-		"build": "vite build && vite build --ssr src/server/node.ts --outDir dist-server && vite build --ssr ops/db/bootstrap-dining.ts --outDir dist-ops",
+		"build": "vite build && vite build --ssr src/server/node.ts --outDir dist-server && vite build --config vite.ops.config.ts",
 		"check": "pnpm typecheck && pnpm test && pnpm build",
 		"dev": "pnpm --dir ../.. exec tsx scripts/dev/service.ts ops-web",
 		"start": "node --env-file-if-exists=.env dist-server/node.js",

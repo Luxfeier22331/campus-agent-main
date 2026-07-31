@@ -8,13 +8,12 @@ const checker = join(process.cwd(), "scripts/ci/check-ops-web-artifact.mjs");
 
 function artifact({
 	bootstrap = "export const ready = true;",
+	database = "export const ready = true;",
 	server = "export const ready = true;",
 } = {}) {
 	const root = mkdtempSync("/tmp/ops-web-artifact-test-");
 	mkdirSync(join(root, "dist-server"), { recursive: true });
 	writeFileSync(join(root, "dist-server", "node.js"), server);
-	mkdirSync(join(root, "ops", "db"), { recursive: true });
-	writeFileSync(join(root, "ops", "db", "ops-web-database.ts"), "export {};\n");
 	mkdirSync(join(root, "drizzle", "meta"), { recursive: true });
 	writeFileSync(
 		join(root, "drizzle", "meta", "_journal.json"),
@@ -24,6 +23,10 @@ function artifact({
 	if (bootstrap !== null) {
 		mkdirSync(join(root, "dist-ops"), { recursive: true });
 		writeFileSync(join(root, "dist-ops/bootstrap-dining.js"), bootstrap);
+	}
+	if (database !== null) {
+		mkdirSync(join(root, "dist-ops"), { recursive: true });
+		writeFileSync(join(root, "dist-ops/ops-web-database.js"), database);
 	}
 	return root;
 }
@@ -48,6 +51,14 @@ test("rejects a missing bootstrap artifact", () => {
 	assert.throws(
 		() => execFileSync(process.execPath, [checker, root], { stdio: "pipe" }),
 		/production bootstrap entry is missing/u,
+	);
+});
+
+test("rejects a missing database artifact", () => {
+	const root = artifact({ database: null });
+	assert.throws(
+		() => execFileSync(process.execPath, [checker, root], { stdio: "pipe" }),
+		/production database entry is missing/u,
 	);
 });
 

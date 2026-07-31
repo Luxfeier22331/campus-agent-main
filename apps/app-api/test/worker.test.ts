@@ -28,7 +28,12 @@ interface WranglerObservabilityConfig {
 }
 
 const parsedWranglerConfig = parse(wranglerConfig) as {
-	env?: { staging?: { observability?: WranglerObservabilityConfig } };
+	env?: {
+		staging?: {
+			observability?: WranglerObservabilityConfig;
+			secrets?: { required?: string[] };
+		};
+	};
 	observability?: WranglerObservabilityConfig;
 };
 
@@ -280,7 +285,7 @@ describe("app-api worker foundation", () => {
 		expect(stagingPreflightSource).not.toContain("drizzle-kit");
 	});
 
-	it("declares non-inheritable required secrets for local and staging worker environments", () => {
+	it("declares the required secrets for local and staging worker environments", () => {
 		const localVarsBlock = readTomlBlock(wranglerConfig, "[env.local.vars]", "[env.local.secrets]");
 		const localSecretsBlock = readTomlBlock(
 			wranglerConfig,
@@ -301,19 +306,21 @@ describe("app-api worker foundation", () => {
 		expect(localSecretsBlock).not.toContain('"APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN"');
 		expect(localSecretsBlock).not.toContain("APP_API_OTEL_INGEST_");
 		expect(wranglerConfig).toContain("[env.staging.secrets]");
-		expect(stagingSecretsBlock).toContain('"BETTER_AUTH_SECRET"');
-		expect(stagingSecretsBlock).toContain('"AUTH_TURNSTILE_SECRET_KEY"');
-		expect(stagingSecretsBlock).toContain('"RESEND_API_KEY"');
+		expect(parsedWranglerConfig.env?.staging?.secrets?.required).toEqual([
+			"BETTER_AUTH_SECRET",
+			"AUTH_TURNSTILE_SECRET_KEY",
+			"RESEND_API_KEY",
+			"OPS_WEB_INTERNAL_TOKEN",
+			"APP_API_EXECUTION_SHARED_SECRET",
+			"APP_API_SAFETY_IDENTIFIER_HMAC_SECRET",
+		]);
 		expect(stagingSecretsBlock).not.toContain('"AUTH_EMAIL_FROM"');
-		expect(stagingSecretsBlock).toContain('"APP_API_EXECUTION_SHARED_SECRET"');
-		expect(stagingSecretsBlock).toContain('"OPS_WEB_INTERNAL_TOKEN"');
 		expect(stagingSecretsBlock).not.toContain(
 			JSON.stringify(retiredExecutionControlAccessClientIdKeyLocal),
 		);
 		expect(stagingSecretsBlock).not.toContain(
 			JSON.stringify(retiredExecutionControlAccessClientSecretKeyLocal),
 		);
-		expect(stagingSecretsBlock).not.toContain('"APP_API_STAGING_SMOKE_AUTH_SECRET"');
 		expect(stagingSecretsBlock).not.toContain('"APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN"');
 		expect(stagingSecretsBlock).not.toContain('"SENTRY_DSN"');
 		expect(stagingSecretsBlock).not.toContain("APP_API_OTEL_INGEST_");

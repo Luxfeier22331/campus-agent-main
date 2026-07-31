@@ -158,13 +158,11 @@ function resolveRegistryPaths(repoRoot: string): {
 		}).trim(),
 	);
 	const repoKey = createHash("sha256").update(realpathSync(commonDir)).digest("hex").slice(0, 12);
-	const stateBase =
-		process.env.CAMPUS_AGENT_DEV_STATE_DIR?.trim() ||
-		resolve(
-			process.env.XDG_STATE_HOME?.trim() || resolve(homedir(), ".local/state"),
-			"campus-agent",
-		);
-	const stateDir = resolve(stateBase, repoKey);
+	const stateDir = resolve(
+		process.env.XDG_STATE_HOME?.trim() || resolve(homedir(), ".local/state"),
+		"campus-agent",
+		repoKey,
+	);
 	return {
 		lockPath: resolve(stateDir, "instances.lock"),
 		registryPath: resolve(stateDir, "instances.v1.json"),

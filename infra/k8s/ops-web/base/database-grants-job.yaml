@@ -41,7 +41,7 @@ spec:
                 url.password = process.env.PGPASSWORD;
                 process.stdout.write(url.toString());
               ')"
-              node --experimental-strip-types ops/db/ops-web-database.ts apply
+              node dist-ops/ops-web-database.js apply
               exec node dist-ops/bootstrap-dining.js
           envFrom:
             - configMapRef:

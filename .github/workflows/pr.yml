@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  repo-checks:
+  static-checks:
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
     timeout-minutes: 10
     env:
@@ -114,10 +114,6 @@ jobs:
           git ls-files -z -- '*.sh' \
             | xargs -0 --no-run-if-empty shellcheck -x -s bash
 
-      - name: Test release tooling
-        if: steps.changes.outputs.release == 'true'
-        run: pnpm ci:release
-
       - name: Scan dependency manifests
         if: steps.changes.outputs.dependencies == 'true'
         run: pnpm ci:deps
@@ -133,3 +129,107 @@ jobs:
             --exit-code=1 \
             --config=.gitleaks.toml \
             --log-opts="--no-merges ${merge_base}..${HEAD_SHA}"
+
+  candidate-plan:
+    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
+    timeout-minutes: 3
+    outputs:
+      base: ${{ steps.plan.outputs.base }}
+      head: ${{ steps.plan.outputs.head }}
+      validation_profiles: ${{ steps.plan.outputs.validation_profiles }}
+    steps:
+      - name: Checkout pull request head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+        with:
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271  # v6
+        with:
+          version: "10.34.5"
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+      - name: Select pull request candidate evidence
+        id: plan
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          plan="$(node --experimental-strip-types scripts/release/candidates.mts \
+            --base "$BASE_SHA" \
+            --full false \
+            --head "$HEAD_SHA" \
+            --validate-only false)"
+          jq -e . <<< "$plan" >/dev/null
+          {
+            echo "base=$(jq -r '.base' <<< "$plan")"
+            echo "head=$(jq -r '.head' <<< "$plan")"
+            echo "validation_profiles=$(jq -c '.validationProfiles' <<< "$plan")"
+          } >> "$GITHUB_OUTPUT"
+          jq . <<< "$plan"
+
+  candidate-evidence:
+    needs: candidate-plan
+    if: fromJSON(needs.candidate-plan.outputs.validation_profiles)[0] != null
+    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
+    timeout-minutes: 75
+    steps:
+      - name: Checkout pull request head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+        with:
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271  # v6
+        with:
+          version: "10.34.5"
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Setup repository tools
+        uses: aquaproj/aqua-installer@96a9bc20066c5bf5e275b41019cfc165b25f4e2e  # v4.0.5
+        env:
+          AQUA_ROOT_DIR: ${{ runner.tool_cache }}/aqua
+        with:
+          aqua_version: v2.62.1
+      - name: Install candidate workspaces
+        run: pnpm install --frozen-lockfile --prefer-offline
+      - name: Run selected candidate evidence
+        env:
+          BASE_SHA: ${{ needs.candidate-plan.outputs.base }}
+          HEAD_SHA: ${{ needs.candidate-plan.outputs.head }}
+          VALIDATION_PROFILES: ${{ needs.candidate-plan.outputs.validation_profiles }}
+        run: >-
+          node --experimental-strip-types scripts/release/evidence.mts
+          --base "$BASE_SHA"
+          --head "$HEAD_SHA"
+          --profiles "$VALIDATION_PROFILES"
+
+  repo-checks:
+    needs: [static-checks, candidate-plan, candidate-evidence]
+    if: always()
+    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
+    timeout-minutes: 2
+    steps:
+      - name: Require every pull request evidence owner
+        env:
+          CANDIDATE_EVIDENCE_RESULT: ${{ needs.candidate-evidence.result }}
+          CANDIDATE_PLAN_RESULT: ${{ needs.candidate-plan.result }}
+          STATIC_RESULT: ${{ needs.static-checks.result }}
+        run: |
+          set -euo pipefail
+          test "$STATIC_RESULT" = success
+          test "$CANDIDATE_PLAN_RESULT" = success
+          test "$CANDIDATE_EVIDENCE_RESULT" = success || \
+            test "$CANDIDATE_EVIDENCE_RESULT" = skipped

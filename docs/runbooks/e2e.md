@@ -48,6 +48,20 @@ status: active
 使用部署后的 URL、正式认证方式和环境选择的数据完成用户任务。已有 smoke profile 或 Playwright
 项目时使用模块维护的入口；具体命令以根 `package.json`、应用 README 和测试配置为准。
 
+execution 或 App API 变化部署完成后，人工执行正式认证路径：
+
+```bash
+pnpm smoke:app-api -- chat-staging \
+  --email '<test-account>' \
+  --password '<temporary-password>' \
+  --captcha-token '<fresh-turnstile-token>'
+```
+
+测试账号由环境所有者提供，密码只在本次受控终端会话中使用。Turnstile token 必须在执行前即时取得，
+五分钟内单次使用；不得把账号密码或 token 保存为 GitHub Environment Secret、Worker Secret 或 GitOps
+配置。该入口通过产品的 email/password 和 Turnstile 登录取得 session，不使用 Cloudflare service
+token、内部 smoke endpoint 或认证旁路。
+
 至少确认：
 
 - 用户操作到达预期终态，刷新、恢复或重试行为符合合同；

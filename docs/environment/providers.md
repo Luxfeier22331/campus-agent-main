@@ -78,7 +78,8 @@ Collector receiver、下游写入和 Ops Web 查询使用不同凭据：
 - Kubernetes 非敏感启动值使用 ConfigMap，敏感材料使用 Secret 交付机制；
 - Cloudflare 应用分别维护自己的 Worker vars 和 secrets；
 - 跨平台共享认证值属于同一轮换单元，但由各平台独立投递，不能互相充当同步源；
-- Secret 不进入 Git、镜像、前端包、Terraform state、日志或命令输出；
+- Secret 不进入 Git、镜像、前端包、日志或命令输出。Terraform 管理的资源若要求敏感输入，该值会
+  保存在受保护的 state；当前仅 Hyperdrive origin password 属于这一合同，state 不充当 Secret 投递源；
 - 环境仓选择部署版本和 Secret 引用，源码仓只维护环境无关的消费合同。
 
 环境文件和覆盖规则见 `env.md`，新增、轮换和撤销步骤见

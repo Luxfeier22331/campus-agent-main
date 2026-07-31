@@ -31,9 +31,11 @@ jobs:
     environment: staging
     outputs:
       base: ${{ steps.plan.outputs.base }}
+      head: ${{ steps.plan.outputs.head }}
       images: ${{ steps.plan.outputs.images }}
       kubernetes: ${{ steps.plan.outputs.kubernetes }}
       validate_only: ${{ steps.plan.outputs.validate_only }}
+      validation_profiles: ${{ steps.plan.outputs.validation_profiles }}
       workers: ${{ steps.plan.outputs.workers }}
     steps:
       - name: Checkout
@@ -97,17 +99,116 @@ jobs:
           jq -e . <<< "$plan" >/dev/null
           {
             echo "base=$(jq -r '.base' <<< "$plan")"
+            echo "head=$(jq -r '.head' <<< "$plan")"
             echo "images=$(jq -c '.images' <<< "$plan")"
             echo "kubernetes=$(jq -r '.kubernetes' <<< "$plan")"
             echo "validate_only=$(jq -r '.validateOnly' <<< "$plan")"
+            echo "validation_profiles=$(jq -c '.validationProfiles' <<< "$plan")"
             echo "workers=$(jq -c '.workers' <<< "$plan")"
           } >> "$GITHUB_OUTPUT"
           jq . <<< "$plan"
 
+  candidate-pending:
+    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
+    timeout-minutes: 2
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - name: Mark staging candidate pending
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: >-
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}"
+          -f state=pending
+          -f context=staging/candidate
+          -f description='Validating this Source revision as a staging candidate'
+          -f target_url="$TARGET_URL"
+
+  candidate-evidence:
+    needs: [release-plan, candidate-pending]
+    if: needs.release-plan.result == 'success' && needs.candidate-pending.result == 'success'
+    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
+    timeout-minutes: 75
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+        with:
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271  # v6
+        with:
+          version: "10.34.5"
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Setup repository tools
+        uses: aquaproj/aqua-installer@96a9bc20066c5bf5e275b41019cfc165b25f4e2e  # v4.0.5
+        env:
+          AQUA_ROOT_DIR: ${{ runner.tool_cache }}/aqua
+        with:
+          aqua_version: v2.62.1
+      - name: Install candidate workspaces
+        run: pnpm install --frozen-lockfile --prefer-offline
+      - name: Run selected candidate evidence
+        env:
+          BASE_SHA: ${{ needs.release-plan.outputs.base }}
+          HEAD_SHA: ${{ needs.release-plan.outputs.head }}
+          VALIDATION_PROFILES: ${{ needs.release-plan.outputs.validation_profiles }}
+        run: >-
+          node --experimental-strip-types scripts/release/evidence.mts
+          --base "$BASE_SHA"
+          --head "$HEAD_SHA"
+          --profiles "$VALIDATION_PROFILES"
+
+  candidate-status:
+    needs: [release-plan, candidate-pending, candidate-evidence]
+    if: always()
+    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
+    timeout-minutes: 2
+    permissions:
+      contents: read
+      statuses: write
+    outputs:
+      approved: ${{ steps.status.outputs.approved }}
+    steps:
+      - name: Finalize staging candidate status
+        id: status
+        env:
+          EVIDENCE_RESULT: ${{ needs.candidate-evidence.result }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PENDING_RESULT: ${{ needs.candidate-pending.result }}
+          PLAN_RESULT: ${{ needs.release-plan.result }}
+          TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          state=failure
+          approved=false
+          description='This Source revision is not a valid staging candidate'
+          if [ "$PLAN_RESULT" = success ] && [ "$PENDING_RESULT" = success ] && [ "$EVIDENCE_RESULT" = success ]; then
+            state=success
+            approved=true
+            description='Affected Source and deployment contracts passed'
+          fi
+          echo "approved=$approved" >> "$GITHUB_OUTPUT"
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            -f state="$state" \
+            -f context=staging/candidate \
+            -f description="$description" \
+            -f target_url="$TARGET_URL"
+
   publish-images:
-    needs: release-plan
+    needs: [release-plan, candidate-evidence, candidate-status]
     if: >-
       needs.release-plan.result == 'success' &&
+      needs.candidate-evidence.result == 'success' &&
+      needs.candidate-status.outputs.approved == 'true' &&
       needs.release-plan.outputs.validate_only != 'true' &&
       fromJSON(needs.release-plan.outputs.images)[0] != null
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
@@ -183,8 +284,11 @@ jobs:
           retention-days: 1
 
   publish-app-api:
-    needs: release-plan
-    if: contains(fromJSON(needs.release-plan.outputs.workers), 'app-api')
+    needs: [release-plan, candidate-evidence, candidate-status]
+    if: >-
+      needs.candidate-evidence.result == 'success' &&
+      needs.candidate-status.outputs.approved == 'true' &&
+      contains(fromJSON(needs.release-plan.outputs.workers), 'app-api')
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
     timeout-minutes: 5
     environment: staging
@@ -250,10 +354,12 @@ jobs:
           retention-days: 1
 
   promote:
-    needs: [release-plan, publish-images, publish-app-api]
+    needs: [release-plan, candidate-evidence, candidate-status, publish-images, publish-app-api]
     if: >-
       always() &&
       needs.release-plan.result == 'success' &&
+      needs.candidate-evidence.result == 'success' &&
+      needs.candidate-status.outputs.approved == 'true' &&
       needs.release-plan.outputs.validate_only != 'true' &&
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' || inputs.promote) &&
@@ -265,7 +371,7 @@ jobs:
         needs.release-plan.outputs.kubernetes == 'true'
       )
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 5
+    timeout-minutes: 15
     environment: staging
     steps:
       - name: Checkout
@@ -328,17 +434,46 @@ jobs:
       - name: Install GitOps tooling
         run: pnpm --dir gitops install --frozen-lockfile --prefer-offline
 
+      - name: Setup GitOps policy tools
+        uses: ./gitops/.github/actions/setup-policy-tools
+        with:
+          working-directory: gitops
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@829323503d1be3d00ca8346e5391ca0b07a9ab0d  # v5
+        with:
+          version: v1.36.2
+
       - name: Update GitOps desired state
         env:
           KUBERNETES_CHANGED: ${{ needs.release-plan.outputs.kubernetes }}
         run: >-
           pnpm --dir gitops gitops promote-source
+          --expected-source-sha "${{ needs.release-plan.outputs.base }}"
           --image-digests "$GITHUB_WORKSPACE/image-digests.json"
           --kubernetes "$KUBERNETES_CHANGED"
           --root "$GITHUB_WORKSPACE/gitops"
           --source-repository "$GITHUB_REPOSITORY"
           --source-sha "$GITHUB_SHA"
           --worker-candidates "$GITHUB_WORKSPACE/worker-candidates"
+
+      - name: Render promoted GitOps state
+        env:
+          SOURCE_TOKEN: ${{ steps.gitops-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          pnpm --dir gitops exec tsx tools/gitops.ts \
+            validate-source --root "$GITHUB_WORKSPACE/gitops"
+          scope="${RUNNER_TEMP}/promotion-scope.json"
+          pnpm --dir gitops exec tsx tools/gitops.ts scope-worktree \
+            --root "$GITHUB_WORKSPACE/gitops" \
+            > "$scope"
+          jq -e . "$scope" >/dev/null
+          if jq -e '.kustomizeRoots | length > 0' "$scope" >/dev/null; then
+            rendered="${RUNNER_TEMP}/promotion-kustomize"
+            mkdir -p "$rendered"
+            gitops/scripts/validate-kubernetes.sh "$scope" "$rendered"
+          fi
 
       - name: Detect GitOps changes
         id: promotion
@@ -373,7 +508,8 @@ jobs:
             - [x] 发布镜像（如有）均为单一 `linux/arm64` 索引并通过 Trivy 扫描
             - [x] Worker 候选版本上传未改变当前流量版本
             - [x] `promote-source` 已校验候选身份和活跃消费者
-            - [ ] GitOps PR 的渲染、schema 与策略检查
+            - [x] promotion 后的受影响 Kustomize、schema、策略与引用检查
+            - [ ] GitOps PR 的完整仓库与受影响 Terraform/Helm 检查
 
       - name: Mark staging promotion pending
         if: steps.promotion.outputs.changed == 'true'

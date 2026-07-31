@@ -48,7 +48,7 @@
 				"$TURBO_ROOT$/packages/ui/src/**",
 				"$TURBO_ROOT$/scripts/ci/check-ops-web-artifact.mjs"
 			],
-			"outputs": ["dist/**", ".tanstack/**"]
+			"outputs": ["dist/**", "dist-ops/**", "dist-server/**", ".tanstack/**"]
 		},
 		"typecheck": {
 			"dependsOn": ["^typecheck"],
@@ -251,13 +251,7 @@
 		"dev": {
 			"cache": false,
 			"persistent": true,
-			"passThroughEnv": [
-				"CAMPUS_AGENT_DEV_STATE_DIR",
-				"HTTP_PROXY",
-				"HTTPS_PROXY",
-				"NO_PROXY",
-				"XDG_STATE_HOME"
-			]
+			"passThroughEnv": ["HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "XDG_STATE_HOME"]
 		},
 		"deploy": {
 			"cache": false

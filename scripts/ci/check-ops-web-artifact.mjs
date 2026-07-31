@@ -31,7 +31,7 @@ if (!existsSync(bootstrapEntry)) {
 	throw new Error(`ops-web production bootstrap entry is missing: ${bootstrapEntry}`);
 }
 
-const databaseEntry = join(root, "ops", "db", "ops-web-database.ts");
+const databaseEntry = join(root, "dist-ops", "ops-web-database.js");
 if (!existsSync(databaseEntry)) {
 	throw new Error(`ops-web production database entry is missing: ${databaseEntry}`);
 }
@@ -48,20 +48,25 @@ for (const entry of journal.entries ?? []) {
 	}
 }
 
-try {
-	execFileSync(
-		process.execPath,
-		[
-			"--input-type=module",
-			"--eval",
-			`await import(${JSON.stringify(pathToFileURL(bootstrapEntry).href)})`,
-		],
-		{ cwd: root, stdio: "pipe" },
-	);
-} catch (error) {
-	throw new Error("ops-web production bootstrap entry cannot load its runtime dependencies", {
-		cause: error,
-	});
+for (const [label, entry] of [
+	["bootstrap", bootstrapEntry],
+	["database", databaseEntry],
+]) {
+	try {
+		execFileSync(
+			process.execPath,
+			[
+				"--input-type=module",
+				"--eval",
+				`await import(${JSON.stringify(pathToFileURL(entry).href)})`,
+			],
+			{ cwd: root, stdio: "pipe" },
+		);
+	} catch (error) {
+		throw new Error(`ops-web production ${label} entry cannot load its runtime dependencies`, {
+			cause: error,
+		});
+	}
 }
 
 console.log("ops-web production artifact is self-contained");

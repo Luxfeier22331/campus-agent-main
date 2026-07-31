@@ -13,11 +13,34 @@ const IMAGE_PACKAGES = new Map<string, readonly string[]>([
 ]);
 const ALL_IMAGES = [...new Set([...IMAGE_PACKAGES.values()].flat())].sort();
 
+export type ValidationProfile =
+	| "affected-node"
+	| "go"
+	| "app-api-migration"
+	| "app-api-product-db"
+	| "execution-control-postgres"
+	| "ops-web-postgres"
+	| "infra"
+	| "release-tooling";
+
+const ALL_VALIDATION_PROFILES: ValidationProfile[] = [
+	"affected-node",
+	"go",
+	"app-api-migration",
+	"app-api-product-db",
+	"execution-control-postgres",
+	"ops-web-postgres",
+	"infra",
+	"release-tooling",
+];
+
 export interface CandidatePlan {
 	base: string;
+	head: string;
 	images: string[];
 	kubernetes: boolean;
 	validateOnly: boolean;
+	validationProfiles: ValidationProfile[];
 	workers: string[];
 }
 
@@ -34,10 +57,11 @@ export type CommandRunner = (
 ) => CommandResult;
 
 export interface CandidatePlanOptions {
+	base?: string;
 	full: boolean;
 	head: string;
 	repositoryRoot: string;
-	selectionFile: string;
+	selectionFile?: string;
 	validateOnly: boolean;
 }
 
@@ -90,6 +114,19 @@ async function releaseBase(file: string): Promise<string> {
 	return selection.sourceSha;
 }
 
+async function candidateBase(options: CandidatePlanOptions): Promise<string> {
+	if ((options.base === undefined) === (options.selectionFile === undefined)) {
+		throw new Error("Candidate plan requires exactly one base or GitOps release selection");
+	}
+	if (options.base !== undefined) {
+		if (!SHA_PATTERN.test(options.base)) {
+			throw new Error("Candidate base must be a 40-character lowercase commit SHA");
+		}
+		return options.base;
+	}
+	return await releaseBase(path.resolve(options.selectionFile as string));
+}
+
 function turboTasks(source: string): Array<{ package: string; task: string }> {
 	let value: unknown;
 	try {
@@ -110,7 +147,9 @@ function turboTasks(source: string): Array<{ package: string; task: string }> {
 			task !== null &&
 			!Array.isArray(task) &&
 			typeof (task as { package?: unknown }).package === "string" &&
-			typeof (task as { task?: unknown }).task === "string"
+			typeof (task as { task?: unknown }).task === "string" &&
+			typeof (task as { command?: unknown }).command === "string" &&
+			(task as { command: string }).command !== "<NONEXISTENT>"
 		) {
 			return [task as { package: string; task: string }];
 		}
@@ -118,12 +157,69 @@ function turboTasks(source: string): Array<{ package: string; task: string }> {
 	});
 }
 
+function changedFiles(source: string): string[] {
+	return source
+		.split("\n")
+		.map((file) => file.trim())
+		.filter(Boolean)
+		.sort();
+}
+
+function changesPath(files: string[], prefix: string): boolean {
+	return files.some((file) => file === prefix || file.startsWith(`${prefix}/`));
+}
+
+function selectProfiles(input: {
+	files: string[];
+	images: Set<string>;
+	tasks: Array<{ package: string; task: string }>;
+	workers: string[];
+}): ValidationProfile[] {
+	const profiles = new Set<ValidationProfile>();
+	if (
+		input.tasks.some((task) => task.task === "typecheck" || task.task === "test") ||
+		[...input.images].some((image) => image !== "execution-control") ||
+		input.workers.length > 0
+	) {
+		profiles.add("affected-node");
+	}
+	if (input.images.has("execution-control")) {
+		profiles.add("go");
+		profiles.add("execution-control-postgres");
+	}
+	if (input.images.has("app-api-schema")) {
+		profiles.add("app-api-migration");
+		profiles.add("app-api-product-db");
+	}
+	if (input.workers.includes("app-api")) {
+		profiles.add("app-api-product-db");
+	}
+	if (input.images.has("ops-web")) {
+		profiles.add("ops-web-postgres");
+	}
+	if (changesPath(input.files, "infra/k8s")) {
+		profiles.add("infra");
+	}
+	if (
+		input.images.size > 0 ||
+		input.workers.length > 0 ||
+		changesPath(input.files, "infra/k8s") ||
+		input.files.some((file) => file.startsWith("scripts/ci/check-ops-web-artifact.")) ||
+		changesPath(input.files, "scripts/release") ||
+		input.files.includes("docker-bake.hcl") ||
+		input.files.includes(".github/workflows/execution-runtime-publish.yml")
+	) {
+		profiles.add("release-tooling");
+	}
+	return ALL_VALIDATION_PROFILES.filter((profile) => profiles.has(profile));
+}
+
 export async function planCandidates(
 	options: CandidatePlanOptions,
 	runner: CommandRunner = run,
 ): Promise<CandidatePlan> {
 	const root = path.resolve(options.repositoryRoot);
-	const base = await releaseBase(path.resolve(options.selectionFile));
+	const base = await candidateBase(options);
 	if (!SHA_PATTERN.test(options.head)) {
 		throw new Error("Release head must be a 40-character lowercase commit SHA");
 	}
@@ -140,15 +236,36 @@ export async function planCandidates(
 	}
 
 	if (options.validateOnly) {
-		return { base, images: [], kubernetes: false, validateOnly: true, workers: ["app-api"] };
+		return {
+			base,
+			head: options.head,
+			images: [],
+			kubernetes: false,
+			validateOnly: true,
+			validationProfiles: ["release-tooling"],
+			workers: ["app-api"],
+		};
 	}
 	if (options.full) {
 		return {
 			base,
+			head: options.head,
 			images: ALL_IMAGES,
 			kubernetes: true,
 			validateOnly: false,
+			validationProfiles: ALL_VALIDATION_PROFILES,
 			workers: ["app-api"],
+		};
+	}
+	if (base === options.head) {
+		return {
+			base,
+			head: options.head,
+			images: [],
+			kubernetes: false,
+			validateOnly: false,
+			validationProfiles: [],
+			workers: [],
 		};
 	}
 
@@ -158,6 +275,8 @@ export async function planCandidates(
 		"run",
 		"build",
 		"build:worker",
+		"test",
+		"typecheck",
 		"--affected",
 		"--dry-run=json",
 	];
@@ -177,17 +296,53 @@ export async function planCandidates(
 		appApiWorker ||= task.package === "app-api" && task.task === "build:worker";
 	}
 
-	const kubernetesArgs = ["diff", "--quiet", base, options.head, "--", "infra/k8s"];
-	const kubernetesDiff = runner("git", kubernetesArgs, { cwd: root, env: environment });
-	if (kubernetesDiff.status !== 0 && kubernetesDiff.status !== 1) {
-		throw commandError("git", kubernetesArgs, kubernetesDiff);
+	const changedArgs = ["diff", "--name-only", "--diff-filter=ACMRD", base, options.head];
+	const changed = runner("git", changedArgs, { cwd: root, env: environment });
+	if (changed.status !== 0) {
+		throw commandError("git", changedArgs, changed);
 	}
+	const files = changedFiles(changed.stdout);
+	const sharedNodeRelease = files.some((file) =>
+		["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml"].includes(file),
+	);
+	if (
+		sharedNodeRelease ||
+		changesPath(files, "jobs/app-api-schema") ||
+		changesPath(files, "apps/app-api/drizzle") ||
+		changesPath(files, "apps/app-api/ops/db") ||
+		changesPath(files, "apps/app-api/src/script-support/shared-db")
+	) {
+		images.add("app-api-schema");
+	}
+	if (
+		changesPath(files, "apps/execution-control") ||
+		files.some((file) =>
+			[
+				"configs/ingestion/",
+				"configs/runtime/query-serving-targets.v3.json",
+				"configs/runtime/tool-function-schemas.v3.json",
+				"configs/runtime/tools.v6.json",
+				"packages/contracts/fixtures/tool_execution_contract/",
+			].some((input) => file === input || file.startsWith(input)),
+		)
+	) {
+		images.add("execution-control");
+	}
+	if (files.includes("docker-bake.hcl")) {
+		for (const image of ALL_IMAGES) {
+			images.add(image);
+		}
+	}
+	const workers = appApiWorker ? ["app-api"] : [];
+	const kubernetes = changesPath(files, "infra/k8s");
 	return {
 		base,
+		head: options.head,
 		images: [...images].sort(),
-		kubernetes: kubernetesDiff.status === 1,
+		kubernetes,
 		validateOnly: false,
-		workers: appApiWorker ? ["app-api"] : [],
+		validationProfiles: selectProfiles({ files, images, tasks, workers }),
+		workers,
 	};
 }
 
@@ -223,10 +378,11 @@ function flag(values: Map<string, string>, name: string): boolean {
 async function main(args: string[]): Promise<void> {
 	const values = argumentsMap(args);
 	const plan = await planCandidates({
+		base: values.get("base"),
 		full: flag(values, "full"),
 		head: required(values, "head"),
 		repositoryRoot: values.get("root") ?? process.cwd(),
-		selectionFile: required(values, "selection"),
+		selectionFile: values.get("selection"),
 		validateOnly: flag(values, "validate-only"),
 	});
 	process.stdout.write(`${JSON.stringify(plan, null, 2)}\n`);

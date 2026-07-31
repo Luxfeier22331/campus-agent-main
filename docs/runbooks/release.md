@@ -29,15 +29,15 @@ Worker version、配置和其他环境资源。候选物发布成功不表示环
 ## 候选物发布
 
 1. 确认目标源码已经合入 `main`，且该变更要求的 PR 检查通过。
-2. 由当前 workflow 发布受影响的不可变候选物；触发条件、输入和产物以 `.github/workflows/`
-   为准。
-   App API 在自己的候选任务中完成 Worker 配置预检；镜像、App API 和 Kubernetes 清单分别产生
-   候选物。一个候选面的发布失败不使已经成功发布的候选物失效，但本次不会创建不完整的 GitOps
-   提升；同一源码提交重试时应直接复用已有候选物。
+2. 当前 workflow 从环境仓游标计算累计影响面，完成所选候选证据后发布受影响的不可变候选物；
+   触发条件、输入和产物以 `.github/workflows/` 为准。App API 在自己的候选任务中完成 Worker
+   配置预检；镜像、App API 和 Kubernetes 清单分别产生候选物。一个候选面的发布失败不使已经成功
+   发布的候选物失效，但本次不会创建不完整的 GitOps 提升；同一源码提交重试时应直接复用已有候选物。
 3. 检查候选物记录的源码提交、摘要和构建身份，不用可变标签或重复构建覆盖已有产物。
-4. 在环境仓 checkout 中运行 `pnpm gitops promote-source`，只更新 staging root 已注册的活跃
-   Application，再更新唯一 `deploy/staging` PR。环境仓 PR 负责渲染、schema 与策略检查；确认只含
-   机器版本字段后由受信任 GitHub App 自动 squash merge。
+4. 在环境仓 checkout 中运行 `pnpm gitops promote-source`，校验读取时的 staging 游标仍未前进，
+   只更新 staging root 已注册的活跃 Application。创建或更新唯一 `deploy/staging` PR 前先渲染受
+   影响的 Kubernetes 期望状态；环境仓 PR 再完成仓库级检查和受影响的 Terraform、Helm 检查，确认
+   只含机器版本字段后由受信任 GitHub App 自动 squash merge。
 
 发布基线来自环境仓 `releases/staging.json`，不是 workflow 触发事件的前一个提交。镜像和 Cloudflare Worker
 影响面由 Turbo package graph 与 package 外部 task input 计算，Kubernetes 由 `infra/k8s` 所有者范围
@@ -51,11 +51,12 @@ Worker version、配置和其他环境资源。候选物发布成功不表示环
 解析，不自动重建所有运行时镜像。需要让这些治理变化重新产生全部活跃候选时，合入后手动运行
 `staging-candidate-publish`，设置 `validate_only=false`。
 
-候选发布从 workflow 创建，到生成环境仓变更或返回可处理失败为止，总等待上限为 20 分钟。调度等待
-计入总等待，并单独记录以区分容量与任务耗时。单一 ARM64 Runner 依靠受影响面选择、不可变标签复用和
-固定 BuildKit builder 的本地热缓存完成发布；registry cache 只用于 builder 丢失后的恢复。超过上限
-时先检查缓存命中、重复安装和发布计划，不能通过提高超时或解除 2 GiB 内存限制解决。冷缓存全量构建
-仍无法满足时，必须增加构建容量。已经发布的不可变镜像会在同一源码提交的重试中直接复用。
+候选证据、制品构建和环境仓交接分别由所属 workflow job 维护超时，不在 runbook 重复写入总等待
+阈值。调度等待应单独记录，以区分容量与任务耗时。单一 ARM64 Runner 依靠受影响面选择、不可变标签
+复用和固定 BuildKit builder 的本地热缓存完成发布；registry cache 只用于 builder 丢失后的恢复。
+发生超时时先检查缓存命中、重复安装和发布计划，不能通过解除 2 GiB 内存限制掩盖容量问题。冷缓存
+全量构建仍无法在 workflow 超时内完成时，必须增加构建容量。已经发布的不可变镜像会在同一源码提交
+的重试中直接复用。
 
 Campus Web 的 staging 候选发布当前冻结，环境继续选择已有 Worker version。新的文档站发布合同确定
 前，候选 workflow 不构建 Campus Web、不解析 `DOCS_RELEASE_ID`，也不以文档或对象存储状态阻塞其他

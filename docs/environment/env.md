@@ -61,8 +61,11 @@ Kubernetes workload 必须先存在明确读取点，环境仓才能投递对应
 
 - repository scope 只保存不随部署环境变化的仓库自动化配置；环境地址、资源标识和凭据使用实际
   消费它们的 GitHub Environment；
-- 环境派生的非敏感值由环境仓 Terraform 投递，不能同时人工维护；Secret 值不进入 Terraform，
-  由所属密钥存储投递；
+- GitHub Environment 已经选择部署环境，variable 和 secret 只使用消费者所需的最简语义名称，不再
+  添加 `STAGING_`、`DEV_`、`DEVELOPMENT_`、`PROD_` 或 `PRODUCTION_` 前缀；
+- 环境派生的非敏感值由环境仓 Terraform 投递，不能同时人工维护；Secret 由所属密钥存储投递。
+  Cloudflare provider 当前要求 Hyperdrive origin password 作为 resource 输入，因此该值会进入受保护的
+  Terraform state；不能据此把 state 当作 Secret 投递源；
 - 一个变量只有一个消费合同和一个交付所有者。跨平台必须共享的认证值按同一轮换单元分别投递，
   不建立同步源或别名；
 - 重命名直接切换消费合同并删除旧名称，不保留双读、fallback 或兼容变量；

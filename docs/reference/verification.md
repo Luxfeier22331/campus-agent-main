@@ -12,14 +12,15 @@ status: active
 
 - package 的 `package.json` 拥有具体检查；Turbo 拥有 package task graph、输入和缓存；
 - `.github/paths/pr.yml` 只选择 PR 中需要追加的静态检查；
-- `.github/workflows/pr.yml` 拥有自动 PR 轻量门禁；
+- `.github/workflows/pr.yml` 拥有仓库静态门禁和 staging 候选提前验证；
 - `.github/workflows/health.yml` 提供一次只运行一个 profile 的手动重型检查；
 - `.github/workflows/execution-runtime-publish.yml` 拥有候选物发布和 GitOps 交接；
 - staging、release 和真实外部依赖验收由所属 runbook 说明。
 
-发布候选不维护第二套 package graph。Turbo 根据环境仓游标、当前 Source SHA、package graph 和 task
-input 选择受影响镜像与 Worker；`infra/k8s` 作为非 package 所有者独立判断。Docker 构建定义由
-`docker-bake.hcl` 负责。
+`main` 发布候选以环境仓游标到当前 Source SHA 的累计差异为输入；PR 候选以该 PR 的 base/head 为
+输入，不读取私有环境仓或环境凭据。两条路径使用同一 planner。Turbo 根据 package graph 和 task input
+选择 package 候选；没有 `build` task 的 Go 与 schema 镜像，以及 `infra/k8s`，由其明确的制品所有权
+补充选择。Docker 构建定义仍由 `docker-bake.hcl` 负责，不另建镜像实现清单。
 
 仓库级 workflow、安全、Go lint、镜像和基础设施工具版本由 `aqua.yaml` 统一声明。只有运行相应检查时
 才需要先安装 Aqua 并执行 `aqua install`；普通 Node/Python 开发不以 Aqua 为前置条件。
@@ -59,14 +60,16 @@ input 选择受影响镜像与 Worker；`infra/k8s` 作为非 package 所有者�
 
 ## PR 门禁
 
-自动 PR 只有一个 `repo-checks` job：
+自动 PR 包含两类检查：
 
 - 始终运行 `pnpm ci:repo` 和 PR commit range 的 Gitleaks；
 - 按路径运行合同、GitHub Actions、Python、YAML、SQL、Shell、依赖和发布适配器检查；
-- 不运行 package typecheck、unit test、build、Testcontainers、浏览器、镜像构建、staging 或 release。
+- 使用与 `main` 发布相同的候选 planner，提前运行受影响的 Node、Go、数据库、基础设施和发布 profile；
+- 不发布镜像或 Worker，不访问 staging、provider state 或集群，也不运行浏览器回归。
 
-开发者在提交 PR 前按改动范围运行模块检查。CI 路径过滤用于减少无关静态工具，不替代本地测试，也不
-根据 elapsed time 动态扩大检查范围。
+候选 profile 固定为 `affected-node`、`go`、`app-api-migration`、`app-api-product-db`、
+`execution-control-postgres`、`ops-web-postgres`、`infra` 和 `release-tooling`。planner 只按累计差异选择，
+各 profile 串行执行；不根据耗时或一次失败动态扩大范围。
 
 ## 变更面选择
 
@@ -98,8 +101,8 @@ input 选择受影响镜像与 Worker；`infra/k8s` 作为非 package 所有者�
 - `dependencies`：全部 dependency ecosystem；
 - `docker`：用户从 `docker-bake.hcl` 中明确选择一个 target 构建。
 
-仓库不维护隐式 `all`、自动定时重测或根据 Git diff 推导重型 profile 的脚本。需要多个证据时分别运行
-明确 profile，失败归属于实际工具或模块。
+手动入口不维护隐式 `all` 或自动定时重测。staging 候选链可以按环境游标选择上述固定 profile；手动
+健康检查仍一次选择一个明确 profile，失败归属于实际工具或模块。
 
 ## 测试与缓存
 
@@ -109,18 +112,27 @@ input 选择受影响镜像与 Worker；`infra/k8s` 作为非 package 所有者�
 - 不缓存 vulnerability scan、staging check 或 release check 的成功结果，也不缓存 `node_modules`；
 - browser profile 构建一次 fixture 后运行完整回归，不复用已有开发服务器；
 - execution-control 的 Temporal server 测试使用模块明确入口，不属于默认 `pnpm ci:go`；
-- 真实 provider、database、object store、Langfuse 或 cluster credential 不进入普通 PR test。
+- PR 数据库 profile 只使用 disposable PostgreSQL；真实 provider、staging database、object store、
+  Langfuse 或 cluster credential 不进入 PR test。
 
 评估 CI 性能时分别记录 queue、cold cache 与 hot cache；单 Runner 保持单并发，优先移除重复安装、
 重复构建和无关检查面。
 
 ## 发布与环境
 
-普通 PR 不构建或发布最终镜像。`main` 发布链按 Turbo 影响面选择活跃候选，使用 Docker Bake 构建单一
-`linux/arm64` 镜像索引、Trivy 扫描并记录 digest；同一源码提交已有合法不可变镜像时直接复用。
+普通 PR 不发布最终镜像。`main` 发布链先把精确 Source SHA 的 `staging/candidate` 标为 `pending`，完成
+所选 profile 后才标为 `success` 并开始发布。镜像使用 Docker Bake 构建单一 `linux/arm64` 索引、经
+Trivy 扫描并记录 digest；同一源码提交已有合法不可变镜像时直接复用。
 
-候选物存在、源码仓 workflow 成功或 GitOps PR 创建，都不表示环境已经部署。环境事实由 GitOps
-revision、controller 状态、readiness 和受影响用户路径共同证明，具体流程见发布与 E2E runbook。
+机器 promotion 必须携带 planner 读取的旧 `releases/staging.json` 游标；环境仓游标已经前进时拒绝
+写入。promotion 后先调用 GitOps 仓库拥有的渲染入口，再创建或更新 `deploy/staging` PR。Agent
+Runtime、App API schema 和 Ops Web 运维 Job 的容器入口均执行构建期生成的 JavaScript，不在部署
+环境执行 TypeScript 源码。
+
+候选物存在、源码仓 workflow 成功或 GitOps PR 创建，都不表示环境已经部署。GitOps 的
+`staging/deployment` 状态只证明本次选择的 apply 与 controller 协调完成，不表示真实用户路径已经
+通过。受影响用户路径由发布执行者按 E2E runbook 手动选择并验收；GitOps 链路不自动运行
+`chat-staging` 或其他用户 smoke。
 
 ## 提交前报告
 
