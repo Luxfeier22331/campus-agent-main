@@ -7,10 +7,11 @@ export default defineConfig({
 		outDir: "dist-ops",
 		rollupOptions: {
 			input: {
-				"bootstrap-dining": resolve(import.meta.dirname, "ops/db/bootstrap-dining.ts"),
-				"ops-web-database": resolve(import.meta.dirname, "ops/db/ops-web-database.ts"),
+				"db/bootstrap-dining": resolve(import.meta.dirname, "ops/db/bootstrap-dining.ts"),
+				"db/ops-web-database": resolve(import.meta.dirname, "ops/db/ops-web-database.ts"),
 			},
 			output: {
+				// Preserve the source entry depth so ../../drizzle resolves inside the artifact.
 				entryFileNames: "[name].js",
 			},
 		},

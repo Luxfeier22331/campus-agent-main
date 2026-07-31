@@ -41,8 +41,8 @@ spec:
                 url.password = process.env.PGPASSWORD;
                 process.stdout.write(url.toString());
               ')"
-              node dist-ops/ops-web-database.js apply
-              exec node dist-ops/bootstrap-dining.js
+              node dist-ops/db/ops-web-database.js apply
+              exec node dist-ops/db/bootstrap-dining.js
           envFrom:
             - configMapRef:
                 name: ops-web-schema-database-config

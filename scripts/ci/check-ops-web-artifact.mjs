@@ -26,12 +26,12 @@ if (typeScriptImport.test(serverSource)) {
 	);
 }
 
-const bootstrapEntry = join(root, "dist-ops", "bootstrap-dining.js");
+const bootstrapEntry = join(root, "dist-ops", "db", "bootstrap-dining.js");
 if (!existsSync(bootstrapEntry)) {
 	throw new Error(`ops-web production bootstrap entry is missing: ${bootstrapEntry}`);
 }
 
-const databaseEntry = join(root, "dist-ops", "ops-web-database.js");
+const databaseEntry = join(root, "dist-ops", "db", "ops-web-database.js");
 if (!existsSync(databaseEntry)) {
 	throw new Error(`ops-web production database entry is missing: ${databaseEntry}`);
 }

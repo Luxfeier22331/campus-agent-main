@@ -21,12 +21,12 @@ function artifact({
 	);
 	writeFileSync(join(root, "drizzle", "0000_initial.sql"), "select 1;\n");
 	if (bootstrap !== null) {
-		mkdirSync(join(root, "dist-ops"), { recursive: true });
-		writeFileSync(join(root, "dist-ops/bootstrap-dining.js"), bootstrap);
+		mkdirSync(join(root, "dist-ops", "db"), { recursive: true });
+		writeFileSync(join(root, "dist-ops/db/bootstrap-dining.js"), bootstrap);
 	}
 	if (database !== null) {
-		mkdirSync(join(root, "dist-ops"), { recursive: true });
-		writeFileSync(join(root, "dist-ops/ops-web-database.js"), database);
+		mkdirSync(join(root, "dist-ops", "db"), { recursive: true });
+		writeFileSync(join(root, "dist-ops/db/ops-web-database.js"), database);
 	}
 	return root;
 }
