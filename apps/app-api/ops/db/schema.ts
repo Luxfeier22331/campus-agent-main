@@ -95,7 +95,6 @@ const REQUIRED_TABLES = [
 	"campus_groups.sections",
 	"campus_groups.groups",
 	"chat.turn_dispatches",
-	"docs.releases",
 	"runtime.request_observability_fact",
 ] as const;
 const REQUIRED_COLUMNS = [
@@ -117,6 +116,7 @@ const RETIRED_SCHEMAS = [
 	"official_web",
 	"operator",
 	"provider_config",
+	"docs",
 	"wechat_official_account",
 ] as const;
 
@@ -300,18 +300,12 @@ async function verifySchema(pool: ReturnType<typeof createAppApiDatabasePool>): 
 	const privileges = await pool.query<{
 		canMutateDispatches: boolean;
 		canReadAgentRuns: boolean;
-		canReadDocs: boolean;
-		canWriteDocs: boolean;
 		canWriteObservability: boolean;
 		canWriteGroupSections: boolean;
 		canWriteGroups: boolean;
-		docsPublisherCanWrite: boolean;
 	}>(
 		`select
 			has_table_privilege('app_api', 'chat.turn_dispatches', 'SELECT,INSERT,UPDATE,DELETE') as "canMutateDispatches",
-			has_table_privilege('app_api', 'docs.releases', 'SELECT') as "canReadDocs",
-			has_table_privilege('app_api', 'docs.releases', 'INSERT,UPDATE,DELETE') as "canWriteDocs",
-			has_table_privilege('docs_publish', 'docs.releases', 'SELECT,INSERT,UPDATE,DELETE') as "docsPublisherCanWrite",
 			case
 				when to_regclass('runtime.agent_runs') is null then false
 				else has_table_privilege('app_api', 'runtime.agent_runs', 'SELECT')
@@ -324,17 +318,12 @@ async function verifySchema(pool: ReturnType<typeof createAppApiDatabasePool>): 
 	if (
 		!(
 			privilege?.canMutateDispatches &&
-			privilege.canReadDocs &&
 			privilege.canWriteObservability &&
 			privilege.canWriteGroupSections &&
-			privilege.canWriteGroups &&
-			privilege.docsPublisherCanWrite
+			privilege.canWriteGroups
 		)
 	) {
 		throw new Error("app_api role is missing required table privileges.");
-	}
-	if (privilege.canWriteDocs) {
-		throw new Error("app_api role must not mutate docs release projections.");
 	}
 	if (privilege.canReadAgentRuns) {
 		throw new Error("app_api role must not read execution-control run tables.");

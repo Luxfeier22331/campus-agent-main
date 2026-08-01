@@ -20,7 +20,6 @@ import { DeferredProductAccountEntry } from "../src/components/auth/user/deferre
 import deferredProductAccountEntrySource from "../src/components/auth/user/deferred-product-account-entry.tsx?raw";
 import { UserButton } from "../src/components/auth/user/user-button";
 import userButtonSource from "../src/components/auth/user/user-button.tsx?raw";
-import DocsAccountEntry from "../src/components/docs/docs-account-entry";
 import mainSource from "../src/main.tsx?raw";
 import sentryBrowserLoaderSource from "../src/platform/telemetry/sentry-browser-loader.tsx?raw";
 
@@ -611,32 +610,5 @@ describe("campus auth UI components", () => {
 
 		expect(await screen.findByRole("button", { name: "账号" })).toBeInTheDocument();
 		expect(screen.queryByText("登录")).toBeNull();
-	});
-
-	it("keeps the docs auth entry scoped to the current reader route", async () => {
-		window.history.pushState(
-			{},
-			"",
-			"/docs/regulations/student_rules/doc-c62077b20430?hl=root-scholarship#scholarship",
-		);
-		document.body.innerHTML =
-			'<nav><div class="rp-nav__right"><button class="rp-nav-hamburger" type="button">菜单</button></div></nav>';
-
-		render(<DocsAccountEntry />);
-
-		const trigger = await screen.findByRole("button", {
-			name: "登录查看账号可见文档",
-		});
-		expect(trigger).toHaveClass("docs-account-entry-button");
-		expect(trigger).toHaveTextContent("登录");
-		trigger.click();
-
-		expect(
-			await screen.findByRole("dialog", { name: "登录或创建校园问答账号" }),
-		).toBeInTheDocument();
-		expect(screen.getByLabelText("auth-ui-provider")).toHaveAttribute(
-			"data-redirect-to",
-			"/docs/regulations/student_rules/doc-c62077b20430?hl=root-scholarship#scholarship",
-		);
 	});
 });

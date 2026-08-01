@@ -1,7 +1,5 @@
 const APP_API_DML_SCHEMAS = ["app_auth", "campus_groups", "chat", "profile"] as const;
 
-const APP_API_READ_SCHEMAS = ["docs"] as const;
-
 export interface DatabaseGrantClient {
 	query(sql: string): Promise<unknown>;
 }
@@ -16,23 +14,11 @@ export function buildAppApiGrantSql(databaseName: string): string {
 		`REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA "${schema}" FROM "app_api"`,
 		`GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA "${schema}" TO "app_api"`,
 	]);
-	const readOnlyStatements = APP_API_READ_SCHEMAS.flatMap((schema) => [
-		`GRANT USAGE ON SCHEMA "${schema}" TO "app_api"`,
-		`REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA "${schema}" FROM "app_api"`,
-		`GRANT SELECT ON ALL TABLES IN SCHEMA "${schema}" TO "app_api"`,
-	]);
-
 	return [
-		`DO $app_api_roles$\nBEGIN\n\tIF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_api') THEN\n\t\tRAISE EXCEPTION 'app_api database role is missing';\n\tEND IF;\n\tIF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'docs_publish') THEN\n\t\tRAISE EXCEPTION 'docs_publish database role is missing';\n\tEND IF;\nEND\n$app_api_roles$`,
+		`DO $app_api_roles$\nBEGIN\n\tIF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_api') THEN\n\t\tRAISE EXCEPTION 'app_api database role is missing';\n\tEND IF;\nEND\n$app_api_roles$`,
 		`GRANT CONNECT ON DATABASE ${databaseIdentifier} TO "app_api"`,
-		`GRANT CONNECT ON DATABASE ${databaseIdentifier} TO "docs_publish"`,
 		`GRANT USAGE ON SCHEMA ${schemaList}, "runtime" TO "app_api"`,
 		...perSchemaStatements,
-		...readOnlyStatements,
-		`REVOKE CREATE ON SCHEMA "docs" FROM "docs_publish"`,
-		`REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA "docs" FROM "docs_publish"`,
-		`GRANT USAGE ON SCHEMA "docs" TO "docs_publish"`,
-		`GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "docs" TO "docs_publish"`,
 		`REVOKE CREATE ON SCHEMA "runtime" FROM "app_api"`,
 		`REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA "runtime" FROM "app_api"`,
 		`GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "runtime"."request_observability_fact" TO "app_api"`,

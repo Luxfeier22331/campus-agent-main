@@ -8,6 +8,7 @@ import {
 	resolveStagingSentryRelease,
 } from "../../../scripts/deploy/staging-release.ts";
 import { uploadStagingWorkerVersion } from "../../../scripts/deploy/worker-version.ts";
+import { readCampusWebBuildSourceDigest } from "./build-campus-web.ts";
 
 const TURNSTILE_TEST_SITE_KEY = "1x00000000000000000000AA";
 
@@ -26,13 +27,10 @@ if (turnstileSiteKey === TURNSTILE_TEST_SITE_KEY) {
 }
 
 const mapBucketName = requiredEnv("MAP_DATA_BUCKET_NAME");
-const docsReleaseId = requiredEnv("DOCS_RELEASE_ID");
-if (!/^sha256:[a-f0-9]{64}$/u.test(docsReleaseId)) {
-	throw new Error("DOCS_RELEASE_ID must be sha256:<64 lowercase hex characters>.");
-}
+const docsSourceDigest = readCampusWebBuildSourceDigest();
 const sourceSha = resolveGitSha();
 const buildIdentity = `sha256:${createHash("sha256")
-	.update(`${sourceSha}\n${docsReleaseId}\n`)
+	.update(`${sourceSha}\n${docsSourceDigest}\n`)
 	.digest("hex")}`;
 if (!/^[a-z0-9][a-z0-9-]*$/.test(mapBucketName)) {
 	throw new Error("MAP_DATA_BUCKET_NAME must contain a valid R2 bucket name.");
@@ -64,7 +62,7 @@ if (preflight.status !== 0) {
 uploadStagingWorkerVersion({
 	appName: "campus-web",
 	buildIdentity,
-	candidateMetadata: { docsReleaseId },
+	candidateMetadata: { docsSourceDigest },
 	config: "dist/campus_web/wrangler.json",
 	cwd: appDir,
 	workerName: "campus-web-staging",
@@ -76,7 +74,6 @@ uploadStagingWorkerVersion({
 	},
 	variables: {
 		AUTH_TURNSTILE_SITE_KEY: turnstileSiteKey,
-		DOCS_RELEASE_ID: docsReleaseId,
 		SENTRY_DSN: sentryDsn,
 		DEPLOYMENT_RELEASE: sentryRelease,
 	},

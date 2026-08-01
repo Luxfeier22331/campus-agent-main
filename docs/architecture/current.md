@@ -105,7 +105,8 @@ tokenizer 计算精确 token 数，并校验内容摘要。
 
 ## 产品与离线数据
 
-文档阅读器、校园地图和 Dining 分别消费已经发布的产品读取模型；Dining 当前也不提供模型工具。
+文档阅读器消费构建时固定的内容寻址静态 release；校园地图和 Dining 分别消费所属产品数据。
+Dining 当前也不提供模型工具。
 
 注册的离线任务由 ingestion-control、Temporal 和 Rust 内核执行。内部门户文件发布使用独立
 workflow 调用 source-collector，通知则由 source-collector 本地命令直接写入来源对象；两者都

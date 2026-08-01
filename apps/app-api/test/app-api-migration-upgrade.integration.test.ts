@@ -19,10 +19,9 @@ const POSTGRES_IMAGE =
 const RYUK_IMAGE =
 	"testcontainers/ryuk:0.14.0@sha256:7c1a8a9a47c780ed0f983770a662f80deb115d95cce3e2daa3d12115b8cd28f0";
 const MIGRATION_DATABASE_NAME = "campus_agent_migration_test";
-const DEPLOYMENT_ROLES = ["app_api", "docs_publish", "execution_control", "ops_web"] as const;
+const DEPLOYMENT_ROLES = ["app_api", "execution_control", "ops_web"] as const;
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const fullMigrationsFolder = resolve(appRoot, "drizzle");
-const OWNERSHIP_MIGRATION_TAG = "0007_execution_runtime_ownership";
 const legacyAuthSchemaPath = resolve(appRoot, "test/fixtures/app-auth-pre-drizzle.sql");
 // Exact chat_current.sql from e05c5a52, immediately before 0001_docs_release_scope.
 const legacyChatSchemaPath = resolve(appRoot, "drizzle/baseline/chat_pre_0001.sql");
@@ -175,6 +174,14 @@ async function createMigrationFolderThrough(
 	return root;
 }
 
+function migrationEntryCountThrough(journal: MigrationJournal, tag: string): number {
+	const index = journal.entries.findIndex((entry) => entry.tag === tag);
+	if (index === -1) {
+		throw new Error(`migration journal is missing ${tag}`);
+	}
+	return index + 1;
+}
+
 async function applyLegacyChatBaseline(pool: Pool): Promise<void> {
 	await pool.query(await readFile(legacyChatSchemaPath, "utf8"));
 }
@@ -231,9 +238,12 @@ describe("app-api migration upgrade", () => {
 	let initialMigrationsFolder = "";
 	let mainMigrationsFolder = "";
 	let ownershipPredecessorMigrationsFolder = "";
-	let predecessorMigrationsFolder = "";
+	let executionPredecessorMigrationsFolder = "";
+	let docsRetirementPredecessorMigrationsFolder = "";
 	let fullMigrationCount = 0;
-	let predecessorMigrationCount = 0;
+	let ownershipPredecessorMigrationCount = 0;
+	let executionPredecessorMigrationCount = 0;
+	let docsRetirementPredecessorMigrationCount = 0;
 	let pool: Pool;
 
 	beforeAll(async () => {
@@ -249,21 +259,32 @@ describe("app-api migration upgrade", () => {
 		await createDeploymentRoles(pool);
 		const journal = await readMigrationJournal();
 		fullMigrationCount = journal.entries.length;
-		const ownershipMigrationIndex = journal.entries.findIndex(
-			({ tag }) => tag === OWNERSHIP_MIGRATION_TAG,
+		const initialMigrationCount = migrationEntryCountThrough(journal, "0000_initial");
+		const mainMigrationCount = migrationEntryCountThrough(journal, "0002_provider_config_handoff");
+		ownershipPredecessorMigrationCount = migrationEntryCountThrough(
+			journal,
+			"0006_auth_ownership_and_account_lifecycle",
 		);
-		if (ownershipMigrationIndex < 0) {
-			throw new Error(`Missing ownership migration ${OWNERSHIP_MIGRATION_TAG}.`);
-		}
-		predecessorMigrationCount = ownershipMigrationIndex + 1;
-		initialMigrationsFolder = await createMigrationFolderThrough(1, journal);
-		mainMigrationsFolder = await createMigrationFolderThrough(3, journal);
+		executionPredecessorMigrationCount = migrationEntryCountThrough(
+			journal,
+			"0007_execution_runtime_ownership",
+		);
+		docsRetirementPredecessorMigrationCount = migrationEntryCountThrough(
+			journal,
+			"0008_retain_execution_input",
+		);
+		initialMigrationsFolder = await createMigrationFolderThrough(initialMigrationCount, journal);
+		mainMigrationsFolder = await createMigrationFolderThrough(mainMigrationCount, journal);
 		ownershipPredecessorMigrationsFolder = await createMigrationFolderThrough(
-			ownershipMigrationIndex,
+			ownershipPredecessorMigrationCount,
 			journal,
 		);
-		predecessorMigrationsFolder = await createMigrationFolderThrough(
-			predecessorMigrationCount,
+		executionPredecessorMigrationsFolder = await createMigrationFolderThrough(
+			executionPredecessorMigrationCount,
+			journal,
+		);
+		docsRetirementPredecessorMigrationsFolder = await createMigrationFolderThrough(
+			docsRetirementPredecessorMigrationCount,
 			journal,
 		);
 	}, 180_000);
@@ -282,8 +303,14 @@ describe("app-api migration upgrade", () => {
 			if (ownershipPredecessorMigrationsFolder) {
 				await rm(ownershipPredecessorMigrationsFolder, { force: true, recursive: true });
 			}
-			if (predecessorMigrationsFolder) {
-				await rm(predecessorMigrationsFolder, { force: true, recursive: true });
+			if (executionPredecessorMigrationsFolder) {
+				await rm(executionPredecessorMigrationsFolder, { force: true, recursive: true });
+			}
+			if (docsRetirementPredecessorMigrationsFolder) {
+				await rm(docsRetirementPredecessorMigrationsFolder, {
+					force: true,
+					recursive: true,
+				});
 			}
 		} finally {
 			if (container) {
@@ -355,12 +382,24 @@ describe("app-api migration upgrade", () => {
 		`);
 		await migrate(drizzle(pool), {
 			...migrationOptions,
-			migrationsFolder: predecessorMigrationsFolder,
+			migrationsFolder: ownershipPredecessorMigrationsFolder,
 		});
-		const deployedPredecessorLedger = await pool.query<{ count: string }>(
+		const ownershipPredecessorLedger = await pool.query<{ count: string }>(
 			`select count(*)::text as count from "drizzle"."app_api_migrations"`,
 		);
-		expect(deployedPredecessorLedger.rows[0]?.count).toBe(String(predecessorMigrationCount));
+		expect(ownershipPredecessorLedger.rows[0]?.count).toBe(
+			String(ownershipPredecessorMigrationCount),
+		);
+		await migrate(drizzle(pool), {
+			...migrationOptions,
+			migrationsFolder: executionPredecessorMigrationsFolder,
+		});
+		const executionPredecessorLedger = await pool.query<{ count: string }>(
+			`select count(*)::text as count from "drizzle"."app_api_migrations"`,
+		);
+		expect(executionPredecessorLedger.rows[0]?.count).toBe(
+			String(executionPredecessorMigrationCount),
+		);
 		await pool.query(`
 			update "chat"."turn_dispatches"
 			set "run_id" = 'run-upgrade',
@@ -391,6 +430,24 @@ describe("app-api migration upgrade", () => {
 			set "active_run_id" = 'run-invalid'
 			where "id" = 'conversation-upgrade';
 		`);
+		await migrate(drizzle(pool), {
+			...migrationOptions,
+			migrationsFolder: docsRetirementPredecessorMigrationsFolder,
+		});
+		const docsRetirementPredecessor = await pool.query<{
+			docs_release_count: string;
+			migration_count: string;
+		}>(`
+			select
+				(select count(*)::text from "drizzle"."app_api_migrations") as migration_count,
+				(select count(*)::text from "docs"."releases") as docs_release_count
+		`);
+		expect(docsRetirementPredecessor.rows).toEqual([
+			{
+				docs_release_count: "1",
+				migration_count: String(docsRetirementPredecessorMigrationCount),
+			},
+		]);
 
 		await installAppApiSchema({
 			APP_API_SCHEMA_DATABASE_SSLMODE: "disable",
@@ -624,12 +681,6 @@ describe("app-api migration upgrade", () => {
 				sync_status: "pending",
 			},
 		]);
-		await expect(
-			pool.query(
-				`select "release_id" from "docs"."releases" where "manifest_key" = 'manifests/docs.json'`,
-			),
-		).resolves.toMatchObject({ rowCount: 1 });
-
 		const runtimeDb = drizzle(pool, { schema: appApiSchema });
 		const migratedStore = createPgProfileMemoryStore({}, { getDb: async () => runtimeDb });
 		await expect(
@@ -653,17 +704,16 @@ describe("app-api migration upgrade", () => {
 			}),
 		).resolves.toBe("applied");
 
-		const retired = await pool.query<{ schema_name: string }>(`
-			select schema_name
-			from unnest(array['campus_services', 'campus_services_ops', 'identity', 'observability', 'official_web', 'operator', 'provider_config', 'wechat_official_account']) schema_name
-			where to_regnamespace(schema_name) is not null
-		`);
-		expect(retired.rows).toEqual([]);
-
 		await installAppApiSchema({
 			APP_API_SCHEMA_DATABASE_SSLMODE: "disable",
 			APP_API_SCHEMA_DATABASE_URL: container.getConnectionUri(),
 		});
+		const retired = await pool.query<{ schema_name: string }>(`
+			select schema_name
+			from unnest(array['campus_services', 'campus_services_ops', 'docs', 'identity', 'observability', 'official_web', 'operator', 'provider_config', 'wechat_official_account']) schema_name
+			where to_regnamespace(schema_name) is not null
+		`);
+		expect(retired.rows).toEqual([]);
 		const ledger = await pool.query<{ count: string }>(
 			`select count(*)::text as count from "drizzle"."app_api_migrations"`,
 		);

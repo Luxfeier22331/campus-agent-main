@@ -29,7 +29,6 @@ run("pnpm", [
 	"SERVICE:APP_API=app-api-staging",
 	"VAR:APP_API_BASE_URL=https://app-api.internal",
 	"VAR:DEPLOYMENT_ENVIRONMENT=staging",
-	"VAR_ABSENT:DOCS_RELEASE_ID",
 	"VAR_ABSENT:AUTH_TURNSTILE_SITE_KEY",
 	"VAR_ABSENT:DEPLOYMENT_RELEASE",
 ]);

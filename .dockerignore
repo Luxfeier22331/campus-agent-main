@@ -24,8 +24,6 @@ apps/app-api/.dev.vars
 !apps/ops-web/**
 !jobs/app-api-schema/
 !jobs/app-api-schema/**
-!jobs/docs-publish/
-!jobs/docs-publish/**
 !packages/domains/
 !packages/domains/**
 !configs/ingestion/

@@ -15,7 +15,6 @@ const routeFiles = [
 	"chat.ts",
 	"chat-run-routes.ts",
 	"dining.ts",
-	"docs.ts",
 	"federation.ts",
 	"internal.ts",
 	"profile-memory.ts",

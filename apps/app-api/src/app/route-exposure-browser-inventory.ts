@@ -171,42 +171,6 @@ export const APP_API_BROWSER_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
-		path: "/api/docs/readyz",
-		callerClass: "browser-surface",
-		admission: "docs control-plane readiness probe",
-	},
-	{
-		method: "GET",
-		path: "/api/docs/collections/:corpus/:collection/documents/:documentSlug",
-		callerClass: "browser-surface",
-		admission: "docs surface read admission",
-	},
-	{
-		method: "GET",
-		path: "/api/docs/collections/:corpus/:collection/documents/:documentSlug/admission",
-		callerClass: "browser-surface",
-		admission: "docs gated static asset admission",
-	},
-	{
-		method: "GET",
-		path: "/api/docs/collections/:corpus/:collection/documents/:documentSlug/resolve",
-		callerClass: "browser-surface",
-		admission: "docs surface read admission",
-	},
-	{
-		method: "GET",
-		path: "/api/docs/collections/:corpus/:collection/documents/:documentSlug/versions",
-		callerClass: "browser-surface",
-		admission: "docs surface read admission",
-	},
-	{
-		method: "GET",
-		path: "/api/docs/collections/:corpus/:collection/navigation",
-		callerClass: "browser-surface",
-		admission: "docs surface read admission",
-	},
-	{
-		method: "GET",
 		path: "/api/history",
 		callerClass: "browser-surface",
 		admission: "session principal required",

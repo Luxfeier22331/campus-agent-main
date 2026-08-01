@@ -14,7 +14,6 @@ status: active
 - [chat.md](./chat.md)：会话、请求、流和事件；
 - [federation.md](./federation.md)：联邦身份提供方；
 - [食堂](../../product/dining.md)：学生侧地图、菜单、评价和举报接口；
-- [document-reader.md](./document-reader.md)：文档阅读器发布资产与读取模型；
 - [error.md](./error.md)：共享错误结构；
 - [request-lifecycle.md](./request-lifecycle.md)：请求、流和终态生命周期；
 - [地点领域](../../domains/place.md)：校园地图接口语义；

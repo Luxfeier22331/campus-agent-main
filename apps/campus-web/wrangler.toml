@@ -42,7 +42,6 @@ service = "app-api"
 [env.local.vars]
 APP_API_BASE_URL = "http://127.0.0.1:27031"
 DEPLOYMENT_ENVIRONMENT = "development"
-DOCS_RELEASE_ID = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
 
 [[env.local.services]]
 binding = "APP_API"
@@ -63,5 +62,6 @@ bucket_name = "campus-agent-derived-unconfigured"
 [assets]
 directory = "./dist/client"
 binding = "ASSETS"
-not_found_handling = "single-page-application"
-run_worker_first = [ "/*", "!/assets/*", "!/vendor/*", "!/_docs-static/*", "!/_docs/*", "!/@fs/*", "!/@id/*", "!/@react-refresh*", "!/@vite/*", "!/node_modules/*", "!/src/*" ]
+html_handling = "drop-trailing-slash"
+not_found_handling = "404-page"
+run_worker_first = [ "/*", "!/assets/*", "!/vendor/*", "!/docs", "!/docs/*", "!/_docs/*", "!/@fs/*", "!/@id/*", "!/@react-refresh*", "!/@vite/*", "!/node_modules/*", "!/src/*" ]

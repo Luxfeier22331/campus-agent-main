@@ -3,18 +3,14 @@
 	"extends": ["//"],
 	"tasks": {
 		"build": {
-			"cache": false
-		},
-		"build:app": {
+			"cache": false,
 			"inputs": [
 				"index.html",
 				"package.json",
-				"public/**",
-				"scripts/build-published-reader-docs.ts",
-				"scripts/build-release.ts",
+				"scripts/build-campus-web.ts",
 				"scripts/check-client-bundle-budget.ts",
+				"scripts/prepare-docs-content.ts",
 				"src/**",
-				"theme/**",
 				"tsconfig.json",
 				"vite.config.ts",
 				"wrangler*.toml",
@@ -26,41 +22,51 @@
 				"$TURBO_ROOT$/scripts/deploy/run-worker-staging-build.ts"
 			],
 			"outputLogs": "new-only",
-			"outputs": ["dist/**", ".tanstack/**"]
+			"outputs": [
+				".generated/bundle-graph.json",
+				".generated/docs-content/sources/**",
+				"dist/**",
+				".tanstack/**"
+			]
 		},
-		"build:docs:fixture": {
+		"build:test": {
 			"inputs": [
+				"index.html",
 				"package.json",
-				"rspress.config.ts",
-				"scripts/build-published-reader-docs.ts",
-				"scripts/prepare-docs-build-fixture.ts",
-				"src/docs-reader-build/**",
-				"src/docs/search/**",
-				"test/helpers/published-reader-fixture.ts",
-				"theme/**",
-				"tsconfig.json"
+				"scripts/build-campus-web.ts",
+				"scripts/check-client-bundle-budget.ts",
+				"scripts/prepare-docs-content.ts",
+				"src/**",
+				"test/build-browser-test-content.ts",
+				"test/helpers/docs-source-fixture.ts",
+				"tsconfig.json",
+				"vite.config.ts",
+				"wrangler*.toml",
+				"$TURBO_ROOT$/configs/branding/web-public/**",
+				"$TURBO_ROOT$/packages/domains/dining/package.json",
+				"$TURBO_ROOT$/packages/domains/dining/src/**",
+				"$TURBO_ROOT$/packages/ui/package.json",
+				"$TURBO_ROOT$/packages/ui/src/**",
+				"$TURBO_ROOT$/scripts/deploy/run-worker-staging-build.ts"
 			],
 			"outputLogs": "new-only",
 			"outputs": [
-				".generated/docs/**",
-				"doc_build/**",
-				"public/_docs/**",
-				"public/_docs-static/**",
-				"public/_gated-docs/**",
-				"public/_gated-docs-search/**",
-				"public/docs/**"
+				".generated/bundle-graph.json",
+				".generated/docs-content/sources/**",
+				"dist/**",
+				".tanstack/**"
 			]
 		},
 		"build:worker": {
 			"inputs": [
 				"index.html",
 				"package.json",
-				"public/**",
-				"scripts/build-published-reader-docs.ts",
-				"scripts/build-release.ts",
+				"scripts/build-campus-web.ts",
 				"scripts/check-client-bundle-budget.ts",
+				"scripts/prepare-docs-content.ts",
 				"src/**",
-				"theme/**",
+				"test/build-browser-test-content.ts",
+				"test/helpers/docs-source-fixture.ts",
 				"tsconfig.json",
 				"vite.config.ts",
 				"wrangler*.toml",
@@ -70,6 +76,13 @@
 				"$TURBO_ROOT$/packages/ui/package.json",
 				"$TURBO_ROOT$/packages/ui/src/**",
 				"$TURBO_ROOT$/scripts/deploy/run-worker-staging-build.ts"
+			],
+			"outputLogs": "new-only",
+			"outputs": [
+				".generated/bundle-graph.json",
+				".generated/docs-content/sources/**",
+				"dist/**",
+				".tanstack/**"
 			]
 		},
 		"test": {

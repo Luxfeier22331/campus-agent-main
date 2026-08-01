@@ -196,9 +196,11 @@ async function sendChatPrompt(page: Page, prompt: string, timeoutMs: number) {
 }
 
 async function checkDocs(page: Page, timeoutMs: number) {
-	await page.goto("/docs/", { waitUntil: "domcontentloaded" });
+	await page.goto("/docs", { waitUntil: "domcontentloaded" });
 	await page.locator("body").waitFor({ timeout: timeoutMs });
-	await page.goto("/docs/regulations/student_rules/", { waitUntil: "domcontentloaded" });
+	await page.goto("/docs/regulations/student_rules/doc-c62077b20430", {
+		waitUntil: "domcontentloaded",
+	});
 	await page.locator("body").waitFor({ timeout: timeoutMs });
 }
 

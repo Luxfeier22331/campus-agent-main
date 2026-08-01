@@ -20,13 +20,14 @@ status: active
 - 章节锚点是稳定导航位置，重新分块或更换搜索实现不能改变其含义；
 - 高亮只帮助定位本次依据，不成为文档或段落身份；
 - 依据缺少可交付阅读目标时不能生成虚构链接；
-- 阅读权限由 App API 判定，来源卡片不能扩大用户可见范围。
+- 来源卡片只能链接到当前 Campus Web 候选已经发布的公开阅读目标。
 
-精确 HTTP 字段和 URL 结构由文档阅读器合同维护，逻辑标识由文档阅读器数据模型维护。
+交付字段和 URL 结构由文档来源与静态交付合同维护，逻辑标识由文档阅读器数据模型维护。知识检索的
+查询目标准入和 `entitlementGroups` 仍由知识运行时独立执行，来源卡片不能扩大检索范围。
 
 ## 相关文档
 
-- [App API 文档接口](../contracts/app-api/document-reader.md)
+- [文档来源与静态交付合同](../contracts/document-reader-delivery.md)
 - [文档阅读器数据](../data/document-reader.md)
 - [执行合同](../contracts/tool-execution.md)
 - [文档站架构](../architecture/system/document-site.md)

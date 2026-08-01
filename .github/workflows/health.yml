@@ -24,7 +24,6 @@ on:
         options:
           - agent-runtime
           - app-api-schema
-          - docs-publish
           - dining-sync
           - execution-control
           - ingestion-control
@@ -93,7 +92,6 @@ jobs:
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
     timeout-minutes: 30
     env:
-      CAMPUS_WEB_E2E_DOCS_PREBUILT: "1"
       CAMPUS_WEB_E2E_PREBUILT: "1"
     steps:
       - name: Checkout
@@ -120,10 +118,10 @@ jobs:
           --filter 'campus-web...'
           --filter 'ops-web...'
 
-      - name: Build browser fixtures
-        run: >-
-          pnpm turbo run build:docs:fixture test:worker build:app
-          --filter=campus-web --concurrency=1 --summarize
+      - name: Build Campus Web browser test content
+        run: |
+          CLOUDFLARE_ENV=local pnpm turbo run build:worker --filter=campus-web --concurrency=1 --summarize
+          pnpm turbo run test:worker --filter=campus-web --concurrency=1 --summarize
 
       - name: Ensure Chromium headless shell
         env:

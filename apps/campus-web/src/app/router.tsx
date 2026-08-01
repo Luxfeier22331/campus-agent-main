@@ -95,7 +95,6 @@ const LegalTermsPage = lazy(() =>
 const LegalPrivacyPage = lazy(() =>
 	LegalPageModule().then((module) => ({ default: module.LegalPrivacyPage })),
 );
-
 const rootRoute = createRootRoute({
 	component: RootLayout,
 	notFoundComponent: NotFoundPage,

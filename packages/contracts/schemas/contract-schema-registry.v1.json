@@ -36,28 +36,44 @@
 			"notes": "App API 与 Ops Web 之间的账号管理合同。"
 		},
 		{
-			"id": "campus-docs-release-ref.v1",
+			"id": "campus-docs-source.v3",
 			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/campus-docs-release-ref.v1.schema.json",
+			"path": "packages/contracts/schemas/campus-docs-source.v3.schema.json",
 			"owner": "packages/contracts",
 			"status": "active",
-			"notes": "Content-addressed campus docs release selector used by publication and deployment."
+			"notes": "Campus Web 构建消费的主题、文档、版本、阅读正文、补充资产和旧路由来源清单。"
 		},
 		{
-			"id": "campus-docs-release-manifest.v1",
+			"id": "campus-docs-reader.v3",
 			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/campus-docs-release-manifest.v1.schema.json",
+			"path": "packages/contracts/schemas/campus-docs-reader.v3.schema.json",
 			"owner": "packages/contracts",
 			"status": "active",
-			"notes": "Deterministic reader release manifest consumed by campus-web builds."
+			"notes": "Campus Web 直接渲染的唯一公开正文格式，按元素原始顺序保存。"
 		},
 		{
-			"id": "campus-docs-app-projection.v1",
+			"id": "campus-docs-course-maps.v1",
 			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/campus-docs-app-projection.v1.schema.json",
+			"path": "packages/contracts/schemas/campus-docs-course-maps.v1.schema.json",
 			"owner": "packages/contracts",
 			"status": "active",
-			"notes": "Release-scoped app-api document reader projection materialized by jobs/docs-publish."
+			"notes": "Campus Web 构建时从课程地图来源资产生成的精简公开格式。"
+		},
+		{
+			"id": "campus-docs-site-index.v4",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/campus-docs-site-index.v4.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"notes": "Campus Web 从固定来源清单派生的公开主题、目录、版本、内容寻址搜索入口和旧路由索引。"
+		},
+		{
+			"id": "campus-docs-search-index.v2",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/campus-docs-search-index.v2.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"notes": "Campus Web 从当前版本阅读正文派生的浏览器搜索索引。"
 		},
 		{
 			"id": "grounding-context.v2",

@@ -2,115 +2,169 @@ import { createHash } from "node:crypto";
 import { isAbsolute, resolve, sep } from "node:path";
 
 import type {
-	PublishedReaderDeliveryMode,
+	PublishedObjectRef,
 	PublishedReaderManifestEntry,
-	ReaderAssetCopy,
-	ReaderAssetTarget,
+	ReaderObjectStoreClient,
 } from "./published-reader-types.ts";
 
-const CORE_SOURCE_LABELS = {
-	"asset-manifest": "manifest",
-	meta: "meta",
-	outline: "outline",
-	reader: "reader",
-} satisfies Record<string, string>;
-
-export function resolvePublishedReaderSourceObjectKey(
-	entry: PublishedReaderManifestEntry,
-	targetLabel: string,
-): string {
-	const sourceLabel =
-		CORE_SOURCE_LABELS[targetLabel as keyof typeof CORE_SOURCE_LABELS] ??
-		`supplement.${targetLabel}`;
-	const sourceObject = entry.sourceObjects[sourceLabel] ?? entry.sourceObjects[targetLabel];
-	if (!sourceObject?.trim()) {
-		throw new Error(`missing reader asset source label for target: ${targetLabel}`);
-	}
-	return sourceObject;
+export interface PublishedReaderObject {
+	filePath: string;
+	ref: PublishedObjectRef;
 }
 
-export function resolvePublishedReaderTargetObjectByDeliveryMode(
-	deliveryMode: PublishedReaderDeliveryMode,
-	targetObject: string,
-): string {
-	const normalized = targetObject.trim().replaceAll("\\", "/");
-	if (deliveryMode === "public_static_asset") {
-		if (!normalized.startsWith("_docs/")) {
-			throw new Error("public reader asset target must stay under _docs/");
+export function listPublishedReaderObjects(
+	entry: PublishedReaderManifestEntry,
+): PublishedReaderObject[] {
+	const objects = [
+		{ filePath: "reader.json", ref: entry.reader },
+		...entry.supplements.flatMap((supplement) => [
+			{ filePath: supplement.path, ref: supplement.object },
+			...supplement.assets.map((asset) => ({ filePath: asset.path, ref: asset.object })),
+		]),
+	];
+	const paths = new Set<string>();
+	for (const object of objects) {
+		const filePath = normalizeRelativePath(object.filePath);
+		if (paths.has(filePath)) {
+			throw new Error(`duplicate reader asset file path: ${filePath}`);
 		}
-		return normalized;
+		paths.add(filePath);
+		assertPublishedObjectRef(object.ref, `reader asset ${filePath}`);
 	}
-	if (deliveryMode === "gated_asset") {
-		if (normalized.startsWith("_gated-docs/")) {
-			return normalized;
+	return objects;
+}
+
+export function assertPublishedReaderAssetLayout(
+	entries: readonly PublishedReaderManifestEntry[],
+): void {
+	const targets = new Set<string>();
+	for (const entry of entries) {
+		assertSafeStaticSegment(entry.corpus, "reader corpus");
+		assertSafeStaticSegment(entry.collection, "reader collection");
+		assertSafeStaticSegment(entry.routeSlug, "reader route slug");
+		assertSafeStaticSegment(entry.versionSlug, "reader version slug");
+		for (const object of listPublishedReaderObjects(entry)) {
+			const targetObject = buildReaderAssetTargetObject(entry, object.filePath);
+			if (targets.has(targetObject)) {
+				throw new Error(`duplicate reader asset target: ${targetObject}`);
+			}
+			targets.add(targetObject);
 		}
-		if (normalized.startsWith("_docs/")) {
-			return normalized.replace(/^_docs\//u, "_gated-docs/");
-		}
-		throw new Error("gated reader asset target must stay under _gated-docs/");
 	}
-	throw new Error(`unsupported reader delivery mode: ${deliveryMode}`);
+}
+
+export async function readPublishedObject(input: {
+	client: ReaderObjectStoreClient;
+	ref: PublishedObjectRef;
+}): Promise<Uint8Array> {
+	const bytes = await input.client.readOptionalBytesObject({ key: input.ref.key });
+	if (!bytes) {
+		throw new Error(`missing published reader object: ${input.ref.key}`);
+	}
+	const digest = `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
+	if (bytes.byteLength !== input.ref.byteSize || digest !== input.ref.sha256) {
+		throw new Error(`published reader object failed integrity check: ${input.ref.key}`);
+	}
+	return bytes;
 }
 
 export function resolveSafePublishedReaderAssetTarget(input: {
-	targetObject: string;
+	entry: PublishedReaderManifestEntry;
+	filePath: string;
 	targetRoot: string;
-}): ReaderAssetTarget {
-	const normalized = input.targetObject.trim().replaceAll("\\", "/");
-	if (
-		!(normalized.startsWith("_docs/") || normalized.startsWith("_gated-docs/")) ||
-		isAbsolute(normalized) ||
-		normalized.split("/").includes("..")
-	) {
-		throw new Error("reader asset target must stay under _docs/ or _gated-docs/");
-	}
-	const targetPath = resolve(input.targetRoot, normalized);
+}): { filePath: string; targetObject: string; targetPath: string } {
+	const filePath = normalizeRelativePath(input.filePath);
+	const targetObject = buildReaderAssetTargetObject(input.entry, filePath);
+	const targetPath = resolve(input.targetRoot, targetObject);
 	const targetPrefix = `${resolve(input.targetRoot)}${sep}`;
 	if (!targetPath.startsWith(targetPrefix)) {
-		throw new Error("reader asset target must stay under _docs/ or _gated-docs/");
+		throw new Error("reader asset target must stay under _docs/");
 	}
-	return {
-		filePath: resolvePublishedReaderAssetFilePath(normalized),
-		targetObject: normalized,
-		targetPath,
-	};
+	return { filePath, targetObject, targetPath };
 }
 
-export function validatePublishedReaderAssetManifest(
-	entry: PublishedReaderManifestEntry,
-	copies: ReaderAssetCopy[],
-): void {
-	const manifestCopy = copies.find((copy) => copy.filePath === "asset-manifest.json");
-	if (!manifestCopy) {
-		throw new Error(`reader asset entry is missing asset-manifest.json: ${entry.docId}`);
+export function publicReaderUrl(entry: PublishedReaderManifestEntry): string {
+	return `/${[
+		"_docs",
+		entry.corpus,
+		entry.collection,
+		entry.routeSlug,
+		entry.versionSlug,
+		"reader.json",
+	]
+		.map((segment) => encodeURIComponent(segment))
+		.join("/")}`;
+}
+
+function normalizeRelativePath(value: string): string {
+	const normalized = value.trim().replaceAll("\\", "/");
+	if (
+		!normalized ||
+		normalized.startsWith("/") ||
+		isAbsolute(normalized) ||
+		normalized
+			.split("/")
+			.some(
+				(segment) =>
+					!segment ||
+					segment === "." ||
+					segment === ".." ||
+					segment.includes("?") ||
+					segment.includes("#") ||
+					hasControlCharacter(segment),
+			)
+	) {
+		throw new Error("reader asset file path must be safe and relative");
 	}
-	const manifest = JSON.parse(new TextDecoder().decode(manifestCopy.bytes));
-	if (!manifest.files || typeof manifest.files !== "object" || Array.isArray(manifest.files)) {
-		throw new Error("asset-manifest.json must contain files");
-	}
-	for (const copy of copies) {
-		if (copy.filePath === "asset-manifest.json") {
-			continue;
-		}
-		const expected = manifest.files[copy.filePath];
-		if (!expected) {
-			throw new Error(`asset-manifest.json is missing file entry: ${copy.filePath}`);
-		}
-		const actualSha256 = createHash("sha256").update(copy.bytes).digest("hex");
-		if (expected.sizeBytes !== copy.bytes.byteLength || expected.sha256 !== actualSha256) {
-			throw new Error(`reader asset failed manifest integrity check: ${copy.filePath}`);
-		}
+	return normalized;
+}
+
+function buildReaderAssetTargetObject(
+	entry: Pick<PublishedReaderManifestEntry, "collection" | "corpus" | "routeSlug" | "versionSlug">,
+	filePath: string,
+): string {
+	assertSafeStaticSegment(entry.corpus, "reader corpus");
+	assertSafeStaticSegment(entry.collection, "reader collection");
+	assertSafeStaticSegment(entry.routeSlug, "reader route slug");
+	assertSafeStaticSegment(entry.versionSlug, "reader version slug");
+	return [
+		"_docs",
+		entry.corpus,
+		entry.collection,
+		entry.routeSlug,
+		entry.versionSlug,
+		filePath,
+	].join("/");
+}
+
+function assertSafeStaticSegment(value: string, label: string): void {
+	if (
+		!value.trim() ||
+		value.includes("/") ||
+		value.includes("\\") ||
+		value.includes("?") ||
+		value.includes("#") ||
+		hasControlCharacter(value) ||
+		value === "." ||
+		value === ".."
+	) {
+		throw new Error(`${label} must be one safe path segment`);
 	}
 }
 
-function resolvePublishedReaderAssetFilePath(targetObject: string): string {
-	const parts = targetObject.split("/");
-	if (parts.length < 6) {
-		throw new Error("reader asset target must include document version and file path");
+function assertPublishedObjectRef(ref: PublishedObjectRef, label: string): void {
+	if (
+		!(ref.key.trim() && Number.isSafeInteger(ref.byteSize)) ||
+		ref.byteSize < 1 ||
+		!/^sha256:[a-f0-9]{64}$/u.test(ref.sha256)
+	) {
+		throw new Error(`${label} has an invalid object identity`);
 	}
-	const filePath = parts.slice(5).join("/");
-	if (!filePath || filePath.split("/").includes("..")) {
-		throw new Error("reader asset target must include a safe file path");
-	}
-	return filePath;
+}
+
+function hasControlCharacter(value: string): boolean {
+	return [...value].some((character) => {
+		const codePoint = character.codePointAt(0) ?? 0;
+		return codePoint < 0x20 || codePoint === 0x7f;
+	});
 }

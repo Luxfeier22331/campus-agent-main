@@ -40,7 +40,7 @@ describe("app-api schema installer", () => {
 		);
 	});
 
-	it("keeps the immutable main migration ledger aligned with app-owned schema changes", () => {
+	it("keeps the immutable migration ledger aligned with app-owned schema changes", () => {
 		const source = readAppFile("ops/db/schema.ts");
 		const journalSource = readAppFile("drizzle/meta/_journal.json");
 		const journal = JSON.parse(journalSource) as {
@@ -71,6 +71,7 @@ describe("app-api schema installer", () => {
 			{ idx: 6, tag: "0006_auth_ownership_and_account_lifecycle", version: "7" },
 			{ idx: 7, tag: "0007_execution_runtime_ownership", version: "7" },
 			{ idx: 8, tag: "0008_retain_execution_input", version: "7" },
+			{ idx: 9, tag: "0009_drop_docs_schema", version: "7" },
 		];
 		expect(journal.entries.map(({ idx, tag, version }) => ({ idx, tag, version }))).toEqual(
 			expectedEntries,
@@ -130,6 +131,9 @@ describe("app-api schema installer", () => {
 		expect(productionization).toContain(
 			"WHEN \"profile_memory_enabled\" THEN 'active'\n\tELSE 'paused'",
 		);
+		const docsRetirement = readAppFile("drizzle/0009_drop_docs_schema.sql");
+		expect(docsRetirement).toContain('DROP TABLE "docs"."releases" CASCADE');
+		expect(docsRetirement).toContain('DROP SCHEMA "docs"');
 		for (const schema of [
 			"campus_services_ops",
 			"identity",

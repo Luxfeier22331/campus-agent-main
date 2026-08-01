@@ -77,6 +77,11 @@ Kubernetes workload 必须先存在明确读取点，环境仓才能投递对应
 仓库不维护手写的全局变量表。变量名和必需性以所属消费者为准，环境仓只维护当前环境实际投递的
 集合，远端核对只用于确认配置生命周期已经闭合。
 
+Campus Web 文档来源命令复用现有对象存储地址和派生桶凭据，配置文件位于
+`env/commands/campus-docs-source.env`。这些值只服务本地或受信任的来源准备、正式构建和来源更新，
+不投递到 PR、Worker、Wrangler 或 Argo。`CAMPUS_WEB_BUILD_TARGET` 与
+`CAMPUS_WEB_DOCS_CONTENT_ROOT` 由构建脚本临时生成，也不进入环境配置。
+
 ## 读取与覆盖
 
 本地开发统一使用“进程环境、应用 `.env.local`/`.dev.vars.local`、应用基础文件”的优先级。部署和一次性命令仍由各自解析器、Wrangler 配置或命令入口声明读取顺序。

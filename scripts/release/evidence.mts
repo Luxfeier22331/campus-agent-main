@@ -2,24 +2,11 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import type { ValidationProfile } from "./candidates.mts";
+import { turboTasks, type ValidationProfile } from "./candidates.mts";
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const PROFILE_COMMANDS: Record<ValidationProfile, string[][]> = {
-	"affected-node": [
-		[
-			"pnpm",
-			"exec",
-			"turbo",
-			"run",
-			"build",
-			"test",
-			"typecheck",
-			"--affected",
-			"--concurrency=1",
-			"--summarize",
-		],
-	],
+	"affected-node": [],
 	go: [["pnpm", "ci:go"]],
 	"app-api-migration": [["pnpm", "ci:app-api-migration"]],
 	"app-api-product-db": [["pnpm", "ci:app-api-product-db"]],
@@ -35,6 +22,7 @@ const PROFILE_COMMANDS: Record<ValidationProfile, string[][]> = {
 export interface EvidenceCommandResult {
 	error?: Error;
 	status: number | null;
+	stdout?: string;
 }
 
 export type EvidenceCommandRunner = (
@@ -48,11 +36,121 @@ function runCommand(
 	args: string[],
 	options: { cwd: string; env: NodeJS.ProcessEnv },
 ): EvidenceCommandResult {
-	return spawnSync(command, args, {
+	const captureOutput = args.includes("--dry=json");
+	const result = spawnSync(command, args, {
 		cwd: options.cwd,
 		env: options.env,
-		stdio: "inherit",
+		encoding: "utf8",
+		stdio: captureOutput ? "pipe" : "inherit",
 	});
+	return {
+		error: result.error,
+		status: result.status,
+		...(captureOutput && typeof result.stdout === "string" ? { stdout: result.stdout } : {}),
+	};
+}
+
+function runProfileCommand(
+	profile: ValidationProfile,
+	command: string,
+	args: string[],
+	runner: EvidenceCommandRunner,
+	options: { cwd: string; env: NodeJS.ProcessEnv },
+): void {
+	if (!command) {
+		throw new Error(`Missing command for candidate validation profile: ${profile}`);
+	}
+	const result = runner(command, args, options);
+	if (result.error) {
+		throw result.error;
+	}
+	if (result.status !== 0) {
+		throw new Error(
+			`Candidate validation profile ${profile} failed with exit code ${result.status ?? 1}`,
+		);
+	}
+}
+
+function runAffectedNodeEvidence(
+	input: {
+		repositoryRoot: string;
+		env: NodeJS.ProcessEnv;
+	},
+	runner: EvidenceCommandRunner,
+): void {
+	const options = { cwd: input.repositoryRoot, env: input.env };
+	const planResult = runner(
+		"pnpm",
+		[
+			"exec",
+			"turbo",
+			"run",
+			"build",
+			"build:worker",
+			"test",
+			"typecheck",
+			"--affected",
+			"--dry=json",
+		],
+		options,
+	);
+	if (planResult.error) {
+		throw planResult.error;
+	}
+	if (planResult.status !== 0) {
+		throw new Error(
+			`Candidate validation profile affected-node failed with exit code ${planResult.status ?? 1}`,
+		);
+	}
+	const tasks = turboTasks(planResult.stdout ?? "");
+
+	runProfileCommand(
+		"affected-node",
+		"pnpm",
+		["exec", "turbo", "run", "test", "typecheck", "--affected", "--concurrency=1", "--summarize"],
+		runner,
+		options,
+	);
+
+	const buildPackages = [
+		...new Set(
+			tasks
+				.filter((task) => task.task === "build" && task.package !== "campus-web")
+				.map((task) => task.package),
+		),
+	].sort();
+	if (buildPackages.length > 0) {
+		const buildArgs = [
+			"exec",
+			"turbo",
+			"run",
+			"build",
+			"--only",
+			"--concurrency=1",
+			"--summarize",
+			...buildPackages.map((packageName) => `--filter=${packageName}`),
+		];
+		runProfileCommand("affected-node", "pnpm", buildArgs, runner, options);
+	}
+
+	if (tasks.some((task) => task.package === "campus-web" && task.task === "build:worker")) {
+		runProfileCommand(
+			"affected-node",
+			"pnpm",
+			[
+				"exec",
+				"turbo",
+				"run",
+				"build:worker",
+				"--filter=campus-web",
+				"--only",
+				"--concurrency=1",
+				"--summarize",
+			],
+			runner,
+			options,
+		);
+	}
 }
 
 function argumentsMap(args: string[]): Map<string, string> {
@@ -112,22 +210,15 @@ export function runCandidateEvidence(
 	};
 	for (const profile of input.profiles) {
 		process.stdout.write(`Running candidate validation profile: ${profile}\n`);
+		if (profile === "affected-node") {
+			runAffectedNodeEvidence({ repositoryRoot: input.repositoryRoot, env }, runner);
+			continue;
+		}
 		for (const [command, ...args] of PROFILE_COMMANDS[profile]) {
-			if (!command) {
-				throw new Error(`Missing command for candidate validation profile: ${profile}`);
-			}
-			const result = runner(command, args, {
+			runProfileCommand(profile, command, args, runner, {
 				cwd: input.repositoryRoot,
 				env,
 			});
-			if (result.error) {
-				throw result.error;
-			}
-			if (result.status !== 0) {
-				throw new Error(
-					`Candidate validation profile ${profile} failed with exit code ${result.status ?? 1}`,
-				);
-			}
 		}
 	}
 }

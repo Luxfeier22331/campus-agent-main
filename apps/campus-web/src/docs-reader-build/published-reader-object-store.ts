@@ -1,15 +1,17 @@
-import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 
 import type {
 	PublishedReaderObjectStoreConfig,
 	PublishedReaderObjectStoreCredentials,
 	PublishedReaderObjectStoreEnv,
-	ReaderObjectStoreClient,
+	ReaderObjectStoreWriter,
 } from "./published-reader-types.ts";
 
-export function createS3ObjectStore(): ReaderObjectStoreClient {
+export function createS3ObjectStore(
+	env: PublishedReaderObjectStoreEnv = process.env,
+): ReaderObjectStoreWriter {
 	const { accessKeyId, bucket, endpoint, region, secretAccessKey } =
-		resolvePublishedReaderObjectStoreConfig(process.env);
+		resolvePublishedReaderObjectStoreConfig(env);
 	const client = new S3Client({
 		credentials: { accessKeyId, secretAccessKey },
 		endpoint,
@@ -33,12 +35,15 @@ export function createS3ObjectStore(): ReaderObjectStoreClient {
 				throw error;
 			}
 		},
-		async readTextObject(input: { key: string }) {
-			const response = await client.send(new GetObjectCommand({ Bucket: bucket, Key: input.key }));
-			if (!response.Body) {
-				throw new Error(`empty object body: ${input.key}`);
-			}
-			return new TextDecoder().decode(await response.Body.transformToByteArray());
+		async writeBytesObject(input) {
+			await client.send(
+				new PutObjectCommand({
+					Body: input.body,
+					Bucket: bucket,
+					ContentType: input.contentType,
+					Key: input.key,
+				}),
+			);
 		},
 	};
 }
@@ -99,7 +104,7 @@ function readRequiredEnv(
 ): string {
 	const value = env[name]?.trim();
 	if (!value) {
-		throw new Error(`${name} is required for campus docs published reader sync`);
+		throw new Error(`${name} is required to read the campus docs source`);
 	}
 	return value;
 }

@@ -58,9 +58,16 @@ Worker version、配置和其他环境资源。候选物发布成功不表示环
 全量构建仍无法在 workflow 超时内完成时，必须增加构建容量。已经发布的不可变镜像会在同一源码提交
 的重试中直接复用。
 
-Campus Web 的 staging 候选发布当前冻结，环境继续选择已有 Worker version。新的文档站发布合同确定
-前，候选 workflow 不构建 Campus Web、不解析 `DOCS_RELEASE_ID`，也不以文档或对象存储状态阻塞其他
-候选面。当前已部署文档读取链路的不变量仍见 `docs/contracts/document-reader-publish.md`。
+Campus Web 的 staging 候选发布当前冻结，环境继续选择已有 Worker version。候选 workflow 不构建或
+上传 Campus Web，也不以文档或对象存储状态阻塞其他候选面。原生文档阅读器及其静态交付合同合入源码
+不自动恢复 staging 发布；恢复时必须按 `docs/contracts/document-reader-delivery.md` 读取固定来源键
+`campus-docs/source.json`，核对来源对象并生成静态文档。来源清单的 `sourceDigest` 只记录在构建
+和候选元数据中；正常开发、构建和部署不传递手工文档版本标识。它不能注入 Worker 运行变量或成为
+独立环境选择。
+
+候选证据中的 `affected-node` 会先读取 Turbo 影响面，再执行普通包的正式构建；Campus Web 的正式
+`build` 不在该路径执行，以免 PR 或候选 Runner 访问对象存储。Campus Web 受影响时只执行现有的
+`build:worker` 确定性测试构建。真实文档页面构建必须由受信任命令单独完成。
 
 ## 环境交接
 

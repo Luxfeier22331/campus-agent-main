@@ -12,7 +12,6 @@ function createEnv(appApi?: Env["APP_API"]): Env {
 					headers: { "content-type": "text/html" },
 				}),
 		},
-		DOCS_RELEASE_ID: `sha256:${"a".repeat(64)}`,
 	};
 }
 

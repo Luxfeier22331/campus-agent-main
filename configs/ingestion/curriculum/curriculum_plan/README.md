@@ -14,5 +14,10 @@
 文档范围名称、开放状态、路由词和逻辑映射由 `configs/runtime/query-serving-targets.v3.json` 维护。字段和
 任务以本目录 JSON、所属 schema 及测试为准，不在 README 复制。
 
+`curriculum_plan` 是知识检索使用的聚合集合。公开文档站不直接把它作为页面集合；文档发布来源
+必须将文档明确分配到 `undergraduate`、`second_degree` 或 `general_education` 之一，并写入
+`campus_docs_source.v3`。Campus Web 从该归属生成公开阅读路径；分配不通过标题匹配推断，也不改变
+本目录的检索分块和查询目标。
+
 领域边界见 `docs/architecture/domains/curriculum.md`，采集与在线查询边界见
 `docs/architecture/system/retrieval-serving.md`。

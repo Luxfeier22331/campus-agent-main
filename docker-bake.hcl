@@ -10,7 +10,6 @@ group "default" {
   targets = [
     "agent-runtime",
     "app-api-schema",
-    "docs-publish",
     "dining-sync",
     "execution-control",
     "ingestion-control",
@@ -38,11 +37,6 @@ target "agent-runtime" {
 target "app-api-schema" {
   inherits   = ["_common"]
   dockerfile = "jobs/app-api-schema/Dockerfile"
-}
-
-target "docs-publish" {
-  inherits   = ["_common"]
-  dockerfile = "jobs/docs-publish/Dockerfile"
 }
 
 target "dining-sync" {

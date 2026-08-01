@@ -9,7 +9,6 @@ import { buildCampusExperienceService } from "../modules/campus-experience";
 import { buildCampusGroupsService, createPgCampusGroupsStore } from "../modules/campus-groups";
 import { buildChatConversationService, createPgChatConversationStore } from "../modules/chat";
 import { createPgDiningContentService, createPgDiningMapReadService } from "../modules/dining";
-import { buildDocsService, createPgDocsReadModelStore } from "../modules/docs";
 import { buildEmailAccessService, createPgEmailAccessGrantStore } from "../modules/email-access";
 import {
 	createExecutionControlPersonalMemoryClient,
@@ -47,7 +46,6 @@ export function createRequestScopeFactory(input: {
 			let command = input.dependencies.chatCommandService ?? null;
 			let dining = input.dependencies.diningMapReadService ?? null;
 			let diningContent = input.dependencies.diningContentService ?? null;
-			let docs = input.dependencies.docsService ?? null;
 			let emailAccess = input.dependencies.emailAccessService ?? null;
 			let memory = input.dependencies.profileMemoryService ?? null;
 			let runtimeRuns = input.dependencies.runtimeRunService ?? null;
@@ -110,10 +108,6 @@ export function createRequestScopeFactory(input: {
 				resolveDiningContentService: () =>
 					(diningContent ??= createPgDiningContentService(input.env, {
 						getDb: runtime.getDb,
-					})),
-				resolveDocsService: () =>
-					(docs ??= buildDocsService({
-						store: createPgDocsReadModelStore(input.env, { getDb: runtime.getDb }),
 					})),
 				resolveEmailAccessService: () =>
 					(emailAccess ??= buildEmailAccessService({

@@ -64,6 +64,13 @@
       "when": 1785420498904,
       "tag": "0008_retain_execution_input",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1785546229842,
+      "tag": "0009_drop_docs_schema",
+      "breakpoints": true
     }
   ]
 }

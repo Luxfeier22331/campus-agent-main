@@ -73,13 +73,33 @@ describe("campus-web route bundle budgets", () => {
 		expect(measurement.cssFiles).toEqual(["assets/index.css"]);
 	});
 
+	it("measures the docs entry without including the app shell", () => {
+		const clientDir = createClientDirectory({
+			"assets/docs.css": ".docs { display: grid; }",
+			"assets/docs.js": "export const docs = true;",
+			"assets/index.css": "body { color: #111; }",
+			"assets/index.js": "export const app = true;",
+			"assets/react.js": "export const react = true;",
+		});
+		const graph = createGraph();
+
+		const measurement = measureRouteBundle({
+			clientDir,
+			entry: "docs",
+			facades: [],
+			graph,
+		});
+
+		expect(measurement.jsFiles).toEqual(["assets/docs.js", "assets/react.js"]);
+		expect(measurement.cssFiles).toEqual(["assets/docs.css"]);
+	});
+
 	it("keeps bundle analysis metadata outside the deployable client directory", () => {
 		const viteConfig = fs.readFileSync("vite.config.ts", "utf8");
 		const bundleGraphPlugin = fs.readFileSync("config/bundle-graph.ts", "utf8");
 
-		expect(viteConfig).toContain(
-			'outputFile: path.resolve(__dirname, ".generated/bundle-graph.json")',
-		);
+		expect(viteConfig).toContain('".generated/bundle-graph.json"');
+		expect(viteConfig).toContain('".generated/docs-bundle-graph.json"');
 		expect(bundleGraphPlugin).not.toContain("this.emitFile");
 	});
 });
@@ -101,6 +121,13 @@ function createGraph(): CampusBundleGraph {
 				imports: ["assets/react.js"],
 				isEntry: true,
 			},
+			"assets/docs.js": {
+				css: ["assets/docs.css"],
+				dynamicImports: [],
+				facadeModuleId: null,
+				imports: ["assets/react.js"],
+				isEntry: false,
+			},
 			"assets/map.js": {
 				css: ["assets/map.css"],
 				dynamicImports: [],
@@ -116,6 +143,7 @@ function createGraph(): CampusBundleGraph {
 				isEntry: false,
 			},
 		},
+		docsEntry: "assets/docs.js",
 		entry: "assets/index.js",
 	};
 }

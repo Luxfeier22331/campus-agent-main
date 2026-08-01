@@ -127,7 +127,7 @@ async function candidateBase(options: CandidatePlanOptions): Promise<string> {
 	return await releaseBase(path.resolve(options.selectionFile as string));
 }
 
-function turboTasks(source: string): Array<{ package: string; task: string }> {
+export function turboTasks(source: string): Array<{ package: string; task: string }> {
 	let value: unknown;
 	try {
 		value = JSON.parse(source) as unknown;

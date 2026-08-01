@@ -16,18 +16,24 @@ export interface CampusBundleGraphChunk {
 
 export interface CampusBundleGraph {
 	chunks: Record<string, CampusBundleGraphChunk>;
+	docsEntry?: string;
 	entry: string;
 }
 
-export function campusBundleGraphPlugin(input: { outputFile: string }): Plugin {
+export function campusBundleGraphPlugin(input: {
+	entry: "app" | "docs";
+	outputFile: string;
+}): Plugin {
 	return {
 		generateBundle(_outputOptions, bundle) {
 			const chunks = Object.values(bundle).filter((item) => item.type === "chunk");
-			const entry = chunks.find(
-				(chunk) =>
-					chunk.isEntry &&
-					Object.keys(chunk.modules).some((moduleId) => moduleId.endsWith("/src/main.tsx")),
+			const appEntry = chunks.find((chunk) =>
+				Object.keys(chunk.modules).some((moduleId) => moduleId.endsWith("/src/main.tsx")),
 			);
+			const docsEntry = chunks.find((chunk) =>
+				Object.keys(chunk.modules).some((moduleId) => moduleId.endsWith("/src/docs-main.tsx")),
+			);
+			const entry = input.entry === "docs" ? docsEntry : appEntry;
 			if (!entry) {
 				return;
 			}
@@ -48,6 +54,7 @@ export function campusBundleGraphPlugin(input: { outputFile: string }): Plugin {
 						];
 					}),
 				),
+				...(docsEntry ? { docsEntry: docsEntry.fileName } : {}),
 				entry: entry.fileName,
 			};
 			mkdirSync(dirname(input.outputFile), { recursive: true });

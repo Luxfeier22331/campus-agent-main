@@ -287,7 +287,6 @@ describe("account journeys PostgreSQL integration", () => {
 			APP_API: { fetch: (request: Request) => app.fetch(request) },
 			APP_API_BASE_URL: "https://app-api.internal",
 			ASSETS: { fetch: () => new Response("campus shell", { status: 200 }) },
-			DOCS_RELEASE_ID: `sha256:${"0".repeat(64)}`,
 		};
 		const signedIn = await campusWebWorker.fetch(
 			new Request("https://campus.muc.wiki/api/auth/sign-in/email", {

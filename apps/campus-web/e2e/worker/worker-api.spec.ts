@@ -121,25 +121,13 @@ test.describe("campus web worker app-api boundary", () => {
 		}
 	});
 
-	test("routes admitted docs API paths to app-api and keeps unknown docs paths closed", async ({
-		request,
-	}) => {
+	test("keeps retired docs API paths closed", async ({ request }) => {
 		for (const path of [
 			"/api/docs/readyz",
 			"/api/docs/collections/regulations/student_rules/navigation",
-			"/api/docs/collections/regulations/student_rules/documents/doc-c62077b20430",
-			"/api/docs/collections/regulations/student_rules/documents/doc-c62077b20430/resolve",
-			"/api/docs/collections/regulations/student_rules/documents/doc-c62077b20430/versions",
-			"/api/docs/collections/regulations/student_rules/documents/doc-c62077b20430/admission",
 		]) {
-			const response = await request.get(path);
-
-			await expectNotWorkerUnknownApi(response);
+			await expectWorkerUnknownApi(await request.get(path));
 		}
-
-		await expectWorkerUnknownApi(
-			await request.get("/api/docs/collections/regulations/student_rules/search"),
-		);
 	});
 });
 

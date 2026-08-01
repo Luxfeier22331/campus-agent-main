@@ -56,19 +56,19 @@ const selected = selectUploadedVersion(
 );
 expect(selected.id === "newer", "latest tagged Worker version was not selected");
 
-const docsReleaseId = `sha256:${"a".repeat(64)}`;
+const buildMetadataId = `sha256:${"a".repeat(64)}`;
 expect(
 	resolveWorkerPlainTextVariable(
 		{
 			resources: {
 				bindings: [
 					{ name: "OTHER", text: "ignored", type: "plain_text" },
-					{ name: "DOCS_RELEASE_ID", text: docsReleaseId, type: "plain_text" },
+					{ name: "BUILD_METADATA_ID", text: buildMetadataId, type: "plain_text" },
 				],
 			},
 		},
-		"DOCS_RELEASE_ID",
-	) === docsReleaseId,
+		"BUILD_METADATA_ID",
+	) === buildMetadataId,
 	"selected Worker plain-text variable was not resolved",
 );
 

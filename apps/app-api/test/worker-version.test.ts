@@ -123,7 +123,7 @@ describe("Worker version upload arguments", () => {
 			{
 				appName: "campus-web",
 				buildIdentity,
-				variables: { DOCS_RELEASE_ID: `sha256:${"b".repeat(64)}` },
+				variables: {},
 			},
 			sourceSha,
 		);

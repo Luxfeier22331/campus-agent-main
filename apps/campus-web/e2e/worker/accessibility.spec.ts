@@ -7,9 +7,13 @@ test.describe("docs reader design contract", () => {
 	test("移动阅读面通过自动化 WCAG A/AA 与 320px reflow 检查", async ({ page }) => {
 		await page.setViewportSize({ height: 720, width: 320 });
 		await page.goto(publicReaderPath, { waitUntil: "domcontentloaded" });
-		await expect(
-			page.getByRole("heading", { level: 1, name: /中央民族大学学生考勤管理规定/u }),
-		).toBeVisible();
+		await expect(page.locator("#root")).toHaveAttribute("data-campus-hydrated", "true", {
+			timeout: 15_000,
+		});
+		await expect(page.getByRole("heading", { level: 1, name: "学生考勤管理规定" })).toBeVisible();
+		await expect(page.locator('aside[aria-label="文档目录侧栏"]')).toHaveCount(1);
+		await expect(page.locator('aside[aria-label="本页目录侧栏"]')).toBeHidden();
+		await expect(page.getByRole("button", { name: "打开本页目录" })).toBeVisible();
 
 		const results = await new AxeBuilder({ page })
 			.withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])

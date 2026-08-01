@@ -24,10 +24,6 @@ const profiles = {
 		cwd: "apps/app-api",
 		command: ["pnpm", "exec", "tsx", "./e2e/chat-memory-staging.ts"],
 	},
-	"docs-gated-staging": {
-		cwd: "apps/app-api",
-		command: ["pnpm", "exec", "tsx", "./e2e/docs-gated-staging.ts"],
-	},
 } as const;
 
 type ProfileName = keyof typeof profiles;

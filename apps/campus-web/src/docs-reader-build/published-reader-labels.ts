@@ -2,17 +2,21 @@ import type { PublishedReaderManifestEntry } from "./published-reader-types.ts";
 
 type ReaderLabelEntry = Pick<PublishedReaderManifestEntry, "collection" | "corpus">;
 
+const CURRICULUM_COLLECTIONS = new Set(["undergraduate", "second_degree", "general_education"]);
+
 export function resolveDocumentDisplayTitle(title: string): string {
 	const trimmed = typeof title === "string" ? title.trim() : "";
 	if (!trimmed) {
 		throw new Error("campus docs reader manifest entry requires title");
 	}
-	const displayTitle = trimmed.replace(/^中央民族大学/u, "").trim();
-	return displayTitle || trimmed;
+	const displayTitle = trimmed.replace(/^中央民族大学/u, "").trim() || trimmed;
+	return displayTitle
+		.replace(/\(([^()\n]*\p{Script=Han}[^()\n]*)\)/gu, "（$1）")
+		.replace(/([\p{Script=Han}）\d]):(?=\s*(?:[\p{Script=Han}（]|$))/gu, "$1：");
 }
 
 export function resolveDocumentKind(entry: ReaderLabelEntry): string {
-	if (entry.collection === "curriculum_plan") {
+	if (isCurriculumCollection(entry)) {
 		return "curriculumPlan";
 	}
 	if (entry.collection === "student_rules") {
@@ -22,11 +26,11 @@ export function resolveDocumentKind(entry: ReaderLabelEntry): string {
 }
 
 export function resolveReaderLayout(entry: ReaderLabelEntry): string {
-	return entry.collection === "curriculum_plan" ? "tabular" : "article";
+	return isCurriculumCollection(entry) ? "tabular" : "article";
 }
 
 export function resolveReaderMeasure(entry: ReaderLabelEntry): string {
-	return entry.collection === "curriculum_plan" ? "wide" : "standard";
+	return isCurriculumCollection(entry) ? "wide" : "standard";
 }
 
 export function resolveCorpusLabel(corpus: string): string {
@@ -34,8 +38,14 @@ export function resolveCorpusLabel(corpus: string): string {
 }
 
 export function resolveCollectionLabel(entry: ReaderLabelEntry): string {
-	if (entry.collection === "curriculum_plan") {
-		return "培养方案";
+	if (isCurriculumCollection(entry)) {
+		if (entry.collection === "undergraduate") {
+			return "本科培养方案";
+		}
+		if (entry.collection === "second_degree") {
+			return "二学位培养方案";
+		}
+		return "通识教育";
 	}
 	if (entry.collection === "student_rules") {
 		return "学生手册";
@@ -47,4 +57,8 @@ export function resolveCollectionLabel(entry: ReaderLabelEntry): string {
 		return "专项规章";
 	}
 	return entry.collection;
+}
+
+function isCurriculumCollection(entry: ReaderLabelEntry): boolean {
+	return entry.corpus === "curriculum" && CURRICULUM_COLLECTIONS.has(entry.collection);
 }

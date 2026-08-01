@@ -1,4 +1,3 @@
-import { readFileSync, writeFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { checkCampusPublishedReaderInputs } from "../src/docs-reader-build/sync-campus-published-reader.ts";
@@ -10,86 +9,46 @@ import {
 afterEach(cleanupPublishedReaderFixture);
 
 describe("campus-web published reader validation", () => {
-	it("fails closed when published reader search unit ids collide", async () => {
-		const { client, manifestPath } = createPublishedReaderFixture();
-		updatePublishedReaderManifest(manifestPath, (manifest) => {
-			manifest.searchUnits[1] = {
-				...manifest.searchUnits[1],
-				searchUnitId: manifest.searchUnits[0].searchUnitId,
-			};
-		});
+	it("rejects reader bytes that do not match their object reference", async () => {
+		const { client, manifest } = createPublishedReaderFixture();
+		const entry = manifest.entries[0];
+		if (!entry) {
+			throw new Error("published reader fixture is incomplete");
+		}
+		entry.reader.sha256 = `sha256:${"0".repeat(64)}`;
 
-		await expect(
-			checkCampusPublishedReaderInputs({
-				client,
-				manifestFilePath: manifestPath,
-			}),
-		).rejects.toThrow("duplicate published reader searchUnitId");
+		await expect(checkCampusPublishedReaderInputs({ client, manifest })).rejects.toThrow(
+			"published reader object failed integrity check: reader/public.json",
+		);
 	});
 
-	it("fails closed when protected search highlights reference missing reader blocks", async () => {
-		const { client, manifestPath } = createPublishedReaderFixture();
-		updatePublishedReaderManifest(manifestPath, (manifest) => {
-			manifest.searchUnits[1] = {
-				...manifest.searchUnits[1],
-				highlightRootUnitIds: ["missing-root-unit"],
-			};
+	it("rejects a reader whose document identity differs from the docs entry", async () => {
+		const { client, manifest } = createPublishedReaderFixture({
+			publicReaderDocId: "another-document",
 		});
 
-		await expect(
-			checkCampusPublishedReaderInputs({
-				client,
-				manifestFilePath: manifestPath,
-			}),
-		).rejects.toThrow("protected search unit highlight root does not exist in reader asset");
+		await expect(checkCampusPublishedReaderInputs({ client, manifest })).rejects.toThrow(
+			"published reader identity does not match docs entry: version_public",
+		);
 	});
 
-	it("fails closed when protected search canonicalUrl path differs from the reader route", async () => {
-		const { client, manifestPath } = createPublishedReaderFixture();
-		updatePublishedReaderManifest(manifestPath, (manifest) => {
-			manifest.searchUnits[1] = {
-				...manifest.searchUnits[1],
-				canonicalUrl: "/docs/regulations/student_rules/other-policy#restricted",
-			};
+	it("rejects a reader whose version identity differs from the docs entry", async () => {
+		const { client, manifest } = createPublishedReaderFixture({
+			publicReaderVersionId: "another-version",
 		});
 
-		await expect(
-			checkCampusPublishedReaderInputs({
-				client,
-				manifestFilePath: manifestPath,
-			}),
-		).rejects.toThrow("protected search unit canonicalUrl does not match reader route");
+		await expect(checkCampusPublishedReaderInputs({ client, manifest })).rejects.toThrow(
+			"published reader identity does not match docs entry: version_public",
+		);
 	});
 
-	it("fails closed when protected search canonicalUrl hash differs from the anchor", async () => {
-		const { client, manifestPath } = createPublishedReaderFixture();
-		updatePublishedReaderManifest(manifestPath, (manifest) => {
-			manifest.searchUnits[1] = {
-				...manifest.searchUnits[1],
-				canonicalUrl: "/docs/regulations/student_rules/restricted-policy#other-anchor",
-			};
+	it("rejects reader supplements that differ from the docs entry", async () => {
+		const { client, manifest } = createPublishedReaderFixture({
+			omitPublicReaderSupplement: true,
 		});
 
-		await expect(
-			checkCampusPublishedReaderInputs({
-				client,
-				manifestFilePath: manifestPath,
-			}),
-		).rejects.toThrow("protected search unit canonicalUrl hash does not match anchor");
+		await expect(checkCampusPublishedReaderInputs({ client, manifest })).rejects.toThrow(
+			"published reader supplements do not match docs entry: version_public",
+		);
 	});
 });
-
-function updatePublishedReaderManifest(
-	manifestPath: string,
-	update: (manifest: {
-		searchUnits: Array<{
-			canonicalUrl: string;
-			highlightRootUnitIds: string[];
-			searchUnitId: string;
-		}>;
-	}) => void,
-): void {
-	const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-	update(manifest);
-	writeFileSync(manifestPath, JSON.stringify(manifest), "utf8");
-}

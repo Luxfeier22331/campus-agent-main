@@ -66,8 +66,6 @@ describe("campus web staging config", () => {
 		expect(verifyStagingConfigSource).not.toContain("CAMPUS_WEB_HOSTNAME");
 		expect(verifyStagingConfigSource).toContain("DEPLOYMENT_ENVIRONMENT");
 		expect(verifyStagingConfigSource).toContain("AUTH_TURNSTILE_SITE_KEY must not remain");
-		expect(verifyStagingConfigSource).toContain("DOCS_RELEASE_ID must be injected");
-
 		expect(uploadStagingVersionSource).toContain("CAMPUS_AUTH_TURNSTILE_SITE_KEY");
 		expect(uploadStagingVersionSource).toContain("SENTRY_CAMPUS_WEB_DSN");
 		expect(uploadStagingVersionSource).not.toContain("STAGING_CAMPUS_WEB_BROWSER_SENTRY_DSN");
@@ -76,6 +74,8 @@ describe("campus web staging config", () => {
 		expect(uploadStagingVersionSource).toContain('artifactDirectory: "dist/campus_web"');
 		expect(uploadStagingVersionSource).toContain("AUTH_TURNSTILE_SITE_KEY");
 		expect(uploadStagingVersionSource).toContain("MAP_DATA_BUCKET_NAME");
+		expect(uploadStagingVersionSource).toContain("readCampusWebBuildSourceDigest");
+		expect(uploadStagingVersionSource).toContain("candidateMetadata: { docsSourceDigest }");
 		expect(uploadStagingVersionSource).toContain("uploadStagingWorkerVersion");
 		expect(packageScripts["deploy:staging"]).toBeUndefined();
 		expect(packageScripts["upload:staging"]).toContain("upload-staging-version.ts");
@@ -90,14 +90,10 @@ describe("campus web staging config", () => {
 		expect(packageScripts["build:app:staging"]).toBeUndefined();
 		expect(packageScripts["build:docs:staging"]).toBeUndefined();
 		expect(packageScripts["build:staging"]).toBe(
-			"pnpm exec tsx ./scripts/build-release.ts --staging",
+			"pnpm exec tsx ./scripts/build-campus-web.ts --staging",
 		);
 		expect(publishWorkflowSource).not.toContain("pnpm --dir apps/campus-web");
 		expect(publishWorkflowSource).not.toContain("campus-web-staging");
-		expect(publishWorkflowSource).not.toContain("STAGING_CAMPUS_DOCS_READER_MANIFEST_KEY");
-		expect(publishWorkflowSource).not.toContain("STAGING_CAMPUS_DOCS_READER_MANIFEST_SHA256");
-		expect(publishWorkflowSource).not.toContain("DOCS_RELEASE_ID");
-		expect(publishWorkflowSource).not.toContain("docs-reader-release.json");
 		expect(publishWorkflowSource).toContain("pnpm --dir gitops gitops promote-source");
 		expect(publishWorkflowSource).not.toContain("STAGING_APP_API_OPERATOR_DATABASE_URL");
 		expect(publishWorkflowSource).not.toContain("deploy-staging.yml");
@@ -129,7 +125,7 @@ describe("campus web staging config", () => {
 		expect(stagingBrowserE2ESource).toContain('page.goto("/",');
 		expect(stagingBrowserE2ESource).not.toContain('page.goto("/chat"');
 		expect(stagingBrowserE2ESource).toContain("/api/chat/runs/");
-		expect(stagingBrowserE2ESource).toContain("/docs/regulations/student_rules/");
+		expect(stagingBrowserE2ESource).toContain("/docs/regulations/student_rules/doc-c62077b20430");
 		expect(packageScripts["browser:e2e:staging"]).toBeUndefined();
 		expect(packageScripts["browser:smoke:staging"]).toBeUndefined();
 	});

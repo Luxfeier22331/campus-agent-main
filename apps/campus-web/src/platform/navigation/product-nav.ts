@@ -6,11 +6,11 @@ export interface ProductNavItem {
 	label: string;
 }
 
-export const DEFAULT_DOCS_READER_PATH = "/docs/regulations/student_rules/doc-c62077b20430";
+export const DOCS_HOME_PATH = "/docs";
 
 export const productNavItems = [
 	{ href: "/", id: "chat", label: "问答" },
-	{ href: DEFAULT_DOCS_READER_PATH, id: "docs", label: "文档" },
+	{ href: DOCS_HOME_PATH, id: "docs", label: "文档" },
 	{ href: "/map", id: "map", label: "校园地图" },
 	{ href: "/dining", id: "dining", label: "食堂" },
 	{ href: "/groups", id: "groups", label: "同好群" },
@@ -30,16 +30,4 @@ export function isProductNavActive(pathname: string, item: ProductNavItem): bool
 		default:
 			return pathname === item.href;
 	}
-}
-
-export function buildRspressProductNav(): Array<{
-	activeMatch?: string;
-	link: string;
-	text: string;
-}> {
-	return productNavItems.map((item) => ({
-		...(item.id === "chat" ? { activeMatch: "^/$|^/c/" } : {}),
-		link: item.href,
-		text: item.label,
-	}));
 }

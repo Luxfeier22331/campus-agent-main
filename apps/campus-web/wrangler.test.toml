@@ -7,9 +7,10 @@ preview_urls = false
 
 [vars]
 APP_API_BASE_URL = "https://app-api.internal"
-DOCS_RELEASE_ID = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
 [assets]
 directory = "./test/assets"
 binding = "ASSETS"
-not_found_handling = "single-page-application"
+html_handling = "drop-trailing-slash"
+not_found_handling = "404-page"
+run_worker_first = [ "/*", "!/assets/*", "!/vendor/*", "!/docs", "!/docs/*", "!/_docs/*", "!/@fs/*", "!/@id/*", "!/@react-refresh*", "!/@vite/*", "!/node_modules/*", "!/src/*" ]

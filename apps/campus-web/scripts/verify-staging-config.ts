@@ -80,13 +80,13 @@ async function main(): Promise<void> {
 	);
 	expectAbsent(
 		vars,
-		"DOCS_RELEASE_ID",
-		"DOCS_RELEASE_ID must be injected for the selected Worker candidate.",
+		"DEPLOYMENT_RELEASE",
+		"DEPLOYMENT_RELEASE must not remain as a static staging var in built config.",
 	);
 	expectAbsent(
 		vars,
-		"DEPLOYMENT_RELEASE",
-		"DEPLOYMENT_RELEASE must not remain as a static staging var in built config.",
+		"SENTRY_RELEASE",
+		"SENTRY_RELEASE must not remain as a static staging var in built config.",
 	);
 
 	if (Array.isArray(config.routes) && config.routes.length > 0) {

@@ -3,7 +3,6 @@ import {
 	AUTH_RUNTIME_CONFIG_SCRIPT_ID,
 	resolveTurnstileRuntimeConfig,
 } from "./platform/auth/turnstile-runtime-config";
-import { DEFAULT_DOCS_READER_PATH } from "./platform/navigation/product-nav";
 import { CAMPUS_RUNTIME_CONFIG_SCRIPT_ID } from "./platform/runtime/config";
 import { createCampusEdgeSentryOptions } from "./platform/telemetry/sentry-edge";
 import { isAllowedCampusAppApiRequest } from "./platform/worker-proxy/allowlist";
@@ -23,7 +22,6 @@ export interface Env {
 		fetch(request: Request): Promise<Response> | Response;
 	};
 	AUTH_TURNSTILE_SITE_KEY?: string;
-	DOCS_RELEASE_ID?: string;
 	MAP_DATA?: R2Bucket;
 	SENTRY_DSN?: string;
 	DEPLOYMENT_ENVIRONMENT?: string;
@@ -59,14 +57,7 @@ const AUTH_FORWARDED_HEADERS = [
 ] as const;
 const FEDERATION_CREDENTIAL_FORWARDED_HEADERS = [...FORWARDED_HEADERS, "authorization"] as const;
 const FEDERATION_CREDENTIAL_PATHS = new Set(["/api/federation/token", "/api/federation/userinfo"]);
-const PUBLIC_READER_ASSET_PREFIX = "/_docs/";
-const PUBLIC_DOCS_STATIC_ASSET_PREFIX = "/_docs-static/";
-const PUBLIC_DOCS_ROUTE_PREFIX = "/docs";
-const GATED_READER_ASSET_PREFIX = "/_gated-docs/";
-const PROTECTED_READER_SEARCH_PREFIX = "/_gated-docs-search/";
 const PUBLIC_VENDOR_ASSET_PREFIX = "/vendor/";
-const DOCS_RELEASE_HEADER = "x-campus-docs-release";
-const DOCS_RELEASE_ID_PATTERN = /^sha256:[a-f0-9]{64}$/u;
 
 const VITE_DEV_ASSET_PREFIXES = [
 	"/@fs/",
@@ -141,30 +132,6 @@ const worker = {
 			return proxyToAppApi(request, env);
 		}
 
-		if (url.pathname.startsWith(PROTECTED_READER_SEARCH_PREFIX)) {
-			if (request.method !== "GET" && request.method !== "HEAD") {
-				return jsonResponse(404, {
-					error: {
-						code: "not_found",
-						message: "Route not found.",
-					},
-				});
-			}
-			return serveProtectedReaderSearchIndex(request, env);
-		}
-
-		if (url.pathname.startsWith(GATED_READER_ASSET_PREFIX)) {
-			if (request.method !== "GET" && request.method !== "HEAD") {
-				return jsonResponse(404, {
-					error: {
-						code: "not_found",
-						message: "Route not found.",
-					},
-				});
-			}
-			return serveGatedReaderAsset(request, env);
-		}
-
 		if (url.pathname.startsWith("/api/")) {
 			return jsonResponse(404, {
 				error: {
@@ -177,22 +144,6 @@ const worker = {
 		if (request.method === "GET" || request.method === "HEAD") {
 			if (url.pathname === "/favicon.ico") {
 				return serveStaticAsset(request, env);
-			}
-
-			if (url.pathname.startsWith(PUBLIC_READER_ASSET_PREFIX)) {
-				return serveStaticAsset(request, env);
-			}
-
-			if (url.pathname.startsWith(PUBLIC_DOCS_STATIC_ASSET_PREFIX)) {
-				return serveStaticAsset(request, env);
-			}
-
-			if (isPublicDocsDirectoryRoute(url.pathname)) {
-				return redirectToDefaultDocsReader(request);
-			}
-
-			if (isPublicDocsReaderPath(url.pathname)) {
-				return servePublicDocsReader(request, env);
 			}
 
 			if (url.pathname.startsWith(PUBLIC_MAP_DATA_PREFIX)) {
@@ -290,14 +241,6 @@ async function proxyNoStoreAppApiRequest(request: Request, env: Env): Promise<Re
 			headers.set(headerName, value);
 		}
 	}
-	if (isDocsApiPath(inboundUrl.pathname)) {
-		const releaseId = resolveDocsReleaseId(env);
-		if (!releaseId) {
-			return dependencyNotReadyResponse();
-		}
-		headers.set(DOCS_RELEASE_HEADER, releaseId);
-	}
-
 	try {
 		const body =
 			request.method === "GET" || request.method === "HEAD"
@@ -406,10 +349,18 @@ function isLoopbackAppApiBaseUrl(value: string): boolean {
 }
 
 async function serveCampusShell(request: Request, env: Env): Promise<Response> {
-	const response = await fetchStaticAsset(request, env);
+	const assetRequest = rewriteRequestPathname(request, "/index.html", request.method);
+	const response = await fetchStaticAsset(assetRequest, env);
 	if (response instanceof Response && response.status !== 503) {
 		const contentType = response.headers.get("content-type") ?? "";
 		if (contentType.includes("text/html")) {
+			if (request.method === "HEAD") {
+				return new Response(null, {
+					headers: campusHtmlHeaders(response, { cacheControl: "no-store" }),
+					status: response.status,
+					statusText: response.statusText,
+				});
+			}
 			return campusHtmlResponse(response, request, env, { cacheControl: "no-store" });
 		}
 		return responseWithSecurityHeaders(response);
@@ -426,38 +377,6 @@ async function serveStaticAsset(request: Request, env: Env): Promise<Response> {
 	return response;
 }
 
-async function servePublicDocsReader(request: Request, env: Env): Promise<Response> {
-	for (const pathname of getPublicDocsAssetCandidates(new URL(request.url).pathname)) {
-		const assetRequest = rewriteRequestPathname(
-			request,
-			pathname,
-			request.method === "HEAD" ? "GET" : request.method,
-		);
-		const response = await fetchStaticAsset(assetRequest, env);
-		if (await isRspressReaderHtmlResponse(response)) {
-			const securedResponse = responseWithSecurityHeaders(response);
-			if (request.method === "HEAD") {
-				return new Response(null, {
-					headers: campusHtmlHeaders(securedResponse),
-					status: securedResponse.status,
-					statusText: securedResponse.statusText,
-				});
-			}
-			return campusHtmlResponse(securedResponse, request, env);
-		}
-		if (response.status === 503) {
-			return responseWithSecurityHeaders(response);
-		}
-	}
-
-	return jsonResponse(404, {
-		error: {
-			code: "not_found",
-			message: "Route not found.",
-		},
-	});
-}
-
 async function fetchStaticAsset(request: Request, env: Env): Promise<Response> {
 	if (!env.ASSETS) {
 		return jsonResponse(503, {
@@ -472,222 +391,10 @@ async function fetchStaticAsset(request: Request, env: Env): Promise<Response> {
 	return response;
 }
 
-function isPublicDocsReaderPath(pathname: string): boolean {
-	return (
-		pathname !== PUBLIC_DOCS_ROUTE_PREFIX &&
-		pathname !== `${PUBLIC_DOCS_ROUTE_PREFIX}/` &&
-		pathname.startsWith(`${PUBLIC_DOCS_ROUTE_PREFIX}/`) &&
-		!isPublicDocsDirectoryPath(pathname)
-	);
-}
-
-function isPublicDocsDirectoryRoute(pathname: string): boolean {
-	return (
-		(pathname === PUBLIC_DOCS_ROUTE_PREFIX ||
-			pathname === `${PUBLIC_DOCS_ROUTE_PREFIX}/` ||
-			pathname.startsWith(`${PUBLIC_DOCS_ROUTE_PREFIX}/`)) &&
-		isPublicDocsDirectoryPath(pathname)
-	);
-}
-
-function isPublicDocsDirectoryPath(pathname: string): boolean {
-	const cleanPathname = pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
-	const segments = cleanPathname.split("/").filter(Boolean);
-	return segments.length === 1 || segments.length === 2 || segments.length === 3;
-}
-
-function redirectToDefaultDocsReader(request: Request): Response {
-	const url = new URL(request.url);
-	url.pathname = DEFAULT_DOCS_READER_PATH;
-	url.search = "";
-	url.hash = "";
-	const headers = new Headers({
-		"cache-control": "no-store",
-		location: url.toString(),
-	});
-	for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
-		headers.set(key, value);
-	}
-	return new Response(null, { headers, status: 302 });
-}
-
-function getPublicDocsAssetCandidates(pathname: string): string[] {
-	const cleanPathname = pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
-	if (cleanPathname.endsWith(".html")) {
-		return [cleanPathname];
-	}
-
-	if (pathname.endsWith("/")) {
-		return [`${cleanPathname}/index.html`];
-	}
-
-	return [`${cleanPathname}.html`, `${cleanPathname}/index.html`];
-}
-
 function rewriteRequestPathname(request: Request, pathname: string, method: string): Request {
 	const url = new URL(request.url);
 	url.pathname = pathname;
 	return new Request(url.toString(), { headers: request.headers, method });
-}
-
-async function isRspressReaderHtmlResponse(response: Response): Promise<boolean> {
-	if (response.status !== 200) {
-		return false;
-	}
-	const contentType = response.headers.get("content-type") ?? "";
-	if (!contentType.toLowerCase().includes("text/html")) {
-		return false;
-	}
-	const body = await response.clone().text();
-	return body.includes('id="__rspress_root"') || body.includes("id='__rspress_root'");
-}
-
-async function serveGatedReaderAsset(request: Request, env: Env): Promise<Response> {
-	const target = parseProtectedReaderTarget(new URL(request.url).pathname, "_gated-docs");
-	if (!target) {
-		return withVaryAuth(
-			jsonResponse(404, { error: { code: "not_found", message: "Route not found." } }),
-		);
-	}
-
-	const admissionResponse = await checkGatedReaderAdmission({ env, request, target });
-	if (admissionResponse) {
-		return admissionResponse;
-	}
-
-	const response = await fetchStaticAsset(request, env);
-	return withVaryAuth(responseWithSecurityHeaders(response));
-}
-
-async function serveProtectedReaderSearchIndex(request: Request, env: Env): Promise<Response> {
-	const target = parseProtectedReaderTarget(new URL(request.url).pathname, "_gated-docs-search");
-	if (!target) {
-		return withVaryAuth(
-			jsonResponse(404, { error: { code: "not_found", message: "Route not found." } }),
-		);
-	}
-
-	const admissionResponse = await checkGatedReaderAdmission({ env, request, target });
-	if (admissionResponse) {
-		return admissionResponse;
-	}
-
-	const response = await fetchStaticAsset(request, env);
-	if (response.status === 404) {
-		return withVaryAuth(
-			jsonResponse(404, { error: { code: "not_found", message: "Route not found." } }),
-		);
-	}
-	if (isHtmlServerErrorResponse(response)) {
-		return withVaryAuth(dependencyNotReadyResponse());
-	}
-	return withVaryAuth(responseWithSecurityHeaders(response));
-}
-
-async function checkGatedReaderAdmission(input: {
-	env: Env;
-	request: Request;
-	target: {
-		collection: string;
-		corpus: string;
-		documentSlug: string;
-		versionSlug: string;
-	};
-}): Promise<Response | null> {
-	if (!(input.env.APP_API && input.env.APP_API_BASE_URL)) {
-		return jsonResponse(503, {
-			error: {
-				code: "dependency_not_ready",
-				message: "服务暂不可用，请稍后再试。",
-			},
-		});
-	}
-
-	const admissionUrl = new URL(
-		`/api/docs/collections/${encodeURIComponent(input.target.corpus)}/${encodeURIComponent(
-			input.target.collection,
-		)}/documents/${encodeURIComponent(input.target.documentSlug)}/admission?version=${encodeURIComponent(input.target.versionSlug)}`,
-		input.env.APP_API_BASE_URL,
-	);
-	const headers = new Headers();
-	for (const headerName of ["cookie", "authorization", "x-trace-id"]) {
-		const value = input.request.headers.get(headerName);
-		if (value) {
-			headers.set(headerName, value);
-		}
-	}
-	const releaseId = resolveDocsReleaseId(input.env);
-	if (!releaseId) {
-		return dependencyNotReadyResponse();
-	}
-	headers.set(DOCS_RELEASE_HEADER, releaseId);
-
-	let response: Response;
-	try {
-		response = await input.env.APP_API.fetch(
-			new Request(admissionUrl.toString(), {
-				headers,
-				method: "GET",
-			}),
-		);
-	} catch {
-		return jsonResponse(503, {
-			error: {
-				code: "dependency_not_ready",
-				message: "服务暂不可用，请稍后再试。",
-			},
-		});
-	}
-
-	if (response.status === 204) {
-		return null;
-	}
-	if (response.status >= 500) {
-		return withVaryAuth(dependencyNotReadyResponse());
-	}
-
-	return withVaryAuth(
-		jsonResponse(404, { error: { code: "not_found", message: "Route not found." } }),
-	);
-}
-
-function isDocsApiPath(pathname: string): boolean {
-	return pathname === "/api/docs/readyz" || pathname.startsWith("/api/docs/collections/");
-}
-
-function resolveDocsReleaseId(env: Env): string | null {
-	const value = env.DOCS_RELEASE_ID?.trim() ?? "";
-	return DOCS_RELEASE_ID_PATTERN.test(value) ? value : null;
-}
-
-function parseProtectedReaderTarget(
-	pathname: string,
-	prefix: "_gated-docs" | "_gated-docs-search",
-): {
-	collection: string;
-	corpus: string;
-	documentSlug: string;
-	versionSlug: string;
-} | null {
-	const segments = pathname.split("/").filter(Boolean);
-	if (segments.length < 6 || segments[0] !== prefix) {
-		return null;
-	}
-	const [, corpus, collection, documentSlug, versionSlug] = segments;
-	if (!(corpus && collection && documentSlug && versionSlug)) {
-		return null;
-	}
-
-	try {
-		return {
-			collection: decodeURIComponent(collection),
-			corpus: decodeURIComponent(corpus),
-			documentSlug: decodeURIComponent(documentSlug),
-			versionSlug: decodeURIComponent(versionSlug),
-		};
-	} catch {
-		return null;
-	}
 }
 
 function injectCampusRuntimeConfig(html: string, request: Request, env: Env): string {
@@ -833,28 +540,6 @@ function dependencyNotReadyResponse(): Response {
 function isStreamingResponse(headers: Headers): boolean {
 	const contentType = headers.get("content-type")?.toLowerCase() ?? "";
 	return contentType.includes("text/event-stream");
-}
-
-function withVaryAuth(response: Response): Response {
-	const headers = new Headers(response.headers);
-	const existing = headers.get("vary");
-	const existingParts = existing
-		? existing
-				.split(",")
-				.map((part) => part.trim())
-				.filter(Boolean)
-		: [];
-	for (const headerName of ["Cookie", "Authorization"]) {
-		if (!existingParts.some((part) => part.toLowerCase() === headerName.toLowerCase())) {
-			existingParts.push(headerName);
-		}
-	}
-	headers.set("vary", existingParts.join(", "));
-	return new Response(response.body, {
-		headers,
-		status: response.status,
-		statusText: response.statusText,
-	});
 }
 
 export { CAMPUS_ALLOWED_APP_API_PATHS } from "./platform/worker-proxy/allowlist";

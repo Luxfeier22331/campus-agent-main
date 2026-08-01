@@ -7,7 +7,6 @@ import type { CampusExperienceService } from "../modules/campus-experience";
 import type { CampusGroupsService } from "../modules/campus-groups";
 import type { ChatConversationService } from "../modules/chat";
 import type { DiningContentService, DiningMapReadService } from "../modules/dining";
-import type { DocsService } from "../modules/docs";
 import type { EmailAccessService } from "../modules/email-access";
 import type { ProfileMemoryService } from "../modules/profile-memory";
 import type { ChatCommandService } from "../modules/runtime-command";
@@ -29,9 +28,7 @@ export interface AppDependencies {
 	chatCommandService?: ChatCommandService;
 	diningMapReadService?: DiningMapReadService;
 	diningContentService?: DiningContentService;
-	docsService?: DocsService;
 	emailAccessService?: EmailAccessService;
-	docsReadinessProbe?: (releaseId: string) => Promise<AppDocsReadinessResult>;
 	getAppAuth?: AppAuthGetter;
 	getPrincipal?: (
 		request: Request,
@@ -42,16 +39,6 @@ export interface AppDependencies {
 	runtimeReadinessProbe?: () => Promise<AppRuntimeReadinessResult>;
 	runtimeRunService?: RuntimeRunService;
 	telemetry?: AppTelemetry;
-}
-
-type AppDocsDependencyName = "auth" | "database" | "docsReadModel";
-export interface AppDocsReadinessResult {
-	dependencies: {
-		auth: "ready" | "not_ready";
-		database: "ready" | "not_ready";
-		docsReadModel: "ready" | "not_ready";
-	};
-	failed: Partial<Record<AppDocsDependencyName, string>>;
 }
 
 type AppRuntimeDependencyName = "auth" | "database";
@@ -73,7 +60,6 @@ export interface AppRequestScope {
 	resolveChatConversationService(): ChatConversationService;
 	resolveDiningMapReadService(): DiningMapReadService;
 	resolveDiningContentService(): DiningContentService;
-	resolveDocsService(): DocsService;
 	resolveEmailAccessService(): EmailAccessService;
 	resolveProfileMemoryService(): ProfileMemoryService;
 	resolveRuntimeRunService(): RuntimeRunService;

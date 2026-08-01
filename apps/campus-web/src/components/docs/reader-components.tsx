@@ -1,4 +1,17 @@
 import {
+	Button,
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@campus-agent/ui";
+import { History, Link as LinkIcon } from "lucide-react";
+import {
 	type ComponentProps,
 	createContext,
 	type ReactNode,
@@ -9,7 +22,6 @@ import {
 	useState,
 } from "react";
 
-import { fetchDocsVersionControlPayload } from "@/docs/reader/reader-version-controls";
 import {
 	buildVersionReaderHref,
 	parseReaderLocationState,
@@ -49,15 +61,13 @@ export function ReaderDocument({
 	as = "div",
 	children,
 	className,
-	layout,
-	measure,
+	locationHref,
 	permalinkRootUnitIds = {},
 }: {
 	as?: "article" | "div";
 	children: ReactNode;
 	className?: string;
-	layout: "article" | "landing" | "reference" | "tabular";
-	measure: "full" | "standard" | "wide";
+	locationHref?: string;
 	permalinkRootUnitIds?: Readonly<Record<string, string>>;
 }) {
 	const [locationState, setLocationState] = useState<ReaderLocationState>(EMPTY_READER_STATE);
@@ -72,6 +82,12 @@ export function ReaderDocument({
 			window.removeEventListener("popstate", updateLocationState);
 		};
 	}, []);
+
+	useEffect(() => {
+		if (locationHref) {
+			setLocationState(parseReaderLocationState(locationHref));
+		}
+	}, [locationHref]);
 
 	useEffect(() => {
 		if (!locationState.anchor) {
@@ -95,16 +111,7 @@ export function ReaderDocument({
 	const Element = as;
 	return (
 		<ReaderContext.Provider value={context}>
-			<Element
-				className={[
-					"docs-reader-document",
-					`docs-reader-layout-${layout}`,
-					`docs-reader-measure-${measure}`,
-					className,
-				]
-					.filter(Boolean)
-					.join(" ")}
-			>
+			<Element className={["docs-reader-document", className].filter(Boolean).join(" ")}>
 				{children}
 			</Element>
 		</ReaderContext.Provider>
@@ -153,9 +160,17 @@ export function ReaderHeading({
 		React.JSX.IntrinsicElements,
 		"h1" | "h2" | "h3" | "h4" | "h5" | "h6"
 	>;
+	const { locationState } = useContext(ReaderContext);
+	const highlighted = Boolean(
+		rootUnitId && locationState.highlightRootUnitIds.includes(rootUnitId),
+	);
 	return (
 		<div className="docs-reader-heading-row">
-			<Heading aria-label={title} className="rp-toc-include" id={anchor}>
+			<Heading
+				aria-label={title}
+				className={highlighted ? "docs-toc-heading docs-reader-highlight" : "docs-toc-heading"}
+				id={anchor}
+			>
 				{children ?? title}
 			</Heading>
 			<ReaderPermalink anchor={anchor} rootUnitId={rootUnitId} title={title} />
@@ -210,14 +225,23 @@ export function ReaderPermalink({
 
 	return (
 		<span className="docs-reader-heading-actions" data-docs-copy-link-for={anchor}>
-			<button
-				aria-label={`复制“${title}”链接`}
-				className="docs-reader-copy-link-button"
-				onClick={() => void copyPermalink()}
-				type="button"
-			>
-				#
-			</button>
+			<TooltipProvider delayDuration={300}>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							aria-label={`复制“${title}”链接`}
+							className="text-[var(--sys-text-subtle)] hover:text-[var(--docs-accent)]"
+							onClick={() => void copyPermalink()}
+							size="icon-lg"
+							type="button"
+							variant="ghost"
+						>
+							<LinkIcon aria-hidden="true" className="size-4" />
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent side="top">复制链接</TooltipContent>
+				</Tooltip>
+			</TooltipProvider>
 			<span
 				aria-live="polite"
 				className="docs-reader-copy-link-status"
@@ -230,66 +254,54 @@ export function ReaderPermalink({
 }
 
 export function ReaderDocumentMeta({
-	accessLabel,
 	collection,
 	collectionLabel,
 	corpus,
 	documentSlug,
 	isCurrent,
+	onVersionNavigate,
 	routeSlug,
-	searchVisibility,
 	sourceLabel,
+	topicLabel,
 	versionLabel,
 	versionSlug,
 	versions,
 }: {
-	accessLabel?: string;
 	collection: string;
 	collectionLabel: string;
 	corpus: string;
 	documentSlug: string;
 	isCurrent: boolean;
+	onVersionNavigate?: (href: string) => void;
 	routeSlug: string;
-	searchVisibility: string;
 	sourceLabel: string;
+	topicLabel: string | null;
 	versionLabel: string;
 	versionSlug: string;
 	versions?: ReaderVersion[];
 }) {
-	const { locationState } = useContext(ReaderContext);
-	const [resolvedVersions, setResolvedVersions] = useState<ReaderVersion[] | null>(
-		versions ?? null,
-	);
-	const [versionError, setVersionError] = useState(false);
+	const resolvedVersions = versions ?? [];
+	const hasMultipleVersions = resolvedVersions.length > 1;
 
-	useEffect(() => {
-		if (versions) {
-			setResolvedVersions(versions);
-			setVersionError(false);
+	function selectVersion(nextVersionSlug: string) {
+		const version = resolvedVersions.find((item) => item.versionSlug === nextVersionSlug);
+		if (!version) {
 			return;
 		}
-		const controller = new AbortController();
-		void fetchDocsVersionControlPayload({
+		const href = buildVersionReaderHref({
 			collection,
 			corpus,
 			documentSlug,
-			signal: controller.signal,
-		})
-			.then((payload) => {
-				if (!controller.signal.aborted) {
-					setResolvedVersions(payload.versions);
-					setVersionError(false);
-				}
-			})
-			.catch(() => {
-				if (!controller.signal.aborted) {
-					setVersionError(true);
-				}
-			});
-		return () => {
-			controller.abort();
-		};
-	}, [collection, corpus, documentSlug, versions]);
+			isCurrent: version.isCurrent,
+			routeSlug,
+			versionSlug: version.versionSlug,
+		});
+		if (onVersionNavigate) {
+			onVersionNavigate(href);
+			return;
+		}
+		window.location.assign(href);
+	}
 
 	return (
 		<section
@@ -301,80 +313,77 @@ export function ReaderDocumentMeta({
 			data-docs-is-current={String(isCurrent)}
 			data-docs-reader-meta="true"
 			data-docs-route-slug={routeSlug}
-			data-docs-search-visibility={searchVisibility}
+			data-docs-multiple-versions={String(hasMultipleVersions)}
 			data-docs-version-slug={versionSlug}
-			data-docs-versions={
-				resolvedVersions ? JSON.stringify({ versions: resolvedVersions }) : undefined
-			}
+			data-docs-versions={JSON.stringify({ versions: resolvedVersions })}
 		>
 			<p className="document-meta-summary">
-				<span>{versionLabel}</span>
-				{accessLabel ? <span>{accessLabel}</span> : null}
+				{hasMultipleVersions ? null : <span>{versionLabel}</span>}
+				{topicLabel ? <span>主题：{topicLabel}</span> : null}
 				<span>来源：{sourceLabel}</span>
 			</p>
-			{resolvedVersions && resolvedVersions.length > 1 ? (
-				<nav aria-label="文档版本" className="docs-version-switcher">
-					<span className="docs-version-switcher-label">版本</span>
-					{resolvedVersions.map((version) =>
-						version.versionSlug === versionSlug ? (
-							<span
-								aria-current="page"
-								className="docs-version-switcher-item"
-								key={version.versionSlug}
-							>
-								{version.label}
-							</span>
-						) : (
-							<a
-								className="docs-version-switcher-item"
-								href={buildVersionReaderHref({
-									collection,
-									corpus,
-									documentSlug,
-									isCurrent: version.isCurrent,
-									readerState: locationState,
-									routeSlug,
-									versionSlug: version.versionSlug,
-								})}
-								key={version.versionSlug}
-							>
-								{version.label}
-							</a>
-						),
-					)}
-				</nav>
-			) : null}
-			{isCurrent ? null : (
-				<p className="docs-reader-status docs-version-history-warning" role="status">
-					正在阅读历史版本，请以当前版为准。
-				</p>
-			)}
-			{versionError ? (
-				<p className="docs-reader-status docs-version-switcher-error" role="status">
-					文档版本信息暂不可用。
-				</p>
-			) : null}
-			<details className="document-meta-details">
-				<summary>来源详情</summary>
-				<dl>
-					<MetaDetail label="文档集合" value={collectionLabel} />
-					<MetaDetail label="版本" value={versionLabel} />
-					<MetaDetail label="来源" value={sourceLabel} />
-				</dl>
-			</details>
+			<div className="document-meta-controls">
+				{isCurrent ? null : (
+					<p
+						aria-label="正在阅读历史版本，请以当前版为准。"
+						className="docs-reader-status docs-version-history-warning"
+						role="status"
+						title="正在阅读历史版本，请以当前版为准。"
+					>
+						历史版本
+					</p>
+				)}
+				{hasMultipleVersions ? (
+					<div className="docs-version-switcher">
+						<Select name="docs-version" onValueChange={selectVersion} value={versionSlug}>
+							<SelectTrigger aria-label="选择文档版本" className="docs-version-trigger">
+								<History aria-hidden="true" />
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent className="docs-version-menu">
+								{resolvedVersions.map((version) => (
+									<SelectItem
+										className="docs-version-option"
+										key={version.versionSlug}
+										value={version.versionSlug}
+									>
+										{version.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</div>
+				) : null}
+				<details className="document-meta-details">
+					<summary>来源详情</summary>
+					<dl>
+						{topicLabel ? <MetaDetail label="主题" value={topicLabel} /> : null}
+						<MetaDetail label="文档集合" value={collectionLabel} />
+						<MetaDetail label="版本" value={versionLabel} />
+						<MetaDetail label="来源" value={sourceLabel} />
+					</dl>
+				</details>
+			</div>
 		</section>
 	);
 }
 
 export function ReaderTable({ rows }: { rows: ReaderTableCell[][] }) {
 	const expandedRows = expandTableRows(rows);
+	const hasHeaderRow = rows[0]?.some((cell) => cell.tag === "th") ?? false;
+	const hasMergedCells = rows.some((row) =>
+		row.some((cell) => (cell.colSpan ?? 1) > 1 || (cell.rowSpan ?? 1) > 1),
+	);
 	const headers = expandedRows[0] ?? [];
-	const dataRows = expandedRows.slice(1).filter((row) => row.some(Boolean));
-	const renderCards = shouldRenderMobileCards(headers, dataRows);
+	const dataRows = (hasHeaderRow ? expandedRows.slice(1) : expandedRows).filter((row) =>
+		row.some(Boolean),
+	);
+	const renderCards = hasHeaderRow && shouldRenderMobileCards(headers, dataRows);
 	return (
 		<div
 			className="docs-table-scroll"
 			data-docs-scrollable="true"
+			data-docs-sticky-first-column={hasMergedCells ? "false" : "true"}
 			data-docs-table-kind={renderCards ? "mobile-cards" : "wide-scroll"}
 		>
 			{renderCards ? <ReaderTableCards dataRows={dataRows} headers={headers} /> : null}
@@ -388,7 +397,7 @@ export function ReaderTable({ rows }: { rows: ReaderTableCell[][] }) {
 									<Cell
 										colSpan={cell.colSpan}
 										key={cellKey(cell, columnIndex)}
-										role={rowIndex === 0 ? "columnheader" : undefined}
+										role={cell.tag === "th" ? "columnheader" : undefined}
 										rowSpan={cell.rowSpan}
 									>
 										{cell.text}
@@ -408,6 +417,7 @@ export function ReaderMarkdownTable(props: ComponentProps<"table">) {
 		<div
 			className="docs-table-scroll"
 			data-docs-scrollable="true"
+			data-docs-sticky-first-column="true"
 			data-docs-table-kind="wide-scroll"
 		>
 			<table {...props} />
@@ -420,21 +430,24 @@ function ReaderTableCards({ dataRows, headers }: { dataRows: string[][]; headers
 	return (
 		<section aria-label="表格移动端按行阅读" className="docs-table-mobile-cards">
 			<div className="docs-table-mobile-card-list">
-				{keyedRows.map(({ item: row, key }, rowIndex) => (
-					<article className="docs-table-mobile-card" key={key}>
-						<p className="docs-table-mobile-card-title">
-							{buildMobileTableRowTitle(headers, row, rowIndex)}
-						</p>
-						<dl>
-							{buildMobileTableRowPairs(headers, row).map(({ header, value }) => (
-								<div key={`${header}\u0000${value}`}>
-									<dt>{header}</dt>
-									<dd>{value}</dd>
-								</div>
-							))}
-						</dl>
-					</article>
-				))}
+				{keyedRows.map(({ item: row, key }, rowIndex) => {
+					const summary = buildMobileTableRowSummary(headers, row, rowIndex);
+					return (
+						<article className="docs-table-mobile-card" key={key}>
+							<p className="docs-table-mobile-card-title">{summary.title}</p>
+							<dl>
+								{buildMobileTableRowPairs(headers, row, summary.titleColumnIndex).map(
+									({ header, value }) => (
+										<div key={`${header}\u0000${value}`}>
+											<dt>{header}</dt>
+											<dd>{value}</dd>
+										</div>
+									),
+								)}
+							</dl>
+						</article>
+					);
+				})}
 			</div>
 		</section>
 	);
@@ -512,6 +525,7 @@ function expandTableRows(rows: ReaderTableCell[][]): string[][] {
 			}
 			columnIndex += colSpan;
 		}
+		consumeRowspans();
 		return expandedRow;
 	});
 }
@@ -527,27 +541,40 @@ function shouldRenderMobileCards(headers: string[], dataRows: string[][]): boole
 	return courseLike && dataRows.length <= 16 && headers.length <= 7;
 }
 
-function buildMobileTableRowTitle(headers: string[], row: string[], rowIndex: number): string {
+function buildMobileTableRowSummary(
+	headers: string[],
+	row: string[],
+	rowIndex: number,
+): { title: string; titleColumnIndex: number | null } {
 	const preferredColumn = headers.findIndex((header) =>
 		/课程名称|课程名|项目|事项|环节|类别|模块|名称|要求|内容/u.test(header),
 	);
 	const preferredValue = normalizeText(row[preferredColumn]);
 	if (preferredColumn >= 0 && /[\p{Script=Han}A-Za-z]/u.test(preferredValue)) {
-		return preferredValue;
+		return { title: preferredValue, titleColumnIndex: preferredColumn };
 	}
-	return (
-		row
-			.slice(0, 4)
-			.map(normalizeText)
-			.find((value) => /[\p{Script=Han}A-Za-z]/u.test(value)) ?? `第 ${rowIndex + 1} 行`
-	);
+	const fallbackColumn = row
+		.slice(0, 4)
+		.map(normalizeText)
+		.findIndex((value) => /[\p{Script=Han}A-Za-z]/u.test(value));
+	return fallbackColumn >= 0
+		? { title: normalizeText(row[fallbackColumn]), titleColumnIndex: fallbackColumn }
+		: { title: `第 ${rowIndex + 1} 行`, titleColumnIndex: null };
 }
 
-function buildMobileTableRowPairs(headers: string[], row: string[]) {
+function buildMobileTableRowPairs(
+	headers: string[],
+	row: string[],
+	titleColumnIndex: number | null,
+) {
 	const pairs: Array<{ header: string; value: string }> = [];
 	const seen = new Set<string>();
-	for (const [columnIndex, rawValue] of row.entries()) {
-		const value = normalizeText(rawValue) || "空";
+	const columnCount = Math.max(headers.length, row.length);
+	for (let columnIndex = 0; columnIndex < columnCount; columnIndex += 1) {
+		if (columnIndex === titleColumnIndex) {
+			continue;
+		}
+		const value = normalizeText(row[columnIndex]) || "未填写";
 		const header = normalizeText(headers[columnIndex]) || "补充说明";
 		const key = `${header}\u0000${value}`;
 		if (!seen.has(key)) {

@@ -1,0 +1,145 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://muc.wiki/campus-agent/schemas/campus-docs-source.v3.schema.json",
+	"title": "校园文档发布来源清单",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["schemaVersion", "collections", "topics", "documents", "versions", "redirects"],
+	"properties": {
+		"schemaVersion": { "const": "campus_docs_source.v3" },
+		"collections": { "type": "array", "items": { "$ref": "#/$defs/Collection" } },
+		"topics": { "type": "array", "items": { "$ref": "#/$defs/Topic" } },
+		"documents": { "type": "array", "items": { "$ref": "#/$defs/Document" } },
+		"versions": { "type": "array", "items": { "$ref": "#/$defs/Version" } },
+		"redirects": { "type": "array", "items": { "$ref": "#/$defs/Redirect" } }
+	},
+	"$defs": {
+		"NonEmptyString": { "type": "string", "minLength": 1, "pattern": "\\S" },
+		"Sha256": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+		"RelativePath": {
+			"type": "string",
+			"minLength": 1,
+			"pattern": "^(?!/)(?!.*\\\\)(?!.*[?#])(?!.*(?:^|/)\\.\\.(?:/|$)).+"
+		},
+		"PathSegment": {
+			"type": "string",
+			"minLength": 1,
+			"pattern": "^(?![.]{1,2}$)(?!.*[/\\\\?#])(?!.*[\\u0000-\\u001f\\u007f]).+"
+		},
+		"ObjectRef": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["key", "sha256", "byteSize"],
+			"properties": {
+				"key": { "$ref": "#/$defs/NonEmptyString" },
+				"sha256": { "$ref": "#/$defs/Sha256" },
+				"byteSize": { "type": "integer", "minimum": 1 }
+			}
+		},
+		"Collection": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["corpus", "collection", "displayName", "description"],
+			"properties": {
+				"corpus": { "$ref": "#/$defs/NonEmptyString" },
+				"collection": { "$ref": "#/$defs/NonEmptyString" },
+				"displayName": { "$ref": "#/$defs/NonEmptyString" },
+				"description": { "type": ["string", "null"] }
+			}
+		},
+		"Topic": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["corpus", "topicId", "displayName", "description", "order"],
+			"properties": {
+				"corpus": { "$ref": "#/$defs/NonEmptyString" },
+				"topicId": { "$ref": "#/$defs/NonEmptyString" },
+				"displayName": { "$ref": "#/$defs/NonEmptyString" },
+				"description": { "type": ["string", "null"] },
+				"order": { "type": "integer", "minimum": 1 }
+			}
+		},
+		"Document": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"docId",
+				"corpus",
+				"collection",
+				"documentSlug",
+				"title",
+				"topicId",
+				"currentVersionId",
+				"currentVersionSlug"
+			],
+			"properties": {
+				"docId": { "$ref": "#/$defs/NonEmptyString" },
+				"corpus": { "$ref": "#/$defs/NonEmptyString" },
+				"collection": { "$ref": "#/$defs/NonEmptyString" },
+				"documentSlug": { "$ref": "#/$defs/NonEmptyString" },
+				"title": { "$ref": "#/$defs/NonEmptyString" },
+				"topicId": { "type": ["string", "null"], "minLength": 1 },
+				"currentVersionId": { "$ref": "#/$defs/NonEmptyString" },
+				"currentVersionSlug": { "$ref": "#/$defs/PathSegment" }
+			}
+		},
+		"Version": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"versionId",
+				"docId",
+				"versionSlug",
+				"label",
+				"isCurrent",
+				"effectiveFrom",
+				"updatedAt",
+				"sourceLabel",
+				"reader",
+				"supplements"
+			],
+			"properties": {
+				"versionId": { "$ref": "#/$defs/NonEmptyString" },
+				"docId": { "$ref": "#/$defs/NonEmptyString" },
+				"versionSlug": { "$ref": "#/$defs/PathSegment" },
+				"label": { "$ref": "#/$defs/NonEmptyString" },
+				"isCurrent": { "type": "boolean" },
+				"effectiveFrom": { "type": ["string", "null"] },
+				"updatedAt": { "$ref": "#/$defs/NonEmptyString" },
+				"sourceLabel": { "$ref": "#/$defs/NonEmptyString" },
+				"reader": { "$ref": "#/$defs/ObjectRef" },
+				"supplements": { "type": "array", "items": { "$ref": "#/$defs/Supplement" } }
+			}
+		},
+		"Supplement": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["kind", "path", "object", "assets"],
+			"properties": {
+				"kind": { "const": "course_maps" },
+				"path": { "const": "course-maps.json" },
+				"object": { "$ref": "#/$defs/ObjectRef" },
+				"assets": { "type": "array", "items": { "$ref": "#/$defs/SupplementAsset" } }
+			}
+		},
+		"SupplementAsset": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["path", "object"],
+			"properties": {
+				"path": { "$ref": "#/$defs/RelativePath" },
+				"object": { "$ref": "#/$defs/ObjectRef" }
+			}
+		},
+		"Redirect": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["fromPath", "toPath", "statusCode"],
+			"properties": {
+				"fromPath": { "type": "string", "pattern": "^/docs(?:/|$)[^?#]*$" },
+				"toPath": { "type": "string", "pattern": "^/docs(?:/|$)[^?#]*$" },
+				"statusCode": { "const": 308 }
+			}
+		}
+	}
+}

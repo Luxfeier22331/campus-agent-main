@@ -8,7 +8,6 @@ export interface VersionReaderHrefInput {
 	corpus: string;
 	documentSlug: string;
 	isCurrent: boolean;
-	readerState: ReaderLocationState;
 	routeSlug: string;
 	versionSlug: string;
 }
@@ -28,14 +27,7 @@ export function buildVersionReaderHref(input: VersionReaderHrefInput): string {
 	const versionPath = input.isCurrent
 		? basePath
 		: `${basePath}/v/${encodeURIComponent(input.versionSlug)}`;
-	const highlight = input.readerState.highlightRootUnitIds
-		.map((item) => item.trim())
-		.filter(Boolean)
-		.map(encodeURIComponent)
-		.join(",");
-	const query = highlight ? `?hl=${highlight}` : "";
-	const hash = input.readerState.anchor ? `#${encodeURIComponent(input.readerState.anchor)}` : "";
-	return `${versionPath}${query}${hash}`;
+	return versionPath;
 }
 
 function parseHighlightRootUnitIds(value: string): string[] {

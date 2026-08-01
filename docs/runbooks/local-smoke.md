@@ -27,11 +27,19 @@ pnpm --dir apps/campus-web test:worker -- --reporter=verbose
 
 ```bash
 pnpm --dir apps/campus-web test:node:fast
-pnpm --dir apps/campus-web build:docs:fixture
+pnpm --dir apps/campus-web build:test
 pnpm dev
 ```
 
-`build:docs:fixture` 使用仓库内无凭据 manifest 和 reader assets，不读取数据库或对象存储。根 `pnpm dev` 首次运行时自动执行 `pnpm dev:init`，随后同时启动 Campus Web、app-api 和包含 Node API 的 Ops Web。命令输出当前 worktree 的三个 URL；Dining 学生端、运维编辑器和持久化数据库使用同一个实例。
+`build:test` 只供浏览器回归使用确定性测试内容。Campus Web 的正常开发和构建读取对象存储固定键
+`campus-docs/source.json`；在运行 `pnpm dev` 前，向
+`env/commands/campus-docs-source.env` 注入对象存储地址和派生桶凭据。根命令首次运行时自动执行
+`pnpm dev:init`，随后同时启动 Campus Web、app-api 和包含 Node API 的 Ops Web。命令输出当前
+worktree 的三个 URL；Dining 学生端、运维编辑器和持久化数据库使用同一个实例。
+
+文档准备进程读取对象存储配置并生成按来源摘要命名的本地目录；随后启动的 Vite 进程只接收该目录、
+构建目标和页面运行所需配置，不接收对象存储凭据。没有对象存储访问时，应使用 `build:test` 和
+Worker fixture 检查，不要把测试环境改成读取远端文档。
 
 初始化失败时运行：
 

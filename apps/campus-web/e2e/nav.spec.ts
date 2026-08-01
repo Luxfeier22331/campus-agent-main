@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { DEFAULT_DOCS_READER_PATH } from "../src/platform/navigation/product-nav";
+import { DOCS_HOME_PATH } from "../src/platform/navigation/product-nav";
 import { mockCampusApi } from "./support/api-mocks";
 
 test.describe("product navigation browser flow", () => {
@@ -70,7 +70,7 @@ test.describe("product navigation browser flow", () => {
 		await expect(trigger).toBeFocused();
 	});
 
-	test("exposes the canonical docs reader entry without opening it in the Vite lane", async ({
+	test("links to the native docs directory without opening it in the Vite lane", async ({
 		page,
 	}) => {
 		await page.goto("/");
@@ -78,6 +78,6 @@ test.describe("product navigation browser flow", () => {
 			.getByRole("navigation", { name: "产品导航" })
 			.getByRole("link", { name: "文档" });
 
-		await expect(docsLink).toHaveAttribute("href", DEFAULT_DOCS_READER_PATH);
+		await expect(docsLink).toHaveAttribute("href", DOCS_HOME_PATH);
 	});
 });

@@ -7,22 +7,26 @@ describe("campus web browser test boundaries", () => {
 
 		expect(config).toContain('testIgnore: ["worker/**"]');
 		expect(config).toContain("CAMPUS_WEB_E2E_PREBUILT");
-		expect(config).toContain("pnpm run build:app");
+		expect(config).toContain("pnpm run build:test");
 		expect(config).toContain("vite preview");
 		expect(config).not.toContain("vite --host");
 		expect(config).toContain("failOnFlakyTests: isCI");
 	});
 
-	it("builds or consumes the same credential-free Rspress reader fixture", () => {
-		const globalSetup = readFileSync("e2e/worker/global-setup.ts", "utf8");
+	it("uses the same prebuilt test Worker for browser boundaries", () => {
+		const workerConfig = readFileSync("e2e.worker.config.ts", "utf8");
 		const turboConfig = readFileSync("turbo.json", "utf8");
 
-		expect(globalSetup).toContain('"build:docs:fixture"');
-		expect(globalSetup).toContain("CAMPUS_WEB_E2E_DOCS_PREBUILT");
-		expect(globalSetup).toContain('"public/_docs-static"');
-		expect(globalSetup).not.toContain("prepare-docs-fixture");
-		expect(turboConfig).toContain('"build:docs:fixture"');
-		expect(turboConfig).toContain('"public/_docs-static/**"');
+		expect(workerConfig).toContain("CAMPUS_WEB_E2E_PREBUILT");
+		expect(workerConfig).toContain("CLOUDFLARE_ENV=local pnpm run build:test &&");
+		expect(workerConfig).toContain("pnpm exec wrangler dev --config dist/campus_web/wrangler.json");
+		expect(workerConfig).toContain("--var APP_API_BASE_URL:http://127.0.0.1:27031");
+		expect(workerConfig).toContain("e2e/support/app-api-stub.ts");
+		expect(workerConfig).not.toContain("globalSetup");
+		expect(workerConfig).not.toContain("pnpm exec vite --host");
+		expect(turboConfig).toContain('"build:test"');
+		expect(turboConfig).toContain('".generated/docs-content/sources/**"');
+		expect(turboConfig).not.toContain("_docs-static");
 	});
 
 	it("keeps browser regressions outside automatic PR checks and available on demand", () => {
@@ -36,9 +40,9 @@ describe("campus web browser test boundaries", () => {
 		expect(prWorkflow).toContain("Run repository checks");
 		expect(prWorkflow).not.toContain("playwright");
 		expect(prWorkflow).not.toContain("test:e2e");
+		expect(prWorkflow).not.toContain("OBJECT_STORE_");
 		expect(browserJob).toContain('CAMPUS_WEB_E2E_PREBUILT: "1"');
-		expect(browserJob).toContain('CAMPUS_WEB_E2E_DOCS_PREBUILT: "1"');
-		expect(browserJob).toContain("turbo run build:docs:fixture");
+		expect(browserJob).toContain("CLOUDFLARE_ENV=local pnpm turbo run build:worker");
 		expect(browserJob).toContain("test:e2e:full");
 		expect(browserJob).toContain("apps/ops-web test:browser");
 		expect(browserJob).toContain("actions/upload-artifact@");

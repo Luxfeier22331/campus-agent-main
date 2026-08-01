@@ -22,4 +22,20 @@ describe("campus worker runtime smoke", () => {
 			},
 		});
 	});
+
+	it("serves registered application routes through the explicit index shell", async () => {
+		for (const method of ["GET", "HEAD"] as const) {
+			const response = await SELF.fetch("https://campus.muc.wiki/map", {
+				headers: { accept: "text/html" },
+				method,
+			});
+			expect(response.status).toBe(200);
+			expect(response.headers.get("content-type")).toContain("text/html");
+			if (method === "GET") {
+				await expect(response.text()).resolves.toContain('id="root"');
+			} else {
+				await expect(response.text()).resolves.toBe("");
+			}
+		}
+	});
 });

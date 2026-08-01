@@ -31,7 +31,6 @@ export const CAMPUS_ALLOWED_APP_API_PATHS = [
 	"/api/chat/conversations/search",
 	"/api/chat/requests",
 	"/api/chat/requests/stream",
-	"/api/docs/readyz",
 	"/api/campus-groups/catalog",
 	"/api/campus-map/places",
 	"/api/dining",
@@ -57,11 +56,6 @@ export function isAllowedCampusAppApiRequest(pathname: string): boolean {
 		/^\/api\/chat\/runs\/[^/]+\/events\/stream$/.test(pathname) ||
 		/^\/api\/chat\/runs\/[^/]+\/cancel$/.test(pathname) ||
 		/^\/api\/me\/profile-memory\/items\/[^/]+$/.test(pathname) ||
-		/^\/api\/docs\/collections\/[^/]+\/[^/]+\/navigation$/.test(pathname) ||
-		/^\/api\/docs\/collections\/[^/]+\/[^/]+\/documents\/[^/]+$/.test(pathname) ||
-		/^\/api\/docs\/collections\/[^/]+\/[^/]+\/documents\/[^/]+\/resolve$/.test(pathname) ||
-		/^\/api\/docs\/collections\/[^/]+\/[^/]+\/documents\/[^/]+\/versions$/.test(pathname) ||
-		/^\/api\/docs\/collections\/[^/]+\/[^/]+\/documents\/[^/]+\/admission$/.test(pathname) ||
 		/^\/api\/campus-map\/places\/[^/]+$/.test(pathname) ||
 		/^\/api\/dining\/floorplans\/[0-9a-f]{64}\.svg$/.test(pathname) ||
 		/^\/api\/dining\/windows\/[^/]+\/menu$/.test(pathname) ||

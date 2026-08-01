@@ -17,17 +17,15 @@ schema 定义，连接拓扑见 `../architecture/system/data-plane.md`，部署�
 | 角色 | 运行所有者 | 权限边界 |
 | --- | --- | --- |
 | `campus_agent` | 数据库 bootstrap | schema 安装和授权，不用于常驻运行时 |
-| `app_api` | `apps/app-api` | 产品数据读写、文档发布只读和获准运行摘要读取 |
+| `app_api` | `apps/app-api` | 产品数据读写和获准运行摘要读取 |
 | `execution_control` | `apps/execution-control` | 执行投影、模型配置读写和文档 grounding 准入 |
-| `docs_publish` | `jobs/docs-publish` | `docs.*` 发布写入 |
 | `ops_web` | `apps/ops-web` | 获准运行投影的列级只读访问，以及 Dining 内容维护 |
 
 Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，不共享产品运行时角色。外部
 观测平台不获得产品 PostgreSQL 角色。
 
-表中角色是权限主体，不等于都已具备环境登录凭据。当前数据库 base 将 `docs_publish` 保持为
-`NOLOGIN` 授权主体；只有部署文档发布单元时，才由该发布单元同时交付可登录 DatabaseRole、Secret
-和 Job。`ops_web` 是 Ops Web 的唯一运行角色，Dining 不创建第二个角色或连接。
+表中角色是权限主体，不等于都已具备环境登录凭据。`ops_web` 是 Ops Web 的唯一运行角色，Dining
+不创建第二个角色或连接。
 
 ## Schema 所有权
 
@@ -37,7 +35,6 @@ Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，�
 | `chat.*` | App API 对话模块 | App API、获准 Ops Web 投影 |
 | `profile.*` | App API 账号设置 | App API |
 | `campus_groups.sections`、`campus_groups.groups` | App API 同好群模块 | App API、通过内部接口访问的 Ops Web |
-| `docs.*` | 文档发布任务 | App API、文档读取面 |
 | `runtime.request_observability_fact` | App API 产品终态 | App API |
 | `runtime.agent_*` | execution-control | execution-control |
 | `execution_config.*` | execution-control 配置管理 | execution-control |
@@ -50,6 +47,9 @@ ingestion registry 和来源事实由采集数据所有者维护，不并入产�
 表由 `apps/app-api/src/db/schema/auth.ts` 描述，全部 App API 自有表由 `managed.ts` 汇总，并使用
 `drizzle.app_api_migrations` 这一条 ledger 迁移；Better Auth 运行时不执行 DDL，也不维护第二条
 migration 记录。
+
+公开文档发布只使用对象存储和 Campus Web 构建产物，不拥有产品 PostgreSQL schema 或运行角色。
+旧 `docs.*` schema 由 App API migration 删除，历史 migration 不构成当前所有权。
 
 ## 迁移合同
 

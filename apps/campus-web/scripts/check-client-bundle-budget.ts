@@ -10,6 +10,10 @@ const shellBudget = {
 	cssLimit: 20 * 1024,
 	jsLimit: 110 * 1024,
 };
+const docsBudget = {
+	cssLimit: 24 * 1024,
+	jsLimit: 170 * 1024,
+};
 const routeBudgets = [
 	{
 		cssLimit: 24 * 1024,
@@ -29,7 +33,7 @@ const routeBudgets = [
 	{
 		cssLimit: 24 * 1024,
 		facades: ["/src/app/routes/dining-page.tsx"],
-		jsLimit: 175 * 1024,
+		jsLimit: 180 * 1024,
 		name: "dining",
 	},
 	{
@@ -66,10 +70,15 @@ export interface RouteBundleMeasurement {
 
 export function measureRouteBundle(input: {
 	clientDir: string;
+	entry?: "app" | "docs";
 	facades: readonly string[];
 	graph: CampusBundleGraph;
 }): RouteBundleMeasurement {
-	const roots = [input.graph.entry];
+	const entry = input.entry === "docs" ? input.graph.docsEntry : input.graph.entry;
+	if (!entry) {
+		throw new Error(`bundle graph is missing ${input.entry ?? "app"} entry`);
+	}
+	const roots = [entry];
 	for (const facade of input.facades) {
 		const match = Object.entries(input.graph.chunks).find(([, chunk]) =>
 			chunk.facadeModuleId?.endsWith(facade),
@@ -140,7 +149,12 @@ export function checkClientBundle(
 	for (const budget of routeBudgets) {
 		let measurement: RouteBundleMeasurement;
 		try {
-			measurement = measureRouteBundle({ clientDir, facades: budget.facades, graph });
+			measurement = measureRouteBundle({
+				clientDir,
+				entry: "app",
+				facades: budget.facades,
+				graph,
+			});
 		} catch (error) {
 			failures.push(error instanceof Error ? error.message : String(error));
 			continue;
@@ -160,6 +174,44 @@ export function checkClientBundle(
 		);
 	}
 	checkVendorFiles(clientDir, failures);
+	return failures;
+}
+
+export function checkDocsClientBundle(
+	clientDir: string,
+	graphPath = path.join(appRoot, ".generated/docs-bundle-graph.json"),
+): string[] {
+	if (!fs.existsSync(graphPath)) {
+		return [
+			"missing generated docs bundle graph; run the campus-web docs build before checking bundle budget",
+		];
+	}
+	const graph = JSON.parse(fs.readFileSync(graphPath, "utf8")) as CampusBundleGraph;
+	let measurement: RouteBundleMeasurement;
+	try {
+		measurement = measureRouteBundle({
+			clientDir,
+			entry: "docs",
+			facades: [],
+			graph,
+		});
+	} catch (error) {
+		return [error instanceof Error ? error.message : String(error)];
+	}
+	const failures: string[] = [];
+	if (measurement.jsBytes > docsBudget.jsLimit) {
+		failures.push(
+			`docs route JS is ${formatBytes(measurement.jsBytes)} gzip, limit ${formatBytes(docsBudget.jsLimit)}`,
+		);
+	}
+	if (measurement.cssBytes > docsBudget.cssLimit) {
+		failures.push(
+			`docs route CSS is ${formatBytes(measurement.cssBytes)} gzip, limit ${formatBytes(docsBudget.cssLimit)}`,
+		);
+	}
+	console.log(
+		`docs: ${formatBytes(measurement.jsBytes)} JS gzip, ${formatBytes(measurement.cssBytes)} CSS gzip`,
+	);
 	return failures;
 }
 

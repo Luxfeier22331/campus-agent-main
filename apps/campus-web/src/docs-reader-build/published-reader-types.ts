@@ -1,82 +1,97 @@
-export interface ReaderObjectStoreClient {
-	readOptionalBytesObject(input: { key: string }): Promise<Uint8Array | undefined>;
-	readTextObject(input: { key: string }): Promise<string>;
+export interface PublishedObjectRef {
+	byteSize: number;
+	key: string;
+	sha256: `sha256:${string}`;
 }
 
-export type PublishedReaderDeliveryMode = "gated_asset" | "public_static_asset";
+export interface ReaderObjectStoreClient {
+	readOptionalBytesObject(input: { key: string }): Promise<Uint8Array | undefined>;
+}
+
+export interface ReaderObjectStoreWriter extends ReaderObjectStoreClient {
+	writeBytesObject(input: { body: Uint8Array; contentType: string; key: string }): Promise<void>;
+}
+
+export interface PublishedReaderCollection {
+	collection: string;
+	corpus: string;
+	description: string | null;
+	displayName: string;
+}
+
+export interface PublishedReaderTopic {
+	corpus: string;
+	description: string | null;
+	displayName: string;
+	order: number;
+	topicId: string;
+}
+
+export interface PublishedReaderRedirect {
+	fromPath: string;
+	statusCode: 308;
+	toPath: string;
+}
+
+export interface PublishedReaderSupplementAsset {
+	object: PublishedObjectRef;
+	path: string;
+}
+
+export interface PublishedReaderSupplement {
+	assets: PublishedReaderSupplementAsset[];
+	kind: "course_maps";
+	object: PublishedObjectRef;
+	path: "course-maps.json";
+}
 
 export interface PublishedReaderManifestEntry {
 	collection: string;
 	corpus: string;
-	deliveryMode: PublishedReaderDeliveryMode;
 	docId: string;
 	documentSlug: string;
+	effectiveFrom: string | null;
 	isCurrent: boolean;
-	sourceObjects: Record<string, string>;
-	targetObjects: Record<string, string>;
+	reader: PublishedObjectRef;
+	routeSlug: string;
+	sourceLabel: string;
+	supplements: PublishedReaderSupplement[];
 	title: string;
+	topicId: string | null;
+	updatedAt: string;
 	versionId: string;
 	versionLabel: string;
 	versionSlug: string;
 }
 
-export interface RoutedPublishedReaderManifestEntry extends PublishedReaderManifestEntry {
-	routeSlug: string;
-}
-
-export interface PublishedReaderSearchUnit {
-	anchor: string;
-	canonicalUrl: string;
-	collection: string;
-	corpus: string;
-	docId: string;
-	documentSlug: string;
-	documentTitle: string;
-	highlightRootUnitIds: string[];
-	searchUnitId: string;
-	snippet: string;
-	title: string;
-	versionId: string;
-	versionSlug: string;
-}
+export type RoutedPublishedReaderManifestEntry = PublishedReaderManifestEntry;
 
 export interface PublishedReaderManifest {
+	collections: PublishedReaderCollection[];
 	entries: PublishedReaderManifestEntry[];
-	searchUnits: PublishedReaderSearchUnit[];
-}
-
-export type PublishedReaderSyncCommand = "all" | "assets" | "check" | "docs";
-
-export interface PublishedReaderSyncArgs {
-	command: PublishedReaderSyncCommand;
-	manifestFilePath: string;
+	redirects: PublishedReaderRedirect[];
+	topics: PublishedReaderTopic[];
 }
 
 export interface ReaderSyncInput {
 	client: ReaderObjectStoreClient;
 	docsRoot?: string;
-	manifest?: PublishedReaderManifest;
-	manifestFilePath: string;
+	manifest: PublishedReaderManifest;
 	targetRoot?: string;
 }
 
 export interface ReaderSyncDocsResult {
 	generatedDocumentCount: number;
-	generatedGatedDocumentCount: number;
-	generatedPublicDocumentCount: number;
 }
 
 export interface ReaderSyncAssetsResult {
 	copiedAssetCount: number;
 	copiedDocumentCount: number;
-	copiedGatedDocumentCount: number;
-	copiedPublicDocumentCount: number;
 }
 
 export interface ReaderSyncCheckResult {
 	checkedDocumentCount: number;
 	checkedObjectCount: number;
-	checkedProtectedSearchIndexCount: number;
 }
 
 export interface ReaderAssetCopy {
@@ -85,59 +100,6 @@ export interface ReaderAssetCopy {
 	targetObject: string;
 	targetPath: string;
 }
-
-export interface ReaderAssetTarget {
-	filePath: string;
-	targetObject: string;
-	targetPath: string;
-}
-
-export interface CourseMapBlock {
-	blockId: string;
-	parentHeadingHint: string;
-	targetUrl: string;
-	title: string;
-}
-
-export type CourseMapsByHeading = Map<string, CourseMapBlock[]>;
-
-export interface ReaderBlock {
-	kind?: unknown;
-	rootUnitId?: unknown;
-	text?: unknown;
-}
-
-export interface ReaderSection {
-	anchor?: unknown;
-	blocks?: unknown;
-	title?: unknown;
-}
-
-export interface ReaderDocumentPayload {
-	document?: {
-		title?: string;
-	};
-	sections?: ReaderSection[];
-	supplements?: unknown;
-}
-
-export interface ReaderMetaPayload {
-	resolvedVersion?: {
-		label?: string;
-	};
-	source?: {
-		title?: string;
-	};
-	sourceLabel?: string;
-}
-
-export interface ReaderPublicVersion {
-	isCurrent: boolean;
-	label: string;
-	versionSlug: string;
-}
-
-export type EntriesByScope = Map<string, RoutedPublishedReaderManifestEntry[]>;
 
 export type ObjectStoreCredentialMode = "derived";
 

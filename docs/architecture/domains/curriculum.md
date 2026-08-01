@@ -11,8 +11,12 @@ status: active
 培养方案领域维护专业培养方案的版本化正文、章节和表格结构。当前文档范围名为 `curriculum`，逻辑
 collection 为 `curriculum_plan`。
 
-培养方案当前仍是文档，不维护独立课程事实读取模型。专业要求、课程、学期、学分和培养环节等
-问题都必须由同一文档 RAG 的当前 release 提供正文依据。
+培养方案当前仍是文档，不维护独立课程事实读取模型。当前没有正式索引生产者和可供准入的发布数据，
+不得把公开文档页面推导为在线问答能力。
+
+公开阅读发布使用三个独立集合：
+`curriculum/undergraduate`、`curriculum/second_degree` 和 `curriculum/general_education`，分别
+承载本科培养方案、二学位培养方案和通识教育文档。
 
 ## 数据流
 
@@ -33,11 +37,9 @@ knowledge-serving-release.v1 + PostgreSQL current_releases + Qdrant
 ## 读取边界
 
 - Primary Agent 不获得培养方案专用工具；
-- execution-control 只使用准入快照中的当前 `curriculum` release 和物理 Qdrant collection；
-- Qdrant chunk 保存正文、token 数和引用 metadata；
-- Agent 只能引用本轮 `grounding_context.v2` 中的 `evidence://`；
-- 当前在线检索不查询历史培养方案 release；
-- 在线请求不扫描原始文件、私有 artifact 或未发布集合。
+- 文档阅读器按公开集合、规范文档、版本和章节提供固定链接；
+- 来源清单在发布前明确记录每份文档属于哪一个公开集合，发布任务不按标题猜测归类；
+- 在线请求不扫描原始文件、私有 artifact 或未发布派生集合。
 
 范围映射与本地路由词由 `configs/runtime/query-serving-targets.v3.json` 维护，集合配置由
 `configs/ingestion/curriculum/` 维护。

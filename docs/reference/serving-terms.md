@@ -113,13 +113,13 @@ PostgreSQL `current_releases` 是每个 scope 的唯一激活指针。execution-
 
 把在线检索 chunk 写入不可变 Qdrant collection、记录 PostgreSQL release 并推进
 `current_releases` 的离线过程。当前只有消费合同，没有正式索引生产者和发布数据。文档阅读器
-发布完成不等于知识 release 已激活。
+静态文档交付完成不等于知识 release 已激活。
 
 ## 常见混淆
 
 - 工具开放不等于文档 grounding 可用；
 - 文档范围不等于集合、release 或物理 collection；
 - grounding 不属于工具轨迹；
-- 文档阅读器发布不等于检索索引发布；
+- 文档静态交付不等于检索索引发布；
 - 配置、schema 或评测用例存在不代表环境已经部署该能力；
 - Langfuse 中存在 trace 不代表 Temporal workflow 已经成功结束。

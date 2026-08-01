@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { SurfaceState } from "@/components/ui/surface-state";
+
 type DocsBootstrapStatusKind = "loading" | "not_found" | "unauthorized" | "unavailable";
 
 interface DocsBootstrapStatusProps {
@@ -15,16 +17,20 @@ export function DocsBootstrapStatus({
 	kind,
 	title,
 }: DocsBootstrapStatusProps) {
-	const role = kind === "loading" ? "status" : "alert";
 	return (
-		<div
-			aria-busy={kind === "loading" ? true : undefined}
-			className={`reader-bootstrap-status reader-bootstrap-status-${kind}`}
-			role={role}
-		>
-			<h1>{title}</h1>
-			{description ? <p>{description}</p> : null}
-			{action ? <div className="reader-bootstrap-status-actions">{action}</div> : null}
-		</div>
+		<SurfaceState
+			className="reader-bootstrap-status max-w-2xl"
+			description={description}
+			kind={resolveSurfaceStateKind(kind)}
+			primaryAction={action}
+			title={title}
+		/>
 	);
+}
+
+function resolveSurfaceStateKind(kind: DocsBootstrapStatusKind): "error" | "info" | "loading" {
+	if (kind === "loading") {
+		return "loading";
+	}
+	return kind === "unauthorized" ? "info" : "error";
 }

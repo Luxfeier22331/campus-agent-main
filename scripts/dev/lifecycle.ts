@@ -196,7 +196,6 @@ function ensureDatabaseRoles(): void {
 	const roles = [
 		["campus_agent", LOCAL_DEV_DATABASE_PASSWORDS.owner, true],
 		["app_api", LOCAL_DEV_DATABASE_PASSWORDS.appApi, true],
-		["docs_publish", "", false],
 		["execution_control", "", false],
 		["ops_web", LOCAL_DEV_DATABASE_PASSWORDS.opsWeb, true],
 	] as const;
@@ -216,7 +215,7 @@ function createIsolatedResources(profile: LocalDevProfileV1): void {
 		runPsql(
 			[
 				`REVOKE ALL ON DATABASE ${quoteIdentifier(profile.databaseName)} FROM PUBLIC`,
-				...["app_api", "docs_publish", "ops_web"].map(
+				...["app_api", "ops_web"].map(
 					(role) =>
 						`GRANT CONNECT ON DATABASE ${quoteIdentifier(profile.databaseName)} TO ${quoteIdentifier(role)}`,
 				),

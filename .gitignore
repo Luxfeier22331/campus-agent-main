@@ -45,7 +45,6 @@ infra/local/.generated/
 !apps/public-chat-web/vendor/vercel-ai-chatbot/artifacts/**
 tmp/
 docs-*.png
-rspress-*.png
 apps/ops-web/playwright-report/
 apps/ops-web/test-results/
 

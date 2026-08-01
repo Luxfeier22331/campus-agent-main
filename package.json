@@ -51,7 +51,7 @@
 		"ci:rust": "turbo run native:format native:lint native:typecheck native:test --filter=ingestion-kernels-rs --concurrency=1 --summarize",
 		"ci:typescript": "turbo run typecheck test --only --concurrency=1 --summarize",
 		"ci:typescript:full": "turbo run typecheck test --only --concurrency=1 --summarize && pnpm ci:worker && pnpm --dir apps/ops-web build",
-		"ci:worker": "pnpm web:test:worker && pnpm exec turbo run build:worker --filter=app-api --concurrency=1 && pnpm exec turbo run build:app --filter=campus-web --concurrency=1",
+		"ci:worker": "pnpm web:test:worker && pnpm exec turbo run build:worker --filter=app-api --filter=campus-web --concurrency=1",
 		"ci:config": "aqua exec -- actionlint && uvx zizmor==1.27.0 --min-severity=medium .github",
 		"ci:deps": "aqua exec -- osv-scanner scan source --config osv-scanner.toml --format=vertical --verbosity=error --lockfile pnpm-lock.yaml --lockfile uv.lock --lockfile Cargo.lock --lockfile apps/execution-control/go.mod",
 		"predev": "pnpm dev:init",

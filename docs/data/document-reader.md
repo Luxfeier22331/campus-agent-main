@@ -3,148 +3,146 @@ doc_type: data
 owner_boundary: data-plane/document-reader
 status: active
 ---
+
 # 文档阅读器数据模型
 
 ## 文档边界
 
-本文定义文档阅读器、文档站搜索和聊天来源卡片共享的逻辑数据模型，以及 App API 的关系读取
-投影。HTTP 字段和发布包格式由合同维护，精确数据库字段由可执行 schema 维护。
-
-## 数据链位置
+本文定义公开文档阅读、站内搜索和来源卡片共享的标识与数据边界。字段由 JSON Schema 维护，来源
+发布、构建和界面由 Campus Web 维护。
 
 ```text
-来源资料 -> 规范文档 -> 阅读器模型 -> 已发布阅读器资产
-来源资料 -> 规范文档 -> 文档单元 -> 分块 -> 检索索引
+来源资料 -> 整理后的 reader v3、课程图来源与图片 -> campus_docs_source.v3 -> 静态阅读资产
 ```
 
-阅读器和检索可以使用同一份规范文档，但阅读器正文不能来自检索分块。已发布阅读器资产是
-阅读器模型的交付结果，不是另一份文档事实。
+本文不定义知识检索输入、分块、索引或查询准入。
 
 ## 稳定标识
 
-用户定位由两个标识组成：
+- `docId`：一份逻辑文档；
+- `versionId` 与 `versionSlug`：一份文档版本；
+- `routeSlug`：文档公开路由片段；
+- `anchor`：章节内的稳定导航位置；
+- `rootUnitId`：搜索命中、来源卡片和临时高亮使用的正文单元。
 
-- `anchor`：章节内的稳定导航位置，用于 URL 锚点、目录和深链接；
-- `rootUnitId`：稳定正文块，用于搜索命中和来源卡片高亮。
+`chunkId`、对象存储路径和来源文件名不能进入用户 URL。重新分块、更换搜索引擎或修改界面不得改变
+这些公开标识的含义。
 
-`chunkId`、`sourceUnitKey` 和对象存储路径不能进入用户 URL。重新分块、改变搜索引擎或更换
-阅读器界面都不得改变 `docId`、`versionId`、`anchor` 和 `rootUnitId` 的含义。
+## 来源清单
 
-## 逻辑对象
+`campus_docs_source.v3` 是 Campus Web 构建的唯一文档目录输入，包含集合、主题、文档、版本、旧正文
+重定向和来源对象引用。
 
-### 文档标识
+### 集合与主题
 
-字段：`docId`、`documentSlug`、`corpus`、`collection`、`title`、`visibility`。
+集合包含 `corpus`、`collection`、`displayName` 和可选说明。公开培养方案集合为：
 
-- `docId` 标识一份逻辑文档；
-- `documentSlug` 是控制接口中的稳定文档标识，不保证能直接作为浏览器路径；
-- `campus-web` 可以在构建时生成 URL 安全的路径，但该路径不能替代 `documentSlug`；
-- `visibility` 是 `app-api` 已经判定的读取结果，阅读器不自行解释权限。
+- `undergraduate`：本科培养方案；
+- `second_degree`：二学位培养方案；
+- `general_education`：通识教育。
 
-### 文档版本
+规章的 `institutional_rules`、`scoped_rules` 和 `student_rules` 表示来源所有权；公开侧栏再由
+`topics[]` 和文档的 `topicId` 分组。主题只影响阅读目录，不改变集合、文档或版本。
 
-字段：`versionId`、`versionSlug`、`versionLabel`、`isCurrent`、`effectiveFrom`、
-`effectiveTo`、`revisionTrack`。
+### 文档与版本
 
-版本标识来自文档注册与版本数据。无版本链接表示当前可见版本；历史版本必须显式指定。
+文档包含 `docId`、`documentSlug`、所属集合、标题、`currentVersionId` 和
+`currentVersionSlug`。每份文档必须恰好有一个当前版本。
 
-### 目录节点
+版本包含 `versionId`、`versionSlug`、`label`、`isCurrent`、`effectiveFrom`、`updatedAt`、
+来源标签、reader 正文对象引用和补充资产引用。当前版本使用文档固定链接，历史版本在路径中显式包含
+版本短名。
 
-字段：`anchor`、`title`、`depth`、`parentAnchor`、`order`。
+### 对象引用
 
-目录节点只负责章节导航，不包含正文。
+每个来源对象引用包含：
 
-### 阅读器章节
+- `key`：环境 bucket 内的对象键；
+- `byteSize`：精确字节数；
+- `sha256`：带 `sha256:` 前缀的内容摘要。
 
-字段：`anchor`、`title`、`order`、`blocks[]`。
+Campus Web 发布命令和构建都按字节数与摘要核对对象。固定来源清单位于
+`campus-docs/source.json`；规范文档单元、课程图来源和图片由该清单明确引用。
 
-章节是可导航的阅读单位，不等于检索分块。
+## Reader
 
-### 阅读器正文块
+`campus_docs_reader.v3` 是唯一公开正文格式，包含：
 
-字段：`rootUnitId`、`kind`、`text`、`inlineLabels`、`highlighted`。
+- `docId` 与 `versionId`；
+- 按来源阅读顺序保存的 `elements[]`；
+- 本正文使用的补充数据声明。
 
-`kind` 只描述阅读表现，例如 `heading`、`paragraph`、`list` 或 `table`。
+文档标题来自来源清单，不在 reader 内重复保存一级标题。`heading` 元素包含 `anchor`、`level`、
+`rootUnitId` 和 `text`，其中 `level` 只允许 2 至 6。Campus Web 不重排元素、不根据正文生成章节，
+也不从其他对象补全 reader。
 
-### 阅读器固定链接
+正文元素包含 `rootUnitId` 和以下一种结构：
 
-字段：`docId`、`versionId`、`permalink`、`anchor`、`highlightRootUnitIds[]`。
+- `heading`：带稳定锚点和层级的标题；
+- `paragraph`、`list`、`blockquote`：纯文本；
+- `table`：二维单元格、表头标记及可选 `rowSpan`、`colSpan`。
 
-文档搜索和聊天来源卡片都使用该对象作为跳转目标。既有 HTTP 字段 `canonicalUrl` 表示阅读器
-固定链接，不表示 SEO canonical URL。
+Reader 不保存 HTML、检索分块、搜索摘要、集合元数据或对象存储地址。标题和正文是整理流程提供的
+显示文本；Campus Web 只校验其结构和稳定标识。
 
-### 阅读器资产
+## 课程图
 
-字段：`deliveryMode`、`contentUrl`、`outlineUrl`、`integrity`。
+来源清单中的课程图补充数据由提取结果和一个或多个图片组成。Campus Web 构建生成
+`campus_docs_course_maps.v1`，reader 只登记补充类型和入口路径。
 
-`deliveryMode` 当前允许 `public_static_asset` 和 `gated_asset`。该对象说明如何读取已发布
-内容，不暴露对象存储路径；内部对象位置只进入部署同步清单。
+每张逻辑图保存 `mapId`、显示标题、目标 `rootUnitId` 和一个或多个原图切片。切片尺寸从真实图片
+读取，用于浏览器预留版面。浏览器公开数据不包含来源提取节点、边、状态或备注。
 
-### 来源卡片
+同一页、标题和父标题相同且满足相邻条件的图片切片合并为一张逻辑图。课程图关联必须落到 reader
+中已存在的正文单元，不能根据正文语义自由推测。
 
-字段：`documentTitle`、`sectionTitle`、`snippet`、`versionLabel`、`readerTarget`。
+## 浏览器数据
 
-来源卡片只包含浏览器可见摘要和阅读器目标，不包含原始检索分数、分块内部标识、供应商
-响应或来源原始内容。
+Campus Web 从同一来源摘要生成：
 
-## 派生规则
+- `campus_docs_site_index.v4`：主题、集合、文档、版本、reader 地址、内容寻址搜索入口和旧正文
+  重定向；
+- `campus_docs_search_index.v2`：当前版本 reader 派生的章节、摘要和高亮单元；
+- 预渲染 HTML：`/docs`、每个文档版本和专用 404 页面；
+- `/_docs/**`：reader、课程图、图片和索引。
 
-- `anchor` 来自规范文档单元中的 `anchor`；
-- `rootUnitId` 来自规范文档单元中的 `root_unit_id`；
-- `text` 来自规范文本，不从检索分块回写；
-- `versionId` 来自文档注册与版本数据；
-- `contentUrl` 和 `outlineUrl` 来自已发布阅读器资产清单，前端不得猜测路径。
+`/docs` 是唯一目录入口。培养方案集合和规章主题在侧栏和移动端目录中展开，不生成领域或集合目录
+页面。正文与历史版本各自保持固定链接，历史版本不进入普通搜索。
 
-这些字段的写入器和产物路径由 TypeScript 采集与发布实现维护。Python 不负责通用文档导入、
-注册、对象路径或跨语言 DTO。
+站点索引保存标题、版本和 URL。搜索索引只保存 `docId` 和章节级内容，浏览器通过 `docId` 连接两者，
+避免重复维护标题和链接。搜索索引 URL 包含索引精确内容的摘要。
 
-## 可见性
+浏览器先使用 HTML 内的路由数据完成首次显示，再读取同源静态 JSON 增强站内切换。所有数据均公开，
+不需要会话、文档 API 或服务端权限判断。
 
-阅读器模型必须包含 `visibility`、`isCurrent` 和 `versionLabel`，但不得包含原始 JWT、会话、
-验证码、风险状态或检索权限内部字段。
+## 来源卡片
 
-阅读器与聊天检索必须使用同一份版本和可见性结果。阅读器只消费 `app-api` 的准入结果，不
-自行推导用户权限。
+阅读目标包含 `docId`、`versionId`、固定链接、`anchor` 和 `highlightRootUnitIds[]`。来源卡片只
+携带用户可见标题、摘要、版本和阅读目标，不包含检索分数、对象存储位置或供应商响应。
 
-## 搜索与问答
+## 存储边界
 
-文档搜索和聊天来源卡片共享：
+- 对象存储保存固定来源清单及其引用的 reader、课程图来源和图片；
+- Campus Web 构建目录保存本次来源摘要的 reader 副本、课程图、派生索引和预渲染页面；
+- 不可变 Worker version 保存实际对外静态内容；
+- 产品 PostgreSQL 不保存文档投影，也没有文档发布角色；
+- App API 不读取、选择或转发公开文档。
 
-- 文档标题、章节标题和安全摘要；
-- 阅读器固定链接、锚点和高亮标识；
-- 版本标签。
-
-两者都不需要返回整篇阅读器正文，也不能把原始检索轨迹直接发送给浏览器。
-
-## App API 读取模型
-
-`apps/app-api` 使用 `docs.*` 保存浏览器读取所需的关系型投影：
-
-- `docs.releases`：已物化的内容寻址 release 与 manifest identity；
-- `docs.collections`：文档集合名称与展示信息；
-- `docs.documents`：逻辑文档、固定标识和当前版本；
-- `docs.document_versions`：版本、当前标记、可见性和交付方式；
-- `docs.reader_assets`：已发布内容、目录和清单的读取位置；
-- `docs.search_units`：文档站搜索使用的章节命中信息。
-
-除 `docs.releases` 外的表都以 `release_id` 参与主键、外键和查询条件。同一文档身份可以在
-多个 release 中并存；`app-api` 只读取 Worker 指定 release，`docs_publish` 是唯一写入角色。
-
-这些表不是规范文档或对象存储产物的替代品。浏览器响应不得暴露对象存储路径、来源内部
-位置或检索分块标识。
+构建后的最终课程图和站点索引不回写对象存储。旧发布清单、当前版本指针和 App API 文档
+投影不是运行时兼容输入。
 
 ## 不负责
 
-- 来源资料的采集和保存；
-- 数据库迁移和物理表；
-- 检索分块、向量索引和 Qdrant 载荷；
-- 文档站界面和主题；
+- 来源资料采集与保存；
+- 检索分块、向量索引和查询目标准入；
+- 文档站界面样式；
+- Worker 环境版本选择；
 - 运维观测中的原始来源记录。
 
 ## 相关文档
 
 - [文档站架构](../architecture/system/document-site.md)
 - [数据链](../architecture/system/data-plane.md)
-- [文档发布合同](../contracts/document-reader-publish.md)
+- [文档来源与静态交付合同](../contracts/document-reader-delivery.md)
 - [来源卡片](../domains/source-card.md)
 - [文档历史 ADR](../decisions/adr-0014-document-history.md)

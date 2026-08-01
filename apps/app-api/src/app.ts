@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import { defaultDocsReadinessProbe } from "./app/docs-readiness";
 import { defaultRuntimeReadinessProbe } from "./app/readiness";
 import { createRequestScopeFactory } from "./app/request-scope";
 import { registerAppRoutes } from "./app/routes";
@@ -19,9 +18,6 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 	const authHandler = dependencies.authHandler ?? handleAuthRequest;
 	const telemetry = dependencies.telemetry ?? createAppTelemetry(env);
 	const getPrincipal = dependencies.getPrincipal ?? resolveRequestPrincipal;
-	const docsReadinessProbe =
-		dependencies.docsReadinessProbe ??
-		((releaseId: string) => defaultDocsReadinessProbe(env, releaseId));
 	const runtimeReadinessProbe =
 		dependencies.runtimeReadinessProbe ?? (() => defaultRuntimeReadinessProbe(env));
 	const scopedServices = createRequestScopeFactory({
@@ -50,7 +46,6 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 		createRequestScope: scopedServices.createRequestScope,
 		env,
 		getPrincipal,
-		docsReadinessProbe,
 		runtimeReadinessProbe,
 	});
 

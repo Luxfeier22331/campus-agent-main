@@ -42,8 +42,6 @@ status: active
 时同样返回 `503 dependency_not_ready`，`details.failed` 保存不含凭据的摘要，并可附带
 `details.preflight`。
 
-文档阅读器使用独立的 `GET /api/docs/readyz`，其结果不代表聊天执行运行时就绪。
-
 ## 可执行来源
 
 - `apps/app-api/src/app/routes/runtime.ts`

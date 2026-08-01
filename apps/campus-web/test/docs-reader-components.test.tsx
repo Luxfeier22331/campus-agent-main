@@ -1,6 +1,7 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { DocsCourseMapFigure } from "../src/components/docs/docs-reader-view";
 import {
 	ReaderBlock,
 	ReaderDocument,
@@ -20,7 +21,7 @@ describe("declarative docs reader components", () => {
 		vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(() => undefined);
 
 		render(
-			<ReaderDocument layout="reference" measure="wide">
+			<ReaderDocument>
 				<ReaderHeading anchor="a" level={2} rootUnitId="root-a" title="第一段" />
 				<ReaderBlock rootUnitId="root-a">第一段正文</ReaderBlock>
 				<ReaderHeading anchor="b" level={2} rootUnitId="root-b" title="第二段" />
@@ -52,7 +53,7 @@ describe("declarative docs reader components", () => {
 		});
 
 		render(
-			<ReaderDocument layout="article" measure="standard">
+			<ReaderDocument>
 				<ReaderHeading
 					anchor="scholarship"
 					level={2}
@@ -72,11 +73,11 @@ describe("declarative docs reader components", () => {
 		expect(screen.getByRole("status")).toHaveTextContent("已复制链接");
 	});
 
-	it("renders version navigation and a historical-version warning without DOM injection", () => {
+	it("renders a version selector and historical-version warning from route metadata", () => {
 		window.history.replaceState(null, "", "/docs/regulations/student_rules/rules?hl=root-a#a");
 
 		render(
-			<ReaderDocument layout="reference" measure="wide">
+			<ReaderDocument>
 				<ReaderDocumentMeta
 					collection="student_rules"
 					collectionLabel="学生手册"
@@ -84,8 +85,8 @@ describe("declarative docs reader components", () => {
 					documentSlug="rules"
 					isCurrent={false}
 					routeSlug="rules"
-					searchVisibility="noindex"
 					sourceLabel="学生手册"
+					topicLabel="课程与考试"
 					versionLabel="2025 版"
 					versionSlug="2025-history"
 					versions={[
@@ -96,13 +97,20 @@ describe("declarative docs reader components", () => {
 			</ReaderDocument>,
 		);
 
-		expect(screen.getByText("正在阅读历史版本，请以当前版为准。")).toBeInTheDocument();
-		const currentVersion = screen.getByRole("link", { name: "现行版" });
-		expect(currentVersion).toHaveAttribute(
-			"href",
-			"/docs/regulations/student_rules/rules?hl=root-a#a",
+		expect(
+			screen.getByRole("status", { name: "正在阅读历史版本，请以当前版为准。" }),
+		).toHaveTextContent("历史版本");
+		const versionSelector = screen.getByRole("combobox", { name: "选择文档版本" });
+		expect(versionSelector).toHaveTextContent("2025 版");
+		expect(screen.getByLabelText("文档来源与版本")).toHaveAttribute(
+			"data-docs-versions",
+			JSON.stringify({
+				versions: [
+					{ isCurrent: true, label: "现行版", versionSlug: "2026-current" },
+					{ isCurrent: false, label: "2025 版", versionSlug: "2025-history" },
+				],
+			}),
 		);
-		expect(screen.getByText("2025 版", { selector: '[aria-current="page"]' })).toBeInTheDocument();
 	});
 
 	it("renders compact tables as both semantic tables and mobile row cards", () => {
@@ -114,9 +122,11 @@ describe("declarative docs reader components", () => {
 						{ tag: "th", text: "学分" },
 					],
 					[
-						{ tag: "td", text: "社会实践" },
-						{ tag: "td", text: "1" },
+						{ tag: "td", text: "战场医疗救护" },
+						{ rowSpan: 2, tag: "td", text: "0.5" },
 					],
+					[{ tag: "td", text: "志愿服务" }],
+					[{ tag: "td", text: "创新项目" }],
 				]}
 			/>,
 		);
@@ -124,19 +134,93 @@ describe("declarative docs reader components", () => {
 		expect(screen.getByRole("table")).toBeInTheDocument();
 		expect(screen.getByLabelText("表格移动端按行阅读")).toBeInTheDocument();
 		expect(
-			screen.getByText("社会实践", { selector: ".docs-table-mobile-card-title" }),
+			screen.getByText("战场医疗救护", { selector: ".docs-table-mobile-card-title" }),
 		).toBeVisible();
-		expect(screen.getByRole("table").parentElement).toHaveAttribute(
-			"data-docs-table-kind",
-			"mobile-cards",
+		const tableContainer = screen.getByRole("table").parentElement;
+		expect(tableContainer).toHaveAttribute("data-docs-table-kind", "mobile-cards");
+		expect(tableContainer).toHaveAttribute("data-docs-sticky-first-column", "false");
+		const firstMobileCard = tableContainer?.querySelector(".docs-table-mobile-card");
+		expect(firstMobileCard).not.toBeNull();
+		expect(
+			[...(firstMobileCard?.querySelectorAll("dt") ?? [])].map((element) => element.textContent),
+		).toEqual(["学分"]);
+		const rowspanCard = screen
+			.getByText("志愿服务", { selector: ".docs-table-mobile-card-title" })
+			.closest("article");
+		expect(rowspanCard).not.toBeNull();
+		expect(within(rowspanCard as HTMLElement).getByText("0.5")).toBeInTheDocument();
+		const incompleteCard = screen
+			.getByText("创新项目", { selector: ".docs-table-mobile-card-title" })
+			.closest("article");
+		expect(incompleteCard).not.toBeNull();
+		expect(within(incompleteCard as HTMLElement).getByText("未填写")).toBeInTheDocument();
+	});
+
+	it("keeps every row of a table without column headers in the scrollable table", () => {
+		render(
+			<ReaderTable
+				rows={[
+					[
+						{ tag: "td", text: "姓名" },
+						{ tag: "td", text: "学院领导签字" },
+					],
+					[
+						{ tag: "td", text: "学号" },
+						{ tag: "td", text: "补办日期" },
+					],
+					...Array.from({ length: 5 }, (_, index) => [
+						{ tag: "td" as const, text: `字段 ${index + 3}` },
+						{ tag: "td" as const, text: `内容 ${index + 3}` },
+					]),
+				]}
+			/>,
+		);
+
+		const table = screen.getByRole("table");
+		expect(table.parentElement).toHaveAttribute("data-docs-table-kind", "wide-scroll");
+		expect(table.parentElement).toHaveAttribute("data-docs-sticky-first-column", "true");
+		expect(within(table).getAllByRole("row")).toHaveLength(7);
+		expect(within(table).getByText("姓名")).toBeInTheDocument();
+		expect(screen.queryByLabelText("表格移动端按行阅读")).not.toBeInTheDocument();
+		expect(within(table).queryByRole("columnheader")).not.toBeInTheDocument();
+	});
+
+	it("reserves course-map space and opens an in-page original image viewer", async () => {
+		render(
+			<DocsCourseMapFigure
+				courseMap={{
+					mapId: "course-map-1",
+					parts: [
+						{
+							height: 649,
+							imageUrl: "/_docs/course-map.png",
+							partId: "course-map-part-1",
+							width: 1233,
+						},
+					],
+					targetRootUnitId: "course-map-heading",
+					title: "培养方案课程地图",
+				}}
+			/>,
+		);
+
+		const trigger = screen.getByRole("button", { name: /培养方案课程地图\s*查看大图/u });
+		const preview = within(trigger).getByRole("img", { name: "培养方案课程地图" });
+		expect(within(preview).getByRole("presentation")).toHaveAttribute("width", "1233");
+		expect(within(preview).getByRole("presentation")).toHaveAttribute("height", "649");
+
+		fireEvent.click(trigger);
+		const dialog = await screen.findByRole("dialog");
+		expect(within(dialog).getByRole("region", { name: "培养方案课程地图大图" })).toBeVisible();
+		expect(within(dialog).getByRole("link", { name: "打开原始文件" })).toHaveAttribute(
+			"href",
+			"/_docs/course-map.png",
 		);
 	});
 
-	it("shows a local version status when remote metadata is unavailable", async () => {
-		vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("unavailable", { status: 503 }));
-
-		render(
-			<ReaderDocument layout="reference" measure="wide">
+	it("keeps source details open when document metadata rerenders", () => {
+		const renderMeta = (versionLabel: string) => (
+			<ReaderDocument>
 				<ReaderDocumentMeta
 					collection="student_rules"
 					collectionLabel="学生手册"
@@ -144,16 +228,47 @@ describe("declarative docs reader components", () => {
 					documentSlug="rules"
 					isCurrent
 					routeSlug="rules"
-					searchVisibility="public_current"
 					sourceLabel="学生手册"
+					topicLabel="课程与考试"
+					versionLabel={versionLabel}
+					versionSlug="2026-current"
+					versions={[{ isCurrent: true, label: "现行版", versionSlug: "2026-current" }]}
+				/>
+			</ReaderDocument>
+		);
+		const { rerender } = render(renderMeta("现行版"));
+		const details = screen.getByText("来源详情").closest("details");
+		if (!(details instanceof HTMLDetailsElement)) {
+			throw new Error("source details element is missing");
+		}
+
+		fireEvent.click(screen.getByText("来源详情"));
+		expect(details.open).toBe(true);
+
+		rerender(renderMeta("2026 版"));
+		expect(details.open).toBe(true);
+	});
+
+	it("does not render a version selector when only one version is published", () => {
+		render(
+			<ReaderDocument>
+				<ReaderDocumentMeta
+					collection="student_rules"
+					collectionLabel="学生手册"
+					corpus="regulations"
+					documentSlug="rules"
+					isCurrent
+					routeSlug="rules"
+					sourceLabel="学生手册"
+					topicLabel="课程与考试"
 					versionLabel="现行版"
 					versionSlug="2026-current"
+					versions={[{ isCurrent: true, label: "现行版", versionSlug: "2026-current" }]}
 				/>
 			</ReaderDocument>,
 		);
 
-		await expect(screen.findByText("文档版本信息暂不可用。")).resolves.toHaveClass(
-			"docs-version-switcher-error",
-		);
+		expect(screen.queryByRole("combobox", { name: "选择文档版本" })).not.toBeInTheDocument();
+		expect(screen.getByText("来源：学生手册")).toBeInTheDocument();
 	});
 });

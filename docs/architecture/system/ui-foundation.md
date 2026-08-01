@@ -47,7 +47,7 @@ status: active
 - Tailwind v4 负责语义 Token 到工具类的映射，Radix 负责弹层、选择、折叠和 Tabs 等复合交互，
   Lucide 提供通用图标；
 - TanStack Table、Virtual、Router 和 Query 留在使用它们的应用，不由共享包包装业务行为；
-- HeroUI、assistant-ui、Rspress、MapLibre、Recharts 和 tldraw 只在所属领域使用，并在集成边界适配
+- HeroUI、assistant-ui、MapLibre、Recharts 和 tldraw 只在所属领域使用，并在集成边界适配
   共享语义；
 - 语义 HTML 足以正确完成任务时不增加组件依赖；需要焦点限制、键盘状态机或浮层定位时必须使用
   成熟 primitive，不在应用内重新实现。

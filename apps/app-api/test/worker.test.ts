@@ -76,8 +76,6 @@ const retiredExecutionControlAccessClientSecretKeyLocal = [
 	"CLIENT",
 	"SECRET",
 ].join("_");
-const docsReleaseId = `sha256:${"a".repeat(64)}`;
-
 function readTomlBlock(source: string, startMarker: string, endMarker: string): string {
 	const startIndex = source.indexOf(startMarker);
 	if (startIndex < 0) {
@@ -123,17 +121,6 @@ function createRuntimeReadinessResult() {
 		dependencies: {
 			auth: "ready",
 			database: "ready",
-		},
-		failed: {},
-	};
-}
-
-function createDocsReadinessResult() {
-	return {
-		dependencies: {
-			auth: "ready" as const,
-			database: "ready" as const,
-			docsReadModel: "ready" as const,
 		},
 		failed: {},
 	};
@@ -360,7 +347,6 @@ describe("app-api worker foundation", () => {
 
 	it("serves healthz and readyz from the worker shell", async () => {
 		const runtime = createWorkerRuntime(env, {
-			docsReadinessProbe: vi.fn().mockResolvedValue(createDocsReadinessResult()),
 			runtimeReadinessProbe: vi.fn().mockResolvedValue(createRuntimeReadinessResult()),
 		});
 		const health = await runtime.fetch(
@@ -384,36 +370,6 @@ describe("app-api worker foundation", () => {
 			dependencies: {
 				auth: "ready",
 				database: "ready",
-			},
-		});
-	});
-
-	it("serves docs control-plane readiness separately from product runtime readiness", async () => {
-		const runtime = createWorkerRuntime(env, {
-			docsReadinessProbe: vi.fn().mockResolvedValue(createDocsReadinessResult()),
-			runtimeReadinessProbe: vi.fn().mockResolvedValue({
-				dependencies: {
-					auth: "ready",
-					database: "ready",
-				},
-				failed: {},
-			}),
-		});
-
-		const response = await runtime.fetch(
-			new Request("https://app-api.internal/api/docs/readyz", {
-				headers: { "x-campus-docs-release": docsReleaseId },
-			}),
-			createExecutionContext(),
-		);
-
-		expect(response.status).toBe(200);
-		await expect(response.json()).resolves.toEqual({
-			status: "ready",
-			dependencies: {
-				auth: "ready",
-				database: "ready",
-				docsReadModel: "ready",
 			},
 		});
 	});
