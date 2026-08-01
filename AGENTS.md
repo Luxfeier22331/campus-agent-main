@@ -13,6 +13,8 @@
   `docs/architecture/product.md`、`docs/architecture/target.md`
 - 代码所有权：`docs/architecture/system/code-organization.md`
 - 验证方式：`docs/reference/verification.md`
+- 配置与 Secret 生命周期：`docs/environment/env.md`、`docs/environment/providers.md`
+- 候选发布与验收：`docs/runbooks/release.md`、`docs/runbooks/e2e.md`
 
 处理领域任务时，应先阅读最近的所属 README、架构文档、合同、数据文档或 ADR，再修改
 结构和接口。
@@ -27,6 +29,10 @@
 - `packages/contracts` 不得依赖供应商、存储或框架类型。在线查询与离线采集、发布必须
   保持分离。
 - schema、配置或 `ToolSpec` 的存在不代表能力已对模型开放或已具备产品可用性。
+- 部署配置名称不得重复编码环境身份。删除最后一个消费者时，必须同时清理解析器、workflow、
+  环境仓投递、远端 setting、示例、测试和文档。
+- Source 只产出候选和环境无关制品；PR、构建、`staging/candidate` 或 promotion PR 均不表示环境
+  已经部署，部署入口不得在环境中转译 TypeScript 源码。
 - 没有明确的外部迁移要求时，不得恢复已退役运行时、兼容包装或 fallback 路径。
 - 不得为假设性风险添加防御性代码，也不得把未经批准的审批、发布、回滚、审计或恢复流程建模为
   产品状态；持久化实体和状态转换必须直接对应当前用户流程。
