@@ -20,8 +20,7 @@ poller；ingestion-control worker 与 source-collector worker 各使用一个标
 
 ## 所有权
 
-- Argo CD：platform chart、Connection、标准 Deployment、ConfigMap、Secret、image digest 与
-  sync order；
+- Argo CD：platform chart、标准 Deployment、ConfigMap、Secret、image digest 与 sync order；
 - Temporal：workflow history、task routing、retry、timeout、heartbeat 与 cancellation；
 - Kubernetes Deployment：poller 副本、进程重启和滚动更新；
 - application：确定性 workflow/activity code 与有界投影。
@@ -66,7 +65,6 @@ v5 build 接管 `campus-agent.workflow.v3`、`campus-agent.activity.core.v3` 和
 按环境仓库提供的 context/namespace 执行：
 
 ```bash
-kubectl get connection
 kubectl get deployment
 kubectl get pod
 ```

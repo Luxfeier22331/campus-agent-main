@@ -56,10 +56,3 @@ spec:
       ports:
         - protocol: TCP
           port: 7233
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: keda
-      ports:
-        - protocol: TCP
-          port: 7233
