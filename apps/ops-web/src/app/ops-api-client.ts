@@ -34,7 +34,7 @@ import {
 	DiningRestoreResponseSchema,
 } from "../shared/dining-contract";
 import type {
-	InternalPortalAuthUpdate,
+	ModelDiscoveryRequest,
 	ModelSettingKind,
 	ModelSettingUpdate,
 	OpsOverviewWindow,
@@ -44,8 +44,7 @@ import type {
 } from "../shared/ops-contract";
 import {
 	ExecutionModelSettingsStatusSchema,
-	InternalPortalAuthStatusSchema,
-	InternalPortalAuthUpdateSchema,
+	ModelDiscoveryResponseSchema,
 	ModelSettingValidationResponseSchema,
 	OpsObservabilityResponseSchema,
 	OpsOverviewResponseSchema,
@@ -257,25 +256,19 @@ export async function commandEmailAccessGrant(
 	);
 }
 
-export async function fetchInternalPortalAuthStatus(input: { signal?: AbortSignal } = {}) {
-	return InternalPortalAuthStatusSchema.parse(
-		await fetchJson("/api/ops/internal-portal/auth", { signal: input.signal }),
-	);
-}
-
-export async function replaceInternalPortalAuthCredential(payload: InternalPortalAuthUpdate) {
-	return InternalPortalAuthStatusSchema.parse(
-		await fetchJson("/api/ops/internal-portal/auth", {
-			body: JSON.stringify(InternalPortalAuthUpdateSchema.parse(payload)),
-			headers: { "content-type": "application/json" },
-			method: "PUT",
-		}),
-	);
-}
-
 export async function fetchExecutionModelSettings(input: { signal?: AbortSignal } = {}) {
 	return ExecutionModelSettingsStatusSchema.parse(
 		await fetchJson("/api/ops/model-settings/execution", { signal: input.signal }),
+	);
+}
+
+export async function discoverExecutionLLMModels(payload: ModelDiscoveryRequest) {
+	return ModelDiscoveryResponseSchema.parse(
+		await fetchJson("/api/ops/model-settings/execution/llm/models", {
+			body: JSON.stringify(payload),
+			headers: { "content-type": "application/json" },
+			method: "POST",
+		}),
 	);
 }
 

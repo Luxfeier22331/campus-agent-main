@@ -19,6 +19,7 @@ import type {
 } from "../shared/ops-contract";
 import { formatTimestamp } from "./format";
 import {
+	discoverExecutionLLMModels,
 	fetchExecutionModelSettings,
 	OpsApiError,
 	putExecutionModelSetting,
@@ -173,6 +174,21 @@ function ExecutionModelSettingForm({
 		mutationFn: () => validateExecutionModelSetting(kind),
 		onSuccess: () => queryClient.invalidateQueries({ queryKey: executionModelSettingsQueryKey }),
 	});
+	const discovery = useMutation({
+		mutationFn: () =>
+			discoverExecutionLLMModels({
+				apiKey: draft.apiKey,
+				baseUrl: draft.baseUrl,
+				provider: draft.provider,
+			}),
+		onSuccess: (catalog) => {
+			const firstModel = catalog.models[0];
+			if (firstModel && !catalog.models.includes(draft.model)) {
+				setDraft((current) => ({ ...current, model: firstModel }));
+			}
+			setErrors((current) => clearErrors(current, ["model"]));
+		},
+	});
 	const reload = useMutation({
 		mutationFn: fetchExecutionModelSettings,
 		onSuccess: (data) => {
@@ -184,12 +200,28 @@ function ExecutionModelSettingForm({
 		},
 	});
 
-	const updateDraft = (patch: Partial<ExecutionDraft>, errorKeys: string[]) => {
+	const updateDraft = (
+		patch: Partial<ExecutionDraft>,
+		errorKeys: string[],
+		options: { keepDiscovery?: boolean } = {},
+	) => {
 		setDraft((current) => ({ ...current, ...patch }));
 		setErrors((current) => clearErrors(current, errorKeys));
 		save.reset();
 		validation.reset();
+		if (!options.keepDiscovery) {
+			discovery.reset();
+		}
 		setSaveFeedback(null);
+	};
+	const discoverModels = () => {
+		const nextErrors = validateModelDiscoveryDraft(draft, !setting?.credentialConfigured);
+		setErrors((current) => ({ ...current, ...nextErrors }));
+		if (Object.keys(nextErrors).length > 0) {
+			focusFirstInvalid(formRef);
+			return;
+		}
+		discovery.mutate();
 	};
 	const submit = (event: FormEvent) => {
 		event.preventDefault();
@@ -204,6 +236,8 @@ function ExecutionModelSettingForm({
 
 	const credentialHelper = credentialHelperText(setting ?? { credentialConfigured: false });
 	const validationResult = validation.data?.validation;
+	const modelControlId = "execution-llm-model";
+	const modelErrorId = `${modelControlId}-error`;
 	return (
 		<Card>
 			<CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
@@ -231,6 +265,13 @@ function ExecutionModelSettingForm({
 							value={draft.baseUrl}
 						/>
 					</FormField>
+					<SecretField
+						error={errors.apiKey}
+						helper={credentialHelper}
+						label={`${embedding ? "Embedding" : "LLM"} API Key`}
+						onChange={(value) => updateDraft({ apiKey: value }, ["apiKey"])}
+						value={draft.apiKey}
+					/>
 					{embedding ? (
 						<ReadOnlyFacts
 							items={[
@@ -241,21 +282,74 @@ function ExecutionModelSettingForm({
 							]}
 						/>
 					) : (
-						<FormField error={errors.model} label="模型">
-							<Input
-								className="min-h-11"
-								onChange={(event) => updateDraft({ model: event.target.value }, ["model"])}
-								value={draft.model}
-							/>
-						</FormField>
+						<>
+							<div className="grid gap-1.5 text-sm">
+								<label className="font-medium leading-none" htmlFor={modelControlId}>
+									模型
+								</label>
+								<div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+									{discovery.data && discovery.data.models.length > 0 ? (
+										<NativeSelect
+											aria-describedby={errors.model ? modelErrorId : undefined}
+											aria-invalid={Boolean(errors.model)}
+											className="min-h-11 min-w-0"
+											id={modelControlId}
+											onChange={(event) =>
+												updateDraft({ model: event.target.value }, ["model"], {
+													keepDiscovery: true,
+												})
+											}
+											value={draft.model}
+										>
+											{draft.model && !discovery.data.models.includes(draft.model) ? (
+												<option value={draft.model}>{draft.model}</option>
+											) : null}
+											{discovery.data.models.map((model) => (
+												<option key={model} value={model}>
+													{model}
+												</option>
+											))}
+										</NativeSelect>
+									) : (
+										<Input
+											aria-describedby={errors.model ? modelErrorId : undefined}
+											aria-invalid={Boolean(errors.model)}
+											className="min-h-11 min-w-0"
+											id={modelControlId}
+											onChange={(event) =>
+												updateDraft({ model: event.target.value }, ["model"], {
+													keepDiscovery: true,
+												})
+											}
+											value={draft.model}
+										/>
+									)}
+									<Button
+										disabled={discovery.isPending}
+										onClick={discoverModels}
+										type="button"
+										variant="outline"
+									>
+										<RefreshCw className={cn("size-4", discovery.isPending && "animate-spin")} />
+										{discovery.isPending ? "正在获取" : "获取模型"}
+									</Button>
+								</div>
+								{errors.model ? (
+									<div className="text-danger text-xs" id={modelErrorId}>
+										{errors.model}
+									</div>
+								) : null}
+							</div>
+							{discovery.data ? (
+								<p className="text-muted-foreground text-xs" role="status">
+									已获取 {discovery.data.models.length} 个模型
+								</p>
+							) : null}
+							{discovery.isError ? (
+								<InlineError error={discovery.error} title="模型列表获取失败" />
+							) : null}
+						</>
 					)}
-					<SecretField
-						error={errors.apiKey}
-						helper={credentialHelper}
-						label={`${embedding ? "Embedding" : "LLM"} API Key`}
-						onChange={(value) => updateDraft({ apiKey: value }, ["apiKey"])}
-						value={draft.apiKey}
-					/>
 					{embedding ? null : (
 						<details
 							className="border-border border-t pt-3"
@@ -476,6 +570,17 @@ function validateExecutionDraft(draft: ExecutionDraft, apiKeyRequired: boolean) 
 	}
 	if (apiKeyRequired && !draft.apiKey.trim()) {
 		errors.apiKey = "首次保存必须填写 API Key。";
+	}
+	return errors;
+}
+
+function validateModelDiscoveryDraft(draft: ExecutionDraft, apiKeyRequired: boolean) {
+	const errors: Record<string, string> = {};
+	if (!validHttpUrl(draft.baseUrl)) {
+		errors.baseUrl = "请输入有效的 HTTP(S) 地址。";
+	}
+	if (apiKeyRequired && !draft.apiKey.trim()) {
+		errors.apiKey = "首次获取模型必须填写 API Key。";
 	}
 	return errors;
 }

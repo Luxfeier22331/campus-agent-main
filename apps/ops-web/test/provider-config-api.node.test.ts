@@ -19,10 +19,19 @@ describe("ops model settings BFF", () => {
 
 	it("requires same-origin writes and forwards the hidden ETag", async () => {
 		const put = vi.fn().mockResolvedValue(status);
+		const discoverModels = vi.fn().mockResolvedValue({
+			models: ["model-a", "model-b"],
+			sampledAt: "2026-07-14T10:01:00.000Z",
+		});
 		const app = createOpsApp({
 			admission: createAllowAllOpsAdmission({ email: "ops@example.test" }),
 			env: { OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test" },
-			providerConfigClient: { getStatus: async () => status, put, validate: vi.fn() },
+			providerConfigClient: {
+				discoverModels,
+				getStatus: async () => status,
+				put,
+				validate: vi.fn(),
+			},
 		});
 		const body = {
 			apiKey: "secret",
@@ -65,6 +74,36 @@ describe("ops model settings BFF", () => {
 		});
 		expect(accepted.status).toBe(200);
 		expect(put).toHaveBeenCalledWith("llm", body, "ops@example.test", "etag-1");
+
+		const catalog = await app.request(
+			"http://ops-web:5178/api/ops/model-settings/execution/llm/models",
+			{
+				body: JSON.stringify({
+					apiKey: "secret",
+					baseUrl: "https://provider.example.test/v1",
+					provider: "openai",
+				}),
+				headers: {
+					"content-type": "application/json",
+					origin: "https://ops.example.test",
+					"sec-fetch-site": "same-origin",
+				},
+				method: "POST",
+			},
+		);
+		expect(catalog.status).toBe(200);
+		expect(await catalog.json()).toEqual({
+			models: ["model-a", "model-b"],
+			sampledAt: "2026-07-14T10:01:00.000Z",
+		});
+		expect(discoverModels).toHaveBeenCalledWith(
+			{
+				apiKey: "secret",
+				baseUrl: "https://provider.example.test/v1",
+				provider: "openai",
+			},
+			"ops@example.test",
+		);
 	});
 
 	it("maps execution-control conflicts without exposing its message", async () => {
@@ -76,6 +115,7 @@ describe("ops model settings BFF", () => {
 			admission: createAllowAllOpsAdmission(),
 			env: { OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test" },
 			providerConfigClient: {
+				discoverModels: vi.fn(),
 				getStatus: async () => {
 					throw new ProviderConfigAdminResponseError(upstream);
 				},

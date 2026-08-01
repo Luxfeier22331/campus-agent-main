@@ -30,22 +30,6 @@ const app = createOpsApp({
 	overviewService: {
 		getOverview: vi.fn(async () => opsOverviewFixture),
 	},
-	internalPortalAuthClient: {
-		getStatus: vi.fn(async () => ({
-			credentialUpdatedAt: "2026-07-27T10:00:00.000Z",
-			currentCredentialChecked: true,
-			lastScheduledAt: "2026-07-27T10:30:00.000Z",
-			lastSuccessfulAt: "2026-07-27T10:30:04.000Z",
-			latestRun: "succeeded" as const,
-		})),
-		replaceCredential: vi.fn(async () => ({
-			credentialUpdatedAt: "2026-07-27T11:00:00.000Z",
-			currentCredentialChecked: false,
-			lastScheduledAt: "2026-07-27T10:30:00.000Z",
-			lastSuccessfulAt: "2026-07-27T10:30:04.000Z",
-			latestRun: "succeeded" as const,
-		})),
-	},
 	sentry: {
 		queryRequestIssues: vi.fn().mockResolvedValue(opsSentryIssuesFixture),
 	},

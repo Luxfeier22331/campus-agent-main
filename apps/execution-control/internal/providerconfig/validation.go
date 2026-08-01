@@ -9,11 +9,16 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 )
 
-const ValidationTimeout = 10 * time.Second
+const (
+	maxDiscoveredModels = 500
+	maxProviderBodySize = 1 << 20
+	ValidationTimeout   = 10 * time.Second
+)
 
 func Validate(ctx context.Context, setting RuntimeSetting) ValidationResult {
 	if err := validateSettingShape(setting); err != nil {
@@ -33,18 +38,11 @@ func Validate(ctx context.Context, setting RuntimeSetting) ValidationResult {
 }
 
 func validateSettingShape(setting RuntimeSetting) error {
-	if strings.TrimSpace(setting.APIKey) == "" || strings.TrimSpace(setting.BaseURL) == "" || strings.TrimSpace(setting.Model) == "" {
-		return errors.New("api key, base url, and model are required")
+	if err := validateProviderConnection(setting); err != nil {
+		return err
 	}
-	parsed, err := url.Parse(setting.BaseURL)
-	if err != nil || parsed.Host == "" || (parsed.Scheme != "https" && parsed.Scheme != "http") {
-		return errors.New("provider base url must be an absolute HTTP(S) URL")
-	}
-	if parsed.Scheme == "http" && parsed.Hostname() != "127.0.0.1" && parsed.Hostname() != "localhost" {
-		return errors.New("provider base url must use HTTPS outside loopback")
-	}
-	if setting.Provider != "openai" && setting.Provider != "openai-compatible" {
-		return errors.New("provider must be openai or openai-compatible")
+	if strings.TrimSpace(setting.Model) == "" {
+		return errors.New("model is required")
 	}
 	if setting.Kind == KindEmbedding && setting.Dimensions <= 0 {
 		return errors.New("embedding dimensions must be positive")
@@ -56,6 +54,75 @@ func validateSettingShape(setting RuntimeSetting) error {
 		return errors.New("llm transport must be responses or chat_completions")
 	}
 	return nil
+}
+
+func validateProviderConnection(setting RuntimeSetting) error {
+	if strings.TrimSpace(setting.APIKey) == "" || strings.TrimSpace(setting.BaseURL) == "" {
+		return errors.New("api key and base url are required")
+	}
+	parsed, err := url.Parse(setting.BaseURL)
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "https" && parsed.Scheme != "http") {
+		return errors.New("provider base url must be an absolute HTTP(S) URL")
+	}
+	if parsed.Scheme == "http" && parsed.Hostname() != "127.0.0.1" && parsed.Hostname() != "localhost" {
+		return errors.New("provider base url must use HTTPS outside loopback")
+	}
+	if setting.Provider != "openai" && setting.Provider != "openai-compatible" {
+		return errors.New("provider must be openai or openai-compatible")
+	}
+	return nil
+}
+
+func DiscoverModels(ctx context.Context, setting RuntimeSetting) ([]string, ValidationResult) {
+	if err := validateProviderConnection(setting); err != nil {
+		return nil, ValidationResult{ErrorCode: "invalid_setting", Message: err.Error(), Status: "failed"}
+	}
+	discoveryCtx, cancel := context.WithTimeout(ctx, ValidationTimeout)
+	defer cancel()
+	body, err := requestProvider(
+		discoveryCtx,
+		&http.Client{Timeout: ValidationTimeout},
+		setting,
+		http.MethodGet,
+		"/models",
+		nil,
+	)
+	if err != nil {
+		return nil, failedValidation(err)
+	}
+	var result struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil || result.Data == nil {
+		return nil, ValidationResult{
+			ErrorCode: "invalid_response",
+			Message:   "provider model response is invalid",
+			Status:    "failed",
+		}
+	}
+	models := make(map[string]struct{}, len(result.Data))
+	for _, item := range result.Data {
+		model := strings.TrimSpace(item.ID)
+		if model == "" || len(model) > 256 {
+			return nil, ValidationResult{
+				ErrorCode: "invalid_response",
+				Message:   "provider model response contains an invalid id",
+				Status:    "failed",
+			}
+		}
+		models[model] = struct{}{}
+	}
+	values := make([]string, 0, len(models))
+	for model := range models {
+		values = append(values, model)
+	}
+	sort.Strings(values)
+	if len(values) > maxDiscoveredModels {
+		values = values[:maxDiscoveredModels]
+	}
+	return values, ValidationResult{Message: "provider model discovery passed", Status: "passed"}
 }
 
 func validateLLM(ctx context.Context, client *http.Client, setting RuntimeSetting) ValidationResult {
@@ -122,23 +189,9 @@ func callProvider(
 	if err != nil {
 		return nil, err
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(setting.BaseURL, "/")+path, bytes.NewReader(body))
+	responseBody, err := requestProvider(ctx, client, setting, http.MethodPost, path, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
-	}
-	request.Header.Set("authorization", "Bearer "+setting.APIKey)
-	request.Header.Set("content-type", "application/json")
-	response, err := client.Do(request)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = response.Body.Close() }()
-	responseBody, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
-	if err != nil {
-		return nil, err
-	}
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return nil, fmt.Errorf("provider returned HTTP %d", response.StatusCode)
 	}
 	var result map[string]any
 	if err := json.Unmarshal(responseBody, &result); err != nil {
@@ -147,13 +200,50 @@ func callProvider(
 	return result, nil
 }
 
+func requestProvider(
+	ctx context.Context,
+	client *http.Client,
+	setting RuntimeSetting,
+	method string,
+	path string,
+	body io.Reader,
+) ([]byte, error) {
+	request, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(setting.BaseURL, "/")+path, body)
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("authorization", "Bearer "+setting.APIKey)
+	request.Header.Set("accept", "application/json")
+	if body != nil {
+		request.Header.Set("content-type", "application/json")
+	}
+	response, err := client.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = response.Body.Close() }()
+	responseBody, err := io.ReadAll(io.LimitReader(response.Body, maxProviderBodySize+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(responseBody) > maxProviderBodySize {
+		return nil, errors.New("provider returned an oversized response")
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return nil, fmt.Errorf("provider returned HTTP %d", response.StatusCode)
+	}
+	return responseBody, nil
+}
+
 func failedValidation(err error) ValidationResult {
 	code := "provider_unavailable"
 	message := "provider request failed"
 	if errors.Is(err, context.DeadlineExceeded) {
 		code = "provider_timeout"
 		message = "provider request timed out"
-	} else if strings.HasPrefix(err.Error(), "provider returned HTTP ") || err.Error() == "provider returned invalid JSON" {
+	} else if strings.HasPrefix(err.Error(), "provider returned HTTP ") ||
+		err.Error() == "provider returned invalid JSON" ||
+		err.Error() == "provider returned an oversized response" {
 		message = err.Error()
 	}
 	return ValidationResult{ErrorCode: code, Message: message, Status: "failed"}

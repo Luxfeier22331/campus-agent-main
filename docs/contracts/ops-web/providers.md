@@ -17,6 +17,7 @@ namespace、Secret、Deployment 或内部服务地址。
 ## 接口
 
 - `GET /api/ops/model-settings/execution`
+- `POST /api/ops/model-settings/execution/llm/models`
 - `PUT /api/ops/model-settings/execution/:kind`
 - `POST /api/ops/model-settings/execution/:kind/validate`
 
@@ -28,6 +29,11 @@ LLM 可设置 provider、Base URL、API key、model 和 transport。transport �
 或 `chat_completions`。Embedding 固定为 `Qwen3-Embedding-4B`、2560 维和 `embeddings`
 transport，页面只允许维护兼容 endpoint 和 API key。
 
+模型发现只支持 LLM。浏览器提交 provider、Base URL 和可选 API key；首次配置必须提供 API key，
+已有 LLM 配置时空值表示复用服务端已保存的密钥。execution-control 请求该供应商 Base URL 下的
+`/models`，只返回去重、排序后的模型 ID 和采样时间，最多 500 条。供应商响应正文和 API key 不
+返回浏览器，也不保存本次候选连接。
+
 保存前 execution-control 对候选设置执行真实供应商调用；验证失败不会覆盖当前值。API key 为空表示
 保留现有值，首次配置时必须提供。单独的 validate 接口只重新验证当前值并更新最后验证结果。供应商
 验证时限属于 execution-control 代码合同，不是可由浏览器修改的连接设置。
@@ -37,6 +43,6 @@ transport，页面只允许维护兼容 endpoint 和 API key。
 所有写请求必须来自配置的同源页面并通过人员准入。错误响应只包含稳定 Ops Web 错误码和脱敏信息；
 不得透传供应商正文或凭据。读取失败必须保留失败状态，不能伪装成未配置。
 
-页面将 Base URL、模型和 API key 作为核心字段；provider 和 transport 放在高级设置。固定模型、
+页面将 Base URL、API key 和模型作为核心字段；provider 和 transport 放在高级设置。固定模型、
 维度和接口以只读事实展示。API key 留空表示保留现值，页面只展示是否配置和末四位。存在未保存
 修改时，切换页面必须由操作者确认。

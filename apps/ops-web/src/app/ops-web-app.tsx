@@ -19,7 +19,6 @@ import {
 	Activity,
 	ClipboardList,
 	History,
-	KeyRound,
 	ServerCog,
 	UserRoundCheck,
 	UserRoundX,
@@ -36,7 +35,6 @@ import { DiningReportsPage } from "./dining-reports-page";
 import { DiningReviewsPage } from "./dining-reviews-page";
 import { EmailAccessPage } from "./email-access-page";
 import { GroupsPage } from "./groups-page";
-import { InternalPortalPage } from "./internal-portal-page";
 import { NotFoundPage } from "./not-found-page";
 import {
 	ignoredRequestSearchParamNames,
@@ -194,12 +192,6 @@ const accountDeletionsRoute = createRoute({
 	component: AccountDeletionsRoute,
 });
 
-const internalPortalRoute = createRoute({
-	getParentRoute: () => rootRoute,
-	path: "/internal-portal",
-	component: InternalPortalPage,
-});
-
 const diningRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/dining",
@@ -236,7 +228,6 @@ const routeTree = rootRoute.addChildren([
 	requestsRoute,
 	requestSystemRoute,
 	requestDetailRoute,
-	internalPortalRoute,
 	providerConfigRoute,
 	emailAccessRoute,
 	usersRoute,
@@ -277,11 +268,10 @@ function RootLayout() {
 				{ href: "/overview", icon: Activity, label: "运行概览" },
 				{ href: "/requests", icon: ClipboardList, label: "运行记录" },
 				{ href: "/providers", icon: ServerCog, label: "模型配置" },
-				{ href: "/internal-portal", icon: KeyRound, label: "内部门户" },
 				{ href: "/email-access", icon: UserRoundCheck, label: "账号准入" },
 				{ href: "/users", icon: UsersRound, label: "用户管理" },
 				{ href: "/users/activity", icon: History, label: "账号操作记录" },
-				{ href: "/account-deletions", icon: UserRoundX, label: "注销任务" },
+				{ href: "/account-deletions", icon: UserRoundX, label: "账号注销处理" },
 				{ href: "/dining", icon: Utensils, label: "食堂" },
 				{ href: "/groups", icon: UsersRound, label: "同好群" },
 			]}

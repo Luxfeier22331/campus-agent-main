@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
@@ -80,6 +81,8 @@ func handleModelSettingsAdmin(
 	switch {
 	case request.Method == http.MethodGet && path == modelSettingsAdminPrefix:
 		writeModelSettingsStatus(response, request, store)
+	case request.Method == http.MethodPost && path == modelSettingsAdminPrefix+"/llm/models":
+		discoverLLMModels(response, request, store)
 	case request.Method == http.MethodPut:
 		kind, ok := modelSettingKindFromPath(path)
 		if !ok {
@@ -97,6 +100,40 @@ func handleModelSettingsAdmin(
 	default:
 		writeError(response, http.StatusNotFound, "not_found", "Route not found.", false)
 	}
+}
+
+type modelDiscoveryInput struct {
+	APIKey   string `json:"apiKey"`
+	BaseURL  string `json:"baseUrl"`
+	Provider string `json:"provider"`
+}
+
+func discoverLLMModels(response http.ResponseWriter, request *http.Request, store *providerconfig.Store) {
+	var input modelDiscoveryInput
+	if !decodeProviderAdminJSON(response, request, &input) {
+		return
+	}
+	candidate, err := store.Candidate(request.Context(), providerconfig.SettingInput{
+		APIKey:    input.APIKey,
+		BaseURL:   input.BaseURL,
+		Kind:      providerconfig.KindLLM,
+		Model:     "model-discovery",
+		Provider:  input.Provider,
+		Transport: "responses",
+	})
+	if err != nil {
+		writeProviderSettingError(response, err)
+		return
+	}
+	models, validation := providerconfig.DiscoverModels(request.Context(), candidate)
+	if validation.Status != "passed" {
+		writeError(response, http.StatusUnprocessableEntity, validation.ErrorCode, validation.Message, false)
+		return
+	}
+	writeJSON(response, http.StatusOK, map[string]any{
+		"models":    models,
+		"sampledAt": time.Now().UTC(),
+	})
 }
 
 func writeModelSettingsStatus(response http.ResponseWriter, request *http.Request, store *providerconfig.Store) {
@@ -226,6 +263,8 @@ func writeProviderSettingError(response http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, providerconfig.ErrConflict):
 		writeError(response, http.StatusConflict, "model_settings_conflict", "Model settings changed. Refresh and try again.", false)
+	case errors.Is(err, providerconfig.ErrInitialAPIKeyRequired):
+		writeError(response, http.StatusUnprocessableEntity, "api_key_required", "API key is required for the initial model setting.", false)
 	case errors.Is(err, providerconfig.ErrNotFound):
 		writeError(response, http.StatusNotFound, "model_setting_not_found", "Model setting was not found.", false)
 	default:

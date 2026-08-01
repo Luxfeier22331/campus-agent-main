@@ -572,6 +572,12 @@ function fixtureProviderConfigClient() {
 		},
 	};
 	return {
+		async discoverModels() {
+			return {
+				models: ["primary-demo-model", "reasoning-demo-model"],
+				sampledAt: new Date().toISOString(),
+			};
+		},
 		async getStatus() {
 			return status;
 		},

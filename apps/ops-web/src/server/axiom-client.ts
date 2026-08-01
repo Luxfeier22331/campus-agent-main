@@ -592,8 +592,17 @@ function normalizeCount(value: unknown) {
 
 function normalizeTimestamp(value: unknown): string | null {
 	if (typeof value === "number" && Number.isFinite(value)) {
-		const milliseconds = value > 10_000_000_000_000 ? value / 1_000 : value;
-		return new Date(milliseconds).toISOString();
+		const magnitude = Math.abs(value);
+		const milliseconds =
+			magnitude >= 100_000_000_000_000_000
+				? value / 1_000_000
+				: magnitude >= 100_000_000_000_000
+					? value / 1_000
+					: magnitude < 100_000_000_000
+						? value * 1_000
+						: value;
+		const parsed = new Date(milliseconds);
+		return Number.isFinite(parsed.valueOf()) ? parsed.toISOString() : null;
 	}
 	if (typeof value !== "string" || !value.trim()) {
 		return null;

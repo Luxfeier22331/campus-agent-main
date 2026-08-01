@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 )
 
@@ -130,5 +131,51 @@ func TestValidateSnapshotRejectsUnsupportedTransportBeforeCallingProvider(t *tes
 	}
 	if called {
 		t.Fatal("provider must not be called for an unsupported transport")
+	}
+}
+
+func TestDiscoverModelsUsesProviderCatalogAndReturnsBoundedUniqueIDs(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodGet || request.URL.Path != "/models" {
+			t.Fatalf("request = %s %s, want GET /models", request.Method, request.URL.Path)
+		}
+		if request.Header.Get("authorization") != "Bearer secret" {
+			t.Fatalf("authorization header = %q", request.Header.Get("authorization"))
+		}
+		response.Header().Set("content-type", "application/json")
+		_, _ = response.Write([]byte(`{"data":[{"id":"model-z"},{"id":"model-a"},{"id":"model-z"}]}`))
+	}))
+	defer server.Close()
+
+	models, result := DiscoverModels(context.Background(), RuntimeSetting{
+		APIKey:   "secret",
+		BaseURL:  server.URL,
+		Kind:     KindLLM,
+		Provider: "openai-compatible",
+	})
+
+	if result.Status != "passed" {
+		t.Fatalf("discovery result = %#v", result)
+	}
+	if !slices.Equal(models, []string{"model-a", "model-z"}) {
+		t.Fatalf("models = %#v", models)
+	}
+}
+
+func TestDiscoverModelsRejectsInvalidProviderResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
+		_, _ = response.Write([]byte(`{"data":[{"object":"model"}]}`))
+	}))
+	defer server.Close()
+
+	models, result := DiscoverModels(context.Background(), RuntimeSetting{
+		APIKey:   "secret",
+		BaseURL:  server.URL,
+		Kind:     KindLLM,
+		Provider: "openai",
+	})
+
+	if models != nil || result.Status != "failed" || result.ErrorCode != "invalid_response" {
+		t.Fatalf("models = %#v, result = %#v", models, result)
 	}
 }

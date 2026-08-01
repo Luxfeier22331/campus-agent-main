@@ -13,7 +13,7 @@ source-collector 只接收原始 `SSO_TGC`。每次通知命令、文件发布 A
 不持久化到文件、Temporal 载荷、对象存储或数据库。
 
 source-collector 不自行获取、创建或改写 TGC。TGC 由应用外的人员认证流程取得，再由开发者写入
-本地 `.env`，或由 Ops Web 写入部署环境的固定 Secret。
+本地 `.env`，或由环境所有者投递到部署环境的固定 Secret。
 
 ## 本地使用
 
@@ -54,13 +54,9 @@ pnpm --filter source-collector auth:keepalive
 ## 部署与轮换
 
 Kubernetes 使用固定 Secret `source-collector-internal-portal-auth` 的 `sso_tgc` key，并以完整卷
-投影到 source-collector worker 和认证检查 CronJob。Secret 不是可选依赖；环境仓负责预创建并
-投递初始值。
-
-部署后由 Ops Web `/internal-portal` 页面替换该固定 key。服务端只接受原始 TGC，不返回现有值、
-摘要或末尾字符，也不能选择其他 Secret、CronJob 或 namespace。写入成功后等待下一次定期检查，
-不临时创建 Job。Secret 的 `campus-agent.muc.wiki/tgc-updated-at` annotation 记录本次更新时间；
-旧 Secret 没有 annotation 时，页面使用 Secret 创建时间。
+投影到 source-collector worker 和认证检查 CronJob。Secret 不是可选依赖；环境所有者负责通过该
+环境的 Secret 投递方式预创建并轮换固定 key。Ops Web 不访问 Kubernetes API，也不提供 TGC
+读取、替换或认证状态页面。
 
 完整卷会由 kubelet 更新到运行中的 Pod。轮换后无需重启 worker；下一次命令、Activity 或
 CronJob 会读取新值。
@@ -75,9 +71,8 @@ CronJob 会读取新值。
 - 成功或失败由 Job 状态和日志体现；
 - 不写业务状态、不触发采集、不自动修改 Secret。
 
-Ops Web 展示 Secret 更新时间、最近调度时间、最近一次成功使用时间、最近任务状态，以及当前值
-更新后是否出现过成功记录。它不预测 TGC 的过期时间，也不把历史成功表述为当前仍然有效。Secret
-或 CronJob 读取失败只使该页面返回 `503`，不影响 Ops Web readiness。
+环境所有者通过 Kubernetes 原生 CronJob、Job 和日志状态确认最近一次检查结果。历史成功只表示
+当次检查通过，不能证明 TGC 当前仍然有效。
 
 源码仓的 manifest 只能证明期望配置可渲染。环境是否已应用、Secret 是否已创建、CronJob 是否
 按期成功，需要在所属集群确认。
@@ -96,7 +91,7 @@ workflow。
 ## 失败处理
 
 - `internal_portal_credential_unavailable`：TGC 缺失、为空或格式错误，替换本地 `.env` 或通过
-  Ops Web 替换固定 Secret；
+  所属环境的 Secret 投递方式替换固定 key；
 - `internal_portal_credential_expired`：CAS 未签发 Service Ticket 或返回登录入口，重新取得 TGC；
 - `internal_portal_session_expired`：当前命令或 Activity 失败，替换 TGC 后重新显式执行；
 - 网络或供应商错误：本次执行失败，检查来源可用性后再执行。

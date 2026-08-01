@@ -38,7 +38,7 @@ spec:
         campus-agent.muc.wiki/network-policy-profile: ops-web
     spec:
       serviceAccountName: ops-web
-      automountServiceAccountToken: true
+      automountServiceAccountToken: false
       securityContext:
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch

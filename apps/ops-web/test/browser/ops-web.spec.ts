@@ -693,14 +693,93 @@ test("在线问答直接编辑当前 LLM 和 Embedding 配置", async ({ page })
 	await expect(page.getByRole("button", { name: "保存并验证" }).first()).toBeDisabled();
 	await expect(page.getByText(/版本|发布记录|角色配置/u)).toHaveCount(0);
 
-	await page.getByLabel("模型", { exact: true }).first().fill("primary-model-next");
+	await page.getByRole("button", { name: "获取模型" }).click();
+	const model = page.getByRole("combobox", { name: "模型" });
+	await expect(model).toBeVisible();
+	await expect(model.getByRole("option", { name: "primary-model-next" })).toBeAttached();
+	await model.selectOption("primary-model-next");
 	await page.getByLabel("LLM API Key", { exact: true }).fill("private-next-key");
 	await page.getByRole("button", { name: "保存并验证" }).first().click();
 
-	await expect(page.getByLabel("模型", { exact: true }).first()).toHaveValue("primary-model-next");
+	await expect(page.getByLabel("模型", { exact: true })).toHaveValue("primary-model-next");
 	await expect(page.getByText("配置已保存并验证通过。")).toBeVisible();
 	expect(modelSettings.receivedApiKeys).toEqual(["private-next-key"]);
 	await expect(page.getByText("private-next-key")).toHaveCount(0);
+	await expectStableViewport(page, errors);
+});
+
+test("账号准入在桌面和移动端均可读取并操作授权", async ({ page }) => {
+	const errors = captureRuntimeErrors(page);
+	await page.route("**/api/ops/email-access-grants**", async (route) => {
+		if (route.request().method() !== "GET") {
+			await route.fulfill({
+				json: {
+					accessExpiresAt: null,
+					claimExpiresAt: "2026-08-08T08:00:00.000Z",
+					claimedAt: null,
+					createdAt: "2026-08-01T08:00:00.000Z",
+					createdBy: "ops@example.test",
+					email: "visitor.one@example.com",
+					environment: "staging",
+					id: "11111111-1111-4111-8111-111111111111",
+					kind: "invitation",
+					lastInvitationSentAt: "2026-08-01T08:01:00.000Z",
+					revokedAt: null,
+					revokedBy: null,
+					state: "pending",
+					updatedAt: "2026-08-01T08:01:00.000Z",
+					userId: null,
+				},
+			});
+			return;
+		}
+		await route.fulfill({
+			json: {
+				environment: "staging",
+				items: [
+					{
+						accessExpiresAt: null,
+						claimExpiresAt: "2026-08-08T08:00:00.000Z",
+						claimedAt: null,
+						createdAt: "2026-08-01T08:00:00.000Z",
+						createdBy: "ops@example.test",
+						email: "visitor.one@example.com",
+						environment: "staging",
+						id: "11111111-1111-4111-8111-111111111111",
+						kind: "invitation",
+						lastInvitationSentAt: "2026-08-01T08:01:00.000Z",
+						revokedAt: null,
+						revokedBy: null,
+						state: "pending",
+						updatedAt: "2026-08-01T08:01:00.000Z",
+						userId: null,
+					},
+				],
+				nextCursor: null,
+			},
+		});
+	});
+	await page.goto("/email-access");
+
+	await expect(page.getByRole("heading", { name: "账号准入" })).toBeVisible();
+	await expect(page.getByRole("heading", { name: "创建授权" })).toBeVisible();
+	await expect(page.getByRole("heading", { name: "授权记录" })).toBeVisible();
+	await expect(page.getByText("预发布环境")).toBeVisible();
+	const compact = (page.viewportSize()?.width ?? 0) < 768;
+	if (compact) {
+		const list = page.getByTestId("email-access-mobile-list");
+		await expect(list).toBeVisible();
+		await expect(list).toContainText("visitor.one@example.com");
+		await expect(list.getByRole("button", { name: "重发" })).toBeVisible();
+		await expect(list.getByRole("button", { name: "撤销" })).toBeVisible();
+	} else {
+		const table = page.getByRole("table", { name: "邮箱准入授权" });
+		await expect(table).toBeVisible();
+		await expect(table).toContainText("visitor.one@example.com");
+	}
+	if (page.viewportSize()?.width === 320 || page.viewportSize()?.width === 1440) {
+		await expectNoAccessibilityViolations(page);
+	}
 	await expectStableViewport(page, errors);
 });
 
@@ -759,6 +838,15 @@ async function mockExecutionModelSettings(page: Page) {
 		const path = new URL(request.url()).pathname;
 		if (path === "/api/ops/model-settings/execution" && request.method() === "GET") {
 			await route.fulfill({ json: state });
+			return;
+		}
+		if (path.endsWith("/llm/models") && request.method() === "POST") {
+			await route.fulfill({
+				json: {
+					models: ["primary-model", "primary-model-next"],
+					sampledAt: "2026-07-16T00:05:00.000Z",
+				},
+			});
 			return;
 		}
 		if (path.endsWith("/llm") && request.method() === "PUT") {

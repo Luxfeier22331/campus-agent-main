@@ -17,7 +17,7 @@ status: active
 | --- | --- | --- |
 | `campus-web` | 学生问答、账号、文档、地图、食堂和校园状态页面 | 运维运行记录、数据库或内部运行时访问 |
 | `app-api` | 浏览器认证、聊天接收与终结、产品 API 和状态 API | Temporal worker、内部检索、在线模型配置、通用运维数据 API |
-| `ops-web` | 自托管运行记录、运行概况、在线模型配置、固定内部门户 TGC 替换和 Dining 内容运营 | 学生账号、聊天和请求写入，任意工作流控制或通用 Secret 管理 |
+| `ops-web` | 自托管运行记录、运行概况、在线模型配置和 Dining 内容运营 | 学生账号、聊天和请求写入，任意工作流控制或 Kubernetes 资源管理 |
 | `execution-control` | 持久运行准入、工作流业务逻辑、内部查询、执行投影和在线模型配置 | 浏览器认证和页面合同 |
 | `agent-runtime` | 单次 Primary Agent SDK run 与获准工具调用 | 持久编排和产品数据持久化 |
 
@@ -72,11 +72,9 @@ app-api 保存用户轮次并创建持久 run；execution-control 和 Temporal �
 - `ops-web -> execution-control` 通过同源 BFF 管理在线模型配置；浏览器不持有
   execution-control credential。
 - `ops-web -> PostgreSQL/execution-control/Axiom/Sentry` 提供有界运行摘要和关联记录。
-- `ops-web -> Kubernetes API` 只读取和 patch 固定内部门户 Secret，并读取固定认证 CronJob 状态；
-  浏览器不能选择 Kubernetes 资源或读取 TGC。
 - `ops-web -> dining.*` 使用统一 `ops_web` 角色维护地图草稿、不可变发布版本、菜单、评价和举报；
   app-api 读取公开地图与菜单，并以受限权限处理学生评价和举报。
-- 在线模型配置和内部门户认证资源不可用不阻断 Ops Web 的运行记录读取 readiness。
+- 在线模型配置不可用不阻断 Ops Web 的运行记录读取 readiness。
 - Temporal UI、Langfuse UI、Sentry 和 Axiom 保留各自完整能力；Ops Web 只提供跨系统关联、
   固定 Axiom 查询和常用摘要。
 

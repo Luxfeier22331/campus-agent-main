@@ -58,8 +58,8 @@ export function AccountDeletionsPage({ search }: { search: AccountDeletionsSearc
 						刷新
 					</Button>
 				}
-				description="查看异步注销进度，并在依赖恢复后重试失败任务。"
-				title="注销任务"
+				description="系统先清理个人记忆和关联数据，最后删除认证账号；这里只查看进度并重新安排需要处理的任务。"
+				title="账号注销处理"
 			/>
 			<label
 				className="mb-4 grid w-fit gap-1 text-muted-foreground text-xs"
@@ -82,17 +82,17 @@ export function AccountDeletionsPage({ search }: { search: AccountDeletionsSearc
 					<option value="completed">已完成</option>
 				</NativeSelect>
 			</label>
-			{commandError ? <InlineError error={commandError} title="注销任务操作失败" /> : null}
+			{commandError ? <InlineError error={commandError} title="账号注销处理失败" /> : null}
 			{deletions.isError ? (
 				<ErrorState
 					error={deletions.error}
 					onRetry={() => void deletions.refetch()}
-					title="注销任务读取失败"
+					title="账号注销处理读取失败"
 				/>
 			) : deletions.data ? (
 				<>
 					<DataTable<AccountDeletionAdminRecord>
-						caption="注销任务列表"
+						caption="账号注销处理列表"
 						columns={[
 							{
 								cell: (row) => <span className="font-mono text-xs">{row.requestId}</span>,
@@ -141,7 +141,7 @@ export function AccountDeletionsPage({ search }: { search: AccountDeletionsSearc
 									row.retryAvailable ? (
 										<Button onClick={() => setSelected(row.requestId)} variant="outline">
 											<RotateCw className="size-4" />
-											重试
+											重新安排
 										</Button>
 									) : null,
 								header: "操作",
@@ -151,7 +151,7 @@ export function AccountDeletionsPage({ search }: { search: AccountDeletionsSearc
 						rowKey={(row) => row.requestId}
 					/>
 					{deletions.data.items.length === 0 ? (
-						<p className="mt-4 text-muted-foreground text-sm">没有符合条件的注销任务。</p>
+						<p className="mt-4 text-muted-foreground text-sm">没有符合条件的账号注销处理记录。</p>
 					) : null}
 					<div className="mt-4 flex gap-2">
 						<Button
@@ -185,7 +185,7 @@ export function AccountDeletionsPage({ search }: { search: AccountDeletionsSearc
 					</div>
 				</>
 			) : (
-				<p className="text-muted-foreground text-sm">正在读取注销任务...</p>
+				<p className="text-muted-foreground text-sm">正在读取账号注销处理记录...</p>
 			)}
 			{selected ? (
 				<form
@@ -201,7 +201,7 @@ export function AccountDeletionsPage({ search }: { search: AccountDeletionsSearc
 						className="grid flex-1 gap-1 text-muted-foreground text-xs"
 						htmlFor="account-deletion-retry-reason"
 					>
-						重试原因
+						处理说明
 						<Input
 							className="min-h-10"
 							id="account-deletion-retry-reason"
@@ -210,7 +210,7 @@ export function AccountDeletionsPage({ search }: { search: AccountDeletionsSearc
 						/>
 					</label>
 					<Button disabled={!reason.trim() || retry.isPending} type="submit">
-						确认重试
+						确认重新安排
 					</Button>
 					<Button onClick={() => setSelected(null)} variant="ghost">
 						取消

@@ -1,6 +1,8 @@
 import type { z } from "zod";
 import {
 	ExecutionModelSettingsStatusSchema,
+	ModelDiscoveryRequestSchema,
+	ModelDiscoveryResponseSchema,
 	type ModelSettingKindSchema,
 	ModelSettingUpdateSchema,
 	ModelSettingValidationResponseSchema,
@@ -78,6 +80,13 @@ export function createProviderConfigAdminClient(
 	}
 
 	return {
+		discoverModels(body: z.input<typeof ModelDiscoveryRequestSchema>, actorId: string) {
+			return request("/llm/models", {
+				actorId,
+				body: ModelDiscoveryRequestSchema.parse(body),
+				method: "POST",
+			}).then((response) => ModelDiscoveryResponseSchema.parse(response));
+		},
 		async getStatus() {
 			return ExecutionModelSettingsStatusSchema.parse(await request("", { method: "GET" }));
 		},

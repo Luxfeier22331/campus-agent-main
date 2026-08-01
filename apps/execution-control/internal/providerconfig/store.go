@@ -15,9 +15,10 @@ import (
 )
 
 var (
-	ErrConflict      = errors.New("model settings changed")
-	ErrNotConfigured = errors.New("model settings store is not configured")
-	ErrNotFound      = errors.New("model setting not found")
+	ErrConflict              = errors.New("model settings changed")
+	ErrInitialAPIKeyRequired = errors.New("api key is required for the initial model setting")
+	ErrNotConfigured         = errors.New("model settings store is not configured")
+	ErrNotFound              = errors.New("model setting not found")
 )
 
 type Store struct {
@@ -180,7 +181,7 @@ func (s *Store) Candidate(ctx context.Context, input SettingInput) (RuntimeSetti
 	current, err := s.Resolve(ctx, input.Kind)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			return RuntimeSetting{}, errors.New("apiKey is required for the initial model setting")
+			return RuntimeSetting{}, ErrInitialAPIKeyRequired
 		}
 		return RuntimeSetting{}, err
 	}

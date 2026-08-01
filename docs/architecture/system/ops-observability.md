@@ -150,7 +150,8 @@ Ops Web 不实现统一查询语言、根因推断、Trace tree、Workflow histo
 
 ### 在线模型配置
 
-Ops Web 通过 execution-control 的受控管理接口读取、验证和写入在线配置。配置写入本身就是
+Ops Web 通过 execution-control 的受控管理接口发现模型、读取、验证和写入在线配置。模型发现只
+返回供应商模型 ID，不向浏览器返回 API key 或供应商响应。配置写入本身就是
 当前设置的替换，不存在独立的 revision、bundle 或 activation 动作。Ops Web 不读取配置数据库、
 不持有 keyring，也不能写入不完整或未验证的配置。
 

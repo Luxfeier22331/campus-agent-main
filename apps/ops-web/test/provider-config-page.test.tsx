@@ -76,6 +76,36 @@ describe("model settings page", () => {
 		expect(screen.getAllByRole("button", { name: "保存并验证" })[0]).toBeDisabled();
 	});
 
+	it("discovers LLM models without exposing the saved API key", async () => {
+		let discoveryBody: Record<string, unknown> | undefined;
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+				if (String(input).endsWith("/api/ops/model-settings/execution/llm/models")) {
+					discoveryBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+					return Response.json({
+						models: ["primary-model", "reasoning-model"],
+						sampledAt: "2026-07-21T01:05:00.000Z",
+					});
+				}
+				return Response.json(executionStatus);
+			}),
+		);
+		render(<OpsWebApp initialPath="/providers" />);
+
+		fireEvent.click(await screen.findByRole("button", { name: "获取模型" }));
+
+		const model = await screen.findByRole("combobox", { name: "模型" });
+		expect(model).toHaveValue("primary-model");
+		expect(screen.getByRole("option", { name: "reasoning-model" })).toBeInTheDocument();
+		expect(screen.getByText("已获取 2 个模型")).toBeInTheDocument();
+		expect(discoveryBody).toEqual({
+			apiKey: "",
+			baseUrl: "https://provider.example.test/v1",
+			provider: "openai",
+		});
+	});
+
 	it("treats a failed validation result as a business failure", async () => {
 		vi.stubGlobal(
 			"fetch",

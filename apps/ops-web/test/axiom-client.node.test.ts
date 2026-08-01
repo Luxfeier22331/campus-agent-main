@@ -187,6 +187,25 @@ describe("Axiom client", () => {
 		]);
 	});
 
+	it("normalizes nanosecond timestamps returned by Axiom tabular events", async () => {
+		const client = createAxiomClient({
+			...queryConfig,
+			sdkClient: fakeSdk([
+				{
+					last_seen_at: 1_783_575_000_200_000_000,
+					record_count: 1,
+				},
+			]),
+		});
+
+		const telemetry = await client.getTelemetrySnapshot("15m", {
+			now: new Date("2026-07-09T06:30:00.000Z"),
+		});
+
+		expect(telemetry.signals[0]?.updatedAt).toBe("2026-07-09T05:30:00.200Z");
+		expect(telemetry.signals[2]?.updatedAt).toBe("2026-07-09T05:30:00.200Z");
+	});
+
 	it("fails when Axiom marks an SDK result partial", async () => {
 		const client = createAxiomClient({
 			...queryConfig,

@@ -68,6 +68,23 @@ func TestModelSettingAdminRejectsRetiredTimeoutField(t *testing.T) {
 	assertError(t, response, http.StatusBadRequest, "invalid_json")
 }
 
+func TestModelDiscoveryInputRejectsUnknownFields(t *testing.T) {
+	request := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodPost,
+		modelSettingsAdminPrefix+"/llm/models",
+		strings.NewReader(`{"apiKey":"secret","baseUrl":"https://provider.example/v1","provider":"openai","model":"unexpected"}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	var input modelDiscoveryInput
+
+	if decodeProviderAdminJSON(response, request, &input) {
+		t.Fatal("unknown discovery field was accepted")
+	}
+	assertError(t, response, http.StatusBadRequest, "invalid_json")
+}
+
 func TestOnlineExecutionControlDoesNotExposeModelSettingsAdmin(t *testing.T) {
 	server := newServerForTest()
 	response := httptest.NewRecorder()
