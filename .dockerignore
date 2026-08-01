@@ -51,6 +51,8 @@ apps/app-api/.dev.vars
 !packages/ingestion-kernels-rs/**
 !packages/ingest-core/
 !packages/ingest-core/**
+!packages/internal-portal-client/
+!packages/internal-portal-client/**
 !packages/langfuse-identity/
 !packages/langfuse-identity/**
 !packages/telemetry-node/
