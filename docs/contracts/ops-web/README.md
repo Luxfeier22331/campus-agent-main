@@ -69,8 +69,8 @@ status: active
 ### 身份和权限
 
 - `/api/ops/*` 验证 Cloudflare Access JWT 的签发方、受众和签名。
-- Cloudflare Access policy 决定人员范围；服务端拒绝 `type=app` 服务身份，不复制人员、组或
-  分接口白名单。
+- Cloudflare Access policy 决定人员范围；服务端只接受 `type=app` 且 `sub` 非空的人员应用令牌，
+  拒绝 `sub` 为空的服务令牌，不复制人员、组或分接口白名单。
 - 所有接口使用同一人员准入。写接口另外执行同源、正文、并发和领域校验。
 - 浏览器不持有 PostgreSQL、Axiom、在线模型配置管理接口或外部平台凭据。
 
@@ -208,3 +208,4 @@ status: active
 - `../../product/ops-web.md`
 - `../../architecture/system/ops-observability.md`
 - `../../data/postgres-ownership.md`
+- [Cloudflare Access Application Token](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/application-token/)

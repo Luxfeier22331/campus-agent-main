@@ -158,14 +158,11 @@ function readCookieValue(cookieHeader: string | null, name: string): string | nu
 }
 
 function mapHumanOperatorContext(payload: JWTPayload): OpsOperatorContext | null {
-	if (payload.type === "app") {
-		return null;
-	}
 	const subject = typeof payload.sub === "string" ? payload.sub.trim() : "";
-	const email = typeof payload.email === "string" ? payload.email.trim() : "";
-	if (!(email || subject)) {
+	if (payload.type !== "app" || !subject) {
 		return null;
 	}
+	const email = typeof payload.email === "string" ? payload.email.trim() : "";
 	return {
 		displayName: normalizeNullableString(payload.name),
 		email: email || null,

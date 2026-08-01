@@ -104,6 +104,22 @@ describe("ops admission", () => {
 			{ common_name: "ops-web-smoke.access", sub: "", type: "app" },
 		);
 	});
+
+	it("rejects non-application Access tokens", async () => {
+		await withAccessAssertion(
+			async (token) => {
+				const result = await validateCloudflareAccessRequest(
+					new Request("https://ops.example/api", {
+						headers: { "cf-access-jwt-assertion": token },
+					}),
+					{ ACCESS_POLICY_AUD, ACCESS_TEAM_DOMAIN },
+				);
+				expect(result.operator).toBeNull();
+				expect(result.response?.status).toBe(401);
+			},
+			{ email: "ops@example.com", sub: "operator-001", type: "org" },
+		);
+	});
 });
 
 async function withAccessAssertion(run: (token: string) => Promise<void>, claims?: JWTPayload) {
@@ -117,7 +133,12 @@ async function withAccessAssertion(run: (token: string) => Promise<void>, claims
 				exp: now + 300,
 				iat: now,
 				iss: ACCESS_TEAM_DOMAIN,
-				...(claims ?? { email: "ops@example.com", sub: "operator-001" }),
+				...(claims ?? {
+					email: "ops@example.com",
+					identity_nonce: "ops-web-test-identity",
+					sub: "operator-001",
+					type: "app",
+				}),
 			}),
 		),
 	)
