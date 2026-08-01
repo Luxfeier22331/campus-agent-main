@@ -17,7 +17,8 @@ status: active
 | 组件 | 负责 | 不负责 |
 | --- | --- | --- |
 | `apps/ingestion-control` | 注册任务准入、Temporal workflow、Rust kernel 投影；文件发布 workflow 提交与状态查询 | 门户 HTTP、通知同步、在线发布 |
-| `apps/source-collector` | 门户 HTTP 会话、文件发布 Activity、本地通知命令、认证检查 | 注册任务准入、PostgreSQL 投影、derived 处理 |
+| `apps/source-collector` | 文件发布 Activity、本地通知命令和一次性本地认证检查 | TGC 持久化或保活、注册任务准入、PostgreSQL 投影、derived 处理 |
+| `packages/internal-portal-client` | CAS 跳转、门户 Cookie 会话、TGC 校验和错误分类 | 配置、凭据存储、调度和采集业务 |
 | `packages/ingestion-contracts` | 跨运行时 JSON Schema 与校验器 | 工作流、存储和供应商客户端 |
 | `packages/ingest-core` | 对象引用、摘要、registry 与内核输入输出辅助能力 | Temporal、数据库和门户实现 |
 | `packages/ingestion-kernels-rs` | 确定性校验与分块 | 网络、数据库、对象存储和工作流编排 |
@@ -59,10 +60,10 @@ PostgreSQL、任务注册表或 Ops API，附件只保存 metadata。
 
 ## 认证检查
 
-Kubernetes CronJob 每 30 分钟直接执行 source-collector `auth:check`。该命令只用当前 TGC 建立
-门户会话，不触发采集、不写业务状态，也不进入 Temporal。固定 TGC 由部署环境提供并由环境所有者
-通过所属 Secret 投递方式轮换；Ops Web 不读取或修改该 Secret，也不读取 CronJob 状态。
-本地开发使用前台 `auth:keepalive` 和忽略的状态文件，不复用线上状态存储。
+Ops Web 在 PostgreSQL 保存多条具名 TGC，并由同镜像 CronJob 每分钟顺序建立门户会话、记录结果和
+CAS 返回的当前值。检查不触发采集、不写对象存储，也不进入 Temporal。source-collector 只在本地
+命令或显式启动的进程中消费开发者从 Ops Web 取出的直接值；它不读取 Ops Web 数据库，也不维护
+第二份认证状态。
 
 ## 状态分工
 

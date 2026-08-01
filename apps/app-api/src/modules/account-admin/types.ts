@@ -4,6 +4,7 @@ import type {
 	AccountAdminAction,
 	AccountAdminOutcome,
 	AccountAdminState,
+	AccountDeletionStatus,
 } from "campus-contracts/account-admin";
 
 export type {
@@ -37,19 +38,16 @@ export interface AccountAdminEventPage {
 	nextCursor: string | null;
 }
 
-export interface AccountDeletionAdminRecord {
-	attemptCount: number;
+export type AccountDeletionStatusRecord = Omit<
+	AccountDeletionStatus,
+	"completedAt" | "lastAttemptAt" | "nextAttemptAt" | "requestedAt" | "updatedAt"
+> & {
 	completedAt: Date | null;
 	lastAttemptAt: Date | null;
-	lastErrorCode: string | null;
 	nextAttemptAt: Date;
-	ownerUserId: string | null;
-	requestId: string;
 	requestedAt: Date;
-	retryAvailable: boolean;
-	status: "completed" | "pending";
 	updatedAt: Date;
-}
+};
 
 export interface AccountAdminUserSummary {
 	accessSource: AccountAdminAccessSource;
@@ -76,7 +74,7 @@ export interface AccountAdminSession {
 export interface AccountAdminUserDetail extends AccountAdminUserSummary {
 	banReason: string | null;
 	credentialAccount: boolean;
-	deletion: AccountDeletionAdminRecord | null;
+	deletion: AccountDeletionStatusRecord | null;
 	events: AccountAdminEventRecord[];
 	passwordChangeRequired: boolean;
 	sessions: AccountAdminSession[];
@@ -85,10 +83,5 @@ export interface AccountAdminUserDetail extends AccountAdminUserSummary {
 
 export interface AccountAdminUserPage {
 	items: AccountAdminUserSummary[];
-	nextCursor: string | null;
-}
-
-export interface AccountDeletionAdminPage {
-	items: AccountDeletionAdminRecord[];
 	nextCursor: string | null;
 }

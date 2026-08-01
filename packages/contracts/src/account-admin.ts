@@ -19,7 +19,6 @@ export const ACCOUNT_ADMIN_ACTIONS = [
 	"account_banned",
 	"account_unbanned",
 	"temporary_password_issued",
-	"deletion_retry_requested",
 ] as const;
 export const AccountAdminActionSchema = z.enum(ACCOUNT_ADMIN_ACTIONS).meta({ id: "action" });
 
@@ -75,17 +74,15 @@ export const AccountAdminEventSchema = z
 	.strict()
 	.meta({ id: "event" });
 
-export const AccountDeletionAdminRecordSchema = z
+export const AccountDeletionStatusSchema = z
 	.object({
 		attemptCount: z.number().int().nonnegative(),
 		completedAt: z.iso.datetime({ offset: true }).nullable(),
 		lastAttemptAt: z.iso.datetime({ offset: true }).nullable(),
 		lastErrorCode: z.string().nullable(),
 		nextAttemptAt: z.iso.datetime({ offset: true }),
-		ownerUserId: z.string().nullable(),
 		requestId: z.string(),
 		requestedAt: z.iso.datetime({ offset: true }),
-		retryAvailable: z.boolean(),
 		status: z.enum(["pending", "completed"]),
 		updatedAt: z.iso.datetime({ offset: true }),
 	})
@@ -95,7 +92,7 @@ export const AccountDeletionAdminRecordSchema = z
 export const AccountAdminUserDetailSchema = AccountAdminUserSummarySchema.extend({
 	banReason: z.string().nullable(),
 	credentialAccount: z.boolean(),
-	deletion: AccountDeletionAdminRecordSchema.nullable(),
+	deletion: AccountDeletionStatusSchema.nullable(),
 	events: z.array(AccountAdminEventSchema),
 	passwordChangeRequired: z.boolean(),
 	sessions: z.array(AccountAdminSessionSchema),
@@ -111,14 +108,6 @@ export const AccountAdminUserPageSchema = z
 	})
 	.strict()
 	.meta({ id: "userPage" });
-
-export const AccountDeletionAdminPageSchema = z
-	.object({
-		items: z.array(AccountDeletionAdminRecordSchema),
-		nextCursor: z.string().nullable(),
-	})
-	.strict()
-	.meta({ id: "deletionPage" });
 
 export const AccountAdminEventPageSchema = z
 	.object({
@@ -164,15 +153,6 @@ export const AccountAdminUserQuerySchema = z
 	.strict()
 	.meta({ id: "userQuery" });
 
-export const AccountDeletionQuerySchema = z
-	.object({
-		cursor: z.string().trim().min(1).max(512).optional(),
-		limit: z.coerce.number().int().min(1).max(100).default(50),
-		status: z.enum(["pending", "needs_attention", "completed"]).optional(),
-	})
-	.strict()
-	.meta({ id: "deletionQuery" });
-
 export const AccountAdminEventQuerySchema = z
 	.object({
 		action: AccountAdminActionSchema.optional(),
@@ -189,13 +169,11 @@ export const AccountAdminEventQuerySchema = z
 export const AccountAdminContractSchema = z.union([
 	AccountAdminUserPageSchema,
 	AccountAdminUserDetailSchema,
-	AccountDeletionAdminPageSchema,
 	AccountAdminEventPageSchema,
 	TemporaryPasswordResponseSchema,
 	AccountAdminReasonSchema,
 	AccountAdminEmptyCommandSchema,
 	AccountAdminUserQuerySchema,
-	AccountDeletionQuerySchema,
 	AccountAdminEventQuerySchema,
 ]);
 
@@ -210,5 +188,5 @@ export type AccountAdminSession = z.infer<typeof AccountAdminSessionSchema>;
 export type AccountAdminState = z.infer<typeof AccountAdminStateSchema>;
 export type AccountAdminUserDetail = z.infer<typeof AccountAdminUserDetailSchema>;
 export type AccountAdminUserSummary = z.infer<typeof AccountAdminUserSummarySchema>;
-export type AccountDeletionAdminRecord = z.infer<typeof AccountDeletionAdminRecordSchema>;
+export type AccountDeletionStatus = z.infer<typeof AccountDeletionStatusSchema>;
 export type TemporaryPasswordResponse = z.infer<typeof TemporaryPasswordResponseSchema>;

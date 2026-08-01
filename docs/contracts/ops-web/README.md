@@ -12,8 +12,9 @@ status: active
 
 - [runtime.md](./runtime.md)：运行概况、运行记录和按需系统记录；
 - [providers.md](./providers.md)：在线模型配置；
+- [internal-portal.md](./internal-portal.md)：内部门户凭据；
 - [access.md](./access.md)：非校园邮箱准入授权；
-- [users.md](./users.md)：用户、会话、账号操作记录和账号注销处理。
+- [users.md](./users.md)：用户、会话、账号操作记录和只读注销状态。
 
 食堂和同好群是内容运营能力，其接口与数据边界分别由
 [食堂](../../product/dining.md) 和 [同好群](../../domains/groups.md) 说明。可执行合同位于 `apps/ops-web/src/server/app.ts` 和
@@ -36,6 +37,15 @@ status: active
 - `PUT /api/ops/model-settings/execution/:kind`
 - `POST /api/ops/model-settings/execution/:kind/validate`
 
+内部门户凭据：
+
+- `GET /api/ops/internal-portal/credentials`
+- `POST /api/ops/internal-portal/credentials`
+- `PUT /api/ops/internal-portal/credentials/:credentialId`
+- `DELETE /api/ops/internal-portal/credentials/:credentialId`
+- `POST /api/ops/internal-portal/credentials/:credentialId/validate`
+- `POST /api/ops/internal-portal/credentials/:credentialId/reveal`
+
 账号管理：
 
 - `GET /api/ops/email-access-grants`
@@ -46,8 +56,6 @@ status: active
 - `POST /api/ops/users/:userId/:action`
 - `POST /api/ops/users/:userId/sessions/:sessionId/revoke`
 - `GET /api/ops/account-events`
-- `GET /api/ops/account-deletions`
-- `POST /api/ops/account-deletions/:requestId/retry`
 
 同好群：
 
@@ -97,20 +105,24 @@ status: active
 | 400 | `OPS_INVALID_QUERY` | 查询参数或游标无效 |
 | 400 | `OPS_INVALID_REQUEST_ID` | 请求 ID 格式无效 |
 | 400 | `OPS_PROVIDER_CONFIG_CONTENT_TYPE_REQUIRED`、`OPS_MODEL_SETTINGS_PRECONDITION_REQUIRED` | 在线模型配置写入合同无效 |
+| 400 | `OPS_INTERNAL_PORTAL_INPUT_INVALID`、`OPS_INTERNAL_PORTAL_CONTENT_TYPE_REQUIRED` | 内部门户凭据正文或标识无效 |
 | 400 | `OPS_DINING_QUERY_INVALID`、`OPS_DINING_DRAFT_INVALID`、`OPS_DINING_PUBLISH_INVALID`、`OPS_DINING_RESTORE_INVALID`、`OPS_DINING_MENU_INVALID`、`OPS_DINING_REVIEW_INVALID`、`OPS_DINING_REPORT_INVALID`、`OPS_DINING_INVALID` | Dining 查询、正文或内容无效 |
 | 400 | `OPS_CAMPUS_GROUPS_REQUEST_INVALID` | 同好群目录正文无效 |
 | 401 | `OPS_ACCESS_JWT_MISSING`、`OPS_ACCESS_JWT_INVALID` | 未通过 Access 验证 |
 | 403 | `OPS_PROVIDER_CONFIG_CSRF_REJECTED` | 在线模型配置写请求不同源 |
+| 403 | `OPS_INTERNAL_PORTAL_CSRF_REJECTED` | 内部门户凭据写请求不同源 |
 | 403 | `OPS_ACCOUNT_ADMIN_CSRF_REJECTED`、`OPS_EMAIL_ACCESS_CSRF_REJECTED` | 账号管理写请求不同源 |
 | 403 | `OPS_DINING_ORIGIN_INVALID` | Dining 写请求不同源 |
 | 404 | `OPS_REQUEST_NOT_FOUND`、`OPS_API_ROUTE_NOT_FOUND`、`OPS_DINING_NOT_FOUND` | 请求、接口或地图版本不存在 |
 | 409 | `OPS_PROVIDER_CONFIG_CONFLICT` | 模型配置已被其他操作更新 |
+| 409 | `OPS_INTERNAL_PORTAL_CONFLICT` | 内部门户凭据已被其他操作更新 |
 | 409 | `OPS_DINING_CONFLICT` | 草稿、发布或评价操作违反领域校验 |
 | 503 | `OPS_ADMISSION_NOT_CONFIGURED` | 访问控制未配置 |
 | 503 | `OPS_STATUS_STORE_UNAVAILABLE` | PostgreSQL 读取不可用 |
 | 503 | `OPS_OBSERVABILITY_UNAVAILABLE` | Axiom 查询未配置、失败、超时或响应无效 |
 | 503 | `OPS_SENTRY_UNAVAILABLE` | Sentry Issue 查询未配置、失败或响应无效 |
 | 503 | `OPS_PROVIDER_CONFIG_UNAVAILABLE` | execution-control admin 未配置或不可用 |
+| 503 | `OPS_INTERNAL_PORTAL_STORE_UNAVAILABLE`、`OPS_INTERNAL_PORTAL_CHECK_FAILED` | 内部门户凭据数据库或真实验证暂不可用 |
 | 503 | `OPS_ACCOUNT_ADMIN_UNAVAILABLE`、`OPS_EMAIL_ACCESS_UNAVAILABLE` | App API 账号管理接口未配置或不可用 |
 | 503 | `OPS_DINING_STORE_UNAVAILABLE` | Dining PostgreSQL 不可用 |
 | 503 | `OPS_CAMPUS_GROUPS_UNAVAILABLE` | App API 同好群管理接口未配置或不可用 |

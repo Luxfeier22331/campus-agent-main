@@ -19,15 +19,14 @@ import {
 	Activity,
 	ClipboardList,
 	History,
+	KeyRound,
 	ServerCog,
 	UserRoundCheck,
-	UserRoundX,
 	UsersRound,
 	Utensils,
 } from "lucide-react";
 import { useMemo } from "react";
 import type { OpsOverviewWindow } from "../shared/ops-contract";
-import { AccountDeletionsPage } from "./account-deletions-page";
 import { AccountEventsPage } from "./account-events-page";
 import { DiningMenuPage } from "./dining-menu-page";
 import { DiningPage } from "./dining-page";
@@ -35,6 +34,7 @@ import { DiningReportsPage } from "./dining-reports-page";
 import { DiningReviewsPage } from "./dining-reviews-page";
 import { EmailAccessPage } from "./email-access-page";
 import { GroupsPage } from "./groups-page";
+import { InternalPortalPage } from "./internal-portal-page";
 import { NotFoundPage } from "./not-found-page";
 import {
 	ignoredRequestSearchParamNames,
@@ -144,6 +144,12 @@ const emailAccessRoute = createRoute({
 	component: EmailAccessPage,
 });
 
+const internalPortalRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/internal-portal",
+	component: InternalPortalPage,
+});
+
 const usersRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/users",
@@ -179,17 +185,6 @@ const accountEventsRoute = createRoute({
 		window: AccountAdminEventWindowSchema.safeParse(search.window).data ?? "7d",
 	}),
 	component: AccountEventsRoute,
-});
-
-const accountDeletionsRoute = createRoute({
-	getParentRoute: () => rootRoute,
-	path: "/account-deletions",
-	validateSearch: (search: Record<string, unknown>) => ({
-		cursor: optionalBoundedSearchString(search.cursor, 512),
-		history: optionalBoundedSearchString(search.history, 4096),
-		status: optionalDeletionStatus(search.status) ?? "pending",
-	}),
-	component: AccountDeletionsRoute,
 });
 
 const diningRoute = createRoute({
@@ -229,11 +224,11 @@ const routeTree = rootRoute.addChildren([
 	requestSystemRoute,
 	requestDetailRoute,
 	providerConfigRoute,
+	internalPortalRoute,
 	emailAccessRoute,
 	usersRoute,
 	accountEventsRoute,
 	userDetailRoute,
-	accountDeletionsRoute,
 	diningRoute,
 	diningMenuRoute,
 	diningReviewsRoute,
@@ -268,10 +263,10 @@ function RootLayout() {
 				{ href: "/overview", icon: Activity, label: "运行概览" },
 				{ href: "/requests", icon: ClipboardList, label: "运行记录" },
 				{ href: "/providers", icon: ServerCog, label: "模型配置" },
+				{ href: "/internal-portal", icon: KeyRound, label: "内部门户凭据" },
 				{ href: "/email-access", icon: UserRoundCheck, label: "账号准入" },
 				{ href: "/users", icon: UsersRound, label: "用户管理" },
 				{ href: "/users/activity", icon: History, label: "账号操作记录" },
-				{ href: "/account-deletions", icon: UserRoundX, label: "账号注销处理" },
 				{ href: "/dining", icon: Utensils, label: "食堂" },
 				{ href: "/groups", icon: UsersRound, label: "同好群" },
 			]}
@@ -328,22 +323,10 @@ function AccountEventsRoute() {
 	return <AccountEventsPage search={accountEventsRoute.useSearch()} />;
 }
 
-function AccountDeletionsRoute() {
-	return <AccountDeletionsPage search={accountDeletionsRoute.useSearch()} />;
-}
-
 function DiningRoute() {
 	return <DiningPage />;
 }
 
 function optionalOverviewWindow(value: unknown): OpsOverviewWindow | undefined {
 	return value === "15m" || value === "1h" || value === "6h" || value === "24h" ? value : undefined;
-}
-
-function optionalDeletionStatus(value: unknown) {
-	return value === "pending" || value === "needs_attention" || value === "completed"
-		? value
-		: value === ""
-			? ""
-			: undefined;
 }

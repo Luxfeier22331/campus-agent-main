@@ -45,10 +45,6 @@ export const accountDeletionRequests = profile.table(
 			"profile_account_deletion_status_check",
 			sql`${table.status} in ('pending', 'completed')`,
 		),
-		statusUpdatedIndex: index("profile_account_deletion_status_updated_idx").on(
-			table.status,
-			table.updatedAt,
-		),
 		pendingLeaseIndex: index("profile_account_deletion_pending_lease_idx").on(
 			table.status,
 			table.nextAttemptAt,

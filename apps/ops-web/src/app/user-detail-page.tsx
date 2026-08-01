@@ -456,6 +456,34 @@ export function UserDetailPage({ from, userId }: { from?: string; userId: string
 				</Card>
 			</div>
 
+			{detail.deletion ? (
+				<Card className="mt-4">
+					<CardHeader>
+						<CardTitle>账号注销状态</CardTitle>
+					</CardHeader>
+					<CardContent className="grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
+						<KeyValue
+							label="状态"
+							value={detail.deletion.status === "pending" ? "处理中" : "已完成"}
+						/>
+						<KeyValue label="申请时间" value={formatTimestamp(detail.deletion.requestedAt)} />
+						<KeyValue label="尝试次数" value={detail.deletion.attemptCount} />
+						<KeyValue label="最近尝试" value={formatTimestamp(detail.deletion.lastAttemptAt)} />
+						{detail.deletion.status === "pending" ? (
+							<KeyValue label="下次尝试" value={formatTimestamp(detail.deletion.nextAttemptAt)} />
+						) : (
+							<KeyValue label="完成时间" value={formatTimestamp(detail.deletion.completedAt)} />
+						)}
+						<KeyValue label="最近错误" value={detail.deletion.lastErrorCode ?? "-"} />
+						<KeyValue
+							label="请求 ID"
+							value={<span className="font-mono text-xs">{detail.deletion.requestId}</span>}
+						/>
+						<KeyValue label="更新时间" value={formatTimestamp(detail.deletion.updatedAt)} />
+					</CardContent>
+				</Card>
+			) : null}
+
 			<div className="mt-6">
 				<h2 className="mb-3 font-semibold text-foreground text-lg">会话</h2>
 				<DataTable<AccountAdminSession>

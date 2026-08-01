@@ -7,7 +7,6 @@ import type {
 	AccountAdminOutcome,
 	AccountAdminState,
 	AccountAdminUserDetail,
-	AccountDeletionAdminPage,
 } from "./types";
 
 interface CommandInput {
@@ -27,11 +26,6 @@ export interface AccountAdminService {
 		issuedAt: Date;
 		temporaryPassword: string;
 	}>;
-	listDeletions(input: {
-		cursor?: string;
-		limit: number;
-		status?: "completed" | "needs_attention" | "pending";
-	}): Promise<AccountDeletionAdminPage>;
 	listEvents(input: {
 		action?: AccountAdminAction;
 		actorId?: string;
@@ -48,7 +42,6 @@ export interface AccountAdminService {
 		query?: string;
 		state?: AccountAdminState;
 	}): ReturnType<AccountAdminStore["listUsers"]>;
-	retryDeletion(input: CommandInput & { reason: string; requestId: string }): Promise<void>;
 	revokeSession(
 		input: CommandInput & { sessionId: string; userId: string },
 	): Promise<AccountAdminUserDetail>;
@@ -344,24 +337,8 @@ export function buildAccountAdminService(input: {
 				temporaryPassword: result.value.temporaryPassword,
 			};
 		},
-		listDeletions: (query) => input.store.listDeletions(query),
 		listEvents: (query) => input.store.listEvents(query),
 		listUsers: (query) => input.store.listUsers(query),
-		async retryDeletion(command) {
-			const reason = normalizeReason(command.reason);
-			await runCommand({
-				action: "deletion_retry_requested",
-				actorId: command.actorId,
-				execute: async () => {
-					if (!(await input.store.retryDeletion(command.requestId))) {
-						throw routeError("account_deletion_not_pending", "The deletion is not pending.", 409);
-					}
-				},
-				idempotencyKey: command.idempotencyKey,
-				payload: { reason, requestId: command.requestId },
-				reason,
-			});
-		},
 		async revokeSession(command) {
 			await getExistingUser(command.userId);
 			await runCommand({

@@ -5,13 +5,12 @@ import {
 	AccountAdminReasonSchema,
 	AccountAdminUserActionSchema,
 	AccountAdminUserQuerySchema,
-	AccountDeletionQuerySchema,
 } from "campus-contracts/account-admin";
 import type { Hono } from "hono";
 
 import type { Env } from "../../config";
 import { jsonResponse, withNoStore } from "../../http";
-import { readJsonRequestBody, resolveWaitUntil } from "../request-utils";
+import { readJsonRequestBody } from "../request-utils";
 import type { AppRequestScope } from "../types";
 import { requireOpsAdminToken, requireOpsCommandHeaders } from "./ops-admin-auth";
 
@@ -83,31 +82,10 @@ export function registerAccountAdminRoutes(input: {
 		);
 	});
 
-	input.app.get("/api/internal/admin/account-deletions", async (c) => {
-		requireOpsAdminToken(c.req.raw, input.env);
-		const query = AccountDeletionQuerySchema.parse(c.req.query());
-		const page = await input.createRequestScope().resolveAccountAdminService().listDeletions(query);
-		return withNoStore(jsonResponse(page));
-	});
-
 	input.app.get("/api/internal/admin/account-events", async (c) => {
 		requireOpsAdminToken(c.req.raw, input.env);
 		const query = AccountAdminEventQuerySchema.parse(c.req.query());
 		const page = await input.createRequestScope().resolveAccountAdminService().listEvents(query);
 		return withNoStore(jsonResponse(page));
-	});
-
-	input.app.post("/api/internal/admin/account-deletions/:requestId/retry", async (c) => {
-		requireOpsAdminToken(c.req.raw, input.env);
-		const command = requireOpsCommandHeaders(c.req.raw);
-		const { reason } = AccountAdminReasonSchema.parse(await readJsonRequestBody(c.req.raw));
-		const scope = input.createRequestScope();
-		await scope.resolveAccountAdminService().retryDeletion({
-			...command,
-			reason,
-			requestId: AccountAdminIdentifierSchema.parse(c.req.param("requestId")),
-		});
-		resolveWaitUntil(c)?.(scope.resolveAccountLifecycleService().dispatchPending());
-		return withNoStore(jsonResponse({ accepted: true }, { status: 202 }));
 	});
 }

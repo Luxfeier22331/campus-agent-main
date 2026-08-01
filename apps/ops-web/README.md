@@ -8,20 +8,22 @@
 - 读取固定范围的运行概况、运行记录和依赖状态；
 - 通过服务端固定查询访问 Axiom 和 Sentry，不向浏览器提供任意供应商查询；
 - 执行明确准入的在线模型配置、食堂和同好群内容运营操作；
-- 通过 App API 管理邮箱准入、用户状态、会话和账号注销处理。
+- 持久化、验证、定时检查并按需显示多条内部门户 TGC；
+- 通过 App API 管理邮箱准入、用户状态和会话，并在用户详情只读显示注销状态。
 
 本应用不是产品 API、数据库浏览器、Temporal 控制台或通用 Secret 管理器。浏览器只调用同源
-`/api/ops/*`，供应商凭据和数据库连接留在服务端。
+`/api/ops/*`；只有操作者明确请求显示时，内部门户 TGC 才进入当前对话框，其他供应商凭据和
+数据库连接留在服务端。
 
 ## 页面
 
 - `/overview`：运行概况；
 - `/requests`、`/requests/:requestId`：运行记录与单次运行详情；
 - `/providers`：在线问答当前模型配置；
+- `/internal-portal`：内部门户凭据录入、检查、轮换和明文读取；
 - `/email-access`：非校园邮箱准入；
 - `/users`、`/users/:userId`：用户查询、详情和固定账号操作；
 - `/users/activity`：账号操作记录；
-- `/account-deletions`：账号注销处理；
 - `/dining`：食堂地图维护；
 - `/groups`：同好群目录分组、群和展示顺序维护。
 
@@ -59,11 +61,12 @@ pnpm --dir apps/ops-web db:bootstrap-dining
 `.env.local`。Ops Web 使用统一 `ops_web` 角色和 `object-store-secrets`；Dining 不创建专属
 角色、连接、桶或凭据。
 
-Dining 的声明式 schema 位于 `packages/domains/dining/src/schema.ts`，生成的 migration 位于
-`apps/ops-web/drizzle/`，并使用 `drizzle.ops_web_dining_migrations`。结构变化先运行
+Ops Web 的 Dining 与内部门户声明式 schema 位于 `packages/domains/dining/src/schema.ts` 和
+`apps/ops-web/ops/db/internal-portal-schema.ts`，生成的 migration 位于 `apps/ops-web/drizzle/`，并
+共用历史命名的 `drizzle.ops_web_dining_migrations`。结构变化先运行
 `db:generate` 并审查新增 SQL；不得修改已应用 migration。`db:apply-dining` 按顺序执行 migration
-和 Dining grants，`db:bootstrap-dining` 之后才写入首次草稿。授权和 bootstrap 不建表，也不维护
-第二份 schema。
+和 Dining grants，完整部署使用 `db:apply` 安装 Ops Web schema 和授权；`db:bootstrap-dining`
+之后才写入首次草稿。授权和 bootstrap 不建表，也不维护第二份 schema。
 
 ```bash
 pnpm --dir apps/ops-web db:apply-dining

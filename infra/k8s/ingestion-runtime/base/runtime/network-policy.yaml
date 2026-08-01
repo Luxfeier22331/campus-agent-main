@@ -11,7 +11,6 @@ spec:
           - ingestion-control
           - ingestion-control-schema
           - ingestion-control-worker
-          - source-collector-auth-check
           - source-collector-worker
   policyTypes: ["Ingress"]
   ingress:
@@ -38,7 +37,6 @@ spec:
           - ingestion-control
           - ingestion-control-schema
           - ingestion-control-worker
-          - source-collector-auth-check
           - source-collector-worker
   policyTypes: ["Egress"]
   egress:

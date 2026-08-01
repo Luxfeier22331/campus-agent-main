@@ -183,14 +183,9 @@ spec:
                 secretKeyRef:
                   name: object-store-secrets
                   key: OBJECT_STORE_SOURCE_SECRET_KEY
-            - name: INTERNAL_PORTAL_SSO_TGC_FILE
-              value: /var/run/secrets/campus-agent/internal-portal/sso_tgc
           volumeMounts:
             - name: runtime-tmp
               mountPath: /tmp
-            - name: internal-portal-auth
-              mountPath: /var/run/secrets/campus-agent/internal-portal
-              readOnly: true
           resources:
             requests:
               cpu: 250m
@@ -200,7 +195,3 @@ spec:
       volumes:
         - name: runtime-tmp
           emptyDir: {}
-        - name: internal-portal-auth
-          secret:
-            defaultMode: 400
-            secretName: source-collector-internal-portal-auth

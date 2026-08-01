@@ -38,11 +38,9 @@ function createService(
 			events: [],
 		}),
 		hasPendingDeletion: vi.fn().mockResolvedValue(input.hasPendingDeletion ?? false),
-		listDeletions: vi.fn(),
 		listEvents: vi.fn(),
 		listUsers: vi.fn(),
 		markStaleCommandsIndeterminate: vi.fn(),
-		retryDeletion: vi.fn(),
 		startCommand: vi.fn(input.startCommand ?? (async () => true)),
 	};
 	const auth = {

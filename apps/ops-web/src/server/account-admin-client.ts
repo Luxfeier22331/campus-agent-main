@@ -2,7 +2,6 @@ import {
 	AccountAdminEventPageSchema,
 	AccountAdminUserDetailSchema,
 	AccountAdminUserPageSchema,
-	AccountDeletionAdminPageSchema,
 	TemporaryPasswordResponseSchema,
 } from "campus-contracts/account-admin";
 
@@ -99,21 +98,9 @@ export function createAccountAdminClient(
 			const query = search.size > 0 ? `?${search.toString()}` : "";
 			return AccountAdminEventPageSchema.parse(await request(`/account-events${query}`));
 		},
-		async listDeletions(search: URLSearchParams) {
-			const query = search.size > 0 ? `?${search.toString()}` : "";
-			return AccountDeletionAdminPageSchema.parse(await request(`/account-deletions${query}`));
-		},
 		async listUsers(search: URLSearchParams) {
 			const query = search.size > 0 ? `?${search.toString()}` : "";
 			return AccountAdminUserPageSchema.parse(await request(`/users${query}`));
-		},
-		async retryDeletion(requestId: string, body: unknown, actorId: string, idempotencyKey: string) {
-			return await request(`/account-deletions/${encodeURIComponent(requestId)}/retry`, {
-				actorId,
-				body,
-				idempotencyKey,
-				method: "POST",
-			});
 		},
 		async revokeSession(
 			userId: string,

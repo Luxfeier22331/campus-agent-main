@@ -72,6 +72,7 @@ describe("app-api schema installer", () => {
 			{ idx: 7, tag: "0007_execution_runtime_ownership", version: "7" },
 			{ idx: 8, tag: "0008_retain_execution_input", version: "7" },
 			{ idx: 9, tag: "0009_drop_docs_schema", version: "7" },
+			{ idx: 10, tag: "0010_cynical_maddog", version: "7" },
 		];
 		expect(journal.entries.map(({ idx, tag, version }) => ({ idx, tag, version }))).toEqual(
 			expectedEntries,
@@ -134,6 +135,9 @@ describe("app-api schema installer", () => {
 		const docsRetirement = readAppFile("drizzle/0009_drop_docs_schema.sql");
 		expect(docsRetirement).toContain('DROP TABLE "docs"."releases" CASCADE');
 		expect(docsRetirement).toContain('DROP SCHEMA "docs"');
+		expect(readAppFile("drizzle/0010_cynical_maddog.sql").trim()).toBe(
+			'DROP INDEX "profile"."profile_account_deletion_status_updated_idx";',
+		);
 		for (const schema of [
 			"campus_services_ops",
 			"identity",

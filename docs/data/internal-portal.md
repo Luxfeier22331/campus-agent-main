@@ -4,13 +4,31 @@ owner_boundary: sources/internal-portal
 status: active
 ---
 
-# 内部门户来源数据
+# 内部门户数据
 
 ## 边界
 
-内部门户目前产生通知来源对象和文件发布来源对象。两者都只写 source bucket，不创建规范文档、
+内部门户数据包含 Ops Web 所有的认证凭据，以及 source-collector 产生的通知和文件发布来源对象。
+凭据进入 PostgreSQL，来源对象只写 source bucket；两类数据不互相复制。来源采集不创建规范文档、
 derived 产物、离线发布清单、知识索引、产品通知页或模型查询目标。门户内容不按登录主体变化，
 对象身份只包含站点与来源 ID。
+
+## 认证凭据
+
+Ops Web 使用 `internal_portal.credentials` 保存多条具名记录。每条记录包含随机 `credential_id`、
+名称、原始 `sso_tgc`、单调递增版本、创建与更新时间，以及最近尝试、最近成功和结果分类。结果为
+`valid`、`credential_rejected` 或 `check_failed`；`null` 只表示尚未检查。表不维护主凭据、用途、
+自动切换、fingerprint、末四位、软删除、审计实体或运行时选择状态。
+
+新增和轮换先完成真实 CAS 验证，失败不写入候选值。CAS 返回刷新的 TGC 时保存新值。重命名、轮换、
+删除和定时检查都以当前版本为并发前置条件，旧检查不能覆盖检查期间发生的轮换。
+
+Ops Web 列表只投影非敏感 metadata。明文读取是单独的同源 `POST`，TGC 只进入当前浏览器对话框
+内存，不进入查询缓存或浏览器存储。`ops_web` 是该 schema 的唯一运行角色；App API、
+source-collector、Temporal 和对象存储都不能读取该表。
+
+记录随 PostgreSQL 正常持久化，Pod 重启和滚动部署不会删除；清空或重建所属数据库后不从 GitOps、
+Secret 或其他存储恢复，必须重新录入。
 
 ## 通知
 
@@ -65,15 +83,13 @@ workflow result，不另存对象。
 
 ## 认证
 
-source-collector 从当前原始 TGC 建立内存会话。Service Ticket、`JSESSIONID` 和 `nginx` Cookie
-不写环境变量、对象存储、PostgreSQL 或 Temporal 载荷。认证状态也不进入 source 或 derived
-bucket。
+共享内部门户客户端使用当前原始 TGC 建立内存会话。Service Ticket、`JSESSIONID` 和 `nginx`
+Cookie 不写环境变量、对象存储、PostgreSQL 或 Temporal 载荷。Ops Web 只持久化 CAS 返回的当前
+TGC 和有界检查 metadata；source-collector 的本地 `auth:check` 不写认证状态。
 
-本地 `auth:keepalive` 将最近尝试时间、最近成功时间和结果分类写入忽略的
-`.auth-status.json`，不保存 TGC 或派生 Cookie。线上 Kubernetes CronJob 定期运行 `auth:check`；
-凭据更新时间来自固定 Secret annotation，检查时间与结果来自 CronJob 原生状态。Ops Web 只读取
-这些字段并替换固定 Secret，不创建认证数据库、ConfigMap 或对象存储记录，也不触发通知或文件
-发布采集。
+Ops Web CronJob 直接读取凭据表并顺序检查，不经过 source-collector，不写 source 或 derived
+bucket，也不触发通知或文件发布采集。source-collector 本地命令只消费开发者显式传入的直接变量，
+不持久化该值或读取凭据表。
 
 ## 相关文档
 

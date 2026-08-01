@@ -8,7 +8,6 @@ import {
 	isNotNull,
 	isNull,
 	lt,
-	lte,
 	or,
 	type SQL,
 	sql,
@@ -34,8 +33,7 @@ import type {
 	AccountAdminState,
 	AccountAdminUserPage,
 	AccountAdminUserSummary,
-	AccountDeletionAdminPage,
-	AccountDeletionAdminRecord,
+	AccountDeletionStatusRecord,
 } from "./types";
 
 function encodeCursor(input: { at: Date; id: string }): string {
@@ -80,15 +78,17 @@ function accountState(row: {
 
 function toDeletionRecord(
 	row: typeof accountDeletionRequests.$inferSelect,
-	now: Date,
-): AccountDeletionAdminRecord {
+): AccountDeletionStatusRecord {
 	return {
-		...row,
-		retryAvailable:
-			row.status === "pending" &&
-			Boolean(row.lastErrorCode) &&
-			(row.leaseExpiresAt === null || row.leaseExpiresAt <= now),
+		attemptCount: row.attemptCount,
+		completedAt: row.completedAt,
+		lastAttemptAt: row.lastAttemptAt,
+		lastErrorCode: row.lastErrorCode,
+		nextAttemptAt: row.nextAttemptAt,
+		requestId: row.requestId,
+		requestedAt: row.requestedAt,
 		status: row.status as "completed" | "pending",
+		updatedAt: row.updatedAt,
 	};
 }
 
@@ -158,15 +158,10 @@ export interface AccountAdminStore {
 		accessState: AccountAdminUserSummary["accessState"];
 		base: typeof user.$inferSelect | null;
 		credentialAccount: boolean;
-		deletion: AccountDeletionAdminRecord | null;
+		deletion: AccountDeletionStatusRecord | null;
 		events: AccountAdminEventRecord[];
 	}>;
 	hasPendingDeletion(userId: string): Promise<boolean>;
-	listDeletions(input: {
-		cursor?: string;
-		limit: number;
-		status?: "completed" | "needs_attention" | "pending";
-	}): Promise<AccountDeletionAdminPage>;
 	listEvents(input: {
 		action?: AccountAdminAction;
 		actorId?: string;
@@ -184,7 +179,6 @@ export interface AccountAdminStore {
 		state?: AccountAdminState;
 	}): Promise<AccountAdminUserPage>;
 	markStaleCommandsIndeterminate(before: Date): Promise<number>;
-	retryDeletion(requestId: string): Promise<boolean>;
 	unbanUser(userId: string, now: Date): Promise<"deleting" | "not_found" | "updated">;
 	startCommand(input: {
 		action: AccountAdminAction;
@@ -274,7 +268,7 @@ export function createPgAccountAdminStore(
 				accessState: users[0]?.accessSource ? "allowed" : "denied",
 				base: users[0]?.base ?? null,
 				credentialAccount: Boolean(credentials[0]),
-				deletion: deletions[0] ? toDeletionRecord(deletions[0], now()) : null,
+				deletion: deletions[0] ? toDeletionRecord(deletions[0]) : null,
 				events: events.map(toEventRecord),
 			};
 		},
@@ -292,49 +286,6 @@ export function createPgAccountAdminStore(
 				)
 				.limit(1);
 			return Boolean(rows[0]);
-		},
-
-		async listDeletions(query) {
-			const db = await getDb();
-			const listedAt = now();
-			const cursor = decodeCursor(query.cursor);
-			const filters: SQL[] = [];
-			if (query.status === "needs_attention") {
-				filters.push(
-					eq(accountDeletionRequests.status, "pending"),
-					isNotNull(accountDeletionRequests.lastErrorCode),
-					sql`(${accountDeletionRequests.leaseExpiresAt} is null or ${accountDeletionRequests.leaseExpiresAt} <= ${listedAt})`,
-				);
-			} else if (query.status) {
-				filters.push(eq(accountDeletionRequests.status, query.status));
-			}
-			if (cursor) {
-				const cursorFilter = or(
-					lt(accountDeletionRequests.requestedAt, cursor.at),
-					and(
-						eq(accountDeletionRequests.requestedAt, cursor.at),
-						lt(accountDeletionRequests.requestId, cursor.id),
-					),
-				);
-				if (cursorFilter) {
-					filters.push(cursorFilter);
-				}
-			}
-			const rows = await db
-				.select()
-				.from(accountDeletionRequests)
-				.where(filters.length > 0 ? and(...filters) : undefined)
-				.orderBy(desc(accountDeletionRequests.requestedAt), desc(accountDeletionRequests.requestId))
-				.limit(query.limit + 1);
-			const items = rows.slice(0, query.limit).map((row) => toDeletionRecord(row, listedAt));
-			const last = items.at(-1);
-			return {
-				items,
-				nextCursor:
-					rows.length > query.limit && last
-						? encodeCursor({ at: last.requestedAt, id: last.requestId })
-						: null,
-			};
 		},
 
 		async listEvents(query) {
@@ -521,33 +472,6 @@ export function createPgAccountAdminStore(
 				)
 				.returning({ eventId: accountAdminEvent.eventId });
 			return rows.length;
-		},
-
-		async retryDeletion(requestId) {
-			const db = await getDb();
-			const retriedAt = now();
-			const rows = await db
-				.update(accountDeletionRequests)
-				.set({
-					lastErrorCode: null,
-					leaseExpiresAt: null,
-					leaseToken: null,
-					nextAttemptAt: retriedAt,
-					updatedAt: retriedAt,
-				})
-				.where(
-					and(
-						eq(accountDeletionRequests.requestId, requestId),
-						eq(accountDeletionRequests.status, "pending"),
-						isNotNull(accountDeletionRequests.lastErrorCode),
-						or(
-							isNull(accountDeletionRequests.leaseExpiresAt),
-							lte(accountDeletionRequests.leaseExpiresAt, retriedAt),
-						),
-					),
-				)
-				.returning({ requestId: accountDeletionRequests.requestId });
-			return Boolean(rows[0]);
 		},
 
 		async unbanUser(userId, now) {

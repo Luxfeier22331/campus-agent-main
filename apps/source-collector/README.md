@@ -4,15 +4,15 @@
 
 ## 所有权
 
-本应用负责从原始 `SSO_TGC` 建立当前执行所需的门户会话，并提供三条独立入口：
+本应用使用共享内部门户客户端从原始 `SSO_TGC` 建立当前执行所需的门户会话，并提供三条独立入口：
 
 - Temporal worker 按精确 ID 采集一份文件发布；
 - 本地命令增量采集或按日期回填通知；
-- `auth:check` 建立一次门户会话，`auth:keepalive` 在本地定期使用并检查当前 TGC；Kubernetes
-  CronJob 在线上执行同一单次检查。
+- 本地 `auth:check` 建立一次门户会话并检查当前 TGC。
 
-HTTP 会话、派生 Cookie、临时下载文件和供应商凭据只存在于本应用边界。应用不启动 workflow，
-不维护 ingestion task 或 PostgreSQL 投影，不写 derived bucket，也不发布在线查询目标。
+当前 source-collector 进程只在执行期间持有 HTTP 会话、派生 Cookie、临时下载文件和直接传入的
+TGC。应用不保存或定期检查凭据，不启动 workflow，不维护 ingestion task 或 PostgreSQL 投影，不写
+derived bucket，也不发布在线查询目标。多条 TGC 的持久化、验证和定时检查由 Ops Web 负责。
 
 ## 文件发布
 
@@ -60,19 +60,17 @@ internal_portal/<site-id>/notices/_state.json
 
 ## 认证
 
-本地命令通过 `INTERNAL_PORTAL_SSO_TGC` 提供原始 TGC。部署环境通过
-`INTERNAL_PORTAL_SSO_TGC_FILE` 读取固定 Secret 的完整卷投影。`JSESSIONID`、`nginx` 和
+开发者从 Ops Web 取出目标凭据后，通过本地未跟踪的 `INTERNAL_PORTAL_SSO_TGC` 提供原始 TGC。
+source-collector 不读取 TGC 文件、Ops Web 数据库或 Kubernetes Secret。`JSESSIONID`、`nginx` 和
 Service Ticket 不跨执行保存。
 
 ```bash
 pnpm --filter source-collector auth:check
-pnpm --filter source-collector auth:keepalive
 ```
 
-`auth:check` 只执行一次并以退出码表示结果。`auth:keepalive` 启动后立即检查，此后每 30 分钟
-重新读取未跟踪的 `.env` 并检查；最近尝试时间、最近成功时间和结果分类写入同目录下忽略的
-`.auth-status.json`，其中不包含 TGC。Kubernetes 每 30 分钟直接运行 `auth:check`。两种检查都不
-请求通知或文件发布内容，不写对象存储，也不触发采集。
+`auth:check` 只执行一次并以退出码表示结果，不请求通知或文件发布内容，不写状态或对象存储，也不
+触发采集。定时检查由 Ops Web 的 `ops-web-internal-portal-check` CronJob 直接读取所属 PostgreSQL
+记录执行，不经过 source-collector。
 
 ## Worker
 
@@ -80,8 +78,9 @@ pnpm --filter source-collector auth:keepalive
 pnpm --filter source-collector start:temporal-worker
 ```
 
-worker 只轮询 `campus-agent.ingestion.activity.source-collector`，处理文件发布 Activity。生产使用
-`infra/k8s/ingestion-runtime/base/runtime` 中的标准 Kubernetes Deployment。
+worker 只轮询 `campus-agent.ingestion.activity.source-collector`，处理文件发布 Activity。
+`infra/k8s/ingestion-runtime/base/runtime` 提供标准 Kubernetes Deployment，但不注入开发者 TGC；
+源码 base 本身不开放已认证的文件发布采集。
 
 ## 验证
 

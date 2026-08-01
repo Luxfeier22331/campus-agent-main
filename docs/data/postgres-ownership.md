@@ -19,7 +19,7 @@ schema 定义，连接拓扑见 `../architecture/system/data-plane.md`，部署�
 | `campus_agent` | 数据库 bootstrap | schema 安装和授权，不用于常驻运行时 |
 | `app_api` | `apps/app-api` | 产品数据读写和获准运行摘要读取 |
 | `execution_control` | `apps/execution-control` | 执行投影、模型配置读写和文档 grounding 准入 |
-| `ops_web` | `apps/ops-web` | 获准运行投影的列级只读访问，以及 Dining 内容维护 |
+| `ops_web` | `apps/ops-web` | 获准运行投影的列级只读访问、Dining 内容维护和内部门户凭据读写 |
 
 Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，不共享产品运行时角色。外部
 观测平台不获得产品 PostgreSQL 角色。
@@ -39,6 +39,7 @@ Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，�
 | `runtime.agent_*` | execution-control | execution-control |
 | `execution_config.*` | execution-control 配置管理 | execution-control |
 | `dining.*` | Ops Web | Ops Web、App API 公开读取 |
+| `internal_portal.credentials` | Ops Web | Ops Web |
 
 ingestion registry 和来源事实由采集数据所有者维护，不并入产品 schema。各表字段、状态和保留
 规则由所属数据文档或 schema 唯一维护。
@@ -59,7 +60,7 @@ migration 记录。
 | --- | --- | --- |
 | App API | `apps/app-api/src/db/schema/managed.ts` 与 `apps/app-api/drizzle/` | `drizzle.app_api_migrations` |
 | execution-control | `apps/execution-control/internal/schemamigrations/` | `public.execution_control_migrations` |
-| Ops Web Dining | `packages/domains/dining/src/schema.ts` 与 `apps/ops-web/drizzle/` | `drizzle.ops_web_dining_migrations` |
+| Ops Web | `packages/domains/dining/src/schema.ts`、`apps/ops-web/ops/db/internal-portal-schema.ts` 与 `apps/ops-web/drizzle/` | `drizzle.ops_web_dining_migrations`（保留历史名称） |
 
 - 已应用 migration 不得修改、重排或重新生成；结构变化新增下一条 migration。Drizzle 的 SQL、
   journal 和 snapshot 必须成套提交，Goose 的 SQL 与 Go migration 版本同样只追加；
@@ -98,6 +99,8 @@ migration 记录。
 - App API 读取 Dining 当前发布地图、菜单和公开评价；可创建或删除学生自己的评价并创建举报，
   但不能读取地图草稿和评价修改历史，也不能修改地图或菜单；
 - Ops Web 使用同一 `ops_web` 角色维护 Dining 地图、菜单、评价、举报和评价修改历史；
+- Ops Web 使用同一角色读写 `internal_portal.credentials`；App API 和其他运行角色没有该 schema
+  权限；
 - 不同所有者不共享 migration journal，也不通过双写复制同一事实；
 - 对象 bytes、原始来源、工作流历史和供应商 trace 不进入这些 schema。
 
@@ -109,8 +112,9 @@ migration 记录。
 
 - App API schema：`apps/app-api/src/db/schema/`、`apps/app-api/ops/db/`、`apps/app-api/drizzle/`
 - 执行投影与配置：`apps/execution-control/internal/schemamigrations/`
-- Dining schema：`packages/domains/dining/src/schema.ts`、`apps/ops-web/drizzle/`
-- Ops Web 与 Dining 授权：`apps/ops-web/ops/db/`
+- Ops Web schema：`packages/domains/dining/src/schema.ts`、
+  `apps/ops-web/ops/db/internal-portal-schema.ts`、`apps/ops-web/drizzle/`
+- Ops Web 授权：`apps/ops-web/ops/db/`
 
 ## 相关文档
 

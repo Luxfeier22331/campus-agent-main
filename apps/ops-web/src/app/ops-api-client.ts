@@ -14,7 +14,6 @@ import {
 	type AccountAdminState,
 	AccountAdminUserDetailSchema,
 	AccountAdminUserPageSchema,
-	AccountDeletionAdminPageSchema,
 	TemporaryPasswordResponseSchema,
 } from "campus-contracts/account-admin";
 import {
@@ -34,6 +33,7 @@ import {
 	DiningRestoreResponseSchema,
 } from "../shared/dining-contract";
 import type {
+	InternalPortalCredential,
 	ModelDiscoveryRequest,
 	ModelSettingKind,
 	ModelSettingUpdate,
@@ -44,6 +44,9 @@ import type {
 } from "../shared/ops-contract";
 import {
 	ExecutionModelSettingsStatusSchema,
+	InternalPortalCredentialListSchema,
+	InternalPortalCredentialResponseSchema,
+	InternalPortalCredentialRevealSchema,
 	ModelDiscoveryResponseSchema,
 	ModelSettingValidationResponseSchema,
 	OpsObservabilityResponseSchema,
@@ -165,42 +168,6 @@ export async function revokeAccountAdminSession(
 	);
 }
 
-export async function fetchAccountDeletions(
-	params: {
-		cursor?: string;
-		limit?: number;
-		status?: "completed" | "needs_attention" | "pending";
-	} = {},
-	input: { signal?: AbortSignal } = {},
-) {
-	const search = new URLSearchParams();
-	for (const [key, value] of Object.entries(params)) {
-		if (value !== undefined && value !== "") {
-			search.set(key, String(value));
-		}
-	}
-	return AccountDeletionAdminPageSchema.parse(
-		await fetchJson(`/api/ops/account-deletions${search.size > 0 ? `?${search}` : ""}`, {
-			signal: input.signal,
-		}),
-	);
-}
-
-export async function retryAccountDeletion(
-	requestId: string,
-	reason: string,
-	input: { idempotencyKey: string },
-) {
-	return fetchJson(`/api/ops/account-deletions/${encodeURIComponent(requestId)}/retry`, {
-		body: JSON.stringify({ reason }),
-		headers: {
-			"content-type": "application/json",
-			"idempotency-key": input.idempotencyKey,
-		},
-		method: "POST",
-	});
-}
-
 export async function fetchEmailAccessGrants(
 	params: {
 		cursor?: string;
@@ -293,6 +260,89 @@ export async function validateExecutionModelSetting(kind: ModelSettingKind) {
 	return ModelSettingValidationResponseSchema.parse(
 		await fetchJson(`/api/ops/model-settings/execution/${kind}/validate`, { method: "POST" }),
 	);
+}
+
+export async function fetchInternalPortalCredentials(input: { signal?: AbortSignal } = {}) {
+	return InternalPortalCredentialListSchema.parse(
+		await fetchJson("/api/ops/internal-portal/credentials", { signal: input.signal }),
+	);
+}
+
+export async function createInternalPortalCredential(input: { name: string; ssoTgc: string }) {
+	return InternalPortalCredentialResponseSchema.parse(
+		await fetchJson("/api/ops/internal-portal/credentials", {
+			body: JSON.stringify(input),
+			headers: { "content-type": "application/json" },
+			method: "POST",
+		}),
+	).credential;
+}
+
+export async function renameInternalPortalCredential(
+	credential: Pick<InternalPortalCredential, "credentialId" | "version">,
+	name: string,
+) {
+	return await updateInternalPortalCredential(credential, { name });
+}
+
+export async function rotateInternalPortalCredential(
+	credential: Pick<InternalPortalCredential, "credentialId" | "version">,
+	ssoTgc: string,
+) {
+	return await updateInternalPortalCredential(credential, { ssoTgc });
+}
+
+async function updateInternalPortalCredential(
+	credential: Pick<InternalPortalCredential, "credentialId" | "version">,
+	payload: { name: string } | { ssoTgc: string },
+) {
+	return InternalPortalCredentialResponseSchema.parse(
+		await fetchJson(
+			`/api/ops/internal-portal/credentials/${encodeURIComponent(credential.credentialId)}`,
+			{
+				body: JSON.stringify(payload),
+				headers: {
+					"content-type": "application/json",
+					"if-match": credentialEtag(credential.version),
+				},
+				method: "PUT",
+			},
+		),
+	).credential;
+}
+
+export async function deleteInternalPortalCredential(
+	credential: Pick<InternalPortalCredential, "credentialId" | "version">,
+) {
+	await fetchJson(
+		`/api/ops/internal-portal/credentials/${encodeURIComponent(credential.credentialId)}`,
+		{
+			headers: { "if-match": credentialEtag(credential.version) },
+			method: "DELETE",
+		},
+	);
+}
+
+export async function validateInternalPortalCredential(credentialId: string) {
+	return InternalPortalCredentialResponseSchema.parse(
+		await fetchJson(
+			`/api/ops/internal-portal/credentials/${encodeURIComponent(credentialId)}/validate`,
+			{ method: "POST" },
+		),
+	).credential;
+}
+
+export async function revealInternalPortalCredential(credentialId: string) {
+	return InternalPortalCredentialRevealSchema.parse(
+		await fetchJson(
+			`/api/ops/internal-portal/credentials/${encodeURIComponent(credentialId)}/reveal`,
+			{ method: "POST" },
+		),
+	);
+}
+
+function credentialEtag(version: number): string {
+	return `"${version}"`;
 }
 
 export class OpsApiError extends Error {

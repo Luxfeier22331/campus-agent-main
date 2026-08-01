@@ -18,7 +18,7 @@ status: active
 - Temporal namespace 可用；
 - ingestion-control 与 source-collector 来自同一 source revision；
 - `configs/ingestion` 中的 Rust registry 已通过校验；
-- 使用内部门户时，固定 TGC Secret 或本地 TGC 已配置。
+- 使用内部门户本地命令或显式 worker 时，已从 Ops Web 取得目标 TGC 并通过直接变量配置。
 
 ## 数据库与本地进程
 
@@ -88,15 +88,13 @@ PostgreSQL、ingestion-control API 或 Temporal。首次同步只建立当前最
 
 ## Kubernetes
 
-`infra/k8s/ingestion-runtime/base/runtime` 包含 API、migration 和两个 worker；
-`infra/k8s/ingestion-runtime/base/schedule` 包含 `source-collector-auth-check` CronJob。环境 overlay
-必须提供数据库、对象存储、Temporal、镜像摘要和固定 TGC Secret。
+`infra/k8s/ingestion-runtime/base/runtime` 包含 API、migration 和两个 worker。环境 overlay 必须
+提供数据库、对象存储、Temporal 和镜像摘要；源码 base 不创建认证 schedule，也不向
+source-collector 注入 TGC。
 
 source-collector 只能获得 source bucket 凭据。所有容器使用 non-root、只读 root filesystem；
-临时下载文件只写 `/tmp`。TGC Secret 以完整必需卷挂载。
-
-从旧运行时迁移时，还需按 `portal-auth.md` 删除已退役 Temporal Schedule。源码仓不自动操作环境
-中的 Schedule。
+临时下载文件只写 `/tmp`。内部门户 TGC 由 Ops Web 保存和定时检查；需要采集时由开发者在显式
+本地进程中选择并传入，Kubernetes base 本身不开放已认证的文件发布执行。
 
 ## 排查
 
@@ -116,5 +114,5 @@ pnpm ci:ingestion-control-postgres
 pnpm ci:infra
 ```
 
-这些检查验证源码、合同、隔离数据库 migration 和 Kubernetes 期望配置，不证明集群已应用、
-CronJob 已成功或真实门户可用。
+这些检查验证源码、合同、隔离数据库 migration 和 Kubernetes 期望配置，不证明集群已应用或
+真实门户可用。Ops Web 凭据的环境检查见 `portal-auth.md`。

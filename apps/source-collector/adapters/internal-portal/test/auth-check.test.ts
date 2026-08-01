@@ -6,7 +6,6 @@ import type { InternalPortalConfig } from "../src/config.js";
 const config: InternalPortalConfig = {
 	authSsoCookieDomain: ".example.edu",
 	authSsoTgc: "TGT-current",
-	authSsoTgcFile: null,
 	portalBaseUrl: "https://portal.example.edu",
 	portalPageUrl: "https://portal.example.edu/page/11#/",
 	portalProxyServer: null,

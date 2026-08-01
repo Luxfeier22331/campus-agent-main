@@ -54,7 +54,6 @@ export function accountStateLabel(state: AccountAdminState): string {
 const actionLabels: Record<AccountAdminEvent["action"], string> = {
 	account_banned: "封禁账号",
 	account_unbanned: "恢复账号",
-	deletion_retry_requested: "重试注销",
 	password_reset_email_sent: "发送重置邮件",
 	session_revoked: "撤销会话",
 	sessions_revoked: "撤销全部会话",

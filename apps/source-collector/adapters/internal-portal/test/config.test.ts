@@ -9,7 +9,6 @@ import {
 	resolveInternalPortalSiteId,
 } from "../src/config.js";
 
-const TEST_SSO_TGC_FILE = "/tmp/internal-portal-sso-tgc";
 const TEST_DESCRIPTOR: InternalPortalDescriptor = {
 	portalBaseUrl: "https://portal.example.edu",
 	portalPageUrl: "https://portal.example.edu/page/11#/",
@@ -24,7 +23,7 @@ function resolveTestConfig(
 ) {
 	return resolveInternalPortalConfig(
 		{
-			INTERNAL_PORTAL_SSO_TGC_FILE: TEST_SSO_TGC_FILE,
+			INTERNAL_PORTAL_SSO_TGC: "TGT-current",
 			...source,
 		},
 		descriptor,
@@ -67,23 +66,20 @@ describe("internal portal source collector config", () => {
 		expect(config.portalPageUrl).toBe("https://portal.example.edu/page/11#/");
 		expect(config.sourceHomeUrl).toBe("https://portal.example.edu");
 		expect(config.siteId).toBe("synthetic_internal_portal");
-		expect(config.authSsoTgc).toBeNull();
-		expect(config.authSsoTgcFile).toBe(TEST_SSO_TGC_FILE);
+		expect(config.authSsoTgc).toBe("TGT-current");
 		expect(config.portalProxyServer).toBeNull();
 	});
 
-	it("accepts a direct TGC and leaves the file optional", () => {
-		const config = resolveInternalPortalConfig({ INTERNAL_PORTAL_SSO_TGC: "TGT-current" });
+	it("leaves the local TGC optional until an authenticated command runs", () => {
+		const config = resolveInternalPortalConfig({});
 
-		expect(config.authSsoTgc).toBe("TGT-current");
-		expect(config.authSsoTgcFile).toBeNull();
+		expect(config.authSsoTgc).toBeNull();
 	});
 
 	it("keeps credentials and the local proxy as environment inputs", () => {
 		const config = resolveTestConfig(
 			{
 				INTERNAL_PORTAL_PROXY_SERVER: "http://127.0.0.1:10808",
-				INTERNAL_PORTAL_SSO_TGC_FILE: "/run/secrets/internal-portal/sso_tgc",
 			},
 			{
 				...TEST_DESCRIPTOR,
@@ -94,17 +90,8 @@ describe("internal portal source collector config", () => {
 		expect(config.portalBaseUrl).toBe("https://portal.example.edu");
 		expect(config.portalPageUrl).toBe("https://portal.example.edu/page/99#/");
 		expect(config.authSsoCookieDomain).toBe(".example.edu");
-		expect(config.authSsoTgc).toBeNull();
-		expect(config.authSsoTgcFile).toBe("/run/secrets/internal-portal/sso_tgc");
+		expect(config.authSsoTgc).toBe("TGT-current");
 		expect(config.portalProxyServer).toBe("http://127.0.0.1:10808");
-	});
-
-	it("requires direct and file-backed TGC inputs to be mutually exclusive", () => {
-		expect(() =>
-			resolveTestConfig({
-				INTERNAL_PORTAL_SSO_TGC: "TGT-local",
-			}),
-		).toThrow("INTERNAL_PORTAL_SSO_TGC and INTERNAL_PORTAL_SSO_TGC_FILE are mutually exclusive");
 	});
 
 	it("ignores retired env keys instead of creating migration guards", () => {
@@ -115,7 +102,7 @@ describe("internal portal source collector config", () => {
 		});
 
 		expect(config.portalBaseUrl).toBe("https://portal.example.edu");
-		expect(config.authSsoTgcFile).toBe(TEST_SSO_TGC_FILE);
+		expect(config.authSsoTgc).toBe("TGT-current");
 	});
 
 	it("rejects SSO cookie domains outside the configured portal host", () => {

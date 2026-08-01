@@ -20,7 +20,6 @@ export interface InternalPortalDescriptor {
 export interface InternalPortalConfig {
 	authSsoCookieDomain: string | null;
 	authSsoTgc: string | null;
-	authSsoTgcFile: string | null;
 	portalBaseUrl: string;
 	portalPageUrl: string;
 	sourceHomeUrl: string;
@@ -40,19 +39,12 @@ export function resolveInternalPortalConfig(
 	const portalBaseUrl = resolveHttpsUrl(descriptor.portalBaseUrl, "portal_base_url");
 	const portalPageUrl = resolvePortalPageUrl(descriptor.portalPageUrl, portalBaseUrl);
 	const authSsoTgc = normalizeOptionalSecret(source.INTERNAL_PORTAL_SSO_TGC);
-	const authSsoTgcFile = resolveOptionalPath(source.INTERNAL_PORTAL_SSO_TGC_FILE);
-	if (authSsoTgc && authSsoTgcFile) {
-		throw new Error(
-			"INTERNAL_PORTAL_SSO_TGC and INTERNAL_PORTAL_SSO_TGC_FILE are mutually exclusive",
-		);
-	}
 	return {
 		authSsoCookieDomain: resolveSsoCookieDomain({
 			portalBaseUrl,
 			rawDomain: descriptor.ssoCookieDomain,
 		}),
 		authSsoTgc,
-		authSsoTgcFile,
 		portalBaseUrl,
 		portalPageUrl,
 		sourceHomeUrl: resolveHttpsUrl(descriptor.sourceHomeUrl, "source_home_url"),
@@ -88,11 +80,6 @@ function requiredDescriptorString(source: Record<string, unknown>, key: string):
 		throw new Error(`${key} is required in the internal portal descriptor`);
 	}
 	return value.trim();
-}
-
-function resolveOptionalPath(raw: string | undefined): string | null {
-	const normalized = String(raw ?? "").trim();
-	return normalized ? path.resolve(normalized) : null;
 }
 
 function resolveHttpsUrl(raw: string, key: string): string {

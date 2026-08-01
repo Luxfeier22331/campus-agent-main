@@ -12,6 +12,10 @@ import {
 	applyOpsWebDatabaseGrants,
 	verifyOpsWebDatabase,
 } from "../ops/db/ops-web-database.ts";
+import {
+	createPgInternalPortalCredentialStore,
+	InternalPortalCredentialConflictError,
+} from "../src/server/internal-portal-credential-store.ts";
 
 const postgres = inject("opsWebPostgres");
 const databaseEnv = {
@@ -99,14 +103,72 @@ describe("ops-web PostgreSQL grants", () => {
 	it("applies and verifies the read-model grant contract", () => {
 		expect(applyResult).toEqual({
 			diningMap: "ready",
+			internalPortal: "ready",
 			opsWebRole: "ready",
 			readModel: "ready",
 		});
 		expect(verifyResult).toEqual({
 			diningMap: "ready",
+			internalPortal: "ready",
 			opsWebRole: "ready",
 			readModel: "ready",
 		});
+	});
+
+	it("persists credentials and rejects stale version writes", async () => {
+		const runtime = requiredClient(opsWeb, "ops_web");
+		const store = createPgInternalPortalCredentialStore(runtime);
+		const credentialId = randomUUID();
+		const createdAt = new Date("2026-08-02T01:00:00.000Z");
+		try {
+			const created = await store.create({
+				credentialId,
+				name: "开发凭据",
+				now: createdAt,
+				ssoTgc: "TGT-initial",
+			});
+			expect(created).toMatchObject({
+				credentialId,
+				lastOutcome: "valid",
+				ssoTgc: "TGT-initial",
+				version: 1,
+			});
+
+			const renamed = await store.rename({
+				credentialId,
+				expectedVersion: 1,
+				name: "协作者凭据",
+				now: new Date("2026-08-02T01:01:00.000Z"),
+			});
+			expect(renamed).toMatchObject({ name: "协作者凭据", version: 2 });
+			await expect(
+				store.rotate({
+					attemptedAt: new Date("2026-08-02T01:02:00.000Z"),
+					credentialId,
+					expectedVersion: 1,
+					ssoTgc: "TGT-stale",
+				}),
+			).rejects.toBeInstanceOf(InternalPortalCredentialConflictError);
+
+			const checked = await store.recordCheck({
+				attemptedAt: new Date("2026-08-02T01:03:00.000Z"),
+				credentialId,
+				expectedVersion: 2,
+				outcome: "valid",
+				ssoTgc: "TGT-refreshed",
+			});
+			expect(checked).toMatchObject({ ssoTgc: "TGT-refreshed", version: 3 });
+
+			await applyOpsWebDatabaseGrants(databaseEnv);
+			await expect(store.get(credentialId)).resolves.toMatchObject({
+				ssoTgc: "TGT-refreshed",
+				version: 3,
+			});
+		} finally {
+			await management.query("delete from internal_portal.credentials where credential_id = $1", [
+				credentialId,
+			]);
+		}
 	});
 
 	it("owns only the seven current Dining tables", async () => {
@@ -222,7 +284,9 @@ describe("ops-web PostgreSQL grants", () => {
 				const ledger = await adopted.query<{ count: number }>(`
 					select count(*)::int as count from drizzle.ops_web_dining_migrations
 				`);
-				expect(ledger.rows[0]?.count).toBe(1);
+				expect(ledger.rows[0]?.count).toBe(
+					readMigrationFiles({ migrationsFolder: diningMigrationsFolder }).length,
+				);
 			} finally {
 				await adopted.end();
 			}

@@ -40,10 +40,8 @@ function createTestApp() {
 			issuedAt: new Date("2026-07-19T00:00:00.000Z"),
 			temporaryPassword: "temporary-secret",
 		}),
-		listDeletions: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
 		listEvents: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
 		listUsers: vi.fn().mockResolvedValue({ items: [userDetail], nextCursor: null }),
-		retryDeletion: vi.fn().mockResolvedValue(undefined),
 		revokeSession: vi.fn().mockResolvedValue({ ...userDetail, activeSessionCount: 0 }),
 		revokeUserSessions: vi.fn().mockResolvedValue({ ...userDetail, activeSessionCount: 0 }),
 		sendPasswordResetEmail: vi.fn().mockResolvedValue(userDetail),
@@ -150,24 +148,5 @@ describe("account admin routes", () => {
 		expect(response.status).toBe(200);
 		expect(await response.json()).toMatchObject({ temporaryPassword: "temporary-secret" });
 		expect(response.headers.get("cache-control")).toContain("no-store");
-	});
-
-	it("accepts an audited deletion retry", async () => {
-		const { accountAdminService, app } = createTestApp();
-		const response = await app.request(
-			"http://app.test/api/internal/admin/account-deletions/acctdel_1/retry",
-			{
-				body: JSON.stringify({ reason: "Dependency recovered" }),
-				headers: commandHeaders("retry-deletion-1"),
-				method: "POST",
-			},
-		);
-		expect(response.status).toBe(202);
-		expect(accountAdminService.retryDeletion).toHaveBeenCalledWith({
-			actorId: "operator@example.test",
-			idempotencyKey: "retry-deletion-1",
-			reason: "Dependency recovered",
-			requestId: "acctdel_1",
-		});
 	});
 });

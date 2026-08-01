@@ -181,50 +181,6 @@ describe("account administration PostgreSQL integration", () => {
 		expect(denied.items.map((item) => item.id).sort()).toEqual([users[2].id, users[3].id].sort());
 	});
 
-	it("retries only failed deletions without an active lease", async () => {
-		const suffix = `${Date.now().toString(36)}-retry`;
-		const now = new Date("2026-07-20T12:00:00.000Z");
-		for (const kind of ["active", "expired"] as const) {
-			const userId = `${kind}-lease-user-${suffix}`;
-			await pool.query(
-				`insert into "app_auth"."user"
-					("id", "name", "email", "emailVerified", "passwordChangeRequired", "createdAt", "updatedAt")
-				 values ($1, $1, $2, true, false, $3, $3)`,
-				[userId, `${userId}@muc.edu.cn`, now],
-			);
-			await pool.query(
-				`insert into "profile"."account_deletion_requests"
-					("attempt_count", "last_error_code", "lease_expires_at", "lease_token", "next_attempt_at",
-					 "owner_user_id", "request_id", "requested_at", "status", "updated_at")
-				 values (1, 'dependency_failed', $1, $2, $3, $4, $5, $3, 'pending', $3)`,
-				[
-					kind === "active"
-						? new Date("2026-07-20T12:05:00.000Z")
-						: new Date("2026-07-20T11:55:00.000Z"),
-					`lease-${kind}-${suffix}`,
-					now,
-					userId,
-					`${kind}-lease-request-${suffix}`,
-				],
-			);
-		}
-
-		const database = drizzle(pool, { schema: appApiSchema });
-		const store = createPgAccountAdminStore(testEnv, {
-			getDb: async () => database,
-			now: () => now,
-		});
-		const attention = await store.listDeletions({ limit: 10, status: "needs_attention" });
-		expect(attention.items.map((item) => item.requestId)).toContain(
-			`expired-lease-request-${suffix}`,
-		);
-		expect(attention.items.map((item) => item.requestId)).not.toContain(
-			`active-lease-request-${suffix}`,
-		);
-		await expect(store.retryDeletion(`active-lease-request-${suffix}`)).resolves.toBe(false);
-		await expect(store.retryDeletion(`expired-lease-request-${suffix}`)).resolves.toBe(true);
-	});
-
 	it("does not unban an account while deletion is pending", async () => {
 		const suffix = `${Date.now().toString(36)}-unban`;
 		const now = new Date("2026-07-20T12:00:00.000Z");

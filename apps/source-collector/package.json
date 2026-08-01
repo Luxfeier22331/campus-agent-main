@@ -7,7 +7,6 @@
 	"packageManager": "pnpm@10.34.5",
 	"scripts": {
 		"auth:check": "tsx adapters/internal-portal/src/auth-check.ts",
-		"auth:keepalive": "tsx adapters/internal-portal/src/auth-keepalive.ts",
 		"notice:backfill": "tsx adapters/internal-portal/src/notice-cli.ts backfill",
 		"notice:status": "tsx adapters/internal-portal/src/notice-cli.ts status",
 		"notice:sync": "tsx adapters/internal-portal/src/notice-cli.ts sync",
@@ -18,6 +17,7 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
+		"@campus-agent/internal-portal-client": "workspace:*",
 		"@campus-agent/telemetry-node": "workspace:*",
 		"@aws-sdk/client-s3": "^3.1081.0",
 		"@temporalio/activity": "^1.21.1",
@@ -25,13 +25,11 @@
 		"@temporalio/worker": "^1.21.1",
 		"content-disposition": "^2.0.1",
 		"dotenv": "^17.4.2",
-		"fetch-cookie": "^3.2.0",
 		"ingest-core": "workspace:*",
 		"ingestion-contracts": "workspace:*",
 		"mime-types": "^3.0.2",
 		"tldts": "^7.4.7",
-		"tsx": "^4.23.0",
-		"undici": "^8.9.0"
+		"tsx": "^4.23.0"
 	},
 	"devDependencies": {
 		"@types/content-disposition": "^0.5.9",

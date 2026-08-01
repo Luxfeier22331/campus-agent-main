@@ -59,6 +59,13 @@ const opsWebDiningPrivileges = {
 	canMutateReviews: true,
 	canUseSchema: true,
 } as const;
+const opsWebInternalPortalPrivileges = {
+	canDelete: true,
+	canInsert: true,
+	canSelect: true,
+	canUpdate: true,
+	canUseSchema: true,
+} as const;
 describe("ops-web database verification", () => {
 	beforeEach(() => {
 		connect.mockReset().mockResolvedValue(undefined);
@@ -86,15 +93,17 @@ describe("ops-web database verification", () => {
 		const { verifyOpsWebDatabase } = await import("../ops/db/ops-web-database.ts");
 		await expect(verifyOpsWebDatabase(validEnv())).resolves.toEqual({
 			diningMap: "ready",
+			internalPortal: "ready",
 			opsWebRole: "ready",
 			readModel: "ready",
 		});
-		expect(connect).toHaveBeenCalledTimes(3);
-		expect(end).toHaveBeenCalledTimes(3);
+		expect(connect).toHaveBeenCalledTimes(4);
+		expect(end).toHaveBeenCalledTimes(4);
 		const allQueries = query.mock.calls.map(([sql]) => String(sql)).join("\n");
 		expect(allQueries).toContain('from "dining"."map_draft"');
 		expect(allQueries).toContain('from "dining"."menu_items"');
 		expect(allQueries).toContain('from "dining"."reviews"');
+		expect(allQueries).toContain('from "internal_portal"."credentials"');
 		expect(allQueries).toContain('from "chat"."turn_dispatches"');
 		expect(allQueries).not.toContain('from "runtime"."agent_run_steps"');
 		expect(allQueries).toContain('from "runtime"."agent_step_attempts"');
@@ -106,6 +115,7 @@ describe("ops-web database verification", () => {
 		const { applyOpsWebDatabaseGrants } = await import("../ops/db/ops-web-database.ts");
 		await expect(applyOpsWebDatabaseGrants(validEnv())).resolves.toEqual({
 			diningMap: "ready",
+			internalPortal: "ready",
 			opsWebRole: "ready",
 			readModel: "ready",
 		});
@@ -169,6 +179,10 @@ describe("ops-web database verification", () => {
 			ssl: { ca: "schema-ca", rejectUnauthorized: true },
 		});
 		expect(clientConstructor).toHaveBeenNthCalledWith(3, {
+			connectionString: "postgresql://owner:secret@example.test/db",
+			ssl: { ca: "schema-ca", rejectUnauthorized: true },
+		});
+		expect(clientConstructor).toHaveBeenNthCalledWith(4, {
 			connectionString: "postgresql://ops_web:secret@example.test/db",
 			ssl: { ca: "runtime-ca", rejectUnauthorized: true },
 		});
@@ -221,11 +235,36 @@ function installSuccessfulQueries() {
 				],
 			};
 		}
+		if (
+			sql.includes("from information_schema.columns") &&
+			sql.includes("table_schema = 'internal_portal'")
+		) {
+			return {
+				rowCount: 9,
+				rows: [
+					{ column_name: "credential_id" },
+					{ column_name: "name" },
+					{ column_name: "sso_tgc" },
+					{ column_name: "version" },
+					{ column_name: "created_at" },
+					{ column_name: "updated_at" },
+					{ column_name: "last_attempt_at" },
+					{ column_name: "last_successful_at" },
+					{ column_name: "last_outcome" },
+				],
+			};
+		}
+		if (sql.includes("has_schema_privilege('app_api', 'internal_portal'")) {
+			return { rowCount: 1, rows: [{ appApiCanAccess: false }] };
+		}
 		if (sql.includes("has_schema_privilege('app_api', 'dining'")) {
 			return { rowCount: 1, rows: [appApiDiningPrivileges] };
 		}
 		if (sql.includes("has_schema_privilege(current_user, 'dining'")) {
 			return { rowCount: 1, rows: [opsWebDiningPrivileges] };
+		}
+		if (sql.includes("has_schema_privilege(current_user, 'internal_portal'")) {
+			return { rowCount: 1, rows: [opsWebInternalPortalPrivileges] };
 		}
 		if (sql.includes("has_schema_privilege") && sql.includes("execution_config")) {
 			return { rowCount: 1, rows: [noProviderConfigPrivileges] };

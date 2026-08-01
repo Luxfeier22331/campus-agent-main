@@ -9,7 +9,6 @@ import { captureInternalPortalFileRelease } from "../src/file-release-capture.js
 const config: InternalPortalConfig = {
 	authSsoCookieDomain: ".example.edu",
 	authSsoTgc: "TGT-current",
-	authSsoTgcFile: null,
 	portalBaseUrl: "https://portal.example.edu",
 	portalPageUrl: "https://portal.example.edu/page/11#/",
 	portalProxyServer: null,

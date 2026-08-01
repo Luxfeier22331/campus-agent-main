@@ -8,9 +8,6 @@
 			"$ref": "#/$defs/userDetail"
 		},
 		{
-			"$ref": "#/$defs/deletionPage"
-		},
-		{
 			"$ref": "#/$defs/eventPage"
 		},
 		{
@@ -24,9 +21,6 @@
 		},
 		{
 			"$ref": "#/$defs/userQuery"
-		},
-		{
-			"$ref": "#/$defs/deletionQuery"
 		},
 		{
 			"$ref": "#/$defs/eventQuery"
@@ -296,16 +290,6 @@
 					"format": "date-time",
 					"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
 				},
-				"ownerUserId": {
-					"anyOf": [
-						{
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
 				"requestId": {
 					"type": "string"
 				},
@@ -313,9 +297,6 @@
 					"type": "string",
 					"format": "date-time",
 					"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-				},
-				"retryAvailable": {
-					"type": "boolean"
 				},
 				"status": {
 					"type": "string",
@@ -333,10 +314,8 @@
 				"lastAttemptAt",
 				"lastErrorCode",
 				"nextAttemptAt",
-				"ownerUserId",
 				"requestId",
 				"requestedAt",
-				"retryAvailable",
 				"status",
 				"updatedAt"
 			],
@@ -414,8 +393,7 @@
 				"sessions_revoked",
 				"account_banned",
 				"account_unbanned",
-				"temporary_password_issued",
-				"deletion_retry_requested"
+				"temporary_password_issued"
 			]
 		},
 		"outcome": {
@@ -466,29 +444,6 @@
 				}
 			},
 			"required": ["createdAt", "expiresAt", "id", "ipAddress", "updatedAt", "userAgent"],
-			"additionalProperties": false
-		},
-		"deletionPage": {
-			"type": "object",
-			"properties": {
-				"items": {
-					"type": "array",
-					"items": {
-						"$ref": "#/$defs/deletion"
-					}
-				},
-				"nextCursor": {
-					"anyOf": [
-						{
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					]
-				}
-			},
-			"required": ["items", "nextCursor"],
 			"additionalProperties": false
 		},
 		"eventPage": {
@@ -577,28 +532,6 @@
 				},
 				"state": {
 					"$ref": "#/$defs/state"
-				}
-			},
-			"required": ["limit"],
-			"additionalProperties": false
-		},
-		"deletionQuery": {
-			"type": "object",
-			"properties": {
-				"cursor": {
-					"type": "string",
-					"minLength": 1,
-					"maxLength": 512
-				},
-				"limit": {
-					"default": 50,
-					"type": "integer",
-					"minimum": 1,
-					"maximum": 100
-				},
-				"status": {
-					"type": "string",
-					"enum": ["pending", "needs_attention", "completed"]
 				}
 			},
 			"required": ["limit"],

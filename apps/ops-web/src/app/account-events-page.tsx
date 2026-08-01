@@ -19,7 +19,6 @@ const actions: AccountAdminEvent["action"][] = [
 	"account_banned",
 	"account_unbanned",
 	"temporary_password_issued",
-	"deletion_retry_requested",
 ];
 
 export interface AccountEventsSearch {

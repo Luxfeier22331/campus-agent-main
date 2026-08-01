@@ -14,9 +14,8 @@ namespace、不可变镜像、环境配置、凭据对象和实际资源额度�
 ## 运行时基础
 
 `infra/k8s/execution-runtime/base` 与 `infra/k8s/ingestion-runtime/base` 分别提供 execution 和
-ingestion 的完整聚合视图。常驻 workload 位于各自 `runtime/`，采集认证检查位于
-`ingestion-runtime/base/schedule/`。聚合 base 必须与这些子单元的并集等价，供本地验证和环境仓
-选择。
+ingestion 的完整聚合视图。常驻 workload 位于各自 `runtime/`。内部门户凭据检查属于 Ops Web，
+由 `infra/k8s/ops-web/base` 中使用同一镜像的 CronJob 执行，不是 ingestion 子部署单元。
 
 精确资源、标签、探针和配置引用以 Kustomize 清单为准，不在架构文档维护副本。源码 base 不选择
 具体环境或可变镜像标签。子单元可以引用同 namespace 中由运行时或 foundation 唯一拥有的
@@ -29,6 +28,7 @@ ServiceAccount、ConfigMap 和 Secret，不得复制共享资源所有权。
 - `agent-runtime`：一个独立 Deployment；
 - `ingestion-control` API、`ingestion-control-worker` 与 `source-collector-worker`：三个标准
   Deployment；
+- `ops-web-internal-portal-check`：顺序检查 Ops Web 所有内部门户凭据的 CronJob；
 - OpenTelemetry Collector：环境仓部署的一个 DaemonSet。
 
 Temporal Server 是运行前置条件。源码 base 只声明标准 Deployment，不声明 Worker Controller、

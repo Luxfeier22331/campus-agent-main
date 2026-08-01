@@ -56,7 +56,8 @@ status: active
 
 数据库子入口包括 `ci:app-api-migration`、`ci:app-api-product-db`、
 `ci:execution-control-postgres`、`ci:ingestion-control-postgres` 与 `ci:ops-web-postgres`。Dining 七表和
-角色边界由 Ops Web 的数据库套件覆盖。需要缩小范围时直接运行对应入口，不创建新的跨仓调度脚本。
+内部门户凭据表、角色边界及版本条件写由 Ops Web 的数据库套件覆盖。需要缩小范围时直接运行对应
+入口，不创建新的跨仓调度脚本。
 
 ## PR 门禁
 

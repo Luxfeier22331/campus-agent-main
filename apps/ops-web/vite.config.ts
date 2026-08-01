@@ -22,6 +22,7 @@ export default defineConfig({
 	ssr: {
 		noExternal: [
 			"@campus-agent/dining",
+			"@campus-agent/internal-portal-client",
 			"@campus-agent/langfuse-identity",
 			"@campus-agent/ui",
 			"campus-contracts",

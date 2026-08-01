@@ -113,6 +113,10 @@ workflow 调用 source-collector，通知则由 source-collector 本地命令直
 不是注册任务。PostgreSQL 只保存有界任务状态，通知同步边界保存在 source bucket；采集完成
 不会自动创建索引、发布阅读器或开放查询目标。
 
+Ops Web 在所属 PostgreSQL schema 保存多条内部门户 TGC，提供真实 CAS 验证、轮换、按需明文读取
+和定时检查。source-collector 不读取这些记录或自动选择运行凭据；本地采集由开发者显式传入从
+Ops Web 取得的目标值。
+
 ## 观测与部署
 
 单套 CNPG PostgreSQL 集群以独立 database、schema 和登录角色保存产品、执行投影、Temporal、

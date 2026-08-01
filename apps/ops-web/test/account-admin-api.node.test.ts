@@ -30,10 +30,8 @@ function createTestApp() {
 			temporaryPassword: "temporary-secret",
 		}),
 		getUser: vi.fn().mockResolvedValue(user),
-		listDeletions: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
 		listEvents: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
 		listUsers: vi.fn().mockResolvedValue({ items: [user], nextCursor: null }),
-		retryDeletion: vi.fn().mockResolvedValue({ accepted: true }),
 		revokeSession: vi.fn().mockResolvedValue(user),
 	};
 	const app = createOpsApp({
@@ -105,28 +103,5 @@ describe("ops account administration BFF", () => {
 		});
 		expect(response.status).toBe(403);
 		expect(accountAdminClient.commandUser).not.toHaveBeenCalled();
-	});
-
-	it("forwards deletion retries as audited commands", async () => {
-		const { accountAdminClient, app } = createTestApp();
-		const response = await app.request(
-			"http://ops.test/api/ops/account-deletions/acctdel_1/retry",
-			{
-				body: JSON.stringify({ reason: "Dependency recovered" }),
-				headers: {
-					"content-type": "application/json",
-					"idempotency-key": "retry-1",
-					origin: "https://ops.example.test",
-				},
-				method: "POST",
-			},
-		);
-		expect(response.status).toBe(202);
-		expect(accountAdminClient.retryDeletion).toHaveBeenCalledWith(
-			"acctdel_1",
-			{ reason: "Dependency recovered" },
-			"operator@example.test",
-			"retry-1",
-		);
 	});
 });

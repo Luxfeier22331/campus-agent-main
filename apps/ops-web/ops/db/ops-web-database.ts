@@ -39,6 +39,10 @@ const DINING_GRANT_STATEMENTS = [
 ] as const;
 
 const OPS_WEB_GRANT_STATEMENTS = [
+	`REVOKE ALL PRIVILEGES ON SCHEMA "internal_portal" FROM PUBLIC, "ops_web", "app_api"`,
+	`REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA "internal_portal" FROM PUBLIC, "ops_web", "app_api"`,
+	`GRANT USAGE ON SCHEMA "internal_portal" TO "ops_web"`,
+	`GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "internal_portal"."credentials" TO "ops_web"`,
 	`DO $ops_web_provider_config_schema_revoke$
 	BEGIN
 		IF pg_catalog.to_regnamespace('execution_config') IS NOT NULL THEN
@@ -171,6 +175,15 @@ interface DatabaseConnectionConfig {
 	ssl: DatabaseSslConfig;
 }
 const REQUIRED_SELECTS = [
+	{
+		label: "internal_portal.credentials",
+		sql: `
+			select "credential_id", "name", "sso_tgc", "version", "created_at", "updated_at",
+				"last_attempt_at", "last_successful_at", "last_outcome"
+			from "internal_portal"."credentials"
+			limit 0
+		`,
+	},
 	{
 		label: "dining.map_draft",
 		sql: `
@@ -439,6 +452,7 @@ async function verifyOpsWebRoleAndGrants(config: DatabaseConnectionConfig): Prom
 		}
 
 		await verifyOpsWebDiningPrivileges(client);
+		await verifyOpsWebInternalPortalPrivileges(client);
 
 		const providerConfigPrivileges = await client.query(`
 				select
@@ -497,6 +511,67 @@ async function verifyOpsWebRoleAndGrants(config: DatabaseConnectionConfig): Prom
 			providerConfigAccess.canExecuteFunctions !== false
 		) {
 			throw new Error("ops_web must not have direct or inherited privileges on execution_config.");
+		}
+	});
+}
+
+async function verifyOpsWebInternalPortalPrivileges(client: Client): Promise<void> {
+	const privileges = await client.query<{
+		canDelete: boolean;
+		canInsert: boolean;
+		canSelect: boolean;
+		canUpdate: boolean;
+		canUseSchema: boolean;
+	}>(`select
+		has_schema_privilege(current_user, 'internal_portal', 'USAGE') as "canUseSchema",
+		has_table_privilege(current_user, 'internal_portal.credentials', 'SELECT') as "canSelect",
+		has_table_privilege(current_user, 'internal_portal.credentials', 'INSERT') as "canInsert",
+		has_table_privilege(current_user, 'internal_portal.credentials', 'UPDATE') as "canUpdate",
+		has_table_privilege(current_user, 'internal_portal.credentials', 'DELETE') as "canDelete"`);
+	const access = privileges.rows[0];
+	if (
+		!(
+			access?.canUseSchema &&
+			access.canSelect &&
+			access.canInsert &&
+			access.canUpdate &&
+			access.canDelete
+		)
+	) {
+		throw new Error("ops_web is missing required internal portal credential privileges.");
+	}
+}
+
+async function verifyInternalPortalSchemaBoundary(config: DatabaseConnectionConfig): Promise<void> {
+	return withClient(config, async (client) => {
+		const columns = await client.query<{ column_name: string }>(`
+			select column_name
+			from information_schema.columns
+			where table_schema = 'internal_portal' and table_name = 'credentials'
+			order by ordinal_position
+		`);
+		const expected = [
+			"credential_id",
+			"name",
+			"sso_tgc",
+			"version",
+			"created_at",
+			"updated_at",
+			"last_attempt_at",
+			"last_successful_at",
+			"last_outcome",
+		];
+		if (columns.rows.map((row) => row.column_name).join(",") !== expected.join(",")) {
+			throw new Error("internal_portal.credentials does not match the owned schema.");
+		}
+		const privileges = await client.query<{
+			appApiCanAccess: boolean;
+		}>(`select
+			has_schema_privilege('app_api', 'internal_portal', 'USAGE')
+				or has_table_privilege('app_api', 'internal_portal.credentials', 'SELECT,INSERT,UPDATE,DELETE')
+				as "appApiCanAccess"`);
+		if (privileges.rows[0]?.appApiCanAccess) {
+			throw new Error("internal portal credentials must be owned only by ops_web.");
 		}
 	});
 }
@@ -574,6 +649,7 @@ function readDatabaseConfigs(env: NodeJS.ProcessEnv): {
 
 export async function applyOpsWebDatabaseGrants(env: NodeJS.ProcessEnv = process.env): Promise<{
 	diningMap: "ready";
+	internalPortal: "ready";
 	opsWebRole: "ready";
 	readModel: "ready";
 }> {
@@ -592,9 +668,11 @@ export async function applyOpsWebDatabaseGrants(env: NodeJS.ProcessEnv = process
 		}
 	});
 	await verifyDiningSchemaAndAppApiGrants(config.schemaAdmin);
+	await verifyInternalPortalSchemaBoundary(config.schemaAdmin);
 	await verifyOpsWebRoleAndGrants(config.opsWeb);
 	return {
 		diningMap: "ready",
+		internalPortal: "ready",
 		opsWebRole: "ready",
 		readModel: "ready",
 	};
@@ -624,6 +702,7 @@ export async function applyDiningDatabase(env: NodeJS.ProcessEnv = process.env):
 
 export async function verifyOpsWebDatabase(env: NodeJS.ProcessEnv = process.env): Promise<{
 	diningMap: "ready";
+	internalPortal: "ready";
 	opsWebRole: "ready";
 	readModel: "ready";
 }> {
@@ -631,10 +710,12 @@ export async function verifyOpsWebDatabase(env: NodeJS.ProcessEnv = process.env)
 
 	await verifyDatabaseRoles(config.schemaAdmin);
 	await verifyDiningSchemaAndAppApiGrants(config.schemaAdmin);
+	await verifyInternalPortalSchemaBoundary(config.schemaAdmin);
 	await verifyOpsWebRoleAndGrants(config.opsWeb);
 
 	return {
 		diningMap: "ready",
+		internalPortal: "ready",
 		opsWebRole: "ready",
 		readModel: "ready",
 	};
