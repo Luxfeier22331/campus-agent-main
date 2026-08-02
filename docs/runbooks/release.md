@@ -30,9 +30,10 @@ Worker version、配置和其他环境资源。候选物发布成功不表示环
 
 1. 确认目标源码已经合入 `main`，且该变更要求的 PR 检查通过。
 2. 当前 workflow 从环境仓游标计算累计影响面，完成所选候选证据后发布受影响的不可变候选物；
-   触发条件、输入和产物以 `.github/workflows/` 为准。App API 在自己的候选任务中完成 Worker
-   配置预检；镜像、App API 和 Kubernetes 清单分别产生候选物。一个候选面的发布失败不使已经成功
-   发布的候选物失效，但本次不会创建不完整的 GitOps 提升；同一源码提交重试时应直接复用已有候选物。
+   触发条件、输入和产物以 `.github/workflows/` 为准。App API 与 Campus Web 在各自的候选任务中
+   完成 Worker 配置预检；镜像、两个 Worker 和 Kubernetes 清单分别产生候选物。一个候选面的发布
+   失败不使已经成功发布的候选物失效，但本次不会创建不完整的 GitOps 提升；同一源码提交重试时应
+   直接复用已有候选物。
 3. 检查候选物记录的源码提交、摘要和构建身份，不用可变标签或重复构建覆盖已有产物。
 4. 在环境仓 checkout 中运行 `pnpm gitops promote-source`，校验读取时的 staging 游标仍未前进，
    只更新 staging root 已注册的活跃 Application。创建或更新唯一 `deploy/staging` PR 前先渲染受
@@ -42,7 +43,8 @@ Worker version、配置和其他环境资源。候选物发布成功不表示环
 发布基线来自环境仓 `releases/staging.json`，不是 workflow 触发事件的前一个提交。镜像和 Cloudflare Worker
 影响面由 Turbo package graph 与 package 外部 task input 计算，Kubernetes 由 `infra/k8s` 所有者范围
 计算。当前 staging 自动候选只包含已注册活跃 Application 消费的 `agent-runtime`、
-`app-api-schema`、`execution-control`、`ops-web`、App API Worker 与 Kubernetes source。采集运行时
+`app-api-schema`、`execution-control`、`ops-web`、App API Worker、Campus Web Worker 与 Kubernetes
+source。采集运行时
 当前未部署到 staging，因此 `ingestion-control`、`ingestion-control-worker` 和 `source-collector`
 不会被候选发布自动构建。`docker-bake.hcl` 中未进入候选映射的 Dining 和 docs 镜像只按明确发布需求
 手动构建。
@@ -58,16 +60,17 @@ Worker version、配置和其他环境资源。候选物发布成功不表示环
 全量构建仍无法在 workflow 超时内完成时，必须增加构建容量。已经发布的不可变镜像会在同一源码提交
 的重试中直接复用。
 
-Campus Web 的 staging 候选发布当前冻结，环境继续选择已有 Worker version。候选 workflow 不构建或
-上传 Campus Web，也不以文档或对象存储状态阻塞其他候选面。原生文档阅读器及其静态交付合同合入源码
-不自动恢复 staging 发布；恢复时必须按 `docs/contracts/document-reader-delivery.md` 读取固定来源键
-`campus-docs/source.json`，核对来源对象并生成静态文档。来源清单的 `sourceDigest` 只记录在构建
-和候选元数据中；正常开发、构建和部署不传递手工文档版本标识。它不能注入 Worker 运行变量或成为
-独立环境选择。
+Campus Web 的 staging publisher 在 main/artifact lane 读取固定来源键
+`campus-docs/source.json`，核对来源对象并生成静态文档；它通过 runner 的 Kubernetes context 解析
+对象存储 Service 地址，并只把现有 derived 读取凭据注入正式构建步骤。来源清单的 `sourceDigest` 只
+记录在构建和候选元数据中；正常开发、构建和部署不传递手工文档版本标识。它不能注入 Worker 运行
+变量或成为独立环境选择。Campus Web 构建或对象存储读取失败只阻止该候选，promotion 不接受缺失的
+已选择 Worker 候选。
 
 候选证据中的 `affected-node` 会先读取 Turbo 影响面，再执行普通包的正式构建；Campus Web 的正式
-`build` 不在该路径执行，以免 PR 或候选 Runner 访问对象存储。Campus Web 受影响时只执行现有的
-`build:worker` 确定性测试构建。真实文档页面构建必须由受信任命令单独完成。
+`build` 不在该路径执行，以免 PR 或共享候选证据 job 访问对象存储。Campus Web 受影响时只执行现有的
+`build:worker` 确定性测试构建。真实文档页面构建由随后独立的受信任 Campus Web publisher 完成，
+不进入 PR 门禁或共享候选证据 job。
 
 ## 环境交接
 

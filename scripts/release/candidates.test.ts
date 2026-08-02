@@ -20,6 +20,16 @@ async function fixture(t: test.TestContext): Promise<string> {
 		path.join(root, "selection.json"),
 		`${JSON.stringify({ repository: "MUC-WIKI/campus-agent", sourceSha: BASE })}\n`,
 	);
+	await writeFile(
+		path.join(root, "worker-versions.json"),
+		`${JSON.stringify({
+			schemaVersion: 2,
+			workers: {
+				"app-api-staging": { sourceSha: BASE, versionId: "app-api-version" },
+				"campus-web-staging": { sourceSha: BASE, versionId: "campus-web-version" },
+			},
+		})}\n`,
+	);
 	return root;
 }
 
@@ -30,6 +40,7 @@ function options(root: string) {
 		repositoryRoot: root,
 		selectionFile: path.join(root, "selection.json"),
 		validateOnly: false,
+		workerSelectionFile: path.join(root, "worker-versions.json"),
 	};
 }
 
@@ -48,6 +59,7 @@ test("maps Turbo affected package tasks to release candidates", async (t) => {
 							task: "build",
 						},
 						{ command: "vite build", package: "app-api", task: "build:worker" },
+						{ command: "vite build", package: "campus-web", task: "build:worker" },
 						{ command: "tsc", package: "ingestion-control", task: "build" },
 						{ command: "tsc", package: "source-collector", task: "build" },
 					],
@@ -66,7 +78,7 @@ test("maps Turbo affected package tasks to release candidates", async (t) => {
 		kubernetes: true,
 		validateOnly: false,
 		validationProfiles: ["affected-node", "app-api-product-db", "infra", "release-tooling"],
-		workers: ["app-api"],
+		workers: ["app-api-staging", "campus-web-staging"],
 	});
 });
 
@@ -93,9 +105,31 @@ test("manual full mode selects every active candidate without running Turbo", as
 			"infra",
 			"release-tooling",
 		],
-		workers: ["app-api"],
+		workers: ["app-api-staging", "campus-web-staging"],
 	});
 	assert.equal(turboCalled, false);
+});
+
+test("validation-only mode selects the active GitOps Workers", async (t) => {
+	const root = await fixture(t);
+	const plan = await planCandidates({ ...options(root), validateOnly: true }, () => result());
+	assert.deepEqual(plan.workers, ["app-api-staging", "campus-web-staging"]);
+	assert.equal(plan.validateOnly, true);
+});
+
+test("rejects active Workers without a Source publisher", async (t) => {
+	const root = await fixture(t);
+	await writeFile(
+		path.join(root, "worker-versions.json"),
+		`${JSON.stringify({
+			schemaVersion: 2,
+			workers: { "unknown-staging": { sourceSha: BASE, versionId: "unknown" } },
+		})}\n`,
+	);
+	await assert.rejects(
+		planCandidates(options(root), () => result()),
+		/Unsupported active Worker: unknown-staging/u,
+	);
 });
 
 test("selects Docker-only schema and Go images with their database evidence", async (t) => {

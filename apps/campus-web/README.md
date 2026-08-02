@@ -77,9 +77,10 @@ pnpm --dir apps/campus-web docs:source:update -- --source-file <path>
 `CAMPUS_WEB_BUILD_TARGET` 和 `CAMPUS_WEB_DOCS_CONTENT_ROOT` 只在构建脚本与 Vite 子进程之间传递，
 不属于 Worker、Wrangler、Argo 或 GitHub Environment 配置。`OBJECT_STORE_ENDPOINT`、
 `OBJECT_STORE_DERIVED_ACCESS_KEY` 和 `OBJECT_STORE_DERIVED_SECRET_KEY` 只由文档准备、来源更新等
-受信任命令读取；Vite 子进程和前端产物不接收这些值。PR 候选验证只运行受影响包的测试、类型检查、
-普通包构建和 Campus Web 的确定性测试构建，不访问对象存储。真实文档构建必须在具备对象存储访问的
-受信任入口执行。
+受信任命令读取；Vite 子进程和前端产物不接收这些值。PR 和共享候选证据只运行受影响包的测试、
+类型检查、普通包构建和 Campus Web 的确定性测试构建，不访问对象存储。staging 的独立 Campus Web
+publisher 在 main/artifact lane 使用环境现有的对象存储读取凭据执行真实文档构建，并将同一构建结果
+上传为不可变 Worker version。
 
 ## 相关文档
 

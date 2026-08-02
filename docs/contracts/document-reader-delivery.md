@@ -126,9 +126,11 @@ Environment。`OBJECT_STORE_ENDPOINT`、`OBJECT_STORE_DERIVED_ACCESS_KEY` 和
 `OBJECT_STORE_DERIVED_SECRET_KEY` 是受信任文档准备和来源更新命令的输入；它们不传给 Vite 子进程，
 也不写入静态产物。
 
-PR 与当前 staging 候选验证不访问对象存储。候选验证继续执行受影响包的测试、类型检查和普通构建，
-Campus Web 只执行无对象存储依赖的 `build:worker` 测试构建。需要生成真实文档页面时，必须在受信任
-入口执行正式 `build`；这不新增候选 job，也不恢复已退役的文档发布 Job。
+PR 与共享候选证据 job 不访问对象存储。候选证据继续执行受影响包的测试、类型检查和普通构建，
+Campus Web 只执行无对象存储依赖的 `build:worker` 测试构建。main/artifact lane 的独立 Campus Web
+publisher 使用环境已有的对象存储读取凭据执行正式 `build:staging`；`validate_only` 也构建同一 staging
+配置，但不上传 Sentry source map 或 Worker version。该 publisher 不是独立文档发布 Job，不写回
+文档来源或维护第二个文档版本指针。
 
 ## 构建产物
 

@@ -1,6 +1,5 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -26,27 +25,11 @@ if (turnstileSiteKey === TURNSTILE_TEST_SITE_KEY) {
 	throw new Error("CAMPUS_AUTH_TURNSTILE_SITE_KEY must use the admitted environment widget.");
 }
 
-const mapBucketName = requiredEnv("MAP_DATA_BUCKET_NAME");
 const docsSourceDigest = readCampusWebBuildSourceDigest();
 const sourceSha = resolveGitSha();
 const buildIdentity = `sha256:${createHash("sha256")
 	.update(`${sourceSha}\n${docsSourceDigest}\n`)
 	.digest("hex")}`;
-if (!/^[a-z0-9][a-z0-9-]*$/.test(mapBucketName)) {
-	throw new Error("MAP_DATA_BUCKET_NAME must contain a valid R2 bucket name.");
-}
-const configPath = resolve(appDir, "dist/campus_web/wrangler.json");
-const config = JSON.parse(readFileSync(configPath, "utf8")) as {
-	r2_buckets?: Array<{ binding?: string; bucket_name?: string }>;
-	vars?: Record<string, unknown>;
-};
-const mapBinding = config.r2_buckets?.find((binding) => binding.binding === "MAP_DATA");
-if (!mapBinding) {
-	throw new Error("Missing staging MAP_DATA binding.");
-}
-mapBinding.bucket_name = mapBucketName;
-writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
-
 const sentryRelease = resolveStagingSentryRelease("campus-web");
 const sentryDsn = requiredEnv("SENTRY_CAMPUS_WEB_DSN");
 

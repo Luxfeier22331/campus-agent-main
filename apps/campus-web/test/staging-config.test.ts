@@ -1,8 +1,12 @@
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { parse } from "smol-toml";
 import { describe, expect, it } from "vitest";
 import stagingBrowserE2ESource from "../e2e/staging-browser.ts?raw";
 import packageManifest from "../package.json";
+import { configureStagingWorkerBuild } from "../scripts/build-campus-web";
+import buildCampusWebSource from "../scripts/build-campus-web.ts?raw";
 import stagingPreflightSource from "../scripts/preflight-staging.ts?raw";
 import uploadStagingVersionSource from "../scripts/upload-staging-version.ts?raw";
 import verifyStagingConfigSource from "../scripts/verify-staging-config.ts?raw";
@@ -73,7 +77,8 @@ describe("campus web staging config", () => {
 		expect(uploadStagingVersionSource).toContain("SENTRY_CAMPUS_WEB_PROJECT_SLUG");
 		expect(uploadStagingVersionSource).toContain('artifactDirectory: "dist/campus_web"');
 		expect(uploadStagingVersionSource).toContain("AUTH_TURNSTILE_SITE_KEY");
-		expect(uploadStagingVersionSource).toContain("MAP_DATA_BUCKET_NAME");
+		expect(buildCampusWebSource).toContain("MAP_DATA_BUCKET_NAME");
+		expect(buildCampusWebSource).toContain('binding === "MAP_DATA"');
 		expect(uploadStagingVersionSource).toContain("readCampusWebBuildSourceDigest");
 		expect(uploadStagingVersionSource).toContain("candidateMetadata: { docsSourceDigest }");
 		expect(uploadStagingVersionSource).toContain("uploadStagingWorkerVersion");
@@ -81,7 +86,35 @@ describe("campus web staging config", () => {
 		expect(packageScripts["upload:staging"]).toContain("upload-staging-version.ts");
 	});
 
-	it("keeps the Campus Web candidate outside the active release workflow", () => {
+	it("writes the admitted map bucket into the built staging configuration", () => {
+		const root = mkdtempSync(join(tmpdir(), "campus-web-staging-config-"));
+		const configPath = join(root, "wrangler.json");
+		try {
+			writeFileSync(
+				configPath,
+				JSON.stringify({
+					r2_buckets: [
+						{ binding: "MAP_DATA", bucket_name: "campus-agent-derived-unconfigured" },
+						{ binding: "OTHER", bucket_name: "other-bucket" },
+					],
+				}),
+			);
+
+			configureStagingWorkerBuild(configPath, "campus-agent-derived-staging");
+
+			const config = JSON.parse(readFileSync(configPath, "utf8")) as {
+				r2_buckets: Array<{ binding: string; bucket_name: string }>;
+			};
+			expect(config.r2_buckets).toEqual([
+				{ binding: "MAP_DATA", bucket_name: "campus-agent-derived-staging" },
+				{ binding: "OTHER", bucket_name: "other-bucket" },
+			]);
+		} finally {
+			rmSync(root, { force: true, recursive: true });
+		}
+	});
+
+	it("publishes the Campus Web candidate through the active release workflow", () => {
 		const publishWorkflowSource = readFileSync(
 			"../../.github/workflows/execution-runtime-publish.yml",
 			"utf8",
@@ -92,8 +125,11 @@ describe("campus web staging config", () => {
 		expect(packageScripts["build:staging"]).toBe(
 			"pnpm exec tsx ./scripts/build-campus-web.ts --staging",
 		);
-		expect(publishWorkflowSource).not.toContain("pnpm --dir apps/campus-web");
-		expect(publishWorkflowSource).not.toContain("campus-web-staging");
+		expect(publishWorkflowSource).toContain("pnpm --dir apps/campus-web build:staging");
+		expect(publishWorkflowSource).toContain("campus-web-staging");
+		expect(publishWorkflowSource).toContain("OBJECT_STORE_DERIVED_ACCESS_KEY");
+		expect(publishWorkflowSource).toContain("OBJECT_STORE_DERIVED_SECRET_KEY");
+		expect(publishWorkflowSource).toContain("--expected-workers");
 		expect(publishWorkflowSource).toContain("pnpm --dir gitops gitops promote-source");
 		expect(publishWorkflowSource).not.toContain("STAGING_APP_API_OPERATOR_DATABASE_URL");
 		expect(publishWorkflowSource).not.toContain("deploy-staging.yml");

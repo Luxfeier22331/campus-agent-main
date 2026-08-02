@@ -12,6 +12,10 @@ const IMAGE_PACKAGES = new Map<string, readonly string[]>([
 	["ops-web", ["ops-web"]],
 ]);
 const ALL_IMAGES = [...new Set([...IMAGE_PACKAGES.values()].flat())].sort();
+const WORKER_PACKAGES = new Map<string, string>([
+	["app-api-staging", "app-api"],
+	["campus-web-staging", "campus-web"],
+]);
 
 export type ValidationProfile =
 	| "affected-node"
@@ -63,6 +67,7 @@ export interface CandidatePlanOptions {
 	repositoryRoot: string;
 	selectionFile?: string;
 	validateOnly: boolean;
+	workerSelectionFile?: string;
 }
 
 function run(
@@ -125,6 +130,39 @@ async function candidateBase(options: CandidatePlanOptions): Promise<string> {
 		return options.base;
 	}
 	return await releaseBase(path.resolve(options.selectionFile as string));
+}
+
+async function activeWorkers(options: CandidatePlanOptions): Promise<string[] | undefined> {
+	if (!options.workerSelectionFile) {
+		if (options.selectionFile) {
+			throw new Error("GitOps-based candidate plan requires a Worker selection manifest");
+		}
+		return;
+	}
+	let value: unknown;
+	const file = path.resolve(options.workerSelectionFile);
+	try {
+		value = JSON.parse(await readFile(file, "utf8")) as unknown;
+	} catch (error) {
+		throw new Error(`Invalid GitOps Worker selection: ${file}`, { cause: error });
+	}
+	if (
+		typeof value !== "object" ||
+		value === null ||
+		Array.isArray(value) ||
+		(value as { schemaVersion?: unknown }).schemaVersion !== 2 ||
+		typeof (value as { workers?: unknown }).workers !== "object" ||
+		(value as { workers?: unknown }).workers === null ||
+		Array.isArray((value as { workers?: unknown }).workers)
+	) {
+		throw new Error(`Invalid GitOps Worker selection: ${file}`);
+	}
+	const workers = Object.keys((value as { workers: Record<string, unknown> }).workers).sort();
+	const unknown = workers.filter((worker) => !WORKER_PACKAGES.has(worker));
+	if (unknown.length > 0) {
+		throw new Error(`Unsupported active Worker: ${unknown.join(", ")}`);
+	}
+	return workers;
 }
 
 export function turboTasks(source: string): Array<{ package: string; task: string }> {
@@ -191,7 +229,7 @@ function selectProfiles(input: {
 		profiles.add("app-api-migration");
 		profiles.add("app-api-product-db");
 	}
-	if (input.workers.includes("app-api")) {
+	if (input.workers.includes("app-api-staging")) {
 		profiles.add("app-api-product-db");
 	}
 	if (input.images.has("ops-web")) {
@@ -220,6 +258,10 @@ export async function planCandidates(
 ): Promise<CandidatePlan> {
 	const root = path.resolve(options.repositoryRoot);
 	const base = await candidateBase(options);
+	const selectedActiveWorkers = await activeWorkers(options);
+	if ((options.full || options.validateOnly) && selectedActiveWorkers === undefined) {
+		throw new Error("Full and validation-only plans require the active GitOps Workers");
+	}
 	if (!SHA_PATTERN.test(options.head)) {
 		throw new Error("Release head must be a 40-character lowercase commit SHA");
 	}
@@ -243,7 +285,7 @@ export async function planCandidates(
 			kubernetes: false,
 			validateOnly: true,
 			validationProfiles: ["release-tooling"],
-			workers: ["app-api"],
+			workers: selectedActiveWorkers ?? [],
 		};
 	}
 	if (options.full) {
@@ -254,7 +296,7 @@ export async function planCandidates(
 			kubernetes: true,
 			validateOnly: false,
 			validationProfiles: ALL_VALIDATION_PROFILES,
-			workers: ["app-api"],
+			workers: selectedActiveWorkers ?? [],
 		};
 	}
 	if (base === options.head) {
@@ -286,14 +328,23 @@ export async function planCandidates(
 	}
 	const tasks = turboTasks(turbo.stdout);
 	const images = new Set<string>();
-	let appApiWorker = false;
+	const workers = new Set<string>();
 	for (const task of tasks) {
 		if (task.task === "build") {
 			for (const image of IMAGE_PACKAGES.get(task.package) ?? []) {
 				images.add(image);
 			}
 		}
-		appApiWorker ||= task.package === "app-api" && task.task === "build:worker";
+		if (task.task === "build:worker") {
+			for (const [worker, packageName] of WORKER_PACKAGES) {
+				if (
+					task.package === packageName &&
+					(selectedActiveWorkers === undefined || selectedActiveWorkers.includes(worker))
+				) {
+					workers.add(worker);
+				}
+			}
+		}
 	}
 
 	const changedArgs = ["diff", "--name-only", "--diff-filter=ACMRD", base, options.head];
@@ -333,7 +384,6 @@ export async function planCandidates(
 			images.add(image);
 		}
 	}
-	const workers = appApiWorker ? ["app-api"] : [];
 	const kubernetes = changesPath(files, "infra/k8s");
 	return {
 		base,
@@ -341,8 +391,8 @@ export async function planCandidates(
 		images: [...images].sort(),
 		kubernetes,
 		validateOnly: false,
-		validationProfiles: selectProfiles({ files, images, tasks, workers }),
-		workers,
+		validationProfiles: selectProfiles({ files, images, tasks, workers: [...workers] }),
+		workers: [...workers].sort(),
 	};
 }
 
@@ -384,6 +434,7 @@ async function main(args: string[]): Promise<void> {
 		repositoryRoot: values.get("root") ?? process.cwd(),
 		selectionFile: values.get("selection"),
 		validateOnly: flag(values, "validate-only"),
+		workerSelectionFile: values.get("worker-selection"),
 	});
 	process.stdout.write(`${JSON.stringify(plan, null, 2)}\n`);
 }
