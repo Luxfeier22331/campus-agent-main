@@ -411,7 +411,9 @@ describe("campus map page", () => {
 		const fengtaiSource = maplibreRuntimeMock.mapOptions?.style?.sources?.["fengtai-campus"] as
 			| { data?: string }
 			| undefined;
-		expect(fengtaiSource?.data).toBe("/map-data/v2026-06-30/geojson/fengtai-campus.geojson");
+		expect(fengtaiSource?.data).toBe(
+			"/api/campus-map/assets/7a0cc069cc7c9044bb088e4b41afb742d8e8faf03c2906292ce846185128b993.geojson",
+		);
 		expect(maplibreRuntimeMock.mapOptions?.style?.layers?.map((layer) => layer.id)).toEqual(
 			expect.arrayContaining([
 				"campus-green",
@@ -515,7 +517,8 @@ describe("campus map page", () => {
 			expect.objectContaining({
 				sources: {
 					"haidian-campus": {
-						data: "/map-data/v2026-06-30/geojson/haidian-campus.geojson",
+						attribution: "Synthetic map data",
+						data: "/api/campus-map/assets/02f064bd8c11bc56133ef7f1456ec91da8d40107f4a8d55800d85a585f879cc5.geojson",
 						type: "geojson",
 					},
 				},
@@ -700,7 +703,8 @@ describe("campus map page", () => {
 			expect.objectContaining({
 				sources: {
 					"haidian-campus": {
-						data: "/map-data/v2026-06-30/geojson/haidian-campus.geojson",
+						attribution: "Synthetic map data",
+						data: "/api/campus-map/assets/02f064bd8c11bc56133ef7f1456ec91da8d40107f4a8d55800d85a585f879cc5.geojson",
 						type: "geojson",
 					},
 				},

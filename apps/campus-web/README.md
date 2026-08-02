@@ -8,6 +8,7 @@
 - 提供邮箱验证、密码恢复、强制改密和账号注销流程；
 - 通过 Service Binding 或配置的来源调用 app-api；
 - 在 `/docs/*` 构建和交付原生文档目录与阅读器；
+- 通过 App API manifest 加载内容寻址校园 GeoJSON，并展示来源署名；
 - 按明确 Dining release 加载完整地图和不可变 SVG 资源；
 - 维护浏览器与 Worker 的错误、日志和调用链接入。
 

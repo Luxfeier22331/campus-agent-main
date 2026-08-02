@@ -223,15 +223,6 @@ export async function mockCampusApi(page: Page, options: CampusApiMockOptions = 
 	const diningState = createDiningApiState();
 	await installMapLibreMock(page);
 	await page.route(
-		(url) => url.pathname === "/map-data/manifest.json",
-		(route) =>
-			route.fulfill({
-				contentType: "application/json",
-				json: mapPageManifest,
-				status: 200,
-			}),
-	);
-	await page.route(
 		(url) => url.pathname.startsWith("/api/"),
 		async (route) => {
 			const request = route.request();
@@ -390,6 +381,12 @@ function routeMocks(input: {
 }): RouteMockInput[] {
 	const { diningState, options, sessionState } = input;
 	return [
+		{
+			method: "GET",
+			path: "/api/campus-map/manifest",
+			response: (route) =>
+				route.fulfill({ contentType: "application/json", json: mapPageManifest, status: 200 }),
+		},
 		{
 			method: "GET",
 			path: "/api/campus-groups/catalog",

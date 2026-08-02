@@ -74,5 +74,10 @@ export function buildAppApiStagingUploadConfig(
 		requireHyperdriveConfigurationId("APP_API_DB_HYPERDRIVE_ID", resources.hyperdriveId),
 	);
 	config.main = resolve(appDir, "src/index.ts");
+	const assets = config.assets as Record<string, unknown> | undefined;
+	if (!assets || typeof assets.directory !== "string" || !assets.directory.trim()) {
+		throw new Error("Missing app-api static assets directory.");
+	}
+	assets.directory = resolve(appDir, assets.directory);
 	return stringify(config);
 }

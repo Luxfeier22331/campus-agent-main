@@ -13,8 +13,8 @@ describe("campus experience projection seed", () => {
 		const placesById = new Map(response.places.map((place) => [place.id, place]));
 
 		expect(response.campus).toMatchObject({
-			id: "example-campuses",
-			name: "示例大学校区",
+			id: "muc-campuses",
+			name: "中央民族大学校区",
 		});
 		expect(response.places.length).toBeGreaterThanOrEqual(12);
 		for (const officialHaidianPlaceId of [
@@ -72,6 +72,8 @@ describe("campus experience projection seed", () => {
 			);
 		}
 		for (const unboundOfficialHaidianPlaceId of [
+			"library",
+			"science-engineering-building",
 			"haidian-west-gate",
 			"haidian-east-small-gate",
 			"haidian-north-gate",
@@ -110,6 +112,8 @@ describe("campus experience projection seed", () => {
 			"haidian-track-football-field",
 			"haidian-volleyball-court",
 			"shaw-gymnasium",
+			"haidian-hospital",
+			"ethnic-theater",
 			"haidian-south-gate",
 		]) {
 			expect(
@@ -178,12 +182,6 @@ describe("campus experience projection seed", () => {
 		]);
 		expect(placesById.get("fengtai-juya-canteen")?.mapFeatureRefs).toEqual([
 			{ fid: 40, layer: "building", sourceId: "fengtai-campus" },
-		]);
-		expect(placesById.get("library")?.mapFeatureRefs).toEqual([
-			{ fid: 1001, layer: "building", sourceId: "haidian-campus" },
-		]);
-		expect(placesById.get("haidian-hospital")?.mapFeatureRefs).toEqual([
-			{ fid: 1003, layer: "building", sourceId: "haidian-campus" },
 		]);
 		expect(placesById.get("fengtai-library")?.mapFeatureRefs).toEqual([
 			{ fid: 49, layer: "building", sourceId: "fengtai-campus" },

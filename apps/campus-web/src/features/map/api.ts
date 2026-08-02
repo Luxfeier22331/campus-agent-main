@@ -1,10 +1,7 @@
 import { requestJson } from "@/platform/api/client";
 import type { CampusMapManifest, CampusMapPlace, CampusMapPlacesResponse } from "./model";
 
-const CAMPUS_MAP_DATA_URL_PATTERN =
-	/^\/map-data\/v[0-9]{4}-[0-9]{2}-[0-9]{2}\/geojson\/[a-z0-9-]+\.geojson$/;
-const CAMPUS_MAP_TILE_URL_TEMPLATE_PATTERN =
-	/^\/map-data\/v[0-9]{4}-[0-9]{2}-[0-9]{2}\/tiles\/[a-z0-9-]+\/\{z\}\/\{x\}\/\{y\}\.png$/;
+const CAMPUS_MAP_DATA_URL_PATTERN = /^\/api\/campus-map\/assets\/[0-9a-f]{64}\.geojson$/;
 
 export async function getCampusMapPlaces(
 	input: { signal?: AbortSignal } = {},
@@ -26,7 +23,7 @@ export async function getCampusMapManifest(
 	input: { signal?: AbortSignal } = {},
 ): Promise<CampusMapManifest> {
 	const payload = await requestJson<unknown>({
-		path: "/map-data/manifest.json",
+		path: "/api/campus-map/manifest",
 		signal: input.signal,
 	});
 	return normalizeCampusMapManifest(payload);
@@ -39,14 +36,15 @@ function normalizeCampusMapManifest(payload: unknown): CampusMapManifest {
 	const attribution = payload.attribution;
 	const campuses = payload.campuses;
 	const licenseBoundary = payload.licenseBoundary;
-	const version = payload.version;
 	if (
 		!(
 			Array.isArray(attribution) &&
-			attribution.every((item) => typeof item === "string") &&
+			attribution.length > 0 &&
+			attribution.every((item) => typeof item === "string" && item.trim().length > 0) &&
 			isRecord(campuses) &&
+			Object.keys(campuses).length > 0 &&
 			typeof licenseBoundary === "string" &&
-			typeof version === "string"
+			licenseBoundary.trim().length > 0
 		)
 	) {
 		throw new Error("Campus map manifest is invalid.");
@@ -64,7 +62,6 @@ function normalizeCampusMapManifest(payload: unknown): CampusMapManifest {
 		attribution,
 		campuses: normalizedCampuses,
 		licenseBoundary,
-		version,
 	};
 }
 
@@ -75,17 +72,16 @@ function isCampusMapManifestCampus(input: unknown): input is CampusMapManifest["
 	const bounds = input.bounds;
 	const geojsonUrl = input.geojsonUrl;
 	const name = input.name;
-	const tileUrlTemplate = input.tileUrlTemplate;
 	return (
 		Array.isArray(bounds) &&
 		bounds.length === 4 &&
 		bounds.every((value) => typeof value === "number" && Number.isFinite(value)) &&
+		bounds[0] < bounds[2] &&
+		bounds[1] < bounds[3] &&
 		typeof geojsonUrl === "string" &&
 		CAMPUS_MAP_DATA_URL_PATTERN.test(geojsonUrl) &&
 		typeof name === "string" &&
-		(tileUrlTemplate === undefined ||
-			(typeof tileUrlTemplate === "string" &&
-				CAMPUS_MAP_TILE_URL_TEMPLATE_PATTERN.test(tileUrlTemplate)))
+		name.trim().length > 0
 	);
 }
 

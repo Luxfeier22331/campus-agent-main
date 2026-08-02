@@ -22,15 +22,20 @@ notice、document 或其他第三方内容。
 
 - collector test 使用的 synthetic public website snippet 和 HTML fixture；
 - ingestion test 使用的 synthetic campus notice、document、curriculum 或 regulation sample；
-- map loader code、synthetic map fixture 和项目 self-authored map data。
+- map loader code 和 synthetic map fixture；
+- `apps/app-api/assets/campus-map/*.geojson` 中由 OpenStreetMap 数据派生的校园底图。
 
 可公开 source/data 路径边界见 `docs/policies/public-source-data.md`。
 
 ## 地图数据
 
-项目 self-authored GeoJSON、tile 与坐标可以按仓库许可证保留。第三方或来源派生地图数据只有在
-再分发权利、上游 license 与 attribution 要求明确时才能提交；否则由受控对象存储加载，并让
-license 与 attribution metadata 随 release 保存。
+`apps/app-api/assets/campus-map/*.geojson` 的 geometry 来自 OpenStreetMap contributors，依据
+Open Database License 1.0 提供。该数据不在仓库 Apache-2.0 授权范围内；公开地图必须显示
+`© OpenStreetMap contributors` 并链接到 <https://www.openstreetmap.org/copyright>。
+
+项目自有 GeoJSON、tile 与坐标可以按仓库许可证保留。其他第三方或来源派生地图数据只有在再分发
+权利、上游许可证与署名要求明确时才能提交；否则由所属受控存储加载，并让许可证与署名 metadata
+随发布单元保存。
 
 ## 商标与品牌
 

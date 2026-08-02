@@ -12,17 +12,16 @@ describe("campus map style", () => {
 			campuses: {
 				fengtai: {
 					bounds: [120, 30, 120.1, 30.1],
-					geojsonUrl: "/map-data/v2026-06-30/geojson/fengtai-campus.geojson",
+					geojsonUrl: `/api/campus-map/assets/${"a".repeat(64)}.geojson`,
 					name: "丰台校区",
 				},
 				haidian: {
 					bounds: [121, 31, 121.1, 31.1],
-					geojsonUrl: "/map-data/v2026-06-30/geojson/haidian-campus.geojson",
+					geojsonUrl: `/api/campus-map/assets/${"b".repeat(64)}.geojson`,
 					name: "海淀校区",
 				},
 			},
 			licenseBoundary: "External map data",
-			version: "v2026-06-30",
 		});
 		const style = createCampusMapStyle(
 			readTestMapStyleColors(),
@@ -35,7 +34,8 @@ describe("campus map style", () => {
 
 		expect(style.glyphs).toBeUndefined();
 		expect(haidianStyle.sources?.["haidian-campus"]).toEqual({
-			data: "/map-data/v2026-06-30/geojson/haidian-campus.geojson",
+			attribution: "Synthetic map contributors",
+			data: `/api/campus-map/assets/${"b".repeat(64)}.geojson`,
 			type: "geojson",
 		});
 		expect(style.layers?.find((layer) => layer.id === "campus-building-labels")).toEqual(
@@ -100,18 +100,17 @@ describe("campus map style", () => {
 			campuses: {
 				fengtai: {
 					bounds: [120, 30, 120.1, 30.1],
-					geojsonUrl: "/map-data/v2026-06-30/geojson/fengtai-campus.geojson",
+					geojsonUrl: `/api/campus-map/assets/${"a".repeat(64)}.geojson`,
 					name: "丰台校区",
-					tileUrlTemplate: "/map-data/v2026-06-30/tiles/fengtai/{z}/{x}/{y}.png",
 				},
 			},
 			licenseBoundary: "External map data",
-			version: "v2026-06-30",
 		});
 
 		expect(profiles).toHaveLength(1);
 		expect(profiles[0]).toMatchObject({
-			assetUrl: "/map-data/v2026-06-30/geojson/fengtai-campus.geojson",
+			assetUrl: `/api/campus-map/assets/${"a".repeat(64)}.geojson`,
+			attribution: "Synthetic map contributors",
 			campus: "丰台校区",
 			sourceId: "fengtai-campus",
 		});

@@ -66,7 +66,9 @@ Ops Web 的 Dining 与内部门户声明式 schema 位于 `packages/domains/dini
 共用历史命名的 `drizzle.ops_web_dining_migrations`。结构变化先运行
 `db:generate` 并审查新增 SQL；不得修改已应用 migration。`db:apply-dining` 按顺序执行 migration
 和 Dining grants，完整部署使用 `db:apply` 安装 Ops Web schema 和授权；`db:bootstrap-dining`
-之后才写入首次草稿。授权和 bootstrap 不建表，也不维护第二份 schema。
+只在空库写入基线草稿，并通过正式 publisher 上传 SVG、原子写入 release 和当前 publication。
+已有有效发布时该命令不修改数据；异常的部分初始化状态会明确失败。授权和 bootstrap 不建表，也不
+维护第二份 schema。
 
 ```bash
 pnpm --dir apps/ops-web db:apply-dining

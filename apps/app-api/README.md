@@ -14,6 +14,7 @@
 - 联邦登录接口；
 - 聊天提交与流式读取、运行事件与步骤读取、反馈写入；
 - 个人记忆设置、显式记忆项和 Hindsight 命令 outbox；
+- 校园地点投影、底图 manifest 和内容寻址 GeoJSON；
 - 食堂校园产品公开读取接口；
 
 HTTP 字段以 `docs/contracts/app-api/` 为准；本文只作为应用入口。
@@ -36,6 +37,10 @@ app-api 拥有认证、聊天、请求观测、用户资料和个人记忆产品
 derived bucket 读取按摘要命名的地图资源。staging 和 production 通过 `OBJECT_STORE_PRIVATE`
 Workers VPC binding 访问集群内对象存储，不持有 S3 凭据或使用公开对象存储地址。App API 不读取
 草稿，也不执行地图编辑或发布。
+
+低频校园底图位于 `assets/campus-map`，作为 App API Worker 静态资产随版本发布。Campus Web 只读
+`/api/campus-map/manifest` 和 manifest 中的摘要 URL；App API 不从环境变量、R2 current pointer
+或对象列表选择底图版本。
 
 数据库 schema 与角色边界由 `docs/data/postgres-ownership.md` 维护，安装和迁移实现位于应用
 `ops/db/` 与 schema Job；README 不复制表清单和部署步骤。

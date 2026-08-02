@@ -1,4 +1,4 @@
-import type { Hono } from "hono";
+import type { Handler, Hono } from "hono";
 
 import { type Env, isDeployedEnvironment, resolveEnvironment } from "../../config";
 import { AppApiRouteError, jsonResponse, routeErrorResponse } from "../../http";
@@ -10,11 +10,62 @@ const DINING_MAP_CACHE_CONTROL = "public, max-age=60, s-maxage=300, stale-while-
 const DINING_FLOORPLAN_DIGEST = /^[0-9a-f]{64}$/;
 const MAX_DINING_FLOORPLAN_BYTES = 2 * 1024 * 1024;
 const PRIVATE_DERIVED_OBJECT_STORE_BASE_URL = "http://object-store/campus-agent-derived/";
+const CAMPUS_MAP_ASSET_DIGEST = /^[0-9a-f]{64}$/;
+const CAMPUS_MAP_MANIFEST_CACHE_CONTROL =
+	"public, max-age=60, s-maxage=300, stale-while-revalidate=300";
+const CAMPUS_MAP_ASSET_CACHE_CONTROL = "public, max-age=31536000, immutable";
 export function registerCampusExperienceRoutes(input: {
 	app: Hono<{ Bindings: Env }>;
 	createRequestScope: () => AppRequestScope;
 	env: Env;
 }) {
+	const serveCampusMapManifest: Handler<{ Bindings: Env }> = async (c) => {
+		try {
+			return await loadCampusMapStaticAsset(input.env, {
+				assetPath: "/campus-map/manifest.json",
+				cacheControl: CAMPUS_MAP_MANIFEST_CACHE_CONTROL,
+				contentType: "application/json; charset=utf-8",
+				method: c.req.method,
+			});
+		} catch (error) {
+			if (error instanceof AppApiRouteError) {
+				return routeErrorResponse(error);
+			}
+			throw error;
+		}
+	};
+	input.app.get("/api/campus-map/manifest", serveCampusMapManifest);
+	input.app.on("HEAD", "/api/campus-map/manifest", serveCampusMapManifest);
+
+	const serveCampusMapAsset: Handler<{ Bindings: Env }> = async (c) => {
+		try {
+			const match = /^([0-9a-f]{64})\.geojson$/.exec(c.req.param("asset") ?? "");
+			if (!(match && CAMPUS_MAP_ASSET_DIGEST.test(match[1] ?? ""))) {
+				throw new AppApiRouteError({
+					code: "validation_failed",
+					message: "Campus map asset digest is invalid.",
+					retryable: false,
+					status: 400,
+				});
+			}
+			const digest = match[1];
+			return await loadCampusMapStaticAsset(input.env, {
+				assetPath: `/campus-map/${digest}.geojson`,
+				cacheControl: CAMPUS_MAP_ASSET_CACHE_CONTROL,
+				contentType: "application/geo+json; charset=utf-8",
+				etag: `"sha256-${digest}"`,
+				method: c.req.method,
+			});
+		} catch (error) {
+			if (error instanceof AppApiRouteError) {
+				return routeErrorResponse(error);
+			}
+			throw error;
+		}
+	};
+	input.app.get("/api/campus-map/assets/:asset", serveCampusMapAsset);
+	input.app.on("HEAD", "/api/campus-map/assets/:asset", serveCampusMapAsset);
+
 	input.app.get("/api/campus-map/places", async () => {
 		const scope = input.createRequestScope();
 		return jsonResponse(await scope.resolveCampusExperienceService().getMapPlaces());
@@ -69,6 +120,58 @@ export function registerCampusExperienceRoutes(input: {
 			await scope.resolveCampusExperienceService().submitFeedback(parseFeedbackRequestBody(body)),
 			{ status: 201 },
 		);
+	});
+}
+
+async function loadCampusMapStaticAsset(
+	env: Env,
+	input: {
+		assetPath: string;
+		cacheControl: string;
+		contentType: string;
+		etag?: string;
+		method: string;
+	},
+): Promise<Response> {
+	const assetFetch = env.MAP_ASSETS?.fetch;
+	if (typeof assetFetch !== "function") {
+		throw new AppApiRouteError({
+			code: "service_unavailable",
+			message: "Campus map assets are unavailable.",
+			retryable: true,
+			status: 503,
+		});
+	}
+	const assetRequest = new Request(new URL(input.assetPath, "https://map-assets.internal"), {
+		method: input.method === "HEAD" ? "HEAD" : "GET",
+	});
+	const response = await assetFetch.call(env.MAP_ASSETS, assetRequest);
+	if (response.status === 404) {
+		throw new AppApiRouteError({
+			code: "not_found",
+			message: "Campus map asset was not found.",
+			retryable: false,
+			status: 404,
+		});
+	}
+	if (!response.ok) {
+		throw new AppApiRouteError({
+			code: "upstream_unavailable",
+			message: "Campus map asset request failed.",
+			retryable: true,
+			status: 502,
+		});
+	}
+	const headers = new Headers(response.headers);
+	headers.set("cache-control", input.cacheControl);
+	headers.set("content-type", input.contentType);
+	headers.set("x-content-type-options", "nosniff");
+	if (input.etag) {
+		headers.set("etag", input.etag);
+	}
+	return new Response(input.method === "HEAD" ? null : response.body, {
+		headers,
+		status: 200,
 	});
 }
 

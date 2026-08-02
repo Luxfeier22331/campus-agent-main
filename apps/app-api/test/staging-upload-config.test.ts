@@ -22,6 +22,11 @@ describe("app-api staging upload config", () => {
 		>;
 		const staging = (generated.env as Record<string, Record<string, unknown>>).staging;
 		expect(generated.main).toBe(resolve(appDir, "src/index.ts"));
+		expect(generated.assets).toEqual({
+			binding: "MAP_ASSETS",
+			directory: resolve(appDir, "assets"),
+			run_worker_first: ["/api/*"],
+		});
 		assertApplicationLogOnlyObservability(generated.observability, {
 			destinations: [],
 			surface: "app-api generated default",

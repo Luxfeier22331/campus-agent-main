@@ -34,7 +34,7 @@ vi.mock("../src/features/map/api", async () => {
 			campus: {
 				defaultCenter: [116.3216, 39.9519],
 				id: "muc-campuses",
-				name: "示例大学校区",
+				name: "中央民族大学校区",
 			},
 			places: mapPagePlaces,
 		}),

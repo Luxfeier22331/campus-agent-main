@@ -12,7 +12,6 @@ describe("campus map api", () => {
 				JSON.stringify({
 					attribution: ["Synthetic map contributors"],
 					licenseBoundary: "External map data",
-					version: "v2026-06-30",
 				}),
 				{ headers: { "content-type": "application/json" } },
 			),

@@ -23,6 +23,7 @@ export interface Env {
 	EXECUTION_CONTROL_BASE_URL?: string;
 	EXECUTION_CONTROL_PRIVATE?: WorkerFetchBindingLike;
 	EXECUTION_CONTROL_PRIVATE_ORIGIN?: string;
+	MAP_ASSETS?: WorkerFetchBindingLike;
 	OBJECT_STORE_PRIVATE?: WorkerFetchBindingLike;
 	OBJECT_STORE_LOCAL_BASE_URL?: string;
 	APP_API_EXECUTION_SHARED_SECRET?: string;

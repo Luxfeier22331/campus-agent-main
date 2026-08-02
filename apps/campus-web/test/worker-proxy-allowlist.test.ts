@@ -3,6 +3,14 @@ import { describe, expect, it } from "vitest";
 import { isAllowedCampusAppApiRequest } from "../src/platform/worker-proxy/allowlist";
 
 describe("campus worker app-api proxy allowlist", () => {
+	it("allows only content-addressed campus map asset routes", () => {
+		expect(isAllowedCampusAppApiRequest("/api/campus-map/manifest")).toBe(true);
+		expect(isAllowedCampusAppApiRequest(`/api/campus-map/assets/${"a".repeat(64)}.geojson`)).toBe(
+			true,
+		);
+		expect(isAllowedCampusAppApiRequest("/api/campus-map/assets/latest.geojson")).toBe(false);
+	});
+
 	it("allows student dining read routes", () => {
 		expect(isAllowedCampusAppApiRequest("/api/dining")).toBe(true);
 		expect(isAllowedCampusAppApiRequest(`/api/dining/floorplans/${"a".repeat(64)}.svg`)).toBe(true);

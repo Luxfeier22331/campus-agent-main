@@ -111,6 +111,18 @@ export const APP_API_BROWSER_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
+		path: "/api/campus-map/manifest",
+		callerClass: "browser-surface",
+		admission: "public campus map manifest read",
+	},
+	{
+		method: "GET",
+		path: "/api/campus-map/assets/:asset",
+		callerClass: "browser-surface",
+		admission: "public immutable campus map asset read",
+	},
+	{
+		method: "GET",
 		path: "/api/campus-map/places",
 		callerClass: "browser-surface",
 		admission: "public campus map projection read",

@@ -135,6 +135,8 @@ describe("campus worker boundary", () => {
 			"/api/chat/runs/run_1/events",
 			"/api/chat/runs/run_1/events/stream",
 			"/api/chat/runs/run_1/cancel",
+			"/api/campus-map/manifest",
+			`/api/campus-map/assets/${"a".repeat(64)}.geojson`,
 			"/api/campus-map/places",
 			"/api/campus-map/places/library",
 			"/api/dining",

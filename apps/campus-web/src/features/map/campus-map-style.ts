@@ -9,6 +9,7 @@ export const CAMPUS_HOVER_PLACE_OUTLINE_LAYER_ID = "campus-place-hover-outline";
 export const EMPTY_CAMPUS_MAP_FEATURE_FILTER: ExpressionSpecification = ["==", ["get", "fid"], -1];
 export interface CampusMapProfile {
 	assetUrl: string;
+	attribution: string;
 	bounds: [number, number, number, number];
 	campus: string;
 	center: [number, number];
@@ -39,6 +40,7 @@ export function createCampusMapProfilesFromManifest(
 	return Object.entries(manifest.campuses).map(([campusId, campus]) =>
 		createCampusMapProfile({
 			assetUrl: campus.geojsonUrl,
+			attribution: manifest.attribution.join(" · "),
 			bounds: campus.bounds,
 			campus: campus.name,
 			initialZoom: 15.8,
@@ -205,6 +207,7 @@ export function createCampusMapStyle(
 		],
 		sources: {
 			[profile.sourceId]: {
+				attribution: profile.attribution,
 				data: profile.assetUrl,
 				type: "geojson",
 			},
@@ -238,6 +241,7 @@ function createSingleFeatureFilter(featureRef: CampusMapFeatureRef): ExpressionS
 
 function createCampusMapProfile(input: {
 	assetUrl: string;
+	attribution: string;
 	bounds: [number, number, number, number];
 	campus: string;
 	initialZoom: number;

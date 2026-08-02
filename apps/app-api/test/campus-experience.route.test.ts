@@ -70,6 +70,104 @@ function diningMap() {
 }
 
 describe("campus experience routes", () => {
+	it("serves the campus map manifest and immutable digest assets through the Worker asset binding", async () => {
+		const digest = "a".repeat(64);
+		const assetFetch = vi.fn(async (request: Request) => {
+			const pathname = new URL(request.url).pathname;
+			if (pathname === "/campus-map/manifest.json") {
+				return new Response('{"campuses":{}}', { status: 200 });
+			}
+			if (pathname === `/campus-map/${digest}.geojson`) {
+				return new Response('{"type":"FeatureCollection","features":[]}', { status: 200 });
+			}
+			return new Response(null, { status: 404 });
+		});
+		const app = createApp(
+			{ ...env, MAP_ASSETS: { fetch: assetFetch } },
+			{ campusExperienceService: createService() },
+		);
+
+		const manifest = await app.fetch(
+			new Request("https://app-api.internal/api/campus-map/manifest"),
+		);
+		const manifestHead = await app.fetch(
+			new Request("https://app-api.internal/api/campus-map/manifest", { method: "HEAD" }),
+		);
+		const asset = await app.fetch(
+			new Request(`https://app-api.internal/api/campus-map/assets/${digest}.geojson`),
+		);
+		const assetHead = await app.fetch(
+			new Request(`https://app-api.internal/api/campus-map/assets/${digest}.geojson`, {
+				method: "HEAD",
+			}),
+		);
+
+		expect(manifest.status).toBe(200);
+		expect(manifest.headers.get("content-type")).toBe("application/json; charset=utf-8");
+		expect(manifest.headers.get("cache-control")).toBe(
+			"public, max-age=60, s-maxage=300, stale-while-revalidate=300",
+		);
+		await expect(manifest.json()).resolves.toEqual({ campuses: {} });
+		expect(await manifestHead.text()).toBe("");
+		expect(asset.status).toBe(200);
+		expect(asset.headers.get("content-type")).toBe("application/geo+json; charset=utf-8");
+		expect(asset.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+		expect(asset.headers.get("etag")).toBe(`"sha256-${digest}"`);
+		expect(asset.headers.get("x-content-type-options")).toBe("nosniff");
+		await expect(asset.json()).resolves.toEqual({ features: [], type: "FeatureCollection" });
+		expect(await assetHead.text()).toBe("");
+		expect(
+			assetFetch.mock.calls.map(([request]) => [request.method, new URL(request.url).pathname]),
+		).toEqual([
+			["GET", "/campus-map/manifest.json"],
+			["HEAD", "/campus-map/manifest.json"],
+			["GET", `/campus-map/${digest}.geojson`],
+			["HEAD", `/campus-map/${digest}.geojson`],
+		]);
+	});
+
+	it("fails closed for invalid, missing, unavailable, or unconfigured campus map assets", async () => {
+		const digest = "b".repeat(64);
+		const missingBindingApp = createApp(env, { campusExperienceService: createService() });
+		const missingAssetApp = createApp(
+			{ ...env, MAP_ASSETS: { fetch: vi.fn(async () => new Response(null, { status: 404 })) } },
+			{ campusExperienceService: createService() },
+		);
+		const failedAssetApp = createApp(
+			{ ...env, MAP_ASSETS: { fetch: vi.fn(async () => new Response(null, { status: 500 })) } },
+			{ campusExperienceService: createService() },
+		);
+
+		expect(
+			(
+				await missingBindingApp.fetch(
+					new Request("https://app-api.internal/api/campus-map/manifest"),
+				)
+			).status,
+		).toBe(503);
+		expect(
+			(
+				await missingBindingApp.fetch(
+					new Request("https://app-api.internal/api/campus-map/assets/latest.geojson"),
+				)
+			).status,
+		).toBe(400);
+		expect(
+			(
+				await missingAssetApp.fetch(
+					new Request(`https://app-api.internal/api/campus-map/assets/${digest}.geojson`),
+				)
+			).status,
+		).toBe(404);
+		expect(
+			(
+				await failedAssetApp.fetch(
+					new Request(`https://app-api.internal/api/campus-map/assets/${digest}.geojson`),
+				)
+			).status,
+		).toBe(502);
+	});
+
 	it("returns campus places and one complete Dining map", async () => {
 		const service = createService();
 		const getMap = vi.fn(async () => diningMap());

@@ -44,12 +44,10 @@ export interface CampusMapManifestCampus {
 	bounds: [number, number, number, number];
 	geojsonUrl: string;
 	name: string;
-	tileUrlTemplate?: string;
 }
 
 export interface CampusMapManifest {
 	attribution: string[];
 	campuses: Record<string, CampusMapManifestCampus>;
 	licenseBoundary: string;
-	version: string;
 }

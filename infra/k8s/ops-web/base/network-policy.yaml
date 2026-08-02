@@ -95,13 +95,13 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: ops-web-database-grants-egress
+  name: ops-web-bootstrap-egress
   annotations:
     argocd.argoproj.io/sync-wave: "-2"
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: ops-web-database-grants
+      app.kubernetes.io/name: ops-web-bootstrap
   policyTypes: ["Egress"]
   egress:
     - to:
@@ -120,3 +120,10 @@ spec:
       ports:
         - protocol: TCP
           port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: object-store
+      ports:
+        - protocol: TCP
+          port: 9000
