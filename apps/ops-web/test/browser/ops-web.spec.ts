@@ -765,6 +765,18 @@ test("账号准入在桌面和移动端均可读取并操作授权", async ({ pa
 	await expect(page.getByRole("heading", { name: "创建授权" })).toBeVisible();
 	await expect(page.getByRole("heading", { name: "授权记录" })).toBeVisible();
 	await expect(page.getByText("预发布环境")).toBeVisible();
+	await expect(page.getByRole("textbox", { name: "按邮箱筛选" })).toHaveAttribute(
+		"name",
+		"email-access-filter-email",
+	);
+	await expect(page.getByRole("combobox", { name: "按授权类型筛选" })).toHaveAttribute(
+		"name",
+		"email-access-filter-kind",
+	);
+	await expect(page.getByRole("combobox", { name: "按授权状态筛选" })).toHaveAttribute(
+		"name",
+		"email-access-filter-state",
+	);
 	const compact = (page.viewportSize()?.width ?? 0) < 768;
 	if (compact) {
 		const list = page.getByTestId("email-access-mobile-list");

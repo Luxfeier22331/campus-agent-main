@@ -157,6 +157,7 @@ export function EmailAccessPage() {
 					<Input
 						aria-label="按邮箱筛选"
 						className="min-h-10 min-w-0"
+						name="email-access-filter-email"
 						onChange={(event) => {
 							setCursor(undefined);
 							setPreviousCursors([]);
@@ -168,6 +169,7 @@ export function EmailAccessPage() {
 					<NativeSelect
 						aria-label="按授权类型筛选"
 						className="min-h-10 min-w-0"
+						name="email-access-filter-kind"
 						onChange={(event) => {
 							setCursor(undefined);
 							setPreviousCursors([]);
@@ -182,6 +184,7 @@ export function EmailAccessPage() {
 					<NativeSelect
 						aria-label="按授权状态筛选"
 						className="min-h-10 min-w-0"
+						name="email-access-filter-state"
 						onChange={(event) => {
 							setCursor(undefined);
 							setPreviousCursors([]);
