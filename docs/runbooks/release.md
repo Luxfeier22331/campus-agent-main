@@ -90,6 +90,11 @@ Source SHA 注解和 staging 游标；这些字段由环境仓策略检查并自
 合并后等待环境仓定义的 reconcile、migration、rollout 和 readiness 完成。不得绕过环境仓直接
 修改集群、流量或线上 Secret。
 
+数据库安装、迁移和授权 Job 使用 `sync-wave: -1`，并作为 Argo CD 跟踪的期望资源保留完成状态。
+它们通过 `Force=true,Replace=true` 在清单或镜像变化时删除重建，使制品变化本身能够触发同步并在
+后续 workload 前完成。不得把这类 Job 改成成功后删除的 Sync hook；删除 hook 后，Application revision
+可能在没有执行新迁移的情况下前移。
+
 ## Staging 验收
 
 环境达到期望 revision 后，根据本次变更选择 `docs/runbooks/e2e.md` 中的真实用户路径。验收必须

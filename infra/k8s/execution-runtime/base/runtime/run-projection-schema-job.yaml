@@ -6,8 +6,7 @@ metadata:
     app.kubernetes.io/name: execution-run-projection-schema
     app.kubernetes.io/part-of: campus-agent
   annotations:
-    argocd.argoproj.io/hook: Sync
-    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+    argocd.argoproj.io/sync-options: Force=true,Replace=true
     argocd.argoproj.io/sync-wave: "-1"
 spec:
   activeDeadlineSeconds: 180
