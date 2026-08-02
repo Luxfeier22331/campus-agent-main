@@ -448,6 +448,10 @@ describe("app-api migration upgrade", () => {
 				migration_count: String(docsRetirementPredecessorMigrationCount),
 			},
 		]);
+		await pool.query(`
+				insert into "app_auth"."rateLimit" ("key", "count", "lastRequest")
+				values ('legacy-rate-limit-key', 7, 1785705600000)
+			`);
 
 		await installAppApiSchema({
 			APP_API_SCHEMA_DATABASE_SSLMODE: "disable",
@@ -608,6 +612,42 @@ describe("app-api migration upgrade", () => {
 				old_index_count: "0",
 				password_change_nullable: "NO",
 				rate_limit_ready: true,
+			},
+		]);
+		const rateLimitConstraints = await pool.query<{
+			column_name: string;
+			constraint_type: string;
+		}>(`
+				select key_usage.column_name, constraints.constraint_type
+				from information_schema.table_constraints constraints
+				join information_schema.key_column_usage key_usage
+				  on key_usage.constraint_schema = constraints.constraint_schema
+				 and key_usage.constraint_name = constraints.constraint_name
+				where constraints.table_schema = 'app_auth'
+				  and constraints.table_name = 'rateLimit'
+				  and constraints.constraint_type in ('PRIMARY KEY', 'UNIQUE')
+				order by constraints.constraint_type, key_usage.column_name
+			`);
+		expect(rateLimitConstraints.rows).toEqual([
+			{ column_name: "id", constraint_type: "PRIMARY KEY" },
+			{ column_name: "key", constraint_type: "UNIQUE" },
+		]);
+		const retainedRateLimit = await pool.query<{
+			count: number;
+			id: string;
+			key: string;
+			last_request: string;
+		}>(`
+				select "id", "key", "count", "lastRequest"::text as last_request
+				from "app_auth"."rateLimit"
+				where "key" = 'legacy-rate-limit-key'
+			`);
+		expect(retainedRateLimit.rows).toEqual([
+			{
+				count: 7,
+				id: "legacy-rate-limit-key",
+				key: "legacy-rate-limit-key",
+				last_request: "1785705600000",
 			},
 		]);
 		const authForeignKeys = await pool.query<{

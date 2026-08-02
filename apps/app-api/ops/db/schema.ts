@@ -98,6 +98,7 @@ const REQUIRED_TABLES = [
 	"runtime.request_observability_fact",
 ] as const;
 const REQUIRED_COLUMNS = [
+	"app_auth.rateLimit.id",
 	"app_auth.rateLimit.key",
 	"app_auth.session.impersonatedBy",
 	"app_auth.user.banExpires",

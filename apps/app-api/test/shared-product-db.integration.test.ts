@@ -202,6 +202,72 @@ describe("app-api shared product DB integration", () => {
 		}
 	});
 
+	it("persists and enforces Better Auth rate limits in deployed mode", async () => {
+		const dbClient = requireClient(client);
+		await dbClient.query(`delete from "app_auth"."rateLimit"`);
+		const deployedEnv = buildSharedDbIntegrationEnv({
+			runtimeConnectionString: postgres.runtimeConnectionString,
+			overrides: { DEPLOYMENT_ENVIRONMENT: "staging" },
+		});
+		const deployedAuth = createAppAuth(deployedEnv);
+		const deployedApp = createApp(deployedEnv, { getAppAuth: () => deployedAuth });
+		const request = () =>
+			new Request("https://app-api.internal/api/auth/get-session", {
+				headers: { "cf-connecting-ip": "198.51.100.42" },
+			});
+
+		const firstResponse = await deployedApp.fetch(request());
+		expect(firstResponse.status).toBe(200);
+		await expect(firstResponse.json()).resolves.toBeNull();
+		const firstRows = await dbClient.query<{
+			count: number;
+			id: string;
+			key: string;
+			last_request: string;
+		}>(`
+			select "id", "key", "count", "lastRequest"::text as last_request
+			from "app_auth"."rateLimit"
+		`);
+		expect(firstRows.rows).toHaveLength(1);
+		const firstRow = firstRows.rows[0];
+		expect(firstRow).toMatchObject({ count: 1 });
+		expect(firstRow?.id).toBeTruthy();
+		expect(firstRow?.key).toBeTruthy();
+
+		const secondResponse = await deployedApp.fetch(request());
+		expect(secondResponse.status).toBe(200);
+		const secondRows = await dbClient.query<{
+			count: number;
+			id: string;
+			key: string;
+			last_request: string;
+		}>(`
+			select "id", "key", "count", "lastRequest"::text as last_request
+			from "app_auth"."rateLimit"
+		`);
+		expect(secondRows.rows).toHaveLength(1);
+		expect(secondRows.rows[0]).toMatchObject({
+			count: 2,
+			id: firstRow?.id,
+			key: firstRow?.key,
+		});
+		expect(Number(secondRows.rows[0]?.last_request)).toBeGreaterThanOrEqual(
+			Number(firstRow?.last_request),
+		);
+
+		for (let requestCount = 3; requestCount <= 10; requestCount += 1) {
+			expect((await deployedApp.fetch(request())).status).toBe(200);
+		}
+		const limitedResponse = await deployedApp.fetch(request());
+		expect(limitedResponse.status).toBe(429);
+		await expect(
+			dbClient.query<{ count: number }>(
+				`select "count" from "app_auth"."rateLimit" where "id" = $1`,
+				[firstRow?.id],
+			),
+		).resolves.toMatchObject({ rows: [{ count: 10 }] });
+	});
+
 	it("creates and reads owned conversations through app-api after Better Auth sign-in", async () => {
 		const createdEmail = `integration-${Date.now()}@muc.edu.cn`;
 		const cookieHeader = await registerAndSignIn(createdEmail);

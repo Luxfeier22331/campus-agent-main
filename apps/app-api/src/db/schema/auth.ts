@@ -48,7 +48,8 @@ export const user = auth.table(
 );
 
 export const rateLimit = auth.table("rateLimit", {
-	key: text("key").primaryKey(),
+	id: text("id").primaryKey(),
+	key: text("key").notNull().unique(),
 	count: integer("count").notNull(),
 	lastRequest: bigint("lastRequest", { mode: "number" }).notNull(),
 });
