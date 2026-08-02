@@ -1,11 +1,8 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
 import { parse } from "smol-toml";
 import { describe, expect, it } from "vitest";
 import stagingBrowserE2ESource from "../e2e/staging-browser.ts?raw";
 import packageManifest from "../package.json";
-import { configureStagingWorkerBuild } from "../scripts/build-campus-web";
 import buildCampusWebSource from "../scripts/build-campus-web.ts?raw";
 import stagingPreflightSource from "../scripts/preflight-staging.ts?raw";
 import uploadStagingVersionSource from "../scripts/upload-staging-version.ts?raw";
@@ -57,8 +54,8 @@ describe("campus web staging config", () => {
 		expect(wranglerConfig).not.toContain("CAMPUS_WEB_HOSTNAME");
 		expect(wranglerConfig).toContain('DEPLOYMENT_ENVIRONMENT = "staging"');
 		expect(wranglerConfig).not.toContain("AUTH_TURNSTILE_SITE_KEY");
-		expect(wranglerConfig).toContain('bucket_name = "campus-agent-derived-unconfigured"');
-		expect(wranglerConfig).not.toContain('bucket_name = "campus-agent-derived-staging"');
+		expect(wranglerConfig).not.toContain("MAP_DATA");
+		expect(wranglerConfig).not.toContain("r2_buckets");
 		expect(wranglerConfig).not.toContain("[env.staging.secrets]");
 		expect(wranglerConfig).toContain("upload_source_maps = true");
 		expect(wranglerConfig).toContain("persist = false");
@@ -77,41 +74,13 @@ describe("campus web staging config", () => {
 		expect(uploadStagingVersionSource).toContain("SENTRY_CAMPUS_WEB_PROJECT_SLUG");
 		expect(uploadStagingVersionSource).toContain('artifactDirectory: "dist/campus_web"');
 		expect(uploadStagingVersionSource).toContain("AUTH_TURNSTILE_SITE_KEY");
-		expect(buildCampusWebSource).toContain("MAP_DATA_BUCKET_NAME");
-		expect(buildCampusWebSource).toContain('binding === "MAP_DATA"');
+		expect(verifyStagingConfigSource).not.toContain("MAP_DATA");
+		expect(buildCampusWebSource).not.toContain("MAP_DATA");
 		expect(uploadStagingVersionSource).toContain("readCampusWebBuildSourceDigest");
 		expect(uploadStagingVersionSource).toContain("candidateMetadata: { docsSourceDigest }");
 		expect(uploadStagingVersionSource).toContain("uploadStagingWorkerVersion");
 		expect(packageScripts["deploy:staging"]).toBeUndefined();
 		expect(packageScripts["upload:staging"]).toContain("upload-staging-version.ts");
-	});
-
-	it("writes the admitted map bucket into the built staging configuration", () => {
-		const root = mkdtempSync(join(tmpdir(), "campus-web-staging-config-"));
-		const configPath = join(root, "wrangler.json");
-		try {
-			writeFileSync(
-				configPath,
-				JSON.stringify({
-					r2_buckets: [
-						{ binding: "MAP_DATA", bucket_name: "campus-agent-derived-unconfigured" },
-						{ binding: "OTHER", bucket_name: "other-bucket" },
-					],
-				}),
-			);
-
-			configureStagingWorkerBuild(configPath, "campus-agent-derived-staging");
-
-			const config = JSON.parse(readFileSync(configPath, "utf8")) as {
-				r2_buckets: Array<{ binding: string; bucket_name: string }>;
-			};
-			expect(config.r2_buckets).toEqual([
-				{ binding: "MAP_DATA", bucket_name: "campus-agent-derived-staging" },
-				{ binding: "OTHER", bucket_name: "other-bucket" },
-			]);
-		} finally {
-			rmSync(root, { force: true, recursive: true });
-		}
 	});
 
 	it("publishes the Campus Web candidate through the active release workflow", () => {

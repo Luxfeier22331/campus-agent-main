@@ -55,10 +55,6 @@ DEPLOYMENT_ENVIRONMENT = "staging"
 binding = "APP_API"
 service = "app-api-staging"
 
-[[env.staging.r2_buckets]]
-binding = "MAP_DATA"
-bucket_name = "campus-agent-derived-unconfigured"
-
 [assets]
 directory = "./dist/client"
 binding = "ASSETS"

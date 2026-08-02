@@ -85,33 +85,12 @@ export async function buildCampusWeb(input: CampusWebBuildInput): Promise<void> 
 		CAMPUS_WEB_BUILD_TARGET: "docs",
 	});
 	mergeDocsClientBuild();
-	if (input.staging) {
-		configureStagingWorkerBuild();
-	}
 	checkBundleBudgets();
 	const metadata = readDocsContentMetadata(content.metadataPath);
 	if (!metadata) {
 		throw new Error("Campus Web docs preparation did not write source metadata.");
 	}
 	writeCampusWebBuildSource(metadata.sourceDigest);
-}
-
-export function configureStagingWorkerBuild(
-	configPath = resolve(APP_ROOT, "dist/campus_web/wrangler.json"),
-	mapBucketName = process.env.MAP_DATA_BUCKET_NAME?.trim(),
-): void {
-	if (!(mapBucketName && /^[a-z0-9][a-z0-9-]*$/.test(mapBucketName))) {
-		throw new Error("MAP_DATA_BUCKET_NAME must contain a valid R2 bucket name.");
-	}
-	const config = JSON.parse(readFileSync(configPath, "utf8")) as {
-		r2_buckets?: Array<{ binding?: string; bucket_name?: string }>;
-	};
-	const mapBinding = config.r2_buckets?.find((binding) => binding.binding === "MAP_DATA");
-	if (!mapBinding) {
-		throw new Error("Missing staging MAP_DATA binding.");
-	}
-	mapBinding.bucket_name = mapBucketName;
-	writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
 }
 
 function mergeDocsClientBuild(): void {

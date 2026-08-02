@@ -6,7 +6,6 @@ import {
 import { CAMPUS_RUNTIME_CONFIG_SCRIPT_ID } from "./platform/runtime/config";
 import { createCampusEdgeSentryOptions } from "./platform/telemetry/sentry-edge";
 import { isAllowedCampusAppApiRequest } from "./platform/worker-proxy/allowlist";
-import { PUBLIC_MAP_DATA_PREFIX, serveCampusMapData } from "./platform/worker-proxy/map-data";
 import {
 	isPublicCacheableAppApiRequest,
 	proxyCacheableAppApiRequest,
@@ -22,7 +21,6 @@ export interface Env {
 		fetch(request: Request): Promise<Response> | Response;
 	};
 	AUTH_TURNSTILE_SITE_KEY?: string;
-	MAP_DATA?: R2Bucket;
 	SENTRY_DSN?: string;
 	DEPLOYMENT_ENVIRONMENT?: string;
 	DEPLOYMENT_RELEASE?: string;
@@ -144,14 +142,6 @@ const worker = {
 		if (request.method === "GET" || request.method === "HEAD") {
 			if (url.pathname === "/favicon.ico") {
 				return serveStaticAsset(request, env);
-			}
-
-			if (url.pathname.startsWith(PUBLIC_MAP_DATA_PREFIX)) {
-				return serveCampusMapData({
-					mapData: env.MAP_DATA,
-					request,
-					securityHeaders: SECURITY_HEADERS,
-				});
 			}
 
 			if (url.pathname.startsWith(PUBLIC_VENDOR_ASSET_PREFIX)) {

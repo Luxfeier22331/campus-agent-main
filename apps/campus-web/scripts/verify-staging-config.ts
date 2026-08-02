@@ -40,7 +40,6 @@ async function main(): Promise<void> {
 		surface: "campus-web built staging",
 	});
 	const services = Array.isArray(config.services) ? config.services : [];
-	const r2Buckets = Array.isArray(config.r2_buckets) ? config.r2_buckets : [];
 	const vars: Record<string, unknown> =
 		config.vars && typeof config.vars === "object" ? config.vars : {};
 
@@ -50,17 +49,6 @@ async function main(): Promise<void> {
 
 	if (!hasAppApiService) {
 		fail("Missing required service binding APP_API -> app-api-staging in built staging config.");
-	}
-
-	const mapBucketName = process.env.MAP_DATA_BUCKET_NAME?.trim();
-	if (!mapBucketName) {
-		fail("MAP_DATA_BUCKET_NAME is required for staging preflight.");
-	}
-	const hasMapBucket = r2Buckets.some(
-		(bucket) => bucket?.binding === "MAP_DATA" && bucket?.bucket_name === mapBucketName,
-	);
-	if (!hasMapBucket) {
-		fail(`Missing required MAP_DATA -> ${mapBucketName} binding in built staging config.`);
 	}
 
 	expectEqual(
