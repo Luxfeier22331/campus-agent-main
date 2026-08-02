@@ -80,7 +80,7 @@ status: active
 | `packages/contracts`、OpenAPI、共享 schema | `pnpm ci:contracts`，再运行受影响 consumer 检查 |
 | 一般 app/package/job TypeScript | 所属 package 的 `typecheck` 与 `test`，跨 package 时用 `pnpm ci:typescript` |
 | Worker route、binding 或 wrangler config | `pnpm ci:worker` 与所属模块测试 |
-| Campus Web 用户可见运行时 | 模块 typecheck/test 与 `test:e2e:smoke`；跨页面重构加 `test:e2e:full` |
+| Campus Web 用户可见运行时 | 模块 typecheck/test、bundle 完整性检查与 `test:e2e:smoke`；跨页面重构加 `test:e2e:full` |
 | execution-control Go | `pnpm ci:go`；合同变化时加 `pnpm ci:contracts` |
 | Rust kernel 或 Cargo workspace | `pnpm ci:rust` |
 | ingestion app、package 或 source config | `pnpm ci:ingest`；合同变化时加 `pnpm ci:contracts` |
@@ -115,6 +115,9 @@ status: active
 - execution-control 的 Temporal server 测试使用模块明确入口，不属于默认 `pnpm ci:go`；
 - PR 数据库 profile 只使用 disposable PostgreSQL；真实 provider、staging database、object store、
   Langfuse 或 cluster credential 不进入 PR test。
+- Campus Web bundle 大小超过 `500 KiB gzip` 只记录 warning；bundle graph、入口、静态文件或 vendor
+  登记缺失仍是 artifact failure。PR 的 `build:worker` 使用确定性文档 fixture，不代表真实 staging
+  对象存储内容已完成构建或发布。
 
 评估 CI 性能时分别记录 queue、cold cache 与 hot cache；单 Runner 保持单并发，优先移除重复安装、
 重复构建和无关检查面。

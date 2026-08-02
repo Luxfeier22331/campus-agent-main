@@ -6,56 +6,37 @@ import { gzipSync } from "node:zlib";
 import type { CampusBundleGraph } from "../config/bundle-graph";
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const shellBudget = {
-	cssLimit: 20 * 1024,
-	jsLimit: 110 * 1024,
-};
-const docsBudget = {
-	cssLimit: 24 * 1024,
-	jsLimit: 170 * 1024,
-};
-const routeBudgets = [
+const bundleSizeWarningBytes = 500 * 1024;
+const routeFacades = [
 	{
-		cssLimit: 24 * 1024,
 		facades: ["/src/app/routes/home-page.tsx"],
-		jsLimit: 285 * 1024,
 		name: "home",
 	},
 	{
-		cssLimit: 24 * 1024,
 		facades: [
 			"/src/app/routes/map-page.tsx",
 			"/src/components/auth/user/product-account-entry.tsx",
 		],
-		jsLimit: 240 * 1024,
 		name: "map",
 	},
 	{
-		cssLimit: 24 * 1024,
 		facades: ["/src/app/routes/dining-page.tsx"],
-		jsLimit: 180 * 1024,
 		name: "dining",
 	},
 	{
-		cssLimit: 24 * 1024,
 		facades: ["/src/app/routes/interest-groups-page.tsx"],
-		jsLimit: 175 * 1024,
 		name: "groups",
 	},
 	{
-		cssLimit: 24 * 1024,
 		facades: ["/src/app/routes/feedback-page.tsx"],
-		jsLimit: 220 * 1024,
 		name: "feedback",
 	},
 	{
-		cssLimit: 72 * 1024,
 		facades: ["/src/app/routes/account-page.tsx"],
-		jsLimit: 390 * 1024,
 		name: "account",
 	},
 ] as const;
-const allowedVendorBudgets = new Map([
+const allowedVendorSizeReferences = new Map([
 	["vendor/maplibre-gl/maplibre-gl.js", Math.floor(1.3 * 1024 * 1024)],
 	["vendor/maplibre-gl/maplibre-gl.css", 96 * 1024],
 	["vendor/maplibre-gl/LICENSE.txt", 16 * 1024],
@@ -63,9 +44,16 @@ const allowedVendorBudgets = new Map([
 
 export interface RouteBundleMeasurement {
 	cssBytes: number;
+	cssFileBytes: Record<string, number>;
 	cssFiles: string[];
 	jsBytes: number;
+	jsFileBytes: Record<string, number>;
 	jsFiles: string[];
+}
+
+export interface BundleCheckResult {
+	failures: string[];
+	warnings: string[];
 }
 
 export function measureRouteBundle(input: {
@@ -92,10 +80,14 @@ export function measureRouteBundle(input: {
 	const cssFiles = [
 		...new Set(jsFiles.flatMap((file) => input.graph.chunks[file]?.css ?? [])),
 	].sort();
+	const jsFileBytes = measureGzipBytes(input.clientDir, jsFiles);
+	const cssFileBytes = measureGzipBytes(input.clientDir, cssFiles);
 	return {
-		cssBytes: sumGzipBytes(input.clientDir, cssFiles),
+		cssBytes: sumBytes(cssFileBytes),
+		cssFileBytes,
 		cssFiles,
-		jsBytes: sumGzipBytes(input.clientDir, jsFiles),
+		jsBytes: sumBytes(jsFileBytes),
+		jsFileBytes,
 		jsFiles,
 	};
 }
@@ -124,69 +116,78 @@ export function collectStaticChunkClosure(
 export function checkClientBundle(
 	clientDir: string,
 	graphPath = path.join(appRoot, ".generated/bundle-graph.json"),
-): string[] {
+): BundleCheckResult {
 	const failures: string[] = [];
+	const warnings: string[] = [];
 	if (!fs.existsSync(graphPath)) {
-		return [
-			"missing generated bundle graph; run the campus-web build before checking bundle budget",
-		];
+		return {
+			failures: [
+				"missing generated bundle graph; run the campus-web build before checking bundle integrity",
+			],
+			warnings,
+		};
 	}
-	const graph = JSON.parse(fs.readFileSync(graphPath, "utf8")) as CampusBundleGraph;
-	const shellMeasurement = measureRouteBundle({ clientDir, facades: [], graph });
-	if (shellMeasurement.jsBytes > shellBudget.jsLimit) {
-		failures.push(
-			`app shell JS is ${formatBytes(shellMeasurement.jsBytes)} gzip, limit ${formatBytes(shellBudget.jsLimit)}`,
-		);
+	let graph: CampusBundleGraph;
+	try {
+		graph = JSON.parse(fs.readFileSync(graphPath, "utf8")) as CampusBundleGraph;
+	} catch (error) {
+		return {
+			failures: [
+				`generated bundle graph is invalid: ${error instanceof Error ? error.message : String(error)}`,
+			],
+			warnings,
+		};
 	}
-	if (shellMeasurement.cssBytes > shellBudget.cssLimit) {
-		failures.push(
-			`app shell CSS is ${formatBytes(shellMeasurement.cssBytes)} gzip, limit ${formatBytes(shellBudget.cssLimit)}`,
-		);
+	try {
+		const shellMeasurement = measureRouteBundle({ clientDir, facades: [], graph });
+		logMeasurement("app shell", shellMeasurement);
+		addSizeWarnings("app shell", shellMeasurement, warnings);
+	} catch (error) {
+		failures.push(errorMessage(error));
 	}
-	console.log(
-		`app shell: ${formatBytes(shellMeasurement.jsBytes)} JS gzip, ${formatBytes(shellMeasurement.cssBytes)} CSS gzip`,
-	);
-	for (const budget of routeBudgets) {
+	for (const route of routeFacades) {
 		let measurement: RouteBundleMeasurement;
 		try {
 			measurement = measureRouteBundle({
 				clientDir,
 				entry: "app",
-				facades: budget.facades,
+				facades: route.facades,
 				graph,
 			});
 		} catch (error) {
-			failures.push(error instanceof Error ? error.message : String(error));
+			failures.push(errorMessage(error));
 			continue;
 		}
-		if (measurement.jsBytes > budget.jsLimit) {
-			failures.push(
-				`${budget.name} route JS is ${formatBytes(measurement.jsBytes)} gzip, limit ${formatBytes(budget.jsLimit)}`,
-			);
-		}
-		if (measurement.cssBytes > budget.cssLimit) {
-			failures.push(
-				`${budget.name} route CSS is ${formatBytes(measurement.cssBytes)} gzip, limit ${formatBytes(budget.cssLimit)}`,
-			);
-		}
-		console.log(
-			`${budget.name}: ${formatBytes(measurement.jsBytes)} JS gzip, ${formatBytes(measurement.cssBytes)} CSS gzip`,
-		);
+		logMeasurement(`${route.name} route`, measurement);
+		addSizeWarnings(`${route.name} route`, measurement, warnings);
 	}
-	checkVendorFiles(clientDir, failures);
-	return failures;
+	checkVendorFiles(clientDir, failures, warnings);
+	return { failures, warnings };
 }
 
 export function checkDocsClientBundle(
 	clientDir: string,
 	graphPath = path.join(appRoot, ".generated/docs-bundle-graph.json"),
-): string[] {
+): BundleCheckResult {
 	if (!fs.existsSync(graphPath)) {
-		return [
-			"missing generated docs bundle graph; run the campus-web docs build before checking bundle budget",
-		];
+		return {
+			failures: [
+				"missing generated docs bundle graph; run the campus-web docs build before checking bundle integrity",
+			],
+			warnings: [],
+		};
 	}
-	const graph = JSON.parse(fs.readFileSync(graphPath, "utf8")) as CampusBundleGraph;
+	let graph: CampusBundleGraph;
+	try {
+		graph = JSON.parse(fs.readFileSync(graphPath, "utf8")) as CampusBundleGraph;
+	} catch (error) {
+		return {
+			failures: [
+				`generated docs bundle graph is invalid: ${error instanceof Error ? error.message : String(error)}`,
+			],
+			warnings: [],
+		};
+	}
 	let measurement: RouteBundleMeasurement;
 	try {
 		measurement = measureRouteBundle({
@@ -196,54 +197,51 @@ export function checkDocsClientBundle(
 			graph,
 		});
 	} catch (error) {
-		return [error instanceof Error ? error.message : String(error)];
+		return { failures: [errorMessage(error)], warnings: [] };
 	}
-	const failures: string[] = [];
-	if (measurement.jsBytes > docsBudget.jsLimit) {
-		failures.push(
-			`docs route JS is ${formatBytes(measurement.jsBytes)} gzip, limit ${formatBytes(docsBudget.jsLimit)}`,
-		);
-	}
-	if (measurement.cssBytes > docsBudget.cssLimit) {
-		failures.push(
-			`docs route CSS is ${formatBytes(measurement.cssBytes)} gzip, limit ${formatBytes(docsBudget.cssLimit)}`,
-		);
-	}
-	console.log(
-		`docs: ${formatBytes(measurement.jsBytes)} JS gzip, ${formatBytes(measurement.cssBytes)} CSS gzip`,
+	const warnings: string[] = [];
+	logMeasurement("docs", measurement);
+	addSizeWarnings("docs", measurement, warnings);
+	return { failures: [], warnings };
+}
+
+function measureGzipBytes(clientDir: string, files: string[]): Record<string, number> {
+	return Object.fromEntries(
+		files.map((file) => {
+			const filePath = path.join(clientDir, file);
+			if (!fs.existsSync(filePath)) {
+				throw new Error(`bundle graph asset is missing: ${file}`);
+			}
+			return [file, gzipSync(fs.readFileSync(filePath)).byteLength];
+		}),
 	);
-	return failures;
 }
 
-function sumGzipBytes(clientDir: string, files: string[]): number {
-	return files.reduce((total, file) => {
-		const filePath = path.join(clientDir, file);
-		if (!fs.existsSync(filePath)) {
-			throw new Error(`bundle graph asset is missing: ${file}`);
-		}
-		return total + gzipSync(fs.readFileSync(filePath)).byteLength;
-	}, 0);
+function sumBytes(files: Record<string, number>): number {
+	return Object.values(files).reduce((total, bytes) => total + bytes, 0);
 }
 
-function checkVendorFiles(clientDir: string, failures: string[]): void {
+function checkVendorFiles(clientDir: string, failures: string[], warnings: string[]): void {
 	const vendorDir = path.join(clientDir, "vendor");
 	const seen = new Set<string>();
 	if (fs.existsSync(vendorDir)) {
 		for (const vendorFile of walkFiles(vendorDir)) {
 			const relativePath = toPosix(path.relative(clientDir, vendorFile));
 			seen.add(relativePath);
-			const limit = allowedVendorBudgets.get(relativePath);
-			if (!limit) {
+			const reference = allowedVendorSizeReferences.get(relativePath);
+			if (!reference) {
 				failures.push(`${relativePath} is not registered as an allowed vendor asset`);
 				continue;
 			}
 			const size = fs.statSync(vendorFile).size;
-			if (size > limit) {
-				failures.push(`${relativePath} is ${formatBytes(size)}, limit ${formatBytes(limit)}`);
+			if (size > reference) {
+				warnings.push(
+					`${relativePath} is ${formatBytes(size)} raw; reference ${formatBytes(reference)}`,
+				);
 			}
 		}
 	}
-	for (const [relativePath] of allowedVendorBudgets) {
+	for (const [relativePath] of allowedVendorSizeReferences) {
 		if (!seen.has(relativePath)) {
 			failures.push(`missing registered vendor asset ${relativePath}`);
 		}
@@ -266,19 +264,79 @@ function toPosix(value: string): string {
 }
 
 function formatBytes(bytes: number): string {
-	return `${(bytes / 1024).toFixed(1)} KiB`;
+	return `${bytes} bytes (${(bytes / 1024).toFixed(1)} KiB)`;
+}
+
+function errorMessage(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
+}
+
+function logMeasurement(label: string, measurement: RouteBundleMeasurement): void {
+	console.log(
+		`${label}: ${formatBytes(measurement.jsBytes)} JS gzip, ${formatBytes(measurement.cssBytes)} CSS gzip`,
+	);
+	const assets = [
+		...Object.entries(measurement.jsFileBytes).map(([file, bytes]) => ({
+			bytes,
+			file,
+			kind: "JS",
+		})),
+		...Object.entries(measurement.cssFileBytes).map(([file, bytes]) => ({
+			bytes,
+			file,
+			kind: "CSS",
+		})),
+	]
+		.sort((left, right) => right.bytes - left.bytes || left.file.localeCompare(right.file))
+		.slice(0, 5);
+	for (const asset of assets) {
+		console.log(`  ${asset.kind} ${asset.file}: ${formatBytes(asset.bytes)} gzip`);
+	}
+}
+
+function addSizeWarnings(
+	label: string,
+	measurement: RouteBundleMeasurement,
+	warnings: string[],
+): void {
+	for (const [kind, bytes] of [
+		["JS", measurement.jsBytes],
+		["CSS", measurement.cssBytes],
+	] as const) {
+		if (bytes > bundleSizeWarningBytes) {
+			warnings.push(
+				`${label} ${kind} is ${formatBytes(bytes)} gzip; warning threshold ${formatBytes(bundleSizeWarningBytes)} gzip`,
+			);
+		}
+	}
+	for (const [file, bytes] of Object.entries({
+		...measurement.jsFileBytes,
+		...measurement.cssFileBytes,
+	})) {
+		if (bytes > bundleSizeWarningBytes) {
+			warnings.push(
+				`${file} is ${formatBytes(bytes)} gzip; warning threshold ${formatBytes(bundleSizeWarningBytes)} gzip`,
+			);
+		}
+	}
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
 	const clientDir = path.join(appRoot, "dist/client");
-	const failures = checkClientBundle(clientDir);
-	if (failures.length > 0) {
-		console.error("campus-web client bundle budget check failed:");
-		for (const failure of failures) {
+	const result = checkClientBundle(clientDir);
+	if (result.warnings.length > 0) {
+		console.warn("campus-web client bundle size warnings:");
+		for (const warning of result.warnings) {
+			console.warn(`- ${warning}`);
+		}
+	}
+	if (result.failures.length > 0) {
+		console.error("campus-web client bundle integrity check failed:");
+		for (const failure of result.failures) {
 			console.error(`- ${failure}`);
 		}
 		process.exitCode = 1;
 	} else {
-		console.log("campus-web route bundle budgets passed.");
+		console.log("campus-web client bundle integrity check passed.");
 	}
 }

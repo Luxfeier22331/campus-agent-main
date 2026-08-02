@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import {
+	appendFileSync,
 	copyFileSync,
 	existsSync,
 	mkdirSync,
@@ -16,7 +17,11 @@ import { readDocsContentMetadata } from "../src/docs-reader-build/docs-content.t
 import type { ReaderObjectStoreClient } from "../src/docs-reader-build/published-reader-types.ts";
 import { assertSha256 } from "../src/docs-reader-build/source-catalog.ts";
 import { omitObjectStoreEnvironment } from "./build-process-env.ts";
-import { checkClientBundle, checkDocsClientBundle } from "./check-client-bundle-budget.ts";
+import {
+	type BundleCheckResult,
+	checkClientBundle,
+	checkDocsClientBundle,
+} from "./check-client-bundle-budget.ts";
 import { prepareDocsContent } from "./prepare-docs-content.ts";
 
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -166,19 +171,55 @@ function sameFileContents(left: string, right: string): boolean {
 }
 
 function checkBundleBudgets(): void {
-	const failures = [
-		...checkClientBundle(CLIENT_OUTPUT_ROOT, APP_BUNDLE_GRAPH_PATH),
-		...checkDocsClientBundle(CLIENT_OUTPUT_ROOT, DOCS_BUNDLE_GRAPH_PATH),
+	const checks: BundleCheckResult[] = [
+		checkClientBundle(CLIENT_OUTPUT_ROOT, APP_BUNDLE_GRAPH_PATH),
+		checkDocsClientBundle(CLIENT_OUTPUT_ROOT, DOCS_BUNDLE_GRAPH_PATH),
 	];
+	const failures = checks.flatMap((check) => check.failures);
+	const warnings = checks.flatMap((check) => check.warnings);
+	if (warnings.length > 0) {
+		console.warn("campus-web client bundle size warnings:");
+		for (const warning of warnings) {
+			console.warn(`- ${warning}`);
+		}
+	}
+	appendBundleSummary({ failures, warnings });
 	if (failures.length === 0) {
-		console.log("campus-web route bundle budgets passed.");
+		console.log("campus-web client bundle integrity check passed.");
 		return;
 	}
-	console.error("campus-web client bundle budget check failed:");
+	console.error("campus-web client bundle integrity check failed:");
 	for (const failure of failures) {
 		console.error(`- ${failure}`);
 	}
-	throw new Error("campus-web client bundle budget check failed.");
+	throw new Error("campus-web client bundle integrity check failed.");
+}
+
+function appendBundleSummary(input: BundleCheckResult): void {
+	const summaryPath = process.env.GITHUB_STEP_SUMMARY?.trim();
+	if (!summaryPath) {
+		return;
+	}
+	const lines = [
+		"### Campus Web bundle report",
+		"",
+		input.warnings.length > 0
+			? "Bundle size warnings were recorded; they do not block this build."
+			: "No bundle size warnings were recorded.",
+		"",
+	];
+	if (input.warnings.length > 0) {
+		lines.push("| Warning |", "| --- |", ...input.warnings.map((warning) => `| ${warning} |`), "");
+	}
+	if (input.failures.length > 0) {
+		lines.push(
+			"| Integrity failure |",
+			"| --- |",
+			...input.failures.map((failure) => `| ${failure} |`),
+			"",
+		);
+	}
+	appendFileSync(summaryPath, `${lines.join("\n")}\n`, "utf8");
 }
 
 export function readCampusWebBuildSourceDigest(): `sha256:${string}` {
