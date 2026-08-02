@@ -165,7 +165,7 @@ export function ReaderHeading({
 		rootUnitId && locationState.highlightRootUnitIds.includes(rootUnitId),
 	);
 	return (
-		<div className="docs-reader-heading-row">
+		<div className="docs-reader-heading-row" data-docs-heading-level={level}>
 			<Heading
 				aria-label={title}
 				className={highlighted ? "docs-toc-heading docs-reader-highlight" : "docs-toc-heading"}
@@ -369,24 +369,11 @@ export function ReaderDocumentMeta({
 }
 
 export function ReaderTable({ rows }: { rows: ReaderTableCell[][] }) {
-	const expandedRows = expandTableRows(rows);
-	const hasHeaderRow = rows[0]?.some((cell) => cell.tag === "th") ?? false;
 	const hasMergedCells = rows.some((row) =>
 		row.some((cell) => (cell.colSpan ?? 1) > 1 || (cell.rowSpan ?? 1) > 1),
 	);
-	const headers = expandedRows[0] ?? [];
-	const dataRows = (hasHeaderRow ? expandedRows.slice(1) : expandedRows).filter((row) =>
-		row.some(Boolean),
-	);
-	const renderCards = hasHeaderRow && shouldRenderMobileCards(headers, dataRows);
 	return (
-		<div
-			className="docs-table-scroll"
-			data-docs-scrollable="true"
-			data-docs-sticky-first-column={hasMergedCells ? "false" : "true"}
-			data-docs-table-kind={renderCards ? "mobile-cards" : "wide-scroll"}
-		>
-			{renderCards ? <ReaderTableCards dataRows={dataRows} headers={headers} /> : null}
+		<ReaderTableScroll stickyFirstColumn={!hasMergedCells}>
 			<table>
 				<tbody>
 					{rows.map((row, rowIndex) => (
@@ -408,59 +395,58 @@ export function ReaderTable({ rows }: { rows: ReaderTableCell[][] }) {
 					))}
 				</tbody>
 			</table>
-		</div>
+		</ReaderTableScroll>
 	);
 }
 
 export function ReaderMarkdownTable(props: ComponentProps<"table">) {
 	return (
+		<ReaderTableScroll stickyFirstColumn>
+			<table {...props} />
+		</ReaderTableScroll>
+	);
+}
+
+function ReaderTableScroll({
+	children,
+	stickyFirstColumn,
+}: {
+	children: ReactNode;
+	stickyFirstColumn: boolean;
+}) {
+	const containerRef = useRef<HTMLDivElement>(null);
+	const [overflowing, setOverflowing] = useState(false);
+
+	useEffect(() => {
+		const container = containerRef.current;
+		if (!container) {
+			return;
+		}
+
+		const measureOverflow = () => {
+			setOverflowing(container.scrollWidth > container.clientWidth + 1);
+		};
+		const observer = new ResizeObserver(measureOverflow);
+		measureOverflow();
+		observer.observe(container);
+		const table = container.querySelector("table");
+		if (table) {
+			observer.observe(table);
+		}
+		return () => observer.disconnect();
+	}, []);
+
+	return (
 		<div
 			className="docs-table-scroll"
+			data-docs-overflowing={String(overflowing)}
 			data-docs-scrollable="true"
-			data-docs-sticky-first-column="true"
-			data-docs-table-kind="wide-scroll"
+			data-docs-sticky-first-column={String(stickyFirstColumn)}
+			ref={containerRef}
 		>
-			<table {...props} />
+			{children}
 		</div>
 	);
-}
-
-function ReaderTableCards({ dataRows, headers }: { dataRows: string[][]; headers: string[] }) {
-	const keyedRows = withOccurrenceKeys(dataRows, (row) => row.join("\u0000"));
-	return (
-		<section aria-label="表格移动端按行阅读" className="docs-table-mobile-cards">
-			<div className="docs-table-mobile-card-list">
-				{keyedRows.map(({ item: row, key }, rowIndex) => {
-					const summary = buildMobileTableRowSummary(headers, row, rowIndex);
-					return (
-						<article className="docs-table-mobile-card" key={key}>
-							<p className="docs-table-mobile-card-title">{summary.title}</p>
-							<dl>
-								{buildMobileTableRowPairs(headers, row, summary.titleColumnIndex).map(
-									({ header, value }) => (
-										<div key={`${header}\u0000${value}`}>
-											<dt>{header}</dt>
-											<dd>{value}</dd>
-										</div>
-									),
-								)}
-							</dl>
-						</article>
-					);
-				})}
-			</div>
-		</section>
-	);
-}
-
-function withOccurrenceKeys<T>(items: T[], resolveKey: (item: T) => string) {
-	const occurrences = new Map<string, number>();
-	return items.map((item) => {
-		const baseKey = resolveKey(item);
-		const occurrence = (occurrences.get(baseKey) ?? 0) + 1;
-		occurrences.set(baseKey, occurrence);
-		return { item, key: `${baseKey}\u0000${occurrence}` };
-	});
 }
 
 function MetaDetail({ label, value }: { label: string; value: string }) {
@@ -487,106 +473,6 @@ function buildReaderPermalink(input: { anchor: string; rootUnitId: string | null
 	}
 	url.hash = input.anchor;
 	return url.toString();
-}
-
-function expandTableRows(rows: ReaderTableCell[][]): string[][] {
-	const activeRowspans = new Map<number, { remaining: number; text: string }>();
-	return rows.map((row) => {
-		const expandedRow: string[] = [];
-		let columnIndex = 0;
-		const consumeRowspans = () => {
-			while (activeRowspans.has(columnIndex)) {
-				const active = activeRowspans.get(columnIndex);
-				if (!active) {
-					break;
-				}
-				expandedRow.push(active.text);
-				if (active.remaining <= 1) {
-					activeRowspans.delete(columnIndex);
-				} else {
-					activeRowspans.set(columnIndex, { ...active, remaining: active.remaining - 1 });
-				}
-				columnIndex += 1;
-			}
-		};
-		consumeRowspans();
-		for (const cell of row) {
-			consumeRowspans();
-			const colSpan = Math.max(1, cell.colSpan ?? 1);
-			const rowSpan = Math.max(1, cell.rowSpan ?? 1);
-			for (let offset = 0; offset < colSpan; offset += 1) {
-				expandedRow.push(normalizeText(cell.text));
-				if (rowSpan > 1) {
-					activeRowspans.set(columnIndex + offset, {
-						remaining: rowSpan - 1,
-						text: normalizeText(cell.text),
-					});
-				}
-			}
-			columnIndex += colSpan;
-		}
-		consumeRowspans();
-		return expandedRow;
-	});
-}
-
-function shouldRenderMobileCards(headers: string[], dataRows: string[][]): boolean {
-	if (dataRows.length === 0) {
-		return false;
-	}
-	if (dataRows.length <= 8 && headers.length <= 5) {
-		return true;
-	}
-	const courseLike = /课程名称|课程名|课程号|学分|学时|修读性质|修读学期/u.test(headers.join(" "));
-	return courseLike && dataRows.length <= 16 && headers.length <= 7;
-}
-
-function buildMobileTableRowSummary(
-	headers: string[],
-	row: string[],
-	rowIndex: number,
-): { title: string; titleColumnIndex: number | null } {
-	const preferredColumn = headers.findIndex((header) =>
-		/课程名称|课程名|项目|事项|环节|类别|模块|名称|要求|内容/u.test(header),
-	);
-	const preferredValue = normalizeText(row[preferredColumn]);
-	if (preferredColumn >= 0 && /[\p{Script=Han}A-Za-z]/u.test(preferredValue)) {
-		return { title: preferredValue, titleColumnIndex: preferredColumn };
-	}
-	const fallbackColumn = row
-		.slice(0, 4)
-		.map(normalizeText)
-		.findIndex((value) => /[\p{Script=Han}A-Za-z]/u.test(value));
-	return fallbackColumn >= 0
-		? { title: normalizeText(row[fallbackColumn]), titleColumnIndex: fallbackColumn }
-		: { title: `第 ${rowIndex + 1} 行`, titleColumnIndex: null };
-}
-
-function buildMobileTableRowPairs(
-	headers: string[],
-	row: string[],
-	titleColumnIndex: number | null,
-) {
-	const pairs: Array<{ header: string; value: string }> = [];
-	const seen = new Set<string>();
-	const columnCount = Math.max(headers.length, row.length);
-	for (let columnIndex = 0; columnIndex < columnCount; columnIndex += 1) {
-		if (columnIndex === titleColumnIndex) {
-			continue;
-		}
-		const value = normalizeText(row[columnIndex]) || "未填写";
-		const header = normalizeText(headers[columnIndex]) || "补充说明";
-		const key = `${header}\u0000${value}`;
-		if (!seen.has(key)) {
-			seen.add(key);
-			pairs.push({ header, value });
-		}
-	}
-	return pairs;
-}
-
-function normalizeText(value: string | null | undefined): string {
-	return (value ?? "").replace(/\s+/gu, " ").trim();
 }
 
 function rowKey(row: ReaderTableCell[], rowIndex: number): string {

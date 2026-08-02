@@ -16,7 +16,7 @@ import { ArrowUp, ChevronDown, List, Menu, Search, UserRound } from "lucide-reac
 import { lazy, type ReactNode, Suspense, useEffect, useId, useMemo, useRef, useState } from "react";
 import { ProductBrandLink, ProductNavActions } from "@/components/navigation/product-navigation";
 import { ProductNavActionsWithIcons } from "@/components/navigation/product-navigation-menu";
-import { compareDocsCollections, type DocsSiteIndex } from "@/features/docs/site-index";
+import { buildDocsNavigationGroups, type DocsSiteIndex } from "@/features/docs/site-index";
 import type { DocsOutlineItem } from "./docs-reader-view";
 
 const loadDocsSearchPanel = () =>
@@ -126,7 +126,7 @@ export function DocsTree({
 	siteIndex: DocsSiteIndex;
 }) {
 	const treeId = useId();
-	const corpusGroups = useMemo(() => buildDocsTreeGroups(siteIndex), [siteIndex]);
+	const corpusGroups = useMemo(() => buildDocsNavigationGroups(siteIndex), [siteIndex]);
 	const activeDocumentPath = useMemo(
 		() =>
 			siteIndex.collections
@@ -290,6 +290,13 @@ function DocsOutline({
 	showLabel?: boolean;
 }) {
 	const activeAnchor = useActiveOutline(outline);
+	const activeLinkRef = useRef<HTMLAnchorElement>(null);
+	useEffect(() => {
+		if (!activeAnchor) {
+			return;
+		}
+		activeLinkRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+	}, [activeAnchor]);
 	return (
 		<nav aria-label="本页目录" className="docs-outline">
 			{showLabel ? <p>本页目录</p> : null}
@@ -300,6 +307,7 @@ function DocsOutline({
 							aria-current={activeAnchor === item.anchor ? "location" : undefined}
 							href={`#${encodeURIComponent(item.anchor)}`}
 							onClick={onNavigate}
+							ref={activeAnchor === item.anchor ? activeLinkRef : undefined}
 						>
 							{item.title}
 						</a>
@@ -400,40 +408,6 @@ function useActiveOutline(outline: readonly DocsOutlineItem[]): string | null {
 		return () => observer.disconnect();
 	}, [outline]);
 	return active;
-}
-
-function buildDocsTreeGroups(siteIndex: DocsSiteIndex) {
-	const collectionsByCorpus = new Map<string, DocsSiteIndex["collections"]>();
-	for (const collection of [...siteIndex.collections].sort(compareDocsCollections)) {
-		collectionsByCorpus.set(collection.corpus, [
-			...(collectionsByCorpus.get(collection.corpus) ?? []),
-			collection,
-		]);
-	}
-	return [...collectionsByCorpus.entries()].map(([corpus, collections]) => {
-		const documents = collections.flatMap((collection) => collection.documents);
-		const topics = siteIndex.topics
-			.filter((topic) => topic.corpus === corpus)
-			.sort((left, right) => left.order - right.order);
-		return {
-			corpus,
-			label: collections[0]?.corpusLabel ?? corpus,
-			sections:
-				topics.length > 0
-					? topics.map((topic) => ({
-							documents: documents
-								.filter((document) => document.topicId === topic.topicId)
-								.sort((left, right) => left.title.localeCompare(right.title, "zh-CN")),
-							key: `${corpus}/topic/${topic.topicId}`,
-							label: topic.displayName,
-						}))
-					: collections.map((collection) => ({
-							documents: collection.documents,
-							key: `${collection.corpus}/${collection.collection}`,
-							label: collection.label,
-						})),
-		};
-	});
 }
 
 function isDocumentPathActive(activePath: string, document: { canonicalUrl: string }): boolean {

@@ -1,3 +1,5 @@
+import { assertDocsTableLayout } from "./table-layout";
+
 export interface DocsReaderTextElement {
 	kind: "blockquote" | "list" | "paragraph";
 	rootUnitId: string;
@@ -141,17 +143,19 @@ function parseReaderElement(value: unknown, label: string): DocsReaderElement {
 		if (!Array.isArray(record.rows) || record.rows.length === 0) {
 			throw new Error(`${label}.rows must be a non-empty array`);
 		}
+		const rows = record.rows.map((row, rowIndex) => {
+			if (!Array.isArray(row) || row.length === 0) {
+				throw new Error(`${label}.rows[${rowIndex}] must be a non-empty array`);
+			}
+			return row.map((cell, cellIndex) =>
+				parseTableCell(cell, `${label}.rows[${rowIndex}][${cellIndex}]`),
+			);
+		});
+		assertDocsTableLayout(rows, `${label} (${rootUnitId})`);
 		return {
 			kind,
 			rootUnitId,
-			rows: record.rows.map((row, rowIndex) => {
-				if (!Array.isArray(row) || row.length === 0) {
-					throw new Error(`${label}.rows[${rowIndex}] must be a non-empty array`);
-				}
-				return row.map((cell, cellIndex) =>
-					parseTableCell(cell, `${label}.rows[${rowIndex}][${cellIndex}]`),
-				);
-			}),
+			rows,
 		};
 	}
 	if (kind !== "paragraph" && kind !== "list" && kind !== "blockquote") {

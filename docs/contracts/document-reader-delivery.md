@@ -61,6 +61,14 @@ status: active
 `anchor` 和 2 至 6 的层级，所有元素的 `rootUnitId` 唯一。文档标题仍由来源清单提供，不在 reader
 中重复保存一级标题。
 
+`paragraph.text` 使用空行分隔需要独立显示的段落；单个换行不能代替段落边界。`list.text` 每个非空行
+表示一个列表项，保留来源中的编号文字。Campus Web 不再额外生成项目符号。来源整理流程不能把多个
+明确编号的项目折叠在一个只有单换行的 `paragraph` 中。
+
+`table` 的单元格按行提供；应用 `rowSpan` 和 `colSpan` 后，每行必须占据相同且连续的逻辑列。
+跨度不得相互重叠或超过表格行数，有意留空必须提供 `text: ""` 的显式单元格或正确跨度。来源整理
+流程不得省略空单元格并让 Campus Web 猜测表格结构。
+
 Campus Web 不从检索分块、HTML、文件名或其他对象重建阅读结构，也不进行版本兼容转换。reader 的
 摘要、字节数、身份、元素标识和补充声明任一不一致时，构建直接终止。
 
@@ -89,6 +97,17 @@ Campus Web 不从检索分块、HTML、文件名或其他对象重建阅读结�
 ```bash
 pnpm --dir apps/campus-web docs:source:update -- --source-file <path>
 ```
+
+修复现有 reader 的明确编号分段时，先预览并保存旧来源、候选来源和未处理项报告：
+
+```bash
+pnpm --dir apps/campus-web docs:source:clean-segmentation -- \
+  --expected-source-digest <sha256:...> \
+  --report-dir .generated/docs-segmentation-hotfix
+```
+
+确认报告和完整编译结果后，在同一命令末尾添加 `--apply`。命令只上传发生变化的内容寻址 reader，
+并在更新固定来源键前再次核对来源摘要；摘要变化或编译失败时不得更新固定来源键。
 
 命令先解析 schema、规范化排序、核对关系并完整编译所有版本；只有全部成功后才覆盖固定来源键，
 随后回读并逐字节核对。编译失败不得修改固定来源键。对象存储地址和凭据来自

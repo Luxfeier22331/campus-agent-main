@@ -69,6 +69,15 @@ site index 的 `redirects` 只维护旧正文地址到已发布正文固定链�
 pnpm --dir apps/campus-web docs:source:update -- --source-file <path>
 ```
 
+现有 reader 的明确编号分段热修先以预览模式运行；报告目录会保存旧来源、候选来源、改动明细和未处理
+段落。确认后添加 `--apply`：
+
+```bash
+pnpm --dir apps/campus-web docs:source:clean-segmentation -- \
+  --expected-source-digest <sha256:...> \
+  --report-dir .generated/docs-segmentation-hotfix
+```
+
 `dev`、`build` 和 `deploy` 自动读取该固定键，不接受手工文档版本参数，也不按对象列表或修改时间
 选择内容。构建完成后会把 `sourceDigest` 写入候选元数据；它不是 Worker 运行变量。`build:test`
 仅供浏览器回归生成确定性测试内容，不能作为开发或交付入口。`build:worker` 在 Campus Web 中是

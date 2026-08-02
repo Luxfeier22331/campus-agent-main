@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { DocsDocumentArticle } from "@/components/docs/docs-reader-view";
 import type { DocsDirectoryRouteData, DocsRouteData } from "@/features/docs/data-source";
 import { resolveDocsPageMetadata } from "@/features/docs/page-metadata";
+import { buildDocsNavigationGroups } from "@/features/docs/site-index";
 
 export function DocsPage({ data: routeData }: { data: DocsRouteData }) {
 	const location = useLocation();
@@ -75,10 +76,51 @@ function DocsStartPage({ data }: { data: DocsDirectoryRouteData }) {
 		(total, collection) => total + collection.documents.length,
 		0,
 	);
+	const groups = buildDocsNavigationGroups(data.siteIndex);
 	return (
 		<section className="docs-start-page">
-			<h1 tabIndex={-1}>校园文档</h1>
-			<p>{documentCount} 篇公开文档</p>
+			<header className="docs-start-header">
+				<h1 tabIndex={-1}>校园文档</h1>
+				<p>{documentCount} 篇公开文档</p>
+			</header>
+			<div className="docs-start-groups">
+				{groups.map((group) => {
+					const groupDocumentCount = group.sections.reduce(
+						(total, section) => total + section.documents.length,
+						0,
+					);
+					return (
+						<section className="docs-start-corpus" key={group.corpus}>
+							<header className="docs-start-corpus-header">
+								<h2>{group.label}</h2>
+								<span>{groupDocumentCount} 篇</span>
+							</header>
+							<div className="docs-start-sections">
+								{group.sections.map((section) => (
+									<details className="docs-start-section" key={section.key} open>
+										<summary>
+											<span className="docs-start-section-title">{section.label}</span>
+											<span className="docs-start-section-count">
+												{section.documents.length} 篇
+											</span>
+										</summary>
+										{section.description ? (
+											<p className="docs-start-section-description">{section.description}</p>
+										) : null}
+										<ul className="docs-start-document-list">
+											{section.documents.map((document) => (
+												<li key={document.canonicalUrl}>
+													<Link to={document.canonicalUrl as never}>{document.title}</Link>
+												</li>
+											))}
+										</ul>
+									</details>
+								))}
+							</div>
+						</section>
+					);
+				})}
+			</div>
 		</section>
 	);
 }

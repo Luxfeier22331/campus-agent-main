@@ -7,6 +7,7 @@ import {
 	ReaderDocument,
 	ReaderDocumentMeta,
 	ReaderHeading,
+	ReaderMarkdownTable,
 	ReaderTable,
 } from "../src/components/docs/reader-components";
 
@@ -32,6 +33,10 @@ describe("declarative docs reader components", () => {
 		await waitFor(() => {
 			expect(screen.getByText("第一段正文")).toHaveClass("docs-reader-highlight");
 		});
+		expect(document.getElementById("a")?.parentElement).toHaveAttribute(
+			"data-docs-heading-level",
+			"2",
+		);
 		expect(document.getElementById("a")).toHaveFocus();
 
 		window.history.pushState(null, "", "/docs/rules?hl=root-b#b");
@@ -113,7 +118,7 @@ describe("declarative docs reader components", () => {
 		);
 	});
 
-	it("renders compact tables as both semantic tables and mobile row cards", () => {
+	it("keeps compact tables semantic without deriving mobile cards", () => {
 		render(
 			<ReaderTable
 				rows={[
@@ -126,34 +131,20 @@ describe("declarative docs reader components", () => {
 						{ rowSpan: 2, tag: "td", text: "0.5" },
 					],
 					[{ tag: "td", text: "志愿服务" }],
-					[{ tag: "td", text: "创新项目" }],
+					[
+						{ tag: "td", text: "创新项目" },
+						{ tag: "td", text: "" },
+					],
 				]}
 			/>,
 		);
 
 		expect(screen.getByRole("table")).toBeInTheDocument();
-		expect(screen.getByLabelText("表格移动端按行阅读")).toBeInTheDocument();
-		expect(
-			screen.getByText("战场医疗救护", { selector: ".docs-table-mobile-card-title" }),
-		).toBeVisible();
 		const tableContainer = screen.getByRole("table").parentElement;
-		expect(tableContainer).toHaveAttribute("data-docs-table-kind", "mobile-cards");
 		expect(tableContainer).toHaveAttribute("data-docs-sticky-first-column", "false");
-		const firstMobileCard = tableContainer?.querySelector(".docs-table-mobile-card");
-		expect(firstMobileCard).not.toBeNull();
-		expect(
-			[...(firstMobileCard?.querySelectorAll("dt") ?? [])].map((element) => element.textContent),
-		).toEqual(["学分"]);
-		const rowspanCard = screen
-			.getByText("志愿服务", { selector: ".docs-table-mobile-card-title" })
-			.closest("article");
-		expect(rowspanCard).not.toBeNull();
-		expect(within(rowspanCard as HTMLElement).getByText("0.5")).toBeInTheDocument();
-		const incompleteCard = screen
-			.getByText("创新项目", { selector: ".docs-table-mobile-card-title" })
-			.closest("article");
-		expect(incompleteCard).not.toBeNull();
-		expect(within(incompleteCard as HTMLElement).getByText("未填写")).toBeInTheDocument();
+		expect(tableContainer).toHaveAttribute("data-docs-overflowing", "false");
+		expect(screen.queryByLabelText("表格移动端按行阅读")).not.toBeInTheDocument();
+		expect(screen.getByText("0.5")).toHaveAttribute("rowspan", "2");
 	});
 
 	it("keeps every row of a table without column headers in the scrollable table", () => {
@@ -177,12 +168,42 @@ describe("declarative docs reader components", () => {
 		);
 
 		const table = screen.getByRole("table");
-		expect(table.parentElement).toHaveAttribute("data-docs-table-kind", "wide-scroll");
 		expect(table.parentElement).toHaveAttribute("data-docs-sticky-first-column", "true");
 		expect(within(table).getAllByRole("row")).toHaveLength(7);
 		expect(within(table).getByText("姓名")).toBeInTheDocument();
 		expect(screen.queryByLabelText("表格移动端按行阅读")).not.toBeInTheDocument();
 		expect(within(table).queryByRole("columnheader")).not.toBeInTheDocument();
+	});
+
+	it("marks overflowing markdown tables from measured dimensions", async () => {
+		vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(function (
+			this: HTMLElement,
+		) {
+			return this.classList.contains("docs-table-scroll") ? 640 : 0;
+		});
+		vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(function (
+			this: HTMLElement,
+		) {
+			return this.classList.contains("docs-table-scroll") ? 320 : 0;
+		});
+
+		render(
+			<ReaderMarkdownTable>
+				<tbody>
+					<tr>
+						<td>课程名称</td>
+						<td>课程类别</td>
+					</tr>
+				</tbody>
+			</ReaderMarkdownTable>,
+		);
+
+		await waitFor(() => {
+			expect(screen.getByRole("table").parentElement).toHaveAttribute(
+				"data-docs-overflowing",
+				"true",
+			);
+		});
 	});
 
 	it("reserves course-map space and opens an in-page original image viewer", async () => {

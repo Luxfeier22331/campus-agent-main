@@ -324,6 +324,30 @@ function attendanceElements(input: {
 			rootUnitId: "regular-enumeration",
 			text: "一、这是一条普通正文，不应自动升级为标题。",
 		},
+		{
+			kind: "list",
+			rootUnitId: "attendance-list",
+			text: "按时参加教学活动\n按要求履行请假手续",
+		},
+		{
+			kind: "blockquote",
+			rootUnitId: "attendance-quote",
+			text: "具体要求以当前公开版本为准。",
+		},
+		{
+			anchor: "attendance-requirements",
+			kind: "heading",
+			level: 3,
+			rootUnitId: "attendance-requirements-heading",
+			text: "教学活动要求",
+		},
+		{
+			anchor: "attendance-leave-process",
+			kind: "heading",
+			level: 4,
+			rootUnitId: "attendance-leave-process-heading",
+			text: "请假手续",
+		},
 		...(input.includeTable
 			? [
 					{
@@ -338,6 +362,49 @@ function attendanceElements(input: {
 								{ header: false, text: "校级社会实践" },
 								{ header: false, text: "1" },
 							],
+							[
+								{ header: false, text: "战场医疗救护" },
+								{ header: false, rowSpan: 2, text: "0.5" },
+							],
+							[{ header: false, text: "志愿服务" }],
+							[
+								{ header: false, text: "创新项目" },
+								{ header: false, text: "" },
+							],
+						],
+					},
+					{
+						kind: "table",
+						rootUnitId: "wide-course-table",
+						rows: [
+							[
+								"课程编号",
+								"课程名称",
+								"课程类别",
+								"课程性质",
+								"学分",
+								"总学时",
+								"讲授学时",
+								"实验学时",
+								"实践学时",
+								"开课学期",
+								"考核方式",
+								"备注",
+							].map((text) => ({ header: true, text })),
+							[
+								"TEST1001",
+								"校园公共基础课程",
+								"公共基础课",
+								"必修",
+								"2",
+								"32",
+								"24",
+								"4",
+								"4",
+								"第一学期",
+								"考试",
+								"测试数据",
+							].map((text) => ({ header: false, text })),
 						],
 					},
 				]

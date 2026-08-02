@@ -5,11 +5,9 @@
 	--layout-chat-sidebar-width: 260px;
 	--layout-chat-content-width: 760px;
 	--layout-docs-header-height: 64px;
-	--layout-docs-sidebar-width: 260px;
+	--layout-docs-sidebar-width: 240px;
 	--layout-docs-content-width: 760px;
-	--layout-docs-wide-content-width: 960px;
-	--layout-docs-toc-width: 220px;
-	--layout-docs-workspace-width: 1440px;
+	--layout-docs-toc-width: 200px;
 	--layout-map-canvas-min-height: calc(100dvh - 136px);
 	--layout-map-workspace-min-height: calc(100dvh - 196px);
 	--chat-sidebar-bg: var(--sys-bg-subtle);

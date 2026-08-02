@@ -6,6 +6,7 @@ import {
 	DocsRouteNotFoundError,
 	documentPath,
 } from "../src/features/docs/data-source";
+import { parseDocsReaderPayload } from "../src/features/docs/model";
 import { parseDocsSearchIndex, parseDocsSiteIndex } from "../src/features/docs/site-index";
 
 afterEach(() => {
@@ -15,6 +16,32 @@ afterEach(() => {
 });
 
 describe("native docs data source", () => {
+	it("rejects reader tables with incomplete logical rows", () => {
+		expect(() =>
+			parseDocsReaderPayload({
+				docId: "doc-public",
+				elements: [
+					{
+						kind: "table",
+						rootUnitId: "incomplete-table",
+						rows: [
+							[
+								{ header: true, text: "项目" },
+								{ header: true, text: "学分" },
+							],
+							[{ header: false, text: "创新项目" }],
+						],
+					},
+				],
+				schemaVersion: "campus_docs_reader.v3",
+				supplements: [],
+				versionId: "version-public",
+			}),
+		).toThrow(
+			"reader.elements[0] (incomplete-table) has invalid table layout: row 2 is missing logical columns 2",
+		);
+	});
+
 	it("parses public site and search indexes with same-origin paths", () => {
 		expect(parseDocsSiteIndex(createSiteIndex())).toEqual(createSiteIndex());
 		expect(

@@ -17,6 +17,7 @@ test.describe("docs reader experience", () => {
 		});
 
 		await expect(page.getByRole("heading", { level: 1, name: "学生考勤管理规定" })).toBeVisible();
+		await waitForDocsHydration(page);
 		await expect(page.locator(`[data-root-unit-id="${attendanceRootUnitId}"]`)).toHaveClass(
 			/docs-reader-highlight/u,
 		);
@@ -50,6 +51,210 @@ test.describe("docs reader experience", () => {
 
 		await expect(page.getByRole("navigation", { name: "本页目录" })).toBeVisible();
 		expect(browserErrors).toEqual([]);
+	});
+
+	test("keeps desktop navigation compact and aligns reader content", async ({ page }) => {
+		await page.setViewportSize({ height: 900, width: 1280 });
+		await page.goto(publicReaderPath, { waitUntil: "domcontentloaded" });
+		await waitForDocsHydration(page);
+
+		const treePanel = page.locator(".docs-tree-panel");
+		const outlinePanel = page.locator(".docs-outline-panel");
+		const readerParagraph = page.locator(".docs-reader-document .reader-block > p").first();
+		const readerList = page.locator(".docs-reader-document .reader-block > ul").first();
+		const readerQuote = page.locator(".docs-reader-document .reader-block > blockquote").first();
+		const readerTable = page.locator(".docs-reader-document .docs-table-scroll").first();
+		const wideTable = page.locator('[data-root-unit-id="wide-course-table"] .docs-table-scroll');
+		const readerArticle = page.locator(".docs-native-article");
+		const readerHeader = page.locator(".docs-document-header");
+		const readerMeta = page.locator(".document-meta-panel");
+		const courseMap = page.locator(".docs-course-map-frame");
+		const outlineTrigger = page.getByRole("button", { name: "打开本页目录" });
+		const treeTrigger = page.getByRole("button", { name: "打开文档目录" });
+		const desktopLayout = await Promise.all([
+			treePanel.boundingBox(),
+			outlinePanel.boundingBox(),
+			readerParagraph.boundingBox(),
+			readerList.boundingBox(),
+			readerQuote.boundingBox(),
+			readerTable.boundingBox(),
+			readerArticle.boundingBox(),
+			readerHeader.boundingBox(),
+			readerMeta.boundingBox(),
+			courseMap.boundingBox(),
+		]);
+
+		expect(desktopLayout[0]?.width).toBeCloseTo(240, 0);
+		expect(desktopLayout[1]?.width).toBeCloseTo(200, 0);
+		expect(desktopLayout[6]?.width ?? 0).toBeGreaterThanOrEqual(720);
+		expect(desktopLayout[6]?.width ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(760);
+		for (const content of desktopLayout.slice(2, 6)) {
+			expect(content?.width).toBeCloseTo(desktopLayout[6]?.width ?? 0, 0);
+		}
+		for (const content of desktopLayout.slice(7)) {
+			expect(content?.width).toBeCloseTo(desktopLayout[6]?.width ?? 0, 0);
+		}
+		const idleScrollbars = await Promise.all(
+			[treePanel, outlinePanel].map((panel) =>
+				panel.evaluate((element) => ({
+					color: getComputedStyle(element).scrollbarColor,
+					width: getComputedStyle(element).scrollbarWidth,
+				})),
+			),
+		);
+		for (const scrollbar of idleScrollbars) {
+			expect(scrollbar.width).toBe("thin");
+			expect(scrollbar.color).toMatch(
+				/^(?:transparent|rgba\(0, 0, 0, 0\)) (?:transparent|rgba\(0, 0, 0, 0\))$/u,
+			);
+		}
+		await treePanel.hover();
+		expect(
+			await treePanel.evaluate((element) => getComputedStyle(element).scrollbarColor),
+		).not.toBe(idleScrollbars[0]?.color);
+		expect((await treePanel.boundingBox())?.width).toBeCloseTo(desktopLayout[0]?.width ?? 0, 0);
+		await outlinePanel.getByRole("link").first().focus();
+		expect(
+			await outlinePanel.evaluate((element) => getComputedStyle(element).scrollbarColor),
+		).not.toBe(idleScrollbars[1]?.color);
+		expect((await outlinePanel.boundingBox())?.width).toBeCloseTo(desktopLayout[1]?.width ?? 0, 0);
+		expect(
+			await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1),
+		).toBe(false);
+		await expect(readerTable).toHaveAttribute("data-docs-overflowing", "false");
+		await expect(wideTable).toHaveAttribute("data-docs-overflowing", "true");
+		expect(
+			await wideTable.evaluate((element) => element.scrollWidth > element.clientWidth + 1),
+		).toBe(true);
+		const tablePresentation = await Promise.all([
+			readerTable.evaluate((element) => ({
+				hint: getComputedStyle(element, "::before").content,
+				paddingBottom: getComputedStyle(element.querySelector("th, td") as Element).paddingBottom,
+				paddingTop: getComputedStyle(element.querySelector("th, td") as Element).paddingTop,
+			})),
+			wideTable.evaluate((element) => getComputedStyle(element, "::before").content),
+		]);
+		expect(tablePresentation[0]).toEqual({
+			hint: "none",
+			paddingBottom: "8px",
+			paddingTop: "8px",
+		});
+		expect(tablePresentation[1]).toContain("横向滑动查看更多列");
+		await expect(outlinePanel).toHaveCSS("border-left-width", "0px");
+		await expect(outlineTrigger).toBeHidden();
+		await expect(treeTrigger).toBeHidden();
+
+		await page.setViewportSize({ height: 900, width: 1440 });
+		const wideLayout = await Promise.all([
+			readerParagraph.boundingBox(),
+			readerTable.boundingBox(),
+			readerArticle.boundingBox(),
+			courseMap.boundingBox(),
+		]);
+		for (const content of wideLayout) {
+			expect(content?.width).toBeCloseTo(760, 0);
+		}
+
+		await page.setViewportSize({ height: 1080, width: 1920 });
+		const viewportWidth = await page.evaluate(() => document.documentElement.clientWidth);
+		const wideShellLayout = await Promise.all([
+			page.locator(".docs-site-header-inner").boundingBox(),
+			page.locator(".docs-site-grid").boundingBox(),
+			treePanel.boundingBox(),
+			outlinePanel.boundingBox(),
+			readerArticle.boundingBox(),
+		]);
+		for (const shell of wideShellLayout.slice(0, 2)) {
+			expect(shell?.x).toBeCloseTo(0, 0);
+			expect(shell?.width).toBeCloseTo(viewportWidth, 0);
+		}
+		expect(wideShellLayout[2]?.width).toBeCloseTo(240, 0);
+		expect(wideShellLayout[3]?.width).toBeCloseTo(200, 0);
+		expect(wideShellLayout[4]?.width).toBeCloseTo(760, 0);
+		expect(
+			await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1),
+		).toBe(false);
+
+		await page.setViewportSize({ height: 900, width: 1279 });
+		await expect(outlinePanel).toBeHidden();
+		await expect(outlineTrigger).toBeVisible();
+		await expect(treePanel).toBeVisible();
+		await expect(treeTrigger).toBeHidden();
+
+		await page.setViewportSize({ height: 800, width: 1024 });
+		await expect(treePanel).toBeVisible();
+		await expect(outlinePanel).toBeHidden();
+		await expect(outlineTrigger).toBeVisible();
+
+		await page.setViewportSize({ height: 844, width: 390 });
+		await expect(treePanel).toBeHidden();
+		await expect(outlinePanel).toBeHidden();
+		await expect(treeTrigger).toBeVisible();
+		await expect(outlineTrigger).toBeVisible();
+		expect(
+			await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1),
+		).toBe(false);
+	});
+
+	test("distinguishes nested headings and reveals permalink controls on demand", async ({
+		page,
+	}) => {
+		await page.setViewportSize({ height: 900, width: 1280 });
+		await page.goto(publicReaderPath, { waitUntil: "domcontentloaded" });
+		await waitForDocsHydration(page);
+
+		const headings = [
+			page.getByRole("heading", { level: 2, name: "文档正文" }),
+			page.getByRole("heading", { level: 3, name: "教学活动要求" }),
+			page.getByRole("heading", { level: 4, name: "请假手续" }),
+		];
+		const headingStyles = await Promise.all(
+			headings.map((heading) =>
+				heading.evaluate((element) => {
+					const row = element.parentElement;
+					return {
+						fontWeight: getComputedStyle(element).fontWeight,
+						level: row?.getAttribute("data-docs-heading-level"),
+						marginTop: row ? getComputedStyle(row).marginTop : null,
+					};
+				}),
+			),
+		);
+		expect(headingStyles).toEqual([
+			{ fontWeight: "700", level: "2", marginTop: "40px" },
+			{ fontWeight: "650", level: "3", marginTop: "28px" },
+			{ fontWeight: "600", level: "4", marginTop: "20px" },
+		]);
+
+		const headingRow = headings[1].locator("..");
+		const actions = headingRow.locator(".docs-reader-heading-actions");
+		await expect(actions).toHaveCSS("opacity", "0");
+		await headingRow.hover();
+		await expect(actions).toHaveCSS("opacity", "1");
+		await page.mouse.move(0, 0);
+		await headingRow.getByRole("button", { name: "复制“教学活动要求”链接" }).focus();
+		await expect(actions).toHaveCSS("opacity", "1");
+	});
+
+	test("keeps merged table boundaries closed", async ({ page }) => {
+		await page.goto(publicReaderPath, { waitUntil: "domcontentloaded" });
+		await waitForDocsHydration(page);
+
+		const continuedValue = page.getByRole("cell", { name: "0.5" });
+		const middleCell = page.getByRole("cell", { name: "志愿服务" });
+		const boundary = await Promise.all([
+			middleCell.evaluate((element) => {
+				const rect = element.getBoundingClientRect();
+				return { borderRightWidth: getComputedStyle(element).borderRightWidth, right: rect.right };
+			}),
+			continuedValue.evaluate((element) => element.getBoundingClientRect().left),
+		]);
+
+		expect(boundary[0].borderRightWidth).toBe("1px");
+		expect(Math.abs(boundary[0].right - boundary[1])).toBeLessThanOrEqual(1);
+		await expect(
+			middleCell.locator("xpath=ancestor::div[contains(@class, 'docs-table-scroll')]"),
+		).toHaveCSS("border-right-width", "0px");
 	});
 
 	test("shows the document hierarchy without linking to retired parent directories", async ({
@@ -94,7 +299,8 @@ test.describe("docs reader experience", () => {
 	test("keeps route content and metadata aligned across browser history", async ({ page }) => {
 		await page.goto("/docs", { waitUntil: "domcontentloaded" });
 		await waitForDocsHydration(page);
-		await expect(page.getByRole("heading", { level: 1, name: "校园文档" })).toBeVisible();
+		const startPage = page.locator(".docs-start-page");
+		await expect(startPage.getByRole("heading", { level: 1, name: "校园文档" })).toBeVisible();
 		await expect(page).toHaveTitle("校园文档 | 中央民族大学校园问答");
 		await expect(page.locator('meta[name="description"]')).toHaveAttribute(
 			"content",
@@ -105,7 +311,8 @@ test.describe("docs reader experience", () => {
 			new URL("/docs", page.url()).toString(),
 		);
 
-		await page.getByRole("link", { name: "学生考勤管理规定" }).first().click();
+		await expect(startPage.getByRole("link", { name: "学生考勤管理规定" })).toBeVisible();
+		await startPage.getByRole("link", { name: "学生考勤管理规定" }).click();
 		await expect(page).toHaveURL(publicReaderPath);
 		await waitForDocsHydration(page);
 		await expect(page.getByRole("heading", { level: 1, name: "学生考勤管理规定" })).toBeVisible();
@@ -257,9 +464,26 @@ test.describe("docs reader experience", () => {
 		await expect(page.getByRole("link", { name: "账号" })).toHaveAttribute("href", "/account");
 		await expect(page.locator(".docs-account-label")).toBeHidden();
 		await expect(page.getByText("校园文档", { exact: true }).first()).toBeVisible();
-		await expect(page.getByLabel("表格移动端按行阅读")).toBeVisible();
-		await expect(page.locator('[data-docs-table-kind="mobile-cards"] > table')).toBeHidden();
-		await expect(page.getByText("校级社会实践", { exact: true }).first()).toBeVisible();
+		await expect(page.getByLabel("表格移动端按行阅读")).toHaveCount(0);
+		const compactTable = page.locator(
+			'[data-root-unit-id="activity-credit-table"] .docs-table-scroll',
+		);
+		const wideTable = page.locator('[data-root-unit-id="wide-course-table"] .docs-table-scroll');
+		await expect(compactTable.getByRole("table")).toBeVisible();
+		await expect(compactTable).toHaveAttribute("data-docs-overflowing", "false");
+		await expect(wideTable.getByRole("table")).toBeVisible();
+		await expect(wideTable).toHaveAttribute("data-docs-overflowing", "true");
+		await expect(page.locator(".docs-reader-heading-actions").first()).toHaveCSS("opacity", "1");
+		const wideTableOverflow = await wideTable.evaluate((element) => {
+			element.scrollLeft = element.scrollWidth;
+			return {
+				canScroll: element.scrollWidth > element.clientWidth + 1,
+				scrollLeft: element.scrollLeft,
+			};
+		});
+		expect(wideTableOverflow.canScroll).toBe(true);
+		expect(wideTableOverflow.scrollLeft).toBeGreaterThan(0);
+		await expect(page.getByText("校级社会实践", { exact: true })).toBeVisible();
 		for (const name of ["打开文档目录", "搜索校园文档", "打开本页目录"] as const) {
 			const box = await page.getByRole("button", { name }).boundingBox();
 			expect(box?.width).toBeGreaterThanOrEqual(44);
@@ -345,7 +569,9 @@ test.describe("docs reader experience", () => {
 		const searchCloseBox = await searchClose.boundingBox();
 		expect(searchCloseBox?.width).toBeGreaterThanOrEqual(44);
 		expect(searchCloseBox?.height).toBeGreaterThanOrEqual(44);
-		await searchDialog.getByRole("combobox", { name: "搜索校园文档" }).fill("教学活动");
+		await searchDialog
+			.getByRole("combobox", { name: "搜索校园文档" })
+			.fill("学生应按时参加教学活动");
 		await expect(searchDialog.getByText("学生考勤管理规定", { exact: true })).toBeVisible();
 		await searchDialog.getByRole("option").first().click();
 

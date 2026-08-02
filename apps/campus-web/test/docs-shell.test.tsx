@@ -4,15 +4,16 @@ import {
 	createRouter,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { DocsTree } from "../src/components/docs/docs-shell";
+import { DocsShell, DocsTree } from "../src/components/docs/docs-shell";
 import { createLargeDocsSiteIndex } from "./helpers/docs-site-index-fixture";
 
 afterEach(() => {
 	vi.restoreAllMocks();
+	vi.unstubAllGlobals();
 });
 
 describe("docs navigation tree", () => {
@@ -169,6 +170,88 @@ describe("docs navigation tree", () => {
 				"page",
 			);
 			expect(scrollIntoView).toHaveBeenCalledTimes(1);
+		});
+	});
+});
+
+describe("docs page outline", () => {
+	it("keeps the active heading link in view", async () => {
+		const callbacks: IntersectionObserverCallback[] = [];
+		class TestIntersectionObserver implements IntersectionObserver {
+			readonly root = null;
+			readonly rootMargin = "0px";
+			readonly thresholds = [0];
+
+			constructor(callback: IntersectionObserverCallback) {
+				callbacks.push(callback);
+			}
+
+			disconnect = vi.fn();
+			observe = vi.fn();
+			takeRecords(): IntersectionObserverEntry[] {
+				return [];
+			}
+			unobserve = vi.fn();
+		}
+		vi.stubGlobal("IntersectionObserver", TestIntersectionObserver);
+		const scrollIntoView = vi
+			.spyOn(Element.prototype, "scrollIntoView")
+			.mockImplementation(() => undefined);
+		const siteIndex = createLargeDocsSiteIndex();
+		const outline = [
+			{ anchor: "first-heading", level: 2, title: "第一节" },
+			{ anchor: "later-heading", level: 2, title: "后续章节" },
+		] as const;
+		const rootRoute = createRootRoute({
+			component: () => (
+				<DocsShell activePath="/docs" outline={outline} siteIndex={siteIndex}>
+					<h2 id="first-heading">第一节</h2>
+					<h2 id="later-heading">后续章节</h2>
+				</DocsShell>
+			),
+		});
+		const router = createRouter({
+			history: createMemoryHistory({ initialEntries: ["/"] }),
+			routeTree: rootRoute,
+		});
+		await router.load();
+		render(<RouterProvider router={router} />);
+		expect(callbacks).not.toHaveLength(0);
+		scrollIntoView.mockClear();
+
+		const laterHeading = screen.getByRole("heading", { name: "后续章节" });
+		const bounds: DOMRectReadOnly = {
+			bottom: 140,
+			height: 20,
+			left: 0,
+			right: 100,
+			top: 120,
+			width: 100,
+			x: 0,
+			y: 120,
+			toJSON: () => ({}),
+		};
+		const entry: IntersectionObserverEntry = {
+			boundingClientRect: bounds,
+			intersectionRatio: 1,
+			intersectionRect: bounds,
+			isIntersecting: true,
+			rootBounds: null,
+			target: laterHeading,
+			time: 0,
+		};
+		act(() => {
+			for (const callback of callbacks) {
+				callback([entry], {} as IntersectionObserver);
+			}
+		});
+
+		await waitFor(() => {
+			expect(screen.getByRole("link", { name: "后续章节" })).toHaveAttribute(
+				"aria-current",
+				"location",
+			);
+			expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", inline: "nearest" });
 		});
 	});
 });

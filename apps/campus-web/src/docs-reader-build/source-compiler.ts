@@ -8,6 +8,7 @@ import type {
 	PublishedReaderManifestEntry,
 	ReaderObjectStoreClient,
 } from "./published-reader-types.ts";
+import { assertReaderSegmentationQuality } from "./reader-segmentation.ts";
 import { buildReaderRouteSlug, canonicalJsonBytes, sha256 } from "./source-catalog.ts";
 import { materializeDocsCourseMaps } from "./source-course-maps.ts";
 import { parseCourseMaps } from "./source-schema.ts";
@@ -49,6 +50,7 @@ export async function compileDocsSource(input: {
 					`reader ${version.versionId}`,
 				),
 			);
+			assertReaderSegmentationQuality(reader);
 			assertReaderIdentity(reader, version);
 			assertReaderSupplements(reader, version);
 			const supplements = await compileSupplements({

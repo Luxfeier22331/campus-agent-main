@@ -44,6 +44,14 @@ describe("native docs build boundary", () => {
 		};
 		const mainSource = readFileSync(join(appRoot, "src/main.tsx"), "utf8");
 		const docsMainSource = readFileSync(join(appRoot, "src/docs-main.tsx"), "utf8");
+		const docsReaderSource = readFileSync(
+			join(appRoot, "src/components/docs/docs-reader-view.tsx"),
+			"utf8",
+		);
+		const docsReaderStyles = readFileSync(
+			join(appRoot, "src/components/docs/docs-reader.css"),
+			"utf8",
+		);
 		const docsPrerenderSource = readFileSync(
 			join(appRoot, "src/docs-reader-build/native-reader-prerender.tsx"),
 			"utf8",
@@ -61,6 +69,9 @@ describe("native docs build boundary", () => {
 		);
 		expect(packageJson.scripts["docs:source:update"]).toBe(
 			"pnpm exec tsx ./scripts/update-docs-source.ts",
+		);
+		expect(packageJson.scripts["docs:source:clean-segmentation"]).toBe(
+			"pnpm exec tsx ./scripts/hotfix-docs-reader-segmentation.ts",
 		);
 		expect(packageJson.scripts).not.toHaveProperty(["docs", "source", "publish"].join(":"));
 		expect(mainSource).not.toContain("docs-reader.css");
@@ -81,6 +92,8 @@ describe("native docs build boundary", () => {
 		expect(viteSource).toContain("serveDocsDevelopmentShell(docsContent.paths.publicRoot)");
 		expect(docsMainSource).not.toContain("getCampusRuntimeConfig");
 		expect(docsMainSource).not.toContain("initializeCampusBrowserSentry");
+		expect(docsReaderSource).toContain('className="docs-reader-list" role="list"');
+		expect(docsReaderStyles).toMatch(/\.docs-reader-list\s*\{[^}]*list-style:\s*none;/u);
 		expect(viteSource).not.toContain("injectDocsDevelopmentRuntimeConfig");
 		expect(viteSource).not.toContain("CAMPUS_RUNTIME_CONFIG_SCRIPT_ID");
 		expect(viteSource).toContain('environment.name === "client"');

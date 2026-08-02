@@ -284,7 +284,8 @@ function renderTextBlock(block: Exclude<DocsReaderBlock, { kind: "table" }>): Re
 	}
 	if (block.kind === "list") {
 		return (
-			<ul>
+			// biome-ignore lint/a11y/noRedundantRoles: WebKit may drop list semantics when markers are removed.
+			<ul className="docs-reader-list" role="list">
 				{withStableKeys(block.text.split(/\n+/u), (item) => item).map(({ item, key }) => (
 					<li key={`${block.rootUnitId}:${key}`}>{item}</li>
 				))}

@@ -61,6 +61,19 @@ export interface DocsSiteIndex {
 	topics: DocsSiteTopic[];
 }
 
+export interface DocsNavigationSection {
+	description: string | null;
+	documents: DocsSiteDocument[];
+	key: string;
+	label: string;
+}
+
+export interface DocsNavigationGroup {
+	corpus: string;
+	label: string;
+	sections: DocsNavigationSection[];
+}
+
 export interface DocsSearchEntry {
 	anchor: string;
 	docId: string;
@@ -88,6 +101,42 @@ export function compareDocsCollections(
 	const leftOrder = DOCS_COLLECTION_ORDER.get(leftScope) ?? 1000;
 	const rightOrder = DOCS_COLLECTION_ORDER.get(rightScope) ?? 1000;
 	return leftOrder - rightOrder || leftScope.localeCompare(rightScope);
+}
+
+export function buildDocsNavigationGroups(siteIndex: DocsSiteIndex): DocsNavigationGroup[] {
+	const collectionsByCorpus = new Map<string, DocsSiteCollection[]>();
+	for (const collection of [...siteIndex.collections].sort(compareDocsCollections)) {
+		collectionsByCorpus.set(collection.corpus, [
+			...(collectionsByCorpus.get(collection.corpus) ?? []),
+			collection,
+		]);
+	}
+	return [...collectionsByCorpus.entries()].map(([corpus, collections]) => {
+		const documents = collections.flatMap((collection) => collection.documents);
+		const topics = siteIndex.topics
+			.filter((topic) => topic.corpus === corpus)
+			.sort((left, right) => left.order - right.order);
+		return {
+			corpus,
+			label: collections[0]?.corpusLabel ?? corpus,
+			sections:
+				topics.length > 0
+					? topics.map((topic) => ({
+							description: topic.description,
+							documents: documents
+								.filter((document) => document.topicId === topic.topicId)
+								.sort((left, right) => left.title.localeCompare(right.title, "zh-CN")),
+							key: `${corpus}/topic/${topic.topicId}`,
+							label: topic.displayName,
+						}))
+					: collections.map((collection) => ({
+							description: collection.description,
+							documents: collection.documents,
+							key: `${collection.corpus}/${collection.collection}`,
+							label: collection.label,
+						})),
+		};
+	});
 }
 
 export function parseDocsSiteIndex(value: unknown): DocsSiteIndex {

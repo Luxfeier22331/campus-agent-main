@@ -3,13 +3,7 @@ import { resolve } from "node:path";
 
 import { createS3ObjectStore } from "../src/docs-reader-build/published-reader-object-store.ts";
 import type { ReaderObjectStoreWriter } from "../src/docs-reader-build/published-reader-types.ts";
-import {
-	canonicalJsonBytes,
-	DOCS_SOURCE_KEY,
-	normalizeSourceManifest,
-	sha256,
-} from "../src/docs-reader-build/source-catalog.ts";
-import { compileDocsSource } from "../src/docs-reader-build/source-compiler.ts";
+import { publishDocsSource } from "../src/docs-reader-build/source-publisher.ts";
 import { parseSourceManifest } from "../src/docs-reader-build/source-schema.ts";
 
 export interface UpdateDocsSourceArgs {
@@ -34,31 +28,10 @@ export async function updateDocsSource(input: {
 	versionCount: number;
 }> {
 	const client = input.client ?? createS3ObjectStore(input.env);
-	const source = normalizeSourceManifest(
-		parseSourceManifest(JSON.parse(readFileSync(resolve(input.sourceFile), "utf8"))),
-	);
-	const sourceBytes = canonicalJsonBytes(source);
-	await compileDocsSource({ client, source });
-	await client.writeBytesObject({
-		body: sourceBytes,
-		contentType: "application/json",
-		key: DOCS_SOURCE_KEY,
+	return publishDocsSource({
+		client,
+		source: parseSourceManifest(JSON.parse(readFileSync(resolve(input.sourceFile), "utf8"))),
 	});
-	const stored = await client.readOptionalBytesObject({ key: DOCS_SOURCE_KEY });
-	if (!(stored && equalBytes(stored, sourceBytes))) {
-		throw new Error(`failed to verify updated campus docs source: ${DOCS_SOURCE_KEY}`);
-	}
-	return {
-		documentCount: source.documents.length,
-		sourceDigest: sha256(sourceBytes),
-		versionCount: source.versions.length,
-	};
-}
-
-function equalBytes(left: Uint8Array, right: Uint8Array): boolean {
-	return (
-		left.byteLength === right.byteLength && left.every((value, index) => value === right[index])
-	);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
