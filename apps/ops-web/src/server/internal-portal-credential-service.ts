@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { setTimeout as delay } from "node:timers/promises";
 import {
 	checkPortalAuthentication,
 	type InternalPortalAuthenticationResult,
@@ -17,9 +18,12 @@ import {
 	InternalPortalCredentialNotFoundError,
 	type InternalPortalCredentialRecord,
 	type InternalPortalCredentialStore,
+	InternalPortalCredentialStoreUnavailableError,
 } from "./internal-portal-credential-store.ts";
 
 export const INTERNAL_PORTAL_CHECK_TIMEOUT_MS = 60_000;
+const INITIAL_DATABASE_READY_ATTEMPTS = 5;
+const INITIAL_DATABASE_READY_DELAY_MS = 1_000;
 
 export class InternalPortalCandidateRejectedError extends Error {
 	constructor() {
@@ -156,11 +160,13 @@ export async function runScheduledInternalPortalChecks(input: {
 	) => Promise<InternalPortalAuthenticationResult>;
 	now?: () => Date;
 	store: InternalPortalCredentialStore;
+	wait?: (milliseconds: number) => Promise<void>;
 }): Promise<ScheduledInternalPortalCheck[]> {
 	const now = input.now ?? (() => new Date());
 	const checkAuthentication = input.checkAuthentication ?? checkCredentialAgainstPortal;
 	const checks: ScheduledInternalPortalCheck[] = [];
-	for (const credential of await input.store.list()) {
+	const credentials = await listCredentialsWhenDatabaseReady(input.store, input.wait ?? delay);
+	for (const credential of credentials) {
 		try {
 			const updated = await checkAndRecord({
 				checkAuthentication,
@@ -184,6 +190,38 @@ export async function runScheduledInternalPortalChecks(input: {
 		}
 	}
 	return checks;
+}
+
+async function listCredentialsWhenDatabaseReady(
+	store: InternalPortalCredentialStore,
+	wait: (milliseconds: number) => Promise<void>,
+): Promise<InternalPortalCredentialRecord[]> {
+	let attempt = 0;
+	while (true) {
+		attempt += 1;
+		try {
+			return await store.list();
+		} catch (error) {
+			if (attempt >= INITIAL_DATABASE_READY_ATTEMPTS || !isConnectionRefused(error)) {
+				throw error;
+			}
+			await wait(INITIAL_DATABASE_READY_DELAY_MS);
+		}
+	}
+}
+
+function isConnectionRefused(error: unknown): boolean {
+	if (!(error instanceof InternalPortalCredentialStoreUnavailableError)) {
+		return false;
+	}
+	let cause: unknown = error.cause;
+	while (cause instanceof Error) {
+		if ("code" in cause && cause.code === "ECONNREFUSED") {
+			return true;
+		}
+		cause = cause.cause;
+	}
+	return false;
 }
 
 async function checkAndRecord(input: {

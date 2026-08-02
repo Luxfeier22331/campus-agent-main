@@ -12,6 +12,7 @@ import {
 	InternalPortalCredentialConflictError,
 	type InternalPortalCredentialRecord,
 	type InternalPortalCredentialStore,
+	InternalPortalCredentialStoreUnavailableError,
 } from "../src/server/internal-portal-credential-store.ts";
 
 const FIRST_ID = "11111111-1111-4111-8111-111111111111";
@@ -179,4 +180,61 @@ describe("internal portal credential service", () => {
 			{ credentialId: SECOND_ID, outcome: "valid" },
 		]);
 	});
+
+	it("waits for initial cron database connectivity before checking credentials", async () => {
+		const initialFailure = connectionRefusedStoreError();
+		const list = vi
+			.fn()
+			.mockRejectedValueOnce(initialFailure)
+			.mockResolvedValueOnce([credential()]);
+		const wait = vi.fn(async () => undefined);
+		const checkAuthentication = vi.fn(async (ssoTgc: string) => ({ ssoTgc }));
+		const store = createStore({ list });
+
+		await expect(
+			runScheduledInternalPortalChecks({ checkAuthentication, store, wait }),
+		).resolves.toEqual([{ credentialId: FIRST_ID, outcome: "valid" }]);
+		expect(list).toHaveBeenCalledTimes(2);
+		expect(wait).toHaveBeenCalledOnce();
+		expect(wait).toHaveBeenCalledWith(1_000);
+		expect(checkAuthentication).toHaveBeenCalledOnce();
+		expect(store.recordCheck).toHaveBeenCalledOnce();
+	});
+
+	it("bounds the initial cron database readiness wait", async () => {
+		const failure = connectionRefusedStoreError();
+		const list = vi.fn(async () => {
+			throw failure;
+		});
+		const wait = vi.fn(async () => undefined);
+
+		await expect(
+			runScheduledInternalPortalChecks({ store: createStore({ list }), wait }),
+		).rejects.toBe(failure);
+		expect(list).toHaveBeenCalledTimes(5);
+		expect(wait).toHaveBeenCalledTimes(4);
+	});
+
+	it("does not wait for non-connectivity database failures", async () => {
+		const failure = new InternalPortalCredentialStoreUnavailableError(
+			"内部门户凭据数据库不可用。",
+			{ cause: Object.assign(new Error("authentication failed"), { code: "28P01" }) },
+		);
+		const list = vi.fn(async () => {
+			throw failure;
+		});
+		const wait = vi.fn(async () => undefined);
+
+		await expect(
+			runScheduledInternalPortalChecks({ store: createStore({ list }), wait }),
+		).rejects.toBe(failure);
+		expect(list).toHaveBeenCalledOnce();
+		expect(wait).not.toHaveBeenCalled();
+	});
 });
+
+function connectionRefusedStoreError(): InternalPortalCredentialStoreUnavailableError {
+	return new InternalPortalCredentialStoreUnavailableError("内部门户凭据数据库不可用。", {
+		cause: Object.assign(new Error("connect ECONNREFUSED"), { code: "ECONNREFUSED" }),
+	});
+}

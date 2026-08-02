@@ -38,9 +38,10 @@ delivery 也不拥有 Docker 本地 secret 或应用级运维配置。
 ## 后果
 
 - K8s runtime 不再维护 `secret.example.yaml` inventory；
-- 内部门户 `SSO_TGC` 使用环境预创建的独立 Secret，由环境所有者通过所属 Secret 投递方式轮换；
-  Ops Web 不访问 Kubernetes API。长期 API key、DSN 和信任锚仍使用环境的常规投递方式；
-- TGC 不与其他凭据共用 Secret，因为 Kubernetes Secret RBAC 只能限制资源，不能限制 key；
+- 由操作者录入的内部门户 `SSO_TGC` 是 Ops Web 持久化的应用数据，不是 workload 启动 Secret；
+  Ops Web 在所属 PostgreSQL 管理多条 TGC，且不访问 Kubernetes API。Source Collector 只在本地
+  显式命令中消费开发者直接提供的 TGC，不读取部署 Secret；
+- 长期 API key、DSN、数据库连接和信任锚仍使用环境的常规 Secret 投递方式；
 - 小型 self-hosted deployment 可以手工创建 Secret，但 operator 必须负责轮换；
 - 环境仓库可以部署 pinned secret-delivery controller；
 - SealedSecret 默认使用 strict scope，namespace-wide 或 cluster-wide scope 需要单独风险接受；
