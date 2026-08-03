@@ -55,7 +55,7 @@ jobs:
         with:
           fetch-depth: 0
           filter: blob:none
-          persist-credentials: false
+          persist-credentials: true
 
       - name: Install Nix
         uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
@@ -160,7 +160,7 @@ jobs:
         with:
           fetch-depth: 0
           filter: blob:none
-          persist-credentials: false
+          persist-credentials: true
       - name: Install candidate workspaces
         if: fromJSON(needs.release-plan.outputs.validation_profiles)[0] != null
         env:

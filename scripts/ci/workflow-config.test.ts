@@ -13,6 +13,24 @@ function isObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function sourceCheckouts(workflow: unknown, jobName: string): Record<string, unknown>[] {
+	if (!(isObject(workflow) && isObject(workflow.jobs))) {
+		return [];
+	}
+	const job = workflow.jobs[jobName];
+	if (!(isObject(job) && Array.isArray(job.steps))) {
+		return [];
+	}
+	return job.steps.filter(
+		(step) =>
+			isObject(step) &&
+			typeof step.uses === "string" &&
+			step.uses.startsWith("actions/checkout@") &&
+			isObject(step.with) &&
+			step.with.repository === undefined,
+	);
+}
+
 function environmentPrefixedConfig(value: unknown, location = "workflow"): string[] {
 	if (typeof value === "string") {
 		const match = value.match(ENVIRONMENT_PREFIXED_CONFIG);
@@ -84,6 +102,30 @@ test("pull request validation keeps one hosted planner and one stable heavy chec
 	);
 	assert(!source.includes("pull_request.head.sha }}\n          ref:"));
 	assert.equal(source.match(/TURBO_TOKEN:/gu)?.length, 1);
+});
+
+test("Source diff consumers retain credentials for partial-clone object fetches", async () => {
+	const workflowRoot = path.join(REPOSITORY_ROOT, ".github/workflows");
+	const [publishSource, pullRequestSource] = await Promise.all([
+		readFile(path.join(workflowRoot, "execution-runtime-publish.yml"), "utf8"),
+		readFile(path.join(workflowRoot, "pr.yml"), "utf8"),
+	]);
+	const publishWorkflow = parseAllDocuments(publishSource)[0]?.toJS();
+	const pullRequestWorkflow = parseAllDocuments(pullRequestSource)[0]?.toJS();
+	for (const [workflow, jobName] of [
+		[publishWorkflow, "release-plan"],
+		[publishWorkflow, "candidate-evidence"],
+		[pullRequestWorkflow, "repo-checks"],
+	] as const) {
+		const checkouts = sourceCheckouts(workflow, jobName);
+		assert.equal(checkouts.length, 1, `${jobName} must have one Source checkout`);
+		const checkout = checkouts[0];
+		assert(checkout);
+		assert(isObject(checkout.with));
+		assert.equal(checkout.with["fetch-depth"], 0, jobName);
+		assert.equal(checkout.with.filter, "blob:none", jobName);
+		assert.equal(checkout.with["persist-credentials"], true, jobName);
+	}
 });
 
 test("source workflows use Nix and do not restore retired setup entrypoints", async () => {

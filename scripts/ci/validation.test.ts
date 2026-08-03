@@ -98,15 +98,18 @@ test("Dockerfiles select release tooling without pretending to build images", ()
 	assert.deepEqual(profiles(["docker-bake.hcl"]), ["toolchain"]);
 });
 
-test("validation control files select every non-duplicative full profile", () => {
-	for (const file of [
-		"turbo.json",
-		"flake.nix",
-		"nix/tools.nix",
-		"scripts/ci/validation.mts",
-		".github/workflows/pr.yml",
-	]) {
-		assert.deepEqual(profiles([file]), FULL_VALIDATION_PROFILES, file);
+test("CI control files stay in hosted checks instead of selecting every heavy profile", () => {
+	for (const [file, lightSurfaces] of [
+		["package.json", ["release"]],
+		["turbo.json", ["release"]],
+		["flake.nix", ["config"]],
+		["nix/tools.nix", ["config"]],
+		["scripts/ci/validation.mts", ["release"]],
+		[".github/workflows/pr.yml", ["config", "release", "yaml"]],
+	] as const) {
+		const plan = validationPlanFromScope(scope([file]), { mode: "pull-request" });
+		assert.deepEqual(plan.lightSurfaces, lightSurfaces, file);
+		assert.deepEqual(plan.validationProfiles, [], file);
 	}
 });
 
@@ -115,7 +118,7 @@ test("selects static surfaces from renamed and deleted paths", () => {
 		scope([".github/workflows/old.yml", "config/new.yaml", "removed/check.sh", "schema.sql"]),
 		{ mode: "pull-request" },
 	);
-	assert.deepEqual(plan.lightSurfaces, ["config", "yaml", "sql", "shell"]);
+	assert.deepEqual(plan.lightSurfaces, ["config", "release", "yaml", "sql", "shell"]);
 });
 
 test("full and validate-only modes preserve their explicit release contracts", () => {

@@ -67,7 +67,7 @@ status: active
 自动 PR 保留一个稳定的 `repo-checks` 门禁，并按成本分为两段：
 
 - GitHub-hosted `light` 始终运行 `pnpm ci:repo` 和 authored commit range 的 Gitleaks，并按统一 planner
-  选择合同、GitHub Actions、Python、YAML、SQL 和 Shell 静态检查；
+  选择合同、GitHub Actions、CI 与发布编排单元测试、Python、YAML、SQL 和 Shell 静态检查；
 - `repo-checks` 始终返回明确结果；没有重型 profile 时直接结束，需要时才在现有 self-hosted runner
   一次 checkout、一次安装并串行执行受影响证据；
 - PR checkout 使用 GitHub 生成的 merge revision，Gitleaks 仍扫描 PR 作者提交范围；
@@ -75,7 +75,8 @@ status: active
 
 重型 profile 覆盖 affected 或显式 full Node/Worker、Go、Rust、Ragas、五个 disposable PostgreSQL
 owner、基础设施、OTel、Campus Web smoke/full、Ops Web browser、dependency scan 和发布工具链。
-planner 只按累计差异和明确制品消费者选择，各 profile 串行执行；不根据耗时或一次失败动态扩大范围。
+planner 只按累计差异和明确制品消费者选择，各 profile 串行执行；CI 控制文件本身不触发全部业务
+profile，也不根据耗时或一次失败动态扩大范围。完整矩阵只由明确的 full 发布输入触发。
 
 ## 变更面选择
 

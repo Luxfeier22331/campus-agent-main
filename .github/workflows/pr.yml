@@ -92,6 +92,10 @@ jobs:
       - name: Run repository checks
         run: pnpm ci:repo
 
+      - name: Check CI and release orchestration
+        if: contains(fromJSON(steps.plan.outputs.light_surfaces), 'release')
+        run: pnpm ci:release
+
       - name: Check executable contracts
         if: contains(fromJSON(steps.plan.outputs.light_surfaces), 'contracts')
         run: pnpm ci:contracts
@@ -158,7 +162,7 @@ jobs:
         with:
           fetch-depth: 0
           filter: blob:none
-          persist-credentials: false
+          persist-credentials: true
 
       - name: Install affected workspaces
         if: needs.light.result == 'success' && needs.light.outputs.has_heavy == 'true'

@@ -3,9 +3,17 @@ import { pathToFileURL } from "node:url";
 
 import { type AffectedScope, type CommandRunner, resolveAffectedScope } from "./scope.mts";
 
-export type LightSurface = "config" | "contracts" | "python" | "shell" | "sql" | "yaml";
+export type LightSurface = "config" | "contracts" | "python" | "release" | "shell" | "sql" | "yaml";
 
-const LIGHT_SURFACES: LightSurface[] = ["contracts", "config", "python", "yaml", "sql", "shell"];
+const LIGHT_SURFACES: LightSurface[] = [
+	"contracts",
+	"config",
+	"release",
+	"python",
+	"yaml",
+	"sql",
+	"shell",
+];
 
 export type ValidationProfile =
 	| "affected-node"
@@ -87,21 +95,6 @@ function hasTask(scope: AffectedScope, packageName: string, task: string): boole
 	);
 }
 
-function selectsEveryProfile(files: readonly string[]): boolean {
-	return files.some(
-		(file) =>
-			file === "turbo.json" ||
-			file === "package.json" ||
-			file === "flake.nix" ||
-			file === "flake.lock" ||
-			file.startsWith("nix/") ||
-			file.startsWith("scripts/ci/scope.") ||
-			file.startsWith("scripts/ci/validation.") ||
-			file.startsWith("scripts/ci/evidence.") ||
-			file.startsWith(".github/workflows/"),
-	);
-}
-
 function selectLightSurfaces(files: readonly string[]): LightSurface[] {
 	const selected = new Set<LightSurface>();
 	if (
@@ -116,6 +109,22 @@ function selectLightSurfaces(files: readonly string[]): LightSurface[] {
 		files.some((file) => file === "flake.nix" || file === "flake.lock" || file.startsWith("nix/"))
 	) {
 		selected.add("config");
+	}
+	if (
+		files.some(
+			(file) =>
+				file === "package.json" ||
+				file === "turbo.json" ||
+				file.startsWith(".github/workflows/") ||
+				file.startsWith("scripts/ci/scope.") ||
+				file.startsWith("scripts/ci/validation.") ||
+				file.startsWith("scripts/ci/evidence.") ||
+				file.startsWith("scripts/ci/workflow-config.") ||
+				file.startsWith("scripts/ci/check-ops-web-artifact.") ||
+				file.startsWith("scripts/release/"),
+		)
+	) {
+		selected.add("release");
 	}
 	if (matchesFile(files, /(?:^|\/)\w[^/]*\.py$/u) || files.includes("pyproject.toml")) {
 		selected.add("python");
@@ -140,9 +149,6 @@ function selectValidationProfiles(
 	release: ReleaseValidationContext = {},
 ): ValidationProfile[] {
 	const files = scope.changedFiles;
-	if (selectsEveryProfile(files)) {
-		return [...FULL_VALIDATION_PROFILES];
-	}
 	const selected = new Set<ValidationProfile>();
 	if (
 		scope.tasks.some(({ task }) =>
