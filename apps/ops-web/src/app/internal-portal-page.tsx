@@ -535,7 +535,7 @@ function CredentialFormDialog(props: {
 			<DialogContent>
 				<DialogHeader>
 					<DialogTitle>{props.title}</DialogTitle>
-					<DialogDescription>SSO_TGC</DialogDescription>
+					<DialogDescription>SSO_TGC 或 Cookie</DialogDescription>
 				</DialogHeader>
 				<form
 					className="grid gap-4"
@@ -577,7 +577,7 @@ function CredentialFormDialog(props: {
 function TgcInput(props: { onChange: (value: string) => void; value: string }) {
 	return (
 		<label className="grid gap-1 text-sm" htmlFor="internal-portal-sso-tgc">
-			<span className="font-medium">SSO_TGC</span>
+			<span className="font-medium">SSO_TGC 或 Cookie</span>
 			<Input
 				autoComplete="off"
 				id="internal-portal-sso-tgc"

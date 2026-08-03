@@ -19,7 +19,7 @@ status: active
 
 - `GET /api/ops/internal-portal/credentials` 返回全部记录的标识、名称、版本、创建与更新时间、最近
   尝试、最近成功和结果分类，不返回 TGC；
-- `POST /api/ops/internal-portal/credentials` 接收 `name` 与原始 `ssoTgc`，真实验证成功后创建记录；
+- `POST /api/ops/internal-portal/credentials` 接收 `name` 与 `ssoTgc` 候选输入，真实验证成功后创建记录；
 - `PUT /api/ops/internal-portal/credentials/:credentialId` 接收且只接收 `name` 或 `ssoTgc`。修改要求
   `If-Match: "<version>"`；轮换候选必须先通过真实验证；
 - `DELETE /api/ops/internal-portal/credentials/:credentialId` 要求当前 `If-Match` 并删除记录；
@@ -27,8 +27,11 @@ status: active
   metadata；认证失败记录为结果，不删除记录；
 - `POST /api/ops/internal-portal/credentials/:credentialId/reveal` 返回当前原始 `ssoTgc`、标识和版本。
 
-名称去除首尾空白后为 1 至 80 个字符。TGC 最多 16 KiB，只接受不带 `SSO_TGC=` 前缀的原始 ASCII
-Cookie 值；请求正文上限为 20 KiB。记录标识为 UUID，版本为正整数。结果分类为 `valid`、
+名称去除首尾空白后为 1 至 80 个字符。候选输入最多 16 KiB，可以是原始 ASCII TGC 值、
+`SSO_TGC=<value>` Cookie 对，或包含唯一一个 `SSO_TGC` 的完整请求 Cookie；Cookie 名称不区分
+大小写，解析不执行 URL 解码。完整 Cookie 中的 `Path`、`JSESSIONID`、`nginx` 和重复非目标字段
+不会持久化。缺失、空值、重复 `SSO_TGC` 或无法解析的输入返回
+`400 OPS_INTERNAL_PORTAL_INPUT_INVALID`。请求正文上限为 20 KiB。记录标识为 UUID，版本为正整数。结果分类为 `valid`、
 `credential_rejected` 或 `check_failed`。
 
 新增和轮换在数据库写入前完成真实 CAS 验证。验证失败不得创建记录或覆盖原值。CAS 返回刷新的
@@ -44,6 +47,7 @@ mutation result、浏览器存储或剪贴板以外的持久位置。复制只�
 ## 失败语义
 
 - `422 OPS_INTERNAL_PORTAL_CREDENTIAL_REJECTED`：候选 TGC 被 CAS 或门户拒绝；
+- `400 OPS_INTERNAL_PORTAL_INPUT_INVALID`：候选值或 Cookie 格式无效；
 - `503 OPS_INTERNAL_PORTAL_CHECK_FAILED`：候选验证因网络、超时或依赖错误未完成；
 - `404 OPS_INTERNAL_PORTAL_NOT_FOUND`：记录不存在；
 - `409 OPS_INTERNAL_PORTAL_CONFLICT`：调用方版本已过期；

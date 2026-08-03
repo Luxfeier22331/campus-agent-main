@@ -83,6 +83,7 @@ import {
 	EmailAccessAdminResponseError,
 	EmailAccessAdminUnavailableError,
 } from "./email-access-client.ts";
+import { InternalPortalCandidateInputError } from "./internal-portal-candidate-input.ts";
 import {
 	createInternalPortalCredentialService,
 	InternalPortalCandidateCheckFailedError,
@@ -328,6 +329,9 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		}
 		if (error instanceof InternalPortalCredentialConflictError) {
 			return jsonError("OPS_INTERNAL_PORTAL_CONFLICT", error.message, 409);
+		}
+		if (error instanceof InternalPortalCandidateInputError) {
+			return jsonError("OPS_INTERNAL_PORTAL_INPUT_INVALID", error.message, 400);
 		}
 		if (error instanceof InternalPortalCandidateRejectedError) {
 			return jsonError("OPS_INTERNAL_PORTAL_CREDENTIAL_REJECTED", error.message, 422);

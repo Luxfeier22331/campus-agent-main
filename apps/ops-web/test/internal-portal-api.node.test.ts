@@ -2,6 +2,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { createOpsApp } from "../src/server/app.ts";
+import { InternalPortalCandidateInputError } from "../src/server/internal-portal-candidate-input.ts";
 import { InternalPortalCandidateRejectedError } from "../src/server/internal-portal-credential-service.ts";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission.ts";
 
@@ -105,6 +106,24 @@ describe("internal portal credential API", () => {
 		expect(response.status).toBe(422);
 		expect(await response.json()).toMatchObject({
 			error: { code: "OPS_INTERNAL_PORTAL_CREDENTIAL_REJECTED" },
+		});
+	});
+
+	it("returns the existing input error for malformed candidate Cookie input", async () => {
+		const { app, service } = createTestApp();
+		service.create.mockRejectedValueOnce(new InternalPortalCandidateInputError());
+		const response = await app.request("http://ops.test/api/ops/internal-portal/credentials", {
+			body: JSON.stringify({ name: "开发凭据", ssoTgc: "Path=/" }),
+			headers: {
+				"content-type": "application/json",
+				origin: "https://ops.example.test",
+			},
+			method: "POST",
+		});
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toMatchObject({
+			error: { code: "OPS_INTERNAL_PORTAL_INPUT_INVALID" },
 		});
 	});
 });

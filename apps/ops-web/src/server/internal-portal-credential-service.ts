@@ -12,6 +12,7 @@ import type {
 	InternalPortalCredential,
 	InternalPortalCredentialOutcome,
 } from "../shared/ops-contract.ts";
+import { normalizeInternalPortalCandidateInput } from "./internal-portal-candidate-input.ts";
 import { createInternalPortalClientConfig } from "./internal-portal-config.ts";
 import {
 	InternalPortalCredentialConflictError,
@@ -86,7 +87,11 @@ export function createInternalPortalCredentialService(input: {
 	return {
 		async create(candidate, signal) {
 			const attemptedAt = now();
-			const effectiveTgc = await validateCandidate(candidate.ssoTgc, signal, checkAuthentication);
+			const effectiveTgc = await validateCandidate(
+				normalizeInternalPortalCandidateInput(candidate.ssoTgc),
+				signal,
+				checkAuthentication,
+			);
 			return toPublicCredential(
 				await input.store.create({
 					credentialId: randomId(),
@@ -127,7 +132,11 @@ export function createInternalPortalCredentialService(input: {
 
 		async rotate(credentialId, ssoTgc, expectedVersion, signal) {
 			const attemptedAt = now();
-			const effectiveTgc = await validateCandidate(ssoTgc, signal, checkAuthentication);
+			const effectiveTgc = await validateCandidate(
+				normalizeInternalPortalCandidateInput(ssoTgc),
+				signal,
+				checkAuthentication,
+			);
 			return toPublicCredential(
 				await input.store.rotate({
 					attemptedAt,

@@ -2,6 +2,7 @@
 
 import { PortalCredentialExpiredError } from "@campus-agent/internal-portal-client";
 import { describe, expect, it, vi } from "vitest";
+import { InternalPortalCandidateInputError } from "../src/server/internal-portal-candidate-input.ts";
 import {
 	createInternalPortalCredentialService,
 	InternalPortalCandidateCheckFailedError,
@@ -91,11 +92,34 @@ describe("internal portal credential service", () => {
 		expect(result).not.toHaveProperty("ssoTgc");
 	});
 
+	it("normalizes candidate Cookie input before validation and storage", async () => {
+		const store = createStore();
+		const checkAuthentication = vi.fn(async (ssoTgc: string) => ({ ssoTgc }));
+		const service = createInternalPortalCredentialService({
+			checkAuthentication,
+			randomId: () => FIRST_ID,
+			store,
+		});
+
+		await service.create({
+			name: "开发凭据",
+			ssoTgc: "Path=/; JSESSIONID=synthetic-session; SSO_TGC=TGT-synthetic-cookie",
+		});
+
+		expect(checkAuthentication).toHaveBeenCalledWith(
+			"TGT-synthetic-cookie",
+			expect.any(AbortSignal),
+		);
+		expect(store.create).toHaveBeenCalledWith(
+			expect.objectContaining({ ssoTgc: "TGT-synthetic-cookie" }),
+		);
+	});
+
 	it("does not overwrite a credential when candidate validation fails", async () => {
 		const store = createStore();
 		const malformed = createInternalPortalCredentialService({ store });
 		await expect(malformed.rotate(FIRST_ID, " TGT-new", 1)).rejects.toBeInstanceOf(
-			InternalPortalCandidateRejectedError,
+			InternalPortalCandidateInputError,
 		);
 		expect(store.rotate).not.toHaveBeenCalled();
 

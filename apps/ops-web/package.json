@@ -46,6 +46,7 @@
 		"@tldraw/editor": "5.2.4",
 		"@tldraw/tlschema": "5.2.4",
 		"clsx": "^2.1.1",
+		"cookie": "1.1.1",
 		"hono": "^4.12.27",
 		"jose": "^6.2.3",
 		"lucide-react": "^1.23.0",

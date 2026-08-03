@@ -61,4 +61,19 @@ describe("internal portal credentials page", () => {
 			expect(screen.queryByDisplayValue("TGT-plaintext")).not.toBeInTheDocument(),
 		);
 	});
+
+	it("labels candidate fields for raw TGC or Cookie input", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => Response.json({ credentials })),
+		);
+		render(<OpsWebApp initialPath="/internal-portal" />);
+
+		fireEvent.click(await screen.findByRole("button", { name: "新增凭据" }));
+		expect(screen.getByLabelText("SSO_TGC 或 Cookie")).toHaveAttribute("type", "password");
+		expect(screen.getByLabelText("SSO_TGC 或 Cookie")).toHaveAttribute(
+			"maxlength",
+			String(16 * 1024),
+		);
+	});
 });

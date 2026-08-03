@@ -8,7 +8,8 @@ status: active
 
 ## 运行模型
 
-协作者先通过学校统一认证取得原始 `SSO_TGC`，再在 Ops Web 的“内部门户凭据”页面录入并验证。
+协作者先通过学校统一认证取得 `SSO_TGC` 或浏览器中的原始请求 Cookie，再在 Ops Web 的“内部门户
+凭据”页面录入并验证。
 Ops Web Node 后端使用该值建立一次真实 CAS 与门户会话；只有验证成功才把 CAS 返回的当前 TGC
 写入 PostgreSQL `internal_portal.credentials`。系统允许同时保存多条具名凭据，不设置主凭据，也不
 自动选择其中一条供采集运行时使用。
@@ -24,7 +25,8 @@ ConfigMap、Kubernetes Secret、URL、Temporal 载荷、对象存储、日志或
 ## 录入与读取
 
 1. 在 Ops Web 进入“内部门户凭据”，选择“新增凭据”。
-2. 填写可辨认的名称和不带 `SSO_TGC=` 前缀的原始值。
+2. 填写可辨认的名称，以及原始 TGC 值、`SSO_TGC=<value>` 或包含唯一 `SSO_TGC` 的完整请求
+   Cookie。后端只提取并保存裸 TGC 值，其他 Cookie 字段不会保存。
 3. 等待真实门户验证完成。CAS 拒绝或门户暂时不可用时，新增失败且不创建记录。
 4. 需要开发时选择目标记录的“显示明文”并复制当前值。明文只保存在当前对话框的 React state，
    关闭后即从页面移除，不进入 TanStack Query cache 或 mutation 结果。
@@ -84,6 +86,8 @@ pnpm --filter source-collector auth:check
 ## 失败处理
 
 - `OPS_INTERNAL_PORTAL_CREDENTIAL_REJECTED`：候选值已被拒绝，重新取得 TGC 后再新增或轮换；
+- `OPS_INTERNAL_PORTAL_INPUT_INVALID`：输入缺失、为空、包含重复 `SSO_TGC` 或不是支持的 TGC/Cookie
+  格式；
 - `OPS_INTERNAL_PORTAL_CHECK_FAILED`：候选验证暂时无法完成，保留原值并检查门户网络；
 - `OPS_INTERNAL_PORTAL_CONFLICT`：记录在操作期间已变化，刷新页面后重新决定；
 - `OPS_INTERNAL_PORTAL_STORE_UNAVAILABLE`：检查 Ops Web 数据库 migration、授权、连接和 CA；

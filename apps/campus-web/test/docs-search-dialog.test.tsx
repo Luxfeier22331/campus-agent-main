@@ -6,7 +6,7 @@ import {
 	Outlet,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DocsSearchPanel } from "../src/components/docs/docs-search-dialog";
@@ -32,6 +32,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+	vi.useRealTimers();
 	vi.restoreAllMocks();
 });
 
@@ -157,6 +158,63 @@ describe("docs search dialog", () => {
 
 		await waitFor(() => expect(screen.getByText("2 篇文档")).toBeInTheDocument());
 		expect(screen.queryByText("没有找到相关文档")).not.toBeInTheDocument();
+	});
+
+	it("searches after a 150ms pause", async () => {
+		const siteIndex = createLargeDocsSiteIndex();
+		const searchIndex = createSearchIndex(siteIndex, 2);
+		mockSearchResults(siteIndex, searchIndex);
+		await renderSearchPanel(siteIndex);
+		vi.useFakeTimers();
+
+		const input = screen.getByRole("combobox", { name: "搜索校园文档" });
+		fireEvent.change(input, { target: { value: "共同" } });
+		await act(() => vi.advanceTimersByTimeAsync(149));
+		expect(searchClientMock.search).not.toHaveBeenCalled();
+
+		fireEvent.change(input, { target: { value: "共同关键词" } });
+		await act(() => vi.advanceTimersByTimeAsync(149));
+		expect(searchClientMock.search).not.toHaveBeenCalled();
+		await act(() => vi.advanceTimersByTimeAsync(1));
+
+		expect(searchClientMock.search).toHaveBeenCalledOnce();
+		expect(searchClientMock.search).toHaveBeenCalledWith(
+			expect.objectContaining({ query: "共同关键词" }),
+		);
+	});
+
+	it("searches within 500ms while input keeps changing", async () => {
+		const siteIndex = createLargeDocsSiteIndex();
+		const searchIndex = createSearchIndex(siteIndex, 2);
+		mockSearchResults(siteIndex, searchIndex);
+		await renderSearchPanel(siteIndex);
+		vi.useFakeTimers();
+
+		const input = screen.getByRole("combobox", { name: "搜索校园文档" });
+		for (const value of ["共", "共同", "共同关", "共同关键", "共同关键词"]) {
+			fireEvent.change(input, { target: { value } });
+			await act(() => vi.advanceTimersByTimeAsync(100));
+		}
+
+		expect(searchClientMock.search).toHaveBeenCalledOnce();
+		expect(searchClientMock.search).toHaveBeenCalledWith(
+			expect.objectContaining({ query: "共同关键词" }),
+		);
+	});
+
+	it("cancels a pending search when the input is cleared", async () => {
+		const siteIndex = createLargeDocsSiteIndex();
+		mockSearchResults(siteIndex, createSearchIndex(siteIndex, 2));
+		await renderSearchPanel(siteIndex);
+		vi.useFakeTimers();
+
+		const input = screen.getByRole("combobox", { name: "搜索校园文档" });
+		fireEvent.change(input, { target: { value: "共同关键词" } });
+		fireEvent.change(input, { target: { value: "" } });
+		await act(() => vi.advanceTimersByTimeAsync(500));
+
+		expect(searchClientMock.search).not.toHaveBeenCalled();
+		expect(screen.getByText("输入关键词开始搜索")).toBeInTheDocument();
 	});
 });
 

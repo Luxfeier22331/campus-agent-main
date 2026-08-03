@@ -1,4 +1,5 @@
 import { Button, Skeleton } from "@campus-agent/ui";
+import { useDebouncer, useThrottler } from "@tanstack/react-pacer";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ChevronDown } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
@@ -20,6 +21,8 @@ import type { DocsSiteIndex } from "@/features/docs/site-index";
 const INITIAL_VISIBLE_DOCUMENTS = 8;
 const DOCUMENTS_PAGE_SIZE = 8;
 const INITIAL_VISIBLE_SECTIONS = 3;
+const SEARCH_DEBOUNCE_MS = 150;
+const SEARCH_MAX_WAIT_MS = 500;
 
 export function DocsSearchPanel({
 	onNavigate,
@@ -33,6 +36,7 @@ export function DocsSearchPanel({
 	const navigate = useNavigate();
 	const [searchClient, setSearchClient] = useState<DocsSearchClient | null>(null);
 	const [query, setQuery] = useState("");
+	const [activeQuery, setActiveQuery] = useState("");
 	const [documentGroups, setDocumentGroups] = useState<DocsSearchDocumentGroup[]>([]);
 	const [totalDocumentCount, setTotalDocumentCount] = useState(0);
 	const [searching, setSearching] = useState(false);
@@ -41,12 +45,61 @@ export function DocsSearchPanel({
 	const [expandedDocuments, setExpandedDocuments] = useState<Set<string>>(() => new Set());
 	const inputRef = useRef<HTMLInputElement>(null);
 	const querySequence = useRef(0);
+	const executedQuerySequence = useRef(0);
+	const normalizedQueryRef = useRef("");
+
+	function executeSearch(client: DocsSearchClient, searchQuery: string, sequence: number) {
+		if (sequence !== querySequence.current || sequence === executedQuerySequence.current) {
+			return;
+		}
+		executedQuerySequence.current = sequence;
+		void client
+			.search({
+				documentLimit: INITIAL_VISIBLE_DOCUMENTS,
+				documentOffset: 0,
+				query: searchQuery,
+			})
+			.then((response) => {
+				if (sequence !== querySequence.current) {
+					return;
+				}
+				setActiveQuery(searchQuery);
+				setDocumentGroups(response.documentGroups);
+				setTotalDocumentCount(response.totalDocumentCount);
+				setSearching(false);
+			})
+			.catch(() => {
+				if (sequence !== querySequence.current) {
+					return;
+				}
+				setActiveQuery("");
+				setDocumentGroups([]);
+				setTotalDocumentCount(0);
+				setSearching(false);
+				setStatus("unavailable");
+			});
+	}
+
+	const searchDebouncer = useDebouncer(executeSearch, {
+		leading: false,
+		trailing: true,
+		wait: SEARCH_DEBOUNCE_MS,
+	});
+	const searchMaxWaitThrottler = useThrottler(executeSearch, {
+		leading: false,
+		trailing: true,
+		wait: SEARCH_MAX_WAIT_MS,
+	});
 
 	useEffect(() => {
 		let active = true;
 		const client = loadDocsSearchClient({ searchIndexUrl, siteIndex });
+		querySequence.current += 1;
+		searchDebouncer.cancel();
+		searchMaxWaitThrottler.cancel();
 		setStatus("loading");
 		setSearchClient(null);
+		setActiveQuery("");
 		setDocumentGroups([]);
 		setTotalDocumentCount(0);
 		setExpandedDocuments(new Set());
@@ -68,56 +121,49 @@ export function DocsSearchPanel({
 			});
 		return () => {
 			active = false;
+			querySequence.current += 1;
+			searchDebouncer.cancel();
+			searchMaxWaitThrottler.cancel();
 		};
-	}, [searchIndexUrl, siteIndex]);
+	}, [searchIndexUrl, searchDebouncer, searchMaxWaitThrottler, siteIndex]);
 
 	const normalizedQuery = normalizeDocsSearchQuery(query);
 	useEffect(() => {
-		const sequence = ++querySequence.current;
 		if (!(searchClient && normalizedQuery)) {
+			searchDebouncer.cancel();
+			searchMaxWaitThrottler.cancel();
+			setActiveQuery("");
 			setDocumentGroups([]);
 			setTotalDocumentCount(0);
 			setSearching(false);
 			setLoadingMore(false);
 			return;
 		}
+		const sequence = querySequence.current;
+		setActiveQuery("");
 		setDocumentGroups([]);
 		setTotalDocumentCount(0);
 		setSearching(true);
 		setLoadingMore(false);
-		const timeout = window.setTimeout(() => {
-			void searchClient
-				.search({
-					documentLimit: INITIAL_VISIBLE_DOCUMENTS,
-					documentOffset: 0,
-					query: normalizedQuery,
-				})
-				.then((response) => {
-					if (sequence !== querySequence.current) {
-						return;
-					}
-					setDocumentGroups(response.documentGroups);
-					setTotalDocumentCount(response.totalDocumentCount);
-					setSearching(false);
-				})
-				.catch(() => {
-					if (sequence !== querySequence.current) {
-						return;
-					}
-					setDocumentGroups([]);
-					setTotalDocumentCount(0);
-					setSearching(false);
-					setStatus("unavailable");
-				});
-		}, 80);
-		return () => window.clearTimeout(timeout);
-	}, [normalizedQuery, searchClient]);
+		searchDebouncer.maybeExecute(searchClient, normalizedQuery, sequence);
+		searchMaxWaitThrottler.maybeExecute(searchClient, normalizedQuery, sequence);
+	}, [normalizedQuery, searchClient, searchDebouncer, searchMaxWaitThrottler]);
 
 	useEffect(() => inputRef.current?.focus(), []);
 
 	function updateQuery(value: string) {
 		setQuery(value);
 		setExpandedDocuments(new Set());
+		const nextNormalizedQuery = normalizeDocsSearchQuery(value);
+		if (nextNormalizedQuery === normalizedQueryRef.current) {
+			return;
+		}
+		normalizedQueryRef.current = nextNormalizedQuery;
+		querySequence.current += 1;
+		if (!nextNormalizedQuery) {
+			searchDebouncer.cancel();
+			searchMaxWaitThrottler.cancel();
+		}
 	}
 
 	function toggleDocument(docId: string) {
@@ -143,7 +189,7 @@ export function DocsSearchPanel({
 		const sequence = querySequence.current;
 		setSearching(true);
 		void searchClient
-			.expand(normalizedQuery, docId)
+			.expand(activeQuery, docId)
 			.then((expandedGroup) => {
 				if (sequence !== querySequence.current) {
 					return;
@@ -165,7 +211,7 @@ export function DocsSearchPanel({
 
 	function loadMoreDocuments() {
 		if (
-			!(searchClient && normalizedQuery) ||
+			!(searchClient && activeQuery) ||
 			loadingMore ||
 			documentGroups.length >= totalDocumentCount
 		) {
@@ -177,7 +223,7 @@ export function DocsSearchPanel({
 			.search({
 				documentLimit: DOCUMENTS_PAGE_SIZE,
 				documentOffset: documentGroups.length,
-				query: normalizedQuery,
+				query: activeQuery,
 			})
 			.then((response) => {
 				if (sequence !== querySequence.current) {
@@ -247,7 +293,7 @@ export function DocsSearchPanel({
 									<header className="docs-search-document-header">
 										<span className="docs-search-result-title">
 											<DocsSearchHighlight
-												query={normalizedQuery}
+												query={activeQuery}
 												text={group.document.documentTitle}
 											/>
 										</span>
@@ -270,13 +316,10 @@ export function DocsSearchPanel({
 													to={url as never}
 												>
 													<span className="docs-search-result-section">
-														<DocsSearchHighlight
-															query={normalizedQuery}
-															text={entry.sectionTitle}
-														/>
+														<DocsSearchHighlight query={activeQuery} text={entry.sectionTitle} />
 													</span>
 													<span className="docs-search-result-snippet">
-														<DocsSearchHighlight query={normalizedQuery} text={entry.snippet} />
+														<DocsSearchHighlight query={activeQuery} text={entry.snippet} />
 													</span>
 												</Link>
 											</CommandItem>
