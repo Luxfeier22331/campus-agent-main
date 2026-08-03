@@ -1,6 +1,10 @@
 // @vitest-environment node
 
-import { PortalCredentialExpiredError } from "@campus-agent/internal-portal-client";
+import {
+	PortalCredentialExpiredError,
+	PortalCredentialUnavailableError,
+	PortalSessionExpiredError,
+} from "@campus-agent/internal-portal-client";
 import { describe, expect, it, vi } from "vitest";
 import { InternalPortalCandidateInputError } from "../src/server/internal-portal-candidate-input.ts";
 import {
@@ -164,10 +168,27 @@ describe("internal portal credential service", () => {
 		});
 
 		await expect(runScheduledInternalPortalChecks({ checkAuthentication, store })).resolves.toEqual(
-			[
-				{ credentialId: FIRST_ID, outcome: "credential_rejected" },
-				{ credentialId: SECOND_ID, outcome: "valid" },
-			],
+			{
+				checks: [
+					{
+						credentialId: FIRST_ID,
+						credentialName: "第一条",
+						durationMs: expect.any(Number),
+						failureKind: "credential_expired",
+						outcome: "credential_rejected",
+						refreshed: false,
+					},
+					{
+						credentialId: SECOND_ID,
+						credentialName: "第二条",
+						durationMs: expect.any(Number),
+						failureKind: null,
+						outcome: "valid",
+						refreshed: true,
+					},
+				],
+				suspended: [],
+			},
 		);
 		expect(recordCheck).toHaveBeenNthCalledWith(
 			1,
@@ -180,6 +201,95 @@ describe("internal portal credential service", () => {
 				outcome: "valid",
 				ssoTgc: "TGT-second-refreshed",
 			}),
+		);
+	});
+
+	it("suspends rejected credentials while retrying dependency failures", async () => {
+		const rejected = { ...credential(), lastOutcome: "credential_rejected" as const };
+		const retryable = {
+			...credential(SECOND_ID, "TGT-second"),
+			lastOutcome: "check_failed" as const,
+		};
+		const checkAuthentication = vi.fn(async () => {
+			throw new Error("synthetic dependency failure");
+		});
+		const store = createStore({
+			list: vi.fn(async () => [rejected, retryable]),
+		});
+
+		await expect(runScheduledInternalPortalChecks({ checkAuthentication, store })).resolves.toEqual(
+			{
+				checks: [
+					{
+						credentialId: SECOND_ID,
+						credentialName: "第二条",
+						durationMs: expect.any(Number),
+						failureKind: "dependency_error",
+						outcome: "check_failed",
+						refreshed: false,
+					},
+				],
+				suspended: [{ credentialId: FIRST_ID, credentialName: "第一条" }],
+			},
+		);
+		expect(checkAuthentication).toHaveBeenCalledOnce();
+		expect(checkAuthentication).toHaveBeenCalledWith("TGT-second", expect.any(AbortSignal));
+		expect(store.recordCheck).toHaveBeenCalledOnce();
+		expect(store.recordCheck).toHaveBeenCalledWith(
+			expect.objectContaining({ credentialId: SECOND_ID, outcome: "check_failed" }),
+		);
+	});
+
+	it.each([
+		{
+			error: new PortalSessionExpiredError("synthetic session expiry"),
+			failureKind: "session_expired",
+			outcome: "credential_rejected",
+		},
+		{
+			error: new PortalCredentialUnavailableError("synthetic configuration failure"),
+			failureKind: "configuration",
+			outcome: "check_failed",
+		},
+		{
+			error: Object.assign(new Error("synthetic timeout"), { name: "TimeoutError" }),
+			failureKind: "timeout",
+			outcome: "check_failed",
+		},
+	])("classifies $failureKind without aborting the scheduled run", async (testCase) => {
+		const checkAuthentication = vi.fn(async () => {
+			throw testCase.error;
+		});
+		const store = createStore();
+
+		const result = await runScheduledInternalPortalChecks({ checkAuthentication, store });
+
+		expect(result).toEqual({
+			checks: [
+				expect.objectContaining({
+					failureKind: testCase.failureKind,
+					outcome: testCase.outcome,
+				}),
+			],
+			suspended: [],
+		});
+	});
+
+	it("resumes a rejected credential after a successful manual check", async () => {
+		const rejected = { ...credential(), lastOutcome: "credential_rejected" as const };
+		const store = createStore({
+			get: vi.fn(async () => rejected),
+		});
+		const service = createInternalPortalCredentialService({
+			checkAuthentication: async (ssoTgc) => ({ ssoTgc }),
+			store,
+		});
+
+		await expect(service.validate(FIRST_ID)).resolves.toEqual(
+			expect.objectContaining({ lastOutcome: "valid" }),
+		);
+		expect(store.recordCheck).toHaveBeenCalledWith(
+			expect.objectContaining({ credentialId: FIRST_ID, outcome: "valid" }),
 		);
 	});
 
@@ -199,10 +309,27 @@ describe("internal portal credential service", () => {
 				checkAuthentication: async (ssoTgc) => ({ ssoTgc }),
 				store,
 			}),
-		).resolves.toEqual([
-			{ credentialId: FIRST_ID, outcome: "stale" },
-			{ credentialId: SECOND_ID, outcome: "valid" },
-		]);
+		).resolves.toEqual({
+			checks: [
+				{
+					credentialId: FIRST_ID,
+					credentialName: "第一条",
+					durationMs: expect.any(Number),
+					failureKind: null,
+					outcome: "stale",
+					refreshed: false,
+				},
+				{
+					credentialId: SECOND_ID,
+					credentialName: "第二条",
+					durationMs: expect.any(Number),
+					failureKind: null,
+					outcome: "valid",
+					refreshed: false,
+				},
+			],
+			suspended: [],
+		});
 	});
 
 	it("waits for initial cron database connectivity before checking credentials", async () => {
@@ -217,7 +344,16 @@ describe("internal portal credential service", () => {
 
 		await expect(
 			runScheduledInternalPortalChecks({ checkAuthentication, store, wait }),
-		).resolves.toEqual([{ credentialId: FIRST_ID, outcome: "valid" }]);
+		).resolves.toEqual({
+			checks: [
+				expect.objectContaining({
+					credentialId: FIRST_ID,
+					failureKind: null,
+					outcome: "valid",
+				}),
+			],
+			suspended: [],
+		});
 		expect(list).toHaveBeenCalledTimes(2);
 		expect(wait).toHaveBeenCalledOnce();
 		expect(wait).toHaveBeenCalledWith(1_000);

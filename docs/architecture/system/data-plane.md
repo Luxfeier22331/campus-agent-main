@@ -60,10 +60,11 @@ PostgreSQL、任务注册表或 Ops API，附件只保存 metadata。
 
 ## 认证检查
 
-Ops Web 在 PostgreSQL 保存多条具名 TGC，并由同镜像 CronJob 每分钟顺序建立门户会话、记录结果和
-CAS 返回的当前值。检查不触发采集、不写对象存储，也不进入 Temporal。source-collector 只在本地
-命令或显式启动的进程中消费开发者从 Ops Web 取出的直接值；它不读取 Ops Web 数据库，也不维护
-第二份认证状态。
+Ops Web 在 PostgreSQL 保存多条具名 TGC，并由同镜像 CronJob 每 30 分钟顺序建立门户会话、记录
+结果和 CAS 可能返回的当前值。该检查不保证延长 TGC 生命周期；明确拒绝的记录暂停定时检查，轮换
+或人工检查成功后恢复，依赖检查失败则在下一周期继续。检查不触发采集、不写对象存储，也不进入
+Temporal。source-collector 只在本地命令或显式启动的进程中消费开发者从 Ops Web 取出的直接值；
+它不读取 Ops Web 数据库，也不维护第二份认证状态。
 
 ## 状态分工
 

@@ -6,8 +6,10 @@ metadata:
     app.kubernetes.io/name: ops-web-internal-portal-check
     app.kubernetes.io/part-of: campus-agent
 spec:
-  schedule: "* * * * *"
+  schedule: "*/30 * * * *"
   concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 1
+  successfulJobsHistoryLimit: 3
   jobTemplate:
     spec:
       backoffLimit: 0

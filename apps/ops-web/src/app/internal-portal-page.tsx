@@ -332,7 +332,7 @@ function OutcomeBadge({ outcome }: { outcome: InternalPortalCredential["lastOutc
 		return <Badge tone="success">上次检查通过</Badge>;
 	}
 	if (outcome === "credential_rejected") {
-		return <Badge tone="danger">上次凭据被拒绝</Badge>;
+		return <Badge tone="danger">已暂停，等待轮换</Badge>;
 	}
 	if (outcome === "check_failed") {
 		return <Badge tone="warning">上次检查失败</Badge>;

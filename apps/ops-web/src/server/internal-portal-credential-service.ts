@@ -68,8 +68,24 @@ export interface InternalPortalCredentialService {
 
 export interface ScheduledInternalPortalCheck {
 	credentialId: string;
+	credentialName: string;
+	durationMs: number;
+	failureKind: InternalPortalCheckFailureKind | null;
 	outcome: InternalPortalCredentialOutcome | "stale";
+	refreshed: boolean;
 }
+
+export interface ScheduledInternalPortalCheckRun {
+	checks: ScheduledInternalPortalCheck[];
+	suspended: Array<{ credentialId: string; credentialName: string }>;
+}
+
+export type InternalPortalCheckFailureKind =
+	| "configuration"
+	| "credential_expired"
+	| "dependency_error"
+	| "session_expired"
+	| "timeout";
 
 export function createInternalPortalCredentialService(input: {
 	checkAuthentication?: (
@@ -149,15 +165,14 @@ export function createInternalPortalCredentialService(input: {
 
 		async validate(credentialId, signal) {
 			const credential = await requireCredential(input.store, credentialId);
-			return toPublicCredential(
-				await checkAndRecord({
-					checkAuthentication,
-					credential,
-					now,
-					signal,
-					store: input.store,
-				}),
-			);
+			const result = await checkAndRecord({
+				checkAuthentication,
+				credential,
+				now,
+				signal,
+				store: input.store,
+			});
+			return toPublicCredential(result.credential);
 		},
 	};
 }
@@ -170,14 +185,23 @@ export async function runScheduledInternalPortalChecks(input: {
 	now?: () => Date;
 	store: InternalPortalCredentialStore;
 	wait?: (milliseconds: number) => Promise<void>;
-}): Promise<ScheduledInternalPortalCheck[]> {
+}): Promise<ScheduledInternalPortalCheckRun> {
 	const now = input.now ?? (() => new Date());
 	const checkAuthentication = input.checkAuthentication ?? checkCredentialAgainstPortal;
 	const checks: ScheduledInternalPortalCheck[] = [];
+	const suspended: ScheduledInternalPortalCheckRun["suspended"] = [];
 	const credentials = await listCredentialsWhenDatabaseReady(input.store, input.wait ?? delay);
 	for (const credential of credentials) {
+		if (credential.lastOutcome === "credential_rejected") {
+			suspended.push({
+				credentialId: credential.credentialId,
+				credentialName: credential.name,
+			});
+			continue;
+		}
+		const startedAt = performance.now();
 		try {
-			const updated = await checkAndRecord({
+			const result = await checkAndRecord({
 				checkAuthentication,
 				credential,
 				now,
@@ -185,20 +209,31 @@ export async function runScheduledInternalPortalChecks(input: {
 			});
 			checks.push({
 				credentialId: credential.credentialId,
-				outcome: updated.lastOutcome ?? "check_failed",
+				credentialName: credential.name,
+				durationMs: elapsedMilliseconds(startedAt),
+				failureKind: result.failureKind,
+				outcome: result.credential.lastOutcome ?? "check_failed",
+				refreshed: result.refreshed,
 			});
 		} catch (error) {
 			if (
 				error instanceof InternalPortalCredentialConflictError ||
 				error instanceof InternalPortalCredentialNotFoundError
 			) {
-				checks.push({ credentialId: credential.credentialId, outcome: "stale" });
+				checks.push({
+					credentialId: credential.credentialId,
+					credentialName: credential.name,
+					durationMs: elapsedMilliseconds(startedAt),
+					failureKind: null,
+					outcome: "stale",
+					refreshed: false,
+				});
 				continue;
 			}
 			throw error;
 		}
 	}
-	return checks;
+	return { checks, suspended };
 }
 
 async function listCredentialsWhenDatabaseReady(
@@ -242,10 +277,15 @@ async function checkAndRecord(input: {
 	now: () => Date;
 	signal?: AbortSignal;
 	store: InternalPortalCredentialStore;
-}): Promise<InternalPortalCredentialRecord> {
+}): Promise<{
+	credential: InternalPortalCredentialRecord;
+	failureKind: InternalPortalCheckFailureKind | null;
+	refreshed: boolean;
+}> {
 	const attemptedAt = input.now();
 	let outcome: InternalPortalCredentialOutcome = "valid";
 	let effectiveTgc = input.credential.ssoTgc;
+	let failureKind: InternalPortalCheckFailureKind | null = null;
 	try {
 		const result = await input.checkAuthentication(
 			input.credential.ssoTgc,
@@ -253,15 +293,22 @@ async function checkAndRecord(input: {
 		);
 		effectiveTgc = result.ssoTgc;
 	} catch (error) {
-		outcome = isCredentialRejection(error) ? "credential_rejected" : "check_failed";
+		const failure = classifyCheckFailure(error);
+		outcome = failure.outcome;
+		failureKind = failure.failureKind;
 	}
-	return await input.store.recordCheck({
+	const credential = await input.store.recordCheck({
 		attemptedAt,
 		credentialId: input.credential.credentialId,
 		expectedVersion: input.credential.version,
 		outcome,
 		ssoTgc: effectiveTgc,
 	});
+	return {
+		credential,
+		failureKind,
+		refreshed: effectiveTgc !== input.credential.ssoTgc,
+	};
 }
 
 async function validateCandidate(
@@ -304,10 +351,42 @@ function checkSignal(signal?: AbortSignal): AbortSignal {
 
 function isCredentialRejection(error: unknown): boolean {
 	return (
-		error instanceof PortalCredentialUnavailableError ||
-		error instanceof PortalCredentialExpiredError ||
-		error instanceof PortalSessionExpiredError
+		error instanceof PortalCredentialExpiredError || error instanceof PortalSessionExpiredError
 	);
+}
+
+function classifyCheckFailure(error: unknown): {
+	failureKind: InternalPortalCheckFailureKind;
+	outcome: Exclude<InternalPortalCredentialOutcome, "valid">;
+} {
+	if (error instanceof PortalCredentialExpiredError) {
+		return { failureKind: "credential_expired", outcome: "credential_rejected" };
+	}
+	if (error instanceof PortalSessionExpiredError) {
+		return { failureKind: "session_expired", outcome: "credential_rejected" };
+	}
+	if (error instanceof PortalCredentialUnavailableError) {
+		return { failureKind: "configuration", outcome: "check_failed" };
+	}
+	if (hasErrorName(error, "TimeoutError")) {
+		return { failureKind: "timeout", outcome: "check_failed" };
+	}
+	return { failureKind: "dependency_error", outcome: "check_failed" };
+}
+
+function hasErrorName(error: unknown, name: string): boolean {
+	let current: unknown = error;
+	while (current instanceof Error) {
+		if (current.name === name) {
+			return true;
+		}
+		current = current.cause;
+	}
+	return false;
+}
+
+function elapsedMilliseconds(startedAt: number): number {
+	return Math.max(0, Math.round(performance.now() - startedAt));
 }
 
 async function requireCredential(

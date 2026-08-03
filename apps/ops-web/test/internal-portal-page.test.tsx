@@ -16,9 +16,9 @@ const credentials = [
 	{
 		createdAt: "2026-08-02T01:02:00.000Z",
 		credentialId: "22222222-2222-4222-8222-222222222222",
-		lastAttemptAt: null,
-		lastOutcome: null,
-		lastSuccessfulAt: null,
+		lastAttemptAt: "2026-08-02T02:00:00.000Z",
+		lastOutcome: "credential_rejected",
+		lastSuccessfulAt: "2026-08-02T01:30:00.000Z",
 		name: "第二条凭据",
 		updatedAt: "2026-08-02T01:02:00.000Z",
 		version: 1,
@@ -45,6 +45,7 @@ describe("internal portal credentials page", () => {
 		expect(await screen.findByRole("heading", { name: "内部门户凭据" })).toBeInTheDocument();
 		expect((await screen.findAllByText("第一条凭据")).length).toBeGreaterThan(0);
 		expect((await screen.findAllByText("第二条凭据")).length).toBeGreaterThan(0);
+		expect(screen.getAllByText("已暂停，等待轮换").length).toBeGreaterThan(0);
 		expect(screen.queryByDisplayValue("TGT-plaintext")).not.toBeInTheDocument();
 
 		fireEvent.click(screen.getAllByRole("button", { name: "显示明文" })[0] as HTMLElement);

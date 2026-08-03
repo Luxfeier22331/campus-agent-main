@@ -23,6 +23,10 @@ Ops Web 使用 `internal_portal.credentials` 保存多条具名记录。每条�
 新增和轮换先完成真实 CAS 验证，失败不写入候选值。CAS 返回刷新的 TGC 时保存新值。重命名、轮换、
 删除和定时检查都以当前版本为并发前置条件，旧检查不能覆盖检查期间发生的轮换。
 
+定时检查每 30 分钟读取一次记录。`credential_rejected` 记录不再自动访问门户，轮换或人工检查成功
+并写回 `valid` 后恢复；`check_failed` 记录在下一周期继续检查。暂停状态直接由现有
+`last_outcome` 推导，不增加持久化字段。检查接受 CAS 可能返回的当前 TGC，但不保证延长其生命周期。
+
 Ops Web 列表只投影非敏感 metadata。明文读取是单独的同源 `POST`，TGC 只进入当前浏览器对话框
 内存，不进入查询缓存或浏览器存储。`ops_web` 是该 schema 的唯一运行角色；App API、
 source-collector、Temporal 和对象存储都不能读取该表。
@@ -87,9 +91,9 @@ workflow result，不另存对象。
 Cookie 不写环境变量、对象存储、PostgreSQL 或 Temporal 载荷。Ops Web 只持久化 CAS 返回的当前
 TGC 和有界检查 metadata；source-collector 的本地 `auth:check` 不写认证状态。
 
-Ops Web CronJob 直接读取凭据表并顺序检查，不经过 source-collector，不写 source 或 derived
-bucket，也不触发通知或文件发布采集。source-collector 本地命令只消费开发者显式传入的直接变量，
-不持久化该值或读取凭据表。
+Ops Web CronJob 直接读取凭据表并顺序检查未暂停记录，不经过 source-collector，不写 source 或
+derived bucket，也不触发通知或文件发布采集。source-collector 本地命令只消费开发者显式传入的
+直接变量，不持久化该值或读取凭据表。
 
 ## 相关文档
 

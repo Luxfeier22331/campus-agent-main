@@ -45,16 +45,26 @@ CAS 可能在验证过程中刷新 `SSO_TGC`。Ops Web 保存刷新后的值并�
 
 ## 定时检查
 
-`ops-web-internal-portal-check` CronJob 每分钟读取全部记录并顺序检查，每条门户调用最多等待 60 秒：
+`ops-web-internal-portal-check` CronJob 使用 `*/30 * * * *` 每 30 分钟读取记录并顺序检查，每条
+门户调用最多等待 60 秒：
 
 - `valid`：门户会话建立成功，更新最近成功时间并保存 CAS 返回的当前 TGC；
-- `credential_rejected`：CAS 或门户明确拒绝该凭据；
-- `check_failed`：网络、超时或其他依赖错误，不能据此判断凭据已失效。
+- `credential_rejected`：CAS 或门户明确拒绝该凭据；记录随后暂停自动检查，避免继续请求无效凭据；
+- `check_failed`：配置、网络、超时或其他依赖错误，不能据此判断凭据已失效，下一周期继续检查。
 
-单条认证失败不阻断后续记录。每次写回都使用检查开始时读取的 `credential_id + version`；检查期间
-发生轮换或删除时，旧结果标记为 `stale`，不得覆盖新值。任一记录为 `credential_rejected` 或
-`check_failed` 时本次 Job 以失败结束，使 Kubernetes 保留原生失败状态；详细结果同时保存在记录
-元数据中。
+定时检查跳过已为 `credential_rejected` 的记录。操作者成功轮换该记录，或通过“立即检查”成功写回
+`valid` 后，下一周期自动恢复；人工检查仍失败时保持暂停。单条认证失败不阻断后续记录。每次写回
+都使用检查开始时读取的 `credential_id + version`；检查期间发生轮换或删除时，旧结果标记为
+`stale`，不得覆盖新值。
+
+本周期新产生的 `credential_rejected` 或 `check_failed` 会使 Job 失败；只存在已暂停记录时 Job
+成功。进程为每条实际检查输出 `internal_portal.credential_check` 事件，并为整个 Job 输出
+`internal_portal.check_run` 汇总事件。事件使用 `credential_id` 关联，携带名称快照、失败类型、耗时、
+刷新标志和数量，不记录 TGC、Cookie 或原始错误。CronJob 禁止并发，不在同一 Job 内重试，并保留
+最近 3 个成功 Job 和 1 个失败 Job。
+
+该任务是认证健康检查，不是可承诺续期的保活协议。CAS 若在建会话时返回当前 TGC，Ops Web 会保存
+它；门户仍可按自身策略使 TGC 失效。
 
 CronJob 使用 Ops Web 同一镜像、ServiceAccount、数据库连接和 CA，只开放 DNS、PostgreSQL 5432
 与外部 HTTPS 443 的 egress。它不访问 Kubernetes API，不触发通知或文件发布采集。

@@ -45,8 +45,9 @@ status: accepted
 - 通知是 `source-collector` 的本地开发命令，不进入 Temporal、任务注册表或 Ops 控制面；文件
   发布按精确 ID 提交独立 workflow，但不成为 ingestion task；
 - Ops Web 使用所属 PostgreSQL schema 保存原始 TGC 和有界检查 metadata；同镜像 Kubernetes
-  CronJob 每分钟顺序建立门户会话，保存 CAS 刷新后的当前值，并以记录版本阻止旧检查覆盖轮换；
-  该检查不进入 Temporal、不提交采集任务，也不控制通知同步。
+  CronJob 每 30 分钟顺序建立门户会话，保存 CAS 可能返回的当前值，并以记录版本阻止旧检查覆盖
+  轮换；该检查不保证延长 TGC 生命周期。凭据被明确拒绝后暂停定时检查，轮换或人工检查成功后
+  恢复；依赖检查失败仍在下一周期重试。该检查不进入 Temporal、不提交采集任务，也不控制通知同步。
 
 ## 结果
 

@@ -44,3 +44,34 @@ test_post_sync_hook_is_outside_pre_deploy_contract if {
 	}
 	count(violations) == 0
 }
+
+internal_portal_check_fixture := {
+	"kind": "CronJob",
+	"metadata": {"name": "ops-web-internal-portal-check"},
+	"spec": {
+		"schedule": "*/30 * * * *",
+		"concurrencyPolicy": "Forbid",
+		"successfulJobsHistoryLimit": 3,
+		"failedJobsHistoryLimit": 1,
+		"jobTemplate": {"spec": {"backoffLimit": 0}},
+	},
+}
+
+test_internal_portal_check_policy_is_allowed if {
+	violations := violation with input as internal_portal_check_fixture
+	count(violations) == 0
+}
+
+test_internal_portal_check_policy_drift_is_rejected if {
+	drifted := object.union(internal_portal_check_fixture, {
+		"spec": {
+			"schedule": "* * * * *",
+			"concurrencyPolicy": "Allow",
+			"successfulJobsHistoryLimit": 1,
+			"failedJobsHistoryLimit": 2,
+			"jobTemplate": {"spec": {"backoffLimit": 1}},
+		},
+	})
+	violations := violation with input as drifted
+	count(violations) == 5
+}
