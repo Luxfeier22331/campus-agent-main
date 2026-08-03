@@ -20,15 +20,27 @@ on:
 permissions:
   contents: read
 
+env:
+  NIX_CONFIG: |
+    experimental-features = nix-command flakes
+    max-jobs = 1
+    cores = 2
+
 concurrency:
   group: staging-candidate-publish
   cancel-in-progress: false
 
 jobs:
   release-plan:
-    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 3
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     environment: staging
+    permissions:
+      contents: read
+      statuses: write
+    defaults:
+      run:
+        shell: nix develop .#ci-light --command bash -e {0}
     outputs:
       base: ${{ steps.plan.outputs.base }}
       head: ${{ steps.plan.outputs.head }}
@@ -44,6 +56,23 @@ jobs:
           fetch-depth: 0
           filter: blob:none
           persist-credentials: false
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
+          enable_kvm: false
+
+      - name: Restore pnpm store
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
+        with:
+          path: ${{ runner.tool_cache }}/pnpm-store
+          key: pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Configure pnpm store
+        run: echo "npm_config_store_dir=${RUNNER_TOOL_CACHE}/pnpm-store" >> "$GITHUB_ENV"
 
       - name: Create GitOps read token
         id: gitops-read-token
@@ -67,16 +96,12 @@ jobs:
             /cloudflare/staging/worker-versions.json
           sparse-checkout-cone-mode: false
 
-      - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6
-        with:
-          node-version-file: .node-version
-          package-manager-cache: false
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271  # v6
-        with:
-          version: "10.34.5"
+      - name: Install release planner dependencies
+        run: |
+          set -euo pipefail
+          mkdir -p "$npm_config_store_dir"
+          pnpm install --frozen-lockfile --prefer-offline \
+            --filter campus-agent-web-workspace
 
       - name: Select release candidates
         id: plan
@@ -112,13 +137,6 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           jq . <<< "$plan"
 
-  candidate-pending:
-    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 2
-    permissions:
-      contents: read
-      statuses: write
-    steps:
       - name: Mark staging candidate pending
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -131,50 +149,104 @@ jobs:
           -f target_url="$TARGET_URL"
 
   candidate-evidence:
-    needs: [release-plan, candidate-pending]
-    if: needs.release-plan.result == 'success' && needs.candidate-pending.result == 'success'
+    needs: release-plan
+    if: needs.release-plan.result == 'success'
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 75
+    timeout-minutes: 90
     steps:
       - name: Checkout
+        if: fromJSON(needs.release-plan.outputs.validation_profiles)[0] != null
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
         with:
           fetch-depth: 0
           filter: blob:none
           persist-credentials: false
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271  # v6
-        with:
-          version: "10.34.5"
-      - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6
-        with:
-          node-version-file: .node-version
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-      - name: Setup repository tools
-        uses: aquaproj/aqua-installer@96a9bc20066c5bf5e275b41019cfc165b25f4e2e  # v4.0.5
-        env:
-          AQUA_ROOT_DIR: ${{ runner.tool_cache }}/aqua
-        with:
-          aqua_version: v2.62.1
       - name: Install candidate workspaces
-        run: pnpm install --frozen-lockfile --prefer-offline
+        if: fromJSON(needs.release-plan.outputs.validation_profiles)[0] != null
+        env:
+          npm_config_store_dir: ${{ runner.tool_cache }}/pnpm-store
+        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-full --command bash -e {0}
+        run: |
+          set -euo pipefail
+          mkdir -p "$npm_config_store_dir"
+          pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Install evaluation dependencies
+        if: contains(fromJSON(needs.release-plan.outputs.validation_profiles), 'ragas')
+        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-full --command bash -e {0}
+        run: uv sync --package campus-ragas-runner
+
+      - name: Verify Docker evidence dependency
+        if: >-
+          contains(fromJSON(needs.release-plan.outputs.validation_profiles), 'app-api-migration') ||
+          contains(fromJSON(needs.release-plan.outputs.validation_profiles), 'app-api-product-db') ||
+          contains(fromJSON(needs.release-plan.outputs.validation_profiles), 'execution-control-postgres') ||
+          contains(fromJSON(needs.release-plan.outputs.validation_profiles), 'ingestion-control-postgres') ||
+          contains(fromJSON(needs.release-plan.outputs.validation_profiles), 'ops-web-postgres') ||
+          contains(fromJSON(needs.release-plan.outputs.validation_profiles), 'otel')
+        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-full --command bash -e {0}
+        run: docker info >/dev/null
+
+      - name: Install Chromium headless shell
+        if: >-
+          contains(fromJSON(needs.release-plan.outputs.validation_profiles), 'campus-browser-smoke') ||
+          contains(fromJSON(needs.release-plan.outputs.validation_profiles), 'campus-browser-full') ||
+          contains(fromJSON(needs.release-plan.outputs.validation_profiles), 'ops-web-browser')
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.tool_cache }}/ms-playwright
+        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-full --command bash -e {0}
+        run: pnpm --dir apps/campus-web exec playwright install --only-shell chromium
+
       - name: Run selected candidate evidence
+        if: fromJSON(needs.release-plan.outputs.validation_profiles)[0] != null
         env:
           BASE_SHA: ${{ needs.release-plan.outputs.base }}
+          CAMPUS_WEB_E2E_PREBUILT: "1"
+          CARGO_TARGET_DIR: ${{ runner.tool_cache }}/cargo-target/campus-agent
+          CI_DOCKER_CGROUP_PARENT: ci.slice
           HEAD_SHA: ${{ needs.release-plan.outputs.head }}
+          OPS_WEB_BROWSER_TEST_PORT: "4278"
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.tool_cache }}/ms-playwright
+          TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+          TURBO_TELEMETRY_DISABLED: "1"
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           VALIDATION_PROFILES: ${{ needs.release-plan.outputs.validation_profiles }}
+        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-full --command bash -e {0}
         run: >-
-          node --experimental-strip-types scripts/release/evidence.mts
+          node --experimental-strip-types scripts/ci/evidence.mts
           --base "$BASE_SHA"
           --head "$HEAD_SHA"
           --profiles "$VALIDATION_PROFILES"
 
+      - name: Complete candidate without affected evidence
+        if: fromJSON(needs.release-plan.outputs.validation_profiles)[0] == null
+        run: echo "No candidate evidence is required for this Source revision."
+
+      - name: Upload browser failure evidence
+        if: >-
+          failure() &&
+          (
+            contains(fromJSON(needs.release-plan.outputs.validation_profiles), 'campus-browser-smoke') ||
+            contains(fromJSON(needs.release-plan.outputs.validation_profiles), 'campus-browser-full') ||
+            contains(fromJSON(needs.release-plan.outputs.validation_profiles), 'ops-web-browser')
+          )
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          if-no-files-found: ignore
+          name: candidate-browser-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            apps/campus-web/playwright-report/e2e
+            apps/campus-web/playwright-report/e2e-worker
+            apps/campus-web/test-results/e2e
+            apps/campus-web/test-results/e2e-worker
+            apps/ops-web/test-results
+            apps/ops-web/playwright-report
+          retention-days: 7
+
   candidate-status:
-    needs: [release-plan, candidate-pending, candidate-evidence]
+    needs: [release-plan, candidate-evidence]
     if: always()
-    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
+    runs-on: ubuntu-24.04
     timeout-minutes: 2
     permissions:
       contents: read
@@ -187,7 +259,6 @@ jobs:
         env:
           EVIDENCE_RESULT: ${{ needs.candidate-evidence.result }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PENDING_RESULT: ${{ needs.candidate-pending.result }}
           PLAN_RESULT: ${{ needs.release-plan.result }}
           TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
@@ -195,7 +266,7 @@ jobs:
           state=failure
           approved=false
           description='This Source revision is not a valid staging candidate'
-          if [ "$PLAN_RESULT" = success ] && [ "$PENDING_RESULT" = success ] && [ "$EVIDENCE_RESULT" = success ]; then
+          if [ "$PLAN_RESULT" = success ] && [ "$EVIDENCE_RESULT" = success ]; then
             state=success
             approved=true
             description='Affected Source and deployment contracts passed'
@@ -220,24 +291,14 @@ jobs:
     permissions:
       contents: read
       packages: write
+    defaults:
+      run:
+        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-full --command bash -e {0}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
         with:
           persist-credentials: false
-
-      - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6
-        with:
-          node-version-file: .node-version
-          package-manager-cache: false
-
-      - name: Setup image scanner
-        uses: aquaproj/aqua-installer@96a9bc20066c5bf5e275b41019cfc165b25f4e2e  # v4.0.5
-        env:
-          AQUA_ROOT_DIR: ${{ runner.tool_cache }}/aqua
-        with:
-          aqua_version: v2.62.1
 
       - name: Setup persistent Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4
@@ -307,25 +368,18 @@ jobs:
       SENTRY_APP_API_DSN: ${{ vars.SENTRY_APP_API_DSN }}
       APP_API_EXECUTION_SHARED_SECRET: ${{ secrets.APP_API_EXECUTION_SHARED_SECRET }}
       OPS_WEB_INTERNAL_TOKEN: ${{ secrets.OPS_WEB_INTERNAL_TOKEN }}
+    defaults:
+      run:
+        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-full --command bash -e {0}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
         with:
           persist-credentials: false
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271  # v6
-        with:
-          version: "10.34.5"
-
-      - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6
-        with:
-          node-version-file: .node-version
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-
       - name: Install App API workspace
+        env:
+          npm_config_store_dir: ${{ runner.tool_cache }}/pnpm-store
         run: >-
           pnpm install --frozen-lockfile --prefer-offline
           --filter campus-agent-web-workspace
@@ -366,30 +420,18 @@ jobs:
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
     timeout-minutes: 15
     environment: staging
+    defaults:
+      run:
+        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-full --command bash -e {0}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
         with:
           persist-credentials: false
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271  # v6
-        with:
-          version: "10.34.5"
-
-      - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6
-        with:
-          node-version-file: .node-version
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-
-      - name: Setup kubectl
-        uses: azure/setup-kubectl@829323503d1be3d00ca8346e5391ca0b07a9ab0d  # v5
-        with:
-          version: v1.36.2
-
       - name: Install Campus Web workspace
+        env:
+          npm_config_store_dir: ${{ runner.tool_cache }}/pnpm-store
         run: >-
           pnpm install --frozen-lockfile --prefer-offline
           --filter campus-agent-web-workspace
@@ -486,6 +528,7 @@ jobs:
           persist-credentials: false
 
       - name: Prepare release inputs
+        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-full --command bash -e {0}
         run: |
           node -e 'require("node:fs").writeFileSync("image-digests.json", "{}\n")'
           mkdir -p worker-candidates
@@ -532,35 +575,15 @@ jobs:
           token: ${{ steps.gitops-token.outputs.token }}
           path: gitops
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271  # v6
-        with:
-          version: "10.34.5"
-
-      - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6
-        with:
-          node-version-file: gitops/.node-version
-          cache: pnpm
-          cache-dependency-path: gitops/pnpm-lock.yaml
-
       - name: Install GitOps tooling
+        shell: /nix/var/nix/profiles/default/bin/nix develop ./gitops#ci-infra --command bash -e {0}
         run: pnpm --dir gitops install --frozen-lockfile --prefer-offline
-
-      - name: Setup GitOps policy tools
-        uses: ./gitops/.github/actions/setup-policy-tools
-        with:
-          working-directory: gitops
-
-      - name: Setup kubectl
-        uses: azure/setup-kubectl@829323503d1be3d00ca8346e5391ca0b07a9ab0d  # v5
-        with:
-          version: v1.36.2
 
       - name: Update GitOps desired state
         env:
           EXPECTED_WORKERS: ${{ needs.release-plan.outputs.workers }}
           KUBERNETES_CHANGED: ${{ needs.release-plan.outputs.kubernetes }}
+        shell: /nix/var/nix/profiles/default/bin/nix develop ./gitops#ci-infra --command bash -e {0}
         run: >-
           pnpm --dir gitops gitops promote-source
           --expected-source-sha "${{ needs.release-plan.outputs.base }}"
@@ -575,6 +598,7 @@ jobs:
       - name: Render promoted GitOps state
         env:
           SOURCE_TOKEN: ${{ steps.gitops-token.outputs.token }}
+        shell: /nix/var/nix/profiles/default/bin/nix develop ./gitops#ci-infra --command bash -e {0}
         run: |
           set -euo pipefail
           pnpm --dir gitops exec tsx tools/gitops.ts \
@@ -592,6 +616,7 @@ jobs:
 
       - name: Detect GitOps changes
         id: promotion
+        shell: /nix/var/nix/profiles/default/bin/nix develop ./gitops#ci-infra --command bash -e {0}
         run: |
           if git -C gitops diff --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -631,6 +656,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.gitops-token.outputs.token }}
           TARGET_URL: ${{ steps.deployment-pr.outputs.pull-request-url }}
+        shell: /nix/var/nix/profiles/default/bin/nix develop ./gitops#ci-infra --command bash -e {0}
         run: >-
           gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}"
           -f state=pending

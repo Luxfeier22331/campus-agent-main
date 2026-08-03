@@ -18,7 +18,7 @@ describe("campus web browser test boundaries", () => {
 		const turboConfig = readFileSync("turbo.json", "utf8");
 
 		expect(workerConfig).toContain("CAMPUS_WEB_E2E_PREBUILT");
-		expect(workerConfig).toContain("CLOUDFLARE_ENV=local pnpm run build:test &&");
+		expect(workerConfig).toContain("pnpm run build:worker &&");
 		expect(workerConfig).toContain("pnpm exec wrangler dev --config dist/campus_web/wrangler.json");
 		expect(workerConfig).toContain("--var APP_API_BASE_URL:http://127.0.0.1:27031");
 		expect(workerConfig).toContain("e2e/support/app-api-stub.ts");
@@ -26,26 +26,22 @@ describe("campus web browser test boundaries", () => {
 		expect(workerConfig).not.toContain("pnpm exec vite --host");
 		expect(turboConfig).toContain('"build:test"');
 		expect(turboConfig).toContain('".generated/docs-content/sources/**"');
+		expect(turboConfig).toContain('".wrangler/deploy/**"');
 		expect(turboConfig).not.toContain("_docs-static");
 	});
 
-	it("keeps browser regressions outside automatic PR checks and available on demand", () => {
+	it("routes affected browser regressions through the stable PR evidence job", () => {
 		const prWorkflow = readFileSync("../../.github/workflows/pr.yml", "utf8");
-		const healthWorkflow = readFileSync("../../.github/workflows/health.yml", "utf8");
-		const browserJob = healthWorkflow.slice(
-			healthWorkflow.indexOf("\n  browser:"),
-			healthWorkflow.indexOf("\n  go:"),
-		);
+		const evidence = readFileSync("../../scripts/ci/evidence.mts", "utf8");
 
-		expect(prWorkflow).toContain("Run repository checks");
-		expect(prWorkflow).not.toContain("playwright");
-		expect(prWorkflow).not.toContain("test:e2e");
+		expect(prWorkflow).toContain("repo-checks:");
+		expect(prWorkflow).toContain("Install Chromium headless shell");
+		expect(prWorkflow).toContain("Upload browser failure evidence");
 		expect(prWorkflow).not.toContain("OBJECT_STORE_");
-		expect(browserJob).toContain('CAMPUS_WEB_E2E_PREBUILT: "1"');
-		expect(browserJob).toContain("CLOUDFLARE_ENV=local pnpm turbo run build:worker");
-		expect(browserJob).toContain("test:e2e:full");
-		expect(browserJob).toContain("apps/ops-web test:browser");
-		expect(browserJob).toContain("actions/upload-artifact@");
-		expect(browserJob).toContain("retention-days: 7");
+		expect(prWorkflow).toContain('CAMPUS_WEB_E2E_PREBUILT: "1"');
+		expect(prWorkflow).toContain("retention-days: 7");
+		expect(evidence).toContain('"campus-browser-smoke"');
+		expect(evidence).toContain('"campus-browser-full"');
+		expect(evidence).toContain('"ops-web-browser"');
 	});
 });

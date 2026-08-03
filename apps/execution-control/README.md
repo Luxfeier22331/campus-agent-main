@@ -47,7 +47,7 @@ migration。修改后运行 `pnpm ci:execution-control-postgres`。
 
 ## 本地开发
 
-要求 Go `1.26.x` 和 `golangci-lint v2.11.4`。
+要求 Go `1.26.5` 和 `golangci-lint v2.12.2`；仓库 flake 的 `ci-full` 提供这两个版本。
 
 ```bash
 pnpm go:check

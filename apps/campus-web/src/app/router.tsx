@@ -54,6 +54,11 @@ const AccountResetPasswordPage = lazy(() =>
 		default: () => <module.AccountAuthPage view="resetPassword" />,
 	})),
 );
+const AccountResetLinkSentPage = lazy(() =>
+	import("./routes/account-page").then((module) => ({
+		default: () => <module.AccountAuthPage view="resetLinkSent" />,
+	})),
+);
 const AccountVerifyEmailPage = lazy(() =>
 	import("./routes/account-page").then((module) => ({
 		default: () => <module.AccountAuthPage view="verifyEmail" />,
@@ -181,6 +186,12 @@ const accountResetPasswordRoute = createRoute({
 	path: "/account/reset-password",
 });
 
+const accountResetLinkSentRoute = createRoute({
+	component: AccountResetLinkSentPage,
+	getParentRoute: () => rootRoute,
+	path: "/account/reset-link-sent",
+});
+
 const accountVerifyEmailRoute = createRoute({
 	component: AccountVerifyEmailPage,
 	getParentRoute: () => rootRoute,
@@ -256,6 +267,7 @@ const routeTree = rootRoute.addChildren([
 	accountRegisterRoute,
 	accountForgotPasswordRoute,
 	accountResetPasswordRoute,
+	accountResetLinkSentRoute,
 	accountVerifyEmailRoute,
 	accountSignOutRoute,
 	accountDeletionRoute,

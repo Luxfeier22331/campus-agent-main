@@ -443,6 +443,7 @@ function ReaderTableScroll({
 			data-docs-scrollable="true"
 			data-docs-sticky-first-column={String(stickyFirstColumn)}
 			ref={containerRef}
+			tabIndex={overflowing ? 0 : undefined}
 		>
 			{children}
 		</div>

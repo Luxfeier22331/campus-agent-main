@@ -94,7 +94,9 @@ test.describe("account browser flow", () => {
 		await page.getByLabel("邮箱").fill("student@example.edu");
 		await page.getByRole("button", { name: "发送重置链接" }).click();
 
-		await expect(page.getByText("密码重置邮件已发送")).toBeVisible();
+		await expect(page).toHaveURL("/account/reset-link-sent");
+		await expect(page.getByRole("heading", { name: "请查收邮件" })).toBeVisible();
+		await expect(page.getByText("密码重置链接已发送至 student@example.edu")).toBeVisible();
 		await expect
 			.poll(
 				() =>
@@ -125,7 +127,7 @@ test.describe("account browser flow", () => {
 		await mockCampusApi(page);
 
 		await page.goto("/account/settings/account");
-		await expect(page.getByRole("heading", { name: /账号|账号资料|账号设置/ })).toBeVisible();
+		await expect(page.getByRole("heading", { name: "账号资料" })).toBeVisible();
 
 		await page.goto("/account/settings/security");
 		await expect(page.getByText("安全").first()).toBeVisible();

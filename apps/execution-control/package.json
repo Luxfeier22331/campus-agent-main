@@ -2,8 +2,8 @@
 	"name": "execution-control",
 	"private": true,
 	"scripts": {
-		"native:format": "aqua exec -- golangci-lint fmt --diff",
-		"native:lint": "aqua exec -- golangci-lint run ./...",
+		"native:format": "golangci-lint fmt --diff",
+		"native:lint": "golangci-lint run ./...",
 		"native:test": "go test ./...",
 		"native:typecheck": "go vet ./...",
 		"test:database-integration": "../../scripts/ci/go-postgres-integration.sh"

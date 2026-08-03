@@ -13,6 +13,10 @@ function result(overrides: Partial<CommandResult> = {}): CommandResult {
 	return { status: 0, stderr: "", stdout: "", ...overrides };
 }
 
+function changed(...files: string[]): string {
+	return `${files.flatMap((file) => ["M", file]).join("\0")}\0`;
+}
+
 async function fixture(t: test.TestContext): Promise<string> {
 	const root = await mkdtemp(path.join(os.tmpdir(), "candidate-plan-"));
 	t.after(() => rm(root, { force: true, recursive: true }));
@@ -67,7 +71,9 @@ test("maps Turbo affected package tasks to release candidates", async (t) => {
 			});
 		}
 		if (args[0] === "diff") {
-			return result({ stdout: "infra/k8s/execution-runtime/base/runtime/deployment.yaml\n" });
+			return result({
+				stdout: changed("infra/k8s/execution-runtime/base/runtime/deployment.yaml"),
+			});
 		}
 		return result();
 	};
@@ -77,7 +83,13 @@ test("maps Turbo affected package tasks to release candidates", async (t) => {
 		images: ["agent-runtime"],
 		kubernetes: true,
 		validateOnly: false,
-		validationProfiles: ["affected-node", "app-api-product-db", "infra", "release-tooling"],
+		validationProfiles: [
+			"affected-node",
+			"app-api-product-db",
+			"infra",
+			"campus-browser-smoke",
+			"toolchain",
+		],
 		workers: ["app-api-staging", "campus-web-staging"],
 	});
 });
@@ -96,14 +108,21 @@ test("manual full mode selects every active candidate without running Turbo", as
 		kubernetes: true,
 		validateOnly: false,
 		validationProfiles: [
-			"affected-node",
+			"full-node",
 			"go",
+			"rust",
+			"ragas",
 			"app-api-migration",
 			"app-api-product-db",
 			"execution-control-postgres",
+			"ingestion-control-postgres",
 			"ops-web-postgres",
 			"infra",
-			"release-tooling",
+			"otel",
+			"campus-browser-full",
+			"ops-web-browser",
+			"dependencies",
+			"toolchain",
 		],
 		workers: ["app-api-staging", "campus-web-staging"],
 	});
@@ -115,6 +134,7 @@ test("validation-only mode selects the active GitOps Workers", async (t) => {
 	const plan = await planCandidates({ ...options(root), validateOnly: true }, () => result());
 	assert.deepEqual(plan.workers, ["app-api-staging", "campus-web-staging"]);
 	assert.equal(plan.validateOnly, true);
+	assert.deepEqual(plan.validationProfiles, ["toolchain"]);
 });
 
 test("rejects active Workers without a Source publisher", async (t) => {
@@ -140,10 +160,10 @@ test("selects Docker-only schema and Go images with their database evidence", as
 		}
 		if (args[0] === "diff") {
 			return result({
-				stdout: [
+				stdout: changed(
 					"apps/app-api/ops/db/schema.ts",
 					"apps/execution-control/internal/schemamigrations/migrator.go",
-				].join("\n"),
+				),
 			});
 		}
 		return result();
@@ -160,7 +180,7 @@ test("selects Docker-only schema and Go images with their database evidence", as
 			"app-api-migration",
 			"app-api-product-db",
 			"execution-control-postgres",
-			"release-tooling",
+			"toolchain",
 		],
 		workers: [],
 	});
@@ -173,20 +193,19 @@ test("selects release evidence for an artifact adapter test change", async (t) =
 			return result({ stdout: JSON.stringify({ tasks: [] }) });
 		}
 		if (args[0] === "diff") {
-			return result({ stdout: "scripts/ci/check-ops-web-artifact.test.mjs\n" });
+			return result({ stdout: changed("scripts/ci/check-ops-web-artifact.test.mjs") });
 		}
 		return result();
 	};
 	const plan = await planCandidates(options(root), runner);
 	assert.deepEqual(plan.images, []);
-	assert.deepEqual(plan.validationProfiles, ["release-tooling"]);
+	assert.deepEqual(plan.validationProfiles, ["toolchain"]);
 });
 
 test("a Node lockfile change does not select the independent Go image", async (t) => {
 	const root = await fixture(t);
 	const runner: CommandRunner = (command, args) => {
 		if (command === "pnpm") {
-			assert(!args.includes("native:typecheck"));
 			return result({
 				stdout: JSON.stringify({
 					tasks: [
@@ -197,7 +216,7 @@ test("a Node lockfile change does not select the independent Go image", async (t
 			});
 		}
 		if (args[0] === "diff") {
-			return result({ stdout: "pnpm-lock.yaml\n" });
+			return result({ stdout: changed("pnpm-lock.yaml") });
 		}
 		return result();
 	};
@@ -207,7 +226,8 @@ test("a Node lockfile change does not select the independent Go image", async (t
 		"affected-node",
 		"app-api-migration",
 		"app-api-product-db",
-		"release-tooling",
+		"dependencies",
+		"toolchain",
 	]);
 });
 

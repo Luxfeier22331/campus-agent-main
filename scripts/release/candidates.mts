@@ -1,7 +1,11 @@
-import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+
+import { type CommandRunner, resolveAffectedScope } from "../ci/scope.mts";
+import { type ValidationProfile, validationPlanFromScope } from "../ci/validation.mts";
+
+export type { CommandResult, CommandRunner } from "../ci/scope.mts";
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const SOURCE_REPOSITORY = "MUC-WIKI/campus-agent";
@@ -17,27 +21,6 @@ const WORKER_PACKAGES = new Map<string, string>([
 	["campus-web-staging", "campus-web"],
 ]);
 
-export type ValidationProfile =
-	| "affected-node"
-	| "go"
-	| "app-api-migration"
-	| "app-api-product-db"
-	| "execution-control-postgres"
-	| "ops-web-postgres"
-	| "infra"
-	| "release-tooling";
-
-const ALL_VALIDATION_PROFILES: ValidationProfile[] = [
-	"affected-node",
-	"go",
-	"app-api-migration",
-	"app-api-product-db",
-	"execution-control-postgres",
-	"ops-web-postgres",
-	"infra",
-	"release-tooling",
-];
-
 export interface CandidatePlan {
 	base: string;
 	head: string;
@@ -48,18 +31,6 @@ export interface CandidatePlan {
 	workers: string[];
 }
 
-export interface CommandResult {
-	status: number;
-	stderr: string;
-	stdout: string;
-}
-
-export type CommandRunner = (
-	command: string,
-	args: string[],
-	options: { cwd: string; env: NodeJS.ProcessEnv },
-) => CommandResult;
-
 export interface CandidatePlanOptions {
 	base?: string;
 	full: boolean;
@@ -68,29 +39,6 @@ export interface CandidatePlanOptions {
 	selectionFile?: string;
 	validateOnly: boolean;
 	workerSelectionFile?: string;
-}
-
-function run(
-	command: string,
-	args: string[],
-	options: { cwd: string; env: NodeJS.ProcessEnv },
-): CommandResult {
-	const result = spawnSync(command, args, {
-		cwd: options.cwd,
-		encoding: "utf8",
-		env: options.env,
-		maxBuffer: 32 * 1024 * 1024,
-	});
-	return {
-		status: result.status ?? 1,
-		stderr: result.stderr ?? "",
-		stdout: result.stdout ?? "",
-	};
-}
-
-function commandError(command: string, args: string[], result: CommandResult): Error {
-	const detail = result.stderr.trim() || result.stdout.trim() || `exit code ${result.status}`;
-	return new Error(`${command} ${args.join(" ")} failed: ${detail}`);
 }
 
 async function releaseBase(file: string): Promise<string> {
@@ -165,98 +113,14 @@ async function activeWorkers(options: CandidatePlanOptions): Promise<string[] | 
 	return workers;
 }
 
-export function turboTasks(source: string): Array<{ package: string; task: string }> {
-	let value: unknown;
-	try {
-		value = JSON.parse(source) as unknown;
-	} catch (error) {
-		throw new Error("Turbo returned an invalid candidate plan", { cause: error });
-	}
-	if (typeof value !== "object" || value === null || Array.isArray(value)) {
-		throw new Error("Turbo candidate plan must be an object");
-	}
-	const tasks = (value as { tasks?: unknown }).tasks;
-	if (!Array.isArray(tasks)) {
-		throw new Error("Turbo candidate plan does not contain tasks");
-	}
-	return tasks.flatMap((task) => {
-		if (
-			typeof task === "object" &&
-			task !== null &&
-			!Array.isArray(task) &&
-			typeof (task as { package?: unknown }).package === "string" &&
-			typeof (task as { task?: unknown }).task === "string" &&
-			typeof (task as { command?: unknown }).command === "string" &&
-			(task as { command: string }).command !== "<NONEXISTENT>"
-		) {
-			return [task as { package: string; task: string }];
-		}
-		return [];
-	});
-}
-
-function changedFiles(source: string): string[] {
-	return source
-		.split("\n")
-		.map((file) => file.trim())
-		.filter(Boolean)
-		.sort();
-}
-
-function changesPath(files: string[], prefix: string): boolean {
+function changesPath(files: readonly string[], prefix: string): boolean {
 	return files.some((file) => file === prefix || file.startsWith(`${prefix}/`));
-}
-
-function selectProfiles(input: {
-	files: string[];
-	images: Set<string>;
-	tasks: Array<{ package: string; task: string }>;
-	workers: string[];
-}): ValidationProfile[] {
-	const profiles = new Set<ValidationProfile>();
-	if (
-		input.tasks.some((task) => task.task === "typecheck" || task.task === "test") ||
-		[...input.images].some((image) => image !== "execution-control") ||
-		input.workers.length > 0
-	) {
-		profiles.add("affected-node");
-	}
-	if (input.images.has("execution-control")) {
-		profiles.add("go");
-		profiles.add("execution-control-postgres");
-	}
-	if (input.images.has("app-api-schema")) {
-		profiles.add("app-api-migration");
-		profiles.add("app-api-product-db");
-	}
-	if (input.workers.includes("app-api-staging")) {
-		profiles.add("app-api-product-db");
-	}
-	if (input.images.has("ops-web")) {
-		profiles.add("ops-web-postgres");
-	}
-	if (changesPath(input.files, "infra/k8s")) {
-		profiles.add("infra");
-	}
-	if (
-		input.images.size > 0 ||
-		input.workers.length > 0 ||
-		changesPath(input.files, "infra/k8s") ||
-		input.files.some((file) => file.startsWith("scripts/ci/check-ops-web-artifact.")) ||
-		changesPath(input.files, "scripts/release") ||
-		input.files.includes("docker-bake.hcl") ||
-		input.files.includes(".github/workflows/execution-runtime-publish.yml")
-	) {
-		profiles.add("release-tooling");
-	}
-	return ALL_VALIDATION_PROFILES.filter((profile) => profiles.has(profile));
 }
 
 export async function planCandidates(
 	options: CandidatePlanOptions,
-	runner: CommandRunner = run,
+	runner?: CommandRunner,
 ): Promise<CandidatePlan> {
-	const root = path.resolve(options.repositoryRoot);
 	const base = await candidateBase(options);
 	const selectedActiveWorkers = await activeWorkers(options);
 	if ((options.full || options.validateOnly) && selectedActiveWorkers === undefined) {
@@ -265,38 +129,44 @@ export async function planCandidates(
 	if (!SHA_PATTERN.test(options.head)) {
 		throw new Error("Release head must be a 40-character lowercase commit SHA");
 	}
-	const environment = { ...process.env, TURBO_SCM_BASE: base, TURBO_SCM_HEAD: options.head };
-	for (const args of [
-		["cat-file", "-e", `${base}^{commit}`],
-		["cat-file", "-e", `${options.head}^{commit}`],
-		["merge-base", "--is-ancestor", base, options.head],
-	]) {
-		const result = runner("git", args, { cwd: root, env: environment });
-		if (result.status !== 0) {
-			throw commandError("git", args, result);
-		}
-	}
+	const scope = resolveAffectedScope(
+		{
+			base,
+			collectAffected: !(options.full || options.validateOnly),
+			head: options.head,
+			repositoryRoot: options.repositoryRoot,
+		},
+		runner,
+	);
 
 	if (options.validateOnly) {
+		const workers = selectedActiveWorkers ?? [];
 		return {
 			base,
 			head: options.head,
 			images: [],
 			kubernetes: false,
 			validateOnly: true,
-			validationProfiles: ["release-tooling"],
-			workers: selectedActiveWorkers ?? [],
+			validationProfiles: validationPlanFromScope(scope, {
+				mode: "candidate",
+				validateOnly: true,
+			}).validationProfiles,
+			workers,
 		};
 	}
 	if (options.full) {
+		const workers = selectedActiveWorkers ?? [];
 		return {
 			base,
 			head: options.head,
 			images: ALL_IMAGES,
 			kubernetes: true,
 			validateOnly: false,
-			validationProfiles: ALL_VALIDATION_PROFILES,
-			workers: selectedActiveWorkers ?? [],
+			validationProfiles: validationPlanFromScope(scope, {
+				full: true,
+				mode: "candidate",
+			}).validationProfiles,
+			workers,
 		};
 	}
 	if (base === options.head) {
@@ -311,25 +181,9 @@ export async function planCandidates(
 		};
 	}
 
-	const turboArgs = [
-		"dlx",
-		"turbo@2.10.4",
-		"run",
-		"build",
-		"build:worker",
-		"test",
-		"typecheck",
-		"--affected",
-		"--dry-run=json",
-	];
-	const turbo = runner("pnpm", turboArgs, { cwd: root, env: environment });
-	if (turbo.status !== 0) {
-		throw commandError("pnpm", turboArgs, turbo);
-	}
-	const tasks = turboTasks(turbo.stdout);
 	const images = new Set<string>();
 	const workers = new Set<string>();
-	for (const task of tasks) {
+	for (const task of scope.tasks) {
 		if (task.task === "build") {
 			for (const image of IMAGE_PACKAGES.get(task.package) ?? []) {
 				images.add(image);
@@ -347,12 +201,7 @@ export async function planCandidates(
 		}
 	}
 
-	const changedArgs = ["diff", "--name-only", "--diff-filter=ACMRD", base, options.head];
-	const changed = runner("git", changedArgs, { cwd: root, env: environment });
-	if (changed.status !== 0) {
-		throw commandError("git", changedArgs, changed);
-	}
-	const files = changedFiles(changed.stdout);
+	const files = scope.changedFiles;
 	const sharedNodeRelease = files.some((file) =>
 		["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml"].includes(file),
 	);
@@ -385,14 +234,24 @@ export async function planCandidates(
 		}
 	}
 	const kubernetes = changesPath(files, "infra/k8s");
+	const selectedImages = [...images].sort();
+	const selectedWorkers = [...workers].sort();
+	const validationProfiles = validationPlanFromScope(scope, {
+		mode: "candidate",
+		release: {
+			images: selectedImages,
+			kubernetes,
+			workers: selectedWorkers,
+		},
+	}).validationProfiles;
 	return {
 		base,
 		head: options.head,
-		images: [...images].sort(),
+		images: selectedImages,
 		kubernetes,
 		validateOnly: false,
-		validationProfiles: selectProfiles({ files, images, tasks, workers: [...workers] }),
-		workers: [...workers].sort(),
+		validationProfiles,
+		workers: selectedWorkers,
 	};
 }
 

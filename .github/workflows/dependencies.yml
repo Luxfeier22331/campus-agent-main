@@ -1,0 +1,41 @@
+name: dependencies
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "35 2 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependencies
+  cancel-in-progress: true
+
+env:
+  NIX_CONFIG: |
+    experimental-features = nix-command flakes
+    max-jobs = 1
+    cores = 2
+
+jobs:
+  scan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: nix develop .#ci-light --command bash -e {0}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+        with:
+          persist-credentials: false
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
+          enable_kvm: false
+
+      - name: Scan dependency ecosystems
+        run: pnpm ci:deps

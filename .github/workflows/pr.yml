@@ -11,85 +11,97 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+env:
+  NIX_CONFIG: |
+    experimental-features = nix-command flakes
+    max-jobs = 1
+    cores = 2
+
 jobs:
-  static-checks:
-    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 10
-    env:
-      TURBO_TEAM: ${{ vars.TURBO_TEAM }}
-      TURBO_TELEMETRY_DISABLED: "1"
-      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  light:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: nix develop .#ci-light --command bash -e {0}
+    outputs:
+      base: ${{ steps.plan.outputs.base }}
+      has_heavy: ${{ steps.plan.outputs.has_heavy }}
+      head: ${{ steps.plan.outputs.head }}
+      validation_profiles: ${{ steps.plan.outputs.validation_profiles }}
     steps:
-      - name: Checkout
+      - name: Checkout pull request merge
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
         with:
           fetch-depth: 0
-          filter: blob:none
           persist-credentials: false
 
-      - name: Select changed validation surfaces
-        id: changes
-        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706  # v4
+      - name: Install Nix
+        uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
         with:
-          filters: .github/paths/pr.yml
+          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
+          enable_kvm: false
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271  # v6
+      - name: Restore pnpm store
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
         with:
-          version: "10.34.5"
+          path: ${{ runner.tool_cache }}/pnpm-store
+          key: pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-${{ runner.os }}-${{ runner.arch }}-
 
-      - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6
-        with:
-          node-version-file: .node-version
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
+      - name: Configure pnpm store
+        run: echo "npm_config_store_dir=${RUNNER_TOOL_CACHE}/pnpm-store" >> "$GITHUB_ENV"
 
-      - name: Install Node validation dependencies
-        run: >-
-          pnpm install --frozen-lockfile --prefer-offline
-          --filter campus-agent-web-workspace
-          --filter 'campus-contracts...'
+      - name: Install light validation dependencies
+        run: |
+          set -euo pipefail
+          mkdir -p "$npm_config_store_dir"
+          pnpm install --frozen-lockfile --prefer-offline \
+            --filter campus-agent-web-workspace \
+            --filter 'campus-contracts...'
 
-      - name: Setup repository tools
-        uses: aquaproj/aqua-installer@96a9bc20066c5bf5e275b41019cfc165b25f4e2e  # v4.0.5
+      - name: Generate pull request validation plan
+        id: plan
         env:
-          AQUA_ROOT_DIR: ${{ runner.tool_cache }}/aqua
-        with:
-          aqua_version: v2.62.1
-
-      - name: Setup Python lint tools
-        if: >-
-          steps.changes.outputs.config == 'true' ||
-          steps.changes.outputs.python == 'true' ||
-          steps.changes.outputs.sql == 'true' ||
-          steps.changes.outputs.yaml == 'true'
-        uses: astral-sh/setup-uv@f98e06938123ccabd21905ea5d0069192241f9f1  # v8.3.1
-        with:
-          version: "0.11.28"
-          enable-cache: true
-          python-version: "3.12"
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          MERGE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          plan="$(node --experimental-strip-types scripts/ci/validation.mts \
+            --base "$BASE_SHA" \
+            --head "$MERGE_SHA" \
+            --mode pull-request)"
+          jq -e . <<< "$plan" >/dev/null
+          {
+            echo "base=$(jq -r '.base' <<< "$plan")"
+            echo "head=$(jq -r '.head' <<< "$plan")"
+            echo "light_surfaces=$(jq -c '.lightSurfaces' <<< "$plan")"
+            echo "validation_profiles=$(jq -c '.validationProfiles' <<< "$plan")"
+            echo "has_heavy=$(jq -r '.validationProfiles | length > 0' <<< "$plan")"
+          } >> "$GITHUB_OUTPUT"
+          jq . <<< "$plan"
 
       - name: Install Python lint dependencies
         if: >-
-          steps.changes.outputs.python == 'true' ||
-          steps.changes.outputs.sql == 'true' ||
-          steps.changes.outputs.yaml == 'true'
+          contains(fromJSON(steps.plan.outputs.light_surfaces), 'python') ||
+          contains(fromJSON(steps.plan.outputs.light_surfaces), 'sql') ||
+          contains(fromJSON(steps.plan.outputs.light_surfaces), 'yaml')
         run: uv sync --only-dev --no-install-workspace
 
       - name: Run repository checks
         run: pnpm ci:repo
 
       - name: Check executable contracts
-        if: steps.changes.outputs.contracts == 'true'
+        if: contains(fromJSON(steps.plan.outputs.light_surfaces), 'contracts')
         run: pnpm ci:contracts
 
       - name: Lint GitHub Actions
-        if: steps.changes.outputs.config == 'true'
+        if: contains(fromJSON(steps.plan.outputs.light_surfaces), 'config')
         run: pnpm ci:config
 
       - name: Lint Python
-        if: steps.changes.outputs.python == 'true'
+        if: contains(fromJSON(steps.plan.outputs.light_surfaces), 'python')
         run: |
           git ls-files -z -- '*.py' \
             | xargs -0 --no-run-if-empty uv run --no-sync ruff check
@@ -97,28 +109,24 @@ jobs:
             | xargs -0 --no-run-if-empty uv run --no-sync ruff format --check
 
       - name: Lint YAML
-        if: steps.changes.outputs.yaml == 'true'
+        if: contains(fromJSON(steps.plan.outputs.light_surfaces), 'yaml')
         run: |
           git ls-files -z -- '*.yaml' '*.yml' ':(exclude)pnpm-lock.yaml' \
             | xargs -0 --no-run-if-empty uv run --no-sync yamllint -c .yamllint.yml
 
       - name: Lint SQL
-        if: steps.changes.outputs.sql == 'true'
+        if: contains(fromJSON(steps.plan.outputs.light_surfaces), 'sql')
         run: |
           git ls-files -z -- '*.sql' \
             | xargs -0 --no-run-if-empty uv run --no-sync sqlfluff lint --config .sqlfluff
 
       - name: Lint Shell
-        if: steps.changes.outputs.shell == 'true'
+        if: contains(fromJSON(steps.plan.outputs.light_surfaces), 'shell')
         run: |
           git ls-files -z -- '*.sh' \
             | xargs -0 --no-run-if-empty shellcheck -x -s bash
 
-      - name: Scan dependency manifests
-        if: steps.changes.outputs.dependencies == 'true'
-        run: pnpm ci:deps
-
-      - name: Scan changed commits for secrets
+      - name: Scan authored commits for secrets
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -130,106 +138,119 @@ jobs:
             --config=.gitleaks.toml \
             --log-opts="--no-merges ${merge_base}..${HEAD_SHA}"
 
-  candidate-plan:
+  repo-checks:
+    needs: light
+    if: always()
     runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 3
-    outputs:
-      base: ${{ steps.plan.outputs.base }}
-      head: ${{ steps.plan.outputs.head }}
-      validation_profiles: ${{ steps.plan.outputs.validation_profiles }}
+    timeout-minutes: 90
     steps:
-      - name: Checkout pull request head
+      - name: Require hosted evidence
+        if: needs.light.result != 'success'
+        env:
+          LIGHT_RESULT: ${{ needs.light.result }}
+        run: |
+          echo "Hosted pull request evidence finished with ${LIGHT_RESULT}." >&2
+          exit 1
+
+      - name: Checkout pull request merge
+        if: needs.light.result == 'success' && needs.light.outputs.has_heavy == 'true'
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
         with:
           fetch-depth: 0
           filter: blob:none
           persist-credentials: false
-          ref: ${{ github.event.pull_request.head.sha }}
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271  # v6
-        with:
-          version: "10.34.5"
-      - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6
-        with:
-          node-version-file: .node-version
-          package-manager-cache: false
-      - name: Select pull request candidate evidence
-        id: plan
+
+      - name: Install affected workspaces
+        if: needs.light.result == 'success' && needs.light.outputs.has_heavy == 'true'
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          npm_config_store_dir: ${{ runner.tool_cache }}/pnpm-store
+        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-full --command bash -e {0}
         run: |
           set -euo pipefail
-          plan="$(node --experimental-strip-types scripts/release/candidates.mts \
-            --base "$BASE_SHA" \
-            --full false \
-            --head "$HEAD_SHA" \
-            --validate-only false)"
-          jq -e . <<< "$plan" >/dev/null
-          {
-            echo "base=$(jq -r '.base' <<< "$plan")"
-            echo "head=$(jq -r '.head' <<< "$plan")"
-            echo "validation_profiles=$(jq -c '.validationProfiles' <<< "$plan")"
-          } >> "$GITHUB_OUTPUT"
-          jq . <<< "$plan"
+          mkdir -p "$npm_config_store_dir"
+          pnpm install --frozen-lockfile --prefer-offline
 
-  candidate-evidence:
-    needs: candidate-plan
-    if: fromJSON(needs.candidate-plan.outputs.validation_profiles)[0] != null
-    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 75
-    steps:
-      - name: Checkout pull request head
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
-        with:
-          fetch-depth: 0
-          filter: blob:none
-          persist-credentials: false
-          ref: ${{ github.event.pull_request.head.sha }}
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271  # v6
-        with:
-          version: "10.34.5"
-      - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6
-        with:
-          node-version-file: .node-version
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-      - name: Setup repository tools
-        uses: aquaproj/aqua-installer@96a9bc20066c5bf5e275b41019cfc165b25f4e2e  # v4.0.5
+      - name: Install evaluation dependencies
+        if: >-
+          needs.light.result == 'success' &&
+          needs.light.outputs.has_heavy == 'true' &&
+          contains(fromJSON(needs.light.outputs.validation_profiles), 'ragas')
+        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-full --command bash -e {0}
+        run: uv sync --package campus-ragas-runner
+
+      - name: Verify Docker evidence dependency
+        if: >-
+          needs.light.result == 'success' &&
+          needs.light.outputs.has_heavy == 'true' &&
+          (
+            contains(fromJSON(needs.light.outputs.validation_profiles), 'app-api-migration') ||
+            contains(fromJSON(needs.light.outputs.validation_profiles), 'app-api-product-db') ||
+            contains(fromJSON(needs.light.outputs.validation_profiles), 'execution-control-postgres') ||
+            contains(fromJSON(needs.light.outputs.validation_profiles), 'ingestion-control-postgres') ||
+            contains(fromJSON(needs.light.outputs.validation_profiles), 'ops-web-postgres') ||
+            contains(fromJSON(needs.light.outputs.validation_profiles), 'otel')
+          )
+        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-full --command bash -e {0}
+        run: docker info >/dev/null
+
+      - name: Install Chromium headless shell
+        if: >-
+          needs.light.result == 'success' &&
+          needs.light.outputs.has_heavy == 'true' &&
+          (
+            contains(fromJSON(needs.light.outputs.validation_profiles), 'campus-browser-smoke') ||
+            contains(fromJSON(needs.light.outputs.validation_profiles), 'campus-browser-full') ||
+            contains(fromJSON(needs.light.outputs.validation_profiles), 'ops-web-browser')
+          )
         env:
-          AQUA_ROOT_DIR: ${{ runner.tool_cache }}/aqua
-        with:
-          aqua_version: v2.62.1
-      - name: Install candidate workspaces
-        run: pnpm install --frozen-lockfile --prefer-offline
-      - name: Run selected candidate evidence
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.tool_cache }}/ms-playwright
+        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-full --command bash -e {0}
+        run: pnpm --dir apps/campus-web exec playwright install --only-shell chromium
+
+      - name: Run selected pull request evidence
+        if: needs.light.result == 'success' && needs.light.outputs.has_heavy == 'true'
         env:
-          BASE_SHA: ${{ needs.candidate-plan.outputs.base }}
-          HEAD_SHA: ${{ needs.candidate-plan.outputs.head }}
-          VALIDATION_PROFILES: ${{ needs.candidate-plan.outputs.validation_profiles }}
+          BASE_SHA: ${{ needs.light.outputs.base }}
+          CAMPUS_WEB_E2E_PREBUILT: "1"
+          CARGO_TARGET_DIR: ${{ runner.tool_cache }}/cargo-target/campus-agent
+          CI_DOCKER_CGROUP_PARENT: ci.slice
+          HEAD_SHA: ${{ needs.light.outputs.head }}
+          OPS_WEB_BROWSER_TEST_PORT: "4278"
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.tool_cache }}/ms-playwright
+          TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+          TURBO_TELEMETRY_DISABLED: "1"
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          VALIDATION_PROFILES: ${{ needs.light.outputs.validation_profiles }}
+        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-full --command bash -e {0}
         run: >-
-          node --experimental-strip-types scripts/release/evidence.mts
+          node --experimental-strip-types scripts/ci/evidence.mts
           --base "$BASE_SHA"
           --head "$HEAD_SHA"
           --profiles "$VALIDATION_PROFILES"
 
-  repo-checks:
-    needs: [static-checks, candidate-plan, candidate-evidence]
-    if: always()
-    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 2
-    steps:
-      - name: Require every pull request evidence owner
-        env:
-          CANDIDATE_EVIDENCE_RESULT: ${{ needs.candidate-evidence.result }}
-          CANDIDATE_PLAN_RESULT: ${{ needs.candidate-plan.result }}
-          STATIC_RESULT: ${{ needs.static-checks.result }}
-        run: |
-          set -euo pipefail
-          test "$STATIC_RESULT" = success
-          test "$CANDIDATE_PLAN_RESULT" = success
-          test "$CANDIDATE_EVIDENCE_RESULT" = success || \
-            test "$CANDIDATE_EVIDENCE_RESULT" = skipped
+      - name: Upload browser failure evidence
+        if: >-
+          failure() &&
+          needs.light.result == 'success' &&
+          needs.light.outputs.has_heavy == 'true' &&
+          (
+            contains(fromJSON(needs.light.outputs.validation_profiles), 'campus-browser-smoke') ||
+            contains(fromJSON(needs.light.outputs.validation_profiles), 'campus-browser-full') ||
+            contains(fromJSON(needs.light.outputs.validation_profiles), 'ops-web-browser')
+          )
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          if-no-files-found: ignore
+          name: pr-browser-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            apps/campus-web/playwright-report/e2e
+            apps/campus-web/playwright-report/e2e-worker
+            apps/campus-web/test-results/e2e
+            apps/campus-web/test-results/e2e-worker
+            apps/ops-web/test-results
+            apps/ops-web/playwright-report
+          retention-days: 7
+
+      - name: Complete stable check without heavy evidence
+        if: needs.light.result == 'success' && needs.light.outputs.has_heavy != 'true'
+        run: echo "No self-hosted evidence is required for this pull request."

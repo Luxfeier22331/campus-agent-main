@@ -10,11 +10,13 @@ status: active
 本文说明稳定验证入口和执行边界，不复制 GitHub Actions job、runner、Secret、镜像清单或一次性
 环境状态。
 
-- package 的 `package.json` 拥有具体检查；Turbo 拥有 package task graph、输入和缓存；
-- `.github/paths/pr.yml` 只选择 PR 中需要追加的静态检查；
-- `.github/workflows/pr.yml` 拥有仓库静态门禁和 staging 候选提前验证；
-- `.github/workflows/health.yml` 提供一次只运行一个 profile 的手动重型检查；
+- package 的 `package.json` 拥有具体检查；Turbo 拥有 package task graph、仓库级 root task 输入和缓存；
+- `scripts/ci/scope.mts` 唯一负责校验 revision、读取 Git diff 和解析 Turbo affected graph；
+- `scripts/ci/validation.mts` 唯一负责静态面与重型 profile 选择；
+- `scripts/ci/evidence.mts` 负责 PR 和候选发布共用的 profile 执行；
+- `.github/workflows/pr.yml` 拥有 hosted 静态门禁和 self-hosted 受影响证据；
 - `.github/workflows/execution-runtime-publish.yml` 拥有候选物发布和 GitOps 交接；
+- `.github/workflows/dependencies.yml` 每周重新检查外部 vulnerability 数据；
 - staging、release 和真实外部依赖验收由所属 runbook 说明。
 
 `main` 发布候选以环境仓游标到当前 Source SHA 的累计差异为输入；PR 候选以该 PR 的 base/head 为
@@ -22,8 +24,9 @@ status: active
 选择 package 候选；没有 `build` task 的 Go 与 schema 镜像，以及 `infra/k8s`，由其明确的制品所有权
 补充选择。Docker 构建定义仍由 `docker-bake.hcl` 负责，不另建镜像实现清单。
 
-仓库级 workflow、安全、Go lint、镜像和基础设施工具版本由 `aqua.yaml` 统一声明。只有运行相应检查时
-才需要先安装 Aqua 并执行 `aqua install`；普通 Node/Python 开发不以 Aqua 为前置条件。
+`flake.lock` 固定 source 工具链的 nixpkgs revision，`ci-light` 覆盖 hosted 静态检查和依赖扫描，
+`ci-full` 追加 Go、Rust、数据库、浏览器、镜像和基础设施检查所需 CLI。Nix 不接管 `pnpm-lock.yaml`、`uv.lock`、
+`Cargo.lock` 或 Go module，也不提供 Docker daemon、PostgreSQL、Testcontainers 或 Playwright browser。
 
 ## 选择原则
 
@@ -61,16 +64,18 @@ status: active
 
 ## PR 门禁
 
-自动 PR 包含两类检查：
+自动 PR 保留一个稳定的 `repo-checks` 门禁，并按成本分为两段：
 
-- 始终运行 `pnpm ci:repo` 和 PR commit range 的 Gitleaks；
-- 按路径运行合同、GitHub Actions、Python、YAML、SQL、Shell、依赖和发布适配器检查；
-- 使用与 `main` 发布相同的候选 planner，提前运行受影响的 Node、Go、数据库、基础设施和发布 profile；
-- 不发布镜像或 Worker，不访问 staging、provider state 或集群，也不运行浏览器回归。
+- GitHub-hosted `light` 始终运行 `pnpm ci:repo` 和 authored commit range 的 Gitleaks，并按统一 planner
+  选择合同、GitHub Actions、Python、YAML、SQL 和 Shell 静态检查；
+- `repo-checks` 始终返回明确结果；没有重型 profile 时直接结束，需要时才在现有 self-hosted runner
+  一次 checkout、一次安装并串行执行受影响证据；
+- PR checkout 使用 GitHub 生成的 merge revision，Gitleaks 仍扫描 PR 作者提交范围；
+- 普通 PR 不发布镜像或 Worker，不访问 staging、provider state、集群或真实外部服务。
 
-候选 profile 固定为 `affected-node`、`go`、`app-api-migration`、`app-api-product-db`、
-`execution-control-postgres`、`ops-web-postgres`、`infra` 和 `release-tooling`。planner 只按累计差异选择，
-各 profile 串行执行；不根据耗时或一次失败动态扩大范围。
+重型 profile 覆盖 affected 或显式 full Node/Worker、Go、Rust、Ragas、五个 disposable PostgreSQL
+owner、基础设施、OTel、Campus Web smoke/full、Ops Web browser、dependency scan 和发布工具链。
+planner 只按累计差异和明确制品消费者选择，各 profile 串行执行；不根据耗时或一次失败动态扩大范围。
 
 ## 变更面选择
 
@@ -91,19 +96,17 @@ status: active
 | Dockerfile、Bake 或发布适配器 | `pnpm ci:release`、`docker buildx bake --print`；需要构建证据时手动运行 Docker profile |
 | K8s 或 deployment source | 所属静态验证、render 检查与明确的环境验收 |
 
-## 手动重型检查
+## 执行器与定时检查
 
-`manual-health` 只通过 `workflow_dispatch` 运行，每次选择一个 profile：
+格式、文档、合同、workflow 和轻量语言 lint 在 GitHub-hosted runner 执行；原生编译、数据库、浏览器、
+OTel Docker 校验、制品发布和 promotion 保留在 `campus-agent-release` self-hosted runner。两类 runner
+使用同一 flake，不维护第二套 CLI 安装 action。self-hosted runner 从标准多用户路径
+`/nix/var/nix/profiles/default/bin/nix` 进入 `ci-full`；hosted runner 使用固定 commit 的安装 action 获取
+Nix 2.35.1，不接入 Cachix 服务。
 
-- `node`：仓库、合同、完整 JS/TS、ingestion 与 eval；
-- `go`、`rust`：对应 Turbo native task；
-- `database`：全部隔离 PostgreSQL 套件；
-- `browser`：Campus Web 与 Ops Web 完整浏览器回归；
-- `dependencies`：全部 dependency ecosystem；
-- `docker`：用户从 `docker-bake.hcl` 中明确选择一个 target 构建。
-
-手动入口不维护隐式 `all` 或自动定时重测。staging 候选链可以按环境游标选择上述固定 profile；手动
-健康检查仍一次选择一个明确 profile，失败归属于实际工具或模块。
+依赖 advisory 可以在没有代码变化时变化，因此每周一 `02:35 UTC` 在 hosted runner 运行一次
+`pnpm ci:deps`；lockfile 变化仍在对应 PR profile 中运行同一入口。仓库不保存未被消费的扫描 JSON
+artifact，也不把 dependency scan 的成功结果当作应用行为或镜像安全证据。
 
 ## 测试与缓存
 
@@ -111,7 +114,7 @@ status: active
 - Turbo task 必须声明 package 外行为输入；integration test 与有副作用任务禁用缓存；
 - Remote Cache 缺失时正常执行，正确性不依赖自托管 Runner 的旧工作目录；
 - 不缓存 vulnerability scan、staging check 或 release check 的成功结果，也不缓存 `node_modules`；
-- browser profile 构建一次 fixture 后运行完整回归，不复用已有开发服务器；
+- browser profile 构建一次 fixture 后运行所选 smoke 或 full 回归，不复用已有开发服务器；
 - execution-control 的 Temporal server 测试使用模块明确入口，不属于默认 `pnpm ci:go`；
 - PR 数据库 profile 只使用 disposable PostgreSQL；真实 provider、staging database、object store、
   Langfuse 或 cluster credential 不进入 PR test。
@@ -129,7 +132,8 @@ status: active
 Trivy 扫描并记录 digest；同一源码提交已有合法不可变镜像时直接复用。
 
 机器 promotion 必须携带 planner 读取的旧 `releases/staging.json` 游标；环境仓游标已经前进时拒绝
-写入。promotion 后先调用 GitOps 仓库拥有的渲染入口，再创建或更新 `deploy/staging` PR。Agent
+写入。promotion checkout GitOps 后通过 `nix develop ./gitops#ci-infra` 调用环境仓拥有的更新和渲染入口，
+再创建或更新 `deploy/staging` PR。Agent
 Runtime、App API schema 和 Ops Web 运维 Job 的容器入口均执行构建期生成的 JavaScript，不在部署
 环境执行 TypeScript 源码。
 

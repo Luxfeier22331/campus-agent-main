@@ -1,4 +1,4 @@
-FROM node:24-bookworm-slim AS pruner
+FROM node:24.18.1-bookworm-slim AS pruner
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
@@ -15,7 +15,7 @@ COPY . .
 
 RUN pnpm exec turbo prune source-collector --docker --out-dir=/repo/out
 
-FROM node:24-bookworm-slim AS check
+FROM node:24.18.1-bookworm-slim AS check
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
@@ -34,7 +34,7 @@ COPY configs/sources/internal-portal.json ./configs/sources/internal-portal.json
 RUN pnpm --filter source-collector typecheck \
   && touch /check-complete
 
-FROM node:24-bookworm-slim AS production-dependencies
+FROM node:24.18.1-bookworm-slim AS production-dependencies
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
@@ -48,7 +48,7 @@ COPY --from=pruner /repo/out/json/ ./
 RUN corepack enable pnpm \
   && pnpm install --prod --frozen-lockfile --filter source-collector...
 
-FROM node:24-bookworm-slim AS runtime
+FROM node:24.18.1-bookworm-slim AS runtime
 
 WORKDIR /workspace
 

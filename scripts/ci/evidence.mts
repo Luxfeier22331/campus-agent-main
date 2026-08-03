@@ -2,41 +2,36 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { turboTasks, type ValidationProfile } from "./candidates.mts";
+import { type CommandResult, type CommandRunner, resolveAffectedScope } from "./scope.mts";
+import { VALIDATION_PROFILES, type ValidationProfile } from "./validation.mts";
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
-const PROFILE_COMMANDS: Record<ValidationProfile, string[][]> = {
-	"affected-node": [],
+const PROFILE_COMMANDS: Partial<Record<ValidationProfile, string[][]>> = {
 	go: [["pnpm", "ci:go"]],
+	rust: [["pnpm", "ci:rust"]],
+	ragas: [["pnpm", "ci:eval"]],
 	"app-api-migration": [["pnpm", "ci:app-api-migration"]],
 	"app-api-product-db": [["pnpm", "ci:app-api-product-db"]],
 	"execution-control-postgres": [["pnpm", "ci:execution-control-postgres"]],
+	"ingestion-control-postgres": [["pnpm", "ci:ingestion-control-postgres"]],
 	"ops-web-postgres": [["pnpm", "ci:ops-web-postgres"]],
 	infra: [["pnpm", "ci:infra"]],
-	"release-tooling": [
+	otel: [["pnpm", "ci:otel"]],
+	dependencies: [["pnpm", "ci:deps"]],
+	toolchain: [
 		["pnpm", "ci:release"],
 		["docker", "buildx", "bake", "--file", "docker-bake.hcl", "--print"],
 	],
 };
 
-export interface EvidenceCommandResult {
-	error?: Error;
-	status: number | null;
-	stdout?: string;
-}
-
-export type EvidenceCommandRunner = (
-	command: string,
-	args: string[],
-	options: { cwd: string; env: NodeJS.ProcessEnv },
-) => EvidenceCommandResult;
+export type EvidenceCommandRunner = CommandRunner;
 
 function runCommand(
 	command: string,
 	args: string[],
 	options: { cwd: string; env: NodeJS.ProcessEnv },
-): EvidenceCommandResult {
-	const captureOutput = args.includes("--dry=json");
+): CommandResult {
+	const captureOutput = command === "git" || args.includes("--dry-run=json");
 	const result = spawnSync(command, args, {
 		cwd: options.cwd,
 		env: options.env,
@@ -46,7 +41,8 @@ function runCommand(
 	return {
 		error: result.error,
 		status: result.status,
-		...(captureOutput && typeof result.stdout === "string" ? { stdout: result.stdout } : {}),
+		stderr: typeof result.stderr === "string" ? result.stderr : "",
+		stdout: typeof result.stdout === "string" ? result.stdout : "",
 	};
 }
 
@@ -57,9 +53,6 @@ function runProfileCommand(
 	runner: EvidenceCommandRunner,
 	options: { cwd: string; env: NodeJS.ProcessEnv },
 ): void {
-	if (!command) {
-		throw new Error(`Missing command for candidate validation profile: ${profile}`);
-	}
 	const result = runner(command, args, options);
 	if (result.error) {
 		throw result.error;
@@ -73,67 +66,68 @@ function runProfileCommand(
 
 function runAffectedNodeEvidence(
 	input: {
-		repositoryRoot: string;
+		base: string;
 		env: NodeJS.ProcessEnv;
+		head: string;
+		repositoryRoot: string;
 	},
 	runner: EvidenceCommandRunner,
-): void {
+): { builtPackages: Set<string>; builtWorkers: Set<string> } {
 	const options = { cwd: input.repositoryRoot, env: input.env };
-	const planResult = runner(
+	const scope = resolveAffectedScope(
+		{
+			base: input.base,
+			head: input.head,
+			repositoryRoot: input.repositoryRoot,
+		},
+		runner,
+	);
+	runProfileCommand(
+		"affected-node",
 		"pnpm",
 		[
 			"exec",
 			"turbo",
 			"run",
-			"build",
-			"build:worker",
 			"test",
+			"test:worker",
 			"typecheck",
 			"--affected",
-			"--dry=json",
+			"--concurrency=1",
+			"--summarize",
 		],
-		options,
-	);
-	if (planResult.error) {
-		throw planResult.error;
-	}
-	if (planResult.status !== 0) {
-		throw new Error(
-			`Candidate validation profile affected-node failed with exit code ${planResult.status ?? 1}`,
-		);
-	}
-	const tasks = turboTasks(planResult.stdout ?? "");
-
-	runProfileCommand(
-		"affected-node",
-		"pnpm",
-		["exec", "turbo", "run", "test", "typecheck", "--affected", "--concurrency=1", "--summarize"],
 		runner,
 		options,
 	);
 
-	const buildPackages = [
-		...new Set(
-			tasks
-				.filter((task) => task.task === "build" && task.package !== "campus-web")
-				.map((task) => task.package),
-		),
-	].sort();
-	if (buildPackages.length > 0) {
-		const buildArgs = [
-			"exec",
-			"turbo",
-			"run",
-			"build",
-			"--only",
-			"--concurrency=1",
-			"--summarize",
-			...buildPackages.map((packageName) => `--filter=${packageName}`),
-		];
-		runProfileCommand("affected-node", "pnpm", buildArgs, runner, options);
+	const buildPackages = new Set(
+		scope.tasks
+			.filter((task) => task.task === "build" && task.package !== "campus-web")
+			.map((task) => task.package),
+	);
+	if (buildPackages.size > 0) {
+		runProfileCommand(
+			"affected-node",
+			"pnpm",
+			[
+				"exec",
+				"turbo",
+				"run",
+				"build",
+				"--only",
+				"--concurrency=1",
+				"--summarize",
+				...[...buildPackages].sort().map((packageName) => `--filter=${packageName}`),
+			],
+			runner,
+			options,
+		);
 	}
 
-	if (tasks.some((task) => task.package === "campus-web" && task.task === "build:worker")) {
+	const builtWorkers = new Set(
+		scope.tasks.filter((task) => task.task === "build:worker").map((task) => task.package),
+	);
+	if (builtWorkers.size > 0) {
 		runProfileCommand(
 			"affected-node",
 			"pnpm",
@@ -142,15 +136,42 @@ function runAffectedNodeEvidence(
 				"turbo",
 				"run",
 				"build:worker",
-				"--filter=campus-web",
 				"--only",
 				"--concurrency=1",
 				"--summarize",
+				...[...builtWorkers].sort().map((packageName) => `--filter=${packageName}`),
 			],
 			runner,
 			options,
 		);
 	}
+	return { builtPackages: buildPackages, builtWorkers };
+}
+
+function prepareCampusBrowser(
+	prepared: boolean,
+	runner: EvidenceCommandRunner,
+	options: { cwd: string; env: NodeJS.ProcessEnv },
+): void {
+	if (prepared) {
+		return;
+	}
+	runProfileCommand(
+		"campus-browser-smoke",
+		"pnpm",
+		[
+			"exec",
+			"turbo",
+			"run",
+			"build:worker",
+			"--filter=campus-web",
+			"--only",
+			"--concurrency=1",
+			"--summarize",
+		],
+		runner,
+		options,
+	);
 }
 
 function argumentsMap(args: string[]): Map<string, string> {
@@ -180,7 +201,10 @@ export function parseValidationProfiles(source: string): ValidationProfile[] {
 		throw new Error("Candidate validation profiles must be a JSON array");
 	}
 	const selected = value.map((profile) => {
-		if (typeof profile !== "string" || !Object.hasOwn(PROFILE_COMMANDS, profile)) {
+		if (
+			typeof profile !== "string" ||
+			!VALIDATION_PROFILES.includes(profile as ValidationProfile)
+		) {
 			throw new Error(`Unsupported candidate validation profile: ${String(profile)}`);
 		}
 		return profile as ValidationProfile;
@@ -208,17 +232,59 @@ export function runCandidateEvidence(
 		TURBO_SCM_BASE: input.base,
 		TURBO_SCM_HEAD: input.head,
 	};
+	const options = { cwd: input.repositoryRoot, env };
+	let builtPackages = new Set<string>();
+	let builtWorkers = new Set<string>();
 	for (const profile of input.profiles) {
 		process.stdout.write(`Running candidate validation profile: ${profile}\n`);
-		if (profile === "affected-node") {
-			runAffectedNodeEvidence({ repositoryRoot: input.repositoryRoot, env }, runner);
+		if (profile === "full-node") {
+			runProfileCommand(profile, "pnpm", ["ci:typescript:full"], runner, options);
+			builtPackages.add("ops-web");
+			builtWorkers.add("campus-web");
 			continue;
 		}
-		for (const [command, ...args] of PROFILE_COMMANDS[profile]) {
-			runProfileCommand(profile, command, args, runner, {
-				cwd: input.repositoryRoot,
-				env,
-			});
+		if (profile === "affected-node") {
+			({ builtPackages, builtWorkers } = runAffectedNodeEvidence(
+				{
+					base: input.base,
+					env,
+					head: input.head,
+					repositoryRoot: input.repositoryRoot,
+				},
+				runner,
+			));
+			continue;
+		}
+		if (profile === "campus-browser-smoke" || profile === "campus-browser-full") {
+			prepareCampusBrowser(builtWorkers.has("campus-web"), runner, options);
+			builtWorkers.add("campus-web");
+			runProfileCommand(
+				profile,
+				"pnpm",
+				[
+					"--dir",
+					"apps/campus-web",
+					profile === "campus-browser-full" ? "test:e2e:full" : "test:e2e:smoke",
+				],
+				runner,
+				options,
+			);
+			continue;
+		}
+		if (profile === "ops-web-browser") {
+			runProfileCommand(
+				profile,
+				"pnpm",
+				builtPackages.has("ops-web")
+					? ["--dir", "apps/ops-web", "exec", "playwright", "test", "--config", "browser.config.ts"]
+					: ["--dir", "apps/ops-web", "test:browser"],
+				runner,
+				options,
+			);
+			continue;
+		}
+		for (const [command, ...args] of PROFILE_COMMANDS[profile] ?? []) {
+			runProfileCommand(profile, command, args, runner, options);
 		}
 	}
 }

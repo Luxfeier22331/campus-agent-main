@@ -4,6 +4,72 @@
 		"affectedUsingTaskInputs": true
 	},
 	"tasks": {
+		"//#ci:config": {
+			"inputs": [".github/**", "flake.lock", "flake.nix", "nix/**"]
+		},
+		"//#ci:contracts": {
+			"inputs": [
+				"apps/agent-runtime/src/tool-catalog.ts",
+				"apps/app-api/src/modules/integration/generated/tool-execution-contract.ts",
+				"apps/execution-control/internal/contracts/tool_execution_contract.go",
+				"configs/runtime/**",
+				"docs/contracts/schemas/**",
+				"packages/contracts/**",
+				"packages/ingestion-contracts/assertions/**",
+				"packages/ingestion-contracts/schemas/**"
+			]
+		},
+		"//#ci:deps": {
+			"cache": false,
+			"inputs": [
+				"Cargo.lock",
+				"Cargo.toml",
+				"apps/**/go.mod",
+				"apps/**/go.sum",
+				"flake.lock",
+				"flake.nix",
+				"osv-scanner.toml",
+				"package.json",
+				"packages/**/package.json",
+				"pnpm-lock.yaml",
+				"pnpm-workspace.yaml",
+				"pyproject.toml",
+				"uv.lock"
+			]
+		},
+		"//#ci:infra": {
+			"inputs": ["infra/k8s/**", "infra/policies/**", "scripts/ci/infra-check.sh"]
+		},
+		"//#ci:otel": {
+			"cache": false,
+			"inputs": ["infra/otel/**", "infra/policies/**", "scripts/ci/check-otel-config.sh"]
+		},
+		"//#ci:release": {
+			"inputs": [
+				".github/workflows/execution-runtime-publish.yml",
+				"docker-bake.hcl",
+				"scripts/ci/check-ops-web-artifact.*",
+				"scripts/ci/evidence.*",
+				"scripts/ci/scope.*",
+				"scripts/ci/validation.*",
+				"scripts/release/**"
+			]
+		},
+		"//#ci:repo": {
+			"inputs": [
+				".editorconfig",
+				".github/**",
+				"AGENTS.md",
+				"CONTRIBUTING.md",
+				"README.md",
+				"apps/**/*.md",
+				"configs/**/*.md",
+				"docs/**",
+				"jobs/**/*.md",
+				"packages/**/*.md",
+				"scripts/docs/**"
+			]
+		},
 		"build": {
 			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
 			"outputs": ["dist/**", ".tanstack/**"]
@@ -132,6 +198,15 @@
 			"cache": false
 		},
 		"test:database-integration": {
+			"cache": false
+		},
+		"test:browser": {
+			"cache": false
+		},
+		"test:e2e:full": {
+			"cache": false
+		},
+		"test:e2e:smoke": {
 			"cache": false
 		},
 		"test:worker": {

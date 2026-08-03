@@ -185,6 +185,7 @@ describe("campus worker boundary", () => {
 			"/account/login",
 			"/account/register",
 			"/account/forgot-password",
+			"/account/reset-link-sent",
 			"/account/reset-password",
 			"/account/sign-out",
 			"/account/settings/account",

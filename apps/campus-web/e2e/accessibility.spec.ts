@@ -11,7 +11,7 @@ const surfaces: ReadonlyArray<{
 	{
 		name: "问答",
 		path: "/",
-		ready: (page) => page.getByTestId("assistant-chat"),
+		ready: (page) => page.getByRole("heading", { level: 1, name: "今天想了解什么校园信息？" }),
 		smoke: true,
 	},
 	{
@@ -22,7 +22,8 @@ const surfaces: ReadonlyArray<{
 	{
 		name: "校园地图",
 		path: "/map",
-		ready: (page) => page.getByRole("region", { name: "校园地图" }),
+		ready: (page) =>
+			page.getByRole("radiogroup", { name: "选择校区" }).getByRole("radio", { checked: true }),
 	},
 	{
 		name: "同好群",
@@ -47,22 +48,10 @@ test.describe("campus web design contract", () => {
 			`${surface.name}通过自动化 WCAG A/AA 检查`,
 			surface.smoke ? { tag: "@smoke" } : {},
 			async ({ page }) => {
+				await page.emulateMedia({ reducedMotion: "reduce" });
 				await mockCampusApi(page, { authenticated: !surface.path.startsWith("/account") });
 				await page.goto(surface.path);
 				await expect(surface.ready(page).first()).toBeVisible({ timeout: 15_000 });
-				await page.evaluate(() => {
-					const finiteAnimations = document.getAnimations().filter((animation) => {
-						const endTime = animation.effect?.getComputedTiming().endTime;
-						return (
-							animation.playState === "running" &&
-							typeof endTime === "number" &&
-							Number.isFinite(endTime)
-						);
-					});
-					for (const animation of finiteAnimations) {
-						animation.finish();
-					}
-				});
 
 				const results = await new AxeBuilder({ page })
 					.withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])

@@ -143,6 +143,7 @@ describe("declarative docs reader components", () => {
 		const tableContainer = screen.getByRole("table").parentElement;
 		expect(tableContainer).toHaveAttribute("data-docs-sticky-first-column", "false");
 		expect(tableContainer).toHaveAttribute("data-docs-overflowing", "false");
+		expect(tableContainer).not.toHaveAttribute("tabindex");
 		expect(screen.queryByLabelText("表格移动端按行阅读")).not.toBeInTheDocument();
 		expect(screen.getByText("0.5")).toHaveAttribute("rowspan", "2");
 	});
@@ -199,10 +200,9 @@ describe("declarative docs reader components", () => {
 		);
 
 		await waitFor(() => {
-			expect(screen.getByRole("table").parentElement).toHaveAttribute(
-				"data-docs-overflowing",
-				"true",
-			);
+			const tableContainer = screen.getByRole("table").parentElement;
+			expect(tableContainer).toHaveAttribute("data-docs-overflowing", "true");
+			expect(tableContainer).toHaveAttribute("tabindex", "0");
 		});
 	});
 

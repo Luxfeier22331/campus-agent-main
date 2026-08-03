@@ -13,19 +13,29 @@ import { resolveDocsContentPaths } from "./src/docs-reader-build/docs-content";
 const require = createRequire(import.meta.url);
 const sharedFaviconPath = path.resolve(__dirname, "../../configs/branding/web-public/favicon.ico");
 
-export default defineConfig(({ command }) => {
+export default defineConfig(({ command, isPreview }) => {
 	const buildTarget = resolveCampusWebBuildTarget();
 	const sentryUpload = buildTarget === "app" ? resolveSentrySourceMapUpload() : null;
-	const docsContent = resolveDocsBuildContent();
 	if (buildTarget === "docs" && command !== "build") {
 		throw new Error("The Campus Web docs build requires static docs content.");
 	}
-	const htmlInputs =
-		buildTarget === "docs" ? findHtmlInputs(docsContent.paths.pagesRoot) : undefined;
+	const docsContent = isPreview ? undefined : resolveDocsBuildContent();
 	const clientOutputRoot = path.resolve(
 		__dirname,
 		buildTarget === "docs" ? "dist/docs-client" : "dist/client",
 	);
+	let htmlInputs: Record<string, string> | undefined;
+	let docsBuildPlugin: Plugin | undefined;
+	if (buildTarget === "docs") {
+		if (!docsContent) {
+			throw new Error("The Campus Web docs build requires static docs content.");
+		}
+		htmlInputs = findHtmlInputs(docsContent.paths.pagesRoot);
+		docsBuildPlugin = relocateDocsHtmlPages({
+			clientOutputRoot,
+			pagesRoot: docsContent.paths.pagesRoot,
+		});
+	}
 	return {
 		build: {
 			sourcemap: sentryUpload ? ("hidden" as const) : false,
@@ -38,7 +48,7 @@ export default defineConfig(({ command }) => {
 				},
 			},
 		},
-		publicDir: docsContent.paths.publicRoot,
+		publicDir: docsContent?.paths.publicRoot ?? false,
 		plugins: [
 			tailwindcss(),
 			react(),
@@ -51,15 +61,10 @@ export default defineConfig(({ command }) => {
 						: ".generated/bundle-graph.json",
 				),
 			}),
-			...(buildTarget === "docs"
-				? [
-						relocateDocsHtmlPages({
-							clientOutputRoot,
-							pagesRoot: docsContent.paths.pagesRoot,
-						}),
-					]
+			...(docsBuildPlugin
+				? [docsBuildPlugin]
 				: [copySharedFavicon(), copyMapLibreVendor(), cloudflare({ inspectorPort: false })]),
-			...(buildTarget === "app" && command === "serve"
+			...(buildTarget === "app" && command === "serve" && docsContent
 				? [serveDocsDevelopmentShell(docsContent.paths.publicRoot)]
 				: []),
 			...(sentryUpload

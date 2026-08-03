@@ -56,6 +56,7 @@ test.describe("product navigation browser flow", () => {
 		page,
 	}) => {
 		await page.setViewportSize({ height: 812, width: 390 });
+		await page.goto("/feedback");
 
 		const trigger = page.getByRole("button", { name: "打开产品导航" });
 		await expect(trigger).toBeVisible();

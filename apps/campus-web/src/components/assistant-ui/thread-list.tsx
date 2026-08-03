@@ -168,7 +168,7 @@ const ThreadListItemMore: FC<ThreadListActionErrorProps> = ({ onActionError }) =
 				<Button
 					variant="ghost"
 					size="icon"
-					className="aui-thread-list-item-more data-[state=open]:bg-accent absolute end-1.5 top-1/2 size-6 -translate-y-1/2 p-0 opacity-0 group-hover:opacity-100 group-data-active:opacity-100 data-[state=open]:opacity-100"
+					className="aui-thread-list-item-more data-[state=open]:bg-accent absolute end-1.5 top-1 z-10 size-6 p-0 opacity-0 group-hover:opacity-100 group-data-active:opacity-100 data-[state=open]:opacity-100"
 				>
 					<MoreHorizontalIcon className="size-3.5" />
 					<span className="sr-only">更多操作</span>

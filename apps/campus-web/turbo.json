@@ -81,6 +81,7 @@
 			"outputs": [
 				".generated/bundle-graph.json",
 				".generated/docs-content/sources/**",
+				".wrangler/deploy/**",
 				"dist/**",
 				".tanstack/**"
 			]

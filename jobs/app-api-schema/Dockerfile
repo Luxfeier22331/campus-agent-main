@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM node:24.15-bookworm-slim AS build
+FROM node:24.18.1-bookworm-slim AS build
 
 WORKDIR /app
 
@@ -27,7 +27,7 @@ RUN ln -s ../../jobs/app-api-schema/node_modules apps/app-api/node_modules \
     --target=node24 \
   && node -e "import('./apps/app-api/ops/db/schema.js')"
 
-FROM node:24.15-bookworm-slim AS dependencies
+FROM node:24.18.1-bookworm-slim AS dependencies
 
 WORKDIR /app
 
@@ -39,7 +39,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharin
   corepack enable pnpm \
   && pnpm install --frozen-lockfile --prod --no-optional --filter app-api-schema...
 
-FROM node:24.15-bookworm-slim
+FROM node:24.18.1-bookworm-slim
 
 WORKDIR /app
 ENV NODE_ENV=production

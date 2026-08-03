@@ -71,6 +71,7 @@ export function createCampusAuthUIProviderProps({
 				alreadyHaveAnAccount: "已有账号？",
 				alreadyVerifiedYourEmail: "邮箱已验证？",
 				checkYourEmail: "请查看邮箱中的验证链接",
+				checkYourEmailTitle: "请查收邮件",
 				confirmPassword: "确认密码",
 				confirmPasswordPlaceholder: "再次输入密码",
 				continueWith: "使用 {{provider}} 继续",
@@ -98,6 +99,7 @@ export function createCampusAuthUIProviderProps({
 				rememberYourPassword: "想起密码了？",
 				resend: "重新发送",
 				resendIn: "{{seconds}} 秒后重新发送",
+				resetLinkSentTo: "密码重置链接已发送至 {{email}}",
 				resetPassword: "设置新密码",
 				sendResetLink: "发送重置链接",
 				showPassword: "显示密码",
@@ -168,6 +170,7 @@ export function createCampusAuthUIProviderProps({
 		viewPaths: {
 			auth: {
 				forgotPassword: "forgot-password",
+				resetLinkSent: "reset-link-sent",
 				resetPassword: "reset-password",
 				signIn: "login",
 				signOut: "sign-out",

@@ -369,7 +369,9 @@ export async function fulfillChatFailedStream(route: Route) {
 export async function fulfillChatFailure(route: Route) {
 	await route.fulfill({
 		contentType: "application/json",
-		json: { error: { code: "execution_failed", message: "请求失败。" } },
+		json: {
+			error: { code: "execution_failed", message: "请求失败。", retryable: false },
+		},
 		status: 500,
 	});
 }

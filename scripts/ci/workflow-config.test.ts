@@ -70,3 +70,47 @@ test("GitHub workflows use environment-neutral configuration names", async () =>
 	}
 	assert.deepEqual(failures, []);
 });
+
+test("pull request validation keeps one hosted planner and one stable heavy check", async () => {
+	const source = await readFile(path.join(REPOSITORY_ROOT, ".github/workflows/pr.yml"), "utf8");
+	const document = parseAllDocuments(source)[0];
+	assert(document);
+	const workflow = document.toJS() as { jobs?: Record<string, unknown> };
+	assert.deepEqual(Object.keys(workflow.jobs ?? {}).sort(), ["light", "repo-checks"]);
+	assert.match(source, /light:\n\s+runs-on: ubuntu-24\.04/u);
+	assert.match(
+		source,
+		/repo-checks:\n[\s\S]*runs-on: \[self-hosted, Linux, ARM64, campus-agent-release\]/u,
+	);
+	assert(!source.includes("pull_request.head.sha }}\n          ref:"));
+	assert.equal(source.match(/TURBO_TOKEN:/gu)?.length, 1);
+});
+
+test("source workflows use Nix and do not restore retired setup entrypoints", async () => {
+	const workflowRoot = path.join(REPOSITORY_ROOT, ".github/workflows");
+	const sources = await Promise.all(
+		["dependencies.yml", "execution-runtime-publish.yml", "pr.yml"].map((workflow) =>
+			readFile(path.join(workflowRoot, workflow), "utf8"),
+		),
+	);
+	const joined = sources.join("\n");
+	for (const retired of [
+		"aquaproj/aqua-installer",
+		"astral-sh/setup-uv",
+		"azure/setup-kubectl",
+		"dorny/paths-filter",
+		"pnpm/action-setup",
+		"actions/setup-node",
+		"./gitops/.github/actions/setup-policy-tools",
+	]) {
+		assert(!joined.includes(retired), retired);
+	}
+	assert(joined.includes("cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342"));
+	assert(joined.includes("nix develop .#ci-light"));
+	assert(joined.includes("nix develop .#ci-full"));
+	assert(joined.includes("nix develop ./gitops#ci-infra"));
+	const dependencies = sources[0];
+	assert(dependencies);
+	assert(dependencies.includes("nix develop .#ci-light"));
+	assert(!dependencies.includes("nix develop .#ci-full"));
+});

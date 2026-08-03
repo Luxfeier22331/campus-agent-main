@@ -384,7 +384,10 @@ function CampusSelector({
 		>
 			{campuses.map((item) => (
 				<ToggleGroupItem
-					className={cn("shrink-0 rounded-full", isDesktop ? "min-h-9" : "min-h-11")}
+					className={cn(
+						"shrink-0 rounded-full data-[state=on]:bg-[var(--sys-surface-selected)] data-[state=on]:text-[var(--sys-brand-interactive)]",
+						isDesktop ? "min-h-9" : "min-h-11",
+					)}
 					key={item}
 					value={item}
 				>
@@ -427,14 +430,20 @@ function CategoryFilters({
 			value={category}
 		>
 			<ToggleGroupItem
-				className={cn("shrink-0 rounded-full", isDesktop ? "min-h-9" : "min-h-11")}
+				className={cn(
+					"shrink-0 rounded-full data-[state=on]:bg-[var(--sys-surface-selected)] data-[state=on]:text-[var(--sys-brand-interactive)]",
+					isDesktop ? "min-h-9" : "min-h-11",
+				)}
 				value="all"
 			>
 				全部
 			</ToggleGroupItem>
 			{categories.map((item) => (
 				<ToggleGroupItem
-					className={cn("shrink-0 rounded-full", isDesktop ? "min-h-9" : "min-h-11")}
+					className={cn(
+						"shrink-0 rounded-full data-[state=on]:bg-[var(--sys-surface-selected)] data-[state=on]:text-[var(--sys-brand-interactive)]",
+						isDesktop ? "min-h-9" : "min-h-11",
+					)}
 					key={item.value}
 					value={item.value}
 				>

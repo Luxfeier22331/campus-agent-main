@@ -64,6 +64,7 @@ describe("native docs build boundary", () => {
 		expect(packageJson.scripts["build:test"]).toBe(
 			"pnpm exec tsx ./test/build-browser-test-content.ts",
 		);
+		expect(packageJson.scripts["build:worker"]).toBe("CLOUDFLARE_ENV=local pnpm run build:test");
 		expect(packageJson.scripts["docs:prepare"]).toBe(
 			"pnpm exec tsx ./scripts/prepare-docs-content.ts",
 		);
@@ -84,9 +85,11 @@ describe("native docs build boundary", () => {
 		);
 		expect(viteSource).toContain("environments:");
 		expect(viteSource).toContain("resolveDocsBuildContent()");
+		expect(viteSource).toContain("isPreview ? undefined : resolveDocsBuildContent()");
+		expect(viteSource).toContain("publicDir: docsContent?.paths.publicRoot ?? false");
 		expect(viteSource).toContain('buildTarget === "docs" && command !== "build"');
 		expect(viteSource).toContain('buildTarget === "app" && command === "serve"');
-		expect(viteSource).toContain('buildTarget === "docs" ? findHtmlInputs');
+		expect(viteSource).toContain("htmlInputs = findHtmlInputs(docsContent.paths.pagesRoot)");
 		expect(viteSource).toContain("relocateDocsHtmlPages({");
 		expect(viteSource).toContain("CAMPUS_WEB_BUILD_TARGET must be app or docs.");
 		expect(viteSource).toContain("serveDocsDevelopmentShell(docsContent.paths.publicRoot)");

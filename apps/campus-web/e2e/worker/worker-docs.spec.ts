@@ -31,7 +31,9 @@ test.describe("campus web static docs browser boundary", () => {
 			"aria-expanded",
 			"true",
 		);
-		await expect(page.getByRole("link", { name: "学生考勤管理规定" })).toBeVisible();
+		await expect(
+			page.getByLabel("文档目录侧栏").getByRole("link", { name: "学生考勤管理规定" }),
+		).toBeVisible();
 		await expect(page.locator(".docs-outline-panel")).toHaveCount(0);
 		await expect(page.locator('[data-campus-prerendered="docs"]')).toHaveCount(1);
 	});

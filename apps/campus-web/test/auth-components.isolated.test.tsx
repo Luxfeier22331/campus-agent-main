@@ -120,6 +120,7 @@ vi.mock("@better-auth-ui/heroui", () => ({
 				data-auth-forgot-path={viewPaths?.auth?.forgotPassword ?? ""}
 				data-auth-login-path={viewPaths?.auth?.signIn ?? ""}
 				data-auth-register-path={viewPaths?.auth?.signUp ?? ""}
+				data-auth-reset-link-sent-path={viewPaths?.auth?.resetLinkSent ?? ""}
 				data-confirm-password={String(emailAndPassword?.confirmPassword ?? false)}
 				data-consent-profile={String(consentField?.profile ?? true)}
 				data-consent-required={String(consentField?.required ?? false)}
@@ -127,9 +128,11 @@ vi.mock("@better-auth-ui/heroui", () => ({
 				data-consent-type={consentField?.type ?? ""}
 				data-has-captcha={String(plugins?.some((plugin) => plugin.id === "captcha") ?? false)}
 				data-localization-current-session={localization?.settings?.currentSession ?? ""}
+				data-localization-check-email-title={localization?.auth?.checkYourEmailTitle ?? ""}
 				data-localization-field-required={localization?.auth?.fieldRequired ?? ""}
 				data-localization-forgot-password={localization?.auth?.forgotPassword ?? ""}
 				data-localization-name={localization?.auth?.name ?? ""}
+				data-localization-reset-link-sent={localization?.auth?.resetLinkSentTo ?? ""}
 				data-localization-save={localization?.settings?.saveChanges ?? ""}
 				data-localization-security={localization?.settings?.security ?? ""}
 				data-localization-set-password={localization?.settings?.setPassword ?? ""}
@@ -478,7 +481,13 @@ describe("campus auth UI components", () => {
 		expect(provider).toHaveAttribute("data-auth-login-path", "login");
 		expect(provider).toHaveAttribute("data-auth-register-path", "register");
 		expect(provider).toHaveAttribute("data-auth-forgot-path", "forgot-password");
+		expect(provider).toHaveAttribute("data-auth-reset-link-sent-path", "reset-link-sent");
 		expect(provider).toHaveAttribute("data-settings-security-path", "security");
+		expect(provider).toHaveAttribute("data-localization-check-email-title", "请查收邮件");
+		expect(provider).toHaveAttribute(
+			"data-localization-reset-link-sent",
+			"密码重置链接已发送至 {{email}}",
+		);
 		expect(provider).toHaveAttribute("data-confirm-password", "true");
 		expect(provider).toHaveAttribute("data-consent-required", "true");
 		expect(provider).toHaveAttribute("data-consent-sign-up", "true");
