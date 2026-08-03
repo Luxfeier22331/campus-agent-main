@@ -4,6 +4,14 @@ secret_like_key(key) if {
 	regex.match("(?i)(secret|password|api[_-]?key|access[_-]?key|private[_-]?key|auth[_-]?(header|value)|database[_-]?url|dsn|token|salt)", key)
 }
 
+environment_prefixed_key(key) if {
+	regex.match("^(STAGING|DEV|DEVELOPMENT|PROD|PRODUCTION)_", key)
+}
+
+environment_workload(document) if {
+	document.kind in {"Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob"}
+}
+
 provider_profile_keys := {
 	"LLM_API_KEY",
 	"EMBEDDING_API_KEY",
@@ -86,6 +94,32 @@ violation contains msg if {
 	key := object.keys(input.data)[_]
 	provider_profile_keys[key]
 	msg := sprintf("provider profile key %s must not be rendered in ConfigMap %s", [key, input.metadata.name])
+}
+
+violation contains msg if {
+	input.kind == "ConfigMap"
+	key := object.keys(object.get(input, "data", {}))[_]
+	environment_prefixed_key(key)
+	msg := sprintf("ConfigMap %s key %s must not encode deployment environment", [input.metadata.name, key])
+}
+
+violation contains msg if {
+	input.kind == "Secret"
+	section := {"data", "stringData"}[_]
+	key := object.keys(object.get(input, section, {}))[_]
+	environment_prefixed_key(key)
+	msg := sprintf("Secret %s key %s must not encode deployment environment", [input.metadata.name, key])
+}
+
+violation contains msg if {
+	environment_workload(input)
+	[path, value] := walk(input)
+	count(path) >= 4
+	path[count(path) - 4] in {"containers", "initContainers"}
+	path[count(path) - 2] == "env"
+	name := object.get(value, "name", "")
+	environment_prefixed_key(name)
+	msg := sprintf("%s/%s environment variable %s must not encode deployment environment", [input.kind, input.metadata.name, name])
 }
 
 violation contains msg if {

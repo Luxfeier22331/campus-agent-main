@@ -35,6 +35,11 @@ feature worktree -> pull request -> main
 - 合同、schema、数据所有权或架构边界变化时，同步更新所属文档；
 - 合入前确认仓库要求的聚合检查成功。
 
+Pull Request 合并后应立即退役对应 linked worktree 和本地功能分支。删除前必须确认 worktree 干净、
+本地 HEAD 与 Pull Request head 完全一致、Pull Request 已合入 `main`，且 merge commit 可从最新
+`origin/main` 到达；不满足任一条件时保留现场并重新确认。远端功能分支由仓库的合并后自动删除设置
+处理，开放 Pull Request 和仍在工作的 worktree 不属于清理对象。
+
 ### Squash 合并
 
 - squash commit 标题直接使用符合 Conventional Commit 的 Pull Request 标题；

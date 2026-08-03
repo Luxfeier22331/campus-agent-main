@@ -45,6 +45,10 @@
 
 - 除非用户要求切换，否则只在当前功能 worktree 和分支工作。存在并行 worktree 时先运行
   `git status --short --branch` 确认位置。
+- PR 合并后立即退役对应 linked worktree 和本地功能分支；远端功能分支由仓库的合并后自动删除设置
+  处理，不把已合并分支继续当作工作入口。
+- 退役前必须确认 PR 已合入 `main`、worktree 干净、分支 HEAD 等于 PR head，且 merge commit 已进入
+  当前 `origin/main`。主 checkout、dirty、locked、HEAD 不匹配或仍在工作的 worktree 必须保留。
 - 未经明确要求，不得撤销用户或其他 worktree 的改动。相关改动应协同处理，无关改动应
   忽略。
 - 改动只覆盖用户要求的所有者。没有明确需求时，不增加 fallback、尽力恢复、静默成功或
