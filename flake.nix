@@ -62,7 +62,10 @@
               tools.kustomize
             ]);
           ciLight = pkgs.mkShellNoCC { packages = lightPackages; };
-          ciFull = pkgs.mkShellNoCC { packages = fullPackages; };
+          ciFull = pkgs.mkShellNoCC {
+            packages = fullPackages;
+            LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ];
+          };
         in
         assert pkgs.nodejs_24.version == nodeVersion;
         assert pkgs.pnpm_10.version == pnpmVersion;

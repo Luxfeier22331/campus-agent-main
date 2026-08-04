@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { writeNativeDocsHtmlPages } from "../src/docs-reader-build/native-reader-prerender.tsx";
+import { isMissingObjectError } from "../src/docs-reader-build/published-reader-object-store.ts";
 import {
 	checkCampusPublishedReaderInputs,
 	resolvePublishedReaderObjectStoreBucket,
@@ -60,6 +61,17 @@ describe("campus-web published reader sync", () => {
 				OBJECT_STORE_ENDPOINT: "http://localhost:9000",
 			}),
 		).toThrow("OBJECT_STORE_DERIVED_ACCESS_KEY is required");
+	});
+
+	it("only treats S3 NoSuchKey errors as missing objects", () => {
+		expect(isMissingObjectError({ name: "NoSuchKey" })).toBe(true);
+		expect(isMissingObjectError({ Code: "NoSuchKey" })).toBe(true);
+		expect(
+			isMissingObjectError({
+				name: "UnknownError",
+				$metadata: { httpStatusCode: 404 },
+			}),
+		).toBe(false);
 	});
 
 	it("generates the native catalog, indexes, and readable HTML pages", async () => {

@@ -163,12 +163,20 @@ test("fails publication when Trivy rejects an image", async (t) => {
 			return manifest(FIRST_DIGEST);
 		}
 		if (command === "trivy") {
-			return result({ code: 1, stderr: "critical vulnerability" });
+			return result({
+				code: 1,
+				stderr: "scanner diagnostics",
+				stdout: "CVE-2026-18446 HIGH fast-uri 3.1.4",
+			});
 		}
 		return result();
 	};
 
-	await assert.rejects(publishImages(options, runner), /critical vulnerability/u);
+	await assert.rejects(publishImages(options, runner), (error: unknown) => {
+		assert.match(String(error), /CVE-2026-18446 HIGH fast-uri 3\.1\.4/u);
+		assert.match(String(error), /scanner diagnostics/u);
+		return true;
+	});
 });
 
 test("normalizes image order in the result and output file", async (t) => {

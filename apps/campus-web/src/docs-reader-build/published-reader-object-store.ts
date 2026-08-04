@@ -80,22 +80,13 @@ export function resolvePublishedReaderObjectStoreCredentials(
 	};
 }
 
-function isMissingObjectError(error: unknown): boolean {
+export function isMissingObjectError(error: unknown): boolean {
 	return Boolean(
 		error &&
 			typeof error === "object" &&
 			(("name" in error && error.name === "NoSuchKey") ||
-				("Code" in error && error.Code === "NoSuchKey") ||
-				("Code" in error && error.Code === "NotFound") ||
-				hasHttpStatusCode(error, 404)),
+				("Code" in error && error.Code === "NoSuchKey")),
 	);
-}
-
-function hasHttpStatusCode(error: object, statusCode: number): boolean {
-	if (!("$metadata" in error && error.$metadata) || typeof error.$metadata !== "object") {
-		return false;
-	}
-	return "httpStatusCode" in error.$metadata && error.$metadata.httpStatusCode === statusCode;
 }
 
 function readRequiredEnv(

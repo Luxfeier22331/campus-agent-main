@@ -41,7 +41,9 @@ interface ImageManifest {
 }
 
 function commandError(command: string, args: string[], result: CommandResult): Error {
-	const detail = result.stderr.trim() || result.stdout.trim() || `exit code ${result.code}`;
+	const detail =
+		[result.stdout.trim(), result.stderr.trim()].filter(Boolean).join("\n") ||
+		`exit code ${result.code}`;
 	return new Error(`${command} ${args.join(" ")} failed: ${detail}`);
 }
 

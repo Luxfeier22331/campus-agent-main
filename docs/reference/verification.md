@@ -32,7 +32,8 @@ status: active
 仍按其明确所有权选择对应证据或制品。
 
 `flake.lock` 固定 source 工具链的 nixpkgs revision，`ci-light` 覆盖 hosted 静态检查和依赖扫描，
-`ci-full` 只是包含重型 profile 所需 CLI 的 Nix 工具 shell 名称，不是 validation profile，也不会自动触发全量检查。
+`ci-full` 只是包含重型 profile 所需 CLI 的 Nix 工具 shell 名称，并为 uv 安装的 Python 二进制 wheel
+提供 C++ runtime 搜索路径；它不是 validation profile，也不会自动触发全量检查。
 Nix 不接管 `pnpm-lock.yaml`、`uv.lock`、
 `Cargo.lock` 或 Go module，也不提供 Docker daemon、PostgreSQL、Testcontainers 或 Playwright browser。
 
