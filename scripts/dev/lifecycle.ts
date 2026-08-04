@@ -259,6 +259,8 @@ function installApplicationSchemas(repoRoot: string, profile: LocalDevProfileV1)
 		OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
 		OBJECT_STORE_DERIVED_ACCESS_KEY: "minioadmin",
 		OBJECT_STORE_DERIVED_SECRET_KEY: "minioadmin",
+		OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "minioadmin",
+		OBJECT_STORE_DERIVED_READ_SECRET_KEY: "minioadmin",
 		OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
 		OPS_WEB_DATABASE_SSLMODE: "disable",
 		OPS_WEB_DATABASE_URL: database.opsWeb,

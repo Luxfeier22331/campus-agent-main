@@ -108,61 +108,6 @@ test("runs affected Node tasks from the shared scope without a downloaded Turbo"
 	assert(calls.every((call) => call.base === BASE && call.head === HEAD));
 });
 
-test("reuses affected builds for Campus and Ops browser evidence", () => {
-	const calls: string[] = [];
-	const runner: EvidenceCommandRunner = (command, args) => {
-		calls.push([command, ...args].join(" "));
-		if (command === "pnpm" && args.includes("--dry-run=json")) {
-			return {
-				status: 0,
-				stdout: JSON.stringify({
-					tasks: [
-						{ command: "build", package: "ops-web", task: "build" },
-						{ command: "build", package: "campus-web", task: "build:worker" },
-					],
-				}),
-			};
-		}
-		if (command === "git" && args[0] === "diff") {
-			return { status: 0, stdout: "M\0packages/ui/src/button.tsx\0" };
-		}
-		return { status: 0 };
-	};
-	runCandidateEvidence(
-		{
-			base: BASE,
-			head: HEAD,
-			profiles: ["affected-node", "campus-browser-smoke", "ops-web-browser"],
-			repositoryRoot: "/repository",
-		},
-		runner,
-	);
-	assert.equal(calls.filter((call) => call.includes("run build:worker")).length, 1);
-	assert(calls.some((call) => call.endsWith("apps/campus-web test:e2e:smoke")));
-	assert(calls.some((call) => call.includes("playwright test --config browser.config.ts")));
-	assert(!calls.some((call) => call.endsWith("apps/ops-web test:browser")));
-});
-
-test("prepares Campus browser evidence when no affected build ran", () => {
-	const calls: string[] = [];
-	runCandidateEvidence(
-		{
-			base: BASE,
-			head: HEAD,
-			profiles: ["campus-browser-full"],
-			repositoryRoot: "/repository",
-		},
-		(command, args) => {
-			calls.push([command, ...args].join(" "));
-			return { status: 0 };
-		},
-	);
-	assert.deepEqual(calls, [
-		"pnpm exec turbo run build:worker --filter=campus-web --only --concurrency=1 --summarize",
-		"pnpm --dir apps/campus-web test:e2e:full",
-	]);
-});
-
 test("rejects the retired aggregate full Node profile", () => {
 	assert.throws(() => parseValidationProfiles('["full-node"]'), /Unsupported validation profile/u);
 });

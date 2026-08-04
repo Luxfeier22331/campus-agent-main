@@ -30,7 +30,8 @@ Worker version、配置和其他环境资源。候选物发布成功不表示环
 
 1. 确认目标源码已经合入 `main`，且该变更要求的 PR 检查通过。
 2. 当前 workflow 从环境仓游标计算累计影响面，发布受影响的不可变候选物；PR 已拥有源码、合同、
-   disposable 数据库和浏览器证据，main 候选不重复运行这些 profile；
+   受影响 Node 证据和仓库合同检查；原生、数据库、浏览器和业务 E2E 不进入 PR 自动门禁，按明确
+   manual profile 或本地路径执行；main 候选不重复运行这些检查；
    触发条件、输入和产物以 `.github/workflows/` 为准。App API 与 Campus Web 在各自的候选任务中
    完成 Worker 配置预检；镜像、两个 Worker 和 Kubernetes 清单分别产生候选物。一个候选面的发布
    失败不使已经成功发布的候选物失效，但本次不会创建不完整的 GitOps 提升；同一源码提交重试时应
@@ -56,15 +57,17 @@ source。采集运行时
 候选开关。
 
 制品构建和环境仓交接分别由所属 workflow job 维护超时，不在 runbook 重复写入总等待阈值。调度等待
-应单独记录，以区分容量与任务耗时。镜像在 GitHub-hosted ARM64 runner 上原生构建，通过 GHCR
-registry cache 跨临时 builder 复用层。发生超时时先检查缓存命中、重复安装和发布计划。一次手动选择
-的昂贵 profile 在冷缓存下仍无法在 workflow 超时内完成时，应缩小任务输入或明确增加构建容量。已经
-发布的不可变镜像会在同一源码提交的重试中直接复用。
+应单独记录，以区分容量与任务耗时。过渡阶段镜像、正式文档构建和 promotion 使用 `campus-agent-release`
+self-hosted runner；镜像依靠 persistent Buildx 和本地热缓存，registry cache 只作为 runner 丢失后的
+恢复路径。稳定后这些 job 迁回 hosted runner。发生超时时先检查缓存命中、重复安装和发布计划。一次
+手动选择的昂贵 profile 在冷缓存下仍无法在 workflow 超时内完成时，应缩小任务输入或明确增加构建容量。
+已经发布的不可变镜像会在同一源码提交的重试中直接复用。
 
 Campus Web 的 staging publisher 在 main/artifact lane 读取固定来源键
 `campus-docs/source.json`，核对来源对象并生成静态文档；它使用 Source staging Environment 提供的
 公网 `OBJECT_STORE_ENDPOINT` 和对象存储只读身份，不依赖集群网络，也不增加 Cloudflare Access
-调用方准入。构建进程内部继续使用通用 derived 变量名。来源清单的 `sourceDigest` 只
+调用方准入。构建进程使用 `OBJECT_STORE_DERIVED_READ_ACCESS_KEY` 与
+`OBJECT_STORE_DERIVED_READ_SECRET_KEY`。来源清单的 `sourceDigest` 只
 记录在构建和候选元数据中；正常开发、构建和部署不传递手工文档版本标识。它不能注入 Worker 运行
 变量或成为独立环境选择。Campus Web 构建或对象存储读取失败只阻止该候选，promotion 不接受缺失的
 已选择 Worker 候选。

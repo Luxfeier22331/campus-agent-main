@@ -9,6 +9,8 @@ describe("Campus Web child process environment", () => {
 			OBJECT_STORE_BUCKET_DERIVED: "campus-agent-derived",
 			OBJECT_STORE_DERIVED_ACCESS_KEY: "access",
 			OBJECT_STORE_DERIVED_SECRET_KEY: "secret",
+			OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "read-access",
+			OBJECT_STORE_DERIVED_READ_SECRET_KEY: "read-secret",
 			OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
 		};
 

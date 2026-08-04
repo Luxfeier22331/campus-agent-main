@@ -27,9 +27,6 @@ export type ValidationProfile =
 	| "ops-web-postgres"
 	| "infra"
 	| "otel"
-	| "campus-browser-smoke"
-	| "campus-browser-full"
-	| "ops-web-browser"
 	| "dependencies"
 	| "toolchain";
 
@@ -45,25 +42,14 @@ export const VALIDATION_PROFILES: ValidationProfile[] = [
 	"ops-web-postgres",
 	"infra",
 	"otel",
-	"campus-browser-smoke",
-	"campus-browser-full",
-	"ops-web-browser",
 	"dependencies",
 	"toolchain",
 ];
 
-const BROWSER_PROFILES = new Set<ValidationProfile>([
-	"campus-browser-smoke",
-	"campus-browser-full",
-	"ops-web-browser",
-]);
-
 export interface ValidationPlan {
 	base: string;
-	browserProfiles: ValidationProfile[];
 	head: string;
 	lightSurfaces: LightSurface[];
-	nonBrowserProfiles: ValidationProfile[];
 	validationProfiles: ValidationProfile[];
 }
 
@@ -80,12 +66,6 @@ function changesPath(files: readonly string[], prefix: string): boolean {
 
 function matchesFile(files: readonly string[], pattern: RegExp): boolean {
 	return files.some((file) => pattern.test(file));
-}
-
-function hasTask(scope: AffectedScope, packageName: string, task: string): boolean {
-	return scope.tasks.some(
-		(candidate) => candidate.package === packageName && candidate.task === task,
-	);
 }
 
 function selectLightSurfaces(files: readonly string[]): LightSurface[] {
@@ -151,145 +131,6 @@ function selectValidationProfiles(scope: AffectedScope): ValidationProfile[] {
 	if (
 		files.some(
 			(file) =>
-				file.startsWith("apps/execution-control/") &&
-				file !== "apps/execution-control/turbo.json" &&
-				!file.endsWith("/README.md"),
-		) ||
-		scope.tasks.some(
-			({ package: packageName, task }) =>
-				packageName === "execution-control" && task.startsWith("native:"),
-		)
-	) {
-		selected.add("go");
-	}
-	if (
-		changesPath(files, "apps/execution-control/integration/postgres") ||
-		changesPath(files, "apps/execution-control/internal/schemamigrations") ||
-		files.some((file) =>
-			[
-				"scripts/ci/go-postgres-integration.sh",
-				"apps/execution-control/go.mod",
-				"apps/execution-control/go.sum",
-				"apps/execution-control/internal/providerconfig/migration.go",
-			].includes(file),
-		) ||
-		hasTask(scope, "execution-control", "test:database-integration")
-	) {
-		selected.add("execution-control-postgres");
-	}
-	if (
-		changesPath(files, "packages/ingestion-kernels-rs") ||
-		files.some((file) => ["Cargo.lock", "Cargo.toml", "rust-toolchain.toml"].includes(file)) ||
-		scope.tasks.some(
-			({ package: packageName, task }) =>
-				packageName === "ingestion-kernels-rs" && task.startsWith("native:"),
-		)
-	) {
-		selected.add("rust");
-	}
-	if (
-		changesPath(files, "packages/ragas-runner") ||
-		files.some((file) => file === "pyproject.toml" || file === "uv.lock") ||
-		hasTask(scope, "ragas-runner", "test:eval")
-	) {
-		selected.add("ragas");
-	}
-	if (
-		changesPath(files, "apps/app-api/drizzle") ||
-		changesPath(files, "apps/app-api/ops/db") ||
-		changesPath(files, "apps/app-api/src/script-support/shared-db") ||
-		changesPath(files, "jobs/app-api-schema") ||
-		hasTask(scope, "app-api", "test:migration-integration")
-	) {
-		selected.add("app-api-migration");
-		selected.add("app-api-product-db");
-	}
-	if (
-		changesPath(files, "apps/app-api/src/db") ||
-		hasTask(scope, "app-api", "test:shared-db-integration")
-	) {
-		selected.add("app-api-product-db");
-	}
-	if (
-		changesPath(files, "apps/ingestion-control/migrations") ||
-		files.some((file) =>
-			[
-				"apps/ingestion-control/src/migrate.ts",
-				"apps/ingestion-control/src/postgres-config.ts",
-				"apps/ingestion-control/src/postgres-store.ts",
-				"apps/ingestion-control/src/schema-bootstrap.ts",
-			].includes(file),
-		) ||
-		hasTask(scope, "ingestion-control", "test:database-integration")
-	) {
-		selected.add("ingestion-control-postgres");
-	}
-	if (
-		changesPath(files, "apps/ops-web/ops/db") ||
-		changesPath(files, "apps/ops-web/src/server/dining") ||
-		hasTask(scope, "ops-web", "test:database-integration")
-	) {
-		selected.add("ops-web-postgres");
-	}
-	if (changesPath(files, "infra/k8s")) {
-		selected.add("infra");
-	}
-	if (
-		changesPath(files, "infra/otel") ||
-		changesPath(files, "infra/k8s/observability-otel-collector") ||
-		files.some((file) => file.startsWith("scripts/ci/check-otel-config."))
-	) {
-		selected.add("otel");
-	}
-	const fullBrowserChanged =
-		hasTask(scope, "campus-web", "test:e2e:full") ||
-		files.some(
-			(file) =>
-				file.startsWith("apps/campus-web/e2e/") ||
-				file.startsWith("apps/campus-web/test/e2e-") ||
-				file === "apps/campus-web/e2e.config.ts" ||
-				file === "apps/campus-web/e2e.worker.config.ts",
-		);
-	const campusBrowserChanged =
-		fullBrowserChanged ||
-		hasTask(scope, "campus-web", "test:e2e:smoke") ||
-		changesPath(files, "apps/campus-web/src") ||
-		changesPath(files, "apps/campus-web/scripts") ||
-		changesPath(files, "configs/branding") ||
-		changesPath(files, "packages/ui") ||
-		files.some(
-			(file) =>
-				[
-					"apps/campus-web/index.html",
-					"apps/campus-web/package.json",
-					"apps/campus-web/test/build-browser-test-content.ts",
-					"apps/campus-web/test/helpers/docs-source-fixture.ts",
-					"apps/campus-web/tsconfig.json",
-					"apps/campus-web/vite.config.ts",
-				].includes(file) || /^apps\/campus-web\/wrangler.*\.toml$/u.test(file),
-		);
-	if (campusBrowserChanged) {
-		selected.add(fullBrowserChanged ? "campus-browser-full" : "campus-browser-smoke");
-	}
-	if (
-		changesPath(files, "apps/ops-web/src") ||
-		changesPath(files, "apps/ops-web/test/browser") ||
-		changesPath(files, "packages/ui") ||
-		hasTask(scope, "ops-web", "test:browser") ||
-		files.some((file) =>
-			[
-				"apps/ops-web/browser.config.ts",
-				"apps/ops-web/package.json",
-				"apps/ops-web/vite.config.ts",
-				"apps/ops-web/vite.ops.config.ts",
-			].includes(file),
-		)
-	) {
-		selected.add("ops-web-browser");
-	}
-	if (
-		files.some(
-			(file) =>
 				file === "pnpm-lock.yaml" ||
 				file === "pnpm-workspace.yaml" ||
 				file === "uv.lock" ||
@@ -313,20 +154,7 @@ function selectValidationProfiles(scope: AffectedScope): ValidationProfile[] {
 	) {
 		selected.add("toolchain");
 	}
-	if (selected.has("campus-browser-full")) {
-		selected.delete("campus-browser-smoke");
-	}
 	return VALIDATION_PROFILES.filter((profile) => selected.has(profile));
-}
-
-export function partitionValidationProfiles(profiles: readonly ValidationProfile[]): {
-	browserProfiles: ValidationProfile[];
-	nonBrowserProfiles: ValidationProfile[];
-} {
-	return {
-		browserProfiles: profiles.filter((profile) => BROWSER_PROFILES.has(profile)),
-		nonBrowserProfiles: profiles.filter((profile) => !BROWSER_PROFILES.has(profile)),
-	};
 }
 
 export function validationPlanFromScope(
@@ -334,13 +162,10 @@ export function validationPlanFromScope(
 	_options: Pick<ValidationPlanOptions, "mode">,
 ): ValidationPlan {
 	const validationProfiles = selectValidationProfiles(scope);
-	const executionProfiles = partitionValidationProfiles(validationProfiles);
 	return {
 		base: scope.base,
-		browserProfiles: executionProfiles.browserProfiles,
 		head: scope.head,
 		lightSurfaces: selectLightSurfaces(scope.changedFiles),
-		nonBrowserProfiles: executionProfiles.nonBrowserProfiles,
 		validationProfiles,
 	};
 }

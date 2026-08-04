@@ -37,8 +37,7 @@
 - 业务状态到中文文案和 tone 的穷尽映射留在 `src/app/`，共享包不猜测状态；
 - 路由导航使用 TanStack Router，服务端数据使用 TanStack Query，表格与长日志分别使用 TanStack
   Table 和 Virtual；
-- 本地使用 Playwright 与 axe 验证代表性旅途；PR 在 Ops Web 或共享 UI 影响到用户界面时，由统一
-  planner 在 self-hosted `repo-checks` 中选择同一 browser profile。
+- 本地使用 Playwright 与 axe 验证代表性旅途；CI 不运行浏览器 profile，浏览器回归仅通过本地命令执行。
 
 ## 本地命令
 

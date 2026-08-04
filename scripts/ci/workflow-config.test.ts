@@ -93,7 +93,7 @@ test("GitHub workflows use environment-neutral configuration names", async () =>
 	assert.deepEqual(failures, []);
 });
 
-test("pull request validation uses hosted browser and non-browser lanes", async () => {
+test("pull request validation keeps one stable hosted check", async () => {
 	const source = await readFile(path.join(REPOSITORY_ROOT, ".github/workflows/pr.yml"), "utf8");
 	const document = parseAllDocuments(source)[0];
 	assert(document);
@@ -107,31 +107,32 @@ test("pull request validation uses hosted browser and non-browser lanes", async 
 		"ready_for_review",
 	]);
 	assert(isObject(workflow.jobs));
-	assert.deepEqual(Object.keys(workflow.jobs ?? {}).sort(), [
-		"browser-checks",
-		"light",
-		"repo-checks",
-	]);
-	for (const jobName of ["light", "browser-checks", "repo-checks"]) {
+	assert.deepEqual(Object.keys(workflow.jobs ?? {}).sort(), ["repo-checks"]);
+	for (const jobName of ["repo-checks"]) {
 		const job = workflow.jobs[jobName];
 		assert(isObject(job));
 		assert.equal(job["runs-on"], "ubuntu-24.04", jobName);
 	}
-	for (const jobName of ["browser-checks", "repo-checks"]) {
-		const job = workflow.jobs[jobName];
-		assert(isObject(job));
-		assert.equal(typeof job.if, "string");
-		assert(job.if.includes("github.event.pull_request.draft == false"), jobName);
-	}
 	assert(!source.includes("pull_request.head.sha }}\n          ref:"));
-	assert.equal(source.match(/TURBO_TOKEN:/gu)?.length, 2);
-	assert.equal(source.match(/TURBO_CACHE: "local:rw,remote:rw"/gu)?.length, 2);
-	assert(source.includes("needs.light.outputs.browser_profiles"));
-	assert(source.includes("needs.light.outputs.non_browser_profiles"));
-	assert(!source.includes("self_hosted_profiles"));
+	assert.equal(source.match(/TURBO_TOKEN:/gu)?.length, 1);
+	assert.equal(source.match(/TURBO_CACHE: "local:rw,remote:r"/gu)?.length, 1);
+	assert(source.includes("has_affected_node"));
+	assert(source.includes("has_non_turbo"));
+	const repoChecks = workflow.jobs["repo-checks"];
+	assert(isObject(repoChecks));
+	assert(Array.isArray(repoChecks.steps));
+	const planner = repoChecks.steps.find(
+		(step) => isObject(step) && step.name === "Generate pull request validation plan",
+	);
+	assert(isObject(planner));
+	assert.equal(typeof planner.run, "string");
+	assert(planner.run.includes("jq -r --arg profile affected-node"));
+	assert(planner.run.includes("index($profile) != null"));
+	assert(!planner.run.includes(String.raw`\"affected-node\"`));
+	assert(!source.includes("browser"));
 });
 
-test("Source diff consumers retain credentials for partial-clone object fetches", async () => {
+test("Source diff consumers use complete history without promisor fetches", async () => {
 	const workflowRoot = path.join(REPOSITORY_ROOT, ".github/workflows");
 	const [publishSource, pullRequestSource] = await Promise.all([
 		readFile(path.join(workflowRoot, "execution-runtime-publish.yml"), "utf8"),
@@ -141,7 +142,6 @@ test("Source diff consumers retain credentials for partial-clone object fetches"
 	const pullRequestWorkflow = parseAllDocuments(pullRequestSource)[0]?.toJS();
 	for (const [workflow, jobName] of [
 		[publishWorkflow, "release-plan"],
-		[pullRequestWorkflow, "browser-checks"],
 		[pullRequestWorkflow, "repo-checks"],
 	] as const) {
 		const checkouts = sourceCheckouts(workflow, jobName);
@@ -150,12 +150,12 @@ test("Source diff consumers retain credentials for partial-clone object fetches"
 		assert(checkout);
 		assert(isObject(checkout.with));
 		assert.equal(checkout.with["fetch-depth"], 0, jobName);
-		assert.equal(checkout.with.filter, "blob:none", jobName);
-		assert.equal(checkout.with["persist-credentials"], true, jobName);
+		assert.equal(checkout.with.filter, undefined, jobName);
+		assert.equal(checkout.with["persist-credentials"], false, jobName);
 	}
 });
 
-test("source workflows use Nix without self-hosted runner contracts", async () => {
+test("source workflows use Nix with a bounded transitional self-hosted release lane", async () => {
 	const workflowRoot = path.join(REPOSITORY_ROOT, ".github/workflows");
 	const sources = await Promise.all(
 		["dependencies.yml", "execution-runtime-publish.yml", "manual-evidence.yml", "pr.yml"].map(
@@ -171,9 +171,6 @@ test("source workflows use Nix without self-hosted runner contracts", async () =
 		"pnpm/action-setup",
 		"actions/setup-node",
 		"./gitops/.github/actions/setup-policy-tools",
-		"self-hosted",
-		"campus-agent-release",
-		"/nix/var/nix/profiles/default/bin/nix",
 		"CI_DOCKER_CGROUP_PARENT",
 		"candidate-evidence",
 		"candidate-browser-evidence",
@@ -185,6 +182,8 @@ test("source workflows use Nix without self-hosted runner contracts", async () =
 	assert(joined.includes("nix develop .#ci-light"));
 	assert(joined.includes("nix develop .#ci-full"));
 	assert(joined.includes("nix develop ./gitops#ci-infra"));
+	assert(joined.includes("campus-agent-release"));
+	assert(joined.includes("/nix/var/nix/profiles/default/bin/nix"));
 	const dependencies = sources[0];
 	assert(dependencies);
 	assert(dependencies.includes("nix develop .#ci-light"));
@@ -200,18 +199,12 @@ test("manual evidence exposes one hosted profile and no aggregate full mode", as
 	assert(!source.includes("- all"));
 	assert(!source.includes("- full"));
 	assert(source.includes(`VALIDATION_PROFILES: '["\${{ inputs.profile }}"]'`));
-	assert.match(
-		source,
-		/browser-evidence:\n\s+if: contains\(inputs\.profile, 'browser'\)\n\s+runs-on: ubuntu-24\.04/u,
-	);
-	assert.match(
-		source,
-		/evidence:\n\s+if: \$\{\{ !contains\(inputs\.profile, 'browser'\) \}\}\n\s+runs-on: ubuntu-24\.04/u,
-	);
-	assert.equal(source.match(/TURBO_CACHE: "local:rw,remote:rw"/gu)?.length, 2);
+	assert(!source.includes("browser"));
+	assert.match(source, /evidence:\n\s+runs-on: ubuntu-24\.04/u);
+	assert.equal(source.match(/TURBO_CACHE: "local:rw,remote:r"/gu)?.length, 1);
 });
 
-test("trusted pull request and manual lanes keep Turbo remote cache writes", async () => {
+test("Turbo cache configuration is read-only outside local writes", async () => {
 	const workflowRoot = path.join(REPOSITORY_ROOT, ".github/workflows");
 	const [pullRequest, manual] = await Promise.all(
 		["pr.yml", "manual-evidence.yml"].map((workflow) =>
@@ -219,13 +212,13 @@ test("trusted pull request and manual lanes keep Turbo remote cache writes", asy
 		),
 	);
 	for (const source of [pullRequest, manual]) {
-		assert.match(source, /TURBO_CACHE: "local:rw,remote:rw"/u);
+		assert.match(source, /TURBO_CACHE: "local:rw,remote:r"/u);
 		assert.match(source, /TURBO_TOKEN:/u);
 		assert(!source.includes("TURBO_REMOTE_CACHE_READ_ONLY"));
 	}
 });
 
-test("candidate publishing builds artifacts on hosted runners before final status", async () => {
+test("candidate publishing uses the transitional release runner before final status", async () => {
 	const source = await readFile(
 		path.join(REPOSITORY_ROOT, ".github/workflows/execution-runtime-publish.yml"),
 		"utf8",
@@ -251,7 +244,7 @@ test("candidate publishing builds artifacts on hosted runners before final statu
 		"release-plan",
 	]);
 	assert(isObject(workflow.concurrency));
-	assert.equal(workflow.concurrency["cancel-in-progress"], true);
+	assert.equal(workflow.concurrency["cancel-in-progress"], false);
 	const releasePlan = workflow.jobs["release-plan"];
 	assert(isObject(releasePlan));
 	assert(Array.isArray(releasePlan.steps));
@@ -271,17 +264,21 @@ test("candidate publishing builds artifacts on hosted runners before final statu
 	assert(planner.run.includes("Campus Web docs refresh cannot run in validation-only mode."));
 	assert(!planner.run.includes("browserProfiles"));
 	assert(!planner.run.includes("selfHostedProfiles"));
+	const pending = releasePlan.steps.find(
+		(step) => isObject(step) && step.name === "Mark staging candidate pending",
+	);
+	assert(isObject(pending));
 
 	for (const [jobName, runner] of [
-		["publish-images", "ubuntu-24.04-arm"],
+		["publish-images", ["self-hosted", "Linux", "ARM64", "campus-agent-release"]],
 		["publish-app-api", "ubuntu-24.04"],
-		["publish-campus-web", "ubuntu-24.04"],
+		["publish-campus-web", ["self-hosted", "Linux", "ARM64", "campus-agent-release"]],
 		["candidate-status", "ubuntu-24.04"],
-		["promote", "ubuntu-24.04"],
+		["promote", ["self-hosted", "Linux", "ARM64", "campus-agent-release"]],
 	] as const) {
 		const job = workflow.jobs[jobName];
 		assert(isObject(job));
-		assert.equal(job["runs-on"], runner, jobName);
+		assert.deepEqual(job["runs-on"], runner, jobName);
 	}
 	for (const jobName of ["publish-images", "publish-app-api", "publish-campus-web"]) {
 		const job = workflow.jobs[jobName];
@@ -333,13 +330,15 @@ test("candidate publishing builds artifacts on hosted runners before final statu
 		assert(isObject(step));
 		assert(isObject(step.env));
 		assert.equal(
-			step.env.OBJECT_STORE_DERIVED_ACCESS_KEY,
+			step.env.OBJECT_STORE_DERIVED_READ_ACCESS_KEY,
 			githubExpression("secrets.OBJECT_STORE_DERIVED_READ_ACCESS_KEY"),
 		);
 		assert.equal(
-			step.env.OBJECT_STORE_DERIVED_SECRET_KEY,
+			step.env.OBJECT_STORE_DERIVED_READ_SECRET_KEY,
 			githubExpression("secrets.OBJECT_STORE_DERIVED_READ_SECRET_KEY"),
 		);
+		assert.equal(step.env.OBJECT_STORE_DERIVED_ACCESS_KEY, undefined);
+		assert.equal(step.env.OBJECT_STORE_DERIVED_SECRET_KEY, undefined);
 		assert.equal(step.env.OBJECT_STORE_ENDPOINT, githubExpression("vars.OBJECT_STORE_ENDPOINT"));
 	}
 	assert.equal(

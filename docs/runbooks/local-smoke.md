@@ -67,3 +67,13 @@ pnpm smoke:app-api -- chat-dev
 ```
 
 `chat-dev` 不负责启动或重启 execution-control；运行前必须显式启动所需依赖。
+
+浏览器业务回归只在本地执行，不进入 GitHub Actions：
+
+```bash
+pnpm --dir apps/campus-web test:e2e:smoke
+pnpm --dir apps/campus-web test:e2e:full
+```
+
+staging 的真实登录路径使用 `docs/runbooks/e2e.md` 中的 `chat-staging` 命令，并由发布执行者即时
+取得测试账号和 Turnstile token。

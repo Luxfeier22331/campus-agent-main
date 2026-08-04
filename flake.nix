@@ -45,6 +45,10 @@
             tools.uv
             tools.zizmor
           ];
+          releasePackages = lightPackages ++ (with pkgs; [
+            docker-buildx
+            docker-client
+          ]);
           fullPackages =
             lightPackages
             ++ (with pkgs; [
@@ -62,6 +66,7 @@
               tools.kustomize
             ]);
           ciLight = pkgs.mkShellNoCC { packages = lightPackages; };
+          ciRelease = pkgs.mkShellNoCC { packages = releasePackages; };
           ciFull = pkgs.mkShellNoCC {
             packages = fullPackages;
             LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ];
@@ -75,6 +80,7 @@
         assert pkgs.trivy.version == "0.72.0";
         {
           ci-light = ciLight;
+          ci-release = ciRelease;
           ci-full = ciFull;
           default = ciFull;
         }

@@ -86,8 +86,9 @@ pnpm --dir apps/campus-web docs:source:clean-segmentation -- \
 
 `CAMPUS_WEB_BUILD_TARGET` 和 `CAMPUS_WEB_DOCS_CONTENT_ROOT` 只在构建脚本与 Vite 子进程之间传递，
 不属于 Worker、Wrangler、Argo 或 GitHub Environment 配置。`OBJECT_STORE_ENDPOINT`、
-`OBJECT_STORE_DERIVED_ACCESS_KEY` 和 `OBJECT_STORE_DERIVED_SECRET_KEY` 只由文档准备、来源更新等
-受信任命令读取；Vite 子进程和前端产物不接收这些值。PR 只运行受影响包的测试、类型检查、普通包
+`OBJECT_STORE_DERIVED_READ_ACCESS_KEY` 和 `OBJECT_STORE_DERIVED_READ_SECRET_KEY` 由正式文档构建读取；
+来源更新和分段修复命令另行使用 `OBJECT_STORE_DERIVED_ACCESS_KEY` 与
+`OBJECT_STORE_DERIVED_SECRET_KEY`。Vite 子进程和前端产物不接收这些值。PR 只运行受影响包的测试、类型检查、普通包
 构建和 Campus Web 的确定性测试构建，不访问对象存储。staging 的独立 Campus Web publisher 在
 main/artifact lane 使用 Source staging Environment 的公网对象存储端点和只读身份执行真实文档构建，
 并将同一构建结果上传为不可变 Worker version。

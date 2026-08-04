@@ -9,6 +9,8 @@ import {
 	resolvePublishedReaderObjectStoreBucket,
 	resolvePublishedReaderObjectStoreConfig,
 	resolvePublishedReaderObjectStoreCredentials,
+	resolvePublishedReaderObjectStoreWriterConfig,
+	resolvePublishedReaderObjectStoreWriterCredentials,
 	syncCampusPublishedReaderAssets,
 	syncCampusPublishedReaderDocs,
 } from "../src/docs-reader-build/sync-campus-published-reader.ts";
@@ -28,30 +30,53 @@ describe("campus-web published reader sync", () => {
 	it("resolves object store config from the derived identity", () => {
 		expect(
 			resolvePublishedReaderObjectStoreConfig({
-				OBJECT_STORE_DERIVED_ACCESS_KEY: "derived-access",
-				OBJECT_STORE_DERIVED_SECRET_KEY: "derived-secret",
+				OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "derived-read-access",
+				OBJECT_STORE_DERIVED_READ_SECRET_KEY: "derived-read-secret",
 				OBJECT_STORE_ENDPOINT: "http://localhost:9000",
 			}),
 		).toMatchObject({
-			accessKeyId: "derived-access",
+			accessKeyId: "derived-read-access",
 			bucket: "campus-agent-derived",
 			credentialMode: "derived",
 			endpoint: "http://localhost:9000",
 			region: "us-east-1",
-			secretAccessKey: "derived-secret",
+			secretAccessKey: "derived-read-secret",
 		});
 	});
 
 	it("uses derived bucket credentials for published reader object store access", () => {
 		expect(
 			resolvePublishedReaderObjectStoreCredentials({
-				OBJECT_STORE_DERIVED_ACCESS_KEY: "derived-access",
-				OBJECT_STORE_DERIVED_SECRET_KEY: "derived-secret",
+				OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "derived-read-access",
+				OBJECT_STORE_DERIVED_READ_SECRET_KEY: "derived-read-secret",
 			}),
 		).toEqual({
-			accessKeyId: "derived-access",
+			accessKeyId: "derived-read-access",
 			credentialMode: "derived",
-			secretAccessKey: "derived-secret",
+			secretAccessKey: "derived-read-secret",
+		});
+	});
+
+	it("keeps writer credentials separate from reader credentials", () => {
+		expect(
+			resolvePublishedReaderObjectStoreWriterConfig({
+				OBJECT_STORE_DERIVED_ACCESS_KEY: "derived-write-access",
+				OBJECT_STORE_DERIVED_SECRET_KEY: "derived-write-secret",
+				OBJECT_STORE_ENDPOINT: "http://localhost:9000",
+			}),
+		).toMatchObject({
+			accessKeyId: "derived-write-access",
+			secretAccessKey: "derived-write-secret",
+		});
+		expect(
+			resolvePublishedReaderObjectStoreWriterCredentials({
+				OBJECT_STORE_DERIVED_ACCESS_KEY: "derived-write-access",
+				OBJECT_STORE_DERIVED_SECRET_KEY: "derived-write-secret",
+			}),
+		).toEqual({
+			accessKeyId: "derived-write-access",
+			credentialMode: "derived",
+			secretAccessKey: "derived-write-secret",
 		});
 	});
 
@@ -60,7 +85,7 @@ describe("campus-web published reader sync", () => {
 			resolvePublishedReaderObjectStoreConfig({
 				OBJECT_STORE_ENDPOINT: "http://localhost:9000",
 			}),
-		).toThrow("OBJECT_STORE_DERIVED_ACCESS_KEY is required");
+		).toThrow("OBJECT_STORE_DERIVED_READ_ACCESS_KEY is required");
 	});
 
 	it("only treats S3 NoSuchKey errors as missing objects", () => {

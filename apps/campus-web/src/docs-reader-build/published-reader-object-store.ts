@@ -4,37 +4,29 @@ import type {
 	PublishedReaderObjectStoreConfig,
 	PublishedReaderObjectStoreCredentials,
 	PublishedReaderObjectStoreEnv,
+	ReaderObjectStoreClient,
 	ReaderObjectStoreWriter,
 } from "./published-reader-types.ts";
+
+export function createS3ReaderObjectStore(
+	env: PublishedReaderObjectStoreEnv = process.env,
+): ReaderObjectStoreClient {
+	const { accessKeyId, endpoint, region, secretAccessKey } =
+		resolvePublishedReaderObjectStoreConfig(env);
+	const client = createS3Client({ accessKeyId, endpoint, region, secretAccessKey });
+	return {
+		readOptionalBytesObject: (input) => readOptionalBytesObject(client, input.key),
+	};
+}
 
 export function createS3ObjectStore(
 	env: PublishedReaderObjectStoreEnv = process.env,
 ): ReaderObjectStoreWriter {
 	const { accessKeyId, bucket, endpoint, region, secretAccessKey } =
-		resolvePublishedReaderObjectStoreConfig(env);
-	const client = new S3Client({
-		credentials: { accessKeyId, secretAccessKey },
-		endpoint,
-		forcePathStyle: true,
-		region,
-	});
+		resolvePublishedReaderObjectStoreWriterConfig(env);
+	const client = createS3Client({ accessKeyId, endpoint, region, secretAccessKey });
 	return {
-		async readOptionalBytesObject(input: { key: string }) {
-			try {
-				const response = await client.send(
-					new GetObjectCommand({ Bucket: bucket, Key: input.key }),
-				);
-				if (!response.Body) {
-					throw new Error(`empty object body: ${input.key}`);
-				}
-				return response.Body.transformToByteArray();
-			} catch (error) {
-				if (isMissingObjectError(error)) {
-					return;
-				}
-				throw error;
-			}
-		},
+		readOptionalBytesObject: (input) => readOptionalBytesObject(client, input.key),
 		async writeBytesObject(input) {
 			await client.send(
 				new PutObjectCommand({
@@ -74,10 +66,66 @@ export function resolvePublishedReaderObjectStoreCredentials(
 	env: PublishedReaderObjectStoreEnv,
 ): PublishedReaderObjectStoreCredentials {
 	return {
+		accessKeyId: readRequiredEnv(env, "OBJECT_STORE_DERIVED_READ_ACCESS_KEY"),
+		credentialMode: "derived",
+		secretAccessKey: readRequiredEnv(env, "OBJECT_STORE_DERIVED_READ_SECRET_KEY"),
+	};
+}
+
+export function resolvePublishedReaderObjectStoreWriterConfig(
+	env: PublishedReaderObjectStoreEnv,
+): PublishedReaderObjectStoreConfig {
+	const endpoint = readRequiredEnv(env, "OBJECT_STORE_ENDPOINT");
+	return {
+		...resolvePublishedReaderObjectStoreWriterCredentials(env),
+		bucket: resolvePublishedReaderObjectStoreBucket(),
+		endpoint,
+		region: "us-east-1",
+	};
+}
+
+export function resolvePublishedReaderObjectStoreWriterCredentials(
+	env: PublishedReaderObjectStoreEnv,
+): PublishedReaderObjectStoreCredentials {
+	return {
 		accessKeyId: readRequiredEnv(env, "OBJECT_STORE_DERIVED_ACCESS_KEY"),
 		credentialMode: "derived",
 		secretAccessKey: readRequiredEnv(env, "OBJECT_STORE_DERIVED_SECRET_KEY"),
 	};
+}
+
+function createS3Client(input: {
+	accessKeyId: string;
+	endpoint: string;
+	region: string;
+	secretAccessKey: string;
+}): S3Client {
+	return new S3Client({
+		credentials: { accessKeyId: input.accessKeyId, secretAccessKey: input.secretAccessKey },
+		endpoint: input.endpoint,
+		forcePathStyle: true,
+		region: input.region,
+	});
+}
+
+async function readOptionalBytesObject(
+	client: S3Client,
+	key: string,
+): Promise<Uint8Array | undefined> {
+	try {
+		const response = await client.send(
+			new GetObjectCommand({ Bucket: resolvePublishedReaderObjectStoreBucket(), Key: key }),
+		);
+		if (!response.Body) {
+			throw new Error(`empty object body: ${key}`);
+		}
+		return response.Body.transformToByteArray();
+	} catch (error) {
+		if (isMissingObjectError(error)) {
+			return;
+		}
+		throw error;
+	}
 }
 
 export function isMissingObjectError(error: unknown): boolean {

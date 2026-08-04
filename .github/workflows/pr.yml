@@ -23,17 +23,12 @@ env:
     cores = 2
 
 jobs:
-  light:
+  repo-checks:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     defaults:
       run:
         shell: nix develop .#ci-light --command bash -e {0}
-    outputs:
-      base: ${{ steps.plan.outputs.base }}
-      browser_profiles: ${{ steps.plan.outputs.browser_profiles }}
-      head: ${{ steps.plan.outputs.head }}
-      non_browser_profiles: ${{ steps.plan.outputs.non_browser_profiles }}
     steps:
       - name: Checkout pull request merge
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
@@ -51,9 +46,9 @@ jobs:
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
         with:
           path: ${{ runner.tool_cache }}/pnpm-store
-          key: pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: source-pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.node-version', 'package.json', 'pnpm-lock.yaml', 'flake.lock') }}
           restore-keys: |
-            pnpm-${{ runner.os }}-${{ runner.arch }}-
+            source-pnpm-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Configure pnpm store
         run: echo "npm_config_store_dir=${RUNNER_TOOL_CACHE}/pnpm-store" >> "$GITHUB_ENV"
@@ -78,12 +73,25 @@ jobs:
             --head "$MERGE_SHA" \
             --mode pull-request)"
           jq -e . <<< "$plan" >/dev/null
+          base="$(jq -r '.base' <<< "$plan")"
+          head="$(jq -r '.head' <<< "$plan")"
+          light_surfaces="$(jq -c '.lightSurfaces' <<< "$plan")"
+          validation_profiles="$(jq -c '.validationProfiles' <<< "$plan")"
+          has_evidence="$(jq -r '.validationProfiles | length > 0' <<< "$plan")"
+          has_affected_node="$(jq -r --arg profile affected-node \
+            '.validationProfiles | index($profile) != null' <<< "$plan")"
+          non_turbo_profiles="$(jq -c --arg profile affected-node \
+            '[.validationProfiles[] | select(. != $profile)]' <<< "$plan")"
+          has_non_turbo="$(jq -r 'length > 0' <<< "$non_turbo_profiles")"
           {
-            echo "base=$(jq -r '.base' <<< "$plan")"
-            echo "browser_profiles=$(jq -c '.browserProfiles' <<< "$plan")"
-            echo "head=$(jq -r '.head' <<< "$plan")"
-            echo "light_surfaces=$(jq -c '.lightSurfaces' <<< "$plan")"
-            echo "non_browser_profiles=$(jq -c '.nonBrowserProfiles' <<< "$plan")"
+            echo "base=$base"
+            echo "head=$head"
+            echo "light_surfaces=$light_surfaces"
+            echo "validation_profiles=$validation_profiles"
+            echo "has_evidence=$has_evidence"
+            echo "has_affected_node=$has_affected_node"
+            echo "non_turbo_profiles=$non_turbo_profiles"
+            echo "has_non_turbo=$has_non_turbo"
           } >> "$GITHUB_OUTPUT"
           jq . <<< "$plan"
 
@@ -147,159 +155,51 @@ jobs:
             --config=.gitleaks.toml \
             --log-opts="--no-merges ${merge_base}..${HEAD_SHA}"
 
-  browser-checks:
-    needs: light
-    if: >-
-      github.event.pull_request.draft == false &&
-      needs.light.result == 'success' &&
-      fromJSON(needs.light.outputs.browser_profiles)[0] != null
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    steps:
-      - name: Checkout pull request merge
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
-        with:
-          fetch-depth: 0
-          filter: blob:none
-          persist-credentials: true
-
-      - name: Install Nix
-        uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
-        with:
-          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
-          enable_kvm: false
-
-      - name: Restore pnpm store
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
-        with:
-          path: ${{ runner.tool_cache }}/pnpm-store
-          key: pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            pnpm-${{ runner.os }}-${{ runner.arch }}-
-
-      - name: Install browser workspaces
-        env:
-          npm_config_store_dir: ${{ runner.tool_cache }}/pnpm-store
-        shell: nix develop .#ci-light --command bash -e {0}
-        run: |
-          set -euo pipefail
-          mkdir -p "$npm_config_store_dir"
-          pnpm install --frozen-lockfile --prefer-offline \
-            --filter campus-agent-web-workspace \
-            --filter 'campus-web...' \
-            --filter 'ops-web...'
-
-      - name: Install Chromium headless shell
-        env:
-          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.tool_cache }}/ms-playwright
-        shell: nix develop .#ci-light --command bash -e {0}
-        run: pnpm --dir apps/campus-web exec playwright install --with-deps --only-shell chromium
-
-      - name: Run selected browser evidence
-        env:
-          BASE_SHA: ${{ needs.light.outputs.base }}
-          CAMPUS_WEB_E2E_PREBUILT: "1"
-          HEAD_SHA: ${{ needs.light.outputs.head }}
-          OPS_WEB_BROWSER_TEST_PORT: "4278"
-          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.tool_cache }}/ms-playwright
-          TURBO_CACHE: "local:rw,remote:rw"
-          TURBO_TEAM: ${{ vars.TURBO_TEAM }}
-          TURBO_TELEMETRY_DISABLED: "1"
-          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
-          VALIDATION_PROFILES: ${{ needs.light.outputs.browser_profiles }}
-        shell: nix develop .#ci-light --command bash -e {0}
-        run: >-
-          node --experimental-strip-types scripts/ci/evidence.mts
-          --base "$BASE_SHA"
-          --head "$HEAD_SHA"
-          --profiles "$VALIDATION_PROFILES"
-
-      - name: Upload browser failure evidence
-        if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
-        with:
-          if-no-files-found: ignore
-          name: pr-browser-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            apps/campus-web/playwright-report/e2e
-            apps/campus-web/playwright-report/e2e-worker
-            apps/campus-web/test-results/e2e
-            apps/campus-web/test-results/e2e-worker
-            apps/ops-web/test-results
-            apps/ops-web/playwright-report
-          retention-days: 7
-
-  repo-checks:
-    needs: light
-    if: >-
-      github.event.pull_request.draft == false &&
-      needs.light.result == 'success' &&
-      fromJSON(needs.light.outputs.non_browser_profiles)[0] != null
-    runs-on: ubuntu-24.04
-    timeout-minutes: 90
-    steps:
-      - name: Checkout pull request merge
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
-        with:
-          fetch-depth: 0
-          filter: blob:none
-          persist-credentials: true
-
-      - name: Install Nix
-        uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
-        with:
-          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
-          enable_kvm: false
-
-      - name: Restore pnpm store
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
-        with:
-          path: ${{ runner.tool_cache }}/pnpm-store
-          key: pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            pnpm-${{ runner.os }}-${{ runner.arch }}-
-
       - name: Install affected workspaces
+        if: contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-node')
         env:
           npm_config_store_dir: ${{ runner.tool_cache }}/pnpm-store
-        shell: nix develop .#ci-full --command bash -e {0}
         run: |
           set -euo pipefail
           mkdir -p "$npm_config_store_dir"
           pnpm install --frozen-lockfile --prefer-offline
 
-      - name: Install evaluation dependencies
-        if: contains(fromJSON(needs.light.outputs.non_browser_profiles), 'ragas')
-        shell: nix develop .#ci-full --command bash -e {0}
-        run: uv sync --package campus-ragas-runner
-
-      - name: Verify Docker evidence dependency
-        if: >-
-          (
-            contains(fromJSON(needs.light.outputs.non_browser_profiles), 'app-api-migration') ||
-            contains(fromJSON(needs.light.outputs.non_browser_profiles), 'app-api-product-db') ||
-            contains(fromJSON(needs.light.outputs.non_browser_profiles), 'execution-control-postgres') ||
-            contains(fromJSON(needs.light.outputs.non_browser_profiles), 'ingestion-control-postgres') ||
-            contains(fromJSON(needs.light.outputs.non_browser_profiles), 'ops-web-postgres') ||
-            contains(fromJSON(needs.light.outputs.non_browser_profiles), 'otel')
-          )
-        shell: nix develop .#ci-full --command bash -e {0}
-        run: docker info >/dev/null
-
-      - name: Run selected pull request evidence
+      - name: Run affected Node evidence
+        if: steps.plan.outputs.has_affected_node == 'true'
         env:
-          BASE_SHA: ${{ needs.light.outputs.base }}
-          CAMPUS_WEB_E2E_PREBUILT: "1"
-          CARGO_TARGET_DIR: ${{ runner.tool_cache }}/cargo-target/campus-agent
-          HEAD_SHA: ${{ needs.light.outputs.head }}
-          TURBO_CACHE: "local:rw,remote:rw"
+          BASE_SHA: ${{ steps.plan.outputs.base }}
+          HEAD_SHA: ${{ steps.plan.outputs.head }}
+          TURBO_CACHE: "local:rw,remote:r"
           TURBO_TEAM: ${{ vars.TURBO_TEAM }}
           TURBO_TELEMETRY_DISABLED: "1"
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
-          VALIDATION_PROFILES: ${{ needs.light.outputs.non_browser_profiles }}
-        shell: nix develop .#ci-full --command bash -e {0}
+          VALIDATION_PROFILES: '["affected-node"]'
         run: >-
           node --experimental-strip-types scripts/ci/evidence.mts
           --base "$BASE_SHA"
           --head "$HEAD_SHA"
           --profiles "$VALIDATION_PROFILES"
+
+      - name: Run release and dependency evidence
+        if: steps.plan.outputs.has_non_turbo == 'true'
+        env:
+          BASE_SHA: ${{ steps.plan.outputs.base }}
+          HEAD_SHA: ${{ steps.plan.outputs.head }}
+          VALIDATION_PROFILES: ${{ steps.plan.outputs.non_turbo_profiles }}
+        run: |
+          set -euo pipefail
+          args=(
+            --base "$BASE_SHA"
+            --head "$HEAD_SHA"
+            --profiles "$VALIDATION_PROFILES"
+          )
+          if jq -e 'index("toolchain") != null' <<< "$VALIDATION_PROFILES" >/dev/null; then
+            nix develop .#ci-release --command node --experimental-strip-types scripts/ci/evidence.mts "${args[@]}"
+          else
+            node --experimental-strip-types scripts/ci/evidence.mts "${args[@]}"
+          fi
+
+      - name: Complete stable check without affected evidence
+        if: steps.plan.outputs.has_evidence != 'true'
+        shell: /bin/bash -e {0}
+        run: echo "No affected evidence is required for this pull request."

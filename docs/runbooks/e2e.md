@@ -11,6 +11,10 @@ status: active
 本文说明如何根据发布变更选择并执行 staging 真实用户路径。它不维护固定的全产品清单，也不
 替代 PR 测试、环境 rollout、离线评测或 production 审批。
 
+浏览器业务 E2E、真实 staging 登录和 `chat-staging` 不在 GitHub Actions 中自动运行。它们需要
+一次性测试账号和即时 Turnstile token，由发布执行者在受控本地终端按本文验收；CI 只验证候选
+制品和发布合同。
+
 环境地址、测试身份、Secret 和本次结果由环境仓及发布记录维护，不提交到源码仓。
 
 ## 前置条件

@@ -12,7 +12,7 @@ import {
 } from "../src/docs-reader-build/docs-content.ts";
 import { writeNativeDocsHtmlPages } from "../src/docs-reader-build/native-reader-prerender.tsx";
 import { createCachingReaderObjectStore } from "../src/docs-reader-build/prepared-reader-object-store.ts";
-import { createS3ObjectStore } from "../src/docs-reader-build/published-reader-object-store.ts";
+import { createS3ReaderObjectStore } from "../src/docs-reader-build/published-reader-object-store.ts";
 import type { ReaderObjectStoreClient } from "../src/docs-reader-build/published-reader-types.ts";
 import {
 	canonicalJsonBytes,
@@ -64,7 +64,9 @@ export async function prepareDocsContent(
 	input: PrepareDocsContentInput,
 ): Promise<DocsContentPaths> {
 	const appRoot = resolve(input.appRoot ?? APP_ROOT);
-	const remoteClient = memoizeReaderObjectStore(input.client ?? createS3ObjectStore(input.env));
+	const remoteClient = memoizeReaderObjectStore(
+		input.client ?? createS3ReaderObjectStore(input.env),
+	);
 	const sourceBytes = await readCurrentDocsSource(remoteClient);
 	const source = normalizeSourceManifest(parseSourceManifest(parseJson(sourceBytes)));
 	const canonicalSourceBytes = canonicalJsonBytes(source);

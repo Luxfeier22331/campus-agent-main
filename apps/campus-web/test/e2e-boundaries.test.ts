@@ -31,19 +31,17 @@ describe("campus web browser test boundaries", () => {
 		expect(turboConfig).not.toContain("_docs-static");
 	});
 
-	it("routes affected browser regressions through the hosted browser job", () => {
+	it("keeps browser regressions as local-only evidence", () => {
 		const prWorkflow = readFileSync("../../.github/workflows/pr.yml", "utf8");
 		const evidence = readFileSync("../../scripts/ci/evidence.mts", "utf8");
 
-		expect(prWorkflow).toContain("browser-checks:");
-		expect(prWorkflow).toContain("needs.light.outputs.browser_profiles");
-		expect(prWorkflow).toContain("Install Chromium headless shell");
-		expect(prWorkflow).toContain("Upload browser failure evidence");
+		expect(prWorkflow).not.toContain("browser-checks:");
+		expect(prWorkflow).not.toContain("Install Chromium headless shell");
+		expect(prWorkflow).not.toContain("Upload browser failure evidence");
 		expect(prWorkflow).not.toContain("OBJECT_STORE_");
-		expect(prWorkflow).toContain('CAMPUS_WEB_E2E_PREBUILT: "1"');
-		expect(prWorkflow).toContain("retention-days: 7");
-		expect(evidence).toContain('"campus-browser-smoke"');
-		expect(evidence).toContain('"campus-browser-full"');
-		expect(evidence).toContain('"ops-web-browser"');
+		expect(prWorkflow).not.toContain('CAMPUS_WEB_E2E_PREBUILT: "1"');
+		expect(evidence).not.toContain('"campus-browser-smoke"');
+		expect(evidence).not.toContain('"campus-browser-full"');
+		expect(evidence).not.toContain('"ops-web-browser"');
 	});
 });

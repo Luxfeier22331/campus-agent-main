@@ -36,7 +36,7 @@ env:
 
 concurrency:
   group: staging-candidate-publish
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   release-plan:
@@ -45,6 +45,7 @@ jobs:
     environment: staging
     permissions:
       contents: read
+      statuses: write
     defaults:
       run:
         shell: nix develop .#ci-light --command bash -e {0}
@@ -60,8 +61,7 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
         with:
           fetch-depth: 0
-          filter: blob:none
-          persist-credentials: true
+          persist-credentials: false
 
       - name: Install Nix
         uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
@@ -73,9 +73,9 @@ jobs:
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
         with:
           path: ${{ runner.tool_cache }}/pnpm-store
-          key: pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: source-pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.node-version', 'package.json', 'pnpm-lock.yaml', 'flake.lock') }}
           restore-keys: |
-            pnpm-${{ runner.os }}-${{ runner.arch }}-
+            source-pnpm-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Configure pnpm store
         run: echo "npm_config_store_dir=${RUNNER_TOOL_CACHE}/pnpm-store" >> "$GITHUB_ENV"
@@ -146,36 +146,56 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           jq . <<< "$plan"
 
+      - name: Mark staging candidate pending
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: >-
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}"
+          -f state=pending
+          -f context=staging/candidate
+          -f description='Publishing selected staging candidates'
+          -f target_url="$TARGET_URL"
+
   publish-images:
     needs: release-plan
     if: >-
       needs.release-plan.result == 'success' &&
       needs.release-plan.outputs.validate_only != 'true' &&
       fromJSON(needs.release-plan.outputs.images)[0] != null
-    runs-on: ubuntu-24.04-arm
+    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
     timeout-minutes: 30
     permissions:
       contents: read
       packages: write
     defaults:
       run:
-        shell: nix develop .#ci-full --command bash -e {0}
+        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-full --command bash -e {0}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
         with:
           persist-credentials: false
 
-      - name: Install Nix
-        uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
-        with:
-          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
-          enable_kvm: false
-
-      - name: Setup Docker Buildx
+      - name: Setup persistent Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4
         with:
+          name: campus-agent-release
+          keep-state: true
+          cleanup: false
           cache-binary: false
+          driver-opts: |
+            cgroup-parent=ci.slice
+            cpu-period=100000
+            cpu-quota=200000
+            memory=2g
+            memory-swap=2g
+          buildkitd-config-inline: |
+            [worker.oci]
+              gc = true
+              reservedSpace = "2GB"
+              maxUsedSpace = "12GB"
+              minFreeSpace = "25GB"
 
       - name: Login to GHCR
         uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0  # v4.4.0
@@ -243,9 +263,9 @@ jobs:
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
         with:
           path: ${{ runner.tool_cache }}/pnpm-store
-          key: pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: source-pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.node-version', 'package.json', 'pnpm-lock.yaml', 'flake.lock') }}
           restore-keys: |
-            pnpm-${{ runner.os }}-${{ runner.arch }}-
+            source-pnpm-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Install App API workspace
         env:
@@ -286,31 +306,17 @@ jobs:
     if: >-
       needs.release-plan.result == 'success' &&
       contains(fromJSON(needs.release-plan.outputs.workers), 'campus-web-staging')
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
     timeout-minutes: 15
     environment: staging
     defaults:
       run:
-        shell: nix develop .#ci-light --command bash -e {0}
+        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-light --command bash -e {0}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
         with:
           persist-credentials: false
-
-      - name: Install Nix
-        uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
-        with:
-          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
-          enable_kvm: false
-
-      - name: Restore pnpm store
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
-        with:
-          path: ${{ runner.tool_cache }}/pnpm-store
-          key: pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            pnpm-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Install Campus Web workspace
         env:
@@ -323,8 +329,8 @@ jobs:
       - name: Build Campus Web staging configuration
         if: needs.release-plan.outputs.validate_only == 'true'
         env:
-          OBJECT_STORE_DERIVED_ACCESS_KEY: ${{ secrets.OBJECT_STORE_DERIVED_READ_ACCESS_KEY }}
-          OBJECT_STORE_DERIVED_SECRET_KEY: ${{ secrets.OBJECT_STORE_DERIVED_READ_SECRET_KEY }}
+          OBJECT_STORE_DERIVED_READ_ACCESS_KEY: ${{ secrets.OBJECT_STORE_DERIVED_READ_ACCESS_KEY }}
+          OBJECT_STORE_DERIVED_READ_SECRET_KEY: ${{ secrets.OBJECT_STORE_DERIVED_READ_SECRET_KEY }}
           OBJECT_STORE_ENDPOINT: ${{ vars.OBJECT_STORE_ENDPOINT }}
         run: pnpm --dir apps/campus-web build:staging
 
@@ -332,8 +338,8 @@ jobs:
         if: needs.release-plan.outputs.validate_only != 'true'
         env:
           CAMPUS_WEB_SENTRY_SOURCE_MAP_UPLOAD: required
-          OBJECT_STORE_DERIVED_ACCESS_KEY: ${{ secrets.OBJECT_STORE_DERIVED_READ_ACCESS_KEY }}
-          OBJECT_STORE_DERIVED_SECRET_KEY: ${{ secrets.OBJECT_STORE_DERIVED_READ_SECRET_KEY }}
+          OBJECT_STORE_DERIVED_READ_ACCESS_KEY: ${{ secrets.OBJECT_STORE_DERIVED_READ_ACCESS_KEY }}
+          OBJECT_STORE_DERIVED_READ_SECRET_KEY: ${{ secrets.OBJECT_STORE_DERIVED_READ_SECRET_KEY }}
           OBJECT_STORE_ENDPOINT: ${{ vars.OBJECT_STORE_ENDPOINT }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_CAMPUS_WEB_PROJECT_SLUG: ${{ vars.SENTRY_CAMPUS_WEB_PROJECT_SLUG }}
@@ -451,7 +457,7 @@ jobs:
         needs.publish-campus-web.result == 'success' ||
         needs.release-plan.outputs.kubernetes == 'true'
       )
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
     timeout-minutes: 15
     environment: staging
     steps:
@@ -460,26 +466,12 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install Nix
-        uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
-        with:
-          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
-          enable_kvm: false
-
-      - name: Restore pnpm store
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
-        with:
-          path: ${{ runner.tool_cache }}/pnpm-store
-          key: pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            pnpm-${{ runner.os }}-${{ runner.arch }}-
-
       - name: Configure pnpm store
-        shell: nix develop .#ci-light --command bash -e {0}
+        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-light --command bash -e {0}
         run: echo "npm_config_store_dir=${RUNNER_TOOL_CACHE}/pnpm-store" >> "$GITHUB_ENV"
 
       - name: Prepare release inputs
-        shell: nix develop .#ci-light --command bash -e {0}
+        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-light --command bash -e {0}
         run: |
           node -e 'require("node:fs").writeFileSync("image-digests.json", "{}\n")'
           mkdir -p worker-candidates
@@ -527,14 +519,14 @@ jobs:
           path: gitops
 
       - name: Install GitOps tooling
-        shell: nix develop ./gitops#ci-infra --command bash -e {0}
+        shell: /nix/var/nix/profiles/default/bin/nix develop ./gitops#ci-infra --command bash -e {0}
         run: pnpm --dir gitops install --frozen-lockfile --prefer-offline
 
       - name: Update GitOps desired state
         env:
           EXPECTED_WORKERS: ${{ needs.release-plan.outputs.workers }}
           KUBERNETES_CHANGED: ${{ needs.release-plan.outputs.kubernetes }}
-        shell: nix develop ./gitops#ci-infra --command bash -e {0}
+        shell: /nix/var/nix/profiles/default/bin/nix develop ./gitops#ci-infra --command bash -e {0}
         run: >-
           pnpm --dir gitops gitops promote-source
           --expected-source-sha "${{ needs.release-plan.outputs.base }}"
@@ -549,7 +541,7 @@ jobs:
       - name: Render promoted GitOps state
         env:
           SOURCE_TOKEN: ${{ steps.gitops-token.outputs.token }}
-        shell: nix develop ./gitops#ci-infra --command bash -e {0}
+        shell: /nix/var/nix/profiles/default/bin/nix develop ./gitops#ci-infra --command bash -e {0}
         run: |
           set -euo pipefail
           pnpm --dir gitops exec tsx tools/gitops.ts \
@@ -567,7 +559,7 @@ jobs:
 
       - name: Detect GitOps changes
         id: promotion
-        shell: nix develop ./gitops#ci-infra --command bash -e {0}
+        shell: /nix/var/nix/profiles/default/bin/nix develop ./gitops#ci-infra --command bash -e {0}
         run: |
           if git -C gitops diff --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -607,7 +599,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.gitops-token.outputs.token }}
           TARGET_URL: ${{ steps.deployment-pr.outputs.pull-request-url }}
-        shell: nix develop ./gitops#ci-infra --command bash -e {0}
+        shell: /nix/var/nix/profiles/default/bin/nix develop ./gitops#ci-infra --command bash -e {0}
         run: >-
           gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}"
           -f state=pending

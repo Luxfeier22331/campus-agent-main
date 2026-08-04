@@ -73,7 +73,7 @@ function runAffectedNodeEvidence(
 		repositoryRoot: string;
 	},
 	runner: EvidenceCommandRunner,
-): { builtPackages: Set<string>; builtWorkers: Set<string> } {
+): void {
 	const options = { cwd: input.repositoryRoot, env: input.env };
 	const scope = resolveAffectedScope(
 		{
@@ -152,33 +152,6 @@ function runAffectedNodeEvidence(
 			options,
 		);
 	}
-	return { builtPackages: buildPackages, builtWorkers };
-}
-
-function prepareCampusBrowser(
-	prepared: boolean,
-	runner: EvidenceCommandRunner,
-	options: { cwd: string; env: NodeJS.ProcessEnv },
-): void {
-	if (prepared) {
-		return;
-	}
-	runProfileCommand(
-		"campus-browser-smoke",
-		"pnpm",
-		[
-			"exec",
-			"turbo",
-			"run",
-			"build:worker",
-			"--filter=campus-web",
-			"--only",
-			"--concurrency=1",
-			"--summarize",
-		],
-		runner,
-		options,
-	);
 }
 
 function argumentsMap(args: string[]): Map<string, string> {
@@ -240,12 +213,10 @@ export function runCandidateEvidence(
 		TURBO_SCM_HEAD: input.head,
 	};
 	const options = { cwd: input.repositoryRoot, env };
-	let builtPackages = new Set<string>();
-	let builtWorkers = new Set<string>();
 	for (const profile of input.profiles) {
 		process.stdout.write(`Running validation profile: ${profile}\n`);
 		if (profile === "affected-node") {
-			({ builtPackages, builtWorkers } = runAffectedNodeEvidence(
+			runAffectedNodeEvidence(
 				{
 					base: input.base,
 					env,
@@ -253,34 +224,6 @@ export function runCandidateEvidence(
 					repositoryRoot: input.repositoryRoot,
 				},
 				runner,
-			));
-			continue;
-		}
-		if (profile === "campus-browser-smoke" || profile === "campus-browser-full") {
-			prepareCampusBrowser(builtWorkers.has("campus-web"), runner, options);
-			builtWorkers.add("campus-web");
-			runProfileCommand(
-				profile,
-				"pnpm",
-				[
-					"--dir",
-					"apps/campus-web",
-					profile === "campus-browser-full" ? "test:e2e:full" : "test:e2e:smoke",
-				],
-				runner,
-				options,
-			);
-			continue;
-		}
-		if (profile === "ops-web-browser") {
-			runProfileCommand(
-				profile,
-				"pnpm",
-				builtPackages.has("ops-web")
-					? ["--dir", "apps/ops-web", "exec", "playwright", "test", "--config", "browser.config.ts"]
-					: ["--dir", "apps/ops-web", "test:browser"],
-				runner,
-				options,
 			);
 			continue;
 		}

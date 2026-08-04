@@ -141,9 +141,10 @@ Campus Web 开发和构建入口都必须：
 
 `CAMPUS_WEB_BUILD_TARGET` 只区分应用和文档两次 Vite 构建，`CAMPUS_WEB_DOCS_CONTENT_ROOT` 只传递
 来源摘要对应的本地准备目录。两者均为构建进程内部变量，不进入 Worker、Wrangler、Argo 或 GitHub
-Environment。`OBJECT_STORE_ENDPOINT`、`OBJECT_STORE_DERIVED_ACCESS_KEY` 和
-`OBJECT_STORE_DERIVED_SECRET_KEY` 是受信任文档准备和来源更新命令的输入；它们不传给 Vite 子进程，
-也不写入静态产物。
+Environment。`OBJECT_STORE_ENDPOINT`、`OBJECT_STORE_DERIVED_READ_ACCESS_KEY` 和
+`OBJECT_STORE_DERIVED_READ_SECRET_KEY` 是正式构建读取来源和文档对象的输入；受信任的来源更新与
+分段修复命令另行使用 `OBJECT_STORE_DERIVED_ACCESS_KEY`、`OBJECT_STORE_DERIVED_SECRET_KEY` 写入身份。
+读身份不具备写入能力，所有这些变量都不传给 Vite 子进程，也不写入静态产物。
 
 PR job 不访问对象存储；Campus Web 只执行无对象存储依赖的 `build:worker` 测试构建。main/artifact
 lane 的独立 Campus Web publisher 使用 Source staging Environment 的公网对象存储端点和只读身份

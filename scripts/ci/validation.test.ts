@@ -12,12 +12,11 @@ function scope(changedFiles: string[], tasks: ScopeTask[] = []): AffectedScope {
 }
 
 function profiles(changedFiles: string[], tasks: ScopeTask[] = []) {
-	return validationPlanFromScope(scope(changedFiles, tasks), {
-		mode: "pull-request",
-	}).validationProfiles;
+	return validationPlanFromScope(scope(changedFiles, tasks), { mode: "pull-request" })
+		.validationProfiles;
 }
 
-test("docs-only changes keep heavy evidence empty", () => {
+test("docs-only changes keep automatic evidence empty", () => {
 	const plan = validationPlanFromScope(scope(["docs/architecture/current.md"]), {
 		mode: "pull-request",
 	});
@@ -38,82 +37,28 @@ test("selects affected Node and Worker evidence from Turbo tasks", () => {
 	);
 });
 
-test("selects Go, Rust, and Ragas owners", () => {
-	assert.deepEqual(profiles(["apps/execution-control/internal/server/server.go"]), ["go"]);
-	assert.deepEqual(profiles(["packages/ingestion-kernels-rs/src/lib.rs"]), ["rust"]);
-	assert.deepEqual(profiles(["packages/ragas-runner/tests/test_runner.py"]), ["ragas"]);
-});
-
-test("selects every disposable PostgreSQL owner", () => {
-	const cases: [string, string[]][] = [
-		["apps/app-api/drizzle/0001.sql", ["app-api-migration", "app-api-product-db"]],
-		["apps/app-api/src/db/schema/chat.ts", ["app-api-product-db"]],
-		[
-			"apps/execution-control/internal/schemamigrations/migrator.go",
-			["go", "execution-control-postgres"],
-		],
-		["apps/ingestion-control/src/postgres-store.ts", ["ingestion-control-postgres"]],
-		["apps/ops-web/ops/db/schema.ts", ["ops-web-postgres"]],
-	];
-	for (const [file, expected] of cases) {
-		assert.deepEqual(profiles([file]), expected, file);
+test("keeps native, database, infrastructure, OTel, and browser checks manual", () => {
+	for (const file of [
+		"apps/execution-control/internal/server/server.go",
+		"packages/ingestion-kernels-rs/src/lib.rs",
+		"packages/ragas-runner/tests/test_runner.py",
+		"apps/app-api/drizzle/0001.sql",
+		"apps/ingestion-control/src/postgres-store.ts",
+		"infra/k8s/data-postgres/base/service.yaml",
+		"infra/otel/collector-local-debug.yaml",
+		"apps/campus-web/src/routes/index.tsx",
+		"apps/campus-web/e2e/chat.spec.ts",
+		"apps/ops-web/src/app/overview-page.tsx",
+	]) {
+		assert.deepEqual(profiles([file]), [], file);
 	}
 });
 
-test("selects infrastructure and OTel evidence independently", () => {
-	assert.deepEqual(profiles(["infra/k8s/data-postgres/base/service.yaml"]), ["infra"]);
-	assert.deepEqual(profiles(["infra/otel/collector-local-debug.yaml"]), ["otel"]);
-	assert.deepEqual(profiles(["infra/k8s/observability-otel-collector/base/configmap.yaml"]), [
-		"infra",
-		"otel",
-	]);
-});
-
-test("uses smoke for Campus product changes and full coverage for browser contracts", () => {
-	assert.deepEqual(profiles(["apps/campus-web/src/routes/index.tsx"]), ["campus-browser-smoke"]);
-	assert.deepEqual(profiles(["apps/campus-web/e2e/chat.spec.ts"]), ["campus-browser-full"]);
-	assert.deepEqual(profiles(["apps/ops-web/src/app/overview-page.tsx"]), ["ops-web-browser"]);
-	assert.deepEqual(profiles(["packages/ui/src/button.tsx"]), [
-		"campus-browser-smoke",
-		"ops-web-browser",
-	]);
-	assert.deepEqual(profiles([], [{ package: "campus-web", task: "test:e2e:smoke" }]), [
-		"campus-browser-smoke",
-	]);
-	assert.deepEqual(profiles([], [{ package: "ops-web", task: "test:browser" }]), [
-		"ops-web-browser",
-	]);
-	assert.deepEqual(
-		profiles(
-			["apps/campus-web/test/staging-config.test.ts"],
-			[{ package: "campus-web", task: "test" }],
-		),
-		["affected-node"],
-	);
-});
-
-test("partitions browser and non-browser evidence into separate lanes", () => {
-	const plan = validationPlanFromScope(
-		scope(["packages/ui/src/button.tsx"], [{ package: "app-api", task: "test:worker" }]),
-		{ mode: "pull-request" },
-	);
-	assert.deepEqual(plan.browserProfiles, ["campus-browser-smoke", "ops-web-browser"]);
-	assert.deepEqual(plan.nonBrowserProfiles, ["affected-node"]);
-	assert.deepEqual(
-		[...plan.nonBrowserProfiles, ...plan.browserProfiles].sort(),
-		[...plan.validationProfiles].sort(),
-	);
-});
-
-test("maps ecosystem lockfiles to their owners and dependency scanning", () => {
+test("maps lockfiles to dependency and toolchain checks only", () => {
 	assert.deepEqual(profiles(["pnpm-lock.yaml"]), ["dependencies", "toolchain"]);
-	assert.deepEqual(profiles(["uv.lock"]), ["ragas", "dependencies"]);
-	assert.deepEqual(profiles(["Cargo.lock"]), ["rust", "dependencies"]);
-	assert.deepEqual(profiles(["apps/execution-control/go.sum"]), [
-		"go",
-		"execution-control-postgres",
-		"dependencies",
-	]);
+	assert.deepEqual(profiles(["uv.lock"]), ["dependencies"]);
+	assert.deepEqual(profiles(["Cargo.lock"]), ["dependencies"]);
+	assert.deepEqual(profiles(["apps/execution-control/go.sum"]), ["dependencies"]);
 });
 
 test("Dockerfiles select release tooling without pretending to build images", () => {
@@ -121,7 +66,7 @@ test("Dockerfiles select release tooling without pretending to build images", ()
 	assert.deepEqual(profiles(["docker-bake.hcl"]), ["toolchain"]);
 });
 
-test("CI control files stay in hosted checks instead of selecting every heavy profile", () => {
+test("CI control files stay in hosted checks instead of selecting heavy profiles", () => {
 	for (const [file, lightSurfaces] of [
 		["package.json", ["release"]],
 		["turbo.json", ["release"]],
@@ -135,22 +80,6 @@ test("CI control files stay in hosted checks instead of selecting every heavy pr
 		assert.deepEqual(plan.lightSurfaces, lightSurfaces, file);
 		assert.deepEqual(plan.validationProfiles, [], file);
 	}
-});
-
-test("consumes normalized tasks even when the cumulative diff includes Turbo configuration", () => {
-	const plan = validationPlanFromScope(
-		scope(
-			[
-				"turbo.json",
-				"apps/campus-web/turbo.json",
-				"infra/k8s/data-object-store/base/bootstrap.yaml",
-			],
-			[{ package: "campus-web", task: "build:worker" }],
-		),
-		{ mode: "pull-request" },
-	);
-	assert.deepEqual(plan.lightSurfaces, ["release", "yaml"]);
-	assert.deepEqual(plan.validationProfiles, ["affected-node", "infra"]);
 });
 
 test("selects static surfaces from renamed and deleted paths", () => {

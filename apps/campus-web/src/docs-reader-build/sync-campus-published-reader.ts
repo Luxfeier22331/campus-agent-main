@@ -24,6 +24,8 @@ export {
 	resolvePublishedReaderObjectStoreBucket,
 	resolvePublishedReaderObjectStoreConfig,
 	resolvePublishedReaderObjectStoreCredentials,
+	resolvePublishedReaderObjectStoreWriterConfig,
+	resolvePublishedReaderObjectStoreWriterCredentials,
 } from "./published-reader-object-store.ts";
 
 export async function syncCampusPublishedReaderDocs(
