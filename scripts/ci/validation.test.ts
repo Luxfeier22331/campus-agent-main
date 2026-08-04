@@ -92,6 +92,19 @@ test("uses smoke for Campus product changes and full coverage for browser contra
 	);
 });
 
+test("partitions browser and non-browser evidence into separate lanes", () => {
+	const plan = validationPlanFromScope(
+		scope(["packages/ui/src/button.tsx"], [{ package: "app-api", task: "test:worker" }]),
+		{ mode: "pull-request" },
+	);
+	assert.deepEqual(plan.browserProfiles, ["campus-browser-smoke", "ops-web-browser"]);
+	assert.deepEqual(plan.nonBrowserProfiles, ["affected-node"]);
+	assert.deepEqual(
+		[...plan.nonBrowserProfiles, ...plan.browserProfiles].sort(),
+		[...plan.validationProfiles].sort(),
+	);
+});
+
 test("maps ecosystem lockfiles to their owners and dependency scanning", () => {
 	assert.deepEqual(profiles(["pnpm-lock.yaml"]), ["dependencies", "toolchain"]);
 	assert.deepEqual(profiles(["uv.lock"]), ["ragas", "dependencies"]);
@@ -124,16 +137,7 @@ test("CI control files stay in hosted checks instead of selecting every heavy pr
 	}
 });
 
-test("Turbo configuration invalidation stays in hosted control-plane checks", () => {
-	const globallyInvalidatedTasks: ScopeTask[] = [
-		{ package: "app-api", task: "test:migration-integration" },
-		{ package: "campus-web", task: "test:e2e:smoke" },
-		{ package: "execution-control", task: "native:test" },
-		{ package: "ingestion-control", task: "test:database-integration" },
-		{ package: "ingestion-kernels-rs", task: "native:test" },
-		{ package: "ops-web", task: "test:browser" },
-		{ package: "ragas-runner", task: "test:eval" },
-	];
+test("consumes normalized tasks even when the cumulative diff includes Turbo configuration", () => {
 	const plan = validationPlanFromScope(
 		scope(
 			[
@@ -141,12 +145,12 @@ test("Turbo configuration invalidation stays in hosted control-plane checks", ()
 				"apps/campus-web/turbo.json",
 				"infra/k8s/data-object-store/base/bootstrap.yaml",
 			],
-			globallyInvalidatedTasks,
+			[{ package: "campus-web", task: "build:worker" }],
 		),
 		{ mode: "pull-request" },
 	);
 	assert.deepEqual(plan.lightSurfaces, ["release", "yaml"]);
-	assert.deepEqual(plan.validationProfiles, ["infra"]);
+	assert.deepEqual(plan.validationProfiles, ["affected-node", "infra"]);
 });
 
 test("selects static surfaces from renamed and deleted paths", () => {
@@ -155,40 +159,4 @@ test("selects static surfaces from renamed and deleted paths", () => {
 		{ mode: "pull-request" },
 	);
 	assert.deepEqual(plan.lightSurfaces, ["config", "release", "yaml", "sql", "shell"]);
-});
-
-test("candidate planning stays affected-only and validate-only keeps toolchain validation", () => {
-	assert.deepEqual(
-		validationPlanFromScope(scope([]), { mode: "candidate" }).validationProfiles,
-		[],
-	);
-	assert.deepEqual(
-		validationPlanFromScope(scope([]), { mode: "candidate", validateOnly: true })
-			.validationProfiles,
-		["toolchain"],
-	);
-});
-
-test("candidate artifacts add evidence for active consumers", () => {
-	assert.deepEqual(
-		validationPlanFromScope(scope([]), {
-			mode: "candidate",
-			release: {
-				images: ["execution-control", "ops-web"],
-				kubernetes: true,
-				workers: ["app-api-staging", "campus-web-staging"],
-			},
-		}).validationProfiles,
-		[
-			"affected-node",
-			"go",
-			"app-api-product-db",
-			"execution-control-postgres",
-			"ops-web-postgres",
-			"infra",
-			"campus-browser-smoke",
-			"ops-web-browser",
-			"toolchain",
-		],
-	);
 });

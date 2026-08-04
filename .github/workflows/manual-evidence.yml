@@ -39,12 +39,10 @@ env:
     cores = 2
 
 jobs:
-  evidence:
-    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 90
-    defaults:
-      run:
-        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-full --command bash -e {0}
+  browser-evidence:
+    if: contains(inputs.profile, 'browser')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - name: Checkout selected revision
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
@@ -52,6 +50,104 @@ jobs:
           fetch-depth: 0
           filter: blob:none
           persist-credentials: true
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
+          enable_kvm: false
+
+      - name: Restore pnpm store
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
+        with:
+          path: ${{ runner.tool_cache }}/pnpm-store
+          key: pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Install browser workspaces
+        env:
+          npm_config_store_dir: ${{ runner.tool_cache }}/pnpm-store
+        shell: nix develop .#ci-light --command bash -e {0}
+        run: |
+          set -euo pipefail
+          mkdir -p "$npm_config_store_dir"
+          pnpm install --frozen-lockfile --prefer-offline \
+            --filter campus-agent-web-workspace \
+            --filter 'campus-web...' \
+            --filter 'ops-web...'
+
+      - name: Install Chromium headless shell
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.tool_cache }}/ms-playwright
+        shell: nix develop .#ci-light --command bash -e {0}
+        run: pnpm --dir apps/campus-web exec playwright install --with-deps --only-shell chromium
+
+      - name: Run selected browser profile
+        env:
+          BASE_SHA: ${{ github.event.repository.default_branch }}
+          CAMPUS_WEB_E2E_PREBUILT: "1"
+          HEAD_SHA: ${{ github.sha }}
+          OPS_WEB_BROWSER_TEST_PORT: "4278"
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.tool_cache }}/ms-playwright
+          TURBO_CACHE: "local:rw,remote:rw"
+          TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+          TURBO_TELEMETRY_DISABLED: "1"
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          VALIDATION_PROFILES: '["${{ inputs.profile }}"]'
+        shell: nix develop .#ci-light --command bash -e {0}
+        run: |
+          set -euo pipefail
+          base_sha="$(git merge-base HEAD "origin/${BASE_SHA}")"
+          test -n "$base_sha"
+          node --experimental-strip-types scripts/ci/evidence.mts \
+            --base "$base_sha" \
+            --head "$HEAD_SHA" \
+            --profiles "$VALIDATION_PROFILES"
+
+      - name: Upload browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          if-no-files-found: ignore
+          name: manual-browser-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            apps/campus-web/playwright-report/e2e
+            apps/campus-web/playwright-report/e2e-worker
+            apps/campus-web/test-results/e2e
+            apps/campus-web/test-results/e2e-worker
+            apps/ops-web/test-results
+            apps/ops-web/playwright-report
+          retention-days: 7
+
+  evidence:
+    if: ${{ !contains(inputs.profile, 'browser') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: nix develop .#ci-full --command bash -e {0}
+    steps:
+      - name: Checkout selected revision
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+        with:
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: true
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
+          enable_kvm: false
+
+      - name: Restore pnpm store
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
+        with:
+          path: ${{ runner.tool_cache }}/pnpm-store
+          key: pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Install workspaces
         env:
@@ -75,24 +171,12 @@ jobs:
           inputs.profile == 'otel'
         run: docker info >/dev/null
 
-      - name: Install Chromium headless shell
-        if: >-
-          inputs.profile == 'campus-browser-smoke' ||
-          inputs.profile == 'campus-browser-full' ||
-          inputs.profile == 'ops-web-browser'
-        env:
-          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.tool_cache }}/ms-playwright
-        run: pnpm --dir apps/campus-web exec playwright install --only-shell chromium
-
       - name: Run selected profile
         env:
           BASE_SHA: ${{ github.event.repository.default_branch }}
           CARGO_TARGET_DIR: ${{ runner.tool_cache }}/cargo-target/campus-agent
-          CI_DOCKER_CGROUP_PARENT: ci.slice
           HEAD_SHA: ${{ github.sha }}
-          OPS_WEB_BROWSER_TEST_PORT: "4278"
-          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.tool_cache }}/ms-playwright
-          TURBO_CACHE: "local:rw,remote:r"
+          TURBO_CACHE: "local:rw,remote:rw"
           TURBO_TEAM: ${{ vars.TURBO_TEAM }}
           TURBO_TELEMETRY_DISABLED: "1"
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}

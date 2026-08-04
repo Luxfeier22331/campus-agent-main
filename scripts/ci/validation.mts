@@ -1,12 +1,7 @@
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import {
-	type AffectedScope,
-	type CommandRunner,
-	changesTaskGraph,
-	resolveAffectedScope,
-} from "./scope.mts";
+import { type AffectedScope, type CommandRunner, resolveAffectedScope } from "./scope.mts";
 
 export type LightSurface = "config" | "contracts" | "python" | "release" | "shell" | "sql" | "yaml";
 
@@ -56,26 +51,27 @@ export const VALIDATION_PROFILES: ValidationProfile[] = [
 	"dependencies",
 	"toolchain",
 ];
+
+const BROWSER_PROFILES = new Set<ValidationProfile>([
+	"campus-browser-smoke",
+	"campus-browser-full",
+	"ops-web-browser",
+]);
+
 export interface ValidationPlan {
 	base: string;
+	browserProfiles: ValidationProfile[];
 	head: string;
 	lightSurfaces: LightSurface[];
+	nonBrowserProfiles: ValidationProfile[];
 	validationProfiles: ValidationProfile[];
-}
-
-export interface ReleaseValidationContext {
-	images?: readonly string[];
-	kubernetes?: boolean;
-	workers?: readonly string[];
 }
 
 export interface ValidationPlanOptions {
 	base: string;
 	head: string;
-	mode: "candidate" | "pull-request";
-	release?: ReleaseValidationContext;
+	mode: "pull-request";
 	repositoryRoot: string;
-	validateOnly?: boolean;
 }
 
 function changesPath(files: readonly string[], prefix: string): boolean {
@@ -142,22 +138,13 @@ function selectLightSurfaces(files: readonly string[]): LightSurface[] {
 	return LIGHT_SURFACES.filter((surface) => selected.has(surface));
 }
 
-function selectValidationProfiles(
-	scope: AffectedScope,
-	release: ReleaseValidationContext = {},
-): ValidationProfile[] {
+function selectValidationProfiles(scope: AffectedScope): ValidationProfile[] {
 	const files = scope.changedFiles;
-	// A Turbo configuration change invalidates every task definition. Hosted
-	// release checks own that control-plane change; business profiles continue
-	// to be selected from the concrete files and release artifacts below.
-	const affectedScope = changesTaskGraph(files) ? { ...scope, tasks: [] } : scope;
 	const selected = new Set<ValidationProfile>();
 	if (
-		affectedScope.tasks.some(({ task }) =>
+		scope.tasks.some(({ task }) =>
 			["build", "build:worker", "test", "test:worker", "typecheck"].includes(task),
-		) ||
-		(release.images ?? []).some((image) => image !== "execution-control") ||
-		(release.workers?.length ?? 0) > 0
+		)
 	) {
 		selected.add("affected-node");
 	}
@@ -168,11 +155,10 @@ function selectValidationProfiles(
 				file !== "apps/execution-control/turbo.json" &&
 				!file.endsWith("/README.md"),
 		) ||
-		affectedScope.tasks.some(
+		scope.tasks.some(
 			({ package: packageName, task }) =>
 				packageName === "execution-control" && task.startsWith("native:"),
-		) ||
-		release.images?.includes("execution-control")
+		)
 	) {
 		selected.add("go");
 	}
@@ -187,15 +173,14 @@ function selectValidationProfiles(
 				"apps/execution-control/internal/providerconfig/migration.go",
 			].includes(file),
 		) ||
-		hasTask(affectedScope, "execution-control", "test:database-integration") ||
-		release.images?.includes("execution-control")
+		hasTask(scope, "execution-control", "test:database-integration")
 	) {
 		selected.add("execution-control-postgres");
 	}
 	if (
 		changesPath(files, "packages/ingestion-kernels-rs") ||
 		files.some((file) => ["Cargo.lock", "Cargo.toml", "rust-toolchain.toml"].includes(file)) ||
-		affectedScope.tasks.some(
+		scope.tasks.some(
 			({ package: packageName, task }) =>
 				packageName === "ingestion-kernels-rs" && task.startsWith("native:"),
 		)
@@ -205,7 +190,7 @@ function selectValidationProfiles(
 	if (
 		changesPath(files, "packages/ragas-runner") ||
 		files.some((file) => file === "pyproject.toml" || file === "uv.lock") ||
-		hasTask(affectedScope, "ragas-runner", "test:eval")
+		hasTask(scope, "ragas-runner", "test:eval")
 	) {
 		selected.add("ragas");
 	}
@@ -214,16 +199,14 @@ function selectValidationProfiles(
 		changesPath(files, "apps/app-api/ops/db") ||
 		changesPath(files, "apps/app-api/src/script-support/shared-db") ||
 		changesPath(files, "jobs/app-api-schema") ||
-		hasTask(affectedScope, "app-api", "test:migration-integration") ||
-		release.images?.includes("app-api-schema")
+		hasTask(scope, "app-api", "test:migration-integration")
 	) {
 		selected.add("app-api-migration");
 		selected.add("app-api-product-db");
 	}
 	if (
 		changesPath(files, "apps/app-api/src/db") ||
-		hasTask(affectedScope, "app-api", "test:shared-db-integration") ||
-		release.workers?.includes("app-api-staging")
+		hasTask(scope, "app-api", "test:shared-db-integration")
 	) {
 		selected.add("app-api-product-db");
 	}
@@ -237,19 +220,18 @@ function selectValidationProfiles(
 				"apps/ingestion-control/src/schema-bootstrap.ts",
 			].includes(file),
 		) ||
-		hasTask(affectedScope, "ingestion-control", "test:database-integration")
+		hasTask(scope, "ingestion-control", "test:database-integration")
 	) {
 		selected.add("ingestion-control-postgres");
 	}
 	if (
 		changesPath(files, "apps/ops-web/ops/db") ||
 		changesPath(files, "apps/ops-web/src/server/dining") ||
-		hasTask(affectedScope, "ops-web", "test:database-integration") ||
-		release.images?.includes("ops-web")
+		hasTask(scope, "ops-web", "test:database-integration")
 	) {
 		selected.add("ops-web-postgres");
 	}
-	if (changesPath(files, "infra/k8s") || release.kubernetes) {
+	if (changesPath(files, "infra/k8s")) {
 		selected.add("infra");
 	}
 	if (
@@ -260,7 +242,7 @@ function selectValidationProfiles(
 		selected.add("otel");
 	}
 	const fullBrowserChanged =
-		hasTask(affectedScope, "campus-web", "test:e2e:full") ||
+		hasTask(scope, "campus-web", "test:e2e:full") ||
 		files.some(
 			(file) =>
 				file.startsWith("apps/campus-web/e2e/") ||
@@ -270,7 +252,7 @@ function selectValidationProfiles(
 		);
 	const campusBrowserChanged =
 		fullBrowserChanged ||
-		hasTask(affectedScope, "campus-web", "test:e2e:smoke") ||
+		hasTask(scope, "campus-web", "test:e2e:smoke") ||
 		changesPath(files, "apps/campus-web/src") ||
 		changesPath(files, "apps/campus-web/scripts") ||
 		changesPath(files, "configs/branding") ||
@@ -285,8 +267,7 @@ function selectValidationProfiles(
 					"apps/campus-web/tsconfig.json",
 					"apps/campus-web/vite.config.ts",
 				].includes(file) || /^apps\/campus-web\/wrangler.*\.toml$/u.test(file),
-		) ||
-		release.workers?.includes("campus-web-staging");
+		);
 	if (campusBrowserChanged) {
 		selected.add(fullBrowserChanged ? "campus-browser-full" : "campus-browser-smoke");
 	}
@@ -294,7 +275,7 @@ function selectValidationProfiles(
 		changesPath(files, "apps/ops-web/src") ||
 		changesPath(files, "apps/ops-web/test/browser") ||
 		changesPath(files, "packages/ui") ||
-		hasTask(affectedScope, "ops-web", "test:browser") ||
+		hasTask(scope, "ops-web", "test:browser") ||
 		files.some((file) =>
 			[
 				"apps/ops-web/browser.config.ts",
@@ -302,8 +283,7 @@ function selectValidationProfiles(
 				"apps/ops-web/vite.config.ts",
 				"apps/ops-web/vite.ops.config.ts",
 			].includes(file),
-		) ||
-		release.images?.includes("ops-web")
+		)
 	) {
 		selected.add("ops-web-browser");
 	}
@@ -329,10 +309,7 @@ function selectValidationProfiles(
 				file.endsWith("/Dockerfile") ||
 				file.startsWith("scripts/release/") ||
 				file.startsWith("scripts/ci/check-ops-web-artifact."),
-		) ||
-		(release.images?.length ?? 0) > 0 ||
-		(release.workers?.length ?? 0) > 0 ||
-		release.kubernetes
+		)
 	) {
 		selected.add("toolchain");
 	}
@@ -342,20 +319,28 @@ function selectValidationProfiles(
 	return VALIDATION_PROFILES.filter((profile) => selected.has(profile));
 }
 
+export function partitionValidationProfiles(profiles: readonly ValidationProfile[]): {
+	browserProfiles: ValidationProfile[];
+	nonBrowserProfiles: ValidationProfile[];
+} {
+	return {
+		browserProfiles: profiles.filter((profile) => BROWSER_PROFILES.has(profile)),
+		nonBrowserProfiles: profiles.filter((profile) => !BROWSER_PROFILES.has(profile)),
+	};
+}
+
 export function validationPlanFromScope(
 	scope: AffectedScope,
-	options: Pick<ValidationPlanOptions, "mode" | "release" | "validateOnly">,
+	_options: Pick<ValidationPlanOptions, "mode">,
 ): ValidationPlan {
-	let validationProfiles: ValidationProfile[];
-	if (options.validateOnly) {
-		validationProfiles = ["toolchain"];
-	} else {
-		validationProfiles = selectValidationProfiles(scope, options.release);
-	}
+	const validationProfiles = selectValidationProfiles(scope);
+	const executionProfiles = partitionValidationProfiles(validationProfiles);
 	return {
 		base: scope.base,
+		browserProfiles: executionProfiles.browserProfiles,
 		head: scope.head,
 		lightSurfaces: selectLightSurfaces(scope.changedFiles),
+		nonBrowserProfiles: executionProfiles.nonBrowserProfiles,
 		validationProfiles,
 	};
 }
@@ -367,7 +352,7 @@ export function planValidation(
 	const scope = resolveAffectedScope(
 		{
 			base: options.base,
-			collectAffected: !options.validateOnly,
+			collectAffected: true,
 			head: options.head,
 			repositoryRoot: options.repositoryRoot,
 		},
@@ -400,8 +385,8 @@ function required(values: Map<string, string>, name: string): string {
 function main(args: string[]): void {
 	const values = argumentsMap(args);
 	const mode = required(values, "mode");
-	if (mode !== "pull-request" && mode !== "candidate") {
-		throw new Error("--mode must be pull-request or candidate");
+	if (mode !== "pull-request") {
+		throw new Error("--mode must be pull-request");
 	}
 	const plan = planValidation({
 		base: required(values, "base"),

@@ -62,7 +62,7 @@ export interface AffectedScopeOptions {
 	repositoryRoot: string;
 }
 
-export function changesTaskGraph(files: readonly string[]): boolean {
+function changesTaskGraph(files: readonly string[]): boolean {
 	return files.some((file) => file === "turbo.json" || file.endsWith("/turbo.json"));
 }
 
@@ -166,6 +166,89 @@ export function parseChangedFiles(source: string): string[] {
 	return [...files].sort();
 }
 
+function parseCommitList(source: string): string[] {
+	const commits = source.split("\n").filter(Boolean);
+	if (commits.some((commit) => !SHA_PATTERN.test(commit))) {
+		throw new Error("Git returned an invalid Turbo configuration commit list");
+	}
+	return commits;
+}
+
+function collectTurboTasks(
+	base: string,
+	head: string,
+	root: string,
+	runner: CommandRunner,
+): ScopeTask[] {
+	const env = { ...process.env, TURBO_SCM_BASE: base, TURBO_SCM_HEAD: head };
+	const turboArgs = ["exec", "turbo", "run", ...AFFECTED_TASKS, "--affected", "--dry-run=json"];
+	const turbo = requireSuccess("pnpm", turboArgs, runner("pnpm", turboArgs, { cwd: root, env }));
+	return parseTurboTasks(turbo.stdout ?? "");
+}
+
+function collectStableTurboTasks(
+	base: string,
+	head: string,
+	root: string,
+	runner: CommandRunner,
+): ScopeTask[] {
+	const env = { ...process.env, TURBO_SCM_BASE: base, TURBO_SCM_HEAD: head };
+	const logArgs = [
+		"log",
+		"--format=%H",
+		"--reverse",
+		"--first-parent",
+		`${base}..${head}`,
+		"--",
+		"turbo.json",
+		":(glob)**/turbo.json",
+	];
+	const log = requireSuccess("git", logArgs, runner("git", logArgs, { cwd: root, env }));
+	const taskGraphCommits = parseCommitList(log.stdout ?? "");
+	const tasks = new Map<string, ScopeTask>();
+	let segmentBase = base;
+	for (const commit of taskGraphCommits) {
+		const parentArgs = ["rev-parse", `${commit}^1`];
+		const parentResult = requireSuccess(
+			"git",
+			parentArgs,
+			runner("git", parentArgs, { cwd: root, env }),
+		);
+		const parent = parentResult.stdout?.trim() ?? "";
+		if (!SHA_PATTERN.test(parent)) {
+			throw new Error("Git returned an invalid Turbo configuration commit parent");
+		}
+		if (segmentBase !== parent) {
+			for (const task of collectTurboTasks(segmentBase, parent, root, runner)) {
+				tasks.set(`${task.package}\0${task.task}`, task);
+			}
+		}
+		segmentBase = commit;
+	}
+	if (segmentBase !== head) {
+		for (const task of collectTurboTasks(segmentBase, head, root, runner)) {
+			tasks.set(`${task.package}\0${task.task}`, task);
+		}
+	}
+	return [...tasks.values()].sort((left, right) =>
+		`${left.package}\0${left.task}`.localeCompare(`${right.package}\0${right.task}`),
+	);
+}
+
+function taskScopeHead(base: string, head: string, root: string, runner: CommandRunner): string {
+	const env = { ...process.env, TURBO_SCM_BASE: base, TURBO_SCM_HEAD: head };
+	const parentsArgs = ["rev-list", "--parents", "-n", "1", head];
+	const result = requireSuccess("git", parentsArgs, runner("git", parentsArgs, { cwd: root, env }));
+	const revisions = result.stdout?.trim().split(/\s+/u) ?? [];
+	if (revisions.length === 0) {
+		throw new Error("Git returned an empty affected head ancestry");
+	}
+	if (revisions.some((revision) => !SHA_PATTERN.test(revision)) || revisions[0] !== head) {
+		throw new Error("Git returned an invalid affected head ancestry");
+	}
+	return revisions.length === 3 && revisions[1] === base ? (revisions[2] as string) : head;
+}
+
 export function resolveAffectedScope(
 	options: AffectedScopeOptions,
 	runner: CommandRunner = run,
@@ -200,13 +283,17 @@ export function resolveAffectedScope(
 		options.head,
 	];
 	const diff = requireSuccess("git", diffArgs, runner("git", diffArgs, { cwd: root, env }));
-	const turboArgs = ["exec", "turbo", "run", ...AFFECTED_TASKS, "--affected", "--dry-run=json"];
-	const turbo = requireSuccess("pnpm", turboArgs, runner("pnpm", turboArgs, { cwd: root, env }));
+	const changedFiles = parseChangedFiles(diff.stdout ?? "");
+	const affectedHead = changesTaskGraph(changedFiles)
+		? taskScopeHead(options.base, options.head, root, runner)
+		: options.head;
 	return {
 		base: options.base,
-		changedFiles: parseChangedFiles(diff.stdout ?? ""),
+		changedFiles,
 		head: options.head,
-		tasks: parseTurboTasks(turbo.stdout ?? ""),
+		tasks: changesTaskGraph(changedFiles)
+			? collectStableTurboTasks(options.base, affectedHead, root, runner)
+			: collectTurboTasks(options.base, options.head, root, runner),
 	};
 }
 

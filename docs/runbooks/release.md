@@ -29,7 +29,8 @@ Worker version、配置和其他环境资源。候选物发布成功不表示环
 ## 候选物发布
 
 1. 确认目标源码已经合入 `main`，且该变更要求的 PR 检查通过。
-2. 当前 workflow 从环境仓游标计算累计影响面，完成所选候选证据后发布受影响的不可变候选物；
+2. 当前 workflow 从环境仓游标计算累计影响面，发布受影响的不可变候选物；PR 已拥有源码、合同、
+   disposable 数据库和浏览器证据，main 候选不重复运行这些 profile；
    触发条件、输入和产物以 `.github/workflows/` 为准。App API 与 Campus Web 在各自的候选任务中
    完成 Worker 配置预检；镜像、两个 Worker 和 Kubernetes 清单分别产生候选物。一个候选面的发布
    失败不使已经成功发布的候选物失效，但本次不会创建不完整的 GitOps 提升；同一源码提交重试时应
@@ -54,16 +55,16 @@ source。采集运行时
 一个明确 profile；候选 planner 始终按 Source 与 GitOps 游标的实际 diff 选择制品，不提供隐式全量
 候选开关。
 
-候选证据、制品构建和环境仓交接分别由所属 workflow job 维护超时，不在 runbook 重复写入总等待
-阈值。调度等待应单独记录，以区分容量与任务耗时。单一 ARM64 Runner 依靠受影响面选择、不可变标签
-复用和固定 BuildKit builder 的本地热缓存完成发布；registry cache 只用于 builder 丢失后的恢复。
-发生超时时先检查缓存命中、重复安装和发布计划，不能通过解除 2 GiB 内存限制掩盖容量问题。一次手动
-选择的昂贵 profile 在冷缓存下仍无法在 workflow 超时内完成时，必须增加构建容量。已经发布的不可变
-镜像会在同一源码提交的重试中直接复用。
+制品构建和环境仓交接分别由所属 workflow job 维护超时，不在 runbook 重复写入总等待阈值。调度等待
+应单独记录，以区分容量与任务耗时。镜像在 GitHub-hosted ARM64 runner 上原生构建，通过 GHCR
+registry cache 跨临时 builder 复用层。发生超时时先检查缓存命中、重复安装和发布计划。一次手动选择
+的昂贵 profile 在冷缓存下仍无法在 workflow 超时内完成时，应缩小任务输入或明确增加构建容量。已经
+发布的不可变镜像会在同一源码提交的重试中直接复用。
 
 Campus Web 的 staging publisher 在 main/artifact lane 读取固定来源键
-`campus-docs/source.json`，核对来源对象并生成静态文档；它通过 runner 的 Kubernetes context 解析
-对象存储 Service 地址，并只把现有 derived 凭据注入正式构建步骤。来源清单的 `sourceDigest` 只
+`campus-docs/source.json`，核对来源对象并生成静态文档；它使用 Source staging Environment 提供的
+公网 `OBJECT_STORE_ENDPOINT` 和对象存储只读身份，不依赖集群网络，也不增加 Cloudflare Access
+调用方准入。构建进程内部继续使用通用 derived 变量名。来源清单的 `sourceDigest` 只
 记录在构建和候选元数据中；正常开发、构建和部署不传递手工文档版本标识。它不能注入 Worker 运行
 变量或成为独立环境选择。Campus Web 构建或对象存储读取失败只阻止该候选，promotion 不接受缺失的
 已选择 Worker 候选。
@@ -73,10 +74,9 @@ Campus Web 的 staging publisher 在 main/artifact lane 读取固定来源键
 活跃的 `campus-web-staging` 加入正常累计差异的候选集合，不扩大制品或验证 profile；它不能与
 validation-only 模式组合。
 
-候选证据中的 `affected-node` 会先读取 Turbo 影响面，再执行普通包的正式构建；Campus Web 的正式
-`build` 不在该路径执行，以免 PR 或共享候选证据 job 访问对象存储。Campus Web 受影响时只执行现有的
-`build:worker` 确定性测试构建。真实文档页面构建由随后独立的受信任 Campus Web publisher 完成，
-不进入 PR 门禁或共享候选证据 job。
+PR 的 `affected-node` 会先读取 Turbo 影响面，再执行普通包构建；Campus Web 在 PR 中只执行现有的
+`build:worker` 确定性测试构建，不访问对象存储。真实文档页面构建只由 main/artifact lane 中独立的
+Campus Web publisher 完成。
 
 ## 环境交接
 

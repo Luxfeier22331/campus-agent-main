@@ -41,6 +41,9 @@ test("runs affected Node tasks from the shared scope without a downloaded Turbo"
 						{ command: "pnpm build:test", package: "campus-web", task: "build:worker" },
 						{ command: "vite build", package: "app-api", task: "build:worker" },
 						{ command: "vite build", package: "ops-web", task: "build" },
+						{ command: "vitest", package: "agent-runtime", task: "test" },
+						{ command: "vitest", package: "app-api", task: "test:worker" },
+						{ command: "tsc", package: "ops-web", task: "typecheck" },
 					],
 				}),
 			};
@@ -63,6 +66,26 @@ test("runs affected Node tasks from the shared scope without a downloaded Turbo"
 
 	const commands = calls.map(({ command, args }) => [command, ...args]);
 	assert(commands.some((command) => command.includes("--dry-run=json")));
+	const evidenceCommands = commands.filter((command) => !command.includes("--dry-run=json"));
+	assert(!evidenceCommands.some((command) => command.includes("--affected")));
+	assert(
+		evidenceCommands.some(
+			(command) =>
+				command.includes("test") &&
+				command.includes("--only") &&
+				command.includes("--filter=agent-runtime"),
+		),
+	);
+	assert(
+		evidenceCommands.some(
+			(command) => command.includes("test:worker") && command.includes("--filter=app-api"),
+		),
+	);
+	assert(
+		evidenceCommands.some(
+			(command) => command.includes("typecheck") && command.includes("--filter=ops-web"),
+		),
+	);
 	assert(
 		commands.some(
 			(command) =>
@@ -141,10 +164,7 @@ test("prepares Campus browser evidence when no affected build ran", () => {
 });
 
 test("rejects the retired aggregate full Node profile", () => {
-	assert.throws(
-		() => parseValidationProfiles('["full-node"]'),
-		/Unsupported candidate validation profile/u,
-	);
+	assert.throws(() => parseValidationProfiles('["full-node"]'), /Unsupported validation profile/u);
 });
 
 test("runs selected native, database, OTel, and dependency profiles in order", () => {

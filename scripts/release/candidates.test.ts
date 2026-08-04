@@ -83,13 +83,6 @@ test("maps Turbo affected package tasks to release candidates", async (t) => {
 		images: ["agent-runtime"],
 		kubernetes: true,
 		validateOnly: false,
-		validationProfiles: [
-			"affected-node",
-			"app-api-product-db",
-			"infra",
-			"campus-browser-smoke",
-			"toolchain",
-		],
 		workers: ["app-api-staging", "campus-web-staging"],
 	});
 });
@@ -97,19 +90,6 @@ test("maps Turbo affected package tasks to release candidates", async (t) => {
 test("task graph configuration does not publish business artifacts", async (t) => {
 	const root = await fixture(t);
 	const runner: CommandRunner = (command, args) => {
-		if (command === "pnpm") {
-			return result({
-				stdout: JSON.stringify({
-					tasks: [
-						{ command: "tsc", package: "agent-runtime", task: "build" },
-						{ command: "wrangler", package: "app-api", task: "build:worker" },
-						{ command: "wrangler", package: "campus-web", task: "build:worker" },
-						{ command: "go build", package: "execution-control", task: "build" },
-						{ command: "vite build", package: "ops-web", task: "build" },
-					],
-				}),
-			});
-		}
 		if (args[0] === "diff") {
 			return result({
 				stdout: changed(
@@ -120,13 +100,47 @@ test("task graph configuration does not publish business artifacts", async (t) =
 				),
 			});
 		}
+		if (args[0] === "log") {
+			return result({ stdout: `${HEAD}\n` });
+		}
+		if (args[0] === "rev-list") {
+			return result({ stdout: `${HEAD} ${BASE}\n` });
+		}
+		if (args[0] === "rev-parse") {
+			return result({ stdout: `${BASE}\n` });
+		}
+		assert.notEqual(command, "pnpm");
 		return result();
 	};
 	const plan = await planCandidates(options(root), runner);
 	assert.deepEqual(plan.images, []);
 	assert.deepEqual(plan.workers, []);
 	assert.equal(plan.kubernetes, true);
-	assert.deepEqual(plan.validationProfiles, ["infra", "toolchain"]);
+});
+
+test("maps Dockerfiles explicitly when they share a Turbo configuration commit", async (t) => {
+	const root = await fixture(t);
+	const runner: CommandRunner = (command, args) => {
+		if (args[0] === "diff") {
+			return result({
+				stdout: changed("turbo.json", "apps/agent-runtime/Dockerfile", "apps/ops-web/Dockerfile"),
+			});
+		}
+		if (args[0] === "log") {
+			return result({ stdout: `${HEAD}\n` });
+		}
+		if (args[0] === "rev-list") {
+			return result({ stdout: `${HEAD} ${BASE}\n` });
+		}
+		if (args[0] === "rev-parse") {
+			return result({ stdout: `${BASE}\n` });
+		}
+		assert.notEqual(command, "pnpm");
+		return result();
+	};
+	const plan = await planCandidates(options(root), runner);
+	assert.deepEqual(plan.images, ["agent-runtime", "ops-web"]);
+	assert.deepEqual(plan.workers, []);
 });
 
 test("promotion planning remains diff-based even when all workers are active", async (t) => {
@@ -143,7 +157,6 @@ test("promotion planning remains diff-based even when all workers are active", a
 	const plan = await planCandidates(options(root), runner);
 	assert.deepEqual(plan.images, []);
 	assert.deepEqual(plan.workers, []);
-	assert.deepEqual(plan.validationProfiles, []);
 });
 
 test("validation-only mode selects the active GitOps Workers", async (t) => {
@@ -151,7 +164,6 @@ test("validation-only mode selects the active GitOps Workers", async (t) => {
 	const plan = await planCandidates({ ...options(root), validateOnly: true }, () => result());
 	assert.deepEqual(plan.workers, ["app-api-staging", "campus-web-staging"]);
 	assert.equal(plan.validateOnly, true);
-	assert.deepEqual(plan.validationProfiles, ["toolchain"]);
 });
 
 test("Campus Web docs refresh unions only the active Campus Worker into the diff plan", async (t) => {
@@ -168,7 +180,6 @@ test("Campus Web docs refresh unions only the active Campus Worker into the diff
 	const plan = await planCandidates({ ...options(root), refreshCampusWebDocs: true }, runner);
 	assert.deepEqual(plan.images, []);
 	assert.deepEqual(plan.workers, ["campus-web-staging"]);
-	assert.deepEqual(plan.validationProfiles, []);
 });
 
 test("Campus Web docs refresh works when the GitOps cursor already equals head", async (t) => {
@@ -183,7 +194,6 @@ test("Campus Web docs refresh works when the GitOps cursor already equals head",
 		images: [],
 		kubernetes: false,
 		validateOnly: false,
-		validationProfiles: [],
 		workers: ["campus-web-staging"],
 	});
 });
@@ -222,7 +232,7 @@ test("rejects active Workers without a Source publisher", async (t) => {
 	);
 });
 
-test("selects Docker-only schema and Go images with their database evidence", async (t) => {
+test("selects Docker-only schema and Go images", async (t) => {
 	const root = await fixture(t);
 	const runner: CommandRunner = (command, args) => {
 		if (command === "pnpm") {
@@ -244,19 +254,11 @@ test("selects Docker-only schema and Go images with their database evidence", as
 		images: ["app-api-schema", "execution-control"],
 		kubernetes: false,
 		validateOnly: false,
-		validationProfiles: [
-			"affected-node",
-			"go",
-			"app-api-migration",
-			"app-api-product-db",
-			"execution-control-postgres",
-			"toolchain",
-		],
 		workers: [],
 	});
 });
 
-test("selects release evidence for an artifact adapter test change", async (t) => {
+test("does not publish artifacts for an artifact adapter test change", async (t) => {
 	const root = await fixture(t);
 	const runner: CommandRunner = (command, args) => {
 		if (command === "pnpm") {
@@ -269,7 +271,6 @@ test("selects release evidence for an artifact adapter test change", async (t) =
 	};
 	const plan = await planCandidates(options(root), runner);
 	assert.deepEqual(plan.images, []);
-	assert.deepEqual(plan.validationProfiles, ["toolchain"]);
 });
 
 test("a Node lockfile change does not select the independent Go image", async (t) => {
@@ -292,13 +293,6 @@ test("a Node lockfile change does not select the independent Go image", async (t
 	};
 	const plan = await planCandidates(options(root), runner);
 	assert.deepEqual(plan.images, ["app-api-schema"]);
-	assert.deepEqual(plan.validationProfiles, [
-		"affected-node",
-		"app-api-migration",
-		"app-api-product-db",
-		"dependencies",
-		"toolchain",
-	]);
 });
 
 test("rejects a release base that is not an ancestor of head", async (t) => {
@@ -321,7 +315,6 @@ test("an already selected Source revision has no automatic candidates", async (t
 		images: [],
 		kubernetes: false,
 		validateOnly: false,
-		validationProfiles: [],
 		workers: [],
 	});
 	assert.equal(turboCalled, false);
@@ -347,7 +340,6 @@ test("an explicit PR base does not require a GitOps checkout", async (t) => {
 			images: [],
 			kubernetes: false,
 			validateOnly: false,
-			validationProfiles: [],
 			workers: [],
 		},
 	);

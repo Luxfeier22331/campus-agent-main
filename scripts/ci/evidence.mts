@@ -83,23 +83,29 @@ function runAffectedNodeEvidence(
 		},
 		runner,
 	);
-	runProfileCommand(
-		"affected-node",
-		"pnpm",
-		[
-			"exec",
-			"turbo",
-			"run",
-			"test",
-			"test:worker",
-			"typecheck",
-			"--affected",
-			"--concurrency=1",
-			"--summarize",
-		],
-		runner,
-		options,
-	);
+	for (const taskName of ["test", "test:worker", "typecheck"] as const) {
+		const packages = new Set(
+			scope.tasks.filter((task) => task.task === taskName).map((task) => task.package),
+		);
+		if (packages.size > 0) {
+			runProfileCommand(
+				"affected-node",
+				"pnpm",
+				[
+					"exec",
+					"turbo",
+					"run",
+					taskName,
+					"--only",
+					"--concurrency=1",
+					"--summarize",
+					...[...packages].sort().map((packageName) => `--filter=${packageName}`),
+				],
+				runner,
+				options,
+			);
+		}
+	}
 
 	const buildPackages = new Set(
 		scope.tasks
@@ -206,7 +212,7 @@ export function parseValidationProfiles(source: string): ValidationProfile[] {
 			typeof profile !== "string" ||
 			!VALIDATION_PROFILES.includes(profile as ValidationProfile)
 		) {
-			throw new Error(`Unsupported candidate validation profile: ${String(profile)}`);
+			throw new Error(`Unsupported validation profile: ${String(profile)}`);
 		}
 		return profile as ValidationProfile;
 	});
@@ -237,7 +243,7 @@ export function runCandidateEvidence(
 	let builtPackages = new Set<string>();
 	let builtWorkers = new Set<string>();
 	for (const profile of input.profiles) {
-		process.stdout.write(`Running candidate validation profile: ${profile}\n`);
+		process.stdout.write(`Running validation profile: ${profile}\n`);
 		if (profile === "affected-node") {
 			({ builtPackages, builtWorkers } = runAffectedNodeEvidence(
 				{

@@ -2,6 +2,11 @@ name: pr
 
 on:
   pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
 
 permissions:
   contents: read
@@ -26,9 +31,9 @@ jobs:
         shell: nix develop .#ci-light --command bash -e {0}
     outputs:
       base: ${{ steps.plan.outputs.base }}
-      has_heavy: ${{ steps.plan.outputs.has_heavy }}
+      browser_profiles: ${{ steps.plan.outputs.browser_profiles }}
       head: ${{ steps.plan.outputs.head }}
-      validation_profiles: ${{ steps.plan.outputs.validation_profiles }}
+      non_browser_profiles: ${{ steps.plan.outputs.non_browser_profiles }}
     steps:
       - name: Checkout pull request merge
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
@@ -75,10 +80,10 @@ jobs:
           jq -e . <<< "$plan" >/dev/null
           {
             echo "base=$(jq -r '.base' <<< "$plan")"
+            echo "browser_profiles=$(jq -c '.browserProfiles' <<< "$plan")"
             echo "head=$(jq -r '.head' <<< "$plan")"
             echo "light_surfaces=$(jq -c '.lightSurfaces' <<< "$plan")"
-            echo "validation_profiles=$(jq -c '.validationProfiles' <<< "$plan")"
-            echo "has_heavy=$(jq -r '.validationProfiles | length > 0' <<< "$plan")"
+            echo "non_browser_profiles=$(jq -c '.nonBrowserProfiles' <<< "$plan")"
           } >> "$GITHUB_OUTPUT"
           jq . <<< "$plan"
 
@@ -142,91 +147,67 @@ jobs:
             --config=.gitleaks.toml \
             --log-opts="--no-merges ${merge_base}..${HEAD_SHA}"
 
-  repo-checks:
+  browser-checks:
     needs: light
-    if: always()
-    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
-    timeout-minutes: 90
+    if: >-
+      github.event.pull_request.draft == false &&
+      needs.light.result == 'success' &&
+      fromJSON(needs.light.outputs.browser_profiles)[0] != null
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
-      - name: Require hosted evidence
-        if: needs.light.result != 'success'
-        env:
-          LIGHT_RESULT: ${{ needs.light.result }}
-        run: |
-          echo "Hosted pull request evidence finished with ${LIGHT_RESULT}." >&2
-          exit 1
-
       - name: Checkout pull request merge
-        if: needs.light.result == 'success' && needs.light.outputs.has_heavy == 'true'
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
         with:
           fetch-depth: 0
           filter: blob:none
           persist-credentials: true
 
-      - name: Install affected workspaces
-        if: needs.light.result == 'success' && needs.light.outputs.has_heavy == 'true'
+      - name: Install Nix
+        uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
+          enable_kvm: false
+
+      - name: Restore pnpm store
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
+        with:
+          path: ${{ runner.tool_cache }}/pnpm-store
+          key: pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Install browser workspaces
         env:
           npm_config_store_dir: ${{ runner.tool_cache }}/pnpm-store
-        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-full --command bash -e {0}
+        shell: nix develop .#ci-light --command bash -e {0}
         run: |
           set -euo pipefail
           mkdir -p "$npm_config_store_dir"
-          pnpm install --frozen-lockfile --prefer-offline
-
-      - name: Install evaluation dependencies
-        if: >-
-          needs.light.result == 'success' &&
-          needs.light.outputs.has_heavy == 'true' &&
-          contains(fromJSON(needs.light.outputs.validation_profiles), 'ragas')
-        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-full --command bash -e {0}
-        run: uv sync --package campus-ragas-runner
-
-      - name: Verify Docker evidence dependency
-        if: >-
-          needs.light.result == 'success' &&
-          needs.light.outputs.has_heavy == 'true' &&
-          (
-            contains(fromJSON(needs.light.outputs.validation_profiles), 'app-api-migration') ||
-            contains(fromJSON(needs.light.outputs.validation_profiles), 'app-api-product-db') ||
-            contains(fromJSON(needs.light.outputs.validation_profiles), 'execution-control-postgres') ||
-            contains(fromJSON(needs.light.outputs.validation_profiles), 'ingestion-control-postgres') ||
-            contains(fromJSON(needs.light.outputs.validation_profiles), 'ops-web-postgres') ||
-            contains(fromJSON(needs.light.outputs.validation_profiles), 'otel')
-          )
-        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-full --command bash -e {0}
-        run: docker info >/dev/null
+          pnpm install --frozen-lockfile --prefer-offline \
+            --filter campus-agent-web-workspace \
+            --filter 'campus-web...' \
+            --filter 'ops-web...'
 
       - name: Install Chromium headless shell
-        if: >-
-          needs.light.result == 'success' &&
-          needs.light.outputs.has_heavy == 'true' &&
-          (
-            contains(fromJSON(needs.light.outputs.validation_profiles), 'campus-browser-smoke') ||
-            contains(fromJSON(needs.light.outputs.validation_profiles), 'campus-browser-full') ||
-            contains(fromJSON(needs.light.outputs.validation_profiles), 'ops-web-browser')
-          )
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.tool_cache }}/ms-playwright
-        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-full --command bash -e {0}
-        run: pnpm --dir apps/campus-web exec playwright install --only-shell chromium
+        shell: nix develop .#ci-light --command bash -e {0}
+        run: pnpm --dir apps/campus-web exec playwright install --with-deps --only-shell chromium
 
-      - name: Run selected pull request evidence
-        if: needs.light.result == 'success' && needs.light.outputs.has_heavy == 'true'
+      - name: Run selected browser evidence
         env:
           BASE_SHA: ${{ needs.light.outputs.base }}
           CAMPUS_WEB_E2E_PREBUILT: "1"
-          CARGO_TARGET_DIR: ${{ runner.tool_cache }}/cargo-target/campus-agent
-          CI_DOCKER_CGROUP_PARENT: ci.slice
           HEAD_SHA: ${{ needs.light.outputs.head }}
           OPS_WEB_BROWSER_TEST_PORT: "4278"
-          TURBO_CACHE: "local:rw,remote:r"
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.tool_cache }}/ms-playwright
+          TURBO_CACHE: "local:rw,remote:rw"
           TURBO_TEAM: ${{ vars.TURBO_TEAM }}
           TURBO_TELEMETRY_DISABLED: "1"
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
-          VALIDATION_PROFILES: ${{ needs.light.outputs.validation_profiles }}
-        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-full --command bash -e {0}
+          VALIDATION_PROFILES: ${{ needs.light.outputs.browser_profiles }}
+        shell: nix develop .#ci-light --command bash -e {0}
         run: >-
           node --experimental-strip-types scripts/ci/evidence.mts
           --base "$BASE_SHA"
@@ -234,15 +215,7 @@ jobs:
           --profiles "$VALIDATION_PROFILES"
 
       - name: Upload browser failure evidence
-        if: >-
-          failure() &&
-          needs.light.result == 'success' &&
-          needs.light.outputs.has_heavy == 'true' &&
-          (
-            contains(fromJSON(needs.light.outputs.validation_profiles), 'campus-browser-smoke') ||
-            contains(fromJSON(needs.light.outputs.validation_profiles), 'campus-browser-full') ||
-            contains(fromJSON(needs.light.outputs.validation_profiles), 'ops-web-browser')
-          )
+        if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           if-no-files-found: ignore
@@ -256,6 +229,77 @@ jobs:
             apps/ops-web/playwright-report
           retention-days: 7
 
-      - name: Complete stable check without heavy evidence
-        if: needs.light.result == 'success' && needs.light.outputs.has_heavy != 'true'
-        run: echo "No self-hosted evidence is required for this pull request."
+  repo-checks:
+    needs: light
+    if: >-
+      github.event.pull_request.draft == false &&
+      needs.light.result == 'success' &&
+      fromJSON(needs.light.outputs.non_browser_profiles)[0] != null
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout pull request merge
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+        with:
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: true
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
+          enable_kvm: false
+
+      - name: Restore pnpm store
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
+        with:
+          path: ${{ runner.tool_cache }}/pnpm-store
+          key: pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Install affected workspaces
+        env:
+          npm_config_store_dir: ${{ runner.tool_cache }}/pnpm-store
+        shell: nix develop .#ci-full --command bash -e {0}
+        run: |
+          set -euo pipefail
+          mkdir -p "$npm_config_store_dir"
+          pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Install evaluation dependencies
+        if: contains(fromJSON(needs.light.outputs.non_browser_profiles), 'ragas')
+        shell: nix develop .#ci-full --command bash -e {0}
+        run: uv sync --package campus-ragas-runner
+
+      - name: Verify Docker evidence dependency
+        if: >-
+          (
+            contains(fromJSON(needs.light.outputs.non_browser_profiles), 'app-api-migration') ||
+            contains(fromJSON(needs.light.outputs.non_browser_profiles), 'app-api-product-db') ||
+            contains(fromJSON(needs.light.outputs.non_browser_profiles), 'execution-control-postgres') ||
+            contains(fromJSON(needs.light.outputs.non_browser_profiles), 'ingestion-control-postgres') ||
+            contains(fromJSON(needs.light.outputs.non_browser_profiles), 'ops-web-postgres') ||
+            contains(fromJSON(needs.light.outputs.non_browser_profiles), 'otel')
+          )
+        shell: nix develop .#ci-full --command bash -e {0}
+        run: docker info >/dev/null
+
+      - name: Run selected pull request evidence
+        env:
+          BASE_SHA: ${{ needs.light.outputs.base }}
+          CAMPUS_WEB_E2E_PREBUILT: "1"
+          CARGO_TARGET_DIR: ${{ runner.tool_cache }}/cargo-target/campus-agent
+          HEAD_SHA: ${{ needs.light.outputs.head }}
+          TURBO_CACHE: "local:rw,remote:rw"
+          TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+          TURBO_TELEMETRY_DISABLED: "1"
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          VALIDATION_PROFILES: ${{ needs.light.outputs.non_browser_profiles }}
+        shell: nix develop .#ci-full --command bash -e {0}
+        run: >-
+          node --experimental-strip-types scripts/ci/evidence.mts
+          --base "$BASE_SHA"
+          --head "$HEAD_SHA"
+          --profiles "$VALIDATION_PROFILES"

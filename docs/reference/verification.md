@@ -13,20 +13,23 @@ status: active
 - package 的 `package.json` 拥有具体检查；Turbo 拥有 package task graph、仓库级 root task 输入和缓存；
 - `scripts/ci/scope.mts` 唯一负责校验 revision、读取 Git diff 和解析 Turbo affected graph；
 - `scripts/ci/validation.mts` 唯一负责静态面与受影响 profile 选择；
-- `scripts/ci/evidence.mts` 负责 PR 和候选发布共用的 profile 执行；
-- `.github/workflows/pr.yml` 拥有 hosted 静态门禁和 self-hosted 受影响证据；
+- `scripts/ci/evidence.mts` 负责 PR 和人工入口共用的 profile 执行；
+- `.github/workflows/pr.yml` 拥有静态门禁和受影响证据；
 - `.github/workflows/execution-runtime-publish.yml` 拥有候选物发布和 GitOps 交接；
 - `.github/workflows/dependencies.yml` 每周重新检查外部 vulnerability 数据；
 - staging、release 和真实外部依赖验收由所属 runbook 说明。
 
-`main` 发布候选以环境仓游标到当前 Source SHA 的累计差异为输入；PR 候选以该 PR 的 base/head 为
-输入，不读取私有环境仓或环境凭据。两条路径使用同一 planner。Turbo 根据 package graph 和 task input
-选择 package 候选；没有 `build` task 的 Go 与 schema 镜像，以及 `infra/k8s`，由其明确的制品所有权
-补充选择。Docker 构建定义仍由 `docker-bake.hcl` 负责，不另建镜像实现清单。
+`main` 发布候选以环境仓游标到当前 Source SHA 的累计差异为输入；PR 验证以该 PR 的 base/head 为
+输入，不读取私有环境仓或环境凭据。两条路径复用同一 affected scope，但分别选择验证 profile 和
+候选制品。Turbo 根据 package graph 和 task input 选择 package；没有 `build` task 的 Go 与 schema
+镜像，以及 `infra/k8s`，由其明确的制品所有权补充选择。Docker 构建定义仍由 `docker-bake.hcl`
+负责，不另建镜像实现清单。
 
 数据库和浏览器任务在所属 package 的 `turbo.json` 中声明边界输入。`turbo.json` 自身变化会使 Turbo
-任务定义失效，因此只由 hosted `ci:release` 校验任务图合同，不把该失效转换成全部业务 profile 或
-候选制品；同一差异中的基础设施、数据库或用户界面文件仍按其明确所有权选择对应证据。
+任务定义失效；累计差异包含这类提交时，`scripts/ci/scope.mts` 按提交边界切分普通 SCM 区间，分别
+解析 affected graph 后合并去重，配置提交自身只由 hosted `ci:release` 校验任务图合同，不转换成
+全部业务 profile 或候选制品。同一差异中的基础设施、数据库、用户界面和已注册候选 Dockerfile
+仍按其明确所有权选择对应证据或制品。
 
 `flake.lock` 固定 source 工具链的 nixpkgs revision，`ci-light` 覆盖 hosted 静态检查和依赖扫描，
 `ci-full` 只是包含重型 profile 所需 CLI 的 Nix 工具 shell 名称，不是 validation profile，也不会自动触发全量检查。
@@ -68,19 +71,23 @@ Nix 不接管 `pnpm-lock.yaml`、`uv.lock`、
 
 ## PR 门禁
 
-自动 PR 保留一个稳定的 `repo-checks` 门禁，并按成本分为两段：
+自动 PR 由一个 hosted planner 按影响面选择两个重型执行 lane：
 
 - GitHub-hosted `light` 始终运行 `pnpm ci:repo` 和 authored commit range 的 Gitleaks，并按统一 planner
   选择合同、GitHub Actions、CI 与发布编排单元测试、Python、YAML、SQL 和 Shell 静态检查；
-- `repo-checks` 始终返回明确结果；没有重型 profile 时直接结束，需要时才在现有 self-hosted runner
-  一次 checkout、一次安装并串行执行受影响证据；
-- PR checkout 使用 GitHub 生成的 merge revision，Gitleaks 仍扫描 PR 作者提交范围；
+- `browser-checks` 只在选择 Campus Web 或 Ops Web browser profile 时启动 GitHub-hosted runner；
+- `repo-checks` 只在选择其余重型 profile 时启动 GitHub-hosted runner；两个 job 各自一次 checkout、
+  一次安装并串行执行所属证据，不运行空 job；
+- draft PR 只运行 `light`；转为 ready 后再运行所选 browser 和 non-browser profile；
+- PR checkout 使用 GitHub 生成的 merge revision；该 revision 修改 Turbo task graph 时，SCM 影响面按
+  merge 的第二父提交计算，证据仍在 merge revision 上执行；Gitleaks 仍扫描 PR 作者提交范围；
 - 普通 PR 不发布镜像或 Worker，不访问 staging、provider state、集群或真实外部服务。
 
 受影响 profile 覆盖 affected Node/Worker、Go、Rust、Ragas、五个 disposable PostgreSQL owner、
 基础设施、OTel、Campus Web smoke/full、Ops Web browser、dependency scan 和发布工具链。planner
-只按累计差异和明确制品消费者选择，各 profile 串行执行；CI 控制文件本身不触发全部业务 profile，
-也不根据耗时或一次失败动态扩大范围。需要昂贵完整回归时，手动入口一次只选择一个明确 profile。
+同时产出完整列表、browser 列表和 non-browser 列表；只按 PR 差异选择，各 lane 内
+串行执行。CI 控制文件本身不触发全部业务 profile，也不根据耗时或一次失败动态扩大范围。需要昂贵
+完整回归时，手动入口一次只选择一个明确 profile，并使用相同的 browser/non-browser 分流。
 
 ## 变更面选择
 
@@ -103,11 +110,11 @@ Nix 不接管 `pnpm-lock.yaml`、`uv.lock`、
 
 ## 执行器与定时检查
 
-格式、文档、合同、workflow 和轻量语言 lint 在 GitHub-hosted runner 执行；原生编译、数据库、浏览器、
-OTel Docker 校验、制品发布和 promotion 保留在 `campus-agent-release` self-hosted runner。两类 runner
-使用同一 flake，不维护第二套 CLI 安装 action。self-hosted runner 从标准多用户路径
-`/nix/var/nix/profiles/default/bin/nix` 进入 `ci-full`；hosted runner 使用固定 commit 的安装 action 获取
-Nix 2.35.1，不接入 Cachix 服务。
+源码验证、浏览器、原生编译、disposable 数据库、OTel Docker 校验、制品发布和 promotion 均在
+GitHub-hosted runner 执行。普通 x64 job 使用 `ubuntu-24.04`，`linux/arm64` 镜像使用
+`ubuntu-24.04-arm` 原生构建。所有 job 通过固定 commit 的安装 action 获取 Nix 2.35.1，并使用同一
+flake，不维护 runner 专用工具路径，也不接入 Cachix 服务。昂贵 job 仅在 planner 选中对应 profile
+或制品时启动。
 
 依赖 advisory 可以在没有代码变化时变化，因此每周一 `02:35 UTC` 在 hosted runner 运行一次
 `pnpm ci:deps`；lockfile 变化仍在对应 PR profile 中运行同一入口。仓库不保存未被消费的扫描 JSON
@@ -117,9 +124,9 @@ artifact，也不把 dependency scan 的成功结果当作应用行为或镜像�
 
 - package 默认 `test`、`typecheck` 和 `build` 由所属 manifest 与 README 维护；
 - Turbo task 必须声明 package 外行为输入；integration test 与有副作用任务禁用缓存；
-- Remote Cache 缺失时正常执行，正确性不依赖自托管 Runner 的旧工作目录；
-- PR、手动 profile 和其他非受信 revision 使用本地读写、远端只读的 Turbo Cache；可信 `main`
-  候选证据使用本地和远端读写，但任何 lane 都不把 Secret、对象存储内容或部署结果写入缓存；
+- Remote Cache 缺失时正常执行，正确性不依赖 runner 的旧工作目录；
+- 私有仓库的 PR 和手动 profile 使用本地与远端读写的 Turbo Cache；main 候选不重复执行 Turbo
+  evidence。任何 lane 都不把 Secret、对象存储内容或部署结果写入缓存；
 - 不缓存 vulnerability scan、staging check 或 release check 的成功结果，也不缓存 `node_modules`；
 - browser profile 构建一次 fixture 后运行所选 smoke 或 full 回归，不复用已有开发服务器；
 - execution-control 的 Temporal server 测试使用模块明确入口，不属于默认 `pnpm ci:go`；
@@ -129,14 +136,15 @@ artifact，也不把 dependency scan 的成功结果当作应用行为或镜像�
   登记缺失仍是 artifact failure。PR 的 `build:worker` 使用确定性文档 fixture，不代表真实 staging
   对象存储内容已完成构建或发布。
 
-评估 CI 性能时分别记录 queue、cold cache 与 hot cache；单 Runner 保持单并发，优先移除重复安装、
-重复构建和无关检查面。
+评估 CI 性能时分别记录 queue、cold cache 与 hot cache，并优先移除重复安装、重复构建和无关检查面。
 
 ## 发布与环境
 
-普通 PR 不发布最终镜像。`main` 发布链先把精确 Source SHA 的 `staging/candidate` 标为 `pending`，完成
-所选 profile 后才标为 `success` 并开始发布。镜像使用 Docker Bake 构建单一 `linux/arm64` 索引、经
-Trivy 扫描并记录 digest；同一源码提交已有合法不可变镜像时直接复用。
+普通 PR 不发布最终镜像。`main` 发布链只选择并构建累计差异所需的不可变镜像和 Worker version，
+不重复运行 PR 的源码、数据库或浏览器证据。被选 publisher 全部成功后，精确 Source SHA 的
+`staging/candidate` 才标为 `success`；该状态只证明所选制品已经完成构建、扫描和上传。镜像使用
+Docker Bake 构建单一 `linux/arm64` 索引、经 Trivy 扫描并记录 digest；同一源码提交已有合法不可变
+镜像时直接复用。
 
 机器 promotion 必须携带 planner 读取的旧 `releases/staging.json` 游标；环境仓游标已经前进时拒绝
 写入。promotion checkout GitOps 后通过 `nix develop ./gitops#ci-infra` 调用环境仓拥有的更新和渲染入口，

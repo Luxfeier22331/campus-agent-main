@@ -2,8 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { type CommandRunner, changesTaskGraph, resolveAffectedScope } from "../ci/scope.mts";
-import { type ValidationProfile, validationPlanFromScope } from "../ci/validation.mts";
+import { type CommandRunner, resolveAffectedScope } from "../ci/scope.mts";
 
 export type { CommandResult, CommandRunner } from "../ci/scope.mts";
 
@@ -16,6 +15,12 @@ const IMAGE_PACKAGES = new Map<string, readonly string[]>([
 	["ops-web", ["ops-web"]],
 ]);
 const ALL_IMAGES = [...new Set([...IMAGE_PACKAGES.values()].flat())].sort();
+const DOCKERFILE_IMAGES = new Map<string, readonly string[]>([
+	["apps/agent-runtime/Dockerfile", ["agent-runtime"]],
+	["apps/execution-control/Dockerfile", ["execution-control"]],
+	["apps/ops-web/Dockerfile", ["ops-web"]],
+	["jobs/app-api-schema/Dockerfile", ["app-api-schema"]],
+]);
 const WORKER_PACKAGES = new Map<string, string>([
 	["app-api-staging", "app-api"],
 	["campus-web-staging", "campus-web"],
@@ -28,7 +33,6 @@ export interface CandidatePlan {
 	images: string[];
 	kubernetes: boolean;
 	validateOnly: boolean;
-	validationProfiles: ValidationProfile[];
 	workers: string[];
 }
 
@@ -157,17 +161,12 @@ export async function planCandidates(
 			images: [],
 			kubernetes: false,
 			validateOnly: true,
-			validationProfiles: validationPlanFromScope(scope, {
-				mode: "candidate",
-				validateOnly: true,
-			}).validationProfiles,
 			workers,
 		};
 	}
 	const images = new Set<string>();
 	const workers = new Set<string>();
-	const affectedTasks = changesTaskGraph(scope.changedFiles) ? [] : scope.tasks;
-	for (const task of affectedTasks) {
+	for (const task of scope.tasks) {
 		if (task.task === "build") {
 			for (const image of IMAGE_PACKAGES.get(task.package) ?? []) {
 				images.add(image);
@@ -186,6 +185,11 @@ export async function planCandidates(
 	}
 
 	const files = scope.changedFiles;
+	for (const file of files) {
+		for (const image of DOCKERFILE_IMAGES.get(file) ?? []) {
+			images.add(image);
+		}
+	}
 	const sharedNodeRelease = files.some((file) =>
 		["pnpm-lock.yaml", "pnpm-workspace.yaml"].includes(file),
 	);
@@ -224,15 +228,6 @@ export async function planCandidates(
 	}
 	const kubernetes = changesPath(files, "infra/k8s");
 	const selectedImages = [...images].sort();
-	const diffSelectedWorkers = [...workers].sort();
-	const validationProfiles = validationPlanFromScope(scope, {
-		mode: "candidate",
-		release: {
-			images: selectedImages,
-			kubernetes,
-			workers: diffSelectedWorkers,
-		},
-	}).validationProfiles;
 	if (options.refreshCampusWebDocs) {
 		workers.add(CAMPUS_WEB_WORKER);
 	}
@@ -242,7 +237,6 @@ export async function planCandidates(
 		images: selectedImages,
 		kubernetes,
 		validateOnly: false,
-		validationProfiles,
 		workers: [...workers].sort(),
 	};
 }

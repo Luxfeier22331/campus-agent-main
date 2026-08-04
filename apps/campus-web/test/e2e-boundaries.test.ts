@@ -8,6 +8,7 @@ describe("campus web browser test boundaries", () => {
 		expect(config).toContain('testIgnore: ["worker/**"]');
 		expect(config).toContain("CAMPUS_WEB_E2E_PREBUILT");
 		expect(config).toContain("pnpm run build:test");
+		expect(config).toContain('trace: "retain-on-failure"');
 		expect(config).toContain("vite preview");
 		expect(config).not.toContain("vite --host");
 		expect(config).toContain("failOnFlakyTests: isCI");
@@ -30,11 +31,12 @@ describe("campus web browser test boundaries", () => {
 		expect(turboConfig).not.toContain("_docs-static");
 	});
 
-	it("routes affected browser regressions through the stable PR evidence job", () => {
+	it("routes affected browser regressions through the hosted browser job", () => {
 		const prWorkflow = readFileSync("../../.github/workflows/pr.yml", "utf8");
 		const evidence = readFileSync("../../scripts/ci/evidence.mts", "utf8");
 
-		expect(prWorkflow).toContain("repo-checks:");
+		expect(prWorkflow).toContain("browser-checks:");
+		expect(prWorkflow).toContain("needs.light.outputs.browser_profiles");
 		expect(prWorkflow).toContain("Install Chromium headless shell");
 		expect(prWorkflow).toContain("Upload browser failure evidence");
 		expect(prWorkflow).not.toContain("OBJECT_STORE_");

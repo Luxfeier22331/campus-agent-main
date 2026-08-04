@@ -93,19 +93,42 @@ test("GitHub workflows use environment-neutral configuration names", async () =>
 	assert.deepEqual(failures, []);
 });
 
-test("pull request validation keeps one hosted planner and one stable heavy check", async () => {
+test("pull request validation uses hosted browser and non-browser lanes", async () => {
 	const source = await readFile(path.join(REPOSITORY_ROOT, ".github/workflows/pr.yml"), "utf8");
 	const document = parseAllDocuments(source)[0];
 	assert(document);
-	const workflow = document.toJS() as { jobs?: Record<string, unknown> };
-	assert.deepEqual(Object.keys(workflow.jobs ?? {}).sort(), ["light", "repo-checks"]);
-	assert.match(source, /light:\n\s+runs-on: ubuntu-24\.04/u);
-	assert.match(
-		source,
-		/repo-checks:\n[\s\S]*runs-on: \[self-hosted, Linux, ARM64, campus-agent-release\]/u,
-	);
+	const workflow = document.toJS() as Record<string, unknown>;
+	assert(isObject(workflow.on));
+	assert(isObject(workflow.on.pull_request));
+	assert.deepEqual(workflow.on.pull_request.types, [
+		"opened",
+		"reopened",
+		"synchronize",
+		"ready_for_review",
+	]);
+	assert(isObject(workflow.jobs));
+	assert.deepEqual(Object.keys(workflow.jobs ?? {}).sort(), [
+		"browser-checks",
+		"light",
+		"repo-checks",
+	]);
+	for (const jobName of ["light", "browser-checks", "repo-checks"]) {
+		const job = workflow.jobs[jobName];
+		assert(isObject(job));
+		assert.equal(job["runs-on"], "ubuntu-24.04", jobName);
+	}
+	for (const jobName of ["browser-checks", "repo-checks"]) {
+		const job = workflow.jobs[jobName];
+		assert(isObject(job));
+		assert.equal(typeof job.if, "string");
+		assert(job.if.includes("github.event.pull_request.draft == false"), jobName);
+	}
 	assert(!source.includes("pull_request.head.sha }}\n          ref:"));
-	assert.equal(source.match(/TURBO_TOKEN:/gu)?.length, 1);
+	assert.equal(source.match(/TURBO_TOKEN:/gu)?.length, 2);
+	assert.equal(source.match(/TURBO_CACHE: "local:rw,remote:rw"/gu)?.length, 2);
+	assert(source.includes("needs.light.outputs.browser_profiles"));
+	assert(source.includes("needs.light.outputs.non_browser_profiles"));
+	assert(!source.includes("self_hosted_profiles"));
 });
 
 test("Source diff consumers retain credentials for partial-clone object fetches", async () => {
@@ -118,7 +141,7 @@ test("Source diff consumers retain credentials for partial-clone object fetches"
 	const pullRequestWorkflow = parseAllDocuments(pullRequestSource)[0]?.toJS();
 	for (const [workflow, jobName] of [
 		[publishWorkflow, "release-plan"],
-		[publishWorkflow, "candidate-evidence"],
+		[pullRequestWorkflow, "browser-checks"],
 		[pullRequestWorkflow, "repo-checks"],
 	] as const) {
 		const checkouts = sourceCheckouts(workflow, jobName);
@@ -132,11 +155,11 @@ test("Source diff consumers retain credentials for partial-clone object fetches"
 	}
 });
 
-test("source workflows use Nix and do not restore retired setup entrypoints", async () => {
+test("source workflows use Nix without self-hosted runner contracts", async () => {
 	const workflowRoot = path.join(REPOSITORY_ROOT, ".github/workflows");
 	const sources = await Promise.all(
-		["dependencies.yml", "execution-runtime-publish.yml", "pr.yml"].map((workflow) =>
-			readFile(path.join(workflowRoot, workflow), "utf8"),
+		["dependencies.yml", "execution-runtime-publish.yml", "manual-evidence.yml", "pr.yml"].map(
+			(workflow) => readFile(path.join(workflowRoot, workflow), "utf8"),
 		),
 	);
 	const joined = sources.join("\n");
@@ -148,6 +171,13 @@ test("source workflows use Nix and do not restore retired setup entrypoints", as
 		"pnpm/action-setup",
 		"actions/setup-node",
 		"./gitops/.github/actions/setup-policy-tools",
+		"self-hosted",
+		"campus-agent-release",
+		"/nix/var/nix/profiles/default/bin/nix",
+		"CI_DOCKER_CGROUP_PARENT",
+		"candidate-evidence",
+		"candidate-browser-evidence",
+		"kubectl --context default --namespace campus-agent-staging",
 	]) {
 		assert(!joined.includes(retired), retired);
 	}
@@ -161,7 +191,7 @@ test("source workflows use Nix and do not restore retired setup entrypoints", as
 	assert(!dependencies.includes("nix develop .#ci-full"));
 });
 
-test("manual evidence exposes one explicit profile and no aggregate full mode", async () => {
+test("manual evidence exposes one hosted profile and no aggregate full mode", async () => {
 	const source = await readFile(
 		path.join(REPOSITORY_ROOT, ".github/workflows/manual-evidence.yml"),
 		"utf8",
@@ -170,23 +200,32 @@ test("manual evidence exposes one explicit profile and no aggregate full mode", 
 	assert(!source.includes("- all"));
 	assert(!source.includes("- full"));
 	assert(source.includes(`VALIDATION_PROFILES: '["\${{ inputs.profile }}"]'`));
+	assert.match(
+		source,
+		/browser-evidence:\n\s+if: contains\(inputs\.profile, 'browser'\)\n\s+runs-on: ubuntu-24\.04/u,
+	);
+	assert.match(
+		source,
+		/evidence:\n\s+if: \$\{\{ !contains\(inputs\.profile, 'browser'\) \}\}\n\s+runs-on: ubuntu-24\.04/u,
+	);
+	assert.equal(source.match(/TURBO_CACHE: "local:rw,remote:rw"/gu)?.length, 2);
 });
 
-test("non-trusted Turbo lanes use the supported read-only cache mode", async () => {
+test("trusted pull request and manual lanes keep Turbo remote cache writes", async () => {
 	const workflowRoot = path.join(REPOSITORY_ROOT, ".github/workflows");
-	const [pullRequest, manual, publish] = await Promise.all(
-		["pr.yml", "manual-evidence.yml", "execution-runtime-publish.yml"].map((workflow) =>
+	const [pullRequest, manual] = await Promise.all(
+		["pr.yml", "manual-evidence.yml"].map((workflow) =>
 			readFile(path.join(workflowRoot, workflow), "utf8"),
 		),
 	);
 	for (const source of [pullRequest, manual]) {
-		assert.match(source, /TURBO_CACHE: "local:rw,remote:r"/u);
+		assert.match(source, /TURBO_CACHE: "local:rw,remote:rw"/u);
+		assert.match(source, /TURBO_TOKEN:/u);
 		assert(!source.includes("TURBO_REMOTE_CACHE_READ_ONLY"));
 	}
-	assert.match(publish, /TURBO_CACHE: "local:rw,remote:rw"/u);
 });
 
-test("candidate publishing keeps the Stage A object-store and docs refresh contracts", async () => {
+test("candidate publishing builds artifacts on hosted runners before final status", async () => {
 	const source = await readFile(
 		path.join(REPOSITORY_ROOT, ".github/workflows/execution-runtime-publish.yml"),
 		"utf8",
@@ -203,6 +242,16 @@ test("candidate publishing keeps the Stage A object-store and docs refresh contr
 	assert.deepEqual(candidateScope.options, ["affected", "campus-web-docs"]);
 
 	assert(isObject(workflow.jobs));
+	assert.deepEqual(Object.keys(workflow.jobs).sort(), [
+		"candidate-status",
+		"promote",
+		"publish-app-api",
+		"publish-campus-web",
+		"publish-images",
+		"release-plan",
+	]);
+	assert(isObject(workflow.concurrency));
+	assert.equal(workflow.concurrency["cancel-in-progress"], true);
 	const releasePlan = workflow.jobs["release-plan"];
 	assert(isObject(releasePlan));
 	assert(Array.isArray(releasePlan.steps));
@@ -220,6 +269,46 @@ test("candidate publishing keeps the Stage A object-store and docs refresh contr
 	assert.equal(typeof planner.run, "string");
 	assert(planner.run.includes('--refresh-campus-web-docs "$REFRESH_CAMPUS_WEB_DOCS"'));
 	assert(planner.run.includes("Campus Web docs refresh cannot run in validation-only mode."));
+	assert(!planner.run.includes("browserProfiles"));
+	assert(!planner.run.includes("selfHostedProfiles"));
+
+	for (const [jobName, runner] of [
+		["publish-images", "ubuntu-24.04-arm"],
+		["publish-app-api", "ubuntu-24.04"],
+		["publish-campus-web", "ubuntu-24.04"],
+		["candidate-status", "ubuntu-24.04"],
+		["promote", "ubuntu-24.04"],
+	] as const) {
+		const job = workflow.jobs[jobName];
+		assert(isObject(job));
+		assert.equal(job["runs-on"], runner, jobName);
+	}
+	for (const jobName of ["publish-images", "publish-app-api", "publish-campus-web"]) {
+		const job = workflow.jobs[jobName];
+		assert(isObject(job));
+		assert.equal(job.needs, "release-plan", jobName);
+	}
+	const candidateStatus = workflow.jobs["candidate-status"];
+	assert(isObject(candidateStatus));
+	assert.deepEqual(candidateStatus.needs, [
+		"release-plan",
+		"publish-images",
+		"publish-app-api",
+		"publish-campus-web",
+	]);
+	assert(Array.isArray(candidateStatus.steps));
+	const statusStep = candidateStatus.steps.find(
+		(step) => isObject(step) && step.name === "Finalize staging candidate status",
+	);
+	assert(isObject(statusStep));
+	assert.equal(typeof statusStep.run, "string");
+	assert(
+		statusStep.run.includes("Selected artifacts were built and published; images were scanned"),
+	);
+	const promote = workflow.jobs.promote;
+	assert(isObject(promote));
+	assert(Array.isArray(promote.needs));
+	assert(promote.needs.includes("candidate-status"));
 
 	const appApi = workflow.jobs["publish-app-api"];
 	assert(isObject(appApi));
@@ -233,14 +322,6 @@ test("candidate publishing keeps the Stage A object-store and docs refresh contr
 	assert(isObject(campusWeb));
 	assert.equal(campusWeb.env, undefined);
 	assert(Array.isArray(campusWeb.steps));
-	const objectStore = campusWeb.steps.find(
-		(step) => isObject(step) && step.name === "Resolve object store endpoint",
-	);
-	assert(isObject(objectStore));
-	assert.equal(typeof objectStore.run, "string");
-	assert(objectStore.run.includes("kubectl --context default --namespace campus-agent-staging"));
-	assert(objectStore.run.includes("get service object-store"));
-
 	const buildSteps = campusWeb.steps.filter(
 		(step) =>
 			isObject(step) &&
@@ -253,17 +334,16 @@ test("candidate publishing keeps the Stage A object-store and docs refresh contr
 		assert(isObject(step.env));
 		assert.equal(
 			step.env.OBJECT_STORE_DERIVED_ACCESS_KEY,
-			githubExpression("secrets.OBJECT_STORE_DERIVED_ACCESS_KEY"),
+			githubExpression("secrets.OBJECT_STORE_DERIVED_READ_ACCESS_KEY"),
 		);
 		assert.equal(
 			step.env.OBJECT_STORE_DERIVED_SECRET_KEY,
-			githubExpression("secrets.OBJECT_STORE_DERIVED_SECRET_KEY"),
+			githubExpression("secrets.OBJECT_STORE_DERIVED_READ_SECRET_KEY"),
 		);
-		assert.equal(
-			step.env.OBJECT_STORE_ENDPOINT,
-			githubExpression("steps.object-store.outputs.endpoint"),
-		);
-		assert.equal(step.env.OBJECT_STORE_DERIVED_READ_ACCESS_KEY, undefined);
-		assert.equal(step.env.OBJECT_STORE_DERIVED_READ_SECRET_KEY, undefined);
+		assert.equal(step.env.OBJECT_STORE_ENDPOINT, githubExpression("vars.OBJECT_STORE_ENDPOINT"));
 	}
+	assert.equal(
+		campusWeb.steps.find((step) => isObject(step) && step.name === "Resolve object store endpoint"),
+		undefined,
+	);
 });

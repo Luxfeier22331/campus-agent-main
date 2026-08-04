@@ -28,7 +28,7 @@ export default defineConfig({
 	use: {
 		baseURL,
 		screenshot: "only-on-failure",
-		trace: isCI ? "on-first-retry" : "retain-on-failure",
+		trace: "retain-on-failure",
 	},
 	webServer: {
 		command: `${usePrebuiltApp ? "" : "pnpm run build:test && "}WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=../../.wrangler-home pnpm exec vite preview --host 127.0.0.1 --port ${port} --strictPort`,
