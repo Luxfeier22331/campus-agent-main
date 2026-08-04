@@ -1,6 +1,5 @@
 import { parse } from "smol-toml";
 import { describe, expect, it, vi } from "vitest";
-import stagingPublishWorkflowSource from "../../../.github/workflows/execution-runtime-publish.yml?raw";
 import rootPackageManifestRaw from "../../../package.json?raw";
 import appApiSmokeEntrypointSource from "../../../scripts/smoke/app-api.ts?raw";
 import packageManifestRaw from "../package.json?raw";
@@ -224,12 +223,6 @@ describe("app-api worker foundation", () => {
 		expect(uploadStagingVersionSource).toContain('requiredEnv("OPS_WEB_INTERNAL_TOKEN")');
 		expect(uploadStagingVersionSource).toContain("secretsFile: secretsPath");
 		expect(uploadStagingVersionSource).toContain("mode: 0o600");
-		expect(stagingPublishWorkflowSource).toContain("APP_API_EXECUTION_SHARED_SECRET:");
-		expect(stagingPublishWorkflowSource).toContain("secrets.APP_API_EXECUTION_SHARED_SECRET");
-		expect(stagingPublishWorkflowSource).toContain("OPS_WEB_INTERNAL_TOKEN:");
-		expect(stagingPublishWorkflowSource).toContain("secrets.OPS_WEB_INTERNAL_TOKEN");
-		expect(stagingPublishWorkflowSource).toContain("OBJECT_STORE_VPC_SERVICE_ID:");
-		expect(stagingPublishWorkflowSource).toContain("vars.OBJECT_STORE_VPC_SERVICE_ID");
 		expect(uploadStagingVersionSource).toContain("preflight-staging.ts");
 		expect(packageManifest.scripts?.["chat:e2e:staging"]).toBeUndefined();
 		expect(rootPackageManifest.scripts?.["smoke:app-api"]).toBe(

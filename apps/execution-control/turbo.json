@@ -24,6 +24,17 @@
 				"$TURBO_ROOT$/configs/runtime/**",
 				"$TURBO_ROOT$/packages/contracts/fixtures/tool_execution_contract/**"
 			]
+		},
+		"test:database-integration": {
+			"inputs": [
+				"go.mod",
+				"go.sum",
+				"integration/postgres/**",
+				"internal/execution/**",
+				"internal/providerconfig/**",
+				"internal/schemamigrations/**",
+				"$TURBO_ROOT$/scripts/ci/go-postgres-integration.sh"
+			]
 		}
 	}
 }

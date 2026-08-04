@@ -39,8 +39,8 @@ async function fixture(t: test.TestContext): Promise<string> {
 
 function options(root: string) {
 	return {
-		full: false,
 		head: HEAD,
+		refreshCampusWebDocs: false,
 		repositoryRoot: root,
 		selectionFile: path.join(root, "selection.json"),
 		validateOnly: false,
@@ -94,39 +94,56 @@ test("maps Turbo affected package tasks to release candidates", async (t) => {
 	});
 });
 
-test("manual full mode selects every active candidate without running Turbo", async (t) => {
+test("task graph configuration does not publish business artifacts", async (t) => {
 	const root = await fixture(t);
-	let turboCalled = false;
-	const runner: CommandRunner = (command) => {
-		turboCalled ||= command === "pnpm";
+	const runner: CommandRunner = (command, args) => {
+		if (command === "pnpm") {
+			return result({
+				stdout: JSON.stringify({
+					tasks: [
+						{ command: "tsc", package: "agent-runtime", task: "build" },
+						{ command: "wrangler", package: "app-api", task: "build:worker" },
+						{ command: "wrangler", package: "campus-web", task: "build:worker" },
+						{ command: "go build", package: "execution-control", task: "build" },
+						{ command: "vite build", package: "ops-web", task: "build" },
+					],
+				}),
+			});
+		}
+		if (args[0] === "diff") {
+			return result({
+				stdout: changed(
+					"package.json",
+					"turbo.json",
+					"apps/execution-control/turbo.json",
+					"infra/k8s/data-object-store/base/bootstrap.yaml",
+				),
+			});
+		}
 		return result();
 	};
-	assert.deepEqual(await planCandidates({ ...options(root), full: true }, runner), {
-		base: BASE,
-		head: HEAD,
-		images: ["agent-runtime", "app-api-schema", "execution-control", "ops-web"],
-		kubernetes: true,
-		validateOnly: false,
-		validationProfiles: [
-			"full-node",
-			"go",
-			"rust",
-			"ragas",
-			"app-api-migration",
-			"app-api-product-db",
-			"execution-control-postgres",
-			"ingestion-control-postgres",
-			"ops-web-postgres",
-			"infra",
-			"otel",
-			"campus-browser-full",
-			"ops-web-browser",
-			"dependencies",
-			"toolchain",
-		],
-		workers: ["app-api-staging", "campus-web-staging"],
-	});
-	assert.equal(turboCalled, false);
+	const plan = await planCandidates(options(root), runner);
+	assert.deepEqual(plan.images, []);
+	assert.deepEqual(plan.workers, []);
+	assert.equal(plan.kubernetes, true);
+	assert.deepEqual(plan.validationProfiles, ["infra", "toolchain"]);
+});
+
+test("promotion planning remains diff-based even when all workers are active", async (t) => {
+	const root = await fixture(t);
+	const runner: CommandRunner = (command, args) => {
+		if (command === "pnpm") {
+			return result({ stdout: JSON.stringify({ tasks: [] }) });
+		}
+		if (args[0] === "diff") {
+			return result({ stdout: changed("apps/agent-runtime/src/index.ts") });
+		}
+		return result();
+	};
+	const plan = await planCandidates(options(root), runner);
+	assert.deepEqual(plan.images, []);
+	assert.deepEqual(plan.workers, []);
+	assert.deepEqual(plan.validationProfiles, []);
 });
 
 test("validation-only mode selects the active GitOps Workers", async (t) => {
@@ -135,6 +152,59 @@ test("validation-only mode selects the active GitOps Workers", async (t) => {
 	assert.deepEqual(plan.workers, ["app-api-staging", "campus-web-staging"]);
 	assert.equal(plan.validateOnly, true);
 	assert.deepEqual(plan.validationProfiles, ["toolchain"]);
+});
+
+test("Campus Web docs refresh unions only the active Campus Worker into the diff plan", async (t) => {
+	const root = await fixture(t);
+	const runner: CommandRunner = (command, args) => {
+		if (command === "pnpm") {
+			return result({ stdout: JSON.stringify({ tasks: [] }) });
+		}
+		if (args[0] === "diff") {
+			return result({ stdout: changed("apps/agent-runtime/src/index.ts") });
+		}
+		return result();
+	};
+	const plan = await planCandidates({ ...options(root), refreshCampusWebDocs: true }, runner);
+	assert.deepEqual(plan.images, []);
+	assert.deepEqual(plan.workers, ["campus-web-staging"]);
+	assert.deepEqual(plan.validationProfiles, []);
+});
+
+test("Campus Web docs refresh works when the GitOps cursor already equals head", async (t) => {
+	const root = await fixture(t);
+	const plan = await planCandidates(
+		{ ...options(root), head: BASE, refreshCampusWebDocs: true },
+		() => result(),
+	);
+	assert.deepEqual(plan, {
+		base: BASE,
+		head: BASE,
+		images: [],
+		kubernetes: false,
+		validateOnly: false,
+		validationProfiles: [],
+		workers: ["campus-web-staging"],
+	});
+});
+
+test("Campus Web docs refresh rejects validation-only mode and an inactive Worker", async (t) => {
+	const root = await fixture(t);
+	await assert.rejects(
+		planCandidates({ ...options(root), refreshCampusWebDocs: true, validateOnly: true }),
+		/cannot run in validation-only mode/u,
+	);
+	await writeFile(
+		path.join(root, "worker-versions.json"),
+		`${JSON.stringify({
+			schemaVersion: 2,
+			workers: { "app-api-staging": { sourceSha: BASE, versionId: "app-api-version" } },
+		})}\n`,
+	);
+	await assert.rejects(
+		planCandidates({ ...options(root), refreshCampusWebDocs: true }),
+		/requires an active campus-web-staging Worker/u,
+	);
 });
 
 test("rejects active Workers without a Source publisher", async (t) => {
@@ -264,8 +334,8 @@ test("an explicit PR base does not require a GitOps checkout", async (t) => {
 		await planCandidates(
 			{
 				base: BASE,
-				full: false,
 				head: BASE,
+				refreshCampusWebDocs: false,
 				repositoryRoot: root,
 				validateOnly: false,
 			},

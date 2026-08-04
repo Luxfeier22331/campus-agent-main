@@ -50,22 +50,28 @@ source。采集运行时
 手动构建。
 
 发布 workflow、路径配置、Bake 文件或发布适配器本身的变化只运行静态检查、适配器测试和 Bake
-解析，不自动重建所有运行时镜像。需要让这些治理变化重新产生全部活跃候选时，合入后手动运行
-`staging-candidate-publish`，设置 `validate_only=false`。
+解析，不自动重建所有运行时镜像。需要昂贵的完整回归时，从 `manual-validation-profile` 一次选择
+一个明确 profile；候选 planner 始终按 Source 与 GitOps 游标的实际 diff 选择制品，不提供隐式全量
+候选开关。
 
 候选证据、制品构建和环境仓交接分别由所属 workflow job 维护超时，不在 runbook 重复写入总等待
 阈值。调度等待应单独记录，以区分容量与任务耗时。单一 ARM64 Runner 依靠受影响面选择、不可变标签
 复用和固定 BuildKit builder 的本地热缓存完成发布；registry cache 只用于 builder 丢失后的恢复。
-发生超时时先检查缓存命中、重复安装和发布计划，不能通过解除 2 GiB 内存限制掩盖容量问题。冷缓存
-全量构建仍无法在 workflow 超时内完成时，必须增加构建容量。已经发布的不可变镜像会在同一源码提交
-的重试中直接复用。
+发生超时时先检查缓存命中、重复安装和发布计划，不能通过解除 2 GiB 内存限制掩盖容量问题。一次手动
+选择的昂贵 profile 在冷缓存下仍无法在 workflow 超时内完成时，必须增加构建容量。已经发布的不可变
+镜像会在同一源码提交的重试中直接复用。
 
 Campus Web 的 staging publisher 在 main/artifact lane 读取固定来源键
 `campus-docs/source.json`，核对来源对象并生成静态文档；它通过 runner 的 Kubernetes context 解析
-对象存储 Service 地址，并只把现有 derived 读取凭据注入正式构建步骤。来源清单的 `sourceDigest` 只
+对象存储 Service 地址，并只把现有 derived 凭据注入正式构建步骤。来源清单的 `sourceDigest` 只
 记录在构建和候选元数据中；正常开发、构建和部署不传递手工文档版本标识。它不能注入 Worker 运行
 变量或成为独立环境选择。Campus Web 构建或对象存储读取失败只阻止该候选，promotion 不接受缺失的
 已选择 Worker 候选。
+
+需要在源码差异没有选中 Campus Web 时重新读取当前文档来源，可手动运行
+`staging-candidate-publish`，选择 `candidate_scope=campus-web-docs` 并关闭 `validate_only`。该输入只把
+活跃的 `campus-web-staging` 加入正常累计差异的候选集合，不扩大制品或验证 profile；它不能与
+validation-only 模式组合。
 
 候选证据中的 `affected-node` 会先读取 Turbo 影响面，再执行普通包的正式构建；Campus Web 的正式
 `build` 不在该路径执行，以免 PR 或共享候选证据 job 访问对象存储。Campus Web 受影响时只执行现有的
@@ -119,8 +125,8 @@ production 只选择已合入 `main` 的提交或其 release tag。发布前确�
 - 候选物发布中断：对同一源码提交重试缺失步骤，不覆盖已存在的不可变产物；
 - Worker version 操作失败时，发布脚本保留 Wrangler 的退出码、signal 和脱敏后的 stderr；先按该错误区分凭据、网络或响应格式问题，不切换旧 Token，也不把失败伪装成候选物成功；
 - 某次 `main` 发布在产物或 GitOps 交接前失败：从当前 `main` 手动重跑
-  `staging-candidate-publish`，设置 `validate_only=false`；workflow 始终从环境仓游标重新计算，不接受
-  人工基线；
+  `staging-candidate-publish`，设置 `validate_only=false`；这只重算环境仓游标到当前 Source 的实际
+  diff，不触发全量候选，且 workflow 不接受人工基线；
 - 环境计划失败：修复环境仓变更，不强制同步；
 - migration 或 rollout 失败：使用环境仓定义的恢复路径回到已知版本；
 - 用户路径失败：记录关联标识，按最先失败的组件定位并重新执行受影响路径。

@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { type CommandRunner, resolveAffectedScope } from "../ci/scope.mts";
+import { type CommandRunner, changesTaskGraph, resolveAffectedScope } from "../ci/scope.mts";
 import { type ValidationProfile, validationPlanFromScope } from "../ci/validation.mts";
 
 export type { CommandResult, CommandRunner } from "../ci/scope.mts";
@@ -20,6 +20,7 @@ const WORKER_PACKAGES = new Map<string, string>([
 	["app-api-staging", "app-api"],
 	["campus-web-staging", "campus-web"],
 ]);
+const CAMPUS_WEB_WORKER = "campus-web-staging";
 
 export interface CandidatePlan {
 	base: string;
@@ -33,8 +34,8 @@ export interface CandidatePlan {
 
 export interface CandidatePlanOptions {
 	base?: string;
-	full: boolean;
 	head: string;
+	refreshCampusWebDocs: boolean;
 	repositoryRoot: string;
 	selectionFile?: string;
 	validateOnly: boolean;
@@ -123,8 +124,17 @@ export async function planCandidates(
 ): Promise<CandidatePlan> {
 	const base = await candidateBase(options);
 	const selectedActiveWorkers = await activeWorkers(options);
-	if ((options.full || options.validateOnly) && selectedActiveWorkers === undefined) {
-		throw new Error("Full and validation-only plans require the active GitOps Workers");
+	if (options.refreshCampusWebDocs && options.validateOnly) {
+		throw new Error("Campus Web docs refresh cannot run in validation-only mode");
+	}
+	if (
+		options.refreshCampusWebDocs &&
+		(selectedActiveWorkers === undefined || !selectedActiveWorkers.includes(CAMPUS_WEB_WORKER))
+	) {
+		throw new Error("Campus Web docs refresh requires an active campus-web-staging Worker");
+	}
+	if (options.validateOnly && selectedActiveWorkers === undefined) {
+		throw new Error("Validation-only plans require the active GitOps Workers");
 	}
 	if (!SHA_PATTERN.test(options.head)) {
 		throw new Error("Release head must be a 40-character lowercase commit SHA");
@@ -132,7 +142,7 @@ export async function planCandidates(
 	const scope = resolveAffectedScope(
 		{
 			base,
-			collectAffected: !(options.full || options.validateOnly),
+			collectAffected: !options.validateOnly,
 			head: options.head,
 			repositoryRoot: options.repositoryRoot,
 		},
@@ -154,36 +164,10 @@ export async function planCandidates(
 			workers,
 		};
 	}
-	if (options.full) {
-		const workers = selectedActiveWorkers ?? [];
-		return {
-			base,
-			head: options.head,
-			images: ALL_IMAGES,
-			kubernetes: true,
-			validateOnly: false,
-			validationProfiles: validationPlanFromScope(scope, {
-				full: true,
-				mode: "candidate",
-			}).validationProfiles,
-			workers,
-		};
-	}
-	if (base === options.head) {
-		return {
-			base,
-			head: options.head,
-			images: [],
-			kubernetes: false,
-			validateOnly: false,
-			validationProfiles: [],
-			workers: [],
-		};
-	}
-
 	const images = new Set<string>();
 	const workers = new Set<string>();
-	for (const task of scope.tasks) {
+	const affectedTasks = changesTaskGraph(scope.changedFiles) ? [] : scope.tasks;
+	for (const task of affectedTasks) {
 		if (task.task === "build") {
 			for (const image of IMAGE_PACKAGES.get(task.package) ?? []) {
 				images.add(image);
@@ -203,7 +187,7 @@ export async function planCandidates(
 
 	const files = scope.changedFiles;
 	const sharedNodeRelease = files.some((file) =>
-		["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml"].includes(file),
+		["pnpm-lock.yaml", "pnpm-workspace.yaml"].includes(file),
 	);
 	if (
 		sharedNodeRelease ||
@@ -215,7 +199,12 @@ export async function planCandidates(
 		images.add("app-api-schema");
 	}
 	if (
-		changesPath(files, "apps/execution-control") ||
+		files.some(
+			(file) =>
+				file.startsWith("apps/execution-control/") &&
+				file !== "apps/execution-control/turbo.json" &&
+				!file.endsWith("/README.md"),
+		) ||
 		files.some((file) =>
 			[
 				"configs/ingestion/",
@@ -235,15 +224,18 @@ export async function planCandidates(
 	}
 	const kubernetes = changesPath(files, "infra/k8s");
 	const selectedImages = [...images].sort();
-	const selectedWorkers = [...workers].sort();
+	const diffSelectedWorkers = [...workers].sort();
 	const validationProfiles = validationPlanFromScope(scope, {
 		mode: "candidate",
 		release: {
 			images: selectedImages,
 			kubernetes,
-			workers: selectedWorkers,
+			workers: diffSelectedWorkers,
 		},
 	}).validationProfiles;
+	if (options.refreshCampusWebDocs) {
+		workers.add(CAMPUS_WEB_WORKER);
+	}
 	return {
 		base,
 		head: options.head,
@@ -251,7 +243,7 @@ export async function planCandidates(
 		kubernetes,
 		validateOnly: false,
 		validationProfiles,
-		workers: selectedWorkers,
+		workers: [...workers].sort(),
 	};
 }
 
@@ -288,8 +280,8 @@ async function main(args: string[]): Promise<void> {
 	const values = argumentsMap(args);
 	const plan = await planCandidates({
 		base: values.get("base"),
-		full: flag(values, "full"),
 		head: required(values, "head"),
+		refreshCampusWebDocs: flag(values, "refresh-campus-web-docs"),
 		repositoryRoot: values.get("root") ?? process.cwd(),
 		selectionFile: values.get("selection"),
 		validateOnly: flag(values, "validate-only"),

@@ -62,6 +62,10 @@ export interface AffectedScopeOptions {
 	repositoryRoot: string;
 }
 
+export function changesTaskGraph(files: readonly string[]): boolean {
+	return files.some((file) => file === "turbo.json" || file.endsWith("/turbo.json"));
+}
+
 function run(
 	command: string,
 	args: string[],

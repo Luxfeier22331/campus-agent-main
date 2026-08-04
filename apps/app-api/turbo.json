@@ -37,6 +37,30 @@
 				"$TURBO_ROOT$/turbo.json"
 			]
 		},
+		"test:migration-integration": {
+			"inputs": [
+				"package.json",
+				"drizzle/**",
+				"ops/db/**",
+				"src/db/**",
+				"src/modules/profile-memory/**",
+				"test/app-api-migration-upgrade.integration.test.ts",
+				"vitest.migration-integration.config.mts",
+				"$TURBO_ROOT$/jobs/app-api-schema/**"
+			]
+		},
+		"test:shared-db-integration": {
+			"inputs": [
+				"package.json",
+				"src/**",
+				"test/*postgres.integration.test.ts",
+				"test/app-api-product-db.global-setup.ts",
+				"test/shared-db-integration-helpers.ts",
+				"test/shared-product-db.integration.test.ts",
+				"vitest.shared-db.config.mts",
+				"$TURBO_ROOT$/apps/campus-web/src/**"
+			]
+		},
 		"test:worker": {
 			"inputs": [
 				"package.json",

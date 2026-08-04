@@ -9,6 +9,18 @@
 				"!**/README.md",
 				"$TURBO_ROOT$/configs/ingestion/**"
 			]
+		},
+		"test:database-integration": {
+			"inputs": [
+				"migrations/**",
+				"package.json",
+				"src/migrate.ts",
+				"src/postgres-config.ts",
+				"src/postgres-store.ts",
+				"src/schema-bootstrap.ts",
+				"test/ingestion-control-postgres.database.integration.test.ts",
+				"vitest.database-integration.config.mts"
+			]
 		}
 	}
 }

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { AffectedScope, ScopeTask } from "./scope.mts";
-import { FULL_VALIDATION_PROFILES, validationPlanFromScope } from "./validation.mts";
+import { validationPlanFromScope } from "./validation.mts";
 
 const BASE = "a".repeat(40);
 const HEAD = "b".repeat(40);
@@ -39,10 +39,7 @@ test("selects affected Node and Worker evidence from Turbo tasks", () => {
 });
 
 test("selects Go, Rust, and Ragas owners", () => {
-	assert.deepEqual(profiles(["apps/execution-control/internal/server/server.go"]), [
-		"go",
-		"execution-control-postgres",
-	]);
+	assert.deepEqual(profiles(["apps/execution-control/internal/server/server.go"]), ["go"]);
 	assert.deepEqual(profiles(["packages/ingestion-kernels-rs/src/lib.rs"]), ["rust"]);
 	assert.deepEqual(profiles(["packages/ragas-runner/tests/test_runner.py"]), ["ragas"]);
 });
@@ -50,12 +47,12 @@ test("selects Go, Rust, and Ragas owners", () => {
 test("selects every disposable PostgreSQL owner", () => {
 	const cases: [string, string[]][] = [
 		["apps/app-api/drizzle/0001.sql", ["app-api-migration", "app-api-product-db"]],
-		["apps/app-api/db/shared-product-schema/tables.ts", ["app-api-product-db"]],
+		["apps/app-api/src/db/schema/chat.ts", ["app-api-product-db"]],
 		[
 			"apps/execution-control/internal/schemamigrations/migrator.go",
 			["go", "execution-control-postgres"],
 		],
-		["apps/ingestion-control/src/database.ts", ["ingestion-control-postgres"]],
+		["apps/ingestion-control/src/postgres-store.ts", ["ingestion-control-postgres"]],
 		["apps/ops-web/ops/db/schema.ts", ["ops-web-postgres"]],
 	];
 	for (const [file, expected] of cases) {
@@ -80,6 +77,19 @@ test("uses smoke for Campus product changes and full coverage for browser contra
 		"campus-browser-smoke",
 		"ops-web-browser",
 	]);
+	assert.deepEqual(profiles([], [{ package: "campus-web", task: "test:e2e:smoke" }]), [
+		"campus-browser-smoke",
+	]);
+	assert.deepEqual(profiles([], [{ package: "ops-web", task: "test:browser" }]), [
+		"ops-web-browser",
+	]);
+	assert.deepEqual(
+		profiles(
+			["apps/campus-web/test/staging-config.test.ts"],
+			[{ package: "campus-web", task: "test" }],
+		),
+		["affected-node"],
+	);
 });
 
 test("maps ecosystem lockfiles to their owners and dependency scanning", () => {
@@ -102,6 +112,7 @@ test("CI control files stay in hosted checks instead of selecting every heavy pr
 	for (const [file, lightSurfaces] of [
 		["package.json", ["release"]],
 		["turbo.json", ["release"]],
+		["apps/campus-web/turbo.json", ["release"]],
 		["flake.nix", ["config"]],
 		["nix/tools.nix", ["config"]],
 		["scripts/ci/validation.mts", ["release"]],
@@ -113,6 +124,31 @@ test("CI control files stay in hosted checks instead of selecting every heavy pr
 	}
 });
 
+test("Turbo configuration invalidation stays in hosted control-plane checks", () => {
+	const globallyInvalidatedTasks: ScopeTask[] = [
+		{ package: "app-api", task: "test:migration-integration" },
+		{ package: "campus-web", task: "test:e2e:smoke" },
+		{ package: "execution-control", task: "native:test" },
+		{ package: "ingestion-control", task: "test:database-integration" },
+		{ package: "ingestion-kernels-rs", task: "native:test" },
+		{ package: "ops-web", task: "test:browser" },
+		{ package: "ragas-runner", task: "test:eval" },
+	];
+	const plan = validationPlanFromScope(
+		scope(
+			[
+				"turbo.json",
+				"apps/campus-web/turbo.json",
+				"infra/k8s/data-object-store/base/bootstrap.yaml",
+			],
+			globallyInvalidatedTasks,
+		),
+		{ mode: "pull-request" },
+	);
+	assert.deepEqual(plan.lightSurfaces, ["release", "yaml"]);
+	assert.deepEqual(plan.validationProfiles, ["infra"]);
+});
+
 test("selects static surfaces from renamed and deleted paths", () => {
 	const plan = validationPlanFromScope(
 		scope([".github/workflows/old.yml", "config/new.yaml", "removed/check.sh", "schema.sql"]),
@@ -121,10 +157,10 @@ test("selects static surfaces from renamed and deleted paths", () => {
 	assert.deepEqual(plan.lightSurfaces, ["config", "release", "yaml", "sql", "shell"]);
 });
 
-test("full and validate-only modes preserve their explicit release contracts", () => {
+test("candidate planning stays affected-only and validate-only keeps toolchain validation", () => {
 	assert.deepEqual(
-		validationPlanFromScope(scope([]), { full: true, mode: "candidate" }).validationProfiles,
-		FULL_VALIDATION_PROFILES,
+		validationPlanFromScope(scope([]), { mode: "candidate" }).validationProfiles,
+		[],
 	);
 	assert.deepEqual(
 		validationPlanFromScope(scope([]), { mode: "candidate", validateOnly: true })

@@ -95,6 +95,28 @@
 				"$TURBO_ROOT$/scripts/deploy/**"
 			]
 		},
+		"test:e2e:full": {
+			"inputs": ["e2e/**", "e2e.config.ts", "e2e.worker.config.ts", "package.json"]
+		},
+		"test:e2e:smoke": {
+			"inputs": [
+				"e2e/**",
+				"e2e.config.ts",
+				"e2e.worker.config.ts",
+				"index.html",
+				"package.json",
+				"scripts/**",
+				"src/**",
+				"test/build-browser-test-content.ts",
+				"test/helpers/docs-source-fixture.ts",
+				"tsconfig.json",
+				"vite.config.ts",
+				"wrangler*.toml",
+				"$TURBO_ROOT$/configs/branding/**",
+				"$TURBO_ROOT$/packages/domains/dining/**",
+				"$TURBO_ROOT$/packages/ui/**"
+			]
+		},
 		"test:worker": {
 			"inputs": [
 				"package.json",

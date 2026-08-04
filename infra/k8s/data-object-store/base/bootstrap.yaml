@@ -26,11 +26,14 @@ data:
 
     mc admin policy create object-store campus-agent-source-rw /bootstrap/source-policy.json
     mc admin policy create object-store campus-agent-derived-rw /bootstrap/derived-policy.json
+    mc admin policy create object-store campus-agent-derived-ro /bootstrap/derived-read-policy.json
 
     mc admin user add object-store "$OBJECT_STORE_SOURCE_ACCESS_KEY" "$OBJECT_STORE_SOURCE_SECRET_KEY"
     mc admin user add object-store "$OBJECT_STORE_DERIVED_ACCESS_KEY" "$OBJECT_STORE_DERIVED_SECRET_KEY"
+    mc admin user add object-store "$OBJECT_STORE_DERIVED_READ_ACCESS_KEY" "$OBJECT_STORE_DERIVED_READ_SECRET_KEY"
     mc admin policy attach object-store campus-agent-source-rw --user "$OBJECT_STORE_SOURCE_ACCESS_KEY"
     mc admin policy attach object-store campus-agent-derived-rw --user "$OBJECT_STORE_DERIVED_ACCESS_KEY"
+    mc admin policy attach object-store campus-agent-derived-ro --user "$OBJECT_STORE_DERIVED_READ_ACCESS_KEY"
   source-policy.json: |
     {
       "Version": "2012-10-17",
@@ -59,6 +62,22 @@ data:
         {
           "Effect": "Allow",
           "Action": ["s3:AbortMultipartUpload", "s3:GetObject", "s3:ListMultipartUploadParts", "s3:PutObject"],
+          "Resource": ["arn:aws:s3:::campus-agent-derived/*"]
+        }
+      ]
+    }
+  derived-read-policy.json: |
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": ["s3:GetBucketLocation", "s3:ListBucket"],
+          "Resource": ["arn:aws:s3:::campus-agent-derived"]
+        },
+        {
+          "Effect": "Allow",
+          "Action": ["s3:GetObject"],
           "Resource": ["arn:aws:s3:::campus-agent-derived/*"]
         }
       ]
@@ -186,6 +205,16 @@ spec:
                 secretKeyRef:
                   name: object-store-secrets
                   key: OBJECT_STORE_DERIVED_SECRET_KEY
+            - name: OBJECT_STORE_DERIVED_READ_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_DERIVED_READ_ACCESS_KEY
+            - name: OBJECT_STORE_DERIVED_READ_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_DERIVED_READ_SECRET_KEY
             - name: MC_CONFIG_DIR
               value: /tmp/.mc
           resources:

@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import { parse } from "smol-toml";
 import { describe, expect, it } from "vitest";
 import stagingBrowserE2ESource from "../e2e/staging-browser.ts?raw";
@@ -83,25 +82,12 @@ describe("campus web staging config", () => {
 		expect(packageScripts["upload:staging"]).toContain("upload-staging-version.ts");
 	});
 
-	it("publishes the Campus Web candidate through the active release workflow", () => {
-		const publishWorkflowSource = readFileSync(
-			"../../.github/workflows/execution-runtime-publish.yml",
-			"utf8",
-		);
-
+	it("builds and uploads the Campus Web staging candidate", () => {
 		expect(packageScripts["build:app:staging"]).toBeUndefined();
 		expect(packageScripts["build:docs:staging"]).toBeUndefined();
 		expect(packageScripts["build:staging"]).toBe(
 			"pnpm exec tsx ./scripts/build-campus-web.ts --staging",
 		);
-		expect(publishWorkflowSource).toContain("pnpm --dir apps/campus-web build:staging");
-		expect(publishWorkflowSource).toContain("campus-web-staging");
-		expect(publishWorkflowSource).toContain("OBJECT_STORE_DERIVED_ACCESS_KEY");
-		expect(publishWorkflowSource).toContain("OBJECT_STORE_DERIVED_SECRET_KEY");
-		expect(publishWorkflowSource).toContain("--expected-workers");
-		expect(publishWorkflowSource).toContain("pnpm --dir gitops gitops promote-source");
-		expect(publishWorkflowSource).not.toContain("STAGING_APP_API_OPERATOR_DATABASE_URL");
-		expect(publishWorkflowSource).not.toContain("deploy-staging.yml");
 		expect(stagingPreflightSource).not.toContain('"build:staging"');
 		expect(stagingPreflightSource).not.toContain('"build:app:staging"');
 		expect(stagingPreflightSource).not.toContain("check-worker-secret-presence.ts");

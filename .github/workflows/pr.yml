@@ -220,6 +220,7 @@ jobs:
           CI_DOCKER_CGROUP_PARENT: ci.slice
           HEAD_SHA: ${{ needs.light.outputs.head }}
           OPS_WEB_BROWSER_TEST_PORT: "4278"
+          TURBO_CACHE: "local:rw,remote:r"
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.tool_cache }}/ms-playwright
           TURBO_TEAM: ${{ vars.TURBO_TEAM }}
           TURBO_TELEMETRY_DISABLED: "1"

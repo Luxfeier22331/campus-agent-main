@@ -26,7 +26,7 @@ const PROFILE_COMMANDS: Partial<Record<ValidationProfile, string[][]>> = {
 
 export type EvidenceCommandRunner = CommandRunner;
 
-function runCommand(
+export function runCommand(
 	command: string,
 	args: string[],
 	options: { cwd: string; env: NodeJS.ProcessEnv },
@@ -36,6 +36,7 @@ function runCommand(
 		cwd: options.cwd,
 		env: options.env,
 		encoding: "utf8",
+		maxBuffer: 32 * 1024 * 1024,
 		stdio: captureOutput ? "pipe" : "inherit",
 	});
 	return {
@@ -237,12 +238,6 @@ export function runCandidateEvidence(
 	let builtWorkers = new Set<string>();
 	for (const profile of input.profiles) {
 		process.stdout.write(`Running candidate validation profile: ${profile}\n`);
-		if (profile === "full-node") {
-			runProfileCommand(profile, "pnpm", ["ci:typescript:full"], runner, options);
-			builtPackages.add("ops-web");
-			builtWorkers.add("campus-web");
-			continue;
-		}
 		if (profile === "affected-node") {
 			({ builtPackages, builtWorkers } = runAffectedNodeEvidence(
 				{

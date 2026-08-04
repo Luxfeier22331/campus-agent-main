@@ -13,6 +13,10 @@ function isObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function githubExpression(expression: string): string {
+	return ["$", "{{ ", expression, " }}"].join("");
+}
+
 function sourceCheckouts(workflow: unknown, jobName: string): Record<string, unknown>[] {
 	if (!(isObject(workflow) && isObject(workflow.jobs))) {
 		return [];
@@ -155,4 +159,111 @@ test("source workflows use Nix and do not restore retired setup entrypoints", as
 	assert(dependencies);
 	assert(dependencies.includes("nix develop .#ci-light"));
 	assert(!dependencies.includes("nix develop .#ci-full"));
+});
+
+test("manual evidence exposes one explicit profile and no aggregate full mode", async () => {
+	const source = await readFile(
+		path.join(REPOSITORY_ROOT, ".github/workflows/manual-evidence.yml"),
+		"utf8",
+	);
+	assert.match(source, /type: choice\n/u);
+	assert(!source.includes("- all"));
+	assert(!source.includes("- full"));
+	assert(source.includes(`VALIDATION_PROFILES: '["\${{ inputs.profile }}"]'`));
+});
+
+test("non-trusted Turbo lanes use the supported read-only cache mode", async () => {
+	const workflowRoot = path.join(REPOSITORY_ROOT, ".github/workflows");
+	const [pullRequest, manual, publish] = await Promise.all(
+		["pr.yml", "manual-evidence.yml", "execution-runtime-publish.yml"].map((workflow) =>
+			readFile(path.join(workflowRoot, workflow), "utf8"),
+		),
+	);
+	for (const source of [pullRequest, manual]) {
+		assert.match(source, /TURBO_CACHE: "local:rw,remote:r"/u);
+		assert(!source.includes("TURBO_REMOTE_CACHE_READ_ONLY"));
+	}
+	assert.match(publish, /TURBO_CACHE: "local:rw,remote:rw"/u);
+});
+
+test("candidate publishing keeps the Stage A object-store and docs refresh contracts", async () => {
+	const source = await readFile(
+		path.join(REPOSITORY_ROOT, ".github/workflows/execution-runtime-publish.yml"),
+		"utf8",
+	);
+	const workflow = parseAllDocuments(source)[0]?.toJS();
+	assert(isObject(workflow));
+	assert(isObject(workflow.on));
+	assert(isObject(workflow.on.workflow_dispatch));
+	assert(isObject(workflow.on.workflow_dispatch.inputs));
+	const candidateScope = workflow.on.workflow_dispatch.inputs.candidate_scope;
+	assert(isObject(candidateScope));
+	assert.equal(candidateScope.type, "choice");
+	assert.equal(candidateScope.default, "affected");
+	assert.deepEqual(candidateScope.options, ["affected", "campus-web-docs"]);
+
+	assert(isObject(workflow.jobs));
+	const releasePlan = workflow.jobs["release-plan"];
+	assert(isObject(releasePlan));
+	assert(Array.isArray(releasePlan.steps));
+	const planner = releasePlan.steps.find(
+		(step) => isObject(step) && step.name === "Select release candidates",
+	);
+	assert(isObject(planner));
+	assert(isObject(planner.env));
+	assert.equal(
+		planner.env.REFRESH_CAMPUS_WEB_DOCS,
+		githubExpression(
+			"github.event_name == 'workflow_dispatch' && inputs.candidate_scope == 'campus-web-docs' || false",
+		),
+	);
+	assert.equal(typeof planner.run, "string");
+	assert(planner.run.includes('--refresh-campus-web-docs "$REFRESH_CAMPUS_WEB_DOCS"'));
+	assert(planner.run.includes("Campus Web docs refresh cannot run in validation-only mode."));
+
+	const appApi = workflow.jobs["publish-app-api"];
+	assert(isObject(appApi));
+	assert(isObject(appApi.env));
+	assert.equal(
+		appApi.env.OBJECT_STORE_VPC_SERVICE_ID,
+		githubExpression("vars.OBJECT_STORE_VPC_SERVICE_ID"),
+	);
+
+	const campusWeb = workflow.jobs["publish-campus-web"];
+	assert(isObject(campusWeb));
+	assert.equal(campusWeb.env, undefined);
+	assert(Array.isArray(campusWeb.steps));
+	const objectStore = campusWeb.steps.find(
+		(step) => isObject(step) && step.name === "Resolve object store endpoint",
+	);
+	assert(isObject(objectStore));
+	assert.equal(typeof objectStore.run, "string");
+	assert(objectStore.run.includes("kubectl --context default --namespace campus-agent-staging"));
+	assert(objectStore.run.includes("get service object-store"));
+
+	const buildSteps = campusWeb.steps.filter(
+		(step) =>
+			isObject(step) &&
+			(step.name === "Build Campus Web staging configuration" ||
+				step.name === "Build Campus Web staging candidate"),
+	);
+	assert.equal(buildSteps.length, 2);
+	for (const step of buildSteps) {
+		assert(isObject(step));
+		assert(isObject(step.env));
+		assert.equal(
+			step.env.OBJECT_STORE_DERIVED_ACCESS_KEY,
+			githubExpression("secrets.OBJECT_STORE_DERIVED_ACCESS_KEY"),
+		);
+		assert.equal(
+			step.env.OBJECT_STORE_DERIVED_SECRET_KEY,
+			githubExpression("secrets.OBJECT_STORE_DERIVED_SECRET_KEY"),
+		);
+		assert.equal(
+			step.env.OBJECT_STORE_ENDPOINT,
+			githubExpression("steps.object-store.outputs.endpoint"),
+		);
+		assert.equal(step.env.OBJECT_STORE_DERIVED_READ_ACCESS_KEY, undefined);
+		assert.equal(step.env.OBJECT_STORE_DERIVED_READ_SECRET_KEY, undefined);
+	}
 });

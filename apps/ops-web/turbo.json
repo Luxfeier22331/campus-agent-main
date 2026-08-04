@@ -1,0 +1,33 @@
+{
+	"$schema": "https://turborepo.com/schema.json",
+	"extends": ["//"],
+	"tasks": {
+		"test:browser": {
+			"inputs": [
+				"browser.config.ts",
+				"package.json",
+				"src/**",
+				"test/browser/**",
+				"test/browser-server.ts",
+				"vite.config.ts",
+				"vite.ops.config.ts",
+				"$TURBO_ROOT$/packages/internal-portal-client/**",
+				"$TURBO_ROOT$/packages/ui/**"
+			]
+		},
+		"test:database-integration": {
+			"inputs": [
+				"ops/db/**",
+				"package.json",
+				"src/server/dining*.ts",
+				"src/server/internal-portal-credential-store.ts",
+				"src/server/postgres-tls.ts",
+				"src/shared/dining-contract.ts",
+				"test/*integration.test.ts",
+				"test/ops-web-postgres.global-setup.ts",
+				"vitest.database-integration.config.mts",
+				"$TURBO_ROOT$/packages/domains/dining/**"
+			]
+		}
+	}
+}

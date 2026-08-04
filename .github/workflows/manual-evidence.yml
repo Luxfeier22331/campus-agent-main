@@ -1,0 +1,107 @@
+name: manual-validation-profile
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Run exactly one explicitly selected validation profile
+        required: true
+        type: choice
+        options:
+          - affected-node
+          - go
+          - rust
+          - ragas
+          - app-api-migration
+          - app-api-product-db
+          - execution-control-postgres
+          - ingestion-control-postgres
+          - ops-web-postgres
+          - infra
+          - otel
+          - campus-browser-smoke
+          - campus-browser-full
+          - ops-web-browser
+          - dependencies
+          - toolchain
+
+permissions:
+  contents: read
+
+concurrency:
+  group: manual-validation-${{ github.ref }}-${{ inputs.profile }}
+  cancel-in-progress: true
+
+env:
+  NIX_CONFIG: |
+    experimental-features = nix-command flakes
+    max-jobs = 1
+    cores = 2
+
+jobs:
+  evidence:
+    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-full --command bash -e {0}
+    steps:
+      - name: Checkout selected revision
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+        with:
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: true
+
+      - name: Install workspaces
+        env:
+          npm_config_store_dir: ${{ runner.tool_cache }}/pnpm-store
+        run: |
+          set -euo pipefail
+          mkdir -p "$npm_config_store_dir"
+          pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Install evaluation dependencies
+        if: inputs.profile == 'ragas'
+        run: uv sync --package campus-ragas-runner
+
+      - name: Verify Docker evidence dependency
+        if: >-
+          inputs.profile == 'app-api-migration' ||
+          inputs.profile == 'app-api-product-db' ||
+          inputs.profile == 'execution-control-postgres' ||
+          inputs.profile == 'ingestion-control-postgres' ||
+          inputs.profile == 'ops-web-postgres' ||
+          inputs.profile == 'otel'
+        run: docker info >/dev/null
+
+      - name: Install Chromium headless shell
+        if: >-
+          inputs.profile == 'campus-browser-smoke' ||
+          inputs.profile == 'campus-browser-full' ||
+          inputs.profile == 'ops-web-browser'
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.tool_cache }}/ms-playwright
+        run: pnpm --dir apps/campus-web exec playwright install --only-shell chromium
+
+      - name: Run selected profile
+        env:
+          BASE_SHA: ${{ github.event.repository.default_branch }}
+          CARGO_TARGET_DIR: ${{ runner.tool_cache }}/cargo-target/campus-agent
+          CI_DOCKER_CGROUP_PARENT: ci.slice
+          HEAD_SHA: ${{ github.sha }}
+          OPS_WEB_BROWSER_TEST_PORT: "4278"
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.tool_cache }}/ms-playwright
+          TURBO_CACHE: "local:rw,remote:r"
+          TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+          TURBO_TELEMETRY_DISABLED: "1"
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          VALIDATION_PROFILES: '["${{ inputs.profile }}"]'
+        run: |
+          set -euo pipefail
+          base_sha="$(git merge-base HEAD "origin/${BASE_SHA}")"
+          test -n "$base_sha"
+          node --experimental-strip-types scripts/ci/evidence.mts \
+            --base "$base_sha" \
+            --head "$HEAD_SHA" \
+            --profiles "$VALIDATION_PROFILES"

@@ -3,6 +3,14 @@ name: staging-candidate-publish
 on:
   workflow_dispatch:
     inputs:
+      candidate_scope:
+        description: Select the accumulated diff or republish Campus Web with current docs
+        required: true
+        default: affected
+        type: choice
+        options:
+          - affected
+          - campus-web-docs
       validate_only:
         description: Validate staging Worker configuration without publishing candidates
         required: true
@@ -106,8 +114,8 @@ jobs:
       - name: Select release candidates
         id: plan
         env:
-          FULL: ${{ github.event_name == 'workflow_dispatch' && inputs.validate_only == false }}
           PROMOTE: ${{ github.event_name == 'workflow_dispatch' && inputs.promote || false }}
+          REFRESH_CAMPUS_WEB_DOCS: ${{ github.event_name == 'workflow_dispatch' && inputs.candidate_scope == 'campus-web-docs' || false }}
           VALIDATE_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.validate_only || false }}
         run: |
           set -euo pipefail
@@ -119,9 +127,13 @@ jobs:
             echo "Validation-only runs cannot promote candidates." >&2
             exit 1
           fi
+          if [[ "$REFRESH_CAMPUS_WEB_DOCS" == "true" && "$VALIDATE_ONLY" == "true" ]]; then
+            echo "Campus Web docs refresh cannot run in validation-only mode." >&2
+            exit 1
+          fi
           plan="$(node --experimental-strip-types scripts/release/candidates.mts \
-            --full "$FULL" \
             --head "$GITHUB_SHA" \
+            --refresh-campus-web-docs "$REFRESH_CAMPUS_WEB_DOCS" \
             --selection "$GITHUB_WORKSPACE/gitops-selection/releases/staging.json" \
             --validate-only "$VALIDATE_ONLY" \
             --worker-selection "$GITHUB_WORKSPACE/gitops-selection/cloudflare/staging/worker-versions.json")"
@@ -207,6 +219,7 @@ jobs:
           HEAD_SHA: ${{ needs.release-plan.outputs.head }}
           OPS_WEB_BROWSER_TEST_PORT: "4278"
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.tool_cache }}/ms-playwright
+          TURBO_CACHE: "local:rw,remote:rw"
           TURBO_TEAM: ${{ vars.TURBO_TEAM }}
           TURBO_TELEMETRY_DISABLED: "1"
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}

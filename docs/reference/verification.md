@@ -12,7 +12,7 @@ status: active
 
 - package 的 `package.json` 拥有具体检查；Turbo 拥有 package task graph、仓库级 root task 输入和缓存；
 - `scripts/ci/scope.mts` 唯一负责校验 revision、读取 Git diff 和解析 Turbo affected graph；
-- `scripts/ci/validation.mts` 唯一负责静态面与重型 profile 选择；
+- `scripts/ci/validation.mts` 唯一负责静态面与受影响 profile 选择；
 - `scripts/ci/evidence.mts` 负责 PR 和候选发布共用的 profile 执行；
 - `.github/workflows/pr.yml` 拥有 hosted 静态门禁和 self-hosted 受影响证据；
 - `.github/workflows/execution-runtime-publish.yml` 拥有候选物发布和 GitOps 交接；
@@ -24,8 +24,13 @@ status: active
 选择 package 候选；没有 `build` task 的 Go 与 schema 镜像，以及 `infra/k8s`，由其明确的制品所有权
 补充选择。Docker 构建定义仍由 `docker-bake.hcl` 负责，不另建镜像实现清单。
 
+数据库和浏览器任务在所属 package 的 `turbo.json` 中声明边界输入。`turbo.json` 自身变化会使 Turbo
+任务定义失效，因此只由 hosted `ci:release` 校验任务图合同，不把该失效转换成全部业务 profile 或
+候选制品；同一差异中的基础设施、数据库或用户界面文件仍按其明确所有权选择对应证据。
+
 `flake.lock` 固定 source 工具链的 nixpkgs revision，`ci-light` 覆盖 hosted 静态检查和依赖扫描，
-`ci-full` 追加 Go、Rust、数据库、浏览器、镜像和基础设施检查所需 CLI。Nix 不接管 `pnpm-lock.yaml`、`uv.lock`、
+`ci-full` 只是包含重型 profile 所需 CLI 的 Nix 工具 shell 名称，不是 validation profile，也不会自动触发全量检查。
+Nix 不接管 `pnpm-lock.yaml`、`uv.lock`、
 `Cargo.lock` 或 Go module，也不提供 Docker daemon、PostgreSQL、Testcontainers 或 Playwright browser。
 
 ## 选择原则
@@ -47,7 +52,6 @@ status: active
 | `pnpm ci:release` | 镜像发布适配器与 Ops Web 产物边界测试 | 镜像能够构建、推送或部署 |
 | `pnpm ci:contracts` | JSON Schema/OpenAPI 生成、同步与合同 invariant | consumer runtime 行为 |
 | `pnpm ci:typescript` | JS/TS package 的 typecheck 与 unit test | Python、Worker build、外部 integration 或浏览器 |
-| `pnpm ci:typescript:full` | 全量 JS/TS、Worker 与 Ops Web build | 外部 integration、staging 或 release |
 | `pnpm ci:worker` | Worker runtime test 与声明的 Worker/app build | browser E2E 或 deploy |
 | `pnpm ci:go` | execution-control 的 format、lint、vet 与 unit test | Temporal server 或已部署 runtime |
 | `pnpm ci:infra` | Kustomize render 与基础设施 Conftest policy | 集群已应用或工作负载健康 |
@@ -73,10 +77,10 @@ status: active
 - PR checkout 使用 GitHub 生成的 merge revision，Gitleaks 仍扫描 PR 作者提交范围；
 - 普通 PR 不发布镜像或 Worker，不访问 staging、provider state、集群或真实外部服务。
 
-重型 profile 覆盖 affected 或显式 full Node/Worker、Go、Rust、Ragas、五个 disposable PostgreSQL
-owner、基础设施、OTel、Campus Web smoke/full、Ops Web browser、dependency scan 和发布工具链。
-planner 只按累计差异和明确制品消费者选择，各 profile 串行执行；CI 控制文件本身不触发全部业务
-profile，也不根据耗时或一次失败动态扩大范围。完整矩阵只由明确的 full 发布输入触发。
+受影响 profile 覆盖 affected Node/Worker、Go、Rust、Ragas、五个 disposable PostgreSQL owner、
+基础设施、OTel、Campus Web smoke/full、Ops Web browser、dependency scan 和发布工具链。planner
+只按累计差异和明确制品消费者选择，各 profile 串行执行；CI 控制文件本身不触发全部业务 profile，
+也不根据耗时或一次失败动态扩大范围。需要昂贵完整回归时，手动入口一次只选择一个明确 profile。
 
 ## 变更面选择
 
@@ -114,6 +118,8 @@ artifact，也不把 dependency scan 的成功结果当作应用行为或镜像�
 - package 默认 `test`、`typecheck` 和 `build` 由所属 manifest 与 README 维护；
 - Turbo task 必须声明 package 外行为输入；integration test 与有副作用任务禁用缓存；
 - Remote Cache 缺失时正常执行，正确性不依赖自托管 Runner 的旧工作目录；
+- PR、手动 profile 和其他非受信 revision 使用本地读写、远端只读的 Turbo Cache；可信 `main`
+  候选证据使用本地和远端读写，但任何 lane 都不把 Secret、对象存储内容或部署结果写入缓存；
 - 不缓存 vulnerability scan、staging check 或 release check 的成功结果，也不缓存 `node_modules`；
 - browser profile 构建一次 fixture 后运行所选 smoke 或 full 回归，不复用已有开发服务器；
 - execution-control 的 Temporal server 测试使用模块明确入口，不属于默认 `pnpm ci:go`；

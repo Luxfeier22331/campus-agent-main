@@ -5,10 +5,23 @@ import {
 	type EvidenceCommandRunner,
 	parseValidationProfiles,
 	runCandidateEvidence,
+	runCommand,
 } from "./evidence.mts";
 
 const BASE = "a".repeat(40);
 const HEAD = "b".repeat(40);
+
+test("captures structured command output larger than the Node default buffer", () => {
+	const outputBytes = 2 * 1024 * 1024;
+	const result = runCommand(
+		process.execPath,
+		["-e", `process.stdout.write("x".repeat(${outputBytes}))`, "--", "--dry-run=json"],
+		{ cwd: process.cwd(), env: process.env },
+	);
+	assert.equal(result.error, undefined);
+	assert.equal(result.status, 0);
+	assert.equal(result.stdout?.length, outputBytes);
+});
 
 test("runs affected Node tasks from the shared scope without a downloaded Turbo", () => {
 	const calls: Array<{ command: string; args: string[]; base?: string; head?: string }> = [];
@@ -127,25 +140,11 @@ test("prepares Campus browser evidence when no affected build ran", () => {
 	]);
 });
 
-test("full Node evidence runs the full entrypoint and reuses its browser builds", () => {
-	const calls: string[] = [];
-	runCandidateEvidence(
-		{
-			base: BASE,
-			head: HEAD,
-			profiles: ["full-node", "campus-browser-full", "ops-web-browser"],
-			repositoryRoot: "/repository",
-		},
-		(command, args) => {
-			calls.push([command, ...args].join(" "));
-			return { status: 0 };
-		},
+test("rejects the retired aggregate full Node profile", () => {
+	assert.throws(
+		() => parseValidationProfiles('["full-node"]'),
+		/Unsupported candidate validation profile/u,
 	);
-	assert.deepEqual(calls, [
-		"pnpm ci:typescript:full",
-		"pnpm --dir apps/campus-web test:e2e:full",
-		"pnpm --dir apps/ops-web exec playwright test --config browser.config.ts",
-	]);
 });
 
 test("runs selected native, database, OTel, and dependency profiles in order", () => {

@@ -5,10 +5,21 @@
 	},
 	"tasks": {
 		"//#ci:config": {
-			"inputs": [".github/**", "flake.lock", "flake.nix", "nix/**"]
+			"inputs": [
+				".github/**",
+				"flake.lock",
+				"flake.nix",
+				"nix/**",
+				"package.json",
+				"pnpm-lock.yaml",
+				"pnpm-workspace.yaml"
+			]
 		},
 		"//#ci:contracts": {
 			"inputs": [
+				"package.json",
+				"pnpm-lock.yaml",
+				"pnpm-workspace.yaml",
 				"apps/agent-runtime/src/tool-catalog.ts",
 				"apps/app-api/src/modules/integration/generated/tool-execution-contract.ts",
 				"apps/execution-control/internal/contracts/tool_execution_contract.go",
@@ -48,6 +59,9 @@
 			"inputs": [
 				".github/workflows/execution-runtime-publish.yml",
 				"docker-bake.hcl",
+				"package.json",
+				"pnpm-lock.yaml",
+				"pnpm-workspace.yaml",
 				"scripts/ci/check-ops-web-artifact.*",
 				"scripts/ci/evidence.*",
 				"scripts/ci/scope.*",
@@ -67,6 +81,9 @@
 				"docs/**",
 				"jobs/**/*.md",
 				"packages/**/*.md",
+				"package.json",
+				"pnpm-lock.yaml",
+				"pnpm-workspace.yaml",
 				"scripts/docs/**"
 			]
 		},
