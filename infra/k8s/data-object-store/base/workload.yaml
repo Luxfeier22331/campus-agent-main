@@ -8,6 +8,7 @@ metadata:
 spec:
   selector:
     app.kubernetes.io/name: object-store
+    app.kubernetes.io/instance: rustfs
   ports:
     - name: s3
       port: 9000
@@ -16,9 +17,10 @@ spec:
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: object-store
+  name: object-store-rustfs
   labels:
     app.kubernetes.io/name: object-store
+    app.kubernetes.io/instance: rustfs
     app.kubernetes.io/part-of: campus-agent
 spec:
   serviceName: object-store
@@ -26,27 +28,26 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: object-store
+      app.kubernetes.io/instance: rustfs
   template:
     metadata:
       labels:
         app.kubernetes.io/name: object-store
+        app.kubernetes.io/instance: rustfs
         app.kubernetes.io/part-of: campus-agent
     spec:
       automountServiceAccountToken: false
       securityContext:
-        fsGroup: 65532
+        fsGroup: 10001
         fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 10001
+        runAsUser: 10001
         seccompProfile:
           type: RuntimeDefault
       containers:
         - name: object-store
-          image: cgr.dev/chainguard/minio@sha256:ea6398ea08fa9643fca474c06167c05ef97d1614429a9892eea47584af4e108d
+          image: rustfs/rustfs:1.0.0-beta.12@sha256:41fe89380f4120a337790c02af192c3fe7bb55c3edc2e6e9357b487b47c6ab21
           imagePullPolicy: IfNotPresent
-          args:
-            - server
-            - /data
-            - --address
-            - :9000
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -54,38 +55,44 @@ spec:
             readOnlyRootFilesystem: true
             runAsNonRoot: true
           env:
-            - name: MINIO_BROWSER
-              value: "off"
-            - name: MINIO_ROOT_USER
+            - name: RUSTFS_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
                   name: object-store-secrets
-                  key: MINIO_ROOT_USER
-            - name: MINIO_ROOT_PASSWORD
+                  key: OBJECT_STORE_ADMIN_ACCESS_KEY
+            - name: RUSTFS_SECRET_KEY
               valueFrom:
                 secretKeyRef:
                   name: object-store-secrets
-                  key: MINIO_ROOT_PASSWORD
+                  key: OBJECT_STORE_ADMIN_SECRET_KEY
+            - name: RUSTFS_ADDRESS
+              value: ":9000"
+            - name: RUSTFS_CONSOLE_ENABLE
+              value: "false"
+            - name: RUSTFS_OBS_LOG_DIRECTORY
+              value: /tmp/logs
+            - name: RUSTFS_OBS_LOG_STDOUT_ENABLED
+              value: "true"
           ports:
             - name: s3
               containerPort: 9000
           startupProbe:
             httpGet:
-              path: /minio/health/live
+              path: /health/live
               port: s3
             periodSeconds: 5
             timeoutSeconds: 3
             failureThreshold: 60
           readinessProbe:
             httpGet:
-              path: /minio/health/ready
+              path: /health/ready
               port: s3
             periodSeconds: 10
             timeoutSeconds: 3
             failureThreshold: 6
           livenessProbe:
             httpGet:
-              path: /minio/health/live
+              path: /health/live
               port: s3
             periodSeconds: 20
             timeoutSeconds: 3
@@ -111,6 +118,7 @@ spec:
         name: data
         labels:
           app.kubernetes.io/name: object-store
+          app.kubernetes.io/instance: rustfs
           app.kubernetes.io/part-of: campus-agent
       spec:
         accessModes: ["ReadWriteOnce"]

@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { createDocsSourceSiteFixture } from "../fixtures/docs-source-site.ts";
 import { parseCampusWebBuildArgs } from "../scripts/build-campus-web.ts";
 import { parseCampusWebDeployArgs } from "../scripts/deploy-campus-web.ts";
 import {
@@ -14,16 +15,11 @@ import {
 	resolveSourceDocsContentPaths,
 } from "../src/docs-reader-build/docs-content.ts";
 import { DOCS_SOURCE_KEY } from "../src/docs-reader-build/source-catalog.ts";
-import {
-	cleanupDocsSourceFixture,
-	createDocsSourceSiteFixture,
-} from "./helpers/docs-source-fixture.ts";
 
 let appRoot: string | null = null;
 const themeBootstrapSourcePath = join(__dirname, "../../../packages/ui/src/theme-bootstrap.js");
 
 afterEach(() => {
-	cleanupDocsSourceFixture();
 	if (appRoot) {
 		rmSync(appRoot, { force: true, recursive: true });
 		appRoot = null;

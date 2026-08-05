@@ -1,25 +1,26 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-
-import type { ReaderObjectStoreClient } from "../../src/docs-reader-build/published-reader-types.ts";
+import type { ReaderObjectStoreClient } from "../src/docs-reader-build/published-reader-types.ts";
 import {
 	canonicalJsonBytes,
 	DOCS_SOURCE_KEY,
 	normalizeSourceManifest,
 	sha256,
-} from "../../src/docs-reader-build/source-catalog.ts";
+} from "../src/docs-reader-build/source-catalog.ts";
 import type {
 	DocsDocument,
 	DocsSourceManifest,
 	DocsSourceVersion,
 	ObjectRef,
-} from "../../src/docs-reader-build/source-types.ts";
-import { COURSE_MAP_IMAGE } from "./published-reader-fixture.ts";
+} from "../src/docs-reader-build/source-types.ts";
+import { COURSE_MAP_IMAGE } from "./course-map-image.ts";
+
+export interface DocsSourceFixtureObject {
+	body: Uint8Array;
+	contentType: string;
+}
 
 export interface DocsSourceFixture {
 	client: ReaderObjectStoreClient;
-	root: string;
+	objects: ReadonlyMap<string, DocsSourceFixtureObject>;
 	source: DocsSourceManifest;
 	sourceBytes: Uint8Array;
 	sourceDigest: `sha256:${string}`;
@@ -42,24 +43,14 @@ export const DOCS_SOURCE_SITE_FIXTURE = {
 	},
 } as const;
 
-let tempDir: string | null = null;
-
-export function cleanupDocsSourceFixture(): void {
-	if (tempDir) {
-		rmSync(tempDir, { force: true, recursive: true });
-		tempDir = null;
-	}
-}
-
-export function createDocsSourceSiteFixture(
-	input: { missingObjects?: string[] } = {},
-): DocsSourceFixture {
-	cleanupDocsSourceFixture();
-	tempDir = mkdtempSync(join(tmpdir(), "campus-docs-source-"));
-	const objects = new Map<string, Uint8Array>();
+export function createDocsSourceSiteFixture(): DocsSourceFixture {
+	const objects = new Map<string, DocsSourceFixtureObject>();
 	const addObject = (key: string, value: unknown, format: "bytes" | "json" = "json") => {
 		const bytes = format === "bytes" ? (value as Uint8Array) : canonicalJsonBytes(value);
-		objects.set(key, bytes);
+		objects.set(key, {
+			body: bytes,
+			contentType: format === "bytes" ? "image/png" : "application/json",
+		});
 		return objectRef(key, bytes);
 	};
 	const collections = [
@@ -216,18 +207,14 @@ export function createDocsSourceSiteFixture(
 		versions,
 	});
 	const sourceBytes = canonicalJsonBytes(source);
-	objects.set(DOCS_SOURCE_KEY, sourceBytes);
-	const missingObjects = new Set(input.missingObjects ?? []);
+	objects.set(DOCS_SOURCE_KEY, { body: sourceBytes, contentType: "application/json" });
 	return {
 		client: {
 			async readOptionalBytesObject({ key }) {
-				if (missingObjects.has(key)) {
-					return;
-				}
-				return objects.get(key);
+				return objects.get(key)?.body;
 			},
 		},
-		root: tempDir,
+		objects,
 		source,
 		sourceBytes,
 		sourceDigest: sha256(sourceBytes),

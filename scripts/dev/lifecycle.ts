@@ -21,11 +21,13 @@ import {
 const COMPOSE_PROJECT = "campus-agent-local";
 const DATA_NETWORK = "campus-agent-data-plane";
 const POSTGRES_VOLUME = "local_postgres-data";
-const MINIO_VOLUME = "local_minio-data";
+const OBJECT_STORE_VOLUME = "local_object-store-data";
 const SOURCE_BUCKET = "campus-agent-source";
+const DOCS_BUCKET = "campus-agent-derived";
+const DOCS_SOURCE_KEY = "campus-docs/source.json";
 const POSTGRES_ADMIN_URL = "postgresql://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable";
-const MINIO_IMAGE =
-	"minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727";
+const OBJECT_STORE_CLI_IMAGE =
+	"rustfs/rc:v0.1.30@sha256:1296510ec27800668d26a8bdca6251e587086187a9368c7b80134a169e8a3bb8";
 
 export type IsolatedResourceState = "absent" | "complete" | "partial";
 
@@ -40,6 +42,21 @@ export function classifyIsolatedResourceState(input: {
 		return "absent";
 	}
 	return "partial";
+}
+
+export type IsolatedResourceAction = "create" | "ready" | "repair-bucket";
+
+export function resolveIsolatedResourceAction(input: {
+	bucketExists: boolean;
+	databaseExists: boolean;
+}): IsolatedResourceAction {
+	if (input.bucketExists && !input.databaseExists) {
+		throw new Error("The local bucket exists but its database is missing.");
+	}
+	if (!input.bucketExists && input.databaseExists) {
+		return "repair-bucket";
+	}
+	return input.bucketExists ? "ready" : "create";
 }
 
 export function assertDestroyConfirmation(instanceId: string, confirmation?: string): void {
@@ -73,19 +90,25 @@ export function initializeLocalDevelopment(repoRoot: string): LocalDevProfileV1 
 
 	const databaseExists = localDatabaseExists(profile.databaseName);
 	const bucketExists = localBucketExists(profile.bucketName);
-	const state = classifyIsolatedResourceState({ bucketExists, databaseExists });
-	if (state === "partial") {
+	let action: IsolatedResourceAction;
+	try {
+		action = resolveIsolatedResourceAction({ bucketExists, databaseExists });
+	} catch {
 		throw new Error(
 			`Local instance ${profile.instanceId} is partially provisioned (database=${databaseExists}, bucket=${bucketExists}). Destroy it explicitly before recreating it.`,
 		);
 	}
-	if (state === "absent") {
+	if (action === "create") {
 		createIsolatedResources(profile);
+	} else if (action === "repair-bucket") {
+		runObjectStore(profile.bucketName, "create");
+		runObjectStore(profile.bucketName, "configure");
 	} else {
-		runMinio(profile.bucketName, "configure");
+		runObjectStore(profile.bucketName, "configure");
 	}
 
 	renderLocalEnvironmentFiles({ profile, repoRoot });
+	seedCampusWebDocs(repoRoot);
 	installApplicationSchemas(repoRoot, profile);
 	console.log(formatProfileSummary(profile));
 	return profile;
@@ -97,6 +120,8 @@ export function diagnoseLocalDevelopment(repoRoot: string): {
 	managedEnvironmentReady: boolean;
 	profile: LocalDevProfileV1;
 	sharedInfrastructureReady: boolean;
+	docsBucketExists: boolean;
+	docsSourceExists: boolean;
 	sourceBucketExists: boolean;
 } {
 	const profile = loadLocalDevProfile(repoRoot);
@@ -116,11 +141,13 @@ export function diagnoseLocalDevelopment(repoRoot: string): {
 	return {
 		bucketExists: localBucketExists(profile.bucketName),
 		databaseExists: localDatabaseExists(profile.databaseName),
+		docsBucketExists: localBucketExists(DOCS_BUCKET),
+		docsSourceExists: localObjectExists(DOCS_BUCKET, DOCS_SOURCE_KEY),
 		managedEnvironmentReady,
 		profile,
 		sharedInfrastructureReady:
 			commandSucceeds("docker", ["inspect", `${COMPOSE_PROJECT}-postgres-1`]) &&
-			commandSucceeds("docker", ["inspect", `${COMPOSE_PROJECT}-minio-1`]),
+			commandSucceeds("docker", ["inspect", `${COMPOSE_PROJECT}-object-store-1`]),
 		sourceBucketExists: localBucketExists(SOURCE_BUCKET),
 	};
 }
@@ -145,7 +172,7 @@ export function destroyLocalDevelopment(input: {
 		runPsql(`DROP DATABASE ${quoteIdentifier(profile.databaseName)} WITH (FORCE);`);
 	}
 	if (localBucketExists(profile.bucketName)) {
-		runMinio(profile.bucketName, "remove");
+		runObjectStore(profile.bucketName, "remove");
 	}
 	if (existsSync(profile.worktreePath)) {
 		removeLocalEnvironmentFiles(profile.worktreePath);
@@ -162,12 +189,13 @@ export function formatProfileSummary(profile: LocalDevProfileV1): string {
 		`Ops Web: http://127.0.0.1:${profile.ports.opsWeb}/dining`,
 		`Database: ${profile.databaseName}`,
 		`Source bucket: ${SOURCE_BUCKET}`,
+		`Campus docs bucket: ${DOCS_BUCKET}`,
 		`Derived bucket: ${profile.bucketName}`,
 	].join("\n");
 }
 
 function ensureSharedInfrastructure(repoRoot: string): void {
-	for (const volume of [POSTGRES_VOLUME, MINIO_VOLUME]) {
+	for (const volume of [POSTGRES_VOLUME, OBJECT_STORE_VOLUME]) {
 		if (!commandSucceeds("docker", ["volume", "inspect", volume])) {
 			runCommand("docker", ["volume", "create", volume]);
 		}
@@ -186,10 +214,25 @@ function ensureSharedInfrastructure(repoRoot: string): void {
 			"up",
 			"-d",
 			"--wait",
+			"--remove-orphans",
 		],
 		{ cwd: repoRoot },
 	);
-	runMinio(SOURCE_BUCKET, "create");
+	runObjectStore(SOURCE_BUCKET, "create");
+	runObjectStore(DOCS_BUCKET, "create");
+}
+
+function seedCampusWebDocs(repoRoot: string): void {
+	const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+	runCommand(pnpm, ["--dir", "apps/campus-web", "docs:seed-local"], {
+		cwd: repoRoot,
+		env: {
+			...process.env,
+			OBJECT_STORE_DERIVED_ACCESS_KEY: "minioadmin",
+			OBJECT_STORE_DERIVED_SECRET_KEY: "minioadmin",
+			OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
+		},
+	});
 }
 
 function ensureDatabaseRoles(): void {
@@ -221,11 +264,11 @@ function createIsolatedResources(profile: LocalDevProfileV1): void {
 				),
 			].join(";\n"),
 		);
-		runMinio(profile.bucketName, "create");
-		runMinio(profile.bucketName, "configure");
+		runObjectStore(profile.bucketName, "create");
+		runObjectStore(profile.bucketName, "configure");
 	} catch (error) {
 		if (localBucketExists(profile.bucketName)) {
-			runMinio(profile.bucketName, "remove");
+			runObjectStore(profile.bucketName, "remove");
 		}
 		if (localDatabaseExists(profile.databaseName)) {
 			runPsql(`DROP DATABASE ${quoteIdentifier(profile.databaseName)} WITH (FORCE);`);
@@ -289,23 +332,43 @@ function localDatabaseExists(databaseName: string): boolean {
 }
 
 function localBucketExists(bucketName: string): boolean {
-	return commandSucceeds("docker", minioCommand(bucketName, "inspect"));
+	return commandSucceeds("docker", objectStoreCommand(bucketName, "inspect"));
 }
 
-function runMinio(bucketName: string, action: "configure" | "create" | "remove"): void {
-	runCommand("docker", minioCommand(bucketName, action));
+function localObjectExists(bucketName: string, objectKey: string): boolean {
+	return commandSucceeds("docker", [
+		"run",
+		"--rm",
+		"--network",
+		DATA_NETWORK,
+		"--env",
+		`BUCKET=${bucketName}`,
+		"--env",
+		`OBJECT_KEY=${objectKey}`,
+		"--env",
+		"RC_CONFIG_DIR=/tmp/.rc",
+		"--entrypoint",
+		"/bin/sh",
+		OBJECT_STORE_CLI_IMAGE,
+		"-ec",
+		'rc alias set local http://object-store:9000 minioadmin minioadmin >/dev/null; rc stat "local/$BUCKET/$OBJECT_KEY" >/dev/null',
+	]);
 }
 
-function minioCommand(
+function runObjectStore(bucketName: string, action: "configure" | "create" | "remove"): void {
+	runCommand("docker", objectStoreCommand(bucketName, action));
+}
+
+export function objectStoreCommand(
 	bucketName: string,
 	action: "configure" | "create" | "inspect" | "remove",
 ): string[] {
 	const actionScript = {
 		configure:
-			'printf "%s\\n" "$PUBLIC_POLICY" > /tmp/derived-public-policy.json && mc anonymous set-json /tmp/derived-public-policy.json "local/$BUCKET"',
-		create: 'mc mb --ignore-existing "local/$BUCKET"',
-		inspect: 'mc stat "local/$BUCKET" >/dev/null',
-		remove: 'mc rb --force "local/$BUCKET"',
+			'printf "%s\\n" "$PUBLIC_POLICY" > /tmp/derived-public-policy.json && rc anonymous set-json /tmp/derived-public-policy.json "local/$BUCKET"',
+		create: 'rc mb --ignore-existing "local/$BUCKET"',
+		inspect: 'rc ls "local/$BUCKET" >/dev/null',
+		remove: 'rc rb --force "local/$BUCKET"',
 	}[action];
 	return [
 		"run",
@@ -314,14 +377,16 @@ function minioCommand(
 		DATA_NETWORK,
 		"--env",
 		`BUCKET=${bucketName}`,
+		"--env",
+		"RC_CONFIG_DIR=/tmp/.rc",
 		...(action === "configure"
 			? ["--env", `PUBLIC_POLICY=${derivedBucketPublicReadPolicy(bucketName)}`]
 			: []),
 		"--entrypoint",
 		"/bin/sh",
-		MINIO_IMAGE,
+		OBJECT_STORE_CLI_IMAGE,
 		"-ec",
-		`mc alias set local http://minio:9000 minioadmin minioadmin >/dev/null; ${actionScript}`,
+		`rc alias set local http://object-store:9000 minioadmin minioadmin >/dev/null; ${actionScript}`,
 	];
 }
 

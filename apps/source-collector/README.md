@@ -43,7 +43,7 @@ pnpm --filter source-collector notice:backfill -- --start-date 2026-01-01
 pnpm --filter source-collector notice:status
 ```
 
-`dev:init` 确保本地 MinIO 的 source bucket 存在，并生成该适配器使用的 `.env.local` 对象存储
+`dev:init` 确保本地 RustFS 的 source bucket 存在，并生成该适配器使用的 `.env.local` 对象存储
 配置；开发者自己的 `.env` 只保存当前门户与 TGC 配置。
 
 来源固定为类型 `5`（办公通知），列表页大小固定为 20。首次 `notice:sync` 只记录当前最大 ID；

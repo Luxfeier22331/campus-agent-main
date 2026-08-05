@@ -22,27 +22,28 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
 
-  minio:
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
-    command: server /data --console-address ":9001"
+  object-store:
+    image: rustfs/rustfs:1.0.0-beta.12@sha256:41fe89380f4120a337790c02af192c3fe7bb55c3edc2e6e9357b487b47c6ab21
     environment:
-      MINIO_ROOT_PASSWORD: minioadmin
-      MINIO_ROOT_USER: minioadmin
+      RUSTFS_ACCESS_KEY: minioadmin
+      RUSTFS_CONSOLE_ADDRESS: ":9001"
+      RUSTFS_OBS_LOG_STDOUT_ENABLED: "true"
+      RUSTFS_SECRET_KEY: minioadmin
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/health/ready"]
       interval: 2s
       timeout: 2s
       retries: 30
     networks:
       data-plane:
         aliases:
-          - minio
+          - object-store
     ports:
       - "127.0.0.1:9000:9000"
       - "127.0.0.1:9001:9001"
     restart: unless-stopped
     volumes:
-      - minio-data:/data
+      - object-store-data:/data
 
 networks:
   data-plane:
@@ -50,9 +51,9 @@ networks:
     name: campus-agent-data-plane
 
 volumes:
-  minio-data:
+  object-store-data:
     external: true
-    name: local_minio-data
+    name: local_object-store-data
   postgres-data:
     external: true
     name: local_postgres-data

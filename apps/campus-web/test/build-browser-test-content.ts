@@ -1,16 +1,9 @@
+import { createDocsSourceSiteFixture } from "../fixtures/docs-source-site.ts";
 import { buildCampusWeb } from "../scripts/build-campus-web.ts";
-import {
-	cleanupDocsSourceFixture,
-	createDocsSourceSiteFixture,
-} from "./helpers/docs-source-fixture.ts";
 
 async function main(): Promise<void> {
 	const fixture = createDocsSourceSiteFixture();
-	try {
-		await buildCampusWeb({ docsClient: fixture.client, refreshDocs: true, staging: false });
-	} finally {
-		cleanupDocsSourceFixture();
-	}
+	await buildCampusWeb({ docsClient: fixture.client, refreshDocs: true, staging: false });
 }
 
 main().catch((error) => {

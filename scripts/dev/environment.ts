@@ -75,6 +75,9 @@ export function renderLocalEnvironmentFiles(input: {
 	writeManagedEnv(campusVarsPath, {
 		APP_API_BASE_URL: `http://127.0.0.1:${profile.ports.appApi}`,
 		AUTH_TURNSTILE_SITE_KEY: "",
+		OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "minioadmin",
+		OBJECT_STORE_DERIVED_READ_SECRET_KEY: "minioadmin",
+		OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
 		SENTRY_DSN: "",
 		DEPLOYMENT_ENVIRONMENT: "development",
 		DEPLOYMENT_RELEASE: `campus-web@${profile.instanceId}`,

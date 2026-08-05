@@ -10,30 +10,30 @@ data:
     #!/bin/sh
     set -eu
 
-    until mc alias set object-store http://object-store:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"; do
+    until rc alias set object-store http://object-store:9000 "$OBJECT_STORE_ADMIN_ACCESS_KEY" "$OBJECT_STORE_ADMIN_SECRET_KEY"; do
       sleep 2
     done
 
-    mc mb --ignore-existing object-store/campus-agent-source
-    mc mb --ignore-existing object-store/campus-agent-derived
+    rc mb --ignore-existing object-store/campus-agent-source
+    rc mb --ignore-existing object-store/campus-agent-derived
 
-    mc version enable object-store/campus-agent-source
-    mc version enable object-store/campus-agent-derived
+    rc version enable object-store/campus-agent-source
+    rc version enable object-store/campus-agent-derived
 
-    mc ilm import object-store/campus-agent-source < /bootstrap/source-lifecycle.json
-    mc ilm import object-store/campus-agent-derived < /bootstrap/derived-lifecycle.json
-    mc anonymous set-json /bootstrap/derived-public-policy.json object-store/campus-agent-derived
+    rc ilm rule import object-store/campus-agent-source /bootstrap/source-lifecycle.json
+    rc ilm rule import object-store/campus-agent-derived /bootstrap/derived-lifecycle.json
+    rc anonymous set-json /bootstrap/derived-public-policy.json object-store/campus-agent-derived
 
-    mc admin policy create object-store campus-agent-source-rw /bootstrap/source-policy.json
-    mc admin policy create object-store campus-agent-derived-rw /bootstrap/derived-policy.json
-    mc admin policy create object-store campus-agent-derived-ro /bootstrap/derived-read-policy.json
+    rc admin policy create object-store campus-agent-source-rw /bootstrap/source-policy.json
+    rc admin policy create object-store campus-agent-derived-rw /bootstrap/derived-policy.json
+    rc admin policy create object-store campus-agent-derived-ro /bootstrap/derived-read-policy.json
 
-    mc admin user add object-store "$OBJECT_STORE_SOURCE_ACCESS_KEY" "$OBJECT_STORE_SOURCE_SECRET_KEY"
-    mc admin user add object-store "$OBJECT_STORE_DERIVED_ACCESS_KEY" "$OBJECT_STORE_DERIVED_SECRET_KEY"
-    mc admin user add object-store "$OBJECT_STORE_DERIVED_READ_ACCESS_KEY" "$OBJECT_STORE_DERIVED_READ_SECRET_KEY"
-    mc admin policy attach object-store campus-agent-source-rw --user "$OBJECT_STORE_SOURCE_ACCESS_KEY"
-    mc admin policy attach object-store campus-agent-derived-rw --user "$OBJECT_STORE_DERIVED_ACCESS_KEY"
-    mc admin policy attach object-store campus-agent-derived-ro --user "$OBJECT_STORE_DERIVED_READ_ACCESS_KEY"
+    rc admin user add object-store "$OBJECT_STORE_SOURCE_ACCESS_KEY" "$OBJECT_STORE_SOURCE_SECRET_KEY"
+    rc admin user add object-store "$OBJECT_STORE_DERIVED_ACCESS_KEY" "$OBJECT_STORE_DERIVED_SECRET_KEY"
+    rc admin user add object-store "$OBJECT_STORE_DERIVED_READ_ACCESS_KEY" "$OBJECT_STORE_DERIVED_READ_SECRET_KEY"
+    rc admin policy attach object-store campus-agent-source-rw --user "$OBJECT_STORE_SOURCE_ACCESS_KEY"
+    rc admin policy attach object-store campus-agent-derived-rw --user "$OBJECT_STORE_DERIVED_ACCESS_KEY"
+    rc admin policy attach object-store campus-agent-derived-ro --user "$OBJECT_STORE_DERIVED_READ_ACCESS_KEY"
   source-policy.json: |
     {
       "Version": "2012-10-17",
@@ -84,43 +84,43 @@ data:
     }
   source-lifecycle.json: |
     {
-      "Rules": [
+      "rules": [
         {
-          "ID": "temporary-attempts-30d",
-          "Status": "Enabled",
-          "Filter": {"Prefix": "attempts/"},
-          "Expiration": {"Days": 30},
-          "NoncurrentVersionExpiration": {"NoncurrentDays": 1},
-          "AbortIncompleteMultipartUpload": {"DaysAfterInitiation": 7}
+          "id": "temporary-attempts-30d",
+          "status": "Enabled",
+          "prefix": "attempts/",
+          "expiration": {"days": 30},
+          "noncurrentVersionExpiration": {"noncurrentDays": 1},
+          "abortIncompleteMultipartUploadDays": 7
         },
         {
-          "ID": "temporary-ingestion-results-30d",
-          "Status": "Enabled",
-          "Filter": {"Prefix": "ingestion-results/"},
-          "Expiration": {"Days": 30},
-          "NoncurrentVersionExpiration": {"NoncurrentDays": 1},
-          "AbortIncompleteMultipartUpload": {"DaysAfterInitiation": 7}
+          "id": "temporary-ingestion-results-30d",
+          "status": "Enabled",
+          "prefix": "ingestion-results/",
+          "expiration": {"days": 30},
+          "noncurrentVersionExpiration": {"noncurrentDays": 1},
+          "abortIncompleteMultipartUploadDays": 7
         },
         {
-          "ID": "temporary-ingestion-requests-30d",
-          "Status": "Enabled",
-          "Filter": {"Prefix": "ingestion-requests/"},
-          "Expiration": {"Days": 30},
-          "NoncurrentVersionExpiration": {"NoncurrentDays": 1},
-          "AbortIncompleteMultipartUpload": {"DaysAfterInitiation": 7}
+          "id": "temporary-ingestion-requests-30d",
+          "status": "Enabled",
+          "prefix": "ingestion-requests/",
+          "expiration": {"days": 30},
+          "noncurrentVersionExpiration": {"noncurrentDays": 1},
+          "abortIncompleteMultipartUploadDays": 7
         }
       ]
     }
   derived-lifecycle.json: |
     {
-      "Rules": [
+      "rules": [
         {
-          "ID": "temporary-ingestion-results-30d",
-          "Status": "Enabled",
-          "Filter": {"Prefix": "ingestion-results/"},
-          "Expiration": {"Days": 30},
-          "NoncurrentVersionExpiration": {"NoncurrentDays": 1},
-          "AbortIncompleteMultipartUpload": {"DaysAfterInitiation": 7}
+          "id": "temporary-ingestion-results-30d",
+          "status": "Enabled",
+          "prefix": "ingestion-results/",
+          "expiration": {"days": 30},
+          "noncurrentVersionExpiration": {"noncurrentDays": 1},
+          "abortIncompleteMultipartUploadDays": 7
         }
       ]
     }
@@ -160,13 +160,13 @@ spec:
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
+        runAsUser: 100
+        runAsGroup: 101
         seccompProfile:
           type: RuntimeDefault
       containers:
         - name: bootstrap
-          image: minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
+          image: rustfs/rc:v0.1.30@sha256:1296510ec27800668d26a8bdca6251e587086187a9368c7b80134a169e8a3bb8
           imagePullPolicy: IfNotPresent
           command: ["/bin/sh", "/bootstrap/bootstrap.sh"]
           securityContext:
@@ -175,16 +175,16 @@ spec:
               drop: ["ALL"]
             readOnlyRootFilesystem: true
           env:
-            - name: MINIO_ROOT_USER
+            - name: OBJECT_STORE_ADMIN_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
                   name: object-store-secrets
-                  key: MINIO_ROOT_USER
-            - name: MINIO_ROOT_PASSWORD
+                  key: OBJECT_STORE_ADMIN_ACCESS_KEY
+            - name: OBJECT_STORE_ADMIN_SECRET_KEY
               valueFrom:
                 secretKeyRef:
                   name: object-store-secrets
-                  key: MINIO_ROOT_PASSWORD
+                  key: OBJECT_STORE_ADMIN_SECRET_KEY
             - name: OBJECT_STORE_SOURCE_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
@@ -215,8 +215,8 @@ spec:
                 secretKeyRef:
                   name: object-store-secrets
                   key: OBJECT_STORE_DERIVED_READ_SECRET_KEY
-            - name: MC_CONFIG_DIR
-              value: /tmp/.mc
+            - name: RC_CONFIG_DIR
+              value: /tmp/.rc
           resources:
             requests:
               cpu: 25m

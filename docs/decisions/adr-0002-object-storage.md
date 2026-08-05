@@ -25,14 +25,14 @@ digest 和字节数，不传递主机挂载路径或供应商 SDK 类型。
 endpoint 和消费者所属身份的凭据，不重复配置固定名称与 region。需要隔离本地 worktree 时，只有
 对应本地开发入口可以显式覆盖其派生 bucket。
 
-本地开发可以使用本地 MinIO；其中 `campus-rag-derived` 等旧 bucket 只用于读取历史数据，不能作为
-staging 或 production 的发布输入。当前 staging 使用环境仓提供的 k3s MinIO `campus-agent-derived`；
-其他正式环境也使用环境仓管理的同名 S3 兼容派生桶，不依赖开发机存储。文档发布、Campus Web 构建
-和其他派生产物通过同一 derived bucket 消费；不因为文档阅读器再创建一个 bucket，也不把旧的
-`public_docs/.../current` 聚合文件复制成新的运行时入口。
+本地开发使用 RustFS；其中 `campus-rag-derived` 等旧 bucket 只用于读取历史数据，不能作为 staging
+或 production 的发布输入。部署环境使用环境仓管理的同名 S3 兼容派生桶，不依赖开发机存储。
+文档发布、Campus Web 构建和其他派生产物通过同一 derived bucket 消费；不因为文档阅读器再创建
+一个 bucket，也不把旧的 `public_docs/.../current` 聚合文件复制成新的运行时入口。
 
-MinIO 是可接受的自托管实现，但不是应用合同。替换为其他 S3 兼容服务时，只改变部署
-配置和凭据，不改变产物 identity 或运行时 DTO。
+自托管实现不是应用合同。源码部署清单使用固定版本的 RustFS；替换 S3 兼容服务时，只改变部署
+配置和管理边界，不改变 bucket、应用凭据、产物 identity 或运行时 DTO。实际环境是否完成迁移以
+环境仓选择的 Source revision 和部署状态为准，不由本 ADR 推断。
 
 对象 key 由可执行 builder 和来源合同维护，不在 ADR 中复制 inventory。key 必须：
 

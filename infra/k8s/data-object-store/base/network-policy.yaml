@@ -9,6 +9,7 @@ spec:
   podSelector:
     matchLabels:
       app.kubernetes.io/name: object-store
+      app.kubernetes.io/instance: rustfs
   policyTypes: ["Ingress"]
   ingress:
     - from:
@@ -43,6 +44,7 @@ spec:
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: object-store
+              app.kubernetes.io/instance: rustfs
       ports:
         - protocol: TCP
           port: 9000

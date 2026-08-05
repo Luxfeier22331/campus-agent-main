@@ -10,3 +10,5 @@ while IFS= read -r kustomization; do
 		--parser yaml \
 		-
 done < <(find infra/k8s -name kustomization.yaml -print | sort)
+
+pnpm exec tsx --test infra/k8s/data-object-store/migration/*.test.ts

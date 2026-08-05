@@ -93,7 +93,11 @@ Campus Web 文档来源命令复用现有对象存储地址和派生桶凭据，
 
 Git 不会把被忽略的环境文件带入新 worktree。每个 worktree 首次运行 `pnpm dev` 或显式运行
 `pnpm dev:init` 时获得独立 profile、应用文件、端口、PostgreSQL database 和 derived bucket；
-PostgreSQL 与 MinIO 容器和数据卷由同一机器上的 worktree 共享。
+PostgreSQL 与 RustFS 容器和数据卷由同一机器上的 worktree 共享。应用仍只消费
+`OBJECT_STORE_*`；`RUSTFS_*` 只存在于供应商容器边界，不进入应用环境合同。
+Campus Web 文档合同固定使用共享 `campus-agent-derived`；`dev:init` 只在
+`campus-docs/source.json` 缺失时写入确定性开发样例，不覆盖已有文档来源。worktree profile 中的
+独立 derived bucket 仍只服务 Dining 等实例数据。
 
 profile 位于当前 worktree 的 `var/dev/profile.v1.json`，机器级实例注册表位于 `${XDG_STATE_HOME:-~/.local/state}/campus-agent/<repo-key>/instances.v1.json`。两者只保存资源身份，不保存外部凭据。使用 `pnpm dev:instances` 查看分配，使用 `pnpm dev:doctor` 检查完整性。
 

@@ -45,10 +45,11 @@ pnpm --dir apps/campus-web typecheck
 ```
 
 完整产品开发优先使用根 `pnpm dev`，它同时启动 app-api 与 Ops Web。单独启动 Campus Web 前先执行
-`pnpm dev:init`；应用从当前 worktree 的 `.dev.vars.local` 读取独立端口，并从
-`env/commands/campus-docs-source.env` 读取对象存储连接信息。开发服务读取
+`pnpm dev:init`；该命令创建共享本地文档 bucket，并在固定来源键缺失时写入确定性开发样例。应用从
+当前 worktree 的 `.dev.vars.local` 读取独立端口和本地对象存储连接信息；开发服务读取
 `campus-docs/source.json`，在当前 worktree 的
 `.generated/docs-content/sources/sha256-<digest>` 中准备目录、索引和阅读资产，不生成全部静态页面。
+`env/commands/campus-docs-source.env` 只用于显式覆盖本地配置或执行受信任的来源维护命令。
 
 普通应用由 `src/main.tsx` 启动，文档页面由 `src/docs-main.tsx` 补充交互。两者共享产品导航和基础
 组件，但文档组件、数据源与样式不进入普通应用入口。文档页面全部公开，不读取认证会话、运行配置或

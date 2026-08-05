@@ -31,6 +31,7 @@
 		},
 		"build:test": {
 			"inputs": [
+				"fixtures/**",
 				"index.html",
 				"package.json",
 				"scripts/build-campus-web.ts",
@@ -38,7 +39,6 @@
 				"scripts/prepare-docs-content.ts",
 				"src/**",
 				"test/build-browser-test-content.ts",
-				"test/helpers/docs-source-fixture.ts",
 				"tsconfig.json",
 				"vite.config.ts",
 				"wrangler*.toml",
@@ -59,6 +59,7 @@
 		},
 		"build:worker": {
 			"inputs": [
+				"fixtures/**",
 				"index.html",
 				"package.json",
 				"scripts/build-campus-web.ts",
@@ -66,7 +67,6 @@
 				"scripts/prepare-docs-content.ts",
 				"src/**",
 				"test/build-browser-test-content.ts",
-				"test/helpers/docs-source-fixture.ts",
 				"tsconfig.json",
 				"vite.config.ts",
 				"wrangler*.toml",
@@ -103,12 +103,12 @@
 				"e2e/**",
 				"e2e.config.ts",
 				"e2e.worker.config.ts",
+				"fixtures/**",
 				"index.html",
 				"package.json",
 				"scripts/**",
 				"src/**",
 				"test/build-browser-test-content.ts",
-				"test/helpers/docs-source-fixture.ts",
 				"tsconfig.json",
 				"vite.config.ts",
 				"wrangler*.toml",

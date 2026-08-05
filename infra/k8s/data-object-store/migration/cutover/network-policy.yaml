@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: object-store-rustfs-cutover-ingress
+  labels:
+    app.kubernetes.io/name: object-store
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: object-store
+      app.kubernetes.io/instance: rustfs
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 9000

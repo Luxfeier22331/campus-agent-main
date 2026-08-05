@@ -27,6 +27,8 @@ try {
 				!(
 					diagnosis.bucketExists &&
 					diagnosis.databaseExists &&
+					diagnosis.docsBucketExists &&
+					diagnosis.docsSourceExists &&
 					diagnosis.managedEnvironmentReady &&
 					diagnosis.sharedInfrastructureReady &&
 					diagnosis.sourceBucketExists

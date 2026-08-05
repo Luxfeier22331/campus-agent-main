@@ -7,7 +7,7 @@
 
 每个 compose 文件只负责一个本地边界：
 
-- `docker-compose.dev.yml`：共享本地 PostgreSQL 与 MinIO；
+- `docker-compose.dev.yml`：共享本地 PostgreSQL 与 RustFS；
 - `docker-compose.execution-runtime.yml`：本地 execution-control、agent-runtime、Temporal、
   Hindsight 与 runtime worker；
 - `docker-compose.execution-runtime.fanout.yml`：测试外部观测目的地时使用的可选 OTel overlay；
@@ -23,7 +23,8 @@
 
 ## 产品本地准备
 
-根目录 `pnpm dev:init` 启动共享 PostgreSQL 与 MinIO，确保共享 source bucket 和当前 worktree 的
-derived bucket 存在，安装 app-api schema，并显式执行 Dining 本地 migration 与唯一 dev seed。
+根目录 `pnpm dev:init` 启动共享 PostgreSQL 与 RustFS，确保共享 source、Campus Web 文档 bucket 和
+当前 worktree 的 derived bucket 存在，在固定文档来源缺失时写入确定性样例，安装 app-api schema，
+并显式执行 Dining 本地 migration 与唯一 dev seed。
 依赖 compose 不负责启动 app-api、Campus Web、Ops Web 或同步任务，也不在容器启动时写入业务
 seed。

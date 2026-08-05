@@ -80,7 +80,7 @@ pnpm --filter source-collector notice:status
 pnpm --filter source-collector notice:backfill -- --start-date 2026-01-01
 ```
 
-`dev:init` 启动本地 MinIO、确保共享 source bucket 存在，并生成对象存储 `.env.local`。sync 与
+`dev:init` 启动本地 RustFS、确保共享 source bucket 存在，并生成对象存储 `.env.local`。sync 与
 backfill 还需要开发者在未跟踪的 `.env` 中提供当前 TGC，status 只读对象存储状态；三者都不需要
 PostgreSQL、ingestion-control API 或 Temporal。首次同步只建立当前最大 ID；后续采集新增通知；
 历史回填必须显式提供日期。同一 `site_id` 的 sync 与 backfill 不得并发执行。通知对象和

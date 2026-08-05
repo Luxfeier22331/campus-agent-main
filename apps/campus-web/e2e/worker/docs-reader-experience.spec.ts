@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { DOCS_SOURCE_SITE_FIXTURE } from "../../test/helpers/docs-source-fixture.ts";
+import { DOCS_SOURCE_SITE_FIXTURE } from "../../fixtures/docs-source-site.ts";
 
 const { attendance } = DOCS_SOURCE_SITE_FIXTURE;
 const publicReaderPath = attendance.path;

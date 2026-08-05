@@ -45,6 +45,11 @@ status: active
 直接消费对象所需权限；对象存储品牌不进入数据合同。Kubernetes 内的写入者使用各自 S3 凭据；
 当前 App API 的 Dining 资源接口通过 Workers VPC binding 访问明确前缀，不获得 S3 凭据。
 
+对象存储管理身份在 Secret 中使用 `OBJECT_STORE_ADMIN_ACCESS_KEY` 和
+`OBJECT_STORE_ADMIN_SECRET_KEY`。部署清单只在 RustFS 容器边界把它们映射为
+`RUSTFS_ACCESS_KEY` 和 `RUSTFS_SECRET_KEY`；应用身份继续使用 source/derived 各自的
+`OBJECT_STORE_*` 键。供应商名称不进入 Secret 的稳定键名。
+
 ## 产品与来源服务
 
 | 类别 | 所有者 | 用途 |

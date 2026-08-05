@@ -13,6 +13,7 @@
 		"dev": "pnpm --dir ../.. exec tsx scripts/dev/service.ts campus-web",
 		"deploy": "pnpm exec tsx ./scripts/deploy-campus-web.ts",
 		"docs:prepare": "pnpm exec tsx ./scripts/prepare-docs-content.ts",
+		"docs:seed-local": "pnpm exec tsx ./scripts/seed-local-docs-source.ts",
 		"docs:source:clean-segmentation": "pnpm exec tsx ./scripts/hotfix-docs-reader-segmentation.ts",
 		"docs:source:update": "pnpm exec tsx ./scripts/update-docs-source.ts",
 		"upload:staging": "pnpm exec tsx ./scripts/upload-staging-version.ts",
