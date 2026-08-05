@@ -24,11 +24,12 @@ env:
 
 jobs:
   repo-checks:
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     defaults:
       run:
-        shell: nix develop .#ci-light --command bash -e {0}
+        shell: nix develop .#ci-core --command bash -e {0}
     steps:
       - name: Checkout pull request merge
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
@@ -42,22 +43,10 @@ jobs:
           install_url: https://releases.nixos.org/nix/nix-2.35.1/install
           enable_kvm: false
 
-      - name: Restore pnpm store
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
-        with:
-          path: ${{ runner.tool_cache }}/pnpm-store
-          key: source-pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.node-version', 'package.json', 'pnpm-lock.yaml', 'flake.lock') }}
-          restore-keys: |
-            source-pnpm-${{ runner.os }}-${{ runner.arch }}-
-
-      - name: Configure pnpm store
-        run: echo "npm_config_store_dir=${RUNNER_TOOL_CACHE}/pnpm-store" >> "$GITHUB_ENV"
-
-      - name: Install light validation dependencies
+      - name: Install validation dependencies
         run: |
           set -euo pipefail
-          mkdir -p "$npm_config_store_dir"
-          pnpm install --frozen-lockfile --prefer-offline \
+          pnpm install --frozen-lockfile \
             --filter campus-agent-web-workspace \
             --filter 'campus-contracts...'
 
@@ -80,9 +69,10 @@ jobs:
           has_evidence="$(jq -r '.validationProfiles | length > 0' <<< "$plan")"
           has_affected_node="$(jq -r --arg profile affected-node \
             '.validationProfiles | index($profile) != null' <<< "$plan")"
-          non_turbo_profiles="$(jq -c --arg profile affected-node \
-            '[.validationProfiles[] | select(. != $profile)]' <<< "$plan")"
-          has_non_turbo="$(jq -r 'length > 0' <<< "$non_turbo_profiles")"
+          has_dependencies="$(jq -r --arg profile dependencies \
+            '.validationProfiles | index($profile) != null' <<< "$plan")"
+          has_toolchain="$(jq -r --arg profile toolchain \
+            '.validationProfiles | index($profile) != null' <<< "$plan")"
           {
             echo "base=$base"
             echo "head=$head"
@@ -90,8 +80,8 @@ jobs:
             echo "validation_profiles=$validation_profiles"
             echo "has_evidence=$has_evidence"
             echo "has_affected_node=$has_affected_node"
-            echo "non_turbo_profiles=$non_turbo_profiles"
-            echo "has_non_turbo=$has_non_turbo"
+            echo "has_dependencies=$has_dependencies"
+            echo "has_toolchain=$has_toolchain"
           } >> "$GITHUB_OUTPUT"
           jq . <<< "$plan"
 
@@ -100,13 +90,16 @@ jobs:
           contains(fromJSON(steps.plan.outputs.light_surfaces), 'python') ||
           contains(fromJSON(steps.plan.outputs.light_surfaces), 'sql') ||
           contains(fromJSON(steps.plan.outputs.light_surfaces), 'yaml')
+        shell: nix develop .#ci-light --command bash -e {0}
         run: uv sync --only-dev --no-install-workspace
 
       - name: Run repository checks
         run: pnpm ci:repo
 
       - name: Check CI and release orchestration
-        if: contains(fromJSON(steps.plan.outputs.light_surfaces), 'release')
+        if: >-
+          contains(fromJSON(steps.plan.outputs.light_surfaces), 'release') &&
+          steps.plan.outputs.has_toolchain != 'true'
         run: pnpm ci:release
 
       - name: Check executable contracts
@@ -115,10 +108,12 @@ jobs:
 
       - name: Lint GitHub Actions
         if: contains(fromJSON(steps.plan.outputs.light_surfaces), 'config')
+        shell: nix develop .#ci-light --command bash -e {0}
         run: pnpm ci:config
 
       - name: Lint Python
         if: contains(fromJSON(steps.plan.outputs.light_surfaces), 'python')
+        shell: nix develop .#ci-light --command bash -e {0}
         run: |
           git ls-files -z -- '*.py' \
             | xargs -0 --no-run-if-empty uv run --no-sync ruff check
@@ -127,18 +122,21 @@ jobs:
 
       - name: Lint YAML
         if: contains(fromJSON(steps.plan.outputs.light_surfaces), 'yaml')
+        shell: nix develop .#ci-light --command bash -e {0}
         run: |
           git ls-files -z -- '*.yaml' '*.yml' ':(exclude)pnpm-lock.yaml' \
             | xargs -0 --no-run-if-empty uv run --no-sync yamllint -c .yamllint.yml
 
       - name: Lint SQL
         if: contains(fromJSON(steps.plan.outputs.light_surfaces), 'sql')
+        shell: nix develop .#ci-light --command bash -e {0}
         run: |
           git ls-files -z -- '*.sql' \
             | xargs -0 --no-run-if-empty uv run --no-sync sqlfluff lint --config .sqlfluff
 
       - name: Lint Shell
         if: contains(fromJSON(steps.plan.outputs.light_surfaces), 'shell')
+        shell: nix develop .#ci-light --command bash -e {0}
         run: |
           git ls-files -z -- '*.sh' \
             | xargs -0 --no-run-if-empty shellcheck -x -s bash
@@ -157,19 +155,16 @@ jobs:
 
       - name: Install affected workspaces
         if: contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-node')
-        env:
-          npm_config_store_dir: ${{ runner.tool_cache }}/pnpm-store
         run: |
           set -euo pipefail
-          mkdir -p "$npm_config_store_dir"
-          pnpm install --frozen-lockfile --prefer-offline
+          pnpm install --frozen-lockfile
 
       - name: Run affected Node evidence
         if: steps.plan.outputs.has_affected_node == 'true'
         env:
           BASE_SHA: ${{ steps.plan.outputs.base }}
           HEAD_SHA: ${{ steps.plan.outputs.head }}
-          TURBO_CACHE: "local:rw,remote:r"
+          TURBO_CACHE: "local:rw,remote:rw"
           TURBO_TEAM: ${{ vars.TURBO_TEAM }}
           TURBO_TELEMETRY_DISABLED: "1"
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
@@ -180,24 +175,31 @@ jobs:
           --head "$HEAD_SHA"
           --profiles "$VALIDATION_PROFILES"
 
-      - name: Run release and dependency evidence
-        if: steps.plan.outputs.has_non_turbo == 'true'
+      - name: Run dependency evidence
+        if: steps.plan.outputs.has_dependencies == 'true'
         env:
           BASE_SHA: ${{ steps.plan.outputs.base }}
           HEAD_SHA: ${{ steps.plan.outputs.head }}
-          VALIDATION_PROFILES: ${{ steps.plan.outputs.non_turbo_profiles }}
-        run: |
-          set -euo pipefail
-          args=(
-            --base "$BASE_SHA"
-            --head "$HEAD_SHA"
-            --profiles "$VALIDATION_PROFILES"
-          )
-          if jq -e 'index("toolchain") != null' <<< "$VALIDATION_PROFILES" >/dev/null; then
-            nix develop .#ci-release --command node --experimental-strip-types scripts/ci/evidence.mts "${args[@]}"
-          else
-            node --experimental-strip-types scripts/ci/evidence.mts "${args[@]}"
-          fi
+          VALIDATION_PROFILES: '["dependencies"]'
+        shell: nix develop .#ci-light --command bash -e {0}
+        run: >-
+          node --experimental-strip-types scripts/ci/evidence.mts
+          --base "$BASE_SHA"
+          --head "$HEAD_SHA"
+          --profiles "$VALIDATION_PROFILES"
+
+      - name: Run toolchain evidence
+        if: steps.plan.outputs.has_toolchain == 'true'
+        env:
+          BASE_SHA: ${{ steps.plan.outputs.base }}
+          HEAD_SHA: ${{ steps.plan.outputs.head }}
+          VALIDATION_PROFILES: '["toolchain"]'
+        shell: nix develop .#ci-release --command bash -e {0}
+        run: >-
+          node --experimental-strip-types scripts/ci/evidence.mts
+          --base "$BASE_SHA"
+          --head "$HEAD_SHA"
+          --profiles "$VALIDATION_PROFILES"
 
       - name: Complete stable check without affected evidence
         if: steps.plan.outputs.has_evidence != 'true'

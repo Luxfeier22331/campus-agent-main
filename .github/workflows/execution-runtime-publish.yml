@@ -48,7 +48,7 @@ jobs:
       statuses: write
     defaults:
       run:
-        shell: nix develop .#ci-light --command bash -e {0}
+        shell: nix develop .#ci-core --command bash -e {0}
     outputs:
       base: ${{ steps.plan.outputs.base }}
       head: ${{ steps.plan.outputs.head }}
@@ -68,17 +68,6 @@ jobs:
         with:
           install_url: https://releases.nixos.org/nix/nix-2.35.1/install
           enable_kvm: false
-
-      - name: Restore pnpm store
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
-        with:
-          path: ${{ runner.tool_cache }}/pnpm-store
-          key: source-pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.node-version', 'package.json', 'pnpm-lock.yaml', 'flake.lock') }}
-          restore-keys: |
-            source-pnpm-${{ runner.os }}-${{ runner.arch }}-
-
-      - name: Configure pnpm store
-        run: echo "npm_config_store_dir=${RUNNER_TOOL_CACHE}/pnpm-store" >> "$GITHUB_ENV"
 
       - name: Create GitOps read token
         id: gitops-read-token
@@ -105,8 +94,7 @@ jobs:
       - name: Install release planner dependencies
         run: |
           set -euo pipefail
-          mkdir -p "$npm_config_store_dir"
-          pnpm install --frozen-lockfile --prefer-offline \
+          pnpm install --frozen-lockfile \
             --filter campus-agent-web-workspace
 
       - name: Select release candidates
@@ -170,7 +158,7 @@ jobs:
       packages: write
     defaults:
       run:
-        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-full --command bash -e {0}
+        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-release --command bash -e {0}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
@@ -246,7 +234,7 @@ jobs:
       OPS_WEB_INTERNAL_TOKEN: ${{ secrets.OPS_WEB_INTERNAL_TOKEN }}
     defaults:
       run:
-        shell: nix develop .#ci-light --command bash -e {0}
+        shell: nix develop .#ci-core --command bash -e {0}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
@@ -259,19 +247,9 @@ jobs:
           install_url: https://releases.nixos.org/nix/nix-2.35.1/install
           enable_kvm: false
 
-      - name: Restore pnpm store
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
-        with:
-          path: ${{ runner.tool_cache }}/pnpm-store
-          key: source-pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.node-version', 'package.json', 'pnpm-lock.yaml', 'flake.lock') }}
-          restore-keys: |
-            source-pnpm-${{ runner.os }}-${{ runner.arch }}-
-
       - name: Install App API workspace
-        env:
-          npm_config_store_dir: ${{ runner.tool_cache }}/pnpm-store
         run: >-
-          pnpm install --frozen-lockfile --prefer-offline
+          pnpm install --frozen-lockfile
           --filter campus-agent-web-workspace
           --filter 'campus-contracts...'
           --filter 'app-api...'
@@ -311,7 +289,7 @@ jobs:
     environment: staging
     defaults:
       run:
-        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-light --command bash -e {0}
+        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-core --command bash -e {0}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
@@ -467,11 +445,11 @@ jobs:
           persist-credentials: false
 
       - name: Configure pnpm store
-        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-light --command bash -e {0}
+        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-core --command bash -e {0}
         run: echo "npm_config_store_dir=${RUNNER_TOOL_CACHE}/pnpm-store" >> "$GITHUB_ENV"
 
       - name: Prepare release inputs
-        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-light --command bash -e {0}
+        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-core --command bash -e {0}
         run: |
           node -e 'require("node:fs").writeFileSync("image-digests.json", "{}\n")'
           mkdir -p worker-candidates

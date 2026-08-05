@@ -8,6 +8,9 @@ import { type CommandResult, type CommandRunner, planCandidates } from "./candid
 
 const BASE = "a".repeat(40);
 const HEAD = "b".repeat(40);
+const SYNTHETIC_TREE = "c".repeat(40);
+const SYNTHETIC_BASE = "d".repeat(40);
+const SYNTHETIC_HEAD = "e".repeat(40);
 
 function result(overrides: Partial<CommandResult> = {}): CommandResult {
 	return { status: 0, stderr: "", stdout: "", ...overrides };
@@ -15,6 +18,38 @@ function result(overrides: Partial<CommandResult> = {}): CommandResult {
 
 function changed(...files: string[]): string {
 	return `${files.flatMap((file) => ["M", file]).join("\0")}\0`;
+}
+
+function syntheticScopeRunner(
+	diff: string,
+	tasks: Array<{ command: string; package: string; task: string }>,
+): CommandRunner {
+	let commitCount = 0;
+	return (command, args) => {
+		if (command === "git" && args[0] === "diff") {
+			return result({ stdout: diff });
+		}
+		if (command === "git" && args[0] === "ls-tree") {
+			return result({ stdout: `100644 blob ${SYNTHETIC_TREE}\t${args.at(-1)}\0` });
+		}
+		if (command === "git" && ["read-tree", "update-index"].includes(args[0] ?? "")) {
+			return result();
+		}
+		if (command === "git" && args[0] === "write-tree") {
+			return result({ stdout: `${SYNTHETIC_TREE}\n` });
+		}
+		if (command === "git" && args[0] === "rev-parse") {
+			return result({ stdout: `${SYNTHETIC_TREE}\n` });
+		}
+		if (command === "git" && args[0] === "commit-tree") {
+			commitCount += 1;
+			return result({ stdout: `${commitCount === 1 ? SYNTHETIC_BASE : SYNTHETIC_HEAD}\n` });
+		}
+		if (command === "pnpm") {
+			return result({ stdout: JSON.stringify({ tasks }) });
+		}
+		return result();
+	};
 }
 
 async function fixture(t: test.TestContext): Promise<string> {
@@ -89,55 +124,30 @@ test("maps Turbo affected package tasks to release candidates", async (t) => {
 
 test("task graph configuration does not publish business artifacts", async (t) => {
 	const root = await fixture(t);
-	const runner: CommandRunner = (command, args) => {
-		if (args[0] === "diff") {
-			return result({
-				stdout: changed(
-					"package.json",
-					"turbo.json",
-					"apps/execution-control/turbo.json",
-					"infra/k8s/data-object-store/base/bootstrap.yaml",
-				),
-			});
-		}
-		if (args[0] === "log") {
-			return result({ stdout: `${HEAD}\n` });
-		}
-		if (args[0] === "rev-list") {
-			return result({ stdout: `${HEAD} ${BASE}\n` });
-		}
-		if (args[0] === "rev-parse") {
-			return result({ stdout: `${BASE}\n` });
-		}
-		assert.notEqual(command, "pnpm");
-		return result();
-	};
+	const runner = syntheticScopeRunner(
+		changed(
+			"package.json",
+			"turbo.json",
+			"apps/execution-control/turbo.json",
+			"infra/k8s/data-object-store/base/bootstrap.yaml",
+		),
+		[],
+	);
 	const plan = await planCandidates(options(root), runner);
 	assert.deepEqual(plan.images, []);
 	assert.deepEqual(plan.workers, []);
 	assert.equal(plan.kubernetes, true);
 });
 
-test("maps Dockerfiles explicitly when they share a Turbo configuration commit", async (t) => {
+test("maps Turbo-owned Dockerfiles when they share a Turbo configuration commit", async (t) => {
 	const root = await fixture(t);
-	const runner: CommandRunner = (command, args) => {
-		if (args[0] === "diff") {
-			return result({
-				stdout: changed("turbo.json", "apps/agent-runtime/Dockerfile", "apps/ops-web/Dockerfile"),
-			});
-		}
-		if (args[0] === "log") {
-			return result({ stdout: `${HEAD}\n` });
-		}
-		if (args[0] === "rev-list") {
-			return result({ stdout: `${HEAD} ${BASE}\n` });
-		}
-		if (args[0] === "rev-parse") {
-			return result({ stdout: `${BASE}\n` });
-		}
-		assert.notEqual(command, "pnpm");
-		return result();
-	};
+	const runner = syntheticScopeRunner(
+		changed("turbo.json", "apps/agent-runtime/Dockerfile", "apps/ops-web/Dockerfile"),
+		[
+			{ command: "build", package: "agent-runtime", task: "build" },
+			{ command: "build", package: "ops-web", task: "build" },
+		],
+	);
 	const plan = await planCandidates(options(root), runner);
 	assert.deepEqual(plan.images, ["agent-runtime", "ops-web"]);
 	assert.deepEqual(plan.workers, []);

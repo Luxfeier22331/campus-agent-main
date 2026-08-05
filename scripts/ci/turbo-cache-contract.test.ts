@@ -18,36 +18,27 @@ function inputsFor(tasks: JsonObject, task: string): string[] {
 	return inputs as string[];
 }
 
-test("Turbo cache contracts include repository behavior inputs", () => {
+test("Turbo affected selection uses task inputs and no phantom CI tasks", () => {
 	const turbo = readJson("turbo.json");
 	const tasks = turbo.tasks as JsonObject;
 	const futureFlags = turbo.futureFlags as JsonObject;
 	assert.equal(futureFlags.affectedUsingTaskInputs, true);
+	assert.equal(
+		Object.keys(tasks).some((task) => task.startsWith("//#ci:")),
+		false,
+	);
+	assert.equal(tasks["app-api-schema#build"], undefined);
+	assert.equal(tasks["execution-control#build"], undefined);
 
-	for (const task of ["//#ci:config", "//#ci:contracts", "//#ci:release", "//#ci:repo"]) {
+	for (const task of ["build", "typecheck", "test", "test:worker"]) {
 		const inputs = inputsFor(tasks, task);
-		assert(inputs.includes("package.json"), `${task} must include package.json`);
-		assert(inputs.includes("pnpm-lock.yaml"), `${task} must include pnpm-lock.yaml`);
-		assert(inputs.includes("pnpm-workspace.yaml"), `${task} must include pnpm-workspace.yaml`);
-	}
-
-	const releaseInputs = inputsFor(tasks, "//#ci:release");
-	for (const required of [
-		".github/workflows/execution-runtime-publish.yml",
-		"docker-bake.hcl",
-		"scripts/ci/evidence.*",
-		"scripts/ci/validation.*",
-		"scripts/release/**",
-	]) {
-		assert(releaseInputs.includes(required), `release cache input missing: ${required}`);
+		assert(inputs.includes("$TURBO_DEFAULT$"), `${task} must include package defaults`);
 	}
 });
 
 test("Turbo does not cache side-effecting or environment-coupled tasks", () => {
 	const tasks = readJson("turbo.json").tasks as JsonObject;
 	for (const task of [
-		"//#ci:deps",
-		"//#ci:otel",
 		"test:migration-integration",
 		"test:database-integration",
 		"test:shared-db-integration",

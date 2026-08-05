@@ -61,6 +61,14 @@ test("maps lockfiles to dependency and toolchain checks only", () => {
 	assert.deepEqual(profiles(["apps/execution-control/go.sum"]), ["dependencies"]);
 });
 
+test("keeps release and toolchain overlap explicit for release adapter changes", () => {
+	const plan = validationPlanFromScope(scope(["scripts/release/images.mts"]), {
+		mode: "pull-request",
+	});
+	assert.deepEqual(plan.lightSurfaces, ["release"]);
+	assert.deepEqual(plan.validationProfiles, ["toolchain"]);
+});
+
 test("Dockerfiles select release tooling without pretending to build images", () => {
 	assert.deepEqual(profiles(["apps/agent-runtime/Dockerfile"]), ["toolchain"]);
 	assert.deepEqual(profiles(["docker-bake.hcl"]), ["toolchain"]);

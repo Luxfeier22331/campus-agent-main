@@ -10,7 +10,7 @@ status: active
 本文说明稳定验证入口和执行边界，不复制 GitHub Actions job、runner、Secret、镜像清单或一次性
 环境状态。
 
-- package 的 `package.json` 拥有具体检查；Turbo 拥有 package task graph、仓库级 root task 输入和缓存；
+- package 的 `package.json` 拥有具体检查；Turbo 拥有 package task graph、任务输入和缓存；
 - `scripts/ci/scope.mts` 唯一负责校验 revision、读取 Git diff 和解析 Turbo affected graph；
 - `scripts/ci/validation.mts` 唯一负责静态面与受影响 profile 选择；
 - `scripts/ci/evidence.mts` 负责 PR 和手动入口共用的 profile 执行；
@@ -26,15 +26,14 @@ status: active
 负责，不另建镜像实现清单。
 
 数据库和浏览器任务在所属 package 的 `turbo.json` 中声明边界输入。`turbo.json` 自身变化会使 Turbo
-任务定义失效；累计差异包含这类提交时，`scripts/ci/scope.mts` 按提交边界切分普通 SCM 区间，分别
-解析 affected graph 后合并去重，配置提交自身只由 hosted `ci:release` 校验任务图合同，不转换成
-全部业务 profile 或候选制品。同一差异中的基础设施、数据库、用户界面和已注册候选 Dockerfile
-仍按其明确所有权选择对应证据或制品。
+任务定义失效；累计差异包含这类提交时，`scripts/ci/scope.mts` 用 head 版本的任务图构造临时 SCM
+比较基线，只解析一次真实源码差异，不把配置变化转换成全部业务 profile 或候选制品。同一差异中的
+基础设施、数据库、用户界面和已注册候选 Dockerfile 仍按其明确所有权选择对应证据或制品。
 
-`flake.lock` 固定 source 工具链的 nixpkgs revision，`ci-light` 覆盖 hosted 静态检查和依赖扫描，
-`ci-release` 补充发布合同所需的 Docker client/Buildx，`ci-full` 只是包含重型 profile 所需 CLI 的
-Nix 工具 shell 名称，并为 uv 安装的 Python 二进制 wheel 提供 C++ runtime 搜索路径；它们都不是
-validation profile，也不会自动触发全量检查。
+`flake.lock` 固定 source 工具链的 nixpkgs revision，`ci-core` 提供普通 hosted 控制路径，`ci-light`
+在其上增加静态 lint 和依赖扫描工具，`ci-release` 再增加 Docker client/Buildx/Trivy，`ci-full` 只
+增加重型 profile 所需 CLI，并为 uv 安装的 Python 二进制 wheel 提供 C++ runtime 搜索路径；它们都
+不是 validation profile，也不会自动触发全量检查。
 Nix 不接管 `pnpm-lock.yaml`、`uv.lock`、
 `Cargo.lock` 或 Go module，也不提供 Docker daemon、PostgreSQL、Testcontainers 或 Playwright browser。
 
@@ -73,7 +72,7 @@ Nix 不接管 `pnpm-lock.yaml`、`uv.lock`、
 
 ## PR 门禁
 
-自动 PR 保留一个稳定的 `repo-checks` hosted 门禁，始终运行 `pnpm ci:repo` 和 authored commit range
+自动 PR 保留一个稳定的 `repo-checks` hosted 门禁；Draft PR 跳过 job，转为 ready 后运行。门禁始终运行 `pnpm ci:repo` 和 authored commit range
 的 Gitleaks，并按 planner 选择合同、GitHub Actions、CI 与发布编排单元测试、Python、YAML、SQL 和
 Shell 静态检查；需要时在同一个 job 一次 checkout，并在根工具链安装后串行执行 `affected-node`、
 `dependencies` 或 `toolchain`。若选择 `affected-node`，再扩展安装受影响 workspace；没有受影响 Node
@@ -119,9 +118,12 @@ artifact，也不把 dependency scan 的成功结果当作应用行为或镜像�
 - package 默认 `test`、`typecheck` 和 `build` 由所属 manifest 与 README 维护；
 - Turbo task 必须声明 package 外行为输入；integration test 与有副作用任务禁用缓存；
 - Remote Cache 缺失时正常执行，正确性不依赖 runner 的旧工作目录；
-- PR 和手动 profile 使用本地读写、远端只读的 Turbo Cache；candidate 不注入 Turbo 配置或 Turbo
-  evidence。任何 lane 都不把 Secret、对象存储内容或部署结果写入缓存；
-- 不缓存 vulnerability scan、staging check 或 release check 的成功结果，也不缓存 `node_modules`；
+- PR 和手动 profile 使用本地读写、远端读写的 Turbo Cache；缺少远端命中时仍正常执行。仓库不再
+  使用 GitHub Actions pnpm store cache；candidate 不注入 Turbo 配置或 Turbo evidence。任何 lane
+  都不把 Secret、对象存储内容或部署结果写入缓存；
+- CI 不缓存 vulnerability scan、staging check 或 release check 的通过/失败结论，也不缓存
+  `node_modules`；发布执行器允许 Trivy 通过 `--cache-dir` 复用其漏洞数据库和镜像分析缓存，数据库
+  更新仍由 Trivy 的正常策略负责；
 - 浏览器 E2E 不进入 GitHub Actions，不写入 Turbo Cache；本地入口使用应用现有的 smoke/full 命令；
 - execution-control 的 Temporal server 测试使用模块明确入口，不属于默认 `pnpm ci:go`；
 - PR 数据库 profile 只使用 disposable PostgreSQL；真实 provider、staging database、object store、

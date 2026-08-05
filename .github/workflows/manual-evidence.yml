@@ -8,7 +8,6 @@ on:
         required: true
         type: choice
         options:
-          - affected-node
           - go
           - rust
           - ragas
@@ -19,8 +18,6 @@ on:
           - ops-web-postgres
           - infra
           - otel
-          - dependencies
-          - toolchain
 
 permissions:
   contents: read
@@ -55,21 +52,10 @@ jobs:
           install_url: https://releases.nixos.org/nix/nix-2.35.1/install
           enable_kvm: false
 
-      - name: Restore pnpm store
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5
-        with:
-          path: ${{ runner.tool_cache }}/pnpm-store
-          key: source-pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.node-version', 'package.json', 'pnpm-lock.yaml', 'flake.lock') }}
-          restore-keys: |
-            source-pnpm-${{ runner.os }}-${{ runner.arch }}-
-
       - name: Install workspaces
-        env:
-          npm_config_store_dir: ${{ runner.tool_cache }}/pnpm-store
         run: |
           set -euo pipefail
-          mkdir -p "$npm_config_store_dir"
-          pnpm install --frozen-lockfile --prefer-offline
+          pnpm install --frozen-lockfile
 
       - name: Install evaluation dependencies
         if: inputs.profile == 'ragas'
@@ -88,9 +74,8 @@ jobs:
       - name: Run selected profile
         env:
           BASE_SHA: ${{ github.event.repository.default_branch }}
-          CARGO_TARGET_DIR: ${{ runner.tool_cache }}/cargo-target/campus-agent
           HEAD_SHA: ${{ github.sha }}
-          TURBO_CACHE: "local:rw,remote:r"
+          TURBO_CACHE: "local:rw,remote:rw"
           TURBO_TEAM: ${{ vars.TURBO_TEAM }}
           TURBO_TELEMETRY_DISABLED: "1"
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}

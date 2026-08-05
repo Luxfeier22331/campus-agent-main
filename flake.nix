@@ -30,41 +30,40 @@
           pnpmVersion = nixpkgs.lib.removePrefix "pnpm@" packageJson.packageManager;
           rustToolchain = builtins.fromTOML (builtins.readFile ./rust-toolchain.toml);
           tools = import ./nix/tools.nix { inherit pkgs; };
-          lightPackages = with pkgs; [
-            actionlint
+          corePackages = with pkgs; [
             gh
             gitMinimal
             gitleaks
             jq
             nodejs_24
             pnpm_10
-            python312
             ripgrep
+          ];
+          lightPackages = corePackages ++ (with pkgs; [
+            actionlint
+            python312
             shellcheck
             tools.osvScanner
             tools.uv
             tools.zizmor
-          ];
+          ]);
           releasePackages = lightPackages ++ (with pkgs; [
             docker-buildx
             docker-client
+            trivy
           ]);
-          fullPackages =
-            lightPackages
-            ++ (with pkgs; [
-              cargo
-              clippy
-              docker-buildx
-              docker-client
-              go_1_26
-              golangci-lint
-              kubectl
-              rustc
-              rustfmt
-              trivy
-              tools.conftest
-              tools.kustomize
-            ]);
+          fullPackages = releasePackages ++ (with pkgs; [
+            cargo
+            clippy
+            go_1_26
+            golangci-lint
+            kubectl
+            rustc
+            rustfmt
+            tools.conftest
+            tools.kustomize
+          ]);
+          ciCore = pkgs.mkShellNoCC { packages = corePackages; };
           ciLight = pkgs.mkShellNoCC { packages = lightPackages; };
           ciRelease = pkgs.mkShellNoCC { packages = releasePackages; };
           ciFull = pkgs.mkShellNoCC {
@@ -79,10 +78,11 @@
         assert pkgs.rustc.version == rustToolchain.toolchain.channel;
         assert pkgs.trivy.version == "0.72.0";
         {
+          ci-core = ciCore;
           ci-light = ciLight;
           ci-release = ciRelease;
           ci-full = ciFull;
-          default = ciFull;
+          default = ciCore;
         }
       );
     };

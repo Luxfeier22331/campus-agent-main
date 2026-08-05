@@ -35,6 +35,17 @@ function sourceCheckouts(workflow: unknown, jobName: string): Record<string, unk
 	);
 }
 
+function jobShell(job: unknown): string | undefined {
+	if (!(isObject(job) && isObject(job.defaults))) {
+		return;
+	}
+	const run = job.defaults.run;
+	if (!isObject(run)) {
+		return;
+	}
+	return typeof run.shell === "string" ? run.shell : undefined;
+}
+
 function environmentPrefixedConfig(value: unknown, location = "workflow"): string[] {
 	if (typeof value === "string") {
 		const match = value.match(ENVIRONMENT_PREFIXED_CONFIG);
@@ -111,13 +122,15 @@ test("pull request validation keeps one stable hosted check", async () => {
 	for (const jobName of ["repo-checks"]) {
 		const job = workflow.jobs[jobName];
 		assert(isObject(job));
+		assert.equal(job.if, "github.event.pull_request.draft == false", jobName);
 		assert.equal(job["runs-on"], "ubuntu-24.04", jobName);
 	}
 	assert(!source.includes("pull_request.head.sha }}\n          ref:"));
 	assert.equal(source.match(/TURBO_TOKEN:/gu)?.length, 1);
-	assert.equal(source.match(/TURBO_CACHE: "local:rw,remote:r"/gu)?.length, 1);
+	assert.equal(source.match(/TURBO_CACHE: "local:rw,remote:rw"/gu)?.length, 1);
 	assert(source.includes("has_affected_node"));
-	assert(source.includes("has_non_turbo"));
+	assert(source.includes("has_dependencies"));
+	assert(source.includes("has_toolchain"));
 	const repoChecks = workflow.jobs["repo-checks"];
 	assert(isObject(repoChecks));
 	assert(Array.isArray(repoChecks.steps));
@@ -130,6 +143,14 @@ test("pull request validation keeps one stable hosted check", async () => {
 	assert(planner.run.includes("index($profile) != null"));
 	assert(!planner.run.includes(String.raw`\"affected-node\"`));
 	assert(!source.includes("browser"));
+	const releaseCheck = repoChecks.steps.find(
+		(step) => isObject(step) && step.name === "Check CI and release orchestration",
+	);
+	assert(isObject(releaseCheck));
+	assert.equal(
+		releaseCheck.if,
+		"contains(fromJSON(steps.plan.outputs.light_surfaces), 'release') && steps.plan.outputs.has_toolchain != 'true'",
+	);
 });
 
 test("Source diff consumers use complete history without promisor fetches", async () => {
@@ -179,11 +200,14 @@ test("source workflows use Nix with a bounded transitional self-hosted release l
 		assert(!joined.includes(retired), retired);
 	}
 	assert(joined.includes("cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342"));
+	assert(joined.includes("nix develop .#ci-core"));
 	assert(joined.includes("nix develop .#ci-light"));
+	assert(joined.includes("nix develop .#ci-release"));
 	assert(joined.includes("nix develop .#ci-full"));
 	assert(joined.includes("nix develop ./gitops#ci-infra"));
 	assert(joined.includes("campus-agent-release"));
 	assert(joined.includes("/nix/var/nix/profiles/default/bin/nix"));
+	assert(!joined.includes("actions/cache@"));
 	const dependencies = sources[0];
 	assert(dependencies);
 	assert(dependencies.includes("nix develop .#ci-light"));
@@ -201,10 +225,13 @@ test("manual evidence exposes one hosted profile and no aggregate full mode", as
 	assert(source.includes(`VALIDATION_PROFILES: '["\${{ inputs.profile }}"]'`));
 	assert(!source.includes("browser"));
 	assert.match(source, /evidence:\n\s+runs-on: ubuntu-24\.04/u);
-	assert.equal(source.match(/TURBO_CACHE: "local:rw,remote:r"/gu)?.length, 1);
+	assert.equal(source.match(/TURBO_CACHE: "local:rw,remote:rw"/gu)?.length, 1);
+	for (const retired of ["- affected-node", "- dependencies", "- toolchain"]) {
+		assert(!source.includes(retired), retired);
+	}
 });
 
-test("Turbo cache configuration is read-only outside local writes", async () => {
+test("Turbo cache configuration can write the remote cache", async () => {
 	const workflowRoot = path.join(REPOSITORY_ROOT, ".github/workflows");
 	const [pullRequest, manual] = await Promise.all(
 		["pr.yml", "manual-evidence.yml"].map((workflow) =>
@@ -212,7 +239,7 @@ test("Turbo cache configuration is read-only outside local writes", async () => 
 		),
 	);
 	for (const source of [pullRequest, manual]) {
-		assert.match(source, /TURBO_CACHE: "local:rw,remote:r"/u);
+		assert.match(source, /TURBO_CACHE: "local:rw,remote:rw"/u);
 		assert.match(source, /TURBO_TOKEN:/u);
 		assert(!source.includes("TURBO_REMOTE_CACHE_READ_ONLY"));
 	}
@@ -306,6 +333,24 @@ test("candidate publishing uses the transitional release runner before final sta
 	assert(isObject(promote));
 	assert(Array.isArray(promote.needs));
 	assert(promote.needs.includes("candidate-status"));
+	const profileShells = new Map<string, string | undefined>([
+		["release-plan", jobShell(releasePlan)],
+		["publish-images", jobShell(workflow.jobs["publish-images"])],
+		["publish-app-api", jobShell(workflow.jobs["publish-app-api"])],
+		["publish-campus-web", jobShell(workflow.jobs["publish-campus-web"])],
+	]);
+	assert.equal(profileShells.get("release-plan"), "nix develop .#ci-core --command bash -e {0}");
+	assert.equal(
+		profileShells.get("publish-images"),
+		"/nix/var/nix/profiles/default/bin/nix develop .#ci-release --command bash -e {0}",
+	);
+	assert.equal(profileShells.get("publish-app-api"), "nix develop .#ci-core --command bash -e {0}");
+	assert.equal(
+		profileShells.get("publish-campus-web"),
+		"/nix/var/nix/profiles/default/bin/nix develop .#ci-core --command bash -e {0}",
+	);
+	assert(source.includes(`--trivy-cache "\${RUNNER_TOOL_CACHE}/trivy"`));
+	assert(!source.includes(`--trivy-cache "\${RUNNER_TEMP}/trivy"`));
 
 	const appApi = workflow.jobs["publish-app-api"];
 	assert(isObject(appApi));

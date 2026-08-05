@@ -16,9 +16,7 @@ const IMAGE_PACKAGES = new Map<string, readonly string[]>([
 ]);
 const ALL_IMAGES = [...new Set([...IMAGE_PACKAGES.values()].flat())].sort();
 const DOCKERFILE_IMAGES = new Map<string, readonly string[]>([
-	["apps/agent-runtime/Dockerfile", ["agent-runtime"]],
 	["apps/execution-control/Dockerfile", ["execution-control"]],
-	["apps/ops-web/Dockerfile", ["ops-web"]],
 	["jobs/app-api-schema/Dockerfile", ["app-api-schema"]],
 ]);
 const WORKER_PACKAGES = new Map<string, string>([

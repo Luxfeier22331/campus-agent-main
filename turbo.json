@@ -4,89 +4,6 @@
 		"affectedUsingTaskInputs": true
 	},
 	"tasks": {
-		"//#ci:config": {
-			"inputs": [
-				".github/**",
-				"flake.lock",
-				"flake.nix",
-				"nix/**",
-				"package.json",
-				"pnpm-lock.yaml",
-				"pnpm-workspace.yaml"
-			]
-		},
-		"//#ci:contracts": {
-			"inputs": [
-				"package.json",
-				"pnpm-lock.yaml",
-				"pnpm-workspace.yaml",
-				"apps/agent-runtime/src/tool-catalog.ts",
-				"apps/app-api/src/modules/integration/generated/tool-execution-contract.ts",
-				"apps/execution-control/internal/contracts/tool_execution_contract.go",
-				"configs/runtime/**",
-				"docs/contracts/schemas/**",
-				"packages/contracts/**",
-				"packages/ingestion-contracts/assertions/**",
-				"packages/ingestion-contracts/schemas/**"
-			]
-		},
-		"//#ci:deps": {
-			"cache": false,
-			"inputs": [
-				"Cargo.lock",
-				"Cargo.toml",
-				"apps/**/go.mod",
-				"apps/**/go.sum",
-				"flake.lock",
-				"flake.nix",
-				"osv-scanner.toml",
-				"package.json",
-				"packages/**/package.json",
-				"pnpm-lock.yaml",
-				"pnpm-workspace.yaml",
-				"pyproject.toml",
-				"uv.lock"
-			]
-		},
-		"//#ci:infra": {
-			"inputs": ["infra/k8s/**", "infra/policies/**", "scripts/ci/infra-check.sh"]
-		},
-		"//#ci:otel": {
-			"cache": false,
-			"inputs": ["infra/otel/**", "infra/policies/**", "scripts/ci/check-otel-config.sh"]
-		},
-		"//#ci:release": {
-			"inputs": [
-				".github/workflows/execution-runtime-publish.yml",
-				"docker-bake.hcl",
-				"package.json",
-				"pnpm-lock.yaml",
-				"pnpm-workspace.yaml",
-				"scripts/ci/check-ops-web-artifact.*",
-				"scripts/ci/evidence.*",
-				"scripts/ci/scope.*",
-				"scripts/ci/validation.*",
-				"scripts/release/**"
-			]
-		},
-		"//#ci:repo": {
-			"inputs": [
-				".editorconfig",
-				".github/**",
-				"AGENTS.md",
-				"CONTRIBUTING.md",
-				"README.md",
-				"apps/**/*.md",
-				"configs/**/*.md",
-				"docs/**",
-				"jobs/**/*.md",
-				"packages/**/*.md",
-				"package.json",
-				"pnpm-lock.yaml",
-				"pnpm-workspace.yaml",
-				"scripts/docs/**"
-			]
-		},
 		"build": {
 			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
 			"outputs": ["dist/**", ".tanstack/**"]
@@ -96,25 +13,6 @@
 				"$TURBO_DEFAULT$",
 				"$TURBO_ROOT$/configs/runtime/tool-function-schemas.v3.json",
 				"$TURBO_ROOT$/configs/runtime/tools.v6.json"
-			]
-		},
-		"app-api-schema#build": {
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"$TURBO_ROOT$/apps/app-api/db/shared-product-schema/**",
-				"$TURBO_ROOT$/apps/app-api/drizzle/**",
-				"$TURBO_ROOT$/apps/app-api/ops/db/**",
-				"$TURBO_ROOT$/apps/app-api/src/script-support/shared-db/**"
-			]
-		},
-		"execution-control#build": {
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"$TURBO_ROOT$/configs/ingestion/**",
-				"$TURBO_ROOT$/configs/runtime/query-serving-targets.v3.json",
-				"$TURBO_ROOT$/configs/runtime/tool-function-schemas.v3.json",
-				"$TURBO_ROOT$/configs/runtime/tools.v6.json",
-				"$TURBO_ROOT$/packages/contracts/fixtures/tool_execution_contract/**"
 			]
 		},
 		"ops-web#build": {
