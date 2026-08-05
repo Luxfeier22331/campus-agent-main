@@ -1,13 +1,26 @@
 import type { Hono } from "hono";
 
-import type { Env } from "../../config";
-import { AppApiRouteError, jsonResponse, withNoStore } from "../../http";
+import { type Env, readAuthShellOrigin } from "../../config";
+import { AppApiRouteError, errorEnvelope, jsonResponse, withNoStore } from "../../http";
+import { resolveEmailVerificationReturnTarget } from "../../modules/auth";
 import { requireSessionPrincipal } from "../principal";
 import { readJsonRequestBody, resolveWaitUntil } from "../request-utils";
 import type { AppRequestScope } from "../types";
 import { authenticationDependencyFailure } from "./auth-failure";
 
 const APP_AUTH_ROUTE_PREFIX = "/api/auth";
+const EMAIL_VERIFICATION_ROUTE = "/api/auth/verify-email";
+const EMAIL_VERIFICATION_RESULT_ROUTE = "/account/verify-email/result";
+const PUBLIC_EMAIL_VERIFICATION_ERRORS = new Set([
+	"EMAIL_ACCESS_REQUIRED",
+	"INVALID_TOKEN",
+	"TOKEN_EXPIRED",
+]);
+
+interface BrowserEmailVerificationContext {
+	origin: string;
+	returnTarget: string;
+}
 
 function rewriteApiAuthRequest(request: Request): Request {
 	const url = new URL(request.url);
@@ -17,6 +30,94 @@ function rewriteApiAuthRequest(request: Request): Request {
 
 	url.pathname = url.pathname.slice(APP_AUTH_ROUTE_PREFIX.length) || "/";
 	return new Request(url, request);
+}
+
+function resolveBrowserEmailVerificationContext(
+	request: Request,
+	authShellOrigin: string,
+): BrowserEmailVerificationContext | Response | undefined {
+	if (request.method !== "GET") {
+		return;
+	}
+	const url = new URL(request.url);
+	if (url.pathname !== EMAIL_VERIFICATION_ROUTE) {
+		return;
+	}
+	const callbackURLs = url.searchParams.getAll("callbackURL");
+	if (callbackURLs.length !== 1) {
+		return invalidVerificationCallbackResponse();
+	}
+	const origin = new URL(authShellOrigin).origin;
+	try {
+		return {
+			origin,
+			returnTarget: resolveEmailVerificationReturnTarget(callbackURLs[0] ?? "", origin),
+		};
+	} catch {
+		return invalidVerificationCallbackResponse();
+	}
+}
+
+function invalidVerificationCallbackResponse(): Response {
+	return jsonResponse(
+		errorEnvelope({
+			code: "invalid_verification_callback",
+			message: "Email verification callback is invalid.",
+			retryable: false,
+		}),
+		{ status: 400 },
+	);
+}
+
+function readVerificationErrorCode(response: Response, payload: unknown, origin: string): string {
+	if (response.status >= 300 && response.status < 400) {
+		const location = response.headers.get("location");
+		if (location) {
+			try {
+				return new URL(location, response.url || origin).searchParams.get("error") ?? "";
+			} catch {
+				return "";
+			}
+		}
+	}
+	if (!payload || typeof payload !== "object") {
+		return "";
+	}
+	if ("code" in payload && typeof payload.code === "string") {
+		return payload.code;
+	}
+	if (
+		"error" in payload &&
+		payload.error &&
+		typeof payload.error === "object" &&
+		"code" in payload.error &&
+		typeof payload.error.code === "string"
+	) {
+		return payload.error.code;
+	}
+	return "";
+}
+
+async function normalizeBrowserEmailVerificationResponse(
+	response: Response,
+	context: BrowserEmailVerificationContext,
+): Promise<Response> {
+	const isRedirect = response.status >= 300 && response.status < 400;
+	if (response.ok || (isRedirect && !response.headers.get("location")?.includes("error="))) {
+		return response;
+	}
+	const payload = isRedirect
+		? null
+		: await response
+				.clone()
+				.json()
+				.catch(() => null);
+	const rawCode = readVerificationErrorCode(response, payload, context.origin);
+	const errorCode = PUBLIC_EMAIL_VERIFICATION_ERRORS.has(rawCode) ? rawCode : "VERIFICATION_FAILED";
+	const resultUrl = new URL(EMAIL_VERIFICATION_RESULT_ROUTE, context.origin);
+	resultUrl.searchParams.set("error", errorCode);
+	resultUrl.searchParams.set("redirectTo", context.returnTarget);
+	return Response.redirect(resultUrl, 302);
 }
 
 export function registerAuthRoutes(input: {
@@ -36,20 +137,35 @@ export function registerAuthRoutes(input: {
 }) {
 	input.app.all("/api/auth/*", async (c) => {
 		const scope = input.createRequestScope();
+		const verificationContext = resolveBrowserEmailVerificationContext(
+			c.req.raw,
+			readAuthShellOrigin(input.env),
+		);
+		if (verificationContext instanceof Response) {
+			return withNoStore(verificationContext);
+		}
 
 		try {
+			const response = await input.authHandler(rewriteApiAuthRequest(c.req.raw), input.env, {
+				getAppAuth: scope.getAppAuth,
+			});
 			return withNoStore(
-				await input.authHandler(rewriteApiAuthRequest(c.req.raw), input.env, {
-					getAppAuth: scope.getAppAuth,
-				}),
+				verificationContext
+					? await normalizeBrowserEmailVerificationResponse(response, verificationContext)
+					: response,
 			);
 		} catch (error) {
-			return authenticationDependencyFailure({
+			const response = authenticationDependencyFailure({
 				error,
 				request: c.req.raw,
 				scope,
 				source: "auth_handler",
 			});
+			return withNoStore(
+				verificationContext
+					? await normalizeBrowserEmailVerificationResponse(response, verificationContext)
+					: response,
+			);
 		}
 	});
 

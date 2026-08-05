@@ -147,7 +147,11 @@ export function DiningPageContent() {
 					className="mt-5"
 					description="食堂地图暂时无法读取。"
 					kind="error"
-					primaryAction={<Button onClick={() => void dining.refetch()}>重试</Button>}
+					primaryAction={
+						<Button className="min-h-11" onClick={() => void dining.refetch()}>
+							重试
+						</Button>
+					}
 					secondaryAction={
 						<Button asChild variant="outline">
 							<a href="/feedback?source=dining">反馈</a>
@@ -193,7 +197,7 @@ export function DiningPageContent() {
 							<div className="flex min-h-11 flex-wrap items-center justify-between gap-2 border-border/70 border-t px-3 text-xs text-[var(--sys-text-subtle)] sm:px-4">
 								<span>更新于 {formatDiningDate(dining.data.updatedAt)}</span>
 								<a
-									className="inline-flex min-h-11 items-center text-primary hover:underline"
+									className="inline-flex min-h-11 items-center text-link hover:text-link-hover hover:underline"
 									href="/feedback?source=dining"
 								>
 									信息有误？反馈

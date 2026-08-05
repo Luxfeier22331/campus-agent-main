@@ -461,12 +461,20 @@ function pathLayerStyle(layer: DiningEditorPathLayer): {
 	strokeWidth: number;
 } {
 	if (layer === "outline") {
-		return { fill: "rgba(255, 255, 255, 0.16)", stroke: "#94a3b8", strokeWidth: 4 };
+		return {
+			fill: "var(--dining-editor-outline-fill)",
+			stroke: "var(--dining-editor-path-stroke)",
+			strokeWidth: 4,
+		};
 	}
 	if (layer === "partition") {
-		return { fill: "none", stroke: "#c3ccd2", strokeWidth: 2 };
+		return { fill: "none", stroke: "var(--dining-editor-border)", strokeWidth: 2 };
 	}
-	return { fill: "#e8edef", stroke: "#b8c3ca", strokeWidth: 2.5 };
+	return {
+		fill: "var(--dining-editor-path-fill)",
+		stroke: "var(--dining-editor-path-stroke)",
+		strokeWidth: 2.5,
+	};
 }
 
 function pathLayerLabel(layer: DiningEditorPathLayer): string {

@@ -18,6 +18,7 @@ import {
 	DialogTitle,
 	Input,
 	NativeSelect,
+	useTheme,
 } from "@campus-agent/ui";
 import { getAssetUrlsByImport } from "@tldraw/assets/imports.vite";
 import zhCnTldrawMessages from "@tldraw/assets/translations/zh-cn.json?raw";
@@ -110,6 +111,7 @@ export function DiningFloorplanEditor(props: {
 		isSnapMode: true,
 		locale: "zh-cn",
 	});
+	const { resolvedTheme } = useTheme();
 	const tldrawUser = useTldrawCurrentUser({ setUserPreferences, userPreferences });
 	const activeFloorIdRef = useRef(activeFloorId);
 	const baselineRef = useRef(
@@ -371,11 +373,12 @@ export function DiningFloorplanEditor(props: {
 						{editor ? <DiningElementList editor={editor} /> : null}
 					</aside>
 					<section aria-label="平面图画布" className="editor-stage-wrap">
-						<div className="editor-stage">
+						<div className={`editor-stage tl-theme__${resolvedTheme}`}>
 							<TldrawEditor
 								assetUrls={DINING_TLDRAW_ASSET_URLS}
 								assetUtils={DINING_TLDRAW_ASSET_UTILS}
 								components={DINING_TLDRAW_EDITOR_COMPONENTS}
+								colorScheme={resolvedTheme}
 								initialState="select"
 								onMount={setEditor}
 								options={tldrawOptions}

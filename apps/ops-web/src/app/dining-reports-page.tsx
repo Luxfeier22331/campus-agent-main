@@ -1,5 +1,5 @@
 import type { DiningOpsReportRecord, DiningReportReason } from "@campus-agent/dining/domain";
-import { Badge, Button, cn } from "@campus-agent/ui";
+import { Badge, Button, Tabs, TabsContent, TabsList, TabsTrigger } from "@campus-agent/ui";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { EyeOff, RefreshCw, ShieldCheck } from "lucide-react";
 import { useState } from "react";
@@ -37,7 +37,6 @@ export function DiningReportsPage() {
 		setCursor(undefined);
 		setPreviousCursors([]);
 	};
-
 	if (!reports.data) {
 		return (
 			<div className="mx-auto w-full max-w-[1600px]">
@@ -54,6 +53,28 @@ export function DiningReportsPage() {
 			</div>
 		);
 	}
+	const reportData = reports.data;
+	const renderReportsPanel = (panelStatus: ReportStatus) => (
+		<ReportsPanel
+			hasNextPage={Boolean(reportData.nextCursor)}
+			hasPreviousPage={previousCursors.length > 0}
+			isFetching={reports.isFetching}
+			onNextPage={() => {
+				setPreviousCursors((values) => [...values, cursor]);
+				setCursor(reportData.nextCursor ?? undefined);
+			}}
+			onPreviousPage={() => {
+				const previous = [...previousCursors];
+				setCursor(previous.pop());
+				setPreviousCursors(previous);
+			}}
+			onResolve={(input) => resolve.mutate(input)}
+			reports={reportData}
+			resolveError={resolve.error}
+			isResolving={resolve.isPending}
+			status={panelStatus}
+		/>
+	);
 
 	return (
 		<section className="mx-auto w-full max-w-[1600px]">
@@ -74,28 +95,58 @@ export function DiningReportsPage() {
 				title="举报处理"
 			/>
 
-			<fieldset className="mb-4 inline-flex rounded-md border border-input bg-background p-1">
-				<legend className="sr-only">举报状态</legend>
-				{(["pending", "resolved"] as const).map((value) => (
-					<Button
-						aria-pressed={status === value}
-						className={cn("min-h-9 border-0 px-3 py-1", status !== value && "bg-transparent")}
-						key={value}
-						onClick={() => changeStatus(value)}
-						variant={status === value ? "primary" : "ghost"}
-					>
-						{value === "pending" ? "待处理" : "已处理"}
-					</Button>
-				))}
-			</fieldset>
+			<Tabs
+				className="mt-5"
+				onValueChange={(value) => changeStatus(value as ReportStatus)}
+				value={status}
+			>
+				<TabsList aria-label="举报状态">
+					<TabsTrigger value="pending">待处理</TabsTrigger>
+					<TabsTrigger value="resolved">已处理</TabsTrigger>
+				</TabsList>
+				<TabsContent className="mt-5" value="pending">
+					{status === "pending" ? renderReportsPanel("pending") : null}
+				</TabsContent>
+				<TabsContent className="mt-5" value="resolved">
+					{status === "resolved" ? renderReportsPanel("resolved") : null}
+				</TabsContent>
+			</Tabs>
+		</section>
+	);
+}
 
-			{resolve.error ? (
+function ReportsPanel({
+	hasNextPage,
+	hasPreviousPage,
+	isFetching,
+	isResolving,
+	onNextPage,
+	onPreviousPage,
+	onResolve,
+	reports,
+	resolveError,
+	status,
+}: {
+	hasNextPage: boolean;
+	hasPreviousPage: boolean;
+	isFetching: boolean;
+	isResolving: boolean;
+	onNextPage: () => void;
+	onPreviousPage: () => void;
+	onResolve: (input: { resolution: "hide" | "keep"; reviewId: string }) => void;
+	reports: Awaited<ReturnType<typeof fetchDiningReports>>;
+	resolveError: unknown;
+	status: ReportStatus;
+}) {
+	return (
+		<>
+			{resolveError ? (
 				<div className="mb-4">
-					<InlineError error={resolve.error} title="举报处理失败" />
+					<InlineError error={resolveError} title="举报处理失败" />
 				</div>
 			) : null}
 
-			{reports.data.items.length === 0 ? (
+			{reports.items.length === 0 ? (
 				<div className="border-border border-y py-10 text-center text-muted-foreground text-sm">
 					{status === "pending" ? "当前没有待处理举报。" : "当前没有已处理举报。"}
 				</div>
@@ -159,11 +210,11 @@ export function DiningReportsPage() {
 											confirmVariant="primary"
 											description="评价保持当前公开状态，并关闭该评价的全部待处理举报。"
 											onConfirm={() =>
-												resolve.mutate({ resolution: "keep", reviewId: report.review.reviewId })
+												onResolve({ resolution: "keep", reviewId: report.review.reviewId })
 											}
 											title="保留这条评价？"
 											trigger={
-												<Button disabled={resolve.isPending} variant="outline">
+												<Button disabled={isResolving} variant="outline">
 													<ShieldCheck className="size-4" />
 													保留
 												</Button>
@@ -173,11 +224,11 @@ export function DiningReportsPage() {
 											confirmLabel="隐藏评价"
 											description="评价会从学生端隐藏，并关闭该评价的全部待处理举报。"
 											onConfirm={() =>
-												resolve.mutate({ resolution: "hide", reviewId: report.review.reviewId })
+												onResolve({ resolution: "hide", reviewId: report.review.reviewId })
 											}
 											title="隐藏这条评价？"
 											trigger={
-												<Button disabled={resolve.isPending} variant="destructive">
+												<Button disabled={isResolving} variant="destructive">
 													<EyeOff className="size-4" />
 													隐藏
 												</Button>
@@ -188,7 +239,7 @@ export function DiningReportsPage() {
 							header: "处理",
 						},
 					]}
-					data={reports.data.items}
+					data={reports.items}
 					minWidth="1120px"
 					rowKey={(report) => report.reportId}
 					stickyFirstColumn
@@ -198,28 +249,17 @@ export function DiningReportsPage() {
 
 			<div className="mt-4 flex justify-end gap-2">
 				<Button
-					disabled={previousCursors.length === 0 || reports.isFetching}
-					onClick={() => {
-						const previous = [...previousCursors];
-						setCursor(previous.pop());
-						setPreviousCursors(previous);
-					}}
+					disabled={!hasPreviousPage || isFetching}
+					onClick={onPreviousPage}
 					variant="outline"
 				>
 					上一页
 				</Button>
-				<Button
-					disabled={!reports.data.nextCursor || reports.isFetching}
-					onClick={() => {
-						setPreviousCursors((values) => [...values, cursor]);
-						setCursor(reports.data?.nextCursor ?? undefined);
-					}}
-					variant="outline"
-				>
+				<Button disabled={!hasNextPage || isFetching} onClick={onNextPage} variant="outline">
 					下一页
 				</Button>
 			</div>
-		</section>
+		</>
 	);
 }
 

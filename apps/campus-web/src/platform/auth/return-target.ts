@@ -10,14 +10,23 @@ const CAMPUS_RETURN_EXACT_PATHS = new Set([
 	"/groups",
 	"/feedback",
 	"/account",
-	"/account/login",
-	"/account/register",
-	"/account/forgot-password",
-	"/account/reset-password",
-	"/account/deletion",
+	"/account/settings/account",
+	"/account/settings/memory",
+	"/account/settings/security",
 	"/account/federation/consent",
 	"/account/federation/error",
+	"/legal/privacy",
+	"/legal/terms",
 ]);
+
+const AUTH_VIEW_PATHS = {
+	forgotPassword: "/account/forgot-password",
+	login: "/account/login",
+	register: "/account/register",
+	verifyEmail: "/account/verify-email",
+} as const;
+
+export type CampusAuthViewName = keyof typeof AUTH_VIEW_PATHS;
 
 export function resolveAccountAuthReturnOrigins(_config?: unknown): AccountAuthReturnOrigins {
 	return {
@@ -30,6 +39,21 @@ export function isCampusReturnPath(pathname: string): boolean {
 		CAMPUS_RETURN_EXACT_PATHS.has(pathname) ||
 		CAMPUS_RETURN_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix))
 	);
+}
+
+export function buildAuthViewHref(
+	view: CampusAuthViewName,
+	options: {
+		currentOrigin?: string;
+		redirectTo?: string;
+	} = {},
+): string {
+	const redirectTo = resolveAccountAuthReturnTarget(
+		new URLSearchParams({ redirectTo: options.redirectTo ?? DEFAULT_RETURN_TARGET }),
+		{ currentOrigin: options.currentOrigin },
+	);
+	const search = new URLSearchParams({ redirectTo });
+	return `${AUTH_VIEW_PATHS[view]}?${search.toString()}`;
 }
 
 export function resolveAccountAuthReturnTarget(

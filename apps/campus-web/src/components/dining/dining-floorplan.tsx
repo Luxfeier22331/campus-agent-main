@@ -4,6 +4,7 @@ import { LoaderCircle } from "lucide-react";
 import { lazy, memo, Suspense, useLayoutEffect, useMemo, useRef } from "react";
 import type { DiningFloorResponse, DiningWindowProjection } from "@/features/dining/model";
 import { diningFloorplanAssetQueryOptions } from "@/features/dining/queries";
+import { cn } from "@/lib/utils";
 
 interface InteractiveFloorplanProps {
 	floor: DiningFloorResponse;
@@ -32,7 +33,14 @@ export function InteractiveFloorplan(props: InteractiveFloorplanProps) {
 	}
 	if (query.isError) {
 		return (
-			<DiningFloorplanUnavailable aspectRatio={aspectRatio} onRetry={() => void query.refetch()} />
+			<DiningFloorplanUnavailable
+				aspectRatio={aspectRatio}
+				matchedWindowIds={props.matchedWindowIds}
+				onRetry={() => void query.refetch()}
+				onSelectWindow={props.onSelectWindow}
+				selectedWindowId={props.selectedWindowId}
+				windows={props.windows}
+			/>
 		);
 	}
 	return <ResolvedInteractiveFloorplan {...props} rawMarkup={query.data} />;
@@ -56,20 +64,68 @@ function DiningFloorplanLoading({ aspectRatio }: { aspectRatio: string }) {
 	);
 }
 
-function DiningFloorplanUnavailable(props: { aspectRatio: string; onRetry?: () => void }) {
+function DiningFloorplanUnavailable(props: {
+	aspectRatio: string;
+	matchedWindowIds: ReadonlySet<string> | null;
+	onRetry?: () => void;
+	onSelectWindow(windowId: string): void;
+	selectedWindowId: string | null;
+	windows: DiningWindowProjection[];
+}) {
+	const visibleWindows =
+		props.matchedWindowIds === null
+			? props.windows
+			: props.windows.filter((window) => props.matchedWindowIds?.has(window.windowId));
 	return (
-		<div
-			className="grid min-h-56 place-content-center gap-2 bg-destructive/5 px-5 text-center"
-			role="alert"
+		<section
+			aria-label="平面图降级窗口列表"
+			className="min-h-56 bg-destructive/5 px-4 py-5 sm:px-5"
 			style={{ aspectRatio: props.aspectRatio }}
 		>
-			<h3 className="text-sm font-semibold text-[var(--sys-text-strong)]">平面图暂时无法显示</h3>
-			{props.onRetry ? (
-				<Button className="mx-auto mt-1" onClick={props.onRetry} size="sm" variant="outline">
-					重试
-				</Button>
-			) : null}
-		</div>
+			<div className="text-center" role="alert">
+				<h3 className="text-sm font-semibold text-[var(--sys-text-strong)]">平面图暂时无法显示</h3>
+				<p className="mt-1 text-sm text-[var(--sys-text-muted)]">仍可从列表选择窗口。</p>
+				{props.onRetry ? (
+					<Button
+						className="mx-auto mt-3 min-h-11"
+						onClick={props.onRetry}
+						size="sm"
+						variant="outline"
+					>
+						重试
+					</Button>
+				) : null}
+			</div>
+			<div className="mx-auto mt-4 w-full max-w-xl border-border/70 border-t pt-3">
+				<p className="text-xs font-medium text-[var(--sys-text-subtle)]">窗口列表</p>
+				{visibleWindows.length > 0 ? (
+					<ul className="mt-2 grid list-none grid-cols-1 gap-1 p-0 sm:grid-cols-2">
+						{visibleWindows.map((window) => {
+							const selected = window.windowId === props.selectedWindowId;
+							return (
+								<li key={window.windowId}>
+									<Button
+										aria-pressed={selected}
+										className={cn(
+											"min-h-11 w-full min-w-0 justify-start px-3 text-left",
+											selected && "bg-selected text-selected-foreground hover:bg-selected-hover",
+										)}
+										onClick={() => props.onSelectWindow(window.windowId)}
+										variant="ghost"
+									>
+										<span className="truncate">{window.name}</span>
+									</Button>
+								</li>
+							);
+						})}
+					</ul>
+				) : (
+					<p className="py-4 text-center text-sm text-[var(--sys-text-muted)]" role="status">
+						{props.windows.length > 0 ? "没有匹配的窗口" : "当前楼层暂无窗口"}
+					</p>
+				)}
+			</div>
+		</section>
 	);
 }
 
@@ -89,6 +145,10 @@ function ResolvedInteractiveFloorplan({
 		return (
 			<DiningFloorplanUnavailable
 				aspectRatio={`${floor.floor.floorplan.canvas.width} / ${floor.floor.floorplan.canvas.height}`}
+				matchedWindowIds={matchedWindowIds}
+				onSelectWindow={onSelectWindow}
+				selectedWindowId={selectedWindowId}
+				windows={windows}
 			/>
 		);
 	}
@@ -357,9 +417,9 @@ function appendDiningFloorplanInteractionStyles(document: Document): void {
 	style.textContent = `
 .dining-svg-anchor { outline: none; transition: opacity 140ms ease-out; }
 .dining-svg-anchor-hit { transition: fill 140ms ease-out, stroke-width 140ms ease-out; }
-.wayfinding-window-label { fill: #263442; font-size: 16px; font-weight: 650; }
-.dining-svg-anchor.is-selected .dining-svg-anchor-hit { fill: var(--sys-brand-interactive-subtle); stroke: var(--sys-brand-interactive); stroke-width: 3px; }
-.dining-svg-anchor[role="button"]:not(.is-dimmed):is(:hover, :focus-visible) .dining-svg-anchor-hit { stroke: var(--sys-brand-interactive); stroke-width: 3px; }
+.wayfinding-window-label { fill: var(--sys-text-default); font-size: 16px; font-weight: 650; }
+.dining-svg-anchor.is-selected .dining-svg-anchor-hit { fill: var(--sys-surface-selected); stroke: var(--sys-border-selected); stroke-width: 3px; }
+.dining-svg-anchor[role="button"]:not(.is-dimmed):is(:hover, :focus-visible) .dining-svg-anchor-hit { stroke: var(--sys-border-selected); stroke-width: 3px; }
 .dining-svg-anchor[role="button"]:not(.is-dimmed):focus-visible .dining-svg-anchor-hit { stroke-width: 5px; }
 @media (max-width: 639px) { [data-dining-anchor-label] { font-size: 14px; } }
 @media (prefers-reduced-motion: reduce) { .dining-svg-anchor, .dining-svg-anchor-hit { transition: none; } }

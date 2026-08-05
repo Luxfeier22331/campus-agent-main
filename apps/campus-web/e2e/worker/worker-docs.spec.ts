@@ -27,13 +27,15 @@ test.describe("campus web static docs browser boundary", () => {
 		expect(response?.status()).toBe(200);
 		await expect(page).toHaveURL("/docs");
 		await expect(page.getByRole("heading", { level: 1, name: "校园文档" })).toBeVisible();
-		await expect(page.getByRole("button", { name: "校园生活" })).toHaveAttribute(
-			"aria-expanded",
-			"true",
-		);
-		await expect(
-			page.getByLabel("文档目录侧栏").getByRole("link", { name: "学生考勤管理规定" }),
-		).toBeVisible();
+		const studentLifeGroup = page.getByRole("button", { name: "校园生活" });
+		const attendanceDocument = page
+			.getByLabel("文档目录侧栏")
+			.getByRole("link", { name: "学生考勤管理规定" });
+		await expect(studentLifeGroup).toHaveAttribute("aria-expanded", "false");
+		await expect(attendanceDocument).toBeHidden();
+		await studentLifeGroup.click();
+		await expect(studentLifeGroup).toHaveAttribute("aria-expanded", "true");
+		await expect(attendanceDocument).toBeVisible();
 		await expect(page.locator(".docs-outline-panel")).toHaveCount(0);
 		await expect(page.locator('[data-campus-prerendered="docs"]')).toHaveCount(1);
 	});

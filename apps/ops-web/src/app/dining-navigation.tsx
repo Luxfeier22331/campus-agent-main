@@ -28,7 +28,7 @@ export function DiningTaskNavigation() {
 							className={cn(
 								"min-h-11 border-b-2 px-4 py-3 font-medium text-sm",
 								active
-									? "border-primary text-foreground"
+									? "border-border-selected text-selected-foreground"
 									: "border-transparent text-muted-foreground hover:text-foreground",
 							)}
 							key={task.href}

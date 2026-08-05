@@ -31,62 +31,68 @@ const InterestGroupsPage = lazy(() =>
 		default: module.InterestGroupsPage,
 	})),
 );
-const AccountPage = lazy(() =>
-	import("./routes/account-page").then((module) => ({ default: module.AccountPage })),
+const LazyAccountAuthPage = lazy(() =>
+	import("./routes/account-page").then((module) => ({ default: module.AccountAuthPage })),
 );
-const AccountLoginPage = lazy(() =>
-	import("./routes/account-page").then((module) => ({
-		default: () => <module.AccountAuthPage view="signIn" />,
-	})),
+const LazyAccountSettingsPage = lazy(() =>
+	import("./routes/account-page").then((module) => ({ default: module.AccountSettingsPage })),
 );
-const AccountRegisterPage = lazy(() =>
-	import("./routes/account-page").then((module) => ({
-		default: () => <module.AccountAuthPage view="signUp" />,
-	})),
-);
-const AccountForgotPasswordPage = lazy(() =>
-	import("./routes/account-page").then((module) => ({
-		default: () => <module.AccountAuthPage view="forgotPassword" />,
-	})),
-);
-const AccountResetPasswordPage = lazy(() =>
-	import("./routes/account-page").then((module) => ({
-		default: () => <module.AccountAuthPage view="resetPassword" />,
-	})),
-);
-const AccountResetLinkSentPage = lazy(() =>
-	import("./routes/account-page").then((module) => ({
-		default: () => <module.AccountAuthPage view="resetLinkSent" />,
-	})),
-);
-const AccountVerifyEmailPage = lazy(() =>
-	import("./routes/account-page").then((module) => ({
-		default: () => <module.AccountAuthPage view="verifyEmail" />,
-	})),
-);
-const AccountSignOutPage = lazy(() =>
-	import("./routes/account-page").then((module) => ({
-		default: () => <module.AccountAuthPage view="signOut" />,
-	})),
-);
+
+function AccountPage() {
+	return <LazyAccountSettingsPage view="account" />;
+}
+
+function AccountLoginPage() {
+	return <LazyAccountAuthPage view="signIn" />;
+}
+
+function AccountRegisterPage() {
+	return <LazyAccountAuthPage view="signUp" />;
+}
+
+function AccountForgotPasswordPage() {
+	return <LazyAccountAuthPage view="forgotPassword" />;
+}
+
+function AccountResetPasswordPage() {
+	return <LazyAccountAuthPage view="resetPassword" />;
+}
+
+function AccountResetLinkSentPage() {
+	return <LazyAccountAuthPage view="resetLinkSent" />;
+}
+
+function AccountVerifyEmailPage() {
+	return <LazyAccountAuthPage view="verifyEmail" />;
+}
+
+function AccountVerifyEmailResultPage() {
+	return <LazyAccountAuthPage view="verifyEmailResult" />;
+}
+
+function AccountResetCompletePage() {
+	return <LazyAccountAuthPage view="resetComplete" />;
+}
+
+function AccountChangePasswordPage() {
+	return <LazyAccountAuthPage view="changePassword" />;
+}
 const AccountDeletionPage = lazy(() =>
 	import("./routes/account-deletion-page").then((module) => ({
 		default: module.AccountDeletionPage,
 	})),
 );
-const AccountSettingsPage = lazy(() =>
-	import("./routes/account-page").then((module) => ({
-		default: () => <module.AccountSettingsPage view="account" />,
-	})),
-);
-const AccountSecurityPage = lazy(() =>
-	import("./routes/account-page").then((module) => ({
-		default: () => <module.AccountSettingsPage view="security" />,
-	})),
-);
-const AccountMemoryPage = lazy(() =>
-	import("./routes/account-page").then((module) => ({ default: module.AccountMemoryPage })),
-);
+function AccountSettingsPage() {
+	return <LazyAccountSettingsPage view="account" />;
+}
+
+function AccountSecurityPage() {
+	return <LazyAccountSettingsPage view="security" />;
+}
+
+function AccountMemoryPage() {
+	return <LazyAccountSettingsPage view="memory" />;
+}
 const FederationConsentPage = lazy(() =>
 	import("./routes/federation-pages").then((module) => ({ default: module.FederationConsentPage })),
 );
@@ -166,42 +172,73 @@ const accountLoginRoute = createRoute({
 	component: AccountLoginPage,
 	getParentRoute: () => rootRoute,
 	path: "/account/login",
+	validateSearch: validateAccountRedirectSearch,
 });
 
 const accountRegisterRoute = createRoute({
 	component: AccountRegisterPage,
 	getParentRoute: () => rootRoute,
 	path: "/account/register",
+	validateSearch: (search: Record<string, unknown>) => ({
+		email: optionalAuthSearchValue(search.email, 320),
+		redirectTo: optionalAuthSearchValue(search.redirectTo),
+	}),
 });
 
 const accountForgotPasswordRoute = createRoute({
 	component: AccountForgotPasswordPage,
 	getParentRoute: () => rootRoute,
 	path: "/account/forgot-password",
+	validateSearch: validateAccountRedirectSearch,
 });
 
 const accountResetPasswordRoute = createRoute({
 	component: AccountResetPasswordPage,
 	getParentRoute: () => rootRoute,
 	path: "/account/reset-password",
+	validateSearch: (search: Record<string, unknown>) => ({
+		error: optionalAuthSearchValue(search.error, 128),
+		redirectTo: optionalAuthSearchValue(search.redirectTo),
+		token: optionalAuthSearchValue(search.token, 2048),
+	}),
 });
 
 const accountResetLinkSentRoute = createRoute({
 	component: AccountResetLinkSentPage,
 	getParentRoute: () => rootRoute,
 	path: "/account/reset-link-sent",
+	validateSearch: validateAccountRedirectSearch,
 });
 
 const accountVerifyEmailRoute = createRoute({
 	component: AccountVerifyEmailPage,
 	getParentRoute: () => rootRoute,
 	path: "/account/verify-email",
+	validateSearch: validateAccountRedirectSearch,
 });
 
-const accountSignOutRoute = createRoute({
-	component: AccountSignOutPage,
+const accountVerifyEmailResultRoute = createRoute({
+	component: AccountVerifyEmailResultPage,
 	getParentRoute: () => rootRoute,
-	path: "/account/sign-out",
+	path: "/account/verify-email/result",
+	validateSearch: (search: Record<string, unknown>) => ({
+		error: optionalAuthSearchValue(search.error, 128),
+		redirectTo: optionalAuthSearchValue(search.redirectTo),
+	}),
+});
+
+const accountResetCompleteRoute = createRoute({
+	component: AccountResetCompletePage,
+	getParentRoute: () => rootRoute,
+	path: "/account/reset-complete",
+	validateSearch: validateAccountRedirectSearch,
+});
+
+const accountChangePasswordRoute = createRoute({
+	component: AccountChangePasswordPage,
+	getParentRoute: () => rootRoute,
+	path: "/account/change-password",
+	validateSearch: validateAccountRedirectSearch,
 });
 
 const accountDeletionRoute = createRoute({
@@ -269,7 +306,9 @@ const routeTree = rootRoute.addChildren([
 	accountResetPasswordRoute,
 	accountResetLinkSentRoute,
 	accountVerifyEmailRoute,
-	accountSignOutRoute,
+	accountVerifyEmailResultRoute,
+	accountResetCompleteRoute,
+	accountChangePasswordRoute,
 	accountDeletionRoute,
 	accountSettingsRoute,
 	accountSecurityRoute,
@@ -303,7 +342,17 @@ function optionalDiningSearchParam(value: unknown): string | undefined {
 }
 
 function optionalAccountRedirect(value: unknown): string | undefined {
-	return typeof value === "string" && value.startsWith("/") && !value.startsWith("//")
-		? value
-		: undefined;
+	return optionalAuthSearchValue(value);
+}
+
+function optionalAuthSearchValue(value: unknown, maxLength = 2048): string | undefined {
+	if (typeof value !== "string") {
+		return;
+	}
+	const normalized = value.trim();
+	return normalized && normalized.length <= maxLength ? normalized : undefined;
+}
+
+function validateAccountRedirectSearch(search: Record<string, unknown>) {
+	return { redirectTo: optionalAccountRedirect(search.redirectTo) };
 }

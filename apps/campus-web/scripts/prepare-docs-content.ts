@@ -1,5 +1,13 @@
 import { randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import {
+	copyFileSync,
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	renameSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -28,6 +36,8 @@ import {
 } from "../src/docs-reader-build/sync-campus-published-reader.ts";
 
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const THEME_BOOTSTRAP_SOURCE = resolve(APP_ROOT, "../../packages/ui/src/theme-bootstrap.js");
+const THEME_BOOTSTRAP_FILE = "theme-bootstrap.js";
 
 export interface PrepareDocsContentArgs {
 	pages: boolean;
@@ -94,6 +104,7 @@ export async function prepareDocsContent(
 			publicRoot: paths.publicRoot,
 		});
 	}
+	ensureThemeBootstrap(paths.publicRoot);
 	return paths;
 }
 
@@ -144,6 +155,7 @@ async function populateContent(input: {
 		manifest: compiled.manifest,
 		targetRoot: input.paths.publicRoot,
 	});
+	ensureThemeBootstrap(input.paths.publicRoot);
 	if (input.pages) {
 		await writeNativeDocsHtmlPages({
 			generatedRoot: input.paths.generatedRoot,
@@ -151,6 +163,11 @@ async function populateContent(input: {
 			publicRoot: input.paths.publicRoot,
 		});
 	}
+}
+
+function ensureThemeBootstrap(publicRoot: string): void {
+	mkdirSync(publicRoot, { recursive: true });
+	copyFileSync(THEME_BOOTSTRAP_SOURCE, resolve(publicRoot, THEME_BOOTSTRAP_FILE));
 }
 
 async function readCurrentDocsSource(client: ReaderObjectStoreClient): Promise<Uint8Array> {

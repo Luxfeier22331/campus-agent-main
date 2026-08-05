@@ -90,7 +90,7 @@ export function ProfileMemorySettings() {
 						<button
 							aria-checked={memory.lifecycleState === "active"}
 							className={cn(
-								"relative h-7 w-12 shrink-0 rounded-full border transition-colors",
+								"relative h-7 w-12 shrink-0 rounded-full border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
 								memory.lifecycleState === "active"
 									? "border-primary bg-primary"
 									: "border-border bg-muted",
@@ -102,7 +102,7 @@ export function ProfileMemorySettings() {
 						>
 							<span
 								className={cn(
-									"absolute top-0.5 size-5 rounded-full bg-white shadow transition-transform",
+									"absolute top-0.5 size-5 rounded-full bg-primary-foreground shadow transition-transform",
 									memory.lifecycleState === "active" ? "translate-x-5" : "translate-x-0.5",
 								)}
 							/>

@@ -32,7 +32,7 @@ export function DiningWindowDetail(props: {
 				data-testid="dining-window-detail"
 			>
 				<h2 className="text-sm font-semibold text-[var(--sys-text-strong)]">选择窗口</h2>
-				<p className="text-sm text-[var(--sys-text-muted)]">在地图上选择一个窗口。</p>
+				<p className="text-sm text-[var(--sys-text-muted)]">选择一个窗口查看菜单。</p>
 			</section>
 		);
 	}
@@ -41,13 +41,13 @@ export function DiningWindowDetail(props: {
 			<h2 className="text-xl font-semibold text-[var(--sys-text-strong)]">{props.window.name}</h2>
 			{props.floorLabel ? (
 				<p className="mt-2 flex items-center gap-1.5 text-sm text-[var(--sys-text-muted)]">
-					<MapPin aria-hidden="true" className="size-4 shrink-0 text-primary" />
+					<MapPin aria-hidden="true" className="size-4 shrink-0 text-selected-foreground" />
 					<span>{props.floorLabel}</span>
 				</p>
 			) : null}
 			<div className="mt-5 border-border border-t pt-4">
 				<div className="flex items-center gap-2">
-					<Utensils className="size-4 text-primary" />
+					<Utensils className="size-4 text-selected-foreground" />
 					<h3 className="text-sm font-semibold">菜单</h3>
 				</div>
 				{menu.isPending ? (
@@ -59,7 +59,7 @@ export function DiningWindowDetail(props: {
 					<div className="py-6 text-center">
 						<p className="text-destructive text-sm">菜单暂时无法读取。</p>
 						<Button
-							className="mt-3"
+							className="mt-3 min-h-11"
 							onClick={() => void menu.refetch()}
 							size="sm"
 							variant="outline"
@@ -74,7 +74,7 @@ export function DiningWindowDetail(props: {
 						{menu.data.items.map((item: DiningMenuItem) => (
 							<li key={item.menuItemId}>
 								<button
-									className="flex min-h-14 w-full items-center gap-3 py-2 text-left hover:text-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+									className="flex min-h-14 w-full items-center gap-3 py-2 text-left hover:text-link focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 									onClick={() => props.onSelectMenuItem(item.menuItemId)}
 									type="button"
 								>

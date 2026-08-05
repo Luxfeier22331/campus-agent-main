@@ -1,5 +1,5 @@
 import { cva, type VariantProps } from "class-variance-authority";
-import type * as React from "react";
+import { createElement, type HTMLAttributes } from "react";
 import { cn } from "./cn";
 
 export const badgeVariants = cva(
@@ -8,10 +8,10 @@ export const badgeVariants = cva(
 		variants: {
 			tone: {
 				neutral: "border-border bg-secondary text-secondary-foreground",
-				info: "border-transparent bg-primary text-primary-foreground shadow hover:bg-primary/80",
-				success: "border-success/20 bg-success-subtle text-success",
-				warning: "border-warning/20 bg-warning-subtle text-warning",
-				danger: "border-danger/20 bg-danger-subtle text-danger",
+				info: "border-info-border bg-info-subtle text-info",
+				success: "border-success-border bg-success-subtle text-success",
+				warning: "border-warning-border bg-warning-subtle text-warning",
+				danger: "border-danger-border bg-danger-subtle text-danger",
 			},
 		},
 		defaultVariants: { tone: "neutral" },
@@ -19,9 +19,13 @@ export const badgeVariants = cva(
 );
 
 export interface BadgeProps
-	extends React.HTMLAttributes<HTMLSpanElement>,
+	extends HTMLAttributes<HTMLSpanElement>,
 		VariantProps<typeof badgeVariants> {}
 
 export function Badge({ className, tone, ...props }: BadgeProps) {
-	return <span className={cn(badgeVariants({ className, tone }))} data-slot="badge" {...props} />;
+	return createElement("span", {
+		className: cn(badgeVariants({ className, tone })),
+		"data-slot": "badge",
+		...props,
+	});
 }

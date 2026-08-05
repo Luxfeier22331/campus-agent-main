@@ -1,3 +1,4 @@
+import { cn, useTheme } from "@campus-agent/ui";
 import * as RadixDialog from "@radix-ui/react-dialog";
 import {
 	Armchair,
@@ -43,7 +44,6 @@ import {
 	useTools,
 	useValue,
 } from "tldraw";
-
 import {
 	DINING_ALLOWED_ACTION_IDS,
 	duplicateDiningSelection,
@@ -243,6 +243,7 @@ function DiningDialog({
 	component: React.ComponentType<TLUiDialogProps>;
 	preventBackgroundClose?: boolean;
 }) {
+	const { resolvedTheme } = useTheme();
 	const { removeDialog } = useDialogs();
 	const handleOpenChange = useCallback(
 		(isOpen: boolean) => {
@@ -255,7 +256,9 @@ function DiningDialog({
 	return (
 		<RadixDialog.Root defaultOpen onOpenChange={handleOpenChange}>
 			<RadixDialog.Portal>
-				<div className="tl-container tl-theme__light dining-tldraw-dialog-portal">
+				<div
+					className={cn("tl-container dining-tldraw-dialog-portal", `tl-theme__${resolvedTheme}`)}
+				>
 					<RadixDialog.Overlay className="tlui-dialog__overlay" />
 					<div className="tlui-dialog__positioner">
 						<RadixDialog.Content

@@ -1,18 +1,26 @@
-import { Button } from "@campus-agent/ui";
-import { BookOpen, Home, MapIcon, Menu, Send, UsersRound, Utensils } from "lucide-react";
 import {
-	ProductNavActions,
+	Button,
+	Sheet,
+	SheetClose,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+	SheetTrigger,
+	ThemeModeControl,
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@campus-agent/ui";
+import { BookOpen, Home, MapIcon, Menu, Send, UsersRound, Utensils } from "lucide-react";
+import { type ReactNode, useCallback, useRef, useState } from "react";
+import { AuthDialog } from "@/components/auth/auth-dialog";
+import {
 	type ProductNavigationLinkMode,
-	type ProductNavigationVariant,
 	ProductNavLink,
 	readBrowserPathname,
 } from "@/components/navigation/product-navigation";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import {
 	getProductNavItems,
@@ -29,84 +37,156 @@ const productNavIcons = {
 	map: MapIcon,
 } satisfies Record<ProductNavItemId, typeof Home>;
 
-export function ProductNavActionsWithIcons({
-	activePath,
-	className,
-	linkMode = "router",
-	variant = "standard",
-}: {
-	activePath: string;
-	className?: string;
-	linkMode?: ProductNavigationLinkMode;
-	variant?: ProductNavigationVariant;
-}) {
-	return (
-		<ProductNavActions
-			activePath={activePath}
-			className={className}
-			icons={productNavIcons}
-			linkMode={linkMode}
-			variant={variant}
-		/>
-	);
-}
+export type ProductNavMobileMenuClose = (afterClose?: () => void) => void;
+export type ProductNavMobileAccountAction = ReactNode | ((openAuthDialog: () => void) => ReactNode);
+export type ProductNavMobileLocalActions =
+	| ReactNode
+	| ((closeMenu: ProductNavMobileMenuClose) => ReactNode);
 
 export function ProductNavMobileMenu({
+	accountAction,
 	activePath,
 	className,
 	linkMode = "router",
+	localActions,
 	triggerClassName,
-	variant = "standard",
+	variant = "default",
 }: {
+	accountAction?: ProductNavMobileAccountAction;
 	activePath: string;
 	className?: string;
 	linkMode?: ProductNavigationLinkMode;
+	localActions?: ProductNavMobileLocalActions;
 	triggerClassName?: string;
-	variant?: ProductNavigationVariant;
+	variant?: "default" | "map";
 }) {
+	const [authDialogOpen, setAuthDialogOpen] = useState(false);
+	const [open, setOpen] = useState(false);
+	const triggerRef = useRef<HTMLButtonElement>(null);
+	const afterCloseRef = useRef<(() => void) | null>(null);
+	const closeMenu = useCallback<ProductNavMobileMenuClose>((afterClose) => {
+		afterCloseRef.current = afterClose ?? null;
+		setOpen(false);
+	}, []);
+	const openAuthDialog = useCallback(() => closeMenu(() => setAuthDialogOpen(true)), [closeMenu]);
+	const renderedAccountAction =
+		typeof accountAction === "function" ? accountAction(openAuthDialog) : accountAction;
+	const renderedLocalActions =
+		typeof localActions === "function" ? localActions(closeMenu) : localActions;
 	return (
-		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<Button
-					aria-label="打开产品导航"
-					className={cn("rounded-md", triggerClassName)}
-					size="icon-lg"
-					variant={variant === "map" ? "secondary" : "ghost"}
+		<>
+			<Sheet onOpenChange={setOpen} open={open}>
+				<TooltipProvider delayDuration={300}>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<SheetTrigger asChild>
+								<Button
+									aria-label="打开全局菜单"
+									className={cn("rounded-md", triggerClassName)}
+									data-slot="product-nav-mobile-trigger"
+									ref={triggerRef}
+									size="icon-lg"
+									variant={variant === "map" ? "secondary" : "ghost"}
+								>
+									<Menu aria-hidden="true" className="size-4" />
+								</Button>
+							</SheetTrigger>
+						</TooltipTrigger>
+						<TooltipContent side="bottom">打开全局菜单</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
+				<SheetContent
+					aria-describedby={undefined}
+					aria-label="校园问答导航"
+					className={cn("flex w-[min(22rem,88vw)] flex-col gap-0 p-0", className)}
+					onCloseAutoFocus={(event) => {
+						if (triggerRef.current?.isConnected) {
+							event.preventDefault();
+							triggerRef.current.focus({ preventScroll: true });
+						}
+						const afterClose = afterCloseRef.current;
+						afterCloseRef.current = null;
+						if (afterClose) {
+							window.requestAnimationFrame(afterClose);
+						}
+					}}
+					side="right"
 				>
-					<Menu aria-hidden="true" className="size-4" />
-				</Button>
-			</DropdownMenuTrigger>
-			<DropdownMenuContent align="end" className={cn("min-w-44", className)}>
-				{getProductNavItems().map((item) => {
-					const Icon = productNavIcons[item.id];
-					const active = isProductNavActive(activePath, item);
-					return (
-						<DropdownMenuItem asChild key={item.id}>
-							<ProductNavLink
-								className={cn(
-									"flex min-h-11 w-full items-center gap-2 rounded-sm px-2 text-sm",
-									active ? "bg-accent text-accent-foreground" : "",
-								)}
-								item={item}
-								linkMode={linkMode}
-							>
-								<Icon aria-hidden="true" className="size-4" />
-								<span>{item.label}</span>
-							</ProductNavLink>
-						</DropdownMenuItem>
-					);
-				})}
-			</DropdownMenuContent>
-		</DropdownMenu>
+					<SheetHeader className="border-b px-5 py-4 pr-14 text-left">
+						<SheetTitle>校园问答导航</SheetTitle>
+						<SheetDescription className="sr-only">
+							在产品页面、账号和外观设置之间切换。
+						</SheetDescription>
+					</SheetHeader>
+					<div className="min-h-0 flex-1 overflow-y-auto p-4">
+						<section aria-labelledby="campus-mobile-product-label">
+							<h2 className="ui-metadata mb-2 px-2" id="campus-mobile-product-label">
+								产品导航
+							</h2>
+							<nav aria-label="产品导航" className="grid gap-1">
+								{getProductNavItems().map((item) => {
+									const Icon = productNavIcons[item.id];
+									const active = isProductNavActive(activePath, item);
+									return (
+										<SheetClose asChild key={item.id}>
+											<ProductNavLink
+												aria-current={active ? "page" : undefined}
+												className={cn(
+													"flex min-h-11 w-full items-center gap-3 rounded-md px-3 text-sm transition-[color,background-color] duration-[var(--motion-duration-fast)] ease-[var(--motion-easing-standard)] hover:bg-surface-hover focus-visible:bg-surface-hover",
+													active && "bg-selected font-semibold text-selected-foreground",
+												)}
+												item={item}
+												linkMode={linkMode}
+											>
+												<Icon aria-hidden="true" className="size-4" />
+												<span>{item.label}</span>
+											</ProductNavLink>
+										</SheetClose>
+									);
+								})}
+							</nav>
+						</section>
+						{renderedAccountAction ? (
+							<section aria-labelledby="campus-mobile-account-label" className="mt-6 border-t pt-5">
+								<h2 className="ui-metadata mb-2 px-2" id="campus-mobile-account-label">
+									账号
+								</h2>
+								<div className="w-full">{renderedAccountAction}</div>
+							</section>
+						) : null}
+						{renderedLocalActions ? (
+							<section aria-labelledby="campus-mobile-local-label" className="mt-6 border-t pt-5">
+								<h2 className="ui-metadata mb-2 px-2" id="campus-mobile-local-label">
+									当前页面
+								</h2>
+								<div className="flex flex-wrap gap-2">{renderedLocalActions}</div>
+							</section>
+						) : null}
+						<section aria-labelledby="campus-mobile-theme-label" className="mt-6 border-t pt-5">
+							<h2 className="ui-metadata mb-2 px-2" id="campus-mobile-theme-label">
+								外观
+							</h2>
+							<ThemeModeControl aria-labelledby="campus-mobile-theme-label" label={null} />
+						</section>
+					</div>
+				</SheetContent>
+			</Sheet>
+			{authDialogOpen ? <AuthDialog onOpenChange={setAuthDialogOpen} open /> : null}
+		</>
 	);
 }
 
-export function MapProductNavMobileMenu() {
+export function MapProductNavMobileMenu({
+	accountAction,
+}: {
+	accountAction?: ProductNavMobileAccountAction;
+}) {
 	return (
 		<ProductNavMobileMenu
+			accountAction={accountAction}
 			activePath={readBrowserPathname()}
 			linkMode="anchor"
-			triggerClassName="border border-white/65 bg-white/72 shadow-[var(--shadow-xs)] backdrop-blur-md md:hidden"
+			triggerClassName="border border-[var(--map-overlay-border)] bg-[var(--map-overlay-surface)] shadow-[var(--map-overlay-shadow)] backdrop-blur-md lg:hidden"
 			variant="map"
 		/>
 	);

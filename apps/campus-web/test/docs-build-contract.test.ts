@@ -20,6 +20,7 @@ import {
 } from "./helpers/docs-source-fixture.ts";
 
 let appRoot: string | null = null;
+const themeBootstrapSourcePath = join(__dirname, "../../../packages/ui/src/theme-bootstrap.js");
 
 afterEach(() => {
 	cleanupDocsSourceFixture();
@@ -107,6 +108,30 @@ describe("Campus Web 文档内容准备合同", () => {
 		).toBe(true);
 		expect(existsSync(join(content.pagesRoot, "regulations/index.html"))).toBe(false);
 		expect(existsSync(join(content.pagesRoot, "404.html"))).toBe(true);
+	});
+
+	it("在文档内容缓存命中时校准主题启动脚本", async () => {
+		const fixture = createDocsSourceSiteFixture();
+		const content = await prepareDocsContent({
+			appRoot: createAppRoot(),
+			client: fixture.client,
+			pages: false,
+			refresh: true,
+		});
+		const themeBootstrapPath = join(content.publicRoot, "theme-bootstrap.js");
+		rmSync(themeBootstrapPath);
+		expect(existsSync(themeBootstrapPath)).toBe(false);
+
+		await prepareDocsContent({
+			appRoot: appRoot ?? undefined,
+			client: fixture.client,
+			pages: false,
+			refresh: false,
+		});
+
+		expect(readFileSync(themeBootstrapPath, "utf8")).toBe(
+			readFileSync(themeBootstrapSourcePath, "utf8"),
+		);
 	});
 
 	it("在完整内容清单中的公开文件缺失时重新准备内容", async () => {

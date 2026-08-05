@@ -40,17 +40,24 @@ const categories: Array<{ label: string; value: FeedbackCategory }> = [
 	{ label: "其他", value: "other" },
 ];
 
+const feedbackSourceLabels: Record<string, string> = {
+	dining: "食堂地图",
+	legal: "服务协议与隐私政策",
+	map: "校园地图",
+};
+
 const feedbackSchema = z.object({
 	body: z.string().trim().min(1, "请填写问题描述。"),
 	category: z.enum(feedbackCategoryValues),
 	contact: z.string(),
-	routeContext: z.string().min(1, "请填写当前页面。"),
+	routeContext: z.string().min(1, "请填写反馈来源。"),
 });
 
 type FeedbackFormValues = z.infer<typeof feedbackSchema>;
 
 export function FeedbackPage() {
 	const [error, setError] = useState<string | null>(null);
+	const [initialRouteContext] = useState(getInitialFeedbackRouteContext);
 	const [submitted, setSubmitted] = useState(false);
 	const [submitting, setSubmitting] = useState(false);
 	const form = useForm<FeedbackFormValues>({
@@ -58,12 +65,10 @@ export function FeedbackPage() {
 			body: "",
 			category: "content_issue",
 			contact: "",
-			routeContext: getCurrentRouteContext(),
+			routeContext: initialRouteContext,
 		},
 		resolver: zodResolver(feedbackSchema),
 	});
-	const body = form.watch("body");
-
 	async function handleSubmit(values: FeedbackFormValues) {
 		setSubmitting(true);
 		setError(null);
@@ -98,14 +103,19 @@ export function FeedbackPage() {
 				</CardHeader>
 				<CardContent>
 					<CampusMotionProvider>
-						<motion.form className="space-y-5" layout>
+						<motion.form
+							className="space-y-5"
+							layout
+							noValidate
+							onSubmit={form.handleSubmit(handleSubmit)}
+						>
 							<Controller
 								control={form.control}
 								name="category"
 								render={({ field }) => (
 									<div className="grid gap-2">
 										<Label htmlFor="feedback-category">问题类型</Label>
-										<Select onValueChange={field.onChange} value={field.value}>
+										<Select name="category" onValueChange={field.onChange} value={field.value}>
 											<SelectTrigger className="min-h-11" id="feedback-category">
 												<SelectValue />
 											</SelectTrigger>
@@ -121,20 +131,26 @@ export function FeedbackPage() {
 								)}
 							/>
 							<div className="grid gap-2">
-								<Label htmlFor="feedback-route-context">当前页面</Label>
+								<Label htmlFor="feedback-route-context">反馈来源</Label>
 								<output
 									className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm leading-6 text-[var(--sys-text-muted)]"
 									id="feedback-route-context"
 								>
-									{form.getValues("routeContext")}
+									{formatFeedbackSource(initialRouteContext)}
 								</output>
 								<input type="hidden" {...form.register("routeContext")} />
 							</div>
 							<div className="grid gap-2">
 								<Label htmlFor="feedback-body">问题描述</Label>
-								<Textarea id="feedback-body" {...form.register("body")} />
+								<Textarea
+									aria-describedby={form.formState.errors.body ? "feedback-body-error" : undefined}
+									aria-invalid={form.formState.errors.body ? "true" : undefined}
+									id="feedback-body"
+									required
+									{...form.register("body")}
+								/>
 								{form.formState.errors.body ? (
-									<p className="text-destructive text-xs" role="alert">
+									<p className="text-destructive text-xs" id="feedback-body-error" role="alert">
 										{form.formState.errors.body.message ?? "请填写问题描述。"}
 									</p>
 								) : null}
@@ -157,17 +173,12 @@ export function FeedbackPage() {
 									) : null}
 									{submitted ? (
 										<motion.div key="feedback-received" layout {...stateSwap}>
-											<Alert>反馈已提交。</Alert>
+											<Alert tone="success">反馈已提交。</Alert>
 										</motion.div>
 									) : null}
 								</motion.div>
 							</LayoutGroup>
-							<Button
-								disabled={submitting || !body.trim()}
-								onClick={form.handleSubmit(handleSubmit)}
-								size="lg"
-								type="button"
-							>
+							<Button disabled={submitting} size="lg" type="submit">
 								{submitting ? "提交中" : "提交反馈"}
 							</Button>
 						</motion.form>
@@ -178,7 +189,16 @@ export function FeedbackPage() {
 	);
 }
 
-function getCurrentRouteContext(): string {
+function formatFeedbackSource(routeContext: string): string {
+	try {
+		const source = new URL(routeContext, "https://campus.invalid").searchParams.get("source");
+		return (source && feedbackSourceLabels[source]) || routeContext;
+	} catch {
+		return routeContext;
+	}
+}
+
+function getInitialFeedbackRouteContext(): string {
 	if (typeof window === "undefined") {
 		return "/";
 	}

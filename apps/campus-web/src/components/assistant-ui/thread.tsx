@@ -134,7 +134,7 @@ const ThreadRoot: FC<{ isEmpty: boolean }> = ({ isEmpty }) => {
 				["--thread-max-width" as string]: "44rem",
 				["--composer-bg" as string]:
 					"color-mix(in oklab, var(--sys-bg-muted) 30%, var(--color-background))",
-				["--composer-radius" as string]: "1.5rem",
+				["--composer-radius" as string]: "var(--radius-lg)",
 				["--composer-padding" as string]: "8px",
 			}}
 		>
@@ -490,7 +490,7 @@ const UserMessage: FC = () => (
 		<UserMessageAttachments />
 
 		<div className="aui-user-message-content-wrapper relative col-start-2 min-w-0">
-			<div className="aui-user-message-content peer bg-surface-muted text-foreground rounded-xl px-4 py-2 wrap-break-word empty:hidden">
+			<div className="aui-user-message-content peer bg-surface-muted text-foreground rounded-lg px-4 py-2 wrap-break-word empty:hidden">
 				<MessagePrimitive.Parts />
 			</div>
 			<div className="aui-user-action-bar-wrapper absolute start-0 top-1/2 -translate-x-full -translate-y-1/2 pe-2.5 peer-empty:hidden rtl:translate-x-full">

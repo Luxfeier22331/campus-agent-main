@@ -107,13 +107,30 @@ async function openDiningProperties(page: Page): Promise<void> {
 
 async function navigateFromSidebar(page: Page, name: string): Promise<void> {
 	const navigation = page.getByRole("navigation", { name: "运维导航" });
-	if ((page.viewportSize()?.width ?? 0) < 768) {
+	if ((page.viewportSize()?.width ?? 0) < 1024) {
 		await page.getByRole("button", { name: "打开导航" }).click();
 		await expect(navigation.last()).toBeVisible();
 		await navigation.last().getByRole("link", { name }).click();
 		return;
 	}
 	await navigation.first().getByRole("link", { name }).click();
+}
+
+async function selectDarkTheme(page: Page): Promise<void> {
+	const themeTrigger = page.getByRole("button", { name: /外观，当前/u });
+	for (let index = 0; index < (await themeTrigger.count()); index += 1) {
+		const trigger = themeTrigger.nth(index);
+		if (await trigger.isVisible()) {
+			await trigger.click();
+			await page.getByRole("menuitemradio", { name: "深色" }).click();
+			return;
+		}
+	}
+
+	const navigationTrigger = page.getByRole("button", { name: "打开导航" });
+	await navigationTrigger.click();
+	const drawer = page.getByRole("dialog", { name: "校园助理运维工作台" });
+	await drawer.getByText("深色", { exact: true }).click();
 }
 
 async function startKeyboardDrag(page: Page, handle: Locator): Promise<void> {
@@ -371,17 +388,60 @@ test("系统记录不会串到其他运行", async ({ page }) => {
 
 test("导航在移动端使用抽屉且桌面端保持可见", async ({ page }) => {
 	const errors = captureRuntimeErrors(page);
-	await page.goto("/requests");
+	await page.goto("/overview");
 
 	if ((page.viewportSize()?.width ?? 0) < 1024) {
 		const toggle = page.getByRole("button", { name: "打开导航" });
 		await toggle.click();
 		await expect(page.getByRole("navigation", { name: "运维导航" }).last()).toBeVisible();
+		await page
+			.getByRole("navigation", { name: "运维导航" })
+			.last()
+			.getByRole("link", { name: "运行记录" })
+			.click();
+		await expect(page).toHaveURL(/\/requests$/u);
+		await expect(page.getByRole("heading", { name: "运行记录" })).toBeVisible();
+		await expect(page.locator("#ops-main-content")).toBeFocused();
+
+		await toggle.click();
 		await page.keyboard.press("Escape");
 		await expect(toggle).toBeFocused();
 	} else {
 		await expect(page.getByRole("navigation", { name: "运维导航" }).first()).toBeVisible();
+		await page
+			.getByRole("navigation", { name: "运维导航" })
+			.first()
+			.getByRole("link", { name: "运行记录" })
+			.click();
+		await expect(page).toHaveURL(/\/requests$/u);
+		await expect(page.locator("#ops-main-content")).not.toBeFocused();
 	}
+	await expectStableViewport(page, errors);
+});
+
+test("外观选择在刷新后保持并继续使用语义根属性", async ({ page }) => {
+	const errors = captureRuntimeErrors(page);
+	await page.goto("/overview");
+	await selectDarkTheme(page);
+
+	await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+	await expect
+		.poll(() => page.evaluate(() => localStorage.getItem("campus-agent.theme")))
+		.toBe("dark");
+	await page.reload();
+	await expect(page.getByRole("heading", { name: "运行概览" })).toBeVisible();
+	await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+	await expectStableViewport(page, errors);
+});
+
+test("Dining Studio 在深色主题下同步编辑器和 tldraw 外层", async ({ page }) => {
+	const errors = captureRuntimeErrors(page);
+	await openDiningPage(page);
+	await selectDarkTheme(page);
+
+	await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+	await expect(page.locator(".editor-stage")).toHaveClass(/tl-theme__dark/u);
+	await expect(page.locator(".editor-stage .tl-container").first()).toBeVisible();
 	await expectStableViewport(page, errors);
 });
 
@@ -637,8 +697,13 @@ test("食堂菜单可以新增立即生效的菜品和价格", async ({ page }) 
 	const row = page.getByRole("row").filter({ hasText: "宫保鸡丁" });
 	await expect(row).toContainText("15 元");
 	await expect(row).toContainText("已启用");
-	await expect(row.getByRole("rowheader")).toHaveCSS("position", "sticky");
-	await expect(row.locator("td").last()).toHaveCSS("position", "sticky");
+	if ((page.viewportSize()?.width ?? 0) >= 768) {
+		await expect(row.getByRole("rowheader")).toHaveCSS("position", "sticky");
+		await expect(row.locator("td").last()).toHaveCSS("position", "sticky");
+	} else {
+		await expect(row.getByRole("rowheader")).toHaveCSS("position", "static");
+		await expect(row.locator("td").last()).toHaveCSS("position", "static");
+	}
 	await expectStableViewport(page, errors);
 });
 
@@ -676,7 +741,7 @@ test("食堂举报处理后进入已处理列表", async ({ page }) => {
 	await dialog.getByRole("button", { name: "保留评价" }).click();
 	await expect(page.getByText("当前没有待处理举报。")).toBeVisible();
 
-	await page.getByRole("button", { name: "已处理" }).click();
+	await page.getByRole("tab", { name: "已处理" }).click();
 	await expect(page.getByText("正文包含联系方式")).toBeVisible();
 	await expect(page.getByText("已保留", { exact: true })).toBeVisible();
 	await expectStableViewport(page, errors);

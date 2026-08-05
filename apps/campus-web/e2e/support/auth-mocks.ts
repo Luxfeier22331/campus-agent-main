@@ -9,9 +9,11 @@ export interface AuthRequestRecord {
 }
 
 interface AuthMockOptions {
-	signIn?: "success" | "invalid";
+	signIn?: "success" | "invalid" | "rate-limited" | "unverified";
+	signOut?: "failure" | "success";
 	signUp?: "success" | "registered";
 	sessionState?: CampusApiSessionState;
+	verificationEmail?: "failure" | "rate-limited" | "success";
 }
 
 export async function mockAuthApi(
@@ -21,14 +23,27 @@ export async function mockAuthApi(
 	const records: AuthRequestRecord[] = [];
 	await page.route(
 		(url) =>
+			url.pathname === "/api/account/delete" ||
 			url.pathname === "/api/auth/sign-in/email" ||
 			url.pathname === "/api/auth/sign-up/email" ||
+			url.pathname === "/api/auth/send-verification-email" ||
 			url.pathname === "/api/auth/request-password-reset" ||
 			url.pathname === "/api/auth/reset-password" ||
 			url.pathname === "/api/auth/sign-out",
 		async (route) => {
 			records.push(readAuthRequestRecord(route));
 			const url = new URL(route.request().url());
+			if (url.pathname === "/api/account/delete") {
+				if (options.sessionState) {
+					options.sessionState.authenticated = false;
+				}
+				await route.fulfill({
+					contentType: "application/json",
+					json: { requestId: "acctdel_e2e", status: "deleting" },
+					status: 202,
+				});
+				return;
+			}
 			if (url.pathname === "/api/auth/sign-in/email") {
 				await fulfillSignIn(route, options.signIn ?? "invalid", options.sessionState);
 				return;
@@ -37,7 +52,24 @@ export async function mockAuthApi(
 				await fulfillSignUp(route, options.signUp ?? "success");
 				return;
 			}
+			if (url.pathname === "/api/auth/send-verification-email") {
+				await fulfillVerificationEmail(route, options.verificationEmail ?? "success");
+				return;
+			}
 			if (url.pathname === "/api/auth/sign-out") {
+				if (options.signOut === "failure") {
+					await route.fulfill({
+						contentType: "application/json",
+						json: {
+							error: {
+								code: "dependency_not_ready",
+								message: "账号服务暂时不可用。",
+							},
+						},
+						status: 503,
+					});
+					return;
+				}
 				if (options.sessionState) {
 					options.sessionState.authenticated = false;
 				}
@@ -86,6 +118,34 @@ async function fulfillSignIn(
 		});
 		return;
 	}
+	if (mode === "unverified") {
+		await route.fulfill({
+			contentType: "application/json",
+			json: {
+				data: null,
+				error: {
+					code: "EMAIL_NOT_VERIFIED",
+					message: "Email not verified",
+					status: 403,
+					statusText: "Forbidden",
+				},
+			},
+			status: 403,
+		});
+		return;
+	}
+	if (mode === "rate-limited") {
+		await route.fulfill({
+			contentType: "application/json",
+			headers: { "X-Retry-After": "17" },
+			json: {
+				code: "TOO_MANY_REQUESTS",
+				message: "Too many requests",
+			},
+			status: 429,
+		});
+		return;
+	}
 	await route.fulfill({
 		contentType: "application/json",
 		json: {
@@ -103,21 +163,13 @@ async function fulfillSignIn(
 
 async function fulfillSignUp(route: Route, mode: NonNullable<AuthMockOptions["signUp"]>) {
 	if (mode === "registered") {
-		await route.fulfill({
-			contentType: "application/json",
-			json: {
-				data: null,
-				error: {
-					code: "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL",
-					message: "User already exists. Use another email.",
-					status: 422,
-					statusText: "Unprocessable Entity",
-				},
-			},
-			status: 422,
-		});
+		await fulfillSuccessfulSignUp(route);
 		return;
 	}
+	await fulfillSuccessfulSignUp(route);
+}
+
+async function fulfillSuccessfulSignUp(route: Route) {
 	await route.fulfill({
 		contentType: "application/json",
 		json: {
@@ -132,6 +184,39 @@ async function fulfillSignUp(route: Route, mode: NonNullable<AuthMockOptions["si
 			},
 			error: null,
 		},
+		status: 200,
+	});
+}
+
+async function fulfillVerificationEmail(
+	route: Route,
+	mode: NonNullable<AuthMockOptions["verificationEmail"]>,
+) {
+	if (mode === "rate-limited") {
+		await route.fulfill({
+			contentType: "application/json",
+			headers: { "X-Retry-After": "17" },
+			json: { code: "TOO_MANY_REQUESTS", message: "Too many requests" },
+			status: 429,
+		});
+		return;
+	}
+	if (mode === "failure") {
+		await route.fulfill({
+			contentType: "application/json",
+			json: {
+				error: {
+					code: "dependency_not_ready",
+					message: "邮件服务暂时不可用。",
+				},
+			},
+			status: 503,
+		});
+		return;
+	}
+	await route.fulfill({
+		contentType: "application/json",
+		json: { data: { status: true }, error: null },
 		status: 200,
 	});
 }

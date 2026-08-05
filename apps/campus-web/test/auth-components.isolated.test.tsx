@@ -1,623 +1,438 @@
-import { readFileSync } from "node:fs";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { Auth, AuthPanel } from "../src/components/auth/auth";
-import authSource from "../src/components/auth/auth.tsx?raw";
-import { AuthDialog } from "../src/components/auth/auth-dialog";
-import authDialogSource from "../src/components/auth/auth-dialog.tsx?raw";
-import { CampusAuthUIProvider } from "../src/components/auth/auth-ui-provider";
-import authUIProviderSource from "../src/components/auth/auth-ui-provider.tsx?raw";
-import authUIProviderConfigSource from "../src/components/auth/auth-ui-provider-config.tsx?raw";
-import { CampusBrowserAuthUIProvider } from "../src/components/auth/browser-auth-ui-provider";
-import browserAuthUIProviderSource from "../src/components/auth/browser-auth-ui-provider.tsx?raw";
-import { Settings } from "../src/components/auth/settings/settings";
-import settingsSource from "../src/components/auth/settings/settings.tsx?raw";
-import { AccountEntry } from "../src/components/auth/user/account-entry";
-import accountEntrySource from "../src/components/auth/user/account-entry.tsx?raw";
-import { DeferredProductAccountEntry } from "../src/components/auth/user/deferred-product-account-entry";
-import deferredProductAccountEntrySource from "../src/components/auth/user/deferred-product-account-entry.tsx?raw";
-import { UserButton } from "../src/components/auth/user/user-button";
-import userButtonSource from "../src/components/auth/user/user-button.tsx?raw";
-import mainSource from "../src/main.tsx?raw";
-import sentryBrowserLoaderSource from "../src/platform/telemetry/sentry-browser-loader.tsx?raw";
-
-const stylesSource = readFileSync("src/styles.css", "utf8");
-const authStylesSource = readFileSync("src/components/auth/auth-styles.css", "utf8");
-
-const capturedCaptchaPluginOptions = vi.hoisted(() => ({
-	render: undefined as undefined | ((props: Record<string, unknown>) => React.ReactNode),
+const authClient = vi.hoisted(() => ({
+	changePassword: vi.fn(),
+	requestPasswordReset: vi.fn(),
+	resetPassword: vi.fn(),
+	sendVerificationEmail: vi.fn(),
+	signInEmail: vi.fn(),
+	signOut: vi.fn(),
+	signUpEmail: vi.fn(),
 }));
+
 const sessionState = vi.hoisted(() => ({
-	data: null as null | Record<string, unknown>,
-	isPending: false,
+	data: null as null | {
+		session: { id: string };
+		user: { email: string; id: string; name: string; passwordChangeRequired: boolean };
+	},
+	error: null as Error | null,
+	isRefreshing: false,
+	refresh: vi.fn().mockResolvedValue(undefined),
+	status: "anonymous" as "anonymous" | "authenticated" | "loading" | "unavailable",
 }));
-const heroUserButtonState = vi.hoisted(() => ({ label: "" }));
 
-vi.mock("@better-auth-ui/react/plugins", () => ({
-	captchaPlugin: ({ render }: { render: (props: Record<string, unknown>) => React.ReactNode }) => {
-		capturedCaptchaPluginOptions.render = render;
-		return { id: "captcha", render };
+vi.mock("@/platform/auth/client", () => ({
+	campusAuthClient: {
+		changePassword: authClient.changePassword,
+		requestPasswordReset: authClient.requestPasswordReset,
+		resetPassword: authClient.resetPassword,
+		sendVerificationEmail: authClient.sendVerificationEmail,
+		signIn: { email: authClient.signInEmail },
+		signOut: authClient.signOut,
+		signUp: { email: authClient.signUpEmail },
+	},
+	readCampusAuthErrorCode: (error: { error?: { code?: string } }) => error?.error?.code ?? "",
+	readCampusAuthErrorMessage: (error: { error?: { message?: string }; message?: string }) =>
+		error?.error?.message ?? error?.message ?? "操作失败，请稍后重试。",
+	readCampusAuthRetryAfterSeconds: (error: {
+		error?: { retryAfterSeconds?: number };
+		retryAfterSeconds?: number;
+	}) => error?.retryAfterSeconds ?? error?.error?.retryAfterSeconds,
+	throwCampusAuthResultError: (result: { error?: { message?: string } }) => {
+		throw Object.assign(new Error(result.error?.message ?? "操作失败，请稍后重试。"), {
+			error: result.error,
+		});
 	},
 }));
 
-vi.mock("@marsidev/react-turnstile", () => ({
-	Turnstile: ({
-		onError,
-		onExpire,
-		onSuccess,
-		options,
-		siteKey,
-	}: {
-		onError?: () => void;
-		onExpire?: () => void;
-		onSuccess?: (token: string) => void;
-		options?: { appearance?: string; execution?: string };
-		siteKey: string;
-	}) => (
-		<button
-			aria-label="turnstile-captcha"
-			data-appearance={options?.appearance ?? ""}
-			data-execution={options?.execution ?? ""}
-			data-site-key={siteKey}
-			onClick={() => onSuccess?.("token")}
-			onFocus={() => onExpire?.()}
-			onMouseEnter={() => onError?.()}
-			type="button"
-		>
-			Turnstile
-		</button>
-	),
+vi.mock("@/platform/auth/session", () => ({
+	useCampusSession: () => sessionState,
 }));
-
-vi.mock("@better-auth-ui/heroui", () => ({
-	Auth: ({ className, view }: { className?: string; view?: string }) => (
-		<section aria-label="auth-view" data-class-name={className ?? ""} data-view={view} />
-	),
-	AuthProvider: ({
-		additionalFields,
-		basePaths,
-		children,
-		emailAndPassword,
-		localization,
-		plugins,
-		redirectTo,
-		viewPaths,
-	}: {
-		additionalFields?: {
-			label?: React.ReactNode;
-			name: string;
-			profile?: boolean;
-			required?: boolean;
-			signUp?: boolean | string;
-			type?: string;
-		}[];
-		basePaths?: { auth?: string; settings?: string };
-		children: React.ReactNode;
-		emailAndPassword?: {
-			confirmPassword?: boolean;
-			forgotPassword?: boolean;
-			minPasswordLength?: number;
-			rememberMe?: boolean;
-		};
-		localization?: {
-			auth?: Record<string, string>;
-			settings?: Record<string, string>;
-		};
-		plugins?: { id?: string }[];
-		redirectTo?: string;
-		viewPaths?: {
-			auth?: Record<string, string>;
-			settings?: Record<string, string>;
-		};
-	}) => {
-		const consentField = additionalFields?.find((field) => field.name === "legalConsentAccepted");
-		return (
-			<section
-				aria-label="auth-ui-provider"
-				data-auth-base-path={basePaths?.auth ?? ""}
-				data-auth-forgot-path={viewPaths?.auth?.forgotPassword ?? ""}
-				data-auth-login-path={viewPaths?.auth?.signIn ?? ""}
-				data-auth-register-path={viewPaths?.auth?.signUp ?? ""}
-				data-auth-reset-link-sent-path={viewPaths?.auth?.resetLinkSent ?? ""}
-				data-confirm-password={String(emailAndPassword?.confirmPassword ?? false)}
-				data-consent-profile={String(consentField?.profile ?? true)}
-				data-consent-required={String(consentField?.required ?? false)}
-				data-consent-sign-up={String(consentField?.signUp ?? false)}
-				data-consent-type={consentField?.type ?? ""}
-				data-has-captcha={String(plugins?.some((plugin) => plugin.id === "captcha") ?? false)}
-				data-localization-current-session={localization?.settings?.currentSession ?? ""}
-				data-localization-check-email-title={localization?.auth?.checkYourEmailTitle ?? ""}
-				data-localization-field-required={localization?.auth?.fieldRequired ?? ""}
-				data-localization-forgot-password={localization?.auth?.forgotPassword ?? ""}
-				data-localization-name={localization?.auth?.name ?? ""}
-				data-localization-reset-link-sent={localization?.auth?.resetLinkSentTo ?? ""}
-				data-localization-save={localization?.settings?.saveChanges ?? ""}
-				data-localization-security={localization?.settings?.security ?? ""}
-				data-localization-set-password={localization?.settings?.setPassword ?? ""}
-				data-localization-sign-in={localization?.auth?.signIn ?? ""}
-				data-localization-sign-up={localization?.auth?.signUp ?? ""}
-				data-min-password-length={String(emailAndPassword?.minPasswordLength ?? "")}
-				data-redirect-to={redirectTo ?? ""}
-				data-remember-me={String(emailAndPassword?.rememberMe ?? false)}
-				data-settings-base-path={basePaths?.settings ?? ""}
-				data-settings-security-path={viewPaths?.settings?.security ?? ""}
-			>
-				<div data-testid="consent-label">{consentField?.label}</div>
-				{children}
-			</section>
-		);
-	},
-	Settings: ({ className, view }: { className?: string; view?: string }) => (
-		<section aria-label="account-view" data-class-name={className ?? ""} data-view={view} />
-	),
-	UserButton: ({
-		placement,
-		size,
-		variant,
-	}: {
-		placement?: string;
-		size?: string;
-		variant?: string;
-	}) => (
-		<button
-			data-placement={placement ?? ""}
-			data-slot="dropdown-trigger"
-			data-size={size ?? ""}
-			data-variant={variant ?? ""}
-			type="button"
-		>
-			{heroUserButtonState.label}
-		</button>
-	),
-}));
-
-vi.mock("@heroui/react", async () => {
-	const actual = await vi.importActual<typeof import("@heroui/react")>("@heroui/react");
-	let activeModalState:
-		| {
-				isOpen: boolean;
-				open: () => void;
-		  }
-		| undefined;
-	const ModalRoot = ({
-		children,
-		state,
-	}: {
-		children: React.ReactNode;
-		state?: { isOpen: boolean; open: () => void };
-	}) => {
-		activeModalState = state;
-		return <div data-testid="heroui-modal-root">{children}</div>;
-	};
-	return {
-		...actual,
-		Button: ({
-			children,
-			isDisabled,
-			isIconOnly,
-			onPress,
-			...props
-		}: {
-			children: React.ReactNode;
-			isDisabled?: boolean;
-			isIconOnly?: boolean;
-			onPress?: () => void;
-		}) => (
-			<button
-				data-icon-only={String(isIconOnly ?? false)}
-				disabled={isDisabled}
-				onClick={onPress}
-				type="button"
-				{...props}
-			>
-				{children}
-			</button>
-		),
-		Modal: Object.assign(ModalRoot, {
-			Backdrop: ({ children }: { children: React.ReactNode }) => (
-				<div data-testid="heroui-modal-backdrop">{children}</div>
-			),
-			Body: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-			CloseTrigger: () => (
-				<button aria-label="关闭登录窗口" type="button">
-					关闭
-				</button>
-			),
-			Container: ({ children }: { children: React.ReactNode }) => (
-				<div data-testid="heroui-modal-container">{children}</div>
-			),
-			Dialog: ({ children, ...props }: { children: React.ReactNode }) => (
-				<div role="dialog" {...props}>
-					{children}
-				</div>
-			),
-			Trigger: ({
-				children,
-				onClick,
-				...props
-			}: {
-				children: React.ReactNode;
-			} & React.HTMLAttributes<HTMLButtonElement>) => (
-				<button
-					onClick={(event) => {
-						onClick?.(event);
-						activeModalState?.open();
-					}}
-					type="button"
-					{...props}
-				>
-					{children}
-				</button>
-			),
-		}),
-		useOverlayState: ({
-			isOpen = false,
-			onOpenChange,
-		}: {
-			isOpen?: boolean;
-			onOpenChange?: (open: boolean) => void;
-		} = {}) => ({
-			close: () => onOpenChange?.(false),
-			isOpen,
-			open: () => onOpenChange?.(true),
-			setOpen: (open: boolean) => onOpenChange?.(open),
-			toggle: () => onOpenChange?.(!isOpen),
-		}),
-	};
-});
-
-vi.mock("../src/platform/auth/client", async () => {
-	const actual = await vi.importActual<typeof import("../src/platform/auth/client")>(
-		"../src/platform/auth/client",
-	);
-	return {
-		...actual,
-		campusAuthClient: {
-			...actual.campusAuthClient,
-			useSession: () => ({
-				data: sessionState.data,
-				isPending: sessionState.isPending,
-			}),
-		},
-	};
-});
 
 vi.mock("@tanstack/react-router", async () => {
 	const actual =
 		await vi.importActual<typeof import("@tanstack/react-router")>("@tanstack/react-router");
-	return {
-		...actual,
-		Link: ({
-			children,
-			href,
-			to,
-			...props
-		}: {
-			children: React.ReactNode;
-			href?: string;
-			to?: string;
-		}) => (
-			<a href={href ?? to ?? "/"} {...props}>
-				{children}
-			</a>
-		),
-		useNavigate: () => vi.fn(),
-	};
+	return { ...actual, useLocation: () => ({ state: {} }), useNavigate: () => vi.fn() };
 });
 
-describe("campus auth UI components", () => {
+vi.mock("@marsidev/react-turnstile", () => ({
+	Turnstile: () => <fieldset aria-label="安全验证" />,
+}));
+
+vi.mock("@better-auth-ui/heroui", () => ({
+	AuthProvider: ({
+		avatar,
+		children,
+		localization,
+	}: {
+		avatar?: { enabled?: boolean };
+		children: React.ReactNode;
+		localization?: { auth?: { email?: string; name?: string; signOut?: string } };
+	}) => (
+		<section
+			aria-label="settings-auth-provider"
+			data-auth-email={localization?.auth?.email}
+			data-auth-name={localization?.auth?.name}
+			data-auth-sign-out={localization?.auth?.signOut}
+			data-avatar-enabled={String(avatar?.enabled)}
+		>
+			{children}
+		</section>
+	),
+	Settings: ({
+		className,
+		variant,
+		view,
+	}: {
+		className?: string;
+		variant?: string;
+		view?: string;
+	}) => (
+		<section
+			aria-label="account-settings"
+			className={className}
+			data-variant={variant}
+			data-view={view}
+		/>
+	),
+}));
+
+import { AuthPanel } from "../src/components/auth/auth";
+import {
+	ForgotPasswordForm,
+	RequiredPasswordChange,
+	ResetComplete,
+	ResetLinkSent,
+	VerificationPending,
+} from "../src/components/auth/auth-email-flows";
+import { SignInForm, SignUpForm } from "../src/components/auth/auth-forms";
+import { Settings } from "../src/components/auth/settings/settings";
+import { AccountEntry } from "../src/components/auth/user/account-entry";
+
+const sharedFormProps = {
+	onAuthenticated: vi.fn(),
+	onSwitch: vi.fn(),
+	onVerificationRequired: vi.fn(),
+	redirectTo: "/map",
+};
+
+describe("campus-owned authentication journeys", () => {
 	beforeEach(() => {
-		window.history.pushState({}, "", "/account/login");
-		capturedCaptchaPluginOptions.render = undefined;
-		heroUserButtonState.label = "";
+		window.history.replaceState({}, "", "/account/register");
+		window.sessionStorage.clear();
 		sessionState.data = null;
-		sessionState.isPending = false;
-	});
-
-	it("passes the requested HeroUI auth view without local redirect overrides", () => {
-		render(<Auth view="signIn" />);
-
-		expect(screen.getByLabelText("auth-view")).toHaveAttribute("data-view", "signIn");
-	});
-
-	it("uses Better Auth UI HeroUI packages instead of the retired shadcn package", () => {
-		expect(authUIProviderSource).toContain("@better-auth-ui/heroui");
-		expect(authUIProviderConfigSource).toContain("@better-auth-ui/react/plugins");
-		expect(authUIProviderConfigSource).toContain("@marsidev/react-turnstile");
-		expect(mainSource).not.toContain("@heroui/react");
-		expect(authSource).toContain("@better-auth-ui/heroui");
-		expect(settingsSource).toContain("@better-auth-ui/heroui");
-		expect(userButtonSource).toContain("@better-auth-ui/heroui");
-		expect(stylesSource).not.toContain('@import "@heroui/styles";');
-		expect(stylesSource).not.toContain('@import "@better-auth-ui/heroui/styles";');
-		expect(authStylesSource).toContain('@import "@heroui/styles";');
-		expect(authStylesSource).toContain('@import "@better-auth-ui/heroui/styles";');
-		expect(authStylesSource.indexOf('@import "@heroui/styles";')).toBeLessThan(
-			authStylesSource.indexOf('@import "@better-auth-ui/heroui/styles";'),
-		);
-		for (const source of [authUIProviderSource, authSource, settingsSource, userButtonSource]) {
-			expect(source).not.toMatch(/from\s+["']better-auth-ui["']/);
+		sessionState.error = null;
+		sessionState.isRefreshing = false;
+		sessionState.status = "anonymous";
+		sessionState.refresh.mockClear();
+		for (const mock of Object.values(authClient)) {
+			mock.mockReset();
 		}
+		authClient.signUpEmail.mockResolvedValue({ data: { user: { id: "user-1" } }, error: null });
+		authClient.sendVerificationEmail.mockResolvedValue({ data: { status: true }, error: null });
 	});
 
-	it("keeps HeroUI feedback infrastructure inside lazy auth surfaces", () => {
-		expect(mainSource).not.toContain("ToastProvider");
-		expect(authUIProviderSource).not.toContain('from "sonner"');
-		expect(authUIProviderSource).toContain("<ToastProvider");
-		expect(browserAuthUIProviderSource).toContain("<ToastProvider");
+	it("keeps invitation email as a form default and blocks sign-up until legal consent", async () => {
+		const user = userEvent.setup();
+		render(<SignUpForm {...sharedFormProps} defaultEmail="invited@example.edu" />);
+
+		expect(screen.getByLabelText("邮箱")).toHaveValue("invited@example.edu");
+		expect(screen.getByRole("link", { name: "用户服务协议" })).toHaveAttribute("target", "_blank");
+		expect(screen.getByRole("link", { name: "隐私政策" })).toHaveAttribute("target", "_blank");
+
+		await user.type(screen.getByLabelText("姓名"), "测试用户");
+		await user.type(screen.getByLabelText("密码", { exact: true }), "validpassword123");
+		await user.type(screen.getByLabelText("确认密码"), "validpassword123");
+		await user.click(screen.getByRole("button", { name: "创建账号" }));
+
+		const consentError = await screen.findByText("请先阅读并同意用户服务协议和隐私政策。");
+		const consent = screen.getByRole("checkbox");
+		expect(consentError).toBeVisible();
+		expect(consent).toHaveAttribute("aria-describedby", consentError.id);
+		expect(consent).toHaveFocus();
+		expect(authClient.signUpEmail).not.toHaveBeenCalled();
 	});
 
-	it("loads browser Sentry outside the static app shell without duplicating caught error capture", () => {
-		expect(mainSource).toContain("initializeCampusBrowserSentry");
-		expect(mainSource).toContain('from "./platform/telemetry/sentry-browser-loader"');
-		expect(mainSource).not.toContain('from "./platform/telemetry/sentry-browser"');
-		expect(sentryBrowserLoaderSource).toContain('import("./sentry-browser")');
-		expect(mainSource).not.toContain("onCaughtError: campusReactErrorHandler()");
-		expect(mainSource).toContain("onRecoverableError: campusReactErrorHandler()");
-		expect(mainSource).toContain("onUncaughtError: campusReactErrorHandler()");
-		expect(mainSource).toContain("<CampusSentryErrorBoundary");
+	it("keeps password disclosure keyboard-accessible without submitting the form", async () => {
+		const user = userEvent.setup();
+		render(<SignInForm {...sharedFormProps} />);
+		expect(screen.getByRole("checkbox", { name: "仅在此设备保持登录" })).not.toBeChecked();
+		const password = screen.getByLabelText("密码");
+		const disclosure = screen.getByRole("button", { name: "显示密码" });
+
+		password.focus();
+		await user.tab();
+		expect(disclosure).toHaveFocus();
+		await user.keyboard("{Enter}");
+
+		expect(password).toHaveAttribute("type", "text");
+		expect(screen.getByRole("button", { name: "隐藏密码" })).toHaveFocus();
+		expect(authClient.signInEmail).not.toHaveBeenCalled();
 	});
 
-	it("does not add a duplicate local auth mutation toast bridge", () => {
-		expect(authUIProviderSource).not.toContain("MutationCache");
-		expect(authUIProviderSource).not.toContain("matchMutation");
-		expect(authUIProviderSource).not.toContain("authMutationKeys");
-		expect(authUIProviderSource).not.toContain("toast.danger");
-	});
-
-	it("uses only page-level layout for Better Auth UI auth views", () => {
-		const { container } = render(<Auth view="signIn" />);
-
-		expect(screen.getByLabelText("auth-view")).toHaveAttribute(
-			"data-class-name",
-			"mx-auto w-full max-w-sm",
-		);
-		expect(screen.getByLabelText("account-auth-layout")).toBeInTheDocument();
-		expect(container.innerHTML).not.toContain("rounded-lg");
-		expect(container.innerHTML).not.toContain("bg-card");
-		expect(container.innerHTML).not.toContain("shadow-");
-	});
-
-	it("reuses the Better Auth UI auth panel inside the HeroUI auth modal", () => {
-		const onOpenChange = vi.fn();
-		render(<AuthDialog onOpenChange={onOpenChange} open initialView="signIn" />);
-
-		expect(screen.getByRole("dialog", { name: "登录或创建校园问答账号" })).toBeInTheDocument();
-		expect(screen.getByLabelText("auth-view")).toHaveAttribute("data-view", "signIn");
-		expect(screen.getByLabelText("auth-view")).toHaveAttribute("data-class-name", "w-full");
-		const modalSurface = screen
-			.getByLabelText("auth-view")
-			.closest("[data-campus-account-surface]");
-		expect(modalSurface as HTMLElement).toHaveAttribute(
-			"data-campus-account-surface",
-			"auth-modal",
-		);
-		expect(authDialogSource).toContain("@heroui/react");
-		expect(authDialogSource).toContain("<AuthPanel");
-		expect(authDialogSource).toContain('data-campus-account-surface="auth-modal"');
-		expect(authDialogSource).not.toContain('data-campus-account-surface="auth"');
-		expect(authDialogSource).not.toContain("<input");
-		expect(authDialogSource).not.toContain("signIn.email");
-	});
-
-	it("keeps the reusable auth panel free of page layout", () => {
-		render(<AuthPanel className="w-full" view="signUp" />);
-
-		expect(screen.getByLabelText("auth-view")).toHaveAttribute("data-view", "signUp");
-		expect(screen.getByLabelText("auth-view")).toHaveAttribute("data-class-name", "w-full");
-	});
-
-	it("marks auth and settings surfaces for scoped HeroUI theme overrides", () => {
-		render(<Auth view="signIn" />);
-		expect(screen.getByLabelText("account-auth-layout")).toHaveAttribute(
-			"data-campus-account-surface",
-			"auth",
-		);
-
-		render(<Settings view="account" />);
-		expect(screen.getByLabelText("account-settings-layout")).toHaveAttribute(
-			"data-campus-account-surface",
-			"settings",
-		);
-
-		expect(stylesSource).toContain('[data-campus-account-surface="auth"]');
-		expect(stylesSource).toContain('[data-campus-account-surface="auth-modal"]');
-		expect(stylesSource).toContain('[data-slot="card"]');
-		expect(stylesSource).toContain("--campus-auth-card-shadow: var(--shadow-auth-card)");
-		expect(stylesSource).toContain("--campus-auth-link");
-		expect(stylesSource).toContain('[data-campus-account-surface="auth-modal"] [data-slot="card"]');
-		expect(stylesSource).toContain("background: transparent");
-		expect(stylesSource).toContain("box-shadow: none");
-	});
-
-	it("uses only page-level layout for Better Auth UI account settings", () => {
-		render(<Settings view="account" />);
-
-		const accountView = screen.getByLabelText("account-view");
-		expect(accountView).toHaveAttribute(
-			"data-class-name",
-			"mx-auto w-full max-w-[var(--layout-page-form-width)]",
-		);
-		expect(screen.getByLabelText("account-settings-layout")).toBeInTheDocument();
-		expect(accountView.getAttribute("data-class-name")).not.toContain("rounded-lg");
-		expect(accountView.getAttribute("data-class-name")).not.toContain("bg-card");
-		expect(accountView.getAttribute("data-class-name")).not.toContain("shadow-");
-	});
-
-	it("renders the Better Auth sign-up view without a local consent gate", () => {
-		render(<Auth view="signUp" />);
-
-		expect(screen.getByLabelText("auth-view")).toHaveAttribute("data-view", "signUp");
-		expect(screen.queryByText("请先阅读并同意用户服务协议和隐私政策。")).not.toBeInTheDocument();
-	});
-
-	it("uses the existing campus return-target whitelist for provider redirects", () => {
-		window.history.pushState({}, "", "/account/login?redirectTo=/internal-only");
-
+	it("sends verification explicitly after sign-up and starts the resend cooldown", async () => {
+		const user = userEvent.setup();
+		const onVerificationRequired = vi.fn();
 		render(
-			<CampusAuthUIProvider>
-				<div>child</div>
-			</CampusAuthUIProvider>,
+			<SignUpForm
+				{...sharedFormProps}
+				defaultEmail="student@muc.edu.cn"
+				onVerificationRequired={onVerificationRequired}
+			/>,
 		);
 
-		expect(screen.getByLabelText("auth-ui-provider")).toHaveAttribute(
-			"data-redirect-to",
-			"/account",
-		);
-	});
+		await user.type(screen.getByLabelText("姓名"), "测试用户");
+		await user.type(screen.getByLabelText("密码", { exact: true }), "validpassword123");
+		await user.type(screen.getByLabelText("确认密码"), "validpassword123");
+		await user.click(screen.getByRole("checkbox"));
+		await user.click(screen.getByRole("button", { name: "创建账号" }));
 
-	it("configures Better Auth UI to render a required non-persistent consent field", () => {
-		render(
-			<CampusAuthUIProvider>
-				<div>child</div>
-			</CampusAuthUIProvider>,
-		);
-
-		const provider = screen.getByLabelText("auth-ui-provider");
-		expect(provider).toHaveAttribute("data-auth-base-path", "/account");
-		expect(provider).toHaveAttribute("data-settings-base-path", "/account/settings");
-		expect(provider).toHaveAttribute("data-auth-login-path", "login");
-		expect(provider).toHaveAttribute("data-auth-register-path", "register");
-		expect(provider).toHaveAttribute("data-auth-forgot-path", "forgot-password");
-		expect(provider).toHaveAttribute("data-auth-reset-link-sent-path", "reset-link-sent");
-		expect(provider).toHaveAttribute("data-settings-security-path", "security");
-		expect(provider).toHaveAttribute("data-localization-check-email-title", "请查收邮件");
-		expect(provider).toHaveAttribute(
-			"data-localization-reset-link-sent",
-			"密码重置链接已发送至 {{email}}",
-		);
-		expect(provider).toHaveAttribute("data-confirm-password", "true");
-		expect(provider).toHaveAttribute("data-consent-required", "true");
-		expect(provider).toHaveAttribute("data-consent-sign-up", "true");
-		expect(provider).toHaveAttribute("data-consent-profile", "false");
-		expect(provider).toHaveAttribute("data-consent-type", "boolean");
-		expect(provider).toHaveAttribute("data-min-password-length", "10");
-		expect(provider).toHaveAttribute("data-remember-me", "true");
-		expect(screen.getByTestId("consent-label")).toHaveTextContent("用户服务协议");
-		expect(screen.getByTestId("consent-label")).toHaveTextContent("隐私政策");
-	});
-
-	it("keeps the browser auth provider free of captcha by default", () => {
-		document.body.innerHTML = `<script id="__CAMPUS_AUTH_CONFIG__" type="application/json">${JSON.stringify(
-			{
-				turnstileAppearance: "interaction-only",
-				turnstileExecution: "render",
-				turnstileSiteKey: "site-key-1",
-			},
-		)}</script>`;
-
-		render(
-			<CampusBrowserAuthUIProvider>
-				<div>child</div>
-			</CampusBrowserAuthUIProvider>,
-		);
-
-		expect(screen.getByLabelText("auth-ui-provider")).toHaveAttribute("data-has-captcha", "false");
-	});
-
-	it("localizes Better Auth UI account settings copy", () => {
-		render(
-			<CampusAuthUIProvider>
-				<div>child</div>
-			</CampusAuthUIProvider>,
-		);
-
-		const provider = screen.getByLabelText("auth-ui-provider");
-		expect(provider).toHaveAttribute("data-localization-current-session", "当前设备");
-		expect(provider).toHaveAttribute("data-localization-field-required", "此项必填");
-		expect(provider).toHaveAttribute("data-localization-forgot-password", "找回密码");
-		expect(provider).toHaveAttribute("data-localization-name", "姓名");
-		expect(provider).toHaveAttribute("data-localization-save", "保存");
-		expect(provider).toHaveAttribute("data-localization-security", "安全");
-		expect(provider).toHaveAttribute("data-localization-set-password", "设置密码");
-		expect(provider).toHaveAttribute("data-localization-sign-in", "登录校园问答");
-		expect(provider).toHaveAttribute("data-localization-sign-up", "创建账号");
-	});
-
-	it("registers Turnstile through the Better Auth UI captcha plugin when configured", () => {
-		document.body.innerHTML = `<script id="__CAMPUS_AUTH_CONFIG__" type="application/json">${JSON.stringify(
-			{
-				turnstileAppearance: "interaction-only",
-				turnstileExecution: "render",
-				turnstileSiteKey: "site-key-1",
-			},
-		)}</script>`;
-
-		render(
-			<CampusAuthUIProvider>
-				<div>child</div>
-			</CampusAuthUIProvider>,
-		);
-
-		expect(screen.getByLabelText("auth-ui-provider")).toHaveAttribute("data-has-captcha", "true");
-		const setToken = vi.fn();
-		const clearToken = vi.fn();
-		const setReset = vi.fn();
-		render(
-			capturedCaptchaPluginOptions.render?.({
-				clearToken,
-				setReset,
-				setToken,
+		await waitFor(() => expect(authClient.sendVerificationEmail).toHaveBeenCalledTimes(1));
+		expect(authClient.signUpEmail).toHaveBeenCalledWith(
+			expect.objectContaining({
+				email: "student@muc.edu.cn",
+				legalConsentAccepted: true,
 			}),
 		);
-
-		const captcha = screen.getByLabelText("turnstile-captcha");
-		expect(captcha).toHaveAttribute("data-site-key", "site-key-1");
-		expect(captcha).toHaveAttribute("data-appearance", "interaction-only");
-		expect(captcha).toHaveAttribute("data-execution", "render");
+		expect(onVerificationRequired).toHaveBeenCalledWith("student@muc.edu.cn");
+		expect(window.sessionStorage.getItem("campus-auth.verification-email")).toContain(
+			"student@muc.edu.cn",
+		);
 	});
 
-	it("names the loading UserButton without overriding the resolved user name", async () => {
-		const { rerender } = render(<UserButton />);
+	it("keeps a created account in a retryable state when verification delivery fails", async () => {
+		const user = userEvent.setup();
+		authClient.sendVerificationEmail.mockRejectedValueOnce(new Error("邮件服务暂时不可用。"));
+		render(<AuthPanel localNavigation view="signUp" />);
 
-		const button = screen.getByRole("button", { name: "账号" });
-		expect(button).toHaveAttribute("data-placement", "bottom end");
-		expect(button).toHaveAttribute("data-size", "icon");
-		expect(button).toHaveAttribute("data-variant", "ghost");
+		await user.type(screen.getByLabelText("姓名"), "测试用户");
+		await user.type(screen.getByLabelText("邮箱"), "student@muc.edu.cn");
+		await user.type(screen.getByLabelText("密码", { exact: true }), "validpassword123");
+		await user.type(screen.getByLabelText("确认密码"), "validpassword123");
+		await user.click(screen.getByRole("checkbox"));
+		await user.click(screen.getByRole("button", { name: "创建账号" }));
 
-		heroUserButtonState.label = "测试";
-		rerender(<UserButton />);
-		await waitFor(() => expect(screen.getByRole("button", { name: "测试" })).toBe(button));
-		expect(button).not.toHaveAttribute("aria-label");
-		expect(userButtonSource).not.toContain("trigger=");
-		expect(userButtonSource).not.toContain("@/components/ui/button");
+		expect(await screen.findByText("验证邮件未发送")).toBeVisible();
+		expect(screen.getByText(/验证邮件尚未发送/u)).toBeVisible();
+		expect(window.sessionStorage.getItem("campus-auth.verification-email")).toBeNull();
+
+		await user.click(screen.getByRole("button", { name: "重新发送验证邮件" }));
+
+		expect(await screen.findByText("下一步")).toBeVisible();
+		expect(screen.getByRole("button", { name: /秒后可重发/u })).toBeDisabled();
+		expect(window.sessionStorage.getItem("campus-auth.verification-email")).toContain(
+			"student@muc.edu.cn",
+		);
 	});
 
-	it("uses a session-free shared account entry to open authentication", () => {
-		const onLogin = vi.fn();
+	it("moves an unverified sign-in into the verification wait state", async () => {
+		const user = userEvent.setup();
+		const onVerificationRequired = vi.fn();
+		authClient.signInEmail.mockRejectedValue(
+			Object.assign(new Error("请先完成邮箱验证。"), {
+				error: { code: "EMAIL_NOT_VERIFIED", message: "请先完成邮箱验证。" },
+			}),
+		);
+		render(<SignInForm {...sharedFormProps} onVerificationRequired={onVerificationRequired} />);
+
+		await user.type(screen.getByLabelText("邮箱"), "Student@MUC.EDU.CN");
+		await user.type(screen.getByLabelText("密码"), "validpassword123");
+		await user.click(screen.getByRole("button", { name: "登录" }));
+
+		await waitFor(() => expect(onVerificationRequired).toHaveBeenCalledWith("student@muc.edu.cn"));
+		expect(authClient.sendVerificationEmail).toHaveBeenCalledWith({
+			callbackURL: "/map",
+			email: "student@muc.edu.cn",
+			fetchOptions: { throw: true },
+		});
+		expect(window.sessionStorage.getItem("campus-auth.verification-email")).toContain(
+			"student@muc.edu.cn",
+		);
+	});
+
+	it("does not claim verification delivery when the explicit sign-in send fails", async () => {
+		const user = userEvent.setup();
+		const onVerificationRequired = vi.fn();
+		authClient.signInEmail.mockRejectedValue(
+			Object.assign(new Error("请先完成邮箱验证。"), {
+				error: { code: "EMAIL_NOT_VERIFIED", message: "请先完成邮箱验证。" },
+			}),
+		);
+		authClient.sendVerificationEmail.mockRejectedValueOnce(new Error("邮件服务暂时不可用。"));
+		render(<SignInForm {...sharedFormProps} onVerificationRequired={onVerificationRequired} />);
+
+		await user.type(screen.getByLabelText("邮箱"), "student@muc.edu.cn");
+		await user.type(screen.getByLabelText("密码"), "validpassword123");
+		await user.click(screen.getByRole("button", { name: "登录" }));
+
+		await waitFor(() =>
+			expect(onVerificationRequired).toHaveBeenCalledWith("student@muc.edu.cn", {
+				retryAfterSeconds: undefined,
+			}),
+		);
+		expect(window.sessionStorage.getItem("campus-auth.verification-email")).toBeNull();
+	});
+
+	it("carries verification-delivery rate limits into the recovery state", async () => {
+		const user = userEvent.setup();
+		const onVerificationRequired = vi.fn();
+		authClient.signInEmail.mockRejectedValue(
+			Object.assign(new Error("请先完成邮箱验证。"), {
+				error: { code: "EMAIL_NOT_VERIFIED", message: "请先完成邮箱验证。" },
+			}),
+		);
+		authClient.sendVerificationEmail.mockRejectedValueOnce(
+			Object.assign(new Error("Too many requests"), { retryAfterSeconds: 17 }),
+		);
+		render(<SignInForm {...sharedFormProps} onVerificationRequired={onVerificationRequired} />);
+
+		await user.type(screen.getByLabelText("邮箱"), "student@muc.edu.cn");
+		await user.type(screen.getByLabelText("密码"), "validpassword123");
+		await user.click(screen.getByRole("button", { name: "登录" }));
+
+		await waitFor(() =>
+			expect(onVerificationRequired).toHaveBeenCalledWith("student@muc.edu.cn", {
+				retryAfterSeconds: 17,
+			}),
+		);
+	});
+
+	it("starts a server-provided retry countdown on the verification page", () => {
 		render(
-			<AccountEntry authenticated={false} onLogin={onLogin} pending={false} variant="label" />,
+			<VerificationPending
+				initialDeliveryStatus="failed"
+				initialEmail="student@muc.edu.cn"
+				initialRetryAfterSeconds={17}
+				onSignIn={vi.fn()}
+				redirectTo="/map"
+			/>,
 		);
 
-		screen.getByRole("button", { name: "登录" }).click();
-		expect(onLogin).toHaveBeenCalledTimes(1);
-		expect(accountEntrySource).not.toContain("campusAuthClient.useSession");
-		expect(accountEntrySource).toContain("lazy(");
-		expect(accountEntrySource).not.toContain("<input");
-		expect(accountEntrySource).not.toContain("signIn.email");
+		expect(screen.getByText(/操作过于频繁，请在 17 秒后重试/u)).toBeVisible();
+		expect(screen.getByRole("button", { name: "17 秒后可重发" })).toBeDisabled();
 	});
 
-	it("loads support-page authentication only after the account button is activated", async () => {
+	it("shows the server retry interval after auth rate limiting", async () => {
 		const user = userEvent.setup();
-		render(<DeferredProductAccountEntry />);
+		authClient.signInEmail.mockRejectedValue(
+			Object.assign(new Error("Too many requests"), { retryAfterSeconds: 17 }),
+		);
+		render(<SignInForm {...sharedFormProps} />);
 
-		expect(screen.getByRole("button", { name: "账号" })).toBeEnabled();
-		expect(screen.queryByRole("dialog", { name: "登录或创建校园问答账号" })).toBeNull();
-		expect(deferredProductAccountEntrySource).not.toContain("@/platform/auth/client");
+		await user.type(screen.getByLabelText("邮箱"), "student@muc.edu.cn");
+		await user.type(screen.getByLabelText("密码"), "validpassword123");
+		await user.click(screen.getByRole("button", { name: "登录" }));
 
-		await user.click(screen.getByRole("button", { name: "账号" }));
-
-		expect(
-			await screen.findByRole("dialog", { name: "登录或创建校园问答账号" }),
-		).toBeInTheDocument();
+		expect(await screen.findByText(/操作过于频繁，请在 17 秒后重试/u)).toBeVisible();
+		expect(screen.getByRole("button", { name: "17 秒后重试" })).toBeDisabled();
 	});
 
-	it("loads the Better Auth UI UserButton only for authenticated users", async () => {
-		render(<AccountEntry authenticated onLogin={vi.fn()} pending={false} />);
+	it("supports direct verification access and applies a 60-second resend cooldown", async () => {
+		const user = userEvent.setup();
+		render(<VerificationPending initialEmail="" onSignIn={vi.fn()} redirectTo="/groups" />);
 
-		expect(await screen.findByRole("button", { name: "账号" })).toBeInTheDocument();
-		expect(screen.queryByText("登录")).toBeNull();
+		await user.type(screen.getByLabelText("邮箱"), "student@muc.edu.cn");
+		await user.click(screen.getByRole("button", { name: "发送验证邮件" }));
+
+		await waitFor(() => expect(authClient.sendVerificationEmail).toHaveBeenCalledTimes(1));
+		expect(screen.getByRole("button", { name: /秒后可重发/ })).toBeDisabled();
+		expect(screen.getByText(/student@muc.edu.cn/)).toBeVisible();
+	});
+
+	it("uses enumeration-safe password reset confirmation copy", async () => {
+		const user = userEvent.setup();
+		const onSent = vi.fn();
+		authClient.requestPasswordReset.mockResolvedValue({ data: { status: true }, error: null });
+		const { unmount } = render(
+			<ForgotPasswordForm onSent={onSent} onSignIn={vi.fn()} redirectTo="/dining" />,
+		);
+
+		await user.type(screen.getByLabelText("邮箱"), "unknown@example.edu");
+		await user.click(screen.getByRole("button", { name: "发送重置链接" }));
+		await waitFor(() => expect(onSent).toHaveBeenCalled());
+		unmount();
+
+		render(<ResetLinkSent onSignIn={vi.fn()} />);
+		expect(
+			screen.getByText("如果该邮箱已注册，你会收到邮件。请同时检查垃圾邮件文件夹。"),
+		).toBeVisible();
+		expect(screen.queryByText("unknown@example.edu")).not.toBeInTheDocument();
+	});
+
+	it("does not show password-reset success without an action result", () => {
+		const view = render(<ResetComplete confirmed={false} onSignIn={vi.fn()} />);
+
+		expect(screen.getByRole("heading", { name: "无法确认密码更新结果" })).toBeVisible();
+		expect(screen.queryByRole("heading", { name: "密码已更新" })).not.toBeInTheDocument();
+
+		view.rerender(<ResetComplete confirmed onSignIn={vi.fn()} />);
+		expect(screen.getByRole("heading", { name: "密码已更新" })).toBeVisible();
+	});
+
+	it("offers session retry instead of opening login when account state is unavailable", async () => {
+		sessionState.status = "unavailable";
+		render(<AccountEntry onLogin={vi.fn()} presentation="label" />);
+
+		fireEvent.click(screen.getByRole("button", { name: "重试账号状态" }));
+		expect(sessionState.refresh).toHaveBeenCalledTimes(1);
+	});
+
+	it("completes the required temporary-password change and refreshes the root session", async () => {
+		const user = userEvent.setup();
+		const onComplete = vi.fn();
+		authClient.changePassword.mockResolvedValue({ data: { status: true }, error: null });
+		sessionState.status = "authenticated";
+		sessionState.data = {
+			session: { id: "session-1" },
+			user: {
+				email: "student@muc.edu.cn",
+				id: "user-1",
+				name: "测试用户",
+				passwordChangeRequired: true,
+			},
+		};
+
+		render(<RequiredPasswordChange onComplete={onComplete} onSignedOut={vi.fn()} />);
+		await user.type(screen.getByLabelText("当前密码"), "temporary123");
+		await user.type(screen.getByLabelText("新密码", { exact: true }), "newpassword123");
+		await user.type(screen.getByLabelText("确认新密码"), "newpassword123");
+		await user.click(screen.getByRole("button", { name: "修改密码" }));
+
+		await waitFor(() => expect(onComplete).toHaveBeenCalledOnce());
+		expect(authClient.changePassword).toHaveBeenCalledWith(
+			{
+				currentPassword: "temporary123",
+				newPassword: "newpassword123",
+				revokeOtherSessions: true,
+			},
+			{ throw: true },
+		);
+		expect(sessionState.refresh).toHaveBeenCalledOnce();
+	});
+
+	it("keeps Better Auth UI scoped to authenticated account settings", () => {
+		render(<Settings view="security" />);
+
+		const provider = screen.getByLabelText("settings-auth-provider");
+		const settings = screen.getByLabelText("account-settings");
+		expect(provider).toHaveAttribute("data-avatar-enabled", "false");
+		expect(provider).toHaveAttribute("data-auth-name", "姓名");
+		expect(provider).toHaveAttribute("data-auth-email", "邮箱");
+		expect(provider).toHaveAttribute("data-auth-sign-out", "退出登录");
+		expect(settings).toHaveAttribute("data-view", "security");
+		expect(settings).toHaveAttribute("data-variant", "transparent");
+		expect(settings).toHaveClass("campus-account-settings");
+		expect(screen.getByLabelText("account-settings-layout").firstElementChild).toHaveAttribute(
+			"data-campus-account-settings-column",
+		);
+		expect(screen.getByLabelText("account-settings-layout").firstElementChild).toHaveClass(
+			"max-w-2xl",
+		);
+		expect(screen.getByLabelText("account-settings-layout")).toHaveAttribute(
+			"data-campus-avatar-editing",
+			"disabled",
+		);
 	});
 });

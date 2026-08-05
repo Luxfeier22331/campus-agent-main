@@ -1,15 +1,11 @@
 import { Button } from "@campus-agent/ui";
-import { Link, Outlet, useLocation } from "@tanstack/react-router";
-import { lazy, Suspense } from "react";
+import { Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
+import { type ReactNode, Suspense, useEffect } from "react";
 import { DeferredProductAccountEntry } from "@/components/auth/user/deferred-product-account-entry";
-import { ProductBrandLink, ProductNavActions } from "@/components/navigation/product-navigation";
+import { CampusTopNav, FocusedPageHeader } from "@/components/navigation/campus-top-nav";
+import { resolveAccountAuthReturnTarget } from "@/platform/auth/return-target";
+import { useCampusSession } from "@/platform/auth/session";
 import { RouteMetadata } from "./route-metadata";
-
-const ProductNavMobileMenu = lazy(() =>
-	import("@/components/navigation/product-navigation-menu").then((module) => ({
-		default: module.ProductNavMobileMenu,
-	})),
-);
 
 export function RootLayout() {
 	const location = useLocation();
@@ -17,40 +13,128 @@ export function RootLayout() {
 	const isMapRoute = location.pathname === "/map";
 	const isAccountRoute = location.pathname.startsWith("/account");
 	const isLegalRoute = location.pathname.startsWith("/legal");
-	const shouldHideSupportHeader = isQaRoute || isMapRoute || isAccountRoute || isLegalRoute;
+	const isFocusedRoute = isAccountRoute || isLegalRoute;
+	const shouldShowStandardHeader = !(isQaRoute || isMapRoute || isFocusedRoute);
 	const outlet = (
 		<Suspense fallback={<RoutePending />}>
 			<Outlet />
 		</Suspense>
 	);
+	const guardedOutlet = (
+		<SessionRouteGuard pathname={location.pathname}>{outlet}</SessionRouteGuard>
+	);
 	return (
 		<>
 			<RouteMetadata pathname={location.pathname} />
-			<div className="min-h-dvh bg-background text-foreground">
-				{shouldHideSupportHeader ? null : <SupportPageHeader activePath={location.pathname} />}
-				{isQaRoute ? outlet : <main>{outlet}</main>}
+			<div className="min-h-dvh bg-background text-foreground" data-ui-profile="campus">
+				{shouldShowStandardHeader ? (
+					<CampusTopNav
+						accountAction={<DeferredProductAccountEntry />}
+						activePath={location.pathname}
+						mobileAccountAction={(openAuthDialog) => (
+							<DeferredProductAccountEntry onLogin={openAuthDialog} presentation="label" />
+						)}
+						variant="standard"
+					/>
+				) : null}
+				{isFocusedRoute ? <FocusedPageHeader /> : null}
+				{isQaRoute ? guardedOutlet : <main>{guardedOutlet}</main>}
 			</div>
 		</>
 	);
 }
 
-function SupportPageHeader({ activePath }: { activePath: string }) {
+function SessionRouteGuard({ children, pathname }: { children: ReactNode; pathname: string }) {
+	const navigate = useNavigate();
+	const session = useCampusSession();
+	const isLegalRoute = pathname.startsWith("/legal/");
+	const isAuthEntryRoute = pathname === "/account/login" || pathname === "/account/register";
+	const isProtectedAccountRoute =
+		pathname === "/account" ||
+		pathname === "/account/change-password" ||
+		pathname.startsWith("/account/settings/");
+	const passwordChangeRequired = session.data?.user.passwordChangeRequired === true;
+	const mustChangePassword =
+		session.status === "authenticated" &&
+		passwordChangeRequired &&
+		!isLegalRoute &&
+		pathname !== "/account/change-password";
+	const mustSignIn = session.status === "anonymous" && isProtectedAccountRoute;
+	const mustLeaveAuthEntry =
+		session.status === "authenticated" && !passwordChangeRequired && isAuthEntryRoute;
+
+	useEffect(() => {
+		if (!mustChangePassword) {
+			return;
+		}
+		void navigate({
+			replace: true,
+			search: { redirectTo: currentSafeRouteTarget() },
+			to: "/account/change-password",
+		});
+	}, [mustChangePassword, navigate]);
+
+	useEffect(() => {
+		if (!mustSignIn) {
+			return;
+		}
+		void navigate({
+			replace: true,
+			search: { redirectTo: currentSafeRouteTarget() },
+			to: "/account/login",
+		});
+	}, [mustSignIn, navigate]);
+
+	useEffect(() => {
+		if (!mustLeaveAuthEntry) {
+			return;
+		}
+		const target = resolveAccountAuthReturnTarget(window.location.search, {
+			currentOrigin: window.location.origin,
+		});
+		void navigate({ replace: true, to: target });
+	}, [mustLeaveAuthEntry, navigate]);
+
+	if (session.status === "loading" && isProtectedAccountRoute) {
+		return <RoutePending />;
+	}
+	if (session.status === "unavailable" && isProtectedAccountRoute) {
+		return (
+			<SessionUnavailable onRetry={() => void session.refresh()} retrying={session.isRefreshing} />
+		);
+	}
+	if (mustChangePassword || mustSignIn || mustLeaveAuthEntry) {
+		return <RoutePending />;
+	}
+	return children;
+}
+
+function SessionUnavailable({ onRetry, retrying }: { onRetry: () => void; retrying: boolean }) {
 	return (
-		<header className="sticky top-0 z-30 border-b border-border bg-white">
-			<div className="mx-auto grid min-h-16 max-w-[var(--layout-page-workspace-width)] grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 px-4 md:grid-cols-[minmax(0,1fr)_auto_auto] lg:px-6">
-				<ProductBrandLink className="min-h-16" linkMode="router" />
-				<ProductNavActions
-					activePath={activePath}
-					className="hidden gap-3 md:col-start-2 md:flex"
-				/>
-				<div className="col-start-2 flex min-h-16 items-center gap-1 md:col-start-3">
-					<DeferredProductAccountEntry />
-					<Suspense fallback={<span aria-hidden="true" className="size-11 md:hidden" />}>
-						<ProductNavMobileMenu activePath={activePath} triggerClassName="md:hidden" />
-					</Suspense>
-				</div>
-			</div>
-		</header>
+		<section className="mx-auto flex min-h-[60dvh] max-w-md flex-col justify-center px-6 py-16">
+			<h1 className="text-xl font-semibold text-[var(--sys-text-strong)]">暂时无法确认登录状态</h1>
+			<p className="mt-2 text-sm leading-6 text-[var(--sys-text-muted)]">
+				账号服务暂时不可用。你的登录状态没有发生变化，请稍后重试。
+			</p>
+			<Button
+				aria-busy={retrying || undefined}
+				className="mt-6 w-fit"
+				disabled={retrying}
+				onClick={onRetry}
+				variant="outline"
+			>
+				{retrying ? "正在重试" : "重试"}
+			</Button>
+		</section>
+	);
+}
+
+function currentSafeRouteTarget(): string {
+	return resolveAccountAuthReturnTarget(
+		new URLSearchParams({
+			redirectTo: `${window.location.pathname}${window.location.search}${window.location.hash}`,
+		}),
+		{ currentOrigin: window.location.origin },
 	);
 }
 
@@ -64,9 +148,9 @@ export function RoutePending() {
 		>
 			<span className="sr-only">正在加载页面</span>
 			<div aria-hidden="true" className="max-w-3xl animate-pulse space-y-4">
-				<div className="h-8 w-28 rounded-md bg-primary/10" />
-				<div className="h-4 w-full rounded-md bg-primary/10" />
-				<div className="h-4 w-4/5 rounded-md bg-primary/10" />
+				<div className="h-8 w-28 rounded-md bg-surface-muted" />
+				<div className="h-4 w-full rounded-md bg-surface-muted" />
+				<div className="h-4 w-4/5 rounded-md bg-surface-muted" />
 			</div>
 		</section>
 	);
@@ -75,7 +159,7 @@ export function RoutePending() {
 export function NotFoundPage() {
 	return (
 		<section className="mx-auto flex min-h-[70dvh] max-w-3xl flex-col justify-center px-6 py-20">
-			<p className="text-sm font-medium text-primary">404</p>
+			<p className="text-sm font-medium text-muted-foreground">404</p>
 			<h1 className="mt-3 text-3xl font-semibold tracking-normal text-[var(--sys-text-strong)]">
 				页面不存在
 			</h1>

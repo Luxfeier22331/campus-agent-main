@@ -195,7 +195,7 @@ function DocsRoutePending() {
 function DocsNotFoundPage() {
 	return (
 		<section className="mx-auto flex min-h-[70dvh] max-w-3xl flex-col justify-center px-6 py-20">
-			<p className="text-sm font-medium text-primary">404</p>
+			<p className="text-sm font-medium text-muted-foreground">404</p>
 			<h1
 				className="mt-3 text-3xl font-semibold tracking-normal text-[var(--sys-text-strong)]"
 				tabIndex={-1}

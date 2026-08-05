@@ -3,29 +3,49 @@
 	--color-foreground: var(--sys-text-default);
 	--color-card: var(--card-bg);
 	--color-card-foreground: var(--sys-text-default);
+	--color-surface-raised: var(--sys-surface-raised);
 	--color-surface-muted: var(--sys-bg-muted);
+	--color-surface-hover: var(--sys-surface-hover);
+	--color-surface-pressed: var(--sys-surface-pressed);
+	--color-selected: var(--sys-surface-selected);
+	--color-selected-hover: var(--sys-surface-selected-hover);
+	--color-selected-pressed: var(--sys-surface-selected-pressed);
+	--color-selected-foreground: var(--sys-text-selected);
 	--color-muted-foreground: var(--sys-text-muted);
-	--color-accent: var(--sys-bg-muted);
+	--color-accent: var(--sys-surface-hover);
 	--color-accent-foreground: var(--sys-text-strong);
 	--color-secondary: var(--sys-bg-subtle);
 	--color-secondary-foreground: var(--sys-text-default);
 	--color-popover: var(--sys-surface-default);
 	--color-popover-foreground: var(--sys-text-default);
-	--color-primary: var(--sys-brand-interactive);
-	--color-primary-foreground: var(--sys-text-inverse);
+	--color-primary: var(--sys-tint);
+	--color-primary-hover: var(--sys-tint-hover);
+	--color-primary-pressed: var(--sys-tint-pressed);
+	--color-primary-foreground: var(--sys-tint-foreground);
+	--color-link: var(--sys-text-link);
+	--color-link-hover: var(--sys-text-link-hover);
 	--color-destructive: var(--sys-status-danger);
-	--color-destructive-foreground: var(--sys-text-inverse);
+	--color-destructive-hover: var(--sys-status-danger-hover);
+	--color-destructive-pressed: var(--sys-status-danger-pressed);
+	--color-destructive-foreground: var(--sys-status-danger-on-solid);
 	--color-border: var(--sys-border-subtle);
+	--color-border-default: var(--sys-border-default);
+	--color-border-strong: var(--sys-border-strong);
+	--color-border-selected: var(--sys-border-selected);
 	--color-input: var(--input-border);
-	--color-ring: var(--sys-border-focus);
+	--color-ring: var(--sys-focus-ring);
 	--color-info: var(--sys-status-info);
 	--color-info-subtle: var(--sys-status-info-subtle);
+	--color-info-border: var(--sys-status-info-border);
 	--color-success: var(--sys-status-success);
 	--color-success-subtle: var(--sys-status-success-subtle);
+	--color-success-border: var(--sys-status-success-border);
 	--color-warning: var(--sys-status-warning);
 	--color-warning-subtle: var(--sys-status-warning-subtle);
+	--color-warning-border: var(--sys-status-warning-border);
 	--color-danger: var(--sys-status-danger);
 	--color-danger-subtle: var(--sys-status-danger-subtle);
+	--color-danger-border: var(--sys-status-danger-border);
 }
 
 @layer base {
@@ -38,6 +58,11 @@
 		background: var(--sys-bg-canvas);
 		color: var(--sys-text-default);
 		font-family: var(--font-sans);
+		color-scheme: light dark;
+		font-size: 16px;
+		letter-spacing: 0;
+		line-height: var(--line-height-normal);
+		text-rendering: optimizeLegibility;
 	}
 
 	body {
@@ -48,6 +73,7 @@
 
 	a {
 		text-decoration: none;
+		color: inherit;
 	}
 
 	button,
@@ -58,12 +84,85 @@
 	}
 
 	:focus-visible {
-		outline: 2px solid var(--sys-border-focus);
+		outline: 2px solid var(--sys-focus-ring);
 		outline-offset: 2px;
+	}
+
+	::selection {
+		background: var(--sys-tint-subtle);
+		color: var(--sys-text-strong);
+	}
+}
+
+@layer components {
+	.ui-page-title {
+		color: var(--sys-text-strong);
+		font-size: var(--font-size-2xl);
+		font-weight: 650;
+		letter-spacing: 0;
+		line-height: var(--line-height-tight);
+	}
+
+	.ui-section-title {
+		color: var(--sys-text-strong);
+		font-size: var(--font-size-lg);
+		font-weight: 600;
+		letter-spacing: 0;
+		line-height: var(--line-height-tight);
+	}
+
+	.ui-body {
+		color: var(--sys-text-default);
+		font-size: var(--font-size-md);
+		line-height: var(--line-height-normal);
+	}
+
+	.ui-supporting {
+		color: var(--sys-text-muted);
+		font-size: var(--font-size-sm);
+		line-height: var(--line-height-normal);
+	}
+
+	.ui-metadata {
+		color: var(--sys-text-subtle);
+		font-size: var(--font-size-xs);
+		line-height: var(--line-height-normal);
+	}
+}
+
+:root[data-theme-transitioning]::view-transition-old(root),
+:root[data-theme-transitioning]::view-transition-new(root) {
+	animation-duration: var(--motion-duration-standard);
+	animation-timing-function: var(--motion-easing-standard);
+	mix-blend-mode: normal;
+}
+
+:root[data-theme-transitioning]::view-transition-old(root) {
+	animation-name: ui-theme-fade-out;
+}
+
+:root[data-theme-transitioning]::view-transition-new(root) {
+	animation-name: ui-theme-fade-in;
+}
+
+@keyframes ui-theme-fade-out {
+	to {
+		opacity: 0;
+	}
+}
+
+@keyframes ui-theme-fade-in {
+	from {
+		opacity: 0;
 	}
 }
 
 @media (prefers-reduced-motion: reduce) {
+	:root::view-transition-old(root),
+	:root::view-transition-new(root) {
+		animation-duration: 0.01ms;
+	}
+
 	*,
 	*::before,
 	*::after {

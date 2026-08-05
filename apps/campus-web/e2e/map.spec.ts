@@ -55,7 +55,7 @@ test.describe("campus map browser flow", () => {
 		await page.goto("/map");
 
 		const errorState = page.getByRole("alert", { name: "校园地图暂时无法打开" });
-		await expect(page.getByRole("button", { name: "打开产品导航" })).toBeVisible();
+		await expect(page.getByRole("button", { name: "打开全局菜单" })).toBeVisible();
 		await expect(errorState).toContainText("校园地图暂时无法打开。");
 		await expect(errorState.getByRole("button", { name: "重试" })).toBeVisible();
 		await expect(errorState.getByRole("link", { name: "反馈" })).toHaveAttribute(

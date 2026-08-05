@@ -204,6 +204,8 @@ describe("declarative docs reader components", () => {
 			expect(tableContainer).toHaveAttribute("data-docs-overflowing", "true");
 			expect(tableContainer).toHaveAttribute("tabindex", "0");
 		});
+		const tableContainer = screen.getByRole("table").parentElement;
+		expect(tableContainer).toHaveAttribute("tabindex", "0");
 	});
 
 	it("reserves course-map space and opens an in-page original image viewer", async () => {

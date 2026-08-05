@@ -14,14 +14,14 @@ import {
 import { cn } from "./cn";
 
 const controlClass =
-	"w-full rounded-md border border-input bg-background px-3 text-foreground shadow-[var(--shadow-xs)] transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:bg-[var(--state-disabled-bg)] disabled:text-[var(--state-disabled-text)] aria-[invalid=true]:border-danger aria-[invalid=true]:ring-danger";
+	"w-full rounded-md border border-input bg-background px-3 text-foreground shadow-[var(--shadow-xs)] transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:border-border-default disabled:bg-[var(--state-disabled-bg)] disabled:text-[var(--state-disabled-text)] aria-[invalid=true]:border-danger aria-[invalid=true]:ring-danger";
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
 	({ className, type, ...props }, ref) => (
 		<input
 			className={cn(
 				controlClass,
-				"h-9 py-1 text-base file:border-0 file:bg-transparent file:text-sm file:font-medium md:text-sm",
+				"min-h-[var(--ui-control-height)] py-1 text-base file:border-0 file:bg-transparent file:text-sm file:font-medium md:text-sm",
 				className,
 			)}
 			ref={ref}
@@ -48,7 +48,11 @@ export const NativeSelect = forwardRef<HTMLSelectElement, SelectHTMLAttributes<H
 	({ children, className, ...props }, ref) => (
 		<div className="relative">
 			<select
-				className={cn(controlClass, "h-9 appearance-none pr-9 text-sm", className)}
+				className={cn(
+					controlClass,
+					"min-h-[var(--ui-control-height)] appearance-none pr-9 text-sm",
+					className,
+				)}
 				ref={ref}
 				{...props}
 			>

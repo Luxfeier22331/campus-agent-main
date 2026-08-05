@@ -3,15 +3,19 @@
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<meta name="color-scheme" content="light dark" />
 		<link rel="icon" href="/favicon.ico" type="image/x-icon" />
+		<script src="/theme-bootstrap.js"></script>
 		<title>MUC Campus</title>
 		<style>
 			[data-app-boot] {
+				--boot-canvas: #f7f9f8;
+				--boot-skeleton: #e3e8e6;
 				position: fixed;
 				inset: 0;
 				box-sizing: border-box;
 				padding: 24px;
-				background: #f7f9f8;
+				background: var(--boot-canvas);
 			}
 			[data-app-boot] > div {
 				width: min(100%, 768px);
@@ -22,7 +26,7 @@
 				height: 16px;
 				margin-top: 16px;
 				border-radius: 6px;
-				background: #e3e8e6;
+				background: var(--boot-skeleton);
 			}
 			[data-app-boot] i:first-child {
 				width: 112px;
@@ -31,6 +35,16 @@
 			}
 			[data-app-boot] i:last-child {
 				width: 72%;
+			}
+			:root[data-theme="dark"] [data-app-boot] {
+				--boot-canvas: #0f1115;
+				--boot-skeleton: #242b37;
+			}
+			@media (prefers-color-scheme: dark) {
+				:root:not([data-theme]) [data-app-boot] {
+					--boot-canvas: #0f1115;
+					--boot-skeleton: #242b37;
+				}
 			}
 		</style>
 	</head>

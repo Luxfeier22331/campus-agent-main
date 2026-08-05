@@ -60,22 +60,22 @@ interface TypewriterState {
 }
 
 export function createCampusAssistantRuntimeHook(input: {
-	hasSession: boolean;
+	loginRequired: boolean;
 	onLoginRequired: () => void;
 }) {
 	return function useCampusAssistantExternalStoreRuntime() {
 		return useCampusAssistantRuntimeState({
-			hasSession: input.hasSession,
+			loginRequired: input.loginRequired,
 			onLoginRequired: input.onLoginRequired,
 		});
 	};
 }
 
 function useCampusAssistantRuntimeState({
-	hasSession,
+	loginRequired,
 	onLoginRequired,
 }: {
-	hasSession: boolean;
+	loginRequired: boolean;
 	onLoginRequired: () => void;
 }) {
 	const aui = useAui();
@@ -654,7 +654,7 @@ function useCampusAssistantRuntimeState({
 			if (!prompt) {
 				throw new Error("Message text is required.");
 			}
-			if (!hasSession) {
+			if (loginRequired) {
 				onLoginRequired();
 				return;
 			}
@@ -737,7 +737,7 @@ function useCampusAssistantRuntimeState({
 			clearProvisionalAssistantMessages,
 			clearTypewriter,
 			followLifecycleStream,
-			hasSession,
+			loginRequired,
 			onLoginRequired,
 			ownsOperation,
 			replaceActiveRun,
@@ -747,7 +747,7 @@ function useCampusAssistantRuntimeState({
 
 	const onNew = useCallback(
 		async (message: AppendMessage) => {
-			if (!hasSession) {
+			if (loginRequired) {
 				onLoginRequired();
 				return;
 			}
@@ -763,7 +763,7 @@ function useCampusAssistantRuntimeState({
 				prompt: readTextContent(message),
 			});
 		},
-		[aui.threadListItem, hasSession, onLoginRequired, remoteId, runPrompt],
+		[aui.threadListItem, loginRequired, onLoginRequired, remoteId, runPrompt],
 	);
 
 	const onEdit = useCallback(

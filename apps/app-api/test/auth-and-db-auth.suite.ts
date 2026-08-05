@@ -107,9 +107,9 @@ export function registerAppApiAuthConfigSuite() {
 			expect(config.emailAndPassword.sendResetPassword).toEqual(expect.any(Function));
 			expect(config.emailAndPassword.onPasswordReset).toEqual(expect.any(Function));
 			expect(config.emailVerification).toMatchObject({
-				autoSignInAfterVerification: false,
+				autoSignInAfterVerification: true,
 				sendOnSignIn: false,
-				sendOnSignUp: true,
+				sendOnSignUp: false,
 			});
 			expect(config.user?.changeEmail).toMatchObject({
 				enabled: true,
@@ -150,6 +150,7 @@ export function registerAppApiAuthConfigSuite() {
 			await expect(
 				config.emailVerification.sendVerificationEmail?.({
 					token: "verify_token_01HQ",
+					url: "https://campus.muc.wiki/verify-email?token=verify_token_01HQ&callbackURL=%2Faccount",
 					user: { email: "jane@muc.edu.cn", id: "user_01HQ", name: "Jane" },
 				}),
 			).rejects.toThrow("Missing auth email configuration: RESEND_API_KEY, AUTH_EMAIL_FROM");
@@ -231,6 +232,7 @@ export function registerAppApiAuthConfigSuite() {
 
 			await config.emailAndPassword.sendResetPassword?.({
 				token: "reset_token_01HQ",
+				url: "https://campus.muc.wiki/reset-password/reset_token_01HQ?callbackURL=%2Faccount%2Freset-password%3FredirectTo%3D%252Fmap%253Fbuilding%253Dlibrary",
 				user: {
 					email: "jane@muc.edu.cn",
 					name: "Jane <Admin>",
@@ -246,6 +248,7 @@ export function registerAppApiAuthConfigSuite() {
 			});
 			await config.emailVerification.sendVerificationEmail?.({
 				token: "verify_token_01HQ",
+				url: "https://campus.muc.wiki/verify-email?token=verify_token_01HQ&callbackURL=%2Fmap%3Fbuilding%3Dlibrary",
 				user: {
 					email: "jane@muc.edu.cn",
 					id: "user_01HQ",
@@ -255,6 +258,7 @@ export function registerAppApiAuthConfigSuite() {
 			await config.user.changeEmail.sendChangeEmailConfirmation?.({
 				newEmail: "jane-new@muc.edu.cn",
 				token: "change_token_01HQ",
+				url: "https://campus.muc.wiki/verify-email?token=change_token_01HQ&callbackURL=%2Faccount%2Fsettings%2Faccount",
 				user: {
 					email: "jane@muc.edu.cn",
 					name: "Jane Doe",
@@ -273,7 +277,7 @@ export function registerAppApiAuthConfigSuite() {
 			expect(firstPayload).toMatchObject({
 				from: "Campus Agent <account@auth.muc.wiki>",
 				replyTo: "support@example.com",
-				subject: "重置 Campus Agent 密码",
+				subject: "重置中央民族大学校园问答密码",
 				to: "jane@muc.edu.cn",
 			});
 			const resetOptions = send.mock.calls[0]?.[1] as {
@@ -289,16 +293,19 @@ export function registerAppApiAuthConfigSuite() {
 			expect(firstPayload.html).toContain(
 				"callbackURL=https%3A%2F%2Fcampus.muc.wiki%2Faccount%2Freset-password",
 			);
+			expect(firstPayload.html).toContain("redirectTo%3D%252Fmap%253Fbuilding%253Dlibrary");
+			expect(firstPayload.html).toContain("https://campus.muc.wiki/feedback?source=auth");
+			expect(firstPayload.html).toContain("1 小时");
 			expect(firstPayload.html).toContain("Jane &lt;Admin&gt;");
 			expect(firstPayload.html).not.toContain("Jane <Admin>");
-			expect(firstPayload.text).toContain("Campus Agent");
+			expect(firstPayload.text).toContain("中央民族大学校园问答");
 
 			const secondPayload = send.mock.calls[1]?.[0] as {
 				subject?: string;
 				to?: string;
 			};
 			expect(secondPayload).toMatchObject({
-				subject: "Campus Agent 密码已修改",
+				subject: "中央民族大学校园问答密码已修改",
 				to: "jane@muc.edu.cn",
 			});
 			expect(send.mock.calls[1]?.[1]).toEqual({ purpose: "password_changed" });
@@ -309,7 +316,7 @@ export function registerAppApiAuthConfigSuite() {
 				to?: string;
 			};
 			expect(verificationPayload).toMatchObject({
-				subject: "验证 Campus Agent 邮箱",
+				subject: "验证中央民族大学校园问答邮箱",
 				to: "jane@muc.edu.cn",
 			});
 			expect(send.mock.calls[2]?.[1]).toMatchObject({ purpose: "email_verification" });
@@ -317,6 +324,10 @@ export function registerAppApiAuthConfigSuite() {
 			expect(verificationPayload.html).toContain(
 				"https://campus.muc.wiki/api/auth/verify-email?token=verify_token_01HQ",
 			);
+			expect(verificationPayload.html).toContain(
+				"callbackURL=https%3A%2F%2Fcampus.muc.wiki%2Faccount%2Fverify-email%2Fresult",
+			);
+			expect(verificationPayload.html).toContain("redirectTo%3D%252Fmap%253Fbuilding%253Dlibrary");
 
 			const changeEmailPayload = send.mock.calls[3]?.[0] as {
 				html?: string;
@@ -324,9 +335,13 @@ export function registerAppApiAuthConfigSuite() {
 				to?: string;
 			};
 			expect(changeEmailPayload).toMatchObject({
-				subject: "确认更换 Campus Agent 邮箱",
+				subject: "确认更换中央民族大学校园问答邮箱",
 				to: "jane@muc.edu.cn",
 			});
+			expect(changeEmailPayload.html).toContain(
+				"callbackURL=https%3A%2F%2Fcampus.muc.wiki%2Faccount%2Fsettings%2Faccount",
+			);
+			expect(changeEmailPayload.html).not.toContain("account%2Fverify-email%2Fresult");
 			expect(send.mock.calls[3]?.[1]).toMatchObject({
 				purpose: "email_change_confirmation",
 			});
@@ -352,6 +367,7 @@ export function registerAppApiAuthConfigSuite() {
 			await expect(
 				config.emailVerification.sendVerificationEmail?.({
 					token: "verify_token_01HQ",
+					url: "https://campus.muc.wiki/verify-email?token=verify_token_01HQ&callbackURL=%2Faccount",
 					user: { email: "jane@muc.edu.cn", id: "user_01HQ", name: "Jane" },
 				}),
 			).rejects.toThrow("Resend rate limit exceeded");
@@ -368,9 +384,12 @@ export function registerAppApiAuthConfigSuite() {
 			expect(
 				resolvePasswordResetRedirectTarget({
 					authShellOrigin: "https://campus.muc.wiki",
-					redirectTo: "https://campus.muc.wiki/account/reset-password",
+					redirectTo:
+						"https://campus.muc.wiki/account/reset-password?redirectTo=%2Fmap%3Fbuilding%3Dlibrary",
 				}),
-			).toBe("https://campus.muc.wiki/account/reset-password");
+			).toBe(
+				"https://campus.muc.wiki/account/reset-password?redirectTo=%2Fmap%3Fbuilding%3Dlibrary",
+			);
 
 			expect(() =>
 				resolvePasswordResetRedirectTarget({
@@ -384,7 +403,44 @@ export function registerAppApiAuthConfigSuite() {
 					authShellOrigin: "https://campus.muc.wiki",
 					redirectTo: "https://evil.example.com/account/reset-password",
 				}),
-			).toThrowError(/reset-password/i);
+			).toThrowError(/same-origin|reset-password/i);
+
+			for (const redirectTo of [
+				"/account/reset-password?redirectTo=/api/auth/get-session",
+				"/account/reset-password?redirectTo=/account/login",
+				"/account/reset-password?redirectTo=/map&redirectTo=/dining",
+				"/account/reset-password?redirectTo=/%5c%5cattacker.example",
+				"/account/reset-password?unexpected=true",
+				"/account/reset-password#token",
+			]) {
+				expect(() =>
+					resolvePasswordResetRedirectTarget({
+						authShellOrigin: "https://campus.muc.wiki",
+						redirectTo,
+					}),
+				).toThrow();
+			}
+		});
+
+		it("rejects a verification action URL that can escape the campus auth shell", async () => {
+			const config = buildBetterAuthConfig({
+				appName: "campus-agent-app-api",
+				authShellOrigin: "https://campus.muc.wiki",
+				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
+				environment: "production",
+				authTurnstileSecretKey: "turnstile_secret_key",
+				emailSender: { send: vi.fn() },
+				readAuthEmailConfig,
+				database: {} as never,
+			} as never);
+
+			await expect(
+				config.emailVerification.sendVerificationEmail?.({
+					token: "verify_token_01HQ",
+					url: "https://campus.muc.wiki/verify-email?token=verify_token_01HQ&callbackURL=https%3A%2F%2Fevil.example",
+					user: { email: "jane@muc.edu.cn", id: "user_01HQ", name: "Jane" },
+				}),
+			).rejects.toThrow(/same-origin/i);
 		});
 
 		it("writes and verifies Better Auth scrypt passwords", async () => {

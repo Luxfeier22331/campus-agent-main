@@ -1,4 +1,4 @@
-import { Button } from "@campus-agent/ui";
+import { Button, ThemeProvider } from "@campus-agent/ui";
 import { Component, type ReactNode, StrictMode, useEffect } from "react";
 import { createRoot, hydrateRoot } from "react-dom/client";
 import { createDocsRouter, DocsRouterProvider } from "./app/docs-router";
@@ -27,7 +27,9 @@ try {
 	} else {
 		const application = (
 			<StrictMode>
-				<DocsApplication />
+				<ThemeProvider>
+					<DocsApplication />
+				</ThemeProvider>
 			</StrictMode>
 		);
 		if (isPrerendered) {

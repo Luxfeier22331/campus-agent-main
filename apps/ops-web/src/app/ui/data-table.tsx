@@ -62,6 +62,7 @@ export function DataTable<T>({
 		getRowId: rowKey,
 	});
 	const rows = table.getRowModel().rows;
+	const pinBothEdges = stickyFirstColumn && stickyLastColumn;
 
 	return (
 		<div
@@ -88,11 +89,17 @@ export function DataTable<T>({
 												className={cn(
 													"border-border border-b bg-secondary px-3 py-2 font-semibold text-muted-foreground text-xs",
 													column?.headerClassName,
-													stickyFirstColumn && index === 0 && "sticky left-0 z-20 border-r",
+													stickyFirstColumn &&
+														index === 0 &&
+														(pinBothEdges
+															? "md:sticky md:left-0 md:z-20 md:border-r"
+															: "sticky left-0 z-20 border-r"),
 													column?.stickyRight ||
 														(stickyLastColumn &&
 															index === headerGroup.headers.length - 1 &&
-															"sticky right-0 z-20 border-l"),
+															(pinBothEdges
+																? "md:sticky md:right-0 md:z-20 md:border-l"
+																: "sticky right-0 z-20 border-l")),
 												)}
 												key={header.id}
 												scope="col"
@@ -116,6 +123,7 @@ export function DataTable<T>({
 										row={row}
 										stickyFirstColumn={stickyFirstColumn}
 										stickyLastColumn={stickyLastColumn}
+										pinBothEdges={pinBothEdges}
 									/>
 								))
 							) : (
@@ -142,12 +150,14 @@ function DataTableRow<T>({
 	row,
 	stickyFirstColumn,
 	stickyLastColumn,
+	pinBothEdges,
 }: {
 	columnById: Map<string, DataTableColumn<T>>;
 	columns: DataTableColumn<T>[];
 	row: ReturnType<ReturnType<typeof useReactTable<T>>["getRowModel"]>["rows"][number];
 	stickyFirstColumn: boolean;
 	stickyLastColumn: boolean;
+	pinBothEdges: boolean;
 }) {
 	const cells = row.getVisibleCells();
 	return (
@@ -158,11 +168,15 @@ function DataTableRow<T>({
 				const stickyClass = cn(
 					stickyFirstColumn &&
 						index === 0 &&
-						"sticky left-0 z-10 border-r bg-background group-hover:bg-surface-muted",
+						(pinBothEdges
+							? "md:sticky md:left-0 md:z-10 md:border-r md:bg-background md:group-hover:bg-surface-muted"
+							: "sticky left-0 z-10 border-r bg-background group-hover:bg-surface-muted"),
 					column?.stickyRight ||
 						(stickyLastColumn &&
 							index === cells.length - 1 &&
-							"sticky right-0 z-10 border-l bg-background group-hover:bg-surface-muted"),
+							(pinBothEdges
+								? "md:sticky md:right-0 md:z-10 md:border-l md:bg-background md:group-hover:bg-surface-muted"
+								: "sticky right-0 z-10 border-l bg-background group-hover:bg-surface-muted")),
 				);
 				return columns[index]?.rowHeader ? (
 					<th

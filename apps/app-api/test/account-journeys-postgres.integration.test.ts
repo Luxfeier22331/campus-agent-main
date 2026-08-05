@@ -90,7 +90,11 @@ function latestEmail(input: {
 }
 
 function verificationUrl(emails: CapturedEmail[], email: string): URL {
-	const message = latestEmail({ emails, recipient: email, subject: "验证 Campus Agent 邮箱" });
+	const message = latestEmail({
+		emails,
+		recipient: email,
+		subject: "验证中央民族大学校园问答邮箱",
+	});
 	const url = message.text
 		.split(/\s+/u)
 		.find((value) => value.includes("/api/auth/verify-email?token="));
@@ -101,7 +105,11 @@ function verificationUrl(emails: CapturedEmail[], email: string): URL {
 }
 
 function resetToken(emails: CapturedEmail[], email: string): string {
-	const message = latestEmail({ emails, recipient: email, subject: "重置 Campus Agent 密码" });
+	const message = latestEmail({
+		emails,
+		recipient: email,
+		subject: "重置中央民族大学校园问答密码",
+	});
 	const url = message.text
 		.split(/\s+/u)
 		.find((value) => value.includes("/api/auth/reset-password/"));
@@ -152,6 +160,19 @@ describe("account journeys PostgreSQL integration", () => {
 		if (response.status !== 200) {
 			throw new Error(
 				`Expected sign-up to succeed, received ${response.status}: ${await response.text()}`,
+			);
+		}
+		const verificationRequest = await app.fetch(
+			authRequest({
+				authShellOrigin,
+				body: { callbackURL: "/account", email },
+				method: "POST",
+				path: "/send-verification-email",
+			}),
+		);
+		if (verificationRequest.status !== 200) {
+			throw new Error(
+				`Expected verification email request to succeed, received ${verificationRequest.status}: ${await verificationRequest.text()}`,
 			);
 		}
 		const rows = await client.query<{ id: string }>(
@@ -469,7 +490,7 @@ describe("account journeys PostgreSQL integration", () => {
 				emailActionUrl({
 					emails,
 					recipient: oldEmail,
-					subject: "确认更换 Campus Agent 邮箱",
+					subject: "确认更换中央民族大学校园问答邮箱",
 				}),
 			),
 		);
@@ -484,7 +505,7 @@ describe("account journeys PostgreSQL integration", () => {
 				emailActionUrl({
 					emails,
 					recipient: newEmail,
-					subject: "验证 Campus Agent 邮箱",
+					subject: "验证中央民族大学校园问答邮箱",
 				}),
 			),
 		);

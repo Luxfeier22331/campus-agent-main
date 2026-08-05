@@ -1,14 +1,16 @@
+import { ThemeProvider } from "@campus-agent/ui";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { AppRouter, campusRouter } from "./app/router";
+import { CampusSessionProvider } from "./platform/auth/session";
 import { getCampusRuntimeConfig } from "./platform/runtime/config";
 import {
 	CampusSentryErrorBoundary,
 	campusReactErrorHandler,
 	initializeCampusBrowserSentry,
 } from "./platform/telemetry/sentry-browser-loader";
-import "./styles.css";
+import "./app-styles.css";
 
 const rootElement = document.getElementById("root");
 
@@ -24,9 +26,13 @@ createRoot(rootElement, {
 	onUncaughtError: campusReactErrorHandler(),
 }).render(
 	<StrictMode>
-		<CampusSentryErrorBoundary fallback={<ApplicationFailure />}>
-			<AppRouter />
-		</CampusSentryErrorBoundary>
+		<ThemeProvider>
+			<CampusSentryErrorBoundary fallback={<ApplicationFailure />}>
+				<CampusSessionProvider>
+					<AppRouter />
+				</CampusSessionProvider>
+			</CampusSentryErrorBoundary>
+		</ThemeProvider>
 	</StrictMode>,
 );
 
@@ -37,7 +43,7 @@ function ApplicationFailure() {
 				<h1 className="text-xl font-semibold">页面暂时无法显示</h1>
 				<p className="mt-2 text-sm text-muted-foreground">请刷新页面后重试。</p>
 				<button
-					className="mt-5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+					className="mt-5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary-hover active:bg-primary-pressed"
 					onClick={() => window.location.reload()}
 					type="button"
 				>

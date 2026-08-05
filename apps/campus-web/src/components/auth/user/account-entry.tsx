@@ -1,68 +1,129 @@
 import { Button } from "@campus-agent/ui";
-import { UserRound } from "lucide-react";
+import { RefreshCw, UserRound } from "lucide-react";
 import { lazy, Suspense } from "react";
 import { cn } from "@/lib/utils";
+import { useCampusSession } from "@/platform/auth/session";
+import type { AccountMenuPlacement } from "./authenticated-account-menu";
 
-const AuthenticatedUserButton = lazy(() =>
-	import("./user-button").then((module) => ({ default: module.UserButton })),
+const AuthenticatedAccountMenu = lazy(() =>
+	import("./authenticated-account-menu").then((module) => ({
+		default: module.AuthenticatedAccountMenu,
+	})),
 );
 
 export function AccountEntry({
-	authenticated,
 	className,
+	menuOpen,
+	menuPlacement = "bottom-end",
 	onLogin,
-	pending,
-	variant = "label",
+	onMenuOpenChange,
+	presentation = "label",
+	showSubtitle = false,
 }: {
-	authenticated: boolean;
 	className?: string;
+	menuOpen?: boolean;
+	menuPlacement?: AccountMenuPlacement;
 	onLogin: () => void;
-	pending: boolean;
-	variant?: "icon" | "label";
+	onMenuOpenChange?: (open: boolean) => void;
+	presentation?: "icon" | "label";
+	showSubtitle?: boolean;
 }) {
-	if (pending) {
-		return <AccountEntryButton className={className} disabled label="账号" variant={variant} />;
+	const session = useCampusSession();
+	if (session.status === "loading") {
+		return (
+			<AccountEntryButton
+				busy
+				className={className}
+				disabled
+				label="账号"
+				presentation={presentation}
+			/>
+		);
 	}
-	if (authenticated) {
+	if (session.status === "unavailable") {
+		return (
+			<AccountEntryButton
+				busy={session.isRefreshing}
+				className={className}
+				disabled={session.isRefreshing}
+				label={session.isRefreshing ? "正在重试账号状态" : "重试账号状态"}
+				onClick={() => void session.refresh()}
+				presentation={presentation}
+				retry
+			/>
+		);
+	}
+	if (session.status === "authenticated") {
 		return (
 			<Suspense
 				fallback={
-					<AccountEntryButton className={className} disabled label="账号" variant={variant} />
+					<AccountEntryButton
+						busy
+						className={className}
+						disabled
+						label="账号"
+						presentation={presentation}
+					/>
 				}
 			>
-				<AuthenticatedUserButton />
+				<AuthenticatedAccountMenu
+					className={className}
+					menuPlacement={menuPlacement}
+					onOpenChange={onMenuOpenChange}
+					open={menuOpen}
+					presentation={presentation}
+					showSubtitle={showSubtitle}
+				/>
 			</Suspense>
 		);
 	}
 	return (
-		<AccountEntryButton className={className} label="登录" onClick={onLogin} variant={variant} />
+		<AccountEntryButton
+			className={className}
+			label="登录"
+			onClick={onLogin}
+			presentation={presentation}
+		/>
 	);
 }
 
 function AccountEntryButton({
+	busy = false,
 	className,
 	disabled = false,
 	label,
 	onClick,
-	variant,
+	presentation,
+	retry = false,
 }: {
+	busy?: boolean;
 	className?: string;
 	disabled?: boolean;
 	label: string;
 	onClick?: () => void;
-	variant: "icon" | "label";
+	presentation: "icon" | "label";
+	retry?: boolean;
 }) {
 	return (
 		<Button
 			aria-label={label}
-			className={cn(variant === "label" ? "px-3 text-xs" : "", className)}
+			aria-busy={busy || undefined}
+			className={cn(
+				presentation === "label" ? "w-full min-w-0 justify-start px-2 text-sm" : "",
+				className,
+			)}
 			disabled={disabled}
 			onClick={onClick}
-			size={variant === "icon" ? "icon-lg" : "lg"}
+			size={presentation === "icon" ? "icon-lg" : "lg"}
 			type="button"
 			variant="ghost"
 		>
-			{variant === "icon" ? <UserRound aria-hidden="true" className="size-4" /> : label}
+			{retry ? (
+				<RefreshCw aria-hidden="true" className="size-4 shrink-0" />
+			) : (
+				<UserRound aria-hidden="true" className="size-4 shrink-0" />
+			)}
+			{presentation === "label" ? <span className="truncate">{label}</span> : null}
 		</Button>
 	);
 }

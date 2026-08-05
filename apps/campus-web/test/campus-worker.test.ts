@@ -91,6 +91,26 @@ describe("campus worker boundary", () => {
 		expect(assetFetch).toHaveBeenCalledTimes(1);
 	});
 
+	it("serves the theme bootstrap through static assets before shell route matching", async () => {
+		const assetFetch = vi.fn((request: Request) => {
+			expect(new URL(request.url).pathname).toBe("/theme-bootstrap.js");
+			return Promise.resolve(
+				new Response("window.__theme_bootstrap__ = true;", {
+					headers: { "content-type": "application/javascript" },
+				}),
+			);
+		});
+
+		const response = await worker.fetch(
+			new Request("https://campus.muc.wiki/theme-bootstrap.js"),
+			createEnv(undefined, { fetch: assetFetch }),
+		);
+
+		expect(response.status).toBe(200);
+		expect(response.headers.get("content-type")).toBe("application/javascript");
+		expect(assetFetch).toHaveBeenCalledTimes(1);
+	});
+
 	it("allows only explicit app-api seams", async () => {
 		const seen: string[] = [];
 		const env = createEnv({
@@ -187,7 +207,10 @@ describe("campus worker boundary", () => {
 			"/account/forgot-password",
 			"/account/reset-link-sent",
 			"/account/reset-password",
-			"/account/sign-out",
+			"/account/reset-complete",
+			"/account/verify-email",
+			"/account/verify-email/result",
+			"/account/change-password",
 			"/account/settings/account",
 			"/account/settings/security",
 			"/account/settings/memory",

@@ -13,7 +13,13 @@ test.describe("docs reader design contract", () => {
 		await expect(page.getByRole("heading", { level: 1, name: "学生考勤管理规定" })).toBeVisible();
 		await expect(page.locator('aside[aria-label="文档目录侧栏"]')).toHaveCount(1);
 		await expect(page.locator('aside[aria-label="本页目录侧栏"]')).toBeHidden();
-		await expect(page.getByRole("button", { name: "打开本页目录" })).toBeVisible();
+		const productMenuTrigger = page.getByRole("button", { name: "打开全局菜单" });
+		await productMenuTrigger.click();
+		const productMenu = page.getByRole("dialog", { name: "校园问答导航" });
+		await expect(productMenu.getByRole("button", { name: "打开本页目录" })).toBeVisible();
+		await page.keyboard.press("Escape");
+		await expect(productMenu).toBeHidden();
+		await expect(productMenuTrigger).toBeFocused();
 
 		const results = await new AxeBuilder({ page })
 			.withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])

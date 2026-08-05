@@ -1,40 +1,16 @@
 import { AuthProvider } from "@better-auth-ui/heroui";
 import { ToastProvider } from "@heroui/react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
-import { createCampusAuthUIProviderProps } from "./auth-ui-provider-config";
+import { createCampusSettingsProviderProps } from "./auth-ui-provider-config";
 
-function AuthLink({
-	children,
-	className,
-	href,
-}: {
-	children: ReactNode;
-	className?: string;
-	href: string;
-}) {
-	return (
-		<Link className={className} to={href}>
-			{children}
-		</Link>
-	);
-}
-
-export function CampusAuthUIProvider({
-	children,
-	redirectTo,
-}: {
-	children: ReactNode;
-	redirectTo?: string;
-}) {
+export function CampusAuthUIProvider({ children }: { children: ReactNode }) {
 	const navigate = useNavigate();
-	const commonProps = createCampusAuthUIProviderProps({
-		authLink: AuthLink,
+	const commonProps = createCampusSettingsProviderProps({
 		navigate: ({ replace, to }) => {
 			void navigate({ replace, to });
 		},
-		redirectTo,
 	});
 
 	return (

@@ -32,16 +32,13 @@ import {
 } from "@campus-agent/ui";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Flag, LoaderCircle, MessageSquareText, Send, Trash2 } from "lucide-react";
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
+import { AuthDialog } from "@/components/auth/auth-dialog";
 import { createDiningReview, deleteDiningReview, reportDiningReview } from "@/features/dining/api";
 import { diningQueryKeys, diningReviewsInfiniteQueryOptions } from "@/features/dining/queries";
 import { createIdempotencyKey } from "@/platform/api/client";
-import { campusAuthClient } from "@/platform/auth/client";
-
-const AuthDialog = lazy(() =>
-	import("../auth/auth-dialog").then((module) => ({ default: module.AuthDialog })),
-);
+import { useCampusSession } from "@/platform/auth/session";
 
 export function DiningReviewSheet(props: {
 	item: DiningMenuItem | null;
@@ -49,7 +46,7 @@ export function DiningReviewSheet(props: {
 	open: boolean;
 }) {
 	const queryClient = useQueryClient();
-	const session = campusAuthClient.useSession();
+	const session = useCampusSession();
 	const [authOpen, setAuthOpen] = useState(false);
 	const [anonymous, setAnonymous] = useState(true);
 	const [body, setBody] = useState("");
@@ -61,7 +58,7 @@ export function DiningReviewSheet(props: {
 	const reviews = useInfiniteQuery(
 		diningReviewsInfiniteQueryOptions(
 			menuItemId,
-			session.data?.user?.id ?? null,
+			session.data?.user.id ?? null,
 			props.open && Boolean(menuItemId),
 		),
 	);
@@ -112,9 +109,9 @@ export function DiningReviewSheet(props: {
 							<h3 className="text-sm font-semibold" id="dining-review-compose">
 								发表评价
 							</h3>
-							{session.isPending ? (
+							{session.status === "loading" ? (
 								<div className="mt-3 h-9 animate-pulse rounded-md bg-surface-muted" />
-							) : session.data ? (
+							) : session.status === "authenticated" ? (
 								<form
 									className="mt-3 space-y-3"
 									onSubmit={(event) => {
@@ -174,6 +171,19 @@ export function DiningReviewSheet(props: {
 										</div>
 									</div>
 								</form>
+							) : session.status === "unavailable" ? (
+								<div className="mt-3">
+									<p className="text-[var(--sys-text-muted)] text-sm">暂时无法确认登录状态。</p>
+									<Button
+										aria-busy={session.isRefreshing || undefined}
+										className="mt-2"
+										disabled={session.isRefreshing}
+										onClick={() => void session.refresh()}
+										variant="outline"
+									>
+										{session.isRefreshing ? "正在重试" : "重试"}
+									</Button>
+								</div>
 							) : (
 								<Button className="mt-3" onClick={() => setAuthOpen(true)} variant="outline">
 									登录后发表
@@ -227,7 +237,7 @@ export function DiningReviewSheet(props: {
 													</p>
 												</div>
 												<ReviewActions
-													authenticated={Boolean(session.data)}
+													authenticated={session.status === "authenticated"}
 													onDelete={() => remove.mutate(review.reviewId)}
 													onLogin={() => setAuthOpen(true)}
 													onReport={() => setReportReviewId(review.reviewId)}
@@ -315,11 +325,7 @@ export function DiningReviewSheet(props: {
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
-			{authOpen ? (
-				<Suspense fallback={null}>
-					<AuthDialog onOpenChange={setAuthOpen} open />
-				</Suspense>
-			) : null}
+			{authOpen ? <AuthDialog onOpenChange={setAuthOpen} open /> : null}
 		</>
 	);
 }

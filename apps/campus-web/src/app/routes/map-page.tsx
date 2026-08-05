@@ -1,9 +1,11 @@
-import { Button } from "@campus-agent/ui";
+import { Button, useTheme } from "@campus-agent/ui";
 import type maplibregl from "maplibre-gl";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { DeferredProductAccountEntry } from "@/components/auth/user/deferred-product-account-entry";
 import { MapExperience } from "@/components/map/map-experience";
-import { MapProductNavOverlay } from "@/components/navigation/product-navigation";
+import { CampusTopNav } from "@/components/navigation/campus-top-nav";
+import { readBrowserPathname } from "@/components/navigation/product-navigation";
 import { MapProductNavMobileMenu } from "@/components/navigation/product-navigation-menu";
 import { SurfaceState } from "@/components/ui/surface-state";
 import { getCampusMapManifest, getCampusMapPlaces } from "@/features/map/api";
@@ -46,6 +48,8 @@ export function MapPage() {
 	const markerRefs = useRef<maplibregl.Marker[]>([]);
 	const mapMoveIntentRef = useRef<"filter" | "place">("filter");
 	const mapReadyProfileRef = useRef<string | null>(null);
+	const mapReadyThemeRef = useRef<"light" | "dark" | null>(null);
+	const mapStyleUpdateTimerRef = useRef<number | null>(null);
 	const mapAttemptRef = useRef(0);
 	const selectPlaceRef = useRef<(placeId: string) => void>(() => {
 		throw new Error("Campus map place selector was not initialized.");
@@ -69,6 +73,9 @@ export function MapPage() {
 	const [query, setQuery] = useState("");
 	const [selectedCampus, setSelectedCampus] = useState<string | null>(null);
 	const [selectedCategory, setSelectedCategory] = useState<MapTaskFilter>("all");
+	const { resolvedTheme } = useTheme();
+	const resolvedThemeRef = useRef(resolvedTheme);
+	resolvedThemeRef.current = resolvedTheme;
 
 	const places = useMemo(() => createMapPlaceViews(data?.places ?? []), [data]);
 	const campuses = useMemo(() => getMapCampuses(places), [places]);
@@ -164,6 +171,8 @@ export function MapPage() {
 		}
 
 		const attempt = mapAttempt;
+		const styleTheme = resolvedTheme;
+		const styleProfile = selectedCampusProfile.campus;
 		mapAttemptRef.current = attempt;
 		let creationPending = true;
 		setMapStatus("loading");
@@ -216,10 +225,19 @@ export function MapPage() {
 					}
 				});
 				mapInstanceRef.current = map;
-				mapReadyProfileRef.current = selectedCampusProfile.campus;
+				mapReadyProfileRef.current = styleProfile;
+				mapReadyThemeRef.current = styleTheme;
 				map.once("load", () => {
-					if (mapInstanceRef.current !== map || mapAttemptRef.current !== attempt) {
+					if (
+						mapInstanceRef.current !== map ||
+						mapAttemptRef.current !== attempt ||
+						mapReadyProfileRef.current !== styleProfile ||
+						mapReadyThemeRef.current !== styleTheme
+					) {
 						return;
+					}
+					if (resolvedThemeRef.current !== styleTheme) {
+						mapReadyThemeRef.current = null;
 					}
 					map.resize();
 					setMapLoaded(true);
@@ -238,15 +256,20 @@ export function MapPage() {
 		return () => {
 			creationPending = false;
 		};
-	}, [data, mapAttempt, selectedCampusProfile]);
+	}, [data, mapAttempt, resolvedTheme, selectedCampusProfile]);
 
 	useEffect(
 		() => () => {
+			if (mapStyleUpdateTimerRef.current !== null) {
+				window.clearTimeout(mapStyleUpdateTimerRef.current);
+				mapStyleUpdateTimerRef.current = null;
+			}
 			clearMapMarkers(markerRefs.current);
 			markerRefs.current = [];
 			mapInstanceRef.current?.remove();
 			mapInstanceRef.current = null;
 			mapReadyProfileRef.current = null;
+			mapReadyThemeRef.current = null;
 			setMapLoaded(false);
 		},
 		[],
@@ -257,27 +280,61 @@ export function MapPage() {
 		if (!(map && selectedCampusProfile && mapLoaded)) {
 			return;
 		}
-		if (mapReadyProfileRef.current === selectedCampusProfile.campus) {
+		if (
+			mapReadyProfileRef.current === selectedCampusProfile.campus &&
+			mapReadyThemeRef.current === resolvedTheme
+		) {
 			return;
 		}
+		const profileChanged = mapReadyProfileRef.current !== selectedCampusProfile.campus;
 		map.setMaxBounds(selectedCampusProfile.maxBounds);
 		map.setMinZoom(selectedCampusProfile.minZoom);
 		map.setMaxZoom(selectedCampusProfile.maxZoom);
 		setMapLoaded(false);
 		setMapStatus("loading");
 		const profileCampus = selectedCampusProfile.campus;
+		const styleTheme = resolvedTheme;
 		mapReadyProfileRef.current = profileCampus;
+		mapReadyThemeRef.current = styleTheme;
 		map.once("style.load", () => {
-			if (mapInstanceRef.current !== map || mapReadyProfileRef.current !== profileCampus) {
+			if (
+				mapInstanceRef.current !== map ||
+				mapReadyProfileRef.current !== profileCampus ||
+				mapReadyThemeRef.current !== styleTheme
+			) {
 				return;
+			}
+			const themeChangedAgain = resolvedThemeRef.current !== styleTheme;
+			if (themeChangedAgain) {
+				mapReadyThemeRef.current = null;
 			}
 			map.resize();
 			setMapLoaded(true);
-			setMapStatus("ready");
+			if (!themeChangedAgain) {
+				setMapStatus("ready");
+			}
 		});
-		map.setStyle(createCampusMapStyle(readCampusMapStyleColors(), selectedCampusProfile));
-		map.resize();
-	}, [mapLoaded, selectedCampusProfile]);
+		if (mapStyleUpdateTimerRef.current !== null) {
+			window.clearTimeout(mapStyleUpdateTimerRef.current);
+		}
+		const applyMapStyle = () => {
+			mapStyleUpdateTimerRef.current = null;
+			if (
+				mapInstanceRef.current !== map ||
+				mapReadyProfileRef.current !== profileCampus ||
+				mapReadyThemeRef.current !== styleTheme
+			) {
+				return;
+			}
+			map.setStyle(createCampusMapStyle(readCampusMapStyleColors(), selectedCampusProfile));
+			map.resize();
+		};
+		if (profileChanged) {
+			applyMapStyle();
+		} else {
+			mapStyleUpdateTimerRef.current = window.setTimeout(applyMapStyle, 140);
+		}
+	}, [mapLoaded, resolvedTheme, selectedCampusProfile]);
 
 	useEffect(() => {
 		const map = mapInstanceRef.current;
@@ -508,11 +565,16 @@ export function MapPage() {
 	}
 
 	function retryMap() {
+		if (mapStyleUpdateTimerRef.current !== null) {
+			window.clearTimeout(mapStyleUpdateTimerRef.current);
+			mapStyleUpdateTimerRef.current = null;
+		}
 		clearMapMarkers(markerRefs.current);
 		markerRefs.current = [];
 		mapInstanceRef.current?.remove();
 		mapInstanceRef.current = null;
 		mapReadyProfileRef.current = null;
+		mapReadyThemeRef.current = null;
 		setMapLoaded(false);
 		setMapStatus("loading");
 		setMapAttempt((attempt) => attempt + 1);
@@ -662,9 +724,19 @@ function getMapViewportPadding() {
 function MapStateShell({ children }: { children: ReactNode }) {
 	return (
 		<section className="relative grid min-h-dvh place-items-center bg-[var(--map-canvas-bg)] p-6">
-			<MapProductNavOverlay />
-			<div className="pointer-events-auto absolute right-3 top-3 z-30 md:hidden">
-				<MapProductNavMobileMenu />
+			<CampusTopNav
+				accountAction={<DeferredProductAccountEntry />}
+				activePath={readBrowserPathname()}
+				linkMode="anchor"
+				showMobileMenu={false}
+				variant="immersive"
+			/>
+			<div className="pointer-events-auto absolute bottom-12 right-3 z-[var(--layer-domain)] lg:hidden">
+				<MapProductNavMobileMenu
+					accountAction={(openAuthDialog) => (
+						<DeferredProductAccountEntry onLogin={openAuthDialog} presentation="label" />
+					)}
+				/>
 			</div>
 			<div className="w-full max-w-md">{children}</div>
 		</section>

@@ -184,7 +184,7 @@ function RequestViewSwitch({
 					className={cn(
 						"inline-flex min-h-11 items-center border-b-2 px-4 font-medium text-sm",
 						view === value
-							? "border-primary text-foreground"
+							? "border-border-selected text-selected-foreground"
 							: "border-transparent text-muted-foreground hover:text-foreground",
 					)}
 					key={value}

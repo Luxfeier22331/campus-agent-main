@@ -24,6 +24,10 @@ const maplibreRuntimeMock = vi.hoisted(() => ({
 	setStyle: vi.fn(),
 }));
 
+vi.mock("@/components/auth/user/product-account-entry", () => ({
+	ProductAccountEntry: () => null,
+}));
+
 vi.mock("../src/features/map/api", async () => {
 	const { mapPageManifest } = await import("./fixtures/map-manifest");
 	const { featureInteractionMapPlaces } = await import("./fixtures/map-page-data");
@@ -366,21 +370,15 @@ async function waitForMapClickListener() {
 }
 
 function setMapTokens() {
-	document.documentElement.style.setProperty("--map-style-background", "#edf1f4");
+	document.documentElement.style.setProperty("--map-style-background", "#efeff2");
 	document.documentElement.style.setProperty("--map-style-boundary", "#a20000");
-	document.documentElement.style.setProperty("--map-style-building-fill", "#f9fafb");
-	document.documentElement.style.setProperty("--map-style-building-outline", "#98a2b3");
-	document.documentElement.style.setProperty("--map-style-green-fill", "#d9eadf");
-	document.documentElement.style.setProperty("--map-style-label", "#101828");
-	document.documentElement.style.setProperty("--map-style-road-fill", "#d6dce3");
-	document.documentElement.style.setProperty(
-		"--map-style-selection-fill",
-		"rgba(26, 115, 232, 0.14)",
-	);
-	document.documentElement.style.setProperty(
-		"--map-style-selection-halo",
-		"rgba(255, 255, 255, 0.92)",
-	);
-	document.documentElement.style.setProperty("--map-style-selection-outline", "#1a73e8");
-	document.documentElement.style.setProperty("--map-style-sport-fill", "#dce8f8");
+	document.documentElement.style.setProperty("--map-style-building-fill", "#fafafb");
+	document.documentElement.style.setProperty("--map-style-building-outline", "#8e8e93");
+	document.documentElement.style.setProperty("--map-style-green-fill", "#dfeee4");
+	document.documentElement.style.setProperty("--map-style-label", "#1c1c1e");
+	document.documentElement.style.setProperty("--map-style-road-fill", "#d1d1d6");
+	document.documentElement.style.setProperty("--map-style-selection-fill", "#d8deed");
+	document.documentElement.style.setProperty("--map-style-selection-halo", "#ffffff");
+	document.documentElement.style.setProperty("--map-style-selection-outline", "#5a72b5");
+	document.documentElement.style.setProperty("--map-style-sport-fill", "#e1e8f5");
 }

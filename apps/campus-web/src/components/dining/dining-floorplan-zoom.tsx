@@ -95,7 +95,7 @@ export function DiningFloorplanZoom({
 							aria-label="地图缩放比例"
 							className={cn(
 								"min-w-12 text-center text-xs tabular-nums transition-colors duration-150 motion-reduce:transition-none",
-								scale > 1 ? "text-primary" : "text-[var(--sys-text-muted)]",
+								scale > 1 ? "text-selected-foreground" : "text-[var(--sys-text-muted)]",
 							)}
 						>
 							{Math.round(scale * 100)}%

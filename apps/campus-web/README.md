@@ -20,9 +20,12 @@
 - `src/design/tokens.css` 只维护页面布局、问答、文档、地图和 Dining 等应用 Token；
 - `src/components/ui/` 只维护 Campus 专属组合控件和共享状态；
 - `src/styles.css` 负责普通应用，`src/components/docs/docs-reader.css` 负责文档阅读；
-- assistant-ui 负责问答交互，Better Auth UI 与 HeroUI 负责账号界面，TanStack Router 和
-  FlexSearch 负责文档路由与浏览器本地搜索，索引下载、解析和查询在 Web Worker 中执行；
+- assistant-ui 负责问答交互；登录、注册、邮箱验证、密码恢复和强制改密使用 Campus 自有表单，
+  Better Auth UI 与 HeroUI 只组合已登录账号设置；TanStack Router 和 FlexSearch 负责文档路由与
+  浏览器本地搜索，索引下载、解析和查询在 Web Worker 中执行；
 - 账号页复用 App API 的 Better Auth 与账号生命周期接口，不保存临时密码或注销凭据；
+- 根级 `CampusSessionProvider` 统一会话读取，根级路由守卫负责受保护账号页、已登录认证入口和
+  强制改密跳转；会话服务不可用时保持独立错误状态，不按未登录处理；
 - 普通共享控件使用仓库的 shadcn/Radix wrapper，单场景展示优先使用语义 HTML；
 - `src/components/ui/motion.tsx` 统一共享交互动效并处理 reduced motion；
 - `SurfaceState` 用于区域级读取、空状态、错误和降级状态。

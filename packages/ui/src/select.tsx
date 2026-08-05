@@ -13,7 +13,7 @@ export const SelectTrigger = React.forwardRef<
 >(({ children, className, ...props }, ref) => (
 	<SelectPrimitive.Trigger
 		className={cn(
-			"flex h-9 w-full min-w-0 items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-[var(--shadow-xs)] data-[placeholder]:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 aria-[invalid=true]:border-danger [&>span:first-child]:min-w-0 [&>span:first-child]:truncate [&>span:last-child]:shrink-0",
+			"flex min-h-[var(--ui-control-height)] w-full min-w-0 items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-[var(--shadow-xs)] data-[placeholder]:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:border-border-default disabled:bg-[var(--state-disabled-bg)] disabled:text-[var(--state-disabled-text)] aria-[invalid=true]:border-danger [&>span:first-child]:min-w-0 [&>span:first-child]:truncate [&>span:last-child]:shrink-0",
 			className,
 		)}
 		ref={ref}
@@ -62,7 +62,7 @@ export const SelectContent = React.forwardRef<
 	<SelectPrimitive.Portal>
 		<SelectPrimitive.Content
 			className={cn(
-				"relative z-50 max-h-[var(--radix-select-content-available-height)] min-w-32 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md",
+				"relative z-[var(--layer-overlay)] max-h-[var(--radix-select-content-available-height)] min-w-32 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md",
 				position === "popper" &&
 					"data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
 				className,

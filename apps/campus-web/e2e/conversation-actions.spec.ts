@@ -1,8 +1,27 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import { type CampusApiRequestRecord, mockCampusApi } from "./support/api-mocks";
 import { collectPageDiagnostics } from "./support/diagnostics";
 
 test.describe("conversation action browser flow", () => {
+	test("keeps the sidebar account menu inside the viewport", async ({ page }) => {
+		await mockCampusApi(page);
+		await page.goto("/");
+
+		const sidebar = page.locator("#campus-chat-sidebar");
+		const sidebarTrigger = page.locator('[data-sidebar="trigger"]:visible');
+		const accountTrigger = sidebar.locator('[data-sidebar="footer"] button[aria-haspopup="true"]');
+		await expect(accountTrigger).toBeVisible({ timeout: 15_000 });
+
+		await accountTrigger.click();
+		await expectInsideViewport(page, page.getByRole("menu"));
+		await page.keyboard.press("Escape");
+
+		await sidebarTrigger.click();
+		await expect(sidebar).toHaveAttribute("data-state", "collapsed");
+		await accountTrigger.click();
+		await expectInsideViewport(page, page.getByRole("menu"));
+	});
+
 	test("archives a historical conversation from the thread action menu", async ({ page }) => {
 		const requests: CampusApiRequestRecord[] = [];
 		await mockCampusApi(page, { requests });
@@ -36,6 +55,29 @@ test.describe("conversation action browser flow", () => {
 					(request) =>
 						request.method === "DELETE" &&
 						request.path === "/api/chat/conversations/conv_history_e2e",
+				),
+			)
+			.toBe(true);
+	});
+
+	test("renames a historical conversation from the thread action menu", async ({ page }) => {
+		const requests: CampusApiRequestRecord[] = [];
+		await mockCampusApi(page, { requests });
+		await page.goto("/");
+
+		await openThreadActionMenu(page, "国家奖学金");
+		await page.getByRole("menuitem", { name: "重命名" }).click();
+		const input = page.getByRole("textbox", { name: "重命名 国家奖学金" });
+		await input.fill("奖学金申请材料");
+		await input.press("Enter");
+
+		await expect
+			.poll(() =>
+				requests.some(
+					(request) =>
+						request.method === "PATCH" &&
+						request.path === "/api/chat/conversations/conv_history_e2e" &&
+						(request.body as { title?: string }).title === "奖学金申请材料",
 				),
 			)
 			.toBe(true);
@@ -91,6 +133,25 @@ test.describe("conversation action browser flow", () => {
 		expect(diagnostics.unexpectedConsoleErrors()).toEqual([]);
 		expect(diagnostics.pageErrors).toEqual([]);
 	});
+
+	test("keeps rename editing available when rename fails", async ({ page }) => {
+		const diagnostics = collectPageDiagnostics(page);
+		await mockCampusApi(page, {
+			conversationFailures: { renameFailure: true },
+		});
+		await page.goto("/");
+
+		await openThreadActionMenu(page, "国家奖学金");
+		await page.getByRole("menuitem", { name: "重命名" }).click();
+		const input = page.getByRole("textbox", { name: "重命名 国家奖学金" });
+		await input.fill("奖学金申请材料");
+		await input.press("Enter");
+
+		await expect(page.getByRole("alert")).toHaveText("重命名失败，请稍后重试。");
+		await expect(input).toBeVisible();
+		expect(diagnostics.unexpectedConsoleErrors()).toEqual([]);
+		expect(diagnostics.pageErrors).toEqual([]);
+	});
 });
 
 async function openThreadActionMenu(page: Page, title: string) {
@@ -98,4 +159,19 @@ async function openThreadActionMenu(page: Page, title: string) {
 	await expect(thread).toBeVisible({ timeout: 15_000 });
 	await thread.hover();
 	await thread.getByRole("button", { name: "更多操作" }).click();
+}
+
+async function expectInsideViewport(page: Page, menu: Locator) {
+	await expect(menu).toBeVisible();
+	const box = await menu.boundingBox();
+	const viewport = page.viewportSize();
+	expect(box).not.toBeNull();
+	expect(viewport).not.toBeNull();
+	if (!(box && viewport)) {
+		return;
+	}
+	expect(box.x).toBeGreaterThanOrEqual(0);
+	expect(box.y).toBeGreaterThanOrEqual(0);
+	expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+	expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
 }

@@ -1,7 +1,6 @@
 import { Button, Card, Separator } from "@campus-agent/ui";
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { ProductBrandLink } from "@/components/navigation/product-navigation";
 
 const EFFECTIVE_DATE = "2026-07-24";
 
@@ -122,8 +121,7 @@ function LegalDocumentShell({
 	title: string;
 }) {
 	return (
-		<section className="mx-auto max-w-[var(--layout-page-form-width)] px-4 py-6 pb-24 lg:px-6">
-			<ProductBrandLink className="mb-8" />
+		<section className="mx-auto min-h-[calc(100dvh-var(--layout-campus-topnav-height))] max-w-[var(--layout-page-form-width)] px-4 py-6 pb-24 lg:px-6">
 			<p className="text-sm font-medium text-[var(--sys-text-muted)]">生效日期：{EFFECTIVE_DATE}</p>
 			<h1 className="mt-1 text-2xl font-semibold tracking-normal text-[var(--sys-text-strong)] md:text-3xl">
 				{title}

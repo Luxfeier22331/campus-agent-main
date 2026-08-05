@@ -22,7 +22,7 @@ export const TabsTrigger = React.forwardRef<
 >(({ className, ...props }, ref) => (
 	<TabsPrimitive.Trigger
 		className={cn(
-			"min-h-11 whitespace-nowrap border-transparent border-b-2 px-4 font-medium text-muted-foreground text-sm hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring data-[state=active]:border-primary data-[state=active]:text-foreground",
+			"min-h-11 whitespace-nowrap border-transparent border-b-2 px-4 font-medium text-muted-foreground text-sm transition-[color,border-color,background-color] duration-[var(--motion-duration-fast)] ease-[var(--motion-easing-standard)] hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring data-[state=active]:border-border-selected data-[state=active]:text-selected-foreground",
 			className,
 		)}
 		ref={ref}
@@ -37,7 +37,7 @@ export const TabsContent = React.forwardRef<
 >(({ className, ...props }, ref) => (
 	<TabsPrimitive.Content
 		className={cn(
-			"mt-5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+			"mt-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
 			className,
 		)}
 		ref={ref}

@@ -8,6 +8,7 @@ export {
 	handleAuthRequest,
 	hashAppPassword,
 	probeAppAuthRuntime,
+	resolveEmailVerificationReturnTarget,
 	resolvePasswordResetRedirectTarget,
 	SIGNUP_LEGAL_CONSENT_HEADER_NAME,
 	SIGNUP_LEGAL_CONSENT_HEADER_VALUE,

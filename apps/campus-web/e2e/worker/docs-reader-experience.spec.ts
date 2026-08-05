@@ -158,7 +158,7 @@ test.describe("docs reader experience", () => {
 		await page.setViewportSize({ height: 1080, width: 1920 });
 		const viewportWidth = await page.evaluate(() => document.documentElement.clientWidth);
 		const wideShellLayout = await Promise.all([
-			page.locator(".docs-site-header-inner").boundingBox(),
+			page.locator(".campus-top-nav-inner").boundingBox(),
 			page.locator(".docs-site-grid").boundingBox(),
 			treePanel.boundingBox(),
 			outlinePanel.boundingBox(),
@@ -190,7 +190,14 @@ test.describe("docs reader experience", () => {
 		await expect(treePanel).toBeHidden();
 		await expect(outlinePanel).toBeHidden();
 		await expect(treeTrigger).toBeVisible();
-		await expect(outlineTrigger).toBeVisible();
+		await expect(outlineTrigger).toBeHidden();
+		const productMenuTrigger = page.getByRole("button", { name: "打开全局菜单" });
+		await productMenuTrigger.click();
+		const productMenu = page.getByRole("dialog", { name: "校园问答导航" });
+		await expect(productMenu.getByRole("button", { name: "打开本页目录" })).toBeVisible();
+		await page.keyboard.press("Escape");
+		await expect(productMenu).toBeHidden();
+		await expect(productMenuTrigger).toBeFocused();
 		expect(
 			await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1),
 		).toBe(false);
@@ -460,9 +467,8 @@ test.describe("docs reader experience", () => {
 	test("keeps reader controls and compact tables usable on mobile", async ({ page }) => {
 		await page.setViewportSize({ height: 720, width: 320 });
 		await page.goto(publicReaderPath, { waitUntil: "domcontentloaded" });
+		await waitForDocsHydration(page);
 
-		await expect(page.getByRole("link", { name: "账号" })).toHaveAttribute("href", "/account");
-		await expect(page.locator(".docs-account-label")).toBeHidden();
 		await expect(page.getByText("校园文档", { exact: true }).first()).toBeVisible();
 		await expect(page.getByLabel("表格移动端按行阅读")).toHaveCount(0);
 		const compactTable = page.locator(
@@ -484,11 +490,34 @@ test.describe("docs reader experience", () => {
 		expect(wideTableOverflow.canScroll).toBe(true);
 		expect(wideTableOverflow.scrollLeft).toBeGreaterThan(0);
 		await expect(page.getByText("校级社会实践", { exact: true })).toBeVisible();
-		for (const name of ["打开文档目录", "搜索校园文档", "打开本页目录"] as const) {
+		for (const name of ["打开文档目录", "打开全局菜单"] as const) {
 			const box = await page.getByRole("button", { name }).boundingBox();
 			expect(box?.width).toBeGreaterThanOrEqual(44);
 			expect(box?.height).toBeGreaterThanOrEqual(44);
 		}
+		await expect(page.locator(".docs-account-icon")).toBeHidden();
+		const productMenuTrigger = page.getByRole("button", { name: "打开全局菜单" });
+		await productMenuTrigger.click();
+		const productMenu = page.getByRole("dialog", { name: "校园问答导航" });
+		const accountLink = productMenu.getByRole("link", { name: "账号" });
+		const searchButton = productMenu.getByRole("button", { name: "搜索文档" });
+		await expect(accountLink).toHaveAttribute("href", "/account");
+		for (const control of [
+			accountLink,
+			searchButton,
+			productMenu.getByRole("button", { name: "打开本页目录" }),
+		]) {
+			const box = await control.boundingBox();
+			expect(box?.width).toBeGreaterThanOrEqual(44);
+			expect(box?.height).toBeGreaterThanOrEqual(44);
+		}
+		await searchButton.click();
+		await expect(productMenu).toBeHidden();
+		const searchDialog = page.getByRole("dialog", { name: "搜索校园文档" });
+		await expect(searchDialog.getByRole("combobox", { name: "搜索校园文档" })).toBeFocused();
+		await searchDialog.getByRole("button", { name: "关闭搜索" }).click();
+		await expect(searchDialog).toBeHidden();
+		await expect(productMenuTrigger).toBeFocused();
 		for (const locator of [
 			page.getByRole("combobox", { name: "选择文档版本" }),
 			page.locator(".document-meta-details summary"),
@@ -639,32 +668,45 @@ test.describe("docs reader experience", () => {
 		await treeTrigger.click();
 		const treeDialog = page.getByRole("dialog");
 		await expect(treeDialog.getByRole("navigation", { name: "文档目录" })).toBeVisible();
-		const productNav = treeDialog.getByRole("navigation", { name: "产品导航" });
-		await expect(productNav.getByRole("link", { name: "校园地图" })).toHaveAttribute(
-			"href",
-			"/map",
-		);
-		await expect(productNav.getByRole("link", { name: "食堂" })).toHaveAttribute("href", "/dining");
-		await expect(productNav.getByRole("link", { name: "反馈" })).toHaveAttribute(
-			"href",
-			"/feedback",
-		);
+		await expect(treeDialog.getByRole("navigation", { name: "产品导航" })).toHaveCount(0);
 		const treeCloseBox = await treeDialog.getByRole("button", { name: "关闭" }).boundingBox();
 		expect(treeCloseBox?.width).toBeGreaterThanOrEqual(44);
 		expect(treeCloseBox?.height).toBeGreaterThanOrEqual(44);
 		await page.keyboard.press("Escape");
+		await expect(treeDialog).toBeHidden();
 		await expect(treeTrigger).toBeFocused();
 
-		const outlineTrigger = page.getByRole("button", { name: "打开本页目录" });
+		const productNavTrigger = page.getByRole("button", { name: "打开全局菜单" });
+		await productNavTrigger.click();
+		const productMenu = page.getByRole("dialog", { name: "校园问答导航" });
+		await expect(productMenu.getByRole("link", { name: "校园地图" })).toHaveAttribute(
+			"href",
+			"/map",
+		);
+		await expect(productMenu.getByRole("link", { name: "食堂" })).toHaveAttribute(
+			"href",
+			"/dining",
+		);
+		await expect(productMenu.getByRole("link", { name: "反馈" })).toHaveAttribute(
+			"href",
+			"/feedback",
+		);
+		await page.keyboard.press("Escape");
+		await expect(productMenu).toBeHidden();
+		await expect(productNavTrigger).toBeFocused();
+
+		await productNavTrigger.click();
+		await expect(productMenu).toBeVisible();
+		const outlineTrigger = productMenu.getByRole("button", { name: "打开本页目录" });
 		await outlineTrigger.click();
-		await expect(
-			page.getByRole("dialog").getByRole("navigation", { name: "本页目录" }),
-		).toBeVisible();
-		const outlineDialog = page.getByRole("dialog");
+		const outlineDialog = page.getByRole("dialog", { name: "本页目录" });
+		await expect(outlineDialog.getByRole("navigation", { name: "本页目录" })).toBeVisible();
 		const outlineLink = outlineDialog.getByRole("link", { name: "六、课程地图" });
 		await expect(outlineLink).toBeVisible();
 		await outlineLink.click();
 		await expect(outlineDialog).toBeHidden();
+		await page.keyboard.press("Escape");
+		await expect(productMenu).toBeHidden();
 		await expect(page).toHaveURL(`${publicReaderPath}#${courseMapSectionAnchor}`);
 	});
 });

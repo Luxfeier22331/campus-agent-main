@@ -190,6 +190,7 @@ interface CampusApiMockOptions {
 		archiveFailure?: boolean;
 		deleteFailure?: boolean;
 		detailUnauthorized?: boolean;
+		renameFailure?: boolean;
 		searchUnauthorized?: boolean;
 	};
 	diningFailures?: {
@@ -216,6 +217,7 @@ export interface CampusApiRequestRecord {
 
 export interface CampusApiSessionState {
 	authenticated: boolean;
+	unavailable?: boolean;
 }
 
 export async function mockCampusApi(page: Page, options: CampusApiMockOptions = {}) {
@@ -398,8 +400,20 @@ function routeMocks(input: {
 		{
 			method: "GET",
 			path: "/api/auth/get-session",
-			response: (route) =>
-				route.fulfill({
+			response: (route) => {
+				if (sessionState.unavailable) {
+					return route.fulfill({
+						contentType: "application/json",
+						json: {
+							error: {
+								code: "dependency_not_ready",
+								message: "账号服务暂时不可用。",
+							},
+						},
+						status: 503,
+					});
+				}
+				return route.fulfill({
 					contentType: "application/json",
 					json: sessionState.authenticated
 						? {
@@ -419,6 +433,53 @@ function routeMocks(input: {
 							}
 						: null,
 					status: 202,
+				});
+			},
+		},
+		{
+			method: "GET",
+			path: "/api/auth/list-accounts",
+			response: (route) =>
+				route.fulfill({
+					contentType: "application/json",
+					json: sessionState.authenticated
+						? [
+								{
+									accountId: "user_e2e",
+									createdAt: now,
+									id: "account_e2e",
+									providerId: "credential",
+									scopes: [],
+									updatedAt: now,
+									userId: "user_e2e",
+								},
+							]
+						: { error: { code: "session_required", message: "请先登录。" } },
+					status: sessionState.authenticated ? 200 : 401,
+				}),
+		},
+		{
+			method: "GET",
+			path: "/api/auth/list-sessions",
+			response: (route) =>
+				route.fulfill({
+					contentType: "application/json",
+					json: sessionState.authenticated
+						? [
+								{
+									createdAt: now,
+									expiresAt: "2026-07-30T08:00:00.000Z",
+									id: "session_e2e",
+									ipAddress: "127.0.0.1",
+									token: "session_token_e2e",
+									updatedAt: now,
+									userAgent:
+										"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36",
+									userId: "user_e2e",
+								},
+							]
+						: { error: { code: "session_required", message: "请先登录。" } },
+					status: sessionState.authenticated ? 200 : 401,
 				}),
 		},
 		{
@@ -489,11 +550,17 @@ function routeMocks(input: {
 			method: "PATCH",
 			path: /^\/api\/chat\/conversations\/[^/]+$/,
 			response: (route) =>
-				route.fulfill({
-					contentType: "application/json",
-					json: { conversation: toConversationSummary(historyConversation) },
-					status: 200,
-				}),
+				options.conversationFailures?.renameFailure
+					? route.fulfill({
+							contentType: "application/json",
+							json: { error: { code: "rename_failed", message: "重命名失败。" } },
+							status: 500,
+						})
+					: route.fulfill({
+							contentType: "application/json",
+							json: { conversation: toConversationSummary(historyConversation) },
+							status: 200,
+						}),
 		},
 		{
 			method: "DELETE",

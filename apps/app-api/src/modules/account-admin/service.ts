@@ -413,7 +413,7 @@ export function buildAccountAdminService(input: {
 					const auth = await input.getAppAuth();
 					await auth.api.sendVerificationEmail({
 						body: {
-							callbackURL: `${input.authOrigin}/account/login`,
+							callbackURL: new URL("/account", input.authOrigin).toString(),
 							email: record.base?.email ?? "",
 						},
 						headers: trustedHeaders(),

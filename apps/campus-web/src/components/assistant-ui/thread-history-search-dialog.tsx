@@ -1,172 +1,96 @@
 "use client";
 
-import { Dialog, DialogContent, DialogTitle } from "@campus-agent/ui";
-import { useNavigate } from "@tanstack/react-router";
+import { Dialog, DialogContent, DialogTitle, Skeleton } from "@campus-agent/ui";
 import { SearchIcon } from "lucide-react";
-import { LayoutGroup, motion } from "motion/react";
-import { useEffect, useMemo, useState } from "react";
-import {
-	Command,
-	CommandEmpty,
-	CommandGroup,
-	CommandInput,
-	CommandItem,
-	CommandList,
-} from "@/components/ui/command";
-import { CampusMotionProvider, contentSwap, stateSwap } from "@/components/ui/motion";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { searchConversations } from "@/features/conversation/api";
-import type { ConversationSummary } from "@/features/conversation/model";
-import { UnauthorizedError } from "@/platform/api/client";
+import { lazy, type RefObject, Suspense, useRef } from "react";
 
-type ConversationSearchView = "active" | "archived";
+const loadThreadHistorySearchPanel = () =>
+	import("@/components/assistant-ui/thread-history-search-panel").then((module) => ({
+		default: module.ThreadHistorySearchPanel,
+	}));
+
+const ThreadHistorySearchPanel = lazy(loadThreadHistorySearchPanel);
+
+export function preloadThreadHistorySearchPanel(): void {
+	void loadThreadHistorySearchPanel();
+}
 
 export function ThreadHistorySearchDialog({
+	onConversationSelect,
 	onLoginRequired,
 	onOpenChange,
 	open,
+	returnFocusRef,
 }: {
+	onConversationSelect?: () => void;
 	onLoginRequired: () => void;
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
+	returnFocusRef: RefObject<HTMLElement | null>;
 }) {
-	const navigate = useNavigate();
-	const [query, setQuery] = useState("");
-	const [view, setView] = useState<ConversationSearchView>("active");
-	const [results, setResults] = useState<ConversationSummary[]>([]);
-	const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
-	const trimmedQuery = query.trim();
-	const emptyLabel = useMemo(() => {
-		if (!trimmedQuery) {
-			return "输入关键词搜索历史会话";
-		}
-		if (status === "loading") {
-			return "正在搜索";
-		}
-		if (status === "error") {
-			return "搜索暂时不可用";
-		}
-		return "没有匹配的聊天记录";
-	}, [status, trimmedQuery]);
-
-	useEffect(() => {
-		if (!(open && trimmedQuery)) {
-			setResults([]);
-			setStatus("idle");
-			return;
-		}
-
-		const controller = new AbortController();
-		const timeout = window.setTimeout(() => {
-			setStatus("loading");
-			searchConversations({ limit: 10, query: trimmedQuery, view })
-				.then((payload) => {
-					if (controller.signal.aborted) {
-						return;
-					}
-					setResults(payload.conversations);
-					setStatus("idle");
-				})
-				.catch((error: unknown) => {
-					if (controller.signal.aborted) {
-						return;
-					}
-					if (error instanceof UnauthorizedError) {
-						onOpenChange(false);
-						onLoginRequired();
-						return;
-					}
-					setResults([]);
-					setStatus("error");
-				});
-		}, 250);
-
-		return () => {
-			controller.abort();
-			window.clearTimeout(timeout);
-		};
-	}, [onLoginRequired, onOpenChange, open, trimmedQuery, view]);
+	const dialogRef = useRef<HTMLDivElement>(null);
+	const inputRef = useRef<HTMLInputElement>(null);
+	const skipReturnFocusRef = useRef(false);
 
 	return (
-		<CampusMotionProvider>
-			<Dialog open={open} onOpenChange={onOpenChange}>
-				<DialogContent className="overflow-hidden p-0" showCloseButton={false}>
-					<Command className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-group]]:px-2 [&_[cmdk-input-wrapper]_svg]:size-5 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3 [&_[cmdk-item]_svg]:size-5">
-						<div className="border-b px-3 py-2">
-							<DialogTitle className="flex items-center gap-2 text-sm font-medium leading-6">
-								<SearchIcon className="size-4" />
-								搜索聊天
-							</DialogTitle>
-							<ToggleGroup
-								aria-label="聊天记录范围"
-								className="mt-2 justify-start"
-								onValueChange={(value) => {
-									if (value === "active" || value === "archived") {
-										setView(value);
-									}
-								}}
-								type="single"
-								value={view}
-							>
-								<ToggleGroupItem value="active">当前</ToggleGroupItem>
-								<ToggleGroupItem value="archived">已归档</ToggleGroupItem>
-							</ToggleGroup>
-						</div>
-						<CommandInput placeholder="搜索历史会话" value={query} onValueChange={setQuery} />
-						<CommandList>
-							<LayoutGroup>
-								<motion.div layout>
-									<CommandEmpty>
-										<motion.span key={emptyLabel} {...stateSwap}>
-											{emptyLabel}
-										</motion.span>
-									</CommandEmpty>
-									{results.length > 0 ? (
-										<motion.div key={`${view}:${trimmedQuery}`} layout {...contentSwap}>
-											<CommandGroup heading={view === "archived" ? "已归档" : "当前"}>
-												{results.map((conversation) => (
-													<motion.div key={conversation.id} layout {...contentSwap}>
-														<CommandItem
-															value={conversation.title}
-															onSelect={() => {
-																onOpenChange(false);
-																void navigate({
-																	params: { conversationId: conversation.id },
-																	to: "/c/$conversationId",
-																});
-															}}
-														>
-															<div className="flex min-w-0 flex-col">
-																<span className="truncate">{conversation.title}</span>
-																<span className="text-muted-foreground text-xs">
-																	{formatConversationUpdatedAt(conversation.updatedAt)}
-																</span>
-															</div>
-														</CommandItem>
-													</motion.div>
-												))}
-											</CommandGroup>
-										</motion.div>
-									) : null}
-								</motion.div>
-							</LayoutGroup>
-						</CommandList>
-					</Command>
-				</DialogContent>
-			</Dialog>
-		</CampusMotionProvider>
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent
+				className="gap-0 overflow-hidden p-0"
+				closeLabel="关闭搜索"
+				onCloseAutoFocus={(event) => {
+					if (skipReturnFocusRef.current) {
+						event.preventDefault();
+						return;
+					}
+					const returnTarget = returnFocusRef.current;
+					if (returnTarget?.isConnected) {
+						event.preventDefault();
+						returnTarget.focus({ preventScroll: true });
+					}
+				}}
+				onOpenAutoFocus={(event) => {
+					event.preventDefault();
+					(inputRef.current ?? dialogRef.current)?.focus({ preventScroll: true });
+				}}
+				ref={dialogRef}
+			>
+				<div className="border-b px-4 py-3 pr-14">
+					<DialogTitle className="flex items-center gap-2 text-sm font-medium leading-6">
+						<SearchIcon aria-hidden="true" className="size-4" />
+						搜索聊天
+					</DialogTitle>
+				</div>
+				<Suspense fallback={<ThreadHistorySearchPending />}>
+					<ThreadHistorySearchPanel
+						inputRef={inputRef}
+						onConversationSelect={onConversationSelect}
+						onHandoff={() => {
+							skipReturnFocusRef.current = true;
+						}}
+						onLoginRequired={onLoginRequired}
+						onOpenChange={onOpenChange}
+						open={open}
+					/>
+				</Suspense>
+			</DialogContent>
+		</Dialog>
 	);
 }
 
-function formatConversationUpdatedAt(value: string): string {
-	const date = new Date(value);
-	if (Number.isNaN(date.getTime())) {
-		return "";
-	}
-	return new Intl.DateTimeFormat("zh-CN", {
-		day: "2-digit",
-		hour: "2-digit",
-		minute: "2-digit",
-		month: "2-digit",
-	}).format(date);
+function ThreadHistorySearchPending() {
+	return (
+		<div
+			aria-label="正在载入聊天搜索"
+			aria-live="polite"
+			className="grid min-h-40 content-start gap-3 px-4 py-4"
+			role="status"
+		>
+			<Skeleton className="h-12 w-full motion-reduce:animate-none" />
+			<div aria-hidden="true" className="flex gap-2">
+				<Skeleton className="h-9 w-16 motion-reduce:animate-none" />
+				<Skeleton className="h-9 w-20 motion-reduce:animate-none" />
+			</div>
+			<Skeleton aria-hidden="true" className="h-4 w-2/3 motion-reduce:animate-none" />
+		</div>
+	);
 }

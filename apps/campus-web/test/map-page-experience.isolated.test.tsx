@@ -25,6 +25,10 @@ const maplibreRuntimeMock = vi.hoisted(() => ({
 	setStyle: vi.fn(),
 }));
 
+vi.mock("@/components/auth/user/product-account-entry", () => ({
+	ProductAccountEntry: () => null,
+}));
+
 vi.mock("../src/features/map/api", async () => {
 	const { mapPageManifest } = await import("./fixtures/map-manifest");
 	const { mapPagePlaces } = await import("./fixtures/map-page-data");

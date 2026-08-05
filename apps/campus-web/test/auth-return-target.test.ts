@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveAccountAuthReturnTarget } from "../src/platform/auth/return-target";
+import {
+	buildAuthViewHref,
+	resolveAccountAuthReturnTarget,
+} from "../src/platform/auth/return-target";
 
 const currentOrigin = "https://campus.muc.wiki";
 
@@ -11,6 +14,14 @@ describe("account authentication return target", () => {
 		"/%5cattacker.example/account",
 		"https://attacker.example/account",
 		"/internal-only",
+		"/api/auth/get-session",
+		"/account/login?redirectTo=/map",
+		"/account/register",
+		"/account/forgot-password",
+		"/account/reset-password?token=secret",
+		"/account/verify-email/result",
+		"/account/change-password",
+		"/account/deletion",
 	])("rejects an unsafe return target: %s", (redirectTo) => {
 		expect(
 			resolveAccountAuthReturnTarget(new URLSearchParams({ redirectTo }), { currentOrigin }),
@@ -32,5 +43,23 @@ describe("account authentication return target", () => {
 		const search = new URLSearchParams({ redirectTo: "https://campus.muc.wiki/map" });
 		expect(resolveAccountAuthReturnTarget(search)).toBe("/account");
 		expect(resolveAccountAuthReturnTarget(search, { currentOrigin: "not a URL" })).toBe("/account");
+	});
+
+	it("preserves a safe return target while switching authentication views", () => {
+		expect(
+			buildAuthViewHref("register", {
+				currentOrigin,
+				redirectTo: "/map?building=library#entrance",
+			}),
+		).toBe("/account/register?redirectTo=%2Fmap%3Fbuilding%3Dlibrary%23entrance");
+	});
+
+	it("does not serialize verification delivery state into the verification URL", () => {
+		expect(
+			buildAuthViewHref("verifyEmail", {
+				currentOrigin,
+				redirectTo: "/map",
+			}),
+		).toBe("/account/verify-email?redirectTo=%2Fmap");
 	});
 });

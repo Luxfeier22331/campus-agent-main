@@ -109,6 +109,16 @@ test.describe("dining map", () => {
 		const error = page.getByRole("alert");
 		await expect(error).toContainText("平面图暂时无法显示");
 		await expect(page.getByTestId("dining-window-detail")).toBeVisible();
+		const fallback = page.getByRole("region", { name: "平面图降级窗口列表" });
+		const firstWindow = fallback.getByRole("button", { exact: true, name: "兰州拉面" });
+		await expect(firstWindow).toHaveAttribute("aria-pressed", "false");
+		await firstWindow.click();
+		await expect(firstWindow).toHaveAttribute("aria-pressed", "true");
+		await expect(page.getByRole("heading", { name: "兰州拉面" })).toBeVisible();
+		await page.getByPlaceholder("搜索窗口").fill("桂林");
+		await expect(firstWindow).toBeHidden();
+		await expect(fallback.getByRole("button", { exact: true, name: "桂林米粉" })).toBeVisible();
+		await page.getByRole("button", { name: "清除搜索" }).click();
 		diningFailures.floorplanFailure = false;
 		await error.getByRole("button", { name: "重试" }).click();
 		await expect(page.getByRole("button", { name: "选择兰州拉面" })).toBeVisible();

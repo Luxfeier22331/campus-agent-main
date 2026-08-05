@@ -17,13 +17,13 @@ import {
 import { CircleAlert, LoaderCircle } from "lucide-react";
 import { type FormEvent, useState } from "react";
 
-import { requestAccountDeletion } from "./api";
+import { type AccountDeletionReceipt, requestAccountDeletion } from "./api";
 
 export function AccountDeletionPanel({
-	onAccepted = () => window.location.assign("/account/deletion"),
+	onAccepted,
 }: {
-	onAccepted?: () => void;
-} = {}) {
+	onAccepted: (receipt: AccountDeletionReceipt) => void;
+}) {
 	const [open, setOpen] = useState(false);
 	const [password, setPassword] = useState("");
 	const [pending, setPending] = useState(false);
@@ -34,10 +34,10 @@ export function AccountDeletionPanel({
 		setPending(true);
 		setError(null);
 		try {
-			await requestAccountDeletion(password);
+			const receipt = await requestAccountDeletion(password);
 			setOpen(false);
 			setPassword("");
-			onAccepted();
+			onAccepted(receipt);
 		} catch (caught) {
 			setError(caught instanceof Error ? caught.message : "账号注销请求未完成，请稍后重试。");
 		} finally {

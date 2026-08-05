@@ -1,87 +1,214 @@
-import { Button } from "@campus-agent/ui";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@campus-agent/ui";
+import { Link } from "@tanstack/react-router";
 import { MessagesSquare, SearchIcon } from "lucide-react";
 import type * as React from "react";
-import { lazy, Suspense, useEffect, useState } from "react";
-import { ThreadList } from "@/components/assistant-ui/thread-list";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+	preloadThreadHistorySearchPanel,
+	ThreadHistorySearchDialog,
+} from "@/components/assistant-ui/thread-history-search-dialog";
+import { ThreadList, ThreadListNewButton } from "@/components/assistant-ui/thread-list";
+import { AccountEntry } from "@/components/auth/user/account-entry";
 import {
 	Sidebar,
 	SidebarContent,
+	SidebarFooter,
 	SidebarHeader,
 	SidebarMenu,
 	SidebarMenuButton,
 	SidebarMenuItem,
-	SidebarRail,
+	SidebarTrigger,
+	useSidebar,
 } from "@/components/ui/sidebar";
-
-const ThreadHistorySearchDialog = lazy(() =>
-	import("@/components/assistant-ui/thread-history-search-dialog").then((module) => ({
-		default: module.ThreadHistorySearchDialog,
-	})),
-);
+import { isEditableKeyboardTarget } from "@/lib/keyboard";
 
 export function ThreadListSidebar({
+	accountPending,
+	authenticated,
 	onLoginRequired,
 	...props
 }: React.ComponentProps<typeof Sidebar> & {
+	accountPending: boolean;
+	authenticated: boolean;
 	onLoginRequired: () => void;
 }) {
 	const [searchOpen, setSearchOpen] = useState(false);
+	const searchTriggerRef = useRef<HTMLButtonElement>(null);
+	const searchReturnFocusRef = useRef<HTMLElement | null>(null);
+	const { isMobile, mobileOpenerRef, setOpenMobile, state } = useSidebar();
+	const compact = !isMobile && state === "collapsed";
+	const openSearch = useCallback((returnFocusTarget?: HTMLElement | null) => {
+		preloadThreadHistorySearchPanel();
+		let target = returnFocusTarget;
+		if (!target && typeof document !== "undefined") {
+			const activeElement = document.activeElement;
+			if (activeElement instanceof HTMLElement && activeElement !== document.body) {
+				target = activeElement;
+			}
+		}
+		searchReturnFocusRef.current = target ?? searchTriggerRef.current;
+		setSearchOpen(true);
+	}, []);
+	const closeMobile = useCallback(() => {
+		if (isMobile) {
+			setOpenMobile(false);
+		}
+	}, [isMobile, setOpenMobile]);
+	const handleLoginRequired = useCallback(() => {
+		if (!isMobile) {
+			onLoginRequired();
+			return;
+		}
+		setOpenMobile(false);
+		window.requestAnimationFrame(() => {
+			mobileOpenerRef.current?.focus({ preventScroll: true });
+			onLoginRequired();
+		});
+	}, [isMobile, mobileOpenerRef, onLoginRequired, setOpenMobile]);
 
 	useEffect(() => {
 		function handleKeyDown(event: KeyboardEvent) {
 			const commandKey = event.metaKey || event.ctrlKey;
-			if (commandKey && event.key.toLowerCase() === "k") {
+			if (
+				!(event.defaultPrevented || isEditableKeyboardTarget(event.target)) &&
+				commandKey &&
+				event.key.toLowerCase() === "k"
+			) {
 				event.preventDefault();
-				setSearchOpen(true);
+				openSearch();
 			}
 		}
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, []);
+	}, [openSearch]);
 
 	return (
 		<>
 			<Sidebar {...props}>
-				<SidebarHeader className="aui-sidebar-header mb-2 border-b">
-					<div className="aui-sidebar-header-content flex items-center justify-between gap-2">
-						<SidebarMenu>
-							<SidebarMenuItem>
-								<SidebarMenuButton size="lg" tooltip="聊天记录">
-									<div className="aui-sidebar-header-icon-wrapper bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-										<MessagesSquare className="aui-sidebar-header-icon size-4" />
-									</div>
-									<div className="aui-sidebar-header-heading me-6 flex flex-col gap-0.5 leading-none">
-										<span className="aui-sidebar-header-title font-semibold">聊天记录</span>
-									</div>
-								</SidebarMenuButton>
-							</SidebarMenuItem>
-						</SidebarMenu>
-						<Button
-							aria-label="搜索聊天"
-							className="size-8 shrink-0"
-							onClick={() => setSearchOpen(true)}
-							size="icon"
-							type="button"
-							variant="ghost"
-						>
-							<SearchIcon className="size-4" />
-						</Button>
-					</div>
+				<SidebarHeader className="aui-sidebar-header h-[var(--layout-chat-topnav-height)] shrink-0 justify-center gap-0 border-b p-1">
+					{compact ? (
+						<SidebarToggle />
+					) : (
+						<div className="aui-sidebar-header-content flex min-w-0 items-center gap-1">
+							<SidebarMenu className="min-w-0 flex-1">
+								<SidebarMenuItem>
+									<SidebarBrandLink onNavigate={closeMobile} />
+								</SidebarMenuItem>
+							</SidebarMenu>
+							{isMobile ? null : <SidebarToggle />}
+						</div>
+					)}
 				</SidebarHeader>
-				<SidebarContent className="aui-sidebar-content px-2">
-					<ThreadList />
+				<div className="aui-sidebar-primary-actions shrink-0 p-1.5">
+					<SidebarMenu>
+						{compact ? (
+							<SidebarMenuItem>
+								<SidebarBrandLink onNavigate={closeMobile} />
+							</SidebarMenuItem>
+						) : null}
+						<SidebarMenuItem>
+							<ThreadListNewButton onNavigate={closeMobile} />
+						</SidebarMenuItem>
+						<SidebarMenuItem>
+							<SidebarMenuButton
+								aria-label="搜索聊天"
+								className="h-11 px-2.5 group-data-[collapsible=icon]:!size-11 group-data-[collapsible=icon]:!p-3"
+								onClick={(event) => openSearch(event.currentTarget)}
+								onFocus={preloadThreadHistorySearchPanel}
+								onPointerEnter={preloadThreadHistorySearchPanel}
+								ref={searchTriggerRef}
+								tooltip="搜索聊天"
+								type="button"
+							>
+								<SearchIcon aria-hidden="true" />
+								<span>搜索聊天</span>
+							</SidebarMenuButton>
+						</SidebarMenuItem>
+					</SidebarMenu>
+				</div>
+				<SidebarContent className="aui-sidebar-content px-1.5 pb-2 group-data-[collapsible=icon]:hidden">
+					<ThreadList
+						accountPending={accountPending}
+						authenticated={authenticated}
+						onNavigate={closeMobile}
+					/>
 				</SidebarContent>
-				<SidebarRail />
+				<SidebarFooter className="aui-sidebar-footer mt-auto shrink-0 overflow-visible border-t p-1">
+					<SidebarAccountEntry compact={compact} onLoginRequired={handleLoginRequired} />
+				</SidebarFooter>
 			</Sidebar>
 			{searchOpen ? (
-				<Suspense fallback={null}>
-					<ThreadHistorySearchDialog
-						onLoginRequired={onLoginRequired}
-						onOpenChange={setSearchOpen}
-						open
-					/>
-				</Suspense>
+				<ThreadHistorySearchDialog
+					onConversationSelect={closeMobile}
+					onLoginRequired={handleLoginRequired}
+					onOpenChange={setSearchOpen}
+					open
+					returnFocusRef={searchReturnFocusRef}
+				/>
 			) : null}
 		</>
+	);
+}
+
+function SidebarBrandLink({ onNavigate }: { onNavigate: () => void }) {
+	return (
+		<SidebarMenuButton
+			asChild
+			className="h-11 px-2.5 font-medium group-data-[collapsible=icon]:!size-11 group-data-[collapsible=icon]:!p-3"
+			tooltip="校园问答"
+		>
+			<Link onClick={onNavigate} to="/">
+				<MessagesSquare aria-hidden="true" />
+				<span>校园问答</span>
+			</Link>
+		</SidebarMenuButton>
+	);
+}
+
+function SidebarToggle() {
+	const { open } = useSidebar();
+	return (
+		<SidebarTrigger
+			aria-controls="campus-chat-sidebar"
+			aria-label={open ? "收起聊天记录" : "展开聊天记录"}
+			className="size-11 shrink-0"
+		/>
+	);
+}
+
+function SidebarAccountEntry({
+	compact,
+	onLoginRequired,
+}: {
+	compact: boolean;
+	onLoginRequired: () => void;
+}) {
+	const account = (
+		<div
+			className={
+				compact
+					? "flex size-11 items-center justify-center [&_[data-slot=dropdown-trigger]]:flex [&_[data-slot=dropdown-trigger]]:size-11 [&_[data-slot=dropdown-trigger]]:items-center [&_[data-slot=dropdown-trigger]]:justify-center"
+					: "min-w-0 w-full"
+			}
+		>
+			<AccountEntry
+				className={compact ? "size-11" : "min-h-[52px] w-full"}
+				menuPlacement={compact ? "right-end" : "top-start"}
+				onLogin={onLoginRequired}
+				presentation={compact ? "icon" : "label"}
+				showSubtitle={!compact}
+			/>
+		</div>
+	);
+
+	if (!compact) {
+		return account;
+	}
+
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>{account}</TooltipTrigger>
+			<TooltipContent side="right">账号</TooltipContent>
+		</Tooltip>
 	);
 }

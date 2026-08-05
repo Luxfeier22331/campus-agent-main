@@ -80,7 +80,10 @@ function RuntimeProbe({
 	hasSession?: boolean;
 	onLoginRequired: () => void;
 }) {
-	const useRuntime = createCampusAssistantRuntimeHook({ hasSession, onLoginRequired });
+	const useRuntime = createCampusAssistantRuntimeHook({
+		loginRequired: !hasSession,
+		onLoginRequired,
+	});
 	useRuntime();
 	return null;
 }

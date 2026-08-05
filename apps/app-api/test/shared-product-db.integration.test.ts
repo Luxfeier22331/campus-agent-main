@@ -54,7 +54,9 @@ function readIntegrationAuthShellOrigin(env: Env): string {
 function verificationUrl(emails: CapturedEmail[], email: string): URL {
 	const message = [...emails]
 		.reverse()
-		.find((candidate) => candidate.subject === "验证 Campus Agent 邮箱" && candidate.to === email);
+		.find(
+			(candidate) => candidate.subject === "验证中央民族大学校园问答邮箱" && candidate.to === email,
+		);
 	if (!message) {
 		throw new Error(`Expected a verification email for ${email}.`);
 	}
@@ -96,6 +98,22 @@ describe("app-api shared product DB integration", () => {
 		if (!signUpResponse.ok) {
 			throw new Error(
 				`Expected sign-up to succeed, received ${signUpResponse.status}: ${await signUpResponse.text()}`,
+			);
+		}
+		const verificationEmailResponse = await app.fetch(
+			new Request("https://app-api.internal/api/auth/send-verification-email", {
+				body: JSON.stringify({ callbackURL: "/account", email }),
+				headers: {
+					"content-type": "application/json",
+					origin: authShellOrigin,
+					referer: `${authShellOrigin}/account/register`,
+				},
+				method: "POST",
+			}),
+		);
+		if (!verificationEmailResponse.ok) {
+			throw new Error(
+				`Expected verification email request to succeed, received ${verificationEmailResponse.status}: ${await verificationEmailResponse.text()}`,
 			);
 		}
 

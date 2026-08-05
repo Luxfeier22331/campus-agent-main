@@ -4,7 +4,7 @@ import { collectPageDiagnostics } from "./support/diagnostics";
 
 test.describe("support page browser flows", () => {
 	test.beforeEach(async ({ page }) => {
-		await mockCampusApi(page);
+		await mockCampusApi(page, { authenticated: false });
 	});
 
 	test("submits feedback with route context and handles submit failure", async ({ page }) => {
@@ -27,7 +27,11 @@ test.describe("support page browser flows", () => {
 		});
 		await page.goto("/feedback?source=map");
 
-		await expect(page.getByLabel("当前页面")).toContainText("/feedback?source=map");
+		const feedbackSource = page.getByLabel("反馈来源");
+		await expect(feedbackSource).toContainText("校园地图");
+		await page.evaluate(() => window.history.replaceState({}, "", "/feedback"));
+		await expect(page).toHaveURL("/feedback");
+		await expect(feedbackSource).toContainText("校园地图");
 		await page.getByLabel("问题描述").fill("地图地点名称需要更新。");
 		await page.getByRole("button", { name: "提交反馈" }).click();
 
@@ -63,7 +67,15 @@ test.describe("support page browser flows", () => {
 		});
 		await page.goto("/feedback");
 
-		await expect(page.getByRole("button", { name: "提交反馈" })).toBeDisabled();
+		const submit = page.getByRole("button", { name: "提交反馈" });
+		await expect(submit).toBeEnabled();
+		await submit.click();
+		await expect(page.getByRole("alert")).toHaveText("请填写问题描述。");
+		await expect(page.getByLabel("问题描述")).toHaveAttribute("aria-invalid", "true");
+		await expect(page.getByLabel("问题描述")).toHaveAttribute(
+			"aria-describedby",
+			"feedback-body-error",
+		);
 		expect(requests).toEqual([]);
 	});
 
@@ -124,7 +136,7 @@ test.describe("support page browser flows", () => {
 		});
 		await page.goto("/feedback?source=mobile");
 
-		await expect(page.getByLabel("当前页面")).toContainText("/feedback?source=mobile");
+		await expect(page.getByLabel("反馈来源")).toContainText("/feedback?source=mobile");
 		await page.getByRole("combobox", { name: "问题类型" }).click();
 		await page.getByRole("option", { name: "内容问题" }).click();
 		await page.getByLabel("问题描述").fill("移动端反馈表单需要保持可用。");
@@ -153,7 +165,10 @@ test.describe("support page browser flows", () => {
 		});
 		await page.goto("/feedback?source=mobile");
 
-		await expect(page.getByRole("button", { name: "提交反馈" })).toBeDisabled();
+		const submit = page.getByRole("button", { name: "提交反馈" });
+		await expect(submit).toBeEnabled();
+		await submit.click();
+		await expect(page.getByRole("alert")).toHaveText("请填写问题描述。");
 		expect(requests).toEqual([]);
 	});
 
@@ -179,7 +194,7 @@ test.describe("support page browser flows", () => {
 
 		await page.getByRole("link", { name: "反馈" }).click();
 		await expect(page).toHaveURL("/feedback?source=legal");
-		await expect(page.getByLabel("当前页面")).toContainText("/feedback?source=legal");
+		await expect(page.getByLabel("反馈来源")).toContainText("服务协议与隐私政策");
 
 		await page.getByLabel("问题描述").fill("服务协议里有一处链接需要更新。");
 		await page.getByRole("button", { name: "提交反馈" }).click();

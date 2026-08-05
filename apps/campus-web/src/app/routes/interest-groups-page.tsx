@@ -303,10 +303,10 @@ function CategoryNavigation({
 						<a
 							aria-current={activeSectionId === section.id ? "location" : undefined}
 							className={cn(
-								"group flex min-h-10 shrink-0 items-center justify-between gap-3 rounded-full border px-4 text-sm transition-[color,background-color,border-color,box-shadow] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring lg:w-full lg:rounded-md lg:border-0 lg:border-l-2 lg:px-3",
+								"group flex min-h-10 shrink-0 items-center justify-between gap-3 rounded-full border px-4 text-sm transition-[color,background-color,border-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:w-full lg:rounded-md lg:border-0 lg:border-l-2 lg:px-3",
 								activeSectionId === section.id
-									? "border-primary bg-primary/8 font-medium text-primary shadow-[var(--shadow-xs)] lg:border-primary lg:shadow-none"
-									: "border-border bg-background text-[var(--sys-text-muted)] hover:bg-accent hover:text-accent-foreground lg:border-transparent lg:bg-transparent lg:shadow-none",
+									? "border-border-selected bg-selected font-medium text-selected-foreground shadow-[var(--shadow-xs)] hover:bg-selected-hover active:bg-selected-pressed lg:border-border-selected lg:shadow-none"
+									: "border-border bg-background text-[var(--sys-text-muted)] hover:bg-surface-hover hover:text-accent-foreground active:bg-surface-pressed lg:border-transparent lg:bg-transparent lg:shadow-none",
 							)}
 							href={`#${section.id}`}
 							onClick={() => onSelect(section.id)}
@@ -315,7 +315,9 @@ function CategoryNavigation({
 							<span
 								className={cn(
 									"tabular-nums text-xs",
-									activeSectionId === section.id ? "text-primary" : "text-[var(--sys-text-subtle)]",
+									activeSectionId === section.id
+										? "text-selected-foreground"
+										: "text-[var(--sys-text-subtle)]",
 								)}
 							>
 								{section.groups.length}
@@ -344,7 +346,7 @@ function GroupCard({
 		<li className="h-full min-w-0">
 			<article
 				aria-labelledby={nameId}
-				className="group flex h-full min-h-40 min-w-0 flex-col rounded-lg border border-border bg-card p-4 shadow-[var(--shadow-xs)] transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[var(--shadow-sm)] focus-within:border-primary/40 focus-within:shadow-[var(--shadow-sm)] motion-reduce:transform-none sm:min-h-44"
+				className="group flex h-full min-h-40 min-w-0 flex-col rounded-lg border border-border bg-card p-4 shadow-[var(--shadow-xs)] transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-border-default hover:shadow-[var(--shadow-sm)] focus-within:border-border-selected focus-within:shadow-[var(--shadow-sm)] motion-reduce:transform-none sm:min-h-44"
 			>
 				<div className="flex min-w-0 items-start gap-3">
 					{joinLink ? (
@@ -376,7 +378,7 @@ function GroupCard({
 								{group.tags.map((tag) => (
 									<li className="min-w-0 max-w-full" key={tag}>
 										<Badge
-											className="min-w-0 max-w-full bg-primary/8 font-medium text-primary hover:bg-primary/8"
+											className="min-w-0 max-w-full border-border-selected bg-selected font-medium text-selected-foreground"
 											tone="neutral"
 										>
 											<span className="block min-w-0 truncate" title={tag}>
@@ -449,7 +451,7 @@ function GroupCard({
 				{joinLink ? (
 					<a
 						aria-label={`加入 ${group.name}`}
-						className="mt-auto inline-flex min-h-9 items-center gap-1 self-end rounded-md border border-primary/20 bg-primary/8 px-2.5 pt-px text-xs font-medium text-[var(--sys-text-link)] transition-colors hover:border-primary/35 hover:bg-primary/12 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+						className="mt-auto inline-flex min-h-9 items-center gap-1 self-end rounded-md border border-border-selected bg-selected px-2.5 pt-px text-xs font-medium text-link transition-colors hover:bg-selected-hover hover:text-link-hover active:bg-selected-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 						href={joinLink.url}
 						rel="noopener noreferrer"
 						target="_blank"
@@ -475,7 +477,7 @@ function GroupAvatar({ avatarUrl, group }: { avatarUrl: string | null; group: In
 					src={avatarUrl}
 				/>
 			) : null}
-			<AvatarFallback className="bg-primary/8 font-semibold text-primary">
+			<AvatarFallback className="bg-selected font-semibold text-selected-foreground">
 				{getGroupAvatarFallback(group)}
 			</AvatarFallback>
 		</Avatar>

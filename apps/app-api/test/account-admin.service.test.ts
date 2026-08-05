@@ -6,6 +6,7 @@ import { buildAccountAdminService } from "../src/modules/account-admin";
 function createService(
 	input: {
 		findCommand?: () => Promise<{ action: string; fingerprint: string; outcome: string } | null>;
+		emailVerified?: boolean;
 		finishCommand?: () => Promise<void>;
 		hasPendingDeletion?: boolean;
 		opsBanUser?: () => Promise<unknown>;
@@ -17,7 +18,7 @@ function createService(
 		banned: false,
 		createdAt: new Date("2026-07-19T00:00:00.000Z"),
 		email: "student@muc.edu.cn",
-		emailVerified: true,
+		emailVerified: input.emailVerified ?? true,
 		id: "user_1",
 		name: "Student",
 		passwordChangeRequired: false,
@@ -26,6 +27,7 @@ function createService(
 	};
 	const opsBanUser = vi.fn(input.opsBanUser ?? (async () => ({ found: true })));
 	const requestPasswordReset = vi.fn();
+	const sendVerificationEmail = vi.fn();
 	const store = {
 		findCommand: vi.fn(input.findCommand ?? (async () => null)),
 		finishCommand: vi.fn(input.finishCommand ?? (async () => undefined)),
@@ -48,11 +50,13 @@ function createService(
 			opsBanUser,
 			opsListUserSessions: vi.fn().mockResolvedValue({ sessions: [] }),
 			requestPasswordReset,
+			sendVerificationEmail,
 		},
 	};
 	return {
 		opsBanUser,
 		requestPasswordReset,
+		sendVerificationEmail,
 		service: buildAccountAdminService({
 			auditRetryDelaysMs: [0, 0, 0],
 			authOrigin: "https://campus.example.test",
@@ -191,5 +195,24 @@ describe("account administration service", () => {
 			}),
 		).rejects.toMatchObject({ code: "account_deletion_in_progress" });
 		expect(requestPasswordReset).not.toHaveBeenCalled();
+	});
+
+	it("uses a product return target when an operator resends verification mail", async () => {
+		const { sendVerificationEmail, service } = createService({ emailVerified: false });
+
+		await expect(
+			service.sendVerificationEmail({
+				actorId: "operator@example.test",
+				idempotencyKey: "verify-1",
+				userId: "user_1",
+			}),
+		).resolves.toMatchObject({ id: "user_1" });
+		expect(sendVerificationEmail).toHaveBeenCalledWith({
+			body: {
+				callbackURL: "https://campus.example.test/account",
+				email: "student@muc.edu.cn",
+			},
+			headers: expect.any(Headers),
+		});
 	});
 });

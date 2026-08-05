@@ -81,7 +81,7 @@ function readOAuthError(): { description: string; title: string } {
 
 function FederationPageShell({ children }: { children: ReactNode }) {
 	return (
-		<section className="mx-auto w-full max-w-lg px-5 py-10 lg:px-8 lg:py-14">
+		<section className="mx-auto min-h-[calc(100dvh-var(--layout-campus-topnav-height))] w-full max-w-lg px-5 py-10 lg:px-8 lg:py-14">
 			<Card className="rounded-lg border-input shadow-none">
 				<CardContent className="p-6 sm:p-8">{children}</CardContent>
 			</Card>
@@ -117,7 +117,7 @@ function OAuthClientPanel({ oauthContext }: { oauthContext: CampusOAuthContext }
 				<ul className="mt-3 grid gap-2">
 					{oauthContext.client.scopeItems.map((item) => (
 						<li className="flex items-center gap-2 text-foreground text-sm" key={item}>
-							<Check aria-hidden="true" className="size-4 text-primary" />
+							<Check aria-hidden="true" className="size-4 text-selected-foreground" />
 							<span>{item}</span>
 						</li>
 					))}

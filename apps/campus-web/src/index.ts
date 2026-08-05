@@ -56,6 +56,7 @@ const AUTH_FORWARDED_HEADERS = [
 const FEDERATION_CREDENTIAL_FORWARDED_HEADERS = [...FORWARDED_HEADERS, "authorization"] as const;
 const FEDERATION_CREDENTIAL_PATHS = new Set(["/api/federation/token", "/api/federation/userinfo"]);
 const PUBLIC_VENDOR_ASSET_PREFIX = "/vendor/";
+const THEME_BOOTSTRAP_PATH = "/theme-bootstrap.js";
 
 const VITE_DEV_ASSET_PREFIXES = [
 	"/@fs/",
@@ -79,8 +80,10 @@ const SHELL_EXACT_PATHS = new Set([
 	"/account/forgot-password",
 	"/account/reset-link-sent",
 	"/account/reset-password",
+	"/account/reset-complete",
 	"/account/verify-email",
-	"/account/sign-out",
+	"/account/verify-email/result",
+	"/account/change-password",
 	"/account/deletion",
 	"/account/settings/account",
 	"/account/settings/security",
@@ -145,6 +148,9 @@ const worker = {
 				return serveStaticAsset(request, env);
 			}
 
+			if (url.pathname === THEME_BOOTSTRAP_PATH) {
+				return serveStaticAsset(request, env);
+			}
 			if (url.pathname.startsWith(PUBLIC_VENDOR_ASSET_PREFIX)) {
 				return serveStaticAsset(request, env);
 			}

@@ -1,77 +1,62 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import { campusAuthClient } from "@/platform/auth/client";
+import { useCampusSession } from "@/platform/auth/session";
+import { AuthDialog } from "../auth-dialog";
 import { AccountEntry } from "./account-entry";
-
-const AuthDialog = lazy(() =>
-	import("../auth-dialog").then((module) => ({ default: module.AuthDialog })),
-);
-const AuthenticatedAccountMenu = lazy(() =>
-	import("./authenticated-account-menu").then((module) => ({
-		default: module.AuthenticatedAccountMenu,
-	})),
-);
 
 export function ProductAccountEntry({
 	className,
+	onLogin,
 	openOnReady = false,
-	variant = "icon",
+	presentation = "icon",
 }: {
 	className?: string;
+	onLogin?: () => void;
 	openOnReady?: boolean;
-	variant?: "icon" | "label";
+	presentation?: "icon" | "label";
 }) {
 	const [open, setOpen] = useState(false);
 	const [accountMenuOpen, setAccountMenuOpen] = useState(false);
 	const readyActionHandled = useRef(false);
-	const session = campusAuthClient.useSession();
+	const session = useCampusSession();
 
 	useEffect(() => {
-		if (!openOnReady || session.isPending || readyActionHandled.current) {
+		if (!openOnReady || session.status === "loading" || readyActionHandled.current) {
 			return;
 		}
 		readyActionHandled.current = true;
-		if (session.data) {
+		if (session.status === "authenticated") {
 			setAccountMenuOpen(true);
 			return;
 		}
+		if (session.status === "unavailable") {
+			return;
+		}
+		if (onLogin) {
+			onLogin();
+			return;
+		}
 		setOpen(true);
-	}, [openOnReady, session.data, session.isPending]);
+	}, [onLogin, openOnReady, session.status]);
+
+	function handleLogin() {
+		if (onLogin) {
+			onLogin();
+			return;
+		}
+		setOpen(true);
+	}
 
 	return (
 		<>
-			{openOnReady && session.data ? (
-				<Suspense
-					fallback={
-						<AccountEntry
-							authenticated={false}
-							className={className}
-							onLogin={() => undefined}
-							pending
-							variant={variant}
-						/>
-					}
-				>
-					<AuthenticatedAccountMenu
-						onOpenChange={setAccountMenuOpen}
-						onSignedOut={() => setAccountMenuOpen(false)}
-						open={accountMenuOpen}
-					/>
-				</Suspense>
-			) : (
-				<AccountEntry
-					authenticated={Boolean(session.data)}
-					className={className}
-					onLogin={() => setOpen(true)}
-					pending={session.isPending}
-					variant={variant}
-				/>
-			)}
-			{open ? (
-				<Suspense fallback={null}>
-					<AuthDialog onOpenChange={setOpen} open />
-				</Suspense>
-			) : null}
+			<AccountEntry
+				className={className}
+				menuOpen={openOnReady && session.status === "authenticated" ? accountMenuOpen : undefined}
+				onLogin={handleLogin}
+				onMenuOpenChange={openOnReady ? setAccountMenuOpen : undefined}
+				presentation={presentation}
+			/>
+			{!onLogin && open ? <AuthDialog onOpenChange={setOpen} open /> : null}
 		</>
 	);
 }

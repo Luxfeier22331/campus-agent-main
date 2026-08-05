@@ -8,8 +8,8 @@ import { LegalPrivacyPage, LegalTermsPage } from "../src/app/routes/legal-page";
 
 vi.mock("@/components/auth/auth", () => ({
 	Auth: ({ view }: { view?: string }) => (
-		<section aria-label="better-auth-ui-auth" data-view={view}>
-			Better Auth UI Auth
+		<section aria-label="campus-auth-surface" data-view={view}>
+			Campus Auth
 		</section>
 	),
 }));
@@ -58,20 +58,23 @@ describe("campus account pages", () => {
 		cleanup();
 	});
 
-	it("routes auth actions through Better Auth UI HeroUI components", () => {
+	it("routes auth actions through the campus-owned auth surface", () => {
 		const { unmount } = render(<AccountAuthPage view="signIn" />);
 
-		expect(screen.getByLabelText("better-auth-ui-auth")).toHaveAttribute("data-view", "signIn");
+		expect(screen.getByLabelText("campus-auth-surface")).toHaveAttribute("data-view", "signIn");
 
 		unmount();
 		const signUp = render(<AccountAuthPage view="signUp" />);
 
-		expect(screen.getByLabelText("better-auth-ui-auth")).toHaveAttribute("data-view", "signUp");
+		expect(screen.getByLabelText("campus-auth-surface")).toHaveAttribute("data-view", "signUp");
 
 		signUp.unmount();
-		render(<AccountAuthPage view="signOut" />);
+		render(<AccountAuthPage view="verifyEmailResult" />);
 
-		expect(screen.getByLabelText("better-auth-ui-auth")).toHaveAttribute("data-view", "signOut");
+		expect(screen.getByLabelText("campus-auth-surface")).toHaveAttribute(
+			"data-view",
+			"verifyEmailResult",
+		);
 	});
 
 	it("routes account settings through Better Auth UI settings components", () => {

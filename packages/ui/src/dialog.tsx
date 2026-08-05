@@ -17,7 +17,7 @@ export const DialogOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
 	<DialogPrimitive.Overlay
 		className={cn(
-			"fixed inset-0 z-50 bg-foreground/45 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+			"fixed inset-0 z-[var(--layer-overlay)] bg-[var(--sys-overlay)] duration-[var(--motion-duration-standard)] ease-[var(--motion-easing-standard)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
 			className,
 		)}
 		ref={ref}
@@ -40,7 +40,7 @@ export const DialogContent = React.forwardRef<
 		<DialogOverlay />
 		<DialogPrimitive.Content
 			className={cn(
-				"fixed left-1/2 top-1/2 z-50 grid w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-md border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+				"fixed left-1/2 top-1/2 z-[var(--layer-overlay)] grid w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-md border bg-background p-6 shadow-lg duration-[var(--motion-duration-standard)] ease-[var(--motion-easing-standard)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
 				className,
 			)}
 			ref={ref}
@@ -99,10 +99,10 @@ export const AlertDialogContent = React.forwardRef<
 	React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content>
 >(({ className, ...props }, ref) => (
 	<AlertDialogPrimitive.Portal>
-		<AlertDialogPrimitive.Overlay className="fixed inset-0 z-50 bg-foreground/45" />
+		<AlertDialogPrimitive.Overlay className="fixed inset-0 z-[var(--layer-overlay)] bg-[var(--sys-overlay)]" />
 		<AlertDialogPrimitive.Content
 			className={cn(
-				"fixed left-1/2 top-1/2 z-50 grid w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-md border bg-background p-6 shadow-lg",
+				"fixed left-1/2 top-1/2 z-[var(--layer-overlay)] grid w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-md border bg-background p-6 shadow-lg",
 				className,
 			)}
 			ref={ref}
@@ -181,17 +181,22 @@ export const SheetDescription = DialogDescription;
 export const SheetHeader = DialogHeader;
 export const SheetFooter = DialogFooter;
 
-const sheetVariants = cva("fixed z-50 bg-background p-5 shadow-lg", {
-	variants: {
-		side: {
-			top: "inset-x-0 top-0 border-b",
-			bottom: "inset-x-0 bottom-0 border-t",
-			left: "inset-y-0 left-0 h-full w-[min(22rem,88vw)] border-r",
-			right: "inset-y-0 right-0 h-full w-[min(22rem,88vw)] border-l",
+const sheetVariants = cva(
+	"fixed z-[var(--layer-overlay)] overflow-y-auto bg-background p-5 shadow-lg duration-[var(--motion-duration-standard)] ease-[var(--motion-easing-standard)] data-[state=open]:animate-in data-[state=closed]:animate-out",
+	{
+		variants: {
+			side: {
+				top: "inset-x-0 top-0 border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
+				bottom:
+					"inset-x-0 bottom-0 border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
+				left: "inset-y-0 left-0 h-full w-[min(22rem,88vw)] border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left",
+				right:
+					"inset-y-0 right-0 h-full w-[min(22rem,88vw)] border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
+			},
 		},
+		defaultVariants: { side: "right" },
 	},
-	defaultVariants: { side: "right" },
-});
+);
 
 export interface SheetContentProps
 	extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>,

@@ -28,6 +28,46 @@ describe("UI foundation boundaries", () => {
 		expect(dependencyOffenders).toEqual([]);
 	});
 
+	it("keeps the Ops theme bootstrap aligned with the shared source", () => {
+		const appRoot = join(import.meta.dirname, "..");
+		const sharedBootstrap = readFileSync(
+			join(import.meta.dirname, "../../../packages/ui/src/theme-bootstrap.js"),
+			"utf8",
+		);
+		const appBootstrap = readFileSync(join(appRoot, "public/theme-bootstrap.js"), "utf8");
+		const html = readFileSync(join(appRoot, "index.html"), "utf8");
+
+		expect(appBootstrap).toBe(sharedBootstrap);
+		expect(html).toContain('<meta name="color-scheme" content="light dark" />');
+		expect(html).toContain('<script src="/theme-bootstrap.js"></script>');
+	});
+
+	it("keeps the Ops theme control out of the narrow header", () => {
+		const source = readFileSync(
+			join(import.meta.dirname, "../src/app/ui/sidebar-layout.tsx"),
+			"utf8",
+		);
+
+		expect(source).toContain('<ThemeModeMenu className="hidden shrink-0 lg:inline-flex" />');
+		expect(source).toContain('id="ops-mobile-theme-label"');
+		expect(source).toContain('aria-labelledby="ops-mobile-theme-label" label={null}');
+	});
+
+	it("separates selection styling from primary actions and status colors", () => {
+		const appRoot = join(import.meta.dirname, "../src/app");
+		const sidebar = readFileSync(join(appRoot, "ui/sidebar-layout.tsx"), "utf8");
+		const reports = readFileSync(join(appRoot, "dining-reports-page.tsx"), "utf8");
+		const editor = readFileSync(join(appRoot, "dining-studio/editor.css"), "utf8");
+
+		expect(sidebar).toContain("bg-selected");
+		expect(sidebar).not.toContain("bg-primary font-semibold text-primary-foreground");
+		expect(reports).toContain('<TabsTrigger value="pending">');
+		expect(reports).toContain('<TabsTrigger value="resolved">');
+		expect(reports).not.toContain("aria-pressed");
+		expect(editor).toContain("background: var(--dining-editor-surface-selected);");
+		expect(editor).toContain("color: var(--dining-editor-text-selected);");
+	});
+
 	it("keeps Ops TSX on semantic colors and shared visible form controls", () => {
 		const appRoot = join(import.meta.dirname, "../src/app");
 		const sources = sourceFiles(appRoot);
@@ -72,6 +112,33 @@ describe("UI foundation boundaries", () => {
 				/>,
 			),
 		).toThrow("DataTable requires exactly one row header column");
+	});
+
+	it("defers two-sided table pinning until the medium breakpoint", () => {
+		const { container } = render(
+			<DataTable
+				columns={[
+					{ cell: (row) => row.name, header: "名称", rowHeader: true },
+					{ cell: (row) => row.detail, header: "详情" },
+					{ cell: (row) => row.action, header: "操作" },
+				]}
+				data={[{ action: "处理", detail: "说明", id: "one", name: "记录" }]}
+				rowKey={(row) => row.id}
+				stickyFirstColumn
+				stickyLastColumn
+			/>,
+		);
+		const pinnedCells = [
+			container.querySelector("thead th:first-child"),
+			container.querySelector("thead th:last-child"),
+			container.querySelector("tbody th:first-child"),
+			container.querySelector("tbody td:last-child"),
+		];
+
+		for (const cell of pinnedCells) {
+			expect(cell?.classList.contains("md:sticky")).toBe(true);
+			expect(cell?.classList.contains("sticky")).toBe(false);
+		}
 	});
 });
 

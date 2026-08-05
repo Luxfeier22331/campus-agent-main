@@ -2,9 +2,12 @@
 	--shadow-auth-card: var(--shadow-sm);
 	--layout-page-workspace-width: 1280px;
 	--layout-page-form-width: 896px;
+	--layout-campus-topnav-height: 64px;
+	--layout-chat-topnav-height: 52px;
 	--layout-chat-sidebar-width: 260px;
+	--layout-chat-sidebar-rail-width: 52px;
 	--layout-chat-content-width: 760px;
-	--layout-docs-header-height: 64px;
+	--layout-docs-header-height: var(--layout-campus-topnav-height);
 	--layout-docs-sidebar-width: 240px;
 	--layout-docs-content-width: 760px;
 	--layout-docs-toc-width: 200px;
@@ -13,29 +16,114 @@
 	--chat-sidebar-bg: var(--sys-bg-subtle);
 	--chat-sidebar-border: var(--sys-border-subtle);
 	--chat-message-answer-bg: var(--sys-surface-default);
-	--chat-message-user-bg: var(--sys-brand-interactive-subtle);
-	--docs-active-nav-bg: var(--sys-brand-interactive-subtle);
-	--docs-active-nav-text: var(--sys-brand-interactive);
+	--chat-message-user-bg: var(--sys-tint-subtle);
+	--chat-reasoning-fade: color-mix(in oklab, var(--sys-bg-muted) 50%, transparent);
+	--docs-active-nav-bg: var(--sys-surface-selected);
+	--docs-active-nav-text: var(--sys-text-selected);
+	--map-overlay-surface: rgb(255 255 255 / 80%);
+	--map-overlay-surface-strong: rgb(255 255 255 / 95%);
+	--map-overlay-surface-soft: rgb(255 255 255 / 56%);
+	--map-overlay-surface-hover: rgb(255 255 255 / 82%);
+	--map-overlay-border: rgb(255 255 255 / 70%);
+	--map-overlay-divider: rgb(255 255 255 / 60%);
+	--map-overlay-text: var(--sys-text-default);
+	--map-overlay-muted: var(--sys-text-muted);
+	--map-overlay-shadow: var(--shadow-xs);
 	--map-canvas-bg: var(--sys-bg-muted);
-	--map-marker: var(--sys-brand-interactive);
+	--map-marker-border: var(--neutral-0);
+	--map-marker: var(--sys-tint);
 	--map-marker-building: var(--muc-caisson-blue);
 	--map-marker-dining: var(--muc-pine-green);
+	--map-marker-foreground: var(--sys-text-inverse);
 	--map-marker-gate: var(--neutral-800);
 	--map-marker-landmark: var(--muc-ginkgo-yellow);
+	--map-marker-landmark-foreground: var(--neutral-900);
 	--map-marker-service: var(--muc-caisson-blue);
 	--map-marker-transport: var(--neutral-700);
-	--map-marker-selected: var(--sys-brand-identity);
-	--map-style-background: #edf1f4;
-	--map-style-boundary: var(--muc-red);
-	--map-style-building-fill: #f9fafb;
-	--map-style-building-outline: #98a2b3;
-	--map-style-green-fill: #d9eadf;
+	--map-style-background: #efeff2;
+	--map-style-boundary: var(--sys-brand-identity);
+	--map-style-building-fill: #fafafb;
+	--map-style-building-outline: #8e8e93;
+	--map-style-green-fill: #dfeee4;
 	--map-style-label: var(--neutral-900);
-	--map-style-road-fill: #d6dce3;
-	--map-style-selection-fill: rgba(26, 115, 232, 0.14);
-	--map-style-selection-halo: rgba(255, 255, 255, 0.92);
-	--map-style-selection-outline: #1a73e8;
-	--map-style-sport-fill: #dce8f8;
+	--map-style-road-fill: #d1d1d6;
+	--map-style-selection-fill: #d8deed;
+	--map-style-selection-halo: var(--sys-surface-raised);
+	--map-style-selection-outline: var(--sys-border-selected);
+	--map-style-sport-fill: #e1e8f5;
 	--dining-svg-canvas-bg: var(--sys-bg-subtle);
-	--dining-window-selected-stroke: var(--sys-brand-interactive);
+	--dining-window-selected-stroke: var(--sys-border-selected);
+}
+
+:root[data-theme="dark"] {
+	--map-overlay-surface: rgb(21 21 23 / 88%);
+	--map-overlay-surface-strong: rgb(21 21 23 / 96%);
+	--map-overlay-surface-soft: rgb(21 21 23 / 72%);
+	--map-overlay-surface-hover: rgb(36 36 38 / 94%);
+	--map-overlay-border: rgb(175 195 255 / 32%);
+	--map-overlay-divider: rgb(175 195 255 / 24%);
+	--map-overlay-shadow: var(--shadow-sm);
+	--map-style-background: var(--sys-bg-muted);
+	--map-style-building-fill: var(--sys-surface-default);
+	--map-style-building-outline: var(--sys-border-default);
+	--map-style-green-fill: #274532;
+	--map-style-label: var(--sys-text-default);
+	--map-style-road-fill: #343438;
+	--map-style-selection-fill: var(--sys-surface-selected-pressed);
+	--map-style-selection-halo: var(--sys-surface-raised);
+	--map-style-selection-outline: var(--sys-border-selected);
+	--map-style-sport-fill: #2d3341;
+	--map-marker-border: var(--sys-surface-raised);
+	--map-marker-building: var(--sys-tint);
+	--map-marker-dining: var(--sys-status-success);
+	--map-marker-gate: var(--sys-text-muted);
+	--map-marker-landmark: var(--sys-status-warning);
+	--map-marker-service: var(--sys-tint);
+	--map-marker-transport: var(--sys-text-subtle);
+}
+
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme]) {
+		--map-overlay-surface: rgb(21 21 23 / 88%);
+		--map-overlay-surface-strong: rgb(21 21 23 / 96%);
+		--map-overlay-surface-soft: rgb(21 21 23 / 72%);
+		--map-overlay-surface-hover: rgb(36 36 38 / 94%);
+		--map-overlay-border: rgb(175 195 255 / 32%);
+		--map-overlay-divider: rgb(175 195 255 / 24%);
+		--map-overlay-shadow: var(--shadow-sm);
+		--map-style-background: var(--sys-bg-muted);
+		--map-style-building-fill: var(--sys-surface-default);
+		--map-style-building-outline: var(--sys-border-default);
+		--map-style-green-fill: #274532;
+		--map-style-label: var(--sys-text-default);
+		--map-style-road-fill: #343438;
+		--map-style-selection-fill: var(--sys-surface-selected-pressed);
+		--map-style-selection-halo: var(--sys-surface-raised);
+		--map-style-selection-outline: var(--sys-border-selected);
+		--map-style-sport-fill: #2d3341;
+		--map-marker-border: var(--sys-surface-raised);
+		--map-marker-building: var(--sys-tint);
+		--map-marker-dining: var(--sys-status-success);
+		--map-marker-gate: var(--sys-text-muted);
+		--map-marker-landmark: var(--sys-status-warning);
+		--map-marker-service: var(--sys-tint);
+		--map-marker-transport: var(--sys-text-subtle);
+	}
+}
+
+[data-ui-profile="campus"] {
+	--campus-content-max: var(--layout-page-workspace-width);
+	--campus-reading-max: var(--layout-docs-content-width);
+	--campus-section-gap: var(--space-8);
+}
+
+.campus-top-nav[data-variant="immersive"] [data-slot="theme-mode-menu-trigger"] {
+	border: 1px solid var(--map-overlay-border);
+	background: var(--map-overlay-surface-soft);
+	color: var(--map-overlay-muted);
+}
+
+.campus-top-nav[data-variant="immersive"] [data-slot="theme-mode-menu-trigger"]:hover {
+	background: var(--map-overlay-surface-hover);
+	color: var(--map-overlay-text);
 }

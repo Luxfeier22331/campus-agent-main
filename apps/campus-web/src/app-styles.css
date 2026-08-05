@@ -1,0 +1,121 @@
+@import "tailwindcss";
+@import "@heroui/styles";
+@import "@better-auth-ui/heroui/styles";
+@import "./campus-styles.css";
+
+:root {
+	--background: var(--sys-bg-canvas);
+	--foreground: var(--sys-text-default);
+	--surface: var(--sys-surface-default);
+	--surface-foreground: var(--sys-text-default);
+	--surface-hover: var(--sys-surface-hover);
+	--surface-secondary: var(--sys-surface-subtle);
+	--surface-secondary-foreground: var(--sys-text-default);
+	--surface-tertiary: var(--sys-bg-muted);
+	--surface-tertiary-foreground: var(--sys-text-default);
+	--overlay: var(--sys-surface-raised);
+	--overlay-foreground: var(--sys-text-default);
+	--muted: var(--sys-text-muted);
+	--default: var(--sys-bg-muted);
+	--default-foreground: var(--sys-text-default);
+	--segment: var(--sys-surface-default);
+	--segment-foreground: var(--sys-text-default);
+	--background-secondary: var(--sys-bg-subtle);
+	--background-tertiary: var(--sys-bg-muted);
+	--background-inverse: var(--sys-surface-inverse);
+	--default-hover: var(--sys-surface-hover);
+	--default-soft: var(--sys-bg-subtle);
+	--default-soft-foreground: var(--sys-text-default);
+	--default-soft-hover: var(--sys-surface-hover);
+
+	--accent: var(--sys-tint);
+	--accent-foreground: var(--sys-tint-foreground);
+	--accent-hover: var(--sys-tint-hover);
+	--accent-soft: var(--sys-tint-subtle);
+	--accent-soft-foreground: var(--sys-text-selected);
+	--accent-soft-hover: var(--sys-tint-subtle-hover);
+
+	--field-background: var(--sys-surface-default);
+	--field-foreground: var(--sys-text-default);
+	--field-placeholder: var(--sys-text-subtle);
+	--field-border: var(--input-border);
+	--field-hover: var(--sys-surface-hover);
+	--field-focus: var(--sys-surface-default);
+	--field-border-hover: var(--sys-border-default);
+	--field-border-focus: var(--sys-focus-ring);
+	--field-border-width: 1px;
+
+	--success: var(--sys-status-success);
+	--success-foreground: var(--sys-text-inverse);
+	--success-hover: var(--sys-status-success);
+	--success-soft: var(--sys-status-success-subtle);
+	--success-soft-foreground: var(--sys-status-success);
+	--success-soft-hover: var(--sys-status-success-subtle);
+	--warning: var(--sys-status-warning);
+	--warning-foreground: var(--sys-text-inverse);
+	--warning-hover: var(--sys-status-warning);
+	--warning-soft: var(--sys-status-warning-subtle);
+	--warning-soft-foreground: var(--sys-status-warning);
+	--warning-soft-hover: var(--sys-status-warning-subtle);
+	--danger: var(--sys-status-danger);
+	--danger-foreground: var(--sys-status-danger-on-solid);
+	--danger-hover: var(--sys-status-danger-hover);
+	--danger-soft: var(--sys-status-danger-subtle);
+	--danger-soft-foreground: var(--sys-status-danger);
+	--danger-soft-hover: var(--sys-status-danger-subtle);
+
+	--border: var(--sys-border-subtle);
+	--border-secondary: var(--sys-border-default);
+	--border-tertiary: var(--sys-border-strong);
+	--separator: var(--sys-border-subtle);
+	--separator-secondary: var(--sys-border-default);
+	--separator-tertiary: var(--sys-border-strong);
+	--focus: var(--sys-focus-ring);
+	--link: var(--sys-text-link);
+	--backdrop: var(--sys-overlay);
+
+	--radius: var(--radius-md);
+	--field-radius: var(--input-radius);
+	--surface-shadow: var(--shadow-xs);
+	--overlay-shadow: var(--shadow-lg);
+	--field-shadow: var(--shadow-xs);
+}
+
+[data-campus-account-surface="settings"] .tabs__list-container {
+	border-radius: var(--radius-lg);
+}
+
+[data-campus-account-surface="settings"] .tabs__tab,
+[data-campus-account-surface="settings"] .button {
+	min-height: var(--ui-control-height);
+}
+
+[data-campus-account-surface="settings"] .button--icon-only {
+	min-width: var(--ui-control-height);
+}
+
+[data-campus-account-surface="settings"] .input,
+[data-campus-account-surface="settings"] .input-group {
+	min-height: var(--ui-control-height);
+}
+
+[data-campus-account-surface="settings"] .card--transparent {
+	padding: 0;
+	border-radius: 0;
+}
+
+[data-campus-account-surface="settings"] .campus-account-settings .tabs__panel {
+	padding-top: var(--space-4);
+}
+
+[data-campus-account-surface="settings"] .campus-account-settings .tabs__panel h2 {
+	font-size: var(--font-size-md);
+	line-height: var(--line-height-normal);
+}
+
+/* Better Auth UI 1.6.28 renders ChangeAvatar even when avatar editing is disabled. */
+[data-campus-account-surface="settings"][data-campus-avatar-editing="disabled"]
+	form
+	> div:has(> input[type="file"][accept="image/*"]) {
+	display: none;
+}

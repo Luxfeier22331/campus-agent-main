@@ -11,14 +11,18 @@ vi.mock("recharts", () => ({
 		connectNulls,
 		dataKey,
 		dot,
+		strokeDasharray,
 	}: {
 		connectNulls?: boolean;
 		dataKey: string;
 		dot?: unknown;
+		strokeDasharray?: string;
 	}) => (
 		<span
 			data-connect-nulls={String(connectNulls === true)}
 			data-dot-hidden={String(dot === false)}
+			data-has-dot-marker={String(typeof dot === "object" && dot !== null)}
+			data-stroke-dasharray={strokeDasharray}
 			data-testid={`line-${dataKey}`}
 		/>
 	),
@@ -43,6 +47,15 @@ describe("RequestTrendChart", () => {
 		const latencyLine = screen.getByTestId("line-p95DurationMs");
 		expect(latencyLine).toHaveAttribute("data-connect-nulls", "false");
 		expect(latencyLine).toHaveAttribute("data-dot-hidden", "false");
+	});
+
+	it("distinguishes request outcomes without relying on color alone", () => {
+		render(<RequestTrendChart trends={trends({ dataState: "FRESH", reason: null })} />);
+
+		expect(screen.getByTestId("line-total")).not.toHaveAttribute("data-stroke-dasharray");
+		expect(screen.getByTestId("line-completed")).toHaveAttribute("data-stroke-dasharray", "7 4");
+		expect(screen.getByTestId("line-failed")).toHaveAttribute("data-stroke-dasharray", "2 3");
+		expect(screen.getByTestId("line-failed")).toHaveAttribute("data-has-dot-marker", "true");
 	});
 
 	it("keeps a live region mounted when trend freshness changes", () => {

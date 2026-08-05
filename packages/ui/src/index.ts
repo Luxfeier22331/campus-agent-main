@@ -12,4 +12,7 @@ export * from "./separator";
 export * from "./skeleton";
 export * from "./table";
 export * from "./tabs";
+export * from "./theme-mode-control";
+export * from "./theme-mode-menu";
+export * from "./theme-provider";
 export * from "./tooltip";

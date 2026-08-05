@@ -91,3 +91,12 @@ export function parseTurnstileRuntimeConfigSource(
 		return resolveTurnstileRuntimeConfig({});
 	}
 }
+
+export function readTurnstileRuntimeConfig(): TurnstileRuntimeConfig {
+	if (typeof document === "undefined") {
+		return parseTurnstileRuntimeConfigSource(null);
+	}
+	return parseTurnstileRuntimeConfigSource(
+		document.getElementById(AUTH_RUNTIME_CONFIG_SCRIPT_ID)?.textContent,
+	);
+}

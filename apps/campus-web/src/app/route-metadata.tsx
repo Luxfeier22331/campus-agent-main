@@ -35,6 +35,27 @@ export function resolveRouteMetadata(pathname: string): CampusRouteMetadata {
 	if (pathname === "/account/settings/security") {
 		return privateMetadata("账号安全", "管理当前校园问答账号的安全设置。");
 	}
+	if (pathname === "/account/change-password") {
+		return privateMetadata("修改密码", "修改临时密码并恢复校园问答访问。");
+	}
+	if (pathname === "/account/forgot-password") {
+		return privateMetadata("找回密码", "获取校园问答密码重置邮件。");
+	}
+	if (pathname === "/account/reset-password") {
+		return privateMetadata("重置密码", "为校园问答账号设置新密码。");
+	}
+	if (pathname === "/account/reset-link-sent") {
+		return privateMetadata("查收重置邮件", "查看校园问答密码重置邮件发送结果。");
+	}
+	if (pathname === "/account/reset-complete") {
+		return privateMetadata("密码已更新", "校园问答账号密码已更新。");
+	}
+	if (pathname === "/account/verify-email") {
+		return privateMetadata("验证邮箱", "获取校园问答邮箱验证邮件。");
+	}
+	if (pathname === "/account/verify-email/result") {
+		return privateMetadata("邮箱验证结果", "查看校园问答邮箱验证结果。");
+	}
 	if (pathname === "/account/deletion") {
 		return privateMetadata("注销请求已受理", "账号注销请求已经进入数据清理流程。");
 	}

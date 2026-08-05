@@ -56,6 +56,11 @@ describe("native docs build boundary", () => {
 			join(appRoot, "src/docs-reader-build/native-reader-prerender.tsx"),
 			"utf8",
 		);
+		const docsPreparationSource = readFileSync(
+			join(appRoot, "scripts/prepare-docs-content.ts"),
+			"utf8",
+		);
+		const indexHtmlSource = readFileSync(join(appRoot, "index.html"), "utf8");
 		const viteSource = readFileSync(join(appRoot, "vite.config.ts"), "utf8");
 
 		expect(packageJson.dependencies.flexsearch).toBe("0.8.212");
@@ -83,6 +88,9 @@ describe("native docs build boundary", () => {
 		expect(docsPrerenderSource).toContain(
 			'<link rel="stylesheet" href="/src/components/docs/docs-reader.css" />',
 		);
+		expect(docsPrerenderSource).toContain('<script src="/theme-bootstrap.js"></script>');
+		expect(docsPreparationSource).toContain("THEME_BOOTSTRAP_SOURCE");
+		expect(indexHtmlSource).toContain('<script src="/theme-bootstrap.js"></script>');
 		expect(viteSource).toContain("environments:");
 		expect(viteSource).toContain("resolveDocsBuildContent()");
 		expect(viteSource).toContain("isPreview ? undefined : resolveDocsBuildContent()");

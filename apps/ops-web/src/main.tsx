@@ -1,4 +1,5 @@
 import "./client-runtime";
+import { ThemeProvider } from "@campus-agent/ui";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { OpsWebApp } from "./app/ops-web-app";
@@ -12,6 +13,8 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
 	<StrictMode>
-		<OpsWebApp />
+		<ThemeProvider>
+			<OpsWebApp />
+		</ThemeProvider>
 	</StrictMode>,
 );

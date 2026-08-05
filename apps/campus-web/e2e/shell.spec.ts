@@ -34,6 +34,6 @@ test.describe("campus web shell", () => {
 
 		await expect(page.getByTestId("assistant-chat")).toBeVisible();
 		await expect(page.getByRole("button", { name: "打开聊天记录" })).toBeVisible();
-		await expect(page.getByRole("button", { name: "打开产品导航" })).toBeVisible();
+		await expect(page.getByRole("button", { name: "打开全局菜单" })).toBeVisible();
 	});
 });

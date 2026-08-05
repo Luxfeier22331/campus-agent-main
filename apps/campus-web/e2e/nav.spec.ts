@@ -45,8 +45,11 @@ test.describe("product navigation browser flow", () => {
 		await page.setViewportSize({ height: 812, width: 390 });
 		await page.goto("/");
 
-		await page.getByRole("button", { name: "打开产品导航" }).click();
-		await page.getByRole("menuitem", { name: "食堂" }).click();
+		await page.getByRole("button", { name: "打开全局菜单" }).click();
+		await page
+			.getByRole("dialog", { name: "校园问答导航" })
+			.getByRole("link", { name: "食堂" })
+			.click();
 
 		await expect(page).toHaveURL("/dining");
 		await expect(page.getByRole("heading", { exact: true, name: "食堂地图" })).toBeVisible();
@@ -58,7 +61,7 @@ test.describe("product navigation browser flow", () => {
 		await page.setViewportSize({ height: 812, width: 390 });
 		await page.goto("/feedback");
 
-		const trigger = page.getByRole("button", { name: "打开产品导航" });
+		const trigger = page.getByRole("button", { name: "打开全局菜单" });
 		await expect(trigger).toBeVisible();
 		const triggerBox = await trigger.boundingBox();
 		expect(triggerBox?.width ?? 0).toBeGreaterThanOrEqual(44);
@@ -66,7 +69,7 @@ test.describe("product navigation browser flow", () => {
 
 		await trigger.focus();
 		await trigger.press("Enter");
-		await expect(page.getByRole("menu")).toBeVisible();
+		await expect(page.getByRole("dialog", { name: "校园问答导航" })).toBeVisible();
 		await page.keyboard.press("Escape");
 		await expect(trigger).toBeFocused();
 	});

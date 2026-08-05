@@ -584,7 +584,7 @@ function SortableSection({
 			>
 				<ul
 					aria-label={`“${section.name}”分组中的群`}
-					className={cn("min-h-14 divide-y divide-border", droppable.isOver && "bg-primary/5")}
+					className={cn("min-h-14 divide-y divide-border", droppable.isOver && "bg-selected")}
 					ref={droppable.setNodeRef}
 				>
 					{section.groups.length > 0 ? (

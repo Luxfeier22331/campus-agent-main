@@ -43,7 +43,7 @@ describe("docs navigation tree", () => {
 		await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
 	});
 
-	it("expands every document group on the docs index without using directory links", async () => {
+	it("starts every document group collapsed on the docs index", async () => {
 		const siteIndex = createLargeDocsSiteIndex();
 		const collection = siteIndex.collections[2];
 		if (!collection) {
@@ -54,11 +54,15 @@ describe("docs navigation tree", () => {
 
 		expect(screen.queryByRole("link", { name: collection.label })).not.toBeInTheDocument();
 		const toggle = screen.getByRole("button", { name: collection.label });
-		expect(toggle).toHaveAttribute("aria-expanded", "true");
-		expect(screen.getByRole("link", { name: `${collection.label}文档 01` })).toBeInTheDocument();
-		expect(screen.getByRole("link", { name: `${collection.label}文档 32` })).toBeInTheDocument();
+		expect(toggle).toHaveAttribute("aria-expanded", "false");
+		expect(
+			screen.queryByRole("link", { name: `${collection.label}文档 01` }),
+		).not.toBeInTheDocument();
+		expect(
+			screen.queryByRole("link", { name: `${collection.label}文档 32` }),
+		).not.toBeInTheDocument();
 		for (const label of ["学生手册", "校级规章", "二学位培养方案", "通识教育", "专项规章"]) {
-			expect(screen.getByRole("button", { name: label })).toHaveAttribute("aria-expanded", "true");
+			expect(screen.getByRole("button", { name: label })).toHaveAttribute("aria-expanded", "false");
 		}
 	});
 
@@ -79,19 +83,19 @@ describe("docs navigation tree", () => {
 		const siteIndex = createLargeDocsSiteIndex();
 		await renderTree(siteIndex, "/docs");
 
-		expect(screen.getByRole("link", { name: "本科培养方案文档 01" })).toBeInTheDocument();
-		fireEvent.click(screen.getByRole("button", { name: "本科培养方案" }));
 		expect(screen.queryByRole("link", { name: "本科培养方案文档 01" })).not.toBeInTheDocument();
+		fireEvent.click(screen.getByRole("button", { name: "本科培养方案" }));
+		expect(screen.getByRole("link", { name: "本科培养方案文档 01" })).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "本科培养方案" })).toHaveAttribute(
 			"aria-expanded",
-			"false",
+			"true",
 		);
 		fireEvent.click(screen.getByRole("button", { name: "本科培养方案" }));
-		expect(screen.getByRole("link", { name: "本科培养方案文档 26" })).toBeInTheDocument();
+		expect(screen.queryByRole("link", { name: "本科培养方案文档 26" })).not.toBeInTheDocument();
 		expect(screen.queryByRole("searchbox", { name: /筛选.*文档/u })).not.toBeInTheDocument();
 	});
 
-	it("preserves a manual collapse when the document index is refreshed", async () => {
+	it("preserves a manual expansion when the document index is refreshed", async () => {
 		const siteIndex = createLargeDocsSiteIndex();
 		const rootRoute = createRootRoute({
 			component: () => {
@@ -114,18 +118,19 @@ describe("docs navigation tree", () => {
 		render(<RouterProvider router={router} />);
 
 		const toggle = await screen.findByRole("button", { name: "本科培养方案" });
-		fireEvent.click(toggle);
 		expect(toggle).toHaveAttribute("aria-expanded", "false");
+		fireEvent.click(toggle);
+		expect(toggle).toHaveAttribute("aria-expanded", "true");
 
 		fireEvent.click(screen.getByRole("button", { name: "刷新目录" }));
 
 		await waitFor(() => {
 			expect(screen.getByRole("button", { name: "本科培养方案" })).toHaveAttribute(
 				"aria-expanded",
-				"false",
+				"true",
 			);
 		});
-		expect(screen.queryByRole("link", { name: "本科培养方案文档 01" })).not.toBeInTheDocument();
+		expect(screen.getByRole("link", { name: "本科培养方案文档 01" })).toBeInTheDocument();
 	});
 
 	it("scrolls the new active document into view when navigating within one collection", async () => {

@@ -12,10 +12,9 @@ import {
 	Skeleton,
 } from "@campus-agent/ui";
 import { Link } from "@tanstack/react-router";
-import { ArrowUp, ChevronDown, List, Menu, Search, UserRound } from "lucide-react";
+import { ArrowUp, ChevronDown, List, ListTree, Search, UserRound } from "lucide-react";
 import { lazy, type ReactNode, Suspense, useEffect, useId, useMemo, useRef, useState } from "react";
-import { ProductBrandLink, ProductNavActions } from "@/components/navigation/product-navigation";
-import { ProductNavActionsWithIcons } from "@/components/navigation/product-navigation-menu";
+import { CampusTopNav } from "@/components/navigation/campus-top-nav";
 import { buildDocsNavigationGroups, type DocsSiteIndex } from "@/features/docs/site-index";
 import type { DocsOutlineItem } from "./docs-reader-view";
 
@@ -36,25 +35,34 @@ export function DocsShell({
 }) {
 	const [searchOpen, setSearchOpen] = useState(false);
 	const searchNavigationRef = useRef(false);
+	const searchReturnFocusRef = useRef<HTMLElement | null>(null);
 
 	return (
 		<Dialog onOpenChange={setSearchOpen} open={searchOpen}>
-			<div className="docs-site">
-				<header className="docs-site-header">
-					<div className="docs-site-header-inner">
-						<div className="flex min-w-0 items-center gap-1">
-							<MobileTree siteIndex={siteIndex} activePath={activePath} />
-							<ProductBrandLink
-								className="docs-site-brand min-h-[var(--layout-docs-header-height)]"
-								subtitle="校园文档"
-							/>
-						</div>
-						<ProductNavActions
-							activePath={activePath}
-							className="hidden gap-1 lg:flex"
-							linkMode="anchor"
-						/>
-						<div className="flex items-center gap-1">
+			<div className="docs-site" data-ui-profile="campus">
+				<CampusTopNav
+					accountAction={
+						<Button asChild className="docs-account-link text-xs" size="icon-lg" variant="ghost">
+							<a aria-label="账号" href="/account">
+								<UserRound aria-hidden="true" className="docs-account-icon" />
+								<span className="sr-only">账号</span>
+							</a>
+						</Button>
+					}
+					activePath={activePath}
+					contextLabel="校园文档"
+					leadingAction={<MobileTree siteIndex={siteIndex} activePath={activePath} />}
+					linkMode="anchor"
+					mobileAccountAction={
+						<Button asChild className="w-full justify-start" size="lg" variant="ghost">
+							<a aria-label="账号" href="/account">
+								<UserRound aria-hidden="true" className="size-4" />
+								<span>账号</span>
+							</a>
+						</Button>
+					}
+					localActions={
+						<>
 							<DialogTrigger asChild>
 								<Button
 									aria-label="搜索校园文档"
@@ -68,15 +76,32 @@ export function DocsShell({
 								</Button>
 							</DialogTrigger>
 							{outline.length > 0 ? <MobileOutline outline={outline} /> : null}
-							<Button asChild className="docs-account-link text-xs" size="lg" variant="ghost">
-								<a aria-label="账号" href="/account">
-									<UserRound aria-hidden="true" className="docs-account-icon" />
-									<span className="docs-account-label">账号</span>
-								</a>
+						</>
+					}
+					mobileLocalActions={(closeMenu) => (
+						<>
+							<Button
+								className="justify-start"
+								onClick={() =>
+									closeMenu(() => {
+										searchReturnFocusRef.current =
+											document.activeElement instanceof HTMLElement ? document.activeElement : null;
+										setSearchOpen(true);
+									})
+								}
+								onFocus={() => void loadDocsSearchPanel()}
+								onPointerEnter={() => void loadDocsSearchPanel()}
+								size="lg"
+								variant="outline"
+							>
+								<Search aria-hidden="true" />
+								<span>搜索文档</span>
 							</Button>
-						</div>
-					</div>
-				</header>
+							{outline.length > 0 ? <MobileOutline outline={outline} /> : null}
+						</>
+					)}
+					variant="workspace"
+				/>
 				<div className="docs-site-grid" data-has-outline={outline.length > 0 ? "true" : "false"}>
 					<aside aria-label="文档目录侧栏" className="docs-tree-panel">
 						<DocsTree activePath={activePath} siteIndex={siteIndex} />
@@ -97,6 +122,13 @@ export function DocsShell({
 					if (searchNavigationRef.current) {
 						event.preventDefault();
 						searchNavigationRef.current = false;
+						searchReturnFocusRef.current = null;
+						return;
+					}
+					if (searchReturnFocusRef.current?.isConnected) {
+						event.preventDefault();
+						searchReturnFocusRef.current.focus({ preventScroll: true });
+						searchReturnFocusRef.current = null;
 					}
 				}}
 			>
@@ -145,57 +177,28 @@ export function DocsTree({
 				: null,
 		[activeDocumentPath, corpusGroups],
 	);
-	const shouldAutoExpandActiveScope = Boolean(activeScope && activeDocumentPath);
-	const allScopeKeys = useMemo(
-		() => corpusGroups.flatMap((group) => group.sections.map((section) => section.key)),
-		[corpusGroups],
-	);
 	const [expandedScopes, setExpandedScopes] = useState<Set<string>>(
-		() =>
-			new Set(
-				activePath === "/docs"
-					? allScopeKeys
-					: shouldAutoExpandActiveScope && activeScope
-						? [activeScope]
-						: [],
-			),
+		() => new Set(activeScope && activeDocumentPath ? [activeScope] : []),
 	);
-	const previousActivePathRef = useRef(activePath);
-	const docsIndexExpansionInitializedRef = useRef(false);
 	const activeDocumentRef = useRef<HTMLAnchorElement>(null);
 
 	useEffect(() => {
-		const enteredDocsIndex = activePath === "/docs" && previousActivePathRef.current !== "/docs";
-		previousActivePathRef.current = activePath;
 		if (activePath === "/docs") {
-			if (
-				enteredDocsIndex ||
-				(!docsIndexExpansionInitializedRef.current && allScopeKeys.length > 0)
-			) {
-				setExpandedScopes(new Set(allScopeKeys));
-				if (allScopeKeys.length > 0) {
-					docsIndexExpansionInitializedRef.current = true;
-				}
-			}
+			setExpandedScopes(new Set());
 			return;
 		}
-		if (!activeScope) {
+		if (!(activeScope && activeDocumentPath)) {
 			return;
 		}
 		setExpandedScopes((current) => {
-			const shouldBeExpanded = shouldAutoExpandActiveScope;
-			if (current.has(activeScope) === shouldBeExpanded) {
+			if (current.has(activeScope)) {
 				return current;
 			}
 			const next = new Set(current);
-			if (shouldBeExpanded) {
-				next.add(activeScope);
-			} else {
-				next.delete(activeScope);
-			}
+			next.add(activeScope);
 			return next;
 		});
-	}, [activePath, activeScope, allScopeKeys, shouldAutoExpandActiveScope]);
+	}, [activeDocumentPath, activePath, activeScope]);
 
 	useEffect(() => {
 		if (!(activeScope && activeDocumentPath && expandedScopes.has(activeScope))) {
@@ -329,21 +332,13 @@ function MobileTree(props: Parameters<typeof DocsTree>[0]) {
 					size="icon-lg"
 					variant="ghost"
 				>
-					<Menu aria-hidden="true" />
+					<ListTree aria-hidden="true" />
 				</Button>
 			</SheetTrigger>
 			<SheetContent className="docs-navigation-sheet overflow-y-auto p-0" side="left">
 				<SheetHeader className="border-b px-5 py-4 text-left">
 					<SheetTitle>文档目录</SheetTitle>
 				</SheetHeader>
-				<div className="docs-mobile-product-links">
-					<p>校园服务</p>
-					<ProductNavActionsWithIcons
-						activePath={props.activePath}
-						className="docs-mobile-product-nav grid"
-						linkMode="anchor"
-					/>
-				</div>
 				<div className="p-4">
 					<DocsTree {...props} onNavigate={() => setOpen(false)} />
 				</div>

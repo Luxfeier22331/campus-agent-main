@@ -503,14 +503,16 @@ export function RequestTrendChart({ trends }: { trends: OpsOverviewResponse["tre
 									dot={false}
 									name="完成"
 									stroke="var(--ops-chart-success)"
+									strokeDasharray="7 4"
 									strokeWidth={2}
 									type="monotone"
 								/>
 								<Line
 									dataKey="failed"
-									dot={false}
+									dot={{ fill: "var(--ops-chart-danger)", r: 2, strokeWidth: 0 }}
 									name="失败"
 									stroke="var(--ops-chart-danger)"
+									strokeDasharray="2 3"
 									strokeWidth={2}
 									type="monotone"
 								/>

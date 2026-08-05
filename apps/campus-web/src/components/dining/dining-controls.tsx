@@ -8,7 +8,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@campus-agent/ui";
-import { Search, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useState } from "react";
 import type { DiningHallSummary, DiningSearchResult } from "@/features/dining/model";
 import { cn } from "@/lib/utils";
@@ -41,7 +41,7 @@ export function DiningHallSwitcher(props: {
 										className={cn(
 											"min-h-9 rounded-md px-3 shadow-none",
 											selected
-												? "bg-background text-primary shadow-sm hover:bg-background"
+												? "bg-selected text-selected-foreground shadow-sm hover:bg-selected-hover active:bg-selected-pressed"
 												: "text-[var(--sys-text-muted)] hover:bg-background/70",
 										)}
 										key={hall.hallId}
@@ -78,7 +78,7 @@ export function DiningHallSwitcher(props: {
 							<SelectGroup key={campus}>
 								<SelectLabel>{campus}</SelectLabel>
 								{halls.map((hall) => (
-									<SelectItem className="min-h-10" key={hall.hallId} value={hall.hallId}>
+									<SelectItem className="min-h-11" key={hall.hallId} value={hall.hallId}>
 										{hall.name}
 									</SelectItem>
 								))}
@@ -115,7 +115,7 @@ export function DiningMapToolbar(props: {
 					>
 						{props.floors.map((floor) => (
 							<ToggleGroupItem
-								className="min-h-9 rounded-md px-3 data-[state=on]:bg-background data-[state=on]:text-primary data-[state=on]:shadow-sm"
+								className="min-h-11 rounded-md px-3 data-[state=on]:bg-selected data-[state=on]:text-selected-foreground data-[state=on]:shadow-sm data-[state=on]:hover:bg-selected-hover sm:min-h-9"
 								key={floor.floorId}
 								value={floor.floorId}
 							>
@@ -125,16 +125,12 @@ export function DiningMapToolbar(props: {
 					</ToggleGroup>
 				) : null}
 				<Command
-					className="h-auto min-w-0 flex-1 overflow-visible rounded-none bg-transparent"
+					className="h-auto min-w-0 flex-1 overflow-visible rounded-none bg-transparent [&_[cmdk-input-wrapper]]:min-w-0 [&_[cmdk-input-wrapper]]:flex-1 [&_[cmdk-input-wrapper]]:border-b-0"
 					shouldFilter={false}
 				>
 					<Popover onOpenChange={setSearchOpen} open={showResults}>
 						<PopoverAnchor asChild>
-							<div className="flex min-w-0 overflow-hidden rounded-lg border border-input bg-background focus-within:ring-1 focus-within:ring-ring">
-								<Search
-									aria-hidden="true"
-									className="ml-3 size-4 shrink-0 self-center text-[var(--sys-text-subtle)]"
-								/>
+							<div className="flex min-w-0 overflow-hidden rounded-lg border border-input bg-background focus-within:ring-2 focus-within:ring-ring">
 								<CommandInput
 									aria-label="搜索窗口"
 									className="h-11"
@@ -172,6 +168,7 @@ export function DiningMapToolbar(props: {
 								<CommandEmpty>没有匹配的窗口</CommandEmpty>
 								{props.searchResults.map((result) => (
 									<CommandItem
+										className="min-h-11 sm:min-h-9"
 										key={result.windowId}
 										onSelect={() => {
 											props.onSelectResult(result);

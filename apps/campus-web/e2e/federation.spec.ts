@@ -44,8 +44,8 @@ test.describe("federation browser flow", () => {
 		await page.goto(`/account/login?redirectTo=${encodeURIComponent(consentTarget)}`);
 
 		await page.getByLabel("邮箱").fill("student@example.edu");
-		await page.getByLabel("密码").fill("validpassword123");
-		await page.getByRole("button", { name: "登录校园问答" }).click();
+		await page.getByRole("textbox", { exact: true, name: "密码" }).fill("validpassword123");
+		await page.getByRole("button", { name: "登录" }).click();
 
 		await expect(page).toHaveURL(consentTarget);
 		await expect(page.getByRole("heading", { name: "使用校园账号登录 MUC Wiki" })).toBeVisible();

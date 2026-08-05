@@ -8,26 +8,43 @@ const authClientMock = vi.hoisted(() => ({
 	signOut: vi.fn(),
 	signUpEmail: vi.fn(),
 }));
+const authFetchHooks = vi.hoisted(() => ({
+	onError: undefined as
+		| ((context: { error: Error & Record<string, unknown>; response: Response }) => void)
+		| undefined,
+	onResponse: undefined as
+		| ((context: { response: Response }) => Promise<Response | undefined>)
+		| undefined,
+}));
 
 vi.mock("better-auth/react", () => ({
-	createAuthClient: () => ({
-		requestPasswordReset: authClientMock.requestPasswordReset,
-		resetPassword: authClientMock.resetPassword,
-		signIn: {
-			email: authClientMock.signInEmail,
-		},
-		signOut: authClientMock.signOut,
-		signUp: {
-			email: authClientMock.signUpEmail,
-		},
-	}),
+	createAuthClient: (options: {
+		fetchOptions?: {
+			onError?: typeof authFetchHooks.onError;
+			onResponse?: typeof authFetchHooks.onResponse;
+		};
+	}) => {
+		authFetchHooks.onError = options.fetchOptions?.onError;
+		authFetchHooks.onResponse = options.fetchOptions?.onResponse;
+		return {
+			requestPasswordReset: authClientMock.requestPasswordReset,
+			resetPassword: authClientMock.resetPassword,
+			signIn: {
+				email: authClientMock.signInEmail,
+			},
+			signOut: authClientMock.signOut,
+			signUp: {
+				email: authClientMock.signUpEmail,
+			},
+		};
+	},
 }));
 
 vi.mock("@better-auth/oauth-provider/client", () => ({
 	oauthProviderClient: () => ({ id: "oauth-provider-client" }),
 }));
 
-import { campusAuthClient } from "../src/platform/auth/client";
+import { campusAuthClient, readCampusAuthRetryAfterSeconds } from "../src/platform/auth/client";
 
 describe("campus auth client", () => {
 	beforeEach(() => {
@@ -44,8 +61,7 @@ describe("campus auth client", () => {
 				password: "password1234",
 				callbackURL: "/account",
 			}),
-		).resolves.toMatchObject({
-			data: null,
+		).rejects.toMatchObject({
 			error: expect.objectContaining({
 				code: "legal_consent_required",
 			}),
@@ -210,6 +226,8 @@ describe("campus auth client", () => {
 			"请使用 @muc.edu.cn 校园邮箱，或管理员已邀请的邮箱。",
 		],
 		["MISSING_RESPONSE", "Missing CAPTCHA response", "安全验证还没有完成，请稍后再试。"],
+		["VERIFICATION_FAILED", "Captcha verification failed", "安全验证未通过，请重新完成验证。"],
+		["UNKNOWN_ERROR", "Something went wrong", "安全验证服务暂时不可用，请稍后再试。"],
 		["dependency_not_ready", "服务暂不可用，请稍后再试。", "服务暂不可用，请稍后再试。"],
 		["INVALID_ORIGIN", "Invalid origin", "登录请求来源无效，请刷新页面后重试。"],
 		["INVALID_EMAIL_OR_PASSWORD", "Invalid email or password", "邮箱或密码不正确。"],
@@ -244,6 +262,24 @@ describe("campus auth client", () => {
 			}),
 			message: expected,
 		});
+	});
+
+	it("preserves the server retry interval in rate-limited auth payloads", async () => {
+		const response = new Response(JSON.stringify({ code: "TOO_MANY_REQUESTS" }), {
+			headers: {
+				"content-type": "application/json",
+				"X-Retry-After": "23",
+			},
+			status: 429,
+		});
+		const normalizedResponse = (await authFetchHooks.onResponse?.({ response })) ?? response;
+		const payload = await normalizedResponse.json();
+
+		expect(payload).toMatchObject({
+			code: "TOO_MANY_REQUESTS",
+			retryAfterSeconds: 23,
+		});
+		expect(readCampusAuthRetryAfterSeconds({ error: payload })).toBe(23);
 	});
 
 	it("throws localized resolved Better Auth error payloads for sign-up", async () => {

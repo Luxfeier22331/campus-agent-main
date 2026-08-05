@@ -3,7 +3,8 @@ import { List, LocateFixed, MapPin, Search, X } from "lucide-react";
 import { LayoutGroup, motion } from "motion/react";
 import type { RefObject } from "react";
 import { lazy, Suspense, useEffect, useState } from "react";
-import { MapProductNavOverlay } from "@/components/navigation/product-navigation";
+import { CampusTopNav } from "@/components/navigation/campus-top-nav";
+import { readBrowserPathname } from "@/components/navigation/product-navigation";
 import { MapProductNavMobileMenu } from "@/components/navigation/product-navigation-menu";
 import {
 	CampusMotionProvider,
@@ -83,14 +84,31 @@ export function MapExperience({
 				data-surface="map-first"
 			>
 				<div className="absolute inset-0 bg-[var(--map-canvas-bg)]">
-					<section aria-label="地图画布" className="h-full w-full" ref={mapRef} />
+					<section
+						aria-label="地图画布"
+						className={cn(
+							"h-full w-full transition-opacity duration-150 ease-out motion-reduce:transition-none",
+							mapStatus === "ready" ? "opacity-100" : "opacity-0",
+						)}
+						ref={mapRef}
+					/>
 				</div>
 				{mapStatus === "error" ? (
 					<MapAssetNotice campus={campus} onRetry={onRetryMap} />
 				) : mapStatus === "loading" ? (
 					<MapAssetLoading />
 				) : null}
-				<MapProductNavOverlay />
+				<CampusTopNav
+					accountAction={
+						<Suspense fallback={<span aria-hidden="true" className="size-11" />}>
+							<ProductAccountEntry />
+						</Suspense>
+					}
+					activePath={readBrowserPathname()}
+					linkMode="anchor"
+					showMobileMenu={false}
+					variant="immersive"
+				/>
 				<MapSearchPanel
 					campuses={campuses}
 					categories={categories}
@@ -111,8 +129,11 @@ export function MapExperience({
 					query={query}
 					selectedPlaceId={selectedPlace?.place.id ?? null}
 				/>
-				{viewportControlsAvailable && (isDesktop || !selectedPlace) ? (
-					<MapViewportControls onResetViewport={onResetViewport} />
+				{isDesktop || !selectedPlace ? (
+					<MapViewportControls
+						onResetViewport={onResetViewport}
+						showReset={viewportControlsAvailable}
+					/>
 				) : null}
 				{selectedPlace ? (
 					<MapPlacePopover isDesktop={isDesktop} onClose={onCanvasClick} place={selectedPlace} />
@@ -175,7 +196,7 @@ function MapSearchPanel({
 		<motion.aside
 			aria-label="地点搜索与结果"
 			className={cn(
-				"pointer-events-auto absolute z-30 rounded-2xl border border-white/70 bg-white/80 shadow-[var(--shadow-xs)] backdrop-blur-md",
+				"pointer-events-auto absolute z-[var(--layer-domain)] rounded-2xl border border-[var(--map-overlay-border)] bg-[var(--map-overlay-surface)] shadow-[var(--map-overlay-shadow)] backdrop-blur-md",
 				isDesktop
 					? "left-3 top-3 flex w-[min(360px,calc(100vw-1.5rem))] flex-col"
 					: "inset-x-3 top-3 flex flex-col overflow-hidden",
@@ -192,7 +213,10 @@ function MapSearchPanel({
 			<LayoutGroup>
 				<div className="min-h-0 bg-transparent">
 					<motion.div
-						className={cn("space-y-2 p-2.5", listExpanded && "border-b border-white/60")}
+						className={cn(
+							"space-y-2 p-2.5",
+							listExpanded && "border-b border-[var(--map-overlay-divider)]",
+						)}
 						layout
 					>
 						<div className="flex items-center gap-2">
@@ -226,7 +250,7 @@ function MapSearchPanel({
 										}
 										aria-label="搜索地点"
 										className={cn(
-											"rounded-full border border-white/70 bg-white/72 pl-9 shadow-[var(--shadow-xs)]",
+											"rounded-full border border-[var(--map-overlay-border)] bg-[var(--map-overlay-surface-soft)] pl-9 shadow-[var(--map-overlay-shadow)]",
 											hasQuery ? "pr-10" : "pr-3",
 											isDesktop ? "min-h-10" : "min-h-11",
 										)}
@@ -270,6 +294,7 @@ function MapSearchPanel({
 											onListExpandedChange(true);
 											onQueryChange(event.currentTarget.value);
 										}}
+										name="q"
 										placeholder="搜索地点"
 										role="searchbox"
 										type="text"
@@ -297,7 +322,7 @@ function MapSearchPanel({
 									aria-expanded={listExpanded}
 									aria-label={listExpanded ? "收起地点结果" : "展开地点结果"}
 									className={cn(
-										"rounded-full bg-white/58 text-[var(--sys-text-muted)] hover:bg-white/72 hover:text-[var(--sys-text-strong)]",
+										"rounded-full bg-[var(--map-overlay-surface-soft)] text-[var(--map-overlay-muted)] hover:bg-[var(--map-overlay-surface-hover)] hover:text-[var(--map-overlay-text)]",
 										isDesktop ? "min-h-10 text-xs" : "min-h-11 text-sm",
 									)}
 									onClick={() => onListExpandedChange(!listExpanded)}
@@ -308,10 +333,6 @@ function MapSearchPanel({
 									<span className="hidden sm:inline">{listExpanded ? "收起" : "地点"}</span>
 								</Button>
 							)}
-							<Suspense fallback={<span aria-hidden="true" className="size-11 shrink-0" />}>
-								<ProductAccountEntry />
-							</Suspense>
-							<MapProductNavMobileMenu />
 						</div>
 						<CampusSelector
 							campuses={campuses}
@@ -340,9 +361,7 @@ function MapSearchPanel({
 							layoutScroll
 							{...panelPresence}
 						>
-							<h2 className="px-2 py-1 text-[11px] font-semibold text-[var(--sys-text-subtle)]">
-								地点
-							</h2>
+							<h2 className="ui-metadata px-2 py-1 font-semibold">地点</h2>
 							<PlaceList
 								activeResultIndex={activeResultIndex}
 								forceExpanded={hasQuery || category !== "all"}
@@ -385,7 +404,7 @@ function CampusSelector({
 			{campuses.map((item) => (
 				<ToggleGroupItem
 					className={cn(
-						"shrink-0 rounded-full data-[state=on]:bg-[var(--sys-surface-selected)] data-[state=on]:text-[var(--sys-brand-interactive)]",
+						"shrink-0 rounded-full data-[state=on]:bg-selected data-[state=on]:text-selected-foreground",
 						isDesktop ? "min-h-9" : "min-h-11",
 					)}
 					key={item}
@@ -400,7 +419,7 @@ function CampusSelector({
 
 function CampusReferenceNotice({ message }: { message: string }) {
 	return (
-		<p className="rounded-xl border border-white/65 bg-white/56 px-3 py-2 text-xs leading-5 text-[var(--sys-text-muted)]">
+		<p className="rounded-xl border border-[var(--map-overlay-border)] bg-[var(--map-overlay-surface-soft)] px-3 py-2 text-xs leading-5 text-[var(--map-overlay-muted)]">
 			{message}
 		</p>
 	);
@@ -431,7 +450,7 @@ function CategoryFilters({
 		>
 			<ToggleGroupItem
 				className={cn(
-					"shrink-0 rounded-full data-[state=on]:bg-[var(--sys-surface-selected)] data-[state=on]:text-[var(--sys-brand-interactive)]",
+					"shrink-0 rounded-full data-[state=on]:bg-selected data-[state=on]:text-selected-foreground",
 					isDesktop ? "min-h-9" : "min-h-11",
 				)}
 				value="all"
@@ -441,7 +460,7 @@ function CategoryFilters({
 			{categories.map((item) => (
 				<ToggleGroupItem
 					className={cn(
-						"shrink-0 rounded-full data-[state=on]:bg-[var(--sys-surface-selected)] data-[state=on]:text-[var(--sys-brand-interactive)]",
+						"shrink-0 rounded-full data-[state=on]:bg-selected data-[state=on]:text-selected-foreground",
 						isDesktop ? "min-h-9" : "min-h-11",
 					)}
 					key={item.value}
@@ -499,9 +518,7 @@ function PlaceList({
 				const canToggle = group.places.length > DEFAULT_VISIBLE_PLACES_PER_GROUP;
 				return (
 					<motion.fieldset className="space-y-1" key={group.label} layout>
-						<legend className="px-2 text-[11px] font-semibold text-[var(--sys-text-subtle)]">
-							{group.label}
-						</legend>
+						<legend className="ui-metadata px-2 font-semibold">{group.label}</legend>
 						{visiblePlaces.map((place) => {
 							const currentIndex = placeIndex;
 							placeIndex += 1;
@@ -513,9 +530,10 @@ function PlaceList({
 										aria-label={`选择${place.place.title}`}
 										aria-pressed={selected}
 										className={cn(
-											"h-auto min-h-[76px] w-full flex-col items-start rounded-lg border border-transparent bg-white/58 p-2.5 text-left whitespace-normal outline-none hover:bg-white/82 focus-visible:shadow-[var(--state-focus-shadow)]",
-											active && "border-[var(--sys-border-default)] bg-white/78",
-											selected && "border-[var(--sys-text-strong)] bg-white/88",
+											"h-auto min-h-[76px] w-full flex-col items-start rounded-lg border border-transparent bg-[var(--map-overlay-surface-soft)] p-2.5 text-left whitespace-normal outline-none hover:bg-[var(--map-overlay-surface-hover)] focus-visible:shadow-[var(--state-focus-shadow)]",
+											active &&
+												"border-[var(--sys-border-default)] bg-[var(--map-overlay-surface)]",
+											selected && "border-border-selected bg-selected",
 										)}
 										onClick={() => onPlaceSelect(place.place.id)}
 										variant="ghost"
@@ -523,7 +541,7 @@ function PlaceList({
 										<span className="block text-sm font-semibold text-[var(--sys-text-strong)]">
 											{place.place.title}
 										</span>
-										<span className="mt-0.5 block text-[11px] text-[var(--sys-text-muted)]">
+										<span className="ui-metadata mt-0.5 block">
 											{place.place.campus} · {place.categoryLabel}
 										</span>
 										<span className="mt-1 line-clamp-1 block text-xs leading-5 text-[var(--sys-text-muted)]">
@@ -535,7 +553,7 @@ function PlaceList({
 						})}
 						{canToggle && !forceExpanded ? (
 							<Button
-								className="min-h-10 rounded-lg px-2 text-sm font-medium text-[var(--sys-text-muted)] outline-none hover:bg-white/72 hover:text-[var(--sys-text-strong)] focus-visible:shadow-[var(--state-focus-shadow)]"
+								className="min-h-10 rounded-lg px-2 text-sm font-medium text-[var(--map-overlay-muted)] outline-none hover:bg-[var(--map-overlay-surface-hover)] hover:text-[var(--map-overlay-text)] focus-visible:shadow-[var(--state-focus-shadow)]"
 								onClick={() =>
 									setExpandedGroups((current) => {
 										const next = new Set(current);
@@ -559,18 +577,35 @@ function PlaceList({
 	);
 }
 
-function MapViewportControls({ onResetViewport }: { onResetViewport: () => void }) {
+function MapViewportControls({
+	onResetViewport,
+	showReset,
+}: {
+	onResetViewport: () => void;
+	showReset: boolean;
+}) {
 	return (
-		<div className="pointer-events-auto absolute bottom-12 right-3 z-30 flex flex-col items-end gap-2">
-			<Button
-				aria-label="回到当前校区"
-				className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/70 bg-white/82 px-3 text-sm font-medium text-[var(--sys-text-muted)] shadow-[var(--shadow-xs)] outline-none backdrop-blur-md hover:bg-white/92 hover:text-[var(--sys-text-strong)] focus-visible:shadow-[var(--state-focus-shadow)]"
-				onClick={onResetViewport}
-				variant="ghost"
-			>
-				<LocateFixed aria-hidden="true" className="size-4" />
-				<span className="hidden sm:inline">当前校区</span>
-			</Button>
+		<div className="pointer-events-auto absolute bottom-12 right-3 z-[var(--layer-domain)] flex flex-col items-end gap-2">
+			<div className="lg:hidden">
+				<MapProductNavMobileMenu
+					accountAction={(openAuthDialog) => (
+						<Suspense fallback={<span aria-hidden="true" className="block h-11" />}>
+							<ProductAccountEntry onLogin={openAuthDialog} presentation="label" />
+						</Suspense>
+					)}
+				/>
+			</div>
+			{showReset ? (
+				<Button
+					aria-label="回到当前校区"
+					className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[var(--map-overlay-border)] bg-[var(--map-overlay-surface)] px-3 text-sm font-medium text-[var(--map-overlay-muted)] shadow-[var(--map-overlay-shadow)] outline-none backdrop-blur-md hover:bg-[var(--map-overlay-surface-hover)] hover:text-[var(--map-overlay-text)] focus-visible:shadow-[var(--state-focus-shadow)]"
+					onClick={onResetViewport}
+					variant="ghost"
+				>
+					<LocateFixed aria-hidden="true" className="size-4" />
+					<span className="hidden sm:inline">当前校区</span>
+				</Button>
+			) : null}
 		</div>
 	);
 }
@@ -597,7 +632,7 @@ function MapPlacePopover({
 			);
 		return (
 			<div className="flex items-start gap-3 p-4">
-				<span className="mt-0.5 grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--sys-brand-interactive-subtle)] text-primary">
+				<span className="mt-0.5 grid size-10 shrink-0 place-items-center rounded-xl bg-selected text-selected-foreground">
 					<MapPin aria-hidden="true" className="size-5" />
 				</span>
 				<div className="min-w-0 flex-1">
@@ -631,12 +666,12 @@ function MapPlacePopover({
 		return (
 			<Popover open>
 				<PopoverAnchor asChild>
-					<div className="pointer-events-none absolute left-[384px] top-20 z-30 size-1" />
+					<div className="pointer-events-none absolute left-[384px] top-20 z-[var(--layer-domain)] size-1" />
 				</PopoverAnchor>
 				<PopoverContent
 					aria-label={place.place.title}
 					align="start"
-					className="pointer-events-auto z-30 w-[340px] border-white/70 bg-white/86 p-0 shadow-[var(--shadow-sm)] backdrop-blur-md"
+					className="pointer-events-auto z-[var(--layer-domain)] w-[340px] border-[var(--map-overlay-border)] bg-[var(--map-overlay-surface-strong)] p-0 shadow-[var(--shadow-sm)] backdrop-blur-md"
 					data-variant="popover"
 					onEscapeKeyDown={onClose}
 					onPointerDownOutside={(event) => event.preventDefault()}
@@ -663,7 +698,7 @@ function MapPlacePopover({
 		<Dialog onOpenChange={(open) => (open ? undefined : onClose())} open>
 			<DialogContent
 				aria-label={place.place.title}
-				className="pointer-events-auto inset-x-3 bottom-3 top-auto left-auto max-h-[48dvh] w-auto translate-x-0 translate-y-0 overflow-y-auto rounded-2xl border-white/70 bg-white/86 p-0 pb-[max(0px,env(safe-area-inset-bottom))] shadow-[var(--shadow-sm)] backdrop-blur-md"
+				className="pointer-events-auto inset-x-3 bottom-3 top-auto left-auto max-h-[48dvh] w-auto translate-x-0 translate-y-0 overflow-y-auto rounded-2xl border-[var(--map-overlay-border)] bg-[var(--map-overlay-surface-strong)] p-0 pb-[max(0px,env(safe-area-inset-bottom))] shadow-[var(--shadow-sm)] backdrop-blur-md"
 				data-variant="sheet"
 				showCloseButton={false}
 			>
@@ -697,7 +732,7 @@ function MapPlacePopover({
 function MapAssetNotice({ campus, onRetry }: { campus: string; onRetry: () => void }) {
 	return (
 		<div className="pointer-events-none absolute inset-0 z-10 grid place-items-center px-6">
-			<div className="max-w-sm rounded-2xl border border-border bg-white/95 p-4 text-sm leading-6 text-[var(--sys-text-muted)] shadow-[var(--shadow-sm)]">
+			<div className="max-w-sm rounded-2xl border border-border bg-[var(--map-overlay-surface-strong)] p-4 text-sm leading-6 text-[var(--map-overlay-muted)] shadow-[var(--shadow-sm)]">
 				<span className="block font-semibold text-[var(--sys-text-strong)]">{campus}</span>
 				地图底图暂时无法显示，地点列表仍可继续使用。
 				<Button className="pointer-events-auto mt-3" onClick={onRetry} size="sm" type="button">
@@ -714,7 +749,7 @@ function MapAssetLoading() {
 			className="pointer-events-none absolute inset-0 z-10 grid place-items-center"
 			role="status"
 		>
-			<span className="rounded-full bg-white/88 px-3 py-1.5 text-xs text-[var(--sys-text-muted)] shadow-[var(--shadow-xs)]">
+			<span className="rounded-full bg-[var(--map-overlay-surface-strong)] px-3 py-1.5 text-xs text-[var(--map-overlay-muted)] shadow-[var(--map-overlay-shadow)]">
 				正在加载地图
 			</span>
 		</div>

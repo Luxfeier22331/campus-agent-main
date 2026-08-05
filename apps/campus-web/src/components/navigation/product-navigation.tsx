@@ -1,34 +1,40 @@
 import { Button } from "@campus-agent/ui";
 import { Link } from "@tanstack/react-router";
-import type { AnchorHTMLAttributes, ComponentType, ReactNode, SVGProps } from "react";
+import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { forwardRef } from "react";
 import { cn } from "@/lib/utils";
 import {
 	getProductNavItems,
 	isProductNavActive,
 	type ProductNavItem,
-	type ProductNavItemId,
 } from "@/platform/navigation/product-nav";
-export type ProductNavigationVariant = "standard" | "chat" | "map";
 export type ProductNavigationLinkMode = "anchor" | "router";
 
 export function ProductBrandLink({
 	className,
+	compactLabel,
 	linkMode = "anchor",
 	subtitle = "",
 }: {
 	className?: string;
+	compactLabel?: string;
 	linkMode?: ProductNavigationLinkMode;
 	subtitle?: string;
 }) {
-	const classNames = cn("flex min-w-0 items-center gap-3", className);
+	const classNames = cn("campus-product-brand flex min-w-0 items-center gap-3", className);
+	const mobileLabel = compactLabel || subtitle || "校园问答";
 	const children = (
 		<span className="min-w-0">
-			<span className="block truncate text-sm font-semibold tracking-normal text-[var(--sys-text-strong)]">
+			<span className="block truncate whitespace-nowrap text-sm font-semibold tracking-normal text-[var(--sys-text-strong)] lg:hidden">
+				{mobileLabel}
+			</span>
+			<span className="hidden whitespace-nowrap text-sm font-semibold tracking-normal text-[var(--sys-text-strong)] lg:block">
 				中央民族大学校园问答
 			</span>
 			{subtitle ? (
-				<span className="block truncate text-xs text-[var(--sys-text-subtle)]">{subtitle}</span>
+				<span className="hidden truncate text-xs text-[var(--sys-text-subtle)] lg:block">
+					{subtitle}
+				</span>
 			) : null}
 		</span>
 	);
@@ -49,15 +55,11 @@ export function ProductBrandLink({
 export function ProductNavActions({
 	activePath,
 	className,
-	icons,
 	linkMode = "router",
-	variant = "standard",
 }: {
 	activePath: string;
 	className?: string;
-	icons?: Partial<Record<ProductNavItemId, ComponentType<SVGProps<SVGSVGElement>>>>;
 	linkMode?: ProductNavigationLinkMode;
-	variant?: ProductNavigationVariant;
 }) {
 	return (
 		<nav aria-label="产品导航" className={cn("items-center", className)}>
@@ -67,54 +69,30 @@ export function ProductNavActions({
 					item={item}
 					key={item.id}
 					linkMode={linkMode}
-					Icon={icons?.[item.id]}
-					variant={variant}
 				/>
 			))}
 		</nav>
 	);
 }
 
-export function MapProductNavOverlay() {
-	const activePath = readBrowserPathname();
-	return (
-		<div className="pointer-events-auto absolute right-3 top-3 z-30 hidden md:block">
-			<ProductNavActions
-				activePath={activePath}
-				className="flex rounded-full border border-white/65 bg-white/78 px-1.5 py-1 text-sm font-medium text-[var(--sys-text-muted)] shadow-[var(--shadow-xs)] backdrop-blur-md"
-				linkMode="anchor"
-				variant="map"
-			/>
-		</div>
-	);
-}
-
 function ProductNavButton({
 	active,
-	Icon,
 	item,
 	linkMode,
-	variant,
 }: {
 	active: boolean;
-	Icon?: ComponentType<SVGProps<SVGSVGElement>>;
 	item: ProductNavItem;
 	linkMode: ProductNavigationLinkMode;
-	variant: ProductNavigationVariant;
 }) {
 	const className = cn(
-		"min-h-8 rounded-md px-2.5 text-xs",
-		variant === "chat" ? "text-muted-foreground" : "",
-		variant === "map" ? "rounded-full bg-white/0 text-[var(--sys-text-muted)]" : "",
-		active ? "bg-surface-muted text-foreground" : "",
-		active && item.id === "feedback"
-			? "text-[var(--sys-brand-identity)] hover:text-[var(--sys-brand-identity)]"
+		"min-h-9 rounded-md bg-transparent px-2.5 text-xs text-inherit",
+		active
+			? "bg-selected font-semibold text-selected-foreground hover:bg-selected-hover hover:text-selected-foreground active:bg-selected-pressed"
 			: "",
 	);
 	return (
 		<Button asChild className={className} size="sm" variant="ghost">
-			<ProductNavLink item={item} linkMode={linkMode}>
-				{Icon ? <Icon aria-hidden="true" className="size-4" /> : null}
+			<ProductNavLink aria-current={active ? "page" : undefined} item={item} linkMode={linkMode}>
 				<span>{item.label}</span>
 			</ProductNavLink>
 		</Button>

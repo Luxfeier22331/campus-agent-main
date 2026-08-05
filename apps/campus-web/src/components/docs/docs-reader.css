@@ -9,28 +9,14 @@
 
 .docs-site {
 	--docs-header-height: var(--layout-docs-header-height);
+	--docs-reading-line-height: var(--line-height-relaxed);
 	min-height: 100dvh;
 	background: var(--sys-surface-default);
 	color: var(--sys-text-default);
 }
 
-.docs-site-header {
-	position: sticky;
-	z-index: 40;
-	top: 0;
-	border-bottom: 1px solid var(--docs-border);
-	background: color-mix(in srgb, var(--sys-surface-default) 96%, transparent);
-	backdrop-filter: blur(12px);
-}
-
-.docs-site-header-inner {
-	display: grid;
-	width: 100%;
-	min-height: var(--docs-header-height);
-	grid-template-columns: minmax(0, 1fr) auto auto;
-	align-items: center;
-	gap: 0.75rem;
-	padding: 0 1rem;
+.docs-site > .campus-top-nav {
+	background: var(--sys-surface-default);
 }
 
 .docs-site-grid {
@@ -107,7 +93,7 @@
 .docs-main {
 	width: 100%;
 	min-width: 0;
-	padding: 2rem clamp(1.25rem, 3.5vw, 3.25rem) 5rem;
+	padding: 2rem max(var(--ui-page-gutter), clamp(1.25rem, 3.5vw, 3.25rem)) 5rem;
 }
 
 .docs-tree {
@@ -137,13 +123,13 @@
 .docs-start-document-list a:focus-visible,
 .docs-course-map-frame:focus-visible,
 .document-meta-details summary:focus-visible {
-	outline: 2px solid var(--sys-border-focus);
+	outline: 2px solid var(--sys-focus-ring);
 	outline-offset: 2px;
 }
 
 .docs-reader-document [tabindex="-1"]:focus-visible {
 	border-radius: var(--radius-sm);
-	outline: 2px solid var(--sys-border-focus);
+	outline: 2px solid var(--sys-focus-ring);
 	outline-offset: 3px;
 }
 
@@ -200,7 +186,7 @@
 }
 
 .docs-tree-collection-row > .docs-tree-collection:focus-visible {
-	outline: 2px solid var(--sys-border-focus);
+	outline: 2px solid var(--sys-focus-ring);
 	outline-offset: 2px;
 }
 
@@ -223,28 +209,6 @@
 
 .docs-tree-collection[data-active="true"] {
 	color: var(--docs-accent);
-}
-
-.docs-mobile-product-links {
-	padding: 1rem;
-	border-bottom: 1px solid var(--docs-border);
-}
-
-.docs-mobile-product-links > p {
-	margin: 0 0 0.5rem 0.625rem;
-	color: var(--sys-text-subtle);
-	font-size: 0.75rem;
-	font-weight: 700;
-}
-
-.docs-mobile-product-nav {
-	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 0.25rem;
-}
-
-.docs-mobile-product-nav > a {
-	min-height: 2.75rem;
-	justify-content: flex-start;
 }
 
 .docs-tree ul,
@@ -342,10 +306,6 @@
 	height: 1.125rem;
 }
 
-.docs-account-label {
-	display: none;
-}
-
 .docs-navigation-sheet > button,
 .docs-search-dialog > button {
 	display: grid;
@@ -413,8 +373,8 @@
 }
 
 .docs-reader-document :where(p, li) {
-	font-size: 1rem;
-	line-height: 1.85;
+	font-size: var(--font-size-md);
+	line-height: var(--docs-reading-line-height);
 	text-wrap: pretty;
 }
 
@@ -515,13 +475,13 @@
 .reader-block.docs-reader-highlight,
 .docs-toc-heading.docs-reader-highlight {
 	border-radius: var(--radius-sm);
-	background: color-mix(in srgb, var(--sys-brand-identity) 9%, transparent);
-	box-shadow: 0 0 0 0.3rem color-mix(in srgb, var(--sys-brand-identity) 9%, transparent);
+	background: var(--sys-tint-subtle);
+	box-shadow: 0 0 0 0.3rem var(--sys-tint-subtle);
 }
 
 .docs-reader-document :where(h2, h3):target {
 	border-radius: var(--radius-sm);
-	background: color-mix(in srgb, var(--sys-brand-identity) 7%, transparent);
+	background: var(--sys-tint-subtle);
 }
 
 .document-meta-panel {
@@ -1140,21 +1100,6 @@
 	height: 1rem;
 }
 
-@media (min-width: 1024px) {
-	.docs-account-link {
-		width: auto;
-		padding-inline: 0.75rem;
-	}
-
-	.docs-account-icon {
-		display: none;
-	}
-
-	.docs-account-label {
-		display: inline;
-	}
-}
-
 @media (max-width: 1279px) {
 	.docs-site-grid {
 		grid-template-columns: var(--layout-docs-sidebar-width) minmax(0, 1fr);
@@ -1171,10 +1116,6 @@
 }
 
 @media (max-width: 1023px) {
-	.docs-site-header-inner {
-		grid-template-columns: minmax(0, 1fr) auto;
-	}
-
 	.docs-site-grid {
 		display: block;
 	}
@@ -1208,13 +1149,13 @@
 }
 
 @media (max-width: 640px) {
-	.docs-site-header-inner {
+	.docs-site .campus-top-nav-inner {
 		gap: 0.25rem;
 		padding: 0 0.5rem;
 	}
 
 	.docs-main {
-		padding: 1.25rem 1rem 4rem;
+		padding: 1.25rem var(--ui-page-gutter) 4rem;
 	}
 
 	.docs-document-header > h1,
@@ -1292,16 +1233,6 @@
 }
 
 @media (max-width: 359px) {
-	.docs-site-brand > span > span:first-child {
-		display: none;
-	}
-
-	.docs-site-brand > span > span:last-child {
-		color: var(--sys-text-strong);
-		font-size: 0.875rem;
-		font-weight: 650;
-	}
-
 	.docs-reader-heading-actions {
 		opacity: 1;
 	}
@@ -1323,7 +1254,7 @@
 }
 
 @media print {
-	.docs-site-header,
+	.docs-site > .campus-top-nav,
 	.docs-tree-panel,
 	.docs-outline-panel,
 	.docs-reader-heading-actions,

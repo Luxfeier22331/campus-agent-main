@@ -19,7 +19,10 @@ describe("OpsWebApp", () => {
 		render(<OpsWebApp initialPath="/" />);
 
 		expect(await screen.findByRole("heading", { name: "运行概览" })).toBeInTheDocument();
-		expect(screen.getByRole("link", { name: "运行概览" })).toHaveAttribute("aria-current", "page");
+		const activeLink = screen.getByRole("link", { name: "运行概览" });
+		expect(activeLink).toHaveAttribute("aria-current", "page");
+		expect(activeLink).toHaveClass("bg-selected", "text-selected-foreground");
+		expect(activeLink).not.toHaveClass("bg-primary", "text-primary-foreground");
 	});
 
 	it("shows health, request trends, queues, and telemetry on the overview", async () => {
@@ -207,6 +210,23 @@ describe("OpsWebApp", () => {
 		await waitFor(() => {
 			expect(screen.getByRole("button", { name: "打开导航" })).toHaveFocus();
 		});
+
+		fireEvent.click(screen.getByRole("button", { name: "打开导航" }));
+		fireEvent.click(await screen.findByRole("button", { name: "关闭" }));
+		await waitFor(() => {
+			expect(screen.getByRole("button", { name: "打开导航" })).toHaveFocus();
+		});
+	});
+
+	it("moves focus to main content after mobile navigation", async () => {
+		render(<OpsWebApp initialPath="/overview" />);
+
+		fireEvent.click(await screen.findByRole("button", { name: "打开导航" }));
+		const mobileNav = await screen.findByRole("dialog");
+		fireEvent.click(within(mobileNav).getByRole("link", { name: "运行记录" }));
+
+		expect(await screen.findByRole("heading", { name: "运行记录" })).toBeInTheDocument();
+		await waitFor(() => expect(screen.getByRole("main")).toHaveFocus());
 	});
 
 	it("restores focus to the mobile request filter trigger", async () => {
@@ -301,7 +321,7 @@ describe("OpsWebApp", () => {
 		expect(within(result).getByText(/产品状态保持为已完成/u)).toBeInTheDocument();
 	});
 
-	it("supports skip navigation and restores main-content focus after route changes", async () => {
+	it("supports skip navigation without stealing focus after desktop route changes", async () => {
 		render(<OpsWebApp initialPath="/requests" />);
 
 		const skipLink = await screen.findByRole("link", { name: "跳到主要内容" });
@@ -310,9 +330,12 @@ describe("OpsWebApp", () => {
 		expect(main).toHaveAttribute("id", "ops-main-content");
 		expect(main).toHaveAttribute("tabindex", "-1");
 
-		fireEvent.click(screen.getByRole("link", { name: "运行概览" }));
+		const overviewLink = screen.getByRole("link", { name: "运行概览" });
+		overviewLink.focus();
+		fireEvent.click(overviewLink);
 		expect(await screen.findByRole("heading", { name: "运行概览" })).toBeInTheDocument();
-		await waitFor(() => expect(main).toHaveFocus());
+		expect(main).not.toHaveFocus();
+		expect(overviewLink).toHaveFocus();
 		expect(window.scrollTo).toHaveBeenCalledWith({ behavior: "auto", left: 0, top: 0 });
 	});
 

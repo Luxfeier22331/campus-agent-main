@@ -144,7 +144,32 @@ describe("shared UI primitives", () => {
 	});
 
 	it("uses semantic tones without accepting domain status values", () => {
-		render(<Badge tone="warning">等待用户</Badge>);
+		render(
+			<>
+				<Badge tone="info">信息</Badge>
+				<Badge tone="warning">等待用户</Badge>
+			</>,
+		);
+		expect(screen.getByText("信息")).toHaveClass(
+			"border-info-border",
+			"bg-info-subtle",
+			"text-info",
+		);
+		expect(screen.getByText("信息")).not.toHaveClass("bg-primary", "shadow");
 		expect(screen.getByText("等待用户")).toHaveClass("text-warning");
+	});
+
+	it("uses explicit primary interaction and disabled color states", () => {
+		render(<Button disabled>保存</Button>);
+		expect(screen.getByRole("button", { name: "保存" })).toHaveClass(
+			"border",
+			"border-primary-foreground/20",
+			"hover:bg-primary-hover",
+			"active:bg-primary-pressed",
+			"disabled:border-border-default",
+			"disabled:bg-[var(--state-disabled-bg)]",
+			"disabled:text-[var(--state-disabled-text)]",
+		);
+		expect(screen.getByRole("button", { name: "保存" })).not.toHaveClass("disabled:opacity-50");
 	});
 });

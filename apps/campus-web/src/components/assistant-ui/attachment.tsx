@@ -174,7 +174,7 @@ const AttachmentRemove: FC = () => (
 	<AttachmentPrimitive.Remove asChild>
 		<TooltipIconButton
 			tooltip="移除附件"
-			className="aui-attachment-tile-remove text-muted-foreground hover:[&_svg]:text-destructive size-6 shrink-0 rounded-full bg-white opacity-100 shadow-sm hover:bg-white! [&_svg]:text-black"
+			className="aui-attachment-tile-remove size-6 shrink-0 rounded-full bg-background text-muted-foreground opacity-100 shadow-sm hover:bg-accent hover:[&_svg]:text-destructive [&_svg]:text-foreground"
 			side="top"
 		>
 			<XIcon className="aui-attachment-remove-icon size-3" />

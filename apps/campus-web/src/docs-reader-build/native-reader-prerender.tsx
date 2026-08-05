@@ -163,9 +163,11 @@ function buildHtmlDocument(input: NativeDocsPageInput): string {
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<meta name="color-scheme" content="light dark" />
 		<meta name="description" content="${escapeHtml(metadata.description)}" />
 		<meta name="robots" content="${metadata.robots}" />
 		<link rel="icon" href="/favicon.ico" type="image/x-icon" />
+		<script src="/theme-bootstrap.js"></script>
 		<link rel="stylesheet" href="/src/styles.css" />
 		<link rel="stylesheet" href="/src/components/docs/docs-reader.css" />
 		${canonical}

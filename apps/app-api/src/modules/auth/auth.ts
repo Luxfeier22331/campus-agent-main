@@ -222,18 +222,20 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 		trustedOrigins: [appOrigin],
 		secret: input.betterAuthSecret,
 		emailVerification: {
-			autoSignInAfterVerification: false,
+			autoSignInAfterVerification: true,
 			expiresIn: 60 * 60,
 			sendOnSignIn: false,
-			sendOnSignUp: true,
+			sendOnSignUp: false,
 			sendVerificationEmail: async ({
 				token,
+				url,
 				user: authUser,
 			}: {
 				token: string;
+				url: string;
 				user: { email?: string | null; id: string; name?: string | null };
 			}) => {
-				await sendVerificationEmail(createAuthMailConfig(), { token, user: authUser });
+				await sendVerificationEmail(createAuthMailConfig(), { token, url, user: authUser });
 			},
 			afterEmailVerification: async (authUser: {
 				email?: string | null;
@@ -291,13 +293,16 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 			revokeSessionsOnPasswordReset: true,
 			sendResetPassword: async ({
 				token,
+				url,
 				user,
 			}: {
 				token: string;
+				url: string;
 				user: { email?: string | null; name?: string | null };
 			}) => {
 				await sendPasswordResetEmail(createAuthMailConfig(), {
 					token,
+					url,
 					user,
 				});
 			},
@@ -317,15 +322,18 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 				sendChangeEmailConfirmation: async ({
 					newEmail,
 					token,
+					url,
 					user: authUser,
 				}: {
 					newEmail: string;
 					token: string;
+					url: string;
 					user: { email?: string | null; name?: string | null };
 				}) => {
 					await sendEmailChangeConfirmation(createAuthMailConfig(), {
 						newEmail,
 						token,
+						url,
 						user: authUser,
 					});
 				},
@@ -604,7 +612,10 @@ export async function createAppAuth(env: Env, input: CreateAppAuthInput = {}) {
 	);
 }
 
-export { resolvePasswordResetRedirectTarget } from "./reset-mail";
+export {
+	resolveEmailVerificationReturnTarget,
+	resolvePasswordResetRedirectTarget,
+} from "./reset-mail";
 
 export type AppAuth = Awaited<ReturnType<typeof createAppAuth>>;
 export type AppAuthGetter = () => Promise<AppAuth>;

@@ -15,14 +15,15 @@ import {
 } from "@campus-agent/ui";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
-import { PanelLeft } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import * as React from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { isEditableKeyboardTarget } from "@/lib/keyboard";
 import { cn } from "@/lib/utils";
 
-const SIDEBAR_WIDTH = "16rem";
-const SIDEBAR_WIDTH_MOBILE = "18rem";
-const SIDEBAR_WIDTH_ICON = "3rem";
+const SIDEBAR_WIDTH = "16.25rem";
+const SIDEBAR_WIDTH_MOBILE = "16.25rem";
+const SIDEBAR_WIDTH_ICON = "3.25rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
 
 interface SidebarContextProps {
@@ -32,6 +33,7 @@ interface SidebarContextProps {
 	openMobile: boolean;
 	setOpenMobile: (open: boolean) => void;
 	isMobile: boolean;
+	mobileOpenerRef: React.MutableRefObject<HTMLButtonElement | null>;
 	toggleSidebar: () => void;
 }
 
@@ -68,6 +70,7 @@ const SidebarProvider = React.forwardRef<
 	) => {
 		const isMobile = useIsMobile();
 		const [openMobile, setOpenMobile] = React.useState(false);
+		const mobileOpenerRef = React.useRef<HTMLButtonElement | null>(null);
 
 		// This is the internal state of the sidebar.
 		// We use openProp and setOpenProp for control from outside the component.
@@ -94,10 +97,17 @@ const SidebarProvider = React.forwardRef<
 		// Adds a keyboard shortcut to toggle the sidebar.
 		React.useEffect(() => {
 			const handleKeyDown = (event: KeyboardEvent) => {
-				if (event.key === SIDEBAR_KEYBOARD_SHORTCUT && (event.metaKey || event.ctrlKey)) {
-					event.preventDefault();
-					toggleSidebar();
+				if (
+					event.defaultPrevented ||
+					isEditableKeyboardTarget(event.target) ||
+					event.key.toLowerCase() !== SIDEBAR_KEYBOARD_SHORTCUT ||
+					!(event.metaKey || event.ctrlKey)
+				) {
+					return;
 				}
+
+				event.preventDefault();
+				toggleSidebar();
 			};
 
 			window.addEventListener("keydown", handleKeyDown);
@@ -116,6 +126,7 @@ const SidebarProvider = React.forwardRef<
 				isMobile,
 				openMobile,
 				setOpenMobile,
+				mobileOpenerRef,
 				toggleSidebar,
 			}),
 			[state, open, setOpen, isMobile, openMobile, toggleSidebar],
@@ -163,15 +174,17 @@ const Sidebar = React.forwardRef<
 			collapsible = "offcanvas",
 			className,
 			children,
+			id,
 			...props
 		},
 		ref,
 	) => {
-		const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
+		const { isMobile, state, openMobile, setOpenMobile, mobileOpenerRef } = useSidebar();
 
 		if (collapsible === "none") {
 			return (
 				<div
+					id={id}
 					className={cn(
 						"flex h-full w-(--sidebar-width) flex-col bg-sidebar text-sidebar-foreground",
 						className,
@@ -188,6 +201,13 @@ const Sidebar = React.forwardRef<
 			return (
 				<Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
 					<SheetContent
+						id={id}
+						onCloseAutoFocus={(event) => {
+							if (mobileOpenerRef.current?.isConnected) {
+								event.preventDefault();
+								mobileOpenerRef.current.focus({ preventScroll: true });
+							}
+						}}
 						data-sidebar="sidebar"
 						data-mobile="true"
 						className="w-(--sidebar-width) max-w-[calc(100vw-1rem)] bg-sidebar p-0 text-sidebar-foreground [&_[data-sidebar=header]]:pr-12"
@@ -211,6 +231,7 @@ const Sidebar = React.forwardRef<
 
 		return (
 			<div
+				id={id}
 				ref={ref}
 				className="group peer hidden text-sidebar-foreground lg:block"
 				data-state={state}
@@ -221,7 +242,7 @@ const Sidebar = React.forwardRef<
 				{/* This is what handles the sidebar gap on desktop */}
 				<div
 					className={cn(
-						"relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear",
+						"relative w-(--sidebar-width) bg-transparent transition-[width] duration-[var(--motion-duration-standard)] ease-[var(--motion-easing-standard)] motion-reduce:transition-none",
 						"group-data-[collapsible=offcanvas]:w-0",
 						"group-data-[side=right]:rotate-180",
 						variant === "floating" || variant === "inset"
@@ -231,7 +252,7 @@ const Sidebar = React.forwardRef<
 				/>
 				<div
 					className={cn(
-						"fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear lg:flex",
+						"fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-[var(--motion-duration-standard)] ease-[var(--motion-easing-standard)] motion-reduce:transition-none lg:flex",
 						side === "left"
 							? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
 							: "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
@@ -258,26 +279,53 @@ Sidebar.displayName = "Sidebar";
 
 const SidebarTrigger = React.forwardRef<
 	React.ElementRef<typeof Button>,
-	React.ComponentProps<typeof Button>
->(({ className, onClick, ...props }, ref) => {
-	const { toggleSidebar } = useSidebar();
+	React.ComponentProps<typeof Button> & { registerAsMobileOpener?: boolean }
+>(({ className, onClick, registerAsMobileOpener = false, ...props }, ref) => {
+	const { isMobile, mobileOpenerRef, open, openMobile, toggleSidebar } = useSidebar();
+	const panelOpen = isMobile ? openMobile : open;
+	const label =
+		typeof props["aria-label"] === "string"
+			? props["aria-label"]
+			: panelOpen
+				? "收起聊天记录"
+				: "展开聊天记录";
+	const setTriggerRef = React.useCallback(
+		(node: HTMLButtonElement | null) => {
+			if (registerAsMobileOpener) {
+				mobileOpenerRef.current = node;
+			}
+			if (typeof ref === "function") {
+				ref(node);
+			} else if (ref) {
+				ref.current = node;
+			}
+		},
+		[mobileOpenerRef, ref, registerAsMobileOpener],
+	);
 
 	return (
-		<Button
-			ref={ref}
-			data-sidebar="trigger"
-			variant="ghost"
-			size="icon-lg"
-			className={className}
-			onClick={(event) => {
-				onClick?.(event);
-				toggleSidebar();
-			}}
-			{...props}
-		>
-			<PanelLeft />
-			<span className="sr-only">切换聊天记录</span>
-		</Button>
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<Button
+					{...props}
+					ref={setTriggerRef}
+					aria-expanded={panelOpen}
+					data-sidebar="trigger"
+					data-state={panelOpen ? "expanded" : "collapsed"}
+					variant="ghost"
+					size="icon-lg"
+					className={className}
+					onClick={(event) => {
+						onClick?.(event);
+						toggleSidebar();
+					}}
+				>
+					{panelOpen ? <PanelLeftClose aria-hidden="true" /> : <PanelLeftOpen aria-hidden="true" />}
+					<span className="sr-only">{label}</span>
+				</Button>
+			</TooltipTrigger>
+			<TooltipContent>{label}</TooltipContent>
+		</Tooltip>
 	);
 });
 SidebarTrigger.displayName = "SidebarTrigger";
@@ -295,7 +343,7 @@ const SidebarRail = React.forwardRef<HTMLButtonElement, React.ComponentProps<"bu
 				onClick={toggleSidebar}
 				title="切换聊天记录"
 				className={cn(
-					"absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-all ease-linear after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] hover:after:bg-sidebar-border group-data-[side=left]:-right-4 group-data-[side=right]:left-0 sm:flex",
+					"absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-transform duration-[var(--motion-duration-fast)] ease-[var(--motion-easing-standard)] after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] hover:after:bg-sidebar-border group-data-[side=left]:-right-4 group-data-[side=right]:left-0 sm:flex",
 					"[[data-side=left]_&]:cursor-w-resize [[data-side=right]_&]:cursor-e-resize",
 					"[[data-side=left][data-state=collapsed]_&]:cursor-e-resize [[data-side=right][data-state=collapsed]_&]:cursor-w-resize",
 					"group-data-[collapsible=offcanvas]:translate-x-0 group-data-[collapsible=offcanvas]:after:left-full group-data-[collapsible=offcanvas]:hover:bg-sidebar",
@@ -541,7 +589,7 @@ const SidebarMenuButton = React.forwardRef<
 			/>
 		);
 
-		if (!tooltip) {
+		if (!tooltip || isMobile) {
 			return button;
 		}
 
@@ -554,12 +602,7 @@ const SidebarMenuButton = React.forwardRef<
 		return (
 			<Tooltip>
 				<TooltipTrigger asChild>{button}</TooltipTrigger>
-				<TooltipContent
-					side="right"
-					align="center"
-					hidden={state !== "collapsed" || isMobile}
-					{...tooltip}
-				/>
+				<TooltipContent side="right" align="center" hidden={state !== "collapsed"} {...tooltip} />
 			</Tooltip>
 		);
 	},

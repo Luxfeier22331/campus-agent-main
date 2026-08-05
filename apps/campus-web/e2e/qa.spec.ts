@@ -36,8 +36,11 @@ test.describe("Q&A browser flow", () => {
 		expect(requests.filter((request) => request.path === "/api/chat/requests/stream")).toEqual([]);
 
 		await page.getByLabel("邮箱").fill("student@example.edu");
-		await page.getByLabel("密码").fill("validpassword123");
-		await page.getByRole("button", { name: "登录校园问答" }).click();
+		await page.getByRole("textbox", { exact: true, name: "密码" }).fill("validpassword123");
+		await page
+			.getByRole("dialog", { name: "登录或创建校园问答账号" })
+			.getByRole("button", { exact: true, name: "登录" })
+			.click();
 
 		await expect(page.getByRole("dialog", { name: "登录或创建校园问答账号" })).toHaveCount(0);
 		await page.getByLabel("消息输入").fill("国家奖学金怎么评审？");
@@ -64,8 +67,11 @@ test.describe("Q&A browser flow", () => {
 		expect(requests.filter((request) => request.path === "/api/chat/requests/stream")).toEqual([]);
 
 		await page.getByLabel("邮箱").fill("student@example.edu");
-		await page.getByLabel("密码").fill("validpassword123");
-		await page.getByRole("button", { name: "登录校园问答" }).click();
+		await page.getByRole("textbox", { exact: true, name: "密码" }).fill("validpassword123");
+		await page
+			.getByRole("dialog", { name: "登录或创建校园问答账号" })
+			.getByRole("button", { exact: true, name: "登录" })
+			.click();
 
 		await expect(page.getByRole("dialog", { name: "登录或创建校园问答账号" })).toHaveCount(0);
 		await page.getByLabel("消息输入").fill("国家奖学金怎么评审？");
@@ -153,7 +159,8 @@ test.describe("Q&A browser flow", () => {
 		await page.getByRole("button", { name: "打开聊天记录" }).click();
 		await page.getByRole("button", { name: "国家奖学金" }).click();
 		await expect(page.getByText("历史记录中的国家奖学金回答。")).toBeVisible();
-		await page.getByRole("button", { name: "关闭聊天记录" }).click();
+		await expect(page.getByRole("dialog", { name: "聊天记录" })).toBeHidden();
+		await expect(page.getByRole("button", { name: "打开聊天记录" })).toBeFocused();
 
 		await page.getByLabel("消息输入").fill("继续说明申请材料");
 		await page.getByRole("button", { name: "发送" }).click();

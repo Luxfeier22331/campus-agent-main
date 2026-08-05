@@ -27,7 +27,7 @@ describe("account deletion", () => {
 		await user.type(screen.getByLabelText("当前密码"), "Password!2026");
 		await user.click(submit);
 
-		expect(onAccepted).toHaveBeenCalledTimes(1);
+		expect(onAccepted).toHaveBeenCalledWith({ requestId: "acctdel_01", status: "deleting" });
 		expect(fetchMock).toHaveBeenCalledWith(
 			"/api/account/delete",
 			expect.objectContaining({
@@ -53,7 +53,7 @@ describe("account deletion", () => {
 			),
 		);
 		const user = userEvent.setup();
-		render(<AccountDeletionPanel />);
+		render(<AccountDeletionPanel onAccepted={vi.fn()} />);
 
 		await user.click(screen.getByRole("button", { name: "注销账号" }));
 		await user.type(screen.getByLabelText("当前密码"), "wrong-password");

@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { ThemeProvider } from "@campus-agent/ui";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,7 +10,7 @@ import {
 	mockMapWorkspaceWidth,
 } from "./map-page-test-utils";
 
-const stylesSource = readFileSync("src/styles.css", "utf8");
+const stylesSource = readFileSync("src/campus-styles.css", "utf8");
 const FENGTAI_CAMPUS_CENTER = [120.05, 30.05] as const;
 const FENGTAI_CAMPUS_MAX_BOUNDS = [
 	[119.964, 29.964],
@@ -49,6 +50,11 @@ const maplibreRuntimeMock = vi.hoisted(() => ({
 	setMaxZoom: vi.fn(),
 	setMinZoom: vi.fn(),
 	setStyle: vi.fn(),
+	styleLoadListeners: [] as Array<() => void>,
+}));
+
+vi.mock("@/components/auth/user/product-account-entry", () => ({
+	ProductAccountEntry: () => null,
 }));
 
 vi.mock("../src/features/map/api", async () => {
@@ -105,6 +111,10 @@ vi.mock("../src/features/map/maplibre-runtime", () => ({
 					maplibreRuntimeMock.mapLoadListeners.push(listener);
 					return this;
 				}
+				if (eventName === "style.load") {
+					maplibreRuntimeMock.styleLoadListeners.push(listener);
+					return this;
+				}
 				listener();
 				return this;
 			}
@@ -141,6 +151,7 @@ vi.mock("../src/features/map/maplibre-runtime", () => ({
 			}
 			setStyle(input: unknown) {
 				maplibreRuntimeMock.setStyle(input);
+				maplibreRuntimeMock.styleLoadListeners.shift()?.();
 				return this;
 			}
 			setFilter(layerId: string, filter: unknown) {
@@ -211,6 +222,7 @@ describe("campus map page", () => {
 		maplibreRuntimeMock.setMaxZoom.mockReset();
 		maplibreRuntimeMock.setMinZoom.mockReset();
 		maplibreRuntimeMock.setStyle.mockReset();
+		maplibreRuntimeMock.styleLoadListeners.length = 0;
 		maplibreRuntimeMock.loadMapLibre.mockClear();
 		installMapStyleTokens();
 	});
@@ -278,22 +290,22 @@ describe("campus map page", () => {
 		expect(screen.getByRole("region", { name: "地图画布" })).not.toHaveClass("absolute", "inset-0");
 		const resultPanel = screen.getByRole("complementary", { name: "地点搜索与结果" });
 		expect(resultPanel).toBeInTheDocument();
-		expect(resultPanel).toHaveClass("bg-white/80", "backdrop-blur-md");
+		expect(resultPanel).toHaveClass("bg-[var(--map-overlay-surface)]", "backdrop-blur-md");
 		expect(resultPanel.className).toContain("w-[min(360px,calc(100vw-1.5rem))]");
 		expect(resultPanel.className).toContain("max-h-[min(58dvh,430px)]");
 		expect(resultPanel.className).not.toContain("w-[min(420px");
 		expect(resultPanel.className).not.toContain("100dvh");
-		expect(screen.getByRole("navigation", { name: "产品导航" })).toHaveClass(
-			"bg-white/78",
-			"backdrop-blur-md",
-		);
+		expect(
+			screen.getByRole("navigation", { name: "产品导航" }).closest(".campus-top-nav-inner"),
+		).toHaveClass("bg-[var(--map-overlay-surface)]", "backdrop-blur-md");
 		expect(screen.getByRole("searchbox", { name: "搜索地点" })).toHaveClass("min-h-10");
+		expect(screen.getByRole("searchbox", { name: "搜索地点" })).toHaveAttribute("name", "q");
 		expect(screen.getByRole("heading", { name: "地点" })).toBeInTheDocument();
 		expect(screen.getByRole("radio", { name: "丰台校区" })).toHaveClass("min-h-9", "text-sm");
 		expect(screen.getByRole("radio", { name: "丰台校区" })).toHaveAttribute("aria-checked", "true");
 		expect(screen.queryByText("海淀校区当前提供基础地点参考。")).toBeNull();
 		expect(screen.getByRole("button", { name: "选择示例二食堂" })).toHaveClass(
-			"bg-white/58",
+			"bg-[var(--map-overlay-surface-soft)]",
 			"h-auto",
 			"min-h-[76px]",
 			"p-2.5",
@@ -318,7 +330,7 @@ describe("campus map page", () => {
 
 		expect(await screen.findByRole("region", { name: "校园地图" })).toBeInTheDocument();
 		expect(stylesSource).toContain('[data-surface="map-first"] .maplibregl-ctrl-top-right');
-		expect(stylesSource).toContain("top: 54px");
+		expect(stylesSource).toContain("top: calc(0.75rem + var(--layout-campus-topnav-height))");
 		expect(stylesSource).toContain("@media (max-width: 959px)");
 		expect(stylesSource).toContain("top: 133px");
 	});
@@ -452,17 +464,105 @@ describe("campus map page", () => {
 		expect(maplibreRuntimeMock.scaleControlCount).toBe(1);
 	});
 
-	it("places the mobile product menu inside the search toolbar", async () => {
+	it("applies the resolved theme tokens when reloading the MapLibre style", async () => {
+		const user = userEvent.setup();
+		const tokenNames = [
+			"--map-style-background",
+			"--map-style-boundary",
+			"--map-style-building-fill",
+			"--map-style-building-outline",
+			"--map-style-green-fill",
+			"--map-style-label",
+			"--map-style-road-fill",
+			"--map-style-selection-fill",
+			"--map-style-selection-halo",
+			"--map-style-selection-outline",
+			"--map-style-sport-fill",
+		];
+		for (const tokenName of tokenNames) {
+			document.documentElement.style.removeProperty(tokenName);
+		}
+		const tokenStyle = document.createElement("style");
+		tokenStyle.textContent = `
+			:root {
+				--map-style-background: #efeff2;
+				--map-style-boundary: #a20000;
+				--map-style-building-fill: #fafafb;
+				--map-style-building-outline: #8e8e93;
+				--map-style-green-fill: #dfeee4;
+				--map-style-label: #1c1c1e;
+				--map-style-road-fill: #d1d1d6;
+				--map-style-selection-fill: #d8deed;
+				--map-style-selection-halo: #ffffff;
+				--map-style-selection-outline: #5a72b5;
+				--map-style-sport-fill: #e1e8f5;
+			}
+			:root[data-theme="dark"] {
+				--map-style-background: #1c1c1e;
+				--map-style-boundary: #ff9a94;
+				--map-style-building-fill: #151517;
+				--map-style-building-outline: #48484a;
+				--map-style-green-fill: #274532;
+				--map-style-label: #e5e5ea;
+				--map-style-road-fill: #343438;
+				--map-style-selection-fill: #3a4356;
+				--map-style-selection-halo: #242426;
+				--map-style-selection-outline: #839fe8;
+				--map-style-sport-fill: #2d3341;
+			}
+		`;
+		document.head.appendChild(tokenStyle);
+		window.localStorage.removeItem("campus-agent.theme");
+		window.history.pushState({}, "", "/map?campus=fengtai");
+
+		try {
+			render(
+				<ThemeProvider defaultMode="light">
+					<MapPage />
+				</ThemeProvider>,
+			);
+
+			await screen.findByRole("region", { name: "校园地图" });
+			await waitFor(() => expect(maplibreRuntimeMock.mapOptions).not.toBeNull());
+			const initialStyle = maplibreRuntimeMock.mapOptions?.style as
+				| { layers?: Array<{ id?: string; paint?: Record<string, unknown> }> }
+				| undefined;
+			expect(
+				initialStyle?.layers?.find((layer) => layer.id === "background")?.paint?.[
+					"background-color"
+				],
+			).toBe("#efeff2");
+
+			maplibreRuntimeMock.setStyle.mockClear();
+			const mapCanvas = screen.getByRole("region", { name: "地图画布" });
+			expect(mapCanvas).toHaveClass("opacity-100");
+			await user.click(screen.getByRole("button", { name: /外观，当前浅色/u }));
+			await user.click(screen.getByRole("menuitemradio", { name: "深色" }));
+			await waitFor(() => expect(mapCanvas).toHaveClass("opacity-0"));
+			await waitFor(() => expect(maplibreRuntimeMock.setStyle).toHaveBeenCalled());
+			await waitFor(() => expect(mapCanvas).toHaveClass("opacity-100"));
+			const darkStyle = maplibreRuntimeMock.setStyle.mock.lastCall?.[0] as
+				| { layers?: Array<{ id?: string; paint?: Record<string, unknown> }> }
+				| undefined;
+			expect(
+				darkStyle?.layers?.find((layer) => layer.id === "background")?.paint?.["background-color"],
+			).toBe("#1c1c1e");
+		} finally {
+			tokenStyle.remove();
+			installMapStyleTokens();
+			window.localStorage.removeItem("campus-agent.theme");
+		}
+	});
+
+	it("places the mobile product menu in the map tool area", async () => {
 		mockMapWorkspaceWidth(false, vi.fn);
 		render(<MapPage />);
 
-		const searchPanel = await screen.findByRole("complementary", {
-			name: "地点搜索与结果",
-		});
-		const menu = within(searchPanel).getByRole("button", { name: "打开产品导航" });
+		await screen.findByRole("complementary", { name: "地点搜索与结果" });
+		const menu = screen.getByRole("button", { name: "打开全局菜单" });
 
 		expect(menu).toBeInTheDocument();
-		expect(screen.getAllByRole("button", { name: "打开产品导航" })).toHaveLength(1);
+		expect(screen.getAllByRole("button", { name: "打开全局菜单" })).toHaveLength(1);
 	});
 
 	it("keeps place search available when the base map source fails and retries locally", async () => {
@@ -803,7 +903,7 @@ describe("campus map page", () => {
 		render(<MapPage />);
 
 		expect(await screen.findByText("校园地图暂时无法打开。")).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "打开产品导航" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "打开全局菜单" })).toBeInTheDocument();
 		expect(screen.queryByText("正在读取地图")).not.toBeInTheDocument();
 	});
 });

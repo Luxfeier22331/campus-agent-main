@@ -7,10 +7,29 @@ import {
 	SIGNUP_LEGAL_CONSENT_FIELD_NAME,
 	SIGNUP_LEGAL_CONSENT_REQUIRED_MESSAGE,
 } from "./legal-consent";
-import { resolveAccountAuthReturnTarget } from "./return-target";
 
 const betterAuthClient = createAuthClient({
 	fetchOptions: {
+		async onResponse(context) {
+			const retryAfterSeconds = readRetryAfterSeconds(context.response);
+			if (!retryAfterSeconds) {
+				return;
+			}
+			const payload = await context.response
+				.clone()
+				.json()
+				.catch(() => null);
+			if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+				return;
+			}
+			const headers = new Headers(context.response.headers);
+			headers.delete("content-length");
+			return new Response(JSON.stringify({ ...payload, retryAfterSeconds }), {
+				headers,
+				status: context.response.status,
+				statusText: context.response.statusText,
+			});
+		},
 		onError(context) {
 			context.error.message = resolveUserFacingAuthErrorMessage({
 				code: readAuthErrorCode(context.error),
@@ -73,6 +92,8 @@ const USER_FACING_AUTH_ERROR_MESSAGES = {
 	invalidPassword: "当前密码不正确，或新密码不符合要求。",
 	invalidToken: "操作链接无效或已经过期，请重新发起请求。",
 	missingCaptcha: "安全验证还没有完成，请稍后再试。",
+	captchaUnavailable: "安全验证服务暂时不可用，请稍后再试。",
+	captchaVerificationFailed: "安全验证未通过，请重新完成验证。",
 	passwordTooLong: "密码不能超过 128 个字符。",
 	passwordTooShort: "密码至少需要 10 个字符。",
 	temporaryPasswordExpired: "临时密码已经过期，请联系维护者重新签发。",
@@ -114,6 +135,12 @@ function resolveUserFacingAuthErrorMessage(input: { code?: unknown; message?: un
 	}
 	if (code === "MISSING_RESPONSE") {
 		return USER_FACING_AUTH_ERROR_MESSAGES.missingCaptcha;
+	}
+	if (code === "VERIFICATION_FAILED") {
+		return USER_FACING_AUTH_ERROR_MESSAGES.captchaVerificationFailed;
+	}
+	if (code === "UNKNOWN_ERROR") {
+		return USER_FACING_AUTH_ERROR_MESSAGES.captchaUnavailable;
 	}
 	if (code === "dependency_not_ready") {
 		return message || USER_FACING_AUTH_ERROR_MESSAGES.generic;
@@ -174,7 +201,7 @@ function localizeResolvedAuthResult<T>(result: T): T {
 	} as T;
 }
 
-function throwLocalizedResolvedAuthError(result: unknown): never {
+export function throwCampusAuthResultError(result: unknown): never {
 	const localized = localizeResolvedAuthResult(result);
 	const error =
 		localized && typeof localized === "object" && "error" in localized
@@ -207,6 +234,42 @@ function readNestedAuthErrorPayload(error: unknown): unknown {
 		return bodyError;
 	}
 	return error;
+}
+
+export function readCampusAuthErrorCode(error: unknown): string {
+	return readAuthErrorCode(readNestedAuthErrorPayload(error));
+}
+
+export function readCampusAuthErrorMessage(error: unknown): string {
+	const nestedError = readNestedAuthErrorPayload(error);
+	return (
+		readAuthErrorMessage(nestedError) ||
+		readAuthErrorMessage(error) ||
+		USER_FACING_AUTH_ERROR_MESSAGES.generic
+	);
+}
+
+export function readCampusAuthRetryAfterSeconds(error: unknown): number | undefined {
+	const candidates = [error, readObjectProperty(error, "error"), readNestedAuthErrorPayload(error)];
+	for (const candidate of candidates) {
+		const value = readObjectProperty(candidate, "retryAfterSeconds");
+		if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+			return Math.ceil(value);
+		}
+	}
+	return;
+}
+
+function readRetryAfterSeconds(response: Response): number | undefined {
+	if (response.status !== 429) {
+		return;
+	}
+	const value = response.headers.get("X-Retry-After") ?? response.headers.get("Retry-After");
+	if (!value) {
+		return;
+	}
+	const seconds = Number(value);
+	return Number.isFinite(seconds) && seconds > 0 ? Math.ceil(seconds) : undefined;
 }
 
 function localizeThrownAuthError(error: unknown): never {
@@ -253,15 +316,13 @@ async function campusSignUpEmail(input: CampusSignUpEmailInput) {
 	const { [SIGNUP_LEGAL_CONSENT_FIELD_NAME]: legalConsentAccepted, ...signUpInput } =
 		input as CampusSignUpEmailInput;
 	if (legalConsentAccepted !== true) {
-		return {
-			data: null,
-			error: {
-				code: "legal_consent_required",
-				message: SIGNUP_LEGAL_CONSENT_REQUIRED_MESSAGE,
-				status: 400,
-				statusText: "Bad Request",
-			},
-		} as Awaited<ReturnType<CampusAuthClient["signUp"]["email"]>>;
+		const error = {
+			code: "legal_consent_required",
+			message: SIGNUP_LEGAL_CONSENT_REQUIRED_MESSAGE,
+			status: 400,
+			statusText: "Bad Request",
+		};
+		throw Object.assign(new Error(SIGNUP_LEGAL_CONSENT_REQUIRED_MESSAGE), { error });
 	}
 	const fetchOptions = signUpInput.fetchOptions ?? {};
 	try {
@@ -273,7 +334,7 @@ async function campusSignUpEmail(input: CampusSignUpEmailInput) {
 			},
 		});
 		if (result && typeof result === "object" && "error" in result && result.error) {
-			throwLocalizedResolvedAuthError(result);
+			throwCampusAuthResultError(result);
 		}
 		return localizeResolvedAuthResult(result) as Awaited<
 			ReturnType<CampusAuthClient["signUp"]["email"]>
@@ -300,25 +361,7 @@ async function campusChangePassword(...args: Parameters<BetterAuthChangePassword
 		{ ...input, revokeOtherSessions: true },
 		fetchOptions,
 	);
-	if (!(result && typeof result === "object" && "error" in result && result.error)) {
-		returnFromRequiredPasswordChange();
-	}
 	return result;
-}
-
-function returnFromRequiredPasswordChange() {
-	if (typeof window === "undefined") {
-		return;
-	}
-	const search = new URLSearchParams(window.location.search);
-	if (!search.has("redirectTo")) {
-		return;
-	}
-	window.location.assign(
-		resolveAccountAuthReturnTarget(search, {
-			currentOrigin: window.location.origin,
-		}),
-	);
 }
 
 const campusSignIn = Object.assign(Object.create(betterAuthClient.signIn), {

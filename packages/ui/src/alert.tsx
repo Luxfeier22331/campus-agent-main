@@ -8,10 +8,10 @@ const alertVariants = cva(
 		variants: {
 			tone: {
 				neutral: "border-border bg-background text-foreground",
-				info: "border-info/20 bg-info-subtle text-info",
-				success: "border-success/20 bg-success-subtle text-success",
-				warning: "border-warning/20 bg-warning-subtle text-warning",
-				danger: "border-danger/50 bg-background text-danger [&>svg]:text-danger",
+				info: "border-info-border bg-info-subtle text-info",
+				success: "border-success-border bg-success-subtle text-success",
+				warning: "border-warning-border bg-warning-subtle text-warning",
+				danger: "border-danger-border bg-danger-subtle text-danger [&>svg]:text-danger",
 			},
 		},
 		defaultVariants: { tone: "neutral" },

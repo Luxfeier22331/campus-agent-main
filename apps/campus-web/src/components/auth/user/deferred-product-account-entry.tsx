@@ -1,6 +1,7 @@
 import { Button } from "@campus-agent/ui";
 import { UserRound } from "lucide-react";
 import { lazy, Suspense, useState } from "react";
+import { cn } from "@/lib/utils";
 
 const ProductAccountEntry = lazy(() =>
 	import("./product-account-entry").then((module) => ({
@@ -8,16 +9,37 @@ const ProductAccountEntry = lazy(() =>
 	})),
 );
 
-export function DeferredProductAccountEntry({ className }: { className?: string }) {
+export function DeferredProductAccountEntry({
+	className,
+	onLogin,
+	presentation = "icon",
+}: {
+	className?: string;
+	onLogin?: () => void;
+	presentation?: "icon" | "label";
+}) {
 	const [activated, setActivated] = useState(false);
 
 	if (!activated) {
-		return <AccountTriggerButton className={className} onClick={() => setActivated(true)} />;
+		return (
+			<AccountTriggerButton
+				className={className}
+				onClick={() => setActivated(true)}
+				presentation={presentation}
+			/>
+		);
 	}
 
 	return (
-		<Suspense fallback={<AccountTriggerButton className={className} disabled />}>
-			<ProductAccountEntry className={className} openOnReady />
+		<Suspense
+			fallback={<AccountTriggerButton className={className} disabled presentation={presentation} />}
+		>
+			<ProductAccountEntry
+				className={className}
+				onLogin={onLogin}
+				openOnReady
+				presentation={presentation}
+			/>
 		</Suspense>
 	);
 }
@@ -26,22 +48,24 @@ function AccountTriggerButton({
 	className,
 	disabled = false,
 	onClick,
+	presentation,
 }: {
 	className?: string;
 	disabled?: boolean;
 	onClick?: () => void;
+	presentation: "icon" | "label";
 }) {
 	return (
 		<Button
 			aria-label="账号"
-			className={className}
+			className={cn(presentation === "label" ? "w-full justify-start px-3 text-sm" : "", className)}
 			disabled={disabled}
 			onClick={onClick}
-			size="icon-lg"
+			size={presentation === "icon" ? "icon-lg" : "lg"}
 			type="button"
 			variant="ghost"
 		>
-			<UserRound aria-hidden="true" className="size-4" />
+			{presentation === "icon" ? <UserRound aria-hidden="true" className="size-4" /> : "账号"}
 		</Button>
 	);
 }

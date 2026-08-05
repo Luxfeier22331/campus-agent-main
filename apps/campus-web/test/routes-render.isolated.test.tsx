@@ -30,6 +30,7 @@ import {
 import { mockMapWorkspaceWidth } from "./map-page-test-utils";
 
 const stylesSource = readFileSync("src/styles.css", "utf8");
+const campusStylesSource = readFileSync("src/campus-styles.css", "utf8");
 const sharedThemeSource = readFileSync("../../packages/ui/src/theme.css", "utf8");
 
 const diningApiMock = vi.hoisted(() => ({
@@ -56,6 +57,7 @@ const sessionState = vi.hoisted(() => ({
 		user: { id: string; name: string };
 	} | null,
 	isPending: false,
+	refresh: vi.fn().mockResolvedValue(undefined),
 }));
 const navigateMock = vi.hoisted(() => vi.fn());
 const diningRouteSearch = vi.hoisted(() => ({
@@ -63,33 +65,19 @@ const diningRouteSearch = vi.hoisted(() => ({
 	value: {} as Record<string, string | undefined>,
 }));
 
-vi.mock("@/components/auth/user/user-button", () => ({
-	UserButton: () => (
-		<button aria-label="账号" type="button">
-			账号
-		</button>
-	),
-}));
-
 vi.mock("@/components/auth/auth-ui-provider", () => ({
 	CampusAuthUIProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-vi.mock("@/platform/auth/client", async () => {
-	const actual = await vi.importActual<typeof import("../src/platform/auth/client")>(
-		"../src/platform/auth/client",
-	);
-	return {
-		...actual,
-		campusAuthClient: {
-			...actual.campusAuthClient,
-			useSession: () => ({
-				data: sessionState.data,
-				isPending: sessionState.isPending,
-			}),
-		},
-	};
-});
+vi.mock("@/platform/auth/session", () => ({
+	useCampusSession: () => ({
+		data: sessionState.data,
+		error: null,
+		isRefreshing: false,
+		refresh: sessionState.refresh,
+		status: sessionState.data ? "authenticated" : sessionState.isPending ? "loading" : "anonymous",
+	}),
+}));
 
 vi.mock("@tanstack/react-router", async () => {
 	const actual =
@@ -264,7 +252,7 @@ describe("campus routes", () => {
 		expect(screen.getAllByText("新对话").length).toBeGreaterThanOrEqual(1);
 		expect(screen.getByRole("button", { name: "新对话" })).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "搜索聊天" })).toBeInTheDocument();
-		expect(screen.getByText("聊天记录")).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: "校园问答" })).toBeInTheDocument();
 		expect(screen.queryByPlaceholderText("搜索历史会话")).toBeNull();
 		expect(screen.getByRole("link", { name: "文档" })).toBeInTheDocument();
 		expect(screen.getByRole("link", { name: "校园地图" })).toBeInTheDocument();
@@ -273,7 +261,7 @@ describe("campus routes", () => {
 		expect(await screen.findByTestId("assistant-chat")).toBeInTheDocument();
 		expect(screen.getByPlaceholderText("输入校园问题")).toBeInTheDocument();
 		await waitFor(() => {
-			expect(screen.getByRole("button", { name: "账号" })).toBeInTheDocument();
+			expect(screen.getAllByRole("button", { name: "账号" })).toHaveLength(1);
 		});
 		expect(screen.queryByRole("button", { name: "登录" })).toBeNull();
 		expect(screen.queryByText("需要了解哪件校园事？")).toBeNull();
@@ -301,8 +289,7 @@ describe("campus routes", () => {
 		expect(homePageSource).not.toContain("SupportCard");
 		expect(homePageSource).not.toContain("常用校园事务");
 		expect(homePageSource).not.toContain("rounded-full");
-		expect(qaShellSource).toContain("ProductNavActions");
-		expect(qaShellSource).toContain("ProductNavMobileMenu");
+		expect(qaShellSource).toContain("CampusTopNav");
 		expect(qaShellSource).not.toContain("supportNavItems");
 		expect(qaShellSource).not.toContain("饭堂分布图");
 		expect(qaShellSource).toContain("ThreadListSidebar");
@@ -316,10 +303,12 @@ describe("campus routes", () => {
 		expect(assistantRuntimeSource).not.toContain("/api/chat/assistant-ui");
 		expect(qaShellSource).toContain("@/components/auth/auth-dialog");
 		expect(qaShellSource).toContain("@/components/auth/user/account-entry");
-		expect(qaShellSource).toContain("const AuthDialog = lazy(");
+		expect(qaShellSource).not.toContain("const AuthDialog = lazy(");
+		expect(qaShellSource).toContain('density="compact"');
 		expect(qaShellSource).not.toContain("SupportNavigation");
 		expect(qaShellSource).not.toContain("AccountLoginDialog");
 		expect(qaShellSource).not.toContain("getSessionPrincipal");
+		expect(qaShellSource).toContain('loginRequired={session.status === "anonymous"}');
 		expect(qaShellSource).not.toContain("const railActionClass");
 		expect(qaShellSource).not.toContain("const railActionIconClass");
 		expect(qaShellSource).not.toContain("const railActionShortcutClass");
@@ -327,7 +316,8 @@ describe("campus routes", () => {
 		expect(qaShellSource).not.toContain("ConversationSidebar");
 		expect(qaShellSource).toContain("ThreadListSidebar");
 		expect(stylesSource).toContain('@import "tailwindcss";');
-		expect(stylesSource).toContain('@import "@campus-agent/ui/theme.css";');
+		expect(stylesSource).toContain('@import "./campus-styles.css";');
+		expect(campusStylesSource).toContain('@import "@campus-agent/ui/theme.css";');
 		expect(sharedThemeSource).toContain("@layer base");
 		expect(sharedThemeSource).toContain("font: inherit");
 		expect(rootLayoutSource).not.toContain("移动端主导航");
@@ -357,7 +347,7 @@ describe("campus routes", () => {
 		expect(feedbackPageSource).toContain("react-hook-form");
 		expect(feedbackPageSource).toContain("zod");
 		expect(feedbackPageSource).not.toContain("<select");
-		expect(feedbackPageSource).not.toContain('type="submit"');
+		expect(feedbackPageSource).toContain('type="submit"');
 		expect(authSource).not.toContain("<input");
 		expect(diningPageSource).not.toContain('role="tablist"');
 		expect(mapExperienceSource).not.toContain("handleSearchKeyDown");
@@ -370,9 +360,15 @@ describe("campus routes", () => {
 	it("separates the account entry from the conversation history area", async () => {
 		render(<HomePage />);
 
+		const footer = document.querySelector('[data-sidebar="footer"]');
+		expect(footer).not.toBeNull();
 		await waitFor(() => {
-			expect(screen.getByRole("button", { name: "账号" })).toBeInTheDocument();
+			expect(
+				within(footer as HTMLElement).getByRole("button", { name: "账号" }),
+			).toBeInTheDocument();
 		});
+		expect(footer?.previousElementSibling).toHaveAttribute("data-sidebar", "content");
+		expect(screen.getAllByRole("button", { name: "账号" })).toHaveLength(1);
 		expect(screen.queryByRole("button", { name: "登录" })).toBeNull();
 		expect(screen.queryByRole("separator", { name: "账号区域" })).toBeNull();
 	});
@@ -403,7 +399,7 @@ describe("campus routes", () => {
 		render(<HomePage />);
 
 		const openMobileThreadsButton = screen.getByRole("button", { name: "打开聊天记录" });
-		expect(openMobileThreadsButton).toHaveClass("size-11");
+		expect(openMobileThreadsButton).toHaveClass("size-[var(--control-height-touch)]");
 		await user.click(openMobileThreadsButton);
 		const mobileMenu = screen.getByRole("dialog", { name: "聊天记录" });
 		const closeMobileMenuButton = within(mobileMenu).getByRole("button", {
@@ -420,9 +416,10 @@ describe("campus routes", () => {
 
 	it("keeps signed-out Q&A account entry large enough for touch", async () => {
 		sessionState.data = null;
+		mockMapWorkspaceWidth(true, vi.fn);
 		render(<HomePage />);
 
-		expect(await screen.findByRole("button", { name: "登录" })).toHaveClass("h-11");
+		expect(await screen.findByRole("button", { name: "登录" })).toHaveClass("min-h-[52px]");
 	});
 
 	it("does not wrap the map route in the generic support page header", () => {
@@ -439,12 +436,14 @@ describe("campus routes", () => {
 		expect(screen.queryByText("民")).toBeNull();
 	});
 
-	it("does not wrap account routes in the generic support page header", () => {
+	it("uses the focused header on account routes without product navigation", () => {
+		sessionState.data = null;
 		window.history.pushState({}, "", "/account/login");
 		render(<RootLayout />);
 
 		expect(screen.getByText("支撑页面内容")).toBeInTheDocument();
-		expect(screen.queryByText("中央民族大学校园问答")).toBeNull();
+		expect(screen.getByText("中央民族大学校园问答")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: /外观，当前/u })).toBeInTheDocument();
 		expect(screen.queryByText("MUC Campus Q&A")).toBeNull();
 		expect(screen.queryByRole("navigation", { name: "支撑页面导航" })).toBeNull();
 		expect(screen.queryByRole("link", { name: "文档" })).toBeNull();
@@ -458,12 +457,13 @@ describe("campus routes", () => {
 		expect(rootLayoutSource).not.toContain("@/components/auth/auth-ui-provider");
 	});
 
-	it("does not wrap legal routes in the generic support page header", () => {
+	it("uses the focused header on legal routes without product navigation", () => {
 		window.history.pushState({}, "", "/legal/terms");
 		render(<RootLayout />);
 
 		expect(screen.getByText("支撑页面内容")).toBeInTheDocument();
-		expect(screen.queryByText("中央民族大学校园问答")).toBeNull();
+		expect(screen.getByText("中央民族大学校园问答")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: /外观，当前/u })).toBeInTheDocument();
 		expect(screen.queryByText("MUC Campus Q&A")).toBeNull();
 		expect(screen.queryByRole("navigation", { name: "支撑页面导航" })).toBeNull();
 		expect(screen.queryByRole("link", { name: "文档" })).toBeNull();
@@ -476,7 +476,9 @@ describe("campus routes", () => {
 		window.history.pushState({}, "", "/feedback");
 		render(<RootLayout />);
 
-		expect(screen.getByRole("link", { name: "反馈" })).toBeInTheDocument();
+		const activeLink = screen.getByRole("link", { name: "反馈" });
+		expect(activeLink).toHaveClass("bg-selected", "text-selected-foreground");
+		expect(activeLink).not.toHaveClass("bg-primary", "text-primary-foreground");
 		expect(screen.getAllByRole("navigation", { name: "产品导航" })).toHaveLength(1);
 	});
 
@@ -485,16 +487,16 @@ describe("campus routes", () => {
 
 		expect(screen.getByRole("heading", { name: "反馈" })).toBeInTheDocument();
 		expect(screen.getByRole("heading", { name: "提交反馈" })).toBeInTheDocument();
-		expect(screen.getByLabelText("问题描述")).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "提交反馈" })).toBeDisabled();
+		expect(screen.getByLabelText("问题描述")).toBeRequired();
+		expect(screen.getByRole("button", { name: "提交反馈" })).toBeEnabled();
 	});
 
-	it("defaults feedback route context to the current route", () => {
+	it("captures and labels the initial feedback source", () => {
 		window.history.pushState({}, "", "/feedback?source=map");
 		render(<FeedbackPage />);
 
-		expect(screen.getByLabelText("当前页面")).toHaveTextContent("/feedback?source=map");
-		expect(screen.queryByRole("textbox", { name: "当前页面" })).toBeNull();
+		expect(screen.getByLabelText("反馈来源")).toHaveTextContent("校园地图");
+		expect(screen.queryByRole("textbox", { name: "反馈来源" })).toBeNull();
 	});
 
 	it("submits feedback with the current route context and shows received status", async () => {
@@ -650,7 +652,7 @@ describe("campus routes", () => {
 		render(<ConversationPage />);
 
 		expect(await screen.findByText("中央民族大学校园问答")).toBeInTheDocument();
-		expect(screen.getByText("会话")).toBeInTheDocument();
+		expect(screen.getAllByText("会话")).not.toHaveLength(0);
 		expect(await screen.findByTestId("assistant-chat")).toBeInTheDocument();
 		expect(conversationApiMock.getConversationDetail).toHaveBeenCalledWith("conv_01");
 	});
