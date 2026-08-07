@@ -1,6 +1,5 @@
 import { readFile } from "node:fs/promises";
 import { parse } from "smol-toml";
-import { assertApplicationLogOnlyObservability } from "../../../scripts/deploy/worker-observability-config";
 
 function fail(message: string): never {
 	console.error(message);
@@ -25,14 +24,12 @@ async function main(): Promise<void> {
 	const config = parse(source) as Record<string, unknown>;
 	const environments = config.env as Record<string, Record<string, unknown>> | undefined;
 
-	assertApplicationLogOnlyObservability(config.observability, {
-		destinations: [],
-		surface: "app-api default",
-	});
-	assertApplicationLogOnlyObservability(environments?.staging?.observability, {
-		destinations: ["axiom-staging-logs"],
-		surface: "app-api staging",
-	});
+	if (
+		Object.hasOwn(config, "observability") ||
+		Object.hasOwn(environments?.staging ?? {}, "observability")
+	) {
+		fail("Worker observability is owned by GitOps and must not be declared in Wrangler config.");
+	}
 
 	expectNotContains(
 		source,

@@ -37,8 +37,8 @@ app-api 也不维护手写 OTLP exporter。
 未知 `event_type` 会在 producer 内被丢弃，不会透传成任意事件名。
 
 app-api 与 campus-web edge 使用 `@sentry/cloudflare`；campus-web browser 使用
-`@sentry/react`。Sentry SDK 数据不属于上述仓库事件 taxonomy，且在发送前清除 Cookie、header、
-query、正文、用户、breadcrumb 和未准入 span data。
+`@sentry/react`，三者共用环境唯一的 canonical Sentry project/DSN。Sentry SDK 数据不属于上述仓库
+事件 taxonomy，且在发送前清除 Cookie、header、query、正文、用户、breadcrumb 和未准入 span data。
 
 产品关联字段统一为 `campus.request_id` 和 `campus.trace_id`。它们可以用于 Axiom 关联查询和
 Sentry tag 搜索，不替代 OTel `trace_id`/`span_id` 或 Sentry SDK 的原生 trace ID。
@@ -122,16 +122,17 @@ execution-control 的允许字段由 `telemetry.Event` 到 OTel attribute 的显
 
 ## Collector 与下游
 
-Kubernetes 运行时通过四个固定 OTLP/HTTP 入口进入 Collector：通用信号进入 Axiom，
-execution-control 编排 trace 按白名单进入 Axiom 和环境唯一的 Langfuse project，Agent 与
-Hindsight 受信任 trace 只进入该 project。入口通过 NetworkPolicy 隔离，不使用集群内 bearer
-token；Collector 不向 Sentry 导出。
+OpenTelemetry Agent DaemonSet 采集第一方容器日志与 kubelet metrics，排除 Collector 和 Hindsight
+stdout，并把清理后的 log/metric 发往 Gateway。Gateway Deployment 提供四个固定 OTLP/HTTP 入口：
+通用信号进入 Axiom，execution-control 编排 trace 按白名单进入 Axiom 和所有环境共用的 Langfuse
+`campus-agent` project，Agent 与 Hindsight 受信任 trace 只进入该 project。入口通过 NetworkPolicy
+隔离，不使用集群内 bearer token；Gateway 不向 Sentry 导出。
 
-同一个 Collector DaemonSet 采集第一方容器日志与 kubelet 指标，并排除 Collector 和 Hindsight
-stdout，同时承担四个受控 OTLP/HTTP 入口与下游路由。Collector 对 Axiom log、trace 和 metric
-使用同一个 ingest token 与三个 dataset；exporter 使用
-内存发送队列和最长 300 秒重试，不依赖 node-local 持久存储。Worker application log 与 Sentry
-SDK 链路不经过 Collector。
+环境仓把同一枚 Axiom runtime token 映射给 Gateway ingest 和 Ops Web query；该 token 覆盖当前三个
+dataset 的 Query 与 Ingest，不能因消费者环境变量名称不同而推断为两枚凭据。Gateway exporter 使用
+内存发送队列和最长 300 秒重试，不依赖 node-local 持久存储。Worker application log 与 Sentry SDK
+链路不经过 Agent 或 Gateway。Cloudflare native invocation logs 和 native traces 当前关闭；它们只
+提供补充边缘信号，不能替代由 execution-control 和 Collector 产生的产品 runtime trace。
 
 当前 receiver、端口、字段转换和输出 pipeline 由 `../../infra/otel/README.md` 与 Collector YAML
 维护；操作见 `../runbooks/otel.md` 和 `../runbooks/worker-otel.md`。实际启用的 exporter、dataset

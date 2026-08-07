@@ -24,7 +24,7 @@ function issue(index: number) {
 		lastSeen: "2026-07-09T06:29:04.000Z",
 		level: "error",
 		permalink: `https://sentry.example.test/organizations/campus/issues/45000${index}/`,
-		project: { name: "App API", slug: "app-api" },
+		project: { name: "campus-agent-workers", slug: "campus-agent-workers" },
 		shortId: `APP-${index}`,
 		status: "unresolved",
 		title: `Issue ${index}`,
@@ -37,7 +37,7 @@ function client(fetchFn: typeof fetch) {
 		environment: "staging",
 		fetchFn,
 		orgSlug: "campus",
-		projectSlugs: ["app-api", "campus-web"],
+		projectSlugs: ["campus-agent-workers"],
 		token: "sentry-auth-token",
 	});
 }
@@ -55,7 +55,7 @@ describe("Sentry client", () => {
 		expect(fetchFn).toHaveBeenCalledOnce();
 		const [requestedUrl, init] = fetchFn.mock.calls[0] as [URL, RequestInit];
 		expect(requestedUrl.pathname).toBe("/api/0/organizations/campus/issues/");
-		expect(requestedUrl.searchParams.getAll("project")).toEqual(["app-api", "campus-web"]);
+		expect(requestedUrl.searchParams.getAll("project")).toEqual(["campus-agent-workers"]);
 		expect(requestedUrl.searchParams.get("environment")).toBe("staging");
 		expect(requestedUrl.searchParams.get("query")).toBe('campus.request_id:"req_ops_001"');
 		expect(requestedUrl.searchParams.get("sort")).toBe("date");
@@ -66,7 +66,7 @@ describe("Sentry client", () => {
 		expect(init.signal).toBeInstanceOf(AbortSignal);
 		expect(response).toMatchObject({
 			dataState: "FRESH",
-			issues: [{ issueId: "450000", projectSlug: "app-api" }],
+			issues: [{ issueId: "450000", projectSlug: "campus-agent-workers" }],
 			limit: 5,
 			requestId: "req_ops_001",
 			source: "SENTRY",

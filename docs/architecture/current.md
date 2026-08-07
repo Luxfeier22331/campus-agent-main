@@ -25,7 +25,8 @@ flowchart LR
   Search["Qdrant"]
   Knowledge["PostgreSQL knowledge_serving"]
   DB["PostgreSQL"]
-  OTel["OpenTelemetry Collector"]
+  OTelAgent["OpenTelemetry Agent"]
+  OTelGateway["OpenTelemetry Gateway"]
   Axiom["Axiom"]
   Sentry["Sentry"]
   Langfuse["Langfuse"]
@@ -39,11 +40,12 @@ flowchart LR
   Control --> DB
   Ops --> DB
   Ops --> Control
-  Control --> OTel
-  Agent --> OTel
-  Memory --> OTel
-  OTel --> Axiom
-  OTel --> Langfuse
+  OTelAgent --> OTelGateway
+  Control --> OTelGateway
+  Agent --> OTelGateway
+  Memory --> OTelGateway
+  OTelGateway --> Axiom
+  OTelGateway --> Langfuse
   Web --> Sentry
   API --> Sentry
   Ops --> Axiom
@@ -122,14 +124,16 @@ Ops Web 取得的目标值。
 单套 CNPG PostgreSQL 集群以独立 database、schema 和登录角色保存产品、执行投影、Temporal、
 Hindsight、知识 release 和激活指针；App API 通过一个关闭 query cache 的 Hyperdrive binding 访问
 其产品数据。Temporal 保存工作流历史，Hindsight
-保存个人记忆，Qdrant 保存在线检索索引。每个环境使用自己的 Langfuse project 保存受信任模型
-调用与评测；Collector 将通用信号发送到 Axiom，将 Agent、Hindsight 和受控编排 trace 发送到
-Langfuse；Sentry 保存浏览器和边缘运行时允许的错误与性能信号。
+保存个人记忆，Qdrant 保存在线检索索引。local、staging 和 production 共用 Langfuse Cloud Japan
+区域中的 `campus-agent` project，并通过原生 `environment` 字段区分；OpenTelemetry Gateway 将通用
+信号发送到 Axiom，将 Agent、Hindsight 和受控编排 trace 发送到 Langfuse；Sentry 保存浏览器和
+边缘运行时允许的错误与性能信号。
 
 Campus Web 与 App API 运行在 Cloudflare Workers；自托管服务和依赖由 Kubernetes/GitOps 管理。
 execution-control 使用一个标准 Deployment 同时运行 HTTP 接口和三类 Temporal poller，agent-runtime
-独立部署；采集 API 与两个 worker 分别部署。一个 OpenTelemetry Collector DaemonSet 完成节点采集、
-受控入口和下游路由。源码仓只产出候选版本和环境无关配置，不能据此断言某个环境已经部署。
+独立部署；采集 API 与两个 worker 分别部署。OpenTelemetry Agent DaemonSet 完成节点日志与
+kubelet metrics 采集，OpenTelemetry Gateway Deployment 提供四个受控 OTLP/HTTP 入口并负责下游
+路由。源码仓只产出候选版本和环境无关配置，不能据此断言某个环境已经部署。
 
 ## 所有者入口
 

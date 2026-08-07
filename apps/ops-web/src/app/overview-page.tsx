@@ -18,13 +18,12 @@ import { fetchOpsOverview } from "./ops-api-client";
 import {
 	ErrorState,
 	formatIssueSeverity,
-	KeyValue,
 	PageHeader,
 	PageShell,
 	StaleDataWarning,
 	StatusBadge,
 } from "./ops-display";
-import { formatDataStateLabel, formatStatusLabel } from "./ops-view-helpers";
+import { formatDataStateLabel } from "./ops-view-helpers";
 import { DataTable } from "./ui/data-table";
 
 const windows: Array<{ label: string; value: OpsOverviewWindow }> = [
@@ -270,15 +269,54 @@ export function OverviewPage({ window }: { window: OpsOverviewWindow }) {
 					{data.telemetry.signals.length === 0 ? (
 						<p className="text-muted-foreground text-sm">没有可展示的观测数据。</p>
 					) : (
-						<div className="grid gap-3 sm:grid-cols-3">
-							{data.telemetry.signals.map((signal) => (
-								<KeyValue
-									key={signal.kind}
-									label={telemetryLabel(signal.kind)}
-									value={<TelemetrySignalValue signal={signal} />}
-								/>
-							))}
-						</div>
+						<DataTable
+							caption="观测信号覆盖"
+							columns={[
+								{
+									cell: (row) => (
+										<div className="grid gap-0.5">
+											<span>{telemetryLabel(row.kind)}</span>
+											<span className="font-normal text-muted-foreground text-xs">
+												{row.expectation === "CONTINUOUS" ? "持续" : "活动"}
+											</span>
+										</div>
+									),
+									header: "信号",
+									rowHeader: true,
+								},
+								{
+									cell: (row) => telemetryProducerLabel(row),
+									header: "Producer",
+								},
+								{
+									cell: (row) => row.producer.instanceId ?? "—",
+									cellClassName: "font-mono text-xs",
+									header: "实例",
+								},
+								{
+									cell: (row) => row.producer.nodeName ?? "—",
+									header: "节点",
+								},
+								{
+									cell: (row) => <TelemetryCoverageValue signal={row} />,
+									header: "覆盖",
+								},
+								{
+									cell: (row) => formatTimestamp(row.updatedAt),
+									header: "最近写入",
+								},
+							]}
+							data={data.telemetry.signals}
+							minWidth="760px"
+							rowKey={(row) =>
+								[
+									row.kind,
+									row.producer.serviceName,
+									row.producer.instanceId,
+									row.producer.nodeName,
+								].join(":")
+							}
+						/>
 					)}
 				</section>
 				<section className="min-w-0">
@@ -342,11 +380,21 @@ function AbnormalDataState({ state }: { state: OpsOverviewResponse["health"]["da
 	);
 }
 
-function TelemetrySignalValue({
+function TelemetryCoverageValue({
 	signal,
 }: {
 	signal: OpsOverviewResponse["telemetry"]["signals"][number];
 }) {
+	const coverageLabel =
+		signal.dataState === "UNAVAILABLE"
+			? "查询不可用"
+			: signal.dataState === "STALE"
+				? "旧数据"
+				: signal.expectation === "ACTIVITY" && signal.dataState === "NO_DATA"
+					? "当前无活动"
+					: signal.status === "HEALTHY"
+						? "有覆盖"
+						: "缺少持续数据";
 	return (
 		<div className="grid gap-1">
 			<span className="font-semibold tabular-nums">
@@ -354,15 +402,28 @@ function TelemetrySignalValue({
 					? "无数据"
 					: `${signal.recordCount.toLocaleString("en-US")} 条`}
 			</span>
-			{signal.status === "HEALTHY" ? null : (
-				<span
-					className={signal.status === "OUTAGE" ? "text-danger text-xs" : "text-warning text-xs"}
-				>
-					{formatStatusLabel(signal.status)}
-				</span>
-			)}
+			<span
+				className={
+					signal.status === "HEALTHY" ? "text-muted-foreground text-xs" : "text-warning text-xs"
+				}
+			>
+				{coverageLabel}
+			</span>
 		</div>
 	);
+}
+
+function telemetryProducerLabel(signal: OpsOverviewResponse["telemetry"]["signals"][number]) {
+	if (signal.producer.serviceName) {
+		return signal.producer.serviceName;
+	}
+	if (signal.dataState === "UNAVAILABLE") {
+		return "未读取";
+	}
+	if (signal.dataState === "NO_DATA") {
+		return "当前窗口无活动";
+	}
+	return "未标注服务";
 }
 
 function TemporalQueueMobileList({

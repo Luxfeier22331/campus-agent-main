@@ -136,15 +136,6 @@
 			"notes": "Repo-owned latency budget artifact consumed by app-api and learning-loop candidate selection."
 		},
 		{
-			"id": "runtime-observability-alerts.v1",
-			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/runtime-observability-alerts.v1.schema.json",
-			"owner": "packages/contracts",
-			"status": "active",
-			"validates": ["configs/runtime/observability-alerts.v1.json"],
-			"notes": "Repo-owned symptom alert policy artifact for safe runtime observability signals."
-		},
-		{
 			"id": "truncation-summary.v2",
 			"kind": "json_artifact",
 			"path": "packages/contracts/schemas/truncation-summary.v2.schema.json",

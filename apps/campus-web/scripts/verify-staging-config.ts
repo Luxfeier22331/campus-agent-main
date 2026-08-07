@@ -1,5 +1,4 @@
 import { readFile } from "node:fs/promises";
-import { assertApplicationLogOnlyObservability } from "../../../scripts/deploy/worker-observability-config";
 
 const TURNSTILE_TEST_SITE_KEY = "1x00000000000000000000AA";
 
@@ -35,10 +34,13 @@ async function main(): Promise<void> {
 	const configPath = new URL("../dist/campus_web/wrangler.json", import.meta.url);
 	const rawConfig = await readFile(configPath, "utf8");
 	const config = JSON.parse(rawConfig);
-	assertApplicationLogOnlyObservability(config.observability, {
-		destinations: ["axiom-staging-logs"],
-		surface: "campus-web built staging",
-	});
+	const environments = config.env as Record<string, Record<string, unknown>> | undefined;
+	if (
+		Object.hasOwn(config, "observability") ||
+		Object.hasOwn(environments?.staging ?? {}, "observability")
+	) {
+		fail("Worker observability is owned by GitOps and must not be declared in Wrangler config.");
+	}
 	const services = Array.isArray(config.services) ? config.services : [];
 	const vars: Record<string, unknown> =
 		config.vars && typeof config.vars === "object" ? config.vars : {};

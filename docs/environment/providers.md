@@ -65,13 +65,25 @@ status: active
 
 ## 可观测性
 
-Collector receiver、下游写入和 Ops Web 查询使用不同凭据：
+Collector receiver、下游写入和 Ops Web 查询保持不同的数据与网络边界，但不因此拆分同一供应商
+凭据。Axiom 的 logs、traces 和 metrics 在当前环境共用一枚权限足够的 provider token；该 token
+同时服务 Collector ingest、Ops Web query 和 Terraform 管理。Sentry 也沿用一枚 provider token，
+投影到 Terraform、Source staging Environment 和 Ops Web runtime Secret。不同环境位置的变量名只是
+消费方投影，不代表不同身份、权限角色或轮换单元。完整理由见 ADR-0081。
 
-- 生产者只获得对应入口的写入或导出能力；
-- Collector 按信号入口和目标平台分离认证；
-- Ops Web 只获得固定范围的 Axiom 查询和 Sentry Issue 读取能力；
+`AXIOM_RUNTIME_TOKEN` 是现有 `observability-runtime-secrets` 字段，本次不新增或拆分；Sentry
+继续使用现有 `SENTRY_AUTH_TOKEN`，不创建 `SENTRY_RUNTIME_AUTH_TOKEN`。
+
+- 生产者只通过 NetworkPolicy 和固定 receiver 获得对应入口的写入能力；
+- Collector 按入口、字段白名单和目标数据集分流，而不是按信号维护多枚 Axiom token；
+- Ops Web 只执行固定范围的 Axiom 查询和 Sentry Issue 读取；
 - Worker 日志目标和 source map 上传凭据只进入所属平台配置或受保护 CI 环境；
 - Langfuse 模型 trace、Axiom 通用信号和 Sentry 错误事件保持不同数据边界。
+
+环境告警的查询、阈值、启用状态、notifier 和投递目标由环境仓及所属平台配置共同拥有，不进入
+`packages/contracts`，也不由 Ops Web 提供在线编辑。不得把源码中的 `page`、`ticket` 等通用等级名
+解释成 Campus Agent 团队或投递路由；`ticket` 不属于当前 Campus Agent 告警合同。当前通知事实只
+以环境仓可执行的 monitor 与 notifier 配置为准。
 
 字段与内容边界见 `../reference/telemetry.md`、`../architecture/system/langfuse.md` 和
 `../architecture/system/ops-observability.md`。

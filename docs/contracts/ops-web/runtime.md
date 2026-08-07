@@ -28,18 +28,27 @@ status: active
   `dataState` 和 `reason` 说明趋势投影是否新鲜、缺失或不可用。
 - `services[]`：固定服务名、显示名、状态、数据状态、原因和更新时间。
 - `temporal`：总积压、最老任务等待、工作进程数量、状态和 `queues[]`。
-- `telemetry`：总体状态及日志、指标、调用链三类 `signals[]`。
+- `telemetry`：总体状态及按 producer 展开的日志、指标、调用链覆盖 `signals[]`。每项包含
+  `kind`、`expectation`、`producer.serviceName`、`producer.instanceId`、`producer.nodeName`、
+  `recordCount`、状态、原因和最近写入时间。
 - `externalLinks[]`：已配置系统的 `source`、`label`、`href` 和 `isAvailable`。
 
-固定服务为 `campus-web`、`app-api`、`execution-control`、`agent-runtime` 和 `ops-web`。外部系统
+固定服务为 `campus-web`、`app-api`、`execution-control` 和 `agent-runtime`。外部系统
 类型为 `TEMPORAL`、`LANGFUSE`、`SENTRY` 和 `AXIOM`。
 
 服务端缓存概览 15 秒。PostgreSQL 和运行信号都失败且最近一次成功结果不超过五分钟时返回
 `STALE`；否则各失败来源标为 `UNAVAILABLE`，其他来源继续返回。
 
-三类 telemetry signal 分别对固定 Axiom dataset 查询记录数和最新时间。单个查询失败只将该
-signal 标为 `UNAVAILABLE`。日志或调用链为零条时返回 `NO_DATA` 且不自动判为故障，指标为零条
-时返回 `NO_DATA` 与 `DEGRADED`。
+日志与调用链按 `service.name` 汇总固定 Axiom dataset 在所选时间窗口内的记录数和最新时间，
+`expectation` 为 `ACTIVITY`；窗口内没有记录时保留一项 `NO_DATA`，但不自动判为故障。指标固定查询
+最近十分钟的 `otelcol_process_uptime`，不随所选活动窗口扩张，并按 `service.name`、
+`service.instance.id` 和 `k8s.node.name` 展开，`expectation` 为 `CONTINUOUS`。最近十分钟完全缺少
+Agent 或 Gateway uptime 时，观测覆盖标为 `DEGRADED`；接口不根据环境推断固定节点数，单个 Agent
+实例缺失仍由 DaemonSet readiness 负责。
+`producer.serviceName` 为空不等于窗口内没有活动：有记录但没有服务名时页面显示“未标注服务”，
+只有 `NO_DATA` 项显示“当前窗口无活动”。
+日志、指标或调用链任一固定查询失败时，只将该类查询标为 `UNAVAILABLE`。观测覆盖状态不参与
+产品整体 `health` 汇总。
 
 ## `GET /api/ops/requests`
 

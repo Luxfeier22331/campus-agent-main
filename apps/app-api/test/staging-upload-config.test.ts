@@ -3,7 +3,6 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse } from "smol-toml";
 import { describe, expect, it } from "vitest";
-import { assertApplicationLogOnlyObservability } from "../../../scripts/deploy/worker-observability-config";
 import { buildAppApiStagingUploadConfig } from "../scripts/staging-upload-config";
 
 const appDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -27,14 +26,8 @@ describe("app-api staging upload config", () => {
 			directory: resolve(appDir, "assets"),
 			run_worker_first: ["/api/*"],
 		});
-		assertApplicationLogOnlyObservability(generated.observability, {
-			destinations: [],
-			surface: "app-api generated default",
-		});
-		assertApplicationLogOnlyObservability(staging.observability, {
-			destinations: ["axiom-staging-logs"],
-			surface: "app-api generated staging",
-		});
+		expect(generated).not.toHaveProperty("observability");
+		expect(staging).not.toHaveProperty("observability");
 		expect(staging.vpc_services).toEqual([
 			expect.objectContaining({
 				binding: "EXECUTION_CONTROL_PRIVATE",
@@ -51,32 +44,6 @@ describe("app-api staging upload config", () => {
 				id: resources.hyperdriveId,
 			}),
 		]);
-	});
-
-	it("rejects native invocation logs or traces in an upload config", () => {
-		const generated = parse(buildAppApiStagingUploadConfig(source, appDir, resources)) as Record<
-			string,
-			unknown
-		>;
-		const staging = (generated.env as Record<string, Record<string, unknown>>).staging;
-		const observability = staging.observability as Record<string, Record<string, unknown>>;
-		observability.logs.invocation_logs = true;
-
-		expect(() =>
-			assertApplicationLogOnlyObservability(observability, {
-				destinations: ["axiom-staging-logs"],
-				surface: "app-api generated staging",
-			}),
-		).toThrow("observability.logs.invocation_logs must be false");
-
-		observability.logs.invocation_logs = false;
-		observability.traces.enabled = true;
-		expect(() =>
-			assertApplicationLogOnlyObservability(observability, {
-				destinations: ["axiom-staging-logs"],
-				surface: "app-api generated staging",
-			}),
-		).toThrow("observability.traces.enabled must be false");
 	});
 
 	it("rejects an invalid Hyperdrive configuration id", () => {

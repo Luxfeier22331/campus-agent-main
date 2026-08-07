@@ -25,13 +25,11 @@ pnpm ci:worker
 
 各 Worker 的 staging preflight 直接校验 Wrangler Secret 和所属构建配置；Sentry source map
 credential 只由实际执行上传的构建命令校验。另需确认 staging build 强制 source map upload。
-源码 `wrangler.toml` 镜像 staging 的
-application-log-only 契约，但发布使用 `wrangler versions upload`，不会应用非版本化的
-observability 设置；实际 destination、sampling、`persist=false`、`invocation_logs=false` 和
-`observability.traces.enabled=false` 由环境仓 `cloudflare_worker` 资源拥有。顶层配置、本地测试
-或 version upload 通过都不证明环境设置已生效。顶层不配置 destination 且设置
-`persist=false`，用于在缺少明确环境时拒绝发送；误用无环境的远程 deploy 不应产生无主
-telemetry。
+源码 `wrangler.toml` 不声明 observability；发布使用 `wrangler versions upload`，非版本化的
+destination、sampling、`persist=false`、`invocation_logs=false` 和
+`observability.traces.enabled=false` 只由环境仓 `cloudflare_worker` resource 拥有。顶层配置、本地测试
+或 version upload 通过都不证明环境设置已生效。Worker 版本上传不应重新取得这组设置的所有权，
+误用无环境的远程 deploy 也不应产生无主 telemetry。
 
 ## 部署后检查
 
@@ -53,7 +51,7 @@ telemetry。
 - `invocation_logs=false`、native traces 关闭，Axiom 中没有对应 invocation log/native trace；
 - application logs 与 Collector 输出中的 query/header/body/user/credential 哨兵为零匹配；
 - Sentry 不包含 Cookie、header、query、body、用户、breadcrumb、GenAI 输入输出或 replay；
-- browser 与 edge 使用不同 DSN，release/environment 正确，source map 可解析；
+- browser、edge 与 app-api 使用 canonical Sentry project/DSN，release/environment 正确，source map 可解析；
 - correlation 能通过 application log 和 Collector runtime trace 连接 Worker 与私有 runtime，但
   产品请求状态仍来自 PostgreSQL；
 - Axiom、Sentry 或 Collector 故障没有改写请求终态。

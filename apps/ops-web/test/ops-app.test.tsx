@@ -48,10 +48,75 @@ describe("OpsWebApp", () => {
 		expect(screen.getByText("调用链")).toBeInTheDocument();
 		const telemetrySection = screen.getByRole("heading", { name: "观测数据" }).closest("section");
 		expect(telemetrySection).not.toBeNull();
+		expect(
+			within(telemetrySection as HTMLElement).getByRole("table", { name: "观测信号覆盖" }),
+		).toBeInTheDocument();
+		expect(
+			within(telemetrySection as HTMLElement).getByText("otel-collector-agent"),
+		).toBeInTheDocument();
+		expect(
+			within(telemetrySection as HTMLElement).getByText("otel-collector-gateway"),
+		).toBeInTheDocument();
 		expect(within(telemetrySection as HTMLElement).queryByText("正常")).not.toBeInTheDocument();
 		expect(
 			within(telemetrySection as HTMLElement).queryByText(/数据状态：/),
 		).not.toBeInTheDocument();
+	});
+
+	it("distinguishes unlabelled telemetry producers from an inactive window", async () => {
+		const originalFetch = globalThis.fetch;
+		vi.stubGlobal("fetch", async () =>
+			Response.json({
+				...opsOverviewFixture,
+				telemetry: {
+					dataState: "FRESH",
+					reason: null,
+					signals: [
+						{
+							dataState: "FRESH",
+							expectation: "ACTIVITY",
+							kind: "LOGS",
+							producer: { instanceId: null, nodeName: null, serviceName: null },
+							reason: null,
+							recordCount: 3,
+							status: "HEALTHY",
+							updatedAt: "2026-07-09T06:29:59.000Z",
+						},
+						{
+							dataState: "NO_DATA",
+							expectation: "ACTIVITY",
+							kind: "TRACES",
+							producer: { instanceId: null, nodeName: null, serviceName: null },
+							reason: null,
+							recordCount: 0,
+							status: "UNKNOWN",
+							updatedAt: null,
+						},
+					],
+					status: "HEALTHY",
+					updatedAt: "2026-07-09T06:29:59.000Z",
+				},
+			}),
+		);
+
+		try {
+			render(<OpsWebApp initialPath="/overview?window=1h" />);
+
+			const table = await screen.findByRole("table", { name: "观测信号覆盖" });
+			const unlabelledRow = within(table).getByText("未标注服务").closest("tr");
+			expect(unlabelledRow).not.toBeNull();
+			expect(within(unlabelledRow as HTMLElement).getByText("日志")).toBeInTheDocument();
+			expect(within(unlabelledRow as HTMLElement).getByText("3 条")).toBeInTheDocument();
+			expect(
+				within(unlabelledRow as HTMLElement).queryByText("当前窗口无活动"),
+			).not.toBeInTheDocument();
+
+			const inactiveRow = within(table).getByText("当前窗口无活动").closest("tr");
+			expect(inactiveRow).not.toBeNull();
+			expect(within(inactiveRow as HTMLElement).getByText("调用链")).toBeInTheDocument();
+		} finally {
+			vi.stubGlobal("fetch", originalFetch);
+		}
 	});
 
 	it("shows Axiom availability in its own overview section", async () => {

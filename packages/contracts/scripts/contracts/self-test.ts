@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
 import { repoPath } from "./common.ts";
-import { materializeAlertFile } from "./materialize-observability-alerts.ts";
 import { checkContractSchemas } from "./schema-registry.ts";
 
 export function runContractSchemaSelfTest(): void {
@@ -8,7 +7,6 @@ export function runContractSchemaSelfTest(): void {
 	checkRegistryCoverage();
 	checkObservabilityFixtures();
 	checkRuntimeToolSchemaRefs();
-	checkObservabilityAlertMaterialization();
 	checkObservabilitySchemas();
 }
 
@@ -77,24 +75,6 @@ function checkRuntimeToolSchemaRefs(): void {
 			const defs = schemaDocs[schemaId]?.$defs;
 			expect(isRecord(defs) && definitionName in defs, `${ref} target definition missing`);
 		}
-	}
-}
-
-function checkObservabilityAlertMaterialization(): void {
-	const result = materializeAlertFile(repoPath("configs/runtime/observability-alerts.v1.json"));
-	expectEqualJson(
-		result.schema_version,
-		"axiom-monitor-materialization-v1",
-		"observability alert materialization schema",
-	);
-	expect(result.source_alert_version.length > 0, "observability alert source version missing");
-	expect(result.monitors.length > 0, "observability alert monitor materialization empty");
-	for (const monitor of result.monitors) {
-		expect(typeof monitor.id === "string" && monitor.id.length > 0, "monitor id missing");
-		expect(
-			typeof monitor.query === "string" && monitor.query.includes("campus."),
-			"monitor query missing campus metric",
-		);
 	}
 }
 

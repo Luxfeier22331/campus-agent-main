@@ -309,6 +309,17 @@ const SourceStatusSchema = z.object({
 	updatedAt: IsoDateTimeSchema.nullable(),
 });
 
+const TelemetryCoverageEntrySchema = SourceStatusSchema.extend({
+	expectation: z.enum(["ACTIVITY", "CONTINUOUS"]),
+	kind: z.enum(["LOGS", "METRICS", "TRACES"]),
+	producer: z.object({
+		instanceId: z.string().min(1).nullable(),
+		nodeName: z.string().min(1).nullable(),
+		serviceName: z.string().min(1).nullable(),
+	}),
+	recordCount: z.number().int().nonnegative().nullable(),
+});
+
 export const OpsOverviewResponseSchema = z.object({
 	cache: z.object({
 		ageMs: z.number().int().nonnegative(),
@@ -347,12 +358,7 @@ export const OpsOverviewResponseSchema = z.object({
 		}),
 	),
 	telemetry: SourceStatusSchema.extend({
-		signals: z.array(
-			SourceStatusSchema.extend({
-				kind: z.enum(["LOGS", "METRICS", "TRACES"]),
-				recordCount: z.number().int().nonnegative().nullable(),
-			}),
-		),
+		signals: z.array(TelemetryCoverageEntrySchema),
 	}),
 	temporal: SourceStatusSchema.extend({
 		backlogCount: z.number().int().nonnegative(),
@@ -480,3 +486,4 @@ export type OpsSentryIssuesResponse = z.infer<typeof OpsSentryIssuesResponseSche
 export type OpsRequestListResponse = z.infer<typeof OpsRequestListResponseSchema>;
 export type OpsRequestSummary = z.infer<typeof OpsRequestSummarySchema>;
 export type OpsRequestWindow = z.infer<typeof OpsRequestWindowSchema>;
+export type TelemetryCoverageEntry = z.infer<typeof TelemetryCoverageEntrySchema>;

@@ -147,7 +147,9 @@ async function readTelemetry(
 			reason: "Axiom 查询失败。",
 			signals: (["LOGS", "METRICS", "TRACES"] as const).map((kind) => ({
 				dataState: "UNAVAILABLE" as const,
+				expectation: kind === "METRICS" ? ("CONTINUOUS" as const) : ("ACTIVITY" as const),
 				kind,
+				producer: { instanceId: null, nodeName: null, serviceName: null },
 				reason: "Axiom 查询失败。",
 				recordCount: null,
 				status: "UNKNOWN" as const,

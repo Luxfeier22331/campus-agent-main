@@ -9,31 +9,13 @@ import { createWorkerRuntime } from "../src/index";
 import localSmokeWranglerConfig from "../wrangler.local-smoke.toml?raw";
 import wranglerConfig from "../wrangler.toml?raw";
 
-interface WranglerObservabilityConfig {
-	enabled?: boolean;
-	logs?: {
-		destinations?: string[];
-		enabled?: boolean;
-		head_sampling_rate?: number;
-		invocation_logs?: boolean;
-		persist?: boolean;
-	};
-	traces?: {
-		destinations?: string[];
-		enabled?: boolean;
-		head_sampling_rate?: number;
-		persist?: boolean;
-	};
-}
-
 const parsedWranglerConfig = parse(wranglerConfig) as {
 	env?: {
 		staging?: {
-			observability?: WranglerObservabilityConfig;
 			secrets?: { required?: string[] };
 		};
 	};
-	observability?: WranglerObservabilityConfig;
+	observability?: unknown;
 };
 
 const packageManifest = JSON.parse(packageManifestRaw) as {
@@ -126,36 +108,9 @@ function createRuntimeReadinessResult() {
 }
 
 describe("app-api worker foundation", () => {
-	it("exports only application logs to the staging Axiom destination", () => {
-		expect(parsedWranglerConfig.observability).toEqual({
-			enabled: true,
-			logs: {
-				enabled: true,
-				head_sampling_rate: 1,
-				invocation_logs: false,
-				persist: false,
-			},
-			traces: {
-				enabled: false,
-				head_sampling_rate: 0,
-				persist: false,
-			},
-		});
-		expect(parsedWranglerConfig.env?.staging?.observability).toEqual({
-			enabled: true,
-			logs: {
-				destinations: ["axiom-staging-logs"],
-				enabled: true,
-				head_sampling_rate: 1,
-				invocation_logs: false,
-				persist: false,
-			},
-			traces: {
-				enabled: false,
-				head_sampling_rate: 0,
-				persist: false,
-			},
-		});
+	it("leaves Worker observability ownership to GitOps", () => {
+		expect(parsedWranglerConfig.observability).toBeUndefined();
+		expect(parsedWranglerConfig.env?.staging).not.toHaveProperty("observability");
 	});
 
 	it("keeps traffic out of Wrangler and injects staging bindings at upload time", () => {
@@ -194,8 +149,7 @@ describe("app-api worker foundation", () => {
 		expect(stagingVarsBlock).not.toContain("APP_API_OTEL_INGEST_");
 		expect(stagingVarsBlock).not.toContain("AXIOM_ENDPOINT");
 		expect(stagingVarsBlock).not.toContain("AXIOM_DATASET");
-		expect(wranglerConfig).toContain('destinations = ["axiom-staging-logs"]');
-		expect(wranglerConfig).toContain("invocation_logs = false");
+		expect(wranglerConfig).not.toContain("[observability");
 		expect(wranglerConfig).not.toContain("axiom-staging-traces");
 		expect(packageManifest.scripts?.dev).toBe(
 			"pnpm --dir ../.. exec tsx scripts/dev/service.ts app-api",

@@ -8,8 +8,8 @@ status: active
 
 ## 范围
 
-本文说明如何校验、调试和排查仓库拥有的单个 Collector DaemonSet。当前配置文件、receiver、
-端口和 pipeline 见 `../../infra/otel/README.md`；事件、指标和字段见
+本文说明如何校验本地单进程 Collector，并排查 staging 的 Agent DaemonSet 与 Gateway Deployment。
+当前本地配置、receiver、端口和 pipeline 见 `../../infra/otel/README.md`；事件、指标和字段见
 `../reference/telemetry.md`。环境 endpoint、dataset、Secret、节点准备、保留期和启用状态由环境
 仓管理。
 
@@ -25,8 +25,8 @@ pnpm ci:otel
 ```
 
 该命令先检查受信任链路清理规则，再使用固定 digest 的 `otelcol-contrib` 镜像校验本地 debug 和
-prodlike 配置。环境仓负责对 DaemonSet Helm values 执行 render、schema 与策略检查。源码检查不
-证明目标环境已部署或外部平台已收到数据。
+prodlike 配置。环境仓负责分别对 Agent 与 Gateway Helm values 执行 render、schema 与策略检查。
+源码检查不证明目标环境已部署或外部平台已收到数据。
 
 手工校验必须使用 contrib distribution，不能使用缺少处理器和 exporter 的 core distribution。
 真实 endpoint、dataset 和凭据只能来自本地未跟踪环境或 Secret manager，不得写回仓库。
@@ -58,7 +58,8 @@ debug 与集群 receiver 都不使用 bearer token；集群内生产者由固定
 
 发起不包含真实认证材料的受控请求，记录产品 `requestId`、`runId` 和 `traceId`：
 
-1. 在 Collector 自身指标确认各 receiver 接收量、内存队列和 exporter failure。
+1. 在 Agent 日志确认 filelog 与 kubeletstats pipeline 正常，在 Gateway 自身指标确认各 receiver
+   接收量、内存队列和 exporter failure。
 2. 在 Axiom 分别查询 Collector 写入的 log、trace 和 metric，确认字段符合白名单，并通过
    `campus.request_id`、`campus.trace_id` 关联请求级 runtime trace。
 3. 在单一 Langfuse project 查询 Agent、model generation、tool observation 与受控编排 span，
@@ -92,14 +93,15 @@ pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts verify-trace \
 
 ## 故障排查
 
-Collector 收到信号但下游没有记录时，依次检查：
+Collector 链路收到信号但下游没有记录时，依次检查：
 
-1. producer 使用的 receiver 与 NetworkPolicy 是否匹配；
-2. receiver、内存发送队列、retry 与 exporter 的失败指标；
+1. 信号来自 Agent 采集路径还是直接进入 Gateway，并核对对应 NetworkPolicy；
+2. Agent 的采集与发送日志、Gateway receiver、内存发送队列、retry 与 exporter failure；
 3. `telemetry.drop`、入口过滤器、字段 transform 和采样比例；
-4. Axiom endpoint、三个 dataset 和统一 ingest token，或 Langfuse endpoint 与 Basic auth；
+4. Axiom endpoint、三个 dataset 和环境共享 runtime token 的 Ingest 权限，或 Langfuse endpoint 与
+   Basic auth；
 5. 受信任 trace 是否被错误发送到通用入口，或输出路由是否交叉；
-6. Collector 是否因 kubelet CA/SAN、checkpoint 目录权限或 filelog 路径失败；
+6. Agent 是否因 kubelet CA/SAN、checkpoint 目录权限或 filelog 路径失败；
 7. 环境仓是否实际选择了预期配置和不可变版本。
 
 Cloudflare application-log destination 问题按 `worker-otel.md` 排查，不能从 Collector 指标推断。

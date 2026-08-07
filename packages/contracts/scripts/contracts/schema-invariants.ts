@@ -1,5 +1,4 @@
 import { isRecord, loadYaml, relativePath, repoPath } from "./common.ts";
-import { materializeAlertFile } from "./materialize-observability-alerts.ts";
 
 const toolExecutionOpenApiPath = repoPath("docs/contracts/schemas/tool-execution.openapi.yaml");
 
@@ -48,10 +47,6 @@ export function validateJsonArtifactInvariants(
 	if (entryId === "truncation-summary.v2") {
 		validateObject(path, instance);
 		rejectSafeProjectionRawKeys(path, instance, "truncation_summary");
-		return;
-	}
-	if (entryId === "runtime-observability-alerts.v1") {
-		validateObservabilityAlertInvariants(path, instance);
 		return;
 	}
 	if (entryId === "runtime-latency-budgets.v1") {
@@ -107,73 +102,6 @@ function validateLatencyBudgetInvariants(path: string, instance: unknown): void 
 		canonicalStageFields,
 		"enabled latency budget fields must exactly cover canonical stage_timing fields",
 	);
-}
-
-function validateObservabilityAlertInvariants(path: string, instance: unknown): void {
-	validateObject(path, instance);
-	const canonicalStageFields = canonicalStageTimingFields();
-	const rules = instance.rules;
-	if (!Array.isArray(rules)) {
-		throw new Error(`${relativePath(path)} rules must be a list`);
-	}
-	const ruleIds = new Set<string>();
-	const enabledKeys = new Set<string>();
-	const expectedUnits: Record<string, string> = {
-		stage_latency_p95: "ms",
-		request_error_rate: "ratio",
-		telemetry_export_failure: "count",
-		missing_trace_rate: "ratio",
-	};
-	for (const [index, rule] of rules.entries()) {
-		if (!isRecord(rule)) {
-			throw new Error(`${relativePath(path)} rules[${index}] must be an object`);
-		}
-		const ruleId = rule.id;
-		const signal = rule.signal;
-		const stageField = rule.stage_field;
-		const threshold = rule.threshold;
-		if (typeof ruleId !== "string" || ruleId === "") {
-			throw new Error(`${relativePath(path)} rules[${index}] must declare id`);
-		}
-		if (ruleIds.has(ruleId)) {
-			throw new Error(`${relativePath(path)} duplicate alert rule id: ${ruleId}`);
-		}
-		ruleIds.add(ruleId);
-		if (typeof signal !== "string" || !(signal in expectedUnits)) {
-			throw new Error(`${relativePath(path)} rules[${index}] has unsupported signal`);
-		}
-		if (typeof rule.window !== "string") {
-			throw new Error(`${relativePath(path)} rules[${index}] must declare window`);
-		}
-		if (!isRecord(threshold)) {
-			throw new Error(`${relativePath(path)} rules[${index}] must declare threshold`);
-		}
-		if (signal === "stage_latency_p95") {
-			if (typeof stageField !== "string" || !canonicalStageFields.has(stageField)) {
-				throw new Error(`${relativePath(path)} rules[${index}] stage_field must be canonical`);
-			}
-		} else if (stageField !== undefined && stageField !== null) {
-			throw new Error(
-				`${relativePath(path)} rules[${index}] stage_field is only valid for stage_latency_p95`,
-			);
-		}
-		if (threshold.unit !== expectedUnits[signal]) {
-			throw new Error(
-				`${relativePath(path)} rules[${index}] threshold unit must be ${expectedUnits[signal]} for ${signal}`,
-			);
-		}
-		if (rule.enabled === true) {
-			const key = `${signal}\0${typeof stageField === "string" ? stageField : ""}\0${rule.window}`;
-			if (enabledKeys.has(key)) {
-				throw new Error(`${relativePath(path)} duplicate enabled alert signal/window: ${key}`);
-			}
-			enabledKeys.add(key);
-		}
-	}
-	const materialized = materializeAlertFile(path);
-	if (materialized.monitors.length !== enabledKeys.size) {
-		throw new Error(`${relativePath(path)} must materialize one monitor per enabled alert rule`);
-	}
 }
 
 function canonicalStageTimingFields(): Set<string> {

@@ -17,7 +17,8 @@ workload 只以稳定 Kubernetes Secret 名与 key 作为合同。具体 secret 
 部署基础设施，不代表工作负载已经按目标架构运行。
 
 - Secret 按凭据所有者、生命周期和变更边界组织，不按 Pod 重复创建；
-- workload 只显式投影所需 key；共享 Secret 对象不代表共享上游身份或权限；
+- workload 只显式投影所需 key；Secret 对象与 key 的共享或拆分只描述投递结构，不能据此推导
+  上游身份必须共享或拆分，身份拓扑由所属平台的架构决策明确规定；
 - 真实 secret material 不进入 plaintext git；
 - 环境仓库可以保存 delivery-backend reference 或 encrypted secret resource，不能保存
   plaintext value；

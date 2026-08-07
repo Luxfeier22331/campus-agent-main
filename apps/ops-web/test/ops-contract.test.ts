@@ -51,11 +51,25 @@ describe("ops-web contract fixtures", () => {
 			"agent-runtime",
 		]);
 		expect(parsed.temporal.queues.length).toBeGreaterThan(0);
-		expect(parsed.telemetry.signals.map((signal) => signal.kind)).toEqual([
-			"LOGS",
-			"METRICS",
-			"TRACES",
-		]);
+		expect(parsed.telemetry.signals).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					expectation: "ACTIVITY",
+					kind: "LOGS",
+					producer: expect.objectContaining({ serviceName: "app-api" }),
+				}),
+				expect.objectContaining({
+					expectation: "CONTINUOUS",
+					kind: "METRICS",
+					producer: expect.objectContaining({ serviceName: "otel-collector-agent" }),
+				}),
+				expect.objectContaining({
+					expectation: "CONTINUOUS",
+					kind: "METRICS",
+					producer: expect.objectContaining({ serviceName: "otel-collector-gateway" }),
+				}),
+			]),
+		);
 	});
 
 	it("validates bounded Axiom log and trace results", () => {

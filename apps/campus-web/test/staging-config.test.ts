@@ -16,36 +16,9 @@ const parsedWranglerConfig = parse(wranglerConfig) as {
 };
 
 describe("campus web staging config", () => {
-	it("exports only application logs to the staging Axiom destination", () => {
-		expect(parsedWranglerConfig.observability).toEqual({
-			enabled: true,
-			logs: {
-				enabled: true,
-				head_sampling_rate: 1,
-				invocation_logs: false,
-				persist: false,
-			},
-			traces: {
-				enabled: false,
-				head_sampling_rate: 0,
-				persist: false,
-			},
-		});
-		expect(parsedWranglerConfig.env?.staging?.observability).toEqual({
-			enabled: true,
-			logs: {
-				destinations: ["axiom-staging-logs"],
-				enabled: true,
-				head_sampling_rate: 1,
-				invocation_logs: false,
-				persist: false,
-			},
-			traces: {
-				enabled: false,
-				head_sampling_rate: 0,
-				persist: false,
-			},
-		});
+	it("leaves Worker observability ownership to GitOps", () => {
+		expect(parsedWranglerConfig.observability).toBeUndefined();
+		expect(parsedWranglerConfig.env?.staging).not.toHaveProperty("observability");
 	});
 
 	it("keeps traffic ownership out of Wrangler and injects Turnstile at upload time", () => {
@@ -57,9 +30,7 @@ describe("campus web staging config", () => {
 		expect(wranglerConfig).not.toContain("r2_buckets");
 		expect(wranglerConfig).not.toContain("[env.staging.secrets]");
 		expect(wranglerConfig).toContain("upload_source_maps = true");
-		expect(wranglerConfig).toContain("persist = false");
-		expect(wranglerConfig).toContain('destinations = ["axiom-staging-logs"]');
-		expect(wranglerConfig).toContain("invocation_logs = false");
+		expect(wranglerConfig).not.toContain("[observability");
 		expect(wranglerConfig).not.toContain("axiom-staging-traces");
 
 		expect(verifyStagingConfigSource).toContain("CAMPUS_AUTH_TURNSTILE_SITE_KEY");
@@ -93,6 +64,9 @@ describe("campus web staging config", () => {
 		expect(stagingPreflightSource).not.toContain("check-worker-secret-presence.ts");
 		expect(stagingPreflightSource).toContain("apps/campus-web/scripts/verify-staging-config.ts");
 		expect(stagingPreflightSource).toContain("apps/campus-web/dist/campus_web/wrangler.json");
+		expect(verifyStagingConfigSource).toContain(
+			'Object.hasOwn(environments?.staging ?? {}, "observability")',
+		);
 		expect(viteConfigSource).toContain("sentryVitePlugin");
 		expect(viteConfigSource).toContain('sourcemap: sentryUpload ? ("hidden" as const) : false');
 		expect(viteConfigSource).toContain('filesToDeleteAfterUpload: "./dist/client/**/*.map"');
@@ -101,7 +75,7 @@ describe("campus web staging config", () => {
 		expect(viteConfigSource).toContain("SENTRY_ORG_SLUG");
 		expect(viteConfigSource).toContain("SENTRY_ALLOW_FAILURE must be unset");
 		expect(viteConfigSource).toContain('url: "https://sentry.io"');
-		expect(viteConfigSource).not.toContain("process.env.SENTRY_PROJECT");
+		expect(viteConfigSource).not.toContain("SENTRY_PROJECT");
 	});
 
 	it("keeps staging browser e2e credentialed and evidence-producing", () => {

@@ -50,7 +50,7 @@ trace 开关保持关闭，避免与通用 OTel trace 重复。execution-control
 | `4321` Hindsight trusted | Hindsight 原生 trace | hindsight service/tag |
 
 受信任 `4320`/`4321` trace 不得进入 Axiom。Collector 不向 Sentry 导出，Langfuse trace 也不得
-复制到 OpenObserve。四个 receiver 不执行集群内应用认证；生产者准入由 namespace 内精确
+复制到 Axiom。四个 receiver 不执行集群内应用认证；生产者准入由 namespace 内精确
 NetworkPolicy、Pod selector 和目标端口共同约束，NetworkPolicy 不匹配时必须拒绝。
 
 ## Trace 数据

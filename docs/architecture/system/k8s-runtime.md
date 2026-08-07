@@ -29,7 +29,8 @@ ServiceAccount、ConfigMap 和 Secret，不得复制共享资源所有权。
 - `ingestion-control` API、`ingestion-control-worker` 与 `source-collector-worker`：三个标准
   Deployment；
 - `ops-web-internal-portal-check`：顺序检查 Ops Web 所有内部门户凭据的 CronJob；
-- OpenTelemetry Collector：环境仓部署的一个 DaemonSet。
+- OpenTelemetry Agent：环境仓部署的一个 DaemonSet，采集节点日志和 kubelet metrics；
+- OpenTelemetry Gateway：环境仓部署的一个 Deployment，提供受控 OTLP/HTTP 入口和下游路由。
 
 Temporal Server 是运行前置条件。源码 base 只声明标准 Deployment，不声明 Worker Controller、
 WorkerDeployment、WorkerResourceTemplate 或 KEDA 资源。

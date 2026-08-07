@@ -5,7 +5,6 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	type AxiomSdkQueryClient,
 	AxiomUnavailableError,
-	buildAxiomMetricsMpl,
 	buildAxiomRequestApl,
 	createAxiomClient,
 	createAxiomClientFromEnv,
@@ -75,7 +74,16 @@ describe("Axiom client", () => {
 			startTime: "2026-07-09T06:24:00.000Z",
 		});
 		expect(apl).toContain("['campus-agent-staging-logs']");
-		expect(apl).toContain("attributes.custom['campus.request_id']");
+		expect(apl).toContain("['attributes.custom']['campus.request_id']");
+		expect(apl).toContain("['attributes.custom']['event.name']");
+		expect(apl).toContain("['attributes.custom']['event_type']");
+		expect(apl).toContain("['attributes.custom']['source']");
+		expect(apl).toContain("['attributes.custom']['status']");
+		expect(apl).toContain("['attributes.custom']['error.code']");
+		expect(apl).toContain("['attributes.custom']['error_code']");
+		expect(apl).toContain("['attributes.custom']['duration_ms']");
+		expect(apl).toContain("['attributes.custom']['campus.trace_id']");
+		expect(apl).not.toContain("attributes.custom['");
 		expect(apl).toContain("body['campus.request_id']");
 		expect(apl).not.toContain("request.id");
 		expect(apl).not.toContain("http.request.header");
@@ -120,7 +128,9 @@ describe("Axiom client", () => {
 		expect(result.truncated).toBe(true);
 		const [apl] = vi.mocked(sdkClient.query).mock.calls[0] ?? [];
 		expect(apl).toContain("['campus-agent-staging-traces']");
-		expect(apl).toContain("attributes.custom['campus.request_id']");
+		expect(apl).toContain("['attributes.custom']['campus.request_id']");
+		expect(apl).toContain("['attributes.custom']['campus.trace_id']");
+		expect(apl).not.toContain("attributes.custom['");
 		expect(apl).not.toContain("body['campus.request_id']");
 		expect(apl).toContain("| take 501");
 	});
@@ -141,23 +151,43 @@ describe("Axiom client", () => {
 
 	it("summarizes the fixed logs, traces, and metrics datasets", async () => {
 		const metricsFixture = {
-			metadata: {},
+			metadata: {
+				group_keys: ["service.name", "service.instance.id", "k8s.node.name"],
+			},
 			series: [
 				{
 					data: [null, 33_584_167, null],
+					metric: "otelcol_process_uptime",
 					resolution: 1,
-					start: 1_785_417_763,
+					start: 1_783_578_598,
+					tags: {
+						"k8s.node.name": "staging-node-1",
+						"service.instance.id": "otel-collector-agent-staging-node-1",
+						"service.name": "otel-collector-agent",
+					},
+				},
+				{
+					data: [33_584_167],
+					metric: "otelcol_process_uptime",
+					resolution: 1,
+					start: 1_783_578_599,
+					tags: {
+						"k8s.node.name": "staging-node-1",
+						"service.instance.id": "otel-collector-gateway-0",
+						"service.name": "otel-collector-gateway",
+					},
 				},
 			],
 		} satisfies MetricsResult;
-		const query = vi.fn(async (_query: string, options: { format?: string }) => {
-			if (options.format === "metrics-v2") {
+		const query = vi.fn(async (_query: string, options: { type?: string }) => {
+			if (options.type === "mpl") {
 				return metricsFixture;
 			}
 			return tabularResult([
 				{
 					last_seen_at: "2026-07-09T06:29:59.000Z",
 					record_count: 3,
+					service_name: "app-api",
 				},
 			]);
 		});
@@ -171,20 +201,298 @@ describe("Axiom client", () => {
 
 		expect(sdkClient.query).toHaveBeenCalledTimes(3);
 		expect(telemetry).toMatchObject({ dataState: "FRESH", status: "HEALTHY" });
-		expect(telemetry.signals.map((signal) => signal.kind)).toEqual(["LOGS", "METRICS", "TRACES"]);
+		expect(telemetry.updatedAt).toBe("2026-07-09T06:29:59.000Z");
+		expect(telemetry.signals.map((signal) => signal.kind)).toEqual([
+			"LOGS",
+			"METRICS",
+			"METRICS",
+			"TRACES",
+		]);
 		expect(telemetry.signals[1]).toMatchObject({
+			expectation: "CONTINUOUS",
+			producer: {
+				instanceId: "otel-collector-agent-staging-node-1",
+				nodeName: "staging-node-1",
+				serviceName: "otel-collector-agent",
+			},
 			recordCount: 1,
-			updatedAt: new Date(1_785_417_764_000).toISOString(),
+			updatedAt: "2026-07-09T06:29:59.000Z",
 		});
+		expect(query.mock.calls[0]?.[0]).toBe(
+			"['campus-agent-staging-logs']\n" +
+				"| summarize record_count = count(), last_seen_at = max(_time) by service_name = tostring(['service.name'])\n" +
+				"| project service_name, record_count, last_seen_at\n" +
+				"| sort by service_name asc",
+		);
 		expect(query.mock.calls[1]).toEqual([
-			buildAxiomMetricsMpl("campus-agent-staging-metrics"),
+			"`campus-agent-staging-metrics`:`otelcol_process_uptime`\n" +
+				"| group by `service.name`, `service.instance.id`, `k8s.node.name` using max",
 			{
 				endTime: "2026-07-09T06:30:00.000Z",
 				format: "metrics-v2",
-				startTime: "2026-07-09T06:15:00.000Z",
+				startTime: "2026-07-09T06:20:00.000Z",
 				type: "mpl",
 			},
 		]);
+	});
+
+	it("keeps Collector freshness independent from the selected activity window", async () => {
+		const query = vi.fn(async (_query: string, options: { type?: string }) => {
+			if (options.type === "mpl") {
+				return { metadata: {}, series: [] } satisfies MetricsResult;
+			}
+			return tabularResult([]);
+		});
+		const client = createAxiomClient({
+			...queryConfig,
+			sdkClient: { query: query as AxiomSdkQueryClient["query"] },
+		});
+
+		const telemetry = await client.getTelemetrySnapshot("24h", {
+			now: new Date("2026-07-09T06:30:00.000Z"),
+		});
+
+		expect(telemetry).toMatchObject({ dataState: "NO_DATA", status: "DEGRADED" });
+		expect(query.mock.calls[0]?.[1]).toMatchObject({
+			endTime: "2026-07-09T06:30:00.000Z",
+			startTime: "2026-07-08T06:30:00.000Z",
+		});
+		expect(query.mock.calls[1]?.[1]).toMatchObject({
+			endTime: "2026-07-09T06:30:00.000Z",
+			format: "metrics-v2",
+			startTime: "2026-07-09T06:20:00.000Z",
+		});
+		expect(query.mock.calls[2]?.[1]).toMatchObject({
+			endTime: "2026-07-09T06:30:00.000Z",
+			startTime: "2026-07-08T06:30:00.000Z",
+		});
+	});
+
+	it("keeps empty activity healthy but degrades when a Collector role has no uptime", async () => {
+		const query = vi.fn(async (_query: string, options: { type?: string }) => {
+			if (options.type === "mpl") {
+				return {
+					metadata: {},
+					series: [
+						{
+							data: [33_584_167],
+							metric: "otelcol_process_uptime",
+							resolution: 1,
+							start: 1_783_578_599,
+							tags: {
+								"k8s.node.name": "staging-node-1",
+								"service.instance.id": "otel-collector-gateway-0",
+								"service.name": "otel-collector-gateway",
+							},
+						},
+					],
+				} satisfies MetricsResult;
+			}
+			return tabularResult([]);
+		});
+		const client = createAxiomClient({
+			...queryConfig,
+			sdkClient: { query: query as AxiomSdkQueryClient["query"] },
+		});
+
+		const telemetry = await client.getTelemetrySnapshot("15m", {
+			now: new Date("2026-07-09T06:30:00.000Z"),
+		});
+
+		expect(telemetry).toMatchObject({ dataState: "FRESH", status: "DEGRADED" });
+		expect(telemetry.signals.filter((signal) => signal.expectation === "ACTIVITY")).toEqual([
+			expect.objectContaining({ dataState: "NO_DATA", kind: "LOGS", status: "UNKNOWN" }),
+			expect.objectContaining({ dataState: "NO_DATA", kind: "TRACES", status: "UNKNOWN" }),
+		]);
+		expect(telemetry.signals).toContainEqual(
+			expect.objectContaining({
+				dataState: "NO_DATA",
+				producer: expect.objectContaining({ serviceName: "otel-collector-agent" }),
+				status: "DEGRADED",
+			}),
+		);
+	});
+
+	it("reports a successful all-empty telemetry window as no data", async () => {
+		const query = vi.fn(async (_query: string, options: { type?: string }) => {
+			if (options.type === "mpl") {
+				return { metadata: {}, series: [] } satisfies MetricsResult;
+			}
+			return tabularResult([]);
+		});
+		const client = createAxiomClient({
+			...queryConfig,
+			sdkClient: { query: query as AxiomSdkQueryClient["query"] },
+		});
+
+		const telemetry = await client.getTelemetrySnapshot("15m", {
+			now: new Date("2026-07-09T06:30:00.000Z"),
+		});
+
+		expect(telemetry).toMatchObject({ dataState: "NO_DATA", status: "DEGRADED" });
+		expect(telemetry.signals).toHaveLength(4);
+		expect(telemetry.signals.every((signal) => signal.dataState === "NO_DATA")).toBe(true);
+	});
+
+	it("marks metrics unavailable when a metrics-v2 series omits producer tags", async () => {
+		const query = vi.fn(async (_query: string, options: { type?: string }) => {
+			if (options.type === "mpl") {
+				return {
+					metadata: {},
+					series: [
+						{
+							data: [33_584_167],
+							metric: "otelcol_process_uptime",
+							resolution: 1,
+							start: 1_783_578_599,
+						},
+					],
+				} satisfies MetricsResult;
+			}
+			return tabularResult([]);
+		});
+		const client = createAxiomClient({
+			...queryConfig,
+			sdkClient: { query: query as AxiomSdkQueryClient["query"] },
+		});
+
+		const telemetry = await client.getTelemetrySnapshot("15m", {
+			now: new Date("2026-07-09T06:30:00.000Z"),
+		});
+
+		expect(telemetry.signals).toContainEqual(
+			expect.objectContaining({ dataState: "UNAVAILABLE", kind: "METRICS" }),
+		);
+	});
+
+	it("marks metrics unavailable when a metrics-v2 sample is malformed", async () => {
+		const query = vi.fn(async (_query: string, options: { type?: string }) => {
+			if (options.type === "mpl") {
+				return {
+					metadata: {},
+					series: [
+						{
+							data: ["33"],
+							metric: "otelcol_process_uptime",
+							resolution: 1,
+							start: 1_783_578_599,
+							tags: { "service.name": "otel-collector-agent" },
+						},
+					],
+				} satisfies MetricsResult;
+			}
+			return tabularResult([]);
+		});
+		const client = createAxiomClient({
+			...queryConfig,
+			sdkClient: { query: query as AxiomSdkQueryClient["query"] },
+		});
+
+		const telemetry = await client.getTelemetrySnapshot("15m", {
+			now: new Date("2026-07-09T06:30:00.000Z"),
+		});
+
+		expect(telemetry.signals).toContainEqual(
+			expect.objectContaining({ dataState: "UNAVAILABLE", kind: "METRICS" }),
+		);
+	});
+
+	it("marks activity coverage unavailable when count or timestamp is malformed", async () => {
+		const query = vi.fn(async (_query: string, options: { type?: string }) => {
+			if (options.type === "mpl") {
+				return { metadata: {}, series: [] } satisfies MetricsResult;
+			}
+			return tabularResult([
+				{
+					last_seen_at: "not-a-timestamp",
+					record_count: "3",
+					service_name: "app-api",
+				},
+			]);
+		});
+		const client = createAxiomClient({
+			...queryConfig,
+			sdkClient: { query: query as AxiomSdkQueryClient["query"] },
+		});
+
+		const telemetry = await client.getTelemetrySnapshot("15m", {
+			now: new Date("2026-07-09T06:30:00.000Z"),
+		});
+
+		expect(telemetry.signals).toContainEqual(
+			expect.objectContaining({ dataState: "UNAVAILABLE", kind: "LOGS" }),
+		);
+		expect(telemetry.signals).toContainEqual(
+			expect.objectContaining({ dataState: "UNAVAILABLE", kind: "TRACES" }),
+		);
+	});
+
+	it("does not degrade an empty Collector instance when another instance covers its role", async () => {
+		const query = vi.fn(async (_query: string, options: { type?: string }) => {
+			if (options.type === "mpl") {
+				return {
+					metadata: {},
+					series: [
+						{
+							data: [null],
+							metric: "otelcol_process_uptime",
+							resolution: 1,
+							start: 1_783_578_599,
+							tags: {
+								"k8s.node.name": "staging-node-1",
+								"service.instance.id": "otel-collector-agent-empty",
+								"service.name": "otel-collector-agent",
+							},
+						},
+						{
+							data: [33_584_167],
+							metric: "otelcol_process_uptime",
+							resolution: 1,
+							start: 1_783_578_599,
+							tags: {
+								"k8s.node.name": "staging-node-1",
+								"service.instance.id": "otel-collector-agent-healthy",
+								"service.name": "otel-collector-agent",
+							},
+						},
+					],
+				} satisfies MetricsResult;
+			}
+			return tabularResult([]);
+		});
+		const client = createAxiomClient({
+			...queryConfig,
+			sdkClient: { query: query as AxiomSdkQueryClient["query"] },
+		});
+
+		const telemetry = await client.getTelemetrySnapshot("15m", {
+			now: new Date("2026-07-09T06:30:00.000Z"),
+		});
+		const metrics = telemetry.signals.filter((signal) => signal.kind === "METRICS");
+
+		expect(metrics).toContainEqual(
+			expect.objectContaining({
+				producer: expect.objectContaining({
+					serviceName: "otel-collector-agent",
+					instanceId: "otel-collector-agent-healthy",
+				}),
+				status: "HEALTHY",
+			}),
+		);
+		expect(metrics).not.toContainEqual(
+			expect.objectContaining({
+				producer: expect.objectContaining({ instanceId: "otel-collector-agent-empty" }),
+			}),
+		);
+		expect(metrics).toContainEqual(
+			expect.objectContaining({
+				producer: expect.objectContaining({
+					serviceName: "otel-collector-gateway",
+					instanceId: null,
+				}),
+				status: "DEGRADED",
+			}),
+		);
 	});
 
 	it("normalizes nanosecond timestamps returned by Axiom tabular events", async () => {

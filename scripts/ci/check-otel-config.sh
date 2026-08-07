@@ -20,10 +20,8 @@ docker_args=(
   --cap-drop=ALL
   --security-opt=no-new-privileges
   --env-file "$env_file"
-  -e K8S_NODE_NAME=127.0.0.1
   -e LANGFUSE_PUBLIC_KEY=pk-lf-ci-validation
   -e LANGFUSE_SECRET_KEY=sk-lf-ci-validation
-  -e OTEL_COLLECTOR_AXIOM_INGEST_TOKEN=xaat-ci-validation
   -e OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT=https://langfuse.example.invalid/api/public/otel
 )
 if [[ -n "${CI_DOCKER_CGROUP_PARENT:-}" ]]; then

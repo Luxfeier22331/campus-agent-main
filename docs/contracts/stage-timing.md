@@ -11,8 +11,8 @@ status: active
 观测摘要、字段由哪个运行时产生，以及诊断、指标与学习闭环如何消费。
 
 它不是 OpenAI Agents SDK trace、Langfuse OTLP payload、Sentry/Axiom/Collector schema 或
-Temporal history。告警阈值由 `configs/runtime/latency-budgets.v1.json` 与
-`configs/runtime/observability-alerts.v1.json` 拥有，不在本文复制。
+Temporal history。单请求耗时预算由 `configs/runtime/latency-budgets.v1.json` 拥有；环境告警的
+查询、阈值和投递由环境仓及所属观测平台拥有，不属于跨运行时合同。
 
 ## 结构
 
@@ -73,7 +73,7 @@ Temporal history。告警阈值由 `configs/runtime/latency-budgets.v1.json` 与
 不得记录浏览器 TTFT。
 
 每个字段都必须被 `configs/runtime/latency-budgets.v1.json` 接受。单次请求可以缺少未运行阶段，
-但版本化预算配置必须覆盖整张字段表。`pnpm contracts:check` 负责校验字段、预算与告警配置。
+但版本化预算配置必须覆盖整张字段表。`pnpm contracts:check` 负责校验字段与预算配置。
 
 跨服务聚合只能发生在 execution-control 或 app-api 的有界投影边界。生产者不得读取原始
 Temporal history 或复制下游 trace 响应来补耗时字段。
@@ -83,15 +83,10 @@ Temporal history 或复制下游 trace 响应来补耗时字段。
 - app-api 将有效 `stage_timing.v1` 写入 request observability fact；
 - Ops Web 与其他受控诊断面可以显示分组耗时和关联入口，不渲染原始 trace tree；
 - 学习闭环可以按固定字段选择耗时异常，不复制 prompt、答案或供应商响应；
-- metric/OTel adapter 可以按固定阶段名生成低基数 histogram；request id、user id、原始 URL、
-  错误与任意工具名不得成为 metric label；
-- app-api 的 `request.stage_timing` event 每个数字字段只发送 `stage_field`、`duration_ms`、
-  budget state 与已允许 correlation 字段。
+- app-api 的 `request.finalized` event 使用相同的固定字段名发送有效耗时，并附带汇总 budget state
+  与已允许 correlation 字段。
 
 未知耗时 key 不得展示或静默接受。未登记的 app-api 耗时字段必须拒绝。
-
-`configs/runtime/observability-alerts.v1.json` 只定义 symptom alert policy，并由 contract tooling
-转换为外部 monitor spec；它不创建 dashboard，也不镜像外部观测正文。
 
 ## 与 Trace 的关系
 
