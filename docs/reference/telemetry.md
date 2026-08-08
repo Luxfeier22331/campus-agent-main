@@ -43,6 +43,13 @@ app-api 与 campus-web edge 使用 `@sentry/cloudflare`；campus-web browser 使
 产品关联字段统一为 `campus.request_id` 和 `campus.trace_id`。它们可以用于 Axiom 关联查询和
 Sentry tag 搜索，不替代 OTel `trace_id`/`span_id` 或 Sentry SDK 的原生 trace ID。
 
+Collector 把准入的结构化日志字段保存到 Axiom `attributes.custom`，并把 Collector 事件的 `body`
+收敛为普通字符串。Cloudflare application logs 走账号级 Axiom destination，保留结构化 `body`，不经过
+Collector；这是另一条活跃日志入口。Ops Web 的日志查询明确同时支持这两条入口：Collector 从
+`attributes.custom` 读取，Cloudflare 从 `body` 读取，再投影为统一的 `event_type`、`status`、`source`、
+`duration_ms`、`error.code`、`campus.request_id` 和 `campus.trace_id`。不得把任一入口称为旧 fallback，
+也不得假设 Cloudflare 字段会出现在 `attributes.custom`。
+
 ### execution-control
 
 `apps/execution-control/internal/httpapi/temporal_step_projection_writer.go` 当前发出：

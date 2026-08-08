@@ -57,11 +57,12 @@ CAS 可能在验证过程中刷新 `SSO_TGC`。Ops Web 保存刷新后的值并�
 都使用检查开始时读取的 `credential_id + version`；检查期间发生轮换或删除时，旧结果标记为
 `stale`，不得覆盖新值。
 
-本周期新产生的 `credential_rejected` 或 `check_failed` 会使 Job 失败；只存在已暂停记录时 Job
-成功。进程为每条实际检查输出 `internal_portal.credential_check` 事件，并为整个 Job 输出
-`internal_portal.check_run` 汇总事件。事件使用 `credential_id` 关联，携带名称快照、失败类型、耗时、
-刷新标志和数量，不记录 TGC、Cookie 或原始错误。CronJob 禁止并发，不在同一 Job 内重试，并保留
-最近 3 个成功 Job 和 1 个失败 Job。
+`valid`、`credential_rejected` 和 `check_failed` 是写入数据库的业务检查结果；`stale` 只表示本次结果
+因版本冲突或记录删除而没有持久化，不会覆盖新状态。四种业务结果都不会使 Job 失败。进程完成一轮
+检查后只输出通用 `internal_portal.check_run` 成功事件；数据库不可用、配置初始化失败或未处理异常
+导致本轮无法完成时，才输出带脱敏失败分类的失败事件并返回非零退出码。
+凭据状态、暂停和下周期重试由数据库记录及 Ops Web 页面表达，不复制到逐凭据日志。CronJob 禁止
+并发，不在同一 Job 内重试，并保留最近 3 个成功 Job 和 1 个失败 Job。
 
 该任务是认证健康检查，不是可承诺续期的保活协议。CAS 若在建会话时返回当前 TGC，Ops Web 会保存
 它；门户仍可按自身策略使 TGC 失效。
