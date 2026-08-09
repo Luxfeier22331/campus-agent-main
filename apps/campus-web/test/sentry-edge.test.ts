@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createCampusEdgeSentryOptions } from "../src/platform/telemetry/sentry-edge";
 
 describe("campus edge Sentry options", () => {
-	it("uses the edge project with bounded collection and production sampling", () => {
+	it("uses the edge project with bounded error collection and no performance transactions", () => {
 		const options = createCampusEdgeSentryOptions({
 			SENTRY_DSN: "https://public@example.ingest.sentry.io/1",
 			DEPLOYMENT_ENVIRONMENT: "production",
@@ -16,11 +16,6 @@ describe("campus edge Sentry options", () => {
 			queryParams: false,
 			userInfo: false,
 		});
-		expect(
-			options?.tracesSampler?.({
-				inheritOrSampleWith: (rate) => rate,
-				name: "/api/chat/requests",
-			}),
-		).toBe(0.02);
+		expect(options?.tracesSampler).toBeUndefined();
 	});
 });

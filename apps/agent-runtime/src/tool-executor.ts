@@ -81,16 +81,15 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 		} catch (error) {
 			throwIfRunAborted(request.signal, error);
 			if (timeoutSignal.aborted) {
-				return timedOutToolResult(request, timeoutSignal);
+				return timedOutToolResult(request);
 			}
 			return failedToolResult(request, "transient_internal_query_failed", {
 				error: "execution-control query request failed",
-				detail: errorMessage(error),
 			});
 		}
 		throwIfRunAborted(request.signal, new Error("Agent run was cancelled during tool execution."));
 		if (timeoutSignal.aborted) {
-			return timedOutToolResult(request, timeoutSignal);
+			return timedOutToolResult(request);
 		}
 		if (response.status >= 300 && response.status < 400) {
 			return failedToolResult(request, "tool_handler_redirected", {
@@ -103,7 +102,7 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 		} catch (error) {
 			throwIfRunAborted(request.signal, error);
 			if (timeoutSignal.aborted) {
-				return timedOutToolResult(request, timeoutSignal);
+				return timedOutToolResult(request);
 			}
 			return failedToolResult(request, "tool_handler_invalid_response", {
 				error: "execution-control query returned invalid JSON",
@@ -111,10 +110,12 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 		}
 		throwIfRunAborted(request.signal, new Error("Agent run was cancelled during tool execution."));
 		if (timeoutSignal.aborted) {
-			return timedOutToolResult(request, timeoutSignal);
+			return timedOutToolResult(request);
 		}
 		if (!response.ok) {
-			return failedToolResult(request, "tool_handler_failed", result);
+			return failedToolResult(request, "tool_handler_failed", {
+				error: "execution-control query failed",
+			});
 		}
 		return {
 			status: "completed",
@@ -127,13 +128,9 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 	};
 }
 
-function timedOutToolResult(
-	request: ToolExecutionRequest,
-	timeoutSignal: AbortSignal,
-): UntimedToolExecutionResult {
+function timedOutToolResult(request: ToolExecutionRequest): UntimedToolExecutionResult {
 	return failedToolResult(request, "transient_internal_query_failed", {
 		error: "execution-control query timed out",
-		detail: errorMessage(timeoutSignal.reason),
 	});
 }
 
@@ -158,10 +155,6 @@ function toolResultRef(request: ToolExecutionRequest): string {
 	return invocation
 		? `agent-runtime://${request.runId}/tools/${request.tool.name}/${encodeURIComponent(invocation)}`
 		: `agent-runtime://${request.runId}/tools/${request.tool.name}`;
-}
-
-function errorMessage(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
 }
 
 function throwIfRunAborted(signal: AbortSignal | undefined, fallback: unknown): void {

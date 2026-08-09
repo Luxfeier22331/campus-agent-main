@@ -30,7 +30,7 @@ func (s *Server) toolReadModelAuthorized(request *http.Request) bool {
 	return subtle.ConstantTimeCompare([]byte(presented), []byte(secret)) == 1
 }
 
-func (s *Server) metricsAuthorized(request *http.Request) bool {
+func (s *Server) opsWebAuthorized(request *http.Request) bool {
 	token := strings.TrimSpace(s.config.OpsWebInternalToken)
 	if token == "" {
 		return s.localRuntimeMode()
@@ -43,7 +43,7 @@ func (s *Server) readinessAuthorized(request *http.Request) bool {
 	if s.localRuntimeMode() {
 		return true
 	}
-	return s.internalWorkerAuthorized(request) || s.metricsAuthorized(request)
+	return s.internalWorkerAuthorized(request) || s.opsWebAuthorized(request)
 }
 
 func (s *Server) localRuntimeMode() bool {

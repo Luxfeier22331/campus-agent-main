@@ -9,7 +9,6 @@ status: active
 
 - 浏览器与 App API：[app-api/README.md](./app-api/README.md)；
 - 工具执行：[tool-execution.md](./tool-execution.md)、[tool-trajectory.md](./tool-trajectory.md)；
-- Temporal 队列诊断：[temporal-queues.md](./temporal-queues.md)；
 - 观测与评测：[langfuse-runtime.md](./langfuse-runtime.md)、
   [stage-timing.md](./stage-timing.md)、[ops-web/README.md](./ops-web/README.md)；
 - 文档来源与静态交付：[document-reader-delivery.md](./document-reader-delivery.md)；

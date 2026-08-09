@@ -9,7 +9,7 @@ status: active
 ## 边界
 
 本文只说明如何检查和排查 campus-agent 对 Hindsight 的使用。组件关系和生命周期见
-[个人记忆架构](../architecture/system/memory-plane.md)，调用链边界见
+[个人记忆架构](../architecture/system/memory-plane.md)，历史 trace 删除边界见
 [Langfuse 架构](../architecture/system/langfuse.md)；环境资源、Secret、Helm values、备份和恢复
 由环境仓维护。
 
@@ -21,8 +21,8 @@ status: active
    所有权见 [Provider 与模型配置](../environment/providers.md)。
 3. 确认 Hindsight 自身的 PostgreSQL、LLM、embedding 和 reranker 配置由环境仓 Helm values
    提供，未从 app-api、Ops Web 或 execution-control 在线模型配置派生。
-4. 确认 execution-control health check 能访问 Hindsight，且失败时不会启用 Qdrant、PostgreSQL
-   profile 注入或供应商抽取记忆。
+4. 使用临时测试用户通过个人记忆接口验证 retain、recall 与删除路径；顶层 `/readyz` 不调用
+   Hindsight，也不能替代业务路径验证。
 
 源码配置存在只证明仓库合同，不证明某个环境已部署或可用。
 
@@ -76,9 +76,9 @@ bootstrap 或 policy 校验失败时，本次 retain、recall 或 profile mutati
 1. app-api 接受 durable command 并进入 `erasing`；
 2. execution-control 递增 generation，拒绝 retired generation 的新调用并等待旧调用排空；
 3. 删除 retired Hindsight bank，并验证 bank 不存在；
-4. 旧 lease 排空且 bank 删除成功后等待 10 分钟，使 Collector 最长重试窗口结束；
+4. 旧 lease 排空且 bank 删除成功后，按 Langfuse 运行合同等待既有 exporter 的有界排空窗口；
 5. 按 command 冻结的产品 user identity 与 `source_updated_at` 上界删除 runtime trace，并按
-   retired bank identity 删除全部 Hindsight trace；每轮删除后等待 5 分钟再复核，最多五轮；
+   retired bank identity 清理历史 Hindsight trace；按运行合同执行有界删除与复核；
 6. 两类查询均收敛为零后，receipt 才允许 app-api 进入 `erased`。
 
 Langfuse 查询、分页、时间边界、等待和失败语义由
@@ -98,7 +98,7 @@ Langfuse 查询、分页、时间边界、等待和失败语义由
 | item 长期 `saving`/`deleting` | app-api outbox、execution-control command admission 和 receipt callback |
 | 账号长期 `erasing` | 代次租约、bank 删除、Langfuse 两类身份的删除与复核 |
 | 已删来源仍被 recall | document identity 是否一致、删除结果和 consolidation 是否完成 |
-| Langfuse 缺少 Hindsight trace | 按 OpenTelemetry 手册检查 Hindsight 发送、Collector 接收和导出 |
+| Langfuse 没有新的 Hindsight trace | 这是当前预期；只在账号清除时查询并清理历史数据 |
 | Axiom 出现记忆正文 | 立即按 OpenTelemetry 手册检查入口、容器日志排除和路由 |
 
 Hindsight 后台 operation 使用其原生诊断能力排查；不要在 campus-agent 增加 operation
@@ -108,7 +108,7 @@ status/list/cancel/retry API 或 reconciliation schedule。
 
 ```bash
 go -C apps/execution-control test ./internal/httpapi ./internal/temporalruntime ./internal/telemetry
-pnpm ci:otel
+scripts/otel/validate-config.sh
 ```
 
 这些检查验证 adapter、workflow 和 Collector 配置，不证明外部环境已收到数据。

@@ -17,7 +17,7 @@
 
 ```bash
 pnpm --filter ingest-core typecheck
-pnpm --filter ingest-core test:ingest
+pnpm --filter ingest-core test
 ```
 
 ## 相关文档

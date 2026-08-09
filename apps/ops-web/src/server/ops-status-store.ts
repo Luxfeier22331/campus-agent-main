@@ -10,7 +10,6 @@ import type {
 import { createPgOpsStatusStore, createPgOpsStatusStoreDatabase } from "./pg-ops-status-store.ts";
 import { resolvePostgresTlsConfig } from "./postgres-tls.ts";
 import { sentryTraceExplorerUrl } from "./sentry-client.ts";
-import { createTemporalTaskQueueSource } from "./temporal-task-queue-client.ts";
 
 export interface OpsRequestListQuery {
 	conversationId?: string;
@@ -27,16 +26,14 @@ export interface OpsRequestListQuery {
 
 export const OPS_REQUEST_PAGE_SIZE = 50;
 
-export type OpsStatusOverview = Pick<
-	OpsOverviewResponse,
-	"externalLinks" | "requests" | "temporal" | "trends"
->;
+export type OpsStatusOverview = Pick<OpsOverviewResponse, "externalLinks" | "requests" | "trends">;
 
 export interface OpsStatusStore {
 	getOverview(window: OpsOverviewWindow): Promise<OpsStatusOverview>;
 	getRequestDetail(requestId: string): Promise<OpsRequestDetailResponse | null>;
 	listRequests(query: OpsRequestListQuery): Promise<OpsRequestListResponse>;
 	verifyReadiness(): Promise<void>;
+	verifySchema(): Promise<void>;
 }
 
 export type OpsStatusStoreUnavailableReasonCode =
@@ -65,7 +62,6 @@ export interface OpsStatusEnv {
 	OPS_WEB_DATABASE_SSLMODE?: string;
 	OPS_WEB_DATABASE_URL?: string;
 	OPS_WEB_INTERNAL_TOKEN?: string;
-	OPS_WEB_EXECUTION_CONTROL_URL?: string;
 	OPS_WEB_LANGFUSE_URL?: string;
 	OPS_WEB_SENTRY_BASE_URL?: string;
 	OPS_WEB_TEMPORAL_UI_URL?: string;
@@ -80,6 +76,7 @@ export interface PgOpsStatusStoreDatabase {
 	listRequests(query: OpsRequestListQuery, since: Date): Promise<OpsRequestRow[]>;
 	summarizeRequests(query: OpsRequestListQuery, since: Date): Promise<OpsRequestSummaryTotals>;
 	verifyReadiness(): Promise<void>;
+	verifySchema(): Promise<void>;
 }
 
 export interface OpsRequestSummaryTotals {
@@ -146,23 +143,6 @@ export interface OpsAgentUsageRow {
 	totalAttemptCount: number | string;
 }
 
-export interface OpsTemporalTaskQueueRow {
-	backlogJson?: unknown;
-	oldestTaskAgeJson?: unknown;
-	pollerCount: number;
-	projectedAt: Date;
-	taskQueue: string;
-	taskQueueKind?: string | null;
-}
-
-export type OpsTemporalTaskQueueResult =
-	| { rows: OpsTemporalTaskQueueRow[]; state: "FRESH" | "STALE" }
-	| { reason: string; rows: []; state: "NOT_CONFIGURED" | "UNAVAILABLE" };
-
-export interface OpsTemporalTaskQueueSource {
-	getTaskQueues(): Promise<OpsTemporalTaskQueueResult>;
-}
-
 export function createUnavailableOpsStatusStore(
 	reasonCode: OpsStatusStoreUnavailableReasonCode,
 	message: string,
@@ -175,6 +155,7 @@ export function createUnavailableOpsStatusStore(
 		getRequestDetail: fail,
 		listRequests: fail,
 		verifyReadiness: fail,
+		verifySchema: fail,
 	};
 }
 
@@ -196,10 +177,6 @@ export function createOpsStatusStoreFromEnv(env: OpsStatusEnv = process.env): Op
 	return createPgOpsStatusStore({
 		db: createPgOpsStatusStoreDatabase(databaseConfig.connectionString, {
 			ssl: databaseConfig.ssl,
-		}),
-		temporalTaskQueues: createTemporalTaskQueueSource({
-			baseUrl: env.OPS_WEB_EXECUTION_CONTROL_URL ?? "",
-			bearerToken: env.OPS_WEB_INTERNAL_TOKEN ?? "",
 		}),
 		observabilityLinks: {
 			axiom: env.OPS_WEB_AXIOM_URL,

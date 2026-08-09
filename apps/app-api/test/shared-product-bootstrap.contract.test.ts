@@ -25,12 +25,10 @@ describe("app-api shared product bootstrap contracts", () => {
 		expect(packageJson.scripts["db:print-auth-migration"]).toBeUndefined();
 		expect(packageJson.scripts["db:reconcile-shared-drift"]).toBeUndefined();
 		expect(packageJson.scripts["official-web:drain-projection"]).toBeUndefined();
-		expect(packageJson.scripts.test).toBe("pnpm run test:node");
+		expect(packageJson.scripts.test).toBe("pnpm run test:node:fast && pnpm run test:node:isolated");
 		expect(existsSync(join(appRoot, "scripts/run-node-tests.mjs"))).toBe(false);
 		expect(packageJson.scripts["test:all"]).toBeUndefined();
-		expect(packageJson.scripts["test:node"]).toBe(
-			"pnpm run test:node:fast && pnpm run test:node:isolated",
-		);
+		expect(packageJson.scripts["test:node"]).toBeUndefined();
 		expect(packageJson.scripts["test:node:fast"]).toContain("vitest.node-fast.config.mts");
 		expect(packageJson.scripts["test:node:isolated"]).toContain("vitest.node-isolated.config.mts");
 		expect(packageJson.scripts["test:worker"]).toContain("vitest.worker.config.mts");
@@ -119,7 +117,7 @@ describe("app-api shared product bootstrap contracts", () => {
 		expect(readme).toContain("jobs/app-api-schema/README.md");
 		expect(readme).toContain("docs/runbooks/release.md");
 		expect(readme).toContain("`ops/db/`");
-		expect(readme).toContain("test:node");
+		expect(readme).toContain("pnpm --dir apps/app-api test");
 		expect(readme).toContain("test:worker");
 		expect(readme).toContain("test:shared-db-integration");
 	});

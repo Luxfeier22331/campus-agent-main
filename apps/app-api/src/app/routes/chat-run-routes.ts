@@ -2,7 +2,7 @@ import type { Hono } from "hono";
 
 import type { Env } from "../../config";
 import { AppApiRouteError, jsonResponse } from "../../http";
-import type { ChatCommandStreamEvent } from "../../modules/runtime-command";
+import { type ChatCommandStreamEvent, publicExecutionFailure } from "../../modules/runtime-command";
 import type { RuntimeRunEventProjection, RuntimeRunSummary } from "../../modules/runtime-run";
 import { requireSessionPrincipal } from "../principal";
 import { createRouteErrorCorrelation, readJsonRequestBody } from "../request-utils";
@@ -246,20 +246,17 @@ function toChatRunResumeStreamEvent(input: {
 	}
 	if (input.event.eventType === "run.failed" || input.event.eventType === "run.expired") {
 		const terminalError = getPayloadRecordValue(input.event.payload, "error");
+		const errorCode =
+			(terminalError ? getStringPayloadValue(terminalError, "code") : null) ??
+			getStringPayloadValue(input.event.payload, "code") ??
+			(input.event.eventType === "run.expired" ? "run_expired" : "run_failed");
+		const failure = publicExecutionFailure({ errorCode, status: "error" });
 		return {
 			data: {
 				...baseData,
 				error: {
-					code:
-						(terminalError ? getStringPayloadValue(terminalError, "code") : null) ??
-						getStringPayloadValue(input.event.payload, "code") ??
-						(input.event.eventType === "run.expired" ? "run_expired" : "run_failed"),
-					message:
-						(terminalError ? getStringPayloadValue(terminalError, "message") : null) ??
-						getStringPayloadValue(input.event.payload, "message") ??
-						(input.event.eventType === "run.expired"
-							? "The request expired before it completed."
-							: "The request failed before it completed."),
+					code: failure.errorCode,
+					message: failure.message,
 					retryable:
 						(terminalError ? getBooleanPayloadValue(terminalError, "retryable") : null) ??
 						getBooleanPayloadValue(input.event.payload, "retryable") ??

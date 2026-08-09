@@ -13,8 +13,8 @@ Kubernetes/GitOps 之外维护第二套 staging 生命周期。
 
 产品页面本地开发使用 worktree profile 和应用本地托管环境文件，不读取根 `.env`。仓库只生成 loopback 数据库凭据和应用本地随机 secret；Provider、Qdrant、Temporal、Hindsight 与其他外部凭据仍由开发者进程环境显式提供。
 
-默认 compose 使用 debug OTel Collector。只有验证外部 fan-out 时加入
-`docker-compose.execution-runtime.fanout.yml`，需要本地 Langfuse 时再启动对应 compose。
+默认 compose 使用 debug OTel Collector。只有验证本地 Agent trace 到 Langfuse 的转发时加入
+`docker-compose.execution-runtime.langfuse.yml`。
 
 ## Worker 检查
 

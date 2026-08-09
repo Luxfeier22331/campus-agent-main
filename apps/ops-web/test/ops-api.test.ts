@@ -9,31 +9,19 @@ import { createAllowAllOpsAdmission } from "../src/server/ops-admission";
 import { createOpsOverviewService } from "../src/server/ops-overview-service";
 import { createFixtureOpsStatusStore } from "../src/server/ops-status-store";
 import { SentryUnavailableError } from "../src/server/sentry-client";
-import {
-	opsLogObservabilityFixture,
-	opsOverviewFixture,
-	opsSentryIssuesFixture,
-	opsTraceObservabilityFixture,
-} from "../src/shared/ops-fixtures";
+import { opsLogObservabilityFixture, opsSentryIssuesFixture } from "../src/shared/ops-fixtures";
 
 function createTestApp(options?: { queryFails?: boolean; sentryFails?: boolean }) {
 	const baseStore = createFixtureOpsStatusStore();
 	const store = baseStore;
 	const queryRequest = options?.queryFails
 		? vi.fn().mockRejectedValue(new AxiomUnavailableError("partial result"))
-		: vi.fn(async (input: { kind: "logs" | "trace" }) =>
-				input.kind === "logs" ? opsLogObservabilityFixture : opsTraceObservabilityFixture,
-			);
+		: vi.fn(async () => opsLogObservabilityFixture);
 	const axiom = {
-		getTelemetrySnapshot: vi.fn().mockResolvedValue(opsOverviewFixture.telemetry),
 		queryRequest,
 	};
 	const overviewService = createOpsOverviewService({
 		now: () => new Date("2026-07-09T06:30:00.000Z"),
-		signals: {
-			getServices: vi.fn().mockResolvedValue(opsOverviewFixture.services),
-			getTelemetry: vi.fn().mockResolvedValue(opsOverviewFixture.telemetry),
-		},
 		store,
 	});
 	const queryRequestIssues = options?.sentryFails
@@ -231,17 +219,16 @@ describe("ops API", () => {
 		expect(queryRequest).not.toHaveBeenCalled();
 	});
 
-	it("queries fixed Axiom records by the stored request identity", async () => {
+	it("queries fixed Axiom logs by the stored request identity", async () => {
 		const { app, queryRequest } = createTestApp();
-		const response = await app.request("/api/ops/requests/req_ops_001/observability?kind=trace");
+		const response = await app.request("/api/ops/requests/req_ops_001/observability?kind=logs");
 
 		expect(response.status).toBe(200);
 		expect(queryRequest).toHaveBeenCalledWith(
 			expect.objectContaining({
-				kind: "trace",
+				kind: "logs",
 				requestId: "req_ops_001",
 				signal: expect.any(AbortSignal),
-				traceId: "trace_ops_001",
 			}),
 		);
 		await expect(response.json()).resolves.toMatchObject({ source: "AXIOM" });
@@ -270,7 +257,6 @@ describe("ops API", () => {
 		expect(queryRequestIssues).toHaveBeenCalledWith(
 			expect.objectContaining({
 				requestId: "req_ops_001",
-				traceId: "trace_ops_001",
 			}),
 		);
 		await expect(response.json()).resolves.toMatchObject({ source: "SENTRY" });

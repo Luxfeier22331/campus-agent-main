@@ -16,7 +16,7 @@ Config 推导评测配置。
 
 ```bash
 pnpm --dir packages/eval-langfuse typecheck
-pnpm --dir packages/eval-langfuse test:eval
+pnpm --dir packages/eval-langfuse test
 pnpm --dir packages/eval-langfuse exec tsx src/cli.ts <command> --json
 ```
 

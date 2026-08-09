@@ -55,7 +55,7 @@ Better Auth 官方 Drizzle adapter schema 更新 `auth.ts`，再使用 Drizzle K
 schema 后运行
 `pnpm --dir apps/app-api db:generate` 生成下一条 migration，并用
 `pnpm --dir apps/app-api db:check` 检查 journal 与 snapshot；
-不得修改已应用 SQL。提交 PR 前运行 `pnpm ci:app-api-migration`，同时覆盖历史升级、空数据库、
+不得修改已应用 SQL。提交 PR 前运行 `pnpm --dir apps/app-api test:migration-integration`，同时覆盖历史升级、空数据库、
 未知部分状态和 migration hash 校验。
 Better Auth 核心运行时要求 `DEPLOYMENT_ENVIRONMENT`、`BETTER_AUTH_SECRET`、`AUTH_SHELL_ORIGIN` 和
 `AUTH_TURNSTILE_SECRET_KEY`；`APP_API_SAFETY_IDENTIFIER_HMAC_SECRET` 是聊天准入和就绪检查的核心
@@ -79,10 +79,9 @@ pnpm install
 pnpm dev:init
 pnpm --dir apps/app-api dev
 pnpm --dir apps/app-api test
-pnpm --dir apps/app-api test:node
 pnpm --dir apps/app-api test:worker
 pnpm --dir apps/app-api test:shared-db-integration
-pnpm ci:app-api-migration
+pnpm --dir apps/app-api test:migration-integration
 pnpm --dir apps/app-api typecheck
 ```
 

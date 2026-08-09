@@ -39,7 +39,7 @@ describe("file-release attachment downloader", () => {
 				},
 				attachmentUrl: "/files/missing.pdf",
 			}),
-		).rejects.toThrow("downloadAttachment failed: 404 Not Found");
+		).rejects.toThrow("Internal portal attachment download request failed.");
 	});
 });
 

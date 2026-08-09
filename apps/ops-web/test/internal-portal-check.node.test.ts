@@ -16,12 +16,7 @@ vi.mock("../src/server/internal-portal-credential-store.ts", async () => ({
 	createInternalPortalCredentialStoreFromEnv: createStore,
 }));
 
-import {
-	buildCheckRunEvent,
-	buildCheckRunFailureEvent,
-	main,
-	runCli,
-} from "../src/server/internal-portal-check.ts";
+import { buildCheckRunFailureEvent, main, runCli } from "../src/server/internal-portal-check.ts";
 import { InternalPortalCredentialStoreUnavailableError } from "../src/server/internal-portal-credential-store.ts";
 
 describe("internal portal scheduled check telemetry", () => {
@@ -36,38 +31,15 @@ describe("internal portal scheduled check telemetry", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("emits one generic success event after persisted check outcomes", () => {
-		expect(buildCheckRunEvent(75)).toEqual({
-			duration_ms: 75,
-			event_type: "internal_portal.check_run",
-			level: "info",
-			status: "succeeded",
-		});
-	});
-
-	it.each([
-		"valid",
-		"credential_rejected",
-		"check_failed",
-		"stale",
-	] as const)("keeps business outcome %s out of process failure state", async (outcome) => {
-		const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
-		runChecks.mockResolvedValue({
-			checks: [{ outcome }],
-			suspended: [],
-		});
+	it("runs scheduled checks without recurring success telemetry", async () => {
+		runChecks.mockResolvedValue({ checks: [], suspended: [] });
 
 		await main();
 
 		expect(process.exitCode).toBeUndefined();
-		expect(log).toHaveBeenCalledOnce();
-		const serialized = String(log.mock.calls[0]?.[0]);
-		expect(JSON.parse(serialized)).toMatchObject({
-			event_type: "internal_portal.check_run",
-			level: "info",
-			status: "succeeded",
+		expect(runChecks).toHaveBeenCalledWith({
+			store: expect.anything(),
 		});
-		expect(serialized).not.toContain(outcome);
 	});
 
 	it("propagates scheduled-check errors to the CLI failure boundary", async () => {

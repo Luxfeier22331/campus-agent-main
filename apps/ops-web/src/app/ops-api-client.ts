@@ -474,7 +474,7 @@ export async function fetchOpsOverview(
 
 export async function fetchOpsObservability(
 	requestId: string,
-	kind: "logs" | "trace",
+	kind: "logs",
 	input: { signal?: AbortSignal } = {},
 ) {
 	const query = new URLSearchParams({ kind });

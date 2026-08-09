@@ -12,14 +12,6 @@ const DEFAULT_TIMEOUT_MS = 3_000;
 const FRESH_CACHE_MS = 15_000;
 const STALE_CACHE_MS = 5 * 60_000;
 
-export interface OpsRuntimeSignalsSource {
-	getServices(input?: { signal?: AbortSignal }): Promise<OpsOverviewResponse["services"]>;
-	getTelemetry(
-		window: OpsOverviewWindow,
-		input?: { signal?: AbortSignal },
-	): Promise<OpsOverviewResponse["telemetry"]>;
-}
-
 export interface OpsOverviewService {
 	getOverview(
 		window: OpsOverviewWindow,
@@ -41,7 +33,6 @@ interface ResolvedSource<T> {
 export function createOpsOverviewService(input: {
 	cacheTtlMs?: number;
 	now?: () => Date;
-	signals: OpsRuntimeSignalsSource;
 	staleTtlMs?: number;
 	store: Pick<OpsStatusStore, "getOverview">;
 	timeoutMs?: number;
@@ -52,14 +43,7 @@ export function createOpsOverviewService(input: {
 	const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 	const responseCache = new Map<OpsOverviewWindow, OpsOverviewResponse>();
 	const statusCache = new Map<OpsOverviewWindow, SourceCache<OpsStatusOverview>>();
-	const telemetryCache = new Map<
-		OpsOverviewWindow,
-		SourceCache<OpsOverviewResponse["telemetry"]>
-	>();
-	let servicesCache: SourceCache<OpsOverviewResponse["services"]> | null = null;
 	const statusFlights = new Map<OpsOverviewWindow, Promise<OpsStatusOverview>>();
-	const telemetryFlights = new Map<OpsOverviewWindow, Promise<OpsOverviewResponse["telemetry"]>>();
-	let servicesFlight: Promise<OpsOverviewResponse["services"]> | null = null;
 
 	return {
 		async getOverview(window, queryInput = {}) {
@@ -76,20 +60,10 @@ export function createOpsOverviewService(input: {
 			const statusPromise = singleFlight(statusFlights, window, () =>
 				withTimeout(() => input.store.getOverview(window), timeoutMs),
 			);
-			servicesFlight ??= withTimeout(
-				(signal) => input.signals.getServices({ signal }),
-				timeoutMs,
-			).finally(() => {
-				servicesFlight = null;
-			});
-			const telemetryPromise = singleFlight(telemetryFlights, window, () =>
-				withTimeout((signal) => input.signals.getTelemetry(window, { signal }), timeoutMs),
-			);
-			const results = await raceWithSignal(
-				Promise.allSettled([statusPromise, servicesFlight, telemetryPromise]),
+			const [statusResult] = await raceWithSignal(
+				Promise.allSettled([statusPromise]),
 				queryInput.signal,
 			);
-			const [statusResult, servicesResult, telemetryResult] = results;
 			const status = resolveSource({
 				cache: statusCache.get(window),
 				fallback: unavailableStatusOverview,
@@ -98,55 +72,25 @@ export function createOpsOverviewService(input: {
 				result: statusResult,
 				staleTtlMs,
 			});
-			const services = resolveSource({
-				cache: servicesCache,
-				fallback: () => [],
-				markStale: markServicesStale,
-				nowMs: requestedAtMs,
-				result: servicesResult,
-				staleTtlMs,
-			});
-			const telemetry = resolveSource({
-				cache: telemetryCache.get(window),
-				fallback: unavailableTelemetry,
-				markStale: markTelemetryStale,
-				nowMs: requestedAtMs,
-				result: telemetryResult,
-				staleTtlMs,
-			});
 
 			if (statusResult.status === "fulfilled") {
 				statusCache.set(window, { storedAt: requestedAtMs, value: statusResult.value });
 			}
-			if (servicesResult.status === "fulfilled") {
-				servicesCache = { storedAt: requestedAtMs, value: servicesResult.value };
-			}
-			if (telemetryResult.status === "fulfilled") {
-				telemetryCache.set(window, { storedAt: requestedAtMs, value: telemetryResult.value });
-			}
 
-			const issues = collectIssues(status.value, services.value);
 			const response = OpsOverviewResponseSchema.parse({
 				cache: {
-					ageMs: Math.max(status.ageMs, services.ageMs, telemetry.ageMs),
-					status: status.stale || services.stale || telemetry.stale ? "STALE" : "FRESH",
+					ageMs: status.ageMs,
+					status: status.stale ? "STALE" : "FRESH",
 				},
 				externalLinks: status.value.externalLinks,
 				generatedAt: requestedAt.toISOString(),
-				health: summarizeHealth(status.value, services.value),
-				issues,
+				health: summarizeHealth(status.value),
+				issues: collectIssues(status.value),
 				requests: status.value.requests,
-				services: services.value,
-				telemetry: telemetry.value,
-				temporal: status.value.temporal,
 				trends: status.value.trends,
 				window,
 			});
-			if (
-				statusResult.status === "fulfilled" &&
-				servicesResult.status === "fulfilled" &&
-				telemetryResult.status === "fulfilled"
-			) {
+			if (statusResult.status === "fulfilled") {
 				responseCache.set(window, response);
 			}
 			return response;
@@ -172,10 +116,7 @@ function resolveSource<T>(input: {
 	return { ageMs: 0, stale: false, value: input.fallback() };
 }
 
-function collectIssues(
-	status: OpsStatusOverview,
-	services: OpsOverviewResponse["services"],
-): OpsOverviewResponse["issues"] {
+function collectIssues(status: OpsStatusOverview): OpsOverviewResponse["issues"] {
 	const issues: OpsOverviewResponse["issues"] = [];
 	if (status.requests.dataState === "UNAVAILABLE" || status.requests.dataState === "STALE") {
 		issues.push({
@@ -194,59 +135,31 @@ function collectIssues(
 			title: status.requests.status === "OUTAGE" ? "请求大面积失败" : "存在失败请求",
 		});
 	}
-	const temporalNotConfigured =
-		status.temporal.dataState === "NO_DATA" && status.temporal.queues.length === 0;
-	if (!temporalNotConfigured && status.temporal.status !== "HEALTHY") {
+	if (status.trends.dataState === "UNAVAILABLE" || status.trends.dataState === "STALE") {
 		issues.push({
-			code: `TEMPORAL_${status.temporal.dataState}_${status.temporal.status}`,
-			detail: status.temporal.reason ?? "Temporal 队列状态不可用。",
-			severity: status.temporal.status === "OUTAGE" ? "CRITICAL" : "WARNING",
-			source: "TEMPORAL",
-			title: "Temporal 队列需要处理",
-		});
-	}
-	for (const service of services) {
-		if (service.status === "HEALTHY") {
-			continue;
-		}
-		issues.push({
-			code: `SERVICE_${service.name.replaceAll("-", "_").toUpperCase()}_${service.status}`,
-			detail: service.reason ?? `${service.displayName} 状态不可用。`,
-			severity: service.status === "OUTAGE" ? "CRITICAL" : "WARNING",
-			source: "SERVICE",
-			title: `${service.displayName}状态异常`,
+			code: `REQUEST_TRENDS_${status.trends.dataState}`,
+			detail: status.trends.reason ?? "请求趋势数据不可用。",
+			severity: "WARNING",
+			source: "REQUESTS",
+			title: "请求趋势数据需要检查",
 		});
 	}
 	const severityOrder = { CRITICAL: 0, WARNING: 1, INFO: 2 } as const;
-	return [
-		...new Map(issues.map((issue) => [`${issue.source}:${issue.code}`, issue])).values(),
-	].sort((left, right) => severityOrder[left.severity] - severityOrder[right.severity]);
+	return issues.sort((left, right) => severityOrder[left.severity] - severityOrder[right.severity]);
 }
 
-function summarizeHealth(
-	status: OpsStatusOverview,
-	services: OpsOverviewResponse["services"],
-): OpsOverviewResponse["health"] {
-	const sources = [
-		...(status.requests.dataState === "NO_DATA" ? [] : [status.requests]),
-		...(status.temporal.dataState === "NO_DATA" && status.temporal.queues.length === 0
-			? []
-			: [status.temporal]),
-		...services,
-	];
-	const statuses = sources.map((source) => source.status);
-	let healthStatus: OpsHealthStatus;
-	if (statuses.some((value) => value === "OUTAGE")) {
-		healthStatus = "OUTAGE";
-	} else if (statuses.some((value) => value === "DEGRADED")) {
-		healthStatus = "DEGRADED";
-	} else if (statuses.some((value) => value === "UNKNOWN")) {
-		healthStatus = "UNKNOWN";
-	} else {
-		healthStatus = "HEALTHY";
-	}
+function summarizeHealth(status: OpsStatusOverview): OpsOverviewResponse["health"] {
+	const requestStatus = status.requests.status;
+	const healthStatus: OpsHealthStatus =
+		requestStatus === "OUTAGE"
+			? "OUTAGE"
+			: requestStatus === "DEGRADED"
+				? "DEGRADED"
+				: requestStatus === "UNKNOWN"
+					? "UNKNOWN"
+					: "HEALTHY";
 	return {
-		dataState: aggregateDataState(sources.map((source) => source.dataState)),
+		dataState: aggregateDataState([status.requests.dataState, status.trends.dataState]),
 		status: healthStatus,
 	};
 }
@@ -285,7 +198,6 @@ function unavailableStatusOverview(): OpsStatusOverview {
 			total: 0,
 			updatedAt: null,
 		},
-		temporal: unavailableTemporal("Temporal 队列查询不可用。"),
 		trends: {
 			data: [],
 			dataState: "UNAVAILABLE",
@@ -294,59 +206,14 @@ function unavailableStatusOverview(): OpsStatusOverview {
 	};
 }
 
-function unavailableTemporal(reason: string): OpsOverviewResponse["temporal"] {
-	return {
-		backlogCount: 0,
-		dataState: "UNAVAILABLE",
-		oldestTaskAgeMs: null,
-		pollerCount: 0,
-		queues: [],
-		reason,
-		status: "UNKNOWN",
-		updatedAt: null,
-	};
-}
-
-function unavailableTelemetry(): OpsOverviewResponse["telemetry"] {
-	return {
-		dataState: "UNAVAILABLE",
-		reason: "Axiom 查询不可用。",
-		signals: [],
-		status: "UNKNOWN",
-		updatedAt: null,
-	};
-}
-
 function markStatusStale(value: OpsStatusOverview): OpsStatusOverview {
 	return {
 		...value,
 		requests: { ...value.requests, dataState: "STALE", reason: "请求状态刷新失败，显示旧数据。" },
-		temporal: { ...value.temporal, dataState: "STALE", reason: "Temporal 刷新失败，显示旧数据。" },
 		trends:
 			value.trends.dataState === "UNAVAILABLE"
 				? value.trends
 				: { ...value.trends, dataState: "STALE", reason: "请求趋势刷新失败，显示旧数据。" },
-	};
-}
-
-function markServicesStale(
-	value: OpsOverviewResponse["services"],
-): OpsOverviewResponse["services"] {
-	return value.map((service) => ({
-		...service,
-		dataState: "STALE",
-		reason: "服务探针刷新失败，显示旧数据。",
-	}));
-}
-
-function markTelemetryStale(
-	value: OpsOverviewResponse["telemetry"],
-): OpsOverviewResponse["telemetry"] {
-	return {
-		...value,
-		dataState: "STALE",
-		reason: "观测覆盖刷新失败，显示旧数据。",
-		signals: value.signals.map((signal) => ({ ...signal, dataState: "STALE" })),
 	};
 }
 
@@ -368,10 +235,7 @@ function singleFlight<K, T>(
 	return promise;
 }
 
-function withTimeout<T>(
-	operation: (signal: AbortSignal) => Promise<T>,
-	timeoutMs: number,
-): Promise<T> {
+function withTimeout<T>(operation: () => Promise<T>, timeoutMs: number): Promise<T> {
 	const controller = new AbortController();
 	const timeout = setTimeout(
 		() => controller.abort(new Error("ops overview source timed out")),
@@ -379,7 +243,7 @@ function withTimeout<T>(
 	);
 	let promise: Promise<T>;
 	try {
-		promise = operation(controller.signal);
+		promise = operation();
 	} catch (error) {
 		clearTimeout(timeout);
 		return Promise.reject(error);

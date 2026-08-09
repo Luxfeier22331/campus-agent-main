@@ -112,7 +112,6 @@ type StarterOptions struct {
 	Address                  string
 	Namespace                string
 	TaskQueue                string
-	Tracing                  TracingOptions
 	WorkerID                 string
 	StartTimeout             time.Duration
 	WorkflowExecutionTimeout time.Duration
@@ -141,14 +140,10 @@ func NewStarter(_ context.Context, options StarterOptions) (*Starter, error) {
 	if address == "" || namespace == "" {
 		return nil, ErrTemporalStarterNotConfigured
 	}
-	tracing, err := NewTracingInterceptors(options.Tracing)
-	if err != nil {
-		return nil, err
-	}
-	clientOptions := ApplyTracingToClientOptions(client.Options{
+	clientOptions := client.Options{
 		HostPort:  address,
 		Namespace: namespace,
-	}, tracing)
+	}
 	temporalClient, err := client.NewLazyClient(clientOptions)
 	if err != nil {
 		return nil, err
@@ -595,7 +590,6 @@ type WorkerOptions struct {
 	Namespace              string
 	WorkflowQueue          string
 	CoreQueue              string
-	Tracing                TracingOptions
 	WorkerID               string
 	ContextActivities      ContextActivities
 	AgentActivities        AgentActivities
@@ -679,15 +673,11 @@ func NewWorkerRuntime(ctx context.Context, options WorkerOptions) (*WorkerRuntim
 	if options.FinalizationActivities == nil {
 		return nil, errors.New("temporal finalization activities are required")
 	}
-	tracing, err := NewTracingInterceptors(options.Tracing)
-	if err != nil {
-		return nil, err
-	}
-	clientOptions := ApplyTracingToClientOptions(client.Options{
+	clientOptions := client.Options{
 		HostPort:  address,
 		Namespace: namespace,
 		Identity:  strings.TrimSpace(options.WorkerID),
-	}, tracing)
+	}
 	temporalClient, err := client.DialContext(ctx, clientOptions)
 	if err != nil {
 		return nil, err
@@ -700,20 +690,20 @@ func NewWorkerRuntime(ctx context.Context, options WorkerOptions) (*WorkerRuntim
 	if coreQueue == "" {
 		coreQueue = ActivityTaskQueueCore
 	}
-	tracingWorkerOptions := ApplyTracingToWorkerOptions(worker.Options{}, tracing)
-	workflowWorker := NewWorkflowWorkerWithOptions(temporalClient, workflowQueue, tracingWorkerOptions)
+	workerOptions := worker.Options{}
+	workflowWorker := NewWorkflowWorkerWithOptions(temporalClient, workflowQueue, workerOptions)
 	coreWorker := NewCoreActivityWorkerWithOptions(
 		temporalClient,
 		coreQueue,
 		options.ContextActivities,
 		options.FinalizationActivities,
-		tracingWorkerOptions,
+		workerOptions,
 	)
 	agentWorker := NewAgentActivityWorkerWithOptions(
 		temporalClient,
 		ActivityTaskQueueAgent,
 		options.AgentActivities,
-		tracingWorkerOptions,
+		workerOptions,
 	)
 	return &WorkerRuntime{
 		client: temporalClient,
@@ -812,6 +802,7 @@ func NewCoreActivityWorkerWithOptions(
 	if coreQueue == "" {
 		coreQueue = ActivityTaskQueueCore
 	}
+	options.Interceptors = append(options.Interceptors, &ActivityFailureSanitizer{})
 	coreWorker := worker.New(temporalClient, coreQueue, options)
 	coreWorker.RegisterActivityWithOptions(
 		contextActivities.AppendConversationMemoryActivity,
@@ -866,6 +857,7 @@ func NewAgentActivityWorkerWithOptions(
 	if agentQueue == "" {
 		agentQueue = ActivityTaskQueueAgent
 	}
+	options.Interceptors = append(options.Interceptors, &ActivityFailureSanitizer{})
 	agentWorker := worker.New(temporalClient, agentQueue, options)
 	agentWorker.RegisterActivityWithOptions(
 		activities.PrepareGroundingContextActivity,

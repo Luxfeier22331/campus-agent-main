@@ -18,7 +18,6 @@ import type {
 	OpsRequestRow,
 	OpsRequestTrendRow,
 	OpsStatusStore,
-	OpsTemporalTaskQueueSource,
 	PgOpsStatusStoreDatabase,
 } from "./ops-status-store.ts";
 import { OPS_REQUEST_PAGE_SIZE } from "./ops-status-store.ts";
@@ -30,7 +29,6 @@ import {
 	requestSql,
 	summarizeStatusCounts,
 } from "./pg-request-query.ts";
-import { summarizeTemporalTaskQueues } from "./pg-runtime-summary.ts";
 import type { PostgresSslConfig } from "./postgres-tls.ts";
 import { logOpsError } from "./safe-logging.ts";
 
@@ -49,38 +47,24 @@ export function createPgOpsStatusStore(input: {
 		temporal?: string;
 	};
 	campusWebPublicOrigin?: string;
-	temporalTaskQueues?: OpsTemporalTaskQueueSource;
 }): OpsStatusStore {
 	const now = input.now ?? (() => new Date());
-	const temporalTaskQueues = input.temporalTaskQueues ?? {
-		getTaskQueues: async () => ({
-			reason: "Temporal 队列查询未配置。",
-			rows: [] as [],
-			state: "NOT_CONFIGURED" as const,
-		}),
-	};
 
 	return {
 		async getOverview(window) {
 			const current = now();
 			const since = subtractWindow(current, window);
-			const [requestsResult, trendsResult, taskQueuesResult] = await Promise.allSettled([
+			const [requestsResult, trendsResult] = await Promise.allSettled([
 				input.db.getRequestOverview(since),
 				input.db.getRequestTrends(since, trendBucketMinutes(window)),
-				temporalTaskQueues.getTaskQueues(),
 			]);
 			const requestOverview =
 				requestsResult.status === "fulfilled"
 					? toRequestOverview(requestsResult.value)
 					: unavailableRequestOverview();
-			const temporal =
-				taskQueuesResult.status === "fulfilled"
-					? summarizeTemporalTaskQueues(taskQueuesResult.value, current)
-					: unavailableTemporalOverview();
 			return {
 				externalLinks: normalizeOverviewLinks(input.observabilityLinks),
 				requests: requestOverview,
-				temporal,
 				trends: toRequestTrends(trendsResult),
 			};
 		},
@@ -143,6 +127,9 @@ export function createPgOpsStatusStore(input: {
 		async verifyReadiness() {
 			await input.db.verifyReadiness();
 		},
+		async verifySchema() {
+			await input.db.verifySchema();
+		},
 	};
 }
 
@@ -166,7 +153,7 @@ export function createPgOpsStatusStoreDatabase(
 		ssl: options.ssl,
 		statement_timeout: options.statementTimeoutMs ?? DEFAULT_STATEMENT_TIMEOUT_MS,
 	});
-	pool.on("error", (error) => logOpsError("postgres pool error", error, { source: "requests" }));
+	pool.on("error", (error) => logOpsError("ops_web.postgres_pool", error, { source: "requests" }));
 
 	return {
 		async getAgentUsages(runIds) {
@@ -279,6 +266,11 @@ export function createPgOpsStatusStoreDatabase(
 		},
 		async verifyReadiness() {
 			return classifyDbError(async () => {
+				await pool.query("select 1");
+			});
+		},
+		async verifySchema() {
+			return classifyDbError(async () => {
 				await Promise.all([
 					pool.query(requestSql("limit 0")),
 					pool.query(requestDetailSql("limit 0")),
@@ -385,19 +377,6 @@ function unavailableRequestOverview(): OpsOverviewResponse["requests"] {
 		status: "UNKNOWN",
 		successRate: null,
 		total: 0,
-		updatedAt: null,
-	};
-}
-
-function unavailableTemporalOverview(): OpsOverviewResponse["temporal"] {
-	return {
-		backlogCount: 0,
-		dataState: "UNAVAILABLE",
-		oldestTaskAgeMs: null,
-		pollerCount: 0,
-		queues: [],
-		reason: "Temporal 队列查询不可用。",
-		status: "UNKNOWN",
 		updatedAt: null,
 	};
 }

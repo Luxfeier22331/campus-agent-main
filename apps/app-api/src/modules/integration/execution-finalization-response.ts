@@ -1,4 +1,8 @@
 import {
+	EXECUTION_CONTROL_FAILURE_MESSAGE,
+	isSafeExecutionControlErrorCode,
+} from "./execution-control-transport";
+import {
 	EXECUTION_FINALIZATION_CONFIDENCE_LEVELS,
 	EXECUTION_FINALIZATION_STATUSES,
 	type ExecutionFinalizationResponseWire,
@@ -157,6 +161,7 @@ function assertExecutionFinalizationResponseWire(
 				error &&
 				typeof error.code === "string" &&
 				error.code.trim() &&
+				isSafeExecutionControlErrorCode(error.code) &&
 				typeof error.message === "string" &&
 				error.message.trim() &&
 				typeof error.retryable === "boolean"
@@ -421,8 +426,8 @@ export function parseExecutionFinalizationResponsePayload(
 		error:
 			parsed.error && typeof parsed.error === "object"
 				? {
-						code: (parsed.error as { code: string }).code,
-						message: (parsed.error as { message: string }).message,
+						code: (parsed.error as { code: string }).code.trim(),
+						message: EXECUTION_CONTROL_FAILURE_MESSAGE,
 						retryable: (parsed.error as { retryable: boolean }).retryable,
 					}
 				: null,

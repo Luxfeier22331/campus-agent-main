@@ -6,6 +6,7 @@ import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { parseExecutionFinalizationResponsePayload } from "../src/modules/integration/execution-control";
+import { parseExecutionTerminalResponse } from "../src/modules/runtime-command/service/stream";
 
 const fixtureDir = resolve(
 	process.cwd(),
@@ -85,10 +86,15 @@ describe("execution finalization canonical response fixtures", () => {
 			error: { code: "execution_cancelled", retryable: false },
 			status: "cancelled",
 		});
-		expect(
-			parseExecutionFinalizationResponsePayload(loadFixture("response_timeout.valid.json")),
-		).toMatchObject({
-			error: { code: "execution_timeout", retryable: true },
+		const timeout = loadFixture("response_timeout.valid.json");
+		(timeout.error as Record<string, unknown>).message =
+			"postgres://runtime:secret@db.internal/runtime";
+		expect(parseExecutionFinalizationResponsePayload(timeout)).toMatchObject({
+			error: {
+				code: "execution_timeout",
+				message: "Execution-control request failed.",
+				retryable: true,
+			},
 			status: "error",
 		});
 	});
@@ -102,6 +108,39 @@ describe("execution finalization canonical response fixtures", () => {
 				/execution finalization response contract/i,
 			);
 		}
+	});
+
+	it("rejects an error code that could carry arbitrary text", () => {
+		const payload = loadFixture("response_timeout.valid.json");
+		(payload.error as Record<string, unknown>).code = "authorization=Bearer secret-token";
+
+		expect(() => parseExecutionFinalizationResponsePayload(payload)).toThrow(
+			/execution finalization response contract/i,
+		);
+	});
+
+	it("does not expose a terminal provider error in the streamed response", () => {
+		const result = parseExecutionTerminalResponse({
+			data: {
+				occurred_at: "2026-07-26T08:00:00.000Z",
+				request_id: "request-1",
+				trace_id: "trace-1",
+				error: {
+					code: "provider_unavailable",
+					message: "postgres://runtime:secret@db.internal/runtime",
+					retryable: true,
+				},
+			},
+			event: "execution.failed",
+			now: () => new Date("2026-07-26T08:00:00.000Z"),
+		});
+
+		expect(result?.response.error).toEqual({
+			code: "provider_unavailable",
+			message: "The answer provider is temporarily unavailable.",
+			retryable: true,
+		});
+		expect(JSON.stringify(result)).not.toContain("postgres://runtime:secret");
 	});
 
 	it("parses direct model and prompt observability", () => {

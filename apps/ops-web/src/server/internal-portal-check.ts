@@ -7,20 +7,9 @@ import {
 } from "./internal-portal-credential-store.ts";
 
 export async function main(): Promise<void> {
-	const startedAt = performance.now();
 	await runScheduledInternalPortalChecks({
 		store: createInternalPortalCredentialStoreFromEnv(process.env),
 	});
-	console.log(JSON.stringify(buildCheckRunEvent(elapsedMilliseconds(startedAt))));
-}
-
-export function buildCheckRunEvent(durationMs: number) {
-	return {
-		duration_ms: durationMs,
-		event_type: "internal_portal.check_run",
-		level: "info",
-		status: "succeeded",
-	};
 }
 
 export function buildCheckRunFailureEvent(error: unknown, durationMs: number) {

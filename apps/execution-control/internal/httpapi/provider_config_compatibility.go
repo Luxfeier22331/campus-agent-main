@@ -23,7 +23,6 @@ type providerConfigCompatibilityRequest struct {
 
 func (s *Server) handleProviderConfigCompatibility(response http.ResponseWriter, request *http.Request) {
 	if !s.internalWorkerAuthorized(request) {
-		setOutcome(response, "unauthorized")
 		writeError(response, http.StatusUnauthorized, "unauthorized", "Internal worker authorization failed.", false)
 		return
 	}
@@ -35,12 +34,10 @@ func (s *Server) handleProviderConfigCompatibility(response http.ResponseWriter,
 	decoder := json.NewDecoder(bytes.NewReader(body))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&candidate); err != nil {
-		setOutcome(response, "invalid_request")
 		writeError(response, http.StatusBadRequest, "invalid_request", "Provider config compatibility request is invalid.", false)
 		return
 	}
 	if err := decoder.Decode(&struct{}{}); err != io.EOF {
-		setOutcome(response, "invalid_request")
 		writeError(response, http.StatusBadRequest, "invalid_request", "Provider config compatibility request is invalid.", false)
 		return
 	}
@@ -54,19 +51,16 @@ func (s *Server) handleProviderConfigCompatibility(response http.ResponseWriter,
 		Transport:  strings.TrimSpace(candidate.Transport),
 	}
 	if snapshot.Kind != providerConfigKindEmbedding {
-		setOutcome(response, "invalid_request")
 		writeError(response, http.StatusBadRequest, "invalid_request", "Embedding model setting is required.", false)
 		return
 	}
 	if err := validateProviderConfigSnapshot(snapshot, providerConfigKindEmbedding); err != nil {
-		setOutcome(response, "invalid_request")
 		writeError(response, http.StatusBadRequest, "invalid_request", err.Error(), false)
 		return
 	}
 	ctx, cancel := context.WithTimeout(request.Context(), providerconfig.ValidationTimeout)
 	defer cancel()
 	result := s.checkProviderConfigCompatibility(ctx, snapshot)
-	setOutcome(response, "provider_config_compatibility")
 	writeJSON(response, http.StatusOK, map[string]any{"ok": result.ok, "reason": result.reason})
 }
 
@@ -75,12 +69,14 @@ type providerConfigCompatibilityResult struct {
 	reason string
 }
 
+const providerConfigCompatibilityFailureReason = "Embedding configuration is incompatible with the active document evidence."
+
 func (s *Server) checkProviderConfigCompatibility(
 	ctx context.Context,
 	snapshot providerConfigSnapshot,
 ) providerConfigCompatibilityResult {
 	if err := s.checkDocumentEvidenceEmbeddingCompatibility(ctx, snapshot); err != nil {
-		return providerConfigCompatibilityResult{ok: false, reason: err.Error()}
+		return providerConfigCompatibilityResult{ok: false, reason: providerConfigCompatibilityFailureReason}
 	}
 	return providerConfigCompatibilityResult{ok: true}
 }
@@ -92,11 +88,8 @@ func (s *Server) checkDocumentEvidenceEmbeddingCompatibility(
 	if s.documentEvidenceErr != nil {
 		return s.documentEvidenceErr
 	}
-	executor, ok := s.documentEvidenceExecutor.(interface {
-		CheckEmbeddingCompatibility(context.Context, providerConfigSnapshot) error
-	})
-	if !ok {
+	if s.documentEvidenceExecutor == nil {
 		return fmt.Errorf("document evidence executor does not support provider compatibility checks")
 	}
-	return executor.CheckEmbeddingCompatibility(ctx, snapshot)
+	return s.documentEvidenceExecutor.CheckEmbeddingCompatibility(ctx, snapshot)
 }

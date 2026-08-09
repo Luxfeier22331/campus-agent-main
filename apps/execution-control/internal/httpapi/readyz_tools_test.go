@@ -11,26 +11,6 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 )
 
-func TestReadyzPublishesOnlyModelVisibleToolGates(t *testing.T) {
-	server := newReadyServerForTest(t, func(*config.Config) {})
-	response := httptest.NewRecorder()
-
-	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200, body: %s", response.Code, response.Body.String())
-	}
-	body := decodeBody(t, response)
-	toolGates := expectRecord(t, body["tool_gates"], "tool_gates")
-	if len(toolGates) != 1 {
-		t.Fatalf("tool gates = %#v, want only personal_memory_recall", toolGates)
-	}
-	memoryGate := expectRecord(t, toolGates["personal_memory_recall"], "personal_memory_recall")
-	if memoryGate["open"] != true {
-		t.Fatalf("personal_memory_recall gate = %#v, want open", memoryGate)
-	}
-}
-
 func TestReadyzKeepsTransportReadyWhenAllSlotsAreBusyButQueueCanAccept(t *testing.T) {
 	controller := admission.NewController(admission.Config{
 		MaxConcurrent: 1,
@@ -51,15 +31,8 @@ func TestReadyzKeepsTransportReadyWhenAllSlotsAreBusyButQueueCanAccept(t *testin
 		}),
 		controller,
 		nil,
-		nil,
 	)
 	markTemporalReadyForTest(server)
-	markKnowledgeRuntimeReadyForTest(server)
-	server.providerConfigResolver = staticProviderConfigResolver{
-		providerConfigKindLLM:       primaryAgentProviderConfigSnapshotForTest(),
-		providerConfigKindEmbedding: embeddingProviderConfigSnapshotForTest(providerConfigKindEmbedding, "https://embedding.example/v1", "embedding-test", 2560),
-	}
-	server.providerConfigErr = nil
 	response := httptest.NewRecorder()
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
 

@@ -275,7 +275,7 @@ test("does not publish artifacts for an artifact adapter test change", async (t)
 			return result({ stdout: JSON.stringify({ tasks: [] }) });
 		}
 		if (args[0] === "diff") {
-			return result({ stdout: changed("scripts/ci/check-ops-web-artifact.test.mjs") });
+			return result({ stdout: changed("scripts/release/check-ops-web-artifact.test.mjs") });
 		}
 		return result();
 	};

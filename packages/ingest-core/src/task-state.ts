@@ -26,7 +26,6 @@ export type IngestionTaskRecord = IngestionTaskEnvelope & {
 	result_contract: string | null;
 	summary: Record<string, IngestionTaskSummaryValue> | null;
 	error_code: string | null;
-	error_message: string | null;
 };
 
 export interface IngestionTaskOperatorProjection {
@@ -47,7 +46,6 @@ export interface IngestionTaskOperatorProjection {
 	has_result: boolean;
 	summary: Record<string, IngestionTaskSummaryValue> | null;
 	last_error_code: string | null;
-	last_error_message: string | null;
 	workflow_id: string;
 	workflow_run_id: string | null;
 	retry_of_task_id: string | null;
@@ -96,7 +94,6 @@ export function toIngestionTaskOperatorProjection(
 		has_result: task.result_ref !== null,
 		summary: task.summary ? { ...task.summary } : null,
 		last_error_code: task.error_code,
-		last_error_message: task.error_message,
 		workflow_id: task.workflow_id,
 		workflow_run_id: task.workflow_run_id,
 		retry_of_task_id: task.retry_of_task_id,

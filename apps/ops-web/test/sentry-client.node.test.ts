@@ -13,7 +13,6 @@ const input = {
 	now: new Date("2026-07-09T06:30:00.000Z"),
 	requestId: "req_ops_001",
 	startedAt: "2026-07-09T06:29:00.000Z",
-	traceId: "trace_ops_001",
 };
 
 function issue(index: number) {

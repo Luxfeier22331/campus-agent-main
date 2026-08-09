@@ -2,41 +2,22 @@ package httpapi
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimepolicy"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
-type providerConfigGate struct {
-	Configured bool   `json:"configured"`
-	Reason     string `json:"reason"`
-	Source     string `json:"source"`
-}
-
-func providerConfigGateRequiredKinds() []providerConfigKind {
-	return []providerConfigKind{
-		providerConfigKindLLM,
-	}
-}
-
 func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Request) {
 	if !s.readinessAuthorized(request) {
-		setOutcome(response, "unauthorized")
 		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid readiness auth.", false)
 		return
 	}
 	transportStatus := s.admission.Status()
-	telemetryStatus := s.telemetry.Status()
 	temporalRuntimeStatus := s.temporalRuntimeStatus(request.Context())
-	providerConfigGate := s.evaluateProviderConfigGate()
 	agentRuntimeStatus := s.agentRuntimeStatus(request.Context())
-	personalMemoryStatus := s.personalMemoryRuntimeStatus(request.Context())
-	documentEvidenceStatus := s.documentEvidenceRuntimeStatus(request.Context())
 	runProjectionStoreStatus := s.runProjectionStoreStatus(request.Context())
 	ready := transportStatus.Healthy &&
 		agentRuntimeStatus["healthy"] == true &&
@@ -50,18 +31,13 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 	}
 
 	responseBody := map[string]any{
-		"status":                    statusText,
-		"runtime_release":           strings.TrimSpace(s.config.DeploymentRelease),
-		"transport_runtime":         transportStatus,
-		"lifecycle_runtime":         s.lifecycle.Snapshot(),
-		"telemetry_runtime":         telemetryStatus,
-		"run_projection_store":      runProjectionStoreStatus,
-		"temporal_runtime":          temporalRuntimeStatus,
-		"personal_memory_runtime":   personalMemoryStatus,
-		"document_evidence_runtime": documentEvidenceStatus,
-		"tool_gates":                s.toolGateStatus(),
-		"provider_config_gate":      providerConfigGate,
-		"agent_runtime":             agentRuntimeStatus,
+		"status":               statusText,
+		"runtime_release":      strings.TrimSpace(s.config.DeploymentRelease),
+		"transport_runtime":    transportStatus,
+		"lifecycle_runtime":    s.lifecycle.Snapshot(),
+		"run_projection_store": runProjectionStoreStatus,
+		"temporal_runtime":     temporalRuntimeStatus,
+		"agent_runtime":        agentRuntimeStatus,
 	}
 
 	writeJSON(response, statusCode, responseBody)
@@ -141,100 +117,6 @@ func (s *Server) temporalRuntimeStatus(ctx context.Context) map[string]any {
 	return status
 }
 
-func (s *Server) documentEvidenceRuntimeStatus(ctx context.Context) map[string]any {
-	status := map[string]any{
-		"configured":                    s.documentEvidenceExecutor != nil,
-		"embedding_provider_configured": false,
-		"healthy":                       false,
-		"last_error":                    "",
-		"retrieval_adapter":             "qdrant_native",
-	}
-	if s.documentEvidenceErr != nil {
-		status["last_error"] = "document evidence executor could not be initialized"
-		return status
-	}
-	if s.documentEvidenceExecutor == nil {
-		status["last_error"] = "document evidence executor is not configured"
-		return status
-	}
-	checkCtx, cancel := context.WithTimeout(ctx, time.Duration(s.config.ToolReadModelTimeoutMS)*time.Millisecond)
-	defer cancel()
-	if s.providerConfigErr != nil || s.providerConfigResolver == nil {
-		status["last_error"] = "document evidence embedding provider config is not available"
-		return status
-	}
-	if _, err := s.providerConfigResolver.ResolveActiveProviderConfig(
-		checkCtx,
-		providerConfigKindEmbedding,
-	); err != nil {
-		status["last_error"] = "document evidence embedding provider config is not available"
-		return status
-	}
-	status["embedding_provider_configured"] = true
-	if err := s.documentEvidenceExecutor.HealthCheck(checkCtx); err != nil {
-		status["last_error"] = "document evidence health check failed: " + err.Error()
-		return status
-	}
-	status["healthy"] = true
-	return status
-}
-
-func (s *Server) personalMemoryRuntimeStatus(ctx context.Context) map[string]any {
-	status := map[string]any{
-		"configured":                    s.personalMemoryExecutor != nil,
-		"context_char_budget":           s.config.PersonalMemoryContextCharBudget,
-		"data_plane":                    "hindsight_self_host",
-		"healthy":                       false,
-		"last_error":                    "",
-		"online_recall_owner":           "execution-control",
-		"owner_salt_configured":         personalMemoryOwnerSaltConfigured(s.config),
-		"recall_max_tokens":             s.config.PersonalMemoryRecallMaxTokens,
-		"thread_owner":                  "execution-control",
-		"retention_model":               "synchronous_user_message_documents",
-		"hindsight_base_url_configured": strings.TrimSpace(s.config.PersonalMemoryBaseURL) != "",
-		"hindsight_secret_configured":   strings.TrimSpace(s.config.PersonalMemoryAPISecret) != "",
-		"state_store_healthy":           false,
-	}
-	if s.personalMemoryErr != nil {
-		status["last_error"] = "personal memory executor could not be initialized"
-		return status
-	}
-	if s.personalMemoryExecutor == nil {
-		status["last_error"] = "personal memory executor is not configured"
-		return status
-	}
-	if s.personalMemoryStateErr != nil || s.personalMemoryStateStore == nil {
-		status["last_error"] = "personal memory state store could not be initialized"
-		return status
-	}
-	checkCtx, cancel := context.WithTimeout(ctx, time.Duration(s.config.ToolReadModelTimeoutMS)*time.Millisecond)
-	defer cancel()
-	if err := s.personalMemoryStateStore.HealthCheck(checkCtx); err != nil {
-		status["last_error"] = "personal memory state store health check failed"
-		return status
-	}
-	status["state_store_healthy"] = true
-	if err := s.personalMemoryExecutor.HealthCheck(checkCtx); err != nil {
-		status["last_error"] = "personal memory health check failed: " + formatReadinessError(err)
-		return status
-	}
-	status["healthy"] = true
-	return status
-}
-
-func formatReadinessError(err error) string {
-	if err == nil {
-		return ""
-	}
-	message := strings.Join(strings.Fields(err.Error()), " ")
-	const maxLength = 256
-	runes := []rune(message)
-	if len(runes) > maxLength {
-		return string(runes[:maxLength]) + "..."
-	}
-	return message
-}
-
 func requiredTemporalTaskQueueNames(cfg config.Config) []string {
 	return append([]string{
 		defaultString(strings.TrimSpace(cfg.TemporalTaskQueue), temporalruntime.WorkflowTaskQueue),
@@ -268,41 +150,6 @@ func containsRequiredTemporalTaskQueues(
 	return true
 }
 
-func (s *Server) evaluateProviderConfigGate() providerConfigGate {
-	if s.providerConfigErr != nil {
-		reason := "provider_config_resolver_not_configured"
-		if !errors.Is(s.providerConfigErr, errProviderConfigResolverNotConfigured) {
-			reason = "provider_config_resolver_invalid"
-		}
-		return providerConfigGate{
-			Configured: false,
-			Reason:     reason,
-			Source:     "execution-config",
-		}
-	}
-	if s.providerConfigResolver == nil {
-		return providerConfigGate{
-			Configured: false,
-			Reason:     "provider_config_resolver_not_configured",
-			Source:     "execution-config",
-		}
-	}
-	for _, kind := range providerConfigGateRequiredKinds() {
-		if _, err := s.providerConfigResolver.ResolveActiveProviderConfig(context.Background(), kind); err != nil {
-			return providerConfigGate{
-				Configured: false,
-				Reason:     "provider_config_invalid_for_" + string(kind),
-				Source:     "execution-config",
-			}
-		}
-	}
-	return providerConfigGate{
-		Configured: true,
-		Reason:     "",
-		Source:     "execution-config",
-	}
-}
-
 func (s *Server) runProjectionStoreStatus(ctx context.Context) map[string]any {
 	configured := s.runProjectionStore != nil
 	status := map[string]any{
@@ -330,20 +177,4 @@ func (s *Server) runProjectionStoreStatus(ctx context.Context) map[string]any {
 		return status
 	}
 	return status
-}
-
-func (s *Server) toolGateStatus() map[string]any {
-	status := make(map[string]any)
-	for _, toolName := range runtimepolicy.ModelVisibleToolNames() {
-		status[toolName] = map[string]any{
-			"open": modelVisibleToolConfigured(toolName),
-			"gate": "execution_control_internal_query",
-		}
-	}
-	return status
-}
-
-func modelVisibleToolConfigured(toolName string) bool {
-	_, ok := runtimepolicy.ModelVisibleToolByName(toolName)
-	return ok
 }

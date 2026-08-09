@@ -6,22 +6,52 @@ import { type CommandResult, type CommandRunner, resolveAffectedScope } from "./
 import { VALIDATION_PROFILES, type ValidationProfile } from "./validation.mts";
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
+
+function turboCommand(packageName: string, ...tasks: string[]): string[] {
+	return [
+		"pnpm",
+		"exec",
+		"turbo",
+		"run",
+		...tasks,
+		`--filter=${packageName}`,
+		"--concurrency=1",
+		"--summarize",
+	];
+}
+
 const PROFILE_COMMANDS: Partial<Record<ValidationProfile, string[][]>> = {
-	go: [["pnpm", "ci:go"]],
-	rust: [["pnpm", "ci:rust"]],
-	ragas: [["pnpm", "ci:eval"]],
-	"app-api-migration": [["pnpm", "ci:app-api-migration"]],
-	"app-api-product-db": [["pnpm", "ci:app-api-product-db"]],
-	"execution-control-postgres": [["pnpm", "ci:execution-control-postgres"]],
-	"ingestion-control-postgres": [["pnpm", "ci:ingestion-control-postgres"]],
-	"ops-web-postgres": [["pnpm", "ci:ops-web-postgres"]],
-	infra: [["pnpm", "ci:infra"]],
-	otel: [["pnpm", "ci:otel"]],
-	dependencies: [["pnpm", "ci:deps"]],
-	toolchain: [
-		["pnpm", "ci:release"],
-		["docker", "buildx", "bake", "--file", "docker-bake.hcl", "--print"],
+	go: [
+		turboCommand(
+			"execution-control",
+			"native:format",
+			"native:lint",
+			"native:typecheck",
+			"native:test",
+		),
 	],
+	rust: [
+		turboCommand(
+			"ingestion-kernels-rs",
+			"native:format",
+			"native:lint",
+			"native:typecheck",
+			"native:test",
+		),
+	],
+	ragas: [
+		turboCommand("eval-langfuse", "typecheck", "test"),
+		turboCommand("ragas-runner", "test:eval"),
+	],
+	"app-api-migration": [turboCommand("app-api", "test:migration-integration")],
+	"app-api-product-db": [turboCommand("app-api", "test:shared-db-integration")],
+	"execution-control-postgres": [turboCommand("execution-control", "test:database-integration")],
+	"ingestion-control-postgres": [turboCommand("ingestion-control", "test:database-integration")],
+	"ops-web-postgres": [turboCommand("ops-web", "test:database-integration")],
+	infra: [["scripts/infra/validate.sh"]],
+	otel: [["scripts/otel/validate-config.sh"]],
+	dependencies: [["scripts/dependencies/scan.sh"]],
+	toolchain: [["docker", "buildx", "bake", "--file", "docker-bake.hcl", "--print"]],
 };
 
 export type EvidenceCommandRunner = CommandRunner;

@@ -55,8 +55,6 @@ apps/app-api/.dev.vars
 !packages/internal-portal-client/**
 !packages/langfuse-identity/
 !packages/langfuse-identity/**
-!packages/telemetry-node/
-!packages/telemetry-node/**
 !packages/ui/
 !packages/ui/**
 !packages/ragas-runner/

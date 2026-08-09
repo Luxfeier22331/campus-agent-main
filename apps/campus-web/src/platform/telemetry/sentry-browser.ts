@@ -51,7 +51,7 @@ export function initializeCampusBrowserSentry(
 		tracePropagationTargets: [/^\//u],
 		tracesSampler(context) {
 			if (environment !== "production") {
-				return context.inheritOrSampleWith(1);
+				return 0;
 			}
 			const route = normalizeCampusTelemetryRoute(context.location?.pathname ?? context.name);
 			return context.inheritOrSampleWith(route === "/c/:conversationId" ? 0.1 : 0.05);
@@ -63,13 +63,3 @@ export function initializeCampusBrowserSentry(
 
 export const campusReactErrorHandler = Sentry.reactErrorHandler;
 export const CampusSentryErrorBoundary = Sentry.ErrorBoundary;
-
-export function recordChatBrowserTtft(durationMs: number): boolean {
-	if (!(initialized && Number.isFinite(durationMs)) || durationMs < 0) {
-		return false;
-	}
-	Sentry.metrics.distribution("chat.browser_ttft_ms", durationMs, {
-		unit: "millisecond",
-	});
-	return true;
-}

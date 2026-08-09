@@ -259,7 +259,6 @@ func (s *Server) consumeAgentRuntimeStream(
 			streamError = agentRuntimeHTTPError{
 				StatusCode: http.StatusBadGateway,
 				Code:       strings.TrimSpace(runtimeErr.Code),
-				Message:    strings.TrimSpace(runtimeErr.Message),
 			}
 			state.terminalEvent = "error"
 		default:
@@ -538,7 +537,6 @@ func agentRuntimeFailureFromResponse(
 	return agentRuntimeHTTPError{
 		StatusCode: statusCode,
 		Code:       strings.TrimSpace(runtimeError.Code),
-		Message:    strings.TrimSpace(runtimeError.Message),
 	}
 }
 

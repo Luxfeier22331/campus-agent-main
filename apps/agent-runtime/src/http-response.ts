@@ -151,7 +151,7 @@ export function jsonResponse(status: number, body: unknown): Response {
 }
 
 export function errorMessage(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
+	return agentRuntimeErrorPayload(error).message;
 }
 
 function encodeSseEvent(event: string, data: unknown): Uint8Array {

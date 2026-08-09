@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { imageSize } from "image-size";
+import { disableTypes, imageSize } from "image-size";
 
 import type {
 	DocsCourseMaps,
@@ -11,6 +11,8 @@ import type {
 
 const MAX_HORIZONTAL_GAP = 24;
 const MIN_VERTICAL_OVERLAP = 0.8;
+
+disableTypes(["heif", "icns", "jxl", "jxl-stream"]);
 
 interface SourceCourseMapBlock {
 	bbox: readonly [number, number, number, number];

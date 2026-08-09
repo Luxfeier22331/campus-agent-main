@@ -8,7 +8,6 @@ import {
 	opsLogObservabilityFixture,
 	opsOverviewFixture,
 	opsSentryIssuesFixture,
-	opsTraceObservabilityFixture,
 } from "../src/shared/ops-fixtures";
 
 if (typeof CSS !== "undefined" && typeof CSS.supports !== "function") {
@@ -22,10 +21,7 @@ const app = createOpsApp({
 		OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test",
 	},
 	axiom: {
-		getTelemetrySnapshot: vi.fn(),
-		queryRequest: vi.fn(async ({ kind }) =>
-			kind === "logs" ? opsLogObservabilityFixture : opsTraceObservabilityFixture,
-		),
+		queryRequest: vi.fn(async () => opsLogObservabilityFixture),
 	},
 	overviewService: {
 		getOverview: vi.fn(async () => opsOverviewFixture),

@@ -8,8 +8,6 @@ import type {
 	OpsRequestDetailRow,
 	OpsRequestListQuery,
 	OpsRequestRow,
-	OpsTemporalTaskQueueRow,
-	OpsTemporalTaskQueueSource,
 	PgOpsStatusStoreDatabase,
 } from "../src/server/ops-status-store";
 import { OPS_REQUEST_PAGE_SIZE } from "../src/server/ops-status-store";
@@ -94,6 +92,9 @@ export function createFakeOpsDb(
 		async verifyReadiness() {
 			return;
 		},
+		async verifySchema() {
+			return;
+		},
 	};
 }
 
@@ -109,12 +110,6 @@ function validAttentionReason(
 		return value;
 	}
 	throw new Error(`invalid attention reason: ${value}`);
-}
-
-export function createFakeTemporalTaskQueueSource(
-	rows: OpsTemporalTaskQueueRow[] = requiredTemporalQueueRows(),
-): OpsTemporalTaskQueueSource {
-	return { getTaskQueues: async () => ({ rows, state: "FRESH" }) };
 }
 
 export function requestRow(overrides: Partial<OpsRequestDetailRow> = {}): OpsRequestDetailRow {
@@ -180,28 +175,6 @@ export function agentUsageRow(overrides: Partial<OpsAgentUsageRow> = {}): OpsAge
 		totalAttemptCount: 1,
 		...overrides,
 	};
-}
-
-export function temporalQueueRow(
-	overrides: Partial<OpsTemporalTaskQueueRow> = {},
-): OpsTemporalTaskQueueRow {
-	return {
-		backlogJson: { count: 3 },
-		oldestTaskAgeJson: { backlogCount: 3, ms: 2400, state: "observed" },
-		pollerCount: 4,
-		projectedAt: new Date("2026-07-09T07:29:06.000Z"),
-		taskQueue: "campus-agent.activity.agent.v3",
-		taskQueueKind: "activity",
-		...overrides,
-	};
-}
-
-export function requiredTemporalQueueRows(): OpsTemporalTaskQueueRow[] {
-	return [
-		temporalQueueRow({ taskQueue: "campus-agent.workflow.v3", taskQueueKind: "workflow" }),
-		temporalQueueRow({ taskQueue: "campus-agent.activity.core.v3" }),
-		temporalQueueRow({ taskQueue: "campus-agent.activity.agent.v3" }),
-	];
 }
 
 function filterRequestRows(

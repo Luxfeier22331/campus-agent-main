@@ -23,8 +23,6 @@ type knowledgeReadModelStoreForTest struct {
 	) (toolreadmodel.KnowledgeServingRelease, bool, error)
 }
 
-func (knowledgeReadModelStoreForTest) HealthCheck(context.Context) error { return nil }
-
 func (s knowledgeReadModelStoreForTest) CurrentRelease(
 	ctx context.Context,
 	documentScope string,
@@ -337,13 +335,17 @@ func TestNewQdrantDocumentEvidenceExecutorAllowsLocalHTTP(t *testing.T) {
 
 func TestNewQdrantDocumentEvidenceExecutorUsesQueryKeyAndTLSCA(t *testing.T) {
 	qdrant := httptest.NewTLSServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPost || request.URL.Path != "/collections/student_rules__admitted_release/points/query" {
+			t.Fatalf("qdrant request = %s %s", request.Method, request.URL.Path)
+		}
 		if request.Header.Get("api-key") != "readonly-key" {
 			t.Fatalf("qdrant api-key = %q", request.Header.Get("api-key"))
 		}
-		_, _ = response.Write([]byte("all shards are ready"))
+		response.Header().Set("content-type", "application/json")
+		_, _ = response.Write([]byte(`{"result":{"points":[{"id":"point-1","score":0.91,"payload":{"section_ref":"section://student_rules/doc-1/v3/leave"}}]},"status":"ok"}`))
 	}))
 	defer qdrant.Close()
-	executor, err := newQdrantDocumentEvidenceExecutor(config.Config{
+	configured, err := newQdrantDocumentEvidenceExecutor(config.Config{
 		QdrantReadOnlyAPIKey: "readonly-key",
 		QdrantTLSCACertPath:  writeTestCACert(t, qdrant),
 		QdrantURL:            qdrant.URL,
@@ -351,8 +353,19 @@ func TestNewQdrantDocumentEvidenceExecutorUsesQueryKeyAndTLSCA(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new qdrant executor: %v", err)
 	}
-	if err := executor.HealthCheck(context.Background()); err != nil {
-		t.Fatalf("qdrant health check: %v", err)
+	executor := configured.(qdrantDocumentEvidenceExecutor)
+	points, err := executor.queryPoints(context.Background(), retrievalruntime.SearchRequest{
+		QueryText:         "学生请假手续",
+		ServingConfigPath: "regulations/student_rules/serving-config.json",
+		RetrievalAccess:   publicRetrievalAccessProjectionForTest(),
+		DocumentScope:     "student_rules",
+		CandidateTopK:     3,
+	}, make([]float64, 2560))
+	if err != nil {
+		t.Fatalf("qdrant query: %v", err)
+	}
+	if len(points) != 1 {
+		t.Fatalf("qdrant point count = %d, want 1", len(points))
 	}
 }
 

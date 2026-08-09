@@ -141,15 +141,15 @@ registry 的 pull secret 由环境 overlay 绑定到 first-party ServiceAccount�
 与环境选择一致。源码仓不保存 staging hostname。
 
 execution-control readiness 降级时，根据顶层核心状态定位回答准入、Temporal、Agent Runtime、
-PostgreSQL 或 execution runtime Application。Provider Config、Hindsight、Qdrant、OTel 和工具读取
-投影状态是局部能力诊断，不单独阻断顶层 readiness。通过环境仓修复期望状态，
-不以本地 Docker、临时环境渲染器或宿主机修改代替 GitOps。
+PostgreSQL 或 execution runtime Application。`/readyz` 不探测 Provider Config、Hindsight、Qdrant、
+OTel 或工具读取投影；这些局部能力由所属管理接口、业务路径、metrics 和 trace 提供故障证据。通过
+环境仓修复期望状态，不以本地 Docker、临时环境渲染器或宿主机修改代替 GitOps。
 
-`run_projection_store` 与 `personal_memory_runtime` 的 PostgreSQL 健康检查会使用常驻运行角色实际
-读取所属表。出现 SQLSTATE `42501` 时，应修复并重新发布 schema Job 所有的精确授权；不得切回
-schema owner DSN、手工在线 `GRANT`、扩大到 `runtime` 全表权限或直接修改运行数据。部署验收还需
-确认 start、cancel reconciler 不再产生新的 `42501`，并处理既有命令，不以 readiness
-单项恢复代替业务收敛证据。
+`run_projection_store` 的就绪检查会使用常驻运行角色实际读取所属表；个人记忆状态表权限由 schema
+Job 验证，并由实际记忆 Activity 的错误暴露。出现 SQLSTATE `42501` 时，应修复并重新发布 schema
+Job 所有的精确授权；不得切回 schema owner DSN、手工在线 `GRANT`、扩大到 `runtime` 全表权限或
+直接修改运行数据。部署验收还需确认 start、cancel reconciler 和记忆 Activity 不再产生新的
+`42501`，并处理既有命令，不以 readiness 单项恢复代替业务收敛证据。
 
 相关入口：`../architecture/system/durable-runtime.md`、`../architecture/system/k8s-runtime.md`、
 `../contracts/tool-execution.md`、`temporal.md`、`release.md`、`e2e.md`。

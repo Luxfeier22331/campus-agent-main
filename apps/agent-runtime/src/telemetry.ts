@@ -18,6 +18,7 @@ import { resourceFromAttributes } from "@opentelemetry/resources";
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { ATTR_SERVICE_NAME, ATTR_SERVICE_NAMESPACE } from "@opentelemetry/semantic-conventions";
+import { createSafeSpanProcessor } from "./telemetry-sanitizer.ts";
 
 export interface AgentTelemetryController {
 	configured: boolean;
@@ -40,13 +41,14 @@ export function startAgentRuntimeTelemetry(
 	}
 
 	const exporter = new OTLPTraceExporter();
-	const processor = new LangfuseSpanProcessor({
+	const langfuseProcessor = new LangfuseSpanProcessor({
 		environment: env.DEPLOYMENT_ENVIRONMENT,
 		exporter,
 		mediaUploadEnabled: false,
 		release: env.DEPLOYMENT_RELEASE,
 		shouldExportSpan: ({ otelSpan }) => isAgentLangfuseSpan(otelSpan),
 	});
+	const processor = createSafeSpanProcessor(langfuseProcessor);
 	const provider = new NodeTracerProvider({
 		resource: resourceFromAttributes({
 			[ATTR_SERVICE_NAME]: env.OTEL_SERVICE_NAME?.trim() || "agent-runtime",
@@ -61,6 +63,10 @@ export function startAgentRuntimeTelemetry(
 	});
 	const instrumentation = new OpenAIAgentsInstrumentation({
 		exclusiveProcessor: true,
+		traceConfig: {
+			hideInputs: true,
+			hideOutputs: true,
+		},
 		tracerProvider: provider,
 	});
 	instrumentation.manuallyInstrument(agents, { exclusiveProcessor: true });

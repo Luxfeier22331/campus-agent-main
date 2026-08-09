@@ -125,7 +125,7 @@ describe("chat run routes", () => {
 			data: {
 				error: {
 					code: "agent_runtime_timeout",
-					message: "Agent runtime request timed out.",
+					message: "The agent runtime did not complete before its deadline.",
 					retryable: true,
 				},
 				requestId: "req_0001",

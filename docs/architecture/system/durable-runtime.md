@@ -236,7 +236,6 @@ Temporal task queue 与 worker 扩缩容共同定义部署容量。缺少 Tempor
 - `memory-plane.md`
 - `../../contracts/app-api/request-lifecycle.md`
 - `../../contracts/tool-execution.md`
-- `../../contracts/temporal-queues.md`
 - `../../data/durable-runtime.md`
 - `../../runbooks/execution.md`
 - `../../runbooks/temporal.md`

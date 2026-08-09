@@ -11,7 +11,7 @@ status: active
 endpoint 和资源尺寸由环境仓库拥有，不在本文复制。
 
 本文不定义应用工作流语义：在线回答见 `../architecture/system/durable-runtime.md`，个人记忆见
-`../architecture/system/memory-plane.md`，Langfuse retention 见
+`../architecture/system/memory-plane.md`，Langfuse 个人数据清除见
 `../contracts/langfuse-runtime.md`。平台运维不得改变这些工作流的业务状态。
 
 execution-control 在一个标准 Deployment 中运行 workflow、core activity 和 agent activity 三类
@@ -138,4 +138,3 @@ Temporal persistence 与 visibility database 是 platform data。backup、restor
 
 - `../decisions/adr-0048-temporal.md`
 - `../architecture/system/k8s-runtime.md`
-- `../contracts/temporal-queues.md`

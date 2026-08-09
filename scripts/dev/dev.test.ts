@@ -6,7 +6,6 @@ import { resolve } from "node:path";
 import { afterEach, describe, it } from "node:test";
 import { parseEnv } from "node:util";
 
-import { resolvePublishedReaderObjectStoreCredentials } from "../../apps/campus-web/src/docs-reader-build/published-reader-object-store";
 import {
 	MANAGED_LOCAL_ENV_MARKER,
 	removeLocalEnvironmentFiles,
@@ -148,11 +147,8 @@ describe("managed worktree environment", () => {
 		assert.equal(new URL(appApiEnvironment.APP_API_SCHEMA_DATABASE_URL ?? "").search, "");
 		assert.equal(campusWebEnvironment.AUTH_TURNSTILE_SITE_KEY, "");
 		assert.equal(campusWebEnvironment.OBJECT_STORE_ENDPOINT, "http://127.0.0.1:9000");
-		assert.deepEqual(resolvePublishedReaderObjectStoreCredentials(campusWebEnvironment), {
-			accessKeyId: "minioadmin",
-			credentialMode: "derived",
-			secretAccessKey: "minioadmin",
-		});
+		assert.equal(campusWebEnvironment.OBJECT_STORE_DERIVED_READ_ACCESS_KEY, "minioadmin");
+		assert.equal(campusWebEnvironment.OBJECT_STORE_DERIVED_READ_SECRET_KEY, "minioadmin");
 		assert.equal(campusWebEnvironment.OBJECT_STORE_DERIVED_ACCESS_KEY, undefined);
 		assert.equal(campusWebEnvironment.OBJECT_STORE_DERIVED_SECRET_KEY, undefined);
 		assert.equal(new URL(opsWebEnvironment.OPS_WEB_DATABASE_URL ?? "").search, "");

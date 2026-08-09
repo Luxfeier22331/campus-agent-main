@@ -7,7 +7,6 @@ import {
 } from "@assistant-ui/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createIdempotencyKey, UnauthorizedError } from "@/platform/api/client";
-import { recordChatBrowserTtft } from "@/platform/telemetry/sentry-browser-loader";
 import {
 	ChatStreamRequestError,
 	cancelRun,
@@ -38,11 +37,6 @@ interface ActiveRun {
 interface RuntimeOperationIdentity {
 	id: number;
 	controller: AbortController;
-}
-
-interface RuntimeOperation extends RuntimeOperationIdentity {
-	browserTtftRecorded: boolean;
-	browserTtftStartedAt: number | null;
 }
 
 type RunCancellationState =
@@ -111,16 +105,11 @@ function useCampusAssistantRuntimeState({
 		[],
 	);
 
-	const startOperation = useCallback((measureBrowserTtft = false): RuntimeOperation => {
+	const startOperation = useCallback((): RuntimeOperationIdentity => {
 		abortControllerRef.current?.abort();
 		cancellationStateRef.current = { phase: "idle" };
-		if (measureBrowserTtft) {
-			streamedAnswerTextRef.current.clear();
-		}
 		const controller = new AbortController();
 		const operation = {
-			browserTtftRecorded: false,
-			browserTtftStartedAt: measureBrowserTtft ? performance.now() : null,
 			controller,
 			id: ++operationIdRef.current,
 		};
@@ -396,7 +385,7 @@ function useCampusAssistantRuntimeState({
 	]);
 
 	const applyTerminalEvent = useCallback(
-		async (event: ChatRequestStreamEvent, operation: RuntimeOperation) => {
+		async (event: ChatRequestStreamEvent, operation: RuntimeOperationIdentity) => {
 			if (!ownsOperation(operation)) {
 				return;
 			}
@@ -469,7 +458,7 @@ function useCampusAssistantRuntimeState({
 	);
 
 	const applyAnswerDelta = useCallback(
-		(event: ChatRequestStreamEvent, operation: RuntimeOperation) => {
+		(event: ChatRequestStreamEvent, operation: RuntimeOperationIdentity) => {
 			if (!ownsOperation(operation)) {
 				return;
 			}
@@ -481,10 +470,6 @@ function useCampusAssistantRuntimeState({
 			const current = typewriterRef.current;
 			const text = (streamedAnswerTextRef.current.get(messageId) ?? "") + delta;
 			streamedAnswerTextRef.current.set(messageId, text);
-			if (!operation.browserTtftRecorded && operation.browserTtftStartedAt !== null) {
-				operation.browserTtftRecorded = true;
-				recordChatBrowserTtft(performance.now() - operation.browserTtftStartedAt);
-			}
 			const visibleLength =
 				current?.messageId === messageId
 					? Math.min(current.visibleLength, text.length)
@@ -514,7 +499,7 @@ function useCampusAssistantRuntimeState({
 		async (
 			events: AsyncIterable<ChatRequestStreamEvent>,
 			conversationId: string | undefined,
-			operation: RuntimeOperation,
+			operation: RuntimeOperationIdentity,
 		) => {
 			let eventCount = 0;
 			for await (const event of events) {
@@ -579,7 +564,7 @@ function useCampusAssistantRuntimeState({
 		async (input: {
 			conversationId?: string;
 			controller: AbortController;
-			operation: RuntimeOperation;
+			operation: RuntimeOperationIdentity;
 			initialEvents: AsyncIterable<ChatRequestStreamEvent>;
 			retryInitialEvents?: () => AsyncIterable<ChatRequestStreamEvent>;
 		}) => {
@@ -658,7 +643,8 @@ function useCampusAssistantRuntimeState({
 				onLoginRequired();
 				return;
 			}
-			const operation = startOperation(true);
+			streamedAnswerTextRef.current.clear();
+			const operation = startOperation();
 			const controller = operation.controller;
 			clearTypewriter();
 			clearProvisionalAssistantMessages();

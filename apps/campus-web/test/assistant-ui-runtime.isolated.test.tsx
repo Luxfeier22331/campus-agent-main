@@ -52,10 +52,6 @@ const conversationApiMock = vi.hoisted(() => ({
 	submitChatRequestStream: vi.fn(),
 }));
 
-const telemetryMock = vi.hoisted(() => ({
-	recordChatBrowserTtft: vi.fn(),
-}));
-
 vi.mock("@assistant-ui/react", () => ({
 	useAui: () => ({
 		threadListItem: () => ({
@@ -71,7 +67,6 @@ vi.mock("@assistant-ui/react", () => ({
 }));
 
 vi.mock("../src/features/conversation/api", () => conversationApiMock);
-vi.mock("@/platform/telemetry/sentry-browser-loader", () => telemetryMock);
 
 function RuntimeProbe({
 	hasSession = true,
@@ -164,7 +159,6 @@ describe("assistant-ui runtime lifecycle bridge", () => {
 		conversationApiMock.getConversationDetail.mockReset();
 		conversationApiMock.resumeRunEventsStream.mockReset();
 		conversationApiMock.submitChatRequestStream.mockReset();
-		telemetryMock.recordChatBrowserTtft.mockReset();
 	});
 
 	it("submits new assistant-ui messages through the durable lifecycle SSE contract", async () => {
@@ -464,7 +458,6 @@ describe("assistant-ui runtime lifecycle bridge", () => {
 				runId: "run_manual_resume",
 				signal: expect.any(AbortSignal),
 			});
-			expect(telemetryMock.recordChatBrowserTtft).not.toHaveBeenCalled();
 		} finally {
 			vi.useRealTimers();
 		}
@@ -693,8 +686,6 @@ describe("assistant-ui runtime lifecycle bridge", () => {
 				await vi.advanceTimersByTimeAsync(250);
 			});
 			expect(readAssistantText()).toBe("按学校奖学金通知");
-			expect(telemetryMock.recordChatBrowserTtft).toHaveBeenCalledTimes(1);
-			expect(telemetryMock.recordChatBrowserTtft).toHaveBeenCalledWith(expect.any(Number));
 
 			await act(async () => {
 				releaseTerminal();

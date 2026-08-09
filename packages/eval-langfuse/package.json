@@ -11,8 +11,7 @@
 		"campus-langfuse": "./src/cli.ts"
 	},
 	"scripts": {
-		"test": "pnpm run test:eval",
-		"test:eval": "vitest run",
+		"test": "vitest run",
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {

@@ -172,7 +172,6 @@ test("总览在各宽度下保持可读", async ({ page }) => {
 
 	await expect(page.getByRole("heading", { name: "运行概览" })).toBeVisible();
 	await expect(page.getByText("请求成功率")).toBeVisible();
-	await expect(page.getByText("执行控制状态异常")).toBeVisible();
 	await expect(page.getByText("请求量与结果")).toBeVisible();
 	await expect(page.getByText("95% 耗时", { exact: true }).first()).toBeVisible();
 	await expect(page.getByRole("table", { name: "请求趋势数据" })).toBeAttached();
@@ -262,12 +261,10 @@ test("运行记录沿用户旅途进入详情和独立系统记录", async ({ pa
 	await expect(page).toHaveURL(/\/requests\/req_ops_001\/system/u);
 	await expect(page.getByRole("heading", { name: "系统记录" })).toBeVisible();
 	await expect(page.getByRole("button", { name: "加载应用日志（Axiom）" })).toBeVisible();
-	await expect(page.getByRole("button", { name: "加载调用链（Axiom）" })).toBeVisible();
 	await expect(page.getByRole("button", { name: "加载 Sentry 错误记录" })).toBeVisible();
 	await expect(page.getByText(/正在读取/u)).toHaveCount(0);
 	expect(externalRecordRequests).toEqual([]);
 	await page.getByRole("button", { name: "加载应用日志（Axiom）" }).click();
-	await page.getByRole("button", { name: "加载调用链（Axiom）" }).click();
 	await page.getByRole("button", { name: "加载 Sentry 错误记录" }).click();
 	const logViewport = page.getByTestId("observability-record-viewport-logs");
 	const logList = page.getByRole("list", { name: "应用日志" });
@@ -277,7 +274,6 @@ test("运行记录沿用户旅途进入详情和独立系统记录", async ({ pa
 		element.dispatchEvent(new Event("scroll"));
 	});
 	await expect(logList).toContainText("request.event.29");
-	await expect(page.getByRole("list", { name: "调用链记录" })).toContainText("agent.primary");
 	const sentryIssues = page.getByRole("list", { name: "Sentry Issue 摘要" });
 	await expect(sentryIssues).toContainText("Request execution failed");
 	await expect(sentryIssues).toContainText("3 个事件");
@@ -294,7 +290,6 @@ test("运行记录沿用户旅途进入详情和独立系统记录", async ({ pa
 	expect([...externalRecordRequests].sort()).toEqual(
 		[
 			"/api/ops/requests/req_ops_001/observability?kind=logs",
-			"/api/ops/requests/req_ops_001/observability?kind=trace",
 			"/api/ops/requests/req_ops_001/sentry-issues",
 		].sort(),
 	);
@@ -360,10 +355,8 @@ test("单一观测来源失败时保留其他系统记录", async ({ page }) => 
 	await page.goto("/requests/req_ops_001/system");
 
 	await page.getByRole("button", { name: "加载应用日志（Axiom）" }).click();
-	await page.getByRole("button", { name: "加载调用链（Axiom）" }).click();
 	await page.getByRole("button", { name: "加载 Sentry 错误记录" }).click();
 	await expect(page.getByText("应用日志（Axiom）读取失败")).toBeVisible();
-	await expect(page.getByRole("list", { name: "调用链记录" })).toContainText("agent.primary");
 	await expect(page.getByRole("list", { name: "Sentry Issue 摘要" })).toContainText(
 		"Request execution failed",
 	);
@@ -376,11 +369,9 @@ test("系统记录不会串到其他运行", async ({ page }) => {
 
 	await expect(page.getByRole("heading", { name: "系统记录" })).toBeVisible();
 	await page.getByRole("button", { name: "加载应用日志（Axiom）" }).click();
-	await page.getByRole("button", { name: "加载调用链（Axiom）" }).click();
 	await page.getByRole("button", { name: "加载 Sentry 错误记录" }).click();
 	await expect(page.getByText("当前运行没有关联的 Sentry Issue。")).toBeVisible();
 	await expect(page.getByText("当前运行没有匹配的应用日志。")).toBeVisible();
-	await expect(page.getByText("当前运行没有匹配的调用链记录。")).toBeVisible();
 	await expect(page.getByText("req_ops_001")).toHaveCount(0);
 	await expect(page.getByText("trace_ops_001")).toHaveCount(0);
 	await expectStableViewport(page, errors);

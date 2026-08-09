@@ -8,23 +8,18 @@
 		".": "./src/index.ts"
 	},
 	"scripts": {
-		"dev": "node --experimental-strip-types ./src/server.ts",
 		"migrate": "tsx ./src/migrate.ts",
 		"schema:bootstrap": "tsx ./src/schema-bootstrap.ts",
-		"start": "node --experimental-strip-types ./src/server.ts",
 		"start:api": "node --experimental-strip-types ./src/server.ts",
 		"start:temporal-worker": "tsx ./src/temporal-worker.ts",
-		"test": "pnpm run test:ingest",
+		"test": "vitest run --exclude 'test/**/*.database.integration.test.ts'",
 		"test:database-integration": "vitest run --config vitest.database-integration.config.mts",
-		"test:ingest": "vitest run --exclude 'test/**/*.database.integration.test.ts'",
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@campus-agent/telemetry-node": "workspace:*",
 		"@aws-sdk/client-s3": "^3.1081.0",
 		"@temporalio/activity": "^1.21.1",
 		"@temporalio/client": "^1.21.1",
-		"@temporalio/interceptors-opentelemetry-v2": "1.21.1",
 		"@temporalio/worker": "^1.21.1",
 		"@temporalio/workflow": "^1.21.1",
 		"ingest-core": "workspace:*",

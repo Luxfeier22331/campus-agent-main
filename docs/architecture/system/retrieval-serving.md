@@ -72,7 +72,7 @@ PostgreSQL 读取章节正文。PostgreSQL 仍拥有 release、激活指针和�
 问题逐项确认现有正文能否支持回答。
 
 Qdrant RRF 分数只用于候选排序和预算选择，不是答案正确性的证明，也不是答案置信度。当前实现不调用
-外部 reranker；历史 `grounding.rerank_ms` 观测字段保留为零值以维持现有 telemetry 合同。
+外部 reranker；`grounding.rerank_ms` 只是 Activity 内部 timing 投影，不发送到外部观测平台。
 
 ## Activity 结果
 
@@ -82,7 +82,7 @@ evidence 正文。Activity 重试会重新执行只读 embedding 与 Qdrant 查�
 
 普通 step/result 投影只保存 `grounding_context_ref`、payload hash、路由与覆盖状态、候选数、证据数、
 token 数，以及 embedding、search、RRF 合并、pack 的耗时；不保存查询或正文。现有
-`grounding.rerank_ms` 键固定为零，仅为 telemetry 兼容。Agent 结果携带相同 context，Finalization 据此
+`grounding.rerank_ms` 键固定为零，只表示当前没有外部 reranker。Agent 结果携带相同 context，Finalization 据此
 验证 `evidence://`，防止跨 run、跨 release 或伪造引用。
 
 ## 当前限制

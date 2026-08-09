@@ -16,12 +16,10 @@ import (
 
 func (s *Server) handleExecutionRunGet(response http.ResponseWriter, request *http.Request, runID string) {
 	if !s.internalWorkerAuthorized(request) {
-		setOutcome(response, "unauthorized")
 		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid worker origin auth.", false)
 		return
 	}
 	if s.runProjectionStore == nil {
-		setOutcome(response, "projection_store_not_configured")
 		writeError(
 			response,
 			http.StatusServiceUnavailable,
@@ -32,33 +30,27 @@ func (s *Server) handleExecutionRunGet(response http.ResponseWriter, request *ht
 		return
 	}
 	if strings.TrimSpace(runID) == "" {
-		setOutcome(response, "invalid_request")
 		writeError(response, http.StatusBadRequest, "invalid_request", "run_id is required.", false)
 		return
 	}
 	run, err := s.runProjectionStore.GetRun(request.Context(), strings.TrimSpace(runID))
 	if err != nil {
 		if errors.Is(err, execution.ErrDurableRunNotFound) {
-			setOutcome(response, "durable_run_not_found")
 			writeError(response, http.StatusNotFound, "durable_run_not_found", "Durable run not found.", false)
 			return
 		}
-		setOutcome(response, "durable_run_query_failed")
 		writeError(response, http.StatusInternalServerError, "durable_run_query_failed", err.Error(), true)
 		return
 	}
-	setOutcome(response, "durable_run")
 	writeJSON(response, http.StatusOK, durableRunResponse(run))
 }
 
 func (s *Server) handleExecutionRunEvents(response http.ResponseWriter, request *http.Request, runID string) {
 	if !s.internalWorkerAuthorized(request) {
-		setOutcome(response, "unauthorized")
 		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid worker origin auth.", false)
 		return
 	}
 	if s.runProjectionStore == nil {
-		setOutcome(response, "projection_store_not_configured")
 		writeError(
 			response,
 			http.StatusServiceUnavailable,
@@ -69,19 +61,16 @@ func (s *Server) handleExecutionRunEvents(response http.ResponseWriter, request 
 		return
 	}
 	if strings.TrimSpace(runID) == "" {
-		setOutcome(response, "invalid_request")
 		writeError(response, http.StatusBadRequest, "invalid_request", "run_id is required.", false)
 		return
 	}
 	afterSequence, err := readAfterSequenceQuery(request)
 	if err != nil {
-		setOutcome(response, "invalid_request")
 		writeError(response, http.StatusBadRequest, "invalid_request", err.Error(), false)
 		return
 	}
 	waitBudget, err := readRunEventsWaitBudget(request)
 	if err != nil {
-		setOutcome(response, "invalid_request")
 		writeError(response, http.StatusBadRequest, "invalid_request", err.Error(), false)
 		return
 	}
@@ -93,11 +82,9 @@ func (s *Server) handleExecutionRunEvents(response http.ResponseWriter, request 
 	)
 	if err != nil {
 		if errors.Is(err, execution.ErrDurableRunNotFound) {
-			setOutcome(response, "durable_run_not_found")
 			writeError(response, http.StatusNotFound, "durable_run_not_found", "Durable run not found.", false)
 			return
 		}
-		setOutcome(response, "durable_run_events_query_failed")
 		writeError(
 			response,
 			http.StatusInternalServerError,
@@ -115,7 +102,6 @@ func (s *Server) handleExecutionRunEvents(response http.ResponseWriter, request 
 			nextSequence = event.Sequence
 		}
 	}
-	setOutcome(response, "durable_run_events")
 	writeJSON(response, http.StatusOK, map[string]any{
 		"events":        body,
 		"next_sequence": nextSequence,
@@ -143,12 +129,10 @@ func (s *Server) listRunEventsAfterWithOptionalWait(
 
 func (s *Server) handleExecutionRunSteps(response http.ResponseWriter, request *http.Request, runID string) {
 	if !s.internalWorkerAuthorized(request) {
-		setOutcome(response, "unauthorized")
 		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid worker origin auth.", false)
 		return
 	}
 	if s.runProjectionStore == nil {
-		setOutcome(response, "projection_store_not_configured")
 		writeError(
 			response,
 			http.StatusServiceUnavailable,
@@ -160,41 +144,34 @@ func (s *Server) handleExecutionRunSteps(response http.ResponseWriter, request *
 	}
 	runID = strings.TrimSpace(runID)
 	if runID == "" {
-		setOutcome(response, "invalid_request")
 		writeError(response, http.StatusBadRequest, "invalid_request", "run_id is required.", false)
 		return
 	}
 	run, err := s.runProjectionStore.GetRun(request.Context(), runID)
 	if err != nil {
 		if errors.Is(err, execution.ErrDurableRunNotFound) {
-			setOutcome(response, "execution_run_not_found")
 			writeError(response, http.StatusNotFound, "execution_run_not_found", "Execution run not found.", false)
 			return
 		}
-		setOutcome(response, "execution_run_query_failed")
 		writeError(response, http.StatusInternalServerError, "execution_run_query_failed", err.Error(), true)
 		return
 	}
 	steps, err := s.runProjectionStore.ListRunSteps(request.Context(), runID)
 	if err != nil {
 		if errors.Is(err, execution.ErrDurableRunNotFound) {
-			setOutcome(response, "execution_run_not_found")
 			writeError(response, http.StatusNotFound, "execution_run_not_found", "Execution run not found.", false)
 			return
 		}
-		setOutcome(response, "execution_run_steps_query_failed")
 		writeError(response, http.StatusInternalServerError, "execution_run_steps_query_failed", err.Error(), true)
 		return
 	}
 	attempts, err := s.runProjectionStore.ListStepAttempts(request.Context(), runID)
 	if err != nil {
-		setOutcome(response, "execution_step_attempts_query_failed")
 		writeError(response, http.StatusInternalServerError, "execution_step_attempts_query_failed", err.Error(), true)
 		return
 	}
 	results, err := s.runProjectionStore.ListStepResults(request.Context(), runID)
 	if err != nil {
-		setOutcome(response, "execution_step_results_query_failed")
 		writeError(response, http.StatusInternalServerError, "execution_step_results_query_failed", err.Error(), true)
 		return
 	}
@@ -210,7 +187,6 @@ func (s *Server) handleExecutionRunSteps(response http.ResponseWriter, request *
 	for _, result := range results {
 		bodyResults = append(bodyResults, stepResultProjectionResponse(result))
 	}
-	setOutcome(response, "execution_run_steps")
 	writeJSON(response, http.StatusOK, map[string]any{
 		"steps":                         bodySteps,
 		"attempts":                      bodyAttempts,

@@ -11,7 +11,6 @@ import (
 
 func (s *Server) handleProfileMemoryAppend(response http.ResponseWriter, request *http.Request) {
 	if !s.internalWorkerAuthorized(request) {
-		setOutcome(response, "unauthorized")
 		writeError(response, http.StatusUnauthorized, "unauthorized", "Internal worker authorization failed.", false)
 		return
 	}
@@ -21,12 +20,10 @@ func (s *Server) handleProfileMemoryAppend(response http.ResponseWriter, request
 	}
 	var input memoryruntime.AppendConversationTurnRequest
 	if err := json.Unmarshal(body, &input); err != nil {
-		setOutcome(response, "invalid_request")
 		writeError(response, http.StatusBadRequest, "invalid_request", "Profile memory append request is invalid.", false)
 		return
 	}
 	if err := memoryruntime.ValidateAppendConversationTurnRequest(input); err != nil {
-		setOutcome(response, "invalid_request")
 		writeError(response, http.StatusBadRequest, "invalid_request", err.Error(), false)
 		return
 	}
@@ -34,24 +31,18 @@ func (s *Server) handleProfileMemoryAppend(response http.ResponseWriter, request
 	if !ok {
 		return
 	}
-	startedAt := time.Now().UTC()
 	ctx, cancel := contextWithPersonalMemoryTimeout(s, request)
 	defer cancel()
 	result, err := executor.AppendConversationTurn(ctx, input)
 	if err != nil {
-		s.recordPersonalMemoryOperation("append", "failed", "profile_memory_append_failed", startedAt, 0, 0)
-		setOutcome(response, "profile_memory_append_failed")
 		writeError(response, http.StatusBadGateway, "profile_memory_append_failed", err.Error(), true)
 		return
 	}
-	s.recordPersonalMemoryOperation("append", result.Status, "none", startedAt, result.AppendedMessageCount, 0)
-	setOutcome(response, "profile_memory_appended")
 	writeJSON(response, http.StatusOK, result)
 }
 
 func (s *Server) handleProfileMemoryRecall(response http.ResponseWriter, request *http.Request) {
 	if !s.internalWorkerAuthorized(request) {
-		setOutcome(response, "unauthorized")
 		writeError(response, http.StatusUnauthorized, "unauthorized", "Internal worker authorization failed.", false)
 		return
 	}
@@ -61,12 +52,10 @@ func (s *Server) handleProfileMemoryRecall(response http.ResponseWriter, request
 	}
 	var input memoryruntime.RecallRequest
 	if err := json.Unmarshal(body, &input); err != nil {
-		setOutcome(response, "invalid_request")
 		writeError(response, http.StatusBadRequest, "invalid_request", "Profile memory recall request is invalid.", false)
 		return
 	}
 	if err := memoryruntime.ValidateRecallRequest(input); err != nil {
-		setOutcome(response, "invalid_request")
 		writeError(response, http.StatusBadRequest, "invalid_request", err.Error(), false)
 		return
 	}
@@ -74,29 +63,22 @@ func (s *Server) handleProfileMemoryRecall(response http.ResponseWriter, request
 	if !ok {
 		return
 	}
-	startedAt := time.Now().UTC()
 	ctx, cancel := contextWithPersonalMemoryTimeout(s, request)
 	defer cancel()
 	result, err := executor.Recall(ctx, input)
 	if err != nil {
-		s.recordPersonalMemoryOperation("recall", "failed", "profile_memory_recall_failed", startedAt, 0, 0)
-		setOutcome(response, "profile_memory_recall_failed")
 		writeError(response, http.StatusBadGateway, "profile_memory_recall_failed", err.Error(), true)
 		return
 	}
-	s.recordPersonalMemoryOperation("recall", "completed", "none", startedAt, result.SelectedMemoryCount, result.SelectedMemoryChars)
-	setOutcome(response, "profile_memory_recalled")
 	writeJSON(response, http.StatusOK, result)
 }
 
 func (s *Server) profileMemoryExecutorForCommand(response http.ResponseWriter) (personalMemoryExecutor, bool) {
 	if s.personalMemoryErr != nil {
-		setOutcome(response, "profile_memory_not_configured")
 		writeError(response, http.StatusServiceUnavailable, "profile_memory_not_configured", s.personalMemoryErr.Error(), true)
 		return nil, false
 	}
 	if s.personalMemoryExecutor == nil {
-		setOutcome(response, "profile_memory_not_configured")
 		writeError(response, http.StatusServiceUnavailable, "profile_memory_not_configured", "Personal memory executor is not configured.", true)
 		return nil, false
 	}

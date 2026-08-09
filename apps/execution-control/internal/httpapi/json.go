@@ -17,7 +17,6 @@ func (s *Server) readJSONBody(response http.ResponseWriter, request *http.Reques
 	if err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
-			setOutcome(response, "request_body_too_large")
 			writeError(
 				response,
 				http.StatusRequestEntityTooLarge,
@@ -26,7 +25,6 @@ func (s *Server) readJSONBody(response http.ResponseWriter, request *http.Reques
 				false,
 			)
 		} else {
-			setOutcome(response, "request_body_unreadable")
 			writeError(
 				response,
 				http.StatusBadRequest,
@@ -38,7 +36,6 @@ func (s *Server) readJSONBody(response http.ResponseWriter, request *http.Reques
 		return nil, false
 	}
 	if closeErr != nil {
-		setOutcome(response, "request_body_unreadable")
 		writeError(
 			response,
 			http.StatusBadRequest,
@@ -54,7 +51,6 @@ func (s *Server) readJSONBody(response http.ResponseWriter, request *http.Reques
 
 	var decoded map[string]any
 	if err := json.Unmarshal(body, &decoded); err != nil || decoded == nil {
-		setOutcome(response, "invalid_json")
 		writeError(
 			response,
 			http.StatusBadRequest,
@@ -75,10 +71,11 @@ func writeError(
 	message string,
 	retryable bool,
 ) {
+	code = safeErrorCode(code)
 	writeJSON(response, status, map[string]any{
 		"error": errorInfo{
 			Code:      code,
-			Message:   message,
+			Message:   publicErrorMessage(code, message),
 			Retryable: retryable,
 		},
 	})
@@ -94,16 +91,93 @@ func writeRuntimeFailure(
 	traceID string,
 	failureKind string,
 ) {
+	code = safeErrorCode(code)
 	writeJSON(response, status, map[string]any{
 		"error": errorInfo{
 			Code:      code,
-			Message:   message,
+			Message:   publicErrorMessage(code, message),
 			Retryable: retryable,
 		},
 		"failure_kind": failureKind,
 		"request_id":   requestID,
 		"trace_id":     traceID,
 	})
+}
+
+func safeErrorCode(code string) string {
+	code = strings.TrimSpace(code)
+	if len(code) == 0 || len(code) > 80 {
+		return "internal_error"
+	}
+	for _, char := range code {
+		if (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') ||
+			(char >= '0' && char <= '9') || char == '_' || char == '-' || char == '.' || char == ':' {
+			continue
+		}
+		return "internal_error"
+	}
+	return code
+}
+
+func publicErrorMessage(code string, _ string) string {
+	switch code {
+	case "unauthorized":
+		return "Authorization failed."
+	case "invalid_request", "invalid_body", "invalid_json":
+		return "Request is invalid."
+	case "unsupported_media_type":
+		return "Request content type is not supported."
+	case "request_body_too_large":
+		return "Request body exceeds the execution-control request limit."
+	case "request_body_unreadable":
+		return "Request body could not be read."
+	case "execution_workflow_input_invalid":
+		return "Execution workflow input is invalid."
+	case "execution_run_create_failed":
+		return "Execution run could not be created."
+	case "execution_run_query_failed", "durable_run_query_failed":
+		return "Execution run could not be read."
+	case "execution_run_steps_query_failed":
+		return "Execution run steps could not be read."
+	case "execution_step_attempts_query_failed":
+		return "Execution step attempts could not be read."
+	case "execution_step_results_query_failed":
+		return "Execution step results could not be read."
+	case "execution_run_cancel_conflict":
+		return "Execution run could not be cancelled in its current state."
+	case "execution_run_cancel_request_failed":
+		return "Execution run cancellation could not be recorded."
+	case "execution_run_not_found", "durable_run_not_found":
+		return "Execution run was not found."
+	case "run_context_conflict":
+		return "Execution run context is invalid."
+	case "profile_memory_append_failed":
+		return "Personal memory could not be updated."
+	case "profile_memory_recall_failed":
+		return "Personal memory could not be loaded."
+	case "profile_memory_not_configured":
+		return "Personal memory is not configured."
+	case "model_setting_invalid":
+		return "Model setting is invalid."
+	case "model_settings_not_ready", "model_settings_unavailable":
+		return "Model settings are temporarily unavailable."
+	case "model_settings_precondition_required":
+		return "Refresh model settings before saving."
+	case "model_setting_not_found":
+		return "Model setting was not found."
+	case "api_key_required":
+		return "API key is required."
+	case "model_settings_conflict":
+		return "Model settings changed. Refresh and try again."
+	case "temporal_not_ready", "temporal_unavailable":
+		return "Temporal workflow service is temporarily unavailable."
+	case "temporal_admission_failed":
+		return "Workflow admission could not be completed."
+	case "not_found":
+		return "Route was not found."
+	default:
+		return "Execution-control request could not be completed."
+	}
 }
 
 func writeRetryableAdmissionError(

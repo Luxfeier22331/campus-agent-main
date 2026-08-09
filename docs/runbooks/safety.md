@@ -14,7 +14,7 @@ status: active
 
 - `chat.turn_dispatches`：`safety_identifier`、状态、错误和时间；
 - `runtime.agent_runs`：运行终态、`terminal_reason`、`fail_close_reason` 和 trace 关联；
-- Axiom：脱敏辅助日志和调用链，不是限流状态依据；
+- Axiom：脱敏 application logs，不是限流状态依据；
 - Sentry：经过清理的应用异常，不是用户身份、请求正文或限流状态依据。
 
 `runtime.request_observability_fact` 是 App API 内部投影，Ops Web 当前没有列读取权限，不能作为本
@@ -38,7 +38,8 @@ abuse throttle 与 safety alert 阈值由
 Cloudflare application console logs 绕过 Collector 白名单。若排查中发现 query、header、正文、
 用户标识或 credential，应立即停止对应 log destination 或 producer 输出，并按 observability
 canary 重新验证；若出现 invocation log/native trace，则先修复必须关闭这两类信号的配置漂移。
-调用链应以 W3C context 关联的 Collector runtime trace 为证据，不得把泄漏字段复制进工单。
+若环境启用了 Agent Langfuse trace，可以使用 W3C context 做进一步关联；配额停收时不要求 trace
+存在。不得把泄漏字段复制进工单，也不得用 trace 缺失推断请求失败。
 
 ## 禁止
 

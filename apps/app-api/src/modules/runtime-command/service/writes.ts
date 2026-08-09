@@ -131,6 +131,7 @@ const PUBLIC_EXECUTION_ERROR_CODES = new Set([
 	"request_not_found",
 	"request_rejected",
 	"retrieval_lookup_failed",
+	"run_expired",
 	"run_failed",
 	"runtime_invariant_failed",
 	"tool_execution_failed",
@@ -167,6 +168,8 @@ export function publicExecutionFailure(input: {
 		message = "The request was cancelled.";
 	} else if (errorCode === "rate_limit_exceeded") {
 		message = "Too many requests. Please wait a few minutes and try again.";
+	} else if (errorCode === "run_expired") {
+		message = "The request expired before it completed.";
 	} else if (["personal_memory_not_configured"].includes(errorCode)) {
 		message = "Personal memory could not be loaded for this request.";
 	} else if (

@@ -4,12 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"strings"
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/telemetry"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 	"go.temporal.io/sdk/activity"
 )
@@ -182,9 +180,6 @@ func (s *Server) projectTemporalStep(ctx context.Context, projection temporalSte
 			return err
 		}
 	}
-	if err := s.emitTemporalStepObservation(ctx, projection); err != nil {
-		return err
-	}
 	if completionErr != nil {
 		return completionErr
 	}
@@ -197,129 +192,6 @@ func temporalStepProjectionPayload(projection temporalStepProjection) map[string
 		payload["activity_attempt"] = projection.ActivityAttempt
 	}
 	return payload
-}
-
-func (s *Server) emitTemporalStepObservation(ctx context.Context, projection temporalStepProjection) error {
-	if s == nil || s.telemetry == nil {
-		return nil
-	}
-	// The emitter records unavailable/exporter failures in its own status.
-	// Ordinary trace delivery is not part of the durable projection commit and
-	// must not turn a stored step into an Activity failure.
-	_ = s.telemetry.Emit(ctx, s.temporalStepObservationEvent(projection))
-	return nil
-}
-
-func (s *Server) temporalStepObservationEvent(projection temporalStepProjection) telemetry.Event {
-	event := temporalStepObservationEvent(projection)
-	if strings.TrimSpace(event.Release) == "" {
-		event.Release = strings.TrimSpace(s.config.DeploymentRelease)
-	}
-	if strings.TrimSpace(event.DeploymentEnvironment) == "" {
-		event.DeploymentEnvironment = strings.TrimSpace(s.config.DeploymentEnvironment)
-	}
-	return event
-}
-
-func temporalStepObservationEvent(projection temporalStepProjection) telemetry.Event {
-	event := telemetry.Event{
-		ActivityAttempt:       projection.ActivityAttempt,
-		ActivityType:          strings.TrimSpace(projection.ActivityType),
-		CachedInputTokens:     projection.CachedInputTokens,
-		ConversationID:        strings.TrimSpace(projection.Run.ConversationID),
-		DeploymentEnvironment: "",
-		Duration:              time.Duration(projection.DurationMS) * time.Millisecond,
-		FailCloseReason:       strings.TrimSpace(projection.FailCloseReason),
-		FailureKind:           firstNonEmptyText(projection.Payload["failure_kind"]),
-		InputTokens:           projection.InputTokens,
-		ModelName:             strings.TrimSpace(projection.ModelName),
-		ModelProvider:         strings.TrimSpace(projection.ModelProvider),
-		Name:                  "temporal.step_observation",
-		OutputTokens:          projection.OutputTokens,
-		ProjectionRef:         strings.TrimSpace(projection.ProjectionRef),
-		RequestID:             strings.TrimSpace(projection.Run.RequestID),
-		RunID:                 strings.TrimSpace(projection.Run.RunID),
-		ScheduleToStart:       time.Duration(projection.ScheduleToStartMS) * time.Millisecond,
-		StartedAt:             projection.StartedAt,
-		ToolName:              temporalStepToolName(projection),
-		Status:                strings.TrimSpace(projection.Status),
-		StepID:                strings.TrimSpace(projection.StepID),
-		StepKind:              strings.TrimSpace(projection.StepKind),
-		TaskQueue:             strings.TrimSpace(projection.TaskQueue),
-		TraceID:               strings.TrimSpace(projection.Run.TraceID),
-		UserID:                strings.TrimSpace(projection.Run.OwnerUserID),
-		WorkflowID:            strings.TrimSpace(projection.WorkflowID),
-		CompletedAt:           projection.CompletedAt,
-	}
-	if event.StepID == "grounding.prepare" {
-		event.GroundingMode = strings.TrimSpace(stringValue(projection.Payload["grounding_mode"]))
-		if event.GroundingMode != "" {
-			event.GroundingStatus = strings.TrimSpace(stringValue(projection.Payload["status"]))
-			event.GroundingSelectedScopes = stringSliceFromAny(projection.Payload["selected_scopes"])
-			event.GroundingCoveredScopes = stringSliceFromAny(projection.Payload["covered_scopes"])
-			if value, ok := nonNegativeProjectionInt64(projection.Payload["candidate_count"]); ok {
-				event.GroundingCandidateCount = value
-				event.GroundingCandidateCountSet = true
-			}
-			if value, ok := nonNegativeProjectionInt64(projection.Payload["evidence_count"]); ok {
-				event.GroundingEvidenceCount = value
-				event.GroundingEvidenceCountSet = true
-			}
-			if value, ok := nonNegativeProjectionInt64(projection.Payload["token_count"]); ok {
-				event.GroundingTokenCount = value
-				event.GroundingTokenCountSet = true
-			}
-			if value, ok := nonNegativeProjectionInt64(projection.Payload["model_context_chars"]); ok {
-				event.GroundingModelContextChars = value
-				event.GroundingModelContextCharsSet = true
-			}
-			stageTiming := cloneAnyMapFromMetadata(projection.Payload["stage_timing"])
-			if value, ok := numericProjectionValueIfPresent(stageTiming["grounding.embedding_ms"]); ok {
-				event.GroundingEmbeddingMS = value
-				event.GroundingEmbeddingMSSet = true
-			}
-			if value, ok := numericProjectionValueIfPresent(stageTiming["grounding.search_ms"]); ok {
-				event.GroundingSearchMS = value
-				event.GroundingSearchMSSet = true
-			}
-			if value, ok := numericProjectionValueIfPresent(stageTiming["grounding.rerank_ms"]); ok {
-				event.GroundingRerankMS = value
-				event.GroundingRerankMSSet = true
-			}
-			if value, ok := numericProjectionValueIfPresent(stageTiming["grounding.pack_ms"]); ok {
-				event.GroundingPackMS = value
-				event.GroundingPackMSSet = true
-			}
-		}
-	}
-	return event
-}
-
-func numericProjectionValueIfPresent(value any) (float64, bool) {
-	numeric, ok := numericValue(value)
-	if !ok || math.IsNaN(numeric) || math.IsInf(numeric, 0) || numeric < 0 {
-		return 0, false
-	}
-	return numeric, true
-}
-
-func nonNegativeProjectionInt64(value any) (int64, bool) {
-	numeric, ok := numericProjectionValueIfPresent(value)
-	if !ok || math.Trunc(numeric) != numeric || numeric >= float64(math.MaxInt64) {
-		return 0, false
-	}
-	return int64(numeric), true
-}
-
-func temporalStepToolName(projection temporalStepProjection) string {
-	if projection.Payload == nil {
-		return strings.TrimSpace(projection.Tool)
-	}
-	tool, ok := projection.Payload["tool_name"].(string)
-	if !ok {
-		return strings.TrimSpace(projection.Tool)
-	}
-	return strings.TrimSpace(tool)
 }
 
 func temporalPostFinalizationStepAllowed(stepID string) bool {

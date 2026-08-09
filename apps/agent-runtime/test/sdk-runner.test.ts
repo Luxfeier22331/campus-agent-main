@@ -694,13 +694,11 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		expect(observedSignal).toBe(controller.signal);
 	});
 
-	it("exports product correlation metadata without model IO", async () => {
+	it("disables model IO in SDK traces", async () => {
 		let observedTraceIncludeSensitiveData: boolean | undefined;
-		let observedTraceMetadata: Record<string, string> | undefined;
 		const runner = createOpenAIAgentsRunner({
 			runSdk: async (_agent, _input, options) => {
 				observedTraceIncludeSensitiveData = options.traceIncludeSensitiveData;
-				observedTraceMetadata = options.traceMetadata;
 				return {
 					finalOutput: {
 						kind: "answer",
@@ -725,11 +723,6 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		});
 
 		expect(observedTraceIncludeSensitiveData).toBe(false);
-		expect(observedTraceMetadata).toEqual({
-			"campus.trace_id": "trace-debug-sdk",
-			"request.id": "req-sdk-debug-trace",
-			"run.id": "run-sdk-debug-trace",
-		});
 	});
 
 	it("streams terminal-envelope visible text before yielding the final structured SDK result", async () => {

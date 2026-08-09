@@ -60,7 +60,7 @@ recall 使用 accepted user message 时间作为 `query_timestamp`。返回 fact
 
 append 使用确定性 document ID、`update_mode=replace` 和 private observation scope。Hindsight
 同步返回后本次 activity 才成功；仓库不代理其内部 operation。append 失败不回滚已经完成的回答，
-但必须记录 failed step 和有界指标。
+但必须记录 failed step 和稳定失败状态。
 
 gate 在 chat 准入时冻结，后续执行不重读可变设置。关闭 recall 时不开放工具、不创建 recall step；
 关闭 append 时追加 activity 投影 skipped step。两者都不能从 PostgreSQL、Qdrant 或供应商抽取记忆。
@@ -81,14 +81,14 @@ app-api 在 PostgreSQL 中维护 lifecycle、item desired state 和 command outb
 conversation prune/delete 在删除产品 message 前捕获 message ID，并派生与 retain 相同的 document
 ID。删除后需要等待 Hindsight consolidation 生效，再确认来源不再通过 recall 返回。
 
-## 投影与遥测
+## 投影与数据最小化
 
 execution-control 可以保存 bank/document identity、generation fence 和 command receipt。浏览器、
-student run-step 和通用 Axiom 信号不得保存原始 bank/document/operation ID、provider payload 或
-memory 正文；允许保存公共状态、计数、hash、timing 和 failure kind。
+student run-step 和 Axiom application logs 不得保存原始 bank/document/operation ID、provider payload
+或 memory 正文；允许保存公共状态、计数、hash、timing 和 failure kind。
 
-Langfuse 可以观察 Hindsight 与 Agent 的受控调用 metadata、模型标识、用量和阶段结果，但不记录
-`memory_text` 或模型输入输出。它不得被复制到 Axiom 或 Sentry；具体字段边界见
+Langfuse Agent trace 可以记录获准工具名和有界结果状态，但不记录 Hindsight metadata、
+`memory_text`、工具输入输出或模型输入输出。Hindsight 不发送新的 Langfuse trace；具体字段边界见
 [Langfuse](./langfuse.md)。
 
 ## Temporal 与失败语义
@@ -108,7 +108,7 @@ Langfuse 可以观察 Hindsight 与 Agent 的受控调用 metadata、模型标�
 - Temporal：Activity、命令和删除检查点生命周期；
 - 执行投影：有界 step 与结果；
 - Qdrant：机构知识；
-- Langfuse：受信任模型和记忆 trace。
+- Langfuse：可选 Agent/model/tool trace，以及个人数据清除维护的历史 trace 范围。
 
 ## 禁止形态
 

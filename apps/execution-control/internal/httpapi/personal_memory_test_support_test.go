@@ -35,10 +35,6 @@ func (f *fakePersonalMemoryExecutor) ExecuteCommand(
 	return memoryruntime.PersonalMemoryCommandResult{CommandID: request.CommandID, Status: "succeeded"}, nil
 }
 
-func (f *fakePersonalMemoryExecutor) HealthCheck(context.Context) error {
-	return nil
-}
-
 func (f *fakePersonalMemoryExecutor) Recall(
 	_ context.Context,
 	request memoryruntime.RecallRequest,

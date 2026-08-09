@@ -426,8 +426,7 @@ export function createExecutionControlRequester(
 
 			throw new ExecutionControlTransportError({
 				code: "execution_control_unavailable",
-				message:
-					error instanceof Error ? error.message : "Execution control runtime request failed.",
+				message: "Execution control runtime request failed.",
 				retryable: true,
 				status: 502,
 			});

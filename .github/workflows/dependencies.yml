@@ -38,4 +38,4 @@ jobs:
           enable_kvm: false
 
       - name: Scan dependency ecosystems
-        run: pnpm ci:deps
+        run: scripts/dependencies/scan.sh

@@ -24,7 +24,7 @@ import (
 )
 
 type documentEvidenceExecutor interface {
-	HealthCheck(context.Context) error
+	CheckEmbeddingCompatibility(context.Context, providerConfigSnapshot) error
 }
 
 type qdrantDocumentEvidenceExecutor struct {
@@ -131,26 +131,6 @@ func noRedirectHTTPClient(client *http.Client) *http.Client {
 
 func rejectHTTPRedirect(_ *http.Request, _ []*http.Request) error {
 	return http.ErrUseLastResponse
-}
-
-func (e qdrantDocumentEvidenceExecutor) HealthCheck(ctx context.Context) error {
-	if e.knowledgeReadModel == nil {
-		return errors.New("knowledge section read model is not configured")
-	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, e.qdrantURL+"/collections", nil)
-	if err != nil {
-		return err
-	}
-	request.Header.Set("api-key", e.qdrantQueryAPIKey)
-	response, err := noRedirectHTTPClient(e.httpClient).Do(request)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = response.Body.Close() }()
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return fmt.Errorf("qdrant collections status %d", response.StatusCode)
-	}
-	return e.knowledgeReadModel.KnowledgeHealthCheck(ctx)
 }
 
 func (e qdrantDocumentEvidenceExecutor) CheckEmbeddingCompatibility(

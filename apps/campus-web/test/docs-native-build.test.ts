@@ -70,9 +70,7 @@ describe("native docs build boundary", () => {
 			"pnpm exec tsx ./test/build-browser-test-content.ts",
 		);
 		expect(packageJson.scripts["build:worker"]).toBe("CLOUDFLARE_ENV=local pnpm run build:test");
-		expect(packageJson.scripts["docs:prepare"]).toBe(
-			"pnpm exec tsx ./scripts/prepare-docs-content.ts",
-		);
+		expect(packageJson.scripts["docs:prepare"]).toBeUndefined();
 		expect(packageJson.scripts["docs:source:update"]).toBe(
 			"pnpm exec tsx ./scripts/update-docs-source.ts",
 		);

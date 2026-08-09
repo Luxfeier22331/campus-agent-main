@@ -25,125 +25,6 @@ describe("OpsWebApp", () => {
 		expect(activeLink).not.toHaveClass("bg-primary", "text-primary-foreground");
 	});
 
-	it("shows health, request trends, queues, and telemetry on the overview", async () => {
-		render(<OpsWebApp initialPath="/overview?window=1h" />);
-
-		expect(await screen.findByRole("heading", { name: "运行概览" })).toBeInTheDocument();
-		expect(await screen.findByRole("combobox", { name: "统计窗口" })).toHaveValue("1h");
-		expect(screen.getByText("整体状态")).toBeInTheDocument();
-		expect(screen.getAllByText("降级").length).toBeGreaterThan(0);
-		expect(screen.getByText("请求成功率")).toBeInTheDocument();
-		expect(screen.getByText("94.8%")).toBeInTheDocument();
-		expect(screen.getByRole("heading", { name: "请求趋势" })).toBeInTheDocument();
-		expect(screen.getByText("请求量与结果")).toBeInTheDocument();
-		expect(screen.getAllByText("95% 耗时").length).toBeGreaterThan(0);
-		expect(screen.getByRole("table", { name: "请求趋势数据" })).toBeInTheDocument();
-		expect(screen.getAllByText("存在失败请求").length).toBeGreaterThan(0);
-		expect(screen.getByText("执行控制状态异常")).toBeInTheDocument();
-		expect(screen.getAllByText("学生端").length).toBeGreaterThan(0);
-		expect(screen.getAllByText("campus-agent.workflow").length).toBeGreaterThan(0);
-		expect(screen.getByTestId("service-status-mobile-list")).toHaveClass("divide-y");
-		expect(screen.getByTestId("temporal-queue-mobile-list")).toHaveClass("divide-y");
-		expect(screen.getByText("日志")).toBeInTheDocument();
-		expect(screen.getByText("调用链")).toBeInTheDocument();
-		const telemetrySection = screen.getByRole("heading", { name: "观测数据" }).closest("section");
-		expect(telemetrySection).not.toBeNull();
-		expect(
-			within(telemetrySection as HTMLElement).getByRole("table", { name: "观测信号覆盖" }),
-		).toBeInTheDocument();
-		expect(
-			within(telemetrySection as HTMLElement).getByText("otel-collector-agent"),
-		).toBeInTheDocument();
-		expect(
-			within(telemetrySection as HTMLElement).getByText("otel-collector-gateway"),
-		).toBeInTheDocument();
-		expect(within(telemetrySection as HTMLElement).queryByText("正常")).not.toBeInTheDocument();
-		expect(
-			within(telemetrySection as HTMLElement).queryByText(/数据状态：/),
-		).not.toBeInTheDocument();
-	});
-
-	it("distinguishes unlabelled telemetry producers from an inactive window", async () => {
-		const originalFetch = globalThis.fetch;
-		vi.stubGlobal("fetch", async () =>
-			Response.json({
-				...opsOverviewFixture,
-				telemetry: {
-					dataState: "FRESH",
-					reason: null,
-					signals: [
-						{
-							dataState: "FRESH",
-							expectation: "ACTIVITY",
-							kind: "LOGS",
-							producer: { instanceId: null, nodeName: null, serviceName: null },
-							reason: null,
-							recordCount: 3,
-							status: "HEALTHY",
-							updatedAt: "2026-07-09T06:29:59.000Z",
-						},
-						{
-							dataState: "NO_DATA",
-							expectation: "ACTIVITY",
-							kind: "TRACES",
-							producer: { instanceId: null, nodeName: null, serviceName: null },
-							reason: null,
-							recordCount: 0,
-							status: "UNKNOWN",
-							updatedAt: null,
-						},
-					],
-					status: "HEALTHY",
-					updatedAt: "2026-07-09T06:29:59.000Z",
-				},
-			}),
-		);
-
-		try {
-			render(<OpsWebApp initialPath="/overview?window=1h" />);
-
-			const table = await screen.findByRole("table", { name: "观测信号覆盖" });
-			const unlabelledRow = within(table).getByText("未标注服务").closest("tr");
-			expect(unlabelledRow).not.toBeNull();
-			expect(within(unlabelledRow as HTMLElement).getByText("日志")).toBeInTheDocument();
-			expect(within(unlabelledRow as HTMLElement).getByText("3 条")).toBeInTheDocument();
-			expect(
-				within(unlabelledRow as HTMLElement).queryByText("当前窗口无活动"),
-			).not.toBeInTheDocument();
-
-			const inactiveRow = within(table).getByText("当前窗口无活动").closest("tr");
-			expect(inactiveRow).not.toBeNull();
-			expect(within(inactiveRow as HTMLElement).getByText("调用链")).toBeInTheDocument();
-		} finally {
-			vi.stubGlobal("fetch", originalFetch);
-		}
-	});
-
-	it("shows Axiom availability in its own overview section", async () => {
-		const originalFetch = globalThis.fetch;
-		vi.stubGlobal("fetch", async () =>
-			Response.json({
-				...opsOverviewFixture,
-				telemetry: {
-					dataState: "UNAVAILABLE",
-					reason: "Axiom 查询不可用。",
-					signals: [],
-					status: "UNKNOWN",
-					updatedAt: null,
-				},
-			}),
-		);
-
-		try {
-			render(<OpsWebApp initialPath="/overview?window=1h" />);
-
-			expect(await screen.findByText("Axiom 查询不可用。")).toBeInTheDocument();
-			expect(screen.getByText("没有可展示的观测数据。")).toBeInTheDocument();
-		} finally {
-			vi.stubGlobal("fetch", originalFetch);
-		}
-	});
-
 	it("keeps request summary visible when request trends are unavailable", async () => {
 		const originalFetch = globalThis.fetch;
 		vi.stubGlobal("fetch", async () =>
@@ -673,13 +554,9 @@ describe("OpsWebApp", () => {
 		expect(navigator.clipboard.writeText).toHaveBeenCalledWith("req_ops_001");
 		expect(screen.queryByRole("list", { name: "应用日志" })).not.toBeInTheDocument();
 		fireEvent.click(await screen.findByRole("button", { name: "加载应用日志（Axiom）" }));
-		fireEvent.click(await screen.findByRole("button", { name: "加载调用链（Axiom）" }));
 		fireEvent.click(await screen.findByRole("button", { name: "加载 Sentry 错误记录" }));
 		expect(await screen.findByRole("list", { name: "应用日志" })).toHaveTextContent(
 			"request.finalized",
-		);
-		expect(await screen.findByRole("list", { name: "调用链记录" })).toHaveTextContent(
-			"agent.primary",
 		);
 		expect(screen.getByRole("list", { name: "应用日志" }).querySelector("pre")).toBeNull();
 		expect(await screen.findByRole("list", { name: "Sentry Issue 摘要" })).toHaveTextContent(

@@ -29,12 +29,15 @@ describe("ingestion task workflow", () => {
 	it("projects activity failure and preserves the failed Temporal outcome", async () => {
 		const calls: string[] = [];
 		const store = new InMemoryIngestionTaskStore();
+		const failure = Object.assign(new Error("crawl failed"), {
+			code: "authorization=Bearer secret-token",
+		});
 		await expect(
 			runIngestionTaskWorkflowPlan({
 				...testTaskStartMetadata,
 				execute: async () => {
 					calls.push("execute");
-					throw new Error("crawl failed");
+					throw failure;
 				},
 				projectionActivities: activities(store, calls),
 				runNonCancellableCleanup: async (cleanup) => await cleanup(),
@@ -42,8 +45,11 @@ describe("ingestion task workflow", () => {
 				workflowId: "ingestion/task-curriculum-chunk-001",
 				workflowRunId: "temporal-run-001",
 			}),
-		).rejects.toThrow("crawl failed");
-		expect(store.getTask("task-curriculum-chunk-001")?.status).toBe("failed");
+		).rejects.toBe(failure);
+		expect(store.getTask("task-curriculum-chunk-001")).toMatchObject({
+			error_code: "ingestion_activity_failed",
+			status: "failed",
+		});
 		expect(calls).toEqual(["start", "execute", "fail"]);
 	});
 

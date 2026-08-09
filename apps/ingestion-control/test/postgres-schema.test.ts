@@ -24,7 +24,6 @@ const columns = [
 	"result_contract",
 	"summary_json",
 	"error_code",
-	"error_message",
 ];
 
 const migrationColumns = ["migration_id", "content_sha256", "applied_at"];
@@ -44,6 +43,20 @@ describe("ingestion-control schema assertion", () => {
 			expect(statement).toContain("information_schema.columns");
 			expect(statement).not.toMatch(/CREATE|ALTER|DROP/iu);
 		}
+	});
+
+	it("rejects the pre-migration error message column", async () => {
+		await expect(
+			assertIngestionControlPostgresSchema({
+				async query(sql, params) {
+					return {
+						rows: schemaColumns(sql, params, [...columns, "error_message"]).map((column_name) => ({
+							column_name,
+						})),
+					};
+				},
+			}),
+		).rejects.toThrow("retired columns: error_message");
 	});
 });
 

@@ -125,10 +125,6 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-            - name: OTEL_SERVICE_NAME
-              value: execution-control
-            - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: http://otel-collector:4319
             - name: OPS_WEB_INTERNAL_TOKEN
               valueFrom:
                 secretKeyRef:

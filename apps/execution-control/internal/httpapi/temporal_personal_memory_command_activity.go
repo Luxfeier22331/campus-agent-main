@@ -83,7 +83,6 @@ func (s *Server) ExecutePersonalMemoryCommandActivity(
 	leaseTTL := time.Duration(s.config.PersonalMemoryTimeoutSeconds*float64(time.Second)) + 15*time.Second
 	receipt, shouldExecute, err := s.personalMemoryStateStore.BeginCommand(ctx, ownerHash, command, leaseTTL)
 	if err != nil {
-		s.recordPersonalMemoryReceipt(ctx, command.CommandKind, "blocked", "admission_failed")
 		if errors.Is(err, memoryruntime.ErrMemoryReceiptBlocked) {
 			return temporalruntime.PersonalMemoryCommandActivityOutput{}, sanitizedTemporalApplicationError(
 				"memory_command_owner_blocked",
@@ -100,14 +99,11 @@ func (s *Server) ExecutePersonalMemoryCommandActivity(
 	if !shouldExecute {
 		switch receipt.Status {
 		case "succeeded":
-			s.recordPersonalMemoryReceipt(ctx, command.CommandKind, receipt.Status, "replayed")
 			return personalMemoryActivityOutput(command.CommandID, "succeeded", ""), nil
 		case "failed":
-			s.recordPersonalMemoryReceipt(ctx, command.CommandKind, receipt.Status, "replayed")
 			errorCode := personalMemoryCommandErrorCode(receipt.ErrorCode)
 			return personalMemoryActivityOutput(command.CommandID, "failed", errorCode), nil
 		default:
-			s.recordPersonalMemoryReceipt(ctx, command.CommandKind, receipt.Status, "lease_active")
 			return temporalruntime.PersonalMemoryCommandActivityOutput{}, sanitizedTemporalApplicationError(
 				"memory_command_receipt_active",
 				errors.New("personal memory command receipt is already active"),
@@ -115,12 +111,10 @@ func (s *Server) ExecutePersonalMemoryCommandActivity(
 			)
 		}
 	}
-	s.recordPersonalMemoryReceipt(ctx, command.CommandKind, "processing", "claimed")
 	if command.CommandKind == "owner_erase" {
 		drained, drainErr := s.personalMemoryStateStore.GenerationDrained(ctx, ownerHash, command.OwnerGeneration-1)
 		if drainErr != nil || !drained {
 			_ = s.personalMemoryStateStore.MarkCommandRetryable(ctx, command.CommandID, ownerHash)
-			s.recordPersonalMemoryReceipt(ctx, command.CommandKind, "retryable", "generation_not_drained")
 			return temporalruntime.PersonalMemoryCommandActivityOutput{}, sanitizedTemporalApplicationError(
 				"memory_generation_not_drained",
 				drainErr,
@@ -132,7 +126,6 @@ func (s *Server) ExecutePersonalMemoryCommandActivity(
 		drained, drainErr := s.personalMemoryStateStore.SubjectDrained(ctx, ownerHash, command.OwnerGeneration, command.SubjectScopeHash, command.OwnerSequence)
 		if drainErr != nil || !drained {
 			_ = s.personalMemoryStateStore.MarkCommandRetryable(ctx, command.CommandID, ownerHash)
-			s.recordPersonalMemoryReceipt(ctx, command.CommandKind, "retryable", "subject_not_drained")
 			return temporalruntime.PersonalMemoryCommandActivityOutput{}, sanitizedTemporalApplicationError(
 				"memory_subject_not_drained",
 				drainErr,
@@ -144,7 +137,6 @@ func (s *Server) ExecutePersonalMemoryCommandActivity(
 	result, err := s.personalMemoryExecutor.ExecuteCommand(ctx, command)
 	if err != nil {
 		_ = s.personalMemoryStateStore.MarkCommandRetryable(ctx, command.CommandID, ownerHash)
-		s.recordPersonalMemoryReceipt(ctx, command.CommandKind, "retryable", "provider_failed")
 		return temporalruntime.PersonalMemoryCommandActivityOutput{}, sanitizedTemporalApplicationError(
 			"hindsight_command_failed",
 			err,
@@ -240,7 +232,6 @@ func (s *Server) FinalizePersonalMemoryCommandReceiptActivity(
 			false,
 		)
 	}
-	s.recordPersonalMemoryReceipt(ctx, input.Command.CommandKind, result.Status, "finalized")
 	return result, nil
 }
 

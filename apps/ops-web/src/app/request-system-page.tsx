@@ -17,7 +17,6 @@ import {
 } from "./ops-api-client";
 import {
 	CopyableKeyValue,
-	CopyIconButton,
 	ErrorState,
 	KeyValue,
 	PageHeader,
@@ -27,11 +26,11 @@ import {
 import { formatOpsDomainValue } from "./ops-domain-labels";
 import { formatDataStateLabel } from "./ops-view-helpers";
 
-type SystemSource = "logs" | "sentry" | "trace";
+type SystemSource = "logs" | "sentry";
 
 export function RequestSystemPage({ from, requestId }: { from?: string; requestId: string }) {
 	const [sourceSelection, setSourceSelection] = useState({
-		loaded: { logs: false, sentry: false, trace: false },
+		loaded: { logs: false, sentry: false },
 		requestId,
 	});
 	const detail = useQuery({
@@ -64,13 +63,11 @@ export function RequestSystemPage({ from, requestId }: { from?: string; requestI
 	const loaded =
 		sourceSelection.requestId === requestId
 			? sourceSelection.loaded
-			: { logs: false, sentry: false, trace: false };
+			: { logs: false, sentry: false };
 	const load = (source: SystemSource) => {
 		setSourceSelection((current) => ({
 			loaded: {
-				...(current.requestId === requestId
-					? current.loaded
-					: { logs: false, sentry: false, trace: false }),
+				...(current.requestId === requestId ? current.loaded : { logs: false, sentry: false }),
 				[source]: true,
 			},
 			requestId,
@@ -118,13 +115,6 @@ export function RequestSystemPage({ from, requestId }: { from?: string; requestI
 					kind="logs"
 					onLoad={() => load("logs")}
 					title="应用日志（Axiom）"
-				/>
-				<ObservabilityPanel
-					detail={detail.data}
-					enabled={loaded.trace}
-					kind="trace"
-					onLoad={() => load("trace")}
-					title="调用链（Axiom）"
 				/>
 			</div>
 		</section>
@@ -299,7 +289,7 @@ function ObservabilityPanel({
 }: {
 	detail: OpsRequestDetailResponse;
 	enabled: boolean;
-	kind: "logs" | "trace";
+	kind: "logs";
 	onLoad: () => void;
 	title: string;
 }) {
@@ -465,7 +455,7 @@ function VirtualRecordList({ response }: { response: OpsObservabilityResponse })
 	if (response.records.length === 0) {
 		return (
 			<p className="border-border border-y bg-secondary p-4 text-muted-foreground text-sm">
-				当前运行没有匹配的{response.kind === "logs" ? "应用日志" : "调用链记录"}。
+				当前运行没有匹配的应用日志。
 			</p>
 		);
 	}
@@ -477,7 +467,7 @@ function VirtualRecordList({ response }: { response: OpsObservabilityResponse })
 			style={{ height: `${viewportHeight}px` }}
 		>
 			<ul
-				aria-label={response.kind === "logs" ? "应用日志" : "调用链记录"}
+				aria-label="应用日志"
 				className="relative w-full"
 				style={{ height: `${virtualizer.getTotalSize()}px` }}
 			>
@@ -504,16 +494,11 @@ function VirtualRecordList({ response }: { response: OpsObservabilityResponse })
 }
 
 function RecordRow({ index, response }: { index: number; response: OpsObservabilityResponse }) {
-	if (response.kind === "logs") {
-		const record = response.records[index];
-		return record ? <LogRecordRow record={record} /> : null;
-	}
 	const record = response.records[index];
-	return record ? <TraceRecordRow record={record} /> : null;
+	return record ? <LogRecordRow record={record} /> : null;
 }
 
 type LogRecord = Extract<OpsObservabilityResponse, { kind: "logs" }>["records"][number];
-type TraceRecord = Extract<OpsObservabilityResponse, { kind: "trace" }>["records"][number];
 
 function LogRecordRow({ record }: { record: LogRecord }) {
 	return (
@@ -526,61 +511,12 @@ function LogRecordRow({ record }: { record: LogRecord }) {
 			<p className="font-medium text-background">
 				{record.eventType ?? record.source ?? "未命名日志事件"}
 			</p>
-			<RecordIds context="结构化日志" spanId={record.otelSpanId} traceId={record.otelTraceId} />
 			<div className="flex flex-wrap gap-x-4 gap-y-1">
 				<span>状态：{record.status ?? "未记录"}</span>
 				<span>
 					耗时：{record.durationMs === null ? "未记录" : formatDuration(record.durationMs)}
 				</span>
 				<span>错误：{record.errorCode ?? "无"}</span>
-			</div>
-		</div>
-	);
-}
-
-function TraceRecordRow({ record }: { record: TraceRecord }) {
-	return (
-		<div className="grid gap-2 border-background/20 border-b p-3 text-background/70 text-xs">
-			<div className="flex flex-wrap items-center gap-2">
-				<span className="font-medium text-background">
-					{record.hasError ? "ERROR" : (record.statusCode ?? "OK")}
-				</span>
-				<span>{formatTimestamp(record.timestamp)}</span>
-				<span>{record.serviceName ?? "未知服务"}</span>
-			</div>
-			<p className="font-medium text-background">{record.name ?? "未命名 Span"}</p>
-			<RecordIds context="调用链" spanId={record.otelSpanId} traceId={record.otelTraceId} />
-			<div className="flex flex-wrap gap-x-4 gap-y-1">
-				<span>类型：{formatOpsDomainValue(record.kind)}</span>
-				<span>耗时：{record.duration ?? "未记录"}</span>
-				<span className="break-all">requestId={record.requestId}</span>
-			</div>
-		</div>
-	);
-}
-
-function RecordIds({
-	context,
-	spanId,
-	traceId,
-}: {
-	context: string;
-	spanId: string | null;
-	traceId: string | null;
-}) {
-	return (
-		<div className="grid gap-1 font-mono">
-			<div className="flex items-center gap-2">
-				<span className="min-w-0 break-all">otelTraceId={traceId ?? "未关联"}</span>
-				{traceId ? (
-					<CopyIconButton contextLabel={context} label="otelTraceId" value={traceId} />
-				) : null}
-			</div>
-			<div className="flex items-center gap-2">
-				<span className="min-w-0 break-all">otelSpanId={spanId ?? "未关联"}</span>
-				{spanId ? (
-					<CopyIconButton contextLabel={context} label="otelSpanId" value={spanId} />
-				) : null}
 			</div>
 		</div>
 	);

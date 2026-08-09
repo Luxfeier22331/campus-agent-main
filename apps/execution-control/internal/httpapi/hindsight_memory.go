@@ -19,7 +19,6 @@ type personalMemoryExecutor interface {
 		context.Context,
 		memoryruntime.AppendConversationTurnRequest,
 	) (memoryruntime.AppendConversationTurnResult, error)
-	HealthCheck(context.Context) error
 	Recall(context.Context, memoryruntime.RecallRequest) (memoryruntime.RecallResult, error)
 }
 
@@ -28,7 +27,6 @@ type hindsightClient interface {
 	EnsureBank(context.Context, string, hindsightBankConfig) error
 	DeleteBank(context.Context, string) error
 	DeleteDocument(context.Context, string, string) error
-	HealthCheck(context.Context) error
 	RecallMemories(context.Context, string, hindsightRecallRequest) (hindsightRecallResponse, error)
 	RetainMemories(context.Context, string, hindsightRetainRequest) (hindsightRetainResponse, error)
 }
@@ -86,13 +84,6 @@ func newHindsightMemoryExecutor(cfg config.Config) (personalMemoryExecutor, erro
 		recallMaxTokens:   recallMaxTokens,
 		contextCharBudget: contextCharBudget,
 	}, nil
-}
-
-func (e hindsightExecutor) HealthCheck(ctx context.Context) error {
-	if e.client == nil {
-		return errors.New("hindsight client is not configured")
-	}
-	return e.client.HealthCheck(ctx)
 }
 
 func (e hindsightExecutor) ExecuteCommand(
@@ -312,42 +303,4 @@ func (e hindsightExecutor) conversationMessageDocumentID(bankID string, threadID
 		strings.TrimSpace(e.ownerSalt) + ":" + strings.TrimSpace(bankID) + ":" + strings.TrimSpace(sourceMessageID),
 	))
 	return "conversation:" + hex.EncodeToString(conversationSum[:])[:32] + ":message:" + hex.EncodeToString(messageSum[:])[:32]
-}
-
-func CheckPersonalMemoryRuntime(ctx context.Context, cfg config.Config) error {
-	executor, err := newHindsightMemoryExecutor(cfg)
-	if err != nil {
-		return err
-	}
-	return executor.HealthCheck(ctx)
-}
-
-func EnsurePersonalMemoryRuntime(ctx context.Context, cfg config.Config) error {
-	return CheckPersonalMemoryRuntime(ctx, cfg)
-}
-
-func hindsightConfigSummary(cfg config.Config) map[string]any {
-	return map[string]any{
-		"context_char_budget": cfg.PersonalMemoryContextCharBudget,
-		"data_plane":          "hindsight_self_host",
-		"recall_max_tokens":   cfg.PersonalMemoryRecallMaxTokens,
-		"thread_owner":        "execution-control",
-	}
-}
-
-func hindsightConfigError(cfg config.Config) string {
-	if strings.TrimSpace(cfg.PersonalMemoryBaseURL) == "" {
-		return "HINDSIGHT_API_BASE_URL is required"
-	}
-	if strings.TrimSpace(cfg.PersonalMemoryAPISecret) == "" {
-		return "HINDSIGHT_API_TENANT_API_KEY is required"
-	}
-	if strings.TrimSpace(cfg.PersonalMemoryOwnerSalt) == "" {
-		return "HINDSIGHT_OWNER_SALT is required"
-	}
-	return ""
-}
-
-func personalMemoryOwnerSaltConfigured(cfg config.Config) bool {
-	return strings.TrimSpace(cfg.PersonalMemoryOwnerSalt) != ""
 }

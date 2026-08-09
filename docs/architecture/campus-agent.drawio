@@ -128,19 +128,13 @@
         <mxCell id="obs_plane" value="观测面" style="swimlane;startSize=38;horizontal=1;rounded=1;arcSize=6;collapsible=0;container=1;pointerEvents=0;whiteSpace=wrap;html=1;fillColor=#F8FAFC;swimlaneFillColor=#FFFFFF;strokeColor=#64748B;strokeWidth=2;fontFamily=Microsoft YaHei;fontSize=16;fontStyle=1;fontColor=#475569;spacingLeft=12" vertex="1" parent="1">
           <mxGeometry x="210" y="1900" width="4910" height="430" as="geometry" />
         </mxCell>
-        <mxCell id="sentry" value="&lt;b&gt;Sentry&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#526174&quot; style=&quot;font-size:12px&quot;&gt;浏览器与边缘错误、性能&lt;/font&gt;" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#FDF2F8;strokeColor=#B45A86;strokeWidth=1.5;fontFamily=Microsoft YaHei;fontSize=14;fontColor=#172033;spacing=10" vertex="1" parent="obs_plane">
+        <mxCell id="sentry" value="&lt;b&gt;Sentry&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#526174&quot; style=&quot;font-size:12px&quot;&gt;浏览器与边缘错误、仅生产 browser 采样性能&lt;/font&gt;" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#FDF2F8;strokeColor=#B45A86;strokeWidth=1.5;fontFamily=Microsoft YaHei;fontSize=14;fontColor=#172033;spacing=10" vertex="1" parent="obs_plane">
           <mxGeometry x="180" y="120" width="280" height="120" as="geometry" />
         </mxCell>
-        <mxCell id="otel_current_agent" value="&lt;font color=&quot;#64748B&quot; style=&quot;font-size:12px&quot;&gt;现状&lt;/font&gt;&lt;br&gt;&lt;b&gt;OTel Agent DaemonSet&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#526174&quot; style=&quot;font-size:12px&quot;&gt;节点日志与 kubelet metrics&lt;/font&gt;" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#F8FAFC;strokeColor=#64748B;strokeWidth=1.5;fontFamily=Microsoft YaHei;fontSize=13;fontColor=#172033;spacing=8" vertex="1" parent="obs_plane">
-          <mxGeometry x="1450" y="110" width="300" height="140" as="geometry" />
-        </mxCell>
-        <mxCell id="otel_current_gateway" value="&lt;font color=&quot;#64748B&quot; style=&quot;font-size:12px&quot;&gt;现状&lt;/font&gt;&lt;br&gt;&lt;b&gt;OTel Gateway Deployment&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#526174&quot; style=&quot;font-size:12px&quot;&gt;四个 OTLP/HTTP 入口与信号处理&lt;/font&gt;" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#F8FAFC;strokeColor=#64748B;strokeWidth=1.5;fontFamily=Microsoft YaHei;fontSize=13;fontColor=#172033;spacing=8" vertex="1" parent="obs_plane">
-          <mxGeometry x="2000" y="110" width="330" height="140" as="geometry" />
-        </mxCell>
-        <mxCell id="axiom" value="&lt;b&gt;Axiom&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#526174&quot; style=&quot;font-size:12px&quot;&gt;日志、调用链与指标&lt;/font&gt;" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#ECFEFF;strokeColor=#3B8EA5;strokeWidth=1.5;fontFamily=Microsoft YaHei;fontSize=14;fontColor=#172033;spacing=10" vertex="1" parent="obs_plane">
+        <mxCell id="axiom" value="&lt;b&gt;Axiom&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#526174&quot; style=&quot;font-size:12px&quot;&gt;三个有界 App API application events&lt;/font&gt;" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#ECFEFF;strokeColor=#3B8EA5;strokeWidth=1.5;fontFamily=Microsoft YaHei;fontSize=14;fontColor=#172033;spacing=10" vertex="1" parent="obs_plane">
           <mxGeometry x="3150" y="120" width="280" height="120" as="geometry" />
         </mxCell>
-        <mxCell id="langfuse" value="&lt;b&gt;Langfuse&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#526174&quot; style=&quot;font-size:12px&quot;&gt;模型、工具与记忆 trace&lt;/font&gt;" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#FFF7E6;strokeColor=#C58A24;strokeWidth=1.5;fontFamily=Microsoft YaHei;fontSize=14;fontColor=#172033;spacing=10" vertex="1" parent="obs_plane">
+        <mxCell id="langfuse" value="&lt;b&gt;Langfuse&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#526174&quot; style=&quot;font-size:12px&quot;&gt;可选 Agent/LLM trace&lt;/font&gt;" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#FFF7E6;strokeColor=#C58A24;strokeWidth=1.5;fontFamily=Microsoft YaHei;fontSize=14;fontColor=#172033;spacing=10" vertex="1" parent="obs_plane">
           <mxGeometry x="4000" y="120" width="300" height="120" as="geometry" />
         </mxCell>
         <mxCell id="e_user_submit" value="提出问题" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;endArrow=block;endFill=1;fontFamily=Microsoft YaHei;fontSize=12;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.35;entryX=0;entryY=0.5" edge="1" source="user" target="campus_submit" parent="1">
@@ -236,29 +230,11 @@
         <mxCell id="e_app_sentry" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#64748B;strokeWidth=1.2;endArrow=block;endFill=1;dashed=1;dashPattern=2 4;exitX=0.04;exitY=1;entryX=0.65;entryY=0" edge="1" source="app_api" target="sentry" parent="1">
           <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="739" y="1800" /><mxPoint x="572" y="1800" /></Array></mxGeometry>
         </mxCell>
-        <mxCell id="e_web_axiom" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#64748B;strokeWidth=1.2;endArrow=block;endFill=1;dashed=1;dashPattern=2 4;exitX=0.9;exitY=1;entryX=0.35;entryY=0" edge="1" source="campus_web" target="axiom" parent="1">
-          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="582" y="1760" /><mxPoint x="3458" y="1760" /></Array></mxGeometry>
-        </mxCell>
         <mxCell id="e_app_axiom" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#64748B;strokeWidth=1.2;endArrow=block;endFill=1;dashed=1;dashPattern=2 4;exitX=0.02;exitY=1;entryX=0.75;entryY=0" edge="1" source="app_api" target="axiom" parent="1">
           <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="724" y="1790" /><mxPoint x="3570" y="1790" /></Array></mxGeometry>
         </mxCell>
-        <mxCell id="e_execution_otel" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#64748B;strokeWidth=1.2;endArrow=block;endFill=1;dashed=1;dashPattern=2 4;exitX=0.265;exitY=1;entryX=0.5;entryY=0" edge="1" source="execution_control" target="otel_current_gateway" parent="1">
-          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="2000" y="1820" /><mxPoint x="2375" y="1820" /></Array></mxGeometry>
-        </mxCell>
-        <mxCell id="e_agent_otel" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#64748B;strokeWidth=1.2;endArrow=block;endFill=1;dashed=1;dashPattern=2 4;exitX=1;exitY=0.5;entryX=0.5;entryY=0" edge="1" source="agent_runtime" target="otel_current_gateway" parent="1">
-          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="4680" y="430" /><mxPoint x="4680" y="1880" /><mxPoint x="2375" y="1880" /></Array></mxGeometry>
-        </mxCell>
-        <mxCell id="e_hindsight_otel" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#64748B;strokeWidth=1.2;endArrow=block;endFill=1;dashed=1;dashPattern=2 4;exitX=1;exitY=0.5;entryX=0.5;entryY=0" edge="1" source="hindsight" target="otel_current_gateway" parent="1">
-          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="4610" y="1290" /><mxPoint x="4610" y="1850" /><mxPoint x="2375" y="1850" /></Array></mxGeometry>
-        </mxCell>
-        <mxCell id="e_otel_agent_gateway" value="节点信号" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#64748B;strokeWidth=1.2;endArrow=block;endFill=1;dashed=1;dashPattern=2 4;fontFamily=Microsoft YaHei;fontSize=12;labelBackgroundColor=#FFFFFF" edge="1" source="otel_current_agent" target="otel_current_gateway" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e_otel_current_axiom" value="通用信号" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#64748B;strokeWidth=1.2;endArrow=block;endFill=1;dashed=1;dashPattern=2 4;fontFamily=Microsoft YaHei;fontSize=12;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;entryX=0.5;entryY=1" edge="1" source="otel_current_gateway" target="axiom" parent="1">
-          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="2375" y="2210" /><mxPoint x="3500" y="2210" /></Array></mxGeometry>
-        </mxCell>
-        <mxCell id="e_otel_current_langfuse" value="模型与记忆 trace" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#64748B;strokeWidth=1.2;endArrow=block;endFill=1;dashed=1;dashPattern=2 4;fontFamily=Microsoft YaHei;fontSize=12;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;entryX=0.5;entryY=1" edge="1" source="otel_current_gateway" target="langfuse" parent="1">
-          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="2375" y="2260" /><mxPoint x="4360" y="2260" /></Array></mxGeometry>
+        <mxCell id="e_agent_langfuse" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#64748B;strokeWidth=1.2;endArrow=block;endFill=1;dashed=1;dashPattern=2 4;exitX=1;exitY=0.5;entryX=0.5;entryY=0" edge="1" source="agent_runtime" target="langfuse" parent="1">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="4680" y="430" /><mxPoint x="4680" y="1850" /><mxPoint x="4360" y="1850" /></Array></mxGeometry>
         </mxCell>
       </root>
     </mxGraphModel>

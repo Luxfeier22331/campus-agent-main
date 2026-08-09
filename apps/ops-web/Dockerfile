@@ -10,7 +10,7 @@ COPY packages/domains/dining/package.json ./packages/domains/dining/package.json
 COPY packages/internal-portal-client/package.json ./packages/internal-portal-client/package.json
 COPY packages/langfuse-identity/package.json ./packages/langfuse-identity/package.json
 COPY packages/ui/package.json ./packages/ui/package.json
-COPY scripts/ci/check-ops-web-artifact.mjs ./scripts/ci/check-ops-web-artifact.mjs
+COPY scripts/release/check-ops-web-artifact.mjs ./scripts/release/check-ops-web-artifact.mjs
 
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
   --mount=type=cache,id=corepack,target=/root/.cache/node/corepack,sharing=locked \
@@ -28,7 +28,7 @@ COPY packages/ui ./packages/ui
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
   pnpm --filter ops-web build \
   && pnpm --filter ops-web deploy --legacy --prod /opt/ops-web \
-  && node scripts/ci/check-ops-web-artifact.mjs /opt/ops-web
+  && node scripts/release/check-ops-web-artifact.mjs /opt/ops-web
 
 FROM node:24.18.1-bookworm-slim AS runtime
 

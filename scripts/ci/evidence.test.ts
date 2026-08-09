@@ -102,7 +102,6 @@ test("runs affected Node tasks from the shared scope without a downloaded Turbo"
 				command.includes("--filter=campus-web"),
 		),
 	);
-	assert(commands.some((command) => command.join(" ") === "pnpm ci:release"));
 	assert(commands.some((command) => command.join(" ").includes("docker buildx bake")));
 	assert(!commands.some((command) => command.includes("dlx")));
 	assert(calls.every((call) => call.base === BASE && call.head === HEAD));
@@ -127,12 +126,13 @@ test("runs selected native, database, OTel, and dependency profiles in order", (
 		},
 	);
 	assert.deepEqual(calls, [
-		"pnpm ci:go",
-		"pnpm ci:rust",
-		"pnpm ci:eval",
-		"pnpm ci:ingestion-control-postgres",
-		"pnpm ci:otel",
-		"pnpm ci:deps",
+		"pnpm exec turbo run native:format native:lint native:typecheck native:test --filter=execution-control --concurrency=1 --summarize",
+		"pnpm exec turbo run native:format native:lint native:typecheck native:test --filter=ingestion-kernels-rs --concurrency=1 --summarize",
+		"pnpm exec turbo run typecheck test --filter=eval-langfuse --concurrency=1 --summarize",
+		"pnpm exec turbo run test:eval --filter=ragas-runner --concurrency=1 --summarize",
+		"pnpm exec turbo run test:database-integration --filter=ingestion-control --concurrency=1 --summarize",
+		"scripts/otel/validate-config.sh",
+		"scripts/dependencies/scan.sh",
 	]);
 });
 

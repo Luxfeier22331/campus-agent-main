@@ -25,57 +25,32 @@ func (s *Server) AppendConversationMemoryActivity(
 	if err != nil {
 		return temporalruntime.AppendConversationMemoryActivityOutput{}, err
 	}
-	startedAt := time.Now().UTC()
 	payload, err := s.loadExecutionPayload(ctx, run)
 	if err != nil {
 		failureKind := executionInputFailureKind(err, "memory_append_request_invalid")
-		output, projectErr := s.projectMemoryAppendFailure(ctx, run, failureKind, err)
-		if output.Status == "failed" {
-			s.recordPersonalMemoryOperation("append", "failed", failureKind, startedAt, 0, 0)
-		}
-		return output, projectErr
+		return s.projectMemoryAppendFailure(ctx, run, failureKind, err)
 	}
 	enabled, known := memoryEnabledFromExecutionPayload(payload)
 	if !known {
-		output, err := s.projectMemoryAppendResult(ctx, run, skippedMemoryAppendOutput(run.RunID, "memory_enabled_unknown"))
-		if err == nil {
-			s.recordPersonalMemoryOperation("append", "skipped", "memory_enabled_unknown", startedAt, 0, 0)
-		}
-		return output, err
+		return s.projectMemoryAppendResult(ctx, run, skippedMemoryAppendOutput(run.RunID, "memory_enabled_unknown"))
 	}
 	if !enabled {
-		output, err := s.projectMemoryAppendResult(ctx, run, skippedMemoryAppendOutput(run.RunID, "memory_disabled"))
-		if err == nil {
-			s.recordPersonalMemoryOperation("append", "skipped", "memory_disabled", startedAt, 0, 0)
-		}
-		return output, err
+		return s.projectMemoryAppendResult(ctx, run, skippedMemoryAppendOutput(run.RunID, "memory_disabled"))
 	}
 	if s.personalMemoryErr != nil {
-		output, err := s.projectMemoryAppendFailure(ctx, run, "personal_memory_not_configured", s.personalMemoryErr)
-		if output.Status == "failed" {
-			s.recordPersonalMemoryOperation("append", "failed", "personal_memory_not_configured", startedAt, 0, 0)
-		}
-		return output, err
+		return s.projectMemoryAppendFailure(ctx, run, "personal_memory_not_configured", s.personalMemoryErr)
 	}
 	if s.personalMemoryExecutor == nil {
-		output, err := s.projectMemoryAppendFailure(
+		return s.projectMemoryAppendFailure(
 			ctx,
 			run,
 			"personal_memory_not_configured",
 			errors.New("personal memory executor is not configured"),
 		)
-		if output.Status == "failed" {
-			s.recordPersonalMemoryOperation("append", "failed", "personal_memory_not_configured", startedAt, 0, 0)
-		}
-		return output, err
 	}
 	request, err := memoryAppendRequestForRun(run, payload)
 	if err != nil {
-		output, projectErr := s.projectMemoryAppendFailure(ctx, run, "memory_append_request_invalid", err)
-		if output.Status == "failed" {
-			s.recordPersonalMemoryOperation("append", "failed", "memory_append_request_invalid", startedAt, 0, 0)
-		}
-		return output, projectErr
+		return s.projectMemoryAppendFailure(ctx, run, "memory_append_request_invalid", err)
 	}
 	recordTemporalActivityHeartbeat(ctx, "memory.append.request_ready")
 	recordTemporalActivityHeartbeat(ctx, "memory.append.call_hindsight")
@@ -83,11 +58,7 @@ func (s *Server) AppendConversationMemoryActivity(
 	result, err := s.personalMemoryExecutor.AppendConversationTurn(ctx, request)
 	stopProviderHeartbeat()
 	if err != nil {
-		output, projectErr := s.projectMemoryAppendFailure(ctx, run, "hindsight_append_failed", err)
-		if output.Status == "failed" {
-			s.recordPersonalMemoryOperation("append", "failed", "hindsight_append_failed", startedAt, 0, 0)
-		}
-		return output, projectErr
+		return s.projectMemoryAppendFailure(ctx, run, "hindsight_append_failed", err)
 	}
 	recordTemporalActivityHeartbeat(ctx, "memory.append.project_result")
 	output, err := s.projectMemoryAppendResult(ctx, run, temporalruntime.AppendConversationMemoryActivityOutput{
@@ -98,9 +69,6 @@ func (s *Server) AppendConversationMemoryActivity(
 		Status:               result.Status,
 		ThreadID:             result.ThreadID,
 	})
-	if err == nil {
-		s.recordPersonalMemoryOperation("append", output.Status, "none", startedAt, output.AppendedMessageCount, 0)
-	}
 	recordTemporalActivityHeartbeat(ctx, "memory.append.completed")
 	return output, err
 }

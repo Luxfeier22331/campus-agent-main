@@ -1,6 +1,4 @@
 import { fileURLToPath } from "node:url";
-import { startNodeTelemetry } from "@campus-agent/telemetry-node";
-import { OpenTelemetryPlugin } from "@temporalio/interceptors-opentelemetry-v2";
 import { NativeConnection, Worker } from "@temporalio/worker";
 import {
 	loadCollectionChunkProfilesFromRoot,
@@ -19,6 +17,7 @@ import {
 import { INGESTION_KERNEL_TOKENIZER_JSON_PATH } from "./runtime-paths";
 import { createDefaultRustKernelRegistry } from "./rust-kernel-runner";
 import { assertRustKernelRegistryCoversTasks } from "./task-executor";
+import { safeIngestionActivityFailureInterceptor } from "./temporal-activity-failure";
 import { buildIngestionTemporalConfig } from "./temporal-config";
 import { buildIngestionTemporalWorkerRuntimeConfig } from "./temporal-worker-config";
 
@@ -30,7 +29,6 @@ export async function startIngestionTemporalWorkers(
 ): Promise<void> {
 	const runtimeConfig = buildIngestionTemporalWorkerRuntimeConfig(env);
 	const temporalConfig = buildIngestionTemporalConfig(env);
-	const telemetry = startNodeTelemetry({ env, serviceName: "ingestion-control-worker" });
 	const { Pool } = await import("pg");
 	const pool = new Pool({
 		...runtimeConfig.database,
@@ -54,15 +52,8 @@ export async function startIngestionTemporalWorkers(
 		connection = await NativeConnection.connect({ address: temporalConfig.address });
 		const common = {
 			connection,
+			interceptors: { activity: [safeIngestionActivityFailureInterceptor] },
 			namespace: temporalConfig.namespace,
-			plugins: telemetry.spanProcessor
-				? [
-						new OpenTelemetryPlugin({
-							resource: telemetry.resource,
-							spanProcessor: telemetry.spanProcessor,
-						}),
-					]
-				: [],
 			shutdownGraceTime: "50 seconds" as const,
 		};
 		await createAndRunWorker(workers, runs, {
@@ -102,11 +93,7 @@ export async function startIngestionTemporalWorkers(
 			try {
 				await pool.end();
 			} finally {
-				try {
-					await objectStore.close?.();
-				} finally {
-					await telemetry.shutdown();
-				}
+				await objectStore.close?.();
 			}
 		}
 	}
@@ -142,7 +129,24 @@ export function requireTemporalWorkerObjectStore(
 
 if (import.meta.url === `file://${process.argv[1]}`) {
 	startIngestionTemporalWorkers().catch((error) => {
-		console.error(error);
+		console.error(
+			JSON.stringify({
+				error_code: safeWorkerErrorCode(error),
+				event_type: "ingestion_control.worker_failed",
+				level: "error",
+				status: "failed",
+			}),
+		);
 		process.exitCode = 1;
 	});
+}
+
+function safeWorkerErrorCode(error: unknown): string {
+	if (error && typeof error === "object") {
+		const code = (error as { code?: unknown }).code;
+		if (typeof code === "string" && /^[A-Za-z0-9_.:-]{1,80}$/u.test(code)) {
+			return code;
+		}
+	}
+	return "worker_failed";
 }

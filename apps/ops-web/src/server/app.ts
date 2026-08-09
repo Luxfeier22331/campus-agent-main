@@ -105,7 +105,6 @@ import {
 	type OpsOperatorContext,
 } from "./ops-admission.ts";
 import { createOpsOverviewService, type OpsOverviewService } from "./ops-overview-service.ts";
-import { createOpsRuntimeSignalsSource } from "./ops-runtime-signals.ts";
 import { decodeRequestCursor } from "./ops-status-mappers.ts";
 import {
 	createOpsStatusStoreFromEnv,
@@ -130,10 +129,6 @@ import {
 } from "./sentry-client.ts";
 
 interface OpsHealthEnv {
-	OPS_WEB_AGENT_RUNTIME_URL?: string;
-	OPS_WEB_APP_API_URL?: string;
-	OPS_WEB_CAMPUS_WEB_URL?: string;
-	OPS_WEB_EXECUTION_CONTROL_URL?: string;
 	OPS_WEB_PUBLIC_ORIGIN?: string;
 }
 
@@ -182,7 +177,7 @@ const RequestListQuerySchema = z
 	})
 	.strict();
 const OverviewQuerySchema = z.object({ window: OpsOverviewWindowSchema.default("1h") }).strict();
-const ObservabilityQuerySchema = z.object({ kind: z.enum(["logs", "trace"]) }).strict();
+const ObservabilityQuerySchema = z.object({ kind: z.literal("logs") }).strict();
 const OpsPathIdSchema = z
 	.string()
 	.min(1)
@@ -231,16 +226,6 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	const overviewService =
 		options.overviewService ??
 		createOpsOverviewService({
-			signals: createOpsRuntimeSignalsSource({
-				healthUrls: {
-					"agent-runtime": env.OPS_WEB_AGENT_RUNTIME_URL,
-					"app-api": env.OPS_WEB_APP_API_URL,
-					"campus-web": env.OPS_WEB_CAMPUS_WEB_URL,
-					"execution-control": env.OPS_WEB_EXECUTION_CONTROL_URL,
-				},
-				internalToken: env.OPS_WEB_INTERNAL_TOKEN,
-				axiom,
-			}),
 			store,
 		});
 	const providerConfigClient = options.providerConfigClient ?? createProviderConfigAdminClient(env);
@@ -283,7 +268,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	);
 
 	app.onError((error) => {
-		logOpsError("unhandled api error", error, { source: "http" });
+		logOpsError("ops_web.api_request", error, { source: "http" });
 		if (error instanceof AxiomUnavailableError) {
 			return jsonError("OPS_OBSERVABILITY_UNAVAILABLE", "Axiom 数据不可用。", 503);
 		}
@@ -386,7 +371,10 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 			return context.json({ ok: true, service: "ops-web" });
 		} catch (error) {
 			const reasonCode = classifyReadinessError(error);
-			logOpsError("readiness check failed", error, { reasonCode, source: "readiness" });
+			logOpsError("ops_web.readiness", error, {
+				failure_kind: reasonCode,
+				source: "readiness",
+			});
 			return context.json(
 				{
 					error: {
@@ -850,7 +838,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		const requestId = context.req.param("requestId");
 		const parsedQuery = ObservabilityQuerySchema.safeParse(context.req.query());
 		if (!(OpsPathIdSchema.safeParse(requestId).success && parsedQuery.success)) {
-			return jsonError("OPS_INVALID_QUERY", "日志或调用链查询参数无效。", 400);
+			return jsonError("OPS_INVALID_QUERY", "日志查询参数无效。", 400);
 		}
 		const detail = await store.getRequestDetail(requestId);
 		if (!detail) {
@@ -863,7 +851,6 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 				requestId: detail.request.requestId,
 				signal: context.req.raw.signal,
 				startedAt: detail.request.startedAt,
-				traceId: detail.technical.correlationIds.traceId,
 			}),
 		);
 		return context.json(response);
@@ -892,7 +879,6 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 					requestId: detail.request.requestId,
 					signal: context.req.raw.signal,
 					startedAt: detail.request.startedAt,
-					traceId: detail.technical.correlationIds.traceId,
 				}),
 			),
 		);
@@ -1307,8 +1293,8 @@ function createDefaultOpsStatusStore(env: OpsStatusEnv): OpsStatusStore {
 			throw error;
 		}
 		const reasonCode = classifyReadinessError(error);
-		logOpsError("status store initialization failed", error, {
-			reasonCode,
+		logOpsError("ops_web.status_store_initialization", error, {
+			failure_kind: reasonCode,
 			source: "requests",
 		});
 		return createUnavailableOpsStatusStore(
@@ -1327,7 +1313,7 @@ function createDefaultAxiomClient(env: AxiomEnv): AxiomClient {
 				? error
 				: new AxiomUnavailableError("Axiom client is unavailable.", { cause: error });
 		};
-		return { getTelemetrySnapshot: unavailable, queryRequest: unavailable };
+		return { queryRequest: unavailable };
 	}
 }
 

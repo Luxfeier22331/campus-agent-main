@@ -8,7 +8,7 @@ status: active
 
 ## 文档边界
 
-本文定义 Ops Web 在产品运行、可观测平台和少量管理操作之间的职责与数据流。页面体验见
+本文定义 Ops Web 在产品运行、外部观测平台和少量管理操作之间的职责。页面体验见
 `../../product/ops-web.md`，HTTP 语义见 `../../contracts/ops-web/README.md`，信号字段见
 `../../reference/telemetry.md`。环境地址、Secret、网络目标和部署状态由可执行配置及环境仓维护。
 
@@ -16,230 +16,130 @@ status: active
 
 Ops Web 是独立的运维和内容运营应用，由浏览器页面和同源服务端组成：
 
-- 浏览器只调用同源 `/api/ops/*`，不直连数据库、Kubernetes 或外部观测平台；
-- 服务端关联有界产品投影、执行投影、Temporal 状态、Axiom 记录、Sentry Issue 和外部入口；
-- 在线模型配置、Dining 和同好群是彼此独立的管理边界；
-- 外部平台继续拥有完整查询、工作流、模型观测和评测能力，Ops Web 不复制这些界面；
-- 任何观测信号都不能改写产品请求或工作流的持久状态。
+- 浏览器只调用同源 `/api/ops/*`，不直连数据库或外部平台；
+- 服务端读取 PostgreSQL 产品与执行投影，按需查询 Axiom application logs 和 Sentry Issues；
+- Langfuse、Temporal、Axiom 和 Sentry 继续拥有完整平台界面，Ops Web 只生成受控入口；
+- 在线模型配置、内部门户凭据、账号管理、Dining 和同好群各自遵守所属合同；
+- 任何观测信号都不能改写产品请求、个人记忆或 workflow 的持久状态。
 
 ## 数据流
 
 ```mermaid
 flowchart LR
   Browser[操作者浏览器]
-  Access[访问保护]
+  Access[Cloudflare Access]
   Ops[Ops Web]
-  Product[(产品与执行投影)]
-  Control[execution-control]
-  Dining[(Dining 地图数据)]
-  Temporal[Temporal]
-  Axiom[Axiom]
-  Sentry[Sentry]
-  Langfuse[Langfuse campus-agent project]
-  AgentCollector[OpenTelemetry Agent]
-  GatewayCollector[OpenTelemetry Gateway]
-  Runtime[Kubernetes workloads]
-  AgentRuntime[agent-runtime]
-  Hindsight[Hindsight]
-  TemporalUI[Temporal UI]
+  Product[(PostgreSQL 产品与执行投影)]
+  Control[execution-control admin]
+  App[app-api application events]
+  Axiom[Axiom logs]
+  Sentry[Sentry Issues]
+  Agent[agent-runtime]
+  Langfuse[Langfuse]
+  Temporal[Temporal UI]
 
   Browser --> Access --> Ops
   Ops --> Product
   Ops --> Control
-  Ops --> Dining
-  Ops --> Axiom
-  Ops --> Sentry
-  Ops -. 受控入口 .-> Temporal
-  Ops -. 受控入口 .-> Langfuse
-  Ops -. 受控入口 .-> TemporalUI
-
-  Control --> Temporal
-  Runtime -->|容器日志与 kubelet metrics| AgentCollector
-  AgentCollector -->|清理后的 log/metric| GatewayCollector
-  Runtime -->|通用 OTLP| GatewayCollector
-  Control -->|编排信号| GatewayCollector
-  AgentRuntime -->|受信任 trace| GatewayCollector
-  Hindsight -->|受信任 trace| GatewayCollector
-  GatewayCollector -->|清理后的 log/trace/metric| Axiom
-  GatewayCollector -->|Agent、编排与 Hindsight trace| Langfuse
+  Ops -->|固定 requestId 查询| Axiom
+  Ops -->|固定 Issue 查询| Sentry
+  Ops -.受控入口.-> Langfuse
+  Ops -.受控入口.-> Temporal
+  App -->|Cloudflare log destination| Axiom
+  Agent -->|可选 OTLP trace| Langfuse
 ```
 
 该图描述源码职责，不证明任一环境已经部署或收到可查询数据。
 
-## 组件职责
+## 运行概况
 
-| 组件 | 负责 | 不负责 |
-| --- | --- | --- |
-| Ops Web 页面 | 展示、筛选、复制关联标识和发起获准操作 | 保存凭据、构造任意查询或决定请求状态 |
-| Ops Web 服务端 | 人员身份校验、固定查询、外部入口和受控管理调用 | 通用代理、产品执行或任意工作流控制 |
-| 产品与执行投影 | 请求、运行和有界结果摘要 | 原始日志、模型 trace 或 Temporal history |
-| Temporal | workflow history、任务队列、重试、timer 和取消 | 产品请求摘要或日志存储 |
-| OpenTelemetry Agent | 以 DaemonSet 采集第一方容器日志和 kubelet metrics，清理后发送到 Gateway | 提供应用 OTLP 入口、长期存储或直接写供应商 |
-| OpenTelemetry Gateway | 以 Deployment 提供四个固定 OTLP/HTTP 入口，执行字段清理、路由、批处理和有界下游重试 | 节点日志采集、长期存储、采集 Hindsight stdout 或决定产品请求状态 |
-| Axiom | 清理后的日志、调用链和指标 | 模型正文、产品状态或工作流执行状态 |
-| Sentry canonical project | 浏览器和边缘错误、性能摘要、release 与 Issue | 通用日志存储或模型 trace |
-| Langfuse `campus-agent` project | Agent、模型、工具、受控编排、记忆 trace、数据集、评分和人工评审 | 产品状态或 Temporal history |
-| Dining 数据 | 地图草稿与发布版本、菜单、评价、举报和评价修改记录 | 采集、来源同步或人员准入 |
+`/api/ops/overview` 只读取 Ops Web PostgreSQL 中的请求状态与趋势，并提供已配置外部平台入口。
+它不轮询被观测服务、不查询 Temporal task queue、不计算 Axiom 覆盖，也不读取 Collector uptime。
 
-PostgreSQL 角色和 schema 由 `../../data/postgres-ownership.md` 维护，食堂完整边界由
-`../../product/dining.md` 维护。
+请求摘要和趋势共享同一数据所有者，但分别保留 `FRESH`、`NO_DATA`、`STALE`、`PARTIAL` 或
+`UNAVAILABLE`。缓存只保护这个 PostgreSQL 读取面；失败时可以在明确期限内返回最近成功结果，
+不能用空数组或零值伪装成功。整体健康只由产品请求投影汇总。
 
-## 运行记录与平台分工
+低流量窗口没有日志、trace 或 metric 不参与产品健康判断。Ops Web readiness 也不依赖 Axiom、
+Sentry、Langfuse、Temporal UI 或被观测服务。
 
-Ops Web 以运行记录作为跨系统入口。默认页面回答本轮用户问了什么、从哪个产品入口进入、Agent 使用
-了哪些用户可理解的业务能力、什么结果已经写入会话、耗时与主 Agent token 多少，以及是否需要人员
-关注。它不是观测平台数据的副本，也不表示系统已经完成根因诊断。
+## 运行记录
 
-各平台继续使用自己的稳定对象，不在 Ops Web 中压平成一套“诊断证据”：
+运行记录以持久 `requestId` 为主键，展示问题、产品状态、会话结果、有限 Agent usage、stage
+timing 和可信关联标识。完整 Temporal history、Agent graph、model generation、评测和任意平台查询
+仍在所属平台查看。
+
+系统记录页提供两类按需查询：
+
+- Axiom：只查询固定 logs dataset，返回允许的 application-log 摘要；
+- Sentry：只查询固定项目和时间范围内的 Issue 摘要。
+
+打开详情不会自动发起外部查询。服务端从已保存请求计算有界时间窗口、固定数据集、字段投影、排序
+和返回上限，浏览器不能提交 APL、dataset、项目、时间范围或字段。
+
+Axiom 查询只使用 durable `requestId` 过滤。产品 `traceId` 来自持久请求详情，只供页面展示和人工
+关联；Axiom 和 Sentry 响应不携带 `traceId`、OTel correlation 或供应商 `searchQuery`。要求
+requestId 与 traceId 同时匹配会丢失只拥有 durable request key 的合法 Worker application log，
+因此不属于当前合同。
+
+外部查询失败、部分响应、无记录和未配置分别保持自己的状态，不会改变运行记录的产品状态。Ops Web
+不查询 Axiom metrics/traces dataset，不生成 trace tree，也不以 Langfuse trace 是否存在判断请求
+是否成功。
+
+## 平台分工
 
 | 对象 | 所有者 | Ops Web 中的用途 |
 | --- | --- | --- |
-| 用户问题与会话结果 | `chat.messages` | 本轮完整问题、app-api 净化后的回答和用户可见来源 |
-| 产品请求 | `chat.turn_dispatches` | 入口、轮次、产品状态和请求与消息关联 |
-| Agent 业务动作与用量 | `runtime.agent_*` | 人类可读能力路径、一次总耗时和主 Agent token |
-| Session、Trace、Observation | Langfuse | 会话、单轮 Agent 运行、模型与工具步骤的完整分析和评测 |
-| Workflow Execution | Temporal | 持久执行状态、重试、等待和事件历史 |
-| Issue | Sentry | 跨事件聚合的应用错误或性能问题 |
-| 日志与分布式调用链 | Axiom | 清理后的应用日志摘要、跨服务路径和完整查询入口 |
+| 会话问题与产品结果 | app-api PostgreSQL | 展示本轮问题、已净化回答和用户可见来源 |
+| 请求与执行投影 | app-api、execution-control PostgreSQL | 状态、时间、usage、版本和关联标识 |
+| Workflow Execution | Temporal | 受控外部入口 |
+| Agent Trace | Langfuse | 受控外部入口；环境可以因配额停收 |
+| Application Log | Axiom | 按 requestId 加载有界摘要 |
+| Issue | Sentry | 按 requestId 加载有限错误摘要 |
 
-普通时间序和异常处置是两种读取任务，查询与界面必须显式区分，不能用隐藏排序混合。运行中的
-记录不是天然故障，等待用户也不等于工作流仍在后台执行。具体页面视图和排序体验由产品需求
-维护。
-
-Ops Web 可以使用可信请求标识关联外部记录，但不能根据日志、健康检查、Sentry Issue 或 Langfuse
-Trace 推断新的产品终态。Sentry Issue 可能聚合多个运行，单个运行也可能没有 Issue；Axiom 记录和
-Langfuse Trace 可能因采样、延迟或保留策略暂时不可用。
-
-服务端按已保存请求生成固定查询范围和字段投影：
-
-- Axiom 返回清理后的应用日志或调用链记录；
-- Sentry 返回有限错误摘要和官方 Issue 入口；
-- Temporal 与 Langfuse 提供根据可信标识生成的受控入口；
-- 外部正文不复制到产品数据库或 Ops Web 自有缓存。
-
-所有接口使用同一 Cloudflare Access 人员准入；应用不复制人员、组或分操作白名单。失败、无记录、
-部分响应和旧缓存分别保留自己的状态，不转换成产品请求成功或失败。
-
-请求主体、列表主体和时间窗口汇总是运行记录接口的主投影。业务动作、Agent usage 和趋势是独立的
-次要投影，必须在主体读取成功后分别结算；任一查询失败不能抹掉已取得的请求或汇总。业务动作通过
-`actionsDataState` 区分无记录与不可用，usage 使用自身 `state`，趋势使用包含 `dataState`、`reason`
-和 `data` 的有状态容器。次要投影失败显式返回 `UNAVAILABLE`，已有但不完整的 usage 返回
-`PARTIAL`，不得用空数组或零值冒充成功查询结果。服务端不为这些投影增加缓存或重试。
-
-Ops Web 只展示本轮产品结果和有界业务动作，并按需关联外部记录。它不从
-`runtime.request_observability_fact.supporting_sources_json` 推断用户结果，也不把 memory、attempt、
-重试或原始工具 ID 投影成产品旅途。完整模型输入输出和评测进入
-Langfuse，完整工作流历史进入 Temporal，错误聚合进入 Sentry，日志和分布式调用链搜索进入 Axiom。
-Ops Web 不实现统一查询语言、根因推断、Trace tree、Workflow history 或 Issue 管理。
-用户可见结果中的内部来源链接必须属于已配置的 Campus Web origin；外部来源只接受无凭据的
-绝对 HTTPS URL。Ops Web 只向浏览器提供跳转，不从服务端抓取该 URL。
-
-## 运行概况
-
-运行概况分成三个相互独立的状态面：
-
-- 产品运行面读取请求投影和 Temporal 队列，只描述已经保存的产品与执行事实；
-- 服务探针面只检查已配置的 Campus Web、App API、execution-control 和 agent-runtime 地址，
-  未配置探针不生成虚构故障；
-- 观测覆盖面读取 Axiom 的固定日志、调用链和 Collector uptime 查询，按信号与 producer 描述活动
-  覆盖和持续覆盖。
-
-三个状态面并行刷新，各自拥有超时、短期缓存、旧数据期限和并发合并。一个状态面失败时只能回退
-该状态面的最近成功结果，不能抹除或降级其他状态面的最新结果。产品整体健康只汇总产品运行面和
-服务探针面，Axiom 覆盖故障不等同于产品故障。页面以 `issues[]` 作为唯一根因摘要，不在整体状态、
-服务表和问题列表重复同一说明。精确状态、窗口和缓存语义由接口合同维护。
-
-低流量窗口没有日志或调用链不自动表示故障；最近十分钟完全没有 Agent 或 Gateway uptime 可以表示
-对应采集角色降级。Ops Web 不推断 Agent 应有副本数，部分节点采集缺失由 DaemonSet readiness 负责。
-被观测服务故障不应阻止操作者打开 Ops Web 查看其他来源。
+Axiom 不再承担本仓库自有 runtime metric 或分布式 trace 合同；Langfuse 不再接收
+execution-control/Hindsight trace。Agent Runtime 是唯一可选 Langfuse runtime producer。
 
 ## 管理操作
 
-### 在线模型配置
-
-Ops Web 通过 execution-control 的受控管理接口发现模型、读取、验证和写入在线配置。模型发现只
-返回供应商模型 ID，不向浏览器返回 API key 或供应商响应。配置写入本身就是
-当前设置的替换，不存在独立的 revision、bundle 或 activation 动作。Ops Web 不读取配置数据库、
-不持有 keyring，也不能写入不完整或未验证的配置。
-
-### Dining
-
-Ops Web 使用统一 `ops_web` 角色管理地图、菜单、评价和举报。App API 读取当前发布地图和菜单，
-并以受限权限创建、读取或删除学生评价及创建举报。完整规则见 `../../product/dining.md`。
-
-## 可观测平台
-
-OpenTelemetry Agent 在每个节点采集第一方容器日志与 kubelet metrics，并将清理后的信号发送到
-Gateway。Gateway 接收通用 OTLP 和受信任运行 trace，按入口执行字段清理、采样、批处理与下游
-路由。Cloudflare Worker 和浏览器使用各自支持的日志或 Sentry 集成；这些例外不能变成绕过字段
-治理的通用出口。
-
-Cloudflare native invocation logs 和 native traces 保持关闭。Worker 只发送 producer 清理后的
-application logs，并通过 W3C context 把请求关联传播到 execution-control；受控产品 trace 由
-execution-control 经 Gateway 写入 Axiom/Langfuse，不能用平台 native span 替代。
-
-Gateway 使用四个固定 OTLP/HTTP receiver：`4318` 接收 Agent 与其他通用信号，`4319` 接收 execution-control
-编排信号，`4320` 接收 Agent 受信任 trace，`4321` 接收 Hindsight 受信任 trace。入口由精确
-NetworkPolicy 隔离，不使用集群内 bearer token。环境交付的一枚 Axiom token 同时供 Terraform
-管理平台资源，并覆盖当前 dataset 的 Query 与 Ingest：Gateway 将其映射为 ingest 环境变量，
-Ops Web 将同一凭据映射为 query 环境变量。不同交付名称不表示多枚 token。所有 exporter 使用
-内存发送队列和最长 300 秒重试，不依赖持久队列。
-
-受信任 Langfuse trace 只包含 user/session 关联、model/provider 标识、token usage、Agent/tool
-observation、阶段结果和有界 metadata。模型输入输出、对话、工具原始载荷、memory/retrieval 正文、
-provider 原始响应和认证材料不得进入运行 trace。详细边界见 `langfuse.md` 和
-`../../contracts/langfuse-runtime.md`。
-
-Ops Web 通过环境共享的 Axiom 与 Sentry 供应商 token 执行服务端固定查询；同一凭据还供所属平台
-的 Terraform 与发布流程使用。浏览器不能覆盖 endpoint、数据集合、组织、项目、查询、时间范围
-或返回上限，也不能取得供应商 token。凭据交付由实现、环境文档和部署配置维护，不在架构文档复制。
+Ops Web 通过 execution-control admin 的受控接口发现模型、读取、验证和写入在线配置。模型发现
+只返回供应商模型 ID，不向浏览器返回 API key 或供应商响应。Dining、同好群、账号和内部门户凭据
+由各自产品与数据合同维护，不与观测查询共享状态。
 
 ## 访问与故障边界
 
 - Cloudflare Access policy 决定人员范围，服务端验证 JWT 并拒绝服务身份；
 - 写操作继续执行同源、幂等、并发和所属领域校验；
 - PostgreSQL 不可用时，请求读取返回错误而不是空列表；
-- Axiom 或 Sentry 不可用时，只影响对应观测区域；
-- 在线模型配置或 Dining 依赖失败时，只影响对应页面；
-- Dining 和 Sentry 未配置时不阻止 Ops Web 启动或就绪，所属接口返回明确的不可用状态；
-- `/healthz` 只表示进程响应，`/readyz` 检查 Cloudflare Access 配置、公开来源地址和请求状态
-  PostgreSQL；不探测 Dining、供应商或被观测服务。
+- Axiom 或 Sentry 不可用时，只影响对应按需区域；
+- Langfuse trace 因配额停收是允许状态，不影响在线执行或 Ops Web readiness；
+- `/healthz` 只表示进程响应；
+- `/readyz` 检查 Access 配置、公开来源地址和 PostgreSQL 轻量连接，不重复执行 schema 查询，也
+  不探测业务依赖或供应商。
 
 ## 部署边界
 
-源码仓拥有 Ops Web 代码、镜像、namespace-neutral Kubernetes base、遥测字段策略和本地 Collector
-配置。环境仓拥有 staging Agent DaemonSet 与 Gateway Deployment 的 Helm values、地址、Secret、
-网络目标、Ingress、保留策略和不可变版本选择。源码文件、manifest 或 Secret 键存在不表示某个
-环境已经部署成功。
+源码仓拥有 Ops Web 代码、镜像、namespace-neutral Kubernetes base、Agent trace producer 合同和
+本地 Collector 配置。环境仓拥有地址、Secret、外部平台设置、网络目标、Ingress、保留策略和
+不可变版本选择。源码 manifest 或 Secret key 存在不表示某个环境已经部署成功。
 
-网络出站按 workload 的实际依赖由 Kubernetes 配置声明；环境特定地址和供应商解析结果不得写入
-HTTP 合同。新增下游依赖时必须同时更新实现、可执行网络配置和环境选择。
+不新增按 dataset、consumer 或 exporter 拆分的 Axiom/Sentry token。现有宽权限供应商身份及其
+交付投影由环境合同维护，本次信号收缩只删除消费者，不改变权限。
 
 ## 禁止形态
 
-- 浏览器直连 PostgreSQL、Kubernetes、Axiom、Temporal、Langfuse、Sentry 或 Hindsight；
+- 浏览器直连 PostgreSQL、Axiom、Temporal、Langfuse、Sentry 或 Hindsight；
 - 浏览器提交任意查询语言、外部 URL、数据集合、时间窗口或记录上限；
-- Ops Web 查询 Temporal、Langfuse 或 Hindsight 的内部数据库；
+- 根据 Axiom、Sentry 或 Langfuse 数据推导新的产品终态；
+- 恢复 Axiom metrics/traces、Collector coverage 或 Temporal queue 的 Ops Web 聚合面；
 - 把原始日志、event、模型 observation 或外部平台正文写入产品投影；
-- 把 Ops Web 扩张为通用管理后台、工作流控制台、评测平台或外部平台复制品；
-- 创建、列举、读取或更新 Kubernetes Secret 和 Deployment。
-
-## 外部设计依据
-
-- Langfuse 对象模型：<https://langfuse.com/docs/observability/data-model>
-- Langfuse Trace 结构：<https://langfuse.com/docs/observability/best-practices>
-- LangSmith Trace 视图：<https://docs.langchain.com/langsmith/view-traces>
-- Dify Conversation Logs：<https://docs.dify.ai/en/guides/monitoring/logs>
-- Temporal Web UI：<https://docs.temporal.io/web-ui>
-- Sentry Issues：<https://docs.sentry.io/product/issues/>
-- Arize Phoenix Trace：<https://arize.com/docs/phoenix/tracing/concepts-tracing/what-are-traces>
+- 创建、列举、读取或更新 Kubernetes Secret 和 workload。
 
 ## 相关文档
 
 - `../../product/ops-web.md`
 - `../../contracts/ops-web/README.md`
 - `../../data/postgres-ownership.md`
-- `../../product/dining.md`
 - `langfuse.md`
 - `../../contracts/langfuse-runtime.md`
 - `../../reference/telemetry.md`

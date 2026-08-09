@@ -69,6 +69,19 @@ func TestAgentRuntimeStreamStateRequiresContinuousAnswerDeltas(t *testing.T) {
 	}
 }
 
+func TestAgentRuntimeHTTPErrorDoesNotExposeUpstreamMessage(t *testing.T) {
+	err := agentRuntimeHTTPError{
+		Code:       "provider_unavailable",
+		StatusCode: 502,
+	}
+	if got := err.Error(); got != "The answer provider is temporarily unavailable." {
+		t.Fatalf("error = %q", got)
+	}
+	if strings.Contains(err.Error(), "postgres://runtime:secret") {
+		t.Fatalf("error exposed upstream message: %q", err.Error())
+	}
+}
+
 func TestAgentRuntimeStreamStateBindsCompletedResultToRunAndAnswer(t *testing.T) {
 	state := agentRuntimeStreamState{}
 	first := agentRuntimeAnswerDelta{

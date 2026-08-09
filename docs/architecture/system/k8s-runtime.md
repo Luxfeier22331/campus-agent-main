@@ -28,12 +28,13 @@ ServiceAccount、ConfigMap 和 Secret，不得复制共享资源所有权。
 - `agent-runtime`：一个独立 Deployment；
 - `ingestion-control` API、`ingestion-control-worker` 与 `source-collector-worker`：三个标准
   Deployment；
-- `ops-web-internal-portal-check`：顺序检查 Ops Web 所有内部门户凭据的 CronJob；
-- OpenTelemetry Agent：环境仓部署的一个 DaemonSet，采集节点日志和 kubelet metrics；
-- OpenTelemetry Gateway：环境仓部署的一个 Deployment，提供受控 OTLP/HTTP 入口和下游路由。
+- `ops-web-internal-portal-check`：顺序检查 Ops Web 所有内部门户凭据的 CronJob。
 
 Temporal Server 是运行前置条件。源码 base 只声明标准 Deployment，不声明 Worker Controller、
 WorkerDeployment、WorkerResourceTemplate 或 KEDA 资源。
+
+Agent Runtime 的可选 OTLP endpoint 由环境仓选择。源码仓不把 OpenTelemetry Agent/Gateway、节点
+日志采集或 kubelet metrics 作为应用运行时的固定组件。
 
 ## 发布与容量
 

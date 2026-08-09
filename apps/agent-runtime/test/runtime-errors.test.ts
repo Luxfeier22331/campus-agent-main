@@ -29,7 +29,7 @@ describe("agent runtime errors", () => {
 		const error = Object.assign(new Error(`provider HTTP ${status}`), { status });
 		expect(agentRuntimeErrorPayload(error)).toEqual({
 			code: "provider_unavailable",
-			message: `provider HTTP ${status}`,
+			message: "The answer provider is temporarily unavailable.",
 			retryable: false,
 		});
 	});
@@ -41,7 +41,7 @@ describe("agent runtime errors", () => {
 		);
 		expect(agentRuntimeErrorPayload(error)).toEqual({
 			code: "tool_execution_failed",
-			message: "personal_memory_recall failed",
+			message: "A runtime tool could not complete.",
 			retryable: false,
 		});
 	});

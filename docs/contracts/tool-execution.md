@@ -181,5 +181,5 @@ execution-control 已检查到的持久序列游标；app-api 后续必须将它
 
 ## 验证
 
-运行 `pnpm ci:contracts`、`pnpm ci:go`，以及
+运行 `pnpm --dir packages/contracts check`、手动 `go` validation profile，以及
 `../reference/verification.md` 列出的 app-api 类型检查和测试通道。

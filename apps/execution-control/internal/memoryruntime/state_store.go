@@ -39,7 +39,6 @@ type StateStore interface {
 	EndCall(context.Context, string, string) error
 	FinalizeCommand(context.Context, string, string, string, string, string, string) (CommandReceipt, error)
 	GenerationDrained(context.Context, string, int64) (bool, error)
-	HealthCheck(context.Context) error
 	MarkCommandRetryable(context.Context, string, string) error
 	SubjectDrained(context.Context, string, int64, string, int64) (bool, error)
 }
@@ -231,8 +230,6 @@ func (s *InMemoryStateStore) ownerCommandBlocked(ownerHash string, sequence int6
 	}
 	return false
 }
-
-func (s *InMemoryStateStore) HealthCheck(context.Context) error { return nil }
 
 type PostgresStateStore struct{ pool *pgxpool.Pool }
 

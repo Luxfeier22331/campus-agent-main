@@ -32,7 +32,7 @@ schema 存在不代表工具对模型可见；实际 exposure 由 runtime regist
 
 ## 生成产物
 
-`pnpm contracts:generate` 生成 app-api TypeScript、execution-control Go wire consumer 和同好群
+`pnpm --dir packages/contracts generate` 生成 app-api TypeScript、execution-control Go wire consumer 和同好群
 公开目录 JSON Schema。生成 type 是本地 parser，生成的 JSON Schema 是跨运行时交换产物，
 都不是第二份事实来源，不得手工修改。
 
@@ -41,9 +41,9 @@ schema 存在不代表工具对模型可见；实际 exposure 由 runtime regist
 执行：
 
 ```bash
-pnpm contracts:generate
-pnpm contracts:check
-pnpm ci:contracts
+pnpm --dir packages/contracts generate
+pnpm --dir packages/contracts check
+pnpm --dir packages/contracts test
 ```
 
 `packages/contracts/fixtures` 包含跨语言 valid/invalid fixture，其行为必须与正式 JSON

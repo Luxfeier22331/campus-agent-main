@@ -48,7 +48,7 @@ export function createAgentRuntimeNodeServer(options: AgentRuntimeNodeServerOpti
 				return;
 			}
 			if (response.headersSent) {
-				response.destroy(toError(error));
+				response.destroy();
 				return;
 			}
 			void writeNodeResponse(
@@ -376,8 +376,4 @@ async function cancelResponseReader(
 
 function singleHeaderValue(value: string | string[] | undefined): string | undefined {
 	return Array.isArray(value) ? value[0] : value;
-}
-
-function toError(error: unknown): Error {
-	return error instanceof Error ? error : new Error(String(error));
 }

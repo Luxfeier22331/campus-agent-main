@@ -71,7 +71,7 @@ describe("ingestion-control PostgreSQL lifecycle", () => {
 		await preResetClient.connect();
 		try {
 			await expect(
-				applyIngestionControlMigrations(preResetClient, migrations.slice(0, -2)),
+				applyIngestionControlMigrations(preResetClient, migrations.slice(0, -3)),
 			).resolves.toEqual([
 				"0001_tasks.sql",
 				"0002_offline_releases.sql",
@@ -178,7 +178,7 @@ describe("ingestion-control PostgreSQL lifecycle", () => {
 					2
 				)`);
 			await expect(
-				applyIngestionControlMigrations(preResetClient, migrations.slice(0, -1)),
+				applyIngestionControlMigrations(preResetClient, migrations.slice(0, -2)),
 			).resolves.toEqual(["0004_internal_portal_ingestion_reset.sql"]);
 			await preResetClient.query(`INSERT INTO ingestion_control.internal_portal_notice_sync_state (
 				site_id,
@@ -277,12 +277,49 @@ describe("ingestion-control PostgreSQL lifecycle", () => {
 					NULL,
 					'2026-07-26T00:00:00Z'
 				)`);
+
+			await expect(
+				applyIngestionControlMigrations(preResetClient, migrations.slice(0, -1)),
+			).resolves.toEqual(["0005_remove_internal_portal_pipeline.sql"]);
+			await preResetClient.query(`INSERT INTO ingestion_control.tasks (
+				task_id,
+				run_id,
+				registry_task_id,
+				executor_kind,
+				input_ref_json,
+				input_contract,
+				output_contract,
+				created_by,
+				created_at,
+				status,
+				workflow_id,
+				workflow_run_id,
+				updated_at,
+				error_code,
+				error_message
+			) VALUES (
+				'legacy-invalid-error-code',
+				'legacy-invalid-error-run',
+				'curriculum.curriculum_plan.chunk_prepare',
+				'rust_kernel',
+				'{"kind":"object_store"}'::jsonb,
+				'canonical_document_units.v1',
+				'ingestion_chunk_set.v1',
+				'legacy:test',
+				'2026-07-26T00:00:00Z',
+				'failed',
+				'ingestion/legacy-invalid-error-code',
+				'legacy-invalid-error-workflow-run',
+				'2026-07-26T00:00:00Z',
+				'legacy error code with spaces',
+				'legacy provider response must not survive migration'
+			)`);
 		} finally {
 			await preResetClient.end();
 		}
 
 		await expect(runIngestionControlMigrations(localEnvironment)).resolves.toEqual([
-			"0005_remove_internal_portal_pipeline.sql",
+			"0006_remove_error_message.sql",
 		]);
 		await expect(runIngestionControlMigrations(localEnvironment)).resolves.toEqual([]);
 
@@ -316,8 +353,15 @@ describe("ingestion-control PostgreSQL lifecycle", () => {
 				FROM ingestion_control.tasks
 				ORDER BY task_id`);
 			expect(taskRows.rows).toEqual([
+				{ executorKind: "rust_kernel", taskId: "legacy-invalid-error-code" },
 				{ executorKind: "rust_kernel", taskId: "retained-rust-task" },
 			]);
+			const normalizedLegacyError = await runtime.query<{
+				errorCode: string;
+			}>(`SELECT error_code AS "errorCode"
+				FROM ingestion_control.tasks
+				WHERE task_id = 'legacy-invalid-error-code'`);
+			expect(normalizedLegacyError.rows[0]).toEqual({ errorCode: "legacy_error" });
 			const pipelineColumn = await runtime.query<{
 				count: number;
 			}>(`SELECT count(*)::integer AS count
@@ -326,6 +370,14 @@ describe("ingestion-control PostgreSQL lifecycle", () => {
 				  AND table_name = 'tasks'
 				  AND column_name = 'pipeline_workflow_id'`);
 			expect(pipelineColumn.rows[0]).toEqual({ count: 0 });
+			const errorMessageColumn = await runtime.query<{
+				count: number;
+			}>(`SELECT count(*)::integer AS count
+				FROM information_schema.columns
+				WHERE table_schema = 'ingestion_control'
+				  AND table_name = 'tasks'
+				  AND column_name = 'error_message'`);
+			expect(errorMessageColumn.rows[0]).toEqual({ count: 0 });
 			await expect(
 				runtime.query(`INSERT INTO ingestion_control.tasks (
 					task_id, run_id, registry_task_id, executor_kind,
@@ -344,6 +396,22 @@ describe("ingestion-control PostgreSQL lifecycle", () => {
 					'2026-07-26T00:00:00Z'
 				)`),
 			).rejects.toThrow("tasks_executor_kind_check");
+
+			await expect(
+				runtime.query(`INSERT INTO ingestion_control.tasks (
+					task_id, run_id, registry_task_id, executor_kind,
+					input_ref_json, input_contract, output_contract, created_by, created_at,
+					status, workflow_id, workflow_run_id, updated_at, error_code
+				) VALUES (
+					'invalid-error-code-task', 'invalid-error-code-run',
+					'curriculum.curriculum_plan.chunk_prepare', 'rust_kernel',
+					'{"kind":"object_store"}'::jsonb,
+					'canonical_document_units.v1', 'ingestion_chunk_set.v1', 'operator:test',
+					'2026-07-26T00:00:00Z', 'failed',
+					'ingestion/invalid-error-code-task', 'invalid-error-code-workflow-run',
+					'2026-07-26T00:00:00Z', 'invalid error code'
+				)`),
+			).rejects.toThrow("tasks_error_code_format_check");
 
 			await expect(
 				runtime.query("CREATE TABLE ingestion_control.permission_probe (id integer PRIMARY KEY)"),

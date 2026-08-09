@@ -167,25 +167,15 @@ export function createWorkerRuntime(
 		},
 		async scheduled(): Promise<void> {
 			if (isDeployedEnvironment(resolveEnvironment(env))) {
-				const indeterminate = await Sentry.startSpan(
-					{ name: "app-api.account-admin.reconcile", op: "cron" },
-					() =>
-						createPgAccountAdminStore(env).markStaleCommandsIndeterminate(
-							new Date(Date.now() - 5 * 60_000),
-						),
+				const indeterminate = await createPgAccountAdminStore(env).markStaleCommandsIndeterminate(
+					new Date(Date.now() - 5 * 60_000),
 				);
 				if (indeterminate > 0) {
 					console.error({ indeterminate, source: "app-api.account-admin-reconciler" });
 				}
 			}
 			if (isDeployedEnvironment(resolveEnvironment(env)) || dependencies.emailAccessService) {
-				const result = await Sentry.startSpan(
-					{ name: "app-api.email-access.expire", op: "cron" },
-					() => resolveEmailAccessService().expire(),
-				);
-				if (result.expired > 0 || result.purged > 0) {
-					console.info({ ...result, source: "app-api.email-access-sweeper" });
-				}
+				await resolveEmailAccessService().expire();
 			}
 			if (isExecutionControlRuntimeConfigured(env)) {
 				const executionRuntime = createExecutionControlRuntimeClient(env);
@@ -194,38 +184,17 @@ export function createWorkerRuntime(
 				if (!chatCommandService.dispatchPendingAdmissions) {
 					throw new Error("Chat admission product finalization is not configured.");
 				}
-				const result = await chatCommandService.dispatchPendingAdmissions();
-				if (result.processed > 0) {
-					console.info({ ...result, source: "app-api.chat-admission-dispatcher" });
-				}
+				await chatCommandService.dispatchPendingAdmissions();
 				if (!runtimeRunService.dispatchPendingCancellations) {
 					throw new Error("Run cancellation dispatcher is not configured.");
 				}
-				const cancellationResult = await runtimeRunService.dispatchPendingCancellations();
-				if (cancellationResult.processed > 0) {
-					console.info({
-						...cancellationResult,
-						source: "app-api.run-cancellation-dispatcher",
-					});
-				}
+				await runtimeRunService.dispatchPendingCancellations();
 			}
 			if (isExecutionControlRuntimeConfigured(env)) {
-				const result = await Sentry.startSpan(
-					{ name: "app-api.profile-memory.dispatch", op: "cron" },
-					() => resolveProfileMemoryService().dispatchPending(),
-				);
-				if (result.processed > 0) {
-					console.info({ ...result, source: "app-api.profile-memory-dispatcher" });
-				}
+				await resolveProfileMemoryService().dispatchPending();
 			}
 			if (isExecutionControlRuntimeConfigured(env)) {
-				const result = await Sentry.startSpan(
-					{ name: "app-api.account-deletion.dispatch", op: "cron" },
-					() => resolveAccountLifecycleService().dispatchPending(),
-				);
-				if (result.processed > 0) {
-					console.info({ ...result, source: "app-api.account-deletion-dispatcher" });
-				}
+				await resolveAccountLifecycleService().dispatchPending();
 			}
 		},
 	};

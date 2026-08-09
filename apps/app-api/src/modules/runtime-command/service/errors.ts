@@ -1,5 +1,6 @@
 import { AppApiRouteError } from "../../../http";
 import { ExecutionControlTransportError, type ToolExecutionResponse } from "../../integration";
+import { publicExecutionFailure } from "./writes";
 
 export function createPreAcceptError(input: {
 	code: string;
@@ -22,12 +23,12 @@ export function toHandledErrorTransportOutcome(error: unknown): ToolExecutionRes
 	status: "error";
 } {
 	if (error instanceof ExecutionControlTransportError) {
-		const publicMessage = publicTransportErrorMessage(error);
+		const failure = publicExecutionFailure({ errorCode: error.code, status: "error" });
 		return {
 			answerText: "",
 			error: {
-				code: error.code,
-				message: publicMessage,
+				code: failure.errorCode,
+				message: failure.message,
 				retryable: error.retryable,
 			},
 			followUpQuestion: "",
@@ -42,7 +43,7 @@ export function toHandledErrorTransportOutcome(error: unknown): ToolExecutionRes
 		answerText: "",
 		error: {
 			code: "internal_error",
-			message: error instanceof Error ? error.message : "Unexpected execution failure.",
+			message: "Unexpected execution failure.",
 			retryable: false,
 		},
 		followUpQuestion: "",
@@ -51,13 +52,6 @@ export function toHandledErrorTransportOutcome(error: unknown): ToolExecutionRes
 		status: "error",
 		traceId: "",
 	};
-}
-
-function publicTransportErrorMessage(error: ExecutionControlTransportError): string {
-	if (error.code === "execution_control_unavailable") {
-		return "问答服务暂时无法连接，请稍后再试。";
-	}
-	return error.message;
 }
 
 export function buildAbuseThrottleRejectedResponse(input: {

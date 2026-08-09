@@ -672,7 +672,7 @@ describe("execution control runtime adapter", () => {
 			}),
 		).rejects.toMatchObject({
 			code: "conversation_active_run",
-			message: "Conversation already has an active primary run.",
+			message: "Execution-control request failed.",
 			retryable: true,
 			status: 409,
 		});

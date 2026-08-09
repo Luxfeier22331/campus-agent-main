@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/retrievalruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
@@ -53,56 +52,11 @@ type readyTemporalStarter struct {
 	readiness temporalruntime.RuntimeReadiness
 }
 
-type readyDocumentEvidenceExecutor struct{}
-
 func publicRetrievalAccessProjectionForTest() retrievalruntime.RetrievalAccess {
 	return retrievalruntime.RetrievalAccess{
 		PolicyProjectionVersion: "phase1-authorization-projection-v1",
 		VisibilityLevel:         "public",
 	}
-}
-
-type readyPersonalMemoryExecutor struct{}
-
-func (readyPersonalMemoryExecutor) ExecuteCommand(
-	_ context.Context,
-	request memoryruntime.PersonalMemoryCommandRequest,
-) (memoryruntime.PersonalMemoryCommandResult, error) {
-	return memoryruntime.PersonalMemoryCommandResult{CommandID: request.CommandID, Status: "succeeded"}, nil
-}
-
-func (readyPersonalMemoryExecutor) HealthCheck(context.Context) error {
-	return nil
-}
-
-func (readyPersonalMemoryExecutor) Recall(
-	_ context.Context,
-	request memoryruntime.RecallRequest,
-) (memoryruntime.RecallResult, error) {
-	return memoryruntime.FinalizeRecallResult(memoryruntime.RecallResult{
-		MemoryRef:     "projection://runs/" + request.RunID + "/memory/recall",
-		RunID:         request.RunID,
-		SchemaVersion: "memory_recall_result_v1",
-		ThreadID:      request.ThreadID,
-	})
-}
-
-func (readyPersonalMemoryExecutor) AppendConversationTurn(
-	_ context.Context,
-	request memoryruntime.AppendConversationTurnRequest,
-) (memoryruntime.AppendConversationTurnResult, error) {
-	return memoryruntime.FinalizeAppendConversationTurnResult(memoryruntime.AppendConversationTurnResult{
-		AppendedMessageCount: 1,
-		RunID:                request.RunID,
-		SchemaVersion:        "memory_conversation_append_result_v2",
-		Status:               "completed",
-		ThreadID:             request.ThreadID,
-		UserID:               request.UserID,
-	})
-}
-
-func (readyDocumentEvidenceExecutor) HealthCheck(context.Context) error {
-	return nil
 }
 
 func (readyTemporalStarter) StartToolExecutionWorkflow(
@@ -160,13 +114,6 @@ func markTemporalReadyForTest(server *Server) {
 	server.temporalStarterErr = nil
 }
 
-func markKnowledgeRuntimeReadyForTest(server *Server) {
-	server.personalMemoryExecutor = readyPersonalMemoryExecutor{}
-	server.personalMemoryErr = nil
-	server.documentEvidenceExecutor = readyDocumentEvidenceExecutor{}
-	server.documentEvidenceErr = nil
-}
-
 func readyServerConfigForTest(t *testing.T, mutators ...func(*config.Config)) config.Config {
 	t.Helper()
 	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
@@ -193,18 +140,7 @@ func readyServerConfigForTest(t *testing.T, mutators ...func(*config.Config)) co
 func newReadyServerForTest(t *testing.T, mutators ...func(*config.Config)) *Server {
 	t.Helper()
 	server := NewServer(readyServerConfigForTest(t, mutators...))
-	server.providerConfigResolver = staticProviderConfigResolver{
-		providerConfigKindLLM: primaryAgentProviderConfigSnapshotForTest(),
-		providerConfigKindEmbedding: embeddingProviderConfigSnapshotForTest(
-			providerConfigKindEmbedding,
-			"https://embedding.example/v1",
-			"embedding-test",
-			2560,
-		),
-	}
-	server.providerConfigErr = nil
 	markTemporalReadyForTest(server)
-	markKnowledgeRuntimeReadyForTest(server)
 	return server
 }
 

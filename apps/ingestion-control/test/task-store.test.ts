@@ -53,13 +53,24 @@ describe("ingestion task projection store", () => {
 		const failed = store.failTask({
 			taskId: testSnapshot().task.task_id,
 			errorCode: "collector_failed",
-			errorMessage: "provider unavailable",
 		});
 		expect(failed).toMatchObject({
 			status: "failed",
 			result_ref: null,
 			error_code: "collector_failed",
 		});
+	});
+
+	it("rejects terminal error codes outside the persistence contract", () => {
+		const store = startedStore();
+
+		expect(() =>
+			store.failTask({
+				taskId: testSnapshot().task.task_id,
+				errorCode: "authorization=Bearer secret-token",
+			}),
+		).toThrow("ingestion task error code is invalid");
+		expect(store.getTask(testSnapshot().task.task_id)).toMatchObject({ status: "running" });
 	});
 
 	it("returns a stable second page when task timestamps are equal", () => {

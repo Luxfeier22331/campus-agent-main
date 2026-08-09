@@ -309,17 +309,6 @@ const SourceStatusSchema = z.object({
 	updatedAt: IsoDateTimeSchema.nullable(),
 });
 
-const TelemetryCoverageEntrySchema = SourceStatusSchema.extend({
-	expectation: z.enum(["ACTIVITY", "CONTINUOUS"]),
-	kind: z.enum(["LOGS", "METRICS", "TRACES"]),
-	producer: z.object({
-		instanceId: z.string().min(1).nullable(),
-		nodeName: z.string().min(1).nullable(),
-		serviceName: z.string().min(1).nullable(),
-	}),
-	recordCount: z.number().int().nonnegative().nullable(),
-});
-
 export const OpsOverviewResponseSchema = z.object({
 	cache: z.object({
 		ageMs: z.number().int().nonnegative(),
@@ -336,7 +325,7 @@ export const OpsOverviewResponseSchema = z.object({
 			code: z.string().min(1),
 			detail: z.string().min(1),
 			severity: z.enum(["CRITICAL", "WARNING", "INFO"]),
-			source: z.enum(["REQUESTS", "SERVICE", "TEMPORAL", "TELEMETRY"]),
+			source: z.literal("REQUESTS"),
 			title: z.string().min(1),
 		}),
 	),
@@ -350,30 +339,6 @@ export const OpsOverviewResponseSchema = z.object({
 		running: z.number().int().nonnegative(),
 		successRate: z.number().min(0).max(1).nullable(),
 		total: z.number().int().nonnegative(),
-	}),
-	services: z.array(
-		SourceStatusSchema.extend({
-			displayName: z.string().min(1),
-			name: z.string().min(1),
-		}),
-	),
-	telemetry: SourceStatusSchema.extend({
-		signals: z.array(TelemetryCoverageEntrySchema),
-	}),
-	temporal: SourceStatusSchema.extend({
-		backlogCount: z.number().int().nonnegative(),
-		oldestTaskAgeMs: z.number().int().nonnegative().nullable(),
-		pollerCount: z.number().int().nonnegative(),
-		queues: z.array(
-			SourceStatusSchema.extend({
-				backlogCount: z.number().int().nonnegative(),
-				kind: z.enum(["ACTIVITY", "WORKFLOW", "UNKNOWN"]),
-				name: z.string().min(1),
-				oldestTaskAgeMs: z.number().int().nonnegative().nullable(),
-				pollerCount: z.number().int().nonnegative(),
-				taskQueue: z.string().min(1),
-			}),
-		),
 	}),
 	trends: z.object({
 		data: z.array(
@@ -395,29 +360,11 @@ const AxiomLogRecordSchema = z.object({
 	durationMs: z.number().nonnegative().nullable(),
 	errorCode: z.string().min(1).nullable(),
 	eventType: z.string().min(1).nullable(),
-	otelSpanId: z.string().min(1).nullable(),
-	otelTraceId: z.string().min(1).nullable(),
-	productTraceId: z.string().min(1).nullable(),
 	requestId: z.string().min(1),
 	serviceName: z.string().min(1).nullable(),
 	severityText: z.string().min(1).nullable(),
 	source: z.string().min(1).nullable(),
 	status: z.string().min(1).nullable(),
-	timestamp: IsoDateTimeSchema,
-});
-
-const AxiomTraceRecordSchema = z.object({
-	duration: z.string().min(1).nullable(),
-	hasError: z.boolean().nullable(),
-	kind: z.string().min(1).nullable(),
-	name: z.string().min(1).nullable(),
-	otelSpanId: z.string().min(1),
-	otelTraceId: z.string().min(1),
-	parentSpanId: z.string().min(1).nullable(),
-	productTraceId: z.string().min(1).nullable(),
-	requestId: z.string().min(1),
-	serviceName: z.string().min(1).nullable(),
-	statusCode: z.string().min(1).nullable(),
 	timestamp: IsoDateTimeSchema,
 });
 
@@ -429,7 +376,6 @@ const ObservabilityBaseSchema = z.object({
 	requestId: z.string().min(1),
 	source: z.literal("AXIOM"),
 	to: IsoDateTimeSchema,
-	traceId: z.string().min(1),
 	truncated: z.boolean(),
 });
 
@@ -438,11 +384,6 @@ export const OpsObservabilityResponseSchema = z.discriminatedUnion("kind", [
 		kind: z.literal("logs"),
 		limit: z.literal(200),
 		records: z.array(AxiomLogRecordSchema).max(200),
-	}),
-	ObservabilityBaseSchema.extend({
-		kind: z.literal("trace"),
-		limit: z.literal(500),
-		records: z.array(AxiomTraceRecordSchema).max(500),
 	}),
 ]);
 
@@ -468,10 +409,8 @@ export const OpsSentryIssuesResponseSchema = z.object({
 	queriedAt: IsoDateTimeSchema,
 	queryDurationMs: z.number().int().nonnegative(),
 	requestId: z.string().min(1),
-	searchQuery: z.string().min(1),
 	source: z.literal("SENTRY"),
 	to: IsoDateTimeSchema,
-	traceId: z.string().min(1),
 	truncated: z.boolean(),
 });
 
@@ -486,4 +425,3 @@ export type OpsSentryIssuesResponse = z.infer<typeof OpsSentryIssuesResponseSche
 export type OpsRequestListResponse = z.infer<typeof OpsRequestListResponseSchema>;
 export type OpsRequestSummary = z.infer<typeof OpsRequestSummarySchema>;
 export type OpsRequestWindow = z.infer<typeof OpsRequestWindowSchema>;
-export type TelemetryCoverageEntry = z.infer<typeof TelemetryCoverageEntrySchema>;

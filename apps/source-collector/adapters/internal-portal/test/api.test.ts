@@ -39,7 +39,7 @@ describe("internal portal source collector api", () => {
 				currentPage: 1,
 				startDate: "2026-04-01",
 			}),
-		).rejects.toThrow("getNoticeByPage failed: 500 server error");
+		).rejects.toThrow("Internal portal notice list request failed.");
 
 		expect(calls).toHaveLength(1);
 		expect(calls[0]?.path).toBe("/comsys-portal-notice-web/getNoticeByPage");
@@ -134,7 +134,7 @@ describe("internal portal source collector api", () => {
 				attachmentUrl: "https://portal.example.edu/download?id=large",
 				maxBytes: 50 * 1024 * 1024,
 			}),
-		).rejects.toThrow("attachment_size_limit_exceeded:52428801");
+		).rejects.toThrow("Attachment size exceeds the configured limit.");
 		expect(bodyStream).not.toHaveBeenCalled();
 		expect(cancelBody).toHaveBeenCalledOnce();
 	});
@@ -180,7 +180,7 @@ describe("internal portal source collector api", () => {
 				currentPage: 1,
 				startDate: "2026-04-01",
 			}),
-		).rejects.toThrow("getNoticeByPage failed: 429 Too Many Requests");
+		).rejects.toThrow("Internal portal notice list request failed.");
 		expect(cancelBody).toHaveBeenCalledOnce();
 	});
 

@@ -114,7 +114,7 @@ export function createInternalPortalCredentialStoreFromEnv(
 		statement_timeout: 10_000,
 	});
 	pool.on("error", (error) =>
-		logOpsError("internal portal credential postgres pool error", error, {
+		logOpsError("ops_web.postgres_pool", error, {
 			source: "internal-portal",
 		}),
 	);

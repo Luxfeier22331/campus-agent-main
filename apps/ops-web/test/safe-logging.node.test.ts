@@ -14,9 +14,17 @@ describe("safe ops logging", () => {
 			},
 		);
 
-		logOpsError("postgres pool error", error, { source: "requests" });
+		logOpsError("ops_web.postgres_pool", error, { source: "requests" });
 
-		const serialized = JSON.stringify(spy.mock.calls);
+		expect(spy).toHaveBeenCalledOnce();
+		const serialized = String(spy.mock.calls[0]?.[0]);
+		expect(JSON.parse(serialized)).toEqual({
+			error_code: "57P01",
+			event_type: "ops_web.postgres_pool",
+			level: "error",
+			source: "requests",
+			status: "failed",
+		});
 		expect(serialized).toContain("57P01");
 		expect(serialized).not.toContain("password");
 		expect(serialized).not.toContain("secretKey");

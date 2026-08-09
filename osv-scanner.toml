@@ -35,3 +35,13 @@ reason = "Testcontainers uses golang.org/x/crypto/ssh only in the explicitly tag
 id = "GHSA-frvp-7c67-39w9"
 ignoreUntil = 2026-10-01
 reason = "The remaining @hono/node-server 1.x instance is an optional dependency of the OpenAI Agents MCP client; campus-agent does not expose its Windows serve-static path, while Ops Web directly uses the fixed 2.x line. Remove this exception when @modelcontextprotocol/sdk updates its pinned adapter."
+
+[[IgnoredVulns]]
+id = "GHSA-5p2g-fcmc-qvqq"
+ignoreUntil = 2026-10-01
+reason = "Campus Web uses image-size only while building course-map assets and explicitly disables the vulnerable HEIF, JXL, and JXL stream parsers before reading dimensions; upstream has no fixed release yet."
+
+[[IgnoredVulns]]
+id = "GHSA-w3rx-r6r6-pgpr"
+ignoreUntil = 2026-10-01
+reason = "Campus Web uses image-size only while building course-map assets and explicitly disables the vulnerable ICNS parser before reading dimensions; upstream has no fixed release yet."

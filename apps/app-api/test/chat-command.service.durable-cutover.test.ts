@@ -312,7 +312,7 @@ describe("chat command durable runtime cutover", () => {
 							payload: {
 								error: {
 									code: "agent_runtime_timeout",
-									message: "Agent runtime request timed out.",
+									message: "provider rejected sk-sensitive-token",
 									retryable: true,
 								},
 								failure_kind: "agent_runtime_timeout",
@@ -347,6 +347,9 @@ describe("chat command durable runtime cutover", () => {
 		});
 
 		expect(finalWrites).toHaveLength(1);
+		expect(finalWrites[0]?.assistantMessage.text).toBe(
+			"The agent runtime did not complete before its deadline.",
+		);
 		expect(executionRuntime.listRunEvents).toHaveBeenCalledTimes(1);
 	});
 

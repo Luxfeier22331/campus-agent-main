@@ -420,8 +420,7 @@ components:
           type: [object, "null"]
         error_code:
           type: [string, "null"]
-        error_message:
-          type: [string, "null"]
+          pattern: "^[A-Za-z0-9_.:-]{1,80}$"
     TaskList:
       type: object
       required: [tasks, page]
@@ -487,8 +486,7 @@ components:
           type: [object, "null"]
         last_error_code:
           type: [string, "null"]
-        last_error_message:
-          type: [string, "null"]
+          pattern: "^[A-Za-z0-9_.:-]{1,80}$"
         workflow_id:
           type: string
         workflow_run_id:

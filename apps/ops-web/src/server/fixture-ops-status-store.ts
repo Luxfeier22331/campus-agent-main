@@ -26,7 +26,6 @@ export function createFixtureOpsStatusStore(): OpsStatusStore {
 			return {
 				externalLinks: opsOverviewFixture.externalLinks,
 				requests: opsOverviewFixture.requests,
-				temporal: opsOverviewFixture.temporal,
 				trends: opsOverviewFixture.trends,
 			};
 		},
@@ -75,6 +74,9 @@ export function createFixtureOpsStatusStore(): OpsStatusStore {
 			};
 		},
 		async verifyReadiness() {
+			return;
+		},
+		async verifySchema() {
 			return;
 		},
 	};

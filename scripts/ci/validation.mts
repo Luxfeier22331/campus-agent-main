@@ -3,17 +3,9 @@ import { pathToFileURL } from "node:url";
 
 import { type AffectedScope, type CommandRunner, resolveAffectedScope } from "./scope.mts";
 
-export type LightSurface = "config" | "contracts" | "python" | "release" | "shell" | "sql" | "yaml";
+export type LightSurface = "config" | "contracts" | "python" | "shell" | "sql" | "yaml";
 
-const LIGHT_SURFACES: LightSurface[] = [
-	"contracts",
-	"config",
-	"release",
-	"python",
-	"yaml",
-	"sql",
-	"shell",
-];
+const LIGHT_SURFACES: LightSurface[] = ["contracts", "config", "python", "yaml", "sql", "shell"];
 
 export type ValidationProfile =
 	| "affected-node"
@@ -83,23 +75,6 @@ function selectLightSurfaces(files: readonly string[]): LightSurface[] {
 	) {
 		selected.add("config");
 	}
-	if (
-		files.some(
-			(file) =>
-				file === "package.json" ||
-				file === "turbo.json" ||
-				file.endsWith("/turbo.json") ||
-				file.startsWith(".github/workflows/") ||
-				file.startsWith("scripts/ci/scope.") ||
-				file.startsWith("scripts/ci/validation.") ||
-				file.startsWith("scripts/ci/evidence.") ||
-				file.startsWith("scripts/ci/workflow-config.") ||
-				file.startsWith("scripts/ci/check-ops-web-artifact.") ||
-				file.startsWith("scripts/release/"),
-		)
-	) {
-		selected.add("release");
-	}
 	if (matchesFile(files, /(?:^|\/)\w[^/]*\.py$/u) || files.includes("pyproject.toml")) {
 		selected.add("python");
 	}
@@ -148,8 +123,7 @@ function selectValidationProfiles(scope: AffectedScope): ValidationProfile[] {
 				file === "pnpm-lock.yaml" ||
 				file === "pnpm-workspace.yaml" ||
 				file.endsWith("/Dockerfile") ||
-				file.startsWith("scripts/release/") ||
-				file.startsWith("scripts/ci/check-ops-web-artifact."),
+				file.startsWith("scripts/release/"),
 		)
 	) {
 		selected.add("toolchain");

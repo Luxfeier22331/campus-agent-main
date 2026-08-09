@@ -276,9 +276,6 @@ func (s *Server) commitPrimaryAgentFinalizationStep(
 		}
 		return execution.DurableRun{}, err
 	}
-	if err := s.emitTemporalStepObservation(ctx, projection); err != nil {
-		return execution.DurableRun{}, err
-	}
 	return finalized.Run, nil
 }
 

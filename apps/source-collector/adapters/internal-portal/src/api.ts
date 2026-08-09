@@ -95,7 +95,7 @@ export async function fetchNoticeDetail(
 	}
 	const json = await parseJsonResponse<NoticeDetailResponse>(response, "getNotice");
 	if (!json.state) {
-		throw new Error(`getNotice rejected: ${json.msg ?? "unknown error"}`);
+		throw new Error("Internal portal notice detail request was rejected.");
 	}
 	return json;
 }
@@ -123,7 +123,7 @@ async function materializeAttachmentResponse(input: {
 	const contentLength = Number.parseInt(response.headers?.()["content-length"] ?? "", 10);
 	if (Number.isSafeInteger(contentLength) && contentLength > input.maxBytes) {
 		await cancelResponseBody(response, "attachment size limit exceeded");
-		throw new Error(`attachment_size_limit_exceeded:${contentLength}`);
+		throw new Error("Attachment size exceeds the configured limit.");
 	}
 	const bodyStream = response.bodyStream?.();
 	if (!bodyStream) {
@@ -136,8 +136,7 @@ async function materializeAttachmentResponse(input: {
 			abortSignal: input.abortSignal,
 			body: bodyStream,
 			maxBytes: input.maxBytes,
-			sizeLimitError: (observedBytes) =>
-				new Error(`attachment_size_limit_exceeded:${observedBytes}`),
+			sizeLimitError: () => new Error("Attachment size exceeds the configured limit."),
 		});
 	} catch (error) {
 		await cancelResponseBody(response, "attachment download failed");
@@ -189,7 +188,7 @@ export async function fetchFileReleaseDetail(
 	}
 	const json = await parseJsonResponse<FileReleaseDetailResponse>(response, "getFile");
 	if (!(json.state === 1 || json.state === true)) {
-		throw new Error(`getFile rejected: ${JSON.stringify(json).slice(0, 200)}`);
+		throw new Error("Internal portal file detail request was rejected.");
 	}
 	return json;
 }
@@ -207,7 +206,7 @@ export async function fetchFileReleaseDownloadUrl(
 	}
 	const json = await parseJsonResponse<FileReleaseDownloadUrlResponse>(response, "getFileUrl");
 	if (!json.state) {
-		throw new Error(`getFileUrl rejected: ${JSON.stringify(json).slice(0, 200)}`);
+		throw new Error("Internal portal file download request was rejected.");
 	}
 	return json;
 }
@@ -215,14 +214,14 @@ export async function fetchFileReleaseDownloadUrl(
 async function throwRequestError(response: ApiResponseLike, operation: string): Promise<never> {
 	const status = response.status();
 	await cancelResponseBody(response, `${operation} request failed`);
-	throw buildRequestError(status, response.statusText(), operation);
+	throw buildRequestError(status, operation);
 }
 
-function buildRequestError(status: number, statusText: string, operation: string): Error {
+function buildRequestError(status: number, operation: string): Error {
 	if (status === 401 || status === 403) {
-		return new PortalSessionExpiredError(`${operation} failed: ${status} ${statusText}`);
+		return new PortalSessionExpiredError("Internal portal session expired.");
 	}
-	return new Error(`${operation} failed: ${status} ${statusText}`);
+	return new Error(`Internal portal ${portalOperationLabel(operation)} request failed.`);
 }
 
 async function parseJsonResponse<T extends object>(
@@ -236,7 +235,24 @@ async function parseJsonResponse<T extends object>(
 	try {
 		return JSON.parse(payload) as T;
 	} catch {
-		throw new Error(`${operation} returned non-JSON payload: ${payload.slice(0, 200)}`);
+		throw new Error(`Internal portal ${portalOperationLabel(operation)} returned invalid data.`);
+	}
+}
+
+function portalOperationLabel(operation: string): string {
+	switch (operation) {
+		case "getNoticeByPage":
+			return "notice list";
+		case "getNotice":
+			return "notice detail";
+		case "downloadAttachment":
+			return "attachment download";
+		case "getFile":
+			return "file detail";
+		case "getFileUrl":
+			return "file download";
+		default:
+			return "portal";
 	}
 }
 
@@ -252,6 +268,6 @@ function assertNoticeListResponse(
 	payload: NoticeListResponse,
 ): asserts payload is NoticeListResponse & { datas: { tables: Record<string, unknown>[] } } {
 	if (!(payload.state && payload.datas && Array.isArray(payload.datas.tables))) {
-		throw new Error(`unexpected notice response: ${JSON.stringify(payload).slice(0, 400)}`);
+		throw new Error("Internal portal notice list response is invalid.");
 	}
 }

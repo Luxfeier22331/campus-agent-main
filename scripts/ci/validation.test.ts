@@ -61,11 +61,11 @@ test("maps lockfiles to dependency and toolchain checks only", () => {
 	assert.deepEqual(profiles(["apps/execution-control/go.sum"]), ["dependencies"]);
 });
 
-test("keeps release and toolchain overlap explicit for release adapter changes", () => {
+test("selects toolchain evidence for release adapter changes", () => {
 	const plan = validationPlanFromScope(scope(["scripts/release/images.mts"]), {
 		mode: "pull-request",
 	});
-	assert.deepEqual(plan.lightSurfaces, ["release"]);
+	assert.deepEqual(plan.lightSurfaces, []);
 	assert.deepEqual(plan.validationProfiles, ["toolchain"]);
 });
 
@@ -76,13 +76,13 @@ test("Dockerfiles select release tooling without pretending to build images", ()
 
 test("CI control files stay in hosted checks instead of selecting heavy profiles", () => {
 	for (const [file, lightSurfaces] of [
-		["package.json", ["release"]],
-		["turbo.json", ["release"]],
-		["apps/campus-web/turbo.json", ["release"]],
+		["package.json", []],
+		["turbo.json", []],
+		["apps/campus-web/turbo.json", []],
 		["flake.nix", ["config"]],
 		["nix/tools.nix", ["config"]],
-		["scripts/ci/validation.mts", ["release"]],
-		[".github/workflows/pr.yml", ["config", "release", "yaml"]],
+		["scripts/ci/validation.mts", []],
+		[".github/workflows/pr.yml", ["config", "yaml"]],
 	] as const) {
 		const plan = validationPlanFromScope(scope([file]), { mode: "pull-request" });
 		assert.deepEqual(plan.lightSurfaces, lightSurfaces, file);
@@ -95,5 +95,5 @@ test("selects static surfaces from renamed and deleted paths", () => {
 		scope([".github/workflows/old.yml", "config/new.yaml", "removed/check.sh", "schema.sql"]),
 		{ mode: "pull-request" },
 	);
-	assert.deepEqual(plan.lightSurfaces, ["config", "release", "yaml", "sql", "shell"]);
+	assert.deepEqual(plan.lightSurfaces, ["config", "yaml", "sql", "shell"]);
 });

@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { createAppApiSentryOptions } from "../src/modules/telemetry/sentry";
 
 describe("app-api Sentry options", () => {
-	it("turns off all default PII collection and applies production route sampling", () => {
+	it("turns off all default PII collection and performance transactions", () => {
 		const options = createAppApiSentryOptions({
 			DEPLOYMENT_ENVIRONMENT: "production",
 			SENTRY_DSN: "https://public@example.ingest.sentry.io/1",
@@ -20,14 +20,6 @@ describe("app-api Sentry options", () => {
 			stackFrameVariables: false,
 			userInfo: false,
 		});
-		const sample = (url: string) =>
-			options?.tracesSampler?.({
-				inheritOrSampleWith: (rate) => rate,
-				name: url,
-				normalizedRequest: { method: "GET", url },
-			});
-		expect(sample("https://app-api.internal/api/chat/runs/run_secret")).toBe(0.1);
-		expect(sample("https://app-api.internal/api/auth/get-session")).toBe(0.01);
-		expect(sample("https://app-api.internal/readyz")).toBe(0.02);
+		expect(options?.tracesSampler).toBeUndefined();
 	});
 });

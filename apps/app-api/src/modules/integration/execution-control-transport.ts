@@ -3,6 +3,8 @@ import { applyTracePropagationHeaders } from "../telemetry/trace";
 
 import type { ToolExecutionInput } from "./tool-execution-types";
 
+export const EXECUTION_CONTROL_FAILURE_MESSAGE = "Execution-control request failed.";
+
 export class ExecutionControlTransportError extends Error {
 	readonly code: string;
 	readonly retryable: boolean;
@@ -70,6 +72,7 @@ export function parseExecutionControlErrorEnvelope(
 	if (
 		typeof record.code !== "string" ||
 		record.code.trim() === "" ||
+		!isSafeExecutionControlErrorCode(record.code) ||
 		typeof record.message !== "string" ||
 		record.message.trim() === "" ||
 		typeof record.retryable !== "boolean"
@@ -82,10 +85,14 @@ export function parseExecutionControlErrorEnvelope(
 		});
 	}
 	return {
-		code: record.code,
-		message: record.message,
+		code: record.code.trim(),
+		message: EXECUTION_CONTROL_FAILURE_MESSAGE,
 		retryable: record.retryable,
 	};
+}
+
+export function isSafeExecutionControlErrorCode(value: string): boolean {
+	return /^[A-Za-z0-9_.:-]{1,80}$/u.test(value.trim());
 }
 
 export function createExecutionControlRequestHeaders(input: {

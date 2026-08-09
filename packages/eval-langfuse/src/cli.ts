@@ -85,7 +85,6 @@ async function handleCommand(command: string, args: ParsedArgs): Promise<JsonObj
 			expectedSessionId: stringArg(args, "session-id"),
 			expectedTags: arrayArg(args, "tag"),
 			expectedUserId: stringArg(args, "user-id"),
-			expectedWorkflowId: optionalArg(args, "workflow-id"),
 			settings: settingsFromArgs(args),
 			traceId,
 		});

@@ -58,10 +58,10 @@ app-api 保存用户轮次并创建持久 run；execution-control 和 Temporal �
 - 会话、消息和轮次派发：`apps/app-api`；
 - 工作流 run、event、step、tool 和 memory 投影：`apps/execution-control`；
 - 完整 Temporal history：Temporal；
-- 模型调用链与评测：Langfuse；
-- 脱敏运行日志、调用链和指标：Axiom；
-- browser/edge 错误、受控性能、release 和 source map：Sentry；
-- 模型、工具和记忆受信任 trace：单一 Langfuse project；
+- Agent 模型调用链与评测：Langfuse；
+- 有界 application logs：Axiom；
+- browser/edge 错误、生产 browser 采样性能、release 和 source map：Sentry；
+- Agent 模型和工具受信任 trace：单一 Langfuse project；
 - 个人记忆：Hindsight，仅由 execution-control Activity 调用。
 
 这些数据通过 `request_id`、`run_id`、`trace_id` 和 `conversation_id` 关联，不建立第二套请求
@@ -71,12 +71,13 @@ app-api 保存用户轮次并创建持久 run；execution-control 和 Temporal �
 
 - `ops-web -> execution-control` 通过同源 BFF 管理在线模型配置；浏览器不持有
   execution-control credential。
-- `ops-web -> PostgreSQL/execution-control/Axiom/Sentry` 提供有界运行摘要和关联记录。
+- `ops-web -> PostgreSQL/execution-control/Axiom/Sentry` 提供有界运行摘要、application logs 和
+  Sentry Issue。
 - `ops-web -> dining.*` 使用统一 `ops_web` 角色维护地图草稿、不可变发布版本、菜单、评价和举报；
   app-api 读取公开地图与菜单，并以受限权限处理学生评价和举报。
 - 在线模型配置不可用不阻断 Ops Web 的运行记录读取 readiness。
 - Temporal UI、Langfuse UI、Sentry 和 Axiom 保留各自完整能力；Ops Web 只提供跨系统关联、
-  固定 Axiom 查询和常用摘要。
+  固定 Axiom logs 查询和常用摘要。
 
 ## 部署
 

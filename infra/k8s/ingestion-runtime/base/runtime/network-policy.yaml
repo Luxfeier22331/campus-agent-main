@@ -73,13 +73,6 @@ spec:
     - to:
         - podSelector:
             matchLabels:
-              app.kubernetes.io/name: otel-collector
-      ports:
-        - protocol: TCP
-          port: 4318
-    - to:
-        - podSelector:
-            matchLabels:
               cnpg.io/cluster: campus-agent-postgres
       ports:
         - protocol: TCP

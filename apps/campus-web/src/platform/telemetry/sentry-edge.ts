@@ -57,8 +57,5 @@ export function createCampusEdgeSentryOptions(env: Env): CloudflareOptions | und
 		},
 		release: env.DEPLOYMENT_RELEASE?.trim() || undefined,
 		sendDefaultPii: false,
-		tracesSampler(context) {
-			return context.inheritOrSampleWith(environment === "production" ? 0.02 : 1);
-		},
 	};
 }

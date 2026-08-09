@@ -17,7 +17,7 @@
 			"path": "docs/contracts/schemas/tool-execution.openapi.yaml",
 			"owner": "docs/contracts",
 			"status": "active",
-			"notes": "Private app-api -> execution-control wire contract; generated TS/Go artifacts remain checked by pnpm contracts:check."
+			"notes": "Private app-api -> execution-control wire contract; generated TS/Go artifacts remain checked by pnpm --dir packages/contracts check."
 		},
 		{
 			"id": "email-access.v1",

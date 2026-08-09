@@ -2,8 +2,6 @@ package config
 
 import (
 	"fmt"
-	"net/url"
-	"os"
 	"strings"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
@@ -52,16 +50,6 @@ type Config struct {
 	RequestBodyLimitBytes                   int64
 	ShutdownGraceMS                         int
 	OpsWebInternalToken                     string
-	OTelEnabled                             bool
-	OTelEndpoint                            string
-	OTelMetricsEnabled                      bool
-	OTelMetricsEndpoint                     string
-	OTelServiceName                         string
-	OTelExportTimeoutMS                     int
-	OTelExportIntervalMS                    int
-	OTelSampleRatio                         float64
-	OTelAllowedAttributesVersion            string
-	TemporalTracingEnabled                  bool
 	DatabaseURL                             string
 	TemporalAddress                         string
 	TemporalNamespace                       string
@@ -111,13 +99,6 @@ type WorkerProfile struct {
 	WorkflowTaskPollers          int
 }
 
-type runtimeRole string
-
-const (
-	roleRuntime               runtimeRole = "runtime"
-	rolePersonalMemoryCommand runtimeRole = "personal-memory-command"
-)
-
 type envValues struct {
 	DeploymentEnvironment       string `env:"DEPLOYMENT_ENVIRONMENT" envDefault:"local"`
 	DeploymentRelease           string `env:"DEPLOYMENT_RELEASE"`
@@ -142,14 +123,10 @@ type envValues struct {
 }
 
 func LoadRuntimeFromEnv() (Config, error) {
-	return loadFromEnv(roleRuntime)
+	return loadFromEnv()
 }
 
-func LoadPersonalMemoryCommandFromEnv() (Config, error) {
-	return loadFromEnv(rolePersonalMemoryCommand)
-}
-
-func loadFromEnv(role runtimeRole) (Config, error) {
+func loadFromEnv() (Config, error) {
 	values := envValues{}
 	if err := env.Parse(&values); err != nil {
 		return Config{}, fmt.Errorf("parse execution-control env: %w", err)
@@ -159,25 +136,10 @@ func loadFromEnv(role runtimeRole) (Config, error) {
 		return Config{}, err
 	}
 	if isDeployedEnvironment(environment) {
-		if err := validateDeployedRole(values, role); err != nil {
+		if err := validateDeployedRuntime(values); err != nil {
 			return Config{}, err
 		}
 	}
-	commonOTLPEndpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
-	traceEndpoint := otlpSignalEndpoint(
-		os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"),
-		commonOTLPEndpoint,
-		"/v1/traces",
-	)
-	metricsEndpoint := otlpSignalEndpoint(
-		os.Getenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"),
-		commonOTLPEndpoint,
-		"/v1/metrics",
-	)
-	telemetryDisabled := strings.EqualFold(strings.TrimSpace(os.Getenv("OTEL_SDK_DISABLED")), "true")
-	tracesEnabled := !telemetryDisabled && traceEndpoint != "" && !exporterDisabled("OTEL_TRACES_EXPORTER")
-	metricsEnabled := !telemetryDisabled && metricsEndpoint != "" && !exporterDisabled("OTEL_METRICS_EXPORTER")
-
 	return Config{
 		AppName:                                 "campus-agent",
 		DeploymentEnvironment:                   environment,
@@ -192,16 +154,6 @@ func loadFromEnv(role runtimeRole) (Config, error) {
 		RequestBodyLimitBytes:                   defaultRequestBodyLimitBytes,
 		ShutdownGraceMS:                         defaultShutdownGraceMS,
 		OpsWebInternalToken:                     strings.TrimSpace(values.OpsWebInternalToken),
-		OTelEnabled:                             tracesEnabled,
-		OTelEndpoint:                            traceEndpoint,
-		OTelMetricsEnabled:                      metricsEnabled,
-		OTelMetricsEndpoint:                     metricsEndpoint,
-		OTelServiceName:                         defaultString(strings.TrimSpace(os.Getenv("OTEL_SERVICE_NAME")), "campus-execution-control"),
-		OTelExportTimeoutMS:                     1_000,
-		OTelExportIntervalMS:                    15_000,
-		OTelSampleRatio:                         1,
-		OTelAllowedAttributesVersion:            "execution-control-otel-attrs-v1",
-		TemporalTracingEnabled:                  tracesEnabled,
 		DatabaseURL:                             normalizePostgresDatabaseURL(values.DatabaseURL),
 		TemporalAddress:                         strings.TrimSpace(values.TemporalAddress),
 		TemporalNamespace:                       strings.TrimSpace(values.TemporalNamespace),
@@ -243,69 +195,29 @@ func loadFromEnv(role runtimeRole) (Config, error) {
 	}, nil
 }
 
-func validateDeployedRole(values envValues, role runtimeRole) error {
+func validateDeployedRuntime(values envValues) error {
 	required := []struct {
 		name  string
 		value string
-	}{}
-	if role == roleRuntime {
-		required = append(required, struct{ name, value string }{
+	}{
+		{
 			"DEPLOYMENT_RELEASE",
 			values.DeploymentRelease,
-		})
-	}
-	if roleNeedsTemporal(role) {
-		required = append(required,
-			struct{ name, value string }{"EXECUTION_CONTROL_TEMPORAL_ADDRESS", values.TemporalAddress},
-			struct{ name, value string }{"EXECUTION_CONTROL_TEMPORAL_NAMESPACE", values.TemporalNamespace},
-			struct{ name, value string }{"EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", values.TemporalWorkerIdentity},
-		)
-	}
-	switch role {
-	case roleRuntime:
-		required = append(required,
-			struct{ name, value string }{"EXECUTION_CONTROL_DATABASE_URL", values.DatabaseURL},
-			struct{ name, value string }{"APP_API_EXECUTION_SHARED_SECRET", values.AppAPIExecutionSharedSecret},
-			struct{ name, value string }{"EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL", values.ProductCallbackBaseURL},
-			struct{ name, value string }{"EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL", values.AgentRuntimeBaseURL},
-			struct{ name, value string }{"EXECUTION_AGENT_RUNTIME_SHARED_SECRET", values.AgentRuntimeSharedSecret},
-			struct{ name, value string }{"OPS_WEB_INTERNAL_TOKEN", values.OpsWebInternalToken},
-		)
-	case rolePersonalMemoryCommand:
-		required = append(required,
-			struct{ name, value string }{"HINDSIGHT_API_BASE_URL", values.PersonalMemoryBaseURL},
-			struct{ name, value string }{"HINDSIGHT_API_TENANT_API_KEY", values.PersonalMemoryAPISecret},
-			struct{ name, value string }{"HINDSIGHT_OWNER_SALT", values.PersonalMemoryOwnerSalt},
-		)
+		},
+		{"EXECUTION_CONTROL_TEMPORAL_ADDRESS", values.TemporalAddress},
+		{"EXECUTION_CONTROL_TEMPORAL_NAMESPACE", values.TemporalNamespace},
+		{"EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", values.TemporalWorkerIdentity},
+		{"EXECUTION_CONTROL_DATABASE_URL", values.DatabaseURL},
+		{"APP_API_EXECUTION_SHARED_SECRET", values.AppAPIExecutionSharedSecret},
+		{"EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL", values.ProductCallbackBaseURL},
+		{"EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL", values.AgentRuntimeBaseURL},
+		{"EXECUTION_AGENT_RUNTIME_SHARED_SECRET", values.AgentRuntimeSharedSecret},
+		{"OPS_WEB_INTERNAL_TOKEN", values.OpsWebInternalToken},
 	}
 	for _, item := range required {
 		if strings.TrimSpace(item.value) == "" {
-			return fmt.Errorf("%s is required for %s", item.name, role)
+			return fmt.Errorf("%s is required for runtime", item.name)
 		}
 	}
 	return nil
-}
-
-func roleNeedsTemporal(role runtimeRole) bool {
-	return role == roleRuntime
-}
-
-func exporterDisabled(name string) bool {
-	return strings.EqualFold(strings.TrimSpace(os.Getenv(name)), "none")
-}
-
-func otlpSignalEndpoint(specificEndpoint string, commonEndpoint string, signalPath string) string {
-	if endpoint := strings.TrimSpace(specificEndpoint); endpoint != "" {
-		return endpoint
-	}
-	endpoint := strings.TrimSpace(commonEndpoint)
-	if endpoint == "" {
-		return ""
-	}
-	parsed, err := url.Parse(endpoint)
-	if err != nil {
-		return endpoint
-	}
-	parsed.Path = strings.TrimRight(parsed.Path, "/") + signalPath
-	return parsed.String()
 }

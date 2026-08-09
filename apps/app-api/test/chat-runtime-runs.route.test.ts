@@ -507,8 +507,7 @@ describe("chat durable run routes", () => {
 		await expect(response.json()).resolves.toMatchObject({
 			error: {
 				code: "execution_control_invalid_response",
-				message:
-					"Execution durable runtime response violates the contract: status must be a string.",
+				message: "The request could not be completed.",
 				retryable: true,
 			},
 		});

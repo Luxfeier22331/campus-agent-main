@@ -5,8 +5,18 @@ import type {
 } from "ingest-core";
 import type { IngestionTaskExecutionSnapshot, IngestionTaskResult } from "ingestion-contracts";
 
+const SAFE_INGESTION_ERROR_CODE = /^[A-Za-z0-9_.:-]{1,80}$/u;
+
 export type StoreClock = () => Date;
 export type MaybePromise<T> = T | Promise<T>;
+
+export function assertSafeIngestionErrorCode(value: string): string {
+	const code = value.trim();
+	if (!SAFE_INGESTION_ERROR_CODE.test(code)) {
+		throw new Error("ingestion task error code is invalid");
+	}
+	return code;
+}
 
 export interface RecordIngestionTaskStartedInput {
 	createdBy: string;
@@ -23,12 +33,8 @@ export interface IngestionTaskStore {
 		result: IngestionTaskResult;
 		taskId: string;
 	}): MaybePromise<IngestionTaskRecord>;
-	failTask(input: {
-		errorCode: string;
-		errorMessage: string;
-		taskId: string;
-	}): MaybePromise<IngestionTaskRecord>;
-	cancelTask(input: { taskId: string; reason: string }): MaybePromise<IngestionTaskRecord>;
+	failTask(input: { errorCode: string; taskId: string }): MaybePromise<IngestionTaskRecord>;
+	cancelTask(input: { taskId: string }): MaybePromise<IngestionTaskRecord>;
 	listOperatorTaskProjections(
 		filters: IngestionTaskProjectionFilters,
 	): MaybePromise<IngestionTaskOperatorProjectionList>;

@@ -108,10 +108,10 @@ workflow ID、source-collector Activity、门户响应及两个固定 source 对
 ## 验证
 
 ```bash
-pnpm ci:contracts
-pnpm ci:ingest
-pnpm ci:ingestion-control-postgres
-pnpm ci:infra
+pnpm --dir packages/contracts check
+pnpm exec turbo run typecheck test --filter=ingestion-contracts --filter=ingest-core --filter=ingestion-control --filter=source-collector --concurrency=1 --summarize
+pnpm --dir apps/ingestion-control test:database-integration
+scripts/infra/validate.sh
 ```
 
 这些检查验证源码、合同、隔离数据库 migration 和 Kubernetes 期望配置，不证明集群已应用或

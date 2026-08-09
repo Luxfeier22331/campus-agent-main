@@ -19,10 +19,12 @@ TypeScript 适配器拥有 Langfuse 交互、数据集关联、产品路径执�
 ## 本地检查
 
 ```bash
-pnpm ci:eval
+pnpm --dir packages/eval-langfuse typecheck
+pnpm --dir packages/eval-langfuse test
+pnpm --dir packages/ragas-runner test:eval
 ```
 
-该命令运行 TypeScript 适配器和隔离的 Python Ragas 测试，不访问 Langfuse 或模型服务。
+这些命令运行 TypeScript 适配器和隔离的 Python Ragas 测试，不访问 Langfuse 或模型服务。
 
 ## 模型配置
 
@@ -124,7 +126,7 @@ pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
 retrieval 或 Agent 工具选择发生变化时：
 
 1. 确认查询目标、工具合同和 serving config 通过所属可执行校验；
-2. 运行 `pnpm ci:contracts`、`pnpm ci:go` 和 `pnpm ci:eval`；
+2. 运行 contracts check、手动 `go` profile 和手动 `ragas` profile；
 3. 确认 Langfuse dataset 包含本次行为及直接相关的反例；
 4. 通过真实产品路径生成 answer、retrieved context、tool trajectory 和 trace identity；
 5. 与已接受的基准运行比较适用的 Ragas、Agent 和确定性 score；

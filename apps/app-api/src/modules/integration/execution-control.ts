@@ -16,7 +16,11 @@ export {
 	type ExecutionControlStepResult,
 	isExecutionControlRuntimeConfigured,
 } from "./execution-control-runtime";
-export { ExecutionControlTransportError } from "./execution-control-transport";
+export {
+	EXECUTION_CONTROL_FAILURE_MESSAGE,
+	ExecutionControlTransportError,
+	isSafeExecutionControlErrorCode,
+} from "./execution-control-transport";
 export { parseExecutionFinalizationResponsePayload } from "./execution-finalization-response";
 export type {
 	ToolExecutionContextProjection,

@@ -242,8 +242,7 @@ export function createIngestionControlHandler(input: {
 			if (error instanceof IngestionWorkflowUnavailableError) {
 				return jsonResponse({ error: error.message }, 503);
 			}
-			const message = error instanceof Error ? error.message : "ingestion-control request failed";
-			return jsonResponse({ error: message }, 400);
+			return jsonResponse({ error: "ingestion-control request could not be completed" }, 400);
 		}
 	};
 }

@@ -40,8 +40,15 @@ export async function runIngestionControlSchemaBootstrap(
 if (import.meta.url === `file://${process.argv[1]}`) {
 	runIngestionControlSchemaBootstrap()
 		.then(() => console.log(JSON.stringify({ schema_ready: true })))
-		.catch((error) => {
-			console.error(error instanceof Error ? error.message : String(error));
+		.catch(() => {
+			console.error(
+				JSON.stringify({
+					error_code: "schema_bootstrap_failed",
+					event_type: "ingestion_control.schema_bootstrap_failed",
+					level: "error",
+					status: "failed",
+				}),
+			);
 			process.exitCode = 1;
 		});
 }

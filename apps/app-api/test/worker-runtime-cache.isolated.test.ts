@@ -30,7 +30,6 @@ vi.mock("@sentry/cloudflare", () => ({
 	getTraceData: vi.fn(() => ({})),
 	setContext: vi.fn(),
 	setTag: vi.fn(),
-	startSpan: vi.fn(async (_input, callback) => await callback()),
 	withScope: vi.fn((callback) =>
 		callback({
 			setTag: vi.fn(),

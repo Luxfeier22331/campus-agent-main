@@ -51,7 +51,7 @@ func TestNewRunProjectionStoreRejectsMalformedDatabaseURL(t *testing.T) {
 }
 
 func TestNewServerDoesNotCreateRetiredPGLeaseCoordinatorForOnlineServing(t *testing.T) {
-	server := NewServerWithDependencies(config.Config{}, nil, nil, nil)
+	server := NewServerWithDependencies(config.Config{}, nil, nil)
 	if server.runProjectionStore != nil {
 		t.Fatalf("run projection store = %#v, want nil without explicit run projection database url", server.runProjectionStore)
 	}
@@ -65,7 +65,7 @@ func TestReadyzReportsRunProjectionStoreStatus(t *testing.T) {
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
 
 	if response.Code != http.StatusServiceUnavailable {
-		t.Fatalf("readyz status = %d, want degraded because Temporal/RAG are not configured", response.Code)
+		t.Fatalf("readyz status = %d, want unavailable because core Temporal dependencies are not configured", response.Code)
 	}
 	body := decodeBody(t, response)
 	projection := expectRecord(t, body["run_projection_store"], "run_projection_store")

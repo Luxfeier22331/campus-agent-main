@@ -33,7 +33,7 @@
 				"internal/execution/**",
 				"internal/providerconfig/**",
 				"internal/schemamigrations/**",
-				"$TURBO_ROOT$/scripts/ci/go-postgres-integration.sh"
+				"scripts/test-postgres-integration.sh"
 			]
 		}
 	}

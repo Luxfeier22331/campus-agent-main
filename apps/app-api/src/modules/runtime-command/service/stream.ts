@@ -7,6 +7,7 @@ import type {
 	ChatCommandStreamEvent,
 	ChatCommandStreamEventName,
 } from "./types";
+import { publicExecutionFailure } from "./writes";
 
 interface ParsedSseEvent {
 	data: unknown;
@@ -31,7 +32,7 @@ function getString(record: Record<string, unknown>, snakeKey: string): string | 
 	return typeof value === "string" && value.trim() ? value : null;
 }
 
-function getError(value: unknown): { code: string; message: string; retryable: boolean } {
+function getError(value: unknown): { code: string; retryable: boolean } {
 	const record = getRecord(value);
 	if (!record) {
 		throw new ExecutionLifecycleContractError("terminal error payload must be an object");
@@ -40,8 +41,7 @@ function getError(value: unknown): { code: string; message: string; retryable: b
 	if (!code) {
 		throw new ExecutionLifecycleContractError("terminal error missing code");
 	}
-	const message = getString(record, "message");
-	if (!message) {
+	if (!getString(record, "message")) {
 		throw new ExecutionLifecycleContractError("terminal error missing message");
 	}
 	if (typeof record.retryable !== "boolean") {
@@ -49,7 +49,6 @@ function getError(value: unknown): { code: string; message: string; retryable: b
 	}
 	return {
 		code,
-		message,
 		retryable: record.retryable,
 	};
 }
@@ -226,11 +225,17 @@ export function parseExecutionTerminalResponse(input: {
 	}
 
 	const error = getError(record?.error);
+	const failure = publicExecutionFailure({
+		errorCode: error.code,
+		status: input.event === "execution.cancelled" ? "cancelled" : "error",
+	});
 	return {
 		occurredAt,
 		requestId,
 		response: executionFinalizationErrorResponse({
-			...error,
+			code: failure.errorCode,
+			message: failure.message,
+			retryable: error.retryable,
 			status: input.event === "execution.cancelled" ? "cancelled" : "error",
 			traceId,
 		}),

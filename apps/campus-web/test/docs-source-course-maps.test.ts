@@ -1,11 +1,20 @@
 import { Buffer } from "node:buffer";
 
+import { imageSize } from "image-size";
 import { describe, expect, it } from "vitest";
 
 import { materializeDocsCourseMaps } from "../src/docs-reader-build/source-course-maps.ts";
 import type { DocsReader } from "../src/docs-reader-build/source-types.ts";
 
 describe("published course maps", () => {
+	it("rejects disabled image formats before parsing dimensions", () => {
+		const bytes = Buffer.alloc(16);
+		bytes.write("icns", 0, "ascii");
+		bytes.writeUInt32BE(bytes.length, 4);
+
+		expect(() => imageSize(bytes)).toThrow("disabled file type: icns");
+	});
+
 	it("merges adjacent image parts and attaches logical maps to their reader subsection", () => {
 		const reader = {
 			docId: "curriculum:新闻传播学类本科人才培养方案",

@@ -25,7 +25,9 @@ export type {
 export {
 	createExecutionControlPersonalMemoryClient,
 	createExecutionControlRuntimeClient,
+	EXECUTION_CONTROL_FAILURE_MESSAGE,
 	ExecutionControlTransportError,
 	isExecutionControlRuntimeConfigured,
+	isSafeExecutionControlErrorCode,
 	parseExecutionFinalizationResponsePayload,
 } from "./execution-control";

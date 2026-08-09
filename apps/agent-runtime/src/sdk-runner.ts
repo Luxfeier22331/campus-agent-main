@@ -71,7 +71,6 @@ export type OpenAIAgentsRunFunction = <TOutput extends AgentOutputType>(
 		maxTurns: number;
 		modelProvider?: ModelProvider;
 		traceId: string;
-		traceMetadata: Record<string, string>;
 		workflowName: string;
 		traceIncludeSensitiveData: boolean;
 		signal?: AbortSignal;
@@ -86,7 +85,6 @@ export type OpenAIAgentsStreamRunFunction = <TOutput extends AgentOutputType>(
 		maxTurns: number;
 		modelProvider?: ModelProvider;
 		traceId: string;
-		traceMetadata: Record<string, string>;
 		workflowName: string;
 		traceIncludeSensitiveData: boolean;
 		signal?: AbortSignal;
@@ -140,7 +138,6 @@ export function createOpenAIAgentsRunner(options: OpenAIAgentsRunnerOptions = {}
 			maxTurns: input.limits.maxTurns,
 			modelProvider: requestOptions.modelProvider,
 			traceId: input.traceId,
-			traceMetadata: agentTraceMetadata(input),
 			workflowName: "campus-agent.primary-agent",
 			traceIncludeSensitiveData: false,
 			signal: input.signal,
@@ -166,7 +163,6 @@ export function createStreamingOpenAIAgentsRunner(
 			maxTurns: input.limits.maxTurns,
 			modelProvider: requestOptions.modelProvider,
 			traceId: input.traceId,
-			traceMetadata: agentTraceMetadata(input),
 			workflowName: "campus-agent.primary-agent",
 			traceIncludeSensitiveData: false,
 			signal: input.signal,
@@ -233,14 +229,6 @@ function throwIfStreamRunDidNotComplete(
 		return;
 	}
 	throw signal?.reason ?? new Error("Agent SDK stream was cancelled before completion.");
-}
-
-function agentTraceMetadata(input: AgentRunnerInput): Record<string, string> {
-	return {
-		"campus.trace_id": input.traceId,
-		"request.id": input.requestId,
-		"run.id": input.runId,
-	};
 }
 
 function createSdkRuntime(input: AgentRunnerInput, model: string | undefined) {
@@ -322,7 +310,6 @@ const defaultRunSdk: OpenAIAgentsRunFunction = async (agent, input, options) => 
 	const runner = new Runner({
 		modelProvider: options.modelProvider,
 		traceId: options.traceId,
-		traceMetadata: options.traceMetadata,
 		workflowName: options.workflowName,
 		traceIncludeSensitiveData: options.traceIncludeSensitiveData,
 	});
@@ -337,7 +324,6 @@ const defaultRunSdkStream: OpenAIAgentsStreamRunFunction = async (agent, input, 
 	const runner = new Runner({
 		modelProvider: options.modelProvider,
 		traceId: options.traceId,
-		traceMetadata: options.traceMetadata,
 		workflowName: options.workflowName,
 		traceIncludeSensitiveData: options.traceIncludeSensitiveData,
 	});

@@ -443,7 +443,7 @@ describe("agent runtime HTTP handler", () => {
 		expect(response.status).toBe(400);
 		const body = (await response.json()) as { error?: { code?: string; message?: string } };
 		expect(body.error?.code).toBe("invalid_request");
-		expect(body.error?.message).toContain("provider_config");
+		expect(body.error?.message).toBe("The agent runtime request is invalid.");
 	});
 
 	it("classifies a missing input as an invalid request", async () => {
@@ -737,7 +737,7 @@ describe("agent runtime HTTP handler", () => {
 			error?: { code?: string; message?: string; retryable?: boolean };
 		};
 		expect(body.error?.code).toBe("run_failed");
-		expect(body.error?.message).toBe("provider request aborted");
+		expect(body.error?.message).toBe("The agent runtime could not complete the request.");
 		expect(body.error?.retryable).toBe(false);
 	});
 
@@ -856,7 +856,7 @@ describe("agent runtime HTTP handler", () => {
 				event: "error",
 				data: {
 					code: "run_failed",
-					message: "Agent runtime stream ended without a terminal event.",
+					message: "The agent runtime could not complete the request.",
 					retryable: false,
 				},
 			},
@@ -891,7 +891,7 @@ describe("agent runtime HTTP handler", () => {
 				event: "error",
 				data: {
 					code: "run_failed",
-					message: "provider request aborted",
+					message: "The agent runtime could not complete the request.",
 					retryable: false,
 				},
 			},
@@ -931,7 +931,7 @@ describe("agent runtime HTTP handler", () => {
 				event: "error",
 				data: {
 					code: "invalid_request",
-					message: "Admitted tool runtime fingerprint does not match this agent runtime.",
+					message: "The agent runtime request is invalid.",
 					retryable: false,
 				},
 			},

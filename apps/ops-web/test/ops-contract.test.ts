@@ -10,7 +10,6 @@ import {
 	opsOverviewFixture,
 	opsRequestDetailFixture,
 	opsRequestListFixture,
-	opsTraceObservabilityFixture,
 } from "../src/shared/ops-fixtures";
 
 describe("ops-web contract fixtures", () => {
@@ -37,53 +36,24 @@ describe("ops-web contract fixtures", () => {
 		expect(parsed).not.toHaveProperty("outcomeSummary");
 	});
 
-	it("validates overview health and source freshness independently", () => {
+	it("validates the product request overview contract", () => {
 		const parsed = OpsOverviewResponseSchema.parse(opsOverviewFixture);
 		expect(parsed.window).toBe("1h");
 		expect(parsed.health.status).toBe("DEGRADED");
 		expect(parsed.requests.dataState).toBe("FRESH");
 		expect(parsed.requests.status).toBe("DEGRADED");
 		expect(parsed.issues).toContainEqual(expect.objectContaining({ code: "REQUESTS_DEGRADED" }));
-		expect(parsed.services.map((service) => service.name)).toEqual([
-			"campus-web",
-			"app-api",
-			"execution-control",
-			"agent-runtime",
-		]);
-		expect(parsed.temporal.queues.length).toBeGreaterThan(0);
-		expect(parsed.telemetry.signals).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({
-					expectation: "ACTIVITY",
-					kind: "LOGS",
-					producer: expect.objectContaining({ serviceName: "app-api" }),
-				}),
-				expect.objectContaining({
-					expectation: "CONTINUOUS",
-					kind: "METRICS",
-					producer: expect.objectContaining({ serviceName: "otel-collector-agent" }),
-				}),
-				expect.objectContaining({
-					expectation: "CONTINUOUS",
-					kind: "METRICS",
-					producer: expect.objectContaining({ serviceName: "otel-collector-gateway" }),
-				}),
-			]),
-		);
+		expect(parsed).not.toHaveProperty("services");
+		expect(parsed).not.toHaveProperty("temporal");
+		expect(parsed).not.toHaveProperty("telemetry");
 	});
 
-	it("validates bounded Axiom log and trace results", () => {
+	it("validates bounded Axiom log results", () => {
 		const logs = OpsObservabilityResponseSchema.parse(opsLogObservabilityFixture);
-		const trace = OpsObservabilityResponseSchema.parse(opsTraceObservabilityFixture);
 		expect(logs).toMatchObject({ kind: "logs", limit: 200, source: "AXIOM" });
-		expect(trace).toMatchObject({ kind: "trace", limit: 500, source: "AXIOM" });
 		expect(logs.records[0]).toMatchObject({
 			eventType: "request.finalized",
 			requestId: "req_ops_001",
-		});
-		expect(trace.records[0]).toMatchObject({
-			name: "agent.primary",
-			productTraceId: "trace_ops_001",
 		});
 	});
 

@@ -48,11 +48,11 @@ Execution Control 的 `/readyz` 只用以下核心条件决定 HTTP 状态：回
 投影可用、Temporal 及必要 task queue poller 可用，以及 Agent Runtime 地址已配置且其
 `/readyz` 成功。Agent Runtime 的就绪探针本身不需要调用 Activity 使用的共享密钥。
 
-当前模型设置、OTel exporter、工具读取投影、Hindsight 个人记忆和 Qdrant 知识检索仍作为诊断字段
-出现在响应中，但它们不直接参与 Execution Control 顶层就绪判定。局部能力不可用时，由对应工具、
-Activity 或运行路径返回明确失败；不能让无关请求因一个局部依赖故障而失去整个服务端点。Primary
-Agent 所需的 agent activity worker 不可用时，会通过 Temporal 必要 poller 缺失反映为核心故障，
-不再复制一套模型配置就绪判定。
+响应只返回上述核心条件、运行版本和进程内执行生命周期。`/readyz` 不探测当前模型设置、OTel
+exporter、工具读取投影、Hindsight 个人记忆或 Qdrant 知识检索，也不把这些局部能力建模为响应字段。
+局部能力不可用时，由对应工具、Activity 或运行路径返回明确失败；不能让周期性 Kubernetes 探针
+调用业务依赖或产生业务 trace。Primary Agent 所需的 agent activity worker 不可用时，会通过
+Temporal 必要 poller 缺失反映为核心故障，不再复制一套模型配置就绪判定。
 
 非本地环境中的完整结果属于受信任机器接口，由产品后端携带内部身份读取，不直接作为公开浏览器
 探针。

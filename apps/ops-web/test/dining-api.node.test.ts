@@ -164,14 +164,18 @@ describe("Ops Web Dining API", () => {
 			const response = await app.request("/api/ops/dining");
 
 			expect(response.status).toBe(503);
-			expect(errorLog).toHaveBeenCalledWith(
-				"[ops-web] unhandled api error",
-				expect.objectContaining({
-					errorCode: "OPS_DINING_STORE_UNAVAILABLE",
-					errorName: "DiningStoreUnavailableError",
-				}),
-			);
-			expect(errorLog.mock.calls.flat().join(" ")).not.toContain("UNCLASSIFIED");
+			const event = errorLog.mock.calls
+				.map(([entry]) => String(entry))
+				.find((entry) => entry.includes('"event_type":"ops_web.api_request"'));
+			expect(event).toBeDefined();
+			expect(JSON.parse(event ?? "{}")).toEqual({
+				error_code: "OPS_DINING_STORE_UNAVAILABLE",
+				event_type: "ops_web.api_request",
+				level: "error",
+				source: "http",
+				status: "failed",
+			});
+			expect(event).not.toContain("dining unavailable");
 		} finally {
 			errorLog.mockRestore();
 		}

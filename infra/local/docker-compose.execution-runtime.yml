@@ -142,7 +142,6 @@ services:
   hindsight-api:
     image: ${HINDSIGHT_API_IMAGE:-ghcr.io/vectorize-io/hindsight-api:0.8.4-slim}
     command:
-      - opentelemetry-instrument
       - hindsight-api
     restart: unless-stopped
     extra_hosts: *host-gateway
@@ -177,16 +176,6 @@ services:
       HINDSIGHT_API_CONSOLIDATION_RECONCILE_INTERVAL_SECONDS: ${HINDSIGHT_API_CONSOLIDATION_RECONCILE_INTERVAL_SECONDS:-300}
       HINDSIGHT_API_TENANT_API_KEY: ${HINDSIGHT_API_TENANT_API_KEY:?set HINDSIGHT_API_TENANT_API_KEY}
       HINDSIGHT_API_TENANT_EXTENSION: hindsight_api.extensions.builtin.tenant:ApiKeyTenantExtension
-      HINDSIGHT_API_OTEL_TRACES_ENABLED: ${HINDSIGHT_API_OTEL_TRACES_ENABLED:-false}
-      HINDSIGHT_API_OTEL_EXPORTER_OTLP_ENDPOINT: ${HINDSIGHT_API_OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4321}
-      HINDSIGHT_API_OTEL_SERVICE_NAME: ${HINDSIGHT_API_OTEL_SERVICE_NAME:-hindsight-api}
-      OTEL_EXPORTER_OTLP_ENDPOINT: ${HINDSIGHT_API_OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4321}
-      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
-      OTEL_PROPAGATORS: ${OTEL_PROPAGATORS:-tracecontext,baggage}
-      OTEL_PYTHON_FASTAPI_EXCLUDED_URLS: ${OTEL_PYTHON_FASTAPI_EXCLUDED_URLS:-health,readyz,metrics}
-      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.namespace=campus-agent,service.version=hindsight@0.8.4,deployment.environment.name=local}
-      OTEL_SDK_DISABLED: ${HINDSIGHT_OTEL_SDK_DISABLED:-true}
-      OTEL_SERVICE_NAME: ${HINDSIGHT_API_OTEL_SERVICE_NAME:-hindsight-api}
     healthcheck:
       test:
         - CMD-SHELL
@@ -272,8 +261,6 @@ services:
       LANGFUSE_BASE_URL: ${LANGFUSE_BASE_URL:-}
       LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
       LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
-      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
-      OTEL_SERVICE_NAME: execution-control
     volumes:
       - ${PROVIDER_CONFIG_KEYRING_FILE:?set PROVIDER_CONFIG_KEYRING_FILE}:/run/campus-agent/provider-config/keyring.json:ro
       - ${QDRANT_TLS_DIR:-./infra/local/qdrant-tls}:${QDRANT_TLS_DIR:-/etc/campus-agent/qdrant/tls}:ro

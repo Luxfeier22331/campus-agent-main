@@ -200,7 +200,7 @@ describe("execution-control tool executor", () => {
 
 		expect(result.status).toBe("failed");
 		expect(result.failCloseReason).toBe("tool_handler_failed");
-		expect(result.result).toEqual({ error: { code: "source_truth_unavailable" } });
+		expect(result.result).toEqual({ error: "execution-control query failed" });
 	});
 
 	it("fails closed when tool read model response is not JSON", async () => {
@@ -231,7 +231,7 @@ describe("execution-control tool executor", () => {
 		expect(result.status).toBe("failed");
 		expect(result.failCloseReason).toBe("transient_internal_query_failed");
 		expect(result.result.error).toBe("execution-control query request failed");
-		expect(result.result.detail).toBe("network down");
+		expect(result.result).not.toHaveProperty("detail");
 	});
 
 	it("classifies the tool request timeout as a transient query failure", async () => {

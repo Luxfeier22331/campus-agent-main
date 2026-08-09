@@ -68,11 +68,6 @@ spec:
                   key: DEPLOYMENT_ENVIRONMENT
             - name: PORT
               value: "5178"
-            - name: OPS_WEB_AGENT_RUNTIME_URL
-              valueFrom:
-                configMapKeyRef:
-                  name: ops-web-config
-                  key: OPS_WEB_AGENT_RUNTIME_URL
             - name: OPS_WEB_APP_API_URL
               valueFrom:
                 configMapKeyRef:
@@ -88,16 +83,6 @@ spec:
                 configMapKeyRef:
                   name: ops-web-config
                   key: OPS_WEB_AXIOM_LOGS_DATASET
-            - name: OPS_WEB_AXIOM_METRICS_DATASET
-              valueFrom:
-                configMapKeyRef:
-                  name: ops-web-config
-                  key: OPS_WEB_AXIOM_METRICS_DATASET
-            - name: OPS_WEB_AXIOM_TRACES_DATASET
-              valueFrom:
-                configMapKeyRef:
-                  name: ops-web-config
-                  key: OPS_WEB_AXIOM_TRACES_DATASET
             - name: OPS_WEB_AXIOM_URL
               valueFrom:
                 configMapKeyRef:
@@ -135,8 +120,6 @@ spec:
                 secretKeyRef:
                   name: object-store-secrets
                   key: OBJECT_STORE_DERIVED_SECRET_KEY
-            - name: OPS_WEB_EXECUTION_CONTROL_URL
-              value: http://execution-control:8000
             - name: OPS_WEB_EXECUTION_CONTROL_ADMIN_URL
               value: http://execution-control-admin:8000
             - name: OPS_WEB_LANGFUSE_URL

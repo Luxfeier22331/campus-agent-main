@@ -13,6 +13,7 @@ import type {
 	RecordIngestionTaskStartedInput,
 	StoreClock,
 } from "./types";
+import { assertSafeIngestionErrorCode } from "./types";
 
 export interface PgQueryable {
 	query(sql: string, params?: unknown[]): Promise<{ rows: Record<string, unknown>[] }>;
@@ -49,8 +50,8 @@ const REQUIRED_TASK_COLUMNS = [
 	"result_contract",
 	"summary_json",
 	"error_code",
-	"error_message",
 ] as const;
+const RETIRED_TASK_COLUMNS = ["error_message"] as const;
 
 const REQUIRED_MIGRATION_COLUMNS = ["migration_id", "content_sha256", "applied_at"] as const;
 
@@ -83,6 +84,12 @@ export async function assertIngestionControlPostgresSchema(client: PgQueryable):
 			`ingestion-control database schema is not migrated; missing columns: ${missing.join(", ")}`,
 		);
 	}
+	const retired = RETIRED_TASK_COLUMNS.filter((column) => columns.has(column));
+	if (retired.length > 0) {
+		throw new Error(
+			`ingestion-control database schema still has retired columns: ${retired.join(", ")}`,
+		);
+	}
 }
 
 export function createPostgresIngestionTaskStore(input: {
@@ -111,10 +118,10 @@ class PostgresIngestionTaskStore implements IngestionTaskStore {
 				corpus, collection, input_ref_json, input_contract, output_contract, created_by, created_at,
 				status, workflow_id, workflow_run_id, retry_of_task_id,
 				updated_at, result_ref_json, result_contract,
-				summary_json, error_code, error_message
+				summary_json, error_code
 			) VALUES (
 				$1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13::timestamptz,
-				'running', $14, $15, $16, $17::timestamptz, NULL, NULL, NULL, NULL, NULL
+				'running', $14, $15, $16, $17::timestamptz, NULL, NULL, NULL, NULL
 			)
 			ON CONFLICT (task_id) DO NOTHING
 			RETURNING *`,
@@ -165,7 +172,7 @@ class PostgresIngestionTaskStore implements IngestionTaskStore {
 			`UPDATE ingestion_control.tasks
 			 SET status = 'completed', updated_at = $1::timestamptz,
 			     result_ref_json = $2::jsonb, result_contract = $3, summary_json = $4::jsonb,
-			     error_code = NULL, error_message = NULL
+			     error_code = NULL
 			 WHERE task_id = $5 AND status = 'running'
 			 RETURNING *`,
 			[
@@ -194,13 +201,13 @@ class PostgresIngestionTaskStore implements IngestionTaskStore {
 	async failTask(
 		input: Parameters<IngestionTaskStore["failTask"]>[0],
 	): Promise<IngestionTaskRecord> {
-		return this.#recordError(input.taskId, "failed", input.errorCode, input.errorMessage);
+		return this.#recordError(input.taskId, "failed", input.errorCode);
 	}
 
 	async cancelTask(
 		input: Parameters<IngestionTaskStore["cancelTask"]>[0],
 	): Promise<IngestionTaskRecord> {
-		return this.#recordError(input.taskId, "canceled", "workflow_canceled", input.reason);
+		return this.#recordError(input.taskId, "canceled", "workflow_canceled");
 	}
 
 	async listOperatorTaskProjections(
@@ -256,27 +263,21 @@ class PostgresIngestionTaskStore implements IngestionTaskStore {
 		taskId: string,
 		status: "failed" | "canceled",
 		errorCode: string,
-		errorMessage: string,
 	): Promise<IngestionTaskRecord> {
+		const safeErrorCode = assertSafeIngestionErrorCode(errorCode);
 		const rows = await this.#query(
 			`UPDATE ingestion_control.tasks
 			 SET status = $1, updated_at = $2::timestamptz, result_ref_json = NULL,
-			     result_contract = NULL, summary_json = NULL, error_code = $3, error_message = $4
-			 WHERE task_id = $5 AND status = 'running'
+				 result_contract = NULL, summary_json = NULL, error_code = $3
+			 WHERE task_id = $4 AND status = 'running'
 			 RETURNING *`,
-			[
-				status,
-				this.#now().toISOString(),
-				errorCode.slice(0, 128),
-				errorMessage.slice(0, 2000),
-				taskId,
-			],
+			[status, this.#now().toISOString(), safeErrorCode, taskId],
 		);
 		if (rows[0]) {
 			return toTaskRecord(rows[0]);
 		}
 		const existing = await this.#requireTask(taskId);
-		if (existing.status === status && existing.error_code === errorCode.slice(0, 128)) {
+		if (existing.status === status && existing.error_code === safeErrorCode) {
 			return existing;
 		}
 		throw new Error(`ingestion task cannot be marked ${status} from ${existing.status}: ${taskId}`);
@@ -337,7 +338,6 @@ function toTaskRecord(row: Record<string, unknown>): IngestionTaskRecord {
 				? null
 				: (requiredObject(row.summary_json, "summary_json") as IngestionTaskRecord["summary"]),
 		error_code: optionalString(row.error_code),
-		error_message: optionalString(row.error_message),
 	};
 }
 

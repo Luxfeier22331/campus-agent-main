@@ -29,7 +29,7 @@ type agentToolAccessContext struct {
 
 type agentToolConflictError struct{ message string }
 
-func (e agentToolConflictError) Error() string { return e.message }
+func (agentToolConflictError) Error() string { return "agent tool request conflicts with run state" }
 
 type personalMemoryRecallToolPayload struct {
 	Query string `json:"query"`
@@ -37,7 +37,6 @@ type personalMemoryRecallToolPayload struct {
 
 func (s *Server) handlePersonalMemoryRecallTool(response http.ResponseWriter, request *http.Request) {
 	if !s.toolReadModelAuthorized(request) {
-		setOutcome(response, "unauthorized")
 		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid internal query auth.", false)
 		return
 	}
@@ -47,7 +46,6 @@ func (s *Server) handlePersonalMemoryRecallTool(response http.ResponseWriter, re
 	}
 	envelope, err := decodePersonalMemoryRecallToolEnvelope(body)
 	if err != nil {
-		setOutcome(response, "invalid_request")
 		writeError(response, http.StatusBadRequest, "invalid_request", err.Error(), false)
 		return
 	}
@@ -55,11 +53,9 @@ func (s *Server) handlePersonalMemoryRecallTool(response http.ResponseWriter, re
 	if err != nil {
 		var conflict agentToolConflictError
 		if errors.As(err, &conflict) {
-			setOutcome(response, "run_context_conflict")
 			writeError(response, http.StatusConflict, "run_context_conflict", err.Error(), false)
 			return
 		}
-		setOutcome(response, "personal_memory_recall_failed")
 		writeError(
 			response,
 			http.StatusServiceUnavailable,
@@ -69,7 +65,6 @@ func (s *Server) handlePersonalMemoryRecallTool(response http.ResponseWriter, re
 		)
 		return
 	}
-	setOutcome(response, stringValue(result["outcome"]))
 	writeJSON(response, http.StatusOK, result)
 }
 

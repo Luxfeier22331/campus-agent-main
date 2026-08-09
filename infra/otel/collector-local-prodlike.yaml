@@ -1,5 +1,5 @@
 receivers:
-  otlp/orchestration:
+  otlp:
     protocols:
       http:
         endpoint: 0.0.0.0:4318
@@ -17,45 +17,6 @@ processors:
     check_interval: 1s
     limit_mib: 512
     spike_limit_mib: 128
-  resource/campus:
-    attributes:
-      - key: service.namespace
-        value: campus-agent
-        action: upsert
-      - key: deployment.environment
-        value: local
-        action: upsert
-      - key: telemetry.allowed_attributes_version
-        value: runtime-otel-attrs-v2
-        action: upsert
-  filter/drop_marked:
-    error_mode: ignore
-    traces:
-      span:
-        - 'attributes["telemetry.drop"] == true'
-        - 'attributes["telemetry.drop"] == "true"'
-    metrics:
-      datapoint:
-        - 'attributes["telemetry.drop"] == true'
-        - 'attributes["telemetry.drop"] == "true"'
-    logs:
-      log_record:
-        - 'attributes["telemetry.drop"] == true'
-        - 'attributes["telemetry.drop"] == "true"'
-  filter/orchestration_langfuse:
-    error_mode: propagate
-    traces:
-      span:
-        - 'not IsMatch(name, "^execution_control\\.")'
-  transform/orchestration_langfuse:
-    error_mode: propagate
-    trace_statements:
-      - 'set(span.status.message, "")'
-      - 'set(span.events, [])'
-      - 'set(span.links, [])'
-      - 'keep_keys(span.attributes, ["telemetry.allowed_attributes_version", "langfuse.trace.name", "langfuse.session.id", "langfuse.user.id", "langfuse.release", "langfuse.trace.tags", "langfuse.observation.type", "langfuse.trace.metadata.request_id", "langfuse.trace.metadata.run_id", "langfuse.trace.metadata.trace_id", "langfuse.trace.metadata.workflow_id", "deployment.environment", "request_id", "trace_id", "run_id", "failure_kind", "activity_type", "task_queue", "activity_attempt", "workflow_id", "step_kind", "schedule_to_start_ms", "step_id", "fail_close_reason", "status", "projection_ref", "duration_ms", "grounding_mode", "grounding_status", "grounding_selected_scopes", "grounding_covered_scopes", "grounding_candidate_count", "grounding_evidence_count", "grounding_token_count", "grounding_model_context_chars", "grounding.embedding_ms", "grounding.search_ms", "grounding.rerank_ms", "grounding.pack_ms"])'
-      - 'keep_keys(resource.attributes, ["service.name", "service.namespace", "service.version", "deployment.environment"])'
-      - 'keep_keys(instrumentation_scope.attributes, [])'
   batch:
     timeout: 5s
     send_batch_size: 512
@@ -78,23 +39,13 @@ exporters:
       initial_interval: 1s
       max_interval: 30s
       max_elapsed_time: 300s
-  debug:
-    verbosity: basic
 
 service:
   extensions:
     - health_check
     - basicauth/langfuse
   pipelines:
-    traces/orchestration:
-      receivers: [otlp/orchestration]
-      processors: [memory_limiter, resource/campus, filter/drop_marked, filter/orchestration_langfuse, transform/orchestration_langfuse, batch]
-      exporters: [otlphttp/langfuse, debug]
-    metrics/orchestration:
-      receivers: [otlp/orchestration]
-      processors: [memory_limiter, resource/campus, filter/drop_marked, batch]
-      exporters: [debug]
-    logs/orchestration:
-      receivers: [otlp/orchestration]
-      processors: [memory_limiter, resource/campus, filter/drop_marked, batch]
-      exporters: [debug]
+    traces/agent:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp/langfuse]

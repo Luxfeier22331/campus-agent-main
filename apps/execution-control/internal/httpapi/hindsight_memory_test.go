@@ -70,7 +70,6 @@ func (f *fakeHindsightClient) EnsureBank(_ context.Context, bankID string, cfg h
 	f.ensuredBankID, f.ensuredBankConfig = bankID, cfg
 	return nil
 }
-func (f *fakeHindsightClient) HealthCheck(context.Context) error { return nil }
 func (f *fakeHindsightClient) RetainMemories(_ context.Context, bankID string, request hindsightRetainRequest) (hindsightRetainResponse, error) {
 	f.retainedBankID = bankID
 	if request.Async != nil {

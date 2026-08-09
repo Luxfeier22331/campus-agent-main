@@ -10,7 +10,7 @@
 - `docker-compose.dev.yml`：共享本地 PostgreSQL 与 RustFS；
 - `docker-compose.execution-runtime.yml`：本地 execution-control、agent-runtime、Temporal、
   Hindsight 与 runtime worker；
-- `docker-compose.execution-runtime.fanout.yml`：测试外部观测目的地时使用的可选 OTel overlay；
+- `docker-compose.execution-runtime.langfuse.yml`：将本地 Agent trace 转发至 Langfuse 的可选 OTel overlay；
 - `docker-compose.ingestion-control.yml`：本地 ingestion-control；
 - `docker-compose.qdrant.yml`：本地非 TLS Qdrant；
 - `docker-compose.qdrant-tls.yml`：只用于 TLS 检查的 Qdrant 环境。

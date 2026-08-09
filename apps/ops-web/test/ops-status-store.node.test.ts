@@ -1,19 +1,13 @@
 // @vitest-environment node
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
 	createOpsStatusStoreFromEnv,
 	resolveCampusWebPublicOrigin,
 } from "../src/server/ops-status-store";
 import { createPgOpsStatusStore } from "../src/server/pg-ops-status-store";
 import { OpsRequestDetailResponseSchema } from "../src/shared/ops-contract";
-import {
-	agentUsageRow,
-	createFakeOpsDb,
-	createFakeTemporalTaskQueueSource,
-	requestRow,
-	requiredTemporalQueueRows,
-} from "./ops-status-store-test-helpers";
+import { agentUsageRow, createFakeOpsDb, requestRow } from "./ops-status-store-test-helpers";
 
 const now = new Date("2026-07-09T07:30:00.000Z");
 
@@ -40,11 +34,24 @@ describe("PostgreSQL ops status store", () => {
 		expect(resolveCampusWebPublicOrigin("https://user:pass@campus.example.test")).toBeUndefined();
 	});
 
-	it("builds windowed request and Temporal overview data", async () => {
+	it("separates startup schema verification from periodic readiness", async () => {
+		const db = createFakeOpsDb();
+		db.verifyReadiness = vi.fn(async () => undefined);
+		db.verifySchema = vi.fn(async () => undefined);
+		const store = createPgOpsStatusStore({ db, now: () => now });
+
+		await store.verifyReadiness();
+		expect(db.verifyReadiness).toHaveBeenCalledOnce();
+		expect(db.verifySchema).not.toHaveBeenCalled();
+
+		await store.verifySchema();
+		expect(db.verifySchema).toHaveBeenCalledOnce();
+	});
+
+	it("builds windowed request overview data", async () => {
 		const store = createPgOpsStatusStore({
 			db: createFakeOpsDb(),
 			now: () => now,
-			temporalTaskQueues: createFakeTemporalTaskQueueSource(),
 		});
 		const overview = await store.getOverview("1h");
 
@@ -54,12 +61,6 @@ describe("PostgreSQL ops status store", () => {
 			status: "HEALTHY",
 			total: 1,
 		});
-		expect(overview.temporal).toMatchObject({
-			dataState: "FRESH",
-			pollerCount: 12,
-			status: "HEALTHY",
-		});
-		expect(overview.temporal.queues).toHaveLength(3);
 		expect(overview.trends).toMatchObject({ dataState: "FRESH" });
 		expect(overview.trends.data).toHaveLength(1);
 	});
@@ -82,7 +83,7 @@ describe("PostgreSQL ops status store", () => {
 		});
 	});
 
-	it("keeps request overview and Temporal visible when trends fail", async () => {
+	it("keeps request overview visible when trends fail", async () => {
 		const db = {
 			...createFakeOpsDb(),
 			getRequestTrends: async () => {
@@ -92,7 +93,6 @@ describe("PostgreSQL ops status store", () => {
 		const store = createPgOpsStatusStore({
 			db,
 			now: () => now,
-			temporalTaskQueues: createFakeTemporalTaskQueueSource(),
 		});
 
 		const overview = await store.getOverview("1h");
@@ -102,88 +102,6 @@ describe("PostgreSQL ops status store", () => {
 			data: [],
 			dataState: "UNAVAILABLE",
 			reason: "请求趋势查询不可用。",
-		});
-		expect(overview.temporal).toMatchObject({ dataState: "FRESH", status: "HEALTHY" });
-	});
-
-	it("does not degrade Temporal only because one task age metric is unsupported", async () => {
-		const rows = requiredTemporalQueueRows().map((row) =>
-			row.taskQueue === "campus-agent.activity.agent.v3"
-				? { ...row, oldestTaskAgeJson: { state: "unsupported_by_source" } }
-				: row,
-		);
-		const store = createPgOpsStatusStore({
-			db: createFakeOpsDb(),
-			now: () => now,
-			temporalTaskQueues: createFakeTemporalTaskQueueSource(rows),
-		});
-
-		const temporal = (await store.getOverview("1h")).temporal;
-
-		expect(temporal.status).toBe("HEALTHY");
-		expect(temporal.queues[2]).toMatchObject({
-			dataState: "UNAVAILABLE",
-			oldestTaskAgeMs: null,
-			status: "UNKNOWN",
-		});
-	});
-
-	it("degrades Temporal when a task age metric is malformed", async () => {
-		const rows = requiredTemporalQueueRows().map((row) =>
-			row.taskQueue === "campus-agent.activity.agent.v3"
-				? { ...row, oldestTaskAgeJson: { ms: "not-a-number", state: "observed" } }
-				: row,
-		);
-		const store = createPgOpsStatusStore({
-			db: createFakeOpsDb(),
-			now: () => now,
-			temporalTaskQueues: createFakeTemporalTaskQueueSource(rows),
-		});
-
-		const temporal = (await store.getOverview("1h")).temporal;
-
-		expect(temporal.status).toBe("DEGRADED");
-		expect(temporal.queues[2]).toMatchObject({
-			dataState: "UNAVAILABLE",
-			oldestTaskAgeMs: null,
-			status: "DEGRADED",
-		});
-	});
-
-	it("degrades Temporal when task queue data is stale", async () => {
-		const rows = requiredTemporalQueueRows().map((row) => ({
-			...row,
-			projectedAt: new Date("2026-07-09T07:27:00.000Z"),
-		}));
-		const store = createPgOpsStatusStore({
-			db: createFakeOpsDb(),
-			now: () => now,
-			temporalTaskQueues: createFakeTemporalTaskQueueSource(rows),
-		});
-
-		const temporal = (await store.getOverview("1h")).temporal;
-
-		expect(temporal).toMatchObject({ dataState: "STALE", status: "DEGRADED" });
-		expect(temporal.queues.every((queue) => queue.status === "DEGRADED")).toBe(true);
-	});
-
-	it("marks Temporal unavailable when a required queue has no worker", async () => {
-		const rows = requiredTemporalQueueRows().map((row) =>
-			row.taskQueue === "campus-agent.activity.agent.v3" ? { ...row, pollerCount: 0 } : row,
-		);
-		const store = createPgOpsStatusStore({
-			db: createFakeOpsDb(),
-			now: () => now,
-			temporalTaskQueues: createFakeTemporalTaskQueueSource(rows),
-		});
-
-		const temporal = (await store.getOverview("1h")).temporal;
-
-		expect(temporal.status).toBe("OUTAGE");
-		expect(temporal.queues[2]).toMatchObject({
-			pollerCount: 0,
-			reason: "campus-agent.activity.agent.v3 没有正在轮询的工作进程。",
-			status: "OUTAGE",
 		});
 	});
 

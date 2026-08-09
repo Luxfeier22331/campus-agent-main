@@ -18,12 +18,10 @@ import (
 
 func (s *Server) handleExecutionRunCreate(response http.ResponseWriter, request *http.Request) {
 	if !s.internalWorkerAuthorized(request) {
-		setOutcome(response, "unauthorized")
 		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid worker origin auth.", false)
 		return
 	}
 	if s.runProjectionStore == nil {
-		setOutcome(response, "projection_store_not_configured")
 		writeError(
 			response,
 			http.StatusServiceUnavailable,
@@ -43,7 +41,6 @@ func (s *Server) handleExecutionRunCreate(response http.ResponseWriter, request 
 		defaultString(strings.TrimSpace(s.config.TemporalTaskQueue), temporalruntime.WorkflowTaskQueue),
 	)
 	if err != nil {
-		setOutcome(response, "invalid_request")
 		writeError(response, http.StatusBadRequest, "invalid_request", err.Error(), false)
 		return
 	}
@@ -53,19 +50,16 @@ func (s *Server) handleExecutionRunCreate(response http.ResponseWriter, request 
 		personalMemoryRecallAllowed,
 	)
 	if err != nil {
-		setOutcome(response, "execution_workflow_input_invalid")
 		writeError(response, http.StatusBadRequest, "execution_workflow_input_invalid", err.Error(), false)
 		return
 	}
 	workflowInputJSON, err := json.Marshal(workflowInput)
 	if err != nil {
-		setOutcome(response, "execution_workflow_input_invalid")
 		writeError(response, http.StatusBadRequest, "execution_workflow_input_invalid", err.Error(), false)
 		return
 	}
 	requestFingerprint, err := durableRunCreateFingerprint(run, personalMemoryRecallAllowed)
 	if err != nil {
-		setOutcome(response, "execution_workflow_input_invalid")
 		writeError(response, http.StatusBadRequest, "execution_workflow_input_invalid", err.Error(), false)
 		return
 	}
@@ -92,7 +86,6 @@ func (s *Server) handleExecutionRunCreate(response http.ResponseWriter, request 
 	)
 	if err != nil {
 		if errors.Is(err, execution.ErrConversationActiveRun) {
-			setOutcome(response, "conversation_active_run")
 			writeError(
 				response,
 				http.StatusConflict,
@@ -103,7 +96,6 @@ func (s *Server) handleExecutionRunCreate(response http.ResponseWriter, request 
 			return
 		}
 		if errors.Is(err, execution.ErrDurableRunFingerprintConflict) {
-			setOutcome(response, "execution_run_fingerprint_conflict")
 			writeError(
 				response,
 				http.StatusConflict,
@@ -113,12 +105,10 @@ func (s *Server) handleExecutionRunCreate(response http.ResponseWriter, request 
 			)
 			return
 		}
-		setOutcome(response, "execution_run_create_failed")
 		writeError(response, http.StatusBadRequest, "execution_run_create_failed", err.Error(), false)
 		return
 	}
 	s.wakeTemporalReconciler()
-	setOutcome(response, "execution_run_committed")
 	writeJSON(response, http.StatusAccepted, durableRunResponse(result.Run))
 }
 
@@ -209,12 +199,10 @@ func (s *Server) handleExecutionRunCancel(
 	runID string,
 ) {
 	if !s.internalWorkerAuthorized(request) {
-		setOutcome(response, "unauthorized")
 		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid worker origin auth.", false)
 		return
 	}
 	if s.runProjectionStore == nil {
-		setOutcome(response, "projection_store_not_configured")
 		writeError(
 			response,
 			http.StatusServiceUnavailable,
@@ -230,19 +218,16 @@ func (s *Server) handleExecutionRunCancel(
 	}
 	payload, err := decodeJSONObject(body)
 	if err != nil {
-		setOutcome(response, "invalid_request")
 		writeError(response, http.StatusBadRequest, "invalid_request", "Cancel request body must be a JSON object.", false)
 		return
 	}
 	reason, err := requiredRunCancelReason(payload)
 	if err != nil {
-		setOutcome(response, "invalid_request")
 		writeError(response, http.StatusBadRequest, "invalid_request", err.Error(), false)
 		return
 	}
 	runID = strings.TrimSpace(runID)
 	if runID == "" {
-		setOutcome(response, "invalid_request")
 		writeError(response, http.StatusBadRequest, "invalid_request", "run_id is required.", false)
 		return
 	}
@@ -259,21 +244,17 @@ func (s *Server) handleExecutionRunCancel(
 	)
 	if err != nil {
 		if errors.Is(err, execution.ErrDurableRunNotFound) {
-			setOutcome(response, "execution_run_not_found")
 			writeError(response, http.StatusNotFound, "execution_run_not_found", "Execution run not found.", false)
 			return
 		}
 		if errors.Is(err, execution.ErrDurableRunTerminalConflict) {
-			setOutcome(response, "execution_run_cancel_conflict")
 			writeError(response, http.StatusConflict, "execution_run_cancel_conflict", err.Error(), false)
 			return
 		}
-		setOutcome(response, "execution_run_cancel_request_failed")
 		writeError(response, http.StatusInternalServerError, "execution_run_cancel_request_failed", err.Error(), true)
 		return
 	}
 	s.wakeTemporalReconciler()
-	setOutcome(response, "execution_run_cancel_requested")
 	writeJSON(response, http.StatusAccepted, durableRunResponse(requested))
 }
 

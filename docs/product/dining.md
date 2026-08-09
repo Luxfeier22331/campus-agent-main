@@ -156,7 +156,7 @@ pnpm --dir apps/campus-web typecheck
 pnpm --dir apps/campus-web test
 pnpm --dir apps/ops-web typecheck
 pnpm --dir apps/ops-web test
-pnpm ci:ops-web-postgres
+pnpm --dir apps/ops-web test:database-integration
 ```
 
 学生与内容维护人员的浏览器旅途按影响范围显式运行；本地夹具不能替代部署环境的数据库、对象

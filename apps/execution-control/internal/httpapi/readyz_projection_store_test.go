@@ -15,7 +15,6 @@ func TestReadyzReportsTemporalWorkerNotStarted(t *testing.T) {
 		cfg.TemporalTaskQueue = "campus-agent.workflow"
 		cfg.TemporalWorkerIdentity = "test:execution-control:readyz"
 	}))
-	markKnowledgeRuntimeReadyForTest(server)
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))

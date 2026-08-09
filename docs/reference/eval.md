@@ -15,7 +15,8 @@ status: active
 - Temporal 运行真实产品请求，所属 app/package 测试拥有确定性合同；
 - 仓库不维护第二套 experiment、annotation 或 release-gate 框架。
 
-`pnpm ci:eval` 只运行本地适配器和 scorer 测试，不调用外部模型，也不证明发布质量。
+`eval-langfuse` 的标准 `test` 和 `ragas-runner` 的 `test:eval` 只运行本地适配器与 scorer 测试，
+不调用外部模型，也不证明发布质量。
 
 ## 观测来源
 

@@ -29,7 +29,7 @@
 				"$TURBO_ROOT$/packages/internal-portal-client/src/**",
 				"$TURBO_ROOT$/packages/ui/package.json",
 				"$TURBO_ROOT$/packages/ui/src/**",
-				"$TURBO_ROOT$/scripts/ci/check-ops-web-artifact.mjs"
+				"$TURBO_ROOT$/scripts/release/check-ops-web-artifact.mjs"
 			],
 			"outputs": ["dist/**", "dist-ops/**", "dist-server/**", ".tanstack/**"]
 		},
@@ -103,12 +103,6 @@
 			"outputLogs": "new-only",
 			"outputs": []
 		},
-		"test:ingest": {
-			"dependsOn": ["^test:ingest"],
-			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
-			"outputLogs": "new-only",
-			"outputs": []
-		},
 		"test:migration-integration": {
 			"cache": false
 		},
@@ -135,38 +129,8 @@
 			"inputs": ["package.json", "scripts/**/*.ts", "test/**/*.ts", "tsconfig.json"],
 			"outputLogs": "new-only"
 		},
-		"ingest-core#test:ingest": {
-			"dependsOn": ["^test:ingest"],
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"!README.md",
-				"!**/README.md",
-				"$TURBO_ROOT$/configs/ingestion/**"
-			],
-			"outputLogs": "new-only"
-		},
-		"ingestion-control#test:ingest": {
-			"dependsOn": ["^test:ingest"],
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"!README.md",
-				"!**/README.md",
-				"$TURBO_ROOT$/configs/ingestion/**"
-			],
-			"outputLogs": "new-only"
-		},
 		"eval-langfuse#test": {
 			"dependsOn": ["^test"],
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"!README.md",
-				"!**/README.md",
-				"$TURBO_ROOT$/scripts/deploy/**"
-			],
-			"outputLogs": "new-only"
-		},
-		"eval-langfuse#test:eval": {
-			"dependsOn": ["^test:eval"],
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				"!README.md",
@@ -223,16 +187,6 @@
 			],
 			"outputLogs": "new-only",
 			"outputs": []
-		},
-		"source-collector#test:ingest": {
-			"dependsOn": ["^test:ingest"],
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"!README.md",
-				"!**/README.md",
-				"$TURBO_ROOT$/configs/sources/**"
-			],
-			"outputLogs": "new-only"
 		},
 		"test:integration": {
 			"cache": false

@@ -40,34 +40,18 @@ func TestRuntimeUsesFixedRuntimePolicy(t *testing.T) {
 	}
 }
 
-func TestRuntimeAndMemoryLoadersUseOnlyOwnedInputs(t *testing.T) {
-	t.Run("runtime", func(t *testing.T) {
-		setRuntimeEnv(t)
-		cfg, err := loadRuntimeFromTestEnv(t)
-		if err != nil {
-			t.Fatalf("load runtime: %v", err)
-		}
-		if cfg.DatabaseURL != "postgresql://execution-control/campus" {
-			t.Fatalf("database URL = %q", cfg.DatabaseURL)
-		}
-		if cfg.AppAPIExecutionSharedSecret != "app-api-secret" {
-			t.Fatal("execution shared secret was not loaded")
-		}
-	})
-
-	t.Run("personal-memory-command", func(t *testing.T) {
-		t.Setenv("DEPLOYMENT_ENVIRONMENT", "staging")
-		t.Setenv("HINDSIGHT_API_BASE_URL", "http://hindsight:8000")
-		t.Setenv("HINDSIGHT_API_TENANT_API_KEY", "memory-secret")
-		t.Setenv("HINDSIGHT_OWNER_SALT", "owner-salt")
-		cfg, err := LoadPersonalMemoryCommandFromEnv()
-		if err != nil {
-			t.Fatalf("load personal memory command: %v", err)
-		}
-		if cfg.PersonalMemoryBaseURL != "http://hindsight:8000" {
-			t.Fatalf("hindsight base URL = %q", cfg.PersonalMemoryBaseURL)
-		}
-	})
+func TestRuntimeLoaderUsesOnlyOwnedInputs(t *testing.T) {
+	setRuntimeEnv(t)
+	cfg, err := loadRuntimeFromTestEnv(t)
+	if err != nil {
+		t.Fatalf("load runtime: %v", err)
+	}
+	if cfg.DatabaseURL != "postgresql://execution-control/campus" {
+		t.Fatalf("database URL = %q", cfg.DatabaseURL)
+	}
+	if cfg.AppAPIExecutionSharedSecret != "app-api-secret" {
+		t.Fatal("execution shared secret was not loaded")
+	}
 }
 
 func TestDeployedRuntimeReportsOwnedMissingInputs(t *testing.T) {
@@ -90,32 +74,6 @@ func TestDeployedRuntimeReportsOwnedMissingInputs(t *testing.T) {
 	}
 }
 
-func TestOTelUsesStandardEnvironmentAndRemainsOptional(t *testing.T) {
-	t.Setenv("DEPLOYMENT_ENVIRONMENT", "local")
-	t.Setenv("DEPLOYMENT_RELEASE", "execution-runtime@0123456789ab")
-	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "")
-	withoutExporter, err := loadRuntimeFromTestEnv(t)
-	if err != nil {
-		t.Fatalf("load without exporter: %v", err)
-	}
-	if withoutExporter.OTelEnabled || withoutExporter.OTelMetricsEnabled {
-		t.Fatalf("telemetry must be disabled without exporter: %#v", withoutExporter)
-	}
-
-	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://otel-collector:4318")
-	t.Setenv("OTEL_SERVICE_NAME", "execution-workflow")
-	withExporter, err := loadRuntimeFromTestEnv(t)
-	if err != nil {
-		t.Fatalf("load with exporter: %v", err)
-	}
-	if !withExporter.OTelEnabled || !withExporter.OTelMetricsEnabled || !withExporter.TemporalTracingEnabled {
-		t.Fatalf("standard OTel endpoint was not enabled: %#v", withExporter)
-	}
-	if withExporter.OTelEndpoint != "http://otel-collector:4318/v1/traces" || withExporter.OTelMetricsEndpoint != "http://otel-collector:4318/v1/metrics" {
-		t.Fatalf("common OTLP endpoint did not receive signal paths: %#v", withExporter)
-	}
-}
-
 func setRuntimeEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv("DEPLOYMENT_ENVIRONMENT", "staging")
@@ -133,5 +91,5 @@ func setRuntimeEnv(t *testing.T) {
 
 func loadRuntimeFromTestEnv(t *testing.T) (Config, error) {
 	t.Helper()
-	return loadFromEnv(roleRuntime)
+	return loadFromEnv()
 }

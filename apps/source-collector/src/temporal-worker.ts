@@ -1,8 +1,7 @@
-import { startNodeTelemetry } from "@campus-agent/telemetry-node";
-import { OpenTelemetryPlugin } from "@temporalio/interceptors-opentelemetry-v2";
 import { NativeConnection, Worker } from "@temporalio/worker";
 import { createSourceCollectorActivities } from "./activities.ts";
 import { createSourceCollectorObjectStoreFromEnv } from "./object-store.ts";
+import { safeSourceActivityFailureInterceptor } from "./temporal-activity-failure.ts";
 
 const DEFAULT_TASK_QUEUE = "campus-agent.ingestion.activity.source-collector";
 
@@ -11,23 +10,15 @@ export async function startSourceCollectorTemporalWorker(
 ): Promise<void> {
 	const address = requiredEnv(env, "INGESTION_TEMPORAL_ADDRESS");
 	const objectStore = createSourceCollectorObjectStoreFromEnv(env);
-	const telemetry = startNodeTelemetry({ env, serviceName: "source-collector-worker" });
 	let connection: NativeConnection | null = null;
 	try {
 		connection = await NativeConnection.connect({ address });
 		const worker = await Worker.create({
 			activities: createSourceCollectorActivities({ env, objectStore }),
 			connection,
+			interceptors: { activity: [safeSourceActivityFailureInterceptor] },
 			maxConcurrentActivityTaskExecutions: 1,
 			namespace: env.INGESTION_TEMPORAL_NAMESPACE?.trim() || "default",
-			plugins: telemetry.spanProcessor
-				? [
-						new OpenTelemetryPlugin({
-							resource: telemetry.resource,
-							spanProcessor: telemetry.spanProcessor,
-						}),
-					]
-				: [],
 			shutdownGraceTime: "80 seconds",
 			taskQueue: DEFAULT_TASK_QUEUE,
 		});
@@ -36,11 +27,7 @@ export async function startSourceCollectorTemporalWorker(
 		try {
 			await connection?.close();
 		} finally {
-			try {
-				await objectStore.close?.();
-			} finally {
-				await telemetry.shutdown();
-			}
+			await objectStore.close?.();
 		}
 	}
 }
@@ -55,7 +42,24 @@ function requiredEnv(env: Record<string, string | undefined>, key: string): stri
 
 if (import.meta.url === `file://${process.argv[1]}`) {
 	startSourceCollectorTemporalWorker().catch((error) => {
-		console.error(error);
+		console.error(
+			JSON.stringify({
+				error_code: safeWorkerErrorCode(error),
+				event_type: "source_collector.worker_failed",
+				level: "error",
+				status: "failed",
+			}),
+		);
 		process.exitCode = 1;
 	});
+}
+
+function safeWorkerErrorCode(error: unknown): string {
+	if (error && typeof error === "object") {
+		const code = (error as { code?: unknown }).code;
+		if (typeof code === "string" && /^[A-Za-z0-9_.:-]{1,80}$/u.test(code)) {
+			return code;
+		}
+	}
+	return "worker_failed";
 }

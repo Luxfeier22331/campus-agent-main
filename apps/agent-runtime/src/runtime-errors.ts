@@ -36,7 +36,7 @@ function classifyAgentRuntimeError(
 	deadlineSignal: AbortSignal | undefined,
 ): AgentRuntimeError {
 	if (error instanceof AgentRuntimeError) {
-		return error;
+		return new AgentRuntimeError(error.code, publicAgentRuntimeErrorMessage(error.code));
 	}
 	if (deadlineSignal?.aborted) {
 		return new AgentRuntimeError(
@@ -48,12 +48,18 @@ function classifyAgentRuntimeError(
 		return new AgentRuntimeError("max_turns_exceeded", "Agent run exceeded its turn limit.");
 	}
 	if (error instanceof ToolCallError || error instanceof ToolTimeoutError) {
-		return new AgentRuntimeError("tool_execution_failed", error.message);
+		return new AgentRuntimeError(
+			"tool_execution_failed",
+			publicAgentRuntimeErrorMessage("tool_execution_failed"),
+		);
 	}
 	if (providerUnavailable(error)) {
-		return new AgentRuntimeError("provider_unavailable", errorMessage(error));
+		return new AgentRuntimeError(
+			"provider_unavailable",
+			publicAgentRuntimeErrorMessage("provider_unavailable"),
+		);
 	}
-	return new AgentRuntimeError("run_failed", errorMessage(error));
+	return new AgentRuntimeError("run_failed", publicAgentRuntimeErrorMessage("run_failed"));
 }
 
 function providerUnavailable(error: unknown): boolean {
@@ -76,8 +82,21 @@ function numberValue(value: unknown): number | undefined {
 	return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
-function errorMessage(error: unknown): string {
-	return error instanceof Error && error.message.trim() !== ""
-		? error.message
-		: "Agent run failed.";
+function publicAgentRuntimeErrorMessage(code: AgentRuntimeErrorCode): string {
+	switch (code) {
+		case "invalid_request":
+			return "The agent runtime request is invalid.";
+		case "context_budget_exceeded":
+			return "The agent runtime context exceeded its configured budget.";
+		case "agent_deadline_exceeded":
+			return "Agent run exceeded its configured deadline.";
+		case "max_turns_exceeded":
+			return "Agent run exceeded its turn limit.";
+		case "provider_unavailable":
+			return "The answer provider is temporarily unavailable.";
+		case "tool_execution_failed":
+			return "A runtime tool could not complete.";
+		default:
+			return "The agent runtime could not complete the request.";
+	}
 }

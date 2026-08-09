@@ -22,7 +22,6 @@ type KnowledgeServingRelease struct {
 }
 
 type KnowledgeReadModelStore interface {
-	HealthCheck(ctx context.Context) error
 	CurrentRelease(ctx context.Context, documentScope string) (KnowledgeServingRelease, bool, error)
 }
 
@@ -52,13 +51,6 @@ func (s *PostgresKnowledgeReadModelStore) Close() {
 	if s != nil && s.pool != nil {
 		s.pool.Close()
 	}
-}
-
-func (s *PostgresKnowledgeReadModelStore) HealthCheck(ctx context.Context) error {
-	if s == nil || s.pool == nil {
-		return errors.New("knowledge read model store is not configured")
-	}
-	return s.pool.Ping(ctx)
 }
 
 func (s *PostgresKnowledgeReadModelStore) CurrentRelease(

@@ -107,9 +107,7 @@ export function createDiningStoreFromEnv(env: DiningStoreEnv): DiningStore {
 		max: env.NODE_ENV === "test" ? 1 : 4,
 		ssl: database.ssl,
 	});
-	pool.on("error", (error) =>
-		logOpsError("dining postgres pool error", error, { source: "dining" }),
-	);
+	pool.on("error", (error) => logOpsError("ops_web.postgres_pool", error, { source: "dining" }));
 	return createPgDiningStore({
 		assetStore: createDiningFloorplanAssetStoreFromEnv(env),
 		pool,

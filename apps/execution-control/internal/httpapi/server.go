@@ -17,7 +17,6 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/lifecycle"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/observability"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/telemetry"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/toolreadmodel"
@@ -28,8 +27,6 @@ type Server struct {
 	admission                 *admission.Controller
 	lifecycle                 *lifecycle.Registry
 	logger                    *slog.Logger
-	metrics                   *observability.Metrics
-	telemetry                 *telemetry.Emitter
 	toolReadModel             *toolreadmodel.Runtime
 	runProjectionStore        execution.RunProjectionStore
 	runProjectionStoreErr     error
@@ -49,7 +46,6 @@ type Server struct {
 	providerConfigErr         error
 	temporalStarter           temporalruntime.ChatWorkflowStarter
 	temporalStarterErr        error
-	temporalTaskQueueSampler  temporalTaskQueueSampler
 	temporalWorkersStarted    bool
 	temporalReconcilerMu      sync.Mutex
 	temporalReconciler        *temporalReconciler
@@ -177,14 +173,13 @@ type errorInfo struct {
 const statusClientClosedRequest = 499
 
 func NewServer(cfg config.Config) *Server {
-	return NewServerWithDependencies(cfg, nil, nil, nil)
+	return NewServerWithDependencies(cfg, nil, nil)
 }
 
 func NewServerWithDependencies(
 	cfg config.Config,
 	admissionController *admission.Controller,
 	logger *slog.Logger,
-	metrics *observability.Metrics,
 ) *Server {
 	cfg = normalizeServerConfig(cfg)
 	if admissionController == nil {
@@ -193,11 +188,7 @@ func NewServerWithDependencies(
 	if logger == nil {
 		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
-	if metrics == nil {
-		metrics = observability.NewMetrics()
-	}
 	registry := lifecycle.NewRegistry()
-	telemetryEmitter := telemetry.NewEmitter(context.Background(), cfg, logger)
 	toolReadModelRuntime := toolreadmodel.NewRuntime(toolreadmodel.Options{
 		DatabaseURL: cfg.DatabaseURL,
 	})
@@ -220,15 +211,12 @@ func NewServerWithDependencies(
 	)
 	executionInputLoader, executionInputErr := newExecutionInputLoader(cfg)
 	temporalStarter, temporalStarterErr := newTemporalStarter(cfg)
-	taskQueueSampler := newTemporalTaskQueueSampler(cfg, temporalStarter)
 
 	server := &Server{
 		config:                   cfg,
 		admission:                admissionController,
 		lifecycle:                registry,
 		logger:                   logger,
-		metrics:                  metrics,
-		telemetry:                telemetryEmitter,
 		toolReadModel:            toolReadModelRuntime,
 		runProjectionStore:       runProjectionStore,
 		runProjectionStoreErr:    runProjectionStoreErr,
@@ -248,7 +236,6 @@ func NewServerWithDependencies(
 		providerConfigErr:        providerConfigErr,
 		temporalStarter:          temporalStarter,
 		temporalStarterErr:       temporalStarterErr,
-		temporalTaskQueueSampler: taskQueueSampler,
 	}
 	return server
 }
@@ -278,7 +265,6 @@ func NewTemporalActivityServer(
 	server := &Server{
 		config:               cfg,
 		logger:               slog.New(slog.NewTextHandler(io.Discard, nil)),
-		metrics:              observability.NewMetrics(),
 		runProjectionStore:   runProjectionStore,
 		executionInputLoader: executionInputLoader,
 	}
@@ -315,7 +301,6 @@ func NewTemporalActivityServer(
 		closeRunProjectionStore()
 		return nil, fmt.Errorf("unsupported temporal activity runtime role %q", role)
 	}
-	server.telemetry = telemetry.NewEmitter(context.Background(), cfg, server.logger)
 	return server, nil
 }
 
@@ -386,15 +371,10 @@ func newTemporalStarter(cfg config.Config) (temporalruntime.ChatWorkflowStarter,
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return temporalruntime.NewStarter(ctx, temporalruntime.StarterOptions{
-		ActivityTaskQueues: requiredTemporalActivityTaskQueueNames(cfg),
-		Address:            cfg.TemporalAddress,
-		Namespace:          cfg.TemporalNamespace,
-		TaskQueue:          cfg.TemporalTaskQueue,
-		Tracing: temporalruntime.TracingOptions{
-			Enabled:      cfg.TemporalTracingEnabled,
-			OTelEndpoint: cfg.OTelEndpoint,
-			ServiceName:  cfg.OTelServiceName,
-		},
+		ActivityTaskQueues:       requiredTemporalActivityTaskQueueNames(cfg),
+		Address:                  cfg.TemporalAddress,
+		Namespace:                cfg.TemporalNamespace,
+		TaskQueue:                cfg.TemporalTaskQueue,
 		WorkerID:                 cfg.TemporalWorkerIdentity,
 		StartTimeout:             time.Duration(cfg.TemporalStartTimeoutMS) * time.Millisecond,
 		WorkflowExecutionTimeout: time.Duration(cfg.TemporalWorkflowExecutionTimeoutSeconds) * time.Second,
@@ -439,19 +419,8 @@ func (s *Server) StartDraining() {
 	s.admission.StartDraining()
 }
 
-func (s *Server) TelemetryStatus() telemetry.Status {
-	if s == nil || s.telemetry == nil {
-		return telemetry.Status{}
-	}
-	return s.telemetry.Status()
-}
-
-func (s *Server) Shutdown(ctx context.Context) error {
-	var firstErr error
+func (s *Server) Shutdown(_ context.Context) error {
 	s.StopTemporalReconciler()
-	if s.telemetry != nil {
-		firstErr = s.telemetry.Shutdown(ctx)
-	}
 	if s.toolReadModel != nil {
 		s.toolReadModel.Close()
 	}
@@ -467,94 +436,67 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	if closer, ok := s.temporalStarter.(interface{ Close() }); ok {
 		closer.Close()
 	}
-	return firstErr
+	return nil
 }
 
 func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 	request = request.WithContext(telemetry.ExtractIncomingContext(request.Context(), request.Header))
 	path := request.URL.Path
-	routeLabel := routeLabelFor(request.Method, path)
-	startedAt := time.Now()
-	writer := newObservedResponseWriter(response)
-	var finish func(statusCode int, outcome string, duration time.Duration)
-	if routeLabel != "/metrics" {
-		finish = s.metrics.BeginRequest(routeLabel)
-	}
 
 	switch {
 	case request.Method == http.MethodGet && path == "/healthz":
-		setOutcome(writer, "ok")
-		writeJSON(writer, http.StatusOK, map[string]any{
+		writeJSON(response, http.StatusOK, map[string]any{
 			"status":   "ok",
 			"app_name": s.config.AppName,
 		})
 	case request.Method == http.MethodGet && path == "/readyz":
-		s.handleReadyz(writer, request)
-	case request.Method == http.MethodGet && path == "/metrics":
-		setOutcome(writer, "ok")
-		s.handleMetrics(writer, request)
-	case request.Method == http.MethodGet && path == "/internal/ops/temporal/task-queues":
-		s.handleTemporalTaskQueues(writer, request)
+		s.handleReadyz(response, request)
 	case request.Method == http.MethodPost && path == "/internal/execution/runs":
-		s.handleExecutionRunCreate(writer, request)
+		s.handleExecutionRunCreate(response, request)
 	case request.Method == http.MethodGet && strings.HasPrefix(path, "/internal/execution/runs/") &&
 		strings.HasSuffix(path, "/steps"):
 		if runID, ok := executionRunIDFromPath(path, "/steps"); ok {
-			s.handleExecutionRunSteps(writer, request, runID)
+			s.handleExecutionRunSteps(response, request, runID)
 		} else {
-			setOutcome(writer, "not_found")
-			writeError(writer, http.StatusNotFound, "not_found", "Route not found.", false)
+			writeError(response, http.StatusNotFound, "not_found", "Route not found.", false)
 		}
 	case request.Method == http.MethodGet && strings.HasPrefix(path, "/internal/execution/runs/") &&
 		strings.HasSuffix(path, "/events"):
 		if runID, ok := executionRunIDFromPath(path, "/events"); ok {
-			s.handleExecutionRunEvents(writer, request, runID)
+			s.handleExecutionRunEvents(response, request, runID)
 		} else {
-			setOutcome(writer, "not_found")
-			writeError(writer, http.StatusNotFound, "not_found", "Route not found.", false)
+			writeError(response, http.StatusNotFound, "not_found", "Route not found.", false)
 		}
 	case request.Method == http.MethodPost && strings.HasPrefix(path, "/internal/execution/runs/") &&
 		strings.HasSuffix(path, "/cancel"):
 		if runID, ok := executionRunIDFromPath(path, "/cancel"); ok {
-			s.handleExecutionRunCancel(writer, request, runID)
+			s.handleExecutionRunCancel(response, request, runID)
 		} else {
-			setOutcome(writer, "not_found")
-			writeError(writer, http.StatusNotFound, "not_found", "Route not found.", false)
+			writeError(response, http.StatusNotFound, "not_found", "Route not found.", false)
 		}
 	case request.Method == http.MethodGet && strings.HasPrefix(path, "/internal/execution/runs/"):
 		if runID, ok := executionRunIDFromPath(path, ""); ok {
-			s.handleExecutionRunGet(writer, request, runID)
+			s.handleExecutionRunGet(response, request, runID)
 		} else {
-			setOutcome(writer, "not_found")
-			writeError(writer, http.StatusNotFound, "not_found", "Route not found.", false)
+			writeError(response, http.StatusNotFound, "not_found", "Route not found.", false)
 		}
 	case request.Method == http.MethodPost && path == "/internal/provider-config/embedding:check-compatibility":
-		s.handleProviderConfigCompatibility(writer, request)
+		s.handleProviderConfigCompatibility(response, request)
 	case request.Method == http.MethodPost && path == "/internal/memory/personal/commands":
-		s.handlePersonalMemoryCommand(writer, request)
+		s.handlePersonalMemoryCommand(response, request)
 	case request.Method == http.MethodPost && path == "/internal/memory/personal/turns:append":
-		s.handleProfileMemoryAppend(writer, request)
+		s.handleProfileMemoryAppend(response, request)
 	case request.Method == http.MethodPost && path == "/internal/memory/personal/graph:recall":
-		s.handleProfileMemoryRecall(writer, request)
+		s.handleProfileMemoryRecall(response, request)
 	case request.Method == http.MethodPost && path == "/internal/memory/personal/recall":
-		s.handlePersonalMemoryRecallTool(writer, request)
+		s.handlePersonalMemoryRecallTool(response, request)
 	default:
-		setOutcome(writer, "not_found")
 		writeError(
-			writer,
+			response,
 			http.StatusNotFound,
 			"not_found",
 			"Route not found.",
 			false,
 		)
-	}
-
-	statusCode := writer.statusCode()
-	outcome := writer.outcome()
-	if outcome == "" {
-		outcome = defaultOutcome(path, statusCode)
-	}
-	if finish != nil {
-		finish(statusCode, outcome, time.Since(startedAt))
 	}
 }

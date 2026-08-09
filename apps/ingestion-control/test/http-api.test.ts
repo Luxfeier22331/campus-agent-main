@@ -262,7 +262,6 @@ describe("ingestion-control HTTP", () => {
 		});
 		store.failTask({
 			errorCode: "collector_failed",
-			errorMessage: "provider unavailable",
 			taskId: snapshot.task.task_id,
 		});
 		const starter = new RecordingStarter();

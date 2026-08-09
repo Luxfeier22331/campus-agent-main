@@ -86,5 +86,5 @@ worker 只轮询 `campus-agent.ingestion.activity.source-collector`，处理文�
 
 ```bash
 pnpm --filter source-collector typecheck
-pnpm --filter source-collector test:ingest
+pnpm --filter source-collector test
 ```

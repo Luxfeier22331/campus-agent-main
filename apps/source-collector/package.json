@@ -11,17 +11,13 @@
 		"notice:status": "tsx adapters/internal-portal/src/notice-cli.ts status",
 		"notice:sync": "tsx adapters/internal-portal/src/notice-cli.ts sync",
 		"start:temporal-worker": "tsx ./src/temporal-worker.ts",
-		"test": "pnpm run test:ingest",
-		"test:fast": "vitest run -c vitest.fast.config.mts",
-		"test:ingest": "pnpm run test:fast",
+		"test": "vitest run -c vitest.fast.config.mts",
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
 		"@campus-agent/internal-portal-client": "workspace:*",
-		"@campus-agent/telemetry-node": "workspace:*",
 		"@aws-sdk/client-s3": "^3.1081.0",
 		"@temporalio/activity": "^1.21.1",
-		"@temporalio/interceptors-opentelemetry-v2": "1.21.1",
 		"@temporalio/worker": "^1.21.1",
 		"content-disposition": "^2.0.1",
 		"dotenv": "^17.4.2",

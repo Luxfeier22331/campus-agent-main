@@ -5,6 +5,7 @@ import {
 	createRequestScopedOpenAIAgentsRunner,
 	createRequestScopedStreamingOpenAIAgentsRunner,
 } from "./provider-config.ts";
+import { logAgentRuntimeEvent, safeAgentRuntimeErrorCode } from "./safe-logging.ts";
 import { runWithExtractedTraceContext, startAgentRuntimeTelemetry } from "./telemetry.ts";
 import { loadToolCatalog } from "./tool-catalog.ts";
 import { createExecutionControlToolExecutor } from "./tool-executor.ts";
@@ -24,7 +25,10 @@ const telemetry = (() => {
 	try {
 		return startAgentRuntimeTelemetry();
 	} catch (error) {
-		console.error("agent-runtime telemetry initialization failed", error);
+		logAgentRuntimeEvent("error", "agent_runtime.telemetry_initialization", "failed", {
+			error_code: safeAgentRuntimeErrorCode(error),
+			source: "telemetry",
+		});
 		return { configured: false, shutdown: async () => undefined };
 	}
 })();
@@ -46,12 +50,16 @@ const handler = createAgentRuntimeHandler({
 
 const server = createAgentRuntimeNodeServer({
 	handler: (request) => runWithExtractedTraceContext(request.headers, () => handler(request)),
-	onError: () => console.error("agent-runtime request failed"),
+	onError: (error) =>
+		logAgentRuntimeEvent("error", "agent_runtime.request", "failed", {
+			error_code: safeAgentRuntimeErrorCode(error),
+			source: "http",
+		}),
 	sharedSecret: executionAgentRuntimeSharedSecret,
 });
 
 server.listen(port, host, () => {
-	console.log(`agent-runtime listening on ${host}:${port}`);
+	logAgentRuntimeEvent("info", "agent_runtime.server_listening", "ready", { source: "http" });
 });
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {

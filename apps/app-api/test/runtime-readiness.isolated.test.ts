@@ -54,8 +54,8 @@ describe("runtime readiness", () => {
 				database: "not_ready",
 			},
 			failed: {
-				auth: "fresh auth database unavailable",
-				database: "cached database unavailable",
+				auth: "Runtime dependency probe failed.",
+				database: "Runtime dependency probe failed.",
 			},
 		});
 	});

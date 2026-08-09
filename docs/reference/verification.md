@@ -50,31 +50,24 @@ Nix 不接管 `pnpm-lock.yaml`、`uv.lock`、
 | 命令 | 负责 | 不证明 |
 | --- | --- | --- |
 | `pre-commit` | staged file 基础格式、解析、冲突和 secret hygiene | typecheck、test、build 或 runtime |
-| `pnpm ci:repo` | Biome、Markdownlint、EditorConfig 和文档治理检查 | 架构正确性、业务行为或 E2E |
-| `pnpm ci:config` | actionlint 与 zizmor | workflow 已成功运行或环境已部署 |
-| `pnpm ci:deps` | pnpm、uv、Cargo 与 Go lockfile 的 OSV 扫描 | 应用行为或镜像漏洞 |
-| `pnpm ci:release` | 镜像发布适配器与 Ops Web 产物边界测试 | 镜像能够构建、推送或部署 |
-| `pnpm ci:contracts` | JSON Schema/OpenAPI 生成、同步与合同 invariant | consumer runtime 行为 |
-| `pnpm ci:typescript` | JS/TS package 的 typecheck 与 unit test | Python、Worker build、外部 integration 或浏览器 |
-| `pnpm ci:worker` | Worker runtime test 与声明的 Worker/app build | browser E2E 或 deploy |
-| `pnpm ci:go` | execution-control 的 format、lint、vet 与 unit test | Temporal server 或已部署 runtime |
-| `pnpm ci:infra` | Kustomize render 与基础设施 Conftest policy | 集群已应用或工作负载健康 |
-| `pnpm ci:rust` | Rust workspace 的 format、Clippy、check 与 test | runtime bridge 或对象存储行为 |
-| `pnpm ci:ingest` | ingestion-contracts、ingest-core、ingestion-control 与 source-collector | 在线 retrieval 或发布 |
-| `pnpm ci:eval` | eval-langfuse 与 Ragas adapter 的 typecheck/test | 真实数据集评分已完成 |
-| `pnpm ci:otel` | 固定 Collector 的官方配置校验 | 真实 OTLP payload 或后端已收到信号 |
-| `pnpm ci:postgres` | 所有 disposable PostgreSQL integration suite | staging 或 production 数据库状态 |
+| `pnpm check` | 仓库 lint、文档治理和自动化脚本单元测试 | 架构正确性、package 行为或 E2E |
+| `pnpm lint` | Biome、Markdownlint 与 EditorConfig | 文档链接、业务行为或类型正确性 |
+| `pnpm docs:check` | 文档 frontmatter、ADR、链接和语言合同 | 代码或部署状态 |
+| `pnpm test` | Source CI、开发和发布脚本的单元测试 | package test、镜像构建或外部服务 |
+| `pnpm --dir packages/contracts check` | JSON Schema/OpenAPI 生成同步与合同 invariant | consumer runtime 行为 |
+| `scripts/dependencies/scan.sh` | pnpm、uv、Cargo 与 Go lockfile 的 OSV 扫描 | 应用行为或镜像漏洞 |
+| `scripts/infra/validate.sh` | Kustomize render 与基础设施 Conftest policy | 集群已应用或工作负载健康 |
+| `scripts/otel/validate-config.sh` | 固定 Collector 镜像的官方配置校验 | 真实 OTLP payload 或后端已收到信号 |
 
-数据库子入口包括 `ci:app-api-migration`、`ci:app-api-product-db`、
-`ci:execution-control-postgres`、`ci:ingestion-control-postgres` 与 `ci:ops-web-postgres`。Dining 七表和
-内部门户凭据表、角色边界及版本条件写由 Ops Web 的数据库套件覆盖。需要缩小范围时直接运行对应
-入口，不创建新的跨仓调度脚本。
+根 `package.json` 只拥有仓库级人类工作流和本地开发生命周期。`ci`、`manual`、`hosted` 与 `local`
+是调用 lane，不进入命令名；package task、Turbo task 或领域脚本已有真实入口时，不再增加根 wrapper。
+数据库、浏览器、原生语言和评测证据通过所属 package task 或手动 validation profile 运行。
 
 ## PR 门禁
 
-自动 PR 保留一个稳定的 `repo-checks` hosted 门禁；Draft PR 跳过 job，转为 ready 后运行。门禁始终运行 `pnpm ci:repo` 和 authored commit range
-的 Gitleaks，并按 planner 选择合同、GitHub Actions、CI 与发布编排单元测试、Python、YAML、SQL 和
-Shell 静态检查；需要时在同一个 job 一次 checkout，并在根工具链安装后串行执行 `affected-node`、
+自动 PR 保留一个稳定的 `repo-checks` hosted 门禁；Draft PR 跳过 job，转为 ready 后运行。门禁始终运行 `pnpm check` 和 authored commit range
+的 Gitleaks，并按 planner 选择合同、GitHub Actions、Python、YAML、SQL 和 Shell 静态检查；需要时在
+同一个 job 一次 checkout，并在根工具链安装后串行执行 `affected-node`、
 `dependencies` 或 `toolchain`。若选择 `affected-node`，再扩展安装受影响 workspace；没有受影响 Node
 证据时不执行这次扩展安装，但始终返回明确结果。
 
@@ -87,20 +80,20 @@ state、集群或真实外部服务。candidate 不自动运行数据库、浏�
 
 | 变更面 | 至少运行 |
 | --- | --- |
-| 仅 Markdown、文档索引或贡献规范 | `pnpm ci:repo` |
-| `packages/contracts`、OpenAPI、共享 schema | `pnpm ci:contracts`，再运行受影响 consumer 检查 |
-| 一般 app/package/job TypeScript | 所属 package 的 `typecheck` 与 `test`，跨 package 时用 `pnpm ci:typescript` |
-| Worker route、binding 或 wrangler config | `pnpm ci:worker` 与所属模块测试 |
+| 仅 Markdown、文档索引或贡献规范 | `pnpm check` |
+| `packages/contracts`、OpenAPI、共享 schema | `pnpm --dir packages/contracts check`，再运行受影响 consumer 检查 |
+| 一般 app/package/job TypeScript | 所属 package 的 `typecheck` 与 `test`；跨 package 时为 Turbo 指定明确 filter |
+| Worker route、binding 或 wrangler config | 所属 Worker 的 `test:worker`、`build:worker` 与模块测试 |
 | Campus Web 用户可见运行时 | 模块 typecheck/test、bundle 完整性检查；`test:e2e:smoke` 和 `test:e2e:full` 仅本地运行 |
-| execution-control Go | `pnpm ci:go`；合同变化时加 `pnpm ci:contracts` |
-| Rust kernel 或 Cargo workspace | `pnpm ci:rust` |
-| ingestion app、package 或 source config | `pnpm ci:ingest`；合同变化时加 `pnpm ci:contracts` |
-| eval package、Ragas adapter 或 eval contract | `pnpm ci:eval` |
+| execution-control Go | 手动 `go` profile；合同变化时加 contracts check |
+| Rust kernel 或 Cargo workspace | 手动 `rust` profile |
+| ingestion app、package 或 source config | 所属 package 的 `typecheck` 与 `test`；合同变化时加 contracts check |
+| eval package、Ragas adapter 或 eval contract | 所属 package test；跨语言适配器使用手动 `ragas` profile |
 | migration 或数据库权限 | 对应 PostgreSQL 子入口与模块测试 |
-| `.github/**` | `pnpm ci:config` 与 `pnpm ci:repo` |
-| dependency manifest 或 lockfile | `pnpm ci:deps` 与受影响模块检查 |
-| Dockerfile、Bake 或发布适配器 | `pnpm ci:release`、`docker buildx bake --print`；需要构建证据时手动运行 Docker profile |
-| K8s 或 deployment source | 所属静态验证、render 检查与明确的环境验收 |
+| `.github/**` | `pnpm check`、`actionlint` 与 `zizmor --min-severity=medium .github` |
+| dependency manifest 或 lockfile | `scripts/dependencies/scan.sh` 与受影响模块检查 |
+| Dockerfile、Bake 或发布适配器 | `pnpm test`、`docker buildx bake --print`；需要构建证据时手动运行 Docker profile |
+| K8s 或 deployment source | `scripts/infra/validate.sh` 与明确的环境验收 |
 
 ## 执行器与定时检查
 
@@ -110,7 +103,7 @@ state、集群或真实外部服务。candidate 不自动运行数据库、浏�
 第二套 CLI 安装 action；hosted runner 使用固定 commit 的安装 action 获取 Nix 2.35.1。
 
 依赖 advisory 可以在没有代码变化时变化，因此每周一 `02:35 UTC` 在 hosted runner 运行一次
-`pnpm ci:deps`；lockfile 变化仍在对应 PR profile 中运行同一入口。仓库不保存未被消费的扫描 JSON
+`scripts/dependencies/scan.sh`；lockfile 变化仍在对应 PR profile 中运行同一入口。仓库不保存未被消费的扫描 JSON
 artifact，也不把 dependency scan 的成功结果当作应用行为或镜像安全证据。
 
 ## 测试与缓存
@@ -125,7 +118,7 @@ artifact，也不把 dependency scan 的成功结果当作应用行为或镜像�
   `node_modules`；发布执行器允许 Trivy 通过 `--cache-dir` 复用其漏洞数据库和镜像分析缓存，数据库
   更新仍由 Trivy 的正常策略负责；
 - 浏览器 E2E 不进入 GitHub Actions，不写入 Turbo Cache；本地入口使用应用现有的 smoke/full 命令；
-- execution-control 的 Temporal server 测试使用模块明确入口，不属于默认 `pnpm ci:go`；
+- execution-control 的 Temporal server 测试使用模块明确入口，不属于默认 `go` profile；
 - PR 数据库 profile 只使用 disposable PostgreSQL；真实 provider、staging database、object store、
   Langfuse 或 cluster credential 不进入 PR test。
 - Campus Web bundle 大小超过 `500 KiB gzip` 只记录 warning；bundle graph、入口、静态文件或 vendor

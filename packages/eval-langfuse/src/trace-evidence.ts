@@ -7,20 +7,8 @@ import {
 	stringField,
 } from "./shared";
 
-const REQUIRED_TRACE_IDENTITY_ATTRIBUTES = ["request_id", "run_id", "workflow_id", "trace_id"];
-const REQUIRED_OBSERVATION_ATTRIBUTES = [
-	"activity_attempt",
-	"activity_type",
-	"duration_ms",
-	"fail_close_reason",
-	"projection_ref",
-	"schedule_to_start_ms",
-	"status",
-	"step_id",
-	"step_kind",
-	"task_queue",
-];
-const TRACE_SECRET_FIELDS = new Set([
+const REQUIRED_TRACE_IDENTITY_ATTRIBUTES = ["request_id", "run_id", "trace_id", "turn_id"];
+const TRACE_FORBIDDEN_FIELDS = new Set([
 	"access_token",
 	"api_key",
 	"authorization",
@@ -32,7 +20,17 @@ const TRACE_SECRET_FIELDS = new Set([
 	"object_store_secret",
 	"password",
 	"refresh_token",
+	"raw_answer",
+	"raw_prompt",
+	"provider_raw_response",
 	"secret_key",
+	"input_value",
+	"output_value",
+	"llm_input_messages",
+	"llm_output_messages",
+	"openinference_message_content",
+	"tool_arguments",
+	"tool_result",
 ]);
 
 export async function verifyLangfuseOnlineTraceEvidence(input: {
@@ -42,9 +40,7 @@ export async function verifyLangfuseOnlineTraceEvidence(input: {
 	expectedSessionId: string;
 	expectedTags: string[];
 	expectedUserId: string;
-	expectedWorkflowId?: string | null;
 	fetchImpl?: typeof fetch;
-	requiredStepIds?: string[];
 	settings: LangfuseSettings;
 	traceId: string;
 }): Promise<JsonObject> {
@@ -73,17 +69,10 @@ export async function verifyLangfuseOnlineTraceEvidence(input: {
 	assertExpectedTraceIdentity(traceIdentity, {
 		request_id: input.expectedRequestId,
 		run_id: input.expectedRunId,
-		workflow_id: input.expectedWorkflowId,
 	});
-	const repoOwnedObservations = assertObservationAttributeContract(observations);
-	const requiredStepIds = assertRequiredStepIds(repoOwnedObservations, input.requiredStepIds ?? []);
 	return {
-		contract_checked_observation_count: repoOwnedObservations.length,
 		forbidden_check_passed: true,
-		non_repo_observation_count: observations.length - repoOwnedObservations.length,
 		observation_count: observations.length,
-		required_step_ids: requiredStepIds,
-		repo_owned_observation_count: repoOwnedObservations.length,
 		release: input.expectedRelease,
 		session_id: input.expectedSessionId,
 		tags,
@@ -123,48 +112,6 @@ function assertTraceIdentityContract(trace: JsonObject, observations: unknown[])
 	return identity;
 }
 
-function assertObservationAttributeContract(observations: unknown[]): unknown[] {
-	const repoOwned = observations.filter((observation) => isRepoOwnedObservation(observation));
-	if (repoOwned.length === 0) {
-		throw new Error("trace evidence missing repo-owned observations");
-	}
-	for (const observation of repoOwned) {
-		const attributes = observationAttributes(observation);
-		const missing = REQUIRED_OBSERVATION_ATTRIBUTES.filter(
-			(key) => !(key in attributes) || attributes[key] === null || attributes[key] === undefined,
-		);
-		if (missing.length > 0) {
-			throw new Error(`repo-owned observation missing attributes: ${missing.join(", ")}`);
-		}
-		if (optionalString(attributes.step_kind) === "tool" && !optionalString(attributes.tool_name)) {
-			throw new Error("repo-owned tool observation missing attributes: tool_name");
-		}
-	}
-	return repoOwned;
-}
-
-function assertRequiredStepIds(observations: unknown[], requiredStepIds: string[]): string[] {
-	const normalizedRequired = requiredStepIds.map((stepId) => stepId.trim()).filter(Boolean);
-	if (normalizedRequired.length === 0) {
-		return [];
-	}
-	const actual = new Set(
-		observations
-			.map((observation) => optionalString(observationAttributes(observation).step_id))
-			.filter((stepId): stepId is string => Boolean(stepId)),
-	);
-	const missing = normalizedRequired.filter((stepId) => !actual.has(stepId));
-	if (missing.length > 0) {
-		throw new Error(`trace evidence missing required steps: ${missing.join(", ")}`);
-	}
-	return normalizedRequired;
-}
-
-function isRepoOwnedObservation(observation: unknown): boolean {
-	const attributes = observationAttributes(observation);
-	return Boolean(attributes.step_id || attributes.activity_type || attributes.task_queue);
-}
-
 function observationAttributes(value: unknown): JsonObject {
 	if (!value || typeof value !== "object" || Array.isArray(value)) {
 		return {};
@@ -200,9 +147,9 @@ function assertExpectedTraceIdentity(
 
 function assertForbiddenPayloadFieldsAbsent(trace: JsonObject, observations: unknown[]): void {
 	const forbidden = new Set<string>();
-	collectForbidden(trace, forbidden, TRACE_SECRET_FIELDS);
+	collectForbidden(trace, forbidden, TRACE_FORBIDDEN_FIELDS);
 	for (const observation of observations) {
-		collectForbidden(observation, forbidden, TRACE_SECRET_FIELDS);
+		collectForbidden(observation, forbidden, TRACE_FORBIDDEN_FIELDS);
 	}
 	if (forbidden.size > 0) {
 		throw new Error(`forbidden Langfuse payload fields: ${[...forbidden].sort().join(", ")}`);

@@ -70,6 +70,7 @@ pnpm --filter source-collector start:temporal-worker
 ## 验证
 
 ```bash
-pnpm ci:ingest
-pnpm ci:ingestion-control-postgres
+pnpm --filter ingestion-control typecheck
+pnpm --filter ingestion-control test
+pnpm --dir apps/ingestion-control test:database-integration
 ```

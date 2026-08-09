@@ -112,8 +112,15 @@ export async function runIngestionControlMigrations(
 if (import.meta.url === `file://${process.argv[1]}`) {
 	runIngestionControlMigrations()
 		.then((applied) => console.log(JSON.stringify({ applied, schema_ready: true })))
-		.catch((error) => {
-			console.error(error instanceof Error ? error.message : String(error));
+		.catch(() => {
+			console.error(
+				JSON.stringify({
+					error_code: "migration_failed",
+					event_type: "ingestion_control.migration_failed",
+					level: "error",
+					status: "failed",
+				}),
+			);
 			process.exitCode = 1;
 		});
 }

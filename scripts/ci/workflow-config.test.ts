@@ -143,14 +143,12 @@ test("pull request validation keeps one stable hosted check", async () => {
 	assert(planner.run.includes("index($profile) != null"));
 	assert(!planner.run.includes(String.raw`\"affected-node\"`));
 	assert(!source.includes("browser"));
-	const releaseCheck = repoChecks.steps.find(
-		(step) => isObject(step) && step.name === "Check CI and release orchestration",
+	const repositoryCheck = repoChecks.steps.find(
+		(step) => isObject(step) && step.name === "Run repository checks",
 	);
-	assert(isObject(releaseCheck));
-	assert.equal(
-		releaseCheck.if,
-		"contains(fromJSON(steps.plan.outputs.light_surfaces), 'release') && steps.plan.outputs.has_toolchain != 'true'",
-	);
+	assert(isObject(repositoryCheck));
+	assert.equal(repositoryCheck.run, "pnpm check");
+	assert(!source.includes("Check CI and release orchestration"));
 });
 
 test("Source diff consumers use complete history without promisor fetches", async () => {
@@ -211,6 +209,7 @@ test("source workflows use Nix with a bounded transitional self-hosted release l
 	const dependencies = sources[0];
 	assert(dependencies);
 	assert(dependencies.includes("nix develop .#ci-light"));
+	assert(dependencies.includes("run: scripts/dependencies/scan.sh"));
 	assert(!dependencies.includes("nix develop .#ci-full"));
 });
 

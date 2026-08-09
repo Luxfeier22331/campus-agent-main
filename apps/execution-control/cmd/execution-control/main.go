@@ -20,7 +20,13 @@ const providerConfigAdminPort = 8001
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	if err := run(logger); err != nil {
-		logger.Error("campus execution runtime stopped", "error", err.Error())
+		logger.Error(
+			"execution_control.runtime_stopped",
+			"event_type", "execution_control.runtime_stopped",
+			"status", "failed",
+			"error_code", "runtime_stopped",
+			"source", "process",
+		)
 		os.Exit(1)
 	}
 }
@@ -38,7 +44,7 @@ func run(logger *slog.Logger) error {
 	)
 	defer stopSignals()
 
-	handler := httpapi.NewServerWithDependencies(cfg, nil, logger, nil)
+	handler := httpapi.NewServerWithDependencies(cfg, nil, logger)
 	adminHandler, err := httpapi.NewProviderConfigAdminServer(cfg)
 	if err != nil {
 		_ = handler.Shutdown(context.Background())
@@ -71,7 +77,12 @@ func run(logger *slog.Logger) error {
 	var runtimeErr error
 	select {
 	case <-runtimeContext.Done():
-		logger.Info("campus execution runtime draining")
+		logger.Info(
+			"execution_control.runtime_draining",
+			"event_type", "execution_control.runtime_draining",
+			"status", "draining",
+			"source", "process",
+		)
 	case runtimeErr = <-runtimeWorkers.Errors():
 	case runtimeErr = <-serverErrors:
 	}
@@ -114,7 +125,12 @@ func startHTTPServer(
 	serverErrors chan<- error,
 	logger *slog.Logger,
 ) {
-	logger.Info("campus execution runtime listening", "component", name, "address", server.Addr)
+	logger.Info(
+		"execution_control.server_listening",
+		"event_type", "execution_control.server_listening",
+		"status", "ready",
+		"source", name,
+	)
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			serverErrors <- fmt.Errorf("%s HTTP server: %w", name, err)

@@ -1,19 +1,11 @@
 package httpapi
 
 import (
-	"context"
-	"io"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	hindsight "github.com/vectorize-io/hindsight/hindsight-clients/go"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/trace"
 )
 
 type hindsightHTTPClient struct {
@@ -116,95 +108,14 @@ func newHindsightHTTPClient(options hindsightClientOptions) hindsightHTTPClient 
 	clientConfig.Servers = hindsight.ServerConfigurations{{URL: baseURL}}
 	clientConfig.AddDefaultHeader("Authorization", "Bearer "+apiSecret)
 	clientConfig.HTTPClient = noRedirectHTTPClient(&http.Client{
-		Timeout: timeout,
-		Transport: hindsightPropagationTransport{
-			base: http.DefaultTransport,
-		},
+		Timeout:   timeout,
+		Transport: http.DefaultTransport,
 	})
 	return hindsightHTTPClient{
 		apiSecret: apiSecret,
 		baseURL:   baseURL,
 		client:    hindsight.NewAPIClient(clientConfig),
 	}
-}
-
-type hindsightPropagationTransport struct {
-	base http.RoundTripper
-}
-
-type hindsightBankContextKey struct{}
-
-func withHindsightBankContext(ctx context.Context, bankID string) context.Context {
-	return context.WithValue(ctx, hindsightBankContextKey{}, strings.TrimSpace(bankID))
-}
-
-func hindsightBankIDFromContext(ctx context.Context) string {
-	bankID, _ := ctx.Value(hindsightBankContextKey{}).(string)
-	return strings.TrimSpace(bankID)
-}
-
-func (t hindsightPropagationTransport) RoundTrip(request *http.Request) (*http.Response, error) {
-	attributes := []attribute.KeyValue{
-		attribute.String("memory.provider", "hindsight"),
-		attribute.String("http.request.method", request.Method),
-	}
-	if bankID := hindsightBankIDFromContext(request.Context()); bankID != "" {
-		attributes = append(attributes, attribute.String("langfuse.user.id", bankID))
-	}
-	ctx, span := otel.Tracer("campus-execution-control/hindsight").Start(
-		request.Context(),
-		"memory.call",
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(attributes...),
-	)
-	cloned := request.Clone(ctx)
-	cloned.Header = request.Header.Clone()
-	otel.GetTextMapPropagator().Inject(
-		cloned.Context(),
-		propagation.HeaderCarrier(cloned.Header),
-	)
-	base := t.base
-	if base == nil {
-		base = http.DefaultTransport
-	}
-	response, err := base.RoundTrip(cloned)
-	if err != nil {
-		span.SetStatus(codes.Error, "memory provider transport failed")
-		span.End()
-		return nil, err
-	}
-	if response.StatusCode >= http.StatusBadRequest {
-		span.SetStatus(codes.Error, "memory provider request failed")
-	}
-	if response.Body == nil {
-		span.End()
-		return response, nil
-	}
-	response.Body = &spanEndingReadCloser{
-		ReadCloser: response.Body,
-		end:        func() { span.End() },
-	}
-	return response, nil
-}
-
-type spanEndingReadCloser struct {
-	io.ReadCloser
-	end  func()
-	once sync.Once
-}
-
-func (b *spanEndingReadCloser) Read(buffer []byte) (int, error) {
-	read, err := b.ReadCloser.Read(buffer)
-	if err == io.EOF {
-		b.once.Do(b.end)
-	}
-	return read, err
-}
-
-func (b *spanEndingReadCloser) Close() error {
-	err := b.ReadCloser.Close()
-	b.once.Do(b.end)
-	return err
 }
 
 var _ hindsightClient = hindsightHTTPClient{}

@@ -16,6 +16,7 @@ export {
 	deriveSafetyIdentifier,
 	deriveSafetyIdentifierForUser,
 } from "./service";
+export { publicExecutionFailure } from "./service/writes";
 export {
 	type AbuseControlState,
 	type AcceptedDurableRequestCloseout,

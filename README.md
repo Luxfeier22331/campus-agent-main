@@ -42,7 +42,7 @@
 ```bash
 uv sync --all-packages --dev
 pnpm install
-pnpm ci:repo
+pnpm check
 ```
 
 根据改动范围选择所属模块检查。完整命令和适用范围见

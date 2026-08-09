@@ -28,7 +28,6 @@ import {
 	opsLogObservabilityFixture,
 	opsOverviewFixture,
 	opsSentryIssuesFixture,
-	opsTraceObservabilityFixture,
 } from "../src/shared/ops-fixtures.ts";
 
 const browserTestPort = Number(process.env.OPS_WEB_BROWSER_TEST_PORT ?? "4178");
@@ -51,12 +50,11 @@ const app = createOpsApp({
 			process.env.OPS_WEB_PUBLIC_ORIGIN ?? `http://127.0.0.1:${browserTestPort}`,
 	},
 	axiom: {
-		getTelemetrySnapshot: async () => opsOverviewFixture.telemetry,
-		queryRequest: async ({ completedAt, kind, requestId, startedAt, traceId }) => {
+		queryRequest: async ({ completedAt, requestId, startedAt }) => {
 			if (requestId === "req_ops_001") {
-				return kind === "logs" ? browserLogObservabilityFixture : opsTraceObservabilityFixture;
+				return browserLogObservabilityFixture;
 			}
-			const fixture = kind === "logs" ? opsLogObservabilityFixture : opsTraceObservabilityFixture;
+			const fixture = opsLogObservabilityFixture;
 			return {
 				...fixture,
 				dataState: "NO_DATA" as const,
@@ -64,7 +62,6 @@ const app = createOpsApp({
 				records: [],
 				requestId,
 				to: completedAt ?? startedAt,
-				traceId,
 			};
 		},
 	},
@@ -72,7 +69,7 @@ const app = createOpsApp({
 		getOverview: async () => opsOverviewFixture,
 	},
 	sentry: {
-		queryRequestIssues: async ({ completedAt, requestId, startedAt, traceId }) =>
+		queryRequestIssues: async ({ completedAt, requestId, startedAt }) =>
 			requestId === "req_ops_001"
 				? opsSentryIssuesFixture
 				: {
@@ -81,9 +78,7 @@ const app = createOpsApp({
 						from: startedAt,
 						issues: [],
 						requestId,
-						searchQuery: `campus.request_id:${JSON.stringify(requestId)}`,
 						to: completedAt ?? startedAt,
-						traceId,
 					},
 	},
 	diningStore: browserDiningStore,

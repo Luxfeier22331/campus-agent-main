@@ -61,7 +61,7 @@ self-authored 数据与 synthetic example。
 
 ## 检查
 
-- 涉及公开发布的变更执行 `pnpm repo:static`；
+- 涉及公开发布的变更执行 `pnpm check`；
 - 修改 fixture、来源配置、公开资产或评测样例后执行所属模块测试和来源
   hygiene 检查；
 - 修改 dependency lock 后执行 dependency license policy 检查；

@@ -1,8 +1,8 @@
 # OTel Collector 配置
 
-本目录保存本地单进程 OpenTelemetry Collector 配置和跨环境字段策略。staging 使用 Agent
-DaemonSet 与 Gateway Deployment 两层拓扑，其配置由环境仓 Helm values 唯一拥有；源码仓不维护
-第二份环境模板。
+本目录只保存本地单进程 OpenTelemetry Collector 配置。源码仓拥有 Agent Runtime 的 producer
+字段边界和本地验证；环境仓拥有实际部署是否启用 Collector、endpoint、Secret、资源和保留策略。
+源码仓不把本地配置或网络清单写成目标环境已部署事实。
 
 ## 文件
 
@@ -10,27 +10,25 @@ DaemonSet 与 Gateway Deployment 两层拓扑，其配置由环境仓 Helm value
 - `collector-local-prodlike.yaml`：本地生产近似链路；
 - `collector.env.example`：本地 prodlike 配置所需的变量示例。
 
-源码仓负责生产者字段合同、本地配置和信号清理策略测试。环境仓负责实际 receiver、pipeline、
-endpoint、dataset、Secret、节点准备、部署版本和启用状态。应用与浏览器直接使用 Sentry SDK 的
-链路不由这些 Collector 配置转发。
+源码仓负责 Agent Runtime 生产者字段合同和本地配置。环境仓负责实际 receiver、pipeline、endpoint、
+dataset、Secret、部署版本和启用状态。Cloudflare application logs、浏览器和边缘 Sentry 不经过这些
+本地配置。
 
-两份本地配置都只在 `4318` 提供一个 OTLP/HTTP receiver。debug 配置把 log、trace 和 metric 写到
-debug exporter；prodlike 配置额外把受控编排 trace 写入 Langfuse，其余本地信号仍只写 debug
-exporter。本地配置不模拟 staging 的 Axiom exporter、节点采集或网络隔离。
+两份本地配置都只在 `4318` 提供一个 OTLP/HTTP receiver，并且只接收 Agent Runtime trace：
 
-staging 由 Agent 采集第一方容器日志和 kubelet metrics，再发往提供 `4318`、`4319`、`4320`、
-`4321` 四个 receiver 和下游 exporter 的 Gateway。入口由 NetworkPolicy 隔离，不使用 bearer
-token。Gateway 以 `OTEL_COLLECTOR_AXIOM_INGEST_TOKEN` 消费环境共享的 Axiom runtime token，并按
-dataset 分流 log、trace 和 metric；Langfuse OTLP 与 `activity-core` maintenance 凭据属于同一
-project。exporter 只使用内存发送队列和有界重试，不依赖持久存储。
+- `collector-local-debug.yaml`：`traces/agent -> debug`；
+- `collector-local-prodlike.yaml`：`traces/agent -> Langfuse`。
+
+这里没有日志、指标、kubelet、execution-control 或 Hindsight pipeline，也不模拟 Axiom exporter、
+节点采集、集群网络隔离或供应商告警。Langfuse overlay 只用于开发者明确验证 Agent trace，不能
+作为线上配额或部署状态的证明。
 
 ## 验证
 
 ```bash
-pnpm ci:otel
+scripts/otel/validate-config.sh
 ```
 
-该命令运行信号策略测试，并使用固定 digest 的 Collector 镜像验证两份本地配置。staging Helm
-values 的 render 与策略检查由环境仓负责。该检查不证明目标环境已部署，也不证明外部平台已经
-收到信号。调试和故障排查见
+该命令使用固定 digest 的 Collector 镜像验证两份本地配置。环境仓的 render、部署和远端状态由环境
+仓负责；本检查不证明目标环境已经部署，也不证明外部平台已经收到信号。调试和故障排查见
 `../../docs/runbooks/otel.md`。

@@ -43,7 +43,6 @@ const task: IngestionTaskRecord = {
 	result_contract: "retrieval_chunk_set.v2",
 	summary: { chunk_count: 12 },
 	error_code: null,
-	error_message: null,
 };
 
 describe("ingestion task state projection", () => {

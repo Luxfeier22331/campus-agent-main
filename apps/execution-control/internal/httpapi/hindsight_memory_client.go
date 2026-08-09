@@ -16,7 +16,6 @@ func (c hindsightHTTPClient) EnsureBank(ctx context.Context, bankID string, cfg 
 	if trimmedBankID == "" {
 		return errors.New("hindsight bank id is required")
 	}
-	ctx = withHindsightBankContext(ctx, trimmedBankID)
 	request := hindsight.CreateBankRequest{}
 	request.SetName("campus-agent personal memory")
 	_, response, err := c.client.BanksAPI.
@@ -66,37 +65,8 @@ func (c hindsightHTTPClient) EnsureBank(ctx context.Context, bankID string, cfg 
 	return nil
 }
 
-func (c hindsightHTTPClient) HealthCheck(ctx context.Context) error {
-	version, response, err := c.client.MonitoringAPI.GetVersion(ctx).Execute()
-	if err != nil {
-		return err
-	}
-	if response != nil && response.Body != nil {
-		defer func() { _ = response.Body.Close() }()
-	}
-	if err := requireHindsightSuccess(response, "version"); err != nil {
-		return err
-	}
-	if version == nil || strings.TrimSpace(version.GetApiVersion()) != "0.8.4" {
-		return fmt.Errorf("hindsight api_version=%q, want 0.8.4", version.GetApiVersion())
-	}
-	features := version.GetFeatures()
-	if !features.GetObservations() || !features.GetBankConfigApi() || features.GetMcp() || !features.GetLlmTrace() || !features.GetStoreDocumentText() {
-		return fmt.Errorf(
-			"hindsight required features unavailable: observations=%t bank_config_api=%t mcp=%t llm_trace=%t store_document_text=%t",
-			features.GetObservations(),
-			features.GetBankConfigApi(),
-			features.GetMcp(),
-			features.GetLlmTrace(),
-			features.GetStoreDocumentText(),
-		)
-	}
-	return nil
-}
-
 func (c hindsightHTTPClient) BankExists(ctx context.Context, bankID string) (bool, error) {
 	trimmedBankID := strings.TrimSpace(bankID)
-	ctx = withHindsightBankContext(ctx, trimmedBankID)
 	_, response, err := c.client.BanksAPI.GetBankProfile(ctx, trimmedBankID).Execute()
 	if response != nil && response.Body != nil {
 		defer func() { _ = response.Body.Close() }()
@@ -119,7 +89,6 @@ func (c hindsightHTTPClient) RetainMemories(
 	request hindsightRetainRequest,
 ) (hindsightRetainResponse, error) {
 	trimmedBankID := strings.TrimSpace(bankID)
-	ctx = withHindsightBankContext(ctx, trimmedBankID)
 	payload := hindsight.RetainRequest{
 		Async: request.Async,
 		Items: make([]hindsight.MemoryItem, 0, len(request.Items)),
@@ -153,7 +122,6 @@ func (c hindsightHTTPClient) RecallMemories(
 	request hindsightRecallRequest,
 ) (hindsightRecallResponse, error) {
 	trimmedBankID := strings.TrimSpace(bankID)
-	ctx = withHindsightBankContext(ctx, trimmedBankID)
 	payload := hindsight.NewRecallRequest(strings.TrimSpace(request.Query))
 	if strings.TrimSpace(request.Budget) != "" {
 		budget := hindsight.Budget(strings.TrimSpace(request.Budget))
@@ -201,7 +169,6 @@ func (c hindsightHTTPClient) RecallMemories(
 
 func (c hindsightHTTPClient) DeleteDocument(ctx context.Context, bankID string, documentID string) error {
 	trimmedBankID := strings.TrimSpace(bankID)
-	ctx = withHindsightBankContext(ctx, trimmedBankID)
 	responseBody, response, err := c.client.DocumentsAPI.
 		DeleteDocument(ctx, trimmedBankID, strings.TrimSpace(documentID)).
 		Execute()
@@ -231,7 +198,6 @@ func (c hindsightHTTPClient) DeleteDocument(ctx context.Context, bankID string, 
 
 func (c hindsightHTTPClient) DeleteBank(ctx context.Context, bankID string) error {
 	trimmedBankID := strings.TrimSpace(bankID)
-	ctx = withHindsightBankContext(ctx, trimmedBankID)
 	responseBody, response, err := c.client.BanksAPI.
 		DeleteBank(ctx, trimmedBankID).
 		Execute()

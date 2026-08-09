@@ -34,12 +34,10 @@ export interface CompleteIngestionTaskInput {
 
 export interface FailIngestionTaskInput {
 	errorCode: string;
-	errorMessage: string;
 	taskId: string;
 }
 
 export interface CancelIngestionTaskInput {
-	reason: string;
 	taskId: string;
 }
 
@@ -72,7 +70,7 @@ export function createIngestionProjectionActivities(input: {
 			const validation = validateIngestionTaskResult(activityInput.result);
 			if (!validation.ok) {
 				throw ApplicationFailure.nonRetryable(
-					`invalid ingestion task result: ${validation.errors.join("; ")}`,
+					"Ingestion task result is invalid.",
 					"invalid_ingestion_task_result",
 				);
 			}
@@ -85,7 +83,10 @@ export function createIngestionProjectionActivities(input: {
 				});
 			} catch (error) {
 				if (error instanceof IngestionResultArtifactContractError) {
-					throw ApplicationFailure.nonRetryable(error.message, "invalid_ingestion_task_result");
+					throw ApplicationFailure.nonRetryable(
+						"Ingestion task result artifact is invalid.",
+						"invalid_ingestion_task_result",
+					);
 				}
 				throw error;
 			}
@@ -115,7 +116,7 @@ function assertResultMatchesSnapshot(
 		result.output_contract !== snapshot.registry_task.output_contract
 	) {
 		throw ApplicationFailure.nonRetryable(
-			`ingestion task result identity does not match frozen snapshot: ${snapshot.task.task_id}`,
+			"Ingestion task result identity is invalid.",
 			"invalid_ingestion_task_result",
 		);
 	}
@@ -147,13 +148,26 @@ export function createRustKernelActivities(input: {
 
 function throwAsTypedKernelFailure(error: unknown): never {
 	if (error instanceof IngestionContractError) {
-		throw ApplicationFailure.nonRetryable(error.message, error.code);
+		throw ApplicationFailure.nonRetryable(
+			"Ingestion task contract is invalid.",
+			safeFailureCode(error.code),
+		);
 	}
 	if (error instanceof ArtifactCollisionError) {
-		throw ApplicationFailure.nonRetryable(error.message, "ingestion_artifact_collision");
+		throw ApplicationFailure.nonRetryable(
+			"Ingestion task artifact conflicts with an existing result.",
+			"ingestion_artifact_collision",
+		);
 	}
 	if (error instanceof IngestionKernelReportedErrorsError) {
-		throw ApplicationFailure.nonRetryable(error.message, "ingestion_kernel_output_invalid");
+		throw ApplicationFailure.nonRetryable(
+			"Ingestion task kernel output is invalid.",
+			"ingestion_kernel_output_invalid",
+		);
 	}
 	throw error;
+}
+
+function safeFailureCode(value: string): string {
+	return /^[A-Za-z0-9_.:-]{1,80}$/u.test(value) ? value : "ingestion_task_failed";
 }

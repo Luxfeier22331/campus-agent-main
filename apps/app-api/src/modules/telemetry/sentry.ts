@@ -73,22 +73,6 @@ export function createAppApiSentryOptions(env: Env): CloudflareOptions | undefin
 		},
 		release: env.DEPLOYMENT_RELEASE?.trim() || undefined,
 		sendDefaultPii: false,
-		tracesSampler(context) {
-			if (environment !== "production") {
-				return context.inheritOrSampleWith(1);
-			}
-			const route = normalizeAppApiRoute(
-				context.normalizedRequest?.url ?? context.name,
-				context.normalizedRequest?.method,
-			);
-			if (route.startsWith("/api/chat")) {
-				return context.inheritOrSampleWith(0.1);
-			}
-			if (route.startsWith("/api/auth") || route.startsWith("/api/federation")) {
-				return context.inheritOrSampleWith(0.01);
-			}
-			return context.inheritOrSampleWith(0.02);
-		},
 	};
 }
 

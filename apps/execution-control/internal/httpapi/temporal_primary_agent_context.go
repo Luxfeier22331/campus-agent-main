@@ -3,6 +3,7 @@ package httpapi
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 )
 
@@ -355,13 +356,20 @@ type agentRuntimeError struct {
 type agentRuntimeHTTPError struct {
 	StatusCode int
 	Code       string
-	Message    string
 }
 
 func (err agentRuntimeHTTPError) Error() string {
-	message := strings.TrimSpace(err.Message)
-	if message == "" {
-		return fmt.Sprintf("agent runtime returned HTTP %d", err.StatusCode)
+	switch strings.TrimSpace(err.Code) {
+	case "provider_unavailable":
+		return "The answer provider is temporarily unavailable."
+	case "agent_deadline_exceeded", "context_budget_exceeded", "max_turns_exceeded":
+		return "The agent runtime could not complete the request."
+	case "tool_execution_failed":
+		return "A runtime tool could not complete."
+	default:
+		if err.StatusCode >= http.StatusInternalServerError {
+			return fmt.Sprintf("agent runtime returned HTTP %d", err.StatusCode)
+		}
+		return "The agent runtime request was rejected."
 	}
-	return message
 }

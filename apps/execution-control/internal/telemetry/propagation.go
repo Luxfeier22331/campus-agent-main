@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"strings"
 
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 )
 
@@ -21,10 +20,6 @@ var runtimeTextMapPropagator = propagation.NewCompositeTextMapPropagator(
 	propagation.TraceContext{},
 	propagation.Baggage{},
 )
-
-func init() {
-	otel.SetTextMapPropagator(runtimeTextMapPropagator)
-}
 
 func ExtractIncomingContext(ctx context.Context, headers http.Header) context.Context {
 	carrier := propagation.HeaderCarrier(cloneTraceHeaders(headers))

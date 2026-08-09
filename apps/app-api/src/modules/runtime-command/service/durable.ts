@@ -1,7 +1,9 @@
 import {
+	EXECUTION_CONTROL_FAILURE_MESSAGE,
 	type ExecutionControlRunEvent,
 	type ExecutionControlRunEventPage,
 	ExecutionControlTransportError,
+	isSafeExecutionControlErrorCode,
 	parseExecutionFinalizationResponsePayload,
 	type ToolExecutionResponse,
 } from "../../integration";
@@ -317,12 +319,16 @@ export function durableTerminalOutcomeFromDurableRunEvent(
 			error,
 			"code",
 			"Durable run failed event error.code is required.",
-		);
-		const message = getRequiredString(
-			error,
-			"message",
-			"Durable run failed event error.message is required.",
-		);
+		).trim();
+		if (!isSafeExecutionControlErrorCode(code)) {
+			throw new ExecutionControlTransportError({
+				code: "execution_control_invalid_response",
+				message: "Durable run failed event error.code is invalid.",
+				retryable: true,
+				status: 502,
+			});
+		}
+		getRequiredString(error, "message", "Durable run failed event error.message is required.");
 		const retryable = getRequiredBoolean(
 			error,
 			"retryable",
@@ -331,7 +337,7 @@ export function durableTerminalOutcomeFromDurableRunEvent(
 		return {
 			response: executionFinalizationErrorResponse({
 				code,
-				message,
+				message: EXECUTION_CONTROL_FAILURE_MESSAGE,
 				retryable,
 				traceId: context.traceId,
 			}),

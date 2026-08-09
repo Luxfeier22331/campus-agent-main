@@ -4,6 +4,7 @@ import type { Env } from "../../config";
 import { AppApiRouteError, jsonResponse } from "../../http";
 import type { ResolvedAppPrincipal } from "../../modules/auth";
 import { ExecutionControlTransportError } from "../../modules/integration";
+import { publicExecutionFailure } from "../../modules/runtime-command";
 import { requireSessionPrincipal } from "../principal";
 import {
 	createRouteErrorCorrelation,
@@ -124,10 +125,11 @@ function routeChatErrorResponse(
 		return routeErrorResponseWithRouteErrorCorrelation(error, routeErrorCorrelation);
 	}
 	if (error instanceof ExecutionControlTransportError) {
+		const failure = publicExecutionFailure({ errorCode: error.code, status: "error" });
 		return routeErrorResponseWithRouteErrorCorrelation(
 			new AppApiRouteError({
-				code: error.code,
-				message: error.message,
+				code: failure.errorCode,
+				message: failure.message,
 				retryable: error.retryable,
 				status: error.status,
 			}),

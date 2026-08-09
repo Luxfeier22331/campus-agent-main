@@ -8,7 +8,7 @@ status: active
 ## 边界
 
 `stage_timing.v1` 是在线回答请求的有界耗时投影。它规定哪些每请求耗时字段可以进入 app-api
-观测摘要、字段由哪个运行时产生，以及诊断、指标与学习闭环如何消费。
+观测摘要、字段由哪个运行时产生，以及产品诊断与学习闭环如何消费。
 
 它不是 OpenAI Agents SDK trace、Langfuse OTLP payload、Sentry/Axiom/Collector schema 或
 Temporal history。单请求耗时预算由 `configs/runtime/latency-budgets.v1.json` 拥有；环境告警的
@@ -68,12 +68,8 @@ Temporal history。单请求耗时预算由 `configs/runtime/latency-budgets.v1.
 加入；当前通过 `agent.first_delta_ms`、`agent.runtime_ms`、`stream.app_api_ttft_ms`、
 `stream.orchestration_overhead_ms` 与 trace correlation 排查启动延迟。
 
-浏览器从提交到渲染首段文本的真实 TTFT 由 Campus Web 直接写入 Sentry
-`chat.browser_ttft_ms`，不进入服务端 `stage_timing.v1`。恢复已有 run 的订阅没有新请求起点，
-不得记录浏览器 TTFT。
-
 每个字段都必须被 `configs/runtime/latency-budgets.v1.json` 接受。单次请求可以缺少未运行阶段，
-但版本化预算配置必须覆盖整张字段表。`pnpm contracts:check` 负责校验字段与预算配置。
+但版本化预算配置必须覆盖整张字段表。`pnpm --dir packages/contracts check` 负责校验字段与预算配置。
 
 跨服务聚合只能发生在 execution-control 或 app-api 的有界投影边界。生产者不得读取原始
 Temporal history 或复制下游 trace 响应来补耗时字段。
@@ -98,9 +94,8 @@ OpenAI Agents SDK trace、Langfuse、Sentry 与 Axiom 可以提供进一步诊�
 也不能把 SDK span、provider payload、tool I/O、prompt、answer 或 memory text 写入
 `stage_timing.v1`。
 
-`grounding.prepare_ms` 是产品可见的聚合耗时；embedding、search、RRF 合并与 pack 的明细只作为
-受控 execution-control span 属性发送到 Langfuse/Axiom，不新增产品投影字段。现有
-`grounding.rerank_ms` 键保留为零值兼容字段，不表示外部 reranker 调用。
+`grounding.prepare_ms` 是产品可见的聚合耗时。embedding、search、RRF 合并与 pack 的内部测量不
+进入外部 Langfuse/Axiom trace，也不新增产品投影字段。
 
 ## 相关文档
 

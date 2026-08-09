@@ -66,8 +66,11 @@ func TestProviderConfigCompatibilityEndpointReportsRAGDrift(t *testing.T) {
 		t.Fatalf("status = %d body = %s, want 200", response.Code, response.Body.String())
 	}
 	body := decodeBody(t, response)
-	if body["ok"] != false || !strings.Contains(body["reason"].(string), "release metadata drift") {
+	if body["ok"] != false || body["reason"] != providerConfigCompatibilityFailureReason {
 		t.Fatalf("body = %#v, want drift blocker", body)
+	}
+	if strings.Contains(body["reason"].(string), "student_rules") {
+		t.Fatalf("body = %#v, must not expose document scope details", body)
 	}
 }
 
@@ -89,10 +92,6 @@ func TestProviderConfigCompatibilityEndpointRejectsRetiredTimeoutField(t *testin
 type fakeRAGCompatibilityChecker struct {
 	err  error
 	seen providerConfigSnapshot
-}
-
-func (f *fakeRAGCompatibilityChecker) HealthCheck(context.Context) error {
-	return nil
 }
 
 func (f *fakeRAGCompatibilityChecker) CheckEmbeddingCompatibility(

@@ -6,13 +6,14 @@ import {
 	parseIngestionTaskProjectionCursor,
 	toIngestionTaskOperatorProjection,
 } from "ingest-core";
-import type {
-	IngestionTaskOperatorProjectionList,
-	IngestionTaskProjectionFilters,
-	IngestionTaskRecord,
-	IngestionTaskStore,
-	RecordIngestionTaskStartedInput,
-	StoreClock,
+import {
+	assertSafeIngestionErrorCode,
+	type IngestionTaskOperatorProjectionList,
+	type IngestionTaskProjectionFilters,
+	type IngestionTaskRecord,
+	type IngestionTaskStore,
+	type RecordIngestionTaskStartedInput,
+	type StoreClock,
 } from "./types";
 
 export class InMemoryIngestionTaskStore implements IngestionTaskStore {
@@ -61,18 +62,17 @@ export class InMemoryIngestionTaskStore implements IngestionTaskStore {
 			result_contract: input.result.output_contract,
 			summary: structuredClone(input.result.summary),
 			error_code: null,
-			error_message: null,
 		};
 		this.#records.set(next.task_id, next);
 		return structuredClone(next);
 	}
 
 	failTask(input: Parameters<IngestionTaskStore["failTask"]>[0]): IngestionTaskRecord {
-		return this.#recordError(input.taskId, "failed", input.errorCode, input.errorMessage);
+		return this.#recordError(input.taskId, "failed", input.errorCode);
 	}
 
 	cancelTask(input: Parameters<IngestionTaskStore["cancelTask"]>[0]): IngestionTaskRecord {
-		return this.#recordError(input.taskId, "canceled", "workflow_canceled", input.reason);
+		return this.#recordError(input.taskId, "canceled", "workflow_canceled");
 	}
 
 	listOperatorTaskProjections(
@@ -115,10 +115,10 @@ export class InMemoryIngestionTaskStore implements IngestionTaskStore {
 		taskId: string,
 		status: "failed" | "canceled",
 		errorCode: string,
-		errorMessage: string,
 	): IngestionTaskRecord {
+		const safeErrorCode = assertSafeIngestionErrorCode(errorCode);
 		const task = this.#requireTask(taskId);
-		if (task.status === status && task.error_code === errorCode) {
+		if (task.status === status && task.error_code === safeErrorCode) {
 			return structuredClone(task);
 		}
 		assertRunning(task);
@@ -129,8 +129,7 @@ export class InMemoryIngestionTaskStore implements IngestionTaskStore {
 			result_ref: null,
 			result_contract: null,
 			summary: null,
-			error_code: errorCode.slice(0, 128),
-			error_message: errorMessage.slice(0, 2000),
+			error_code: safeErrorCode,
 		};
 		this.#records.set(taskId, next);
 		return structuredClone(next);
@@ -170,7 +169,6 @@ function taskRecordFromStart(
 		result_contract: null,
 		summary: null,
 		error_code: null,
-		error_message: null,
 	};
 }
 
@@ -182,7 +180,6 @@ function assertSameTask(current: IngestionTaskRecord, incoming: IngestionTaskRec
 		"result_contract",
 		"summary",
 		"error_code",
-		"error_message",
 	]);
 	const comparable = (value: IngestionTaskRecord) =>
 		Object.fromEntries(Object.entries(value).filter(([key]) => !ignored.has(key)));

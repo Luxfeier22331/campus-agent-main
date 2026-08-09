@@ -120,7 +120,6 @@ export async function runIngestionTaskWorkflowPlan(input: {
 			await runNonCancellableCleanup(() =>
 				input.projectionActivities.cancelIngestionTask({
 					taskId: input.snapshot.task.task_id,
-					reason: error instanceof Error ? error.message : "ingestion workflow canceled",
 				}),
 			);
 			throw error;
@@ -130,7 +129,6 @@ export async function runIngestionTaskWorkflowPlan(input: {
 				input.projectionActivities.failIngestionTask({
 					taskId: input.snapshot.task.task_id,
 					errorCode: "invalid_ingestion_task_result",
-					errorMessage: readErrorMessage(error),
 				}),
 			);
 			throw error;
@@ -142,7 +140,6 @@ export async function runIngestionTaskWorkflowPlan(input: {
 			input.projectionActivities.failIngestionTask({
 				taskId: input.snapshot.task.task_id,
 				errorCode: readErrorCode(error),
-				errorMessage: error instanceof Error ? error.message : "ingestion activity failed",
 			}),
 		);
 		throw error;
@@ -170,29 +167,23 @@ function isInvalidTaskResultFailure(error: unknown): boolean {
 	return false;
 }
 
-function readErrorMessage(error: unknown): string {
-	let message = "invalid ingestion task result";
-	for (const current of walkFailureChain(error)) {
-		if (current instanceof Error && current.message) {
-			message = current.message;
-		}
-	}
-	return message;
-}
-
 function readErrorCode(error: unknown): string {
 	for (const current of walkFailureChain(error)) {
 		if (current && typeof current === "object") {
 			const candidate = current as { code?: unknown; type?: unknown };
-			if (typeof candidate.code === "string" && candidate.code.trim()) {
-				return candidate.code.slice(0, 128);
+			if (isSafeFailureCode(candidate.code)) {
+				return candidate.code;
 			}
-			if (typeof candidate.type === "string" && candidate.type.trim()) {
-				return candidate.type.slice(0, 128);
+			if (isSafeFailureCode(candidate.type)) {
+				return candidate.type;
 			}
 		}
 	}
 	return "ingestion_activity_failed";
+}
+
+function isSafeFailureCode(value: unknown): value is string {
+	return typeof value === "string" && /^[A-Za-z0-9_.:-]{1,80}$/u.test(value);
 }
 
 function walkFailureChain(error: unknown): unknown[] {

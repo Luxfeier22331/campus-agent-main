@@ -38,7 +38,6 @@ export interface SentryQueryInput {
 	requestId: string;
 	signal?: AbortSignal;
 	startedAt: string;
-	traceId: string;
 }
 
 export interface SentryClient {
@@ -150,10 +149,8 @@ export function createSentryClient(input: {
 				queriedAt: now.toISOString(),
 				queryDurationMs: Math.max(0, Date.now() - startedAt),
 				requestId,
-				searchQuery,
 				source: "SENTRY",
 				to: window.to.toISOString(),
-				traceId: queryInput.traceId,
 				truncated: parsed.data.length > SENTRY_QUERY_LIMIT || window.clamped,
 			});
 		},

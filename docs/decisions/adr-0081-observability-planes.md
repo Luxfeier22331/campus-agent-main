@@ -11,122 +11,110 @@ supersedes:
 
 ## 背景
 
-系统需要关联 Cloudflare Workers、自托管服务、Temporal workers 和模型运行时，但产品状态、
-工作流历史、通用运行信号、应用错误和模型观测具有不同权限、保留期与查询方式。
+产品状态、Temporal history、应用错误、application logs 和 Agent/LLM trace 具有不同消费者与生命
+周期。此前把节点日志、kubelet metrics、execution-control 编排、Hindsight trace 和 Collector
+内部指标一起发送到供应商，产生了高基数和高频采集，却没有对应查询、告警或产品消费者。Ops Web
+又复制这些信号成为服务探针、task queue 和 coverage 面，增加成本并把“无观测数据”误写成运行状态。
 
-Sentry、Axiom 和 Langfuse 的职责也不相同：Sentry 需要 SDK 原生的错误上下文、release 与
-source map；Axiom 需要经过白名单清理的运行日志、调用链和指标；Langfuse 需要受信任的模型、
-工具和记忆 trace。把三类数据无差别扇出会扩大敏感信息范围，也无法建立可验证的保留与删除
-合同。
+小团队当前需要的是能回答实际运维问题的最小信号面，不是持续维护一套通用 telemetry 平台。
 
 ## 决策
 
 ### 平台分工
 
-- Axiom 保存清理后的通用运行日志、调用链和指标，并提供查询、看板与告警；
-- Sentry 通过应用或浏览器官方 SDK 保存错误、异常、受控性能、release 和 source map；
-- Langfuse 保存受信任的模型、工具和记忆调用链，以及数据集、评分和人工评审；
-- PostgreSQL 保存产品状态和有界诊断投影；Temporal 保存工作流历史、重试、计时器和任务队列
-  状态；
-- Ops Web 只执行服务端固定查询并提供外部入口，不复制平台正文或提供任意查询代理；
-- 任何观测平台都不能改写产品状态或工作流状态。
+- PostgreSQL 保存产品状态和有界运行投影；
+- Temporal 保存 workflow history、task routing、retry、timeout 和 cancellation；
+- Axiom 只保存 producer 已清理的 Cloudflare Worker application logs；
+- Sentry 通过官方 SDK 保存浏览器和边缘错误、release、source map，以及生产 browser 的采样性能 trace；
+- Langfuse 保存可选 Agent/LLM trace，以及 dataset、score、experiment 和 annotation；
+- Ops Web 读取 PostgreSQL，并按需查询固定 Axiom logs 与 Sentry Issues；它只生成 Temporal 和
+  Langfuse 外部入口；
+- 任何观测平台都不能改写产品状态、workflow 状态或个人记忆状态。
 
-W3C Trace Context 和稳定的产品关联标识连接这些平台。供应商字段不能进入领域合同，原生调用链
-标识也不能被产品标识覆盖。
+`requestId` 是 Axiom application-log 查询的 durable business key。`traceId` 保留为产品关联和
+外部跳转标识，但不与 requestId 组成强制双条件查询。
 
-### Sentry project 边界
+### 保留的信号路径
 
-staging 只使用一个 canonical Sentry project `campus-agent-workers`。app-api edge、Campus Web
-browser/edge、release 和 source map 通过既有的 per-surface 变量接口投影到同一个 project/key；变量
-名的 surface 区分用于发布合同，不代表远端 project 隔离。这样与当前 Sentry 订阅和实际运维边界
-一致，也避免为每个 Worker 维护重复的 project、key、查询和生命周期。
+app-api 只发出三个有消费者的结构化 application events：
 
-GitOps 在 `6bd0500`（2026-07-19）首次引入两个 staging project，`2f262b3`（2026-07-21）又
-调整了 key/DSN 投影；这段历史只说明仓库配置何时分裂，不能反推最初远端 Sentry project 的数量。
-收敛时用 Terraform `import` 接管已存在的 canonical project/key，并在受保护的同一份 plan 中正常
-删除旧资源。Terraform `removed { destroy = false }` 或 `forget` 只改变 state 归属，不执行远端删除，
-因此不属于本合同。
+- `request.accepted`；
+- `request.finalized`；
+- `request.transport_error`。
 
-### 拓扑约束
+Cloudflare application-log destination 直接把这些事件送到 Axiom。由于该路径不经过 Collector，
+producer 必须先执行字段白名单和清理。Cloudflare native invocation logs 和 native traces 保持
+关闭，不能作为替代。
 
-长期目标和当前 staging 都采用两个角色：Agent DaemonSet 负责节点日志和 kubelet metrics，
-Gateway Deployment 提供受控 OTLP 入口、字段清理、路由与下游发送。Agent 与 Gateway 的职责边界
-不是待完成的合并迁移；当前资源、端口、网络和启用状态以环境仓的可执行 values 与 Application
-清单为准。
+Agent Runtime 是唯一可选 OTel trace producer。它使用 SDK/OpenInference instrumentation、
+producer-side allowlist 和 OTLP/HTTP exporter 发送到环境选择的 Langfuse 路径。execution-control
+只传播 W3C context，不发送编排 span 或 runtime metric；Hindsight 不发送新 trace。
 
-### Collector 边界
+源码本地 Collector 只保留单 receiver Agent trace pipeline。debug 输出到本地 exporter，prodlike
+输出到 Langfuse。环境仓可以选择等价出口，但源码仓不再规定节点 Agent/Gateway 双层拓扑。
 
-OpenTelemetry Collector 为不同信任级别的运行信号提供独立 receiver、网络边界和路由。通用运行信号经过字段
-白名单、清理、采样和批处理后进入 Axiom；受信任的 Agent 与 Hindsight 调用链可以进入
-Langfuse，但必须删除认证材料。集群内入口不重复增加 bearer token；不同来源不能获得可绕过
-NetworkPolicy、处理器或输出规则的网络权限。
+### 删除的观测面
 
-每个 Kubernetes 节点运行一个 Agent DaemonSet 实例，采集第一方容器日志和基础指标并把信号发送到
-Gateway；Gateway Deployment 为工作负载提供固定 OTLP 入口、字段清理、路由与发送。
-execution-control 调用 Hindsight 时传播标准调用链上下文，并创建不含原始用户标识、记忆正文、
-文档标识或供应商地址的父 span。精确入口、属性和发送配置由可执行 Collector 配置维护。
+下列信号没有当前消费者，因此完整删除而不保留 fallback：
 
-### Cloudflare application log 例外
+- kubelet receiver、节点 metrics 和 Collector detailed internal metrics；
+- execution-control OTel exporter、Temporal OTel plugin、自研 metrics/emitter/sampler；
+- Hindsight scrape、Hindsight OTel trace 和周期 backlog 工作；
+- Axiom traces/metrics dataset 的应用消费者；
+- Ops Web service probes、Temporal task queue、Collector uptime 和 telemetry coverage；
+- app-api 与 campus-web 边缘端性能事务、staging/local 浏览器性能事务；
+- 浏览器自定义 TTFT metric、周期 dispatcher 成功日志和 credential-check 成功事件。
 
-Cloudflare Worker 使用平台支持的日志目标和 Sentry 集成。由于平台日志不经过仓库 Collector，
-生产者必须在发送前执行字段白名单和清理，不能把 Collector 规则当作保护。平台原生调用日志或
-调用链不能替代 execution-control 运行时产生的请求级调用链。精确平台开关和验证步骤由
-`worker-otel.md` 维护。
+普通进程错误与生命周期日志可以继续供 `kubectl logs` 或本地诊断使用，但它们不构成新的供应商
+事件 taxonomy。
 
-当前合同关闭 Cloudflare native invocation logs 和 native traces。Native trace 只提供边缘 handler、
-fetch、binding、colo、Worker version 以及 CPU/wall-time 等补充信号，且自动属性可能包含 URL/query、
-header、R2 key 或数据库元数据；直投 Axiom 会绕过 Collector 白名单并与现有产品 trace 重复。若未来
-需要重新启用，必须另行评审数据边界、字段白名单、目标和保留期，不能通过单独打开 Worker 开关恢复。
+### 数据最小化
 
-### 权限与生命周期
+Agent trace 只允许 user/session 关联、model/provider、Agent/tool 名称、usage、阶段结果以及
+`request_id`、`run_id`、`trace_id`、`turn_id`。prompt、模型输入输出、对话、工具原始载荷、
+memory/retrieval 正文、provider 原始响应和认证材料不得进入运行 trace。
 
-- Axiom 与 Sentry 分别只维护一枚覆盖当前可信调用面的非个人供应商 token，不按 dataset、消费者
-  或 API 操作机械拆分；
-- Axiom token 由 Terraform、Collector 与 Ops Web 共用，覆盖平台资源管理、当前 dataset 的
-  Query 与 Ingest；Sentry token 由 Terraform、release/source map 上传与 Ops Web 共用；
-- GitHub Secret、Kubernetes Secret 与进程环境变量中的不同名称只表示交付位置或消费接口，不表示
-  不同上游身份；同一供应商 token 的所有投影属于同一轮换单元；
-- 日志、调用链、指标、错误和模型观测按用途设置数据集合、访问权限与保留期；
-- 所有环境共用 Langfuse Cloud Japan 区域中的 `campus-agent` project，通过原生 `environment`、
-  独立 receiver、NetworkPolicy、来源属性和固定 tag 隔离；
-- 账号清除必须按稳定产品身份和记忆代次删除对应 Langfuse 数据，并在异步删除完成后复查；
-- credential、Cookie、JWT、数据库地址、原始用户问题、回答、检索正文、记忆正文和工具原始
-  载荷不得进入任何运行 trace；Langfuse 按 ADR-0076 只保存受控模型/用量/关联元数据。
+Langfuse dataset 是独立的显式评测生命周期，不能从生产 trace 正文自动生成。个人数据清除仍使用
+Langfuse Public API 删除 Agent/runtime trace 和历史遗留 Hindsight trace；停止新 trace ingestion
+不能删除这项隐私维护。
+
+### 凭据
+
+Axiom 保留现有两个逻辑 token 合同：
+
+- `AXIOM_TERRAFORM_TOKEN`：平台资源管理；
+- `AXIOM_RUNTIME_TOKEN`：现有运行时交付投影，供 Worker log destination 与 Ops Web logs query。
+
+不新增 `AXIOM_WORKERS_LOGS_INGEST_TOKEN`，也不按 dataset、consumer 或 API 操作继续拆分 token。
+现有 token 的宽权限不因删除信号而在本次修改中收窄。GitHub Secret、Kubernetes Secret 和进程
+环境变量中的不同名称只表示交付位置；是否映射到同一上游 identity 由环境交付维护。
+
+Sentry 同样沿用既有 provider token，不创建按 runtime 或 source-map consumer 拆分的新身份。
+Langfuse trace ingestion key 与 execution-control personal-data maintenance key 对应不同调用协议，
+但属于同一个 project 生命周期。
 
 ## 后果
 
-- Ops Web 的运行概况与请求原始记录只查询 Axiom；Axiom 故障不影响 PostgreSQL 请求摘要或
-  Ops Web readiness。
-- Cloudflare 平台集成与 Collector 各自维护适合其运行时的数据路径，不在应用中重建通用发送器；
-- Axiom 与 Sentry 各自只维护一个供应商身份，减少重复配置、轮换工作和凭据不一致导致的故障；
-- 平台故障只能降低对应观测能力，不能改变在线请求执行结果。
+- Axiom 成本只随有业务价值的 application events 增长，不再随节点数量和 scrape 周期增长；
+- Langfuse 配额停收只降低 Agent trace 可见性，不影响在线业务、readiness 或产品终态；
+- Ops Web 概览只回答产品请求状态，不把外部信号缺失推断成系统故障；
+- Source 只维护 Agent trace producer 合同和本地 Collector，环境是否启用由环境仓决定；
+- 删除最后一个消费者时，配置、schema、文档、测试、环境变量和网络权限必须一起删除。
 
 ## 未采用方案
 
-- **维护第二套通用日志与调用链存储**：重复 Axiom 的存储、查询、权限、保留与值班链路。
-- **Collector 同时向 Sentry 和 Axiom 发送全部 trace**：绕过 Sentry SDK 语义并增加重复与正文
-  扩散风险。
-- **所有信号直接从应用写供应商**：会复制认证、字段清理、采样和重试逻辑；仅保留平台原生
-  能力确实要求的例外。
-- **让 Ops Web 成为通用 Axiom 代理**：会把高权限查询能力与任意 APL 暴露给浏览器。
-- **把第二套存储作为故障回退**：会重新引入重复的运行依赖和运维链路。
-- **按消费者或 API 角色拆分 Axiom、Sentry token**：当前 CI 与服务端消费者处于同一可信运维
-  边界，拆分不会满足新的产品或安全合同，只会增加凭据数量、轮换工作和配置不一致故障面。
+- **保留无消费者 metrics/traces 以备未来使用**：持续产生供应商成本和错误告警语义。
+- **让 Ops Web 成为通用 Axiom 或 Temporal 代理**：扩大高权限查询面并复制成熟平台。
+- **要求 requestId 与 traceId 同时匹配日志**：会丢失只有 durable request key 的合法记录。
+- **为每个数据集或消费者新建 token**：没有新的信任边界，只增加交付和轮换故障面。
+- **用第二套存储作为观测故障回退**：重新引入重复数据路径和不一致状态。
 
 ## 相关文档
 
 - `../architecture/system/ops-observability.md`
 - `../architecture/system/langfuse.md`
+- `../contracts/langfuse-runtime.md`
 - `../runbooks/otel.md`
 - `../runbooks/worker-otel.md`
 - `adr-0072-self-hosted-ops-web.md`
 - `adr-0076-langfuse-trace-data.md`
-- Axiom OpenTelemetry：<https://axiom.co/docs/send-data/opentelemetry>
-- Cloudflare Workers OpenTelemetry：
-  <https://developers.cloudflare.com/workers/observability/exporting-opentelemetry-data/>
-- Sentry Cloudflare SDK：<https://docs.sentry.io/platforms/javascript/guides/cloudflare/>
-- Sentry Issues API：<https://docs.sentry.io/api/events/list-an-organizations-issues/>
-- Sentry API 权限：<https://docs.sentry.io/api/permissions/>
-- Axiom JavaScript SDK：<https://github.com/axiomhq/axiom-js>
-- Axiom Correlations：<https://axiom.co/docs/query-data/correlations>
-- Langfuse 数据删除：<https://langfuse.com/docs/data-deletion>

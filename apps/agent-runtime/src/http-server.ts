@@ -441,7 +441,6 @@ function withAgentTraceAttributes<T>(
 		{
 			asBaggage: false,
 			metadata: {
-				activity_attempt: String(parsed.activity_attempt),
 				request_id: parsed.request_id,
 				run_id: parsed.run_id,
 				trace_id: parsed.trace_id,
@@ -548,7 +547,9 @@ function requestValidationError(error: unknown) {
 		);
 	return {
 		code: contextBudgetExceeded ? "context_budget_exceeded" : "invalid_request",
-		message: error instanceof Error ? error.message : "Invalid request body.",
+		message: contextBudgetExceeded
+			? "The agent runtime context exceeded its configured budget."
+			: "The agent runtime request is invalid.",
 		retryable: false,
 	};
 }

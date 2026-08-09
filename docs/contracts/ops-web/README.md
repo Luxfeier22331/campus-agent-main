@@ -141,14 +141,10 @@ status: active
 - `NO_DATA`：读取成功但没有记录；
 - `UNAVAILABLE`：来源未配置、连接失败、超时或响应无效。
 
-`/api/ops/overview` 将请求与 Temporal、服务探针、Axiom 观测覆盖作为三个独立读取面。每个读取面
-拥有独立超时、短期缓存和旧数据回退；一个读取面失败不能把另一个读取面的最新结果标记为旧数据。
-`health` 只汇总产品与服务可用性，Axiom 观测覆盖不参与产品整体健康判断。`issues[]` 是页面唯一的
-根因摘要，`health` 和各状态表不复制同一错误说明。未配置的服务探针不返回虚构的未知服务行。
-服务探针配置为 HTTP(S) 服务根地址，由服务端固定请求 `/readyz`。HTTP 2xx 且 JSON `status` 为
-`ready` 或 `ok` 才表示
-健康；有效 JSON 的 5xx readiness 响应表示已确认不可用。网络错误、超时、4xx、重定向登录页和
-无效响应均表示当前无法读取状态，不得伪装成已确认的服务故障。
+`/api/ops/overview` 只读取请求状态、请求趋势和已配置外部入口。请求与趋势来自同一 PostgreSQL
+所有者，服务端提供 15 秒短期缓存和最多五分钟的明确旧数据回退。`health` 只汇总产品请求投影；
+`issues[]` 只描述请求数据或产品状态问题。接口不探测服务、不查询 Temporal task queue、不读取
+Axiom coverage 或 Collector uptime。
 
 请求状态为 `COMPLETED`、`FAILED`、`CANCELLED`、`RUNNING`、`PENDING` 或 `ACTION_REQUIRED`。
 `ACTION_REQUIRED` 是终态，表示需要用户补充信息或审批；不会继续自动执行或被当作活动请求轮询。
@@ -163,8 +159,10 @@ status: active
 
 `GET /readyz` 无需操作者 JWT，检查 Cloudflare Access 验证配置、合法的
 `OPS_WEB_PUBLIC_ORIGIN` 和请求状态 PostgreSQL。失败返回 `503 OPS_WEB_NOT_READY` 及不含敏感信息的
-缺失项或稳定 `reasonCode`。Temporal、Axiom、Sentry、在线模型配置、Dining
-和被观测服务故障不影响 Pod 就绪；它们在所属读取面或页面返回明确的不可用状态。
+缺失项或稳定 `reasonCode`。Axiom、Sentry、Langfuse、Temporal UI、在线模型配置和 Dining
+故障不影响 Pod 就绪；它们在所属页面返回明确的不可用状态。
+请求读取 schema 在进程开始监听前验证一次；周期 `/readyz` 只执行轻量数据库连接查询，不重复运行
+多条 schema 查询。
 
 ## 禁止行为
 

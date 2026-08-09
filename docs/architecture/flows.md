@@ -106,17 +106,17 @@ flowchart LR
 ```mermaid
 flowchart LR
   Runtime["真实产品执行与投影"]
-  Generic["通用 OTel 入口"]
-  Trusted["受信任 OTel 入口"]
-  Axiom["Axiom\n日志、调用链、指标"]
+  AppLogs["App API\n有界 application events"]
+  AgentTrace["Agent Runtime\n可选受控 trace"]
+  Axiom["Axiom\napplication logs"]
   Sentry["Sentry SDK\n错误与性能"]
   Langfuse["Langfuse\ntrace、dataset、score"]
   Adapter["eval-langfuse 适配器"]
   Ragas["Ragas 运行器"]
   Ops["Ops Web 固定查询"]
 
-  Runtime --> Generic --> Axiom
-  Runtime --> Trusted --> Langfuse
+  Runtime --> AppLogs --> Axiom
+  Runtime --> AgentTrace --> Langfuse
   Runtime --> Sentry
   Axiom --> Ops
   Sentry --> Ops

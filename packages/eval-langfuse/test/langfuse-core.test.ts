@@ -54,25 +54,17 @@ const TEST_LANGFUSE_SETTINGS = {
 	secretKey: "sk-test",
 } as const;
 
-function repoObservation(input: { id?: string; metadata?: Record<string, unknown> } = {}) {
+function agentObservation(input: { id?: string; metadata?: Record<string, unknown> } = {}) {
 	return {
-		id: input.id ?? "obs-repo-001",
+		id: input.id ?? "obs-agent-001",
+		name: "Campus primary assistant",
 		metadata: {
-			activity_attempt: 1,
-			activity_type: "agent.primary",
-			duration_ms: 12,
-			fail_close_reason: "",
-			projection_ref: "projection-001",
+			"llm.model_name": "gpt-test",
+			"openinference.span.kind": "AGENT",
 			request_id: "req-001",
 			run_id: "run-001",
-			schedule_to_start_ms: 1,
-			tool_name: "",
-			status: "completed",
-			step_id: "agent.primary",
-			step_kind: "agent",
-			task_queue: "agent",
 			trace_id: "trace-product-001",
-			workflow_id: "workflow-001",
+			turn_id: "turn-001",
 			...(input.metadata ?? {}),
 		},
 	};
@@ -99,10 +91,10 @@ function onlineTracePayload(
 			request_id: "req-001",
 			run_id: "run-001",
 			trace_id: "trace-product-001",
-			workflow_id: "workflow-001",
+			turn_id: "turn-001",
 			...overrides.metadata,
 		},
-		observations: overrides.observations ?? [repoObservation()],
+		observations: overrides.observations ?? [agentObservation()],
 	};
 }
 
@@ -710,29 +702,26 @@ describe("Ragas Langfuse official pipeline", () => {
 describe("Langfuse trace evidence", () => {
 	it("verifies sanitized runtime trace evidence", async () => {
 		const evidence = await verifyLangfuseOnlineTraceEvidence({
-			expectedRelease: "execution-control@abc123",
+			expectedRelease: "agent-runtime@abc123",
 			expectedRequestId: "req-001",
 			expectedRunId: "run-001",
 			expectedSessionId: "conversation-001",
-			expectedTags: ["surface:execution-control", "env:staging"],
+			expectedTags: ["surface:agent-runtime", "env:staging"],
 			expectedUserId: "user-001",
-			expectedWorkflowId: "workflow-001",
 			fetchImpl: traceFetch(
 				onlineTracePayload({
 					observations: [
-						repoObservation({
+						agentObservation({
 							id: "obs-001",
 							metadata: {
-								activity_type: "retrieval",
-								step_id: "grounding.prepare",
-								step_kind: "activity",
-								task_queue: "agent",
+								"llm.model_name": "gpt-test",
+								"openinference.span.kind": "LLM",
 							},
 						}),
 					],
-					release: "execution-control@abc123",
+					release: "agent-runtime@abc123",
 					sessionId: "conversation-001",
-					tags: ["surface:execution-control", "env:staging"],
+					tags: ["surface:agent-runtime", "env:staging"],
 					userId: "user-001",
 				}),
 			),
@@ -740,64 +729,40 @@ describe("Langfuse trace evidence", () => {
 			traceId: "trace-001",
 		});
 
-		expect(evidence.repo_owned_observation_count).toBe(1);
+		expect(evidence.observation_count).toBe(1);
 		expect(evidence.forbidden_check_passed).toBe(true);
 		expect((evidence.trace_identity as { request_id: string }).request_id).toBe("req-001");
+		expect((evidence.trace_identity as { turn_id: string }).turn_id).toBe("turn-001");
 	});
 
-	it("allows controlled LLM debug observations to carry raw model IO fields", async () => {
-		const evidence = await verifyLangfuseOnlineTraceEvidence({
-			expectedRelease: "release",
-			expectedRequestId: "req-001",
-			expectedRunId: "run-001",
-			expectedSessionId: "session",
-			expectedTags: [],
-			expectedUserId: "user",
-			expectedWorkflowId: "workflow-001",
-			fetchImpl: traceFetch(
-				onlineTracePayload({
-					observations: [
-						repoObservation(),
-						{
-							id: "obs-llm-debug-001",
-							metadata: {
-								provider_raw_response: { id: "resp_001" },
-								raw_answer: "debug-only answer body",
-								raw_prompt: "debug-only prompt body",
+	it("rejects raw model payload fields from every trace observation", async () => {
+		await expect(
+			verifyLangfuseOnlineTraceEvidence({
+				expectedRelease: "release",
+				expectedSessionId: "session",
+				expectedTags: [],
+				expectedUserId: "user",
+				fetchImpl: traceFetch(
+					onlineTracePayload({
+						observations: [
+							agentObservation(),
+							{
+								id: "obs-llm-debug-001",
+								metadata: {
+									provider_raw_response: { id: "resp_001" },
+									raw_answer: "debug-only answer body",
+									raw_prompt: "debug-only prompt body",
+								},
 							},
-							name: "openai.model_call",
-						},
-					],
-				}),
-			),
-			settings: TEST_LANGFUSE_SETTINGS,
-			traceId: "trace-001",
-		});
-
-		expect(evidence.repo_owned_observation_count).toBe(1);
-		expect(evidence.non_repo_observation_count).toBe(1);
-	});
-
-	it("allows model IO fields on repo-owned observations", async () => {
-		const evidence = await verifyLangfuseOnlineTraceEvidence({
-			expectedRelease: "release",
-			expectedSessionId: "session",
-			expectedTags: [],
-			expectedUserId: "user",
-			fetchImpl: traceFetch(
-				onlineTracePayload({
-					observations: [
-						repoObservation({
-							metadata: { raw_prompt: "repo projection must not carry this" },
-						}),
-					],
-				}),
-			),
-			settings: TEST_LANGFUSE_SETTINGS,
-			traceId: "trace-001",
-		});
-
-		expect(evidence.repo_owned_observation_count).toBe(1);
+						],
+					}),
+				),
+				settings: TEST_LANGFUSE_SETTINGS,
+				traceId: "trace-001",
+			}),
+		).rejects.toThrow(
+			"forbidden Langfuse payload fields: provider_raw_response, raw_answer, raw_prompt",
+		);
 	});
 
 	it("rejects secrets from all trace observations", async () => {
@@ -810,12 +775,11 @@ describe("Langfuse trace evidence", () => {
 				fetchImpl: traceFetch(
 					onlineTracePayload({
 						observations: [
-							repoObservation(),
+							agentObservation(),
 							{
 								id: "obs-llm-debug-001",
 								metadata: {
 									authorization: "Bearer secret",
-									raw_prompt: "debug prompt can exist, but auth cannot",
 								},
 							},
 						],
@@ -837,7 +801,7 @@ describe("Langfuse trace evidence", () => {
 				fetchImpl: traceFetch(
 					onlineTracePayload({
 						observations: [
-							repoObservation(),
+							agentObservation(),
 							{
 								id: "obs-llm-debug-001",
 								metadata: { clientSecret: "secret" },

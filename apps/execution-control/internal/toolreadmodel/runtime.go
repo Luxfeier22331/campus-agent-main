@@ -42,10 +42,3 @@ func (r *Runtime) CurrentKnowledgeRelease(
 	}
 	return r.knowledgeReadModelStore.CurrentRelease(ctx, documentScope)
 }
-
-func (r *Runtime) KnowledgeHealthCheck(ctx context.Context) error {
-	if r == nil || r.knowledgeReadModelStore == nil {
-		return errors.New("knowledge read model store is not configured")
-	}
-	return r.knowledgeReadModelStore.HealthCheck(ctx)
-}

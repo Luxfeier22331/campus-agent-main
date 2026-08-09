@@ -1506,8 +1506,19 @@ func (r *temporalReconciler) store() execution.RunProjectionStore {
 	return r.server.runProjectionStore
 }
 
-func (r *temporalReconciler) logWarn(message string, args ...any) {
+func (r *temporalReconciler) logWarn(_ string, args ...any) {
 	if r != nil && r.server != nil && r.server.logger != nil {
-		r.server.logger.Warn(message, args...)
+		attributes := []any{
+			"event_type", "execution_control.reconciliation_warning",
+			"status", "failed",
+			"failure_kind", "temporal_reconciliation_failed",
+			"source", "temporal_reconciler",
+		}
+		for index := 0; index+1 < len(args); index += 2 {
+			if key, ok := args[index].(string); ok && key == "run_id" {
+				attributes = append(attributes, key, args[index+1])
+			}
+		}
+		r.server.logger.Warn("execution_control.reconciliation_warning", attributes...)
 	}
 }

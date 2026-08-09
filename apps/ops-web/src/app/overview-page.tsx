@@ -24,7 +24,6 @@ import {
 	StatusBadge,
 } from "./ops-display";
 import { formatDataStateLabel } from "./ops-view-helpers";
-import { DataTable } from "./ui/data-table";
 
 const windows: Array<{ label: string; value: OpsOverviewWindow }> = [
 	{ label: "15 分钟", value: "15m" },
@@ -97,7 +96,7 @@ export function OverviewPage({ window }: { window: OpsOverviewWindow }) {
 						</Button>
 					</div>
 				}
-				description="确认产品请求、执行队列和观测链路是否正常。"
+				description="确认产品请求状态、结果和趋势是否正常。"
 				title="运行概览"
 			/>
 			{overview.isRefetchError ? (
@@ -189,136 +188,7 @@ export function OverviewPage({ window }: { window: OpsOverviewWindow }) {
 				</section>
 			</div>
 
-			<div className="mt-8 grid gap-8 2xl:grid-cols-2">
-				<section className="min-w-0">
-					<h2 className="mb-4 font-semibold text-lg">服务状态</h2>
-					{data.services.length === 0 ? (
-						<p className="text-muted-foreground text-sm">暂无服务状态。</p>
-					) : null}
-					<ServiceStatusMobileList services={data.services} />
-					<div className="hidden md:block">
-						<DataTable
-							caption="服务状态"
-							columns={[
-								{ cell: (row) => row.displayName, header: "服务", rowHeader: true },
-								{
-									cell: (row) => (
-										<div className="flex flex-wrap items-center gap-2">
-											<StatusBadge status={row.status} />
-											<AbnormalDataState state={row.dataState} />
-										</div>
-									),
-									header: "状态",
-								},
-								{ cell: (row) => formatTimestamp(row.updatedAt), header: "检查时间" },
-							]}
-							data={data.services}
-							minWidth="560px"
-							rowKey={(row) => row.name}
-						/>
-					</div>
-				</section>
-				<section className="min-w-0">
-					<h2 className="mb-4 font-semibold text-lg">Temporal 队列</h2>
-					{data.temporal.queues.length === 0 ? (
-						<p className="text-muted-foreground text-sm">没有可展示的任务队列。</p>
-					) : (
-						<>
-							<TemporalQueueMobileList queues={data.temporal.queues} />
-							<div className="hidden md:block">
-								<DataTable
-									caption="Temporal 队列状态"
-									columns={[
-										{
-											cell: (row) => <span className="break-all">{row.taskQueue}</span>,
-											header: "队列",
-											rowHeader: true,
-										},
-										{ cell: (row) => <StatusBadge status={row.status} />, header: "状态" },
-										{ cell: (row) => row.pollerCount, header: "工作进程" },
-										{ cell: (row) => row.backlogCount, header: "积压" },
-										{
-											cell: (row) =>
-												row.oldestTaskAgeMs === null
-													? "无数据"
-													: formatDuration(row.oldestTaskAgeMs),
-											header: "最久等待",
-										},
-									]}
-									data={data.temporal.queues}
-									minWidth="620px"
-									rowKey={(row) => `${row.taskQueue}:${row.name}`}
-								/>
-							</div>
-						</>
-					)}
-				</section>
-			</div>
-
-			<div className="mt-8 grid items-start gap-8 border-border border-t pt-8 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
-				<section className="min-w-0">
-					<h2 className="mb-4 font-semibold text-lg">观测数据</h2>
-					{data.telemetry.dataState === "FRESH" ? null : (
-						<p className="mb-3 font-medium text-warning text-sm">
-							数据状态：{formatDataStateLabel(data.telemetry.dataState)}
-						</p>
-					)}
-					{data.telemetry.reason ? (
-						<p className="mb-3 text-muted-foreground text-sm">{data.telemetry.reason}</p>
-					) : null}
-					{data.telemetry.signals.length === 0 ? (
-						<p className="text-muted-foreground text-sm">没有可展示的观测数据。</p>
-					) : (
-						<DataTable
-							caption="观测信号覆盖"
-							columns={[
-								{
-									cell: (row) => (
-										<div className="grid gap-0.5">
-											<span>{telemetryLabel(row.kind)}</span>
-											<span className="font-normal text-muted-foreground text-xs">
-												{row.expectation === "CONTINUOUS" ? "持续" : "活动"}
-											</span>
-										</div>
-									),
-									header: "信号",
-									rowHeader: true,
-								},
-								{
-									cell: (row) => telemetryProducerLabel(row),
-									header: "Producer",
-								},
-								{
-									cell: (row) => row.producer.instanceId ?? "—",
-									cellClassName: "font-mono text-xs",
-									header: "实例",
-								},
-								{
-									cell: (row) => row.producer.nodeName ?? "—",
-									header: "节点",
-								},
-								{
-									cell: (row) => <TelemetryCoverageValue signal={row} />,
-									header: "覆盖",
-								},
-								{
-									cell: (row) => formatTimestamp(row.updatedAt),
-									header: "最近写入",
-								},
-							]}
-							data={data.telemetry.signals}
-							minWidth="760px"
-							rowKey={(row) =>
-								[
-									row.kind,
-									row.producer.serviceName,
-									row.producer.instanceId,
-									row.producer.nodeName,
-								].join(":")
-							}
-						/>
-					)}
-				</section>
+			<div className="mt-8 border-border border-t pt-8">
 				<section className="min-w-0">
 					<h2 className="mb-4 font-semibold text-lg">相关系统</h2>
 					<div className="grid gap-2 text-sm">
@@ -346,125 +216,11 @@ export function OverviewPage({ window }: { window: OpsOverviewWindow }) {
 	);
 }
 
-function ServiceStatusMobileList({ services }: { services: OpsOverviewResponse["services"] }) {
-	return (
-		<div className="divide-y divide-border md:hidden" data-testid="service-status-mobile-list">
-			{services.map((service) => (
-				<div className="grid gap-2 py-3 first:pt-0 last:pb-0" key={service.name}>
-					<div className="flex items-start justify-between gap-3">
-						<span className="font-semibold text-foreground">{service.displayName}</span>
-						<StatusBadge status={service.status} />
-					</div>
-					<div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground text-xs">
-						<AbnormalDataState state={service.dataState} />
-						<span>{formatTimestamp(service.updatedAt)}</span>
-					</div>
-				</div>
-			))}
-		</div>
-	);
-}
-
 function OverviewMetric({ label, value }: { label: string; value: string }) {
 	return (
 		<div className="grid content-center gap-1 border-border border-b px-1 py-4 md:px-4 xl:border-b-0">
 			<dt className="font-medium text-muted-foreground text-xs">{label}</dt>
 			<dd className="font-semibold text-2xl text-foreground tabular-nums">{value}</dd>
-		</div>
-	);
-}
-
-function AbnormalDataState({ state }: { state: OpsOverviewResponse["health"]["dataState"] }) {
-	return state === "FRESH" ? null : (
-		<span className="font-medium text-warning">数据：{formatDataStateLabel(state)}</span>
-	);
-}
-
-function TelemetryCoverageValue({
-	signal,
-}: {
-	signal: OpsOverviewResponse["telemetry"]["signals"][number];
-}) {
-	const coverageLabel =
-		signal.dataState === "UNAVAILABLE"
-			? "查询不可用"
-			: signal.dataState === "STALE"
-				? "旧数据"
-				: signal.expectation === "ACTIVITY" && signal.dataState === "NO_DATA"
-					? "当前无活动"
-					: signal.status === "HEALTHY"
-						? "有覆盖"
-						: "缺少持续数据";
-	return (
-		<div className="grid gap-1">
-			<span className="font-semibold tabular-nums">
-				{signal.recordCount === null
-					? "无数据"
-					: `${signal.recordCount.toLocaleString("en-US")} 条`}
-			</span>
-			<span
-				className={
-					signal.status === "HEALTHY" ? "text-muted-foreground text-xs" : "text-warning text-xs"
-				}
-			>
-				{coverageLabel}
-			</span>
-		</div>
-	);
-}
-
-function telemetryProducerLabel(signal: OpsOverviewResponse["telemetry"]["signals"][number]) {
-	if (signal.producer.serviceName) {
-		return signal.producer.serviceName;
-	}
-	if (signal.dataState === "UNAVAILABLE") {
-		return "未读取";
-	}
-	if (signal.dataState === "NO_DATA") {
-		return "当前窗口无活动";
-	}
-	return "未标注服务";
-}
-
-function TemporalQueueMobileList({
-	queues,
-}: {
-	queues: OpsOverviewResponse["temporal"]["queues"];
-}) {
-	return (
-		<div className="divide-y divide-border md:hidden" data-testid="temporal-queue-mobile-list">
-			{queues.map((queue) => (
-				<div
-					className="grid gap-3 py-3 first:pt-0 last:pb-0"
-					key={`${queue.taskQueue}:${queue.name}`}
-				>
-					<div className="flex min-w-0 items-start justify-between gap-3">
-						<span className="min-w-0 break-all font-semibold text-foreground text-sm">
-							{queue.taskQueue}
-						</span>
-						<StatusBadge status={queue.status} />
-					</div>
-					<div className="grid grid-cols-3 gap-2 text-xs">
-						<QueueMetric label="工作进程" value={queue.pollerCount} />
-						<QueueMetric label="积压" value={queue.backlogCount} />
-						<QueueMetric
-							label="最久等待"
-							value={
-								queue.oldestTaskAgeMs === null ? "无数据" : formatDuration(queue.oldestTaskAgeMs)
-							}
-						/>
-					</div>
-				</div>
-			))}
-		</div>
-	);
-}
-
-function QueueMetric({ label, value }: { label: string; value: number | string }) {
-	return (
-		<div className="grid gap-1 rounded-md bg-secondary p-2">
-			<span className="text-muted-foreground">{label}</span>
-			<span className="font-semibold text-foreground tabular-nums">{value}</span>
 		</div>
 	);
 }
@@ -674,8 +430,4 @@ function TrendValue({ label, value }: { label: string; value: number | string })
 function formatChartTime(value: string) {
 	const formatted = formatTimestamp(value);
 	return formatted === value ? value : formatted.slice(11, 16);
-}
-
-function telemetryLabel(kind: "LOGS" | "METRICS" | "TRACES") {
-	return { LOGS: "日志", METRICS: "指标", TRACES: "调用链" }[kind];
 }

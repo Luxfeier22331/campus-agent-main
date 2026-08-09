@@ -94,22 +94,16 @@ jobs:
         run: uv sync --only-dev --no-install-workspace
 
       - name: Run repository checks
-        run: pnpm ci:repo
-
-      - name: Check CI and release orchestration
-        if: >-
-          contains(fromJSON(steps.plan.outputs.light_surfaces), 'release') &&
-          steps.plan.outputs.has_toolchain != 'true'
-        run: pnpm ci:release
+        run: pnpm check
 
       - name: Check executable contracts
         if: contains(fromJSON(steps.plan.outputs.light_surfaces), 'contracts')
-        run: pnpm ci:contracts
+        run: pnpm --dir packages/contracts check
 
       - name: Lint GitHub Actions
         if: contains(fromJSON(steps.plan.outputs.light_surfaces), 'config')
         shell: nix develop .#ci-light --command bash -e {0}
-        run: pnpm ci:config
+        run: actionlint && zizmor --min-severity=medium .github
 
       - name: Lint Python
         if: contains(fromJSON(steps.plan.outputs.light_surfaces), 'python')
