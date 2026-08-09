@@ -17,6 +17,7 @@ if (typeof CSS !== "undefined" && typeof CSS.supports !== "function") {
 const app = createOpsApp({
 	admission: createAllowAllOpsAdmission(),
 	env: {
+		OPS_WEB_AUTOMATION_ORIGIN: "https://ops-api.example.test",
 		OPS_WEB_CAMPUS_WEB_URL: "https://campus.example.test",
 		OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test",
 	},
@@ -28,6 +29,13 @@ const app = createOpsApp({
 	},
 	sentry: {
 		queryRequestIssues: vi.fn().mockResolvedValue(opsSentryIssuesFixture),
+	},
+	internalPortalAutomationTokenService: {
+		authenticate: vi.fn().mockResolvedValue(null),
+		create: vi.fn(),
+		list: vi.fn().mockResolvedValue([]),
+		reveal: vi.fn(),
+		revoke: vi.fn(),
 	},
 	staticRoot: "test/fixtures/static",
 	store: createFixtureOpsStatusStore(),

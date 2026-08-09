@@ -15,6 +15,13 @@
 			"when": 1785617354523,
 			"tag": "0001_dizzy_gateway",
 			"breakpoints": true
+		},
+		{
+			"idx": 2,
+			"version": "7",
+			"when": 1785998493292,
+			"tag": "0002_faithful_puff_adder",
+			"breakpoints": true
 		}
 	]
 }

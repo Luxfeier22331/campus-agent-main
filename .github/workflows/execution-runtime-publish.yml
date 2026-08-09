@@ -533,6 +533,11 @@ jobs:
             rendered="${RUNNER_TEMP}/promotion-kustomize"
             mkdir -p "$rendered"
             gitops/scripts/validate-kubernetes.sh "$scope" "$rendered"
+            if jq -e '.kustomizeRoots | index("clusters/staging/overlays/ops-web") != null' "$scope" >/dev/null; then
+              pnpm --dir gitops exec tsx tools/gitops.ts \
+                validate-ops-web-promotion \
+                --directory "$rendered"
+            fi
           fi
 
       - name: Detect GitOps changes

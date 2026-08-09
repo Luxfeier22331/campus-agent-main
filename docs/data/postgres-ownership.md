@@ -39,7 +39,7 @@ Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，�
 | `runtime.agent_*` | execution-control | execution-control |
 | `execution_config.*` | execution-control 配置管理 | execution-control |
 | `dining.*` | Ops Web | Ops Web、App API 公开读取 |
-| `internal_portal.credentials` | Ops Web | Ops Web |
+| `internal_portal.credentials`、`internal_portal.automation_tokens` | Ops Web | Ops Web |
 
 ingestion registry 和来源事实由采集数据所有者维护，不并入产品 schema。各表字段、状态和保留
 规则由所属数据文档或 schema 唯一维护。
@@ -99,8 +99,9 @@ migration 记录。
 - App API 读取 Dining 当前发布地图、菜单和公开评价；可创建或删除学生自己的评价并创建举报，
   但不能读取地图草稿和评价修改历史，也不能修改地图或菜单；
 - Ops Web 使用同一 `ops_web` 角色维护 Dining 地图、菜单、评价、举报和评价修改历史；
-- Ops Web 使用同一角色读写 `internal_portal.credentials`；App API 和其他运行角色没有该 schema
-  权限；
+- Ops Web 使用同一角色读写 `internal_portal.credentials` 和
+  `internal_portal.automation_tokens`；App API 和其他运行角色没有该 schema 权限。token 明文保留是
+  为满足 Ops Web 的重复 reveal 合同，不作为通用 Secret 管理能力；
 - 不同所有者不共享 migration journal，也不通过双写复制同一事实；
 - 对象 bytes、原始来源、工作流历史和供应商 trace 不进入这些 schema。
 

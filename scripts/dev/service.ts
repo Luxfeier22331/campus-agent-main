@@ -8,7 +8,7 @@ import { parseEnv } from "node:util";
 import { omitObjectStoreEnvironment } from "../../apps/campus-web/scripts/build-process-env.ts";
 import { loadLocalDevProfile } from "./profile";
 
-type ServiceName = "app-api" | "campus-web" | "ops-web";
+type ServiceName = "app-api" | "campus-web" | "ops-web" | "ops-web-api" | "ops-web-api-fixture";
 
 const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const profile = loadLocalDevProfile(repoRoot);
@@ -84,14 +84,21 @@ async function main(): Promise<void> {
 			},
 		);
 		forwardLifecycle([child]);
-	} else if (service === "ops-web") {
+	} else if (service === "ops-web" || service === "ops-web-api") {
 		const appDir = resolve(repoRoot, "apps/ops-web");
+		if (serviceArgs.length > 0) {
+			throw new Error(`${service} development does not accept arguments.`);
+		}
 		const env = loadAppEnvironment(resolve(appDir, ".env.local"));
 		const api = spawn(pnpm, ["exec", "tsx", "src/server/node.ts"], {
 			cwd: appDir,
 			env,
 			stdio: "inherit",
 		});
+		if (service === "ops-web-api") {
+			forwardLifecycle([api]);
+			return;
+		}
 		const web = spawn(
 			pnpm,
 			[
@@ -113,8 +120,32 @@ async function main(): Promise<void> {
 			},
 		);
 		forwardLifecycle([api, web]);
+	} else if (service === "ops-web-api-fixture") {
+		if (serviceArgs.length > 0) {
+			throw new Error("ops-web-api-fixture development does not accept arguments.");
+		}
+		const child = spawn(
+			pnpm,
+			[
+				"--dir",
+				"apps/ops-web",
+				"exec",
+				"tsx",
+				"test/fixtures/internal-portal-automation-server.ts",
+				"--port",
+				String(profile.ports.opsWebApi),
+			],
+			{
+				cwd: repoRoot,
+				env: process.env,
+				stdio: "inherit",
+			},
+		);
+		forwardLifecycle([child]);
 	} else {
-		console.error("Usage: service.ts <app-api|campus-web|ops-web>.");
+		console.error(
+			"Usage: service.ts <app-api|campus-web|ops-web|ops-web-api|ops-web-api-fixture>.",
+		);
 		process.exitCode = 1;
 	}
 }

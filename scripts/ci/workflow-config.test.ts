@@ -350,6 +350,8 @@ test("candidate publishing uses the transitional release runner before final sta
 	);
 	assert(source.includes(`--trivy-cache "\${RUNNER_TOOL_CACHE}/trivy"`));
 	assert(!source.includes(`--trivy-cache "\${RUNNER_TEMP}/trivy"`));
+	assert(source.includes("validate-ops-web-promotion"));
+	assert(source.includes('index("clusters/staging/overlays/ops-web")'));
 
 	const appApi = workflow.jobs["publish-app-api"];
 	assert(isObject(appApi));

@@ -33,8 +33,7 @@ export function createCloudflareAccessOpsAdmission(
 }
 
 export function createOpsAdmissionFromEnv(env: OpsAdmissionEnv = process.env): OpsAdmission {
-	const deploymentEnvironment = env.DEPLOYMENT_ENVIRONMENT?.trim().toLowerCase();
-	if (deploymentEnvironment === "local" || deploymentEnvironment === "development") {
+	if (isLocalOpsEnvironment(env)) {
 		return createAllowAllOpsAdmission({
 			displayName: "Local Operator",
 			email: "local@localhost",
@@ -43,6 +42,11 @@ export function createOpsAdmissionFromEnv(env: OpsAdmissionEnv = process.env): O
 		});
 	}
 	return createCloudflareAccessOpsAdmission(env);
+}
+
+export function isLocalOpsEnvironment(env: OpsAdmissionEnv): boolean {
+	const deploymentEnvironment = env.DEPLOYMENT_ENVIRONMENT?.trim().toLowerCase();
+	return deploymentEnvironment === "local" || deploymentEnvironment === "development";
 }
 
 export function createAllowAllOpsAdmission(operator?: Partial<OpsOperatorContext>): OpsAdmission {

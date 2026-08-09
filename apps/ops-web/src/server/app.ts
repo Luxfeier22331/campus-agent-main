@@ -1,3 +1,4 @@
+import { MIMEType } from "node:util";
 import {
 	DiningMenuItemCreateSchema,
 	DiningMenuItemMoveSchema,
@@ -27,8 +28,15 @@ import { secureHeaders } from "hono/secure-headers";
 import { z } from "zod";
 import { DiningDraftUpdateSchema, DiningRevisionSchema } from "../shared/dining-contract.ts";
 import {
+	InternalPortalAutomationCredentialUpdateSchema,
+	InternalPortalAutomationTokenCreateSchema,
+	InternalPortalAutomationTokenListSchema,
+	type InternalPortalAutomationTokenMetadata,
+	InternalPortalAutomationTokenMetadataResponseSchema,
+	InternalPortalAutomationTokenResponseSchema,
 	InternalPortalCredentialCreateSchema,
 	InternalPortalCredentialListSchema,
+	InternalPortalCredentialResponseSchema,
 	InternalPortalCredentialRevealSchema,
 	InternalPortalCredentialSchema,
 	InternalPortalCredentialUpdateSchema,
@@ -83,6 +91,16 @@ import {
 	EmailAccessAdminResponseError,
 	EmailAccessAdminUnavailableError,
 } from "./email-access-client.ts";
+import {
+	createInternalPortalAutomationTokenService,
+	type InternalPortalAutomationTokenService,
+} from "./internal-portal-automation-token-service.ts";
+import {
+	createInternalPortalAutomationTokenStoreFromEnv,
+	createUnavailableInternalPortalAutomationTokenStore,
+	InternalPortalAutomationTokenNotFoundError,
+	InternalPortalAutomationTokenStoreUnavailableError,
+} from "./internal-portal-automation-token-store.ts";
 import { InternalPortalCandidateInputError } from "./internal-portal-candidate-input.ts";
 import {
 	createInternalPortalCredentialService,
@@ -100,6 +118,7 @@ import {
 import {
 	createOpsAdmissionFromEnv,
 	getMissingAccessConfig,
+	isLocalOpsEnvironment,
 	type OpsAdmission,
 	type OpsAdmissionEnv,
 	type OpsOperatorContext,
@@ -129,6 +148,7 @@ import {
 } from "./sentry-client.ts";
 
 interface OpsHealthEnv {
+	OPS_WEB_AUTOMATION_ORIGIN?: string;
 	OPS_WEB_PUBLIC_ORIGIN?: string;
 }
 
@@ -152,6 +172,7 @@ interface OpsAppOptions {
 	diningContentStore?: DiningContentStore;
 	emailAccessClient?: ReturnType<typeof createEmailAccessAdminClient>;
 	internalPortalCredentialService?: InternalPortalCredentialService;
+	internalPortalAutomationTokenService?: InternalPortalAutomationTokenService;
 	overviewService?: OpsOverviewService;
 	sentry?: SentryClient;
 	staticRoot?: string;
@@ -216,6 +237,8 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	const app = new Hono();
 	const env = options.env ?? process.env;
 	const publicOrigin = resolveOpsPublicOrigin(env);
+	const automationOrigin = resolveOpsAutomationOrigin(env);
+	const automationHost = resolveOriginHost(automationOrigin);
 	const diningStore = options.diningStore ?? createDefaultDiningStore(env);
 	const diningContentStore = options.diningContentStore ?? createDefaultDiningContentStore(env);
 	const admission = options.admission ?? createOpsAdmissionFromEnv(env);
@@ -239,6 +262,9 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	const emailAccessClient = options.emailAccessClient ?? createEmailAccessAdminClient(env);
 	const internalPortalCredentialService =
 		options.internalPortalCredentialService ?? createDefaultInternalPortalCredentialService(env);
+	const internalPortalAutomationTokenService =
+		options.internalPortalAutomationTokenService ??
+		createDefaultInternalPortalAutomationTokenService(env);
 
 	app.use(
 		"*",
@@ -266,6 +292,15 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 			xFrameOptions: "DENY",
 		}),
 	);
+	app.use("*", async (context, next) => {
+		if (
+			isAutomationHostRequest(context.req.raw, automationHost) &&
+			!isAutomationHostPath(context.req.path)
+		) {
+			return jsonError("OPS_API_ROUTE_NOT_FOUND", "未找到该运维接口。", 404);
+		}
+		await next();
+	});
 
 	app.onError((error) => {
 		logOpsError("ops_web.api_request", error, { source: "http" });
@@ -309,6 +344,16 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 				503,
 			);
 		}
+		if (error instanceof InternalPortalAutomationTokenStoreUnavailableError) {
+			return jsonError(
+				"OPS_AUTOMATION_TOKEN_STORE_UNAVAILABLE",
+				"自动化访问 token 数据库暂不可用。",
+				503,
+			);
+		}
+		if (error instanceof InternalPortalAutomationTokenNotFoundError) {
+			return jsonError("OPS_AUTOMATION_TOKEN_NOT_FOUND", error.message, 404);
+		}
 		if (error instanceof InternalPortalCredentialNotFoundError) {
 			return jsonError("OPS_INTERNAL_PORTAL_NOT_FOUND", error.message, 404);
 		}
@@ -349,7 +394,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 
 	app.get("/readyz", async (context) => {
 		try {
-			const missingAccessConfig = getMissingAccessConfig(env);
+			const missingAccessConfig = isLocalOpsEnvironment(env) ? [] : getMissingAccessConfig(env);
 			if (!publicOrigin) {
 				missingAccessConfig.push("OPS_WEB_PUBLIC_ORIGIN");
 			}
@@ -358,7 +403,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 					{
 						error: {
 							code: "OPS_WEB_NOT_READY",
-							message: "访问控制未配置。",
+							message: "Ops Web 核心配置未完成。",
 							missing: missingAccessConfig,
 						},
 						ok: false,
@@ -391,6 +436,10 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	});
 
 	app.use("/api/ops/*", async (context, next) => {
+		context.header("cache-control", "no-store");
+		await next();
+	});
+	app.use("/api/automation/*", async (context, next) => {
 		context.header("cache-control", "no-store");
 		await next();
 	});
@@ -431,7 +480,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 				403,
 			);
 		}
-		if (!context.req.header("content-type")?.toLowerCase().startsWith("application/json")) {
+		if (!isJsonContentType(context.req.header("content-type"))) {
 			return jsonError(
 				"OPS_PROVIDER_CONFIG_CONTENT_TYPE_REQUIRED",
 				"Content-Type 必须是 application/json。",
@@ -459,7 +508,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 				403,
 			);
 		}
-		if (!context.req.header("content-type")?.toLowerCase().startsWith("application/json")) {
+		if (!isJsonContentType(context.req.header("content-type"))) {
 			return jsonError(
 				"OPS_PROVIDER_CONFIG_CONTENT_TYPE_REQUIRED",
 				"Content-Type 必须是 application/json。",
@@ -637,6 +686,95 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		);
 		context.header("etag", formatCredentialEtag(revealed.version));
 		return context.json(revealed);
+	});
+
+	app.get("/api/ops/internal-portal/automation-tokens", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const configurationError = getAutomationConfigurationError(automationOrigin);
+		if (configurationError) {
+			return configurationError;
+		}
+		return context.json(
+			InternalPortalAutomationTokenListSchema.parse({
+				endpoint: automationOrigin,
+				tokens: await internalPortalAutomationTokenService.list(),
+			}),
+		);
+	});
+
+	app.post("/api/ops/internal-portal/automation-tokens", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const configurationError = getAutomationConfigurationError(automationOrigin);
+		if (configurationError) {
+			return configurationError;
+		}
+		const writeError = validateInternalPortalWriteRequest(context.req.raw, publicOrigin, true);
+		if (writeError) {
+			return writeError;
+		}
+		const body = InternalPortalAutomationTokenCreateSchema.safeParse(
+			await readBoundedJson(context.req.raw, 8 * 1024),
+		);
+		if (!body.success) {
+			return jsonError("OPS_AUTOMATION_TOKEN_INPUT_INVALID", "自动化访问 token 名称无效。", 400);
+		}
+		const token = await internalPortalAutomationTokenService.create(body.data.name);
+		return context.json(InternalPortalAutomationTokenResponseSchema.parse({ token }), 201);
+	});
+
+	app.post("/api/ops/internal-portal/automation-tokens/:tokenId/reveal", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const configurationError = getAutomationConfigurationError(automationOrigin);
+		if (configurationError) {
+			return configurationError;
+		}
+		const writeError = validateInternalPortalWriteRequest(context.req.raw, publicOrigin, false);
+		if (writeError) {
+			return writeError;
+		}
+		const tokenId = z.string().uuid().safeParse(context.req.param("tokenId"));
+		if (!tokenId.success) {
+			return jsonError("OPS_AUTOMATION_TOKEN_INPUT_INVALID", "自动化访问 token 标识无效。", 400);
+		}
+		const token = await internalPortalAutomationTokenService.reveal(tokenId.data);
+		return context.json(InternalPortalAutomationTokenResponseSchema.parse({ token }));
+	});
+
+	app.post("/api/ops/internal-portal/automation-tokens/:tokenId/revoke", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const configurationError = getAutomationConfigurationError(automationOrigin);
+		if (configurationError) {
+			return configurationError;
+		}
+		const writeError = validateInternalPortalWriteRequest(context.req.raw, publicOrigin, false);
+		if (writeError) {
+			return writeError;
+		}
+		const tokenId = z.string().uuid().safeParse(context.req.param("tokenId"));
+		if (!tokenId.success) {
+			return jsonError("OPS_AUTOMATION_TOKEN_INPUT_INVALID", "自动化访问 token 标识无效。", 400);
+		}
+		const token = await internalPortalAutomationTokenService.revoke(tokenId.data);
+		return context.json(InternalPortalAutomationTokenMetadataResponseSchema.parse({ token }));
+	});
+
+	registerAutomationCredentialRoutes({
+		automationHost,
+		credentialService: internalPortalCredentialService,
+		app,
+		tokenService: internalPortalAutomationTokenService,
 	});
 
 	app.get("/api/ops/users", async (context) => {
@@ -918,6 +1056,163 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	});
 	app.get("*", serveStatic({ path: "index.html", root: staticRoot }));
 	return app;
+}
+
+function registerAutomationCredentialRoutes(input: {
+	app: Hono;
+	automationHost: string | null;
+	credentialService: InternalPortalCredentialService;
+	tokenService: InternalPortalAutomationTokenService;
+}): void {
+	input.app.get("/api/automation/internal-portal/credentials", async (context) => {
+		const token = await admitAutomationRequest(
+			context.req.raw,
+			input.automationHost,
+			input.tokenService,
+		);
+		if (token instanceof Response) {
+			return token;
+		}
+		if (Object.keys(context.req.query()).length > 0) {
+			return jsonError("OPS_AUTOMATION_QUERY_INVALID", "自动化凭据查询不接受参数。", 400);
+		}
+		return context.json(
+			InternalPortalCredentialListSchema.parse({
+				credentials: await input.credentialService.list(),
+			}),
+		);
+	});
+
+	input.app.get("/api/automation/internal-portal/credentials/:credentialId", async (context) => {
+		const token = await admitAutomationRequest(
+			context.req.raw,
+			input.automationHost,
+			input.tokenService,
+		);
+		if (token instanceof Response) {
+			return token;
+		}
+		const credentialId = z.string().uuid().safeParse(context.req.param("credentialId"));
+		if (!credentialId.success || Object.keys(context.req.query()).length > 0) {
+			return jsonError("OPS_INTERNAL_PORTAL_INPUT_INVALID", "内部门户凭据标识无效。", 400);
+		}
+		const credential = (await input.credentialService.list()).find(
+			(entry) => entry.credentialId === credentialId.data,
+		);
+		if (!credential) {
+			throw new InternalPortalCredentialNotFoundError();
+		}
+		context.header("etag", formatCredentialEtag(credential.version));
+		return context.json(InternalPortalCredentialResponseSchema.parse({ credential }));
+	});
+
+	input.app.put("/api/automation/internal-portal/credentials/:credentialId", async (context) => {
+		const token = await admitAutomationRequest(
+			context.req.raw,
+			input.automationHost,
+			input.tokenService,
+		);
+		if (token instanceof Response) {
+			return token;
+		}
+		if (Object.keys(context.req.query()).length > 0) {
+			return jsonError("OPS_AUTOMATION_QUERY_INVALID", "自动化凭据修改不接受参数。", 400);
+		}
+		const credentialId = z.string().uuid().safeParse(context.req.param("credentialId"));
+		const expectedVersion = parseCredentialEtag(context.req.header("if-match"));
+		if (!credentialId.success) {
+			return jsonError("OPS_INTERNAL_PORTAL_INPUT_INVALID", "内部门户凭据标识无效。", 400);
+		}
+		if (!expectedVersion) {
+			return jsonError(
+				"OPS_INTERNAL_PORTAL_PRECONDITION_REQUIRED",
+				"请刷新内部门户凭据后再修改。",
+				428,
+			);
+		}
+		if (!isJsonContentType(context.req.header("content-type"))) {
+			return jsonError(
+				"OPS_INTERNAL_PORTAL_CONTENT_TYPE_REQUIRED",
+				"Content-Type 必须是 application/json。",
+				400,
+			);
+		}
+		const body = InternalPortalAutomationCredentialUpdateSchema.safeParse(
+			await readBoundedJson(context.req.raw, 20 * 1024),
+		);
+		if (!body.success) {
+			return jsonError("OPS_INTERNAL_PORTAL_INPUT_INVALID", "内部门户凭据修改内容无效。", 400);
+		}
+		const credential = await input.credentialService.rotate(
+			credentialId.data,
+			body.data.ssoTgc,
+			expectedVersion,
+			context.req.raw.signal,
+		);
+		context.header("etag", formatCredentialEtag(credential.version));
+		return context.json({ credential: InternalPortalCredentialSchema.parse(credential) });
+	});
+
+	input.app.delete("/api/automation/internal-portal/credentials/:credentialId", async (context) => {
+		const token = await admitAutomationRequest(
+			context.req.raw,
+			input.automationHost,
+			input.tokenService,
+		);
+		if (token instanceof Response) {
+			return token;
+		}
+		if (Object.keys(context.req.query()).length > 0) {
+			return jsonError("OPS_AUTOMATION_QUERY_INVALID", "自动化凭据删除不接受参数。", 400);
+		}
+		const credentialId = z.string().uuid().safeParse(context.req.param("credentialId"));
+		const expectedVersion = parseCredentialEtag(context.req.header("if-match"));
+		if (!credentialId.success) {
+			return jsonError("OPS_INTERNAL_PORTAL_INPUT_INVALID", "内部门户凭据标识无效。", 400);
+		}
+		if (!expectedVersion) {
+			return jsonError(
+				"OPS_INTERNAL_PORTAL_PRECONDITION_REQUIRED",
+				"请刷新内部门户凭据后再删除。",
+				428,
+			);
+		}
+		if (await requestHasNonEmptyBody(context.req.raw)) {
+			return jsonError("OPS_INTERNAL_PORTAL_INPUT_INVALID", "内部门户凭据删除不接受正文。", 400);
+		}
+		await input.credentialService.delete(credentialId.data, expectedVersion);
+		return new Response(null, {
+			headers: { "cache-control": "no-store" },
+			status: 204,
+		});
+	});
+}
+
+async function admitAutomationRequest(
+	request: Request,
+	automationHost: string | null,
+	tokenService: InternalPortalAutomationTokenService,
+): Promise<InternalPortalAutomationTokenMetadata | Response> {
+	const configurationError = getAutomationConfigurationError(automationHost);
+	if (configurationError) {
+		return configurationError;
+	}
+	if (!isAutomationHostRequest(request, automationHost)) {
+		return jsonError("OPS_API_ROUTE_NOT_FOUND", "未找到该运维接口。", 404);
+	}
+	const authorization = request.headers.get("authorization")?.trim() ?? "";
+	const match = /^Bearer[ \t]+([^\s]+)$/iu.exec(authorization);
+	if (!match?.[1] || match[1].length > 512) {
+		return jsonError("OPS_AUTOMATION_TOKEN_INVALID", "自动化访问 token 无效。", 401);
+	}
+	const token = await tokenService.authenticate(match[1]);
+	return token ? token : jsonError("OPS_AUTOMATION_TOKEN_INVALID", "自动化访问 token 无效。", 401);
+}
+
+function getAutomationConfigurationError(configuredValue: string | null): Response | null {
+	return configuredValue
+		? null
+		: jsonError("OPS_AUTOMATION_NOT_CONFIGURED", "自动化访问端点尚未配置。", 503);
 }
 
 function registerDiningRoutes(input: {
@@ -1285,6 +1580,20 @@ function createDefaultInternalPortalCredentialService(
 	}
 }
 
+function createDefaultInternalPortalAutomationTokenService(
+	env: OpsAppEnv,
+): InternalPortalAutomationTokenService {
+	try {
+		return createInternalPortalAutomationTokenService({
+			store: createInternalPortalAutomationTokenStoreFromEnv(env),
+		});
+	} catch (error) {
+		return createInternalPortalAutomationTokenService({
+			store: createUnavailableInternalPortalAutomationTokenStore(error),
+		});
+	}
+}
+
 function createDefaultOpsStatusStore(env: OpsStatusEnv): OpsStatusStore {
 	try {
 		return createOpsStatusStoreFromEnv(env);
@@ -1382,6 +1691,17 @@ function toSearchParams(values: Record<string, unknown>): URLSearchParams {
 	return search;
 }
 
+function isJsonContentType(value: string | null | undefined): boolean {
+	if (!value) {
+		return false;
+	}
+	try {
+		return new MIMEType(value).essence === "application/json";
+	} catch {
+		return false;
+	}
+}
+
 function validateAccountAdminWriteRequest(
 	request: Request,
 	publicOrigin: string | null,
@@ -1389,7 +1709,7 @@ function validateAccountAdminWriteRequest(
 	if (!requestHasConfiguredOrigin(request, publicOrigin)) {
 		return jsonError("OPS_ACCOUNT_ADMIN_CSRF_REJECTED", "用户管理写请求未通过同源校验。", 403);
 	}
-	if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) {
+	if (!isJsonContentType(request.headers.get("content-type"))) {
 		return jsonError(
 			"OPS_ACCOUNT_ADMIN_CONTENT_TYPE_REQUIRED",
 			"Content-Type 必须是 application/json。",
@@ -1414,7 +1734,7 @@ function validateEmailAccessWriteRequest(
 	if (!requestHasConfiguredOrigin(request, publicOrigin)) {
 		return jsonError("OPS_EMAIL_ACCESS_CSRF_REJECTED", "账号准入写请求未通过同源校验。", 403);
 	}
-	if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) {
+	if (!isJsonContentType(request.headers.get("content-type"))) {
 		return jsonError(
 			"OPS_EMAIL_ACCESS_CONTENT_TYPE_REQUIRED",
 			"Content-Type 必须是 application/json。",
@@ -1440,10 +1760,7 @@ function validateInternalPortalWriteRequest(
 	if (!requestHasConfiguredOrigin(request, publicOrigin)) {
 		return jsonError("OPS_INTERNAL_PORTAL_CSRF_REJECTED", "内部门户凭据操作未通过同源校验。", 403);
 	}
-	if (
-		requireJson &&
-		!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")
-	) {
+	if (requireJson && !isJsonContentType(request.headers.get("content-type"))) {
 		return jsonError(
 			"OPS_INTERNAL_PORTAL_CONTENT_TYPE_REQUIRED",
 			"Content-Type 必须是 application/json。",
@@ -1477,7 +1794,7 @@ function parseCampusGroupsCatalog(value: unknown): CampusGroupsCatalog {
 function jsonError(
 	code: string,
 	message: string,
-	status: 400 | 403 | 404 | 409 | 422 | 428 | 500 | 503 = 404,
+	status: 400 | 401 | 403 | 404 | 409 | 422 | 428 | 500 | 503 = 404,
 	details?: Record<string, unknown>,
 ) {
 	return new Response(JSON.stringify({ error: { code, message, ...details } }), {
@@ -1530,18 +1847,76 @@ function providerConfigValidationMessage(upstreamCode: string) {
 }
 
 async function readBoundedJson(request: Request, maxBytes: number): Promise<unknown> {
-	const contentLength = Number(request.headers.get("content-length") ?? "0");
-	if (Number.isFinite(contentLength) && contentLength > maxBytes) {
-		return null;
-	}
-	try {
-		const body = await request.text();
-		if (new TextEncoder().encode(body).byteLength > maxBytes) {
+	const contentLengthHeader = request.headers.get("content-length");
+	if (contentLengthHeader !== null) {
+		const contentLength = Number(contentLengthHeader);
+		if (!Number.isSafeInteger(contentLength) || contentLength < 0 || contentLength > maxBytes) {
 			return null;
 		}
-		return JSON.parse(body) as unknown;
+	}
+	if (!request.body) {
+		return null;
+	}
+
+	try {
+		const reader = request.body.getReader();
+		try {
+			const chunks: Uint8Array[] = [];
+			let totalBytes = 0;
+			while (true) {
+				const chunk = await reader.read();
+				if (chunk.done) {
+					break;
+				}
+				totalBytes += chunk.value.byteLength;
+				if (totalBytes > maxBytes) {
+					await reader.cancel("request body exceeds limit");
+					return null;
+				}
+				chunks.push(chunk.value);
+			}
+
+			const body = new Uint8Array(totalBytes);
+			let offset = 0;
+			for (const chunk of chunks) {
+				body.set(chunk, offset);
+				offset += chunk.byteLength;
+			}
+			return JSON.parse(new TextDecoder().decode(body)) as unknown;
+		} finally {
+			reader.releaseLock();
+		}
 	} catch {
 		return null;
+	}
+}
+
+async function requestHasNonEmptyBody(request: Request): Promise<boolean> {
+	const contentLengthHeader = request.headers.get("content-length");
+	if (contentLengthHeader !== null) {
+		const contentLength = Number(contentLengthHeader);
+		if (!Number.isSafeInteger(contentLength) || contentLength < 0 || contentLength > 0) {
+			return true;
+		}
+	}
+	if (!request.body) {
+		return false;
+	}
+
+	try {
+		const reader = request.body.getReader();
+		try {
+			const chunk = await reader.read();
+			if (chunk.done) {
+				return false;
+			}
+			await reader.cancel("request body is not allowed");
+			return true;
+		} finally {
+			reader.releaseLock();
+		}
+	} catch {
+		return true;
 	}
 }
 
@@ -1572,6 +1947,14 @@ function resolveOpsPublicOrigin(env: OpsHealthEnv): string | null {
 	return resolveHttpOrigin(env.OPS_WEB_PUBLIC_ORIGIN);
 }
 
+function resolveOpsAutomationOrigin(env: OpsHealthEnv): string | null {
+	return resolveHttpOrigin(env.OPS_WEB_AUTOMATION_ORIGIN);
+}
+
+function resolveOriginHost(origin: string | null): string | null {
+	return origin ? new URL(origin).host : null;
+}
+
 function resolveHttpOrigin(value: string | undefined): string | null {
 	const configured = value?.trim();
 	if (!configured) {
@@ -1590,4 +1973,19 @@ function resolveHttpOrigin(value: string | undefined): string | null {
 	} catch {
 		return null;
 	}
+}
+
+function isAutomationHostRequest(request: Request, automationHost: string | null): boolean {
+	if (!automationHost) {
+		return false;
+	}
+	try {
+		return new URL(request.url).host === automationHost;
+	} catch {
+		return false;
+	}
+}
+
+function isAutomationHostPath(path: string): boolean {
+	return path === "/healthz" || path === "/readyz" || path.startsWith("/api/automation/");
 }

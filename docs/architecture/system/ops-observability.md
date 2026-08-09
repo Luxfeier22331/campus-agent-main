@@ -20,6 +20,8 @@ Ops Web 是独立的运维和内容运营应用，由浏览器页面和同源服
 - 服务端读取 PostgreSQL 产品与执行投影，按需查询 Axiom application logs 和 Sentry Issues；
 - Langfuse、Temporal、Axiom 和 Sentry 继续拥有完整平台界面，Ops Web 只生成受控入口；
 - 在线模型配置、内部门户凭据、账号管理、Dining 和同好群各自遵守所属合同；
+- 内部门户 TGC 与自动化 token 由 Ops Web PostgreSQL 所有，开发者程序通过配置的机器 origin 和
+  Bearer token 显式更新或删除；Source Collector 只消费开发者显式提供的本地 TGC；
 - 任何观测信号都不能改写产品请求、个人记忆或 workflow 的持久状态。
 
 ## 数据流
@@ -97,6 +99,14 @@ requestId 与 traceId 同时匹配会丢失只拥有 durable request key 的合�
 | Application Log | Axiom | 按 requestId 加载有界摘要 |
 | Issue | Sentry | 按 requestId 加载有限错误摘要 |
 
+内部门户自动化接口是独立的机器入口，不是通用代理或凭据同步总线。它只暴露凭据 metadata、带 CAS
+版本条件的 `ssoTgc` 更新和删除；TGC、Cookie、Bearer token 和门户响应正文不进入日志、观测数据或
+部署配置。自动化入口是否可用由其接口返回局部错误表示，不改变 Ops Web 顶层 `/readyz`。
+
+人员 `/api/ops/*` 接口使用同一 Cloudflare Access 准入，应用不复制人员、组或分操作白名单；自动化
+`/api/automation/*` 只接受配置入口上的 Bearer token。失败、无记录、部分响应和旧缓存分别保留自己的
+状态，不转换成产品请求成功或失败。
+
 Axiom 不再承担本仓库自有 runtime metric 或分布式 trace 合同；Langfuse 不再接收
 execution-control/Hindsight trace。Agent Runtime 是唯一可选 Langfuse runtime producer。
 
@@ -113,9 +123,10 @@ Ops Web 通过 execution-control admin 的受控接口发现模型、读取、�
 - PostgreSQL 不可用时，请求读取返回错误而不是空列表；
 - Axiom 或 Sentry 不可用时，只影响对应按需区域；
 - Langfuse trace 因配额停收是允许状态，不影响在线执行或 Ops Web readiness；
+- 自动化 origin 或 token 存储不可用时，只影响 token 管理和 `/api/automation/*`；
 - `/healthz` 只表示进程响应；
-- `/readyz` 检查 Access 配置、公开来源地址和 PostgreSQL 轻量连接，不重复执行 schema 查询，也
-  不探测业务依赖或供应商。
+- `/readyz` 检查公开来源地址和 PostgreSQL 轻量连接，并在非 local/development 环境检查 Access
+  配置；它不重复执行 schema 查询，也不探测自动化 origin、业务依赖或供应商。
 
 ## 部署边界
 

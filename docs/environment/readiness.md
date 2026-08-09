@@ -72,8 +72,11 @@ Campus Web 顶层 `/readyz` 只要求应用外壳、静态资产和 App API bind
 进入静态产物，没有独立文档运行配置或文档就绪接口；App API 暂时不可用时，已部署的 `/docs/*`
 与 `/_docs/*` 仍可读取，但 Campus Web 顶层就绪仍会反映产品外壳所需的运行依赖。
 
-Ops Web 顶层 `/readyz` 只要求访问控制和请求状态数据库；Dining、Axiom、Sentry 与被观测服务由
-各自页面或接口报告不可用。采集运行时当前未部署，其本地就绪状态不属于 staging 服务健康的一部分。
+Ops Web 顶层 `/readyz` 在所有环境都要求合法的公开 origin 和请求状态数据库；非 local/development
+环境还要求 Cloudflare Access 验证配置，local/development 环境跳过这项检查。自动化机器入口的
+`OPS_WEB_AUTOMATION_ORIGIN` 是局部能力配置，不参与顶层就绪；缺失时由自动化接口返回明确的
+`OPS_AUTOMATION_NOT_CONFIGURED`。Dining、Axiom、Sentry 与被观测服务由各自页面或接口报告不可用。
+采集运行时当前未部署，其本地就绪状态不属于 staging 服务健康的一部分。
 
 一个界面的 `/readyz` 不代表聊天、文档、采集、评测或其他产品界面同时就绪。Kubernetes 对局部
 能力在所属接口处理缺少配置的错误；核心数据库、服务身份和必需 worker 依赖保持非 optional，

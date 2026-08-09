@@ -53,6 +53,7 @@ function createTestApp(diningStore: DiningStore) {
 		env: {
 			ACCESS_POLICY_AUD: "ops-web-test-audience",
 			ACCESS_TEAM_DOMAIN: "https://team-ops-web.cloudflareaccess.com",
+			OPS_WEB_AUTOMATION_ORIGIN: "https://ops-api.example.test",
 			OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test",
 		},
 		store: createFixtureOpsStatusStore(),
@@ -158,7 +159,10 @@ describe("Ops Web Dining API", () => {
 			const app = createOpsApp({
 				admission: createAllowAllOpsAdmission(),
 				diningStore: createUnavailableDiningStore(new Error("dining unavailable")),
-				env: { OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test" },
+				env: {
+					OPS_WEB_AUTOMATION_ORIGIN: "https://ops-api.example.test",
+					OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test",
+				},
 				store: createFixtureOpsStatusStore(),
 			});
 			const response = await app.request("/api/ops/dining");

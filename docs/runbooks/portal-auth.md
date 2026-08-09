@@ -19,6 +19,18 @@ CAS 跳转、Cookie 会话和错误分类，不读取环境变量、文件、数
 只在一次本地命令或显式启动的进程中消费 `INTERNAL_PORTAL_SSO_TGC`，不持久化、不保活，也不从
 Ops Web 自动读取凭据。
 
+需要由开发程序自动更新或删除凭据时，操作者在同一页面的“开发者自动化访问”区域生成或选择 token，
+复制显示的 `OPS_WEB_AUTOMATION_ORIGIN` 对应端点和 Bearer token。程序请求
+`/api/automation/internal-portal/credentials`，读取 metadata 后以当前 `ETag` 作为
+`If-Match` 更新 `ssoTgc`，或删除指定记录。机器端点不经过 Cloudflare Access，不提供创建、reveal、
+检查或重命名；token 可在页面重复查看，撤销后立即不能认证。程序必须把 token 放在自己的运行时
+凭据存储中，不写入 Git、日志、URL 或 source bucket。
+
+自动化 origin 缺失不会让 Ops Web `/readyz` 失败；它只使自动化 token 管理区和机器接口返回
+`OPS_AUTOMATION_NOT_CONFIGURED`。生产环境没有共享的测试 token，接口验证必须使用 Ops Web 页面创建的
+具名 token。开发者程序应先读取目标记录 metadata，再用返回的 `ETag` 发送 `If-Match`，不要并发覆盖
+其他程序的更新。
+
 Service Ticket、`JSESSIONID` 和 `nginx` Cookie 只存在于当前 HTTP 会话内存。TGC 不进入 Git、
 ConfigMap、Kubernetes Secret、URL、Temporal 载荷、对象存储、日志或浏览器存储。
 
@@ -87,6 +99,11 @@ pnpm --filter source-collector auth:check
 
 该命令只执行一次并用退出码表示结果，不写状态文件。通知采集和显式启动的文件发布 worker 读取
 同一直接变量。source-collector 不持久化该值，也不运行后台认证检查。
+
+自动化 endpoint 与 Bearer token 不改变上述边界：endpoint 只是环境配置，token 只授权 Ops Web 机器
+接口；source-collector 仍须由开发者显式把目标 TGC 传入 `INTERNAL_PORTAL_SSO_TGC`，不会读取 token
+或直接查询 Ops Web。需要在没有真实门户凭据时验证 HTTP 链路，可运行 `pnpm dev:ops-web-api-fixture`；
+该 fixture 的 token 和 TGC 仅在本地进程生命周期内有效。
 
 ## 数据保留与环境重置
 

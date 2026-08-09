@@ -41,6 +41,8 @@
 		"smoke:app-api": "pnpm exec tsx scripts/smoke/app-api.ts",
 		"predev": "pnpm dev:init",
 		"dev": "turbo run dev --env-mode=loose --filter=campus-web --filter=app-api --filter=ops-web",
+		"dev:ops-web-api": "pnpm exec tsx scripts/dev/service.ts ops-web-api",
+		"dev:ops-web-api-fixture": "pnpm exec tsx scripts/dev/service.ts ops-web-api-fixture",
 		"dev:init": "pnpm exec tsx scripts/dev/cli.ts init",
 		"dev:doctor": "pnpm exec tsx scripts/dev/cli.ts doctor",
 		"dev:instances": "pnpm exec tsx scripts/dev/cli.ts instances",

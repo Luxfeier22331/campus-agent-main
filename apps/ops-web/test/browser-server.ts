@@ -45,6 +45,8 @@ const app = createOpsApp({
 	admission: createAllowAllOpsAdmission({ email: "ops@example.test" }),
 	env: {
 		DEPLOYMENT_ENVIRONMENT: "local",
+		OPS_WEB_AUTOMATION_ORIGIN:
+			process.env.OPS_WEB_AUTOMATION_ORIGIN ?? `http://127.0.0.1:${browserTestPort + 1}`,
 		OPS_WEB_CAMPUS_WEB_URL: "http://127.0.0.1:27014",
 		OPS_WEB_PUBLIC_ORIGIN:
 			process.env.OPS_WEB_PUBLIC_ORIGIN ?? `http://127.0.0.1:${browserTestPort}`,

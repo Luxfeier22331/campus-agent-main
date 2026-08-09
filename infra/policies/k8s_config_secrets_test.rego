@@ -118,3 +118,40 @@ test_workload_explicit_secret_key_ref_is_allowed if {
 	}
 	count(violations) == 0
 }
+
+test_ops_web_automation_origin_ref_is_required if {
+	violations := violation with input as {
+		"apiVersion": "apps/v1",
+		"kind": "Deployment",
+		"metadata": {"name": "ops-web"},
+		"spec": {"template": {
+			"metadata": {"labels": {"campus-agent.muc.wiki/network-policy-profile": "ops-web"}},
+			"spec": {
+				"containers": [{
+					"name": "ops-web",
+					"env": [{
+						"name": "OPS_WEB_AUTOMATION_ORIGIN",
+						"valueFrom": {"configMapKeyRef": {
+							"name": "ops-web-config",
+							"key": "OPS_WEB_AUTOMATION_ORIGIN",
+						}},
+					}],
+				}],
+			},
+		}},
+	}
+	count(violations) == 0
+}
+
+test_ops_web_automation_origin_ref_missing_is_rejected if {
+	violations := violation with input as {
+		"apiVersion": "apps/v1",
+		"kind": "Deployment",
+		"metadata": {"name": "ops-web"},
+		"spec": {"template": {"spec": {"containers": [{
+			"name": "ops-web",
+			"env": [],
+		}]}}},
+	}
+	"Deployment ops-web must consume OPS_WEB_AUTOMATION_ORIGIN from ops-web-config" in violations
+}

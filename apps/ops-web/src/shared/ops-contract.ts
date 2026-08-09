@@ -148,6 +148,55 @@ export const InternalPortalCredentialRevealSchema = z
 	})
 	.strict();
 
+export const InternalPortalAutomationTokenMetadataSchema = z
+	.object({
+		createdAt: IsoDateTimeSchema,
+		name: z.string().trim().min(1).max(80),
+		revokedAt: IsoDateTimeSchema.nullable(),
+		tokenId: z.string().uuid(),
+	})
+	.strict();
+export type InternalPortalAutomationTokenMetadata = z.infer<
+	typeof InternalPortalAutomationTokenMetadataSchema
+>;
+
+export const InternalPortalAutomationTokenSchema =
+	InternalPortalAutomationTokenMetadataSchema.extend({
+		tokenValue: z.string().min(1).max(512),
+	}).strict();
+export type InternalPortalAutomationToken = z.infer<typeof InternalPortalAutomationTokenSchema>;
+
+export const InternalPortalAutomationTokenListSchema = z
+	.object({
+		endpoint: z.string().url(),
+		tokens: z.array(InternalPortalAutomationTokenMetadataSchema),
+	})
+	.strict();
+
+export const InternalPortalAutomationTokenResponseSchema = z
+	.object({ token: InternalPortalAutomationTokenSchema })
+	.strict();
+
+export const InternalPortalAutomationTokenMetadataResponseSchema = z
+	.object({ token: InternalPortalAutomationTokenMetadataSchema })
+	.strict();
+
+export const InternalPortalAutomationTokenCreateSchema = z
+	.object({ name: z.string().trim().min(1).max(80) })
+	.strict();
+
+export const InternalPortalAutomationCredentialUpdateSchema = z
+	.object({
+		ssoTgc: z
+			.string()
+			.min(1)
+			.max(16 * 1024),
+	})
+	.strict();
+export type InternalPortalAutomationCredentialUpdate = z.infer<
+	typeof InternalPortalAutomationCredentialUpdateSchema
+>;
+
 const OpsStatusSchema = z.enum([
 	"COMPLETED",
 	"FAILED",

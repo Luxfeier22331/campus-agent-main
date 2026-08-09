@@ -57,7 +57,7 @@ status: active
 | 身份与安全验证 | App API、Campus Web | 账号、session、邮件验证和反滥用 |
 | 邮件服务 | App API | 密码重置和账号通知 |
 | 微信公众号来源 | Source Collector | 发现来源并取得采集入口，规范正文仍来自真实文章 |
-| 内部门户认证 | Ops Web、Source Collector | Ops Web 在所属 PostgreSQL 管理多条 TGC；Source Collector 只消费开发者显式提供的本地 TGC，不读取部署 Secret |
+| 内部门户认证 | Ops Web、开发者程序、Source Collector | Ops Web 在所属 PostgreSQL 管理多条 TGC 和自动化 token；开发者程序从 Ops Web 获得 endpoint 与 Bearer token 后显式调用更新/删除接口；Source Collector 只消费开发者显式提供的本地 TGC，不读取数据库或部署 Secret |
 | Cloudflare Worker 平台 | App API、Campus Web | Worker 运行、公开配置和平台绑定 |
 
 来源凭据只进入所属采集器或任务，不进入在线问答、浏览器或通用仓库根环境。个人调试凭据不能
@@ -97,6 +97,9 @@ Environment 和 Ops Web runtime Secret。不同环境位置的变量名只是消
 - Secret 不进入 Git、镜像、前端包、日志或命令输出。Terraform 管理的资源若要求敏感输入，该值会
   保存在受保护的 state；当前仅 Hyperdrive origin password 属于这一合同，state 不充当 Secret 投递源；
 - 环境仓选择部署版本和 Secret 引用，源码仓只维护环境无关的消费合同。
+- `OPS_WEB_AUTOMATION_ORIGIN` 是环境仓投递给 Ops Web 的非敏感机器端点配置；自动化 token 属于
+  Ops Web PostgreSQL 数据，不进入 ConfigMap、GitOps Secret、Source Collector 或 URL。开发者程序
+  只在请求时显式提供 `Authorization: Bearer <token>`。
 
 环境文件和覆盖规则见 `env.md`，新增、轮换和撤销步骤见
 `../runbooks/provider-secrets.md`。

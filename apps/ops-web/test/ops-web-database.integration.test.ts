@@ -12,6 +12,8 @@ import {
 	applyOpsWebDatabaseGrants,
 	verifyOpsWebDatabase,
 } from "../ops/db/ops-web-database.ts";
+import { hashAutomationToken } from "../src/server/internal-portal-automation-token-service.ts";
+import { createPgInternalPortalAutomationTokenStore } from "../src/server/internal-portal-automation-token-store.ts";
 import {
 	createPgInternalPortalCredentialStore,
 	InternalPortalCredentialConflictError,
@@ -167,6 +169,43 @@ describe("ops-web PostgreSQL grants", () => {
 		} finally {
 			await management.query("delete from internal_portal.credentials where credential_id = $1", [
 				credentialId,
+			]);
+		}
+	});
+
+	it("persists multiple automation tokens and rejects revoked token authentication", async () => {
+		const runtime = requiredClient(opsWeb, "ops_web");
+		const store = createPgInternalPortalAutomationTokenStore(runtime);
+		const tokenId = randomUUID();
+		const tokenValue = "ops_database_integration";
+		const createdAt = new Date("2026-08-06T01:00:00.000Z");
+		try {
+			await expect(
+				store.create({
+					createdAt,
+					name: "数据库集成测试",
+					tokenHash: hashAutomationToken(tokenValue),
+					tokenId,
+					tokenValue,
+				}),
+			).resolves.toMatchObject({ tokenId, tokenValue });
+			await expect(store.list()).resolves.toContainEqual({
+				createdAt: createdAt.toISOString(),
+				name: "数据库集成测试",
+				revokedAt: null,
+				tokenId,
+			});
+			await expect(store.authenticate(hashAutomationToken(tokenValue))).resolves.toMatchObject({
+				tokenId,
+			});
+			await expect(store.get(tokenId)).resolves.toMatchObject({ tokenValue });
+
+			await store.revoke(tokenId, new Date("2026-08-06T02:00:00.000Z"));
+			await expect(store.authenticate(hashAutomationToken(tokenValue))).resolves.toBeNull();
+			await expect(store.get(tokenId)).resolves.toMatchObject({ tokenValue });
+		} finally {
+			await management.query("delete from internal_portal.automation_tokens where token_id = $1", [
+				tokenId,
 			]);
 		}
 	});

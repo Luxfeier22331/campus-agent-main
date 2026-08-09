@@ -34,6 +34,18 @@ source-collector、Temporal 和对象存储都不能读取该表。
 记录随 PostgreSQL 正常持久化，Pod 重启和滚动部署不会删除；清空或重建所属数据库后不从 GitOps、
 Secret 或其他存储恢复，必须重新录入。
 
+## 自动化 token
+
+`internal_portal.automation_tokens` 保存多条具名机器访问 token：`token_id`、`name`、
+`token_value`、`token_hash`、`created_at` 和可空 `revoked_at`。`token_value` 明文是当前合同的一部分，
+因为操作者需要在 Ops Web 中重复查看并交给开发者程序；`token_hash` 只用于 Bearer 认证查询。普通
+列表 SQL 和 HTTP 响应只读取 metadata，创建或人工 reveal 才读取明文。
+
+一个未撤销 token 默认可以操作全部 `internal_portal.credentials` 记录。当前没有 token scope、按人
+员授权、过期时间或独立角色；新增这些区分前必须先有明确消费者和合同。撤销设置 `revoked_at`，使
+后续认证失败，但保留记录供人工识别和再次 reveal。`ops_web` 是该表唯一运行角色；App API、
+source-collector、Temporal 和对象存储不能读取 token 表。
+
 ## 通知
 
 通知由 `apps/source-collector` 本地命令直接采集，不进入 Temporal、任务注册表、PostgreSQL 或
@@ -93,7 +105,8 @@ TGC 和有界检查 metadata；source-collector 的本地 `auth:check` 不写认
 
 Ops Web CronJob 直接读取凭据表并顺序检查未暂停记录，不经过 source-collector，不写 source 或
 derived bucket，也不触发通知或文件发布采集。source-collector 本地命令只消费开发者显式传入的
-直接变量，不持久化该值或读取凭据表。
+直接变量，不持久化该值或读取凭据表。开发者可以从 Ops Web 获取自动化 endpoint 和 Bearer token，
+由自己的程序显式调用机器接口；这仍不是 source-collector 的隐式数据库消费路径。
 
 ## 相关文档
 

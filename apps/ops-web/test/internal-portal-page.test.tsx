@@ -25,11 +25,21 @@ const credentials = [
 	},
 ];
 
+const automationToken = {
+	createdAt: "2026-08-02T03:00:00.000Z",
+	name: "开发同步程序",
+	revokedAt: null,
+	tokenId: "33333333-3333-4333-8333-333333333333",
+};
+
 describe("internal portal credentials page", () => {
 	afterEach(() => vi.unstubAllGlobals());
 
 	it("shows multiple credentials and keeps revealed plaintext in the dialog lifecycle", async () => {
 		const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+			if (String(input).includes("/automation-tokens")) {
+				return Response.json({ endpoint: "https://ops-api.example.test", tokens: [] });
+			}
 			if (String(input).endsWith("/reveal") && init?.method === "POST") {
 				return Response.json({
 					credentialId: credentials[0]?.credentialId,
@@ -66,7 +76,11 @@ describe("internal portal credentials page", () => {
 	it("labels candidate fields for raw TGC or Cookie input", async () => {
 		vi.stubGlobal(
 			"fetch",
-			vi.fn(async () => Response.json({ credentials })),
+			vi.fn(async (input: RequestInfo | URL) =>
+				String(input).includes("/automation-tokens")
+					? Response.json({ endpoint: "https://ops-api.example.test", tokens: [] })
+					: Response.json({ credentials }),
+			),
 		);
 		render(<OpsWebApp initialPath="/internal-portal" />);
 
@@ -75,6 +89,42 @@ describe("internal portal credentials page", () => {
 		expect(screen.getByLabelText("SSO_TGC 或 Cookie")).toHaveAttribute(
 			"maxlength",
 			String(16 * 1024),
+		);
+	});
+
+	it("shows the automation endpoint and keeps revealed token plaintext in the dialog", async () => {
+		const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+			const url = String(input);
+			if (
+				url.includes("/automation-tokens") &&
+				url.endsWith("/reveal") &&
+				init?.method === "POST"
+			) {
+				return Response.json({ token: { ...automationToken, tokenValue: "ops_plaintext" } });
+			}
+			if (url.includes("/automation-tokens")) {
+				return Response.json({
+					endpoint: "https://ops-api.example.test",
+					tokens: [automationToken],
+				});
+			}
+			return Response.json({ credentials });
+		});
+		vi.stubGlobal("fetch", fetchMock);
+		render(<OpsWebApp initialPath="/internal-portal" />);
+
+		expect(await screen.findByDisplayValue("https://ops-api.example.test")).toBeInTheDocument();
+		expect((await screen.findAllByText("开发同步程序")).length).toBeGreaterThan(0);
+		expect(screen.queryByDisplayValue("ops_plaintext")).not.toBeInTheDocument();
+
+		fireEvent.click(screen.getAllByRole("button", { name: "显示 token" })[0] as HTMLElement);
+		const dialog = await screen.findByRole("dialog");
+		fireEvent.click(within(dialog).getByRole("button", { name: "显示 token" }));
+		expect(await within(dialog).findByDisplayValue("ops_plaintext")).toBeInTheDocument();
+
+		fireEvent.click(within(dialog).getAllByRole("button", { name: "关闭" })[0] as HTMLElement);
+		await waitFor(() =>
+			expect(screen.queryByDisplayValue("ops_plaintext")).not.toBeInTheDocument(),
 		);
 	});
 });

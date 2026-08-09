@@ -60,10 +60,14 @@ const opsWebDiningPrivileges = {
 	canUseSchema: true,
 } as const;
 const opsWebInternalPortalPrivileges = {
-	canDelete: true,
-	canInsert: true,
-	canSelect: true,
-	canUpdate: true,
+	canCredentialsDelete: true,
+	canCredentialsInsert: true,
+	canCredentialsSelect: true,
+	canCredentialsUpdate: true,
+	canTokensDelete: true,
+	canTokensInsert: true,
+	canTokensSelect: true,
+	canTokensUpdate: true,
 	canUseSchema: true,
 } as const;
 describe("ops-web database verification", () => {
@@ -104,6 +108,7 @@ describe("ops-web database verification", () => {
 		expect(allQueries).toContain('from "dining"."menu_items"');
 		expect(allQueries).toContain('from "dining"."reviews"');
 		expect(allQueries).toContain('from "internal_portal"."credentials"');
+		expect(allQueries).toContain('from "internal_portal"."automation_tokens"');
 		expect(allQueries).toContain('from "chat"."turn_dispatches"');
 		expect(allQueries).not.toContain('from "runtime"."agent_run_steps"');
 		expect(allQueries).toContain('from "runtime"."agent_step_attempts"');
@@ -232,6 +237,23 @@ function installSuccessfulQueries() {
 					{ table_name: "review_edits" },
 					{ table_name: "review_reports" },
 					{ table_name: "reviews" },
+				],
+			};
+		}
+		if (
+			sql.includes("from information_schema.columns") &&
+			sql.includes("table_schema = 'internal_portal'") &&
+			sql.includes("table_name = 'automation_tokens'")
+		) {
+			return {
+				rowCount: 6,
+				rows: [
+					{ column_name: "token_id" },
+					{ column_name: "name" },
+					{ column_name: "token_value" },
+					{ column_name: "token_hash" },
+					{ column_name: "created_at" },
+					{ column_name: "revoked_at" },
 				],
 			};
 		}

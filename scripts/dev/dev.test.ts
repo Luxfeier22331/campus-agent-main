@@ -158,6 +158,10 @@ describe("managed worktree environment", () => {
 		assert.equal(opsWebEnvironment.OPS_WEB_APP_API_URL, "http://127.0.0.1:27131");
 		assert.equal(opsWebEnvironment.OPS_WEB_CAMPUS_WEB_URL, "http://127.0.0.1:27114");
 		assert.equal(opsWebEnvironment.OPS_WEB_INTERNAL_TOKEN, second.OPS_WEB_INTERNAL_TOKEN);
+		assert.equal(
+			opsWebEnvironment.OPS_WEB_AUTOMATION_ORIGIN,
+			`http://127.0.0.1:${profile.ports.opsWebApi}`,
+		);
 	});
 
 	it("refuses to overwrite a developer-owned application environment file", () => {

@@ -50,6 +50,36 @@ pnpm dev:instances
 
 database 与 bucket 必须同时存在或同时不存在。只有一个存在表示上次供应中断，初始化会 fail closed；按 `pnpm dev:destroy` 输出的确认命令删除该实例后重新初始化。单独启动应用只适合所属应用调试，仍要求当前 worktree 已执行 `pnpm dev:init`。
 
+## Ops Web API
+
+完整 Ops Web 开发命令会同时启动 Vite 和 Node API；只验证服务端接口时，在一个终端运行：
+
+```bash
+pnpm dev:ops-web-api
+```
+
+另一个终端可检查进程和核心就绪边界：
+
+```bash
+curl -sS http://127.0.0.1:<ops-api-port>/healthz
+curl -sS http://127.0.0.1:<ops-api-port>/readyz
+```
+
+将 `<ops-api-port>` 替换为当前 worktree profile 的本地 `PORT` 配置，或使用
+`pnpm dev`/独立 API 命令输出的地址。local/development 的 `/readyz` 不要求 Cloudflare Access，但仍
+要求本地公开 origin 和 Ops Web 状态数据库。自动化 origin 不影响该结果；未配置时仅自动化 token
+管理区和机器接口返回 `OPS_AUTOMATION_NOT_CONFIGURED`。
+
+需要验证真实 HTTP、Bearer、TGC 刷新和 CAS 失败语义时，使用隔离 fixture：
+
+```bash
+pnpm dev:ops-web-api-fixture
+```
+
+命令只监听 `127.0.0.1`，启动输出包含临时 endpoint、fixture token 和凭据 ID。fixture 使用内存存储
+和固定测试响应，不读取真实门户凭据，也不代表 staging 或 production 状态。MCP 调用应与该进程
+处于同一网络命名空间，并使用输出的 loopback endpoint。
+
 ## Provider 配置
 
 在线配置由 execution-control 的模型配置数据库和 keyring 持有。需要修改时启动本地

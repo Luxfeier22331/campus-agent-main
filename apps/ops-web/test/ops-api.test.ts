@@ -55,6 +55,7 @@ describe("ops API", () => {
 			env: {
 				ACCESS_POLICY_AUD: "access-audience",
 				ACCESS_TEAM_DOMAIN: "https://team.example.cloudflareaccess.com",
+				OPS_WEB_AUTOMATION_ORIGIN: "https://ops-api.example.test",
 				OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test",
 			},
 			store,
@@ -70,11 +71,44 @@ describe("ops API", () => {
 			env: {
 				ACCESS_POLICY_AUD: "access-audience",
 				ACCESS_TEAM_DOMAIN: "https://team.example.cloudflareaccess.com",
+				OPS_WEB_AUTOMATION_ORIGIN: "https://ops-api.example.test",
 				OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test",
 			},
 			store: createFixtureOpsStatusStore(),
 		});
 		expect((await ready.request("/readyz")).status).toBe(200);
+	});
+
+	it("keeps local readiness independent from Access and the automation endpoint", async () => {
+		const app = createOpsApp({
+			env: {
+				DEPLOYMENT_ENVIRONMENT: "development",
+				OPS_WEB_PUBLIC_ORIGIN: "http://127.0.0.1:5178",
+			},
+			store: createFixtureOpsStatusStore(),
+		});
+
+		const response = await app.request("http://127.0.0.1:5178/readyz");
+
+		expect(response.status).toBe(200);
+		expect(await response.json()).toEqual({ ok: true, service: "ops-web" });
+	});
+
+	it("still requires Access and the public origin outside local development", async () => {
+		const app = createOpsApp({
+			env: { DEPLOYMENT_ENVIRONMENT: "staging" },
+			store: createFixtureOpsStatusStore(),
+		});
+
+		const response = await app.request("/readyz");
+
+		expect(response.status).toBe(503);
+		await expect(response.json()).resolves.toMatchObject({
+			error: {
+				code: "OPS_WEB_NOT_READY",
+				missing: ["ACCESS_TEAM_DOMAIN", "ACCESS_POLICY_AUD", "OPS_WEB_PUBLIC_ORIGIN"],
+			},
+		});
 	});
 
 	it("sets restrictive security headers on every response class", async () => {

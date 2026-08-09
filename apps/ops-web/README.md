@@ -30,6 +30,15 @@
 路由组合位于 `src/app/ops-web-app.tsx`，浏览器合同位于 `src/shared/`，HTTP 实现位于
 `src/server/app.ts`。
 
+`/internal-portal` 还管理多条开发者自动化 token。人工管理接口继续使用 Cloudflare Access；开发者
+程序使用环境配置的 `OPS_WEB_AUTOMATION_ORIGIN` 和 Bearer token，只能读取凭据 metadata、更新
+`ssoTgc` 或删除凭据，并通过 `If-Match` 复用现有 CAS 并发合同。Source Collector 不读取该表。
+
+`/healthz` 只表示 Node 进程能够响应，`/readyz` 只检查 Ops Web 接受核心请求所需的公开 origin 和
+请求状态数据库；`OPS_WEB_AUTOMATION_ORIGIN` 是自动化这条局部能力的配置，不是顶层就绪条件。local
+和 development 环境不要求 Cloudflare Access 配置，缺少自动化 origin 时仅自动化 token 管理与机器
+接口返回 `OPS_AUTOMATION_NOT_CONFIGURED`。生产路径没有固定测试 token 或其他 magic key。
+
 ## 界面实现
 
 - `@campus-agent/ui` 提供语义 Token、表单控件、状态显示和 Radix 复合控件；
@@ -44,6 +53,8 @@
 ```bash
 pnpm dev:init
 pnpm --dir apps/ops-web dev
+pnpm dev:ops-web-api
+pnpm dev:ops-web-api-fixture
 pnpm --dir apps/ops-web start
 pnpm --dir apps/ops-web check
 pnpm --dir apps/ops-web test:browser
@@ -53,6 +64,11 @@ pnpm --dir apps/ops-web db:generate
 pnpm --dir apps/ops-web db:apply-dining
 pnpm --dir apps/ops-web db:bootstrap-dining
 ```
+
+`dev` 同时启动 Vite 和 Node API；`dev:ops-web-api` 只启动 Node API，适合让 MCP 或其他本地程序
+直接调用。`dev:ops-web-api-fixture` 只监听 loopback，使用内存凭据、注入式门户检查器和固定 fixture
+token，启动时打印 endpoint、token 与测试凭据 ID；它不读取本地真实凭据，也不会改变生产代码或配置。
+使用 MCP 验证 fixture 时，应让 MCP 与服务处于同一网络命名空间，再使用启动输出的 loopback endpoint。
 
 同好群和账号管理页面通过服务端配置的 `OPS_WEB_APP_API_URL` 和 `OPS_WEB_INTERNAL_TOKEN` 调用 app-api；
 前者是 HTTP(S) 根地址，令牌不下发到浏览器。

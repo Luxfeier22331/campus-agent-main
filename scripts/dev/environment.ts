@@ -96,6 +96,7 @@ export function renderLocalEnvironmentFiles(input: {
 		OPS_WEB_DATABASE_SSLMODE: "disable",
 		OPS_WEB_DATABASE_URL: database.opsWeb,
 		OPS_WEB_INTERNAL_TOKEN: opsWebInternalToken,
+		OPS_WEB_AUTOMATION_ORIGIN: `http://127.0.0.1:${profile.ports.opsWebApi}`,
 		OPS_WEB_PUBLIC_ORIGIN: `http://127.0.0.1:${profile.ports.opsWeb}`,
 		PORT: String(profile.ports.opsWebApi),
 	});

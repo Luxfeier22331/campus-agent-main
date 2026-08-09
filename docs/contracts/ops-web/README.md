@@ -45,6 +45,17 @@ status: active
 - `DELETE /api/ops/internal-portal/credentials/:credentialId`
 - `POST /api/ops/internal-portal/credentials/:credentialId/validate`
 - `POST /api/ops/internal-portal/credentials/:credentialId/reveal`
+- `GET /api/ops/internal-portal/automation-tokens`
+- `POST /api/ops/internal-portal/automation-tokens`
+- `POST /api/ops/internal-portal/automation-tokens/:tokenId/reveal`
+- `POST /api/ops/internal-portal/automation-tokens/:tokenId/revoke`
+
+开发者自动化凭据接口（不经过 Cloudflare Access）：
+
+- `GET /api/automation/internal-portal/credentials`
+- `GET /api/automation/internal-portal/credentials/:credentialId`
+- `PUT /api/automation/internal-portal/credentials/:credentialId`
+- `DELETE /api/automation/internal-portal/credentials/:credentialId`
 
 账号管理：
 
@@ -74,7 +85,8 @@ status: active
 - `/api/ops/*` 验证 Cloudflare Access JWT 的签发方、受众和签名。
 - Cloudflare Access policy 决定人员范围；服务端只接受 `type=app` 且 `sub` 非空的人员应用令牌，
   拒绝 `sub` 为空的服务令牌，不复制人员、组或分接口白名单。
-- 所有接口使用同一人员准入。写接口另外执行同源、正文、并发和领域校验。
+- `/api/ops/*` 接口使用同一人员准入。写接口另外执行同源、正文、并发和领域校验；`/api/automation/*`
+  使用配置 origin、Bearer token 和自己的输入/CAS 合同，不接受人员 JWT。
 - 浏览器不持有 PostgreSQL、Axiom、在线模型配置管理接口或外部平台凭据。
 
 ### 响应和错误
@@ -123,6 +135,11 @@ status: active
 | 503 | `OPS_SENTRY_UNAVAILABLE` | Sentry Issue 查询未配置、失败或响应无效 |
 | 503 | `OPS_PROVIDER_CONFIG_UNAVAILABLE` | execution-control admin 未配置或不可用 |
 | 503 | `OPS_INTERNAL_PORTAL_STORE_UNAVAILABLE`、`OPS_INTERNAL_PORTAL_CHECK_FAILED` | 内部门户凭据数据库或真实验证暂不可用 |
+| 400 | `OPS_AUTOMATION_TOKEN_INPUT_INVALID`、`OPS_AUTOMATION_QUERY_INVALID` | 自动化 token 管理输入或机器查询参数无效 |
+| 401 | `OPS_AUTOMATION_TOKEN_INVALID` | 机器端点缺少、错误或已撤销 Bearer token |
+| 404 | `OPS_AUTOMATION_TOKEN_NOT_FOUND` | 自动化 token 不存在 |
+| 503 | `OPS_AUTOMATION_NOT_CONFIGURED` | 自动化 token 管理与机器端点未配置 `OPS_WEB_AUTOMATION_ORIGIN` |
+| 503 | `OPS_AUTOMATION_TOKEN_STORE_UNAVAILABLE` | 自动化 token 数据库不可用 |
 | 503 | `OPS_ACCOUNT_ADMIN_UNAVAILABLE`、`OPS_EMAIL_ACCESS_UNAVAILABLE` | App API 账号管理接口未配置或不可用 |
 | 503 | `OPS_DINING_STORE_UNAVAILABLE` | Dining PostgreSQL 不可用 |
 | 503 | `OPS_CAMPUS_GROUPS_UNAVAILABLE` | App API 同好群管理接口未配置或不可用 |
@@ -157,10 +174,14 @@ Axiom coverage 或 Collector uptime。
 { "ok": true, "service": "ops-web" }
 ```
 
-`GET /readyz` 无需操作者 JWT，检查 Cloudflare Access 验证配置、合法的
-`OPS_WEB_PUBLIC_ORIGIN` 和请求状态 PostgreSQL。失败返回 `503 OPS_WEB_NOT_READY` 及不含敏感信息的
-缺失项或稳定 `reasonCode`。Axiom、Sentry、Langfuse、Temporal UI、在线模型配置和 Dining
-故障不影响 Pod 就绪；它们在所属页面返回明确的不可用状态。
+`GET /readyz` 无需操作者 JWT。所有环境都必须配置合法的 `OPS_WEB_PUBLIC_ORIGIN` 并能读取请求
+状态 PostgreSQL；非 local/development 环境还必须配置 Cloudflare Access 验证参数。local 和
+development 环境跳过 Access 配置检查，便于本地 API 与 fixture 独立运行。`OPS_WEB_AUTOMATION_ORIGIN`
+不属于顶层就绪条件；它缺失时只有自动化 token 管理和 `/api/automation/*` 返回
+`503 OPS_AUTOMATION_NOT_CONFIGURED`。
+失败返回 `503 OPS_WEB_NOT_READY` 及不含敏感信息的缺失项或稳定 `reasonCode`。Axiom、Sentry、
+Langfuse、Temporal UI、在线模型配置、Dining 和自动化入口故障不影响 Pod 就绪；它们在所属读取面
+或页面返回明确的不可用状态。
 请求读取 schema 在进程开始监听前验证一次；周期 `/readyz` 只执行轻量数据库连接查询，不重复运行
 多条 schema 查询。
 

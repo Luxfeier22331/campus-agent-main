@@ -12,6 +12,23 @@ environment_workload(document) if {
 	document.kind in {"Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob"}
 }
 
+ops_web_automation_origin_consumed if {
+	input.kind == "Deployment"
+	input.metadata.name == "ops-web"
+	template_spec := object.get(
+		object.get(object.get(input, "spec", {}), "template", {}),
+		"spec",
+		{},
+	)
+	some container in object.get(template_spec, "containers", [])
+	container.name == "ops-web"
+	some env in object.get(container, "env", [])
+	env.name == "OPS_WEB_AUTOMATION_ORIGIN"
+	ref := object.get(object.get(env, "valueFrom", {}), "configMapKeyRef", {})
+	ref.name == "ops-web-config"
+	ref.key == "OPS_WEB_AUTOMATION_ORIGIN"
+}
+
 provider_profile_keys := {
 	"LLM_API_KEY",
 	"EMBEDDING_API_KEY",
@@ -70,6 +87,13 @@ violation contains msg if {
 	key := object.keys(input.data)[_]
 	secret_owned_keys[key]
 	msg := sprintf("ConfigMap %s contains secret-owned key %s", [input.metadata.name, key])
+}
+
+violation contains msg if {
+	input.kind == "Deployment"
+	input.metadata.name == "ops-web"
+	not ops_web_automation_origin_consumed
+	msg := "Deployment ops-web must consume OPS_WEB_AUTOMATION_ORIGIN from ops-web-config"
 }
 
 violation contains msg if {
