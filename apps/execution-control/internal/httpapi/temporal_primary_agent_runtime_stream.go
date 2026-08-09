@@ -42,7 +42,7 @@ func (s *Server) callAgentRuntime(
 	if err != nil {
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, fmt.Errorf("encode agent runtime request: %w", err)
 	}
-	return s.callAgentRuntimeRequest(ctx, run, body, limits.AgentDeadlineMS)
+	return s.callAgentRuntimeRequest(ctx, run, input.TraceParent, body, limits.AgentDeadlineMS)
 }
 
 func primaryAgentRuntimeRequestPayload(
@@ -82,11 +82,13 @@ func primaryAgentRuntimeRequestPayload(
 func (s *Server) callAgentRuntimeRequest(
 	ctx context.Context,
 	run execution.DurableRun,
+	traceParent string,
 	body []byte,
 	deadlineMS int,
 ) (temporalruntime.ExecutePrimaryAgentActivityOutput, error) {
 	timeout := primaryAgentTransportTimeout(deadlineMS)
-	requestCtx, cancel := context.WithTimeout(ctx, timeout)
+	traceContext := telemetry.ExtractTraceParent(ctx, traceParent)
+	requestCtx, cancel := context.WithTimeout(traceContext, timeout)
 	defer cancel()
 	url := strings.TrimRight(s.config.AgentRuntimeBaseURL, "/") + "/internal/agent-runs/stream"
 	request, err := http.NewRequestWithContext(requestCtx, http.MethodPost, url, bytes.NewReader(body))

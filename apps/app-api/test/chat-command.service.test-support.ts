@@ -453,10 +453,6 @@ export function createTelemetryMock(): AppTelemetry {
 		captureException: vi.fn(),
 		configureChatRequestScope: vi.fn(),
 		configureHttpRequestScope: vi.fn(),
-		getTraceHeaders: vi.fn().mockReturnValue({
-			baggage: "sentry-environment=test",
-			sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
-		}),
 		markHttpResponseStatus: vi.fn(),
 		recordRequestAccepted: vi.fn(),
 		recordRequestFinalized: vi.fn(),

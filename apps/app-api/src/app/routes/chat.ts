@@ -169,7 +169,6 @@ export function registerChatRoutes(input: {
 				payload: await readJsonRequestBody(c.req.raw),
 				principal: resolved.principal,
 				requestKind: "public_chat",
-				traceHeaders: scope.telemetry.getTraceHeaders({ request: c.req.raw }),
 				waitUntil: resolveWaitUntil(c),
 			});
 			return jsonResponse(
@@ -224,7 +223,6 @@ export function registerChatRoutes(input: {
 					payload: await readJsonRequestBody(c.req.raw),
 					principal: resolved.principal,
 					requestKind: "public_chat",
-					traceHeaders: scope.telemetry.getTraceHeaders({ request: c.req.raw }),
 					waitUntil: resolveWaitUntil(c),
 				})
 				[Symbol.asyncIterator]();

@@ -1,5 +1,3 @@
-import type { TracePropagationHeaders } from "./trace";
-
 export interface ActorTelemetrySummary {
 	principalType: string | null;
 	subject: string | null;
@@ -36,7 +34,6 @@ export interface AppTelemetry {
 		surface: string;
 		traceId?: string | null;
 	}): void;
-	getTraceHeaders(input?: { request?: Request | Headers | null }): TracePropagationHeaders;
 	markHttpResponseStatus(status: number): void;
 	recordRequestAccepted(
 		input: BaseRequestTelemetry & {

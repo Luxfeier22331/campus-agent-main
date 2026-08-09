@@ -147,6 +147,7 @@ type ExecutePrimaryAgentActivityInput struct {
 	RequestID         string                 `json:"request_id"`
 	RunID             string                 `json:"run_id"`
 	TraceID           string                 `json:"trace_id"`
+	TraceParent       string                 `json:"traceparent,omitempty"`
 	TurnID            string                 `json:"turn_id"`
 	VisibleToolNames  []string               `json:"visible_tool_names"`
 }

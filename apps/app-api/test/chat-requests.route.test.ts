@@ -26,12 +26,6 @@ const inboundTraceHeaders = {
 	traceParent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
 };
 
-const emptyTraceHeaders = {
-	baggage: null,
-	sentryTrace: null,
-	traceParent: null,
-};
-
 const answerResponse = {
 	answer: {
 		conversation: {
@@ -93,8 +87,11 @@ describe("POST /api/chat/requests", () => {
 					prompt: "图书馆开放到几点？",
 				}),
 				headers: {
+					baggage: inboundTraceHeaders.baggage,
 					"content-type": "application/json",
 					"idempotency-key": "idem-001",
+					"sentry-trace": inboundTraceHeaders.sentryTrace,
+					traceparent: inboundTraceHeaders.traceParent,
 				},
 				method: "POST",
 			}),
@@ -131,40 +128,11 @@ describe("POST /api/chat/requests", () => {
 				}),
 			}),
 			requestKind: "public_chat",
-			traceHeaders: emptyTraceHeaders,
 			waitUntil: undefined,
 		});
-	});
-
-	it("passes inbound W3C trace context to the chat command service", async () => {
-		const service: ChatCommandService = {
-			submit: vi.fn().mockResolvedValue(answerResponse),
-		};
-		const app = createApp(env, {
-			chatCommandService: service,
-			getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
-		});
-
-		const response = await app.fetch(
-			new Request("https://app-api.internal/api/chat/requests", {
-				body: JSON.stringify({
-					prompt: "图书馆开放到几点？",
-				}),
-				headers: {
-					baggage: inboundTraceHeaders.baggage,
-					"content-type": "application/json",
-					"sentry-trace": inboundTraceHeaders.sentryTrace,
-					traceparent: inboundTraceHeaders.traceParent,
-				},
-				method: "POST",
-			}),
-		);
-
-		expect(response.status).toBe(200);
-		expect(service.submit).toHaveBeenCalledWith(
-			expect.objectContaining({
-				traceHeaders: inboundTraceHeaders,
-			}),
+		expect(service.submit).toHaveBeenCalledTimes(1);
+		expect((service.submit as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]).not.toHaveProperty(
+			"traceHeaders",
 		);
 	});
 
@@ -473,6 +441,7 @@ describe("POST /api/chat/requests/stream", () => {
 					baggage: inboundTraceHeaders.baggage,
 					"content-type": "application/json",
 					"idempotency-key": "idem-stream-001",
+					"sentry-trace": inboundTraceHeaders.sentryTrace,
 					traceparent: inboundTraceHeaders.traceParent,
 				},
 				method: "POST",
@@ -498,8 +467,10 @@ describe("POST /api/chat/requests/stream", () => {
 				}),
 			}),
 			requestKind: "public_chat",
-			traceHeaders: { ...inboundTraceHeaders, sentryTrace: null },
 			waitUntil: undefined,
 		});
+		expect(
+			(service.submitStream as ReturnType<typeof vi.fn>).mock.calls[0]?.[0],
+		).not.toHaveProperty("traceHeaders");
 	});
 });

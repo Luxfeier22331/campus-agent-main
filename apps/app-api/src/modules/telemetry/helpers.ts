@@ -1,5 +1,3 @@
-import type { TraceDataLike } from "./trace";
-
 export function normalizeString(value: string | null | undefined): string | null {
 	const trimmed = value?.trim();
 	return trimmed ? trimmed : null;
@@ -20,15 +18,5 @@ export async function runTelemetryAsyncSideEffectWithoutRequestFailure(
 		await operation();
 	} catch {
 		// Telemetry must never become a request-path failure source.
-	}
-}
-
-export function readTelemetryTraceDataWithoutRequestFailure(
-	traceDataProvider: () => TraceDataLike | null | undefined,
-): TraceDataLike {
-	try {
-		return traceDataProvider() ?? {};
-	} catch {
-		return {};
 	}
 }

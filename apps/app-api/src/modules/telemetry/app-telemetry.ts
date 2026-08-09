@@ -5,7 +5,6 @@ import { isStageTimingField, stageTimingBudgetState } from "../latency-budget";
 import { createConsoleRuntimeEventSink } from "./console";
 import {
 	normalizeString,
-	readTelemetryTraceDataWithoutRequestFailure,
 	runTelemetryAsyncSideEffectWithoutRequestFailure,
 	runTelemetrySideEffectWithoutRequestFailure,
 } from "./helpers";
@@ -13,7 +12,6 @@ import type { RuntimeEventSink } from "./runtime-event";
 import { buildRuntimeEventEnvelope } from "./runtime-event-envelope";
 import { normalizeAppApiRoute } from "./sentry";
 import { applyRequestTags } from "./sentry-scope";
-import { resolveTracePropagationHeaders, type TraceDataLike } from "./trace";
 import type { AppTelemetry } from "./types";
 
 function projectStageTimingFields(
@@ -52,12 +50,10 @@ export function createAppTelemetry(
 	input: {
 		runtimeEventSink?: RuntimeEventSink;
 		now?: () => Date;
-		traceDataProvider?: () => TraceDataLike | null | undefined;
 	} = {},
 ): AppTelemetry {
 	const runtimeEventSink = input.runtimeEventSink ?? createConsoleRuntimeEventSink();
 	const now = input.now ?? (() => new Date());
-	const traceDataProvider = input.traceDataProvider ?? (() => Sentry.getTraceData());
 	const telemetryMetadata = {
 		environment: resolveEnvironment(env),
 		now,
@@ -109,13 +105,6 @@ export function createAppTelemetry(
 					surface: input.surface,
 					traceId: input.traceId,
 				});
-			});
-		},
-
-		getTraceHeaders(input) {
-			return resolveTracePropagationHeaders({
-				request: input?.request,
-				traceData: readTelemetryTraceDataWithoutRequestFailure(traceDataProvider),
 			});
 		},
 

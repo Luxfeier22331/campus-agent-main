@@ -407,6 +407,7 @@ func TestToolExecutionWorkflowCompletesDurableLifecycleInOrder(t *testing.T) {
 	sequence := make([]string, 0, 3)
 	runID := "run-linear-knowledge"
 	traceID := "trace-linear-knowledge"
+	traceParent := "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
 	agentResultRef := "projection://runs/" + runID + "/agent/primary/result"
 	completedAt := time.Date(2026, 7, 11, 1, 2, 3, 0, time.UTC)
 
@@ -429,7 +430,9 @@ func TestToolExecutionWorkflowCompletesDurableLifecycleInOrder(t *testing.T) {
 		mock.Anything,
 		mock.MatchedBy(func(input ExecutePrimaryAgentActivityInput) bool {
 			return input.RunID == runID &&
-				input.TraceID == traceID && input.GroundingContext.RunID == runID
+				input.TraceID == traceID &&
+				input.TraceParent == traceParent &&
+				input.GroundingContext.RunID == runID
 		}),
 	).
 		Run(func(mock.Arguments) { sequence = append(sequence, "agent") }).
@@ -478,6 +481,7 @@ func TestToolExecutionWorkflowCompletesDurableLifecycleInOrder(t *testing.T) {
 		RequestID:      "req-linear-knowledge",
 		RunID:          runID,
 		TraceID:        traceID,
+		TraceParent:    traceParent,
 		TurnID:         "turn-linear-knowledge",
 	})
 

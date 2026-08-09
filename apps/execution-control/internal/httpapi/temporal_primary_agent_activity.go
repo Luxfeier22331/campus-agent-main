@@ -179,7 +179,13 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		startedProjection,
 		activity.IsActivity(ctx),
 	)
-	output, err := s.callAgentRuntimeRequest(ctx, run, providerRequestBody, limits.AgentDeadlineMS)
+	output, err := s.callAgentRuntimeRequest(
+		ctx,
+		run,
+		input.TraceParent,
+		providerRequestBody,
+		limits.AgentDeadlineMS,
+	)
 	if err != nil {
 		return s.failPrimaryAgentActivity(ctx, run, "agent_attempt_uncertain", err)
 	}

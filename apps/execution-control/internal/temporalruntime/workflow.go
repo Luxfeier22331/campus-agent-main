@@ -400,6 +400,7 @@ func executePrimaryAgent(
 		RequestID:         input.RequestID,
 		RunID:             input.RunID,
 		TraceID:           input.TraceID,
+		TraceParent:       input.TraceParent,
 		TurnID:            input.TurnID,
 		VisibleToolNames:  append([]string{}, input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames...),
 	}

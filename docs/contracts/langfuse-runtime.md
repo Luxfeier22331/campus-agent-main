@@ -30,9 +30,11 @@ Agent Runtime 只在进程启动时存在 `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` �
 选择；产品请求不能选择采样率、project、endpoint 或观测模式。进程关闭时 flush，不在每个请求或
 span 后强制 flush。
 
-execution-control 不创建 OTel exporter、编排 span 或 runtime metric。它保留 W3C `traceparent` 与
-`baggage` 的提取和转发，使 Agent Runtime 能继承调用上下文；Temporal history、PostgreSQL 投影和
-Hindsight 业务调用不依赖 trace export。Hindsight 不产生新的 Langfuse trace。
+浏览器和 Sentry 的追踪上下文只服务 App API 入站错误观测，到 durable execution 边界即终止。
+Source 使用产品 `traceId` 生成该次 durable execution 唯一允许的 W3C `traceparent`；
+execution-control 只提取和转发这个上下文，不转换 `sentry-trace`，也不传播 `baggage`。
+execution-control 不创建 OTel exporter、编排 span 或 runtime metric；Temporal history、PostgreSQL
+投影和 Hindsight 业务调用不依赖 trace export。Hindsight 不产生新的 Langfuse trace。
 
 源码本地 Collector 只有一个 Agent trace pipeline：debug 配置写 debug exporter，prodlike 配置写
 Langfuse。它不向 Axiom 复制 trace，也不接收 execution-control、Hindsight、日志或指标。环境部署
@@ -60,7 +62,8 @@ producer-side sanitizer 只允许严格的 `true`，拒绝其他值和其他 `la
 字段准入的可执行来源是 `apps/agent-runtime/src/telemetry-sanitizer.ts` 及其测试，不能通过 Collector
 transform 恢复 producer 已删除的内容。
 
-产品 `requestId` 是日志和产品投影的持久业务键；`traceId` 只用于关联和展示。Langfuse trace
+产品 `requestId` 是日志和产品投影的持久业务键；传输层 trace ID 不承担业务标识职责，产品
+`traceId` 只用于关联和展示。Langfuse trace
 是否存在、采样、延迟或保留状态都不能改写产品终态，也不能要求 Ops Web 同时用两个 ID 过滤 Axiom
 application logs。
 

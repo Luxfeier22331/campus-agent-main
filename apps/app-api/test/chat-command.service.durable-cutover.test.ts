@@ -220,11 +220,6 @@ describe("chat command durable runtime cutover", () => {
 			},
 			principal: createPrincipal(),
 			requestKind: "public_chat",
-			traceHeaders: {
-				baggage: "release=2026.06.18",
-				sentryTrace: "fedcba9876543210fedcba9876543210-0123456789abcdef-1",
-				traceParent: EXPECTED_LANGFUSE_TRACE_PARENT,
-			},
 		});
 
 		expect(executionRuntime.createRun).toHaveBeenCalledOnce();
@@ -353,7 +348,7 @@ describe("chat command durable runtime cutover", () => {
 		expect(executionRuntime.listRunEvents).toHaveBeenCalledTimes(1);
 	});
 
-	it("injects deterministic W3C traceparent into durable runtime calls when inbound traceparent is absent", async () => {
+	it("generates the durable W3C traceparent without reusing a legacy browser value", async () => {
 		const { store } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
@@ -407,17 +402,21 @@ describe("chat command durable runtime cutover", () => {
 			telemetry,
 		});
 
-		await service.submit({
+		const legacyBrowserTraceParent = "00-11111111111111111111111111111111-2222222222222222-01";
+		const submitInput = {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "示例大学本科学生国家奖学金评审办法",
 			},
 			principal: createPrincipal(),
-			requestKind: "public_chat",
-		});
+			requestKind: "public_chat" as const,
+			traceHeaders: { traceParent: legacyBrowserTraceParent },
+		};
+		await service.submit(submitInput);
 
 		const langfuseTraceId = await deriveLangfuseTraceId("trace_0001");
 		const expectedTraceParent = `00-${langfuseTraceId}-0000000000000001-01`;
+		expect(expectedTraceParent).not.toBe(legacyBrowserTraceParent);
 		expect(executionRuntime.createRun).toHaveBeenCalledWith(
 			expect.objectContaining({
 				traceHeaders: expect.objectContaining({

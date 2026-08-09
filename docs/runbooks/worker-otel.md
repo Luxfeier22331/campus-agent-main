@@ -12,10 +12,11 @@ status: active
 logs 经 Cloudflare log destination 到 Axiom，以及 edge/browser SDK 到 Sentry。Worker 不使用
 仓库手写 OTLP exporter，Cloudflare log destination 也不经过 Kubernetes Collector。
 
-Cloudflare invocation logs 与 native traces 必须关闭，不能作为证据。W3C context 继续经
-execution-control 传播到 Agent Runtime；若环境启用 Agent trace，可在 Langfuse 关联。环境 destination、Worker
-version/traffic、Sentry DSN 和 CI source map credential 由环境仓与受保护 GitHub Environment
-拥有。
+Cloudflare invocation logs 与 native traces 必须关闭，不能作为证据。浏览器和 Sentry 的追踪上下文
+只服务 App API 入站错误观测，到 durable execution 边界即终止。Source 使用产品 `traceId` 生成
+W3C `traceparent`，由 execution-control 传播到 Agent Runtime；若环境启用 Agent trace，可在
+Langfuse 关联。环境 destination、Worker version/traffic、Sentry DSN 和 CI source map credential
+由环境仓与受保护 GitHub Environment 拥有。
 
 ## 部署前检查
 
@@ -62,8 +63,9 @@ destination、sampling、`persist=false`、`invocation_logs=false` 和
 - Axiom 无 Worker application log：检查 producer 是否实际发出允许事件、Worker version、staging
   log destination reconciliation 和 token 权限，不从 Collector receiver 排查这条旁路。
 - Sentry 无错误或 stack 未映射：检查 runtime DSN、release 一致性和 source map upload job。
-- correlation 断裂：检查 application log 的 `requestId` 和 Worker 到 Agent Runtime 的 W3C
-  `traceparent`/`baggage` 传播；不要把 `traceId` 加成 Axiom 的第二个强制过滤条件。
+- correlation 断裂：检查 application log 的 `requestId`，以及 Source 生成的 W3C `traceparent` 是否
+  经 execution-control 传播到 Agent Runtime；`baggage` 和 `sentry-trace` 不得跨 durable execution
+  边界，也不要把 `traceId` 加成 Axiom 的第二个强制过滤条件。
 - 任一禁止字段出现：立即关闭对应 log destination、producer 输出或 Sentry path；出现 invocation
   log/native trace 时先修复配置漂移，再执行完整哨兵检查。
 

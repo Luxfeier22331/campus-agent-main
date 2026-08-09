@@ -6,10 +6,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const sentryMocks = vi.hoisted(() => ({
 	captureException: vi.fn(),
-	getTraceData: vi.fn(() => ({
-		baggage: "test-baggage",
-		"sentry-trace": "test-trace",
-	})),
 	setContext: vi.fn(),
 	setTag: vi.fn(),
 	withScope: vi.fn((callback: (scope: { setTag: (key: string, value: string) => void }) => void) =>
@@ -24,6 +20,7 @@ vi.mock("@sentry/cloudflare", () => sentryMocks);
 import * as telemetryModule from "../src/modules/telemetry";
 import { createAppTelemetry } from "../src/modules/telemetry";
 import {
+	applyTracePropagationHeaders,
 	deriveLangfuseTraceId,
 	ensureLangfuseTraceParent,
 	traceParentForLangfuseTraceId,
@@ -51,11 +48,6 @@ function langfuseTraceIdVectors(): LangfuseTraceIdVector[] {
 describe("app telemetry", () => {
 	beforeEach(() => {
 		sentryMocks.captureException.mockReset();
-		sentryMocks.getTraceData.mockReset();
-		sentryMocks.getTraceData.mockReturnValue({
-			baggage: "test-baggage",
-			"sentry-trace": "test-trace",
-		});
 		sentryMocks.setContext.mockReset();
 		sentryMocks.setTag.mockReset();
 		sentryMocks.withScope.mockReset();
@@ -90,41 +82,6 @@ describe("app telemetry", () => {
 		).not.toThrow();
 	});
 
-	it("returns empty trace headers when sentry trace data lookup throws", () => {
-		sentryMocks.getTraceData.mockImplementation(() => {
-			throw new Error("trace data failed");
-		});
-
-		const telemetry = createAppTelemetry(TEST_TELEMETRY_ENV, {
-			runtimeEventSink: { emit: vi.fn() },
-		});
-
-		expect(telemetry.getTraceHeaders()).toEqual({
-			baggage: null,
-			sentryTrace: null,
-			traceParent: null,
-		});
-	});
-
-	it("prefers W3C traceparent while preserving Sentry propagation headers", () => {
-		const telemetry = createAppTelemetry(TEST_TELEMETRY_ENV, {
-			runtimeEventSink: { emit: vi.fn() },
-		});
-		const request = new Request("https://app-api.internal/api/chat", {
-			headers: {
-				baggage: "session=conv_01",
-				"sentry-trace": "4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-1",
-				traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
-			},
-		});
-
-		expect(telemetry.getTraceHeaders({ request })).toEqual({
-			baggage: "session=conv_01",
-			sentryTrace: "4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-1",
-			traceParent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
-		});
-	});
-
 	it("derives deterministic Langfuse-compatible trace ids from product trace ids", async () => {
 		const traceId = await deriveLangfuseTraceId("trace_0001");
 
@@ -148,6 +105,30 @@ describe("app telemetry", () => {
 		expect(traceHeaders).toEqual({
 			traceParent: `00-${langfuseTraceId}-0000000000000001-01`,
 		});
+	});
+
+	it("writes only a valid W3C traceparent", () => {
+		const headers = new Headers();
+		applyTracePropagationHeaders(headers, {
+			traceParent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+		});
+
+		expect(headers.get("traceparent")).toBe(
+			"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+		);
+	});
+
+	it("does not write malformed or zero W3C traceparents", () => {
+		for (const traceParent of [
+			"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-09",
+			"00-00000000000000000000000000000000-00f067aa0ba902b7-01",
+			"00-4bf92f3577b34da6a3ce929d0e0e4736-0000000000000000-01",
+			"not-a-traceparent",
+		]) {
+			const headers = new Headers();
+			applyTracePropagationHeaders(headers, { traceParent });
+			expect(headers.has("traceparent")).toBe(false);
+		}
 	});
 
 	it("keeps product identity out of Sentry while emitting the bounded runtime envelope", async () => {

@@ -3,7 +3,7 @@ import type { ChatConversation, ChatConversationStore } from "../../chat";
 import type { ExecutionControlRuntimeClient, ToolExecutionResponse } from "../../integration";
 import type { ProfileMemoryStore } from "../../profile-memory";
 import type { RuntimeRunPhase } from "../../runtime-run";
-import type { AppTelemetry, TracePropagationHeaders } from "../../telemetry";
+import type { AppTelemetry } from "../../telemetry";
 import type {
 	ChatCommandStore,
 	FrozenChatAdmissionWrite,
@@ -82,7 +82,6 @@ export interface ChatCommandSubmitInput {
 	payload: ChatCommandPayload | InternalEvalChatCommandPayload;
 	principal: ResolvedAppPrincipal;
 	requestKind?: ChatCommandRequestKind;
-	traceHeaders?: TracePropagationHeaders;
 	waitUntil?: ((promise: Promise<unknown>) => void) | undefined;
 }
 
