@@ -4,7 +4,12 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { type CommandResult, type CommandRunner, publishImages } from "./images.mts";
+import {
+	type CommandOutput,
+	type CommandResult,
+	type CommandRunner,
+	publishImages,
+} from "./images.mts";
 
 const SHA = "a".repeat(40);
 const FIRST_DIGEST = `sha256:${"b".repeat(64)}`;
@@ -45,6 +50,7 @@ async function fixture(t: test.TestContext): Promise<{
 	return {
 		options: {
 			images: ["agent-runtime"],
+			logger: () => undefined,
 			outputFile: path.join(root, "digests.json"),
 			repository: "MUC-WIKI/campus-agent",
 			repositoryRoot: root,
@@ -65,9 +71,12 @@ test("rejects image names that Docker Bake does not declare", async (t) => {
 
 test("reuses an existing immutable arm64 image index", async (t) => {
 	const { options } = await fixture(t);
-	const calls: string[] = [];
-	const runner: CommandRunner = async (command, args) => {
-		calls.push(`${command} ${args.join(" ")}`);
+	const calls: Array<{ args: string[]; command: string; output: CommandOutput }> = [];
+	const logs: string[] = [];
+	options.logger = (message) => logs.push(message);
+	options.summaryFile = path.join(options.repositoryRoot, "summary.md");
+	const runner: CommandRunner = async (command, args, commandOptions) => {
+		calls.push({ args, command, output: commandOptions.output });
 		if (args.includes("--print")) {
 			return bakePrint(["agent-runtime"]);
 		}
@@ -81,13 +90,24 @@ test("reuses an existing immutable arm64 image index", async (t) => {
 		"agent-runtime": FIRST_DIGEST,
 	});
 	assert.equal(
-		calls.some((call) => call.includes("--metadata-file")),
+		calls.some((call) => call.args.includes("--metadata-file")),
 		false,
 	);
-	assert.equal(
-		calls.some((call) => call.startsWith("trivy image")),
-		true,
+	assert.deepEqual(
+		calls.map(({ args, command, output }) => ({ command, output, subcommand: args[0] })),
+		[
+			{ command: "docker", output: "capture", subcommand: "buildx" },
+			{ command: "docker", output: "capture", subcommand: "buildx" },
+			{ command: "trivy", output: "stream", subcommand: "image" },
+		],
 	);
+	assert(logs.some((line) => /stage=inspect state=complete .*reused=true/u.test(line)));
+	assert(logs.some((line) => /stage=scan state=complete duration_ms=\d+/u.test(line)));
+	assert(!logs.some((line) => line.includes("stage=build")));
+	const summary = await readFile(options.summaryFile, "utf8");
+	assert.match(summary, /\| `agent-runtime` \| reused \|/u);
+	assert.match(summary, /\| \d+\.\d+s \| - \| \d+\.\d+s \| \d+\.\d+s \|/u);
+	assert(summary.includes(FIRST_DIGEST));
 });
 
 test("rejects an existing immutable tag for the wrong architecture", async (t) => {
@@ -128,7 +148,12 @@ test("does not treat an unexpected registry failure as a missing image", async (
 
 test("reads the pushed digest from Docker Bake metadata", async (t) => {
 	const { options } = await fixture(t);
-	const runner: CommandRunner = async (_command, args) => {
+	const calls: Array<{ args: string[]; output: CommandOutput }> = [];
+	const logs: string[] = [];
+	options.logger = (message) => logs.push(message);
+	options.summaryFile = path.join(options.repositoryRoot, "summary.md");
+	const runner: CommandRunner = async (_command, args, commandOptions) => {
+		calls.push({ args, output: commandOptions.output });
 		if (args.includes("--print")) {
 			return bakePrint(["agent-runtime"]);
 		}
@@ -151,10 +176,47 @@ test("reads the pushed digest from Docker Bake metadata", async (t) => {
 	assert.deepEqual(await publishImages(options, runner), {
 		"agent-runtime": FIRST_DIGEST,
 	});
+	const build = calls.find((call) => call.args.includes("--metadata-file"));
+	assert(build);
+	assert.equal(build.output, "stream");
+	assert(build.args.includes("--progress=plain"));
+	assert.equal(calls.find((call) => call.args.includes("--print"))?.output, "capture");
+	assert.equal(calls.find((call) => call.args.includes("imagetools"))?.output, "capture");
+	assert(logs.some((line) => line.includes("stage=build state=start")));
+	assert(logs.some((line) => /stage=build state=complete duration_ms=\d+/u.test(line)));
+	assert(logs.some((line) => line.includes("result=built")));
+	assert.match(await readFile(options.summaryFile, "utf8"), /\| `agent-runtime` \| built \|/u);
+});
+
+test("records a build failure and leaves later images not started", async (t) => {
+	const { options } = await fixture(t);
+	options.images = ["ops-web", "agent-runtime"];
+	options.summaryFile = path.join(options.repositoryRoot, "summary.md");
+	const logs: string[] = [];
+	options.logger = (message) => logs.push(message);
+	const runner: CommandRunner = async (_command, args) => {
+		if (args.includes("--print")) {
+			return bakePrint(options.images);
+		}
+		if (args.includes("imagetools")) {
+			return result({ code: 1, stderr: "manifest unknown" });
+		}
+		return result({ code: 1, stderr: "build failed" });
+	};
+
+	await assert.rejects(publishImages(options, runner), /build failed/u);
+	assert(logs.some((line) => /image=agent-runtime stage=build state=failed/u.test(line)));
+	assert(logs.some((line) => /image=agent-runtime stage=total state=failed/u.test(line)));
+	const summary = await readFile(options.summaryFile, "utf8");
+	assert.match(summary, /\| `agent-runtime` \| failed \(build\) \|/u);
+	assert.match(summary, /\| `ops-web` \| not-started \|/u);
 });
 
 test("fails publication when Trivy rejects an image", async (t) => {
 	const { options } = await fixture(t);
+	const logs: string[] = [];
+	options.logger = (message) => logs.push(message);
+	options.summaryFile = path.join(options.repositoryRoot, "summary.md");
 	const runner: CommandRunner = async (command, args) => {
 		if (args.includes("--print")) {
 			return bakePrint(["agent-runtime"]);
@@ -177,11 +239,69 @@ test("fails publication when Trivy rejects an image", async (t) => {
 		assert.match(String(error), /scanner diagnostics/u);
 		return true;
 	});
+	assert(logs.some((line) => /stage=scan state=failed .*exit_code=1/u.test(line)));
+	assert.match(
+		await readFile(options.summaryFile, "utf8"),
+		/\| `agent-runtime` \| failed \(scan\) \|/u,
+	);
+});
+
+test("fails publication when the summary cannot be written", async (t) => {
+	const { options } = await fixture(t);
+	const logs: string[] = [];
+	options.logger = (message) => logs.push(message);
+	options.summaryFile = path.join(options.repositoryRoot, "missing", "summary.md");
+	const runner: CommandRunner = async (_command, args) => {
+		if (args.includes("--print")) {
+			return bakePrint(["agent-runtime"]);
+		}
+		if (args.includes("imagetools")) {
+			return manifest(FIRST_DIGEST);
+		}
+		return result();
+	};
+
+	await assert.rejects(publishImages(options, runner), (error: unknown) => {
+		assert.equal((error as NodeJS.ErrnoException).code, "ENOENT");
+		return true;
+	});
+	assert(logs.some((line) => line.includes("summary state=failed original_error=false")));
+	assert.equal(
+		await readFile(options.outputFile, "utf8"),
+		`${JSON.stringify({ "agent-runtime": FIRST_DIGEST }, null, 2)}\n`,
+	);
+});
+
+test("preserves a scan failure when the summary also fails", async (t) => {
+	const { options } = await fixture(t);
+	const logs: string[] = [];
+	options.logger = (message) => logs.push(message);
+	options.summaryFile = path.join(options.repositoryRoot, "missing", "summary.md");
+	const runner: CommandRunner = async (command, args) => {
+		if (args.includes("--print")) {
+			return bakePrint(["agent-runtime"]);
+		}
+		if (args.includes("imagetools")) {
+			return manifest(FIRST_DIGEST);
+		}
+		if (command === "trivy") {
+			return result({ code: 1, stderr: "scanner diagnostics" });
+		}
+		return result();
+	};
+
+	await assert.rejects(publishImages(options, runner), (error: unknown) => {
+		assert.match(String(error), /scanner diagnostics/u);
+		assert.doesNotMatch(String(error), /ENOENT/u);
+		return true;
+	});
+	assert(logs.some((line) => line.includes("summary state=failed original_error=true")));
 });
 
 test("normalizes image order in the result and output file", async (t) => {
 	const { options } = await fixture(t);
 	options.images = ["ops-web", "agent-runtime"];
+	options.summaryFile = path.join(options.repositoryRoot, "summary.md");
 	const runner: CommandRunner = async (_command, args) => {
 		if (args.includes("--print")) {
 			return bakePrint(["ops-web", "agent-runtime"]);
@@ -202,4 +322,6 @@ test("normalizes image order in the result and output file", async (t) => {
 		await readFile(options.outputFile, "utf8"),
 		`${JSON.stringify({ "agent-runtime": FIRST_DIGEST, "ops-web": SECOND_DIGEST }, null, 2)}\n`,
 	);
+	const summary = await readFile(options.summaryFile, "utf8");
+	assert(summary.indexOf("`agent-runtime`") < summary.indexOf("`ops-web`"));
 });

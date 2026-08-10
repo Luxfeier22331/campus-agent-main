@@ -311,6 +311,37 @@ test("candidate publishing uses the transitional release runner before final sta
 		assert(isObject(job));
 		assert.equal(job.needs, "release-plan", jobName);
 	}
+	const publishImages = workflow.jobs["publish-images"];
+	assert(isObject(publishImages));
+	assert(Array.isArray(publishImages.steps));
+	const buildxIndex = publishImages.steps.findIndex(
+		(step) => isObject(step) && step.name === "Setup persistent Docker Buildx",
+	);
+	const runnerFactsIndex = publishImages.steps.findIndex(
+		(step) => isObject(step) && step.name === "Record release runner facts",
+	);
+	assert(buildxIndex >= 0);
+	assert.equal(runnerFactsIndex, buildxIndex + 1);
+	const buildx = publishImages.steps[buildxIndex];
+	assert(isObject(buildx));
+	assert(isObject(buildx.with));
+	assert(typeof buildx.with["driver-opts"] === "string");
+	assert(buildx.with["driver-opts"].includes("cpu-quota=200000"));
+	assert(buildx.with["driver-opts"].includes("memory=2g"));
+	assert(buildx.with["driver-opts"].includes("memory-swap=2g"));
+	const runnerFacts = publishImages.steps[runnerFactsIndex];
+	assert(isObject(runnerFacts));
+	assert.equal(typeof runnerFacts.run, "string");
+	assert(runnerFacts.run.includes('tee -a "$GITHUB_STEP_SUMMARY"'));
+	assert(runnerFacts.run.includes("docker buildx inspect --bootstrap"));
+	const publishStep = publishImages.steps.find(
+		(step) => isObject(step) && step.name === "Build, publish and scan images",
+	);
+	assert(isObject(publishStep));
+	assert(isObject(publishStep.env));
+	assert.equal(publishStep.env.BUILDKIT_PROGRESS, undefined);
+	assert.equal(typeof publishStep.run, "string");
+	assert(publishStep.run.includes('--summary "$GITHUB_STEP_SUMMARY"'));
 	const candidateStatus = workflow.jobs["candidate-status"];
 	assert(isObject(candidateStatus));
 	assert.deepEqual(candidateStatus.needs, [

@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { appendFile, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { performance } from "node:perf_hooks";
 import { pathToFileURL } from "node:url";
 
 const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/;
@@ -15,19 +16,38 @@ export interface CommandResult {
 	stdout: string;
 }
 
+export type CommandOutput = "capture" | "stream";
+
 export type CommandRunner = (
 	command: string,
 	args: string[],
-	options: { cwd: string; env: NodeJS.ProcessEnv },
+	options: { cwd: string; env: NodeJS.ProcessEnv; output: CommandOutput },
 ) => Promise<CommandResult>;
 
 export interface PublishImageOptions {
 	images: string[];
+	logger?: (message: string) => void;
 	outputFile: string;
 	repository: string;
 	repositoryRoot: string;
 	sourceSha: string;
+	summaryFile?: string;
 	trivyCacheDirectory: string;
+}
+
+type ImageResult = "built" | "failed" | "not-started" | "reused";
+type ImageStage = "build" | "inspect" | "scan" | "total";
+
+interface ImageReport {
+	buildMs?: number;
+	digest?: string;
+	failedStage?: Exclude<ImageStage, "total">;
+	image: string;
+	inspectMs?: number;
+	result: ImageResult;
+	scanMs?: number;
+	startedAt?: number;
+	totalMs?: number;
 }
 
 interface ImageManifest {
@@ -50,7 +70,7 @@ function commandError(command: string, args: string[], result: CommandResult): E
 export async function runCommand(
 	command: string,
 	args: string[],
-	options: { cwd: string; env: NodeJS.ProcessEnv },
+	options: { cwd: string; env: NodeJS.ProcessEnv; output: CommandOutput },
 ): Promise<CommandResult> {
 	return await new Promise((resolve, reject) => {
 		const child = spawn(command, args, {
@@ -61,14 +81,68 @@ export async function runCommand(
 		let stdout = "";
 		let stderr = "";
 		child.stdout.setEncoding("utf8").on("data", (chunk: string) => {
-			stdout += chunk;
+			if (options.output === "stream") {
+				process.stderr.write(chunk);
+			} else {
+				stdout += chunk;
+			}
 		});
 		child.stderr.setEncoding("utf8").on("data", (chunk: string) => {
-			stderr += chunk;
+			if (options.output === "stream") {
+				process.stderr.write(chunk);
+			} else {
+				stderr += chunk;
+			}
 		});
 		child.once("error", reject);
 		child.once("close", (code) => resolve({ code: code ?? 1, stderr, stdout }));
 	});
+}
+
+function elapsed(startedAt: number): number {
+	return Math.round(performance.now() - startedAt);
+}
+
+function logStage(
+	logger: (message: string) => void,
+	image: string,
+	stage: ImageStage,
+	state: "complete" | "failed" | "start",
+	detail?: string,
+): void {
+	logger(
+		`[release-image] image=${image} stage=${stage} state=${state}${detail ? ` ${detail}` : ""}\n`,
+	);
+}
+
+function durationCell(duration: number | undefined): string {
+	return duration === undefined ? "-" : `${(duration / 1_000).toFixed(1)}s`;
+}
+
+async function appendSummary(file: string, reports: ImageReport[]): Promise<void> {
+	const rows = reports.map((report) => {
+		const result = report.failedStage ? `failed (${report.failedStage})` : report.result;
+		return `| ${[
+			`\`${report.image}\``,
+			result,
+			durationCell(report.inspectMs),
+			durationCell(report.buildMs),
+			durationCell(report.scanMs),
+			durationCell(report.totalMs),
+			report.digest ? `\`${report.digest}\`` : "-",
+		].join(" | ")} |`;
+	});
+	await appendFile(
+		path.resolve(file),
+		[
+			"### Published image results",
+			"",
+			"| Image | Result | Inspect | Build/push | Scan | Total | Digest |",
+			"| --- | --- | ---: | ---: | ---: | ---: | --- |",
+			...rows,
+			"",
+		].join("\n"),
+	);
 }
 
 function requiredDigest(value: unknown, context: string): string {
@@ -169,14 +243,16 @@ export async function publishImages(
 ): Promise<Record<string, string>> {
 	validateOptions(options);
 	const images = normalizedImages(options.images);
+	const logger = options.logger ?? ((message: string) => process.stderr.write(message));
 	const root = path.resolve(options.repositoryRoot);
 	const environment = {
 		...process.env,
 		IMAGE_REVISION: options.sourceSha,
 		IMAGE_SOURCE: `https://github.com/${options.repository}`,
 	};
+	const commandOptions = { cwd: root, env: environment, output: "capture" as const };
 	const printArguments = ["buildx", "bake", "--file", "docker-bake.hcl", "--print"];
-	const printed = await runner("docker", printArguments, { cwd: root, env: environment });
+	const printed = await runner("docker", printArguments, commandOptions);
 	if (printed.code !== 0) {
 		throw commandError("docker", printArguments, printed);
 	}
@@ -188,24 +264,68 @@ export async function publishImages(
 	}
 
 	const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "campus-agent-images-"));
+	const reports = images.map<ImageReport>((image) => ({ image, result: "not-started" }));
+	const imageRoot = `ghcr.io/${options.repository.toLowerCase()}`;
+	const digests: Record<string, string> = {};
+	let failure: { error: unknown } | undefined;
 	try {
-		const imageRoot = `ghcr.io/${options.repository.toLowerCase()}`;
-		const digests: Record<string, string> = {};
-		for (const image of images) {
+		for (const [index, image] of images.entries()) {
+			const report = reports[index] as ImageReport;
+			report.result = "failed";
+			const totalStartedAt = performance.now();
+			report.startedAt = totalStartedAt;
 			const repository = `${imageRoot}/${image}`;
 			const tag = `${repository}:${options.sourceSha}`;
 			const inspectArguments = ["buildx", "imagetools", "inspect", tag, "--format", "{{json .}}"];
-			const inspected = await runner("docker", inspectArguments, {
-				cwd: root,
-				env: environment,
-			});
+			logStage(logger, image, "total", "start");
+			logStage(logger, image, "inspect", "start");
+			const inspectStartedAt = performance.now();
+			let inspected: CommandResult;
+			try {
+				inspected = await runner("docker", inspectArguments, commandOptions);
+			} catch (error) {
+				report.failedStage = "inspect";
+				report.inspectMs = elapsed(inspectStartedAt);
+				logStage(logger, image, "inspect", "failed", `duration_ms=${report.inspectMs}`);
+				throw error;
+			}
+			report.inspectMs = elapsed(inspectStartedAt);
 			let digest: string;
 			if (inspected.code === 0) {
-				digest = existingDigest(inspected.stdout, tag);
+				try {
+					digest = existingDigest(inspected.stdout, tag);
+				} catch (error) {
+					report.failedStage = "inspect";
+					logStage(logger, image, "inspect", "failed", `duration_ms=${report.inspectMs}`);
+					throw error;
+				}
+				report.result = "reused";
+				logStage(
+					logger,
+					image,
+					"inspect",
+					"complete",
+					`duration_ms=${report.inspectMs} reused=true`,
+				);
 			} else {
 				if (!/manifest unknown|not found|no such manifest/iu.test(inspected.stderr)) {
+					report.failedStage = "inspect";
+					logStage(
+						logger,
+						image,
+						"inspect",
+						"failed",
+						`duration_ms=${report.inspectMs} exit_code=${inspected.code}`,
+					);
 					throw commandError("docker", inspectArguments, inspected);
 				}
+				logStage(
+					logger,
+					image,
+					"inspect",
+					"complete",
+					`duration_ms=${report.inspectMs} reused=false`,
+				);
 				const metadataFile = path.join(temporaryDirectory, `${image}.json`);
 				const buildArguments = [
 					"buildx",
@@ -214,6 +334,7 @@ export async function publishImages(
 					"docker-bake.hcl",
 					"--metadata-file",
 					metadataFile,
+					"--progress=plain",
 					"--pull",
 					"--push",
 					"--set",
@@ -224,15 +345,44 @@ export async function publishImages(
 					`${image}.cache-to=type=registry,ref=${repository}:buildcache-arm64,mode=max,image-manifest=true,oci-mediatypes=true,ignore-error=true`,
 					image,
 				];
-				const built = await runner("docker", buildArguments, {
-					cwd: root,
-					env: environment,
-				});
+				logStage(logger, image, "build", "start");
+				const buildStartedAt = performance.now();
+				let built: CommandResult;
+				try {
+					built = await runner("docker", buildArguments, {
+						cwd: root,
+						env: environment,
+						output: "stream",
+					});
+				} catch (error) {
+					report.failedStage = "build";
+					report.buildMs = elapsed(buildStartedAt);
+					logStage(logger, image, "build", "failed", `duration_ms=${report.buildMs}`);
+					throw error;
+				}
+				report.buildMs = elapsed(buildStartedAt);
 				if (built.code !== 0) {
+					report.failedStage = "build";
+					logStage(
+						logger,
+						image,
+						"build",
+						"failed",
+						`duration_ms=${report.buildMs} exit_code=${built.code}`,
+					);
 					throw commandError("docker", buildArguments, built);
 				}
-				digest = buildDigest(await readFile(metadataFile, "utf8"), image);
+				try {
+					digest = buildDigest(await readFile(metadataFile, "utf8"), image);
+				} catch (error) {
+					report.failedStage = "build";
+					logStage(logger, image, "build", "failed", `duration_ms=${report.buildMs}`);
+					throw error;
+				}
+				report.result = "built";
+				logStage(logger, image, "build", "complete", `duration_ms=${report.buildMs}`);
 			}
+			report.digest = digest;
 
 			const trivyArguments = [
 				"image",
@@ -251,24 +401,82 @@ export async function publishImages(
 				"1",
 				`${repository}@${digest}`,
 			];
-			const scanned = await runner("trivy", trivyArguments, {
-				cwd: root,
-				env: environment,
-			});
+			logStage(logger, image, "scan", "start");
+			const scanStartedAt = performance.now();
+			let scanned: CommandResult;
+			try {
+				scanned = await runner("trivy", trivyArguments, {
+					cwd: root,
+					env: environment,
+					output: "stream",
+				});
+			} catch (error) {
+				report.failedStage = "scan";
+				report.scanMs = elapsed(scanStartedAt);
+				logStage(logger, image, "scan", "failed", `duration_ms=${report.scanMs}`);
+				throw error;
+			}
+			report.scanMs = elapsed(scanStartedAt);
 			if (scanned.code !== 0) {
+				report.failedStage = "scan";
+				logStage(
+					logger,
+					image,
+					"scan",
+					"failed",
+					`duration_ms=${report.scanMs} exit_code=${scanned.code}`,
+				);
 				throw commandError("trivy", trivyArguments, scanned);
 			}
+			logStage(logger, image, "scan", "complete", `duration_ms=${report.scanMs}`);
 			digests[image] = digest;
+			report.totalMs = elapsed(totalStartedAt);
+			logStage(
+				logger,
+				image,
+				"total",
+				"complete",
+				`duration_ms=${report.totalMs} result=${report.result} digest=${digest}`,
+			);
 		}
 
 		const output = path.resolve(options.outputFile);
 		const temporaryOutput = `${output}.tmp`;
 		await writeFile(temporaryOutput, `${JSON.stringify(digests, null, 2)}\n`);
 		await rename(temporaryOutput, output);
-		return digests;
+	} catch (error) {
+		failure = { error };
 	} finally {
+		for (const report of reports) {
+			if (report.result === "failed" && report.totalMs === undefined) {
+				report.totalMs = report.startedAt === undefined ? undefined : elapsed(report.startedAt);
+				logStage(
+					logger,
+					report.image,
+					"total",
+					"failed",
+					`duration_ms=${report.totalMs ?? 0} failed_stage=${report.failedStage ?? "unknown"}`,
+				);
+				break;
+			}
+		}
+		if (options.summaryFile) {
+			try {
+				await appendSummary(options.summaryFile, reports);
+			} catch (error) {
+				const originalError = failure !== undefined;
+				logger(
+					`[release-image] summary state=failed original_error=${originalError} error=${error instanceof Error ? error.message : String(error)}\n`,
+				);
+				failure ??= { error };
+			}
+		}
 		await rm(temporaryDirectory, { force: true, recursive: true });
 	}
+	if (failure) {
+		throw failure.error;
+	}
+	return digests;
 }
 
 function argumentsMap(args: string[]): Map<string, string> {
@@ -304,20 +512,9 @@ async function main(args: string[]): Promise<void> {
 		repository: required(values, "repository"),
 		repositoryRoot: values.get("root") ?? process.cwd(),
 		sourceSha: required(values, "source-sha"),
+		summaryFile: values.get("summary"),
 		trivyCacheDirectory: values.get("trivy-cache") ?? path.join(os.homedir(), ".cache", "trivy"),
 	});
-	const summaryFile = values.get("summary");
-	if (summaryFile) {
-		const rows = Object.entries(result).map(
-			([image, digest]) => `| \`${image}\` | \`${digest}\` |`,
-		);
-		await appendFile(
-			path.resolve(summaryFile),
-			["### Published image digests", "", "| Image | Digest |", "| --- | --- |", ...rows, ""].join(
-				"\n",
-			),
-		);
-	}
 	process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 }
 
