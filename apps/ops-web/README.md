@@ -31,8 +31,8 @@
 `src/server/app.ts`。
 
 `/internal-portal` 还管理多条开发者自动化 token。人工管理接口继续使用 Cloudflare Access；开发者
-程序使用环境配置的 `OPS_WEB_AUTOMATION_ORIGIN` 和 Bearer token，只能读取凭据 metadata、更新
-`ssoTgc` 或删除凭据，并通过 `If-Match` 复用现有 CAS 并发合同。Source Collector 不读取该表。
+程序使用环境配置的 `OPS_WEB_AUTOMATION_ORIGIN` 和 Bearer token，可以在名称不存在时创建一条具名
+凭据，或读取 metadata、按 `If-Match` 更新 `ssoTgc`、删除凭据。Source Collector 不读取该表。
 
 `/healthz` 只表示 Node 进程能够响应，`/readyz` 只检查 Ops Web 接受核心请求所需的公开 origin 和
 请求状态数据库；`OPS_WEB_AUTOMATION_ORIGIN` 是自动化这条局部能力的配置，不是顶层就绪条件。local

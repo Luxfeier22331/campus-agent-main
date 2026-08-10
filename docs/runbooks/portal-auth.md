@@ -19,10 +19,12 @@ CAS 跳转、Cookie 会话和错误分类，不读取环境变量、文件、数
 只在一次本地命令或显式启动的进程中消费 `INTERNAL_PORTAL_SSO_TGC`，不持久化、不保活，也不从
 Ops Web 自动读取凭据。
 
-需要由开发程序自动更新或删除凭据时，操作者在同一页面的“开发者自动化访问”区域生成或选择 token，
-复制显示的 `OPS_WEB_AUTOMATION_ORIGIN` 对应端点和 Bearer token。程序请求
-`/api/automation/internal-portal/credentials`，读取 metadata 后以当前 `ETag` 作为
-`If-Match` 更新 `ssoTgc`，或删除指定记录。机器端点不经过 Cloudflare Access，不提供创建、reveal、
+需要由开发程序自动创建、更新或删除凭据时，操作者在同一页面的“开发者自动化访问”区域生成或选择 token，
+复制显示的 `OPS_WEB_AUTOMATION_ORIGIN` 对应端点和 Bearer token。协作者使用
+`MUC-WIKI/sso-tgc-template` 创建运行仓库后，自行将 endpoint 配置为 Actions variable、将 token 配置为
+Actions secret。程序请求
+`/api/automation/internal-portal/credentials`，名称不存在时先创建记录；已有记录读取 metadata 后以当前
+`ETag` 作为 `If-Match` 更新 `ssoTgc`，或删除指定记录。机器端点不经过 Cloudflare Access，不提供 reveal、
 检查或重命名；token 可在页面重复查看，撤销后立即不能认证。程序必须把 token 放在自己的运行时
 凭据存储中，不写入 Git、日志、URL 或 source bucket。
 
@@ -31,13 +33,25 @@ Ops Web 自动读取凭据。
 具名 token。开发者程序应先读取目标记录 metadata，再用返回的 `ETag` 发送 `If-Match`，不要并发覆盖
 其他程序的更新。
 
+`MUC-WIKI/sso-tgc-template` 是协作者自己的运行入口。协作者在自己的电脑或 GitHub Actions 中保存
+学校账号、密码、目标凭据名称、endpoint 和 Bearer token，并自行决定 schedule；这些输入不会投递到集群。
+普通模式缺少任一轮换配置时在登录前失败，不会降级为 dry-run；目标名称必须恰好匹配一条具名凭据。
+首次成功运行会按名称创建记录，后续每次成功运行都立即轮换同一条记录，不等待旧值过期，也不创建新记录。
+多个协作者分别使用自己的账号和唯一具名凭据即可并行轮换，Ops Web 不新增主凭据或自动切换状态。
+
 Service Ticket、`JSESSIONID` 和 `nginx` Cookie 只存在于当前 HTTP 会话内存。TGC 不进入 Git、
-ConfigMap、Kubernetes Secret、URL、Temporal 载荷、对象存储、日志或浏览器存储。
+ConfigMap、Kubernetes Secret、URL、Temporal 载荷、对象存储、日志或浏览器存储；extractor 只在当前
+进程内将它发送给 Ops Web 的一次创建或轮换请求。
+
+上句适用于 Ops Web 的凭据管理流程。`jobs/sso-tgc-extractor` 默认不保存浏览器状态；协作者只有在
+显式设置 `SSO_TGC_EXTRACTOR_STORAGE_STATE_DIR` 时，才会在自己的未跟踪本地目录中保存 Playwright
+状态用于下次复用，不向 Ops Web 以外的共享存储投递。
 
 ## 录入与读取
 
-1. 在 Ops Web 进入“内部门户凭据”，选择“新增凭据”。
-2. 填写可辨认的名称，以及原始 TGC 值、`SSO_TGC=<value>` 或包含唯一 `SSO_TGC` 的完整请求
+1. 需要人工录入时，在 Ops Web 进入“内部门户凭据”，选择“新增凭据”。自动化模板不需要这一步，首次
+   成功运行会使用机器接口完成同样的验证和创建。
+2. 填写可辨认的唯一名称，以及原始 TGC 值、`SSO_TGC=<value>` 或包含唯一 `SSO_TGC` 的完整请求
    Cookie。后端只提取并保存裸 TGC 值，其他 Cookie 字段不会保存。
 3. 等待真实门户验证完成。CAS 拒绝或门户暂时不可用时，新增失败且不创建记录。
 4. 需要开发时选择目标记录的“显示明文”并复制当前值。明文只保存在当前对话框的 React state，
@@ -104,6 +118,9 @@ pnpm --filter source-collector auth:check
 接口；source-collector 仍须由开发者显式把目标 TGC 传入 `INTERNAL_PORTAL_SSO_TGC`，不会读取 token
 或直接查询 Ops Web。需要在没有真实门户凭据时验证 HTTP 链路，可运行 `pnpm dev:ops-web-api-fixture`；
 该 fixture 的 token 和 TGC 仅在本地进程生命周期内有效。
+
+extractor 通过 Ops Web 更新记录后，source-collector 的 `INTERNAL_PORTAL_SSO_TGC` 不会自动改变；需要
+本地采集时由开发者重新显式取得当前值。extractor 的标准输出和错误不包含 TGC/Cookie 值。
 
 ## 数据保留与环境重置
 

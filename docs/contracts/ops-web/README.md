@@ -53,6 +53,7 @@ status: active
 开发者自动化凭据接口（不经过 Cloudflare Access）：
 
 - `GET /api/automation/internal-portal/credentials`
+- `POST /api/automation/internal-portal/credentials`
 - `GET /api/automation/internal-portal/credentials/:credentialId`
 - `PUT /api/automation/internal-portal/credentials/:credentialId`
 - `DELETE /api/automation/internal-portal/credentials/:credentialId`
@@ -128,6 +129,7 @@ status: active
 | 404 | `OPS_REQUEST_NOT_FOUND`、`OPS_API_ROUTE_NOT_FOUND`、`OPS_DINING_NOT_FOUND` | 请求、接口或地图版本不存在 |
 | 409 | `OPS_PROVIDER_CONFIG_CONFLICT` | 模型配置已被其他操作更新 |
 | 409 | `OPS_INTERNAL_PORTAL_CONFLICT` | 内部门户凭据已被其他操作更新 |
+| 409 | `OPS_INTERNAL_PORTAL_NAME_CONFLICT` | 内部门户凭据名称已存在 |
 | 409 | `OPS_DINING_CONFLICT` | 草稿、发布或评价操作违反领域校验 |
 | 503 | `OPS_ADMISSION_NOT_CONFIGURED` | 访问控制未配置 |
 | 503 | `OPS_STATUS_STORE_UNAVAILABLE` | PostgreSQL 读取不可用 |

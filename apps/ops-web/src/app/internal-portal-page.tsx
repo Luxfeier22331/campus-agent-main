@@ -288,7 +288,7 @@ function AutomationTokensSection(props: {
 				<div>
 					<h2 className="font-semibold text-foreground text-lg">开发者自动化访问</h2>
 					<p className="mt-1 text-muted-foreground text-sm">
-						开发者程序使用下方端点和 Bearer token 更新或删除凭据。
+						开发者程序使用下方端点和 Bearer token 创建、更新或删除凭据。
 					</p>
 				</div>
 				<div className="flex gap-2">

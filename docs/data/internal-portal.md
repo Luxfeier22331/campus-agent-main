@@ -16,7 +16,7 @@ derived 产物、离线发布清单、知识索引、产品通知页或模型查
 ## 认证凭据
 
 Ops Web 使用 `internal_portal.credentials` 保存多条具名记录。每条记录包含随机 `credential_id`、
-名称、原始 `sso_tgc`、单调递增版本、创建与更新时间，以及最近尝试、最近成功和结果分类。结果为
+唯一名称、原始 `sso_tgc`、单调递增版本、创建与更新时间，以及最近尝试、最近成功和结果分类。结果为
 `valid`、`credential_rejected` 或 `check_failed`；`null` 只表示尚未检查。表不维护主凭据、用途、
 自动切换、fingerprint、末四位、软删除、审计实体或运行时选择状态。
 

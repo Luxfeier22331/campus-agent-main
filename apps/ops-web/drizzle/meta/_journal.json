@@ -22,6 +22,13 @@
 			"when": 1785998493292,
 			"tag": "0002_faithful_puff_adder",
 			"breakpoints": true
+		},
+		{
+			"idx": 3,
+			"version": "7",
+			"when": 1786306878519,
+			"tag": "0003_unique_internal_portal_credential_name",
+			"breakpoints": true
 		}
 	]
 }

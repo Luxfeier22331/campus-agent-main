@@ -112,7 +112,7 @@ source-collector 自动选择记录。
 数据库重置后需要重新录入。
 
 页面同时展示开发者自动化访问区域：操作者可以生成多条具名 token，复制机器端点和 token，重复查看
-明文，或撤销 token。机器程序使用 `Authorization: Bearer` 调用独立端点更新或删除凭据；一个有效
+明文，或撤销 token。机器程序使用 `Authorization: Bearer` 调用独立端点创建、更新或删除凭据；一个有效
 token 默认管理全部具名凭据。该区域不创建 Ops Web 用户、角色或 Cloudflare Access Service Auth，
 也不让 source-collector 自动读取数据库。
 

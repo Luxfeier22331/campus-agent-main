@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, integer, pgSchema, text, timestamp } from "drizzle-orm/pg-core";
+import { check, integer, pgSchema, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
 export const internalPortal = pgSchema("internal_portal");
 
@@ -17,6 +17,7 @@ export const internalPortalCredentials = internalPortal.table(
 		lastOutcome: text("last_outcome"),
 	},
 	(table) => [
+		uniqueIndex("internal_portal_credentials_name_uidx").on(table.name),
 		check(
 			"internal_portal_credentials_name_check",
 			sql`length(btrim(${table.name})) between 1 and 80`,

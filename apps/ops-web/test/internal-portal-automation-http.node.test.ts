@@ -100,4 +100,31 @@ describe("internal portal automation HTTP fixture", () => {
 		expect(fixture.readCredential()).toBeNull();
 		expect(missing.status).toBe(404);
 	});
+
+	it("creates the first named credential through the real HTTP path", async () => {
+		vi.unstubAllGlobals();
+		fixture = await startInternalPortalAutomationFixture();
+		const deleted = await fetch(credentialUrl(fixture.origin), {
+			headers: { ...headers(), "if-match": '"1"' },
+			method: "DELETE",
+		});
+		expect(deleted.status).toBe(204);
+
+		const created = await fetch(`${fixture.origin}/api/automation/internal-portal/credentials`, {
+			body: JSON.stringify({ name: "协作者 A", ssoTgc: AUTOMATION_FIXTURE_TGC_REFRESH }),
+			headers: { ...headers(), "content-type": "application/json" },
+			method: "POST",
+		});
+
+		expect(created.status).toBe(201);
+		expect(created.headers.get("etag")).toBe('"1"');
+		await expect(created.json()).resolves.toMatchObject({
+			credential: { name: "协作者 A", version: 1 },
+		});
+		expect(fixture.readCredential()).toMatchObject({
+			name: "协作者 A",
+			ssoTgc: AUTOMATION_FIXTURE_TGC_REFRESHED,
+			version: 1,
+		});
+	});
 });

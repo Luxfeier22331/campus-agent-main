@@ -70,6 +70,13 @@ export class InternalPortalCredentialConflictError extends Error {
 	}
 }
 
+export class InternalPortalCredentialNameConflictError extends Error {
+	constructor() {
+		super("已存在同名内部门户凭据，请使用其他名称。");
+		this.name = "InternalPortalCredentialNameConflictError";
+	}
+}
+
 export function createUnavailableInternalPortalCredentialStore(
 	error: unknown,
 ): InternalPortalCredentialStore {
@@ -305,10 +312,14 @@ async function withStoreErrors<T>(operation: () => Promise<T>): Promise<T> {
 	try {
 		return await operation();
 	} catch (error) {
+		if (isCredentialNameConflict(error)) {
+			throw new InternalPortalCredentialNameConflictError();
+		}
 		if (
 			error instanceof InternalPortalCredentialStoreUnavailableError ||
 			error instanceof InternalPortalCredentialNotFoundError ||
-			error instanceof InternalPortalCredentialConflictError
+			error instanceof InternalPortalCredentialConflictError ||
+			error instanceof InternalPortalCredentialNameConflictError
 		) {
 			throw error;
 		}
@@ -316,4 +327,15 @@ async function withStoreErrors<T>(operation: () => Promise<T>): Promise<T> {
 			cause: error,
 		});
 	}
+}
+
+function isCredentialNameConflict(error: unknown): boolean {
+	return (
+		typeof error === "object" &&
+		error !== null &&
+		"code" in error &&
+		error.code === "23505" &&
+		"constraint" in error &&
+		error.constraint === "internal_portal_credentials_name_uidx"
+	);
 }

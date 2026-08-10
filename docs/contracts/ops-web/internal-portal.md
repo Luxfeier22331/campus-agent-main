@@ -16,7 +16,7 @@ status: active
 `/api/automation/internal-portal/credentials*`。该端点不挂 Cloudflare Access application；每次请求
 必须提供 `Authorization: Bearer <automation-token>`，且请求 Host 必须与配置 origin 的 host（包含显式
 端口）一致。配置 origin 是页面显示的规范外部地址；代理终止 TLS 后转发给 Node 的内部协议不参与
-入口判断。机器端点不提供 token 创建、reveal、轮换、检查或名称修改能力，也不读取 Source Collector。
+入口判断。机器端点不提供 token 创建、reveal、检查或名称修改能力，也不读取 Source Collector。
 
 人工 `/api/ops/*` 写请求必须通过同源校验，包含正文时使用 `application/json`。机器端点不使用浏览器
 Origin 或 CSRF，而是固定检查配置 origin 的 Host、Bearer token 和请求合同。所有响应使用
@@ -47,6 +47,8 @@ Origin 或 CSRF，而是固定检查配置 origin 的 Host、Bearer token 和请
 
 机器端点只提供以下能力：
 
+- `POST /api/automation/internal-portal/credentials` 接收严格的 `{ "name": "...", "ssoTgc": "..." }`，
+  在名称不存在时完成真实验证并创建一条具名凭据；名称已存在时返回 `409`；
 - `GET /api/automation/internal-portal/credentials` 返回所有凭据 metadata；
 - `GET /api/automation/internal-portal/credentials/:credentialId` 返回单条 metadata，并以
   `ETag: "<version>"` 返回当前版本；
@@ -55,11 +57,15 @@ Origin 或 CSRF，而是固定检查配置 origin 的 Host、Bearer token 和请
 - `DELETE /api/automation/internal-portal/credentials/:credentialId` 要求当前
   `If-Match: "<version>"` 后删除记录。
 
+提取器模板把一个稳定的凭据名称映射到一条记录：第一次成功运行使用 `POST` 创建，后续运行使用当前版本的
+`PUT` 轮换。轮换不等待旧 TGC 过期；候选值在真实验证失败时不得覆盖旧值。名称冲突只表示并发首次创建已经有
+另一条记录，调用方应重新读取 metadata 后按版本轮换。
+
 机器端点的成功和错误响应均为 `Cache-Control: no-store`。Bearer 缺失、格式错误、未知或已撤销
 token 返回 `401 OPS_AUTOMATION_TOKEN_INVALID`；端点未配置返回 `503 OPS_AUTOMATION_NOT_CONFIGURED`；
 查询参数或正文不符合合同返回 `400`；版本冲突继续返回 `409 OPS_INTERNAL_PORTAL_CONFLICT`。
 
-名称去除首尾空白后为 1 至 80 个字符。候选输入最多 16 KiB，可以是原始 ASCII TGC 值、
+名称去除首尾空白后为 1 至 80 个字符，且在凭据表中唯一。候选输入最多 16 KiB，可以是原始 ASCII TGC 值、
 `SSO_TGC=<value>` Cookie 对，或包含唯一一个 `SSO_TGC` 的完整请求 Cookie；Cookie 名称不区分
 大小写，解析不执行 URL 解码。完整 Cookie 中的 `Path`、`JSESSIONID`、`nginx` 和重复非目标字段
 不会持久化。缺失、空值、重复 `SSO_TGC` 或无法解析的输入返回
@@ -88,6 +94,7 @@ mutation result、浏览器存储或剪贴板以外的持久位置。复制只�
 - `503 OPS_INTERNAL_PORTAL_CHECK_FAILED`：候选验证因网络、超时或依赖错误未完成；
 - `404 OPS_INTERNAL_PORTAL_NOT_FOUND`：记录不存在；
 - `409 OPS_INTERNAL_PORTAL_CONFLICT`：调用方版本已过期；
+- `409 OPS_INTERNAL_PORTAL_NAME_CONFLICT`：凭据名称已被另一条记录使用；
 - `503 OPS_INTERNAL_PORTAL_STORE_UNAVAILABLE`：PostgreSQL 读取或写入不可用。
 
 定时检查语义和人工操作步骤见 `../../runbooks/portal-auth.md`，数据结构所有权见

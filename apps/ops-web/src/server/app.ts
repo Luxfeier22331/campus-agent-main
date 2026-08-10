@@ -112,6 +112,7 @@ import {
 	createInternalPortalCredentialStoreFromEnv,
 	createUnavailableInternalPortalCredentialStore,
 	InternalPortalCredentialConflictError,
+	InternalPortalCredentialNameConflictError,
 	InternalPortalCredentialNotFoundError,
 	InternalPortalCredentialStoreUnavailableError,
 } from "./internal-portal-credential-store.ts";
@@ -359,6 +360,9 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		}
 		if (error instanceof InternalPortalCredentialConflictError) {
 			return jsonError("OPS_INTERNAL_PORTAL_CONFLICT", error.message, 409);
+		}
+		if (error instanceof InternalPortalCredentialNameConflictError) {
+			return jsonError("OPS_INTERNAL_PORTAL_NAME_CONFLICT", error.message, 409);
 		}
 		if (error instanceof InternalPortalCandidateInputError) {
 			return jsonError("OPS_INTERNAL_PORTAL_INPUT_INVALID", error.message, 400);
@@ -1064,6 +1068,38 @@ function registerAutomationCredentialRoutes(input: {
 	credentialService: InternalPortalCredentialService;
 	tokenService: InternalPortalAutomationTokenService;
 }): void {
+	input.app.post("/api/automation/internal-portal/credentials", async (context) => {
+		const token = await admitAutomationRequest(
+			context.req.raw,
+			input.automationHost,
+			input.tokenService,
+		);
+		if (token instanceof Response) {
+			return token;
+		}
+		if (Object.keys(context.req.query()).length > 0) {
+			return jsonError("OPS_AUTOMATION_QUERY_INVALID", "自动化凭据创建不接受参数。", 400);
+		}
+		if (!isJsonContentType(context.req.header("content-type"))) {
+			return jsonError(
+				"OPS_INTERNAL_PORTAL_CONTENT_TYPE_REQUIRED",
+				"Content-Type 必须是 application/json。",
+				400,
+			);
+		}
+		const body = InternalPortalCredentialCreateSchema.safeParse(
+			await readBoundedJson(context.req.raw, 20 * 1024),
+		);
+		if (!body.success) {
+			return jsonError("OPS_INTERNAL_PORTAL_INPUT_INVALID", "内部门户凭据信息无效。", 400);
+		}
+		const credential = InternalPortalCredentialSchema.parse(
+			await input.credentialService.create(body.data, context.req.raw.signal),
+		);
+		context.header("etag", formatCredentialEtag(credential.version));
+		return context.json({ credential }, 201);
+	});
+
 	input.app.get("/api/automation/internal-portal/credentials", async (context) => {
 		const token = await admitAutomationRequest(
 			context.req.raw,

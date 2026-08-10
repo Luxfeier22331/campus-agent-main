@@ -2,7 +2,10 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { createOpsApp } from "../src/server/app.ts";
-import { InternalPortalCredentialConflictError } from "../src/server/internal-portal-credential-store.ts";
+import {
+	InternalPortalCredentialConflictError,
+	InternalPortalCredentialNameConflictError,
+} from "../src/server/internal-portal-credential-store.ts";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission.ts";
 import { createFixtureOpsStatusStore } from "../src/server/ops-status-store.ts";
 
@@ -248,6 +251,63 @@ describe("internal portal automation API", () => {
 		expect(detailBody).not.toContain("TGT-");
 	});
 
+	it("creates a named credential through the machine endpoint", async () => {
+		const { app, credentialService } = createTestApp();
+		const invalidContentType = await app.request(
+			automationUrl("/api/automation/internal-portal/credentials"),
+			{
+				body: JSON.stringify({ name: "开发凭据", ssoTgc: "TGT-new" }),
+				headers: { ...bearerHeaders(), "content-type": "text/plain" },
+				method: "POST",
+			},
+		);
+		const invalidBody = await app.request(
+			automationUrl("/api/automation/internal-portal/credentials"),
+			{
+				body: JSON.stringify({ extra: true, name: "开发凭据", ssoTgc: "TGT-new" }),
+				headers: { ...bearerHeaders(), "content-type": "application/json" },
+				method: "POST",
+			},
+		);
+		const created = await app.request(
+			automationUrl("/api/automation/internal-portal/credentials"),
+			{
+				body: JSON.stringify({ name: "开发凭据", ssoTgc: "TGT-new" }),
+				headers: { ...bearerHeaders(), "content-type": "application/json" },
+				method: "POST",
+			},
+		);
+
+		expect(invalidContentType.status).toBe(400);
+		expect(invalidBody.status).toBe(400);
+		expect(created.status).toBe(201);
+		expect(created.headers.get("cache-control")).toBe("no-store");
+		expect(created.headers.get("etag")).toBe('"1"');
+		expect(credentialService.create).toHaveBeenCalledOnce();
+		expect(credentialService.create).toHaveBeenCalledWith(
+			{ name: "开发凭据", ssoTgc: "TGT-new" },
+			expect.any(AbortSignal),
+		);
+	});
+
+	it("returns a distinct conflict when the machine name already exists", async () => {
+		const { app, credentialService } = createTestApp();
+		credentialService.create.mockRejectedValueOnce(new InternalPortalCredentialNameConflictError());
+		const response = await app.request(
+			automationUrl("/api/automation/internal-portal/credentials"),
+			{
+				body: JSON.stringify({ name: "开发凭据", ssoTgc: "TGT-new" }),
+				headers: { ...bearerHeaders(), "content-type": "application/json" },
+				method: "POST",
+			},
+		);
+
+		expect(response.status).toBe(409);
+		await expect(response.json()).resolves.toMatchObject({
+			error: { code: "OPS_INTERNAL_PORTAL_NAME_CONFLICT" },
+		});
+	});
+
 	it("allows only ssoTgc updates with a current If-Match", async () => {
 		const { app, credentialService } = createTestApp();
 		const missingPrecondition = await app.request(
@@ -418,19 +478,12 @@ describe("internal portal automation API", () => {
 			automationUrl(`/api/automation/internal-portal/credentials/${CREDENTIAL_ID}/reveal`),
 			{ headers: bearerHeaders(), method: "POST" },
 		);
-		const create = await app.request(automationUrl("/api/automation/internal-portal/credentials"), {
-			body: JSON.stringify({ name: "不允许", ssoTgc: "TGT-value" }),
-			headers: { ...bearerHeaders(), "content-type": "application/json" },
-			method: "POST",
-		});
-
 		expect(missingPrecondition.status).toBe(428);
 		expect(unexpectedQuery.status).toBe(400);
 		expect(unexpectedBody.status).toBe(400);
 		expect(deleted.status).toBe(204);
 		expect(deleted.headers.get("cache-control")).toBe("no-store");
 		expect(reveal.status).toBe(404);
-		expect(create.status).toBe(404);
 		expect(credentialService.delete).toHaveBeenCalledTimes(1);
 		expect(credentialService.delete).toHaveBeenCalledWith(CREDENTIAL_ID, 1);
 	});

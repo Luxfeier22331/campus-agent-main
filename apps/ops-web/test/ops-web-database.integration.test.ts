@@ -17,6 +17,7 @@ import { createPgInternalPortalAutomationTokenStore } from "../src/server/intern
 import {
 	createPgInternalPortalCredentialStore,
 	InternalPortalCredentialConflictError,
+	InternalPortalCredentialNameConflictError,
 } from "../src/server/internal-portal-credential-store.ts";
 
 const postgres = inject("opsWebPostgres");
@@ -135,6 +136,14 @@ describe("ops-web PostgreSQL grants", () => {
 				ssoTgc: "TGT-initial",
 				version: 1,
 			});
+			await expect(
+				store.create({
+					credentialId: randomUUID(),
+					name: "开发凭据",
+					now: createdAt,
+					ssoTgc: "TGT-duplicate",
+				}),
+			).rejects.toBeInstanceOf(InternalPortalCredentialNameConflictError);
 
 			const renamed = await store.rename({
 				credentialId,
