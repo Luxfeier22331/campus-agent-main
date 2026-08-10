@@ -151,39 +151,30 @@ jobs:
       needs.release-plan.result == 'success' &&
       needs.release-plan.outputs.validate_only != 'true' &&
       fromJSON(needs.release-plan.outputs.images)[0] != null
-    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 30
     permissions:
       contents: read
       packages: write
     defaults:
       run:
-        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-release --command bash -e {0}
+        shell: nix develop .#ci-release --command bash -e {0}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
         with:
           persist-credentials: false
 
-      - name: Setup persistent Docker Buildx
+      - name: Install Nix
+        uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
+          enable_kvm: false
+
+      - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4
         with:
-          name: campus-agent-release
-          keep-state: true
-          cleanup: false
           cache-binary: false
-          driver-opts: |
-            cgroup-parent=ci.slice
-            cpu-period=100000
-            cpu-quota=200000
-            memory=2g
-            memory-swap=2g
-          buildkitd-config-inline: |
-            [worker.oci]
-              gc = true
-              reservedSpace = "2GB"
-              maxUsedSpace = "12GB"
-              minFreeSpace = "25GB"
 
       - name: Record release runner facts
         run: |
@@ -302,23 +293,27 @@ jobs:
     if: >-
       needs.release-plan.result == 'success' &&
       contains(fromJSON(needs.release-plan.outputs.workers), 'campus-web-staging')
-    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment: staging
     defaults:
       run:
-        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-core --command bash -e {0}
+        shell: nix develop .#ci-core --command bash -e {0}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
         with:
           persist-credentials: false
 
+      - name: Install Nix
+        uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
+          enable_kvm: false
+
       - name: Install Campus Web workspace
-        env:
-          npm_config_store_dir: ${{ runner.tool_cache }}/pnpm-store
         run: >-
-          pnpm install --frozen-lockfile --prefer-offline
+          pnpm install --frozen-lockfile
           --filter campus-agent-web-workspace
           --filter 'campus-web...'
 
@@ -453,7 +448,7 @@ jobs:
         needs.publish-campus-web.result == 'success' ||
         needs.release-plan.outputs.kubernetes == 'true'
       )
-    runs-on: [self-hosted, Linux, ARM64, campus-agent-release]
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment: staging
     steps:
@@ -462,12 +457,14 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Configure pnpm store
-        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-core --command bash -e {0}
-        run: echo "npm_config_store_dir=${RUNNER_TOOL_CACHE}/pnpm-store" >> "$GITHUB_ENV"
+      - name: Install Nix
+        uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
+          enable_kvm: false
 
       - name: Prepare release inputs
-        shell: /nix/var/nix/profiles/default/bin/nix develop .#ci-core --command bash -e {0}
+        shell: nix develop .#ci-core --command bash -e {0}
         run: |
           node -e 'require("node:fs").writeFileSync("image-digests.json", "{}\n")'
           mkdir -p worker-candidates
@@ -515,14 +512,14 @@ jobs:
           path: gitops
 
       - name: Install GitOps tooling
-        shell: /nix/var/nix/profiles/default/bin/nix develop ./gitops#ci-infra --command bash -e {0}
-        run: pnpm --dir gitops install --frozen-lockfile --prefer-offline
+        shell: nix develop ./gitops#ci-infra --command bash -e {0}
+        run: pnpm --dir gitops install --frozen-lockfile
 
       - name: Update GitOps desired state
         env:
           EXPECTED_WORKERS: ${{ needs.release-plan.outputs.workers }}
           KUBERNETES_CHANGED: ${{ needs.release-plan.outputs.kubernetes }}
-        shell: /nix/var/nix/profiles/default/bin/nix develop ./gitops#ci-infra --command bash -e {0}
+        shell: nix develop ./gitops#ci-infra --command bash -e {0}
         run: >-
           pnpm --dir gitops gitops promote-source
           --expected-source-sha "${{ needs.release-plan.outputs.base }}"
@@ -537,7 +534,7 @@ jobs:
       - name: Render promoted GitOps state
         env:
           SOURCE_TOKEN: ${{ steps.gitops-token.outputs.token }}
-        shell: /nix/var/nix/profiles/default/bin/nix develop ./gitops#ci-infra --command bash -e {0}
+        shell: nix develop ./gitops#ci-infra --command bash -e {0}
         run: |
           set -euo pipefail
           pnpm --dir gitops exec tsx tools/gitops.ts \
@@ -560,7 +557,7 @@ jobs:
 
       - name: Detect GitOps changes
         id: promotion
-        shell: /nix/var/nix/profiles/default/bin/nix develop ./gitops#ci-infra --command bash -e {0}
+        shell: nix develop ./gitops#ci-infra --command bash -e {0}
         run: |
           if git -C gitops diff --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -600,7 +597,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.gitops-token.outputs.token }}
           TARGET_URL: ${{ steps.deployment-pr.outputs.pull-request-url }}
-        shell: /nix/var/nix/profiles/default/bin/nix develop ./gitops#ci-infra --command bash -e {0}
+        shell: nix develop ./gitops#ci-infra --command bash -e {0}
         run: >-
           gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}"
           -f state=pending

@@ -97,10 +97,9 @@ state、集群或真实外部服务。candidate 不自动运行数据库、浏�
 
 ## 执行器与定时检查
 
-格式、文档、合同、workflow、受影响 Node 证据、release planner、App API Worker 和 candidate status
-在 GitHub-hosted runner 执行。过渡阶段的 ARM 镜像构建、Campus Web 正式文档构建和 GitOps promotion
-使用 `campus-agent-release` self-hosted runner；稳定后迁回 hosted。两类 runner 使用同一 flake，不维护
-第二套 CLI 安装 action；hosted runner 使用固定 commit 的安装 action 获取 Nix 2.35.1。
+格式、文档、合同、workflow、受影响 Node 证据和候选发布均在 GitHub-hosted runner 执行。ARM 镜像
+构建使用 `ubuntu-24.04-arm`，其余任务使用 `ubuntu-24.04`；需要仓库工具链的 job 通过固定 commit 的
+安装 action 获取 Nix 2.35.1，并使用同一 flake，不维护第二套 CLI 安装路径。
 
 依赖 advisory 可以在没有代码变化时变化，因此每周一 `02:35 UTC` 在 hosted runner 运行一次
 `scripts/dependencies/scan.sh`；lockfile 变化仍在对应 PR profile 中运行同一入口。仓库不保存未被消费的扫描 JSON
@@ -115,8 +114,8 @@ artifact，也不把 dependency scan 的成功结果当作应用行为或镜像�
   使用 GitHub Actions pnpm store cache；candidate 不注入 Turbo 配置或 Turbo evidence。任何 lane
   都不把 Secret、对象存储内容或部署结果写入缓存；
 - CI 不缓存 vulnerability scan、staging check 或 release check 的通过/失败结论，也不缓存
-  `node_modules`；发布执行器允许 Trivy 通过 `--cache-dir` 复用其漏洞数据库和镜像分析缓存，数据库
-  更新仍由 Trivy 的正常策略负责；
+  `node_modules`；Trivy 通过 `--cache-dir` 在当前 job 内复用其漏洞数据库和镜像分析缓存，数据库更新
+  仍由 Trivy 的正常策略负责；
 - 浏览器 E2E 不进入 GitHub Actions，不写入 Turbo Cache；本地入口使用应用现有的 smoke/full 命令；
 - execution-control 的 Temporal server 测试使用模块明确入口，不属于默认 `go` profile；
 - PR 数据库 profile 只使用 disposable PostgreSQL；真实 provider、staging database、object store、
@@ -125,7 +124,8 @@ artifact，也不把 dependency scan 的成功结果当作应用行为或镜像�
   登记缺失仍是 artifact failure。PR 的 `build:worker` 使用确定性文档 fixture，不代表真实 staging
   对象存储内容已完成构建或发布。
 
-评估 CI 性能时分别记录 queue、cold cache 与 hot cache，并优先移除重复安装、重复构建和无关检查面。
+评估 CI 性能时从真实 workflow 分别记录调度等待和任务耗时，并优先移除重复安装、重复构建和无关
+检查面；没有具体性能问题时不为比较缓存状态制造额外构建。
 
 ## 发布与环境
 

@@ -57,11 +57,11 @@ source。采集运行时
 候选开关。
 
 制品构建和环境仓交接分别由所属 workflow job 维护超时，不在 runbook 重复写入总等待阈值。调度等待
-应单独记录，以区分容量与任务耗时。过渡阶段镜像、正式文档构建和 promotion 使用 `campus-agent-release`
-self-hosted runner；镜像依靠 persistent Buildx 和本地热缓存，registry cache 只作为 runner 丢失后的
-恢复路径。稳定后这些 job 迁回 hosted runner。发生超时时先检查缓存命中、重复安装和发布计划。一次
-手动选择的昂贵 profile 在冷缓存下仍无法在 workflow 超时内完成时，应缩小任务输入或明确增加构建容量。
-已经发布的不可变镜像会在同一源码提交的重试中直接复用。
+应单独记录，以区分容量与任务耗时。镜像使用 `ubuntu-24.04-arm`，正式文档构建和 promotion 使用
+`ubuntu-24.04`；镜像的临时 Buildx builder 通过 GHCR registry cache 跨次复用构建层，不依赖 runner
+工作目录。发生超时时先检查发布阶段日志、缓存命中、重复安装和发布计划。一次手动选择的昂贵 profile
+仍无法在 workflow 超时内完成时，应缩小任务输入或明确增加构建容量。已经发布的不可变镜像会在同一
+源码提交的重试中直接复用。
 
 Campus Web 的 staging publisher 在 main/artifact lane 读取固定来源键
 `campus-docs/source.json`，核对来源对象并生成静态文档；它使用 Source staging Environment 提供的

@@ -174,7 +174,7 @@ test("Source diff consumers use complete history without promisor fetches", asyn
 	}
 });
 
-test("source workflows use Nix with a bounded transitional self-hosted release lane", async () => {
+test("source workflows use Nix on bounded GitHub-hosted release lanes", async () => {
 	const workflowRoot = path.join(REPOSITORY_ROOT, ".github/workflows");
 	const sources = await Promise.all(
 		["dependencies.yml", "execution-runtime-publish.yml", "manual-evidence.yml", "pr.yml"].map(
@@ -194,6 +194,9 @@ test("source workflows use Nix with a bounded transitional self-hosted release l
 		"candidate-evidence",
 		"candidate-browser-evidence",
 		"kubectl --context default --namespace campus-agent-staging",
+		"self-hosted",
+		"campus-agent-release",
+		"/nix/var/nix/profiles/default/bin/nix",
 	]) {
 		assert(!joined.includes(retired), retired);
 	}
@@ -203,8 +206,6 @@ test("source workflows use Nix with a bounded transitional self-hosted release l
 	assert(joined.includes("nix develop .#ci-release"));
 	assert(joined.includes("nix develop .#ci-full"));
 	assert(joined.includes("nix develop ./gitops#ci-infra"));
-	assert(joined.includes("campus-agent-release"));
-	assert(joined.includes("/nix/var/nix/profiles/default/bin/nix"));
 	assert(!joined.includes("actions/cache@"));
 	const dependencies = sources[0];
 	assert(dependencies);
@@ -244,7 +245,7 @@ test("Turbo cache configuration can write the remote cache", async () => {
 	}
 });
 
-test("candidate publishing uses the transitional release runner before final status", async () => {
+test("candidate publishing uses GitHub-hosted runners before final status", async () => {
 	const source = await readFile(
 		path.join(REPOSITORY_ROOT, ".github/workflows/execution-runtime-publish.yml"),
 		"utf8",
@@ -296,11 +297,11 @@ test("candidate publishing uses the transitional release runner before final sta
 	assert(isObject(pending));
 
 	for (const [jobName, runner] of [
-		["publish-images", ["self-hosted", "Linux", "ARM64", "campus-agent-release"]],
+		["publish-images", "ubuntu-24.04-arm"],
 		["publish-app-api", "ubuntu-24.04"],
-		["publish-campus-web", ["self-hosted", "Linux", "ARM64", "campus-agent-release"]],
+		["publish-campus-web", "ubuntu-24.04"],
 		["candidate-status", "ubuntu-24.04"],
-		["promote", ["self-hosted", "Linux", "ARM64", "campus-agent-release"]],
+		["promote", "ubuntu-24.04"],
 	] as const) {
 		const job = workflow.jobs[jobName];
 		assert(isObject(job));
@@ -311,11 +312,25 @@ test("candidate publishing uses the transitional release runner before final sta
 		assert(isObject(job));
 		assert.equal(job.needs, "release-plan", jobName);
 	}
+	for (const jobName of ["publish-images", "publish-campus-web", "promote"]) {
+		const job = workflow.jobs[jobName];
+		assert(isObject(job));
+		assert(Array.isArray(job.steps));
+		const installNix = job.steps.find((step) => isObject(step) && step.name === "Install Nix");
+		assert(isObject(installNix));
+		assert.equal(
+			installNix.uses,
+			"cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342",
+		);
+		assert(isObject(installNix.with));
+		assert.equal(installNix.with.install_url, "https://releases.nixos.org/nix/nix-2.35.1/install");
+		assert.equal(installNix.with.enable_kvm, false);
+	}
 	const publishImages = workflow.jobs["publish-images"];
 	assert(isObject(publishImages));
 	assert(Array.isArray(publishImages.steps));
 	const buildxIndex = publishImages.steps.findIndex(
-		(step) => isObject(step) && step.name === "Setup persistent Docker Buildx",
+		(step) => isObject(step) && step.name === "Setup Docker Buildx",
 	);
 	const runnerFactsIndex = publishImages.steps.findIndex(
 		(step) => isObject(step) && step.name === "Record release runner facts",
@@ -325,10 +340,7 @@ test("candidate publishing uses the transitional release runner before final sta
 	const buildx = publishImages.steps[buildxIndex];
 	assert(isObject(buildx));
 	assert(isObject(buildx.with));
-	assert(typeof buildx.with["driver-opts"] === "string");
-	assert(buildx.with["driver-opts"].includes("cpu-quota=200000"));
-	assert(buildx.with["driver-opts"].includes("memory=2g"));
-	assert(buildx.with["driver-opts"].includes("memory-swap=2g"));
+	assert.deepEqual(buildx.with, { "cache-binary": false });
 	const runnerFacts = publishImages.steps[runnerFactsIndex];
 	assert(isObject(runnerFacts));
 	assert.equal(typeof runnerFacts.run, "string");
@@ -372,13 +384,15 @@ test("candidate publishing uses the transitional release runner before final sta
 	assert.equal(profileShells.get("release-plan"), "nix develop .#ci-core --command bash -e {0}");
 	assert.equal(
 		profileShells.get("publish-images"),
-		"/nix/var/nix/profiles/default/bin/nix develop .#ci-release --command bash -e {0}",
+		"nix develop .#ci-release --command bash -e {0}",
 	);
 	assert.equal(profileShells.get("publish-app-api"), "nix develop .#ci-core --command bash -e {0}");
 	assert.equal(
 		profileShells.get("publish-campus-web"),
-		"/nix/var/nix/profiles/default/bin/nix develop .#ci-core --command bash -e {0}",
+		"nix develop .#ci-core --command bash -e {0}",
 	);
+	assert(!source.includes("npm_config_store_dir"));
+	assert(!source.includes("--prefer-offline"));
 	assert(source.includes(`--trivy-cache "\${RUNNER_TOOL_CACHE}/trivy"`));
 	assert(!source.includes(`--trivy-cache "\${RUNNER_TEMP}/trivy"`));
 	assert(source.includes("validate-ops-web-promotion"));
