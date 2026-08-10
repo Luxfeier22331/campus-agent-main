@@ -272,7 +272,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		secureHeaders({
 			contentSecurityPolicy: {
 				baseUri: ["'self'"],
-				connectSrc: ["'self'", "blob:"],
+				connectSrc: ["'self'", "blob:", "https://cdn.tldraw.com"],
 				defaultSrc: ["'self'"],
 				fontSrc: ["'self'"],
 				formAction: ["'self'"],

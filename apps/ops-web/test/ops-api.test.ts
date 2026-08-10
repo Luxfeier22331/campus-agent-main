@@ -121,6 +121,7 @@ describe("ops API", () => {
 
 		for (const response of responses) {
 			const policy = response.headers.get("content-security-policy") ?? "";
+			expect(policy).toContain("connect-src 'self' blob: https://cdn.tldraw.com");
 			expect(policy).toContain("default-src 'self'");
 			expect(policy).toContain("frame-ancestors 'none'");
 			expect(policy).toContain("object-src 'none'");

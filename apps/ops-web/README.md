@@ -48,6 +48,12 @@
   Table 和 Virtual；
 - 本地使用 Playwright 与 axe 验证代表性旅途；CI 不运行浏览器 profile，浏览器回归仅通过本地命令执行。
 
+Dining Studio 的 tldraw 生产许可 key 是客户端公开配置，不属于 Secret，也不应放入环境变量或服务端
+日志。Hobby 许可必须保留 tldraw 水印；Trial 不显示水印，但会向 tldraw 投递许可使用信息，因此
+运行时需要 CSP 的 `connect-src https://cdn.tldraw.com`。许可到期或切换 Hobby 许可时直接替换
+`src/app/dining-studio/editor.tsx` 中的 key。许可规则以
+[tldraw License](https://tldraw.dev/community/license) 为准。
+
 ## 本地命令
 
 ```bash

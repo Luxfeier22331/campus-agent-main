@@ -66,6 +66,9 @@ interface EditorStatus {
 }
 
 const DINING_TLDRAW_EDITOR_COMPONENTS = { ErrorFallback: DiningEditorErrorFallback } as const;
+// tldraw validates this public client key; replace it when the trial expires or a hobby key is issued.
+const TLDRAW_LICENSE_KEY =
+	"tldraw-2026-08-24/WyJRWklfLVFXdyIsWyIqIl0sMTYsIjIwMjYtMDgtMjQiXQ.oo8JPqluVXSWKx9zHIYE+RgBNZuwQN5/E2uv3Lhg0zNloaEacs08XeyRY6ToucR6LaT6R3PVAtnwA8hh1SjWoQ";
 const importedTldrawAssetUrls = getAssetUrlsByImport();
 const zhCnTranslationUrl = URL.createObjectURL(
 	new Blob(
@@ -380,6 +383,7 @@ export function DiningFloorplanEditor(props: {
 								components={DINING_TLDRAW_EDITOR_COMPONENTS}
 								colorScheme={resolvedTheme}
 								initialState="select"
+								licenseKey={TLDRAW_LICENSE_KEY}
 								onMount={setEditor}
 								options={tldrawOptions}
 								shapeUtils={DINING_TLDRAW_SHAPE_UTILS}
