@@ -40,16 +40,21 @@ test("runs affected Node tasks from the shared scope without a downloaded Turbo"
 						{ command: "vite build", package: "campus-web", task: "build" },
 						{ command: "pnpm build:test", package: "campus-web", task: "build:worker" },
 						{ command: "vite build", package: "app-api", task: "build:worker" },
+						{ command: "wrangler deploy", package: "status-web", task: "build:worker" },
 						{ command: "vite build", package: "ops-web", task: "build" },
 						{ command: "vitest", package: "agent-runtime", task: "test" },
 						{ command: "vitest", package: "app-api", task: "test:worker" },
+						{ command: "vitest", package: "status-web", task: "test:worker" },
 						{ command: "tsc", package: "ops-web", task: "typecheck" },
 					],
 				}),
 			};
 		}
 		if (command === "git" && args[0] === "diff") {
-			return { status: 0, stdout: "M\0apps/campus-web/src/app.tsx\0" };
+			return {
+				status: 0,
+				stdout: "M\0apps/campus-web/src/app.tsx\0M\0apps/status-web/src/index.ts\0",
+			};
 		}
 		return { status: 0 };
 	};
@@ -83,6 +88,11 @@ test("runs affected Node tasks from the shared scope without a downloaded Turbo"
 	);
 	assert(
 		evidenceCommands.some(
+			(command) => command.includes("test:worker") && command.includes("--filter=status-web"),
+		),
+	);
+	assert(
+		evidenceCommands.some(
 			(command) => command.includes("typecheck") && command.includes("--filter=ops-web"),
 		),
 	);
@@ -99,7 +109,8 @@ test("runs affected Node tasks from the shared scope without a downloaded Turbo"
 			(command) =>
 				command.includes("build:worker") &&
 				command.includes("--filter=app-api") &&
-				command.includes("--filter=campus-web"),
+				command.includes("--filter=campus-web") &&
+				command.includes("--filter=status-web"),
 		),
 	);
 	assert(commands.some((command) => command.join(" ").includes("docker buildx bake")));

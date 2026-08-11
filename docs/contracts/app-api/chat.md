@@ -15,9 +15,26 @@ campus-web 只渲染投影并通过本文接口发送命令。
 `GET /api/chat/runs/:runId/events/stream` 恢复事件消费。本文不定义 provider raw token stream、
 分享导出、附件上传、批处理或浏览器本地会话状态。
 
+## 公开问答可用性
+
+`GET /api/chat/availability` 是供 `status-web` 探测的匿名只读接口，响应设置
+`Cache-Control: no-store`，正文严格为：
+
+```ts
+type ChatAvailabilityResponse = {
+  status: "operational" | "outage" | "unknown";
+};
+```
+
+接口读取最近 15 分钟内按 `created_at desc, request_id desc` 排序的最新一条
+`chat.turn_dispatches`：`completed`、`needs_clarification`、`no_answer`、
+`approval_required`、`rejected`、`cancelled` 映射为 `operational`，`error` 映射为
+`outage`，`accepted` 或没有记录映射为 `unknown`。数据库读取失败或出现合同外状态时返回共享
+`500 internal_error`，不返回旧结果或模拟正常。
+
 ## 鉴权
 
-- 所有接口要求具有 chat access 的 end-user session principal；
+- 除 `GET /api/chat/availability` 外，所有接口要求具有 chat access 的 end-user session principal；
 - conversation 和 run 只能由当前用户访问；
 - soft-deleted conversation 不进入列表、搜索或详情；
 - 搜索不匹配 raw trace、source ref、provider internal 或内部错误；

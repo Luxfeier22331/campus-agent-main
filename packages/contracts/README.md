@@ -19,6 +19,8 @@
 - `schemas/grounding-context.v2.schema.json`：模型调用前形成的本轮可选文档依据合同；
 - `schemas/personal-memory-tool-contracts.v1.schema.json`：个人记忆召回的有界 payload/result；
 - `schemas/knowledge-serving-release.v1.schema.json`：知识发布与运行准入共享的不可变 release 身份；
+- `src/product-availability.ts`：App API 问答可用性响应与状态页固定双服务快照的 Zod 运行时合同；
+  快照 JSON Schema 生成到 `schemas/product-availability-snapshot.v1.schema.json`；
 - `src/campus-groups.ts`：同好群有序分组、条目与公开目录的 Zod 运行时合同，供 app-api、
   ops-web 和 campus-web 共同消费；公开目录 JSON Schema 生成到
   `schemas/campus-groups-catalog.v1.schema.json`；

@@ -4,6 +4,10 @@ import {
 	generateCampusGroupsContract,
 	runCampusGroupsContractSelfTest,
 } from "./contracts/campus-groups-generate.ts";
+import {
+	generateProductAvailabilityContract,
+	runProductAvailabilityContractSelfTest,
+} from "./contracts/product-availability-generate.ts";
 import { generateToolExecutionContracts } from "./contracts/tool-execution-generate.ts";
 import { runToolExecutionSelfTest } from "./contracts/tool-execution-self-test.ts";
 import { generateAccountContracts } from "./generate_account_admin_schema.ts";
@@ -29,12 +33,14 @@ async function main(argv: string[]): Promise<number> {
 	if (args.selfTest) {
 		runToolExecutionSelfTest();
 		runCampusGroupsContractSelfTest();
+		runProductAvailabilityContractSelfTest();
 		console.log("generate_contracts self-test passed.");
 		return 0;
 	}
 	generateToolExecutionContracts({ check: args.check });
 	generateCampusGroupsContract({ check: args.check });
 	generateAccountContracts({ check: args.check });
+	generateProductAvailabilityContract({ check: args.check });
 	return 0;
 }
 

@@ -8,6 +8,7 @@
 ## 当前范围
 
 - `GET /healthz`、`GET /readyz`；
+- 供 `status-web` 匿名读取的 `GET /api/chat/availability` 问答可用性信号；
 - Better Auth 和当前用户投影；
 - 校园邮箱准入、逐地址邀请、邮箱验证和认证邮件；
 - 封禁、会话撤销、临时密码、强制改密和异步账号注销；

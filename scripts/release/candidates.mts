@@ -22,6 +22,7 @@ const DOCKERFILE_IMAGES = new Map<string, readonly string[]>([
 const WORKER_PACKAGES = new Map<string, string>([
 	["app-api-staging", "app-api"],
 	["campus-web-staging", "campus-web"],
+	["status-web-staging", "status-web"],
 ]);
 const CAMPUS_WEB_WORKER = "campus-web-staging";
 
@@ -30,7 +31,6 @@ export interface CandidatePlan {
 	head: string;
 	images: string[];
 	kubernetes: boolean;
-	validateOnly: boolean;
 	workers: string[];
 }
 
@@ -40,8 +40,6 @@ export interface CandidatePlanOptions {
 	refreshCampusWebDocs: boolean;
 	repositoryRoot: string;
 	selectionFile?: string;
-	validateOnly: boolean;
-	workerSelectionFile?: string;
 }
 
 async function releaseBase(file: string): Promise<string> {
@@ -83,39 +81,6 @@ async function candidateBase(options: CandidatePlanOptions): Promise<string> {
 	return await releaseBase(path.resolve(options.selectionFile as string));
 }
 
-async function activeWorkers(options: CandidatePlanOptions): Promise<string[] | undefined> {
-	if (!options.workerSelectionFile) {
-		if (options.selectionFile) {
-			throw new Error("GitOps-based candidate plan requires a Worker selection manifest");
-		}
-		return;
-	}
-	let value: unknown;
-	const file = path.resolve(options.workerSelectionFile);
-	try {
-		value = JSON.parse(await readFile(file, "utf8")) as unknown;
-	} catch (error) {
-		throw new Error(`Invalid GitOps Worker selection: ${file}`, { cause: error });
-	}
-	if (
-		typeof value !== "object" ||
-		value === null ||
-		Array.isArray(value) ||
-		(value as { schemaVersion?: unknown }).schemaVersion !== 2 ||
-		typeof (value as { workers?: unknown }).workers !== "object" ||
-		(value as { workers?: unknown }).workers === null ||
-		Array.isArray((value as { workers?: unknown }).workers)
-	) {
-		throw new Error(`Invalid GitOps Worker selection: ${file}`);
-	}
-	const workers = Object.keys((value as { workers: Record<string, unknown> }).workers).sort();
-	const unknown = workers.filter((worker) => !WORKER_PACKAGES.has(worker));
-	if (unknown.length > 0) {
-		throw new Error(`Unsupported active Worker: ${unknown.join(", ")}`);
-	}
-	return workers;
-}
-
 function changesPath(files: readonly string[], prefix: string): boolean {
 	return files.some((file) => file === prefix || file.startsWith(`${prefix}/`));
 }
@@ -125,43 +90,18 @@ export async function planCandidates(
 	runner?: CommandRunner,
 ): Promise<CandidatePlan> {
 	const base = await candidateBase(options);
-	const selectedActiveWorkers = await activeWorkers(options);
-	if (options.refreshCampusWebDocs && options.validateOnly) {
-		throw new Error("Campus Web docs refresh cannot run in validation-only mode");
-	}
-	if (
-		options.refreshCampusWebDocs &&
-		(selectedActiveWorkers === undefined || !selectedActiveWorkers.includes(CAMPUS_WEB_WORKER))
-	) {
-		throw new Error("Campus Web docs refresh requires an active campus-web-staging Worker");
-	}
-	if (options.validateOnly && selectedActiveWorkers === undefined) {
-		throw new Error("Validation-only plans require the active GitOps Workers");
-	}
 	if (!SHA_PATTERN.test(options.head)) {
 		throw new Error("Release head must be a 40-character lowercase commit SHA");
 	}
 	const scope = resolveAffectedScope(
 		{
 			base,
-			collectAffected: !options.validateOnly,
+			collectAffected: true,
 			head: options.head,
 			repositoryRoot: options.repositoryRoot,
 		},
 		runner,
 	);
-
-	if (options.validateOnly) {
-		const workers = selectedActiveWorkers ?? [];
-		return {
-			base,
-			head: options.head,
-			images: [],
-			kubernetes: false,
-			validateOnly: true,
-			workers,
-		};
-	}
 	const images = new Set<string>();
 	const workers = new Set<string>();
 	for (const task of scope.tasks) {
@@ -172,10 +112,7 @@ export async function planCandidates(
 		}
 		if (task.task === "build:worker") {
 			for (const [worker, packageName] of WORKER_PACKAGES) {
-				if (
-					task.package === packageName &&
-					(selectedActiveWorkers === undefined || selectedActiveWorkers.includes(worker))
-				) {
+				if (task.package === packageName) {
 					workers.add(worker);
 				}
 			}
@@ -234,7 +171,6 @@ export async function planCandidates(
 		head: options.head,
 		images: selectedImages,
 		kubernetes,
-		validateOnly: false,
 		workers: [...workers].sort(),
 	};
 }
@@ -276,8 +212,6 @@ async function main(args: string[]): Promise<void> {
 		refreshCampusWebDocs: flag(values, "refresh-campus-web-docs"),
 		repositoryRoot: values.get("root") ?? process.cwd(),
 		selectionFile: values.get("selection"),
-		validateOnly: flag(values, "validate-only"),
-		workerSelectionFile: values.get("worker-selection"),
 	});
 	process.stdout.write(`${JSON.stringify(plan, null, 2)}\n`);
 }

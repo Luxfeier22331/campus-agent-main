@@ -1,0 +1,15 @@
+name = "status-web-test"
+main = "src/index.ts"
+compatibility_date = "2026-03-17"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = ["/*"]
+
+[vars]
+CAMPUS_WEB_PUBLIC_ORIGIN = "https://campus.muc.wiki"
+DEPLOYMENT_ENVIRONMENT = "development"
+STATUS_CAMPUS_ORIGIN = "http://127.0.0.1:27014"
+STATUS_QA_ORIGIN = "http://127.0.0.1:27031"

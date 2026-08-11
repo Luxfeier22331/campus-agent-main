@@ -15,6 +15,12 @@ export const APP_API_MACHINE_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
+		path: "/api/chat/availability",
+		callerClass: "system",
+		admission: "anonymous product availability read by status-web",
+	},
+	{
+		method: "GET",
 		path: "/api/internal/execution/runs/:runId/input",
 		callerClass: "machine-internal",
 		admission: "x-app-execution-auth from execution-control",

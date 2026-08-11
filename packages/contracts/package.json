@@ -6,7 +6,8 @@
 	"exports": {
 		"./account-admin": "./src/account-admin.ts",
 		"./campus-groups": "./src/campus-groups.ts",
-		"./email-access": "./src/email-access.ts"
+		"./email-access": "./src/email-access.ts",
+		"./product-availability": "./src/product-availability.ts"
 	},
 	"scripts": {
 		"check": "pnpm exec tsx ./scripts/generate_contracts.ts --check && pnpm exec tsx ./scripts/check_contract_schemas.ts",

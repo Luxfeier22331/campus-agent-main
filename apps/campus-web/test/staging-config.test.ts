@@ -35,6 +35,7 @@ describe("campus web staging config", () => {
 
 		expect(verifyStagingConfigSource).toContain("CAMPUS_AUTH_TURNSTILE_SITE_KEY");
 		expect(verifyStagingConfigSource).not.toContain("CAMPUS_WEB_HOSTNAME");
+		expect(stagingPreflightSource).toContain("STATUS_WEB_PUBLIC_ORIGIN");
 		expect(verifyStagingConfigSource).toContain("DEPLOYMENT_ENVIRONMENT");
 		expect(verifyStagingConfigSource).toContain("AUTH_TURNSTILE_SITE_KEY must not remain");
 		expect(uploadStagingVersionSource).toContain("CAMPUS_AUTH_TURNSTILE_SITE_KEY");
@@ -44,6 +45,7 @@ describe("campus web staging config", () => {
 		expect(uploadStagingVersionSource).toContain("SENTRY_CAMPUS_WEB_PROJECT_SLUG");
 		expect(uploadStagingVersionSource).toContain('artifactDirectory: "dist/campus_web"');
 		expect(uploadStagingVersionSource).toContain("AUTH_TURNSTILE_SITE_KEY");
+		expect(uploadStagingVersionSource).toContain("STATUS_WEB_PUBLIC_ORIGIN");
 		expect(verifyStagingConfigSource).not.toContain("MAP_DATA");
 		expect(buildCampusWebSource).not.toContain("MAP_DATA");
 		expect(uploadStagingVersionSource).toContain("readCampusWebBuildSourceDigest");

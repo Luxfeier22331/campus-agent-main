@@ -11,6 +11,7 @@ describe("campus product navigation model", () => {
 			["dining", "/dining", "食堂"],
 			["groups", "/groups", "同好群"],
 			["feedback", "/feedback", "反馈"],
+			["status", "/status", "服务状态"],
 		]);
 	});
 
@@ -26,5 +27,8 @@ describe("campus product navigation model", () => {
 		expect(isProductNavActive("/groups", byId.groups)).toBe(true);
 		expect(isProductNavActive("/feedback", byId.feedback)).toBe(true);
 		expect(isProductNavActive("/feedback/extra", byId.feedback)).toBe(false);
+		expect(isProductNavActive("/status", byId.status)).toBe(true);
+		expect(isProductNavActive("/status/", byId.status)).toBe(false);
+		expect(byId.status.linkMode).toBe("anchor");
 	});
 });

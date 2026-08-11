@@ -7,6 +7,7 @@ preview_urls = false
 
 [vars]
 APP_API_BASE_URL = "https://app-api.internal"
+STATUS_WEB_PUBLIC_ORIGIN = "https://status.muc.wiki"
 
 [assets]
 directory = "./test/assets"

@@ -15,8 +15,9 @@ status: active
 
 | 组件 | 负责 | 不负责 |
 | --- | --- | --- |
-| `campus-web` | 学生问答、账号、文档、地图、食堂和校园状态页面 | 运维运行记录、数据库或内部运行时访问 |
-| `app-api` | 浏览器认证、聊天接收与终结、产品 API 和状态 API | Temporal worker、内部检索、在线模型配置、通用运维数据 API |
+| `campus-web` | 学生问答、账号、文档、地图、食堂和校园业务状态页面 | 产品可用性状态页、运维运行记录、数据库或内部运行时访问 |
+| `app-api` | 浏览器认证、聊天接收与终结、公开问答可用性信号和产品 API | 产品可用性状态快照、Temporal worker、内部检索、在线模型配置、通用运维数据 API |
+| `status-web` | 独立的产品可用性状态页、公共状态快照和第一方入口黑盒探测 | 校园业务状态、用户账号、聊天、内部运行时和观测平台原始数据 |
 | `ops-web` | 自托管运行记录、运行概况、在线模型配置和 Dining 内容运营 | 学生账号、聊天和请求写入，任意工作流控制或 Kubernetes 资源管理 |
 | `execution-control` | 持久运行准入、工作流业务逻辑、内部查询、执行投影和在线模型配置 | 浏览器认证和页面合同 |
 | `agent-runtime` | 单次 Primary Agent SDK run 与获准工具调用 | 持久编排和产品数据持久化 |
@@ -24,6 +25,10 @@ status: active
 ## 浏览器路径
 
 - `campus-web` 通过 Service Binding 或已配置的 app-api origin 调用 `app-api`。
+- `status-web` 通过独立的 `status.*` origin 提供公开页面和只读状态快照；它不经由
+  `campus-web` 或 `app-api` 代理状态数据。
+- `status-web` Cron 通过 App API 的匿名 `GET /api/chat/availability` 探测问答，通过 Campus
+  公开入口的 `/` 探测问答之外的整体站点；文档和地图等静态页面不单独探测。
 - 浏览器不直连 execution-control、Temporal、Hindsight、Qdrant、PostgreSQL 或
   Axiom。
 - `ops-web` 是独立受保护的自托管站点；其浏览器只调用同一进程的 `/api/ops/*`。
@@ -62,7 +67,9 @@ app-api 保存用户轮次并创建持久 run；execution-control 和 Temporal �
 - 有界 application logs：Axiom；
 - browser/edge 错误、生产 browser 采样性能、release 和 source map：Sentry；
 - Agent 模型和工具受信任 trace：单一 Langfuse project；
-- 个人记忆：Hindsight，仅由 execution-control Activity 调用。
+- 个人记忆：Hindsight，仅由 execution-control Activity 调用；
+- 产品可用性快照和有限时间线：`status-web` 所属的 Cloudflare KV namespace；不写入原始探测
+  响应、Langfuse trace 或数据库记录。
 
 这些数据通过 `request_id`、`run_id`、`trace_id` 和 `conversation_id` 关联，不建立第二套请求
 关联投影。
@@ -81,8 +88,8 @@ app-api 保存用户轮次并创建持久 run；execution-control 和 Temporal �
 
 ## 部署
 
-- browser-facing Worker 应用由源码 workflow 上传不可变版本，环境仓 Terraform 管理
-  custom domain、cron 与流量版本。
+- browser-facing Worker 应用（包括 `campus-web`、`app-api` 和 `status-web`）由源码 workflow
+  上传不可变版本，环境仓 Terraform 管理 custom domain、KV、cron 与流量版本。
 - execution-control、agent-runtime、ops-web、PostgreSQL 和依赖平台由 Kubernetes/GitOps 管理。
 - app-api Worker 通过 Hyperdrive/Workers VPC 访问私有 CNPG，不公开 PostgreSQL。
 - 源码仓的 base 和镜像不表示已经部署；实际环境状态由环境仓 revision 和运行检查确定。
@@ -90,6 +97,7 @@ app-api 保存用户轮次并创建持久 run；execution-control 和 Temporal �
 ## 架构约束
 
 - 不让 app-api 代理 Temporal、Langfuse、Axiom、Sentry 或数据库通用查询。
+- 不让产品可用性状态页复用 `campus-web` 的校园业务状态语义，或把内部运行组件作为公共服务行。
 - 不让观测平台改写产品请求状态。
 - 不把离线采集职责混入在线回答路径。
 - 不为单一页面拆出没有独立数据、扩缩容或安全边界的后端服务。

@@ -11,11 +11,6 @@ on:
         options:
           - affected
           - campus-web-docs
-      validate_only:
-        description: Validate staging Worker configuration without publishing candidates
-        required: true
-        default: true
-        type: boolean
       promote:
         description: Open or update the staging GitOps promotion pull request
         required: true
@@ -54,7 +49,6 @@ jobs:
       head: ${{ steps.plan.outputs.head }}
       images: ${{ steps.plan.outputs.images }}
       kubernetes: ${{ steps.plan.outputs.kubernetes }}
-      validate_only: ${{ steps.plan.outputs.validate_only }}
       workers: ${{ steps.plan.outputs.workers }}
     steps:
       - name: Checkout
@@ -88,7 +82,6 @@ jobs:
           path: gitops-selection
           sparse-checkout: |
             /releases/staging.json
-            /cloudflare/staging/worker-versions.json
           sparse-checkout-cone-mode: false
 
       - name: Install release planner dependencies
@@ -100,36 +93,23 @@ jobs:
       - name: Select release candidates
         id: plan
         env:
-          PROMOTE: ${{ github.event_name == 'workflow_dispatch' && inputs.promote || false }}
           REFRESH_CAMPUS_WEB_DOCS: ${{ github.event_name == 'workflow_dispatch' && inputs.candidate_scope == 'campus-web-docs' || false }}
-          VALIDATE_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.validate_only || false }}
         run: |
           set -euo pipefail
           if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
-            echo "Staging validation and publication are allowed only from main." >&2
-            exit 1
-          fi
-          if [[ "$PROMOTE" == "true" && "$VALIDATE_ONLY" == "true" ]]; then
-            echo "Validation-only runs cannot promote candidates." >&2
-            exit 1
-          fi
-          if [[ "$REFRESH_CAMPUS_WEB_DOCS" == "true" && "$VALIDATE_ONLY" == "true" ]]; then
-            echo "Campus Web docs refresh cannot run in validation-only mode." >&2
+            echo "Staging candidate publication is allowed only from main." >&2
             exit 1
           fi
           plan="$(node --experimental-strip-types scripts/release/candidates.mts \
             --head "$GITHUB_SHA" \
             --refresh-campus-web-docs "$REFRESH_CAMPUS_WEB_DOCS" \
-            --selection "$GITHUB_WORKSPACE/gitops-selection/releases/staging.json" \
-            --validate-only "$VALIDATE_ONLY" \
-            --worker-selection "$GITHUB_WORKSPACE/gitops-selection/cloudflare/staging/worker-versions.json")"
+            --selection "$GITHUB_WORKSPACE/gitops-selection/releases/staging.json")"
           jq -e . <<< "$plan" >/dev/null
           {
             echo "base=$(jq -r '.base' <<< "$plan")"
             echo "head=$(jq -r '.head' <<< "$plan")"
             echo "images=$(jq -c '.images' <<< "$plan")"
             echo "kubernetes=$(jq -r '.kubernetes' <<< "$plan")"
-            echo "validate_only=$(jq -r '.validateOnly' <<< "$plan")"
             echo "workers=$(jq -c '.workers' <<< "$plan")"
           } >> "$GITHUB_OUTPUT"
           jq . <<< "$plan"
@@ -149,7 +129,6 @@ jobs:
     needs: release-plan
     if: >-
       needs.release-plan.result == 'success' &&
-      needs.release-plan.outputs.validate_only != 'true' &&
       fromJSON(needs.release-plan.outputs.images)[0] != null
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 30
@@ -263,12 +242,7 @@ jobs:
           --filter 'campus-contracts...'
           --filter 'app-api...'
 
-      - name: Validate app-api staging configuration
-        if: needs.release-plan.outputs.validate_only == 'true'
-        run: pnpm --dir apps/app-api exec tsx ./scripts/preflight-staging.ts
-
       - name: Upload app-api candidate
-        if: needs.release-plan.outputs.validate_only != 'true'
         env:
           SENTRY_APP_API_PROJECT_SLUG: ${{ vars.SENTRY_APP_API_PROJECT_SLUG }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
@@ -279,7 +253,6 @@ jobs:
           pnpm --dir apps/app-api upload:staging
 
       - name: Upload Worker candidates
-        if: needs.release-plan.outputs.validate_only != 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: release-worker-candidate-app-api
@@ -317,16 +290,7 @@ jobs:
           --filter campus-agent-web-workspace
           --filter 'campus-web...'
 
-      - name: Build Campus Web staging configuration
-        if: needs.release-plan.outputs.validate_only == 'true'
-        env:
-          OBJECT_STORE_DERIVED_READ_ACCESS_KEY: ${{ secrets.OBJECT_STORE_DERIVED_READ_ACCESS_KEY }}
-          OBJECT_STORE_DERIVED_READ_SECRET_KEY: ${{ secrets.OBJECT_STORE_DERIVED_READ_SECRET_KEY }}
-          OBJECT_STORE_ENDPOINT: ${{ vars.OBJECT_STORE_ENDPOINT }}
-        run: pnpm --dir apps/campus-web build:staging
-
       - name: Build Campus Web staging candidate
-        if: needs.release-plan.outputs.validate_only != 'true'
         env:
           CAMPUS_WEB_SENTRY_SOURCE_MAP_UPLOAD: required
           OBJECT_STORE_DERIVED_READ_ACCESS_KEY: ${{ secrets.OBJECT_STORE_DERIVED_READ_ACCESS_KEY }}
@@ -337,13 +301,7 @@ jobs:
           SENTRY_ORG_SLUG: ${{ vars.SENTRY_ORG_SLUG }}
         run: pnpm --dir apps/campus-web build:staging
 
-      - name: Validate Campus Web staging configuration
-        env:
-          CAMPUS_AUTH_TURNSTILE_SITE_KEY: ${{ vars.CAMPUS_AUTH_TURNSTILE_SITE_KEY }}
-        run: pnpm --dir apps/campus-web exec tsx ./scripts/preflight-staging.ts
-
       - name: Upload Campus Web candidate
-        if: needs.release-plan.outputs.validate_only != 'true'
         env:
           CAMPUS_AUTH_TURNSTILE_SITE_KEY: ${{ vars.CAMPUS_AUTH_TURNSTILE_SITE_KEY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
@@ -352,13 +310,13 @@ jobs:
           SENTRY_CAMPUS_WEB_DSN: ${{ vars.SENTRY_CAMPUS_WEB_DSN }}
           SENTRY_CAMPUS_WEB_PROJECT_SLUG: ${{ vars.SENTRY_CAMPUS_WEB_PROJECT_SLUG }}
           SENTRY_ORG_SLUG: ${{ vars.SENTRY_ORG_SLUG }}
+          STATUS_WEB_PUBLIC_ORIGIN: ${{ vars.STATUS_WEB_PUBLIC_ORIGIN }}
           WORKER_VERSION_OUTPUT: ${{ github.workspace }}/worker-candidates/campus-web-staging.json
         run: |
           mkdir -p worker-candidates
           pnpm --dir apps/campus-web upload:staging
 
       - name: Upload Worker candidate
-        if: needs.release-plan.outputs.validate_only != 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: release-worker-candidate-campus-web
@@ -367,8 +325,61 @@ jobs:
           overwrite: true
           retention-days: 1
 
+  publish-status-web:
+    needs: release-plan
+    if: >-
+      needs.release-plan.result == 'success' &&
+      contains(fromJSON(needs.release-plan.outputs.workers), 'status-web-staging')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: staging
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      STATUS_CAMPUS_ORIGIN: ${{ vars.STATUS_CAMPUS_ORIGIN }}
+      STATUS_QA_ORIGIN: ${{ vars.STATUS_QA_ORIGIN }}
+      CAMPUS_WEB_PUBLIC_ORIGIN: ${{ vars.CAMPUS_WEB_PUBLIC_ORIGIN }}
+      STATUS_SNAPSHOT_KV_ID: ${{ vars.STATUS_SNAPSHOT_KV_ID }}
+    defaults:
+      run:
+        shell: nix develop .#ci-core --command bash -e {0}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+        with:
+          persist-credentials: false
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
+          enable_kvm: false
+
+      - name: Install status-web workspace
+        run: >-
+          pnpm install --frozen-lockfile
+          --filter campus-agent-web-workspace
+          --filter 'campus-contracts...'
+          --filter 'status-web...'
+
+      - name: Upload status-web candidate
+        env:
+          WORKER_VERSION_OUTPUT: ${{ github.workspace }}/worker-candidates/status-web-staging.json
+        run: |
+          mkdir -p worker-candidates
+          pnpm --dir apps/status-web upload:staging
+
+      - name: Upload Worker candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          name: release-worker-candidate-status-web
+          path: worker-candidates/status-web-staging.json
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 1
+
   candidate-status:
-    needs: [release-plan, publish-images, publish-app-api, publish-campus-web]
+    needs: [release-plan, publish-images, publish-app-api, publish-campus-web, publish-status-web]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 2
@@ -383,12 +394,12 @@ jobs:
         env:
           APP_API_RESULT: ${{ needs.publish-app-api.result }}
           CAMPUS_WEB_RESULT: ${{ needs.publish-campus-web.result }}
+          STATUS_WEB_RESULT: ${{ needs.publish-status-web.result }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           IMAGES: ${{ needs.release-plan.outputs.images || '[]' }}
           IMAGE_RESULT: ${{ needs.publish-images.result }}
           PLAN_RESULT: ${{ needs.release-plan.result }}
           TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          VALIDATE_ONLY: ${{ needs.release-plan.outputs.validate_only || 'false' }}
           WORKERS: ${{ needs.release-plan.outputs.workers || '[]' }}
         run: |
           set -euo pipefail
@@ -399,7 +410,7 @@ jobs:
           if [ "$PLAN_RESULT" != success ]; then
             valid=false
           fi
-          if [ "$VALIDATE_ONLY" != true ] && jq -e 'length > 0' <<< "$IMAGES" >/dev/null && \
+          if jq -e 'length > 0' <<< "$IMAGES" >/dev/null && \
             [ "$IMAGE_RESULT" != success ]; then
             valid=false
           fi
@@ -411,12 +422,14 @@ jobs:
             [ "$CAMPUS_WEB_RESULT" != success ]; then
             valid=false
           fi
+          if jq -e 'index("status-web-staging") != null' <<< "$WORKERS" >/dev/null && \
+            [ "$STATUS_WEB_RESULT" != success ]; then
+            valid=false
+          fi
           if [ "$valid" = true ]; then
             state=success
             approved=true
-            if [ "$VALIDATE_ONLY" = true ]; then
-              description='Selected staging Worker configurations passed'
-            elif jq -e 'length > 0' <<< "$IMAGES" >/dev/null || \
+            if jq -e 'length > 0' <<< "$IMAGES" >/dev/null || \
               jq -e 'length > 0' <<< "$WORKERS" >/dev/null; then
               description='Selected artifacts were built and published; images were scanned'
             else
@@ -431,21 +444,22 @@ jobs:
             -f target_url="$TARGET_URL"
 
   promote:
-    needs: [release-plan, candidate-status, publish-images, publish-app-api, publish-campus-web]
+    needs: [release-plan, candidate-status, publish-images, publish-app-api, publish-campus-web, publish-status-web]
     if: >-
       always() &&
       needs.release-plan.result == 'success' &&
       needs.candidate-status.outputs.approved == 'true' &&
-      needs.release-plan.outputs.validate_only != 'true' &&
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' || inputs.promote) &&
       contains(fromJSON('["success","skipped"]'), needs.publish-images.result) &&
       contains(fromJSON('["success","skipped"]'), needs.publish-app-api.result) &&
       contains(fromJSON('["success","skipped"]'), needs.publish-campus-web.result) &&
+      contains(fromJSON('["success","skipped"]'), needs.publish-status-web.result) &&
       (
         needs.publish-images.result == 'success' ||
         needs.publish-app-api.result == 'success' ||
         needs.publish-campus-web.result == 'success' ||
+        needs.publish-status-web.result == 'success' ||
         needs.release-plan.outputs.kubernetes == 'true'
       )
     runs-on: ubuntu-24.04
@@ -487,6 +501,13 @@ jobs:
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7
         with:
           name: release-worker-candidate-campus-web
+          path: worker-candidates
+
+      - name: Download status-web Worker candidate
+        if: needs.publish-status-web.result == 'success'
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7
+        with:
+          name: release-worker-candidate-status-web
           path: worker-candidates
 
       - name: Create GitOps promotion token
@@ -557,13 +578,13 @@ jobs:
             ## 变更内容
 
             - 更新 `campus-agent@${{ github.sha }}` 产生的活跃镜像（如有）
-            - 更新 App API 与 Campus Web Worker 的不可变版本（如有）
+            - 更新 App API、Campus Web 与 status-web Worker 的不可变版本（如有）
             - Kubernetes 基座变化时同步活跃 Application 的源码引用
 
             ## 验证结果
 
             - [x] 发布镜像（如有）均为单一 `linux/arm64` 索引并通过 Trivy 扫描
-            - [x] Worker 候选版本上传未改变当前流量版本
+            - [x] Worker 候选通过 `versions upload` 产生，流量仍由 GitOps 选择
             - [x] `promote-source` 已校验候选身份和活跃消费者
             - [ ] GitOps PR 的完整仓库与受影响 Kustomize、schema、策略、Terraform/Helm 检查
 

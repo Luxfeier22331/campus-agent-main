@@ -8,6 +8,10 @@ import { getOpsAccountAdminApi } from "../modules/auth/ops-account-admin-plugin"
 import { buildCampusExperienceService } from "../modules/campus-experience";
 import { buildCampusGroupsService, createPgCampusGroupsStore } from "../modules/campus-groups";
 import { buildChatConversationService, createPgChatConversationStore } from "../modules/chat";
+import {
+	buildChatAvailabilityService,
+	createPgChatAvailabilityStore,
+} from "../modules/chat-availability";
 import { createPgDiningContentService, createPgDiningMapReadService } from "../modules/dining";
 import { buildEmailAccessService, createPgEmailAccessGrantStore } from "../modules/email-access";
 import {
@@ -42,6 +46,7 @@ export function createRequestScopeFactory(input: {
 			let accountLifecycle = input.dependencies.accountLifecycleService ?? null;
 			let campusExperience = input.dependencies.campusExperienceService ?? null;
 			let campusGroups = input.dependencies.campusGroupsService ?? null;
+			let chatAvailability = input.dependencies.chatAvailabilityService ?? null;
 			let chat = input.dependencies.chatConversationService ?? null;
 			let command = input.dependencies.chatCommandService ?? null;
 			let dining = input.dependencies.diningMapReadService ?? null;
@@ -99,6 +104,10 @@ export function createRequestScopeFactory(input: {
 					(campusGroups ??= buildCampusGroupsService(
 						createPgCampusGroupsStore(input.env, { getDb: runtime.getDb }),
 					)),
+				resolveChatAvailabilityService: () =>
+					(chatAvailability ??= buildChatAvailabilityService({
+						store: createPgChatAvailabilityStore(input.env, { getDb: runtime.getDb }),
+					})),
 				resolveChatCommandService,
 				resolveChatConversationService,
 				resolveDiningMapReadService: () =>

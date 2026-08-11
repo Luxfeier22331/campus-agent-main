@@ -19,7 +19,29 @@ function requiredEnv(name: string): string {
 	return value;
 }
 
+function requiredHttpsOrigin(name: string): string {
+	const value = requiredEnv(name);
+	let origin: URL;
+	try {
+		origin = new URL(value);
+	} catch {
+		throw new Error(`${name} must be a valid HTTPS origin.`);
+	}
+	if (
+		origin.protocol !== "https:" ||
+		origin.pathname !== "/" ||
+		origin.search ||
+		origin.hash ||
+		origin.username ||
+		origin.password
+	) {
+		throw new Error(`${name} must contain only an HTTPS origin.`);
+	}
+	return origin.toString();
+}
+
 const appDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const statusWebPublicOrigin = requiredHttpsOrigin("STATUS_WEB_PUBLIC_ORIGIN");
 const turnstileSiteKey = requiredEnv("CAMPUS_AUTH_TURNSTILE_SITE_KEY");
 if (turnstileSiteKey === TURNSTILE_TEST_SITE_KEY) {
 	throw new Error("CAMPUS_AUTH_TURNSTILE_SITE_KEY must use the admitted environment widget.");
@@ -57,6 +79,7 @@ uploadStagingWorkerVersion({
 	},
 	variables: {
 		AUTH_TURNSTILE_SITE_KEY: turnstileSiteKey,
+		STATUS_WEB_PUBLIC_ORIGIN: statusWebPublicOrigin,
 		SENTRY_DSN: sentryDsn,
 		DEPLOYMENT_RELEASE: sentryRelease,
 	},

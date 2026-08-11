@@ -12,6 +12,15 @@ describe("campus worker runtime smoke", () => {
 		});
 	});
 
+	it("redirects the status navigation through the Worker", async () => {
+		const response = await SELF.fetch("https://campus.muc.wiki/status", {
+			redirect: "manual",
+		});
+
+		expect(response.status).toBe(302);
+		expect(response.headers.get("location")).toBe("https://status.muc.wiki/");
+	});
+
 	it("fails closed for non-allowlisted campus api routes", async () => {
 		const response = await SELF.fetch("https://campus.muc.wiki/api/ops/dining");
 

@@ -15,10 +15,6 @@ interface WorkerVersionSummary {
 	annotations?: Record<string, string>;
 }
 
-interface WorkerDeploymentSummary {
-	id: string;
-}
-
 interface WorkerVersionDetails {
 	resources?: {
 		bindings?: unknown[];
@@ -108,24 +104,6 @@ export function readWorkerVersionPlainTextVariable(options: {
 		parseJsonOutput<unknown>(result.stdout, "wrangler versions view"),
 		options.variableName,
 	);
-}
-
-function readCurrentDeploymentId(cwd: string, workerName: string): string {
-	const result = runWranglerCommand(["deployments", "status", "--name", workerName, "--json"], {
-		cwd,
-		stdio: "pipe",
-	});
-	if (result.status !== 0) {
-		return fail(formatWranglerFailure(result, `Reading current deployment for ${workerName}`));
-	}
-	const deployment = parseJsonOutput<WorkerDeploymentSummary>(
-		result.stdout,
-		"wrangler deployments status",
-	);
-	if (!deployment.id) {
-		return fail(`wrangler deployments status returned no deployment id for ${workerName}.`);
-	}
-	return deployment.id;
 }
 
 export function selectUploadedVersion(
@@ -264,7 +242,6 @@ export function uploadStagingWorkerVersion(options: {
 			`Sentry source-map release for ${options.workerName} must match the Worker DEPLOYMENT_RELEASE variable.`,
 		);
 	}
-	const deploymentBefore = readCurrentDeploymentId(options.cwd, options.workerName);
 	const args = buildWorkerVersionUploadArgs(options, sourceSha);
 
 	const upload = runWranglerCommand(args, { cwd: options.cwd, stdio: "inherit" });
@@ -289,12 +266,6 @@ export function uploadStagingWorkerVersion(options: {
 		return fail(`Uploaded Worker version for ${options.workerName} has an invalid id.`);
 	}
 
-	const deploymentAfter = readCurrentDeploymentId(options.cwd, options.workerName);
-	if (deploymentAfter !== deploymentBefore) {
-		return fail(
-			`Uploading ${options.workerName} changed deployment ${deploymentBefore} to ${deploymentAfter}.`,
-		);
-	}
 	if (options.sentrySourceMaps) {
 		uploadSentrySourceMaps(options.cwd, options.workerName, options.sentrySourceMaps);
 	}

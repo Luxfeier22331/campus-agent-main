@@ -6,6 +6,7 @@ import type { AuthEmailSender } from "../modules/auth/reset-mail";
 import type { CampusExperienceService } from "../modules/campus-experience";
 import type { CampusGroupsService } from "../modules/campus-groups";
 import type { ChatConversationService } from "../modules/chat";
+import type { ChatAvailabilityService } from "../modules/chat-availability";
 import type { DiningContentService, DiningMapReadService } from "../modules/dining";
 import type { EmailAccessService } from "../modules/email-access";
 import type { ProfileMemoryService } from "../modules/profile-memory";
@@ -24,6 +25,7 @@ export interface AppDependencies {
 	) => Promise<Response> | Response;
 	campusExperienceService?: CampusExperienceService;
 	campusGroupsService?: CampusGroupsService;
+	chatAvailabilityService?: ChatAvailabilityService;
 	chatConversationService?: ChatConversationService;
 	chatCommandService?: ChatCommandService;
 	diningMapReadService?: DiningMapReadService;
@@ -56,6 +58,7 @@ export interface AppRequestScope {
 	resolveAccountLifecycleService(): AccountLifecycleService;
 	resolveCampusExperienceService(): CampusExperienceService;
 	resolveCampusGroupsService(): CampusGroupsService;
+	resolveChatAvailabilityService(): ChatAvailabilityService;
 	resolveChatCommandService(): ChatCommandService;
 	resolveChatConversationService(): ChatConversationService;
 	resolveDiningMapReadService(): DiningMapReadService;

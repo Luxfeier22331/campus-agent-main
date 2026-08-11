@@ -21,6 +21,7 @@ export interface Env {
 		fetch(request: Request): Promise<Response> | Response;
 	};
 	AUTH_TURNSTILE_SITE_KEY?: string;
+	STATUS_WEB_PUBLIC_ORIGIN?: string;
 	SENTRY_DSN?: string;
 	DEPLOYMENT_ENVIRONMENT?: string;
 	DEPLOYMENT_RELEASE?: string;
@@ -130,6 +131,10 @@ const worker = {
 			});
 		}
 
+		if ((request.method === "GET" || request.method === "HEAD") && url.pathname === "/status") {
+			return redirectToStatusWeb(request, env);
+		}
+
 		if (isAllowedCampusAppApiRequest(url.pathname)) {
 			return proxyToAppApi(request, env);
 		}
@@ -196,6 +201,49 @@ function getMissingRuntimeConfig(env: Env): string[] {
 		missing.push("APP_API_BASE_URL");
 	}
 	return missing;
+}
+
+function redirectToStatusWeb(_request: Request, env: Env): Response {
+	const origin = normalizePublicOrigin(env.STATUS_WEB_PUBLIC_ORIGIN);
+	if (!origin) {
+		return jsonResponse(503, {
+			error: {
+				code: "dependency_not_ready",
+				details: { missing: ["STATUS_WEB_PUBLIC_ORIGIN"] },
+				message: "状态页面暂不可用。",
+			},
+		});
+	}
+	return new Response(null, {
+		headers: {
+			"cache-control": "no-store",
+			location: new URL("/", origin).toString(),
+			...SECURITY_HEADERS,
+		},
+		status: 302,
+	});
+}
+
+function normalizePublicOrigin(value: string | undefined): string | null {
+	if (!value?.trim()) {
+		return null;
+	}
+	try {
+		const url = new URL(value.trim());
+		if (
+			(url.protocol !== "http:" && url.protocol !== "https:") ||
+			url.pathname !== "/" ||
+			url.search ||
+			url.hash ||
+			url.username ||
+			url.password
+		) {
+			return null;
+		}
+		return url.toString();
+	} catch {
+		return null;
+	}
 }
 
 async function proxyToAppApi(request: Request, env: Env): Promise<Response> {

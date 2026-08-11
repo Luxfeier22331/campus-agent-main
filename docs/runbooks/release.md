@@ -32,8 +32,8 @@ Worker version、配置和其他环境资源。候选物发布成功不表示环
 2. 当前 workflow 从环境仓游标计算累计影响面，发布受影响的不可变候选物；PR 已拥有源码、合同、
    受影响 Node 证据和仓库合同检查；原生、数据库、浏览器和业务 E2E 不进入 PR 自动门禁，按明确
    manual profile 或本地路径执行；main 候选不重复运行这些检查；
-   触发条件、输入和产物以 `.github/workflows/` 为准。App API 与 Campus Web 在各自的候选任务中
-   完成 Worker 配置预检；镜像、两个 Worker 和 Kubernetes 清单分别产生候选物。一个候选面的发布
+   触发条件、输入和产物以 `.github/workflows/` 为准。App API、Campus Web 与 status-web 在各自的真实
+   上传路径中完成 Worker 配置校验；镜像、三个 Worker 发布器和 Kubernetes 清单分别产生候选物。一个候选面的发布
    失败不使已经成功发布的候选物失效，但本次不会创建不完整的 GitOps 提升；同一源码提交重试时应
    直接复用已有候选物。
 3. 检查候选物记录的源码提交、摘要和构建身份，不用可变标签或重复构建覆盖已有产物。
@@ -45,8 +45,9 @@ Worker version、配置和其他环境资源。候选物发布成功不表示环
 发布基线来自环境仓 `releases/staging.json`，不是 workflow 触发事件的前一个提交。镜像和 Cloudflare Worker
 影响面由 Turbo package graph 与 package 外部 task input 计算，Kubernetes 由 `infra/k8s` 所有者范围
 计算。当前 staging 自动候选只包含已注册活跃 Application 消费的 `agent-runtime`、
-`app-api-schema`、`execution-control`、`ops-web`、App API Worker、Campus Web Worker 与 Kubernetes
-source。采集运行时
+`app-api-schema`、`execution-control`、`ops-web`、App API Worker、Campus Web Worker、status-web Worker
+与 Kubernetes source。Worker 候选由 Source affected graph 选择，不以环境仓当前版本清单作为发布白名单，
+因此新 Worker 可以先上传候选，再由环境仓首次选择。采集运行时
 当前未部署到 staging，因此 `ingestion-control`、`ingestion-control-worker` 和 `source-collector`
 不会被候选发布自动构建。`docker-bake.hcl` 中未进入候选映射的 Dining 和 docs 镜像只按明确发布需求
 手动构建。
@@ -73,13 +74,20 @@ Campus Web 的 staging publisher 在 main/artifact lane 读取固定来源键
 已选择 Worker 候选。
 
 需要在源码差异没有选中 Campus Web 时重新读取当前文档来源，可手动运行
-`staging-candidate-publish`，选择 `candidate_scope=campus-web-docs` 并关闭 `validate_only`。该输入只把
-活跃的 `campus-web-staging` 加入正常累计差异的候选集合，不扩大制品或验证 profile；它不能与
-validation-only 模式组合。
+`staging-candidate-publish`，选择 `candidate_scope=campus-web-docs`。该输入只把
+`campus-web-staging` 加入正常累计差异的候选集合，不扩大制品或验证 profile。
 
 PR 的 `affected-node` 会先读取 Turbo 影响面，再执行普通包构建；Campus Web 在 PR 中只执行现有的
 `build:worker` 确定性测试构建，不访问对象存储。真实文档页面构建只由 main/artifact lane 中独立的
 Campus Web publisher 完成。
+
+status-web 接入后的 staging publisher 读取 staging Environment 提供的 `STATUS_QA_ORIGIN`、
+`STATUS_CAMPUS_ORIGIN`、`CAMPUS_WEB_PUBLIC_ORIGIN` 和 `STATUS_SNAPSHOT_KV_ID`，只上传不可变 Worker version，
+不改变当前流量版本。
+Campus Web publisher 读取 `STATUS_WEB_PUBLIC_ORIGIN`，将 Campus `/status` 入口绑定到状态页公共 origin。入口可以是 staging
+边缘地址，也可以经过 HTTP 重定向或 Cloudflare custom domain 映射到 `muc.wiki` 子域名；它不改变
+`campus.services` 的逻辑服务身份。生产和 staging 的 KV、Cron、custom domain 及流量版本由环境仓
+管理，源码仓不写入具体入口域名。
 
 ## 环境交接
 
@@ -128,7 +136,7 @@ production 只选择已合入 `main` 的提交或其 release tag。发布前确�
 - 候选物发布中断：对同一源码提交重试缺失步骤，不覆盖已存在的不可变产物；
 - Worker version 操作失败时，发布脚本保留 Wrangler 的退出码、signal 和脱敏后的 stderr；先按该错误区分凭据、网络或响应格式问题，不切换旧 Token，也不把失败伪装成候选物成功；
 - 某次 `main` 发布在产物或 GitOps 交接前失败：从当前 `main` 手动重跑
-  `staging-candidate-publish`，设置 `validate_only=false`；这只重算环境仓游标到当前 Source 的实际
+  `staging-candidate-publish`；这只重算环境仓游标到当前 Source 的实际
   diff，不触发全量候选，且 workflow 不接受人工基线；
 - 环境计划失败：修复环境仓变更，不强制同步；
 - migration 或 rollout 失败：使用环境仓定义的恢复路径回到已知版本；

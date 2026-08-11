@@ -1,9 +1,19 @@
-export type ProductNavItemId = "chat" | "docs" | "map" | "dining" | "groups" | "feedback";
+export type ProductNavItemId =
+	| "chat"
+	| "docs"
+	| "map"
+	| "dining"
+	| "groups"
+	| "feedback"
+	| "status";
+
+export type ProductNavItemLinkMode = "anchor" | "router";
 
 export interface ProductNavItem {
 	href: string;
 	id: ProductNavItemId;
 	label: string;
+	linkMode?: ProductNavItemLinkMode;
 }
 
 export const DOCS_HOME_PATH = "/docs";
@@ -15,6 +25,7 @@ export const productNavItems = [
 	{ href: "/dining", id: "dining", label: "食堂" },
 	{ href: "/groups", id: "groups", label: "同好群" },
 	{ href: "/feedback", id: "feedback", label: "反馈" },
+	{ href: "/status", id: "status", label: "服务状态", linkMode: "anchor" },
 ] as const satisfies readonly ProductNavItem[];
 
 export function getProductNavItems(): readonly ProductNavItem[] {
@@ -27,6 +38,8 @@ export function isProductNavActive(pathname: string, item: ProductNavItem): bool
 			return pathname === "/" || pathname.startsWith("/c/");
 		case "docs":
 			return pathname === "/docs" || pathname.startsWith("/docs/");
+		case "status":
+			return pathname === "/status";
 		default:
 			return pathname === item.href;
 	}

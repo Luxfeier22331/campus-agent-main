@@ -47,6 +47,8 @@ tmp/
 docs-*.png
 apps/ops-web/playwright-report/
 apps/ops-web/test-results/
+apps/status-web/playwright-report/
+apps/status-web/test-results/
 
 # Local secret-delivery inputs and key backups.
 secret.local.yaml

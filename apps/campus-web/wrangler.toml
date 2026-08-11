@@ -13,6 +13,7 @@ service = "app-api"
 [env.local.vars]
 APP_API_BASE_URL = "http://127.0.0.1:27031"
 DEPLOYMENT_ENVIRONMENT = "development"
+STATUS_WEB_PUBLIC_ORIGIN = "http://127.0.0.1:8788"
 
 [[env.local.services]]
 binding = "APP_API"

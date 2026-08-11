@@ -60,6 +60,7 @@ test("expensive package tasks declare boundary-specific affected inputs", () => 
 		["apps/execution-control/turbo.json", ["test:database-integration"]],
 		["apps/ingestion-control/turbo.json", ["test:database-integration"]],
 		["apps/ops-web/turbo.json", ["test:browser", "test:database-integration"]],
+		["apps/status-web/turbo.json", ["test:browser"]],
 	];
 	for (const [config, taskNames] of owners) {
 		const tasks = readJson(config).tasks as JsonObject;

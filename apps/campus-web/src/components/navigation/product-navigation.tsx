@@ -7,8 +7,9 @@ import {
 	getProductNavItems,
 	isProductNavActive,
 	type ProductNavItem,
+	type ProductNavItemLinkMode,
 } from "@/platform/navigation/product-nav";
-export type ProductNavigationLinkMode = "anchor" | "router";
+export type ProductNavigationLinkMode = ProductNavItemLinkMode;
 
 export function ProductBrandLink({
 	className,
@@ -107,7 +108,7 @@ interface ProductNavLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
 
 export const ProductNavLink = forwardRef<HTMLAnchorElement, ProductNavLinkProps>(
 	({ children, className, item, linkMode, ...props }, ref) => {
-		if (linkMode === "anchor" || item.id === "docs") {
+		if (item.linkMode === "anchor" || linkMode === "anchor" || item.id === "docs") {
 			return (
 				<a className={className} href={item.href} ref={ref} {...props}>
 					{children}

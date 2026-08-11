@@ -149,6 +149,14 @@ export function registerChatRoutes(input: {
 		authInput: { getAppAuth: AppRequestScope["getAppAuth"] },
 	) => Promise<ResolvedAppPrincipal | null>;
 }) {
+	input.app.get("/api/chat/availability", async () => {
+		const response = await input
+			.createRequestScope()
+			.resolveChatAvailabilityService()
+			.getAvailability();
+		return jsonResponse(response);
+	});
+
 	input.app.post("/api/chat/requests", async (c) => {
 		const scope = input.createRequestScope();
 		const resolved = await requireSessionPrincipal({

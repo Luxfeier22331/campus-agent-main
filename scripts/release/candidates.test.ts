@@ -59,16 +59,6 @@ async function fixture(t: test.TestContext): Promise<string> {
 		path.join(root, "selection.json"),
 		`${JSON.stringify({ repository: "MUC-WIKI/campus-agent", sourceSha: BASE })}\n`,
 	);
-	await writeFile(
-		path.join(root, "worker-versions.json"),
-		`${JSON.stringify({
-			schemaVersion: 2,
-			workers: {
-				"app-api-staging": { sourceSha: BASE, versionId: "app-api-version" },
-				"campus-web-staging": { sourceSha: BASE, versionId: "campus-web-version" },
-			},
-		})}\n`,
-	);
 	return root;
 }
 
@@ -78,8 +68,6 @@ function options(root: string) {
 		refreshCampusWebDocs: false,
 		repositoryRoot: root,
 		selectionFile: path.join(root, "selection.json"),
-		validateOnly: false,
-		workerSelectionFile: path.join(root, "worker-versions.json"),
 	};
 }
 
@@ -117,9 +105,28 @@ test("maps Turbo affected package tasks to release candidates", async (t) => {
 		head: HEAD,
 		images: ["agent-runtime"],
 		kubernetes: true,
-		validateOnly: false,
 		workers: ["app-api-staging", "campus-web-staging"],
 	});
+});
+
+test("publishes the first product availability candidate before GitOps selects it", async (t) => {
+	const root = await fixture(t);
+	const runner: CommandRunner = (command, args) => {
+		if (command === "pnpm") {
+			return result({
+				stdout: JSON.stringify({
+					tasks: [{ command: "wrangler deploy", package: "status-web", task: "build:worker" }],
+				}),
+			});
+		}
+		if (args[0] === "diff") {
+			return result({ stdout: changed("apps/status-web/src/index.ts") });
+		}
+		return result();
+	};
+
+	const plan = await planCandidates(options(root), runner);
+	assert.deepEqual(plan.workers, ["status-web-staging"]);
 });
 
 test("task graph configuration does not publish business artifacts", async (t) => {
@@ -153,7 +160,7 @@ test("maps Turbo-owned Dockerfiles when they share a Turbo configuration commit"
 	assert.deepEqual(plan.workers, []);
 });
 
-test("promotion planning remains diff-based even when all workers are active", async (t) => {
+test("promotion planning remains diff-based", async (t) => {
 	const root = await fixture(t);
 	const runner: CommandRunner = (command, args) => {
 		if (command === "pnpm") {
@@ -169,14 +176,7 @@ test("promotion planning remains diff-based even when all workers are active", a
 	assert.deepEqual(plan.workers, []);
 });
 
-test("validation-only mode selects the active GitOps Workers", async (t) => {
-	const root = await fixture(t);
-	const plan = await planCandidates({ ...options(root), validateOnly: true }, () => result());
-	assert.deepEqual(plan.workers, ["app-api-staging", "campus-web-staging"]);
-	assert.equal(plan.validateOnly, true);
-});
-
-test("Campus Web docs refresh unions only the active Campus Worker into the diff plan", async (t) => {
+test("Campus Web docs refresh unions the Campus Worker into the diff plan", async (t) => {
 	const root = await fixture(t);
 	const runner: CommandRunner = (command, args) => {
 		if (command === "pnpm") {
@@ -203,43 +203,8 @@ test("Campus Web docs refresh works when the GitOps cursor already equals head",
 		head: BASE,
 		images: [],
 		kubernetes: false,
-		validateOnly: false,
 		workers: ["campus-web-staging"],
 	});
-});
-
-test("Campus Web docs refresh rejects validation-only mode and an inactive Worker", async (t) => {
-	const root = await fixture(t);
-	await assert.rejects(
-		planCandidates({ ...options(root), refreshCampusWebDocs: true, validateOnly: true }),
-		/cannot run in validation-only mode/u,
-	);
-	await writeFile(
-		path.join(root, "worker-versions.json"),
-		`${JSON.stringify({
-			schemaVersion: 2,
-			workers: { "app-api-staging": { sourceSha: BASE, versionId: "app-api-version" } },
-		})}\n`,
-	);
-	await assert.rejects(
-		planCandidates({ ...options(root), refreshCampusWebDocs: true }),
-		/requires an active campus-web-staging Worker/u,
-	);
-});
-
-test("rejects active Workers without a Source publisher", async (t) => {
-	const root = await fixture(t);
-	await writeFile(
-		path.join(root, "worker-versions.json"),
-		`${JSON.stringify({
-			schemaVersion: 2,
-			workers: { "unknown-staging": { sourceSha: BASE, versionId: "unknown" } },
-		})}\n`,
-	);
-	await assert.rejects(
-		planCandidates(options(root), () => result()),
-		/Unsupported active Worker: unknown-staging/u,
-	);
 });
 
 test("selects Docker-only schema and Go images", async (t) => {
@@ -263,7 +228,6 @@ test("selects Docker-only schema and Go images", async (t) => {
 		head: HEAD,
 		images: ["app-api-schema", "execution-control"],
 		kubernetes: false,
-		validateOnly: false,
 		workers: [],
 	});
 });
@@ -324,7 +288,6 @@ test("an already selected Source revision has no automatic candidates", async (t
 		head: BASE,
 		images: [],
 		kubernetes: false,
-		validateOnly: false,
 		workers: [],
 	});
 	assert.equal(turboCalled, false);
@@ -340,7 +303,6 @@ test("an explicit PR base does not require a GitOps checkout", async (t) => {
 				head: BASE,
 				refreshCampusWebDocs: false,
 				repositoryRoot: root,
-				validateOnly: false,
 			},
 			runner,
 		),
@@ -349,7 +311,6 @@ test("an explicit PR base does not require a GitOps checkout", async (t) => {
 			head: BASE,
 			images: [],
 			kubernetes: false,
-			validateOnly: false,
 			workers: [],
 		},
 	);

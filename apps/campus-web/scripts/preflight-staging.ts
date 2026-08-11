@@ -9,6 +9,29 @@ function fail(message: string): never {
 	process.exit(1);
 }
 
+function requireHttpsOrigin(name: string): void {
+	const value = process.env[name]?.trim();
+	if (!value) {
+		fail(`${name} is required for apps/campus-web staging preflight.`);
+	}
+	let origin: URL;
+	try {
+		origin = new URL(value);
+	} catch {
+		fail(`${name} must be a valid HTTPS origin.`);
+	}
+	if (
+		origin.protocol !== "https:" ||
+		origin.pathname !== "/" ||
+		origin.search ||
+		origin.hash ||
+		origin.username ||
+		origin.password
+	) {
+		fail(`${name} must contain only an HTTPS origin.`);
+	}
+}
+
 function run(command: string, args: string[]): void {
 	const result = spawnSync(command, args, { cwd: repoRoot, env: process.env, stdio: "inherit" });
 	if (typeof result.status === "number") {
@@ -20,6 +43,7 @@ function run(command: string, args: string[]): void {
 	fail(`Failed to run ${command}: ${result.error?.message ?? "unknown error"}`);
 }
 
+requireHttpsOrigin("STATUS_WEB_PUBLIC_ORIGIN");
 run("pnpm", ["exec", "tsx", "apps/campus-web/scripts/verify-staging-config.ts"]);
 run("pnpm", [
 	"exec",

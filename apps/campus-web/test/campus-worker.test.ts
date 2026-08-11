@@ -16,6 +16,7 @@ function createEnv(appApi?: Env["APP_API"], assets?: Env["ASSETS"]): Env {
 					headers: { "content-type": "text/html" },
 				}),
 		},
+		STATUS_WEB_PUBLIC_ORIGIN: "https://status.muc.wiki",
 	};
 }
 
@@ -41,8 +42,35 @@ describe("campus worker boundary", () => {
 		});
 	});
 
+	it("redirects the status entry to the configured public origin", async () => {
+		const response = await worker.fetch(
+			new Request("https://campus.muc.wiki/status?from=nav", {
+				headers: { accept: "text/html" },
+			}),
+			createEnv(),
+		);
+
+		expect(response.status).toBe(302);
+		expect(response.headers.get("location")).toBe("https://status.muc.wiki/");
+		expect(response.headers.get("cache-control")).toBe("no-store");
+	});
+
+	it("fails closed when the status public origin is missing or malformed", async () => {
+		for (const origin of [undefined, "https://status.muc.wiki/path", "javascript:alert(1)"]) {
+			const response = await worker.fetch(new Request("https://campus.muc.wiki/status"), {
+				...createEnv(),
+				STATUS_WEB_PUBLIC_ORIGIN: origin,
+			});
+			expect(response.status).toBe(503);
+			await expect(response.json()).resolves.toMatchObject({
+				error: { details: { missing: ["STATUS_WEB_PUBLIC_ORIGIN"] } },
+			});
+		}
+	});
+
 	it("serves readyz without a runtime docs dependency", async () => {
 		const env = createEnv({ fetch: () => new Response(null, { status: 200 }) });
+		delete env.STATUS_WEB_PUBLIC_ORIGIN;
 
 		const response = await worker.fetch(new Request("https://campus.muc.wiki/readyz"), env);
 

@@ -58,7 +58,7 @@ status: active
 | 邮件服务 | App API | 密码重置和账号通知 |
 | 微信公众号来源 | Source Collector | 发现来源并取得采集入口，规范正文仍来自真实文章 |
 | 内部门户认证 | Ops Web、开发者程序、Source Collector | Ops Web 在所属 PostgreSQL 管理多条 TGC 和自动化 token；开发者程序从 Ops Web 获得 endpoint 与 Bearer token 后显式调用更新/删除接口；Source Collector 只消费开发者显式提供的本地 TGC，不读取数据库或部署 Secret |
-| Cloudflare Worker 平台 | App API、Campus Web | Worker 运行、公开配置和平台绑定 |
+| Cloudflare Worker 平台 | App API、Campus Web、status-web | Worker 运行、公开配置和平台绑定 |
 
 来源凭据只进入所属采集器或任务，不进入在线问答、浏览器或通用仓库根环境。个人调试凭据不能
 作为生产运行配置。

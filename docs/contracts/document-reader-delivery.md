@@ -148,8 +148,8 @@ Environment。`OBJECT_STORE_ENDPOINT`、`OBJECT_STORE_DERIVED_READ_ACCESS_KEY` �
 
 PR job 不访问对象存储；Campus Web 只执行无对象存储依赖的 `build:worker` 测试构建。main/artifact
 lane 的独立 Campus Web publisher 使用 Source staging Environment 的公网对象存储端点和只读身份
-执行正式 `build:staging`；`validate_only` 也构建同一 staging 配置，但不上传 Sentry source map 或
-Worker version。该 publisher 不是独立文档发布 Job，不写回文档来源或维护第二个文档版本指针。
+执行正式 `build:staging` 并上传 Worker version。该 publisher 不是独立文档发布 Job，不写回文档来源
+或维护第二个文档版本指针。
 
 ## 构建产物
 

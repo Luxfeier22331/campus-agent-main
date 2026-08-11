@@ -1,0 +1,22 @@
+{
+	"environment": "staging",
+	"expiresAt": "2026-08-07T00:15:00Z",
+	"generatedAt": "2026-08-07T00:05:00Z",
+	"schemaVersion": "product-availability-snapshot.v1",
+	"services": [
+		{
+			"checkedAt": "2026-08-07T00:05:00Z",
+			"id": "campus.qa",
+			"name": "校园问答",
+			"status": "maintenance",
+			"timeline": []
+		},
+		{
+			"checkedAt": "2026-08-07T00:05:00Z",
+			"id": "campus.services",
+			"name": "其他服务",
+			"status": "operational",
+			"timeline": []
+		}
+	]
+}

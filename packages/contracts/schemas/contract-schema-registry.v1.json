@@ -181,6 +181,21 @@
 			"notes": "已发布校园同好群目录的公开读取合同。"
 		},
 		{
+			"id": "product-availability-snapshot.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/product-availability-snapshot.v1.schema.json",
+			"owner": "apps/status-web",
+			"status": "active",
+			"fixture_groups": [
+				{
+					"path": "packages/contracts/fixtures/product_availability",
+					"valid_glob": "*.valid.json",
+					"invalid_glob": "*.invalid-*.json"
+				}
+			],
+			"notes": "status.muc.wiki 公共可用性快照和时间线合同，不包含事件或探测明细。"
+		},
+		{
 			"id": "canonical-document-units.v1",
 			"kind": "json_artifact",
 			"path": "packages/ingestion-contracts/schemas/canonical-document-units.v1.schema.json",

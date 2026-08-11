@@ -38,7 +38,7 @@ export default defineConfig({
 			url: `${appApiURL}/healthz`,
 		},
 		{
-			command: `${usePrebuiltApp ? "" : "pnpm run build:worker && "}WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=../../.wrangler-home pnpm exec wrangler dev --config dist/campus_web/wrangler.json --local --ip 127.0.0.1 --port ${port} --var APP_API_BASE_URL:http://127.0.0.1:27031`,
+			command: `${usePrebuiltApp ? "" : "pnpm run build:worker && "}WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=../../.wrangler-home pnpm exec wrangler dev --config dist/campus_web/wrangler.json --local --ip 127.0.0.1 --port ${port} --var APP_API_BASE_URL:http://127.0.0.1:27031 --var STATUS_WEB_PUBLIC_ORIGIN:https://status.muc.wiki`,
 			reuseExistingServer: !isCI,
 			timeout: 120_000,
 			url: baseURL,

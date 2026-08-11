@@ -137,8 +137,9 @@ registry 的 pull secret 由环境 overlay 绑定到 first-party ServiceAccount�
 
 ## 健康与排查
 
-使用环境仓为当前环境提供的 app-api 与 campus-web 地址检查 `/readyz`，并确认响应中的运行版本
-与环境选择一致。源码仓不保存 staging hostname。
+使用环境仓为当前环境提供的 app-api、campus-web 与 status-web 地址检查 `/readyz`，并确认响应中的
+运行版本与环境选择一致；status-web 另检查 `/api/status` 能返回合同快照。源码仓不保存 staging
+hostname。
 
 execution-control readiness 降级时，根据顶层核心状态定位回答准入、Temporal、Agent Runtime、
 PostgreSQL 或 execution runtime Application。`/readyz` 不探测 Provider Config、Hindsight、Qdrant、
