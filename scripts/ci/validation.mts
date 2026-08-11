@@ -39,6 +39,7 @@ export const VALIDATION_PROFILES: ValidationProfile[] = [
 ];
 
 export interface ValidationPlan {
+	affectedPackages: string[];
 	base: string;
 	head: string;
 	lightSurfaces: LightSurface[];
@@ -58,6 +59,18 @@ function changesPath(files: readonly string[], prefix: string): boolean {
 
 function matchesFile(files: readonly string[], pattern: RegExp): boolean {
 	return files.some((file) => pattern.test(file));
+}
+
+const AFFECTED_NODE_TASKS = new Set(["build", "build:worker", "test", "test:worker", "typecheck"]);
+
+function selectAffectedPackages(scope: AffectedScope): string[] {
+	return [
+		...new Set(
+			scope.tasks
+				.filter(({ task }) => AFFECTED_NODE_TASKS.has(task))
+				.map(({ package: packageName }) => packageName),
+		),
+	].sort((left, right) => left.localeCompare(right));
 }
 
 function selectLightSurfaces(files: readonly string[]): LightSurface[] {
@@ -96,11 +109,7 @@ function selectLightSurfaces(files: readonly string[]): LightSurface[] {
 function selectValidationProfiles(scope: AffectedScope): ValidationProfile[] {
 	const files = scope.changedFiles;
 	const selected = new Set<ValidationProfile>();
-	if (
-		scope.tasks.some(({ task }) =>
-			["build", "build:worker", "test", "test:worker", "typecheck"].includes(task),
-		)
-	) {
+	if (scope.tasks.some(({ task }) => AFFECTED_NODE_TASKS.has(task))) {
 		selected.add("affected-node");
 	}
 	if (
@@ -137,6 +146,7 @@ export function validationPlanFromScope(
 ): ValidationPlan {
 	const validationProfiles = selectValidationProfiles(scope);
 	return {
+		affectedPackages: selectAffectedPackages(scope),
 		base: scope.base,
 		head: scope.head,
 		lightSurfaces: selectLightSurfaces(scope.changedFiles),

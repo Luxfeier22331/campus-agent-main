@@ -141,8 +141,22 @@ test("pull request validation keeps one stable hosted check", async () => {
 	assert.equal(typeof planner.run, "string");
 	assert(planner.run.includes("jq -r --arg profile affected-node"));
 	assert(planner.run.includes("index($profile) != null"));
+	assert(planner.run.includes(".affectedPackages"));
+	assert(planner.run.includes('echo "affected_packages=$affected_packages"'));
 	assert(!planner.run.includes(String.raw`\"affected-node\"`));
 	assert(!source.includes("browser"));
+	const affectedInstall = repoChecks.steps.find(
+		(step) => isObject(step) && step.name === "Install affected workspaces",
+	);
+	assert(isObject(affectedInstall));
+	assert(isObject(affectedInstall.env));
+	assert.equal(
+		affectedInstall.env.AFFECTED_PACKAGES,
+		githubExpression("steps.plan.outputs.affected_packages"),
+	);
+	assert.equal(typeof affectedInstall.run, "string");
+	assert.match(affectedInstall.run, /filters\+=\(--filter "\$\{package\}\.\.\."\)/u);
+	assert.match(affectedInstall.run, /pnpm install --frozen-lockfile "\$\{filters\[@\]\}"/u);
 	const repositoryCheck = repoChecks.steps.find(
 		(step) => isObject(step) && step.name === "Run repository checks",
 	);
@@ -205,7 +219,8 @@ test("source workflows use Nix on bounded GitHub-hosted release lanes", async ()
 	assert(joined.includes("nix develop .#ci-light"));
 	assert(joined.includes("nix develop .#ci-release"));
 	assert(joined.includes("nix develop .#ci-full"));
-	assert(joined.includes("nix develop ./gitops#ci-infra"));
+	assert(joined.includes("nix develop ./gitops#ci-control"));
+	assert(!joined.includes("nix develop ./gitops#ci-infra"));
 	assert(!joined.includes("actions/cache@"));
 	const dependencies = sources[0];
 	assert(dependencies);
@@ -333,7 +348,8 @@ test("candidate publishing uses GitHub-hosted runners before final status", asyn
 		(step) => isObject(step) && step.name === "Setup Docker Buildx",
 	);
 	const runnerFactsIndex = publishImages.steps.findIndex(
-		(step) => isObject(step) && step.name === "Record release runner facts",
+		(step) =>
+			isObject(step) && step.name === "Initialize release toolchain and record runner facts",
 	);
 	assert(buildxIndex >= 0);
 	assert.equal(runnerFactsIndex, buildxIndex + 1);
@@ -345,7 +361,8 @@ test("candidate publishing uses GitHub-hosted runners before final status", asyn
 	assert(isObject(runnerFacts));
 	assert.equal(typeof runnerFacts.run, "string");
 	assert(runnerFacts.run.includes('tee -a "$GITHUB_STEP_SUMMARY"'));
-	assert(runnerFacts.run.includes("docker buildx inspect --bootstrap"));
+	assert(runnerFacts.run.includes("docker buildx inspect"));
+	assert(!runnerFacts.run.includes("docker buildx inspect --bootstrap"));
 	const publishStep = publishImages.steps.find(
 		(step) => isObject(step) && step.name === "Build, publish and scan images",
 	);
@@ -393,6 +410,31 @@ test("candidate publishing uses GitHub-hosted runners before final status", asyn
 		installGitOpsTooling.run,
 		"pnpm --dir gitops --ignore-workspace install --frozen-lockfile",
 	);
+	for (const stepName of [
+		"Install GitOps tooling",
+		"Update GitOps desired state",
+		"Detect GitOps changes",
+		"Mark staging promotion pending",
+	]) {
+		const step = promote.steps.find(
+			(candidate) => isObject(candidate) && candidate.name === stepName,
+		);
+		assert(isObject(step));
+		assert.equal(step.shell, "nix develop ./gitops#ci-control --command bash -e {0}");
+	}
+	assert.equal(
+		promote.steps.find((step) => isObject(step) && step.name === "Render promoted GitOps state"),
+		undefined,
+	);
+	const deploymentPullRequest = promote.steps.find(
+		(step) => isObject(step) && step.name === "Open GitOps deployment pull request",
+	);
+	assert(isObject(deploymentPullRequest));
+	assert(isObject(deploymentPullRequest.with));
+	assert.match(
+		String(deploymentPullRequest.with.body),
+		/\[ \] GitOps PR 的完整仓库与受影响 Kustomize、schema、策略、Terraform\/Helm 检查/u,
+	);
 	const profileShells = new Map<string, string | undefined>([
 		["release-plan", jobShell(releasePlan)],
 		["publish-images", jobShell(workflow.jobs["publish-images"])],
@@ -413,8 +455,8 @@ test("candidate publishing uses GitHub-hosted runners before final status", asyn
 	assert(!source.includes("--prefer-offline"));
 	assert(source.includes(`--trivy-cache "\${RUNNER_TOOL_CACHE}/trivy"`));
 	assert(!source.includes(`--trivy-cache "\${RUNNER_TEMP}/trivy"`));
-	assert(source.includes("validate-ops-web-promotion"));
-	assert(source.includes('index("clusters/staging/overlays/ops-web")'));
+	assert(!source.includes("validate-ops-web-promotion"));
+	assert(!source.includes('index("clusters/staging/overlays/ops-web")'));
 
 	const appApi = workflow.jobs["publish-app-api"];
 	assert(isObject(appApi));

@@ -20,21 +20,25 @@ test("docs-only changes keep automatic evidence empty", () => {
 	const plan = validationPlanFromScope(scope(["docs/architecture/current.md"]), {
 		mode: "pull-request",
 	});
+	assert.deepEqual(plan.affectedPackages, []);
 	assert.deepEqual(plan.lightSurfaces, []);
 	assert.deepEqual(plan.validationProfiles, []);
 });
 
 test("selects affected Node and Worker evidence from Turbo tasks", () => {
-	assert.deepEqual(
-		profiles(
+	const plan = validationPlanFromScope(
+		scope(
 			[],
 			[
-				{ package: "app-api", task: "test:worker" },
 				{ package: "campus-contracts", task: "typecheck" },
+				{ package: "app-api", task: "test:worker" },
+				{ package: "app-api", task: "typecheck" },
 			],
 		),
-		["affected-node"],
+		{ mode: "pull-request" },
 	);
+	assert.deepEqual(plan.affectedPackages, ["app-api", "campus-contracts"]);
+	assert.deepEqual(plan.validationProfiles, ["affected-node"]);
 });
 
 test("keeps native, database, infrastructure, OTel, and browser checks manual", () => {

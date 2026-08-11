@@ -176,7 +176,7 @@ jobs:
         with:
           cache-binary: false
 
-      - name: Record release runner facts
+      - name: Initialize release toolchain and record runner facts
         run: |
           set -euo pipefail
           {
@@ -189,7 +189,7 @@ jobs:
             df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
             docker version --format 'docker_client={{.Client.Version}} docker_server={{.Server.Version}}'
             docker buildx version
-            docker buildx inspect --bootstrap
+            docker buildx inspect
             echo '```'
             echo
           } | tee -a "$GITHUB_STEP_SUMMARY"
@@ -512,14 +512,14 @@ jobs:
           path: gitops
 
       - name: Install GitOps tooling
-        shell: nix develop ./gitops#ci-infra --command bash -e {0}
+        shell: nix develop ./gitops#ci-control --command bash -e {0}
         run: pnpm --dir gitops --ignore-workspace install --frozen-lockfile
 
       - name: Update GitOps desired state
         env:
           EXPECTED_WORKERS: ${{ needs.release-plan.outputs.workers }}
           KUBERNETES_CHANGED: ${{ needs.release-plan.outputs.kubernetes }}
-        shell: nix develop ./gitops#ci-infra --command bash -e {0}
+        shell: nix develop ./gitops#ci-control --command bash -e {0}
         run: >-
           pnpm --dir gitops gitops promote-source
           --expected-source-sha "${{ needs.release-plan.outputs.base }}"
@@ -531,33 +531,9 @@ jobs:
           --source-sha "$GITHUB_SHA"
           --worker-candidates "$GITHUB_WORKSPACE/worker-candidates"
 
-      - name: Render promoted GitOps state
-        env:
-          SOURCE_TOKEN: ${{ steps.gitops-token.outputs.token }}
-        shell: nix develop ./gitops#ci-infra --command bash -e {0}
-        run: |
-          set -euo pipefail
-          pnpm --dir gitops exec tsx tools/gitops.ts \
-            validate-source --root "$GITHUB_WORKSPACE/gitops"
-          scope="${RUNNER_TEMP}/promotion-scope.json"
-          pnpm --dir gitops exec tsx tools/gitops.ts scope-worktree \
-            --root "$GITHUB_WORKSPACE/gitops" \
-            > "$scope"
-          jq -e . "$scope" >/dev/null
-          if jq -e '.kustomizeRoots | length > 0' "$scope" >/dev/null; then
-            rendered="${RUNNER_TEMP}/promotion-kustomize"
-            mkdir -p "$rendered"
-            gitops/scripts/validate-kubernetes.sh "$scope" "$rendered"
-            if jq -e '.kustomizeRoots | index("clusters/staging/overlays/ops-web") != null' "$scope" >/dev/null; then
-              pnpm --dir gitops exec tsx tools/gitops.ts \
-                validate-ops-web-promotion \
-                --directory "$rendered"
-            fi
-          fi
-
       - name: Detect GitOps changes
         id: promotion
-        shell: nix develop ./gitops#ci-infra --command bash -e {0}
+        shell: nix develop ./gitops#ci-control --command bash -e {0}
         run: |
           if git -C gitops diff --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -589,15 +565,14 @@ jobs:
             - [x] 发布镜像（如有）均为单一 `linux/arm64` 索引并通过 Trivy 扫描
             - [x] Worker 候选版本上传未改变当前流量版本
             - [x] `promote-source` 已校验候选身份和活跃消费者
-            - [x] promotion 后的受影响 Kustomize、schema、策略与引用检查
-            - [ ] GitOps PR 的完整仓库与受影响 Terraform/Helm 检查
+            - [ ] GitOps PR 的完整仓库与受影响 Kustomize、schema、策略、Terraform/Helm 检查
 
       - name: Mark staging promotion pending
         if: steps.promotion.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ steps.gitops-token.outputs.token }}
           TARGET_URL: ${{ steps.deployment-pr.outputs.pull-request-url }}
-        shell: nix develop ./gitops#ci-infra --command bash -e {0}
+        shell: nix develop ./gitops#ci-control --command bash -e {0}
         run: >-
           gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}"
           -f state=pending

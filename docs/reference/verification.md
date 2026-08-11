@@ -135,8 +135,8 @@ artifact，也不把 dependency scan 的成功结果当作应用行为或镜像�
 不可变镜像时直接复用。
 
 机器 promotion 必须携带 planner 读取的旧 `releases/staging.json` 游标；环境仓游标已经前进时拒绝
-写入。promotion checkout GitOps 后通过 `nix develop ./gitops#ci-infra` 调用环境仓拥有的更新和渲染入口，
-再创建或更新 `deploy/staging` PR。Agent
+写入。promotion checkout GitOps 后通过 `nix develop ./gitops#ci-control` 调用环境仓拥有的更新入口，
+再创建或更新 `deploy/staging` PR；受影响渲染和策略检查由该 PR 的 GitOps 门禁负责。Agent
 Runtime、App API schema 和 Ops Web 运维 Job 的容器入口均执行构建期生成的 JavaScript，不在部署
 环境执行 TypeScript 源码。
 
