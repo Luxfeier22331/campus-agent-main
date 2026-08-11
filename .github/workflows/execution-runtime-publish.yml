@@ -464,9 +464,9 @@ jobs:
           enable_kvm: false
 
       - name: Prepare release inputs
-        shell: nix develop .#ci-core --command bash -e {0}
+        shell: bash -e {0}
         run: |
-          node -e 'require("node:fs").writeFileSync("image-digests.json", "{}\n")'
+          printf '{}\n' > image-digests.json
           mkdir -p worker-candidates
 
       - name: Download image digests
@@ -513,7 +513,7 @@ jobs:
 
       - name: Install GitOps tooling
         shell: nix develop ./gitops#ci-infra --command bash -e {0}
-        run: pnpm --dir gitops install --frozen-lockfile
+        run: pnpm --dir gitops --ignore-workspace install --frozen-lockfile
 
       - name: Update GitOps desired state
         env:

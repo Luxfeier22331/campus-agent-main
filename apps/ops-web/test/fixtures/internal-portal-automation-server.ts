@@ -62,6 +62,7 @@ export async function startInternalPortalAutomationFixture(
 					},
 					internalPortalAutomationTokenService: tokenService,
 					internalPortalCredentialService: credentialService,
+					staticRoot: "test/fixtures/static",
 					store: createFixtureOpsStatusStore(),
 				});
 				resolveFixture({

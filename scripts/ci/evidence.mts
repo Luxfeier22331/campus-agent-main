@@ -8,16 +8,7 @@ import { VALIDATION_PROFILES, type ValidationProfile } from "./validation.mts";
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 
 function turboCommand(packageName: string, ...tasks: string[]): string[] {
-	return [
-		"pnpm",
-		"exec",
-		"turbo",
-		"run",
-		...tasks,
-		`--filter=${packageName}`,
-		"--concurrency=1",
-		"--summarize",
-	];
+	return ["pnpm", "exec", "turbo", "run", ...tasks, `--filter=${packageName}`, "--summarize"];
 }
 
 const PROFILE_COMMANDS: Partial<Record<ValidationProfile, string[][]>> = {
@@ -127,7 +118,6 @@ function runAffectedNodeEvidence(
 					"run",
 					taskName,
 					"--only",
-					"--concurrency=1",
 					"--summarize",
 					...[...packages].sort().map((packageName) => `--filter=${packageName}`),
 				],
@@ -152,7 +142,6 @@ function runAffectedNodeEvidence(
 				"run",
 				"build",
 				"--only",
-				"--concurrency=1",
 				"--summarize",
 				...[...buildPackages].sort().map((packageName) => `--filter=${packageName}`),
 			],
@@ -174,7 +163,6 @@ function runAffectedNodeEvidence(
 				"run",
 				"build:worker",
 				"--only",
-				"--concurrency=1",
 				"--summarize",
 				...[...builtWorkers].sort().map((packageName) => `--filter=${packageName}`),
 			],

@@ -98,7 +98,7 @@ test("reuses an existing immutable arm64 image index", async (t) => {
 		[
 			{ command: "docker", output: "capture", subcommand: "buildx" },
 			{ command: "docker", output: "capture", subcommand: "buildx" },
-			{ command: "trivy", output: "stream", subcommand: "image" },
+			{ command: "trivy", output: "capture", subcommand: "image" },
 		],
 	);
 	assert(logs.some((line) => /stage=inspect state=complete .*reused=true/u.test(line)));

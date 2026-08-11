@@ -6,10 +6,10 @@ import type {
 	DiningOpsReviewRecord,
 } from "@campus-agent/dining/domain";
 import { describe, expect, it, vi } from "vitest";
-import { createOpsApp } from "../src/server/app";
 import type { DiningContentStore } from "../src/server/dining-content-store";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission";
 import { createFixtureOpsStatusStore } from "../src/server/ops-status-store";
+import { createTestOpsApp } from "./helpers/ops-app";
 
 const NOW = "2026-07-24T08:00:00.000Z";
 const menuItem: DiningMenuItemRecord = {
@@ -77,7 +77,7 @@ function contentStore(): DiningContentStore {
 }
 
 function createTestApp(diningContentStore: DiningContentStore) {
-	return createOpsApp({
+	return createTestOpsApp({
 		admission: createAllowAllOpsAdmission(),
 		diningContentStore,
 		env: {

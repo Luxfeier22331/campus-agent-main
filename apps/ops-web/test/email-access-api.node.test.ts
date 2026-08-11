@@ -1,8 +1,8 @@
 // @vitest-environment node
 
 import { describe, expect, it, vi } from "vitest";
-import { createOpsApp } from "../src/server/app";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission";
+import { createTestOpsApp } from "./helpers/ops-app";
 
 const grant = {
 	accessExpiresAt: null,
@@ -25,7 +25,7 @@ const grant = {
 describe("ops email access BFF", () => {
 	it("returns grants to an admitted operator", async () => {
 		const command = vi.fn();
-		const app = createOpsApp({
+		const app = createTestOpsApp({
 			admission: createAllowAllOpsAdmission({ email: "ops@example.test" }),
 			emailAccessClient: {
 				command,
@@ -41,7 +41,7 @@ describe("ops email access BFF", () => {
 
 	it("forwards allowlisted same-origin commands with actor and idempotency", async () => {
 		const command = vi.fn().mockResolvedValue(grant);
-		const app = createOpsApp({
+		const app = createTestOpsApp({
 			admission: createAllowAllOpsAdmission({ email: "ops@example.test" }),
 			emailAccessClient: {
 				command,

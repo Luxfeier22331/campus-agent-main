@@ -4,7 +4,6 @@ import type { DiningMapDraft } from "@campus-agent/dining/domain";
 import { DINING_BOOTSTRAP_FLOORPLANS } from "@campus-agent/dining/floorplans";
 import { diningMapBundleFingerprint } from "@campus-agent/dining/publisher";
 import { describe, expect, it, vi } from "vitest";
-import { createOpsApp } from "../src/server/app";
 import {
 	createUnavailableDiningStore,
 	type DiningStore,
@@ -12,6 +11,7 @@ import {
 } from "../src/server/dining-store";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission";
 import { createFixtureOpsStatusStore } from "../src/server/ops-status-store";
+import { createTestOpsApp } from "./helpers/ops-app";
 
 const NOW = "2026-07-24T08:00:00.000Z";
 
@@ -47,7 +47,7 @@ function createDiningStore(): DiningStore {
 }
 
 function createTestApp(diningStore: DiningStore) {
-	return createOpsApp({
+	return createTestOpsApp({
 		admission: createAllowAllOpsAdmission(),
 		diningStore,
 		env: {
@@ -156,7 +156,7 @@ describe("Ops Web Dining API", () => {
 	it("logs a stable error code when the Dining store is unavailable", async () => {
 		const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
 		try {
-			const app = createOpsApp({
+			const app = createTestOpsApp({
 				admission: createAllowAllOpsAdmission(),
 				diningStore: createUnavailableDiningStore(new Error("dining unavailable")),
 				env: {

@@ -1,8 +1,8 @@
 // @vitest-environment node
 
 import { describe, expect, it, vi } from "vitest";
-import { createOpsApp } from "../src/server/app";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission";
+import { createTestOpsApp } from "./helpers/ops-app";
 
 const user = {
 	activeSessionCount: 0,
@@ -34,7 +34,7 @@ function createTestApp() {
 		listUsers: vi.fn().mockResolvedValue({ items: [user], nextCursor: null }),
 		revokeSession: vi.fn().mockResolvedValue(user),
 	};
-	const app = createOpsApp({
+	const app = createTestOpsApp({
 		accountAdminClient,
 		admission: createAllowAllOpsAdmission({
 			email: "operator@example.test",

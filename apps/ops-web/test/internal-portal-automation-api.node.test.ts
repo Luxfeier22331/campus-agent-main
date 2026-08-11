@@ -1,13 +1,13 @@
 // @vitest-environment node
 
 import { describe, expect, it, vi } from "vitest";
-import { createOpsApp } from "../src/server/app.ts";
 import {
 	InternalPortalCredentialConflictError,
 	InternalPortalCredentialNameConflictError,
 } from "../src/server/internal-portal-credential-store.ts";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission.ts";
 import { createFixtureOpsStatusStore } from "../src/server/ops-status-store.ts";
+import { createTestOpsApp } from "./helpers/ops-app.ts";
 
 const PUBLIC_ORIGIN = "https://ops.example.test";
 const AUTOMATION_ORIGIN = "https://ops-api.example.test";
@@ -47,7 +47,7 @@ function createTestApp() {
 		reveal: vi.fn(async () => ({ ...tokenMetadata, tokenValue: "ops_secret" })),
 		revoke: vi.fn(async () => ({ ...tokenMetadata, revokedAt: "2026-08-06T02:00:00.000Z" })),
 	};
-	const app = createOpsApp({
+	const app = createTestOpsApp({
 		admission: createAllowAllOpsAdmission({
 			email: "operator@example.test",
 			operatorId: "operator@example.test",
@@ -73,7 +73,7 @@ function bearerHeaders() {
 describe("internal portal automation API", () => {
 	it("reports an unconfigured automation capability without blocking top-level readiness", async () => {
 		const { credentialService, tokenService } = createTestApp();
-		const app = createOpsApp({
+		const app = createTestOpsApp({
 			env: {
 				DEPLOYMENT_ENVIRONMENT: "local",
 				OPS_WEB_PUBLIC_ORIGIN: PUBLIC_ORIGIN,
@@ -120,7 +120,7 @@ describe("internal portal automation API", () => {
 		`${AUTOMATION_ORIGIN}?source=test`,
 	])("treats invalid automation origin %s as unconfigured", async (automationOrigin) => {
 		const { credentialService, tokenService } = createTestApp();
-		const app = createOpsApp({
+		const app = createTestOpsApp({
 			env: {
 				DEPLOYMENT_ENVIRONMENT: "local",
 				OPS_WEB_AUTOMATION_ORIGIN: automationOrigin,
@@ -556,7 +556,7 @@ describe("internal portal automation API", () => {
 	});
 
 	it("does not expose the human token management route without Access admission", async () => {
-		const app = createOpsApp({
+		const app = createTestOpsApp({
 			env: {
 				ACCESS_POLICY_AUD: "audience",
 				ACCESS_TEAM_DOMAIN: "https://team.example.test",

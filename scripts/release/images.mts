@@ -408,7 +408,7 @@ export async function publishImages(
 				scanned = await runner("trivy", trivyArguments, {
 					cwd: root,
 					env: environment,
-					output: "stream",
+					output: "capture",
 				});
 			} catch (error) {
 				report.failedStage = "scan";

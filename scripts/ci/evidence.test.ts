@@ -126,11 +126,11 @@ test("runs selected native, database, OTel, and dependency profiles in order", (
 		},
 	);
 	assert.deepEqual(calls, [
-		"pnpm exec turbo run native:format native:lint native:typecheck native:test --filter=execution-control --concurrency=1 --summarize",
-		"pnpm exec turbo run native:format native:lint native:typecheck native:test --filter=ingestion-kernels-rs --concurrency=1 --summarize",
-		"pnpm exec turbo run typecheck test --filter=eval-langfuse --concurrency=1 --summarize",
-		"pnpm exec turbo run test:eval --filter=ragas-runner --concurrency=1 --summarize",
-		"pnpm exec turbo run test:database-integration --filter=ingestion-control --concurrency=1 --summarize",
+		"pnpm exec turbo run native:format native:lint native:typecheck native:test --filter=execution-control --summarize",
+		"pnpm exec turbo run native:format native:lint native:typecheck native:test --filter=ingestion-kernels-rs --summarize",
+		"pnpm exec turbo run typecheck test --filter=eval-langfuse --summarize",
+		"pnpm exec turbo run test:eval --filter=ragas-runner --summarize",
+		"pnpm exec turbo run test:database-integration --filter=ingestion-control --summarize",
 		"scripts/otel/validate-config.sh",
 		"scripts/dependencies/scan.sh",
 	]);

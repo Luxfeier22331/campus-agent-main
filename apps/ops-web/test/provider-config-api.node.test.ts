@@ -1,10 +1,10 @@
 // @vitest-environment node
 
 import { describe, expect, it, vi } from "vitest";
-import { createOpsApp } from "../src/server/app";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission";
 import { ProviderConfigAdminResponseError } from "../src/server/provider-config-client";
 import { ExecutionModelSettingsStatusSchema } from "../src/shared/ops-contract";
+import { createTestOpsApp } from "./helpers/ops-app";
 
 const status = {
 	etag: "etag-1",
@@ -23,7 +23,7 @@ describe("ops model settings BFF", () => {
 			models: ["model-a", "model-b"],
 			sampledAt: "2026-07-14T10:01:00.000Z",
 		});
-		const app = createOpsApp({
+		const app = createTestOpsApp({
 			admission: createAllowAllOpsAdmission({ email: "ops@example.test" }),
 			env: { OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test" },
 			providerConfigClient: {
@@ -111,7 +111,7 @@ describe("ops model settings BFF", () => {
 			JSON.stringify({ error: { code: "model_settings_conflict", message: "internal detail" } }),
 			{ headers: { "content-type": "application/json" }, status: 409 },
 		);
-		const app = createOpsApp({
+		const app = createTestOpsApp({
 			admission: createAllowAllOpsAdmission(),
 			env: { OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test" },
 			providerConfigClient: {

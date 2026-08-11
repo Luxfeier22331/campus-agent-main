@@ -2,7 +2,6 @@
 
 import type { CampusGroupsCatalog } from "campus-contracts/campus-groups";
 import { describe, expect, it, vi } from "vitest";
-import { createOpsApp } from "../src/server/app";
 import { AxiomUnavailableError } from "../src/server/axiom-client";
 import { createUnavailableDiningStore } from "../src/server/dining-store";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission";
@@ -10,6 +9,7 @@ import { createOpsOverviewService } from "../src/server/ops-overview-service";
 import { createFixtureOpsStatusStore } from "../src/server/ops-status-store";
 import { SentryUnavailableError } from "../src/server/sentry-client";
 import { opsLogObservabilityFixture, opsSentryIssuesFixture } from "../src/shared/ops-fixtures";
+import { createTestOpsApp } from "./helpers/ops-app";
 
 function createTestApp(options?: { queryFails?: boolean; sentryFails?: boolean }) {
 	const baseStore = createFixtureOpsStatusStore();
@@ -27,7 +27,7 @@ function createTestApp(options?: { queryFails?: boolean; sentryFails?: boolean }
 	const queryRequestIssues = options?.sentryFails
 		? vi.fn().mockRejectedValue(new SentryUnavailableError("Sentry unavailable"))
 		: vi.fn().mockResolvedValue(opsSentryIssuesFixture);
-	const app = createOpsApp({
+	const app = createTestOpsApp({
 		admission: createAllowAllOpsAdmission({ email: "ops@example.test" }),
 		env: {
 			OPS_WEB_CAMPUS_WEB_URL: "https://campus.example.test",
@@ -49,7 +49,7 @@ describe("ops API", () => {
 	it("requires the request status database but not the optional Dining database", async () => {
 		const store = createFixtureOpsStatusStore();
 		store.verifyReadiness = vi.fn().mockRejectedValue(new Error("database unavailable"));
-		const unavailable = createOpsApp({
+		const unavailable = createTestOpsApp({
 			admission: createAllowAllOpsAdmission(),
 			diningStore: createUnavailableDiningStore(new Error("dining unavailable")),
 			env: {
@@ -65,7 +65,7 @@ describe("ops API", () => {
 		expect(unavailableResponse.status).toBe(503);
 		expect(store.verifyReadiness).toHaveBeenCalledOnce();
 
-		const ready = createOpsApp({
+		const ready = createTestOpsApp({
 			admission: createAllowAllOpsAdmission(),
 			diningStore: createUnavailableDiningStore(new Error("dining unavailable")),
 			env: {
@@ -80,7 +80,7 @@ describe("ops API", () => {
 	});
 
 	it("keeps local readiness independent from Access and the automation endpoint", async () => {
-		const app = createOpsApp({
+		const app = createTestOpsApp({
 			env: {
 				DEPLOYMENT_ENVIRONMENT: "development",
 				OPS_WEB_PUBLIC_ORIGIN: "http://127.0.0.1:5178",
@@ -95,7 +95,7 @@ describe("ops API", () => {
 	});
 
 	it("still requires Access and the public origin outside local development", async () => {
-		const app = createOpsApp({
+		const app = createTestOpsApp({
 			env: { DEPLOYMENT_ENVIRONMENT: "staging" },
 			store: createFixtureOpsStatusStore(),
 		});
@@ -219,7 +219,7 @@ describe("ops API", () => {
 			getCatalog: vi.fn().mockResolvedValue(catalog),
 			replaceCatalog: vi.fn().mockResolvedValue(catalog),
 		};
-		const app = createOpsApp({
+		const app = createTestOpsApp({
 			admission: createAllowAllOpsAdmission({ email: "ops@example.test" }),
 			campusGroupsClient,
 			env: { OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test" },

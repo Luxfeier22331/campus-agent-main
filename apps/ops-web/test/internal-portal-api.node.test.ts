@@ -1,10 +1,10 @@
 // @vitest-environment node
 
 import { describe, expect, it, vi } from "vitest";
-import { createOpsApp } from "../src/server/app.ts";
 import { InternalPortalCandidateInputError } from "../src/server/internal-portal-candidate-input.ts";
 import { InternalPortalCandidateRejectedError } from "../src/server/internal-portal-credential-service.ts";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission.ts";
+import { createTestOpsApp } from "./helpers/ops-app.ts";
 
 const CREDENTIAL_ID = "11111111-1111-4111-8111-111111111111";
 const credential = {
@@ -32,7 +32,7 @@ function createTestApp() {
 		rotate: vi.fn(async () => ({ ...credential, version: 2 })),
 		validate: vi.fn(async () => credential),
 	};
-	const app = createOpsApp({
+	const app = createTestOpsApp({
 		admission: createAllowAllOpsAdmission({
 			email: "operator@example.test",
 			operatorId: "operator@example.test",

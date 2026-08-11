@@ -375,6 +375,24 @@ test("candidate publishing uses GitHub-hosted runners before final status", asyn
 	assert(isObject(promote));
 	assert(Array.isArray(promote.needs));
 	assert(promote.needs.includes("candidate-status"));
+	assert(Array.isArray(promote.steps));
+	const prepareReleaseInputs = promote.steps.find(
+		(step) => isObject(step) && step.name === "Prepare release inputs",
+	);
+	assert(isObject(prepareReleaseInputs));
+	assert.equal(prepareReleaseInputs.shell, "bash -e {0}");
+	assert.equal(
+		prepareReleaseInputs.run,
+		"printf '{}\\n' > image-digests.json\nmkdir -p worker-candidates\n",
+	);
+	const installGitOpsTooling = promote.steps.find(
+		(step) => isObject(step) && step.name === "Install GitOps tooling",
+	);
+	assert(isObject(installGitOpsTooling));
+	assert.equal(
+		installGitOpsTooling.run,
+		"pnpm --dir gitops --ignore-workspace install --frozen-lockfile",
+	);
 	const profileShells = new Map<string, string | undefined>([
 		["release-plan", jobShell(releasePlan)],
 		["publish-images", jobShell(workflow.jobs["publish-images"])],
