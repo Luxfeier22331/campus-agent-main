@@ -47,6 +47,7 @@
 - 路由导航使用 TanStack Router，服务端数据使用 TanStack Query，表格与长日志分别使用 TanStack
   Table 和 Virtual；
 - 本地使用 Playwright 与 axe 验证代表性旅途；CI 不运行浏览器 profile，浏览器回归仅通过本地命令执行。
+- Dining Studio 的 tldraw 画布保留编辑器原生工具和光标；宿主只在画布内取消会触发页面滚动的中键、空格和必要的方向键默认行为，属性输入框与工具栏控件不受影响。
 
 Dining Studio 的 tldraw 生产许可 key 是客户端公开配置，不属于 Secret，也不应放入环境变量或服务端
 日志。Hobby 许可必须保留 tldraw 水印；Trial 不显示水印，但会向 tldraw 投递许可使用信息，因此

@@ -436,6 +436,58 @@ test("Dining Studio 在深色主题下同步编辑器和 tldraw 外层", async (
 	await expectStableViewport(page, errors);
 });
 
+test("Dining Studio 中键平移使用抓取光标且不触发页面自动滚动", async ({ page }, testInfo) => {
+	testInfo.skip(testInfo.project.name !== "desktop-1440", "中键平移只在桌面指针旅途中验证");
+	const errors = captureRuntimeErrors(page);
+	const stage = await openDiningPage(page);
+	const canvas = stage.locator(".tl-canvas");
+	const layer = stage.locator(".tl-html-layer");
+	const box = await canvas.boundingBox();
+	expect(box).not.toBeNull();
+	const start = {
+		x: (box?.x ?? 0) + (box?.width ?? 0) * 0.68,
+		y: (box?.y ?? 0) + (box?.height ?? 0) * 0.52,
+	};
+	await page.mouse.move(start.x, start.y);
+	const before = await page.evaluate(() => ({
+		cursor: getComputedStyle(document.querySelector(".tl-canvas") as Element).cursor,
+		scrollX: window.scrollX,
+		scrollY: window.scrollY,
+	}));
+	const pointerDownPrevented = page.evaluate(
+		() =>
+			new Promise<boolean>((resolve) => {
+				const handlePointerDown = (event: PointerEvent) => {
+					if (event.button !== 1) {
+						return;
+					}
+					document.removeEventListener("pointerdown", handlePointerDown);
+					resolve(event.defaultPrevented);
+				};
+				document.addEventListener("pointerdown", handlePointerDown);
+			}),
+	);
+	await page.mouse.down({ button: "middle" });
+
+	expect(await pointerDownPrevented).toBe(true);
+	await expect
+		.poll(() => canvas.evaluate((element) => getComputedStyle(element).cursor))
+		.toContain("grabbing");
+	const beforePanTransform = await layer.evaluate((element) => getComputedStyle(element).transform);
+	await page.mouse.move(start.x + 96, start.y + 64, { steps: 8 });
+	await expect
+		.poll(() => layer.evaluate((element) => getComputedStyle(element).transform))
+		.not.toBe(beforePanTransform);
+	await page.mouse.up({ button: "middle" });
+
+	await expect
+		.poll(() => canvas.evaluate((element) => getComputedStyle(element).cursor))
+		.toBe(before.cursor);
+	const after = await page.evaluate(() => ({ scrollX: window.scrollX, scrollY: window.scrollY }));
+	expect(after).toEqual({ scrollX: before.scrollX, scrollY: before.scrollY });
+	await expectStableViewport(page, errors);
+});
+
 test("同好群目录可以排序、跨组移动和删除", async ({ page }) => {
 	const errors = captureRuntimeErrors(page);
 	let catalog = browserCampusGroupsCatalog();

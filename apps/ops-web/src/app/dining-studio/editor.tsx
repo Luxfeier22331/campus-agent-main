@@ -30,7 +30,16 @@ import {
 } from "@tldraw/editor";
 import { PageRecordType } from "@tldraw/tlschema";
 import { Save } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	type KeyboardEvent as ReactKeyboardEvent,
+	type MouseEvent as ReactMouseEvent,
+	type PointerEvent as ReactPointerEvent,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { Box, type Editor, type TLShape, type TLShapeId, TldrawUi } from "tldraw";
 import "tldraw/tldraw.css";
 import "./editor.css";
@@ -89,6 +98,27 @@ const DINING_TLDRAW_ASSET_URLS = {
 		"zh-cn": zhCnTranslationUrl,
 	},
 };
+const TLDRAW_CANVAS_SELECTOR = ".tl-canvas";
+const TLDRAW_APPLICATION_SELECTOR = '.tl-container[role="application"]';
+const TLDRAW_INTERACTIVE_SELECTOR =
+	'input, textarea, select, button, a, [contenteditable], [role="button"], [role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"], [role="combobox"], [role="slider"]';
+
+function eventTargetElement(target: EventTarget | null): Element | null {
+	return target instanceof Element ? target : null;
+}
+
+function isTldrawCanvasTarget(target: EventTarget | null): boolean {
+	return Boolean(eventTargetElement(target)?.closest(TLDRAW_CANVAS_SELECTOR));
+}
+
+function isTldrawKeyboardSurface(target: EventTarget | null): boolean {
+	const element = eventTargetElement(target);
+	return Boolean(
+		element &&
+			(element.closest(TLDRAW_CANVAS_SELECTOR) || element.closest(TLDRAW_APPLICATION_SELECTOR)) &&
+			!element.closest(TLDRAW_INTERACTIVE_SELECTOR),
+	);
+}
 
 export function DiningFloorplanEditor(props: {
 	draft: DiningMapDraft;
@@ -145,6 +175,43 @@ export function DiningFloorplanEditor(props: {
 		[reportRejectedContent],
 	);
 	const tldrawUiComponents = useMemo(() => createDiningTldrawUiComponents({ canEdit: true }), []);
+	const handleStagePointerDownCapture = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+		// tldraw owns middle-button panning; cancel only the browser autoscroll default.
+		if (event.pointerType === "mouse" && event.button === 1 && isTldrawCanvasTarget(event.target)) {
+			event.preventDefault();
+		}
+	}, []);
+	const handleStageMouseDownCapture = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
+		// Chromium exposes middle-button autoscroll through the compatibility mousedown event.
+		// Keep this narrow so tldraw still receives the event and owns the pan state.
+		if (event.button === 1 && isTldrawCanvasTarget(event.target)) {
+			event.preventDefault();
+		}
+	}, []);
+	const handleStageKeyDownCapture = useCallback(
+		(event: ReactKeyboardEvent<HTMLDivElement>) => {
+			if (!isTldrawKeyboardSurface(event.target) || event.defaultPrevented) {
+				return;
+			}
+			if (editor?.menus.hasOpenMenus()) {
+				return;
+			}
+
+			if (event.code === "Space" && !event.ctrlKey && !event.metaKey) {
+				event.preventDefault();
+				return;
+			}
+
+			if (
+				["ArrowUp", "ArrowRight", "ArrowDown", "ArrowLeft"].includes(event.code) &&
+				editor &&
+				(editor.getSelectedShapeIds().length > 0 || editor.inputs.getIsSpacebarPanning())
+			) {
+				event.preventDefault();
+			}
+		},
+		[editor],
+	);
 	const reconcileFloor = useCallback(
 		(currentEditor: Editor, floorId: string): void => {
 			const base = props.draft.bundle.layouts.find((layout) => layout.floorId === floorId);
@@ -376,7 +443,12 @@ export function DiningFloorplanEditor(props: {
 						{editor ? <DiningElementList editor={editor} /> : null}
 					</aside>
 					<section aria-label="平面图画布" className="editor-stage-wrap">
-						<div className={`editor-stage tl-theme__${resolvedTheme}`}>
+						<div
+							className={`editor-stage tl-theme__${resolvedTheme}`}
+							onKeyDownCapture={handleStageKeyDownCapture}
+							onMouseDownCapture={handleStageMouseDownCapture}
+							onPointerDownCapture={handleStagePointerDownCapture}
+						>
 							<TldrawEditor
 								assetUrls={DINING_TLDRAW_ASSET_URLS}
 								assetUtils={DINING_TLDRAW_ASSET_UTILS}
