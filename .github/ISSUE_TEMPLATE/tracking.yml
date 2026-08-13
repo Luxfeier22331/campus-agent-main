@@ -1,0 +1,60 @@
+name: Tracking issue
+description: Coordinate several independently reviewable Issues or Pull Requests
+type: Task
+labels:
+  - tracking
+projects:
+  - MUC-WIKI/1
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What complete outcome does this tracking issue coordinate?
+    validations:
+      required: true
+  - type: textarea
+    id: linked_work
+    attributes:
+      label: Linked Issues and Pull Requests
+      description: List every tracked item and keep its state current.
+      placeholder: |
+        - [ ] #...
+        - [ ] MUC-WIKI/campus-agent-gitops#...
+    validations:
+      required: true
+  - type: textarea
+    id: sequencing
+    attributes:
+      label: Sequencing
+      description: Describe ordering or dependency constraints between the linked items.
+    validations:
+      required: true
+  - type: textarea
+    id: unresolved_questions
+    attributes:
+      label: Unresolved questions
+      description: List decisions that still block a tracked item, or write None.
+    validations:
+      required: true
+  - type: textarea
+    id: completion_criteria
+    attributes:
+      label: Completion criteria
+      description: State the observable conditions for closing the tracking issue.
+    validations:
+      required: true
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Out of scope
+      description: State what this coordination effort deliberately excludes.
+  - type: checkboxes
+    id: data_boundary
+    attributes:
+      label: Data and security boundary
+      options:
+        - label: This issue uses only synthetic, self-authored, sanitized, or redistributable examples.
+          required: true
+        - label: This issue does not publish secrets, private URLs, raw notices, source-derived documents, or internal logs.
+          required: true

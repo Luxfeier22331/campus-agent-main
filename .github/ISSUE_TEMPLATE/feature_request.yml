@@ -1,54 +1,79 @@
 name: Feature request
 description: Propose a focused product, contract, or implementation change
-title: "feat: "
-labels:
-  - enhancement
+type: Feature
+projects:
+  - MUC-WIKI/1
 body:
   - type: textarea
     id: goal
     attributes:
       label: Problem or goal
-      description: What should change, and why?
+      description: What user or system problem should this change solve?
     validations:
       required: true
   - type: textarea
-    id: proposed-behavior
+    id: desired_behavior
     attributes:
-      label: Proposed behavior
-      description: What should the system do?
+      label: Desired behavior
+      description: What observable behavior should the system provide?
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance criteria
+      description: List the concrete conditions that make this request complete.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
     validations:
       required: true
   - type: dropdown
     id: area
     attributes:
-      label: Affected area
+      label: Primary area
+      description: Select the main owner. Maintainers apply the matching area label during triage.
       options:
         - campus-web
         - app-api
-        - execution-control
-        - agent-runtime
-        - ingestion/data
+        - ops-web
+        - execution-runtime
+        - ingestion-data
+        - contracts
         - docs
-        - infra/ci
-        - unknown
+        - infra-ci
+    validations:
+      required: true
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Primary impact
+      options:
+        - User-facing behavior
+        - API or contract
+        - Internal implementation
+        - Delivery or operations
+        - Documentation
     validations:
       required: true
   - type: textarea
-    id: out-of-scope
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Link prerequisite or blocking Issues and Pull Requests, or write None.
+    validations:
+      required: true
+  - type: textarea
+    id: out_of_scope
     attributes:
       label: Out of scope
-      description: What should not be included?
-  - type: textarea
-    id: alternatives
-    attributes:
-      label: Alternatives considered
-      description: Optional alternatives or tradeoffs.
+      description: State what this request deliberately does not include.
   - type: checkboxes
-    id: data-boundary
+    id: data_boundary
     attributes:
-      label: Public source/data boundary
+      label: Data and security boundary
       options:
-        - label: This request can be described with synthetic, self-authored, or redistributable examples.
+        - label: This request uses only synthetic, self-authored, sanitized, or redistributable examples.
           required: true
-        - label: This request does not require publishing secrets, private URLs, raw notices, source-derived documents, or internal logs.
+        - label: This request does not publish secrets, private URLs, raw notices, source-derived documents, or internal logs.
           required: true

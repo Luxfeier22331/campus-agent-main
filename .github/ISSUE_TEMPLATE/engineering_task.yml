@@ -1,0 +1,86 @@
+name: Engineering task
+description: Define focused maintenance, refactoring, testing, or infrastructure work
+type: Task
+projects:
+  - MUC-WIKI/1
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Current problem
+      description: What verified engineering problem or constraint requires work?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Intended outcome
+      description: Describe the resulting behavior or engineering state.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance criteria
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Primary area
+      description: Select the main owner. Maintainers apply the matching area label during triage.
+      options:
+        - campus-web
+        - app-api
+        - ops-web
+        - execution-runtime
+        - ingestion-data
+        - contracts
+        - docs
+        - infra-ci
+    validations:
+      required: true
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Primary impact
+      options:
+        - Reliability or correctness
+        - Maintainability
+        - Performance or cost
+        - Delivery or operations
+        - Test coverage
+        - Developer experience
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation plan
+      description: List the checks or observations that will verify the result.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Link prerequisite or blocking Issues and Pull Requests, or write None.
+    validations:
+      required: true
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Out of scope
+      description: State what this task deliberately does not include.
+  - type: checkboxes
+    id: data_boundary
+    attributes:
+      label: Data and security boundary
+      options:
+        - label: This task uses only synthetic, self-authored, sanitized, or redistributable examples.
+          required: true
+        - label: This task does not publish secrets, private URLs, raw notices, source-derived documents, or internal logs.
+          required: true

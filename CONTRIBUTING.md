@@ -11,6 +11,20 @@
 
 处理具体模块时，再阅读最近的 README、架构、合同、数据文档和相关 ADR。
 
+## Issue 与分诊
+
+产品变化、缺陷、文档工作和需要排期的工程任务应先创建 Issue。自动依赖更新等不需要排期的
+机械改动可以直接提交 Pull Request。
+
+Issue 使用组织原生 `Feature`、`Bug`、`Task` 类型；`area:*` 标签表示主要代码所有者，Project
+中的 `Status` 和 `Priority` 表示当前执行状态。进入 `Ready` 前，维护者应确认类型、一个主要
+area、优先级、依赖和可验证的验收条件都已明确，且工作当前未被阻塞。`blocked` 标签用于表达
+外部依赖，不另建阻塞状态。
+
+`Done` 表示 Issue 的验收条件已经满足。只涉及源码且合并即完成的事项可以随 Pull Request 合并
+关闭；涉及部署的事项必须等 `staging/deployment` 成功，并完成所需正式用户路径验收后再关闭。
+Project 的 `Done` 状态本身不用于关闭 Issue。
+
 ## 环境准备
 
 ```bash
@@ -30,10 +44,16 @@ feature worktree -> pull request -> main
 ```
 
 - 每个改动使用短生命周期分支和独立 worktree；
+- 有对应 Issue 的人工分支使用 `<type>/<issue-number>-<slug>`，其中 type 为 `feat`、`fix`、`docs`
+  或 `chore`；
 - Pull Request 聚焦一个可独立审查的目标，不混入无关格式化或其他工作区改动；
 - 标题和正文说明具体工程动作、原因和影响范围；
 - 合同、schema、数据所有权或架构边界变化时，同步更新所属文档；
 - 合入前确认仓库要求的聚合检查成功。
+
+开始实现时把 Issue 移到 `In progress`，Pull Request 进入评审时移到 `Review`。Pull Request 默认用
+`Refs #<issue-number>` 关联事项；只有合并后即可满足全部验收条件时才使用 `Fixes`。跨仓库事项使用
+完整引用，例如 `Refs MUC-WIKI/campus-agent-gitops#<issue-number>`。
 
 Pull Request 合并后应立即退役对应 linked worktree 和本地功能分支。删除前必须确认 worktree 干净、
 本地 HEAD 与 Pull Request head 完全一致、Pull Request 已合入 `main`，且 merge commit 可从最新

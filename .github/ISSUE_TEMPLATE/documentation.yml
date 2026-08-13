@@ -1,44 +1,66 @@
 name: Documentation issue
 description: Report unclear, outdated, missing, or broken documentation
-title: "docs: "
+type: Task
 labels:
-  - documentation
+  - area:docs
+projects:
+  - MUC-WIKI/1
 body:
   - type: input
     id: page
     attributes:
       label: Page or section
-      description: Link or path to the affected page or section.
+      description: Link or provide the repository path to the affected page or section.
     validations:
       required: true
   - type: dropdown
-    id: problem-type
+    id: problem_type
     attributes:
       label: Problem type
       options:
-        - unclear
-        - outdated
-        - missing
-        - broken link
-        - wrong rendered page
+        - Unclear
+        - Outdated
+        - Missing
+        - Broken link
+        - Incorrect rendered page
     validations:
       required: true
   - type: textarea
-    id: problem
+    id: current_problem
     attributes:
-      label: Problem
-      description: What is wrong or hard to use?
+      label: Current problem
+      description: Explain what is wrong or hard to use now.
     validations:
       required: true
   - type: textarea
-    id: suggested-correction
+    id: expected_state
     attributes:
-      label: Suggested correction
-      description: Optional exact wording or structure change.
+      label: Expected documentation state
+      description: Describe the information or behavior the documentation should provide.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance criteria
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: related_implementation
+    attributes:
+      label: Related implementation
+      description: Link relevant Issues, Pull Requests, contracts, or code paths, or write None.
+    validations:
+      required: true
   - type: checkboxes
-    id: boundary
+    id: data_boundary
     attributes:
-      label: Boundary confirmation
+      label: Data and security boundary
       options:
-        - label: This issue does not include private deployment details, source-derived school data, or internal logs.
+        - label: This request uses only synthetic, self-authored, sanitized, or redistributable examples.
+          required: true
+        - label: This request does not publish private deployment details, source-derived data, or internal logs.
           required: true

@@ -19,14 +19,14 @@ Thanks for sending a pull request. Before review:
 ## Related issue(s)
 
 <!--
-Please link relevant issues to help with tracking.
-
-To automatically close the linked issue(s) when this PR is merged,
-add the word "Fixes" before the issue number or link.
+Link the Issue that owns this work. Use "Refs" by default so deployment or
+user-path verification can finish before the Issue closes. Use "Fixes" only
+when merging this Pull Request satisfies every acceptance criterion.
 
 Examples:
+Refs #<issue number>
+Refs MUC-WIKI/campus-agent-gitops#<issue number>
 Fixes #<issue number>
-<issue link> (issue in a different repository)
 
 If there is no associated issue, then write "N/A".
 -->

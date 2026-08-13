@@ -1,36 +1,21 @@
 name: Bug report
 description: Report a reproducible problem
-title: "bug: "
-labels:
-  - bug
+type: Bug
+projects:
+  - MUC-WIKI/1
 body:
   - type: textarea
     id: summary
     attributes:
       label: Summary
-      description: What happened?
-    validations:
-      required: true
-  - type: dropdown
-    id: area
-    attributes:
-      label: Affected area
-      options:
-        - campus-web
-        - app-api
-        - execution-control
-        - agent-runtime
-        - ingestion/data
-        - docs
-        - infra/ci
-        - unknown
+      description: Describe the problem and its user or system impact.
     validations:
       required: true
   - type: textarea
     id: reproduction
     attributes:
-      label: Reproduction steps
-      description: Provide exact commands or minimal steps.
+      label: Minimal reproduction
+      description: Provide the smallest exact sequence or command that demonstrates the problem.
       placeholder: |
         1. ...
         2. ...
@@ -48,22 +33,61 @@ body:
       label: Actual behavior
     validations:
       required: true
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: Frequency
+      options:
+        - Every time
+        - Intermittent
+        - Observed once
+        - Unknown
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Primary area
+      description: Select the main owner. Maintainers apply the matching area label during triage.
+      options:
+        - campus-web
+        - app-api
+        - ops-web
+        - execution-runtime
+        - ingestion-data
+        - contracts
+        - docs
+        - infra-ci
+    validations:
+      required: true
   - type: textarea
     id: environment
     attributes:
-      label: Environment
-      description: OS, browser, Node, pnpm, Python/uv, or deployment context when relevant.
+      label: Version and environment
+      description: Include the relevant commit, release, browser, runtime, or deployment context.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance criteria
+      description: State how the fix will be shown to be complete and non-regressing.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
   - type: textarea
     id: evidence
     attributes:
-      label: Logs or screenshots
-      description: Include only sanitized logs or screenshots.
+      label: Sanitized evidence
+      description: Add sanitized logs, screenshots, or traces when they help reproduce the problem.
   - type: checkboxes
-    id: data-boundary
+    id: data_boundary
     attributes:
-      label: Public source/data boundary
+      label: Data and security boundary
       options:
-        - label: This report uses synthetic, self-authored, or sanitized examples only.
+        - label: This report uses only synthetic, self-authored, sanitized, or redistributable examples.
           required: true
         - label: This report does not include secrets, private URLs, raw notices, source-derived documents, or internal logs.
           required: true
