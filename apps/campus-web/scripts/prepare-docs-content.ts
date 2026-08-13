@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import {
 	copyFileSync,
 	existsSync,
@@ -34,6 +34,14 @@ import {
 	syncCampusPublishedReaderAssets,
 	syncCampusPublishedReaderDocs,
 } from "../src/docs-reader-build/sync-campus-published-reader.ts";
+
+function randomHex(length: number): string {
+	let value = "";
+	while (value.length < length) {
+		value += randomUUID().replaceAll("-", "");
+	}
+	return value.slice(0, length);
+}
 
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const THEME_BOOTSTRAP_SOURCE = resolve(APP_ROOT, "../../packages/ui/src/theme-bootstrap.js");
@@ -114,7 +122,7 @@ async function createContentAtomically(
 	populate: (stage: DocsContentPaths) => Promise<void>,
 ): Promise<DocsContentPaths> {
 	mkdirSync(dirname(target.root), { recursive: true });
-	const stageRoot = mkdtempSync(join(dirname(target.root), `.${randomBytes(6).toString("hex")}-`));
+	const stageRoot = mkdtempSync(join(dirname(target.root), `.${randomHex(12)}-`));
 	const stage = resolveDocsContentPaths(stageRoot);
 	try {
 		await populate(stage);
@@ -209,7 +217,7 @@ function equalBytes(left: Uint8Array, right: Uint8Array): boolean {
 }
 
 function replaceDirectory(target: string, stage: string): void {
-	const backup = resolve(dirname(target), `.${randomBytes(6).toString("hex")}-previous`);
+	const backup = resolve(dirname(target), `.${randomHex(12)}-previous`);
 	const hadTarget = existsSync(target);
 	if (hadTarget) {
 		renameSync(target, backup);

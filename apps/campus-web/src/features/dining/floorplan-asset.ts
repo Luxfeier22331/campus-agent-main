@@ -27,7 +27,7 @@ export async function loadDiningFloorplanAsset(input: {
 	const response = await fetch(assetUrl.pathname, {
 		credentials: "same-origin",
 		headers: { accept: "image/svg+xml" },
-		signal: input.signal,
+		...(input.signal ? { signal: input.signal } : {}),
 	});
 	if (!response.ok) {
 		throw new Error("Dining floorplan asset could not be loaded.");

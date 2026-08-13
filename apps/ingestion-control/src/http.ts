@@ -300,7 +300,10 @@ function parseLimit(value: string | null): number | null {
 	return Number.isInteger(parsed) ? parsed : null;
 }
 
-function parseTaskPathId(value: string): string {
+function parseTaskPathId(value: string | undefined): string {
+	if (value === undefined) {
+		throw new Error("task_id path segment is invalid");
+	}
 	const decoded = decodeURIComponent(value);
 	if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/u.test(decoded)) {
 		throw new Error("task_id path segment is invalid");

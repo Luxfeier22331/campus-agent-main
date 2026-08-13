@@ -24,8 +24,12 @@ export async function initializeCampusBrowserSentry(
 }
 
 export function campusReactErrorHandler() {
-	return (error: unknown, errorInfo: ErrorInfo) => {
-		void loadSentryBrowser().then((sentry) => sentry.campusReactErrorHandler()(error, errorInfo));
+	return (error: unknown, errorInfo: { componentStack?: string | undefined }) => {
+		void loadSentryBrowser().then((sentry) =>
+			sentry.campusReactErrorHandler()(error, {
+				componentStack: errorInfo.componentStack ?? null,
+			}),
+		);
 	};
 }
 
@@ -33,17 +37,17 @@ export class CampusSentryErrorBoundary extends Component<
 	{ children: ReactNode; fallback: ReactNode },
 	{ failed: boolean }
 > {
-	state = { failed: false };
+	override state = { failed: false };
 
 	static getDerivedStateFromError() {
 		return { failed: true };
 	}
 
-	componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+	override componentDidCatch(error: Error, errorInfo: ErrorInfo) {
 		void loadSentryBrowser().then((sentry) => sentry.campusReactErrorHandler()(error, errorInfo));
 	}
 
-	render() {
+	override render() {
 		return this.state.failed ? this.props.fallback : this.props.children;
 	}
 }

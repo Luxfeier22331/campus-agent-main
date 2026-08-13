@@ -22,7 +22,7 @@ export async function fetchJsonWithCookie<T>(
 	input: JsonFetchInput,
 ): Promise<{ payload: T; response: Response }> {
 	const response = await fetch(input.url, {
-		body: input.body ? JSON.stringify(input.body) : undefined,
+		...(input.body ? { body: JSON.stringify(input.body) } : {}),
 		headers: {
 			accept: "application/json",
 			...(input.body ? { "content-type": "application/json" } : {}),

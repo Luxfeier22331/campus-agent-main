@@ -256,7 +256,7 @@ export function buildChatConversationService(
 			const conversations = await dependencies.store.listConversationSummariesByOwner({
 				limit: normalizeConversationLimit({
 					defaultLimit: 50,
-					limit: input.limit,
+					...(input.limit === undefined ? {} : { limit: input.limit }),
 					maxLimit: 100,
 				}),
 				ownerUserId,
@@ -469,7 +469,7 @@ export function buildChatConversationService(
 			const conversations = await dependencies.store.searchConversationSummariesByOwner({
 				limit: normalizeConversationLimit({
 					defaultLimit: 20,
-					limit: input.limit,
+					...(input.limit === undefined ? {} : { limit: input.limit }),
 					maxLimit: 50,
 				}),
 				ownerUserId,
@@ -486,7 +486,7 @@ export function buildChatConversationService(
 		async setMessageFeedback(input) {
 			const ownerUserId = assertChatPrincipal(input.principal);
 			const reasonCodes = normalizeMessageFeedbackReasonCodes({
-				reasonCodes: input.reasonCodes,
+				...(input.reasonCodes ? { reasonCodes: input.reasonCodes } : {}),
 				vote: input.vote,
 			});
 			const updatedAt = now().toISOString();

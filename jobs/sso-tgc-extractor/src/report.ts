@@ -79,14 +79,22 @@ export async function syncViaAutomationApi(
 				`找到 ${conflictMatches.length} 条名为 "${config.credentialName}" 的凭据，无法确定轮换目标。请使用唯一名称。`,
 			);
 		}
-		return rotateCredential(baseUrl, headers, conflictMatches[0], cookieData);
+		const target = conflictMatches[0];
+		if (!target) {
+			throw new Error("创建凭据失败: HTTP 409");
+		}
+		return rotateCredential(baseUrl, headers, target, cookieData);
 	}
 	if (matches.length > 1) {
 		throw new Error(
 			`找到 ${matches.length} 条名为 "${config.credentialName}" 的凭据，无法确定轮换目标。请使用唯一名称。`,
 		);
 	}
-	return rotateCredential(baseUrl, headers, matches[0], cookieData);
+	const target = matches[0];
+	if (!target) {
+		throw new Error("未找到待轮换凭据。");
+	}
+	return rotateCredential(baseUrl, headers, target, cookieData);
 }
 
 async function fetchCredentialList(

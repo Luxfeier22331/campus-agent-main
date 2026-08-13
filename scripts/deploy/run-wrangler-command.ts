@@ -94,14 +94,21 @@ export function runWranglerCommand(
 	});
 }
 
-function parseCliArgs(argv: string[]): { cwd: string | undefined; wranglerArgs: string[] } {
+function parseCliArgs(argv: string[]): { cwd: string | undefined; wranglerArgs: string[] } | null {
 	let cwd: string | undefined;
 	const wranglerArgs: string[] = [];
 
 	for (let index = 0; index < argv.length; index += 1) {
 		const value = argv[index];
+		if (value === undefined) {
+			return null;
+		}
 		if (value === "--cwd") {
-			cwd = argv[index + 1];
+			const nextCwd = argv[index + 1];
+			if (!nextCwd) {
+				return null;
+			}
+			cwd = nextCwd;
 			index += 1;
 			continue;
 		}
@@ -112,16 +119,17 @@ function parseCliArgs(argv: string[]): { cwd: string | undefined; wranglerArgs: 
 }
 
 export function main(argv: string[] = process.argv.slice(2)): number {
-	const { cwd, wranglerArgs } = parseCliArgs(argv);
-	if (wranglerArgs.length === 0) {
+	const parsed = parseCliArgs(argv);
+	if (!parsed || parsed.wranglerArgs.length === 0) {
 		console.error(
 			"Usage: pnpm exec tsx scripts/deploy/run-wrangler-command.ts [--cwd <dir>] <wrangler-args...>",
 		);
 		return 1;
 	}
+	const { cwd, wranglerArgs } = parsed;
 
 	const result = runWranglerCommand(wranglerArgs, {
-		cwd,
+		...(cwd ? { cwd } : {}),
 		env: process.env,
 		stdio: "inherit",
 	});

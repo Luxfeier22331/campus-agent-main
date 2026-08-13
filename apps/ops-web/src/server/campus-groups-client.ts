@@ -39,7 +39,7 @@ export function createCampusGroupsAdminClient(
 		let response: Response;
 		try {
 			response = await fetchImplementation(`${baseUrl}${path}`, {
-				body: options.body === undefined ? undefined : JSON.stringify(options.body),
+				...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
 				headers: {
 					authorization: `Bearer ${token}`,
 					"content-type": "application/json",

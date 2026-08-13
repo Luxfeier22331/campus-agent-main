@@ -106,16 +106,19 @@ describe("browser email verification route", () => {
 		"https://attacker.example/account/verify-email/result",
 		"https://campus.muc.wiki/api/auth/get-session",
 		"https://campus.muc.wiki/account/deletion",
-	])("rejects an unsafe verification callback before invoking Better Auth: %s", async (callbackURL) => {
-		const authHandler = vi.fn(() => Response.json({ status: true }));
-		const app = createApp(env, { authHandler });
+	])(
+		"rejects an unsafe verification callback before invoking Better Auth: %s",
+		async (callbackURL) => {
+			const authHandler = vi.fn(() => Response.json({ status: true }));
+			const app = createApp(env, { authHandler });
 
-		const response = await app.fetch(verificationRequest(callbackURL), env);
+			const response = await app.fetch(verificationRequest(callbackURL), env);
 
-		expect(response.status).toBe(400);
-		await expect(response.json()).resolves.toMatchObject({
-			error: { code: "invalid_verification_callback" },
-		});
-		expect(authHandler).not.toHaveBeenCalled();
-	});
+			expect(response.status).toBe(400);
+			await expect(response.json()).resolves.toMatchObject({
+				error: { code: "invalid_verification_callback" },
+			});
+			expect(authHandler).not.toHaveBeenCalled();
+		},
+	);
 });

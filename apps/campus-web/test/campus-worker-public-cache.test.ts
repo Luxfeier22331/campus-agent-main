@@ -4,7 +4,7 @@ import worker, { type Env } from "../src/index";
 
 function createEnv(appApi?: Env["APP_API"]): Env {
 	return {
-		APP_API: appApi,
+		...(appApi ? { APP_API: appApi } : {}),
 		APP_API_BASE_URL: "https://app-api.internal",
 		ASSETS: {
 			fetch: () =>
@@ -179,44 +179,44 @@ describe("campus worker public app-api cache", () => {
 		expect(appApiFetch).toHaveBeenCalledTimes(2);
 	});
 
-	it.each([
-		"match",
-		"put",
-	] as const)("serves a valid upstream response when edge cache %s fails", async (operation) => {
-		vi.stubGlobal("caches", {
-			default: {
-				async match() {
-					if (operation === "match") {
-						throw new Error("edge cache read unavailable");
-					}
-				},
-				async put() {
-					if (operation === "put") {
-						throw new Error("edge cache write unavailable");
-					}
-				},
-			},
-		});
-		const appApiFetch = vi.fn(() =>
-			Promise.resolve(
-				new Response(JSON.stringify({ halls: [] }), {
-					headers: {
-						"cache-control": "public, max-age=60, s-maxage=300",
-						"content-type": "application/json; charset=utf-8",
+	it.each(["match", "put"] as const)(
+		"serves a valid upstream response when edge cache %s fails",
+		async (operation) => {
+			vi.stubGlobal("caches", {
+				default: {
+					async match() {
+						if (operation === "match") {
+							throw new Error("edge cache read unavailable");
+						}
 					},
-				}),
-			),
-		);
-		const response = await worker.fetch(
-			new Request("https://campus.muc.wiki/api/dining"),
-			createEnv({ fetch: appApiFetch }),
-		);
+					async put() {
+						if (operation === "put") {
+							throw new Error("edge cache write unavailable");
+						}
+					},
+				},
+			});
+			const appApiFetch = vi.fn(() =>
+				Promise.resolve(
+					new Response(JSON.stringify({ halls: [] }), {
+						headers: {
+							"cache-control": "public, max-age=60, s-maxage=300",
+							"content-type": "application/json; charset=utf-8",
+						},
+					}),
+				),
+			);
+			const response = await worker.fetch(
+				new Request("https://campus.muc.wiki/api/dining"),
+				createEnv({ fetch: appApiFetch }),
+			);
 
-		expect(response.status).toBe(200);
-		expect(response.headers.get("x-campus-edge-cache")).toBe("bypass");
-		expect(response.headers.get("cache-control")).toBe("public, max-age=60, s-maxage=300");
-		expect(appApiFetch).toHaveBeenCalledOnce();
-	});
+			expect(response.status).toBe(200);
+			expect(response.headers.get("x-campus-edge-cache")).toBe("bypass");
+			expect(response.headers.get("cache-control")).toBe("public, max-age=60, s-maxage=300");
+			expect(appApiFetch).toHaveBeenCalledOnce();
+		},
+	);
 
 	it("keeps the native fetch receiver for local loopback transport", async () => {
 		installFakeEdgeCache();

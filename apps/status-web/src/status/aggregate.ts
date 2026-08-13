@@ -134,12 +134,14 @@ export function mergeTimelineStatus(
 }
 
 function latestCheckedAt(observations: readonly ProbeObservation[]): string | null {
-	return observations.length === 0
-		? null
-		: observations.reduce(
-				(latest, observation) => (observation.checkedAt > latest ? observation.checkedAt : latest),
-				observations[0]?.checkedAt ?? null,
-			);
+	const [first, ...rest] = observations;
+	if (!first) {
+		return null;
+	}
+	return rest.reduce(
+		(latest, observation) => (observation.checkedAt > latest ? observation.checkedAt : latest),
+		first.checkedAt,
+	);
 }
 
 function statusDay(value: Date): string {

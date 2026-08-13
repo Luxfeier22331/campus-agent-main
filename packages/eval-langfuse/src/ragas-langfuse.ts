@@ -32,7 +32,7 @@ export interface RagasLangfusePipelineInput {
 
 export async function runRagasTraceScoring(input: RagasLangfusePipelineInput): Promise<JsonObject> {
 	const langfuse = createLangfuseEvalClient({
-		fetchImpl: input.fetchImpl,
+		...(input.fetchImpl ? { fetchImpl: input.fetchImpl } : {}),
 		settings: input.settings,
 	});
 	const traces = await langfuse.listTraces({
@@ -43,14 +43,14 @@ export async function runRagasTraceScoring(input: RagasLangfusePipelineInput): P
 	});
 	return runRagasPipeline({
 		environment: input.environment,
-		fetchImpl: input.fetchImpl,
+		...(input.fetchImpl ? { fetchImpl: input.fetchImpl } : {}),
 		runPythonRagasScoreBatch: input.runPythonRagasScoreBatch,
 		sampleItems: traces
 			.slice(0, input.limit ?? traces.length)
 			.map((trace) => ragasSampleFromTrace(trace)),
 		settings: input.settings,
 		sourceKind: "langfuse_trace",
-		validateOnly: input.validateOnly,
+		...(input.validateOnly === undefined ? {} : { validateOnly: input.validateOnly }),
 	});
 }
 
@@ -58,12 +58,13 @@ export async function runRagasDatasetScoring(
 	input: RagasLangfusePipelineInput & { datasetName: string; datasetVersion?: string | null },
 ): Promise<JsonObject> {
 	const langfuse = createLangfuseEvalClient({
-		fetchImpl: input.fetchImpl,
+		...(input.fetchImpl ? { fetchImpl: input.fetchImpl } : {}),
 		settings: input.settings,
 	});
-	const dataset = await langfuse.getDataset(input.datasetName, {
-		version: input.datasetVersion ?? undefined,
-	});
+	const dataset = await langfuse.getDataset(
+		input.datasetName,
+		input.datasetVersion ? { version: input.datasetVersion } : {},
+	);
 	const items = mappingList(dataset.items ?? [], "dataset.items");
 	const sampleItems = await Promise.all(
 		items
@@ -72,12 +73,12 @@ export async function runRagasDatasetScoring(
 	);
 	return runRagasPipeline({
 		environment: input.environment,
-		fetchImpl: input.fetchImpl,
+		...(input.fetchImpl ? { fetchImpl: input.fetchImpl } : {}),
 		runPythonRagasScoreBatch: input.runPythonRagasScoreBatch,
 		sampleItems,
 		settings: input.settings,
 		sourceKind: "langfuse_dataset",
-		validateOnly: input.validateOnly,
+		...(input.validateOnly === undefined ? {} : { validateOnly: input.validateOnly }),
 	});
 }
 
@@ -111,12 +112,12 @@ async function runRagasPipeline(input: {
 		});
 		const publish = await publishLangfuseScores({
 			evalRunId: scorePlan.evalRunId,
-			fetchImpl: input.fetchImpl,
+			...(input.fetchImpl ? { fetchImpl: input.fetchImpl } : {}),
 			omittedItems: scorePlan.omittedItems,
 			scoreItems: scorePlan.scoreItems,
 			settings: input.settings,
 			sourceResultDenominator: scorePlan.sourceResultDenominator,
-			validateOnly: input.validateOnly,
+			...(input.validateOnly === undefined ? {} : { validateOnly: input.validateOnly }),
 		});
 		return {
 			...publish,

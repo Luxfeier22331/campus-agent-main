@@ -3,8 +3,8 @@ import {
 	ThreadListItemMorePrimitive,
 	ThreadListItemPrimitive,
 	ThreadListPrimitive,
+	useAui,
 	useAuiState,
-	useThreadListItemRuntime,
 } from "@assistant-ui/react";
 import { Button, Input, Skeleton } from "@campus-agent/ui";
 import { ArchiveIcon, MoreHorizontalIcon, PencilIcon, PlusIcon, TrashIcon } from "lucide-react";
@@ -14,7 +14,7 @@ import { SidebarMenuButton } from "@/components/ui/sidebar";
 export const ThreadList: FC<{
 	accountPending: boolean;
 	authenticated: boolean;
-	onNavigate?: () => void;
+	onNavigate?: (() => void) | undefined;
 }> = ({ accountPending, authenticated, onNavigate }) => {
 	const [actionError, setActionError] = useState<string | null>(null);
 
@@ -54,7 +54,9 @@ export const ThreadList: FC<{
 	);
 };
 
-export const ThreadListNewButton: FC<{ onNavigate?: () => void }> = ({ onNavigate }) => (
+export const ThreadListNewButton: FC<{ onNavigate?: (() => void) | undefined }> = ({
+	onNavigate,
+}) => (
 	<ThreadListPrimitive.New asChild>
 		<SidebarMenuButton
 			className="h-11 px-2.5 group-data-[collapsible=icon]:!size-11 group-data-[collapsible=icon]:!p-3"
@@ -91,7 +93,7 @@ interface ThreadListActionErrorProps {
 }
 
 interface ThreadListItemsProps extends ThreadListActionErrorProps {
-	onNavigate?: () => void;
+	onNavigate?: (() => void) | undefined;
 }
 
 const ThreadListItems: FC<ThreadListItemsProps> = ({ onActionError, onNavigate }) => {
@@ -167,7 +169,7 @@ const ThreadListSkeleton: FC = () => (
 );
 
 const ThreadListItem: FC<ThreadListItemsProps> = ({ onActionError, onNavigate }) => {
-	const runtime = useThreadListItemRuntime();
+	const runtime = useAui().threadListItem;
 	const title = useAuiState((state) => state.threadListItem.title) || "新对话";
 	const inputRef = useRef<HTMLInputElement>(null);
 	const [draftTitle, setDraftTitle] = useState(title);
@@ -259,10 +261,10 @@ const ThreadListItemMore: FC<ThreadListActionErrorProps & { onRename: () => void
 	onActionError,
 	onRename,
 }) => {
-	const runtime = useThreadListItemRuntime();
+	const runtime = useAui().threadListItem;
 	const [isActionPending, setIsActionPending] = useState(false);
 
-	const runThreadAction = async (action: () => Promise<void>, failureMessage: string) => {
+	const runThreadAction = async (action: () => Promise<void> | void, failureMessage: string) => {
 		onActionError(null);
 		setIsActionPending(true);
 		try {

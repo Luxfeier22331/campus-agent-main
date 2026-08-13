@@ -105,7 +105,7 @@ export async function fetchAttachmentBinary(
 ): Promise<FetchAttachmentBinaryResult> {
 	const response = await input.apiContext.get(input.attachmentUrl);
 	return await materializeAttachmentResponse({
-		abortSignal: input.abortSignal,
+		...(input.abortSignal ? { abortSignal: input.abortSignal } : {}),
 		maxBytes: input.maxBytes ?? Number.MAX_SAFE_INTEGER,
 		response,
 	});
@@ -133,7 +133,7 @@ async function materializeAttachmentResponse(input: {
 	let temporaryFile: TemporaryAttachmentFile;
 	try {
 		temporaryFile = await spoolAttachmentToTemporaryFile({
-			abortSignal: input.abortSignal,
+			...(input.abortSignal ? { abortSignal: input.abortSignal } : {}),
 			body: bodyStream,
 			maxBytes: input.maxBytes,
 			sizeLimitError: () => new Error("Attachment size exceeds the configured limit."),

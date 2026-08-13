@@ -7,9 +7,21 @@
 		"allowImportingTsExtensions": true,
 		"jsx": "react-jsx",
 		"strict": true,
-		"baseUrl": ".",
+		"exactOptionalPropertyTypes": true,
+		"noImplicitOverride": true,
+		"noImplicitReturns": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"allowUnreachableCode": false,
+		"allowUnusedLabels": false,
+		"moduleDetection": "force",
+		"noFallthroughCasesInSwitch": true,
+		"isolatedModules": true,
+		"noUncheckedIndexedAccess": true,
+		"verbatimModuleSyntax": true,
+		"erasableSyntaxOnly": true,
 		"paths": {
-			"@/*": ["src/*"]
+			"@/*": ["./src/*"]
 		},
 		"types": [
 			"node",

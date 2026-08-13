@@ -34,7 +34,7 @@ class SdkLangfuseEvalClient implements LangfuseEvalClient {
 			baseUrl: settings.baseUrl,
 			publicKey: settings.publicKey,
 			secretKey: settings.secretKey,
-			timeout: settings.timeoutSeconds,
+			...(settings.timeoutSeconds === undefined ? {} : { timeout: settings.timeoutSeconds }),
 		});
 		this.rest = new RestLangfuseEvalClient(settings);
 	}
@@ -60,9 +60,10 @@ class SdkLangfuseEvalClient implements LangfuseEvalClient {
 	}
 
 	async getDataset(name: string, options?: { version?: string | null }): Promise<JsonObject> {
-		return (await this.client.dataset.get(name, {
-			version: options?.version ?? undefined,
-		})) as unknown as JsonObject;
+		return (await this.client.dataset.get(
+			name,
+			options?.version ? { version: options.version } : {},
+		)) as unknown as JsonObject;
 	}
 
 	async getTrace(traceId: string, query?: Record<string, unknown>): Promise<JsonObject> {
@@ -88,7 +89,7 @@ class SdkLangfuseEvalClient implements LangfuseEvalClient {
 }
 
 class RestLangfuseEvalClient implements LangfuseEvalClient {
-	private readonly fetchImpl?: typeof fetch;
+	private readonly fetchImpl: typeof fetch | undefined;
 	private readonly settings: LangfuseSettings;
 
 	constructor(settings: LangfuseSettings, fetchImpl?: typeof fetch) {
@@ -148,13 +149,13 @@ class RestLangfuseEvalClient implements LangfuseEvalClient {
 		return this.restRequest({
 			method: "GET",
 			path: `/api/public/traces/${traceId}`,
-			query,
+			...(query ? { query } : {}),
 		});
 	}
 
 	async listDatasets(): Promise<JsonObject[]> {
 		return listPaginated({
-			fetchImpl: this.fetchImpl,
+			...(this.fetchImpl ? { fetchImpl: this.fetchImpl } : {}),
 			path: "/api/public/v2/datasets",
 			settings: this.settings,
 		});
@@ -162,7 +163,7 @@ class RestLangfuseEvalClient implements LangfuseEvalClient {
 
 	async listScoreConfigs(): Promise<JsonObject[]> {
 		return listPaginated({
-			fetchImpl: this.fetchImpl,
+			...(this.fetchImpl ? { fetchImpl: this.fetchImpl } : {}),
 			path: "/api/public/score-configs",
 			settings: this.settings,
 		});
@@ -170,9 +171,9 @@ class RestLangfuseEvalClient implements LangfuseEvalClient {
 
 	async listTraces(query?: Record<string, unknown>): Promise<JsonObject[]> {
 		return listPaginated({
-			fetchImpl: this.fetchImpl,
+			...(this.fetchImpl ? { fetchImpl: this.fetchImpl } : {}),
 			path: "/api/public/traces",
-			query,
+			...(query ? { query } : {}),
 			settings: this.settings,
 		});
 	}
@@ -184,11 +185,11 @@ class RestLangfuseEvalClient implements LangfuseEvalClient {
 		query?: Record<string, unknown>;
 	}): Promise<JsonObject> {
 		return requestJson({
-			body: input.body,
-			fetchImpl: this.fetchImpl,
+			...(input.body ? { body: input.body } : {}),
+			...(this.fetchImpl ? { fetchImpl: this.fetchImpl } : {}),
 			method: input.method,
 			path: input.path,
-			query: input.query,
+			...(input.query ? { query: input.query } : {}),
 			settings: this.settings,
 		});
 	}

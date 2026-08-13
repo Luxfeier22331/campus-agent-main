@@ -254,7 +254,7 @@ test("real Turbo keeps config-only scope empty without dropping source changes",
 	writeFileSync(path.join(root, ".gitignore"), "node_modules\n");
 	writeFileSync(
 		path.join(root, "package.json"),
-		`${JSON.stringify({ name: "scope-fixture", packageManager: "pnpm@10.34.5", private: true })}\n`,
+		`${JSON.stringify({ name: "scope-fixture", packageManager: "pnpm@11.20.0", private: true })}\n`,
 	);
 	writeFileSync(path.join(root, "pnpm-workspace.yaml"), 'packages:\n  - "apps/*"\n');
 	writeFileSync(

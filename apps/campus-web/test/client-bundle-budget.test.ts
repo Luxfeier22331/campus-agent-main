@@ -212,6 +212,10 @@ function createGraph(): CampusBundleGraph {
 
 function createCompleteAppGraph(): CampusBundleGraph {
 	const graph = createGraph();
+	const entryChunk = graph.chunks[graph.entry];
+	if (!entryChunk) {
+		throw new Error(`bundle graph is missing its entry chunk: ${graph.entry}`);
+	}
 	const routeFacades = [
 		["home", "/repo/src/app/routes/home-page.tsx"],
 		["map", "/repo/src/app/routes/map-page.tsx"],
@@ -231,7 +235,7 @@ function createCompleteAppGraph(): CampusBundleGraph {
 			imports: ["assets/react.js"],
 			isEntry: false,
 		};
-		graph.chunks["assets/index.js"].dynamicImports.push(file);
+		entryChunk.dynamicImports.push(file);
 	}
 	return graph;
 }
@@ -258,8 +262,11 @@ function createCompleteClientDirectory(
 		"assets/map.js": "export const map = true;",
 		"assets/react.js": "export const react = true;",
 		"vendor/maplibre-gl/LICENSE.txt": "MapLibre license",
+		"vendor/maplibre-gl/maplibre-gl-worker.mjs": "export const worker = true;",
 		"vendor/maplibre-gl/maplibre-gl.css": ".maplibre {}",
-		"vendor/maplibre-gl/maplibre-gl.js": "export const maplibre = true;",
+		"vendor/maplibre-gl/maplibre-gl.mjs": "export const maplibre = true;",
+		"vendor/maplibre-gl/maplibre-gl-runtime.mjs":
+			"import * as maplibregl from './maplibre-gl.mjs'; window.maplibregl = maplibregl;",
 	};
 	return createClientDirectory(files);
 }

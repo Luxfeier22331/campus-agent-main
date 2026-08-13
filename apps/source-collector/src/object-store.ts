@@ -57,7 +57,7 @@ export function createSourceCollectorObjectStoreFromEnv(
 			assertSourceBucket(input.bucket, sourceBucket);
 			const result = await client.send(
 				new GetObjectCommand({ Bucket: input.bucket, Key: input.key }),
-				{ abortSignal: input.abortSignal },
+				input.abortSignal ? { abortSignal: input.abortSignal } : {},
 			);
 			if (!result.Body) {
 				throw new Error(`object body is missing: s3://${input.bucket}/${input.key}`);
@@ -69,7 +69,7 @@ export function createSourceCollectorObjectStoreFromEnv(
 			try {
 				const result = await client.send(
 					new GetObjectCommand({ Bucket: input.bucket, Key: input.key }),
-					{ abortSignal: input.abortSignal },
+					input.abortSignal ? { abortSignal: input.abortSignal } : {},
 				);
 				if (!result.Body) {
 					throw new Error(`object body is missing: s3://${input.bucket}/${input.key}`);
@@ -85,13 +85,13 @@ export function createSourceCollectorObjectStoreFromEnv(
 		async createOrVerifyObject(input) {
 			assertSourceBucket(input.bucket, sourceBucket);
 			return createOrVerifyS3Object({
-				abortSignal: input.abortSignal,
+				...(input.abortSignal ? { abortSignal: input.abortSignal } : {}),
 				body: input.body,
 				bucket: input.bucket,
 				client,
 				contentType: input.contentType,
 				key: input.key,
-				metadata: input.metadata,
+				...(input.metadata ? { metadata: input.metadata } : {}),
 			});
 		},
 		async putObject(input) {
@@ -106,14 +106,14 @@ export function createSourceCollectorObjectStoreFromEnv(
 					Key: input.key,
 					Metadata: { ...input.metadata, "content-sha256": contentSha256 },
 				}),
-				{ abortSignal: input.abortSignal },
+				input.abortSignal ? { abortSignal: input.abortSignal } : {},
 			);
 			return { byteSize: input.body.byteLength, contentSha256 };
 		},
 		async createOrVerifyStream(input) {
 			assertSourceBucket(input.bucket, sourceBucket);
 			return createOrVerifyS3Object({
-				abortSignal: input.abortSignal,
+				...(input.abortSignal ? { abortSignal: input.abortSignal } : {}),
 				body: input.body,
 				byteSize: input.byteSize,
 				bucket: input.bucket,
@@ -121,7 +121,7 @@ export function createSourceCollectorObjectStoreFromEnv(
 				contentSha256: input.contentSha256,
 				contentType: input.contentType,
 				key: input.key,
-				metadata: input.metadata,
+				...(input.metadata ? { metadata: input.metadata } : {}),
 			});
 		},
 	};

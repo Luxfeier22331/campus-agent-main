@@ -42,6 +42,7 @@ export function buildExecutionSessionProjection(input: {
 	sessionSlots: readonly ChatSessionSlot[];
 	turnCount: number;
 }): ToolExecutionContextProjection["session"] {
+	const selectedNoticeRef = resolveSelectedNoticeRef(input.sessionSlots);
 	return {
 		confirmedSlots: input.sessionSlots
 			.filter((slot) => slot.confirmed && slot.value.trim())
@@ -50,7 +51,7 @@ export function buildExecutionSessionProjection(input: {
 				name: slot.name,
 				value: slot.value,
 			})),
-		selectedNoticeRef: resolveSelectedNoticeRef(input.sessionSlots),
+		...(selectedNoticeRef === undefined ? {} : { selectedNoticeRef }),
 		turnCount: Math.max(0, Math.floor(input.turnCount)),
 	};
 }

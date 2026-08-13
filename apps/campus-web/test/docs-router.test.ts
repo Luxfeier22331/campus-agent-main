@@ -24,20 +24,21 @@ describe("docs router", () => {
 			await router.load();
 
 			expect(router.state.location.pathname).toBe(path);
-			expect(router.state.statusCode).toBe(404);
+			expect(router.state.matches.some((match) => match._notFound)).toBe(true);
 		}
 	});
 
 	it("redirects retired document addresses declared by the source catalog", async () => {
 		const target = "/docs/regulations/student_rules/document-01";
+		const redirects = [
+			{
+				fromPath: "/docs/regulations/student_rules/retired-attendance",
+				statusCode: 308 as const,
+				toPath: target,
+			},
+		];
 		const router = createDocsRouter({
-			docsDataSource: createDocsDataSource([
-				{
-					fromPath: "/docs/regulations/student_rules/retired-attendance",
-					statusCode: 308,
-					toPath: target,
-				},
-			]),
+			docsDataSource: createDocsDataSource([...redirects]),
 			history: createMemoryHistory({
 				initialEntries: ["/docs/regulations/student_rules/retired-attendance"],
 			}),
@@ -46,7 +47,8 @@ describe("docs router", () => {
 		await router.load();
 
 		expect(router.state.location.pathname).toBe(target);
-		expect(router.state.statusCode).toBe(308);
+		expect(redirects[0]?.statusCode).toBe(308);
+		expect(router.state.matches.at(-1)?.status).toBe("success");
 	});
 });
 

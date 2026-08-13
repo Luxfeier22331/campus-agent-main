@@ -51,7 +51,7 @@ export function createProviderConfigAdminClient(
 		let response: Response;
 		try {
 			response = await fetchImplementation(`${baseUrl}/internal/admin/model-settings${path}`, {
-				body: options.body === undefined ? undefined : JSON.stringify(options.body),
+				...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
 				headers: {
 					authorization: `Bearer ${token}`,
 					...(options.actorId ? { "x-ops-actor-id": options.actorId } : {}),

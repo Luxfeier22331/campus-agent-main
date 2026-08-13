@@ -33,8 +33,9 @@ export async function writeNativeDocsHtmlPages(input: {
 			history: createMemoryHistory({ initialEntries: [route] }),
 		});
 		await router.load();
-		if (router.state.statusCode !== 200) {
-			throw new Error(`native docs prerender failed for ${route}: ${router.state.statusCode}`);
+		const routeStatus = router.state.matches.at(-1)?.status;
+		if (routeStatus !== "success") {
+			throw new Error(`native docs prerender failed for ${route}: ${routeStatus ?? "missing"}`);
 		}
 		const routeData = router.state.matches.at(-1)?.loaderData as DocsRouteData | undefined;
 		if (!routeData) {
@@ -55,9 +56,10 @@ export async function writeNativeDocsHtmlPages(input: {
 		history: createMemoryHistory({ initialEntries: [DOCS_NOT_FOUND_ROUTE] }),
 	});
 	await notFoundRouter.load();
-	if (notFoundRouter.state.statusCode !== 404) {
+	const notFoundMatch = notFoundRouter.state.matches.find((match) => match._notFound);
+	if (!notFoundMatch) {
 		throw new Error(
-			`native docs prerender failed for ${DOCS_NOT_FOUND_ROUTE}: ${notFoundRouter.state.statusCode}`,
+			`native docs prerender failed for ${DOCS_NOT_FOUND_ROUTE}: notFound match is missing`,
 		);
 	}
 	const notFoundHtml = renderToString(

@@ -170,8 +170,8 @@ export function buildAccountAdminService(input: {
 				actorId: command.actorId,
 				fingerprint: requestFingerprint,
 				idempotencyKey: command.idempotencyKey,
-				reason: command.reason,
-				targetUserId: command.targetUserId,
+				...(command.reason ? { reason: command.reason } : {}),
+				...(command.targetUserId ? { targetUserId: command.targetUserId } : {}),
 			})
 		) {
 			return "started";

@@ -42,7 +42,7 @@ export function createEmailAccessAdminClient(
 			response = await fetchImplementation(
 				`${baseUrl}/api/internal/admin/email-access-grants${path}`,
 				{
-					body: options.body === undefined ? undefined : JSON.stringify(options.body),
+					...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
 					headers: {
 						authorization: `Bearer ${token}`,
 						...(options.body === undefined ? {} : { "content-type": "application/json" }),

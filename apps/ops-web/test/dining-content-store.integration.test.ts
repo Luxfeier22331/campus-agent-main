@@ -270,7 +270,7 @@ describe("Dining content PostgreSQL stores", () => {
 		);
 		const firstPage = await store.listReports({ limit: 1, status: "pending" });
 		const secondPage = await store.listReports({
-			cursor: firstPage.nextCursor ?? undefined,
+			...(firstPage.nextCursor ? { cursor: firstPage.nextCursor } : {}),
 			limit: 1,
 			status: "pending",
 		});

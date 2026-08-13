@@ -22,12 +22,12 @@ const actions: AccountAdminEvent["action"][] = [
 ];
 
 export interface AccountEventsSearch {
-	action?: AccountAdminEvent["action"];
-	actorId?: string;
-	cursor?: string;
-	history?: string;
-	outcome?: AccountAdminEvent["outcome"];
-	targetUserId?: string;
+	action?: AccountAdminEvent["action"] | undefined;
+	actorId?: string | undefined;
+	cursor?: string | undefined;
+	history?: string | undefined;
+	outcome?: AccountAdminEvent["outcome"] | undefined;
+	targetUserId?: string | undefined;
 	window: "24h" | "7d" | "30d" | "90d";
 }
 
@@ -41,7 +41,19 @@ export function AccountEventsPage({ search }: { search: AccountEventsSearch }) {
 	const history = decodeCursorHistory(search.history);
 	const events = useQuery({
 		placeholderData: keepPreviousData,
-		queryFn: ({ signal }) => fetchAccountAdminEvents({ ...search, limit: 50 }, { signal }),
+		queryFn: ({ signal }) =>
+			fetchAccountAdminEvents(
+				{
+					...(search.action ? { action: search.action } : {}),
+					...(search.actorId ? { actorId: search.actorId } : {}),
+					...(search.cursor ? { cursor: search.cursor } : {}),
+					limit: 50,
+					...(search.outcome ? { outcome: search.outcome } : {}),
+					...(search.targetUserId ? { targetUserId: search.targetUserId } : {}),
+					window: search.window,
+				},
+				{ signal },
+			),
 		queryKey: ["ops", "account-events", search],
 	});
 	const setSearch = (next: AccountEventsSearch) => void navigate({ search: next });

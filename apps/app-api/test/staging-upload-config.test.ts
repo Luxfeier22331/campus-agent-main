@@ -20,6 +20,9 @@ describe("app-api staging upload config", () => {
 			unknown
 		>;
 		const staging = (generated.env as Record<string, Record<string, unknown>>).staging;
+		if (!staging) {
+			throw new Error("Generated Wrangler config must contain the staging environment.");
+		}
 		expect(generated.main).toBe(resolve(appDir, "src/index.ts"));
 		expect(generated.assets).toEqual({
 			binding: "MAP_ASSETS",

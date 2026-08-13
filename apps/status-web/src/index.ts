@@ -199,8 +199,8 @@ export async function runStatusCycle(input: {
 		STATUS_SERVICE_DEFINITIONS.flatMap((definition) =>
 			serviceProbes(definition).map((probe) =>
 				runProbe(probe, probe.origin === "qa" ? input.config.qaOrigin : input.config.campusOrigin, {
-					fetchFn: input.fetchFn,
-					htmlParser: input.htmlParser,
+					...(input.fetchFn ? { fetchFn: input.fetchFn } : {}),
+					...(input.htmlParser ? { htmlParser: input.htmlParser } : {}),
 					now,
 				}),
 			),

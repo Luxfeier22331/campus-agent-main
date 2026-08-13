@@ -282,14 +282,15 @@ export function toTerminalChatStreamEvent(input: {
 	return {
 		data: {
 			answer: input.response.answer,
-			error:
-				input.response.answer.result.kind === "error"
-					? {
+			...(input.response.answer.result.kind === "error"
+				? {
+						error: {
 							code: input.response.answer.result.errorCode,
 							message: input.response.answer.result.message,
 							retryable: input.response.answer.result.retryable,
-						}
-					: undefined,
+						},
+					}
+				: {}),
 			occurredAt: input.occurredAt,
 			requestId: input.response.requestId,
 			status,

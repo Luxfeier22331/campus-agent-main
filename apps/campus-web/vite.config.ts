@@ -191,7 +191,7 @@ function serveDocsDevelopmentShell(publicRoot: string): Plugin {
 
 export function serveDocsDevelopmentAsset(input: {
 	publicRoot: string;
-	request: { method?: string };
+	request: { method?: string | undefined };
 	response: {
 		end: (chunk?: Uint8Array) => void;
 		setHeader: (name: string, value: string) => void;
@@ -231,7 +231,7 @@ export function serveDocsDevelopmentAsset(input: {
 }
 
 function serveDocsDevelopmentAssetNotFound(input: {
-	request: { method?: string };
+	request: { method?: string | undefined };
 	response: {
 		end: (chunk?: Uint8Array) => void;
 		setHeader: (name: string, value: string) => void;
@@ -341,35 +341,48 @@ function copySharedFavicon(): Plugin {
 
 function copyMapLibreVendor(): Plugin {
 	const vendorFiles = new Map([
-		["maplibre-gl.js", "text/javascript; charset=utf-8"],
+		["maplibre-gl.mjs", "text/javascript; charset=utf-8"],
+		["maplibre-gl-worker.mjs", "text/javascript; charset=utf-8"],
 		["maplibre-gl.css", "text/css; charset=utf-8"],
 		["LICENSE.txt", "text/plain; charset=utf-8"],
 	]);
+	const runtimeShimFileName = "maplibre-gl-runtime.mjs";
+	const runtimeShim =
+		'import * as maplibregl from "./maplibre-gl.mjs";\nwindow.maplibregl = maplibregl;\n';
 
-	function getVendorSourceDir() {
+	function getVendorSourcePath(fileName: string) {
 		const packageJsonPath = require.resolve("maplibre-gl/package.json");
-		return path.join(path.dirname(packageJsonPath), "dist");
+		const packageRoot = path.dirname(packageJsonPath);
+		return path.join(
+			fileName === "LICENSE.txt" ? packageRoot : path.join(packageRoot, "dist"),
+			fileName,
+		);
 	}
 
 	return {
 		closeBundle() {
-			const sourceDir = getVendorSourceDir();
 			const targetDir = path.resolve(__dirname, "dist/client/vendor/maplibre-gl");
 			fs.mkdirSync(targetDir, { recursive: true });
 			for (const fileName of vendorFiles.keys()) {
-				fs.copyFileSync(path.join(sourceDir, fileName), path.join(targetDir, fileName));
+				fs.copyFileSync(getVendorSourcePath(fileName), path.join(targetDir, fileName));
 			}
+			fs.writeFileSync(path.join(targetDir, runtimeShimFileName), runtimeShim);
 		},
 		configureServer(server) {
 			server.middlewares.use("/vendor/maplibre-gl", (request, response, next) => {
 				const fileName = path.basename(request.url?.split("?")[0] ?? "");
+				if (fileName === runtimeShimFileName) {
+					response.setHeader("content-type", "text/javascript; charset=utf-8");
+					response.end(runtimeShim);
+					return;
+				}
 				const contentType = vendorFiles.get(fileName);
 				if (!contentType) {
 					next();
 					return;
 				}
 
-				const filePath = path.join(getVendorSourceDir(), fileName);
+				const filePath = getVendorSourcePath(fileName);
 				response.setHeader("content-type", contentType);
 				fs.createReadStream(filePath).on("error", next).pipe(response);
 			});

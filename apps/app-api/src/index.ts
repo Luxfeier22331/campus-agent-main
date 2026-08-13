@@ -109,7 +109,9 @@ export function createWorkerRuntime(
 			executionRuntime,
 			isExecutionRuntimeConfigured: true,
 			profileMemoryStore: createPgProfileMemoryStore(env),
-			safetyIdentifierHmacSecret: env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET,
+			...(env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET
+				? { safetyIdentifierHmacSecret: env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET }
+				: {}),
 			store: createPgChatCommandStore(env),
 			telemetry,
 		});
@@ -154,8 +156,10 @@ export function createWorkerRuntime(
 		});
 		return emailAccessService;
 	}
+	const { chatCommandService, runtimeRunService, ...requestDependencies } = dependencies;
 	const app = createApp(env, {
-		...dependencies,
+		...requestDependencies,
+		...(chatCommandService && runtimeRunService ? { chatCommandService, runtimeRunService } : {}),
 		telemetry,
 	});
 

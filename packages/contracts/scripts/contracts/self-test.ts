@@ -68,7 +68,9 @@ function checkRuntimeToolSchemaRefs(): void {
 		for (const fieldName of ["payload_schema_ref", "result_schema_ref"]) {
 			const ref = String(tool[fieldName]);
 			const [schemaId, fragment] = ref.split("#");
-			expect(fragment !== undefined, `${tool.name}.${fieldName} must contain a JSON pointer`);
+			if (schemaId === undefined || fragment === undefined) {
+				throw new Error(`${tool.name}.${fieldName} must contain a JSON pointer`);
+			}
 			expect(schemaId in schemaDocs, `${schemaId} missing from registered schemas`);
 			expect(fragment.startsWith("/$defs/"), `${ref} must point at $defs`);
 			const definitionName = fragment.replace("/$defs/", "");

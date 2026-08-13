@@ -274,10 +274,7 @@ function finalModelContextCharacterCount(context: z.infer<typeof finalModelConte
 	return [...JSON.stringify(modelContext)].length;
 }
 
-function mapTruncationSummary(summary: z.infer<typeof truncationSummarySchema> | undefined) {
-	if (!summary) {
-		return;
-	}
+function mapTruncationSummary(summary: z.infer<typeof truncationSummarySchema>) {
 	return {
 		contextCharsAfter: summary.context_chars_after,
 		contextCharsBefore: summary.context_chars_before,
@@ -476,7 +473,7 @@ function runtimeInputFromParsedRunRequest(
 		providerConfig: {
 			provider: parsed.provider_config.provider,
 			transport: parsed.provider_config.transport,
-			baseUrl: parsed.provider_config.base_url,
+			...(parsed.provider_config.base_url ? { baseUrl: parsed.provider_config.base_url } : {}),
 			model: parsed.provider_config.model,
 			apiKey: parsed.provider_config.api_key,
 		},
@@ -488,51 +485,83 @@ function runtimeInputFromParsedRunRequest(
 			maxToolCalls: parsed.limits.max_tool_calls,
 			maxTurns: parsed.limits.max_turns,
 		},
-		finalModelContext: parsed.final_model_context
+		...(parsed.final_model_context
 			? {
-					schemaVersion: parsed.final_model_context.schema_version,
-					recentTurns: parsed.final_model_context.recent_turns.map((turn) => ({
-						messageId: turn.message_id,
-						role: turn.role,
-						content: turn.content,
-					})),
-					sessionState: parsed.final_model_context.session_state
-						? {
-								confirmedSlots: parsed.final_model_context.session_state.confirmed_slots.map(
-									(slot) => ({
-										confirmed: slot.confirmed,
-										name: slot.name,
-										value: slot.value,
-									}),
-								),
-								selectedNoticeRef: parsed.final_model_context.session_state.selected_notice_ref
-									? {
-											noticeId:
-												parsed.final_model_context.session_state.selected_notice_ref.notice_id,
-											sourceFamily:
-												parsed.final_model_context.session_state.selected_notice_ref.source_family,
-											targetSurface:
-												parsed.final_model_context.session_state.selected_notice_ref.target_surface,
-											title: parsed.final_model_context.session_state.selected_notice_ref.title,
-										}
-									: null,
-								turnCount: parsed.final_model_context.session_state.turn_count,
-							}
-						: undefined,
-					usageSummary: {
-						contextChars: parsed.final_model_context.usage_summary.context_chars,
-						currentInputChars: parsed.final_model_context.usage_summary.current_input_chars,
-						groundingContextChars: parsed.final_model_context.usage_summary.grounding_context_chars,
-						modelVisibleItemCount:
-							parsed.final_model_context.usage_summary.model_visible_item_count,
-						runtimeOnlyItemCount: parsed.final_model_context.usage_summary.runtime_only_item_count,
-						truncationReason: parsed.final_model_context.usage_summary.truncation_reason,
-						truncationSummary: mapTruncationSummary(
-							parsed.final_model_context.usage_summary.truncation_summary,
-						),
+					finalModelContext: {
+						schemaVersion: parsed.final_model_context.schema_version,
+						recentTurns: parsed.final_model_context.recent_turns.map((turn) => ({
+							...(turn.message_id ? { messageId: turn.message_id } : {}),
+							role: turn.role,
+							content: turn.content,
+						})),
+						...(parsed.final_model_context.session_state
+							? {
+									sessionState: {
+										confirmedSlots: parsed.final_model_context.session_state.confirmed_slots.map(
+											(slot) => ({
+												confirmed: slot.confirmed,
+												name: slot.name,
+												value: slot.value,
+											}),
+										),
+										selectedNoticeRef: parsed.final_model_context.session_state.selected_notice_ref
+											? {
+													noticeId:
+														parsed.final_model_context.session_state.selected_notice_ref.notice_id,
+													...(parsed.final_model_context.session_state.selected_notice_ref
+														.source_family
+														? {
+																sourceFamily:
+																	parsed.final_model_context.session_state.selected_notice_ref
+																		.source_family,
+															}
+														: {}),
+													...(parsed.final_model_context.session_state.selected_notice_ref
+														.target_surface
+														? {
+																targetSurface:
+																	parsed.final_model_context.session_state.selected_notice_ref
+																		.target_surface,
+															}
+														: {}),
+													...(parsed.final_model_context.session_state.selected_notice_ref.title
+														? {
+																title:
+																	parsed.final_model_context.session_state.selected_notice_ref
+																		.title,
+															}
+														: {}),
+												}
+											: null,
+										turnCount: parsed.final_model_context.session_state.turn_count,
+									},
+								}
+							: {}),
+						usageSummary: {
+							contextChars: parsed.final_model_context.usage_summary.context_chars,
+							currentInputChars: parsed.final_model_context.usage_summary.current_input_chars,
+							groundingContextChars:
+								parsed.final_model_context.usage_summary.grounding_context_chars,
+							modelVisibleItemCount:
+								parsed.final_model_context.usage_summary.model_visible_item_count,
+							runtimeOnlyItemCount:
+								parsed.final_model_context.usage_summary.runtime_only_item_count,
+							...(parsed.final_model_context.usage_summary.truncation_reason
+								? {
+										truncationReason: parsed.final_model_context.usage_summary.truncation_reason,
+									}
+								: {}),
+							...(parsed.final_model_context.usage_summary.truncation_summary
+								? {
+										truncationSummary: mapTruncationSummary(
+											parsed.final_model_context.usage_summary.truncation_summary,
+										),
+									}
+								: {}),
+						},
 					},
 				}
-			: undefined,
+			: {}),
 		signal,
 	};
 }

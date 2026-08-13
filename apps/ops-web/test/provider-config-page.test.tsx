@@ -63,7 +63,10 @@ describe("model settings page", () => {
 		render(<OpsWebApp initialPath="/providers" />);
 		const baseUrl = await screen.findByDisplayValue("https://provider.example.test/v1");
 		fireEvent.change(baseUrl, { target: { value: "not-a-url" } });
-		const save = screen.getAllByRole("button", { name: "保存并验证" })[0];
+		const [save] = screen.getAllByRole("button", { name: "保存并验证" });
+		if (!save) {
+			throw new Error("Expected a save-and-validate button.");
+		}
 		expect(save).toBeEnabled();
 		fireEvent.click(save);
 
@@ -126,7 +129,10 @@ describe("model settings page", () => {
 			}),
 		);
 		render(<OpsWebApp initialPath="/providers" />);
-		const validate = (await screen.findAllByRole("button", { name: "重新验证" }))[0];
+		const [validate] = await screen.findAllByRole("button", { name: "重新验证" });
+		if (!validate) {
+			throw new Error("Expected a revalidate button.");
+		}
 		fireEvent.click(validate);
 
 		expect(await screen.findByText(/已保存配置验证未通过/u)).toBeInTheDocument();

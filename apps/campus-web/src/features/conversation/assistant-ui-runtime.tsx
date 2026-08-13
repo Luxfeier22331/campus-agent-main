@@ -27,10 +27,10 @@ const RESUME_INITIAL_DELAY_MS = 250;
 const RESUME_MAX_DELAY_MS = 5_000;
 
 interface ActiveRun {
-	conversationId?: string;
+	conversationId?: string | undefined;
 	requestId: string;
 	runId: string;
-	sequence?: number;
+	sequence?: number | undefined;
 	traceId: string;
 }
 
@@ -509,10 +509,10 @@ function useCampusAssistantRuntimeState({
 				eventCount += 1;
 				if (event.event === "request.accepted" && event.data.runId) {
 					const acceptedRun = {
-						conversationId,
+						...(conversationId ? { conversationId } : {}),
 						requestId: event.data.requestId,
 						runId: event.data.runId,
-						sequence: event.data.sequence,
+						...(event.data.sequence === undefined ? {} : { sequence: event.data.sequence }),
 						traceId: event.data.traceId,
 					};
 					replaceActiveRun(acceptedRun);
@@ -528,10 +528,14 @@ function useCampusAssistantRuntimeState({
 				if (event.data.runId) {
 					const runId = event.data.runId;
 					updateActiveRun((current) => ({
-						conversationId: current?.conversationId ?? conversationId,
+						...((current?.conversationId ?? conversationId)
+							? { conversationId: current?.conversationId ?? conversationId }
+							: {}),
 						requestId: event.data.requestId,
 						runId,
-						sequence: event.data.sequence ?? current?.sequence,
+						...((event.data.sequence ?? current?.sequence) === undefined
+							? {}
+							: { sequence: event.data.sequence ?? current?.sequence }),
 						traceId: event.data.traceId,
 					}));
 				}
@@ -618,7 +622,7 @@ function useCampusAssistantRuntimeState({
 				}
 				await waitForResumeDelay(delayMs, input.controller.signal);
 				events = resumeRunEventsStream({
-					afterSequence: run.sequence,
+					...(run.sequence === undefined ? {} : { afterSequence: run.sequence }),
 					runId: run.runId,
 					signal: input.controller.signal,
 				});
@@ -674,13 +678,13 @@ function useCampusAssistantRuntimeState({
 				const idempotencyKey = createIdempotencyKey();
 				const submitEvents = () =>
 					submitChatRequestStream({
-						conversationId: input.conversationId,
+						...(input.conversationId ? { conversationId: input.conversationId } : {}),
 						idempotencyKey,
 						prompt,
 						signal: controller.signal,
 					});
 				await followLifecycleStream({
-					conversationId: input.conversationId,
+					...(input.conversationId ? { conversationId: input.conversationId } : {}),
 					controller,
 					operation,
 					initialEvents: submitEvents(),
@@ -739,7 +743,7 @@ function useCampusAssistantRuntimeState({
 			}
 			const existingRemoteId = remoteId;
 			const conversationId =
-				existingRemoteId ?? (await aui.threadListItem().initialize()).remoteId ?? undefined;
+				existingRemoteId ?? (await aui.threadListItem.initialize()).remoteId ?? undefined;
 			if (!existingRemoteId && conversationId) {
 				locallyInitializedRunConversationIdRef.current = conversationId;
 			}
@@ -760,7 +764,7 @@ function useCampusAssistantRuntimeState({
 				conversationId,
 				messageContent: message.content,
 				prompt: readTextContent(message),
-				truncateFromMessageId: truncateFromMessageId ?? undefined,
+				...(truncateFromMessageId ? { truncateFromMessageId } : {}),
 			});
 		},
 		[remoteId, runPrompt],
@@ -832,11 +836,11 @@ function useCampusAssistantRuntimeState({
 		setIsRunning(true);
 		try {
 			await followLifecycleStream({
-				conversationId: currentRun.conversationId,
+				...(currentRun.conversationId ? { conversationId: currentRun.conversationId } : {}),
 				controller,
 				operation,
 				initialEvents: resumeRunEventsStream({
-					afterSequence: currentRun.sequence,
+					...(currentRun.sequence === undefined ? {} : { afterSequence: currentRun.sequence }),
 					runId: currentRun.runId,
 					signal: controller.signal,
 				}),

@@ -70,10 +70,12 @@ export function createRequestScopeFactory(input: {
 					conversationStore: createPgChatConversationStore(input.env, {
 						getDb: runtime.getDb,
 					}),
-					executionRuntime,
+					...(executionRuntime ? { executionRuntime } : {}),
 					isExecutionRuntimeConfigured: executionRuntimeConfigured,
 					profileMemoryStore: createPgProfileMemoryStore(input.env, { getDb: runtime.getDb }),
-					safetyIdentifierHmacSecret: input.env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET,
+					...(input.env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET
+						? { safetyIdentifierHmacSecret: input.env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET }
+						: {}),
 					store: createPgChatCommandStore(input.env, { getDb: runtime.getDb }),
 					telemetry: input.telemetry,
 				}));

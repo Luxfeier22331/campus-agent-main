@@ -35,12 +35,12 @@ export function PageShell({
 	title,
 }: {
 	children: ReactNode;
-	description?: string;
+	description?: string | undefined;
 	title: string;
 }) {
 	return (
 		<section>
-			<PageHeader description={description} title={title} />
+			<PageHeader {...(description ? { description } : {})} title={title} />
 			<Card>
 				<CardContent aria-live="polite" className="p-6 text-muted-foreground text-sm" role="status">
 					{children}
@@ -167,7 +167,7 @@ export function CopyableKeyValue({
 	label,
 	value,
 }: {
-	contextLabel?: string;
+	contextLabel?: string | undefined;
 	label: string;
 	value: string | null;
 }) {
@@ -186,7 +186,7 @@ export function CopyableValue({
 	value,
 }: {
 	compact?: boolean;
-	contextLabel?: string;
+	contextLabel?: string | undefined;
 	label: string;
 	value: string | null;
 }) {

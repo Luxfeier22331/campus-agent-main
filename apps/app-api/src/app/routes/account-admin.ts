@@ -22,7 +22,16 @@ export function registerAccountAdminRoutes(input: {
 	input.app.get("/api/internal/admin/users", async (c) => {
 		requireOpsAdminToken(c.req.raw, input.env);
 		const query = AccountAdminUserQuerySchema.parse(c.req.query());
-		const page = await input.createRequestScope().resolveAccountAdminService().listUsers(query);
+		const page = await input
+			.createRequestScope()
+			.resolveAccountAdminService()
+			.listUsers({
+				...(query.access ? { access: query.access } : {}),
+				...(query.cursor ? { cursor: query.cursor } : {}),
+				limit: query.limit,
+				...(query.query ? { query: query.query } : {}),
+				...(query.state ? { state: query.state } : {}),
+			});
 		return withNoStore(jsonResponse(page));
 	});
 
@@ -85,7 +94,18 @@ export function registerAccountAdminRoutes(input: {
 	input.app.get("/api/internal/admin/account-events", async (c) => {
 		requireOpsAdminToken(c.req.raw, input.env);
 		const query = AccountAdminEventQuerySchema.parse(c.req.query());
-		const page = await input.createRequestScope().resolveAccountAdminService().listEvents(query);
+		const page = await input
+			.createRequestScope()
+			.resolveAccountAdminService()
+			.listEvents({
+				...(query.action ? { action: query.action } : {}),
+				...(query.actorId ? { actorId: query.actorId } : {}),
+				...(query.cursor ? { cursor: query.cursor } : {}),
+				...(query.outcome ? { outcome: query.outcome } : {}),
+				...(query.targetUserId ? { targetUserId: query.targetUserId } : {}),
+				limit: query.limit,
+				window: query.window,
+			});
 		return withNoStore(jsonResponse(page));
 	});
 }

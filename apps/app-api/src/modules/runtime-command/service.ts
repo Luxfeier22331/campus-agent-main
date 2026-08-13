@@ -258,7 +258,7 @@ export function buildChatCommandService(
 			captureMemorySnapshot: dependencies.profileMemoryStore !== undefined,
 			branchId,
 			conversation,
-			conversationSeed,
+			...(conversationSeed ? { conversationSeed } : {}),
 			conversationTitle,
 			freezeDurableAdmission(memorySnapshot) {
 				const executionInput: ToolExecutionInput = {
@@ -685,7 +685,9 @@ export function buildChatCommandService(
 			: null;
 		const appApiStageTiming = await dependencies.store.readRequestStageTiming(context.requestId);
 		const finalized = buildFinalizedWrite({
-			allowedPublicNoticeHosts: dependencies.publicNoticeURLAllowlist,
+			...(dependencies.publicNoticeURLAllowlist
+				? { allowedPublicNoticeHosts: dependencies.publicNoticeURLAllowlist }
+				: {}),
 			assistantMessageId: context.assistantMessageId,
 			branchId: context.branchId,
 			completedAt,
@@ -698,10 +700,12 @@ export function buildChatCommandService(
 			response: input.executionResponse,
 			runId: context.runId,
 			safetyIdentifier: context.safetyIdentifier,
-			stageTiming: appApiStageTiming,
+			...(appApiStageTiming === undefined ? {} : { stageTiming: appApiStageTiming }),
 			surface: context.surface,
 			startedAt: context.acceptedAt,
-			streamAppApiTtftMs: input.streamAppApiTtftMs,
+			...(input.streamAppApiTtftMs === undefined
+				? {}
+				: { streamAppApiTtftMs: input.streamAppApiTtftMs }),
 			traceId: context.traceId,
 			turnSequence: context.turnSequence,
 			userMessageId: context.userMessageId,
@@ -721,6 +725,7 @@ export function buildChatCommandService(
 				context,
 				transportError: input.transportError ?? null,
 			});
+			const stageTiming = finalized.write.requestObservabilityFact.stageTiming;
 			await telemetry?.recordRequestFinalized({
 				conversationId: context.conversation.id,
 				durationMs,
@@ -731,7 +736,7 @@ export function buildChatCommandService(
 				retryable: finalized.write.assistantMessage.retryable,
 				safetyIdentifier: context.safetyIdentifier,
 				sourceDocIds: extractSourceDocIds(input.executionResponse.result),
-				stageTiming: finalized.write.requestObservabilityFact.stageTiming,
+				...(stageTiming === undefined ? {} : { stageTiming }),
 				status: finalized.write.turnDispatch.status as
 					| "completed"
 					| "error"
@@ -764,7 +769,9 @@ export function buildChatCommandService(
 		const { context } = input;
 		const completedAt = now().toISOString();
 		const finalized = buildFinalizedWrite({
-			allowedPublicNoticeHosts: dependencies.publicNoticeURLAllowlist,
+			...(dependencies.publicNoticeURLAllowlist
+				? { allowedPublicNoticeHosts: dependencies.publicNoticeURLAllowlist }
+				: {}),
 			assistantMessageId: context.assistantMessageId,
 			branchId: context.branchId,
 			completedAt,
@@ -859,9 +866,9 @@ export function buildChatCommandService(
 						runId: input.context.runId ?? "",
 						traceHeaders,
 						traceId: input.context.traceId,
-						waitMs,
+						...(waitMs === undefined ? {} : { waitMs }),
 					}),
-				polling: dependencies.durableEventPolling,
+				...(dependencies.durableEventPolling ? { polling: dependencies.durableEventPolling } : {}),
 			});
 		} catch (error) {
 			const handled = toHandledErrorTransportOutcome(error);
@@ -1156,10 +1163,12 @@ export function buildChatCommandService(
 							runId: context.runId ?? "",
 							traceHeaders,
 							traceId: context.traceId,
-							waitMs,
+							...(waitMs === undefined ? {} : { waitMs }),
 						}),
 					now,
-					polling: dependencies.durableEventPolling,
+					...(dependencies.durableEventPolling
+						? { polling: dependencies.durableEventPolling }
+						: {}),
 					recordStreamAppApiTtft: ({ durationMs, observedAt }) =>
 						dependencies.store.recordStreamAppApiTtft({
 							durationMs,

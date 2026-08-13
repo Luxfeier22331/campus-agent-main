@@ -56,7 +56,7 @@ export async function hotfixDocsReaderSegmentation(input: {
 	const prepared = await prepareDocsReaderSegmentationHotfix({
 		client,
 		expectedSourceDigest: input.args.expectedSourceDigest,
-		generatedAt: input.generatedAt,
+		...(input.generatedAt ? { generatedAt: input.generatedAt } : {}),
 	});
 	writeReport(input.args.reportDir, prepared);
 	const applied = input.args.apply

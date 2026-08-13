@@ -399,7 +399,11 @@ export function createPgEmailAccessGrantStore(
 						outcome: "succeeded",
 					});
 				}
-				return toRecord(inserted[0]);
+				const created = inserted[0];
+				if (!created) {
+					throw new Error("Email access grant insert returned no record.");
+				}
+				return toRecord(created);
 			});
 		},
 

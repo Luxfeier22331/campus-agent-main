@@ -52,7 +52,7 @@ function authRequest(input: {
 	headers?: HeadersInit;
 }): Request {
 	return new Request(`https://app-api.internal/api/auth${input.path}`, {
-		body: input.body === undefined ? undefined : JSON.stringify(input.body),
+		...(input.body === undefined ? {} : { body: JSON.stringify(input.body) }),
 		headers: {
 			...(input.body === undefined ? {} : { "content-type": "application/json" }),
 			...(input.cookie ? { cookie: input.cookie } : {}),

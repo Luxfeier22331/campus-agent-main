@@ -260,8 +260,8 @@ export function RequestTrendChart({ trends }: { trends: OpsOverviewResponse["tre
 			{dataWarning ?? ""}
 		</p>
 	);
-	if (trends.data.length === 1) {
-		const point = trends.data[0];
+	const [point] = trends.data;
+	if (trends.data.length === 1 && point) {
 		return (
 			<div className="grid gap-4 border-border border-y py-4">
 				{dataWarningStatus}

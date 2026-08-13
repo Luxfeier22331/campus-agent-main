@@ -47,10 +47,10 @@ export function EmailAccessPage() {
 		queryFn: ({ signal }) =>
 			fetchEmailAccessGrants(
 				{
-					cursor,
-					email: emailFilter.trim() || undefined,
-					kind: kindFilter || undefined,
-					state: stateFilter || undefined,
+					...(cursor ? { cursor } : {}),
+					...(emailFilter.trim() ? { email: emailFilter.trim() } : {}),
+					...(kindFilter ? { kind: kindFilter } : {}),
+					...(stateFilter ? { state: stateFilter } : {}),
 				},
 				{ signal },
 			),

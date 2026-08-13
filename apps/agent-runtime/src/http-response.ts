@@ -55,7 +55,10 @@ export function agentRunStreamResponse(
 					controller.enqueue(
 						encodeSseEvent(
 							"error",
-							agentRuntimeErrorPayload(error, { deadlineSignal: options.deadlineSignal }),
+							agentRuntimeErrorPayload(
+								error,
+								options.deadlineSignal ? { deadlineSignal: options.deadlineSignal } : {},
+							),
 						),
 					);
 				}

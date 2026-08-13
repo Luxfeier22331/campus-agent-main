@@ -49,7 +49,7 @@ export async function syncLangfuseScoreConfigs(input: {
 	const registry = loadJsonObject(input.registryPath);
 	const scores = mappingList(registry.scores, "registry.scores");
 	const langfuse = createLangfuseEvalClient({
-		fetchImpl: input.fetchImpl,
+		...(input.fetchImpl ? { fetchImpl: input.fetchImpl } : {}),
 		settings: input.settings,
 	});
 	const existing = new Set(
@@ -83,7 +83,7 @@ export async function syncLangfuseDatasets(input: {
 	requireEqual(manifest.schema_version, "langfuse_dataset_manifest.v2", "schema_version");
 	const sourceGitHead = stringField(manifest.source_git_head, "source_git_head");
 	const langfuse = createLangfuseEvalClient({
-		fetchImpl: input.fetchImpl,
+		...(input.fetchImpl ? { fetchImpl: input.fetchImpl } : {}),
 		settings: input.settings,
 	});
 	const existingNames = new Set(

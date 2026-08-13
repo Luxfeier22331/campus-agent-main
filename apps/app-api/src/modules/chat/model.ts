@@ -335,34 +335,25 @@ function normalizeSecondarySourceActions(value: unknown): ChatSourceAction[] {
 }
 
 function optionalSourceProofFields(value: Record<string, unknown>): Partial<ChatSourceItem> {
+	const accessScope = normalizeOptionalString(value.accessScope);
+	const collection = normalizeOptionalString(value.collection);
+	const contentHash = normalizeOptionalString(value.contentHash);
+	const documentId = normalizeOptionalString(value.documentId);
+	const evidenceId = normalizeOptionalString(value.evidenceId);
+	const evidenceRole = normalizeOptionalString(value.evidenceRole);
+	const sourceId = normalizeOptionalString(value.sourceId);
+	const snapshotId = normalizeOptionalString(value.snapshotId);
+	const versionId = normalizeOptionalString(value.versionId);
 	return {
-		...(normalizeOptionalString(value.accessScope)
-			? { accessScope: normalizeOptionalString(value.accessScope) ?? undefined }
-			: {}),
-		...(normalizeOptionalString(value.collection)
-			? { collection: normalizeOptionalString(value.collection) ?? undefined }
-			: {}),
-		...(normalizeOptionalString(value.contentHash)
-			? { contentHash: normalizeOptionalString(value.contentHash) ?? undefined }
-			: {}),
-		...(normalizeOptionalString(value.documentId)
-			? { documentId: normalizeOptionalString(value.documentId) ?? undefined }
-			: {}),
-		...(normalizeOptionalString(value.evidenceId)
-			? { evidenceId: normalizeOptionalString(value.evidenceId) ?? undefined }
-			: {}),
-		...(normalizeOptionalString(value.evidenceRole)
-			? { evidenceRole: normalizeOptionalString(value.evidenceRole) ?? undefined }
-			: {}),
-		...(normalizeOptionalString(value.sourceId)
-			? { sourceId: normalizeOptionalString(value.sourceId) ?? undefined }
-			: {}),
-		...(normalizeOptionalString(value.snapshotId)
-			? { snapshotId: normalizeOptionalString(value.snapshotId) ?? undefined }
-			: {}),
-		...(normalizeOptionalString(value.versionId)
-			? { versionId: normalizeOptionalString(value.versionId) ?? undefined }
-			: {}),
+		...(accessScope ? { accessScope } : {}),
+		...(collection ? { collection } : {}),
+		...(contentHash ? { contentHash } : {}),
+		...(documentId ? { documentId } : {}),
+		...(evidenceId ? { evidenceId } : {}),
+		...(evidenceRole ? { evidenceRole } : {}),
+		...(sourceId ? { sourceId } : {}),
+		...(snapshotId ? { snapshotId } : {}),
+		...(versionId ? { versionId } : {}),
 	};
 }
 

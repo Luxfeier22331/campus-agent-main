@@ -22,7 +22,7 @@ export function ThreadHistorySearchDialog({
 	open,
 	returnFocusRef,
 }: {
-	onConversationSelect?: () => void;
+	onConversationSelect?: (() => void) | undefined;
 	onLoginRequired: () => void;
 	onOpenChange: (open: boolean) => void;
 	open: boolean;

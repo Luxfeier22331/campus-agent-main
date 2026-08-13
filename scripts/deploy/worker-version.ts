@@ -117,10 +117,11 @@ export function selectUploadedVersion(
 				String(left.metadata?.created_on ?? ""),
 			),
 		);
-	if (matches.length === 0) {
+	const selected = matches[0];
+	if (!selected) {
 		return fail(`No uploaded Worker version has tag ${tag}.`);
 	}
-	return matches[0];
+	return selected;
 }
 
 export function buildWorkerVersionUploadArgs(
@@ -308,13 +309,20 @@ function validateCandidateMetadata(
 }
 
 function main(argv: string[]): number {
-	if (argv.length !== 5 || argv[0] !== "read-variable") {
+	const [command, cwd, workerName, versionId, variableName] = argv;
+	if (
+		argv.length !== 5 ||
+		command !== "read-variable" ||
+		!cwd ||
+		!workerName ||
+		!versionId ||
+		!variableName
+	) {
 		console.error(
 			"Usage: worker-version.ts read-variable <app-dir> <worker-name> <version-id> <variable-name>",
 		);
 		return 1;
 	}
-	const [, cwd, workerName, versionId, variableName] = argv;
 	console.log(readWorkerVersionPlainTextVariable({ cwd, variableName, versionId, workerName }));
 	return 0;
 }

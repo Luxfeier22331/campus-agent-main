@@ -96,11 +96,11 @@ export class DiningStoreValidationError extends Error {
 export function createDiningStoreFromEnv(env: DiningStoreEnv): DiningStore {
 	const databaseUrl = required(env.OPS_WEB_DATABASE_URL, "OPS_WEB_DATABASE_URL");
 	const database = resolvePostgresTlsConfig({
-		caCertPath: env.OPS_WEB_DATABASE_CA_CERT_PATH,
+		...(env.OPS_WEB_DATABASE_CA_CERT_PATH ? { caCertPath: env.OPS_WEB_DATABASE_CA_CERT_PATH } : {}),
 		databaseUrl,
-		deploymentEnvironment: env.DEPLOYMENT_ENVIRONMENT,
-		nodeEnvironment: env.NODE_ENV,
-		sslMode: env.OPS_WEB_DATABASE_SSLMODE,
+		...(env.DEPLOYMENT_ENVIRONMENT ? { deploymentEnvironment: env.DEPLOYMENT_ENVIRONMENT } : {}),
+		...(env.NODE_ENV ? { nodeEnvironment: env.NODE_ENV } : {}),
+		...(env.OPS_WEB_DATABASE_SSLMODE ? { sslMode: env.OPS_WEB_DATABASE_SSLMODE } : {}),
 	});
 	const pool = new Pool({
 		connectionString: database.connectionString,

@@ -16,7 +16,16 @@ const W3C_TRACE_PARENT_V00_PATTERN = /^00-([0-9a-f]{32})-([0-9a-f]{16})-(0[0-3])
 
 function isValidTraceParent(value: string): boolean {
 	const match = W3C_TRACE_PARENT_V00_PATTERN.exec(value);
-	return match !== null && !/^0+$/.test(match[1]) && !/^0+$/.test(match[2]);
+	if (!match) {
+		return false;
+	}
+	const [, traceId, parentId] = match;
+	return (
+		traceId !== undefined &&
+		parentId !== undefined &&
+		!/^0+$/.test(traceId) &&
+		!/^0+$/.test(parentId)
+	);
 }
 
 export function applyTracePropagationHeaders(

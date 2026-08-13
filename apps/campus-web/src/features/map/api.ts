@@ -8,7 +8,7 @@ export async function getCampusMapPlaces(
 ): Promise<CampusMapPlacesResponse> {
 	return requestJson<CampusMapPlacesResponse>({
 		path: "/api/campus-map/places",
-		signal: input.signal,
+		...(input.signal ? { signal: input.signal } : {}),
 	});
 }
 
@@ -24,7 +24,7 @@ export async function getCampusMapManifest(
 ): Promise<CampusMapManifest> {
 	const payload = await requestJson<unknown>({
 		path: "/api/campus-map/manifest",
-		signal: input.signal,
+		...(input.signal ? { signal: input.signal } : {}),
 	});
 	return normalizeCampusMapManifest(payload);
 }

@@ -100,10 +100,10 @@ export function createAppTelemetry(
 		configureHttpRequestScope(input) {
 			runTelemetrySideEffectWithoutRequestFailure(() => {
 				applyRequestTags({
-					requestId: input.requestId,
+					...(input.requestId === undefined ? {} : { requestId: input.requestId }),
 					route: input.route,
 					surface: input.surface,
-					traceId: input.traceId,
+					...(input.traceId === undefined ? {} : { traceId: input.traceId }),
 				});
 			});
 		},
@@ -146,7 +146,7 @@ export function createAppTelemetry(
 			runTelemetrySideEffectWithoutRequestFailure(() => {
 				applyRequestTags({
 					errorCode: input.errorCode,
-					principalType: input.principalType,
+					...(input.principalType === undefined ? {} : { principalType: input.principalType }),
 					requestId: input.requestId,
 					status: input.status,
 					surface: input.surface,
@@ -168,7 +168,7 @@ export function createAppTelemetry(
 						{
 							errorCode: input.errorCode,
 							eventType: "request.finalized",
-							principalType: input.principalType,
+							...(input.principalType === undefined ? {} : { principalType: input.principalType }),
 							requestId: input.requestId,
 							status: input.status,
 							surface: input.surface,
@@ -184,7 +184,7 @@ export function createAppTelemetry(
 			runTelemetrySideEffectWithoutRequestFailure(() => {
 				applyRequestTags({
 					errorCode: input.errorCode,
-					principalType: input.principalType,
+					...(input.principalType === undefined ? {} : { principalType: input.principalType }),
 					requestId: input.requestId,
 					status: "error",
 					surface: input.surface,
@@ -199,7 +199,7 @@ export function createAppTelemetry(
 						{
 							errorCode: input.errorCode,
 							eventType: "request.transport_error",
-							principalType: input.principalType,
+							...(input.principalType === undefined ? {} : { principalType: input.principalType }),
 							requestId: input.requestId,
 							status: "error",
 							surface: input.surface,

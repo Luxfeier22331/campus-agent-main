@@ -68,7 +68,7 @@ export async function requestJson(input: {
 		}
 	}
 	const response = await fetchImpl(url, {
-		body: input.body ? JSON.stringify(input.body) : undefined,
+		...(input.body ? { body: JSON.stringify(input.body) } : {}),
 		headers: {
 			authorization: basicAuth(input.settings.publicKey, input.settings.secretKey),
 			...(input.body ? { "content-type": "application/json" } : {}),
@@ -98,7 +98,7 @@ export async function listPaginated(input: {
 	const items: JsonObject[] = [];
 	for (let page = 1; ; page += 1) {
 		const payload = await requestJson({
-			fetchImpl: input.fetchImpl,
+			...(input.fetchImpl ? { fetchImpl: input.fetchImpl } : {}),
 			method: "GET",
 			path: input.path,
 			query: { ...(input.query ?? {}), limit: 50, page },

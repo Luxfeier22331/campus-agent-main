@@ -80,10 +80,10 @@ export function createDiningTldrawOptions(
 			return {
 				...content,
 				assets: [],
-				bindings: undefined,
+				bindings: [],
 				rootShapeIds: content.rootShapeIds.filter((id) => allowedIds.has(id)),
 				shapes,
-				users: undefined,
+				users: [],
 			};
 		},
 		onBeforePasteFromClipboard: ({ content }) => {
@@ -111,7 +111,7 @@ export function installDiningExternalContentHandlers(
 		}
 		editor.markHistoryStoppingPoint("paste-dining-elements");
 		editor.putContentOntoCurrentPage(prepared, {
-			point: externalContent.point,
+			...(externalContent.point ? { point: externalContent.point } : {}),
 			preserveIds: true,
 			select: true,
 		});
@@ -194,10 +194,10 @@ export function prepareDiningContent(editor: Editor, content: TLContent): TLCont
 	return {
 		...content,
 		assets: [],
-		bindings: undefined,
+		bindings: [],
 		rootShapeIds: content.rootShapeIds.map((id) => requiredMappedShapeId(idMap, id)),
 		shapes,
-		users: undefined,
+		users: [],
 	};
 }
 

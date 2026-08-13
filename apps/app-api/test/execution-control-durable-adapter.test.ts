@@ -497,8 +497,11 @@ describe("execution control runtime adapter", () => {
 
 	it("rejects durable run step attempts missing diagnostic spine fields", async () => {
 		const attemptWithoutLateOutcome = durableRunStepsPayload();
-		delete (attemptWithoutLateOutcome.attempts as Record<string, unknown>[])[0]
-			.late_completion_outcome;
+		const [firstAttempt] = attemptWithoutLateOutcome.attempts as Record<string, unknown>[];
+		if (!firstAttempt) {
+			throw new Error("The durable run fixture must contain an attempt.");
+		}
+		delete firstAttempt.late_completion_outcome;
 		const fetchImplementation = vi.fn().mockResolvedValue(
 			new Response(JSON.stringify(attemptWithoutLateOutcome), {
 				status: 200,

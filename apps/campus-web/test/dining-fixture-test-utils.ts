@@ -13,7 +13,7 @@ const FLOOR_DEFINITIONS = [
 	{ floorId: "fengtai-2f", hallId: "fengtai", label: "荟贤二层" },
 ] as const;
 
-export const DINING_FIXTURE_ASSETS = FLOOR_DEFINITIONS.map((floor) => {
+function createDiningFixtureAsset(floor: (typeof FLOOR_DEFINITIONS)[number]) {
 	const anchorIds = [`${floor.floorId}-window-1`, `${floor.floorId}-window-2`];
 	const svgMarkup = renderFixtureSvg(anchorIds);
 	return {
@@ -21,7 +21,13 @@ export const DINING_FIXTURE_ASSETS = FLOOR_DEFINITIONS.map((floor) => {
 		sha256: `sha256:${createHash("sha256").update(svgMarkup).digest("hex")}` as const,
 		svgMarkup,
 	};
-});
+}
+
+export const DINING_FIXTURE_ASSETS = [
+	createDiningFixtureAsset(FLOOR_DEFINITIONS[0]),
+	createDiningFixtureAsset(FLOOR_DEFINITIONS[1]),
+	createDiningFixtureAsset(FLOOR_DEFINITIONS[2]),
+] as const;
 
 export const DINING_FIXTURE_MAP: DiningMapResponse = {
 	halls: [

@@ -28,7 +28,13 @@ import { formatDataStateLabel } from "./ops-view-helpers";
 
 type SystemSource = "logs" | "sentry";
 
-export function RequestSystemPage({ from, requestId }: { from?: string; requestId: string }) {
+export function RequestSystemPage({
+	from,
+	requestId,
+}: {
+	from?: string | undefined;
+	requestId: string;
+}) {
 	const [sourceSelection, setSourceSelection] = useState({
 		loaded: { logs: false, sentry: false },
 		requestId,
@@ -121,7 +127,7 @@ export function RequestSystemPage({ from, requestId }: { from?: string; requestI
 	);
 }
 
-function BackToDetail({ from, requestId }: { from?: string; requestId: string }) {
+function BackToDetail({ from, requestId }: { from?: string | undefined; requestId: string }) {
 	return (
 		<Link
 			className="mb-3 inline-flex min-h-10 items-center gap-2 font-medium text-muted-foreground text-sm hover:text-foreground hover:underline"

@@ -120,22 +120,21 @@ export function createPublishedReaderFixture(
 		"supplements/public-course-map-image.png",
 		COURSE_MAP_IMAGE_FIXTURE,
 	);
-	const publicSupplements: PublishedReaderSupplement[] = [
+	const publicSupplement: PublishedReaderSupplement = {
+		assets: [
+			{
+				object: courseMapImageRef,
+				path: "course-maps/page-0001-map-01.png",
+			},
+		],
+		kind: "course_maps",
+		object: courseMapsRef,
+		path: "course-maps.json",
+	};
+	const publicSupplements = [publicSupplement];
+	const publicHistorySupplements: PublishedReaderSupplement[] = [
 		{
-			assets: [
-				{
-					object: courseMapImageRef,
-					path: "course-maps/page-0001-map-01.png",
-				},
-			],
-			kind: "course_maps",
-			object: courseMapsRef,
-			path: "course-maps.json",
-		},
-	];
-	const publicHistorySupplements = [
-		{
-			...publicSupplements[0],
+			...publicSupplement,
 			object: historyCourseMapsRef,
 		},
 	];

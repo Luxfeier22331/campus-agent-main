@@ -69,9 +69,10 @@ export async function runAgentToolEval(input: AgentToolEvalInput): Promise<JsonO
 		fetchImpl,
 		settings: input.settings,
 	});
-	const dataset = await langfuse.getDataset(input.datasetName, {
-		version: input.datasetVersion ?? undefined,
-	});
+	const dataset = await langfuse.getDataset(
+		input.datasetName,
+		input.datasetVersion ? { version: input.datasetVersion } : {},
+	);
 	const validation = validateAgentToolEvalDataset(dataset);
 	const cases = validation.cases.slice(0, input.limit ?? validation.cases.length);
 	const cookieHeader = stringField(input.cookieHeader, "cookieHeader");
@@ -85,7 +86,7 @@ export async function runAgentToolEval(input: AgentToolEvalInput): Promise<JsonO
 		for (const setupTurn of item.setup_turns) {
 			const setupTerminal = await submitChatStream({
 				baseUrl: appApiBaseUrl,
-				conversationId,
+				...(conversationId ? { conversationId } : {}),
 				cookieHeader,
 				fetchImpl,
 				prompt: setupTurn,
@@ -94,7 +95,7 @@ export async function runAgentToolEval(input: AgentToolEvalInput): Promise<JsonO
 		}
 		const terminal = await submitChatStream({
 			baseUrl: appApiBaseUrl,
-			conversationId,
+			...(conversationId ? { conversationId } : {}),
 			cookieHeader,
 			fetchImpl,
 			prompt: item.query,
@@ -195,14 +196,14 @@ export async function runAgentToolEval(input: AgentToolEvalInput): Promise<JsonO
 			sourceResultDenominator += ragScorePlan.sourceResultDenominator;
 		}
 		const publish = await publishLangfuseScores({
-			dryRun: input.dryRun,
+			...(input.dryRun === undefined ? {} : { dryRun: input.dryRun }),
 			evalRunId,
 			fetchImpl,
 			omittedItems,
 			scoreItems,
 			settings: input.settings,
 			sourceResultDenominator,
-			validateOnly: input.validateOnly,
+			...(input.validateOnly === undefined ? {} : { validateOnly: input.validateOnly }),
 		});
 		return {
 			...publish,

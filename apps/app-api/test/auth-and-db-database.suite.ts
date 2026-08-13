@@ -174,8 +174,12 @@ export function registerAppApiDatabaseConfigSuite() {
 			await createRuntimePool(env);
 
 			expect(poolErrorHandlers).toHaveLength(1);
+			const [handlePoolError] = poolErrorHandlers;
+			if (!handlePoolError) {
+				throw new Error("Expected the runtime pool to register an error handler.");
+			}
 			expect(() =>
-				poolErrorHandlers[0](new Error("getaddrinfo EAI_AGAIN pooler.example.com")),
+				handlePoolError(new Error("getaddrinfo EAI_AGAIN pooler.example.com")),
 			).not.toThrow();
 		});
 

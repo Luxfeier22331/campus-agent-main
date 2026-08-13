@@ -31,21 +31,19 @@ const VALID_SNAPSHOT = {
 } as const;
 
 describe("product availability contract", () => {
-	it.each([
-		"operational",
-		"outage",
-		"unknown",
-	])("accepts the public chat availability status %s", (status) => {
-		expect(ChatAvailabilityResponseSchema.safeParse({ status }).success).toBe(true);
-	});
+	it.each(["operational", "outage", "unknown"])(
+		"accepts the public chat availability status %s",
+		(status) => {
+			expect(ChatAvailabilityResponseSchema.safeParse({ status }).success).toBe(true);
+		},
+	);
 
-	it.each([
-		{},
-		{ status: "degraded" },
-		{ status: "operational", requestId: "req_01HQ" },
-	])("rejects an invalid public chat availability response %#", (response) => {
-		expect(ChatAvailabilityResponseSchema.safeParse(response).success).toBe(false);
-	});
+	it.each([{}, { status: "degraded" }, { status: "operational", requestId: "req_01HQ" }])(
+		"rejects an invalid public chat availability response %#",
+		(response) => {
+			expect(ChatAvailabilityResponseSchema.safeParse(response).success).toBe(false);
+		},
+	);
 
 	it("parses the exact ordered public service set", () => {
 		expect(ProductAvailabilitySnapshotSchema.safeParse(VALID_SNAPSHOT).success).toBe(true);

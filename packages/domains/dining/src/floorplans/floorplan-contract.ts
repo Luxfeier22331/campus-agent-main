@@ -190,9 +190,10 @@ function extractDiningSvgAnchors(svgMarkup: string): DiningFloorplanAnchor[] {
 			throw new Error(`Duplicate dining SVG anchor: ${anchorId}`);
 		}
 		seen.add(anchorId);
+		const label = readString(node["@_data-dining-label"]);
 		anchors.push({
 			anchorId,
-			label: readString(node["@_data-dining-label"]) ?? undefined,
+			...(label === null ? {} : { label }),
 			role: normalizeAnchorRole(readString(node["@_data-dining-role"])),
 		});
 	});

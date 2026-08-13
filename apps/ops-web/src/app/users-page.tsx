@@ -24,11 +24,11 @@ const states: AccountAdminState[] = [
 ];
 
 export interface UsersSearch {
-	access?: AccountAdminAccessState;
-	cursor?: string;
-	history?: string;
-	q?: string;
-	state?: AccountAdminState;
+	access?: AccountAdminAccessState | undefined;
+	cursor?: string | undefined;
+	history?: string | undefined;
+	q?: string | undefined;
+	state?: AccountAdminState | undefined;
 }
 
 export function UsersPage({ search }: { search: UsersSearch }) {
@@ -43,11 +43,11 @@ export function UsersPage({ search }: { search: UsersSearch }) {
 		queryFn: ({ signal }) =>
 			fetchAccountAdminUsers(
 				{
-					access: search.access,
-					cursor: search.cursor,
+					...(search.access ? { access: search.access } : {}),
+					...(search.cursor ? { cursor: search.cursor } : {}),
 					limit: 50,
-					query: search.q,
-					state: search.state,
+					...(search.q ? { query: search.q } : {}),
+					...(search.state ? { state: search.state } : {}),
 				},
 				{ signal },
 			),

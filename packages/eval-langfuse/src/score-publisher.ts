@@ -118,7 +118,9 @@ export function buildLangfuseScoresFromRagasScoreBatch(input: {
 		const safeMetadata = ragasMetadata({
 			caseId,
 			itemMetadata,
-			ragasScoreBatchPath: input.ragasScoreBatchPath,
+			...(input.ragasScoreBatchPath === undefined
+				? {}
+				: { ragasScoreBatchPath: input.ragasScoreBatchPath }),
 			schemaVersion,
 			sourceKind,
 		});
@@ -188,7 +190,9 @@ export function buildLangfuseScoresFromRagasAgentScoreBatch(input: {
 		const safeMetadata = ragasAgentMetadata({
 			caseId,
 			itemMetadata,
-			ragasAgentScoreBatchPath: input.ragasAgentScoreBatchPath,
+			...(input.ragasAgentScoreBatchPath === undefined
+				? {}
+				: { ragasAgentScoreBatchPath: input.ragasAgentScoreBatchPath }),
 			schemaVersion,
 			sourceKind,
 		});
@@ -272,7 +276,7 @@ export async function publishLangfuseScores(input: {
 	const plan = validateLangfuseScorePublishPlan({
 		evalRunId: input.evalRunId,
 		omittedItems,
-		registryPath: input.registryPath,
+		...(input.registryPath ? { registryPath: input.registryPath } : {}),
 		scoreItems: input.scoreItems,
 		sourceResultDenominator: input.sourceResultDenominator,
 	});
@@ -280,7 +284,7 @@ export async function publishLangfuseScores(input: {
 		assertCompleteSettings(input.settings);
 	}
 	const langfuse = createLangfuseEvalClient({
-		fetchImpl: input.fetchImpl,
+		...(input.fetchImpl ? { fetchImpl: input.fetchImpl } : {}),
 		settings: input.settings,
 	});
 	let published = 0;

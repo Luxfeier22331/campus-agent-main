@@ -89,7 +89,7 @@ describe("Campus Web 文档内容准备合同", () => {
 		expect(metadata.files.some((file) => file.includes("/_docs/search/sha256/"))).toBe(true);
 
 		await prepareDocsContent({
-			appRoot: appRoot ?? undefined,
+			...(appRoot ? { appRoot } : {}),
 			client: fixture.client,
 			pages: true,
 			refresh: false,
@@ -119,7 +119,7 @@ describe("Campus Web 文档内容准备合同", () => {
 		expect(existsSync(themeBootstrapPath)).toBe(false);
 
 		await prepareDocsContent({
-			appRoot: appRoot ?? undefined,
+			...(appRoot ? { appRoot } : {}),
 			client: fixture.client,
 			pages: false,
 			refresh: false,
@@ -146,7 +146,7 @@ describe("Campus Web 文档内容准备合同", () => {
 		rmSync(join(content.root, reader));
 
 		await prepareDocsContent({
-			appRoot: appRoot ?? undefined,
+			...(appRoot ? { appRoot } : {}),
 			client: fixture.client,
 			pages: true,
 			refresh: false,

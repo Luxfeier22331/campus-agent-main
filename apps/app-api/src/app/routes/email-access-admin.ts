@@ -76,8 +76,8 @@ async function sendInvitation(input: {
 			{
 				authShellOrigin: authConfig.authShellOrigin,
 				authEmailFrom: emailConfig.authEmailFrom,
-				authEmailReplyTo: emailConfig.authEmailReplyTo,
-				emailSender: input.emailSender,
+				...(emailConfig.authEmailReplyTo ? { authEmailReplyTo: emailConfig.authEmailReplyTo } : {}),
+				...(input.emailSender ? { emailSender: input.emailSender } : {}),
 				resendApiKey: emailConfig.resendApiKey,
 			},
 			{ email: input.grant.email, idempotencyKey: deliveryKey, kind: input.grant.kind },
@@ -108,7 +108,13 @@ export function registerEmailAccessAdminRoutes(input: {
 		const page = await input
 			.createRequestScope()
 			.resolveEmailAccessService()
-			.listGrants(query.data);
+			.listGrants({
+				...(query.data.cursor ? { cursor: query.data.cursor } : {}),
+				...(query.data.email ? { email: query.data.email } : {}),
+				...(query.data.kind ? { kind: query.data.kind } : {}),
+				limit: query.data.limit,
+				...(query.data.state ? { state: query.data.state } : {}),
+			});
 		return withNoStore(
 			jsonResponse({
 				environment: resolveEnvironment(input.env),
@@ -144,21 +150,22 @@ export function registerEmailAccessAdminRoutes(input: {
 		const service = input.createRequestScope().resolveEmailAccessService();
 		const grant = await service.createGrant({
 			...headers,
-			accessExpiresAt:
-				payload.data.accessExpiresAt === null
-					? null
-					: payload.data.accessExpiresAt
-						? new Date(payload.data.accessExpiresAt)
-						: undefined,
-			claimExpiresAt: payload.data.claimExpiresAt
-				? new Date(payload.data.claimExpiresAt)
-				: undefined,
+			...(payload.data.accessExpiresAt === null
+				? { accessExpiresAt: null }
+				: payload.data.accessExpiresAt
+					? { accessExpiresAt: new Date(payload.data.accessExpiresAt) }
+					: {}),
+			...(payload.data.claimExpiresAt
+				? { claimExpiresAt: new Date(payload.data.claimExpiresAt) }
+				: {}),
 			email: payload.data.email,
 			kind: payload.data.kind,
 		});
 		if (!grant.lastInvitationSentAt) {
 			await sendInvitation({
-				emailSender: input.accessInvitationEmailSender,
+				...(input.accessInvitationEmailSender
+					? { emailSender: input.accessInvitationEmailSender }
+					: {}),
 				env: input.env,
 				grant,
 				idempotencyKey: headers.idempotencyKey,
@@ -188,7 +195,9 @@ export function registerEmailAccessAdminRoutes(input: {
 			);
 		}
 		await sendInvitation({
-			emailSender: input.accessInvitationEmailSender,
+			...(input.accessInvitationEmailSender
+				? { emailSender: input.accessInvitationEmailSender }
+				: {}),
 			env: input.env,
 			grant,
 			idempotencyKey: headers.idempotencyKey,

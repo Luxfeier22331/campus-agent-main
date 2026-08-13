@@ -5,6 +5,27 @@ import type { ConversationDetail } from "../src/features/conversation/model";
 
 describe("assistant-ui conversation mappers", () => {
 	it("keeps assistant text and structured source cards as assistant-ui message parts", () => {
+		const structuredPart = {
+			sourceItems: [
+				{
+					collectionLabel: "学生手册",
+					pageLabel: "第 12 页",
+					primaryAction: {
+						disabledReason: null,
+						external: false,
+						href: "/docs/regulations/student-rules/national-scholarship",
+						label: "查看来源",
+					},
+					publisherLabel: "中央民族大学",
+					sectionTitle: "国家奖学金",
+					snippet: "国家奖学金每学年评审一次。",
+					title: "本科学生国家奖学金评审办法",
+					trustLabel: "正式制度",
+					versionLabel: "现行",
+				},
+			],
+			type: "source_items" as const,
+		};
 		const conversation: ConversationDetail = {
 			archivedAt: null,
 			createdAt: "2026-06-21T01:00:00.000Z",
@@ -28,29 +49,7 @@ describe("assistant-ui conversation mappers", () => {
 					requestId: "req_01HQ",
 					retryable: false,
 					role: "assistant",
-					structuredParts: [
-						{
-							sourceItems: [
-								{
-									collectionLabel: "学生手册",
-									pageLabel: "第 12 页",
-									primaryAction: {
-										disabledReason: null,
-										external: false,
-										href: "/docs/regulations/student-rules/national-scholarship",
-										label: "查看来源",
-									},
-									publisherLabel: "中央民族大学",
-									sectionTitle: "国家奖学金",
-									snippet: "国家奖学金每学年评审一次。",
-									title: "本科学生国家奖学金评审办法",
-									trustLabel: "正式制度",
-									versionLabel: "现行",
-								},
-							],
-							type: "source_items",
-						},
-					],
+					structuredParts: [structuredPart],
 					text: "国家奖学金每学年评审一次。",
 				},
 			],
@@ -70,7 +69,7 @@ describe("assistant-ui conversation mappers", () => {
 				content: [
 					{ text: "国家奖学金每学年评审一次。", type: "text" },
 					{
-						data: conversation.messages[1].structuredParts?.[0],
+						data: structuredPart,
 						name: "source_items",
 						type: "data",
 					},

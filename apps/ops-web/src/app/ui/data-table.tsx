@@ -1,11 +1,17 @@
 import { cn } from "@campus-agent/ui";
 import {
 	type ColumnDef,
+	columnVisibilityFeature,
+	coreFeatures,
 	createColumnHelper,
 	flexRender,
-	getCoreRowModel,
-	useReactTable,
+	type Row,
+	type RowData,
+	tableFeatures,
+	useTable,
 } from "@tanstack/react-table";
+
+const dataTableFeatures = tableFeatures({ ...coreFeatures, columnVisibilityFeature });
 
 interface DataTableColumn<T> {
 	cell: (row: T) => React.ReactNode;
@@ -17,7 +23,7 @@ interface DataTableColumn<T> {
 	stickyRight?: boolean;
 }
 
-export function DataTable<T>({
+export function DataTable<T extends RowData>({
 	busy = false,
 	caption,
 	columns,
@@ -46,19 +52,19 @@ export function DataTable<T>({
 			`DataTable requires exactly one row header column; received ${rowHeaderCount}.`,
 		);
 	}
-	const columnHelper = createColumnHelper<T>();
+	const columnHelper = createColumnHelper<typeof dataTableFeatures, T>();
 	const tableColumns = columns.map((column) =>
 		columnHelper.display({
 			cell: (info) => column.cell(info.row.original),
 			header: column.header,
 			id: column.id ?? column.header,
 		}),
-	) as ColumnDef<T>[];
+	) as ColumnDef<typeof dataTableFeatures, T>[];
 	const columnById = new Map(columns.map((column) => [column.id ?? column.header, column]));
-	const table = useReactTable({
+	const table = useTable({
 		columns: tableColumns,
 		data,
-		getCoreRowModel: getCoreRowModel(),
+		features: dataTableFeatures,
 		getRowId: rowKey,
 	});
 	const rows = table.getRowModel().rows;
@@ -144,7 +150,7 @@ export function DataTable<T>({
 	);
 }
 
-function DataTableRow<T>({
+function DataTableRow<T extends RowData>({
 	columnById,
 	columns,
 	row,
@@ -154,7 +160,7 @@ function DataTableRow<T>({
 }: {
 	columnById: Map<string, DataTableColumn<T>>;
 	columns: DataTableColumn<T>[];
-	row: ReturnType<ReturnType<typeof useReactTable<T>>["getRowModel"]>["rows"][number];
+	row: Row<typeof dataTableFeatures, T>;
 	stickyFirstColumn: boolean;
 	stickyLastColumn: boolean;
 	pinBothEdges: boolean;

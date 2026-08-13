@@ -49,7 +49,7 @@ export async function createOrVerifyS3Object(input: {
 				Key: input.key,
 				Metadata: { ...input.metadata, "content-sha256": contentSha256 },
 			}),
-			{ abortSignal: input.abortSignal },
+			input.abortSignal ? { abortSignal: input.abortSignal } : {},
 		);
 		putEtag = result.ETag ?? null;
 		putVersionID = result.VersionId ?? null;
@@ -61,7 +61,7 @@ export async function createOrVerifyS3Object(input: {
 
 	const existing = await input.client.send(
 		new HeadObjectCommand({ Bucket: input.bucket, Key: input.key }),
-		{ abortSignal: input.abortSignal },
+		input.abortSignal ? { abortSignal: input.abortSignal } : {},
 	);
 	assertStoredArtifactIdentity({
 		actualByteSize: existing.ContentLength ?? null,

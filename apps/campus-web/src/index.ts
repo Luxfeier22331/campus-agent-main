@@ -293,7 +293,7 @@ async function proxyNoStoreAppApiRequest(request: Request, env: Env): Promise<Re
 				: await request.arrayBuffer();
 		const response = await appApiFetch(
 			new Request(appApiUrl.toString(), {
-				body,
+				...(body ? { body } : {}),
 				headers,
 				method: request.method,
 				redirect: request.redirect,

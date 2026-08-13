@@ -24,19 +24,18 @@ describe("ops-web PostgreSQL TLS", () => {
 		});
 	});
 
-	it.each([
-		"sslmode=require",
-		"ssl=0",
-		"ssl=no-verify",
-	])("rejects the connection-string TLS override %s", (query) => {
-		expect(() =>
-			resolvePostgresTlsConfig({
-				caCertPath: "/does/not/matter",
-				databaseUrl: `postgresql://ops_web:secret@postgres.example.test/campus_agent?${query}`,
-				deploymentEnvironment: "staging",
-			}),
-		).toThrow("must not include PostgreSQL TLS query parameters");
-	});
+	it.each(["sslmode=require", "ssl=0", "ssl=no-verify"])(
+		"rejects the connection-string TLS override %s",
+		(query) => {
+			expect(() =>
+				resolvePostgresTlsConfig({
+					caCertPath: "/does/not/matter",
+					databaseUrl: `postgresql://ops_web:secret@postgres.example.test/campus_agent?${query}`,
+					deploymentEnvironment: "staging",
+				}),
+			).toThrow("must not include PostgreSQL TLS query parameters");
+		},
+	);
 
 	it("allows disabling TLS only in local development and tests", () => {
 		expect(

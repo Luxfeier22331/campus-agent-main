@@ -52,10 +52,10 @@ export function DiningReviewsPage() {
 		queryFn: ({ signal }) =>
 			fetchDiningReviews(
 				{
-					cursor,
+					...(cursor ? { cursor } : {}),
 					limit: 50,
-					menuItemId: menuItemId || undefined,
-					q: query || undefined,
+					...(menuItemId ? { menuItemId } : {}),
+					...(query ? { q: query } : {}),
 					visibility,
 				},
 				{ signal },

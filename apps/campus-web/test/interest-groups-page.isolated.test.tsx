@@ -113,16 +113,20 @@ describe("interest groups page", () => {
 		render(<InterestGroupsPageContent catalog={catalog} />);
 
 		const categoryLinks = screen.getAllByRole("link", { name: /文艺创作|体育运动/ });
-		expect(categoryLinks[0]).toHaveAttribute("aria-current", "location");
+		const [firstCategoryLink, secondCategoryLink] = categoryLinks;
+		if (!(firstCategoryLink && secondCategoryLink)) {
+			throw new Error("expected two category links");
+		}
+		expect(firstCategoryLink).toHaveAttribute("aria-current", "location");
 		expect(screen.queryByRole("link", { name: "返回顶部" })).not.toBeInTheDocument();
 		expect(screen.getByRole("searchbox", { name: "搜索同好群" })).toHaveAttribute(
 			"aria-controls",
 			"interest-groups-results",
 		);
 
-		await user.click(categoryLinks[1]);
-		expect(categoryLinks[0]).not.toHaveAttribute("aria-current");
-		expect(categoryLinks[1]).toHaveAttribute("aria-current", "location");
+		await user.click(secondCategoryLink);
+		expect(firstCategoryLink).not.toHaveAttribute("aria-current");
+		expect(secondCategoryLink).toHaveAttribute("aria-current", "location");
 
 		await act(async () => {
 			Object.defineProperty(window, "scrollY", { configurable: true, value: 600 });

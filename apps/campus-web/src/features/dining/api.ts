@@ -12,7 +12,10 @@ export async function getDiningMap(
 ): Promise<DiningMapResponse> {
 	const [{ DiningMapResponseSchema }, response] = await Promise.all([
 		import("@campus-agent/dining/domain"),
-		requestJson<unknown>({ path: "/api/dining", signal: input.signal }),
+		requestJson<unknown>({
+			path: "/api/dining",
+			...(input.signal ? { signal: input.signal } : {}),
+		}),
 	]);
 	return DiningMapResponseSchema.parse(response);
 }
@@ -25,7 +28,7 @@ export async function getDiningWindowMenu(
 		import("@campus-agent/dining/domain"),
 		requestJson<unknown>({
 			path: `/api/dining/windows/${encodeURIComponent(windowId)}/menu`,
-			signal: input.signal,
+			...(input.signal ? { signal: input.signal } : {}),
 		}),
 	]);
 	return DiningWindowMenuResponseSchema.parse(response);
@@ -44,7 +47,7 @@ export async function getDiningReviews(input: {
 		import("@campus-agent/dining/domain"),
 		requestJson<unknown>({
 			path: `/api/dining/menu-items/${encodeURIComponent(input.menuItemId)}/reviews?${query}`,
-			signal: input.signal,
+			...(input.signal ? { signal: input.signal } : {}),
 		}),
 	]);
 	return DiningReviewPageSchema.parse(response);

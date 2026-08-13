@@ -40,6 +40,7 @@ export function registerDiningContentRoutes(input: {
 	input.app.get("/api/dining/menu-items/:menuItemId/reviews", async (c) => {
 		const scope = input.createRequestScope();
 		try {
+			const cursor = c.req.query("cursor");
 			const principal = await resolvePrincipalForScope({
 				env: input.env,
 				getPrincipal: input.getPrincipal,
@@ -48,7 +49,7 @@ export function registerDiningContentRoutes(input: {
 			});
 			return jsonResponse(
 				await scope.resolveDiningContentService().listReviews({
-					cursor: c.req.query("cursor") || undefined,
+					...(cursor ? { cursor } : {}),
 					limit: parseLimit(c.req.query("limit")),
 					menuItemId: requirePathId(c.req.param("menuItemId")),
 					viewerUserId: principal?.principal.principalId ?? null,

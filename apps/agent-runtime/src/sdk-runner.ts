@@ -129,18 +129,18 @@ export function createOpenAIAgentsRunner(options: OpenAIAgentsRunnerOptions = {}
 		const requestOptions =
 			options.resolveRuntimeOptions?.(input.providerConfig) ??
 			({
-				model: options.model,
-				modelProvider: options.modelProvider,
+				...(options.model ? { model: options.model } : {}),
+				...(options.modelProvider ? { modelProvider: options.modelProvider } : {}),
 			} satisfies Pick<OpenAIAgentsRunnerOptions, "model" | "modelProvider">);
 		const runtime = createSdkRuntime(input, requestOptions.model?.trim() || undefined);
 		const result = await runSdk(runtime.agent, input.input, {
 			context: runtime.context,
 			maxTurns: input.limits.maxTurns,
-			modelProvider: requestOptions.modelProvider,
+			...(requestOptions.modelProvider ? { modelProvider: requestOptions.modelProvider } : {}),
 			traceId: input.traceId,
 			workflowName: "campus-agent.primary-agent",
 			traceIncludeSensitiveData: false,
-			signal: input.signal,
+			...(input.signal ? { signal: input.signal } : {}),
 		});
 		return agentRunnerResultFromSDKResult(result);
 	};
@@ -154,18 +154,18 @@ export function createStreamingOpenAIAgentsRunner(
 		const requestOptions =
 			options.resolveRuntimeOptions?.(input.providerConfig) ??
 			({
-				model: options.model,
-				modelProvider: options.modelProvider,
+				...(options.model ? { model: options.model } : {}),
+				...(options.modelProvider ? { modelProvider: options.modelProvider } : {}),
 			} satisfies Pick<OpenAIAgentsRunnerOptions, "model" | "modelProvider">);
 		const runtime = createSdkRuntime(input, requestOptions.model?.trim() || undefined);
 		const result = await runSdkStream(runtime.agent, input.input, {
 			context: runtime.context,
 			maxTurns: input.limits.maxTurns,
-			modelProvider: requestOptions.modelProvider,
+			...(requestOptions.modelProvider ? { modelProvider: requestOptions.modelProvider } : {}),
 			traceId: input.traceId,
 			workflowName: "campus-agent.primary-agent",
 			traceIncludeSensitiveData: false,
-			signal: input.signal,
+			...(input.signal ? { signal: input.signal } : {}),
 		});
 		let rawOutputText = "";
 		let accumulatedVisibleText = "";
@@ -245,7 +245,7 @@ function createSdkRuntime(input: AgentRunnerInput, model: string | undefined) {
 	const agent = Agent.create({
 		name: "Campus primary assistant",
 		instructions: input.instructions,
-		model,
+		...(model ? { model } : {}),
 		modelSettings: { maxTokens: input.limits.maxOutputTokens },
 		outputType: primaryAgentTerminalOutputSchema,
 		// Agent.create in SDK 0.13.0 hard-codes unknown context.
@@ -277,9 +277,11 @@ function sdkTool(runtimeTool: AgentRunnerInput["tools"][number]) {
 				return complete(toolCallBudgetExhaustedResult(runtimeTool.name, parsedArguments, context));
 			}
 			context.toolBudget.reserved += 1;
-			const result = await runtimeTool.execute(parsedArguments, {
-				invocationId: details?.toolCall?.callId,
-			});
+			const invocationId = details?.toolCall?.callId;
+			const result = await runtimeTool.execute(
+				parsedArguments,
+				invocationId ? { invocationId } : {},
+			);
 			return complete(result);
 		},
 	});
@@ -308,7 +310,7 @@ function recordFromToolArguments(value: unknown): Record<string, unknown> {
 
 const defaultRunSdk: OpenAIAgentsRunFunction = async (agent, input, options) => {
 	const runner = new Runner({
-		modelProvider: options.modelProvider,
+		...(options.modelProvider ? { modelProvider: options.modelProvider } : {}),
 		traceId: options.traceId,
 		workflowName: options.workflowName,
 		traceIncludeSensitiveData: options.traceIncludeSensitiveData,
@@ -316,13 +318,13 @@ const defaultRunSdk: OpenAIAgentsRunFunction = async (agent, input, options) => 
 	return runner.run(agent, input, {
 		context: options.context,
 		maxTurns: options.maxTurns,
-		signal: options.signal,
+		...(options.signal ? { signal: options.signal } : {}),
 	}) as Promise<OpenAIAgentsRunResultLike>;
 };
 
 const defaultRunSdkStream: OpenAIAgentsStreamRunFunction = async (agent, input, options) => {
 	const runner = new Runner({
-		modelProvider: options.modelProvider,
+		...(options.modelProvider ? { modelProvider: options.modelProvider } : {}),
 		traceId: options.traceId,
 		workflowName: options.workflowName,
 		traceIncludeSensitiveData: options.traceIncludeSensitiveData,
@@ -330,7 +332,7 @@ const defaultRunSdkStream: OpenAIAgentsStreamRunFunction = async (agent, input, 
 	return runner.run(agent, input, {
 		context: options.context,
 		maxTurns: options.maxTurns,
-		signal: options.signal,
+		...(options.signal ? { signal: options.signal } : {}),
 		stream: true,
 	}) as unknown as Promise<OpenAIAgentsStreamRunResultLike>;
 };

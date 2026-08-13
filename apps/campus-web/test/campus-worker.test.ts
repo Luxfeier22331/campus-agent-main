@@ -8,7 +8,7 @@ const appRoot = join(__dirname, "..");
 
 function createEnv(appApi?: Env["APP_API"], assets?: Env["ASSETS"]): Env {
 	return {
-		APP_API: appApi,
+		...(appApi ? { APP_API: appApi } : {}),
 		APP_API_BASE_URL: "https://app-api.internal",
 		ASSETS: assets ?? {
 			fetch: () =>
@@ -57,10 +57,13 @@ describe("campus worker boundary", () => {
 
 	it("fails closed when the status public origin is missing or malformed", async () => {
 		for (const origin of [undefined, "https://status.muc.wiki/path", "javascript:alert(1)"]) {
-			const response = await worker.fetch(new Request("https://campus.muc.wiki/status"), {
-				...createEnv(),
-				STATUS_WEB_PUBLIC_ORIGIN: origin,
-			});
+			const env = createEnv();
+			if (origin) {
+				env.STATUS_WEB_PUBLIC_ORIGIN = origin;
+			} else {
+				delete env.STATUS_WEB_PUBLIC_ORIGIN;
+			}
+			const response = await worker.fetch(new Request("https://campus.muc.wiki/status"), env);
 			expect(response.status).toBe(503);
 			await expect(response.json()).resolves.toMatchObject({
 				error: { details: { missing: ["STATUS_WEB_PUBLIC_ORIGIN"] } },
@@ -339,6 +342,9 @@ describe("campus worker boundary", () => {
 		expect(response.status).toBe(200);
 		expect(forwardedRequests).toHaveLength(1);
 		const [forwarded] = forwardedRequests;
+		if (!forwarded) {
+			throw new Error("expected one forwarded request");
+		}
 		expect(forwarded.headers.get("traceparent")).toBe(
 			"00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
 		);
@@ -408,7 +414,11 @@ describe("campus worker boundary", () => {
 
 		expect(response.status).toBe(401);
 		expect(fetchMock).toHaveBeenCalledOnce();
-		const forwarded = fetchMock.mock.calls[0][0] as Request;
+		const firstCall = fetchMock.mock.calls[0];
+		if (!firstCall) {
+			throw new Error("expected one forwarded fetch call");
+		}
+		const forwarded = firstCall[0] as Request;
 		expect(forwarded.url).toBe("http://127.0.0.1:27031/api/chat/requests/stream");
 		expect(forwarded.headers.get("content-type")).toBe("application/json");
 		await expect(forwarded.text()).resolves.toBe(

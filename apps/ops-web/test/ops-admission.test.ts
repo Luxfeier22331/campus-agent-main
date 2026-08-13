@@ -21,37 +21,36 @@ afterEach(() => {
 });
 
 describe("ops admission", () => {
-	it.each([
-		"local",
-		"development",
-	])("uses a local operator in the %s deployment environment", async (deploymentEnvironment) => {
-		const admission = createOpsAdmissionFromEnv({
-			DEPLOYMENT_ENVIRONMENT: deploymentEnvironment,
-		});
-		const result = await admission.admit(new Request("http://127.0.0.1/api"));
+	it.each(["local", "development"])(
+		"uses a local operator in the %s deployment environment",
+		async (deploymentEnvironment) => {
+			const admission = createOpsAdmissionFromEnv({
+				DEPLOYMENT_ENVIRONMENT: deploymentEnvironment,
+			});
+			const result = await admission.admit(new Request("http://127.0.0.1/api"));
 
-		expect(result.response).toBeNull();
-		expect(result.operator).toMatchObject({
-			displayName: "Local Operator",
-			email: "local@localhost",
-			operatorId: "local",
-			subject: "local",
-		});
-	});
+			expect(result.response).toBeNull();
+			expect(result.operator).toMatchObject({
+				displayName: "Local Operator",
+				email: "local@localhost",
+				operatorId: "local",
+				subject: "local",
+			});
+		},
+	);
 
-	it.each([
-		undefined,
-		"staging",
-		"production",
-	])("keeps Cloudflare Access enabled outside local development (%s)", async (deploymentEnvironment) => {
-		const admission = createOpsAdmissionFromEnv({
-			DEPLOYMENT_ENVIRONMENT: deploymentEnvironment,
-		});
-		const result = await admission.admit(new Request("https://ops.example/api"));
+	it.each([undefined, "staging", "production"])(
+		"keeps Cloudflare Access enabled outside local development (%s)",
+		async (deploymentEnvironment) => {
+			const admission = createOpsAdmissionFromEnv(
+				deploymentEnvironment ? { DEPLOYMENT_ENVIRONMENT: deploymentEnvironment } : {},
+			);
+			const result = await admission.admit(new Request("https://ops.example/api"));
 
-		expect(result.operator).toBeNull();
-		expect(result.response?.status).toBe(503);
-	});
+			expect(result.operator).toBeNull();
+			expect(result.response?.status).toBe(503);
+		},
+	);
 
 	it("requires only the Cloudflare Access issuer and audience", () => {
 		expect(getMissingAccessConfig({})).toEqual(["ACCESS_TEAM_DOMAIN", "ACCESS_POLICY_AUD"]);

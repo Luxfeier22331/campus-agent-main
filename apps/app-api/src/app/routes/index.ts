@@ -75,7 +75,9 @@ export function registerAppRoutes(input: {
 		env: input.env,
 	});
 	registerEmailAccessAdminRoutes({
-		accessInvitationEmailSender: input.accessInvitationEmailSender,
+		...(input.accessInvitationEmailSender
+			? { accessInvitationEmailSender: input.accessInvitationEmailSender }
+			: {}),
 		app: input.app,
 		createRequestScope: input.createRequestScope,
 		env: input.env,

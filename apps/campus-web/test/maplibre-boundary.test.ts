@@ -20,7 +20,8 @@ describe("MapLibre runtime loader", () => {
 			Marker: class {},
 		} as unknown as MapLibreRuntime;
 
-		expect(script?.src).toContain("/vendor/maplibre-gl/maplibre-gl.js");
+		expect(script?.src).toContain("/vendor/maplibre-gl/maplibre-gl-runtime.mjs");
+		expect(script?.type).toBe("module");
 		expect(script?.async).toBe(true);
 		expect(style?.href).toContain("/vendor/maplibre-gl/maplibre-gl.css");
 		expect(style?.rel).toBe("stylesheet");

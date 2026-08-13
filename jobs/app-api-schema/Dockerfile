@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM node:24.18.1-bookworm-slim AS build
+FROM node:24.19.0-bookworm-slim AS build
 
 WORKDIR /app
 
@@ -17,17 +17,17 @@ COPY apps/app-api/package.json ./apps/app-api/package.json
 COPY apps/app-api/src/script-support/shared-db ./apps/app-api/src/script-support/shared-db
 
 RUN ln -s ../../jobs/app-api-schema/node_modules apps/app-api/node_modules \
-  && pnpm --dir jobs/app-api-schema exec esbuild \
-    ../../apps/app-api/ops/db/schema.ts \
+  && jobs/app-api-schema/node_modules/.bin/esbuild \
+    apps/app-api/ops/db/schema.ts \
     --bundle \
     --format=esm \
-    --outfile=../../apps/app-api/ops/db/schema.js \
+    --outfile=apps/app-api/ops/db/schema.js \
     --packages=external \
     --platform=node \
     --target=node24 \
   && node -e "import('./apps/app-api/ops/db/schema.js')"
 
-FROM node:24.18.1-bookworm-slim AS dependencies
+FROM node:24.19.0-bookworm-slim AS dependencies
 
 WORKDIR /app
 
@@ -39,7 +39,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharin
   corepack enable pnpm \
   && pnpm install --frozen-lockfile --prod --no-optional --filter app-api-schema...
 
-FROM node:24.18.1-bookworm-slim
+FROM node:24.19.0-bookworm-slim
 
 WORKDIR /app
 ENV NODE_ENV=production

@@ -17,18 +17,24 @@ describe("campus product navigation model", () => {
 
 	it("uses one active-route rule across product surfaces", () => {
 		const items = getProductNavItems();
-		const byId = Object.fromEntries(items.map((item) => [item.id, item]));
+		const findItem = (id: (typeof items)[number]["id"]) => {
+			const item = items.find((candidate) => candidate.id === id);
+			if (!item) {
+				throw new Error(`missing product navigation item: ${id}`);
+			}
+			return item;
+		};
 
-		expect(isProductNavActive("/", byId.chat)).toBe(true);
-		expect(isProductNavActive("/c/conv_01", byId.chat)).toBe(true);
-		expect(isProductNavActive("/docs/regulations", byId.docs)).toBe(true);
-		expect(isProductNavActive("/map", byId.map)).toBe(true);
-		expect(isProductNavActive("/dining", byId.dining)).toBe(true);
-		expect(isProductNavActive("/groups", byId.groups)).toBe(true);
-		expect(isProductNavActive("/feedback", byId.feedback)).toBe(true);
-		expect(isProductNavActive("/feedback/extra", byId.feedback)).toBe(false);
-		expect(isProductNavActive("/status", byId.status)).toBe(true);
-		expect(isProductNavActive("/status/", byId.status)).toBe(false);
-		expect(byId.status.linkMode).toBe("anchor");
+		expect(isProductNavActive("/", findItem("chat"))).toBe(true);
+		expect(isProductNavActive("/c/conv_01", findItem("chat"))).toBe(true);
+		expect(isProductNavActive("/docs/regulations", findItem("docs"))).toBe(true);
+		expect(isProductNavActive("/map", findItem("map"))).toBe(true);
+		expect(isProductNavActive("/dining", findItem("dining"))).toBe(true);
+		expect(isProductNavActive("/groups", findItem("groups"))).toBe(true);
+		expect(isProductNavActive("/feedback", findItem("feedback"))).toBe(true);
+		expect(isProductNavActive("/feedback/extra", findItem("feedback"))).toBe(false);
+		expect(isProductNavActive("/status", findItem("status"))).toBe(true);
+		expect(isProductNavActive("/status/", findItem("status"))).toBe(false);
+		expect(findItem("status").linkMode).toBe("anchor");
 	});
 });

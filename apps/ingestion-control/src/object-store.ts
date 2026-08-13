@@ -117,7 +117,7 @@ class S3IngestionObjectStore implements IngestionObjectStore {
 				Bucket: input.bucket,
 				Key: input.key,
 			}),
-			{ abortSignal: input.abortSignal },
+			input.abortSignal ? { abortSignal: input.abortSignal } : {},
 		);
 		const body = result.Body;
 		if (!body) {
@@ -144,7 +144,7 @@ class S3IngestionObjectStore implements IngestionObjectStore {
 					IfNoneMatch: "*",
 					Metadata: { ...input.metadata, "content-sha256": contentSha256 },
 				}),
-				{ abortSignal: input.abortSignal },
+				input.abortSignal ? { abortSignal: input.abortSignal } : {},
 			);
 		} catch (error) {
 			if (!isPreconditionFailed(error)) {
@@ -170,7 +170,7 @@ class S3IngestionObjectStore implements IngestionObjectStore {
 	): Promise<{ byteSize: number | null; contentSha256: string | null }> {
 		const result = await this.requireClient(input.bucket).send(
 			new HeadObjectCommand({ Bucket: input.bucket, Key: input.key }),
-			{ abortSignal: input.abortSignal },
+			input.abortSignal ? { abortSignal: input.abortSignal } : {},
 		);
 		return {
 			byteSize: result.ContentLength ?? null,

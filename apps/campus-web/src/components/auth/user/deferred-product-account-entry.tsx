@@ -14,8 +14,8 @@ export function DeferredProductAccountEntry({
 	onLogin,
 	presentation = "icon",
 }: {
-	className?: string;
-	onLogin?: () => void;
+	className?: string | undefined;
+	onLogin?: (() => void) | undefined;
 	presentation?: "icon" | "label";
 }) {
 	const [activated, setActivated] = useState(false);
@@ -50,7 +50,7 @@ function AccountTriggerButton({
 	onClick,
 	presentation,
 }: {
-	className?: string;
+	className?: string | undefined;
 	disabled?: boolean;
 	onClick?: () => void;
 	presentation: "icon" | "label";

@@ -375,12 +375,17 @@ describe("primary agent runtime", () => {
 				usage: { modelRequestCount: 1, inputTokens: 16, outputTokens: 8, usageObserved: true },
 			};
 		};
+		const firstTool = catalog.tools[0];
+		expect(firstTool).toBeDefined();
+		if (!firstTool) {
+			throw new Error("tool catalog fixture must contain a tool");
+		}
 		const runtime = createPrimaryAgentRuntime({
 			catalog: {
 				...catalog,
 				tools: [
 					{
-						...catalog.tools[0],
+						...firstTool,
 						name: "personal_memory_recall",
 						description: "Recall relevant personal memory for the current request.",
 						payloadSchemaRef: schemaRef(

@@ -7,7 +7,7 @@ export async function getInterestGroupCatalog(
 ): Promise<InterestGroupCatalog> {
 	const payload = await requestJson<unknown>({
 		path: "/api/campus-groups/catalog",
-		signal: input.signal,
+		...(input.signal ? { signal: input.signal } : {}),
 	});
 	return toInterestGroupCatalog(CampusGroupsCatalogSchema.parse(payload));
 }

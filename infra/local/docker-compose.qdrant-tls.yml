@@ -2,7 +2,7 @@ name: campus-agent-local-qdrant-tls
 
 services:
   qdrant:
-    image: qdrant/qdrant:v1.15.5
+    image: qdrant/qdrant:v1.19.0
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true

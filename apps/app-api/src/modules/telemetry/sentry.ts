@@ -108,9 +108,9 @@ function sanitizeAppApiSentryEventPayload<T extends ErrorEvent | SentryTransacti
 	};
 	event.transaction = route;
 	event.breadcrumbs = [];
-	event.extra = undefined;
-	event.fingerprint = undefined;
-	event.user = undefined;
+	delete event.extra;
+	delete event.fingerprint;
+	delete event.user;
 	event.tags = Object.fromEntries(
 		Object.entries(event.tags ?? {}).filter(([key]) => SAFE_TAGS.has(key)),
 	);
@@ -120,22 +120,36 @@ function sanitizeAppApiSentryEventPayload<T extends ErrorEvent | SentryTransacti
 	event.contexts = event.contexts?.trace
 		? { trace: sanitizeTraceContext(event.contexts.trace) }
 		: {};
-	event.spans = event.spans?.map(sanitizeAppApiSentrySpan);
+	if (event.spans) {
+		event.spans = event.spans.map(sanitizeAppApiSentrySpan);
+	} else {
+		delete event.spans;
+	}
 	event.message = exceptionType;
 	if (event.logentry?.message) {
 		event.logentry.message = exceptionType;
-		event.logentry.params = undefined;
+		delete event.logentry.params;
 	}
 	for (const exception of event.exception?.values ?? []) {
 		exception.type = normalizeExceptionType(exception.type);
 		exception.value = exception.type;
 		for (const frame of exception.stacktrace?.frames ?? []) {
-			frame.abs_path = scrubSensitiveText(frame.abs_path);
-			frame.context_line = undefined;
-			frame.filename = scrubSensitiveText(frame.filename);
-			frame.post_context = undefined;
-			frame.pre_context = undefined;
-			frame.vars = undefined;
+			const absolutePath = scrubSensitiveText(frame.abs_path);
+			const filename = scrubSensitiveText(frame.filename);
+			if (absolutePath) {
+				frame.abs_path = absolutePath;
+			} else {
+				delete frame.abs_path;
+			}
+			delete frame.context_line;
+			if (filename) {
+				frame.filename = filename;
+			} else {
+				delete frame.filename;
+			}
+			delete frame.post_context;
+			delete frame.pre_context;
+			delete frame.vars;
 		}
 	}
 	return event;
@@ -156,7 +170,7 @@ export function sanitizeAppApiSentrySpan(span: SentrySpan): SentrySpan {
 			...(status === undefined ? {} : { "http.response.status_code": status }),
 		},
 		description: method ? `${method.toUpperCase()} ${route}` : route,
-		links: undefined,
+		links: [],
 	};
 }
 
@@ -189,13 +203,9 @@ function matchesRouteTemplate(pathname: string, template: string): boolean {
 	}
 	const pattern = template
 		.split("/")
-		.map((segment) => (segment.startsWith(":") ? "[^/]+" : escapeRegExp(segment)))
+		.map((segment) => (segment.startsWith(":") ? "[^/]+" : RegExp.escape(segment)))
 		.join("/");
 	return new RegExp(`^${pattern}$`, "u").test(pathname);
-}
-
-function escapeRegExp(value: string): string {
-	return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
 function readSpanString(data: SentrySpan["data"], keys: string[]): string | undefined {

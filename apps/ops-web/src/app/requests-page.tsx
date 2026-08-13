@@ -38,7 +38,7 @@ export function RequestsPage({
 	const view = search.view ?? "recent";
 	const querySearch = cleanRequestSearch(search);
 	const requests = useQuery({
-		placeholderData: search.cursor ? keepPreviousData : undefined,
+		...(search.cursor ? { placeholderData: keepPreviousData } : {}),
 		queryFn: ({ signal }) => fetchOpsRequests(search, { signal }),
 		queryKey: ["ops", "requests", querySearch],
 		refetchInterval: 30_000,

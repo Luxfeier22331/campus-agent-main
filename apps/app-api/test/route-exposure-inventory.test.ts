@@ -28,9 +28,13 @@ function readRegisteredRoutes(): Array<{ method: string; path: string }> {
 	for (const routeFile of routeFiles) {
 		const source = readFileSync(join(routesDir, routeFile), "utf8");
 		for (const match of source.matchAll(registeredRouteRegex)) {
+			const [, method, path] = match;
+			if (!(method && path)) {
+				throw new Error(`Registered route match is incomplete in ${routeFile}.`);
+			}
 			routes.push({
-				method: match[1].toUpperCase(),
-				path: match[2],
+				method: method.toUpperCase(),
+				path,
 			});
 		}
 	}

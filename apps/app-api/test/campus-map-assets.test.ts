@@ -51,7 +51,7 @@ describe("campus map asset contract", () => {
 			}
 			const bytes = await readFile(new URL(`${digest}.geojson`, assetsDirectory));
 			expect(createHash("sha256").update(bytes).digest("hex"), campusId).toBe(digest);
-			const collection = JSON.parse(bytes.toString("utf8")) as CampusMapFeatureCollection;
+			const collection = JSON.parse(new TextDecoder().decode(bytes)) as CampusMapFeatureCollection;
 			expect(collection.type, campusId).toBe("FeatureCollection");
 			expect(collection.features.length, campusId).toBeGreaterThan(0);
 

@@ -1,4 +1,4 @@
-FROM node:24.18.1-bookworm-slim AS pruner
+FROM node:24.19.0-bookworm-slim AS pruner
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
@@ -15,7 +15,7 @@ COPY . .
 
 RUN pnpm exec turbo prune ingestion-control --docker --out-dir=/repo/out
 
-FROM node:24.18.1-bookworm-slim AS check
+FROM node:24.19.0-bookworm-slim AS check
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
@@ -34,7 +34,7 @@ COPY configs/ingestion ./configs/ingestion
 RUN pnpm --filter ingestion-control typecheck \
   && touch /check-complete
 
-FROM node:24.18.1-bookworm-slim AS production-tree
+FROM node:24.19.0-bookworm-slim AS production-tree
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
@@ -78,7 +78,7 @@ RUN python -m pip install --no-cache-dir \
   && sha256sum -c /tmp/tokenizer.sha256 \
   && rm /tmp/tokenizer.sha256
 
-FROM node:24.18.1-bookworm-slim AS runtime-base
+FROM node:24.19.0-bookworm-slim AS runtime-base
 
 WORKDIR /app
 

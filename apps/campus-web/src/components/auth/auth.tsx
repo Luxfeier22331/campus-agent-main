@@ -62,7 +62,7 @@ export function AuthPanel({
 		? new URLSearchParams({ redirectTo: redirectToOverride })
 		: search;
 	const redirectTo = resolveAccountAuthReturnTarget(redirectSearch, {
-		currentOrigin: typeof window === "undefined" ? undefined : window.location.origin,
+		...(typeof window === "undefined" ? {} : { currentOrigin: window.location.origin }),
 	});
 	const invitationEmail = normalizeOptionalEmail(search.get("email"));
 
@@ -81,7 +81,7 @@ export function AuthPanel({
 			nextView === "signIn" ? "login" : nextView === "signUp" ? "register" : "forgotPassword";
 		void navigate({
 			to: buildAuthViewHref(routeView, {
-				currentOrigin: typeof window === "undefined" ? undefined : window.location.origin,
+				...(typeof window === "undefined" ? {} : { currentOrigin: window.location.origin }),
 				redirectTo,
 			}),
 		});
@@ -101,16 +101,18 @@ export function AuthPanel({
 		}
 		void navigate({
 			search: { redirectTo },
-			state: deliveryStatus
+			...(deliveryStatus
 				? {
-						campusAuthResult: {
-							email,
-							kind: "verification-delivery",
-							...(retryAfterSeconds ? { retryAfterSeconds } : {}),
-							status: deliveryStatus,
-						} satisfies CampusAuthResultState,
+						state: {
+							campusAuthResult: {
+								email,
+								kind: "verification-delivery",
+								...(retryAfterSeconds ? { retryAfterSeconds } : {}),
+								status: deliveryStatus,
+							} satisfies CampusAuthResultState,
+						},
 					}
-				: undefined,
+				: {}),
 			to: "/account/verify-email",
 		});
 	}
@@ -244,14 +246,14 @@ export function AuthPanel({
 	return <div className={className}>{content}</div>;
 }
 
-export function Auth({ view }: { view?: CampusAuthView }) {
+export function Auth({ view }: { view?: CampusAuthView | undefined }) {
 	return (
 		<section
 			aria-label="account-auth-layout"
 			className="flex min-h-[calc(100dvh-var(--layout-campus-topnav-height))] flex-col items-center px-4 pb-10 pt-8 sm:pt-10"
 			data-campus-account-surface="auth"
 		>
-			<AuthPanel view={view} />
+			<AuthPanel {...(view ? { view } : {})} />
 		</section>
 	);
 }

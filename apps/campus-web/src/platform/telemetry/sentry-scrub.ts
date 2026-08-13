@@ -84,9 +84,9 @@ function sanitizeCampusSentryEventPayload<T extends ErrorEvent | SentryTransacti
 	const exceptionType = normalizeExceptionType(event.exception?.values?.[0]?.type);
 	event.request = { ...(method ? { method } : {}), url: route };
 	event.transaction = route;
-	event.extra = undefined;
-	event.fingerprint = undefined;
-	event.user = undefined;
+	delete event.extra;
+	delete event.fingerprint;
+	delete event.user;
 	event.tags = Object.fromEntries(
 		Object.entries(event.tags ?? {}).filter(([key]) => SAFE_TAGS.has(key)),
 	);
@@ -96,25 +96,43 @@ function sanitizeCampusSentryEventPayload<T extends ErrorEvent | SentryTransacti
 	event.contexts = event.contexts?.trace
 		? { trace: sanitizeTraceContext(event.contexts.trace) }
 		: {};
-	event.spans = event.spans?.map(sanitizeCampusSentrySpan);
-	event.breadcrumbs = event.breadcrumbs
-		?.map((breadcrumb) => sanitizeCampusBreadcrumb(breadcrumb))
-		.filter((breadcrumb): breadcrumb is Breadcrumb => breadcrumb !== null);
+	if (event.spans) {
+		event.spans = event.spans.map(sanitizeCampusSentrySpan);
+	} else {
+		delete event.spans;
+	}
+	if (event.breadcrumbs) {
+		event.breadcrumbs = event.breadcrumbs
+			.map((breadcrumb) => sanitizeCampusBreadcrumb(breadcrumb))
+			.filter((breadcrumb): breadcrumb is Breadcrumb => breadcrumb !== null);
+	} else {
+		delete event.breadcrumbs;
+	}
 	event.message = exceptionType;
 	if (event.logentry?.message) {
 		event.logentry.message = exceptionType;
-		event.logentry.params = undefined;
+		delete event.logentry.params;
 	}
 	for (const exception of event.exception?.values ?? []) {
 		exception.type = normalizeExceptionType(exception.type);
 		exception.value = exception.type;
 		for (const frame of exception.stacktrace?.frames ?? []) {
-			frame.abs_path = scrubSensitiveText(frame.abs_path);
-			frame.context_line = undefined;
-			frame.filename = scrubSensitiveText(frame.filename);
-			frame.post_context = undefined;
-			frame.pre_context = undefined;
-			frame.vars = undefined;
+			const absolutePath = scrubSensitiveText(frame.abs_path);
+			const filename = scrubSensitiveText(frame.filename);
+			if (absolutePath) {
+				frame.abs_path = absolutePath;
+			} else {
+				delete frame.abs_path;
+			}
+			delete frame.context_line;
+			if (filename) {
+				frame.filename = filename;
+			} else {
+				delete frame.filename;
+			}
+			delete frame.post_context;
+			delete frame.pre_context;
+			delete frame.vars;
 		}
 	}
 	return event;
@@ -134,7 +152,7 @@ export function sanitizeCampusSentrySpan(span: SentrySpan): SentrySpan {
 			...(status === undefined ? {} : { "http.response.status_code": status }),
 		},
 		description: method ? `${method.toUpperCase()} ${route}` : route,
-		links: undefined,
+		links: [],
 	};
 }
 
@@ -156,11 +174,11 @@ export function sanitizeCampusBreadcrumb(breadcrumb: Breadcrumb): Breadcrumb | n
 		...(typeof status === "number" ? { status_code: status } : {}),
 	};
 	return {
-		category: breadcrumb.category,
-		data: Object.keys(data).length > 0 ? data : undefined,
-		level: breadcrumb.level,
-		timestamp: breadcrumb.timestamp,
-		type: breadcrumb.type,
+		...(breadcrumb.category ? { category: breadcrumb.category } : {}),
+		...(Object.keys(data).length > 0 ? { data } : {}),
+		...(breadcrumb.level ? { level: breadcrumb.level } : {}),
+		...(breadcrumb.timestamp === undefined ? {} : { timestamp: breadcrumb.timestamp }),
+		...(breadcrumb.type ? { type: breadcrumb.type } : {}),
 	};
 }
 

@@ -15,9 +15,6 @@ function executionInput(overrides: Partial<ToolExecutionInput> = {}): ToolExecut
 				userId: "user-001",
 				roles: [],
 				departments: [],
-				cohort: undefined,
-				major: undefined,
-				program: undefined,
 			},
 			authorization: {
 				applicabilityScope: "campus",

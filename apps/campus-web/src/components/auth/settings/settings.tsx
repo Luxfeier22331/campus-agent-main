@@ -40,7 +40,7 @@ export function Settings({ view }: { view?: CampusAccountSettingsView }) {
 					<BetterAuthHeroUISettings
 						className="campus-account-settings w-full"
 						variant="transparent"
-						view={view}
+						{...(view ? { view } : {})}
 					/>
 					{view === "account" || view === undefined ? (
 						<AccountDeletionPanel onAccepted={showDeletionAccepted} />

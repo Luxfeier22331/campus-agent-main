@@ -129,7 +129,7 @@ export function createResendEmailSender(apiKey: string): AuthEmailSender {
 				{
 					from: message.from,
 					html: message.html,
-					replyTo: message.replyTo,
+					...(message.replyTo ? { replyTo: message.replyTo } : {}),
 					subject: message.subject,
 					tags: [
 						{ name: "app", value: "campus-agent" },
@@ -339,7 +339,7 @@ function basePayload(
 	return {
 		from: config.authEmailFrom,
 		html: input.html,
-		replyTo: config.authEmailReplyTo,
+		...(config.authEmailReplyTo ? { replyTo: config.authEmailReplyTo } : {}),
 		subject: input.subject,
 		text: input.text,
 		to: input.to,
@@ -534,6 +534,9 @@ export async function sendAccessInvitationEmail(
 			text: `你好：\n\n你已获得${PRODUCT_NAME}${accessLabel}。\n请通过以下链接注册或登录：\n${url}\n\n登录前需要先验证这个邮箱。\n\n需要帮助？请访问：${feedbackUrl}`,
 			to: recipient,
 		}),
-		{ idempotencyKey: input.idempotencyKey, purpose: "access_invitation" },
+		{
+			...(input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : {}),
+			purpose: "access_invitation",
+		},
 	);
 }

@@ -36,7 +36,7 @@
             gitleaks
             jq
             nodejs_24
-            pnpm_10
+            pnpm_11
             ripgrep
           ];
           lightPackages = corePackages ++ (with pkgs; [
@@ -72,11 +72,11 @@
           };
         in
         assert pkgs.nodejs_24.version == nodeVersion;
-        assert pkgs.pnpm_10.version == pnpmVersion;
+        assert pkgs.pnpm_11.version == pnpmVersion;
         assert pkgs.go_1_26.version == "1.26.5";
         assert pkgs.golangci-lint.version == "2.12.2";
         assert pkgs.rustc.version == rustToolchain.toolchain.channel;
-        assert pkgs.trivy.version == "0.72.0";
+        assert pkgs.trivy.version == "0.73.0";
         {
           ci-core = ciCore;
           ci-light = ciLight;

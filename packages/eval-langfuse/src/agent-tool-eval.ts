@@ -90,24 +90,29 @@ function parseDatasetItem(item: JsonObject, index: number): AgentToolEvalCase {
 			}
 		}
 	}
+	const caseFamily = optionalString(metadata.case_family);
+	const expectedOutcome = parseExpectedOutcome(expectedOutput.expected_outcome, caseId);
+	const expectedGroundingMode = parseExpectedGroundingMode(
+		expectedOutput.expected_grounding_mode,
+		caseId,
+	);
+	const reference = optionalString(expectedOutput.reference);
+	const surfaceKey = optionalString(metadata.surface_key);
 	return {
 		argument_mode: argumentMode,
-		case_family: optionalString(metadata.case_family) ?? undefined,
+		...(caseFamily ? { case_family: caseFamily } : {}),
 		case_id: caseId,
 		dataset_item_id: stringField(item.id, `${caseId}.dataset_item_id`),
-		expected_outcome: parseExpectedOutcome(expectedOutput.expected_outcome, caseId),
-		expected_grounding_mode: parseExpectedGroundingMode(
-			expectedOutput.expected_grounding_mode,
-			caseId,
-		),
+		...(expectedOutcome ? { expected_outcome: expectedOutcome } : {}),
+		...(expectedGroundingMode ? { expected_grounding_mode: expectedGroundingMode } : {}),
 		forbidden_context_ids: stringList(expectedOutput.forbidden_context_ids),
 		query: stringField(input.query ?? input.user_input, `${caseId}.input.query`),
-		reference: optionalString(expectedOutput.reference) ?? undefined,
+		...(reference ? { reference } : {}),
 		reference_context_ids: stringList(expectedOutput.reference_context_ids),
 		reference_contexts: stringList(expectedOutput.reference_contexts),
 		reference_tool_calls: referenceToolCalls,
 		setup_turns: parseSetupTurns(input.setup_turns, caseId),
-		surface_key: optionalString(metadata.surface_key) ?? undefined,
+		...(surfaceKey ? { surface_key: surfaceKey } : {}),
 	};
 }
 

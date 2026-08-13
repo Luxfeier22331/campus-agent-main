@@ -22,7 +22,6 @@ child.on("exit", (code, signal) => {
 	if (signal) {
 		console.error(`chat:e2e:local-provider child exited from signal ${signal}.`);
 		process.exit(1);
-		return;
 	}
 	process.exit(code ?? 1);
 });

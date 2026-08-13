@@ -1,10 +1,8 @@
-import type maplibregl from "maplibre-gl";
-
-export type MapLibreRuntime = typeof maplibregl;
+export type MapLibreRuntime = typeof import("maplibre-gl");
 
 const MAPLIBRE_SCRIPT_ID = "campus-maplibre-gl-script";
 const MAPLIBRE_STYLE_ID = "campus-maplibre-gl-style";
-const MAPLIBRE_SCRIPT_SRC = "/vendor/maplibre-gl/maplibre-gl.js";
+const MAPLIBRE_SCRIPT_SRC = "/vendor/maplibre-gl/maplibre-gl-runtime.mjs";
 const MAPLIBRE_STYLE_HREF = "/vendor/maplibre-gl/maplibre-gl.css";
 
 declare global {
@@ -57,6 +55,7 @@ export function loadMapLibre(): Promise<MapLibreRuntime> {
 		if (!existingScript) {
 			script.id = MAPLIBRE_SCRIPT_ID;
 			script.src = MAPLIBRE_SCRIPT_SRC;
+			script.type = "module";
 			script.async = true;
 			document.head.appendChild(script);
 		}

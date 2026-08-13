@@ -185,6 +185,7 @@ describe("docs page outline", () => {
 		class TestIntersectionObserver implements IntersectionObserver {
 			readonly root = null;
 			readonly rootMargin = "0px";
+			readonly scrollMargin = "0px";
 			readonly thresholds = [0];
 
 			constructor(callback: IntersectionObserverCallback) {

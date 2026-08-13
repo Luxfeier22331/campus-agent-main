@@ -27,9 +27,9 @@ const conversationApiMock = vi.hoisted(() => ({
 	cancelRun: vi.fn(),
 	ChatStreamRequestError: class ChatStreamRequestError extends Error {
 		code: string;
-		requestId?: string;
+		requestId: string | undefined;
 		retryable: boolean;
-		traceId?: string;
+		traceId: string | undefined;
 
 		constructor(input: {
 			code: string;
@@ -54,12 +54,13 @@ const conversationApiMock = vi.hoisted(() => ({
 
 vi.mock("@assistant-ui/react", () => ({
 	useAui: () => ({
-		threadListItem: () => ({
+		threadListItem: {
 			initialize: assistantUiMock.initialize,
-		}),
+		},
 	}),
-	useAuiState: (selector: (state: { threadListItem: { remoteId?: string } }) => unknown) =>
-		selector({ threadListItem: { remoteId: assistantUiMock.remoteId } }),
+	useAuiState: (
+		selector: (state: { threadListItem: { remoteId?: string | undefined } }) => unknown,
+	) => selector({ threadListItem: { remoteId: assistantUiMock.remoteId } }),
 	useExternalStoreRuntime: (input: typeof assistantUiMock.externalStoreInput) => {
 		assistantUiMock.externalStoreInput = input;
 		return input;

@@ -83,11 +83,15 @@ describe("campus groups PostgreSQL store", () => {
 
 	it("moves groups across sections by replacing the catalog atomically", async () => {
 		await store.replaceCatalog(catalog);
+		const [interestGroups, clubs] = catalog.sections;
+		if (!(interestGroups && clubs)) {
+			throw new Error("The campus groups fixture must contain both sections.");
+		}
 		const moved: CampusGroupsCatalog = {
 			...catalog,
 			sections: [
-				{ ...catalog.sections[0], groups: [] },
-				{ ...catalog.sections[1], groups: [group] },
+				{ ...interestGroups, groups: [] },
+				{ ...clubs, groups: [group] },
 			],
 		};
 

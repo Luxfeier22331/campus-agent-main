@@ -108,6 +108,14 @@ function createRuntimeReadinessResult() {
 }
 
 describe("app-api worker foundation", () => {
+	it("supports standard regular expression escaping", () => {
+		const literal = "a-b.c";
+		const pattern = new RegExp(`^${RegExp.escape(literal)}$`, "u");
+
+		expect(pattern.test(literal)).toBe(true);
+		expect(pattern.test("axb-c")).toBe(false);
+	});
+
 	it("leaves Worker observability ownership to GitOps", () => {
 		expect(parsedWranglerConfig.observability).toBeUndefined();
 		expect(parsedWranglerConfig.env?.staging).not.toHaveProperty("observability");

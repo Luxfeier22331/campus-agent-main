@@ -77,7 +77,7 @@ function answerDeltaEvent(input: {
 			occurredAt: input.occurredAt,
 			requestId: input.context.requestId,
 			runId: input.context.runId,
-			sequence: input.sequence,
+			...(input.sequence === undefined ? {} : { sequence: input.sequence }),
 			status: "streaming",
 			traceId: input.context.traceId,
 		},
@@ -96,7 +96,7 @@ function chatStreamEventsForFinalized(input: {
 	const terminal = toTerminalChatStreamEvent({
 		occurredAt: input.occurredAt,
 		response: input.finalized,
-		sourceEvent: input.sourceEvent,
+		...(input.sourceEvent ? { sourceEvent: input.sourceEvent } : {}),
 	});
 	if (input.hasStreamedAnswerDelta) {
 		return [terminal];
@@ -105,7 +105,7 @@ function chatStreamEventsForFinalized(input: {
 		context: input.context,
 		finalized: input.finalized,
 		occurredAt: input.occurredAt,
-		sequence: input.sequence,
+		...(input.sequence === undefined ? {} : { sequence: input.sequence }),
 	});
 	return delta ? [delta, terminal] : [terminal];
 }

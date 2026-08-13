@@ -54,7 +54,7 @@ describe("chat e2e runner", () => {
 				async fetchJsonWithCookie<T>(
 					input: Parameters<NonNullable<ChatE2eDependencies["fetchJsonWithCookie"]>>[0],
 				): Promise<{ payload: T; response: Response }> {
-					jsonCalls.push({ method: input.method, url: input.url });
+					jsonCalls.push({ ...(input.method ? { method: input.method } : {}), url: input.url });
 					if (input.url.endsWith("/api/me")) {
 						return jsonResult({
 							permissions: {

@@ -10,8 +10,8 @@ export function ProductAccountEntry({
 	openOnReady = false,
 	presentation = "icon",
 }: {
-	className?: string;
-	onLogin?: () => void;
+	className?: string | undefined;
+	onLogin?: (() => void) | undefined;
 	openOnReady?: boolean;
 	presentation?: "icon" | "label";
 }) {

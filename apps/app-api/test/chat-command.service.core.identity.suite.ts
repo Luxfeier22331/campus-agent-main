@@ -128,7 +128,11 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			}),
 		);
 		expect(acceptedWrites).toHaveLength(1);
-		expect(acceptedWrites[0]).toMatchObject({
+		const [acceptedWrite] = acceptedWrites;
+		if (!acceptedWrite) {
+			throw new Error("Expected one accepted chat write.");
+		}
+		expect(acceptedWrite).toMatchObject({
 			turnDispatch: {
 				actorUserId: "user_01HQ",
 				idempotencyKey: "idem-001",
@@ -162,11 +166,15 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 				text: "图书馆开放到几点？",
 			},
 		});
-		expect(acceptedWrites[0].turnDispatch).not.toHaveProperty("actorSnapshot");
-		expect(acceptedWrites[0].turnDispatch).not.toHaveProperty("actorGroups");
-		expect(acceptedWrites[0].turnDispatch).not.toHaveProperty("actorCampusScope");
+		expect(acceptedWrite.turnDispatch).not.toHaveProperty("actorSnapshot");
+		expect(acceptedWrite.turnDispatch).not.toHaveProperty("actorGroups");
+		expect(acceptedWrite.turnDispatch).not.toHaveProperty("actorCampusScope");
 		expect(finalWrites).toHaveLength(1);
-		expect(finalWrites[0]).toMatchObject({
+		const [finalWrite] = finalWrites;
+		if (!finalWrite) {
+			throw new Error("Expected one finalized chat write.");
+		}
+		expect(finalWrite).toMatchObject({
 			assistantMessage: {
 				kind: "answer",
 				requestId: "req_0001",
@@ -186,8 +194,8 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 				supportingSources: [],
 			},
 		});
-		expect(finalWrites[0].turnDispatch).not.toHaveProperty("actorGroups");
-		expect(finalWrites[0].turnDispatch).not.toHaveProperty("actorCampusScope");
+		expect(finalWrite.turnDispatch).not.toHaveProperty("actorGroups");
+		expect(finalWrite.turnDispatch).not.toHaveProperty("actorCampusScope");
 		expect(response).toMatchObject({
 			answer: {
 				conversation: {

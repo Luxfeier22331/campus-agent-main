@@ -19,7 +19,6 @@ function createPrincipal(chat = true): ResolvedAppPrincipal {
 			roles: ["campus_member"],
 			userId: "user_01HQ",
 		},
-		authorization: undefined,
 		permissions: { chat },
 		principal: {
 			displayName: "Jane Doe",

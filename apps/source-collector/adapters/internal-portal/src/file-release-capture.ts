@@ -62,7 +62,7 @@ export async function captureInternalPortalFileRelease(
 	const fileKey = `${prefix}/file`;
 	const sourceKey = `${prefix}/source.json`;
 	const existingSource = await input.objectStore.getObjectIfExists({
-		abortSignal: input.abortSignal,
+		...(input.abortSignal ? { abortSignal: input.abortSignal } : {}),
 		bucket: input.objectStore.sourceBucket,
 		key: sourceKey,
 	});
@@ -78,7 +78,11 @@ export async function captureInternalPortalFileRelease(
 
 	const apiContext = await (
 		dependencies.createApiContext ??
-		(() => createPortalApiContext(input.config, { abortSignal: input.abortSignal }))
+		(() =>
+			createPortalApiContext(
+				input.config,
+				input.abortSignal ? { abortSignal: input.abortSignal } : {},
+			))
 	)();
 	const disposeApiContext = bindApiContextCancellation(apiContext, input.abortSignal);
 	try {
@@ -104,7 +108,7 @@ export async function captureInternalPortalFileRelease(
 			input.fileReleaseId,
 		);
 		const downloaded = await (dependencies.downloadFile ?? downloadAttachment)({
-			abortSignal: input.abortSignal,
+			...(input.abortSignal ? { abortSignal: input.abortSignal } : {}),
 			apiContext,
 			attachmentUrl: downloadUrl,
 		});
@@ -118,7 +122,7 @@ export async function captureInternalPortalFileRelease(
 			const stream = downloaded.openReadStream();
 			const storedFile = await input.objectStore
 				.createOrVerifyStream({
-					abortSignal: input.abortSignal,
+					...(input.abortSignal ? { abortSignal: input.abortSignal } : {}),
 					body: stream,
 					bucket: input.objectStore.sourceBucket,
 					byteSize: downloaded.byteSize,
@@ -148,7 +152,7 @@ export async function captureInternalPortalFileRelease(
 			assertValidSource(source);
 			const sourceBytes = new TextEncoder().encode(`${JSON.stringify(source, null, 2)}\n`);
 			const storedSource = await input.objectStore.createOrVerifyObject({
-				abortSignal: input.abortSignal,
+				...(input.abortSignal ? { abortSignal: input.abortSignal } : {}),
 				body: sourceBytes,
 				bucket: input.objectStore.sourceBucket,
 				contentType: "application/json",

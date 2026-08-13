@@ -1,6 +1,6 @@
 import { Button } from "@campus-agent/ui";
 import { Link } from "@tanstack/react-router";
-import type { AnchorHTMLAttributes, ReactNode } from "react";
+import type { AriaAttributes, MouseEventHandler, ReactNode } from "react";
 import { forwardRef } from "react";
 import { cn } from "@/lib/utils";
 import {
@@ -20,7 +20,7 @@ export function ProductBrandLink({
 	className?: string;
 	compactLabel?: string;
 	linkMode?: ProductNavigationLinkMode;
-	subtitle?: string;
+	subtitle?: string | undefined;
 }) {
 	const classNames = cn("campus-product-brand flex min-w-0 items-center gap-3", className);
 	const mobileLabel = compactLabel || subtitle || "校园问答";
@@ -100,10 +100,13 @@ function ProductNavButton({
 	);
 }
 
-interface ProductNavLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
+interface ProductNavLinkProps {
+	"aria-current"?: AriaAttributes["aria-current"];
 	children: ReactNode;
+	className?: string;
 	item: ProductNavItem;
 	linkMode: ProductNavigationLinkMode;
+	onClick?: MouseEventHandler<HTMLAnchorElement>;
 }
 
 export const ProductNavLink = forwardRef<HTMLAnchorElement, ProductNavLinkProps>(

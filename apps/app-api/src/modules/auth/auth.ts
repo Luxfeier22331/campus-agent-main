@@ -201,8 +201,8 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 		return {
 			authShellOrigin: appOrigin,
 			authEmailFrom: emailConfig.authEmailFrom,
-			authEmailReplyTo: emailConfig.authEmailReplyTo,
-			emailSender: input.emailSender,
+			...(emailConfig.authEmailReplyTo ? { authEmailReplyTo: emailConfig.authEmailReplyTo } : {}),
+			...(input.emailSender ? { emailSender: input.emailSender } : {}),
 			resendApiKey: emailConfig.resendApiKey,
 		};
 	};
@@ -345,7 +345,7 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 			admin(),
 			opsAccountAdminPlugin({
 				commitTemporaryPassword: input.commitTemporaryPassword,
-				revokeOAuthTokens: input.revokeUserCredentials,
+				...(input.revokeUserCredentials ? { revokeOAuthTokens: input.revokeUserCredentials } : {}),
 			}),
 			jwt({
 				disableSettingJwtHeader: true,
@@ -463,6 +463,7 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 						},
 					};
 				}
+				return;
 			}),
 		},
 	};
@@ -494,11 +495,13 @@ export async function createAppAuth(env: Env, input: CreateAppAuthInput = {}) {
 			authTurnstileSecretKey: config.authTurnstileSecretKey,
 			authShellOrigin: config.authShellOrigin,
 			betterAuthSecret: config.betterAuthSecret,
-			emailSender: input.emailSender,
+			...(input.emailSender ? { emailSender: input.emailSender } : {}),
 			emailAccessService,
 			environment: config.environment,
 			readAuthEmailConfig: () => readAppAuthEmailConfig(env),
-			backgroundTaskHandler: executionContext?.waitUntil.bind(executionContext),
+			...(executionContext
+				? { backgroundTaskHandler: executionContext.waitUntil.bind(executionContext) }
+				: {}),
 			clearTemporaryPasswordState: async (userId) => {
 				await database
 					.update(user)

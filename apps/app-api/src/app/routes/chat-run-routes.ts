@@ -333,8 +333,9 @@ export function registerChatRunRoutes(input: {
 
 		const routeErrorCorrelation = createRouteErrorCorrelation();
 		try {
+			const afterSequence = readAfterSequenceQuery(c.req.query("after_sequence"));
 			const response = await scope.resolveRuntimeRunService().listEvents({
-				afterSequence: readAfterSequenceQuery(c.req.query("after_sequence")),
+				...(afterSequence === undefined ? {} : { afterSequence }),
 				principal: resolved.principal,
 				runId: c.req.param("runId"),
 				signal: c.req.raw.signal,
@@ -369,8 +370,9 @@ export function registerChatRunRoutes(input: {
 				runId: c.req.param("runId"),
 			});
 			const abortController = new AbortController();
+			const afterSequence = readAfterSequenceQuery(c.req.query("after_sequence"));
 			const events = runtimeRunService.subscribeEvents({
-				afterSequence: readAfterSequenceQuery(c.req.query("after_sequence")),
+				...(afterSequence === undefined ? {} : { afterSequence }),
 				principal: resolved.principal,
 				runId: c.req.param("runId"),
 				signal: abortController.signal,

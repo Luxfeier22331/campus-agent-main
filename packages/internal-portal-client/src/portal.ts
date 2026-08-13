@@ -277,7 +277,7 @@ async function performPortalRequest(input: {
 	const url = new URL(input.requestPath, input.config.portalBaseUrl);
 	try {
 		return await input.cookieFetch(url, {
-			body: input.form ? new URLSearchParams(input.form).toString() : undefined,
+			...(input.form ? { body: new URLSearchParams(input.form).toString() } : {}),
 			headers: buildPortalApiHeaders(input.config),
 			maxRedirect: MAX_PORTAL_REDIRECTS,
 			method: input.method,
@@ -321,7 +321,7 @@ function createCookieFetch(input: {
 	return async (requestInput, requestInit = {}) =>
 		await fetchWithBoundedRedirects({
 			fetch: cookieFetch,
-			normalizeRedirectUrl: input.normalizeRedirectUrl,
+			...(input.normalizeRedirectUrl ? { normalizeRedirectUrl: input.normalizeRedirectUrl } : {}),
 			requestInit,
 			requestInput,
 		});
@@ -383,9 +383,10 @@ function redirectRequestInit(init: PortalRequestInit, status: number): PortalReq
 	const headers = new Headers(init.headers);
 	headers.delete("content-length");
 	headers.delete("content-type");
+	const nextInit = { ...init };
+	delete nextInit.body;
 	return {
-		...init,
-		body: undefined,
+		...nextInit,
 		headers,
 		method: "GET",
 	};
@@ -556,15 +557,16 @@ function forwardAbort(source: AbortSignal | undefined, target: AbortController):
 }
 
 function toApiResponse(response: Response): InternalPortalApiResponse {
+	const body = response.body;
 	return {
-		bodyStream: response.body
-			? () => response.body as unknown as AsyncIterable<Uint8Array>
-			: undefined,
-		cancelBody: response.body
-			? async (reason) => {
-					await response.body?.cancel(reason);
+		...(body
+			? {
+					bodyStream: () => body as unknown as AsyncIterable<Uint8Array>,
+					cancelBody: async (reason?: unknown) => {
+						await body.cancel(reason);
+					},
 				}
-			: undefined,
+			: {}),
 		headers: () => Object.fromEntries(response.headers.entries()),
 		ok: () => response.ok,
 		status: () => response.status,

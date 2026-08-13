@@ -52,7 +52,7 @@ function shouldSelect(row: CandidateSourceRow): boolean {
 function candidateEvidence(row: CandidateSourceRow) {
 	return {
 		cachedInputTokens: row.cachedInputTokens,
-		durationMs: row.durationMs ?? undefined,
+			...(row.durationMs === null ? {} : { durationMs: row.durationMs }),
 		errorCode: row.errorCode,
 		failClosed: row.failClosed,
 		inputTokens: row.inputTokens,
@@ -79,7 +79,7 @@ export function buildLearningLoopCandidates(rows: CandidateSourceRow[]): Learnin
 						...candidateEvidence(row),
 						budgetState: breach.severity,
 						budgetVersion: LATENCY_BUDGET_VERSION,
-						durationMs: breach.durationMs,
+							...(breach.durationMs === null ? {} : { durationMs: breach.durationMs }),
 						stageField: breach.field,
 					},
 					feedbackId: null,

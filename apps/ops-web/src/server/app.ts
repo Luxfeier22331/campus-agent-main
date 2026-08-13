@@ -256,8 +256,8 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	const campusGroupsClient =
 		options.campusGroupsClient ??
 		createCampusGroupsAdminClient({
-			OPS_WEB_APP_API_URL: env.OPS_WEB_APP_API_URL,
-			OPS_WEB_INTERNAL_TOKEN: env.OPS_WEB_INTERNAL_TOKEN,
+			...(env.OPS_WEB_APP_API_URL ? { OPS_WEB_APP_API_URL: env.OPS_WEB_APP_API_URL } : {}),
+			...(env.OPS_WEB_INTERNAL_TOKEN ? { OPS_WEB_INTERNAL_TOKEN: env.OPS_WEB_INTERNAL_TOKEN } : {}),
 		});
 	const accountAdminClient = options.accountAdminClient ?? createAccountAdminClient(env);
 	const emailAccessClient = options.emailAccessClient ?? createEmailAccessAdminClient(env);
@@ -300,7 +300,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		) {
 			return jsonError("OPS_API_ROUTE_NOT_FOUND", "未找到该运维接口。", 404);
 		}
-		await next();
+		return next();
 	});
 
 	app.onError((error) => {
@@ -953,7 +953,23 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		if (parsed.data.cursor && !decodeRequestCursor(parsed.data.cursor, parsed.data.view)) {
 			return jsonError("OPS_INVALID_QUERY", "运行记录翻页参数无效。", 400);
 		}
-		return context.json(OpsRequestListResponseSchema.parse(await store.listRequests(parsed.data)));
+		const query = parsed.data;
+		return context.json(
+			OpsRequestListResponseSchema.parse(
+				await store.listRequests({
+					...(query.conversationId ? { conversationId: query.conversationId } : {}),
+					...(query.cursor ? { cursor: query.cursor } : {}),
+					...(query.q ? { q: query.q } : {}),
+					...(query.requestId ? { requestId: query.requestId } : {}),
+					...(query.runId ? { runId: query.runId } : {}),
+					...(query.status ? { status: query.status } : {}),
+					...(query.traceId ? { traceId: query.traceId } : {}),
+					view: query.view,
+					window: query.window,
+					...(query.workflowId ? { workflowId: query.workflowId } : {}),
+				}),
+			),
+		);
 	});
 
 	app.get("/api/ops/requests/:requestId", async (context) => {
@@ -1056,7 +1072,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		if (isStaticAssetPath(context.req.path)) {
 			return context.notFound();
 		}
-		await next();
+		return next();
 	});
 	app.get("*", serveStatic({ path: "index.html", root: staticRoot }));
 	return app;
@@ -1374,11 +1390,10 @@ function registerDiningRoutes(input: {
 			return jsonError("OPS_DINING_MENU_INVALID", "菜品修改请求无效。", 400);
 		}
 		return context.json({
-			item: await input.diningContentStore.updateMenuItem(
-				toDiningActor(operator),
-				menuItemId,
-				body.data,
-			),
+			item: await input.diningContentStore.updateMenuItem(toDiningActor(operator), menuItemId, {
+				...(body.data.name ? { name: body.data.name } : {}),
+				...(body.data.priceText === undefined ? {} : { priceText: body.data.priceText }),
+			}),
 		});
 	});
 
@@ -1451,12 +1466,12 @@ function registerDiningRoutes(input: {
 		}
 		return context.json(
 			await input.diningContentStore.listReviews({
-				cursor: query.data.cursor,
+				...(query.data.cursor ? { cursor: query.data.cursor } : {}),
 				limit: query.data.limit,
-				menuItemId: query.data.menu_item_id,
-				q: query.data.q,
-				visibility: query.data.visibility,
-				windowId: query.data.window_id,
+				...(query.data.menu_item_id ? { menuItemId: query.data.menu_item_id } : {}),
+				...(query.data.q ? { q: query.data.q } : {}),
+				...(query.data.visibility ? { visibility: query.data.visibility } : {}),
+				...(query.data.window_id ? { windowId: query.data.window_id } : {}),
 			}),
 		);
 	});
@@ -1562,7 +1577,13 @@ function registerDiningRoutes(input: {
 		if (!query.success) {
 			return jsonError("OPS_DINING_QUERY_INVALID", "举报查询参数无效。", 400);
 		}
-		return context.json(await input.diningContentStore.listReports(query.data));
+		return context.json(
+			await input.diningContentStore.listReports({
+				...(query.data.cursor ? { cursor: query.data.cursor } : {}),
+				limit: query.data.limit,
+				status: query.data.status,
+			}),
+		);
 	});
 
 	input.app.post("/api/ops/dining/reviews/:reviewId/reports/resolve", async (context) => {

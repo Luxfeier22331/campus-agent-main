@@ -49,7 +49,9 @@ function buildPoolOptions(input: {
 	connectionString: string;
 	environment: Env["DEPLOYMENT_ENVIRONMENT"];
 }) {
-	const environment = resolveEnvironment({ DEPLOYMENT_ENVIRONMENT: input.environment });
+	const environment = resolveEnvironment(
+		input.environment ? { DEPLOYMENT_ENVIRONMENT: input.environment } : {},
+	);
 	const isDeployed = isDeployedEnvironment(environment);
 
 	return {

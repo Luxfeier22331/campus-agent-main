@@ -30,7 +30,7 @@ services:
       - execution-runtime
 
   temporal:
-    image: temporalio/auto-setup:1.29.6.1
+    image: temporalio/auto-setup:1.29.7
     restart: unless-stopped
     depends_on:
       temporal-postgres:
@@ -62,7 +62,7 @@ services:
       - execution-runtime
 
   temporal-namespace-setup:
-    image: temporalio/admin-tools:1.29.6.1-tctl-1.18.4-cli-1.7.0
+    image: temporalio/admin-tools:1.29.7-tctl-1.18.4-cli-1.7.2
     restart: "no"
     depends_on:
       temporal:
@@ -86,7 +86,7 @@ services:
 
   temporal-ui:
     profiles: ["ui"]
-    image: temporalio/ui:2.43.3
+    image: temporalio/ui:2.53.2
     restart: unless-stopped
     depends_on:
       temporal:
@@ -140,7 +140,7 @@ services:
       - execution-runtime
 
   hindsight-api:
-    image: ${HINDSIGHT_API_IMAGE:-ghcr.io/vectorize-io/hindsight-api:0.8.4-slim}
+    image: ${HINDSIGHT_API_IMAGE:-ghcr.io/vectorize-io/hindsight-api:0.9.0-slim}
     command:
       - hindsight-api
     restart: unless-stopped
@@ -188,7 +188,7 @@ services:
       - execution-runtime
 
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.127.0
+    image: otel/opentelemetry-collector-contrib:0.158.0
     restart: unless-stopped
     command:
       - --config=/etc/otelcol-contrib/config.yaml

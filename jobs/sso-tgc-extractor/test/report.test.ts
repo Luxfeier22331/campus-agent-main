@@ -65,7 +65,11 @@ describe("syncViaAutomationApi", () => {
 			extractedAt: cookieData.extractedAt,
 			reused: false,
 		});
-		const [, rotateCall] = fetchMock.mock.calls;
+		const rotateCall = fetchMock.mock.calls[1];
+		expect(rotateCall).toBeDefined();
+		if (!rotateCall) {
+			throw new Error("rotation request was not recorded");
+		}
 		expect(rotateCall[0]).toBe("https://ops.example.test/api/automation/internal-portal/credentials/target");
 		expect(rotateCall[1]).toMatchObject({
 			method: "PUT",
@@ -100,7 +104,11 @@ describe("syncViaAutomationApi", () => {
 			extractedAt: cookieData.extractedAt,
 			reused: false,
 		});
-		const [, createCall] = fetchMock.mock.calls;
+		const createCall = fetchMock.mock.calls[1];
+		expect(createCall).toBeDefined();
+		if (!createCall) {
+			throw new Error("creation request was not recorded");
+		}
 		expect(createCall[0]).toBe(
 			"https://ops.example.test/api/automation/internal-portal/credentials",
 		);

@@ -11,6 +11,8 @@ export function normalizeChatResponseStructuredParts(input: {
 }): ChatMessageStructuredPart[] {
 	return normalizeSourceItemsPart({
 		...input,
-		allowedPublicNoticeHosts: input.allowedPublicNoticeHosts,
+		...(input.allowedPublicNoticeHosts
+			? { allowedPublicNoticeHosts: input.allowedPublicNoticeHosts }
+			: {}),
 	});
 }

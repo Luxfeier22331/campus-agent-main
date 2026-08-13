@@ -1123,8 +1123,9 @@ function sectionIdForTarget(catalog: CampusGroupsCatalog, targetId: string): str
 function findGroup(catalog: CampusGroupsCatalog, groupId: string) {
 	for (const section of catalog.sections) {
 		const groupIndex = section.groups.findIndex((group) => group.id === groupId);
-		if (groupIndex >= 0) {
-			return { group: section.groups[groupIndex], groupIndex, section };
+		const group = section.groups[groupIndex];
+		if (groupIndex >= 0 && group) {
+			return { group, groupIndex, section };
 		}
 	}
 	return null;

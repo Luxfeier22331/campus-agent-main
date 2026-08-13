@@ -55,13 +55,13 @@ function DocsApplication() {
 }
 
 class DocsErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
-	state = { failed: false };
+	override state = { failed: false };
 
 	static getDerivedStateFromError(): { failed: true } {
 		return { failed: true };
 	}
 
-	render() {
+	override render() {
 		return this.state.failed ? <DocsApplicationFailure /> : this.props.children;
 	}
 }

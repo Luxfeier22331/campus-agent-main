@@ -212,7 +212,7 @@ function buildCampusAuthorizationContext(input: {
 		entitlementSnapshotId: input.entitlementSnapshotId,
 		entitlementGroups,
 		visibilityScope: input.visibilityScope,
-		applicabilityScope: input.applicabilityScope,
+		...(input.applicabilityScope ? { applicabilityScope: input.applicabilityScope } : {}),
 		ownershipScopes: input.ownershipScopes ?? [],
 		approvalState: "",
 		retrievalFilter: {
@@ -233,10 +233,14 @@ export function mapSessionToCampusMemberPrincipal(
 		session?.user?.passwordChangeRequired !== true &&
 		(admissionAllowed ??
 			evaluateCampusAccess({
-				banned: session?.user?.banned,
-				email: session?.user?.email,
-				emailVerified: session?.user?.emailVerified,
-				passwordChangeRequired: session?.user?.passwordChangeRequired,
+				...(session?.user?.banned === undefined ? {} : { banned: session.user.banned }),
+				...(session?.user?.email === undefined ? {} : { email: session.user.email }),
+				...(session?.user?.emailVerified === undefined
+					? {}
+					: { emailVerified: session.user.emailVerified }),
+				...(session?.user?.passwordChangeRequired === undefined
+					? {}
+					: { passwordChangeRequired: session.user.passwordChangeRequired }),
 			}).allowed);
 	if (!allowed) {
 		return null;
@@ -326,11 +330,13 @@ export function mapSessionToAppPrincipal(
 		actor,
 		authorization: buildCampusAuthorizationContext({
 			actor,
-			applicabilityScope,
+			...(applicabilityScope ? { applicabilityScope } : {}),
 			entitlementGroups,
 			entitlementSnapshotId,
 			ownershipScopes,
-			visibilityLevel: campusIdentity.visibilityLevel,
+			...(campusIdentity.visibilityLevel
+				? { visibilityLevel: campusIdentity.visibilityLevel }
+				: {}),
 			visibilityScope,
 		}),
 	};

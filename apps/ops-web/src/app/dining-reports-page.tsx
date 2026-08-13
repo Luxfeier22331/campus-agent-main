@@ -19,7 +19,8 @@ export function DiningReportsPage() {
 	const [previousCursors, setPreviousCursors] = useState<Array<string | undefined>>([]);
 	const reports = useQuery({
 		placeholderData: keepPreviousData,
-		queryFn: ({ signal }) => fetchDiningReports({ cursor, limit: 50, status }, { signal }),
+		queryFn: ({ signal }) =>
+			fetchDiningReports({ ...(cursor ? { cursor } : {}), limit: 50, status }, { signal }),
 		queryKey: ["dining", "reports", cursor, status],
 	});
 	const resolve = useMutation({

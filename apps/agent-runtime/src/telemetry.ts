@@ -42,10 +42,12 @@ export function startAgentRuntimeTelemetry(
 
 	const exporter = new OTLPTraceExporter();
 	const langfuseProcessor = new LangfuseSpanProcessor({
-		environment: env.DEPLOYMENT_ENVIRONMENT,
+		...(env.DEPLOYMENT_ENVIRONMENT === undefined
+			? {}
+			: { environment: env.DEPLOYMENT_ENVIRONMENT }),
 		exporter,
 		mediaUploadEnabled: false,
-		release: env.DEPLOYMENT_RELEASE,
+		...(env.DEPLOYMENT_RELEASE === undefined ? {} : { release: env.DEPLOYMENT_RELEASE }),
 		shouldExportSpan: ({ otelSpan }) => isAgentLangfuseSpan(otelSpan),
 	});
 	const processor = createSafeSpanProcessor(langfuseProcessor);

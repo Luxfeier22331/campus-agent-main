@@ -199,31 +199,34 @@ describe("runtime run service", () => {
 		["rejected", "completed", "completed"],
 		["error", "failed", "failed"],
 		["cancelled", "canceled", "canceled"],
-	] as const)("maps the product terminal status %s without consulting execution-control", async (productStatus, expectedStatus, expectedPhase) => {
-		const getRun = vi.fn();
-		const service = buildRuntimeRunService({
-			executionRuntime: {
-				cancelRun: vi.fn(),
-				createRun: vi.fn(),
-				getRun,
-				listRunEvents: vi.fn(),
-				listRunSteps: vi.fn(),
-			},
-			store: runtimeStore({
-				getOwnedRun: vi.fn().mockResolvedValue(ownedRun({ status: productStatus })),
-			}),
-		});
+	] as const)(
+		"maps the product terminal status %s without consulting execution-control",
+		async (productStatus, expectedStatus, expectedPhase) => {
+			const getRun = vi.fn();
+			const service = buildRuntimeRunService({
+				executionRuntime: {
+					cancelRun: vi.fn(),
+					createRun: vi.fn(),
+					getRun,
+					listRunEvents: vi.fn(),
+					listRunSteps: vi.fn(),
+				},
+				store: runtimeStore({
+					getOwnedRun: vi.fn().mockResolvedValue(ownedRun({ status: productStatus })),
+				}),
+			});
 
-		await expect(
-			service.getStatus({
-				principal: createPrincipal(),
-				runId: "run_01HQ",
-			}),
-		).resolves.toMatchObject({
-			run: { phase: expectedPhase, status: expectedStatus },
-		});
-		expect(getRun).not.toHaveBeenCalled();
-	});
+			await expect(
+				service.getStatus({
+					principal: createPrincipal(),
+					runId: "run_01HQ",
+				}),
+			).resolves.toMatchObject({
+				run: { phase: expectedPhase, status: expectedStatus },
+			});
+			expect(getRun).not.toHaveBeenCalled();
+		},
+	);
 
 	it("rejects cancellation after the product run is already terminal", async () => {
 		const cancelRun = vi.fn();

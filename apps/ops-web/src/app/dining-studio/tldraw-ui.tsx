@@ -497,7 +497,7 @@ function diningTool(
 	return {
 		icon: icon as TLUiToolItem["icon"],
 		id,
-		kbd,
+		...(kbd ? { kbd } : {}),
 		label,
 		onSelect: () => editor.setCurrentTool(id),
 	};

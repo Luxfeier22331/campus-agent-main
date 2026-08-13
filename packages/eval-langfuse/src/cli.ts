@@ -33,6 +33,7 @@ export async function main(argv: string[]): Promise<number> {
 async function handleCommand(command: string, args: ParsedArgs): Promise<JsonObject> {
 	if (command === "agent-eval") {
 		const projectionPath = stringArg(args, "provider-config-projection");
+		const limit = numberArg(args, "limit");
 		return runAgentToolEval({
 			appApiBaseUrl: stringArg(args, "app-api-base-url"),
 			cookieHeader: stringArg(args, "cookie-header"),
@@ -40,7 +41,7 @@ async function handleCommand(command: string, args: ParsedArgs): Promise<JsonObj
 			datasetVersion: optionalArg(args, "dataset-version"),
 			dryRun: Boolean(args["dry-run"]),
 			environment: stringArg(args, "environment"),
-			limit: numberArg(args, "limit") ?? undefined,
+			...(limit === null ? {} : { limit }),
 			runPythonRagasAgentScoreBatch: (input) =>
 				runPythonRagasAgentScoreBatch(input, projectionPath),
 			runPythonRagasScoreBatch: (input) => runPythonRagasScoreBatch(input, projectionPath),
@@ -50,24 +51,27 @@ async function handleCommand(command: string, args: ParsedArgs): Promise<JsonObj
 	}
 	if (command === "ragas-score-traces") {
 		const projectionPath = stringArg(args, "provider-config-projection");
+		const limit = numberArg(args, "limit");
+		const traceName = optionalArg(args, "trace-name");
 		return runRagasTraceScoring({
 			environment: stringArg(args, "environment"),
-			limit: numberArg(args, "limit") ?? undefined,
+			...(limit === null ? {} : { limit }),
 			release: optionalArg(args, "release"),
 			runPythonRagasScoreBatch: (input) => runPythonRagasScoreBatch(input, projectionPath),
 			settings: settingsFromArgs(args),
 			tag: arrayArg(args, "tag"),
-			traceName: optionalArg(args, "trace-name") ?? undefined,
+			...(traceName ? { traceName } : {}),
 			validateOnly: Boolean(args["validate-only"]),
 		});
 	}
 	if (command === "ragas-score-dataset") {
 		const projectionPath = stringArg(args, "provider-config-projection");
+		const limit = numberArg(args, "limit");
 		return runRagasDatasetScoring({
 			datasetName: stringArg(args, "dataset"),
 			datasetVersion: optionalArg(args, "dataset-version"),
 			environment: stringArg(args, "environment"),
-			limit: numberArg(args, "limit") ?? undefined,
+			...(limit === null ? {} : { limit }),
 			runPythonRagasScoreBatch: (input) => runPythonRagasScoreBatch(input, projectionPath),
 			settings: settingsFromArgs(args),
 			validateOnly: Boolean(args["validate-only"]),

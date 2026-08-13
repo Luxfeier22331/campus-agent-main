@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { Client } from "pg";
@@ -33,12 +33,20 @@ function roleConnectionString(connectionString: string, role: string, password: 
 	return url.toString();
 }
 
+function randomHex(length: number): string {
+	let value = "";
+	while (value.length < length) {
+		value += randomUUID().replaceAll("-", "");
+	}
+	return value.slice(0, length);
+}
+
 async function provisionDatabase(
 	container: StartedPostgreSqlContainer,
 ): Promise<AppApiPostgresContext> {
 	const adminConnectionString = container.getConnectionUri();
-	const schemaOwnerPassword = randomBytes(24).toString("hex");
-	const runtimePassword = randomBytes(24).toString("hex");
+	const schemaOwnerPassword = randomHex(48);
+	const runtimePassword = randomHex(48);
 	const admin = new Client({ connectionString: adminConnectionString });
 	await admin.connect();
 	try {

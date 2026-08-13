@@ -16,12 +16,12 @@
 	},
 	"dependencies": {
 		"@campus-agent/langfuse-identity": "workspace:*",
-		"@langfuse/client": "^5.9.1"
+		"@langfuse/client": "^5.10.0"
 	},
 	"devDependencies": {
-		"@types/node": "^24.13.2",
-		"tsx": "^4.23.0",
-		"typescript": "^5.8.2",
+		"@types/node": "^24.13.3",
+		"tsx": "^4.23.12",
+		"typescript": "^7.0.2",
 		"vitest": "^4.1.10"
 	},
 	"license": "Apache-2.0"

@@ -241,10 +241,12 @@ export function InternalPortalPage() {
 }
 
 interface AutomationTokenQueryResult {
-	data?: {
-		endpoint: string;
-		tokens: InternalPortalAutomationTokenMetadata[];
-	};
+	data?:
+		| {
+				endpoint: string;
+				tokens: InternalPortalAutomationTokenMetadata[];
+		  }
+		| undefined;
 	error: unknown;
 	isError: boolean;
 	isFetching: boolean;

@@ -28,7 +28,7 @@ export function ThreadHistorySearchPanel({
 	open,
 }: {
 	inputRef: RefObject<HTMLInputElement | null>;
-	onConversationSelect?: () => void;
+	onConversationSelect?: (() => void) | undefined;
 	onHandoff: () => void;
 	onLoginRequired: () => void;
 	onOpenChange: (open: boolean) => void;

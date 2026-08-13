@@ -51,17 +51,22 @@ export function parseToolTrajectory(value: unknown): ToolTrajectory {
 	if (decisionKind === "tool_assisted" && toolCalls.length === 0) {
 		throw new Error("tool_assisted trajectory must contain at least one tool call");
 	}
+	const conversationId = optionalString(input.conversation_id);
+	const environment = optionalString(input.environment);
+	const failCloseReason = optionalString(input.fail_close_reason);
+	const release = optionalString(input.release);
+	const surface = optionalString(input.surface);
 	return {
 		available_tools: parseToolNames(input.available_tools, "tool_trajectory.available_tools"),
-		conversation_id: optionalString(input.conversation_id) ?? undefined,
+		...(conversationId ? { conversation_id: conversationId } : {}),
 		decision_kind: decisionKind,
-		environment: optionalString(input.environment) ?? undefined,
-		fail_close_reason: optionalString(input.fail_close_reason) ?? undefined,
-		release: optionalString(input.release) ?? undefined,
+		...(environment ? { environment } : {}),
+		...(failCloseReason ? { fail_close_reason: failCloseReason } : {}),
+		...(release ? { release } : {}),
 		request_id: stringField(input.request_id, "tool_trajectory.request_id"),
 		run_id: stringField(input.run_id, "tool_trajectory.run_id"),
 		schema_version: "tool_trajectory.v3",
-		surface: optionalString(input.surface) ?? undefined,
+		...(surface ? { surface } : {}),
 		tool_calls: toolCalls,
 		trace_id: stringField(input.trace_id, "tool_trajectory.trace_id"),
 	};
@@ -104,14 +109,19 @@ function parseToolCalls(value: unknown): ToolTrajectoryCall[] {
 	}
 	return value.map((item, index) => {
 		const call = mapping(item, `tool_trajectory.tool_calls[${index}]`);
+		const argumentsHash = optionalString(call.arguments_hash);
+		const durationMs = optionalNonNegativeNumber(call.duration_ms);
+		const failCloseReason = optionalString(call.fail_close_reason);
+		const model = optionalString(call.model);
+		const provider = optionalString(call.provider);
 		return {
-			arguments_hash: optionalString(call.arguments_hash) ?? undefined,
-			arguments_shape: isRecord(call.arguments_shape) ? { ...call.arguments_shape } : undefined,
-			duration_ms: optionalNonNegativeNumber(call.duration_ms),
-			eval_safe_args: isRecord(call.eval_safe_args) ? { ...call.eval_safe_args } : undefined,
-			fail_close_reason: optionalString(call.fail_close_reason) ?? undefined,
-			model: optionalString(call.model) ?? undefined,
-			provider: optionalString(call.provider) ?? undefined,
+			...(argumentsHash ? { arguments_hash: argumentsHash } : {}),
+			...(isRecord(call.arguments_shape) ? { arguments_shape: { ...call.arguments_shape } } : {}),
+			...(durationMs === undefined ? {} : { duration_ms: durationMs }),
+			...(isRecord(call.eval_safe_args) ? { eval_safe_args: { ...call.eval_safe_args } } : {}),
+			...(failCloseReason ? { fail_close_reason: failCloseReason } : {}),
+			...(model ? { model } : {}),
+			...(provider ? { provider } : {}),
 			result_kind: stringField(
 				call.result_kind,
 				`tool_trajectory.tool_calls[${index}].result_kind`,

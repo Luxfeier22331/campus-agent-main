@@ -146,7 +146,10 @@ function mergeDirectory(source: string, destination: string): void {
 function sameFileContents(left: string, right: string): boolean {
 	const leftBytes = readFileSync(left);
 	const rightBytes = readFileSync(right);
-	return leftBytes.byteLength === rightBytes.byteLength && leftBytes.equals(rightBytes);
+	return (
+		leftBytes.byteLength === rightBytes.byteLength &&
+		leftBytes.every((value, index) => value === rightBytes[index])
+	);
 }
 
 function checkBundleBudgets(): void {

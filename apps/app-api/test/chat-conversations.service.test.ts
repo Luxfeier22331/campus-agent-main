@@ -35,7 +35,7 @@ function createPrincipal(input: Partial<ResolvedAppPrincipal> = {}): ResolvedApp
 			type: principalType,
 			...input.principal,
 		},
-		authorization: input.authorization,
+		...(input.authorization ? { authorization: input.authorization } : {}),
 		session:
 			input.session === undefined
 				? {

@@ -127,7 +127,7 @@ export function ReaderBlock({
 	rootUnitId,
 }: {
 	children: ReactNode;
-	rootUnitId?: string;
+	rootUnitId?: string | undefined;
 }) {
 	const { locationState } = useContext(ReaderContext);
 	const highlighted = Boolean(
@@ -153,7 +153,7 @@ export function ReaderHeading({
 	anchor: string;
 	children?: ReactNode;
 	level: 1 | 2 | 3 | 4 | 5 | 6;
-	rootUnitId?: string;
+	rootUnitId?: string | undefined;
 	title: string;
 }) {
 	const Heading = `h${level}` as keyof Pick<
@@ -184,7 +184,7 @@ export function ReaderPermalink({
 	title,
 }: {
 	anchor: string;
-	rootUnitId?: string | null;
+	rootUnitId?: string | null | undefined;
 	title: string;
 }) {
 	const [status, setStatus] = useState("");

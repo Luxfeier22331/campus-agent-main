@@ -15,18 +15,18 @@ const DEFAULT_CHAT_STREAM_ERROR_MESSAGE = "请求失败，请稍后重试。";
 
 export class ChatStreamRequestError extends Error {
 	code: string;
-	requestId?: string;
+	requestId: string | undefined;
 	retryable: boolean;
-	status?: number;
-	traceId?: string;
+	status: number | undefined;
+	traceId: string | undefined;
 
 	constructor(input: {
 		code: string;
 		message: string;
-		requestId?: string;
+		requestId?: string | undefined;
 		retryable: boolean;
 		status?: number;
-		traceId?: string;
+		traceId?: string | undefined;
 	}) {
 		super(input.message);
 		this.name = "ChatStreamRequestError";
@@ -79,7 +79,7 @@ export async function getConversationDetail(
 ): Promise<ConversationDetail> {
 	const payload = await requestJson<{ conversation: ConversationDetail }>({
 		path: `/api/chat/conversations/${encodeURIComponent(conversationId)}`,
-		signal,
+		...(signal ? { signal } : {}),
 	});
 	return normalizeConversationDetail(payload.conversation);
 }
@@ -270,7 +270,7 @@ export async function* submitChatRequestStream(input: {
 			"idempotency-key": input.idempotencyKey ?? createIdempotencyKey(),
 		},
 		method: "POST",
-		signal: input.signal,
+		...(input.signal ? { signal: input.signal } : {}),
 	});
 
 	if (response.status === 401) {
@@ -307,7 +307,7 @@ export async function* resumeRunEventsStream(input: {
 				accept: "text/event-stream",
 			},
 			method: "GET",
-			signal: input.signal,
+			...(input.signal ? { signal: input.signal } : {}),
 		},
 	);
 
@@ -540,10 +540,14 @@ async function createChatStreamRequestError(response: Response): Promise<ChatStr
 	return new ChatStreamRequestError({
 		code: readStringField(errorPayload, "code") ?? "chat_stream_request_failed",
 		message,
-		requestId: readStringField(errorPayload, "requestId"),
+		...(readStringField(errorPayload, "requestId")
+			? { requestId: readStringField(errorPayload, "requestId") }
+			: {}),
 		retryable: readBooleanField(errorPayload, "retryable") ?? response.status >= 500,
 		status: response.status,
-		traceId: readStringField(errorPayload, "traceId"),
+		...(readStringField(errorPayload, "traceId")
+			? { traceId: readStringField(errorPayload, "traceId") }
+			: {}),
 	});
 }
 

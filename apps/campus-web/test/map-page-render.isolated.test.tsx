@@ -737,9 +737,14 @@ describe("campus map page", () => {
 		expect(screen.queryByRole("button", { name: "选择示例东门" })).toBeNull();
 		expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
 		expect(screen.queryByRole("button", { name: "拖动关闭地点详情" })).toBeNull();
-		expect(screen.getAllByRole("button", { name: "关闭地点详情" })).toHaveLength(2);
+		const closeButtons = screen.getAllByRole("button", { name: "关闭地点详情" });
+		expect(closeButtons).toHaveLength(2);
+		const closeSheetButton = closeButtons[1];
+		if (!closeSheetButton) {
+			throw new Error("expected the sheet close button");
+		}
 
-		await user.click(screen.getAllByRole("button", { name: "关闭地点详情" })[1]);
+		await user.click(closeSheetButton);
 
 		expect(screen.queryByRole("dialog", { name: "示例二食堂" })).toBeNull();
 		expect(screen.getByRole("button", { name: "回到当前校区" })).toBeInTheDocument();

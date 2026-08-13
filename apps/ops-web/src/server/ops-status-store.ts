@@ -168,27 +168,28 @@ export function createOpsStatusStoreFromEnv(env: OpsStatusEnv = process.env): Op
 		);
 	}
 	const databaseConfig = resolvePostgresTlsConfig({
-		caCertPath: env.OPS_WEB_DATABASE_CA_CERT_PATH,
+		...(env.OPS_WEB_DATABASE_CA_CERT_PATH ? { caCertPath: env.OPS_WEB_DATABASE_CA_CERT_PATH } : {}),
 		databaseUrl,
-		deploymentEnvironment: env.DEPLOYMENT_ENVIRONMENT,
-		nodeEnvironment: env.NODE_ENV,
-		sslMode: env.OPS_WEB_DATABASE_SSLMODE,
+		...(env.DEPLOYMENT_ENVIRONMENT ? { deploymentEnvironment: env.DEPLOYMENT_ENVIRONMENT } : {}),
+		...(env.NODE_ENV ? { nodeEnvironment: env.NODE_ENV } : {}),
+		...(env.OPS_WEB_DATABASE_SSLMODE ? { sslMode: env.OPS_WEB_DATABASE_SSLMODE } : {}),
+	});
+	const campusWebPublicOrigin = resolveCampusWebPublicOrigin(env.OPS_WEB_CAMPUS_WEB_URL);
+	const sentry = sentryTraceExplorerUrl({
+		...(env.OPS_WEB_SENTRY_BASE_URL ? { baseUrl: env.OPS_WEB_SENTRY_BASE_URL } : {}),
+		...(env.SENTRY_ORG_SLUG ? { orgSlug: env.SENTRY_ORG_SLUG } : {}),
 	});
 	return createPgOpsStatusStore({
 		db: createPgOpsStatusStoreDatabase(databaseConfig.connectionString, {
 			ssl: databaseConfig.ssl,
 		}),
 		observabilityLinks: {
-			axiom: env.OPS_WEB_AXIOM_URL,
-			langfuse: env.OPS_WEB_LANGFUSE_URL,
-			sentry:
-				sentryTraceExplorerUrl({
-					baseUrl: env.OPS_WEB_SENTRY_BASE_URL,
-					orgSlug: env.SENTRY_ORG_SLUG,
-				}) ?? undefined,
-			temporal: env.OPS_WEB_TEMPORAL_UI_URL,
+			...(env.OPS_WEB_AXIOM_URL ? { axiom: env.OPS_WEB_AXIOM_URL } : {}),
+			...(env.OPS_WEB_LANGFUSE_URL ? { langfuse: env.OPS_WEB_LANGFUSE_URL } : {}),
+			...(sentry ? { sentry } : {}),
+			...(env.OPS_WEB_TEMPORAL_UI_URL ? { temporal: env.OPS_WEB_TEMPORAL_UI_URL } : {}),
 		},
-		campusWebPublicOrigin: resolveCampusWebPublicOrigin(env.OPS_WEB_CAMPUS_WEB_URL),
+		...(campusWebPublicOrigin ? { campusWebPublicOrigin } : {}),
 	});
 }
 

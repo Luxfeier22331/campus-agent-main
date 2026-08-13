@@ -61,23 +61,20 @@ describe("readPostgresConnectionConfig", () => {
 		).toThrow("DATABASE_SSLMODE must be verify-full or disable");
 	});
 
-	it.each([
-		"ssl",
-		"sslcert",
-		"sslkey",
-		"sslmode",
-		"sslrootcert",
-	])("rejects the %s URL parameter", (parameter) => {
-		expect(() =>
-			readPostgresConnectionConfig(
-				{
-					DATABASE_CA_CERT_PATH: certificatePath,
-					DATABASE_URL: `postgresql://db/campus?${parameter}=value`,
-				},
-				KEYS,
-			),
-		).toThrow(`must not contain PostgreSQL TLS parameter ${parameter}`);
-	});
+	it.each(["ssl", "sslcert", "sslkey", "sslmode", "sslrootcert"])(
+		"rejects the %s URL parameter",
+		(parameter) => {
+			expect(() =>
+				readPostgresConnectionConfig(
+					{
+						DATABASE_CA_CERT_PATH: certificatePath,
+						DATABASE_URL: `postgresql://db/campus?${parameter}=value`,
+					},
+					KEYS,
+				),
+			).toThrow(`must not contain PostgreSQL TLS parameter ${parameter}`);
+		},
+	);
 
 	it.each(["local", "development"])("allows disable in %s", (deploymentEnvironment) => {
 		expect(

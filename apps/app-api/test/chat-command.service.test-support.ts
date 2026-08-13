@@ -419,7 +419,7 @@ export function createCommandStore(options?: {
 					idempotencyKey: accepted.turnDispatch.idempotencyKey,
 					principal: {
 						actor: snapshot.actor,
-						authorization: snapshot.authorization ?? undefined,
+						...(snapshot.authorization ? { authorization: snapshot.authorization } : {}),
 						permissions: { chat: true },
 						principal: { ...snapshot.principal, email: null },
 						session: null,
@@ -645,7 +645,7 @@ function toolExecutionInputFromRunCreate(
 		safetyIdentifier: getString(payload.safety_identifier),
 		surface: input.surface,
 		tenantId: getString(payload.tenant_id),
-		traceHeaders: input.traceHeaders,
+		...(input.traceHeaders ? { traceHeaders: input.traceHeaders } : {}),
 		traceId: getTraceId(payload) ?? input.traceId ?? "",
 		userGoal: getString(payload.user_goal) ?? "",
 	};
@@ -716,13 +716,16 @@ function internalContextFromWire(wire: Record<string, unknown>): ToolExecutionIn
 function internalActorFromWire(
 	wire: Record<string, unknown>,
 ): ToolExecutionInput["context"]["actor"] {
+	const cohort = getString(wire.cohort);
+	const major = getString(wire.major);
+	const program = getString(wire.program);
 	return {
-		cohort: getString(wire.cohort) ?? undefined,
+		...(cohort ? { cohort } : {}),
 		departments: getStringArray(wire.departments),
-		major: getString(wire.major) ?? undefined,
+		...(major ? { major } : {}),
 		principalId: getString(wire.principal_id) ?? "",
 		principalType: appPrincipalType(wire.principal_type),
-		program: getString(wire.program) ?? undefined,
+		...(program ? { program } : {}),
 		roles: getStringArray(wire.roles),
 		userId: getString(wire.user_id) ?? "",
 	};

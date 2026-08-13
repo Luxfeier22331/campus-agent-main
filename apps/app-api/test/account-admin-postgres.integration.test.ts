@@ -95,7 +95,7 @@ describe("account administration PostgreSQL integration", () => {
 		expect(first.items.map((item) => item.id)).toEqual([`page-${suffix}-c`, `page-${suffix}-b`]);
 		expect(first.nextCursor).not.toBeNull();
 		const second = await store.listUsers({
-			cursor: first.nextCursor ?? undefined,
+			...(first.nextCursor ? { cursor: first.nextCursor } : {}),
 			limit: 2,
 			query: `page-${suffix}`,
 		});

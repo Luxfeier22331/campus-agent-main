@@ -79,7 +79,11 @@ describe("chat memory staging e2e runner", () => {
 						NonNullable<ChatMemoryE2eStagingDependencies["fetchJsonWithCookie"]>
 					>[0],
 				) {
-					calls.push({ body: input.body, method: input.method, url: input.url });
+					calls.push({
+						...(input.body === undefined ? {} : { body: input.body }),
+						...(input.method ? { method: input.method } : {}),
+						url: input.url,
+					});
 					if (input.url.endsWith("/api/me")) {
 						return jsonResult({
 							permissions: {

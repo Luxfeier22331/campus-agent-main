@@ -144,14 +144,20 @@ export class DiningPathShapeUtil extends ShapeUtil<DiningPathShape> {
 
 	override getHandles(shape: DiningPathShape): TLHandle[] {
 		const indices = getIndices(shape.props.points.length);
-		return shape.props.points.map((point, index) => ({
-			id: String(index),
-			index: indices[index],
-			snapType: "point",
-			type: "vertex",
-			x: point.x,
-			y: point.y,
-		}));
+		return shape.props.points.map((point, index) => {
+			const shapeIndex = indices[index];
+			if (!shapeIndex) {
+				throw new Error("tldraw did not generate an index for every dining path point.");
+			}
+			return {
+				id: String(index),
+				index: shapeIndex,
+				snapType: "point",
+				type: "vertex",
+				x: point.x,
+				y: point.y,
+			};
+		});
 	}
 
 	override onHandleDrag(

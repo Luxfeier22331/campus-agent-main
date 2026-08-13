@@ -6,15 +6,17 @@ import { cn } from "./cn";
 import { type ThemeMode, useTheme } from "./theme-provider";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./tooltip";
 
-const options: ReadonlyArray<{
+interface ThemeModeOption {
 	icon: typeof Sun;
 	label: string;
 	value: ThemeMode;
-}> = [
+}
+
+const options = [
 	{ icon: Monitor, label: "跟随系统", value: "system" },
 	{ icon: Sun, label: "浅色", value: "light" },
 	{ icon: Moon, label: "深色", value: "dark" },
-];
+] satisfies readonly [ThemeModeOption, ...ThemeModeOption[]];
 
 export interface ThemeModeMenuProps {
 	className?: string;

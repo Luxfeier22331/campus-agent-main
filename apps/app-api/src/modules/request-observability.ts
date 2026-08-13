@@ -232,11 +232,17 @@ export function buildFinalizedRequestObservabilityFact(input: {
 		updatedAt: input.completedAt,
 		workflowTraceSummary: input.response.workflowTraceSummary ?? null,
 		stageTiming: mergeStageTiming({
-			appApiStageTiming: input.stageTiming,
-			executionStageTiming: input.response.stageTiming,
-			projectionCloseoutMs: input.projectionCloseoutMs,
+			...(input.stageTiming === undefined ? {} : { appApiStageTiming: input.stageTiming }),
+			...(input.response.stageTiming === undefined
+				? {}
+				: { executionStageTiming: input.response.stageTiming }),
+			...(input.projectionCloseoutMs === undefined
+				? {}
+				: { projectionCloseoutMs: input.projectionCloseoutMs }),
 			requestTotalMs: input.durationMs,
-			streamAppApiTtftMs: input.streamAppApiTtftMs,
+			...(input.streamAppApiTtftMs === undefined
+				? {}
+				: { streamAppApiTtftMs: input.streamAppApiTtftMs }),
 		}),
 	};
 }

@@ -643,7 +643,7 @@ export function buildRuntimeRunService(input: {
 			requestId: run.requestId,
 			runId: run.runId,
 			status: run.status,
-			terminalReason: run.terminalReason || undefined,
+			...(run.terminalReason ? { terminalReason: run.terminalReason } : {}),
 			traceId: run.traceId,
 		};
 	}
@@ -695,7 +695,7 @@ export function buildRuntimeRunService(input: {
 			runId: run.runId,
 			status,
 			...(override.terminalReason || run.cancelReason
-				? { terminalReason: override.terminalReason ?? run.cancelReason ?? undefined }
+				? { terminalReason: override.terminalReason ?? run.cancelReason ?? "" }
 				: {}),
 			traceId: run.traceId,
 		};
@@ -804,16 +804,18 @@ export function buildRuntimeRunService(input: {
 		const owned = await requireOwnedRun(eventsInput.principal, eventsInput.runId);
 		const run = await input.executionRuntime.getRun({
 			runId: owned.runId,
-			signal: eventsInput.signal,
+			...(eventsInput.signal ? { signal: eventsInput.signal } : {}),
 			traceId: owned.traceId,
 		});
 		assertRunMatchesOwnership(owned, run);
 		const page = await input.executionRuntime.listRunEvents({
-			afterSequence: eventsInput.afterSequence,
+			...(eventsInput.afterSequence === undefined
+				? {}
+				: { afterSequence: eventsInput.afterSequence }),
 			runId: owned.runId,
-			signal: eventsInput.signal,
+			...(eventsInput.signal ? { signal: eventsInput.signal } : {}),
 			traceId: owned.traceId,
-			waitMs: eventsInput.waitMs,
+			...(eventsInput.waitMs === undefined ? {} : { waitMs: eventsInput.waitMs }),
 		});
 		let lastSequence = eventsInput.afterSequence ?? 0;
 		const browserEvents: RuntimeRunEventProjection[] = [];
@@ -952,7 +954,7 @@ export function buildRuntimeRunService(input: {
 					afterSequence: lastSequence,
 					principal: eventsInput.principal,
 					runId: eventsInput.runId,
-					signal: eventsInput.signal,
+					...(eventsInput.signal ? { signal: eventsInput.signal } : {}),
 					waitMs: polling.waitMs,
 				});
 				for (const event of result.events) {

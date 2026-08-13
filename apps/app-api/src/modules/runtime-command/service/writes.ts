@@ -360,7 +360,9 @@ export function buildFinalizedWrite(input: {
 		traceId: normalizedTraceId,
 	} satisfies ToolExecutionResponse;
 	const structuredParts = normalizeChatResponseStructuredParts({
-		allowedPublicNoticeHosts: input.allowedPublicNoticeHosts,
+		...(input.allowedPublicNoticeHosts
+			? { allowedPublicNoticeHosts: input.allowedPublicNoticeHosts }
+			: {}),
 		result: input.response.result,
 		status: input.response.status,
 	});
@@ -399,7 +401,7 @@ export function buildFinalizedWrite(input: {
 	) {
 		assistantKind = "error";
 		const publicFailure = publicExecutionFailure({
-			errorCode: input.response.error?.code,
+			...(input.response.error?.code ? { errorCode: input.response.error.code } : {}),
 			status: input.response.status,
 		});
 		assistantText = publicFailure.message;
@@ -479,15 +481,19 @@ export function buildFinalizedWrite(input: {
 			durationMs: input.durationMs,
 			errorCode,
 			principal: input.principal,
-			projectionCloseoutMs: input.projectionCloseoutMs,
+			...(input.projectionCloseoutMs === undefined
+				? {}
+				: { projectionCloseoutMs: input.projectionCloseoutMs }),
 			requestId: input.requestId,
 			response: normalizedExecutionResponse,
 			runId,
 			safetyIdentifier: input.safetyIdentifier,
 			startedAt: input.startedAt,
-			stageTiming: input.stageTiming,
+			...(input.stageTiming === undefined ? {} : { stageTiming: input.stageTiming }),
 			status,
-			streamAppApiTtftMs: input.streamAppApiTtftMs,
+			...(input.streamAppApiTtftMs === undefined
+				? {}
+				: { streamAppApiTtftMs: input.streamAppApiTtftMs }),
 			surface: input.surface,
 			traceId: normalizedTraceId,
 		}),

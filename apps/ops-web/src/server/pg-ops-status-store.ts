@@ -117,7 +117,7 @@ export function createPgOpsStatusStore(input: {
 							: null,
 				},
 				statusCounts: await input.db.summarizeRequests(
-					{ ...query, cursor: undefined, status: undefined },
+					(({ cursor: _cursor, status: _status, ...summaryQuery }) => summaryQuery)(query),
 					since,
 				),
 				view,
@@ -251,10 +251,8 @@ export function createPgOpsStatusStoreDatabase(
 		},
 		async summarizeRequests(query, since) {
 			return classifyDbError(async () => {
-				const filter = buildRequestFilter(
-					{ ...query, cursor: undefined, status: undefined },
-					since,
-				);
+				const { cursor: _cursor, status: _status, ...summaryQuery } = query;
+				const filter = buildRequestFilter(summaryQuery, since);
 				const result = await pool.query(
 					`${requestRowsCte()}
 					 select "status", count(*)::int as "count" from request_rows

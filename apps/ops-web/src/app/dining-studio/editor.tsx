@@ -586,6 +586,7 @@ function installDiningStoreGuards(
 				return false;
 			}
 		}
+		return;
 	});
 	editor.sideEffects.registerAfterCreateHandler("shape", (shape) => {
 		if (shape.type === "dining-window" && shape.meta.diningNeedsName === true) {

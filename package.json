@@ -1,35 +1,7 @@
 {
 	"name": "campus-agent-web-workspace",
 	"private": true,
-	"packageManager": "pnpm@10.34.5",
-	"pnpm": {
-		"overrides": {
-			"adm-zip": "0.6.0",
-			"body-parser@<2.3.0": "2.3.0",
-			"brace-expansion@>=5.0.0 <5.0.9": "5.0.9",
-			"esbuild@<0.25.0": "0.25.12",
-			"fast-uri@<3.1.5": "3.1.5",
-			"hono@<4.12.34": "4.12.34",
-			"ip-address@<10.3.1": "10.3.1",
-			"js-yaml@>=5.0.0 <5.2.2": "5.2.2",
-			"minimatch@>=5.0.0 <10.2.5": "10.2.5",
-			"postcss@<8.5.23": "8.5.23",
-			"protobufjs@<7.6.5": "7.6.5",
-			"undici@>=7.0.0 <7.29.0": "7.29.0"
-		},
-		"packageExtensions": {
-			"@hookform/resolvers@*": {
-				"peerDependencies": {
-					"zod": "^3.25 || ^4.0"
-				},
-				"peerDependenciesMeta": {
-					"zod": {
-						"optional": true
-					}
-				}
-			}
-		}
-	},
+	"packageManager": "pnpm@11.20.0",
 	"engines": {
 		"node": ">=24 <25"
 	},
@@ -49,14 +21,14 @@
 		"dev:destroy": "pnpm exec tsx scripts/dev/cli.ts destroy"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.5.3",
-		"@sentry/cli": "2.58.6",
-		"@types/react": "19.2.17",
-		"@types/react-dom": "19.2.3",
+		"@biomejs/biome": "2.5.8",
+		"@sentry/cli": "3.6.2",
+		"@types/react": "19.2.18",
+		"@types/react-dom": "19.2.4",
 		"editorconfig-checker": "^6.1.1",
-		"markdownlint-cli2": "^0.23.0",
-		"tsx": "^4.23.0",
-		"turbo": "2.10.8",
+		"markdownlint-cli2": "^0.23.2",
+		"tsx": "^4.23.12",
+		"turbo": "2.10.9",
 		"yaml": "2.9.0"
 	},
 	"license": "Apache-2.0",

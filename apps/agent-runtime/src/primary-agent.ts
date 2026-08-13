@@ -224,7 +224,7 @@ export interface AgentRunnerInput {
 export interface AgentRunnerResult {
 	finalOutput: string;
 	providerResponseId: string;
-	terminalEnvelope?: PrimaryAgentTerminalEnvelope;
+	terminalEnvelope?: PrimaryAgentTerminalEnvelope | undefined;
 	toolCalls: RunnerToolCall[];
 	usage: UsageSummary;
 }
@@ -396,9 +396,9 @@ function primaryAgentRunnerInput(
 					argumentsJson,
 					runId: input.runId,
 					traceId: input.traceId,
-					invocationId: context?.invocationId,
-					searchOrdinal: context?.searchOrdinal,
-					signal: input.signal,
+					...(context?.invocationId ? { invocationId: context.invocationId } : {}),
+					...(context?.searchOrdinal === undefined ? {} : { searchOrdinal: context.searchOrdinal }),
+					...(input.signal ? { signal: input.signal } : {}),
 				};
 				return executor(request).then((result) => ({
 					...result,
@@ -418,7 +418,7 @@ function primaryAgentRunnerInput(
 		runId: input.runId,
 		traceId: input.traceId,
 		providerConfig: input.providerConfig,
-		signal: input.signal,
+		...(input.signal ? { signal: input.signal } : {}),
 	};
 }
 

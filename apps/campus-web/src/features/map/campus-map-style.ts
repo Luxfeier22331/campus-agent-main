@@ -219,12 +219,12 @@ export function createCampusMapStyle(
 export function createCampusMapFeatureFilter(
 	featureRefs: CampusMapFeatureRef[],
 ): FilterSpecification {
-	if (featureRefs.length === 0) {
+	const featureRef = featureRefs[0];
+	if (!featureRef) {
 		return EMPTY_CAMPUS_MAP_FEATURE_FILTER;
 	}
 
 	if (featureRefs.length === 1) {
-		const [featureRef] = featureRefs;
 		return createSingleFeatureFilter(featureRef);
 	}
 

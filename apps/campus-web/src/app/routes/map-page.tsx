@@ -1,5 +1,5 @@
 import { Button, useTheme } from "@campus-agent/ui";
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DeferredProductAccountEntry } from "@/components/auth/user/deferred-product-account-entry";

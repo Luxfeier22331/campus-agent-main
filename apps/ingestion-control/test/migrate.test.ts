@@ -13,7 +13,7 @@ describe("ingestion-control migrations", () => {
 		const applied = await applyIngestionControlMigrations(
 			{
 				async query(sql, params) {
-					calls.push({ params, sql });
+					calls.push({ ...(params ? { params } : {}), sql });
 					return { rows: [] };
 				},
 			},

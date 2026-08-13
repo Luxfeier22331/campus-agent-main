@@ -87,6 +87,18 @@ describe("shared UI primitives", () => {
 		]);
 	});
 
+	it("omits optional aria attributes when the field does not use them", () => {
+		render(
+			<Field label="Base URL">
+				<Input />
+			</Field>,
+		);
+
+		const input = screen.getByRole("textbox", { name: "Base URL" });
+		expect(input).not.toHaveAttribute("aria-describedby");
+		expect(input).not.toHaveAttribute("aria-invalid");
+	});
+
 	it("styles AlertDialog headings and descriptions", () => {
 		render(
 			<AlertDialog open>

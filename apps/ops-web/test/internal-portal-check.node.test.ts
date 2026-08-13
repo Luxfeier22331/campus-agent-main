@@ -76,24 +76,27 @@ describe("internal portal scheduled check telemetry", () => {
 			"store_unavailable",
 		],
 		[new Error("unexpected secret TGT-secret"), "unexpected"],
-	] as const)("turns infrastructure failure into a redacted CLI event (%s)", async (error, failureKind) => {
-		const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
+	] as const)(
+		"turns infrastructure failure into a redacted CLI event (%s)",
+		async (error, failureKind) => {
+			const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
-		await runCli(async () => {
-			throw error;
-		});
+			await runCli(async () => {
+				throw error;
+			});
 
-		expect(process.exitCode).toBe(1);
-		expect(errorLog).toHaveBeenCalledOnce();
-		const serialized = String(errorLog.mock.calls[0]?.[0]);
-		expect(JSON.parse(serialized)).toMatchObject({
-			event_type: "internal_portal.check_run",
-			failure_kind: failureKind,
-			level: "error",
-			status: "failed",
-		});
-		expect(serialized).not.toContain("TGT-secret");
-	});
+			expect(process.exitCode).toBe(1);
+			expect(errorLog).toHaveBeenCalledOnce();
+			const serialized = String(errorLog.mock.calls[0]?.[0]);
+			expect(JSON.parse(serialized)).toMatchObject({
+				event_type: "internal_portal.check_run",
+				failure_kind: failureKind,
+				level: "error",
+				status: "failed",
+			});
+			expect(serialized).not.toContain("TGT-secret");
+		},
+	);
 
 	it("does not serialize credential material from failures", () => {
 		const credentialMaterial =

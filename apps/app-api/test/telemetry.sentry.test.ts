@@ -67,7 +67,7 @@ describe("app-api Sentry privacy boundary", () => {
 			"body-sentinel-0001",
 			"user-sentinel-0001",
 			"credential-sentinel-0001",
-		];
+		] as const;
 		const event = sanitizeAppApiSentryEvent({
 			exception: { values: [{ type: "ProviderError", value: rawSentinels[2] }] },
 			extra: { synthetic_sentinels: rawSentinels },

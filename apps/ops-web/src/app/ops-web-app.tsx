@@ -240,7 +240,7 @@ function createOpsRouter(initialPath?: string) {
 	return createRouter({
 		context: {},
 		defaultPreload: "intent",
-		history: initialPath ? createMemoryHistory({ initialEntries: [initialPath] }) : undefined,
+		...(initialPath ? { history: createMemoryHistory({ initialEntries: [initialPath] }) } : {}),
 		routeTree,
 	});
 }

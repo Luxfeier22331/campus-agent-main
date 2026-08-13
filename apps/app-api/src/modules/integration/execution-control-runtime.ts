@@ -219,8 +219,8 @@ export function createExecutionControlRuntimeClient(
 					},
 					expectedStatus: 202,
 					method: "POST",
-					traceHeaders: cancelInput.traceHeaders,
-					traceId: cancelInput.traceId,
+					...(cancelInput.traceHeaders ? { traceHeaders: cancelInput.traceHeaders } : {}),
+					...(cancelInput.traceId === undefined ? {} : { traceId: cancelInput.traceId }),
 				},
 			);
 			return parseDurableRun(parsed);
@@ -230,8 +230,8 @@ export function createExecutionControlRuntimeClient(
 				body: toDurableRunCreateBody(createInput),
 				expectedStatus: 202,
 				method: "POST",
-				traceHeaders: createInput.traceHeaders,
-				traceId: createInput.traceId,
+				...(createInput.traceHeaders ? { traceHeaders: createInput.traceHeaders } : {}),
+				...(createInput.traceId === undefined ? {} : { traceId: createInput.traceId }),
 			});
 			return parseDurableRun(parsed);
 		},
@@ -239,9 +239,9 @@ export function createExecutionControlRuntimeClient(
 			const parsed = await requestExecutionControl(`/internal/execution/runs/${query.runId}`, {
 				expectedStatus: 200,
 				method: "GET",
-				signal: query.signal,
-				traceHeaders: query.traceHeaders,
-				traceId: query.traceId,
+				...(query.signal ? { signal: query.signal } : {}),
+				...(query.traceHeaders ? { traceHeaders: query.traceHeaders } : {}),
+				...(query.traceId === undefined ? {} : { traceId: query.traceId }),
 			});
 			return parseDurableRun(parsed);
 		},
@@ -251,13 +251,12 @@ export function createExecutionControlRuntimeClient(
 			const parsed = await requestExecutionControl(durableRunEventsPath(query), {
 				expectedStatus: 200,
 				method: "GET",
-				signal: query.signal,
-				timeoutMs:
-					query.waitMs === undefined
-						? undefined
-						: Math.max(EXECUTION_CONTROL_TIMEOUT_MS, query.waitMs + 5_000),
-				traceHeaders: query.traceHeaders,
-				traceId: query.traceId,
+				...(query.signal ? { signal: query.signal } : {}),
+				...(query.waitMs === undefined
+					? {}
+					: { timeoutMs: Math.max(EXECUTION_CONTROL_TIMEOUT_MS, query.waitMs + 5_000) }),
+				...(query.traceHeaders ? { traceHeaders: query.traceHeaders } : {}),
+				...(query.traceId === undefined ? {} : { traceId: query.traceId }),
 			});
 			return parseDurableRunEvents(parsed);
 		},
@@ -269,8 +268,8 @@ export function createExecutionControlRuntimeClient(
 				{
 					expectedStatus: 200,
 					method: "GET",
-					traceHeaders: query.traceHeaders,
-					traceId: query.traceId,
+					...(query.traceHeaders ? { traceHeaders: query.traceHeaders } : {}),
+					...(query.traceId === undefined ? {} : { traceId: query.traceId }),
 				},
 			);
 			return parseRunStepTrajectory(parsed);
@@ -397,10 +396,10 @@ export function createExecutionControlRequester(
 					}, timeoutMs);
 
 					fetchImplementation(`${upstream.baseUrl}${path}`, {
-						body: options.body ? JSON.stringify(options.body) : undefined,
+						...(options.body ? { body: JSON.stringify(options.body) } : {}),
 						headers: createExecutionControlRequestHeaders({
 							payload: {
-								traceHeaders: options.traceHeaders,
+								...(options.traceHeaders ? { traceHeaders: options.traceHeaders } : {}),
 								traceId: options.traceId?.trim() || "",
 							},
 							sharedSecret,

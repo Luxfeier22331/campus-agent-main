@@ -106,7 +106,7 @@ function sanitizeReadableSpan(span: ReadableSpan): ReadableSpan {
 		kind: span.kind,
 		links: [],
 		name: boundedSpanName(span.name),
-		parentSpanContext: span.parentSpanContext,
+		...(span.parentSpanContext ? { parentSpanContext: span.parentSpanContext } : {}),
 		resource: sanitizeResource(span.resource),
 		spanContext: () => span.spanContext(),
 		startTime: span.startTime,

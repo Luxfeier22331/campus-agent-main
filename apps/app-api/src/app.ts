@@ -27,11 +27,13 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 	});
 
 	app.use("*", async (c, next) => {
+		const requestId = c.req.header("x-request-id");
+		const traceId = c.req.header("x-trace-id");
 		telemetry.configureHttpRequestScope({
-			requestId: c.req.header("x-request-id"),
+			...(requestId ? { requestId } : {}),
 			route: c.req.path,
 			surface: APP_API_HTTP_SURFACE,
-			traceId: c.req.header("x-trace-id"),
+			...(traceId ? { traceId } : {}),
 		});
 
 		await next();
@@ -62,12 +64,14 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 			surface: APP_API_HTTP_SURFACE,
 		});
 
+		const requestId = c.req.header("x-request-id");
+		const traceId = c.req.header("x-trace-id");
 		telemetry.captureException(error, {
-			requestId: c.req.header("x-request-id"),
+			...(requestId ? { requestId } : {}),
 			route: c.req.path,
 			status: 500,
 			surface: APP_API_HTTP_SURFACE,
-			traceId: c.req.header("x-trace-id"),
+			...(traceId ? { traceId } : {}),
 		});
 
 		return jsonResponse(

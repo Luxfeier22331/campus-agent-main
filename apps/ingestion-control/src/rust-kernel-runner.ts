@@ -92,7 +92,10 @@ function createRustKernelHandler(input: {
 	return async (snapshot, options) => {
 		const task = snapshot.task;
 		const source = parseS3Uri(task.input_ref);
-		const stdin = await input.objectStore.getObject({ ...source, abortSignal: options?.signal });
+		const stdin = await input.objectStore.getObject({
+			...source,
+			...(options?.signal ? { abortSignal: options.signal } : {}),
+		});
 		options?.signal?.throwIfAborted();
 		assertArtifactRefBytes({
 			bytes: stdin,
@@ -105,7 +108,7 @@ function createRustKernelHandler(input: {
 				chunkOptions: resolveTaskChunkOptions(input, snapshot.registry_task.target),
 				kernelId: input.kernelId,
 			}),
-			signal: options?.signal,
+			...(options?.signal ? { signal: options.signal } : {}),
 			stdin,
 		});
 		if (result.exitCode !== 0) {
@@ -131,7 +134,7 @@ function createRustKernelHandler(input: {
 			task,
 		});
 		const write = await input.objectStore.createOrVerifyObject({
-			abortSignal: options?.signal,
+			...(options?.signal ? { abortSignal: options.signal } : {}),
 			bucket: input.objectStore.derivedBucket,
 			key: artifactKey,
 			body: output.bytes,

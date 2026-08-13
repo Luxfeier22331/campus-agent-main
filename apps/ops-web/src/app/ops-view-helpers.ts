@@ -230,15 +230,15 @@ export function formatRequestWindowLabel(value: OpsRequestWindow) {
 }
 
 export interface RequestSearchLike {
-	conversationId?: string;
-	cursor?: string;
-	ignored?: string;
-	q?: string;
-	requestId?: string;
-	runId?: string;
-	status?: OpsRequestSummary["status"];
-	traceId?: string;
-	view?: OpsRequestListView;
-	window?: OpsRequestWindow;
-	workflowId?: string;
+	conversationId?: string | undefined;
+	cursor?: string | undefined;
+	ignored?: string | undefined;
+	q?: string | undefined;
+	requestId?: string | undefined;
+	runId?: string | undefined;
+	status?: OpsRequestSummary["status"] | undefined;
+	traceId?: string | undefined;
+	view?: OpsRequestListView | undefined;
+	window?: OpsRequestWindow | undefined;
+	workflowId?: string | undefined;
 }

@@ -50,7 +50,7 @@ export function buildAuthViewHref(
 ): string {
 	const redirectTo = resolveAccountAuthReturnTarget(
 		new URLSearchParams({ redirectTo: options.redirectTo ?? DEFAULT_RETURN_TARGET }),
-		{ currentOrigin: options.currentOrigin },
+		options.currentOrigin ? { currentOrigin: options.currentOrigin } : {},
 	);
 	const search = new URLSearchParams({ redirectTo });
 	return `${AUTH_VIEW_PATHS[view]}?${search.toString()}`;

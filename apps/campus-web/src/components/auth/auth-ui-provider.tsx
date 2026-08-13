@@ -9,7 +9,7 @@ export function CampusAuthUIProvider({ children }: { children: ReactNode }) {
 	const navigate = useNavigate();
 	const commonProps = createCampusSettingsProviderProps({
 		navigate: ({ replace, to }) => {
-			void navigate({ replace, to });
+			void navigate({ ...(replace === undefined ? {} : { replace }), to });
 		},
 	});
 

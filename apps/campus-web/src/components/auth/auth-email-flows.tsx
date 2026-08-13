@@ -83,7 +83,7 @@ export function ForgotPasswordForm({
 			const headers = await resolveCaptchaHeaders(captchaRef.current);
 			await campusAuthClient.requestPasswordReset({
 				email: normalizeAuthEmail(values.email),
-				fetchOptions: { headers, throw: true },
+				fetchOptions: { ...(headers ? { headers } : {}), throw: true },
 				redirectTo: buildPasswordResetRedirect(redirectTo),
 			});
 			onSent();
@@ -160,7 +160,7 @@ export function VerificationPending({
 	onSignIn,
 	redirectTo,
 }: {
-	initialDeliveryStatus?: "failed" | "sent";
+	initialDeliveryStatus?: "failed" | "sent" | undefined;
 	initialEmail?: string;
 	initialRetryAfterSeconds?: number;
 	onSignIn: () => void;
@@ -327,7 +327,7 @@ export function VerificationResult({
 	onResend,
 	onSignIn,
 }: {
-	errorCode?: string;
+	errorCode?: string | undefined;
 	onContinue: () => void;
 	onResend: () => void;
 	onSignIn: () => void;
@@ -443,10 +443,10 @@ export function ResetPasswordForm({
 	onRequestNewLink,
 	token,
 }: {
-	initialError?: string;
+	initialError?: string | undefined;
 	onComplete: () => void;
 	onRequestNewLink: () => void;
-	token?: string;
+	token?: string | undefined;
 }) {
 	const [tokenError, setTokenError] = useState(Boolean(initialError || !token));
 	const retryAfter = useAuthRetryAfter();

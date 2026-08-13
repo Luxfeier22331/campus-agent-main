@@ -187,6 +187,8 @@ export function readAppAuthEmailConfig(env: Env): AppAuthEmailConfig {
 	return {
 		resendApiKey: readRequiredTrimmedValue(env.RESEND_API_KEY, "RESEND_API_KEY"),
 		authEmailFrom: readRequiredTrimmedValue(env.AUTH_EMAIL_FROM, "AUTH_EMAIL_FROM"),
-		authEmailReplyTo: env.AUTH_EMAIL_REPLY_TO?.trim() || undefined,
+		...(env.AUTH_EMAIL_REPLY_TO?.trim()
+			? { authEmailReplyTo: env.AUTH_EMAIL_REPLY_TO.trim() }
+			: {}),
 	};
 }

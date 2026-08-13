@@ -46,7 +46,7 @@ export async function verifyLangfuseOnlineTraceEvidence(input: {
 }): Promise<JsonObject> {
 	const traceId = stringField(input.traceId, "trace_id");
 	const langfuse: LangfuseEvalClient = createLangfuseEvalClient({
-		fetchImpl: input.fetchImpl,
+		...(input.fetchImpl ? { fetchImpl: input.fetchImpl } : {}),
 		settings: input.settings,
 	});
 	const trace = await langfuse.getTrace(traceId, { fields: "core,observations" });

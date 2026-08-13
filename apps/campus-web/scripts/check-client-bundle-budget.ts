@@ -37,8 +37,10 @@ const routeFacades = [
 	},
 ] as const;
 const allowedVendorSizeReferences = new Map([
-	["vendor/maplibre-gl/maplibre-gl.js", Math.floor(1.3 * 1024 * 1024)],
+	["vendor/maplibre-gl/maplibre-gl.mjs", Math.floor(600 * 1024)],
+	["vendor/maplibre-gl/maplibre-gl-worker.mjs", 32 * 1024],
 	["vendor/maplibre-gl/maplibre-gl.css", 96 * 1024],
+	["vendor/maplibre-gl/maplibre-gl-runtime.mjs", 2 * 1024],
 	["vendor/maplibre-gl/LICENSE.txt", 16 * 1024],
 ]);
 

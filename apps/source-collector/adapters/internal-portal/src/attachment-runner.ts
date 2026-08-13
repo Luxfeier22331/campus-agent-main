@@ -9,7 +9,7 @@ export async function downloadAttachment(input: {
 	attachmentUrl: string;
 }): Promise<FetchAttachmentBinaryResult> {
 	return await fetchAttachmentBinary({
-		abortSignal: input.abortSignal,
+		...(input.abortSignal ? { abortSignal: input.abortSignal } : {}),
 		apiContext: input.apiContext,
 		attachmentUrl: input.attachmentUrl,
 		maxBytes: FILE_RELEASE_MAX_BYTES,

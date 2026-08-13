@@ -78,37 +78,40 @@ describe("execution-control tool executor", () => {
 		"/internal/../public/query",
 		"/internal/query/%252e%252e/public",
 		" /internal/query/knowledge/search",
-	])("rejects non-canonical execution-control query endpoint %s before fetching", async (endpoint) => {
-		let fetchCalled = false;
-		const executor = createExecutionControlToolExecutor({
-			baseUrl: "http://execution-control:8000",
-			sharedSecret: "query-secret",
-			fetchImpl: async () => {
-				fetchCalled = true;
-				throw new Error("fetch must not be called for an absolute endpoint");
-			},
-		});
-
-		const result = await executor({
-			...toolRequest(),
-			tool: {
-				...toolRequest().tool,
-				handler: {
-					type: "execution_control_internal_query",
-					endpoint,
+	])(
+		"rejects non-canonical execution-control query endpoint %s before fetching",
+		async (endpoint) => {
+			let fetchCalled = false;
+			const executor = createExecutionControlToolExecutor({
+				baseUrl: "http://execution-control:8000",
+				sharedSecret: "query-secret",
+				fetchImpl: async () => {
+					fetchCalled = true;
+					throw new Error("fetch must not be called for an absolute endpoint");
 				},
-			},
-		});
+			});
 
-		expect(fetchCalled).toBe(false);
-		expect(result).toMatchObject({
-			status: "failed",
-			failCloseReason: "tool_handler_invalid_endpoint",
-			result: {
-				error: "execution-control query endpoint must be a canonical /internal/ path",
-			},
-		});
-	});
+			const result = await executor({
+				...toolRequest(),
+				tool: {
+					...toolRequest().tool,
+					handler: {
+						type: "execution_control_internal_query",
+						endpoint,
+					},
+				},
+			});
+
+			expect(fetchCalled).toBe(false);
+			expect(result).toMatchObject({
+				status: "failed",
+				failCloseReason: "tool_handler_invalid_endpoint",
+				result: {
+					error: "execution-control query endpoint must be a canonical /internal/ path",
+				},
+			});
+		},
+	);
 
 	it("calls tool read model endpoints with internal query auth", async () => {
 		const requests: Request[] = [];

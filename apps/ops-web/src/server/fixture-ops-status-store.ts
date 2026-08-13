@@ -64,7 +64,7 @@ export function createFixtureOpsStatusStore(): OpsStatusStore {
 					requests.filter((request) =>
 						matchesRequestQuery(
 							request,
-							{ ...query, cursor: undefined, status: undefined },
+							(({ cursor: _cursor, status: _status, ...summaryQuery }) => summaryQuery)(query),
 							correlationIdsFor(request.requestId),
 						),
 					),

@@ -169,7 +169,7 @@ export function createInternalPortalCredentialService(input: {
 				checkAuthentication,
 				credential,
 				now,
-				signal,
+				...(signal ? { signal } : {}),
 				store: input.store,
 			});
 			return toPublicCredential(result.credential);

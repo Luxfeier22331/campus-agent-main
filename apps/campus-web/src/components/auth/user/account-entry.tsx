@@ -20,11 +20,11 @@ export function AccountEntry({
 	presentation = "label",
 	showSubtitle = false,
 }: {
-	className?: string;
-	menuOpen?: boolean;
+	className?: string | undefined;
+	menuOpen?: boolean | undefined;
 	menuPlacement?: AccountMenuPlacement;
 	onLogin: () => void;
-	onMenuOpenChange?: (open: boolean) => void;
+	onMenuOpenChange?: ((open: boolean) => void) | undefined;
 	presentation?: "icon" | "label";
 	showSubtitle?: boolean;
 }) {
@@ -97,7 +97,7 @@ function AccountEntryButton({
 	retry = false,
 }: {
 	busy?: boolean;
-	className?: string;
+	className?: string | undefined;
 	disabled?: boolean;
 	label: string;
 	onClick?: () => void;

@@ -133,7 +133,7 @@ export function loadToolCatalog(
 			toolFunctionSchemaRaw,
 			toolsRegistryVersion: registryVersionFromRawToolCatalog(rawToolCatalog),
 		}),
-		toolFunctionSchemaPath,
+		...(toolFunctionSchemaPath ? { toolFunctionSchemaPath } : {}),
 	});
 }
 
@@ -172,7 +172,7 @@ export function loadToolCatalogFromObject(
 			handler: tool.handler,
 			timeoutMs: tool.timeout_ms,
 			resultProjectionPolicy: tool.result_projection_policy,
-			parameterSchema,
+			...(parameterSchema ? { parameterSchema } : {}),
 		};
 	});
 	return {

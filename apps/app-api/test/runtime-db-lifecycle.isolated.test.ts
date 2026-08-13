@@ -96,6 +96,9 @@ describe("withRuntimeDatabase", () => {
 		expect(runtimeDbState.drizzleCalls).toHaveLength(2);
 
 		const [firstClient, secondClient] = runtimeDbState.clients;
+		if (!(firstClient && secondClient)) {
+			throw new Error("Expected two Worker runtime database clients.");
+		}
 		expect(firstClient).not.toBe(secondClient);
 		expect(firstClient.connect).toHaveBeenCalledTimes(1);
 		expect(firstClient.end).toHaveBeenCalledTimes(1);
@@ -142,6 +145,9 @@ describe("withRuntimeDatabase", () => {
 		expect(runtimeDbState.drizzleCalls).toHaveLength(2);
 
 		const [pool] = runtimeDbState.pools;
+		if (!pool) {
+			throw new Error("Expected one cached Node.js runtime database pool.");
+		}
 		expect(pool.options).toMatchObject({
 			allowExitOnIdle: true,
 			connectionString: "postgres://postgres:secret@example.com:5432/campus_agent_node",

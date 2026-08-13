@@ -864,13 +864,14 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			principal: createPrincipal(),
 			requestKind: "public_chat",
 		}) ?? []) {
+			const text =
+				event.data.answer?.result.kind === "answer" ? event.data.answer.result.text : undefined;
 			events.push({
 				event: event.event,
-				runId: event.data.runId,
-				runPhase: event.data.runPhase,
+				...(event.data.runId === undefined ? {} : { runId: event.data.runId }),
+				...(event.data.runPhase ? { runPhase: event.data.runPhase } : {}),
 				status: event.data.status,
-				text:
-					event.data.answer?.result.kind === "answer" ? event.data.answer.result.text : undefined,
+				...(text ? { text } : {}),
 			});
 		}
 

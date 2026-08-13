@@ -383,6 +383,8 @@ function parseDiningFloorplanViewBox(value: string | null): { height: number; wi
 	const height = values[3];
 	if (
 		values.length !== 4 ||
+		width === undefined ||
+		height === undefined ||
 		!Number.isFinite(width) ||
 		!Number.isFinite(height) ||
 		width <= 0 ||

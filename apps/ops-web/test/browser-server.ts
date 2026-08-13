@@ -33,10 +33,14 @@ import {
 const browserTestPort = Number(process.env.OPS_WEB_BROWSER_TEST_PORT ?? "4178");
 const browserDiningStore = createBrowserDiningStore();
 const browserDiningContentStore = createBrowserDiningContentStore();
+const browserLogRecord = opsLogObservabilityFixture.records[0];
+if (!browserLogRecord) {
+	throw new Error("The browser observability fixture must contain a log record.");
+}
 const browserLogObservabilityFixture = {
 	...opsLogObservabilityFixture,
 	records: Array.from({ length: 30 }, (_, index) => ({
-		...opsLogObservabilityFixture.records[0],
+		...browserLogRecord,
 		eventType: index === 0 ? "request.finalized" : `request.event.${index}`,
 	})),
 };

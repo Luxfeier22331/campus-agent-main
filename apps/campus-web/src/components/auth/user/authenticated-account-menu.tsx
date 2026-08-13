@@ -23,11 +23,11 @@ export function AuthenticatedAccountMenu({
 	presentation = "icon",
 	showSubtitle = false,
 }: {
-	className?: string;
+	className?: string | undefined;
 	menuPlacement?: AccountMenuPlacement;
-	onOpenChange?: (open: boolean) => void;
+	onOpenChange?: ((open: boolean) => void) | undefined;
 	onSignedOut?: () => void;
-	open?: boolean;
+	open?: boolean | undefined;
 	presentation?: "icon" | "label";
 	showSubtitle?: boolean;
 }) {
@@ -66,9 +66,12 @@ export function AuthenticatedAccountMenu({
 	}
 
 	return (
-		<Dropdown isOpen={open} onOpenChange={onOpenChange}>
+		<Dropdown
+			{...(open === undefined ? {} : { isOpen: open })}
+			{...(onOpenChange ? { onOpenChange } : {})}
+		>
 			<Dropdown.Trigger
-				aria-label={presentation === "icon" ? `账号：${userName}` : undefined}
+				{...(presentation === "icon" ? { "aria-label": `账号：${userName}` } : {})}
 				className={cn(
 					"inline-flex min-h-11 items-center justify-center gap-2 rounded-md text-foreground outline-none transition-[color,background-color] duration-[var(--motion-duration-fast)] ease-[var(--motion-easing-standard)] hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
 					presentation === "icon" ? "size-11" : "w-full min-w-0 justify-start px-2 text-sm",

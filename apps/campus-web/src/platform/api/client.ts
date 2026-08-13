@@ -13,14 +13,14 @@ export async function requestJson<T>(input: {
 	signal?: AbortSignal;
 }): Promise<T> {
 	const response = await fetch(input.path, {
-		body: input.body,
+		...(input.body === undefined ? {} : { body: input.body }),
 		credentials: "same-origin",
 		headers: {
 			accept: "application/json",
 			...(input.headers ?? {}),
 		},
 		method: input.method ?? "GET",
-		signal: input.signal,
+		...(input.signal ? { signal: input.signal } : {}),
 	});
 
 	const contentType = response.headers.get("content-type") ?? "";

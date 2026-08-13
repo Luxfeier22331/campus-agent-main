@@ -13,25 +13,25 @@ let
     {
       x86_64 = {
         conftestArch = "x86_64";
-        conftestHash = "sha256-6BRMbW0q4CYLhpyqYMfCYqH5WsY+weXS+xm+RS1gY0c=";
+        conftestHash = "sha256-lvwvvxHwr95RJWZHEn5vAKZM6Dmk2aChrvJCbA5vSz8=";
         kustomizeArch = "amd64";
         kustomizeHash = "sha256-App/D04ZMsUqBHbPAqD9hVwLuFaUuCwzj8ZI3LU6gZ0=";
         osvArch = "amd64";
-        osvHash = "sha256-FTFJQMENJq+cZknxULikfBJi6Px+F7HRApsOR56O2KA=";
+        osvHash = "sha256-7c/EHSV9s2FI8GUFVlX+P8/ENLC0I+pnRoqEwgdSTgw=";
         uvArch = "x86_64";
-        uvHash = "sha256-kLLyI/tp0Z20nhF9pgH2SXhZNBeYhTCqcz1FYUG0vLs=";
+        uvHash = "sha256-YAz5p0KsoA0pJnOxa1rP+qe4wmmjZK0MLnlJjcsf4QE=";
         zizmorArch = "x86_64";
         zizmorHash = "sha256-3ZbfBEpuhTjV9CN5D0U73QPUnlsrzDghSsxBovEpeDk=";
       };
       aarch64 = {
         conftestArch = "arm64";
-        conftestHash = "sha256-QAVEEIllXe1HU4TLh9V3Yq4I6+94MFutpJxwUw0vQYQ=";
+        conftestHash = "sha256-O5w1Ij/jX5mI4VPN/7AUT5ESATBsdGdYtzvoKDHFQ9k=";
         kustomizeArch = "arm64";
         kustomizeHash = "sha256-CVPqPkdvZtbd/NkR11D1FnuTZaqUkbIyY5jiif7ywUI=";
         osvArch = "arm64";
-        osvHash = "sha256-ROWAdSkQ8P827Jmv9ZryD2XfHoWaox5WBajw0FW0luk=";
+        osvHash = "sha256-/hUuGlRq8iPmxVfMMRGouz5dwC/L99vpXSZWfA8AQfI=";
         uvArch = "aarch64";
-        uvHash = "sha256-dp03PhRmksY5tfuq4zszHCl6MuA9MESHcgUZAt9Su/Q=";
+        uvHash = "sha256-u2bLUuexgjrtEYNjDY2OXJWIQNWEpMVewQpM/BaNzKI=";
         zizmorArch = "aarch64";
         zizmorHash = "sha256-QV6qfAoGR5pwG45Eo+gSwQR97MhI7Evt571rv0nyLSA=";
       };
@@ -45,7 +45,7 @@ in
 rec {
   conftest = stdenvNoCC.mkDerivation rec {
     pname = "conftest";
-    version = "0.68.2";
+    version = "0.69.0";
     src = pkgs.fetchurl {
       url = "https://github.com/open-policy-agent/conftest/releases/download/v${version}/conftest_${version}_Linux_${release.conftestArch}.tar.gz";
       hash = release.conftestHash;
@@ -89,7 +89,7 @@ rec {
 
   osvScanner = stdenvNoCC.mkDerivation rec {
     pname = "osv-scanner";
-    version = "2.4.0";
+    version = "2.5.0";
     src = pkgs.fetchurl {
       url = "https://github.com/google/osv-scanner/releases/download/v${version}/osv-scanner_linux_${release.osvArch}";
       hash = release.osvHash;
@@ -111,7 +111,7 @@ rec {
 
   uv = stdenvNoCC.mkDerivation rec {
     pname = "uv";
-    version = "0.12.1";
+    version = "0.12.3";
     src = pkgs.fetchurl {
       url = "https://github.com/astral-sh/uv/releases/download/${version}/uv-${release.uvArch}-unknown-linux-gnu.tar.gz";
       hash = release.uvHash;

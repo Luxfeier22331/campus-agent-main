@@ -130,7 +130,7 @@ async function serveAgentRuntimeNodeRequest(
 	const webRequest = new Request(requestURL, {
 		method,
 		headers: requestHeaders(request.headers),
-		body: method === "GET" || method === "HEAD" ? undefined : webBody,
+		...(method !== "GET" && method !== "HEAD" && webBody ? { body: webBody } : {}),
 		signal,
 	});
 	const webResponse = await options.handler(webRequest);

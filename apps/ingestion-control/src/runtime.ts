@@ -171,9 +171,9 @@ async function serveNodeRequest(input: {
 }): Promise<void> {
 	const body = await readRequestBody(input.request);
 	const runtimeRequest = new Request(`http://ingestion-control${input.request.url ?? "/"}`, {
-		body: body.length > 0 ? new Uint8Array(body) : undefined,
+		...(body.length > 0 ? { body: new Uint8Array(body) } : {}),
 		headers: input.request.headers as HeadersInit,
-		method: input.request.method,
+		...(input.request.method ? { method: input.request.method } : {}),
 	});
 	const runtimeResponse = await input.handler(runtimeRequest);
 	input.response.statusCode = runtimeResponse.status;

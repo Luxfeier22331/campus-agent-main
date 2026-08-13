@@ -5,7 +5,7 @@ import { profileMemoryPlugin } from "@/features/profile-memory/auth-plugin";
 import { campusAuthClient } from "@/platform/auth/client";
 
 export type CampusAuthUINavigationHandler = (input: {
-	replace?: boolean;
+	replace?: boolean | undefined;
 	to: string;
 }) => void | Promise<void>;
 

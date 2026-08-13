@@ -31,11 +31,14 @@ export function parseExecutionRunEvalProjection(value: unknown): ExecutionRunEva
 	if (toolTrajectory.run_id !== runId || toolTrajectory.trace_id !== traceId) {
 		throw new Error("tool trajectory identity does not match agent runtime eval projection run");
 	}
+	const answer = optionalString(rag.answer);
+	const mode = groundingMode(rag.grounding_mode);
+	const status = groundingStatus(rag.grounding_status);
 	return {
-		answer: optionalString(rag.answer) ?? undefined,
+		...(answer ? { answer } : {}),
 		coveredScopes: stringList(rag.covered_scopes),
-		groundingMode: groundingMode(rag.grounding_mode),
-		groundingStatus: groundingStatus(rag.grounding_status),
+		...(mode ? { groundingMode: mode } : {}),
+		...(status ? { groundingStatus: status } : {}),
 		retrievedContextIds: stringList(rag.retrieved_context_ids),
 		retrievedContexts: stringList(rag.retrieved_contexts),
 		runId,

@@ -119,8 +119,12 @@ export function Field({
 		.filter(Boolean)
 		.join(" ");
 	const control = cloneElement(children, {
-		"aria-describedby": describedBy || undefined,
-		"aria-invalid": error ? true : children.props["aria-invalid"],
+		...(describedBy ? { "aria-describedby": describedBy } : {}),
+		...(error
+			? { "aria-invalid": true }
+			: children.props["aria-invalid"] === undefined
+				? {}
+				: { "aria-invalid": children.props["aria-invalid"] }),
 		id: controlId,
 	});
 

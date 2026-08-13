@@ -83,7 +83,7 @@ export function SignInForm(props: SharedAuthFormProps) {
 			const result = await campusAuthClient.signIn.email({
 				callbackURL: props.redirectTo,
 				email,
-				fetchOptions: { headers, throw: true },
+				fetchOptions: { ...(headers ? { headers } : {}), throw: true },
 				password: values.password,
 				rememberMe: values.rememberMe,
 			});
@@ -103,9 +103,11 @@ export function SignInForm(props: SharedAuthFormProps) {
 					recordVerificationEmailSent(email);
 					props.onVerificationRequired(email);
 				} catch (deliveryError) {
-					props.onVerificationRequired(email, {
-						retryAfterSeconds: readCampusAuthRetryAfterSeconds(deliveryError),
-					});
+					const retryAfterSeconds = readCampusAuthRetryAfterSeconds(deliveryError);
+					props.onVerificationRequired(
+						email,
+						retryAfterSeconds === undefined ? {} : { retryAfterSeconds },
+					);
 				}
 				return;
 			}
@@ -225,7 +227,7 @@ export function SignUpForm({
 			await campusAuthClient.signUp.email({
 				callbackURL: props.redirectTo,
 				email,
-				fetchOptions: { headers, throw: true },
+				fetchOptions: { ...(headers ? { headers } : {}), throw: true },
 				legalConsentAccepted: values.legalConsentAccepted,
 				name: values.name.trim(),
 				password: values.password,
@@ -238,9 +240,11 @@ export function SignUpForm({
 				});
 				recordVerificationEmailSent(email);
 			} catch (deliveryError) {
-				props.onVerificationRequired(email, {
-					retryAfterSeconds: readCampusAuthRetryAfterSeconds(deliveryError),
-				});
+				const retryAfterSeconds = readCampusAuthRetryAfterSeconds(deliveryError);
+				props.onVerificationRequired(
+					email,
+					retryAfterSeconds === undefined ? {} : { retryAfterSeconds },
+				);
 				return;
 			}
 			props.onVerificationRequired(email);
@@ -381,7 +385,7 @@ export function AuthFormFrame({
 	);
 }
 
-export function AuthFormError({ message }: { message?: string }) {
+export function AuthFormError({ message }: { message?: string | undefined }) {
 	if (!message) {
 		return null;
 	}
@@ -403,7 +407,7 @@ export function PasswordField({
 }: {
 	autoComplete: string;
 	description?: string;
-	error?: string;
+	error?: string | undefined;
 	label: string;
 	registration: ReturnType<ReturnType<typeof useForm>["register"]>;
 }) {

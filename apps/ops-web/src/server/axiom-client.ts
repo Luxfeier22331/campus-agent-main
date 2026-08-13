@@ -144,7 +144,7 @@ export function createAxiomClient(input: {
 					requestId: queryInput.requestId,
 				}),
 				from: window.from,
-				signal: queryInput.signal,
+				...(queryInput.signal ? { signal: queryInput.signal } : {}),
 				to: window.to,
 			});
 			const records = payload.records.slice(0, limit).map(mapAxiomLogRecord);

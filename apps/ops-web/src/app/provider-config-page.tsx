@@ -234,7 +234,16 @@ function ExecutionModelSettingForm({
 		save.mutate(executionDraftPayload(draft, embedding));
 	};
 
-	const credentialHelper = credentialHelperText(setting ?? { credentialConfigured: false });
+	const credentialHelper = credentialHelperText(
+		setting
+			? {
+					credentialConfigured: setting.credentialConfigured,
+					...(setting.credentialLast4 === undefined
+						? {}
+						: { credentialLast4: setting.credentialLast4 }),
+				}
+			: { credentialConfigured: false },
+	);
 	const validationResult = validation.data?.validation;
 	const modelControlId = "execution-llm-model";
 	const modelErrorId = `${modelControlId}-error`;
@@ -266,7 +275,7 @@ function ExecutionModelSettingForm({
 						/>
 					</FormField>
 					<SecretField
-						error={errors.apiKey}
+						{...(errors.apiKey ? { error: errors.apiKey } : {})}
 						helper={credentialHelper}
 						label={`${embedding ? "Embedding" : "LLM"} API Key`}
 						onChange={(value) => updateDraft({ apiKey: value }, ["apiKey"])}

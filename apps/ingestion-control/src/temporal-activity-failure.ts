@@ -26,10 +26,12 @@ export function sanitizeIngestionActivityFailure(
 		return new CancelledFailure("Ingestion activity cancelled.");
 	}
 	if (error instanceof ApplicationFailure) {
+		const category = error.category ?? undefined;
+		const nextRetryDelay = error.nextRetryDelay ?? undefined;
 		return ApplicationFailure.create({
-			category: error.category ?? undefined,
+			...(category ? { category } : {}),
 			message: "Ingestion activity failed.",
-			nextRetryDelay: error.nextRetryDelay ?? undefined,
+			...(nextRetryDelay ? { nextRetryDelay } : {}),
 			nonRetryable: error.nonRetryable ?? false,
 			type: safeFailureType(error.type),
 		});

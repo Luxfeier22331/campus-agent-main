@@ -1,11 +1,29 @@
 import { describe, expect, it } from "vitest";
 import {
+	createCampusMapFeatureFilter,
 	createCampusMapProfilesFromManifest,
 	createCampusMapStyle,
 	getCampusMapProfile,
 } from "../src/features/map/campus-map-style";
 
 describe("campus map style", () => {
+	it("creates empty, single, and combined feature filters", () => {
+		expect(createCampusMapFeatureFilter([])).toEqual(["==", ["get", "fid"], -1]);
+		expect(
+			createCampusMapFeatureFilter([{ fid: 101, layer: "building", sourceId: "haidian-campus" }]),
+		).toEqual(["all", ["==", ["get", "layer"], "building"], ["==", ["get", "fid"], 101]]);
+		expect(
+			createCampusMapFeatureFilter([
+				{ fid: 101, layer: "building", sourceId: "haidian-campus" },
+				{ fid: 202, layer: "sport", sourceId: "haidian-campus" },
+			]),
+		).toEqual([
+			"any",
+			["all", ["==", ["get", "layer"], "building"], ["==", ["get", "fid"], 101]],
+			["all", ["==", ["get", "layer"], "sport"], ["==", ["get", "fid"], 202]],
+		]);
+	});
+
 	it("keeps campus building labels local to the MapLibre style", () => {
 		const profiles = createCampusMapProfilesFromManifest({
 			attribution: ["Synthetic map contributors"],

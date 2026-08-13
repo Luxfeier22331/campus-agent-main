@@ -279,10 +279,12 @@ export function registerChatRoutes(input: {
 
 		const routeErrorCorrelation = createRouteErrorCorrelation();
 		try {
+			const limit = readConversationLimitQuery(c.req.query("limit"));
+			const view = readConversationViewQuery(c.req.query("view"));
 			const response = await scope.resolveChatConversationService().list({
-				limit: readConversationLimitQuery(c.req.query("limit")),
+				...(limit === undefined ? {} : { limit }),
 				principal: resolved.principal,
-				view: readConversationViewQuery(c.req.query("view")),
+				...(view ? { view } : {}),
 			});
 			return jsonResponse(response);
 		} catch (error) {
@@ -350,8 +352,9 @@ export function registerChatRoutes(input: {
 
 		const routeErrorCorrelation = createRouteErrorCorrelation();
 		try {
+			const limit = readConversationLimitQuery(c.req.query("limit"));
 			const response = await scope.resolveChatConversationService().search({
-				limit: readConversationLimitQuery(c.req.query("limit")),
+				...(limit === undefined ? {} : { limit }),
 				principal: resolved.principal,
 				query: c.req.query("q") ?? "",
 				view: readConversationViewQuery(c.req.query("view")) ?? "active",
@@ -545,11 +548,12 @@ export function registerChatRoutes(input: {
 			const routeErrorCorrelation = createRouteErrorCorrelation();
 			try {
 				const body = requireObjectBody(await readJsonRequestBody(c.req.raw));
+				const reasonCodes = readFeedbackReasonCodes(body);
 				const response = await scope.resolveChatConversationService().setMessageFeedback({
 					conversationId: c.req.param("conversationId"),
 					messageId: c.req.param("messageId"),
 					principal: resolved.principal,
-					reasonCodes: readFeedbackReasonCodes(body),
+					...(reasonCodes ? { reasonCodes } : {}),
 					vote: readFeedbackVote(body),
 				});
 				return jsonResponse(response);

@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::error::Error;
+use std::fmt::Write;
 use std::path::{Path, PathBuf};
 use text_splitter::{ChunkCapacity, ChunkConfig, TextSplitter};
 use tokenizers::Tokenizer;
@@ -331,7 +332,12 @@ fn sha256_ref(value: &str) -> String {
 }
 
 fn sha256_hex(value: &str) -> String {
-    format!("{:x}", Sha256::digest(value.as_bytes()))
+    let digest = Sha256::digest(value.as_bytes());
+    let mut encoded = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        write!(&mut encoded, "{byte:02x}").expect("writing to String cannot fail");
+    }
+    encoded
 }
 
 fn validate_chunk_options(
@@ -456,6 +462,14 @@ mod tests {
     use serde_json::json;
     use std::fs;
     use std::path::Path;
+
+    #[test]
+    fn sha256_encoding_matches_the_existing_lowercase_hex_contract() {
+        assert_eq!(
+            sha256_ref("hello"),
+            "sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+        );
+    }
 
     #[test]
     fn validates_document_units_jsonl_and_reports_missing_required_fields() {

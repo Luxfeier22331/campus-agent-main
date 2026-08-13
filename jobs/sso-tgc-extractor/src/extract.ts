@@ -310,7 +310,7 @@ async function saveStorageState(context: BrowserContext, config: ExtractorConfig
 	}
 }
 
-async function extractOnce(config: ExtractorConfig, attempt: number): Promise<SsoTgcResult> {
+async function extractOnce(config: ExtractorConfig): Promise<SsoTgcResult> {
 	const launchOptions = {
 		headless: !config.headed,
 		args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
@@ -355,7 +355,7 @@ export async function getSSOTGC(config: ExtractorConfig): Promise<SsoTgcResult> 
 	let lastError: Error | null = null;
 	for (let attempt = 1; attempt <= config.retryTimes; attempt++) {
 		try {
-			return await extractOnce(config, attempt);
+			return await extractOnce(config);
 		} catch (error) {
 			lastError = error instanceof Error ? error : new Error(String(error));
 			if (attempt < config.retryTimes) {

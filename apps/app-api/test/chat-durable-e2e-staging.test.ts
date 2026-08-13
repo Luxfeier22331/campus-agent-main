@@ -69,8 +69,8 @@ describe("chat durable staging e2e runner", () => {
 					input: Parameters<NonNullable<ChatDurableE2eDependencies["fetchJsonWithCookie"]>>[0],
 				) {
 					calls.push({
-						body: input.body,
-						method: input.method,
+						...(input.body === undefined ? {} : { body: input.body }),
+						...(input.method ? { method: input.method } : {}),
 						url: input.url,
 					});
 					if (input.url.endsWith("/api/me")) {

@@ -50,7 +50,7 @@ export function readAppApiDatabaseEnv(env: NodeJS.ProcessEnv = process.env): App
 	return {
 		databaseSslMode: env.APP_API_SCHEMA_DATABASE_SSLMODE?.trim() || "require",
 		databaseUrl: normalizedDatabaseUrl.toString(),
-		databaseCa: databaseCaCertPath ? readFileSync(databaseCaCertPath, "utf8") : undefined,
+		...(databaseCaCertPath ? { databaseCa: readFileSync(databaseCaCertPath, "utf8") } : {}),
 	};
 }
 

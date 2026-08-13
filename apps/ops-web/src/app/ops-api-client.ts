@@ -61,16 +61,16 @@ import {
 } from "../shared/ops-contract";
 
 export interface OpsRequestListParams {
-	conversationId?: string;
-	cursor?: string;
-	q?: string;
-	requestId?: string;
-	runId?: string;
-	status?: OpsRequestSummary["status"];
-	traceId?: string;
-	view?: OpsRequestListView;
-	window?: OpsRequestWindow;
-	workflowId?: string;
+	conversationId?: string | undefined;
+	cursor?: string | undefined;
+	q?: string | undefined;
+	requestId?: string | undefined;
+	runId?: string | undefined;
+	status?: OpsRequestSummary["status"] | undefined;
+	traceId?: string | undefined;
+	view?: OpsRequestListView | undefined;
+	window?: OpsRequestWindow | undefined;
+	workflowId?: string | undefined;
 }
 
 export async function fetchAccountAdminUsers(
@@ -389,7 +389,7 @@ export class OpsApiError extends Error {
 	readonly code: string;
 	readonly details: Record<string, unknown>;
 	readonly input: string;
-	readonly reasonCode?: string;
+	readonly reasonCode: string | undefined;
 	readonly status: number;
 
 	constructor(
@@ -410,8 +410,16 @@ export class OpsApiError extends Error {
 	}
 }
 
-async function fetchJson(input: string, init?: RequestInit) {
-	const response = await fetch(input, init);
+type OpsRequestInit = Omit<RequestInit, "signal"> & {
+	signal?: AbortSignal | undefined;
+};
+
+async function fetchJson(input: string, init?: OpsRequestInit) {
+	const { signal, ...requestInit } = init ?? {};
+	const response = await fetch(input, {
+		...requestInit,
+		...(signal ? { signal } : {}),
+	});
 	if (!response.ok) {
 		const error = await readErrorBody(response);
 		throw new OpsApiError(
@@ -451,10 +459,10 @@ async function readErrorBody(response: Response): Promise<{
 				),
 			);
 			return {
-				code: typeof error.code === "string" ? error.code : undefined,
+				...(typeof error.code === "string" ? { code: error.code } : {}),
 				details,
-				message: typeof error.message === "string" ? error.message : undefined,
-				reasonCode: typeof error.reasonCode === "string" ? error.reasonCode : undefined,
+				...(typeof error.message === "string" ? { message: error.message } : {}),
+				...(typeof error.reasonCode === "string" ? { reasonCode: error.reasonCode } : {}),
 			};
 		}
 	} catch {
