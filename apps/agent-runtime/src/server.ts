@@ -6,13 +6,16 @@ import {
 	createRequestScopedStreamingOpenAIAgentsRunner,
 } from "./provider-config.ts";
 import { logAgentRuntimeEvent, safeAgentRuntimeErrorCode } from "./safe-logging.ts";
+import { exactSharedSecret } from "./server-config.ts";
 import { runWithExtractedTraceContext, startAgentRuntimeTelemetry } from "./telemetry.ts";
 import { loadToolCatalog } from "./tool-catalog.ts";
 import { createExecutionControlToolExecutor } from "./tool-executor.ts";
 
 const port = 27062;
 const host = "0.0.0.0";
-const executionAgentRuntimeSharedSecret = process.env.EXECUTION_AGENT_RUNTIME_SHARED_SECRET ?? "";
+const executionAgentRuntimeSharedSecret = exactSharedSecret(
+	process.env.EXECUTION_AGENT_RUNTIME_SHARED_SECRET,
+);
 const catalogPath = "configs/runtime/tools.v6.json";
 const deploymentRelease = requiredDeploymentRelease(
 	process.env.DEPLOYMENT_ENVIRONMENT,

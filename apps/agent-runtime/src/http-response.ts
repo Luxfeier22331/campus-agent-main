@@ -138,7 +138,7 @@ export function authorized(request: Request, sharedSecret: string): boolean {
 }
 
 export function authorizedBearerValue(headerValue: string, sharedSecret: string): boolean {
-	if (sharedSecret.trim() === "") {
+	if (sharedSecret === "") {
 		return false;
 	}
 	const actual = createHash("sha256").update(headerValue, "utf8").digest();

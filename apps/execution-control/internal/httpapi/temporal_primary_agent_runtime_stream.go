@@ -93,7 +93,7 @@ func (s *Server) callAgentRuntimeRequest(
 	url := strings.TrimRight(s.config.AgentRuntimeBaseURL, "/") + "/internal/agent-runs/stream"
 	request, err := http.NewRequestWithContext(requestCtx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
+		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, agentRuntimeRequestBuildError{cause: err}
 	}
 	request.Header.Set("authorization", "Bearer "+s.config.AgentRuntimeSharedSecret)
 	request.Header.Set("content-type", "application/json")
@@ -106,10 +106,14 @@ func (s *Server) callAgentRuntimeRequest(
 	}
 	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		var decoded agentRuntimeResponse
-		if err := json.NewDecoder(response.Body).Decode(&decoded); err != nil {
-			return temporalruntime.ExecutePrimaryAgentActivityOutput{}, fmt.Errorf("decode agent runtime response: %w", err)
+		if response.StatusCode == http.StatusUnauthorized {
+			return temporalruntime.ExecutePrimaryAgentActivityOutput{}, agentRuntimeHTTPError{
+				StatusCode: response.StatusCode,
+				Code:       "unauthorized",
+			}
 		}
+		var decoded agentRuntimeResponse
+		_ = json.NewDecoder(response.Body).Decode(&decoded)
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, agentRuntimeFailureFromResponse(
 			response.StatusCode,
 			decoded.Error,
@@ -543,8 +547,15 @@ func agentRuntimeFailureFromResponse(
 }
 
 func primaryAgentRuntimeFailureKind(cause error) string {
+	var requestBuildError agentRuntimeRequestBuildError
+	if errors.As(cause, &requestBuildError) {
+		return "agent_runtime_request_failed"
+	}
 	var runtimeError agentRuntimeHTTPError
 	if errors.As(cause, &runtimeError) {
+		if runtimeError.StatusCode == http.StatusUnauthorized {
+			return "agent_runtime_unauthorized"
+		}
 		switch strings.TrimSpace(runtimeError.Code) {
 		case "invalid_request",
 			"context_budget_exceeded",
@@ -555,11 +566,24 @@ func primaryAgentRuntimeFailureKind(cause error) string {
 			"run_failed":
 			return strings.TrimSpace(runtimeError.Code)
 		}
+		return "agent_runtime_request_failed"
 	}
 	if agentRuntimeErrorIsTimeout(cause) {
-		return "agent_runtime_timeout"
+		return "agent_attempt_uncertain"
 	}
-	return "agent_runtime_request_failed"
+	return "agent_attempt_uncertain"
+}
+
+type agentRuntimeRequestBuildError struct {
+	cause error
+}
+
+func (err agentRuntimeRequestBuildError) Error() string {
+	return "agent runtime request could not be created"
+}
+
+func (err agentRuntimeRequestBuildError) Unwrap() error {
+	return err.cause
 }
 
 func agentRuntimeErrorIsTimeout(cause error) bool {

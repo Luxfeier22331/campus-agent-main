@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -69,6 +70,20 @@ func TestDeployedRuntimeReportsOwnedMissingInputs(t *testing.T) {
 			_, err := loadRuntimeFromTestEnv(t)
 			if err == nil || !strings.Contains(err.Error(), testCase.key) {
 				t.Fatalf("error = %v, want missing %s", err, testCase.key)
+			}
+		})
+	}
+}
+
+func TestRuntimeRejectsAgentRuntimeSecretSurroundingWhitespace(t *testing.T) {
+	for _, value := range []string{" agent-secret", "agent-secret ", "agent-secret\n", "\tagent-secret"} {
+		t.Run(fmt.Sprintf("%q", value), func(t *testing.T) {
+			setRuntimeEnv(t)
+			t.Setenv("EXECUTION_AGENT_RUNTIME_SHARED_SECRET", value)
+
+			_, err := loadRuntimeFromTestEnv(t)
+			if err == nil || !strings.Contains(err.Error(), "must not contain surrounding whitespace") {
+				t.Fatalf("error = %v, want surrounding whitespace rejection", err)
 			}
 		})
 	}

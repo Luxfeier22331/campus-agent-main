@@ -135,6 +135,27 @@ describe("execution-control tool executor", () => {
 		expect(requests[0]?.headers.get("authorization")).toBeNull();
 	});
 
+	it("passes the configured query secret without application-level trimming", async () => {
+		let observedSecret: string | null = null;
+		const executor = createExecutionControlToolExecutor({
+			baseUrl: "http://execution-control:8000",
+			sharedSecret: "query-secret\u00a0",
+			fetchImpl: async (request, init) => {
+				const normalized = request instanceof Request ? request : new Request(request, init);
+				observedSecret = normalized.headers.get("x-execution-query-auth");
+				return new Response(JSON.stringify({ outcome: "resolved_current" }), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				});
+			},
+		});
+
+		const result = await executor(toolRequest());
+
+		expect(result.status).toBe("completed");
+		expect(observedSecret).toBe("query-secret\u00a0");
+	});
+
 	it("preserves result envelopes from execution-control", async () => {
 		const executor = createExecutionControlToolExecutor({
 			baseUrl: "http://execution-control:8000",

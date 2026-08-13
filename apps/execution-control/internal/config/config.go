@@ -140,6 +140,9 @@ func loadFromEnv() (Config, error) {
 			return Config{}, err
 		}
 	}
+	if values.AgentRuntimeSharedSecret != strings.TrimSpace(values.AgentRuntimeSharedSecret) {
+		return Config{}, fmt.Errorf("EXECUTION_AGENT_RUNTIME_SHARED_SECRET must not contain surrounding whitespace")
+	}
 	return Config{
 		AppName:                                 "campus-agent",
 		DeploymentEnvironment:                   environment,
@@ -162,7 +165,7 @@ func loadFromEnv() (Config, error) {
 		TemporalStartTimeoutMS:                  5_000,
 		TemporalWorkflowExecutionTimeoutSeconds: fixedTemporalWorkflowTimeoutSec,
 		AgentRuntimeBaseURL:                     strings.TrimRight(strings.TrimSpace(values.AgentRuntimeBaseURL), "/"),
-		AgentRuntimeSharedSecret:                strings.TrimSpace(values.AgentRuntimeSharedSecret),
+		AgentRuntimeSharedSecret:                values.AgentRuntimeSharedSecret,
 		AgentRuntimeDeadlineMS:                  defaultAgentRuntimeDeadlineMS,
 		AgentRuntimeMaxOutputTokens:             defaultAgentRuntimeMaxOutputTokens,
 		AgentRuntimeMaxTurns:                    defaultAgentRuntimeMaxTurns,

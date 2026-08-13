@@ -12,7 +12,7 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 	const fetchImpl = options.fetchImpl ?? fetch;
 	return async (request: ToolExecutionRequest): Promise<UntimedToolExecutionResult> => {
 		const baseUrl = options.baseUrl.trim();
-		const sharedSecret = options.sharedSecret.trim();
+		const sharedSecret = options.sharedSecret;
 		if (request.tool.handler.type !== "execution_control_internal_query") {
 			return failedToolResult(request, "tool_handler_not_supported", {
 				error: "tool handler is not executable through execution-control query HTTP",

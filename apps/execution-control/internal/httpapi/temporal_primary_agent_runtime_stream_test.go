@@ -1,11 +1,21 @@
 package httpapi
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
+
+func TestPrimaryAgentRuntimeFailureKindKeepsPreflightAndTransportFailuresDistinct(t *testing.T) {
+	if got := primaryAgentRuntimeFailureKind(agentRuntimeRequestBuildError{cause: errors.New("invalid URL")}); got != "agent_runtime_request_failed" {
+		t.Fatalf("request build failure kind = %q", got)
+	}
+	if got := primaryAgentRuntimeFailureKind(errors.New("connection reset")); got != "agent_attempt_uncertain" {
+		t.Fatalf("transport failure kind = %q", got)
+	}
+}
 
 func TestAgentRuntimeStreamStateRequiresContinuousAnswerDeltas(t *testing.T) {
 	state := agentRuntimeStreamState{}

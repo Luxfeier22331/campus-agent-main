@@ -15,6 +15,7 @@ const conversationApiMock = vi.hoisted(() => ({
 	createConversationDraft: vi.fn(),
 	deleteConversation: vi.fn(),
 	getConversationDetail: vi.fn(),
+	getRunStatus: vi.fn(),
 	listConversations: vi.fn(),
 	renameConversation: vi.fn(),
 	resumeRunEventsStream: vi.fn(),

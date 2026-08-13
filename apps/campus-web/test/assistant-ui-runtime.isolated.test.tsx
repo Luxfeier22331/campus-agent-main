@@ -50,6 +50,7 @@ const conversationApiMock = vi.hoisted(() => ({
 	},
 	deleteTrailingMessages: vi.fn(),
 	getConversationDetail: vi.fn(),
+	getRunStatus: vi.fn(),
 	resumeRunEventsStream: vi.fn(),
 	submitChatRequestStream: vi.fn(),
 }));
@@ -243,6 +244,15 @@ describe("assistant-ui runtime lifecycle bridge", () => {
 		conversationApiMock.cancelRun.mockReset();
 		conversationApiMock.deleteTrailingMessages.mockReset();
 		conversationApiMock.getConversationDetail.mockReset();
+		conversationApiMock.getRunStatus.mockReset();
+		conversationApiMock.getRunStatus.mockResolvedValue({
+			conversationId: "conv_created",
+			phase: "running",
+			requestId: "req_01",
+			runId: "run_01",
+			status: "running",
+			traceId: "trace_01",
+		});
 		conversationApiMock.resumeRunEventsStream.mockReset();
 		conversationApiMock.submitChatRequestStream.mockReset();
 	});
@@ -472,6 +482,212 @@ describe("assistant-ui runtime lifecycle bridge", () => {
 		}
 	});
 
+	it("refreshes canonical messages when durable status is terminal beyond the stream cursor", async () => {
+		conversationApiMock.submitChatRequestStream.mockImplementation(() =>
+			streamEvents([
+				{
+					data: {
+						occurredAt: "2026-06-24T01:00:00.000Z",
+						requestId: "req_status_terminal",
+						runId: "run_status_terminal",
+						sequence: 4,
+						status: "accepted",
+						traceId: "trace_status_terminal",
+					},
+					event: "request.accepted",
+				},
+				{
+					data: {
+						delta: "临时草稿",
+						messageId: "msg_status_draft",
+						occurredAt: "2026-06-24T01:00:01.000Z",
+						requestId: "req_status_terminal",
+						runId: "run_status_terminal",
+						sequence: 5,
+						status: "streaming",
+						traceId: "trace_status_terminal",
+					},
+					event: "answer.delta",
+				},
+			]),
+		);
+		conversationApiMock.getRunStatus.mockResolvedValue({
+			conversationId: "conv_created",
+			phase: "completed",
+			requestId: "req_status_terminal",
+			runId: "run_status_terminal",
+			status: "completed",
+			terminalReason: "answer_completed",
+			traceId: "trace_status_terminal",
+		});
+		const terminal = completedTerminalEvent("规范回答");
+		conversationApiMock.getConversationDetail.mockResolvedValue(terminal.data.answer?.conversation);
+
+		render(<RuntimeProbe onLoginRequired={vi.fn()} />);
+
+		await act(async () => {
+			await assistantUiMock.externalStoreInput?.onNew({
+				content: [{ text: "查询耐久终态", type: "text" }],
+			});
+		});
+
+		expect(conversationApiMock.getRunStatus).toHaveBeenCalledWith({
+			runId: "run_status_terminal",
+			signal: expect.any(AbortSignal),
+		});
+		expect(conversationApiMock.getConversationDetail).toHaveBeenCalledWith(
+			"conv_created",
+			expect.any(AbortSignal),
+		);
+		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
+		expect(hasMessageId("msg_status_draft")).toBe(false);
+		expect(readAssistantText()).toBe("规范回答");
+	});
+
+	it("stops a submit after three replays with the same idempotency key", async () => {
+		vi.useFakeTimers();
+		conversationApiMock.submitChatRequestStream.mockImplementation(() => streamEvents([]));
+
+		try {
+			render(<RuntimeProbe onLoginRequired={vi.fn()} />);
+			let submitPromise: Promise<void> | undefined;
+			await act(async () => {
+				submitPromise = assistantUiMock.externalStoreInput?.onNew({
+					content: [{ text: "限制初始重放", type: "text" }],
+				});
+				await Promise.resolve();
+				await Promise.resolve();
+			});
+
+			await act(async () => {
+				await vi.runAllTimersAsync();
+				await submitPromise;
+			});
+
+			expect(conversationApiMock.submitChatRequestStream).toHaveBeenCalledTimes(4);
+			const idempotencyKeys = conversationApiMock.submitChatRequestStream.mock.calls.map(
+				([input]) => input.idempotencyKey,
+			);
+			expect(new Set(idempotencyKeys).size).toBe(1);
+			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
+			expect(readAssistantText()).toBe("回答连接已中断，请重试。");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("ends loading after three recovery rounds make no stream or durable-status progress", async () => {
+		vi.useFakeTimers();
+		conversationApiMock.submitChatRequestStream.mockImplementation(() =>
+			streamEvents([
+				{
+					data: {
+						occurredAt: "2026-06-24T01:00:00.000Z",
+						requestId: "req_recovery_lost",
+						runId: "run_recovery_lost",
+						sequence: 1,
+						status: "accepted",
+						traceId: "trace_recovery_lost",
+					},
+					event: "request.accepted",
+				},
+			]),
+		);
+		conversationApiMock.resumeRunEventsStream.mockImplementation(() => streamEvents([]));
+		conversationApiMock.getRunStatus.mockRejectedValue(
+			new ChatStreamRequestError({
+				code: "dependency_not_ready",
+				message: "状态暂不可用。",
+				retryable: true,
+			}),
+		);
+
+		try {
+			render(<RuntimeProbe onLoginRequired={vi.fn()} />);
+			let submitPromise: Promise<void> | undefined;
+			await act(async () => {
+				submitPromise = assistantUiMock.externalStoreInput?.onNew({
+					content: [{ text: "恢复失败上限", type: "text" }],
+				});
+				await Promise.resolve();
+				await Promise.resolve();
+			});
+
+			await act(async () => {
+				await vi.runAllTimersAsync();
+				await submitPromise;
+			});
+
+			expect(conversationApiMock.getRunStatus).toHaveBeenCalledTimes(4);
+			expect(conversationApiMock.resumeRunEventsStream).toHaveBeenCalledTimes(3);
+			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
+			expect(readAssistantText()).toBe("回答连接已中断，请重试。");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("resets recovery failures after a successful durable status check", async () => {
+		vi.useFakeTimers();
+		conversationApiMock.submitChatRequestStream.mockImplementation(() =>
+			streamEvents([
+				{
+					data: {
+						occurredAt: "2026-06-24T01:00:00.000Z",
+						requestId: "req_recovery_reset",
+						runId: "run_recovery_reset",
+						sequence: 1,
+						status: "accepted",
+						traceId: "trace_recovery_reset",
+					},
+					event: "request.accepted",
+				},
+			]),
+		);
+		conversationApiMock.resumeRunEventsStream.mockImplementation(() => streamEvents([]));
+		const retryableStatusError = new ChatStreamRequestError({
+			code: "dependency_not_ready",
+			message: "状态暂不可用。",
+			retryable: true,
+		});
+		conversationApiMock.getRunStatus
+			.mockRejectedValueOnce(retryableStatusError)
+			.mockRejectedValueOnce(retryableStatusError)
+			.mockResolvedValueOnce({
+				conversationId: "conv_created",
+				phase: "running",
+				requestId: "req_recovery_reset",
+				runId: "run_recovery_reset",
+				status: "running",
+				traceId: "trace_recovery_reset",
+			})
+			.mockRejectedValue(retryableStatusError);
+
+		try {
+			render(<RuntimeProbe onLoginRequired={vi.fn()} />);
+			let submitPromise: Promise<void> | undefined;
+			await act(async () => {
+				submitPromise = assistantUiMock.externalStoreInput?.onNew({
+					content: [{ text: "恢复计数重置", type: "text" }],
+				});
+				await Promise.resolve();
+				await Promise.resolve();
+			});
+
+			await act(async () => {
+				await vi.runAllTimersAsync();
+				await submitPromise;
+			});
+
+			expect(conversationApiMock.getRunStatus).toHaveBeenCalledTimes(6);
+			expect(conversationApiMock.resumeRunEventsStream).toHaveBeenCalledTimes(5);
+			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
+			expect(readAssistantText()).toBe("回答连接已中断，请重试。");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("does not record a new browser TTFT when resuming an existing run", async () => {
 		vi.useFakeTimers();
 		conversationApiMock.submitChatRequestStream.mockImplementation(() =>
@@ -544,6 +760,57 @@ describe("assistant-ui runtime lifecycle bridge", () => {
 				runId: "run_manual_resume",
 				signal: expect.any(AbortSignal),
 			});
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("renders a structured manual resume failure without rejecting assistant-ui", async () => {
+		vi.useFakeTimers();
+		conversationApiMock.submitChatRequestStream.mockImplementation(() =>
+			streamEvents([
+				{
+					data: {
+						occurredAt: "2026-06-24T01:00:00.000Z",
+						requestId: "req_manual_resume_failed",
+						runId: "run_manual_resume_failed",
+						sequence: 4,
+						status: "accepted",
+						traceId: "trace_manual_resume_failed",
+					},
+					event: "request.accepted",
+				},
+			]),
+		);
+		conversationApiMock.resumeRunEventsStream.mockImplementation(async function* () {
+			yield* [] as ChatRequestStreamEvent[];
+			throw new ChatStreamRequestError({
+				code: "execution_failed",
+				message: "手动恢复失败。",
+				requestId: "req_manual_resume_failed",
+				retryable: false,
+				traceId: "trace_manual_resume_failed",
+			});
+		});
+
+		try {
+			render(<RuntimeProbe onLoginRequired={vi.fn()} />);
+			let submitPromise: Promise<void> | undefined;
+			await act(async () => {
+				submitPromise = assistantUiMock.externalStoreInput?.onNew({
+					content: [{ text: "手动恢复", type: "text" }],
+				});
+				await Promise.resolve();
+				await Promise.resolve();
+			});
+
+			await act(async () => {
+				await expect(assistantUiMock.externalStoreInput?.onResume?.()).resolves.toBeUndefined();
+				await submitPromise;
+			});
+
+			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
+			expect(readAssistantText()).toBe("手动恢复失败。");
 		} finally {
 			vi.useRealTimers();
 		}

@@ -84,6 +84,30 @@ describe("agent runtime HTTP handler", () => {
 		});
 	});
 
+	it("authenticates internal readiness with the exact execution shared secret", async () => {
+		const handler = createAgentRuntimeHandler({
+			sharedSecret: "exact-secret",
+			runtime: createPrimaryAgentRuntime({ catalog, runner: noToolRunner }),
+		});
+
+		const missing = await handler(new Request("http://agent-runtime/internal/readyz"));
+		const wrong = await handler(
+			new Request("http://agent-runtime/internal/readyz", {
+				headers: { authorization: "Bearer exact-secret-x" },
+			}),
+		);
+		const ready = await handler(
+			new Request("http://agent-runtime/internal/readyz", {
+				headers: { authorization: "Bearer exact-secret" },
+			}),
+		);
+
+		expect(missing.status).toBe(401);
+		expect(wrong.status).toBe(401);
+		expect(ready.status).toBe(200);
+		expect(await ready.json()).toEqual({ status: "ready" });
+	});
+
 	it("rejects missing worker authorization", async () => {
 		const handler = createAgentRuntimeHandler({
 			sharedSecret: "secret",

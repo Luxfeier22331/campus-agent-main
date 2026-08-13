@@ -272,7 +272,7 @@ func TestReadyzDegradesWhenAgentRuntimeIsUnavailable(t *testing.T) {
 	}
 }
 
-func TestReadyzAcceptsAgentRuntimeWithoutServerSharedSecret(t *testing.T) {
+func TestReadyzDegradesWhenAgentRuntimeSharedSecretIsMissing(t *testing.T) {
 	server := newReadyServerForTest(t, func(cfg *config.Config) {
 		cfg.AgentRuntimeSharedSecret = ""
 	})
@@ -280,13 +280,13 @@ func TestReadyzAcceptsAgentRuntimeWithoutServerSharedSecret(t *testing.T) {
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
 
-	if response.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503; body: %s", response.Code, response.Body.String())
 	}
 	body := decodeBody(t, response)
 	agentRuntime := expectRecord(t, body["agent_runtime"], "agent_runtime")
-	if agentRuntime["configured"] != true || agentRuntime["healthy"] != true {
-		t.Fatalf("agent_runtime = %#v, want configured and healthy", agentRuntime)
+	if agentRuntime["configured"] != false || agentRuntime["healthy"] != false {
+		t.Fatalf("agent_runtime = %#v, want unconfigured and unhealthy", agentRuntime)
 	}
 }
 

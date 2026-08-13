@@ -775,6 +775,12 @@ export function buildRuntimeRunService(input: {
 		);
 	}
 
+	function isTerminalRunPhase(phase: RuntimeRunPhase): boolean {
+		return (
+			phase === "completed" || phase === "failed" || phase === "canceled" || phase === "expired"
+		);
+	}
+
 	function assertSequenceAdvances(
 		lastSequence: number,
 		event: Pick<RuntimeRunEventProjection, "sequence">,
@@ -963,6 +969,9 @@ export function buildRuntimeRunService(input: {
 					if (isTerminalRunEvent(event)) {
 						return;
 					}
+				}
+				if (isTerminalRunPhase(result.run.phase)) {
+					return;
 				}
 				lastSequence = result.nextSequence;
 			}

@@ -185,6 +185,46 @@ func TestFinalizeExecutionFailureActivityOwnsAllPreAnswerFailureStages(t *testin
 	}
 }
 
+func TestFinalizeExecutionFailureActivityMapsRuntimeUnauthorizedToInvariantFailure(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	now := time.Date(2026, 7, 16, 6, 30, 0, 0, time.UTC)
+	createHTTPAPIQueuedDurableRunForTest(t, store, "run-runtime-unauthorized", "conv-runtime-unauthorized", now, nil)
+	server := newWorkerAuthServerForTest()
+	attachRunProjectionStoreForHandlerTest(server, store)
+	server.productFinalizationWriter = func(
+		context.Context,
+		execution.DurableRun,
+		time.Time,
+		map[string]any,
+	) error {
+		return nil
+	}
+
+	_, err := server.FinalizeExecutionFailureActivity(
+		context.Background(),
+		temporalruntime.FinalizeExecutionFailureActivityInput{
+			FailureHash: strings.Repeat("d", 64),
+			FailureKind: "agent_runtime_unauthorized",
+			FailedAt:    now.Add(time.Second),
+			RunID:       "run-runtime-unauthorized",
+			Stage:       "agent.primary",
+			TraceID:     "trace-executor-001",
+		},
+	)
+	if err != nil {
+		t.Fatalf("finalize runtime authorization failure: %v", err)
+	}
+	run, err := store.GetRun(context.Background(), "run-runtime-unauthorized")
+	if err != nil {
+		t.Fatalf("get finalized run: %v", err)
+	}
+	if run.Status != execution.DurableRunStatusFailed ||
+		run.TerminalReason != execution.DurableTerminalReasonRuntimeInvariant ||
+		run.FailCloseReason != "agent_runtime_unauthorized" {
+		t.Fatalf("runtime authorization terminal state = %#v", run)
+	}
+}
+
 func TestTemporalFailureProjectionRejectsRetiredMemoryRecallStage(t *testing.T) {
 	_, ok := temporalFailureProjectionForStage(temporalruntime.FinalizeExecutionFailureActivityInput{
 		RunID: "run-retired-memory-recall",

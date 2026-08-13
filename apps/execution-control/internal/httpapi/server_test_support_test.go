@@ -117,8 +117,11 @@ func markTemporalReadyForTest(server *Server) {
 func readyServerConfigForTest(t *testing.T, mutators ...func(*config.Config)) config.Config {
 	t.Helper()
 	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		if request.URL.Path != "/readyz" {
+		if request.URL.Path != "/internal/readyz" {
 			t.Fatalf("agent runtime readiness path = %q", request.URL.Path)
+		}
+		if got := request.Header.Get("authorization"); got != "Bearer agent-runtime-secret" {
+			t.Fatalf("agent runtime readiness authorization = %q", got)
 		}
 		writeJSON(response, http.StatusOK, map[string]any{"status": "ready"})
 	}))

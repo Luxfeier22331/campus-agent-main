@@ -187,7 +187,7 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		limits.AgentDeadlineMS,
 	)
 	if err != nil {
-		return s.failPrimaryAgentActivity(ctx, run, "agent_attempt_uncertain", err)
+		return s.failPrimaryAgentActivity(ctx, run, primaryAgentRuntimeFailureKind(err), err)
 	}
 	if snapshot.ToolRuntimeFingerprintSHA256 != "" {
 		if err := validateAgentRuntimeToolFingerprint(
@@ -884,6 +884,8 @@ func (s *Server) failPrimaryAgentActivity(
 	case "agent_deadline_exceeded":
 		failCloseReason = "agent_deadline_exceeded"
 		timeoutOutcome = execution.TimeoutOutcomeActivityTimeout
+	case "agent_runtime_unauthorized":
+		failCloseReason = "agent_runtime_unauthorized"
 	}
 	var toolFailure primaryAgentToolFailureError
 	if errors.As(cause, &toolFailure) {

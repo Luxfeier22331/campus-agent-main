@@ -8,10 +8,12 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createIdempotencyKey, UnauthorizedError } from "@/platform/api/client";
 import {
+	type ChatRunStatus,
 	ChatStreamRequestError,
 	cancelRun,
 	deleteTrailingMessages,
 	getConversationDetail,
+	getRunStatus,
 	resumeRunEventsStream,
 	submitChatRequestStream,
 } from "./api";
@@ -22,6 +24,8 @@ type RuntimeMessages = ThreadMessageLike[];
 
 const RESUME_INITIAL_DELAY_MS = 250;
 const RESUME_MAX_DELAY_MS = 5_000;
+const MAX_INITIAL_STREAM_REPLAYS = 3;
+const MAX_CONSECUTIVE_RECOVERY_FAILURES = 3;
 
 interface ActiveRun {
 	conversationId?: string | undefined;
@@ -542,11 +546,62 @@ function useCampusAssistantRuntimeState({
 		[ownsOperation, scheduleAssistantFrame],
 	);
 
+	const applyTerminalRunStatus = useCallback(
+		async (status: ChatRunStatus, operation: RuntimeOperationIdentity) => {
+			if (!ownsOperation(operation)) {
+				return;
+			}
+			cancelAssistantFrame();
+			clearProvisionalAssistantMessages();
+			cancellationStateRef.current = { phase: "idle" };
+			setIsRunning(false);
+			replaceActiveRun(null);
+			if (locallyInitializedRunConversationRef.current?.conversationId === status.conversationId) {
+				locallyInitializedRunConversationRef.current = null;
+			}
+			try {
+				const nextMessages = await fetchConversationMessagesWithRetry(
+					status.conversationId,
+					operation.controller.signal,
+					fetchConversationMessages,
+				);
+				if (ownsOperation(operation)) {
+					replaceWithCanonicalMessages(nextMessages);
+				}
+			} catch (error) {
+				if (error instanceof UnauthorizedError || isAbortError(error)) {
+					throw error;
+				}
+				if (ownsOperation(operation)) {
+					appendLocalErrorMessage(
+						new ChatStreamRequestError({
+							code: "conversation_refresh_failed",
+							message: "回答已结束，但会话内容暂时无法刷新。",
+							requestId: status.requestId,
+							retryable: true,
+							traceId: status.traceId,
+						}),
+					);
+				}
+			}
+		},
+		[
+			appendLocalErrorMessage,
+			cancelAssistantFrame,
+			clearProvisionalAssistantMessages,
+			fetchConversationMessages,
+			ownsOperation,
+			replaceActiveRun,
+			replaceWithCanonicalMessages,
+		],
+	);
+
 	const consumeLifecycleStream = useCallback(
 		async (
 			events: AsyncIterable<ChatRequestStreamEvent>,
 			conversationId: string | undefined,
 			operation: RuntimeOperationIdentity,
+			onEvent: () => void,
 		) => {
 			let eventCount = 0;
 			for await (const event of events) {
@@ -554,6 +609,7 @@ function useCampusAssistantRuntimeState({
 					return { eventCount, terminal: true };
 				}
 				eventCount += 1;
+				onEvent();
 				if (event.event === "request.accepted" && event.data.runId) {
 					const acceptedRun = {
 						...(conversationId ? { conversationId } : {}),
@@ -621,21 +677,30 @@ function useCampusAssistantRuntimeState({
 		}) => {
 			let delayMs = RESUME_INITIAL_DELAY_MS;
 			let events = input.initialEvents;
+			let initialReplayCount = 0;
+			let consecutiveRecoveryFailures = 0;
 			for (;;) {
 				if (!ownsOperation(input.operation)) {
 					return;
 				}
+				let streamProgress = false;
 				try {
 					const consumed = await consumeLifecycleStream(
 						events,
 						input.conversationId,
 						input.operation,
+						() => {
+							streamProgress = true;
+							consecutiveRecoveryFailures = 0;
+							delayMs = RESUME_INITIAL_DELAY_MS;
+						},
 					);
 					if (consumed.terminal || input.controller.signal.aborted) {
 						return;
 					}
 					if (consumed.eventCount > 0) {
 						delayMs = RESUME_INITIAL_DELAY_MS;
+						consecutiveRecoveryFailures = 0;
 					}
 				} catch (error) {
 					if (!ownsOperation(input.operation)) {
@@ -662,10 +727,53 @@ function useCampusAssistantRuntimeState({
 							retryable: true,
 						});
 					}
+					if (initialReplayCount >= MAX_INITIAL_STREAM_REPLAYS) {
+						throw streamRecoveryExhausted();
+					}
+					initialReplayCount += 1;
 					await waitForResumeDelay(delayMs, input.controller.signal);
 					events = input.retryInitialEvents();
 					delayMs = Math.min(delayMs * 2, RESUME_MAX_DELAY_MS);
 					continue;
+				}
+
+				try {
+					const status = await getRunStatus({
+						runId: run.runId,
+						signal: input.controller.signal,
+					});
+					if (isTerminalRunStatus(status)) {
+						await applyTerminalRunStatus(status, input.operation);
+						return;
+					}
+					updateActiveRun((current) =>
+						current?.runId === status.runId
+							? {
+									...current,
+									conversationId: status.conversationId,
+									requestId: status.requestId,
+									traceId: status.traceId,
+								}
+							: current,
+					);
+					consecutiveRecoveryFailures = 0;
+				} catch (error) {
+					if (!ownsOperation(input.operation)) {
+						return;
+					}
+					if (
+						error instanceof UnauthorizedError ||
+						isAbortError(error) ||
+						(error instanceof ChatStreamRequestError && !error.retryable)
+					) {
+						throw error;
+					}
+					if (!streamProgress) {
+						consecutiveRecoveryFailures += 1;
+					}
+					if (consecutiveRecoveryFailures >= MAX_CONSECUTIVE_RECOVERY_FAILURES) {
+						throw streamRecoveryExhausted(run);
+					}
 				}
 				await waitForResumeDelay(delayMs, input.controller.signal);
 				events = resumeRunEventsStream({
@@ -676,7 +784,7 @@ function useCampusAssistantRuntimeState({
 				delayMs = Math.min(delayMs * 2, RESUME_MAX_DELAY_MS);
 			}
 		},
-		[consumeLifecycleStream, ownsOperation],
+		[applyTerminalRunStatus, consumeLifecycleStream, ownsOperation, updateActiveRun],
 	);
 
 	const runPrompt = useCallback(
@@ -1029,6 +1137,14 @@ function useCampusAssistantRuntimeState({
 				clearProvisionalAssistantMessages();
 				return;
 			}
+			if (error instanceof ChatStreamRequestError) {
+				replaceActiveRun(null);
+				cancelAssistantFrame();
+				clearProvisionalAssistantMessages();
+				cancellationStateRef.current = { phase: "idle" };
+				appendLocalErrorMessage(error);
+				return;
+			}
 			cancelAssistantFrame();
 			clearProvisionalAssistantMessages();
 			throw error;
@@ -1038,6 +1154,7 @@ function useCampusAssistantRuntimeState({
 			}
 		}
 	}, [
+		appendLocalErrorMessage,
 		cancelAssistantFrame,
 		clearProvisionalAssistantMessages,
 		followLifecycleStream,
@@ -1090,6 +1207,25 @@ function readTextContent(message: AppendMessage): string {
 
 function isAbortError(error: unknown): boolean {
 	return error instanceof DOMException && error.name === "AbortError";
+}
+
+function isTerminalRunStatus(status: ChatRunStatus): boolean {
+	return (
+		status.phase === "completed" ||
+		status.phase === "failed" ||
+		status.phase === "canceled" ||
+		status.phase === "expired"
+	);
+}
+
+function streamRecoveryExhausted(run?: ActiveRun): ChatStreamRequestError {
+	return new ChatStreamRequestError({
+		code: "chat_stream_connection_lost",
+		message: "回答连接已中断，请重试。",
+		...(run?.requestId ? { requestId: run.requestId } : {}),
+		retryable: true,
+		...(run?.traceId ? { traceId: run.traceId } : {}),
+	});
 }
 
 async function fetchConversationMessagesWithRetry(

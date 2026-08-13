@@ -671,7 +671,7 @@ func TestExecutePrimaryAgentActivityProjectsAgentRuntimeDiagnosticFailure(t *tes
 	if len(steps) != 1 || steps[0].StepID != "agent.primary" || steps[0].Status != "failed" {
 		t.Fatalf("projected steps = %#v", steps)
 	}
-	if steps[0].SanitizedPayload["failure_kind"] != "agent_attempt_uncertain" {
+	if steps[0].SanitizedPayload["failure_kind"] != "agent_runtime_request_failed" {
 		t.Fatalf("agent failure payload = %#v", steps[0].SanitizedPayload)
 	}
 	if _, exposed := steps[0].SanitizedPayload["agent_runtime_error_code"]; exposed {
@@ -702,6 +702,57 @@ func TestPrimaryAgentRuntimeFailureKindPreservesStableCodes(t *testing.T) {
 				t.Fatalf("failure kind = %q, want %q", got, code)
 			}
 		})
+	}
+}
+
+func TestExecutePrimaryAgentActivityClassifiesUnauthorizedRuntimeAsNonRetryable(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	now := time.Date(2026, 6, 12, 10, 41, 0, 0, time.UTC)
+	createHTTPAPIQueuedDurableRunForTest(
+		t,
+		store,
+		"run-primary-agent-runtime-unauthorized",
+		"conv-primary-agent-runtime-unauthorized",
+		now,
+		agentRequestForDurableWorkerTest("hi"),
+	)
+	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
+		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid runtime auth.", false)
+	}))
+	defer agentRuntime.Close()
+	server := NewServer(config.Config{
+		AgentRuntimeBaseURL:      agentRuntime.URL,
+		AgentRuntimeSharedSecret: "agent-secret",
+		AgentRuntimeDeadlineMS:   1000,
+		TemporalWorkerIdentity:   "test:agent:unauthorized",
+	})
+	attachPrimaryAgentProviderConfigForTest(server)
+	attachRunProjectionStoreForHandlerTest(server, store)
+
+	input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
+		RunID:            "run-primary-agent-runtime-unauthorized",
+		TraceID:          "trace-executor-001",
+		VisibleToolNames: []string{},
+	})
+	_, err := server.ExecutePrimaryAgentActivity(context.Background(), input)
+
+	assertTemporalFailureSanitized(t, err, "agent_runtime_unauthorized", true)
+	steps, listErr := store.ListRunSteps(context.Background(), input.RunID)
+	if listErr != nil {
+		t.Fatalf("list run steps: %v", listErr)
+	}
+	if len(steps) != 1 || steps[0].SanitizedPayload["failure_kind"] != "agent_runtime_unauthorized" {
+		t.Fatalf("unauthorized agent failure projection = %#v", steps)
+	}
+	if _, exposed := steps[0].SanitizedPayload["agent_runtime_error_code"]; exposed {
+		t.Fatalf("unauthorized internal code must not enter the public payload: %#v", steps[0])
+	}
+	attempts, listErr := store.ListStepAttempts(context.Background(), input.RunID)
+	if listErr != nil {
+		t.Fatalf("list step attempts: %v", listErr)
+	}
+	if len(attempts) != 1 || attempts[0].FailCloseReason != "agent_runtime_unauthorized" {
+		t.Fatalf("unauthorized agent attempt = %#v", attempts)
 	}
 }
 

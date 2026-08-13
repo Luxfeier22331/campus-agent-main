@@ -266,6 +266,7 @@ func temporalFailureFailCloseReason(projection temporalStepFailureProjection) st
 	}
 	switch strings.TrimSpace(projection.FailureKind) {
 	case "current_state_unverifiable",
+		"agent_runtime_unauthorized",
 		"source_conflict",
 		"temporal_scope_ambiguous",
 		"clarification_required",
@@ -412,6 +413,7 @@ func temporalFailureTerminalReason(
 		"workflow_failed_without_terminal_projection",
 		"workflow_canceled_without_terminal_projection",
 		"workflow_terminated_without_terminal_projection",
+		"agent_runtime_unauthorized",
 		workflowUnauthorizedSuccessorFailure:
 		return execution.DurableTerminalReasonRuntimeInvariant
 	default:

@@ -735,6 +735,34 @@ describe("runtime run service", () => {
 		]);
 	});
 
+	it.each(["completed", "failed", "canceled", "expired"] as const)(
+		"stops subscribing when the durable run is already %s beyond the event cursor",
+		async (status) => {
+			const listRunEvents = vi.fn().mockResolvedValue(eventPage([], 9));
+			const executionRuntime: ExecutionControlRuntimeClient = {
+				cancelRun: vi.fn(),
+				createRun: vi.fn(),
+				getRun: vi.fn().mockResolvedValue(durableRun({ status })),
+				listRunEvents,
+				listRunSteps: vi.fn().mockResolvedValue({ attempts: [], results: [], steps: [] }),
+			};
+			const service = buildRuntimeRunService({ executionRuntime, store: runtimeStore() });
+
+			const observed: RuntimeRunEventProjection[] = [];
+			for await (const event of service.subscribeEvents({
+				afterSequence: 9,
+				polling: { maxAttempts: 3, waitMs: 25 },
+				principal: createPrincipal(),
+				runId: "run_01HQ",
+			})) {
+				observed.push(event);
+			}
+
+			expect(observed).toEqual([]);
+			expect(listRunEvents).toHaveBeenCalledOnce();
+		},
+	);
+
 	it("lists sanitized durable step trajectory for an owned run", async () => {
 		const listRunSteps = vi.fn().mockResolvedValue({
 			attempts: [],

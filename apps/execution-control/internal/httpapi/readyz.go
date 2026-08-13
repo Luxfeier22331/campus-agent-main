@@ -45,7 +45,8 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 
 func (s *Server) agentRuntimeStatus(ctx context.Context) map[string]any {
 	baseURL := strings.TrimRight(strings.TrimSpace(s.config.AgentRuntimeBaseURL), "/")
-	configured := baseURL != ""
+	sharedSecret := s.config.AgentRuntimeSharedSecret
+	configured := baseURL != "" && sharedSecret != ""
 	status := map[string]any{
 		"configured": configured,
 		"healthy":    false,
@@ -57,11 +58,12 @@ func (s *Server) agentRuntimeStatus(ctx context.Context) map[string]any {
 	}
 	checkCtx, cancel := context.WithTimeout(ctx, time.Duration(s.config.ToolReadModelTimeoutMS)*time.Millisecond)
 	defer cancel()
-	request, err := http.NewRequestWithContext(checkCtx, http.MethodGet, baseURL+"/readyz", nil)
+	request, err := http.NewRequestWithContext(checkCtx, http.MethodGet, baseURL+"/internal/readyz", nil)
 	if err != nil {
 		status["last_error"] = "agent runtime readiness request could not be created"
 		return status
 	}
+	request.Header.Set("authorization", "Bearer "+sharedSecret)
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		status["last_error"] = "agent runtime readiness check failed"

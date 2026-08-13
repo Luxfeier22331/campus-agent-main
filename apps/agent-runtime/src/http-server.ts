@@ -355,7 +355,7 @@ export function createAgentRuntimeHandler(
 			return jsonResponse(200, { status: "ok" });
 		}
 		if (request.method === "GET" && url.pathname === "/readyz") {
-			return options.sharedSecret.trim()
+			return options.sharedSecret
 				? jsonResponse(200, { status: "ready" })
 				: jsonResponse(503, {
 						error: {
@@ -363,6 +363,17 @@ export function createAgentRuntimeHandler(
 							message: "Agent runtime authorization is not configured.",
 						},
 					});
+		}
+		if (request.method === "GET" && url.pathname === "/internal/readyz") {
+			if (!authorized(request, options.sharedSecret)) {
+				return jsonResponse(401, {
+					error: {
+						code: "unauthorized",
+						message: "Internal worker authorization failed.",
+					},
+				});
+			}
+			return jsonResponse(200, { status: "ready" });
 		}
 		if (request.method === "POST" && url.pathname === "/internal/agent-runs") {
 			if (!authorized(request, options.sharedSecret)) {

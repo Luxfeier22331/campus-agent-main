@@ -7,6 +7,7 @@ import {
 	deleteConversation,
 	deleteMessageFeedback,
 	deleteTrailingMessages,
+	getRunStatus,
 	listConversations,
 	pinConversation,
 	renameConversation,
@@ -367,9 +368,74 @@ describe("campus app-api client", () => {
 		});
 	});
 
-	it("maps submit, resume, and cancel authentication expiry without retrying", async () => {
+	it("reads the durable run status through the owned run route", async () => {
+		const controller = new AbortController();
+		const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					run: {
+						conversationId: "conv_01",
+						phase: "failed",
+						requestId: "req_01",
+						runId: "run_01",
+						status: "failed",
+						terminalReason: "runtime_invariant_failed",
+						traceId: "trace_01",
+					},
+				}),
+				{ headers: { "content-type": "application/json" } },
+			),
+		);
+
+		await expect(getRunStatus({ runId: "run_01", signal: controller.signal })).resolves.toEqual({
+			conversationId: "conv_01",
+			phase: "failed",
+			requestId: "req_01",
+			runId: "run_01",
+			status: "failed",
+			terminalReason: "runtime_invariant_failed",
+			traceId: "trace_01",
+		});
+		expect(fetchMock).toHaveBeenCalledWith("/api/chat/runs/run_01", {
+			credentials: "same-origin",
+			headers: { accept: "application/json" },
+			method: "GET",
+			signal: expect.any(AbortSignal),
+		});
+	});
+
+	it("bounds a stalled durable run status request", async () => {
+		vi.useFakeTimers();
+		const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementationOnce(
+			(_url, init) =>
+				new Promise((_resolve, reject) => {
+					const signal = init?.signal;
+					if (!(signal instanceof AbortSignal)) {
+						reject(new Error("run status request signal is missing"));
+						return;
+					}
+					signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+				}),
+		);
+
+		try {
+			const statusPromise = getRunStatus({ runId: "run_stalled" });
+			const expectation = expect(statusPromise).rejects.toMatchObject({
+				code: "run_status_timeout",
+				retryable: true,
+			});
+			await vi.advanceTimersByTimeAsync(5_000);
+			await expectation;
+			expect(fetchMock.mock.calls[0]?.[1]?.signal).toHaveProperty("aborted", true);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("maps submit, resume, status, and cancel authentication expiry without retrying", async () => {
 		const fetchMock = vi
 			.spyOn(globalThis, "fetch")
+			.mockResolvedValueOnce(new Response(null, { status: 401 }))
 			.mockResolvedValueOnce(new Response(null, { status: 401 }))
 			.mockResolvedValueOnce(new Response(null, { status: 401 }))
 			.mockResolvedValueOnce(new Response(null, { status: 401 }));
@@ -384,8 +450,9 @@ describe("campus app-api client", () => {
 				throw new Error("unauthorized resume must not yield events");
 			}
 		}).rejects.toBeInstanceOf(UnauthorizedError);
+		await expect(getRunStatus({ runId: "run_01" })).rejects.toBeInstanceOf(UnauthorizedError);
 		await expect(cancelRun("run_01")).rejects.toBeInstanceOf(UnauthorizedError);
-		expect(fetchMock).toHaveBeenCalledTimes(3);
+		expect(fetchMock).toHaveBeenCalledTimes(4);
 	});
 
 	it("fails closed on malformed or unknown lifecycle events", async () => {

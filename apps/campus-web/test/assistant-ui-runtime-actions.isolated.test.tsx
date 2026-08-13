@@ -48,6 +48,7 @@ const conversationApiMock = vi.hoisted(() => ({
 	},
 	deleteTrailingMessages: vi.fn(),
 	getConversationDetail: vi.fn(),
+	getRunStatus: vi.fn(),
 	resumeRunEventsStream: vi.fn(),
 	submitChatRequestStream: vi.fn(),
 }));
@@ -175,6 +176,15 @@ describe("assistant-ui runtime message actions", () => {
 		conversationApiMock.deleteTrailingMessages.mockReset();
 		conversationApiMock.getConversationDetail.mockReset();
 		conversationApiMock.getConversationDetail.mockResolvedValue(historicalConversation({}));
+		conversationApiMock.getRunStatus.mockReset();
+		conversationApiMock.getRunStatus.mockResolvedValue({
+			conversationId: "conv_history",
+			phase: "running",
+			requestId: "req_01",
+			runId: "run_02",
+			status: "running",
+			traceId: "trace_01",
+		});
 		conversationApiMock.resumeRunEventsStream.mockReset();
 		conversationApiMock.submitChatRequestStream.mockReset();
 	});
