@@ -34,6 +34,9 @@ import {
 	type FC,
 	type PropsWithChildren,
 	useContext,
+	useEffect,
+	useRef,
+	useState,
 } from "react";
 import {
 	ComposerAddAttachment,
@@ -126,6 +129,7 @@ export const Thread: FC<ThreadProps> = ({
 
 const ThreadRoot: FC<{ isEmpty: boolean }> = ({ isEmpty }) => {
 	const { Registrations, Welcome = ThreadWelcome } = useContext(ThreadComponentsContext);
+	const isRunning = useAuiState((state) => state.thread.isRunning);
 
 	return (
 		<ThreadPrimitive.Root
@@ -154,9 +158,17 @@ const ThreadRoot: FC<{ isEmpty: boolean }> = ({ isEmpty }) => {
 						<Welcome />
 					</AuiIf>
 
-					<div data-slot="aui_message-group" className="mb-14 flex flex-col gap-y-5 empty:hidden">
+					<div
+						aria-busy={isRunning}
+						aria-label="对话消息"
+						aria-live="off"
+						data-slot="aui_message-group"
+						className="mb-14 flex flex-col gap-y-5 empty:hidden"
+						role="log"
+					>
 						<ThreadPrimitive.Messages>{() => <ThreadMessage />}</ThreadPrimitive.Messages>
 					</div>
+					<ThreadRunStatus />
 
 					<ThreadPrimitive.ViewportFooter
 						className={cn(
@@ -173,6 +185,35 @@ const ThreadRoot: FC<{ isEmpty: boolean }> = ({ isEmpty }) => {
 				</div>
 			</ThreadPrimitive.Viewport>
 		</ThreadPrimitive.Root>
+	);
+};
+
+const ThreadRunStatus: FC = () => {
+	const threadId = useAuiState((state) => state.threadListItem.id);
+	const isRunning = useAuiState((state) => state.thread.isRunning);
+	const previousRef = useRef<{ isRunning: boolean; threadId: string } | null>(null);
+	const [announcement, setAnnouncement] = useState("");
+
+	useEffect(() => {
+		const previous = previousRef.current;
+		if (!previous || previous.threadId !== threadId) {
+			previousRef.current = { isRunning, threadId };
+			setAnnouncement("");
+			return;
+		}
+
+		if (!previous.isRunning && isRunning) {
+			setAnnouncement("助手开始生成");
+		} else if (previous.isRunning && !isRunning) {
+			setAnnouncement("回答已结束");
+		}
+		previousRef.current = { isRunning, threadId };
+	}, [isRunning, threadId]);
+
+	return (
+		<span aria-atomic="true" aria-live="polite" className="sr-only" role="status">
+			{announcement}
+		</span>
 	);
 };
 

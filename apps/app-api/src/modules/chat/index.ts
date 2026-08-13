@@ -2,6 +2,8 @@ export type {
 	AssistantMessageKind,
 	ChatConversation,
 	ChatConversationResponse,
+	ChatConversationSearchResult,
+	ChatConversationSearchResultResponse,
 	ChatConversationSummary,
 	ChatConversationSummaryResponse,
 	ChatMessage,
@@ -23,6 +25,7 @@ export {
 	DRAFT_CONVERSATION_TITLE,
 	normalizeChatStructuredParts,
 	toConversationResponse,
+	toConversationSearchResultResponse,
 	toConversationSummaryResponse,
 	toVendorChatHistoryItemResponse,
 } from "./model";

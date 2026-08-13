@@ -117,6 +117,7 @@ describe("campus app-api client", () => {
 			createdAt: "2026-06-08T00:00:00.000Z",
 			id: "conv_01",
 			pinnedAt: "2026-06-08T00:01:00.000Z",
+			matchSnippet: null,
 			title: "图书馆开放时间",
 			updatedAt: "2026-06-08T00:02:00.000Z",
 		};
@@ -226,6 +227,77 @@ describe("campus app-api client", () => {
 			"content-type": "application/json",
 		});
 		expect(fetchMock.mock.calls[0]?.[1]?.headers).toHaveProperty("idempotency-key");
+	});
+
+	it("does not cancel the lifecycle reader after a normal EOF", async () => {
+		const cancel = vi.fn();
+		const body = new ReadableStream<Uint8Array>({
+			cancel,
+			start(controller) {
+				controller.enqueue(
+					new TextEncoder().encode(
+						'event: request.accepted\ndata: {"runId":"run_eof","requestId":"req_eof","traceId":"trace_eof","status":"accepted","occurredAt":"2026-06-08T00:00:00.000Z"}\n\n',
+					),
+				);
+				controller.close();
+			},
+		});
+		vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+			new Response(body, { headers: { "content-type": "text/event-stream" } }),
+		);
+
+		const events: ChatRequestStreamEvent[] = [];
+		for await (const event of submitChatRequestStream({ prompt: "正常结束" })) {
+			events.push(event);
+		}
+
+		expect(events).toHaveLength(1);
+		expect(cancel).not.toHaveBeenCalled();
+	});
+
+	it("cancels the lifecycle reader when parsing fails", async () => {
+		const cancel = vi.fn();
+		const body = new ReadableStream<Uint8Array>({
+			cancel,
+			start(controller) {
+				controller.enqueue(
+					new TextEncoder().encode("event: request.accepted\ndata: {not-json}\n\n"),
+				);
+			},
+		});
+		vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+			new Response(body, { headers: { "content-type": "text/event-stream" } }),
+		);
+
+		await expect(async () => {
+			for await (const _event of submitChatRequestStream({ prompt: "解析失败" })) {
+				throw new Error("invalid stream must not yield events");
+			}
+		}).rejects.toMatchObject({ code: "invalid_stream_event" });
+		expect(cancel).toHaveBeenCalledOnce();
+	});
+
+	it("cancels the lifecycle reader when the caller stops consuming early", async () => {
+		const cancel = vi.fn();
+		const body = new ReadableStream<Uint8Array>({
+			cancel,
+			start(controller) {
+				controller.enqueue(
+					new TextEncoder().encode(
+						'event: request.accepted\ndata: {"runId":"run_break","requestId":"req_break","traceId":"trace_break","status":"accepted","occurredAt":"2026-06-08T00:00:00.000Z"}\n\n',
+					),
+				);
+			},
+		});
+		vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+			new Response(body, { headers: { "content-type": "text/event-stream" } }),
+		);
+
+		for await (const _event of submitChatRequestStream({ prompt: "提前结束" })) {
+			break;
+		}
+
+		expect(cancel).toHaveBeenCalledOnce();
 	});
 
 	it("maps failed chat stream startup responses to structured request errors", async () => {

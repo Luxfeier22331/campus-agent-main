@@ -8,6 +8,12 @@ import type { Env } from "../src/config";
 import { createAppAuth } from "../src/modules/auth";
 import { createPgChatConversationStore } from "../src/modules/chat";
 import { createPgProfileMemoryStore } from "../src/modules/profile-memory";
+import { createPgChatCommandStore } from "../src/modules/runtime-command";
+import {
+	buildAcceptedWrite,
+	buildFinalizedWrite,
+} from "../src/modules/runtime-command/service/writes";
+import { createPrincipal } from "./chat-command.service.test-support";
 import { buildSharedDbIntegrationEnv } from "./shared-db-integration-helpers";
 
 const TURNSTILE_TEST_TOKEN = "XXXX.DUMMY.TOKEN.XXXX";
@@ -337,6 +343,294 @@ describe("app-api shared product DB integration", () => {
 		expect(detailResponse.status).toBe(200);
 		expect(detailPayload.conversation.id).toBe(createPayload.conversation.id);
 		expect(detailPayload.conversation.messages).toEqual([]);
+	});
+
+	it("searches each conversation once and returns the latest message match snippet", async () => {
+		const suffix = Date.now().toString(36);
+		const ownerUserId = `search-owner-${suffix}`;
+		const firstConversationId = `search-first-${suffix}`;
+		const secondConversationId = `search-second-${suffix}`;
+		const otherConversationId = `search-other-${suffix}`;
+		const literalMessageText = `${"前文".repeat(60)}100% literal_underscore\\literal${"后文".repeat(60)}`;
+		const chatStore = createPgChatConversationStore(env);
+		for (const [conversationId, title, updatedAt] of [
+			[firstConversationId, "不相关标题", "2026-07-16T03:00:00.000Z"],
+			[secondConversationId, "命中词标题", "2026-07-16T02:00:00.000Z"],
+			[otherConversationId, "普通会话", "2026-07-16T01:00:00.000Z"],
+		] as const) {
+			await chatStore.createConversationDraft({
+				conversationId,
+				createdAt: updatedAt,
+				ownerUserId,
+				title,
+				updatedAt,
+			});
+		}
+		const dbClient = requireClient(client);
+		await dbClient.query(
+			`
+				insert into "chat"."messages" ("id", "conversation_id", "role", "text", "created_at")
+				values
+					($1, $2, 'user', '命中词较早的一条消息', '2026-07-16T03:01:00Z'),
+					($3, $2, 'user', '这是命中词最新的一条消息，包含更多上下文', '2026-07-16T03:02:00Z'),
+					($4, $5, 'user', '另一个会话也包含命中词', '2026-07-16T02:01:00Z'),
+					($6, $7, 'user', $8, '2026-07-16T01:01:00Z')
+			`,
+			[
+				`message-old-${suffix}`,
+				firstConversationId,
+				`message-new-${suffix}`,
+				`message-second-${suffix}`,
+				secondConversationId,
+				`message-literal-${suffix}`,
+				otherConversationId,
+				literalMessageText,
+			],
+		);
+		await dbClient.query(
+			`
+				insert into "chat"."messages" ("id", "conversation_id", "role", "text", "created_at")
+				select
+					concat('message-duplicate-', duplicate_index, '-', $2::text),
+					$1,
+					'user',
+					concat('命中词重复消息 ', duplicate_index),
+					'2026-07-16T02:00:00Z'::timestamptz + duplicate_index * interval '1 second'
+				from generate_series(1, 8) as duplicate_index
+			`,
+			[firstConversationId, suffix],
+		);
+
+		await expect(
+			chatStore.searchConversationSummariesByOwner({
+				limit: 2,
+				ownerUserId,
+				query: "命中词",
+				view: "active",
+			}),
+		).resolves.toEqual([
+			expect.objectContaining({
+				id: firstConversationId,
+				matchSnippet: "这是命中词最新的一条消息，包含更多上下文",
+			}),
+			expect.objectContaining({ id: secondConversationId, matchSnippet: null }),
+		]);
+
+		const literalResults = await chatStore.searchConversationSummariesByOwner({
+			limit: 10,
+			ownerUserId,
+			query: "100% literal_",
+			view: "active",
+		});
+		expect(literalResults).toEqual([expect.objectContaining({ id: otherConversationId })]);
+		expect(literalResults[0]?.matchSnippet).toContain("100% literal_");
+		expect(literalResults[0]?.matchSnippet?.length).toBeLessThanOrEqual(160);
+		await expect(
+			chatStore.searchConversationSummariesByOwner({
+				limit: 10,
+				ownerUserId,
+				query: "\\literal",
+				view: "active",
+			}),
+		).resolves.toEqual([expect.objectContaining({ id: otherConversationId })]);
+	});
+
+	it("converges TTFT timing across finalization order and preserves the first observation", async () => {
+		const store = createPgChatCommandStore(env);
+		const dbClient = requireClient(client);
+		const principal = createPrincipal();
+
+		async function runOrder(
+			order: "finalization_first" | "ttft_after_finalization_snapshot" | "ttft_first",
+		) {
+			const suffix = `${order}-${Date.now().toString(36)}`;
+			const acceptedAt = "2026-07-16T04:00:00.000Z";
+			const completedAt = "2026-07-16T04:00:03.000Z";
+			const firstTtftObservedAt =
+				order === "ttft_first" ? "2026-07-16T04:00:01.000Z" : "2026-07-16T04:00:04.000Z";
+			const conversationId = `timing-conversation-${suffix}`;
+			const requestId = `timing-request-${suffix}`;
+			const runId = `timing-run-${suffix}`;
+			const traceId = `timing-trace-${suffix}`;
+			const workflowId = `campus-agent.chat.${runId}`;
+			const conversation = {
+				activeBranchId: "branch_active",
+				activeMessageId: null,
+				activeRunId: null,
+				activeTurnSequence: 0,
+				createdAt: acceptedAt,
+				id: conversationId,
+				messages: [],
+				ownerUserId: principal.actor.userId,
+				sessionSlots: [],
+				title: "TTFT integration",
+				updatedAt: acceptedAt,
+			};
+			const acceptedWrite = buildAcceptedWrite({
+				assistantMessageId: `timing-assistant-${suffix}`,
+				branchId: "branch_active",
+				captureMemorySnapshot: false,
+				conversation,
+				conversationSeed: {
+					createdAt: acceptedAt,
+					id: conversationId,
+					ownerUserId: principal.actor.userId,
+					title: conversation.title,
+					updatedAt: acceptedAt,
+				},
+				conversationTitle: conversation.title,
+				freezeDurableAdmission: () => ({
+					admissionInputJson: JSON.stringify({ requestId, runId }),
+					admissionInputSha256: "a".repeat(64),
+					executionInputJson: JSON.stringify({ requestId, runId }),
+					executionInputSha256: "b".repeat(64),
+					workflowId,
+				}),
+				idempotencyKey: null,
+				now: acceptedAt,
+				principal,
+				prompt: "国家奖学金怎么评审？",
+				requestFingerprintSha256: null,
+				requestId,
+				runId,
+				safetyIdentifier: null,
+				surface: "campus_web",
+				traceId,
+				turnSequence: 1,
+				userMessageId: `timing-user-${suffix}`,
+			});
+			await store.acceptRequest(acceptedWrite);
+			expect(
+				await store.claimAdmission({
+					requestId,
+					updatedAt: "2026-07-16T04:00:00.100Z",
+					workflowId,
+				}),
+			).toBe(true);
+			expect(
+				await store.markAdmitted({
+					admittedAt: "2026-07-16T04:00:00.200Z",
+					requestId,
+					workflowId,
+				}),
+			).toBe(true);
+
+			const recordTtft = () =>
+				store.recordStreamAppApiTtft({
+					durationMs: 1000,
+					observedAt: firstTtftObservedAt,
+					requestId,
+				});
+			const buildFinalization = async () => {
+				const finalized = buildFinalizedWrite({
+					assistantMessageId: acceptedWrite.turnDispatch.assistantMessageId,
+					branchId: "branch_active",
+					completedAt,
+					conversation: {
+						...conversation,
+						activeMessageId: acceptedWrite.userMessage.id,
+						activeRunId: runId,
+						activeTurnSequence: 1,
+						messages: [acceptedWrite.userMessage],
+						updatedAt: acceptedAt,
+					},
+					conversationTitle: conversation.title,
+					durationMs: 3000,
+					principal,
+					requestId,
+					response: {
+						answerText: "国家奖学金每学年评审一次。",
+						error: null,
+						followUpQuestion: "",
+						modelUsage: {
+							cachedInputTokens: 0,
+							inputTokens: 1,
+							outputTokens: 1,
+							totalTokens: 2,
+						},
+						result: null,
+						stageTiming: { "agent.first_delta_ms": 600 },
+						status: "completed",
+						traceId,
+					},
+					runId,
+					safetyIdentifier: null,
+					stageTiming: await store.readRequestStageTiming(requestId),
+					startedAt: acceptedAt,
+					surface: "campus_web",
+					traceId,
+					turnSequence: 1,
+					userMessageId: acceptedWrite.userMessage.id,
+				});
+				return finalized.write;
+			};
+			const finalize = async () => store.finalizeRequest(await buildFinalization());
+
+			if (order === "ttft_first") {
+				expect(await recordTtft()).toBe(true);
+				await finalize();
+			} else if (order === "finalization_first") {
+				await finalize();
+				expect(await recordTtft()).toBe(true);
+			} else {
+				const staleFinalization = await buildFinalization();
+				expect(await recordTtft()).toBe(true);
+				await store.finalizeRequest(staleFinalization);
+			}
+
+			const firstRow = await dbClient.query<{
+				stage_timing: Record<string, unknown>;
+				updated_at: string;
+			}>(
+				`
+					select "stage_timing_json" as stage_timing, "updated_at"::text as updated_at
+					from "runtime"."request_observability_fact"
+					where "request_id" = $1
+				`,
+				[requestId],
+			);
+			expect(
+				await store.recordStreamAppApiTtft({
+					durationMs: 2000,
+					observedAt: "2026-07-16T04:00:05.000Z",
+					requestId,
+				}),
+			).toBe(false);
+			const duplicateRow = await dbClient.query<{
+				stage_timing: Record<string, unknown>;
+				updated_at: string;
+			}>(
+				`
+					select "stage_timing_json" as stage_timing, "updated_at"::text as updated_at
+					from "runtime"."request_observability_fact"
+					where "request_id" = $1
+				`,
+				[requestId],
+			);
+			expect(duplicateRow.rows[0]).toEqual(firstRow.rows[0]);
+			return firstRow.rows[0];
+		}
+
+		const ttftFirst = await runOrder("ttft_first");
+		const finalizationFirst = await runOrder("finalization_first");
+		const ttftAfterFinalizationSnapshot = await runOrder("ttft_after_finalization_snapshot");
+		expect(ttftFirst?.stage_timing).toEqual({
+			"agent.first_delta_ms": 600,
+			"request.total_ms": 3000,
+			"stream.app_api_ttft_ms": 1000,
+			"stream.orchestration_overhead_ms": 400,
+		});
+		expect(finalizationFirst?.stage_timing).toEqual(ttftFirst?.stage_timing);
+		expect(ttftAfterFinalizationSnapshot?.stage_timing).toEqual(ttftFirst?.stage_timing);
+		expect(new Date(ttftFirst?.updated_at ?? 0).valueOf()).toBe(
+			new Date("2026-07-16T04:00:03.000Z").valueOf(),
+		);
+		expect(new Date(finalizationFirst?.updated_at ?? 0).valueOf()).toBe(
+			new Date("2026-07-16T04:00:04.000Z").valueOf(),
+		);
+		expect(new Date(ttftAfterFinalizationSnapshot?.updated_at ?? 0).valueOf()).toBe(
+			new Date("2026-07-16T04:00:04.000Z").valueOf(),
+		);
 	});
 
 	it("serializes profile-memory idempotency, dispatch and scope-head reconciliation", async () => {

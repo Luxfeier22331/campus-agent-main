@@ -4,12 +4,14 @@ import { AppApiRouteError } from "../../http";
 import type { ResolvedAppPrincipal } from "../auth";
 import {
 	type ChatConversationResponse,
+	type ChatConversationSearchResultResponse,
 	type ChatConversationSummaryResponse,
 	type ChatMessageFeedback,
 	type ChatMessageFeedbackReasonCode,
 	type ChatMessageFeedbackVote,
 	DRAFT_CONVERSATION_TITLE,
 	toConversationResponse,
+	toConversationSearchResultResponse,
 	toConversationSummaryResponse,
 	toVendorChatHistoryItemResponse,
 	type VendorChatHistoryPageResponse,
@@ -67,7 +69,7 @@ export interface ChatConversationService {
 		principal: ResolvedAppPrincipal;
 		query: string;
 		view?: ChatConversationListView;
-	}): Promise<{ query: string; conversations: ChatConversationSummaryResponse[] }>;
+	}): Promise<{ query: string; conversations: ChatConversationSearchResultResponse[] }>;
 	setMessageFeedback(input: {
 		conversationId: string;
 		messageId: string;
@@ -479,7 +481,7 @@ export function buildChatConversationService(
 
 			return {
 				query,
-				conversations: conversations.map(toConversationSummaryResponse),
+				conversations: conversations.map(toConversationSearchResultResponse),
 			};
 		},
 

@@ -157,6 +157,7 @@ describe("Q&A product interactions", () => {
 					archivedAt: null,
 					createdAt: "2026-06-21T01:00:00.000Z",
 					id: "conv_search",
+					matchSnippet: "图书馆开放时间以馆方公告为准。",
 					pinnedAt: null,
 					title: "图书馆开放时间",
 					updatedAt: "2026-06-21T01:02:00.000Z",
@@ -189,12 +190,21 @@ describe("Q&A product interactions", () => {
 		}
 
 		await waitFor(() => {
-			expect(conversationApiMock.searchConversations).toHaveBeenCalledWith({
-				limit: 10,
-				query: "图书馆",
-				view: "active",
-			});
+			expect(conversationApiMock.searchConversations).toHaveBeenCalledWith(
+				expect.objectContaining({
+					limit: 10,
+					query: "图书馆",
+					signal: expect.any(AbortSignal),
+					view: "active",
+				}),
+			);
 		});
+		expect(screen.getByText("图书馆开放时间以馆方公告为准。")).toBeInTheDocument();
+		fireEvent.change(screen.getByPlaceholderText("搜索历史会话"), {
+			target: { value: " 图书馆 " },
+		});
+		expect(screen.getByText("图书馆开放时间以馆方公告为准。")).toBeInTheDocument();
+		expect(conversationApiMock.searchConversations).toHaveBeenCalledTimes(1);
 		await user.click(await screen.findByText("图书馆开放时间"));
 		expect(navigateMock).toHaveBeenCalledWith({
 			params: { conversationId: "conv_search" },
@@ -290,7 +300,7 @@ describe("Q&A product interactions", () => {
 
 		render(<HomePage />);
 
-		expect(await screen.findAllByRole("status", { name: "正在加载聊天记录" })).toHaveLength(5);
+		expect(await screen.findAllByRole("status", { name: "正在加载聊天记录" })).toHaveLength(1);
 		expect(screen.queryByText("登录后可查看聊天记录")).toBeNull();
 		expect(screen.queryByText("暂无聊天记录")).toBeNull();
 		expect(conversationApiMock.listConversations).not.toHaveBeenCalled();
@@ -336,7 +346,7 @@ describe("Q&A product interactions", () => {
 		sessionState.data = null;
 		window.history.pushState({}, "", "/c/conv_01?from=test#turn");
 
-		render(<QAShell assistantThreadId="conv_01" loginRequested topTitle="会话" />);
+		render(<QAShell assistantThreadId="conv_01" loginRequested />);
 
 		await waitFor(() => {
 			expect(screen.getByRole("dialog", { name: "登录或创建校园问答账号" })).toBeInTheDocument();
@@ -351,7 +361,7 @@ describe("Q&A product interactions", () => {
 	it("opens the auth modal from the Q&A account entry", async () => {
 		const user = userEvent.setup();
 		sessionState.data = null;
-		render(<QAShell assistantThreadId={null} topTitle="新对话" />);
+		render(<QAShell assistantThreadId={null} />);
 
 		const footer = document.querySelector('[data-sidebar="footer"]');
 		expect(footer).not.toBeNull();

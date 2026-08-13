@@ -1,4 +1,8 @@
-import { AssistantRuntimeProvider, useRemoteThreadListRuntime } from "@assistant-ui/react";
+import {
+	AssistantRuntimeProvider,
+	useAuiState,
+	useRemoteThreadListRuntime,
+} from "@assistant-ui/react";
 import { useNavigate } from "@tanstack/react-router";
 import {
 	type CSSProperties,
@@ -24,11 +28,9 @@ const CHAT_SIDEBAR_STORAGE_KEY = "campus-agent.chat-sidebar";
 export function QAShell({
 	assistantThreadId,
 	loginRequested,
-	topTitle,
 }: {
 	assistantThreadId: string | null;
 	loginRequested?: boolean;
-	topTitle: string;
 }) {
 	const navigate = useNavigate();
 	const [authDialogOpen, setAuthDialogOpen] = useState(false);
@@ -79,48 +81,87 @@ export function QAShell({
 			onLoginRequired={openAuthDialog}
 			threadId={assistantThreadId}
 		>
-			<SidebarProvider
-				onOpenChange={handleChatSidebarChange}
-				open={chatSidebarOpen}
-				style={
-					{
-						"--sidebar-width": "var(--layout-chat-sidebar-width)",
-						"--sidebar-width-icon": "var(--layout-chat-sidebar-rail-width)",
-					} as CSSProperties
-				}
-			>
-				<ThreadListSidebar
-					authenticated={hasSession}
-					accountPending={accountPending}
-					className="bg-sidebar"
-					collapsible="icon"
-					id="campus-chat-sidebar"
-					onLoginRequired={openAuthDialog}
-				/>
-				<SidebarInset data-testid="assistant-chat">
-					<div className="flex min-h-dvh flex-col bg-background text-foreground">
-						<CampusTopNav
-							activePath={activePath}
-							contextLabel={topTitle}
-							density="compact"
-							leadingAction={<ChatSidebarTrigger />}
-							mobileAccountAction={(openMobileAuthDialog) => (
-								<AccountEntry
-									className="w-full"
-									onLogin={openMobileAuthDialog}
-									presentation="label"
-								/>
-							)}
-							variant="workspace"
-						/>
-						{authDialogOpen ? <AuthDialog onOpenChange={setAuthDialogOpen} open /> : null}
-						<div className="min-h-0 flex-1">
-							<AssistantConversationSurface />
-						</div>
-					</div>
-				</SidebarInset>
-			</SidebarProvider>
+			<QAShellLayout
+				accountPending={accountPending}
+				activePath={activePath}
+				authDialogOpen={authDialogOpen}
+				chatSidebarOpen={chatSidebarOpen}
+				hasSession={hasSession}
+				hasRequestedThread={assistantThreadId !== null}
+				onAuthDialogChange={setAuthDialogOpen}
+				onChatSidebarChange={handleChatSidebarChange}
+				onLoginRequired={openAuthDialog}
+			/>
 		</AssistantRemoteRuntimeFrame>
+	);
+}
+
+function QAShellLayout({
+	accountPending,
+	activePath,
+	authDialogOpen,
+	chatSidebarOpen,
+	hasSession,
+	hasRequestedThread,
+	onAuthDialogChange,
+	onChatSidebarChange,
+	onLoginRequired,
+}: {
+	accountPending: boolean;
+	activePath: string;
+	authDialogOpen: boolean;
+	chatSidebarOpen: boolean;
+	hasSession: boolean;
+	hasRequestedThread: boolean;
+	onAuthDialogChange: (open: boolean) => void;
+	onChatSidebarChange: (open: boolean) => void;
+	onLoginRequired: () => void;
+}) {
+	const runtimeTitle = useAuiState((state) => state.threadListItem.title);
+	const topTitle = runtimeTitle || (hasRequestedThread ? "会话" : "新对话");
+
+	return (
+		<SidebarProvider
+			onOpenChange={onChatSidebarChange}
+			open={chatSidebarOpen}
+			style={
+				{
+					"--sidebar-width": "var(--layout-chat-sidebar-width)",
+					"--sidebar-width-icon": "var(--layout-chat-sidebar-rail-width)",
+				} as CSSProperties
+			}
+		>
+			<ThreadListSidebar
+				authenticated={hasSession}
+				accountPending={accountPending}
+				className="bg-sidebar"
+				collapsible="icon"
+				id="campus-chat-sidebar"
+				onLoginRequired={onLoginRequired}
+			/>
+			<SidebarInset data-testid="assistant-chat">
+				<div className="flex min-h-dvh flex-col bg-background text-foreground">
+					<CampusTopNav
+						activePath={activePath}
+						contextLabel={topTitle}
+						density="compact"
+						leadingAction={<ChatSidebarTrigger />}
+						mobileAccountAction={(openMobileAuthDialog) => (
+							<AccountEntry
+								className="w-full"
+								onLogin={openMobileAuthDialog}
+								presentation="label"
+							/>
+						)}
+						variant="workspace"
+					/>
+					{authDialogOpen ? <AuthDialog onOpenChange={onAuthDialogChange} open /> : null}
+					<div className="min-h-0 flex-1">
+						<AssistantConversationSurface />
+					</div>
+				</div>
+			</SidebarInset>
+		</SidebarProvider>
 	);
 }
 

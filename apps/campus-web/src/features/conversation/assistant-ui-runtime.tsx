@@ -20,9 +20,6 @@ import type { ChatRequestStreamEvent } from "./model";
 
 type RuntimeMessages = ThreadMessageLike[];
 
-const TYPEWRITER_INITIAL_CHARS = 3;
-const TYPEWRITER_CHUNK_CHARS = 2;
-const TYPEWRITER_INTERVAL_MS = 24;
 const RESUME_INITIAL_DELAY_MS = 250;
 const RESUME_MAX_DELAY_MS = 5_000;
 
@@ -41,16 +38,27 @@ interface RuntimeOperationIdentity {
 
 type RunCancellationState =
 	| { phase: "idle" }
+	| { localMessageId: string; operationId: number; phase: "initializing" }
 	| { operationId: number; phase: "awaiting_run_id" }
 	| { operationId: number; phase: "requesting"; promise: Promise<void>; runId: string }
 	| { operationId: number; phase: "acknowledged"; runId: string };
 
-interface TypewriterState {
-	fullText: string;
-	intervalId: number | null;
+interface AssistantFrameState {
+	frameId: number;
 	messageId: string;
 	occurredAt: string;
-	visibleLength: number;
+}
+
+interface ConversationInitializationTarget {
+	deleteThread: () => void | Promise<void>;
+	initialize: () => Promise<{ remoteId: string }>;
+	threadId: string;
+}
+
+interface PendingConversationInitialization {
+	deleteThread: () => void | Promise<void>;
+	initializeTask: Promise<string | undefined>;
+	ownerOperationId: number;
 }
 
 export function createCampusAssistantRuntimeHook(input: {
@@ -73,6 +81,7 @@ function useCampusAssistantRuntimeState({
 	onLoginRequired: () => void;
 }) {
 	const aui = useAui();
+	const threadId = useAuiState((state) => state.threadListItem.id);
 	const remoteId = useAuiState((state) => state.threadListItem.remoteId);
 	const [isLoading, setIsLoading] = useState(false);
 	const [isRunning, setIsRunning] = useState(false);
@@ -81,10 +90,18 @@ function useCampusAssistantRuntimeState({
 	const abortControllerRef = useRef<AbortController | null>(null);
 	const cancellationStateRef = useRef<RunCancellationState>({ phase: "idle" });
 	const operationIdRef = useRef(0);
-	const locallyInitializedRunConversationIdRef = useRef<string | null>(null);
+	const locallyInitializedRunConversationRef = useRef<{
+		conversationId: string;
+		operationId: number;
+		threadId: string;
+	} | null>(null);
+	const pendingConversationInitializationsRef = useRef(
+		new Map<string, PendingConversationInitialization>(),
+	);
 	const provisionalAssistantMessageIdsRef = useRef(new Set<string>());
 	const streamedAnswerTextRef = useRef(new Map<string, string>());
-	const typewriterRef = useRef<TypewriterState | null>(null);
+	const streamedAnswerOccurredAtRef = useRef(new Map<string, string>());
+	const assistantFrameRef = useRef<AssistantFrameState | null>(null);
 
 	const replaceActiveRun = useCallback((run: ActiveRun | null) => {
 		activeRunRef.current = run;
@@ -151,13 +168,28 @@ function useCampusAssistantRuntimeState({
 		[],
 	);
 
-	const clearTypewriter = useCallback(() => {
-		const current = typewriterRef.current;
-		if (current?.intervalId !== null && current?.intervalId !== undefined) {
-			window.clearInterval(current.intervalId);
+	const cancelAssistantFrame = useCallback(() => {
+		const current = assistantFrameRef.current;
+		if (current) {
+			window.cancelAnimationFrame(current.frameId);
 		}
-		typewriterRef.current = null;
+		assistantFrameRef.current = null;
 	}, []);
+
+	const revealAccumulatedAssistantText = useCallback(() => {
+		cancelAssistantFrame();
+		for (const [messageId, text] of streamedAnswerTextRef.current) {
+			const occurredAt = streamedAnswerOccurredAtRef.current.get(messageId);
+			if (!occurredAt) {
+				continue;
+			}
+			revealAssistantText({
+				messageId,
+				occurredAt,
+				text,
+			});
+		}
+	}, [cancelAssistantFrame, revealAssistantText]);
 
 	const clearProvisionalAssistantMessages = useCallback(() => {
 		const provisionalIds = new Set(provisionalAssistantMessageIdsRef.current);
@@ -168,11 +200,13 @@ function useCampusAssistantRuntimeState({
 		}
 		provisionalAssistantMessageIdsRef.current.clear();
 		streamedAnswerTextRef.current.clear();
+		streamedAnswerOccurredAtRef.current.clear();
 	}, []);
 
 	const replaceWithCanonicalMessages = useCallback((nextMessages: RuntimeMessages) => {
 		provisionalAssistantMessageIdsRef.current.clear();
 		streamedAnswerTextRef.current.clear();
+		streamedAnswerOccurredAtRef.current.clear();
 		setMessages(nextMessages);
 	}, []);
 
@@ -256,6 +290,7 @@ function useCampusAssistantRuntimeState({
 						if (!ownsOperation(operation) || activeRunRef.current?.runId !== run.runId) {
 							return;
 						}
+						revealAccumulatedAssistantText();
 						if (error instanceof UnauthorizedError) {
 							onLoginRequired();
 							return;
@@ -266,69 +301,86 @@ function useCampusAssistantRuntimeState({
 			cancellationStateRef.current = request;
 			return request.promise;
 		},
-		[appendCancellationFailure, onLoginRequired, ownsOperation],
+		[appendCancellationFailure, onLoginRequired, ownsOperation, revealAccumulatedAssistantText],
 	);
 
-	const finishTypewriter = useCallback(() => {
-		const current = typewriterRef.current;
+	const flushAssistantFrame = useCallback(() => {
+		const current = assistantFrameRef.current;
 		if (!current) {
 			return;
 		}
-		if (current.intervalId !== null) {
-			window.clearInterval(current.intervalId);
-			current.intervalId = null;
-		}
-		typewriterRef.current = null;
+		window.cancelAnimationFrame(current.frameId);
+		assistantFrameRef.current = null;
 		revealAssistantText({
 			messageId: current.messageId,
 			occurredAt: current.occurredAt,
-			text: current.fullText,
+			text: streamedAnswerTextRef.current.get(current.messageId) ?? "",
 		});
 	}, [revealAssistantText]);
 
-	const startTypewriterInterval = useCallback(
-		(state: TypewriterState) => {
-			if (state.intervalId !== null) {
-				window.clearInterval(state.intervalId);
-				state.intervalId = null;
-			}
-			if (state.visibleLength >= state.fullText.length) {
-				finishTypewriter();
+	const scheduleAssistantFrame = useCallback(
+		(messageId: string, occurredAt: string) => {
+			const pending = assistantFrameRef.current;
+			if (pending?.messageId === messageId) {
+				pending.occurredAt = occurredAt;
 				return;
 			}
-			state.intervalId = window.setInterval(() => {
-				const current = typewriterRef.current;
-				if (!current || current.messageId !== state.messageId) {
-					window.clearInterval(state.intervalId ?? undefined);
+			if (pending) {
+				flushAssistantFrame();
+			}
+			const frame: AssistantFrameState = {
+				frameId: 0,
+				messageId,
+				occurredAt,
+			};
+			frame.frameId = window.requestAnimationFrame(() => {
+				if (assistantFrameRef.current !== frame) {
 					return;
 				}
-				current.visibleLength = Math.min(
-					current.fullText.length,
-					current.visibleLength + TYPEWRITER_CHUNK_CHARS,
-				);
+				assistantFrameRef.current = null;
 				revealAssistantText({
-					messageId: current.messageId,
-					occurredAt: current.occurredAt,
-					text: current.fullText.slice(0, current.visibleLength),
+					messageId: frame.messageId,
+					occurredAt: frame.occurredAt,
+					text: streamedAnswerTextRef.current.get(frame.messageId) ?? "",
 				});
-				if (current.visibleLength >= current.fullText.length) {
-					finishTypewriter();
-				}
-			}, TYPEWRITER_INTERVAL_MS);
+			});
+			assistantFrameRef.current = frame;
 		},
-		[finishTypewriter, revealAssistantText],
+		[flushAssistantFrame, revealAssistantText],
 	);
 
-	useEffect(() => clearTypewriter, [clearTypewriter]);
+	useEffect(
+		() => () => {
+			operationIdRef.current += 1;
+			abortControllerRef.current?.abort();
+			abortControllerRef.current = null;
+			activeRunRef.current = null;
+			cancellationStateRef.current = { phase: "idle" };
+			locallyInitializedRunConversationRef.current = null;
+			cancelAssistantFrame();
+			provisionalAssistantMessageIdsRef.current.clear();
+			streamedAnswerTextRef.current.clear();
+			streamedAnswerOccurredAtRef.current.clear();
+		},
+		[cancelAssistantFrame],
+	);
 
 	useEffect(() => {
-		if (remoteId && locallyInitializedRunConversationIdRef.current === remoteId) {
+		const locallyInitializedRunConversation = locallyInitializedRunConversationRef.current;
+		const pendingInitialization = pendingConversationInitializationsRef.current.get(threadId);
+		if (
+			remoteId &&
+			((locallyInitializedRunConversation?.conversationId === remoteId &&
+				locallyInitializedRunConversation.operationId === operationIdRef.current &&
+				locallyInitializedRunConversation.threadId === threadId) ||
+				pendingInitialization !== undefined)
+		) {
 			return;
 		}
 
 		const operationId = ++operationIdRef.current;
 		abortControllerRef.current?.abort();
-		clearTypewriter();
+		cancelAssistantFrame();
 		clearProvisionalAssistantMessages();
 		cancellationStateRef.current = { phase: "idle" };
 		replaceActiveRun(null);
@@ -376,12 +428,13 @@ function useCampusAssistantRuntimeState({
 		};
 	}, [
 		clearProvisionalAssistantMessages,
-		clearTypewriter,
+		cancelAssistantFrame,
 		fetchConversationMessages,
 		onLoginRequired,
 		remoteId,
 		replaceActiveRun,
 		replaceWithCanonicalMessages,
+		threadId,
 	]);
 
 	const applyTerminalEvent = useCallback(
@@ -389,16 +442,20 @@ function useCampusAssistantRuntimeState({
 			if (!ownsOperation(operation)) {
 				return;
 			}
+			flushAssistantFrame();
 			const conversationId =
 				event.data.answer?.conversation.id ?? activeRunRef.current?.conversationId ?? remoteId;
 			cancellationStateRef.current = { phase: "idle" };
 			setIsRunning(false);
 			replaceActiveRun(null);
-			if (conversationId && locallyInitializedRunConversationIdRef.current === conversationId) {
-				locallyInitializedRunConversationIdRef.current = null;
+			if (
+				conversationId &&
+				locallyInitializedRunConversationRef.current?.conversationId === conversationId
+			) {
+				locallyInitializedRunConversationRef.current = null;
 			}
 			if (event.event === "request.failed" && event.data.error) {
-				clearTypewriter();
+				cancelAssistantFrame();
 				clearProvisionalAssistantMessages();
 				appendLocalErrorMessage(
 					new ChatStreamRequestError({
@@ -413,10 +470,10 @@ function useCampusAssistantRuntimeState({
 			}
 			if (event.data.answer) {
 				const terminalMessages = toAssistantThreadMessages(event.data.answer.conversation);
-				clearTypewriter();
+				cancelAssistantFrame();
 				replaceWithCanonicalMessages(terminalMessages);
 			} else if (conversationId) {
-				clearTypewriter();
+				cancelAssistantFrame();
 				clearProvisionalAssistantMessages();
 				try {
 					const nextMessages = await fetchConversationMessagesWithRetry(
@@ -448,8 +505,9 @@ function useCampusAssistantRuntimeState({
 		[
 			appendLocalErrorMessage,
 			clearProvisionalAssistantMessages,
-			clearTypewriter,
+			cancelAssistantFrame,
 			fetchConversationMessages,
+			flushAssistantFrame,
 			ownsOperation,
 			remoteId,
 			replaceActiveRun,
@@ -467,32 +525,21 @@ function useCampusAssistantRuntimeState({
 			if (!messageId || typeof delta !== "string" || delta.length === 0) {
 				return;
 			}
-			const current = typewriterRef.current;
 			const text = (streamedAnswerTextRef.current.get(messageId) ?? "") + delta;
 			streamedAnswerTextRef.current.set(messageId, text);
-			const visibleLength =
-				current?.messageId === messageId
-					? Math.min(current.visibleLength, text.length)
-					: Math.min(TYPEWRITER_INITIAL_CHARS, text.length);
-			if (current && current.messageId !== messageId) {
-				clearTypewriter();
+			streamedAnswerOccurredAtRef.current.set(messageId, event.data.occurredAt);
+			const cancellation = cancellationStateRef.current;
+			if (
+				(cancellation.phase === "awaiting_run_id" ||
+					cancellation.phase === "requesting" ||
+					cancellation.phase === "acknowledged") &&
+				cancellation.operationId === operation.id
+			) {
+				return;
 			}
-			const nextState: TypewriterState = {
-				fullText: text,
-				intervalId: current?.messageId === messageId ? current.intervalId : null,
-				messageId,
-				occurredAt: event.data.occurredAt,
-				visibleLength,
-			};
-			typewriterRef.current = nextState;
-			revealAssistantText({
-				messageId,
-				occurredAt: event.data.occurredAt,
-				text: text.slice(0, visibleLength),
-			});
-			startTypewriterInterval(nextState);
+			scheduleAssistantFrame(messageId, event.data.occurredAt);
 		},
-		[clearTypewriter, ownsOperation, revealAssistantText, startTypewriterInterval],
+		[ownsOperation, scheduleAssistantFrame],
 	);
 
 	const consumeLifecycleStream = useCallback(
@@ -635,6 +682,7 @@ function useCampusAssistantRuntimeState({
 	const runPrompt = useCallback(
 		async (input: {
 			conversationId: string | undefined;
+			initializationTarget?: ConversationInitializationTarget;
 			messageContent: AppendMessage["content"];
 			prompt: string;
 			truncateFromMessageId?: string;
@@ -650,10 +698,13 @@ function useCampusAssistantRuntimeState({
 			streamedAnswerTextRef.current.clear();
 			const operation = startOperation();
 			const controller = operation.controller;
-			clearTypewriter();
+			const localMessageId = `local-user-${crypto.randomUUID()}`;
+			cancelAssistantFrame();
 			clearProvisionalAssistantMessages();
 			replaceActiveRun(null);
-			cancellationStateRef.current = { phase: "idle" };
+			cancellationStateRef.current = input.initializationTarget
+				? { localMessageId, operationId: operation.id, phase: "initializing" }
+				: { phase: "idle" };
 			if (input.truncateFromMessageId) {
 				setMessages((current) =>
 					current.slice(
@@ -665,51 +716,140 @@ function useCampusAssistantRuntimeState({
 					),
 				);
 			}
-			setMessages((current) => [...current, localUserMessage(input.messageContent)]);
+			setMessages((current) => [
+				...current,
+				localUserMessage(input.messageContent, localMessageId),
+			]);
 			setIsRunning(true);
 
+			let initializationCleanupFailed = false;
 			try {
-				if (input.truncateFromMessageId && input.conversationId) {
+				let conversationId = input.conversationId;
+				if (input.initializationTarget) {
+					const target = input.initializationTarget;
+					let initialization = pendingConversationInitializationsRef.current.get(target.threadId);
+					if (initialization) {
+						initialization.ownerOperationId = operation.id;
+					} else {
+						initialization = {
+							deleteThread: target.deleteThread,
+							initializeTask: Promise.resolve()
+								.then(() => target.initialize())
+								.then((result) => result.remoteId ?? undefined),
+							ownerOperationId: operation.id,
+						};
+						pendingConversationInitializationsRef.current.set(target.threadId, initialization);
+					}
+					try {
+						conversationId = await initialization.initializeTask;
+					} catch (error) {
+						if (
+							pendingConversationInitializationsRef.current.get(target.threadId) !==
+								initialization ||
+							initialization.ownerOperationId !== operation.id
+						) {
+							return;
+						}
+						pendingConversationInitializationsRef.current.delete(target.threadId);
+						if (!ownsOperation(operation)) {
+							return;
+						}
+						cancellationStateRef.current = { phase: "idle" };
+						if (
+							error instanceof UnauthorizedError ||
+							isAbortError(error) ||
+							error instanceof ChatStreamRequestError
+						) {
+							throw error;
+						}
+						throw new ChatStreamRequestError({
+							code: "conversation_initialization_failed",
+							message:
+								error instanceof Error && error.message.trim()
+									? error.message
+									: "创建会话失败，请稍后重试。",
+							retryable: true,
+						});
+					}
+					if (
+						pendingConversationInitializationsRef.current.get(target.threadId) !== initialization ||
+						initialization.ownerOperationId !== operation.id
+					) {
+						return;
+					}
+					if (!ownsOperation(operation)) {
+						try {
+							await initialization.deleteThread();
+						} catch (error) {
+							initializationCleanupFailed = true;
+							throw error;
+						} finally {
+							if (
+								pendingConversationInitializationsRef.current.get(target.threadId) ===
+								initialization
+							) {
+								pendingConversationInitializationsRef.current.delete(target.threadId);
+							}
+						}
+						return;
+					}
+					cancellationStateRef.current = { phase: "idle" };
+					if (conversationId) {
+						locallyInitializedRunConversationRef.current = {
+							conversationId,
+							operationId: operation.id,
+							threadId: target.threadId,
+						};
+					}
+					pendingConversationInitializationsRef.current.delete(target.threadId);
+				}
+				if (input.truncateFromMessageId && conversationId) {
 					await deleteTrailingMessages({
-						conversationId: input.conversationId,
+						conversationId,
 						messageId: input.truncateFromMessageId,
 					});
+				}
+				if (!ownsOperation(operation)) {
+					return;
 				}
 				const idempotencyKey = createIdempotencyKey();
 				const submitEvents = () =>
 					submitChatRequestStream({
-						...(input.conversationId ? { conversationId: input.conversationId } : {}),
+						...(conversationId ? { conversationId } : {}),
 						idempotencyKey,
 						prompt,
 						signal: controller.signal,
 					});
 				await followLifecycleStream({
-					...(input.conversationId ? { conversationId: input.conversationId } : {}),
+					...(conversationId ? { conversationId } : {}),
 					controller,
 					operation,
 					initialEvents: submitEvents(),
 					retryInitialEvents: submitEvents,
 				});
 			} catch (error) {
+				if (initializationCleanupFailed) {
+					throw error;
+				}
 				if (!ownsOperation(operation)) {
 					return;
 				}
 				setIsRunning(false);
 				if (error instanceof UnauthorizedError) {
 					replaceActiveRun(null);
-					clearTypewriter();
+					cancelAssistantFrame();
 					clearProvisionalAssistantMessages();
 					onLoginRequired();
 					return;
 				}
 				if (isAbortError(error)) {
-					clearTypewriter();
+					cancelAssistantFrame();
 					clearProvisionalAssistantMessages();
 					return;
 				}
 				if (error instanceof ChatStreamRequestError) {
 					replaceActiveRun(null);
-					clearTypewriter();
+					cancelAssistantFrame();
 					clearProvisionalAssistantMessages();
 					cancellationStateRef.current = { phase: "idle" };
 					appendLocalErrorMessage(error);
@@ -724,8 +864,8 @@ function useCampusAssistantRuntimeState({
 		},
 		[
 			appendLocalErrorMessage,
+			cancelAssistantFrame,
 			clearProvisionalAssistantMessages,
-			clearTypewriter,
 			followLifecycleStream,
 			loginRequired,
 			onLoginRequired,
@@ -742,18 +882,25 @@ function useCampusAssistantRuntimeState({
 				return;
 			}
 			const existingRemoteId = remoteId;
-			const conversationId =
-				existingRemoteId ?? (await aui.threadListItem.initialize()).remoteId ?? undefined;
-			if (!existingRemoteId && conversationId) {
-				locallyInitializedRunConversationIdRef.current = conversationId;
-			}
+			const pendingInitialization = pendingConversationInitializationsRef.current.get(threadId);
+			const needsInitialization = !existingRemoteId || pendingInitialization !== undefined;
+			const threadItem = needsInitialization ? aui.threads.item({ id: threadId }) : undefined;
 			await runPrompt({
-				conversationId,
+				conversationId: needsInitialization ? undefined : existingRemoteId,
+				...(threadItem
+					? {
+							initializationTarget: {
+								deleteThread: () => threadItem.delete(),
+								initialize: () => threadItem.initialize(),
+								threadId,
+							},
+						}
+					: {}),
 				messageContent: message.content,
 				prompt: readTextContent(message),
 			});
 		},
-		[aui.threadListItem, loginRequired, onLoginRequired, remoteId, runPrompt],
+		[aui.threads, loginRequired, onLoginRequired, remoteId, runPrompt, threadId],
 	);
 
 	const onEdit = useCallback(
@@ -793,6 +940,26 @@ function useCampusAssistantRuntimeState({
 	const onCancel = useCallback(async () => {
 		const currentRun = activeRunRef.current;
 		const controller = abortControllerRef.current;
+		const cancellation = cancellationStateRef.current;
+		cancelAssistantFrame();
+		if (
+			controller &&
+			cancellation.phase === "initializing" &&
+			cancellation.operationId === operationIdRef.current
+		) {
+			cancellationStateRef.current = { phase: "idle" };
+			clearProvisionalAssistantMessages();
+			setMessages((current) =>
+				current.filter((message) => message.id !== cancellation.localMessageId),
+			);
+			locallyInitializedRunConversationRef.current = null;
+			controller.abort();
+			abortControllerRef.current = null;
+			operationIdRef.current += 1;
+			setIsRunning(false);
+			replaceActiveRun(null);
+			return;
+		}
 		if (currentRun?.runId && controller) {
 			return requestRunCancellation(currentRun, {
 				controller,
@@ -800,7 +967,6 @@ function useCampusAssistantRuntimeState({
 			});
 		}
 		if (isRunning && controller) {
-			const cancellation = cancellationStateRef.current;
 			if (cancellation.phase === "idle" || cancellation.operationId !== operationIdRef.current) {
 				cancellationStateRef.current = {
 					operationId: operationIdRef.current,
@@ -810,17 +976,17 @@ function useCampusAssistantRuntimeState({
 			return;
 		}
 		cancellationStateRef.current = { phase: "idle" };
-		clearTypewriter();
+		cancelAssistantFrame();
 		clearProvisionalAssistantMessages();
-		locallyInitializedRunConversationIdRef.current = null;
+		locallyInitializedRunConversationRef.current = null;
 		abortControllerRef.current?.abort();
 		abortControllerRef.current = null;
 		operationIdRef.current += 1;
 		setIsRunning(false);
 		replaceActiveRun(null);
 	}, [
+		cancelAssistantFrame,
 		clearProvisionalAssistantMessages,
-		clearTypewriter,
 		isRunning,
 		replaceActiveRun,
 		requestRunCancellation,
@@ -833,6 +999,7 @@ function useCampusAssistantRuntimeState({
 		}
 		const operation = startOperation();
 		const controller = operation.controller;
+		cancelAssistantFrame();
 		setIsRunning(true);
 		try {
 			await followLifecycleStream({
@@ -852,17 +1019,17 @@ function useCampusAssistantRuntimeState({
 			setIsRunning(false);
 			if (error instanceof UnauthorizedError) {
 				replaceActiveRun(null);
-				clearTypewriter();
+				cancelAssistantFrame();
 				clearProvisionalAssistantMessages();
 				onLoginRequired();
 				return;
 			}
 			if (isAbortError(error)) {
-				clearTypewriter();
+				cancelAssistantFrame();
 				clearProvisionalAssistantMessages();
 				return;
 			}
-			clearTypewriter();
+			cancelAssistantFrame();
 			clearProvisionalAssistantMessages();
 			throw error;
 		} finally {
@@ -871,8 +1038,8 @@ function useCampusAssistantRuntimeState({
 			}
 		}
 	}, [
+		cancelAssistantFrame,
 		clearProvisionalAssistantMessages,
-		clearTypewriter,
 		followLifecycleStream,
 		onLoginRequired,
 		ownsOperation,
@@ -895,10 +1062,11 @@ function useCampusAssistantRuntimeState({
 	return runtime;
 }
 
-function localUserMessage(content: AppendMessage["content"]): ThreadMessageLike {
+function localUserMessage(content: AppendMessage["content"], id: string): ThreadMessageLike {
 	return {
 		content: typeof content === "string" ? [{ text: content, type: "text" }] : content,
 		createdAt: new Date(),
+		id,
 		role: "user",
 	};
 }

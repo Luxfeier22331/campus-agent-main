@@ -407,7 +407,7 @@ describe("account journeys PostgreSQL integration", () => {
 		expect(replay.status).toBe(400);
 	});
 
-	it("lists concurrent sessions and revokes only the selected session", async () => {
+	it("lists the verification and concurrent sign-in sessions and revokes only the selected one", async () => {
 		const email = `journey-sessions-${Date.now()}@muc.edu.cn`;
 		await signUp(email);
 		await verify(email);
@@ -420,7 +420,7 @@ describe("account journeys PostgreSQL integration", () => {
 		);
 		expect(sessions.status).toBe(200);
 		const listed = (await sessions.json()) as Array<{ token: string }>;
-		expect(listed).toHaveLength(2);
+		expect(listed).toHaveLength(3);
 		const secondToken = listed.find((candidate) => secondCookie.includes(candidate.token))?.token;
 		expect(secondToken).toBeTruthy();
 
@@ -607,11 +607,6 @@ describe("account journeys PostgreSQL integration", () => {
 		const email = `journey-temporary-rollback-${suffix}@muc.edu.cn`;
 		const { userId } = await signUp(email);
 		await verify(email);
-		const before = await client.query<{ password: string }>(
-			`select "password" from "app_auth"."account"
-			 where "userId" = $1 and "providerId" = 'credential'`,
-			[userId],
-		);
 		await client.query(
 			`insert into "app_auth"."session"
 				("id", "token", "userId", "expiresAt", "createdAt", "updatedAt")
@@ -624,6 +619,21 @@ describe("account journeys PostgreSQL integration", () => {
 				new Date("2026-07-21T00:00:00.000Z"),
 			],
 		);
+		const readTemporaryPasswordState = () =>
+			client.query<{
+				password: string;
+				passwordChangeRequired: boolean;
+				sessionCount: string;
+				temporaryPasswordExpiresAt: Date | null;
+			}>(
+				`select a."password", u."passwordChangeRequired", u."temporaryPasswordExpiresAt",
+					(select count(*)::text from "app_auth"."session" where "userId" = u."id") as "sessionCount"
+				 from "app_auth"."user" u
+				 join "app_auth"."account" a on a."userId" = u."id" and a."providerId" = 'credential'
+				 where u."id" = $1`,
+				[userId],
+			);
+		const before = await readTemporaryPasswordState();
 		await client.query(
 			`create or replace function app_auth.test_fail_temporary_password_session_delete()
 			 returns trigger language plpgsql as $$
@@ -657,25 +667,8 @@ describe("account journeys PostgreSQL integration", () => {
 			);
 		}
 
-		const after = await client.query<{
-			password: string;
-			passwordChangeRequired: boolean;
-			sessionCount: string;
-			temporaryPasswordExpiresAt: Date | null;
-		}>(
-			`select a."password", u."passwordChangeRequired", u."temporaryPasswordExpiresAt",
-				(select count(*)::text from "app_auth"."session" where "userId" = u."id") as "sessionCount"
-			 from "app_auth"."user" u
-			 join "app_auth"."account" a on a."userId" = u."id" and a."providerId" = 'credential'
-			 where u."id" = $1`,
-			[userId],
-		);
-		expect(after.rows[0]).toEqual({
-			password: before.rows[0]?.password,
-			passwordChangeRequired: false,
-			sessionCount: "1",
-			temporaryPasswordExpiresAt: null,
-		});
+		const after = await readTemporaryPasswordState();
+		expect(after.rows[0]).toEqual(before.rows[0]);
 	});
 
 	it("blocks an account after ban and permits login again after unban", async () => {

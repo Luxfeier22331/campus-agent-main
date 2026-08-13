@@ -51,9 +51,10 @@ export function createCampusAssistantThreadListAdapter(input: {
 		async fetch(threadId) {
 			return toAssistantThreadMetadata(await getConversationDetail(threadId));
 		},
-		async generateTitle() {
-			return createAssistantStream(() => {
-				return;
+		async generateTitle(remoteId) {
+			return createAssistantStream(async (controller) => {
+				const conversation = await getConversationDetail(remoteId);
+				controller.appendText(conversation.title);
 			});
 		},
 		async initialize() {

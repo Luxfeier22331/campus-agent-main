@@ -112,9 +112,14 @@ test.describe("Q&A browser flow", () => {
 
 	test("cancels a running request", { tag: "@smoke" }, async ({ page }) => {
 		let cancelCalled = false;
+		const postStopDelta = "这段服务端回答在停止后不应显示。";
 		await mockCampusApi(page);
 		await page.route("**/api/chat/requests/stream", (route) =>
-			fulfillChatStream(route, { delayMs: 2_000 }),
+			fulfillChatStream(route, {
+				answerText: postStopDelta,
+				delayMs: 2_000,
+				terminal: "cancelled",
+			}),
 		);
 		await page.route("**/api/chat/runs/*/cancel", async (route) => {
 			cancelCalled = true;
@@ -127,6 +132,8 @@ test.describe("Q&A browser flow", () => {
 		await page.getByRole("button", { name: "停止生成" }).click();
 
 		await expect.poll(() => cancelCalled).toBe(true);
+		await expect(page.getByText(postStopDelta)).toHaveCount(0);
+		await expect(page.getByRole("button", { name: "停止生成" })).toHaveCount(0);
 	});
 
 	test("continues an opened historical conversation with the existing conversation id", async ({

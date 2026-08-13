@@ -6,8 +6,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { ExecutionControlRuntimeClient } from "../src/modules/integration/execution-control";
 import { ExecutionControlTransportError } from "../src/modules/integration/execution-control";
-import type { ChatCommandStreamEvent } from "../src/modules/runtime-command";
-import { DEFAULT_DURABLE_EVENT_POLLING_POLICY } from "../src/modules/runtime-command/service/durable";
+import type { ChatCommandResponse, ChatCommandStreamEvent } from "../src/modules/runtime-command";
+import {
+	DEFAULT_DURABLE_EVENT_POLLING_POLICY,
+	startDurableFinalizationCloseout,
+} from "../src/modules/runtime-command/service/durable";
 import {
 	answerResponsePayload,
 	durableEvent,
@@ -27,7 +30,260 @@ import {
 
 const EXPECTED_LANGFUSE_TRACE_PARENT = "00-5f8392c82813604cd79a0f7eb8b7306a-0000000000000001-01";
 
+function finalizedChatResponse(): ChatCommandResponse {
+	return {
+		answer: {
+			conversation: {
+				createdAt: "2026-06-04T01:02:03.000Z",
+				id: "conv_01HQ",
+				messages: [],
+				title: "国家奖学金",
+				updatedAt: "2026-06-04T01:02:06.000Z",
+			},
+			result: {
+				kind: "answer",
+				requestId: "req_0001",
+				text: "国家奖学金每学年评审一次。",
+				traceId: "trace_0001",
+			},
+		},
+		execution: {
+			answerText: "国家奖学金每学年评审一次。",
+			error: null,
+			followUpQuestion: "",
+			modelUsage: {
+				cachedInputTokens: 0,
+				inputTokens: 1,
+				outputTokens: 1,
+				totalTokens: 2,
+			},
+			result: null,
+			status: "completed",
+			traceId: "trace_0001",
+		},
+		requestId: "req_0001",
+		traceId: "trace_0001",
+	};
+}
+
+function closeoutEventPage() {
+	return durableEventPage([
+		durableEvent({
+			eventType: "run.answer_delta",
+			occurredAt: "2026-06-04T01:02:04.000Z",
+			payload: {
+				delta: "国家奖学金每学年评审一次。",
+				message_id: "msg_answer",
+				request_id: "req_0001",
+				trace_id: "trace_0001",
+			},
+			payloadSchemaVersion: "run-answer-event-v2",
+			sequence: 1,
+		}),
+		durableEvent({
+			eventType: "finalization.completed",
+			occurredAt: "2026-06-04T01:02:06.000Z",
+			payload: {
+				request_id: "req_0001",
+				response: answerResponsePayload(),
+				trace_id: "trace_0001",
+			},
+			sequence: 2,
+			visibility: "internal",
+		}),
+	]);
+}
+
 describe("chat command durable runtime cutover failure and streaming", () => {
+	it("emits the first delta while TTFT persistence remains in closeout completion", async () => {
+		let resolveTtft: () => void = () => {
+			throw new Error("TTFT resolver was not initialized");
+		};
+		const recordStreamAppApiTtft = vi.fn(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveTtft = resolve;
+				}),
+		);
+		const closeout = startDurableFinalizationCloseout({
+			context: {
+				acceptedAt: "2026-06-04T01:02:03.000Z",
+				requestId: "req_0001",
+				runId: "run_0001",
+				traceId: "trace_0001",
+			},
+			finalizeAcceptedCommand: vi.fn(async () => finalizedChatResponse()),
+			listRunEvents: vi.fn(async () => closeoutEventPage()),
+			now: () => new Date("2026-06-04T01:02:04.000Z"),
+			recordStreamAppApiTtft,
+		});
+		const stream = closeout.streamEvents()[Symbol.asyncIterator]();
+		let completionSettled = false;
+		void closeout.completion.finally(() => {
+			completionSettled = true;
+		});
+
+		await expect(stream.next()).resolves.toMatchObject({
+			done: false,
+			value: { event: "answer.delta" },
+		});
+		expect(recordStreamAppApiTtft).toHaveBeenCalledWith({
+			durationMs: 1000,
+			observedAt: "2026-06-04T01:02:04.000Z",
+		});
+		expect(completionSettled).toBe(false);
+
+		resolveTtft();
+		await expect(closeout.completion).resolves.toEqual(finalizedChatResponse());
+		await expect(stream.next()).resolves.toMatchObject({
+			done: false,
+			value: { event: "request.completed" },
+		});
+		await expect(stream.next()).resolves.toEqual({ done: true, value: undefined });
+	});
+
+	it("keeps the product stream terminal when TTFT persistence rejects", async () => {
+		const closeout = startDurableFinalizationCloseout({
+			context: {
+				acceptedAt: "2026-06-04T01:02:03.000Z",
+				requestId: "req_0001",
+				runId: "run_0001",
+				traceId: "trace_0001",
+			},
+			finalizeAcceptedCommand: vi.fn(async () => finalizedChatResponse()),
+			listRunEvents: vi.fn(async () => closeoutEventPage()),
+			now: () => new Date("2026-06-04T01:02:04.000Z"),
+			recordStreamAppApiTtft: vi.fn(async () => {
+				throw new Error("metric store unavailable");
+			}),
+		});
+
+		const events: ChatCommandStreamEvent[] = [];
+		for await (const event of closeout.streamEvents()) {
+			events.push(event);
+		}
+
+		expect(events.map((event) => event.event)).toEqual(["answer.delta", "request.completed"]);
+		await expect(closeout.completion).resolves.toEqual(finalizedChatResponse());
+	});
+
+	it("keeps finalization telemetry as a snapshot while late TTFT completes the database fact", async () => {
+		const { store, finalWrites, requestStageTiming } = createCommandStore();
+		const persistTtft = store.recordStreamAppApiTtft.bind(store);
+		let releaseTtft: () => void = () => {
+			throw new Error("TTFT persistence release was not initialized");
+		};
+		store.recordStreamAppApiTtft = vi.fn(
+			(input) =>
+				new Promise<boolean>((resolve, reject) => {
+					releaseTtft = () => {
+						void persistTtft(input).then(resolve, reject);
+					};
+				}),
+		);
+		const { store: conversationStore } = createConversationStore();
+		const telemetry = createTelemetryMock();
+		const executionRuntime: ExecutionControlRuntimeClient = {
+			cancelRun: vi.fn(),
+			createRun: vi.fn(async () => durableRun()),
+			getRun: vi.fn(),
+			listRunEvents: vi.fn(async () =>
+				durableEventPage([
+					durableEvent({
+						eventType: "run.answer_delta",
+						occurredAt: "2026-06-04T01:02:04.000Z",
+						payload: {
+							delta: "国家奖学金每学年评审一次。",
+							message_id: "msg_answer",
+							request_id: "req_0001",
+							trace_id: "trace_0001",
+						},
+						payloadSchemaVersion: "run-answer-event-v2",
+						sequence: 1,
+					}),
+					durableEvent({
+						eventType: "finalization.completed",
+						occurredAt: "2026-06-04T01:02:06.000Z",
+						payload: {
+							request_id: "req_0001",
+							response: {
+								...answerResponsePayload(),
+								stage_timing: { "agent.first_delta_ms": 600 },
+							},
+							trace_id: "trace_0001",
+						},
+						sequence: 2,
+						visibility: "internal",
+					}),
+				]),
+			),
+			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
+		};
+		const now = vi
+			.fn<() => Date>()
+			.mockReturnValueOnce(new Date("2026-06-04T01:02:03.000Z"))
+			.mockReturnValue(new Date("2026-06-04T01:02:04.000Z"));
+		const service = buildChatCommandService({
+			conversationStore,
+			executionRuntime,
+			generateId: createDeterministicIdGenerator(),
+			now,
+			store,
+			telemetry,
+		});
+		let closeoutCompletion: Promise<unknown> | undefined;
+		const events: ChatCommandStreamEvent[] = [];
+
+		for await (const event of service.submitStream?.({
+			payload: {
+				conversationId: "conv_01HQ",
+				prompt: "示例大学本科学生国家奖学金评审办法",
+			},
+			principal: createPrincipal(),
+			requestKind: "public_chat",
+			waitUntil: (promise) => {
+				closeoutCompletion = promise;
+			},
+		}) ?? []) {
+			events.push(event);
+		}
+
+		expect(events.map((event) => event.event)).toEqual([
+			"request.accepted",
+			"answer.delta",
+			"request.completed",
+		]);
+		expect(finalWrites).toHaveLength(1);
+		expect(telemetry.recordRequestFinalized).toHaveBeenCalledWith(
+			expect.objectContaining({
+				stageTiming: {
+					"agent.first_delta_ms": 600,
+					"request.total_ms": 3000,
+				},
+			}),
+		);
+		expect(requestStageTiming.get("req_0001")).toEqual({
+			"agent.first_delta_ms": 600,
+			"request.total_ms": 3000,
+		});
+		let completionSettled = false;
+		void closeoutCompletion?.finally(() => {
+			completionSettled = true;
+		});
+		await Promise.resolve();
+		expect(completionSettled).toBe(false);
+
+		releaseTtft();
+		await expect(closeoutCompletion).resolves.toBeDefined();
+		expect(requestStageTiming.get("req_0001")).toEqual({
+			"agent.first_delta_ms": 600,
+			"request.total_ms": 3000,
+			"stream.app_api_ttft_ms": 1000,
+			"stream.orchestration_overhead_ms": 400,
+		});
+		expect(telemetry.recordRequestFinalized).toHaveBeenCalledTimes(1);
+	});
+
 	it("keeps both frozen inputs recoverable when inline admission cannot be claimed", async () => {
 		const { store, acceptedWrites, finalWrites, frozenAdmissions } = createCommandStore();
 		store.claimAdmission = vi.fn(async () => false);

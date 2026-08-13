@@ -51,6 +51,29 @@ describe("assistant-ui thread adapter", () => {
 		conversationApiMock.unarchiveConversation.mockReset();
 	});
 
+	it("streams the server-generated title after the first answer", async () => {
+		conversationApiMock.getConversationDetail.mockResolvedValue(
+			detail({ id: "conv_01", title: "服务端生成的标题" }),
+		);
+		const adapter = createCampusAssistantThreadListAdapter({ enableRemoteHistory: true });
+		const stream = await adapter.generateTitle("conv_01", []);
+		const reader = stream.getReader();
+		const chunks: unknown[] = [];
+		for (;;) {
+			const result = await reader.read();
+			if (result.done) {
+				break;
+			}
+			chunks.push(result.value);
+		}
+		expect(conversationApiMock.getConversationDetail).toHaveBeenCalledWith("conv_01");
+		expect(chunks).toEqual([
+			expect.objectContaining({ type: "part-start" }),
+			expect.objectContaining({ textDelta: "服务端生成的标题" }),
+			expect.objectContaining({ type: "part-finish" }),
+		]);
+	});
+
 	it("maps campus conversation summaries to assistant-ui thread metadata", () => {
 		expect(
 			toAssistantThreadMetadata(

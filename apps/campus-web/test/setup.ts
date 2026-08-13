@@ -16,6 +16,9 @@ class TestResizeObserver {
 
 globalThis.ResizeObserver ??= TestResizeObserver;
 if (typeof window !== "undefined") {
+	window.requestAnimationFrame ??= (callback: FrameRequestCallback) =>
+		window.setTimeout(() => callback(performance.now()), 16);
+	window.cancelAnimationFrame ??= (handle: number) => window.clearTimeout(handle);
 	window.matchMedia ??= vi.fn().mockImplementation((query: string) => ({
 		addEventListener: vi.fn(),
 		addListener: vi.fn(),

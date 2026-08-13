@@ -5,6 +5,7 @@ import type {
 	ChatRequestStreamEvent,
 	ChatRequestStreamEventName,
 	ConversationDetail,
+	ConversationSearchResult,
 	ConversationSummary,
 	MessageFeedbackReasonCode,
 	MessageFeedbackResult,
@@ -58,8 +59,9 @@ export async function listConversations(
 export async function searchConversations(input: {
 	limit?: number;
 	query: string;
+	signal?: AbortSignal;
 	view?: "active" | "archived";
-}): Promise<{ query: string; conversations: ConversationSummary[] }> {
+}): Promise<{ query: string; conversations: ConversationSearchResult[] }> {
 	const query = input.query.trim();
 	const params = new URLSearchParams({
 		q: query,
@@ -68,8 +70,9 @@ export async function searchConversations(input: {
 	if (input.limit !== undefined) {
 		params.set("limit", String(input.limit));
 	}
-	return requestJson<{ query: string; conversations: ConversationSummary[] }>({
+	return requestJson<{ query: string; conversations: ConversationSearchResult[] }>({
 		path: `/api/chat/conversations/search?${params.toString()}`,
+		...(input.signal ? { signal: input.signal } : {}),
 	});
 }
 
@@ -348,6 +351,7 @@ async function* parseProductSse(response: Response): AsyncIterable<ChatRequestSt
 
 	const decoder = new TextDecoder();
 	let buffer = "";
+	let completed = false;
 	try {
 		while (true) {
 			const chunk = await reader.read();
@@ -369,7 +373,11 @@ async function* parseProductSse(response: Response): AsyncIterable<ChatRequestSt
 		}
 		void decoder.decode();
 		// SSE events are committed only by a blank line. A truncated tail is replayed on resume.
+		completed = true;
 	} finally {
+		if (!completed) {
+			await reader.cancel().catch(() => undefined);
+		}
 		reader.releaseLock();
 	}
 }

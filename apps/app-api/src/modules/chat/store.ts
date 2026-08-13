@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 
-import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 
 import type { Env } from "../../config";
 import { type createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
@@ -19,6 +19,7 @@ import {
 } from "../profile-memory/command-state";
 import {
 	type ChatConversation,
+	type ChatConversationSearchResult,
 	type ChatConversationSummary,
 	type ChatMessage,
 	type ChatMessageFeedback,
@@ -100,7 +101,7 @@ export interface ChatConversationStore {
 		query: string;
 		view: ChatConversationListView;
 		limit: number;
-	}): Promise<ChatConversationSummary[]>;
+	}): Promise<ChatConversationSearchResult[]>;
 	upsertMessageFeedbackByOwner(input: {
 		conversationId: string;
 		feedbackId: string;
@@ -180,6 +181,35 @@ function toChatConversationSummary(
 		archivedAt: row.archivedAt ? toIsoString(row.archivedAt) : null,
 		pinnedAt: row.pinnedAt ? toIsoString(row.pinnedAt) : null,
 	};
+}
+
+function escapeIlikePattern(value: string): string {
+	return value.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_");
+}
+
+function createConversationMatchSnippet(text: string, query: string): string | null {
+	const normalizedText = text.replace(/\s+/g, " ").trim();
+	const normalizedQuery = query.replace(/\s+/g, " ").trim();
+	if (!(normalizedText && normalizedQuery)) {
+		return null;
+	}
+
+	const matchIndex = normalizedText
+		.toLocaleLowerCase()
+		.indexOf(normalizedQuery.toLocaleLowerCase());
+	const startIndex = matchIndex < 0 ? 0 : Math.max(0, matchIndex - 64);
+	const endIndex =
+		matchIndex < 0
+			? Math.min(normalizedText.length, 160)
+			: Math.min(normalizedText.length, matchIndex + normalizedQuery.length + 96);
+	let snippet = normalizedText.slice(startIndex, endIndex);
+	if (startIndex > 0) {
+		snippet = `…${snippet}`;
+	}
+	if (endIndex < normalizedText.length) {
+		snippet = `${snippet}…`;
+	}
+	return snippet.slice(0, 160);
 }
 
 function buildConversationViewCondition(input: {
@@ -776,37 +806,49 @@ export function createPgChatConversationStore(
 
 		async searchConversationSummariesByOwner(input) {
 			const db = await getDb();
-			const rows = await db
-				.select({ conversation: conversations })
-				.from(conversations)
-				.leftJoin(messages, eq(messages.conversationId, conversations.id))
+			const pattern = `%${escapeIlikePattern(input.query)}%`;
+			const titleMatches = sql<boolean>`${conversations.title} ILIKE ${pattern} ESCAPE ${"\\"}`;
+			const latestMatchedMessage = db
+				.select({ text: messages.text })
+				.from(messages)
 				.where(
 					and(
-						buildConversationViewCondition(input),
-						or(
-							ilike(conversations.title, `%${input.query}%`),
-							ilike(messages.text, `%${input.query}%`),
-						),
+						eq(messages.conversationId, conversations.id),
+						sql`${messages.text} ILIKE ${pattern} ESCAPE ${"\\"}`,
 					),
 				)
+				.orderBy(desc(messages.createdAt), desc(messages.id))
+				.limit(1);
+			const messageMatches = sql<boolean>`EXISTS (
+				SELECT 1
+				FROM ${messages}
+				WHERE ${messages.conversationId} = ${conversations.id}
+					AND ${messages.text} ILIKE ${pattern} ESCAPE ${"\\"}
+			)`;
+			const matchedMessageText = sql<string | null>`CASE
+				WHEN ${titleMatches} THEN NULL
+				ELSE (${latestMatchedMessage})
+			END`;
+			const rows = await db
+				.select({ conversation: conversations, matchedMessageText })
+				.from(conversations)
+				.where(and(buildConversationViewCondition(input), or(titleMatches, messageMatches)))
 				.orderBy(
 					sql`${conversations.pinnedAt} IS NULL`,
 					desc(conversations.pinnedAt),
 					desc(conversations.updatedAt),
 				)
-				.limit(input.limit * 4);
+				.limit(input.limit);
 
-			const summariesById = new Map<string, ChatConversationSummary>();
-			for (const row of rows) {
-				if (!summariesById.has(row.conversation.id)) {
-					summariesById.set(row.conversation.id, toChatConversationSummary(row.conversation));
-				}
-				if (summariesById.size >= input.limit) {
-					break;
-				}
-			}
-
-			return [...summariesById.values()];
+			return rows.map((row) => {
+				const conversation = toChatConversationSummary(row.conversation);
+				return {
+					...conversation,
+					matchSnippet: row.matchedMessageText
+						? createConversationMatchSnippet(row.matchedMessageText, input.query)
+						: null,
+				};
+			});
 		},
 
 		async upsertMessageFeedbackByOwner(input) {

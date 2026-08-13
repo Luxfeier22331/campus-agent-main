@@ -5,5 +5,5 @@ import { QAShell } from "@/components/conversation/qa-shell";
 export function ConversationPage() {
 	const { conversationId } = useParams({ from: "/c/$conversationId" });
 
-	return <QAShell assistantThreadId={conversationId} topTitle="会话" />;
+	return <QAShell assistantThreadId={conversationId} />;
 }

@@ -57,6 +57,10 @@ function createConversationService() {
 			updatedAt: "2026-03-28T08:01:00.000Z",
 		},
 	];
+	const searchConversations = conversations.map((conversation) => ({
+		...conversation,
+		matchSnippet: null,
+	}));
 	const conversation: ChatConversationResponse = {
 		createdAt: "2026-03-28T08:00:00.000Z",
 		id: "conv_01HQ",
@@ -103,7 +107,7 @@ function createConversationService() {
 		list: vi.fn().mockResolvedValue({ conversations }),
 		pin: vi.fn().mockResolvedValue({ conversation: conversations[0] }),
 		rename: vi.fn().mockResolvedValue({ conversation: conversations[0] }),
-		search: vi.fn().mockResolvedValue({ query: "图书馆", conversations }),
+		search: vi.fn().mockResolvedValue({ query: "图书馆", conversations: searchConversations }),
 		setMessageFeedback: vi.fn(),
 		unarchive: vi.fn().mockResolvedValue({ conversation: conversations[0] }),
 		unpin: vi.fn().mockResolvedValue({ conversation: conversations[0] }),
@@ -163,7 +167,18 @@ describe("chat conversation routes", () => {
 	});
 
 	it("searches conversations through the product search route", async () => {
-		const { service, conversations } = createConversationService();
+		const { service } = createConversationService();
+		const searchConversations = [
+			{
+				archivedAt: null,
+				createdAt: "2026-03-28T08:00:00.000Z",
+				id: "conv_01HQ",
+				matchSnippet: null,
+				pinnedAt: "2026-03-28T08:02:00.000Z",
+				title: "图书馆开放时间",
+				updatedAt: "2026-03-28T08:01:00.000Z",
+			},
+		];
 		const app = createApp(env, {
 			chatConversationService: service,
 			getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
@@ -174,7 +189,10 @@ describe("chat conversation routes", () => {
 		);
 
 		expect(response.status).toBe(200);
-		await expect(response.json()).resolves.toEqual({ query: "图书馆", conversations });
+		await expect(response.json()).resolves.toEqual({
+			query: "图书馆",
+			conversations: [{ ...searchConversations[0] }],
+		});
 		expect(service.search).toHaveBeenCalledWith({
 			limit: 10,
 			principal: expect.objectContaining({

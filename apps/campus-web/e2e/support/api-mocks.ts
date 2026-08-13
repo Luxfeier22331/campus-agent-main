@@ -262,17 +262,86 @@ export async function mockCampusApi(page: Page, options: CampusApiMockOptions = 
 	);
 }
 
-export async function fulfillChatStream(route: Route, input: { delayMs?: number } = {}) {
+export async function fulfillChatStream(
+	route: Route,
+	input: {
+		answerText?: string;
+		delayMs?: number;
+		terminal?: "cancelled" | "completed";
+	} = {},
+) {
 	const body = parseRequestJson(route);
 	const prompt = typeof body.prompt === "string" ? body.prompt : "校园问题";
 	const conversationId =
 		typeof body.conversationId === "string" && body.conversationId.trim()
 			? body.conversationId
 			: "conv_e2e";
-	const answerText = resolveAnswerText(prompt);
+	const answerText = input.answerText ?? resolveAnswerText(prompt);
 	if (input.delayMs) {
 		await new Promise((resolve) => setTimeout(resolve, input.delayMs));
 	}
+	const userMessage = chatMessage({
+		conversationId,
+		id: "msg_user_e2e",
+		role: "user",
+		text: prompt,
+	});
+	const conversation = (messages: ReturnType<typeof chatMessage>[]) => ({
+		archivedAt: null,
+		createdAt: now,
+		id: conversationId,
+		messages,
+		pinnedAt: null,
+		title: prompt,
+		updatedAt: now,
+	});
+	const terminalEvent =
+		input.terminal === "cancelled"
+			? sse("request.cancelled", {
+					answer: {
+						conversation: conversation([userMessage]),
+						result: {
+							errorCode: "execution_cancelled",
+							kind: "error",
+							message: "The request was cancelled.",
+							requestId: "req_e2e",
+							retryable: false,
+							traceId: "trace_e2e",
+						},
+					},
+					occurredAt: now,
+					requestId: "req_e2e",
+					runId: "run_e2e",
+					sequence: 3,
+					status: "cancelled",
+					traceId: "trace_e2e",
+				})
+			: sse("request.completed", {
+					answer: {
+						conversation: conversation([
+							userMessage,
+							chatMessage({
+								conversationId,
+								id: "msg_assistant_e2e",
+								kind: "answer",
+								role: "assistant",
+								text: answerText,
+							}),
+						]),
+						result: {
+							kind: "answer",
+							requestId: "req_e2e",
+							text: answerText,
+							traceId: "trace_e2e",
+						},
+					},
+					occurredAt: now,
+					requestId: "req_e2e",
+					runId: "run_e2e",
+					sequence: 3,
+					status: "completed",
+					traceId: "trace_e2e",
+				});
 	await route.fulfill({
 		body: [
 			sse("request.accepted", {
@@ -293,45 +362,7 @@ export async function fulfillChatStream(route: Route, input: { delayMs?: number 
 				status: "running",
 				traceId: "trace_e2e",
 			}),
-			sse("request.completed", {
-				answer: {
-					conversation: {
-						archivedAt: null,
-						createdAt: now,
-						id: conversationId,
-						messages: [
-							chatMessage({
-								conversationId,
-								id: "msg_user_e2e",
-								role: "user",
-								text: prompt,
-							}),
-							chatMessage({
-								conversationId,
-								id: "msg_assistant_e2e",
-								kind: "answer",
-								role: "assistant",
-								text: answerText,
-							}),
-						],
-						pinnedAt: null,
-						title: prompt,
-						updatedAt: now,
-					},
-					result: {
-						kind: "answer",
-						requestId: "req_e2e",
-						text: answerText,
-						traceId: "trace_e2e",
-					},
-				},
-				occurredAt: now,
-				requestId: "req_e2e",
-				runId: "run_e2e",
-				sequence: 3,
-				status: "completed",
-				traceId: "trace_e2e",
-			}),
+			terminalEvent,
 		].join(""),
 		contentType: "text/event-stream",
 		status: 200,
@@ -950,10 +981,10 @@ function decodePathSegment(route: Route, index: number): string {
 
 function resolveConversationSearchResults(input: { query: string; view: string }) {
 	if (input.view === "archived" && input.query.includes("奖学金")) {
-		return [toConversationSummary(archivedConversation)];
+		return [toConversationSearchResult(archivedConversation)];
 	}
 	if (input.query.includes("图书馆")) {
-		return [toConversationSummary(libraryConversation)];
+		return [toConversationSearchResult(libraryConversation)];
 	}
 	return [];
 }
@@ -1045,6 +1076,13 @@ function toConversationSummary(conversation: typeof historyConversation) {
 		pinnedAt: conversation.pinnedAt,
 		title: conversation.title,
 		updatedAt: conversation.updatedAt,
+	};
+}
+
+function toConversationSearchResult(conversation: typeof historyConversation) {
+	return {
+		...toConversationSummary(conversation),
+		matchSnippet: null,
 	};
 }
 

@@ -80,7 +80,13 @@ Temporal history 或复制下游 trace 响应来补耗时字段。
 - Ops Web 与其他受控诊断面可以显示分组耗时和关联入口，不渲染原始 trace tree；
 - 学习闭环可以按固定字段选择耗时异常，不复制 prompt、答案或供应商响应；
 - app-api 的 `request.finalized` event 使用相同的固定字段名发送有效耗时，并附带汇总 budget state
-  与已允许 correlation 字段。
+  与已允许 correlation 字段。该事件是产品终态事务时点的不可变快照，晚于终态完成的
+  `stream.app_api_ttft_ms` 只回填 `runtime.request_observability_fact`，不补发第二条终态事件；
+- `runtime.request_observability_fact` 是 app-api 阶段耗时的最终可查询投影，允许通过独立的首次 TTFT
+  写入与终态合并得到完整字段。
+
+因此 `request.finalized` 缺少可选 timing 字段仍遵循本合同的缺字段语义：生产者在事件发出时无法
+测得该阶段。消费者不得据此推断最终数据库投影也缺少该字段。
 
 未知耗时 key 不得展示或静默接受。未登记的 app-api 耗时字段必须拒绝。
 

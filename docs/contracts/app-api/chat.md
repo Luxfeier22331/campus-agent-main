@@ -51,6 +51,10 @@ type ConversationSummary = {
   archivedAt: string | null;
   pinnedAt: string | null;
 };
+
+type ConversationSearchResult = ConversationSummary & {
+  matchSnippet: string | null;
+};
 ```
 
 pinned conversation 排在其他 conversation 前，组内按 `updatedAt desc`。默认侧边栏只显示
@@ -66,7 +70,10 @@ pinned conversation 排在其他 conversation 前，组内按 `updatedAt desc`�
   - `q` trim 后必须非空；
   - `view` 同列表；
   - `limit` 默认 20，最大 50；
-  - 只搜索 title 和 message text。
+  - 只搜索 title 和 message text；`%`、`_`、`\` 按普通字符匹配；
+  - 返回 `ConversationSearchResult`。title 命中时 `matchSnippet` 为 `null`；仅 message text
+    命中时返回最新匹配 message 的纯文本上下文，最长 160 个字符；
+  - `limit` 作用于去重后的 conversation，不因同一 conversation 内多条 message 命中而减少结果数。
 
 ### 创建和详情
 

@@ -1,5 +1,7 @@
 // @vitest-environment node
 
+import type { SQL } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { createRuntimeDatabase, createRuntimeDbGetter } = vi.hoisted(() => ({
@@ -521,6 +523,53 @@ describe("pg chat command store", () => {
 		);
 	});
 
+	it("backfills terminal TTFT once with derived overhead and a monotonic update time", async () => {
+		const returning = vi
+			.fn()
+			.mockResolvedValueOnce([{ requestId: "req_01HQ" }])
+			.mockResolvedValueOnce([]);
+		const where = vi.fn((_condition: SQL) => ({ returning }));
+		const set = vi.fn((_values: Record<string, unknown>) => ({ where }));
+		const update = vi.fn(() => ({ set }));
+		createRuntimeDatabase.mockResolvedValue({ update });
+		const store = createPgChatCommandStore({} as never);
+
+		await expect(
+			store.recordStreamAppApiTtft({
+				durationMs: 420,
+				observedAt: "2026-06-04T01:02:04.000Z",
+				requestId: "req_01HQ",
+			}),
+		).resolves.toBe(true);
+		await expect(
+			store.recordStreamAppApiTtft({
+				durationMs: 900,
+				observedAt: "2026-06-04T01:02:05.000Z",
+				requestId: "req_01HQ",
+			}),
+		).resolves.toBe(false);
+
+		const dialect = new PgDialect();
+		const values = set.mock.calls[0]?.[0] as {
+			stageTimingJson: SQL;
+			updatedAt: SQL;
+		};
+		const timingQuery = dialect.sqlToQuery(values.stageTimingJson);
+		const updatedAtQuery = dialect.sqlToQuery(values.updatedAt);
+		const conditionQuery = dialect.sqlToQuery(where.mock.calls[0]?.[0] as SQL);
+
+		expect(timingQuery.sql).toContain("jsonb_typeof");
+		expect(timingQuery.sql).toContain("stream.app_api_ttft_ms");
+		expect(timingQuery.sql).toContain("stream.orchestration_overhead_ms");
+		expect(timingQuery.params).toContain(420);
+		expect(updatedAtQuery.sql).toContain("greatest");
+		expect(updatedAtQuery.params).toContainEqual(new Date("2026-06-04T01:02:04.000Z"));
+		expect(conditionQuery.sql).toContain("request_id");
+		expect(conditionQuery.sql).toContain("stream.app_api_ttft_ms");
+		expect(conditionQuery.sql).not.toContain("status");
+		expect(returning).toHaveBeenCalledTimes(2);
+	});
+
 	it("keeps session slots and active branch state when a stale run finalizes after a newer turn", async () => {
 		const forUpdate = vi
 			.fn()
@@ -619,5 +668,17 @@ describe("pg chat command store", () => {
 				},
 			}),
 		);
+		const conflictUpdate = onConflictDoUpdate.mock.calls[0]?.[0] as {
+			set: { stageTimingJson: SQL; updatedAt: SQL };
+		};
+		const dialect = new PgDialect();
+		const conflictTimingQuery = dialect.sqlToQuery(conflictUpdate.set.stageTimingJson);
+		const conflictUpdatedAtQuery = dialect.sqlToQuery(conflictUpdate.set.updatedAt);
+		expect(conflictTimingQuery.sql).toContain("excluded.stage_timing_json");
+		expect(conflictTimingQuery.sql).toContain("agent.first_delta_ms");
+		expect(conflictTimingQuery.sql).toContain("stream.app_api_ttft_ms");
+		expect(conflictTimingQuery.sql).toContain("stream.orchestration_overhead_ms");
+		expect(conflictUpdatedAtQuery.sql).toContain("greatest");
+		expect(conflictUpdatedAtQuery.sql).toContain("excluded.updated_at");
 	});
 });

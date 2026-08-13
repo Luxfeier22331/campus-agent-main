@@ -69,6 +69,10 @@ export interface ConversationSummary {
 	updatedAt: string;
 }
 
+export interface ConversationSearchResult extends ConversationSummary {
+	matchSnippet: string | null;
+}
+
 export interface ConversationDetail extends ConversationSummary {
 	messages: ChatMessage[];
 }

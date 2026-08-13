@@ -14,7 +14,7 @@ import {
 import { CampusMotionProvider, contentSwap, stateSwap } from "@/components/ui/motion";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { searchConversations } from "@/features/conversation/api";
-import type { ConversationSummary } from "@/features/conversation/model";
+import type { ConversationSearchResult } from "@/features/conversation/model";
 import { UnauthorizedError } from "@/platform/api/client";
 
 type ConversationSearchView = "active" | "archived";
@@ -37,7 +37,7 @@ export function ThreadHistorySearchPanel({
 	const navigate = useNavigate();
 	const [query, setQuery] = useState("");
 	const [view, setView] = useState<ConversationSearchView>("active");
-	const [results, setResults] = useState<ConversationSummary[]>([]);
+	const [results, setResults] = useState<ConversationSearchResult[]>([]);
 	const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
 	const trimmedQuery = query.trim();
 	const emptyLabel = useMemo(() => {
@@ -67,9 +67,10 @@ export function ThreadHistorySearchPanel({
 		}
 
 		const controller = new AbortController();
+		setResults([]);
+		setStatus("loading");
 		const timeout = window.setTimeout(() => {
-			setStatus("loading");
-			searchConversations({ limit: 10, query: trimmedQuery, view })
+			searchConversations({ limit: 10, query: trimmedQuery, signal: controller.signal, view })
 				.then((payload) => {
 					if (controller.signal.aborted) {
 						return;
@@ -103,9 +104,18 @@ export function ThreadHistorySearchPanel({
 			<Command
 				className="rounded-none [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-group]]:px-2 [&_[cmdk-input-wrapper]_svg]:size-5 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3 [&_[cmdk-item]_svg]:size-5"
 				label="搜索历史会话"
+				shouldFilter={false}
 			>
 				<CommandInput
-					onValueChange={setQuery}
+					onValueChange={(value) => {
+						const nextQuery = value.trim();
+						setQuery(value);
+						if (nextQuery === trimmedQuery) {
+							return;
+						}
+						setResults([]);
+						setStatus(nextQuery ? "loading" : "idle");
+					}}
 					placeholder="搜索历史会话"
 					ref={inputRef}
 					value={query}
@@ -117,6 +127,8 @@ export function ThreadHistorySearchPanel({
 						onValueChange={(value) => {
 							if (value === "active" || value === "archived") {
 								setView(value);
+								setResults([]);
+								setStatus(trimmedQuery ? "loading" : "idle");
 							}
 						}}
 						type="single"
@@ -153,10 +165,15 @@ export function ThreadHistorySearchPanel({
 															to: "/c/$conversationId",
 														});
 													}}
-													value={conversation.title}
+													value={conversation.id}
 												>
 													<div className="flex min-w-0 flex-col">
 														<span className="truncate">{conversation.title}</span>
+														{conversation.matchSnippet ? (
+															<span className="text-muted-foreground line-clamp-2 text-xs">
+																{conversation.matchSnippet}
+															</span>
+														) : null}
 														<span className="text-muted-foreground text-xs">
 															{formatConversationUpdatedAt(conversation.updatedAt)}
 														</span>

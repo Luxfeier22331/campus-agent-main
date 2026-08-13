@@ -1,4 +1,18 @@
-import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, or, sql } from "drizzle-orm";
+import {
+	and,
+	asc,
+	desc,
+	eq,
+	gte,
+	inArray,
+	isNotNull,
+	isNull,
+	lt,
+	lte,
+	or,
+	type SQL,
+	sql,
+} from "drizzle-orm";
 
 import type { Env } from "../../config";
 import { type createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
@@ -36,6 +50,29 @@ import {
 } from "./store-types";
 
 type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
+
+function withStreamOrchestrationOverhead(
+	timing: SQL<Record<string, unknown>>,
+): SQL<Record<string, unknown>> {
+	return sql<Record<string, unknown>>`case
+		when jsonb_typeof(${timing} -> 'stream.app_api_ttft_ms') = 'number'
+			and jsonb_typeof(${timing} -> 'agent.first_delta_ms') = 'number'
+			and (${timing} ->> 'stream.app_api_ttft_ms')::double precision >= 0
+			and (${timing} ->> 'agent.first_delta_ms')::double precision >= 0
+			and (${timing} ->> 'agent.first_delta_ms')::double precision
+				<= (${timing} ->> 'stream.app_api_ttft_ms')::double precision
+		then jsonb_set(
+			${timing},
+			array['stream.orchestration_overhead_ms'],
+			to_jsonb(
+				(${timing} ->> 'stream.app_api_ttft_ms')::double precision
+					- (${timing} ->> 'agent.first_delta_ms')::double precision
+			),
+			true
+		)
+		else ${timing}
+	end`;
+}
 
 export type {
 	AbuseControlState,
@@ -673,11 +710,21 @@ export function createPgChatCommandStore(
 					}),
 				);
 
+				const mergedStageTiming = sql<Record<string, unknown>>`${
+					requestObservabilityFact.stageTimingJson
+				} || excluded.stage_timing_json`;
 				await tx
 					.insert(requestObservabilityFact)
 					.values(buildRequestObservabilityFactInsertValues(input.requestObservabilityFact))
 					.onConflictDoUpdate({
-						set: buildRequestObservabilityFactUpdateValues(input.requestObservabilityFact),
+						set: {
+							...buildRequestObservabilityFactUpdateValues(input.requestObservabilityFact),
+							stageTimingJson: withStreamOrchestrationOverhead(mergedStageTiming),
+							updatedAt: sql<Date>`greatest(
+								${requestObservabilityFact.updatedAt},
+								excluded.updated_at
+							)`,
+						},
 						target: requestObservabilityFact.requestId,
 					});
 
@@ -719,21 +766,25 @@ export function createPgChatCommandStore(
 
 		async recordStreamAppApiTtft(input) {
 			const db = await getDb();
+			const timing = requestObservabilityFact.stageTimingJson;
+			const timingWithTtft = sql<Record<string, unknown>>`jsonb_set(
+				${timing},
+				array['stream.app_api_ttft_ms'],
+				to_jsonb(${input.durationMs}::double precision),
+				true
+			)`;
 			const updated = await db
 				.update(requestObservabilityFact)
 				.set({
-					stageTimingJson: sql<Record<string, unknown>>`jsonb_set(
-						${requestObservabilityFact.stageTimingJson},
-						array['stream.app_api_ttft_ms'],
-						to_jsonb(${input.durationMs}::double precision),
-						true
+					stageTimingJson: withStreamOrchestrationOverhead(timingWithTtft),
+					updatedAt: sql<Date>`greatest(
+						${requestObservabilityFact.updatedAt},
+						${new Date(input.observedAt)}
 					)`,
-					updatedAt: new Date(input.observedAt),
 				})
 				.where(
 					and(
 						eq(requestObservabilityFact.requestId, input.requestId),
-						eq(requestObservabilityFact.status, "accepted"),
 						sql`not (${requestObservabilityFact.stageTimingJson} ? 'stream.app_api_ttft_ms')`,
 					),
 				)

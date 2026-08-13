@@ -663,8 +663,9 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 	const { context } = input;
 	const polling = validatePollingPolicy(input.polling);
 	const queue = createDurableCloseoutQueue();
+	let ttftRecordPromise: Promise<unknown> | null = null;
 
-	const completion = (async () => {
+	const closeoutTask = (async () => {
 		let lastSequence = 0;
 		let emptyPollAttempts = 0;
 		let hasStreamedAnswerDelta = false;
@@ -685,18 +686,24 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 				}
 				const answerDelta = answerDeltaEventFromDurableRunEvent(context, runEvent);
 				if (answerDelta) {
+					let ttftObservation: { durationMs: number; observedAt: string } | null = null;
 					if (streamAppApiTtftMs === null) {
 						const observedAt = input.now().toISOString();
 						streamAppApiTtftMs = durationMsBetween(context.acceptedAt, observedAt);
 						if (streamAppApiTtftMs !== null) {
-							await input.recordStreamAppApiTtft({
+							ttftObservation = {
 								durationMs: streamAppApiTtftMs,
 								observedAt,
-							});
+							};
 						}
 					}
 					hasStreamedAnswerDelta = true;
 					queue.push({ event: answerDelta, kind: "event" });
+					if (ttftObservation) {
+						ttftRecordPromise = Promise.resolve()
+							.then(() => input.recordStreamAppApiTtft(ttftObservation))
+							.catch(() => undefined);
+					}
 					continue;
 				}
 				const terminalOutcome = durableTerminalOutcomeFromDurableRunEvent(context, runEvent);
@@ -736,6 +743,13 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 		queue.push({ error, kind: "error" });
 		throw error;
 	});
+	const completion = (async () => {
+		try {
+			return await closeoutTask;
+		} finally {
+			await ttftRecordPromise;
+		}
+	})();
 
 	return {
 		completion,

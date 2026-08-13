@@ -154,12 +154,16 @@ const ThreadListItems: FC<ThreadListItemsProps> = ({ onActionError, onNavigate }
 };
 
 const ThreadListSkeleton: FC = () => (
-	<div className="flex flex-col gap-0.5">
+	<div
+		aria-atomic="true"
+		aria-label="正在加载聊天记录"
+		className="flex flex-col gap-0.5"
+		role="status"
+	>
 		{SKELETON_THREAD_IDS.map((id) => (
 			<div
+				aria-hidden="true"
 				key={id}
-				role="status"
-				aria-label="正在加载聊天记录"
 				className="aui-thread-list-skeleton-wrapper flex h-11 items-center px-2.5 lg:h-9"
 			>
 				<Skeleton className="aui-thread-list-skeleton h-3.5 w-full" />

@@ -364,20 +364,27 @@ export function createCommandStore(options?: {
 		}),
 		findIdempotentRequest: vi.fn(async () => null),
 		recordStreamAppApiTtft: vi.fn(async (input) => {
-			if (
-				finalWrites.some((write) => write.turnDispatch.requestId === input.requestId) ||
-				!requestStageTiming.has(input.requestId)
-			) {
+			if (!requestStageTiming.has(input.requestId)) {
 				return false;
 			}
 			const current = requestStageTiming.get(input.requestId) ?? {};
 			if ("stream.app_api_ttft_ms" in current) {
 				return false;
 			}
-			requestStageTiming.set(input.requestId, {
+			const next: Record<string, unknown> = {
 				...current,
 				"stream.app_api_ttft_ms": input.durationMs,
-			});
+			};
+			const agentFirstDeltaMs = next["agent.first_delta_ms"];
+			if (
+				typeof agentFirstDeltaMs === "number" &&
+				Number.isFinite(agentFirstDeltaMs) &&
+				agentFirstDeltaMs >= 0 &&
+				input.durationMs >= agentFirstDeltaMs
+			) {
+				next["stream.orchestration_overhead_ms"] = input.durationMs - agentFirstDeltaMs;
+			}
+			requestStageTiming.set(input.requestId, next);
 			return true;
 		}),
 		readRequestStageTiming: vi.fn(async (requestId) => {
@@ -444,6 +451,7 @@ export function createCommandStore(options?: {
 		finalWrites,
 		frozenAdmissionMemorySnapshots,
 		frozenAdmissions,
+		requestStageTiming,
 		store,
 	};
 }

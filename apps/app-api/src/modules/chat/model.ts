@@ -115,6 +115,10 @@ export interface ChatConversationSummary {
 	pinnedAt: string | null;
 }
 
+export interface ChatConversationSearchResult extends ChatConversationSummary {
+	matchSnippet: string | null;
+}
+
 export interface ChatConversationResponse {
 	id: string;
 	title: string;
@@ -130,6 +134,10 @@ export interface ChatConversationSummaryResponse {
 	updatedAt: string;
 	archivedAt: string | null;
 	pinnedAt: string | null;
+}
+
+export interface ChatConversationSearchResultResponse extends ChatConversationSummaryResponse {
+	matchSnippet: string | null;
 }
 
 export interface VendorChatHistoryItemResponse {
@@ -165,6 +173,15 @@ export function toConversationSummaryResponse(
 		updatedAt: conversation.updatedAt,
 		archivedAt: conversation.archivedAt,
 		pinnedAt: conversation.pinnedAt,
+	};
+}
+
+export function toConversationSearchResultResponse(
+	conversation: ChatConversationSearchResult,
+): ChatConversationSearchResultResponse {
+	return {
+		...toConversationSummaryResponse(conversation),
+		matchSnippet: conversation.matchSnippet,
 	};
 }
 
