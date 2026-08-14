@@ -308,6 +308,9 @@ test("candidate publishing uses GitHub-hosted runners before final status", asyn
 	);
 	assert.equal(typeof planner.run, "string");
 	assert(planner.run.includes('--refresh-campus-web-docs "$REFRESH_CAMPUS_WEB_DOCS"'));
+	assert(!source.includes("notice-publisher"));
+	assert(!source.includes("PUBLISH_NOTICE_PUBLISHER"));
+	assert(!source.includes("Detect GitOps changes"));
 	assert(!planner.run.includes("validate-only"));
 	assert(!planner.run.includes("worker-selection"));
 	assert(!planner.run.includes("browserProfiles"));
@@ -420,6 +423,10 @@ test("candidate publishing uses GitHub-hosted runners before final status", asyn
 	assert(promote.needs.includes("candidate-status"));
 	assert.match(String(promote.if), /!cancelled\(\)/u);
 	assert.match(String(promote.if), /needs\.candidate-status\.result == 'success'/u);
+	assert.equal(
+		promote.outputs?.promotion_disposition,
+		githubExpression("steps.promotion.outputs.promotion_disposition"),
+	);
 	assert(Array.isArray(promote.steps));
 	const prepareReleaseInputs = promote.steps.find(
 		(step) => isObject(step) && step.name === "Prepare release inputs",
@@ -453,7 +460,6 @@ test("candidate publishing uses GitHub-hosted runners before final status", asyn
 	for (const stepName of [
 		"Install GitOps tooling",
 		"Update GitOps desired state",
-		"Detect GitOps changes",
 		"Mark staging promotion pending",
 	]) {
 		const step = promote.steps.find(
@@ -470,11 +476,41 @@ test("candidate publishing uses GitHub-hosted runners before final status", asyn
 		(step) => isObject(step) && step.name === "Open GitOps deployment pull request",
 	);
 	assert(isObject(deploymentPullRequest));
+	assert.match(
+		String(deploymentPullRequest.if),
+		/steps\.promotion\.outputs\.promotion_disposition == 'ready'/u,
+	);
+	assert.match(String(deploymentPullRequest.if), /steps\.promotion\.outputs\.changed == 'true'/u);
 	assert(isObject(deploymentPullRequest.with));
 	assert.match(
 		String(deploymentPullRequest.with.body),
 		/\[ \] GitOps PR 的完整仓库与受影响 Kustomize、schema、策略、Terraform\/Helm 检查/u,
 	);
+	const promotion = promote.steps.find(
+		(step) => isObject(step) && step.name === "Update GitOps desired state",
+	);
+	assert(isObject(promotion));
+	assert.equal(promotion.id, "promotion");
+	assert.equal(typeof promotion.run, "string");
+	assert(promotion.run.includes("pnpm --dir gitops --silent gitops promote-source"));
+	assert(promotion.run.includes("> promotion-result.json"));
+	assert(promotion.run.includes("keys_unsorted"));
+	assert(promotion.run.includes("expectedApplications"));
+	assert(promotion.run.includes("missingImageConsumers"));
+	assert(promotion.run.includes("topology-required"));
+	assert(promotion.run.includes("GITHUB_STEP_SUMMARY"));
+	assert.match(String(promotion.run), /promotion_disposition=\$disposition/u);
+	const pendingPromotion = promote.steps.find(
+		(step) => isObject(step) && step.name === "Mark staging promotion pending",
+	);
+	assert(isObject(pendingPromotion));
+	assert.match(
+		String(pendingPromotion.if),
+		/steps\.promotion\.outputs\.promotion_disposition == 'ready'/u,
+	);
+	assert.match(String(pendingPromotion.if), /steps\.promotion\.outputs\.changed == 'true'/u);
+	assert.equal(pendingPromotion.if, deploymentPullRequest.if);
+	assert(!String(deploymentPullRequest.if).includes("candidate_scope"));
 	const profileShells = new Map<string, string | undefined>([
 		["release-plan", jobShell(releasePlan)],
 		["publish-images", jobShell(workflow.jobs["publish-images"])],
@@ -554,6 +590,14 @@ test("candidate publishing uses GitHub-hosted runners before final status", asyn
 	assert.equal(
 		appApiUpload.env.OBJECT_STORE_VPC_SERVICE_ID,
 		githubExpression("vars.OBJECT_STORE_VPC_SERVICE_ID"),
+	);
+	assert.equal(
+		appApiUpload.env.OBJECT_STORE_DERIVED_READ_ACCESS_KEY,
+		githubExpression("secrets.OBJECT_STORE_DERIVED_READ_ACCESS_KEY"),
+	);
+	assert.equal(
+		appApiUpload.env.OBJECT_STORE_DERIVED_READ_SECRET_KEY,
+		githubExpression("secrets.OBJECT_STORE_DERIVED_READ_SECRET_KEY"),
 	);
 	const statusUpload = workers.steps.find(
 		(step) => isObject(step) && step.name === "Upload status-web candidate",

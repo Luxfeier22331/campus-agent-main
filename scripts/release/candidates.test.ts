@@ -207,6 +207,17 @@ test("Campus Web docs refresh works when the GitOps cursor already equals head",
 	});
 });
 
+test("notice-publisher is selected by its affected package build", async (t) => {
+	const root = await fixture(t);
+	const plan = await planCandidates(
+		options(root),
+		syntheticScopeRunner(changed("jobs/notice-publisher/src/store.ts"), [
+			{ command: "esbuild", package: "notice-publisher", task: "build" },
+		]),
+	);
+	assert.deepEqual(plan.images, ["notice-publisher"]);
+});
+
 test("selects Docker-only schema and Go images", async (t) => {
 	const root = await fixture(t);
 	const runner: CommandRunner = (command, args) => {

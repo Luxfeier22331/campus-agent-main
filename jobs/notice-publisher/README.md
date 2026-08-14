@@ -23,9 +23,13 @@ INTERNAL_PORTAL_BASE_URL=https://portal.example.edu \
   --notice-id 123456
 ```
 
-运行时显式提供 `NOTICES_DATABASE_URL`、`INTERNAL_PORTAL_BASE_URL` 和对象存储连接变量。历史附件链接
-回填、批量发布、产品验收和仅限本地的投影重建均由 runbook 统一维护。数据字段、正文清洗和资源
-所有权见 `docs/data/notices.md`。
+运行时显式提供 `NOTICES_DATABASE_URL`、`INTERNAL_PORTAL_BASE_URL`、
+`OBJECT_STORE_ENDPOINT`、`OBJECT_STORE_BUCKET_SOURCE`、`OBJECT_STORE_BUCKET_DERIVED`，以及
+`OBJECT_STORE_SOURCE_ACCESS_KEY` / `OBJECT_STORE_SOURCE_SECRET_KEY` 和
+`OBJECT_STORE_DERIVED_ACCESS_KEY` / `OBJECT_STORE_DERIVED_SECRET_KEY` 两套身份。发布器通过 source
+身份只读取来源，通过 derived 身份读写内容寻址资源，不使用跨 bucket 的管理身份。历史附件链接回填、
+批量发布、产品验收和仅限本地的投影重建均由 runbook 统一维护。数据字段、正文清洗和资源所有权见
+`docs/data/notices.md`。
 
 ## 验证
 

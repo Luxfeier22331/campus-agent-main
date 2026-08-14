@@ -39,9 +39,10 @@ Source Collector 的托管 `.env.local` 只保存当前 worktree 的本地对象
 命令也可在其中提供对象存储配置。`dev:init` 不创建或覆盖该文件，进程环境仍具有最高优先级。
 
 ingestion-control 的托管 `.env.local` 保存本 worktree 的 runtime/schema 数据库连接和本地 source
-bucket 连接。notice-publisher 使用自身角色和 `.env.local`；publisher 的门户地址
-占位值必须由实际运行环境显式覆盖。App API 的托管变量提供本地 derived bucket 地址和只读凭据，
-用于通知图片与其他获准的派生资源；部署环境改用现有私有对象存储 binding。应用之间不读取彼此环境文件。
+bucket 连接。notice-publisher 使用自身数据库角色、分离的 source/derived 对象存储身份和
+`.env.local`；publisher 的门户地址占位值必须由实际运行环境显式覆盖。App API 的托管变量提供本地
+derived bucket 地址和只读凭据，用于通知图片与其他获准的派生资源；部署环境改用现有私有对象存储
+binding。应用之间不读取彼此环境文件。
 
 一个应用不得读取其他应用或适配器的环境文件，也不得从根 `.env` 隐式扩散数据库或供应商凭据。
 

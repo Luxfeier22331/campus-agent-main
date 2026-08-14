@@ -314,6 +314,8 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           EXECUTION_CONTROL_VPC_SERVICE_ID: ${{ vars.EXECUTION_CONTROL_VPC_SERVICE_ID }}
+          OBJECT_STORE_DERIVED_READ_ACCESS_KEY: ${{ secrets.OBJECT_STORE_DERIVED_READ_ACCESS_KEY }}
+          OBJECT_STORE_DERIVED_READ_SECRET_KEY: ${{ secrets.OBJECT_STORE_DERIVED_READ_SECRET_KEY }}
           OBJECT_STORE_VPC_SERVICE_ID: ${{ vars.OBJECT_STORE_VPC_SERVICE_ID }}
           OPS_WEB_INTERNAL_TOKEN: ${{ secrets.OPS_WEB_INTERNAL_TOKEN }}
           SENTRY_APP_API_DSN: ${{ vars.SENTRY_APP_API_DSN }}
@@ -515,6 +517,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment: staging
+    outputs:
+      promotion_disposition: ${{ steps.promotion.outputs.promotion_disposition }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -585,34 +589,78 @@ jobs:
         run: pnpm --dir gitops --ignore-workspace install --frozen-lockfile
 
       - name: Update GitOps desired state
+        id: promotion
         env:
           EXPECTED_WORKERS: ${{ needs.release-plan.outputs.workers }}
           KUBERNETES_CHANGED: ${{ needs.release-plan.outputs.kubernetes }}
         shell: nix develop ./gitops#ci-control --command bash -e {0}
-        run: >-
-          pnpm --dir gitops gitops promote-source
-          --expected-source-sha "${{ needs.release-plan.outputs.base }}"
-          --expected-workers "$EXPECTED_WORKERS"
-          --image-digests "$GITHUB_WORKSPACE/image-digests.json"
-          --kubernetes "$KUBERNETES_CHANGED"
-          --root "$GITHUB_WORKSPACE/gitops"
-          --source-repository "$GITHUB_REPOSITORY"
-          --source-sha "$GITHUB_SHA"
-          --worker-candidates "$GITHUB_WORKSPACE/worker-candidates"
-
-      - name: Detect GitOps changes
-        id: promotion
-        shell: nix develop ./gitops#ci-control --command bash -e {0}
         run: |
-          if git -C gitops diff --quiet; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          fi
+          set -euo pipefail
+          pnpm --dir gitops --silent gitops promote-source \
+            --expected-source-sha "${{ needs.release-plan.outputs.base }}" \
+            --expected-workers "$EXPECTED_WORKERS" \
+            --image-digests "$GITHUB_WORKSPACE/image-digests.json" \
+            --kubernetes "$KUBERNETES_CHANGED" \
+            --root "$GITHUB_WORKSPACE/gitops" \
+            --source-repository "$GITHUB_REPOSITORY" \
+            --source-sha "$GITHUB_SHA" \
+            --worker-candidates "$GITHUB_WORKSPACE/worker-candidates" \
+            > promotion-result.json
+          jq -e --arg source_sha "$GITHUB_SHA" '
+            type == "object" and
+            (keys_unsorted == ["disposition", "sourceSha", "changed", "expectedApplications", "missingImageConsumers"]) and
+            (.disposition == "ready" or .disposition == "topology-required") and
+            (.sourceSha | type == "string" and test("^[0-9a-f]{40}$")) and
+            (.sourceSha == $source_sha) and
+            (.changed | type == "boolean") and
+            (.expectedApplications | type == "array") and
+            (all(.expectedApplications[];
+              type == "object" and
+              (keys | sort == ["name", "revision"]) and
+              (.name | type == "string" and length > 0) and
+              (.revision | type == "string" and test("^[0-9a-f]{40}$"))
+            )) and
+            ((.expectedApplications | sort_by(.name)) == .expectedApplications) and
+            (.missingImageConsumers | type == "array") and
+            (all(.missingImageConsumers[]; type == "string" and test("^[a-z0-9][a-z0-9-]*$"))) and
+            ((.missingImageConsumers | sort) == .missingImageConsumers) and
+            (if .disposition == "ready" then
+              .missingImageConsumers == []
+            else
+              .changed == false and (.missingImageConsumers | length > 0)
+            end)
+          ' promotion-result.json >/dev/null
+          disposition="$(jq -r '.disposition' promotion-result.json)"
+          changed="$(jq -r '.changed' promotion-result.json)"
+          case "$disposition" in
+            ready)
+              jq -e '.missingImageConsumers == []' promotion-result.json >/dev/null
+              ;;
+            topology-required)
+              if [ "$changed" != false ]; then
+                echo "topology-required promotion must not change GitOps state" >&2
+                exit 1
+              fi
+              ;;
+            *)
+              echo "Unexpected promotion disposition: $disposition" >&2
+              exit 1
+              ;;
+          esac
+          {
+            echo "promotion_disposition=$disposition"
+            echo "changed=$changed"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "### GitOps promotion"
+            jq . promotion-result.json
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Open GitOps deployment pull request
         id: deployment-pr
-        if: steps.promotion.outputs.changed == 'true'
+        if: >-
+          steps.promotion.outputs.promotion_disposition == 'ready' &&
+          steps.promotion.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1  # v8
         with:
           token: ${{ steps.gitops-token.outputs.token }}
@@ -637,7 +685,9 @@ jobs:
             - [ ] GitOps PR 的完整仓库与受影响 Kustomize、schema、策略、Terraform/Helm 检查
 
       - name: Mark staging promotion pending
-        if: steps.promotion.outputs.changed == 'true'
+        if: >-
+          steps.promotion.outputs.promotion_disposition == 'ready' &&
+          steps.promotion.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ steps.gitops-token.outputs.token }}
           TARGET_URL: ${{ steps.deployment-pr.outputs.pull-request-url }}

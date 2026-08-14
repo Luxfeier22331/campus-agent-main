@@ -134,11 +134,13 @@ export function renderLocalEnvironmentFiles(input: {
 	writeManagedEnv(noticePublisherEnvPath, {
 		INTERNAL_PORTAL_BASE_URL: "https://portal.example.invalid",
 		NOTICES_DATABASE_URL: database.noticePublisher,
-		OBJECT_STORE_ACCESS_KEY: "minioadmin",
 		OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
 		OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
+		OBJECT_STORE_DERIVED_ACCESS_KEY: "minioadmin",
+		OBJECT_STORE_DERIVED_SECRET_KEY: "minioadmin",
 		OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
-		OBJECT_STORE_SECRET_KEY: "minioadmin",
+		OBJECT_STORE_SOURCE_ACCESS_KEY: "minioadmin",
+		OBJECT_STORE_SOURCE_SECRET_KEY: "minioadmin",
 	});
 	return [
 		appApiEnvPath,

@@ -7,6 +7,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/ops-web/package.json ./apps/ops-web/package.json
 COPY packages/contracts/package.json ./packages/contracts/package.json
 COPY packages/domains/dining/package.json ./packages/domains/dining/package.json
+COPY packages/domains/notices/package.json ./packages/domains/notices/package.json
 COPY packages/internal-portal-client/package.json ./packages/internal-portal-client/package.json
 COPY packages/langfuse-identity/package.json ./packages/langfuse-identity/package.json
 COPY packages/ui/package.json ./packages/ui/package.json
@@ -21,6 +22,7 @@ COPY apps/ops-web ./apps/ops-web
 COPY configs/sources/internal-portal.json ./configs/sources/internal-portal.json
 COPY packages/contracts ./packages/contracts
 COPY packages/domains/dining ./packages/domains/dining
+COPY packages/domains/notices ./packages/domains/notices
 COPY packages/internal-portal-client ./packages/internal-portal-client
 COPY packages/langfuse-identity ./packages/langfuse-identity
 COPY packages/ui ./packages/ui
