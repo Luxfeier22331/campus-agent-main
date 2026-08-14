@@ -4,7 +4,7 @@ import { agentRuntimeErrorPayload } from "./runtime-errors.ts";
 
 export function agentRunStreamResponse(
 	events: ReturnType<PrimaryAgentRuntime["stream"]>,
-	options: { deadlineSignal?: AbortSignal } = {},
+	options: { deadlineSignal?: AbortSignal; onError?: (error: unknown) => void } = {},
 ): Response {
 	const iterator = events[Symbol.asyncIterator]();
 	let cancelled = false;
@@ -51,6 +51,7 @@ export function agentRunStreamResponse(
 					return;
 				}
 			} catch (error) {
+				options.onError?.(error);
 				if (!cancelled) {
 					controller.enqueue(
 						encodeSseEvent(

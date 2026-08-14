@@ -340,6 +340,7 @@ function mapToolRuntimeFingerprint(
 }
 
 export interface AgentRuntimeHandlerOptions {
+	onStreamError?: (error: unknown) => void;
 	sharedSecret: string;
 	runtime: PrimaryAgentRuntime;
 }
@@ -428,7 +429,10 @@ export function createAgentRuntimeHandler(
 					bindAsyncIterableToActiveContext(
 						options.runtime.stream(runtimeInputFromParsedRunRequest(parsed, signals.signal)),
 					),
-					{ deadlineSignal: signals.deadlineSignal },
+					{
+						deadlineSignal: signals.deadlineSignal,
+						...(options.onStreamError ? { onError: options.onStreamError } : {}),
+					},
 				),
 			);
 		}

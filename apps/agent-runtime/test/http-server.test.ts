@@ -888,7 +888,9 @@ describe("agent runtime HTTP handler", () => {
 	});
 
 	it("emits a non-retryable terminal SSE error", async () => {
+		const onStreamError = vi.fn();
 		const handler = createAgentRuntimeHandler({
+			onStreamError,
 			sharedSecret: "secret",
 			runtime: {
 				async run() {
@@ -920,6 +922,8 @@ describe("agent runtime HTTP handler", () => {
 				},
 			},
 		]);
+		expect(onStreamError).toHaveBeenCalledOnce();
+		expect(onStreamError.mock.calls[0]?.[0]).toBeInstanceOf(Error);
 	});
 
 	it("rejects tool runtime drift on the streaming route before invoking the model", async () => {

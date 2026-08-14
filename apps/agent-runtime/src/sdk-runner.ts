@@ -37,7 +37,7 @@ const primaryAgentTerminalOutputSchema = z.object({
 		"policy_refusal",
 		"unsupported_by_evidence",
 	]),
-	answerText: z.string().min(1).optional(),
+	answerText: z.string().optional(),
 	followUpQuestion: z.string().optional(),
 	reason: z.string().optional(),
 	evidenceRefs: z.array(z.string().min(1)).optional(),

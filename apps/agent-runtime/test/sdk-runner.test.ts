@@ -798,6 +798,69 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		]);
 	});
 
+	it("accepts empty placeholders for fields unused by the selected terminal kind", async () => {
+		const transportOutput = {
+			answerText: "",
+			evidenceRefs: [],
+			followUpQuestion: "",
+			kind: "unsupported_by_evidence" as const,
+			reason: "The request is not supported by the available evidence.",
+		};
+		const runner = createStreamingOpenAIAgentsRunner({
+			runSdkStream: async (agent) => {
+				const outputType = (agent as { outputType?: { parse(value: unknown): unknown } })
+					.outputType;
+				if (!outputType) {
+					throw new Error("structured output schema is required");
+				}
+				return {
+					cancelled: false,
+					completed: Promise.resolve(),
+					error: null,
+					finalOutput: outputType.parse(transportOutput),
+					lastResponseId: "resp-sdk-unsupported",
+					newItems: [],
+					toTextStream: () =>
+						new ReadableStream<string>({
+							start(controller) {
+								controller.enqueue(JSON.stringify(transportOutput));
+								controller.close();
+							},
+						}),
+				};
+			},
+		});
+
+		const events: unknown[] = [];
+		for await (const event of runner({
+			input: [{ role: "user", content: "What is the current campus tuition fee?" }],
+			instructions: "Return unsupported_by_evidence when evidence is unavailable.",
+			tools: [],
+			requestId: "req-sdk-unsupported",
+			runId: "run-sdk-unsupported",
+			traceId: "trace-sdk-unsupported",
+			limits,
+			providerConfig,
+		})) {
+			events.push(event);
+		}
+
+		expect(events).toEqual([
+			{
+				accumulatedText: transportOutput.reason,
+				chunkIndex: 1,
+				delta: transportOutput.reason,
+			},
+			expect.objectContaining({
+				finalOutput: transportOutput.reason,
+				terminalEnvelope: {
+					kind: "unsupported_by_evidence",
+					reason: transportOutput.reason,
+				},
+			}),
+		]);
+	});
+
 	it("cancels the SDK text stream when the streaming consumer returns", async () => {
 		let textStreamCancelled = false;
 		const runner = createStreamingOpenAIAgentsRunner({

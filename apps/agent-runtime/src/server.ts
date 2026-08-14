@@ -47,6 +47,11 @@ const runtime = createPrimaryAgentRuntime({
 	}),
 });
 const handler = createAgentRuntimeHandler({
+	onStreamError: (error) =>
+		logAgentRuntimeEvent("error", "agent_runtime.stream", "failed", {
+			error_code: safeAgentRuntimeErrorCode(error),
+			source: "stream",
+		}),
 	sharedSecret: executionAgentRuntimeSharedSecret,
 	runtime,
 });
