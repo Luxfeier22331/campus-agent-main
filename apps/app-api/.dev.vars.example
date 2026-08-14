@@ -13,6 +13,8 @@ APP_API_SAFETY_IDENTIFIER_HMAC_SECRET=replace-with-safety-identifier-secret
 AUTH_SHELL_ORIGIN=https://campus.example.com
 # Local read base for immutable derived assets. This base includes the bucket path.
 OBJECT_STORE_LOCAL_BASE_URL=http://127.0.0.1:9000/campus-agent-derived/
+OBJECT_STORE_DERIVED_READ_ACCESS_KEY=replace-with-derived-read-access-key
+OBJECT_STORE_DERIVED_READ_SECRET_KEY=replace-with-derived-read-secret-key
 EXECUTION_CONTROL_BASE_URL=https://execution-control.internal
 APP_API_EXECUTION_SHARED_SECRET=replace-with-execution-control-shared-secret
 SENTRY_DSN=

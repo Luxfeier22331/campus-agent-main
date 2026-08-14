@@ -195,6 +195,24 @@ export const APP_API_BROWSER_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
+		path: "/api/notices",
+		callerClass: "browser-surface",
+		admission: "session principal required",
+	},
+	{
+		method: "GET",
+		path: "/api/notices/:noticeId",
+		callerClass: "browser-surface",
+		admission: "session principal required; internal notice only",
+	},
+	{
+		method: "GET",
+		path: "/api/notices/:noticeId/images/:ordinal",
+		callerClass: "browser-surface",
+		admission: "session principal plus notice image ownership required",
+	},
+	{
+		method: "GET",
 		path: "/api/federation/authorize",
 		callerClass: "browser-surface",
 		admission: "registered OAuth/OIDC client and active end-user session required",

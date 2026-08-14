@@ -194,6 +194,12 @@ describe("app-api worker foundation", () => {
 		expect(uploadStagingVersionSource).toContain("AUTH_EMAIL_FROM");
 		expect(uploadStagingVersionSource).toContain('requiredEnv("APP_API_EXECUTION_SHARED_SECRET")');
 		expect(uploadStagingVersionSource).toContain('requiredEnv("OPS_WEB_INTERNAL_TOKEN")');
+		expect(uploadStagingVersionSource).toContain(
+			'requiredEnv("OBJECT_STORE_DERIVED_READ_ACCESS_KEY")',
+		);
+		expect(uploadStagingVersionSource).toContain(
+			'requiredEnv("OBJECT_STORE_DERIVED_READ_SECRET_KEY")',
+		);
 		expect(uploadStagingVersionSource).toContain("secretsFile: secretsPath");
 		expect(uploadStagingVersionSource).toContain("mode: 0o600");
 		expect(uploadStagingVersionSource).toContain("preflight-staging.ts");
@@ -266,6 +272,8 @@ describe("app-api worker foundation", () => {
 			"OPS_WEB_INTERNAL_TOKEN",
 			"APP_API_EXECUTION_SHARED_SECRET",
 			"APP_API_SAFETY_IDENTIFIER_HMAC_SECRET",
+			"OBJECT_STORE_DERIVED_READ_ACCESS_KEY",
+			"OBJECT_STORE_DERIVED_READ_SECRET_KEY",
 		]);
 		expect(stagingSecretsBlock).not.toContain('"AUTH_EMAIL_FROM"');
 		expect(stagingSecretsBlock).not.toContain(

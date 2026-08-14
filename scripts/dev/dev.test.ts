@@ -128,6 +128,8 @@ describe("managed worktree environment", () => {
 		assert.equal(first.OPS_WEB_INTERNAL_TOKEN, second.OPS_WEB_INTERNAL_TOKEN);
 		assert.equal(second.AUTH_TURNSTILE_SECRET_KEY, "local-turnstile-disabled");
 		assert.equal(second.AUTH_SHELL_ORIGIN, "http://127.0.0.1:27114");
+		assert.equal(second.OBJECT_STORE_DERIVED_READ_ACCESS_KEY, "minioadmin");
+		assert.equal(second.OBJECT_STORE_DERIVED_READ_SECRET_KEY, "minioadmin");
 		assert.equal(
 			second.OBJECT_STORE_LOCAL_BASE_URL,
 			"http://127.0.0.1:9000/campus-agent-derived-wt-1-deadbeef/",
@@ -141,6 +143,9 @@ describe("managed worktree environment", () => {
 		);
 		const opsWebEnvironment = parseEnv(
 			readFileSync(resolve(repoRoot, "apps/ops-web/.env.local"), "utf8"),
+		);
+		const ingestionControlEnvironment = parseEnv(
+			readFileSync(resolve(repoRoot, "apps/ingestion-control/.env.local"), "utf8"),
 		);
 		const campusWebEnvironment = parseEnv(
 			readFileSync(resolve(repoRoot, "apps/campus-web/.dev.vars.local"), "utf8"),
@@ -159,6 +164,11 @@ describe("managed worktree environment", () => {
 		assert.equal(campusWebEnvironment.OBJECT_STORE_DERIVED_ACCESS_KEY, undefined);
 		assert.equal(campusWebEnvironment.OBJECT_STORE_DERIVED_SECRET_KEY, undefined);
 		assert.equal(new URL(opsWebEnvironment.OPS_WEB_DATABASE_URL ?? "").search, "");
+		assert.equal(
+			new URL(ingestionControlEnvironment.INGESTION_CONTROL_DATABASE_URL ?? "").username,
+			"ingestion_control",
+		);
+		assert.equal(ingestionControlEnvironment.OBJECT_STORE_BUCKET_SOURCE, "campus-agent-source");
 		assert.equal(sourceCollectorEnvironment.OBJECT_STORE_BUCKET_SOURCE, "campus-agent-source");
 		assert.equal(sourceCollectorEnvironment.OBJECT_STORE_ENDPOINT, "http://127.0.0.1:9000");
 		assert.equal(sourceCollectorEnvironment.OBJECT_STORE_SOURCE_ACCESS_KEY, "minioadmin");
@@ -421,6 +431,14 @@ describe("local development lifecycle guards", () => {
 		assert.match(source, /\.dev\.vars\.local/u);
 	});
 
+	it("seeds the fixed local test user after installing the app-api schema", () => {
+		const source = readFileSync(resolve(import.meta.dirname, "./lifecycle.ts"), "utf8");
+		const schemaIndex = source.indexOf('"./ops/db/schema.ts"');
+		const seedIndex = source.indexOf('"./ops/db/seed-local-test-user.ts"');
+		assert.ok(schemaIndex >= 0);
+		assert.ok(seedIndex > schemaIndex);
+	});
+
 	it("keeps the source collector local loader inside its adapter", () => {
 		const source = readFileSync(
 			resolve(
@@ -438,12 +456,13 @@ describe("local development lifecycle guards", () => {
 function createRepositoryShape(): string {
 	const repoRoot = mkdtempSync(resolve(tmpdir(), "campus-agent-dev-test-"));
 	temporaryDirectories.push(repoRoot);
-	for (const app of ["app-api", "campus-web", "ops-web"]) {
+	for (const app of ["app-api", "campus-web", "ingestion-control", "ops-web"]) {
 		mkdirSync(resolve(repoRoot, "apps", app), { recursive: true });
 	}
 	mkdirSync(resolve(repoRoot, "apps/source-collector/adapters/internal-portal"), {
 		recursive: true,
 	});
+	mkdirSync(resolve(repoRoot, "jobs/notice-publisher"), { recursive: true });
 	return repoRoot;
 }
 

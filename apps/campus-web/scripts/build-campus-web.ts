@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 import { readDocsContentMetadata } from "../src/docs-reader-build/docs-content.ts";
 import type { ReaderObjectStoreClient } from "../src/docs-reader-build/published-reader-types.ts";
 import { assertSha256 } from "../src/docs-reader-build/source-catalog.ts";
-import { omitObjectStoreEnvironment } from "./build-process-env.ts";
+import { loadCampusWebBuildEnvironment, omitObjectStoreEnvironment } from "./build-process-env.ts";
 import {
 	type BundleCheckResult,
 	checkClientBundle,
@@ -37,6 +37,7 @@ export interface CampusWebBuildArgs {
 
 export interface CampusWebBuildInput extends CampusWebBuildArgs {
 	docsClient?: ReaderObjectStoreClient;
+	env?: NodeJS.ProcessEnv;
 	refreshDocs?: boolean;
 }
 
@@ -56,13 +57,19 @@ export function parseCampusWebBuildArgs(argv: string[]): CampusWebBuildArgs {
 }
 
 export async function buildCampusWeb(input: CampusWebBuildInput): Promise<void> {
+	const sourceEnvironment = input.docsClient
+		? (input.env ?? process.env)
+		: loadCampusWebBuildEnvironment(
+				input.env === undefined ? {} : { processEnvironment: input.env },
+			);
 	const content = await prepareDocsContent({
 		...(input.docsClient ? { client: input.docsClient } : {}),
+		env: sourceEnvironment,
 		pages: true,
 		refresh: input.refreshDocs ?? false,
 	});
 	const env: NodeJS.ProcessEnv = {
-		...omitObjectStoreEnvironment(process.env),
+		...omitObjectStoreEnvironment(sourceEnvironment),
 		CAMPUS_WEB_DOCS_CONTENT_ROOT: content.root,
 		WRANGLER_DISABLE_EXPERIMENTAL_WARNING: "1",
 		XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME?.trim() || "./.wrangler-home",

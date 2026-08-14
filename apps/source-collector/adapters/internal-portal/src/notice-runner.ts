@@ -1,3 +1,4 @@
+import type { InternalPortalNoticeMetaStore } from "./notice-meta-store.js";
 import {
 	buildInternalPortalNoticeSource,
 	type InternalPortalNoticeSourceStore,
@@ -11,9 +12,9 @@ import type {
 	NoticeDetailResponse,
 	NoticeItem,
 	NoticeListResponse,
+	NoticeMetadataResponse,
 } from "./types.js";
 
-const NOTICE_TYPE = "5";
 const NOTICE_PAGE_SIZE = 20;
 
 export interface NoticeRunnerInput {
@@ -22,13 +23,16 @@ export interface NoticeRunnerInput {
 		apiContext: ApiRequestContextLike;
 		noticeId: number;
 	}) => Promise<NoticeDetailResponse>;
+	fetchNoticeMetadata: (input: {
+		apiContext: ApiRequestContextLike;
+	}) => Promise<NoticeMetadataResponse>;
 	fetchNoticePage: (input: {
 		apiContext: ApiRequestContextLike;
 		currentPage: number;
 		startDate: string;
 	}) => Promise<NoticeListResponse>;
+	metaStore: InternalPortalNoticeMetaStore;
 	now?: () => string;
-	siteId: string;
 	sourceStore: InternalPortalNoticeSourceStore;
 	stateStore: InternalPortalNoticeSyncStateStore;
 }
@@ -41,102 +45,100 @@ export interface NoticeRunnerResult {
 	state: InternalPortalNoticeSyncState;
 }
 
+interface NoticeCandidate {
+	item: NoticeItem;
+	noticeId: number;
+	noticeType: number;
+}
+
+interface NoticeMappings {
+	noticeTypes: Record<string, string>;
+	organizations: Record<string, string>;
+}
+
 interface NoticeScan {
-	candidateIds: number[];
-	maxObservedId: number | null;
+	candidates: NoticeCandidate[];
+	firstObservedId: number | null;
 	pagesFetched: number;
 }
 
 export async function syncInternalPortalNotices(
 	input: NoticeRunnerInput,
 ): Promise<NoticeRunnerResult> {
-	const current = await input.stateStore.load(input.siteId);
+	const current = await input.stateStore.load();
+	const mappings = await fetchMappings(input);
+	const allowedTypes = new Set(Object.keys(mappings.noticeTypes).map(Number));
 	if (!current) {
 		const page = await fetchPage(input, 1, "");
 		parseTotalPages(page);
-		const ids = parseOrderedNoticeIds(page.datas?.tables ?? []);
-		const state = await saveState(
-			input,
-			stateWith(current, {
-				incrementalHeadId: ids[0] ?? null,
-				siteId: input.siteId,
-			}),
-		);
+		const items = parseNoticeItems(page.datas?.tables ?? [], allowedTypes);
+		const updatedAt = now(input);
+		await saveMappings(input, mappings, updatedAt);
+		const state = await saveState(input, stateWith(null, items.firstObservedId), updatedAt);
 		return result("sync", state, 1);
 	}
-	if (current.incrementalHeadId === null) {
-		const scan = await scanBackfillNotices(input, current, "");
-		if (scan.candidateIds.length === 0) {
-			return result("sync", current, scan.pagesFetched);
+	if (current.headNoticeId === null) {
+		const scan = await scanBackfillNotices(input, "", allowedTypes);
+		const counts = await writeCandidates(input, scan.candidates);
+		const updatedAt = now(input);
+		await saveMappings(input, mappings, updatedAt);
+		if (scan.firstObservedId === null) {
+			return result("sync", current, scan.pagesFetched, counts);
 		}
-		const objectCounts = await writeCandidates(input, scan.candidateIds);
 		const state = await saveState(
 			input,
-			withCapturedIds(
-				{
-					...current,
-					incrementalHeadId: scan.maxObservedId,
-				},
-				scan.candidateIds,
-			),
+			{ ...current, headNoticeId: scan.firstObservedId },
+			updatedAt,
 		);
-		return result("sync", state, scan.pagesFetched, objectCounts);
+		return result("sync", state, scan.pagesFetched, counts);
 	}
 
-	const scan = await scanIncrementalNotices(input, current.incrementalHeadId);
-	if (scan.candidateIds.length === 0) {
-		return result("sync", current, scan.pagesFetched);
+	const scan = await scanIncrementalNotices(input, current.headNoticeId, allowedTypes);
+	const counts = await writeCandidates(input, scan.candidates);
+	const updatedAt = now(input);
+	await saveMappings(input, mappings, updatedAt);
+	if (scan.firstObservedId === null || scan.firstObservedId === current.headNoticeId) {
+		return result("sync", current, scan.pagesFetched, counts);
 	}
-
-	const objectCounts = await writeCandidates(input, scan.candidateIds);
 	const state = await saveState(
 		input,
-		withCapturedIds(
-			{
-				...current,
-				incrementalHeadId: scan.maxObservedId ?? current.incrementalHeadId,
-			},
-			scan.candidateIds,
-		),
+		{ ...current, headNoticeId: scan.firstObservedId },
+		updatedAt,
 	);
-	return result("sync", state, scan.pagesFetched, objectCounts);
+	return result("sync", state, scan.pagesFetched, counts);
 }
 
 export async function backfillInternalPortalNotices(
 	input: NoticeRunnerInput & { startDate: string },
 ): Promise<NoticeRunnerResult> {
 	const startDate = parseNoticeStartDate(input.startDate);
-	const current = await input.stateStore.load(input.siteId);
+	const current = await input.stateStore.load();
 	if (current && isNoticeHistoryCovered(current, startDate)) {
 		return result("backfill", current, 0);
 	}
 
-	const scan = await scanBackfillNotices(input, current, startDate);
+	const mappings = await fetchMappings(input);
+	const allowedTypes = new Set(Object.keys(mappings.noticeTypes).map(Number));
+	const scan = await scanBackfillNotices(input, startDate, allowedTypes);
 	let pagesFetched = scan.pagesFetched;
-	let incrementalHeadId = current?.incrementalHeadId ?? scan.maxObservedId;
-	if (!current && incrementalHeadId === null) {
+	let headNoticeId = current?.headNoticeId ?? scan.firstObservedId;
+	if (!current && headNoticeId === null) {
 		const baselinePage = await fetchPage(input, 1, "");
 		parseTotalPages(baselinePage);
-		const baselineIds = parseOrderedNoticeIds(baselinePage.datas?.tables ?? []);
-		incrementalHeadId = baselineIds[0] ?? null;
+		headNoticeId = parseNoticeItems(baselinePage.datas?.tables ?? [], allowedTypes).firstObservedId;
 		pagesFetched += 1;
 	}
-	const objectCounts = await writeCandidates(input, scan.candidateIds);
-	const state = withCapturedIds(
-		stateWith(current, {
-			incrementalHeadId,
-			siteId: input.siteId,
-		}),
-		scan.candidateIds,
-	);
+	const counts = await writeCandidates(input, scan.candidates);
+	const updatedAt = now(input);
+	await saveMappings(input, mappings, updatedAt);
 	let updated: InternalPortalNoticeSyncState = {
-		...state,
+		...stateWith(current, headNoticeId),
 		historyCoveredFrom: earlierDate(current?.historyCoveredFrom ?? null, startDate),
 	};
 	if (!(current && sameState(current, updated))) {
-		updated = await saveState(input, updated);
+		updated = await saveState(input, updated, updatedAt);
 	}
-	return result("backfill", updated, pagesFetched, objectCounts);
+	return result("backfill", updated, pagesFetched, counts);
 }
 
 export function isNoticeHistoryCovered(
@@ -162,12 +164,13 @@ export function parseNoticeStartDate(value: string): string {
 async function scanIncrementalNotices(
 	input: NoticeRunnerInput,
 	currentHeadId: number,
+	allowedTypes: Set<number>,
 ): Promise<NoticeScan> {
-	const candidateIds: number[] = [];
+	const candidates: NoticeCandidate[] = [];
 	let foundHead = false;
-	let maxObservedId: number | null = null;
+	let firstObservedId: number | null = null;
 	let pagesFetched = 0;
-	let previousId: number | null = null;
+	const seenIds = new Set<number>();
 	let totalPages: number | null = null;
 
 	for (let currentPage = 1; totalPages === null || currentPage <= totalPages; currentPage += 1) {
@@ -175,20 +178,19 @@ async function scanIncrementalNotices(
 		pagesFetched += 1;
 		totalPages ??= parseTotalPages(page);
 		for (const item of page.datas?.tables ?? []) {
-			const noticeId = parseNoticeId(item.notice_id);
-			assertDescendingNoticeId(previousId, noticeId);
-			previousId = noticeId;
-			maxObservedId = maxObservedId ?? noticeId;
-			if (noticeId === currentHeadId) {
+			const candidate = parseNoticeItem(item);
+			if (seenIds.has(candidate.noticeId)) {
+				continue;
+			}
+			seenIds.add(candidate.noticeId);
+			firstObservedId ??= candidate.noticeId;
+			if (candidate.noticeId === currentHeadId) {
 				foundHead = true;
 				break;
 			}
-			if (noticeId < currentHeadId) {
-				throw new Error(
-					`notice type ${NOTICE_TYPE} passed incremental head ${currentHeadId} before returning it`,
-				);
+			if (allowedTypes.has(candidate.noticeType)) {
+				candidates.push(candidate);
 			}
-			candidateIds.push(noticeId);
 		}
 		if (foundHead) {
 			break;
@@ -196,24 +198,20 @@ async function scanIncrementalNotices(
 	}
 
 	if (!foundHead) {
-		throw new Error(`notice type ${NOTICE_TYPE} did not return incremental head ${currentHeadId}`);
+		throw new Error(`internal portal notice list did not return head ${currentHeadId}`);
 	}
-	return {
-		candidateIds: candidateIds.sort((left, right) => left - right),
-		maxObservedId,
-		pagesFetched,
-	};
+	return { candidates, firstObservedId, pagesFetched };
 }
 
 async function scanBackfillNotices(
 	input: NoticeRunnerInput,
-	current: InternalPortalNoticeSyncState | null,
 	startDate: string,
+	allowedTypes: Set<number>,
 ): Promise<NoticeScan> {
-	const candidateIds: number[] = [];
-	let maxObservedId: number | null = null;
+	const candidates: NoticeCandidate[] = [];
+	let firstObservedId: number | null = null;
 	let pagesFetched = 0;
-	let previousId: number | null = null;
+	const seenIds = new Set<number>();
 	let totalPages: number | null = null;
 
 	for (let currentPage = 1; totalPages === null || currentPage <= totalPages; currentPage += 1) {
@@ -221,45 +219,48 @@ async function scanBackfillNotices(
 		pagesFetched += 1;
 		totalPages ??= parseTotalPages(page);
 		for (const item of page.datas?.tables ?? []) {
-			const noticeId = parseNoticeId(item.notice_id);
-			assertDescendingNoticeId(previousId, noticeId);
-			previousId = noticeId;
-			maxObservedId = maxObservedId ?? noticeId;
-			if (
-				current?.minCapturedId !== null && current?.minCapturedId !== undefined
-					? noticeId < current.minCapturedId
-					: current?.incrementalHeadId !== null && current?.incrementalHeadId !== undefined
-						? noticeId <= current.incrementalHeadId
-						: true
-			) {
-				candidateIds.push(noticeId);
+			const candidate = parseNoticeItem(item);
+			if (seenIds.has(candidate.noticeId)) {
+				continue;
+			}
+			seenIds.add(candidate.noticeId);
+			firstObservedId ??= candidate.noticeId;
+			if (allowedTypes.has(candidate.noticeType)) {
+				candidates.push(candidate);
 			}
 		}
 	}
 
-	return {
-		candidateIds: candidateIds.sort((left, right) => left - right),
-		maxObservedId,
-		pagesFetched,
-	};
+	return { candidates, firstObservedId, pagesFetched };
 }
 
-function parseOrderedNoticeIds(items: NoticeItem[]): number[] {
-	const ids: number[] = [];
-	let previousId: number | null = null;
+function parseNoticeItems(
+	items: NoticeItem[],
+	allowedTypes: Set<number>,
+): { candidates: NoticeCandidate[]; firstObservedId: number | null } {
+	const candidates: NoticeCandidate[] = [];
+	const seenIds = new Set<number>();
+	let firstObservedId: number | null = null;
 	for (const item of items) {
-		const noticeId = parseNoticeId(item.notice_id);
-		assertDescendingNoticeId(previousId, noticeId);
-		previousId = noticeId;
-		ids.push(noticeId);
+		const candidate = parseNoticeItem(item);
+		if (seenIds.has(candidate.noticeId)) {
+			continue;
+		}
+		seenIds.add(candidate.noticeId);
+		firstObservedId ??= candidate.noticeId;
+		if (allowedTypes.has(candidate.noticeType)) {
+			candidates.push(candidate);
+		}
 	}
-	return ids;
+	return { candidates, firstObservedId };
 }
 
-function assertDescendingNoticeId(previousId: number | null, noticeId: number): void {
-	if (previousId !== null && noticeId >= previousId) {
-		throw new Error(`notice type ${NOTICE_TYPE} returned notice ids out of descending order`);
-	}
+function parseNoticeItem(item: NoticeItem): NoticeCandidate {
+	return {
+		item,
+		noticeId: parsePositiveInteger(item.notice_id, "notice_id"),
+		noticeType: parsePositiveInteger(item.notice_type, "notice_type"),
+	};
 }
 
 async function fetchPage(
@@ -267,32 +268,65 @@ async function fetchPage(
 	currentPage: number,
 	startDate: string,
 ): Promise<NoticeListResponse> {
-	return await input.fetchNoticePage({
-		apiContext: input.apiContext,
-		currentPage,
-		startDate,
-	});
+	return await input.fetchNoticePage({ apiContext: input.apiContext, currentPage, startDate });
+}
+
+async function fetchMappings(input: NoticeRunnerInput): Promise<NoticeMappings> {
+	const response = await input.fetchNoticeMetadata({ apiContext: input.apiContext });
+	const noticeTypes: Record<string, string> = {};
+	for (const item of response.datas?.type ?? []) {
+		const id = parsePositiveInteger(item.notice_type_id, "notice_type_id");
+		const name = requireText(item.notice_type_name, "notice_type_name");
+		assertNewMapping(noticeTypes, String(id), name, "notice type");
+	}
+	if (Object.keys(noticeTypes).length === 0) {
+		throw new Error("internal portal notice metadata returned no notice types");
+	}
+	const organizations: Record<string, string> = {};
+	for (const item of response.datas?.org ?? []) {
+		const id = requireText(item.organization_id, "organization_id");
+		const name = requireText(item.organization_name, "organization_name");
+		assertNewMapping(organizations, id, name, "organization");
+	}
+	return { noticeTypes, organizations };
+}
+
+function assertNewMapping(
+	mappings: Record<string, string>,
+	id: string,
+	name: string,
+	label: string,
+): void {
+	if (Object.hasOwn(mappings, id)) {
+		throw new Error(`internal portal notice metadata returned duplicate ${label} ${id}`);
+	}
+	mappings[id] = name;
 }
 
 async function writeCandidates(
 	input: NoticeRunnerInput,
-	candidateIds: number[],
+	candidates: NoticeCandidate[],
 ): Promise<{ objectsReused: number; objectsWritten: number }> {
 	let objectsReused = 0;
 	let objectsWritten = 0;
-	for (const noticeId of candidateIds) {
+	for (const candidate of candidates) {
+		if (await input.sourceStore.has(candidate.noticeId)) {
+			objectsReused += 1;
+			continue;
+		}
 		const detail = await input.fetchNoticeDetail({
 			apiContext: input.apiContext,
-			noticeId,
+			noticeId: candidate.noticeId,
 		});
 		const detailInfo = detail.datas?.notice_info;
 		if (!detailInfo) {
-			throw new Error(`notice ${noticeId} detail is missing notice_info`);
+			throw new Error(`notice ${candidate.noticeId} detail is missing notice_info`);
 		}
 		const source = buildInternalPortalNoticeSource({
 			detailInfo,
-			noticeId,
-			siteId: input.siteId,
+			listItem: candidate.item,
+			noticeId: candidate.noticeId,
+			noticeType: candidate.noticeType,
 		});
 		const outcome = await input.sourceStore.put(source);
 		if (outcome === "reused") {
@@ -304,49 +338,36 @@ async function writeCandidates(
 	return { objectsReused, objectsWritten };
 }
 
+async function saveMappings(
+	input: NoticeRunnerInput,
+	mappings: NoticeMappings,
+	updatedAt: string,
+): Promise<void> {
+	await input.metaStore.putMappings({ ...mappings, updatedAt });
+}
+
 async function saveState(
 	input: NoticeRunnerInput,
 	state: InternalPortalNoticeSyncState,
+	updatedAt: string,
 ): Promise<InternalPortalNoticeSyncState> {
-	const updated = {
-		...state,
-		updatedAt: (input.now ?? (() => new Date().toISOString()))(),
-	};
+	const updated = { ...state, updatedAt };
 	await input.stateStore.save(updated);
 	return updated;
 }
 
 function stateWith(
 	current: InternalPortalNoticeSyncState | null,
-	identity: { incrementalHeadId: number | null; siteId: string },
+	headNoticeId: number | null,
 ): InternalPortalNoticeSyncState {
 	return {
+		headNoticeId,
 		historyCoveredFrom: current?.historyCoveredFrom ?? null,
-		incrementalHeadId: identity.incrementalHeadId,
-		maxCapturedId: current?.maxCapturedId ?? null,
-		minCapturedId: current?.minCapturedId ?? null,
-		siteId: identity.siteId,
 		updatedAt: current?.updatedAt ?? "",
 	};
 }
 
-function withCapturedIds(
-	state: InternalPortalNoticeSyncState,
-	ids: number[],
-): InternalPortalNoticeSyncState {
-	if (ids.length === 0) {
-		return state;
-	}
-	const min = Math.min(...ids);
-	const max = Math.max(...ids);
-	return {
-		...state,
-		maxCapturedId: state.maxCapturedId === null ? max : Math.max(state.maxCapturedId, max),
-		minCapturedId: state.minCapturedId === null ? min : Math.min(state.minCapturedId, min),
-	};
-}
-
-function parseNoticeId(value: NoticeItem["notice_id"]): number {
+function parsePositiveInteger(value: number | string | null | undefined, field: string): number {
 	const normalized =
 		typeof value === "number"
 			? value
@@ -354,23 +375,45 @@ function parseNoticeId(value: NoticeItem["notice_id"]): number {
 				? Number(value.trim())
 				: Number.NaN;
 	if (!Number.isSafeInteger(normalized) || normalized <= 0) {
-		throw new Error(`notice type ${NOTICE_TYPE} returned an invalid notice_id`);
+		throw new Error(`internal portal notice response returned an invalid ${field}`);
 	}
 	return normalized;
 }
 
 function parseTotalPages(response: NoticeListResponse): number {
-	const value = response.datas?.page?.totalCounts;
-	const totalItems =
-		typeof value === "number"
-			? value
-			: typeof value === "string" && /^\d+$/u.test(value.trim())
-				? Number(value.trim())
-				: Number.NaN;
-	if (!Number.isSafeInteger(totalItems) || totalItems < 0) {
-		throw new Error(`notice type ${NOTICE_TYPE} returned an invalid totalCounts item count`);
+	const page = response.datas?.page;
+	const totalItems = parseNonNegativeInteger(page?.total);
+	const totalPages = parseNonNegativeInteger(page?.totalCounts);
+	const pageSize = parseInteger(page?.pageSize);
+	if (
+		!(Number.isSafeInteger(totalItems) && Number.isSafeInteger(totalPages)) ||
+		pageSize !== NOTICE_PAGE_SIZE ||
+		Math.ceil(totalItems / pageSize) !== totalPages
+	) {
+		throw new Error("internal portal notice list returned invalid pagination metadata");
 	}
-	return Math.ceil(totalItems / NOTICE_PAGE_SIZE);
+	return totalPages;
+}
+
+function parseNonNegativeInteger(value: number | string | undefined): number {
+	const normalized = parseInteger(value);
+	return normalized >= 0 ? normalized : Number.NaN;
+}
+
+function parseInteger(value: number | string | undefined): number {
+	return typeof value === "number"
+		? value
+		: typeof value === "string" && /^\d+$/u.test(value.trim())
+			? Number(value.trim())
+			: Number.NaN;
+}
+
+function requireText(value: string | null | undefined, field: string): string {
+	const normalized = typeof value === "string" ? value.trim() : "";
+	if (!normalized) {
+		throw new Error(`internal portal notice metadata returned an invalid ${field}`);
+	}
+	return normalized;
 }
 
 function earlierDate(current: string | null, next: string): string {
@@ -382,12 +425,12 @@ function sameState(
 	right: InternalPortalNoticeSyncState,
 ): boolean {
 	return (
-		left.historyCoveredFrom === right.historyCoveredFrom &&
-		left.incrementalHeadId === right.incrementalHeadId &&
-		left.maxCapturedId === right.maxCapturedId &&
-		left.minCapturedId === right.minCapturedId &&
-		left.siteId === right.siteId
+		left.historyCoveredFrom === right.historyCoveredFrom && left.headNoticeId === right.headNoticeId
 	);
+}
+
+function now(input: NoticeRunnerInput): string {
+	return (input.now ?? (() => new Date().toISOString()))();
 }
 
 function result(

@@ -1,8 +1,29 @@
 export interface NoticeItem {
 	notice_id?: number | string | null;
+	notice_type?: number | string | null;
+	organization_id?: string | null;
+	organization_name?: string | null;
+	notice_link?: string | null;
+}
+
+export interface NoticeMetadataResponse {
+	state?: boolean;
+	msg?: string;
+	datas?: {
+		type?: Array<{
+			notice_type_id?: number | string | null;
+			notice_type_name?: string | null;
+		}>;
+		org?: Array<{
+			organization_id?: string | null;
+			organization_name?: string | null;
+		}>;
+	};
 }
 
 export interface NoticePage {
+	pageSize?: number | string;
+	total?: number | string;
 	totalCounts?: number | string;
 }
 

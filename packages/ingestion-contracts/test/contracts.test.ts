@@ -12,6 +12,7 @@ import {
 	validateIngestionTaskResult,
 	validateInternalPortalFileReleaseCaptureResult,
 	validateInternalPortalFileReleaseSource,
+	validateInternalPortalMeta,
 	validateInternalPortalNoticeSource,
 	validateInternalPortalNoticeSyncState,
 	validateRetrievalChunkSetV2,
@@ -163,17 +164,15 @@ describe("ingestion task contracts", () => {
 					type: "application/pdf",
 				},
 			],
-			notice_content: "<p>正文</p>",
+			external_url: null,
+			is_external: false,
+			notice_content_html: "<p>正文</p>",
 			notice_id: 355119,
-			notice_link: null,
 			notice_release_time: "2026-07-25 09:00:00",
 			notice_title: "示例通知",
-			notice_type: "5",
-			notice_type_name: "办公通知",
+			notice_type: 5,
 			organization_id: "dept-1",
-			organization_name: "教务处",
-			schema_version: "internal_portal_notice_source.v1",
-			site_id: "muc_internal_portal",
+			schema_version: "internal_portal_notice_source.v2",
 		};
 
 		expect(validateInternalPortalNoticeSource(source).ok).toBe(true);
@@ -185,6 +184,31 @@ describe("ingestion task contracts", () => {
 		).toBe(false);
 		expect(validateInternalPortalNoticeSource({ ...source, notice_id: 0 }).ok).toBe(false);
 		expect(validateInternalPortalNoticeSource({ ...source, unexpected: true }).ok).toBe(false);
+		expect(
+			validateInternalPortalNoticeSource({
+				...source,
+				external_url: "https://mp.weixin.qq.com/s/example",
+				is_external: true,
+			}).ok,
+		).toBe(true);
+		expect(
+			validateInternalPortalNoticeSource({ ...source, external_url: null, is_external: true }).ok,
+		).toBe(false);
+		expect(
+			validateInternalPortalNoticeSource({
+				...source,
+				external_url: "https://example.edu/external",
+				is_external: false,
+			}).ok,
+		).toBe(false);
+		expect(
+			validateInternalPortalNoticeSource({
+				...source,
+				external_url: "ftp://example.edu/external",
+				is_external: true,
+			}).ok,
+		).toBe(false);
+		expect(validateInternalPortalNoticeSource({ ...source, notice_source: 0 }).ok).toBe(false);
 	});
 
 	it("validates the fixed file-release source object", () => {
@@ -234,12 +258,9 @@ describe("ingestion task contracts", () => {
 
 	it("validates the notice incremental and history boundaries", () => {
 		const state = {
+			head_notice_id: 355119,
 			history_covered_from: "2026-01-01",
-			incremental_head_id: 355119,
-			max_captured_id: 355119,
-			min_captured_id: 310001,
-			schema_version: "internal_portal_notice_sync_state.v1",
-			site_id: "muc_internal_portal",
+			schema_version: "internal_portal_notice_sync_state.v2",
 			updated_at: "2026-07-25T09:00:00.000Z",
 		};
 
@@ -248,6 +269,19 @@ describe("ingestion task contracts", () => {
 			validateInternalPortalNoticeSyncState({ ...state, history_covered_from: "2026/01/01" }).ok,
 		).toBe(false);
 		expect(validateInternalPortalNoticeSyncState({ ...state, notice_type: "5" }).ok).toBe(false);
+	});
+
+	it("validates the portal-wide type and organization mappings", () => {
+		const meta = {
+			notice_types: { "5": "办公通知", "6": "教学通知" },
+			organizations: { "00007": "党委保卫部、保卫处" },
+			schema_version: "internal_portal_meta.v1",
+			updated_at: "2026-08-11T02:30:07.000Z",
+		};
+
+		expect(validateInternalPortalMeta(meta).ok).toBe(true);
+		expect(validateInternalPortalMeta({ ...meta, notice_types: { zero: "错误" } }).ok).toBe(false);
+		expect(validateInternalPortalMeta({ ...meta, site_id: "muc_internal_portal" }).ok).toBe(false);
 	});
 
 	it("validates a single bounded result reference", () => {

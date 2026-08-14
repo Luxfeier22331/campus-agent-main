@@ -35,7 +35,8 @@ pnpm dev
 `campus-docs/source.json`。根命令首次运行时自动执行 `pnpm dev:init`，创建固定本地文档 bucket，并在
 来源键缺失时写入确定性开发样例；随后同时启动 Campus Web、app-api 和包含 Node API 的 Ops Web。
 命令输出当前 worktree 的三个 URL；Dining 学生端、运维编辑器和持久化数据库使用同一个实例。
-只有显式访问其他对象存储时才通过进程环境或 `env/commands/campus-docs-source.env` 覆盖托管配置。
+直接执行 `pnpm --dir apps/campus-web build` 也会读取当前 worktree 的托管配置。只有显式访问其他对象
+存储时才通过 `env/commands/campus-docs-source.env` 或进程环境覆盖，进程环境优先级最高。
 
 文档准备进程读取对象存储配置并生成按来源摘要命名的本地目录；随后启动的 Vite 进程只接收该目录、
 构建目标和页面运行所需配置，不接收对象存储凭据。没有对象存储访问时，应使用 `build:test` 和

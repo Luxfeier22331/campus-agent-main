@@ -6,10 +6,12 @@
 		"node": ">=24 <25"
 	},
 	"scripts": {
-		"lint": "pnpm exec biome check . && pnpm exec markdownlint-cli2 \"*.md\" \".github/*.md\" \".github/ISSUE_TEMPLATE/**/*.md\" \"docs/**/*.md\" \"apps/**/*.md\" \"jobs/**/*.md\" \"packages/**/*.md\" \"configs/**/*.md\" \"infra/**/*.md\" \"#docs/**/archive/**\" \"#apps/campus-web/.generated/**\" \"#**/dist/**\" \"#**/vendor/**\" \"#**/node_modules/**\" && pnpm exec editorconfig-checker -no-color -disable-indentation -disable-indent-size -exclude '(^|/)(dist|node_modules|vendor|\\.tmp|\\.worktrees|public/vendor|drizzle/meta)(/|$)'",
+		"lint": "pnpm exec biome check . && pnpm exec markdownlint-cli2 \"*.md\" \".github/*.md\" \".github/ISSUE_TEMPLATE/**/*.md\" \"docs/**/*.md\" \"apps/**/*.md\" \"jobs/**/*.md\" \"packages/**/*.md\" \"scripts/**/*.md\" \"configs/**/*.md\" \"infra/**/*.md\" \"#docs/**/archive/**\" \"#apps/campus-web/.generated/**\" \"#**/dist/**\" \"#**/vendor/**\" \"#**/node_modules/**\" && pnpm exec editorconfig-checker -no-color -disable-indentation -disable-indent-size -exclude '(^|/)(dist|node_modules|vendor|\\.tmp|\\.worktrees|public/vendor|drizzle/meta)(/|$)'",
 		"docs:check": "pnpm exec tsx scripts/docs/check-frontmatter.ts && pnpm exec tsx scripts/docs/check-adr-ids.ts && pnpm exec tsx scripts/docs/check-links.ts && pnpm exec tsx scripts/docs/check-language.ts",
-		"test": "pnpm exec tsx --test scripts/ci/*.test.ts scripts/deploy/*.test.ts scripts/dev/*.test.ts scripts/release/*.test.ts scripts/release/*.test.mjs",
+		"test": "pnpm exec tsx --test scripts/ci/*.test.ts scripts/deploy/*.test.ts scripts/dev/*.test.ts scripts/notices/*.test.ts scripts/release/*.test.ts scripts/release/*.test.mjs",
 		"check": "pnpm lint && pnpm docs:check && pnpm test",
+		"notice:classify": "tsx scripts/notices/cli.ts",
+		"notice:classify:typecheck": "tsc --project scripts/notices/tsconfig.json",
 		"smoke:app-api": "pnpm exec tsx scripts/smoke/app-api.ts",
 		"predev": "pnpm dev:init",
 		"dev": "turbo run dev --env-mode=loose --filter=campus-web --filter=app-api --filter=ops-web",
@@ -21,15 +23,24 @@
 		"dev:destroy": "pnpm exec tsx scripts/dev/cli.ts destroy"
 	},
 	"devDependencies": {
+		"@aws-sdk/client-s3": "^3.1109.0",
 		"@biomejs/biome": "2.5.8",
+		"@campus-agent/notices": "workspace:*",
 		"@sentry/cli": "3.6.2",
+		"@types/html-to-text": "^9.0.4",
+		"@types/node": "^24.13.3",
 		"@types/react": "19.2.18",
 		"@types/react-dom": "19.2.4",
 		"editorconfig-checker": "^6.1.1",
+		"html-to-text": "^9.0.5",
+		"ingestion-contracts": "workspace:*",
 		"markdownlint-cli2": "^0.23.2",
+		"openai": "6.49.0",
 		"tsx": "^4.23.12",
 		"turbo": "2.10.9",
-		"yaml": "2.9.0"
+		"typescript": "^7.0.2",
+		"yaml": "2.9.0",
+		"zod": "^4.4.3"
 	},
 	"license": "Apache-2.0",
 	"repository": {

@@ -1,0 +1,233 @@
+[
+	{
+		"notice_id": 358156,
+		"notice_title": "知行田野：发现融之美｜青山行不尽 且向靖西行：我们学会以更谦逊的姿态靠近具体的人！",
+		"notice_type_name": "活动报道",
+		"is_external": true,
+		"expected_domain": "campus_news"
+	},
+	{
+		"notice_id": 358157,
+		"notice_title": "知行田野：发现融之美丨中央民族大学师生走进龙州——在边关热土上寻访“三交”文化记忆",
+		"notice_type_name": "活动报道",
+		"is_external": true,
+		"expected_domain": "campus_news"
+	},
+	{
+		"notice_id": 358159,
+		"notice_title": "关于在海淀校区运动场地改造建设期间暂时关闭校园东北门的通知",
+		"notice_type_name": "办公通知",
+		"is_external": false,
+		"expected_domain": "campus_operations"
+	},
+	{
+		"notice_id": 358160,
+		"notice_title": "长征路上的思政课：记我院“滇途同心”实践团暑期实践活动",
+		"notice_type_name": "活动报道",
+		"is_external": true,
+		"expected_domain": "campus_news"
+	},
+	{
+		"notice_id": 358161,
+		"notice_title": "2026-2029年中央民族大学丰台校区聚雅餐厅、荟贤餐厅学校监管委托经营项目（第1包、第2包、第3包）中标结果公示",
+		"notice_type_name": "公示公告",
+		"is_external": true,
+		"expected_domain": "procurement"
+	},
+	{
+		"notice_id": 358162,
+		"notice_title": "中央民族大学智慧教学环境建设设备采购项目招标公告",
+		"notice_type_name": "公示公告",
+		"is_external": true,
+		"expected_domain": "procurement"
+	},
+	{
+		"notice_id": 358163,
+		"notice_title": "2026年中央民族大学网络安全运维服务项目比选公告",
+		"notice_type_name": "公示公告",
+		"is_external": true,
+		"expected_domain": "procurement"
+	},
+	{
+		"notice_id": 358167,
+		"notice_title": "管理学院研究生刊物《治道论衡》第26期电子刊上线啦！",
+		"notice_type_name": "活动报道",
+		"is_external": true,
+		"expected_domain": "academic_information"
+	},
+	{
+		"notice_id": 358168,
+		"notice_title": "管理学院关于2027年接收推荐免试研究生预报名的通知",
+		"notice_type_name": "活动报道",
+		"is_external": true,
+		"expected_domain": "admissions"
+	},
+	{
+		"notice_id": 358169,
+		"notice_title": "知行田野：发现融之美｜左江寻古，骆越寻踪：我们在文物三维建模中读懂了各民族“三交”的故事",
+		"notice_type_name": "活动报道",
+		"is_external": true,
+		"expected_domain": "campus_news"
+	},
+	{
+		"notice_id": 358170,
+		"notice_title": "知行田野：发现融之美 | 我们发现：在边陲大新，文旅不只是经济账，更是在地文化存续与边民生计改善的现实依托",
+		"notice_type_name": "活动报道",
+		"is_external": true,
+		"expected_domain": "campus_news"
+	},
+	{
+		"notice_id": 358171,
+		"notice_title": "中央民族大学丰台校区路灯维修工程项目 （二次）比选公告",
+		"notice_type_name": "公示公告",
+		"is_external": false,
+		"expected_domain": "procurement"
+	},
+	{
+		"notice_id": 358178,
+		"notice_title": "知行田野：发现融之美 | 中央民族大学、内蒙古师范大学“北原知行”实践团东乌珠穆沁旗牧区社会生活深度实践活动正式启动",
+		"notice_type_name": "活动报道",
+		"is_external": true,
+		"expected_domain": "campus_news"
+	},
+	{
+		"notice_id": 358179,
+		"notice_title": "知行田野：发现融之美 | 在东兴万尾，我们追寻边疆群众最朴素的家国情怀",
+		"notice_type_name": "活动报道",
+		"is_external": true,
+		"expected_domain": "campus_news"
+	},
+	{
+		"notice_id": 358180,
+		"notice_title": "中央民族大学历史文化学院与广西少数民族古籍保护研究中心签署合作框架协议",
+		"notice_type_name": "活动报道",
+		"is_external": true,
+		"expected_domain": "campus_news"
+	},
+	{
+		"notice_id": 358181,
+		"notice_title": "知行田野：发现融之美 | 中俄联合伏尔加河流域坦科耶夫卡墓地考古正式启动",
+		"notice_type_name": "活动报道",
+		"is_external": true,
+		"expected_domain": "campus_news"
+	},
+	{
+		"notice_id": 358182,
+		"notice_title": "知行中华丨奔赴山海！MUC 1600+团队火热实践中",
+		"notice_type_name": "活动报道",
+		"is_external": true,
+		"expected_domain": "campus_news"
+	},
+	{
+		"notice_id": 358183,
+		"notice_title": "新华社报道 | 中央民族大学与阿勒泰市共建铸牢中华民族共同体意识教育实践基地",
+		"notice_type_name": "活动报道",
+		"is_external": true,
+		"expected_domain": "campus_news"
+	},
+	{
+		"notice_id": 358186,
+		"notice_title": "知行田野：发现融之美 | 中央民族大学民族学与社会学学院调研组到龙门乡三联村开展乡土文化调研",
+		"notice_type_name": "活动报道",
+		"is_external": true,
+		"expected_domain": "campus_news"
+	},
+	{
+		"notice_id": 358187,
+		"notice_title": "知行田野：发现融之美｜碑刻流年，山石存韵：我们在江川古碑间，记录露天石刻历经的风雨沧桑",
+		"notice_type_name": "活动报道",
+		"is_external": true,
+		"expected_domain": "campus_news"
+	},
+	{
+		"notice_id": 358188,
+		"notice_title": "计算机软件正版化服务及正版授权管理平台服务及系统运维服务采购项目结果公告",
+		"notice_type_name": "公示公告",
+		"is_external": true,
+		"expected_domain": "procurement"
+	},
+	{
+		"notice_id": 358189,
+		"notice_title": "新书首发 | 词条系列教材又上新了！《中国特色新闻学词条》《新媒体基础词条》教材正式出版",
+		"notice_type_name": "学术信息",
+		"is_external": true,
+		"expected_domain": "academic_information"
+	},
+	{
+		"notice_id": 358190,
+		"notice_title": "知行田野：发现融之美 | 山海藏坚守 知行悟边关 中央民族大学学子赴广西宁明开展巡边研学实践",
+		"notice_type_name": "活动报道",
+		"is_external": true,
+		"expected_domain": "campus_news"
+	},
+	{
+		"notice_id": 358191,
+		"notice_title": "知行田野：发现融之美 | 边关行，爱店情：爱国爱家爱店，我们在边境线上读懂了“三交”的温度",
+		"notice_type_name": "活动报道",
+		"is_external": true,
+		"expected_domain": "campus_news"
+	},
+	{
+		"notice_id": 358194,
+		"notice_title": "知行田野：发现融之美 | 中央民族大学“山海同心·国门铸魂”实践团走进凭祥市柳班村开展边关文化调研宣讲实践",
+		"notice_type_name": "活动报道",
+		"is_external": true,
+		"expected_domain": "campus_news"
+	},
+	{
+		"notice_id": 358195,
+		"notice_title": "知行田野：发现融之美 | 在乡野行走中，我们听到了古调与新声！",
+		"notice_type_name": "活动报道",
+		"is_external": true,
+		"expected_domain": "campus_news"
+	},
+	{
+		"notice_id": 358196,
+		"notice_title": "中央民族大学海淀校区房屋楼宇修缮项目中选结果公示",
+		"notice_type_name": "公示公告",
+		"is_external": false,
+		"expected_domain": "procurement"
+	},
+	{
+		"notice_id": 358080,
+		"notice_title": "知行田野：发现融之美｜全球南方发展与土著自治实践——来自墨西哥的海外田野调查",
+		"notice_type_name": "活动报道",
+		"is_external": true,
+		"expected_domain": "campus_news"
+	},
+	{
+		"notice_id": 358083,
+		"notice_title": "知行田野：发现融之美 | 石榴花开海边山：中央民大调研组为防城区那里蒙社区民族团结实践点赞",
+		"notice_type_name": "活动报道",
+		"is_external": true,
+		"expected_domain": "campus_news"
+	},
+	{
+		"notice_id": 358089,
+		"notice_title": "信息工程学院举办 “海南国际学院暑期北京实践研学”学术报告活动",
+		"notice_type_name": "学术信息",
+		"is_external": false,
+		"expected_domain": "academic_information"
+	},
+	{
+		"notice_id": 358099,
+		"notice_title": "计算机软件正版化服务及正版授权管理平台服务及系统运维服务采购项目-竞价公告",
+		"notice_type_name": "公示公告",
+		"is_external": true,
+		"expected_domain": "procurement"
+	},
+	{
+		"notice_id": 358102,
+		"notice_title": "【招生简章】国家艺术基金2026年度艺术人才培训资助项目《新时期多民族音乐评论艺术人才培训》",
+		"notice_type_name": "活动报道",
+		"is_external": true,
+		"expected_domain": "admissions"
+	},
+	{
+		"notice_id": 358121,
+		"notice_title": "2026—2029年中央民族大学海淀校区IT类办公设备维修维保服务项目成交公告",
+		"notice_type_name": "公示公告",
+		"is_external": true,
+		"expected_domain": "procurement"
+	}
+]

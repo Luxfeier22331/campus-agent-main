@@ -256,6 +256,7 @@ export function initializeLocalDevelopment(repoRoot: string): LocalDevProfileV1 
 	} else {
 		runObjectStore(profile.bucketName, "configure");
 	}
+	grantDatabaseConnect(profile.databaseName);
 
 	renderLocalEnvironmentFiles({ profile, repoRoot });
 	seedCampusWebDocs(repoRoot);
@@ -280,8 +281,10 @@ export function diagnoseLocalDevelopment(repoRoot: string): {
 		"apps/app-api/.env.local",
 		"apps/app-api/.dev.vars.local",
 		"apps/campus-web/.dev.vars.local",
+		"apps/ingestion-control/.env.local",
 		"apps/ops-web/.env.local",
 		"apps/source-collector/adapters/internal-portal/.env.local",
+		"jobs/notice-publisher/.env.local",
 	].every((path) => {
 		const absolutePath = resolve(repoRoot, path);
 		return (
@@ -541,7 +544,9 @@ function ensureDatabaseRoles(): void {
 		["campus_agent", LOCAL_DEV_DATABASE_PASSWORDS.owner, true],
 		["app_api", LOCAL_DEV_DATABASE_PASSWORDS.appApi, true],
 		["execution_control", "", false],
+		["ingestion_control", LOCAL_DEV_DATABASE_PASSWORDS.ingestionControl, true],
 		["ops_web", LOCAL_DEV_DATABASE_PASSWORDS.opsWeb, true],
+		["notice_publisher", LOCAL_DEV_DATABASE_PASSWORDS.noticePublisher, true],
 	] as const;
 	for (const [name, password, login] of roles) {
 		const passwordSql = login ? ` PASSWORD ${quoteLiteral(password)}` : "";
@@ -559,7 +564,7 @@ function createIsolatedResources(profile: LocalDevProfileV1): void {
 		runPsql(
 			[
 				`REVOKE ALL ON DATABASE ${quoteIdentifier(profile.databaseName)} FROM PUBLIC`,
-				...["app_api", "ops_web"].map(
+				...["app_api", "ingestion_control", "ops_web", "notice_publisher"].map(
 					(role) =>
 						`GRANT CONNECT ON DATABASE ${quoteIdentifier(profile.databaseName)} TO ${quoteIdentifier(role)}`,
 				),
@@ -578,6 +583,17 @@ function createIsolatedResources(profile: LocalDevProfileV1): void {
 	}
 }
 
+function grantDatabaseConnect(databaseName: string): void {
+	runPsql(
+		["ingestion_control", "notice_publisher"]
+			.map(
+				(role) =>
+					`GRANT CONNECT ON DATABASE ${quoteIdentifier(databaseName)} TO ${quoteIdentifier(role)}`,
+			)
+			.join(";\n"),
+	);
+}
+
 function installApplicationSchemas(repoRoot: string, profile: LocalDevProfileV1): void {
 	const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 	const database = localDatabaseUrls(profile);
@@ -593,6 +609,21 @@ function installApplicationSchemas(repoRoot: string, profile: LocalDevProfileV1)
 			"exec",
 			"tsx",
 			"./ops/db/schema.ts",
+		],
+		{ cwd: repoRoot },
+	);
+	runCommand(
+		pnpm,
+		[
+			"--dir",
+			"apps/app-api",
+			"exec",
+			"tsx",
+			"./scripts/run-with-local-env.ts",
+			pnpm,
+			"exec",
+			"tsx",
+			"./ops/db/seed-local-test-user.ts",
 		],
 		{ cwd: repoRoot },
 	);
@@ -617,6 +648,26 @@ function installApplicationSchemas(repoRoot: string, profile: LocalDevProfileV1)
 			env: opsWebEnv,
 		});
 	}
+	const ingestionControlEnv = {
+		...process.env,
+		DEPLOYMENT_ENVIRONMENT: "local",
+		INGESTION_CONTROL_DATABASE_SSLMODE: "disable",
+		INGESTION_CONTROL_DATABASE_URL: database.ingestionControl,
+		INGESTION_CONTROL_SCHEMA_DATABASE_SSLMODE: "disable",
+		INGESTION_CONTROL_SCHEMA_DATABASE_URL: database.owner,
+	};
+	runCommand(pnpm, ["--dir", "apps/ingestion-control", "schema:bootstrap"], {
+		cwd: repoRoot,
+		env: ingestionControlEnv,
+	});
+	runCommand(pnpm, ["--dir", "apps/ingestion-control", "migrate"], {
+		cwd: repoRoot,
+		env: ingestionControlEnv,
+	});
+	runCommand(pnpm, ["--dir", "jobs/notice-publisher", "migrate"], {
+		cwd: repoRoot,
+		env: { ...process.env, NOTICES_DATABASE_URL: database.owner },
+	});
 }
 
 function localDatabaseProbe(databaseName: string): LocalResourceProbe {

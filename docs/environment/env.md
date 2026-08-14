@@ -24,8 +24,10 @@ status: active
 
 - App API：`.env.local` 和 `.dev.vars.local`；
 - Campus Web：`.dev.vars.local`；
+- ingestion-control：`.env.local`；
 - Ops Web：`.env.local`；
-- Source Collector internal-portal adapter：`.env.local`。
+- Source Collector internal-portal adapter：`.env.local`；
+- notice-publisher：`.env.local`。
 
 这些文件带有管理标记，不提交 Git，也不供人工编辑；命令拒绝覆盖同路径的开发者自有文件。重新初始化保留已生成的本地应用 secret，并按当前 profile 重写端口、数据库和 bucket 地址。进程环境优先于应用文件，因此外部供应商凭据应由 shell、`op run` 或其他可选 secret manager 注入，不写入 profile 或机器注册表。
 
@@ -35,6 +37,11 @@ CAPTCHA 插件。staging 和 production 仍必须提供配套的 Turnstile site 
 Source Collector 的托管 `.env.local` 只保存当前 worktree 的本地对象存储配置。adapter 目录下未跟踪的
 `.env` 由开发者按照同目录 `.env.example` 维护门户地址、TGC 和代理配置；不使用托管本地环境的独立
 命令也可在其中提供对象存储配置。`dev:init` 不创建或覆盖该文件，进程环境仍具有最高优先级。
+
+ingestion-control 的托管 `.env.local` 保存本 worktree 的 runtime/schema 数据库连接和本地 source
+bucket 连接。notice-publisher 使用自身角色和 `.env.local`；publisher 的门户地址
+占位值必须由实际运行环境显式覆盖。App API 的托管变量提供本地 derived bucket 地址和只读凭据，
+用于通知图片与其他获准的派生资源；部署环境改用现有私有对象存储 binding。应用之间不读取彼此环境文件。
 
 一个应用不得读取其他应用或适配器的环境文件，也不得从根 `.env` 隐式扩散数据库或供应商凭据。
 
@@ -77,10 +84,18 @@ Kubernetes workload 必须先存在明确读取点，环境仓才能投递对应
 仓库不维护手写的全局变量表。变量名和必需性以所属消费者为准，环境仓只维护当前环境实际投递的
 集合，远端核对只用于确认配置生命周期已经闭合。
 
-Campus Web 文档来源命令复用现有对象存储地址和派生桶凭据，配置文件位于
-`env/commands/campus-docs-source.env`。这些值只服务本地或受信任的来源准备、正式构建和来源更新，
-不投递到 PR、Worker、Wrangler 或 Argo。`CAMPUS_WEB_BUILD_TARGET` 与
-`CAMPUS_WEB_DOCS_CONTENT_ROOT` 由构建脚本临时生成，也不进入环境配置。
+Campus Web 的 `dev`、`build`、`build:staging` 和 `deploy` 在文档准备阶段按以下顺序合并配置，
+后者覆盖前者：
+
+1. 当前应用的 `.dev.vars.local`；
+2. `env/commands/campus-docs-source.env`；
+3. 调用进程环境。
+
+命令配置只用于显式切换文档来源；普通本地构建直接使用 `dev:init` 生成的应用配置，不需要手工
+`source`。对象存储地址和派生桶凭据只服务本地或受信任的来源准备、正式构建和来源更新，不投递到
+PR、Worker、Wrangler 或 Argo，也不会传入 Vite。`CAMPUS_WEB_BUILD_TARGET` 与
+`CAMPUS_WEB_DOCS_CONTENT_ROOT` 由构建脚本临时生成，同样不进入环境配置。`build:test` 使用固定测试
+输入，不读取以上对象存储配置。
 
 ## 读取与覆盖
 

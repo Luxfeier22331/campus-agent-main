@@ -103,7 +103,13 @@ CronJob 使用 Ops Web 同一镜像、ServiceAccount、数据库连接和 CA，�
 
 ```bash
 INTERNAL_PORTAL_SSO_TGC=TGT-...
+# 若本机通过 HTTP(S) 代理访问门户，也必须显式配置客户端使用的代理：
+INTERNAL_PORTAL_PROXY_SERVER=http://127.0.0.1:7897
 ```
+
+`source-collector` 不会自动继承 `HTTP_PROXY`、`HTTPS_PROXY` 或 `ALL_PROXY`；代理环境需要复制到
+`INTERNAL_PORTAL_PROXY_SERVER`。集群内的 source-collector 或 Ops Web 使用各自的网络出口，不读取
+开发者本机代理配置。
 
 验证当前值：
 

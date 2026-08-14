@@ -28,6 +28,16 @@ describe("campus-web route metadata", () => {
 			robots: "noindex,nofollow",
 			title: "账号安全 | 中央民族大学校园问答",
 		});
+		expect(resolveRouteMetadata("/notices")).toMatchObject({
+			canonicalPath: null,
+			robots: "noindex,nofollow",
+			title: "通知目录 | 中央民族大学校园问答",
+		});
+		expect(resolveRouteMetadata("/notices/358159")).toMatchObject({
+			canonicalPath: null,
+			robots: "noindex,nofollow",
+			title: "通知详情 | 中央民族大学校园问答",
+		});
 	});
 
 	it("renders route metadata through React-managed head elements", () => {

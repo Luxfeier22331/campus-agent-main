@@ -105,9 +105,10 @@ tokenizer 计算精确 token 数，并校验内容摘要。
 Dining 当前也不提供模型工具。
 
 注册的离线任务由 ingestion-control、Temporal 和 Rust 内核执行。内部门户文件发布使用独立
-workflow 调用 source-collector，通知则由 source-collector 本地命令直接写入来源对象；两者都
-不是注册任务。PostgreSQL 只保存有界任务状态，通知同步边界保存在 source bucket；采集完成
-不会自动创建索引、发布阅读器或开放查询目标。
+workflow 调用 source-collector；通知则由本地 source-collector 命令采集，经人工确认领域后由
+`notice-publisher` 显式物化。App API 和 Campus Web 只读规范化通知。通知没有自动分类、自动发布或
+集群定时采集；App API 不代理附件字节，Agent 结构化查询与通知 RAG 也未接入。完整边界见
+`docs/architecture/domains/notices.md`，源码中的读取路径不表示任一环境已经完成通知写入或部署。
 
 Ops Web 在所属 PostgreSQL schema 保存多条内部门户 TGC，提供真实 CAS 验证、轮换、按需明文读取
 和定时检查。source-collector 不读取这些记录或自动选择运行凭据；本地采集由开发者显式传入从

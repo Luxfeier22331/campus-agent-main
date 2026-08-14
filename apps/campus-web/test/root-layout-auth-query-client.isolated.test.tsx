@@ -96,6 +96,21 @@ describe("root session journey guard", () => {
 		);
 	});
 
+	it("redirects anonymous notice readers to login with the full list target", async () => {
+		window.history.replaceState({}, "", "/notices?domain=student_support&page=2");
+		locationState.pathname = "/notices";
+
+		render(<RootLayout />);
+
+		await waitFor(() =>
+			expect(navigate).toHaveBeenCalledWith({
+				replace: true,
+				search: { redirectTo: "/notices?domain=student_support&page=2" },
+				to: "/account/login",
+			}),
+		);
+	});
+
 	it("does not misclassify a session service failure as signed out", () => {
 		window.history.replaceState({}, "", "/account/settings/account");
 		locationState.pathname = "/account/settings/account";

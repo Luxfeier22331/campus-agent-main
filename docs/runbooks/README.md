@@ -8,7 +8,7 @@ status: active
 - 发布与环境交接：[release.md](./release.md)、[e2e.md](./e2e.md)；
 - 运行时：[execution.md](./execution.md)、[temporal.md](./temporal.md)、
   [hindsight.md](./hindsight.md)；
-- 采集与知识：[ingestion.md](./ingestion.md)、[portal-auth.md](./portal-auth.md)、
+- 采集、通知发布与知识：[ingestion.md](./ingestion.md)、[portal-auth.md](./portal-auth.md)、
   [ragas.md](./ragas.md)；
 - 可观测性：[otel.md](./otel.md)、[worker-otel.md](./worker-otel.md)；
 - 本地与领域：[local-smoke.md](./local-smoke.md)、[federation.md](./federation.md)；

@@ -1,41 +1,46 @@
-import { isDeepStrictEqual } from "node:util";
-import { encodeObjectKeySegment } from "ingest-core";
 import {
 	type InternalPortalNoticeSource,
 	validateInternalPortalNoticeSource,
 } from "ingestion-contracts";
 
 import type { SourceCollectorObjectStore } from "../../../src/object-store.js";
-import type { NoticeDetailInfo } from "./types.js";
+import type { NoticeDetailInfo, NoticeItem } from "./types.js";
 
 export interface InternalPortalNoticeSourceStore {
+	has(noticeId: number): Promise<boolean>;
 	put(source: InternalPortalNoticeSource): Promise<"reused" | "written">;
 }
 
 export function buildInternalPortalNoticeSource(input: {
 	detailInfo: NoticeDetailInfo;
+	listItem: NoticeItem;
 	noticeId: number;
-	siteId: string;
+	noticeType: number;
 }): InternalPortalNoticeSource {
 	if (input.detailInfo.notice_id !== input.noticeId) {
 		throw new Error(
 			`notice ${input.noticeId} detail returned notice_id ${String(input.detailInfo.notice_id)}`,
 		);
 	}
-	const source: InternalPortalNoticeSource = {
+	const externalUrl = normalizeExternalUrl(
+		input.listItem.notice_link,
+		input.detailInfo.notice_link,
+	);
+	const common = {
 		attachments: normalizeAttachments(input.detailInfo),
-		notice_content: normalizeText(input.detailInfo.notice_content),
+		notice_content_html: normalizeText(input.detailInfo.notice_content),
 		notice_id: input.noticeId,
-		notice_link: normalizeText(input.detailInfo.notice_link),
 		notice_release_time: normalizeText(input.detailInfo.notice_release_time),
 		notice_title: requireText(input.detailInfo.notice_title, "notice_title"),
-		notice_type: "5",
-		notice_type_name: normalizeText(input.detailInfo.notice_type_name),
-		organization_id: normalizeText(input.detailInfo.organization_id),
-		organization_name: normalizeText(input.detailInfo.organization_name),
-		schema_version: "internal_portal_notice_source.v1",
-		site_id: input.siteId,
+		notice_type: input.noticeType,
+		organization_id: normalizeText(
+			input.listItem.organization_id ?? input.detailInfo.organization_id,
+		),
+		schema_version: "internal_portal_notice_source.v2" as const,
 	};
+	const source: InternalPortalNoticeSource = externalUrl
+		? { ...common, external_url: externalUrl, is_external: true }
+		: { ...common, external_url: null, is_external: false };
 	const validation = validateInternalPortalNoticeSource(source);
 	if (!validation.ok) {
 		throw new Error(`internal portal notice source is invalid: ${validation.errors.join("; ")}`);
@@ -47,26 +52,23 @@ export function createInternalPortalNoticeSourceStore(input: {
 	objectStore: SourceCollectorObjectStore;
 }): InternalPortalNoticeSourceStore {
 	return {
-		async put(source) {
-			const key = internalPortalNoticeSourceObjectKey(source.site_id, source.notice_id);
+		async has(noticeId) {
+			const key = internalPortalNoticeSourceObjectKey(noticeId);
 			const existingBytes = await input.objectStore.getObjectIfExists({
 				bucket: input.objectStore.sourceBucket,
 				key,
 			});
-			if (existingBytes) {
-				const existing = parseStoredNoticeSource(existingBytes);
-				if (existing.site_id !== source.site_id || existing.notice_id !== source.notice_id) {
-					throw new Error(
-						`internal portal notice source identity does not match object key: ${key}`,
-					);
-				}
-				if (!isDeepStrictEqual(existing, source)) {
-					throw new Error(
-						`internal portal notice ${source.notice_id} source differs from the stored object`,
-					);
-				}
-				return "reused";
+			if (!existingBytes) {
+				return false;
 			}
+			const existing = parseStoredNoticeSource(existingBytes);
+			if (existing.notice_id !== noticeId) {
+				throw new Error(`internal portal notice source identity does not match object key: ${key}`);
+			}
+			return true;
+		},
+		async put(source) {
+			const key = internalPortalNoticeSourceObjectKey(source.notice_id);
 			await input.objectStore.createOrVerifyObject({
 				body: Buffer.from(`${JSON.stringify(source, null, 2)}\n`, "utf-8"),
 				bucket: input.objectStore.sourceBucket,
@@ -78,8 +80,8 @@ export function createInternalPortalNoticeSourceStore(input: {
 	};
 }
 
-export function internalPortalNoticeSourceObjectKey(siteId: string, noticeId: number): string {
-	return `internal_portal/${encodeObjectKeySegment(siteId)}/notices/${noticeId}.json`;
+export function internalPortalNoticeSourceObjectKey(noticeId: number): string {
+	return `internal_portal/notices/${noticeId}.json`;
 }
 
 function normalizeAttachments(detail: NoticeDetailInfo): InternalPortalNoticeSource["attachments"] {
@@ -112,6 +114,30 @@ function normalizeText(value: string | null | undefined): string | null {
 	}
 	const normalized = value.trim();
 	return normalized || null;
+}
+
+function normalizeExternalUrl(
+	listValue: string | null | undefined,
+	detailValue: string | null | undefined,
+): string | null {
+	const value = normalizeText(listValue) ?? normalizeText(detailValue);
+	if (!value) {
+		return null;
+	}
+	let parsed: URL;
+	try {
+		parsed = new URL(value);
+	} catch (error) {
+		throw new Error("notice external URL must be an absolute HTTP or HTTPS URL", { cause: error });
+	}
+	if (
+		(parsed.protocol !== "http:" && parsed.protocol !== "https:") ||
+		parsed.username ||
+		parsed.password
+	) {
+		throw new Error("notice external URL must be an absolute HTTP or HTTPS URL");
+	}
+	return value;
 }
 
 function requireText(value: string | null | undefined, field: string): string {

@@ -1,6 +1,7 @@
 import { createRootRoute, createRoute, createRouter, RouterProvider } from "@tanstack/react-router";
 import { lazy, Suspense } from "react";
 import { DiningRoutePending } from "@/components/dining/dining-page-skeleton";
+import { parseNoticeRouteSearch } from "@/features/notices/search";
 import { NotFoundPage, RootLayout, RoutePending } from "./root-layout";
 
 const ConversationPage = lazy(() =>
@@ -30,6 +31,12 @@ const InterestGroupsPage = lazy(() =>
 	import("./routes/interest-groups-page").then((module) => ({
 		default: module.InterestGroupsPage,
 	})),
+);
+const NoticesPage = lazy(() =>
+	import("./routes/notices-page").then((module) => ({ default: module.NoticesPage })),
+);
+const NoticeDetailPage = lazy(() =>
+	import("./routes/notice-detail-page").then((module) => ({ default: module.NoticeDetailPage })),
 );
 const LazyAccountAuthPage = lazy(() =>
 	import("./routes/account-page").then((module) => ({ default: module.AccountAuthPage })),
@@ -160,6 +167,19 @@ const feedbackRoute = createRoute({
 	component: FeedbackPage,
 	getParentRoute: () => rootRoute,
 	path: "/feedback",
+});
+
+const noticesRoute = createRoute({
+	component: NoticesPage,
+	getParentRoute: () => rootRoute,
+	path: "/notices",
+	validateSearch: parseNoticeRouteSearch,
+});
+
+const noticeDetailRoute = createRoute({
+	component: NoticeDetailPage,
+	getParentRoute: () => rootRoute,
+	path: "/notices/$noticeId",
 });
 
 const accountRoute = createRoute({
@@ -299,6 +319,8 @@ const routeTree = rootRoute.addChildren([
 	diningRoute,
 	interestGroupsRoute,
 	feedbackRoute,
+	noticesRoute,
+	noticeDetailRoute,
 	accountRoute,
 	accountLoginRoute,
 	accountRegisterRoute,

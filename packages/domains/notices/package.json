@@ -1,0 +1,25 @@
+{
+	"name": "@campus-agent/notices",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Runtime-neutral notice domain contracts, taxonomy, and content normalization.",
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"test": "vitest run",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"campus-contracts": "workspace:*",
+		"jsdom": "^27.4.0"
+	},
+	"devDependencies": {
+		"@types/jsdom": "^27.0.0",
+		"@types/node": "^24.13.2",
+		"typescript": "^5.8.2",
+		"vitest": "^4.1.10"
+	},
+	"license": "Apache-2.0"
+}

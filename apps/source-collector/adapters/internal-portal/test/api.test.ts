@@ -6,6 +6,8 @@ import {
 	fetchAttachmentBinary,
 	fetchFileReleaseDetail,
 	fetchFileReleaseDownloadUrl,
+	fetchNoticeDetail,
+	fetchNoticeMetadata,
 	fetchNoticePage,
 } from "../src/api.js";
 import { PortalSessionExpiredError } from "../src/auth-errors.js";
@@ -43,10 +45,63 @@ describe("internal portal source collector api", () => {
 
 		expect(calls).toHaveLength(1);
 		expect(calls[0]?.path).toBe("/comsys-portal-notice-web/getNoticeByPage");
-		expect(calls[0]?.form.type).toBe("5");
+		expect(calls[0]?.form.type).toBe("");
 		expect(calls[0]?.form.currentPage).toBe("1");
 		expect(calls[0]?.form.pageSize).toBe("20");
 		expect(calls[0]?.form.end_date).toBe("");
+	});
+
+	it("reads the complete notice selector mappings", async () => {
+		const calls: Array<{ path: string; form: Record<string, string> }> = [];
+		const apiContext = {
+			async get() {
+				throw new Error("unexpected get");
+			},
+			async post(path: string, input: { form: Record<string, string> }) {
+				calls.push({ path, form: input.form });
+				return {
+					ok: () => true,
+					status: () => 200,
+					statusText: () => "OK",
+					text: async () =>
+						JSON.stringify({
+							datas: {
+								org: [{ organization_id: "00007", organization_name: "党委保卫部、保卫处" }],
+								type: [{ notice_type_id: 5, notice_type_name: "办公通知" }],
+							},
+							state: true,
+						}),
+				};
+			},
+		};
+
+		await expect(fetchNoticeMetadata({ apiContext })).resolves.toMatchObject({ state: true });
+		expect(calls).toEqual([{ path: "/comsys-portal-notice-web/getNoticeSlects", form: {} }]);
+	});
+
+	it("requests notice detail by id without a type prerequisite", async () => {
+		const calls: Array<{ path: string; form: Record<string, string> }> = [];
+		const apiContext = {
+			async get() {
+				throw new Error("unexpected get");
+			},
+			async post(path: string, input: { form: Record<string, string> }) {
+				calls.push({ path, form: input.form });
+				return {
+					ok: () => true,
+					status: () => 200,
+					statusText: () => "OK",
+					text: async () =>
+						JSON.stringify({ datas: { notice_info: { notice_id: 358159 } }, state: true }),
+				};
+			},
+		};
+
+		await fetchNoticeDetail({ apiContext, noticeId: 358159 });
+		expect(calls[0]).toMatchObject({
+			form: { notice_id: "358159", type: "" },
+			path: "/comsys-portal-notice-web/getNotice",
+		});
 	});
 
 	it("treats comsys session invalid payloads as auth expiry", async () => {

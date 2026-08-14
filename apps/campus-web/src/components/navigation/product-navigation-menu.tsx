@@ -13,7 +13,17 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@campus-agent/ui";
-import { Activity, BookOpen, Home, MapIcon, Menu, Send, UsersRound, Utensils } from "lucide-react";
+import {
+	Activity,
+	Bell,
+	BookOpen,
+	Home,
+	MapIcon,
+	Menu,
+	Send,
+	UsersRound,
+	Utensils,
+} from "lucide-react";
 import { type ReactNode, useCallback, useRef, useState } from "react";
 import { AuthDialog } from "@/components/auth/auth-dialog";
 import {
@@ -35,6 +45,7 @@ const productNavIcons = {
 	feedback: Send,
 	groups: UsersRound,
 	map: MapIcon,
+	notices: Bell,
 	status: Activity,
 } satisfies Record<ProductNavItemId, typeof Home>;
 

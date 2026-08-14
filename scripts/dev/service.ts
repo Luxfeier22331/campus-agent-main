@@ -5,7 +5,10 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
 
-import { omitObjectStoreEnvironment } from "../../apps/campus-web/scripts/build-process-env.ts";
+import {
+	loadCampusWebBuildEnvironment,
+	omitObjectStoreEnvironment,
+} from "../../apps/campus-web/scripts/build-process-env.ts";
 import { loadLocalDevProfile } from "./profile";
 
 type ServiceName = "app-api" | "campus-web" | "ops-web" | "ops-web-api" | "ops-web-api-fixture";
@@ -188,10 +191,15 @@ function loadAppEnvironment(path: string): NodeJS.ProcessEnv {
 }
 
 function loadCampusWebEnvironment(appDir: string): NodeJS.ProcessEnv {
-	const appEnv = parseEnv(readFileSync(resolve(appDir, ".dev.vars.local"), "utf8"));
-	const commandEnvPath = resolve(repoRoot, "env/commands/campus-docs-source.env");
-	const docsEnv = existsSync(commandEnvPath) ? parseEnv(readFileSync(commandEnvPath, "utf8")) : {};
-	return { ...appEnv, ...docsEnv, ...process.env };
+	const appEnvironmentPath = resolve(appDir, ".dev.vars.local");
+	if (!existsSync(appEnvironmentPath)) {
+		throw new Error("Campus Web local environment is missing; run pnpm dev:init first.");
+	}
+	return loadCampusWebBuildEnvironment({
+		appRoot: appDir,
+		processEnvironment: process.env,
+		repoRoot,
+	});
 }
 
 function forwardLifecycle(children: ChildProcess[]): void {

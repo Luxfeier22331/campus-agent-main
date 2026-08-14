@@ -1,5 +1,10 @@
 import type { Readable } from "node:stream";
-import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import {
+	GetObjectCommand,
+	ListObjectsV2Command,
+	PutObjectCommand,
+	S3Client,
+} from "@aws-sdk/client-s3";
 import type {
 	ArtifactWriteInput,
 	ArtifactWriteResult,
@@ -16,6 +21,7 @@ export interface SourceCollectorObjectStore extends ObjectStore {
 	getObjectIfExists(
 		input: ObjectStoreLocation & { abortSignal?: AbortSignal },
 	): Promise<Uint8Array | null>;
+	listObjectKeys?(input: { bucket: string; prefix: string }): Promise<string[]>;
 	putObject(
 		input: ArtifactWriteInput & { abortSignal?: AbortSignal },
 	): Promise<ArtifactWriteResult>;
@@ -81,6 +87,26 @@ export function createSourceCollectorObjectStoreFromEnv(
 				}
 				throw error;
 			}
+		},
+		async listObjectKeys(input) {
+			assertSourceBucket(input.bucket, sourceBucket);
+			const keys: string[] = [];
+			let continuationToken: string | undefined;
+			do {
+				const result = await client.send(
+					new ListObjectsV2Command({
+						Bucket: input.bucket,
+						ContinuationToken: continuationToken,
+						Prefix: input.prefix,
+					}),
+				);
+				keys.push(...(result.Contents ?? []).flatMap((item) => (item.Key ? [item.Key] : [])));
+				if (result.IsTruncated && !result.NextContinuationToken) {
+					throw new Error("object listing is truncated without a continuation token");
+				}
+				continuationToken = result.IsTruncated ? result.NextContinuationToken : undefined;
+			} while (continuationToken);
+			return keys;
 		},
 		async createOrVerifyObject(input) {
 			assertSourceBucket(input.bucket, sourceBucket);

@@ -19,6 +19,11 @@ import {
 	createExecutionControlRuntimeClient,
 	isExecutionControlRuntimeConfigured,
 } from "../modules/integration";
+import {
+	buildNoticeService,
+	createNoticeObjectStore,
+	createPgNoticeStore,
+} from "../modules/notices";
 import { buildProfileMemoryService, createPgProfileMemoryStore } from "../modules/profile-memory";
 import {
 	buildChatCommandService,
@@ -53,6 +58,7 @@ export function createRequestScopeFactory(input: {
 			let diningContent = input.dependencies.diningContentService ?? null;
 			let emailAccess = input.dependencies.emailAccessService ?? null;
 			let memory = input.dependencies.profileMemoryService ?? null;
+			let notices = input.dependencies.noticeService ?? null;
 			let runtimeRuns = input.dependencies.runtimeRunService ?? null;
 			const resolveProfileMemoryService = () =>
 				(memory ??= buildProfileMemoryService({
@@ -124,6 +130,11 @@ export function createRequestScopeFactory(input: {
 					(emailAccess ??= buildEmailAccessService({
 						environment: resolveEnvironment(input.env),
 						store: createPgEmailAccessGrantStore(input.env, { getDb: runtime.getDb }),
+					})),
+				resolveNoticeService: () =>
+					(notices ??= buildNoticeService({
+						objectStore: createNoticeObjectStore(input.env),
+						store: createPgNoticeStore(input.env, { getDb: runtime.getDb }),
 					})),
 				resolveProfileMemoryService,
 				resolveRuntimeRunService: () =>

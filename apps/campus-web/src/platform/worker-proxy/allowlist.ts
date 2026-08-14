@@ -36,6 +36,7 @@ export const CAMPUS_ALLOWED_APP_API_PATHS = [
 	"/api/campus-map/places",
 	"/api/dining",
 	"/api/feedback",
+	"/api/notices",
 ] as const;
 
 const STATIC_ALLOWED_PATHS = new Set<string>(CAMPUS_ALLOWED_APP_API_PATHS);
@@ -63,6 +64,8 @@ export function isAllowedCampusAppApiRequest(pathname: string): boolean {
 		/^\/api\/dining\/windows\/[^/]+\/menu$/.test(pathname) ||
 		/^\/api\/dining\/menu-items\/[^/]+\/reviews$/.test(pathname) ||
 		/^\/api\/dining\/reviews\/[^/]+$/.test(pathname) ||
-		/^\/api\/dining\/reviews\/[^/]+\/reports$/.test(pathname)
+		/^\/api\/dining\/reviews\/[^/]+\/reports$/.test(pathname) ||
+		/^\/api\/notices\/[1-9][0-9]*$/.test(pathname) ||
+		/^\/api\/notices\/[1-9][0-9]*\/images\/(0|[1-9][0-9]*)$/.test(pathname)
 	);
 }

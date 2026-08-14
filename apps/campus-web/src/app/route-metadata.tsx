@@ -26,6 +26,12 @@ export function resolveRouteMetadata(pathname: string): CampusRouteMetadata {
 	if (pathname === "/feedback") {
 		return publicMetadata("反馈", "向校园问答提交问题反馈和改进建议。", "/feedback");
 	}
+	if (pathname === "/notices") {
+		return privateMetadata("通知目录", "查询已收录的校园通知。");
+	}
+	if (pathname.startsWith("/notices/")) {
+		return privateMetadata("通知详情", "查看已收录的校园通知正文。");
+	}
 	if (pathname === "/legal/terms") {
 		return publicMetadata("服务条款", "中央民族大学校园问答服务条款。", "/legal/terms");
 	}

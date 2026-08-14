@@ -41,4 +41,12 @@ describe("campus worker app-api proxy allowlist", () => {
 		expect(isAllowedCampusAppApiRequest("/api/campus-groups/catalog")).toBe(true);
 		expect(isAllowedCampusAppApiRequest("/api/internal/ops/campus-groups/state")).toBe(false);
 	});
+
+	it("allows only the notice catalog, decimal details, and image ordinals", () => {
+		expect(isAllowedCampusAppApiRequest("/api/notices")).toBe(true);
+		expect(isAllowedCampusAppApiRequest("/api/notices/358159")).toBe(true);
+		expect(isAllowedCampusAppApiRequest("/api/notices/358159/images/0")).toBe(true);
+		expect(isAllowedCampusAppApiRequest("/api/notices/latest")).toBe(false);
+		expect(isAllowedCampusAppApiRequest("/api/notices/358159/attachments/0")).toBe(false);
+	});
 });

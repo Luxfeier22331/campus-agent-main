@@ -55,8 +55,8 @@ Worker version、配置和其他环境资源。候选物发布成功不表示环
 变更完成 Cloudflare 资源、绑定和首次部署，再进入自动候选发布。源码仓不得以 `wrangler deploy` 代替
 这一步，因为该命令会创建版本并立即将其部署到全部流量。采集运行时
 当前未部署到 staging，因此 `ingestion-control`、`ingestion-control-worker` 和 `source-collector`
-不会被候选发布自动构建。`docker-bake.hcl` 中未进入候选映射的 Dining 和 docs 镜像只按明确发布需求
-手动构建。
+不会被候选发布自动构建。`notice-publisher` 只能作为显式指定的镜像 target 构建，尚未注册为
+活跃环境应用。`docker-bake.hcl` 中未进入候选映射的 Dining、docs 和通知制品只按明确发布需求构建。
 
 发布 workflow、路径配置、Bake 文件或发布适配器本身的变化只运行静态检查、适配器测试和 Bake
 解析，不自动重建所有运行时镜像。需要昂贵的完整回归时，从 `manual-validation-profile` 一次选择

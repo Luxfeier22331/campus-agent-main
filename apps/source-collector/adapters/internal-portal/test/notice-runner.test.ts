@@ -1,6 +1,6 @@
-import { isDeepStrictEqual } from "node:util";
 import type { InternalPortalNoticeSource } from "ingestion-contracts";
 import { describe, expect, it, vi } from "vitest";
+import type { InternalPortalNoticeMetaStore } from "../src/notice-meta-store.js";
 import {
 	backfillInternalPortalNotices,
 	type NoticeRunnerInput,
@@ -12,142 +12,104 @@ import type {
 	InternalPortalNoticeSyncState,
 	InternalPortalNoticeSyncStateStore,
 } from "../src/notice-state-store.js";
-import type { ApiRequestContextLike, NoticeItem, NoticeListResponse } from "../src/types.js";
+import type {
+	ApiRequestContextLike,
+	NoticeItem,
+	NoticeListResponse,
+	NoticeMetadataResponse,
+} from "../src/types.js";
 
 const apiContext = {} as ApiRequestContextLike;
-const now = "2026-07-26T01:00:00.000Z";
+const now = "2026-08-11T02:30:07.000Z";
 
 describe("notice runner", () => {
-	it("bootstraps the fixed notice type without collecting deployed notices", async () => {
+	it("bootstraps the unfiltered portal head and metadata without collecting deployed notices", async () => {
 		const stateStore = new MemoryStateStore();
 		const sourceStore = new MemorySourceStore();
-		const fetchNoticePage = vi.fn(async () => page([103, 102], 8));
+		const metaStore = new MemoryMetaStore();
+		const fetchNoticePage = vi.fn(async () => page([notice(358195, 36), notice(358194, 1)], 2));
 		const fetchNoticeDetail = detailFetcher();
 
 		const result = await syncInternalPortalNotices(
-			runnerInput({ fetchNoticeDetail, fetchNoticePage, sourceStore, stateStore }),
+			runnerInput({ fetchNoticeDetail, fetchNoticePage, metaStore, sourceStore, stateStore }),
 		);
 
-		expect(fetchNoticePage).toHaveBeenCalledOnce();
-		expect(fetchNoticePage).toHaveBeenCalledWith(
-			expect.objectContaining({ currentPage: 1, startDate: "" }),
-		);
 		expect(fetchNoticeDetail).not.toHaveBeenCalled();
 		expect(sourceStore.sources).toHaveLength(0);
-		expect(result).toMatchObject({
-			mode: "sync",
-			objectsReused: 0,
-			objectsWritten: 0,
-			pagesFetched: 1,
+		expect(metaStore.value).toEqual({
+			noticeTypes: expectedNoticeTypes(),
+			organizations: { "00007": "党委保卫部、保卫处" },
+			updatedAt: now,
 		});
-		expect(result.state).toEqual(state({ incrementalHeadId: 103, updatedAt: now }));
+		expect(result.state).toEqual(state({ headNoticeId: 358195, updatedAt: now }));
 	});
 
-	it("captures the first notices that appear after an empty deployment baseline", async () => {
-		const stateStore = new MemoryStateStore();
+	it("collects selector types across pages and ignores news aggregation types", async () => {
+		const current = state({ headNoticeId: 100 });
+		const stateStore = new MemoryStateStore(current);
 		const sourceStore = new MemorySourceStore();
-		const fetchNoticePage = vi
-			.fn()
-			.mockResolvedValueOnce(page([], 0))
-			.mockResolvedValueOnce(page([103, 102], 2));
-		const fetchNoticeDetail = detailFetcher();
-		const input = runnerInput({
-			fetchNoticeDetail,
-			fetchNoticePage,
-			sourceStore,
-			stateStore,
-		});
-
-		const baseline = await syncInternalPortalNotices(input);
-		const result = await syncInternalPortalNotices(input);
-
-		expect(baseline.state).toEqual(state({ incrementalHeadId: null, updatedAt: now }));
-		expect(fetchNoticeDetail.mock.calls.map(([call]) => call.noticeId)).toEqual([102, 103]);
-		expect(sourceStore.sources.map((source) => source.notice_id)).toEqual([102, 103]);
-		expect(result.state).toEqual(
-			state({
-				incrementalHeadId: 103,
-				maxCapturedId: 103,
-				minCapturedId: 102,
-				updatedAt: now,
-			}),
+		const selectedTypes = Object.keys(expectedNoticeTypes()).map(Number);
+		const firstPage = Array.from({ length: 20 }, (_, index) =>
+			notice(
+				120 - index,
+				index < 3 ? ([1, 4, 9][index] ?? 1) : (selectedTypes[index % selectedTypes.length] ?? 5),
+			),
 		);
-	});
-
-	it("collects ids above the exact head across totalCounts-derived pages", async () => {
-		const stateStore = new MemoryStateStore([state({ incrementalHeadId: 101 })]);
-		const sourceStore = new MemorySourceStore();
-		const firstPageIds = Array.from({ length: 20 }, (_, index) => 121 - index);
 		const fetchNoticePage = vi.fn(async ({ currentPage }) =>
-			currentPage === 1 ? page(firstPageIds, 21) : page([101], 21),
+			currentPage === 1 ? page(firstPage, 21) : page([notice(100, 5)], 21),
 		);
-		const fetchNoticeDetail = detailFetcher();
 
 		const result = await syncInternalPortalNotices(
-			runnerInput({ fetchNoticeDetail, fetchNoticePage, sourceStore, stateStore }),
+			runnerInput({ fetchNoticePage, sourceStore, stateStore }),
 		);
 
 		expect(fetchNoticePage).toHaveBeenCalledTimes(2);
-		expect(fetchNoticeDetail.mock.calls.map(([call]) => call.noticeId)).toEqual(
-			[...firstPageIds].reverse(),
+		expect(sourceStore.sources.map((source) => source.notice_id)).toEqual(
+			firstPage
+				.filter((item) => ![1, 4, 9].includes(Number(item.notice_type)))
+				.map((item) => item.notice_id),
 		);
-		expect(result).toMatchObject({ objectsReused: 0, objectsWritten: 20, pagesFetched: 2 });
-		expect(result.state).toEqual(
-			state({
-				incrementalHeadId: 121,
-				maxCapturedId: 121,
-				minCapturedId: 102,
-				updatedAt: now,
-			}),
-		);
+		expect(result).toMatchObject({ objectsWritten: 17, pagesFetched: 2 });
+		expect(result.state).toEqual(state({ headNoticeId: 120, updatedAt: now }));
 	});
 
-	it("does not write objects or state when the first item is the current head", async () => {
-		const current = state({ incrementalHeadId: 100, maxCapturedId: 100, minCapturedId: 90 });
-		const stateStore = new MemoryStateStore([current]);
+	it("uses portal order rather than numeric id order to find the current head", async () => {
+		const stateStore = new MemoryStateStore(state({ headNoticeId: 100 }));
 		const sourceStore = new MemorySourceStore();
 
 		const result = await syncInternalPortalNotices(
 			runnerInput({
-				fetchNoticePage: async () => page([100, 99], 2),
+				fetchNoticePage: async () =>
+					page([notice(105, 5), notice(99, 5), notice(106, 36), notice(100, 5)], 4),
 				sourceStore,
 				stateStore,
 			}),
 		);
 
-		expect(result).toMatchObject({ objectsReused: 0, objectsWritten: 0, pagesFetched: 1 });
-		expect(result.state).toEqual(current);
-		expect(stateStore.saveCalls).toBe(0);
+		expect(sourceStore.sources.map((source) => source.notice_id)).toEqual([105, 99, 106]);
+		expect(result.state.headNoticeId).toBe(105);
 	});
 
 	it.each([
 		{
-			error: "out of descending order",
-			ids: [105, 106],
-			name: "out-of-order ids",
-			totalItems: 2,
-		},
-		{
-			error: "passed incremental head 100",
-			ids: [105, 99],
-			name: "a scan that passes the head",
-			totalItems: 2,
-		},
-		{
-			error: "did not return incremental head 100",
-			ids: [105, 104],
+			error: "did not return head 100",
+			items: [notice(105, 5), notice(104, 5)],
 			name: "a scan that omits the head",
-			totalItems: 2,
 		},
-	])("fails without moving state for $name", async ({ error, ids, totalItems }) => {
-		const current = state({ incrementalHeadId: 100 });
-		const stateStore = new MemoryStateStore([current]);
+		{
+			error: "invalid notice_type",
+			items: [{ notice_id: 105 }, notice(100, 5)],
+			name: "missing type metadata",
+		},
+	])("fails without moving state for $name", async ({ error, items }) => {
+		const current = state({ headNoticeId: 100 });
+		const stateStore = new MemoryStateStore(current);
 		const sourceStore = new MemorySourceStore();
 
 		await expect(
 			syncInternalPortalNotices(
 				runnerInput({
-					fetchNoticePage: async () => page(ids, totalItems),
+					fetchNoticePage: async () => page(items, items.length),
 					sourceStore,
 					stateStore,
 				}),
@@ -158,115 +120,80 @@ describe("notice runner", () => {
 		expect(sourceStore.sources).toHaveLength(0);
 	});
 
-	it("captures the current head and older notices on a first backfill", async () => {
-		const stateStore = new MemoryStateStore();
-		const sourceStore = new MemorySourceStore();
-		const fetchNoticePage = vi.fn(async ({ startDate }) => {
-			expect(startDate).toBe("2026-01-01");
-			return page([103, 102, 101], 3);
-		});
-
-		const result = await backfillInternalPortalNotices({
-			...runnerInput({ fetchNoticePage, sourceStore, stateStore }),
-			startDate: "2026-01-01",
-		});
-
-		expect(sourceStore.sources.map((source) => source.notice_id)).toEqual([101, 102, 103]);
-		expect(result.state).toEqual(
-			state({
-				historyCoveredFrom: "2026-01-01",
-				incrementalHeadId: 103,
-				maxCapturedId: 103,
-				minCapturedId: 101,
-				updatedAt: now,
-			}),
-		);
-	});
-
-	it("establishes the current head when a first backfill date returns no notices", async () => {
-		const stateStore = new MemoryStateStore();
-		const sourceStore = new MemorySourceStore();
-		const fetchNoticePage = vi.fn(async ({ startDate }) =>
-			startDate ? page([], 0) : page([103, 102], 2),
-		);
-		const fetchNoticeDetail = detailFetcher();
-
-		const result = await backfillInternalPortalNotices({
-			...runnerInput({ fetchNoticeDetail, fetchNoticePage, sourceStore, stateStore }),
-			startDate: "2027-01-01",
-		});
-
-		expect(fetchNoticePage).toHaveBeenCalledTimes(2);
-		expect(fetchNoticeDetail).not.toHaveBeenCalled();
-		expect(sourceStore.sources).toHaveLength(0);
-		expect(result).toMatchObject({ objectsWritten: 0, pagesFetched: 2 });
-		expect(result.state).toEqual(
-			state({
-				historyCoveredFrom: "2027-01-01",
-				incrementalHeadId: 103,
-				updatedAt: now,
-			}),
-		);
-	});
-
-	it("extends history only below the recorded minimum id", async () => {
-		const stateStore = new MemoryStateStore([
-			state({ incrementalHeadId: 105, maxCapturedId: 105, minCapturedId: 104 }),
-		]);
+	it("deduplicates overlapping portal pages by notice id", async () => {
+		const stateStore = new MemoryStateStore(state({ headNoticeId: 100 }));
 		const sourceStore = new MemorySourceStore();
 
-		const result = await backfillInternalPortalNotices({
-			...runnerInput({
-				fetchNoticePage: async () => page([105, 104, 103, 102], 4),
+		const result = await syncInternalPortalNotices(
+			runnerInput({
+				fetchNoticePage: async () => page([notice(105, 5), notice(105, 5), notice(100, 5)], 3),
 				sourceStore,
 				stateStore,
 			}),
-			startDate: "2025-09-01",
+		);
+
+		expect(sourceStore.sources.map((item) => item.notice_id)).toEqual([105]);
+		expect(result.state.headNoticeId).toBe(105);
+	});
+
+	it("backfills selected notices and skips details for an existing v2 object", async () => {
+		const existing = source(358159, 5);
+		const sourceStore = new MemorySourceStore([existing]);
+		const stateStore = new MemoryStateStore(state({ headNoticeId: 358200 }));
+		const fetchNoticeDetail = detailFetcher();
+
+		const result = await backfillInternalPortalNotices({
+			...runnerInput({
+				fetchNoticeDetail,
+				fetchNoticePage: async () =>
+					page([notice(358159, 5), notice(358158, 1), notice(358157, 36)], 3),
+				sourceStore,
+				stateStore,
+			}),
+			startDate: "2026-08-03",
 		});
 
-		expect(sourceStore.sources.map((source) => source.notice_id)).toEqual([102, 103]);
+		expect(fetchNoticeDetail.mock.calls.map(([call]) => call.noticeId)).toEqual([358157]);
+		expect(sourceStore.sources.map((item) => item.notice_id)).toEqual([358159, 358157]);
+		expect(sourceStore.sources[1]).toMatchObject({
+			external_url: "https://example.edu/external",
+			is_external: true,
+		});
+		expect(result).toMatchObject({ objectsReused: 1, objectsWritten: 1 });
 		expect(result.state).toEqual(
 			state({
-				historyCoveredFrom: "2025-09-01",
-				incrementalHeadId: 105,
-				maxCapturedId: 105,
-				minCapturedId: 102,
+				headNoticeId: 358200,
+				historyCoveredFrom: "2026-08-03",
 				updatedAt: now,
 			}),
 		);
 	});
 
-	it("returns an already-covered backfill without portal requests or state writes", async () => {
-		const current = state({ historyCoveredFrom: "2025-01-01", incrementalHeadId: 105 });
-		const stateStore = new MemoryStateStore([current]);
+	it("returns an already-covered backfill without portal requests", async () => {
+		const current = state({ headNoticeId: 358200, historyCoveredFrom: "2026-01-01" });
+		const stateStore = new MemoryStateStore(current);
+		const fetchNoticeMetadata = vi.fn();
 		const fetchNoticePage = vi.fn();
-		const fetchNoticeDetail = vi.fn();
 
 		const result = await backfillInternalPortalNotices({
-			...runnerInput({ fetchNoticeDetail, fetchNoticePage, stateStore }),
-			startDate: "2026-01-01",
+			...runnerInput({ fetchNoticeMetadata, fetchNoticePage, stateStore }),
+			startDate: "2026-08-03",
 		});
 
-		expect(result).toEqual({
-			mode: "backfill",
-			objectsReused: 0,
-			objectsWritten: 0,
-			pagesFetched: 0,
-			state: current,
-		});
+		expect(result.state).toEqual(current);
+		expect(fetchNoticeMetadata).not.toHaveBeenCalled();
 		expect(fetchNoticePage).not.toHaveBeenCalled();
-		expect(fetchNoticeDetail).not.toHaveBeenCalled();
 		expect(stateStore.saveCalls).toBe(0);
 	});
 
-	it("reuses a verified object when the state write failed", async () => {
-		const stateStore = new MemoryStateStore([state({ incrementalHeadId: 100 })]);
+	it("reuses an existing object without repeating detail after a state write failure", async () => {
+		const stateStore = new MemoryStateStore(state({ headNoticeId: 100 }));
 		stateStore.failNextSave = true;
 		const sourceStore = new MemorySourceStore();
 		const fetchNoticeDetail = detailFetcher();
 		const input = runnerInput({
 			fetchNoticeDetail,
-			fetchNoticePage: async () => page([101, 100], 2),
+			fetchNoticePage: async () => page([notice(101, 5), notice(100, 5)], 2),
 			sourceStore,
 			stateStore,
 		});
@@ -274,14 +201,26 @@ describe("notice runner", () => {
 		await expect(syncInternalPortalNotices(input)).rejects.toThrow("state save failed");
 		const rerun = await syncInternalPortalNotices(input);
 
-		expect(fetchNoticeDetail).toHaveBeenCalledTimes(2);
-		expect(sourceStore.sources).toHaveLength(1);
+		expect(fetchNoticeDetail).toHaveBeenCalledOnce();
 		expect(rerun).toMatchObject({ objectsReused: 1, objectsWritten: 0 });
-		expect(rerun.state).toMatchObject({
-			incrementalHeadId: 101,
-			maxCapturedId: 101,
-			minCapturedId: 101,
-		});
+		expect(rerun.state.headNoticeId).toBe(101);
+	});
+
+	it("does not advance state when metadata persistence fails", async () => {
+		const stateStore = new MemoryStateStore(state({ headNoticeId: 100 }));
+		const metaStore = new MemoryMetaStore();
+		metaStore.failNextPut = true;
+
+		await expect(
+			syncInternalPortalNotices(
+				runnerInput({
+					fetchNoticePage: async () => page([notice(101, 5), notice(100, 5)], 2),
+					metaStore,
+					stateStore,
+				}),
+			),
+		).rejects.toThrow("metadata save failed");
+		expect(stateStore.saveCalls).toBe(0);
 	});
 
 	it("validates explicit history dates", () => {
@@ -294,17 +233,14 @@ describe("notice runner", () => {
 class MemoryStateStore implements InternalPortalNoticeSyncStateStore {
 	failNextSave = false;
 	saveCalls = 0;
-	readonly #states = new Map<string, InternalPortalNoticeSyncState>();
+	#state: InternalPortalNoticeSyncState | null;
 
-	constructor(states: InternalPortalNoticeSyncState[] = []) {
-		for (const value of states) {
-			this.#states.set(value.siteId, structuredClone(value));
-		}
+	constructor(state: InternalPortalNoticeSyncState | null = null) {
+		this.#state = state ? structuredClone(state) : null;
 	}
 
-	async load(siteId: string): Promise<InternalPortalNoticeSyncState | null> {
-		const value = this.#states.get(siteId);
-		return value ? structuredClone(value) : null;
+	async load(): Promise<InternalPortalNoticeSyncState | null> {
+		return this.#state ? structuredClone(this.#state) : null;
 	}
 
 	async save(value: InternalPortalNoticeSyncState): Promise<void> {
@@ -313,22 +249,44 @@ class MemoryStateStore implements InternalPortalNoticeSyncStateStore {
 			this.failNextSave = false;
 			throw new Error("state save failed");
 		}
-		this.#states.set(value.siteId, structuredClone(value));
+		this.#state = structuredClone(value);
+	}
+}
+
+class MemoryMetaStore implements InternalPortalNoticeMetaStore {
+	failNextPut = false;
+	value: {
+		noticeTypes: Record<string, string>;
+		organizations: Record<string, string>;
+		updatedAt: string;
+	} | null = null;
+
+	async putMappings(value: NonNullable<MemoryMetaStore["value"]>): Promise<"written"> {
+		if (this.failNextPut) {
+			this.failNextPut = false;
+			throw new Error("metadata save failed");
+		}
+		this.value = structuredClone(value);
+		return "written";
 	}
 }
 
 class MemorySourceStore implements InternalPortalNoticeSourceStore {
-	readonly sources: InternalPortalNoticeSource[] = [];
+	readonly sources: InternalPortalNoticeSource[];
 
-	async put(source: InternalPortalNoticeSource): Promise<"reused" | "written"> {
-		const existing = this.sources.find((candidate) => candidate.notice_id === source.notice_id);
-		if (existing) {
-			if (!isDeepStrictEqual(existing, source)) {
-				throw new Error("stored notice differs");
-			}
+	constructor(sources: InternalPortalNoticeSource[] = []) {
+		this.sources = structuredClone(sources);
+	}
+
+	async has(noticeId: number): Promise<boolean> {
+		return this.sources.some((candidate) => candidate.notice_id === noticeId);
+	}
+
+	async put(sourceValue: InternalPortalNoticeSource): Promise<"reused" | "written"> {
+		if (await this.has(sourceValue.notice_id)) {
 			return "reused";
 		}
-		this.sources.push(structuredClone(source));
+		this.sources.push(structuredClone(sourceValue));
 		return "written";
 	}
 }
@@ -337,27 +295,69 @@ function runnerInput(overrides: Partial<NoticeRunnerInput> = {}): NoticeRunnerIn
 	return {
 		apiContext,
 		fetchNoticeDetail: detailFetcher(),
+		fetchNoticeMetadata: async () => metadata(),
 		fetchNoticePage: async () => page([], 0),
+		metaStore: new MemoryMetaStore(),
 		now: () => now,
-		siteId: "muc_internal_portal",
 		sourceStore: new MemorySourceStore(),
 		stateStore: new MemoryStateStore(),
 		...overrides,
 	};
 }
 
-function page(ids: number[], totalItems: number): NoticeListResponse {
+function page(items: NoticeItem[], totalItems: number): NoticeListResponse {
 	return {
 		datas: {
-			page: { totalCounts: totalItems },
-			tables: ids.map((id) => notice(id)),
+			page: {
+				pageSize: 20,
+				total: totalItems,
+				totalCounts: Math.ceil(totalItems / 20),
+			},
+			tables: items,
 		},
 		state: true,
 	};
 }
 
-function notice(noticeId: number): NoticeItem {
-	return { notice_id: noticeId };
+function notice(noticeId: number, noticeType: number): NoticeItem {
+	return {
+		notice_id: noticeId,
+		notice_link: noticeType === 36 ? "https://example.edu/external" : null,
+		notice_type: noticeType,
+		organization_id: "00007",
+		organization_name: "党委保卫部、保卫处",
+	};
+}
+
+function metadata(): NoticeMetadataResponse {
+	return {
+		datas: {
+			org: [{ organization_id: "00007", organization_name: "党委保卫部、保卫处" }],
+			type: [
+				...Object.entries(expectedNoticeTypes()).map(([noticeTypeId, noticeTypeName]) => ({
+					notice_type_id: Number(noticeTypeId),
+					notice_type_name: noticeTypeName,
+				})),
+			],
+		},
+		state: true,
+	};
+}
+
+function expectedNoticeTypes(): Record<string, string> {
+	return {
+		"5": "办公通知",
+		"6": "教学通知",
+		"8": "科研通知",
+		"10": "就业信息",
+		"11": "公示公告",
+		"32": "学工通知",
+		"36": "活动报道",
+		"9978": "会议纪要",
+		"9979": "民大要情",
+		"9980": "学术信息",
+		"9982": "常用下载",
+	};
 }
 
 function detailFetcher() {
@@ -366,25 +366,36 @@ function detailFetcher() {
 			notice_info: {
 				notice_content: `<p>${noticeId}</p>`,
 				notice_id: noticeId,
-				notice_release_time: "2026-07-25 08:00",
+				notice_release_time: "2026-08-03 11:57",
 				notice_title: `通知 ${noticeId}`,
-				notice_type_name: "办公通知",
 			},
 		},
 		state: true,
 	}));
 }
 
+function source(noticeId: number, noticeType: number): InternalPortalNoticeSource {
+	return {
+		attachments: [],
+		external_url: null,
+		is_external: false,
+		notice_content_html: `<p>${noticeId}</p>`,
+		notice_id: noticeId,
+		notice_release_time: "2026-08-03 11:57",
+		notice_title: `通知 ${noticeId}`,
+		notice_type: noticeType,
+		organization_id: "00007",
+		schema_version: "internal_portal_notice_source.v2",
+	};
+}
+
 function state(
 	overrides: Partial<InternalPortalNoticeSyncState> = {},
 ): InternalPortalNoticeSyncState {
 	return {
+		headNoticeId: null,
 		historyCoveredFrom: null,
-		incrementalHeadId: null,
-		maxCapturedId: null,
-		minCapturedId: null,
-		siteId: "muc_internal_portal",
-		updatedAt: "2026-07-25T00:00:00.000Z",
+		updatedAt: "2026-08-10T00:00:00.000Z",
 		...overrides,
 	};
 }

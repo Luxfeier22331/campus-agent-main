@@ -13,6 +13,7 @@ status: active
 - [memory.md](./memory.md)：个人记忆管理；
 - [chat.md](./chat.md)：会话、请求、流和事件；
 - [federation.md](./federation.md)：联邦身份提供方；
+- [notices.md](./notices.md)：通知目录、站内详情与图片；
 - [食堂](../../product/dining.md)：学生侧地图、菜单、评价和举报接口；
 - [error.md](./error.md)：共享错误结构；
 - [request-lifecycle.md](./request-lifecycle.md)：请求、流和终态生命周期；

@@ -1,11 +1,7 @@
 import { createSourceCollectorObjectStoreFromEnv } from "../../../src/object-store.js";
-import { fetchNoticeDetail, fetchNoticePage } from "./api.js";
-import {
-	loadInternalPortalDescriptor,
-	loadInternalPortalEnv,
-	resolveInternalPortalConfig,
-	resolveInternalPortalSiteId,
-} from "./config.js";
+import { fetchNoticeDetail, fetchNoticeMetadata, fetchNoticePage } from "./api.js";
+import { loadInternalPortalEnv, resolveInternalPortalConfig } from "./config.js";
+import { createInternalPortalNoticeMetaStore } from "./notice-meta-store.js";
 import {
 	backfillInternalPortalNotices,
 	isNoticeHistoryCovered,
@@ -28,26 +24,16 @@ type NoticeCommand =
 export async function main(argv: string[] = process.argv.slice(2)): Promise<void> {
 	loadInternalPortalEnv();
 	const command = parseCommand(argv);
-	const siteId = resolveInternalPortalSiteId(loadInternalPortalDescriptor());
 	const objectStore = createSourceCollectorObjectStoreFromEnv(process.env);
 	const stateStore = createObjectStoreInternalPortalNoticeSyncStateStore({ objectStore });
 	try {
 		if (command.name === "status") {
-			const state = await stateStore.load(siteId);
-			console.log(
-				JSON.stringify(
-					{
-						site_id: siteId,
-						...toStatusRecord(state),
-					},
-					null,
-					2,
-				),
-			);
+			const state = await stateStore.load();
+			console.log(JSON.stringify(toStatusRecord(state), null, 2));
 			return;
 		}
 		if (command.name === "backfill") {
-			const state = await stateStore.load(siteId);
+			const state = await stateStore.load();
 			if (state && isNoticeHistoryCovered(state, command.startDate)) {
 				console.log(
 					JSON.stringify(
@@ -72,8 +58,9 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
 			const runnerInput = {
 				apiContext,
 				fetchNoticeDetail,
+				fetchNoticeMetadata,
 				fetchNoticePage,
-				siteId,
+				metaStore: createInternalPortalNoticeMetaStore({ objectStore }),
 				sourceStore: createInternalPortalNoticeSourceStore({ objectStore }),
 				stateStore,
 			};
@@ -114,9 +101,7 @@ function parseCommand(argv: string[]): NoticeCommand {
 function toStatusRecord(state: InternalPortalNoticeSyncState | null): Record<string, unknown> {
 	return {
 		history_covered_from: state?.historyCoveredFrom ?? null,
-		incremental_head_id: state?.incrementalHeadId ?? null,
-		max_captured_id: state?.maxCapturedId ?? null,
-		min_captured_id: state?.minCapturedId ?? null,
+		head_notice_id: state?.headNoticeId ?? null,
 		updated_at: state?.updatedAt ?? null,
 	};
 }

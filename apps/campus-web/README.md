@@ -1,6 +1,6 @@
 # campus-web
 
-学生使用的 React 应用与 Cloudflare Worker，提供问答、账号、文档、地图、食堂和同好群页面。
+学生使用的 React 应用与 Cloudflare Worker，提供问答、账号、文档、通知、地图、食堂和同好群页面。
 
 ## 职责
 
@@ -9,6 +9,7 @@
 - 通过 Service Binding 或配置的来源调用 app-api；
 - 在 `/docs/*` 构建和交付原生文档目录与阅读器；
 - 通过 App API manifest 加载内容寻址校园 GeoJSON，并展示来源署名；
+- 通过 App API 查询通知目录，展示站内正文与图片，并将外链通知直接交给来源页面；
 - 按明确 Dining release 加载完整地图和不可变 SVG 资源；
 - 维护浏览器与 Worker 的错误、日志和调用链接入。
 
@@ -83,8 +84,10 @@ pnpm --dir apps/campus-web docs:source:clean-segmentation -- \
   --report-dir .generated/docs-segmentation-hotfix
 ```
 
-`dev`、`build` 和 `deploy` 自动读取该固定键，不接受手工文档版本参数，也不按对象列表或修改时间
-选择内容。构建完成后会把 `sourceDigest` 写入候选元数据；它不是 Worker 运行变量。`build:test`
+`dev`、`build` 和 `deploy` 自动读取当前 worktree 的 `.dev.vars.local`，并从对象存储固定键读取文档；
+`env/commands/campus-docs-source.env` 可覆盖本地文件，调用进程环境的优先级最高。它们不接受手工文档
+版本参数，也不按对象列表或修改时间选择内容。构建完成后会把 `sourceDigest` 写入候选元数据；它不是
+Worker 运行变量。`build:test`
 仅供浏览器回归生成确定性测试内容，不能作为开发或交付入口。`build:worker` 在 Campus Web 中是
 这个测试入口的兼容任务名，不是正式文档构建。
 

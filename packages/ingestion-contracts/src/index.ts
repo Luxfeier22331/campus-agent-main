@@ -21,10 +21,13 @@ import internalPortalFileReleaseCaptureResultSchema from "../schemas/internal-po
 import internalPortalFileReleaseSourceSchema from "../schemas/internal-portal-file-release-source.v1.schema.json" with {
 	type: "json",
 };
-import internalPortalNoticeSourceSchema from "../schemas/internal-portal-notice-source.v1.schema.json" with {
+import internalPortalMetaSchema from "../schemas/internal-portal-meta.v1.schema.json" with {
 	type: "json",
 };
-import internalPortalNoticeSyncStateSchema from "../schemas/internal-portal-notice-sync-state.v1.schema.json" with {
+import internalPortalNoticeSourceSchema from "../schemas/internal-portal-notice-source.v2.schema.json" with {
+	type: "json",
+};
+import internalPortalNoticeSyncStateSchema from "../schemas/internal-portal-notice-sync-state.v2.schema.json" with {
 	type: "json",
 };
 import retrievalChunkSetV2Schema from "../schemas/retrieval-chunk-set.v2.schema.json" with {
@@ -115,28 +118,31 @@ export interface InternalPortalNoticeSourceAttachment {
 	type: string | null;
 }
 
-export interface InternalPortalNoticeSource {
-	schema_version: "internal_portal_notice_source.v1";
-	site_id: string;
+interface InternalPortalNoticeSourceBase {
+	schema_version: "internal_portal_notice_source.v2";
 	notice_id: number;
-	notice_type: "5";
-	notice_type_name: string | null;
-	notice_title: string;
-	organization_name: string | null;
+	notice_type: number;
 	organization_id: string | null;
+	notice_title: string;
 	notice_release_time: string | null;
-	notice_content: string | null;
-	notice_link: string | null;
+	notice_content_html: string | null;
 	attachments: InternalPortalNoticeSourceAttachment[];
 }
 
+export type InternalPortalNoticeSource = InternalPortalNoticeSourceBase &
+	({ is_external: false; external_url: null } | { is_external: true; external_url: string });
+
 export interface InternalPortalNoticeSyncState {
-	schema_version: "internal_portal_notice_sync_state.v1";
-	site_id: string;
-	incremental_head_id: number | null;
-	min_captured_id: number | null;
-	max_captured_id: number | null;
+	schema_version: "internal_portal_notice_sync_state.v2";
+	head_notice_id: number | null;
 	history_covered_from: string | null;
+	updated_at: string;
+}
+
+export interface InternalPortalMeta {
+	schema_version: "internal_portal_meta.v1";
+	notice_types: Record<string, string>;
+	organizations: Record<string, string>;
 	updated_at: string;
 }
 
@@ -247,6 +253,9 @@ const internalPortalNoticeSourceValidator = ajv.compile(
 const internalPortalNoticeSyncStateValidator = ajv.compile(
 	internalPortalNoticeSyncStateSchema,
 ) as ValidateFunction<InternalPortalNoticeSyncState>;
+const internalPortalMetaValidator = ajv.compile(
+	internalPortalMetaSchema,
+) as ValidateFunction<InternalPortalMeta>;
 
 export function validateIngestionTaskEnvelope(value: unknown): ValidationResult {
 	return validateWith(taskEnvelopeValidator, value);
@@ -308,6 +317,10 @@ export function validateInternalPortalNoticeSource(value: unknown): ValidationRe
 
 export function validateInternalPortalNoticeSyncState(value: unknown): ValidationResult {
 	return validateWith(internalPortalNoticeSyncStateValidator, value);
+}
+
+export function validateInternalPortalMeta(value: unknown): ValidationResult {
+	return validateWith(internalPortalMetaValidator, value);
 }
 
 export function validateInternalPortalFileReleaseSource(value: unknown): ValidationResult {

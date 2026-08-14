@@ -12,6 +12,7 @@ import type {
 	FileReleaseDownloadUrlResponse,
 	NoticeDetailResponse,
 	NoticeListResponse,
+	NoticeMetadataResponse,
 } from "./types.js";
 
 export interface FetchNoticePageInput {
@@ -25,7 +26,6 @@ export interface FetchNoticeDetailInput {
 	noticeId: number;
 }
 
-const NOTICE_TYPE = "5";
 const NOTICE_PAGE_SIZE = 20;
 
 export interface FetchAttachmentBinaryInput {
@@ -62,7 +62,7 @@ export async function fetchNoticePage(input: FetchNoticePageInput): Promise<Noti
 			total: "-1",
 			select_all: "false",
 			select_notice: "",
-			type: NOTICE_TYPE,
+			type: "",
 			searchDepartment: "",
 			start_date: input.startDate,
 			end_date: "",
@@ -78,13 +78,29 @@ export async function fetchNoticePage(input: FetchNoticePageInput): Promise<Noti
 	return json;
 }
 
+export async function fetchNoticeMetadata(input: {
+	apiContext: ApiRequestContextLike;
+}): Promise<NoticeMetadataResponse> {
+	const response = await input.apiContext.post("/comsys-portal-notice-web/getNoticeSlects", {
+		form: {},
+	});
+	if (!response.ok()) {
+		await throwRequestError(response, "getNoticeSlects");
+	}
+	const json = await parseJsonResponse<NoticeMetadataResponse>(response, "getNoticeSlects");
+	if (!(json.state && Array.isArray(json.datas?.type) && Array.isArray(json.datas.org))) {
+		throw new Error("Internal portal notice metadata response is invalid.");
+	}
+	return json;
+}
+
 export async function fetchNoticeDetail(
 	input: FetchNoticeDetailInput,
 ): Promise<NoticeDetailResponse> {
 	const response = await input.apiContext.post("/comsys-portal-notice-web/getNotice", {
 		form: {
 			notice_id: String(input.noticeId),
-			type: NOTICE_TYPE,
+			type: "",
 			show_type: "1",
 			searchValue: "",
 			searchDepartment: "",
@@ -245,6 +261,8 @@ function portalOperationLabel(operation: string): string {
 			return "notice list";
 		case "getNotice":
 			return "notice detail";
+		case "getNoticeSlects":
+			return "notice metadata";
 		case "downloadAttachment":
 			return "attachment download";
 		case "getFile":

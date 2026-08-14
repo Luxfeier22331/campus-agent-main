@@ -18,6 +18,8 @@ const CAMPUS_ROUTE_TEMPLATES = [
 	"/dining",
 	"/groups",
 	"/feedback",
+	"/notices",
+	"/notices/:noticeId",
 	"/account",
 	"/account/login",
 	"/account/register",
@@ -46,6 +48,9 @@ const CAMPUS_ROUTE_TEMPLATES = [
 	"/api/chat/runs/:runId/events/stream",
 	"/api/chat/runs/:runId/cancel",
 	"/api/me/profile-memory/items/:itemId",
+	"/api/notices",
+	"/api/notices/:noticeId",
+	"/api/notices/:noticeId/images/:ordinal",
 ] as const;
 
 const SENSITIVE_IDENTIFIER =

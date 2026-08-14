@@ -17,6 +17,7 @@ const routeFiles = [
 	"dining.ts",
 	"federation.ts",
 	"internal.ts",
+	"notices.ts",
 	"profile-memory.ts",
 	"runtime.ts",
 ] as const;

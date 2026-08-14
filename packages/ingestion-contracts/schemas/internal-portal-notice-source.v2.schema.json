@@ -1,35 +1,33 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
-	"$id": "https://campus-agent.muc.wiki/contracts/internal-portal-notice-source.v1.schema.json",
+	"$id": "https://campus-agent.muc.wiki/contracts/internal-portal-notice-source.v2.schema.json",
 	"title": "Internal portal notice source",
 	"type": "object",
 	"additionalProperties": false,
 	"required": [
 		"schema_version",
-		"site_id",
 		"notice_id",
 		"notice_type",
-		"notice_type_name",
-		"notice_title",
-		"organization_name",
 		"organization_id",
+		"notice_title",
 		"notice_release_time",
-		"notice_content",
-		"notice_link",
+		"is_external",
+		"external_url",
+		"notice_content_html",
 		"attachments"
 	],
 	"properties": {
-		"schema_version": { "const": "internal_portal_notice_source.v1" },
-		"site_id": { "$ref": "#/$defs/identity" },
+		"schema_version": { "const": "internal_portal_notice_source.v2" },
 		"notice_id": { "$ref": "#/$defs/positiveSafeInteger" },
-		"notice_type": { "const": "5" },
-		"notice_type_name": { "$ref": "#/$defs/nullableText" },
-		"notice_title": { "type": "string", "minLength": 1 },
-		"organization_name": { "$ref": "#/$defs/nullableText" },
+		"notice_type": { "$ref": "#/$defs/positiveSafeInteger" },
 		"organization_id": { "$ref": "#/$defs/nullableText" },
+		"notice_title": { "type": "string", "minLength": 1 },
 		"notice_release_time": { "$ref": "#/$defs/nullableText" },
-		"notice_content": { "$ref": "#/$defs/nullableText" },
-		"notice_link": { "$ref": "#/$defs/nullableText" },
+		"is_external": { "type": "boolean" },
+		"external_url": {
+			"oneOf": [{ "type": "string", "format": "uri", "pattern": "^https?://" }, { "type": "null" }]
+		},
+		"notice_content_html": { "$ref": "#/$defs/nullableText" },
 		"attachments": {
 			"type": "array",
 			"items": {
@@ -46,18 +44,25 @@
 			}
 		}
 	},
+	"allOf": [
+		{
+			"if": { "properties": { "is_external": { "const": true } } },
+			"then": {
+				"properties": {
+					"external_url": { "type": "string", "format": "uri", "pattern": "^https?://" }
+				}
+			},
+			"else": { "properties": { "external_url": { "type": "null" } } }
+		}
+	],
 	"$defs": {
-		"identity": {
-			"type": "string",
-			"pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$"
-		},
 		"positiveSafeInteger": {
 			"type": "integer",
 			"minimum": 1,
 			"maximum": 9007199254740991
 		},
 		"nullableText": {
-			"oneOf": [{ "type": "string" }, { "type": "null" }]
+			"oneOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }]
 		}
 	}
 }

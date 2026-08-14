@@ -1,4 +1,3 @@
-import { encodeObjectKeySegment } from "ingest-core";
 import {
 	type InternalPortalNoticeSyncState as StoredNoticeSyncState,
 	validateInternalPortalNoticeSyncState,
@@ -8,15 +7,12 @@ import type { SourceCollectorObjectStore } from "../../../src/object-store.js";
 
 export interface InternalPortalNoticeSyncState {
 	historyCoveredFrom: string | null;
-	incrementalHeadId: number | null;
-	maxCapturedId: number | null;
-	minCapturedId: number | null;
-	siteId: string;
+	headNoticeId: number | null;
 	updatedAt: string;
 }
 
 export interface InternalPortalNoticeSyncStateStore {
-	load(siteId: string): Promise<InternalPortalNoticeSyncState | null>;
+	load(): Promise<InternalPortalNoticeSyncState | null>;
 	save(state: InternalPortalNoticeSyncState): Promise<void>;
 }
 
@@ -24,10 +20,10 @@ export function createObjectStoreInternalPortalNoticeSyncStateStore(input: {
 	objectStore: SourceCollectorObjectStore;
 }): InternalPortalNoticeSyncStateStore {
 	return {
-		async load(siteId) {
+		async load() {
 			const bytes = await input.objectStore.getObjectIfExists({
 				bucket: input.objectStore.sourceBucket,
-				key: internalPortalNoticeSyncStateObjectKey(siteId),
+				key: internalPortalNoticeSyncStateObjectKey(),
 			});
 			if (!bytes) {
 				return null;
@@ -44,11 +40,7 @@ export function createObjectStoreInternalPortalNoticeSyncStateStore(input: {
 					`internal portal notice sync state is invalid: ${validation.errors.join("; ")}`,
 				);
 			}
-			const stored = value as StoredNoticeSyncState;
-			if (stored.site_id !== siteId) {
-				throw new Error("internal portal notice sync state site_id does not match its object key");
-			}
-			return fromStoredState(stored);
+			return fromStoredState(value as StoredNoticeSyncState);
 		},
 		async save(state) {
 			const stored = toStoredState(state);
@@ -62,24 +54,21 @@ export function createObjectStoreInternalPortalNoticeSyncStateStore(input: {
 				body: Buffer.from(`${JSON.stringify(stored, null, 2)}\n`, "utf-8"),
 				bucket: input.objectStore.sourceBucket,
 				contentType: "application/json",
-				key: internalPortalNoticeSyncStateObjectKey(state.siteId),
+				key: internalPortalNoticeSyncStateObjectKey(),
 			});
 		},
 	};
 }
 
-export function internalPortalNoticeSyncStateObjectKey(siteId: string): string {
-	return `internal_portal/${encodeObjectKeySegment(siteId)}/notices/_state.json`;
+export function internalPortalNoticeSyncStateObjectKey(): string {
+	return "internal_portal/notices/_state.json";
 }
 
 function toStoredState(state: InternalPortalNoticeSyncState): StoredNoticeSyncState {
 	return {
 		history_covered_from: state.historyCoveredFrom,
-		incremental_head_id: state.incrementalHeadId,
-		max_captured_id: state.maxCapturedId,
-		min_captured_id: state.minCapturedId,
-		schema_version: "internal_portal_notice_sync_state.v1",
-		site_id: state.siteId,
+		head_notice_id: state.headNoticeId,
+		schema_version: "internal_portal_notice_sync_state.v2",
 		updated_at: state.updatedAt,
 	};
 }
@@ -87,10 +76,7 @@ function toStoredState(state: InternalPortalNoticeSyncState): StoredNoticeSyncSt
 function fromStoredState(state: StoredNoticeSyncState): InternalPortalNoticeSyncState {
 	return {
 		historyCoveredFrom: state.history_covered_from,
-		incrementalHeadId: state.incremental_head_id,
-		maxCapturedId: state.max_captured_id,
-		minCapturedId: state.min_captured_id,
-		siteId: state.site_id,
+		headNoticeId: state.head_notice_id,
 		updatedAt: state.updated_at,
 	};
 }

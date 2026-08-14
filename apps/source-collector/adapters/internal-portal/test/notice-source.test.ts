@@ -8,163 +8,162 @@ import {
 } from "../src/notice-source.js";
 
 describe("internal portal notice source", () => {
-	it("keeps normalized attachment metadata in portal order including duplicates", () => {
+	it("builds the 358159 source contract without repeated names or generated URLs", () => {
+		const source = buildInternalPortalNoticeSource({
+			detailInfo: {
+				notice_annext: [],
+				notice_content: " <p>自即日起暂时关闭海淀校区东北门。</p> ",
+				notice_id: 358159,
+				notice_release_time: " 2026-08-03 11:57 ",
+				notice_title: " 关于暂时关闭校园东北门的通知 ",
+				notice_type_name: "办公通知",
+				organization_name: "党委保卫部、保卫处",
+			},
+			listItem: {
+				notice_id: 358159,
+				notice_link: null,
+				notice_type: 5,
+				organization_id: "00007",
+				organization_name: "党委保卫部、保卫处",
+			},
+			noticeId: 358159,
+			noticeType: 5,
+		});
+
+		expect(source).toEqual({
+			attachments: [],
+			external_url: null,
+			is_external: false,
+			notice_content_html: "<p>自即日起暂时关闭海淀校区东北门。</p>",
+			notice_id: 358159,
+			notice_release_time: "2026-08-03 11:57",
+			notice_title: "关于暂时关闭校园东北门的通知",
+			notice_type: 5,
+			organization_id: "00007",
+			schema_version: "internal_portal_notice_source.v2",
+		});
+	});
+
+	it("marks a notice with a portal-provided HTTP URL as external", () => {
+		const source = buildInternalPortalNoticeSource({
+			detailInfo: {
+				notice_content: null,
+				notice_id: 358156,
+				notice_title: "活动报道",
+			},
+			listItem: {
+				notice_id: 358156,
+				notice_link: " https://mp.weixin.qq.com/s/example ",
+				notice_type: 36,
+			},
+			noticeId: 358156,
+			noticeType: 36,
+		});
+
+		expect(source).toMatchObject({
+			external_url: "https://mp.weixin.qq.com/s/example",
+			is_external: true,
+			notice_content_html: null,
+		});
+	});
+
+	it("keeps attachment metadata in portal order including duplicates", () => {
 		const source = buildInternalPortalNoticeSource({
 			detailInfo: {
 				notice_annext: [
 					{
-						notice_annex_id: " annex-2 ",
-						notice_annex_name: " 第二份.pdf ",
-						notice_annex_path: " /download/2 ",
-						suffix: " pdf ",
-						type: " application/pdf ",
-					},
-					{
 						notice_annex_id: " annex-1 ",
-						notice_annex_name: " 第一份.pdf ",
+						notice_annex_name: " 附件.pdf ",
 						notice_annex_path: " /download/1 ",
 						suffix: " pdf ",
 						type: " application/pdf ",
 					},
 					{
 						notice_annex_id: " annex-1 ",
-						notice_annex_name: " 第一份.pdf ",
+						notice_annex_name: " 附件.pdf ",
 						notice_annex_path: " /download/1 ",
 						suffix: " pdf ",
 						type: " application/pdf ",
 					},
 				],
-				notice_content: " <p>正文</p> ",
-				notice_id: 355119,
-				notice_release_time: " 2026-07-25 09:00:00 ",
-				notice_title: " 示例通知 ",
-				notice_type_name: " 办公通知 ",
-				organization_name: " 教务处 ",
+				notice_id: 358159,
+				notice_title: "示例通知",
 			},
-			noticeId: 355119,
-			siteId: "muc_internal_portal",
+			listItem: { notice_id: 358159, notice_type: 5 },
+			noticeId: 358159,
+			noticeType: 5,
 		});
 
-		expect(source).toMatchObject({
-			notice_content: "<p>正文</p>",
-			notice_id: 355119,
-			notice_release_time: "2026-07-25 09:00:00",
-			notice_title: "示例通知",
-			notice_type: "5",
-			notice_type_name: "办公通知",
-			organization_name: "教务处",
-			schema_version: "internal_portal_notice_source.v1",
-		});
 		expect(source.attachments.map((attachment) => attachment.notice_annex_id)).toEqual([
-			"annex-2",
 			"annex-1",
 			"annex-1",
 		]);
 	});
 
-	it("rejects a detail payload for a different id", () => {
+	it("rejects mismatched detail ids and invalid external URLs", () => {
 		expect(() =>
 			buildInternalPortalNoticeSource({
-				detailInfo: { notice_id: 355120, notice_title: "错误通知" },
-				noticeId: 355119,
-				siteId: "muc_internal_portal",
+				detailInfo: { notice_id: 358160, notice_title: "错误通知" },
+				listItem: { notice_id: 358159, notice_type: 5 },
+				noticeId: 358159,
+				noticeType: 5,
 			}),
-		).toThrow("detail returned notice_id 355120");
+		).toThrow("detail returned notice_id 358160");
+		expect(() =>
+			buildInternalPortalNoticeSource({
+				detailInfo: { notice_id: 358159, notice_title: "错误通知" },
+				listItem: { notice_id: 358159, notice_link: "ftp://example.edu", notice_type: 5 },
+				noticeId: 358159,
+				noticeType: 5,
+			}),
+		).toThrow("notice external URL must be an absolute HTTP or HTTPS URL");
 	});
 
-	it("does not fill a missing detail type name from list metadata", () => {
-		const source = buildInternalPortalNoticeSource({
-			detailInfo: { notice_id: 355119, notice_title: "示例通知" },
-			noticeId: 355119,
-			siteId: "muc_internal_portal",
-		});
-
-		expect(source).toMatchObject({
-			notice_content: null,
-			notice_release_time: null,
-			notice_type_name: null,
-			organization_name: null,
-		});
-	});
-
-	it("creates a new object at the stable source-bucket key", async () => {
+	it("writes and reuses the fixed notice key without a site layer", async () => {
 		const createOrVerifyObject = vi.fn(async () => ({ byteSize: 1, contentSha256: "a" }));
+		const source = sourceFixture();
 		const store = createInternalPortalNoticeSourceStore({
 			objectStore: objectStore({ createOrVerifyObject }),
 		});
-		const source = sourceFixture();
 
+		await expect(store.has(source.notice_id)).resolves.toBe(false);
 		await expect(store.put(source)).resolves.toBe("written");
-
-		const key = internalPortalNoticeSourceObjectKey(source.site_id, source.notice_id);
 		expect(createOrVerifyObject).toHaveBeenCalledWith(
 			expect.objectContaining({
 				bucket: "campus-agent-source",
-				contentType: "application/json",
-				key,
+				key: "internal_portal/notices/358159.json",
 			}),
 		);
-	});
-
-	it("reuses only an identical valid object", async () => {
-		const source = sourceFixture();
-		const createOrVerifyObject = vi.fn();
-		const store = createInternalPortalNoticeSourceStore({
-			objectStore: objectStore({
-				createOrVerifyObject,
-				getObjectIfExists: async () => jsonBytes(source),
-			}),
-		});
-
-		await expect(store.put(source)).resolves.toBe("reused");
-		expect(createOrVerifyObject).not.toHaveBeenCalled();
+		expect(internalPortalNoticeSourceObjectKey(358159)).toBe("internal_portal/notices/358159.json");
 	});
 
 	it.each([
-		{
-			error: "not valid JSON",
-			stored: new TextEncoder().encode("not-json"),
-		},
+		{ error: "not valid JSON", stored: new TextEncoder().encode("not-json") },
 		{
 			error: "identity does not match object key",
-			stored: jsonBytes({ ...sourceFixture(), notice_id: 355120 }),
+			stored: jsonBytes({ ...sourceFixture(), notice_id: 358160 }),
 		},
-		{
-			error: "source differs from the stored object",
-			stored: jsonBytes({ ...sourceFixture(), notice_title: "门户后来返回的标题" }),
-		},
-	])("fails without replacing an invalid or changed stored object", async ({ error, stored }) => {
-		const createOrVerifyObject = vi.fn();
+	])("fails when an existing object is invalid", async ({ error, stored }) => {
 		const store = createInternalPortalNoticeSourceStore({
-			objectStore: objectStore({
-				createOrVerifyObject,
-				getObjectIfExists: async () => stored,
-			}),
+			objectStore: objectStore({ getObjectIfExists: async () => stored }),
 		});
-
-		await expect(store.put(sourceFixture())).rejects.toThrow(error);
-		expect(createOrVerifyObject).not.toHaveBeenCalled();
-	});
-
-	it("encodes the site identity without key collisions", () => {
-		expect(internalPortalNoticeSourceObjectKey("site:a", 1)).toBe(
-			"internal_portal/site%3Aa/notices/1.json",
-		);
-		expect(internalPortalNoticeSourceObjectKey("site:a", 1)).not.toBe(
-			internalPortalNoticeSourceObjectKey("site_a", 1),
-		);
+		await expect(store.has(358159)).rejects.toThrow(error);
 	});
 });
 
 function sourceFixture() {
 	return buildInternalPortalNoticeSource({
 		detailInfo: {
-			notice_id: 355119,
+			notice_id: 358159,
 			notice_title: "示例通知",
-			notice_type_name: "办公通知",
 		},
-		noticeId: 355119,
-		siteId: "muc_internal_portal",
+		listItem: {
+			notice_id: 358159,
+			notice_type: 5,
+			organization_id: "00007",
+		},
+		noticeId: 358159,
+		noticeType: 5,
 	});
 }
 

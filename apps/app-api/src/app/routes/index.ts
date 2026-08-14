@@ -11,6 +11,7 @@ import { registerDiningContentRoutes } from "./dining";
 import { registerEmailAccessAdminRoutes } from "./email-access-admin";
 import { registerFederationRoutes } from "./federation";
 import { registerInternalRoutes } from "./internal";
+import { registerNoticeRoutes } from "./notices";
 import { registerProfileMemoryRoutes } from "./profile-memory";
 import { registerRuntimeRoutes } from "./runtime";
 
@@ -64,6 +65,12 @@ export function registerAppRoutes(input: {
 		getPrincipal: input.getPrincipal,
 	});
 	registerProfileMemoryRoutes({
+		app: input.app,
+		createRequestScope: input.createRequestScope,
+		env: input.env,
+		getPrincipal: input.getPrincipal,
+	});
+	registerNoticeRoutes({
 		app: input.app,
 		createRequestScope: input.createRequestScope,
 		env: input.env,

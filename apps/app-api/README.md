@@ -15,6 +15,7 @@
 - 联邦登录接口；
 - 聊天提交与流式读取、运行事件与步骤读取、反馈写入；
 - 个人记忆设置、显式记忆项和 Hindsight 命令 outbox；
+- 登录用户的通知列表、站内正文详情和通知图片读取；
 - 校园地点投影、底图 manifest 和内容寻址 GeoJSON；
 - 食堂校园产品公开读取接口；
 
@@ -33,6 +34,10 @@ app-api 拥有认证、聊天、请求观测、用户资料和个人记忆产品
 
 `APP_API_DB` 是 app-api 唯一的 Hyperdrive 通道。部署配置关闭 Hyperdrive query cache，保留
 连接池能力，所有产品读写都通过同一数据库绑定完成。
+
+通知接口只读 `notices.*` 的业务表。站内详情返回已清洗 HTML、图片同源 URL，以及包含门户原生链接的
+附件 metadata；外链通知只在列表中返回来源 URL。App API 不代理附件字节，通知图片与 Dining 一样
+通过现有 derived bucket 读取路径交付，不向浏览器暴露对象存储身份。
 
 学生食堂接口只读取已发布的 `dining.map_releases` 和 `dining.map_publication`，并从统一
 derived bucket 读取按摘要命名的地图资源。staging 和 production 通过 `OBJECT_STORE_PRIVATE`
@@ -87,6 +92,8 @@ pnpm --dir apps/app-api typecheck
 ```
 
 `pnpm dev:init` 在当前 worktree 的 App API 目录生成 `.env.local` 与 `.dev.vars.local`。不要手工修改或从根 `.env` 复制；外部凭据通过启动命令的进程环境或可选 secret manager 注入。只启动本应用时仍使用 profile 中的独立端口和 database。
+该命令还会幂等初始化本地测试账号 `test@muc.edu.cn`，密码为 `password123`；账号只写入当前
+worktree 的隔离数据库，浏览器仍通过正常登录接口创建会话。
 本地 Dining 平面图读取地址由生成的 `OBJECT_STORE_LOCAL_BASE_URL` 提供；部署环境不读取该变量。
 
 数据库安装入口见 `jobs/app-api-schema/README.md`，部署顺序见 `docs/runbooks/release.md`。

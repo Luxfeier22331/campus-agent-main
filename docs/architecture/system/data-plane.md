@@ -17,7 +17,8 @@ status: active
 | 组件 | 负责 | 不负责 |
 | --- | --- | --- |
 | `apps/ingestion-control` | 注册任务准入、Temporal workflow、Rust kernel 投影；文件发布 workflow 提交与状态查询 | 门户 HTTP、通知同步、在线发布 |
-| `apps/source-collector` | 文件发布 Activity、本地通知命令和一次性本地认证检查 | TGC 持久化或保活、注册任务准入、PostgreSQL 投影、derived 处理 |
+| `apps/source-collector` | 文件发布 Activity、本地通知命令、原始通知资源回填和一次性本地认证检查 | TGC 持久化或保活、注册任务准入、通知发布 |
+| `jobs/notice-publisher` | 校验来源、清洗正文、显式写入规范化通知和 derived 资源 | 定时采集、分类、在线读取 |
 | `packages/internal-portal-client` | CAS 跳转、门户 Cookie 会话、TGC 校验和错误分类 | 配置、凭据存储、调度和采集业务 |
 | `packages/ingestion-contracts` | 跨运行时 JSON Schema 与校验器 | 工作流、存储和供应商客户端 |
 | `packages/ingest-core` | 对象引用、摘要、registry 与内核输入输出辅助能力 | Temporal、数据库和门户实现 |
@@ -54,9 +55,10 @@ ingestion-control 的固定状态接口查询 Temporal 状态。当前 Ops Web �
 
 ## 通知
 
-`source-collector` 本地命令直接请求通知列表与详情，在 source bucket 写每 ID 一个来源对象，
-并用同前缀 `_state.json` 保存增量 head、实际采集 ID 范围和历史覆盖日期。通知不进入 Temporal、
-PostgreSQL、任务注册表或 Ops API，附件只保存 metadata。
+通知使用 source-collector 本地命令采集来源对象和原始资源，人工确认唯一领域后由 publisher 显式
+写入规范化投影。App API 和 Campus Web 只读该投影。通知不进入 Temporal、任务注册表或 Ops API，
+也不创建采集批次、自动分类、自动发布或双写。数据结构和操作顺序分别见
+`docs/data/notices.md` 与 `docs/runbooks/ingestion.md`。
 
 ## 认证检查
 
@@ -69,9 +71,9 @@ Temporal。source-collector 只在本地命令或显式启动的进程中消费�
 ## 状态分工
 
 - Temporal：注册任务和文件发布 workflow 状态；
-- PostgreSQL：注册 Rust 任务投影与 migration journal；
-- source bucket：门户通知、通知边界、文件发布原文件和来源 metadata；
-- derived bucket：注册 Rust kernel 的确定性输出，不保存内部门户文件发布或通知产物。
+- PostgreSQL：注册 Rust 任务投影与 `notices.*` 规范化通知数据，两者由不同角色和 schema 所有；
+- source bucket：门户通知、门户名称映射、通知边界、原始通知资源、文件发布原文件和来源 metadata；
+- derived bucket：注册 Rust kernel 的确定性输出，以及通知的 SHA-256 内容寻址资源。
 
 ## 在线检索边界
 
@@ -85,4 +87,5 @@ Temporal。source-collector 只在本地命令或显式启动的进程中消费�
 
 - `docs/decisions/adr-0077-ingestion.md`
 - `docs/data/internal-portal.md`
+- `docs/data/notices.md`
 - `docs/runbooks/ingestion.md`

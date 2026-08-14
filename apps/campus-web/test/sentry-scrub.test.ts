@@ -26,6 +26,12 @@ describe("campus Sentry privacy boundary", () => {
 		expect(normalizeCampusTelemetryRoute("https://campus.muc.wiki/groups?source=nav")).toBe(
 			"/groups",
 		);
+		expect(
+			normalizeCampusTelemetryRoute("https://campus.muc.wiki/notices/358159?from=2026-01-01"),
+		).toBe("/notices/:noticeId");
+		expect(
+			normalizeCampusTelemetryRoute("https://campus.muc.wiki/api/notices/358159/images/0"),
+		).toBe("/api/notices/:noticeId/images/:ordinal");
 	});
 
 	it("drops browser request content, user identity and unsafe tags", () => {

@@ -2,13 +2,14 @@ export type AccountAuthReturnOrigins = Readonly<Record<string, readonly string[]
 
 const DEFAULT_RETURN_TARGET = "/account";
 
-const CAMPUS_RETURN_PATH_PREFIXES = ["/c/", "/docs/"] as const;
+const CAMPUS_RETURN_PATH_PREFIXES = ["/c/", "/docs/", "/notices/"] as const;
 const CAMPUS_RETURN_EXACT_PATHS = new Set([
 	"/",
 	"/map",
 	"/dining",
 	"/groups",
 	"/feedback",
+	"/notices",
 	"/account",
 	"/account/settings/account",
 	"/account/settings/memory",

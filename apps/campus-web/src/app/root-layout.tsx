@@ -53,13 +53,15 @@ function SessionRouteGuard({ children, pathname }: { children: ReactNode; pathna
 		pathname === "/account" ||
 		pathname === "/account/change-password" ||
 		pathname.startsWith("/account/settings/");
+	const isProtectedNoticeRoute = pathname === "/notices" || pathname.startsWith("/notices/");
 	const passwordChangeRequired = session.data?.user.passwordChangeRequired === true;
 	const mustChangePassword =
 		session.status === "authenticated" &&
 		passwordChangeRequired &&
 		!isLegalRoute &&
 		pathname !== "/account/change-password";
-	const mustSignIn = session.status === "anonymous" && isProtectedAccountRoute;
+	const isProtectedRoute = isProtectedAccountRoute || isProtectedNoticeRoute;
+	const mustSignIn = session.status === "anonymous" && isProtectedRoute;
 	const mustLeaveAuthEntry =
 		session.status === "authenticated" && !passwordChangeRequired && isAuthEntryRoute;
 
@@ -95,10 +97,10 @@ function SessionRouteGuard({ children, pathname }: { children: ReactNode; pathna
 		void navigate({ replace: true, to: target });
 	}, [mustLeaveAuthEntry, navigate]);
 
-	if (session.status === "loading" && isProtectedAccountRoute) {
+	if (session.status === "loading" && isProtectedRoute) {
 		return <RoutePending />;
 	}
-	if (session.status === "unavailable" && isProtectedAccountRoute) {
+	if (session.status === "unavailable" && isProtectedRoute) {
 		return (
 			<SessionUnavailable onRetry={() => void session.refresh()} retrying={session.isRefreshing} />
 		);

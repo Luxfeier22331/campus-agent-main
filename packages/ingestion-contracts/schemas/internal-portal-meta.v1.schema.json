@@ -1,0 +1,25 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://campus-agent.muc.wiki/contracts/internal-portal-meta.v1.schema.json",
+	"title": "Internal portal metadata",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["schema_version", "notice_types", "organizations", "updated_at"],
+	"properties": {
+		"schema_version": { "const": "internal_portal_meta.v1" },
+		"notice_types": {
+			"type": "object",
+			"propertyNames": { "pattern": "^[1-9][0-9]*$" },
+			"additionalProperties": { "$ref": "#/$defs/name" }
+		},
+		"organizations": {
+			"type": "object",
+			"propertyNames": { "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$" },
+			"additionalProperties": { "$ref": "#/$defs/name" }
+		},
+		"updated_at": { "type": "string", "format": "date-time" }
+	},
+	"$defs": {
+		"name": { "type": "string", "minLength": 1 }
+	}
+}

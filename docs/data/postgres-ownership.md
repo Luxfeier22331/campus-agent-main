@@ -19,6 +19,8 @@ schema 定义，连接拓扑见 `../architecture/system/data-plane.md`，部署�
 | `campus_agent` | 数据库 bootstrap | schema 安装和授权，不用于常驻运行时 |
 | `app_api` | `apps/app-api` | 产品数据读写和获准运行摘要读取 |
 | `execution_control` | `apps/execution-control` | 执行投影、模型配置读写和文档 grounding 准入 |
+| `ingestion_control` | `apps/ingestion-control` | 采集任务投影读写 |
+| `notice_publisher` | `jobs/notice-publisher` | 规范化通知写入 |
 | `ops_web` | `apps/ops-web` | 获准运行投影的列级只读访问、Dining 内容维护和内部门户凭据读写 |
 
 Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，不共享产品运行时角色。外部
@@ -38,6 +40,8 @@ Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，�
 | `runtime.request_observability_fact` | App API 产品终态 | App API |
 | `runtime.agent_*` | execution-control | execution-control |
 | `execution_config.*` | execution-control 配置管理 | execution-control |
+| `ingestion_control.tasks` | ingestion-control | ingestion-control |
+| `notices.*` | notice-publisher | App API 只读业务表 |
 | `dining.*` | Ops Web | Ops Web、App API 公开读取 |
 | `internal_portal.credentials`、`internal_portal.automation_tokens` | Ops Web | Ops Web |
 
@@ -60,6 +64,8 @@ migration 记录。
 | --- | --- | --- |
 | App API | `apps/app-api/src/db/schema/managed.ts` 与 `apps/app-api/drizzle/` | `drizzle.app_api_migrations` |
 | execution-control | `apps/execution-control/internal/schemamigrations/` | `public.execution_control_migrations` |
+| ingestion-control | `apps/ingestion-control/migrations/` | `ingestion_control.schema_migrations` |
+| 通知 | `jobs/notice-publisher/migrations/` | `notices.schema_migrations` |
 | Ops Web | `packages/domains/dining/src/schema.ts`、`apps/ops-web/ops/db/internal-portal-schema.ts` 与 `apps/ops-web/drizzle/` | `drizzle.ops_web_dining_migrations`（保留历史名称） |
 
 - 已应用 migration 不得修改、重排或重新生成；结构变化新增下一条 migration。Drizzle 的 SQL、
@@ -98,6 +104,8 @@ migration 记录。
   `llm` 和 `embedding` 分别由消费它们的运行路径检查并失败。
 - App API 读取 Dining 当前发布地图、菜单和公开评价；可创建或删除学生自己的评价并创建举报，
   但不能读取地图草稿和评价修改历史，也不能修改地图或菜单；
+- App API 只能读取 `notices` 的通知、资源 metadata、类型、组织和领域业务表，不能读取
+  `notices.schema_migrations` 或写入该 schema；
 - Ops Web 使用同一 `ops_web` 角色维护 Dining 地图、菜单、评价、举报和评价修改历史；
 - Ops Web 使用同一角色读写 `internal_portal.credentials` 和
   `internal_portal.automation_tokens`；App API 和其他运行角色没有该 schema 权限。token 明文保留是
@@ -112,6 +120,7 @@ migration 记录。
 ## 可执行来源
 
 - App API schema：`apps/app-api/src/db/schema/`、`apps/app-api/ops/db/`、`apps/app-api/drizzle/`
+- 通知 schema 与授权：`jobs/notice-publisher/migrations/`
 - 执行投影与配置：`apps/execution-control/internal/schemamigrations/`
 - Ops Web schema：`packages/domains/dining/src/schema.ts`、
   `apps/ops-web/ops/db/internal-portal-schema.ts`、`apps/ops-web/drizzle/`

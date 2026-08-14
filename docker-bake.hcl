@@ -66,6 +66,11 @@ target "ops-web" {
   dockerfile = "apps/ops-web/Dockerfile"
 }
 
+target "notice-publisher" {
+  inherits   = ["_common"]
+  dockerfile = "jobs/notice-publisher/Dockerfile"
+}
+
 target "source-collector" {
   inherits   = ["_common"]
   dockerfile = "apps/source-collector/Dockerfile"

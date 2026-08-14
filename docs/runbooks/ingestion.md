@@ -1,6 +1,6 @@
 ---
 doc_type: runbook
-owner_boundary: apps/ingestion-control
+owner_boundary: ingestion-data-plane
 status: active
 ---
 
@@ -71,20 +71,158 @@ curl -fsS -X POST \
 成功结果只在 source bucket 保存 `file` 与 `source.json`，具体合同见
 `docs/contracts/internal-portal-file-release.md`。
 
-## 本地通知采集
+## 本地通知流程
+
+通知流程由独立、显式的步骤组成。采集不会自动分类或发布，publisher 也不会触发后续领域处理。
+
+### 初始化与认证
 
 ```bash
 pnpm dev:init
-pnpm --filter source-collector notice:sync
-pnpm --filter source-collector notice:status
-pnpm --filter source-collector notice:backfill -- --start-date 2026-01-01
+pnpm --filter source-collector auth:check
 ```
 
-`dev:init` 启动本地 RustFS、确保共享 source bucket 存在，并生成对象存储 `.env.local`。sync 与
-backfill 还需要开发者在未跟踪的 `.env` 中提供当前 TGC，status 只读对象存储状态；三者都不需要
-PostgreSQL、ingestion-control API 或 Temporal。首次同步只建立当前最大 ID；后续采集新增通知；
-历史回填必须显式提供日期。同一 `site_id` 的 sync 与 backfill 不得并发执行。通知对象和
-`_state.json` 边界都写入 source bucket。
+`dev:init` 启动本地 RustFS、确保共享 source bucket 存在，并生成对象存储和本地 PostgreSQL 配置。
+开发者按 `portal-auth.md` 在未跟踪的适配器 `.env` 中提供当前 TGC；认证检查必须成功后才能请求门户。
+本地通知命令不需要 ingestion-control API 或 Temporal。
+
+### 小范围采集
+
+先选择一个日期边界完成试点，再扩大同一来源范围：
+
+```bash
+NOTICE_START_DATE=2026-08-01
+pnpm --filter source-collector notice:sync
+pnpm --filter source-collector notice:status
+pnpm --filter source-collector notice:backfill --start-date "$NOTICE_START_DATE"
+pnpm --filter source-collector notice:status
+```
+
+首次 sync 只建立全局列表 head；后续 sync 采集新通知，历史内容必须显式 backfill。sync 与 backfill
+不得并发执行。成功后检查 source bucket 包含 `internal_portal/meta.json`、通知对象和 `_state.json`，
+并确认状态中的历史边界已经覆盖 `NOTICE_START_DATE`。来源对象必须通过版本化 schema，内部通知与外链
+字段必须成对合法；任一对象或 metadata 失败时状态不能推进。通知数据结构见 `../data/notices.md`。
+
+### 资源补齐
+
+先对一个通知 dry-run，确认缺失集合后再下载：
+
+```bash
+NOTICE_ID=123456
+pnpm --filter source-collector notice:resources --dry-run --notice-id "$NOTICE_ID"
+pnpm --filter source-collector notice:resources --notice-id "$NOTICE_ID"
+pnpm --filter source-collector notice:resources --dry-run --notice-id "$NOTICE_ID"
+```
+
+附件请求不使用 `notice_annex_path` 作为 URL，而是按
+`/comsys-portal-notice-web/download?id=<annex-id>&notice_id=<notice-id>` 构造；单个图片或附件上限为
+100 MiB。默认并发为 4，`--concurrency` 只接受 1 到 16。资源命令成功后再次 dry-run，目标范围必须
+报告 `missing=0`。试点确认图片、附件名称、顺序和字节类型后，可以省略 `--notice-id` 补齐全部已采集
+通知。外链通知不会触发外部正文抓取。
+
+### 分类交接
+
+分类脚本只读本地来源并把结果写到标准输出：
+
+```bash
+pnpm notice:classify --notice-id "$NOTICE_ID"
+```
+
+人员确认后，把一次性 `notice_id/domain` JSONL 保存到未跟踪路径，并设置：
+
+```bash
+NOTICE_CLASSIFICATIONS=/absolute/path/to/classifications.jsonl
+```
+
+每个通知只能出现一次且只能属于一个领域；尚未确认时使用 `unclassified`。分类文件不保存理由、
+置信度、模型名称或原始响应，也不写入对象存储或 PostgreSQL。具体脚本输入见
+`../../scripts/notices/README.md`。
+
+### Schema 与历史附件链接
+
+`dev:init` 创建 `notice_publisher` 角色并安装 `notices.*`。资源齐备且分类 JSONL 已人工确认后，
+先确认当前 migration：
+
+```bash
+set -a
+. apps/app-api/.env.local
+set +a
+NOTICES_DATABASE_URL="$APP_API_SCHEMA_DATABASE_URL" pnpm --filter notice-publisher migrate
+```
+
+只有已存在 migration 4 之前投影的本地数据库需要从 source JSON 回填附件来源 ID。该命令只更新
+PostgreSQL metadata，不下载附件字节：
+
+```bash
+set -a
+. jobs/notice-publisher/.env.local
+set +a
+pnpm --filter notice-publisher backfill-attachment-links --dry-run
+pnpm --filter notice-publisher backfill-attachment-links
+pnpm --filter notice-publisher backfill-attachment-links --dry-run
+```
+
+dry-run 必须没有缺失 ID 或序号冲突；apply 后的 `pending` 必须为 `0`。全新投影由 publisher 直接写入
+附件 ID，不运行历史回填。
+
+### 试点与批量发布
+
+先发布一个通知：
+
+```bash
+INTERNAL_PORTAL_BASE_URL=https://portal.example.edu \
+  pnpm --filter notice-publisher run publish \
+  --classifications "$NOTICE_CLASSIFICATIONS" \
+  --notice-id "$NOTICE_ID"
+```
+
+核对正文、外链、图片和附件后，省略 `--notice-id` 发布分类清单全部记录：
+
+```bash
+INTERNAL_PORTAL_BASE_URL=https://portal.example.edu \
+  pnpm --filter notice-publisher run publish \
+  --classifications "$NOTICE_CLASSIFICATIONS"
+```
+
+publisher 在数据库事务前完成来源读取、正文清洗、资源摘要计算和 derived 对象写入，再用单一事务
+写映射、通知和资源 metadata。任一来源缺失、合同无效或已有投影冲突都会以非零状态停止；数据库不留
+部分批次，已验证的内容寻址对象可在重跑时复用。相同输入必须幂等。
+
+### 产品验收
+
+发布后至少确认：
+
+- 列表总数、分页，以及关键词、领域、来源、门户类型、发布部门和日期筛选；
+- 站内正文通过清洗合同，标题不重复，图片按序号返回；
+- 外链条目直接打开已校验来源，不进入站内详情；
+- 附件显示 metadata 和门户原生链接，App API 不代理附件字节；
+- 桌面与移动端没有正文、标签、日期或长附件名重叠；
+- 未登录、空结果、无效参数、404 和依赖失败保留各自状态。
+
+先完成一个站内通知、一个外链通知和一个含资源通知的浏览器验收，再扩大数据范围。本地对象和
+PostgreSQL 结果不表示集群环境已经采集、发布或部署。
+
+### 本地重建
+
+正文清洗合同变化后，已有投影会按不可变校验明确冲突。本地验证可以只清空通知和资源投影，再从
+保留的 source 对象和同一份人工确认分类清单完整重建：
+
+```bash
+set -a
+. apps/app-api/.env.local
+set +a
+psql "$APP_API_SCHEMA_DATABASE_URL" -v ON_ERROR_STOP=1 \
+  -c 'TRUNCATE notices.notice_assets, notices.notices;'
+INTERNAL_PORTAL_BASE_URL=https://portal.example.edu \
+  pnpm --filter notice-publisher run publish \
+  --classifications "$NOTICE_CLASSIFICATIONS"
+```
+
+该步骤只适用于 `dev:init` 生成的本地数据库，不是集群迁移或 publisher 自动更新模式。类型、组织、
+领域映射和 source bucket 保持不变。
+
+该流程没有定时任务或自动双写。集群回填和发布必须由对应环境配置明确执行，本地试点结果不表示集群
+已经更新。App API 与 Campus Web 的读取路径也不表示任一环境已经完成写入或部署。
 
 ## Kubernetes
 
@@ -111,6 +249,13 @@ workflow ID、source-collector Activity、门户响应及两个固定 source 对
 pnpm --dir packages/contracts check
 pnpm exec turbo run typecheck test --filter=ingestion-contracts --filter=ingest-core --filter=ingestion-control --filter=source-collector --concurrency=1 --summarize
 pnpm --dir apps/ingestion-control test:database-integration
+pnpm notice:classify:typecheck
+pnpm exec tsx --test scripts/notices/*.test.ts
+pnpm --filter notice-publisher typecheck
+pnpm --filter notice-publisher test
+pnpm --filter notice-publisher test:migration-integration
+pnpm --filter app-api test
+pnpm --filter campus-web test
 scripts/infra/validate.sh
 ```
 

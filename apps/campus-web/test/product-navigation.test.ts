@@ -7,6 +7,7 @@ describe("campus product navigation model", () => {
 		expect(getProductNavItems().map((item) => [item.id, item.href, item.label])).toEqual([
 			["chat", "/", "问答"],
 			["docs", "/docs", "文档"],
+			["notices", "/notices", "通知"],
 			["map", "/map", "校园地图"],
 			["dining", "/dining", "食堂"],
 			["groups", "/groups", "同好群"],
@@ -28,6 +29,7 @@ describe("campus product navigation model", () => {
 		expect(isProductNavActive("/", findItem("chat"))).toBe(true);
 		expect(isProductNavActive("/c/conv_01", findItem("chat"))).toBe(true);
 		expect(isProductNavActive("/docs/regulations", findItem("docs"))).toBe(true);
+		expect(isProductNavActive("/notices/358159", findItem("notices"))).toBe(true);
 		expect(isProductNavActive("/map", findItem("map"))).toBe(true);
 		expect(isProductNavActive("/dining", findItem("dining"))).toBe(true);
 		expect(isProductNavActive("/groups", findItem("groups"))).toBe(true);

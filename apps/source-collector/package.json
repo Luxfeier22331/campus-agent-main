@@ -8,6 +8,7 @@
 	"scripts": {
 		"auth:check": "tsx adapters/internal-portal/src/auth-check.ts",
 		"notice:backfill": "tsx adapters/internal-portal/src/notice-cli.ts backfill",
+		"notice:resources": "tsx adapters/internal-portal/src/notice-resource-cli.ts",
 		"notice:status": "tsx adapters/internal-portal/src/notice-cli.ts status",
 		"notice:sync": "tsx adapters/internal-portal/src/notice-cli.ts sync",
 		"start:temporal-worker": "tsx ./src/temporal-worker.ts",
@@ -17,6 +18,7 @@
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.1109.0",
 		"@campus-agent/internal-portal-client": "workspace:*",
+		"@campus-agent/notices": "workspace:*",
 		"@temporalio/activity": "^1.22.0",
 		"@temporalio/worker": "^1.22.0",
 		"content-disposition": "^2.0.1",
