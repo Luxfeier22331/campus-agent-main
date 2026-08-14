@@ -44,7 +44,7 @@ migration。修改后运行 `pnpm --dir apps/execution-control test:database-int
 
 ## 本地开发
 
-要求 Go `1.26.5` 和 `golangci-lint v2.12.2`；仓库 flake 的 `ci-full` 提供这两个版本。
+要求 Go `1.26.6` 和 `golangci-lint v2.12.2`；仓库 flake 的 `ci-full` 提供这两个版本。
 
 ```bash
 pnpm --dir apps/execution-control native:format
