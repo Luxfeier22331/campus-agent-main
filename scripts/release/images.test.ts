@@ -27,9 +27,24 @@ function bakePrint(targets: string[]): CommandResult {
 	});
 }
 
-function manifest(digest: string, architectures: string[] = ["arm64"]): CommandResult {
+function manifest(
+	digest: string,
+	architectures: string[] = ["arm64"],
+	revision: string | null = SHA,
+): CommandResult {
 	return result({
 		stdout: JSON.stringify({
+			...(revision
+				? {
+						image: {
+							"linux/arm64": {
+								config: {
+									Labels: { "org.opencontainers.image.revision": revision },
+								},
+							},
+						},
+					}
+				: {}),
 			manifest: {
 				digest,
 				manifests: architectures.map((architecture) => ({
@@ -132,6 +147,30 @@ test("rejects an existing immutable tag with additional Linux platforms", async 
 	};
 
 	await assert.rejects(publishImages(options, runner), /does not contain exactly one arm64 image/u);
+});
+
+test("rejects an existing immutable tag without a source revision", async (t) => {
+	const { options } = await fixture(t);
+	const runner: CommandRunner = async (_command, args) => {
+		if (args.includes("--print")) {
+			return bakePrint(["agent-runtime"]);
+		}
+		return manifest(FIRST_DIGEST, ["arm64"], null);
+	};
+
+	await assert.rejects(publishImages(options, runner), /has the wrong source revision/u);
+});
+
+test("rejects an existing immutable tag for a different source revision", async (t) => {
+	const { options } = await fixture(t);
+	const runner: CommandRunner = async (_command, args) => {
+		if (args.includes("--print")) {
+			return bakePrint(["agent-runtime"]);
+		}
+		return manifest(FIRST_DIGEST, ["arm64"], "f".repeat(40));
+	};
+
+	await assert.rejects(publishImages(options, runner), /has the wrong source revision/u);
 });
 
 test("does not treat an unexpected registry failure as a missing image", async (t) => {

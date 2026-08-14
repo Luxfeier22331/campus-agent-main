@@ -32,11 +32,15 @@ Worker version、配置和其他环境资源。候选物发布成功不表示环
 2. 当前 workflow 从环境仓游标计算累计影响面，发布受影响的不可变候选物；PR 已拥有源码、合同、
    受影响 Node 证据和仓库合同检查；原生、数据库、浏览器和业务 E2E 不进入 PR 自动门禁，按明确
    manual profile 或本地路径执行；main 候选不重复运行这些检查；
-   触发条件、输入和产物以 `.github/workflows/` 为准。App API、Campus Web 与 status-web 在各自的真实
-   上传路径中完成 Worker 配置校验；镜像、三个 Worker 发布器和 Kubernetes 清单分别产生候选物。一个候选面的发布
-   失败不使已经成功发布的候选物失效，但本次不会创建不完整的 GitOps 提升；同一源码提交重试时应
+   触发条件、输入和产物以 `.github/workflows/` 为准。App API、Campus Web 与 status-web 在同一个
+   Worker publisher 中按选中项完成真实上传路径和配置校验；镜像、Worker publisher 和 Kubernetes 清单
+   分别产生候选物。Worker publisher 会在某一 Worker 失败后继续尝试其他已选 Worker，但本次不会创建不完整的
+   GitOps 提升；同一源码提交重试时应
    直接复用已有候选物。
 3. 检查候选物记录的源码提交、摘要和构建身份，不用可变标签或重复构建覆盖已有产物。
+   Cloudflare 不返回 Worker Secret 明文，因此带 `--secrets-file` 的候选重跑时重新上传版本；不带
+   Secret 的候选只有在 tag、message、本次全部明文变量及显式动态 binding 一致时才复用
+   已有可部署版本。
 4. 在环境仓 checkout 中运行 `pnpm gitops promote-source`，校验读取时的 staging 游标仍未前进，
    只更新 staging root 已注册的活跃 Application。创建或更新唯一 `deploy/staging` PR 前先渲染受
    影响的 Kubernetes 期望状态；环境仓 PR 再完成仓库级检查和受影响的 Terraform、Helm 检查，确认
@@ -46,8 +50,10 @@ Worker version、配置和其他环境资源。候选物发布成功不表示环
 影响面由 Turbo package graph 与 package 外部 task input 计算，Kubernetes 由 `infra/k8s` 所有者范围
 计算。当前 staging 自动候选只包含已注册活跃 Application 消费的 `agent-runtime`、
 `app-api-schema`、`execution-control`、`ops-web`、App API Worker、Campus Web Worker、status-web Worker
-与 Kubernetes source。Worker 候选由 Source affected graph 选择，不以环境仓当前版本清单作为发布白名单，
-因此新 Worker 可以先上传候选，再由环境仓首次选择。采集运行时
+与 Kubernetes source。Worker 候选由 Source affected graph 选择，不以环境仓当前版本清单作为发布白名单。
+`wrangler versions upload` 只为已存在的 Worker 创建未部署版本；新 Worker 必须先由环境仓通过普通受审
+变更完成 Cloudflare 资源、绑定和首次部署，再进入自动候选发布。源码仓不得以 `wrangler deploy` 代替
+这一步，因为该命令会创建版本并立即将其部署到全部流量。采集运行时
 当前未部署到 staging，因此 `ingestion-control`、`ingestion-control-worker` 和 `source-collector`
 不会被候选发布自动构建。`docker-bake.hcl` 中未进入候选映射的 Dining 和 docs 镜像只按明确发布需求
 手动构建。

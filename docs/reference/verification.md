@@ -31,9 +31,9 @@ status: active
 基础设施、数据库、用户界面和已注册候选 Dockerfile 仍按其明确所有权选择对应证据或制品。
 
 `flake.lock` 固定 source 工具链的 nixpkgs revision，`ci-core` 提供普通 hosted 控制路径，`ci-light`
-在其上增加静态 lint 和依赖扫描工具，`ci-release` 再增加 Docker client/Buildx/Trivy，`ci-full` 只
-增加重型 profile 所需 CLI，并为 uv 安装的 Python 二进制 wheel 提供 C++ runtime 搜索路径；它们都
-不是 validation profile，也不会自动触发全量检查。
+在其上增加静态 lint 和依赖扫描工具，`ci-release` 从 `ci-core` 单独增加 Docker client/Buildx/Trivy，
+`ci-full` 汇总静态、发布和重型 profile 所需 CLI，并为 uv 安装的 Python 二进制 wheel 提供 C++ runtime
+搜索路径；它们都不是 validation profile，也不会自动触发全量检查。
 Nix 不接管 `pnpm-lock.yaml`、`uv.lock`、
 `Cargo.lock` 或 Go module，也不提供 Docker daemon、PostgreSQL、Testcontainers 或 Playwright browser。
 
@@ -129,8 +129,9 @@ artifact，也不把 dependency scan 的成功结果当作应用行为或镜像�
 
 ## 发布与环境
 
-普通 PR 不发布最终镜像。`main` 发布链先把精确 Source SHA 的 `staging/candidate` 标为 `pending`，
-被选 publisher 全部成功后才标为 `success`；该状态只证明所选制品已经完成构建、扫描和上传。镜像
+普通 PR 不发布最终镜像。`main` 发布链在存在镜像、Worker 或 Kubernetes 候选时先把精确 Source SHA 的
+`staging/candidate` 标为 `pending`，被选 publisher 全部成功后才标为 `success`；没有任何候选的空发布
+由 planner 直接标为 `success`，不再启动状态汇总 job。该状态只证明所选制品已经完成构建、扫描和上传。镜像
 使用 Docker Bake 构建单一 `linux/arm64` 索引、经 Trivy 扫描并记录 digest；同一源码提交已有合法
 不可变镜像时直接复用。
 

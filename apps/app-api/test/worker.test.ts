@@ -168,7 +168,18 @@ describe("app-api worker foundation", () => {
 		expect(packageManifest.scripts?.["upload:staging"]).toContain("upload-staging-version.ts");
 		expect(packageManifest.scripts?.["deploy:preflight:staging"]).toBeUndefined();
 		expect(packageManifest.scripts?.["deploy:check-secrets:staging"]).toBeUndefined();
-		expect(uploadStagingVersionSource).toContain("uploadStagingWorkerVersion");
+		expect(uploadStagingVersionSource).toContain("await uploadStagingWorkerVersion");
+		expect(uploadStagingVersionSource).toContain("expectedBindings:");
+		expect(uploadStagingVersionSource).toContain('name: "APP_API_DB"');
+		expect(uploadStagingVersionSource).toContain("properties: { id: hyperdriveId }");
+		expect(uploadStagingVersionSource).toContain('name: "EXECUTION_CONTROL_PRIVATE"');
+		expect(uploadStagingVersionSource).toContain(
+			"properties: { service_id: executionControlVpcServiceId }",
+		);
+		expect(uploadStagingVersionSource).toContain('name: "OBJECT_STORE_PRIVATE"');
+		expect(uploadStagingVersionSource).toContain(
+			"properties: { service_id: objectStoreVpcServiceId }",
+		);
 		expect(uploadStagingVersionSource).not.toContain("loadRepoStagingEnvFile");
 		expect(uploadStagingVersionSource).toContain("resolveStagingSentryRelease");
 		expect(uploadStagingVersionSource).toContain("SENTRY_APP_API_PROJECT_SLUG");

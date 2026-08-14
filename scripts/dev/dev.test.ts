@@ -14,14 +14,19 @@ import {
 import {
 	assertDestroyConfirmation,
 	classifyIsolatedResourceState,
+	classifyLocalDevInstanceStatus,
+	classifySharedInfrastructureStatus,
 	derivedBucketPublicReadPolicy,
 	objectStoreCommand,
 	resolveIsolatedResourceAction,
+	resolveSharedInfrastructureAction,
+	sharedComposeUpCommand,
 } from "./lifecycle";
 import {
 	allocateLocalDevSlot,
 	calculateLocalDevPorts,
 	ensureLocalDevProfile,
+	isMainWorktree,
 	type LocalDevProfileV1,
 	listLocalDevProfiles,
 	normalizeResourceLabel,
@@ -87,6 +92,8 @@ describe("local development profiles", () => {
 		try {
 			const main = ensureLocalDevProfile(repository);
 			const worktree = ensureLocalDevProfile(linked);
+			assert.equal(isMainWorktree(repository), true);
+			assert.equal(isMainWorktree(linked), false);
 			assert.equal(main.slot, 0);
 			assert.equal(worktree.slot, 1);
 			assert.notEqual(main.databaseName, worktree.databaseName);
@@ -249,6 +256,144 @@ describe("local development lifecycle guards", () => {
 		);
 	});
 
+	it("reuses ready shared infrastructure and only lets main reconcile it", () => {
+		assert.equal(
+			resolveSharedInfrastructureAction({ isMainWorktree: true, status: "ready" }),
+			"reuse",
+		);
+		assert.equal(
+			resolveSharedInfrastructureAction({ isMainWorktree: false, status: "ready" }),
+			"reuse",
+		);
+		assert.equal(
+			resolveSharedInfrastructureAction({ isMainWorktree: true, status: "missing" }),
+			"reconcile",
+		);
+		assert.equal(
+			resolveSharedInfrastructureAction({ isMainWorktree: false, status: "missing" }),
+			"reject",
+		);
+		assert.equal(
+			resolveSharedInfrastructureAction({ isMainWorktree: true, status: "unhealthy" }),
+			"reconcile",
+		);
+		assert.equal(
+			resolveSharedInfrastructureAction({ isMainWorktree: false, status: "drifted" }),
+			"reject",
+		);
+		assert.equal(
+			resolveSharedInfrastructureAction({ isMainWorktree: true, status: "unknown" }),
+			"reject",
+		);
+		assert.deepEqual(sharedComposeUpCommand().slice(-3), ["up", "-d", "--wait"]);
+		assert.doesNotMatch(sharedComposeUpCommand().join(" "), /remove-orphans/u);
+	});
+
+	it("requires healthy containers, matching Compose labels and hashes", () => {
+		const healthy = createSharedStatusInput();
+		assert.equal(classifySharedInfrastructureStatus(healthy), "ready");
+		assert.equal(
+			classifySharedInfrastructureStatus({
+				...healthy,
+				containers: {
+					...healthy.containers,
+					postgres: { ...healthy.containers.postgres, healthy: false },
+				},
+			}),
+			"unhealthy",
+		);
+		assert.equal(
+			classifySharedInfrastructureStatus({
+				...healthy,
+				containers: {
+					...healthy.containers,
+					objectStore: { ...healthy.containers.objectStore, configHash: "changed" },
+				},
+			}),
+			"drifted",
+		);
+		assert.equal(
+			classifySharedInfrastructureStatus({
+				...healthy,
+				containers: {
+					...healthy.containers,
+					postgres: { ...healthy.containers.postgres, service: undefined },
+				},
+			}),
+			"drifted",
+		);
+		assert.equal(
+			classifySharedInfrastructureStatus({
+				...healthy,
+				containers: {
+					...healthy.containers,
+					postgres: { ...healthy.containers.postgres, probe: "unknown" },
+				},
+			}),
+			"unknown",
+		);
+		assert.equal(
+			classifySharedInfrastructureStatus({
+				...healthy,
+				containers: {
+					...healthy.containers,
+					postgres: { ...healthy.containers.postgres, probe: "missing" },
+				},
+			}),
+			"missing",
+		);
+		assert.equal(
+			classifySharedInfrastructureStatus({
+				...healthy,
+				buckets: { docs: "missing", source: "present" },
+			}),
+			"missing",
+		);
+	});
+
+	it("classifies instance records without hiding stale or partial resources", () => {
+		assert.equal(
+			classifyLocalDevInstanceStatus({
+				bucket: "present",
+				database: "present",
+				worktree: "present",
+			}),
+			"ready",
+		);
+		assert.equal(
+			classifyLocalDevInstanceStatus({
+				bucket: "present",
+				database: "present",
+				worktree: "missing",
+			}),
+			"stale",
+		);
+		assert.equal(
+			classifyLocalDevInstanceStatus({
+				bucket: "present",
+				database: "missing",
+				worktree: "present",
+			}),
+			"partial",
+		);
+		assert.equal(
+			classifyLocalDevInstanceStatus({
+				bucket: "missing",
+				database: "missing",
+				worktree: "present",
+			}),
+			"unprovisioned",
+		);
+		assert.equal(
+			classifyLocalDevInstanceStatus({
+				bucket: "unknown",
+				database: "unknown",
+				worktree: "missing",
+			}),
+			"unknown",
+		);
+	});
+
 	it("checks bucket existence with the rc bucket listing operation", () => {
 		const command = objectStoreCommand("campus-agent-source", "inspect");
 		assert.match(command.at(-1) ?? "", /rc ls "local\/\$BUCKET"/u);
@@ -258,6 +403,12 @@ describe("local development lifecycle guards", () => {
 	it("requires exact instance confirmation before destruction", () => {
 		assert.doesNotThrow(() => assertDestroyConfirmation("dining-a1b2", "dining-a1b2"));
 		assert.throws(() => assertDestroyConfirmation("dining-a1b2", "dining-other"));
+	});
+
+	it("keeps destruction read-only with respect to shared Compose", () => {
+		const source = readFileSync(resolve(import.meta.dirname, "./lifecycle.ts"), "utf8");
+		assert.match(source, /assertSharedInfrastructureReady\(input\.repoRoot\)/u);
+		assert.doesNotMatch(source, /ensureSharedInfrastructure\(input\.repoRoot\)/u);
 	});
 
 	it("keeps the app-api local loader outside the root environment", () => {
@@ -307,5 +458,26 @@ function createProfile(worktreePath: string): LocalDevProfileV1 {
 		schemaVersion: 1,
 		slot: 1,
 		worktreePath,
+	};
+}
+
+function createSharedStatusInput(): Parameters<typeof classifySharedInfrastructureStatus>[0] {
+	const container = {
+		configHash: "hash",
+		healthy: true,
+		probe: "present" as const,
+		project: "campus-agent-local",
+		running: true,
+		service: "postgres",
+	};
+	return {
+		buckets: { docs: "present", source: "present" },
+		containers: {
+			objectStore: { ...container, service: "object-store" },
+			postgres: container,
+		},
+		expectedHashes: { objectStore: "hash", postgres: "hash" },
+		network: "present",
+		volumes: { objectStore: "present", postgres: "present" },
 	};
 }

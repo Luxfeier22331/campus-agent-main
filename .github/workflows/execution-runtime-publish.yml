@@ -63,6 +63,17 @@ jobs:
           install_url: https://releases.nixos.org/nix/nix-2.35.1/install
           enable_kvm: false
 
+      - name: Verify current main revision
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          current_main="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          if [[ "$GITHUB_SHA" != "$current_main" ]]; then
+            echo "Source revision $GITHUB_SHA is no longer the current main revision $current_main." >&2
+            exit 1
+          fi
+
       - name: Create GitOps read token
         id: gitops-read-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3
@@ -115,6 +126,13 @@ jobs:
           jq . <<< "$plan"
 
       - name: Mark staging candidate pending
+        if: >-
+          steps.plan.outcome == 'success' &&
+          (
+            steps.plan.outputs.images != '[]' ||
+            steps.plan.outputs.workers != '[]' ||
+            steps.plan.outputs.kubernetes == 'true'
+          )
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -123,6 +141,22 @@ jobs:
           -f state=pending
           -f context=staging/candidate
           -f description='Publishing selected staging candidates'
+          -f target_url="$TARGET_URL"
+
+      - name: Mark empty staging candidate success
+        if: >-
+          steps.plan.outcome == 'success' &&
+          steps.plan.outputs.images == '[]' &&
+          steps.plan.outputs.workers == '[]' &&
+          steps.plan.outputs.kubernetes == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: >-
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}"
+          -f state=success
+          -f context=staging/candidate
+          -f description='No immutable artifact publication was required'
           -f target_url="$TARGET_URL"
 
   publish-images:
@@ -150,28 +184,21 @@ jobs:
           install_url: https://releases.nixos.org/nix/nix-2.35.1/install
           enable_kvm: false
 
+      - name: Verify current main revision before image publication
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          current_main="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          if [[ "$GITHUB_SHA" != "$current_main" ]]; then
+            echo "Source revision $GITHUB_SHA is no longer the current main revision $current_main." >&2
+            exit 1
+          fi
+
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4
         with:
           cache-binary: false
-
-      - name: Initialize release toolchain and record runner facts
-        run: |
-          set -euo pipefail
-          {
-            echo "### Release runner"
-            echo
-            echo '```text'
-            printf 'name=%s os=%s arch=%s\n' "$RUNNER_NAME" "$RUNNER_OS" "$RUNNER_ARCH"
-            printf 'cpus='; nproc
-            free -h
-            df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
-            docker version --format 'docker_client={{.Client.Version}} docker_server={{.Server.Version}}'
-            docker buildx version
-            docker buildx inspect
-            echo '```'
-            echo
-          } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Login to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4.6.0
@@ -201,25 +228,14 @@ jobs:
           overwrite: true
           retention-days: 1
 
-  publish-app-api:
+  publish-workers:
     needs: release-plan
     if: >-
       needs.release-plan.result == 'success' &&
-      contains(fromJSON(needs.release-plan.outputs.workers), 'app-api-staging')
+      fromJSON(needs.release-plan.outputs.workers)[0] != null
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 30
     environment: staging
-    env:
-      APP_API_DB_HYPERDRIVE_ID: ${{ vars.APP_API_DB_HYPERDRIVE_ID }}
-      AUTH_EMAIL_FROM: ${{ vars.AUTH_EMAIL_FROM }}
-      AUTH_EMAIL_REPLY_TO: ${{ vars.AUTH_EMAIL_REPLY_TO }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      EXECUTION_CONTROL_VPC_SERVICE_ID: ${{ vars.EXECUTION_CONTROL_VPC_SERVICE_ID }}
-      OBJECT_STORE_VPC_SERVICE_ID: ${{ vars.OBJECT_STORE_VPC_SERVICE_ID }}
-      SENTRY_APP_API_DSN: ${{ vars.SENTRY_APP_API_DSN }}
-      APP_API_EXECUTION_SHARED_SECRET: ${{ secrets.APP_API_EXECUTION_SHARED_SECRET }}
-      OPS_WEB_INTERNAL_TOKEN: ${{ secrets.OPS_WEB_INTERNAL_TOKEN }}
     defaults:
       run:
         shell: nix develop .#ci-core --command bash -e {0}
@@ -235,15 +251,72 @@ jobs:
           install_url: https://releases.nixos.org/nix/nix-2.35.1/install
           enable_kvm: false
 
-      - name: Install App API workspace
-        run: >-
-          pnpm install --frozen-lockfile
-          --filter campus-agent-web-workspace
-          --filter 'campus-contracts...'
-          --filter 'app-api...'
+      - name: Verify current main revision before Worker publication
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          current_main="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          if [[ "$GITHUB_SHA" != "$current_main" ]]; then
+            echo "Source revision $GITHUB_SHA is no longer the current main revision $current_main." >&2
+            exit 1
+          fi
+
+      - name: Install selected Worker workspaces
+        id: install_workers
+        env:
+          WORKERS: ${{ needs.release-plan.outputs.workers }}
+        run: |
+          set -euo pipefail
+          filters=()
+          declare -A seen=()
+          add_filter() {
+            local filter="$1"
+            if [[ -z "${seen[$filter]+present}" ]]; then
+              filters+=(--filter "$filter")
+              seen["$filter"]=1
+            fi
+          }
+          add_filter campus-agent-web-workspace
+          while read -r worker; do
+            case "$worker" in
+              app-api-staging)
+                add_filter 'campus-contracts...'
+                add_filter 'app-api...'
+                ;;
+              campus-web-staging)
+                add_filter 'campus-contracts...'
+                add_filter 'campus-web...'
+                ;;
+              status-web-staging)
+                add_filter 'campus-contracts...'
+                add_filter 'status-web...'
+                ;;
+              *)
+                echo "Unsupported Worker candidate: $worker" >&2
+                exit 1
+                ;;
+            esac
+          done < <(jq -r '.[]' <<< "$WORKERS")
+          pnpm install --frozen-lockfile "${filters[@]}"
 
       - name: Upload app-api candidate
+        id: app_api
+        if: >-
+          !cancelled() &&
+          steps.install_workers.outcome == 'success' &&
+          contains(fromJSON(needs.release-plan.outputs.workers), 'app-api-staging')
         env:
+          APP_API_DB_HYPERDRIVE_ID: ${{ vars.APP_API_DB_HYPERDRIVE_ID }}
+          AUTH_EMAIL_FROM: ${{ vars.AUTH_EMAIL_FROM }}
+          AUTH_EMAIL_REPLY_TO: ${{ vars.AUTH_EMAIL_REPLY_TO }}
+          APP_API_EXECUTION_SHARED_SECRET: ${{ secrets.APP_API_EXECUTION_SHARED_SECRET }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          EXECUTION_CONTROL_VPC_SERVICE_ID: ${{ vars.EXECUTION_CONTROL_VPC_SERVICE_ID }}
+          OBJECT_STORE_VPC_SERVICE_ID: ${{ vars.OBJECT_STORE_VPC_SERVICE_ID }}
+          OPS_WEB_INTERNAL_TOKEN: ${{ secrets.OPS_WEB_INTERNAL_TOKEN }}
+          SENTRY_APP_API_DSN: ${{ vars.SENTRY_APP_API_DSN }}
           SENTRY_APP_API_PROJECT_SLUG: ${{ vars.SENTRY_APP_API_PROJECT_SLUG }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG_SLUG: ${{ vars.SENTRY_ORG_SLUG }}
@@ -252,45 +325,12 @@ jobs:
           mkdir -p worker-candidates
           pnpm --dir apps/app-api upload:staging
 
-      - name: Upload Worker candidates
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
-        with:
-          name: release-worker-candidate-app-api
-          path: worker-candidates/*.json
-          if-no-files-found: error
-          overwrite: true
-          retention-days: 1
-
-  publish-campus-web:
-    needs: release-plan
-    if: >-
-      needs.release-plan.result == 'success' &&
-      contains(fromJSON(needs.release-plan.outputs.workers), 'campus-web-staging')
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    environment: staging
-    defaults:
-      run:
-        shell: nix develop .#ci-core --command bash -e {0}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Install Nix
-        uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
-        with:
-          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
-          enable_kvm: false
-
-      - name: Install Campus Web workspace
-        run: >-
-          pnpm install --frozen-lockfile
-          --filter campus-agent-web-workspace
-          --filter 'campus-web...'
-
       - name: Build Campus Web staging candidate
+        id: campus_web_build
+        if: >-
+          !cancelled() &&
+          steps.install_workers.outcome == 'success' &&
+          contains(fromJSON(needs.release-plan.outputs.workers), 'campus-web-staging')
         env:
           CAMPUS_WEB_SENTRY_SOURCE_MAP_UPLOAD: required
           OBJECT_STORE_DERIVED_READ_ACCESS_KEY: ${{ secrets.OBJECT_STORE_DERIVED_READ_ACCESS_KEY }}
@@ -302,6 +342,12 @@ jobs:
         run: pnpm --dir apps/campus-web build:staging
 
       - name: Upload Campus Web candidate
+        id: campus_web
+        if: >-
+          !cancelled() &&
+          steps.install_workers.outcome == 'success' &&
+          steps.campus_web_build.outcome == 'success' &&
+          contains(fromJSON(needs.release-plan.outputs.workers), 'campus-web-staging')
         env:
           CAMPUS_AUTH_TURNSTILE_SITE_KEY: ${{ vars.CAMPUS_AUTH_TURNSTILE_SITE_KEY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
@@ -316,71 +362,88 @@ jobs:
           mkdir -p worker-candidates
           pnpm --dir apps/campus-web upload:staging
 
-      - name: Upload Worker candidate
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
-        with:
-          name: release-worker-candidate-campus-web
-          path: worker-candidates/campus-web-staging.json
-          if-no-files-found: error
-          overwrite: true
-          retention-days: 1
-
-  publish-status-web:
-    needs: release-plan
-    if: >-
-      needs.release-plan.result == 'success' &&
-      contains(fromJSON(needs.release-plan.outputs.workers), 'status-web-staging')
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    environment: staging
-    env:
-      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      STATUS_CAMPUS_ORIGIN: ${{ vars.STATUS_CAMPUS_ORIGIN }}
-      STATUS_QA_ORIGIN: ${{ vars.STATUS_QA_ORIGIN }}
-      CAMPUS_WEB_PUBLIC_ORIGIN: ${{ vars.CAMPUS_WEB_PUBLIC_ORIGIN }}
-      STATUS_SNAPSHOT_KV_ID: ${{ vars.STATUS_SNAPSHOT_KV_ID }}
-    defaults:
-      run:
-        shell: nix develop .#ci-core --command bash -e {0}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
-        with:
-          persist-credentials: false
-
-      - name: Install Nix
-        uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
-        with:
-          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
-          enable_kvm: false
-
-      - name: Install status-web workspace
-        run: >-
-          pnpm install --frozen-lockfile
-          --filter campus-agent-web-workspace
-          --filter 'campus-contracts...'
-          --filter 'status-web...'
-
       - name: Upload status-web candidate
+        id: status_web
+        if: >-
+          !cancelled() &&
+          steps.install_workers.outcome == 'success' &&
+          contains(fromJSON(needs.release-plan.outputs.workers), 'status-web-staging')
         env:
+          CAMPUS_WEB_PUBLIC_ORIGIN: ${{ vars.CAMPUS_WEB_PUBLIC_ORIGIN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          STATUS_CAMPUS_ORIGIN: ${{ vars.STATUS_CAMPUS_ORIGIN }}
+          STATUS_QA_ORIGIN: ${{ vars.STATUS_QA_ORIGIN }}
+          STATUS_SNAPSHOT_KV_ID: ${{ vars.STATUS_SNAPSHOT_KV_ID }}
           WORKER_VERSION_OUTPUT: ${{ github.workspace }}/worker-candidates/status-web-staging.json
         run: |
           mkdir -p worker-candidates
           pnpm --dir apps/status-web upload:staging
 
-      - name: Upload Worker candidate
+      - name: Validate selected Worker candidates
+        if: >-
+          !cancelled()
+        env:
+          WORKERS: ${{ needs.release-plan.outputs.workers }}
+        run: |
+          set -euo pipefail
+          while read -r worker; do
+            candidate="worker-candidates/${worker}.json"
+            test -s "$candidate"
+            jq -e . "$candidate" >/dev/null
+          done < <(jq -r '.[]' <<< "$WORKERS")
+
+      - name: Upload Worker candidates
+        if: >-
+          !cancelled()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
-          name: release-worker-candidate-status-web
-          path: worker-candidates/status-web-staging.json
+          name: release-worker-candidates
+          path: worker-candidates/*.json
           if-no-files-found: error
           overwrite: true
           retention-days: 1
 
+      - name: Finalize Worker publication
+        if: >-
+          !cancelled()
+        env:
+          APP_API_SELECTED: ${{ contains(fromJSON(needs.release-plan.outputs.workers), 'app-api-staging') }}
+          APP_API_RESULT: ${{ steps.app_api.outcome }}
+          INSTALL_RESULT: ${{ steps.install_workers.outcome }}
+          CAMPUS_WEB_SELECTED: ${{ contains(fromJSON(needs.release-plan.outputs.workers), 'campus-web-staging') }}
+          CAMPUS_WEB_RESULT: ${{ steps.campus_web.outcome }}
+          STATUS_WEB_SELECTED: ${{ contains(fromJSON(needs.release-plan.outputs.workers), 'status-web-staging') }}
+          STATUS_WEB_RESULT: ${{ steps.status_web.outcome }}
+        run: |
+          set -euo pipefail
+          if [[ "$INSTALL_RESULT" != success ]]; then
+            echo "Worker workspace installation failed: $INSTALL_RESULT" >&2
+            exit 1
+          fi
+          if [[ "$APP_API_SELECTED" == true && "$APP_API_RESULT" != success ]]; then
+            echo "app-api Worker publication failed: $APP_API_RESULT" >&2
+            exit 1
+          fi
+          if [[ "$CAMPUS_WEB_SELECTED" == true && "$CAMPUS_WEB_RESULT" != success ]]; then
+            echo "campus-web Worker publication failed: $CAMPUS_WEB_RESULT" >&2
+            exit 1
+          fi
+          if [[ "$STATUS_WEB_SELECTED" == true && "$STATUS_WEB_RESULT" != success ]]; then
+            echo "status-web Worker publication failed: $STATUS_WEB_RESULT" >&2
+            exit 1
+          fi
+
   candidate-status:
-    needs: [release-plan, publish-images, publish-app-api, publish-campus-web, publish-status-web]
-    if: always()
+    needs: [release-plan, publish-images, publish-workers]
+    if: >-
+      always() &&
+      (
+        needs.release-plan.result != 'success' ||
+        needs.release-plan.outputs.images != '[]' ||
+        needs.release-plan.outputs.workers != '[]' ||
+        needs.release-plan.outputs.kubernetes == 'true'
+      )
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     permissions:
@@ -392,9 +455,7 @@ jobs:
       - name: Finalize staging candidate status
         id: status
         env:
-          APP_API_RESULT: ${{ needs.publish-app-api.result }}
-          CAMPUS_WEB_RESULT: ${{ needs.publish-campus-web.result }}
-          STATUS_WEB_RESULT: ${{ needs.publish-status-web.result }}
+          WORKER_RESULT: ${{ needs.publish-workers.result }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           IMAGES: ${{ needs.release-plan.outputs.images || '[]' }}
           IMAGE_RESULT: ${{ needs.publish-images.result }}
@@ -414,16 +475,8 @@ jobs:
             [ "$IMAGE_RESULT" != success ]; then
             valid=false
           fi
-          if jq -e 'index("app-api-staging") != null' <<< "$WORKERS" >/dev/null && \
-            [ "$APP_API_RESULT" != success ]; then
-            valid=false
-          fi
-          if jq -e 'index("campus-web-staging") != null' <<< "$WORKERS" >/dev/null && \
-            [ "$CAMPUS_WEB_RESULT" != success ]; then
-            valid=false
-          fi
-          if jq -e 'index("status-web-staging") != null' <<< "$WORKERS" >/dev/null && \
-            [ "$STATUS_WEB_RESULT" != success ]; then
+          if jq -e 'length > 0' <<< "$WORKERS" >/dev/null && \
+            [ "$WORKER_RESULT" != success ]; then
             valid=false
           fi
           if [ "$valid" = true ]; then
@@ -436,30 +489,27 @@ jobs:
               description='No immutable artifact publication was required'
             fi
           fi
-          echo "approved=$approved" >> "$GITHUB_OUTPUT"
           gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
             -f state="$state" \
             -f context=staging/candidate \
             -f description="$description" \
             -f target_url="$TARGET_URL"
+          echo "approved=$approved" >> "$GITHUB_OUTPUT"
 
   promote:
-    needs: [release-plan, candidate-status, publish-images, publish-app-api, publish-campus-web, publish-status-web]
+    needs: [release-plan, candidate-status, publish-images, publish-workers]
     if: >-
-      always() &&
+      !cancelled() &&
       needs.release-plan.result == 'success' &&
+      needs.candidate-status.result == 'success' &&
       needs.candidate-status.outputs.approved == 'true' &&
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' || inputs.promote) &&
       contains(fromJSON('["success","skipped"]'), needs.publish-images.result) &&
-      contains(fromJSON('["success","skipped"]'), needs.publish-app-api.result) &&
-      contains(fromJSON('["success","skipped"]'), needs.publish-campus-web.result) &&
-      contains(fromJSON('["success","skipped"]'), needs.publish-status-web.result) &&
+      contains(fromJSON('["success","skipped"]'), needs.publish-workers.result) &&
       (
         needs.publish-images.result == 'success' ||
-        needs.publish-app-api.result == 'success' ||
-        needs.publish-campus-web.result == 'success' ||
-        needs.publish-status-web.result == 'success' ||
+        needs.publish-workers.result == 'success' ||
         needs.release-plan.outputs.kubernetes == 'true'
       )
     runs-on: ubuntu-24.04
@@ -477,6 +527,18 @@ jobs:
           install_url: https://releases.nixos.org/nix/nix-2.35.1/install
           enable_kvm: false
 
+      - name: Verify current main revision before promotion
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: nix develop .#ci-core --command bash -e {0}
+        run: |
+          set -euo pipefail
+          current_main="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          if [[ "$GITHUB_SHA" != "$current_main" ]]; then
+            echo "Source revision $GITHUB_SHA is no longer the current main revision $current_main." >&2
+            exit 1
+          fi
+
       - name: Prepare release inputs
         shell: bash -e {0}
         run: |
@@ -490,24 +552,10 @@ jobs:
           name: release-image-digests
 
       - name: Download Worker candidates
-        if: needs.publish-app-api.result == 'success'
+        if: needs.publish-workers.result == 'success'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
-          name: release-worker-candidate-app-api
-          path: worker-candidates
-
-      - name: Download Campus Web Worker candidate
-        if: needs.publish-campus-web.result == 'success'
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
-        with:
-          name: release-worker-candidate-campus-web
-          path: worker-candidates
-
-      - name: Download status-web Worker candidate
-        if: needs.publish-status-web.result == 'success'
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7
-        with:
-          name: release-worker-candidate-status-web
+          name: release-worker-candidates
           path: worker-candidates
 
       - name: Create GitOps promotion token

@@ -50,7 +50,7 @@ describe("campus web staging config", () => {
 		expect(buildCampusWebSource).not.toContain("MAP_DATA");
 		expect(uploadStagingVersionSource).toContain("readCampusWebBuildSourceDigest");
 		expect(uploadStagingVersionSource).toContain("candidateMetadata: { docsSourceDigest }");
-		expect(uploadStagingVersionSource).toContain("uploadStagingWorkerVersion");
+		expect(uploadStagingVersionSource).toContain("await uploadStagingWorkerVersion");
 		expect(packageScripts["deploy:staging"]).toBeUndefined();
 		expect(packageScripts["upload:staging"]).toContain("upload-staging-version.ts");
 	});

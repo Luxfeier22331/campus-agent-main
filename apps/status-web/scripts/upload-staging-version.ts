@@ -41,11 +41,18 @@ try {
 		),
 		"utf8",
 	);
-	uploadStagingWorkerVersion({
+	await uploadStagingWorkerVersion({
 		appName: "status-web",
 		config: configPath,
 		cwd: appDir,
 		environment: "staging",
+		expectedBindings: [
+			{
+				name: "STATUS_SNAPSHOT",
+				properties: { namespace_id: kvNamespaceId },
+				type: "kv_namespace",
+			},
+		],
 		workerName: "status-web-staging",
 		variables: {
 			CAMPUS_WEB_PUBLIC_ORIGIN: campusOrigin,

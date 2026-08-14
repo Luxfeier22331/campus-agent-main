@@ -32,12 +32,15 @@ const secretsPath = resolve(configDir, "secrets.json");
 const sentryArtifactDirectory = resolve(configDir, "sentry");
 try {
 	const sentryRelease = resolveStagingSentryRelease("app-api");
+	const hyperdriveId = requiredEnv("APP_API_DB_HYPERDRIVE_ID");
+	const objectStoreVpcServiceId = requiredEnv("OBJECT_STORE_VPC_SERVICE_ID");
+	const executionControlVpcServiceId = requiredEnv("EXECUTION_CONTROL_VPC_SERVICE_ID");
 	writeFileSync(
 		configPath,
 		buildAppApiStagingUploadConfig(readFileSync(resolve(appDir, "wrangler.toml"), "utf8"), appDir, {
-			hyperdriveId: requiredEnv("APP_API_DB_HYPERDRIVE_ID"),
-			objectStoreVpcServiceId: requiredEnv("OBJECT_STORE_VPC_SERVICE_ID"),
-			vpcServiceId: requiredEnv("EXECUTION_CONTROL_VPC_SERVICE_ID"),
+			hyperdriveId,
+			objectStoreVpcServiceId,
+			vpcServiceId: executionControlVpcServiceId,
 		}),
 		"utf8",
 	);
@@ -49,11 +52,28 @@ try {
 		})}\n`,
 		{ encoding: "utf8", mode: 0o600 },
 	);
-	uploadStagingWorkerVersion({
+	await uploadStagingWorkerVersion({
 		appName: "app-api",
 		config: configPath,
 		cwd: appDir,
 		environment: "staging",
+		expectedBindings: [
+			{
+				name: "APP_API_DB",
+				properties: { id: hyperdriveId },
+				type: "hyperdrive",
+			},
+			{
+				name: "EXECUTION_CONTROL_PRIVATE",
+				properties: { service_id: executionControlVpcServiceId },
+				type: "vpc_service",
+			},
+			{
+				name: "OBJECT_STORE_PRIVATE",
+				properties: { service_id: objectStoreVpcServiceId },
+				type: "vpc_service",
+			},
+		],
 		secretsFile: secretsPath,
 		workerName: "app-api-staging",
 		sentrySourceMaps: {

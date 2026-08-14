@@ -170,7 +170,7 @@ function resolveRegistryPaths(repoRoot: string): {
 	};
 }
 
-function isMainWorktree(repoRoot: string): boolean {
+export function isMainWorktree(repoRoot: string): boolean {
 	const gitDir = resolve(
 		repoRoot,
 		execFileSync("git", ["rev-parse", "--git-dir"], { cwd: repoRoot, encoding: "utf8" }).trim(),

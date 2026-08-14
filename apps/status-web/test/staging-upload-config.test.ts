@@ -11,8 +11,19 @@ import {
 
 const source = `name = "status-web"\nmain = "src/index.ts"\n[env.staging]\n[env.staging.vars]\nDEPLOYMENT_ENVIRONMENT = "staging"\n[[env.staging.kv_namespaces]]\nbinding = "STATUS_SNAPSHOT"\nid = "00000000000000000000000000000000"\n[assets]\ndirectory = "./public"\n`;
 const wranglerConfig = readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8");
+const uploadStagingVersionSource = readFileSync(
+	new URL("../scripts/upload-staging-version.ts", import.meta.url),
+	"utf8",
+);
 
 describe("status-web staging configuration", () => {
+	it("verifies the environment-owned KV binding before reusing a version", () => {
+		expect(uploadStagingVersionSource).toContain("await uploadStagingWorkerVersion");
+		expect(uploadStagingVersionSource).toContain("expectedBindings:");
+		expect(uploadStagingVersionSource).toContain('name: "STATUS_SNAPSHOT"');
+		expect(uploadStagingVersionSource).toContain("properties: { namespace_id: kvNamespaceId }");
+	});
+
 	it("accepts a canonical HTTPS origin and replaces the KV placeholder", () => {
 		expect(validateStatusStagingOrigin("https://campus.muc.wiki")).toBe("https://campus.muc.wiki/");
 		expect(validateStatusQaOrigin("https://api.muc.wiki")).toBe("https://api.muc.wiki/");

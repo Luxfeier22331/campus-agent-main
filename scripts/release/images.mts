@@ -51,6 +51,12 @@ interface ImageReport {
 }
 
 interface ImageManifest {
+	image?: Record<
+		string,
+		{
+			config?: { Labels?: Record<string, unknown> };
+		}
+	>;
 	manifest?: {
 		digest?: unknown;
 		manifests?: Array<{
@@ -152,7 +158,7 @@ function requiredDigest(value: unknown, context: string): string {
 	return value;
 }
 
-function existingDigest(source: string, tag: string): string {
+function existingDigest(source: string, tag: string, sourceSha: string): string {
 	let value: ImageManifest;
 	try {
 		value = JSON.parse(source) as ImageManifest;
@@ -167,13 +173,18 @@ function existingDigest(source: string, tag: string): string {
 	) {
 		throw new Error(`Existing immutable tag is not a multi-platform index: ${tag}`);
 	}
-	const linuxPlatforms = (manifest?.manifests ?? [])
-		.map((entry) => entry.platform)
-		.filter((platform) => platform?.os === "linux");
-	const arm64 = linuxPlatforms.filter((platform) => platform?.architecture === "arm64");
-	const other = linuxPlatforms.filter((platform) => platform?.architecture !== "arm64");
+	const linuxManifests = (manifest?.manifests ?? []).filter(
+		(entry) => entry.platform?.os === "linux",
+	);
+	const arm64 = linuxManifests.filter((entry) => entry.platform?.architecture === "arm64");
+	const other = linuxManifests.filter((entry) => entry.platform?.architecture !== "arm64");
 	if (arm64.length !== 1 || other.length > 0) {
 		throw new Error(`Existing immutable tag does not contain exactly one arm64 image: ${tag}`);
+	}
+	const revision =
+		value.image?.["linux/arm64"]?.config?.Labels?.["org.opencontainers.image.revision"];
+	if (revision !== sourceSha) {
+		throw new Error(`Existing immutable tag has the wrong source revision: ${tag}`);
 	}
 	return requiredDigest(manifest?.digest, tag);
 }
@@ -293,7 +304,7 @@ export async function publishImages(
 			let digest: string;
 			if (inspected.code === 0) {
 				try {
-					digest = existingDigest(inspected.stdout, tag);
+					digest = existingDigest(inspected.stdout, tag, options.sourceSha);
 				} catch (error) {
 					report.failedStage = "inspect";
 					logStage(logger, image, "inspect", "failed", `duration_ms=${report.inspectMs}`);

@@ -64,7 +64,7 @@ if (preflight.status !== 0) {
 	process.exit(preflight.status ?? 1);
 }
 
-uploadStagingWorkerVersion({
+await uploadStagingWorkerVersion({
 	appName: "campus-web",
 	buildIdentity,
 	candidateMetadata: { docsSourceDigest },

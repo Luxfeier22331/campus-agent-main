@@ -39,7 +39,8 @@ status: active
 
 规则如下：
 
-- Cloudflare Worker 上传使用版本接口，不在源码仓直接修改路由或流量；
+- Cloudflare Worker 候选上传使用版本接口，目标 Worker 必须已由环境仓完成首次部署；源码仓不直接
+  创建 Worker、修改路由或切换流量；
 - Kubernetes 使用镜像摘要，不用可变标签表达环境目标；
 - 依赖新 schema 的运行时必须在迁移成功后才能接收流量；
 - 一个应用失败不能被其他应用的健康状态掩盖；

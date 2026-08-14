@@ -48,7 +48,23 @@ pnpm dev:doctor
 pnpm dev:instances
 ```
 
-database 与 bucket 必须同时存在或同时不存在。只有一个存在表示上次供应中断，初始化会 fail closed；按 `pnpm dev:destroy` 输出的确认命令删除该实例后重新初始化。单独启动应用只适合所属应用调试，仍要求当前 worktree 已执行 `pnpm dev:init`。
+`pnpm dev:doctor` 会同时检查共享容器的运行状态、健康检查、Compose 配置 hash、网络、数据卷和
+共享 bucket；无法探测时显示 `unknown`，不会把连接失败当成资源不存在。主 checkout 负责首次启动
+或重新协调共享容器，linked worktree 只复用 ready 状态的共享依赖。database 与 derived bucket
+必须同时存在或同时不存在。只有一个存在表示上次供应中断，初始化会 fail closed；按
+`pnpm dev:destroy` 输出的确认命令删除该实例后重新初始化。
+
+`pnpm dev:instances` 是只读清单，会为每条注册记录显示 worktree、database、derived bucket 和总
+状态：`ready`、`stale`、`partial`、`unprovisioned` 或 `unknown`。worktree 已删除但资源仍存在时
+只标记为 `stale`，不会自动清理；确认实例 ID 后可从仍存在的 checkout 执行：
+
+```bash
+pnpm dev:destroy -- --instance <instance-id> --confirm <instance-id>
+```
+
+删除 linked worktree 前，先运行上述销毁命令；不要在任一 worktree 执行共享 compose 的 `down` 或
+`down -v`。source bucket 与 Campus Web 文档 bucket 是共享资源，不能作为单个实例销毁目标。
+单独启动应用只适合所属应用调试，仍要求当前 worktree 已执行 `pnpm dev:init`。
 
 ## Ops Web API
 

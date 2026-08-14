@@ -93,15 +93,17 @@ Campus Web 文档来源命令复用现有对象存储地址和派生桶凭据，
 
 Git 不会把被忽略的环境文件带入新 worktree。每个 worktree 首次运行 `pnpm dev` 或显式运行
 `pnpm dev:init` 时获得独立 profile、应用文件、端口、PostgreSQL database 和 derived bucket；
-PostgreSQL 与 RustFS 容器和数据卷由同一机器上的 worktree 共享。应用仍只消费
+PostgreSQL 与 RustFS 容器、网络和数据卷由同一机器上的 worktree 共享。主 checkout 是共享依赖的
+bootstrap/reconcile owner，linked worktree 不会重新执行 Compose reconcile，只在共享依赖 ready 时
+复用。应用仍只消费
 `OBJECT_STORE_*`；`RUSTFS_*` 只存在于供应商容器边界，不进入应用环境合同。
 Campus Web 文档合同固定使用共享 `campus-agent-derived`；`dev:init` 只在
 `campus-docs/source.json` 缺失时写入确定性开发样例，不覆盖已有文档来源。worktree profile 中的
 独立 derived bucket 仍只服务 Dining 等实例数据。
 
-profile 位于当前 worktree 的 `var/dev/profile.v1.json`，机器级实例注册表位于 `${XDG_STATE_HOME:-~/.local/state}/campus-agent/<repo-key>/instances.v1.json`。两者只保存资源身份，不保存外部凭据。使用 `pnpm dev:instances` 查看分配，使用 `pnpm dev:doctor` 检查完整性。
+profile 位于当前 worktree 的 `var/dev/profile.v1.json`，机器级实例注册表位于 `${XDG_STATE_HOME:-~/.local/state}/campus-agent/<repo-key>/instances.v1.json`。两者只保存资源身份，不保存外部凭据。使用 `pnpm dev:instances` 查看分配和 stale/partial 状态，使用 `pnpm dev:doctor` 检查完整性。共享依赖不可探测时，诊断结果为 `unknown`，不会据此自动创建或删除实例资源。
 
-`pnpm dev:destroy` 默认只打印影响范围。只有同时提供同一个实例 ID 才会删除该实例的 database、bucket、托管环境文件和注册记录：
+`pnpm dev:destroy` 默认只打印影响范围。只有同时提供同一个实例 ID 才会删除该实例的 database、bucket、托管环境文件和注册记录；它不会启动或重建共享容器，也不会删除共享 source/docs bucket、网络或数据卷：
 
 ```bash
 pnpm dev:destroy -- --instance <instance-id> --confirm <instance-id>

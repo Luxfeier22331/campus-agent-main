@@ -281,13 +281,14 @@ test("candidate publishing uses GitHub-hosted runners before final status", asyn
 	for (const jobName of [
 		"candidate-status",
 		"promote",
-		"publish-app-api",
-		"publish-campus-web",
 		"publish-images",
-		"publish-status-web",
+		"publish-workers",
 		"release-plan",
 	]) {
 		assert(isObject(workflow.jobs[jobName]), jobName);
+	}
+	for (const retired of ["publish-app-api", "publish-campus-web", "publish-status-web"]) {
+		assert.equal(workflow.jobs[retired], undefined, retired);
 	}
 	assert(isObject(workflow.concurrency));
 	assert.equal(workflow.concurrency["cancel-in-progress"], false);
@@ -311,60 +312,35 @@ test("candidate publishing uses GitHub-hosted runners before final status", asyn
 	assert(!planner.run.includes("worker-selection"));
 	assert(!planner.run.includes("browserProfiles"));
 	assert(!planner.run.includes("selfHostedProfiles"));
+	const verifyCurrentMain = releasePlan.steps.find(
+		(step) => isObject(step) && step.name === "Verify current main revision",
+	);
+	assert(isObject(verifyCurrentMain));
+	assert.equal(typeof verifyCurrentMain.run, "string");
+	assert(verifyCurrentMain.run.includes('commits/main" --jq .sha'));
+	assert(verifyCurrentMain.run.includes('[[ "$GITHUB_SHA" != "$current_main" ]]'));
 	const pending = releasePlan.steps.find(
 		(step) => isObject(step) && step.name === "Mark staging candidate pending",
 	);
 	assert(isObject(pending));
+	assert.match(String(pending.if), /steps\.plan\.outputs\.images != '\[\]'/u);
+	const emptySuccess = releasePlan.steps.find(
+		(step) => isObject(step) && step.name === "Mark empty staging candidate success",
+	);
+	assert(isObject(emptySuccess));
+	assert.match(String(emptySuccess.if), /steps\.plan\.outputs\.kubernetes == 'false'/u);
 
-	for (const jobName of [
-		"publish-images",
-		"publish-app-api",
-		"publish-campus-web",
-		"publish-status-web",
-		"candidate-status",
-		"promote",
-	]) {
+	for (const jobName of ["publish-images", "publish-workers", "candidate-status", "promote"]) {
 		const job = workflow.jobs[jobName];
 		assert(isObject(job));
 		assert.match(String(job["runs-on"]), /^ubuntu-24\.04/u, jobName);
 	}
-	for (const jobName of [
-		"publish-images",
-		"publish-app-api",
-		"publish-campus-web",
-		"publish-status-web",
-	]) {
+	for (const jobName of ["publish-images", "publish-workers"]) {
 		const job = workflow.jobs[jobName];
 		assert(isObject(job));
 		assert.equal(job.needs, "release-plan", jobName);
 	}
-	for (const [jobName, artifactName, artifactPath] of [
-		["publish-app-api", "release-worker-candidate-app-api", "worker-candidates/*.json"],
-		[
-			"publish-campus-web",
-			"release-worker-candidate-campus-web",
-			"worker-candidates/campus-web-staging.json",
-		],
-		[
-			"publish-status-web",
-			"release-worker-candidate-status-web",
-			"worker-candidates/status-web-staging.json",
-		],
-	] as const) {
-		const job = workflow.jobs[jobName];
-		assert(isObject(job));
-		assert(Array.isArray(job.steps));
-		const artifact = job.steps.find(
-			(step) => isObject(step) && String(step.uses).startsWith("actions/upload-artifact@"),
-		);
-		assert(isObject(artifact), jobName);
-		assert.equal(artifact.if, undefined, jobName);
-		assert(isObject(artifact.with), jobName);
-		assert.equal(artifact.with.name, artifactName, jobName);
-		assert.equal(artifact.with.path, artifactPath, jobName);
-		assert.equal(artifact.with["if-no-files-found"], "error", jobName);
-	}
-	for (const jobName of ["publish-images", "publish-campus-web", "promote"]) {
+	for (const jobName of ["publish-images", "publish-workers", "promote"]) {
 		const job = workflow.jobs[jobName];
 		assert(isObject(job));
 		assert(Array.isArray(job.steps));
@@ -384,22 +360,17 @@ test("candidate publishing uses GitHub-hosted runners before final status", asyn
 	const buildxIndex = publishImages.steps.findIndex(
 		(step) => isObject(step) && step.name === "Setup Docker Buildx",
 	);
-	const runnerFactsIndex = publishImages.steps.findIndex(
-		(step) =>
-			isObject(step) && step.name === "Initialize release toolchain and record runner facts",
-	);
 	assert(buildxIndex >= 0);
-	assert.equal(runnerFactsIndex, buildxIndex + 1);
+	assert(
+		!publishImages.steps.some(
+			(step) =>
+				isObject(step) && step.name === "Initialize release toolchain and record runner facts",
+		),
+	);
 	const buildx = publishImages.steps[buildxIndex];
 	assert(isObject(buildx));
 	assert(isObject(buildx.with));
 	assert.deepEqual(buildx.with, { "cache-binary": false });
-	const runnerFacts = publishImages.steps[runnerFactsIndex];
-	assert(isObject(runnerFacts));
-	assert.equal(typeof runnerFacts.run, "string");
-	assert(runnerFacts.run.includes('tee -a "$GITHUB_STEP_SUMMARY"'));
-	assert(runnerFacts.run.includes("docker buildx inspect"));
-	assert(!runnerFacts.run.includes("docker buildx inspect --bootstrap"));
 	const publishStep = publishImages.steps.find(
 		(step) => isObject(step) && step.name === "Build, publish and scan images",
 	);
@@ -408,29 +379,47 @@ test("candidate publishing uses GitHub-hosted runners before final status", asyn
 	assert.equal(publishStep.env.BUILDKIT_PROGRESS, undefined);
 	assert.equal(typeof publishStep.run, "string");
 	assert(publishStep.run.includes('--summary "$GITHUB_STEP_SUMMARY"'));
+	const verifyImageMain = publishImages.steps.find(
+		(step) =>
+			isObject(step) && step.name === "Verify current main revision before image publication",
+	);
+	assert(isObject(verifyImageMain));
+	assert.equal(typeof verifyImageMain.run, "string");
+	assert(verifyImageMain.run.includes('commits/main" --jq .sha'));
+	assert(verifyImageMain.run.includes('[[ "$GITHUB_SHA" != "$current_main" ]]'));
+	assert(
+		publishImages.steps.indexOf(verifyImageMain) < buildxIndex,
+		"stale image runs must stop before Buildx setup",
+	);
 	const candidateStatus = workflow.jobs["candidate-status"];
 	assert(isObject(candidateStatus));
-	assert.deepEqual(candidateStatus.needs, [
-		"release-plan",
-		"publish-images",
-		"publish-app-api",
-		"publish-campus-web",
-		"publish-status-web",
-	]);
+	assert.deepEqual(candidateStatus.needs, ["release-plan", "publish-images", "publish-workers"]);
+	assert.match(String(candidateStatus.if), /always\(\)/u);
+	assert.match(String(candidateStatus.if), /needs\.release-plan\.result != 'success'/u);
+	assert.match(String(candidateStatus.if), /needs\.release-plan\.outputs\.images != '\[\]'/u);
 	assert(Array.isArray(candidateStatus.steps));
 	const statusStep = candidateStatus.steps.find(
 		(step) => isObject(step) && step.name === "Finalize staging candidate status",
 	);
 	assert(isObject(statusStep));
 	assert.equal(typeof statusStep.run, "string");
+	assert(isObject(statusStep.env));
+	assert.equal(statusStep.env.WORKER_RESULT, githubExpression("needs.publish-workers.result"));
+	assert.equal(statusStep.env.APP_API_RESULT, undefined);
 	assert(
 		statusStep.run.includes("Selected artifacts were built and published; images were scanned"),
+	);
+	assert(
+		statusStep.run.indexOf("gh api --method POST") <
+			statusStep.run.indexOf('echo "approved=$approved"'),
 	);
 	assert(!statusStep.run.includes("VALIDATE_ONLY"));
 	const promote = workflow.jobs.promote;
 	assert(isObject(promote));
 	assert(Array.isArray(promote.needs));
 	assert(promote.needs.includes("candidate-status"));
+	assert.match(String(promote.if), /!cancelled\(\)/u);
+	assert.match(String(promote.if), /needs\.candidate-status\.result == 'success'/u);
 	assert(Array.isArray(promote.steps));
 	const prepareReleaseInputs = promote.steps.find(
 		(step) => isObject(step) && step.name === "Prepare release inputs",
@@ -448,6 +437,18 @@ test("candidate publishing uses GitHub-hosted runners before final status", asyn
 	assert.equal(
 		installGitOpsTooling.run,
 		"pnpm --dir gitops --ignore-workspace install --frozen-lockfile",
+	);
+	const verifyPromotionMain = promote.steps.find(
+		(step) => isObject(step) && step.name === "Verify current main revision before promotion",
+	);
+	assert(isObject(verifyPromotionMain));
+	assert.equal(verifyPromotionMain.shell, "nix develop .#ci-core --command bash -e {0}");
+	assert.equal(typeof verifyPromotionMain.run, "string");
+	assert(verifyPromotionMain.run.includes('commits/main" --jq .sha'));
+	assert(verifyPromotionMain.run.includes('[[ "$GITHUB_SHA" != "$current_main" ]]'));
+	assert(
+		promote.steps.indexOf(verifyPromotionMain) < promote.steps.indexOf(prepareReleaseInputs),
+		"stale promotion runs must stop before preparing or downloading release inputs",
 	);
 	for (const stepName of [
 		"Install GitOps tooling",
@@ -477,24 +478,14 @@ test("candidate publishing uses GitHub-hosted runners before final status", asyn
 	const profileShells = new Map<string, string | undefined>([
 		["release-plan", jobShell(releasePlan)],
 		["publish-images", jobShell(workflow.jobs["publish-images"])],
-		["publish-app-api", jobShell(workflow.jobs["publish-app-api"])],
-		["publish-campus-web", jobShell(workflow.jobs["publish-campus-web"])],
-		["publish-status-web", jobShell(workflow.jobs["publish-status-web"])],
+		["publish-workers", jobShell(workflow.jobs["publish-workers"])],
 	]);
 	assert.equal(profileShells.get("release-plan"), "nix develop .#ci-core --command bash -e {0}");
 	assert.equal(
 		profileShells.get("publish-images"),
 		"nix develop .#ci-release --command bash -e {0}",
 	);
-	assert.equal(profileShells.get("publish-app-api"), "nix develop .#ci-core --command bash -e {0}");
-	assert.equal(
-		profileShells.get("publish-campus-web"),
-		"nix develop .#ci-core --command bash -e {0}",
-	);
-	assert.equal(
-		profileShells.get("publish-status-web"),
-		"nix develop .#ci-core --command bash -e {0}",
-	);
+	assert.equal(profileShells.get("publish-workers"), "nix develop .#ci-core --command bash -e {0}");
 	assert(!source.includes("npm_config_store_dir"));
 	assert(!source.includes("--prefer-offline"));
 	assert(source.includes(`--trivy-cache "\${RUNNER_TOOL_CACHE}/trivy"`));
@@ -502,78 +493,102 @@ test("candidate publishing uses GitHub-hosted runners before final status", asyn
 	assert(!source.includes("validate-ops-web-promotion"));
 	assert(!source.includes('index("clusters/staging/overlays/ops-web")'));
 
-	const appApi = workflow.jobs["publish-app-api"];
-	assert(isObject(appApi));
-	assert(isObject(appApi.env));
+	const workers = workflow.jobs["publish-workers"];
+	assert(isObject(workers));
+	assert.equal(workers["timeout-minutes"], 30);
+	assert.equal(workers.env, undefined);
+	assert(Array.isArray(workers.steps));
+	assert(
+		workers.steps.some(
+			(step) => isObject(step) && step.name === "Install selected Worker workspaces",
+		),
+	);
+	const workerInstall = workers.steps.find(
+		(step) => isObject(step) && step.name === "Install selected Worker workspaces",
+	);
+	assert(isObject(workerInstall));
+	assert.equal(typeof workerInstall.run, "string");
+	assert(workerInstall.run.includes("campus-contracts..."));
+	assert.match(workerInstall.run, /campus-web-staging\)\n\s+add_filter 'campus-contracts\.\.\.'/u);
+	assert(workerInstall.run.includes("Unsupported Worker candidate"));
+	assert.equal(workerInstall.id, "install_workers");
+	const verifyWorkerMain = workers.steps.find(
+		(step) =>
+			isObject(step) && step.name === "Verify current main revision before Worker publication",
+	);
+	assert(isObject(verifyWorkerMain));
+	assert.equal(typeof verifyWorkerMain.run, "string");
+	assert(verifyWorkerMain.run.includes('commits/main" --jq .sha'));
+	assert(verifyWorkerMain.run.includes('[[ "$GITHUB_SHA" != "$current_main" ]]'));
+	assert(
+		workers.steps.indexOf(verifyWorkerMain) < workers.steps.indexOf(workerInstall),
+		"stale Worker runs must stop before dependency installation",
+	);
+	for (const stepName of [
+		"Upload app-api candidate",
+		"Build Campus Web staging candidate",
+		"Upload Campus Web candidate",
+		"Upload status-web candidate",
+		"Validate selected Worker candidates",
+		"Finalize Worker publication",
+	]) {
+		assert(
+			workers.steps.some((step) => isObject(step) && step.name === stepName),
+			stepName,
+		);
+	}
+	const artifact = workers.steps.find(
+		(step) => isObject(step) && String(step.uses).startsWith("actions/upload-artifact@"),
+	);
+	assert(isObject(artifact));
+	assert.equal(artifact.with?.name, "release-worker-candidates");
+	assert.equal(artifact.with?.path, "worker-candidates/*.json");
+	assert.equal(artifact.with?.["if-no-files-found"], "error");
+	assert.equal(artifact.if, "!cancelled()");
+	const appApiUpload = workers.steps.find(
+		(step) => isObject(step) && step.name === "Upload app-api candidate",
+	);
+	assert(isObject(appApiUpload));
+	assert.match(String(appApiUpload.if), /steps\.install_workers\.outcome == 'success'/u);
+	assert(isObject(appApiUpload.env));
 	assert.equal(
-		appApi.env.OBJECT_STORE_VPC_SERVICE_ID,
+		appApiUpload.env.OBJECT_STORE_VPC_SERVICE_ID,
 		githubExpression("vars.OBJECT_STORE_VPC_SERVICE_ID"),
 	);
-
-	const statusWeb = workflow.jobs["publish-status-web"];
-	assert(isObject(statusWeb));
-	assert(isObject(statusWeb.env));
-	assert.equal(statusWeb.env.CLOUDFLARE_ACCOUNT_ID, githubExpression("vars.CLOUDFLARE_ACCOUNT_ID"));
+	const statusUpload = workers.steps.find(
+		(step) => isObject(step) && step.name === "Upload status-web candidate",
+	);
+	assert(isObject(statusUpload));
+	assert(isObject(statusUpload.env));
 	assert.equal(
-		statusWeb.env.CLOUDFLARE_API_TOKEN,
+		statusUpload.env.CLOUDFLARE_API_TOKEN,
 		githubExpression("secrets.CLOUDFLARE_API_TOKEN"),
 	);
-	assert.equal(statusWeb.env.STATUS_CAMPUS_ORIGIN, githubExpression("vars.STATUS_CAMPUS_ORIGIN"));
-	assert.equal(statusWeb.env.STATUS_QA_ORIGIN, githubExpression("vars.STATUS_QA_ORIGIN"));
 	assert.equal(
-		statusWeb.env.CAMPUS_WEB_PUBLIC_ORIGIN,
-		githubExpression("vars.CAMPUS_WEB_PUBLIC_ORIGIN"),
+		statusUpload.env.STATUS_SNAPSHOT_KV_ID,
+		githubExpression("vars.STATUS_SNAPSHOT_KV_ID"),
 	);
-	assert.equal(statusWeb.env.STATUS_SNAPSHOT_KV_ID, githubExpression("vars.STATUS_SNAPSHOT_KV_ID"));
-	assert(Array.isArray(statusWeb.steps));
-	assert(
-		!statusWeb.steps.some((step) => isObject(step) && String(step.name).startsWith("Validate ")),
+	const campusBuild = workers.steps.find(
+		(step) => isObject(step) && step.name === "Build Campus Web staging candidate",
 	);
-	assert(
-		statusWeb.steps.some((step) => isObject(step) && step.name === "Upload status-web candidate"),
-	);
-
-	const campusWeb = workflow.jobs["publish-campus-web"];
-	assert(isObject(campusWeb));
-	assert.equal(campusWeb.env, undefined);
-	assert(Array.isArray(campusWeb.steps));
-	const buildSteps = campusWeb.steps.filter(
-		(step) =>
-			isObject(step) &&
-			(step.name === "Build Campus Web staging configuration" ||
-				step.name === "Build Campus Web staging candidate"),
-	);
-	assert.equal(buildSteps.length, 1);
-	for (const step of buildSteps) {
-		assert(isObject(step));
-		assert(isObject(step.env));
-		assert.equal(
-			step.env.OBJECT_STORE_DERIVED_READ_ACCESS_KEY,
-			githubExpression("secrets.OBJECT_STORE_DERIVED_READ_ACCESS_KEY"),
-		);
-		assert.equal(
-			step.env.OBJECT_STORE_DERIVED_READ_SECRET_KEY,
-			githubExpression("secrets.OBJECT_STORE_DERIVED_READ_SECRET_KEY"),
-		);
-		assert.equal(step.env.OBJECT_STORE_DERIVED_ACCESS_KEY, undefined);
-		assert.equal(step.env.OBJECT_STORE_DERIVED_SECRET_KEY, undefined);
-		assert.equal(step.env.OBJECT_STORE_ENDPOINT, githubExpression("vars.OBJECT_STORE_ENDPOINT"));
-	}
-	const campusUpload = campusWeb.steps.find(
-		(step) => isObject(step) && step.name === "Upload Campus Web candidate",
-	);
-	assert(isObject(campusUpload));
-	assert(isObject(campusUpload.env));
+	assert(isObject(campusBuild));
+	assert.match(String(campusBuild.if), /steps\.install_workers\.outcome == 'success'/u);
+	assert(isObject(campusBuild.env));
 	assert.equal(
-		campusUpload.env.STATUS_WEB_PUBLIC_ORIGIN,
-		githubExpression("vars.STATUS_WEB_PUBLIC_ORIGIN"),
+		campusBuild.env.OBJECT_STORE_DERIVED_READ_ACCESS_KEY,
+		githubExpression("secrets.OBJECT_STORE_DERIVED_READ_ACCESS_KEY"),
 	);
 	assert.equal(
-		campusWeb.steps.find((step) => isObject(step) && step.name === "Resolve object store endpoint"),
-		undefined,
+		campusBuild.env.OBJECT_STORE_ENDPOINT,
+		githubExpression("vars.OBJECT_STORE_ENDPOINT"),
 	);
-	const appApiSteps = isObject(appApi) && Array.isArray(appApi.steps) ? appApi.steps : [];
-	assert(!appApiSteps.some((step) => isObject(step) && String(step.name).startsWith("Validate ")));
+	const finalize = workers.steps.find(
+		(step) => isObject(step) && step.name === "Finalize Worker publication",
+	);
+	assert(isObject(finalize));
+	assert.equal(typeof finalize.run, "string");
+	assert(finalize.run.includes("Worker workspace installation failed"));
+	assert.equal(source.match(/always\(\)/gu)?.length, 1);
 	assert(!source.includes("validate_only"));
 	assert(!source.includes("preflight-staging.ts"));
 });

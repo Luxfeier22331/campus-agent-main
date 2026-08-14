@@ -54,12 +54,13 @@
             tools.uv
             tools.zizmor
           ]);
-          releasePackages = lightPackages ++ (with pkgs; [
+          containerPackages = with pkgs; [
             docker-buildx
             docker-client
             trivy
-          ]);
-          fullPackages = releasePackages ++ (with pkgs; [
+          ];
+          releasePackages = corePackages ++ containerPackages;
+          fullPackages = lightPackages ++ containerPackages ++ (with pkgs; [
             cargo
             clippy
             golangci-lint

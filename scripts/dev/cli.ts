@@ -5,11 +5,11 @@ import { fileURLToPath } from "node:url";
 import {
 	destroyLocalDevelopment,
 	diagnoseLocalDevelopment,
+	diagnoseLocalDevInstances,
 	formatProfileSummary,
 	initializeLocalDevelopment,
 	localInstanceDestroyPreview,
 } from "./lifecycle";
-import { listLocalDevProfiles } from "./profile";
 
 const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const command = process.argv[2];
@@ -25,13 +25,13 @@ try {
 			console.log(JSON.stringify(diagnosis, null, 2));
 			if (
 				!(
-					diagnosis.bucketExists &&
-					diagnosis.databaseExists &&
-					diagnosis.docsBucketExists &&
-					diagnosis.docsSourceExists &&
+					diagnosis.bucket === "present" &&
+					diagnosis.database === "present" &&
+					diagnosis.docsBucket === "present" &&
+					diagnosis.docsSource === "present" &&
 					diagnosis.managedEnvironmentReady &&
-					diagnosis.sharedInfrastructureReady &&
-					diagnosis.sourceBucketExists
+					diagnosis.sharedInfrastructure.status === "ready" &&
+					diagnosis.sourceBucket === "present"
 				)
 			) {
 				process.exitCode = 1;
@@ -39,10 +39,10 @@ try {
 			break;
 		}
 		case "instances": {
-			const profiles = listLocalDevProfiles(repoRoot);
+			const instances = diagnoseLocalDevInstances(repoRoot);
 			console.log(
-				profiles.length > 0
-					? profiles.map((profile) => formatProfileSummary(profile)).join("\n\n")
+				instances.length > 0
+					? instances.map(formatInstanceDiagnosis).join("\n\n")
 					: "No local development instances are registered.",
 			);
 			break;
@@ -68,4 +68,16 @@ try {
 function readFlag(values: string[], flag: string): string | undefined {
 	const index = values.indexOf(flag);
 	return index >= 0 ? values[index + 1]?.trim() || undefined : undefined;
+}
+
+function formatInstanceDiagnosis(
+	instance: ReturnType<typeof diagnoseLocalDevInstances>[number],
+): string {
+	return [
+		formatProfileSummary(instance.profile),
+		`Worktree state: ${instance.worktree}`,
+		`Database state: ${instance.database}`,
+		`Derived bucket state: ${instance.bucket}`,
+		`Status: ${instance.status}`,
+	].join("\n");
 }

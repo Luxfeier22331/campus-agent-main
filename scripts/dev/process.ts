@@ -1,5 +1,12 @@
 import { type SpawnSyncOptions, spawnSync } from "node:child_process";
 
+export interface CapturedCommandResult {
+	error?: Error;
+	status: number | null;
+	stderr: string;
+	stdout: string;
+}
+
 export function runCommand(command: string, args: string[], options: SpawnSyncOptions = {}): void {
 	const result = spawnSync(command, args, {
 		...options,
@@ -37,6 +44,24 @@ export function captureCommand(
 		);
 	}
 	return typeof result.stdout === "string" ? result.stdout.trim() : "";
+}
+
+export function captureCommandResult(
+	command: string,
+	args: string[],
+	options: SpawnSyncOptions = {},
+): CapturedCommandResult {
+	const result = spawnSync(command, args, {
+		...options,
+		encoding: "utf8",
+		stdio: "pipe",
+	});
+	return {
+		error: result.error,
+		status: result.status,
+		stderr: typeof result.stderr === "string" ? result.stderr : "",
+		stdout: typeof result.stdout === "string" ? result.stdout : "",
+	};
 }
 
 export function commandSucceeds(
