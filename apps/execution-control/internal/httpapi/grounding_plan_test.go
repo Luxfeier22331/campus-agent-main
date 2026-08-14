@@ -50,12 +50,21 @@ func TestAllowsUngroundedAnswerOnlyForBoundedDirectRequests(t *testing.T) {
 		{query: "你好", want: true},
 		{query: "你能做什么", want: true},
 		{query: "hi 你是谁", want: true},
+		{query: "hi who are you", want: true},
+		{query: "Hello, who are you?", want: true},
+		{query: "hey - what can you do?", want: true},
+		{query: "你好，你能做什么？", want: true},
+		{query: "Tell me about yourself.", want: true},
+		{query: "thank you!", want: true},
 		{query: "请润色：明天开会", want: true},
 		{query: "请翻译: tomorrow morning", want: true},
 		{query: "请翻译这句话", want: false},
 		{query: "总结：明天开会", want: false},
 		{query: "今天天气怎么样？", want: false},
 		{query: "学校官网今天刚发布的通知有哪些？", want: false},
+		{query: "hi who are you and what is the scholarship policy", want: false},
+		{query: "hello 学生请假手续是什么？", want: false},
+		{query: "who are you according to school records?", want: false},
 	} {
 		if got := allowsUngroundedAnswer(test.query); got != test.want {
 			t.Errorf("allowsUngroundedAnswer(%q) = %t, want %t", test.query, got, test.want)

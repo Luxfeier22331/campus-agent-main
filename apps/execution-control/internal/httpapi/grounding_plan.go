@@ -22,6 +22,22 @@ var contextualFollowUpTerms = []string{
 	"第十条", "第十款", "第二学期", "现在的规定", "前面", "刚才",
 }
 
+var simpleSocialRequests = []string{
+	"你好", "您好", "嗨", "hi", "hello", "hey",
+	"谢谢", "谢谢你", "多谢", "thanks", "thank you",
+	"好的", "好", "明白了", "ok", "okay", "got it",
+	"早上好", "下午好", "晚上好", "good morning", "good afternoon", "good evening",
+}
+
+var identityAndCapabilityRequests = []string{
+	"你是谁", "介绍一下你自己", "请介绍一下你自己",
+	"你能做什么", "你会做什么", "你可以做什么", "你能帮我做什么",
+	"who are you", "what are you", "introduce yourself", "please introduce yourself",
+	"tell me about yourself", "what can you do", "what do you do", "how can you help",
+}
+
+var directRequestGreetingPrefixes = []string{"你好", "您好", "嗨", "hi", "hello", "hey"}
+
 func (s *Server) buildGroundingPlan(
 	wire contracts.ExecutionPayloadWire,
 ) (temporalruntime.GroundingPlanSnapshot, error) {
@@ -116,16 +132,8 @@ func contextualFollowUpQuestion(value string) bool {
 
 func allowsUngroundedAnswer(value string) bool {
 	normalized := strings.ToLower(strings.TrimSpace(value))
-	trimmed := strings.TrimFunc(normalized, func(r rune) bool {
-		return unicode.IsPunct(r) || unicode.IsSpace(r)
-	})
-	for _, direct := range []string{
-		"你好", "您好", "嗨", "hi", "hello", "谢谢", "多谢", "好的", "好", "明白了",
-		"你能做什么", "你是谁", "介绍一下你自己", "hi 你是谁",
-	} {
-		if trimmed == direct {
-			return true
-		}
+	if isBoundedDirectRequest(normalized) {
+		return true
 	}
 	if !containsAnyText(normalized, []string{"改写", "润色", "翻译", "改得更", "改成"}) {
 		return false
@@ -135,6 +143,32 @@ func allowsUngroundedAnswer(value string) bool {
 	}
 	if _, supplied, found := strings.Cut(normalized, "："); found {
 		return strings.TrimSpace(supplied) != ""
+	}
+	return false
+}
+
+func isBoundedDirectRequest(value string) bool {
+	normalized := strings.Join(strings.FieldsFunc(strings.ToLower(strings.TrimSpace(value)), func(r rune) bool {
+		return unicode.IsPunct(r) || unicode.IsSpace(r)
+	}), " ")
+	if equalsAnyText(normalized, simpleSocialRequests) ||
+		equalsAnyText(normalized, identityAndCapabilityRequests) {
+		return true
+	}
+	for _, greeting := range directRequestGreetingPrefixes {
+		request, found := strings.CutPrefix(normalized, greeting+" ")
+		if found && equalsAnyText(request, identityAndCapabilityRequests) {
+			return true
+		}
+	}
+	return false
+}
+
+func equalsAnyText(value string, candidates []string) bool {
+	for _, candidate := range candidates {
+		if value == candidate {
+			return true
+		}
 	}
 	return false
 }

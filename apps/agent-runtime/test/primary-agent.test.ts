@@ -226,6 +226,9 @@ describe("primary agent runtime", () => {
 			"Use only the function tools made available in this run.",
 		);
 		expect(observedInstructions).toContain(
+			"identify only as the campus question-answering assistant and describe only campus-information help",
+		);
+		expect(observedInstructions).toContain(
 			"When grounding_context.status is not_required, answer without evidenceRefs only when allow_ungrounded_answer is true",
 		);
 		expect(observedInstructions).toContain(
