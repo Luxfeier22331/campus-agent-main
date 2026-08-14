@@ -25,6 +25,61 @@ area、优先级、依赖和可验证的验收条件都已明确，且工作当�
 关闭；涉及部署的事项必须等 `staging/deployment` 成功，并完成所需正式用户路径验收后再关闭。
 Project 的 `Done` 状态本身不用于关闭 Issue。
 
+### 选择 Issue 模板
+
+| 模板 | Issue Type / 标签 | 适用场景 | 建档边界 |
+| --- | --- | --- | --- |
+| Feature request | `Feature` | 新增产品行为、接口或合同能力 | 一个可独立验收的用户或系统结果，并指定一个主要 `area:*` |
+| Bug report | `Bug` | 可复现的现有错误行为 | 最小复现、预期与实际行为，以及一个主要 `area:*` |
+| Engineering task | `Task` | 维护、重构、测试、基础设施或开发体验工作 | 一个可验证的工程结果，以及一个主要 `area:*` |
+| Documentation issue | `Task`、`area:docs` | 文档缺失、过时、含糊、链接损坏或渲染错误 | 指定页面或章节、期望状态和验收条件 |
+| Tracking issue | `Task`、`tracking` | 协调多个可独立审查的 Issue 或 Pull Request | 只记录整体目标、子项、顺序和完成条件；父 Issue 可不设置 `area:*` |
+
+模板中的 `Primary area` 表示主要所有者，不用于列出所有相关目录。一个 Issue 如果同时涉及多个
+所有者，应先按独立结果和验收边界拆分，再分别设置主要 area；不能用增加标签代替拆分。
+
+### 拆分与关联
+
+只有当结果、所有权或验收条件可以独立时才拆分 Issue；不按目录、文件数量或提交数量机械拆分。
+Tracking 父 Issue 只协调整体目标、子 Issue、顺序和完成条件，不承载实施代码或重复子项验收。
+
+子 Issue 按自己的验收条件独立流转和关闭。父 Tracking Issue 只有在所有必需子项完成且整体完成条件
+满足后，才能移到 `Done` 并关闭；父 Issue 的关闭不替代子 Issue 的验收。
+
+一个具体 Issue 或 Pull Request 阻塞另一个事项时，使用 GitHub 的 `blocked-by` 关系；阻塞项在同一
+仓库时应直接关联对应编号。外部且没有对应 Issue 的依赖使用 `blocked` 标签并在正文说明依赖和解除
+条件，不增加新的 Project 状态。阻塞时保留原有生命周期状态：尚未开始时保留 `Ready`，已开始时
+保留 `In progress`，解除后继续原流程。
+
+跨仓库事项使用完整的 `owner/repository#number` 引用；目标仓库仍拥有该事项的状态、验收和关闭权，
+Tracking 父 Issue 只等待其声明的整体完成条件。
+
+### 状态与优先级
+
+Project 的状态按以下流程使用：
+
+| Status | 含义 | 进入条件与下一步 |
+| --- | --- | --- |
+| `Inbox` | 新建或尚未完成分诊 | 补齐模板信息后进入 `Ready` |
+| `Ready` | 已完成分诊并具备开始条件 | 类型、主要 area（Tracking 例外）、Priority、依赖和验收条件齐全；开始实施后进入 `In progress` |
+| `In progress` | 已开始实施或存在活动 worktree | 完成实现并创建可评审 PR 后进入 `Review` |
+| `Review` | PR 已进入评审 | PR 合并且验收条件满足后进入 `Done`；未合并但继续工作时回到 `In progress` |
+| `Done` | 验收条件全部满足 | 是否关闭 GitHub Issue 另按部署和用户路径要求判断 |
+
+进入 `Ready` 时工作应未被阻塞；若之后出现阻塞，按上面的 `blocked` 规则保留当前阶段并记录解除条件。
+Project `Done` 与 GitHub Issue 关闭相互独立：源码-only 且合并即满足全部验收时可以关闭，部署类事项
+必须等 `staging/deployment` 和所需正式用户路径验收完成后再关闭。
+
+Priority 只表达影响，不表达提交者偏好：
+
+| Priority | 可执行语义 | 至少提供的依据 |
+| --- | --- | --- |
+| `P0` | 生产中断、安全事件、数据丢失或损坏，或关键用户路径完全不可用 | 事件、受影响范围或可复核的严重复现 |
+| `P1` | 重大用户或系统影响、关键合同或交付被阻断，但仍存在有限 workaround | 影响范围、合同阻断、复现或明确的近期影响 |
+| `P2` | 正常排期的功能、局部缺陷、文档、维护和改进，没有当前 P0/P1 影响 | 可验证的目标和验收条件 |
+
+事实或影响范围变化时应重新分诊；没有足够证据时不得仅凭紧迫感填写 `P0` 或 `P1`。
+
 ## 环境准备
 
 ```bash
@@ -44,6 +99,8 @@ feature worktree -> pull request -> main
 ```
 
 - 每个改动使用短生命周期分支和独立 worktree；
+- 新工作默认遵守一条实施 Issue、一条分支和一个 Pull Request；拆分依据是独立结果、所有权和验收
+  边界，而不是目录或提交数量；
 - 有对应 Issue 的人工分支使用 `<type>/<issue-number>-<slug>`，其中 type 为 `feat`、`fix`、`docs`
   或 `chore`；
 - Pull Request 聚焦一个可独立审查的目标，不混入无关格式化或其他工作区改动；
@@ -54,6 +111,10 @@ feature worktree -> pull request -> main
 开始实现时把 Issue 移到 `In progress`，Pull Request 进入评审时移到 `Review`。Pull Request 默认用
 `Refs #<issue-number>` 关联事项；只有合并后即可满足全部验收条件时才使用 `Fixes`。跨仓库事项使用
 完整引用，例如 `Refs MUC-WIKI/campus-agent-gitops#<issue-number>`。
+
+如果已有在研 worktree 的实现已经完成，可以在一个 Pull Request 中使用多个 `Refs` 关联后来拆分的
+子 Issue，不要求为了补齐 Issue 层级而重写现有分支。新工作仍遵守一条实施 Issue、一条分支和一个
+Pull Request 的默认规则。
 
 Pull Request 合并后应立即退役对应 linked worktree 和本地功能分支。删除前必须确认 worktree 干净、
 本地 HEAD 与 Pull Request head 完全一致、Pull Request 已合入 `main`，且 merge commit 可从最新
