@@ -14,6 +14,7 @@ group "default" {
     "execution-control",
     "ingestion-control",
     "ingestion-control-worker",
+    "notice-publisher",
     "ops-web",
     "source-collector",
   ]

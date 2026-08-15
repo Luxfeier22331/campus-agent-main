@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
 	type CommandOutput,
@@ -14,6 +15,7 @@ import {
 const SHA = "a".repeat(40);
 const FIRST_DIGEST = `sha256:${"b".repeat(64)}`;
 const SECOND_DIGEST = `sha256:${"c".repeat(64)}`;
+const REPOSITORY_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
 function result(overrides: Partial<CommandResult> = {}): CommandResult {
 	return { code: 0, stderr: "", stdout: "", ...overrides };
@@ -26,6 +28,17 @@ function bakePrint(targets: string[]): CommandResult {
 		}),
 	});
 }
+
+test("keeps notice-publisher in the Docker Bake default release group", async () => {
+	const bake = await readFile(path.join(REPOSITORY_ROOT, "docker-bake.hcl"), "utf8");
+	const defaultGroup = bake.match(/group\s+"default"\s*\{([\s\S]*?)\n\s*\}/u)?.[1];
+	assert(defaultGroup);
+	assert.match(defaultGroup, /"notice-publisher"/u);
+	assert.match(
+		bake,
+		/target\s+"notice-publisher"\s*\{[\s\S]*?dockerfile\s*=\s*"jobs\/notice-publisher\/Dockerfile"/u,
+	);
+});
 
 function manifest(
 	digest: string,
