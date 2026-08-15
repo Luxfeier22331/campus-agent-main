@@ -55,7 +55,7 @@ flowchart LR
 ```
 
 app-api 保存用户轮次并创建持久 run；execution-control 和 Temporal 推进执行并写入
-`runtime.agent_*`；app-api 消费有界事件并保存产品终态。事务与幂等规则只在
+`execution_control.agent_*`；app-api 消费有界事件并保存产品终态。事务与幂等规则只在
 `docs/contracts/app-api/request-lifecycle.md` 维护。
 
 ## 数据边界

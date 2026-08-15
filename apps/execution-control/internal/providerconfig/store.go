@@ -58,21 +58,21 @@ func CheckDatabaseSchema(ctx context.Context, databaseURL string) error {
 	}
 	defer pool.Close()
 	var exists bool
-	if err := pool.QueryRow(ctx, "select to_regclass('execution_config.model_settings') is not null").Scan(&exists); err != nil {
+	if err := pool.QueryRow(ctx, "select to_regclass('execution_control.model_settings') is not null").Scan(&exists); err != nil {
 		return err
 	}
 	if !exists {
-		return errors.New("execution_config.model_settings table is not installed")
+		return errors.New("execution_control.model_settings table is not installed")
 	}
 	var retiredTimeoutColumnExists bool
 	if err := pool.QueryRow(ctx, `select exists(
 		select 1 from information_schema.columns
-		where table_schema='execution_config' and table_name='model_settings' and column_name='timeout_ms'
+		where table_schema='execution_control' and table_name='model_settings' and column_name='timeout_ms'
 	)`).Scan(&retiredTimeoutColumnExists); err != nil {
 		return err
 	}
 	if retiredTimeoutColumnExists {
-		return errors.New("retired execution_config.model_settings.timeout_ms column is still installed")
+		return errors.New("retired execution_control.model_settings.timeout_ms column is still installed")
 	}
 	legacyTables, err := legacyProviderConfigTablePresence(ctx, pool)
 	if err != nil {
@@ -93,11 +93,11 @@ func CheckDatabaseSchema(ctx context.Context, databaseURL string) error {
 	}
 	for _, check := range checks {
 		var granted bool
-		if err := pool.QueryRow(ctx, "select has_table_privilege($1,'execution_config.model_settings',$2)", check.role, check.privilege).Scan(&granted); err != nil {
+		if err := pool.QueryRow(ctx, "select has_table_privilege($1,'execution_control.model_settings',$2)", check.role, check.privilege).Scan(&granted); err != nil {
 			return err
 		}
 		if granted != check.want {
-			return fmt.Errorf("database role %s %s on execution_config.model_settings = %t, want %t", check.role, check.privilege, granted, check.want)
+			return fmt.Errorf("database role %s %s on execution_control.model_settings = %t, want %t", check.role, check.privilege, granted, check.want)
 		}
 	}
 	return nil
@@ -120,7 +120,7 @@ func (s *Store) AdminReadinessCheck(ctx context.Context) error {
 		return ErrNotConfigured
 	}
 	var ready bool
-	if err := s.pool.QueryRow(ctx, "select to_regclass('execution_config.model_settings') is not null").Scan(&ready); err != nil {
+	if err := s.pool.QueryRow(ctx, "select to_regclass('execution_control.model_settings') is not null").Scan(&ready); err != nil {
 		return err
 	}
 	if !ready {
@@ -141,7 +141,7 @@ func (s *Store) Resolve(ctx context.Context, kind Kind) (RuntimeSetting, error) 
 	var nonce, ciphertext []byte
 	err := s.pool.QueryRow(ctx, `select kind,provider,base_url,model,transport,coalesce(dimensions,0),
 		secret_key_id,secret_nonce,secret_ciphertext
-		from execution_config.model_settings where kind=$1`, kind).Scan(
+		from execution_control.model_settings where kind=$1`, kind).Scan(
 		&setting.Kind,
 		&setting.Provider,
 		&setting.BaseURL,
@@ -216,7 +216,7 @@ func (s *Store) Put(
 		return Status{}, err
 	}
 	now := time.Now().UTC()
-	_, err = tx.Exec(ctx, `insert into execution_config.model_settings
+	_, err = tx.Exec(ctx, `insert into execution_control.model_settings
 		(kind,provider,base_url,model,transport,dimensions,
 		 secret_key_id,secret_nonce,secret_ciphertext,secret_fingerprint,secret_last4,
 		 validation_status,validation_error_code,validation_message,validation_observed_dimensions,
@@ -266,7 +266,7 @@ func (s *Store) RecordValidation(
 	result ValidationResult,
 	expectedUpdatedAt time.Time,
 ) error {
-	command, err := s.pool.Exec(ctx, `update execution_config.model_settings set
+	command, err := s.pool.Exec(ctx, `update execution_control.model_settings set
 		validation_status=$2,validation_error_code=$3,validation_message=$4,
 		validation_observed_dimensions=nullif($5,0),validated_at=$6,validated_by=$7
 		where kind=$1 and updated_at=$8`, kind, result.Status, result.ErrorCode, result.Message, result.ObservedDimensions, time.Now().UTC(), normalizeActor(actor), expectedUpdatedAt)
@@ -290,7 +290,7 @@ func (s *Store) Status(ctx context.Context) (Status, error) {
 	rows, err := s.pool.Query(ctx, `select kind,provider,base_url,model,transport,coalesce(dimensions,0),
 		secret_last4,validation_status,validation_error_code,validation_message,
 		coalesce(validation_observed_dimensions,0),validated_at,validated_by,updated_at,updated_by
-		from execution_config.model_settings order by kind`)
+		from execution_control.model_settings order by kind`)
 	if err != nil {
 		return Status{}, err
 	}
@@ -329,7 +329,7 @@ func (s *Store) Status(ctx context.Context) (Status, error) {
 }
 
 func statusETagTx(ctx context.Context, tx pgx.Tx) (string, error) {
-	rows, err := tx.Query(ctx, "select kind,updated_at from execution_config.model_settings order by kind")
+	rows, err := tx.Query(ctx, "select kind,updated_at from execution_control.model_settings order by kind")
 	if err != nil {
 		return "", err
 	}

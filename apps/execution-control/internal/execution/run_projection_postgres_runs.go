@@ -38,7 +38,7 @@ func (s *PostgresRunProjectionStore) CreateRun(
 	defer func() { _ = tx.Rollback(ctx) }()
 	_, err = tx.Exec(
 		ctx,
-		`insert into runtime.agent_runs (
+		`insert into execution_control.agent_runs (
 			run_id, conversation_id, turn_id, request_id, trace_id, owner_user_id, surface,
 			task_queue, status, terminal_reason,
 			fail_close_reason, retryable, created_at, queued_at, admitted_at, started_at,
@@ -86,7 +86,7 @@ func (s *PostgresRunProjectionStore) CreateRun(
 }
 
 func (s *PostgresRunProjectionStore) DeleteRun(ctx context.Context, runID string) error {
-	commandTag, err := s.pool.Exec(ctx, `delete from runtime.agent_runs where run_id = $1`, runID)
+	commandTag, err := s.pool.Exec(ctx, `delete from execution_control.agent_runs where run_id = $1`, runID)
 	if err != nil {
 		return err
 	}
@@ -128,7 +128,7 @@ func (s *PostgresRunProjectionStore) ReplaceRunMetadata(
 	}
 	commandTag, err := s.pool.Exec(
 		ctx,
-		`update runtime.agent_runs set metadata_json = $2::jsonb, updated_at = $3 where run_id = $1`,
+		`update execution_control.agent_runs set metadata_json = $2::jsonb, updated_at = $3 where run_id = $1`,
 		runID,
 		metadataJSON,
 		time.Now().UTC(),
@@ -177,7 +177,7 @@ func (s *PostgresRunProjectionStore) TransitionRun(
 	}
 	_, err = tx.Exec(
 		ctx,
-		`update runtime.agent_runs
+		`update execution_control.agent_runs
 		set status = $2, terminal_reason = $3, queued_at = $4, admitted_at = $5,
 			started_at = $6, streaming_started_at = $7, completed_at = $8, updated_at = $9
 		where run_id = $1`,
@@ -260,7 +260,7 @@ func (s *PostgresRunProjectionStore) ExpireRunProjection(
 		return DurableRun{}, fmt.Errorf("%w: %v", ErrDurableRunExpiryConflict, err)
 	}
 	if _, err := tx.Exec(ctx,
-		`delete from runtime.conversation_run_locks where conversation_id = $1 and run_id = $2`,
+		`delete from execution_control.conversation_run_locks where conversation_id = $1 and run_id = $2`,
 		run.ConversationID, run.RunID,
 	); err != nil {
 		return DurableRun{}, err
@@ -331,7 +331,7 @@ func (s *PostgresRunProjectionStore) CompleteRunProjection(
 	}
 	_, err = tx.Exec(
 		ctx,
-		`update runtime.agent_runs
+		`update execution_control.agent_runs
 		set status = $2, terminal_reason = $3, queued_at = $4, admitted_at = $5,
 			started_at = $6, streaming_started_at = $7, completed_at = $8, updated_at = $9,
 			final_response_ref = $10
@@ -363,7 +363,7 @@ func requireFinalizationResultInTx(
 ) error {
 	var exists bool
 	if err := tx.QueryRow(ctx, `select exists (
-		select 1 from runtime.agent_step_results
+		select 1 from execution_control.agent_step_results
 		where run_id = $1 and step_id = 'finalization.write' and status = 'completed'
 			and result_kind = 'final_answer_projection' and projection_ref = $2
 	)`, request.RunID, request.FinalResponseRef).Scan(&exists); err != nil {
@@ -444,7 +444,7 @@ func (s *PostgresRunProjectionStore) CancelRunProjection(
 	}
 	if _, err := tx.Exec(
 		ctx,
-		`delete from runtime.conversation_run_locks where conversation_id = $1 and run_id = $2`,
+		`delete from execution_control.conversation_run_locks where conversation_id = $1 and run_id = $2`,
 		run.ConversationID,
 		run.RunID,
 	); err != nil {
@@ -526,7 +526,7 @@ func (s *PostgresRunProjectionStore) FailRunProjection(
 	}
 	_, err = tx.Exec(
 		ctx,
-		`update runtime.agent_runs
+		`update execution_control.agent_runs
 		set status = $2, terminal_reason = $3, queued_at = $4, admitted_at = $5,
 			started_at = $6, streaming_started_at = $7, completed_at = $8, updated_at = $9,
 			fail_close_reason = $10
@@ -547,7 +547,7 @@ func (s *PostgresRunProjectionStore) FailRunProjection(
 	}
 	if _, err := tx.Exec(
 		ctx,
-		`delete from runtime.conversation_run_locks where conversation_id = $1 and run_id = $2`,
+		`delete from execution_control.conversation_run_locks where conversation_id = $1 and run_id = $2`,
 		run.ConversationID,
 		run.RunID,
 	); err != nil {
@@ -573,7 +573,7 @@ func mapDurableRunUniqueViolation(
 	var existingRunID string
 	err := store.pool.QueryRow(
 		ctx,
-		`select run_id from runtime.agent_runs
+		`select run_id from execution_control.agent_runs
 		where conversation_id = $1 and status in ('created', 'queued', 'admitted', 'running', 'streaming')
 		limit 1`,
 		run.ConversationID,
@@ -671,4 +671,4 @@ const durableRunSelectSQL = `select
 	task_queue, status, terminal_reason, fail_close_reason,
 	retryable, created_at, queued_at, admitted_at, started_at, streaming_started_at, completed_at,
 	updated_at, runtime_versions_json, final_response_ref, request_fingerprint_sha256, metadata_json
-from runtime.agent_runs`
+from execution_control.agent_runs`

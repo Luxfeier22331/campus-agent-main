@@ -52,7 +52,7 @@ execution-control。投递尝试和低基数错误可记录在发件箱中；HTT
 ## `runtime.request_observability_fact`
 
 该表保存一次 browser request 的受控诊断摘要，用于 app-api 的质量分析和受控故障定位。
-Ops Web 的主运行记录以 `chat.turn_dispatches` 和 execution-control 的 `runtime.agent_*`
+Ops Web 的主运行记录以 `chat.turn_dispatches` 和 execution-control 的 `execution_control.agent_*`
 为事实来源，不依赖此表重建请求旅途；该表只作为明确授权的次级关联数据。
 它不是工作流状态机，也不承载原始日志、原始 prompt、模型完整输入输出、记忆正文或检索
 正文。冻结输入与取消发件箱也不复制到该表。
@@ -92,7 +92,7 @@ TTFT 回填不会补发或改写该事件，只进入本表；事件缺少该字
 - `surface`、principal type、model 和 safety identifier + time。
 
 Ops Web 按 `request_id` 读取 `chat.turn_dispatches`、`chat.messages` 和
-`runtime.agent_runs`，不会从此表或其他观测字段反推或改写请求状态。
+`execution_control.agent_runs`，不会从此表或其他观测字段反推或改写请求状态。
 
 当前只有 App API 在请求接纳、首段响应计时和终结事务中读写该表；用户产品读取模型不查询它，
 Ops Web 也没有该表的列读取权限。它不能成为新的跨所有者接口；字段只随 App API 的实际消费
@@ -100,7 +100,7 @@ Ops Web 也没有该表的列读取权限。它不能成为新的跨所有者接
 
 ## execution-control 投影
 
-`runtime.agent_*` 由 `apps/execution-control` 的 schema installer 管理。`app_api` 角色不能读取
+`execution_control.agent_*` 由 `apps/execution-control` 的 schema installer 管理。`app_api` 角色不能读取
 这些表，`ops_web` 仅获得合同列的读取权限。chat dispatch、agent run 和 observability fact
 直接通过 `request_id`、`run_id` 与 `trace_id` 关联。
 

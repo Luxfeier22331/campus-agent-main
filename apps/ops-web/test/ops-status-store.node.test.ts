@@ -6,6 +6,7 @@ import {
 	resolveCampusWebPublicOrigin,
 } from "../src/server/ops-status-store";
 import { createPgOpsStatusStore } from "../src/server/pg-ops-status-store";
+import { agentUsageSql, requestRowsCte } from "../src/server/pg-request-query";
 import { OpsRequestDetailResponseSchema } from "../src/shared/ops-contract";
 import { agentUsageRow, createFakeOpsDb, requestRow } from "./ops-status-store-test-helpers";
 
@@ -46,6 +47,15 @@ describe("PostgreSQL ops status store", () => {
 
 		await store.verifySchema();
 		expect(db.verifySchema).toHaveBeenCalledOnce();
+	});
+
+	it("reads execution projections from the owning schema", () => {
+		const sql = `${requestRowsCte()}\n${agentUsageSql("and false")}`;
+
+		expect(sql).toContain('"execution_control"."agent_runs"');
+		expect(sql).toContain('"execution_control"."agent_step_attempts"');
+		expect(sql).not.toContain('"runtime"."agent_runs"');
+		expect(sql).not.toContain('"runtime"."agent_step_attempts"');
 	});
 
 	it("builds windowed request overview data", async () => {

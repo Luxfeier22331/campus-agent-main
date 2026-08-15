@@ -18,9 +18,30 @@ import (
 
 const migrationTable = "public.execution_control_migrations"
 
-const appAPIRuntimeFactTable = "request_observability_fact"
+const (
+	appAPIRole             = "app_api"
+	appAPIRuntimeFactTable = "request_observability_fact"
+	executionControlRole   = "execution_control"
+	opsWebRole             = "ops_web"
+)
 
-var runtimeTables = []string{
+var executionControlTables = []string{
+	"execution_control.agent_runs",
+	"execution_control.agent_run_events",
+	"execution_control.agent_run_steps",
+	"execution_control.agent_step_attempts",
+	"execution_control.agent_step_results",
+	"execution_control.conversation_run_locks",
+	"execution_control.agent_workflow_starts",
+	"execution_control.agent_run_cancellations",
+	"execution_control.agent_invocation_receipts",
+	"execution_control.personal_memory_owner_fences",
+	"execution_control.personal_memory_call_leases",
+	"execution_control.personal_memory_command_receipts",
+	"execution_control.model_settings",
+}
+
+var compatibilityViews = []string{
 	"runtime.agent_runs",
 	"runtime.agent_run_events",
 	"runtime.agent_run_steps",
@@ -33,6 +54,24 @@ var runtimeTables = []string{
 	"runtime.personal_memory_owner_fences",
 	"runtime.personal_memory_call_leases",
 	"runtime.personal_memory_command_receipts",
+	"execution_config.model_settings",
+}
+
+var opsWebReadColumns = map[string][]string{
+	"execution_control.agent_runs": {
+		"completed_at", "fail_close_reason", "run_id", "runtime_versions_json",
+		"status", "terminal_reason", "trace_id", "updated_at",
+	},
+	"execution_control.agent_step_attempts": {
+		"cached_input_tokens", "input_tokens", "output_tokens", "run_id", "step_id", "usage_observed",
+	},
+	"runtime.agent_runs": {
+		"completed_at", "fail_close_reason", "run_id", "runtime_versions_json",
+		"status", "terminal_reason", "trace_id", "updated_at",
+	},
+	"runtime.agent_step_attempts": {
+		"cached_input_tokens", "input_tokens", "output_tokens", "run_id", "step_id", "usage_observed",
+	},
 }
 
 var legacyRuntimeTableNames = []string{
@@ -108,9 +147,30 @@ var legacyPersonalMemoryTableColumns = map[string][]string{
 	},
 }
 
-const runtimeGrantSQL = `
-revoke all privileges on schema runtime from execution_control;
-grant usage on schema runtime to execution_control;
+const executionControlGrantSQL = `
+revoke all privileges on schema execution_control from public, app_api, execution_control, ops_web;
+grant usage on schema execution_control to execution_control, ops_web;
+
+revoke create on schema runtime from execution_control, ops_web;
+grant usage on schema runtime to execution_control, ops_web;
+revoke all privileges on schema execution_config from execution_control, ops_web;
+grant usage on schema execution_config to execution_control;
+
+revoke all privileges on table
+	execution_control.agent_runs,
+	execution_control.agent_run_events,
+	execution_control.agent_run_steps,
+	execution_control.agent_step_attempts,
+	execution_control.agent_step_results,
+	execution_control.conversation_run_locks,
+	execution_control.agent_workflow_starts,
+	execution_control.agent_run_cancellations,
+	execution_control.agent_invocation_receipts,
+	execution_control.personal_memory_owner_fences,
+	execution_control.personal_memory_call_leases,
+	execution_control.personal_memory_command_receipts,
+	execution_control.model_settings
+from public, app_api, execution_control, ops_web;
 
 revoke all privileges on table
 	runtime.agent_runs,
@@ -124,10 +184,72 @@ revoke all privileges on table
 	runtime.agent_invocation_receipts,
 	runtime.personal_memory_owner_fences,
 	runtime.personal_memory_call_leases,
-	runtime.personal_memory_command_receipts
-from execution_control;
+	runtime.personal_memory_command_receipts,
+	execution_config.model_settings
+from public, app_api, execution_control, ops_web;
+
+do $revoke_column_privileges$
+declare
+	grantee text;
+	relation record;
+	column_names text;
+begin
+	foreach grantee in array array['app_api', 'ops_web']
+	loop
+		for relation in
+			select class.oid as relation_oid, namespace.nspname as schema_name,
+				class.relname as relation_name
+			from pg_class as class
+			join pg_namespace as namespace on namespace.oid = class.relnamespace
+			where class.relkind in ('r', 'p', 'v', 'm', 'f')
+				and ((namespace.nspname = 'execution_control')
+				or (namespace.nspname = 'runtime' and class.relname in (
+					'agent_runs', 'agent_run_events', 'agent_run_steps', 'agent_step_attempts',
+					'agent_step_results', 'conversation_run_locks', 'agent_workflow_starts',
+					'agent_run_cancellations', 'agent_invocation_receipts',
+					'personal_memory_owner_fences', 'personal_memory_call_leases',
+					'personal_memory_command_receipts'
+				))
+				or (namespace.nspname = 'execution_config' and class.relname = 'model_settings'))
+		loop
+			select string_agg(quote_ident(attribute.attname), ', ' order by attribute.attnum)
+			into column_names
+			from pg_attribute as attribute
+			where attribute.attrelid = relation.relation_oid
+				and attribute.attnum > 0
+				and not attribute.attisdropped;
+
+			if column_names is not null then
+				execute format(
+					'revoke all privileges (%s) on table %I.%I from %I',
+					column_names,
+					relation.schema_name,
+					relation.relation_name,
+					grantee
+				);
+			end if;
+		end loop;
+	end loop;
+end
+$revoke_column_privileges$;
 
 grant select, insert, update, delete on table
+	execution_control.agent_runs,
+	execution_control.agent_run_events,
+	execution_control.agent_run_steps,
+	execution_control.agent_step_attempts,
+	execution_control.agent_step_results,
+	execution_control.conversation_run_locks,
+	execution_control.agent_workflow_starts,
+	execution_control.agent_run_cancellations,
+	execution_control.agent_invocation_receipts,
+	execution_control.personal_memory_owner_fences,
+	execution_control.personal_memory_call_leases,
+	execution_control.personal_memory_command_receipts,
+	execution_control.model_settings
+to execution_control;
+
+grant select on table
 	runtime.agent_runs,
 	runtime.agent_run_events,
 	runtime.agent_run_steps,
@@ -139,30 +261,40 @@ grant select, insert, update, delete on table
 	runtime.agent_invocation_receipts,
 	runtime.personal_memory_owner_fences,
 	runtime.personal_memory_call_leases,
-	runtime.personal_memory_command_receipts
+	runtime.personal_memory_command_receipts,
+	execution_config.model_settings
 to execution_control;
+
+grant select (
+	completed_at, fail_close_reason, run_id, runtime_versions_json, status,
+	terminal_reason, trace_id, updated_at
+) on table execution_control.agent_runs to ops_web;
+grant select (
+	cached_input_tokens, input_tokens, output_tokens, run_id, step_id, usage_observed
+) on table execution_control.agent_step_attempts to ops_web;
+grant select (
+	completed_at, fail_close_reason, run_id, runtime_versions_json, status,
+	terminal_reason, trace_id, updated_at
+) on table runtime.agent_runs to ops_web;
+grant select (
+	cached_input_tokens, input_tokens, output_tokens, run_id, step_id, usage_observed
+) on table runtime.agent_step_attempts to ops_web;
 
 do $$
 begin
 	if to_regclass('runtime.request_observability_fact') is not null then
 		execute 'revoke all privileges on table runtime.request_observability_fact from execution_control';
 	end if;
-end
-$$;
-`
-
-const providerConfigGrantSQL = `
-grant usage on schema execution_config to execution_control;
-grant select, insert, update, delete on execution_config.model_settings to execution_control;
-
-do $$
-begin
 	if exists (select 1 from pg_roles where rolname = 'execution_provider_config_reader') then
+		revoke all privileges on execution_control.model_settings from execution_provider_config_reader;
 		revoke all privileges on execution_config.model_settings from execution_provider_config_reader;
+		revoke usage on schema execution_control from execution_provider_config_reader;
 		revoke usage on schema execution_config from execution_provider_config_reader;
 	end if;
 	if exists (select 1 from pg_roles where rolname = 'execution_provider_config_admin') then
+		revoke all privileges on execution_control.model_settings from execution_provider_config_admin;
 		revoke all privileges on execution_config.model_settings from execution_provider_config_admin;
+		revoke usage on schema execution_control from execution_provider_config_admin;
 		revoke usage on schema execution_config from execution_provider_config_admin;
 	end if;
 end
@@ -461,7 +593,7 @@ func sortedColumnNames(columns []string) []string {
 }
 
 func (m *Migrator) Up(ctx context.Context) error {
-	if err := m.requireRuntimeRole(ctx); err != nil {
+	if err := m.requireDatabaseRoles(ctx); err != nil {
 		return err
 	}
 	if err := m.requireKnownRuntimeSchema(ctx); err != nil {
@@ -474,7 +606,7 @@ func (m *Migrator) Up(ctx context.Context) error {
 }
 
 func (m *Migrator) Check(ctx context.Context) error {
-	if err := m.requireRuntimeRole(ctx); err != nil {
+	if err := m.requireDatabaseRoles(ctx); err != nil {
 		return err
 	}
 	pending, err := m.provider.HasPending(ctx)
@@ -488,10 +620,10 @@ func (m *Migrator) Check(ctx context.Context) error {
 }
 
 func (m *Migrator) InstallGrants(ctx context.Context) error {
-	if err := m.requireRuntimeRole(ctx); err != nil {
+	if err := m.requireDatabaseRoles(ctx); err != nil {
 		return err
 	}
-	if _, err := m.db.ExecContext(ctx, runtimeGrantSQL+providerConfigGrantSQL); err != nil {
+	if _, err := m.db.ExecContext(ctx, executionControlGrantSQL); err != nil {
 		return fmt.Errorf("install execution-control runtime grants: %w", err)
 	}
 	return nil
@@ -501,23 +633,55 @@ func (m *Migrator) CheckGrants(ctx context.Context) error {
 	var usage, create bool
 	if err := m.db.QueryRowContext(
 		ctx,
-		"select has_schema_privilege($1,'runtime','USAGE'), has_schema_privilege($1,'runtime','CREATE')",
-		"execution_control",
+		"select has_schema_privilege($1,'execution_control','USAGE'), has_schema_privilege($1,'execution_control','CREATE')",
+		executionControlRole,
 	).Scan(&usage, &create); err != nil {
-		return fmt.Errorf("inspect execution-control runtime schema grants: %w", err)
+		return fmt.Errorf("inspect execution-control schema grants: %w", err)
 	}
 	if !usage || create {
-		return fmt.Errorf("database role execution_control runtime schema privileges usage=%t create=%t, want usage=true create=false", usage, create)
+		return fmt.Errorf("database role execution_control schema privileges usage=%t create=%t, want usage=true create=false", usage, create)
 	}
-	for _, table := range runtimeTables {
+	for _, table := range executionControlTables {
 		for _, privilege := range []string{"SELECT", "INSERT", "UPDATE", "DELETE"} {
-			if err := m.requireTablePrivilege(ctx, table, privilege, true); err != nil {
+			if err := m.requireTablePrivilege(ctx, executionControlRole, table, privilege, true); err != nil {
 				return err
 			}
 		}
 		for _, privilege := range []string{"TRUNCATE", "REFERENCES", "TRIGGER"} {
-			if err := m.requireTablePrivilege(ctx, table, privilege, false); err != nil {
+			if err := m.requireTablePrivilege(ctx, executionControlRole, table, privilege, false); err != nil {
 				return err
+			}
+		}
+		for _, privilege := range []string{"SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"} {
+			if err := m.requireTablePrivilege(ctx, appAPIRole, table, privilege, false); err != nil {
+				return err
+			}
+		}
+	}
+	for _, view := range compatibilityViews {
+		if err := m.requireTablePrivilege(ctx, executionControlRole, view, "SELECT", true); err != nil {
+			return err
+		}
+		for _, privilege := range []string{"INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"} {
+			if err := m.requireTablePrivilege(ctx, executionControlRole, view, privilege, false); err != nil {
+				return err
+			}
+		}
+	}
+	for _, tables := range [][]string{executionControlTables, compatibilityViews} {
+		for _, table := range tables {
+			if err := m.requireExactColumnPrivileges(ctx, opsWebRole, table, "SELECT", opsWebReadColumns[table]); err != nil {
+				return err
+			}
+			for _, privilege := range []string{"INSERT", "UPDATE", "REFERENCES"} {
+				if err := m.requireExactColumnPrivileges(ctx, opsWebRole, table, privilege, nil); err != nil {
+					return err
+				}
+			}
+			for _, privilege := range []string{"SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"} {
+				if err := m.requireTablePrivilege(ctx, opsWebRole, table, privilege, false); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -527,7 +691,7 @@ func (m *Migrator) CheckGrants(ctx context.Context) error {
 	}
 	if productFactExists {
 		for _, privilege := range []string{"SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"} {
-			if err := m.requireTablePrivilege(ctx, "runtime.request_observability_fact", privilege, false); err != nil {
+			if err := m.requireTablePrivilege(ctx, executionControlRole, "runtime.request_observability_fact", privilege, false); err != nil {
 				return err
 			}
 		}
@@ -535,34 +699,83 @@ func (m *Migrator) CheckGrants(ctx context.Context) error {
 	return nil
 }
 
-func (m *Migrator) requireTablePrivilege(ctx context.Context, table, privilege string, want bool) error {
+func (m *Migrator) requireTablePrivilege(ctx context.Context, role, table, privilege string, want bool) error {
 	var granted bool
 	if err := m.db.QueryRowContext(
 		ctx,
 		"select has_table_privilege($1,$2,$3)",
-		"execution_control",
+		role,
 		table,
 		privilege,
 	).Scan(&granted); err != nil {
-		return fmt.Errorf("inspect database role execution_control %s on %s: %w", privilege, table, err)
+		return fmt.Errorf("inspect database role %s %s on %s: %w", role, privilege, table, err)
 	}
 	if granted != want {
-		return fmt.Errorf("database role execution_control %s on %s = %t, want %t", privilege, table, granted, want)
+		return fmt.Errorf("database role %s %s on %s = %t, want %t", role, privilege, table, granted, want)
 	}
 	return nil
 }
 
-func (m *Migrator) requireRuntimeRole(ctx context.Context) error {
-	var exists bool
-	if err := m.db.QueryRowContext(
-		ctx,
-		"select exists(select 1 from pg_roles where rolname=$1)",
-		"execution_control",
-	).Scan(&exists); err != nil {
-		return fmt.Errorf("inspect execution-control database role: %w", err)
+func (m *Migrator) requireExactColumnPrivileges(
+	ctx context.Context,
+	role, table, privilege string,
+	want []string,
+) (returnErr error) {
+	rows, err := m.db.QueryContext(ctx, `
+		select attribute.attname::text
+		from pg_attribute as attribute
+		where attribute.attrelid = to_regclass($2)
+			and attribute.attnum > 0
+			and not attribute.attisdropped
+			and has_column_privilege($1, attribute.attrelid, attribute.attname, $3)
+		order by attribute.attname collate "C"
+	`, role, table, privilege)
+	if err != nil {
+		return fmt.Errorf("inspect database role %s %s columns on %s: %w", role, privilege, table, err)
 	}
-	if !exists {
-		return errors.New("database role execution_control is not installed")
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil && returnErr == nil {
+			returnErr = fmt.Errorf("close database role %s %s column rows on %s: %w", role, privilege, table, closeErr)
+		}
+	}()
+	actual := make([]string, 0, len(want))
+	for rows.Next() {
+		var column string
+		if err := rows.Scan(&column); err != nil {
+			return fmt.Errorf("scan database role %s %s column on %s: %w", role, privilege, table, err)
+		}
+		actual = append(actual, column)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("inspect database role %s %s column rows on %s: %w", role, privilege, table, err)
+	}
+	want = sortedColumnNames(want)
+	if strings.Join(actual, ",") != strings.Join(want, ",") {
+		return fmt.Errorf(
+			"database role %s %s columns on %s = %s, want %s",
+			role,
+			privilege,
+			table,
+			strings.Join(actual, ","),
+			strings.Join(want, ","),
+		)
+	}
+	return nil
+}
+
+func (m *Migrator) requireDatabaseRoles(ctx context.Context) error {
+	for _, role := range []string{executionControlRole, appAPIRole, opsWebRole} {
+		var exists bool
+		if err := m.db.QueryRowContext(
+			ctx,
+			"select exists(select 1 from pg_roles where rolname=$1)",
+			role,
+		).Scan(&exists); err != nil {
+			return fmt.Errorf("inspect %s database role: %w", role, err)
+		}
+		if !exists {
+			return fmt.Errorf("database role %s is not installed", role)
+		}
 	}
 	return nil
 }

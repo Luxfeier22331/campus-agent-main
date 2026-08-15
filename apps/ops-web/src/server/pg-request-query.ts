@@ -139,7 +139,7 @@ export function requestRowsCte(): string {
 			from "chat"."turn_dispatches" as dispatch
 			join "chat"."messages" as user_message
 				on user_message.id = dispatch.user_message_id
-				left join "runtime"."agent_runs" as agent_run
+				left join "execution_control"."agent_runs" as agent_run
 					on agent_run.run_id = dispatch.run_id
 				left join "chat"."messages" as assistant_message
 					on assistant_message.id = dispatch.assistant_message_id
@@ -191,7 +191,7 @@ export function agentUsageSql(suffix: string): string {
 				sum("input_tokens") filter (where "usage_observed") as "inputTokens",
 				sum("cached_input_tokens") filter (where "usage_observed") as "cachedInputTokens",
 				sum("output_tokens") filter (where "usage_observed") as "outputTokens"
-			from "runtime"."agent_step_attempts"
+			from "execution_control"."agent_step_attempts"
 			where "step_id" = 'agent.primary' ${suffix}
 			group by "run_id"
 		`;

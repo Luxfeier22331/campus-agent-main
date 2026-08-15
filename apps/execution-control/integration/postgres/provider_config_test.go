@@ -84,7 +84,7 @@ func testProviderConfig(t *testing.T, harness *postgresHarness) {
 		var ciphertext []byte
 		if err := ownerConn.QueryRow(
 			t.Context(),
-			"select secret_ciphertext from execution_config.model_settings where kind='llm'",
+			"select secret_ciphertext from execution_control.model_settings where kind='llm'",
 		).Scan(&ciphertext); err != nil {
 			t.Fatalf("read encrypted model credential: %v", err)
 		}
@@ -155,7 +155,7 @@ func testProviderConfig(t *testing.T, harness *postgresHarness) {
 		}
 
 		ownerConn := connect(t, ownerURL)
-		if _, err := ownerConn.Exec(t.Context(), `alter table execution_config.model_settings
+		if _, err := ownerConn.Exec(t.Context(), `alter table execution_control.model_settings
 			add column timeout_ms integer not null default 30000 check (timeout_ms > 0)`); err != nil {
 			closeConn(t, ownerConn)
 			t.Fatalf("restore retired timeout column: %v", err)
@@ -330,7 +330,7 @@ func assertProviderRoleGrants(
 	runtimeConn := connect(t, runtimeURL)
 	defer closeConn(t, runtimeConn)
 	var count int
-	if err := runtimeConn.QueryRow(t.Context(), "select count(*) from execution_config.model_settings").Scan(&count); err != nil {
+	if err := runtimeConn.QueryRow(t.Context(), "select count(*) from execution_control.model_settings").Scan(&count); err != nil {
 		t.Fatalf("runtime select model settings: %v", err)
 	}
 
@@ -351,7 +351,7 @@ func assertProviderRoleGrants(
 		var granted bool
 		if err := ownerConn.QueryRow(
 			t.Context(),
-			"select has_table_privilege($1,'execution_config.model_settings',$2)",
+			"select has_table_privilege($1,'execution_control.model_settings',$2)",
 			check.role,
 			check.privilege,
 		).Scan(&granted); err != nil {

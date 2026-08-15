@@ -39,7 +39,7 @@ func (s *PostgresRunProjectionStore) AppendRunEvent(
 	var nextSequence int64
 	if err := tx.QueryRow(
 		ctx,
-		`select coalesce(max(sequence), 0) + 1 from runtime.agent_run_events where run_id = $1`,
+		`select coalesce(max(sequence), 0) + 1 from execution_control.agent_run_events where run_id = $1`,
 		event.RunID,
 	).Scan(&nextSequence); err != nil {
 		return DurableRunEvent{}, err
@@ -64,7 +64,7 @@ func (s *PostgresRunProjectionStore) AppendRunEvent(
 	}
 	_, err = tx.Exec(
 		ctx,
-		`insert into runtime.agent_run_events (
+		`insert into execution_control.agent_run_events (
 			event_id, run_id, conversation_id, sequence, event_type, visibility,
 			payload_schema_version, payload_json, occurred_at
 		) values ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9)`,
@@ -112,7 +112,7 @@ func (s *PostgresRunProjectionStore) ListRunEventsAfter(
 		ctx,
 		`select event_id, run_id, conversation_id, sequence, event_type, visibility,
 			payload_schema_version, payload_json, occurred_at
-		from runtime.agent_run_events
+		from execution_control.agent_run_events
 		where run_id = $1 and sequence > $2
 		order by sequence asc`,
 		runID,

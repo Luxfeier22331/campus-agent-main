@@ -29,7 +29,7 @@ SQL 和 schema 错误立即失败，DDL 本身不自动重放。
 - 环境仓 commit；
 - root/child Application sync 与 health；
 - schema Job 返回 `passed=true`、`schema_ready=true`、`store=postgres`；
-- schema Job 已确认 `execution_control` 对所属 `runtime` 表具有精确读写权限，且不具有 schema
+- schema Job 已确认 `execution_control` 对所属 `execution_control` 表具有精确读写权限，且不具有 schema
   创建、表维护或 App API 产品终态表访问权限；
 - first-party Deployment rollout 和不可变 image digest；
 - 没有 `CrashLoopBackOff`、`ImagePullBackOff` 或无法解释的 `Pending` Pod。
@@ -41,6 +41,29 @@ SQL 和 schema 错误立即失败，DDL 本身不自动重放。
 涉及删除表或列、重建数据，或不可逆转换的 execution-control schema 变更，只能在环境仓已隔离
 私有连接器、暂停新的产品请求准入的维护窗口执行。Schema Job 仍是唯一的 DDL 入口；不得通过
 常驻进程、手工数据库命令或伪造 migration ledger 绕过该合同。
+
+## execution_control schema 切换
+
+Goose v4 会把 execution-control 拥有的 12 张运行表和 `model_settings` 原位移动到
+`execution_control`。迁移后源码只读写新路径；`runtime` 和 `execution_config` 下的同名对象是临时
+只读视图，不能承接旧构建的 `INSERT ... ON CONFLICT` 或其他 DML。因此该版本不能按普通无停写滚动
+升级处理。
+
+环境交付按以下顺序执行：
+
+1. 暂停新的产品请求准入，等待 execution-control PostgreSQL 写入排空；Temporal 服务和 workflow
+   history 保持可用，不删除或重置开放 workflow；
+2. 在旧 writer 已停止后运行新 image 的 `run-projection-schema --mode install`，确认 v4 已应用、13
+   张目标表保留已有行、外键和索引，并确认旧路径只能读取；
+3. 部署同一 revision 的 execution-control 与 Ops Web，确认 Store 健康、Provider Config 解密、
+   start/cancel reconciler、个人记忆状态和 Ops Web 精确列读取；
+4. 恢复产品准入，并观察新写入只进入 `execution_control`；不得恢复旧 writer、双写或通过旧视图写入；
+5. 只有所有活跃环境都完成上述切换且查询证据不再引用旧路径后，才追加 migration 删除 13 个兼容
+   视图及空的 `execution_config` schema。删除兼容对象不能与首次切换放在同一发布中。
+
+迁移事务失败时保持准入暂停并修复后重跑同一 schema Job。迁移成功且新 writer 已恢复后，按新
+schema 向前修复；不能把旧构建当作应用回滚。`model_settings` 密文继续使用
+`execution_config.model_settings:<kind>` 这一 AAD v1，schema 移动不重加密。
 
 ## v5 单向切换
 

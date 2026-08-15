@@ -22,11 +22,8 @@ const localTlsEnv = {
 	OPS_WEB_SCHEMA_DATABASE_SSLMODE: "disable",
 } as const;
 const noProviderConfigPrivileges = {
-	canAccessRelations: false,
-	canAccessSequences: false,
-	canCreateSchema: false,
-	canExecuteFunctions: false,
-	canUseSchema: false,
+	canAccessCompatibilityView: false,
+	canAccessModelSettings: false,
 } as const;
 const appApiDiningPrivileges = {
 	canDeleteReports: false,
@@ -110,13 +107,13 @@ describe("ops-web database verification", () => {
 		expect(allQueries).toContain('from "internal_portal"."credentials"');
 		expect(allQueries).toContain('from "internal_portal"."automation_tokens"');
 		expect(allQueries).toContain('from "chat"."turn_dispatches"');
-		expect(allQueries).not.toContain('from "runtime"."agent_run_steps"');
-		expect(allQueries).toContain('from "runtime"."agent_step_attempts"');
+		expect(allQueries).not.toContain('from "execution_control"."agent_run_steps"');
+		expect(allQueries).toContain('from "execution_control"."agent_step_attempts"');
 		expect(allQueries).not.toContain("ops_observability_read_audit");
 		expect(allQueries).not.toContain('"owner_user_id"');
 	});
 
-	it("applies the Dining schema and the declared runtime grants", async () => {
+	it("applies owned grants without managing execution-control grants", async () => {
 		const { applyOpsWebDatabaseGrants } = await import("../ops/db/ops-web-database.ts");
 		await expect(applyOpsWebDatabaseGrants(validEnv())).resolves.toEqual({
 			diningMap: "ready",
@@ -125,12 +122,13 @@ describe("ops-web database verification", () => {
 			readModel: "ready",
 		});
 		const allQueries = query.mock.calls.map(([sql]) => String(sql)).join("\n");
-		expect(allQueries).toContain('GRANT USAGE ON SCHEMA "chat", "runtime" TO "ops_web"');
+		expect(allQueries).toContain('GRANT USAGE ON SCHEMA "chat" TO "ops_web"');
 		expect(allQueries).toContain('"dining"."map_draft"');
 		expect(allQueries).toContain('"dining"."menu_items"');
 		expect(allQueries).toContain('"dining"."review_reports"');
 		expect(allQueries).toContain('TO "app_api"');
-		expect(allQueries).toContain("to_regnamespace('execution_config')");
+		expect(allQueries).not.toContain("ops_web_provider_config");
+		expect(allQueries).not.toContain('ON TABLE "execution_control"."agent_runs" TO "ops_web"');
 		expect(allQueries).not.toContain("ops_observability_read_audit");
 		expect(allQueries).not.toContain("ops_audit_maintenance");
 		expect(query).toHaveBeenCalledWith("commit");
@@ -288,7 +286,7 @@ function installSuccessfulQueries() {
 		if (sql.includes("has_schema_privilege(current_user, 'internal_portal'")) {
 			return { rowCount: 1, rows: [opsWebInternalPortalPrivileges] };
 		}
-		if (sql.includes("has_schema_privilege") && sql.includes("execution_config")) {
+		if (sql.includes('"canAccessModelSettings"')) {
 			return { rowCount: 1, rows: [noProviderConfigPrivileges] };
 		}
 		return { rowCount: 0, rows: [] };

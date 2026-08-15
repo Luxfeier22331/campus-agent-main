@@ -20,7 +20,7 @@ actual_tables as (
 	select relation.relname::text as table_name
 	from pg_class as relation
 	join pg_namespace as namespace on namespace.oid = relation.relnamespace
-	where namespace.nspname = 'runtime'
+	where namespace.nspname = 'execution_control'
 		and relation.relkind in ('r', 'p')
 ),
 expected_columns(table_name, column_name, data_type, not_null, default_expression) as (
@@ -85,7 +85,7 @@ actual_columns as (
 	left join pg_attrdef as attribute_default
 		on attribute_default.adrelid = relation.oid
 		and attribute_default.adnum = attribute.attnum
-	where namespace.nspname = 'runtime'
+	where namespace.nspname = 'execution_control'
 		and relation.relkind in ('r', 'p')
 		and attribute.attnum > 0
 		and not attribute.attisdropped
@@ -101,19 +101,19 @@ expected_constraints(
 ) as (
 		values
 			('agent_run_steps', 'p', array['run_id', 'step_id']::text[], '', '', array[]::text[], ''),
-			('agent_run_steps', 'f', array['run_id']::text[], 'runtime', 'agent_runs', array['run_id']::text[], 'c'),
+			('agent_run_steps', 'f', array['run_id']::text[], 'execution_control', 'agent_runs', array['run_id']::text[], 'c'),
 			('agent_step_attempts', 'p', array['attempt_id']::text[], '', '', array[]::text[], ''),
 			('agent_step_attempts', 'u', array['run_id', 'step_id', 'attempt']::text[], '', '', array[]::text[], ''),
-			('agent_step_attempts', 'f', array['run_id']::text[], 'runtime', 'agent_runs', array['run_id']::text[], 'c'),
+			('agent_step_attempts', 'f', array['run_id']::text[], 'execution_control', 'agent_runs', array['run_id']::text[], 'c'),
 			('agent_step_results', 'p', array['result_id']::text[], '', '', array[]::text[], ''),
-			('agent_step_results', 'f', array['run_id']::text[], 'runtime', 'agent_runs', array['run_id']::text[], 'c'),
+			('agent_step_results', 'f', array['run_id']::text[], 'execution_control', 'agent_runs', array['run_id']::text[], 'c'),
 		('agent_workflow_starts', 'p', array['run_id']::text[], '', '', array[]::text[], ''),
 		('agent_workflow_starts', 'u', array['workflow_id']::text[], '', '', array[]::text[], ''),
-		('agent_workflow_starts', 'f', array['run_id']::text[], 'runtime', 'agent_runs', array['run_id']::text[], 'c'),
+		('agent_workflow_starts', 'f', array['run_id']::text[], 'execution_control', 'agent_runs', array['run_id']::text[], 'c'),
 		('agent_run_cancellations', 'p', array['run_id']::text[], '', '', array[]::text[], ''),
-		('agent_run_cancellations', 'f', array['run_id']::text[], 'runtime', 'agent_runs', array['run_id']::text[], 'c'),
+		('agent_run_cancellations', 'f', array['run_id']::text[], 'execution_control', 'agent_runs', array['run_id']::text[], 'c'),
 		('agent_invocation_receipts', 'p', array['invocation_id']::text[], '', '', array[]::text[], ''),
-		('agent_invocation_receipts', 'f', array['run_id']::text[], 'runtime', 'agent_runs', array['run_id']::text[], 'c')
+		('agent_invocation_receipts', 'f', array['run_id']::text[], 'execution_control', 'agent_runs', array['run_id']::text[], 'c')
 ),
 actual_constraints as (
 	select
@@ -146,7 +146,7 @@ actual_constraints as (
 	join pg_namespace as namespace on namespace.oid = relation.relnamespace
 	left join pg_class as referenced_relation on referenced_relation.oid = constraint_metadata.confrelid
 	left join pg_namespace as referenced_namespace on referenced_namespace.oid = referenced_relation.relnamespace
-	where namespace.nspname = 'runtime'
+	where namespace.nspname = 'execution_control'
 		and constraint_metadata.convalidated
 ),
 expected_indexes(table_name, index_name, unique_index, columns, method, predicate) as (
@@ -190,14 +190,14 @@ actual_indexes as (
 	join pg_class as index_relation on index_relation.oid = index_metadata.indexrelid
 	join pg_namespace as index_namespace on index_namespace.oid = index_relation.relnamespace
 	join pg_am as access_method on access_method.oid = index_relation.relam
-	where namespace.nspname = 'runtime'
-		and index_namespace.nspname = 'runtime'
+	where namespace.nspname = 'execution_control'
+		and index_namespace.nspname = 'execution_control'
 		and index_metadata.indisvalid
 		and index_metadata.indisready
 		and index_metadata.indnatts = index_metadata.indnkeyatts
 ),
 schema_issues(issue) as (
-	select format('table runtime.%I is missing', expected.table_name)
+	select format('table execution_control.%I is missing', expected.table_name)
 	from expected_tables as expected
 	where not exists (
 		select 1 from actual_tables as actual where actual.table_name = expected.table_name
@@ -206,7 +206,7 @@ schema_issues(issue) as (
 	union all
 
 	select format(
-		'column runtime.%I.%I does not match required type, nullability, or default',
+		'column execution_control.%I.%I does not match required type, nullability, or default',
 		expected.table_name,
 		expected.column_name
 	)
@@ -227,7 +227,7 @@ schema_issues(issue) as (
 	union all
 
 	select format(
-		'constraint runtime.%I (%s %s) is missing or invalid',
+		'constraint execution_control.%I (%s %s) is missing or invalid',
 		expected.table_name,
 		expected.constraint_type,
 		array_to_string(expected.columns, ',')
@@ -250,7 +250,7 @@ schema_issues(issue) as (
 
 	union all
 
-	select format('index runtime.%I is missing or has the wrong definition', expected.index_name)
+	select format('index execution_control.%I is missing or has the wrong definition', expected.index_name)
 	from expected_indexes as expected
 	where exists (
 		select 1 from actual_tables as actual where actual.table_name = expected.table_name

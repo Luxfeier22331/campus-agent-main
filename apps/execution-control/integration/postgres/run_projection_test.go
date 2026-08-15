@@ -162,32 +162,32 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 		}{
 			{
 				name:          "missing added column",
-				mutationSQL:   "alter table runtime.agent_runs drop column request_fingerprint_sha256",
-				wantErrorPart: "column runtime.agent_runs.request_fingerprint_sha256",
+				mutationSQL:   "alter table execution_control.agent_runs drop column request_fingerprint_sha256 cascade",
+				wantErrorPart: "column execution_control.agent_runs.request_fingerprint_sha256",
 			},
 			{
 				name:          "wrong dispatch fence default",
-				mutationSQL:   "alter table runtime.agent_workflow_starts alter column dispatch_attempted set default true",
-				wantErrorPart: "column runtime.agent_workflow_starts.dispatch_attempted",
+				mutationSQL:   "alter table execution_control.agent_workflow_starts alter column dispatch_attempted set default true",
+				wantErrorPart: "column execution_control.agent_workflow_starts.dispatch_attempted",
 			},
 			{
 				name:          "missing step attempt uniqueness fence",
-				mutationSQL:   "alter table runtime.agent_step_attempts drop constraint agent_step_attempts_run_id_step_id_attempt_key",
-				wantErrorPart: "constraint runtime.agent_step_attempts (u run_id,step_id,attempt)",
+				mutationSQL:   "alter table execution_control.agent_step_attempts drop constraint agent_step_attempts_run_id_step_id_attempt_key",
+				wantErrorPart: "constraint execution_control.agent_step_attempts (u run_id,step_id,attempt)",
 			},
 			{
 				name:          "missing lifecycle lease index",
-				mutationSQL:   "drop index runtime.agent_workflow_starts_lease_idx",
-				wantErrorPart: "index runtime.agent_workflow_starts_lease_idx",
+				mutationSQL:   "drop index execution_control.agent_workflow_starts_lease_idx",
+				wantErrorPart: "index execution_control.agent_workflow_starts_lease_idx",
 			},
 			{
 				name: "wrong active run predicate",
 				mutationSQL: `
-					drop index runtime.agent_runs_active_conversation_idx;
+					drop index execution_control.agent_runs_active_conversation_idx;
 					create unique index agent_runs_active_conversation_idx
-						on runtime.agent_runs (conversation_id)
+						on execution_control.agent_runs (conversation_id)
 						where status in ('created', 'queued')`,
-				wantErrorPart: "index runtime.agent_runs_active_conversation_idx",
+				wantErrorPart: "index execution_control.agent_runs_active_conversation_idx",
 			},
 		}
 		for _, testCase := range testCases {
@@ -458,7 +458,7 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 		}
 		if _, err := conn.Exec(
 			t.Context(),
-			`insert into runtime.conversation_run_locks (conversation_id, run_id) values ($1, $2)`,
+			`insert into execution_control.conversation_run_locks (conversation_id, run_id) values ($1, $2)`,
 			run.ConversationID,
 			run.RunID,
 		); err != nil {
@@ -485,7 +485,7 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 		var lockCount int
 		if err := conn.QueryRow(
 			t.Context(),
-			`select count(*) from runtime.conversation_run_locks where conversation_id = $1`,
+			`select count(*) from execution_control.conversation_run_locks where conversation_id = $1`,
 			run.ConversationID,
 		).Scan(&lockCount); err != nil {
 			t.Fatalf("count released conversation lock: %v", err)
@@ -525,7 +525,7 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 		}
 		if _, err := conn.Exec(
 			t.Context(),
-			`insert into runtime.conversation_run_locks (conversation_id, run_id) values ($1, $2)`,
+			`insert into execution_control.conversation_run_locks (conversation_id, run_id) values ($1, $2)`,
 			collisionRun.ConversationID,
 			collisionRun.RunID,
 		); err != nil {
@@ -563,7 +563,7 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 		}
 		if err := conn.QueryRow(
 			t.Context(),
-			`select count(*) from runtime.conversation_run_locks where conversation_id = $1`,
+			`select count(*) from execution_control.conversation_run_locks where conversation_id = $1`,
 			collisionRun.ConversationID,
 		).Scan(&lockCount); err != nil {
 			t.Fatalf("count preserved conversation lock: %v", err)
@@ -826,11 +826,11 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 		conn := connect(t, ownerURL)
 		defer closeConn(t, conn)
 		for _, table := range []string{
-			"runtime.agent_run_events",
-			"runtime.agent_run_steps",
-			"runtime.agent_step_attempts",
-			"runtime.agent_step_results",
-			"runtime.conversation_run_locks",
+			"execution_control.agent_run_events",
+			"execution_control.agent_run_steps",
+			"execution_control.agent_step_attempts",
+			"execution_control.agent_step_results",
+			"execution_control.conversation_run_locks",
 		} {
 			var count int
 			if err := conn.QueryRow(t.Context(), "select count(*) from "+table).Scan(&count); err != nil {

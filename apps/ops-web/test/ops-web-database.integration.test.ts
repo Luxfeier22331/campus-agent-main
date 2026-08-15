@@ -89,11 +89,6 @@ describe("ops-web PostgreSQL grants", () => {
 
 	beforeAll(async () => {
 		management = await connect(postgres.managementConnectionString);
-		await management.query(`
-			grant usage on schema execution_config to ops_web;
-			grant select on execution_config.model_settings to ops_web;
-			grant select (run_id) on runtime.agent_run_steps to ops_web;
-		`);
 		applyResult = await applyOpsWebDatabaseGrants(databaseEnv);
 		verifyResult = await verifyOpsWebDatabase(databaseEnv);
 		opsWeb = await connect(postgres.opsWebConnectionString);
@@ -399,14 +394,14 @@ describe("ops-web PostgreSQL grants", () => {
 			runtime.query(
 				`select completed_at, fail_close_reason, run_id, runtime_versions_json,
 					status, terminal_reason, trace_id, updated_at
-				 from runtime.agent_runs limit 0`,
+				 from execution_control.agent_runs limit 0`,
 			),
 		).resolves.toBeDefined();
 		await expect(
 			runtime.query(
 				`select cached_input_tokens, input_tokens, output_tokens, run_id, step_id,
 					usage_observed
-				 from runtime.agent_step_attempts limit 0`,
+				 from execution_control.agent_step_attempts limit 0`,
 			),
 		).resolves.toBeDefined();
 
@@ -414,9 +409,9 @@ describe("ops-web PostgreSQL grants", () => {
 			"select * from chat.turn_dispatches limit 0",
 			"select owner_user_id from chat.turn_dispatches limit 0",
 			"select * from chat.messages limit 0",
-			"select * from runtime.agent_runs limit 0",
-			"select run_id from runtime.agent_run_steps limit 0",
-			"select * from runtime.agent_step_attempts limit 0",
+			"select * from execution_control.agent_runs limit 0",
+			"select run_id from execution_control.agent_run_steps limit 0",
+			"select * from execution_control.agent_step_attempts limit 0",
 		]) {
 			expect(await postgresErrorCode(runtime.query(query))).toBe("42501");
 		}
@@ -427,26 +422,32 @@ describe("ops-web PostgreSQL grants", () => {
 		for (const query of [
 			"update chat.turn_dispatches set status = status where false",
 			"delete from chat.messages where false",
-			"update runtime.agent_runs set status = status where false",
-			"update runtime.agent_run_steps set status = status where false",
-			"delete from runtime.agent_step_attempts where false",
+			"update execution_control.agent_runs set status = status where false",
+			"update execution_control.agent_run_steps set status = status where false",
+			"delete from execution_control.agent_step_attempts where false",
 		]) {
 			expect(await postgresErrorCode(runtime.query(query))).toBe("42501");
 		}
 	});
 
-	it("revokes direct Provider Config access", async () => {
+	it("has no direct Provider Config access", async () => {
 		const privilege = await management.query<{
+			canReadCompatibilityView: boolean;
 			canReadModelSettings: boolean;
-			canUseSchema: boolean;
 		}>(`select
-			has_schema_privilege('ops_web', 'execution_config', 'USAGE') as "canUseSchema",
+			has_table_privilege(
+				'ops_web', 'execution_control.model_settings', 'SELECT'
+			) or has_any_column_privilege(
+				'ops_web', 'execution_control.model_settings', 'SELECT'
+			) as "canReadModelSettings",
 			has_table_privilege(
 				'ops_web', 'execution_config.model_settings', 'SELECT'
-			) as "canReadModelSettings"`);
+			) or has_any_column_privilege(
+				'ops_web', 'execution_config.model_settings', 'SELECT'
+			) as "canReadCompatibilityView"`);
 		expect(privilege.rows[0]).toEqual({
+			canReadCompatibilityView: false,
 			canReadModelSettings: false,
-			canUseSchema: false,
 		});
 	});
 });

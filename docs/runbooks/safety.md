@@ -13,7 +13,7 @@ status: active
 ## 信号
 
 - `chat.turn_dispatches`：`safety_identifier`、状态、错误和时间；
-- `runtime.agent_runs`：运行终态、`terminal_reason`、`fail_close_reason` 和 trace 关联；
+- `execution_control.agent_runs`：运行终态、`terminal_reason`、`fail_close_reason` 和 trace 关联；
 - Axiom：脱敏 application logs，不是限流状态依据；
 - Sentry：经过清理的应用异常，不是用户身份、请求正文或限流状态依据。
 

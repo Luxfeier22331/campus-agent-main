@@ -38,8 +38,8 @@ Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，�
 | `profile.*` | App API 账号设置 | App API |
 | `campus_groups.sections`、`campus_groups.groups` | App API 同好群模块 | App API、通过内部接口访问的 Ops Web |
 | `runtime.request_observability_fact` | App API 产品终态 | App API |
-| `runtime.agent_*` | execution-control | execution-control |
-| `execution_config.*` | execution-control 配置管理 | execution-control |
+| `execution_control.agent_*`、`execution_control.conversation_run_locks`、`execution_control.personal_memory_*` | execution-control | execution-control、获准 Ops Web 投影 |
+| `execution_control.model_settings` | execution-control 配置管理 | execution-control |
 | `ingestion_control.tasks` | ingestion-control | ingestion-control |
 | `notices.*` | notice-publisher | App API 只读业务表 |
 | `dining.*` | Ops Web | Ops Web、App API 公开读取 |
@@ -85,23 +85,31 @@ migration 记录。
 
 - 常驻运行时不使用 schema 管理或 migration 凭据；
 - 每个运行时只获得完成其职责所需的表、列和操作权限；
-- `run-projection-schema` 在执行投影和个人记忆状态表全部安装后，将 `execution_control` 的
-  `runtime` 权限收敛为 schema `USAGE`，以及所属运行时表的 `SELECT`、`INSERT`、`UPDATE`、
+- `run-projection-schema` 在执行投影、个人记忆状态表和模型配置全部安装后，将运行角色的
+  `execution_control` 权限收敛为 schema `USAGE`，以及所属表的 `SELECT`、`INSERT`、`UPDATE`、
   `DELETE`。该角色不获得 schema `CREATE`、表 `TRUNCATE`、`REFERENCES`、`TRIGGER`，也不能访问
   App API 所有的 `runtime.request_observability_fact`；
+- execution-control 表所有者只向 `ops_web` 授予 `agent_runs` 和 `agent_step_attempts` 当前运维
+  投影使用的精确列读取。Ops Web migration 不创建、扩大或收回 execution-control 表权限；
 - schema Job 必须校验上述固定角色的有效权限。常驻 execution-control 的运行投影和个人记忆
   状态健康检查必须实际读取所属表，不能用 PostgreSQL catalog 可见性代替运行角色的数据访问能力；
 - 在线模型配置只能通过 execution-control 管理接口修改，Ops Web 不直连其 schema；
-- `execution_config.model_settings` 的首次安装由低 wave 的 `run-projection-schema` Job 执行。
+- `execution_control.model_settings` 的首次安装由低 wave 的 `run-projection-schema` Job 执行。
   该 Job 使用环境仓交付的 schema-install DSN 和现有 provider keyring；常驻 runtime 只使用
   `execution_control` DSN，不执行迁移。
 - 从旧 `active_bundle`、`profiles` 和 `connection_revisions` 切换时，Job 在单一事务和 advisory
-  lock 下解密旧 AAD，以 `execution_config.model_settings:<kind>` 重加密当前 LLM 与 Embedding，
-  验证写入结果后删除七张旧表并应用当前权限。任一步失败都会连同新表和权限变化整体回滚。
+  lock 下解密旧 AAD，以 `execution_config.model_settings:<kind>` 这一不可变 AAD v1 重加密当前
+  LLM 与 Embedding，验证写入结果后删除七张旧表。任一步失败都会连同 v3 的新表和数据转换整体
+  回滚；v4 表移动和 grants 由后续 migration 阶段执行。
 - 旧结构不完整、当前表已有数据、缺少 active bundle、缺少 keyring、profile 未验证或存在未知依赖
-  时切换失败。系统不保留双写、双读、运行时 fallback 或后续 contract 阶段。
+  时切换失败。Provider legacy 转换不保留双写、运行时双读或 fallback。
 - 没有旧结构时，当前表可以为空或只配置一个 kind；schema 安装不把业务配置完整性变成部署门禁。
   `llm` 和 `embedding` 分别由消费它们的运行路径检查并失败。
+- Goose v4 将 execution-control 的 12 张运行表和 `model_settings` 原位移动到
+  `execution_control`。`runtime` 与 `execution_config` 下的同名对象暂为不可写兼容视图，只支持
+  切换期间的旧读取；旧 writer 不获得 DML。活跃环境完成停写迁移、同 revision 部署和读取验证后，
+  才能由后续 migration 删除这些视图及空的 `execution_config` schema；源码合并本身不证明环境已
+  完成该清理。
 - App API 读取 Dining 当前发布地图、菜单和公开评价；可创建或删除学生自己的评价并创建举报，
   但不能读取地图草稿和评价修改历史，也不能修改地图或菜单；
 - App API 只能读取 `notices` 的通知、资源 metadata、类型、组织和领域业务表，不能读取

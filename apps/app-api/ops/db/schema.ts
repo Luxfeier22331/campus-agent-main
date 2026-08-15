@@ -308,8 +308,8 @@ async function verifySchema(pool: ReturnType<typeof createAppApiDatabasePool>): 
 		`select
 			has_table_privilege('app_api', 'chat.turn_dispatches', 'SELECT,INSERT,UPDATE,DELETE') as "canMutateDispatches",
 			case
-				when to_regclass('runtime.agent_runs') is null then false
-				else has_table_privilege('app_api', 'runtime.agent_runs', 'SELECT')
+				when to_regclass('execution_control.agent_runs') is null then false
+				else has_table_privilege('app_api', 'execution_control.agent_runs', 'SELECT')
 			end as "canReadAgentRuns",
 				has_table_privilege('app_api', 'runtime.request_observability_fact', 'SELECT,INSERT,UPDATE,DELETE') as "canWriteObservability",
 				has_table_privilege('app_api', 'campus_groups.sections', 'SELECT,INSERT,UPDATE,DELETE') as "canWriteGroupSections",

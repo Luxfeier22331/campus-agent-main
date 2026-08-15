@@ -14,15 +14,15 @@ import (
 var ErrInvalidRunProjectionStore = errors.New("invalid run projection store")
 
 var runProjectionRuntimeTables = []string{
-	"runtime.agent_runs",
-	"runtime.agent_run_events",
-	"runtime.agent_run_steps",
-	"runtime.agent_step_attempts",
-	"runtime.agent_step_results",
-	"runtime.conversation_run_locks",
-	"runtime.agent_workflow_starts",
-	"runtime.agent_run_cancellations",
-	"runtime.agent_invocation_receipts",
+	"execution_control.agent_runs",
+	"execution_control.agent_run_events",
+	"execution_control.agent_run_steps",
+	"execution_control.agent_step_attempts",
+	"execution_control.agent_step_results",
+	"execution_control.conversation_run_locks",
+	"execution_control.agent_workflow_starts",
+	"execution_control.agent_run_cancellations",
+	"execution_control.agent_invocation_receipts",
 }
 
 type PostgresRunProjectionStoreOptions struct {

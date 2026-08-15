@@ -15,6 +15,7 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -35,11 +36,14 @@ func testSchemaCommand(t *testing.T, harness *postgresHarness) {
 		databaseName, databaseURL := harness.ownerDatabase(t)
 		installAppAPIRuntimeFact(t, databaseURL)
 		installLegacyRuntimeSchema(t, harness, databaseURL, true)
+		installLegacyRuntimeRows(t, databaseURL)
 
 		requireSuccessfulSchemaCommand(t, harness, binaryPath, databaseURL, "install")
 		requireSuccessfulSchemaCommand(t, harness, binaryPath, databaseURL, "check")
 		assertLegacyCleanupTableRemoved(t, databaseURL)
 		assertAppliedExecutionControlMigrations(t, databaseURL)
+		assertExecutionControlSchemaConsolidated(t, databaseURL)
+		assertLegacyRuntimeRowsPreserved(t, databaseURL)
 
 		runtimeURL := harness.databaseURL(t, databaseName, executionRole, executionPassword)
 		assertExecutionControlRuntimeAccess(t, runtimeURL)
@@ -53,9 +57,13 @@ func testSchemaCommand(t *testing.T, harness *postgresHarness) {
 		requireSuccessfulSchemaCommand(t, harness, binaryPath, databaseURL, "check")
 		assertLegacyCleanupTableRemoved(t, databaseURL)
 		assertAppliedExecutionControlMigrations(t, databaseURL)
+		assertExecutionControlSchemaConsolidated(t, databaseURL)
 	})
 	t.Run("rejects incomplete and unknown runtime schemas before creating a ledger", func(t *testing.T) {
 		testSchemaCommandRejectsUnknownRuntimeSchema(t, harness, binaryPath)
+	})
+	t.Run("v4 down restores the source schemas", func(t *testing.T) {
+		testExecutionControlSchemaDown(t, harness)
 	})
 }
 
@@ -110,7 +118,7 @@ func testSchemaCommandAllowsEmptyExecutionSchema(t *testing.T, harness *postgres
 	ownerConn := connect(t, databaseURL)
 	if _, err := ownerConn.Exec(
 		t.Context(),
-		"revoke select on table runtime.agent_runs from execution_control",
+		"revoke select on table execution_control.agent_runs from execution_control",
 	); err != nil {
 		closeConn(t, ownerConn)
 		t.Fatalf("remove required runtime grant: %v", err)
@@ -173,6 +181,73 @@ func installLegacyRuntimeSchema(t *testing.T, harness *postgresHarness, database
 			on runtime.agent_run_cleanups (state, next_attempt_at, lease_until);
 	`); err != nil {
 		t.Fatalf("install legacy runtime cleanup fixture: %v", err)
+	}
+}
+
+func installLegacyRuntimeRows(t *testing.T, databaseURL string) {
+	t.Helper()
+	conn := connect(t, databaseURL)
+	defer closeConn(t, conn)
+	if _, err := conn.Exec(t.Context(), `
+		insert into runtime.agent_runs (
+			run_id, conversation_id, turn_id, request_id, owner_user_id, surface,
+			task_queue, status, created_at, updated_at
+		) values (
+			'run-schema-move', 'conversation-schema-move', 'turn-schema-move',
+			'request-schema-move', 'user-schema-move', 'chat', 'agent', 'queued', now(), now()
+		);
+		insert into runtime.personal_memory_owner_fences (
+			owner_scope_hash, generation, lifecycle_state, last_owner_sequence, updated_at
+		) values ('owner-schema-move', 2, 'active', 3, now());
+	`); err != nil {
+		t.Fatalf("install legacy runtime rows: %v", err)
+	}
+}
+
+func testExecutionControlSchemaDown(t *testing.T, harness *postgresHarness) {
+	t.Helper()
+	_, ownerURL := harness.ownerDatabase(t)
+	requireSchema(t, ownerURL, nil)
+	path := filepath.Join(
+		harness.moduleDir,
+		"internal",
+		"schemamigrations",
+		"migrations",
+		"00004_execution_control_schema.sql",
+	)
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read execution-control schema migration: %v", err)
+	}
+	_, downSQL, found := strings.Cut(string(raw), "-- +goose Down")
+	if !found {
+		t.Fatal("execution-control schema migration has no down section")
+	}
+	conn := connect(t, ownerURL)
+	defer closeConn(t, conn)
+	if _, err := conn.Exec(t.Context(), downSQL); err != nil {
+		t.Fatalf("apply execution-control schema down migration: %v", err)
+	}
+	var targetSchemaExists bool
+	if err := conn.QueryRow(
+		t.Context(),
+		"select to_regnamespace('execution_control') is not null",
+	).Scan(&targetSchemaExists); err != nil {
+		t.Fatalf("inspect execution_control schema after down migration: %v", err)
+	}
+	if targetSchemaExists {
+		t.Fatal("execution_control schema remains after down migration")
+	}
+	for _, table := range append([]string{"execution_config.model_settings"}, compatibilityRuntimeViews()...) {
+		var kind string
+		if err := conn.QueryRow(t.Context(), `
+			select class.relkind::text from pg_class as class where class.oid = to_regclass($1)
+		`, table).Scan(&kind); err != nil {
+			t.Fatalf("inspect restored table %s: %v", table, err)
+		}
+		if kind != "r" {
+			t.Fatalf("restored relation %s kind = %q, want table", table, kind)
+		}
 	}
 }
 
@@ -286,12 +361,12 @@ func assertAppliedExecutionControlMigrations(t *testing.T, databaseURL string) {
 	if err := conn.QueryRow(t.Context(), `
 		select count(*)::int
 		from public.execution_control_migrations
-		where version_id in (1, 2, 3) and is_applied
+		where version_id in (1, 2, 3, 4) and is_applied
 	`).Scan(&applied); err != nil {
 		t.Fatalf("inspect execution-control migration ledger: %v", err)
 	}
-	if applied != 3 {
-		t.Fatalf("applied execution-control migrations = %d, want 3", applied)
+	if applied != 4 {
+		t.Fatalf("applied execution-control migrations = %d, want 4", applied)
 	}
 }
 
@@ -324,6 +399,168 @@ func assertLegacyCleanupTableRemoved(t *testing.T, databaseURL string) {
 	}
 }
 
+func assertExecutionControlSchemaConsolidated(t *testing.T, databaseURL string) {
+	t.Helper()
+	conn := connect(t, databaseURL)
+	defer closeConn(t, conn)
+	expected := []string{
+		"agent_invocation_receipts",
+		"agent_run_cancellations",
+		"agent_run_events",
+		"agent_run_steps",
+		"agent_runs",
+		"agent_step_attempts",
+		"agent_step_results",
+		"agent_workflow_starts",
+		"conversation_run_locks",
+		"model_settings",
+		"personal_memory_call_leases",
+		"personal_memory_command_receipts",
+		"personal_memory_owner_fences",
+	}
+	rows, err := conn.Query(t.Context(), `
+		select class.relname::text
+		from pg_class as class
+		join pg_namespace as namespace on namespace.oid = class.relnamespace
+		where namespace.nspname = 'execution_control' and class.relkind in ('r', 'p')
+		order by class.relname collate "C"
+	`)
+	if err != nil {
+		t.Fatalf("inspect consolidated execution-control tables: %v", err)
+	}
+	actual := make([]string, 0, len(expected))
+	for rows.Next() {
+		var table string
+		if err := rows.Scan(&table); err != nil {
+			rows.Close()
+			t.Fatalf("scan consolidated execution-control table: %v", err)
+		}
+		actual = append(actual, table)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		t.Fatalf("inspect consolidated execution-control table rows: %v", err)
+	}
+	if strings.Join(actual, ",") != strings.Join(expected, ",") {
+		t.Fatalf("execution_control tables = %v, want %v", actual, expected)
+	}
+
+	for _, view := range compatibilityViews() {
+		var kind string
+		if err := conn.QueryRow(t.Context(), `
+			select class.relkind::text
+			from pg_class as class
+			where class.oid = to_regclass($1)
+		`, view).Scan(&kind); err != nil {
+			t.Fatalf("inspect compatibility relation %s: %v", view, err)
+		}
+		if kind != "v" {
+			t.Fatalf("compatibility relation %s kind = %q, want view", view, kind)
+		}
+		assertCompatibilityViewReadOnly(t, conn, view)
+	}
+}
+
+func assertLegacyRuntimeRowsPreserved(t *testing.T, databaseURL string) {
+	t.Helper()
+	conn := connect(t, databaseURL)
+	defer closeConn(t, conn)
+	for _, query := range []string{
+		"select 1 from execution_control.agent_runs where run_id = 'run-schema-move'",
+		"select 1 from runtime.agent_runs where run_id = 'run-schema-move'",
+		"select 1 from execution_control.personal_memory_owner_fences where owner_scope_hash = 'owner-schema-move'",
+		"select 1 from runtime.personal_memory_owner_fences where owner_scope_hash = 'owner-schema-move'",
+	} {
+		var present int
+		if err := conn.QueryRow(t.Context(), query).Scan(&present); err != nil || present != 1 {
+			t.Fatalf("preserved runtime row query %q = %d, error=%v", query, present, err)
+		}
+	}
+}
+
+func compatibilityRuntimeViews() []string {
+	return []string{
+		"runtime.agent_runs",
+		"runtime.agent_run_events",
+		"runtime.agent_run_steps",
+		"runtime.agent_step_attempts",
+		"runtime.agent_step_results",
+		"runtime.conversation_run_locks",
+		"runtime.agent_workflow_starts",
+		"runtime.agent_run_cancellations",
+		"runtime.agent_invocation_receipts",
+		"runtime.personal_memory_owner_fences",
+		"runtime.personal_memory_call_leases",
+		"runtime.personal_memory_command_receipts",
+	}
+}
+
+func compatibilityViews() []string {
+	return append([]string{"execution_config.model_settings"}, compatibilityRuntimeViews()...)
+}
+
+func assertCompatibilityViewReadOnly(t *testing.T, conn *pgx.Conn, view string) {
+	t.Helper()
+	if _, err := conn.Exec(t.Context(), "select 1 from "+view+" limit 0"); err != nil {
+		t.Fatalf("compatibility view %s is not readable: %v", view, err)
+	}
+
+	var updateColumn string
+	if err := conn.QueryRow(t.Context(), `
+		select quote_ident(attribute.attname)
+		from pg_attribute as attribute
+		where attribute.attrelid = to_regclass($1)
+			and attribute.attnum > 0
+			and not attribute.attisdropped
+		order by attribute.attnum
+		limit 1
+	`, view).Scan(&updateColumn); err != nil {
+		t.Fatalf("resolve compatibility view %s update column: %v", view, err)
+	}
+
+	writes := []struct {
+		name         string
+		sql          string
+		wantSQLState string
+	}{
+		{
+			name:         "insert",
+			sql:          "insert into " + view + " select * from " + view + " where false",
+			wantSQLState: "55000",
+		},
+		{
+			name: "update",
+			sql: fmt.Sprintf(
+				"update %s set %s=%s where false",
+				view,
+				updateColumn,
+				updateColumn,
+			),
+		},
+		{name: "delete", sql: "delete from " + view + " where false"},
+		{
+			name: "on conflict",
+			sql:  "insert into " + view + " select * from " + view + " where false on conflict do nothing",
+		},
+	}
+	for _, write := range writes {
+		_, err := conn.Exec(t.Context(), write.sql)
+		var postgresError *pgconn.PgError
+		if !errors.As(err, &postgresError) {
+			t.Fatalf("compatibility view %s %s error = %v, want PostgreSQL rejection", view, write.name, err)
+		}
+		if write.wantSQLState != "" && postgresError.Code != write.wantSQLState {
+			t.Fatalf(
+				"compatibility view %s %s SQLSTATE = %s, want %s",
+				view,
+				write.name,
+				postgresError.Code,
+				write.wantSQLState,
+			)
+		}
+	}
+}
+
 func assertExecutionControlRuntimeAccess(t *testing.T, runtimeURL string) {
 	t.Helper()
 	conn := connect(t, runtimeURL)
@@ -333,18 +570,18 @@ func assertExecutionControlRuntimeAccess(t *testing.T, runtimeURL string) {
 		name         string
 		updateColumn string
 	}{
-		{name: "runtime.agent_runs", updateColumn: "run_id"},
-		{name: "runtime.agent_run_events", updateColumn: "event_id"},
-		{name: "runtime.agent_run_steps", updateColumn: "step_id"},
-		{name: "runtime.agent_step_attempts", updateColumn: "attempt_id"},
-		{name: "runtime.agent_step_results", updateColumn: "result_id"},
-		{name: "runtime.conversation_run_locks", updateColumn: "conversation_id"},
-		{name: "runtime.agent_workflow_starts", updateColumn: "run_id"},
-		{name: "runtime.agent_run_cancellations", updateColumn: "run_id"},
-		{name: "runtime.agent_invocation_receipts", updateColumn: "invocation_id"},
-		{name: "runtime.personal_memory_owner_fences", updateColumn: "owner_scope_hash"},
-		{name: "runtime.personal_memory_call_leases", updateColumn: "call_id"},
-		{name: "runtime.personal_memory_command_receipts", updateColumn: "command_id"},
+		{name: "execution_control.agent_runs", updateColumn: "run_id"},
+		{name: "execution_control.agent_run_events", updateColumn: "event_id"},
+		{name: "execution_control.agent_run_steps", updateColumn: "step_id"},
+		{name: "execution_control.agent_step_attempts", updateColumn: "attempt_id"},
+		{name: "execution_control.agent_step_results", updateColumn: "result_id"},
+		{name: "execution_control.conversation_run_locks", updateColumn: "conversation_id"},
+		{name: "execution_control.agent_workflow_starts", updateColumn: "run_id"},
+		{name: "execution_control.agent_run_cancellations", updateColumn: "run_id"},
+		{name: "execution_control.agent_invocation_receipts", updateColumn: "invocation_id"},
+		{name: "execution_control.personal_memory_owner_fences", updateColumn: "owner_scope_hash"},
+		{name: "execution_control.personal_memory_call_leases", updateColumn: "call_id"},
+		{name: "execution_control.personal_memory_command_receipts", updateColumn: "command_id"},
 	}
 	for _, table := range tables {
 		statements := []string{
@@ -367,14 +604,18 @@ func assertExecutionControlRuntimeAccess(t *testing.T, runtimeURL string) {
 	}
 
 	for _, statement := range []string{
-		"create table runtime.execution_control_must_not_create (id text)",
-		"truncate table runtime.personal_memory_call_leases",
+		"create table execution_control.execution_control_must_not_create (id text)",
+		"truncate table execution_control.personal_memory_call_leases",
 	} {
 		_, err := conn.Exec(t.Context(), statement)
 		postgresError = nil
 		if !errors.As(err, &postgresError) || postgresError.Code != "42501" {
 			t.Fatalf("forbidden runtime statement %q error = %v, want SQLSTATE 42501", statement, err)
 		}
+	}
+
+	for _, view := range compatibilityViews() {
+		assertCompatibilityViewReadOnly(t, conn, view)
 	}
 
 	if err := runtimeStoreCRUD(t, runtimeURL); err != nil {

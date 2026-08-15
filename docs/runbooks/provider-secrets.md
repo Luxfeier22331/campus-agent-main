@@ -45,9 +45,12 @@ Langfuse、Cloudflare 和其他环境运行凭据由环境仓及其所属交付�
 
 ## Schema 切换
 
-`run-projection-schema --mode install` 是唯一 schema 切换入口。检测到完整旧结构时，它在一个事务和
-advisory lock 内创建 `model_settings`，读取当前激活的 LLM 与 Embedding，使用旧 AAD 解密并按
-`execution_config.model_settings:<kind>` 重加密，验证两个设置后删除七张旧表并应用当前权限。
+`run-projection-schema --mode install` 是唯一 schema 切换入口。检测到完整旧结构时，Goose v3 在
+一个事务和 advisory lock 内创建 `execution_config.model_settings`，读取当前激活的 LLM 与
+Embedding，使用旧 AAD 解密并按不可变 AAD v1
+`execution_config.model_settings:<kind>` 重加密，验证两个设置后删除七张旧表。Goose v4 随后将该表
+原位移动到 `execution_control.model_settings`；表所在 schema 改变不触发再次加密，也不增加双 AAD
+读取。
 
 旧结构不完整、当前表已经含有数据、激活配置缺失、验证未通过、密钥无法解密或旧表存在未知依赖时，
 整个事务回滚。不得手工复制数据、保留新旧表并存、双写或让运行时回退到旧表。切换发布允许在线问答

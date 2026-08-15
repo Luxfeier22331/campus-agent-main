@@ -46,58 +46,11 @@ const OPS_WEB_GRANT_STATEMENTS = [
 		"internal_portal"."credentials",
 		"internal_portal"."automation_tokens"
 	 TO "ops_web"`,
-	`DO $ops_web_provider_config_schema_revoke$
-	BEGIN
-		IF pg_catalog.to_regnamespace('execution_config') IS NOT NULL THEN
-			EXECUTE 'REVOKE ALL PRIVILEGES ON SCHEMA "execution_config" FROM "ops_web"';
-			EXECUTE 'REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA "execution_config" FROM "ops_web"';
-			EXECUTE 'REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA "execution_config" FROM "ops_web"';
-			EXECUTE 'REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA "execution_config" FROM "ops_web"';
-		END IF;
-	END
-	$ops_web_provider_config_schema_revoke$`,
-	`DO $ops_web_provider_config_revoke$
-	DECLARE
-		relation record;
-		column_names text;
-	BEGIN
-		FOR relation IN
-			SELECT class.oid AS relation_oid, namespace.nspname AS schema_name,
-				class.relname AS relation_name
-			FROM pg_catalog.pg_class class
-			JOIN pg_catalog.pg_namespace namespace ON namespace.oid = class.relnamespace
-			WHERE namespace.nspname = 'execution_config'
-				AND class.relkind IN ('r', 'p', 'v', 'm', 'f')
-		LOOP
-			SELECT pg_catalog.string_agg(
-				pg_catalog.quote_ident(attribute.attname), ', ' ORDER BY attribute.attnum
-			)
-			INTO column_names
-			FROM pg_catalog.pg_attribute attribute
-			WHERE attribute.attrelid = relation.relation_oid
-				AND attribute.attnum > 0
-				AND NOT attribute.attisdropped;
-
-			IF column_names IS NOT NULL THEN
-				EXECUTE pg_catalog.format(
-					'REVOKE ALL PRIVILEGES (%s) ON TABLE %I.%I FROM %I',
-					column_names,
-					relation.schema_name,
-					relation.relation_name,
-					'ops_web'
-				);
-			END IF;
-		END LOOP;
-	END
-	$ops_web_provider_config_revoke$`,
-	`GRANT USAGE ON SCHEMA "chat", "runtime" TO "ops_web"`,
+	`GRANT USAGE ON SCHEMA "chat" TO "ops_web"`,
 	`REVOKE ALL PRIVILEGES ON TABLE
 		"chat"."turn_dispatches",
-			"chat"."messages",
-			"runtime"."agent_runs",
-			"runtime"."agent_run_steps",
-			"runtime"."agent_step_attempts",
-			"runtime"."request_observability_fact"
+		"chat"."messages",
+		"runtime"."request_observability_fact"
 	FROM "ops_web"`,
 	`DO $ops_web_read_model_column_revoke$
 	DECLARE
@@ -112,9 +65,6 @@ const OPS_WEB_GRANT_STATEMENTS = [
 			WHERE (namespace.nspname, class.relname) IN (
 				('chat', 'turn_dispatches'),
 				('chat', 'messages'),
-				('runtime', 'agent_runs'),
-				('runtime', 'agent_run_steps'),
-				('runtime', 'agent_step_attempts'),
 				('runtime', 'request_observability_fact')
 			)
 		LOOP
@@ -147,13 +97,6 @@ const OPS_WEB_GRANT_STATEMENTS = [
 	`GRANT SELECT (
 		"conversation_id", "id", "kind", "request_id", "role", "structured_parts_json", "text"
 	) ON TABLE "chat"."messages" TO "ops_web"`,
-	`GRANT SELECT (
-		"completed_at", "fail_close_reason", "run_id", "runtime_versions_json", "status",
-		"terminal_reason", "trace_id", "updated_at"
-	) ON TABLE "runtime"."agent_runs" TO "ops_web"`,
-	`GRANT SELECT (
-		"cached_input_tokens", "input_tokens", "output_tokens", "run_id", "step_id", "usage_observed"
-	) ON TABLE "runtime"."agent_step_attempts" TO "ops_web"`,
 ] as const;
 
 async function applyDiningGrantStatements(client: {
@@ -297,7 +240,7 @@ const REQUIRED_SELECTS = [
 		`,
 	},
 	{
-		label: "runtime.agent_runs",
+		label: "execution_control.agent_runs",
 		sql: `
 			select
 				"completed_at",
@@ -308,16 +251,16 @@ const REQUIRED_SELECTS = [
 				"terminal_reason",
 				"trace_id",
 				"updated_at"
-			from "runtime"."agent_runs"
+			from "execution_control"."agent_runs"
 			limit 0
 		`,
 	},
 	{
-		label: "runtime.agent_step_attempts",
+		label: "execution_control.agent_step_attempts",
 		sql: `
 			select
 					"cached_input_tokens", "input_tokens", "output_tokens", "run_id", "step_id", "usage_observed"
-			from "runtime"."agent_step_attempts"
+			from "execution_control"."agent_step_attempts"
 			limit 0
 		`,
 	},
@@ -465,63 +408,46 @@ async function verifyOpsWebRoleAndGrants(config: DatabaseConnectionConfig): Prom
 		await verifyOpsWebDiningPrivileges(client);
 		await verifyOpsWebInternalPortalPrivileges(client);
 
-		const providerConfigPrivileges = await client.query(`
-				select
-					coalesce(has_schema_privilege(
-						current_user, pg_catalog.to_regnamespace('execution_config'), 'CREATE'
-					), false) as "canCreateSchema",
-					coalesce(has_schema_privilege(
-						current_user, pg_catalog.to_regnamespace('execution_config'), 'USAGE'
-					), false) as "canUseSchema",
-					exists (
-						select 1
-						from pg_catalog.pg_class class
-						join pg_catalog.pg_namespace namespace on namespace.oid = class.relnamespace
-						where namespace.nspname = 'execution_config'
-							and class.relkind in ('r', 'p', 'v', 'm', 'f')
-							and (
-								has_table_privilege(current_user, class.oid, 'SELECT')
-								or has_table_privilege(current_user, class.oid, 'INSERT')
-								or has_table_privilege(current_user, class.oid, 'UPDATE')
-								or has_table_privilege(current_user, class.oid, 'DELETE')
-								or has_table_privilege(current_user, class.oid, 'TRUNCATE')
-								or has_table_privilege(current_user, class.oid, 'REFERENCES')
-								or has_table_privilege(current_user, class.oid, 'TRIGGER')
-								or has_any_column_privilege(current_user, class.oid, 'SELECT')
-								or has_any_column_privilege(current_user, class.oid, 'INSERT')
-								or has_any_column_privilege(current_user, class.oid, 'UPDATE')
-								or has_any_column_privilege(current_user, class.oid, 'REFERENCES')
-							)
-					) as "canAccessRelations",
-					exists (
-						select 1
-						from pg_catalog.pg_class class
-						join pg_catalog.pg_namespace namespace on namespace.oid = class.relnamespace
-						where namespace.nspname = 'execution_config'
-							and class.relkind = 'S'
-							and (
-								has_sequence_privilege(current_user, class.oid, 'USAGE')
-								or has_sequence_privilege(current_user, class.oid, 'SELECT')
-								or has_sequence_privilege(current_user, class.oid, 'UPDATE')
-							)
-					) as "canAccessSequences",
-					exists (
-						select 1
-						from pg_catalog.pg_proc procedure
-						join pg_catalog.pg_namespace namespace on namespace.oid = procedure.pronamespace
-						where namespace.nspname = 'execution_config'
-							and has_function_privilege(current_user, procedure.oid, 'EXECUTE')
-					) as "canExecuteFunctions"
-			`);
+		const providerConfigPrivileges = await client.query<{
+			canAccessCompatibilityView: boolean;
+			canAccessModelSettings: boolean;
+		}>(`select
+			exists (
+				select 1
+				from pg_catalog.pg_class class
+				join pg_catalog.pg_namespace namespace on namespace.oid = class.relnamespace
+				where namespace.nspname = 'execution_control' and class.relname = 'model_settings'
+					and (
+						has_table_privilege(
+							current_user, class.oid,
+							'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+						)
+						or has_any_column_privilege(
+							current_user, class.oid, 'SELECT,INSERT,UPDATE,REFERENCES'
+						)
+					)
+			) as "canAccessModelSettings",
+			exists (
+				select 1
+				from pg_catalog.pg_class class
+				join pg_catalog.pg_namespace namespace on namespace.oid = class.relnamespace
+				where namespace.nspname = 'execution_config' and class.relname = 'model_settings'
+					and (
+						has_table_privilege(
+							current_user, class.oid,
+							'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+						)
+						or has_any_column_privilege(
+							current_user, class.oid, 'SELECT,INSERT,UPDATE,REFERENCES'
+						)
+					)
+			) as "canAccessCompatibilityView"`);
 		const providerConfigAccess = providerConfigPrivileges.rows[0];
 		if (
-			providerConfigAccess?.canCreateSchema !== false ||
-			providerConfigAccess.canUseSchema !== false ||
-			providerConfigAccess.canAccessRelations !== false ||
-			providerConfigAccess.canAccessSequences !== false ||
-			providerConfigAccess.canExecuteFunctions !== false
+			providerConfigAccess?.canAccessModelSettings !== false ||
+			providerConfigAccess.canAccessCompatibilityView !== false
 		) {
-			throw new Error("ops_web must not have direct or inherited privileges on execution_config.");
+			throw new Error("ops_web must not have direct access to execution model settings.");
 		}
 	});
 }

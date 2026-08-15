@@ -16,11 +16,11 @@ status: active
 - `chat.conversations` 和 `chat.messages` 保存用户可见会话。
 - `chat.turn_dispatches` 保存一次 turn 的 admission、关联标识、幂等键和最终状态。
 - `runtime.request_observability_fact` 保存受控诊断摘要。
-- execution-control 使用同一个 `run_id` 在 `runtime.agent_*` 中保存 workflow projection。
+- execution-control 使用同一个 `run_id` 在 `execution_control.agent_*` 中保存 workflow projection。
 - Temporal 保存完整 workflow history。
 
 三者不是同一状态的三个写入者：`chat.turn_dispatches` 只裁决产品是否已接收以及用户可见终态，
-`runtime.agent_*` 只描述持久运行，Temporal 只保存工作流历史和调度状态。execution-control 已经
+`execution_control.agent_*` 只描述持久运行，Temporal 只保存工作流历史和调度状态。execution-control 已经
 产生终态不等于 App API 已经保存助手消息；App API 的 `accepted` 也不能证明 Temporal 已经开始执行。
 
 ## 状态
@@ -118,7 +118,7 @@ fingerprint，再解析并校验最终响应合同，不得对解析结果重新
 ## Ops Web 关联
 
 Ops Web 以 `chat.turn_dispatches` 为 request 列表起点，按 `run_id` 左连接
-`runtime.agent_runs`，并通过 `user_message_id` 读取 `chat.messages` 的问题摘要。主列表不依赖
+`execution_control.agent_runs`，并通过 `user_message_id` 读取 `chat.messages` 的问题摘要。主列表不依赖
 `runtime.request_observability_fact`，也不需要 app-api projector 或通过 app-api 运维接口读取。
 其他获准诊断消费者即使读取该表，也不能用它覆盖请求或运行状态。
 

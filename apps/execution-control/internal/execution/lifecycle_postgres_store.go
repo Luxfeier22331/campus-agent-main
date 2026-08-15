@@ -50,7 +50,7 @@ func (s *PostgresRunProjectionStore) CreateRunWithStartIntent(
 		return DurableRunCreateResult{}, err
 	}
 
-	_, err = tx.Exec(ctx, `insert into runtime.agent_runs (
+	_, err = tx.Exec(ctx, `insert into execution_control.agent_runs (
 		run_id, conversation_id, turn_id, request_id, trace_id, owner_user_id, surface,
 		task_queue, status, terminal_reason,
 		fail_close_reason, retryable, created_at, queued_at, admitted_at, started_at,
@@ -77,7 +77,7 @@ func (s *PostgresRunProjectionStore) CreateRunWithStartIntent(
 	if err := insertDurableRunEventInTx(ctx, tx, run, request.CreatedEvent); err != nil {
 		return DurableRunCreateResult{}, err
 	}
-	_, err = tx.Exec(ctx, `insert into runtime.agent_workflow_starts (
+	_, err = tx.Exec(ctx, `insert into execution_control.agent_workflow_starts (
 		run_id, workflow_id, payload_sha256, task_queue, workflow_input_json, state,
 		dispatch_attempted, next_attempt_at, created_at, updated_at
 	) values ($1,$2,$3,$4,$5::jsonb,$6,false,$7,$7,$7)`,
@@ -119,14 +119,14 @@ func (s *PostgresRunProjectionStore) LeaseWorkflowStartIntents(
 		return nil, err
 	}
 	rows, err := s.pool.Query(ctx, `with candidates as (
-		select starts.run_id from runtime.agent_workflow_starts starts
-		join runtime.agent_runs runs on runs.run_id = starts.run_id
+		select starts.run_id from execution_control.agent_workflow_starts starts
+		join execution_control.agent_runs runs on runs.run_id = starts.run_id
 		where (
 			runs.status in ('completed', 'failed', 'canceled', 'expired')
 			or (
 				runs.status in ('created', 'queued', 'admitted', 'running', 'streaming')
 				and not exists (
-					select 1 from runtime.agent_run_cancellations cancellations
+					select 1 from execution_control.agent_run_cancellations cancellations
 					where cancellations.run_id = starts.run_id
 				)
 			)
@@ -137,7 +137,7 @@ func (s *PostgresRunProjectionStore) LeaseWorkflowStartIntents(
 		for update of starts skip locked
 		limit $2
 	)
-	update runtime.agent_workflow_starts as starts
+	update execution_control.agent_workflow_starts as starts
 	set state = 'leased', lease_token = $3, lease_until = $4,
 		attempt_count = starts.attempt_count + 1, updated_at = $1
 	from candidates where starts.run_id = candidates.run_id
@@ -223,7 +223,7 @@ func (s *PostgresRunProjectionStore) MarkWorkflowStartDispatchAttempt(
 	}
 	var cancellationRequested bool
 	if err := tx.QueryRow(ctx,
-		`select exists(select 1 from runtime.agent_run_cancellations where run_id = $1)`,
+		`select exists(select 1 from execution_control.agent_run_cancellations where run_id = $1)`,
 		result.RunID,
 	).Scan(&cancellationRequested); err != nil {
 		return err
@@ -231,7 +231,7 @@ func (s *PostgresRunProjectionStore) MarkWorkflowStartDispatchAttempt(
 	if cancellationRequested {
 		return fmt.Errorf("%w: workflow start run_id=%s was canceled", ErrLifecycleLeaseConflict, result.RunID)
 	}
-	tag, err := tx.Exec(ctx, `update runtime.agent_workflow_starts
+	tag, err := tx.Exec(ctx, `update execution_control.agent_workflow_starts
 		set dispatch_attempted = true, updated_at = $3
 		where run_id = $1 and state = 'leased' and lease_token = $2`,
 		result.RunID, result.LeaseToken, result.Now,
@@ -286,7 +286,7 @@ func (s *PostgresRunProjectionStore) BindSupersededWorkflowStartExecution(
 	var cancellationWorkflowID string
 	if err := tx.QueryRow(
 		ctx,
-		`select workflow_id from runtime.agent_run_cancellations where run_id = $1`,
+		`select workflow_id from execution_control.agent_run_cancellations where run_id = $1`,
 		binding.RunID,
 	).Scan(&cancellationWorkflowID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -318,7 +318,7 @@ func (s *PostgresRunProjectionStore) BindSupersededWorkflowStartExecution(
 		}
 		return intent, nil
 	}
-	tag, err := tx.Exec(ctx, `update runtime.agent_workflow_starts
+	tag, err := tx.Exec(ctx, `update execution_control.agent_workflow_starts
 		set temporal_run_id = $3, updated_at = $4
 		where run_id = $1 and workflow_id = $2 and state = 'superseded'
 			and dispatch_attempted and btrim(temporal_run_id) = ''`,
@@ -355,13 +355,13 @@ func (s *PostgresRunProjectionStore) ListActiveWorkflowRuns(
 		starts.workflow_input_json, starts.state, starts.temporal_run_id, starts.attempt_count,
 		starts.dispatch_attempted, starts.next_attempt_at, starts.lease_token, starts.lease_until,
 		starts.last_error_code, starts.created_at, starts.updated_at
-	from runtime.agent_workflow_starts starts
-	join runtime.agent_runs runs on runs.run_id = starts.run_id
+	from execution_control.agent_workflow_starts starts
+	join execution_control.agent_runs runs on runs.run_id = starts.run_id
 		where starts.state = 'confirmed'
 		  and starts.run_id > $1
 		  and runs.status in ('created', 'queued', 'admitted', 'running', 'streaming')
 	  and not exists (
-		select 1 from runtime.agent_run_cancellations cancellations
+		select 1 from execution_control.agent_run_cancellations cancellations
 		where cancellations.run_id = starts.run_id
 		  and cancellations.state <> 'confirmed'
 	  )
@@ -447,7 +447,7 @@ func (s *PostgresRunProjectionStore) ConfirmWorkflowStartIntent(
 	}
 	var cancellationRequested bool
 	if err := tx.QueryRow(ctx,
-		`select exists(select 1 from runtime.agent_run_cancellations where run_id = $1)`,
+		`select exists(select 1 from execution_control.agent_run_cancellations where run_id = $1)`,
 		result.RunID,
 	).Scan(&cancellationRequested); err != nil {
 		return err
@@ -504,7 +504,7 @@ func (s *PostgresRunProjectionStore) ConfirmWorkflowStartIntent(
 		}
 	}
 
-	_, err = tx.Exec(ctx, `update runtime.agent_workflow_starts
+	_, err = tx.Exec(ctx, `update execution_control.agent_workflow_starts
 	set state = $3, temporal_run_id = $4, lease_token = '', lease_until = null,
 		last_error_code = '', updated_at = $5
 	where run_id = $1 and state = 'leased' and lease_token = $2`,
@@ -542,7 +542,7 @@ func (s *PostgresRunProjectionStore) updateWorkflowStartIntent(
 	if nextAttemptAt.IsZero() {
 		nextAttemptAt = result.Now
 	}
-	tag, err := s.pool.Exec(ctx, `update runtime.agent_workflow_starts
+	tag, err := s.pool.Exec(ctx, `update execution_control.agent_workflow_starts
 	set state = $3, temporal_run_id = $4, next_attempt_at = $5,
 		lease_token = '', lease_until = null, last_error_code = $6, updated_at = $7
 	where run_id = $1 and state = 'leased' and lease_token = $2`,
@@ -581,7 +581,7 @@ const workflowStartIntentSelectSQL = `select
 	run_id, workflow_id, payload_sha256, task_queue, workflow_input_json, state,
 	temporal_run_id, attempt_count, dispatch_attempted, next_attempt_at, lease_token, lease_until,
 	last_error_code, created_at, updated_at
-from runtime.agent_workflow_starts`
+from execution_control.agent_workflow_starts`
 
 func (s *PostgresRunProjectionStore) RequestRunCancellation(
 	ctx context.Context,
@@ -605,7 +605,7 @@ func (s *PostgresRunProjectionStore) RequestRunCancellation(
 	var existingReason string
 	existingCommandErr := tx.QueryRow(
 		ctx,
-		`select reason from runtime.agent_run_cancellations where run_id = $1 for update`,
+		`select reason from execution_control.agent_run_cancellations where run_id = $1 for update`,
 		run.RunID,
 	).Scan(&existingReason)
 	if run.Status == DurableRunStatusCanceled {
@@ -657,7 +657,7 @@ func (s *PostgresRunProjectionStore) RequestRunCancellation(
 	}); err != nil {
 		return DurableRun{}, err
 	}
-	_, err = tx.Exec(ctx, `insert into runtime.agent_run_cancellations (
+	_, err = tx.Exec(ctx, `insert into execution_control.agent_run_cancellations (
 		run_id, workflow_id, reason, state, next_attempt_at, created_at, updated_at
 	) values ($1,$2,$3,$4,$5,$5,$5)`, run.RunID, "campus-agent.chat."+run.RunID,
 		request.Reason, string(LifecycleIntentStatePending), request.Now)
@@ -674,7 +674,7 @@ func (s *PostgresRunProjectionStore) RequestRunCancellation(
 }
 
 func requeueConfirmedCancellationInTx(ctx context.Context, tx pgx.Tx, runID string, now time.Time) error {
-	_, err := tx.Exec(ctx, `update runtime.agent_run_cancellations
+	_, err := tx.Exec(ctx, `update execution_control.agent_run_cancellations
 	set state = 'pending', next_attempt_at = $2, lease_token = '', lease_until = null,
 		last_error_code = 'late_workflow_start', updated_at = $2
 	where run_id = $1 and state = 'confirmed'`, runID, now)
@@ -687,7 +687,7 @@ func supersedeWorkflowStartIntentInTx(
 	runID string,
 	now time.Time,
 ) error {
-	_, err := tx.Exec(ctx, `update runtime.agent_workflow_starts
+	_, err := tx.Exec(ctx, `update execution_control.agent_workflow_starts
 	set state = $2, lease_token = '', lease_until = null, updated_at = $3
 	where run_id = $1 and state in ('pending', 'leased')`, runID, string(LifecycleIntentStateSuperseded), now)
 	return err
@@ -701,14 +701,14 @@ func (s *PostgresRunProjectionStore) LeaseRunCancellationCommands(
 		return nil, err
 	}
 	rows, err := s.pool.Query(ctx, `with candidates as (
-		select run_id from runtime.agent_run_cancellations
+		select run_id from execution_control.agent_run_cancellations
 		where next_attempt_at <= $1
 		  and (state = 'pending' or (state = 'leased' and lease_until <= $1))
 		order by next_attempt_at, created_at
 		for update skip locked
 		limit $2
 	)
-	update runtime.agent_run_cancellations as commands
+	update execution_control.agent_run_cancellations as commands
 	set state = 'leased', lease_token = $3, lease_until = $4,
 		attempt_count = commands.attempt_count + 1, updated_at = $1
 	from candidates where commands.run_id = candidates.run_id
@@ -765,7 +765,7 @@ func (s *PostgresRunProjectionStore) updateRunCancellationCommand(
 	if nextAttemptAt.IsZero() {
 		nextAttemptAt = result.Now
 	}
-	tag, err := s.pool.Exec(ctx, `update runtime.agent_run_cancellations
+	tag, err := s.pool.Exec(ctx, `update execution_control.agent_run_cancellations
 	set state = $3, next_attempt_at = $4, lease_token = '', lease_until = null,
 		last_error_code = $5, updated_at = $6
 	where run_id = $1 and state = 'leased' and lease_token = $2`,
@@ -788,7 +788,7 @@ func (s *PostgresRunProjectionStore) BeginAgentInvocation(
 	if err := validateAgentInvocationReceipt(receipt, false); err != nil {
 		return AgentInvocationReceipt{}, "", err
 	}
-	tag, err := s.pool.Exec(ctx, `insert into runtime.agent_invocation_receipts (
+	tag, err := s.pool.Exec(ctx, `insert into execution_control.agent_invocation_receipts (
 		invocation_id, run_id, input_sha256, state, created_at, updated_at
 	) values ($1,$2,$3,$4,$5,$6) on conflict (invocation_id) do nothing`,
 		receipt.InvocationID, receipt.RunID, receipt.InputSHA256,
@@ -845,7 +845,7 @@ func (s *PostgresRunProjectionStore) CompleteAgentInvocation(
 	defer func() { _ = tx.Rollback(ctx) }()
 	stored, err := scanAgentInvocationReceipt(tx.QueryRow(ctx, `select invocation_id, run_id,
 		input_sha256, state, output_json, output_sha256, created_at, completed_at, updated_at
-		from runtime.agent_invocation_receipts where invocation_id = $1 for update`, receipt.InvocationID))
+		from execution_control.agent_invocation_receipts where invocation_id = $1 for update`, receipt.InvocationID))
 	if err != nil {
 		return AgentInvocationReceipt{}, err
 	}
@@ -858,7 +858,7 @@ func (s *PostgresRunProjectionStore) CompleteAgentInvocation(
 		}
 		return stored, nil
 	}
-	_, err = tx.Exec(ctx, `update runtime.agent_invocation_receipts
+	_, err = tx.Exec(ctx, `update execution_control.agent_invocation_receipts
 	set state = $2, output_json = $3::jsonb, output_sha256 = $4,
 		completed_at = $5, updated_at = $6 where invocation_id = $1`,
 		receipt.InvocationID, string(AgentInvocationReceiptStateCompleted), receipt.OutputJSON,
@@ -881,7 +881,7 @@ func (s *PostgresRunProjectionStore) getAgentInvocationReceipt(
 ) (AgentInvocationReceipt, error) {
 	return scanAgentInvocationReceipt(s.pool.QueryRow(ctx, `select invocation_id, run_id,
 		input_sha256, state, output_json, output_sha256, created_at, completed_at, updated_at
-		from runtime.agent_invocation_receipts where invocation_id = $1`, invocationID))
+		from execution_control.agent_invocation_receipts where invocation_id = $1`, invocationID))
 }
 
 func scanAgentInvocationReceipt(row pgx.Row) (AgentInvocationReceipt, error) {

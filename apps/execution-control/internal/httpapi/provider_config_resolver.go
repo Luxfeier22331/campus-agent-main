@@ -14,7 +14,7 @@ import (
 )
 
 // Model settings are keyed by the two runtime consumers. They map directly to
-// execution_config.model_settings and do not carry historical profile or
+// execution_control.model_settings and do not carry historical profile or
 // revision identity.
 type providerConfigKind string
 

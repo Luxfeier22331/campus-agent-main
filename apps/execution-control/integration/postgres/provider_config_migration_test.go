@@ -126,13 +126,13 @@ func testLegacyProviderConfigMigration(t *testing.T, harness *postgresHarness) {
 			t.Fatalf("install empty current schema: %v", err)
 		}
 		assertLegacyTablesAbsent(t, ownerURL)
-		assertModelSettingsCount(t, ownerURL, 0)
+		assertModelSettingsCount(t, ownerURL, "execution_control.model_settings", 0)
 		keyring := loadIntegrationKeyring(t)
-		insertCurrentModelSetting(t, ownerURL, keyring, providerconfig.KindLLM, "current-llm")
+		insertCurrentModelSetting(t, ownerURL, keyring, "execution_control.model_settings", providerconfig.KindLLM, "current-llm")
 		if err := migrateSchema(t.Context(), ownerURL, nil); err != nil {
 			t.Fatalf("repeat install with one current setting: %v", err)
 		}
-		assertModelSettingsCount(t, ownerURL, 1)
+		assertModelSettingsCount(t, ownerURL, "execution_control.model_settings", 1)
 		if err := providerconfig.CheckDatabaseSchema(t.Context(), ownerURL); err != nil {
 			t.Fatalf("check current schema: %v", err)
 		}
@@ -145,7 +145,7 @@ func testLegacyProviderConfigMigration(t *testing.T, harness *postgresHarness) {
 			t.Fatalf("migrate legacy schema: %v", err)
 		}
 		assertLegacyTablesAbsent(t, ownerURL)
-		assertModelSettingsCount(t, ownerURL, 2)
+		assertModelSettingsCount(t, ownerURL, "execution_control.model_settings", 2)
 
 		runtimeURL := databaseURLForOwner(t, harness, ownerURL, executionRole, executionPassword)
 		store := newProviderStore(t, runtimeURL, keyring)
@@ -180,7 +180,7 @@ func testLegacyProviderConfigMigration(t *testing.T, harness *postgresHarness) {
 			t.Fatalf("install current schema fixture: %v", err)
 		}
 		closeConn(t, conn)
-		insertCurrentModelSetting(t, ownerURL, keyring, providerconfig.KindLLM, "conflicting-llm")
+		insertCurrentModelSetting(t, ownerURL, keyring, "execution_config.model_settings", providerconfig.KindLLM, "conflicting-llm")
 		conn = connect(t, ownerURL)
 		if _, err := conn.Exec(t.Context(), legacyProviderConfigSchemaSQL); err != nil {
 			closeConn(t, conn)
@@ -191,7 +191,7 @@ func testLegacyProviderConfigMigration(t *testing.T, harness *postgresHarness) {
 			t.Fatal("coexisting current and legacy settings unexpectedly migrated")
 		}
 		assertLegacyTablesPresent(t, ownerURL)
-		assertModelSettingsCount(t, ownerURL, 1)
+		assertModelSettingsCount(t, ownerURL, "execution_config.model_settings", 1)
 	})
 
 	t.Run("invalid legacy data rolls back schema and data changes", func(t *testing.T) {
@@ -346,8 +346,18 @@ func installLegacyProviderFixture(t *testing.T, harness *postgresHarness, option
 	return databaseName, ownerURL
 }
 
-func insertCurrentModelSetting(t *testing.T, databaseURL string, keyring *providerconfig.Keyring, kind providerconfig.Kind, model string) {
+func insertCurrentModelSetting(
+	t *testing.T,
+	databaseURL string,
+	keyring *providerconfig.Keyring,
+	table string,
+	kind providerconfig.Kind,
+	model string,
+) {
 	t.Helper()
+	if table != "execution_config.model_settings" && table != "execution_control.model_settings" {
+		t.Fatalf("unsupported model settings table %q", table)
+	}
 	secret, err := keyring.Encrypt("legacy-provider-secret", "execution_config.model_settings:"+string(kind))
 	if err != nil {
 		t.Fatalf("encrypt current model setting: %v", err)
@@ -362,7 +372,7 @@ func insertCurrentModelSetting(t *testing.T, databaseURL string, keyring *provid
 	}
 	conn := connect(t, databaseURL)
 	defer closeConn(t, conn)
-	if _, err := conn.Exec(t.Context(), `insert into execution_config.model_settings
+	if _, err := conn.Exec(t.Context(), `insert into `+table+`
 		(kind,provider,base_url,model,transport,dimensions,secret_key_id,secret_nonce,secret_ciphertext,
 		 secret_fingerprint,secret_last4,validation_status,validation_error_code,validation_message,
 		 validation_observed_dimensions,validated_at,validated_by,updated_at,updated_by)
@@ -477,12 +487,15 @@ func assertRoleTablePrivilege(
 	}
 }
 
-func assertModelSettingsCount(t *testing.T, databaseURL string, want int) {
+func assertModelSettingsCount(t *testing.T, databaseURL, table string, want int) {
 	t.Helper()
+	if table != "execution_config.model_settings" && table != "execution_control.model_settings" {
+		t.Fatalf("unsupported model settings table %q", table)
+	}
 	conn := connect(t, databaseURL)
 	defer closeConn(t, conn)
 	var count int
-	if err := conn.QueryRow(t.Context(), "select count(*) from execution_config.model_settings").Scan(&count); err != nil {
+	if err := conn.QueryRow(t.Context(), "select count(*) from "+table).Scan(&count); err != nil {
 		t.Fatalf("count model settings: %v", err)
 	}
 	if count != want {

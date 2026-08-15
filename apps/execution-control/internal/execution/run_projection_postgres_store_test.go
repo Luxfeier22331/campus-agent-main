@@ -59,12 +59,12 @@ func TestPostgresRunProjectionHealthCheckInspectsRequiredSchemaShape(t *testing.
 		"('agent_step_attempts', 'activity_attempt', 'integer', true, '0')",
 		"('agent_workflow_starts', 'dispatch_attempted', 'boolean', true, 'false')",
 		"('agent_run_steps', 'p', array['run_id', 'step_id']::text[]",
-		"('agent_run_steps', 'f', array['run_id']::text[], 'runtime', 'agent_runs'",
+		"('agent_run_steps', 'f', array['run_id']::text[], 'execution_control', 'agent_runs'",
 		"('agent_step_attempts', 'p', array['attempt_id']::text[]",
 		"('agent_step_attempts', 'u', array['run_id', 'step_id', 'attempt']::text[]",
-		"('agent_step_attempts', 'f', array['run_id']::text[], 'runtime', 'agent_runs'",
+		"('agent_step_attempts', 'f', array['run_id']::text[], 'execution_control', 'agent_runs'",
 		"('agent_step_results', 'p', array['result_id']::text[]",
-		"('agent_step_results', 'f', array['run_id']::text[], 'runtime', 'agent_runs'",
+		"('agent_step_results', 'f', array['run_id']::text[], 'execution_control', 'agent_runs'",
 		"('agent_workflow_starts', 'u', array['workflow_id']::text[]",
 		"'agent_runs_active_conversation_idx'",
 		"'agent_workflow_starts_lease_idx'",
@@ -125,9 +125,9 @@ func TestFinalizationAttemptSelectIncludesUsageFields(t *testing.T) {
 func TestPostgresRunStepUpsertSQLFencesAttemptAndTerminalState(t *testing.T) {
 	requiredSnippets := []string{
 		"on conflict (run_id, step_id) do update set",
-		"runtime.agent_run_steps.activity_attempt <= excluded.activity_attempt",
-		"runtime.agent_run_steps.activity_attempt = excluded.activity_attempt",
-		"lower(btrim(runtime.agent_run_steps.status)) in ('completed', 'failed', 'blocked', 'canceled', 'expired', 'skipped')",
+		"execution_control.agent_run_steps.activity_attempt <= excluded.activity_attempt",
+		"execution_control.agent_run_steps.activity_attempt = excluded.activity_attempt",
+		"lower(btrim(execution_control.agent_run_steps.status)) in ('completed', 'failed', 'blocked', 'canceled', 'expired', 'skipped')",
 	}
 	for _, snippet := range requiredSnippets {
 		if !strings.Contains(runProjectionPostgresRunStepUpsertSQL, snippet) {
@@ -138,11 +138,11 @@ func TestPostgresRunStepUpsertSQLFencesAttemptAndTerminalState(t *testing.T) {
 
 func TestPostgresStepAttemptUpsertSQLFencesIdentityAttemptAndTerminalState(t *testing.T) {
 	requiredSnippets := []string{
-		"runtime.agent_step_attempts.run_id = excluded.run_id",
-		"runtime.agent_step_attempts.step_id = excluded.step_id",
-		"runtime.agent_step_attempts.attempt = excluded.attempt",
-		"runtime.agent_step_attempts.activity_attempt <= excluded.activity_attempt",
-		"lower(btrim(runtime.agent_step_attempts.status)) not in ('completed', 'failed', 'blocked', 'canceled', 'expired', 'skipped')",
+		"execution_control.agent_step_attempts.run_id = excluded.run_id",
+		"execution_control.agent_step_attempts.step_id = excluded.step_id",
+		"execution_control.agent_step_attempts.attempt = excluded.attempt",
+		"execution_control.agent_step_attempts.activity_attempt <= excluded.activity_attempt",
+		"lower(btrim(execution_control.agent_step_attempts.status)) not in ('completed', 'failed', 'blocked', 'canceled', 'expired', 'skipped')",
 	}
 	for _, snippet := range requiredSnippets {
 		if !strings.Contains(runProjectionPostgresStepAttemptUpsertSQL, snippet) {
@@ -153,7 +153,7 @@ func TestPostgresStepAttemptUpsertSQLFencesIdentityAttemptAndTerminalState(t *te
 
 func stepAttemptInsertSQLForTest(t *testing.T) string {
 	t.Helper()
-	start := strings.Index(runProjectionPostgresStepAttemptUpsertSQL, "insert into runtime.agent_step_attempts")
+	start := strings.Index(runProjectionPostgresStepAttemptUpsertSQL, "insert into execution_control.agent_step_attempts")
 	if start < 0 {
 		t.Fatal("step attempt upsert SQL missing insert statement")
 	}
@@ -170,7 +170,7 @@ func TestStepAttemptUpsertDoesNotDowngradeObservedUsage(t *testing.T) {
 		"when excluded.usage_observed then excluded.input_tokens",
 		"when excluded.usage_observed then excluded.output_tokens",
 		"when excluded.usage_observed then excluded.cached_input_tokens",
-		"usage_observed = runtime.agent_step_attempts.usage_observed or excluded.usage_observed",
+		"usage_observed = execution_control.agent_step_attempts.usage_observed or excluded.usage_observed",
 	}
 	for _, fragment := range required {
 		if !strings.Contains(runProjectionPostgresStepAttemptUpsertSQL, fragment) {

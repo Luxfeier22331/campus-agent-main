@@ -260,13 +260,13 @@ func (s *PostgresStateStore) BeginCall(ctx context.Context, ownerHash string, ca
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	var fence memoryFence
-	err = tx.QueryRow(ctx, `select generation,lifecycle_state,last_owner_sequence from runtime.personal_memory_owner_fences where owner_scope_hash=$1 for update`, ownerHash).Scan(&fence.Generation, &fence.Lifecycle, &fence.Sequence)
+	err = tx.QueryRow(ctx, `select generation,lifecycle_state,last_owner_sequence from execution_control.personal_memory_owner_fences where owner_scope_hash=$1 for update`, ownerHash).Scan(&fence.Generation, &fence.Lifecycle, &fence.Sequence)
 	if errors.Is(err, pgx.ErrNoRows) {
 		if generation != 1 || sequence != 0 {
 			return ErrMemoryFenceConflict
 		}
 		fence = memoryFence{Generation: 1, Lifecycle: "active", Sequence: 0}
-		if _, err := tx.Exec(ctx, `insert into runtime.personal_memory_owner_fences (owner_scope_hash,generation,lifecycle_state,last_owner_sequence,updated_at) values ($1,1,'active',0,now())`, ownerHash); err != nil {
+		if _, err := tx.Exec(ctx, `insert into execution_control.personal_memory_owner_fences (owner_scope_hash,generation,lifecycle_state,last_owner_sequence,updated_at) values ($1,1,'active',0,now())`, ownerHash); err != nil {
 			return err
 		}
 	} else if err != nil {
@@ -275,10 +275,10 @@ func (s *PostgresStateStore) BeginCall(ctx context.Context, ownerHash string, ca
 	if fence.Generation != generation || fence.Sequence != sequence || fence.Lifecycle != "active" {
 		return ErrMemoryFenceConflict
 	}
-	if _, err := tx.Exec(ctx, `delete from runtime.personal_memory_call_leases where call_id=$1 and expires_at <= now()`, callID); err != nil {
+	if _, err := tx.Exec(ctx, `delete from execution_control.personal_memory_call_leases where call_id=$1 and expires_at <= now()`, callID); err != nil {
 		return err
 	}
-	command, err := tx.Exec(ctx, `insert into runtime.personal_memory_call_leases (call_id,owner_scope_hash,generation,owner_sequence,subject_scope_hash,operation_kind,expires_at,created_at) values ($1,$2,$3,$4,$5,$6,$7,now()) on conflict do nothing`, callID, ownerHash, generation, sequence, subjectHash, kind, time.Now().Add(ttl))
+	command, err := tx.Exec(ctx, `insert into execution_control.personal_memory_call_leases (call_id,owner_scope_hash,generation,owner_sequence,subject_scope_hash,operation_kind,expires_at,created_at) values ($1,$2,$3,$4,$5,$6,$7,now()) on conflict do nothing`, callID, ownerHash, generation, sequence, subjectHash, kind, time.Now().Add(ttl))
 	if err != nil {
 		return err
 	}
@@ -289,23 +289,23 @@ func (s *PostgresStateStore) BeginCall(ctx context.Context, ownerHash string, ca
 }
 
 func (s *PostgresStateStore) EndCall(ctx context.Context, ownerHash string, callID string) error {
-	_, err := s.pool.Exec(ctx, `delete from runtime.personal_memory_call_leases where call_id=$1 and owner_scope_hash=$2`, callID, ownerHash)
+	_, err := s.pool.Exec(ctx, `delete from execution_control.personal_memory_call_leases where call_id=$1 and owner_scope_hash=$2`, callID, ownerHash)
 	return err
 }
 
 func (s *PostgresStateStore) GenerationDrained(ctx context.Context, ownerHash string, generation int64) (bool, error) {
 	var active bool
 	err := s.pool.QueryRow(ctx, `select
-		exists(select 1 from runtime.personal_memory_call_leases where owner_scope_hash=$1 and generation=$2 and expires_at > now())
-		or exists(select 1 from runtime.personal_memory_command_receipts where owner_scope_hash=$1 and generation=$2 and status not in ('succeeded','failed'))`, ownerHash, generation).Scan(&active)
+		exists(select 1 from execution_control.personal_memory_call_leases where owner_scope_hash=$1 and generation=$2 and expires_at > now())
+		or exists(select 1 from execution_control.personal_memory_command_receipts where owner_scope_hash=$1 and generation=$2 and status not in ('succeeded','failed'))`, ownerHash, generation).Scan(&active)
 	return !active, err
 }
 
 func (s *PostgresStateStore) SubjectDrained(ctx context.Context, ownerHash string, generation int64, subjectHash string, beforeSequence int64) (bool, error) {
 	var active bool
 	err := s.pool.QueryRow(ctx, `select
-		exists(select 1 from runtime.personal_memory_call_leases where owner_scope_hash=$1 and generation=$2 and subject_scope_hash=$3 and owner_sequence < $4 and expires_at > now())
-		or exists(select 1 from runtime.personal_memory_command_receipts where owner_scope_hash=$1 and generation=$2 and subject_scope_hash=$3 and sequence < $4 and status not in ('succeeded','failed'))`, ownerHash, generation, subjectHash, beforeSequence).Scan(&active)
+		exists(select 1 from execution_control.personal_memory_call_leases where owner_scope_hash=$1 and generation=$2 and subject_scope_hash=$3 and owner_sequence < $4 and expires_at > now())
+		or exists(select 1 from execution_control.personal_memory_command_receipts where owner_scope_hash=$1 and generation=$2 and subject_scope_hash=$3 and sequence < $4 and status not in ('succeeded','failed'))`, ownerHash, generation, subjectHash, beforeSequence).Scan(&active)
 	return !active, err
 }
 
@@ -315,17 +315,17 @@ func (s *PostgresStateStore) BeginCommand(ctx context.Context, ownerHash string,
 		return CommandReceipt{}, false, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	_, err = tx.Exec(ctx, `insert into runtime.personal_memory_owner_fences (owner_scope_hash,generation,lifecycle_state,last_owner_sequence,updated_at) values ($1,1,'active',0,now()) on conflict do nothing`, ownerHash)
+	_, err = tx.Exec(ctx, `insert into execution_control.personal_memory_owner_fences (owner_scope_hash,generation,lifecycle_state,last_owner_sequence,updated_at) values ($1,1,'active',0,now()) on conflict do nothing`, ownerHash)
 	if err != nil {
 		return CommandReceipt{}, false, err
 	}
 	var fence memoryFence
-	err = tx.QueryRow(ctx, `select generation,lifecycle_state,last_owner_sequence from runtime.personal_memory_owner_fences where owner_scope_hash=$1 for update`, ownerHash).Scan(&fence.Generation, &fence.Lifecycle, &fence.Sequence)
+	err = tx.QueryRow(ctx, `select generation,lifecycle_state,last_owner_sequence from execution_control.personal_memory_owner_fences where owner_scope_hash=$1 for update`, ownerHash).Scan(&fence.Generation, &fence.Lifecycle, &fence.Sequence)
 	if err != nil {
 		return CommandReceipt{}, false, err
 	}
 	var receipt CommandReceipt
-	err = tx.QueryRow(ctx, `select command_id, owner_scope_hash, generation, sequence, kind, status, error_code, lease_expires_at, result_fingerprint, subject_scope_hash, supersession_scope from runtime.personal_memory_command_receipts where command_id=$1 for update`, command.CommandID).Scan(&receipt.CommandID, &receipt.OwnerScopeHash, &receipt.Generation, &receipt.Sequence, &receipt.Kind, &receipt.Status, &receipt.ErrorCode, &receipt.ProcessingUntil, &receipt.ResultFingerprint, &receipt.SubjectScopeHash, &receipt.SupersessionScope)
+	err = tx.QueryRow(ctx, `select command_id, owner_scope_hash, generation, sequence, kind, status, error_code, lease_expires_at, result_fingerprint, subject_scope_hash, supersession_scope from execution_control.personal_memory_command_receipts where command_id=$1 for update`, command.CommandID).Scan(&receipt.CommandID, &receipt.OwnerScopeHash, &receipt.Generation, &receipt.Sequence, &receipt.Kind, &receipt.Status, &receipt.ErrorCode, &receipt.ProcessingUntil, &receipt.ResultFingerprint, &receipt.SubjectScopeHash, &receipt.SupersessionScope)
 	if err == nil {
 		if err := validateReceiptIdentity(receipt, ownerHash, command); err != nil {
 			return CommandReceipt{}, false, err
@@ -338,7 +338,7 @@ func (s *PostgresStateStore) BeginCommand(ctx context.Context, ownerHash string,
 			receipt.Status = "processing"
 			receipt.ProcessingUntil = commandLeaseDeadline(leaseTTL)
 			receipt.ResultFingerprint = ""
-			if _, err := tx.Exec(ctx, `update runtime.personal_memory_command_receipts set status='processing', error_code='', result_fingerprint='', lease_expires_at=$2, updated_at=now(), terminal_at=null where command_id=$1 and status not in ('succeeded','failed')`, receipt.CommandID, receipt.ProcessingUntil); err != nil {
+			if _, err := tx.Exec(ctx, `update execution_control.personal_memory_command_receipts set status='processing', error_code='', result_fingerprint='', lease_expires_at=$2, updated_at=now(), terminal_at=null where command_id=$1 and status not in ('succeeded','failed')`, receipt.CommandID, receipt.ProcessingUntil); err != nil {
 				return CommandReceipt{}, false, err
 			}
 		}
@@ -356,12 +356,12 @@ func (s *PostgresStateStore) BeginCommand(ctx context.Context, ownerHash string,
 	if err := applyFenceCommand(&fence, command); err != nil {
 		return CommandReceipt{}, false, err
 	}
-	_, err = tx.Exec(ctx, `update runtime.personal_memory_owner_fences set generation=$2,lifecycle_state=$3,last_owner_sequence=$4,updated_at=now() where owner_scope_hash=$1`, ownerHash, fence.Generation, fence.Lifecycle, fence.Sequence)
+	_, err = tx.Exec(ctx, `update execution_control.personal_memory_owner_fences set generation=$2,lifecycle_state=$3,last_owner_sequence=$4,updated_at=now() where owner_scope_hash=$1`, ownerHash, fence.Generation, fence.Lifecycle, fence.Sequence)
 	if err != nil {
 		return CommandReceipt{}, false, err
 	}
 	receipt = CommandReceipt{CommandID: command.CommandID, OwnerScopeHash: ownerHash, Generation: command.OwnerGeneration, Sequence: command.OwnerSequence, Kind: command.CommandKind, ProcessingUntil: commandLeaseDeadline(leaseTTL), Status: "processing", SubjectScopeHash: command.SubjectScopeHash, SupersessionScope: command.SupersessionScope}
-	_, err = tx.Exec(ctx, `insert into runtime.personal_memory_command_receipts (command_id,owner_scope_hash,generation,sequence,kind,status,lease_expires_at,subject_scope_hash,supersession_scope,created_at,updated_at) values ($1,$2,$3,$4,$5,'processing',$6,$7,$8,now(),now())`, receipt.CommandID, receipt.OwnerScopeHash, receipt.Generation, receipt.Sequence, receipt.Kind, receipt.ProcessingUntil, receipt.SubjectScopeHash, receipt.SupersessionScope)
+	_, err = tx.Exec(ctx, `insert into execution_control.personal_memory_command_receipts (command_id,owner_scope_hash,generation,sequence,kind,status,lease_expires_at,subject_scope_hash,supersession_scope,created_at,updated_at) values ($1,$2,$3,$4,$5,'processing',$6,$7,$8,now(),now())`, receipt.CommandID, receipt.OwnerScopeHash, receipt.Generation, receipt.Sequence, receipt.Kind, receipt.ProcessingUntil, receipt.SubjectScopeHash, receipt.SupersessionScope)
 	if err != nil {
 		return CommandReceipt{}, false, err
 	}
@@ -382,11 +382,11 @@ func (s *PostgresStateStore) FinalizeCommand(ctx context.Context, commandID stri
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	var fence memoryFence
-	if err := tx.QueryRow(ctx, `select generation,lifecycle_state,last_owner_sequence from runtime.personal_memory_owner_fences where owner_scope_hash=$1 for update`, ownerHash).Scan(&fence.Generation, &fence.Lifecycle, &fence.Sequence); err != nil {
+	if err := tx.QueryRow(ctx, `select generation,lifecycle_state,last_owner_sequence from execution_control.personal_memory_owner_fences where owner_scope_hash=$1 for update`, ownerHash).Scan(&fence.Generation, &fence.Lifecycle, &fence.Sequence); err != nil {
 		return CommandReceipt{}, err
 	}
 	var receipt CommandReceipt
-	if err := tx.QueryRow(ctx, `select command_id, owner_scope_hash, generation, sequence, kind, status, error_code, lease_expires_at, result_fingerprint, subject_scope_hash, supersession_scope from runtime.personal_memory_command_receipts where command_id=$1 and owner_scope_hash=$2 for update`, commandID, ownerHash).Scan(&receipt.CommandID, &receipt.OwnerScopeHash, &receipt.Generation, &receipt.Sequence, &receipt.Kind, &receipt.Status, &receipt.ErrorCode, &receipt.ProcessingUntil, &receipt.ResultFingerprint, &receipt.SubjectScopeHash, &receipt.SupersessionScope); err != nil {
+	if err := tx.QueryRow(ctx, `select command_id, owner_scope_hash, generation, sequence, kind, status, error_code, lease_expires_at, result_fingerprint, subject_scope_hash, supersession_scope from execution_control.personal_memory_command_receipts where command_id=$1 and owner_scope_hash=$2 for update`, commandID, ownerHash).Scan(&receipt.CommandID, &receipt.OwnerScopeHash, &receipt.Generation, &receipt.Sequence, &receipt.Kind, &receipt.Status, &receipt.ErrorCode, &receipt.ProcessingUntil, &receipt.ResultFingerprint, &receipt.SubjectScopeHash, &receipt.SupersessionScope); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return CommandReceipt{}, ErrMemoryFenceConflict
 		}
@@ -401,7 +401,7 @@ func (s *PostgresStateStore) FinalizeCommand(ctx context.Context, commandID stri
 		}
 		return receipt, nil
 	}
-	command, err := tx.Exec(ctx, `update runtime.personal_memory_command_receipts set status=$3,error_code=$4,result_fingerprint=$5,lease_expires_at=null,updated_at=now(),terminal_at=now() where command_id=$1 and owner_scope_hash=$2 and status not in ('succeeded','failed')`, commandID, ownerHash, status, errorCode, resultFingerprint)
+	command, err := tx.Exec(ctx, `update execution_control.personal_memory_command_receipts set status=$3,error_code=$4,result_fingerprint=$5,lease_expires_at=null,updated_at=now(),terminal_at=now() where command_id=$1 and owner_scope_hash=$2 and status not in ('succeeded','failed')`, commandID, ownerHash, status, errorCode, resultFingerprint)
 	if err != nil || command.RowsAffected() != 1 {
 		if err != nil {
 			return CommandReceipt{}, err
@@ -413,7 +413,7 @@ func (s *PostgresStateStore) FinalizeCommand(ctx context.Context, commandID stri
 	receipt.ProcessingUntil = nil
 	receipt.ResultFingerprint = resultFingerprint
 	if status == "succeeded" && lifecycle != "" {
-		if _, err := tx.Exec(ctx, `update runtime.personal_memory_owner_fences set lifecycle_state=$2,updated_at=now() where owner_scope_hash=$1`, ownerHash, lifecycle); err != nil {
+		if _, err := tx.Exec(ctx, `update execution_control.personal_memory_owner_fences set lifecycle_state=$2,updated_at=now() where owner_scope_hash=$1`, ownerHash, lifecycle); err != nil {
 			return CommandReceipt{}, err
 		}
 	}
@@ -424,13 +424,13 @@ func (s *PostgresStateStore) FinalizeCommand(ctx context.Context, commandID stri
 }
 
 func (s *PostgresStateStore) MarkCommandRetryable(ctx context.Context, commandID string, ownerHash string) error {
-	command, err := s.pool.Exec(ctx, `update runtime.personal_memory_command_receipts set status='retryable',error_code='',result_fingerprint='',lease_expires_at=null,updated_at=now(),terminal_at=null where command_id=$1 and owner_scope_hash=$2 and status not in ('succeeded','failed')`, commandID, ownerHash)
+	command, err := s.pool.Exec(ctx, `update execution_control.personal_memory_command_receipts set status='retryable',error_code='',result_fingerprint='',lease_expires_at=null,updated_at=now(),terminal_at=null where command_id=$1 and owner_scope_hash=$2 and status not in ('succeeded','failed')`, commandID, ownerHash)
 	if err != nil {
 		return err
 	}
 	if command.RowsAffected() != 1 {
 		var terminal bool
-		if err := s.pool.QueryRow(ctx, `select status in ('succeeded','failed') from runtime.personal_memory_command_receipts where command_id=$1 and owner_scope_hash=$2`, commandID, ownerHash).Scan(&terminal); err != nil {
+		if err := s.pool.QueryRow(ctx, `select status in ('succeeded','failed') from execution_control.personal_memory_command_receipts where command_id=$1 and owner_scope_hash=$2`, commandID, ownerHash).Scan(&terminal); err != nil {
 			return ErrMemoryFenceConflict
 		}
 		if !terminal {
@@ -441,7 +441,7 @@ func (s *PostgresStateStore) MarkCommandRetryable(ctx context.Context, commandID
 }
 
 func (s *PostgresStateStore) HealthCheck(ctx context.Context) error {
-	for _, table := range []string{"runtime.personal_memory_owner_fences", "runtime.personal_memory_call_leases", "runtime.personal_memory_command_receipts"} {
+	for _, table := range []string{"execution_control.personal_memory_owner_fences", "execution_control.personal_memory_call_leases", "execution_control.personal_memory_command_receipts"} {
 		if _, err := s.pool.Exec(ctx, "select 1 from "+table+" limit 0"); err != nil {
 			return fmt.Errorf("read personal memory state table %s: %w", table, err)
 		}
@@ -489,7 +489,7 @@ func applyFenceCommand(fence *memoryFence, command PersonalMemoryCommandRequest)
 func postgresOwnerCommandGate(ctx context.Context, tx pgx.Tx, ownerHash string, sequence int64, commandID string) error {
 	var blocked bool
 	if err := tx.QueryRow(ctx, `select exists(
-		select 1 from runtime.personal_memory_command_receipts
+		select 1 from execution_control.personal_memory_command_receipts
 		where owner_scope_hash=$1 and sequence < $2 and command_id <> $3
 		and status not in ('succeeded','failed')
 	)`, ownerHash, sequence, commandID).Scan(&blocked); err != nil {
