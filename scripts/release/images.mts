@@ -51,17 +51,13 @@ interface ImageReport {
 }
 
 interface ImageManifest {
-	image?: Record<
-		string,
-		{
-			config?: { Labels?: Record<string, unknown> };
-		}
-	>;
+	image?: {
+		architecture?: unknown;
+		config?: { Labels?: Record<string, unknown> };
+		os?: unknown;
+	};
 	manifest?: {
 		digest?: unknown;
-		manifests?: Array<{
-			platform?: { architecture?: unknown; os?: unknown };
-		}>;
 		mediaType?: unknown;
 	};
 }
@@ -168,21 +164,15 @@ function existingDigest(source: string, tag: string, sourceSha: string): string 
 	const manifest = value.manifest;
 	const mediaType = manifest?.mediaType;
 	if (
-		mediaType !== "application/vnd.oci.image.index.v1+json" &&
-		mediaType !== "application/vnd.docker.distribution.manifest.list.v2+json"
+		mediaType !== "application/vnd.oci.image.manifest.v1+json" &&
+		mediaType !== "application/vnd.docker.distribution.manifest.v2+json"
 	) {
-		throw new Error(`Existing immutable tag is not a multi-platform index: ${tag}`);
+		throw new Error(`Existing immutable tag is not a single-platform image: ${tag}`);
 	}
-	const linuxManifests = (manifest?.manifests ?? []).filter(
-		(entry) => entry.platform?.os === "linux",
-	);
-	const arm64 = linuxManifests.filter((entry) => entry.platform?.architecture === "arm64");
-	const other = linuxManifests.filter((entry) => entry.platform?.architecture !== "arm64");
-	if (arm64.length !== 1 || other.length > 0) {
-		throw new Error(`Existing immutable tag does not contain exactly one arm64 image: ${tag}`);
+	if (value.image?.os !== "linux" || value.image?.architecture !== "arm64") {
+		throw new Error(`Existing immutable tag is not a linux/arm64 image: ${tag}`);
 	}
-	const revision =
-		value.image?.["linux/arm64"]?.config?.Labels?.["org.opencontainers.image.revision"];
+	const revision = value.image.config?.Labels?.["org.opencontainers.image.revision"];
 	if (revision !== sourceSha) {
 		throw new Error(`Existing immutable tag has the wrong source revision: ${tag}`);
 	}

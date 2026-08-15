@@ -40,30 +40,28 @@ test("keeps notice-publisher in the Docker Bake default release group", async ()
 	);
 });
 
+test("keeps notice-publisher in the Docker build context", async () => {
+	const dockerignore = await readFile(path.join(REPOSITORY_ROOT, ".dockerignore"), "utf8");
+	assert.match(dockerignore, /^!jobs\/notice-publisher\/$/mu);
+	assert.match(dockerignore, /^!jobs\/notice-publisher\/\*\*$/mu);
+});
+
 function manifest(
 	digest: string,
-	architectures: string[] = ["arm64"],
+	architecture = "arm64",
 	revision: string | null = SHA,
+	mediaType = "application/vnd.oci.image.manifest.v1+json",
 ): CommandResult {
 	return result({
 		stdout: JSON.stringify({
-			...(revision
-				? {
-						image: {
-							"linux/arm64": {
-								config: {
-									Labels: { "org.opencontainers.image.revision": revision },
-								},
-							},
-						},
-					}
-				: {}),
+			image: {
+				architecture,
+				config: revision ? { Labels: { "org.opencontainers.image.revision": revision } } : {},
+				os: "linux",
+			},
 			manifest: {
 				digest,
-				manifests: architectures.map((architecture) => ({
-					platform: { architecture, os: "linux" },
-				})),
-				mediaType: "application/vnd.oci.image.index.v1+json",
+				mediaType,
 			},
 		}),
 	});
@@ -97,7 +95,7 @@ test("rejects image names that Docker Bake does not declare", async (t) => {
 	);
 });
 
-test("reuses an existing immutable arm64 image index", async (t) => {
+test("reuses an existing immutable linux/arm64 image", async (t) => {
 	const { options } = await fixture(t);
 	const calls: Array<{ args: string[]; command: string; output: CommandOutput }> = [];
 	const logs: string[] = [];
@@ -144,22 +142,22 @@ test("rejects an existing immutable tag for the wrong architecture", async (t) =
 		if (args.includes("--print")) {
 			return bakePrint(["agent-runtime"]);
 		}
-		return manifest(FIRST_DIGEST, ["amd64"]);
+		return manifest(FIRST_DIGEST, "amd64");
 	};
 
-	await assert.rejects(publishImages(options, runner), /does not contain exactly one arm64 image/u);
+	await assert.rejects(publishImages(options, runner), /not a linux\/arm64 image/u);
 });
 
-test("rejects an existing immutable tag with additional Linux platforms", async (t) => {
+test("rejects an existing immutable multi-platform index", async (t) => {
 	const { options } = await fixture(t);
 	const runner: CommandRunner = async (_command, args) => {
 		if (args.includes("--print")) {
 			return bakePrint(["agent-runtime"]);
 		}
-		return manifest(FIRST_DIGEST, ["arm64", "amd64"]);
+		return manifest(FIRST_DIGEST, "arm64", SHA, "application/vnd.oci.image.index.v1+json");
 	};
 
-	await assert.rejects(publishImages(options, runner), /does not contain exactly one arm64 image/u);
+	await assert.rejects(publishImages(options, runner), /not a single-platform image/u);
 });
 
 test("rejects an existing immutable tag without a source revision", async (t) => {
@@ -168,7 +166,7 @@ test("rejects an existing immutable tag without a source revision", async (t) =>
 		if (args.includes("--print")) {
 			return bakePrint(["agent-runtime"]);
 		}
-		return manifest(FIRST_DIGEST, ["arm64"], null);
+		return manifest(FIRST_DIGEST, "arm64", null);
 	};
 
 	await assert.rejects(publishImages(options, runner), /has the wrong source revision/u);
@@ -180,10 +178,35 @@ test("rejects an existing immutable tag for a different source revision", async 
 		if (args.includes("--print")) {
 			return bakePrint(["agent-runtime"]);
 		}
-		return manifest(FIRST_DIGEST, ["arm64"], "f".repeat(40));
+		return manifest(FIRST_DIGEST, "arm64", "f".repeat(40));
 	};
 
 	await assert.rejects(publishImages(options, runner), /has the wrong source revision/u);
+});
+
+test("rejects the obsolete nested imagetools index shape", async (t) => {
+	const { options } = await fixture(t);
+	const runner: CommandRunner = async (_command, args) => {
+		if (args.includes("--print")) {
+			return bakePrint(["agent-runtime"]);
+		}
+		return result({
+			stdout: JSON.stringify({
+				image: {
+					"linux/arm64": {
+						config: { Labels: { "org.opencontainers.image.revision": SHA } },
+					},
+				},
+				manifest: {
+					digest: FIRST_DIGEST,
+					manifests: [{ platform: { architecture: "arm64", os: "linux" } }],
+					mediaType: "application/vnd.oci.image.index.v1+json",
+				},
+			}),
+		});
+	};
+
+	await assert.rejects(publishImages(options, runner), /not a single-platform image/u);
 });
 
 test("does not treat an unexpected registry failure as a missing image", async (t) => {
