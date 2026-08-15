@@ -6,11 +6,6 @@ workers_dev = false
 preview_urls = false
 upload_source_maps = true
 
-[assets]
-directory = "./assets"
-binding = "MAP_ASSETS"
-run_worker_first = ["/api/*"]
-
 [env.local]
 workers_dev = false
 preview_urls = false

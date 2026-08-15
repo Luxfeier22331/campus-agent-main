@@ -80,8 +80,8 @@ app-api 保存用户轮次并创建持久 run；execution-control 和 Temporal �
   execution-control credential。
 - `ops-web -> PostgreSQL/execution-control/Axiom/Sentry` 提供有界运行摘要、application logs 和
   Sentry Issue。
-- `ops-web -> dining.*` 使用统一 `ops_web` 角色维护地图草稿、不可变发布版本、菜单、评价和举报；
-  app-api 读取公开地图与菜单，并以受限权限处理学生评价和举报。
+- `ops-web -> dining.*` 使用统一 `ops_web` 角色维护食堂草稿、不可变发布版本、菜单、评价和举报；
+  app-api 读取公开菜单并以受限权限处理学生评价和举报；校园地图由 campus-web 的静态资产直接提供。
 - 在线模型配置不可用不阻断 Ops Web 的运行记录读取 readiness。
 - Temporal UI、Langfuse UI、Sentry 和 Axiom 保留各自完整能力；Ops Web 只提供跨系统关联、
   固定 Axiom logs 查询和常用摘要。

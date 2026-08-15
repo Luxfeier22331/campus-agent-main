@@ -153,10 +153,7 @@ test.describe("campus web static docs browser boundary", () => {
 	test("routes allowed dynamic student API paths to app-api instead of the unknown API handler", async ({
 		request,
 	}) => {
-		for (const path of [
-			"/api/campus-map/places/library",
-			`/api/dining/floorplans/${"a".repeat(64)}.svg`,
-		]) {
+		for (const path of [`/api/dining/floorplans/${"a".repeat(64)}.svg`]) {
 			const response = await request.get(path);
 
 			expect(response.headers()["content-type"]).toMatch(/application\/json/);

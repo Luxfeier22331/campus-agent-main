@@ -110,8 +110,6 @@ function getPublicCacheSearch(url: URL): string | null {
 
 function isPublicCacheableAppApiPath(pathname: string): boolean {
 	return (
-		pathname === "/api/campus-map/manifest" ||
-		/^\/api\/campus-map\/assets\/[0-9a-f]{64}\.geojson$/.test(pathname) ||
 		pathname === "/api/dining" ||
 		/^\/api\/dining\/windows\/[^/]+\/menu$/.test(pathname) ||
 		/^\/api\/dining\/floorplans\/[0-9a-f]{64}\.svg$/.test(pathname)

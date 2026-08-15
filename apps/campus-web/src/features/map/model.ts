@@ -50,4 +50,5 @@ export interface CampusMapManifest {
 	attribution: string[];
 	campuses: Record<string, CampusMapManifestCampus>;
 	licenseBoundary: string;
+	placesUrl: string;
 }

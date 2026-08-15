@@ -192,6 +192,29 @@ test("Campus Web docs refresh unions the Campus Worker into the diff plan", asyn
 	assert.deepEqual(plan.workers, ["campus-web-staging"]);
 });
 
+test("Campus map contract changes publish only Campus Web", async (t) => {
+	const root = await fixture(t);
+	const runner = syntheticScopeRunner(
+		changed("apps/campus-web/assets/campus-map/manifest.json"),
+		[],
+	);
+	const plan = await planCandidates(options(root), runner);
+	assert.deepEqual(plan.workers, ["campus-web-staging"]);
+});
+
+test("Campus map snapshot and query changes do not publish Campus Web", async (t) => {
+	const root = await fixture(t);
+	const runner = syntheticScopeRunner(
+		changed(
+			"apps/campus-web/data/campus-map/snapshots/fengtai.overpass.json",
+			"apps/campus-web/data/campus-map/queries/fengtai.ql",
+		),
+		[],
+	);
+	const plan = await planCandidates(options(root), runner);
+	assert.deepEqual(plan.workers, []);
+});
+
 test("Campus Web docs refresh works when the GitOps cursor already equals head", async (t) => {
 	const root = await fixture(t);
 	const plan = await planCandidates(

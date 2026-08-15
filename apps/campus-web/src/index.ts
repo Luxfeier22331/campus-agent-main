@@ -3,6 +3,11 @@ import {
 	AUTH_RUNTIME_CONFIG_SCRIPT_ID,
 	resolveTurnstileRuntimeConfig,
 } from "./platform/auth/turnstile-runtime-config";
+import {
+	getCampusMapAssetHeaders,
+	getCampusMapAssetKind,
+	getRawRequestPathname,
+} from "./platform/campus-map-assets";
 import { CAMPUS_RUNTIME_CONFIG_SCRIPT_ID } from "./platform/runtime/config";
 import { createCampusEdgeSentryOptions } from "./platform/telemetry/sentry-edge";
 import { isAllowedCampusAppApiRequest } from "./platform/worker-proxy/allowlist";
@@ -57,6 +62,7 @@ const AUTH_FORWARDED_HEADERS = [
 const FEDERATION_CREDENTIAL_FORWARDED_HEADERS = [...FORWARDED_HEADERS, "authorization"] as const;
 const FEDERATION_CREDENTIAL_PATHS = new Set(["/api/federation/token", "/api/federation/userinfo"]);
 const PUBLIC_VENDOR_ASSET_PREFIX = "/vendor/";
+const CAMPUS_MAP_ASSET_PREFIX = "/campus-map/";
 const THEME_BOOTSTRAP_PATH = "/theme-bootstrap.js";
 
 const VITE_DEV_ASSET_PREFIXES = [
@@ -99,6 +105,14 @@ const SHELL_EXACT_PATHS = new Set([
 const worker = {
 	async fetch(request: Request, env: Env): Promise<Response> {
 		const url = new URL(request.url);
+		const rawPathname = getRawRequestPathname(request.url);
+
+		if (rawPathname.startsWith(CAMPUS_MAP_ASSET_PREFIX)) {
+			if (request.method === "GET" || request.method === "HEAD") {
+				return serveCampusMapAsset(request, env, rawPathname);
+			}
+			return campusMapAssetNotFoundResponse();
+		}
 
 		if (request.method === "GET" && url.pathname === "/healthz") {
 			return jsonResponse(200, {
@@ -421,6 +435,45 @@ async function serveStaticAsset(request: Request, env: Env): Promise<Response> {
 		return responseWithSecurityHeaders(response);
 	}
 	return response;
+}
+
+async function serveCampusMapAsset(
+	request: Request,
+	env: Env,
+	pathname: string,
+): Promise<Response> {
+	const assetKind = getCampusMapAssetKind(pathname);
+	if (!assetKind) {
+		return campusMapAssetNotFoundResponse();
+	}
+
+	const response = await fetchStaticAsset(request, env);
+	if (!(response instanceof Response)) {
+		return response;
+	}
+	if (!response.ok) {
+		return responseWithSecurityHeaders(response);
+	}
+	const headers = new Headers(response.headers);
+	const assetHeaders = getCampusMapAssetHeaders(assetKind);
+	for (const [key, value] of Object.entries(assetHeaders)) {
+		headers.set(key, value);
+	}
+	for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+		headers.set(key, value);
+	}
+	return new Response(request.method === "HEAD" ? null : response.body, {
+		headers,
+		status: response.status,
+		statusText: response.statusText,
+	});
+}
+
+function campusMapAssetNotFoundResponse(): Response {
+	return new Response(null, {
+		headers: { ...SECURITY_HEADERS, "cache-control": "no-store" },
+		status: 404,
+	});
 }
 
 async function fetchStaticAsset(request: Request, env: Env): Promise<Response> {

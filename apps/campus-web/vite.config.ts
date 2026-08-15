@@ -9,6 +9,12 @@ import { defineConfig, type Plugin } from "vite";
 import { resolveStagingSentryRelease } from "../../scripts/deploy/staging-release";
 import { campusBundleGraphPlugin } from "./config/bundle-graph";
 import { resolveDocsContentPaths } from "./src/docs-reader-build/docs-content";
+import {
+	type CampusMapAssetKind,
+	getCampusMapAssetHeaders,
+	getCampusMapAssetKind,
+	getRawRequestPathname,
+} from "./src/platform/campus-map-assets";
 
 const require = createRequire(import.meta.url);
 const sharedFaviconPath = path.resolve(__dirname, "../../configs/branding/web-public/favicon.ico");
@@ -63,7 +69,12 @@ export default defineConfig(({ command, isPreview }) => {
 			}),
 			...(docsBuildPlugin
 				? [docsBuildPlugin]
-				: [copySharedFavicon(), copyMapLibreVendor(), cloudflare({ inspectorPort: false })]),
+				: [
+						copySharedFavicon(),
+						copyMapLibreVendor(),
+						copyCampusMapAssets(),
+						cloudflare({ inspectorPort: false }),
+					]),
 			...(buildTarget === "app" && command === "serve" && docsContent
 				? [serveDocsDevelopmentShell(docsContent.paths.publicRoot)]
 				: []),
@@ -389,4 +400,173 @@ function copyMapLibreVendor(): Plugin {
 		},
 		name: "campus-web:copy-maplibre-vendor",
 	};
+}
+
+function copyCampusMapAssets(): Plugin {
+	const sourceRoot = path.resolve(__dirname, "assets/campus-map");
+	return {
+		closeBundle() {
+			const targetRoot = path.resolve(__dirname, "dist/client/campus-map");
+			if (!fs.existsSync(sourceRoot)) {
+				throw new Error(`Campus map assets are missing: ${sourceRoot}`);
+			}
+			const manifestSource = path.join(sourceRoot, "manifest.json");
+			if (!isRegularFile(manifestSource)) {
+				throw new Error(`Campus map manifest is missing: ${manifestSource}`);
+			}
+			fs.rmSync(targetRoot, { force: true, recursive: true });
+			fs.mkdirSync(targetRoot, { recursive: true });
+			fs.copyFileSync(manifestSource, path.join(targetRoot, "manifest.json"));
+			copyCampusMapDigestAssets({
+				expectedKind: "geojson",
+				sourceDirectory: path.join(sourceRoot, "assets"),
+				targetDirectory: path.join(targetRoot, "assets"),
+			});
+			copyCampusMapDigestAssets({
+				expectedKind: "places",
+				sourceDirectory: path.join(sourceRoot, "places"),
+				targetDirectory: path.join(targetRoot, "places"),
+			});
+		},
+		configureServer(server) {
+			server.middlewares.use("/campus-map", (request, response, next) => {
+				serveCampusMapDevelopmentAsset({
+					next,
+					request,
+					response,
+					sourceRoot,
+				});
+			});
+			moveLatestConnectMiddlewareToFront(server.middlewares);
+		},
+		enforce: "pre",
+		name: "campus-web:copy-campus-map-assets",
+	};
+}
+
+function moveLatestConnectMiddlewareToFront(middlewares: { stack?: unknown[] }): void {
+	const stack = middlewares.stack;
+	const layer = stack?.pop();
+	if (layer) {
+		stack?.unshift(layer);
+	}
+}
+
+export function serveCampusMapDevelopmentAsset(input: {
+	next?: (error?: unknown) => void;
+	request: { method?: string | undefined; url?: string | undefined };
+	response: {
+		end: (chunk?: Uint8Array) => void;
+		setHeader: (name: string, value: string) => void;
+		statusCode: number;
+	};
+	sourceRoot: string;
+}): boolean {
+	if (input.request.method !== "GET" && input.request.method !== "HEAD") {
+		return serveCampusMapDevelopmentAssetNotFound(input);
+	}
+
+	const pathname = restoreCampusMapPathname(input.request.url);
+	const assetKind = getCampusMapAssetKind(pathname);
+	if (!assetKind) {
+		return serveCampusMapDevelopmentAssetNotFound(input);
+	}
+
+	const target = resolveCampusMapAssetSource(input.sourceRoot, pathname, assetKind);
+	if (!isRegularFile(target)) {
+		return serveCampusMapDevelopmentAssetNotFound(input);
+	}
+
+	const headers = getCampusMapAssetHeaders(assetKind);
+	input.response.statusCode = 200;
+	for (const [key, value] of Object.entries(headers)) {
+		input.response.setHeader(key, value);
+	}
+	if (input.request.method === "HEAD") {
+		input.response.end();
+		return true;
+	}
+
+	try {
+		input.response.end(fs.readFileSync(target));
+	} catch (error) {
+		if (input.next) {
+			input.next(error);
+			return true;
+		}
+		throw error;
+	}
+	return true;
+}
+
+function serveCampusMapDevelopmentAssetNotFound(input: {
+	request: { method?: string | undefined };
+	response: {
+		end: (chunk?: Uint8Array) => void;
+		setHeader: (name: string, value: string) => void;
+		statusCode: number;
+	};
+}): true {
+	input.response.statusCode = 404;
+	input.response.setHeader("cache-control", "no-store");
+	input.response.end();
+	return true;
+}
+
+function restoreCampusMapPathname(relativePath: string | undefined): string {
+	const pathname = getRawRequestPathname(relativePath);
+	if (pathname === "/campus-map" || pathname.startsWith("/campus-map/")) {
+		return pathname;
+	}
+	return pathname.startsWith("/") ? `/campus-map${pathname}` : `/campus-map/${pathname}`;
+}
+
+function resolveCampusMapAssetSource(
+	sourceRoot: string,
+	pathname: string,
+	kind: CampusMapAssetKind,
+): string {
+	if (kind === "manifest") {
+		return path.join(sourceRoot, "manifest.json");
+	}
+	const prefix = kind === "geojson" ? "/campus-map/assets/" : "/campus-map/places/";
+	return path.join(
+		sourceRoot,
+		kind === "geojson" ? "assets" : "places",
+		pathname.slice(prefix.length),
+	);
+}
+
+function isRegularFile(filePath: string): boolean {
+	try {
+		return fs.statSync(filePath).isFile();
+	} catch {
+		return false;
+	}
+}
+
+function copyCampusMapDigestAssets(input: {
+	expectedKind: Extract<CampusMapAssetKind, "geojson" | "places">;
+	sourceDirectory: string;
+	targetDirectory: string;
+}): void {
+	if (!fs.existsSync(input.sourceDirectory)) {
+		return;
+	}
+	fs.mkdirSync(input.targetDirectory, { recursive: true });
+	for (const entry of fs.readdirSync(input.sourceDirectory, { withFileTypes: true })) {
+		if (!entry.isFile()) {
+			continue;
+		}
+		const kind = getCampusMapAssetKind(
+			`/campus-map/${input.expectedKind === "geojson" ? "assets" : "places"}/${entry.name}`,
+		);
+		if (kind !== input.expectedKind) {
+			continue;
+		}
+		fs.copyFileSync(
+			path.join(input.sourceDirectory, entry.name),
+			path.join(input.targetDirectory, entry.name),
+		);
+	}
 }

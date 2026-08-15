@@ -418,9 +418,19 @@ function routeMocks(input: {
 	return [
 		{
 			method: "GET",
-			path: "/api/campus-map/manifest",
+			path: "/campus-map/manifest.json",
 			response: (route) =>
 				route.fulfill({ contentType: "application/json", json: mapPageManifest, status: 200 }),
+		},
+		{
+			method: "GET",
+			path: /^\/campus-map\/assets\/[0-9a-f]{64}\.geojson$/,
+			response: (route) =>
+				route.fulfill({
+					contentType: "application/geo+json",
+					json: { features: [], type: "FeatureCollection" },
+					status: 200,
+				}),
 		},
 		{
 			method: "GET",
@@ -727,7 +737,7 @@ function routeMocks(input: {
 		},
 		{
 			method: "GET",
-			path: "/api/campus-map/places",
+			path: mapPageManifest.placesUrl,
 			response: (route) =>
 				options.mapPlacesFailure
 					? route.fulfill({

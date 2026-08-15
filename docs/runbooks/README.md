@@ -11,7 +11,8 @@ status: active
 - 采集、通知发布与知识：[ingestion.md](./ingestion.md)、[portal-auth.md](./portal-auth.md)、
   [ragas.md](./ragas.md)；
 - 可观测性：[otel.md](./otel.md)、[worker-otel.md](./worker-otel.md)；
-- 本地与领域：[local-smoke.md](./local-smoke.md)、[federation.md](./federation.md)；
+- 本地与领域：[local-smoke.md](./local-smoke.md)、[federation.md](./federation.md)、
+  [campus-map-authoring.md](./campus-map-authoring.md)；
 - 安全与协作：[safety.md](./safety.md)、[provider-secrets.md](./provider-secrets.md)。
 
 runbook 只保存可重复操作，不决定产品或架构是否完成。历史步骤通过 git history 追溯。

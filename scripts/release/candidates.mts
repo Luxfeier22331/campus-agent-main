@@ -25,6 +25,7 @@ const WORKER_PACKAGES = new Map<string, string>([
 	["status-web-staging", "status-web"],
 ]);
 const CAMPUS_WEB_WORKER = "campus-web-staging";
+const CAMPUS_MAP_ASSET_PATH = "apps/campus-web/assets/campus-map";
 
 export interface CandidatePlan {
 	base: string;
@@ -120,6 +121,9 @@ export async function planCandidates(
 	}
 
 	const files = scope.changedFiles;
+	if (changesPath(files, CAMPUS_MAP_ASSET_PATH)) {
+		workers.add(CAMPUS_WEB_WORKER);
+	}
 	for (const file of files) {
 		for (const image of DOCKERFILE_IMAGES.get(file) ?? []) {
 			images.add(image);

@@ -16,7 +16,6 @@
 - 聊天提交与流式读取、运行事件与步骤读取、反馈写入；
 - 个人记忆设置、显式记忆项和 Hindsight 命令 outbox；
 - 登录用户的通知列表、站内正文详情和通知图片读取；
-- 校园地点投影、底图 manifest 和内容寻址 GeoJSON；
 - 食堂校园产品公开读取接口；
 
 HTTP 字段以 `docs/contracts/app-api/` 为准；本文只作为应用入口。
@@ -44,9 +43,8 @@ derived bucket 读取按摘要命名的地图资源。staging 和 production 通
 Workers VPC binding 访问集群内对象存储，不持有 S3 凭据或使用公开对象存储地址。App API 不读取
 草稿，也不执行地图编辑或发布。
 
-低频校园底图位于 `assets/campus-map`，作为 App API Worker 静态资产随版本发布。Campus Web 只读
-`/api/campus-map/manifest` 和 manifest 中的摘要 URL；App API 不从环境变量、R2 current pointer
-或对象列表选择底图版本。
+校园地图由 Campus Web 独占所有权和静态交付，入口为 Campus Web 的 `/campus-map/manifest.json`；
+App API 不再提供地图路由、地点 read model 或地图静态资产，也不保留兼容 binding。
 
 数据库 schema 与角色边界由 `docs/data/postgres-ownership.md` 维护，安装和迁移实现位于应用
 `ops/db/` 与 schema Job；README 不复制表清单和部署步骤。

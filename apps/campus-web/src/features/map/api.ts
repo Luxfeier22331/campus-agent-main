@@ -1,29 +1,27 @@
 import { requestJson } from "@/platform/api/client";
-import type { CampusMapManifest, CampusMapPlace, CampusMapPlacesResponse } from "./model";
+import type { CampusMapManifest, CampusMapPlacesResponse } from "./model";
 
-const CAMPUS_MAP_DATA_URL_PATTERN = /^\/api\/campus-map\/assets\/[0-9a-f]{64}\.geojson$/;
+const CAMPUS_MAP_DATA_URL_PATTERN = /^\/campus-map\/assets\/[0-9a-f]{64}\.geojson$/;
+const CAMPUS_MAP_PLACES_URL_PATTERN = /^\/campus-map\/places\/[0-9a-f]{64}\.json$/;
 
-export async function getCampusMapPlaces(
-	input: { signal?: AbortSignal } = {},
-): Promise<CampusMapPlacesResponse> {
+export async function getCampusMapPlaces(input: {
+	placesUrl: string;
+	signal?: AbortSignal;
+}): Promise<CampusMapPlacesResponse> {
+	if (!CAMPUS_MAP_PLACES_URL_PATTERN.test(input.placesUrl)) {
+		throw new Error("Campus map places URL is invalid.");
+	}
 	return requestJson<CampusMapPlacesResponse>({
-		path: "/api/campus-map/places",
+		path: input.placesUrl,
 		...(input.signal ? { signal: input.signal } : {}),
 	});
-}
-
-export async function getCampusMapPlace(placeId: string): Promise<CampusMapPlace> {
-	const payload = await requestJson<{ place: CampusMapPlace }>({
-		path: `/api/campus-map/places/${encodeURIComponent(placeId)}`,
-	});
-	return payload.place;
 }
 
 export async function getCampusMapManifest(
 	input: { signal?: AbortSignal } = {},
 ): Promise<CampusMapManifest> {
 	const payload = await requestJson<unknown>({
-		path: "/api/campus-map/manifest",
+		path: "/campus-map/manifest.json",
 		...(input.signal ? { signal: input.signal } : {}),
 	});
 	return normalizeCampusMapManifest(payload);
@@ -36,6 +34,7 @@ function normalizeCampusMapManifest(payload: unknown): CampusMapManifest {
 	const attribution = payload.attribution;
 	const campuses = payload.campuses;
 	const licenseBoundary = payload.licenseBoundary;
+	const placesUrl = payload.placesUrl;
 	if (
 		!(
 			Array.isArray(attribution) &&
@@ -44,7 +43,9 @@ function normalizeCampusMapManifest(payload: unknown): CampusMapManifest {
 			isRecord(campuses) &&
 			Object.keys(campuses).length > 0 &&
 			typeof licenseBoundary === "string" &&
-			licenseBoundary.trim().length > 0
+			licenseBoundary.trim().length > 0 &&
+			typeof placesUrl === "string" &&
+			CAMPUS_MAP_PLACES_URL_PATTERN.test(placesUrl)
 		)
 	) {
 		throw new Error("Campus map manifest is invalid.");
@@ -62,6 +63,7 @@ function normalizeCampusMapManifest(payload: unknown): CampusMapManifest {
 		attribution,
 		campuses: normalizedCampuses,
 		licenseBoundary,
+		placesUrl,
 	};
 }
 

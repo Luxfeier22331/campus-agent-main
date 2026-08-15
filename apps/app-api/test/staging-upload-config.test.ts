@@ -24,11 +24,7 @@ describe("app-api staging upload config", () => {
 			throw new Error("Generated Wrangler config must contain the staging environment.");
 		}
 		expect(generated.main).toBe(resolve(appDir, "src/index.ts"));
-		expect(generated.assets).toEqual({
-			binding: "MAP_ASSETS",
-			directory: resolve(appDir, "assets"),
-			run_worker_first: ["/api/*"],
-		});
+		expect(generated).not.toHaveProperty("assets");
 		expect(generated).not.toHaveProperty("observability");
 		expect(staging).not.toHaveProperty("observability");
 		expect(staging.vpc_services).toEqual([

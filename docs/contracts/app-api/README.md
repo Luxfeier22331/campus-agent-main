@@ -17,7 +17,7 @@ status: active
 - [食堂](../../product/dining.md)：学生侧地图、菜单、评价和举报接口；
 - [error.md](./error.md)：共享错误结构；
 - [request-lifecycle.md](./request-lifecycle.md)：请求、流和终态生命周期；
-- [地点领域](../../domains/place.md)：校园地图接口语义；
+- 地图不属于 app-api HTTP 合同；地点目录和静态资产语义见[地点领域](../../domains/place.md)；
 
 调用边界见 [product-runtime.md](../../architecture/system/product-runtime.md)；路由开放类别以
 `apps/app-api/src/app/route-exposure-inventory.ts` 及其合同测试为准。

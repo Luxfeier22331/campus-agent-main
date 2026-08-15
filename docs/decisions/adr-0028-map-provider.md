@@ -16,9 +16,9 @@ status: accepted
 Campus Web 使用 MapLibre GL JS 渲染当前校园地图。MapLibre 只是浏览器 renderer，以
 self-hosted vendor asset 交付，不定义 place 或 route contract。
 
-当前地图使用经评审的校园 GeoJSON 和 place projection，由 App API 的 manifest、摘要资产与地点
-read route 统一提供，不依赖外部 basemap、geocoder 或 route provider。Campus Web 只消费这些
-接口，不拥有地图对象存储或版本指针。
+当前地图使用经评审的校园 GeoJSON 和 place projection，由 Campus Web 的 manifest、摘要资产与
+地点目录统一提供，不依赖外部 basemap、geocoder 或 route provider。Campus Web 同时拥有静态
+资产和版本选择；App API 不参与地图读取。
 
 production 路径不得依赖 OpenStreetMap Foundation 公共 tile 或 Nominatim endpoint。
 以后如有明确的显示、geocoding 或校外需求，可以增加商业或政府地图供应商，但它仍是

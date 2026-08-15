@@ -18,6 +18,8 @@
 			"docs/reference/eval/**",
 			"scripts/**",
 			"tests/**",
+			"!!apps/campus-web/assets/campus-map",
+			"!!apps/campus-web/data/campus-map",
 			"!!apps/campus-web/public",
 			"!!apps/campus-web/public/vendor",
 			"!!.tmp",

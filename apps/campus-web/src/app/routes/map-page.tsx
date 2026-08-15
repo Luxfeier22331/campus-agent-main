@@ -126,11 +126,15 @@ export function MapPage() {
 		const controller = new AbortController();
 		setLoading(true);
 		setError(null);
-		Promise.all([
-			getCampusMapManifest({ signal: controller.signal }),
-			getCampusMapPlaces({ signal: controller.signal }),
-		])
-			.then(([manifest, nextData]) => {
+		getCampusMapManifest({ signal: controller.signal })
+			.then(async (manifest) => ({
+				manifest,
+				data: await getCampusMapPlaces({
+					placesUrl: manifest.placesUrl,
+					signal: controller.signal,
+				}),
+			}))
+			.then(({ manifest, data: nextData }) => {
 				if (controller.signal.aborted) {
 					return;
 				}

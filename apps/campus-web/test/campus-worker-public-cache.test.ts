@@ -35,8 +35,6 @@ describe("campus worker public app-api cache", () => {
 	});
 
 	it.each([
-		"/api/campus-map/manifest",
-		`/api/campus-map/assets/${"a".repeat(64)}.geojson`,
 		"/api/dining",
 		"/api/dining/windows/hall:floor:window-01/menu",
 		`/api/dining/floorplans/${"a".repeat(64)}.svg`,
@@ -46,15 +44,12 @@ describe("campus worker public app-api cache", () => {
 			Promise.resolve(
 				new Response(JSON.stringify({ pathname: new URL(request.url).pathname }), {
 					headers: {
-						"cache-control":
-							pathname.endsWith(".svg") || pathname.endsWith(".geojson")
-								? "public, max-age=31536000, immutable"
-								: "public, max-age=60, s-maxage=300",
+						"cache-control": pathname.endsWith(".svg")
+							? "public, max-age=31536000, immutable"
+							: "public, max-age=60, s-maxage=300",
 						"content-type": pathname.endsWith(".svg")
 							? "image/svg+xml"
-							: pathname.endsWith(".geojson")
-								? "application/geo+json"
-								: "application/json; charset=utf-8",
+							: "application/json; charset=utf-8",
 					},
 				}),
 			),

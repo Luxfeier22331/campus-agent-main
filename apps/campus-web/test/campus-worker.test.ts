@@ -186,10 +186,6 @@ describe("campus worker boundary", () => {
 			"/api/chat/runs/run_1/events",
 			"/api/chat/runs/run_1/events/stream",
 			"/api/chat/runs/run_1/cancel",
-			"/api/campus-map/manifest",
-			`/api/campus-map/assets/${"a".repeat(64)}.geojson`,
-			"/api/campus-map/places",
-			"/api/campus-map/places/library",
 			"/api/dining",
 			`/api/dining/floorplans/${"a".repeat(64)}.svg`,
 			"/api/feedback",
@@ -261,6 +257,84 @@ describe("campus worker boundary", () => {
 			expect(response.headers.get("content-type")).toContain("text/html");
 		}
 		expect(seenAssetPaths).toEqual(routes.map(() => "/index.html"));
+	});
+
+	it("serves content-addressed campus map assets from Cloudflare Assets", async () => {
+		const geojsonDigest = "a".repeat(64);
+		const placesDigest = "b".repeat(64);
+		const assetFetch = vi.fn((request: Request) => {
+			const pathname = new URL(request.url).pathname;
+			if (pathname === "/campus-map/manifest.json") {
+				return new Response("{}", { headers: { "content-type": "application/json" } });
+			}
+			if (pathname.endsWith(`${geojsonDigest}.geojson`)) {
+				return new Response('{"type":"FeatureCollection","features":[]}', {
+					headers: { "content-type": "application/geo+json" },
+				});
+			}
+			if (pathname.endsWith(`${placesDigest}.json`)) {
+				return new Response('{"campus":{},"places":[]}', {
+					headers: { "content-type": "application/json" },
+				});
+			}
+			return new Response(null, { status: 404 });
+		});
+		const env = createEnv(undefined, { fetch: assetFetch });
+
+		const manifest = await worker.fetch(
+			new Request("https://campus.muc.wiki/campus-map/manifest.json"),
+			env,
+		);
+		const asset = await worker.fetch(
+			new Request(`https://campus.muc.wiki/campus-map/assets/${geojsonDigest}.geojson`),
+			env,
+		);
+		const placesHead = await worker.fetch(
+			new Request(`https://campus.muc.wiki/campus-map/places/${placesDigest}.json`, {
+				method: "HEAD",
+			}),
+			env,
+		);
+
+		expect(manifest.status).toBe(200);
+		expect(manifest.headers.get("cache-control")).toContain("max-age=60");
+		expect(asset.status).toBe(200);
+		expect(asset.headers.get("cache-control")).toContain("immutable");
+		expect(asset.headers.get("content-type")).toContain("application/geo+json");
+		expect(placesHead.status).toBe(200);
+		expect(await placesHead.text()).toBe("");
+	});
+
+	it("does not cache missing campus map assets", async () => {
+		const assetFetch = vi.fn(() => new Response("missing", { status: 404 }));
+		const response = await worker.fetch(
+			new Request(`https://campus.muc.wiki/campus-map/assets/${"c".repeat(64)}.geojson`),
+			createEnv(undefined, { fetch: assetFetch }),
+		);
+
+		expect(response.status).toBe(404);
+		expect(response.headers.get("cache-control")).toBe("no-store");
+		expect(response.headers.get("content-type")).not.toContain("application/geo+json");
+	});
+
+	it("rejects encoded and traversal campus map paths before Cloudflare Assets", async () => {
+		const assetFetch = vi.fn(() => new Response("unexpected static request"));
+		const env = createEnv(undefined, { fetch: assetFetch });
+
+		for (const url of [
+			"https://campus.muc.wiki/campus-map/manifest%2Ejson",
+			"https://campus.muc.wiki/campus-map/assets/%2e%2e/manifest.json",
+			"https://campus.muc.wiki/campus-map/assets/../README.md",
+		]) {
+			const response = await worker.fetch(
+				{ headers: new Headers(), method: "GET", url } as Request,
+				env,
+			);
+			expect(response.status).toBe(404);
+			expect(response.headers.get("cache-control")).toBe("no-store");
+		}
+
+		expect(assetFetch).not.toHaveBeenCalled();
 	});
 
 	it("leaves public docs delivery to Cloudflare Assets", async () => {
