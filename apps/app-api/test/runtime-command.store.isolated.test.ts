@@ -45,6 +45,7 @@ function finalizedWrite(): FinalizeRequestWrite {
 			turnSequence: 1,
 		},
 		conversationTitle: "示例大学本科学生国家奖学金评审办法",
+		durableAdmissionConfirmed: false,
 		ownerUserId: "user_01HQ",
 		turnDispatch: {
 			completedAt: "2026-06-04T01:02:06.000Z",
@@ -483,15 +484,21 @@ describe("pg chat command store", () => {
 		expect(update).not.toHaveBeenCalled();
 	});
 
-	it("fences explicit admission failure and normalizes ordinary finalization admission state", async () => {
-		const forUpdate = vi.fn().mockResolvedValue([
+	it("distinguishes durable finalization from local and explicit admission failures", async () => {
+		const lockedDispatch = (admissionStatus: string) => [
 			{
-				admissionStatus: "dispatching",
+				admissionStatus,
 				finalizationFingerprint: null,
 				status: "accepted",
 				workflowId: "campus-agent.chat.run_01HQ",
 			},
-		]);
+		];
+		const forUpdate = vi
+			.fn()
+			.mockResolvedValueOnce(lockedDispatch("dispatching"))
+			.mockResolvedValueOnce(lockedDispatch("pending_admission"))
+			.mockResolvedValueOnce(lockedDispatch("pending_admission"))
+			.mockResolvedValueOnce(lockedDispatch("cancelled"));
 		const selectLimit = vi.fn(() => ({ for: forUpdate }));
 		const selectWhere = vi.fn(() => ({ limit: selectLimit }));
 		const selectFrom = vi.fn(() => ({ where: selectWhere }));
@@ -519,8 +526,20 @@ describe("pg chat command store", () => {
 		await expect(store.finalizeRequest(ordinaryWrite)).rejects.toBe(stopAfterDispatchUpdate);
 		expect(set).toHaveBeenCalledOnce();
 		expect(set).toHaveBeenCalledWith(
-			expect.objectContaining({ admissionStatus: expect.anything() }),
+			expect.objectContaining({ admissionStatus: "admission_failed" }),
 		);
+
+		set.mockClear();
+		const durableWrite = finalizedWrite();
+		durableWrite.durableAdmissionConfirmed = true;
+		await expect(store.finalizeRequest(durableWrite)).rejects.toBe(stopAfterDispatchUpdate);
+		expect(set).toHaveBeenCalledOnce();
+		expect(set).toHaveBeenCalledWith(expect.objectContaining({ admissionStatus: "admitted" }));
+
+		set.mockClear();
+		await expect(store.finalizeRequest(durableWrite)).rejects.toBe(stopAfterDispatchUpdate);
+		expect(set).toHaveBeenCalledOnce();
+		expect(set).toHaveBeenCalledWith(expect.objectContaining({ admissionStatus: "cancelled" }));
 	});
 
 	it("backfills terminal TTFT once with derived overhead and a monotonic update time", async () => {

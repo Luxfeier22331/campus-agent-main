@@ -614,27 +614,28 @@ export function createPgChatCommandStore(
 					replayed = true;
 					return;
 				}
+				const finalizedAdmissionStatus = input.admissionFailure
+					? "admission_failed"
+					: existing?.admissionStatus === "cancelled"
+						? "cancelled"
+						: input.durableAdmissionConfirmed ||
+								existing?.admissionStatus === "dispatching" ||
+								existing?.admissionStatus === "admitted"
+							? "admitted"
+							: "admission_failed";
 				const finalizedDispatchRows = await tx
 					.update(turnDispatches)
 					.set({
 						...buildFinalizeTurnDispatchUpdateValues(input.turnDispatch),
+						admissionStatus: finalizedAdmissionStatus,
 						...(input.admissionFailure
 							? {
-									admissionStatus: "admission_failed",
 									workflowId: sql<string>`coalesce(
-											${turnDispatches.workflowId},
-											${input.admissionFailure.workflowId}
-											)`,
+										${turnDispatches.workflowId},
+										${input.admissionFailure.workflowId}
+										)`,
 								}
-							: {
-									admissionStatus: sql<string>`case
-											when ${turnDispatches.admissionStatus} = 'cancelled'
-												then 'cancelled'
-											when ${turnDispatches.admissionStatus} in ('dispatching', 'admitted')
-												then 'admitted'
-											else 'admission_failed'
-										end`,
-								}),
+							: {}),
 						admissionInputJson: null,
 						admissionInputSha256: null,
 						cancelOutboxStatus: sql<string>`case

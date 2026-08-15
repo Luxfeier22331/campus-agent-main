@@ -664,6 +664,7 @@ export function buildChatCommandService(
 		admissionFailureWorkflowId?: string;
 		completedAt?: string;
 		context: AcceptedChatCommandContext;
+		durableAdmissionConfirmed?: boolean;
 		executionResponse: ToolExecutionResponse;
 		executionFinalizationReceivedAt?: string | null;
 		finalizationFingerprint?: string;
@@ -693,6 +694,9 @@ export function buildChatCommandService(
 			completedAt,
 			conversation: context.conversation,
 			conversationTitle: context.conversationTitle,
+			...(input.durableAdmissionConfirmed === undefined
+				? {}
+				: { durableAdmissionConfirmed: input.durableAdmissionConfirmed }),
 			durationMs,
 			principal: context.input.principal,
 			projectionCloseoutMs,
@@ -1008,6 +1012,7 @@ export function buildChatCommandService(
 			const finalized = await finalizeAcceptedCommand({
 				completedAt: input.completedAt,
 				context: acceptedCloseoutContext(candidate),
+				durableAdmissionConfirmed: true,
 				executionResponse: input.response,
 				finalizationFingerprint: input.finalizationFingerprint,
 			});

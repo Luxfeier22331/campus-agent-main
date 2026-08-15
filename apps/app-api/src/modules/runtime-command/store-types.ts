@@ -146,6 +146,7 @@ export interface FinalizeRequestWrite {
 	};
 	assistantMessage: ChatMessage;
 	conversationTitle: string;
+	durableAdmissionConfirmed: boolean;
 	ownerUserId: string;
 	requestObservabilityFact: RequestObservabilityFactWrite;
 	turnDispatch: FinalizeTurnDispatchWrite;

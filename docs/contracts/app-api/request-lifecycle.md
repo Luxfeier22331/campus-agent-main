@@ -85,10 +85,11 @@ stream 请求在产品事务持久化且稳定 `run_id` 可供查询、恢复和
 同一个 request 不能再次终结。较旧分支完成时可以保存自己的结果，但不能覆盖更新的 active
 branch/head。
 
-最终事务先锁定 turn dispatch。durable product finalization 先于 `markAdmitted` 到达时，锁内将
-`dispatching` 归一化为 `admitted` 后提交终态；本地取消已经取得的 `cancelled` 不得被覆盖，尚未
-发生 durable admission 的本地终态归为 `admission_failed`。这样 callback、admission 确认和取消
-竞争只由同一产品行裁决，不依赖调用返回顺序。
+最终事务先锁定 turn dispatch。execution-control 的 durable product finalization 明确确认 run 已被
+持久执行；它先于 `markAdmitted` 到达，或本地确认失败后 claim 已归还 `pending_admission` 时，锁内均将
+准入状态归一化为 `admitted` 后提交终态。本地取消已经取得的 `cancelled` 不得被覆盖，尚未发生 durable
+admission 的本地终态归为 `admission_failed`。这样 callback、admission 确认和取消竞争只由同一产品行
+裁决，不依赖调用返回顺序。
 
 产品终态的 replay 身份是 `(finalization_fingerprint, canonical completed_at)`。两项都与已提交值
 表示同一 fingerprint 和同一时刻时为精确 replay，必须零写入并返回 `replayed`；fingerprint 或时刻

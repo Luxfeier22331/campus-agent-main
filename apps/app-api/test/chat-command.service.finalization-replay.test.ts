@@ -75,6 +75,7 @@ describe("chat command finalization replay", () => {
 		});
 
 		expect(finalWrites).toHaveLength(1);
+		expect(finalWrites[0]?.durableAdmissionConfirmed).toBe(true);
 		expect(telemetry.recordRequestFinalized).toHaveBeenCalledTimes(1);
 		expect(telemetry.recordRequestTransportError).not.toHaveBeenCalled();
 		await expect(
@@ -111,6 +112,7 @@ describe("chat command finalization replay", () => {
 		});
 
 		expect(finalWrites).toHaveLength(1);
+		expect(finalWrites[0]?.durableAdmissionConfirmed).toBe(false);
 		expect(telemetry.recordRequestFinalized).toHaveBeenCalledTimes(1);
 		await expect(
 			service.finalizeLocalCancellation?.({
@@ -162,6 +164,7 @@ describe("chat command finalization replay", () => {
 		await expect(service.dispatchPendingAdmissions?.()).resolves.toMatchObject({ failed: 1 });
 
 		expect(finalWrites).toHaveLength(1);
+		expect(finalWrites[0]?.durableAdmissionConfirmed).toBe(false);
 		expect(telemetry.recordRequestFinalized).toHaveBeenCalledTimes(1);
 		expect(telemetry.recordRequestTransportError).toHaveBeenCalledTimes(1);
 	});

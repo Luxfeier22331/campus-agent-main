@@ -331,6 +331,7 @@ export function buildFinalizedWrite(input: {
 	conversation: ChatConversation;
 	conversationTitle: string;
 	completedAt: string;
+	durableAdmissionConfirmed?: boolean;
 	durationMs: number;
 	principal: ResolvedAppPrincipal;
 	projectionCloseoutMs?: number | null;
@@ -464,6 +465,7 @@ export function buildFinalizedWrite(input: {
 	const write: FinalizeRequestWrite = {
 		assistantMessage,
 		conversationTitle: input.conversationTitle,
+		durableAdmissionConfirmed: input.durableAdmissionConfirmed ?? false,
 		ownerUserId: input.conversation.ownerUserId,
 		turnDispatch: {
 			requestId: input.requestId,
