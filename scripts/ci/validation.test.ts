@@ -58,11 +58,12 @@ test("keeps native, database, infrastructure, OTel, and browser checks manual", 
 	}
 });
 
-test("maps lockfiles to dependency and toolchain checks only", () => {
-	assert.deepEqual(profiles(["pnpm-lock.yaml"]), ["dependencies", "toolchain"]);
-	assert.deepEqual(profiles(["uv.lock"]), ["dependencies"]);
-	assert.deepEqual(profiles(["Cargo.lock"]), ["dependencies"]);
-	assert.deepEqual(profiles(["apps/execution-control/go.sum"]), ["dependencies"]);
+test("keeps mutable vulnerability scans out of pull request profiles", () => {
+	assert.deepEqual(profiles(["pnpm-lock.yaml"]), ["toolchain"]);
+	assert.deepEqual(profiles(["pnpm-workspace.yaml"]), ["toolchain"]);
+	assert.deepEqual(profiles(["uv.lock"]), []);
+	assert.deepEqual(profiles(["Cargo.lock"]), []);
+	assert.deepEqual(profiles(["apps/execution-control/go.sum"]), []);
 });
 
 test("selects toolchain evidence for release adapter changes", () => {

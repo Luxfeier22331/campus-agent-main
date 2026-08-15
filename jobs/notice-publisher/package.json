@@ -6,7 +6,6 @@
 	"type": "module",
 	"scripts": {
 		"backfill-attachment-links": "tsx src/cli.ts backfill-attachment-links",
-		"build": "esbuild src/cli.ts --bundle --format=esm --outfile=dist/cli.js --platform=node --target=node24",
 		"migrate": "tsx src/cli.ts migrate",
 		"publish": "tsx src/cli.ts publish",
 		"test": "vitest run --exclude 'test/**/*.integration.test.ts'",
@@ -23,7 +22,6 @@
 		"@testcontainers/postgresql": "12.0.4",
 		"@types/node": "^24.13.2",
 		"@types/pg": "^8.15.6",
-		"esbuild": "0.28.2",
 		"tsx": "^4.23.0",
 		"typescript": "^5.8.2",
 		"vitest": "^4.1.10"

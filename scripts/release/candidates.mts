@@ -12,7 +12,6 @@ const IMAGE_PACKAGES = new Map<string, readonly string[]>([
 	["agent-runtime", ["agent-runtime"]],
 	["app-api-schema", ["app-api-schema"]],
 	["execution-control", ["execution-control"]],
-	["notice-publisher", ["notice-publisher"]],
 	["ops-web", ["ops-web"]],
 ]);
 const ALL_IMAGES = [...new Set([...IMAGE_PACKAGES.values()].flat())].sort();

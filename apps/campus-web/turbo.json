@@ -15,6 +15,10 @@
 				"vite.config.ts",
 				"wrangler*.toml",
 				"$TURBO_ROOT$/configs/branding/web-public/**",
+				"$TURBO_ROOT$/configs/sources/internal-portal.json",
+				"$TURBO_ROOT$/packages/contracts/package.json",
+				"$TURBO_ROOT$/packages/contracts/schemas/**",
+				"$TURBO_ROOT$/packages/contracts/src/**",
 				"$TURBO_ROOT$/packages/domains/dining/package.json",
 				"$TURBO_ROOT$/packages/domains/dining/src/**",
 				"$TURBO_ROOT$/packages/ui/package.json",
@@ -43,6 +47,10 @@
 				"vite.config.ts",
 				"wrangler*.toml",
 				"$TURBO_ROOT$/configs/branding/web-public/**",
+				"$TURBO_ROOT$/configs/sources/internal-portal.json",
+				"$TURBO_ROOT$/packages/contracts/package.json",
+				"$TURBO_ROOT$/packages/contracts/schemas/**",
+				"$TURBO_ROOT$/packages/contracts/src/**",
 				"$TURBO_ROOT$/packages/domains/dining/package.json",
 				"$TURBO_ROOT$/packages/domains/dining/src/**",
 				"$TURBO_ROOT$/packages/ui/package.json",
@@ -71,6 +79,10 @@
 				"vite.config.ts",
 				"wrangler*.toml",
 				"$TURBO_ROOT$/configs/branding/web-public/**",
+				"$TURBO_ROOT$/configs/sources/internal-portal.json",
+				"$TURBO_ROOT$/packages/contracts/package.json",
+				"$TURBO_ROOT$/packages/contracts/schemas/**",
+				"$TURBO_ROOT$/packages/contracts/src/**",
 				"$TURBO_ROOT$/packages/domains/dining/package.json",
 				"$TURBO_ROOT$/packages/domains/dining/src/**",
 				"$TURBO_ROOT$/packages/ui/package.json",
@@ -92,6 +104,7 @@
 				"!README.md",
 				"!**/README.md",
 				"$TURBO_ROOT$/configs/branding/**",
+				"$TURBO_ROOT$/configs/sources/internal-portal.json",
 				"$TURBO_ROOT$/scripts/deploy/**"
 			]
 		},
@@ -113,6 +126,7 @@
 				"vite.config.ts",
 				"wrangler*.toml",
 				"$TURBO_ROOT$/configs/branding/**",
+				"$TURBO_ROOT$/configs/sources/internal-portal.json",
 				"$TURBO_ROOT$/packages/domains/dining/**",
 				"$TURBO_ROOT$/packages/ui/**"
 			]
@@ -127,11 +141,18 @@
 				"vitest.worker.config.mts",
 				"wrangler.test.toml",
 				"$TURBO_ROOT$/configs/branding/**",
+				"$TURBO_ROOT$/configs/sources/internal-portal.json",
 				"$TURBO_ROOT$/scripts/deploy/**"
 			]
 		},
 		"typecheck": {
-			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md", "$TURBO_ROOT$/scripts/deploy/**"]
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/configs/sources/internal-portal.json",
+				"$TURBO_ROOT$/scripts/deploy/**"
+			]
 		}
 	}
 }

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -29,21 +29,19 @@ function bakePrint(targets: string[]): CommandResult {
 	});
 }
 
-test("keeps notice-publisher in the Docker Bake default release group", async () => {
+test("every Docker Bake target references an existing Dockerfile", async () => {
 	const bake = await readFile(path.join(REPOSITORY_ROOT, "docker-bake.hcl"), "utf8");
-	const defaultGroup = bake.match(/group\s+"default"\s*\{([\s\S]*?)\n\s*\}/u)?.[1];
-	assert(defaultGroup);
-	assert.match(defaultGroup, /"notice-publisher"/u);
-	assert.match(
-		bake,
-		/target\s+"notice-publisher"\s*\{[\s\S]*?dockerfile\s*=\s*"jobs\/notice-publisher\/Dockerfile"/u,
+	const dockerfiles = [...bake.matchAll(/^\s*dockerfile\s*=\s*"([^"]+)"\s*$/gmu)].map(
+		(match) => match[1],
 	);
-});
-
-test("keeps notice-publisher in the Docker build context", async () => {
-	const dockerignore = await readFile(path.join(REPOSITORY_ROOT, ".dockerignore"), "utf8");
-	assert.match(dockerignore, /^!jobs\/notice-publisher\/$/mu);
-	assert.match(dockerignore, /^!jobs\/notice-publisher\/\*\*$/mu);
+	assert(dockerfiles.length > 0);
+	for (const dockerfile of dockerfiles) {
+		assert(dockerfile);
+		await assert.doesNotReject(
+			access(path.join(REPOSITORY_ROOT, dockerfile)),
+			`${dockerfile} must exist`,
+		);
+	}
 });
 
 function manifest(

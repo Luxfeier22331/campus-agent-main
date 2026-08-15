@@ -206,6 +206,9 @@ importers:
       '@types/pg':
         specifier: ^8.21.0
         version: 8.21.0
+      campus-web:
+        specifier: workspace:*
+        version: link:../campus-web
       drizzle-kit:
         specifier: ^0.31.10
         version: 0.31.10
@@ -679,6 +682,9 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^6.0.5
         version: 6.0.5(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.12)(yaml@2.9.0))
+      app-api:
+        specifier: workspace:*
+        version: link:../app-api
       campus-contracts:
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -864,9 +870,6 @@ importers:
       '@types/pg':
         specifier: ^8.15.6
         version: 8.21.0
-      esbuild:
-        specifier: 0.28.2
-        version: 0.28.2
       tsx:
         specifier: ^4.23.0
         version: 4.23.12

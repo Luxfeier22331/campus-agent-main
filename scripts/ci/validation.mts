@@ -115,19 +115,6 @@ function selectValidationProfiles(scope: AffectedScope): ValidationProfile[] {
 	if (
 		files.some(
 			(file) =>
-				file === "pnpm-lock.yaml" ||
-				file === "pnpm-workspace.yaml" ||
-				file === "uv.lock" ||
-				file === "Cargo.lock" ||
-				file.endsWith("/go.mod") ||
-				file.endsWith("/go.sum"),
-		)
-	) {
-		selected.add("dependencies");
-	}
-	if (
-		files.some(
-			(file) =>
 				file === "docker-bake.hcl" ||
 				file === "pnpm-lock.yaml" ||
 				file === "pnpm-workspace.yaml" ||

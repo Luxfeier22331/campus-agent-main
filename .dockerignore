@@ -16,6 +16,8 @@ apps/source-collector/**/.env.*
 !apps/app-api/**
 apps/app-api/.env
 apps/app-api/.dev.vars
+!apps/campus-web/
+!apps/campus-web/package.json
 !apps/execution-control/
 !apps/execution-control/**
 !apps/ingestion-control/
@@ -24,8 +26,6 @@ apps/app-api/.dev.vars
 !apps/ops-web/**
 !jobs/app-api-schema/
 !jobs/app-api-schema/**
-!jobs/notice-publisher/
-!jobs/notice-publisher/**
 !packages/domains/
 !packages/domains/**
 !configs/ingestion/

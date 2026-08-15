@@ -18,6 +18,16 @@ function inputsFor(tasks: JsonObject, task: string): string[] {
 	return inputs as string[];
 }
 
+function assertTaskInputs(config: string, taskNames: string[], requiredInputs: string[]): void {
+	const tasks = readJson(config).tasks as JsonObject;
+	for (const task of taskNames) {
+		const inputs = inputsFor(tasks, task);
+		for (const input of requiredInputs) {
+			assert(inputs.includes(input), `${config} ${task} must include ${input}`);
+		}
+	}
+}
+
 test("Turbo affected selection uses task inputs and no phantom CI tasks", () => {
 	const turbo = readJson("turbo.json");
 	const tasks = turbo.tasks as JsonObject;
@@ -80,4 +90,47 @@ test("Campus Web formal build remains uncached because it reads mutable object s
 	const tasks = campusTurbo.tasks as JsonObject;
 	const build = tasks.build as JsonObject;
 	assert.equal(build.cache, false);
+});
+
+test("candidate build tasks declare their package-external artifact inputs", () => {
+	assertTaskInputs(
+		"apps/app-api/turbo.json",
+		["build:worker"],
+		[
+			"$TURBO_ROOT$/configs/sources/internal-portal.json",
+			"$TURBO_ROOT$/packages/contracts/package.json",
+			"$TURBO_ROOT$/packages/contracts/src/**",
+		],
+	);
+	assertTaskInputs(
+		"apps/campus-web/turbo.json",
+		["build", "build:test", "build:worker"],
+		[
+			"$TURBO_ROOT$/configs/sources/internal-portal.json",
+			"$TURBO_ROOT$/packages/contracts/package.json",
+			"$TURBO_ROOT$/packages/contracts/schemas/**",
+			"$TURBO_ROOT$/packages/contracts/src/**",
+		],
+	);
+	assertTaskInputs(
+		"turbo.json",
+		["ops-web#build"],
+		[
+			"$TURBO_ROOT$/configs/sources/internal-portal.json",
+			"$TURBO_ROOT$/packages/contracts/package.json",
+			"$TURBO_ROOT$/packages/contracts/src/**",
+		],
+	);
+});
+
+test("tasks compiling the internal portal descriptor declare it as an affected input", () => {
+	const descriptor = "$TURBO_ROOT$/configs/sources/internal-portal.json";
+	assertTaskInputs("apps/app-api/turbo.json", ["test", "test:worker", "typecheck"], [descriptor]);
+	assertTaskInputs(
+		"apps/campus-web/turbo.json",
+		["test", "test:e2e:smoke", "test:worker", "typecheck"],
+		[descriptor],
+	);
+	assertTaskInputs("apps/ops-web/turbo.json", ["test:browser"], [descriptor]);
+	assertTaskInputs("turbo.json", ["ops-web#test", "ops-web#typecheck"], [descriptor]);
 });

@@ -10,11 +10,9 @@ group "default" {
   targets = [
     "agent-runtime",
     "app-api-schema",
-    "dining-sync",
     "execution-control",
     "ingestion-control",
     "ingestion-control-worker",
-    "notice-publisher",
     "ops-web",
     "source-collector",
   ]
@@ -40,11 +38,6 @@ target "app-api-schema" {
   dockerfile = "jobs/app-api-schema/Dockerfile"
 }
 
-target "dining-sync" {
-  inherits   = ["_common"]
-  dockerfile = "jobs/dining-sync/Dockerfile"
-}
-
 target "execution-control" {
   inherits   = ["_common"]
   dockerfile = "apps/execution-control/Dockerfile"
@@ -65,11 +58,6 @@ target "ingestion-control-worker" {
 target "ops-web" {
   inherits   = ["_common"]
   dockerfile = "apps/ops-web/Dockerfile"
-}
-
-target "notice-publisher" {
-  inherits   = ["_common"]
-  dockerfile = "jobs/notice-publisher/Dockerfile"
 }
 
 target "source-collector" {

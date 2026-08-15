@@ -67,9 +67,9 @@ Nix 不接管 `pnpm-lock.yaml`、`uv.lock`、
 
 自动 PR 保留一个稳定的 `repo-checks` hosted 门禁；Draft PR 跳过 job，转为 ready 后运行。门禁始终运行 `pnpm check` 和 authored commit range
 的 Gitleaks，并按 planner 选择合同、GitHub Actions、Python、YAML、SQL 和 Shell 静态检查；需要时在
-同一个 job 一次 checkout，并在根工具链安装后串行执行 `affected-node`、
-`dependencies` 或 `toolchain`。若选择 `affected-node`，再扩展安装受影响 workspace；没有受影响 Node
-证据时不执行这次扩展安装，但始终返回明确结果。
+同一个 job 一次 checkout，并在根工具链安装后串行执行 `affected-node` 或 `toolchain`。若选择
+`affected-node`，再扩展安装受影响 workspace；没有受影响 Node 证据时不执行这次扩展安装，但始终
+返回明确结果。依赖漏洞数据会在没有 PR 改动时变化，不作为 PR 阻塞 profile。
 
 PR checkout 使用 GitHub 生成的 merge revision，普通 PR 不发布镜像或 Worker，不访问 staging、provider
 state、集群或真实外部服务。candidate 不自动运行数据库、浏览器、原生、OTel 或其他完整 profile；需要
@@ -91,7 +91,7 @@ state、集群或真实外部服务。candidate 不自动运行数据库、浏�
 | eval package、Ragas adapter 或 eval contract | 所属 package test；跨语言适配器使用手动 `ragas` profile |
 | migration 或数据库权限 | 对应 PostgreSQL 子入口与模块测试 |
 | `.github/**` | `pnpm check`、`actionlint` 与 `zizmor --min-severity=medium .github` |
-| dependency manifest 或 lockfile | `scripts/dependencies/scan.sh` 与受影响模块检查 |
+| dependency manifest 或 lockfile | frozen lockfile 安装与受影响模块检查；OSV 使用手动或定时入口 |
 | Dockerfile、Bake 或发布适配器 | `pnpm test`、`docker buildx bake --print`；需要构建证据时手动运行 Docker profile |
 | K8s 或 deployment source | `scripts/infra/validate.sh` 与明确的环境验收 |
 
@@ -102,8 +102,9 @@ state、集群或真实外部服务。candidate 不自动运行数据库、浏�
 安装 action 获取 Nix 2.35.1，并使用同一 flake，不维护第二套 CLI 安装路径。
 
 依赖 advisory 可以在没有代码变化时变化，因此每周一 `02:35 UTC` 在 hosted runner 运行一次
-`scripts/dependencies/scan.sh`；lockfile 变化仍在对应 PR profile 中运行同一入口。仓库不保存未被消费的扫描 JSON
-artifact，也不把 dependency scan 的成功结果当作应用行为或镜像安全证据。
+`scripts/dependencies/scan.sh`，并保留同一手动入口。PR 通过 frozen lockfile 安装和受影响模块证据验证
+依赖变更，不根据实时全仓 advisory 结果阻塞。仓库不保存未被消费的扫描 JSON artifact，也不把
+dependency scan 的成功结果当作应用行为或镜像安全证据。
 
 ## 测试与缓存
 

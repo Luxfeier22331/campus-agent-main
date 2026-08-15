@@ -123,8 +123,8 @@ source bucket 只由 source-collector 和显式 publisher 使用，不向 Worker
 - Campus Web 只通过 App API 读取规范化通知；
 - Ops Web 拥有内部门户凭据，execution-control、Agent 与 RAG 不连接通知来源或 schema。
 
-`infra/k8s/notice-publication` 只提供 schema Job 和 publisher 角色制品，不表示任一环境已经选择、写入或
-开放这套数据。
+通知 publisher 只作为本地显式写入入口维护，不属于 Kubernetes 或 GitOps 在线拓扑；本地投影结果不表示
+任一环境已经选择、写入或开放这套数据。
 
 ## 相关文档
 

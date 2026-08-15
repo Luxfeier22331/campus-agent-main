@@ -9,7 +9,10 @@
 				"src/**",
 				"tsconfig.json",
 				"wrangler*.toml",
+				"$TURBO_ROOT$/configs/sources/internal-portal.json",
 				"$TURBO_ROOT$/configs/runtime/latency-budgets.v1.json",
+				"$TURBO_ROOT$/packages/contracts/package.json",
+				"$TURBO_ROOT$/packages/contracts/src/**",
 				"$TURBO_ROOT$/packages/domains/dining/package.json",
 				"$TURBO_ROOT$/packages/domains/dining/src/**",
 				"$TURBO_ROOT$/packages/langfuse-identity/package.json",
@@ -26,6 +29,7 @@
 				"$TURBO_DEFAULT$",
 				"!README.md",
 				"!**/README.md",
+				"$TURBO_ROOT$/configs/sources/internal-portal.json",
 				"$TURBO_ROOT$/configs/runtime/**",
 				"$TURBO_ROOT$/jobs/app-api-schema/**",
 				"$TURBO_ROOT$/package.json",
@@ -71,6 +75,7 @@
 				"tsconfig.json",
 				"vitest.worker.config.mts",
 				"wrangler*.toml",
+				"$TURBO_ROOT$/configs/sources/internal-portal.json",
 				"$TURBO_ROOT$/configs/runtime/latency-budgets.v1.json",
 				"$TURBO_ROOT$/scripts/deploy/**"
 			]
@@ -80,6 +85,7 @@
 				"$TURBO_DEFAULT$",
 				"!README.md",
 				"!**/README.md",
+				"$TURBO_ROOT$/configs/sources/internal-portal.json",
 				"$TURBO_ROOT$/configs/runtime/latency-budgets.v1.json",
 				"$TURBO_ROOT$/scripts/deploy/**",
 				"$TURBO_ROOT$/scripts/smoke/**"

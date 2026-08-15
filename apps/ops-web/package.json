@@ -66,6 +66,7 @@
 		"@campus-agent/dining": "workspace:*",
 		"@campus-agent/langfuse-identity": "workspace:*",
 		"@campus-agent/ui": "workspace:*",
+		"app-api": "workspace:*",
 		"@playwright/test": "^1.62.1",
 		"@tailwindcss/vite": "^4.3.3",
 		"@testcontainers/postgresql": "12.1.0",

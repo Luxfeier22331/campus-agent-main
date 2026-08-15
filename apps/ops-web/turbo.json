@@ -11,6 +11,7 @@
 				"test/browser-server.ts",
 				"vite.config.ts",
 				"vite.ops.config.ts",
+				"$TURBO_ROOT$/configs/sources/internal-portal.json",
 				"$TURBO_ROOT$/packages/internal-portal-client/**",
 				"$TURBO_ROOT$/packages/ui/**"
 			]
